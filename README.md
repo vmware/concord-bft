@@ -28,7 +28,7 @@ Blockchains](https://arxiv.org/pdf/1804.01626.pdf).
 Releases
 ----
 
-<!-- [0.5](https://link-to-the-release) -->
+ [v0.5](https://github.com/vmware/concord-bft/releases/tag/v0.5)
 
 
 Roadmap
