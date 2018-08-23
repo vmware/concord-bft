@@ -1,3 +1,6 @@
+<img src="logoConcord.png"/>
+
+
 # Concord-BFT: a Distributed Trust Infrastructure
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -5,7 +8,6 @@
 
 
 <!-- ![Concored-bft Logo](TBD) -->
-
 
 <!-- <img src="TODO.jpg" width="200" height="200" /> -->
 
