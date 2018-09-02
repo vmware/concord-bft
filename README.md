@@ -47,7 +47,9 @@ refer to [CONTRIBUTING.md](CONTRIBUTING.md).
 Community
 ----
 
-[Concord-BFT Slack](https://concordbft.slack.com/)
+[Concord-BFT Slack](https://concordbft.slack.com/).
+
+Get Slack invitation via this [link](https://join.slack.com/t/concordbft/shared_invite/enQtNDI4NjYzMTk5ODMxLWI3ZTc0MTQzNzFhZTNmNDRkM2I0YTZkMWZkMDAwYzg4YTA0YzViNjIyZTIzMjk2YjI5NGZkYzdkMTIyODJhZjI) or send request to <concordbft@gmail.com>. 
 
 
 
