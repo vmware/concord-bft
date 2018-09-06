@@ -188,8 +188,8 @@ bool ViewsManager::add(ViewChangeMsg* m) {
 
 // used to sort view numbers
 static int compareViews(const void * a, const void * b) {
-  ViewNum x = *((ViewNum*)a);
-  ViewNum y = *((ViewNum*)b);
+  ViewNum x = *reinterpret_cast<const ViewNum*>(a);
+  ViewNum y = *reinterpret_cast<const ViewNum*>(b);
 
   if (x > y)
     return (-1);
@@ -209,7 +209,8 @@ void ViewsManager::computeCorrectRelevantViewNumbers(
   outMaxKnownAgreedView = myLatestPendingView;
 
   size_t numOfVC = 0;
-  ViewNum* viewNumbers = (ViewNum*)alloca(N * sizeof(ViewNum));
+  ViewNum* viewNumbers =
+     reinterpret_cast<ViewNum*>(alloca(N * sizeof(ViewNum)));
   for (uint16_t i = 0; i < N; i++) {
     ViewChangeMsg* vc = viewChangeMessages[i];
     if (i == myId) vc = getMyLatestViewChangeMsg();
@@ -336,7 +337,7 @@ ViewChangeMsg* ViewsManager::exitFromCurrentView(
         Assert(elemInPrev->originView <= myLatestActiveView);
 
         // convert to PreparedCertificate
-        char* x = (char*)elemInPrev;
+        char* x = reinterpret_cast<char*>(elemInPrev);
         x = x + sizeof(ViewChangeMsg::Element);
         preparedCertInPrev = (ViewChangeMsg::PreparedCertificate*)x;
 
@@ -367,7 +368,7 @@ ViewChangeMsg* ViewsManager::exitFromCurrentView(
       // not executed before the beginning of the recent view ==> we don't have
       // to use the prepared certificate
 
-      char* sig = ((char*)preparedCertInPrev) +
+      char* sig = reinterpret_cast<char*>(preparedCertInPrev) +
         sizeof(ViewChangeMsg::PreparedCertificate);
 
       myNewVC->addElement(*replicasInfo,
@@ -487,14 +488,16 @@ bool ViewsManager::tryToEnterView(
         printf("\n");
         printf("Seqnum=%" PRId64 ", isNull=%d, digestPrefix=%d .     ",
                i,
-               (int)restrictionsOfPendingView[idx].isNull,
-               *((int*)restrictionsOfPendingView[idx].digest.content()));
+               static_cast<int>(restrictionsOfPendingView[idx].isNull),
+               *reinterpret_cast<int*>(
+                 restrictionsOfPendingView[idx].digest.content()));
         if (prePrepareMsgsOfRestrictions[idx] == nullptr)
           printf("PP=null .");
         else
           printf("PP seq=%" PRId64 ", digestPrefix=%d .",
                  prePrepareMsgsOfRestrictions[idx]->seqNumber(),
-                 *((int*)prePrepareMsgsOfRestrictions[idx]->
+                 *reinterpret_cast<int*>(
+                   prePrepareMsgsOfRestrictions[idx]->
                    digestOfRequests().content()));
         printf("\n");
       }
