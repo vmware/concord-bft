@@ -55,8 +55,8 @@ class ViewsManager {
   bool add(NewViewMsg* m);
   bool add(ViewChangeMsg* m);
 
-  void computeCorrectRelevantViewNumbers(ViewNum& outMaxKnownCorrectView,
-                                         ViewNum& outMaxKnownAgreedView) const;
+  void computeCorrectRelevantViewNumbers(ViewNum* outMaxKnownCorrectView,
+                                         ViewNum* outMaxKnownAgreedView) const;
 
   // should only be called when v >= myLatestPendingView
   bool hasNewViewMessage(ViewNum v);
@@ -90,7 +90,7 @@ class ViewsManager {
   bool tryToEnterView(ViewNum v,
                       SeqNum currentLastStable,
                       SeqNum currentLastExecuted,
-                      std::vector<PrePrepareMsg*>& outPrePrepareMsgsOfView);
+                      std::vector<PrePrepareMsg*>* outPrePrepareMsgsOfView);
 
   bool addPotentiallyMissingPP(PrePrepareMsg* p, SeqNum currentLastStable);
 
@@ -99,8 +99,8 @@ class ViewsManager {
 
   // TODO(GG): we should also handle large Requests
 
-  bool getNumbersOfMissingPP(std::vector<SeqNum>& outMissingPPNumbers,
-                             SeqNum currentLastStable);
+  bool getNumbersOfMissingPP(SeqNum currentLastStable,
+                             std::vector<SeqNum>* outMissingPPNumbers);
 
   bool hasViewChangeMessageForFutureView(uint16_t repId);
 

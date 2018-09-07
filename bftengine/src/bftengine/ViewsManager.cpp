@@ -201,12 +201,12 @@ static int compareViews(const void * a, const void * b) {
 
 // TODO(GG): optimize this method.
 void ViewsManager::computeCorrectRelevantViewNumbers(
-  ViewNum& outMaxKnownCorrectView, ViewNum& outMaxKnownAgreedView) const {
+  ViewNum* outMaxKnownCorrectView, ViewNum* outMaxKnownAgreedView) const {
   const uint16_t CORRECT = (F + 1);
   const uint16_t SMAJOR = (2 * F + 2 * C + 1);
 
-  outMaxKnownCorrectView = myLatestPendingView;
-  outMaxKnownAgreedView = myLatestPendingView;
+  *outMaxKnownCorrectView = myLatestPendingView;
+  *outMaxKnownAgreedView = myLatestPendingView;
 
   size_t numOfVC = 0;
   ViewNum* viewNumbers =
@@ -227,12 +227,12 @@ void ViewsManager::computeCorrectRelevantViewNumbers(
 
   Assert(viewNumbers[0] >= viewNumbers[numOfVC - 1]);
 
-  outMaxKnownCorrectView = viewNumbers[CORRECT - 1];
+  *outMaxKnownCorrectView = viewNumbers[CORRECT - 1];
 
 
   if (numOfVC < SMAJOR) return;
 
-  outMaxKnownAgreedView = viewNumbers[SMAJOR - 1];
+  *outMaxKnownAgreedView = viewNumbers[SMAJOR - 1];
 }
 
 bool ViewsManager::hasNewViewMessage(ViewNum v) {
@@ -420,11 +420,11 @@ bool ViewsManager::tryToEnterView(
   ViewNum v,
   SeqNum currentLastStable,
   SeqNum currentLastExecuted,
-  std::vector<PrePrepareMsg*>& outPrePrepareMsgsOfView) {
+  std::vector<PrePrepareMsg*>* outPrePrepareMsgsOfView) {
   Assert(stat != Stat::IN_VIEW);
   Assert(v > myLatestActiveView);
   Assert(v >= myLatestPendingView);
-  Assert(outPrePrepareMsgsOfView.empty());
+  Assert(outPrePrepareMsgsOfView->empty());
 
   // debug lines
   Assert((v >= debugHighestViewNumberPassedByClient) &&
@@ -553,13 +553,13 @@ bool ViewsManager::tryToEnterView(
         // TODO(GG): do we want to start from the slow path in these cases?
         PrePrepareMsg* pp = PrePrepareMsg::createNullPrePrepareMsg(
           myId, myLatestActiveView, i);
-        outPrePrepareMsgsOfView.push_back(pp);
+        outPrePrepareMsgsOfView->push_back(pp);
       } else {
         PrePrepareMsg* pp = prePrepareMsgsOfRestrictions[idx];
         Assert(pp != nullptr && pp->seqNumber() == i);
         // TODO(GG): do we want to start from the slow path in these cases?
         pp->updateView(myLatestActiveView);
-        outPrePrepareMsgsOfView.push_back(pp);
+        outPrePrepareMsgsOfView->push_back(pp);
         prePrepareMsgsOfRestrictions[idx] = nullptr;
 
         // if needed, remove from collectionOfPrePrepareMsgs (becuase we don't
@@ -758,9 +758,9 @@ bool ViewsManager::hasMissingMsgs(SeqNum currentLastStable) {
 
 // TODO(GG): consider to optimize
 bool ViewsManager::getNumbersOfMissingPP(
-  std::vector<SeqNum>& outMissingPPNumbers,
-  SeqNum currentLastStable) {
-  Assert(outMissingPPNumbers.size() == 0);
+  SeqNum currentLastStable,
+  std::vector<SeqNum>* outMissingPPNumbers) {
+  Assert(outMissingPPNumbers->size() == 0);
 
   if (stat != Stat::PENDING_WITH_RESTRICTIONS)
     return false;
@@ -776,10 +776,10 @@ bool ViewsManager::getNumbersOfMissingPP(
 
     if ((!restrictionsOfPendingView[idx].isNull) &&
         (prePrepareMsgsOfRestrictions[idx] == nullptr))
-      outMissingPPNumbers.push_back(i);
+      outMissingPPNumbers->push_back(i);
   }
 
-  return (outMissingPPNumbers.size() > 0);
+  return (outMissingPPNumbers->size() > 0);
 }
 
 void ViewsManager::resetDataOfLatestPendingAndKeepMyViewChange() {

@@ -1748,7 +1748,7 @@ namespace bftEngine
 			else if (listOfMissingPPMsg)
 			{
 				std::vector<SeqNum> missPP;
-				if (viewsManager->getNumbersOfMissingPP(missPP, lastStableSeqNum))
+				if (viewsManager->getNumbersOfMissingPP(lastStableSeqNum, &missPP))
 				{
 					for (SeqNum i : missPP)
 					{
@@ -1787,7 +1787,7 @@ namespace bftEngine
 
 			ViewNum maxKnownCorrectView = 0;
 			ViewNum maxKnownAgreedView = 0;
-			viewsManager->computeCorrectRelevantViewNumbers(maxKnownCorrectView, maxKnownAgreedView);
+			viewsManager->computeCorrectRelevantViewNumbers(&maxKnownCorrectView, &maxKnownAgreedView);
 			Logger::printInfo("maxKnownCorrectView=%" PRId64 ", maxKnownAgreedView=%" PRId64 "", maxKnownCorrectView, maxKnownAgreedView);
 
 			if (maxKnownCorrectView > curView)
@@ -1796,7 +1796,7 @@ namespace bftEngine
 				MoveToHigherView(maxKnownCorrectView);
 
 				// update maxKnownCorrectView and maxKnownAgreedView			// TODO(GG): consider to optimize (this part is not always needed)
-				viewsManager->computeCorrectRelevantViewNumbers(maxKnownCorrectView, maxKnownAgreedView);
+				viewsManager->computeCorrectRelevantViewNumbers(&maxKnownCorrectView, &maxKnownAgreedView);
 				Logger::printInfo("maxKnownCorrectView=%" PRId64 ", maxKnownAgreedView=%" PRId64 "", maxKnownCorrectView, maxKnownAgreedView);
 			}
 
@@ -1921,7 +1921,7 @@ namespace bftEngine
 			Logger::printInfo("**************** Calling to viewsManager->tryToEnterView(curView=%" PRId64 ", lastStableSeqNum=%" PRId64 ", lastExecutedSeqNum=%" PRId64 ")",
 				curView, lastStableSeqNum, lastExecutedSeqNum);
 
-			bool succ = viewsManager->tryToEnterView(curView, lastStableSeqNum, lastExecutedSeqNum, prePreparesForNewView);
+			bool succ = viewsManager->tryToEnterView(curView, lastStableSeqNum, lastExecutedSeqNum, &prePreparesForNewView);
 
 			if (succ)
 				onNewView(prePreparesForNewView);
