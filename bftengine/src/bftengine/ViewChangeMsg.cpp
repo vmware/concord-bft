@@ -44,10 +44,10 @@ namespace bftEngine
 			bool   hasPreparedCertificate, ViewNum     certificateView,
 			uint16_t certificateSigLength, const char* certificateSig)
 		{
-			Assert(b()->numberOfElements < workWindowSize);
+			Assert(b()->numberOfElements < kWorkWindowSize);
 			Assert(b()->numberOfElements > 0 || b()->locationAfterLast == 0);
 			Assert(seqNum > b()->lastStable);
-			Assert(seqNum <= b()->lastStable + workWindowSize);
+			Assert(seqNum <= b()->lastStable + kWorkWindowSize);
 
 			if (b()->locationAfterLast == 0) // if this is the first element
 			{
@@ -150,7 +150,7 @@ namespace bftEngine
 				if (pElement->seqNum <= lastSeqNumInMsg) return false; // elements should be sorted by seq number
 				lastSeqNumInMsg = pElement->seqNum;
 
-				if (lastSeqNumInMsg > lastStable() + workWindowSize) return false;
+				if (lastSeqNumInMsg > lastStable() + kWorkWindowSize) return false;
 
 				if (pElement->originView >= newView()) return false;
 

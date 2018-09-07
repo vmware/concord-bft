@@ -176,8 +176,8 @@ class ViewsManager {
 
   SeqNum minRestrictionOfPendingView;
   SeqNum maxRestrictionOfPendingView;
-  ViewChangeSafetyLogic::Restriction restrictionsOfPendingView[workWindowSize];
-  PrePrepareMsg* prePrepareMsgsOfRestrictions[workWindowSize];
+  ViewChangeSafetyLogic::Restriction restrictionsOfPendingView[kWorkWindowSize];
+  PrePrepareMsg* prePrepareMsgsOfRestrictions[kWorkWindowSize];
 
 
 

@@ -62,7 +62,7 @@ ViewsManager::ViewsManager(
   minRestrictionOfPendingView = 0;
   maxRestrictionOfPendingView = 0;
 
-  for (uint16_t i = 0; i < workWindowSize; i++) {
+  for (uint16_t i = 0; i < kWorkWindowSize; i++) {
     restrictionsOfPendingView[i].isNull = true;
     restrictionsOfPendingView[i].digest.makeZero();
     prePrepareMsgsOfRestrictions[i] = nullptr;
@@ -283,7 +283,7 @@ ViewChangeMsg* ViewsManager::exitFromCurrentView(
   const std::vector<PrevViewInfo>& prevViewInfo) {
   Assert(stat == Stat::IN_VIEW);
   Assert(myLatestActiveView == myLatestPendingView);
-  Assert(prevViewInfo.size() <= workWindowSize);
+  Assert(prevViewInfo.size() <= kWorkWindowSize);
   Assert(collectionOfPrePrepareMsgs.empty());
 
   Assert((currentLastStable >= debugHighestKnownStable));
@@ -403,7 +403,7 @@ ViewChangeMsg* ViewsManager::exitFromCurrentView(
       delete pp;
   }
 
-  Assert((debugExpected - currentLastStable) <= workWindowSize);
+  Assert((debugExpected - currentLastStable) <= kWorkWindowSize);
 
   resetDataOfLatestPendingAndKeepMyViewChange();
 
@@ -719,7 +719,7 @@ void ViewsManager::computeRestrictionsOfNewView(ViewNum v) {
          i++) {
       const int64_t idx = (i - minRestrictionOfPendingView);
 
-      Assert(idx < workWindowSize);
+      Assert(idx < kWorkWindowSize);
 
       Assert(prePrepareMsgsOfRestrictions[idx] == nullptr);
 
@@ -799,7 +799,7 @@ void ViewsManager::resetDataOfLatestPendingAndKeepMyViewChange() {
          i <= maxRestrictionOfPendingView;
          i++) {
       int64_t idx = i - minRestrictionOfPendingView;
-      Assert(idx < workWindowSize);
+      Assert(idx < kWorkWindowSize);
       auto pos = collectionOfPrePrepareMsgs.find(i);
       if (pos == collectionOfPrePrepareMsgs.end() ||
           pos->second != prePrepareMsgsOfRestrictions[idx])
@@ -832,7 +832,7 @@ bool ViewsManager::addPotentiallyMissingPP(PrePrepareMsg* p,
 
   if (hasRelevantRestriction) {
     const int64_t idx = s - minRestrictionOfPendingView;
-    Assert(idx < workWindowSize);
+    Assert(idx < kWorkWindowSize);
 
     ViewChangeSafetyLogic::Restriction& r = restrictionsOfPendingView[idx];
 
@@ -861,7 +861,7 @@ PrePrepareMsg*  ViewsManager::getPrePrepare(SeqNum s) {
     if (!hasRelevantRestriction) return nullptr;
 
     const int64_t idx = s - minRestrictionOfPendingView;
-    Assert(idx < workWindowSize);
+    Assert(idx < kWorkWindowSize);
 
     ViewChangeSafetyLogic::Restriction& r = restrictionsOfPendingView[idx];
 
