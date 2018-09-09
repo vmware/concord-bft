@@ -363,7 +363,7 @@ namespace bftEngine
 		{
 			Assert(isCurrentPrimary() && currentViewIsActive());
 
-			if (primaryLastUsedSeqNum + 1 > lastStableSeqNum + workWindowSize) return;
+			if (primaryLastUsedSeqNum + 1 > lastStableSeqNum + kWorkWindowSize) return;
 
 			if (primaryLastUsedSeqNum + 1 > lastExecutedSeqNum + maxConcurrentAgreementsByPrimary) return; // TODO(GG): should also be checked by the non-primary replicas
 
@@ -404,8 +404,8 @@ namespace bftEngine
 
 			primaryLastUsedSeqNum++;
 
-			// update batchingFactor 
-			if ((primaryLastUsedSeqNum % workWindowSize) == 0) // TODO(GG): do we want to update batchingFactor when the view is changed
+			// update batchingFactor
+			if ((primaryLastUsedSeqNum % kWorkWindowSize) == 0) // TODO(GG): do we want to update batchingFactor when the view is changed
 			{
 				const size_t aa = 4; // TODO(GG): read from configuration
 				batchingFactor = (maxNumberOfPendingRequestsInRecentHistory / aa);
@@ -475,7 +475,7 @@ namespace bftEngine
 				(mainLog->insideActiveWindow(msgSeqNum)))
 			{
 				Assert(msgSeqNum >  lastStableSeqNum);
-				Assert(msgSeqNum <= lastStableSeqNum + workWindowSize);
+				Assert(msgSeqNum <= lastStableSeqNum + kWorkWindowSize);
 
 				return true;
 			}
@@ -488,7 +488,7 @@ namespace bftEngine
 				}
 				else
 				{
-					const bool msgReplicaMayBeBehind = (curView > msgViewNum) || (msgSeqNum + workWindowSize < mainLog->currentActiveWindow().first);
+					const bool msgReplicaMayBeBehind = (curView > msgViewNum) || (msgSeqNum + kWorkWindowSize < mainLog->currentActiveWindow().first);
 
 					if (msgReplicaMayBeBehind) onReportAboutLateReplica(msg->senderId(), msgSeqNum, msgViewNum);
 				}
@@ -557,15 +557,15 @@ namespace bftEngine
 
 			const SeqNum minSeqNum = lastExecutedSeqNum + 1;
 
-			if (minSeqNum > lastStableSeqNum + workWindowSize)
+			if (minSeqNum > lastStableSeqNum + kWorkWindowSize)
 			{
-				Logger::printInfo("Replica::tryToStartSlowPaths() : minSeqNum > lastStableSeqNum + workWindowSize");
+				Logger::printInfo("Replica::tryToStartSlowPaths() : minSeqNum > lastStableSeqNum + kWorkWindowSize");
 				return;
 			}
 
 			const SeqNum maxSeqNum = primaryLastUsedSeqNum;
 
-			Assert(maxSeqNum <= lastStableSeqNum + workWindowSize);
+			Assert(maxSeqNum <= lastStableSeqNum + kWorkWindowSize);
 			Assert(minSeqNum <= maxSeqNum + 1);
 
 			if (minSeqNum > maxSeqNum)
@@ -618,7 +618,7 @@ namespace bftEngine
 		{
 			if (!currentViewIsActive() || stateTransfer->isCollectingState()) return;
 
-			Assert(maxSeqNumTransferredFromPrevViews <= lastStableSeqNum + workWindowSize);
+			Assert(maxSeqNumTransferredFromPrevViews <= lastStableSeqNum + kWorkWindowSize);
 
 			const bool recentViewChange = (maxSeqNumTransferredFromPrevViews > lastStableSeqNum);
 
@@ -629,22 +629,22 @@ namespace bftEngine
 			{
 				const int16_t searchWindow = 4; // TODO(GG): TBD - read from configuration
 				minSeqNum = lastExecutedSeqNum + 1;
-				maxSeqNum = std::min(minSeqNum + searchWindow - 1, lastStableSeqNum + workWindowSize);
+				maxSeqNum = std::min(minSeqNum + searchWindow - 1, lastStableSeqNum + kWorkWindowSize);
 			}
 			else
 			{
 				const int16_t searchWindow = 32; // TODO(GG): TBD - read from configuration
 				minSeqNum = lastStableSeqNum + 1;
-				while (minSeqNum <= lastStableSeqNum + workWindowSize)
+				while (minSeqNum <= lastStableSeqNum + kWorkWindowSize)
 				{
 					SeqNumInfo& seqNumInfo = mainLog->get(minSeqNum);
 					if (!seqNumInfo.isCommitted__gg()) break;
 					minSeqNum++;
 				}
-				maxSeqNum = std::min(minSeqNum + searchWindow - 1, lastStableSeqNum + workWindowSize);
+				maxSeqNum = std::min(minSeqNum + searchWindow - 1, lastStableSeqNum + kWorkWindowSize);
 			}
 
-			if (minSeqNum > lastStableSeqNum + workWindowSize) return;
+			if (minSeqNum > lastStableSeqNum + kWorkWindowSize) return;
 
 			const Time curTime = getMonotonicTime();
 
@@ -1260,7 +1260,7 @@ namespace bftEngine
 			Logger::printInfo("Node %d received Checkpoint message from node %d for seqNumber %" PRId64 " (size=%d, stable=%s, digestPrefix=%d)",
 				(int)myReplicaId, (int)msgSenderId, msgSeqNum, (int)msg->size(), (int)msgIsStable ? "true" : "false", *((int*)(&msgDigest)));
 
-			if ((msgSeqNum > lastStableSeqNum) && (msgSeqNum <= lastStableSeqNum + workWindowSize))
+			if ((msgSeqNum > lastStableSeqNum) && (msgSeqNum <= lastStableSeqNum + kWorkWindowSize))
 			{
 				Assert(mainLog->insideActiveWindow(msgSeqNum));
 				CheckpointInfo& checkInfo = checkpointsLog->get(msgSeqNum);
@@ -1310,7 +1310,7 @@ namespace bftEngine
 							else
 							{
 								numRelevant++;
-								if (tableItrator->second->seqNumber() > lastStableSeqNum + workWindowSize)
+								if (tableItrator->second->seqNumber() > lastStableSeqNum + kWorkWindowSize)
 									numRelevantAboveWindow++;
 								tableItrator++;
 							}
@@ -1339,11 +1339,11 @@ namespace bftEngine
 				Logger::printInfo("call to startCollectingState()");
 				stateTransfer->startCollectingState();
 			}
-			else if (msgSeqNum > lastStableSeqNum + workWindowSize)
+			else if (msgSeqNum > lastStableSeqNum + kWorkWindowSize)
 			{
 				onReportAboutAdvancedReplica(msgSenderId, msgSeqNum);
 			}
-			else if (msgSeqNum + workWindowSize < lastStableSeqNum)
+			else if (msgSeqNum + kWorkWindowSize < lastStableSeqNum)
 			{
 				onReportAboutLateReplica(msgSenderId, msgSeqNum);
 			}
@@ -1423,14 +1423,14 @@ namespace bftEngine
 			Assert(retransmissionsLogicEnabled);
 
 			if ((relatedViewNumber != curView) || (!currentViewIsActive())) return;
-			if (relatedLastStableSeqNum + workWindowSize <= lastStableSeqNum) return;
+			if (relatedLastStableSeqNum + kWorkWindowSize <= lastStableSeqNum) return;
 
 			const uint16_t myId = myReplicaId;
 			const uint16_t primaryId = currentPrimary();
 
 			for (const RetSuggestion& s : *suggestedRetransmissions)
 			{
-				if ((s.msgSeqNum <= lastStableSeqNum) || (s.msgSeqNum > lastStableSeqNum + workWindowSize)) continue;
+				if ((s.msgSeqNum <= lastStableSeqNum) || (s.msgSeqNum > lastStableSeqNum + kWorkWindowSize)) continue;
 
 				Assert(s.replicaId != myId);
 
@@ -1528,7 +1528,7 @@ namespace bftEngine
 			// Checkpoints
 			/////////////////////////////////////////////////////////////////////////
 
-			if (lastStableSeqNum > msgLastStable + workWindowSize)
+			if (lastStableSeqNum > msgLastStable + kWorkWindowSize)
 			{
 				CheckpointMsg* checkMsg = checkpointsLog->get(lastStableSeqNum).selfCheckpointMsg();
 
@@ -1544,7 +1544,7 @@ namespace bftEngine
 				delete msg;
 				return;
 			}
-			else if (msgLastStable > lastStableSeqNum + workWindowSize)
+			else if (msgLastStable > lastStableSeqNum + kWorkWindowSize)
 			{
 				tryToSendStatusReport(); // ask for help
 			}
@@ -1552,13 +1552,13 @@ namespace bftEngine
 			{
 				// Send checkpoints that may be useful for msgSenderId
 				const SeqNum beginRange = std::max(checkpointsLog->currentActiveWindow().first, msgLastStable + checkpointWindowSize);
-				const SeqNum endRange = std::min(checkpointsLog->currentActiveWindow().second, msgLastStable + workWindowSize);
+				const SeqNum endRange = std::min(checkpointsLog->currentActiveWindow().second, msgLastStable + kWorkWindowSize);
 
 				Assert(beginRange % checkpointWindowSize == 0);
 
 				if (beginRange <= endRange)
 				{
-					Assert(endRange - beginRange <= workWindowSize);
+					Assert(endRange - beginRange <= kWorkWindowSize);
 
 					for (SeqNum i = beginRange; i <= endRange; i = i + checkpointWindowSize)
 					{
@@ -1624,7 +1624,7 @@ namespace bftEngine
 					{
 						if (msg->hasListOfMissingPrePrepareMsgForViewChange())
 						{
-							for (SeqNum i = msgLastStable + 1; i <= msgLastStable + workWindowSize; i++)
+							for (SeqNum i = msgLastStable + 1; i <= msgLastStable + kWorkWindowSize; i++)
 							{
 								if (mainLog->insideActiveWindow(i) && msg->isMissingPrePrepareMsgForViewChange(i))
 								{
@@ -1638,7 +1638,7 @@ namespace bftEngine
 					{
 						if (msg->hasListOfMissingPrePrepareMsgForViewChange())
 						{
-							for (SeqNum i = msgLastStable + 1; i <= msgLastStable + workWindowSize; i++)
+							for (SeqNum i = msgLastStable + 1; i <= msgLastStable + kWorkWindowSize; i++)
 							{
 								if (msg->isMissingPrePrepareMsgForViewChange(i))
 								{
@@ -1662,7 +1662,7 @@ namespace bftEngine
 					if (viewsManager->viewIsActive(curView))
 					{
 						SeqNum beginRange = std::max(lastStableSeqNum + 1, msg->getLastExecutedSeqNum() + 1); // Notice that after a view change, we don't have to pass the PrePrepare messages from the previous view. TODO(GG): verify
-						SeqNum endRange = std::min(lastStableSeqNum + workWindowSize, msgLastStable + workWindowSize);
+						SeqNum endRange = std::min(lastStableSeqNum + kWorkWindowSize, msgLastStable + kWorkWindowSize);
 
 						for (SeqNum i = beginRange; i <= endRange; i++)
 						{
@@ -1728,7 +1728,7 @@ namespace bftEngine
 			if (listOfPPInActiveWindow)
 			{
 				const SeqNum start = lastStableSeqNum + 1;
-				const SeqNum end = lastStableSeqNum + workWindowSize;
+				const SeqNum end = lastStableSeqNum + kWorkWindowSize;
 
 				for (SeqNum i = start; i <= end; i++)
 				{
@@ -1748,11 +1748,11 @@ namespace bftEngine
 			else if (listOfMissingPPMsg)
 			{
 				std::vector<SeqNum> missPP;
-				if (viewsManager->getNumbersOfMissingPP(missPP, lastStableSeqNum))
+				if (viewsManager->getNumbersOfMissingPP(lastStableSeqNum, &missPP))
 				{
 					for (SeqNum i : missPP)
 					{
-						Assert((i > lastStableSeqNum) && (i <= lastStableSeqNum + workWindowSize));
+						Assert((i > lastStableSeqNum) && (i <= lastStableSeqNum + kWorkWindowSize));
 						msg.setMissingPrePrepareMsgForViewChange(i);
 					}
 				}
@@ -1787,7 +1787,7 @@ namespace bftEngine
 
 			ViewNum maxKnownCorrectView = 0;
 			ViewNum maxKnownAgreedView = 0;
-			viewsManager->computeCorrectRelevantViewNumbers(maxKnownCorrectView, maxKnownAgreedView);
+			viewsManager->computeCorrectRelevantViewNumbers(&maxKnownCorrectView, &maxKnownAgreedView);
 			Logger::printInfo("maxKnownCorrectView=%" PRId64 ", maxKnownAgreedView=%" PRId64 "", maxKnownCorrectView, maxKnownAgreedView);
 
 			if (maxKnownCorrectView > curView)
@@ -1796,7 +1796,7 @@ namespace bftEngine
 				MoveToHigherView(maxKnownCorrectView);
 
 				// update maxKnownCorrectView and maxKnownAgreedView			// TODO(GG): consider to optimize (this part is not always needed)
-				viewsManager->computeCorrectRelevantViewNumbers(maxKnownCorrectView, maxKnownAgreedView);
+				viewsManager->computeCorrectRelevantViewNumbers(&maxKnownCorrectView, &maxKnownAgreedView);
 				Logger::printInfo("maxKnownCorrectView=%" PRId64 ", maxKnownAgreedView=%" PRId64 "", maxKnownCorrectView, maxKnownAgreedView);
 			}
 
@@ -1862,7 +1862,7 @@ namespace bftEngine
 			{
 
 				std::vector<ViewsManager::PrevViewInfo> prevViewInfo;
-				for (SeqNum i = lastStableSeqNum + 1; i <= lastStableSeqNum + workWindowSize; i++)
+				for (SeqNum i = lastStableSeqNum + 1; i <= lastStableSeqNum + kWorkWindowSize; i++)
 				{
 					SeqNumInfo& seqNumInfo = mainLog->get(i);
 
@@ -1921,7 +1921,7 @@ namespace bftEngine
 			Logger::printInfo("**************** Calling to viewsManager->tryToEnterView(curView=%" PRId64 ", lastStableSeqNum=%" PRId64 ", lastExecutedSeqNum=%" PRId64 ")",
 				curView, lastStableSeqNum, lastExecutedSeqNum);
 
-			bool succ = viewsManager->tryToEnterView(curView, lastStableSeqNum, lastExecutedSeqNum, prePreparesForNewView);
+			bool succ = viewsManager->tryToEnterView(curView, lastStableSeqNum, lastExecutedSeqNum, &prePreparesForNewView);
 
 			if (succ)
 				onNewView(prePreparesForNewView);
@@ -2095,9 +2095,9 @@ namespace bftEngine
 
 				clientsManager->loadInfoFromReservedPages();
 
-				if (newStateCheckpoint > lastStableSeqNum + workWindowSize)
+				if (newStateCheckpoint > lastStableSeqNum + kWorkWindowSize)
 				{
-					const SeqNum refPoint = newStateCheckpoint - workWindowSize;
+					const SeqNum refPoint = newStateCheckpoint - kWorkWindowSize;
 					const bool withRefCheckpoint = (checkpointsLog->insideActiveWindow(refPoint) && (checkpointsLog->get(refPoint).selfCheckpointMsg() != nullptr));
 
 					if (withRefCheckpoint)
@@ -2773,7 +2773,7 @@ namespace bftEngine
 
 			clientsManager = new ClientsManager(myReplicaId, clientsSet, sizeOfReservedPage);
 
-			stateTransfer->init(workWindowSize / checkpointWindowSize + 1, clientsManager->numberOfRequiredReservedPages(), sizeOfReservedPage); 
+			stateTransfer->init(kWorkWindowSize / checkpointWindowSize + 1, clientsManager->numberOfRequiredReservedPages(), sizeOfReservedPage);
 			clientsManager->init(stateTransfer);
 
 			clientsManager->clearReservedPages();
@@ -2798,9 +2798,9 @@ namespace bftEngine
 
 			repsInfo = new ReplicasInfo(myReplicaId, *sigManager, numOfReplicas, fVal, cVal, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
 
-			mainLog = new SequenceWithActiveWindow<workWindowSize, 1, SeqNum, SeqNumInfo, SeqNumInfo>(1, (InternalReplicaApi*)this);
+			mainLog = new SequenceWithActiveWindow<kWorkWindowSize, 1, SeqNum, SeqNumInfo, SeqNumInfo>(1, (InternalReplicaApi*)this);
 
-			checkpointsLog = new SequenceWithActiveWindow<workWindowSize + checkpointWindowSize, checkpointWindowSize, SeqNum, CheckpointInfo, CheckpointInfo>(0, (InternalReplicaApi*)this);
+			checkpointsLog = new SequenceWithActiveWindow<kWorkWindowSize + checkpointWindowSize, checkpointWindowSize, SeqNum, CheckpointInfo, CheckpointInfo>(0, (InternalReplicaApi*)this);
 
 			// create controller . TODO(GG): do we want to pass the controller as a parameter ?
 			controller = new ControllerWithSimpleHistory(cVal, fVal, myReplicaId, curView, primaryLastUsedSeqNum);
@@ -2838,7 +2838,7 @@ namespace bftEngine
 			viewsManager = new ViewsManager(repsInfo, thresholdVerifierForSlowPathCommit);
 
 			if (retransmissionsLogicEnabled)
-				retransmissionsManager = new RetransmissionsManager(this, &internalThreadPool, &incomingMsgsStorage, workWindowSize, 0);
+				retransmissionsManager = new RetransmissionsManager(this, &internalThreadPool, &incomingMsgsStorage, kWorkWindowSize, 0);
 			else
 				retransmissionsManager = nullptr;
 
@@ -3132,8 +3132,8 @@ namespace bftEngine
 			Assert(lastExecutedSeqNum >= lastStableSeqNum);
 	
 			Logger::printInfo("Calling to executeReadWriteRequests(requestMissingInfo=%d)",(int)requestMissingInfo);
-	
-			while (lastExecutedSeqNum < lastStableSeqNum + workWindowSize)
+
+			while (lastExecutedSeqNum < lastStableSeqNum + kWorkWindowSize)
 			{
 				SeqNumInfo& seqNumInfo = mainLog->get(lastExecutedSeqNum + 1);
 		

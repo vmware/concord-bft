@@ -42,8 +42,8 @@ namespace bftEngine
 				Restriction* outSafetyRestrictionsArray
 			) const;
 			// Notes about outSafetyRestrictionsArray:
-			// - It should have workWindowSize elements. 
-			// - If at the end of this method outMaxRestrictedSeqNum==0, then outSafetyRestrictionsArray is 'empty' 
+			// - It should have kWorkWindowSize elements.
+			// - If at the end of this method outMaxRestrictedSeqNum==0, then outSafetyRestrictionsArray is 'empty'
 			// - Otherwise, its first (outMaxRestrictedSeqNum-outMinRestrictedSeqNum+1) elements are valid : they represents the restrictions between outMinRestrictedSeqNum and outMaxRestrictedSeqNum
 
 		protected:

@@ -180,7 +180,7 @@ namespace bftEngine
 			Restriction* outSafetyRestrictionsArray) const
 		{
 			const SeqNum lowerBound = inLBStableForView + 1;
-			const SeqNum upperBound = inLBStableForView + workWindowSize;
+			const SeqNum upperBound = inLBStableForView + kWorkWindowSize;
 
 			SeqNum lastRestcitionNum = 0;
 
@@ -242,7 +242,7 @@ namespace bftEngine
 				outMinRestrictedSeqNum = lowerBound;
 				outMaxRestrictedSeqNum = upperBound;
 
-				// TODO(GG): patch (we should fix the "stable point bug" (and this patch will not be needed)). TODO(GG): for simplicity, the patch assumes that: workWindowSize == 2 * checkpointWindowSize
+				// TODO(GG): patch (we should fix the "stable point bug" (and this patch will not be needed)). TODO(GG): for simplicity, the patch assumes that: kWorkWindowSize == 2 * checkpointWindowSize
 				if (lastRestcitionNum > 0 &&
 					lastRestcitionNum <= (upperBound - checkpointWindowSize))
 				{

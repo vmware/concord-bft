@@ -133,11 +133,11 @@ namespace bftEngine
 			// requests queue (used by the primary)
 			std::queue<ClientRequestMsg*> requestsQueueOfPrimary; // only used by the primary
 
-			// bounded log used to store information about SeqNums in the range (lastStableSeqNum,lastStableSeqNum + workWindowSize]
-			SequenceWithActiveWindow<workWindowSize, 1, SeqNum, SeqNumInfo, SeqNumInfo>* mainLog;
+			// bounded log used to store information about SeqNums in the range (lastStableSeqNum,lastStableSeqNum + kWorkWindowSize]
+			SequenceWithActiveWindow<kWorkWindowSize, 1, SeqNum, SeqNumInfo, SeqNumInfo>* mainLog;
 
-			// bounded log used to store information about checkpoints in the range [lastStableSeqNum,lastStableSeqNum + workWindowSize]
-			SequenceWithActiveWindow<workWindowSize + checkpointWindowSize, checkpointWindowSize, SeqNum, CheckpointInfo, CheckpointInfo>* checkpointsLog;
+			// bounded log used to store information about checkpoints in the range [lastStableSeqNum,lastStableSeqNum + kWorkWindowSize]
+			SequenceWithActiveWindow<kWorkWindowSize + checkpointWindowSize, checkpointWindowSize, SeqNum, CheckpointInfo, CheckpointInfo>* checkpointsLog;
 
 
 			// last known stable checkpoint of each peer replica. 

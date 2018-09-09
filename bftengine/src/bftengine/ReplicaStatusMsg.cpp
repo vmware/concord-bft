@@ -21,11 +21,11 @@ namespace bftEngine
 		MsgSize ReplicaStatusMsg::calcSizeOfReplicaStatusMsg(bool listOfPrePrepareMsgsInActiveWindow, bool listOfMissingViewChangeMsgForViewChange, bool listOfMissingPrePrepareMsgForViewChange)
 		{
 			if (listOfPrePrepareMsgsInActiveWindow)
-				return sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader) + (workWindowSize + 7) / 8;
+				return sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader) + (kWorkWindowSize + 7) / 8;
 			else if (listOfMissingViewChangeMsgForViewChange)
 				return sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader) + (MaxNumberOfReplicas + 7) / 8;
 			else if (listOfMissingPrePrepareMsgForViewChange)
-				return sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader) + (workWindowSize + 7) / 8;
+				return sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader) + (kWorkWindowSize + 7) / 8;
 			else
 				return sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader);
 		}
@@ -163,7 +163,7 @@ namespace bftEngine
 		{
 			Assert(hasListOfPrePrepareMsgsInActiveWindow());
 			Assert(seqNum > b()->lastStableSeqNum);
-			Assert(seqNum <= b()->lastStableSeqNum + workWindowSize);
+			Assert(seqNum <= b()->lastStableSeqNum + kWorkWindowSize);
 
 			size_t index = (size_t)(seqNum - b()->lastStableSeqNum - 1);
 			size_t byteIndex = index / 8;
@@ -189,7 +189,7 @@ namespace bftEngine
 		{
 			Assert(hasListOfMissingPrePrepareMsgForViewChange());
 			Assert(seqNum > b()->lastStableSeqNum);
-			Assert(seqNum <= b()->lastStableSeqNum + workWindowSize);
+			Assert(seqNum <= b()->lastStableSeqNum + kWorkWindowSize);
 
 			size_t index = (size_t)(seqNum - b()->lastStableSeqNum - 1);
 			size_t byteIndex = index / 8;
@@ -202,7 +202,7 @@ namespace bftEngine
 		{
 			Assert(hasListOfPrePrepareMsgsInActiveWindow());
 			Assert(seqNum > b()->lastStableSeqNum);
-			Assert(seqNum <= b()->lastStableSeqNum + workWindowSize);
+			Assert(seqNum <= b()->lastStableSeqNum + kWorkWindowSize);
 			size_t index = (size_t)(seqNum - b()->lastStableSeqNum - 1);
 			size_t byteIndex = index / 8;
 			size_t bitIndex = index % 8;
@@ -225,7 +225,7 @@ namespace bftEngine
 		{
 			Assert(hasListOfMissingPrePrepareMsgForViewChange());
 			Assert(seqNum > b()->lastStableSeqNum);
-			Assert(seqNum <= b()->lastStableSeqNum + workWindowSize);
+			Assert(seqNum <= b()->lastStableSeqNum + kWorkWindowSize);
 			size_t index = (size_t)(seqNum - b()->lastStableSeqNum - 1);
 			size_t byteIndex = index / 8;
 			size_t bitIndex = index % 8;
