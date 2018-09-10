@@ -31,13 +31,13 @@ PlainUdpConfig getUDPConfig(uint16_t id);
 
 class SimpleAppState : public RequestsHandler {
  public:
-  virtual int execute(uint16_t clientId,
-                      bool readOnly,
-                      uint32_t requestSize,
-                      const char* request,
-                      uint32_t maxReplySize,
-                      char* outReply,
-                      uint32_t& outActualReplySize) override {
+  int execute(uint16_t clientId,
+              bool readOnly,
+              uint32_t requestSize,
+              const char* request,
+              uint32_t maxReplySize,
+              char* outReply,
+              uint32_t& outActualReplySize) override {
     if (readOnly) {
       // read-only request
       assert(requestSize == sizeof(uint64_t));
