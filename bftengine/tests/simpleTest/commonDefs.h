@@ -11,7 +11,11 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+#ifndef BFTENGINE_TESTS_SIMPLETEST_COMMONDEFS_H_
+#define BFTENGINE_TESTS_SIMPLETEST_COMMONDEFS_H_
 #pragma once
 
 #define READ_VAL_REQ ((uint64_t)100)
 #define SET_VAL_REQ  ((uint64_t)200)
+
+#endif  // BFTENGINE_TESTS_SIMPLETEST_COMMONDEFS_H_
