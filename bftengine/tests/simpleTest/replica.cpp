@@ -26,7 +26,7 @@
 using namespace std;
 using namespace bftEngine;
 
-void getReplicaConfig(uint16_t replicaId, bftEngine::ReplicaConfig& outConfig);
+void getReplicaConfig(uint16_t replicaId, bftEngine::ReplicaConfig* outConfig);
 PlainUdpConfig getUDPConfig(uint16_t id);
 
 class SimpleAppState : public RequestsHandler {
@@ -78,7 +78,7 @@ int main(int argc, char **argv) {
   if (id >= 4) throw std::runtime_error("Illegal replica id");
 
   ReplicaConfig replicaConfig;
-  getReplicaConfig(id, replicaConfig);
+  getReplicaConfig(id, &replicaConfig);
 
   PlainUdpConfig udpConf = getUDPConfig(id);
 
