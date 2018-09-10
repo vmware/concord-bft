@@ -55,7 +55,9 @@ int main(int argc, char **argv) {
 
       uint64_t reqId = READ_VAL_REQ;
       uint32_t actualReplyLength = 0;
-      client->sendRequest(true, (char*)&reqId, sizeof(uint64_t),
+      client->sendRequest(true,
+                          reinterpret_cast<char*>(&reqId),
+                          sizeof(uint64_t),
                           pSeqGen->generateUniqueSequenceNumberForRequest(),
                           SimpleClient::INFINITE_TIMEOUT,
                           sizeof(uint64_t),
@@ -64,7 +66,7 @@ int main(int argc, char **argv) {
 
       assert(actualReplyLength == sizeof(uint64_t));
 
-      uint64_t retVal = *((uint64_t*)replyBuffer);
+      uint64_t retVal = *reinterpret_cast<uint64_t*>(replyBuffer);
 
       if (hasExpectedLastValue)
         assert(retVal == expectedLastValue);
@@ -79,7 +81,7 @@ int main(int argc, char **argv) {
 
       expectedLastValue = (i + 1)*(i + 7)*(i + 18);
 
-      uint64_t* pReqId  = (uint64_t*)requestBuffer;
+      uint64_t* pReqId  = reinterpret_cast<uint64_t*>(requestBuffer);
       uint64_t* pReqVal = (pReqId + 1);
       *pReqId = SET_VAL_REQ;
       *pReqVal = expectedLastValue;
@@ -93,7 +95,7 @@ int main(int argc, char **argv) {
 
       assert(actualReplyLength == sizeof(uint64_t));
 
-      uint64_t retVal = *((uint64_t*)replyBuffer);
+      uint64_t retVal = *reinterpret_cast<uint64_t*>(replyBuffer);
 
       if (hasExpectedStateNum) {
         assert(retVal == expectedStateNum);
