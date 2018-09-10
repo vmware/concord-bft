@@ -23,8 +23,12 @@
 #include "commonDefs.h"
 #include "Replica.hpp"
 
-using namespace std;
-using namespace bftEngine;
+using bftEngine::ICommunication;
+using bftEngine::PlainUDPCommunication;
+using bftEngine::PlainUdpConfig;
+using bftEngine::Replica;
+using bftEngine::ReplicaConfig;
+using bftEngine::RequestsHandler;
 
 void getReplicaConfig(uint16_t replicaId, bftEngine::ReplicaConfig* outConfig);
 PlainUdpConfig getUDPConfig(uint16_t id);

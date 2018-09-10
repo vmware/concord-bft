@@ -18,10 +18,11 @@
 #include "ReplicaConfig.hpp"
 #include <threshsign/ThresholdSignaturesSchemes.h>
 
+using bftEngine::PlainUdpConfig;
+using bftEngine::ReplicaConfig;
 using BLS::Relic::BlsThresholdFactory;
-using namespace std;
-using namespace bftEngine;
-
+using std::pair;
+using std::string;
 
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////

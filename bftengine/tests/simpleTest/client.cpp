@@ -22,8 +22,11 @@
 #include "commonDefs.h"
 #include "SimpleClient.hpp"
 
-using namespace std;
-using namespace bftEngine;
+using bftEngine::ICommunication;
+using bftEngine::PlainUDPCommunication;
+using bftEngine::PlainUdpConfig;
+using bftEngine::SeqNumberGeneratorForClientRequests;
+using bftEngine::SimpleClient;
 
 PlainUdpConfig getUDPConfig(uint16_t id);
 
