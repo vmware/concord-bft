@@ -125,7 +125,7 @@ static void ignoreThresholdSigner(FILE * f) {
 static bool parseReplicaConfig(uint16_t replicaId,
                                FILE* publicKeysFile,
                                FILE* privateKeysFile,
-                               ReplicaConfig& outConfig) {
+                               ReplicaConfig* outConfig) {
   int tempInt = 0;
   char tempString[MAX_ITEM_LENGTH];
 
@@ -195,38 +195,38 @@ static bool parseReplicaConfig(uint16_t replicaId,
 
   // set configuration
 
-  outConfig.replicaId = replicaId;
-  outConfig.fVal = 1;
-  outConfig.cVal = 0;
-  outConfig.numOfClientProxies = 1;
-  outConfig.statusReportTimerMillisec = 2000;
-  outConfig.concurrencyLevel = 1;
-  outConfig.autoViewChangeEnabled = false;
-  outConfig.viewChangeTimerMillisec = 60000;
+  outConfig->replicaId = replicaId;
+  outConfig->fVal = 1;
+  outConfig->cVal = 0;
+  outConfig->numOfClientProxies = 1;
+  outConfig->statusReportTimerMillisec = 2000;
+  outConfig->concurrencyLevel = 1;
+  outConfig->autoViewChangeEnabled = false;
+  outConfig->viewChangeTimerMillisec = 60000;
 
-  outConfig.publicKeysOfReplicas = publicKeysOfReplicas;
-  outConfig.replicaPrivateKey = sigPrivateKey;
+  outConfig->publicKeysOfReplicas = publicKeysOfReplicas;
+  outConfig->replicaPrivateKey = sigPrivateKey;
 
-  outConfig.thresholdSignerForExecution = nullptr;
-  outConfig.thresholdVerifierForExecution = nullptr;
+  outConfig->thresholdSignerForExecution = nullptr;
+  outConfig->thresholdVerifierForExecution = nullptr;
 
-  outConfig.thresholdSignerForSlowPathCommit =
+  outConfig->thresholdSignerForSlowPathCommit =
       thresholdSignerForSlowPathCommit;
-  outConfig.thresholdVerifierForSlowPathCommit =
+  outConfig->thresholdVerifierForSlowPathCommit =
       thresholdVerifierForSlowPathCommit;
 
-  outConfig.thresholdSignerForCommit = nullptr;
-  outConfig.thresholdVerifierForCommit = nullptr;
+  outConfig->thresholdSignerForCommit = nullptr;
+  outConfig->thresholdVerifierForCommit = nullptr;
 
-  outConfig.thresholdSignerForOptimisticCommit =
+  outConfig->thresholdSignerForOptimisticCommit =
       thresholdSignerForOptimisticCommit;
-  outConfig.thresholdVerifierForOptimisticCommit =
+  outConfig->thresholdVerifierForOptimisticCommit =
       thresholdVerifierForOptimisticCommit;
 
   return true;
 }
 
-void getReplicaConfig(uint16_t replicaId, ReplicaConfig& outConfig) {
+void getReplicaConfig(uint16_t replicaId, ReplicaConfig* outConfig) {
   FILE* publicKeysFile = fopen(nameOfPublicFile, "r");
   if (!publicKeysFile)
     throw std::runtime_error("Unable to read public keys");
