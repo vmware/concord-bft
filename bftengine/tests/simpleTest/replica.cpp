@@ -41,16 +41,16 @@ class SimpleAppState : public RequestsHandler {
     if (readOnly) {
       // read-only request
       assert(requestSize == sizeof(uint64_t));
-      const uint64_t reqId = *((uint64_t*)request);
+      const uint64_t reqId = *reinterpret_cast<const uint64_t*>(request);
       assert(reqId == READ_VAL_REQ);
 
       assert(maxReplySize >= sizeof(uint64_t));
-      uint64_t* pRet = (uint64_t*)outReply;
+      uint64_t* pRet = reinterpret_cast<uint64_t*>(outReply);
       *pRet = lastValue;
       outActualReplySize = sizeof(uint64_t);
     } else {
       assert(requestSize == 2 * sizeof(uint64_t));
-      const uint64_t* pReqId = (uint64_t*)request;
+      const uint64_t* pReqId = reinterpret_cast<const uint64_t*>(request);
       assert(*pReqId == SET_VAL_REQ);
       const uint64_t* pReqVal = (pReqId + 1);
 
@@ -58,7 +58,7 @@ class SimpleAppState : public RequestsHandler {
       lastValue = *pReqVal;
 
       assert(maxReplySize >= sizeof(uint64_t));
-      uint64_t* pRet = (uint64_t*)outReply;
+      uint64_t* pRet = reinterpret_cast<uint64_t*>(outReply);
       *pRet = stateNum;
       outActualReplySize = sizeof(uint64_t);
     }
