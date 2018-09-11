@@ -11,12 +11,16 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include <utility>
+#include <set>
 #include <string>
+#include <tuple>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include "CommFactory.hpp"
 #include "ReplicaConfig.hpp"
-#include <threshsign/ThresholdSignaturesSchemes.h>
+#include "threshsign/ThresholdSignaturesSchemes.h"
 
 using bftEngine::PlainUdpConfig;
 using bftEngine::ReplicaConfig;
