@@ -11,10 +11,13 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+// This file contains definition used by both the client and replicas.
+
 #ifndef BFTENGINE_TESTS_SIMPLETEST_COMMONDEFS_H_
 #define BFTENGINE_TESTS_SIMPLETEST_COMMONDEFS_H_
 #pragma once
 
+// Request types for replica commands.
 #define READ_VAL_REQ ((uint64_t)100)
 #define SET_VAL_REQ  ((uint64_t)200)
 
