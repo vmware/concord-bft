@@ -70,6 +70,16 @@ Be sure to include any related GitHub issue references in the commit message.  S
 [GFM syntax](https://guides.github.com/features/mastering-markdown/#GitHub-flavored-markdown) for referencing issues
 and commits.
 
+### Formatting Code
+
+We follow the guidelines outlined by the
+[Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html).
+If you use emacs, consider installing
+[google-c-style.el](https://raw.githubusercontent.com/google/styleguide/gh-pages/google-c-style.el).
+Please run
+[cpplint](https://github.com/google/styleguide/tree/gh-pages/cpplint)
+against your changes, to ensure adherence to the guidelines.
+
 ## Reporting Bugs and Creating Issues
 
 When opening a new issue, try to roughly follow the commit message format conventions above.
