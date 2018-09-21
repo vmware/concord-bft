@@ -12,7 +12,7 @@ state machine understands two events:
 
 The state machine is defined in the `SimpleAppState` class in
 `replica.cpp`. It exposes only an `execute` method, which is called
-every time the replica receives an event. The `main` function simple
+every time the replica receives an event. The `main` function simply
 starts a Concord replica parameterized with this state machine.
 
 The test code is defined in `client.cpp`. The client sends a number of
@@ -23,17 +23,15 @@ last written value.
 
 In the `scripts` directory, you'll find:
 
-  * `private_replica_{0,1,2,3}`, which are the private config files
-    for each replica. The example is for four replicas, with supports
-    an F=1 environment. See `config.cpp` for documentation of the
-    format.
+  * `private_replica_{0,1,2,3}`, which are the key files for each
+    replica. The example is for four replicas, which supports an F=1
+    environment. The keyfile format used is the same as that output by
+    the `GenerateConcordKeys` tool in the `concord-bft/tools` folder;
+    see `concord-bft/tools/README.md` for more information on how
+    these keyfiles are generated and used.
 
-  * `public_replicas_data`, which is the public configuration shared
-    among all nodes. This is how public keys are shared among all
-    nodes. See `config.cpp` for documentation of the format.
-
-  * `testReplicasAndClient.sh`, which starts all four replicas, and
-    then runs the client test.
+  * `testReplicasAndClient.sh`, which generates fresh cryptographic
+    keys, starts all four replicas, and then runs the client test.
 
   * `runReplias.sh`, which just starts all four replicas.
 
