@@ -69,18 +69,22 @@ CommFactory::create(BaseCommConfig &config)
          res = PlainUDPCommunication::create(
                  dynamic_cast<PlainUdpConfig&>(config));
          break;
-#ifdef USE_COMM_PLAIN_TCP
+      case CommType::SimpleAuthUdp:
+         break;
       case CommType::PlainTcp:
+#ifdef USE_COMM_PLAIN_TCP
          res = PlainTCPCommunication::create(
                  dynamic_cast<PlainTcpConfig&>(config));
-         break;
 #endif
-#ifdef USE_COMM_TLS_TCP
+         break;
+      case CommType::SimpleAuthTcp:
+         break;
       case CommType::TlsTcp:
+#ifdef USE_COMM_TLS_TCP
          res = TlsTCPCommunication::create(
                  dynamic_cast<TlsTcpConfig&>(config));
-         break;
 #endif
+         break;
    }
 
    return res;
