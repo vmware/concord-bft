@@ -130,7 +130,7 @@ namespace bftEngine
    class PlainUDPCommunication : public ICommunication
    {
    public:
-      static PlainUDPCommunication *create(PlainUdpConfig &config);
+      static PlainUDPCommunication *create(const PlainUdpConfig &config);
 
       int getMaxMessageSize() override;
       int Start() override;
@@ -153,13 +153,13 @@ namespace bftEngine
       //TODO(IG): convert to smart ptr
       PlainUdpImpl *_ptrImpl = nullptr;
 
-      explicit PlainUDPCommunication(PlainUdpConfig &config);
+      explicit PlainUDPCommunication(const PlainUdpConfig &config);
    };
 
    class PlainTCPCommunication : public ICommunication
    {
    public:
-      static PlainTCPCommunication *create(PlainTcpConfig &config);
+      static PlainTCPCommunication *create(const PlainTcpConfig &config);
 
       int getMaxMessageSize() override;
       int Start() override;
@@ -180,13 +180,13 @@ namespace bftEngine
       class PlainTcpImpl;
       PlainTcpImpl *_ptrImpl = nullptr;
 
-      explicit PlainTCPCommunication(PlainTcpConfig &config);
+      explicit PlainTCPCommunication(const PlainTcpConfig &config);
    };
 
    class TlsTCPCommunication : public ICommunication
    {
    public:
-      static TlsTCPCommunication *create(TlsTcpConfig &config);
+      static TlsTCPCommunication *create(const TlsTcpConfig &config);
 
       int getMaxMessageSize() override;
       int Start() override;
@@ -207,7 +207,7 @@ namespace bftEngine
       class TlsTcpImpl;
       TlsTcpImpl *_ptrImpl = nullptr;
 
-      explicit TlsTCPCommunication(TlsTcpConfig &config);
+      explicit TlsTCPCommunication(const TlsTcpConfig &config);
    };
 }
 

@@ -69,19 +69,19 @@ create_config_impl(uint32_t maxMsgSize,
 }
 
 ICommunication*
-CommFactory::create(BaseCommConfig &config) {
+CommFactory::create(const BaseCommConfig &config) {
   ICommunication *res = nullptr;
   switch (config.commType) {
   case CommType::PlainUdp:
     res = PlainUDPCommunication::create(
-      dynamic_cast<PlainUdpConfig&>(config));
+      dynamic_cast<const PlainUdpConfig&>(config));
     break;
   case CommType::SimpleAuthUdp:
     break;
   case CommType::PlainTcp:
 #ifdef USE_COMM_PLAIN_TCP
     res = PlainTCPCommunication::create(
-      dynamic_cast<PlainTcpConfig&>(config));
+      dynamic_cast<const PlainTcpConfig&>(config));
 #endif
     break;
   case CommType::SimpleAuthTcp:
@@ -89,7 +89,7 @@ CommFactory::create(BaseCommConfig &config) {
   case CommType::TlsTcp:
 #ifdef USE_COMM_TLS_TCP
     res = TlsTCPCommunication::create(
-      dynamic_cast<TlsTcpConfig&>(config));
+      dynamic_cast<const TlsTcpConfig&>(config));
 #endif
     break;
   }

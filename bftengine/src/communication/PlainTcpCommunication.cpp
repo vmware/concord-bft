@@ -943,7 +943,7 @@ PlainTCPCommunication::~PlainTCPCommunication()
    _ptrImpl->Stop();
 }
 
-PlainTCPCommunication::PlainTCPCommunication(PlainTcpConfig &config)
+PlainTCPCommunication::PlainTCPCommunication(const PlainTcpConfig &config)
 {
    _ptrImpl = PlainTcpImpl::create( config.selfId,
                                     config.nodes,
@@ -953,7 +953,7 @@ PlainTCPCommunication::PlainTCPCommunication(PlainTcpConfig &config)
                                     config.listenIp);
 }
 
-PlainTCPCommunication *PlainTCPCommunication::create(PlainTcpConfig &config)
+PlainTCPCommunication *PlainTCPCommunication::create(const PlainTcpConfig &config)
 {
    return new PlainTCPCommunication(config);
 }

@@ -1176,7 +1176,7 @@ TlsTCPCommunication::~TlsTCPCommunication()
    _ptrImpl->Stop();
 }
 
-TlsTCPCommunication::TlsTCPCommunication(TlsTcpConfig &config)
+TlsTCPCommunication::TlsTCPCommunication(const TlsTcpConfig &config)
 {
    _ptrImpl = TlsTcpImpl::create (  config.selfId,
                                     config.nodes,
@@ -1187,7 +1187,7 @@ TlsTCPCommunication::TlsTCPCommunication(TlsTcpConfig &config)
                                     config.certificatesRootPath);
 }
 
-TlsTCPCommunication *TlsTCPCommunication::create(TlsTcpConfig &config)
+TlsTCPCommunication *TlsTCPCommunication::create(const TlsTcpConfig &config)
 {
    return new TlsTCPCommunication(config);
 }
@@ -1236,4 +1236,3 @@ TlsTCPCommunication::setReceiver(NodeNum receiverNum, IReceiver *receiver)
 {
    _ptrImpl->setReceiver(receiverNum, receiver);
 }
-

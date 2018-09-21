@@ -361,12 +361,12 @@ PlainUDPCommunication::~PlainUDPCommunication()
    _ptrImpl->Stop();
 }
 
-PlainUDPCommunication::PlainUDPCommunication(PlainUdpConfig &config)
+PlainUDPCommunication::PlainUDPCommunication(const PlainUdpConfig &config)
 {
    _ptrImpl = new PlainUdpImpl(config);
 }
 
-PlainUDPCommunication *PlainUDPCommunication::create(PlainUdpConfig &config)
+PlainUDPCommunication *PlainUDPCommunication::create(const PlainUdpConfig &config)
 {
    return new PlainUDPCommunication(config);
 }
