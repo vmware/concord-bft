@@ -1,3 +1,5 @@
+project (bftengine LANGUAGES CXX)
+
 get_property(LOGGER_INC_DIR GLOBAL PROPERTY LoggerIncludeDir)
 
 set(corebft_source_files
@@ -89,5 +91,3 @@ target_include_directories(corebft PUBLIC ${LOGGER_INC_DIR})
 
 target_link_libraries(corebft PUBLIC threshsign)
 target_link_libraries(corebft PUBLIC Threads::Threads)
-
-add_subdirectory(tests)
