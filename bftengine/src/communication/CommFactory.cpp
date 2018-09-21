@@ -16,6 +16,49 @@
 using namespace std;
 using namespace bftEngine;
 
+PlainUdpConfig
+create_config_impl(uint32_t maxMsgSize,
+                   NodeMap nodes,
+                   uint16_t port,
+                   std::string ip) {
+  PlainUdpConfig config(move(ip), port, maxMsgSize, move(nodes));
+  return config;
+}
+
+PlainTcpConfig
+create_config_impl(uint32_t maxMsgSize,
+                   NodeMap nodes,
+                   uint16_t port,
+                   std::string ip,
+                   int32_t maxServerId,
+                   NodeNum selfId) {
+  PlainTcpConfig config(std::move(ip),
+                        port,
+                        maxMsgSize,
+                        std::move(nodes),
+                        maxServerId,
+                        selfId);
+  return config;
+}
+
+TlsTcpConfig
+create_config_impl(uint32_t maxMsgSize,
+                   NodeMap nodes,
+                   uint16_t port,
+                   std::string ip,
+                   int32_t maxServerId,
+                   NodeNum selfId,
+                   std::string certRootPath) {
+  TlsTcpConfig config(std::move(ip),
+                      port,
+                      maxMsgSize,
+                      std::move(nodes),
+                      maxServerId,
+                      selfId,
+                      certRootPath);
+  return config;
+}
+
 ICommunication *
 CommFactory::create(BaseCommConfig &config)
 {
@@ -43,3 +86,9 @@ CommFactory::create(BaseCommConfig &config)
    return res;
 }
 
+template<CommType T, typename... Args>
+static typename config_type<T>::type
+create_config(Args... args) {
+  auto res = create_config_impl(args...);
+  return res;
+}
