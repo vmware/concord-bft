@@ -3,6 +3,12 @@ set -e
 
 scriptdir=$(cd $(dirname $0); pwd -P)
 
+echo "Generating new keys..."
+
+rm -f private_replica_*
+
+../../../../tools/GenerateConcordKeys -n 4 -f 1 -o private_replica_
+
 parallel --halt now,fail=1 -j0 ::: \
     "$scriptdir/../server 0" \
     "$scriptdir/../server 1" \

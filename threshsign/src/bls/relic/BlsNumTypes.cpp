@@ -73,7 +73,7 @@ std::string BNT::toString(int base) const {
 	AutoCharBuf buf(size);
     //bn_write_str(reinterpret_cast<unsigned char*>(buf.getBuf()), size, n, base);
     bn_write_str(buf.getBuf(), size, n, base);
-    std::string str(buf, static_cast<size_t>(size));
+    std::string str(buf);
     return str;
 }
 

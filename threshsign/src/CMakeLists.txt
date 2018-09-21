@@ -7,6 +7,7 @@ set(common_source_files
     ISecretKey.cpp
     IThresholdVerifier.cpp
     VectorOfShares.cpp
+    ThresholdSignaturesTypes.cpp
 )
 
 add_library(common OBJECT ${common_source_files})
