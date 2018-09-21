@@ -113,11 +113,9 @@ int main(int argc, char **argv) {
       // Read should respond with eight bytes of data.
       assert(actualReplyLength == sizeof(uint64_t));
 
-      uint64_t retVal = *reinterpret_cast<uint64_t*>(replyBuffer);
-
       // Only assert the last expected value if we have previous set a value.
       if (hasExpectedLastValue)
-        assert(retVal == expectedLastValue);
+        assert(*reinterpret_cast<uint64_t*>(replyBuffer) == expectedLastValue);
     } else {
       // Send a write, if we're not doing a read.
 
