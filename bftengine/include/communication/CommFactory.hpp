@@ -11,11 +11,13 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef BYZ_COMMFACTORY_HPP
-#define BYZ_COMMFACTORY_HPP
+#ifndef BFTENGINE_INCLUDE_COMMUNICATION_COMMFACTORY_HPP_
+#define BFTENGINE_INCLUDE_COMMUNICATION_COMMFACTORY_HPP_
+
+#include <string>
+#include <type_traits>
 
 #include "CommImpl.hpp"
-#include <type_traits>
 
 namespace bftEngine {
 template<CommType T>
@@ -69,6 +71,6 @@ class CommFactory {
   static typename config_type<T>::type
   create_config(Args... args);
 };
-}
+}  // namespace bftEngine
 
-#endif  // BYZ_COMMFACTORY_HPP
+#endif  // BFTENGINE_INCLUDE_COMMUNICATION_COMMFACTORY_HPP_

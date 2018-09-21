@@ -11,11 +11,19 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "CommFactory.hpp"
 #include <string>
+#include <utility>
 
-using namespace std;
-using namespace bftEngine;
+#include "CommFactory.hpp"
+
+
+using bftEngine::CommFactory;
+using bftEngine::CommType;
+using bftEngine::config_type;
+using bftEngine::ICommunication;
+using bftEngine::PlainTcpConfig;
+using bftEngine::PlainUdpConfig;
+using bftEngine::TlsTcpConfig;
 
 PlainUdpConfig
 create_config_impl(uint32_t maxMsgSize,
