@@ -18,7 +18,7 @@ namespace bftEngine
 		bool CheckpointInfo::CheckpointMsgCmp::equivalent(CheckpointMsg* a, CheckpointMsg* b)
 		{
 			return (a->seqNumber() == b->seqNumber()) && (a->digestOfState() == b->digestOfState());
-		};
+		}
 
 		CheckpointInfo::CheckpointInfo()
 			: checkpointCertificate{ nullptr },
