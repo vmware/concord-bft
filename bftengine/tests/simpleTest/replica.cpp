@@ -88,8 +88,7 @@ class SimpleAppState : public RequestsHandler {
       assert(requestSize == sizeof(uint64_t));
 
       // We only support the READ operation in read-only mode.
-      const uint64_t reqId = *reinterpret_cast<const uint64_t*>(request);
-      assert(reqId == READ_VAL_REQ);
+      assert(*reinterpret_cast<const uint64_t*>(request) == READ_VAL_REQ);
 
       // Copy the latest register value to the reply buffer.
       assert(maxReplySize >= sizeof(uint64_t));
