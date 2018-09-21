@@ -65,7 +65,7 @@ create_config_impl(uint32_t maxMsgSize,
 class CommFactory {
  public:
   static ICommunication*
-  create(BaseCommConfig &config);
+  create(const BaseCommConfig &config);
 
   template<CommType T, typename... Args>
   static typename config_type<T>::type
