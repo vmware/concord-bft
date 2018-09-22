@@ -331,7 +331,7 @@ namespace bftEngine
 					{
 						size_t& counter = fastPathCounters[fast];
 						counter++;
-						if (counter == (F + C + 1))
+						if (counter == (uint16_t)(F + C + 1))
 						{
 							selectedFastElement = fast;
 							break;
