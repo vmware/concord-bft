@@ -65,8 +65,6 @@ namespace bftEngine
 
 			ClientReplyMsg* t = (ClientReplyMsg*)inMsg;
 
-			Assert(t->b()->replyLength != -1); // TODO(GG): debug (should be deleted)
-
 			if (t->size() < ((int)sizeof(ClientReplyMsgHeader) + t->replyLength()))
 				return false;
 
