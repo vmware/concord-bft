@@ -124,7 +124,7 @@ constexpr CommitPath ControllerWithSimpleHistory_debugInitialFirstPath = CommitP
 
 constexpr float ControllerWithSimpleHistory_debugDowngradeFactor = 0.85F; //  0.0F; 
 
-constexpr float ControllerWithSimpleHistory_debugUpgradeFactorForFastOptimisticPath = 0.95F;;
+constexpr float ControllerWithSimpleHistory_debugUpgradeFactorForFastOptimisticPath = 0.95F;
 
 constexpr float ControllerWithSimpleHistory_debugUpgradeFactorForFastPath = 0.85F;
 
