@@ -14,10 +14,9 @@
 #ifndef BFTENGINE_INCLUDE_COMMUNICATION_COMMFACTORY_HPP_
 #define BFTENGINE_INCLUDE_COMMUNICATION_COMMFACTORY_HPP_
 
-#include <string>
 #include <type_traits>
 
-#include "CommImpl.hpp"
+#include "CommDefs.hpp"
 
 namespace bftEngine {
 class CommFactory {
