@@ -162,9 +162,6 @@ target_include_directories(threshsign PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
     "$<INSTALL_INTERFACE:${INSTALL_CMAKE_DIR}/include>")
 
-set_property(GLOBAL PROPERTY thresh_include_folder
-        "${CMAKE_CURRENT_SOURCE_DIR}/include/threshsign")
-
 # Only files in src/ include headers from lib/. Things that will depend on
 # libthreshsign should not need code from lib/.
 target_include_directories(threshsign PRIVATE lib)
@@ -195,8 +192,6 @@ install(TARGETS threshsign
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
 )
-
-
 
 # This installs the headers
 # NOTE: Don't add / at the end. No slash means threshsign/ directory is created in the destination path

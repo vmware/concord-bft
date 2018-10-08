@@ -311,12 +311,11 @@ PlainUdpConfig getUDPConfig(uint16_t id) {
   uint32_t bufLength = 64000;
 
   // Create a map of where the port for each node is.
-  std::unordered_map <NodeNum, NodeInfo> nodes;
+  std::unordered_map <NodeNum, std::tuple<std::string, uint16_t>> nodes;
   for (int i = 0; i < (numOfReplicas + numOfClientProxies); i++)
-    nodes.insert({
-      i,
-      NodeInfo{ip, (uint16_t)(basePort + i*2), i < numOfReplicas} });
+    nodes.insert({ i, std::make_tuple(ip, basePort + i*2) });
 
-  PlainUdpConfig retVal(ip, port, bufLength, nodes, id);
+  PlainUdpConfig retVal(ip, port, bufLength, nodes);
+
   return retVal;
 }

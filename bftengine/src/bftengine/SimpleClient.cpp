@@ -82,7 +82,7 @@ namespace bftEngine
 			}
 
 		protected:
-			static const uint32_t maxLegalMsgSize = 64 * 1024; // TODO(GG): ???
+			static const uint32_t maxLegalMsgSize = 32 * 1024; // TODO(GG): ???
 			static const uint16_t timersResolutionMilli = 50;
 
 			const uint16_t _clientId;
