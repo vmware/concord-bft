@@ -21,7 +21,7 @@
 #include "ClientReplyMsg.hpp"
 #include "MsgsCertificate.hpp"
 #include "DynamicUpperLimitWithSimpleFilter2.hpp"
-#include "Logger.hpp"
+#include "Logging.hpp"
 
 namespace bftEngine
 {
@@ -128,7 +128,9 @@ namespace bftEngine
 			Assert(replyMsg != nullptr);
 			Assert(replyMsg->type() == REPLY_MSG_TYPE);
 
-			Logger::printInfo("Client %d received ClientReplyMsg with seqNum=%" PRIu64 " sender=%d  size=%d  primaryId=%d hash=%" PRIu64 "",
+ 			LOG_INFO_F(GL, "Client %d received ClientReplyMsg with seqNum=%"
+			PRIu64
+			" sender=%d  size=%d  primaryId=%d hash=%" PRIu64 "",
 				_clientId, replyMsg->reqSeqNum(), replyMsg->senderId(), replyMsg->size(), (int)replyMsg->currentPrimaryId(), replyMsg->debugHash());
 
 
@@ -197,14 +199,13 @@ namespace bftEngine
 			Assert(numberOfTransmissions == 0);
 		}
 
-
-
 		int SimpleClientImp::sendRequest(bool isReadOnly, const char* request, uint32_t lengthOfRequest, uint64_t reqSeqNum, uint64_t timeoutMilli, uint32_t lengthOfReplyBuffer, char* replyBuffer, uint32_t& actualReplyLength)
 		{			
 			// TODO(GG): check params ...
-
-			Logger::printInfo("Client %d - sends request %" PRIu64 " (isRO=%d, request size=%zu, retransmissionMilli=%d) ",
-				_clientId, reqSeqNum, (int)isReadOnly, (size_t)lengthOfRequest,  (int)limitOfExpectedOperationTime.upperLimit());
+			LOG_INFO_F(GL, "Client %d - sends request %" PRIu64 " (isRO=%d, "
+                            "request "
+                            "size=%zu, retransmissionMilli=%d) ",
+                            _clientId, reqSeqNum, (int)isReadOnly, (size_t)lengthOfRequest,  (int)limitOfExpectedOperationTime.upperLimit());
 
 			if (!_communication->isRunning())
 			{
@@ -281,9 +282,9 @@ namespace bftEngine
 				uint64_t durationMilli = ((uint64_t)absDifference(getMonotonicTime(), beginTime)) / 1000;
 				limitOfExpectedOperationTime.add(durationMilli);
 
-				Logger::printInfo("Client %d - request %" PRIu64 " has committed (isRO=%d, request size=%zu,  retransmissionMilli=%d) ",
+				LOG_INFO_F(GL, "Client %d - request %" PRIu64 " has committed "
+										  "(isRO=%d, request size=%zu,  retransmissionMilli=%d) ",
 					_clientId, reqSeqNum, (int)isReadOnly, (size_t)lengthOfRequest,  (int)limitOfExpectedOperationTime.upperLimit());
-
 
 				ClientReplyMsg* correctReply = replysCertificate.bestCorrectMsg();
 
@@ -351,7 +352,6 @@ namespace bftEngine
 			numberOfTransmissions = 0;
 		}
 
-
 		int SimpleClientImp::sendRequestToReadLatestSeqNum(uint64_t timeoutMilli, uint64_t& outLatestReqSeqNum)
 		{
 			Assert(false); // not implemented yet
@@ -406,8 +406,10 @@ namespace bftEngine
 								   (numberOfTransmissions > clientSendsRequestToAllReplicasFirstThresh && (numberOfTransmissions % clientSendsRequestToAllReplicasPeriodThresh == 0)) ||
 								   resetReplies;
 
-
-			Logger::printInfo("Client %d - sends request %" PRIu64 " (isRO=%d, request size=%zu, "
+			LOG_INFO_F(GL,"Client %d - sends request %" PRIu64 " "
+														   "(isRO=%d, "
+												   "request "
+                                          "size=%zu, "
 				" retransmissionMilli=%d, numberOfTransmissions=%d, resetReplies=%d, sendToAll=%d)",
 				_clientId, pendingRequest->requestSeqNum(), (int)pendingRequest->isReadOnly(), (size_t)pendingRequest->size(),
 				(int)limitOfExpectedOperationTime.upperLimit(), (int)numberOfTransmissions, (int)resetReplies, (int)sendToAll);

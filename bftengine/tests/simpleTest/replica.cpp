@@ -61,9 +61,15 @@
 // simpleTest includes
 #include "commonDefs.h"
 
+#ifdef USE_LOG4CPP
+#include <log4cplus/configurator.h>
+#endif
+
 using bftEngine::ICommunication;
 using bftEngine::PlainUDPCommunication;
 using bftEngine::PlainUdpConfig;
+using bftEngine::PlainTCPCommunication;
+using bftEngine::PlainTcpConfig;
 using bftEngine::Replica;
 using bftEngine::ReplicaConfig;
 using bftEngine::RequestsHandler;
@@ -71,6 +77,7 @@ using bftEngine::RequestsHandler;
 // Declarations of functions from config.cpp.
 void getReplicaConfig(uint16_t replicaId, bftEngine::ReplicaConfig* outConfig);
 PlainUdpConfig getUDPConfig(uint16_t id);
+extern PlainTcpConfig getTCPConfig(uint16_t id);
 
 // The replica state machine.
 class SimpleAppState : public RequestsHandler {
@@ -130,6 +137,13 @@ class SimpleAppState : public RequestsHandler {
 };
 
 int main(int argc, char **argv) {
+#ifdef USE_LOG4CPP
+  using namespace log4cplus;
+  initialize();
+  BasicConfigurator config;
+  config.configure();
+#endif
+
   // This program expects one argument: the index number of the replica being
   // started. This index is used to choose the correct config files (which
   // choose the correct keys, ports, etc.).
@@ -140,10 +154,13 @@ int main(int argc, char **argv) {
   ReplicaConfig replicaConfig;
   getReplicaConfig(id, &replicaConfig);
 
-  PlainUdpConfig udpConf = getUDPConfig(id);
-
-  ICommunication* comm = PlainUDPCommunication::create(udpConf);
-
+#ifndef USE_COMM_PLAIN_TCP
+  PlainUdpConfig conf = getUDPConfig(id);
+#else
+  PlainTcpConfig conf = getTCPConfig(id);
+#endif
+  ICommunication* comm = bftEngine::CommFactory::create(conf);
+  
   // This is the state machine that the replica will drive.
   SimpleAppState simpleAppState;
 

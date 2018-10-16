@@ -117,6 +117,62 @@ Get g++:
 
     sudo apt-get install g++
 
+(Optional) Use log4cplus
+
+    We have simple console logger but if you wish to use log4cplus - we have an
+    infra that supports it.
+
+    Follow below steps for installing this library:
+
+    1. Install prerequisites.
+    ```
+    sudo apt-get install autoconf automake
+    ```
+
+    2. Clone the repository.
+
+    ```
+    git clone https://github.com/log4cplus/log4cplus.git
+    ```
+
+    3. Move to the extracted directory and checkout the appropriate branch.
+
+    ```
+    cd log4cplus
+    git checkout REL_1_2_1
+    ````
+
+    4. Edit `configure` to change "am__api_version" from 1.14 to 1.15, the
+    version that ubuntu 16.04 supports.
+
+    5. Configure/make/install
+
+    ```
+    ./configure CXXFLAGS="--std=c++11"
+    make
+    sudo make install
+    ```
+    configuring with given flags is important. If log4cplus is build without `c++11` then athena will
+    give linker errors while building.
+
+    This will install all library files and header files into
+    '/usr/local'. (You may need to add `/usr/local/lib` to your
+    `LD_LIBRARY_PATH` to run Athena.)
+    You may also need to export CPLUS_INCLUDE_PATH variable set to
+    /usr/local/include for the header files
+
+    After installation, set USE_LOG4CPP flag to TRUE in the main CmakeLists.txt
+    The library doesn't config the log4cpp formats and appenders, it expects
+    that the upper level application will do it and the log4cpp system is
+    already initialized.
+
+### Select comm module
+    We support both UDP and TCP communication (UDP is the default one).
+    In the main Cmake file please set BUILD_COMM_TCP_PLAIN flag to TRUE to
+    build TCP - then the test client we use will run using TCP. If you wish to
+    use TCP in your application, you need to build the TCP module as mentioned
+    above and then create the communication object using CommFactory
+    and passing PlainTcpConfig object to it.
 
 ### Build concord-bft
 

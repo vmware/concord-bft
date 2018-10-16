@@ -14,12 +14,13 @@
 #ifndef BFTENGINE_INCLUDE_COMMUNICATION_COMMFACTORY_HPP_
 #define BFTENGINE_INCLUDE_COMMUNICATION_COMMFACTORY_HPP_
 
-#include <type_traits>
-
 #include "CommDefs.hpp"
+#include "Logging.hpp"
 
 namespace bftEngine {
-class CommFactory {
+class CommFactory {  
+ private:
+  static bftlogger::Logger _logger;
  public:
   static ICommunication*
   create(const BaseCommConfig &config);
