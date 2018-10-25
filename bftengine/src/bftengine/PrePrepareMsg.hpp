@@ -25,8 +25,9 @@ namespace bftEngine
 
 		class PrePrepareMsg : public MessageBase
 		{
-		protected:
 
+		protected:
+#pragma pack(push,1)
 			struct PrePrepareMsgHeader
 			{
 				MessageBase::Header header;
@@ -44,6 +45,8 @@ namespace bftEngine
 				// bits 2-3: represent the first commit path that should be tried (00 = OPTIMISTIC_FAST, 01 = FAST_WITH_THRESHOLD, 10 = SLOW)
 				// bits 4-15: zero
 			};
+#pragma pack(pop)
+			static_assert(sizeof(PrePrepareMsgHeader) == (2 + 8 + 8 + 2 + DIGEST_SIZE + 2 + 4), "PrePrepareMsgHeader is 58B")
 
 			static const size_t prePrepareHeaderPrefix = sizeof(PrePrepareMsgHeader) - sizeof(PrePrepareMsgHeader::numberOfRequests) - sizeof(PrePrepareMsgHeader::endLocationOfLastRequest);
 

@@ -18,7 +18,6 @@ namespace bftEngine
 		// TODO(GG): change class name (also used for read-only operations)
 		class FullExecProofMsg : public MessageBase
 		{
-			static_assert(sizeof(FullExecProofMsgHeader) == (2 + 2 + 8 + 2 + 2 + 2 + 2), "FullExecProofMsgHeader is 20B")
 
 		public:
 			FullExecProofMsg(ReplicaId senderId, NodeIdType clientId, ReqId requestId,
@@ -69,6 +68,7 @@ namespace bftEngine
 				// 3. signature (signatureLength bytes) 
 			};
 #pragma pack(pop)
+			static_assert(sizeof(FullExecProofMsgHeader) == (2 + 2 + 8 + 2 + 2 + 2 + 2), "FullExecProofMsgHeader is 20B")
 
 			FullExecProofMsgHeader* b() const
 			{

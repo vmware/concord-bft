@@ -15,7 +15,6 @@ namespace bftEngine
 	{
 		class ReplicaStatusMsg : public MessageBase
 		{
-			static_assert(sizeof(ReplicaStatusMsgHeader) == (2 + 8 + 8 + 8 + 1), "ReplicaStatusMsgHeader is 27B")
 
 		public:
 			ReplicaStatusMsg(ReplicaId senderId, ViewNum viewNumber, 
@@ -74,6 +73,7 @@ namespace bftEngine
 				uint8_t flags; 				
 			};
 #pragma pack(pop)
+			static_assert(sizeof(ReplicaStatusMsgHeader) == (2 + 8 + 8 + 8 + 1), "ReplicaStatusMsgHeader is 27B")
 
 			static MsgSize calcSizeOfReplicaStatusMsg(bool listOfPrePrepareMsgsInActiveWindow, bool listOfMissingViewChangeMsgForViewChange, bool listOfMissingPrePrepareMsgForViewChange);
 

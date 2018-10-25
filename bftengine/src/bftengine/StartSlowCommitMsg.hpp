@@ -18,8 +18,6 @@ namespace bftEngine
 
 		class StartSlowCommitMsg : public MessageBase
 		{
-			static_assert(sizeof(StartSlowCommitMsgHeader) == (2 + 8 + 8), "StartSlowCommitMsgHeader is 12B")
-
 		public:
 			StartSlowCommitMsg(ReplicaId senderId, ViewNum v, SeqNum s);
 
@@ -38,6 +36,7 @@ namespace bftEngine
 				SeqNum seqNum;
 			};
 #pragma pack(pop)
+			static_assert(sizeof(StartSlowCommitMsgHeader) == (2 + 8 + 8), "StartSlowCommitMsgHeader is 12B")
 
 			StartSlowCommitMsgHeader* b() const { return (StartSlowCommitMsgHeader*)msgBody_; }
 		};
