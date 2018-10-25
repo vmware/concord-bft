@@ -18,6 +18,8 @@ namespace bftEngine
 	{
 		class StateTransferMsg : public MessageBase
 		{
+			static_assert(sizeof(StateTransferMsg) == 2, "StartSlowCommitMsgHeader is 2B")
+
 		public:
 
 			static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, StateTransferMsg*& outMsg);

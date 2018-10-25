@@ -18,6 +18,7 @@ namespace bftEngine
 		// TODO(GG): use SignedShareBase
 		class FullCommitProofMsg : public MessageBase
 		{
+			static_assert(sizeof(FullCommitProofMsgHeader) == (2+8+8+2), "FullCommitProofMsgHeader is 20B")
 
 		public:
 			FullCommitProofMsg(ReplicaId senderId, ViewNum v, SeqNum s, const char* commitProofSig, uint16_t commitProofSigLength);
@@ -33,7 +34,7 @@ namespace bftEngine
 			static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, FullCommitProofMsg*& outMsg);
 
 		protected:
-
+#pragma pack(push,1)
 			struct FullCommitProofMsgHeader
 			{
 				MessageBase::Header header;
@@ -41,6 +42,7 @@ namespace bftEngine
 				SeqNum seqNum;
 				uint16_t thresholSignatureLength;
 			};
+#pragma pack(pop)
 
 			FullCommitProofMsgHeader* b() const { return (FullCommitProofMsgHeader*)msgBody_; }
 		};

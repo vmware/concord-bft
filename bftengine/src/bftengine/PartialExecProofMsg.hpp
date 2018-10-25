@@ -21,6 +21,7 @@ namespace bftEngine
 		// TODO(GG): use SignedShareBase
 		class PartialExecProofMsg : public MessageBase
 		{
+			static_assert(sizeof(PartialExecProofMsgHeader) == (2 + 8 + 8 + 2), "PartialExecProofMsgHeader is 20B")
 
 		public:
 			PartialExecProofMsg(ReplicaId senderId, ViewNum v, SeqNum s, Digest& digest, IThresholdSigner* thresholdSigner);
@@ -36,7 +37,7 @@ namespace bftEngine
 			static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, PartialExecProofMsg*& outMsg);
 
 		protected:
-
+#pragma pack(push,1)
 			struct PartialExecProofMsgHeader
 			{
 				MessageBase::Header header;
@@ -45,6 +46,7 @@ namespace bftEngine
 				uint16_t thresholSignatureLength;
 				// followed by a signature 
 			};
+#pragma pack(pop)
 
 			PartialExecProofMsgHeader* b() const { return (PartialExecProofMsgHeader*)msgBody_; }
 		};

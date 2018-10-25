@@ -20,6 +20,8 @@ namespace bftEngine
 
 		class ViewChangeMsg : public MessageBase
 		{
+			static_assert(sizeof(ViewChangeMsgHeader) == (2+2+8+8+2+2), "ViewChangeMsgHeader is 24B")
+
 		public:
 
 			struct Element {
@@ -84,7 +86,7 @@ namespace bftEngine
 			};
 
 		protected:
-
+#pragma pack(push,1)
 			struct ViewChangeMsgHeader
 			{
 				MessageBase::Header header;
@@ -96,7 +98,7 @@ namespace bftEngine
 											// followed by a sequnce of Element
 											// followed by a signature (by genReplicaId)
 			};
-
+#pragma pack(pop)
 			ViewChangeMsgHeader* b() const { return ((ViewChangeMsgHeader*)msgBody_); }
 
 			bool checkElements(uint16_t sigSize) const;

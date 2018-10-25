@@ -20,6 +20,8 @@ namespace bftEngine
 		///////////////////////////////////////////////////////////////////////////////
 
 		class SimpleAckMsg : public MessageBase
+			static_assert(sizeof(SimpleAckMsgHeader) == (2 + 8 + 8 + 2), "SimpleAckMsgHeader is 20B")
+
 		{
 		public:
 			SimpleAckMsg(SeqNum s, ViewNum v, ReplicaId senderId, uint64_t ackData);
@@ -33,7 +35,7 @@ namespace bftEngine
 			static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, SimpleAckMsg*& outMsg);
 
 		protected:
-
+#pragma pack(push,1)
 			struct SimpleAckMsgHeader
 			{
 				MessageBase::Header header;
@@ -41,6 +43,7 @@ namespace bftEngine
 				ViewNum		viewNum;
 				uint64_t    ackData;
 			};
+#pragma pack(pop)
 
 			SimpleAckMsgHeader* b() const
 			{

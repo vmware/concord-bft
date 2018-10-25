@@ -18,6 +18,8 @@ namespace bftEngine
 
 		class CheckpointMsg : public MessageBase
 		{
+			static_assert(sizeof(CheckpointMsgHeader) == (2+8+DIGEST_SIZE+1), "CheckpointMsgHeader is 43B")
+
 		public:
 
 			CheckpointMsg(ReplicaId senderId, SeqNum seqNum, const Digest& stateDigest, bool stateIsStable);
@@ -38,7 +40,7 @@ namespace bftEngine
 			static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, CheckpointMsg*& outMsg);
 
 		protected:
-
+#pragma pack(push,1)
 			struct CheckpointMsgHeader
 			{
 				MessageBase::Header header;
@@ -46,6 +48,7 @@ namespace bftEngine
 				Digest stateDigest;
 				uint8_t flags;
 			};
+#pragma pack(pop)
 
 			CheckpointMsgHeader* b() const
 			{

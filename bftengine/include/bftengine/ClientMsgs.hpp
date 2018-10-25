@@ -15,6 +15,7 @@
 
 namespace bftEngine
 {
+#pragma pack(push,1)
 	struct ClientRequestMsgHeader
 	{
 		uint16_t msgType; // always == REQUEST_MSG_TYPE
@@ -29,7 +30,6 @@ namespace bftEngine
 		// TODO(GG): add information about "suggested repliers" 
 	};
 
-
 	struct ClientReplyMsgHeader
 	{
 		uint16_t msgType; // always == REPLY_MSG_TYPE
@@ -39,4 +39,5 @@ namespace bftEngine
 
 		// TODO(GG): alignment and pack
 	};
+#pragma pack(pop)
 }

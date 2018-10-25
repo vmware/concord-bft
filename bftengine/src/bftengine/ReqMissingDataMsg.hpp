@@ -16,6 +16,8 @@ namespace bftEngine
 	{
 
 		class ReqMissingDataMsg : public MessageBase {
+			static_assert(sizeof(ReqMissingDataMsgHeader) == (2 + 8 + 8 + 2), "ReqMissingDataMsgHeader is 58B")
+
 		public:
 			ReqMissingDataMsg(ReplicaId senderId, ViewNum v, SeqNum s);
 
@@ -46,7 +48,7 @@ namespace bftEngine
 			static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, ReqMissingDataMsg*& outMsg);
 
 		protected:
-
+#pragma pack(push,1)
 			struct ReqMissingDataMsgHeader : public MessageBase::Header {
 				ViewNum viewNum;
 				SeqNum seqNum;
@@ -61,6 +63,7 @@ namespace bftEngine
 				// bit 6 : fullPrepareIsMissing
 				// bit 7 : fullCommitIsMissing
 			};
+#pragma pack(pop)
 
 			ReqMissingDataMsgHeader* b() const {
 				return (ReqMissingDataMsgHeader*)msgBody_;
