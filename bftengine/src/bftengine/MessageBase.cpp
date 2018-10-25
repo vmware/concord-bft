@@ -60,6 +60,7 @@ namespace bftEngine
 
 			void* p = (void*)msgBody_;
 			p = std::realloc(p, msgSize_);
+			// always shrinks allocated size, so no bytes should be 0'd
 
 			msgBody_ = (MessageBase::Header*)p;
 			storageSize_ = msgSize_;
@@ -83,6 +84,7 @@ namespace bftEngine
 		{
 			Assert(size > 0);
 			msgBody_ = (MessageBase::Header*)std::malloc(size);
+			memset(msgBody_, 0, size);
 			storageSize_ = size;
 			msgSize_ = size;
 			owner_ = true;
