@@ -44,14 +44,16 @@ namespace bftEngine
 										// followed by a sequnce of 2f+2c+1 instances of NewViewElement
 
 			};
-#pragma pack(pop)
-			static_assert(sizeof(NewViewMsgHeader) == (2 + 8 + 2), "NewViewMsgHeader is 12B");
 
 			struct NewViewElement
 			{
 				ReplicaId replicaId;
 				Digest  viewChangeDigest;
 			};
+#pragma pack(pop)
+
+			static_assert(sizeof(NewViewMsgHeader) == (2 + 8 + 2), "NewViewMsgHeader is 12B");
+			static_assert(sizeof(NewViewElement) == (2 + DIGEST_SIZE), "NewViewElement is 34B");
 
 			NewViewMsgHeader* b() const { return (NewViewMsgHeader*)msgBody_; }
 		};

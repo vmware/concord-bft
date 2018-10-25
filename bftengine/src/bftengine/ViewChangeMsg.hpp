@@ -22,11 +22,12 @@ namespace bftEngine
 		{
 		public:
 
+#pragma pack(push,1)
 			struct Element {
 				SeqNum  seqNum;
 				Digest  prePrepreDigest;
 				ViewNum originView;
-				bool    hasPreparedCertificate;
+				bool    hasPreparedCertificate; // TODO(SG): I think sizeof(bool) is implementation dependent
 				// if (hasPreparedCertificate) then followed by PreparedCertificate 
 			};
 
@@ -36,6 +37,9 @@ namespace bftEngine
 				uint16_t certificateSigLength;
 				// Followed by signature of <certificateView, seqNum, pre-prepre digest>
 			};
+#pragma pack(pop)
+			static_assert(sizeof(Element) == (8 + DIGEST_SIZE + 8 + 1), "Element (View Change) is 49B");
+			static_assert(sizeof(PreparedCertificate) == (8 + 2), "PreparedCertificate is 10B");
 
 			ViewChangeMsg(ReplicaId srcReplicaId, ViewNum newView, SeqNum lastStableSeq);
 
