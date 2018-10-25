@@ -25,7 +25,6 @@ namespace bftEngine
 		uint32_t requestLength;
 		// followed by the request (security information, such as signatures, should be part of the request)
 
-		// TODO(GG): alignment and pack
 		// TODO(GG): idOfClientProxy is not needed here
 		// TODO(GG): add information about "suggested repliers" 
 	};
@@ -36,8 +35,6 @@ namespace bftEngine
 		uint16_t currentPrimaryId;
 		uint64_t reqSeqNum;
 		uint32_t replyLength;
-
-		// TODO(GG): alignment and pack
 	};
 #pragma pack(pop)
 }
