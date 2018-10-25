@@ -154,10 +154,10 @@ int main(int argc, char **argv) {
   ReplicaConfig replicaConfig;
   getReplicaConfig(id, &replicaConfig);
 
-#ifndef USE_COMM_PLAIN_TCP
-  PlainUdpConfig conf = getUDPConfig(id);
-#else
+#ifdef USE_COMM_PLAIN_TCP
   PlainTcpConfig conf = getTCPConfig(id);
+#else
+  PlainUdpConfig conf = getUDPConfig(id);
 #endif
   ICommunication* comm = bftEngine::CommFactory::create(conf);
   
