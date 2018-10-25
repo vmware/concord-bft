@@ -36,7 +36,7 @@
 using namespace std;
 using namespace bftEngine;
 
-struct NodeAdressResolveResult
+struct NodeAddressResolveResult
 {
   NodeNum nodeId;
   bool wasFound;
@@ -300,18 +300,18 @@ class PlainUDPCommunication::PlainUdpImpl {
                  (void *) this);
   }
 
-  NodeAdressResolveResult
+  NodeAddressResolveResult
   addrToNodeId(Addr netAdress) {
     auto key = create_key(netAdress);
     auto res = addr2nodes.find(key);
     if (res == addr2nodes.end()) {
       // IG: if we don't know the sender we just ignore this message and
       // continue.
-      LOG_WARN(_logger, "Unknown sender, adress: " << key);
-      return NodeAdressResolveResult({0, false});
+      LOG_WARN(_logger, "Unknown sender, address: " << key);
+      return NodeAddressResolveResult({0, false});
     }
 
-    return NodeAdressResolveResult({res->second, true});
+    return NodeAddressResolveResult({res->second, true});
   }
 
   void
