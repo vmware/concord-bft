@@ -97,7 +97,7 @@ namespace bftEngine
 											// followed by a signature (by genReplicaId)
 			};
 #pragma pack(pop)
-			static_assert(sizeof(ViewChangeMsgHeader) == (2 + 2 + 8 + 8 + 2 + 2), "ViewChangeMsgHeader is 24B")
+			static_assert(sizeof(ViewChangeMsgHeader) == (2 + 2 + 8 + 8 + 2 + 2), "ViewChangeMsgHeader is 24B");
 
 			ViewChangeMsgHeader* b() const { return ((ViewChangeMsgHeader*)msgBody_); }
 

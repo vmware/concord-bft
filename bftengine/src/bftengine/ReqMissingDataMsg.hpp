@@ -63,7 +63,7 @@ namespace bftEngine
 				// bit 7 : fullCommitIsMissing
 			};
 #pragma pack(pop)
-			static_assert(sizeof(ReqMissingDataMsgHeader) == (2 + 8 + 8 + 2), "ReqMissingDataMsgHeader is 58B")
+			static_assert(sizeof(ReqMissingDataMsgHeader) == (2 + 8 + 8 + 2), "ReqMissingDataMsgHeader is 58B");
 
 			ReqMissingDataMsgHeader* b() const {
 				return (ReqMissingDataMsgHeader*)msgBody_;

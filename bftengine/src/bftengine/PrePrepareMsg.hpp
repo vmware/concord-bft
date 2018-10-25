@@ -46,7 +46,7 @@ namespace bftEngine
 				// bits 4-15: zero
 			};
 #pragma pack(pop)
-			static_assert(sizeof(PrePrepareMsgHeader) == (2 + 8 + 8 + 2 + DIGEST_SIZE + 2 + 4), "PrePrepareMsgHeader is 58B")
+			static_assert(sizeof(PrePrepareMsgHeader) == (2 + 8 + 8 + 2 + DIGEST_SIZE + 2 + 4), "PrePrepareMsgHeader is 58B");
 
 			static const size_t prePrepareHeaderPrefix = sizeof(PrePrepareMsgHeader) - sizeof(PrePrepareMsgHeader::numberOfRequests) - sizeof(PrePrepareMsgHeader::endLocationOfLastRequest);
 

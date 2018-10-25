@@ -42,7 +42,7 @@ namespace bftEngine
 				uint16_t thresholSignatureLength;
 			};
 #pragma pack(pop)
-			static_assert(sizeof(FullCommitProofMsgHeader) == (2 + 8 + 8 + 2), "FullCommitProofMsgHeader is 20B")
+			static_assert(sizeof(FullCommitProofMsgHeader) == (2 + 8 + 8 + 2), "FullCommitProofMsgHeader is 20B");
 
 			FullCommitProofMsgHeader* b() const { return (FullCommitProofMsgHeader*)msgBody_; }
 		};

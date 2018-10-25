@@ -36,7 +36,7 @@ namespace bftEngine
 				SeqNum seqNum;
 			};
 #pragma pack(pop)
-			static_assert(sizeof(StartSlowCommitMsgHeader) == (2 + 8 + 8), "StartSlowCommitMsgHeader is 12B")
+			static_assert(sizeof(StartSlowCommitMsgHeader) == (2 + 8 + 8), "StartSlowCommitMsgHeader is 12B");
 
 			StartSlowCommitMsgHeader* b() const { return (StartSlowCommitMsgHeader*)msgBody_; }
 		};

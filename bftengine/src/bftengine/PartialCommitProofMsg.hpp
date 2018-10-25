@@ -50,7 +50,7 @@ namespace bftEngine
 				// followed by a partial signature
 			};
 #pragma pack(pop)
-			static_assert(sizeof(PartialCommitProofMsgHeader) == (2 + 8 + 8 + sizeof(CommitPath) + 2), "PartialCommitProofMsgHeader is 20B+sizeof(CommitPath)")
+			static_assert(sizeof(PartialCommitProofMsgHeader) == (2 + 8 + 8 + sizeof(CommitPath) + 2), "PartialCommitProofMsgHeader is 20B+sizeof(CommitPath)");
 
 			PartialCommitProofMsgHeader* b() const { return (PartialCommitProofMsgHeader*)msgBody_; }
 		};

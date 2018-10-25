@@ -23,10 +23,13 @@ namespace bftEngine
 		class MessageBase
 		{
 		public:
+#pragma pack(push,1)
 			struct Header
 			{
 				MsgType msgType;
 			};
+#pragma pack(pop)
+			static_assert(sizeof(Header) == 2, "MessageBase::Header is 2B");
 
 			MessageBase(NodeIdType sender);
 

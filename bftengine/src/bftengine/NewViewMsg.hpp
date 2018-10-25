@@ -45,7 +45,7 @@ namespace bftEngine
 
 			};
 #pragma pack(pop)
-			static_assert(sizeof(NewViewMsgHeader) == (2 + 8 + 2), "NewViewMsgHeader is 12B")
+			static_assert(sizeof(NewViewMsgHeader) == (2 + 8 + 2), "NewViewMsgHeader is 12B");
 
 			struct NewViewElement
 			{

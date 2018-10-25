@@ -49,7 +49,7 @@ namespace bftEngine
 				uint8_t flags;
 			};
 #pragma pack(pop)
-			static_assert(sizeof(CheckpointMsgHeader) == (2 + 8 + DIGEST_SIZE + 1), "CheckpointMsgHeader is 43B")
+			static_assert(sizeof(CheckpointMsgHeader) == (2 + 8 + DIGEST_SIZE + 1), "CheckpointMsgHeader is 43B");
 
 			CheckpointMsgHeader* b() const
 			{

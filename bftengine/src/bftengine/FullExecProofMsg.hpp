@@ -68,7 +68,7 @@ namespace bftEngine
 				// 3. signature (signatureLength bytes) 
 			};
 #pragma pack(pop)
-			static_assert(sizeof(FullExecProofMsgHeader) == (2 + 2 + 8 + 2 + 2 + 2 + 2), "FullExecProofMsgHeader is 20B")
+			static_assert(sizeof(FullExecProofMsgHeader) == (2 + 2 + 8 + 2 + 2 + 2 + 2), "FullExecProofMsgHeader is 20B");
 
 			FullExecProofMsgHeader* b() const
 			{
