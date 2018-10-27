@@ -1,3 +1,6 @@
+get_property(LOGGER_INC_DIR GLOBAL PROPERTY LoggerIncludeDir)
+get_property(LOGGER_SRC_DIR GLOBAL PROPERTY LoggerSrcDir)
+
 set(corebft_source_files
     src/bftengine/PrePrepareMsg.cpp
     src/bftengine/CheckpointMsg.cpp
@@ -41,13 +44,15 @@ set(corebft_source_files
     src/bftengine/SimpleClient.cpp
     src/communication/PlainUDPCommunication.cpp
     src/communication/CommFactory.cpp
+    ${LOGGER_INC_DIR}/Logging.hpp
+    ${LOGGER_SRC_DIR}/Logging.cpp
 )
 #
 # pthread dependency
 find_package(Threads REQUIRED)
 #message("Threads library: ${CMAKE_THREAD_LIBS_INIT}")
 
-if(BUILD_COMM_TCP_PLAIN)
+if(${BUILD_COMM_TCP_PLAIN})
     set(corebft_source_files ${corebft_source_files} src/communication/PlainTcpCommunication.cpp src/communication/CommFactory.cpp)
 endif()
 
@@ -56,7 +61,7 @@ endif()
 #
 add_library(corebft STATIC ${corebft_source_files})
 
-if(BUILD_COMM_TCP_PLAIN)
+if(${BUILD_COMM_TCP_PLAIN})
     set(Boost_USE_STATIC_LIBS        ON) # only find static libs
     set(Boost_USE_MULTITHREADED      ON)
     set(Boost_USE_STATIC_RUNTIME    OFF)
@@ -65,10 +70,19 @@ if(BUILD_COMM_TCP_PLAIN)
         include_directories(${Boost_INCLUDE_DIRS})
         target_link_libraries(corebft PUBLIC ${Boost_LIBRARIES})
     endif()
+    target_compile_definitions(corebft PUBLIC USE_COMM_PLAIN_TCP)
+endif()
+
+TARGET_COMPILE_DEFINITIONS(corebft PUBLIC
+        DEFAULT_LOGGER_NAME="${CONCORD_LOGGER_NAME}")
+if(${USE_LOG4CPP})
+    TARGET_COMPILE_DEFINITIONS(corebft PUBLIC USE_LOG4CPP)
+    target_link_libraries(corebft PUBLIC log4cplus)
 endif()
 
 target_include_directories(corebft PUBLIC include/bftengine)
 target_include_directories(corebft PUBLIC include/communication)
+target_include_directories(corebft PUBLIC ${LOGGER_INC_DIR})
 
 target_link_libraries(corebft PUBLIC threshsign)
 target_link_libraries(corebft PUBLIC Threads::Threads)

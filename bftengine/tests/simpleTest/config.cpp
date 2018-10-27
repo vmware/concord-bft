@@ -26,6 +26,7 @@
 #include "threshsign/ThresholdSignaturesSchemes.h"
 
 using bftEngine::PlainUdpConfig;
+using bftEngine::PlainTcpConfig;
 using bftEngine::ReplicaConfig;
 using BLS::Relic::BlsThresholdFactory;
 using std::pair;
@@ -318,5 +319,23 @@ PlainUdpConfig getUDPConfig(uint16_t id) {
       NodeInfo{ip, (uint16_t)(basePort + i*2), i < numOfReplicas} });
 
   PlainUdpConfig retVal(ip, port, bufLength, nodes, id);
+  return retVal;
+}
+
+// Create a UDP communication configuration for the node (replica or client)
+// with index `id`.
+PlainTcpConfig getTCPConfig(uint16_t id) {
+  std::string ip = "127.0.0.1";
+  uint16_t port = basePort + id*2;
+  uint32_t bufLength = 64000;
+
+  // Create a map of where the port for each node is.
+  std::unordered_map <NodeNum, NodeInfo> nodes;
+  for (int i = 0; i < (numOfReplicas + numOfClientProxies); i++)
+    nodes.insert({
+                     i,
+                     NodeInfo{ip, (uint16_t)(basePort + i*2), i < numOfReplicas} });
+
+  PlainTcpConfig retVal(ip, port, bufLength, nodes, numOfReplicas -1, id);
   return retVal;
 }

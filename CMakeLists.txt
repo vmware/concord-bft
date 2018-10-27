@@ -12,13 +12,21 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 
 set(IS_LEAKCHECK FALSE)
-set(BUILD_COMM_TCP_PLAIN FALSE)
 set(BUILD_COMM_TCP_TLS FALSE)
 set(SLEEP_FOR_DBG FALSE)
 
-if(BUILD_COMM_TCP_PLAIN)
-    add_definitions(-DUSE_COMM_PLAIN_TCP)
+#if not set to TRUE by the app, set from here
+if(NOT USE_LOG4CPP)
+    set(USE_LOG4CPP FALSE)
 endif()
+if(NOT BUILD_COMM_TCP_PLAIN)
+    set(BUILD_COMM_TCP_PLAIN FALSE)
+endif()
+
+if(NOT CONCORD_LOGGER_NAME)
+    set(CONCORD_LOGGER_NAME "concord")
+endif()
+
 if(SLEEP_FOR_DBG)
     add_definitions(-DSLEEP_DBG)
 endif()
@@ -26,7 +34,6 @@ endif()
 #
 # Compiler options
 #
-
 # 
 
 string(APPEND CXX_FLAGS " -Wall")
@@ -99,5 +106,6 @@ endif()
 #
 # Subdirectories
 #
+add_subdirectory(logging)
 add_subdirectory(threshsign)
 add_subdirectory(bftengine)

@@ -19,10 +19,9 @@
 #include <unordered_map>
 #include "CommDefs.hpp"
 #include "Threading.h"
+#include "Logging.hpp"
 
 #define Assert(cond, txtMsg) assert(cond && (txtMsg))
-
-#define LOG_DEBUG(txt) ;
 
 #if defined(_WIN32)
 #define CLOSESOCKET(x) closesocket((x));
@@ -36,6 +35,12 @@
 
 using namespace std;
 using namespace bftEngine;
+
+struct NodeAddressResolveResult
+{
+  NodeNum nodeId;
+  bool wasFound;
+};
 
 class PlainUDPCommunication::PlainUdpImpl {
  private:
@@ -73,6 +78,8 @@ class PlainUDPCommunication::PlainUdpImpl {
   UPDATE_CONNECTIVITY_FN statusCallback = nullptr;
 
   NodeNum selfId;
+
+  bftlogger::Logger _logger = bftlogger::Logger::getLogger("plain-udp");
 
   bool check_replica(NodeNum node)
   {
@@ -131,8 +138,8 @@ class PlainUDPCommunication::PlainUdpImpl {
       nodes2adresses.insert({next->first, ad});
     }
 
-    LOG_DEBUG("Starting UDP communication. Port = %" << udpListenPort);
-    LOG_DEBUG("#endpoints = " << nodes2adresses.size());
+    LOG_DEBUG(_logger, "Starting UDP communication. Port = %" << udpListenPort);
+    LOG_DEBUG(_logger, "#endpoints = " << nodes2adresses.size());
 
     bufferForIncomingMessages = (char *) std::malloc(maxMsgSize);
 
@@ -152,14 +159,14 @@ class PlainUDPCommunication::PlainUdpImpl {
     Addr sAddr;
 
     if (!receiverRef) {
-      LOG_DEBUG("Cannot Start(): Receiver not set");
+      LOG_DEBUG(_logger, "Cannot Start(): Receiver not set");
       return -1;
     }
 
     mutexLock(&runningLock);
 
     if (running == true) {
-      LOG_DEBUG("Cannot Start(): already running!");
+      LOG_DEBUG(_logger, "Cannot Start(): already running!");
       mutexUnlock(&runningLock);
       return -1;
     }
@@ -175,7 +182,7 @@ class PlainUDPCommunication::PlainUdpImpl {
     // Bind the socket.
     error = ::bind(udpSockFd, (struct sockaddr *) &sAddr, sizeof(Addr));
     if (error < 0) {
-      LOG_DEBUG("Error while binding: " << strerror(errno));
+      LOG_DEBUG(_logger, "Error while binding: " << strerror(errno));
       Assert(false, "Failure occurred while binding the socket!");
       exit(1); // TODO(GG): not really ..... change this !
     }
@@ -199,7 +206,7 @@ class PlainUDPCommunication::PlainUdpImpl {
   Stop() {
     mutexLock(&runningLock);
     if (running == false) {
-      LOG_DEBUG("Cannot Stop(): not running!");
+      LOG_DEBUG(_logger, "Cannot Stop(): not running!");
       mutexUnlock(&runningLock);
       return -1;
     }
@@ -249,7 +256,7 @@ class PlainUDPCommunication::PlainUdpImpl {
     Assert(messageLength > 0, "The message length must be positive!");
     Assert(message != NULL, "No message provided!");
 
-    LOG_DEBUG(" Sending " << messageLength
+    LOG_DEBUG(_logger, " Sending " << messageLength
                           << " bytes to "
                           << destNode << " (" << inet_ntoa(to->sin_addr) << ":"
                           << ntohs(to->sin_port));
@@ -260,13 +267,13 @@ class PlainUDPCommunication::PlainUdpImpl {
     if (error < 0) {
       /** -1 return value means underlying socket error. */
       string err = strerror(errno);
-      LOG_DEBUG("Error while sending: " << strerror(errno));
+      LOG_DEBUG(_logger, "Error while sending: " << strerror(errno));
       Assert(false, "Failure occurred while sending!");
       /** Fail-fast. */
     } else if (error < (int) messageLength) {
       /** Mesage was partially sent. Unclear why this would happen, perhaps
         * due to oversized messages (?). */
-      LOG_DEBUG("Sent %d out of %d bytes!");
+      LOG_DEBUG(_logger, "Sent %d out of %d bytes!");
       Assert(false, "Send error occurred!");    /** Fail-fast. */
     }
 
@@ -287,20 +294,24 @@ class PlainUDPCommunication::PlainUdpImpl {
 
   void
   startRecvThread() {
-    LOG_DEBUG("Starting the receiving thread..");
+    LOG_DEBUG(_logger, "Starting the receiving thread..");
     createThread(&recvThreadRef,
                  &PlainUdpImpl::recvRoutineWrapper,
                  (void *) this);
   }
 
-  NodeNum
+  NodeAddressResolveResult
   addrToNodeId(Addr netAdress) {
     auto key = create_key(netAdress);
     auto res = addr2nodes.find(key);
-    if (res == addr2nodes.end())
-      return 0;//TBD, (IG): to change to macro of default NodeNum
+    if (res == addr2nodes.end()) {
+      // IG: if we don't know the sender we just ignore this message and
+      // continue.
+      LOG_WARN(_logger, "Unknown sender, address: " << key);
+      return NodeAddressResolveResult({0, false});
+    }
 
-    return res->second;
+    return NodeAddressResolveResult({res->second, true});
   }
 
   void
@@ -349,13 +360,19 @@ class PlainUDPCommunication::PlainUdpImpl {
                       (sockaddr *) &fromAdress,
                       &fromAdressLength);
 
-      //LOG_DEBUG("recvfrom returned " << mLen << " bytes");
+      LOG_DEBUG(_logger, "recvfrom returned " << mLen << " bytes");
 
-      if (mLen < 0) { LOG_DEBUG("Error in recvfrom(): " << mLen);
+      if (mLen < 0) {
+        LOG_DEBUG(_logger, "Error in recvfrom(): " << mLen);
         continue;
       }
 
-      auto sendingNode = addrToNodeId(fromAdress);
+      auto resolveNode = addrToNodeId(fromAdress);
+      if(!resolveNode.wasFound) {
+        continue;
+      }
+
+      auto sendingNode = resolveNode.nodeId;
       if (mLen > 0 && (receiverRef != NULL)) {
         receiverRef->onNewMessage(sendingNode,
                                   bufferForIncomingMessages,

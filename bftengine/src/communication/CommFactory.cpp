@@ -15,6 +15,7 @@
 #include <utility>
 
 #include "CommFactory.hpp"
+#include "Logging.hpp"
 
 using bftEngine::CommFactory;
 using bftEngine::CommType;
@@ -23,11 +24,15 @@ using bftEngine::PlainTcpConfig;
 using bftEngine::PlainUdpConfig;
 using bftEngine::TlsTcpConfig;
 
+bftlogger::Logger CommFactory::_logger =
+   bftlogger::Logger::getLogger("comm-factory");
+
 ICommunication*
 CommFactory::create(const BaseCommConfig &config) {
   ICommunication *res = nullptr;
   switch (config.commType) {
   case CommType::PlainUdp:
+    LOG_INFO(_logger, "Using PlainUDP");
     res = PlainUDPCommunication::create(
       dynamic_cast<const PlainUdpConfig&>(config));
     break;
@@ -35,6 +40,7 @@ CommFactory::create(const BaseCommConfig &config) {
     break;
   case CommType::PlainTcp:
 #ifdef USE_COMM_PLAIN_TCP
+    LOG_INFO(_logger, "Using PlainTCP");
     res = PlainTCPCommunication::create(
       dynamic_cast<const PlainTcpConfig&>(config));
 #endif
@@ -43,6 +49,7 @@ CommFactory::create(const BaseCommConfig &config) {
     break;
   case CommType::TlsTcp:
 #ifdef USE_COMM_TLS_TCP
+    LOG_INFO(_logger, "Using TlsTCP");
     res = TlsTCPCommunication::create(
       dynamic_cast<const TlsTcpConfig&>(config));
 #endif

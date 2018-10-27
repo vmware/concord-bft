@@ -28,6 +28,7 @@
 // information about how to run the client.
 
 #include <cassert>
+#include <thread>
 
 // bftEngine includes
 #include "CommFactory.hpp"
@@ -36,16 +37,31 @@
 // simpleTest includes
 #include "commonDefs.h"
 
+#ifdef USE_LOG4CPP
+#include <log4cplus/configurator.h>
+#endif
+
 using bftEngine::ICommunication;
 using bftEngine::PlainUDPCommunication;
 using bftEngine::PlainUdpConfig;
+using bftEngine::PlainTCPCommunication;
+using bftEngine::PlainTcpConfig;
 using bftEngine::SeqNumberGeneratorForClientRequests;
 using bftEngine::SimpleClient;
 
 // Declarations of functions form config.cpp.
 PlainUdpConfig getUDPConfig(uint16_t id);
+extern PlainTcpConfig getTCPConfig(uint16_t id);
 
 int main(int argc, char **argv) {
+// TODO(IG:) configure Log4Cplus's output format, using default for now
+#ifdef USE_LOG4CPP
+  using namespace log4cplus;
+  initialize();
+  BasicConfigurator config;
+  config.configure();
+#endif
+
   // This client's index number. Must be larger than the largest replica index
   // number.
   const int16_t id = 4;
@@ -63,8 +79,13 @@ int main(int argc, char **argv) {
       createSeqNumberGeneratorForClientRequests();
 
   // Configure, create, and start the Concord client to use.
-  PlainUdpConfig udpConf = getUDPConfig(id);
-  ICommunication* comm = PlainUDPCommunication::create(udpConf);
+#ifdef USE_COMM_PLAIN_TCP
+  PlainTcpConfig conf = getTCPConfig(id);
+#else
+  PlainUdpConfig conf = getUDPConfig(id);
+#endif
+  ICommunication* comm = bftEngine::CommFactory::create(conf);
+
   SimpleClient* client = SimpleClient::createSimpleClient(comm, id, 1, 0);
   comm->Start();
 
