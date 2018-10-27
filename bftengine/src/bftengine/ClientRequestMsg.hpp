@@ -25,6 +25,8 @@ namespace bftEngine
 			static_assert(sizeof(ClientRequestMsgHeader::msgType) == sizeof(MessageBase::Header), "");
 			static_assert(sizeof(ClientRequestMsgHeader::idOfClientProxy) == sizeof(NodeIdType), "");
 			static_assert(sizeof(ClientRequestMsgHeader::reqSeqNum) == sizeof(ReqId), "");
+			static_assert(sizeof(ClientRequestMsgHeader) == 17, "ClientRequestMsgHeader is 17B");
+
 			// TODO(GG): more asserts
 
 		public:

@@ -22,6 +22,7 @@ namespace bftEngine
 		// TODO(GG): consider to use SignedShareBase
 		class PartialCommitProofMsg : public MessageBase
 		{
+
 		public:
 			PartialCommitProofMsg(ReplicaId senderId, ViewNum v, SeqNum s, CommitPath commitPath, Digest& digest, IThresholdSigner* thresholdSigner);
 
@@ -38,7 +39,7 @@ namespace bftEngine
 			static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, PartialCommitProofMsg*& outMsg);
 
 		protected:
-
+#pragma pack(push,1)
 			struct PartialCommitProofMsgHeader
 			{
 				MessageBase::Header header;
@@ -48,6 +49,8 @@ namespace bftEngine
 				uint16_t thresholSignatureLength;
 				// followed by a partial signature
 			};
+#pragma pack(pop)
+			static_assert(sizeof(PartialCommitProofMsgHeader) == (2 + 8 + 8 + sizeof(CommitPath) + 2), "PartialCommitProofMsgHeader is 20B+sizeof(CommitPath)");
 
 			PartialCommitProofMsgHeader* b() const { return (PartialCommitProofMsgHeader*)msgBody_; }
 		};

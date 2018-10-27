@@ -15,6 +15,7 @@
 
 namespace bftEngine
 {
+#pragma pack(push,1)
 	struct ClientRequestMsgHeader
 	{
 		uint16_t msgType; // always == REQUEST_MSG_TYPE
@@ -24,11 +25,9 @@ namespace bftEngine
 		uint32_t requestLength;
 		// followed by the request (security information, such as signatures, should be part of the request)
 
-		// TODO(GG): alignment and pack
 		// TODO(GG): idOfClientProxy is not needed here
 		// TODO(GG): add information about "suggested repliers" 
 	};
-
 
 	struct ClientReplyMsgHeader
 	{
@@ -36,7 +35,6 @@ namespace bftEngine
 		uint16_t currentPrimaryId;
 		uint64_t reqSeqNum;
 		uint32_t replyLength;
-
-		// TODO(GG): alignment and pack
 	};
+#pragma pack(pop)
 }

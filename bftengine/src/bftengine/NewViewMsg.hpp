@@ -18,6 +18,7 @@ namespace bftEngine
 
 		class NewViewMsg : public MessageBase
 		{
+
 		public:
 			NewViewMsg(ReplicaId senderId, ViewNum newView);
 
@@ -32,6 +33,7 @@ namespace bftEngine
 			bool includesViewChangeFromReplica(ReplicaId replicaId, const Digest& viewChangeReplica) const;
 
 		protected:
+#pragma pack(push,1)
 			struct NewViewMsgHeader
 			{
 				MessageBase::Header header;
@@ -48,6 +50,10 @@ namespace bftEngine
 				ReplicaId replicaId;
 				Digest  viewChangeDigest;
 			};
+#pragma pack(pop)
+
+			static_assert(sizeof(NewViewMsgHeader) == (2 + 8 + 2), "NewViewMsgHeader is 12B");
+			static_assert(sizeof(NewViewElement) == (2 + DIGEST_SIZE), "NewViewElement is 34B");
 
 			NewViewMsgHeader* b() const { return (NewViewMsgHeader*)msgBody_; }
 		};

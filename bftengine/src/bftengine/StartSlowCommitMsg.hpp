@@ -28,13 +28,15 @@ namespace bftEngine
 			static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, StartSlowCommitMsg*& outMsg);
 
 		protected:
-
+#pragma pack(push,1)
 			struct StartSlowCommitMsgHeader
 			{
 				MessageBase::Header header;
 				ViewNum viewNum;
 				SeqNum seqNum;
 			};
+#pragma pack(pop)
+			static_assert(sizeof(StartSlowCommitMsgHeader) == (2 + 8 + 8), "StartSlowCommitMsgHeader is 12B");
 
 			StartSlowCommitMsgHeader* b() const { return (StartSlowCommitMsgHeader*)msgBody_; }
 		};

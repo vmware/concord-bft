@@ -23,6 +23,7 @@ namespace bftEngine
 		///////////////////////////////////////////////////////////////////////////////
 
 		class SignedShareBase : public MessageBase {
+
 		public:
 
 			ViewNum viewNumber() const { return b()->viewNumber; }
@@ -34,7 +35,7 @@ namespace bftEngine
 			char* signatureBody() const { return body() + sizeof(SignedShareBaseHeader); }
 
 		protected:
-
+#pragma pack(push,1)
 			struct SignedShareBaseHeader
 			{
 				MessageBase::Header header;
@@ -43,6 +44,8 @@ namespace bftEngine
 				uint16_t thresSigLength;
 				// Followed by threshold signature of <viewNumber, seqNumber, and the preprepre digest>
 			};
+#pragma pack(pop)
+			static_assert(sizeof(SignedShareBaseHeader) == (2 + 8 + 8 + 2), "SignedShareBaseHeader is 58B");
 
 			static SignedShareBase* create(int16_t type, ViewNum v, SeqNum s, ReplicaId senderId, Digest& digest, IThresholdSigner* thresholdSigner);
 			static SignedShareBase* create(int16_t type, ViewNum v, SeqNum s, ReplicaId senderId, const char* sig, uint16_t sigLen);

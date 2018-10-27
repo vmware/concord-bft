@@ -18,6 +18,7 @@ namespace bftEngine
 		// TODO(GG): change class name (also used for read-only operations)
 		class FullExecProofMsg : public MessageBase
 		{
+
 		public:
 			FullExecProofMsg(ReplicaId senderId, NodeIdType clientId, ReqId requestId,
 				uint16_t sigLength,
@@ -51,7 +52,7 @@ namespace bftEngine
 			static bool ToActualMsgType(NodeIdType myId, MessageBase* inMsg, FullExecProofMsg*& outMsg);
 
 		protected:
-
+#pragma pack(push, 1)
 			struct FullExecProofMsgHeader
 			{
 				MessageBase::Header header;
@@ -66,6 +67,8 @@ namespace bftEngine
 				// 2. the merkle proof (executionProofLength bytes)
 				// 3. signature (signatureLength bytes) 
 			};
+#pragma pack(pop)
+			static_assert(sizeof(FullExecProofMsgHeader) == (2 + 2 + 8 + 2 + 2 + 2 + 2), "FullExecProofMsgHeader is 20B");
 
 			FullExecProofMsgHeader* b() const
 			{

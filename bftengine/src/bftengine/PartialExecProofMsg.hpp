@@ -36,7 +36,7 @@ namespace bftEngine
 			static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, PartialExecProofMsg*& outMsg);
 
 		protected:
-
+#pragma pack(push,1)
 			struct PartialExecProofMsgHeader
 			{
 				MessageBase::Header header;
@@ -45,6 +45,8 @@ namespace bftEngine
 				uint16_t thresholSignatureLength;
 				// followed by a signature 
 			};
+#pragma pack(pop)
+			static_assert(sizeof(PartialExecProofMsgHeader) == (2 + 8 + 8 + 2), "PartialExecProofMsgHeader is 20B");
 
 			PartialExecProofMsgHeader* b() const { return (PartialExecProofMsgHeader*)msgBody_; }
 		};

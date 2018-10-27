@@ -15,6 +15,7 @@ namespace bftEngine
 	{
 		class ReplicaStatusMsg : public MessageBase
 		{
+
 		public:
 			ReplicaStatusMsg(ReplicaId senderId, ViewNum viewNumber, 
 				             SeqNum lastStableSeqNum, SeqNum lastExecutedSeqNum,
@@ -55,6 +56,7 @@ namespace bftEngine
 
 		protected:
 
+#pragma pack(push,1)
 			struct ReplicaStatusMsgHeader
 			{
 				MessageBase::Header header;
@@ -70,6 +72,8 @@ namespace bftEngine
 				// bit 4 == has list of missing PrePrepareMsg (for view change)
 				uint8_t flags; 				
 			};
+#pragma pack(pop)
+			static_assert(sizeof(ReplicaStatusMsgHeader) == (2 + 8 + 8 + 8 + 1), "ReplicaStatusMsgHeader is 27B");
 
 			static MsgSize calcSizeOfReplicaStatusMsg(bool listOfPrePrepareMsgsInActiveWindow, bool listOfMissingViewChangeMsgForViewChange, bool listOfMissingPrePrepareMsgForViewChange);
 

@@ -23,6 +23,7 @@ namespace bftEngine
 			static_assert(sizeof(ClientReplyMsgHeader::msgType) == sizeof(MessageBase::Header), "");
 			static_assert(sizeof(ClientReplyMsgHeader::reqSeqNum) == sizeof(ReqId), "");
 			static_assert(sizeof(ClientReplyMsgHeader::currentPrimaryId) == sizeof(ReplicaId), "");
+			static_assert(sizeof(ClientReplyMsgHeader) == 16, "ClientRequestMsgHeader is 16B");
 			// TODO(GG): more asserts
 
 		public:
