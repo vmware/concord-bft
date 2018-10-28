@@ -20,6 +20,7 @@
 #include "CommDefs.hpp"
 #include "Threading.h"
 #include "Logging.hpp"
+#include <atomic>
 
 #define Assert(cond, txtMsg) assert(cond && (txtMsg))
 
@@ -64,9 +65,6 @@ class PlainUDPCommunication::PlainUdpImpl {
   /* The list of all nodes we're communicating with. */
   std::unordered_map<NodeNum, NodeInfo> endpoints;
 
-  /** Flag to indicate whether the current communication layer still runs. */
-  bool running;
-
   /** Prevent multiple Start() invocations, i.e., multiple recvThread. */
   Mutex runningLock;
 
@@ -78,6 +76,9 @@ class PlainUDPCommunication::PlainUdpImpl {
   UPDATE_CONNECTIVITY_FN statusCallback = nullptr;
 
   NodeNum selfId;
+
+  /** Flag to indicate whether the current communication layer still runs. */
+  std::atomic<bool> running;
 
   bftlogger::Logger _logger = bftlogger::Logger::getLogger("plain-udp");
 
@@ -112,7 +113,8 @@ class PlainUDPCommunication::PlainUdpImpl {
         udpListenPort{config.listenPort},
         endpoints{std::move(config.nodes)},
         statusCallback{config.statusCallback},
-        selfId{config.selfId} {
+        selfId{config.selfId},
+        running{false} {
     Assert(config.listenPort > 0, "Port should not be negative!");
     Assert(config.nodes.size() > 0, "No communication endpoints specified!");
     for (auto next = config.nodes.begin();
@@ -144,7 +146,6 @@ class PlainUDPCommunication::PlainUdpImpl {
     bufferForIncomingMessages = (char *) std::malloc(maxMsgSize);
 
     udpSockFd = 0;
-    running = false;
     init(&runningLock);
   }
 
@@ -197,7 +198,6 @@ class PlainUDPCommunication::PlainUdpImpl {
 
     startRecvThread();
 
-    running = true;
     mutexUnlock(&runningLock);
     return 0;
   }
@@ -211,7 +211,18 @@ class PlainUDPCommunication::PlainUdpImpl {
       return -1;
     }
 
+    // since neither WinSock nor Linux sockets manual
+    // doesnt specify explicitly that there is no need to call shutdown on
+    // UDP socket,we call it to be sure that the send/receive is disable when
+    // we call close(). its safe since when shutdown() is called on UDP
+    // socket, it should (in the worst case) to return ENOTCONN that just
+    // should be ignored.
+#ifdef _WIN32
+    shutdown(udpSockFd, SD_BOTH);
+#else
     shutdown(udpSockFd, SHUT_RDWR);
+#endif
+    CLOSESOCKET(udpSockFd);
 
     running = false;
     mutexUnlock(&runningLock);
@@ -220,7 +231,6 @@ class PlainUDPCommunication::PlainUdpImpl {
       * relies on the 'running' flag. */
     stopRecvThread();
 
-    CLOSESOCKET(udpSockFd);
     std::free(bufferForIncomingMessages);
     udpSockFd = 0;
 
@@ -337,8 +347,7 @@ class PlainUDPCommunication::PlainUdpImpl {
 
   void
   recvThreadRoutine() {
-    bool sRunning = true;       /** Indicates whether we're still running */
-
+    running = true;
     Assert(udpSockFd != 0,
            "Unable to start receiving: socket not define!");
     Assert(receiverRef != 0,
@@ -396,9 +405,7 @@ class PlainUDPCommunication::PlainUdpImpl {
         statusCallback(pcs);
       }
 
-      /** Make sure we're still running. */
-      sRunning = isRunning();
-    } while (sRunning == true);
+    } while (running);
   }
 };
 
