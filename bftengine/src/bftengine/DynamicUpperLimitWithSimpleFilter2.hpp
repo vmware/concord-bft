@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <cmath> // sqrt
 #include "RollingAvgAndVar.hpp"
 
 namespace bftEngine
