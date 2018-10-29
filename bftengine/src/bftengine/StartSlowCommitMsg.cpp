@@ -24,7 +24,7 @@ namespace bftEngine
 
 		bool StartSlowCommitMsg::ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, StartSlowCommitMsg*& outMsg) {
 			Assert(inMsg->type() == MsgCode::StartSlowCommit);
-			if (inMsg->size() < sizeof(StartSlowCommitMsg)) return false;
+			if (inMsg->size() < sizeof(StartSlowCommitMsgHeader)) return false;
 
 			StartSlowCommitMsg* t = (StartSlowCommitMsg*)inMsg;
 
