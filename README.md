@@ -49,7 +49,7 @@ Community
 
 [Concord-BFT Slack](https://concordbft.slack.com/).
 
-Get Slack invitation via this [link](https://join.slack.com/t/concordbft/shared_invite/enQtNDI4NjYzMTk5ODMxLWI3ZTc0MTQzNzFhZTNmNDRkM2I0YTZkMWZkMDAwYzg4YTA0YzViNjIyZTIzMjk2YjI5NGZkYzdkMTIyODJhZjI) or send request to <concordbft@gmail.com>. 
+Get Slack invitation via this [link](https://join.slack.com/t/concordbft/shared_invite/enQtNDI4NjYzMTk5ODMxLWI3ZTc0MTQzNzFhZTNmNDRkM2I0YTZkMWZkMDAwYzg4YTA0YzViNjIyZTIzMjk2YjI5NGZkYzdkMTIyODJhZjI) or send request to <concordbft@gmail.com>.
 
 
 
@@ -97,6 +97,9 @@ Build and install [RELIC](https://github.com/relic-toolkit/relic)
     make
     sudo make install
 
+Note that on newer versions of cmake, `-DWORD` must be replaced with `-DWSIZE` in the above cmake command.
+
+
 Build and install [cryptopp](https://github.com/weidai11/cryptopp)
 
     cd
@@ -108,7 +111,7 @@ Build and install [cryptopp](https://github.com/weidai11/cryptopp)
     cmake ..
     make
     sudo make install
-	
+
 Get GNU Parallel
 
     sudo apt-get install parallel
