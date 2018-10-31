@@ -11,6 +11,7 @@
 #include <unordered_map>
 #include <algorithm>
 #include <queue>
+#include <cmath> // sqrt
 
 #include "MessageBase.hpp"
 #include "RetransmissionsManager.hpp"
