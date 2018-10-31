@@ -2102,6 +2102,8 @@ namespace bftEngine
 
 		void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint)
 		{
+			bool askAnotherStateTransfer = false;
+			
 			Assert(newStateCheckpoint % checkpointWindowSize == 0);
 
 			Logger::printInfo("onTransferringCompleteImp with newStateCheckpoint==%" PRId64 "", newStateCheckpoint);
@@ -2162,6 +2164,9 @@ namespace bftEngine
 				}
 				if (numOfStableCheckpoints >= fVal + 1)
 					onSeqNumIsStable(newStateCheckpoint);
+				
+				if ((uint16_t)tableOfStableCheckpoints.size() >= fVal + 1)
+					askAnotherStateTransfer = true;
 			}
 
 			if (newStateCheckpoint > primaryLastUsedSeqNum)
@@ -2173,6 +2178,12 @@ namespace bftEngine
 
 				if (isCurrentPrimary() && !requestsQueueOfPrimary.empty())
 					tryToSendPrePrepareMsg();
+			}
+			
+			if(askAnotherStateTransfer)
+			{
+				Logger::printInfo("call to startCollectingState()");
+				stateTransfer->startCollectingState();
 			}
 		}
 
