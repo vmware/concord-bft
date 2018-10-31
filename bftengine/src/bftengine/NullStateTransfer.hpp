@@ -22,8 +22,6 @@ namespace bftEngine
 			virtual void stopRunning()  override;
 			virtual bool isRunning() const  override;
 
-			virtual void markUpdatedAppPage(uint64_t pageId)  override;
-
 			virtual void createCheckpointOfCurrentState(uint64_t checkpointNumber)  override;
 			virtual void markCheckpointAsStable(uint64_t checkpointNumber)  override;
 			virtual void getDigestOfCheckpoint(uint64_t checkpointNumber, uint16_t sizeOfDigestBuffer, char* outDigestBuffer)  override;
@@ -39,7 +37,7 @@ namespace bftEngine
 
 
 			virtual void onTimer()  override;
-			virtual void handleStateTransferMessage(char* msg, uint32_t msgLen)  override;
+			virtual void handleStateTransferMessage(char* msg, uint32_t msgLen, uint16_t senderId)  override;
 
 			virtual ~NullStateTransfer();
 		protected:

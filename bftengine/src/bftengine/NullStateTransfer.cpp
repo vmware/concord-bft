@@ -54,10 +54,6 @@ namespace bftEngine
 		}
 
 
-		void NullStateTransfer::markUpdatedAppPage(uint64_t pageId)
-		{
-		}
-
 
 		void NullStateTransfer::createCheckpointOfCurrentState(uint64_t checkpointNumber)
 		{
@@ -141,7 +137,7 @@ namespace bftEngine
 
 		}
 
-		void NullStateTransfer::handleStateTransferMessage(char* msg, uint32_t msgLen)
+		void NullStateTransfer::handleStateTransferMessage(char* msg, uint32_t msgLen, uint16_t senderId)
 		{
 			repApi->freeStateTransferMsg(msg);
 		}

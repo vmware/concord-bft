@@ -2590,7 +2590,7 @@ namespace bftEngine
 		void ReplicaImp::onMessage(StateTransferMsg* m)
 		{
 			size_t h = sizeof(MessageBase::Header);
-			stateTransfer->handleStateTransferMessage(m->body() + h, m->size() - h);
+			stateTransfer->handleStateTransferMessage(m->body() + h, m->size() - h, m->senderId());
 		}
 
 
