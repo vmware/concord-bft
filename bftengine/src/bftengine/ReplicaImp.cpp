@@ -867,7 +867,10 @@ namespace bftEngine
 
 		void ReplicaImp::onInternalMsg(FullCommitProofMsg* msg)
 		{
-			if ((!currentViewIsActive()) || (curView != msg->viewNumber()) || (!mainLog->insideActiveWindow(msg->seqNumber())))
+			if ((stateTransfer->isCollectingState()) || 
+				(!currentViewIsActive()) || 
+				(curView != msg->viewNumber()) || 
+				(!mainLog->insideActiveWindow(msg->seqNumber())))
 			{
 				delete msg;
 				return;
@@ -1093,7 +1096,10 @@ namespace bftEngine
 		{
 			Logger::printInfo("Node %d - onPrepareCombinedSigFailed seqNumber=%" PRId64 " view=%" PRId64 "", (int)myReplicaId, seqNumber, v);
 
-			if ((!currentViewIsActive()) || (curView != v) || (!mainLog->insideActiveWindow(seqNumber)))
+			if ((stateTransfer->isCollectingState()) || 
+				(!currentViewIsActive()) || 
+				(curView != v) || 
+				(!mainLog->insideActiveWindow(seqNumber)))
 			{
 				Logger::printInfo("Node %d - onPrepareCombinedSigFailed - seqNumber=%" PRId64 " view=%" PRId64 " are not relevant",
 					(int)myReplicaId, seqNumber, v);
@@ -1113,7 +1119,10 @@ namespace bftEngine
 		{
 			Logger::printInfo("Node %d - onPrepareCombinedSigSucceeded seqNumber=%" PRId64 " view=%" PRId64 "", (int)myReplicaId, seqNumber, v);
 
-			if ((!currentViewIsActive()) || (curView != v) || (!mainLog->insideActiveWindow(seqNumber)))
+			if ((stateTransfer->isCollectingState()) || 
+				(!currentViewIsActive()) || 
+				(curView != v) || 
+				(!mainLog->insideActiveWindow(seqNumber)))
 			{
 				Logger::printInfo("Node %d - onPrepareCombinedSigSucceeded - seqNumber=%" PRId64 " view=%" PRId64 " are not relevant",
 					(int)myReplicaId, seqNumber, v);
@@ -1145,7 +1154,10 @@ namespace bftEngine
 		{
 			Logger::printInfo("Node %d - onPrepareVerifyCombinedSigResult seqNumber=%" PRId64 " view=%" PRId64 "", (int)myReplicaId, seqNumber, v);
 
-			if ((!currentViewIsActive()) || (curView != v) || (!mainLog->insideActiveWindow(seqNumber)))
+			if ((stateTransfer->isCollectingState()) || 
+				(!currentViewIsActive()) || 
+				(curView != v) || 
+				(!mainLog->insideActiveWindow(seqNumber)))
 			{
 				Logger::printInfo("Node %d - onPrepareVerifyCombinedSigResult - seqNumber=%" PRId64 " view=%" PRId64 " are not relevant",
 					(int)myReplicaId, seqNumber, v);
@@ -1173,7 +1185,10 @@ namespace bftEngine
 		{
 			Logger::printInfo("Node %d - onCommitCombinedSigFailed seqNumber=%" PRId64 " view=%" PRId64 "", (int)myReplicaId, seqNumber, v);
 
-			if ((!currentViewIsActive()) || (curView != v) || (!mainLog->insideActiveWindow(seqNumber)))
+			if ((stateTransfer->isCollectingState()) || 
+				(!currentViewIsActive()) || 
+				(curView != v) || 
+				(!mainLog->insideActiveWindow(seqNumber)))
 			{
 				Logger::printInfo("Node %d - onCommitCombinedSigFailed - seqNumber=%" PRId64 " view=%" PRId64 " are not relevant",
 					(int)myReplicaId, seqNumber, v);
@@ -1192,7 +1207,10 @@ namespace bftEngine
 		{
 			Logger::printInfo("Node %d - onCommitCombinedSigSucceeded seqNumber=%" PRId64 " view=%" PRId64 "", (int)myReplicaId, seqNumber, v);
 
-			if ((stateTransfer->isCollectingState()) || (!currentViewIsActive()) || (curView != v) || (!mainLog->insideActiveWindow(seqNumber)))
+			if ((stateTransfer->isCollectingState()) || 
+				(!currentViewIsActive()) || 
+				(curView != v) || 
+				(!mainLog->insideActiveWindow(seqNumber)))
 			{
 				Logger::printInfo("Node %d - onCommitCombinedSigSucceeded - seqNumber=%" PRId64 " view=%" PRId64 " are not relevant",
 					(int)myReplicaId, seqNumber, v);
@@ -1226,7 +1244,10 @@ namespace bftEngine
 		{
 			Logger::printInfo("Node %d - onCommitVerifyCombinedSigResult seqNumber=%" PRId64 " view=%" PRId64 "", myReplicaId, seqNumber, v);
 
-			if ((stateTransfer->isCollectingState()) || (!currentViewIsActive()) || (curView != v) || (!mainLog->insideActiveWindow(seqNumber)))
+			if ((stateTransfer->isCollectingState()) || 
+				(!currentViewIsActive()) || 
+				(curView != v) || 
+				(!mainLog->insideActiveWindow(seqNumber)))
 			{
 				Logger::printInfo("Node %d - onCommitVerifyCombinedSigResult - seqNumber=%" PRId64 " view=%" PRId64 " are not relevant",
 					(int)myReplicaId, seqNumber, v);
@@ -1422,7 +1443,7 @@ namespace bftEngine
 		{
 			Assert(retransmissionsLogicEnabled);
 
-			if ((relatedViewNumber != curView) || (!currentViewIsActive())) return;
+			if (stateTransfer->isCollectingState() || (relatedViewNumber != curView) || (!currentViewIsActive())) return;
 			if (relatedLastStableSeqNum + kWorkWindowSize <= lastStableSeqNum) return;
 
 			const uint16_t myId = myReplicaId;
