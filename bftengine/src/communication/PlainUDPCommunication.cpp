@@ -196,6 +196,7 @@ class PlainUDPCommunication::PlainUdpImpl {
     }
 #endif
 
+    running = true;
     startRecvThread();
 
     mutexUnlock(&runningLock);
@@ -347,7 +348,6 @@ class PlainUDPCommunication::PlainUdpImpl {
 
   void
   recvThreadRoutine() {
-    running = true;
     Assert(udpSockFd != 0,
            "Unable to start receiving: socket not define!");
     Assert(receiverRef != 0,
