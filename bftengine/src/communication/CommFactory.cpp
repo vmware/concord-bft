@@ -24,8 +24,8 @@ using bftEngine::PlainTcpConfig;
 using bftEngine::PlainUdpConfig;
 using bftEngine::TlsTcpConfig;
 
-bftlogger::Logger CommFactory::_logger =
-   bftlogger::Logger::getLogger("comm-factory");
+concordlogger::Logger CommFactory::_logger =
+   concordlogger::Logger::getLogger("comm-factory");
 
 ICommunication*
 CommFactory::create(const BaseCommConfig &config) {

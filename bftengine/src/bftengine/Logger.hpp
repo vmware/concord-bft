@@ -10,9 +10,16 @@
 // the terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 
-#pragma once
+#ifndef BFT_LOGGER_HPP_1
+#define BFT_LOGGER_HPP_1
+
+#include "Logging.hpp"
 
 //TODO(GG): use a standard c++ log
+
+// globals to support easy logging
+extern concordlogger::Logger bftGlobalLogger;
+#define GL bftGlobalLogger
 
 class Logger {
  public:
@@ -24,4 +31,6 @@ class Logger {
 
   static void simpleAssert(bool cond, const char *msg);
 };
+
+#endif // BFT_LOGGER_HPP_1
 

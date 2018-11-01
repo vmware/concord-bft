@@ -24,7 +24,7 @@
 typedef log4cplus::Logger LoggerImpl;
 #endif
 
-namespace bftlogger {
+namespace concordlogger {
 
 #ifndef USE_LOG4CPP
 
@@ -46,12 +46,37 @@ if (CURRENT_LEVEL == LogLevel::off || l < CURRENT_LEVEL) return;
 
 class SimpleLoggerImpl {
   std::string _name;
-  static std::string LEVELS_STRINGS[6];
+  std::string LEVELS_STRINGS[6] =
+      {"TRACE",
+       "DEBUG",
+       "INFO",
+       "WARN",
+       "ERROR",
+       "FATAL"};
+
+  inline void get_time(std::stringstream &ss) {
+    using namespace std::chrono;
+    auto now = system_clock::now();
+    auto ms = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
+    auto timer = system_clock::to_time_t(now);
+    std::tm bt = *std::localtime(&timer);
+    ss << std::put_time(&bt, "%F %T")
+       << "."
+       << std::setfill('0') << std::setw(3) << ms.count();
+  }
 
  public:
-  SimpleLoggerImpl(std::string name) : _name{name} {}
+  explicit SimpleLoggerImpl(std::string name) : _name{std::move(name)} {}
 
-  void print(LogLevel l, std::string text);
+  inline void print(concordlogger::LogLevel l, std::string text) {
+    std::stringstream time;
+    get_time(time);
+    printf("%s %s (%s) %s\n",
+           SimpleLoggerImpl::LEVELS_STRINGS[l].c_str(),
+           time.str().c_str(),
+           _name.c_str(),
+           text.c_str());
+  }
 };
 
 typedef SimpleLoggerImpl LoggerImpl;
@@ -60,7 +85,7 @@ typedef SimpleLoggerImpl LoggerImpl;
 class Logger {
  private:
   LoggerImpl _impl;
-  Logger(LoggerImpl impl) : _impl(impl) {}
+  Logger(LoggerImpl impl) : _impl(std::move(impl)) {}
 
   inline std::string prepare(const char *format, va_list &args) {
     auto size = std::snprintf(nullptr, 0, format, args);
@@ -279,9 +304,4 @@ class Logger {
 #endif
 
 } // namespace
-
-// globals to support easy logging
-extern bftlogger::Logger globalLogger;
-#define GL globalLogger
-
 #endif //CONCORD_BFT_LOGGING_HPP
