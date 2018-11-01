@@ -27,6 +27,8 @@
 #include <sys/time.h>
 #endif
 
+concordlogger::Logger bftGlobalLogger =
+    concordlogger::Logger::getLogger(DEFAULT_LOGGER_NAME);
 
 //TODO(GG): use a standard c++ log
 

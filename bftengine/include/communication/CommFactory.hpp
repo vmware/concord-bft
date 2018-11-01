@@ -20,7 +20,7 @@
 namespace bftEngine {
 class CommFactory {  
  private:
-  static bftlogger::Logger _logger;
+  static concordlogger::Logger _logger;
  public:
   static ICommunication*
   create(const BaseCommConfig &config);

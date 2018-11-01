@@ -80,7 +80,7 @@ class PlainUDPCommunication::PlainUdpImpl {
   /** Flag to indicate whether the current communication layer still runs. */
   std::atomic<bool> running;
 
-  bftlogger::Logger _logger = bftlogger::Logger::getLogger("plain-udp");
+  concordlogger::Logger _logger = concordlogger::Logger::getLogger("plain-udp");
 
   bool check_replica(NodeNum node)
   {

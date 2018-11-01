@@ -1,5 +1,4 @@
 get_property(LOGGER_INC_DIR GLOBAL PROPERTY LoggerIncludeDir)
-get_property(LOGGER_SRC_DIR GLOBAL PROPERTY LoggerSrcDir)
 
 set(corebft_source_files
     src/bftengine/PrePrepareMsg.cpp
@@ -45,7 +44,6 @@ set(corebft_source_files
     src/communication/PlainUDPCommunication.cpp
     src/communication/CommFactory.cpp
     ${LOGGER_INC_DIR}/Logging.hpp
-    ${LOGGER_SRC_DIR}/Logging.cpp
 )
 #
 # pthread dependency
