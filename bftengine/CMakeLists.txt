@@ -43,7 +43,10 @@ set(corebft_source_files
     src/bftengine/SimpleClient.cpp
     src/communication/PlainUDPCommunication.cpp
     src/communication/CommFactory.cpp
-    ${LOGGER_INC_DIR}/Logging.hpp
+	src/bcstatetransfer/BCStateTran.cpp
+	src/bcstatetransfer/InMemoryDataStore.cpp
+	src/bcstatetransfer/STDigest.cpp
+	src/simplestatetransfer/SimpleStateTran.cpp	
 )
 #
 # pthread dependency
@@ -80,6 +83,8 @@ endif()
 
 target_include_directories(corebft PUBLIC include/bftengine)
 target_include_directories(corebft PUBLIC include/communication)
+target_include_directories(corebft PUBLIC include/bcstatetransfer)
+target_include_directories(corebft PUBLIC include/simplestatetransfer)
 target_include_directories(corebft PUBLIC ${LOGGER_INC_DIR})
 
 target_link_libraries(corebft PUBLIC threshsign)
