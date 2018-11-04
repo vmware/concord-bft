@@ -98,7 +98,7 @@ class AsyncTcpConnection :
   deadline_timer _connectTimer;
   ConnType _connType;
   bool _closed;
-  bftlogger::Logger _logger;
+  concordlogger::Logger _logger;
   uint16_t _minTimeout = 256;
   uint16_t _maxTimeout = 8192;
   uint16_t _currentTimeout = _minTimeout;
@@ -117,7 +117,7 @@ class AsyncTcpConnection :
                      NodeNum destId,
                      NodeNum selfId,
                      ConnType type,
-                     bftlogger::Logger logger) :
+                     concordlogger::Logger logger) :
       _service(service),
       _bufferLength(bufferLength),
       _fOnError(onError),
@@ -564,7 +564,7 @@ class AsyncTcpConnection :
                                NodeNum destId,
                                NodeNum selfId,
                                ConnType type,
-                               bftlogger::Logger logger) {
+                               concordlogger::Logger logger) {
     auto res = ASYNC_CONN_PTR(
         new AsyncTcpConnection(service,
                                onError,
@@ -601,7 +601,7 @@ class AsyncTcpConnection :
 class PlainTCPCommunication::PlainTcpImpl {
  private:
   unordered_map<NodeNum, ASYNC_CONN_PTR> _connections;
-  bftlogger::Logger _logger = bftlogger::Logger::getLogger("plain-tcp");
+  concordlogger::Logger _logger = concordlogger::Logger::getLogger("plain-tcp");
 
   unique_ptr<tcp::acceptor> _pAcceptor;
   std::thread *_pIoThread = nullptr;
