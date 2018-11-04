@@ -224,6 +224,7 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
 
     bool consistent = checkConsistency(pedanticChecks_);
     assert(consistent);
+    (void)consistent;
 
     FetchingState fs = getFetchingState();
 
@@ -465,6 +466,7 @@ void BCStateTran::markCheckpointAsStable(uint64_t checkpointNumber) {
         lastStoredCheckpoint - maxNumOfStoredCheckpoints_ + 1));
 
   assert(checkpointNumber <= psd_->getLastStoredCheckpoint());
+  (void)lastStoredCheckpoint;
 
   // assert(psd_->hasCheckpointDesc(checkpointNumber));
 
@@ -725,6 +727,7 @@ static ElementOfVirtualBlock* getVirtualElement(uint32_t index,
   HeaderOfVirtualBlock* h =
     reinterpret_cast<HeaderOfVirtualBlock*>(virtualBlock);
   assert(index < h->numberOfUpdatedPages);
+  (void)h;
 
   const uint32_t elementSize = sizeof(ElementOfVirtualBlock) + pageSize - 1;
 
@@ -1072,7 +1075,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg* m,
 
   FetchingState fs = getFetchingState();
   assert(fs == FetchingState::GettingCheckpointSummaries);
-
+  (void)fs;
 
   // if msg is invalid
   if (msgLen < sizeof(CheckpointSummaryMsg) ||
@@ -1239,6 +1242,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg* m,
   uint32_t sizeOfNextBlock = 0;
   bool tmp = as_->getBlock(nextBlock, buffer_, &sizeOfNextBlock);
   assert(tmp && sizeOfNextBlock > 0);
+  (void)tmp;
 
   uint32_t sizeOfLastChunk = maxChunkSize_;
   uint32_t numOfChunksInNextBlock = sizeOfNextBlock / maxChunkSize_;
@@ -1311,6 +1315,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg* m,
       sizeOfNextBlock = 0;
       bool tmp2 = as_->getBlock(nextBlock, buffer_, &sizeOfNextBlock);
       assert(tmp2 && sizeOfNextBlock > 0);
+      (void)tmp2;
 
       sizeOfLastChunk = maxChunkSize_;
       numOfChunksInNextBlock = sizeOfNextBlock / maxChunkSize_;
@@ -1654,6 +1659,7 @@ char* BCStateTran::getVBlockFromCache(
 
   assert(desc.lastCheckpointKnownToRequester ==
          header->lastCheckpointKnownToRequester);
+  (void)header;
 
   return vBlock;
 }
@@ -1663,6 +1669,7 @@ void BCStateTran::setVBlockInCache(const DescOfVBlockForResPages& desc,
   auto p = cacheOfVirtualBlockForResPages.find(desc);
 
   assert(p == cacheOfVirtualBlockForResPages.end());
+  (void)p;
 
   if (cacheOfVirtualBlockForResPages.size() > kMaxVBlocksInCache) {
     auto minItem = cacheOfVirtualBlockForResPages.begin();
@@ -2229,6 +2236,7 @@ void BCStateTran::processData() {
 
       bool b = as_->putBlock(nextRequiredBlock, buffer_, actualBlockSize);
       assert(b);
+      (void)b;
       memset(buffer_, 0, actualBlockSize);
 
       const uint64_t firstRequiredBlock = psd_->getFirstRequiredBlock();
@@ -2334,6 +2342,7 @@ void BCStateTran::processData() {
 
       bool tmp = checkConsistency(pedanticChecks_);
       assert(tmp);
+      (void)tmp;
 
       // Completion
 
