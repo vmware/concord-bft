@@ -29,6 +29,7 @@
 
 #include <cassert>
 #include <thread>
+#include <iostream>
 
 // bftEngine includes
 #include "CommFactory.hpp"
@@ -36,6 +37,8 @@
 
 // simpleTest includes
 #include "commonDefs.h"
+
+#include "Logging.hpp"
 
 #ifdef USE_LOG4CPP
 #include <log4cplus/configurator.h>
@@ -50,8 +53,52 @@ using bftEngine::SeqNumberGeneratorForClientRequests;
 using bftEngine::SimpleClient;
 
 // Declarations of functions form config.cpp.
-PlainUdpConfig getUDPConfig(uint16_t id);
-extern PlainTcpConfig getTCPConfig(uint16_t id);
+extern PlainUdpConfig getUDPConfig(
+    uint16_t id, int numOfClients, int numOfReplicas);
+extern PlainTcpConfig getTCPConfig(
+    uint16_t id, int numOfClients, int numOfReplicas);
+
+concordlogger::Logger clientLogger =
+    concordlogger::Logger::getLogger("simpletest.client");
+
+#define test_assert(statement, message) \
+{ if (!(statement)) { \
+LOG_FATAL(clientLogger, "assert fail with message: " << message); assert(false);}}
+
+struct ClientParams {
+  int numOfOperations = 2800;
+  int16_t clientId = 4;
+  int numOfReplicas = 4;
+  int numOfClients = 1;
+  int numOfFaulty = 1;
+  int numOfSlow = 0;
+};
+
+ClientParams parse_params(int argc, char** argv) {
+  ClientParams cp;
+  if(argc < 2)
+    return cp;
+
+  for(int i=1; i < argc;) {
+    string p(argv[i]);
+    if(p == "-i")
+      cp.numOfOperations = std::stoi(argv[i + 1]);
+    else if(p == "-id")
+      cp.clientId = std::stoi(argv[i + 1]);
+    else if(p == "-r")
+      cp.numOfReplicas = std::stoi(argv[i + 1]);
+    else if(p == "-cl")
+      cp.numOfClients = std::stoi(argv[i + 1]);
+    else if(p == "-c")
+      cp.numOfSlow = std::stoi(argv[i + 1]);
+    else if(p == "-f")
+      cp.numOfFaulty = std::stoi(argv[i + 1]);
+
+    i += 2;
+  }
+
+  return cp;
+}
 
 int main(int argc, char **argv) {
 // TODO(IG:) configure Log4Cplus's output format, using default for now
@@ -62,12 +109,12 @@ int main(int argc, char **argv) {
   config.configure();
 #endif
 
+  ClientParams cp = parse_params(argc, argv);
+  LOG_INFO(clientLogger, "ClientParams: clientId: " << cp.clientId << ", numOfReplicas: " << cp.numOfReplicas << ", numOfClients: " << cp.numOfClients << ", numOfIterations: " << cp.numOfOperations << ", fVal: " << cp.numOfFaulty << ", cVal: " << cp.numOfSlow);
+
   // This client's index number. Must be larger than the largest replica index
   // number.
-  const int16_t id = 4;
-
-  // The number of operations to send during this run.
-  const int numOfOperations = 2800;
+  const int16_t id = cp.clientId;
 
   // How often to read the latest value of the register (every `readMod` ops).
   const int readMod = 7;
@@ -80,13 +127,14 @@ int main(int argc, char **argv) {
 
   // Configure, create, and start the Concord client to use.
 #ifdef USE_COMM_PLAIN_TCP
-  PlainTcpConfig conf = getTCPConfig(id);
+  PlainTcpConfig conf = getTCPConfig(id, cp.numOfClients, cp.numOfReplicas);
 #else
-  PlainUdpConfig conf = getUDPConfig(id);
+  PlainUdpConfig conf = getUDPConfig(id, cp.numOfClients, cp.numOfReplicas);
 #endif
   ICommunication* comm = bftEngine::CommFactory::create(conf);
 
-  SimpleClient* client = SimpleClient::createSimpleClient(comm, id, 1, 0);
+  SimpleClient* client =
+      SimpleClient::createSimpleClient(comm, id, cp.numOfFaulty, cp.numOfSlow);
   comm->Start();
 
   // The state number that the latest write operation returned.
@@ -103,7 +151,14 @@ int main(int argc, char **argv) {
   // operation.
   bool hasExpectedLastValue = false;
 
-  for (int i = 1; i <= numOfOperations; i++) {
+  LOG_INFO(clientLogger, "Starting " << cp.numOfOperations);
+
+  for (int i = 1; i <= cp.numOfOperations; i++) {
+    if(i > 0 && i % 100 == 0) {
+      printf("Iterations count: 100\n");
+      printf("Total iterations count: %i\n", i);
+    }
+
     if (i % readMod == 0) {
       // Read the latest value every readMod-th operation.
 
@@ -132,11 +187,14 @@ int main(int argc, char **argv) {
                           kReplyBufferLength, replyBuffer, actualReplyLength);
 
       // Read should respond with eight bytes of data.
-      assert(actualReplyLength == sizeof(uint64_t));
+      test_assert(actualReplyLength == sizeof(uint64_t),
+          "actualReplyLength != " << sizeof(uint64_t));
 
       // Only assert the last expected value if we have previous set a value.
       if (hasExpectedLastValue)
-        assert(*reinterpret_cast<uint64_t*>(replyBuffer) == expectedLastValue);
+        test_assert(
+            *reinterpret_cast<uint64_t*>(replyBuffer) == expectedLastValue,
+            "*reinterpret_cast<uint64_t*>(replyBuffer)!=" << expectedLastValue);
     } else {
       // Send a write, if we're not doing a read.
 
@@ -172,7 +230,8 @@ int main(int argc, char **argv) {
       hasExpectedLastValue = true;
 
       // Write should respond with eight bytes of data.
-      assert(actualReplyLength == sizeof(uint64_t));
+      test_assert(actualReplyLength == sizeof(uint64_t),
+          "actualReplyLength != " << sizeof(uint64_t));
 
       uint64_t retVal = *reinterpret_cast<uint64_t*>(replyBuffer);
 
@@ -182,7 +241,8 @@ int main(int argc, char **argv) {
         // If we had done a previous write, then this write should return the
         // state number right after the state number that that write returned.
         expectedStateNum++;
-        assert(retVal == expectedStateNum);
+        test_assert(retVal == expectedStateNum,
+            "retVal != " << expectedLastValue);
       } else {
         hasExpectedStateNum = true;
         expectedStateNum = retVal;
@@ -197,5 +257,6 @@ int main(int argc, char **argv) {
   delete client;
   delete comm;
 
+  LOG_INFO(clientLogger, "test done, iterations: " << cp.numOfOperations);
   return 0;
 }

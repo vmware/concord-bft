@@ -41,6 +41,7 @@ struct NodeAddressResolveResult
 {
   NodeNum nodeId;
   bool wasFound;
+  string key;
 };
 
 class PlainUDPCommunication::PlainUdpImpl {
@@ -117,11 +118,19 @@ class PlainUDPCommunication::PlainUdpImpl {
         running{false} {
     Assert(config.listenPort > 0, "Port should not be negative!");
     Assert(config.nodes.size() > 0, "No communication endpoints specified!");
+
+    LOG_DEBUG(_logger, "Node " << config.selfId <<
+        ", listen IP: " << config.listenIp <<
+        ", listen port: " << config.listenPort);
+
     for (auto next = config.nodes.begin();
          next != config.nodes.end();
          next++) {
       auto key = create_key(next->second.ip, next->second.port);
       addr2nodes[key] = next->first;
+
+      LOG_DEBUG(_logger, "Node " << config.selfId <<
+          ", got peer: " << key);
 
       if (statusCallback && next->second.isReplica) {
         PeerConnectivityStatus pcs;
@@ -318,11 +327,12 @@ class PlainUDPCommunication::PlainUdpImpl {
     if (res == addr2nodes.end()) {
       // IG: if we don't know the sender we just ignore this message and
       // continue.
-      LOG_WARN(_logger, "Unknown sender, address: " << key);
-      return NodeAddressResolveResult({0, false});
+      LOG_ERROR(_logger, "Unknown sender, address: " << key);
+      return NodeAddressResolveResult({0, false,key});
     }
 
-    return NodeAddressResolveResult({res->second, true});
+    LOG_DEBUG(_logger, "Sender resolved, ID: " << res->second << "address: " << key);
+    return NodeAddressResolveResult({res->second, true,key});
   }
 
   void
@@ -378,14 +388,18 @@ class PlainUDPCommunication::PlainUdpImpl {
 
       auto resolveNode = addrToNodeId(fromAdress);
       if(!resolveNode.wasFound) {
+        LOG_DEBUG(_logger, "Sender not found, adress: " << resolveNode.key);
         continue;
       }
 
       auto sendingNode = resolveNode.nodeId;
       if (mLen > 0 && (receiverRef != NULL)) {
+        LOG_DEBUG(_logger, "Calling onNewMessage, msg from: " << sendingNode);
         receiverRef->onNewMessage(sendingNode,
                                   bufferForIncomingMessages,
                                   mLen);
+      } else {
+        LOG_ERROR(_logger, "receiver is NULL")
       }
 
       bool isReplica = check_replica(sendingNode);
@@ -410,7 +424,8 @@ class PlainUDPCommunication::PlainUdpImpl {
 };
 
 PlainUDPCommunication::~PlainUDPCommunication() {
-  _ptrImpl->Stop();
+  if(_ptrImpl)
+    delete _ptrImpl;
 }
 
 PlainUDPCommunication::PlainUDPCommunication(const PlainUdpConfig &config) {
@@ -434,7 +449,6 @@ int PlainUDPCommunication::Stop() {
     return 0;
 
   auto res = _ptrImpl->Stop();
-  delete _ptrImpl;
   return res;
 }
 

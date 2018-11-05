@@ -2917,8 +2917,6 @@ namespace bftEngine
 			DebugStatistics::freeDebugStatisticsData();
 //			freeAllocator();
 
-			communication->Stop();
-
 			delete msgReceiver;
 			delete communication;
 		}
@@ -2936,6 +2934,8 @@ namespace bftEngine
 
 		void ReplicaImp::stop()
 		{
+			communication->Stop();
+
 			StopInternalMsg* stopMsg = new StopInternalMsg(this);
 			incomingMsgsStorage.pushInternalMsg(stopMsg);
 
