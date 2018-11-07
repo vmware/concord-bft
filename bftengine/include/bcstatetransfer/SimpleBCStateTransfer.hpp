@@ -36,9 +36,11 @@ namespace SimpleBlockchainStateTransfer {
 constexpr static uint32_t BLOCK_DIGEST_SIZE = 32;
 
 // represnts a digest
+#pragma pack(push,1)
 struct StateTransferDigest {
   char content[BLOCK_DIGEST_SIZE];
 };
+#pragma pack(pop)
 
 // This method should be used to compute block digests
 void computeBlockDigest(const uint64_t blockId, const char* block,
