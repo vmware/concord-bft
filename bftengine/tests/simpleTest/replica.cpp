@@ -57,6 +57,7 @@
 #include "CommFactory.hpp"
 #include "Replica.hpp"
 #include "ReplicaConfig.hpp"
+#include "SimpleStateTransfer.hpp"
 
 // simpleTest includes
 #include "commonDefs.h"
@@ -100,7 +101,7 @@ class SimpleAppState : public RequestsHandler {
       // Copy the latest register value to the reply buffer.
       assert(maxReplySize >= sizeof(uint64_t));
       uint64_t* pRet = reinterpret_cast<uint64_t*>(outReply);
-      *pRet = lastValue;
+      *pRet = s.lastValue;
       outActualReplySize = sizeof(uint64_t);
     } else {
       // Our read-write request includes one eight-byte argument, in addition to
@@ -115,25 +116,32 @@ class SimpleAppState : public RequestsHandler {
       const uint64_t* pReqVal = (pReqId + 1);
 
       // Modify the register state.
-      lastValue = *pReqVal;
+      s.lastValue = *pReqVal;
       // Count the number of times we've modified it.
-      stateNum++;
+      s.stateNum++;
 
       // Reply with the number of times we've modified the register.
       assert(maxReplySize >= sizeof(uint64_t));
       uint64_t* pRet = reinterpret_cast<uint64_t*>(outReply);
-      *pRet = stateNum;
+      *pRet = s.stateNum;
       outActualReplySize = sizeof(uint64_t);
+
+      st->markUpdate(&s, sizeof(State));
     }
 
     return 0;
   }
 
- protected:
-  // Number of modifications made.
-  uint64_t stateNum = 0;
-  // Register value.
-  uint64_t lastValue = 0;
+   struct State {
+    // Number of modifications made.
+    uint64_t stateNum = 0;
+    // Register value.
+    uint64_t lastValue = 0;
+  };
+
+  State s;
+
+  bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer* st = nullptr;
 };
 
 int main(int argc, char **argv) {
@@ -160,13 +168,18 @@ int main(int argc, char **argv) {
   PlainUdpConfig conf = getUDPConfig(id);
 #endif
   ICommunication* comm = bftEngine::CommFactory::create(conf);
-  
+
   // This is the state machine that the replica will drive.
   SimpleAppState simpleAppState;
 
+  bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer* st =
+    bftEngine::SimpleInMemoryStateTransfer::create(&simpleAppState.s, sizeof(SimpleAppState::State), replicaConfig.replicaId, replicaConfig.fVal, replicaConfig.cVal, true);
+
+  simpleAppState.st = st;
+
   Replica* replica = Replica::createNewReplica(&replicaConfig,
                                                &simpleAppState,
-                                               nullptr,
+                                               st,
                                                comm,
                                                nullptr);
 

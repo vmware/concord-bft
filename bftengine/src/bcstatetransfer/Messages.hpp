@@ -23,6 +23,7 @@ namespace bftEngine {
 namespace SimpleBlockchainStateTransfer {
 namespace impl {
 
+#pragma pack(push,1)
 
 class MsgType {
  public:
@@ -146,6 +147,8 @@ struct ItemDataMsg : public BCStateTranBaseMsg {
     return sizeof(ItemDataMsg) - 1 + dataSize;;
   }
 };
+
+#pragma pack(pop)
 
 }  // namespace impl
 }  // namespace SimpleBlockchainStateTransfer
