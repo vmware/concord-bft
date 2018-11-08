@@ -126,8 +126,8 @@ class PlainUDPCommunication::PlainUdpImpl {
       if (statusCallback && next->second.isReplica) {
         PeerConnectivityStatus pcs;
         pcs.peerId = next->first;
-        pcs.peerIp = key;
-        pcs.peerPort = ntohs(next->second.port);
+        pcs.peerIp = next->second.ip;
+        pcs.peerPort = next->second.port;
         pcs.statusType = StatusType::Started;
         statusCallback(pcs);
       }
