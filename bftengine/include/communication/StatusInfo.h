@@ -23,7 +23,8 @@ struct BasePeerStatus {
 enum class StatusType {
   Started,
   MessageReceived,
-  MessageSent
+  MessageSent,
+  Broken
 };
 struct PeerConnectivityStatus : public BasePeerStatus {
  public:
