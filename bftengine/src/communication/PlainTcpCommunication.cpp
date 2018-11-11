@@ -166,9 +166,10 @@ class AsyncTcpConnection :
   }
 
   void close_socket() {
-    LOG_TRACE(_logger, "enter, node " << _selfId << ", dest: " << _destId
-                                      << ", connected: " << connected << ", closed: "
-                                      << _closed);
+    LOG_TRACE(_logger, "enter, node " << _selfId
+              << ", dest: " << _destId
+              << ", connected: " << connected
+              << ", closed: " << _closed);
 
     try {
       boost::system::error_code ignored_ec;
@@ -176,21 +177,24 @@ class AsyncTcpConnection :
                       ignored_ec);
       socket.close();
     } catch (std::exception &e) {
-      LOG_ERROR(_logger, "exception, node " << _selfId << ", dest: " << _destId
-                                            << ", connected: " << connected
-                                            << ", ex: " << e.what());
+      LOG_ERROR(_logger, "exception, node " << _selfId
+               << ", dest: " << _destId
+               << ", connected: " << connected
+               << ", ex: " << e.what());
     }
 
-    LOG_TRACE(_logger, "exit, node " << _selfId << ", dest: " << _destId
-                                     << ", connected: " << connected << ", closed: "
-                                     << _closed);
+    LOG_TRACE(_logger, "exit, node " << _selfId
+              << ", dest: " << _destId
+              << ", connected: " << connected
+              << ", closed: " << _closed);
   }
 
   void close() {
     _connecting = true;
-    LOG_TRACE(_logger, "enter, node " << _selfId << ", dest: " << _destId
-                                      << ", connected: " << connected << ", closed: "
-                                      << _closed);
+    LOG_TRACE(_logger, "enter, node " << _selfId
+              << ", dest: " << _destId
+              << ", connected: " << connected
+              << ", closed: " << _closed);
 
     lock_guard<recursive_mutex> lock(_connectionsGuard);
 
@@ -203,23 +207,27 @@ class AsyncTcpConnection :
       socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
       socket.close();
     } catch (std::exception &e) {
-      LOG_ERROR(_logger, "exception, node " << _selfId << ", dest: " << _destId
-                                            << ", connected: " << connected
-                                            << ", ex: " << e.what());
+      LOG_ERROR(_logger, "exception, node " << _selfId
+                << ", dest: " << _destId
+                << ", connected: " << connected
+                << ", ex: " << e.what());
     }
 
-    LOG_TRACE(_logger, "exit, node " << _selfId << ", dest: " << _destId
-                                     << ", connected: " << connected << ", closed: "
-                                     << _closed);
+    LOG_TRACE(_logger, "exit, node " << _selfId
+              << ", dest: " << _destId
+              << ", connected: " << connected
+              << ", closed: " << _closed);
 
     _fOnError(_destId);
   }
 
   bool was_error(const B_ERROR_CODE &ec, string where) {
     if (ec)
-      LOG_ERROR(_logger, "where: " << where << ", node " << _selfId << ", dest: "
-                                   << _destId << ", connected: " << connected
-                                   << ", ex: " << ec.message());
+      LOG_ERROR(_logger, "where: " << where
+                << ", node " << _selfId
+                << ", dest: " << _destId
+                << ", connected: " << connected
+                << ", ex: " << ec.message());
 
     return (ec != 0);
   }
@@ -227,9 +235,10 @@ class AsyncTcpConnection :
   void reconnect() {
     _connecting = true;
 
-    LOG_TRACE(_logger, "enter, node " << _selfId << ", dest: " << _destId
-                                      << ", connected: " << connected << "is_open: "
-                                      << socket.is_open());
+    LOG_TRACE(_logger, "enter, node " << _selfId
+               << ", dest: " << _destId
+               << ", connected: " << connected
+               << "is_open: " << socket.is_open());
 
     lock_guard<recursive_mutex> lock(_connectionsGuard);
 
@@ -241,9 +250,10 @@ class AsyncTcpConnection :
     setTimeOut();
     connect(_ip, _port, _destIsReplica);
 
-    LOG_TRACE(_logger, "exit, node " << _selfId << ", dest: " << _destId
-                                     << ", connected: " << connected << "is_open: "
-                                     << socket.is_open());
+    LOG_TRACE(_logger, "exit, node " << _selfId
+              << ", dest: " << _destId
+              << ", connected: " << connected
+              << "is_open: " << socket.is_open());
   }
 
   void handle_error(B_ERROR_CODE ec) {
@@ -274,15 +284,17 @@ class AsyncTcpConnection :
   void
   read_header_async_completed(const B_ERROR_CODE &ec,
                               const uint32_t bytesRead) {
-    LOG_TRACE(_logger, "enter, node " << _selfId << ", dest: " << _destId
-                                      << ", connected: " << connected << "is_open: "
-                                      << socket.is_open());
+    LOG_TRACE(_logger, "enter, node " << _selfId
+              << ", dest: " << _destId
+              << ", connected: " << connected
+              << "is_open: " << socket.is_open());
 
     lock_guard<recursive_mutex> lock(_connectionsGuard);
 
     // (IG): patch, dont do it, need to fix multithreading
     if (_wasError || _connecting) {
-      LOG_TRACE(_logger, "was error, node " << _selfId << ", dest: " << _destId);
+      LOG_TRACE(_logger,
+          "was error, node " << _selfId << ", dest: " << _destId);
       return;
     }
 
@@ -301,15 +313,17 @@ class AsyncTcpConnection :
 
     read_msg_async(LENGTH_FIELD_SIZE, msgLength);
 
-    LOG_TRACE(_logger, "exit, node " << _selfId << ", dest: " << _destId
-                                     << ", connected: " << connected << "is_open: "
-                                     << socket.is_open());
+    LOG_TRACE(_logger, "exit, node " << _selfId
+              << ", dest: " << _destId
+              << ", connected: " << connected
+              << "is_open: " << socket.is_open());
   }
 
   void read_header_async() {
-    LOG_TRACE(_logger, "enter, node " << _selfId << ", dest: " << _destId
-                                      << ", connected: " << connected << "is_open: "
-                                      << socket.is_open());
+    LOG_TRACE(_logger, "enter, node " << _selfId
+              << ", dest: " << _destId
+              << ", connected: " << connected
+              << "is_open: " << socket.is_open());
 
     memset(_inBuffer, 0, _bufferLength);
     async_read(socket,
@@ -319,9 +333,10 @@ class AsyncTcpConnection :
                            boost::asio::placeholders::error,
                            boost::asio::placeholders::bytes_transferred));
 
-    LOG_TRACE(_logger, "exit, node " << _selfId << ", dest: " << _destId
-                                     << ", connected: " << connected << "is_open: "
-                                     << socket.is_open());
+    LOG_TRACE(_logger, "exit, node " << _selfId
+              << ", dest: " << _destId
+              << ", connected: " << connected
+              << "is_open: " << socket.is_open());
   }
 
   bool is_service_message() {
@@ -341,7 +356,7 @@ class AsyncTcpConnection :
         _fOnHellOMessage(_destId, shared_from_this());
         _destIsReplica = check_replica(_destId);
         LOG_DEBUG(_logger, "node: " << _selfId
-                                    << " dest is replica: " << _destIsReplica);
+                  << " dest is replica: " << _destIsReplica);
         return true;
       default:return false;
     }
@@ -355,7 +370,8 @@ class AsyncTcpConnection :
     lock_guard<recursive_mutex> lock(_connectionsGuard);
 
     if (_wasError || _connecting) {
-      LOG_TRACE(_logger, "was error, node " << _selfId << ", dest: " << _destId);
+      LOG_TRACE(_logger,
+          "was error, node " << _selfId << ", dest: " << _destId);
       return;
     }
 
@@ -363,13 +379,6 @@ class AsyncTcpConnection :
     if (err) {
       // (IG): patch, dont do it, need to fix multithreading
       _wasError = true;
-      /*
-      if(ConnType::Incoming == _connType)
-         close();
-      else
-         reconnect();
-      */
-
       return;
     }
 
@@ -386,7 +395,7 @@ class AsyncTcpConnection :
 
     if (_statusCallback && !_destIsReplica)
       LOG_DEBUG(_logger, "node " << _selfId
-                                 << ", got message from non replica, node " << _destId);
+                 << ", got message from non replica, node " << _destId);
 
     if (_statusCallback && _destIsReplica) {
       PeerConnectivityStatus pcs;
@@ -424,7 +433,8 @@ class AsyncTcpConnection :
     LOG_TRACE(_logger, "enter, node " << _selfId << ", dest: " << _destId);
 
     if (_wasError) {
-      LOG_TRACE(_logger, "was error, node " << _selfId << ", dest: " << _destId);
+      LOG_TRACE(_logger,
+          "was error, node " << _selfId << ", dest: " << _destId);
       return;
     }
 
@@ -432,12 +442,6 @@ class AsyncTcpConnection :
 
     if (res) {
       _wasError = true;
-      /*
-      if(ConnType::Incoming == _connType)
-         close();
-      else
-         reconnect();
-      */
       return;
     }
 
@@ -458,9 +462,9 @@ class AsyncTcpConnection :
     auto offset = prepare_output_buffer(MessageType::Hello, sizeof(_selfId));
     memcpy(_outBuffer + offset, &_selfId, sizeof(_selfId));
 
-    LOG_DEBUG(_logger, "sending hello from:" << _selfId << " to: " << _destId
-                                             << ", size: "
-                                             << (offset + sizeof(_selfId)));
+    LOG_DEBUG(_logger, "sending hello from:" << _selfId
+              << " to: " << _destId
+              << ", size: " << (offset + sizeof(_selfId)));
 
     AsyncTcpConnection::write_async((const char *) _outBuffer,
                                     offset + sizeof(_selfId));
@@ -483,19 +487,22 @@ class AsyncTcpConnection :
                                 << ec.message());
     } else {
       if (connected) {
-        LOG_DEBUG(_logger, "already connected, node " << _selfId << ", dest: "
-                                                      << _destId << ", ec: " << ec);
+        LOG_DEBUG(_logger, "already connected, node " << _selfId
+                  << ", dest: " << _destId
+                  << ", ec: " << ec);
         _connectTimer.expires_at(boost::posix_time::pos_infin);
       } else if (_connectTimer.expires_at() <=
           deadline_timer::traits_type::now()) {
 
-        LOG_DEBUG(_logger, "reconnecting, node " << _selfId <<
-                                                 ", dest: " << _destId
-                                                 << ", ec: " << ec);
+        LOG_DEBUG(_logger, "reconnecting, node " << _selfId
+                  << ", dest: " << _destId
+                  << ", ec: " << ec);
         reconnect();
-      } else LOG_DEBUG(_logger,
-                       "else, node " << _selfId << ", dest: " << _destId << ", ec: "
-                                     << ec.message());
+      } else {
+        LOG_DEBUG(_logger, "else, node " << _selfId
+                  << ", dest: " << _destId
+                  << ", ec: " << ec.message());
+      }
 
       _connectTimer.async_wait(
           boost::bind(&AsyncTcpConnection::connect_timer_tick,
@@ -503,9 +510,9 @@ class AsyncTcpConnection :
                       boost::asio::placeholders::error));
     }
 
-    LOG_TRACE(_logger, "exit, node " << _selfId <<
-                                     ", dest: " << _destId << ", ec: "
-                                     << ec.message());
+    LOG_TRACE(_logger, "exit, node " << _selfId
+              <<", dest: " << _destId
+              << ", ec: " << ec.message());
   }
 
   void connect_completed(const B_ERROR_CODE &err) {
@@ -518,9 +525,8 @@ class AsyncTcpConnection :
       // async_connect opens socket on start so
       //nothing to do here since timeout occured and closed the socket
       if (connected) {
-        LOG_DEBUG(_logger,
-                  "node " << _selfId << " is DISCONNECTED from node " <<
-                          _destId);
+        LOG_DEBUG(_logger, "node " << _selfId
+                  << " is DISCONNECTED from node " << _destId);
       }
       connected = false;
     } else if (res) {
@@ -528,8 +534,9 @@ class AsyncTcpConnection :
       //timeout didnt happen yet but the connection failed
       // nothig to do here, left for clarity
     } else {
-      LOG_DEBUG(_logger, "connected, node " << _selfId << ", dest: " << _destId <<
-                                            ", res: " << res);
+      LOG_DEBUG(_logger, "connected, node " << _selfId
+                << ", dest: " << _destId
+                << ", res: " << res);
       connected = true;
       _wasError = false;
       _connecting = false;
@@ -543,13 +550,6 @@ class AsyncTcpConnection :
   }
 
   void write_async(const char *data, uint32_t length) {
-    // async_write(socket,
-    //    buffer(data, length),
-    //    boost::bind(&AsyncTcpConnection::write_async_completed,
-    //       shared_from_this(),
-    //       boost::asio::placeholders::error,
-    //       boost::asio::placeholders::bytes_transferred));
-
     if (!connected)
       return;
 
@@ -574,13 +574,16 @@ class AsyncTcpConnection :
     _port = port;
     _destIsReplica = destIsReplica;
 
-    LOG_TRACE(_logger, "enter, from: " << _selfId << " ,to: " << _destId <<
-                                       ", ip: " << ip << ", port: " << port);
+    LOG_TRACE(_logger, "enter, from: " << _selfId
+              << " ,to: " << _destId
+              << ", ip: " << ip
+              << ", port: " << port);
 
     tcp::endpoint ep(address::from_string(ip), port);
-    LOG_DEBUG(_logger, "connecting from: " << _selfId << " ,to: " << _destId <<
-                                           ", timeout: " << _currentTimeout
-                                           << ", dest is replica: " << _destIsReplica);
+    LOG_DEBUG(_logger, "connecting from: " << _selfId
+              << " ,to: " << _destId
+              << ", timeout: " << _currentTimeout
+              << ", dest is replica: " << _destIsReplica);
 
     _connectTimer.expires_from_now(
         boost::posix_time::millisec(_currentTimeout));
@@ -589,8 +592,10 @@ class AsyncTcpConnection :
                          boost::bind(&AsyncTcpConnection::connect_completed,
                                      shared_from_this(),
                                      boost::asio::placeholders::error));
-    LOG_TRACE(_logger, "exit, from: " << _selfId << " ,to: " << _destId <<
-                                      ", ip: " << ip << ", port: " << port);
+    LOG_TRACE(_logger, "exit, from: " << _selfId
+             << " ,to: " << _destId
+             << ", ip: " << ip
+             << ", port: " << port);
   }
 
   void start() {
@@ -616,8 +621,9 @@ class AsyncTcpConnection :
       _statusCallback(pcs);
     }
 
-    LOG_DEBUG(_logger, "send exit, from: " << ", to: " << _destId << ", offset: " <<
-                                           offset << ", length: " << length);
+    LOG_DEBUG(_logger, "send exit, from: " << ", to: " << _destId
+              << ", offset: " << offset
+              << ", length: " << length);
     LOG_TRACE(_logger, "exit, node " << _selfId << ", dest: " << _destId);
   }
 
@@ -651,16 +657,18 @@ class AsyncTcpConnection :
   }
 
   virtual ~AsyncTcpConnection() {
-    LOG_TRACE(_logger, "enter, node " << _selfId << ", dest: " << _destId
-                                      << ", connected: " << connected << ", closed: "
-                                      << _closed);
+    LOG_TRACE(_logger, "enter, node " << _selfId
+              << ", dest: " << _destId
+              << ", connected: " << connected
+              << ", closed: " << _closed);
 
     delete[] _inBuffer;
     delete[] _outBuffer;
 
-    LOG_TRACE(_logger, "exit, node " << _selfId << ", dest: " << _destId
-                                     << ", connected: " << connected << ", closed: "
-                                     << _closed);
+    LOG_TRACE(_logger, "exit, node " << _selfId
+              << ", dest: " << _destId
+              << ", connected: " << connected
+              << ", closed: " << _closed);
   }
 };
 
@@ -691,8 +699,7 @@ class PlainTCPCommunication::PlainTcpImpl {
   }
 
   void on_hello_message(NodeNum id, ASYNC_CONN_PTR conn) {
-    LOG_DEBUG(_logger, "node: " << _selfId <<
-                                ", from: " << id);
+    LOG_DEBUG(_logger, "node: " << _selfId << ", from: " << id);
 
     //* potential fix for segment fault *//
     lock_guard<recursive_mutex> lock(_connectionsGuard);
@@ -703,18 +710,15 @@ class PlainTCPCommunication::PlainTcpImpl {
   void on_accept(ASYNC_CONN_PTR conn,
                  const NodeMap &nodes,
                  const B_ERROR_CODE &ec) {
-    LOG_TRACE(_logger, "enter, node: " + to_string(_selfId) +
-        ", ec: " + ec.message());
+    LOG_TRACE(_logger, "enter, node: " << _selfId << ", ec: " << ec.message());
 
     if (!ec) {
       conn->connected = true;
       conn->start();
     }
 
-    //LOG4CPLUS_DEBUG(logger_, "handle_accept before start_accept");
     start_accept(nodes);
-    LOG_TRACE(_logger, "exit, node: " + to_string(_selfId) +
-        ", ec: " + ec.message());
+    LOG_TRACE(_logger, "exit, node: " << _selfId << "ec: " << ec.message());
   }
 
   //here need to check how "this" passed to handlers behaves
@@ -889,25 +893,27 @@ class PlainTCPCommunication::PlainTcpImpl {
   int sendAsyncMessage(const NodeNum destNode,
                        const char *const message,
                        const size_t messageLength) {
-    LOG_TRACE(_logger, "enter, from: " << _selfId << ", to: " <<
-                                       to_string(destNode));
+    LOG_TRACE(_logger, "enter, from: " << _selfId
+              << ", to: " << to_string(destNode));
 
     lock_guard<recursive_mutex> lock(_connectionsGuard);
     auto temp = _connections.find(destNode);
     if (temp != _connections.end()) {
-      LOG_TRACE(_logger, "conncection found, from: " << _selfId <<
-                                                     ", to: " << destNode);
+      LOG_TRACE(_logger, "conncection found, from: " << _selfId
+                << ", to: " << destNode);
 
       if (temp->second->connected) {
         temp->second->send(message, messageLength);
-      } else LOG_TRACE(_logger,
-                       "conncection found but disconnected, from: " << _selfId <<
-                                                                    ", to: "
-                                                                    << destNode);
+      } else {
+        LOG_TRACE(_logger,
+           "conncection found but disconnected, from: " << _selfId
+           << ", to: " << destNode);
+      }
     }
 
-    LOG_TRACE(_logger, "exit, from: " << _selfId << ", to: " <<
-                                      to_string(destNode));
+    LOG_TRACE(_logger, "exit, from: " << _selfId
+              << ", to: " << destNode);
+
     return 0;
   }
 
@@ -924,7 +930,7 @@ class PlainTCPCommunication::PlainTcpImpl {
   }
 
   virtual ~PlainTcpImpl() {
-    LOG_TRACE(_logger, "DTOR!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    LOG_TRACE(_logger, "PlainTCPDtor");
   }
 };
 
