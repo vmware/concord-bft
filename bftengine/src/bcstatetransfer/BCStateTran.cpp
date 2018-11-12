@@ -1157,7 +1157,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg* m,
       preferredReplicas_.insert(r);
   }
 
-  Assert(preferredReplicas_.size() >= fVal_ + 1);
+  Assert(static_cast<uint16_t>(preferredReplicas_.size()) >= fVal_ + 1);
 
   // set new checkpoint
 
@@ -1306,7 +1306,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg* m,
       break;
     }
     // if we still have chunks in block
-    else if (nextChunk+1 <= numOfChunksInNextBlock) {
+    else if (static_cast<uint16_t>(nextChunk+1) <= numOfChunksInNextBlock) {
       nextChunk++;
     }
     // we sent all relevant blocks
@@ -1462,7 +1462,7 @@ bool BCStateTran::onMessage(const FetchResPagesMsg* m,
       break;
     }
     // if we still have chunks in block
-    if (nextChunk + 1 <= numOfChunksInVBlock) {
+    if (static_cast<uint16_t>(nextChunk + 1) <= numOfChunksInVBlock) {
       nextChunk++;
     } else {  // we sent all chunks
       break;
