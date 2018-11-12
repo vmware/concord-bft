@@ -35,7 +35,7 @@ class STDigest : StateTransferDigest {
   }
 
   bool isZero() const {
-    for (int i = 0; i < BLOCK_DIGEST_SIZE; i++) {
+    for (uint32_t i = 0; i < BLOCK_DIGEST_SIZE; i++) {
       if (content[i] != 0) return false;
     }
     return true;
