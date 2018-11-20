@@ -104,7 +104,7 @@ endfunction()
 function(add_relic_executable appName appSrc appDir)
 
     # Add compile target
-    add_executable(${appName} ${appSrc} $<TARGET_OBJECTS:bench> $<TARGET_OBJECTS:bls_relic> $<TARGET_OBJECTS:utils> $<TARGET_OBJECTS:common>)
+    add_executable(${appName} ${appSrc} $<TARGET_OBJECTS:bench> $<TARGET_OBJECTS:bls_relic> $<TARGET_OBJECTS:common>)
     target_include_directories(${appName} PRIVATE 
         ${threshsign_SOURCE_DIR}/src 
         #${threshsign_SOURCE_DIR}/src/bls/relic
@@ -119,15 +119,12 @@ function(add_relic_executable appName appSrc appDir)
     set_target_properties(${appName} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${appDir})
 endfunction()
 
-function(add_threshsign_executable appName appSrc appDir hasRelicMain)
+function(add_threshsign_executable appName appSrc appDir)
     # Add compile target
     add_executable(${appName} ${appSrc})
     # SbftKeygenApp depends on some RSA/Shoup internal functions/classes for generating primes
     target_include_directories(${appName} PRIVATE ${threshsign_SOURCE_DIR}/src ${threshsign_SOURCE_DIR}/lib ${threshsign_SOURCE_DIR}/include)
-    if(hasRelicMain)
-        target_link_libraries(${appName} PRIVATE mainapp)
-        target_link_libraries(${appName} PRIVATE relic_mainapp)
-    endif()
+    target_link_libraries(${appName} PRIVATE mainapp)
     target_link_libraries(${appName} PUBLIC threshsign)
     link_with_relic_library(${appName})
 
@@ -175,8 +172,8 @@ target_link_libraries(threshsign PUBLIC Threads::Threads)
 
 #add_subdirectory(lib)
 add_subdirectory(src)
-#add_subdirectory(bench)
-#add_subdirectory(test)
+add_subdirectory(bench)
+add_subdirectory(test)
 #add_subdirectory(app)
 
 #

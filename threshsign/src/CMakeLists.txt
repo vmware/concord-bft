@@ -16,3 +16,4 @@ target_include_directories(common
    PRIVATE ../include .)
 
 add_subdirectory(bls)
+add_subdirectory(app)
