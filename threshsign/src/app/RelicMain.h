@@ -1,0 +1,11 @@
+#pragma once
+
+#include <vector>
+
+namespace BLS {
+namespace Relic {
+    class Library;
+}
+}
+
+int RelicAppMain(const BLS::Relic::Library& lib, const std::vector<std::string>& args);
