@@ -88,7 +88,10 @@ class Logger {
   Logger(LoggerImpl impl) : _impl(std::move(impl)) {}
 
   inline std::string prepare(const char *format, va_list &args) {
-    auto size = std::snprintf(nullptr, 0, format, args);
+    va_list args2;
+    va_copy(args2, args);
+    auto size = std::vsnprintf(nullptr, 0, format, args2);
+    va_end(args2);
     std::string output(size + 1, '\0');
     std::vsnprintf((char *) output.c_str(), size + 1, format, args);
     return output;
