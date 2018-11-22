@@ -248,7 +248,7 @@ namespace bftEngine
 				{
 					outMaxRestrictedSeqNum = upperBound - checkpointWindowSize;
 
-					Logger::printInfo("\"VC stable\" patch was used");
+					LOG_INFO_F(GL, "\"VC stable\" patch was used");
 				}
 			}
 

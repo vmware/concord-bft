@@ -15,22 +15,9 @@
 
 #include "Logging.hpp"
 
-//TODO(GG): use a standard c++ log
-
 // globals to support easy logging
-extern concordlogger::Logger bftGlobalLogger;
-#define GL bftGlobalLogger
-
-class Logger {
- public:
-  static void printInfo(const char *format, ...);
-  static void printWarn(const char *format, ...);
-  static void printError(const char *format, ...);
-
-  static void printLastStackFrames();
-
-  static void simpleAssert(bool cond, const char *msg);
-};
+extern concordlogger::Logger GL;
+#define GL GL
 
 #endif // BFT_LOGGER_HPP_1
 

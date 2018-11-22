@@ -46,7 +46,7 @@ namespace bftEngine
 					Time n = getMonotonicTime();
 					if (subtract(n, lastOverflowWarning) > ((TimeDeltaMirco)minTimeBetweenOverflowWarningsMilli * 1000))
 					{
-						Logger::printWarn("More than %d pending messages in queue -  may ignore some of the messages!",
+						LOG_WARN_F(GL, "More than %d pending messages in queue -  may ignore some of the messages!",
 							(int)maxNumberOfPendingExternalMsgs);
 
 						lastOverflowWarning = n;

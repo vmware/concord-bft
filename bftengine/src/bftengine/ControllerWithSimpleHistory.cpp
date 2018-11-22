@@ -51,7 +51,7 @@ namespace bftEngine
 
 			currentTimeToStartSlowPathMilli = defaultTimeToStartSlowPathMilli;
 
-			Logger::printInfo("currentTimeToStartSlowPathMilli = %d", (int)currentTimeToStartSlowPathMilli);
+			LOG_INFO_F(GL, "currentTimeToStartSlowPathMilli = %d", (int)currentTimeToStartSlowPathMilli);
 		}
 
 
@@ -177,13 +177,13 @@ namespace bftEngine
 			recentActivity.resetAll(maxSeq + 1);
 
 			if (lastFirstPathVal != currentFirstPath)
-				Logger::printInfo("currentFirstPath = %d", (int)currentFirstPath);
+				LOG_INFO_F(GL, "currentFirstPath = %d", (int)currentFirstPath);
 
 			const double execAvg = avgAndStdOfExecTime.avg();
 			const double execVar = avgAndStdOfExecTime.var();
 			const double execStd = ((execVar) > 0 ? sqrt(execVar) : 0);
 
-			Logger::printInfo("Execution time of recent rounds (micro) - avg=%f std=%f", execAvg, execStd);
+			LOG_INFO_F(GL, "Execution time of recent rounds (micro) - avg=%f std=%f", execAvg, execStd);
 
 			if (!downgraded)
 			{
@@ -201,7 +201,7 @@ namespace bftEngine
 
 				currentTimeToStartSlowPathMilli = newSlowPathTimeMilli;
 
-				Logger::printInfo("currentTimeToStartSlowPathMilli = %d", (int)currentTimeToStartSlowPathMilli);
+				LOG_INFO_F(GL, "currentTimeToStartSlowPathMilli = %d", (int)currentTimeToStartSlowPathMilli);
 			}
 		}
 

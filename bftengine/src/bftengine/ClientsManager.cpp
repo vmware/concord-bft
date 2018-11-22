@@ -138,13 +138,13 @@ namespace bftEngine
 			c.lastSeqNumberOfReply = requestSeqNum;
 			c.latestReplyTime = getMonotonicTime();
 
-			//Logger::printInfo("allocateNewReplyMsgAndWriteToStorage - requestSeqNum=%d", (int)requestSeqNum);
+			//LOG_INFO_F(GL, "allocateNewReplyMsgAndWriteToStorage - requestSeqNum=%d", (int)requestSeqNum);
 
 			ClientReplyMsg* const r = new ClientReplyMsg(myId_, requestSeqNum, reply, replyLength);
 
 			const uint32_t firstPageId = clientIdx * reservedPagesPerClient_;
 
-			//Logger::printInfo("allocateNewReplyMsgAndWriteToStorage - firstPageId=%d", (int)firstPageId);
+			//LOG_INFO_F(GL, "allocateNewReplyMsgAndWriteToStorage - firstPageId=%d", (int)firstPageId);
 
 			uint32_t numOfPages = r->size() / sizeOfReservedPage_;
 			uint32_t sizeLastPage = sizeOfReservedPage_;
@@ -155,8 +155,8 @@ namespace bftEngine
 				sizeLastPage = r->size() % sizeOfReservedPage_;
 			}
 
-			//Logger::printInfo("allocateNewReplyMsgAndWriteToStorage - numOfPages=%d", (int)numOfPages);
-			//Logger::printInfo("allocateNewReplyMsgAndWriteToStorage - sizeLastPage=%d", (int)sizeLastPage);
+			//LOG_INFO_F(GL, "allocateNewReplyMsgAndWriteToStorage - numOfPages=%d", (int)numOfPages);
+			//LOG_INFO_F(GL, "allocateNewReplyMsgAndWriteToStorage - sizeLastPage=%d", (int)sizeLastPage);
 
 			// write reply message to reserved pages 
 			for (uint32_t i = 0; i < numOfPages; i++)
@@ -169,7 +169,7 @@ namespace bftEngine
 			// write currentPrimaryId to message (we don't store the currentPrimaryId in the reserved pages)
 			r->setPrimaryId(currentPrimaryId);
 
-			Logger::printInfo("allocateNewReplyMsgAndWriteToStorage returns reply with hash=%" PRIu64"", r->debugHash());
+			LOG_INFO_F(GL, "allocateNewReplyMsgAndWriteToStorage returns reply with hash=%" PRIu64"", r->debugHash());
 
 
 			return r;
@@ -183,11 +183,11 @@ namespace bftEngine
 
 			Assert(info.lastSeqNumberOfReply != 0);
 
-			//Logger::printInfo("allocateMsgWithLatestReply - info.lastSeqNumberOfReply=%d", (int)info.lastSeqNumberOfReply);
+			//LOG_INFO_F(GL, "allocateMsgWithLatestReply - info.lastSeqNumberOfReply=%d", (int)info.lastSeqNumberOfReply);
 
 			const uint32_t firstPageId = clientIdx * reservedPagesPerClient_;
 
-			//Logger::printInfo("allocateMsgWithLatestReply - firstPageId=%d", (int)firstPageId);
+			//LOG_INFO_F(GL, "allocateMsgWithLatestReply - firstPageId=%d", (int)firstPageId);
 
 			stateTransfer_->loadReservedPage(firstPageId, sizeOfReservedPage_, scratchPage_);
 
@@ -207,8 +207,8 @@ namespace bftEngine
 				sizeLastPage = replyMsgSize % sizeOfReservedPage_;
 			}
 
-			//Logger::printInfo("allocateMsgWithLatestReply - numOfPages=%d", (int)numOfPages);
-			//Logger::printInfo("allocateMsgWithLatestReply - sizeLastPage=%d", (int)sizeLastPage);
+			//LOG_INFO_F(GL, "allocateMsgWithLatestReply - numOfPages=%d", (int)numOfPages);
+			//LOG_INFO_F(GL, "allocateMsgWithLatestReply - sizeLastPage=%d", (int)sizeLastPage);
 
 			ClientReplyMsg* const r = new ClientReplyMsg(myId_, replyHeader->replyLength);
 			
@@ -222,7 +222,7 @@ namespace bftEngine
 			
 			r->setPrimaryId(currentPrimaryId);
 
-			Logger::printInfo("allocateMsgWithLatestReply returns reply with hash=%" PRIu64"", r->debugHash());
+			LOG_INFO_F(GL, "allocateMsgWithLatestReply returns reply with hash=%" PRIu64"", r->debugHash());
 			
 			return r;
 		}

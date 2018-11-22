@@ -297,7 +297,7 @@ class Logger {
 #define LOG_INFO_F(l, ...) l.info(__VA_ARGS__)
 
 #define LOG_WARN(l, s) {std::ostringstream os; os << s; l.warn(os);}
-#define LOG_WARNL_F(l, ...) l.warn(__VA_ARGS__)
+#define LOG_WARN_F(l, ...) l.warn(__VA_ARGS__)
 
 #define LOG_ERROR(l, s) {std::ostringstream os; os << s; l.error(os);}
 #define LOG_ERROR_F(l, ...) l.error(__VA_ARGS__)
