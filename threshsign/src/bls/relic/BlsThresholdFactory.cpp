@@ -41,25 +41,25 @@ using std::endl;
 namespace BLS {
 namespace Relic {
 
-BlsThresholdFactory::BlsThresholdFactory(const BlsPublicParameters& params)
-    : params(params)
+BlsThresholdFactory::BlsThresholdFactory(const BlsPublicParameters& params, bool useMultisig)
+    : params(params), useMultisig(useMultisig)
 {
     if(params.getCurveType() != BLS::Relic::Library::Get().getCurrentCurve()) {
         throw std::runtime_error("Unsupported curve type");
     }
 }
 
-std::unique_ptr<BlsThresholdKeygenBase> BlsThresholdFactory::newKeygen(NumSharesType reqSigners, NumSharesType totalSigners) const {
+std::unique_ptr<BlsThresholdKeygenBase> BlsThresholdFactory::newKeygen(NumSharesType reqSigners, NumSharesType numSigners) const {
     std::unique_ptr<BlsThresholdKeygenBase> keygen;
-    if(reqSigners != totalSigners) {
-        keygen.reset(new BlsThresholdKeygen(params, reqSigners, totalSigners));
+    if(useMultisig || reqSigners == numSigners) {
+        keygen.reset(new BlsMultisigKeygen(params, numSigners));
     } else {
-        keygen.reset(new BlsMultisigKeygen(params, totalSigners));
+        keygen.reset(new BlsThresholdKeygen(params, reqSigners, numSigners));
     }
     return keygen;
 }
 
-IThresholdVerifier * BlsThresholdFactory::newVerifier(NumSharesType reqSigners, NumSharesType totalSigners,
+IThresholdVerifier * BlsThresholdFactory::newVerifier(NumSharesType reqSigners, NumSharesType numSigners,
         const char * publicKeyStr, const std::vector<std::string>& verifKeysStr) const {
     G2T pk( (std::string(publicKeyStr)) );
 
@@ -72,10 +72,10 @@ IThresholdVerifier * BlsThresholdFactory::newVerifier(NumSharesType reqSigners, 
     std::transform(begin, verifKeysStr.end(), std::back_inserter(verifKeys),
             [](const std::string& str) -> BlsPublicKey { return BlsPublicKey(G2T(str)); });
 
-    if(reqSigners == totalSigners)
-        return new BlsMultisigVerifier(params, pk, totalSigners, verifKeys);
+    if(useMultisig || reqSigners == numSigners)
+        return new BlsMultisigVerifier(params, reqSigners, numSigners, verifKeys);
     else
-        return new BlsThresholdVerifier(params, pk, reqSigners, totalSigners, verifKeys);
+        return new BlsThresholdVerifier(params, pk, reqSigners, numSigners, verifKeys);
 }
 
 IThresholdSigner * BlsThresholdFactory::newSigner(ShareID id, const char * secretKeyStr) const {
@@ -84,6 +84,7 @@ IThresholdSigner * BlsThresholdFactory::newSigner(ShareID id, const char * secre
 
 std::tuple<std::vector<IThresholdSigner*>, IThresholdVerifier*> BlsThresholdFactory::newRandomSigners(
         NumSharesType reqSigners, NumSharesType numSigners) const {
+    // Need to generate secret keys for the signers
     std::unique_ptr<BlsThresholdKeygenBase> keygen(newKeygen(reqSigners, numSigners));
 
     // Create signers
@@ -100,12 +101,12 @@ std::tuple<std::vector<IThresholdSigner*>, IThresholdVerifier*> BlsThresholdFact
 
     // Create verifier
     IThresholdVerifier* verifier;
-    if(reqSigners == numSigners) {
+
+    if(useMultisig || reqSigners == numSigners) {
         logdbg << "Creating multisig BLS verifier" << endl;
-        verifier = new BlsMultisigVerifier(params, keygen->getPublicKey(), numSigners, verifKeys);
+        verifier = new BlsMultisigVerifier(params, reqSigners, numSigners, verifKeys);
     } else {
-        verifier = new BlsThresholdVerifier(params, keygen->getPublicKey(), reqSigners, numSigners,
-                verifKeys);
+        verifier = new BlsThresholdVerifier(params, keygen->getPublicKey(), reqSigners, numSigners, verifKeys);
     }
 
     return std::make_tuple(sks, verifier);

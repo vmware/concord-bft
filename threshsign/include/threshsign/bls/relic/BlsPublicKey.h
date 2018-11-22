@@ -25,6 +25,7 @@ protected:
 
 public:
     friend class BlsThresholdVerifier;
+    friend class BlsMultisigVerifier;
 
 public:
     /**

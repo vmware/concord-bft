@@ -17,7 +17,7 @@
 #include "threshsign/ThresholdSignaturesTypes.h"
 
 #include "BlsNumTypes.h"
-#include "BlsThresholdAccumulator.h"
+#include "BlsAccumulatorBase.h"
 #include "BlsPublicKey.h"
 
 #include <vector>
@@ -25,57 +25,29 @@
 namespace BLS {
 namespace Relic {
 
-class BlsMultisigAccumulator : public ThresholdAccumulatorBase<BlsPublicKey, G1T, BlsSigshareParser> {
+class BlsMultisigAccumulator : public BlsAccumulatorBase {
 protected:
-    G1T multiSig;
 
 public:
-    BlsMultisigAccumulator(NumSharesType totalSigners);
+    BlsMultisigAccumulator(const std::vector<BlsPublicKey>& vks, NumSharesType reqSigners, NumSharesType totalSigners, bool withShareVerification);
     virtual ~BlsMultisigAccumulator() {}
 
-/**
- * IThresholdAccumulator overloads.
- */
+// IThresholdAccumulator overloads.
 public:
-    virtual void getFullSignedData(char* outThreshSig, int threshSigLen) {
-        sigToBytes(reinterpret_cast<unsigned char*>(outThreshSig), static_cast<int>(threshSigLen));
-    }
+    virtual void getFullSignedData(char* outThreshSig, int threshSigLen);
 
     virtual IThresholdAccumulator* clone() {
         // Call copy constructor.
         return new BlsMultisigAccumulator(*this);
     }
 
-    virtual bool hasShareVerificationEnabled() const { return false; }
+    virtual bool hasShareVerificationEnabled() const { return shareVerificationEnabled; }
 
-/**
- * ThresholdAccumulatorBase overloads.
- */
+// Used internally or for testing
 public:
-    virtual void onNewSigShareAdded(ShareID id, const G1T& sigShare);
+    virtual void aggregateShares();
 
-    virtual G1T getFinalSignature() {
-        return getMultiSignature();
-    }
-
-protected:
-    virtual bool verifyShare(ShareID id, const G1T& sigShare) {
-		(void)id;
-		(void)sigShare;
-		throw std::runtime_error("Unexpected verifyShare() call on BLS multisig accumulator");
-	}
-
-	virtual void onExpectedDigestSet() {}
-
-/**
- * Used internally or for testing.
- */
-public:
-    const G1T& getMultiSignature() const { return multiSig; }
-
-    void sigToBytes(unsigned char * buf, int len) {
-        multiSig.toBytes(buf, len);
-    }
+    virtual void sigToBytes(unsigned char * buf, int len) const;
 };
 
 } /* namespace Relic */

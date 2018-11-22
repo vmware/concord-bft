@@ -29,15 +29,14 @@ class BlsThresholdVerifier : public IThresholdVerifier {
 protected:
     const BlsPublicParameters params;
 
-    const BlsPublicKey pk;
+    mutable BlsPublicKey pk;
     const std::vector<BlsPublicKey> vks;
     const G2T gen2;
-    const NumSharesType reqSigners, totalSigners;
-    const int sigSize;
+    const NumSharesType reqSigners, numSigners;
 
 public:
     BlsThresholdVerifier(const BlsPublicParameters& params, const G2T& pk,
-            NumSharesType reqSigners, NumSharesType totalSigners,
+            NumSharesType reqSigners, NumSharesType numSigners,
             const std::vector<BlsPublicKey>& verifKeys);
 
     virtual ~BlsThresholdVerifier();
@@ -47,10 +46,12 @@ public:
      */
 public:
     NumSharesType getNumRequiredShares() const { return reqSigners; }
-    NumSharesType getNumTotalShares() const { return totalSigners; }
+    NumSharesType getNumTotalShares() const { return numSigners; }
     const BlsPublicParameters& getParams() const { return params; }
+    /**
+     * NOTE: Used by BlsBatchVerifier to verify shares
+     */
     bool verify(const G1T& msgHash, const G1T& sigShare, const G2T& pk) const;
-    bool verify(const G1T& msg, const G1T& sig) const;
 
     /**
      * IThresholdVerifier overrides.
@@ -65,7 +66,7 @@ public:
     virtual bool verify(const char* msg, int msgLen, const char* sig, int sigLen) const;
 
     virtual int requiredLengthForSignedData() const {
-        return sigSize;
+        return params.getSignatureSize();
     }
 
     virtual const IPublicKey& getPublicKey() const { return pk; }

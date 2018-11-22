@@ -83,7 +83,31 @@ public:
 		return data != v.data;
 	}
 
+    /**
+     * Serializes this vector of share IDs as a byte sequence.
+     *
+     * @param   buf         the destination buffer
+     * @param   capacity    the capacity of the buffer (must be >= getByteCount())
+     */
+    void toBytes(unsigned char * buf, int capacity) const;
+
+    /**
+     * Deserializes the specified buffer into a vector of share IDs.
+     *
+     * @param   buf     a buffer with the serialized bytes
+     * @param   len     the length of the buffer
+     */
+    void fromBytes(const unsigned char * buf, int len);
+
 public:
+    /**
+     * Returns the size in bytes of a serialized vector of share IDs.
+     * The size is the same no matter how many share IDs are in the vector.
+     *
+     * @return the number of bytes
+     */
+    static int getByteCount();
+
     static void randomSubset(VectorOfShares& signers, int numSigners, int reqSigners);
 };
 

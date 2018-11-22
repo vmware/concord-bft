@@ -1,7 +1,8 @@
 set(bls_relic_source_files
-  BlsBatchVerifier.cpp
+  BlsAccumulatorBase.cpp
   BlsAlmostMultisigAccumulator.cpp
   BlsAlmostMultisigCoefficients.cpp
+  BlsBatchVerifier.cpp
   BlsMultisigAccumulator.cpp
   BlsMultisigKeygen.cpp
   BlsMultisigVerifier.cpp
@@ -14,6 +15,7 @@ set(bls_relic_source_files
   BlsThresholdKeygen.cpp
   BlsThresholdSigner.cpp
   BlsThresholdVerifier.cpp
+  FastMultExp.cpp
   LagrangeInterpolation.cpp
   Library.cpp 
 )

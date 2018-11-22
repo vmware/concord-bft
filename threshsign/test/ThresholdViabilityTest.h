@@ -48,11 +48,11 @@ protected:
     std::unique_ptr<IThresholdAccumulator> shareAccum;
 
     NumSharesType reqSigners, numSigners;
-    bool shareVerificationEnabled;
+    bool verifiesShares;
 
 public:
     ThresholdViabilityTest(const PublicParameters& params, int n, int k)
-        : params(params), reqSigners(k), numSigners(n), shareVerificationEnabled(false)
+        : params(params), reqSigners(k), numSigners(n), verifiesShares(false)
     {
     }
 
@@ -78,17 +78,14 @@ public:
         return std::unique_ptr<IThresholdAccumulator>(verif->newAccumulator(withShareVerification));
     }
 
-    // TODO: Need better interfaces, but now is not a good time.
     ThresholdAccumulator* accumulator() {
         return dynamic_cast<ThresholdAccumulator*>(shareAccum.get());
     }
 
-    // TODO: Need better interfaces, but now is not a good time.
     ThresholdSigner * signer(ShareID i) {
         return dynamic_cast<ThresholdSigner*>(sks[static_cast<size_t>(i)]);
     }
 
-    // TODO: Need better interfaces, but now is not a good time.
     ThresholdVerifier * verifier() {
         return dynamic_cast<ThresholdVerifier*>(verif.get());
     }
@@ -104,7 +101,7 @@ public:
         VectorOfShares::randomSubset(signers, numSigners, reqSigners);
 
         // Deletes the old accumulator pointer, creates one without share verification
-        shareAccum = createAccumulator(false);
+        shareAccum = createAccumulator(verifiesShares);
         testAssertNotNull(accumulator());
         // If we call this before adding the shares, the shares will be verified at addNumById() time
         shareAccum->setExpectedDigest(msg, msgSize);
@@ -112,15 +109,13 @@ public:
         logtrace << "Testing numerical API..." << endl;
         for(ShareID i = signers.first(); signers.isEnd(i) == false; i = signers.next(i)) {
             testAssertNotNull(signer(i));
-            // TODO: Need better interfaces, but now is not a good time.
             GroupType sigShare = signer(i)->signData(h);
 
             logtrace << "Signed sigshare #" << i << ": " << sigShare << endl;
-            // TODO: Need better interfaces, but now is not a good time.
             accumulator()->addNumById(i, sigShare);
         }
 
-        checkThresholdSignature(h);
+        checkThresholdSignature(msg, msgSize);
 
         /**
          * Test the char * API too.
@@ -142,7 +137,7 @@ public:
 
         for(auto p = points.begin(); p != points.end(); p++) {
             // We test what happens when we call setExpectedDigest() after shares have been added.
-            shareAccum = createAccumulator(shareVerificationEnabled);
+            shareAccum = createAccumulator(verifiesShares);
             testAssertNotNull(accumulator());
 
             for(ShareID i = signers.first(); signers.isEnd(i) == false; i = signers.next(i)) {
@@ -159,18 +154,18 @@ public:
                 }
             }
 
-            checkThresholdSignature(h);
+            checkThresholdSignature(msg, msgSize);
         }
     }
 
-    void checkThresholdSignature(const GroupType& h) {
-        // TODO: Need better interfaces, but now is not a good time.
-        GroupType sig = accumulator()->getFinalSignature();
+    void checkThresholdSignature(const unsigned char * msg, int msgLen) {
+        int sigLen = verifier()->requiredLengthForSignedData();
+        AutoBuf<char> sig(sigLen);
+        accumulator()->getFullSignedData(sig, sigLen);
 
-        // TODO: Need better interfaces, but now is not a good time.
-        //logdbg << "Verifying signature(" << h << "): " << sig << endl;
-        if(false == verifier()->verify(h, sig)) {
-            logerror << reqSigners << " out of " << numSigners << " signature " << sig << " did not verify" << endl;
+        //logdbg << "Verifying signature(" << Utils::bin2hex(msg) << "): " << Utils::bin2hex(sig, sigLen) << endl;
+        if(false == verifier()->verify(reinterpret_cast<const char *>(msg), msgLen, sig, sigLen)) {
+            logerror << reqSigners << " out of " << numSigners << " signature " << Utils::bin2hex(sig, sigLen) << " did not verify" << endl;
             throw std::logic_error("Signature did not verify");
         }
     }

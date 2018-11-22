@@ -17,7 +17,9 @@
 #include <stdexcept>
 
 #include "Log.h"
+#include "Utils.h"
 #include "XAssert.h"
+#include "AutoBuf.h"
 #include "app/RelicMain.h"
 
 #include "threshsign/VectorOfShares.h"
@@ -25,18 +27,8 @@
 using namespace std;
 using namespace BLS::Relic;
 
-void testIth();
-
-int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
-    (void)lib;
-    (void)args;
-
-    testIth();
-
-    return 0;
-}
-
 void testIth() {
+    loginfo << "Testing ith() and skip()..." << endl;
     VectorOfShares signers;
 
     signers.add(3);
@@ -60,4 +52,54 @@ void testIth() {
     if(signers.skip(3, 2) != 7) {
         throw std::logic_error("skip is wrong");
     }
+}
+
+void assertCorrectSerialization(const VectorOfShares& vec) {
+    AutoBuf<unsigned char> buf(vec.getByteCount());
+    vec.toBytes(buf, buf.size());
+
+    //logdbg << "Serialized vector " << vec << " to " << Utils::bin2hex(buf, buf.size()) << endl;
+    //logdbg << endl;
+
+    VectorOfShares vecin;
+    vecin.fromBytes(buf, buf.size());
+    testAssertEqual(vec, vecin);
+}
+
+void testSerialization() {
+    loginfo << "Testing serialization..." << endl;
+
+    VectorOfShares vec; 
+    assertCorrectSerialization(vec);
+
+    vec.add(1);
+    assertCorrectSerialization(vec);
+
+    vec.add(2);
+    assertCorrectSerialization(vec);
+
+    vec.add(MAX_NUM_OF_SHARES);
+    assertCorrectSerialization(vec);
+
+    vec.clear();
+    for(int i = 1; i <= MAX_NUM_OF_SHARES; i++) {
+        vec.add(i);
+    }
+    assertCorrectSerialization(vec);
+
+    for(int i = 0; i < 128; i++) {
+        vec.clear();
+        VectorOfShares::randomSubset(vec, MAX_NUM_OF_SHARES, MAX_NUM_OF_SHARES/2);
+        assertCorrectSerialization(vec);
+    }
+}
+
+int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
+    (void)lib;
+    (void)args;
+
+    testSerialization();
+    testIth();
+
+    return 0;
 }

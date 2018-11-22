@@ -1,6 +1,19 @@
+// Concord
+//
+// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+//
+// This product is licensed to you under the Apache 2.0 license (the "License").
+// You may not use this product except in compliance with the Apache 2.0 License.
+//
+// This product may include a number of subcomponents with separate copyright
+// notices and license terms. Your use of these subcomponents is subject to the
+// terms and conditions of the subcomponent's license, as noted in the
+// LICENSE file.
+
 #include "threshsign/Configuration.h"
 
 #include "Log.h"
+#include "Utils.h"
 
 #include <iostream>
 #include <fstream>
@@ -24,22 +37,26 @@ using std::endl;
 
 class ThresholdBlsRelicBenchmark : public IThresholdSchemeBenchmark {
 private:
-    G1T h, sig, threshSig;
+    G1T h, sig;
+    char * threshSig;
     G2T pk, gen2;
-    BNT sk, g1size, g2size;	// the order of the G1 and G2 group
-    GTT e1, e2;
+    BNT sk;
 
     // to store them in an std::vector: neither std::vector<bn_t> nor std::vector<bn_t*> work.
-    std::vector<std::unique_ptr<BlsThresholdSigner>> sks;			// secret key shares for all signers
-    std::unique_ptr<BlsThresholdVerifier> verifier;
-    std::unique_ptr<BlsThresholdAccumulator> accum;
+    std::vector<IThresholdSigner*> sks;			// secret key shares for all signers
+    std::unique_ptr<IThresholdVerifier> verifier;
+    std::unique_ptr<IThresholdAccumulator> accum;
 
-    std::vector<BlsPublicKey> pks;			// public keys (corresp. to SK shares) for all signers
-    std::vector<G1T> shares; 		// signature shares for all signers
+    std::vector<BlsPublicKey> pks;	// public keys (corresp. to SK shares) for all signers
+    std::vector<char*> shares; 		// signature shares for all signers
+
+    bool useMultisig;
 
 public:
-    ThresholdBlsRelicBenchmark(const BlsPublicParameters& p, int k, int n)
-        : IThresholdSchemeBenchmark(p, k, n)
+    ThresholdBlsRelicBenchmark(const BlsPublicParameters& p, int k, int n, bool useMultisig)
+        : IThresholdSchemeBenchmark(p, k, n),
+          threshSig(nullptr),
+          useMultisig(useMultisig)
     {
         //numBenchIters = 2;
         assertStrictlyGreaterThan(k, 0);
@@ -47,26 +64,38 @@ public:
         // WARNING: Players are numbered from 1 to n (pos [0] is irrelevant in these arrays)
         sks.resize(static_cast<size_t>(numSigners + 1));
         pks.resize(static_cast<size_t>(numSigners + 1));
-        shares.resize(static_cast<size_t>(numSigners + 1));
+        shares.resize(static_cast<size_t>(numSigners + 1), nullptr);
 
-        // See src/bn/relic_bn_utils.c for serializing BN sk and printing on screen in any base!
         g2_get_gen(gen2);
-        g1_get_ord(g1size);
-        g2_get_ord(g2size);
-        gt_rand(e1);
-        gt_rand(e2);
-
-        assertTrue(bn_cmp(g1size, g2size) == CMP_EQ);
 
         generateKeys();
         loginfo << "Created new threshold BLS benchmark: numIters = " << numBenchIters << ", k = " << k << ", n = " << n
                 << ", sec = " << p.getSecurityLevel() << " bits" << endl;
     }
 
-    ~ThresholdBlsRelicBenchmark() {}
+    ~ThresholdBlsRelicBenchmark() {
+        for(auto& sk : sks) {
+            delete sk;
+        }
+
+        for(auto& sigShare : shares) {
+            delete [] sigShare;
+        }
+
+        delete [] threshSig;
+    }
 
 protected:
-    void initSizes() {
+    void generateKeys() {
+        const BlsPublicParameters& blsParams = dynamic_cast<const BLS::Relic::BlsPublicParameters&>(params);
+        sk.RandomMod(blsParams.getGroupOrder());
+        pk = G2T::Times(gen2, sk);
+
+        BlsThresholdFactory factory(blsParams, useMultisig);
+        IThresholdVerifier* verifTmp;
+        std::tie(sks, verifTmp) = factory.newRandomSigners(reqSigners, numSigners);
+        verifier.reset(verifTmp);
+        
         // Compute SK size
         skBits = bn_size_bin(sk);
         logdbg << "SK size: " << skBits << " bytes" << endl;
@@ -77,56 +106,18 @@ protected:
         logdbg << "PK size (uncompressed): " << g2_size_bin(pk, 0) << " bytes" << endl;
 
         // Compute signature sizes
-        g1_rand(sig);
-        sigBits = g1_size_bin(sig, 1);
-        logdbg << "Signature size (compressed): " << sigBits << " bytes" << endl;
-        logdbg << "Signature size (uncompressed): " << g1_size_bin(sig, 0) << " bytes" << endl;
+        sigBits = verifier->requiredLengthForSignedData();
+        threshSig = new char[sigBits];
+        logdbg << "Signature size: " << sigBits << " bytes" << endl;
 
         // For BLS, sigshare size is just |sig| + ceil(\log_2{numSigners}), but we should probably not count that
         // since we can use the IP address in most application as the identifier.
-        sigShareBits = sigBits;
-    }
-
-    // TODO: reuse key generation code from ViabilityTest
-    void generateKeys() {
-        const BlsPublicParameters& blsParams = dynamic_cast<const BLS::Relic::BlsPublicParameters&>(params);
-        BlsThresholdKeygen keygen(blsParams, reqSigners, numSigners);
-        sk = keygen.getSecretKey();
-        pk = keygen.getPublicKey();
-
-        for(ShareID signer = 1; signer <= numSigners; signer++) {
-            size_t i = static_cast<size_t>(signer);
-            // Assign secret key share
-            sks[i].reset(new BlsThresholdSigner(blsParams, signer, keygen.getShareSecretKey(signer)));
-            // Compute PK
-            pks[i] = sks[i]->getPublicKey();
-            assertEqual(pks[i].getPoint(), keygen.getShareVerificationKey(signer));
-
-            logtrace << "Share for player " << i << " is p(" << i << ") = " << sks[i]->getShareSecretKey()
-                    << " (with vk = " << pks[i].getPoint() << ")"
-                    << endl;
-        }
-
-        verifier.reset(new BlsThresholdVerifier(blsParams, pk, reqSigners, numSigners, pks));
-
-        initSizes();
+        sigShareBits = dynamic_cast<BlsThresholdSigner*>(sks[1])->requiredLengthForSignedData();
+        for(size_t idx = 0; idx < shares.size(); idx++)
+            shares[idx] = new char[sigShareBits];
     }
 
 public:
-    virtual void multiply1() {
-        static G1T tmp;
-        // NOTE: Group operation on ECs is addition not multiplication
-        g1_add(tmp, sig, sig)
-    }
-    virtual void multiply2() {
-        static G2T tmp;
-        // NOTE: Group operation on ECs is addition not multiplication
-        g2_add(tmp, pk, pk);
-    }
-    virtual void multiplyT() {
-        static GTT tmp;
-        gt_mul(tmp, e1, e2);
-    }
     virtual void pairing() {
         static GTT tmp;
         pc_map(tmp, h, pk);
@@ -141,6 +132,7 @@ public:
     }
 
     virtual void verifySingle() {
+        GTT e1, e2;
         pc_map(e1, h, pk);
         pc_map(e2, sig, gen2);
 
@@ -151,7 +143,7 @@ public:
 
     virtual void signShare(ShareID i) {
         size_t idx = static_cast<size_t>(i);
-        shares[idx] = sks[idx]->signData(h);
+        dynamic_cast<BlsThresholdSigner*>(sks[idx])->signData(reinterpret_cast<char*>(msg), msgSize, shares[idx], sigShareBits);
     }
 
     virtual void verifyShares() {
@@ -159,43 +151,51 @@ public:
         accum->setExpectedDigest(msg, msgSize);
     }
 
-    virtual void computeLagrangeCoeffBegin(const VectorOfShares& signers) {
-        (void)signers;
+    virtual void accumulateShares(const VectorOfShares& signers) {
         // Deletes the old accumulator pointer
-        accum.reset(dynamic_cast<BlsThresholdAccumulator*>(verifier->newAccumulator(false)));
+        accum.reset(verifier->newAccumulator(hasShareVerify));
 
         // "Accumulate" the shares
         for(ShareID id = signers.first(); signers.isEnd(id) == false; id = signers.next(id)) {
             size_t idx = static_cast<size_t>(id);
-            accum->addNumById(id, shares[idx]);
+            testAssertNotNull(shares[idx]);
+            accum->add(shares[idx], sigShareBits);
         }
     }
 
     virtual void computeLagrangeCoeff(const VectorOfShares& signers) {
         (void)signers;
-        accum->computeLagrangeCoeff();
+        if(useMultisig)
+            return;
+
+        dynamic_cast<BlsThresholdAccumulator*>(accum.get())->computeLagrangeCoeff();
     }
 
     virtual void exponentiateLagrangeCoeff(const VectorOfShares& signers) {
         (void)signers;
-        accum->exponentiateLagrangeCoeff();
+        if(useMultisig)
+            return;
+
+        dynamic_cast<BlsThresholdAccumulator*>(accum.get())->exponentiateLagrangeCoeff();
     }
 
     virtual void aggregateShares(const VectorOfShares& signers) {
         (void)signers;
-        accum->aggregateShares();
-        threshSig = accum->getThresholdSignature();
+
+        auto accPtr = dynamic_cast<BlsAccumulatorBase*>(accum.get());
+        testAssertNotNull(accPtr);
+        accPtr->aggregateShares();
     }
 
     void sanityCheckThresholdSignature(const VectorOfShares& signers) {
+        auto accPtr = dynamic_cast<BlsAccumulatorBase*>(accum.get());
+        testAssertNotNull(accPtr);
+        accPtr->sigToBytes(reinterpret_cast<unsigned char*>(threshSig), sigBits);
+        
         (void)signers;
-        logdbg << "Normal signature:    " << sig << endl;
-        logdbg << "Threshold signature: " << threshSig << endl;
+        logdbg << "Threshold signature: " << Utils::bin2hex(reinterpret_cast<unsigned char*>(threshSig), sigBits) << endl;
 
-        pc_map(e1, h, pk);
-        pc_map(e2, threshSig, gen2);
-
-        if (gt_cmp(e1, e2) != CMP_EQ) {
+        if(verifier->verify(reinterpret_cast<char *>(msg), msgSize, threshSig, sigBits) == false) {
             throw std::logic_error("Your threshold signing or verification code is wrong.");
         }
     }
@@ -206,13 +206,13 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
     lib.getPrecomputedInverses();
 
     pc_param_print();
-    std::ofstream out("bls-relic-numbers.csv");
+    std::ofstream outLagr("threshold-lagrange-bls.csv");
+    std::ofstream outMulti("threshold-multisig-bls.csv");
 
     BlsPublicParameters params(PublicParametersFactory::getWhatever());
 
     loginfo << "FP_PRIME: " << FP_PRIME << endl;
     loginfo << "Security level: " << pc_param_level() << endl;
-
 
     std::vector<std::pair<int, int>> nk = Benchmark::getThresholdTestCases(501, false, true, false);
 
@@ -220,17 +220,26 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
 //        nk.push_back(std::pair<int, int>(i+1, i));
 //    }
 
-    int j = 0;
-    for(auto it = nk.begin(); it != nk.end(); it++) {
-        int n = it->first;
-        int k = it->second;
+    for(bool useMultisig : {true, false}) {
+    //for(bool useMultisig : {false, true}) {
+        loginfo << endl;
+        loginfo << "Benchmarking " << (useMultisig ? "multisig-based" : "Lagrange-based") << " BLS threshold signatures" << endl;
+        loginfo << endl;
+        
+        int j = 0;
+        for(auto it = nk.begin(); it != nk.end(); it++) {
+            int n = it->first;
+            int k = it->second;
 
-        ThresholdBlsRelicBenchmark b(params, k, n);
-        b.start();
-        if(j++ == 0)
-            b.printResults(out);
-        else
-            b.printNumbers(out);
+            ThresholdBlsRelicBenchmark b(params, k, n, useMultisig);
+            b.start();
+
+            // printResults includes the header columns as well
+            if(j++ == 0)
+                b.printResults(useMultisig ? outMulti : outLagr);
+            else
+                b.printNumbers(useMultisig ? outMulti : outLagr);
+        }
     }
 
     return 0;

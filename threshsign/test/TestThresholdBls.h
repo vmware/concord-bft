@@ -27,22 +27,27 @@ using std::endl;
 namespace BLS {
 namespace Relic {
 
-class BlsRelicViabilityTest : public ThresholdViabilityTest<
+class ThresholdBlsTest : public ThresholdViabilityTest<
     G1T,
     BlsPublicParameters,
-    ThresholdAccumulatorBase<BlsPublicKey, G1T, BlsSigshareParser>,
+    BlsAccumulatorBase,
     BlsThresholdSigner,
-    BlsThresholdVerifier> {
+    BlsThresholdVerifier> 
+{
+protected:
+    bool useMultisig;
+
 public:
-    BlsRelicViabilityTest(const BlsPublicParameters& params, int n, int k)
-        : ThresholdViabilityTest(params, n, k)
+    ThresholdBlsTest(const BlsPublicParameters& params, int n, int k, bool useMultisig)
+        : ThresholdViabilityTest(params, n, k), 
+          useMultisig(useMultisig)
     {
-        shareVerificationEnabled = true;
+        verifiesShares = true;
     }
 
 public:
     std::unique_ptr<IThresholdFactory> makeThresholdFactory() const {
-        return std::unique_ptr<IThresholdFactory>(new BlsThresholdFactory(params));
+        return std::unique_ptr<IThresholdFactory>(new BlsThresholdFactory(params, useMultisig));
     }
 
     G1T hashMessage(const unsigned char * msg, int msgSize) const {
