@@ -53,15 +53,21 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
     BLS::Relic::BlsPublicParameters params(BLS::Relic::PublicParametersFactory::getWhatever());
 
     const char * msg = "blaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBla";
-    for(auto it = nk.begin(); it != nk.end(); it++) {
-        int n = it->first;
-        int k = it->second;
-        (void)n;
-        (void)k;
+    for(bool multisig : {true, false}) {
+        loginfo << endl;
+        loginfo << "Testing threshold signatures (useMultisig = " << multisig << ")" << endl;
+        loginfo << endl;
 
-        BlsRelicViabilityTest t(params, n, k);
-        t.generateKeys();
-        t.test(reinterpret_cast<const unsigned char*>(msg), static_cast<int>(strlen(msg)));
+        for(auto it = nk.begin(); it != nk.end(); it++) {
+            int n = it->first;
+            int k = it->second;
+            (void)n;
+            (void)k;
+
+            ThresholdBlsTest t(params, n, k, multisig);
+            t.generateKeys();
+            t.test(reinterpret_cast<const unsigned char*>(msg), static_cast<int>(strlen(msg)));
+        }
     }
 
     return 0;

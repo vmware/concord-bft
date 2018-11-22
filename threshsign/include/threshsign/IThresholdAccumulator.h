@@ -58,7 +58,8 @@ public:
 	virtual int getNumValidShares() const = 0;
 
 	/**
-	 * Returns the final threshold signature on the digest specified in setExpectedDigest().
+	 * Computes and returns the final threshold signature on the digest specified in setExpectedDigest().
+     * WARNING: If called twice, might recompute the signature which will be slow.
 	 *
 	 * TODO: rename to getThresholdSignature()
 	 */

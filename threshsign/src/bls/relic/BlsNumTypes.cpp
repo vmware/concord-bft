@@ -228,13 +228,13 @@ BNT BNT::invertModPrime(const BNT& p) const {
 
 void G1T::toBytes(unsigned char * buf, int size) const {
     assertGreaterThanOrEqual(size, getByteCount());
-    ep_write_bin(buf, size, n, 1);
+    g1_write_bin(buf, size, n, 1);
     //logdbg << "Wrote G1T of " << size << " bytes" << std::endl;
 }
 
 void G1T::fromBytes(const unsigned char * buf, int size) {
     //logdbg << "Reading G1T of " << size << " bytes" << std::endl;
-    ep_read_bin(n, buf, size);
+    g1_read_bin(n, buf, size);
 }
 
 std::string G1T::toString() const {
@@ -255,8 +255,7 @@ void G2T::toBytes(unsigned char * buf, int size) const {
     g2_write_bin(buf, size, const_cast<g2_t&>(n), 1);
 }
 void G2T::fromBytes(const unsigned char * buf, int size) {
-    // FIXME: RELIC: g2_read_bin should take const buf
-    g2_read_bin(n, const_cast<unsigned char*>(buf), size);
+    g2_read_bin(n, buf, size);
 }
 
 std::string G2T::toString() const {

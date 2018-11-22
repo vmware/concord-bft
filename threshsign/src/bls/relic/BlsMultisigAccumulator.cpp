@@ -16,6 +16,7 @@
 #include "threshsign/bls/relic/Library.h"
 
 #include "Log.h"
+#include "XAssert.h"
 
 #include <vector>
 
@@ -24,15 +25,47 @@ using std::endl;
 namespace BLS {
 namespace Relic {
 
-BlsMultisigAccumulator::BlsMultisigAccumulator(NumSharesType totalSigners)
-    : ThresholdAccumulatorBase(std::vector<BlsPublicKey>(), totalSigners, totalSigners)
+BlsMultisigAccumulator::BlsMultisigAccumulator(const std::vector<BlsPublicKey>& verifKeys, NumSharesType reqSigners, NumSharesType totalSigners, bool withShareVerification)
+    : BlsAccumulatorBase(verifKeys, reqSigners, totalSigners, withShareVerification)
 {
-    g1_set_infty(multiSig);    // set it to the identity element
 }
 
-void BlsMultisigAccumulator::onNewSigShareAdded(ShareID id, const G1T& sigShare) {
-    logtrace << "Accumulating sigShare # " << id << " in BLS multisig: " << sigShare << std::endl;
-    g1_add(multiSig, multiSig, sigShare);
+void BlsMultisigAccumulator::getFullSignedData(char* outThreshSig, int threshSigLen) {
+    aggregateShares();
+
+    return sigToBytes(reinterpret_cast<unsigned char*>(outThreshSig), threshSigLen);
+}
+
+void BlsMultisigAccumulator::sigToBytes(unsigned char * outThreshSig, int threshSigLen) const {
+    int sigSize = Library::Get().getG1PointSize();
+    int vectorSize = 0;
+    
+    if(reqSigners != totalSigners) {
+        vectorSize = VectorOfShares::getByteCount();
+    }
+
+    if(threshSigLen < sigSize + vectorSize) {
+        throw std::runtime_error("Not enough capacity to store multisignature");
+    }
+
+    // include the signature itself
+    threshSig.toBytes(reinterpret_cast<unsigned char*>(outThreshSig), sigSize);
+
+    if(reqSigners != totalSigners) {
+        // include the signer IDs
+        validSharesBits.toBytes(reinterpret_cast<unsigned char*>(outThreshSig + sigSize), vectorSize);
+    }
+}
+
+void BlsMultisigAccumulator::aggregateShares() {
+    assertEqual(validSharesBits.count(), reqSigners);
+    threshSig = G1T::Identity();
+
+    // multiply all the signature shares to obtain the multisig
+    for(ShareID id = validSharesBits.first(); validSharesBits.isEnd(id) == false; id = validSharesBits.next(id)) {
+        size_t i = static_cast<size_t>(id);
+        g1_add(threshSig, threshSig, validShares[i]);
+    }
 }
 
 } /* namespace Relic */

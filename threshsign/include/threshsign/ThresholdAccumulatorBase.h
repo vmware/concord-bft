@@ -43,7 +43,7 @@ protected:
     // Valid shares indexed by signer ID
     std::vector<NumType> validShares;
 
-    // Bit vector of signers (before setExpectedDigest, this is the bit vector of pendingShares, after it's of validShares).
+    // Bit vectors of pending (unverified) shares and valid shares (|validSharesBits| <= reqSigners)
     VectorOfShares validSharesBits, pendingSharesBits;
 
 public:
@@ -63,12 +63,7 @@ public:
  * New virtual methods introduced by this class (both public and protected)
  */
 public:
-    /**
-     * Computes the final threshold signatures by accumulating all the shares.
-     *
-     * For example, threshold accumulators will perform Lagrange interpolation in the exponent here.
-     */
-    virtual NumType getFinalSignature() = 0;
+    const std::vector<VerificationKey>& getVKs() const { return vks; }
 
     /**
      * Adds the share either to the pending shares or valid shares and returns their updated count (depending on hasExpectedDigest()).

@@ -16,6 +16,11 @@
 #include "threshsign/VectorOfShares.h"
 
 #include "XAssert.h"
+#include "Log.h"
+
+#include <cstring>
+
+using std::endl;
 
 void VectorOfShares::add(ShareID e) {
     assertGreaterThanOrEqual(e, 1);
@@ -132,6 +137,58 @@ void VectorOfShares::randomSubset(VectorOfShares& signers, int numSigners, int r
         i = i + 1; // WARNING: players need to be indexed from 1 to N, inclusively!
 
         signers.add(i);
+    }
+}
+
+int VectorOfShares::getByteCount() {
+    if(MAX_NUM_OF_SHARES % 8 == 0)
+        return MAX_NUM_OF_SHARES / 8;
+    else
+        return (MAX_NUM_OF_SHARES / 8) + 1;
+}
+
+void VectorOfShares::toBytes(unsigned char * buf, int capacity) const {
+    int byteCount = getByteCount();
+
+    if(byteCount > capacity) {
+        throw std::runtime_error("Need more buffer space to serialize VectorOfShares");
+    }
+    
+    memset(buf, 0, static_cast<size_t>(byteCount));
+
+    for(ShareID id1 = first(); isEnd(id1) == false; id1 = next(id1)) {
+        int id0 = id1 - 1;   // switch to 0-based indices
+        int byteOffset = id0 / 8;
+        int bit = id0 % 8;
+        int mask = 1 << bit;
+        //logdbg << "Serializing ID " << id1 << " at byte " << byteOffset
+        //    << " and bit " << bit << " with mask " << mask << endl;
+
+        *(buf + byteOffset) = static_cast<unsigned char>(*(buf + byteOffset) | mask);
+    }
+}
+
+void VectorOfShares::fromBytes(const unsigned char * buf, int len) {
+    clear();    // clear all bits
+
+    int byteCount = getByteCount();
+    if(byteCount > len) {
+        logwarn << "Deserializing VectorOfShares of smaller size than MAX_NUM_OF_SHARES IDs (i.e., " << byteCount << " bytes)" << endl;
+    }
+
+    for(int b = 0; b < len; b++) {
+        unsigned char byte = *(buf + b);
+        int bitMask = 1;
+
+        for(int c = 0; c < 8; c++) {
+            if(byte & bitMask) {
+                int id1 = b * 8 + (c+1);
+                //logdbg << "bitMask = " << bitMask << ", deserialized ID " << id1 << " from byte " << (int)byte << endl;
+                add(id1);
+            }
+
+            bitMask <<= 1;
+        }
     }
 }
 

@@ -123,11 +123,11 @@ int ThresholdAccumulatorBase<VerificationKey, NumType, SigShareParserFunc>::addN
                 validShares[idx] = sigShare;
                 validSharesBits.add(signer);	// If already added, not a problem.
 
-                logtrace << "Added valid sigshare #" << idx << ": " << validShares[idx] << "(share verification is off or digest is set)"<< endl;
+                logtrace << "Added valid sigshare #" << idx << ": " << validShares[idx] << " (share verification is off or digest is set)"<< endl;
 
                 onNewSigShareAdded(signer, sigShare);
             } else {
-                logwarn << "Did NOT accumulate invalid share: " << sigShare << "(share verification is on AND digest is set)" << endl;
+                logwarn << "Did NOT accumulate invalid share: " << sigShare << " (share verification is on AND digest is set)" << endl;
             }
         } else {
             logwarn << "Did NOT add valid share for signer " << signer << " multiple times (share verification is off or digest is set)" << endl;

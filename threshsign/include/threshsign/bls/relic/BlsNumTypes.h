@@ -315,7 +315,7 @@ public:
 
 public:
 	int getByteCount() const {
-	    return ep_size_bin(n, 1);
+	    return g1_size_bin(n, 1);
 	}
 
 	void toBytes(unsigned char * buf, int size) const;
