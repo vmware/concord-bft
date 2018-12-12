@@ -49,7 +49,7 @@ Community
 
 [Concord-BFT Slack](https://concordbft.slack.com/).
 
-Get Slack invitation via this [link](https://join.slack.com/t/concordbft/shared_invite/enQtNDI4NjYzMTk5ODMxLWI3ZTc0MTQzNzFhZTNmNDRkM2I0YTZkMWZkMDAwYzg4YTA0YzViNjIyZTIzMjk2YjI5NGZkYzdkMTIyODJhZjI) or send request to <concordbft@gmail.com>.
+Get Slack invitation via this [link](https://join.slack.com/t/concordbft/shared_invite/enQtNTAyMzg0MTk0NzU0LWViMjA4ODQ4OTcxYmVkMWU4NGYyNTZmZDQ0ZTIzZTNiZmIyZmI5Mjg0NDZjNjBkYmI2Yjg1Mzg1NGUyNjQ0OWQ) or send request to <concordbft@gmail.com>.
 
 
 
