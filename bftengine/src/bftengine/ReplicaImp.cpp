@@ -2774,7 +2774,8 @@ namespace bftEngine
 			statusReportTimer{ nullptr },
 			viewChangeTimer{ nullptr },
 			debugStatTimer{ nullptr },
-			viewChangeTimerMilli{ 0 }
+			viewChangeTimerMilli{ 0 },
+			startSyncEvent{false}
 		{
 			Assert(myReplicaId < numOfReplicas);
 			// TODO(GG): more asserts on params !!!!!!!!!!!
@@ -2916,10 +2917,10 @@ namespace bftEngine
 			Assert(!mainThreadStarted);
 			Assert(!mainThreadShouldStop);
 			mainThreadStarted = true;
-			
-			std::thread mThread([this] { processMessages(); });
-			
+
+			std::thread mThread([this] {processMessages(); });
 			mainThread.swap(mThread);
+			startSyncEvent.set();
 		}
 
 		void ReplicaImp::stop()
@@ -2953,6 +2954,8 @@ namespace bftEngine
 		void ReplicaImp::processMessages()
 		{
 			// TODO(GG): change this method to support "restart" ("start" after "stop")
+
+			startSyncEvent.wait_one();
 
 			stateTransfer->startRunning(this);
 			clientsManager->clearReservedPages(); // TODO(GG): TBD

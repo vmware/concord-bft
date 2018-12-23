@@ -31,6 +31,7 @@
 #include "CheckpointInfo.hpp"
 #include "ICommunication.hpp"
 #include "Replica.hpp"
+#include "Threading.h"
 
 #include <thread>
 
@@ -231,6 +232,9 @@ namespace bftEngine
 
 			friend class StopInternalMsg;
 
+			// this event is signalled iff the start() method has completed
+			// and the process_message() method has not start working yet
+			SimpleAutoResetEvent startSyncEvent;
 
 		public:
 
