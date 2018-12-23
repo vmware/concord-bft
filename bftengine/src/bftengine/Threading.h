@@ -18,6 +18,9 @@
 #include <cstdio>
 #endif
 
+#include <mutex>
+#include <condition_variable>
+
 // TODO(GG): replace all with standard C++11 classes
 
 #if defined(_WIN32)
@@ -211,3 +214,42 @@
             LockMutex(Mutex *m) : m(m) { mutexLock(m); }
             ~LockMutex() { mutexUnlock(m); }
         };
+
+class SimpleAutoResetEvent {
+ private:
+  std::mutex _lockMutex;
+  std::condition_variable _signal;
+  bool _signalled;
+ public:
+  SimpleAutoResetEvent(const SimpleAutoResetEvent&) = delete;
+  SimpleAutoResetEvent& operator=(const SimpleAutoResetEvent&) = delete;
+  SimpleAutoResetEvent(const SimpleAutoResetEvent&&) = delete;
+
+  explicit SimpleAutoResetEvent(bool signalled) : _signalled{signalled}
+  {}
+
+  inline void reset()
+  {
+	  std::lock_guard<std::mutex> lock(_lockMutex);
+	  _signalled = false;
+  }
+
+  inline void set()
+  {
+	  std::lock_guard<std::mutex> lock(_lockMutex);
+	  if(!_signalled) {
+        _signalled = true;
+        _signal.notify_one();
+      }
+  }
+
+  inline bool wait_one()
+  {
+	  std::unique_lock<std::mutex> lock(_lockMutex);
+	  while(!_signalled) {
+		  _signal.wait(lock);
+	  }
+	  _signalled = false;
+	  return true;
+  }
+};
