@@ -234,7 +234,7 @@ static bool deserializeCryptosystemPublicConfiguration(
   std::string threshVar = prefix + "_cryptosystem_threshold";
   std::string pubKeyVar = prefix + "_cryptosystem_public_key";
   std::string verifKeyVar = prefix + "_cryptosystem_verification_keys";
-  
+
   uint16_t numSigners, threshold;
 
   if (!parseUint16(numSigners, numSignersVar, valueAssignments, filename,
@@ -300,7 +300,7 @@ static bool deserializeCryptosystemPublicConfiguration(
   // Account for convention of 1-indexing threshold signer IDs.
   verificationKeys.insert(verificationKeys.begin(), "");
 
-  if (verificationKeys.size() != (numSigners + 1)) {
+  if (verificationKeys.size() != static_cast<uint16_t>(numSigners + 1)) {
     std::cout << filename << ": line " << identifierLines.at(verifKeyVar)
       << ": Unexpected number of verification keys for " << name
       << " cryptosystem; it is expected that the number of verification keys"
@@ -359,7 +359,7 @@ bool parseReplicaKeyfile(
     line = trim(line);
 
     // Ignore this line if it contains only whitespace and/or comments.
-    if (line.length() < 1) { 
+    if (line.length() < 1) {
       ++lineNumber;
       continue;
     }
@@ -378,7 +378,7 @@ bool parseReplicaKeyfile(
     // Case of a list entry. Format:
     // - LIST_ENTRY
     if ((line.length() > 2) && (line[0] == '-') && (line[1] == ' ')) {
-      
+
       std::string value = trim(line.substr(2, line.length() - 2));
       if (value.find_first_of(" \t") != std::string::npos) {
         std::cout << filename << ": line " << lineNumber << ": Whitespace is"
@@ -581,7 +581,7 @@ bool inputReplicaKeyfile(std::istream& input,
   std::unique_ptr<Cryptosystem> slowSys;
   std::unique_ptr<Cryptosystem> commitSys;
   std::unique_ptr<Cryptosystem> optSys;
- 
+
   if (!deserializeCryptosystemPublicConfiguration(execSys, "execution",
        "execution", valueAssignments, listAssignments, filename,
        identifierLines, listEntryLines, numReplicas)) {

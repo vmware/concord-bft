@@ -94,7 +94,7 @@ std::string Cryptosystem::getSystemPublicKey() const {
 
 std::vector<std::string> Cryptosystem::getSystemVerificationKeys() const {
   std::vector<std::string> output;
-  if (verificationKeys.size() != (numSigners + 1)) {
+  if (verificationKeys.size() != static_cast<uint16_t>(numSigners + 1)) {
     throw UninitializedCryptosystemException("Verification keys have not been"
       " generated or loaded for this cryptosystem.");
   }
@@ -105,7 +105,7 @@ std::vector<std::string> Cryptosystem::getSystemVerificationKeys() const {
 
 std::vector<std::string> Cryptosystem::getSystemPrivateKeys() const {
   std::vector<std::string> output;
-  if (privateKeys.size() != (numSigners + 1)) {
+  if (privateKeys.size() != static_cast<uint16_t>(numSigners + 1)) {
     throw UninitializedCryptosystemException("Private keys have not been"
       " generated or loaded for this cryptosystem.");
   }
@@ -120,7 +120,7 @@ std::string Cryptosystem::getPrivateKey(uint16_t signerIndex) const {
       " range.");
   }
 
-  if (privateKeys.size() == (numSigners + 1)) {
+  if (privateKeys.size() == static_cast<uint16_t>(numSigners + 1)) {
     return privateKeys[signerIndex];
   } else if ((privateKeys.size() == 1) && (signerID == signerIndex)) {
     return privateKeys.front();
@@ -137,7 +137,7 @@ void Cryptosystem::loadKeys(const std::string& publicKey,
       " public key for this cryptosystem (type " + type + " and subtype "
       + subtype + ").");
   }
-  if (verificationKeys.size() != (numSigners + 1)) {
+  if (verificationKeys.size() != static_cast<uint16_t>(numSigners + 1)) {
     throw InvalidCryptosystemException("Incorrect number of verification keys"
       " provided: " + std::to_string(verificationKeys.size()) + " (expected "
       + std::to_string(numSigners + 1) + ").");
@@ -183,7 +183,7 @@ IThresholdVerifier* Cryptosystem::createThresholdVerifier() {
     throw UninitializedCryptosystemException("Attempting to create a threshold"
       " verifier for a cryptosystem with no public key loaded.");
   }
-  if (verificationKeys.size() != (numSigners + 1)) {
+  if (verificationKeys.size() != static_cast<uint16_t>(numSigners + 1)) {
     throw UninitializedCryptosystemException("Attempting to create a threshold"
       " verifier for a cryptosystem without verification keys loaded.");
   }
@@ -193,7 +193,7 @@ IThresholdVerifier* Cryptosystem::createThresholdVerifier() {
   IThresholdVerifier* verifier
     = factory->newVerifier(threshold, numSigners, publicKey.c_str(),
     verificationKeys);
-  
+
   delete factory;
   return verifier;
 }
@@ -216,7 +216,7 @@ IThresholdSigner* Cryptosystem::createThresholdSigner() {
   // convention in which signer IDs are 1-indexed.
   IThresholdSigner* signer
     = factory->newSigner(signerID, privateKeys.front().c_str());
-  
+
   delete factory;
   return signer;
 }
@@ -272,7 +272,7 @@ bool Cryptosystem::isValidCryptosystemSelection(const std::string& type,
                                                 const std::string& subtype,
                                                 uint16_t numSigners,
                                                 uint16_t threshold) {
-  
+
   // Automatically return false if numSigners and threshold are inherently
   // invalid. Note we have chosen to disallow 0 as either numSigners or
   // threshold, as such Cryptosystems would not be useful, but supporting them
