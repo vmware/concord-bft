@@ -1,1 +1,3 @@
 add_subdirectory(simpleTest)
+add_subdirectory(simpleKVBC)
+add_subdirectory(simpleKVBCTests)
