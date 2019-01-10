@@ -57,7 +57,7 @@ LagrangeIncrementalCoeffs::LagrangeIncrementalCoeffs(NumSharesType numSigners, c
 	  numerFull(fieldOrder.getModulus()), numerSign(0),
 	  pi(Library::Get().getPrecomputedInverses())
 {
-	assertEqual(denoms.size(), static_cast<size_t>(numSigners + 1));
+	assertEqual(denoms.size(), static_cast<std::vector<BLS::Relic::AccumulatedBNT>::size_type>(numSigners + 1));
 	assertEqual(denoms.size(), denomSigns.size());
 }
 

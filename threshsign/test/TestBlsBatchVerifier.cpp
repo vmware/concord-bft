@@ -119,8 +119,8 @@ void batchVerifyHelper(BlsBatchVerifier& ver, int numBadShares, const G1T& msgPo
         throw std::logic_error("batchVerify() returned wrong result");
     }
 
-    testAssertEqual(badShares.size(), static_cast<size_t>(numBadShares));
-    testAssertEqual(badShares.size(), static_cast<size_t>(badSubset.count()));
+    testAssertEqual(badShares.size(), static_cast<std::vector<ShareID>::size_type>(numBadShares));
+    testAssertEqual(badShares.size(), static_cast<std::vector<ShareID>::size_type>(badSubset.count()));
     for(ShareID id : badShares) {
         testAssertTrue(badSubset.contains(id));
     }
@@ -131,7 +131,7 @@ void batchVerifyHelper(BlsBatchVerifier& ver, int numBadShares, const G1T& msgPo
         throw std::logic_error("batchVerify() returned wrong result");
     }
 
-    testAssertEqual(goodShares.size(), static_cast<size_t>(goodSubset.count()));
+    testAssertEqual(goodShares.size(), static_cast<std::vector<ShareID>::size_type>(goodSubset.count()));
     for(ShareID id : goodShares) {
         testAssertTrue(goodSubset.contains(id));
     }

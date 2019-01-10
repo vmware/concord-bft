@@ -29,7 +29,7 @@ BlsMultisigVerifier::BlsMultisigVerifier(const BlsPublicParameters& params,
         NumSharesType reqSigners, NumSharesType numSigners, const std::vector<BlsPublicKey>& verifKeys)
     : BlsThresholdVerifier(params, G2T::Identity(), reqSigners, numSigners, verifKeys)
 {
-    assertEqual(verifKeys.size(), static_cast<size_t>(numSigners + 1));
+    assertEqual(verifKeys.size(), static_cast<std::vector<BlsPublicKey>::size_type>(numSigners + 1));
 
     if(reqSigners == numSigners) {
         // the PK is the aggregate PK of all numSigners and is needed to verify n-out-of-n threshold
