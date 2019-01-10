@@ -49,7 +49,7 @@ BlsAccumulatorBase::BlsAccumulatorBase(const std::vector<BlsPublicKey>& verifKey
     : ThresholdAccumulatorBase(verifKeys, reqSigners, totalSigners),
       shareVerificationEnabled(withShareVerification)
 {
-    assertEqual(vks.size(), static_cast<size_t>(totalSigners + 1));
+    assertEqual(vks.size(), static_cast<std::vector<BlsPublicKey>::size_type>(totalSigners + 1));
 
     g2_get_gen(gen2);	// NOTE: requires BLS::Relic::Library::Get() call above to be made
 }

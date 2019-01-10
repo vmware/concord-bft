@@ -39,9 +39,9 @@ BlsThresholdVerifier::BlsThresholdVerifier(const BlsPublicParameters& params, co
     : params(params), pk(pk), vks(verifKeys.begin(), verifKeys.end()), gen2(params.getGen2()),
       reqSigners(reqSigners), numSigners(numSigners)
 {
-    assertEqual(verifKeys.size(), static_cast<size_t>(numSigners + 1));
+    assertEqual(verifKeys.size(), static_cast<std::vector<BlsPublicKey>::size_type>(numSigners + 1));
     // verifKeys[0] was copied as well, but it's set to a dummy PK so it does not matter
-    assertEqual(vks.size(), static_cast<size_t>(numSigners + 1));
+    assertEqual(vks.size(), static_cast<std::vector<BlsPublicKey>::size_type>(numSigners + 1));
 
 #ifdef TRACE
     logtrace << "VKs (array has size " << vks.size() << ")" << endl;
