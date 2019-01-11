@@ -103,7 +103,7 @@ Parameter | Expected Value | Description
 `<PREFIX>_cryptosystem_num_signers` | positive integer | Number of signers in this cryptosystem; it is expected that this value will be equal to `num_replicas`.
 `<PREFIX>_cryptosystem_threshold` | positive integrer | Threshold for this cryptosystem, that is, the number of unique signers that are required to produce a complete threshold signature under this cryptosystem.
 `<PREFIX>_cryptosystem_public_key` | cryptographic key of type-dependent format | The public key for this threshold cryptosystem.
-`<PREFIX_cryptosystem_verification_keys>` | list of cryptographic key of type-dependent format | A verification key for each signer under this cryptosystem. The verification keys can be used to verify a specific signer's signature share during the collection of signatures for a complete threshold signture. The keys should be ordered by signer ID of the signer to which they correspond.
+`<PREFIX>_cryptosystem_verification_keys` | list of cryptographic key of type-dependent format | A verification key for each signer under this cryptosystem. The verification keys can be used to verify a specific signer's signature share during the collection of signatures for a complete threshold signture. The keys should be ordered by signer ID of the signer to which they correspond.
 
 ##### Replica Private Keys #####
 
