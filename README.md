@@ -160,7 +160,7 @@ You may also need to export CPLUS_INCLUDE_PATH variable set to /usr/local/includ
 
 After installation, set USE_LOG4CPP flag to TRUE in the main CmakeLists.txt . The library doesn't initialize the log4cpp subsystem, including formats and appenders, it expects that the upper level application will do it and the log4cpp subsystem is already initialized.
 
-#### (Optional) If you want to use Python test script)
+#### (Optional) If you want to use Python test script
 Install Python3
 
     sudo apt-get install python3
@@ -210,11 +210,6 @@ Go to the build directory (here `<buildtype>` is either `release` or `debug`)
 
 ### Using simple test application via Python script
 
-You can use the simpleTest.py script to run various configurations via simple command line interface.
+You can use the simpleTest.py script to run various configurations via a simple
+command line interface.
 Please find more information [here](bftengine/tests/simpleTest/README.md)
-
-
-
-
-
-

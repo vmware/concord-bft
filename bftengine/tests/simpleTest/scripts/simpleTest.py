@@ -395,7 +395,7 @@ def main():
                        "is killed, and the test will SUCCESS after timeout " +
                        "- this is desired behaviour for this configuration." +
                        "You can provide set " +
-                       "set of configurations in the form of " +
+                       "of configurations in the form of " +
                        "set1 set2 .... setN - " +
                        "each of them will be ran as separate test")
 

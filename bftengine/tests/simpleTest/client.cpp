@@ -30,6 +30,7 @@
 #include <cassert>
 #include <thread>
 #include <iostream>
+#include <limits>
 
 // bftEngine includes
 #include "CommFactory.hpp"
@@ -66,12 +67,12 @@ concordlogger::Logger clientLogger =
 LOG_FATAL(clientLogger, "assert fail with message: " << message); assert(false);}}
 
 struct ClientParams {
-  int numOfOperations = 2800;
-  int16_t clientId = 4;
-  int numOfReplicas = 4;
-  int numOfClients = 1;
-  int numOfFaulty = 1;
-  int numOfSlow = 0;
+  uint32_t numOfOperations = 2800;
+  uint16_t clientId = 4;
+  uint16_t numOfReplicas = 4;
+  uint16_t numOfClients = 1;
+  uint16_t numOfFaulty = 1;
+  uint16_t numOfSlow = 0;
 };
 
 ClientParams parse_params(int argc, char** argv) {
@@ -79,22 +80,76 @@ ClientParams parse_params(int argc, char** argv) {
   if(argc < 2)
     return cp;
 
-  for(int i=1; i < argc;) {
-    string p(argv[i]);
-    if(p == "-i")
-      cp.numOfOperations = std::stoi(argv[i + 1]);
-    else if(p == "-id")
-      cp.clientId = std::stoi(argv[i + 1]);
-    else if(p == "-r")
-      cp.numOfReplicas = std::stoi(argv[i + 1]);
-    else if(p == "-cl")
-      cp.numOfClients = std::stoi(argv[i + 1]);
-    else if(p == "-c")
-      cp.numOfSlow = std::stoi(argv[i + 1]);
-    else if(p == "-f")
-      cp.numOfFaulty = std::stoi(argv[i + 1]);
+  uint16_t min16_t_u = std::numeric_limits<uint16_t>::min();
+  uint16_t max16_t_u = std::numeric_limits<uint16_t>::max();
+  uint32_t min32_t = std::numeric_limits<uint32_t>::min();
+  uint32_t max32_t = std::numeric_limits<uint32_t>::max();
 
-    i += 2;
+  try {
+    for (int i = 1; i < argc;) {
+      string p(argv[i]);
+      if (p == "-i") {
+        auto numOp = std::stoi(argv[i + 1]);
+        if (numOp < min32_t || numOp > max32_t) {
+          printf("-i value is out of range (%u - %u)\n", min32_t, max32_t);
+          exit(-1);
+        }
+        cp.numOfOperations = numOp;
+      } else if (p == "-id") {
+        auto clId = std::stoi(argv[i + 1]);
+        if (clId < min16_t_u || clId > max16_t_u) {
+          printf(
+              "-id value is out of range (%hu - %hu)\n", min16_t_u, max16_t_u);
+          exit(-1);
+        }
+        cp.clientId = clId;
+      } else if (p == "-r") {
+        auto numRep = std::stoi(argv[i + 1]);
+        if (numRep < min16_t_u || numRep > max16_t_u) {
+          printf("-r value is out of range (%hu - %hu)\n", min16_t_u,
+              max16_t_u);
+          exit(-1);
+        }
+        cp.numOfReplicas = numRep;
+      } else if (p == "-cl") {
+        auto numCl = std::stoi(argv[i + 1]);
+        if (numCl < min16_t_u || numCl > max16_t_u) {
+          printf("-cl value is out of range (%hu - %hu)\n", min16_t_u,
+          max16_t_u);
+          exit(-1);
+        }
+        cp.numOfClients = numCl;
+      } else if (p == "-c") {
+        auto numSlow = std::stoi(argv[i + 1]);
+        if (numSlow < min16_t_u || numSlow > max16_t_u) {
+          printf(
+              "-c value is out of range (%hu - %hu)\n", min16_t_u, max16_t_u);
+          exit(-1);
+        }
+        cp.numOfSlow = numSlow;
+      } else if (p == "-f") {
+        auto numF = std::stoi(argv[i + 1]);
+        if (numF < min16_t_u || numF > max16_t_u) {
+          printf(
+              "-f value is out of range (%hu - %hu)\n", min16_t_u, max16_t_u);
+          exit(-1);
+        }
+        cp.numOfFaulty = numF;
+      }
+
+      i += 2;
+    }
+  } catch (std::invalid_argument &e) {
+    printf("Parameters should be integers only\n");
+    exit(-1);
+  } catch (std::out_of_range &e) {
+    printf("One of the parameters is out of range\n");
+    exit(-1);
+  }
+
+  if(3 * cp.numOfFaulty + 2 * cp.numOfSlow + 1 != cp.numOfReplicas) {
+    printf("Number of replicas is not 3f + 2c + 1");
+    exit(-1);
   }
 
   return cp;
@@ -110,7 +165,13 @@ int main(int argc, char **argv) {
 #endif
 
   ClientParams cp = parse_params(argc, argv);
-  LOG_INFO(clientLogger, "ClientParams: clientId: " << cp.clientId << ", numOfReplicas: " << cp.numOfReplicas << ", numOfClients: " << cp.numOfClients << ", numOfIterations: " << cp.numOfOperations << ", fVal: " << cp.numOfFaulty << ", cVal: " << cp.numOfSlow);
+
+  LOG_INFO(clientLogger, "ClientParams: clientId: " << cp.clientId
+     << ", numOfReplicas: " << cp.numOfReplicas
+     << ", numOfClients: " << cp.numOfClients
+     << ", numOfIterations: " << cp.numOfOperations
+     << ", fVal: " << cp.numOfFaulty
+     << ", cVal: " << cp.numOfSlow);
 
   // This client's index number. Must be larger than the largest replica index
   // number.
@@ -154,6 +215,10 @@ int main(int argc, char **argv) {
   LOG_INFO(clientLogger, "Starting " << cp.numOfOperations);
 
   for (int i = 1; i <= cp.numOfOperations; i++) {
+
+    // the python script that runs the client need to know how many
+    // iterations has been done - that's the reason we use printf and not loggig
+    // module - to keep output exactly as we expect.
     if(i > 0 && i % 100 == 0) {
       printf("Iterations count: 100\n");
       printf("Total iterations count: %i\n", i);

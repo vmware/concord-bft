@@ -73,12 +73,12 @@ concordlogger::Logger replicaLogger =
 bftEngine::Replica* replica = nullptr;
 
 struct ReplicaParams {
-  int16_t replicaId;
-  int numOfReplicas = 4;
-  int numOfClients = 1;
+  uint16_t replicaId;
+  uint16_t numOfReplicas = 4;
+  uint16_t numOfClients = 1;
   bool debug = false;
   bool viewChangeEnabled = false;
-  int viewChangeTimeout = 60000; // ms
+  uint32_t viewChangeTimeout = 60000; // ms
 } rp;
 
 void signalHandler( int signum ) {
@@ -115,37 +115,76 @@ void parse_params(int argc, char** argv) {
     throw std::runtime_error("Unable to read replica id");
   }
 
+  uint16_t min16_t_u = std::numeric_limits<uint16_t>::min();
+  uint16_t max16_t_u = std::numeric_limits<uint16_t>::max();
+  uint32_t min32_t_u = std::numeric_limits<uint32_t>::min();
+  uint32_t max32_t_u = std::numeric_limits<uint32_t>::max();
+
   if(argc < 3) { // backward compatibility, only ID is passed
-    rp.replicaId = (argv[1][0] - '0');
-    //rp.replicaId = std::stoi(argv[1]);
-  } else {
-    for (int i = 1; i < argc;) {
-      string p(argv[i]);
-      if (p == "-r") {
-        rp.numOfReplicas = std::stoi(argv[i + 1]);
-        i += 2;
-      }
-      else if (p == "-id") {
-        rp.replicaId = std::stoi(argv[i + 1]);
-        i += 2;
-      }
-      else if (p == "-c") {
-        rp.numOfClients = std::stoi(argv[i + 1]);
-        i += 2;
-      }
-      else if (p == "-debug") {
-        rp.debug = true;
-        i++;
-      }
-      else if (p == "-vc") {
-        rp.viewChangeEnabled = true;
-        i++;
-      }
-      else if (p == "-vct") {
-        rp.viewChangeTimeout = std::stoi(argv[i + 1]);
-        i+=2;
-      }
+    auto replicaId =  std::stoi(argv[1]);
+    if (replicaId < min16_t_u || replicaId > max16_t_u) {
+      printf("-id value is out of range (%hu - %hu)", min16_t_u, max16_t_u);
+      exit(-1);
     }
+    rp.replicaId = replicaId;
+  } else {
+    try {
+      for (int i = 1; i < argc;) {
+        string p(argv[i]);
+        if (p == "-r") {
+          auto numRep = std::stoi(argv[i + 1]);
+          if (numRep < min16_t_u || numRep > max16_t_u) {
+            printf("-r value is out of range (%hu - %hu)",
+                   min16_t_u,
+                   max16_t_u);
+            exit(-1);
+          }
+          rp.numOfReplicas = numRep;
+          i += 2;
+        } else if (p == "-id") {
+          auto repId = std::stoi(argv[i + 1]);
+          if (repId < min16_t_u || repId > max16_t_u) {
+            printf("-id value is out of range (%hu - %hu)",
+                   min16_t_u,
+                   max16_t_u);
+            exit(-1);
+          }
+          rp.replicaId = repId;
+          i += 2;
+        } else if (p == "-c") {
+          auto numCl = std::stoi(argv[i + 1]);
+          if (numCl < min16_t_u || numCl > max16_t_u) {
+            printf("-c value is out of range (%hu - %hu)",
+                   min16_t_u,
+                   max16_t_u);
+            exit(-1);
+          }
+          rp.numOfClients = numCl;
+          i += 2;
+        } else if (p == "-debug") {
+          rp.debug = true;
+          i++;
+        } else if (p == "-vc") {
+          rp.viewChangeEnabled = true;
+          i++;
+        } else if (p == "-vct") {
+          auto vct = std::stoi(argv[i + 1]);
+          if (vct < min32_t_u || vct > max32_t_u) {
+            printf("-vct value is out of range (%u - %u)", min16_t_u,
+                   max16_t_u);
+            exit(-1);
+          }
+          rp.viewChangeTimeout = vct;
+          i += 2;
+        }
+      }
+    } catch (std::invalid_argument &e) {
+        printf("Parameters should be integers only\n");
+        exit(-1);
+      } catch (std::out_of_range &e) {
+        printf("One of the parameters is out of range\n");
+        exit(-1);
+      }
   }
 
   LOG_INFO(replicaLogger, "ReplicaParams: replicaId: " << rp.replicaId
@@ -199,7 +238,6 @@ class SimpleAppState : public RequestsHandler {
               char* outReply,
               uint32_t& outActualReplySize) override {
     if (readOnly) {
-      string t;
       // Our read-only request includes only a type, no argument.
       test_assert(requestSize == sizeof(uint64_t),
           "requestSize =! " << sizeof(uint64_t));
@@ -298,7 +336,8 @@ int main(int argc, char **argv) {
 #ifdef USE_COMM_PLAIN_TCP
   PlainTcpConfig conf = getTCPConfig(rp.replicaId, rp.numOfClients, rp.numOfReplicas);
 #else
-  PlainUdpConfig conf = getUDPConfig(rp.replicaId, rp.numOfClients, rp.numOfReplicas);
+  PlainUdpConfig conf = getUDPConfig(
+      rp.replicaId, rp.numOfClients, rp.numOfReplicas);
 #endif
   ICommunication* comm = bftEngine::CommFactory::create(conf);
 
@@ -306,17 +345,21 @@ int main(int argc, char **argv) {
   SimpleAppState simpleAppState(rp.numOfClients, rp.numOfReplicas);
 
   bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer* st =
-    bftEngine::SimpleInMemoryStateTransfer::create(simpleAppState.statePtr, sizeof
-    (SimpleAppState::State) * rp.numOfClients, replicaConfig.replicaId, replicaConfig.fVal,
-    replicaConfig.cVal, true);
+    bftEngine::SimpleInMemoryStateTransfer::create(
+        simpleAppState.statePtr,
+        sizeof(SimpleAppState::State) * rp.numOfClients,
+        replicaConfig.replicaId,
+        replicaConfig.fVal,
+        replicaConfig.cVal, true);
 
   simpleAppState.st = st;
 
-  replica = Replica::createNewReplica(&replicaConfig,
-                                               &simpleAppState,
-                                               st,
-                                               comm,
-                                               nullptr);
+  replica = Replica::createNewReplica(
+      &replicaConfig,
+      &simpleAppState,
+      st,
+      comm,
+      nullptr);
 
   replica->start();
 

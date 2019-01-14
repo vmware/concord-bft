@@ -37,7 +37,8 @@ In the `scripts` directory, you'll find:
 
   * `runClient.sh`, which just runs the client test.
   
-  * `simpleTest.py`, which allows to run various configurations using command line interface
+  * `simpleTest.py`, which allows to run various configurations using command
+  line interface.
 
 ## Run test using pre configured shell script
 
@@ -106,49 +107,45 @@ The command above is EQUAL to running the test via the shell script, as desribed
 ### Command line parameters
 The following CLI parameters are supported:
 
-*   -bd folder where binaries can be found (default is .. )
-*   -ld log folder (default is . )
-*   -nc do not print processes' output to the console (default is False)
-*   -l log level for the script only (not for the binaries). Standard log
+*   ```-bd``` folder where binaries can be found (default is .. )
+*   ```-ld``` log folder (default is . )
+*   ```-nc``` do not print processes' output to the console (default is False)
+*   ```-l``` log level for the script only (not for the binaries). Standard log
 levels in capital letters. Default is INFO
-*   -i number of transactions each client will send to the replicas
-*   -vct View Change timeout, in milliseconds (default is 60000)
-*   -bft List of BFT configurations to run, separated by white space, each configuration is like n=4,r=4,f=1,c=0,cl=1,testViewChange where:
+*   ```-i``` number of transactions each client will send to the replicas
+*   ```-vct``` View Change timeout, in milliseconds (default is 60000)
+*   ```-bft``` List of BFT configurations to run, separated by white space, each configuration is like n=4,r=4,f=1,c=0,cl=1,testViewChange where:
 	*   n is total number of replicas in the system (both running and not)
-	*   r is number of running
+	*   r is number of actually running replicas (r <= n )
 	*   f is max. number of faulty replicas
 	*   c is max. number of slow replicas
 	*   cl is number of clients to run
-	*   testViewChange - if presents, primary replica will be killed after 1/2 of total transactions been sent
+	*   testViewChange - if presents, primary replica will be killed after 1/2 of the total transactions been sent
+
 **IMPORTANT** if n - r >= f and the testViewChange is present, the system will NOT complete the View Change
 protocol and will exit after timeout - *THIS TEST WILL BE CONSIDERED AS SUCCESS*
 
-**IMPORTANT** the -bft parameter values should satisfy n = 3f + 2c + 1.
+**IMPORTANT** the ```-bft``` parameter values should satisfy n = 3f + 2c + 1, which is a constraint of the consensus algorithm.
 
 ### Output
-Each BFT configuration run creates folder named as current timestamp in the log directory (e.g. 02_01_2018_18_32_43).
+Each BFT configuration run creates a folder named as current timestamp in the log directory (e.g. 02_01_2018_18_32_43).
 Log files produced by the replica and client processes will be written in this folder.
-The log file from the simpleTest.py itself will be written in the log folder provided to the CLI (-ld parameter), which is current dir by default.
+The log file from the simpleTest.py itself will be written in the log folder provided to the CLI (```-ld``` parameter), which is current dir by default.
 
 ### Examples
-Here are few single test runs that may be useful:
+Here are a few single test runs that may be useful:
 
-Run 6 out of 6 replicas and 2 clients, with 5000 transactions per client and trigger View Change protocol. This test will succeed.
+Run 6 out of 6 replicas and 2 clients, with 5000 transactions per client and trigger View Change protocol. This test should succeed.
 ```
 ./simpleTest.py -l DEBUG -i 5000 -nc -bft n=6,r=6,f=1,c=1,cl=2,testViewChange
 ```
 
-Run 15 out of 20 replicas and 4 clients, with 2000 transactions per client. This test will succeed.
+Run 15 out of 20 replicas and 4 clients, with 2000 transactions per client. This test should succeed.
 ```
 ./simpleTest.py -l DEBUG -i 2000 -nc -bft n=20,r=15,f=5,c=2,cl=4
 ```
 
-Run 13 out of 20 replicas and 4 clients, with 2000 transactions per client and trigger View Change. This test will succeed, however, View Change protocol will NOT complete since 20 - 13 > 5. In this case, we expect from the View Change NOT to complete and thus time out is a success.
+Run 13 out of 20 replicas and 4 clients, with 2000 transactions per client and trigger View Change. This test should succeed, however, View Change protocol will NOT complete since 20 - 13 > 5. In this case, we expect from the View Change NOT to complete and thus time out is a success.
 ```
 ./simpleTest.py -l DEBUG -i 2000 -nc -bft n=20,r=13,f=5,c=2,cl=4,testViewChange
 ```
-
-
-
-
-

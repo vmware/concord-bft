@@ -38,42 +38,18 @@ using std::string;
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 
-const char* namesOfKeyfiles[] = {
-  "private_replica_0",
-  "private_replica_1",
-  "private_replica_2",
-  "private_replica_3",
-  "private_replica_4",
-  "private_replica_5",
-  "private_replica_6",
-  "private_replica_7",
-  "private_replica_8",
-  "private_replica_9",
-  "private_replica_10",
-  "private_replica_11",
-  "private_replica_12",
-  "private_replica_13",
-  "private_replica_14",
-  "private_replica_15",
-  "private_replica_16",
-  "private_replica_17",
-  "private_replica_18",
-  "private_replica_19"
-};
-
 // Network port of the first replica. Other replicas use ports
 // basePort+(2*index).
 const uint16_t basePort = 3710;
 
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
-
 // Create a replica config for the replica with index `replicaId`.
 // inputReplicaKeyfile is used to read the keys for this replica, and default
 // values are loaded for non-cryptographic configuration parameters.
 void getReplicaConfig(uint16_t replicaId, ReplicaConfig* outConfig) {
   
-  std::string keyfileName = namesOfKeyfiles[replicaId];
+  std::string keyfileName = "private_replica_" + std::to_string(replicaId);
   std::ifstream keyfile(keyfileName);
   if (!keyfile.is_open()) {
     throw std::runtime_error("Unable to read replica keyfile.");
@@ -91,14 +67,15 @@ void getReplicaConfig(uint16_t replicaId, ReplicaConfig* outConfig) {
 
 // Create a UDP communication configuration for the node (replica or client)
 // with index `id`.
-PlainUdpConfig getUDPConfig(uint16_t id, int numOfClients, int numOfReplicas) {
+PlainUdpConfig getUDPConfig(
+    uint16_t id, int numOfClientProxies, int numOfReplicas) {
   std::string ip = "127.0.0.1";
   uint16_t port = basePort + id*2;
   uint32_t bufLength = 64000;
 
   // Create a map of where the port for each node is.
   std::unordered_map <NodeNum, NodeInfo> nodes;
-  for (int i = 0; i < (numOfReplicas + numOfClients); i++)
+  for (int i = 0; i < (numOfReplicas + numOfClientProxies); i++)
     nodes.insert({
       i,
       NodeInfo{ip, (uint16_t)(basePort + i*2), i < numOfReplicas} });
@@ -109,14 +86,15 @@ PlainUdpConfig getUDPConfig(uint16_t id, int numOfClients, int numOfReplicas) {
 
 // Create a UDP communication configuration for the node (replica or client)
 // with index `id`.
-PlainTcpConfig getTCPConfig(uint16_t id, int numOfClients, int numOfReplicas) {
+PlainTcpConfig getTCPConfig(
+    uint16_t id, int numOfClientProxies, int numOfReplicas) {
   std::string ip = "127.0.0.1";
   uint16_t port = basePort + id*2;
   uint32_t bufLength = 64000;
 
   // Create a map of where the port for each node is.
   std::unordered_map <NodeNum, NodeInfo> nodes;
-  for (int i = 0; i < (numOfReplicas + numOfClients); i++)
+  for (int i = 0; i < (numOfReplicas + numOfClientProxies); i++)
     nodes.insert({i,
                   NodeInfo{ip, (uint16_t)(basePort + i*2), i < numOfReplicas}});
 

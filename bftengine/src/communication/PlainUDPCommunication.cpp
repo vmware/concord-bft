@@ -328,11 +328,11 @@ class PlainUDPCommunication::PlainUdpImpl {
       // IG: if we don't know the sender we just ignore this message and
       // continue.
       LOG_ERROR(_logger, "Unknown sender, address: " << key);
-      return NodeAddressResolveResult({0, false,key});
+      return NodeAddressResolveResult({0, false, key});
     }
 
     LOG_DEBUG(_logger, "Sender resolved, ID: " << res->second << "address: " << key);
-    return NodeAddressResolveResult({res->second, true,key});
+    return NodeAddressResolveResult({res->second, true, key});
   }
 
   void
