@@ -151,7 +151,7 @@ ClientParams parse_params(int argc, char** argv) {
   }
 
   if(3 * cp.numOfFaulty + 2 * cp.numOfSlow + 1 != cp.numOfReplicas) {
-    printf("Number of replicas is not 3f + 2c + 1");
+    printf("Number of replicas is not 3f + 2c + 1\n");
     exit(-1);
   }
 
