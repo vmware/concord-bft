@@ -135,6 +135,9 @@ ClientParams parse_params(int argc, char** argv) {
           exit(-1);
         }
         cp.numOfFaulty = numF;
+      } else {
+        printf("Unknown parameter %s\n", p.c_str());
+        exit(-1);
       }
 
       i += 2;
@@ -216,9 +219,9 @@ int main(int argc, char **argv) {
 
   for (int i = 1; i <= cp.numOfOperations; i++) {
 
-    // the python script that runs the client need to know how many
-    // iterations has been done - that's the reason we use printf and not loggig
-    // module - to keep output exactly as we expect.
+    // the python script that runs the client needs to know how many
+    // iterations has been done - that's the reason we use printf and not
+    // logging module - to keep the output exactly as we expect.
     if(i > 0 && i % 100 == 0) {
       printf("Iterations count: 100\n");
       printf("Total iterations count: %i\n", i);

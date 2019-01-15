@@ -13,17 +13,15 @@ import time
 g_logger = logging.getLogger("simpletest")
 g_log_formatter = logging.Formatter(
     "%(asctime)-15s %(levelname)-6s %(""message)s")
-g_log_file_handler = logging.FileHandler("test_log.txt")
 g_log_console_handler = logging.StreamHandler()
-g_log_file_handler.setFormatter(g_log_formatter)
 g_log_console_handler.setFormatter(g_log_formatter)
-g_logger.addHandler(g_log_file_handler)
 g_logger.addHandler(g_log_console_handler)
 
 class CLI:
     def __init__(self, num_it, vc_t):
         self.num_of_iterations = num_it
         self.vc_timeout = vc_t
+
 
 class BFT:
     def __init__(self, name, n, r, f, c, cl, vc):
@@ -177,6 +175,7 @@ class TestConfig:
 
         self.config_timeout = 60000 + (0 if not vc_enabled else vc_timeout * 5)
         self.customize_fn = customize_fn
+        self.log_dir = None
 
     @staticmethod
     def reset_globals():
@@ -185,18 +184,23 @@ class TestConfig:
         TestConfig.config_run_timer = None
         TestConfig.config_last_update_time = None
 
-    def prepare(self):
+    def prepare(self, cli_args):
         exec_dir = os.path.abspath(self.env.binary_dir)
-        time_stamp = time.strftime("%d_%m_%Y_%H_%M_%S")
+        time_stamp = time.strftime("%Y%m%dT%H%M%S")
         log_a_path = os.path.abspath(self.env.log_dir)
         self.log_dir = os.path.join(log_a_path, time_stamp)
 
         if not os.path.exists(self.log_dir):
             os.mkdir(self.log_dir)
 
+        log_file_handler = logging.FileHandler(os.path.join(
+                self.log_dir, "test_log.txt"))
+        log_file_handler.setFormatter(g_log_formatter)
+        g_logger.addHandler(log_file_handler)
+
         with io.open(os.path.join(
                 self.log_dir, self.config_name.replace(",","_")),"w") as w:
-            w.write("dummy file to display configuration in the log folder")
+            w.write("cli args: " + cli_args)
 
         cmd = ["../../../../tools/GenerateConcordKeys",
                "-n", str(self.num_of_replicas),
@@ -288,15 +292,18 @@ class TestConfig:
 
     def test_timer_handler(self):
         millis = int(round(time.time() * 1000))
-        if TestConfig.config_last_update_time is not None and \
-                millis-TestConfig.config_last_update_time > self.config_timeout:
+        TestConfig.iterations_counter_lock.acquire()
+        last_update_time = TestConfig.config_last_update_time
+        TestConfig.iterations_counter_lock.release()
+        if last_update_time is not None and \
+                millis-last_update_time > self.config_timeout:
             g_logger.error("Timeout, killing all...")
             self.kill_all()
             self.collect()
             g_logger.error("Timeout, all killed")
         else:
-            if TestConfig.config_last_update_time is not None \
-            and millis - TestConfig.config_last_update_time > 10000:
+            if last_update_time is not None and \
+                    millis - last_update_time > 10000:
                 g_logger.debug("No data from clients in last 10 seconds")
             TestConfig.config_timer=threading.Timer(10, self.test_timer_handler)
             TestConfig.config_timer.start()
@@ -308,6 +315,7 @@ class TestConfig:
         for tp in self.non_waitables + self.waitables:
             tp.start()
 
+        g_logger.debug("processes started")
         self.test_timer_handler()
 
         for tp in self.waitables:
@@ -320,6 +328,7 @@ class TestConfig:
             res = tp.collect()
             self.process_outputs.append(res)
 
+        g_logger.debug("processes stopped")
         os.chdir(curr_dir)
 
     def collect(self):
@@ -436,8 +445,9 @@ def main():
         configs.append(BFT(param, n, r, f, c, cl, vc))
 
     cli = CLI(args.i, args.vct)
+
     for c in configs:
-        g_logger.debug(f"Creating test configuratiom {c.name} " +
+        g_logger.debug(f"Creating test configuration {c.name} " +
                        f" with {c.num_of_replicas_to_run} running replicas, " +
                        f"f = {c.num_of_faulties}, c = {c.num_of_slow}")
 
@@ -447,7 +457,7 @@ def main():
               customize_test_vc_never_ends if c.vc_will_fail else None)
 
         TestConfig.reset_globals()
-        c.prepare()
+        c.prepare(str(sys.argv))
         c.run()
         out = c.collect()
         result = process_output(out)

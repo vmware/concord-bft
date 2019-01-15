@@ -176,6 +176,9 @@ void parse_params(int argc, char** argv) {
           }
           rp.viewChangeTimeout = vct;
           i += 2;
+        } else {
+          printf("Unknown parameter %s\n", p.c_str());
+          exit(-1);
         }
       }
     } catch (std::invalid_argument &e) {
@@ -322,7 +325,6 @@ int main(int argc, char **argv) {
   ReplicaConfig replicaConfig;
   getReplicaConfig(rp.replicaId, &replicaConfig);
   replicaConfig.numOfClientProxies = rp.numOfClients;
-  replicaConfig.statusReportTimerMillisec = 20000;
   replicaConfig.autoViewChangeEnabled = rp.viewChangeEnabled;
   replicaConfig.viewChangeTimerMillisec = rp.viewChangeTimeout;
 
