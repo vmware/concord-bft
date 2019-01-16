@@ -24,25 +24,27 @@ namespace bftEngine
 
 			SeqNum seqNumber() const { return b()->seqNum; }
 
-			bool getPrePrepareIsMissing() const { return (b()->missingFlags & 0x2) != 0; }
-			bool getPartialProofIsMissing() const { return (b()->missingFlags & 0x4) != 0; }
-			bool getPartialPrepareIsMissing() const { return (b()->missingFlags & 0x8) != 0; }
-			bool getPartialCommitIsMissing() const { return (b()->missingFlags & 0x10) != 0; }
-			bool getFullCommitProofIsMissing() const { return (b()->missingFlags & 0x20) != 0; }
-			bool getFullPrepareIsMissing() const { return (b()->missingFlags & 0x40) != 0; }
-			bool getFullCommitIsMissing() const { return (b()->missingFlags & 0x80) != 0; }
+			bool getPrePrepareIsMissing() const { return (b()->flags & 0x2) != 0; }
+			bool getPartialProofIsMissing() const { return (b()->flags & 0x4) != 0; }
+			bool getPartialPrepareIsMissing() const { return (b()->flags & 0x8) != 0; }
+			bool getPartialCommitIsMissing() const { return (b()->flags & 0x10) != 0; }
+			bool getFullCommitProofIsMissing() const { return (b()->flags & 0x20) != 0; }
+			bool getFullPrepareIsMissing() const { return (b()->flags & 0x40) != 0; }
+			bool getFullCommitIsMissing() const { return (b()->flags & 0x80) != 0; }
+			bool getSlowPathHasStarted() const { return (b()->flags & 0x100) != 0; }
 
-			uint16_t getFlags() const { return b()->missingFlags; }
+			uint16_t getFlags() const { return b()->flags; }
 
 			void resetFlags();
 
-			void setPrePrepareIsMissing() { b()->missingFlags |= 0x2; }
-			void setPartialProofIsMissing() { b()->missingFlags |= 0x4; }
-			void setPartialPrepareIsMissing() { b()->missingFlags |= 0x8; }
-			void setPartialCommitIsMissing() { b()->missingFlags |= 0x10; }
-			void setFullCommitProofIsMissing() { b()->missingFlags |= 0x20; }
-			void setFullPrepareIsMissing() { b()->missingFlags |= 0x40; }
-			void setFullCommitIsMissing() { b()->missingFlags |= 0x80; }
+			void setPrePrepareIsMissing() { b()->flags |= 0x2; }
+			void setPartialProofIsMissing() { b()->flags |= 0x4; }
+			void setPartialPrepareIsMissing() { b()->flags |= 0x8; }
+			void setPartialCommitIsMissing() { b()->flags |= 0x10; }
+			void setFullCommitProofIsMissing() { b()->flags |= 0x20; }
+			void setFullPrepareIsMissing() { b()->flags |= 0x40; }
+			void setFullCommitIsMissing() { b()->flags |= 0x80; }
+			void setSlowPathHasStarted() { b()->flags |= 0x100; }
 
 			static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, ReqMissingDataMsg*& outMsg);
 
@@ -52,7 +54,7 @@ namespace bftEngine
 				ViewNum viewNum;
 				SeqNum seqNum;
 
-				uint16_t missingFlags;
+				uint16_t flags;
 				// bit 0 : reserved
 				// bit 1 : prePrepareIsMissing
 				// bit 2 : partialProofIsMissing
@@ -61,6 +63,7 @@ namespace bftEngine
 				// bit 5 : fullCommitProofIsMissing
 				// bit 6 : fullPrepareIsMissing
 				// bit 7 : fullCommitIsMissing
+				// bit 8 : slowPathHasStarted
 			};
 #pragma pack(pop)
 			static_assert(sizeof(ReqMissingDataMsgHeader) == (2 + 8 + 8 + 2), "ReqMissingDataMsgHeader is 58B");

@@ -6,6 +6,7 @@
 //
 //This product may include a number of subcomponents with separate copyright notices and license terms. Your use of these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE file.
 
+
 #include "ReplicaImp.hpp"
 #include "assertUtils.hpp"
 #include "ClientRequestMsg.hpp"
@@ -2358,6 +2359,10 @@ namespace bftEngine
 				if (missingFullCommit)       reqData.setFullCommitIsMissing();
 				if (missingFullProof)       reqData.setFullCommitProofIsMissing();
 
+				const bool slowPathStarted = seqNumInfo.slowPathStarted();
+
+				if (slowPathStarted) reqData.setSlowPathHasStarted();
+
 				LOG_INFO_F(GL, "Node %d sends ReqMissingDataMsg to %d - seqNumber %" PRId64 " , flags=%X",
 					myReplicaId, destRep, seqNumber, (unsigned int)reqData.getFlags());
 
@@ -2385,6 +2390,12 @@ namespace bftEngine
 					{
 						if (pp != 0)
 							send(pp, msgSender);
+					}
+
+					if (seqNumInfo.slowPathStarted() && !msg->getSlowPathHasStarted())
+					{
+						StartSlowCommitMsg startSlowMsg(myReplicaId, curView, msgSeqNum);
+						send(&startSlowMsg, msgSender);
 					}
 				}
 

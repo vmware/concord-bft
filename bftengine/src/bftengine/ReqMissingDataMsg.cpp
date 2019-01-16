@@ -25,7 +25,7 @@ namespace bftEngine
 
 		void ReqMissingDataMsg::resetFlags()
 		{
-			b()->missingFlags = 0;
+			b()->flags = 0;
 		}
 
 
