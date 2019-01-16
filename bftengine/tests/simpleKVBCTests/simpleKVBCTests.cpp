@@ -477,10 +477,10 @@ namespace BasicRandomTests
 				{
 					BlockId bId = it->first;
 					SimpleBlock* block = it->second;
+					(void)bId;
+					(void)block;
 
 					assert(bId == block->id);
-
-					//SimpleBlock::print(block);
 				}
 
 
@@ -910,6 +910,7 @@ namespace BasicRandomTests
 			assert(reply.size == sizeof(SimpleReplyHeader_GetLastBlockHeader));
 
 			SimpleReplyHeader_GetLastBlockHeader* pReplyData = (SimpleReplyHeader_GetLastBlockHeader*)reply.data;
+			(void)pReplyData;
 
 			assert(pReplyData->h.type == 3);
 			assert(pReplyData->latestBlock == 0);
