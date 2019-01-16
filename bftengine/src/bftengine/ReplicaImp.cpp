@@ -371,11 +371,11 @@ namespace bftEngine
 
 			// remove irrelevant requests from the head of the requestsQueueOfPrimary (and update requestsInQueue)
 			ClientRequestMsg* first = requestsQueueOfPrimary.front();
-			while (!clientsManager->noPendingAndRequestCanBecomePending(first->clientProxyId(), first->requestSeqNum()))
+			while (first != nullptr && !clientsManager->noPendingAndRequestCanBecomePending(first->clientProxyId(), first->requestSeqNum()))
 			{
 				delete first;
 				requestsQueueOfPrimary.pop();
-				first = requestsQueueOfPrimary.front();
+				first = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
 			}
 
 			const size_t requestsInQueue = requestsQueueOfPrimary.size();
