@@ -18,6 +18,16 @@ using namespace std;
 
 namespace bftEngine
 {
+	//	 parameters // TODO(GG): move to client configuration
+	struct SimpleClientParams {
+  		uint64_t clientInitialRetryTimeoutMilli = 150;
+  		uint64_t clientMinRetryTimeoutMilli = 50;
+  		uint64_t clientMaxRetryTimeoutMilli = 1000;
+  		uint16_t clientSendsRequestToAllReplicasFirstThresh = 4;
+  		uint16_t clientSendsRequestToAllReplicasPeriodThresh = 2;
+  		uint16_t clientPeriodicResetThresh = 30;
+	};
+
 	class SimpleClient
 	{
 	public:
@@ -25,6 +35,10 @@ namespace bftEngine
 		static const uint64_t INFINITE_TIMEOUT = UINT64_MAX;
 
 		static SimpleClient* createSimpleClient(ICommunication* communication, uint16_t clientId, uint16_t fVal, uint16_t cVal);
+
+	   static SimpleClient* createSimpleClient(ICommunication* communication,
+	   		uint16_t clientId, uint16_t fVal, uint16_t cVal,
+	   		SimpleClientParams p);
 		
 		virtual ~SimpleClient() ;
 
