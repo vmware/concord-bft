@@ -27,25 +27,11 @@ namespace bftEngine
 {
 	namespace impl
 	{
-		// parameters // TODO(GG): move to client configuration
-
-		const int clientInitialRetryTimeoutMilli = 150;
-
-		const int clientMinRetryTimeoutMilli = 50;
-
-		const int clientMaxRetryTimeoutMilli = 1000;
-
-		const int clientSendsRequestToAllReplicasFirstThresh = 4;
-
-		const int clientSendsRequestToAllReplicasPeriodThresh = 2;
-
-		const int clientPeriodicResetThresh = 30;
-
-
 		class SimpleClientImp : public SimpleClient, public IReceiver
 		{
 		public:
-			SimpleClientImp(ICommunication* communication, uint16_t clientId, uint16_t fVal, uint16_t cVal);
+		  	SimpleClientImp(ICommunication* communication, uint16_t clientId,
+		  			uint16_t fVal, uint16_t cVal, SimpleClientParams &p);
 
 			// SimpleClient methods
 
@@ -107,6 +93,11 @@ namespace bftEngine
 			
 			DynamicUpperLimitWithSimpleFilter<uint64_t> limitOfExpectedOperationTime;
 
+		  // configuration params
+		  uint16_t clientSendsRequestToAllReplicasFirstThresh;
+		  uint16_t clientSendsRequestToAllReplicasPeriodThresh;
+		  uint16_t clientPeriodicResetThresh;
+
 			void sendPendingRequest();
 
 			void onMessageFromReplica(MessageBase* msg);
@@ -165,15 +156,19 @@ namespace bftEngine
 			return retVal;
 		}
 
-
-		SimpleClientImp::SimpleClientImp(ICommunication* communication, uint16_t clientId, uint16_t fVal, uint16_t cVal) :
+		SimpleClientImp::SimpleClientImp(ICommunication* communication,uint16_t clientId, uint16_t fVal, uint16_t cVal,SimpleClientParams &p) :
 			_clientId{ clientId },
 			_fVal{ fVal },
 			_cVal{ cVal },
 			_replicas{ generateSetOfReplicas_helpFunc(3 * fVal + 2 * cVal + 1) },
 			_communication{ communication },
 			replysCertificate(3 * fVal + 2 * cVal + 1, fVal, 2 * fVal + cVal + 1, clientId),
-			limitOfExpectedOperationTime(clientInitialRetryTimeoutMilli, 2, clientMaxRetryTimeoutMilli, clientMinRetryTimeoutMilli, 32, 1000, 2, 2)
+			limitOfExpectedOperationTime(p.clientInitialRetryTimeoutMilli, 2,
+					p.clientMaxRetryTimeoutMilli, p.clientMinRetryTimeoutMilli,
+					32, 1000, 2, 2),
+			clientSendsRequestToAllReplicasFirstThresh{p.clientSendsRequestToAllReplicasFirstThresh},
+			clientSendsRequestToAllReplicasPeriodThresh{p.clientSendsRequestToAllReplicasPeriodThresh},
+			clientPeriodicResetThresh{p.clientPeriodicResetThresh}
 		{
 				Assert(_fVal >= 1);
 				//Assert(!_communication->isRunning());
@@ -479,9 +474,20 @@ namespace bftEngine
 
 namespace bftEngine
 {
+	SimpleClient* SimpleClient::createSimpleClient(
+			ICommunication* communication,
+			uint16_t clientId,
+			uint16_t fVal,
+			uint16_t cVal,
+			SimpleClientParams p)
+	{
+		return new impl::SimpleClientImp(communication, clientId, fVal, cVal,p);
+	}
+
 	SimpleClient* SimpleClient::createSimpleClient(ICommunication* communication, uint16_t clientId, uint16_t fVal, uint16_t cVal)
 	{
-		return new impl::SimpleClientImp(communication, clientId, fVal, cVal);
+		SimpleClientParams p;
+		return SimpleClient::createSimpleClient(communication, clientId, fVal,cVal,	p);
 	}
 
 	SimpleClient::~SimpleClient()
