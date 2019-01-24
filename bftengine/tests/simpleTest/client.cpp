@@ -75,15 +75,17 @@ struct ClientParams {
   uint16_t numOfSlow = 0;
 };
 
-ClientParams parse_params(int argc, char** argv) {
-  ClientParams cp;
+void parse_params(int argc, char** argv, ClientParams &cp,
+    bftEngine::SimpleClientParams &scp) {
   if(argc < 2)
-    return cp;
+    return;
 
   uint16_t min16_t_u = std::numeric_limits<uint16_t>::min();
   uint16_t max16_t_u = std::numeric_limits<uint16_t>::max();
   uint32_t min32_t = std::numeric_limits<uint32_t>::min();
   uint32_t max32_t = std::numeric_limits<uint32_t>::max();
+  uint64_t min64_t_u = std::numeric_limits<uint64_t>::min();
+  uint64_t max64_t_u = std::numeric_limits<uint64_t>::max();
 
   try {
     for (int i = 1; i < argc;) {
@@ -135,7 +137,63 @@ ClientParams parse_params(int argc, char** argv) {
           exit(-1);
         }
         cp.numOfFaulty = numF;
-      } else {
+      } else if (p == "-irt") {
+        auto irt = std::stoi(argv[i + 1]);
+        if (irt < min64_t_u || irt > max64_t_u) {
+          printf(
+              "-irt value is out of range (%llu - %llu)\n", min64_t_u,
+              max64_t_u);
+          exit(-1);
+        }
+        scp.clientInitialRetryTimeoutMilli = irt;
+      } else if (p == "-minrt") {
+        auto minrt = std::stoi(argv[i + 1]);
+        if (minrt < min64_t_u || minrt > max64_t_u) {
+          printf(
+              "-minrt value is out of range (%llu - %llu)\n", min64_t_u,
+              max64_t_u);
+          exit(-1);
+        }
+        scp.clientMinRetryTimeoutMilli = minrt;
+      } else if (p == "-maxrt") {
+        auto maxrt = std::stoi(argv[i + 1]);
+        if (maxrt < min64_t_u || maxrt > max64_t_u) {
+          printf(
+              "-maxrt value is out of range (%llu - %llu)\n", min64_t_u,
+              max64_t_u);
+          exit(-1);
+        }
+        scp.clientMaxRetryTimeoutMilli = maxrt;
+      } else if (p == "-srft") {
+        auto srft = std::stoi(argv[i + 1]);
+        if (srft < min16_t_u || srft > max16_t_u) {
+          printf(
+              "-srft value is out of range (%hu - %hu)\n", min16_t_u,
+              max16_t_u);
+          exit(-1);
+        }
+        scp.clientSendsRequestToAllReplicasFirstThresh = srft;
+      } else if (p == "-srpt") {
+        auto srpt = std::stoi(argv[i + 1]);
+        if (srpt < min16_t_u || srpt > max16_t_u) {
+          printf(
+              "-srpt value is out of range (%hu - %hu)\n", min16_t_u,
+              max16_t_u);
+          exit(-1);
+        }
+        scp.clientSendsRequestToAllReplicasPeriodThresh = srpt;
+      } else if (p == "-prt") {
+        auto prt = std::stoi(argv[i + 1]);
+        if (prt < min16_t_u || prt > max16_t_u) {
+          printf(
+              "-prt value is out of range (%hu - %hu)\n", min16_t_u,
+              max16_t_u);
+          exit(-1);
+        }
+        scp.clientPeriodicResetThresh = prt;
+      }
+
+      else {
         printf("Unknown parameter %s\n", p.c_str());
         exit(-1);
       }
@@ -154,8 +212,6 @@ ClientParams parse_params(int argc, char** argv) {
     printf("Number of replicas is not 3f + 2c + 1\n");
     exit(-1);
   }
-
-  return cp;
 }
 
 int main(int argc, char **argv) {
@@ -167,7 +223,9 @@ int main(int argc, char **argv) {
   config.configure();
 #endif
 
-  ClientParams cp = parse_params(argc, argv);
+  ClientParams cp;
+  bftEngine::SimpleClientParams scp;
+  parse_params(argc, argv, cp, scp);
 
   LOG_INFO(clientLogger, "ClientParams: clientId: " << cp.clientId
      << ", numOfReplicas: " << cp.numOfReplicas
@@ -175,6 +233,13 @@ int main(int argc, char **argv) {
      << ", numOfIterations: " << cp.numOfOperations
      << ", fVal: " << cp.numOfFaulty
      << ", cVal: " << cp.numOfSlow);
+
+  LOG_INFO(clientLogger, "SimpleClientParams: clientInitialRetryTimeoutMilli: " << scp.clientInitialRetryTimeoutMilli
+    << ", clientMinRetryTimeoutMilli: " << scp.clientMinRetryTimeoutMilli
+    << ", clientMaxRetryTimeoutMilli: " << scp.clientMaxRetryTimeoutMilli
+    << ", clientSendsRequestToAllReplicasFirstThresh: " << scp.clientSendsRequestToAllReplicasFirstThresh
+    << ", clientSendsRequestToAllReplicasPeriodThresh: " << scp.clientSendsRequestToAllReplicasPeriodThresh
+    << ", clientPeriodicResetThresh: " << scp.clientPeriodicResetThresh);
 
   // This client's index number. Must be larger than the largest replica index
   // number.

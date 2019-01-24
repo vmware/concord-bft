@@ -22,6 +22,14 @@ class CLI:
         self.num_of_iterations = num_it
         self.vc_timeout = vc_t
 
+class SimpleClientParams:
+    def __init__(self):
+        self.initial_retry_timeout_milli = 1100
+        self.min_retry_timeout_milli = 1000
+        self.max_retry_timeout_milli = 2000
+        self.sends_request_to_all_replicas_first_thresh = 2
+        self.sends_request_to_all_replicas_period_thresh = 2
+        self.periodic_reset_thresh = 30
 
 class BFT:
     def __init__(self, name, n, r, f, c, cl, vc):
@@ -155,27 +163,27 @@ class TestConfig:
     config_run_timer = None
     config_last_update_time = None
 
-    def __init__(self, num_rep, num_cl, faulty, slow, vc_enabled, vc_timeout,
-                 num_it, env, config_name, num_of_rep_to_launch, customize_fn):
-        self.num_of_replicas = num_rep
-        self.num_of_clients = num_cl
-        self.num_of_faulty = faulty
-        self.num_of_slow = slow
-        self.view_change_enable = vc_enabled
-        self.view_change_timeout = vc_timeout
-        self.num_of_iterations = num_it
+    def __init__(self, bft, cli, env, simple_client_params, customize_fn):
+        self.num_of_replicas = bft.num_of_replicas
+        self.num_of_clients = bft.num_of_clients
+        self.num_of_faulty = bft.num_of_faulties
+        self.num_of_slow = bft.num_of_slow
+        self.view_change_enable = bft.test_vc
+        self.view_change_timeout = cli.vc_timeout
+        self.num_of_iterations = cli.num_of_iterations
         self.env = env
         self.waitables = []
         self.non_waitables = []
         self.process_outputs = []
-        self.config_name = config_name
-        self.num_of_replicas_to_launch = num_of_rep_to_launch
-        self.on_new_line_callback = self.on_new_line_vc if vc_enabled else \
+        self.config_name = bft.name.replace(",", "_")
+        self.num_of_replicas_to_launch = bft.num_of_replicas_to_run
+        self.on_new_line_callback = self.on_new_line_vc if bft.test_vc else \
             self.on_new_line
 
-        self.config_timeout = 60000 + (0 if not vc_enabled else vc_timeout * 5)
+        self.config_timeout = 60000 + (0 if not bft.test_vc else cli.vc_timeout * 5)
         self.customize_fn = customize_fn
         self.log_dir = None
+        self.simple_client_params = simple_client_params
 
     @staticmethod
     def reset_globals():
@@ -230,7 +238,19 @@ class TestConfig:
                       "-cl", str(self.num_of_clients),
                       "-id", str(self.num_of_replicas + i),
                       "-f", str(self.num_of_faulty),
-                      "-c", str(self.num_of_slow)]
+                      "-c", str(self.num_of_slow),
+                      "-irt", str(
+                    self.simple_client_params.initial_retry_timeout_milli),
+                      "-minrt", str(
+                    self.simple_client_params.min_retry_timeout_milli),
+                      "-maxrt", str(
+                    self.simple_client_params.max_retry_timeout_milli),
+                      "-srft", str(
+                    self.simple_client_params.sends_request_to_all_replicas_first_thresh),
+                      "-srpt", str(
+                    self.simple_client_params.sends_request_to_all_replicas_period_thresh),
+                      "-prt", str(
+                    self.simple_client_params.periodic_reset_thresh)]
 
             tp = TestProcess(self.env.client_exec,
                              os.path.join(exec_dir, self.env.client_exec),
@@ -337,10 +357,8 @@ class TestConfig:
         return self.process_outputs
 
     @staticmethod
-    def create(name, env, cli, n, r, f, c, cl, vc, customize_fn):
-        return TestConfig(n, cl, f, c, vc, cli.vc_timeout,
-                          int(cli.num_of_iterations), env,
-                          name.replace("+", "_"), r, customize_fn)
+    def create(env, cli, bft, simple_client_params, customize_fn):
+        return TestConfig(bft, cli, env, simple_client_params, customize_fn)
 
 
 def process_output(process_outputs):
@@ -414,12 +432,9 @@ def main():
     global g_logger
     g_logger.setLevel(args.l)
 
-    print(args.bft)
-
     configs = []
     for param in args.bft:
         set = param.split(",")
-        print(set)
         n=r=f=c=cl=None
         vc=False
         for p_expr in set:
@@ -445,16 +460,15 @@ def main():
         configs.append(BFT(param, n, r, f, c, cl, vc))
 
     cli = CLI(args.i, args.vct)
+    scp = SimpleClientParams()
 
-    for c in configs:
-        g_logger.debug(f"Creating test configuration {c.name} " +
-                       f" with {c.num_of_replicas_to_run} running replicas, " +
-                       f"f = {c.num_of_faulties}, c = {c.num_of_slow}")
+    for cf in configs:
+        g_logger.debug(f"Creating test configuration {cf.name} " +
+                       f" with {cf.num_of_replicas_to_run} running replicas, " +
+                       f"f = {cf.num_of_faulties}, c = {cf.num_of_slow}")
 
-        c = TestConfig.create(c.name, env, cli, c.num_of_replicas,
-              c.num_of_replicas_to_run, c.num_of_faulties,
-              c.num_of_slow, c.num_of_clients, c.test_vc,
-              customize_test_vc_never_ends if c.vc_will_fail else None)
+        c = TestConfig.create(env, cli, cf, scp,
+              customize_test_vc_never_ends if cf.vc_will_fail else None)
 
         TestConfig.reset_globals()
         c.prepare(str(sys.argv))
