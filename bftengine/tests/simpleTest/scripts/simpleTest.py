@@ -9,6 +9,7 @@ import sys
 import re
 import logging
 import time
+import multiprocessing
 
 g_logger = logging.getLogger("simpletest")
 g_log_formatter = logging.Formatter(
@@ -457,6 +458,15 @@ def main():
         if n is None or r is None or f is None or c is None or cl is None:
             print("Unable to parse BFT parameters")
             return -1
+        if 3 * f + 2 * c + 1 != n:
+            g_logger.error("N = 3f + 2c + 1 is not satisfied")
+            return -1
+        max_r = max(4, multiprocessing.cpu_count() * 4)
+        if r > max_r:
+            g_logger.error("max number of running replicas on your machine is "
+                           "" + str(max_r))
+            return -1
+
         configs.append(BFT(param, n, r, f, c, cl, vc))
 
     cli = CLI(args.i, args.vct)
