@@ -461,7 +461,7 @@ def main():
         if 3 * f + 2 * c + 1 != n:
             g_logger.error("N = 3f + 2c + 1 is not satisfied")
             return -1
-        max_r = max(4, multiprocessing.cpu_count() * 4)
+        max_r = max(4, multiprocessing.cpu_count() * 2)
         if r > max_r:
             g_logger.error("max number of running replicas on your machine is "
                            "" + str(max_r))
