@@ -161,9 +161,19 @@ You may also need to export CPLUS_INCLUDE_PATH variable set to /usr/local/includ
 After installation, set USE_LOG4CPP flag to TRUE in the main CmakeLists.txt . The library doesn't initialize the log4cpp subsystem, including formats and appenders, it expects that the upper level application will do it and the log4cpp subsystem is already initialized.
 
 #### (Optional) If you want to use Python test script
-Install Python3
+Install Python 3.6
 
-    sudo apt-get install python3
+    sudp apt-get update
+    sudo apt-get install python3.6
+    
+After the installation, please verify the version by running:
+
+    python3.6 --version
+    
+It should be
+    
+    Python 3.6.x
+ 
 
 ### Select comm module
 We support both UDP and TCP communication (UDP is the default one).
