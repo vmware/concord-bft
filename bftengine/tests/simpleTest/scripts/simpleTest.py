@@ -182,6 +182,7 @@ class TestConfig:
             self.on_new_line
 
         self.config_timeout = 60000 + (0 if not bft.test_vc else cli.vc_timeout * 5)
+        print(self.config_timeout)
         self.customize_fn = customize_fn
         self.log_dir = None
         self.simple_client_params = simple_client_params
@@ -302,8 +303,8 @@ class TestConfig:
         retval = self.on_new_line_vc
         self.on_new_line(text, instanceId)
         TestConfig.iterations_counter_lock.acquire()
-        if TestConfig.iterations_done >= self.num_of_iterations * int(
-                self.num_of_clients) / 2 and not TestConfig.leader_killed:
+        if TestConfig.iterations_done >= int(self.num_of_iterations) * \
+                int(self.num_of_clients) / 2 and not TestConfig.leader_killed:
             g_logger.info("From: {}, killing replica 0".format(instanceId))
             self.kill_replica(0)
             TestConfig.leader_killed = True
@@ -474,12 +475,11 @@ def main():
     scp = SimpleClientParams()
 
     for cf in configs:
-        g_logger.debug("Creating test configuration {0} " +
-                       " with {1} running replicas, " +
-                       "f = {2}, c = {3}".format(
-                           cf.name,cf.num_of_replicas_to_run,
-                           cf.num_of_faulties, cf.num_of_slow
-                       ))
+        g_logger.debug("Creating test configuration {0} with n={1},r={2} \
+f = {3}, c = {4}, testViewChange = {5}, cl = {6}".format(
+                           cf.name, cf.num_of_replicas,
+                           cf.num_of_replicas_to_run,
+                           cf.num_of_faulties, cf.num_of_slow, cf.test_vc, cf.num_of_clients))
 
         c = TestConfig.create(env, cli, cf, scp,
               customize_test_vc_never_ends if cf.vc_will_fail else None)
