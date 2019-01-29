@@ -98,7 +98,24 @@ namespace bftEngine
 		{
 			bool operator()(const SlowElem& lhs, const SlowElem& rhs) const
 			{
-				return (lhs.certificateView() > rhs.certificateView());
+				const ViewNum leftCV  = lhs.certificateView();
+				const ViewNum rightCV = rhs.certificateView();
+
+				if (leftCV != rightCV)
+				{
+					return (leftCV > rightCV);
+				}
+				else
+				{
+					// we have 2 different PreparedCertificate for the same view number.
+					// This means one of the following:
+					// (1) we have an invalid PreparedCertificate (will be ignored...)
+					// (2) we have 2 different valid PreparedCertificate (this means that more than f replicas are malicious and/or the crypto is broken)
+					const Digest& leftPPDigest = lhs.prePrepreDigest();
+					const Digest& rightPPDigest = rhs.prePrepreDigest();
+
+					return ( (memcmp(&leftPPDigest, &rightPPDigest, sizeof(Digest))) < 0);
+				}
 			}
 		};
 
@@ -110,7 +127,14 @@ namespace bftEngine
 			{
 				if (!lastElement.isNull()) // if this is not the first element
 				{
-					if (e.certificateView() < lastElement.certificateView()) return false;
+					if (e.certificateView() > lastElement.certificateView()) return false;
+
+					if (e.certificateView() == lastElement.certificateView())
+					{
+						Assert(e.seqNum() == lastElement.seqNum());
+						LOG_WARN_F(GL, "Found two conflicting prepared certificate for SeqNum %" PRIu64, e.seqNum());
+					}
+
 				}
 
 				lastElement = e;
@@ -283,7 +307,7 @@ namespace bftEngine
 				}
 			}
 
-			Assert(checkSlowPathCertificates(slowPathCertificates));
+			Assert(checkSlowPathCertificates(slowPathCertificates)); // for debug
 
 			// Select prepared certificate
 
@@ -291,6 +315,7 @@ namespace bftEngine
 
 			for (SlowElem slow : slowPathCertificates)
 			{
+				Assert(s == slow.seqNum());
 				Digest d;
 				Digest::calcCombination(slow.prePrepreDigest(), slow.certificateView(), slow.seqNum(), d);
 
@@ -299,6 +324,10 @@ namespace bftEngine
 				if (valid) {
 					selectedSlow = slow;
 					break; // we want the highest valid certificate
+				}
+				else
+				{
+					LOG_WARN_F(GL, "An invalid prepared certificate for SeqNum %" PRIu64 " is ignored", s);
 				}
 			}
 
