@@ -290,8 +290,9 @@ class TestConfig:
         for m in re.finditer(pattern, text):
             found = True
             TestConfig.iterations_done += int(m.group(0))
-            g_logger.info(f"From {instanceId}, num of iterations done: " +
-                          f"{TestConfig.iterations_done}")
+            g_logger.info("From {0}, num of iterations done: {1}".format(
+                            instanceId,
+                            TestConfig.iterations_done))
         if found:
             TestConfig.config_last_update_time=int(round(time.time()*1000))
         TestConfig.iterations_counter_lock.release()
@@ -303,7 +304,7 @@ class TestConfig:
         TestConfig.iterations_counter_lock.acquire()
         if TestConfig.iterations_done >= self.num_of_iterations * int(
                 self.num_of_clients) / 2 and not TestConfig.leader_killed:
-            g_logger.info(f"From: {instanceId}, killing replica 0")
+            g_logger.info("From: {}, killing replica 0".format(instanceId))
             self.kill_replica(0)
             TestConfig.leader_killed = True
             g_logger.info("Killed replica 0")
@@ -372,7 +373,7 @@ def process_output(process_outputs):
             output.user_msg)
         res += os.linesep
         exit_code += output.exit_code
-    g_logger.debug(f"output: {res}, {exit_code}")
+    g_logger.debug("output: {0}, {1}".format(res, exit_code))
     return TestResult(exit_code, res)
 
 
@@ -453,7 +454,7 @@ def main():
             elif p[0] == "testViewChange":
                 vc = True
             else:
-                print(f"Unsupported parameter: {p[0]}")
+                print("Unsupported parameter: {}".format(p[0]))
                 return -1
         if n is None or r is None or f is None or c is None or cl is None:
             print("Unable to parse BFT parameters")
@@ -473,9 +474,12 @@ def main():
     scp = SimpleClientParams()
 
     for cf in configs:
-        g_logger.debug(f"Creating test configuration {cf.name} " +
-                       f" with {cf.num_of_replicas_to_run} running replicas, " +
-                       f"f = {cf.num_of_faulties}, c = {cf.num_of_slow}")
+        g_logger.debug("Creating test configuration {0} " +
+                       " with {1} running replicas, " +
+                       "f = {2}, c = {3}".format(
+                           cf.name,cf.num_of_replicas_to_run,
+                           cf.num_of_faulties, cf.num_of_slow
+                       ))
 
         c = TestConfig.create(env, cli, cf, scp,
               customize_test_vc_never_ends if cf.vc_will_fail else None)

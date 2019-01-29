@@ -107,7 +107,7 @@ The command above is EQUAL to running the test via the shell script, as desribed
 Note: if you run the command as described above and experience Python related
  issues, please run it using
  
-    python3.6 ./simpleTest.py -bft n=4,r=4,f=1,c=0,cl=1
+    python3 ./simpleTest.py -bft n=4,r=4,f=1,c=0,cl=1
 
 ### Command line parameters
 The following CLI parameters are supported:
