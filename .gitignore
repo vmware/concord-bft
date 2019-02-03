@@ -3,3 +3,5 @@
 cmake-build-debug/
 .vscode/
 README.html
+venv/
+

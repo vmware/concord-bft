@@ -29,6 +29,8 @@
 
 #include <cassert>
 #include <thread>
+#include <iostream>
+#include <limits>
 
 // bftEngine includes
 #include "CommFactory.hpp"
@@ -36,6 +38,8 @@
 
 // simpleTest includes
 #include "commonDefs.h"
+
+#include "Logging.hpp"
 
 #ifdef USE_LOG4CPP
 #include <log4cplus/configurator.h>
@@ -50,8 +54,142 @@ using bftEngine::SeqNumberGeneratorForClientRequests;
 using bftEngine::SimpleClient;
 
 // Declarations of functions form config.cpp.
-PlainUdpConfig getUDPConfig(uint16_t id);
-extern PlainTcpConfig getTCPConfig(uint16_t id);
+extern PlainUdpConfig getUDPConfig(
+    uint16_t id, int numOfClients, int numOfReplicas);
+extern PlainTcpConfig getTCPConfig(
+    uint16_t id, int numOfClients, int numOfReplicas);
+
+concordlogger::Logger clientLogger =
+    concordlogger::Logger::getLogger("simpletest.client");
+
+#define test_assert(statement, message) \
+{ if (!(statement)) { \
+LOG_FATAL(clientLogger, "assert fail with message: " << message); assert(false);}}
+
+struct ClientParams {
+  uint32_t numOfOperations = 2800;
+  uint16_t clientId = 4;
+  uint16_t numOfReplicas = 4;
+  uint16_t numOfClients = 1;
+  uint16_t numOfFaulty = 1;
+  uint16_t numOfSlow = 0;
+};
+
+void parse_params(int argc, char** argv, ClientParams &cp,
+    bftEngine::SimpleClientParams &scp) {
+  if(argc < 2)
+    return;
+
+  uint16_t min16_t_u = std::numeric_limits<uint16_t>::min();
+  uint16_t max16_t_u = std::numeric_limits<uint16_t>::max();
+  uint32_t min32_t = std::numeric_limits<uint32_t>::min();
+  uint32_t max32_t = std::numeric_limits<uint32_t>::max();
+
+  try {
+    for (int i = 1; i < argc;) {
+      string p(argv[i]);
+      if (p == "-i") {
+        auto numOp = std::stoi(argv[i + 1]);
+        if (numOp < min32_t || numOp > max32_t) {
+          printf("-i value is out of range (%u - %u)\n", min32_t, max32_t);
+          exit(-1);
+        }
+        cp.numOfOperations = (uint32_t)numOp;
+      } else if (p == "-id") {
+        auto clId = std::stoi(argv[i + 1]);
+        if (clId < min16_t_u || clId > max16_t_u) {
+          printf(
+              "-id value is out of range (%hu - %hu)\n", min16_t_u, max16_t_u);
+          exit(-1);
+        }
+        cp.clientId = (uint16_t)clId;
+      } else if (p == "-r") {
+        auto numRep = std::stoi(argv[i + 1]);
+        if (numRep < min16_t_u || numRep > max16_t_u) {
+          printf("-r value is out of range (%hu - %hu)\n", min16_t_u,
+              max16_t_u);
+          exit(-1);
+        }
+        cp.numOfReplicas = (uint16_t)numRep;
+      } else if (p == "-cl") {
+        auto numCl = std::stoi(argv[i + 1]);
+        if (numCl < min16_t_u || numCl > max16_t_u) {
+          printf("-cl value is out of range (%hu - %hu)\n", min16_t_u,
+          max16_t_u);
+          exit(-1);
+        }
+        cp.numOfClients = (uint16_t)numCl;
+      } else if (p == "-c") {
+        auto numSlow = std::stoi(argv[i + 1]);
+        if (numSlow < min16_t_u || numSlow > max16_t_u) {
+          printf(
+              "-c value is out of range (%hu - %hu)\n", min16_t_u, max16_t_u);
+          exit(-1);
+        }
+        cp.numOfSlow = (uint16_t)numSlow;
+      } else if (p == "-f") {
+        auto numF = std::stoi(argv[i + 1]);
+        if (numF < min16_t_u || numF > max16_t_u) {
+          printf(
+              "-f value is out of range (%hu - %hu)\n", min16_t_u, max16_t_u);
+          exit(-1);
+        }
+        cp.numOfFaulty = (uint16_t)numF;
+      } else if (p == "-irt") {
+        scp.clientInitialRetryTimeoutMilli = std::stoull(argv[i + 1]);
+      } else if (p == "-minrt") {
+        scp.clientMinRetryTimeoutMilli = std::stoull(argv[i + 1]);
+      } else if (p == "-maxrt") {
+        scp.clientMaxRetryTimeoutMilli = std::stoull(argv[i + 1]);
+      } else if (p == "-srft") {
+        auto srft = std::stoi(argv[i + 1]);
+        if (srft < min16_t_u || srft > max16_t_u) {
+          printf(
+              "-srft value is out of range (%hu - %hu)\n", min16_t_u,
+              max16_t_u);
+          exit(-1);
+        }
+        scp.clientSendsRequestToAllReplicasFirstThresh = (uint16_t)srft;
+      } else if (p == "-srpt") {
+        auto srpt = std::stoi(argv[i + 1]);
+        if (srpt < min16_t_u || srpt > max16_t_u) {
+          printf(
+              "-srpt value is out of range (%hu - %hu)\n", min16_t_u,
+              max16_t_u);
+          exit(-1);
+        }
+        scp.clientSendsRequestToAllReplicasPeriodThresh = (uint16_t)srpt;
+      } else if (p == "-prt") {
+        auto prt = std::stoi(argv[i + 1]);
+        if (prt < min16_t_u || prt > max16_t_u) {
+          printf(
+              "-prt value is out of range (%hu - %hu)\n", min16_t_u,
+              max16_t_u);
+          exit(-1);
+        }
+        scp.clientPeriodicResetThresh = (uint16_t)prt;
+      }
+
+      else {
+        printf("Unknown parameter %s\n", p.c_str());
+        exit(-1);
+      }
+
+      i += 2;
+    }
+  } catch (std::invalid_argument &e) {
+    printf("Parameters should be integers only\n");
+    exit(-1);
+  } catch (std::out_of_range &e) {
+    printf("One of the parameters is out of range\n");
+    exit(-1);
+  }
+
+  if(3 * cp.numOfFaulty + 2 * cp.numOfSlow + 1 != cp.numOfReplicas) {
+    printf("Number of replicas is not 3f + 2c + 1\n");
+    exit(-1);
+  }
+}
 
 int main(int argc, char **argv) {
 // TODO(IG:) configure Log4Cplus's output format, using default for now
@@ -62,12 +200,27 @@ int main(int argc, char **argv) {
   config.configure();
 #endif
 
+  ClientParams cp;
+  bftEngine::SimpleClientParams scp;
+  parse_params(argc, argv, cp, scp);
+
+  LOG_INFO(clientLogger, "ClientParams: clientId: " << cp.clientId
+     << ", numOfReplicas: " << cp.numOfReplicas
+     << ", numOfClients: " << cp.numOfClients
+     << ", numOfIterations: " << cp.numOfOperations
+     << ", fVal: " << cp.numOfFaulty
+     << ", cVal: " << cp.numOfSlow);
+
+  LOG_INFO(clientLogger, "SimpleClientParams: clientInitialRetryTimeoutMilli: " << scp.clientInitialRetryTimeoutMilli
+    << ", clientMinRetryTimeoutMilli: " << scp.clientMinRetryTimeoutMilli
+    << ", clientMaxRetryTimeoutMilli: " << scp.clientMaxRetryTimeoutMilli
+    << ", clientSendsRequestToAllReplicasFirstThresh: " << scp.clientSendsRequestToAllReplicasFirstThresh
+    << ", clientSendsRequestToAllReplicasPeriodThresh: " << scp.clientSendsRequestToAllReplicasPeriodThresh
+    << ", clientPeriodicResetThresh: " << scp.clientPeriodicResetThresh);
+
   // This client's index number. Must be larger than the largest replica index
   // number.
-  const int16_t id = 4;
-
-  // The number of operations to send during this run.
-  const int numOfOperations = 2800;
+  const int16_t id = cp.clientId;
 
   // How often to read the latest value of the register (every `readMod` ops).
   const int readMod = 7;
@@ -80,13 +233,14 @@ int main(int argc, char **argv) {
 
   // Configure, create, and start the Concord client to use.
 #ifdef USE_COMM_PLAIN_TCP
-  PlainTcpConfig conf = getTCPConfig(id);
+  PlainTcpConfig conf = getTCPConfig(id, cp.numOfClients, cp.numOfReplicas);
 #else
-  PlainUdpConfig conf = getUDPConfig(id);
+  PlainUdpConfig conf = getUDPConfig(id, cp.numOfClients, cp.numOfReplicas);
 #endif
   ICommunication* comm = bftEngine::CommFactory::create(conf);
 
-  SimpleClient* client = SimpleClient::createSimpleClient(comm, id, 1, 0);
+  SimpleClient* client =
+      SimpleClient::createSimpleClient(comm, id, cp.numOfFaulty, cp.numOfSlow);
   comm->Start();
 
   // The state number that the latest write operation returned.
@@ -103,7 +257,18 @@ int main(int argc, char **argv) {
   // operation.
   bool hasExpectedLastValue = false;
 
-  for (int i = 1; i <= numOfOperations; i++) {
+  LOG_INFO(clientLogger, "Starting " << cp.numOfOperations);
+
+  for (int i = 1; i <= cp.numOfOperations; i++) {
+
+    // the python script that runs the client needs to know how many
+    // iterations has been done - that's the reason we use printf and not
+    // logging module - to keep the output exactly as we expect.
+    if(i > 0 && i % 100 == 0) {
+      printf("Iterations count: 100\n");
+      printf("Total iterations count: %i\n", i);
+    }
+
     if (i % readMod == 0) {
       // Read the latest value every readMod-th operation.
 
@@ -132,11 +297,14 @@ int main(int argc, char **argv) {
                           kReplyBufferLength, replyBuffer, actualReplyLength);
 
       // Read should respond with eight bytes of data.
-      assert(actualReplyLength == sizeof(uint64_t));
+      test_assert(actualReplyLength == sizeof(uint64_t),
+          "actualReplyLength != " << sizeof(uint64_t));
 
       // Only assert the last expected value if we have previous set a value.
       if (hasExpectedLastValue)
-        assert(*reinterpret_cast<uint64_t*>(replyBuffer) == expectedLastValue);
+        test_assert(
+            *reinterpret_cast<uint64_t*>(replyBuffer) == expectedLastValue,
+            "*reinterpret_cast<uint64_t*>(replyBuffer)!=" << expectedLastValue);
     } else {
       // Send a write, if we're not doing a read.
 
@@ -172,7 +340,8 @@ int main(int argc, char **argv) {
       hasExpectedLastValue = true;
 
       // Write should respond with eight bytes of data.
-      assert(actualReplyLength == sizeof(uint64_t));
+      test_assert(actualReplyLength == sizeof(uint64_t),
+          "actualReplyLength != " << sizeof(uint64_t));
 
       uint64_t retVal = *reinterpret_cast<uint64_t*>(replyBuffer);
 
@@ -182,7 +351,8 @@ int main(int argc, char **argv) {
         // If we had done a previous write, then this write should return the
         // state number right after the state number that that write returned.
         expectedStateNum++;
-        assert(retVal == expectedStateNum);
+        test_assert(retVal == expectedStateNum,
+            "retVal != " << expectedLastValue);
       } else {
         hasExpectedStateNum = true;
         expectedStateNum = retVal;
@@ -197,5 +367,6 @@ int main(int argc, char **argv) {
   delete client;
   delete comm;
 
+  LOG_INFO(clientLogger, "test done, iterations: " << cp.numOfOperations);
   return 0;
 }

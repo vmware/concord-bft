@@ -74,8 +74,6 @@ enum ConnType : uint8_t {
   Outgoing
 };
 
-recursive_mutex _connectionsGuard;
-
 /** this class will handle single connection using boost::make_shared idiom
  * will receive the IReceiver as a parameter and call it when new message
  * is available
@@ -108,6 +106,7 @@ class AsyncTcpConnection :
   bool _connecting = false;
   UPDATE_CONNECTIVITY_FN _statusCallback = nullptr;
   NodeMap _nodes;
+  recursive_mutex _connectionsGuard;
 
  public:
   B_TCP_SOCKET socket;
@@ -291,7 +290,6 @@ class AsyncTcpConnection :
 
     lock_guard<recursive_mutex> lock(_connectionsGuard);
 
-    // (IG): patch, dont do it, need to fix multithreading
     if (_wasError || _connecting) {
       LOG_TRACE(_logger,
           "was error, node " << _selfId << ", dest: " << _destId);
@@ -364,7 +362,6 @@ class AsyncTcpConnection :
 
   void read_msg_async_completed(const boost::system::error_code &ec,
                                 size_t bytesRead) {
-    // (IG): patch, dont do it, need to fix multithreading
     LOG_TRACE(_logger, "enter, node " << _selfId << ", dest: " << _destId);
 
     lock_guard<recursive_mutex> lock(_connectionsGuard);
@@ -377,7 +374,6 @@ class AsyncTcpConnection :
 
     auto err = was_error(ec, __func__);
     if (err) {
-      // (IG): patch, dont do it, need to fix multithreading
       _wasError = true;
       return;
     }
@@ -392,10 +388,6 @@ class AsyncTcpConnection :
     }
 
     read_header_async();
-
-    if (_statusCallback && !_destIsReplica)
-      LOG_DEBUG(_logger, "node " << _selfId
-                 << ", got message from non replica, node " << _destId);
 
     if (_statusCallback && _destIsReplica) {
       PeerConnectivityStatus pcs;
@@ -677,7 +669,8 @@ class AsyncTcpConnection :
 class PlainTCPCommunication::PlainTcpImpl {
  private:
   unordered_map<NodeNum, ASYNC_CONN_PTR> _connections;
-  concordlogger::Logger _logger = concordlogger::Logger::getLogger("plain-tcp");
+  concordlogger::Logger _logger = concordlogger::Logger::getLogger
+      ("concord-bft.tcp");
 
   unique_ptr<tcp::acceptor> _pAcceptor;
   std::thread *_pIoThread = nullptr;
@@ -691,6 +684,7 @@ class PlainTCPCommunication::PlainTcpImpl {
   uint32_t _bufferLength;
   uint32_t _maxServerId;
   UPDATE_CONNECTIVITY_FN _statusCallback = nullptr;
+  recursive_mutex _connectionsGuard;
 
   void on_async_connection_error(NodeNum peerId) {
     LOG_ERROR(_logger, "to: " << peerId);
@@ -867,7 +861,8 @@ class PlainTCPCommunication::PlainTcpImpl {
 
     _service.stop();
     _pIoThread->join();
-    _service.reset();
+
+    _connections.clear();
 
     return 0;
   }
@@ -935,7 +930,9 @@ class PlainTCPCommunication::PlainTcpImpl {
 };
 
 PlainTCPCommunication::~PlainTCPCommunication() {
-  _ptrImpl->Stop();
+  if (_ptrImpl) {
+    delete _ptrImpl;
+  }
 }
 
 PlainTCPCommunication::PlainTCPCommunication(const PlainTcpConfig &config) {
@@ -966,7 +963,6 @@ int PlainTCPCommunication::Stop() {
     return 0;
 
   auto res = _ptrImpl->Stop();
-  delete _ptrImpl;
   return res;
 }
 
