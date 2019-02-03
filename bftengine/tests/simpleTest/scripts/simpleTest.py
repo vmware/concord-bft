@@ -403,7 +403,7 @@ def main():
                         default="INFO")
     parser.add_argument("-i",
                         help="Set number of operations to run",
-                        default="2800")
+                        default=2800,type=int)
     parser.add_argument("-vct",
                         default=60000,
                         type=int,
@@ -463,13 +463,26 @@ def main():
         if 3 * f + 2 * c + 1 != n:
             g_logger.error("N = 3f + 2c + 1 is not satisfied")
             return -1
-        max_r = max(4, multiprocessing.cpu_count() * 2)
-        if r > max_r:
+        max_r = max(4, multiprocessing.cpu_count() * 3)
+        if r > max_r or r > 63:
             g_logger.error("max number of running replicas on your machine is "
                            "" + str(max_r))
             return -1
+        if r < 2 * f + c + 1:
+            g_logger.error("r >= 2f + c + 1 is not satisfied")
+            return -1
+        if r > n:
+            g_logger.error("r <= n is not satisfied")
+            return -1
+        if cl > 10:
+            g_logger.error("Max number of clients is 10")
+            return -1
 
         configs.append(BFT(param, n, r, f, c, cl, vc))
+
+    if args.i < 200 or args.i > 10000:
+        g_logger.error("-i value should be between 200 and 10000")
+        return -1
 
     cli = CLI(args.i, args.vct)
     scp = SimpleClientParams()

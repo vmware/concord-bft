@@ -121,7 +121,7 @@ levels in capital letters. Default is INFO
 *   ```-vct``` View Change timeout, in milliseconds (default is 60000)
 *   ```-bft``` List of BFT configurations to run, separated by white space, each configuration is like n=4,r=4,f=1,c=0,cl=1,testViewChange where:
 	*   n is total number of replicas in the system (both running and not)
-	*   r is number of actually running replicas (r <= n )
+	*   r is number of actually running replicas (r <= n and r >= 2f+c+1 )
 	*   f is max. number of faulty replicas
 	*   c is max. number of slow replicas
 	*   cl is number of clients to run
