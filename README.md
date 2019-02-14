@@ -86,6 +86,10 @@ Get GMP (dependency for [RELIC](https://github.com/relic-toolkit/relic)):
 
     sudo apt-get install libgmp3-dev
 
+Initialize submodules
+
+    git submodule init && git submodule update --recursive
+
 Build and install [RELIC](https://github.com/relic-toolkit/relic)
 
     cd

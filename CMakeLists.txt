@@ -111,3 +111,6 @@ add_subdirectory(threshsign)
 add_subdirectory(bftengine)
 add_subdirectory(tools)
 add_subdirectory(bftengine/tests)
+
+# Dependencies as submodules
+add_subdirectory(deps/gtest)
