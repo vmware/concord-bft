@@ -38,7 +38,7 @@
 
 // simpleTest includes
 #include "commonDefs.h"
-
+#include "test_comm_config.hpp"
 #include "Logging.hpp"
 
 #ifdef USE_LOG4CPP
@@ -52,12 +52,6 @@ using bftEngine::PlainTCPCommunication;
 using bftEngine::PlainTcpConfig;
 using bftEngine::SeqNumberGeneratorForClientRequests;
 using bftEngine::SimpleClient;
-
-// Declarations of functions form config.cpp.
-extern PlainUdpConfig getUDPConfig(
-    uint16_t id, int numOfClients, int numOfReplicas);
-extern PlainTcpConfig getTCPConfig(
-    uint16_t id, int numOfClients, int numOfReplicas);
 
 concordlogger::Logger clientLogger =
     concordlogger::Logger::getLogger("simpletest.client");
@@ -73,6 +67,7 @@ struct ClientParams {
   uint16_t numOfClients = 1;
   uint16_t numOfFaulty = 1;
   uint16_t numOfSlow = 0;
+  string   configFileName;
 };
 
 void parse_params(int argc, char** argv, ClientParams &cp,
@@ -168,8 +163,9 @@ void parse_params(int argc, char** argv, ClientParams &cp,
           exit(-1);
         }
         scp.clientPeriodicResetThresh = (uint16_t)prt;
+      } else if (p == "-cf") {
+        cp.configFileName = argv[i + 1];
       }
-
       else {
         printf("Unknown parameter %s\n", p.c_str());
         exit(-1);
@@ -185,10 +181,6 @@ void parse_params(int argc, char** argv, ClientParams &cp,
     exit(-1);
   }
 
-  if(3 * cp.numOfFaulty + 2 * cp.numOfSlow + 1 != cp.numOfReplicas) {
-    printf("Number of replicas is not 3f + 2c + 1\n");
-    exit(-1);
-  }
 }
 
 int main(int argc, char **argv) {
@@ -204,13 +196,6 @@ int main(int argc, char **argv) {
   bftEngine::SimpleClientParams scp;
   parse_params(argc, argv, cp, scp);
 
-  LOG_INFO(clientLogger, "ClientParams: clientId: " << cp.clientId
-     << ", numOfReplicas: " << cp.numOfReplicas
-     << ", numOfClients: " << cp.numOfClients
-     << ", numOfIterations: " << cp.numOfOperations
-     << ", fVal: " << cp.numOfFaulty
-     << ", cVal: " << cp.numOfSlow);
-
   LOG_INFO(clientLogger, "SimpleClientParams: clientInitialRetryTimeoutMilli: " << scp.clientInitialRetryTimeoutMilli
     << ", clientMinRetryTimeoutMilli: " << scp.clientMinRetryTimeoutMilli
     << ", clientMaxRetryTimeoutMilli: " << scp.clientMaxRetryTimeoutMilli
@@ -220,7 +205,7 @@ int main(int argc, char **argv) {
 
   // This client's index number. Must be larger than the largest replica index
   // number.
-  const int16_t id = cp.clientId;
+  const uint16_t id = cp.clientId;
 
   // How often to read the latest value of the register (every `readMod` ops).
   const int readMod = 7;
@@ -231,12 +216,32 @@ int main(int argc, char **argv) {
       SeqNumberGeneratorForClientRequests::
       createSeqNumberGeneratorForClientRequests();
 
+  TestCommConfig testCommConfig(clientLogger);
   // Configure, create, and start the Concord client to use.
 #ifdef USE_COMM_PLAIN_TCP
-  PlainTcpConfig conf = getTCPConfig(id, cp.numOfClients, cp.numOfReplicas);
+  PlainTcpConfig conf = testCommConfig.GetTCPConfig(
+      false, id, cp.numOfClients, cp.numOfReplicas, cp.configFileName);
 #else
-  PlainUdpConfig conf = getUDPConfig(id, cp.numOfClients, cp.numOfReplicas);
+  PlainUdpConfig conf = testCommConfig.GetUDPConfig(
+      false, id, cp.numOfClients, cp.numOfReplicas, cp.configFileName);
 #endif
+
+  LOG_INFO(clientLogger, "ClientParams: clientId: "
+                         << cp.clientId
+                         << ", numOfReplicas: " << cp.numOfReplicas
+                         << ", numOfClients: " << cp.numOfClients
+                         << ", numOfIterations: " << cp.numOfOperations
+                         << ", fVal: " << cp.numOfFaulty
+                         << ", cVal: " << cp.numOfSlow);
+
+  // Perform this check once all parameters configured.
+  if (3 * cp.numOfFaulty + 2 * cp.numOfSlow + 1 != cp.numOfReplicas) {
+    LOG_FATAL(clientLogger, "Number of replicas is not equal to 3f + 2c + 1 :"
+                            " f=" << cp.numOfFaulty << ", c=" << cp.numOfSlow <<
+                            ", numOfReplicas=" << cp.numOfReplicas);
+    exit(-1);
+  }
+
   ICommunication* comm = bftEngine::CommFactory::create(conf);
 
   SimpleClient* client =
