@@ -59,6 +59,7 @@
 #include "Replica.hpp"
 #include "ReplicaConfig.hpp"
 #include "SimpleStateTransfer.hpp"
+#include "test_comm_config.hpp"
 #include "Logging.hpp"
 
 // simpleTest includes
@@ -76,9 +77,10 @@ struct ReplicaParams {
   uint16_t replicaId;
   uint16_t numOfReplicas = 4;
   uint16_t numOfClients = 1;
-  bool debug = false;
-  bool viewChangeEnabled = false;
+  bool     debug = false;
+  bool     viewChangeEnabled = false;
   uint32_t viewChangeTimeout = 60000; // ms
+  string   configFileName;
 } rp;
 
 void signalHandler( int signum ) {
@@ -102,13 +104,6 @@ using bftEngine::Replica;
 using bftEngine::ReplicaConfig;
 using bftEngine::RequestsHandler;
 using namespace std;
-
-// Declarations of functions from config.cpp.
-void getReplicaConfig(uint16_t replicaId, bftEngine::ReplicaConfig* outConfig);
-extern PlainUdpConfig getUDPConfig(
-    uint16_t id, int numOfClients, int numOfReplicas);
-extern PlainTcpConfig getTCPConfig(
-    uint16_t id, int numOfClients, int numOfReplicas);
 
 void parse_params(int argc, char** argv) {
   if(argc < 2) {
@@ -176,6 +171,9 @@ void parse_params(int argc, char** argv) {
           }
           rp.viewChangeTimeout = vct;
           i += 2;
+        } else if (p == "-cf") {
+          rp.configFileName = argv[i + 1];
+          i += 2;
         } else {
           printf("Unknown parameter %s\n", p.c_str());
           exit(-1);
@@ -190,12 +188,6 @@ void parse_params(int argc, char** argv) {
       }
   }
 
-  LOG_INFO(replicaLogger, "ReplicaParams: replicaId: " << rp.replicaId
-  << ", numOfReplicas: " << rp.numOfReplicas
-  << ", numOfClients: " << rp.numOfClients
-  << ", vcEnabled: " << rp.viewChangeEnabled
-  << ", vcTimeout: " << rp.viewChangeTimeout
-  << ", debug: " << rp.debug);
 }
 
 // The replica state machine.
@@ -323,25 +315,42 @@ int main(int argc, char **argv) {
   signal(SIGKILL, signalHandler);
 
   ReplicaConfig replicaConfig;
-  getReplicaConfig(rp.replicaId, &replicaConfig);
+  TestCommConfig testCommConfig(replicaLogger);
+  testCommConfig.GetReplicaConfig(rp.replicaId, &replicaConfig);
   replicaConfig.numOfClientProxies = rp.numOfClients;
   replicaConfig.autoViewChangeEnabled = rp.viewChangeEnabled;
   replicaConfig.viewChangeTimerMillisec = rp.viewChangeTimeout;
 
-  LOG_DEBUG(replicaLogger,
-      "ReplicaConfig: replicaId: " << replicaConfig.replicaId
-      << ", fVal: " << replicaConfig.fVal
-      << ", cVal: " << replicaConfig.cVal
-      << ", autoViewChangeEnabled: " << replicaConfig.autoViewChangeEnabled
-      << ", viewChangeTimerMillisec: " << rp.viewChangeTimeout);
-
 #ifdef USE_COMM_PLAIN_TCP
-  PlainTcpConfig conf = getTCPConfig(rp.replicaId, rp.numOfClients, rp.numOfReplicas);
+  PlainTcpConfig conf = testCommConfig.GetTCPConfig(true, rp.replicaId,
+                                                    rp.numOfClients,
+                                                    rp.numOfReplicas,
+                                                    rp.configFileName);
 #else
-  PlainUdpConfig conf = getUDPConfig(
-      rp.replicaId, rp.numOfClients, rp.numOfReplicas);
+  PlainUdpConfig conf = testCommConfig.GetUDPConfig(true, rp.replicaId,
+                                                    rp.numOfClients,
+                                                    rp.numOfReplicas,
+                                                    rp.configFileName);
 #endif
+
+  LOG_DEBUG(replicaLogger, "ReplicaConfig: replicaId: "
+                           << replicaConfig.replicaId
+                           << ", fVal: " << replicaConfig.fVal
+                           << ", cVal: " << replicaConfig.cVal
+                           << ", autoViewChangeEnabled: "
+                           << replicaConfig.autoViewChangeEnabled
+                           << ", viewChangeTimerMillisec: "
+                           << rp.viewChangeTimeout);
+
   ICommunication* comm = bftEngine::CommFactory::create(conf);
+
+  LOG_INFO(replicaLogger, "ReplicaParams: replicaId: "
+                          << rp.replicaId
+                          << ", numOfReplicas: " << rp.numOfReplicas
+                          << ", numOfClients: " << rp.numOfClients
+                          << ", vcEnabled: " << rp.viewChangeEnabled
+                          << ", vcTimeout: " << rp.viewChangeTimeout
+                          << ", debug: " << rp.debug);
 
   // This is the state machine that the replica will drive.
   SimpleAppState simpleAppState(rp.numOfClients, rp.numOfReplicas);

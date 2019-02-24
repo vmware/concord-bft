@@ -192,7 +192,9 @@ class PlainUDPCommunication::PlainUdpImpl {
     // Bind the socket.
     error = ::bind(udpSockFd, (struct sockaddr *) &sAddr, sizeof(Addr));
     if (error < 0) {
-      LOG_DEBUG(_logger, "Error while binding: " << strerror(errno));
+      LOG_FATAL(_logger, "Error while binding: IP=" << sAddr.sin_addr.s_addr <<
+                         ", Port=" << sAddr.sin_port <<
+                         ", errno="<< strerror(errno));
       Assert(false, "Failure occurred while binding the socket!");
       exit(1); // TODO(GG): not really ..... change this !
     }
