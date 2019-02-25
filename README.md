@@ -74,13 +74,13 @@ concord-bft is available under the [Apache 2 license](LICENSE).
 
 
 
-Build (Ubuntu Linux)
+Build (Ubuntu Linux 18.04)
 ----
 ### Dependencies
 
 CMake and clang:
 
-    sudo apt-get install cmake clang
+    sudo apt-get install cmake clang clang-format
 
 Get GMP (dependency for [RELIC](https://github.com/relic-toolkit/relic)):
 
@@ -165,15 +165,15 @@ Install Python 3
 
     sudo apt-get update
     sudo apt-get install python3
-    
+
 After the installation, please verify the version by running:
 
     python3 --version
-    
+
 It should be
-    
+
     Python 3.x.x
- 
+
 
 ### Select comm module
 We support both UDP and TCP communication (UDP is the default one).
