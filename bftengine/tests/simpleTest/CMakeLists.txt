@@ -1,21 +1,21 @@
 set(simpleTest_client_source_files
     client.cpp
-        test_comm_config.cpp
-        config_file_parser.cpp
+    test_comm_config.cpp
+    config_file_parser.cpp
     ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
 )
 
 set(simpleTest_replica_source_files
     replica.cpp
-        test_comm_config.cpp
-        config_file_parser.cpp
+    test_comm_config.cpp
+    config_file_parser.cpp
     ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
 )
 
 # This target should be moved to UT infrastructure code when created.
 set(config_source_files
-        config_file_parser.cpp
-        config_file_parser_test.cpp
+    config_file_parser.cpp
+    config_file_parser_test.cpp
 )
 
 add_executable(simpleTest_client

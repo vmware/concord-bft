@@ -29,27 +29,27 @@ class TestCommConfig: public ITestCommConfig {
                           bftEngine::ReplicaConfig* out_config) override;
 
     bftEngine::PlainUdpConfig GetUDPConfig(
-        bool is_replica, uint16_t id, uint16_t& num_of_clients,
+        bool is_replica, uint16_t node_id, uint16_t& num_of_clients,
         uint16_t& num_of_replicas, const std::string& config_file_name)
         override;
 
     bftEngine::PlainTcpConfig GetTCPConfig(
-        bool is_replica, uint16_t id, uint16_t& num_of_clients,
+        bool is_replica, uint16_t node_id, uint16_t& num_of_clients,
         uint16_t& num_of_replicas, const std::string& config_file_name)
         override;
 
   private:
     std::unordered_map <NodeNum, NodeInfo> SetUpConfiguredNodes(
-        bool is_replica, const std::string& config_file_name, uint16_t id,
+        bool is_replica, const std::string& config_file_name, uint16_t node_id,
         std::string& ip, uint16_t& port, uint16_t& num_of_clients,
         uint16_t& num_of_replicas);
 
     std::unordered_map <NodeNum, NodeInfo> SetUpDefaultNodes(
-        uint16_t id, std::string& ip, uint16_t& port, uint16_t num_of_clients,
+        uint16_t node_id, std::string& ip, uint16_t& port, uint16_t num_of_clients,
         uint16_t num_of_replicas);
 
     std::unordered_map <NodeNum, NodeInfo> SetUpNodes(
-        bool is_replica, uint16_t id, std::string& ip, uint16_t& port,
+        bool is_replica, uint16_t node_id, std::string& ip, uint16_t& port,
         uint16_t& num_of_clients, uint16_t& num_of_replicas,
         const std::string& config_file_name);
 
