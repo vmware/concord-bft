@@ -63,7 +63,7 @@ void TestCommConfig::GetReplicaConfig(uint16_t replica_id,
 }
 
 std::unordered_map <NodeNum, NodeInfo> TestCommConfig::SetUpConfiguredNodes(
-    bool is_replica, const std::string& config_file_name, uint16_t id,
+    bool is_replica, const std::string& config_file_name, uint16_t node_id,
     std::string& ip, uint16_t& port, uint16_t& num_of_clients,
     uint16_t& num_of_replicas) {
 
@@ -77,8 +77,8 @@ std::unordered_map <NodeNum, NodeInfo> TestCommConfig::SetUpConfiguredNodes(
       config_file_parser.Count(CLIENTS_CONFIG));
   num_of_replicas = static_cast<uint16_t>(
       config_file_parser.Count(REPLICAS_CONFIG));
-  if ((is_replica && (id + 1 > num_of_replicas)) ||
-      (!is_replica && (id + 1 > num_of_clients + num_of_replicas))) {
+  if ((is_replica && (node_id + 1 > num_of_replicas)) ||
+      (!is_replica && (node_id + 1 > num_of_clients + num_of_replicas))) {
     LOG_FATAL(logger_, "Wrong number of clients/replicas configured: " <<
                        "numOfClients=" << num_of_clients <<
                        ", numOfReplicas=" << num_of_replicas);
@@ -90,13 +90,14 @@ std::unordered_map <NodeNum, NodeInfo> TestCommConfig::SetUpConfiguredNodes(
   int k = 0;
   for (int i = 0; i < (num_of_replicas + num_of_clients); i++) {
     vector<string>& current_vector = replicas;
-    if ((k == i) && (i >= num_of_replicas)) { // Ensure this happens only once.
+    if ((k == i) && (i >= num_of_replicas)) {
+      // All replicas were handled, now switch to clients.
       current_vector = clients;
       k = 0;
     }
     vector<string> ip_port_pair =
         config_file_parser.SplitValue(current_vector[k++], ip_port_delimiter_);
-    LOG_INFO(logger_, "setUpConfiguredNodes() id: " << id <<
+    LOG_INFO(logger_, "setUpConfiguredNodes() node_id: " << node_id <<
                       ", k: " << k - 1 <<
                       ", port:" << (uint16_t)(std::stoi(ip_port_pair[1])));
     if (ip_port_pair.size() != 2) {
@@ -105,7 +106,7 @@ std::unordered_map <NodeNum, NodeInfo> TestCommConfig::SetUpConfiguredNodes(
                           ip_port_pair.size());
       exit(-1);
     }
-    if (i == id) {
+    if (i == node_id) {
       ip = ip_port_pair[0];
       port = static_cast<uint16_t>(std::stoi(ip_port_pair[1]));
     }
@@ -117,11 +118,11 @@ std::unordered_map <NodeNum, NodeInfo> TestCommConfig::SetUpConfiguredNodes(
 }
 
 std::unordered_map <NodeNum, NodeInfo> TestCommConfig::SetUpDefaultNodes(
-    uint16_t id, std::string& ip, uint16_t& port, uint16_t num_of_clients,
+    uint16_t node_id, std::string& ip, uint16_t& port, uint16_t num_of_clients,
     uint16_t num_of_replicas) {
 
   ip = default_ip_;
-  port = static_cast<uint16_t>(base_port_ + id * 2);
+  port = static_cast<uint16_t>(base_port_ + node_id * 2);
   // Create a map of where the port for each node is.
   std::unordered_map<NodeNum, NodeInfo> nodes;
   for (int i = 0; i < (num_of_replicas + num_of_clients); i++)
@@ -132,44 +133,44 @@ std::unordered_map <NodeNum, NodeInfo> TestCommConfig::SetUpDefaultNodes(
 }
 
 std::unordered_map <NodeNum, NodeInfo> TestCommConfig::SetUpNodes(
-    bool is_replica, uint16_t id, std::string& ip, uint16_t& port,
+    bool is_replica, uint16_t node_id, std::string& ip, uint16_t& port,
     uint16_t& num_of_clients, uint16_t& num_of_replicas,
     const std::string& config_file_name) {
 
   std::unordered_map<NodeNum, NodeInfo> nodes;
   if (config_file_name.empty())
-    return SetUpDefaultNodes(id, ip, port, num_of_clients, num_of_replicas);
+    return SetUpDefaultNodes(node_id, ip, port, num_of_clients, num_of_replicas);
   else
-    return SetUpConfiguredNodes(is_replica, config_file_name, id, ip, port,
+    return SetUpConfiguredNodes(is_replica, config_file_name, node_id, ip, port,
                                 num_of_clients, num_of_replicas);
 }
 
 // Create a UDP communication configuration for the node (replica or client)
 // with index `id`.
 PlainUdpConfig TestCommConfig::GetUDPConfig(
-    bool is_replica, uint16_t id, uint16_t& num_of_clients,
+    bool is_replica, uint16_t node_id, uint16_t& num_of_clients,
     uint16_t& num_of_replicas, const std::string&config_file_name) {
   string   ip;
   uint16_t port;
   std::unordered_map <NodeNum, NodeInfo> nodes =
-      SetUpNodes(is_replica, id, ip, port, num_of_clients,
+      SetUpNodes(is_replica, node_id, ip, port, num_of_clients,
                  num_of_replicas, config_file_name);
 
-  PlainUdpConfig ret_val(ip, port, buf_length_, nodes, id);
+  PlainUdpConfig ret_val(ip, port, buf_length_, nodes, node_id);
   return ret_val;
 }
 
 // Create a UDP communication configuration for the node (replica or client)
 // with index `id`.
 PlainTcpConfig TestCommConfig::GetTCPConfig(
-    bool is_replica, uint16_t id, uint16_t& num_of_clients,
+    bool is_replica, uint16_t node_id, uint16_t& num_of_clients,
     uint16_t& num_of_replicas, const std::string& config_file_name) {
   string   ip;
   uint16_t port;
   std::unordered_map <NodeNum, NodeInfo> nodes =
-      SetUpNodes(is_replica, id, ip, port, num_of_clients, num_of_replicas,
+      SetUpNodes(is_replica, node_id, ip, port, num_of_clients, num_of_replicas,
                  config_file_name);
 
-  PlainTcpConfig ret_val(ip, port, buf_length_, nodes, num_of_replicas - 1, id);
+  PlainTcpConfig ret_val(ip, port, buf_length_, nodes, num_of_replicas - 1, node_id);
   return ret_val;
 }
