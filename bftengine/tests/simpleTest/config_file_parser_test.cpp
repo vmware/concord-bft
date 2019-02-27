@@ -11,12 +11,13 @@ using std::vector;
 
 int main(int argc, char **argv) {
 
-  cout << "Enter configuration file name with a full path:\n";
+  cout << "Enter configuration file name with a full/relative path,"
+       << " or 'd' for a default:\n";
 
-  const string default_config_file = "sample_config.txt";
+  const string default_config_file = "scripts/sample_config.txt";
   string config_file = default_config_file;
   string given_config_file;
-  const string use_default_config_file = ".\n";
+  const string use_default_config_file = "d";
   const uint expected_replicas_num = 4;
   const uint expected_clients_num = 1;
   const string expected_replica1 = "127.0.0.1:3410";
@@ -25,11 +26,11 @@ int main(int argc, char **argv) {
   const string expected_replica4 = "127.0.0.1:3440";
   const string expected_client   = "127.0.0.1:4444";
   const string values_to_split = "10.23.43.1:1234:1238";
-  const string expected_split_values[] = { "10.23.43.1", "1234", "1238"};
+  const string expected_split_values[] = { "10.23.43.1", "1234", "1238" };
   const string values_to_split_delimiter = ":";
 
   cin >> given_config_file;
-  if (given_config_file == use_default_config_file)
+  if (given_config_file != use_default_config_file)
     config_file = given_config_file;
   concordlogger::Logger logger =
       concordlogger::Logger::getLogger("simpletest.test");
