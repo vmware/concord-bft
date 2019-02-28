@@ -3,7 +3,7 @@
 BFT="concord-bft"
 
 if [ -z "$1" ]; then
-  >&2 echo "ERROR: Path to ${BFT} directory required"
+  >&2 echo "Usage: format-code.sh <concord-bft path>"
   return 1
 fi
 
