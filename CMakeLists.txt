@@ -1,4 +1,11 @@
 cmake_minimum_required(VERSION 3.2)
+
+# Default to building with clang on Linux,OSX,BSD etc...
+# This must come before the project definition or it won't be picked up.
+if(NOT ENV{CXX} AND UNIX)
+    set(ENV{CXX} clang++)
+endif()
+
 project(concord-bft VERSION 0.1.0.0 LANGUAGES CXX)
 
 #
@@ -14,6 +21,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(IS_LEAKCHECK FALSE)
 set(BUILD_COMM_TCP_TLS FALSE)
 set(SLEEP_FOR_DBG FALSE)
+
+# Default to debug builds
+# Release builds can be enabled by running cmake with -DCMAKE_BUILD_TYPE=Release
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "ENABLE DEBUG BUILDS" FORCE)
+endif()
 
 #if not set to TRUE by the app, set from here
 if(NOT USE_LOG4CPP)
@@ -34,7 +47,7 @@ endif()
 #
 # Compiler options
 #
-# 
+#
 
 string(APPEND CXX_FLAGS " -Wall")
 string(APPEND CXX_FLAGS " -Wbuiltin-macro-redefined")
