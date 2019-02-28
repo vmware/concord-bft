@@ -19,8 +19,8 @@ using std::pair;
 
 namespace SimpleKVBC {
 
-    typedef uint64_t BlockId;
-    typedef Slice Key;
-    typedef Slice Value;
-    typedef pair<Key, Value> KeyValuePair;
-}
+typedef uint64_t BlockId;
+typedef Slice Key;
+typedef Slice Value;
+typedef pair<Key, Value> KeyValuePair;
+}  // namespace SimpleKVBC

@@ -3,7 +3,8 @@
 // Copyright (c) 2018 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
-// You may not use this product except in compliance with the Apache 2.0 License.
+// You may not use this product except in compliance with the Apache 2.0
+// License.
 //
 // This product may include a number of subcomponents with separate copyright
 // notices and license terms. Your use of these subcomponents is subject to the
@@ -26,28 +27,32 @@ namespace BLS {
 namespace Relic {
 
 class BlsMultisigAccumulator : public BlsAccumulatorBase {
-protected:
+ protected:
+ public:
+  BlsMultisigAccumulator(const std::vector<BlsPublicKey>& vks,
+                         NumSharesType reqSigners,
+                         NumSharesType totalSigners,
+                         bool withShareVerification);
+  virtual ~BlsMultisigAccumulator() {}
 
-public:
-    BlsMultisigAccumulator(const std::vector<BlsPublicKey>& vks, NumSharesType reqSigners, NumSharesType totalSigners, bool withShareVerification);
-    virtual ~BlsMultisigAccumulator() {}
+  // IThresholdAccumulator overloads.
+ public:
+  virtual void getFullSignedData(char* outThreshSig, int threshSigLen);
 
-// IThresholdAccumulator overloads.
-public:
-    virtual void getFullSignedData(char* outThreshSig, int threshSigLen);
+  virtual IThresholdAccumulator* clone() {
+    // Call copy constructor.
+    return new BlsMultisigAccumulator(*this);
+  }
 
-    virtual IThresholdAccumulator* clone() {
-        // Call copy constructor.
-        return new BlsMultisigAccumulator(*this);
-    }
+  virtual bool hasShareVerificationEnabled() const {
+    return shareVerificationEnabled;
+  }
 
-    virtual bool hasShareVerificationEnabled() const { return shareVerificationEnabled; }
+  // Used internally or for testing
+ public:
+  virtual void aggregateShares();
 
-// Used internally or for testing
-public:
-    virtual void aggregateShares();
-
-    virtual void sigToBytes(unsigned char * buf, int len) const;
+  virtual void sigToBytes(unsigned char* buf, int len) const;
 };
 
 } /* namespace Relic */

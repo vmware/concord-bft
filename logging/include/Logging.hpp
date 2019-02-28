@@ -3,7 +3,8 @@
 // Copyright (c) 2018 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
-// You may not use this product except in compliance with the Apache 2.0 License.
+// You may not use this product except in compliance with the Apache 2.0
+// License.
 //
 // This product may include a number of subcomponents with separate copyright
 // notices and license terms. Your use of these subcomponents is subject to the
@@ -29,30 +30,16 @@ namespace concordlogger {
 #ifndef USE_LOG4CPP
 
 // log levels as defined in log4cpp
-enum LogLevel {
-  trace,
-  debug,
-  info,
-  warn,
-  error,
-  fatal,
-  off,
-  all = trace
-};
+enum LogLevel { trace, debug, info, warn, error, fatal, off, all = trace };
 
 constexpr LogLevel CURRENT_LEVEL = LogLevel::info;
 #define CHECK_ENABLED(l) \
-if (CURRENT_LEVEL == LogLevel::off || l < CURRENT_LEVEL) return;
+  if (CURRENT_LEVEL == LogLevel::off || l < CURRENT_LEVEL) return;
 
 class SimpleLoggerImpl {
   std::string _name;
-  std::string LEVELS_STRINGS[6] =
-      {"TRACE",
-       "DEBUG",
-       "INFO",
-       "WARN",
-       "ERROR",
-       "FATAL"};
+  std::string LEVELS_STRINGS[6] = {
+      "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"};
 
   inline void get_time(std::stringstream &ss) {
     using namespace std::chrono;
@@ -60,9 +47,8 @@ class SimpleLoggerImpl {
     auto ms = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
     auto timer = system_clock::to_time_t(now);
     std::tm bt = *std::localtime(&timer);
-    ss << std::put_time(&bt, "%F %T")
-       << "."
-       << std::setfill('0') << std::setw(3) << ms.count();
+    ss << std::put_time(&bt, "%F %T") << "." << std::setfill('0')
+       << std::setw(3) << ms.count();
   }
 
  public:
@@ -80,7 +66,7 @@ class SimpleLoggerImpl {
 };
 
 typedef SimpleLoggerImpl LoggerImpl;
-#endif // USE_LOG4CPP
+#endif  // USE_LOG4CPP
 
 class Logger {
  private:
@@ -93,14 +79,12 @@ class Logger {
     auto size = std::vsnprintf(nullptr, 0, format, args2);
     va_end(args2);
     std::string output(size + 1, '\0');
-    std::vsnprintf((char *) output.c_str(), size + 1, format, args);
+    std::vsnprintf((char *)output.c_str(), size + 1, format, args);
     return output;
   }
 
  public:
-  inline LoggerImpl getImpl() {
-    return _impl;
-  }
+  inline LoggerImpl getImpl() { return _impl; }
 
   inline void fatal(std::string msg) {
 #ifdef USE_LOG4CPP
@@ -113,7 +97,7 @@ class Logger {
 
   inline void fatal(const char *format, ...) {
     va_list args;
-    va_start (args, format);
+    va_start(args, format);
 #ifdef USE_LOG4CPP
     LOG4CPLUS_FATAL_FMT(_impl, format, args);
 #else
@@ -124,9 +108,7 @@ class Logger {
     va_end(args);
   }
 
-  inline void fatal(std::ostringstream &os) {
-    fatal(os.str());
-  }
+  inline void fatal(std::ostringstream &os) { fatal(os.str()); }
 
   inline void error(std::string msg) {
 #ifdef USE_LOG4CPP
@@ -139,7 +121,7 @@ class Logger {
 
   inline void error(const char *format, ...) {
     va_list args;
-    va_start (args, format);
+    va_start(args, format);
 #ifdef USE_LOG4CPP
     LOG4CPLUS_ERROR_FMT(_impl, format, args);
 #else
@@ -150,9 +132,7 @@ class Logger {
     va_end(args);
   }
 
-  inline void error(std::ostringstream &os) {
-    error(os.str());
-  }
+  inline void error(std::ostringstream &os) { error(os.str()); }
 
   inline void warn(std::string msg) {
 #ifdef USE_LOG4CPP
@@ -165,7 +145,7 @@ class Logger {
 
   inline void warn(const char *format, ...) {
     va_list args;
-    va_start (args, format);
+    va_start(args, format);
 #ifdef USE_LOG4CPP
     LOG4CPLUS_WARN_FMT(_impl, format, args);
 #else
@@ -176,9 +156,7 @@ class Logger {
     va_end(args);
   }
 
-  inline void warn(std::ostringstream &os) {
-    warn(os.str());
-  }
+  inline void warn(std::ostringstream &os) { warn(os.str()); }
 
   inline void info(std::string msg) {
 #ifdef USE_LOG4CPP
@@ -191,7 +169,7 @@ class Logger {
 
   inline void info(const char *format, ...) {
     va_list args;
-    va_start (args, format);
+    va_start(args, format);
 #ifdef USE_LOG4CPP
     LOG4CPLUS_INFO_FMT(_impl, format, args);
 #else
@@ -202,9 +180,7 @@ class Logger {
     va_end(args);
   }
 
-  inline void info(std::ostringstream &os) {
-    info(os.str());
-  }
+  inline void info(std::ostringstream &os) { info(os.str()); }
 
   inline void debug(std::string msg) {
 #ifdef USE_LOG4CPP
@@ -217,7 +193,7 @@ class Logger {
 
   inline void debug(const char *format, ...) {
     va_list args;
-    va_start (args, format);
+    va_start(args, format);
 #ifdef USE_LOG4CPP
     LOG4CPLUS_DEBUG_FMT(_impl, format, args);
 #else
@@ -228,9 +204,7 @@ class Logger {
     va_end(args);
   }
 
-  inline void debug(std::ostringstream &os) {
-    debug(os.str());
-  }
+  inline void debug(std::ostringstream &os) { debug(os.str()); }
 
   inline void trace(std::string msg) {
 #ifdef USE_LOG4CPP
@@ -243,7 +217,7 @@ class Logger {
 
   inline void trace(const char *format, ...) {
     va_list args;
-    va_start (args, format);
+    va_start(args, format);
 #ifdef USE_LOG4CPP
     LOG4CPLUS_FATAL_FMT(_impl, format, args);
 #else
@@ -254,9 +228,7 @@ class Logger {
     va_end(args);
   }
 
-  inline void trace(std::ostringstream &os) {
-    trace(os.str());
-  }
+  inline void trace(std::ostringstream &os) { trace(os.str()); }
 
   static Logger getLogger(std::string name) {
 #ifdef USE_LOG4CPP
@@ -264,47 +236,78 @@ class Logger {
     return Logger(l);
 #else
     return Logger(SimpleLoggerImpl(name));
-#endif // USE_LOG4CPP
+#endif  // USE_LOG4CPP
   }
-}; // Logger
+};  // Logger
 
 #ifdef USE_LOG4CPP
-#define LOG_TRACE(l, s) LOG4CPLUS_TRACE(l.getImpl(),s)
+#define LOG_TRACE(l, s) LOG4CPLUS_TRACE(l.getImpl(), s)
 #define LOG_TRACE_F(l, ...) LOG4CPLUS_TRACE_FMT(l.getImpl(), __VA_ARGS__)
 
-#define LOG_DEBUG(l, s)LOG4CPLUS_DEBUG(l.getImpl(),s)
-#define LOG_DEBUG_F(l,...) LOG4CPLUS_DEBUG_FMT(l.getImpl(),__VA_ARGS__)
+#define LOG_DEBUG(l, s) LOG4CPLUS_DEBUG(l.getImpl(), s)
+#define LOG_DEBUG_F(l, ...) LOG4CPLUS_DEBUG_FMT(l.getImpl(), __VA_ARGS__)
 
-#define LOG_INFO(l, s) LOG4CPLUS_INFO(l.getImpl(),s)
-#define LOG_INFO_F(l,...) LOG4CPLUS_INFO_FMT(l.getImpl(), __VA_ARGS__)
+#define LOG_INFO(l, s) LOG4CPLUS_INFO(l.getImpl(), s)
+#define LOG_INFO_F(l, ...) LOG4CPLUS_INFO_FMT(l.getImpl(), __VA_ARGS__)
 
-#define LOG_WARN(l, s) LOG4CPLUS_WARN(l.getImpl(),s)
-#define LOG_WARN_F(logger,...) LOG4CPLUS_WARN_FMT(logger.getImpl(),__VA_ARGS__)
+#define LOG_WARN(l, s) LOG4CPLUS_WARN(l.getImpl(), s)
+#define LOG_WARN_F(logger, ...) \
+  LOG4CPLUS_WARN_FMT(logger.getImpl(), __VA_ARGS__)
 
-#define LOG_ERROR(l, s) LOG4CPLUS_ERROR(l.getImpl(),s)
-#define LOG_ERROR_F(l,...) LOG4CPLUS_ERROR_FMT(l.getImpl(),__VA_ARGS__)
+#define LOG_ERROR(l, s) LOG4CPLUS_ERROR(l.getImpl(), s)
+#define LOG_ERROR_F(l, ...) LOG4CPLUS_ERROR_FMT(l.getImpl(), __VA_ARGS__)
 
-#define LOG_FATAL(l, s) LOG4CPLUS_FATAL(l.getImpl(),s)
-#define LOG_FATAL_F(l,...) LOG4CPLUS_FATAL_FMT(l.getImpl(),__VA_ARGS__)
+#define LOG_FATAL(l, s) LOG4CPLUS_FATAL(l.getImpl(), s)
+#define LOG_FATAL_F(l, ...) LOG4CPLUS_FATAL_FMT(l.getImpl(), __VA_ARGS__)
 #else
-#define LOG_TRACE(l, s) {std::ostringstream os; os << s; l.trace (os);}
+#define LOG_TRACE(l, s)    \
+  {                        \
+    std::ostringstream os; \
+    os << s;               \
+    l.trace(os);           \
+  }
 #define LOG_TRACE_F(l, ...) l.trace(__VA_ARGS__)
 
-#define LOG_DEBUG(l, s) {std::ostringstream os; os << s; l.debug (os);}
+#define LOG_DEBUG(l, s)    \
+  {                        \
+    std::ostringstream os; \
+    os << s;               \
+    l.debug(os);           \
+  }
 #define LOG_DEBUG_F(l, ...) l.debug(__VA_ARGS__)
 
-#define LOG_INFO(l, s) {std::ostringstream os; os << s; l.info (os);}
+#define LOG_INFO(l, s)     \
+  {                        \
+    std::ostringstream os; \
+    os << s;               \
+    l.info(os);            \
+  }
 #define LOG_INFO_F(l, ...) l.info(__VA_ARGS__)
 
-#define LOG_WARN(l, s) {std::ostringstream os; os << s; l.warn(os);}
+#define LOG_WARN(l, s)     \
+  {                        \
+    std::ostringstream os; \
+    os << s;               \
+    l.warn(os);            \
+  }
 #define LOG_WARN_F(l, ...) l.warn(__VA_ARGS__)
 
-#define LOG_ERROR(l, s) {std::ostringstream os; os << s; l.error(os);}
+#define LOG_ERROR(l, s)    \
+  {                        \
+    std::ostringstream os; \
+    os << s;               \
+    l.error(os);           \
+  }
 #define LOG_ERROR_F(l, ...) l.error(__VA_ARGS__)
 
-#define LOG_FATAL(l, s) {std::ostringstream os; os << s; l.fatal(os);}
+#define LOG_FATAL(l, s)    \
+  {                        \
+    std::ostringstream os; \
+    os << s;               \
+    l.fatal(os);           \
+  }
 #define LOG_FATAL_F(l, ...) l.fatal(__VA_ARGS__)
 #endif
 
-} // namespace
-#endif //CONCORD_BFT_LOGGING_HPP
+}  // namespace concordlogger
+#endif  // CONCORD_BFT_LOGGING_HPP

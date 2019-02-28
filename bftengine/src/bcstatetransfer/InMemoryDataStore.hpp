@@ -24,7 +24,7 @@ using std::map;
 
 namespace bftEngine {
 namespace SimpleBlockchainStateTransfer {
-namespace impl  {
+namespace impl {
 
 class InMemoryDataStore : public DataStore {
  public:
@@ -67,7 +67,6 @@ class InMemoryDataStore : public DataStore {
   // Checkpoints
   //////////////////////////////////////////////////////////////////////////
 
-
   void setCheckpointDesc(uint64_t checkpoint,
                          const CheckpointDesc& desc) override;
   CheckpointDesc getCheckpointDesc(uint64_t checkpoint) override;
@@ -86,7 +85,6 @@ class InMemoryDataStore : public DataStore {
   bool hasCheckpointBeingFetched() override;
   void deleteCheckpointBeingFetched() override;
 
-
   void setFirstRequiredBlock(uint64_t i) override;
   uint64_t getFirstRequiredBlock() override;
 
@@ -98,28 +96,39 @@ class InMemoryDataStore : public DataStore {
   //////////////////////////////////////////////////////////////////////////
 
   void setPendingResPage(uint32_t inPageId,
-                         const char* inPage, uint32_t inPageLen) override;
+                         const char* inPage,
+                         uint32_t inPageLen) override;
   bool hasPendingResPage(uint32_t inPageId) override;
   void getPendingResPage(uint32_t inPageId,
-                         char* outPage, uint32_t pageLen) override;
+                         char* outPage,
+                         uint32_t pageLen) override;
   uint32_t numOfAllPendingResPage() override;
   set<uint32_t> getNumbersOfPendingResPages() override;
   void deleteAllPendingPages() override;
 
-  void associatePendingResPageWithCheckpoint(uint32_t inPageId,
-               uint64_t inCheckpoint, const STDigest& inPageDigest) override;
+  void associatePendingResPageWithCheckpoint(
+      uint32_t inPageId,
+      uint64_t inCheckpoint,
+      const STDigest& inPageDigest) override;
 
-
-  void setResPage(uint32_t inPageId, uint64_t inCheckpoint,
-                  const STDigest& inPageDigest, const char* inPage) override;
-  void getResPage(uint32_t inPageId, uint64_t inCheckpoint,
+  void setResPage(uint32_t inPageId,
+                  uint64_t inCheckpoint,
+                  const STDigest& inPageDigest,
+                  const char* inPage) override;
+  void getResPage(uint32_t inPageId,
+                  uint64_t inCheckpoint,
                   uint64_t* outActualCheckpoint) override;
-  void getResPage(uint32_t inPageId, uint64_t inCheckpoint,
-                  uint64_t* outActualCheckpoint, char* outPage,
+  void getResPage(uint32_t inPageId,
+                  uint64_t inCheckpoint,
+                  uint64_t* outActualCheckpoint,
+                  char* outPage,
                   uint32_t copylength) override;
-  void getResPage(uint32_t inPageId, uint64_t inCheckpoint,
-                  uint64_t* outActualCheckpoint, STDigest* outPageDigest,
-                  char* outPage, uint32_t copylength) override;
+  void getResPage(uint32_t inPageId,
+                  uint64_t inCheckpoint,
+                  uint64_t* outActualCheckpoint,
+                  STDigest* outPageDigest,
+                  char* outPage,
+                  uint32_t copylength) override;
 
   void deleteCoveredResPageInSmallerCheckpoints(uint64_t inCheckpoint) override;
 

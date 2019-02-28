@@ -35,13 +35,12 @@ static CryptoPP::RandomPool sGlobalRandGen;
 const unsigned int rsaKeyLength = 2048;
 
 static std::pair<std::string, std::string> generateRsaKey() {
-
   // Uses CryptoPP implementation of RSA key generation.
 
   std::pair<std::string, std::string> keyPair;
 
-  CryptoPP::RSAES<CryptoPP::OAEP<CryptoPP::SHA256>>::Decryptor
-    priv(sGlobalRandGen, rsaKeyLength);
+  CryptoPP::RSAES<CryptoPP::OAEP<CryptoPP::SHA256>>::Decryptor priv(
+      sGlobalRandGen, rsaKeyLength);
   CryptoPP::HexEncoder privEncoder(new CryptoPP::StringSink(keyPair.first));
   priv.DEREncode(privEncoder);
   privEncoder.MessageEnd();
@@ -60,9 +59,10 @@ static bool parseUInt16(uint16_t& output,
                         uint16_t max,
                         const std::string& name) {
   long long unverifiedNum;
-  std::string errorMessage = "Invalid value given for " + name + ": " + str
-    + " (expected integer in range [" + std::to_string(min) + ", "
-    + std::to_string(max) + "], inclusive.\n";
+  std::string errorMessage = "Invalid value given for " + name + ": " + str +
+                             " (expected integer in range [" +
+                             std::to_string(min) + ", " + std::to_string(max) +
+                             "], inclusive.\n";
 
   try {
     unverifiedNum = std::stoll(str);
@@ -106,34 +106,35 @@ static bool parseUInt16(uint16_t& output,
  *         parameters, but it will not return an exit code indicating an error.
  */
 int main(int argc, char** argv) {
-
-  std::string usageMessage = "Usage:\n"
-    "GenerateConcordKeys -n TOTAL_NUMBER_OF_REPLICAS \\\n"
+  std::string usageMessage =
+      "Usage:\n"
+      "GenerateConcordKeys -n TOTAL_NUMBER_OF_REPLICAS \\\n"
       "  -f NUMBER_OF_FAULTY_REPLICAS_TO_TOLERATE -o OUTPUT_FILE_PREFIX\n"
-    "The generated keys will be output to a number of files, one per replica."
+      "The generated keys will be output to a number of files, one per replica."
       " The\nfiles will each be named OUTPUT_FILE_PREFIX<i>, where <i> is a"
       " sequential ID for\nthe replica to which the file corresponds in the"
       " range [0,\nTOTAL_NUMBER_OF_REPLICAS]. Each file contains all public"
       " keys for the cluster,\nbut only the private keys for the replica with"
       " the corresponding ID.\n"
-    "Optionally, you may also choose what types of cryptosystems to use:\n"
-    "  --execution_cryptosys SYSTEM_TYPE PARAMETER\n"
-    "  --slow_commit_cryptosys SYSTEM_TYPE PARAMETER\n"
-    "  --commit_cryptosys SYSTEM_TYPE PARAMETER\n"
-    "  --opptimistic_commit_cryptosys SYSTEM_TYPE PARAMETER\n"
-    "Currently, the following cryptosystem types are supported\n"
-    "(and take the following as parameters):\n";
+      "Optionally, you may also choose what types of cryptosystems to use:\n"
+      "  --execution_cryptosys SYSTEM_TYPE PARAMETER\n"
+      "  --slow_commit_cryptosys SYSTEM_TYPE PARAMETER\n"
+      "  --commit_cryptosys SYSTEM_TYPE PARAMETER\n"
+      "  --opptimistic_commit_cryptosys SYSTEM_TYPE PARAMETER\n"
+      "Currently, the following cryptosystem types are supported\n"
+      "(and take the following as parameters):\n";
 
   std::vector<std::pair<std::string, std::string>> cryptosystemTypes;
   Cryptosystem::getAvailableCryptosystemTypes(cryptosystemTypes);
   for (size_t i = 0; i < cryptosystemTypes.size(); ++i) {
-    usageMessage += "  " + cryptosystemTypes[i].first + " ("
-      + cryptosystemTypes[i].second + ")\n";
+    usageMessage += "  " + cryptosystemTypes[i].first + " (" +
+                    cryptosystemTypes[i].second + ")\n";
   }
-  
-  usageMessage += "If any of these cryptosystem selections are not made"
-    " explictly, a default will\nbe selected.\n\nSpecial options:\n  --help :"
-    " display this usage message and exit.\n";
+
+  usageMessage +=
+      "If any of these cryptosystem selections are not made"
+      " explictly, a default will\nbe selected.\n\nSpecial options:\n  --help :"
+      " display this usage message and exit.\n";
 
   // Display the usage message and exit if no arguments were given, or if --help
   // was given anywhere.
@@ -163,7 +164,7 @@ int main(int argc, char** argv) {
   std::string commitParam = "BN-P254";
   std::string optType = "multisig-bls";
   std::string optParam = "BN-P254";
-  
+
   // Read input from the command line.
   // Note we ignore argv[0] because that just contains the command that was used
   // to launch this executable by convention.
@@ -272,17 +273,21 @@ int main(int argc, char** argv) {
   uint32_t minN = 3 * (uint32_t)f + 1;
   if ((uint32_t)n < minN) {
     std::cout << "Due to the design of Byzantine fault tolerance, number of"
-      " replicas (-n) must be\ngreater than or equal to (3 * F + 1), where F"
-      " is the maximum number of faulty\nreplicas (-f).\n";
+                 " replicas (-n) must be\ngreater than or equal to (3 * F + "
+                 "1), where F"
+                 " is the maximum number of faulty\nreplicas (-f).\n";
     return -1;
   }
 
   // We require N - 3F - 1 to be even so C can be an integer.
   if (((n - (3 * f) - 1) % 2) != 0) {
-    std::cout << "For technical reasons stemming from our current"
-      " implementation of Byzantine\nfault tolerant consensus, we currently"
-      " require that (N - 3F - 1) be even, where\nN is the total number of"
-      " replicas (-n) and F is the maximum number of faulty\nreplicas (-f).\n";
+    std::cout
+        << "For technical reasons stemming from our current"
+           " implementation of Byzantine\nfault tolerant consensus, we "
+           "currently"
+           " require that (N - 3F - 1) be even, where\nN is the total number of"
+           " replicas (-n) and F is the maximum number of faulty\nreplicas "
+           "(-f).\n";
     return -1;
   }
 
@@ -294,32 +299,36 @@ int main(int argc, char** argv) {
   uint16_t optThresh = n;
 
   // Verify cryptosystem selections.
-  if (!Cryptosystem::isValidCryptosystemSelection(execType, execParam,
-        n, execThresh)) {
+  if (!Cryptosystem::isValidCryptosystemSelection(
+          execType, execParam, n, execThresh)) {
     std::cout << "Invalid selection of cryptosystem for execution cryptosystem"
-      " (with threshold " << execThresh << " out of " << n << "): "
-      << execType << " " << execParam << ".\n";
+                 " (with threshold "
+              << execThresh << " out of " << n << "): " << execType << " "
+              << execParam << ".\n";
     return -1;
   }
-  if (!Cryptosystem::isValidCryptosystemSelection(slowType, slowParam,
-        n, slowThresh)) {
+  if (!Cryptosystem::isValidCryptosystemSelection(
+          slowType, slowParam, n, slowThresh)) {
     std::cout << "Invalid selection of cryptosystem for slow path commit"
-      " cryptosystem (with threshold " << slowThresh << " out of "
-      << n << "): " << slowType << " " << slowParam << ".\n";
+                 " cryptosystem (with threshold "
+              << slowThresh << " out of " << n << "): " << slowType << " "
+              << slowParam << ".\n";
     return -1;
   }
-  if (!Cryptosystem::isValidCryptosystemSelection(commitType, commitParam,
-        n, commitThresh)) {
+  if (!Cryptosystem::isValidCryptosystemSelection(
+          commitType, commitParam, n, commitThresh)) {
     std::cout << "Invalid selection of cryptosystem for commit cryptosystem"
-      " (with threshold " << commitThresh << " out of " << n << "): "
-      << commitType << " " << commitParam << ".\n";
+                 " (with threshold "
+              << commitThresh << " out of " << n << "): " << commitType << " "
+              << commitParam << ".\n";
     return -1;
   }
-  if (!Cryptosystem::isValidCryptosystemSelection(optType, optParam,
-        n, optThresh)) {
+  if (!Cryptosystem::isValidCryptosystemSelection(
+          optType, optParam, n, optThresh)) {
     std::cout << "Invalid selection of cryptosystem for optimistic fast path"
-      " commit cryptosystem (with threshold " << optThresh << " out of "
-      << n << "): " << optType << " " << optParam << ".\n";
+                 " commit cryptosystem (with threshold "
+              << optThresh << " out of " << n << "): " << optType << " "
+              << optParam << ".\n";
     return -1;
   }
 
@@ -352,9 +361,17 @@ int main(int argc, char** argv) {
   // Output the generated keys.
 
   for (uint16_t i = 0; i < n; ++i) {
-    if (!outputReplicaKeyfile(i, n, f, c, outputFiles[i],
-          outputPrefix + std::to_string(i), rsaKeys, execSys, slowSys,
-          commitSys, optSys)) {
+    if (!outputReplicaKeyfile(i,
+                              n,
+                              f,
+                              c,
+                              outputFiles[i],
+                              outputPrefix + std::to_string(i),
+                              rsaKeys,
+                              execSys,
+                              slowSys,
+                              commitSys,
+                              optSys)) {
       return -1;
     }
   }

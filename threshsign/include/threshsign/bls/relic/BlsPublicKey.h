@@ -3,7 +3,8 @@
 // Copyright (c) 2018 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
-// You may not use this product except in compliance with the Apache 2.0 License.
+// You may not use this product except in compliance with the Apache 2.0
+// License.
 //
 // This product may include a number of subcomponents with separate copyright
 // notices and license terms. Your use of these subcomponents is subject to the
@@ -20,34 +21,34 @@ namespace BLS {
 namespace Relic {
 
 class BlsPublicKey : public IShareVerificationKey {
-protected:
-    G2T y;
+ protected:
+  G2T y;
 
-public:
-    friend class BlsThresholdVerifier;
-    friend class BlsMultisigVerifier;
+ public:
+  friend class BlsThresholdVerifier;
+  friend class BlsMultisigVerifier;
 
-public:
-    /**
-     * Creates a dummy PK.
-     */
-    BlsPublicKey() {}
+ public:
+  /**
+   * Creates a dummy PK.
+   */
+  BlsPublicKey() {}
 
-    /**
-     * Creates a PK from an SK and forgets the SK!
-     */
-    BlsPublicKey(const BNT& sk) {
-        // FIXME: RELIC won't take const sk
-        g2_mul_gen(y, const_cast<BNT&>(sk));
-    }
+  /**
+   * Creates a PK from an SK and forgets the SK!
+   */
+  BlsPublicKey(const BNT& sk) {
+    // FIXME: RELIC won't take const sk
+    g2_mul_gen(y, const_cast<BNT&>(sk));
+  }
 
-    BlsPublicKey(const G2T& pk) : y(pk) {}
+  BlsPublicKey(const G2T& pk) : y(pk) {}
 
-public:
-    virtual std::string toString() const { return y.toString(); }
+ public:
+  virtual std::string toString() const { return y.toString(); }
 
-public:
-    const G2T& getPoint() const { return y; }
+ public:
+  const G2T& getPoint() const { return y; }
 };
 
 } /* namespace Relic */

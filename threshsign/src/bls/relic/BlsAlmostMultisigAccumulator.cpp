@@ -3,7 +3,8 @@
 // Copyright (c) 2018 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
-// You may not use this product except in compliance with the Apache 2.0 License.
+// You may not use this product except in compliance with the Apache 2.0
+// License.
 //
 // This product may include a number of subcomponents with separate copyright
 // notices and license terms. Your use of these subcomponents is subject to the
@@ -11,7 +12,8 @@
 // LICENSE file.
 
 // TODO: ALIN: Why are we including this here?
-#ifdef ERROR // TODO(GG): should be fixed by encapsulating relic (or windows) definitions in cpp files
+#ifdef ERROR  // TODO(GG): should be fixed by encapsulating relic (or windows)
+              // definitions in cpp files
 #undef ERROR
 #endif
 
@@ -27,25 +29,27 @@ using std::endl;
 namespace BLS {
 namespace Relic {
 
-BlsAlmostMultisigAccumulator::BlsAlmostMultisigAccumulator(const std::vector<BlsPublicKey>& vks, NumSharesType numSigners)
+BlsAlmostMultisigAccumulator::BlsAlmostMultisigAccumulator(
+    const std::vector<BlsPublicKey>& vks, NumSharesType numSigners)
     : BlsThresholdAccumulator(vks, numSigners - 1, numSigners, false),
-	  almostMultisigCoeffs(BlsAlmostMultisigCoefficients::Get().computeMapAndGet(numSigners))
-{
-    logdbg << "Using 'almost multisig' optimization for reqSigners = " << reqSigners
-           << " out of " << numSigners << endl;
+      almostMultisigCoeffs(
+          BlsAlmostMultisigCoefficients::Get().computeMapAndGet(numSigners)) {
+  logdbg << "Using 'almost multisig' optimization for reqSigners = "
+         << reqSigners << " out of " << numSigners << endl;
 }
 
-
 void BlsAlmostMultisigAccumulator::computeLagrangeCoeff() {
-    ShareID missingSigner = validSharesBits.findFirstGap();
-    assertInclusiveRange(1, missingSigner, totalSigners);
+  ShareID missingSigner = validSharesBits.findFirstGap();
+  assertInclusiveRange(1, missingSigner, totalSigners);
 
-    logtrace << " * Almost multisig, missing signer " << missingSigner << endl;
+  logtrace << " * Almost multisig, missing signer " << missingSigner << endl;
 
-    for (ShareID xVal = validSharesBits.first(); validSharesBits.isEnd(xVal) == false; xVal = validSharesBits.next(xVal))
-    {
-        coeffs[static_cast<size_t>(xVal)] = almostMultisigCoeffs.getCoeff(xVal, missingSigner);
-    }
+  for (ShareID xVal = validSharesBits.first();
+       validSharesBits.isEnd(xVal) == false;
+       xVal = validSharesBits.next(xVal)) {
+    coeffs[static_cast<size_t>(xVal)] =
+        almostMultisigCoeffs.getCoeff(xVal, missingSigner);
+  }
 }
 
 } /* namespace Relic */

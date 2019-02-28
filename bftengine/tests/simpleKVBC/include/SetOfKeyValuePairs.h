@@ -20,47 +20,38 @@
 namespace SimpleKVBC {
 namespace HelpFuncs {
 
-    struct HashKeyValuePair {
-        size_t operator()(const SimpleKVBC::KeyValuePair & t) const
-        {
-            size_t keyHash = simpleHash(t.first.data, t.first.size);
-            return keyHash;
-        }
+struct HashKeyValuePair {
+  size_t operator()(const SimpleKVBC::KeyValuePair& t) const {
+    size_t keyHash = simpleHash(t.first.data, t.first.size);
+    return keyHash;
+  }
 
-    protected:
-        // TODO(GG): TBD - change hash function
-        // (see also http://www.cse.yorku.ca/~oz/hash.html)
-        static size_t simpleHash(const char *data, const size_t len)
-        {
-            size_t hash = 5381;
-            size_t t;
-            for (size_t i = 0; i < len; i++)
-            {
-                t = data[i];
-                hash = ((hash << 5) + hash) + t;
-            }
-            return hash;
-        }
-    };
+ protected:
+  // TODO(GG): TBD - change hash function
+  // (see also http://www.cse.yorku.ca/~oz/hash.html)
+  static size_t simpleHash(const char* data, const size_t len) {
+    size_t hash = 5381;
+    size_t t;
+    for (size_t i = 0; i < len; i++) {
+      t = data[i];
+      hash = ((hash << 5) + hash) + t;
+    }
+    return hash;
+  }
+};
 
-    struct EqualKeyValuePair
-    {
-        bool operator()(const KeyValuePair& lhs, const KeyValuePair& rhs) const
-        {
-            const bool sameKey = lhs.first == rhs.first;
-            return sameKey;
-        }
+struct EqualKeyValuePair {
+  bool operator()(const KeyValuePair& lhs, const KeyValuePair& rhs) const {
+    const bool sameKey = lhs.first == rhs.first;
+    return sameKey;
+  }
+};
+}  // namespace HelpFuncs
 
-    };
-}
-
-    // SetOfKeyValuePairs
-    // In this set each key is unique (see HelpFuncs::EqualKeyValuePair)
-    class SetOfKeyValuePairs :  public std::unordered_set<
-                                                                KeyValuePair,
-                                                                HelpFuncs::HashKeyValuePair,
-                                                                HelpFuncs::EqualKeyValuePair>
-    {
-    };
-}
-
+// SetOfKeyValuePairs
+// In this set each key is unique (see HelpFuncs::EqualKeyValuePair)
+class SetOfKeyValuePairs
+    : public std::unordered_set<KeyValuePair,
+                                HelpFuncs::HashKeyValuePair,
+                                HelpFuncs::EqualKeyValuePair> {};
+}  // namespace SimpleKVBC

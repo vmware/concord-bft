@@ -3,7 +3,8 @@
 // Copyright (c) 2018 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
-// You may not use this product except in compliance with the Apache 2.0 License.
+// You may not use this product except in compliance with the Apache 2.0
+// License.
 //
 // This product may include a number of subcomponents with separate copyright
 // notices and license terms. Your use of these subcomponents is subject to the
@@ -39,13 +40,7 @@ struct NodeInfo {
 typedef std::unordered_map<NodeNum, NodeInfo> NodeMap;
 
 namespace bftEngine {
-enum CommType {
-  PlainUdp,
-  SimpleAuthUdp,
-  PlainTcp,
-  SimpleAuthTcp,
-  TlsTcp
-};
+enum CommType { PlainUdp, SimpleAuthUdp, PlainTcp, SimpleAuthTcp, TlsTcp };
 
 struct BaseCommConfig {
   CommType commType;
@@ -62,15 +57,14 @@ struct BaseCommConfig {
                  uint32_t bufLength,
                  NodeMap _nodes,
                  NodeNum _selfId,
-                 UPDATE_CONNECTIVITY_FN _statusCallback = nullptr) :
-      commType{type},
-      listenIp{std::move(ip)},
-      listenPort{port},
-      bufferLength{bufLength},
-      nodes{std::move(_nodes)},
-      statusCallback{_statusCallback},
-      selfId {_selfId} {
-  }
+                 UPDATE_CONNECTIVITY_FN _statusCallback = nullptr)
+      : commType{type},
+        listenIp{std::move(ip)},
+        listenPort{port},
+        bufferLength{bufLength},
+        nodes{std::move(_nodes)},
+        statusCallback{_statusCallback},
+        selfId{_selfId} {}
 
   virtual ~BaseCommConfig() {}
 };
@@ -81,15 +75,14 @@ struct PlainUdpConfig : BaseCommConfig {
                  uint32_t bufLength,
                  NodeMap _nodes,
                  NodeNum _selfId,
-                 UPDATE_CONNECTIVITY_FN _statusCallback = nullptr) :
-      BaseCommConfig(CommType::PlainUdp,
-                     std::move(ip),
-                     port,
-                     bufLength,
-                     std::move(_nodes),
-                     _selfId,
-                     _statusCallback) {
-  }
+                 UPDATE_CONNECTIVITY_FN _statusCallback = nullptr)
+      : BaseCommConfig(CommType::PlainUdp,
+                       std::move(ip),
+                       port,
+                       bufLength,
+                       std::move(_nodes),
+                       _selfId,
+                       _statusCallback) {}
 };
 
 struct PlainTcpConfig : BaseCommConfig {
@@ -101,16 +94,15 @@ struct PlainTcpConfig : BaseCommConfig {
                  NodeMap _nodes,
                  int32_t _maxServerId,
                  NodeNum _selfId,
-                 UPDATE_CONNECTIVITY_FN _statusCallback = nullptr) :
-      BaseCommConfig(CommType::PlainTcp,
-                     std::move(ip),
-                     port,
-                     bufLength,
-                     std::move(_nodes),
-                     _selfId,
-                     _statusCallback),
-      maxServerId{_maxServerId} {
-  }
+                 UPDATE_CONNECTIVITY_FN _statusCallback = nullptr)
+      : BaseCommConfig(CommType::PlainTcp,
+                       std::move(ip),
+                       port,
+                       bufLength,
+                       std::move(_nodes),
+                       _selfId,
+                       _statusCallback),
+        maxServerId{_maxServerId} {}
 };
 
 struct TlsTcpConfig : PlainTcpConfig {
@@ -123,15 +115,15 @@ struct TlsTcpConfig : PlainTcpConfig {
                int32_t _maxServerId,
                NodeNum _selfId,
                std::string certRootPath,
-               UPDATE_CONNECTIVITY_FN _statusCallback = nullptr) :
-      PlainTcpConfig(move(ip),
-                     port,
-                     bufLength,
-                     std::move(_nodes),
-                     _maxServerId,
-                     _selfId,
-                     _statusCallback),
-      certificatesRootPath{move(certRootPath)} {
+               UPDATE_CONNECTIVITY_FN _statusCallback = nullptr)
+      : PlainTcpConfig(move(ip),
+                       port,
+                       bufLength,
+                       std::move(_nodes),
+                       _maxServerId,
+                       _selfId,
+                       _statusCallback),
+        certificatesRootPath{move(certRootPath)} {
     commType = CommType::TlsTcp;
   }
 };
@@ -151,14 +143,14 @@ class PlainUDPCommunication : public ICommunication {
                        const char *const message,
                        const size_t messageLength) override;
 
-  void setReceiver(NodeNum receiverNum,
-                   IReceiver *receiver) override;
+  void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
 
   virtual ~PlainUDPCommunication();
+
  private:
   class PlainUdpImpl;
 
-  //TODO(IG): convert to smart ptr
+  // TODO(IG): convert to smart ptr
   PlainUdpImpl *_ptrImpl = nullptr;
 
   explicit PlainUDPCommunication(const PlainUdpConfig &config);
@@ -179,10 +171,10 @@ class PlainTCPCommunication : public ICommunication {
                        const char *const message,
                        const size_t messageLength) override;
 
-  void setReceiver(NodeNum receiverNum,
-                   IReceiver *receiver) override;
+  void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
 
   virtual ~PlainTCPCommunication();
+
  private:
   class PlainTcpImpl;
   PlainTcpImpl *_ptrImpl = nullptr;
@@ -205,16 +197,16 @@ class TlsTCPCommunication : public ICommunication {
                        const char *const message,
                        const size_t messageLength) override;
 
-  void setReceiver(NodeNum receiverNum,
-                   IReceiver *receiver) override;
+  void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
 
   virtual ~TlsTCPCommunication();
+
  private:
   class TlsTcpImpl;
   TlsTcpImpl *_ptrImpl = nullptr;
 
   explicit TlsTCPCommunication(const TlsTcpConfig &config);
 };
-}
+}  // namespace bftEngine
 
-#endif //BYZ_COMMDEFS_HPP
+#endif  // BYZ_COMMDEFS_HPP

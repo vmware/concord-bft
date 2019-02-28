@@ -3,7 +3,8 @@
 // Copyright (c) 2018 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
-// You may not use this product except in compliance with the Apache 2.0 License.
+// You may not use this product except in compliance with the Apache 2.0
+// License.
 //
 // This product may include a number of subcomponents with separate copyright
 // notices and license terms. Your use of these subcomponents is subject to the
@@ -16,35 +17,34 @@
 
 #include "BlsNumTypes.h"
 
-
 namespace BLS {
 namespace Relic {
 
 class BlsPublicParameters : public IPublicParameters {
-protected:
-    G1T gen1;
-    G2T gen2;
-    int curveType;
+ protected:
+  G1T gen1;
+  G2T gen2;
+  int curveType;
 
-public:
-	BlsPublicParameters(int securityLevel, const int curveType);
-	BlsPublicParameters(const BlsPublicParameters& params);
+ public:
+  BlsPublicParameters(int securityLevel, const int curveType);
+  BlsPublicParameters(const BlsPublicParameters& params);
 
-	virtual ~BlsPublicParameters();
+  virtual ~BlsPublicParameters();
 
-public:
-	/**
-	 * Needed by IThresholdSigner/Verifier.
-	 */
-	int getSignatureSize() const;
+ public:
+  /**
+   * Needed by IThresholdSigner/Verifier.
+   */
+  int getSignatureSize() const;
 
-	int getCurveType() const { return curveType; }
+  int getCurveType() const { return curveType; }
 
-	const G1T& getGen1() const { return gen1; }
-	const G2T& getGen2() const { return gen2; }
+  const G1T& getGen1() const { return gen1; }
+  const G2T& getGen2() const { return gen2; }
 
-	const BNT& getGroupOrder() const;
+  const BNT& getGroupOrder() const;
 };
 
-} // end of Libpbc namespace
-} // end of RELIC namespace
+}  // namespace Relic
+}  // namespace BLS

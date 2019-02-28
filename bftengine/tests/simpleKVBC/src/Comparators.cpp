@@ -20,50 +20,50 @@
 
 namespace SimpleKVBC {
 
-	int composedKeyComparison(const Slice& _a, const Slice& _b) {
-		char aType = extractTypeFromKey(_a);
-		char bType = extractTypeFromKey(_b);
-		if (aType != bType)
-		{
-			int ret = aType - bType;
-			return ret;
-		}
+int composedKeyComparison(const Slice& _a, const Slice& _b) {
+  char aType = extractTypeFromKey(_a);
+  char bType = extractTypeFromKey(_b);
+  if (aType != bType) {
+    int ret = aType - bType;
+    return ret;
+  }
 
-		if (aType == ((char)EDBKeyType::E_DB_KEY_TYPE_BLOCK))
-		{
-				BlockId aId = extractBlockIdFromKey(_a);
-				BlockId bId = extractBlockIdFromKey(_b);
-				if (aId > bId) return 1;
-				else if (aId == bId) return 0;
-				else return (-1);
-				//return aId - bId; 
-		}
-		else
-		{
-		
-			Slice aKey = extractKeyFromKeyComposedWithBlockId(_a);
-			Slice bKey = extractKeyFromKeyComposedWithBlockId(_b);
+  if (aType == ((char)EDBKeyType::E_DB_KEY_TYPE_BLOCK)) {
+    BlockId aId = extractBlockIdFromKey(_a);
+    BlockId bId = extractBlockIdFromKey(_b);
+    if (aId > bId)
+      return 1;
+    else if (aId == bId)
+      return 0;
+    else
+      return (-1);
+    // return aId - bId;
+  } else {
+    Slice aKey = extractKeyFromKeyComposedWithBlockId(_a);
+    Slice bKey = extractKeyFromKeyComposedWithBlockId(_b);
 
-			int keyComp = aKey.compare(bKey);
+    int keyComp = aKey.compare(bKey);
 
-			if (keyComp == 0)
-			{
-				BlockId aId = extractBlockIdFromKey(_a);
-				BlockId bId = extractBlockIdFromKey(_b);
-				if (bId > aId) return 1;
-				else if (bId == aId) return 0;
-				else return (-1);				
-				//return bId - aId; // a < b if keys are equal and bId<aId
-			}
+    if (keyComp == 0) {
+      BlockId aId = extractBlockIdFromKey(_a);
+      BlockId bId = extractBlockIdFromKey(_b);
+      if (bId > aId)
+        return 1;
+      else if (bId == aId)
+        return 0;
+      else
+        return (-1);
+      // return bId - aId; // a < b if keys are equal and bId<aId
+    }
 
-			return keyComp;
-		}
-	}
-
-	/* In memory */
-	bool InMemKeyComp(const Slice& _a, const Slice& _b) {
-		int comp = composedKeyComparison(_a, _b);
-		return comp < 0; // Check: comp < 0 ==> _a < _b
-	}
-
+    return keyComp;
+  }
 }
+
+/* In memory */
+bool InMemKeyComp(const Slice& _a, const Slice& _b) {
+  int comp = composedKeyComparison(_a, _b);
+  return comp < 0;  // Check: comp < 0 ==> _a < _b
+}
+
+}  // namespace SimpleKVBC

@@ -36,16 +36,17 @@ namespace SimpleBlockchainStateTransfer {
 constexpr static uint32_t BLOCK_DIGEST_SIZE = 32;
 
 // represnts a digest
-#pragma pack(push,1)
+#pragma pack(push, 1)
 struct StateTransferDigest {
   char content[BLOCK_DIGEST_SIZE];
 };
 #pragma pack(pop)
 
 // This method should be used to compute block digests
-void computeBlockDigest(const uint64_t blockId, const char* block,
-  const uint32_t blockSize, StateTransferDigest* outDigest);
-
+void computeBlockDigest(const uint64_t blockId,
+                        const char* block,
+                        const uint32_t blockSize,
+                        StateTransferDigest* outDigest);
 
 // This interface should be implemented by the application/storage layer.
 // It is used by the state transfer module.
@@ -58,12 +59,13 @@ class IAppState {
   // If block blockId exists, then its content is returned via the arguments
   // outBlock and outBlockSize. Returns true IFF block blockId exists.
   virtual bool getBlock(uint64_t blockId,
-    char* outBlock, uint32_t* outBlockSize) = 0;
+                        char* outBlock,
+                        uint32_t* outBlockSize) = 0;
 
   // If block blockId exists, then the digest of block blockId-1 is returned via
   // the argument outPrevBlockDigest. Returns true IFF block blockId exists.
-  virtual bool getPrevDigestFromBlock(uint64_t blockId,
-    StateTransferDigest* outPrevBlockDigest) = 0;
+  virtual bool getPrevDigestFromBlock(
+      uint64_t blockId, StateTransferDigest* outPrevBlockDigest) = 0;
 
   // adds block
   // blockId   - the block number
@@ -95,23 +97,24 @@ struct Config {
 
   // TODO(GG): change to: 2KB // 2 * 1024 ;  // 2KB
   // NB: use small values for debugging/testing
-  uint32_t maxChunkSize = 2*1024;  // 128;
+  uint32_t maxChunkSize = 2 * 1024;  // 128;
 
   uint16_t maxNumberOfChunksInBatch = 24;
   uint32_t maxPendingDataFromSourceReplica = 32 * 1024 * 1024;
 
   uint32_t maxNumOfReservedPages = 2048;
 
-  uint32_t refreshTimerMilli = 300;  // 300ms
+  uint32_t refreshTimerMilli = 300;                               // 300ms
   uint32_t checkpointSummariesRetransmissionTimeoutMilli = 2500;  // 2500ms
-  uint32_t maxAcceptableMsgDelayMilli = 1 * 60 * 1000;  // 1 minutes
-  uint32_t sourceReplicaReplacementTimeoutMilli = 5000;  // 5000ms
-  uint32_t fetchRetransmissionTimeoutMilli = 250;  // 250ms
+  uint32_t maxAcceptableMsgDelayMilli = 1 * 60 * 1000;            // 1 minutes
+  uint32_t sourceReplicaReplacementTimeoutMilli = 5000;           // 5000ms
+  uint32_t fetchRetransmissionTimeoutMilli = 250;                 // 250ms
 };
 
 // creates an instance of the state transfer module.
 IStateTransfer* create(const Config& config,
-  IAppState* const stateApi, const bool persistentDataStore);
+                       IAppState* const stateApi,
+                       const bool persistentDataStore);
 
 }  // namespace SimpleBlockchainStateTransfer
 }  // namespace bftEngine

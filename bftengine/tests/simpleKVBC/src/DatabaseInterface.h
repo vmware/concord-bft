@@ -12,7 +12,8 @@
 // file.
 
 /** @file DatabaseInterface.h
- *  @brief Header file containing the IDBClient and IDBClientIterator class definitions.
+ *  @brief Header file containing the IDBClient and IDBClientIterator class
+ * definitions.
  *
  */
 
@@ -20,41 +21,39 @@
 #include "Status.h"
 #include "Slice.h"
 
-#define OUT 
+#define OUT
 
 using std::pair;
 
-namespace SimpleKVBC
-{
-    typedef pair<Slice, Slice> KeyValuePair;
+namespace SimpleKVBC {
+typedef pair<Slice, Slice> KeyValuePair;
 
-    class IDBClient
-    {
-    public:
-        typedef bool (*KeyComparator)(const Slice&, const Slice&);
+class IDBClient {
+ public:
+  typedef bool (*KeyComparator)(const Slice&, const Slice&);
 
-        virtual Status init() = 0;
-        virtual Status close() = 0;
-        virtual Status get(Slice _key, OUT Slice& _outValue) const = 0;
-		virtual Status hasKey(Slice key) const = 0;
-        virtual Status put(Slice _key, Slice _value) = 0;
-        virtual Status del(Slice _key) = 0;
-        virtual Status freeValue(Slice& _value) = 0;
+  virtual Status init() = 0;
+  virtual Status close() = 0;
+  virtual Status get(Slice _key, OUT Slice& _outValue) const = 0;
+  virtual Status hasKey(Slice key) const = 0;
+  virtual Status put(Slice _key, Slice _value) = 0;
+  virtual Status del(Slice _key) = 0;
+  virtual Status freeValue(Slice& _value) = 0;
 
-        // TODO(GG): add multi-get , multi-put, and multi-del
+  // TODO(GG): add multi-get , multi-put, and multi-del
 
-        class IDBClientIterator
-        {
-        public:
-            virtual KeyValuePair first() = 0;
-            virtual KeyValuePair seekAtLeast(Slice _searchKey) = 0; ///< Returns next keys if not found for this key
-            virtual KeyValuePair next() = 0;
-            virtual KeyValuePair getCurrent() = 0;
-            virtual bool isEnd() = 0;
-            virtual Status getStatus() = 0; ///< Status of last operation
-        };
+  class IDBClientIterator {
+   public:
+    virtual KeyValuePair first() = 0;
+    virtual KeyValuePair seekAtLeast(
+        Slice _searchKey) = 0;  ///< Returns next keys if not found for this key
+    virtual KeyValuePair next() = 0;
+    virtual KeyValuePair getCurrent() = 0;
+    virtual bool isEnd() = 0;
+    virtual Status getStatus() = 0;  ///< Status of last operation
+  };
 
-        virtual IDBClientIterator* getIterator() const = 0;
-        virtual Status freeIterator(IDBClientIterator* _iter) const = 0;
-    };
-}
+  virtual IDBClientIterator* getIterator() const = 0;
+  virtual Status freeIterator(IDBClientIterator* _iter) const = 0;
+};
+}  // namespace SimpleKVBC

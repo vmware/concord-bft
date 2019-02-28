@@ -3,13 +3,13 @@
 // Copyright (c) 2018 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
-// You may not use this product except in compliance with the Apache 2.0 License.
+// You may not use this product except in compliance with the Apache 2.0
+// License.
 //
 // This product may include a number of subcomponents with separate copyright
 // notices and license terms. Your use of these subcomponents is subject to the
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
-
 
 #pragma once
 
@@ -27,24 +27,25 @@ using std::chrono::microseconds;
  * 		mycode();
  * 	}
  */
-class ScopedTimer
-{
-private:
-    typedef std::chrono::high_resolution_clock theclock;
-    std::chrono::time_point<theclock> beginning;
-    std::ostream& out;
-    std::string prefix;
-    const char * suffix;
+class ScopedTimer {
+ private:
+  typedef std::chrono::high_resolution_clock theclock;
+  std::chrono::time_point<theclock> beginning;
+  std::ostream& out;
+  std::string prefix;
+  const char* suffix;
 
-public:
-    ScopedTimer(std::ostream& out, const std::string& prefix = "", const char * suffix = "\n")
-        : beginning(theclock::now()), out(out), prefix(prefix), suffix(suffix)
-    {}
+ public:
+  ScopedTimer(std::ostream& out,
+              const std::string& prefix = "",
+              const char* suffix = "\n")
+      : beginning(theclock::now()), out(out), prefix(prefix), suffix(suffix) {}
 
-    ~ScopedTimer() {
-        microseconds mus = std::chrono::duration_cast<microseconds>(theclock::now() - beginning);
-        out << prefix << mus.count() << " microseconds" << suffix << std::flush;
-    }
+  ~ScopedTimer() {
+    microseconds mus =
+        std::chrono::duration_cast<microseconds>(theclock::now() - beginning);
+    out << prefix << mus.count() << " microseconds" << suffix << std::flush;
+  }
 };
 
 /**
@@ -63,24 +64,25 @@ public:
  *  microseconds duration 2= t.restart();
  *  // and so on...
  */
-class ManualTimer
-{
-private:
-    typedef std::chrono::high_resolution_clock theclock;
-    std::chrono::time_point<theclock> beginning;
+class ManualTimer {
+ private:
+  typedef std::chrono::high_resolution_clock theclock;
+  std::chrono::time_point<theclock> beginning;
 
-public:
-    ManualTimer() : beginning(theclock::now()) {}
+ public:
+  ManualTimer() : beginning(theclock::now()) {}
 
-    microseconds restart() {
-		microseconds mus = std::chrono::duration_cast<microseconds>(theclock::now() - beginning);
-		beginning = theclock::now();
-		return mus;
-    }
+  microseconds restart() {
+    microseconds mus =
+        std::chrono::duration_cast<microseconds>(theclock::now() - beginning);
+    beginning = theclock::now();
+    return mus;
+  }
 
-    microseconds stop() const {
-        return std::chrono::duration_cast<microseconds>(theclock::now() - beginning);
-    }
+  microseconds stop() const {
+    return std::chrono::duration_cast<microseconds>(theclock::now() -
+                                                    beginning);
+  }
 };
 
 /**
@@ -97,50 +99,51 @@ public:
  * 		c2.endLap();
  * 	}
  *
- * 	std::cout << "mycode1() average lap time: " << c1.averageLapTime() << std::endl;
- * 	std::cout << "mycode2() average lap time: " << c2.averageLapTime() << std::endl;
+ * 	std::cout << "mycode1() average lap time: " << c1.averageLapTime() <<
+ *std::endl; std::cout << "mycode2() average lap time: " << c2.averageLapTime()
+ *<< std::endl;
  */
 class AveragingTimer {
-private:
-    typedef std::chrono::high_resolution_clock theclock;
-    std::chrono::time_point<theclock> beginning;
+ private:
+  typedef std::chrono::high_resolution_clock theclock;
+  std::chrono::time_point<theclock> beginning;
 
-    microseconds total;
-    unsigned long iters;
-    bool started;
-    std::string name;
+  microseconds total;
+  unsigned long iters;
+  bool started;
+  std::string name;
 
-private:
-    friend std::ostream& operator<<(std::ostream& out, const AveragingTimer& t);
+ private:
+  friend std::ostream& operator<<(std::ostream& out, const AveragingTimer& t);
 
-public:
-	AveragingTimer(const std::string& name = "some timer") : total(0), iters(0), started(false), name(name) {}
+ public:
+  AveragingTimer(const std::string& name = "some timer")
+      : total(0), iters(0), started(false), name(name) {}
 
-public:
-	void startLap() {
-		assertFalse(started);
-		started = true;
-		beginning = theclock::now();
-	}
+ public:
+  void startLap() {
+    assertFalse(started);
+    started = true;
+    beginning = theclock::now();
+  }
 
-	const std::string& getName() const { return name; }
+  const std::string& getName() const { return name; }
 
-	microseconds endLap() {
-		microseconds duration = std::chrono::duration_cast<microseconds>(theclock::now() - beginning);
-		total += duration;
-		iters++;
-		assertTrue(started);	// Do this after timing, to not slow down anything.
-		started = false;
-		return duration;
-	}
+  microseconds endLap() {
+    microseconds duration =
+        std::chrono::duration_cast<microseconds>(theclock::now() - beginning);
+    total += duration;
+    iters++;
+    assertTrue(started);  // Do this after timing, to not slow down anything.
+    started = false;
+    return duration;
+  }
 
-	unsigned long numIterations() const { return iters; }
+  unsigned long numIterations() const { return iters; }
 
-	microseconds::rep totalLapTime() const {
-		return total.count();
-	}
+  microseconds::rep totalLapTime() const { return total.count(); }
 
-	microseconds::rep averageLapTime() const {
-		return total.count() / static_cast<microseconds::rep>(iters);
-	}
+  microseconds::rep averageLapTime() const {
+    return total.count() / static_cast<microseconds::rep>(iters);
+  }
 };

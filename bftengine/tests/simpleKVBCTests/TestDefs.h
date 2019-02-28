@@ -11,7 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#pragma once 
+#pragma once
 
 #include <stdint.h>
 #include <string>
@@ -20,8 +20,3 @@ const uint16_t basePort = 3710;
 const std::string ipAddress = "127.0.0.1";
 const uint16_t numOfClientProxies = 1;
 const uint32_t maxMsgSize = 64 * 1024;
-
-
-
-
-

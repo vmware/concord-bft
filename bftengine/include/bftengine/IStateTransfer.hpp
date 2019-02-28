@@ -69,8 +69,9 @@ class IStateTransfer {
   // (a state transfer module may directly send messages).
   // Message msg should be released by using
   // IReplicaForStateTransfer::freeStateTransferMsg
-  virtual void handleStateTransferMessage(
-    char *msg, uint32_t msgLen, uint16_t senderId) = 0;
+  virtual void handleStateTransferMessage(char *msg,
+                                          uint32_t msgLen,
+                                          uint16_t senderId) = 0;
 };
 
 // This interface may only be used when the state transfer module is runnning

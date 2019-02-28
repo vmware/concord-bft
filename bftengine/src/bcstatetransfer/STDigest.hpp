@@ -25,10 +25,7 @@ namespace SimpleBlockchainStateTransfer {
 namespace impl {
 class STDigest : StateTransferDigest {
  public:
-  STDigest() {
-    memset(content, 0, BLOCK_DIGEST_SIZE);
-  }
-
+  STDigest() { memset(content, 0, BLOCK_DIGEST_SIZE); }
 
   STDigest(const STDigest& other) {
     memcpy(content, other.content, BLOCK_DIGEST_SIZE);
@@ -58,7 +55,6 @@ class STDigest : StateTransferDigest {
 
   void makeZero() { memset(content, 0, BLOCK_DIGEST_SIZE); }
 
-
   std::string toString() const;
 };
 
@@ -76,7 +72,6 @@ class DigestContext {
  protected:
   void* internalState;
 };
-
 
 }  // namespace impl
 }  // namespace SimpleBlockchainStateTransfer

@@ -8,9 +8,7 @@
 #include <functional>
 #include <string>
 
-enum class PeerInfoType {
-  Connectivity
-};
+enum class PeerInfoType { Connectivity };
 
 struct BasePeerStatus {
  public:
@@ -20,12 +18,7 @@ struct BasePeerStatus {
   int64_t statusTime = 0;
 };
 
-enum class StatusType {
-  Started,
-  MessageReceived,
-  MessageSent,
-  Broken
-};
+enum class StatusType { Started, MessageReceived, MessageSent, Broken };
 struct PeerConnectivityStatus : public BasePeerStatus {
  public:
   StatusType statusType;
@@ -34,4 +27,4 @@ struct PeerConnectivityStatus : public BasePeerStatus {
 
 typedef std::function<void(PeerConnectivityStatus)> UPDATE_CONNECTIVITY_FN;
 
-#endif //STATUSINFO_H
+#endif  // STATUSINFO_H

@@ -17,8 +17,8 @@
 
 namespace SimpleKVBC {
 
-	int composedKeyComparison(const Slice& _a, const Slice& _b);
+int composedKeyComparison(const Slice& _a, const Slice& _b);
 
-	bool InMemKeyComp(const Slice& _a, const Slice& _b);
-	
-}
+bool InMemKeyComp(const Slice& _a, const Slice& _b);
+
+}  // namespace SimpleKVBC

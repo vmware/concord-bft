@@ -16,67 +16,56 @@
 #include <string>
 #include <assert.h>
 
-namespace SimpleKVBC
-{
-    class Status
-    {
-    public:
+namespace SimpleKVBC {
+class Status {
+ public:
+  Status() : code(Code::ok), message() {}
 
-        Status() : code(Code::ok), message(){}
+  static Status OK() { return Status(); }
 
-        static Status OK() { return Status(); }
+  static Status NotFound(const char* msg) {
+    return Status(Code::notFound, msg);
+  }
 
-        static Status NotFound(const char* msg)
-        {
-          return Status(Code::notFound, msg);
-        }
+  static Status IllegalBlockSize(const char* msg) {
+    return Status(Code::illegalBlockSize, msg);
+  }
 
-        static Status IllegalBlockSize(const char* msg)
-        {
-            return Status(Code::illegalBlockSize, msg);
-        }
+  static Status InvalidArgument(const char* msg) {
+    return Status(Code::invalidArgument, msg);
+  }
 
-        static Status InvalidArgument(const char* msg)
-        {
-          return Status(Code::invalidArgument, msg);
-        }
+  static Status IllegalOperation(const char* msg) {
+    return Status(Code::illegalOperation, msg);
+  }
 
-        static Status IllegalOperation(const char* msg)
-        {
-          return Status(Code::illegalOperation, msg);
-        }
+  static Status UnknownError(const char* msg) {
+    return Status(Code::unknownError, msg);
+  }
 
-        static Status UnknownError(const char* msg)
-        {
-          return Status(Code::unknownError, msg);
-        }
+  bool ok() const { return (code == Code::ok); }
+  bool IsNotFound() const { return code == Code::notFound; }
+  bool IsIllegalBlockSize() const { return code == Code::illegalBlockSize; }
+  bool IsInvalidArgument() const { return code == Code::invalidArgument; }
+  bool IsUnknownError() const { return code == Code::unknownError; }
 
-        bool ok() const { return (code == Code::ok); }
-        bool IsNotFound() const { return code == Code::notFound; }
-        bool IsIllegalBlockSize() const { return code == Code::illegalBlockSize; }
-        bool IsInvalidArgument() const { return code == Code::invalidArgument; }
-        bool IsUnknownError() const { return code == Code::unknownError; }
+ protected:
+  enum class Code {
+    ok = 0,
+    notFound,
+    invalidArgument,
+    illegalOperation,
+    illegalBlockSize,
+    unknownError = 100000,
+  };
 
-    protected:
+  Code code;
+  std::string message;
 
-        enum class Code
-        {
-            ok = 0,
-            notFound,
-            invalidArgument,
-            illegalOperation,
-            illegalBlockSize,
-            unknownError = 100000,
-        };
-
-        Code code;
-        std::string message;
-
-        Status(Code code, const char* msg)
-        {
-            assert(code != Code::ok);
-          this->code = code;
-          this->message = msg;
-        }
-    };
-}
+  Status(Code code, const char* msg) {
+    assert(code != Code::ok);
+    this->code = code;
+    this->message = msg;
+  }
+};
+}  // namespace SimpleKVBC

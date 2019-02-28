@@ -20,32 +20,32 @@ using namespace bftEngine;
 
 namespace SimpleKVBC {
 
-	class ClientImp : public IClient
-	{
-	public:
-		// IClient methods
-		virtual Status start() ;
-		virtual Status stop() ;
+class ClientImp : public IClient {
+ public:
+  // IClient methods
+  virtual Status start();
+  virtual Status stop();
 
-		virtual bool isRunning() ;
+  virtual bool isRunning();
 
-		virtual Status invokeCommandSynch(const Slice command, bool isReadOnly, Slice& outReply) ;
+  virtual Status invokeCommandSynch(const Slice command,
+                                    bool isReadOnly,
+                                    Slice& outReply);
 
-		virtual Status release(Slice& slice) ; // release memory allocated by invokeCommandSynch  
+  virtual Status release(
+      Slice& slice);  // release memory allocated by invokeCommandSynch
 
+ protected:
+  ClientImp(){};
+  ~ClientImp(){};
 
-	protected:
-	
-		ClientImp() {};
-		~ClientImp() {};
+  ClientConfig config_;
+  char* replyBuf_ = nullptr;
+  SeqNumberGeneratorForClientRequests* seqGen_ = nullptr;
+  ICommunication* comm_ = nullptr;
 
-		ClientConfig config_;
-		char* replyBuf_ = nullptr;
-		SeqNumberGeneratorForClientRequests* seqGen_ = nullptr;
-		ICommunication* comm_ = nullptr;
+  SimpleClient* bftClient_ = nullptr;
 
-		SimpleClient* bftClient_ = nullptr;
-
-		friend IClient* createClient(const ClientConfig& conf, ICommunication* comm);
-	};
-}
+  friend IClient* createClient(const ClientConfig& conf, ICommunication* comm);
+};
+}  // namespace SimpleKVBC

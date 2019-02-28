@@ -3,7 +3,8 @@
 // Copyright (c) 2018 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
-// You may not use this product except in compliance with the Apache 2.0 License.
+// You may not use this product except in compliance with the Apache 2.0
+// License.
 //
 // This product may include a number of subcomponents with separate copyright
 // notices and license terms. Your use of these subcomponents is subject to the
@@ -28,78 +29,78 @@ using namespace std;
 using namespace BLS::Relic;
 
 void testIth() {
-    loginfo << "Testing ith() and skip()..." << endl;
-    VectorOfShares signers;
+  loginfo << "Testing ith() and skip()..." << endl;
+  VectorOfShares signers;
 
-    signers.add(3);
-    if(signers.ith(1) != 3) {
-        throw std::logic_error("3 is supposed to be first");
-    }
+  signers.add(3);
+  if (signers.ith(1) != 3) {
+    throw std::logic_error("3 is supposed to be first");
+  }
 
-    signers.add(5);
-    if(signers.ith(2) != 5) {
-        throw std::logic_error("5 is supposed to be second");
-    }
+  signers.add(5);
+  if (signers.ith(2) != 5) {
+    throw std::logic_error("5 is supposed to be second");
+  }
 
-    signers.add(7);
-    if(signers.skip(3, 1) != signers.next(3)) {
-        throw std::logic_error("skip and next disagree");
-    }
+  signers.add(7);
+  if (signers.skip(3, 1) != signers.next(3)) {
+    throw std::logic_error("skip and next disagree");
+  }
 
-    if(signers.skip(3, 1) != 5) {
-            throw std::logic_error("skip is wrong");
-        }
-    if(signers.skip(3, 2) != 7) {
-        throw std::logic_error("skip is wrong");
-    }
+  if (signers.skip(3, 1) != 5) {
+    throw std::logic_error("skip is wrong");
+  }
+  if (signers.skip(3, 2) != 7) {
+    throw std::logic_error("skip is wrong");
+  }
 }
 
 void assertCorrectSerialization(const VectorOfShares& vec) {
-    AutoBuf<unsigned char> buf(vec.getByteCount());
-    vec.toBytes(buf, buf.size());
+  AutoBuf<unsigned char> buf(vec.getByteCount());
+  vec.toBytes(buf, buf.size());
 
-    //logdbg << "Serialized vector " << vec << " to " << Utils::bin2hex(buf, buf.size()) << endl;
-    //logdbg << endl;
+  // logdbg << "Serialized vector " << vec << " to " << Utils::bin2hex(buf,
+  // buf.size()) << endl; logdbg << endl;
 
-    VectorOfShares vecin;
-    vecin.fromBytes(buf, buf.size());
-    testAssertEqual(vec, vecin);
+  VectorOfShares vecin;
+  vecin.fromBytes(buf, buf.size());
+  testAssertEqual(vec, vecin);
 }
 
 void testSerialization() {
-    loginfo << "Testing serialization..." << endl;
+  loginfo << "Testing serialization..." << endl;
 
-    VectorOfShares vec; 
-    assertCorrectSerialization(vec);
+  VectorOfShares vec;
+  assertCorrectSerialization(vec);
 
-    vec.add(1);
-    assertCorrectSerialization(vec);
+  vec.add(1);
+  assertCorrectSerialization(vec);
 
-    vec.add(2);
-    assertCorrectSerialization(vec);
+  vec.add(2);
+  assertCorrectSerialization(vec);
 
-    vec.add(MAX_NUM_OF_SHARES);
-    assertCorrectSerialization(vec);
+  vec.add(MAX_NUM_OF_SHARES);
+  assertCorrectSerialization(vec);
 
+  vec.clear();
+  for (int i = 1; i <= MAX_NUM_OF_SHARES; i++) {
+    vec.add(i);
+  }
+  assertCorrectSerialization(vec);
+
+  for (int i = 0; i < 128; i++) {
     vec.clear();
-    for(int i = 1; i <= MAX_NUM_OF_SHARES; i++) {
-        vec.add(i);
-    }
+    VectorOfShares::randomSubset(vec, MAX_NUM_OF_SHARES, MAX_NUM_OF_SHARES / 2);
     assertCorrectSerialization(vec);
-
-    for(int i = 0; i < 128; i++) {
-        vec.clear();
-        VectorOfShares::randomSubset(vec, MAX_NUM_OF_SHARES, MAX_NUM_OF_SHARES/2);
-        assertCorrectSerialization(vec);
-    }
+  }
 }
 
 int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
-    (void)lib;
-    (void)args;
+  (void)lib;
+  (void)args;
 
-    testSerialization();
-    testIth();
+  testSerialization();
+  testIth();
 
-    return 0;
+  return 0;
 }

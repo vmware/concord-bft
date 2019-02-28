@@ -54,21 +54,22 @@
  *                       in the optimistic fast path for this deployment, with
  *                       all keys already generated.
  *
- * @return True if the keyfile was successfully output, false otherwise. Reasons *         this function could fail to successfully output the keyfile may
+ * @return True if the keyfile was successfully output, false otherwise. Reasons
+ * *         this function could fail to successfully output the keyfile may
  *         include I/O issues or disagreement of numReplicas with f and c.
  */
-bool outputReplicaKeyfile(uint16_t replicaID,
-                          uint16_t numReplicas,
-                          uint16_t f,
-                          uint16_t c,
-                          std::ostream& output,
-                          const std::string& outputFilename,
-                          const std::vector<std::pair<std::string,
-                            std::string>>& rsaKeys,
-                          const Cryptosystem& execSys,
-                          const Cryptosystem& slowSys,
-                          const Cryptosystem& commitSys,
-                          const Cryptosystem& optSys);
+bool outputReplicaKeyfile(
+    uint16_t replicaID,
+    uint16_t numReplicas,
+    uint16_t f,
+    uint16_t c,
+    std::ostream& output,
+    const std::string& outputFilename,
+    const std::vector<std::pair<std::string, std::string>>& rsaKeys,
+    const Cryptosystem& execSys,
+    const Cryptosystem& slowSys,
+    const Cryptosystem& commitSys,
+    const Cryptosystem& optSys);
 
 /**
  * Read in a keyfile for the current replica that was output with

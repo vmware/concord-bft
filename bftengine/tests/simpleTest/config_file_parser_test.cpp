@@ -4,13 +4,12 @@
 #include <iostream>
 #include <string>
 
-using std::cout;
 using std::cin;
+using std::cout;
 using std::string;
 using std::vector;
 
 int main(int argc, char **argv) {
-
   cout << "Enter configuration file name with a full/relative path,"
        << " or 'd' for a default:\n";
 
@@ -24,9 +23,9 @@ int main(int argc, char **argv) {
   const string expected_replica2 = "127.0.0.1:3420";
   const string expected_replica3 = "127.0.0.1:3430";
   const string expected_replica4 = "127.0.0.1:3440";
-  const string expected_client   = "127.0.0.1:4444";
+  const string expected_client = "127.0.0.1:4444";
   const string values_to_split = "10.23.43.1:1234:1238";
-  const string expected_split_values[] = { "10.23.43.1", "1234", "1238" };
+  const string expected_split_values[] = {"10.23.43.1", "1234", "1238"};
   const string values_to_split_delimiter = ":";
 
   cin >> given_config_file;
@@ -35,8 +34,7 @@ int main(int argc, char **argv) {
   concordlogger::Logger logger =
       concordlogger::Logger::getLogger("simpletest.test");
   ConfigFileParser parser(logger, config_file);
-  if (!parser.Parse())
-    return 1;
+  if (!parser.Parse()) return 1;
 
   cout << "\n";
   size_t replicas_num = parser.Count("replicas_config");
@@ -58,7 +56,7 @@ int main(int argc, char **argv) {
     Assert(expected_replica4 == replicas[3]);
     Assert(expected_client == clients[0]);
     Assert(split_values_vector.size() ==
-             sizeof(expected_split_values) / sizeof(expected_split_values[0]));
+           sizeof(expected_split_values) / sizeof(expected_split_values[0]));
     Assert(split_values_vector[0] == expected_split_values[0]);
     Assert(split_values_vector[1] == expected_split_values[1]);
     Assert(split_values_vector[2] == expected_split_values[2]);

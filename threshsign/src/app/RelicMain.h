@@ -4,8 +4,9 @@
 
 namespace BLS {
 namespace Relic {
-    class Library;
+class Library;
 }
-}
+}  // namespace BLS
 
-int RelicAppMain(const BLS::Relic::Library& lib, const std::vector<std::string>& args);
+int RelicAppMain(const BLS::Relic::Library& lib,
+                 const std::vector<std::string>& args);

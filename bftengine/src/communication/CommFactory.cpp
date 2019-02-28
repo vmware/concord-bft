@@ -25,38 +25,43 @@ using bftEngine::PlainUdpConfig;
 using bftEngine::TlsTcpConfig;
 
 concordlogger::Logger CommFactory::_logger =
-   concordlogger::Logger::getLogger("comm-factory");
+    concordlogger::Logger::getLogger("comm-factory");
 
-ICommunication*
-CommFactory::create(const BaseCommConfig &config) {
+ICommunication *CommFactory::create(const BaseCommConfig &config) {
   ICommunication *res = nullptr;
   switch (config.commType) {
-  case CommType::PlainUdp:
-    LOG_INFO(_logger, "Using PlainUDP: " << "IP=" << config.listenIp <<
-                      ", Port=" << config.listenPort);
-    res = PlainUDPCommunication::create(
-      dynamic_cast<const PlainUdpConfig&>(config));
-    break;
-  case CommType::SimpleAuthUdp:
-    break;
-  case CommType::PlainTcp:
+    case CommType::PlainUdp:
+      LOG_INFO(_logger,
+               "Using PlainUDP: "
+                   << "IP=" << config.listenIp
+                   << ", Port=" << config.listenPort);
+      res = PlainUDPCommunication::create(
+          dynamic_cast<const PlainUdpConfig &>(config));
+      break;
+    case CommType::SimpleAuthUdp:
+      break;
+    case CommType::PlainTcp:
 #ifdef USE_COMM_PLAIN_TCP
-    LOG_INFO(_logger, "Using PlainTCP: " << "IP=" << config.listenIp <<
-                      ", Port=" << config.listenPort);
-    res = PlainTCPCommunication::create(
-      dynamic_cast<const PlainTcpConfig&>(config));
+      LOG_INFO(_logger,
+               "Using PlainTCP: "
+                   << "IP=" << config.listenIp
+                   << ", Port=" << config.listenPort);
+      res = PlainTCPCommunication::create(
+          dynamic_cast<const PlainTcpConfig &>(config));
 #endif
-    break;
-  case CommType::SimpleAuthTcp:
-    break;
-  case CommType::TlsTcp:
+      break;
+    case CommType::SimpleAuthTcp:
+      break;
+    case CommType::TlsTcp:
 #ifdef USE_COMM_TLS_TCP
-    LOG_INFO(_logger, "Using TlsTCP: " << "IP=" << config.listenIp <<
-                      ", Port=" << config.listenPort);
-    res = TlsTCPCommunication::create(
-      dynamic_cast<const TlsTcpConfig&>(config));
+      LOG_INFO(_logger,
+               "Using TlsTCP: "
+                   << "IP=" << config.listenIp
+                   << ", Port=" << config.listenPort);
+      res = TlsTCPCommunication::create(
+          dynamic_cast<const TlsTcpConfig &>(config));
 #endif
-    break;
+      break;
   }
 
   return res;

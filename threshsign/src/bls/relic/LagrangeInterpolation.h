@@ -3,7 +3,8 @@
 // Copyright (c) 2018 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
-// You may not use this product except in compliance with the Apache 2.0 License.
+// You may not use this product except in compliance with the Apache 2.0
+// License.
 //
 // This product may include a number of subcomponents with separate copyright
 // notices and license terms. Your use of these subcomponents is subject to the
@@ -35,110 +36,110 @@ class BlsPublicParameters;
 //#define WITH_FAST_MODULO
 
 class ModulusBNT {
-protected:
+ protected:
 #ifdef WITH_FAST_MODULO
-    // precomputed data for fast(er) modular reduction
-    BNT u;
+  // precomputed data for fast(er) modular reduction
+  BNT u;
 #endif
-    BNT modulus;
+  BNT modulus;
 
-public:
-    ModulusBNT(const BNT& mod)
-        : modulus(mod)
-    {
+ public:
+  ModulusBNT(const BNT& mod) : modulus(mod) {
 #ifdef WITH_FAST_MODULO
-        u = BNT::FastModuloPreBarrett(modulus);
+    u = BNT::FastModuloPreBarrett(modulus);
 #endif
-    }
+  }
 
-public:
-    const BNT& getModulus() const { return modulus; }
+ public:
+  const BNT& getModulus() const { return modulus; }
 
-    void Reduce(BNT& num) const {
+  void Reduce(BNT& num) const {
 #ifdef WITH_FAST_MODULO
-        num.FastModuloBarrett(modulus, u);
+    num.FastModuloBarrett(modulus, u);
 #else
-        num.SlowModulo(modulus);
+    num.SlowModulo(modulus);
 #endif
-    }
+  }
 };
 
 class AccumulatedBNT {
-protected:
-	BNT v;
-	BNT vAcc;
-	ModulusBNT modulus;
+ protected:
+  BNT v;
+  BNT vAcc;
+  ModulusBNT modulus;
 
-public:
+ public:
+  AccumulatedBNT(const BNT& mod)
+      : v(BNT::One()), vAcc(BNT::One()), modulus(mod) {}
 
-	AccumulatedBNT(const BNT& mod)
-		: v(BNT::One()), vAcc(BNT::One()), modulus(mod)
-	{}
+ public:
+  inline void reset() {
+    v = BNT::One();
+    vAcc = BNT::One();
+  }
 
-public:
-	inline void reset() {
-		v = BNT::One();
-		vAcc = BNT::One();
-	}
+  void reduceIf();
+  void reduceAlways();
 
-	void reduceIf();
-	void reduceAlways();
+  void Times(const BNT& n) {
+    if (n < 0)
+      throw std::runtime_error(
+          "Must only multiply by positive numbers (most performant way of "
+          "dealing with RELIC issues).");
+    vAcc.Times(n);
+    reduceIf();
+  }
 
-	void Times(const BNT& n) {
-		if(n < 0)
-			throw std::runtime_error("Must only multiply by positive numbers (most performant way of dealing with RELIC issues).");
-		vAcc.Times(n);
-		reduceIf();
-	}
+  template <class Numeric>
+  inline void Times(Numeric n) {
+    if (n < 0)
+      throw std::runtime_error(
+          "Must only multiply by positive numbers (most performant way of "
+          "dealing with RELIC issues).");
+    vAcc.Times(static_cast<dig_t>(n));
+    reduceIf();
+  }
 
-	template<class Numeric>
-	inline void Times(Numeric n) {
-		if(n < 0)
-			throw std::runtime_error("Must only multiply by positive numbers (most performant way of dealing with RELIC issues).");
-		vAcc.Times(static_cast<dig_t>(n));
-		reduceIf();
-	}
-
-	const BNT& toBNT();
+  const BNT& toBNT();
 };
 
 class LagrangeIncrementalCoeffs {
-protected:
-	/**
-	 * We save some modular reductions by multiplying things in denomsAccum until >= fieldOrder
-	 * and only then multiplying denomsAccum in denoms and doing modular reduction.
-	 * Same for numerator: see numer and numerAccum.
-	 */
+ protected:
+  /**
+   * We save some modular reductions by multiplying things in denomsAccum until
+   * >= fieldOrder and only then multiplying denomsAccum in denoms and doing
+   * modular reduction. Same for numerator: see numer and numerAccum.
+   */
 
-	const ModulusBNT fieldOrder;
-	std::vector<AccumulatedBNT> denoms;
-	std::vector<bool> denomSigns;
-	AccumulatedBNT numerFull;
-	int numerSign;      // finalizeCoefficient needs shared access to this
-	BNT numerReduced;   // finalizeCoefficient needs shared access to this
+  const ModulusBNT fieldOrder;
+  std::vector<AccumulatedBNT> denoms;
+  std::vector<bool> denomSigns;
+  AccumulatedBNT numerFull;
+  int numerSign;     // finalizeCoefficient needs shared access to this
+  BNT numerReduced;  // finalizeCoefficient needs shared access to this
 
-	VectorOfShares signers;
-	const PrecomputedInverses& pi;
+  VectorOfShares signers;
+  const PrecomputedInverses& pi;
 
-public:
-	LagrangeIncrementalCoeffs(NumSharesType numSigners, const BlsPublicParameters& params);
+ public:
+  LagrangeIncrementalCoeffs(NumSharesType numSigners,
+                            const BlsPublicParameters& params);
 
-protected:
-	void finalizeCoefficient(ShareID id, BNT& coeff);
+ protected:
+  void finalizeCoefficient(ShareID id, BNT& coeff);
 
-public:
+ public:
+  /**
+   * Updates the Lagrange coefficients incrementally as signers are added (the
+   * full numerator and individual denominators).
+   */
+  bool addSigner(ShareID newSigner);
 
-	/**
-	 * Updates the Lagrange coefficients incrementally as signers are added (the full numerator
-	 * and individual denominators).
-	 */
-	bool addSigner(ShareID newSigner);
+  void removeSigner(ShareID badSigner);
 
-	void removeSigner(ShareID badSigner);
+  void finalize(std::vector<BNT>& coeffsOut);
 
-	void finalize(std::vector<BNT>& coeffsOut);
-
-	const VectorOfShares& getSigners() const { return signers; }
+  const VectorOfShares& getSigners() const { return signers; }
 };
 
 /**
@@ -148,28 +149,36 @@ public:
  * WARNING: Doesn't work for more than 512 signers due to limitations in RELIC's
  * bignum implementation.
  */
-void lagrangeCoeffNaive(const VectorOfShares& signers, std::vector<BNT>& lagrangeCoeffs, const BNT& fieldOrder);
+void lagrangeCoeffNaive(const VectorOfShares& signers,
+                        std::vector<BNT>& lagrangeCoeffs,
+                        const BNT& fieldOrder);
 
 /**
- * Computes the numerator and denominator with modular reduction after every multiplication.
+ * Computes the numerator and denominator with modular reduction after every
+ * multiplication.
  *
  * WARNING: Still slow because reduces too often.
  */
-void lagrangeCoeffNaiveReduced(const VectorOfShares& signers, std::vector<BNT>& coeffs, const BNT& fieldOrder);
+void lagrangeCoeffNaiveReduced(const VectorOfShares& signers,
+                               std::vector<BNT>& coeffs,
+                               const BNT& fieldOrder);
 
 /**
  * Computes the numerator and denominator with modular reduction as necessary.
  * Keeps an accumulator for the numerator and denominator such that
- * |accumulator| < fieldOrder or else the accumulator is reduced modulo the fieldOrder.
+ * |accumulator| < fieldOrder or else the accumulator is reduced modulo the
+ * fieldOrder.
  *
- * Also, computes numerator faster by avoiding repeated computations (as opposed to naive).
+ * Also, computes numerator faster by avoiding repeated computations (as opposed
+ * to naive).
  *
  * NOTE: Fastest implementation because reduces very rarely.
- * TODO: could reduce even more rarely when |accumulator| < c * fieldOrder, for some c.
+ * TODO: could reduce even more rarely when |accumulator| < c * fieldOrder, for
+ * some c.
  */
-void lagrangeCoeffAccumReduced(const VectorOfShares& signers, std::vector<BNT>& lagrangeCoeffs, const BNT& fieldOrder);
+void lagrangeCoeffAccumReduced(const VectorOfShares& signers,
+                               std::vector<BNT>& lagrangeCoeffs,
+                               const BNT& fieldOrder);
 
-} // end of Relic
-} // end of BLS
-
-
+}  // namespace Relic
+}  // namespace BLS

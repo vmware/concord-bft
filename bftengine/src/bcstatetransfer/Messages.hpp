@@ -23,7 +23,7 @@ namespace bftEngine {
 namespace SimpleBlockchainStateTransfer {
 namespace impl {
 
-#pragma pack(push,1)
+#pragma pack(push, 1)
 
 class MsgType {
  public:
@@ -71,10 +71,10 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
 
   static void free(void* context, const CheckpointSummaryMsg* a) {
     IReplicaForStateTransfer* w =
-            reinterpret_cast<IReplicaForStateTransfer*>(context);
+        reinterpret_cast<IReplicaForStateTransfer*>(context);
 
     w->freeStateTransferMsg(
-            const_cast<char*>(reinterpret_cast<const char*>(a)));
+        const_cast<char*>(reinterpret_cast<const char*>(a)));
   }
 };
 
@@ -102,9 +102,6 @@ struct FetchResPagesMsg : public BCStateTranBaseMsg {
   uint16_t lastKnownChunk;
 };
 
-
-
-
 struct RejectFetchingMsg : public BCStateTranBaseMsg {
   RejectFetchingMsg() {
     memset(this, 0, sizeof(RejectFetchingMsg));
@@ -113,7 +110,6 @@ struct RejectFetchingMsg : public BCStateTranBaseMsg {
 
   uint64_t requestMsgSeqNum;
 };
-
 
 struct ItemDataMsg : public BCStateTranBaseMsg {
   static ItemDataMsg* alloc(uint32_t dataSize) {
@@ -144,7 +140,8 @@ struct ItemDataMsg : public BCStateTranBaseMsg {
   char data[1];
 
   uint32_t size() const {
-    return sizeof(ItemDataMsg) - 1 + dataSize;;
+    return sizeof(ItemDataMsg) - 1 + dataSize;
+    ;
   }
 };
 
