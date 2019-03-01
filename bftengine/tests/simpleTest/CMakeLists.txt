@@ -68,3 +68,15 @@ add_custom_target(copy_simple_test_scripts ALL COMMENT "Copying scripts of simpl
 add_custom_command(TARGET copy_simple_test_scripts
     COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:simpleTest_client>/scripts
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/scripts $<TARGET_FILE_DIR:simpleTest_client>/scripts)
+
+# Fill in CMAKE variables in the test script
+configure_file (
+    "${CMAKE_CURRENT_SOURCE_DIR}/scripts/testReplicasAndClient.sh.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/scripts/testReplicasAndClient.sh"
+)
+
+# Fill in CMAKE variables in the python wrapper
+configure_file (
+    "${CMAKE_CURRENT_SOURCE_DIR}/scripts/simpleTest.py.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/scripts/simpleTest.py"
+)

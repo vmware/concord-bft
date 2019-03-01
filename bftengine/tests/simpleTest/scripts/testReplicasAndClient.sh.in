@@ -1,20 +1,21 @@
 #!/bin/sh
 set -e
 
+toolsdir=@concord_bft_tools_BINARY_DIR@
 scriptdir=$(cd $(dirname $0); pwd -P)
 
 echo "Generating new keys..."
 
 rm -f private_replica_*
 
-../../../../tools/GenerateConcordKeys -n 4 -f 1 -o private_replica_
+$toolsdir/GenerateConcordKeys -n 4 -f 1 -o private_replica_
 
 parallel --halt now,fail=1 -j0 ::: \
     "$scriptdir/../server 0" \
     "$scriptdir/../server 1" \
     "$scriptdir/../server 2" \
     "$scriptdir/../server 3" &
-	
+
 repl_pid=$!
 
 $scriptdir/../client
