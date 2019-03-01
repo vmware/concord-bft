@@ -36,18 +36,17 @@ In the `scripts` directory, you'll find:
   * `runReplias.sh`, which just starts all four replicas.
 
   * `runClient.sh`, which just runs the client test.
-  
+
   * `simpleTest.py`, which allows to run various configurations using command
   line interface.
 
 ## Run test using pre configured shell script
 
-If you have built Concord, by running `make.sh` from the top-level
-directory, you can run the test using the following commands:
+Once you have built Concord and are in the top-level directory, you can run the
+test with the following command:
 
 ```
-cd ~/builds/concord-bft/debug/bftengine/tests/simpleTest/scripts
-./testReplicasAndClient.sh
+./build/bftengine/tests/simpleTest/scripts/testReplicasAndClient.sh
 ```
 
 You should see output like the following:
@@ -95,19 +94,18 @@ Killing server processes named '/home/bfink/builds/concord-bft/debug/bftengine/t
 ```
 ## Run test with various configurations via Python script
 
-If you have built Concord, by running `make.sh` from the top-level
-directory, you can run the test using the following commands:
+Once you have built Concord and are in the top-level directory, you can run the
+test with the following command:
 
 ```
-cd ~/builds/concord-bft/debug/bftengine/tests/simpleTest/scripts
-./simpleTest.py -bft n=4,r=4,f=1,c=0,cl=1
+./build/bftengine/tests/simpleTest/scripts/simpleTest.py -bft n=4,r=4,f=1,c=0,cl=1
 ```
 The command above is EQUAL to running the test via the shell script, as desribed above.
 
 Note: if you run the command as described above and experience Python related
  issues, please run it using
- 
-    python3 ./simpleTest.py -bft n=4,r=4,f=1,c=0,cl=1
+
+    python3 build/bftengine/tests/simpleTest/scripts/simpleTest.py -bft n=4,r=4,f=1,c=0,cl=1
 
 ### Command line parameters
 The following CLI parameters are supported:
@@ -138,6 +136,9 @@ Log files produced by the replica and client processes will be written in this f
 The log file from the simpleTest.py itself will be written in the log folder provided to the CLI (```-ld``` parameter), which is current dir by default.
 
 ### Examples
+The following examples all assume you are running simpleTest.py directly from
+`<CONCORD_BFT_DIR>/build/bftengine/tests/simpleTest/scripts`.
+
 Here are a few single test runs that may be useful:
 
 Run 6 out of 6 replicas and 2 clients, with 5000 transactions per client and trigger View Change protocol. This test should succeed.
