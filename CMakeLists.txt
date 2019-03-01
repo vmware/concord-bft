@@ -19,26 +19,25 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 
 set(IS_LEAKCHECK FALSE)
-set(BUILD_COMM_TCP_TLS FALSE)
 set(SLEEP_FOR_DBG FALSE)
 
 # Default to debug builds
 # Release builds can be enabled by running cmake with -DCMAKE_BUILD_TYPE=Release
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "ENABLE DEBUG BUILDS" FORCE)
+    set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Enable debug or release builds" FORCE)
 endif()
 
-#if not set to TRUE by the app, set from here
-if(NOT USE_LOG4CPP)
-    set(USE_LOG4CPP FALSE)
-endif()
-if(NOT BUILD_COMM_TCP_PLAIN)
-    set(BUILD_COMM_TCP_PLAIN FALSE)
-endif()
+# Default USE_LOG4CPP to FALSE
+option(USE_LOG4CPP "Enable LOG4CPP" FALSE)
 
+# Default BUILD_COMM_TCP_PLAIN to FALSE
+option(BUILD_COMM_TCP_PLAIN "Enable TCP communication" FALSE)
+
+# Default CONCORD_LOGGER_NAME to "concord"
 if(NOT CONCORD_LOGGER_NAME)
-    set(CONCORD_LOGGER_NAME "concord")
+    set(CONCORD_LOGGER_NAME "concord" CACHE STRING "Set concord logger name" FORCE)
 endif()
+
 
 if(SLEEP_FOR_DBG)
     add_definitions(-DSLEEP_DBG)
