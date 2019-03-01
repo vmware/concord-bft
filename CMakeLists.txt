@@ -108,7 +108,6 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 
 endif()
 
-
 #
 # External dependencies
 #
@@ -123,4 +122,12 @@ add_subdirectory(logging)
 add_subdirectory(threshsign)
 add_subdirectory(bftengine)
 add_subdirectory(tools)
-add_subdirectory(bftengine/tests)
+
+#
+# Setup testing
+#
+include(CTest)
+if(BUILD_TESTING)
+    add_subdirectory(bftengine/tests)
+endif()
+
