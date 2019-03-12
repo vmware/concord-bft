@@ -37,8 +37,13 @@ if(USE_LOG4CPP)
 endif()
 
 if(${USE_COMM_PLAIN_TCP})
-    target_compile_definitions(simnpleTest_client PUBLIC USE_COMM_PLAIN_TCP=1)
-    target_compile_definitions(simnpleTest_server PUBLIC USE_COMM_PLAIN_TCP=1)
+    target_compile_definitions(simnpleTest_client PUBLIC USE_COMM_PLAIN_TCP)
+    target_compile_definitions(simnpleTest_server PUBLIC USE_COMM_PLAIN_TCP)
+endif()
+
+if(${USE_COMM_TLS_TCP})
+    target_compile_definitions(simnpleTest_client PUBLIC USE_COMM_TLS_TCP)
+    target_compile_definitions(simnpleTest_server PUBLIC USE_COMM_TLS_TCP)
 endif()
 
 set_target_properties(simpleTest_client PROPERTIES OUTPUT_NAME client)
@@ -80,3 +85,9 @@ configure_file (
     "${CMAKE_CURRENT_SOURCE_DIR}/scripts/simpleTest.py.in"
     "${CMAKE_CURRENT_BINARY_DIR}/scripts/simpleTest.py"
 )
+
+add_custom_target(copy_tls_script ALL COMMENT "Copying TLS script")
+add_custom_command(TARGET copy_tls_script
+        COMMAND ${CMAKE_COMMAND} -E copy
+        ${PROJECT_SOURCE_DIR}/scripts/linux/create_tls_certs.sh
+     $<TARGET_FILE_DIR:simpleTest_client>/scripts/create_tls_certs.sh)

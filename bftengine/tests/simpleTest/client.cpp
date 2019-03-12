@@ -50,6 +50,8 @@ using bftEngine::PlainUDPCommunication;
 using bftEngine::PlainUdpConfig;
 using bftEngine::PlainTCPCommunication;
 using bftEngine::PlainTcpConfig;
+using bftEngine::TlsTCPCommunication;
+using bftEngine::TlsTcpConfig;
 using bftEngine::SeqNumberGeneratorForClientRequests;
 using bftEngine::SimpleClient;
 
@@ -61,7 +63,7 @@ concordlogger::Logger clientLogger =
 LOG_FATAL(clientLogger, "assert fail with message: " << message); assert(false);}}
 
 struct ClientParams {
-  uint32_t numOfOperations = 2800;
+  uint32_t numOfOperations = 180000;
   uint16_t clientId = 4;
   uint16_t numOfReplicas = 4;
   uint16_t numOfClients = 1;
@@ -220,6 +222,9 @@ int main(int argc, char **argv) {
   // Configure, create, and start the Concord client to use.
 #ifdef USE_COMM_PLAIN_TCP
   PlainTcpConfig conf = testCommConfig.GetTCPConfig(
+      false, id, cp.numOfClients, cp.numOfReplicas, cp.configFileName);
+#elif USE_COMM_TLS_TCP
+  TlsTcpConfig conf = testCommConfig.getTlsTCPConfig(
       false, id, cp.numOfClients, cp.numOfReplicas, cp.configFileName);
 #else
   PlainUdpConfig conf = testCommConfig.GetUDPConfig(

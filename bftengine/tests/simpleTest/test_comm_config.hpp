@@ -38,6 +38,10 @@ class TestCommConfig: public ITestCommConfig {
         uint16_t& num_of_replicas, const std::string& config_file_name)
         override;
 
+  bftEngine::TlsTcpConfig getTlsTCPConfig(
+      bool is_replica, uint16_t id, uint16_t& num_of_clients,
+      uint16_t& num_of_replicas, const std::string& config_file_name) override;
+
   private:
     std::unordered_map <NodeNum, NodeInfo> SetUpConfiguredNodes(
         bool is_replica, const std::string& config_file_name, uint16_t node_id,
@@ -59,6 +63,7 @@ class TestCommConfig: public ITestCommConfig {
     static const uint16_t    base_port_ = 3710;
     static const uint32_t    buf_length_ = 64000;
     static const std::string default_ip_;
+  static const std::string default_listen_ip_;
     static const char*       ip_port_delimiter_;
 };
 

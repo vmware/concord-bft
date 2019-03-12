@@ -91,7 +91,8 @@ constexpr bool forceViewChangeProtocolEnabled = false;
 constexpr bool forceViewChangeProtocolDisabled = false;
 static_assert(!forceViewChangeProtocolEnabled || !forceViewChangeProtocolDisabled, "");
 
-constexpr int viewChangeTimeoutMilli = 0; //  80 * 1000; // 1 * 60 * 1000; // 20 * 1000; // if 0, this value is taken from config
+constexpr int viewChangeTimeoutMilli = 0; //  80 * 1000; // 1 * 60 *
+// 1000; // 20 * 1000; // if 0, this value is taken from config
 
 
 constexpr bool autoIncViewChangeTimer = true;

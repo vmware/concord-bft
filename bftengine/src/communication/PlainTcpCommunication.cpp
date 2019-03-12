@@ -926,6 +926,7 @@ class PlainTCPCommunication::PlainTcpImpl {
 
   virtual ~PlainTcpImpl() {
     LOG_TRACE(_logger, "PlainTCPDtor");
+    _pIoThread = nullptr;
   }
 };
 

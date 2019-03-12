@@ -27,6 +27,7 @@
 
 using bftEngine::PlainUdpConfig;
 using bftEngine::PlainTcpConfig;
+using bftEngine::TlsTcpConfig;
 using bftEngine::ReplicaConfig;
 using BLS::Relic::BlsThresholdFactory;
 using std::pair;
@@ -39,6 +40,7 @@ using std::vector;
 
 const char* TestCommConfig::ip_port_delimiter_ = ":";
 const std::string TestCommConfig::default_ip_ = "127.0.0.1";
+const std::string TestCommConfig::default_listen_ip_ = "0.0.0.0";
 
 //////////////////////////////////////////////////////////////////////////////
 // Create a replica config for the replica with index `replicaId`.
@@ -132,7 +134,7 @@ std::unordered_map <NodeNum, NodeInfo> TestCommConfig::SetUpDefaultNodes(
   return nodes;
 }
 
-std::unordered_map <NodeNum, NodeInfo> TestCommConfig::SetUpNodes(
+std::unordered_map <NodeNum, NodeInfo> TestCommConfig:: SetUpNodes(
     bool is_replica, uint16_t node_id, std::string& ip, uint16_t& port,
     uint16_t& num_of_clients, uint16_t& num_of_replicas,
     const std::string& config_file_name) {
@@ -156,7 +158,7 @@ PlainUdpConfig TestCommConfig::GetUDPConfig(
       SetUpNodes(is_replica, node_id, ip, port, num_of_clients,
                  num_of_replicas, config_file_name);
 
-  PlainUdpConfig ret_val(ip, port, buf_length_, nodes, node_id);
+  PlainUdpConfig ret_val(default_listen_ip_, port, buf_length_, nodes, node_id);
   return ret_val;
 }
 
@@ -171,6 +173,24 @@ PlainTcpConfig TestCommConfig::GetTCPConfig(
       SetUpNodes(is_replica, node_id, ip, port, num_of_clients, num_of_replicas,
                  config_file_name);
 
-  PlainTcpConfig ret_val(ip, port, buf_length_, nodes, num_of_replicas - 1, node_id);
+  PlainTcpConfig ret_val(
+      default_listen_ip_, port, buf_length_, nodes, num_of_replicas - 1, node_id);
   return ret_val;
+}
+
+TlsTcpConfig TestCommConfig::getTlsTCPConfig(
+    bool is_replica, uint16_t id, uint16_t& num_of_clients,
+    uint16_t& num_of_replicas, const std::string& config_file_name) {
+  string   ip;
+  uint16_t port;
+
+  std::unordered_map <NodeNum, NodeInfo> nodes =
+      SetUpNodes(is_replica, id, ip, port, num_of_clients, num_of_replicas,
+                 config_file_name);
+
+  // need to move the default cipher suite to the config file
+  TlsTcpConfig retVal(default_listen_ip_, port, buf_length_, nodes,
+                      num_of_replicas -1, id, "certs",
+                      "ECDHE-ECDSA-AES256-GCM-SHA384");
+  return retVal;
 }

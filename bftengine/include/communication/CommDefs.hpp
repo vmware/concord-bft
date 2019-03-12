@@ -116,6 +116,10 @@ struct PlainTcpConfig : BaseCommConfig {
 struct TlsTcpConfig : PlainTcpConfig {
   std::string certificatesRootPath;
 
+  // set specific suite or list of suites, as described in OpenSSL
+  // https://www.openssl.org/docs/man1.0.2/man1/ciphers.html
+  std::string cipherSuite;
+
   TlsTcpConfig(std::string ip,
                uint16_t port,
                uint32_t bufLength,
@@ -123,6 +127,7 @@ struct TlsTcpConfig : PlainTcpConfig {
                int32_t _maxServerId,
                NodeNum _selfId,
                std::string certRootPath,
+               std::string ciphSuite,
                UPDATE_CONNECTIVITY_FN _statusCallback = nullptr) :
       PlainTcpConfig(move(ip),
                      port,
@@ -131,7 +136,8 @@ struct TlsTcpConfig : PlainTcpConfig {
                      _maxServerId,
                      _selfId,
                      _statusCallback),
-      certificatesRootPath{move(certRootPath)} {
+      certificatesRootPath{std::move(certRootPath)},
+      cipherSuite{std::move(ciphSuite)} {
     commType = CommType::TlsTcp;
   }
 };
