@@ -11,6 +11,10 @@ import logging
 import time
 import multiprocessing
 
+generate_concord_keys = "@concord_bft_tools_BINARY_DIR@/GenerateConcordKeys"
+bin_dir = "@bftengine_BINARY_DIR@/tests/simpleTest"
+log_dir = "@bftengine_BINARY_DIR@/tests/simpleTest/scripts"
+
 g_logger = logging.getLogger("simpletest")
 g_log_formatter = logging.Formatter(
     "%(asctime)-15s %(levelname)-6s %(""message)s")
@@ -212,7 +216,7 @@ class TestConfig:
                 self.log_dir, self.config_name.replace(",","_")),"w") as w:
             w.write("cli args: " + cli_args)
 
-        cmd = ["../../../../tools/GenerateConcordKeys",
+        cmd = [generate_concord_keys,
                "-n", str(self.num_of_replicas),
                "-f", str(self.num_of_faulty),
                "-o", os.path.join(self.log_dir, "private_replica_")]
@@ -390,10 +394,10 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("-bd",
                         help="Folder with BFT executables",
-                        default="..")
+                        default=bin_dir)
     parser.add_argument("-ld",
                         help="Directory for log files",
-                        default=".")
+                        default=log_dir)
     parser.add_argument("-nc",
                         help="Do not print processes' output to the console",
                         action="store_true")

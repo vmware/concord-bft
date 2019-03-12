@@ -165,58 +165,62 @@ Install Python 3
 
     sudo apt-get update
     sudo apt-get install python3
-    
+
 After the installation, please verify the version by running:
 
     python3 --version
-    
+
 It should be
-    
+
     Python 3.x.x
- 
+
 
 ### Select comm module
-We support both UDP and TCP communication (UDP is the default one).
-In the main Cmake file please set BUILD_COMM_TCP_PLAIN flag to TRUE to
-build TCP - then the test client we use will run using TCP. If you wish to
-use TCP in your application, you need to build the TCP module as mentioned
-above and then create the communication object using CommFactory
-and passing PlainTcpConfig object to it.
+We support both UDP and TCP communication. UDP is the default. In order to
+enable TCP communication, build with `-DBUILD_COMM_TCP_PLAIN=TRUE` in the cmake
+instructions shown below.  If set, the test client will run using TCP. If you
+wish to use TCP in your application, you need to build the TCP module as
+mentioned above and then create the communication object using CommFactory and
+passing PlainTcpConfig object to it.
 
 ### Build concord-bft
 
+Create a build directory and enter it:
+
     cd
-    cd concord-bft
+    mkdir -p concord-bft/build
+    cd concord-bft/build
 
-    # NOTE: This will add concord-bft/scripts/linux to PATH
-    #
-    . scripts/linux/set-env.sh release
-    #
-    # ...so you can invoke the make script as follows
-    #
-    make.sh
+To perform a default build execute the following:
 
+    cmake ..
+    make
 
-For debug builds use:
+In order to turn on or off various options, you need to change your cmake configuration. This is
+done by passing arguments to cmake with a `-D` prefix: e.g. `cmake -DBUILD_TESTING=OFF`. Note that
+make must be run afterwards to build according to the configuration. The following options are
+useful for building concord-bft:
 
-    . scripts/linux/set-env.sh debug
-
-
+ * `CMAKE_BUILD_TYPE`     - Debug | Release | RelWithDebInfo | MinSizeRel (DEFAULT Debug)
+ * `BUILD_TESTING`        - OFF | ON  (DEFAULT ON)
+ * `BUILD_COMM_TCP_PLAIN` - TRUE | FALSE (DEFAULT FALSE - UDP is used)
+ * `USE_LOG4CPP`          - TRUE | FALSE (DEFAULT FALSE)
+ * `CONCORD_LOGGER_NAME`  - STRING (DEFAULT "concord")
 
 Run examples
 ----
 
 ### Simple test application (4 replicas and 1 client on a single machine)
 
-    export LD_LIBRARY_PATH=/usr/local/lib
+Tests are compiled into in the build directory and can be run from anywhere as
+long as they aren't moved.
 
-Go to the build directory (here `<buildtype>` is either `release` or `debug`)
+Run the following from the top level concord-bft directory:
 
-    cd ~/builds/concord-bft/<build-type>/bftengine/tests/simpleTest/scripts
+   ./build/bftengine/tests/simpleTest/scripts/testReplicasAndClient.sh
 
-    ./testReplicasAndClient.sh
-
-    # Or, you can alternatively do: ./runReplicas.sh followed by ./runClient.sh
+Alternatively you can run `runReplicas.sh` and `runClient.sh` from the same
+directory as `testReplicasAndClient.sh`.
 
 ### Using simple test application via Python script
 
