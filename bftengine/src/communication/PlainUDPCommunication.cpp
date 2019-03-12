@@ -401,7 +401,7 @@ class PlainUDPCommunication::PlainUdpImpl {
                                   bufferForIncomingMessages,
                                   mLen);
       } else {
-        LOG_ERROR(_logger, "receiver is NULL")
+        LOG_ERROR(_logger, "receiver is NULL");
       }
 
       bool isReplica = check_replica(sendingNode);

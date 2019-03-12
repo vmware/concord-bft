@@ -87,6 +87,7 @@ target_include_directories(corebft PUBLIC include/bftengine)
 target_include_directories(corebft PUBLIC include/communication)
 target_include_directories(corebft PUBLIC include/bcstatetransfer)
 target_include_directories(corebft PUBLIC include/simplestatetransfer)
+target_include_directories(corebft PUBLIC include/metadatastorage)
 target_include_directories(corebft PUBLIC ${LOGGER_INC_DIR})
 
 target_link_libraries(corebft PUBLIC threshsign)
