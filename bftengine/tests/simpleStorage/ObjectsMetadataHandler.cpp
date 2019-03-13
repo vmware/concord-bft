@@ -14,6 +14,7 @@
 #include "ObjectsMetadataHandler.hpp"
 
 #include <stdio.h>
+#include <cstring>
 
 using namespace std;
 

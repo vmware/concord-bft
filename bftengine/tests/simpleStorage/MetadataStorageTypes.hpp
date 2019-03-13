@@ -16,10 +16,11 @@
 
 #include <sstream>
 #include <map>
-#include <cstring>
 
 namespace bftEngine {
 
+// Single metadata object structure stored in the beginning of the DB file
+// for each object.
 struct MetadataObjectInfo {
   explicit MetadataObjectInfo() : id(0), metadataOffset(0),
                                   offset(0), realSize(0), maxSize(0) {}
@@ -43,6 +44,7 @@ struct MetadataObjectInfo {
   uint32_t maxSize;
 };
 
+// Object data to be stored for every write operation in transaction.
 struct RequestInfo {
   RequestInfo(char *buf, uint32_t len): data(buf), dataLen(len) {}
   char *data;

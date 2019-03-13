@@ -50,8 +50,9 @@ class FileStorage : public MetadataStorage {
   void read(void *dataPtr, size_t offset, size_t itemSize,
             size_t count, const char *errorMsg);
   void write(void *dataPtr, size_t offset, size_t itemSize,
-             size_t count, const char *errorMsg);
-  void handleObjectWrite(uint16_t objectId, void *dataPtr, uint32_t objectSize);
+             size_t count, const char *errorMsg, bool toFlush = true);
+  void handleObjectWrite(uint16_t objectId, void *dataPtr, uint32_t objectSize,
+                         bool toFlush = true);
   void handleObjectRead(uint16_t objectId, char *outBufferForObject,
                         uint32_t &outActualObjectSize);
   void loadFileMetadata();

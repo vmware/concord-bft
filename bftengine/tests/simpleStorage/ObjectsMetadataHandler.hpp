@@ -20,6 +20,8 @@ namespace bftEngine {
 
 typedef std::map<uint16_t, MetadataObjectInfo> MetadataObjectIdToInfoMap;
 
+// This class represents a memory copy of objects metadata information stored
+// in the beginning of the DB file.
 class ObjectsMetadataHandler {
  public:
   explicit ObjectsMetadataHandler(uint16_t objectsNum)

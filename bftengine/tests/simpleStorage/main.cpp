@@ -50,6 +50,8 @@ void verifyData(FileStorage &fileStorage, uint16_t objId) {
   assert(objIn.elem4 == ELEM4);
 }
 
+// The tests verify that all MetadataStorage interfaces work correctly using
+// file-based storage.
 int main(int argc, char **argv) {
 
   try {

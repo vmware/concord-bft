@@ -14,7 +14,7 @@
 #include "FileStorage.hpp"
 #include "ObjectsMetadataHandler.hpp"
 
-#include <stdio.h>
+#include <cstring>
 #include <exception>
 #include <unistd.h>
 
@@ -98,13 +98,14 @@ void FileStorage::read(void *dataPtr, size_t offset, size_t itemSize,
 }
 
 void FileStorage::write(void *dataPtr, size_t offset, size_t itemSize,
-                        size_t count, const char *errorMsg) {
+                        size_t count, const char *errorMsg, bool toFlush) {
   fseek(dataStream_, offset, SEEK_SET);
   if (fwrite(dataPtr, itemSize, count, dataStream_) != count) {
     LOG_FATAL(logger_, "FileStorage::write " << errorMsg);
     throw runtime_error(errorMsg);
   }
-  fflush(dataStream_);
+  if (toFlush)
+    fflush(dataStream_);
 }
 
 void FileStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray,
@@ -157,11 +158,11 @@ void FileStorage::verifyOperation(uint16_t objectId, uint32_t dataLen,
 }
 
 void FileStorage::handleObjectWrite(uint16_t objectId, void *dataPtr,
-                                    uint32_t objectSize) {
+                                    uint32_t objectSize, bool toFlush) {
   MetadataObjectInfo *objectInfo = objectsMetadata_->getObjectInfo(objectId);
   if (objectInfo) {
     write(dataPtr, objectInfo->offset, objectSize, 1,
-          FAILED_TO_WRITE_OBJECT);
+          FAILED_TO_WRITE_OBJECT, toFlush);
     LOG_INFO(logger_, "FileStorage::handleObjectWrite "
         << objectInfo->toString());
     // Update the file metadata with a real object size
@@ -188,8 +189,8 @@ void FileStorage::read(uint16_t objectId, uint32_t bufferSize,
                        uint32_t &outActualObjectSize) {
   LOG_INFO(logger_, "FileStorage::read objectId="
       << objectId << ", bufferSize=" << bufferSize);
-  verifyOperation(objectId, bufferSize, outBufferForObject);
   lock_guard<mutex> lock(ioMutex_);
+  verifyOperation(objectId, bufferSize, outBufferForObject);
   handleObjectRead(objectId, outBufferForObject, outActualObjectSize);
 }
 
@@ -197,13 +198,14 @@ void FileStorage::atomicWrite(uint16_t objectId, char *data,
                               uint32_t dataLength) {
   LOG_INFO(logger_, "FileStorage::atomicWrite objectId="
       << objectId << ", dataLength=" << dataLength);
-  verifyOperation(objectId, dataLength, data);
   lock_guard<mutex> lock(ioMutex_);
+  verifyOperation(objectId, dataLength, data);
   handleObjectWrite(objectId, data, dataLength);
 }
 
 void FileStorage::beginAtomicWriteOnlyTransaction() {
   LOG_INFO(logger_, "FileStorage::beginAtomicWriteOnlyTransaction");
+  lock_guard<mutex> lock(ioMutex_);
   verifyFileMetadataSetup();
   if (transaction_) {
     LOG_INFO(logger_, "FileStorage::beginAtomicWriteOnlyTransaction "
@@ -217,6 +219,7 @@ void FileStorage::writeInTransaction(uint16_t objectId, char *data,
                                      uint32_t dataLength) {
   LOG_INFO(logger_, "FileStorage::writeInTransaction objectId="
       << objectId << ", dataLength=" << dataLength);
+  lock_guard<mutex> lock(ioMutex_);
   verifyOperation(objectId, dataLength, data);
   if (!transaction_) {
     LOG_ERROR(logger_, "FileStorage::writeInTransaction " << WRONG_FLOW);
@@ -230,19 +233,18 @@ void FileStorage::writeInTransaction(uint16_t objectId, char *data,
 
 void FileStorage::commitAtomicWriteOnlyTransaction() {
   LOG_INFO(logger_, "FileStorage::commitAtomicWriteOnlyTransaction");
+  lock_guard<mutex> lock(ioMutex_);
   verifyFileMetadataSetup();
   if (!transaction_) {
     LOG_ERROR(logger_, "FileStorage::commitAtomicWriteOnlyTransaction "
         << WRONG_FLOW);
     throw runtime_error(WRONG_FLOW);
   }
-  {
-    lock_guard<mutex> lock(ioMutex_);
-    for (auto it : *transaction_) {
-      handleObjectWrite(it.first, it.second.data, it.second.dataLen);
-      delete[] it.second.data;
-    }
+  for (auto it : *transaction_) {
+    handleObjectWrite(it.first, it.second.data, it.second.dataLen, false);
+    delete[] it.second.data;
   }
+  fflush(dataStream_);
   delete transaction_;
 }
 
