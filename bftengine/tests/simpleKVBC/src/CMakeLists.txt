@@ -15,6 +15,7 @@ add_library(simpleKVBC ${simpleKVBC_sources})
 
 target_include_directories(simpleKVBC PUBLIC .)
 target_include_directories(simpleKVBC PUBLIC ../../../../bftengine)
+target_include_directories(simpleKVBC PUBLIC ../../../../bftengine/include/metadatastorage)
 target_include_directories(simpleKVBC PUBLIC ../../../../bftengine/include/bcstatetransfer)
 target_include_directories(simpleKVBC PUBLIC ../../../../bftengine/include/communication)
 target_include_directories(simpleKVBC PUBLIC ../../../../bftengine/include/bftengine)

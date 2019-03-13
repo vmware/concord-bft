@@ -69,6 +69,8 @@
 #include <log4cplus/configurator.h>
 #endif
 
+using namespace std;
+
 concordlogger::Logger replicaLogger =
     concordlogger::Logger::getLogger("simpletest.replica");
 bftEngine::Replica* replica = nullptr;
