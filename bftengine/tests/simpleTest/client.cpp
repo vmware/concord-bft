@@ -224,7 +224,7 @@ int main(int argc, char **argv) {
   PlainTcpConfig conf = testCommConfig.GetTCPConfig(
       false, id, cp.numOfClients, cp.numOfReplicas, cp.configFileName);
 #elif USE_COMM_TLS_TCP
-  TlsTcpConfig conf = testCommConfig.getTlsTCPConfig(
+  TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(
       false, id, cp.numOfClients, cp.numOfReplicas, cp.configFileName);
 #else
   PlainUdpConfig conf = testCommConfig.GetUDPConfig(

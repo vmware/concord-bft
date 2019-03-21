@@ -330,10 +330,10 @@ int main(int argc, char **argv) {
                                                     rp.numOfReplicas,
                                                     rp.configFileName);
 #elif USE_COMM_TLS_TCP
-  TlsTcpConfig conf = testCommConfig.getTlsTCPConfig(true, rp.replicaId,
-                                                    rp.numOfClients,
-                                                    rp.numOfReplicas,
-                                                    rp.configFileName);
+  TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(true, rp.replicaId,
+                                                     rp.numOfClients,
+                                                     rp.numOfReplicas,
+                                                     rp.configFileName);
 #else
   PlainUdpConfig conf = testCommConfig.GetUDPConfig(true, rp.replicaId,
                                                     rp.numOfClients,

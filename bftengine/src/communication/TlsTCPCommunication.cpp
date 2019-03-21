@@ -12,7 +12,7 @@
 
 /**
  * This file implements the TLS over TCP communication between concord nodes.
- * Therea are 2 main classes: AsyncTlsConnection - that represents stateful
+ * There are 2 main classes: AsyncTlsConnection - that represents stateful
  * connection between 2 nodes and TlsTCPCommunication - that uses PIMPL idiom
  * to implement the ICommunication interface.
  * The AsyncTlsConnection uses boost::asio::io_service with 1 worker thread -
@@ -71,7 +71,7 @@ enum ConnType : uint8_t {
  * will receive the IReceiver as a parameter and call it when new message
  * available.
  * The class is responsible for managing connection lifecycle. If the
- * instance represents Incoming connection, when the connection is broken the
+ * instance represents incoming connection, when the connection is broken the
  * instance will clean up itself by calling the _fOnError method.
  * The Outgoing connection instance will reset the state and try to reconnet
  * using the timer (goes from 512 ms to 8 sec timeouts, cyclic
@@ -137,8 +137,8 @@ class AsyncTlsConnection : public
   uint32_t _maxMessageLength;
   char *_inBuffer;
   IReceiver *_receiver = nullptr;
-  function<void(NodeNum)> _fOnError = nullptr;
-  function<void(NodeNum, ASYNC_CONN_PTR)> _fOnTlsReady = nullptr;
+  std::function<void(NodeNum)> _fOnError = nullptr;
+  std::function<void(NodeNum, ASYNC_CONN_PTR)> _fOnTlsReady = nullptr;
   NodeNum _expectedDestId = AsyncTlsConnection::UNKNOWN_NODE_ID;
   uint32_t _bufferLength;
   NodeNum _destId = AsyncTlsConnection::UNKNOWN_NODE_ID;
@@ -240,11 +240,14 @@ class AsyncTlsConnection : public
     return it->second.isReplica;
   }
 
-  uint32_t get_message_length(const char *buffer,
-                              size_t length) {
-    return *(static_cast<const uint32_t *>(
-        static_cast<const void *>(buffer)));
-  }
+  /**
+   * returns message length - first 4 bytes of the buffer
+   * @param buffer Data received from the stream
+   * @return Message length, 4 bytes long
+   */
+    uint32_t get_message_length(const char *buffer) {
+      return *(reinterpret_cast<const uint32_t*>(buffer));
+    }
 
   /// ****************** cleanup functions ******************** ///
 
@@ -263,7 +266,7 @@ class AsyncTlsConnection : public
   /**
    * this method closes the socket for reconnecting to the remote peer
    */
-  void close_socket() {
+  void clean_for_reconnect() {
     if (_closed)
       return;
 
@@ -271,14 +274,14 @@ class AsyncTlsConnection : public
     set_authenticated(false);
 
     LOG_DEBUG(_logger,
-              "close_socket, node " << _selfId << ", dest: " << _destId
+              "clean_for_reconnect, node " << _selfId << ", dest: " << _destId
                                     << ", connected: " << _connected
                                     << ", closed: " << _closed);
     B_ERROR_CODE ec;
 
     if(get_socket().is_open()) {
       get_socket().close(ec);
-      was_error(ec, "close_socket");
+      was_error(ec, "clean_for_reconnect");
     }
   }
 
@@ -286,7 +289,7 @@ class AsyncTlsConnection : public
    * this method closes the socket and frees the object by calling the _fOnError
    * we rely on boost cleanup and do not shutdown ssl and sockets explicitly
    */
-  void close() {
+  void dispose_connection() {
     if (_closed)
       return;
 
@@ -294,17 +297,16 @@ class AsyncTlsConnection : public
     set_connected(false);
     set_closed(true);
 
-    LOG_DEBUG(_logger, "close, node " << _selfId << ", dest: " << _destId
-                                      << ", connected: " << _connected
-                                      << ", closed: " << _closed);
+    LOG_DEBUG(_logger,
+        "dispose_connection, node " << _selfId << ", dest: " << _destId
+        << ", connected: " << _connected
+        << ", closed: " << _closed);
 
     _connectTimer.cancel();
     _writeTimer.cancel();
     _readTimer.cancel();
 
-    if (_fOnError) {
-      _fOnError(_destId);
-    }
+    _fOnError(_destId);
   }
 
   /**
@@ -317,7 +319,7 @@ class AsyncTlsConnection : public
       bool isReplica = check_replica(_destId);
       if (isReplica) {
         PeerConnectivityStatus pcs;
-        pcs.peerId = _selfId;
+        pcs.peerId = _destId;
         pcs.statusType = StatusType::Broken;
 
         // pcs.statusTime = we dont set it since it is set by the aggregator
@@ -326,7 +328,7 @@ class AsyncTlsConnection : public
       }
     }
 
-    close();
+    dispose_connection();
   }
   /// ****************** cleanup functions* end ******************* ///
 
@@ -347,10 +349,8 @@ class AsyncTlsConnection : public
     _connectTimer.expires_at(boost::posix_time::pos_infin);
     _currentTimeout = _minTimeout;
     assert(_destId == _expectedDestId);
-    if (_fOnTlsReady) {
-      _fOnTlsReady(_destId, shared_from_this());
-      read_msg_length_async();
-    }
+    _fOnTlsReady(_destId, shared_from_this());
+    read_msg_length_async();
   }
 
   /**
@@ -366,13 +366,11 @@ class AsyncTlsConnection : public
     }
 
     set_authenticated(true);
-    if (_fOnTlsReady) {
-      // to match asserts over the code
-      // in the incoming connection we don't know the expected peer id
-      _expectedDestId = _destId;
-      _fOnTlsReady(_destId, shared_from_this());
-      read_msg_length_async();
-    }
+    // to match asserts over the code
+    // in the incoming connection we don't know the expected peer id
+    _expectedDestId = _destId;
+    _fOnTlsReady(_destId, shared_from_this());
+    read_msg_length_async();
   }
 
   void set_tls(string cipherSuite) {
@@ -408,12 +406,11 @@ class AsyncTlsConnection : public
     auto path = fs::path(_certificatesRootFolder) /
         fs::path(to_string(_selfId)) /
         fs::path("server");
-    _sslContext.use_certificate_chain_file((path / fs::path("server.cert")
-
-                                           ).string());
-    _sslContext.use_private_key_file((path / fs::path("pk.pem")
-                                     ).string(),
-                                     boost::asio::ssl::context::pem);
+    _sslContext.use_certificate_chain_file(
+        (path / fs::path("server.cert")).string());
+    _sslContext.use_private_key_file(
+        (path / fs::path("pk.pem")).string(),
+        boost::asio::ssl::context::pem);
 
     // if we cant create EC DH params, it may mean that SSL version old or
     // any other crypto related errors, we can't continue with TLS
@@ -503,6 +500,9 @@ class AsyncTlsConnection : public
    * certificate pinning
    * check for specific certificate and do not rely on the chain authentication
    * if verified, it sets explicitly the _destId
+   * When used on the server, the expectedPeerId will always be UNKNOWN_PEER_ID
+   * and there is no check whether the remote peer id is equal to expected
+   * peer id
    */
   bool check_certificate(X509 *receivedCert,
                          string connectionType,
@@ -603,7 +603,7 @@ class AsyncTlsConnection : public
   }
 
   /**
-  * reconnects to the remote peer (Outgoind connection) after timer expired and
+  * reconnects to the remote peer (Outgoing connection) after timer expired and
   * we are still disconnected
   */
   void reconnect() {
@@ -617,7 +617,7 @@ class AsyncTlsConnection : public
                                  << ", dest: " << _expectedDestId
                                  << ", connected: " << _connected << "is_open: "
                                  << get_socket().is_open());
-    close_socket();
+    clean_for_reconnect();
     _socket.reset(new SSL_SOCKET(*_service, _sslContext));
 
     setTimeOut();
@@ -661,7 +661,7 @@ class AsyncTlsConnection : public
   }
 
   /**
-   * occures when async connect completes - need to chectk the socket & timer
+   * occures when async connect completes - need to check the socket & timer
    * states to determine timeout or conenection success
    * @param err
    */
@@ -707,9 +707,9 @@ class AsyncTlsConnection : public
     if(_closed) {
       return;
     }
-    // check if we the handle is not a result of calling expire_at()
+    // check if the handle is not a result of calling expire_at()
     if(ec != boost::asio::error::operation_aborted) {
-      close();
+      dispose_connection();
     }
   }
 
@@ -748,9 +748,11 @@ class AsyncTlsConnection : public
                       boost::asio::placeholders::bytes_transferred,
                       false));
     } else { // start reading completely the whole message
-      uint32_t msgLength = get_message_length(_inBuffer, MSG_LENGTH_FIELD_SIZE);
-      assert(
-          msgLength > 0 && msgLength <= _maxMessageLength - 1 - MSG_HEADER_SIZE);
+      uint32_t msgLength = get_message_length(_inBuffer);
+      if(msgLength == 0 || msgLength > _maxMessageLength - 1 - MSG_HEADER_SIZE){
+        handle_error();
+        return;
+      }
       read_msg_async(msgLength);
     }
 
@@ -893,7 +895,7 @@ class AsyncTlsConnection : public
     }
     // check if we the handle is not a result of calling expire_at()
     if(ec != boost::asio::error::operation_aborted) {
-      close();
+      dispose_connection();
     }
   }
 
@@ -928,7 +930,7 @@ class AsyncTlsConnection : public
     }
     bool err = was_error(ec, "async_write_complete");
     if(err) {
-      close();
+      dispose_connection();
       return;
     }
 
@@ -1123,6 +1125,7 @@ class TlsTCPCommunication::TlsTcpImpl {
   string _cipherSuite;
 
   recursive_mutex _connectionsGuard;
+  mutable recursive_mutex _startStopGuard;
 
   /**
    * When the connection is broken, this method is called  and the broken
@@ -1323,6 +1326,8 @@ class TlsTCPCommunication::TlsTcpImpl {
   }
 
   int Start() {
+    lock_guard<recursive_mutex> l(_startStopGuard);
+
     if (_pIoThread) {
       return 0; // running
     }
@@ -1341,6 +1346,8 @@ class TlsTCPCommunication::TlsTcpImpl {
   * On success, returns 0.
   */
   int Stop() {
+    lock_guard<recursive_mutex> l(_startStopGuard);
+
     if (!_pIoThread) {
       return 0; // stopped
     }
@@ -1354,6 +1361,8 @@ class TlsTCPCommunication::TlsTcpImpl {
   }
 
   bool isRunning() const {
+    lock_guard<recursive_mutex> l(_startStopGuard);
+
     if (!_pIoThread) {
       return false; // stopped
     }

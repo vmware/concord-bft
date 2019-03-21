@@ -174,10 +174,6 @@ It should be
 
     Python 3.x.x
 
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-=======
 #### (Optional) Only if using TLS as communication module
 We use OpenSSL for TLS communication module. Please install it using
 
@@ -202,8 +198,6 @@ that are mandatory for building this project)
     ./bootstrap.sh --with-libraries=system,filesystem
     ./b2
     sudo ./b2 install
->>>>>>> Enhance build via direct use of cmake (#56)
->>>>>>> tls module improvements
 
 ### Select comm module
 We support both UDP and TCP communication. UDP is the default. In order to
@@ -212,16 +206,11 @@ instructions shown below.  If set, the test client will run using TCP. If you
 wish to use TCP in your application, you need to build the TCP module as
 mentioned above and then create the communication object using CommFactory and
 passing PlainTcpConfig object to it.
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-=======
 
 We also support TCP over TLS communication. To enable it, change the
 `BUILD_COMM_TCP_TLS` flag to `TRUE` in the main CMakeLists.txt file. When
 running simpleTest using the testReplicasAndClient.sh - there is no need to create TLS certificates manually. The script will use the `create_tls_certs.sh` (located under the scripts/linux folder) to create certificates. The latter can be used to create TLS files for any number of replicas, e.g. when extending existing tests.
->>>>>>> Enhance build via direct use of cmake (#56)
->>>>>>> tls module improvements
+
 
 ### Build concord-bft
 
@@ -244,7 +233,7 @@ useful for building concord-bft:
  * `CMAKE_BUILD_TYPE`     - Debug | Release | RelWithDebInfo | MinSizeRel (DEFAULT Debug)
  * `BUILD_TESTING`        - OFF | ON  (DEFAULT ON)
  * `BUILD_COMM_TCP_PLAIN` - TRUE | FALSE (DEFAULT FALSE - UDP is used)
- * `BUILD_COMM_TCP_TLS` - TRUE | FALSE (DEFAULT FALSE - UDP is used)
+ * `BUILD_COMM_TCP_TLS`   - TRUE | FALSE (DEFAULT FALSE - UDP is used)
  * `USE_LOG4CPP`          - TRUE | FALSE (DEFAULT FALSE)
  * `CONCORD_LOGGER_NAME`  - STRING (DEFAULT "concord")
 
