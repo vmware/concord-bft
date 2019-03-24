@@ -19,6 +19,8 @@
 #include "KVBCInterfaces.h"
 #include "simpleKVBCTests.h"
 #include "CommFactory.hpp"
+#include "test_parameters.hpp"
+#include "test_comm_config.hpp"
 #include "TestDefs.h"
 
 #ifndef _WIN32
@@ -28,24 +30,39 @@
 #include "winUtils.h"
 #endif
 
+#ifdef USE_LOG4CPP
+#include <log4cplus/configurator.h>
+#endif
+
 using namespace SimpleKVBC;
+using namespace bftEngine;
 
 using std::string;
-																						 
+
+concordlogger::Logger clientLogger =
+		concordlogger::Logger::getLogger("skvbctest.client");
+
 int main(int argc, char **argv) {
 #if defined(_WIN32)
 	initWinSock();
 #endif
 
-	char argTempBuffer[PATH_MAX + 10];
+#ifdef USE_LOG4CPP
+	using namespace log4cplus;
+  initialize();
+  BasicConfigurator logConfig;
+  logConfig.configure();
+#endif
 
-	uint16_t clientId = UINT16_MAX;
-	uint16_t fVal = UINT16_MAX;
-	uint16_t cVal = UINT16_MAX;
-	uint32_t numOfOps = UINT32_MAX;
+	char argTempBuffer[PATH_MAX + 10];
+	ClientParams cp;
+	cp.clientId = UINT16_MAX;
+	cp.numOfFaulty = UINT16_MAX;
+	cp.numOfSlow = UINT16_MAX;
+	cp.numOfOperations = UINT16_MAX;
 
 	int o = 0;
-	while ((o = getopt(argc, argv, "i:f:c:p:")) != EOF) {
+	while ((o = getopt(argc, argv, "i:f:c:p:n:")) != EOF) {
 		switch (o) {
 		case 'i':
 		{
@@ -54,7 +71,7 @@ int main(int argc, char **argv) {
 			string idStr = argTempBuffer;
 			int tempId = std::stoi(idStr);
 			if (tempId >= 0 && tempId < UINT16_MAX)
-				clientId = (uint16_t)tempId;
+				cp.clientId = (uint16_t)tempId;
 			// TODO: check clientId
 		}
 		break;
@@ -66,7 +83,7 @@ int main(int argc, char **argv) {
 			string fStr = argTempBuffer;
 			int tempfVal = std::stoi(fStr);
 			if (tempfVal >= 1 && tempfVal < UINT16_MAX)
-				fVal = (uint16_t)tempfVal;
+				cp.numOfFaulty = (uint16_t)tempfVal;
 			// TODO: check fVal
 		}
 		break;
@@ -78,7 +95,7 @@ int main(int argc, char **argv) {
 			string cStr = argTempBuffer;
 			int tempcVal = std::stoi(cStr);
 			if (tempcVal >= 0 && tempcVal < UINT16_MAX)
-				cVal = (uint16_t)tempcVal;
+				cp.numOfSlow = (uint16_t)tempcVal;
 			// TODO: check cVal
 		}
 		break;
@@ -90,11 +107,18 @@ int main(int argc, char **argv) {
 			string numOfOpsStr = argTempBuffer;
 			int tempfVal = std::stoi(numOfOpsStr);
 			if (tempfVal >= 1 && tempfVal < UINT32_MAX)
-				numOfOps = (uint32_t)tempfVal;
+				cp.numOfOperations = (uint32_t)tempfVal;
 			// TODO: check numOfOps
 		}
 		break;
 
+        case 'n':
+        {
+          strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
+          argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
+          cp.configFileName = argTempBuffer;
+        }
+        break;
 
 		default:
 			// nop
@@ -102,39 +126,47 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	if (clientId == UINT16_MAX ||
-		fVal == UINT16_MAX ||
-		cVal == UINT16_MAX	||
-		numOfOps == UINT32_MAX
+	if (cp.clientId == UINT16_MAX ||
+		cp.numOfFaulty == UINT16_MAX ||
+		cp.numOfSlow == UINT16_MAX	||
+		cp.numOfOperations == UINT32_MAX
 		)
 	{
-		fprintf(stderr, "%s -f F -c C -p NUM_OPS -i ID", argv[0]);
+		fprintf(stderr, "%s -f F -c C -p NUM_OPS -i ID -n "
+                  "COMM_CONFIG_FILE_NAME", argv[0]);
 		exit(-1);
 	}
 
-	// TODO: check arguments 
+	// TODO: check arguments
 
-	const uint16_t numOfReplicas = 3 * fVal + 2 * cVal + 1;
-	const uint16_t port = basePort + clientId * 2;	 
+	TestCommConfig testCommConfig(clientLogger);
+	uint16_t numOfReplicas = cp.get_numOfReplicas();
+#ifdef USE_COMM_PLAIN_TCP
+	PlainTcpConfig conf = testCommConfig.GetTCPConfig(true, cp.clientId,
+                                                    cp.numOfClients,
+                                                    numOfReplicas,
+                                                    cp.configFileName);
+#elif USE_COMM_TLS_TCP
+	TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(true, cp.clientId,
+													   cp.numOfClients,
+													   numOfReplicas,
+													   cp.configFileName);
+#else
+	PlainUdpConfig conf = testCommConfig.GetUDPConfig(true, cp.clientId,
+                                                    cp.numOfClients,
+                                                    numOfReplicas,
+                                                    cp.configFileName);
+#endif
 
-	std::unordered_map <NodeNum, NodeInfo> nodes;
-	for (int i = 0; i < (numOfReplicas + numOfClientProxies); i++) {					
-		nodes.insert({
-		i,
-		NodeInfo{ ipAddress, (uint16_t)(basePort + i * 2), i < numOfReplicas } });
-	}
+	ICommunication* comm = bftEngine::CommFactory::create(conf);
+	SimpleKVBC::ClientConfig config;
 
-	bftEngine::PlainUdpConfig commConfig(ipAddress, port, maxMsgSize, nodes, clientId);
-	bftEngine::ICommunication* comm = bftEngine::CommFactory::create(commConfig);
-
-	ClientConfig config;
-
-	config.clientId = clientId;
-	config.fVal = fVal;
-	config.cVal = cVal;
+	config.clientId = cp.clientId;
+	config.fVal = cp.numOfFaulty;
+	config.cVal = cp.numOfSlow;
 	config.maxReplySize = maxMsgSize;
 
 	IClient* c = createClient(config, comm);		 
 
-	BasicRandomTests::run(c, numOfOps);
+	BasicRandomTests::run(c, cp.numOfOperations);
 }

@@ -78,16 +78,19 @@ Status ReplicaImp::start()
 
 Status ReplicaImp::stop()
 {
-	return Status::IllegalOperation("NotImplemented");
-
-	//m_bcDbAdapter->getDb()->close();
-	//return Status::OK();
+	m_replica->stop();
+	return Status::OK();
 }
 
 
 ReplicaImp::RepStatus ReplicaImp::getReplicaStatus() const
 {
 	return m_currentRepStatus;
+}
+
+bool ReplicaImp::isRunning() const
+{
+	return m_replica->isRunning();
 }
 
 

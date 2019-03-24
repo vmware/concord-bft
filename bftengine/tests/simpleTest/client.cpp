@@ -39,6 +39,7 @@
 // simpleTest includes
 #include "commonDefs.h"
 #include "test_comm_config.hpp"
+#include "test_parameters.hpp"
 #include "Logging.hpp"
 
 #ifdef USE_LOG4CPP
@@ -61,16 +62,6 @@ concordlogger::Logger clientLogger =
 #define test_assert(statement, message) \
 { if (!(statement)) { \
 LOG_FATAL(clientLogger, "assert fail with message: " << message); assert(false);}}
-
-struct ClientParams {
-  uint32_t numOfOperations = 180000;
-  uint16_t clientId = 4;
-  uint16_t numOfReplicas = 4;
-  uint16_t numOfClients = 1;
-  uint16_t numOfFaulty = 1;
-  uint16_t numOfSlow = 0;
-  string   configFileName;
-};
 
 void parse_params(int argc, char** argv, ClientParams &cp,
     bftEngine::SimpleClientParams &scp) {
