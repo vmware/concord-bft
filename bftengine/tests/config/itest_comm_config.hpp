@@ -30,6 +30,7 @@ class ITestCommConfig {
     // inputReplicaKeyfile is used to read the keys for this replica, and
     // default values are loaded for non-cryptographic configuration parameters.
     virtual void GetReplicaConfig(uint16_t replica_id,
+                                  std::string keyFilePrefix,
                                   bftEngine::ReplicaConfig* out_config) = 0;
 
     // Create a UDP communication configuration for the node (replica or client)

@@ -1,21 +1,21 @@
 set(simpleTest_client_source_files
     client.cpp
-    test_comm_config.cpp
-    config_file_parser.cpp
+        ${CONFIG_FOLDER_PATH_VALUE}/test_comm_config.cpp
+        ${CONFIG_FOLDER_PATH_VALUE}/config_file_parser.cpp
     ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
 )
 
 set(simpleTest_replica_source_files
     replica.cpp
-    test_comm_config.cpp
-    config_file_parser.cpp
+    ${CONFIG_FOLDER_PATH_VALUE}/test_comm_config.cpp
+    ${CONFIG_FOLDER_PATH_VALUE}/config_file_parser.cpp
     ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
 )
 
 # This target should be moved to UT infrastructure code when created.
 set(config_source_files
-    config_file_parser.cpp
-    config_file_parser_test.cpp
+    ${CONFIG_FOLDER_PATH_VALUE}/config_file_parser.cpp
+    ${CONFIG_FOLDER_PATH_VALUE}/config_file_parser_test.cpp
 )
 
 add_executable(simpleTest_client
@@ -37,8 +37,13 @@ if(USE_LOG4CPP)
 endif()
 
 if(${USE_COMM_PLAIN_TCP})
-    target_compile_definitions(simnpleTest_client PUBLIC USE_COMM_PLAIN_TCP=1)
-    target_compile_definitions(simnpleTest_server PUBLIC USE_COMM_PLAIN_TCP=1)
+    target_compile_definitions(simpleTest_client PUBLIC USE_COMM_PLAIN_TCP)
+    target_compile_definitions(simpleTest_server PUBLIC USE_COMM_PLAIN_TCP)
+endif()
+
+if(${USE_COMM_TLS_TCP})
+    target_compile_definitions(simpleTest_client PUBLIC USE_COMM_TLS_TCP)
+    target_compile_definitions(simpleTest_server PUBLIC USE_COMM_TLS_TCP)
 endif()
 
 set_target_properties(simpleTest_client PROPERTIES OUTPUT_NAME client)
@@ -52,17 +57,20 @@ target_link_libraries(configTest PUBLIC corebft)
 target_include_directories(simpleTest_client
                            PRIVATE
                            ${concord_bft_tools_SOURCE_DIR}
-                           ${bftengine_SOURCE_DIR}/include)
+                           ${bftengine_SOURCE_DIR}/include
+                           ${CONFIG_FOLDER_PATH_VALUE})
 
 target_include_directories(simpleTest_server
                            PRIVATE
                            ${concord_bft_tools_SOURCE_DIR}
-                           ${bftengine_SOURCE_DIR}/include)
+                           ${bftengine_SOURCE_DIR}/include
+                           ${CONFIG_FOLDER_PATH_VALUE})
 
 target_include_directories(configTest
                            PRIVATE
                            ${concord_bft_tools_SOURCE_DIR}
-                           ${bftengine_SOURCE_DIR}/include)
+                           ${bftengine_SOURCE_DIR}/include
+                           ${CONFIG_FOLDER_PATH_VALUE})
 
 add_custom_target(copy_simple_test_scripts ALL COMMENT "Copying scripts of simpleTest")
 add_custom_command(TARGET copy_simple_test_scripts

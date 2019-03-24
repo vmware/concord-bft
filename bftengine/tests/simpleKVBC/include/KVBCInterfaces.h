@@ -137,6 +137,8 @@ namespace SimpleKVBC {
         // returns the current status of the replica
         virtual RepStatus getReplicaStatus() const = 0;
 
+        virtual bool isRunning() const = 0;
+
 // TODO: Implement:
 //      // this callback is called by the library every time the replica status is changed
 //      typedef void(*StatusNotifier)(RepStatus newStatus);
