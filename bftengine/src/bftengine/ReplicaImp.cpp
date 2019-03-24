@@ -3034,7 +3034,12 @@ namespace bftEngine
 
 			if (!supportDirectProofs)
 			{
-				error = userRequestsHandler->execute(clientId, true, request->requestLength(), request->requestBuf(), reply.maxReplyLength(), reply.replyBuf(), actualReplyLength);
+				// Yulia TBD: sequenceNum should come from corresponding State
+				// Metadata object.
+				error = userRequestsHandler->execute(
+				    clientId, 0, true, request->requestLength(),
+				    request->requestBuf(), reply.maxReplyLength(),
+				    reply.replyBuf(), actualReplyLength);
 			}
 			else
 			{
@@ -3089,9 +3094,13 @@ namespace bftEngine
 
 
 				uint32_t actualReplyLength = 0;
-
-				int error = userRequestsHandler->execute(clientId, req.isReadOnly(), req.requestLength(), req.requestBuf(),
-															maxReplyMessageSize - sizeof(ClientReplyMsgHeader), replyBuffer, actualReplyLength);
+				// Yulia TBD: sequenceNum should come from corresponding State
+				// Metadata object.
+				int error = userRequestsHandler->execute(
+						clientId, 0, req.isReadOnly(), req.requestLength(),
+						req.requestBuf(), maxReplyMessageSize -
+						sizeof(ClientReplyMsgHeader), replyBuffer,
+						actualReplyLength);
 
 				Assert(error == 0); // TODO(GG): TBD
 			

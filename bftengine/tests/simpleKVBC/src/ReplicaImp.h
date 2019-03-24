@@ -175,6 +175,7 @@ namespace SimpleKVBC {
 	public:
 		ReplicaImp* m_Executor;
 		int execute(uint16_t clientId,
+			uint64_t sequenceNum,
 			bool readOnly,
 			uint32_t requestSize,
 			const char* request,
