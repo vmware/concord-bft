@@ -166,6 +166,8 @@ class BCStateTran : public IStateTransfer {
   // State
   ///////////////////////////////////////////////////////////////////////////
 
+ // Public for testing and status
+ public:
   enum class FetchingState {
     NotFetching,
     GettingCheckpointSummaries,
@@ -183,6 +185,7 @@ class BCStateTran : public IStateTransfer {
   // Send messages
   ///////////////////////////////////////////////////////////////////////////
 
+ protected:
   void sendToAllOtherReplicas(char* msg, uint32_t msgSize);
 
   void sendAskForCheckpointSummariesMsg();

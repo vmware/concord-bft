@@ -88,6 +88,9 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     string(APPEND CMAKE_CXX_FLAGS_DEBUG
         " -fstack-protector-all")
 
+    # Export a compile database for use by semantic analysis tools
+    set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # using GCC
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
 
@@ -107,12 +110,19 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 
 endif()
 
-#
-# External dependencies
-#
-#find_package(cryptopp 5.6.5 EXACT REQUIRED)
-#find_package(relic REQUIRED)
-#find_package(threshsign REQUIRED)
+# Initialize submodules and update a specific one
+# This allows us to only pull in dependencies when needed.
+function(add_submodule path)
+    message(STATUS "Submodule update ${path}")
+    execute_process(
+        COMMAND git submodule update --init --recursive ${path}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        RESULT_VARIABLE GIT_SUBMOD_RESULT)
+    if(NOT GIT_SUBMOD_RESULT EQUAL "0")
+        message(FATAL_ERROR "git submodule update --init failed with
+            ${GIT_SUBMOD_RESULT}, please checkout submodules")
+    endif()
+endfunction()
 
 #
 # Subdirectories
@@ -127,6 +137,8 @@ add_subdirectory(tools)
 #
 include(CTest)
 if(BUILD_TESTING)
+    add_submodule("deps/gtest")
+    add_subdirectory(deps/gtest)
     add_subdirectory(bftengine/tests)
 endif()
 
