@@ -142,17 +142,17 @@ int main(int argc, char **argv) {
 	TestCommConfig testCommConfig(clientLogger);
 	uint16_t numOfReplicas = cp.get_numOfReplicas();
 #ifdef USE_COMM_PLAIN_TCP
-	PlainTcpConfig conf = testCommConfig.GetTCPConfig(true, cp.clientId,
+	PlainTcpConfig conf = testCommConfig.GetTCPConfig(false, cp.clientId,
                                                     cp.numOfClients,
                                                     numOfReplicas,
                                                     cp.configFileName);
 #elif USE_COMM_TLS_TCP
-	TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(true, cp.clientId,
+	TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(false, cp.clientId,
 													   cp.numOfClients,
 													   numOfReplicas,
 													   cp.configFileName);
 #else
-	PlainUdpConfig conf = testCommConfig.GetUDPConfig(true, cp.clientId,
+	PlainUdpConfig conf = testCommConfig.GetUDPConfig(false, cp.clientId,
                                                     cp.numOfClients,
                                                     numOfReplicas,
                                                     cp.configFileName);
