@@ -3034,7 +3034,10 @@ namespace bftEngine
 
 			if (!supportDirectProofs)
 			{
-				error = userRequestsHandler->execute(clientId, true, request->requestLength(), request->requestBuf(), reply.maxReplyLength(), reply.replyBuf(), actualReplyLength);
+				error = userRequestsHandler->execute(
+				    clientId, lastExecutedSeqNum, true, request->requestLength(),
+				    request->requestBuf(), reply.maxReplyLength(),
+				    reply.replyBuf(), actualReplyLength);
 			}
 			else
 			{
@@ -3089,9 +3092,11 @@ namespace bftEngine
 
 
 				uint32_t actualReplyLength = 0;
-
-				int error = userRequestsHandler->execute(clientId, req.isReadOnly(), req.requestLength(), req.requestBuf(),
-															maxReplyMessageSize - sizeof(ClientReplyMsgHeader), replyBuffer, actualReplyLength);
+				int error = userRequestsHandler->execute(
+						clientId, lastExecutedSeqNum + 1, req.isReadOnly(),
+						req.requestLength(), req.requestBuf(),
+						maxReplyMessageSize - sizeof(ClientReplyMsgHeader),
+						replyBuffer, actualReplyLength);
 
 				Assert(error == 0); // TODO(GG): TBD
 			
