@@ -113,13 +113,13 @@ int main(int argc, char **argv) {
 		}
 		break;
 
-        case 'n':
-        {
-          strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
-          argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
-          cp.configFileName = argTempBuffer;
-        }
-        break;
+		case 'n':
+		{
+			strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
+			argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
+			cp.configFileName = argTempBuffer;
+		}
+		break;
 
 		default:
 			// nop

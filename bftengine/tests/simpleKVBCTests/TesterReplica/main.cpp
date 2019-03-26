@@ -103,12 +103,12 @@ int main(int argc, char **argv) {
 		break;
 
 		case 'n':
-        {
-          strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
-          argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
-          rp.configFileName = argTempBuffer;
-        }
-        break;
+		{
+			strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
+			argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
+			rp.configFileName = argTempBuffer;
+		}
+		break;
 
 		default:
 			// nop
@@ -118,7 +118,8 @@ int main(int argc, char **argv) {
 
 	if(rp.replicaId == UINT16_MAX || rp.keysFilePrefix.empty())
 	{
-		fprintf(stderr, "%s -k KEYS_FILE_PREFIX -i ID -f COMM_CONFIG_FILE",argv[0]);
+		fprintf(stderr, "%s -k KEYS_FILE_PREFIX -i ID -n COMM_CONFIG_FILE",
+				argv[0]);
 		exit(-1);
 	}
 
