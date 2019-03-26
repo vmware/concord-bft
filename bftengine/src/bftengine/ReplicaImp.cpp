@@ -2952,6 +2952,11 @@ namespace bftEngine
 			return mainThreadStarted;
 		}
 
+		SeqNum ReplicaImp::getLastExecutedSequenceNum() const
+		{
+			return lastExecutedSeqNum;
+		}
+
 		ReplicaImp::StopInternalMsg::StopInternalMsg(ReplicaImp* myReplica)
 		{
 			replica = myReplica;

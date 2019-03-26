@@ -19,6 +19,8 @@ namespace bftEngine
 
 			virtual bool isRunning() const override;
 
+			uint64_t getLastExecutedSequenceNum() const override;
+
 			virtual void start() override;
 
 			virtual void stop() override;
@@ -35,6 +37,11 @@ namespace bftEngine
 		bool ReplicaInternal::isRunning() const
 		{
 			return rep->isRunning();
+		}
+
+		uint64_t ReplicaInternal::getLastExecutedSequenceNum() const
+		{
+			return static_cast<uint64_t>(rep->getLastExecutedSequenceNum());
 		}
 
 
