@@ -246,6 +246,7 @@ namespace bftEngine
 			void start();
 			void stop(); // TODO(GG): support "restart"
 			bool isRunning() const;
+			SeqNum getLastExecutedSequenceNum() const;
 
 
 

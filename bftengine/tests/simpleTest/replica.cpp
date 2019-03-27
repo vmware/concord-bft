@@ -229,6 +229,7 @@ class SimpleAppState : public RequestsHandler {
 
   // Handler for the upcall from Concord-BFT.
   int execute(uint16_t clientId,
+              uint64_t sequenceNum,
               bool readOnly,
               uint32_t requestSize,
               const char* request,
