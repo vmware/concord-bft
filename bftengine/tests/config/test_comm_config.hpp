@@ -26,6 +26,7 @@ class TestCommConfig: public ITestCommConfig {
         ITestCommConfig(logger) {}
 
     void GetReplicaConfig(uint16_t replica_id,
+                          std::string keyFilePrefix,
                           bftEngine::ReplicaConfig* out_config) override;
 
     bftEngine::PlainUdpConfig GetUDPConfig(

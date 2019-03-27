@@ -60,6 +60,7 @@
 #include "ReplicaConfig.hpp"
 #include "SimpleStateTransfer.hpp"
 #include "test_comm_config.hpp"
+#include "test_parameters.hpp"
 #include "Logging.hpp"
 
 // simpleTest includes
@@ -74,16 +75,7 @@ using namespace std;
 concordlogger::Logger replicaLogger =
     concordlogger::Logger::getLogger("simpletest.replica");
 bftEngine::Replica* replica = nullptr;
-
-struct ReplicaParams {
-  uint16_t replicaId;
-  uint16_t numOfReplicas = 4;
-  uint16_t numOfClients = 1;
-  bool     debug = false;
-  bool     viewChangeEnabled = false;
-  uint32_t viewChangeTimeout = 60000; // ms
-  string   configFileName;
-} rp;
+ReplicaParams rp;
 
 void signalHandler( int signum ) {
   if(replica)
@@ -116,6 +108,8 @@ void parse_params(int argc, char** argv) {
   uint16_t max16_t_u = std::numeric_limits<uint16_t>::max();
   uint32_t min32_t_u = std::numeric_limits<uint32_t>::min();
   uint32_t max32_t_u = std::numeric_limits<uint32_t>::max();
+
+  rp.keysFilePrefix = "private_replica_";
 
   if(argc < 3) { // backward compatibility, only ID is passed
     auto replicaId =  std::stoi(argv[1]);
@@ -319,7 +313,8 @@ int main(int argc, char **argv) {
 
   ReplicaConfig replicaConfig;
   TestCommConfig testCommConfig(replicaLogger);
-  testCommConfig.GetReplicaConfig(rp.replicaId, &replicaConfig);
+  testCommConfig.GetReplicaConfig(
+      rp.replicaId, rp.keysFilePrefix, &replicaConfig);
   replicaConfig.numOfClientProxies = rp.numOfClients;
   replicaConfig.autoViewChangeEnabled = rp.viewChangeEnabled;
   replicaConfig.viewChangeTimerMillisec = rp.viewChangeTimeout;

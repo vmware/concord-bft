@@ -3,17 +3,17 @@ echo "Making sure no previous replicas are up..."
 killall skvbc_replica
 
 echo "Running replica 1..."
-../TesterReplica/skvbc_replica -k setB_replica -f 1 -c 1 -i 0  >& /dev/null &
+../TesterReplica/skvbc_replica -k setB_replica_ -i 0  >& /dev/null &
 echo "Running replica 2..."
-../TesterReplica/skvbc_replica -k setB_replica -f 1 -c 1 -i 1 >& /dev/null &
+../TesterReplica/skvbc_replica -k setB_replica_ -i 1 >& /dev/null &
 echo "Running replica 3..."
-../TesterReplica/skvbc_replica -k setB_replica -f 1 -c 1 -i 2 >& /dev/null &
+../TesterReplica/skvbc_replica -k setB_replica_ -i 2 >& /dev/null &
 echo "Running replica 4..."
-../TesterReplica/skvbc_replica -k setB_replica -f 1 -c 1 -i 3 >& /dev/null &
+../TesterReplica/skvbc_replica -k setB_replica_ -i 3 >& /dev/null &
 echo "Running replica 5..."
-../TesterReplica/skvbc_replica -k setB_replica -f 1 -c 1 -i 4 >& /dev/null &
+../TesterReplica/skvbc_replica -k setB_replica_ -i 4 >& /dev/null &
 echo "Running replica 6..."
-../TesterReplica/skvbc_replica -k setB_replica -f 1 -c 1 -i 5 >& /dev/null &
+../TesterReplica/skvbc_replica -k setB_replica_ -i 5 >& /dev/null &
 
 
 echo "Sleeping for 2 seconds"

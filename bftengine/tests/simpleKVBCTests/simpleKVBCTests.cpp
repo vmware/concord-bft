@@ -980,9 +980,6 @@ namespace BasicRandomTests
 		client->stop();
 
 		Internal::InternalTestsBuilder::free(requests, expectedReplies);
-
-		getchar();
-
 	}
 
 

@@ -45,9 +45,10 @@ const std::string TestCommConfig::default_ip_ = "127.0.0.1";
 // inputReplicaKeyfile is used to read the keys for this replica, and default
 // values are loaded for non-cryptographic configuration parameters.
 void TestCommConfig::GetReplicaConfig(uint16_t replica_id,
+                                      std::string keyFilePrefix,
                                       bftEngine::ReplicaConfig* out_config) {
 
-  std::string key_file_name = "private_replica_" + std::to_string(replica_id);
+  std::string key_file_name = keyFilePrefix + std::to_string(replica_id);
   std::ifstream keyfile(key_file_name);
   if (!keyfile.is_open()) {
     throw std::runtime_error("Unable to read replica keyfile.");

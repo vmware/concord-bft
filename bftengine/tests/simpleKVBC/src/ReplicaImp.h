@@ -35,6 +35,7 @@ namespace SimpleKVBC {
 		virtual Status start() override;
 		virtual Status stop() override;
 		virtual RepStatus getReplicaStatus() const override;
+		virtual bool isRunning() const override;
 																				 
 		// ILocalKeyValueStorageReadOnly methods
 		
