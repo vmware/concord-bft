@@ -159,7 +159,7 @@ class AsyncTlsConnection : public
   NodeMap _nodes;
   asio::ssl::context _sslContext;
   deque<OutMessage> _outQueue;
-  recursive_mutex _writeLock;
+  mutex _writeLock;
 
   // internal state
   bool _disposed = false;
@@ -934,7 +934,7 @@ class AsyncTlsConnection : public
       return;
     }
 
-    lock_guard<recursive_mutex> l(_writeLock);
+    lock_guard<mutex> l(_writeLock);
     //remove the message that has been sent
     _outQueue.pop_front();
 
@@ -956,7 +956,7 @@ class AsyncTlsConnection : public
     }
 
     //
-    lock_guard<recursive_mutex> l(_writeLock);
+    lock_guard<mutex> l(_writeLock);
     if(_outQueue.size() > 0) {
       start_async_write();
     }
@@ -1019,7 +1019,7 @@ class AsyncTlsConnection : public
 
     // here we lock to protect multiple thread access and to synch with callback
     // queue access
-    lock_guard<recursive_mutex> l(_writeLock);
+    lock_guard<mutex> l(_writeLock);
 
     // push to the output queue
     OutMessage out = OutMessage(buf, length + MSG_HEADER_SIZE);
@@ -1124,8 +1124,8 @@ class TlsTCPCommunication::TlsTcpImpl {
   UPDATE_CONNECTIVITY_FN _statusCallback;
   string _cipherSuite;
 
-  recursive_mutex _connectionsGuard;
-  mutable recursive_mutex _startStopGuard;
+  mutex _connectionsGuard;
+  mutable mutex _startStopGuard;
 
   /**
    * When the connection is broken, this method is called  and the broken
@@ -1135,7 +1135,7 @@ class TlsTCPCommunication::TlsTcpImpl {
    */
   void on_async_connection_error(NodeNum peerId) {
     LOG_DEBUG(_logger, "on_async_connection_error, peerId: " << peerId);
-    lock_guard<recursive_mutex> lock(_connectionsGuard);
+    lock_guard<mutex> lock(_connectionsGuard);
     if (_connections.find(peerId) != _connections.end()) {
       _connections.erase(peerId);
     }
@@ -1164,7 +1164,7 @@ class TlsTCPCommunication::TlsTcpImpl {
    * @param conn
    */
   void on_connection_authenticated(NodeNum id, ASYNC_CONN_PTR conn) {
-    lock_guard<recursive_mutex> lock(_connectionsGuard);
+    lock_guard<mutex> lock(_connectionsGuard);
     // probably bad replica?? TODO: think how to handle it in a better way
     // for now, just throw away both existing and a new one
     if (_connections.find(id) != _connections.end()) {
@@ -1326,7 +1326,7 @@ class TlsTCPCommunication::TlsTcpImpl {
   }
 
   int Start() {
-    lock_guard<recursive_mutex> l(_startStopGuard);
+    lock_guard<mutex> l(_startStopGuard);
 
     if (_pIoThread) {
       return 0; // running
@@ -1346,7 +1346,7 @@ class TlsTCPCommunication::TlsTcpImpl {
   * On success, returns 0.
   */
   int Stop() {
-    lock_guard<recursive_mutex> l(_startStopGuard);
+    lock_guard<mutex> l(_startStopGuard);
 
     if (!_pIoThread) {
       return 0; // stopped
@@ -1361,7 +1361,7 @@ class TlsTCPCommunication::TlsTcpImpl {
   }
 
   bool isRunning() const {
-    lock_guard<recursive_mutex> l(_startStopGuard);
+    lock_guard<mutex> l(_startStopGuard);
 
     if (!_pIoThread) {
       return false; // stopped
@@ -1391,7 +1391,7 @@ class TlsTCPCommunication::TlsTcpImpl {
   int sendAsyncMessage(const NodeNum destNode,
                        const char *const message,
                        const size_t messageLength) {
-    lock_guard<recursive_mutex> lock(_connectionsGuard);
+    lock_guard<mutex> lock(_connectionsGuard);
     auto temp = _connections.find(destNode);
     if (temp != _connections.end()) {
       temp->second->send(message, messageLength);
