@@ -162,7 +162,7 @@ class AsyncTlsConnection : public
   recursive_mutex _writeLock;
 
   // internal state
-  bool _closed = false;
+  bool _disposed = false;
   bool _authenticated = false;
   bool _connected = false;
  public:
@@ -197,7 +197,7 @@ class AsyncTlsConnection : public
       _sslContext{asio::ssl::context(type == ConnType::Incoming
                                      ? asio::ssl::context::tlsv12_server
                                      : asio::ssl::context::tlsv12_client)},
-      _closed(false),
+      _disposed(false),
       _authenticated{false},
       _connected{false} {
     LOG_DEBUG(_logger, "ctor, node " << _selfId << ", connType: " << _destId);
@@ -219,8 +219,8 @@ class AsyncTlsConnection : public
                     boost::asio::placeholders::error));
   }
 
-  void set_closed(bool value) {
-    _closed = value;
+  void set_disposed(bool value) {
+    _disposed = value;
   }
 
   void set_connected(bool value) {
@@ -267,7 +267,7 @@ class AsyncTlsConnection : public
    * this method closes the socket for reconnecting to the remote peer
    */
   void clean_for_reconnect() {
-    if (_closed)
+    if (_disposed)
       return;
 
     set_connected(false);
@@ -276,7 +276,7 @@ class AsyncTlsConnection : public
     LOG_DEBUG(_logger,
               "clean_for_reconnect, node " << _selfId << ", dest: " << _destId
                                     << ", connected: " << _connected
-                                    << ", closed: " << _closed);
+                                    << ", closed: " << _disposed);
     B_ERROR_CODE ec;
 
     if(get_socket().is_open()) {
@@ -290,17 +290,17 @@ class AsyncTlsConnection : public
    * we rely on boost cleanup and do not shutdown ssl and sockets explicitly
    */
   void dispose_connection() {
-    if (_closed)
+    if (_disposed)
       return;
 
     set_authenticated(false);
     set_connected(false);
-    set_closed(true);
+    set_disposed(true);
 
     LOG_DEBUG(_logger,
         "dispose_connection, node " << _selfId << ", dest: " << _destId
         << ", connected: " << _connected
-        << ", closed: " << _closed);
+        << ", closed: " << _disposed);
 
     _connectTimer.cancel();
     _writeTimer.cancel();
@@ -607,7 +607,7 @@ class AsyncTlsConnection : public
   * we are still disconnected
   */
   void reconnect() {
-    if (_closed)
+    if (_disposed)
       return;
 
     assert(_connType != ConnType::NotDefined);
@@ -630,7 +630,7 @@ class AsyncTlsConnection : public
   }
 
   void connect_timer_tick(const B_ERROR_CODE &ec) {
-    if (_closed) {
+    if (_disposed) {
       return;
     }
 
@@ -666,7 +666,7 @@ class AsyncTlsConnection : public
    * @param err
    */
   void connect_completed(const B_ERROR_CODE &err) {
-    if (_closed) {
+    if (_disposed) {
       return;
     }
 
@@ -704,7 +704,7 @@ class AsyncTlsConnection : public
   /// 4. if timer ticks - the read hasnt completed, close the connection.
 
   void on_read_timer_expired(const B_ERROR_CODE &ec) {
-    if(_closed) {
+    if(_disposed) {
       return;
     }
     // check if the handle is not a result of calling expire_at()
@@ -727,7 +727,7 @@ class AsyncTlsConnection : public
       auto res = _readTimer.expires_at(boost::posix_time::pos_infin);
       assert(res < 2); //can cancel at most 1 pending async_wait
     }
-    if (_closed) {
+    if (_disposed) {
       return;
     }
 
@@ -774,7 +774,7 @@ class AsyncTlsConnection : public
    * start reading message length bytes from the stream
    */
   void read_msg_length_async() {
-    if (_closed)
+    if (_disposed)
       return;
 
     // since we allow partial reading here, we dont need timeout
@@ -802,11 +802,11 @@ class AsyncTlsConnection : public
                                 size_t bytesRead) {
     auto res = _readTimer.expires_at(boost::posix_time::pos_infin);
     assert(res < 2); //can cancel at most 1 pending async_wait
-    if (_closed) {
+    if (_disposed) {
       return;
     }
 
-    if (_closed) {
+    if (_disposed) {
       return;
     }
 
@@ -847,7 +847,7 @@ class AsyncTlsConnection : public
    * @param msgLength
    */
   void read_msg_async(uint32_t msgLength) {
-    if (_closed) {
+    if (_disposed) {
       return;
     }
 
@@ -890,7 +890,7 @@ class AsyncTlsConnection : public
    * @param ec Error code
    */
   void on_write_timer_expired(const B_ERROR_CODE &ec) {
-    if(_closed) {
+    if(_disposed) {
       return;
     }
     // check if we the handle is not a result of calling expire_at()
@@ -925,7 +925,7 @@ class AsyncTlsConnection : public
   void async_write_complete(const B_ERROR_CODE &ec, size_t bytesWritten) {
     auto res = _writeTimer.expires_at(boost::posix_time::pos_infin);
     assert(res < 2); //can cancel at most 1 pending async_wait
-    if(_closed) {
+    if(_disposed) {
       return;
     }
     bool err = was_error(ec, "async_write_complete");
@@ -951,7 +951,7 @@ class AsyncTlsConnection : public
    * @param length
    */
   void do_write() {
-    if (_closed) {
+    if (_disposed) {
       return;
     }
 
