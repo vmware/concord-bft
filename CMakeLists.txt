@@ -137,6 +137,7 @@ add_subdirectory(logging)
 add_subdirectory(threshsign)
 add_subdirectory(bftengine)
 add_subdirectory(tools)
+add_subdirectory(util)
 
 #
 # Setup testing
@@ -146,5 +147,6 @@ if(BUILD_TESTING)
     add_submodule("deps/gtest")
     add_subdirectory(deps/gtest)
     add_subdirectory(bftengine/tests)
+    add_subdirectory(util/test)
 endif()
 
