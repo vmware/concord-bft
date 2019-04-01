@@ -130,6 +130,12 @@ endif()
 # Initialize submodules and update a specific one
 # This allows us to only pull in dependencies when needed.
 function(add_submodule path)
+    file(GLOB RESULT ${path})
+    list(LENGTH RESULT RES_LEN)
+    if(NOT RES_LEN EQUAL 0)
+        message(STATUS "Submodule ${path} already initialized. Skipping.")
+        return()
+    endif()
     message(STATUS "Submodule update ${path}")
     execute_process(
         COMMAND git submodule update --init --recursive ${path}

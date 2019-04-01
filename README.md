@@ -74,7 +74,7 @@ concord-bft is available under the [Apache 2 license](LICENSE).
 
 
 
-Build (Ubuntu Linux)
+Build (Ubuntu Linux 18.04)
 ----
 ### Dependencies
 
