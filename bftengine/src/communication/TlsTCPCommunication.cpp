@@ -451,8 +451,6 @@ class AsyncTlsConnection : public
     _sslContext.use_certificate_chain_file((path / "client.cert").string());
     _sslContext.use_private_key_file((path / "pk.pem").string(),
                                      boost::asio::ssl::context::pem);
-
-    _sslContext.load_verify_file((serverPath / "server.cert").string());
   }
 
   bool verify_certificate_server(bool preverified,
