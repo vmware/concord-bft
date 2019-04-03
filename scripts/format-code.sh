@@ -3,7 +3,7 @@
 BFT="concord-bft"
 
 if [ -z "$1" ]; then
-  >&2 echo "Usage: format-code.sh <concord-bft path>"
+  >&2 echo "Usage: format-code.sh <path>"
   return 1
 fi
 
@@ -14,10 +14,10 @@ ABS_CONCORD_PATH=$(
 unset TMP_CONCORD_DIR
 
 # Overly cautious saftey check
-IS_EXPECTED_NAME=$(echo ${ABS_CONCORD_PATH} | grep "${BFT}$")
+IS_EXPECTED_NAME=$(echo ${ABS_CONCORD_PATH} | grep "${BFT}")
 
-if [ ! -d ${ABS_CONCORD_PATH} ] || [ -z ${IS_EXPECTED_NAME} ]; then
-  >&2 echo "ERROR: Couldn't find ${BFT} directory \"${ABS_CONCORD_PATH}\""
+if [ ! -e ${ABS_CONCORD_PATH} ] || [ -z ${IS_EXPECTED_NAME} ]; then
+  >&2 echo "ERROR: Couldn't find \"${ABS_CONCORD_PATH}\" in ${BFT} directory"
   return 1;
 fi
 
