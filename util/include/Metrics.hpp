@@ -19,6 +19,7 @@
 #include <vector>
 #include <mutex>
 #include <memory>
+#include <chrono>
 
 namespace concordMetrics {
 
@@ -98,6 +99,8 @@ class Counter {
 
 class Values {
  private:
+  std::chrono::system_clock::time_point last_aggregated_;
+
   std::vector<Gauge> gauges_;
   std::vector<Status> statuses_;
   std::vector<Counter> counters_;
@@ -162,11 +165,19 @@ class Component {
   // If registration happens before all registration of the values, then the
   // names will not properly exist in the aggregator, since only values get
   // updated at runtime for performance reasons.
-  void Register() { aggregator_->RegisterComponent(*this); }
+  void Register() {
+    values_.last_aggregated_ = std::chrono::system_clock::now();
+    aggregator_->RegisterComponent(*this);
+  }
 
   void UpdateAggregator() {
+    values_.last_aggregated_ = std::chrono::system_clock::now();
     Values copy = values_;
     aggregator_->UpdateValues(name_, std::move(copy));
+  }
+
+  std::chrono::system_clock::time_point LastAggregated() {
+    return values_.last_aggregated_;
   }
 
  private:

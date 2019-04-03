@@ -37,13 +37,23 @@ TEST(MetricsTest, UseValues) {
 }
 
 TEST(MetricsTest, Aggregator) {
+  // start is the epoch
+  chrono::system_clock::time_point start;
   auto aggregator = std::make_shared<Aggregator>();
   Component c("replica", aggregator);
   auto h_gauge = c.RegisterGauge("connected_peers", 3);
   auto h_status = c.RegisterStatus("state", "primary");
   auto h_counter = c.RegisterCounter("messages_sent", 0);
 
+  // We haven't aggregated yet
+  ASSERT_EQ(start, c.LastAggregated());
+
   c.Register();
+
+  chrono::system_clock::time_point last_aggregated = c.LastAggregated();
+  ASSERT_GT(last_aggregated, start);
+
+
 
   ASSERT_EQ(3, aggregator->GetGauge(c.Name(), "connected_peers").Get());
   ASSERT_THROW(aggregator->GetGauge(c.Name(), "non-existent-gauge"),
@@ -64,6 +74,7 @@ TEST(MetricsTest, Aggregator) {
   ASSERT_EQ(0, aggregator->GetCounter(c.Name(), "messages_sent").Get());
 
   c.UpdateAggregator();
+  ASSERT_GT(c.LastAggregated(), last_aggregated);
   ASSERT_EQ(5, aggregator->GetGauge(c.Name(), "connected_peers").Get());
   ASSERT_EQ("backup", aggregator->GetStatus(c.Name(), "state").Get());
   ASSERT_EQ(1, aggregator->GetCounter(c.Name(), "messages_sent").Get());
