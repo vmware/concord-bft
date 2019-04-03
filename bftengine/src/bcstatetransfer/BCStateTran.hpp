@@ -177,13 +177,13 @@ class BCStateTran : public IStateTransfer {
 
   string stateName(FetchingState fs);
 
-
   FetchingState getFetchingState() const;
   bool isFetching() const;
 
   ///////////////////////////////////////////////////////////////////////////
   // Send messages
   ///////////////////////////////////////////////////////////////////////////
+ protected:
 
  protected:
   void sendToAllOtherReplicas(char* msg, uint32_t msgSize);
@@ -268,10 +268,10 @@ class BCStateTran : public IStateTransfer {
   static const uint64_t ID_OF_VBLOCK_RES_PAGES = UINT64_MAX;
 
   set<uint16_t> preferredReplicas_;
-  uint16_t currentSourceReplica = NO_REPLICA;
+  uint16_t currentSourceReplica_ = NO_REPLICA;
 
-  uint64_t timeMilliCurrentSourceReplica = 0;
-  uint64_t nextRequiredBlock = 0;
+  uint64_t timeMilliCurrentSourceReplica_ = 0;
+  uint64_t nextRequiredBlock_ = 0;
   STDigest digestOfNextRequiredBlock;
 
   struct compareItemDataMsg {
@@ -302,6 +302,23 @@ class BCStateTran : public IStateTransfer {
   uint16_t selectSourceReplica();
 
   void processData();
+
+  void EnterGettingCheckpointSummariesState();
+  void SetAllReplicasAsPreferred();
+  bool ShouldReplaceSourceReplica(
+      bool badDataFromCurrentSourceReplica, uint64_t diffMilli);
+
+
+  ///////////////////////////////////////////////////////////////////////////
+  // Helper methods
+  ///////////////////////////////////////////////////////////////////////////
+
+  DataStore::CheckpointDesc createCheckpointDesc(
+      uint64_t checkpointNumber, STDigest digestOfResPagesDescriptor);
+
+  STDigest checkpointReservedPages(uint64_t checkpointNumber);
+
+  void deleteOldCheckpoints(uint64_t checkpointNumber);
 
   ///////////////////////////////////////////////////////////////////////////
   // Consistency
