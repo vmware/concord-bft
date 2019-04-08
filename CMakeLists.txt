@@ -130,7 +130,7 @@ endif()
 # Initialize submodules and update a specific one
 # This allows us to only pull in dependencies when needed.
 function(add_submodule path)
-    file(GLOB RESULT ${path})
+    file(GLOB RESULT ${path}/*)
     list(LENGTH RESULT RES_LEN)
     if(NOT RES_LEN EQUAL 0)
         message(STATUS "Submodule ${path} already initialized. Skipping.")
@@ -154,6 +154,7 @@ add_subdirectory(logging)
 add_subdirectory(threshsign)
 add_subdirectory(bftengine)
 add_subdirectory(tools)
+add_subdirectory(util)
 
 #
 # Setup testing
@@ -163,4 +164,5 @@ if(BUILD_TESTING)
     add_submodule("deps/gtest")
     add_subdirectory(deps/gtest)
     add_subdirectory(bftengine/tests)
+    add_subdirectory(util/test)
 endif()

@@ -1443,7 +1443,7 @@ int TlsTCPCommunication::Stop() {
   if (!_ptrImpl)
     return 0;
 
-  auto res = _ptrImpl->Stop();git
+  auto res = _ptrImpl->Stop();
   return res;
 }
 
