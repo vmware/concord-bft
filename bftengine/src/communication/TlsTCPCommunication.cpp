@@ -1301,14 +1301,14 @@ class TlsTCPCommunication::TlsTcpImpl {
 
  public:
   static TlsTcpImpl *create(NodeNum selfNodeId,
-      // tuple {ip, listen port}
                             NodeMap nodes,
                             uint32_t bufferLength,
                             uint16_t listenPort,
                             uint32_t tempHighestNodeForConnecting,
                             string listenIp,
                             string certRootFolder,
-                            string cipherSuite) {
+                            string cipherSuite,
+                            UPDATE_CONNECTIVITY_FN statusCallback) {
     return new TlsTcpImpl(selfNodeId,
                           nodes,
                           bufferLength,
@@ -1316,7 +1316,8 @@ class TlsTCPCommunication::TlsTcpImpl {
                           tempHighestNodeForConnecting,
                           listenIp,
                           certRootFolder,
-                          cipherSuite);
+                          cipherSuite,
+                          statusCallback);
   }
 
   int getMaxMessageSize() {
@@ -1422,7 +1423,8 @@ TlsTCPCommunication::TlsTCPCommunication(const TlsTcpConfig &config) {
                                 config.maxServerId,
                                 config.listenIp,
                                 config.certificatesRootPath,
-                                config.cipherSuite);
+                                config.cipherSuite,
+                                config.statusCallback);
 }
 
 TlsTCPCommunication *TlsTCPCommunication::create(const TlsTcpConfig &config) {
