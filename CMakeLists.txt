@@ -147,6 +147,8 @@ function(add_submodule path)
     endif()
 endfunction()
 
+include(CTest)
+
 #
 # Subdirectories
 #
@@ -159,10 +161,8 @@ add_subdirectory(util)
 #
 # Setup testing
 #
-include(CTest)
 if(BUILD_TESTING)
     add_submodule("deps/gtest")
     add_subdirectory(deps/gtest)
     add_subdirectory(bftengine/tests)
-    add_subdirectory(util/test)
 endif()
