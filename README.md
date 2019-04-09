@@ -179,19 +179,19 @@ We use OpenSSL for TLS communication module. Please install it using
 
     sudo apt-get install openssl libssl-dev
 
-#### (Optional) Only if using TLS or plain TCP as communication module 
-We use Boost both for plain TCP and TLS communication. Please follow these 
+#### (Optional) Only if using TLS or plain TCP as communication module
+We use Boost both for plain TCP and TLS communication. Please follow these
 instructions to install this library
 
 Download Boost version 1.64
 
     wget https://dl.bintray.com/boostorg/release/1.64.0/source/boost_1_64_0.tar.gz
-    
+
 Unpack the archive
 
     tar -xf boost_1_64_0.tar.gz
-    
-Build and install Boost (note that these commands will install only modules 
+
+Build and install Boost (note that these commands will install only modules
 that are mandatory for building this project)
 
     cd boost_1_64_0
@@ -237,7 +237,18 @@ useful for building concord-bft:
  * `USE_LOG4CPP`          - TRUE | FALSE (DEFAULT FALSE)
  * `CONCORD_LOGGER_NAME`  - STRING (DEFAULT "concord")
 
- Note: You can't set both BUILD_COMM_TCP_PLAIN and BUILD_COMM_TCP_TLS to TRUE.
+ Note: You can't set both `BUILD_COMM_TCP_PLAIN` and `BUILD_COMM_TCP_TLS` to TRUE.
+
+### (Optional) Python client
+
+The python client is required for running tests. If you do not want to install
+python, you can configure the build of concord-bft by running `cmake
+-DBUILD_TESTING=OFF ..` from the `build` directory.
+
+The python client requires python3(>= 3.5) and trio, which is installed via pip.
+
+    sudo apt install python3 python3-pip
+    python3 -m pip install --upgrade trio
 
 Run examples
 ----
