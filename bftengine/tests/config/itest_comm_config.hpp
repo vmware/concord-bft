@@ -45,6 +45,11 @@ class ITestCommConfig {
         bool is_replica, uint16_t id, uint16_t& num_of_clients,
         uint16_t& num_of_replicas, const std::string& config_file_name) = 0;
 
+    virtual bftEngine::TlsTcpConfig GetTlsTCPConfig(
+        bool is_replica, uint16_t id, uint16_t &num_of_clients,
+        uint16_t &num_of_replicas, const std::string &config_file_name) = 0;
+
+
   protected:
     concordlogger::Logger& logger_;
 };

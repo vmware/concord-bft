@@ -17,7 +17,6 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-
 set(IS_LEAKCHECK FALSE)
 set(SLEEP_FOR_DBG FALSE)
 
@@ -32,6 +31,24 @@ option(USE_LOG4CPP "Enable LOG4CPP" FALSE)
 
 # Default BUILD_COMM_TCP_PLAIN to FALSE
 option(BUILD_COMM_TCP_PLAIN "Enable TCP communication" FALSE)
+
+# Default BUILD_COMM_TCP_TLS to FALSE
+option(BUILD_COMM_TCP_TLS "Enable TCP TLS communication" FALSE)
+
+set(COMM_MODULES 0)
+if(BUILD_COMM_TCP_PLAIN)
+    math(EXPR COMM_MODULES "${COMM_MODULES}+1")
+endif()
+
+if(BUILD_COMM_TCP_TLS)
+    math(EXPR COMM_MODULES "${COMM_MODULES}+1")
+endif()
+
+# UDP module is not part of the CMake configuration, it will be used by default
+# if neither of plain TCP or TLS will be chosen
+if(${COMM_MODULES} GREATER 1)
+    message(FATAL_ERROR "Only one comm module can be chosen")
+endif()
 
 # Default CONCORD_LOGGER_NAME to "concord"
 if(NOT CONCORD_LOGGER_NAME)
@@ -51,7 +68,7 @@ endif()
 string(APPEND CXX_FLAGS " -Wall")
 string(APPEND CXX_FLAGS " -Wbuiltin-macro-redefined")
 if(IS_LEAKCHECK)
-string(APPEND CXX_FLAGS " -fsanitize=leak")
+    string(APPEND CXX_FLAGS " -fsanitize=leak")
 endif()
 #string(APPEND CXX_FLAGS " -Werror")
 #string(APPEND CXX_FLAGS " -Wextra")
@@ -61,32 +78,32 @@ endif()
 #    " -fno-strict-overflow")
 # Prevents some buffer overflows: https://access.redhat.com/blogs/766093/posts/1976213
 string(APPEND CXX_FLAGS_DEBUG
-    " -D_FORTIFY_SOURCE=2")
+        " -D_FORTIFY_SOURCE=2")
 
 # GCC and clang-specific options
 string(APPEND CMAKE_CXX_FLAGS
-    " ${CXX_FLAGS}")
+        " ${CXX_FLAGS}")
 string(APPEND CMAKE_CXX_FLAGS_DEBUG
-    " ${CXX_FLAGS_DEBUG}")
+        " ${CXX_FLAGS_DEBUG}")
 
 # using Clang
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 
     # Clang-specific options
     string(APPEND CMAKE_CXX_FLAGS
-        " -pedantic")
+            " -pedantic")
     string(APPEND CMAKE_CXX_FLAGS
-        " -ferror-limit=3")
+            " -ferror-limit=3")
     # Our RELIC library used in threshsign is in the habit of picking generic
     # macro names like HASH and ALIGNED, which conflicts with our own code or
     # other libraries. Even worse, compilers don't show 'macro redefined' warnings
     # for system header files such as our installed RELIC library. So we do this:
     string(APPEND CMAKE_CXX_FLAGS
-        " --no-system-header-prefix relic")
+            " --no-system-header-prefix relic")
     string(APPEND CMAKE_CXX_FLAGS
-        " -Wmacro-redefined")
+            " -Wmacro-redefined")
     string(APPEND CMAKE_CXX_FLAGS_DEBUG
-        " -fstack-protector-all")
+            " -fstack-protector-all")
 
     # Export a compile database for use by semantic analysis tools
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -96,16 +113,16 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
 
     # GCC-specific options
     string(APPEND CMAKE_CXX_FLAGS
-        " -pedantic")
+            " -pedantic")
     string(APPEND CMAKE_CXX_FLAGS
-        " -fmax-errors=3")
+            " -fmax-errors=3")
     string(APPEND CMAKE_CXX_FLAGS_DEBUG
-        " -fstack-protector-all")
+            " -fstack-protector-all")
 
-# TODO: using Intel C++
+    # TODO: using Intel C++
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
 
-# TODO: using Visual Studio C++
+    # TODO: using Visual Studio C++
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 
 endif()
@@ -149,4 +166,3 @@ if(BUILD_TESTING)
     add_subdirectory(bftengine/tests)
     add_subdirectory(util/test)
 endif()
-

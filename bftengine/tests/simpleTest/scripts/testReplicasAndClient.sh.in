@@ -37,4 +37,3 @@ kill $repl_pid
 echo
 echo "Killing server processes named '$scriptdir/../server'"
 killall "$scriptdir/../server" || :
-

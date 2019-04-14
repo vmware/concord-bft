@@ -27,6 +27,7 @@
 
 using bftEngine::PlainUdpConfig;
 using bftEngine::PlainTcpConfig;
+using bftEngine::TlsTcpConfig;
 using bftEngine::ReplicaConfig;
 using BLS::Relic::BlsThresholdFactory;
 using std::pair;
@@ -39,6 +40,12 @@ using std::vector;
 
 const char* TestCommConfig::ip_port_delimiter_ = ":";
 const std::string TestCommConfig::default_ip_ = "127.0.0.1";
+// the default listen IP is a patch to be used on the machines where external
+// IP is not available for listening (e.g. AWS). The patch is to listen on
+// all interfaces, however, the clean solution will be to add listen IP to
+// the config file - each replica and client should have "connect IP" for
+// connecting to each other and "listen IP" - to listen to incoming connections
+const std::string TestCommConfig::default_listen_ip_ = "0.0.0.0";
 
 //////////////////////////////////////////////////////////////////////////////
 // Create a replica config for the replica with index `replicaId`.
@@ -63,7 +70,7 @@ void TestCommConfig::GetReplicaConfig(uint16_t replica_id,
   out_config -> concurrencyLevel = 1;
 }
 
-std::unordered_map <NodeNum, NodeInfo> TestCommConfig::SetUpConfiguredNodes(
+std::unordered_map<NodeNum, NodeInfo> TestCommConfig::SetUpConfiguredNodes(
     bool is_replica, const std::string& config_file_name, uint16_t node_id,
     std::string& ip, uint16_t& port, uint16_t& num_of_clients,
     uint16_t& num_of_replicas) {
@@ -118,7 +125,7 @@ std::unordered_map <NodeNum, NodeInfo> TestCommConfig::SetUpConfiguredNodes(
   return nodes;
 }
 
-std::unordered_map <NodeNum, NodeInfo> TestCommConfig::SetUpDefaultNodes(
+std::unordered_map<NodeNum, NodeInfo> TestCommConfig::SetUpDefaultNodes(
     uint16_t node_id, std::string& ip, uint16_t& port, uint16_t num_of_clients,
     uint16_t num_of_replicas) {
 
@@ -133,7 +140,7 @@ std::unordered_map <NodeNum, NodeInfo> TestCommConfig::SetUpDefaultNodes(
   return nodes;
 }
 
-std::unordered_map <NodeNum, NodeInfo> TestCommConfig::SetUpNodes(
+std::unordered_map<NodeNum, NodeInfo> TestCommConfig::SetUpNodes(
     bool is_replica, uint16_t node_id, std::string& ip, uint16_t& port,
     uint16_t& num_of_clients, uint16_t& num_of_replicas,
     const std::string& config_file_name) {
@@ -153,11 +160,11 @@ PlainUdpConfig TestCommConfig::GetUDPConfig(
     uint16_t& num_of_replicas, const std::string&config_file_name) {
   string   ip;
   uint16_t port;
-  std::unordered_map <NodeNum, NodeInfo> nodes =
+  std::unordered_map<NodeNum, NodeInfo> nodes =
       SetUpNodes(is_replica, node_id, ip, port, num_of_clients,
                  num_of_replicas, config_file_name);
 
-  PlainUdpConfig ret_val(ip, port, buf_length_, nodes, node_id);
+  PlainUdpConfig ret_val(default_listen_ip_, port, buf_length_, nodes, node_id);
   return ret_val;
 }
 
@@ -168,10 +175,28 @@ PlainTcpConfig TestCommConfig::GetTCPConfig(
     uint16_t& num_of_replicas, const std::string& config_file_name) {
   string   ip;
   uint16_t port;
-  std::unordered_map <NodeNum, NodeInfo> nodes =
+  std::unordered_map<NodeNum, NodeInfo> nodes =
       SetUpNodes(is_replica, node_id, ip, port, num_of_clients, num_of_replicas,
                  config_file_name);
 
-  PlainTcpConfig ret_val(ip, port, buf_length_, nodes, num_of_replicas - 1, node_id);
+  PlainTcpConfig ret_val(
+      default_listen_ip_, port, buf_length_, nodes, num_of_replicas - 1, node_id);
   return ret_val;
+}
+
+TlsTcpConfig TestCommConfig::GetTlsTCPConfig(
+    bool is_replica, uint16_t id, uint16_t &num_of_clients,
+    uint16_t &num_of_replicas, const std::string &config_file_name) {
+  string   ip;
+  uint16_t port;
+
+  std::unordered_map<NodeNum, NodeInfo> nodes =
+      SetUpNodes(is_replica, id, ip, port, num_of_clients, num_of_replicas,
+                 config_file_name);
+
+  // need to move the default cipher suite to the config file
+  TlsTcpConfig retVal(default_listen_ip_, port, buf_length_, nodes,
+                      num_of_replicas -1, id, "certs",
+                      "ECDHE-ECDSA-AES256-GCM-SHA384");
+  return retVal;
 }

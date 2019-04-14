@@ -216,11 +216,18 @@ class TestConfig:
                 self.log_dir, self.config_name.replace(",","_")),"w") as w:
             w.write("cli args: " + cli_args)
 
+        # create replica's keys
         cmd = [generate_concord_keys,
                "-n", str(self.num_of_replicas),
                "-f", str(self.num_of_faulty),
                "-o", os.path.join(self.log_dir, "private_replica_")]
         subprocess.check_call(cmd)
+
+        # create TLS certificates
+        cmd = ["./create_tls_certs.sh", str(self.num_of_replicas +
+                                            self.num_of_clients),
+               os.path.join(self.log_dir, "certs")]
+        subprocess.call(cmd)
 
         for i in range(0, self.num_of_replicas_to_launch):
             params = ["-id", str(i),
