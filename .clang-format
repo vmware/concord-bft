@@ -98,7 +98,7 @@ RawStringFormats:
     BasedOnStyle:    google
 ReflowComments:  true
 SortIncludes:    false
-SortUsingDeclarations: true
+SortUsingDeclarations: false
 SpaceAfterCStyleCast: false
 SpaceAfterTemplateKeyword: true
 SpaceBeforeAssignmentOperators: true
