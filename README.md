@@ -80,7 +80,7 @@ Build (Ubuntu Linux 18.04)
 
 CMake and clang:
 
-    sudo apt-get install cmake clang
+    sudo apt-get install cmake clang clang-format
 
 Get GMP (dependency for [RELIC](https://github.com/relic-toolkit/relic)):
 
