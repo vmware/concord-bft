@@ -25,18 +25,28 @@ namespace bftEngine
 		static const float maxUpdateInTimeToStartSlowPath = 0.20F;
 
 
-		ControllerWithSimpleHistory::ControllerWithSimpleHistory(uint16_t C, uint16_t F, ReplicaId replicaId, ViewNum initialView, SeqNum initialSeq)
-			: onlyOptimisticFast(C == 0),
-			c(C), f(F), numOfReplicas(3 * F + 2 * C + 1), myId(replicaId), recentActivity(1, nullptr)
-		{
-			currentFirstPath = ControllerWithSimpleHistory_debugInitialFirstPath;
-			currentView = initialView;
-			isPrimary = ((currentView % numOfReplicas) == myId);
+		ControllerWithSimpleHistory::ControllerWithSimpleHistory(
+                    uint16_t C,
+                    uint16_t F,
+                    ReplicaId replicaId,
+                    ViewNum initialView,
+                    SeqNum initialSeq,
+                    concordMetrics::Component &metrics) :
+                  onlyOptimisticFast(C == 0),
+                  c(C), f(F), numOfReplicas(3 * F + 2 * C + 1), myId(replicaId),
+                  recentActivity(1, nullptr),
+                  currentFirstPath{ControllerWithSimpleHistory_debugInitialFirstPath},
+                  currentView{initialView},
+                  isPrimary{((currentView % numOfReplicas) == myId)},
+                  currentTimeToStartSlowPathMilli{defaultTimeToStartSlowPathMilli},
+                  metrics_first_path_{metrics.RegisterStatus(
+                      "firstCommitPath",
+                      CommitPathToStr(currentFirstPath))}
+                {
+			if (isPrimary) {
+                          onBecomePrimary(initialView, initialSeq);
+                        }
 
-			currentTimeToStartSlowPathMilli = defaultTimeToStartSlowPathMilli;
-
-			if (isPrimary)
-				onBecomePrimary(initialView, initialSeq);
 		}
 
 		void ControllerWithSimpleHistory::onBecomePrimary(ViewNum v, SeqNum s)
@@ -143,10 +153,14 @@ namespace bftEngine
 					const float factorForFastOptimisticPath = ControllerWithSimpleHistory_debugUpgradeFactorForFastOptimisticPath; // 0.95F;
 					const float factorForFastPath = ControllerWithSimpleHistory_debugUpgradeFactorForFastPath; //  0.85F;
 
-					if (cyclesWithFullCooperation >= (factorForFastOptimisticPath * EvaluationPeriod))
+					if (cyclesWithFullCooperation >= (factorForFastOptimisticPath * EvaluationPeriod)) {
 						currentFirstPath = CommitPath::OPTIMISTIC_FAST;
-					else if (!onlyOptimisticFast && (cyclesWithFullCooperation + cyclesWithPartialCooperation >= (factorForFastPath * EvaluationPeriod)))
+                                                metrics_first_path_.Get().Set(CommitPathToStr(currentFirstPath));
+                                        }
+					else if (!onlyOptimisticFast && (cyclesWithFullCooperation + cyclesWithPartialCooperation >= (factorForFastPath * EvaluationPeriod))) {
 						currentFirstPath = CommitPath::FAST_WITH_THRESHOLD;
+                                                metrics_first_path_.Get().Set(CommitPathToStr(currentFirstPath));
+                                        }
 				}
 			}
 			else
@@ -167,10 +181,13 @@ namespace bftEngine
 					downgraded = true;
 
 					// downgrade
-					if (!onlyOptimisticFast && (currentFirstPath == CommitPath::OPTIMISTIC_FAST))
+					if (!onlyOptimisticFast && (currentFirstPath == CommitPath::OPTIMISTIC_FAST)) {
 						currentFirstPath = CommitPath::FAST_WITH_THRESHOLD;
-					else
+                                        } else {
 						currentFirstPath = CommitPath::SLOW;
+                                        }
+
+                                        metrics_first_path_.Get().Set(CommitPathToStr(currentFirstPath));
 				}
 			}
 
@@ -241,5 +258,17 @@ namespace bftEngine
 			s.replicas.insert(id);
 		}
 
+                std::string CommitPathToStr(CommitPath path) {
+                  switch(path) {
+                    case CommitPath::NA:
+                      return "NA";
+                    case CommitPath::OPTIMISTIC_FAST:
+                      return "OPTIMISTIC_FAST";
+                    case CommitPath::FAST_WITH_THRESHOLD:
+                      return "FAST_WITH_THRESHOLD";
+                    case CommitPath::SLOW:
+                      return "SLOW";
+                  }
+                }
 	}
 }

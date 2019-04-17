@@ -15,6 +15,7 @@
 #include "SequenceWithActiveWindow.hpp"
 #include "RollingAvgAndVar.hpp"
 #include "TimeUtils.hpp"
+#include "Metrics.hpp"
 
 namespace bftEngine
 {
@@ -27,7 +28,13 @@ namespace bftEngine
 
 			static const size_t EvaluationPeriod = 64;
 
-			ControllerWithSimpleHistory(uint16_t C, uint16_t F, ReplicaId replicaId, ViewNum initialView, SeqNum initialSeq);
+			ControllerWithSimpleHistory(
+                            uint16_t C,
+                            uint16_t F,
+                            ReplicaId replicaId,
+                            ViewNum initialView,
+                            SeqNum initialSeq,
+                            concordMetrics::Component &metrics);
 
 			// getter methods
 
@@ -97,8 +104,16 @@ namespace bftEngine
 
 			void onBecomePrimary(ViewNum v, SeqNum s);
 			void onEndOfEvaluationPeriod();
+
+                        typedef concordMetrics::Component::Handle<
+                          concordMetrics::Status> StatusHandle;
+
+                        // The first commit path being attempted for a new
+                        // request.
+                        StatusHandle metrics_first_path_;
 		};
 
 
+                std::string CommitPathToStr(CommitPath path);
 	}
 }

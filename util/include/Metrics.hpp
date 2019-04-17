@@ -167,9 +167,18 @@ class Component {
   // updated at runtime for performance reasons.
   void Register() { aggregator_->RegisterComponent(*this); }
 
+  // Update the values in the aggregator
   void UpdateAggregator() {
     Values copy = values_;
     aggregator_->UpdateValues(name_, std::move(copy));
+  }
+
+  // Change the aggregator used by the component
+  //
+  // Register the component with the new aggregator.
+  void SetAggregator(std::shared_ptr<Aggregator> aggregator) {
+    aggregator_ = aggregator;
+    Register();
   }
 
   // Generate a JSON formatted string

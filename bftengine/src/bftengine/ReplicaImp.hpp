@@ -32,6 +32,7 @@
 #include "ICommunication.hpp"
 #include "Replica.hpp"
 #include "Threading.h"
+#include "Metrics.hpp"
 
 #include <thread>
 
@@ -200,9 +201,6 @@ namespace bftEngine
 
 			int viewChangeTimerMilli;
 
-
-
-
 			class MsgReceiver : public IReceiver
 			{
 			public:
@@ -235,6 +233,27 @@ namespace bftEngine
 			// this event is signalled iff the start() method has completed
 			// and the process_message() method has not start working yet
 			SimpleAutoResetEvent startSyncEvent;
+
+                        //******** METRICS ************************************
+                        concordMetrics::Component metricsComponent_;
+
+                        typedef concordMetrics::Component::Handle<
+                          concordMetrics::Gauge> GaugeHandle;
+                        typedef concordMetrics::Component::Handle<
+                          concordMetrics::Status> StatusHandle;
+                        typedef concordMetrics::Component::Handle<
+                          concordMetrics::Counter> CounterHandle;
+
+                        GaugeHandle metric_view_;
+                        GaugeHandle metric_last_stable_seq_num__;
+                        GaugeHandle metric_last_executed_seq_num_;
+                        GaugeHandle metric_last_agreed_view_;
+
+                        CounterHandle metric_slow_path_count_;
+                        CounterHandle metric_received_msgs_;
+
+                        //*****************************************************
+
 
 		public:
 
@@ -449,8 +468,9 @@ namespace bftEngine
 			virtual void onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqNum, const ViewNum relatedViewNumber,
 				const std::forward_list<RetSuggestion>* const suggestedRetransmissions) override;  // TODO(GG): use generic iterators 
 
-		};
+                        void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator);
 
+		};
 
 
 

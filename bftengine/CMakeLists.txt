@@ -107,3 +107,4 @@ target_include_directories(corebft PUBLIC ${LOGGER_INC_DIR})
 
 target_link_libraries(corebft PUBLIC threshsign)
 target_link_libraries(corebft PUBLIC Threads::Threads)
+target_link_libraries(corebft PUBLIC util)

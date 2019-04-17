@@ -10,6 +10,7 @@
 
 #include <stdint.h>
 #include <inttypes.h>
+#include <string>
 
 #ifdef max // TODO(GG): remove
 #undef max
