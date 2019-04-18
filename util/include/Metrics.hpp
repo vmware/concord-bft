@@ -46,6 +46,9 @@ class Aggregator {
   Counter GetCounter(const std::string& component_name,
                      const std::string& val_name);
 
+  // Generate a JSON formatted string
+  std::string ToJson();
+
  private:
   void RegisterComponent(Component& component);
   void UpdateValues(const std::string& name, Values&& values);
@@ -168,6 +171,9 @@ class Component {
     Values copy = values_;
     aggregator_->UpdateValues(name_, std::move(copy));
   }
+
+  // Generate a JSON formatted string
+  std::string ToJson();
 
  private:
   friend class Aggregator;

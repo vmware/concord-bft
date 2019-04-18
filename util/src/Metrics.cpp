@@ -104,4 +104,84 @@ Counter Aggregator::GetCounter(const string& component_name,
                    component.values_.counters_);
 }
 
+// Generate a JSON string of all aggregated components. To save space we don't
+// add any newline characters.
+std::string Aggregator::ToJson() {
+  ostringstream oss;
+  std::lock_guard<std::mutex> lock(lock_);
+
+  // Add the object opening
+  oss << "{\"Components\":[";
+
+  // Add all the components
+  for (auto it = components_.begin(); it != components_.end(); ++it) {
+    // Add a comma between every component
+    if (it != components_.begin()) {
+      oss << ",";
+    }
+    oss << it->second.ToJson();
+  }
+
+  // Add the object end
+  oss << "]}";
+
+  return oss.str();
+}
+
+// Generate a JSON string of the component. To save space we don't add any
+// newline characters.
+std::string Component::ToJson() {
+  ostringstream oss;
+
+  // Add the object opening and component name
+  oss << "{\"Name\":\"" << name_ << "\",";
+
+  // Add any gauges
+  oss << "\"Gauges\":{";
+
+  for (int i = 0; i < names_.gauge_names_.size(); i++) {
+    if (i != 0) {
+      oss << ",";
+    }
+    oss << "\"" << names_.gauge_names_[i] << "\":"
+      << values_.gauges_[i].Get() << "";
+  }
+
+  // End gauges
+  oss << "},";
+
+  // Add any status
+  oss << "\"Statuses\":{";
+
+  for (int i = 0; i < names_.status_names_.size(); i++) {
+    if (i != 0) {
+      oss << ",";
+    }
+    oss << "\"" << names_.status_names_[i] << "\":"
+      << "\"" << values_.statuses_[i].Get() << "\"";
+  }
+
+  // End status
+  oss << "},";
+
+  // Add any counters
+  oss << "\"Counters\":{";
+
+  for (int i = 0; i < names_.counter_names_.size(); i++) {
+    if (i != 0) {
+      oss << ",";
+    }
+    oss << "\"" << names_.counter_names_[i] << "\":"
+      << values_.counters_[i].Get() << "";
+  }
+
+  // End counters
+  oss << "}";
+
+  // End component
+  oss << "}";
+
+  return oss.str();
+}
+
 }  // namespace concordMetrics
