@@ -11,6 +11,8 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 //
+
+#include <cstdlib>
 #include "gtest/gtest.h"
 #include "Metrics.hpp"
 
@@ -67,6 +69,36 @@ TEST(MetricsTest, Aggregator) {
   ASSERT_EQ(5, aggregator->GetGauge(c.Name(), "connected_peers").Get());
   ASSERT_EQ("backup", aggregator->GetStatus(c.Name(), "state").Get());
   ASSERT_EQ(1, aggregator->GetCounter(c.Name(), "messages_sent").Get());
+}
+
+// ToJson is a simple hand written serializer. We don't have a corresponding
+// deserializer, since it isn't strictly necessary. We use python eval to
+// validate the JSON, since JSON is valid python.
+//
+// System tests will actually use the JSON output, so we'll get extra validation
+// there.
+TEST(MetricTest, ToJson) {
+  auto aggregator = std::make_shared<Aggregator>();
+  Component c("replica", aggregator);
+  c.RegisterGauge("connected_peers", 3);
+  c.RegisterGauge("total_peers", 4);
+  c.RegisterStatus("state", "primary");
+  c.RegisterStatus("commit_path", "SLOW");
+  c.RegisterCounter("messages_sent", 0);
+  c.RegisterCounter("messages_received", 1);
+  c.Register();
+
+  Component c2("state-transfer", aggregator);
+  c2.RegisterGauge("blocks-remaining", 4);
+  c2.RegisterStatus("state", "sending-blocks");
+  c2.Register();
+
+  // JSON is valid python. We evaluate the JSON string and see if we get a 0
+  // return value. If so it parsed correctly.
+  ostringstream oss;
+  oss << "python -c '" << aggregator->ToJson() << "'" <<  endl;
+
+  ASSERT_EQ(0, system(oss.str().c_str()));
 }
 
 }  // namespace concordMetrics
