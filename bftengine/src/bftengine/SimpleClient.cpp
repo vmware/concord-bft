@@ -458,8 +458,13 @@ namespace bftEngine
 			}
 			else
 			{
-				if (lastCountOfUniqueFetchID == 0x3FFFFF) lastMilliOfUniqueFetchID++;
-				lastCountOfUniqueFetchID++;
+				if (lastCountOfUniqueFetchID == 0x3FFFFF) {
+                                  LOG_WARN(GL, "Client SeqNum Counter reached max value");
+                                  lastMilliOfUniqueFetchID++;
+                                  lastCountOfUniqueFetchID = 0;
+                                } else {
+                                  lastCountOfUniqueFetchID++;
+                                }
 			}
 
 			uint64_t r = (lastMilliOfUniqueFetchID << (64-42));
