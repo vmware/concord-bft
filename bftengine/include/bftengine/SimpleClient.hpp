@@ -48,14 +48,22 @@ namespace bftEngine
 		virtual int sendRequestToReadLatestSeqNum(uint64_t timeoutMilli, uint64_t& outLatestReqSeqNum) = 0;		
 	};
 
-	class SeqNumberGeneratorForClientRequests // users are allowed to generate their own sequence numbers (they do not have to use this class)
-	{
-	public:
+        // This class is mainly for testing and SimpleClient applications.
+        // Users are allowed to generate their own sequence numbers (they do not
+        // have to use this class). Other examples of ways to do this include:
+        // (1) A simple counter + store the last counter in a persistent storage
+        // (2) An approach that utilizes the functions
+        //     SimpleClient::sendRequestToResetSeqNum() or
+        //     SimpleClient::sendRequestToReadLatestSeqNum(..)
+        //     [These functions are not yet supported, but if necessary, we will
+        //     support them.]
+        class SeqNumberGeneratorForClientRequests {
+          public:
+            static SeqNumberGeneratorForClientRequests*
+              createSeqNumberGeneratorForClientRequests();
 
-		static SeqNumberGeneratorForClientRequests* createSeqNumberGeneratorForClientRequests();
-		
-		virtual uint64_t generateUniqueSequenceNumberForRequest() = 0;
+            virtual uint64_t generateUniqueSequenceNumberForRequest() = 0;
 
-		virtual ~SeqNumberGeneratorForClientRequests() {};
-	};
+            virtual ~SeqNumberGeneratorForClientRequests() {};
+        };
 }
