@@ -15,10 +15,42 @@ from collections import namedtuple
 import struct
 import msgs
 import trio
+import time
 
 Config = namedtuple('Config', ['id', 'f', 'c', 'max_msg_size', 'req_timeout_milli',
     'retry_timeout_milli'])
 Replica = namedtuple('Replica', ['id', 'ip', 'port'])
+
+class ReqSeqNum:
+    def __init__(self):
+        self.time_since_epoch_milli = int(time.time()*1000)
+        self.count = 0
+        self.max_count = 0x3FFFFF
+        self.max_count_len = 22
+
+    def next(self):
+        """
+        Calculate the next req_seq_num.
+        Return the calculated value as an int sized for 64 bits
+        """
+        milli = int(time.time()*1000)
+        if milli > self.time_since_epoch_milli:
+            self.time_since_epoch_milli = milli
+            self.count = 0
+        else:
+            if self.count == self.max_count:
+                self.time_since_epoch_milli += 1
+                self.count = 0
+            else:
+                self.count += 1
+        return self.val()
+
+    def val(self):
+        """ Return an int sized for 64 bits """
+        assert(self.count <= self.max_count)
+        r = self.time_since_epoch_milli << self.max_count_len
+        r = r | self.count
+        return r
 
 
 class UdpClient:
@@ -35,7 +67,7 @@ class UdpClient:
         self.replicas = replicas
         self.sock = trio.socket.socket(trio.socket.AF_INET,
                                        trio.socket.SOCK_DGRAM)
-        self.req_seq_num = 0
+        self.req_seq_num = ReqSeqNum()
         self.client_id = config.id
         self.replies = dict()
         self.primary = None
@@ -63,9 +95,9 @@ class UdpClient:
             `config.req_timeout_milli` elapses. If `config.req_timeout_milli`
             elapses then a trio.TooSlowError is raised.
         """
-        self.req_seq_num += 1
+        seq = self.req_seq_num.next()
         data = msgs.pack_request(
-                    self.client_id, self.req_seq_num, read_only, msg)
+                    self.client_id, seq, read_only, msg)
         # Raise a trio.TooSlowError exception if a quorum of replies
         with trio.fail_after(self.config.req_timeout_milli/1000):
             self.reset_on_new_request()
@@ -137,7 +169,7 @@ class UdpClient:
 
     def valid_reply(self, header):
         """Return true if the sequence number is correct"""
-        return self.req_seq_num == header.req_seq_num
+        return self.req_seq_num.val() == header.req_seq_num
 
     def has_quorum(self):
         """
