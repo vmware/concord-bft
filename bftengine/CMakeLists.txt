@@ -3,6 +3,7 @@ project (bftengine LANGUAGES CXX)
 get_property(LOGGER_INC_DIR GLOBAL PROPERTY LoggerIncludeDir)
 
 set(corebft_source_files
+    src/bftengine/PrimitiveTypes.cpp
     src/bftengine/PrePrepareMsg.cpp
     src/bftengine/CheckpointMsg.cpp
     src/bftengine/DebugStatistics.cpp

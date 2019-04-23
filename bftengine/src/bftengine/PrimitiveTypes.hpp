@@ -45,6 +45,7 @@ namespace bftEngine
 			SLOW = 2
 		};
 
+                std::string CommitPathToStr(CommitPath path);
 	}
 }
 

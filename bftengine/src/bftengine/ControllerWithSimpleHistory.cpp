@@ -30,18 +30,14 @@ namespace bftEngine
                     uint16_t F,
                     ReplicaId replicaId,
                     ViewNum initialView,
-                    SeqNum initialSeq,
-                    concordMetrics::Component &metrics) :
+                    SeqNum initialSeq) :
                   onlyOptimisticFast(C == 0),
                   c(C), f(F), numOfReplicas(3 * F + 2 * C + 1), myId(replicaId),
                   recentActivity(1, nullptr),
                   currentFirstPath{ControllerWithSimpleHistory_debugInitialFirstPath},
                   currentView{initialView},
                   isPrimary{((currentView % numOfReplicas) == myId)},
-                  currentTimeToStartSlowPathMilli{defaultTimeToStartSlowPathMilli},
-                  metrics_first_path_{metrics.RegisterStatus(
-                      "firstCommitPath",
-                      CommitPathToStr(currentFirstPath))}
+                  currentTimeToStartSlowPathMilli{defaultTimeToStartSlowPathMilli}
                 {
 			if (isPrimary) {
                           onBecomePrimary(initialView, initialSeq);
@@ -99,9 +95,12 @@ namespace bftEngine
 				onBecomePrimary(v, s);
 		}
 
-		void ControllerWithSimpleHistory::onNewSeqNumberExecution(SeqNum n)
+                // Return true if currentFirstPath changed
+		bool ControllerWithSimpleHistory::onNewSeqNumberExecution(SeqNum n)
 		{
-			if (!isPrimary || !recentActivity.insideActiveWindow(n)) return;
+			if (!isPrimary || !recentActivity.insideActiveWindow(n)) {
+                          return false;
+                        }
 
 			SeqNoInfo& s = recentActivity.get(n);
 
@@ -123,10 +122,14 @@ namespace bftEngine
 
 			avgAndStdOfExecTime.add((double)duration);
 
-			if (n == recentActivity.currentActiveWindow().second) onEndOfEvaluationPeriod();
+			if (n == recentActivity.currentActiveWindow().second) {
+                          return onEndOfEvaluationPeriod();
+                        }
+                        return false;
 		}
 
-		void ControllerWithSimpleHistory::onEndOfEvaluationPeriod()
+                // Return true if the currentFirstPath changed
+		bool ControllerWithSimpleHistory::onEndOfEvaluationPeriod()
 		{
 			const SeqNum minSeq = recentActivity.currentActiveWindow().first;
 			const SeqNum maxSeq = recentActivity.currentActiveWindow().second;
@@ -134,6 +137,7 @@ namespace bftEngine
 			const CommitPath lastFirstPathVal = currentFirstPath;
 
 			bool downgraded = false;
+                        bool currentFirstPathChanged = false;
 
 			if (currentFirstPath == CommitPath::SLOW)
 			{
@@ -155,11 +159,11 @@ namespace bftEngine
 
 					if (cyclesWithFullCooperation >= (factorForFastOptimisticPath * EvaluationPeriod)) {
 						currentFirstPath = CommitPath::OPTIMISTIC_FAST;
-                                                metrics_first_path_.Get().Set(CommitPathToStr(currentFirstPath));
+                                                currentFirstPathChanged = true;
                                         }
 					else if (!onlyOptimisticFast && (cyclesWithFullCooperation + cyclesWithPartialCooperation >= (factorForFastPath * EvaluationPeriod))) {
 						currentFirstPath = CommitPath::FAST_WITH_THRESHOLD;
-                                                metrics_first_path_.Get().Set(CommitPathToStr(currentFirstPath));
+                                                currentFirstPathChanged = true;
                                         }
 				}
 			}
@@ -187,7 +191,7 @@ namespace bftEngine
 						currentFirstPath = CommitPath::SLOW;
                                         }
 
-                                        metrics_first_path_.Get().Set(CommitPathToStr(currentFirstPath));
+                                        currentFirstPathChanged = true;
 				}
 			}
 
@@ -220,6 +224,7 @@ namespace bftEngine
 
 				LOG_INFO_F(GL, "currentTimeToStartSlowPathMilli = %d", (int)currentTimeToStartSlowPathMilli);
 			}
+                        return currentFirstPathChanged;
 		}
 
 		void ControllerWithSimpleHistory::onSendingPrePrepare(SeqNum n, CommitPath commitPath)
@@ -258,17 +263,5 @@ namespace bftEngine
 			s.replicas.insert(id);
 		}
 
-                std::string CommitPathToStr(CommitPath path) {
-                  switch(path) {
-                    case CommitPath::NA:
-                      return "NA";
-                    case CommitPath::OPTIMISTIC_FAST:
-                      return "OPTIMISTIC_FAST";
-                    case CommitPath::FAST_WITH_THRESHOLD:
-                      return "FAST_WITH_THRESHOLD";
-                    case CommitPath::SLOW:
-                      return "SLOW";
-                  }
-                }
 	}
 }

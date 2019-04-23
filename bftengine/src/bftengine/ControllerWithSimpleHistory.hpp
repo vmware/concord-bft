@@ -15,7 +15,6 @@
 #include "SequenceWithActiveWindow.hpp"
 #include "RollingAvgAndVar.hpp"
 #include "TimeUtils.hpp"
-#include "Metrics.hpp"
 
 namespace bftEngine
 {
@@ -33,8 +32,7 @@ namespace bftEngine
                             uint16_t F,
                             ReplicaId replicaId,
                             ViewNum initialView,
-                            SeqNum initialSeq,
-                            concordMetrics::Component &metrics);
+                            SeqNum initialSeq);
 
 			// getter methods
 
@@ -45,7 +43,7 @@ namespace bftEngine
 			// events 
 
 			virtual void onNewView(ViewNum v, SeqNum s) override;
-			virtual void onNewSeqNumberExecution(SeqNum n) override;
+			virtual bool onNewSeqNumberExecution(SeqNum n) override;
 
 			virtual void onSendingPrePrepare(SeqNum n, CommitPath commitPath) override;
 			virtual void onStartingSlowCommit(SeqNum n) override;
@@ -103,17 +101,9 @@ namespace bftEngine
 			uint32_t currentTimeToStartSlowPathMilli;
 
 			void onBecomePrimary(ViewNum v, SeqNum s);
-			void onEndOfEvaluationPeriod();
-
-                        typedef concordMetrics::Component::Handle<
-                          concordMetrics::Status> StatusHandle;
-
-                        // The first commit path being attempted for a new
-                        // request.
-                        StatusHandle metrics_first_path_;
+			bool onEndOfEvaluationPeriod();
 		};
 
 
-                std::string CommitPathToStr(CommitPath path);
 	}
 }

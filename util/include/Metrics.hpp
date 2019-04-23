@@ -159,6 +159,9 @@ class Component {
   Handle<Status> RegisterStatus(const std::string& name,
                                 const std::string& val);
   Handle<Counter> RegisterCounter(const std::string& name, const uint64_t val);
+  Handle<Counter> RegisterCounter(const std::string& name) {
+    return RegisterCounter(name, 0);
+  }
 
   // Register the component with the aggregator.
   // This *must* be done after all values are registered in this component.

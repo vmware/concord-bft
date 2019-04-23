@@ -38,7 +38,7 @@ namespace bftEngine
 			// events (used to pass information to the controller)
 
 			virtual void onNewView(ViewNum v, SeqNum s) {}
-			virtual void onNewSeqNumberExecution(SeqNum n) {}
+			virtual bool onNewSeqNumberExecution(SeqNum n) { return false; }
 
 			virtual void onSendingPrePrepare(SeqNum n, CommitPath commitPath) {}
 			virtual void onStartingSlowCommit(SeqNum n) {}
