@@ -159,6 +159,9 @@ class Component {
   Handle<Status> RegisterStatus(const std::string& name,
                                 const std::string& val);
   Handle<Counter> RegisterCounter(const std::string& name, const uint64_t val);
+  Handle<Counter> RegisterCounter(const std::string& name) {
+    return RegisterCounter(name, 0);
+  }
 
   // Register the component with the aggregator.
   // This *must* be done after all values are registered in this component.
@@ -167,9 +170,18 @@ class Component {
   // updated at runtime for performance reasons.
   void Register() { aggregator_->RegisterComponent(*this); }
 
+  // Update the values in the aggregator
   void UpdateAggregator() {
     Values copy = values_;
     aggregator_->UpdateValues(name_, std::move(copy));
+  }
+
+  // Change the aggregator used by the component
+  //
+  // Register the component with the new aggregator.
+  void SetAggregator(std::shared_ptr<Aggregator> aggregator) {
+    aggregator_ = aggregator;
+    Register();
   }
 
   // Generate a JSON formatted string

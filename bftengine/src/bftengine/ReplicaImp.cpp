@@ -28,6 +28,7 @@
 #include "DebugStatistics.hpp"
 #include "ReplicaStatusMsg.hpp"
 #include "NullStateTransfer.hpp"
+#include "SysConsts.hpp"
 
 
 namespace bftEngine
@@ -268,6 +269,7 @@ namespace bftEngine
 
 		void ReplicaImp::onMessage(ClientRequestMsg *m)
 		{
+                        metric_received_client_requests_.Get().Inc();
 			const NodeIdType senderId = m->senderId();
 			const NodeIdType clientId = m->clientProxyId();
 			const bool readOnly = m->isReadOnly();
@@ -455,6 +457,7 @@ namespace bftEngine
 			if (firstPath == CommitPath::SLOW)
 			{
 				seqNumInfo.startSlowPath();
+                                metric_slow_path_count_.Get().Inc();
 				sendPreparePartial(seqNumInfo);
 			}
 			else
@@ -501,6 +504,7 @@ namespace bftEngine
 
 		void ReplicaImp::onMessage(PrePrepareMsg* msg)
 		{
+                        metric_received_pre_prepares_.Get().Inc();
 			const SeqNum msgSeqNum = msg->seqNumber();
 
 			LOG_INFO_F(GL, "Node %d received PrePrepareMsg from node %d for seqNumber %" PRId64 " (size=%d)",
@@ -542,6 +546,7 @@ namespace bftEngine
 					else
 					{
 						seqNumInfo.startSlowPath();
+                                                metric_slow_path_count_.Get().Inc();
 						sendPreparePartial(seqNumInfo); ;
 					}
 				}
@@ -597,6 +602,7 @@ namespace bftEngine
 				controller->onStartingSlowCommit(i);
 
 				seqNumInfo.startSlowPath();
+                                metric_slow_path_count_.Get().Inc();
 
 				// send StartSlowCommitMsg to all replicas
 
@@ -685,6 +691,7 @@ namespace bftEngine
 
 		void ReplicaImp::onMessage(StartSlowCommitMsg* msg)
 		{
+                        metric_received_start_slow_commits_.Get().Inc();
 			const SeqNum msgSeqNum = msg->seqNumber();
 
 			LOG_INFO_F(GL, "Node %d received StartSlowCommitMsg for seqNumber %" PRId64 "", myReplicaId, msgSeqNum);
@@ -700,6 +707,7 @@ namespace bftEngine
 					LOG_INFO_F(GL, "Node %d starts slow path for seqNumber %" PRId64 "", myReplicaId, msgSeqNum);
 
 					seqNumInfo.startSlowPath();
+                                        metric_slow_path_count_.Get().Inc();
 
 					if (seqNumInfo.hasPrePrepareMsg() == false)
 						tryToSendReqMissingDataMsg(msgSeqNum);
@@ -826,6 +834,7 @@ namespace bftEngine
 
 		void ReplicaImp::onMessage(PartialCommitProofMsg* msg)
 		{
+                        metric_received_partial_commit_proofs_.Get().Inc();
 			const SeqNum msgSeqNum = msg->seqNumber();
 			const SeqNum msgView = msg->viewNumber();
 			const NodeIdType msgSender = msg->senderId();
@@ -885,6 +894,7 @@ namespace bftEngine
 		void ReplicaImp::onMessage(FullCommitProofMsg* msg)
 		{
 
+                        metric_received_full_commit_proofs_.Get().Inc();
 			LOG_INFO_F(GL, "Node %d received FullCommitProofMsg message for seqNumber %" PRId64 "",
 				(int)myReplicaId, (int)msg->seqNumber());
 
@@ -913,6 +923,7 @@ namespace bftEngine
 
 		void ReplicaImp::onMessage(PreparePartialMsg* msg)
 		{
+                        metric_received_prepare_partials_.Get().Inc();
 			const SeqNum msgSeqNum = msg->seqNumber();
 			const ReplicaId msgSender = msg->senderId();
 
@@ -964,6 +975,7 @@ namespace bftEngine
 
 		void ReplicaImp::onMessage(CommitPartialMsg* msg)
 		{
+                        metric_received_commit_partials_.Get().Inc();
 			const SeqNum msgSeqNum = msg->seqNumber();
 			const ReplicaId msgSender = msg->senderId();
 
@@ -1006,6 +1018,7 @@ namespace bftEngine
 
 		void ReplicaImp::onMessage(PrepareFullMsg* msg)
 		{
+                        metric_received_prepare_fulls_.Get().Inc();
 			const SeqNum msgSeqNum = msg->seqNumber();
 			const ReplicaId msgSender = msg->senderId();
 
@@ -1053,6 +1066,7 @@ namespace bftEngine
 
 		void ReplicaImp::onMessage(CommitFullMsg* msg)
 		{
+                        metric_received_commit_fulls_.Get().Inc();
 			const SeqNum msgSeqNum = msg->seqNumber();
 			const ReplicaId msgSender = msg->senderId();
 
@@ -1274,6 +1288,7 @@ namespace bftEngine
 
 		void ReplicaImp::onMessage(CheckpointMsg* msg)
 		{
+                        metric_received_checkpoints_.Get().Inc();
 			const ReplicaId msgSenderId = msg->senderId();
 			const SeqNum msgSeqNum = msg->seqNumber();
 			const Digest msgDigest = msg->digestOfState();
@@ -1536,6 +1551,7 @@ namespace bftEngine
 
 		void ReplicaImp::onMessage(ReplicaStatusMsg* msg)
 		{
+                        metric_received_replica_statuses_.Get().Inc();
 			// TODO(GG): we need filter for msgs (to avoid denial of service attack) + avoid sending messages at a high rate.
 			// TODO(GG): for some communication modules/protocols, we can also utilize information about connection/disconnection. 
 
@@ -1786,6 +1802,7 @@ namespace bftEngine
 
 		void ReplicaImp::onMessage(ViewChangeMsg* msg)
 		{
+                        metric_received_view_changes_.Get().Inc();
 			if (!viewChangeProtocolEnabled) { delete msg; return; }
 
 			const ReplicaId generatedReplicaId = msg->idOfGeneratedReplica(); // Notice that generatedReplicaId may be != msg->senderId()
@@ -1831,6 +1848,7 @@ namespace bftEngine
 			if (lastAgreedView < curView)
 			{
 				lastAgreedView = curView;
+                                metric_last_agreed_view_.Get().Set(lastAgreedView);
 				timeOfLastAgreedView = getMonotonicTime();
 			}
 
@@ -1840,6 +1858,7 @@ namespace bftEngine
 
 		void ReplicaImp::onMessage(NewViewMsg* msg)
 		{
+                        metric_received_new_views_.Get().Inc();
 			if (!viewChangeProtocolEnabled) { delete msg; return; }
 
 			const ReplicaId senderId = msg->senderId();
@@ -1915,6 +1934,7 @@ namespace bftEngine
 			}
 
 			curView = nextView;
+                        metric_view_.Get().Set(nextView);
 
 			LOG_INFO_F(GL, "Sending view change message: new view=%" PRId64 ", wasInPrevViewNumber=%d, new primary=%d, lastExecutedSeqNum=%" PRId64 ", lastStableSeqNum=%" PRId64 "",
 				curView, (int)wasInPrevViewNumber, (int)currentPrimary(), lastExecutedSeqNum, lastStableSeqNum);
@@ -2012,6 +2032,7 @@ namespace bftEngine
 					seqNumInfo.addMsg(pp);
 
 				seqNumInfo.startSlowPath();
+                                metric_slow_path_count_.Get().Inc();
 				sendPreparePartial(seqNumInfo);                    
 			}
 
@@ -2116,6 +2137,7 @@ namespace bftEngine
 //				const SeqNum prevLastExecutedSeqNum = lastExecutedSeqNum;
 
 				lastExecutedSeqNum = newStateCheckpoint;
+                                metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
 
 				clientsManager->loadInfoFromReservedPages();
 
@@ -2198,6 +2220,7 @@ namespace bftEngine
 			LOG_INFO_F(GL, "onSeqNumIsStableWithoutRefCheckpoint: lastStableSeqNum is now == %" PRId64 "", newStableSeqNum);
 
 			lastStableSeqNum = newStableSeqNum;
+                        metric_last_stable_seq_num__.Get().Set(lastStableSeqNum);
 
 			if (lastStableSeqNum > strictLowerBoundOfSeqNums)
 				strictLowerBoundOfSeqNums = lastStableSeqNum;
@@ -2222,6 +2245,7 @@ namespace bftEngine
 			LOG_INFO_F(GL, "onSeqNumIsStable: lastStableSeqNum is now == %" PRId64 "", newStableSeqNum);
 
 			lastStableSeqNum = newStableSeqNum;
+                        metric_last_stable_seq_num__.Get().Set(lastStableSeqNum);
 
 			if (lastStableSeqNum > strictLowerBoundOfSeqNums)
 				strictLowerBoundOfSeqNums = lastStableSeqNum;
@@ -2229,6 +2253,7 @@ namespace bftEngine
 			if (lastStableSeqNum > lastExecutedSeqNum)
 			{
 				lastExecutedSeqNum = lastStableSeqNum;
+                                metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
 
 				clientsManager->loadInfoFromReservedPages();
 			}
@@ -2372,6 +2397,7 @@ namespace bftEngine
 
 		void ReplicaImp::onMessage(ReqMissingDataMsg* msg)
 		{
+                        metric_received_req_missing_datas_.Get().Inc();
 			const SeqNum msgSeqNum = msg->seqNumber();
 			const ReplicaId msgSender = msg->senderId();
 
@@ -2593,6 +2619,7 @@ namespace bftEngine
 
 		void ReplicaImp::onMessage(SimpleAckMsg* msg)
 		{
+                        metric_received_simple_acks_.Get().Inc();
 			if (retransmissionsLogicEnabled)
 			{
 				uint16_t relatedMsgType = (uint16_t)msg->ackData(); // TODO(GG): does this make sense ?
@@ -2611,6 +2638,7 @@ namespace bftEngine
 
 		void ReplicaImp::onMessage(StateTransferMsg* m)
 		{
+                        metric_received_state_transfers_.Get().Inc();
 			size_t h = sizeof(MessageBase::Header);
 			stateTransfer->handleStateTransferMessage(m->body() + h, m->size() - h, m->senderId());
 		}
@@ -2786,7 +2814,60 @@ namespace bftEngine
 			viewChangeTimer{ nullptr },
 			debugStatTimer{ nullptr },
 			viewChangeTimerMilli{ 0 },
-			startSyncEvent{false}
+			startSyncEvent{false},
+                        metrics_{concordMetrics::Component("replica",
+                            std::make_shared<concordMetrics::Aggregator>())},
+                        metric_view_{
+                          metrics_.RegisterGauge("view", curView)},
+                        metric_last_stable_seq_num__{
+                          metrics_.RegisterGauge("lastStableSeqNum",
+                                                 lastStableSeqNum)},
+                        metric_last_executed_seq_num_{
+                          metrics_.RegisterGauge("lastExecutedSeqNum",
+                                                 lastExecutedSeqNum)},
+                        metric_last_agreed_view_{
+                          metrics_.RegisterGauge("lastAgreedView",
+                                                 lastAgreedView)},
+                        metric_first_commit_path_{
+                          metrics_.RegisterStatus("firstCommitPath", CommitPathToStr(
+                            ControllerWithSimpleHistory_debugInitialFirstPath))},
+                        metric_slow_path_count_{
+                          metrics_.RegisterCounter("slowPathCount", 0)},
+                        metric_received_internal_msgs_{
+                          metrics_.RegisterCounter("receivedInternalMsgs")},
+                        metric_received_client_requests_{
+                          metrics_.RegisterCounter("receivedClientRequestMsgs")},
+                        metric_received_pre_prepares_{
+                          metrics_.RegisterCounter("receivedPrePrepareMsgs")},
+                        metric_received_start_slow_commits_{
+                          metrics_.RegisterCounter("receivedStartSlowCommitMsgs")},
+                        metric_received_partial_commit_proofs_{
+                          metrics_.RegisterCounter("receivedPartialCommitProofMsgs")},
+                        metric_received_full_commit_proofs_{
+                          metrics_.RegisterCounter("receivedFullCommitProofMsgs")},
+                        metric_received_prepare_partials_{
+                          metrics_.RegisterCounter("receivedPreparePartialMsgs")},
+                        metric_received_commit_partials_{
+                          metrics_.RegisterCounter("receivedCommitPartialMsgs")},
+                        metric_received_prepare_fulls_{
+                          metrics_.RegisterCounter("receivedPrepareFullMsgs")},
+                        metric_received_commit_fulls_{
+                          metrics_.RegisterCounter("receivedCommitFullMsgs")},
+                        metric_received_checkpoints_{
+                          metrics_.RegisterCounter("receivedCheckpointMsgs")},
+                        metric_received_replica_statuses_{
+                          metrics_.RegisterCounter("receivedReplicaStatusMsgs")},
+                        metric_received_view_changes_{
+                          metrics_.RegisterCounter("receivedViewChangeMsgs")},
+                        metric_received_new_views_{
+                          metrics_.RegisterCounter("receivedNewViewMsgs")},
+                        metric_received_req_missing_datas_{
+                          metrics_.RegisterCounter("receivedReqMissingDataMsgs")},
+                        metric_received_simple_acks_{
+                          metrics_.RegisterCounter("receivedSimpleAckMsgs")},
+                        metric_received_state_transfers_{
+                          metrics_.RegisterCounter("receivedStateTransferMsgs")}
+
 		{
 			Assert(myReplicaId < numOfReplicas);
 			// TODO(GG): more asserts on params !!!!!!!!!!!
@@ -2847,7 +2928,7 @@ namespace bftEngine
 			checkpointsLog = new SequenceWithActiveWindow<kWorkWindowSize + checkpointWindowSize, checkpointWindowSize, SeqNum, CheckpointInfo, CheckpointInfo>(0, (InternalReplicaApi*)this);
 
 			// create controller . TODO(GG): do we want to pass the controller as a parameter ?
-			controller = new ControllerWithSimpleHistory(cVal, fVal, myReplicaId, curView, primaryLastUsedSeqNum);
+                        controller = new ControllerWithSimpleHistory(cVal, fVal, myReplicaId, curView, primaryLastUsedSeqNum);
 
 			statusReportTimer = new Timer(timersScheduler, (uint16_t)statusReportTimerMilli, statusTimerHandlerFunc, (InternalReplicaApi*)this);
 
@@ -2997,6 +3078,7 @@ namespace bftEngine
 				if (!externalMsg) // if internal message
 				{
 					// TODO(GG): clean
+                                        metric_received_internal_msgs_.Get().Inc();
 					InternalMessage* inMsg = (InternalMessage*)absMsg;
 					inMsg->handle();
 					delete inMsg;
@@ -3126,17 +3208,20 @@ namespace bftEngine
 			}
 
 			lastExecutedSeqNum = lastExecutedSeqNum + 1;
+                        metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
 
 			LOG_INFO_F(GL, "\nReplica - executeRequestsInPrePrepareMsg() - lastExecutedSeqNum==%" PRId64 "", lastExecutedSeqNum);
 
-			controller->onNewSeqNumberExecution(lastExecutedSeqNum);
+			bool firstCommitPathChanged =
+                          controller->onNewSeqNumberExecution(lastExecutedSeqNum);
 
-
+                        if (firstCommitPathChanged) {
+                          metric_first_commit_path_.Get().Set(CommitPathToStr(
+                              controller->getCurrentFirstPath()));
+                        }
 
 
 			// TODO(GG): clean the following logic
-
-
 
 
 			if (lastViewThatTransferredSeqNumbersFullyExecuted < curView && (lastExecutedSeqNum >= maxSeqNumTransferredFromPrevViews))
@@ -3216,7 +3301,10 @@ namespace bftEngine
 				tryToSendPrePrepareMsg(true);
 		}
 
-
+                void ReplicaImp::SetAggregator(
+                    std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+                  metrics_.SetAggregator(aggregator);
+                }
 
 
 // TODO(GG): the timer for state transfer !!!!

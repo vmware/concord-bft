@@ -25,18 +25,24 @@ namespace bftEngine
 		static const float maxUpdateInTimeToStartSlowPath = 0.20F;
 
 
-		ControllerWithSimpleHistory::ControllerWithSimpleHistory(uint16_t C, uint16_t F, ReplicaId replicaId, ViewNum initialView, SeqNum initialSeq)
-			: onlyOptimisticFast(C == 0),
-			c(C), f(F), numOfReplicas(3 * F + 2 * C + 1), myId(replicaId), recentActivity(1, nullptr)
-		{
-			currentFirstPath = ControllerWithSimpleHistory_debugInitialFirstPath;
-			currentView = initialView;
-			isPrimary = ((currentView % numOfReplicas) == myId);
+		ControllerWithSimpleHistory::ControllerWithSimpleHistory(
+                    uint16_t C,
+                    uint16_t F,
+                    ReplicaId replicaId,
+                    ViewNum initialView,
+                    SeqNum initialSeq) :
+                  onlyOptimisticFast(C == 0),
+                  c(C), f(F), numOfReplicas(3 * F + 2 * C + 1), myId(replicaId),
+                  recentActivity(1, nullptr),
+                  currentFirstPath{ControllerWithSimpleHistory_debugInitialFirstPath},
+                  currentView{initialView},
+                  isPrimary{((currentView % numOfReplicas) == myId)},
+                  currentTimeToStartSlowPathMilli{defaultTimeToStartSlowPathMilli}
+                {
+			if (isPrimary) {
+                          onBecomePrimary(initialView, initialSeq);
+                        }
 
-			currentTimeToStartSlowPathMilli = defaultTimeToStartSlowPathMilli;
-
-			if (isPrimary)
-				onBecomePrimary(initialView, initialSeq);
 		}
 
 		void ControllerWithSimpleHistory::onBecomePrimary(ViewNum v, SeqNum s)
@@ -89,9 +95,12 @@ namespace bftEngine
 				onBecomePrimary(v, s);
 		}
 
-		void ControllerWithSimpleHistory::onNewSeqNumberExecution(SeqNum n)
+                // Return true if currentFirstPath changed
+		bool ControllerWithSimpleHistory::onNewSeqNumberExecution(SeqNum n)
 		{
-			if (!isPrimary || !recentActivity.insideActiveWindow(n)) return;
+			if (!isPrimary || !recentActivity.insideActiveWindow(n)) {
+                          return false;
+                        }
 
 			SeqNoInfo& s = recentActivity.get(n);
 
@@ -113,10 +122,14 @@ namespace bftEngine
 
 			avgAndStdOfExecTime.add((double)duration);
 
-			if (n == recentActivity.currentActiveWindow().second) onEndOfEvaluationPeriod();
+			if (n == recentActivity.currentActiveWindow().second) {
+                          return onEndOfEvaluationPeriod();
+                        }
+                        return false;
 		}
 
-		void ControllerWithSimpleHistory::onEndOfEvaluationPeriod()
+                // Return true if the currentFirstPath changed
+		bool ControllerWithSimpleHistory::onEndOfEvaluationPeriod()
 		{
 			const SeqNum minSeq = recentActivity.currentActiveWindow().first;
 			const SeqNum maxSeq = recentActivity.currentActiveWindow().second;
@@ -124,6 +137,7 @@ namespace bftEngine
 			const CommitPath lastFirstPathVal = currentFirstPath;
 
 			bool downgraded = false;
+                        bool currentFirstPathChanged = false;
 
 			if (currentFirstPath == CommitPath::SLOW)
 			{
@@ -143,10 +157,14 @@ namespace bftEngine
 					const float factorForFastOptimisticPath = ControllerWithSimpleHistory_debugUpgradeFactorForFastOptimisticPath; // 0.95F;
 					const float factorForFastPath = ControllerWithSimpleHistory_debugUpgradeFactorForFastPath; //  0.85F;
 
-					if (cyclesWithFullCooperation >= (factorForFastOptimisticPath * EvaluationPeriod))
+					if (cyclesWithFullCooperation >= (factorForFastOptimisticPath * EvaluationPeriod)) {
 						currentFirstPath = CommitPath::OPTIMISTIC_FAST;
-					else if (!onlyOptimisticFast && (cyclesWithFullCooperation + cyclesWithPartialCooperation >= (factorForFastPath * EvaluationPeriod)))
+                                                currentFirstPathChanged = true;
+                                        }
+					else if (!onlyOptimisticFast && (cyclesWithFullCooperation + cyclesWithPartialCooperation >= (factorForFastPath * EvaluationPeriod))) {
 						currentFirstPath = CommitPath::FAST_WITH_THRESHOLD;
+                                                currentFirstPathChanged = true;
+                                        }
 				}
 			}
 			else
@@ -167,10 +185,13 @@ namespace bftEngine
 					downgraded = true;
 
 					// downgrade
-					if (!onlyOptimisticFast && (currentFirstPath == CommitPath::OPTIMISTIC_FAST))
+					if (!onlyOptimisticFast && (currentFirstPath == CommitPath::OPTIMISTIC_FAST)) {
 						currentFirstPath = CommitPath::FAST_WITH_THRESHOLD;
-					else
+                                        } else {
 						currentFirstPath = CommitPath::SLOW;
+                                        }
+
+                                        currentFirstPathChanged = true;
 				}
 			}
 
@@ -203,6 +224,7 @@ namespace bftEngine
 
 				LOG_INFO_F(GL, "currentTimeToStartSlowPathMilli = %d", (int)currentTimeToStartSlowPathMilli);
 			}
+                        return currentFirstPathChanged;
 		}
 
 		void ControllerWithSimpleHistory::onSendingPrePrepare(SeqNum n, CommitPath commitPath)

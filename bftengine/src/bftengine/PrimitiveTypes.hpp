@@ -10,6 +10,7 @@
 
 #include <stdint.h>
 #include <inttypes.h>
+#include <string>
 
 #ifdef max // TODO(GG): remove
 #undef max
@@ -44,6 +45,7 @@ namespace bftEngine
 			SLOW = 2
 		};
 
+                std::string CommitPathToStr(CommitPath path);
 	}
 }
 
