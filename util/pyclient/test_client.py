@@ -32,6 +32,7 @@ class SimpleTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls.origdir = os.getcwd()
         cls.testdir = tempfile.mkdtemp()
         cls.builddir = os.path.abspath("../../build")
         cls.toolsdir = os.path.join(cls.builddir, "tools")
@@ -48,6 +49,7 @@ class SimpleTest(unittest.TestCase):
     @classmethod
     def tearDownClass(self):
         shutil.rmtree(self.testdir)
+        os.chdir(self.origdir)
 
     @classmethod
     def generateKeys(cls):

@@ -11,15 +11,12 @@
 # file.
 
 # This code requires python 3.5 or later
-from collections import namedtuple
 import struct
 import msgs
 import trio
 import time
 
-Config = namedtuple('Config', ['id', 'f', 'c', 'max_msg_size', 'req_timeout_milli',
-    'retry_timeout_milli'])
-Replica = namedtuple('Replica', ['id', 'ip', 'port'])
+from config import Config, Replica
 
 class ReqSeqNum:
     def __init__(self):
