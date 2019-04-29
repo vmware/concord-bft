@@ -23,6 +23,8 @@
 #include "CommFactory.hpp"
 #include "test_comm_config.hpp"
 #include "test_parameters.hpp"
+#include "MetricsServer.hpp"
+#include "ReplicaImp.h"
 
 #ifndef _WIN32
 #include <sys/param.h>
@@ -169,8 +171,13 @@ int main(int argc, char **argv) {
 	c.viewChangeTimerMillisec = 45 * 1000;
 	c.maxBlockSize = 2 * 1024 * 1024;  // 2MB
 
-	r = createReplica(c, comm, BasicRandomTests::commandsHandler());
 
+        // UDP MetricsServer only used in tests.
+        uint16_t metricsPort = conf.listenPort + 1000;
+        concordMetrics::Server server(metricsPort);
+        server.Start();
+
+	r = createReplica(c, comm, BasicRandomTests::commandsHandler(), server.GetAggregator());
 	r->start();
 	while (r->isRunning())
 		std::this_thread::sleep_for(std::chrono::seconds(1));

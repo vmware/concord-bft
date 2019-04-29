@@ -721,8 +721,10 @@ int RequestsHandlerImp::execute(uint16_t clientId,
 	return ret?0:1;
 }
 
-IReplica* createReplica(const ReplicaConfig& c, bftEngine::ICommunication* comm, ICommandsHandler* _cmdHandler)
-{
+IReplica* createReplica(const ReplicaConfig& c,
+                        bftEngine::ICommunication* comm,
+                        ICommandsHandler* _cmdHandler,
+                        std::shared_ptr<concordMetrics::Aggregator> aggregator) {
 
 	IDBClient* _db = new InMemoryDBClient();
 
@@ -777,6 +779,7 @@ IReplica* createReplica(const ReplicaConfig& c, bftEngine::ICommunication* comm,
 			stateTransfer,
 			comm,
 			nullptr);
+                replica->SetAggregator(aggregator);
 
 		r->m_replica = replica;
 		r->maxBlockSize = c.maxBlockSize;

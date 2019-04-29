@@ -14,11 +14,13 @@
 #pragma once
 
 #include <string>
+#include <memory>
 #include <iterator>
 #include "Status.h"
 #include "ICommunication.hpp"
 #include "PrimitiveTypes.h"
 #include "SetOfKeyValuePairs.h"
+#include "Metrics.hpp"
 
 namespace SimpleKVBC {
 
@@ -151,9 +153,11 @@ namespace SimpleKVBC {
     };
 
     // creates a new Replica object
-    IReplica* createReplica(const ReplicaConfig& conf,
-                              bftEngine::ICommunication* comm,
-                              ICommandsHandler* _cmdHandler);
+    IReplica* createReplica(
+        const ReplicaConfig& conf,
+        bftEngine::ICommunication* comm,
+        ICommandsHandler* _cmdHandler,
+        std::shared_ptr<concordMetrics::Aggregator> aggregator);
 
 // TODO: Implement:
 //  // deletes a Replica object

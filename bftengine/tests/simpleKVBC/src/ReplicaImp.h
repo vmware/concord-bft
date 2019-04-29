@@ -14,11 +14,13 @@
 #pragma once
 
 #include <map>
+#include <memory>
 
 #include "KVBCInterfaces.h"
 #include "BlockchainDBAdapter.h"
 #include "SimpleBCStateTransfer.hpp"
 #include "Replica.hpp"
+#include "Metrics.hpp"
 
 using namespace bftEngine::SimpleBlockchainStateTransfer;
 
@@ -168,7 +170,12 @@ namespace SimpleKVBC {
 
 
 		// friends
-		friend IReplica* createReplica(const ReplicaConfig& conf, bftEngine::ICommunication* comm, ICommandsHandler* _cmdHandler);
+		friend IReplica* createReplica(
+                    const ReplicaConfig& conf,
+                    bftEngine::ICommunication* comm,
+                    ICommandsHandler* _cmdHandler,
+                    std::shared_ptr<concordMetrics::Aggregator> aggregator);
+
 		friend RequestsHandlerImp;
 	};
 

@@ -15,11 +15,7 @@
 
 #include "KVBCInterfaces.h"
 
-using namespace SimpleKVBC;
-
-namespace BasicRandomTests
-{
-	void run(IClient* client, const size_t numOfOperations);
-
-	ICommandsHandler* commandsHandler();
+namespace BasicRandomTests {
+  void run(SimpleKVBC::IClient* client, const size_t numOfOperations);
+  SimpleKVBC::ICommandsHandler* commandsHandler();
 }
