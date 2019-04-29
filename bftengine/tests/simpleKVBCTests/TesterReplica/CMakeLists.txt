@@ -23,7 +23,7 @@ endif()
 
 target_link_libraries(skvbc_replica LINK_PUBLIC simpleKVBC)
 
-target_link_libraries(skvbc_replica PUBLIC corebft)
+target_link_libraries(skvbc_replica PUBLIC corebft util)
 
 target_include_directories(skvbc_replica PUBLIC ../../SimpleKVBC/include)
 target_include_directories(skvbc_replica PUBLIC ..)

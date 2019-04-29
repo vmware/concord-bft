@@ -25,6 +25,8 @@ namespace bftEngine
 
 			virtual void stop() override;
 
+                        virtual void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a) override;
+
 			ReplicaImp* rep;
 		};
 
@@ -55,6 +57,12 @@ namespace bftEngine
 		{
 			return rep->stop();
 		}
+
+                void ReplicaInternal::SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a)
+                {
+                        return rep->SetAggregator(a);
+                }
+
 	}
 }
 

@@ -33,6 +33,7 @@ using std::set;
 #define MAX_READ_SET_SIZE_IN_REQ (10)
 #define MAX_READS_IN_REQ (7)
 
+using namespace SimpleKVBC;
 
 namespace BasicRandomTests
 {

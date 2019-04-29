@@ -97,6 +97,7 @@ if(${USE_LOG4CPP})
     target_link_libraries(corebft PUBLIC log4cplus)
 endif()
 
+target_include_directories(corebft PUBLIC include/)
 target_include_directories(corebft PUBLIC include/bftengine)
 target_include_directories(corebft PUBLIC include/communication)
 target_include_directories(corebft PUBLIC include/bcstatetransfer)

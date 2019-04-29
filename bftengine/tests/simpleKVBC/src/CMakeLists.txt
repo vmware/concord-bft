@@ -12,15 +12,8 @@ set(simpleKVBC_sources
 )
 
 add_library(simpleKVBC ${simpleKVBC_sources})
+target_link_libraries(simpleKVBC PUBLIC corebft threshsign util logging)
 
 target_include_directories(simpleKVBC PUBLIC .)
-target_include_directories(simpleKVBC PUBLIC ../../../../bftengine)
-target_include_directories(simpleKVBC PUBLIC ../../../../bftengine/include/metadatastorage)
-target_include_directories(simpleKVBC PUBLIC ../../../../bftengine/include/bcstatetransfer)
-target_include_directories(simpleKVBC PUBLIC ../../../../bftengine/include/communication)
-target_include_directories(simpleKVBC PUBLIC ../../../../bftengine/include/bftengine)
-target_include_directories(simpleKVBC PUBLIC ../../../../bftengine/include)
-target_include_directories(simpleKVBC PUBLIC ../../../../threshsign/include)
-target_include_directories(simpleKVBC PUBLIC ../../../../logging/include)
 target_include_directories(simpleKVBC PUBLIC ../../../../tools)
 target_include_directories(simpleKVBC PUBLIC ../include)

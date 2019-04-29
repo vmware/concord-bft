@@ -303,6 +303,8 @@ namespace bftEngine
 			virtual void onInternalMsg(FullCommitProofMsg* m) override;
 			virtual void onMerkleExecSignature(ViewNum v, SeqNum s, uint16_t signatureLength, const char* signature) override;
 
+                        void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a);
+
 		protected:
 
 			static std::unordered_map<uint16_t, PtrToMetaMsgHandler> createMapOfMetaMsgHandlers();
@@ -487,8 +489,6 @@ namespace bftEngine
 
 			virtual void onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqNum, const ViewNum relatedViewNumber,
 				const std::forward_list<RetSuggestion>* const suggestedRetransmissions) override;  // TODO(GG): use generic iterators 
-
-                        void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator);
 		};
 
 
