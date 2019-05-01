@@ -12,11 +12,11 @@
 
 # This code requires python 3.5 or later
 import struct
-import msgs
 import trio
 import time
 
-from config import Config, Replica
+import bft_msgs
+from bft_config import Config, Replica
 
 class ReqSeqNum:
     def __init__(self):
@@ -93,7 +93,7 @@ class UdpClient:
             elapses then a trio.TooSlowError is raised.
         """
         seq = self.req_seq_num.next()
-        data = msgs.pack_request(
+        data = bft_msgs.pack_request(
                     self.client_id, seq, read_only, msg)
         # Raise a trio.TooSlowError exception if a quorum of replies
         with trio.fail_after(self.config.req_timeout_milli/1000):
@@ -156,7 +156,7 @@ class UdpClient:
         """
         while True:
             data, sender = await self.sock.recvfrom(self.config.max_msg_size)
-            header, reply = msgs.unpack_reply(data)
+            header, reply = bft_msgs.unpack_reply(data)
             if self.valid_reply(header):
                 self.replies[sender] = (header, reply)
             if self.has_quorum():

@@ -17,8 +17,8 @@ import subprocess
 import os.path
 import trio
 
-from config import Replica
-from metrics_client import MetricsClient
+from bft_config import Replica
+from bft_metrics_client import MetricsClient
 
 TIMEOUT_MILLI = 5000;
 CHECK_MILLI = 100;
