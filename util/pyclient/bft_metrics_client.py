@@ -14,7 +14,7 @@
 import trio
 import json
 
-from config import Replica
+from bft_config import Replica
 
 MAX_MSG_SIZE = 64*1024; # 64k
 
@@ -50,5 +50,5 @@ class MetricsClient:
         """
         await self.sock.sendto(req(), self.replicas[replica])
         reply, _ = await self.sock.recvfrom(MAX_MSG_SIZE)
-        assert(1, reply[0])
+        assert 1 == reply[0]
         return json.loads(reply[1:])

@@ -19,8 +19,8 @@ import os.path
 import subprocess
 import trio
 
-import msgs
-import client
+import bft_client
+import bft_config
 
 # This requires python 3.5 for subprocess.run
 class SimpleTest(unittest.TestCase):
@@ -40,9 +40,9 @@ class SimpleTest(unittest.TestCase):
                                       "bftengine/tests/simpleTest/server")
         os.chdir(cls.testdir)
         cls.generateKeys()
-        cls.config = client.Config(4, 1, 0, 4096, 1000, 50)
+        cls.config = bft_config.Config(4, 1, 0, 4096, 1000, 50)
         cls.replicas = [
-                client.Replica(i, "127.0.0.1", 3710 + 2*i) for i in range(0,4)]
+                bft_config.Replica(i, "127.0.0.1", 3710 + 2*i) for i in range(0,4)]
 
         print("Running tests in {}".format(cls.testdir))
 
@@ -79,7 +79,7 @@ class SimpleTest(unittest.TestCase):
 
     async def _testTimeout(self, msg, read_only):
        config = self.config._replace(req_timeout_milli=100)
-       with client.UdpClient(config, self.replicas) as udp_client:
+       with bft_client.UdpClient(config, self.replicas) as udp_client:
            # We can't use an ephemeral port because simpleTest servers expect
            # given client ports.
            await udp_client.sock.bind(("127.0.0.1", 3718))
@@ -109,7 +109,7 @@ class SimpleTest(unittest.TestCase):
 
     async def _testReadWrittenValue(self):
        val = 999
-       with client.UdpClient(self.config, self.replicas) as udp_client:
+       with bft_client.UdpClient(self.config, self.replicas) as udp_client:
            await udp_client.sock.bind(("127.0.0.1", 3718))
            await udp_client.sendSync(self.writeRequest(val), False)
            read = await udp_client.sendSync(self.readRequest(), True)
@@ -137,7 +137,7 @@ class SimpleTest(unittest.TestCase):
         """Issue a write and ensure that a retry occurs"""
         config = self.config._replace(req_timeout_milli=5000)
         val = 1
-        with client.UdpClient(config, self.replicas) as udp_client:
+        with bft_client.UdpClient(config, self.replicas) as udp_client:
            self.assertEqual(udp_client.retries, 0)
            await udp_client.sock.bind(("127.0.0.1", 3718))
            await udp_client.sendSync(self.writeRequest(val), False)
@@ -162,7 +162,7 @@ class SimpleTest(unittest.TestCase):
     async def _testPrimaryWrite(self):
        # Try to guarantee we don't retry accidentally
        config = self.config._replace(retry_timeout_milli=500)
-       with client.UdpClient(self.config, self.replicas) as udp_client:
+       with bft_client.UdpClient(self.config, self.replicas) as udp_client:
            self.assertEqual(None, udp_client.primary)
            await udp_client.sock.bind(("127.0.0.1", 3718))
            await udp_client.sendSync(self.writeRequest(1), False)

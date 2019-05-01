@@ -13,7 +13,7 @@
 import unittest
 import struct
 
-import msgs
+import bft_msgs
 
 class TestPackUnpack(unittest.TestCase):
 
@@ -21,8 +21,8 @@ class TestPackUnpack(unittest.TestCase):
         msg = b'hello'
         primary_id = 0
         req_seq_num = 1
-        packed = msgs.pack_reply(primary_id, req_seq_num, msg)
-        (header, unpacked_msg) = msgs.unpack_reply(packed)
+        packed = bft_msgs.pack_reply(primary_id, req_seq_num, msg)
+        (header, unpacked_msg) = bft_msgs.unpack_reply(packed)
         self.assertEqual(primary_id, header.primary_id)
         self.assertEqual(req_seq_num, header.req_seq_num)
         self.assertEqual(msg, unpacked_msg)
@@ -32,8 +32,8 @@ class TestPackUnpack(unittest.TestCase):
         client_id = 4
         req_seq_num = 1
         read_only = True
-        packed = msgs.pack_request(client_id, req_seq_num, read_only, msg)
-        (header, unpacked_msg) = msgs.unpack_request(packed)
+        packed = bft_msgs.pack_request(client_id, req_seq_num, read_only, msg)
+        (header, unpacked_msg) = bft_msgs.unpack_request(packed)
         self.assertEqual(client_id, header.client_id)
         self.assertEqual(1, header.flags) # read_only = True
         self.assertEqual(req_seq_num, header.req_seq_num)
@@ -41,17 +41,18 @@ class TestPackUnpack(unittest.TestCase):
 
     def test_expect_msg_error(self):
         data = b'someinvalidmsg'
-        self.assertRaises(msgs.MsgError, msgs.unpack_request, data)
-        self.assertRaises(msgs.MsgError, msgs.unpack_reply, data)
+        self.assertRaises(bft_msgs.MsgError, bft_msgs.unpack_request, data)
+        self.assertRaises(bft_msgs.MsgError, bft_msgs.unpack_reply, data)
 
     def test_expect_struct_error(self):
         # Give a valid msg type but invalid data size
-        data = b''.join([struct.pack(msgs.MSG_TYPE_FMT, msgs.REQUEST_MSG_TYPE),
+        data = b''.join([struct.pack(bft_msgs.MSG_TYPE_FMT,
+                                     bft_msgs.REQUEST_MSG_TYPE), b'invalid'])
+        self.assertRaises(struct.error, bft_msgs.unpack_request, data)
+        data = b''.join([struct.pack(bft_msgs.MSG_TYPE_FMT, 
+                                     bft_msgs.REPLY_MSG_TYPE), 
                          b'invalid'])
-        self.assertRaises(struct.error, msgs.unpack_request, data)
-        data = b''.join([struct.pack(msgs.MSG_TYPE_FMT, msgs.REPLY_MSG_TYPE),
-                         b'invalid'])
-        self.assertRaises(struct.error, msgs.unpack_reply, data)
+        self.assertRaises(struct.error, bft_msgs.unpack_reply, data)
 
 if __name__ == '__main__':
     unittest.main()
