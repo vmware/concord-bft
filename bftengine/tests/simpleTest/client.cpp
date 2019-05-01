@@ -41,6 +41,8 @@
 #include "test_comm_config.hpp"
 #include "test_parameters.hpp"
 #include "Logging.hpp"
+#include "histogram.hpp"
+#include "misc.hpp"
 
 #ifdef USE_LOG4CPP
 #include <log4cplus/configurator.h>
@@ -158,8 +160,11 @@ void parse_params(int argc, char** argv, ClientParams &cp,
         scp.clientPeriodicResetThresh = (uint16_t)prt;
       } else if (p == "-cf") {
         cp.configFileName = argv[i + 1];
-      }
-      else {
+      } else if (p == "-p") {
+        cp.measurePerfomance = true;
+        i += 1;
+        continue; //skip i+=2
+      } else {
         printf("Unknown parameter %s\n", p.c_str());
         exit(-1);
       }
@@ -260,6 +265,9 @@ int main(int argc, char **argv) {
 
   LOG_INFO(clientLogger, "Starting " << cp.numOfOperations);
 
+  concordUtils::Histogram hist;
+  hist.Clear();
+
   for (int i = 1; i <= cp.numOfOperations; i++) {
 
     // the python script that runs the client needs to know how many
@@ -270,6 +278,7 @@ int main(int argc, char **argv) {
       printf("Total iterations count: %i\n", i);
     }
 
+    TimeMicro start = get_monotonic_time();
     if (i % readMod == 0) {
       // Read the latest value every readMod-th operation.
 
@@ -359,6 +368,11 @@ int main(int argc, char **argv) {
         expectedStateNum = retVal;
       }
     }
+    TimeMicro end = get_monotonic_time();
+    TimeMicro elapsed = end - start;
+
+    if(cp.measurePerfomance)
+      hist.Add(elapsed);
   }
 
   // After all requests have been issued, stop communication and clean up.
@@ -368,6 +382,12 @@ int main(int argc, char **argv) {
   delete client;
   delete comm;
 
+  if(cp.measurePerfomance) {
+    LOG_INFO(clientLogger, std::endl << "Performance info:" << std::endl << hist
+    .ToString());
+  }
+
   LOG_INFO(clientLogger, "test done, iterations: " << cp.numOfOperations);
+
   return 0;
 }
