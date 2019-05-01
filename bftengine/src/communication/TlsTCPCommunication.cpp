@@ -210,6 +210,7 @@ class AsyncTlsConnection : public
     _connectTimer.expires_at(boost::posix_time::pos_infin);
     _writeTimer.expires_at(boost::posix_time::pos_infin);
     _readTimer.expires_at(boost::posix_time::pos_infin);
+    _isReplica = check_replica(selfId);
   }
 
   void init() {
