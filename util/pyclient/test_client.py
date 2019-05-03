@@ -42,7 +42,8 @@ class SimpleTest(unittest.TestCase):
         cls.generateKeys()
         cls.config = bft_config.Config(4, 1, 0, 4096, 1000, 50)
         cls.replicas = [
-                bft_config.Replica(i, "127.0.0.1", 3710 + 2*i) for i in range(0,4)]
+                bft_config.Replica(i, "127.0.0.1", bft_client.BASE_PORT + 2*i) 
+                for i in range(0,4)]
 
         print("Running tests in {}".format(cls.testdir))
 
@@ -80,9 +81,6 @@ class SimpleTest(unittest.TestCase):
     async def _testTimeout(self, msg, read_only):
        config = self.config._replace(req_timeout_milli=100)
        with bft_client.UdpClient(config, self.replicas) as udp_client:
-           # We can't use an ephemeral port because simpleTest servers expect
-           # given client ports.
-           await udp_client.sock.bind(("127.0.0.1", 3718))
            with self.assertRaises(trio.TooSlowError):
                await udp_client.sendSync(msg, read_only)
 
@@ -110,7 +108,6 @@ class SimpleTest(unittest.TestCase):
     async def _testReadWrittenValue(self):
        val = 999
        with bft_client.UdpClient(self.config, self.replicas) as udp_client:
-           await udp_client.sock.bind(("127.0.0.1", 3718))
            await udp_client.sendSync(self.writeRequest(val), False)
            read = await udp_client.sendSync(self.readRequest(), True)
            self.assertEqual(val, self.read_val(read))
@@ -139,7 +136,6 @@ class SimpleTest(unittest.TestCase):
         val = 1
         with bft_client.UdpClient(config, self.replicas) as udp_client:
            self.assertEqual(udp_client.retries, 0)
-           await udp_client.sock.bind(("127.0.0.1", 3718))
            await udp_client.sendSync(self.writeRequest(val), False)
            self.assertTrue(udp_client.retries > 0)
 
@@ -164,7 +160,6 @@ class SimpleTest(unittest.TestCase):
        config = self.config._replace(retry_timeout_milli=500)
        with bft_client.UdpClient(self.config, self.replicas) as udp_client:
            self.assertEqual(None, udp_client.primary)
-           await udp_client.sock.bind(("127.0.0.1", 3718))
            await udp_client.sendSync(self.writeRequest(1), False)
            # We know the servers are up once the write completes
            self.assertNotEqual(None, udp_client.primary)
