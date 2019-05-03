@@ -18,6 +18,9 @@ import time
 import bft_msgs
 from bft_config import Config, Replica
 
+# All test communication expects ports to start from 3710
+BASE_PORT = 3710
+
 class ReqSeqNum:
     def __init__(self):
         self.time_since_epoch_milli = int(time.time()*1000)
@@ -72,6 +75,7 @@ class UdpClient:
         self.retries = 0
         self.msgs_sent = 0
         self.reply_quorum = 2*config.f + config.c + 1
+        self.sock_bound = False
 
     async def sendSync(self, msg, read_only):
         """
@@ -91,7 +95,13 @@ class UdpClient:
             Continue this strategy every `retry_timeout_milli` until
             `config.req_timeout_milli` elapses. If `config.req_timeout_milli`
             elapses then a trio.TooSlowError is raised.
+
+         Note that this method also binds the socket to an appropriate port if
+         not already bound.
         """
+        if not self.sock_bound:
+            await self.bind()
+
         seq = self.req_seq_num.next()
         data = bft_msgs.pack_request(
                     self.client_id, seq, read_only, msg)
@@ -112,6 +122,12 @@ class UdpClient:
         self.replies = dict()
         self.reply = None
         self.retries = 0
+
+    async def bind(self):
+        # Each port is a function of its client_id
+        port = BASE_PORT + 2*self.client_id
+        await self.sock.bind(("127.0.0.1", port))
+        self.sock_bound = True
 
     async def send_loop(self, data, read_only):
         """
