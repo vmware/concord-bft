@@ -44,6 +44,7 @@ namespace BasicRandomTests
 {
 	namespace Internal
 	{
+#pragma pack(push,1)
 		struct SimpleKV
 		{
 			char key[KV_LEN];
@@ -405,6 +406,7 @@ namespace BasicRandomTests
 			}
 		};
 
+#pragma pack(pop)
 
 		class InternalTestsBuilder
 		{
