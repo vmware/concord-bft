@@ -77,6 +77,14 @@ class UdpClient:
         self.reply_quorum = 2*config.f + config.c + 1
         self.sock_bound = False
 
+    async def write(self, msg):
+        """ A wrapper around sendSync for requests that mutate state """
+        return await self.sendSync(msg, False)
+
+    async def read(self, msg):
+        """ A wrapper around sendSync for requests that do not mutate state """
+        return await self.sendSync(msg, True)
+
     async def sendSync(self, msg, read_only):
         """
         Send a client request and wait for a quorum (2F+C+1) of replies.

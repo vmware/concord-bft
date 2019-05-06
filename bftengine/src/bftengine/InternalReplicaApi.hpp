@@ -70,6 +70,7 @@ namespace bftEngine
 			virtual Timer& getSlowPathTimer() = 0;
 			virtual Timer& getInfoRequestTimer() = 0;
 			virtual Timer& getDebugStatTimer() = 0;
+			virtual Timer& getMetricsTimer() = 0;
 
 
 			virtual void onViewsChangeTimer(Time currTime, Timer& timer) = 0;
@@ -79,6 +80,7 @@ namespace bftEngine
 			virtual void onSlowPathTimer(Time cTime, Timer& timer) = 0;
 			virtual void onInfoRequestTimer(Time cTime, Timer& timer) = 0;
 			virtual void onDebugStatTimer(Time cTime, Timer& timer) = 0;
+			virtual void onMetricsTimer(Time cTime, Timer& timer) = 0;
 
 
 

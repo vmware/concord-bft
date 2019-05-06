@@ -46,9 +46,11 @@ class MetricsClientTest(unittest.TestCase):
             with trio.fail_after(TIMEOUT_MILLI/1000):
                 # Retry every CHECK_MILLI until the server comes up. Give up
                 # after TIMEOUT_MILLI.
-                with trio.move_on_after(CHECK_MILLI/1000):
-                    metrics = await client.get()
-                    self.assertEqual([], metrics['Components'])
+                while True:
+                    with trio.move_on_after(CHECK_MILLI/1000):
+                        metrics = await client.get()
+                        self.assertEqual([], metrics['Components'])
+                        return
 
 if __name__ == '__main__':
     unittest.main()

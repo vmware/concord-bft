@@ -198,6 +198,7 @@ namespace bftEngine
 			Timer* statusReportTimer;
 			Timer* viewChangeTimer;
 			Timer* debugStatTimer = nullptr;
+                        Timer* metricsTimer_;
 
 			int viewChangeTimerMilli;
 
@@ -467,6 +468,10 @@ namespace bftEngine
 				return *debugStatTimer;
 			}
 
+			virtual Timer& getMetricsTimer() override
+			{
+				return *metricsTimer_;
+			}
 
 
 			virtual void onViewsChangeTimer(Time cTime, Timer& timer) override;
@@ -476,6 +481,7 @@ namespace bftEngine
 			virtual void onSlowPathTimer(Time cTime, Timer& timer) override;
 			virtual void onInfoRequestTimer(Time cTime, Timer& timer) override;
 			virtual void onDebugStatTimer(Time cTime, Timer& timer) override;
+			virtual void onMetricsTimer(Time cTime, Timer& timer) override;
 
 			// handlers for internal messages
 

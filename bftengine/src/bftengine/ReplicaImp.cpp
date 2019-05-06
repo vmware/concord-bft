@@ -108,6 +108,14 @@ namespace bftEngine
 			timer.start(); // restart timer
 		}
 
+                static void metricsTimerHandlerFunc(Time t, void* p) {
+			InternalReplicaApi* r = (InternalReplicaApi*)p;
+			Assert(r != nullptr);
+			Timer& timer = r->getMetricsTimer();
+			r->onMetricsTimer(t, timer);
+
+			timer.start(); // restart timer
+                }
 
 		std::unordered_map<uint16_t, PtrToMetaMsgHandler> ReplicaImp::createMapOfMetaMsgHandlers()
 		{
@@ -2596,6 +2604,11 @@ namespace bftEngine
 			DebugStatistics::onCycleCheck();
 		}
 
+		void ReplicaImp::onMetricsTimer(Time cTime, Timer& timer)
+		{
+                  metrics_.UpdateAggregator();
+		}
+
 
 		void  ReplicaImp::commitFullCommitProof(SeqNum seqNum, SeqNumInfo& seqNumInfo)
 		{
@@ -2813,6 +2826,7 @@ namespace bftEngine
 			statusReportTimer{ nullptr },
 			viewChangeTimer{ nullptr },
 			debugStatTimer{ nullptr },
+                        metricsTimer_{ nullptr },
 			viewChangeTimerMilli{ 0 },
 			startSyncEvent{false},
                         metrics_{concordMetrics::Component("replica",
@@ -2960,6 +2974,8 @@ namespace bftEngine
 			debugStatTimer = new Timer(timersScheduler, (uint16_t)(DEBUG_STAT_PERIOD_SECONDS * 1000), debugStatHandlerFunc, (InternalReplicaApi*)this);
 		#endif
 
+                        metricsTimer_ = new Timer(timersScheduler, 100, metricsTimerHandlerFunc, (InternalReplicaApi*)this);
+
 			viewsManager = new ViewsManager(repsInfo, thresholdVerifierForSlowPathCommit);
 
 			if (retransmissionsLogicEnabled)
@@ -3066,6 +3082,7 @@ namespace bftEngine
 		#ifdef DEBUG_STATISTICS
 			debugStatTimer->start();
 		#endif
+                        metricsTimer_->start();
 
 			fprintf(stderr, "Running");
 
