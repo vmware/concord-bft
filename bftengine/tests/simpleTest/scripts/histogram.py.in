@@ -26,7 +26,7 @@ class Histogram:
     buckets_ = [0] * kNumBuckets
 
     def __init__(self):
-        self.min_ = 0
+        self.min_ = self.kBucketLimit[self.kNumBuckets-1]
         self.max_ = 0
         self.num_ = 0
         self.sum_ = 0
@@ -68,24 +68,24 @@ class Histogram:
             self.buckets_[i] += other.buckets_[i]
 
     def percentile(self, p):
-        threshold = self.num_ * (p / 100.0)
+        threshold = self.num_ * float(p / 100)
         tsum = 0
         for b in range(0, self.kNumBuckets):
             tsum += self.buckets_[b]
             if tsum >= threshold:
                 # Scale linearly within this bucket
-                left_point = 0 if (b == 0) else self.kBucketLimit[b-1]
+                left_point = (0 if b == 0 else self.kBucketLimit[b-1])
                 right_point = self.kBucketLimit[b]
                 left_sum = tsum - self.buckets_[b]
                 right_sum = tsum
-                pos = (threshold - left_sum) / (right_sum - left_sum)
+                pos = float((threshold - left_sum) / (right_sum - left_sum))
                 r = left_point + (right_point - left_point) * pos
                 if r < self.min_:
                     r = self.min_
                 if r > self.max_:
                     r = self.max_
                 return r
-            return self.max_
+        return self.max_
 
     def median(self):
         return self.percentile(50.0)
@@ -125,6 +125,7 @@ class Histogram:
 
             # Add hash marks based on percentage 20 marks for 100%.
             marks = int(20 * (self.buckets_[b] / self.num_) + 0.5)
+            buf.write(' ')
             buf.write('#' * marks)
             buf.write("\n")
 

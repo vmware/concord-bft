@@ -10,6 +10,7 @@ import re
 import logging
 import time
 import multiprocessing
+import histogram
 
 generate_concord_keys = "@concord_bft_tools_BINARY_DIR@/GenerateConcordKeys"
 bin_dir = "@bftengine_BINARY_DIR@/tests/simpleTest"
@@ -59,17 +60,18 @@ class Environment:
 
 
 class TestResult:
-    def __init__(self, exit_code, user_msg):
+    def __init__(self, exit_code, user_msg, summary):
         self.exit_code = exit_code
         self.user_msg = user_msg
-
+        self.perf_summary = summary
 
 class ProcessOutput:
-    def __init__(self, exec_name, exit_code, user_msg, uid):
+    def __init__(self, exec_name, exit_code, user_msg, uid, latencies):
         self.uid = uid
         self.user_msg = user_msg
         self.exec_name = exec_name
         self.exit_code = exit_code
+        self.latencies = latencies
 
 
 class TestProcess:
@@ -96,6 +98,8 @@ class TestProcess:
         self.no_console = no_console
         self.perf_enabled = perf_enabled,
         self.on_new_line_callback = on_new_line_callback
+        self.perf_file = None
+        self.latencies = None
 
     def invoke_on_new_line(self, txt):
         if self.on_new_line_callback:
@@ -111,18 +115,25 @@ class TestProcess:
         else:
             user_msg = "No match"
 
-        if self.perf_enabled:
+        if self.perf_enabled and self.is_waitable: # only for clients
             m = re.search("(?<=Performance info:\n).*(?=INFO)", log, re.DOTALL)
             if m:
-                perf_file = os.path.join(self.log_dir, self.friendly_name + "_" +
-                                         str(self.uid) + "_perf.log")
-                with io.open(perf_file, "w") as writer:
+                self.perf_file = os.path.join(self.log_dir,
+                                              self.friendly_name +
+                                              "_" +
+                                              str(self.uid) + "_perf.log")
+                with io.open(self.perf_file, "w") as writer:
                     writer.write(m.group(0))
 
+            pattern = re.compile(r"RAWLatencyMicro\s+\d+\s+Time\s+\d+")
+            self.latencies = []
+            for m in re.finditer(pattern, log):
+                values = m.group(0).split(' ')
+                self.latencies.append((int(values[1]), int(values[3])))
+
         res = ProcessOutput("{0} {1}".format(self.friendly_name, self.params),
-                         self.process.returncode,
-                         user_msg,
-                         self.uid)
+                            self.process.returncode, user_msg, self.uid,
+                            self.latencies)
         return res
 
     def start(self):
@@ -154,7 +165,7 @@ class TestProcess:
                     self.invoke_on_new_line(t)
                     if not self.no_console:
                         sys.stdout.buffer.write(out_b_reader.read())
-                #read leftovers
+                # read leftovers
                 if not self.no_console:
                     sys.stdout.buffer.write(out_b_reader.read())
                 lines = out_t_reader.readlines()
@@ -391,9 +402,26 @@ class TestConfig:
         return TestConfig(bft, cli, env, simple_client_params, customize_fn)
 
 
-def process_output(process_outputs):
+def parse_client_histogram(file):
+    hist = None
+    with io.open(file, "r") as reader:
+        hist = reader.read()
+
+    ptrn = re.compile(r"((?<=[\[\s*])\d*(?=,)),\s*((?<=[,\s*])\d*(?=\s*\)))\s*\)\s*((?<=[" \
+                      "\s*])\d*(?=\s*))")
+    res = []
+    for (low, high, count) in re.findall(ptrn, hist):
+        res.append((int(low), int(high), int(count)))
+    return res
+
+
+def process_output(process_outputs, perf_enabled):
     res = ""
     exit_code = 0
+    if perf_enabled:
+        perf_hist = histogram.Histogram()
+        clients_perf_info = []
+
     for output in process_outputs:
         res += "{0} is done with exit code {1} and message '{2}'".format(
             output.exec_name,
@@ -401,8 +429,28 @@ def process_output(process_outputs):
             output.user_msg)
         res += os.linesep
         exit_code += output.exit_code
+
+        begin_milli_time = 0xFFFFFFFFFFFFFFFF
+        end_milli_time = 0
+        num_of_ops = 0
+        if perf_enabled and output.latencies:
+            for l in output.latencies:
+                tmp = l[1] - (l[0] / 1000)
+                if begin_milli_time > tmp:
+                    begin_milli_time = tmp
+                if end_milli_time < l[1]:
+                    end_milli_time = l[1]
+                num_of_ops += 1
+                perf_hist.add(l[0])
+            duration_milli = end_milli_time - begin_milli_time
+            # duration_sec = float(duration_milli / 1000)
+            # throughput_op_per_milli = float(num_of_ops / duration_milli)
+            # throughput_op_per_sec = throughput_op_per_milli * 1000
+            clients_perf_info.append((duration_milli, num_of_ops))
+
     g_logger.debug("output: {0}, {1}".format(res, exit_code))
-    return TestResult(exit_code, res)
+    return TestResult(exit_code, res, "Pefomance summary:\n" + str(
+        clients_perf_info) + "\n" + perf_hist.to_string())
 
 
 def customize_test_vc_never_ends(test_config):
@@ -531,7 +579,7 @@ f = {3}, c = {4}, testViewChange = {5}, cl = {6}".format(
         c.prepare(str(sys.argv))
         c.run()
         out = c.collect()
-        result = process_output(out)
+        result = process_output(out, cli.measure_perf)
         if result.exit_code != 0:
             print("CONFIGURATION RUN FAIL")
             # THIS IS DONE ON PURPOSE TO SUPPORT AUTOMATIC TESTING
@@ -539,6 +587,9 @@ f = {3}, c = {4}, testViewChange = {5}, cl = {6}".format(
             return result.exit_code
         else:
             print("CONFIGURATION RUN SUCCESS")
+
+        if result.perf_summary:
+            print("Perfomance summary: " + result.perf_summary)
 
     print("TEST SUCCESS")
     return 0

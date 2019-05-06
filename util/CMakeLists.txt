@@ -1,6 +1,7 @@
 # pthread dependency
 find_package(Threads REQUIRED)
-add_library(util STATIC src/Metrics.cpp src/histogram.cpp include/misc.hpp)
+add_library(util STATIC src/Metrics.cpp src/MetricsServer.cpp src/histogram.cpp
+        include/misc.hpp)
 
 target_link_libraries(util PUBLIC logging Threads::Threads)
 target_include_directories(util PUBLIC include)
