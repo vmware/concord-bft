@@ -26,52 +26,58 @@ namespace BLS {
 namespace Relic {
 
 class BlsThresholdVerifier : public IThresholdVerifier {
-protected:
-    const BlsPublicParameters params;
+ protected:
+  const BlsPublicParameters params;
 
-    mutable BlsPublicKey pk;
-    const std::vector<BlsPublicKey> vks;
-    const G2T gen2;
-    const NumSharesType reqSigners, numSigners;
+  mutable BlsPublicKey pk;
+  const std::vector<BlsPublicKey> vks;
+  const G2T gen2;
+  const NumSharesType reqSigners, numSigners;
 
-public:
-    BlsThresholdVerifier(const BlsPublicParameters& params, const G2T& pk,
-            NumSharesType reqSigners, NumSharesType numSigners,
-            const std::vector<BlsPublicKey>& verifKeys);
+ public:
+  BlsThresholdVerifier(const BlsPublicParameters &params, const G2T &pk,
+                       NumSharesType reqSigners, NumSharesType numSigners,
+                       const std::vector<BlsPublicKey> &verifKeys);
 
-    virtual ~BlsThresholdVerifier();
+  ~BlsThresholdVerifier() override = default;
 
-    /**
-     * For testing and internal use.
-     */
-public:
-    NumSharesType getNumRequiredShares() const { return reqSigners; }
-    NumSharesType getNumTotalShares() const { return numSigners; }
-    const BlsPublicParameters& getParams() const { return params; }
-    /**
-     * NOTE: Used by BlsBatchVerifier to verify shares
-     */
-    bool verify(const G1T& msgHash, const G1T& sigShare, const G2T& pk) const;
+  /**
+   * For testing and internal use.
+   */
+ public:
+  void serialize(std::ostream &) const override {}
+  void deserialize(std::istream &) const override {}
 
-    /**
-     * IThresholdVerifier overrides.
-     */
-public:
-    virtual IThresholdAccumulator* newAccumulator(bool withShareVerification) const;
+  NumSharesType getNumRequiredShares() const { return reqSigners; }
+  NumSharesType getNumTotalShares() const { return numSigners; }
+  const BlsPublicParameters &getParams() const { return params; }
+  /**
+   * NOTE: Used by BlsBatchVerifier to verify shares
+   */
+  bool verify(const G1T &msgHash, const G1T &sigShare, const G2T &pk) const;
 
-    virtual void release(IThresholdAccumulator* acc) {
-        delete acc;
-    }
+  /**
+   * IThresholdVerifier overrides.
+   */
+ public:
+  IThresholdAccumulator *newAccumulator(bool withShareVerification)
+  const override;
 
-    virtual bool verify(const char* msg, int msgLen, const char* sig, int sigLen) const;
+  void release(IThresholdAccumulator *acc) override {
+    delete acc;
+  }
 
-    virtual int requiredLengthForSignedData() const {
-        return params.getSignatureSize();
-    }
+  bool verify(const char *msg, int msgLen, const char *sig, int sigLen)
+  const override;
 
-    virtual const IPublicKey& getPublicKey() const { return pk; }
+  int requiredLengthForSignedData() const override {
+    return params.getSignatureSize();
+  }
 
-    virtual const IShareVerificationKey& getShareVerificationKey(ShareID signer) const;
+  const IPublicKey &getPublicKey() const override { return pk; }
+
+  const IShareVerificationKey &getShareVerificationKey(ShareID signer)
+  const override;
 };
 
 } /* namespace Relic */

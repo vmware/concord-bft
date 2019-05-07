@@ -13,37 +13,48 @@
 #pragma once
 
 #include "threshsign/IPublicParameters.h"
-
 #include "BlsNumTypes.h"
-
 
 namespace BLS {
 namespace Relic {
 
 class BlsPublicParameters : public IPublicParameters {
-protected:
-    G1T gen1;
-    G2T gen2;
-    int curveType;
+ protected:
+  G1T generator1_;
+  G2T generator2_;
+  int curveType_ = 0;
 
-public:
-	BlsPublicParameters(int securityLevel, const int curveType);
-	BlsPublicParameters(const BlsPublicParameters& params);
+ public:
+  BlsPublicParameters(int securityLevel, int curveType);
+  BlsPublicParameters(const BlsPublicParameters &params);
+  ~BlsPublicParameters() override;
 
-	virtual ~BlsPublicParameters();
+  bool operator==(const BlsPublicParameters& other) const;
 
-public:
-	/**
-	 * Needed by IThresholdSigner/Verifier.
-	 */
-	int getSignatureSize() const;
+  /**
+   * Needed by IThresholdSigner/Verifier.
+   */
+  int getSignatureSize() const;
+  int getCurveType() const { return curveType_; }
+  const G2T &getGenerator2() const { return generator2_; }
+  const BNT &getGroupOrder() const;
 
-	int getCurveType() const { return curveType; }
+  // Serialization/deserialization
+  void serialize(std::ostream &outStream) const override;
 
-	const G1T& getGen1() const { return gen1; }
-	const G2T& getGen2() const { return gen2; }
+  Serializable* create(std::istream &inStream) const override;
 
-	const BNT& getGroupOrder() const;
+  // To be used ONLY during deserialization. Could not become private/protected,
+  // as there is a composition relationship between IPublicParameters and
+  // signer/verifier classes.
+  BlsPublicParameters() = default; // To be used during deserialization.
+
+ private:
+  void serializeClassDataMembers(std::ostream &outStream) const;
+
+ private:
+  static const std::string className_;
+  static const uint32_t classVersion_;
 };
 
 } // end of Libpbc namespace

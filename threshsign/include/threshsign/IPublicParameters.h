@@ -12,41 +12,69 @@
 
 #pragma once
 
+#include "threshsign/Serializable.h"
 #include <string>
+#include <map>
+#include <fstream>
 
 /**
  * This class is used to represent the parameters of a cryptosystem like RSA or BLS.
  * For example, this class can store the value of N = pq, for RSA or the value of
  * the prime p for BLS.
  */
-class IPublicParameters {
-protected:
-	/**
-	 * Security level.
-	 */
-	int k;
 
-	/**
-	 * Name of the scheme and the library.
-	 */
-	std::string name, library;
+class IPublicParameters : public Serializable {
+ protected:
+  /**
+   * Security level.
+   */
+  int securityLevel_ = 0;
 
-public:
-	IPublicParameters(int k, const std::string& name, const std::string& lib = "unknown")
-		: k(k), name(name), library(lib)
-	{}
-	virtual ~IPublicParameters() {}
+  /**
+   * Name of the scheme and the library.
+   */
+  std::string schemeName_, library_ = "unknown";
 
-public:
-	/**
-	 * The security parameter of the cryptosystem. This should be 128, 256 or larger. The subclassing
-	 * cryptosystem is responsible for generating its own strong enough parameters. For example,
-	 * in RSA, a 2048-bit prime or larger should be generated when k is 128 whereas in BLS, a
-	 * smaller elliptic curve group of order close to 2^256 can be used.
-	 */
-	virtual int getSecurityLevel() const { return k; }
+ public:
+  IPublicParameters(int securityLevel, std::string schemeName,
+                    std::string library);
+  ~IPublicParameters() override = default;
 
-	virtual const std::string& getName() const { return name; }
+  bool operator==(const IPublicParameters& other) const;
 
-	virtual const std::string& getLibrary() const { return library; }
+  bool compare(const IPublicParameters& other) const {
+    return *this == other;
+  }
+
+  /**
+   * The security parameter of the cryptosystem. This should be 128,
+   * 256 or larger. The subclassing cryptosystem is responsible for
+   * generating its own strong enough parameters. For example,
+   * in RSA, a 2048-bit prime or larger should be generated when k is 128
+   * whereas in BLS, a smaller elliptic curve group of order close to 2^256
+   * can be used.
+   */
+  int getSecurityLevel() const { return securityLevel_; }
+
+  const std::string &getName() const { return schemeName_; }
+
+  const std::string &getLibrary() const { return library_; }
+
+  // Serialization/deserialization
+  // Two functions below should be implemented by all derived classes.
+  virtual void serialize(std::ostream &outStream) const;
+
+  Serializable* create(std::istream &inStream) const override;
+
+  // To be used ONLY during deserialization. Could not become private/protected,
+  // as there is a composition relationship between IPublicParameters and
+  // signer/verifier classes.
+  IPublicParameters() = default;
+
+ private:
+  void serializeClassDataMembers(std::ostream &outStream) const;
+
+ private:
+  static const std::string className_;
+  static const uint32_t classVersion_;
 };

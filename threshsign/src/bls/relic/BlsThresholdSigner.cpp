@@ -11,35 +11,122 @@
 // LICENSE file.
 
 #include "threshsign/Configuration.h"
-
 #include "threshsign/bls/relic/BlsThresholdSigner.h"
 #include "threshsign/bls/relic/BlsPublicParameters.h"
+#include <sstream>
+
+using namespace std;
 
 namespace BLS {
 namespace Relic {
 
-BlsThresholdSigner::BlsThresholdSigner(const BlsPublicParameters& params, ShareID id, const BNT& sk)
-    : params(params), sk(sk), pk(sk), id(id),
-      sigSize(params.getSignatureSize())
-{
-    // Serialize signer's ID to a buffer
-    BNT idNum(id);
-    idNum.toBytes(idBuf, sizeof(id));
+const string BlsThresholdSigner::className_ = "BlsThresholdSigner";
+const uint32_t BlsThresholdSigner::classVersion_ = 1;
+bool BlsThresholdSigner::registered_ = false;
+
+void BlsThresholdSigner::registerClass() {
+  if (!registered_) {
+    classNameToObjectMap_[className_] = new BlsThresholdSigner;
+    registered_ = true;
+  }
 }
 
-void BlsThresholdSigner::signData(const char * hash, int hashLen, char* outSig, int outSigLen) {
-	// TODO: ALIN: If the signer has some time to waste before signing, we can precompute multiplication tables on H(m) to speed up signing.
+BlsThresholdSigner::BlsThresholdSigner(const BlsPublicParameters &params,
+                                       ShareID id, const BNT &secretKey)
+    : params_(params), secretKey_(secretKey), publicKey_(secretKey), id_(id),
+      sigSize_(params.getSignatureSize()) {
+  // Serialize signer's ID to a buffer
+  BNT idNum(id);
+  idNum.toBytes(serializedId_, sizeof(id));
+  registerClass();
+}
 
-    // Map the specified 'hash' to an elliptic curve point
-    g1_map(hTmp, reinterpret_cast<const unsigned char *>(hash), hashLen);
+void BlsThresholdSigner::signData(const char *hash, int hashLen, char *outSig,
+                                  int outSigLen) {
+  // TODO: ALIN: If the signer has some time to waste before signing,
+  //  we can precompute multiplication tables on H(m) to speed up signing.
 
-    // sig = h^{sk} (except RELIC uses multiplication notation)
-    g1_mul(sigTmp, hTmp, sk.x);
+  // Map the specified 'hash' to an elliptic curve point
+  g1_map(hTmp_, reinterpret_cast<const unsigned char *>(hash), hashLen);
 
-    // Include the signer's ID in the sigshare
-    memcpy(outSig, idBuf, sizeof(id));
-    // Serialize the signature to a byte array
-    sigTmp.toBytes(reinterpret_cast<unsigned char*>(outSig) + sizeof(id), outSigLen - static_cast<int>(sizeof(id)));
+  // sig = h^{sk} (except RELIC uses multiplication notation)
+  g1_mul(sigTmp_, hTmp_, secretKey_.x);
+
+  // Include the signer's ID in the sigshare
+  memcpy(outSig, serializedId_, sizeof(id_));
+  // Serialize the signature to a byte array
+  sigTmp_.toBytes(reinterpret_cast<unsigned char *>(outSig) + sizeof(id_),
+                  outSigLen - static_cast<int>(sizeof(id_)));
+}
+
+/************** Serialization **************/
+
+void BlsThresholdSigner::serialize(char *&outBuf, int64_t &outBufSize) const {
+  ofstream outStream(className_.c_str(), ofstream::binary | ofstream::trunc);
+  // Serialize first the class name.
+  IPublicParameters::serializeClassName(className_, outStream);
+  serializeClassDataMembers(outStream);
+  outStream.close();
+  IPublicParameters::retrieveSerializedBuffer(className_, outBuf, outBufSize);
+}
+
+void BlsThresholdSigner::serializeClassDataMembers(ostream &outStream) const {
+  // Serialize class version
+  outStream.write((char *)&classVersion_, sizeof(classVersion_));
+
+  // Serialize params
+  params_.serialize(outStream);
+
+  // Serialize secretKey
+  int64_t secretKeySize = secretKey_.x.getByteCount();
+  auto* secretKeyBuf = new unsigned char[secretKeySize];
+  secretKey_.x.toBytes(secretKeyBuf, (int)secretKeySize);
+  outStream.write((char *)&secretKeySize, sizeof(secretKeySize));
+  outStream.write((char *)secretKeyBuf, secretKeySize);
+  delete[] secretKeyBuf;
+
+  // Serialize id
+  outStream.write((char *)&id_, sizeof(id_));
+}
+
+bool BlsThresholdSigner::operator==(const BlsThresholdSigner& other) const {
+  bool result = ((other.id_ == id_) &&
+      (other.params_ == params_) &&
+      (other.sigSize_ == sigSize_) &&
+      !memcmp(other.serializedId_, serializedId_, sizeof(ShareID)) &&
+      (other.hTmp_ == hTmp_) &&
+      (other.sigTmp_ == sigTmp_) &&
+      (other.secretKey_ == secretKey_) &&
+      (other.publicKey_ == publicKey_)
+      );
+  return result;
+}
+
+/************** Deserialization **************/
+
+IThresholdSigner *BlsThresholdSigner::create(istream &inStream) const {
+  // Deserialize class version
+  IPublicParameters::verifyClassVersion(classVersion_, inStream);
+
+  // Deserialize params
+  auto* params = (BlsPublicParameters *)params_.create(inStream);
+
+  // Deserialize secretKey
+  int64_t sizeOfSecretKey = 0;
+  inStream.read((char *)&sizeOfSecretKey, sizeof(sizeOfSecretKey));
+  char *secretKey = new char[sizeOfSecretKey];
+  inStream.read(secretKey, sizeOfSecretKey);
+
+  // Deserialize id
+  inStream.read((char *)&id_, sizeof(id_));
+
+  string secretKeyStr;
+  secretKeyStr.copy(secretKey, (unsigned)sizeOfSecretKey);
+  BNT key(secretKeyStr);
+  auto* currentClassInstance = new BlsThresholdSigner(*params, id_, key);
+  delete params;
+  delete[] secretKey;
+  return currentClassInstance;
 }
 
 } /* namespace Relic */

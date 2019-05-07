@@ -20,17 +20,24 @@ namespace BLS {
 namespace Relic {
 
 class BlsSecretKey : public IShareSecretKey {
-protected:
-    BNT x;
+ protected:
+  BNT x;
 
-public:
-    friend class BlsThresholdSigner;
+ public:
+  friend class BlsThresholdSigner;
 
-public:
-    BlsSecretKey(const BNT& sk) : x(sk) {}
+ public:
+  explicit BlsSecretKey(const BNT &secretKey) : x(secretKey) {}
+  // To be used ONLY during deserialization. Could not become private/protected,
+  // as there is a composition relationship between BlsSecretKey and
+  // BlsThresholdSigner class.
+  BlsSecretKey() = default;
 
-public:
-    std::string toString() const { return x.toString(); }
+ public:
+  std::string toString() const override { return x.toString(); }
+  bool operator==(const BlsSecretKey& other) const {
+    return (other.x == x);
+  }
 };
 
 } /* namespace Relic */
