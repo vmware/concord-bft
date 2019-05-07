@@ -17,20 +17,6 @@
 
 #include "MetricsServer.hpp"
 
-// The MetricServer only handles a single type of request, that requests a JSON
-// metrics blob. The message format is just a single 8-bit 0 on the wire. We can
-// always change the protocol later if needed.
-const uint8_t kRequest = 0;
-
-// The MetricsServer only returns a single type of response. The response is
-// just an 8-bit 1 on the wire followed by a JSON string containing all metrics
-// for all components. Since we are using UDP, the entire message will always be
-// included, so no need to worry about framing. We can always change the
-// protocol if we decide to enhance the Metric server later on or move to a
-// different transport.
-const uint8_t kReply = 1;
-const uint8_t kError = 2;
-
 namespace concordMetrics {
 
 void Server::Start() {
@@ -95,7 +81,7 @@ void Server::RecvLoop() {
       continue;
     }
 
-    if (buf_[0] != kRequest || len != 1) {
+    if (buf_[0] != kRequest || len != sizeof(Header)) {
       LOG_WARN(logger_, "Received invalid request");
       sendError(&cliaddr, addrlen);
       continue;
@@ -103,7 +89,7 @@ void Server::RecvLoop() {
 
     std::string json = aggregator_->ToJson();
 
-    if (json.size() > MAX_MSG_SIZE - 1) {
+    if (json.size() > MAX_MSG_SIZE - sizeof(Header)) {
       LOG_FATAL(logger_, "Aggregator data too large to be transmitted!");
       exit(1);
     }
@@ -116,10 +102,10 @@ void Server::sendReply(std::string data,
                        sockaddr_in* cliaddr,
                        socklen_t addrlen) {
   buf_[0] = kReply;
-  memcpy(buf_ + 1, data.data(), data.size());
+  memcpy(buf_ + sizeof(Header), data.data(), data.size());
   auto len = sendto(sock_,
                     buf_,
-                    data.size() + 1,
+                    data.size() + sizeof(Header),
                     0,
                     (const struct sockaddr*)cliaddr,
                     addrlen);
@@ -133,9 +119,13 @@ void Server::sendError(sockaddr_in* cliaddr, socklen_t addrlen) {
   auto msglen = strlen(msg);
 
   buf_[0] = kError;
-  memcpy(buf_ + 1, msg, msglen);
-  auto len = sendto(
-      sock_, buf_, msglen + 1, 0, (const struct sockaddr*)cliaddr, addrlen);
+  memcpy(buf_ + sizeof(Header), msg, msglen);
+  auto len = sendto(sock_,
+                    buf_,
+                    msglen + sizeof(Header),
+                    0,
+                    (const struct sockaddr*)cliaddr,
+                    addrlen);
   if (len < 0) {
     LOG_ERROR(logger_, "Failed to send error msg: " << strerror(errno));
   }
