@@ -1140,8 +1140,13 @@ class TlsTCPCommunication::TlsTcpImpl :
       conn->start();
     }
 
-    //LOG4CPLUS_DEBUG(logger_, "handle_accept before start_accept");
-    start_accept();
+    // When io_service is stopped, the handlers are destroyed and when the
+    // io_service dtor runs they will be invoked with operation_aborted error.
+    // In this case we dont want to listen again and we rely on the
+    // shared_from_this for the cleanup.
+    if(ec != asio::error::operation_aborted) {
+      start_accept();
+    }
   }
 
   // here need to check how "this" passed to handlers behaves if the object is
