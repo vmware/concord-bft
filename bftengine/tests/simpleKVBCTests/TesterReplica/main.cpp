@@ -48,14 +48,6 @@ ReplicaParams rp;
 concordlogger::Logger replicaLogger =
 		concordlogger::Logger::getLogger("skvbctest.replica");
 
-void signalHandler( int signum ) {
-	if(r)
-		r->stop();
-
-	LOG_INFO(replicaLogger, "replica " << rp.replicaId << " stopped");
-	exit(0);
-}
-
 int main(int argc, char **argv) {
 #if defined(_WIN32)
 	initWinSock();
@@ -70,12 +62,9 @@ int main(int argc, char **argv) {
 	rp.replicaId = UINT16_MAX;
 
 	// allows to attach debugger
-	if(rp.debug)
-		std::this_thread::sleep_for(std::chrono::seconds(20));
-
-	signal(SIGABRT, signalHandler);
-	signal(SIGTERM, signalHandler);
-	signal(SIGKILL, signalHandler);
+	if(rp.debug) {
+          std::this_thread::sleep_for(std::chrono::seconds(20));
+        }
 
 	char argTempBuffer[PATH_MAX+10];
 	string idStr;

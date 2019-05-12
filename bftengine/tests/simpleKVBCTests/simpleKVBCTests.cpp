@@ -35,19 +35,16 @@ using std::set;
 
 using namespace SimpleKVBC;
 
+#define CHECK(_cond_, _msg_)  if (!(_cond_)) { \
+      printf("\nTest failed: %s\n", _msg_); \
+      assert(_cond_); \
+}
+
 namespace BasicRandomTests
 {
 	namespace Internal
 	{
-		void CHECK(bool cond, const char* msg) 
-		{
-			if (!cond) // TODO(GG): use a standard approach
-			{
-				printf("\nTest failed: %s", msg);
-				assert(cond && msg);
-			}
-		}
-
+#pragma pack(push,1)
 		struct SimpleKV
 		{
 			char key[KV_LEN];
@@ -114,7 +111,7 @@ namespace BasicRandomTests
 		struct SimpleConditionalWriteHeader
 		{
 			SimpleRequestHeader h; // TODO: this is ugly ....
-			BlockId readVerion;
+			BlockId readVersion;
 			size_t numberOfKeysInReadSet;
 			size_t numberOfWrites;
 			// followed by SimpleKey[numberOfKeysInReadSet]
@@ -159,7 +156,7 @@ namespace BasicRandomTests
 		struct SimpleReadHeader
 		{
 			SimpleRequestHeader h;
-			BlockId readVerion; // if 0, then read from the latest version
+			BlockId readVersion; // if 0, then read from the latest version
 			size_t numberOfKeysToRead;
 			SimpleKey keys[1];
 
@@ -330,7 +327,7 @@ namespace BasicRandomTests
 		//		
 		//		SimpleReadHeader* p = (SimpleReadHeader*)r;
 		//		printf("\n");
-		//		printf("Read: version=%" PRId64 " numberOfKeysToRead=%zu keys=", p->readVerion, p->numberOfKeysToRead);
+		//		printf("Read: version=%" PRId64 " numberOfKeysToRead=%zu keys=", p->readVersion, p->numberOfKeysToRead);
 		//		for (size_t i = 0; i < p->numberOfKeysToRead; i++)
 		//		{
 		//			printf("%4s", " ");
@@ -409,6 +406,7 @@ namespace BasicRandomTests
 			}
 		};
 
+#pragma pack(pop)
 
 		class InternalTestsBuilder
 		{
@@ -501,7 +499,7 @@ namespace BasicRandomTests
 
 				// fill request
 				pHeader->h.type = 1;
-				pHeader->readVerion = readVer;
+				pHeader->readVersion = readVer;
 				pHeader->numberOfKeysInReadSet = numberOfKeysInReadSet;
 				pHeader->numberOfWrites = numberOfWrites;
 				SimpleKey* pReadKeysArray = pHeader->readSetArray();
@@ -604,7 +602,7 @@ namespace BasicRandomTests
 
 				// fill request
 				pHeader->h.type = 2;
-				pHeader->readVerion = readVer;
+				pHeader->readVersion = readVer;
 				pHeader->numberOfKeysToRead = numberOfReads;
 
 				for (size_t i = 0; i < numberOfReads; i++)
@@ -628,11 +626,11 @@ namespace BasicRandomTests
 
 					SimpleKey sk = pHeader->keys[i];
 
-					SimpleKIDPair kiPair(sk, pHeader->readVerion);
+					SimpleKIDPair kiPair(sk, pHeader->readVersion);
 
 					std::map<SimpleKIDPair, SimpleVal>::const_iterator p = m_map.lower_bound(kiPair);
 
-					if (p != m_map.end() && (pHeader->readVerion >= p->first.blockId) && (memcmp(p->first.key.key, pHeader->keys[i].key, KV_LEN) == 0))
+					if (p != m_map.end() && (pHeader->readVersion >= p->first.blockId) && (memcmp(p->first.key.key, pHeader->keys[i].key, KV_LEN) == 0))
 					{
 						memcpy(pReply->elements[i].val, p->second.v, KV_LEN);
 					}
@@ -685,28 +683,15 @@ namespace BasicRandomTests
 				printf("Got message of size %zu\n",command.size);
 	
 				//DEBUG_RNAME("InternalCommandsHandler::executeCommand");
-				if (command.size < sizeof(SimpleRequestHeader))
-				{
-					CHECK(false, "small message");
-					return false;
-				}
+				CHECK((command.size >= sizeof(SimpleRequestHeader)), "small message");
 				SimpleRequestHeader* p = (SimpleRequestHeader*)command.data;
 				if (p->type != 1) return executeReadOnlyCommand(command, roStorage, maxReplySize, outReply, outReplySize);
 
 				// conditional write
 
-				if (command.size < sizeof(SimpleConditionalWriteHeader))
-				{
-					CHECK(false, "small message");
-					return false;
-				}
+				CHECK(command.size >= sizeof(SimpleConditionalWriteHeader), "small message");
 				SimpleConditionalWriteHeader* pCondWrite = (SimpleConditionalWriteHeader*)command.data;
-				if (command.size < pCondWrite->size())
-				{
-					CHECK(false, "small message");
-					return false;
-				}
-
+				CHECK(command.size >= pCondWrite->size(), "small message");
 				SimpleKey* readSetArray = pCondWrite->readSetArray();
 
 				BlockId currBlock = roStorage.getLastBlock();
@@ -716,7 +701,7 @@ namespace BasicRandomTests
 				for (size_t i = 0; !hasConflict && i < pCondWrite->numberOfKeysInReadSet; i++)
 				{
 					Slice key(readSetArray[i].key, KV_LEN);
-					roStorage.mayHaveConflictBetween(key, pCondWrite->readVerion + 1, currBlock, hasConflict);
+					roStorage.mayHaveConflictBetween(key, pCondWrite->readVersion + 1, currBlock, hasConflict);
 				}
 
 				if (!hasConflict)
@@ -766,34 +751,18 @@ namespace BasicRandomTests
 				const size_t maxReplySize,
 				char* outReply, size_t& outReplySize) const
 			{
-				if (command.size < sizeof(SimpleRequestHeader))
-				{
-					CHECK(false, "small message");
-					return false;
-				}
+				CHECK(command.size >= sizeof(SimpleRequestHeader), "small message");
 				SimpleRequestHeader* p = (SimpleRequestHeader*)command.data;
 				if (p->type == 2)
 				{
 					// read
-					if (command.size < sizeof(SimpleReadHeader))
-					{
-						CHECK(false, "small message");
-						return false;
-					}
+					CHECK(command.size >= sizeof(SimpleReadHeader), "small message");
 					SimpleReadHeader* pRead = (SimpleReadHeader*)command.data;
-					if (command.size < pRead->size())
-					{
-						CHECK(false, "small message");
-						return false;
-					}
+					CHECK(command.size >= pRead->size(), "small message");
 					size_t numOfElements = pRead->numberOfKeysToRead;
 					size_t replySize = SimpleReplyHeader_Read::size(numOfElements);
 
-					if (maxReplySize < replySize)
-					{
-						CHECK(false, "small message");
-						return false;
-					}
+					CHECK(maxReplySize >= replySize, "small message");
 
 //					printf("\nRead request");  print(p);
 
@@ -810,7 +779,7 @@ namespace BasicRandomTests
 						Slice val;
 						Slice k(keysArray[i].key, KV_LEN);
 						BlockId outBlock = 0;
-						roStorage.get(pRead->readVerion, k, val, outBlock);
+						roStorage.get(pRead->readVersion, k, val, outBlock);
 						if (val.size > 0)
 							memcpy(pReply->elements[i].val, val.data, KV_LEN);
 						else
@@ -826,19 +795,10 @@ namespace BasicRandomTests
 				else if (p->type == 3)
 				{
 					// read
-					if (command.size < sizeof(SimpleGetLastBlockHeader))
-					{
-						CHECK(false, "small message");
-						return false;
-					}
+					CHECK(command.size >= sizeof(SimpleGetLastBlockHeader), "small message");
 //					SimpleGetLastBlockHeader* pGetLast = (SimpleGetLastBlockHeader*)command.data;
 
-					if (maxReplySize < sizeof(SimpleReplyHeader_GetLastBlockHeader))
-					{
-						CHECK(false, "small message");
-						return false;
-					}
-
+					CHECK(maxReplySize >= sizeof(SimpleReplyHeader_GetLastBlockHeader), "small message");
 					SimpleReplyHeader_GetLastBlockHeader* pReply = (SimpleReplyHeader_GetLastBlockHeader*)(outReply);
 					outReplySize = sizeof(SimpleReplyHeader_GetLastBlockHeader);
 					memset(pReply, 0, sizeof(SimpleReplyHeader_GetLastBlockHeader));
@@ -967,7 +927,7 @@ namespace BasicRandomTests
 //				assert(0); 
 //			}				
 
-			Internal::CHECK(equiv, "actual reply != expected reply");
+			CHECK(equiv, "actual reply != expected reply");
 
 			if (equiv)
 			{
