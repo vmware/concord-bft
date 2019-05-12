@@ -422,6 +422,7 @@ def process_output(process_outputs, perf_enabled):
         perf_hist = histogram.Histogram()
         clients_perf_info = []
 
+    count = 0
     for output in process_outputs:
         res += "{0} is done with exit code {1} and message '{2}'".format(
             output.exec_name,
@@ -443,14 +444,30 @@ def process_output(process_outputs, perf_enabled):
                 num_of_ops += 1
                 perf_hist.add(l[0])
             duration_milli = end_milli_time - begin_milli_time
-            # duration_sec = float(duration_milli / 1000)
-            # throughput_op_per_milli = float(num_of_ops / duration_milli)
-            # throughput_op_per_sec = throughput_op_per_milli * 1000
             clients_perf_info.append((duration_milli, num_of_ops))
+            count += 1
+
+    w_tp = 0
+    sum_dur = 0
+    sum_ops = 0
+    for i in range(0, count):
+        w_tp += clients_perf_info[i][1] / clients_perf_info[i][0] * clients_perf_info[i][1]
+        sum_ops += clients_perf_info[i][1]
+        sum_dur += clients_perf_info[i][0]
+    w_tp /= sum_ops
 
     g_logger.debug("output: {0}, {1}".format(res, exit_code))
-    return TestResult(exit_code, res, "Performance summary:\n" + str(
-        clients_perf_info) + "\n" + perf_hist.to_string())
+    if perf_enabled:
+        buf = io.StringIO()
+        buf.write("Performance summary:\n")
+        buf.write("Average duration(sec): %.2f" % (sum_dur / count / 1000))
+        buf.write(", Average throughput(ops/sec): %.2f\n" % (w_tp * 1000))
+        buf.write(perf_hist.to_string())
+        t = buf.getvalue()
+    else:
+        t = None
+
+    return TestResult(exit_code, res, t)
 
 
 def customize_test_vc_never_ends(test_config):

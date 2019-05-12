@@ -128,6 +128,9 @@ The following CLI parameters are supported:
 *   ```-nc``` do not print processes' output to the console (default is False)
 *   ```-l``` log level for the script only (not for the binaries). Standard log
 levels in capital letters. Default is INFO
+*   ```-p``` if present, enables performance measurements. Each client will 
+create it's historgram and will print raw latencies, which eventually will be
+ displayed as summary histogram, along with throughput and average duration
 *   ```-i``` number of transactions each client will send to the replicas
 *   ```-vct``` View Change timeout, in milliseconds (default is 60000)
 *   ```-bft``` List of BFT configurations to run, separated by white space, each configuration is like n=4,r=4,f=1,c=0,cl=1,testViewChange where:

@@ -387,8 +387,8 @@ int main(int argc, char **argv) {
   delete comm;
 
   if(cp.measurePerfomance) {
-    LOG_INFO(clientLogger, std::endl << "Performance info:" << std::endl << hist
-    .ToString());
+    LOG_INFO(clientLogger, std::endl << "Performance info from client " << cp.clientId
+    <<  std::endl << hist.ToString());
   }
 
   LOG_INFO(clientLogger, "test done, iterations: " << cp.numOfOperations);
