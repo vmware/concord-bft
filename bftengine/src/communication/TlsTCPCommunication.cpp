@@ -212,8 +212,8 @@ class AsyncTlsConnection : public
   }
 
   /**
-   * set_tls need to be set outside of the ctor to allow shared_from_this
-   * socket creation must be done here, after set_tls
+   * The set_tls method needs to be set outside of the ctor to allow
+   * shared_from_this() usage. Socket creation must be done here, after set_tls
    */
   void init() {
     set_tls();
@@ -574,12 +574,12 @@ class AsyncTlsConnection : public
   /// ************ connect functions ************************** ///
 
   /**
-   * this function sets the time to wait before the next connection attempt.
-   * the timeouts move from 256ms to 8s, multiplied by 2, and then stay at 8s.
-   * the rational here is to try to connect fast at the beginning (4
+   * This function sets the time to wait before the next connection attempt.
+   * The timeouts move from 256ms to 8s, multiplied by 2, and then stay at 8s.
+   * The rationale here is to try to connect fast at the beginning (4
    * connection attempts in 1 sec) and then if failed probably the peer is
    * not ready and we don't want to try at the same rate introducing overhead
-   * for Asio. This logics can be changed in future.
+   * for Asio. This logic can be changed in future.
    */
   void set_timeout() {
     _currentTimeout = _currentTimeout == _maxTimeout

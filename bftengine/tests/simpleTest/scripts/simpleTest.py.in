@@ -126,6 +126,7 @@ class TestProcess:
 
         self.out_file = os.path.join(
             self.log_dir, self.friendly_name + "_" + str(self.uid) + "_out.log")
+        os.chdir(self.log_dir)
 
         FNULL = open(os.devnull, 'w')
         with io.open(self.out_file, "wb", 8196) as out_writer, \
