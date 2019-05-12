@@ -24,6 +24,7 @@
 
 #include <string>
 #include <stdint.h>
+#include <memory>
 #include <unordered_map>
 #include "ICommunication.hpp"
 #include "StatusInfo.h"
@@ -217,7 +218,7 @@ class TlsTCPCommunication : public ICommunication {
   virtual ~TlsTCPCommunication();
  private:
   class TlsTcpImpl;
-  TlsTcpImpl *_ptrImpl = nullptr;
+  std::shared_ptr<TlsTcpImpl> _ptrImpl = nullptr;
 
   explicit TlsTCPCommunication(const TlsTcpConfig &config);
 };
