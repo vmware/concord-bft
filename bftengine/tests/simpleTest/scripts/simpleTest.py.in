@@ -449,7 +449,7 @@ def process_output(process_outputs, perf_enabled):
             clients_perf_info.append((duration_milli, num_of_ops))
 
     g_logger.debug("output: {0}, {1}".format(res, exit_code))
-    return TestResult(exit_code, res, "Pefomance summary:\n" + str(
+    return TestResult(exit_code, res, "Performance summary:\n" + str(
         clients_perf_info) + "\n" + perf_hist.to_string())
 
 
@@ -589,7 +589,7 @@ f = {3}, c = {4}, testViewChange = {5}, cl = {6}".format(
             print("CONFIGURATION RUN SUCCESS")
 
         if result.perf_summary:
-            print("Perfomance summary: " + result.perf_summary)
+            print(result.perf_summary)
 
     print("TEST SUCCESS")
     return 0
