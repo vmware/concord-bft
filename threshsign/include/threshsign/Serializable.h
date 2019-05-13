@@ -15,23 +15,35 @@
 #include <string>
 #include <map>
 #include <fstream>
+#include <memory>
 
 /**
  * This class defines common functionality used for classes
- * serialization/deserialization.
+ * serialization/deserialization. This provides an ability to save/retrieve
+ * classes as a raw byte arrays to/from the local disk (DB).
+ * Format is as follows:
+ * - Class name length followed by a class name as a string.
+ * - Numeric class serialization/deserialization version.
+ * - Class related data members.
  */
+
+class Serializable;
+
+typedef std::unique_ptr<char> SmartPtrToChar;
+typedef std::unique_ptr<unsigned char> SmartPtrToUChar;
+typedef std::unique_ptr<Serializable> SmartPtrToClass;
 
 class MemoryBasedBuf : public std::basic_streambuf<char> {
  public:
-  MemoryBasedBuf(char *buf, size_t size) {
-    setg(buf, buf, buf + size);
+  MemoryBasedBuf(const SmartPtrToChar &buf, size_t size) {
+    setg(buf.get(), buf.get(), buf.get() + size);
   }
 };
 
 // This class allows usage of a regular buffer as a stream.
 class MemoryBasedStream : public std::istream {
  public:
-  MemoryBasedStream(char *buf, size_t size) :
+  MemoryBasedStream(const SmartPtrToChar &buf, size_t size) :
       std::istream(&buffer_), buffer_(buf, size) {
     rdbuf(&buffer_);
   }
@@ -41,24 +53,29 @@ class MemoryBasedStream : public std::istream {
 };
 
 class Serializable {
-  typedef std::map<std::string, Serializable *> ClassNameToObjectMap;
+  typedef std::map<std::string, SmartPtrToClass> ClassNameToObjectMap;
 
  public:
   virtual ~Serializable() = default;
 
  public:
   static void retrieveSerializedBuffer(const std::string &className,
-                                       char *&outBuf, int64_t &outBufSize);
+                                       SmartPtrToChar &outBuf,
+                                       int64_t &outBufSize);
   static void serializeClassName(const std::string &name,
                                  std::ostream &outStream);
   static void verifyClassName(const std::string &expectedClassName,
                               std::istream &inStream);
   static void verifyClassVersion(uint32_t expectedVersion,
                                  std::istream &inStream);
-  static Serializable *deserialize(const char *inBuf, int64_t inBufSize);
+  static SmartPtrToClass deserialize(const SmartPtrToChar &inBuf,
+                                     int64_t inBufSize);
 
  protected:
-  virtual Serializable* create(std::istream &inStream) const = 0;
+  virtual SmartPtrToClass create(std::istream &inStream) const = 0;
+
+ private:
+  static SmartPtrToChar deserializeClassName(std::istream &inStream);
 
  protected:
   static ClassNameToObjectMap classNameToObjectMap_;

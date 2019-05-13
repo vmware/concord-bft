@@ -19,65 +19,67 @@ Serializable::ClassNameToObjectMap Serializable::classNameToObjectMap_;
 
 /************** Serialization **************/
 
-void Serializable::serializeClassName(const string& name,
-                                           ostream &outStream) {
-  auto sizeofClassName = (int64_t)name.size();
-  outStream.write((char *)&sizeofClassName, sizeof(sizeofClassName));
+void Serializable::serializeClassName(const string &name, ostream &outStream) {
+  auto sizeofClassName = (int64_t) name.size();
+  outStream.write((char *) &sizeofClassName, sizeof(sizeofClassName));
   outStream.write(name.c_str(), sizeofClassName);
 }
 
 void Serializable::retrieveSerializedBuffer(
-    const string &className, char *&outBuf, int64_t &outBufSize) {
+    const string &className, SmartPtrToChar &outBuf, int64_t &outBufSize) {
   ifstream infile(className.c_str(), ofstream::binary);
-  infile.seekg (0, ios::end);
+  infile.seekg(0, ios::end);
   outBufSize = infile.tellg();
-  infile.seekg (0, ios::beg);
-  outBuf = new char[outBufSize];
-  infile.read(outBuf, outBufSize);
+  infile.seekg(0, ios::beg);
+  SmartPtrToChar newOne(new char[outBufSize]);
+  outBuf.swap(newOne);
+  infile.read(outBuf.get(), outBufSize);
   infile.close();
 }
 
 /************** Deserialization **************/
 
-Serializable *Serializable::deserialize(const char *inBuf, int64_t inBufSize) {
-  MemoryBasedStream inStream((char *)inBuf, (uint64_t)inBufSize);
+SmartPtrToChar Serializable::deserializeClassName(istream &inStream) {
+  int64_t sizeofClassName = 0;
+  inStream.read((char *) &sizeofClassName, sizeof(sizeofClassName));
+  SmartPtrToChar className(new char[sizeofClassName + 1]);
+  className.get()[sizeofClassName] = '\0';
+  inStream.read(className.get(), sizeofClassName);
+  return className;
+}
+
+SmartPtrToClass Serializable::deserialize(const SmartPtrToChar &inBuf,
+                                          int64_t inBufSize) {
+  MemoryBasedStream inStream(inBuf, (uint64_t) inBufSize);
 
   // Deserialize first the class name.
-  int64_t sizeofClassName = 0;
-  inStream.read((char *)&sizeofClassName, sizeof(sizeofClassName));
-  char *className = new char[sizeofClassName];
-  inStream.read(className, sizeofClassName);
+  SmartPtrToChar className = deserializeClassName(inStream);
 
-  auto it = classNameToObjectMap_.find(className);
+  auto it = classNameToObjectMap_.find(className.get());
   if (it != classNameToObjectMap_.end()) {
     // Create corresponding class instance
     return it->second->create(inStream);
   }
   ostringstream error;
-  error << "Deserialization failed: unknown class name: " << className;
+  error << "Deserialization failed: unknown class name: " << className.get();
   throw runtime_error(error.str());
 }
 
 void Serializable::verifyClassName(const string &expectedClassName,
-                                        istream &inStream) {
-  int64_t sizeofClassName = 0;
-  inStream.read((char *)&sizeofClassName, sizeof(sizeofClassName));
-  char *className = new char[sizeofClassName + 1];
-  inStream.read(className, sizeofClassName);
-  className[sizeofClassName] = '\0';
-
-  if (className != expectedClassName) {
+                                   istream &inStream) {
+  SmartPtrToChar className = deserializeClassName(inStream);
+  if (className.get() != expectedClassName) {
     ostringstream error;
-    error << "Unsupported class name: " << className
+    error << "Unsupported class name: " << className.get()
           << ", expected class name: " << expectedClassName;
     throw runtime_error(error.str());
   }
 }
 
 void Serializable::verifyClassVersion(uint32_t expectedVersion,
-                                           istream &inStream) {
+                                      istream &inStream) {
   uint32_t version = 0;
-  inStream.read((char *)&version, sizeof(version));
+  inStream.read((char *) &version, sizeof(version));
 
   if (version != expectedVersion) {
     ostringstream error;

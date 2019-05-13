@@ -29,7 +29,7 @@ class BlsPublicParameters : public IPublicParameters {
   BlsPublicParameters(const BlsPublicParameters &params);
   ~BlsPublicParameters() override;
 
-  bool operator==(const BlsPublicParameters& other) const;
+  bool operator==(const BlsPublicParameters &other) const;
 
   /**
    * Needed by IThresholdSigner/Verifier.
@@ -42,7 +42,7 @@ class BlsPublicParameters : public IPublicParameters {
   // Serialization/deserialization
   void serialize(std::ostream &outStream) const override;
 
-  Serializable* create(std::istream &inStream) const override;
+  SmartPtrToClass create(std::istream &inStream) const override;
 
   // To be used ONLY during deserialization. Could not become private/protected,
   // as there is a composition relationship between IPublicParameters and

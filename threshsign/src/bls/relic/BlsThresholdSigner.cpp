@@ -26,7 +26,7 @@ bool BlsThresholdSigner::registered_ = false;
 
 void BlsThresholdSigner::registerClass() {
   if (!registered_) {
-    classNameToObjectMap_[className_] = new BlsThresholdSigner;
+    classNameToObjectMap_[className_] = SmartPtrToClass(new BlsThresholdSigner);
     registered_ = true;
   }
 }
@@ -61,7 +61,8 @@ void BlsThresholdSigner::signData(const char *hash, int hashLen, char *outSig,
 
 /************** Serialization **************/
 
-void BlsThresholdSigner::serialize(char *&outBuf, int64_t &outBufSize) const {
+void BlsThresholdSigner::serialize(SmartPtrToChar &outBuf, int64_t &outBufSize)
+const {
   ofstream outStream(className_.c_str(), ofstream::binary | ofstream::trunc);
   // Serialize first the class name.
   IPublicParameters::serializeClassName(className_, outStream);
@@ -72,24 +73,23 @@ void BlsThresholdSigner::serialize(char *&outBuf, int64_t &outBufSize) const {
 
 void BlsThresholdSigner::serializeClassDataMembers(ostream &outStream) const {
   // Serialize class version
-  outStream.write((char *)&classVersion_, sizeof(classVersion_));
+  outStream.write((char *) &classVersion_, sizeof(classVersion_));
 
   // Serialize params
   params_.serialize(outStream);
 
   // Serialize secretKey
   int64_t secretKeySize = secretKey_.x.getByteCount();
-  auto* secretKeyBuf = new unsigned char[secretKeySize];
-  secretKey_.x.toBytes(secretKeyBuf, (int)secretKeySize);
-  outStream.write((char *)&secretKeySize, sizeof(secretKeySize));
-  outStream.write((char *)secretKeyBuf, secretKeySize);
-  delete[] secretKeyBuf;
+  SmartPtrToUChar secretKeyBuf(new unsigned char[secretKeySize]);
+  secretKey_.x.toBytes(secretKeyBuf.get(), (int) secretKeySize);
+  outStream.write((char *) &secretKeySize, sizeof(secretKeySize));
+  outStream.write((char *)secretKeyBuf.get(), secretKeySize);
 
   // Serialize id
-  outStream.write((char *)&id_, sizeof(id_));
+  outStream.write((char *) &id_, sizeof(id_));
 }
 
-bool BlsThresholdSigner::operator==(const BlsThresholdSigner& other) const {
+bool BlsThresholdSigner::operator==(const BlsThresholdSigner &other) const {
   bool result = ((other.id_ == id_) &&
       (other.params_ == params_) &&
       (other.sigSize_ == sigSize_) &&
@@ -98,35 +98,34 @@ bool BlsThresholdSigner::operator==(const BlsThresholdSigner& other) const {
       (other.sigTmp_ == sigTmp_) &&
       (other.secretKey_ == secretKey_) &&
       (other.publicKey_ == publicKey_)
-      );
+  );
   return result;
 }
 
 /************** Deserialization **************/
 
-IThresholdSigner *BlsThresholdSigner::create(istream &inStream) const {
+SmartPtrToClass  BlsThresholdSigner::create(istream &inStream) const {
   // Deserialize class version
   IPublicParameters::verifyClassVersion(classVersion_, inStream);
 
   // Deserialize params
-  auto* params = (BlsPublicParameters *)params_.create(inStream);
+  SmartPtrToClass params(params_.create(inStream));
 
   // Deserialize secretKey
   int64_t sizeOfSecretKey = 0;
-  inStream.read((char *)&sizeOfSecretKey, sizeof(sizeOfSecretKey));
-  char *secretKey = new char[sizeOfSecretKey];
-  inStream.read(secretKey, sizeOfSecretKey);
+  inStream.read((char *) &sizeOfSecretKey, sizeof(sizeOfSecretKey));
+  SmartPtrToChar secretKey(new char[sizeOfSecretKey]);
+  inStream.read(secretKey.get(), sizeOfSecretKey);
 
   // Deserialize id
-  inStream.read((char *)&id_, sizeof(id_));
+  inStream.read((char *) &id_, sizeof(id_));
 
   string secretKeyStr;
-  secretKeyStr.copy(secretKey, (unsigned)sizeOfSecretKey);
+  secretKeyStr.copy(secretKey.get(), (unsigned) sizeOfSecretKey);
   BNT key(secretKeyStr);
-  auto* currentClassInstance = new BlsThresholdSigner(*params, id_, key);
-  delete params;
-  delete[] secretKey;
-  return currentClassInstance;
+
+  return SmartPtrToClass(
+      new BlsThresholdSigner(*((BlsPublicParameters*)params.get()), id_, key));
 }
 
 } /* namespace Relic */

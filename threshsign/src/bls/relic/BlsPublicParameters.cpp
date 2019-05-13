@@ -92,18 +92,16 @@ bool BlsPublicParameters::operator==(const BlsPublicParameters& other) const {
 
 /************** Deserialization **************/
 
-Serializable* BlsPublicParameters::create(istream &inStream) const {
+SmartPtrToClass BlsPublicParameters::create(istream &inStream) const {
   // Retrieve the base class
-  auto* baseClass = (IPublicParameters *)IPublicParameters::create(inStream);
+  SmartPtrToClass baseClass(IPublicParameters::create(inStream));
 
   verifyClassName(className_, inStream);
   verifyClassVersion(classVersion_, inStream);
   inStream.read((char *)&curveType_, sizeof(curveType_));
-  auto* currentClassInstance =
-      new BlsPublicParameters(baseClass->getSecurityLevel(), curveType_);
 
-  delete baseClass;
-  return currentClassInstance;
+  return SmartPtrToClass(new BlsPublicParameters(
+      ((IPublicParameters *)baseClass.get())->getSecurityLevel(), curveType_));
 }
 
 } // end of RELIC namespace

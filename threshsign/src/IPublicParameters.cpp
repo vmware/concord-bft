@@ -33,25 +33,25 @@ void IPublicParameters::serialize(ostream &outStream) const {
 
 void IPublicParameters::serializeClassDataMembers(ostream &outStream) const {
   // Serialize class version
-  outStream.write((char *)&classVersion_, sizeof(classVersion_));
+  outStream.write((char *) &classVersion_, sizeof(classVersion_));
 
   // Serialize securityLevel_
-  outStream.write((char *)&securityLevel_, sizeof(securityLevel_));
+  outStream.write((char *) &securityLevel_, sizeof(securityLevel_));
 
   // Serialize schemeName_
-  auto sizeOfSchemeName = (int64_t)schemeName_.size();
+  auto sizeOfSchemeName = (int64_t) schemeName_.size();
   // Save a length of the string to the buffer to be able to deserialize it.
-  outStream.write((char *)&sizeOfSchemeName, sizeof(sizeOfSchemeName));
+  outStream.write((char *) &sizeOfSchemeName, sizeof(sizeOfSchemeName));
   outStream.write(schemeName_.c_str(), sizeOfSchemeName);
 
   // Serialize library_
-  auto sizeOfLibrary = (int64_t)library_.size();
+  auto sizeOfLibrary = (int64_t) library_.size();
   // Save a length of the string to the buffer to be able to deserialize it.
-  outStream.write((char *)&sizeOfLibrary, sizeof(sizeOfLibrary));
+  outStream.write((char *) &sizeOfLibrary, sizeof(sizeOfLibrary));
   outStream.write(library_.c_str(), sizeOfLibrary);
 }
 
-bool IPublicParameters::operator==(const IPublicParameters& other) const {
+bool IPublicParameters::operator==(const IPublicParameters &other) const {
   bool result = ((other.securityLevel_ == securityLevel_) &&
       (other.library_ == library_) && (other.schemeName_ == schemeName_));
   return result;
@@ -59,30 +59,29 @@ bool IPublicParameters::operator==(const IPublicParameters& other) const {
 
 /************** Deserialization **************/
 
-Serializable* IPublicParameters::create(istream &inStream) const {
+SmartPtrToClass IPublicParameters::create(istream &inStream) const {
   verifyClassName(className_, inStream);
 
   // Deserialize class version
   verifyClassVersion(classVersion_, inStream);
 
   // Deserialize securityLevel_
-  inStream.read((char *)&securityLevel_, sizeof(securityLevel_));
+  inStream.read((char *) &securityLevel_, sizeof(securityLevel_));
 
   // Deserialize schemeName_
   int64_t sizeOfSchemeName = 0;
-  inStream.read((char *)&sizeOfSchemeName, sizeof(sizeOfSchemeName));
-  char *schemeName = new char[sizeOfSchemeName];
-  inStream.read(schemeName, sizeOfSchemeName);
+  inStream.read((char *) &sizeOfSchemeName, sizeof(sizeOfSchemeName));
+  SmartPtrToChar schemeName(new char[sizeOfSchemeName]);
+  inStream.read(schemeName.get(), sizeOfSchemeName);
 
   // Deserialize library_
   int64_t sizeOfLibrary = 0;
-  inStream.read((char *)&sizeOfLibrary, sizeof(sizeOfLibrary));
-  char *library = new char[sizeOfLibrary];
-  inStream.read(library, sizeOfLibrary);
+  inStream.read((char *) &sizeOfLibrary, sizeof(sizeOfLibrary));
+  SmartPtrToChar library(new char[sizeOfLibrary]);
+  inStream.read(library.get(), sizeOfLibrary);
 
-  schemeName_.copy(schemeName, (unsigned)sizeOfSchemeName);
-  library_.copy(library, (unsigned)sizeOfLibrary);
-  delete[] schemeName;
-  delete[] library;
-  return new IPublicParameters(securityLevel_, schemeName_, library_);
+  schemeName_.copy(schemeName.get(), (unsigned) sizeOfSchemeName);
+  library_.copy(library.get(), (unsigned) sizeOfLibrary);
+  return SmartPtrToClass(
+      new IPublicParameters(securityLevel_, schemeName_, library_));
 }

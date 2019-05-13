@@ -28,5 +28,6 @@ class IThresholdSigner : public Serializable {
   virtual const IShareVerificationKey &getShareVerificationKey() const = 0;
 
   // Serialization/deserialization
-  virtual void serialize(char *&outBuf, int64_t &outBufSize) const = 0;
+  virtual void serialize(
+      SmartPtrToChar &outBuf, int64_t &outBufSize) const = 0;
 };
