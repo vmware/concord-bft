@@ -209,7 +209,6 @@ class TestConfig:
             self.on_new_line
 
         self.config_timeout = 60000 + (0 if not bft.test_vc else cli.vc_timeout * 5)
-        print(self.config_timeout)
         self.customize_fn = customize_fn
         self.log_dir = None
         self.simple_client_params = simple_client_params
@@ -454,7 +453,8 @@ def process_output(process_outputs, perf_enabled):
         w_tp += clients_perf_info[i][1] / clients_perf_info[i][0] * clients_perf_info[i][1]
         sum_ops += clients_perf_info[i][1]
         sum_dur += clients_perf_info[i][0]
-    w_tp /= sum_ops
+    if sum_ops > 0:
+        w_tp /= sum_ops
 
     g_logger.debug("output: {0}, {1}".format(res, exit_code))
     if perf_enabled:
@@ -598,17 +598,20 @@ f = {3}, c = {4}, testViewChange = {5}, cl = {6}".format(
         out = c.collect()
         result = process_output(out, cli.measure_perf)
         if result.exit_code != 0:
-            print("CONFIGURATION RUN FAIL")
+            g_logger.info("CONFIGURATION RUN FAIL")
             # THIS IS DONE ON PURPOSE TO SUPPORT AUTOMATIC TESTING
             print("TESTS FAIL")
             return result.exit_code
         else:
+            # THIS IS DONE ON PURPOSE TO SUPPORT AUTOMATIC TESTING
             print("CONFIGURATION RUN SUCCESS")
+            g_logger.info("CONFIGURATION RUN SUCCESS")
 
         if result.perf_summary:
-            print(result.perf_summary)
+            g_logger.info(result.perf_summary)
 
-    print("TEST SUCCESS")
+    g_logger.info("TEST SUCCESS")
+    print("DONE")
     return 0
 
 main()
