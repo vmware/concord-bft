@@ -32,7 +32,7 @@ class MetricsClientTest(unittest.TestCase):
     def setUp(self):
         self.server_path = os.path.abspath("../../build/util/test/metric_server")
         self.server = subprocess.Popen([self.server_path], close_fds=True)
-        self.replicas = [Replica(0, "127.0.0.1", 6161)]
+        self.replica = Replica(0, "127.0.0.1", 6161)
 
     def tearDown(self):
         self.server.kill()
@@ -42,12 +42,12 @@ class MetricsClientTest(unittest.TestCase):
         trio.run(self._testGet)
 
     async def _testGet(self):
-        with MetricsClient(self.replicas) as client:
+        with MetricsClient(self.replica) as client:
             with trio.fail_after(TIMEOUT_MILLI/1000):
                 # Retry every CHECK_MILLI until the server comes up. Give up
                 # after TIMEOUT_MILLI.
                 with trio.move_on_after(CHECK_MILLI/1000):
-                    metrics = await client.get(self.replicas[0].id)
+                    metrics = await client.get()
                     self.assertEqual([], metrics['Components'])
 
 if __name__ == '__main__':

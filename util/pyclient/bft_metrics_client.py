@@ -13,16 +13,18 @@
 # This code requires python 3.5 or later
 import trio
 import json
+import struct
 
 from bft_config import Replica
 
-MAX_MSG_SIZE = 64*1024; # 64k
+REQUEST_TYPE = 0
+REPLY_TYPE = 1
+ERROR_TYPE = 2
 
-def req():
-    """Return a get request to the metrics server"""
-    req = bytearray()
-    req.append(0)
-    return req
+HEADER_FMT = "<BQ"
+HEADER_SIZE = struct.calcsize(HEADER_FMT)
+
+MAX_MSG_SIZE = 64*1024; # 64k
 
 class MetricsClient:
     def __enter__(self):
@@ -33,14 +35,18 @@ class MetricsClient:
         """context manager method for 'with' statements"""
         self.sock.close()
 
-    def __init__(self, replicas):
-        self.replicas = {}
-        for r in replicas:
-            self.replicas[r.id] = (r.ip, r.port)
+    def __init__(self, replica):
+        self.seq_num = 0
+        self.replica = replica
         self.sock = trio.socket.socket(trio.socket.AF_INET,
                                        trio.socket.SOCK_DGRAM)
+    def _req(self):
+        """Return a get request to the metrics server"""
+        req = struct.pack(HEADER_FMT, REQUEST_TYPE, self.seq_num)
+        self.seq_num += 1
+        return req
 
-    async def get(self, replica):
+    async def get(self):
         """
         Send a get metrics request, retrieve the JSON response, decode it and
         return a map of metrics.
@@ -48,7 +54,11 @@ class MetricsClient:
         There is no explicit timeout here. Users should call `with
         trio.fail_after as necessary`.
         """
-        await self.sock.sendto(req(), self.replicas[replica])
-        reply, _ = await self.sock.recvfrom(MAX_MSG_SIZE)
-        assert 1 == reply[0]
-        return json.loads(reply[1:])
+        destination = (self.replica.ip,self.replica.port)
+        await self.sock.sendto(self._req(), destination)
+        while True:
+            reply, _ = await self.sock.recvfrom(MAX_MSG_SIZE)
+            assert 1 == reply[0]
+            _, seq_num = struct.unpack(HEADER_FMT, reply[0:HEADER_SIZE])
+            if seq_num == self.seq_num:
+                return json.loads(reply[HEADER_SIZE:])
