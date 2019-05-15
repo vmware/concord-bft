@@ -556,6 +556,15 @@ class AsyncTlsConnection : public
                  "connection authenticated, node: " << _selfId << ", type: " << _connType << ", expected peer: " << _expectedDestId
                                                     << ", peer: "
                                                     << remotePeerId);
+        // When authenticated, replace custom verification by default one.
+        // This is mandatory to avoid leaking 'this' since the verification
+        // callback was binded using shared_from_this and the SSL context
+        // will retain the callback and thus 'this' will not be destroyed
+        // when needed
+        _sslContext.set_verify_callback([](bool p,
+            asio::ssl::verify_context&) {
+          return p;
+        });
       }
 
       if(_destId == UNKNOWN_NODE_ID) {
