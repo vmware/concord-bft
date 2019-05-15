@@ -126,7 +126,7 @@ namespace SimpleKVBC {
     public:
         virtual Status start() = 0;
         virtual Status stop()  = 0;
-
+        virtual ~IReplica(){}
         enum class RepStatus // status of the replica
         {
             UnknownError = -1,

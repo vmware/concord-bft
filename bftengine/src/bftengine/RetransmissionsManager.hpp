@@ -13,12 +13,14 @@
 #include "PrimitiveTypes.hpp"
 #include "TimeUtils.hpp"
 
+namespace util
+{
+class SimpleThreadPool;
+}
 namespace bftEngine
 {
 	namespace impl
 	{
-
-		class SimpleThreadPool;
 		class IncomingMsgsStorage;
 		class InternalReplicaApi;
 
@@ -57,7 +59,7 @@ namespace bftEngine
 
 			RetransmissionsManager(); // retransmissions logic is disabled
 
-			RetransmissionsManager(InternalReplicaApi* replica, SimpleThreadPool* threadPool, IncomingMsgsStorage* const  incomingMsgsStorage, uint16_t maxOutNumOfSeqNumbers, SeqNum lastStableSeqNum);
+			RetransmissionsManager(InternalReplicaApi* replica, util::SimpleThreadPool* threadPool, IncomingMsgsStorage* const  incomingMsgsStorage, uint16_t maxOutNumOfSeqNumbers, SeqNum lastStableSeqNum);
 
 			~RetransmissionsManager();
 
@@ -90,7 +92,7 @@ namespace bftEngine
 			void add(const Event& e);
 
 			InternalReplicaApi* const replica;
-			SimpleThreadPool* const pool; // TODO(GG): not needed (use InternalReplicaApi*)
+			util::SimpleThreadPool* const pool; // TODO(GG): not needed (use InternalReplicaApi*)
 			IncomingMsgsStorage* const  incomingMsgs; // TODO(GG): not needed (use InternalReplicaApi*)
 			const uint16_t maxOutSeqNumbers;
 			void* const internalLogicInfo;

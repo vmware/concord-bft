@@ -248,7 +248,7 @@ namespace bftEngine
 
 
 
-			class SignaturesProcessingJob : public SimpleThreadPool::Job // TODO(GG): include the replica Id (to identify replicas that send bad combined signatures)
+			class SignaturesProcessingJob : public util::SimpleThreadPool::Job // TODO(GG): include the replica Id (to identify replicas that send bad combined signatures)
 			{
 			private:
 				struct SigData {
@@ -384,7 +384,7 @@ namespace bftEngine
 				}
 			};
 
-			class CombinedSigVerificationJob : public SimpleThreadPool::Job
+			class CombinedSigVerificationJob : public util::SimpleThreadPool::Job
 			{
 			private:
 				IThresholdVerifier* const verifier;

@@ -18,9 +18,12 @@
 #include <cstring>
 #include <unordered_map>
 #include "CommDefs.hpp"
-#include "Threading.h"
+
 #include "Logging.hpp"
 #include <atomic>
+#include <mutex>
+#include <thread>
+#include <functional>
 
 #define Assert(cond, txtMsg) assert(cond && (txtMsg))
 
@@ -58,7 +61,7 @@ class PlainUDPCommunication::PlainUdpImpl {
   int32_t udpSockFd;
 
   /** Reference to the receiving thread. */
-  Thread recvThreadRef;
+  std::unique_ptr<std::thread> recvThreadRef;
 
   /* The port we're listening on for incoming datagrams. */
   uint16_t udpListenPort;
@@ -67,7 +70,7 @@ class PlainUDPCommunication::PlainUdpImpl {
   std::unordered_map<NodeNum, NodeInfo> endpoints;
 
   /** Prevent multiple Start() invocations, i.e., multiple recvThread. */
-  Mutex runningLock;
+  std::mutex runningLock;
 
   /** Reference to an IReceiver where we dispatch any received messages. */
   IReceiver *receiverRef = nullptr;
@@ -155,7 +158,6 @@ class PlainUDPCommunication::PlainUdpImpl {
     bufferForIncomingMessages = (char *) std::malloc(maxMsgSize);
 
     udpSockFd = 0;
-    init(&runningLock);
   }
 
   int
@@ -173,11 +175,10 @@ class PlainUDPCommunication::PlainUdpImpl {
       return -1;
     }
 
-    mutexLock(&runningLock);
+    std::lock_guard<std::mutex> guard(runningLock);
 
     if (running == true) {
       LOG_DEBUG(_logger, "Cannot Start(): already running!");
-      mutexUnlock(&runningLock);
       return -1;
     }
 
@@ -210,16 +211,14 @@ class PlainUDPCommunication::PlainUdpImpl {
     running = true;
     startRecvThread();
 
-    mutexUnlock(&runningLock);
     return 0;
   }
 
   int
   Stop() {
-    mutexLock(&runningLock);
+	  std::lock_guard<std::mutex> guard(runningLock);
     if (running == false) {
       LOG_DEBUG(_logger, "Cannot Stop(): not running!");
-      mutexUnlock(&runningLock);
       return -1;
     }
 
@@ -237,7 +236,6 @@ class PlainUDPCommunication::PlainUdpImpl {
     CLOSESOCKET(udpSockFd);
 
     running = false;
-    mutexUnlock(&runningLock);
 
     /** Stopping the receiving thread happens as the last step because it
       * relies on the 'running' flag. */
@@ -317,9 +315,7 @@ class PlainUDPCommunication::PlainUdpImpl {
   void
   startRecvThread() {
     LOG_DEBUG(_logger, "Starting the receiving thread..");
-    createThread(&recvThreadRef,
-                 &PlainUdpImpl::recvRoutineWrapper,
-                 (void *) this);
+    recvThreadRef.reset(new std::thread(std::bind(&PlainUdpImpl::recvThreadRoutine, this)));
   }
 
   NodeAddressResolveResult
@@ -340,22 +336,8 @@ class PlainUDPCommunication::PlainUdpImpl {
   void
   stopRecvThread() {
     //LOG_DEBUG("Stopping the receiving thread..");
-    threadJoin(recvThreadRef);
+    recvThreadRef->join();
     //LOG_DEBUG("Stopping the receiving thread..");
-  }
-
-#if defined(_WIN32)
-  static DWORD WINAPI
-  recvRoutineWrapper(LPVOID instance)
-#else
-
-  static void *
-  recvRoutineWrapper(void *instance)
-#endif
-  {
-    auto inst = reinterpret_cast<PlainUdpImpl *>(instance);
-    inst->recvThreadRoutine();
-    return 0;
   }
 
   void

@@ -13,13 +13,14 @@
 
 #include "PrimitiveTypes.hpp"
 #include "IncomingMsgsStorage.hpp"
-#include "SimpleThreadPool.hpp"
-
 
 
 class IThresholdVerifier;
 class ReplicasInfo;
-
+namespace util
+{
+class SimpleThreadPool;
+}
 
 
 
@@ -55,7 +56,7 @@ namespace bftEngine
 			virtual const ReplicasInfo& getReplicasInfo() = 0;
 
 			virtual IncomingMsgsStorage& getIncomingMsgsStorage() = 0;
-			virtual SimpleThreadPool& getInternalThreadPool() = 0;
+			virtual util::SimpleThreadPool& getInternalThreadPool() = 0;
 
 
 			virtual IThresholdVerifier* getThresholdVerifierForExecution() = 0;
