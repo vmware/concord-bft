@@ -2783,7 +2783,6 @@ namespace bftEngine
 			mainThread(),
 			mainThreadStarted(false),
 			mainThreadShouldStop(false),
-			internalThreadPool{ 8 }, // TODO(GG): use configuration
 			retransmissionsManager{ nullptr },
 			controller{ nullptr },
 			repsInfo{ nullptr },
@@ -2987,7 +2986,7 @@ namespace bftEngine
 			else
 				retransmissionsManager = nullptr;
 
-			internalThreadPool.start();
+			internalThreadPool.start(8); // TODO(GG): use configuration
 		}
 
 

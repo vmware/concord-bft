@@ -31,9 +31,8 @@
 #include "CheckpointInfo.hpp"
 #include "ICommunication.hpp"
 #include "Replica.hpp"
-#include "Threading.h"
+#include "SimpleAutoResetEvent.hpp"
 #include "Metrics.hpp"
-
 #include <thread>
 
 
@@ -90,7 +89,7 @@ namespace bftEngine
 			bool mainThreadShouldStop;
 
 			// thread pool of this replica
-			SimpleThreadPool internalThreadPool; // TODO(GG): !!!! rename
+			util::SimpleThreadPool internalThreadPool; // TODO(GG): !!!! rename
 
 			// retransmissions manager (can be disabled)
 			RetransmissionsManager* retransmissionsManager = nullptr;
@@ -403,7 +402,7 @@ namespace bftEngine
 				return incomingMsgsStorage;
 			}
 
-			virtual SimpleThreadPool& getInternalThreadPool() override
+			virtual util::SimpleThreadPool& getInternalThreadPool() override
 			{
 				return internalThreadPool;
 			}

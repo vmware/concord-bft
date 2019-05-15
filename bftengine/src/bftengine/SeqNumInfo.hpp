@@ -21,6 +21,10 @@
 #include "CollectorOfThresholdSignatures.hpp"
 #include "SequenceWithActiveWindow.hpp"
 
+namespace util
+{
+class SimpleThreadPool;
+}
 namespace bftEngine
 {
 	namespace impl
@@ -117,7 +121,7 @@ namespace bftEngine
 				// from the Replica object
 				static uint16_t numberOfRequiredSignatures(void* context);
 				static IThresholdVerifier* thresholdVerifier(void* context);
-				static SimpleThreadPool& threadPool(void* context);
+				static util::SimpleThreadPool& threadPool(void* context);
 				static IncomingMsgsStorage& incomingMsgsStorage(void* context);
 
 
@@ -137,7 +141,7 @@ namespace bftEngine
 				// from the ReplicaImp object
 				static uint16_t numberOfRequiredSignatures(void* context);
 				static IThresholdVerifier* thresholdVerifier(void* context);
-				static SimpleThreadPool& threadPool(void* context);
+				static util::SimpleThreadPool& threadPool(void* context);
 				static IncomingMsgsStorage& incomingMsgsStorage(void* context);
 			};
 

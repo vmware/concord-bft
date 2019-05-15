@@ -29,7 +29,6 @@ set(corebft_source_files
     src/bftengine/RetransmissionsManager.cpp
     src/bftengine/NewViewMsg.cpp
     src/bftengine/SigManager.cpp
-    src/bftengine/SimpleThreadPool.cpp
     src/bftengine/ReplicasInfo.cpp
     src/bftengine/ViewChangeMsg.cpp
     src/bftengine/ViewChangeSafetyLogic.cpp

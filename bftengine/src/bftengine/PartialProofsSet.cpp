@@ -16,6 +16,7 @@
 #include "Crypto.hpp"
 #include "assertUtils.hpp"
 #include "InternalReplicaApi.hpp"
+#include "SimpleThreadPool.hpp"
 
 namespace bftEngine
 {
@@ -242,7 +243,7 @@ namespace bftEngine
 
 
 		// NB: the following class is part of a patch 
-		class AsynchProofCreationJob : public SimpleThreadPool::Job
+		class AsynchProofCreationJob : public util::SimpleThreadPool::Job
 		{
 		public:
 			AsynchProofCreationJob(InternalReplicaApi* myReplica, IThresholdVerifier* verifier, IThresholdAccumulator* acc, Digest& expectedDigest, SeqNum seqNumber, ViewNum viewNumber)
