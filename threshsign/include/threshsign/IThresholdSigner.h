@@ -12,19 +12,22 @@
 
 #pragma once
 
-#include <cstddef>
-
+#include "threshsign/Serializable.h"
 #include "ISecretKey.h"
 #include "IPublicKey.h"
 
-class IThresholdSigner {
-public:
-	virtual ~IThresholdSigner() {}
+class IThresholdSigner : public Serializable {
+ public:
+  ~IThresholdSigner() override = default;
 
-public:
-	virtual int requiredLengthForSignedData() const = 0;
-	virtual void signData(const char * hash, int hashLen, char* outSig, int outSigLen) = 0;
+  virtual int requiredLengthForSignedData() const = 0;
+  virtual void signData(const char *hash, int hashLen,
+                        char *outSig, int outSigLen) = 0;
 
-	virtual const IShareSecretKey& getShareSecretKey() const = 0;
-	virtual const IShareVerificationKey& getShareVerificationKey() const = 0;
+  virtual const IShareSecretKey &getShareSecretKey() const = 0;
+  virtual const IShareVerificationKey &getShareVerificationKey() const = 0;
+
+  // Serialization/deserialization
+  virtual void serialize(
+      SmartPtrToChar &outBuf, int64_t &outBufSize) const = 0;
 };

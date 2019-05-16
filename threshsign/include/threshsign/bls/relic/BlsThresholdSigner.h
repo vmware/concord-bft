@@ -27,56 +27,75 @@ namespace Relic {
  * Threshold signature signer and multisignature signer class.
  */
 class BlsThresholdSigner : public IThresholdSigner {
-protected:
-    BlsPublicParameters params;
+ protected:
+  BlsPublicParameters params_;
 
-    BlsSecretKey sk;
-    BlsPublicKey pk;
+  BlsSecretKey secretKey_;
+  BlsPublicKey publicKey_;
 
-    ShareID id;         // the ID of this signer
-    unsigned char idBuf[sizeof(ShareID)];   // the serialized ID of this signer
-    int sigSize;
+  ShareID id_ = 0; // ID of this signer
+  int sigSize_ = 0;
+  unsigned char serializedId_[sizeof(ShareID)]; // Serialized ID of the signer
 
-    G1T hTmp, sigTmp;  // temporary storage for hashing message (avoids allocations)
+  // Temporary storage for hashing message (avoids allocations)
+  G1T hTmp_, sigTmp_;
 
-public:
-    BlsThresholdSigner(const BlsPublicParameters& params, ShareID id, const BNT& sk);
-    virtual ~BlsThresholdSigner() {}
+ public:
+  BlsThresholdSigner(const BlsPublicParameters &params,
+                     ShareID id,
+                     const BNT &secretKey);
+  ~BlsThresholdSigner() override = default;
 
-public:
-    virtual int requiredLengthForSignedData() const {
-        return sigSize + static_cast<int>(sizeof(id));
-    }
+  bool operator==(const BlsThresholdSigner& other) const;
 
-    virtual void signData(const char * hash, int hashLen, char* outSig, int outSigLen);
+  int requiredLengthForSignedData() const override {
+    return sigSize_ + static_cast<int>(sizeof(id_));
+  }
 
-public:
-    /**
-     * Used for testing and benchmarking.
-     */
-    G1T signData(const G1T& hashPoint) {
-        g1_mul(sigTmp, hashPoint, sk.x);
-        return sigTmp;
-    }
+  void signData(const char *hash, int hashLen, char *outSig,
+                int outSigLen) override;
 
-    G1T signData(const unsigned char * msg, int msgLen) {
-    	G1T hashPoint;
-    	g1_map(hashPoint, msg, msgLen);
+  /**
+   * Used for testing and benchmarking.
+   */
+  G1T signData(const G1T &hashPoint) {
+    g1_mul(sigTmp_, hashPoint, secretKey_.x);
+    return sigTmp_;
+  }
 
-    	return signData(hashPoint);
-	}
+  G1T signData(const unsigned char *msg, int msgLen) {
+    G1T hashPoint;
+    g1_map(hashPoint, msg, msgLen);
+    return signData(hashPoint);
+  }
 
-    const IShareSecretKey& getShareSecretKey() const {
-        return sk;
-    }
+  const IShareSecretKey &getShareSecretKey() const override {
+    return secretKey_;
+  }
 
-    const BlsPublicKey& getPublicKey() const {
-        return pk;
-    }
+  const BlsPublicKey &getPublicKey() const {
+    return publicKey_;
+  }
 
-    const IShareVerificationKey& getShareVerificationKey() const {
-        return pk;
-    }
+  const IShareVerificationKey &getShareVerificationKey() const override {
+    return publicKey_;
+  }
+
+  // Serialization/deserialization
+  void serialize(SmartPtrToChar &outBuf, int64_t &outBufSize) const override;
+  SmartPtrToClass create(std::istream &inStream) const override;
+
+ protected:
+  BlsThresholdSigner() = default;
+
+ private:
+  void serializeClassDataMembers(std::ostream &outStream) const;
+  static void registerClass();
+
+ private:
+  static const std::string className_;
+  static const uint32_t classVersion_;
+  static bool registered_;
 };
 
 } /* namespace Relic */
