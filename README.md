@@ -90,6 +90,7 @@ Build and install [RELIC](https://github.com/relic-toolkit/relic)
 
     cd
     git clone https://github.com/relic-toolkit/relic
+    git checkout b984e901ba78c83ea4093ea96addd13628c8c2d0
     cd relic/
     mkdir -p build/
     cd build/
