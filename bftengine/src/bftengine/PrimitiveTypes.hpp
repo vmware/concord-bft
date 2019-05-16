@@ -22,31 +22,30 @@
 
 namespace bftEngine
 {
-	namespace impl
-	{
+namespace impl
+{
+
+typedef int64_t SeqNum;
+typedef int64_t ViewNum;
+typedef uint64_t ReqId; // TODO(GG): more meaningful name ... ???
+
+typedef uint16_t ReplicaId;
+typedef uint16_t NodeIdType; // TODO(GG): change name
+
+typedef uint32_t MsgSize;
+typedef uint16_t MsgType;
 
 
-		typedef int64_t SeqNum;
-		typedef int64_t ViewNum;
-		typedef uint64_t ReqId; // TODO(GG): more meaningful name ... ???
+enum class CommitPath
+{
+  NA = -1,
+  OPTIMISTIC_FAST = 0,
+  FAST_WITH_THRESHOLD = 1,
+  SLOW = 2
+};
 
-		typedef uint16_t ReplicaId;
-		typedef uint16_t NodeIdType; // TODO(GG): change name 
-
-		typedef uint32_t MsgSize;
-		typedef uint16_t MsgType;
-
-
-		enum class CommitPath
-		{
-			NA = -1,
-			OPTIMISTIC_FAST = 0,
-			FAST_WITH_THRESHOLD = 1,
-			SLOW = 2
-		};
-
-                std::string CommitPathToStr(CommitPath path);
-	}
+std::string CommitPathToStr(CommitPath path);
+}
 }
 
 

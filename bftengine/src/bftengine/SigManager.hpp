@@ -15,41 +15,38 @@
 
 namespace bftEngine
 {
-	namespace impl
-	{
+namespace impl
+{
 
-		class RSASigner;
-		class RSAVerifier;
+class RSASigner;
+class RSAVerifier;
 
-		class SigManager
-		{
-		public:
+class SigManager
+{
+public:
 
-			typedef std::pair<ReplicaId, const std::string> PublicKeyDesc;
-			typedef std::string PrivateKeyDesc;
+  typedef std::pair<ReplicaId, const std::string> PublicKeyDesc;
+  typedef std::string PrivateKeyDesc;
 
-			SigManager(ReplicaId myId,
-				int16_t numberOfReplicasAndClients,
-				PrivateKeyDesc mySigPrivateKey, std::set<PublicKeyDesc> replicasSigPublicKeys);
+  SigManager(ReplicaId myId,
+  int16_t numberOfReplicasAndClients,
+  PrivateKeyDesc mySigPrivateKey, std::set<PublicKeyDesc> replicasSigPublicKeys);
 
-			~SigManager();
+  ~SigManager();
 
-			uint16_t getSigLength(ReplicaId replicaId) const;
-			bool verifySig(ReplicaId replicaId, const char* data, size_t dataLength, const char* sig, uint16_t sigLength)  const;
+  uint16_t getSigLength(ReplicaId replicaId) const;
+  bool verifySig(ReplicaId replicaId, const char* data, size_t dataLength, const char* sig, uint16_t sigLength)  const;
 
-			void sign(const char* data, size_t dataLength, char* outSig, uint16_t outSigLength)  const;
-			uint16_t getMySigLength()  const;
+  void sign(const char* data, size_t dataLength, char* outSig, uint16_t outSigLength)  const;
+  uint16_t getMySigLength()  const;
 
+protected:
 
+  const ReplicaId _myId;
+  RSASigner* _mySigner;
+  std::map<ReplicaId, RSAVerifier*> _replicasVerifiers;
 
-		protected:
+};
 
-			const ReplicaId _myId;
-
-			RSASigner* _mySigner;
-			std::map<ReplicaId, RSAVerifier*> _replicasVerifiers;
-
-		};
-
-	}
+}
 }
