@@ -92,9 +92,9 @@ string(APPEND CMAKE_CXX_FLAGS_TRACE
 function(link_with_relic_library targetName)
     target_link_libraries(${targetName}
         PUBLIC
-        "relic_s"
-        "gmp"
-        "cryptopp.a")
+        ${RELIC_STATIC_LIBRARY}
+        ${GMP_STATIC_LIBRARY}
+        ${CRYPTOPP_STATIC_LIBRARY})
 endfunction()
 
 function(add_relic_executable appName appSrc appDir)
@@ -141,6 +141,17 @@ endfunction()
 # http://cmake.3232098.n2.nabble.com/Trying-to-set-up-a-quot-superbuild-quot-with-external-project-and-install-it-td6353184.html
 #
 find_package(relic REQUIRED)
+include_directories(${RELIC_INCLUDE_DIRS})
+get_directory_property(hasParent PARENT_DIRECTORY)
+if(hasParent)
+  set_property(DIRECTORY .. APPEND PROPERTY INCLUDE_DIRECTORIES ${RELIC_INCLUDE_DIRS})
+endif()
+find_library(RELIC_STATIC_LIBRARY NAMES "librelic_s.a")
+
+find_library(GMP_STATIC_LIBRARY NAMES "libgmp.a")
+
+find_package(cryptopp REQUIRED)
+find_library(CRYPTOPP_STATIC_LIBRARY NAMES "libcryptopp.a")
 
 #
 # Targets
