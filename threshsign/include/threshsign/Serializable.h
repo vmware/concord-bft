@@ -13,7 +13,7 @@
 #pragma once
 
 #include <string>
-#include <map>
+#include <unordered_map>
 #include <fstream>
 #include <memory>
 
@@ -53,12 +53,11 @@ class MemoryBasedStream : public std::istream {
 };
 
 class Serializable {
-  typedef std::map<std::string, UniquePtrToClass> ClassNameToObjectMap;
+ typedef std::unordered_map<std::string, UniquePtrToClass> ClassNameToObjectMap;
 
  public:
   virtual ~Serializable() = default;
 
- public:
   static void retrieveSerializedBuffer(const std::string &className,
                                        UniquePtrToChar &outBuf,
                                        int64_t &outBufSize);
@@ -69,7 +68,7 @@ class Serializable {
   static void verifyClassVersion(uint32_t expectedVersion,
                                  std::istream &inStream);
   static UniquePtrToClass deserialize(const UniquePtrToChar &inBuf,
-                                     int64_t inBufSize);
+                                      int64_t inBufSize);
 
  protected:
   virtual UniquePtrToClass create(std::istream &inStream) = 0;
