@@ -68,22 +68,22 @@ void BlsPublicParameters::serialize(ostream &outStream) const {
 
   // Serialize first the class name.
   serializeClassName(className_, outStream);
-  serializeClassDataMembers(outStream);
+  serializeDataMembers(outStream);
 }
 
-void BlsPublicParameters::serializeClassDataMembers(ostream &outStream) const {
+void BlsPublicParameters::serializeDataMembers(ostream &outStream) const {
   // Serialize class version
-  outStream.write((char *)&classVersion_, sizeof(classVersion_));
+  outStream.write((char *) &classVersion_, sizeof(classVersion_));
 
   // generator1_ and generator2_ fields should not be serialized as they are
   // generated on the fly.
 
   // Serialize curveType_
-  outStream.write((char *)&curveType_, sizeof(curveType_));
+  outStream.write((char *) &curveType_, sizeof(curveType_));
 }
 
-bool BlsPublicParameters::operator==(const BlsPublicParameters& other) const {
-  bool result =  ((other.curveType_ == curveType_) &&
+bool BlsPublicParameters::operator==(const BlsPublicParameters &other) const {
+  bool result = ((other.curveType_ == curveType_) &&
       (other.generator1_ == generator1_) &&
       (other.generator2_ == generator2_) &&
       (IPublicParameters::compare(other)));
@@ -92,16 +92,16 @@ bool BlsPublicParameters::operator==(const BlsPublicParameters& other) const {
 
 /************** Deserialization **************/
 
-SmartPtrToClass BlsPublicParameters::create(istream &inStream) const {
+SmartPtrToClass BlsPublicParameters::create(istream &inStream) {
   // Retrieve the base class
   SmartPtrToClass baseClass(IPublicParameters::create(inStream));
 
   verifyClassName(className_, inStream);
   verifyClassVersion(classVersion_, inStream);
-  inStream.read((char *)&curveType_, sizeof(curveType_));
+  inStream.read((char *) &curveType_, sizeof(curveType_));
 
   return SmartPtrToClass(new BlsPublicParameters(
-      ((IPublicParameters *)baseClass.get())->getSecurityLevel(), curveType_));
+      ((IPublicParameters *) baseClass.get())->getSecurityLevel(), curveType_));
 }
 
 } // end of RELIC namespace

@@ -72,7 +72,7 @@ class Serializable {
                                      int64_t inBufSize);
 
  protected:
-  virtual SmartPtrToClass create(std::istream &inStream) const = 0;
+  virtual SmartPtrToClass create(std::istream &inStream) = 0;
 
  private:
   static SmartPtrToChar deserializeClassName(std::istream &inStream);

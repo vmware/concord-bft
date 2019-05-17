@@ -28,10 +28,10 @@ IPublicParameters::IPublicParameters(int securityLevel, string schemeName,
 void IPublicParameters::serialize(ostream &outStream) const {
   // Serialize first the class name.
   serializeClassName(className_, outStream);
-  serializeClassDataMembers(outStream);
+  serializeDataMembers(outStream);
 }
 
-void IPublicParameters::serializeClassDataMembers(ostream &outStream) const {
+void IPublicParameters::serializeDataMembers(ostream &outStream) const {
   // Serialize class version
   outStream.write((char *) &classVersion_, sizeof(classVersion_));
 
@@ -59,7 +59,7 @@ bool IPublicParameters::operator==(const IPublicParameters &other) const {
 
 /************** Deserialization **************/
 
-SmartPtrToClass IPublicParameters::create(istream &inStream) const {
+SmartPtrToClass IPublicParameters::create(istream &inStream) {
   verifyClassName(className_, inStream);
 
   // Deserialize class version
@@ -80,8 +80,6 @@ SmartPtrToClass IPublicParameters::create(istream &inStream) const {
   SmartPtrToChar library(new char[sizeOfLibrary]);
   inStream.read(library.get(), sizeOfLibrary);
 
-  schemeName_.copy(schemeName.get(), (unsigned) sizeOfSchemeName);
-  library_.copy(library.get(), (unsigned) sizeOfLibrary);
   return SmartPtrToClass(
-      new IPublicParameters(securityLevel_, schemeName_, library_));
+      new IPublicParameters(securityLevel_, schemeName.get(), library.get()));
 }
