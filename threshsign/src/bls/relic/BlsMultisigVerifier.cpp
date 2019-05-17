@@ -31,7 +31,7 @@ bool BlsMultisigVerifier::registered_ = false;
 void BlsMultisigVerifier::registerClass() {
   if (!registered_) {
     classNameToObjectMap_[className_] =
-        SmartPtrToClass(new BlsMultisigVerifier);
+        UniquePtrToClass(new BlsMultisigVerifier);
     registered_ = true;
   }
 }
@@ -118,7 +118,8 @@ bool BlsMultisigVerifier::verify(const char *msg, int msgLen,
 
 /************** Serialization **************/
 
-void BlsMultisigVerifier::serialize(SmartPtrToChar &outBuf, int64_t &outBufSize)
+void BlsMultisigVerifier::serialize(UniquePtrToChar &outBuf,
+                                    int64_t &outBufSize)
 const {
   ofstream outStream(className_.c_str(), ofstream::binary | ofstream::trunc);
   // Serialize the base class
@@ -143,15 +144,15 @@ bool BlsMultisigVerifier::operator==(const BlsMultisigVerifier &other) const {
 
 /************** Deserialization **************/
 
-SmartPtrToClass BlsMultisigVerifier::create(istream &inStream) {
+UniquePtrToClass BlsMultisigVerifier::create(istream &inStream) {
   // Retrieve the base class
-  SmartPtrToClass baseClass(BlsThresholdVerifier::create(inStream));
+  UniquePtrToClass baseClass(BlsThresholdVerifier::create(inStream));
 
   verifyClassName(className_, inStream);
   verifyClassVersion(classVersion_, inStream);
 
   auto &baseClassObj = *(BlsThresholdVerifier *) baseClass.get();
-  return SmartPtrToClass(new BlsMultisigVerifier(baseClassObj));
+  return UniquePtrToClass(new BlsMultisigVerifier(baseClassObj));
 }
 
 } /* namespace Relic */

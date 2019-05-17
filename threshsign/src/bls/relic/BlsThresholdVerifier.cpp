@@ -41,7 +41,7 @@ bool BlsThresholdVerifier::registered_ = false;
 void BlsThresholdVerifier::registerClass() {
   if (!registered_) {
     classNameToObjectMap_[className_] =
-        SmartPtrToClass(new BlsThresholdVerifier);
+        UniquePtrToClass(new BlsThresholdVerifier);
     registered_ = true;
   }
 }
@@ -116,7 +116,7 @@ void BlsThresholdVerifier::serialize(ostream &outStream) const {
   serializeDataMembers(outStream);
 }
 
-void BlsThresholdVerifier::serialize(SmartPtrToChar &outBuf,
+void BlsThresholdVerifier::serialize(UniquePtrToChar &outBuf,
                                      int64_t &outBufSize) const {
   ofstream outStream(className_.c_str(), ofstream::binary | ofstream::trunc);
   serialize(outStream);
@@ -126,8 +126,8 @@ void BlsThresholdVerifier::serialize(SmartPtrToChar &outBuf,
 
 void BlsThresholdVerifier::serializePublicKey(
     ostream &outStream, const BlsPublicKey &key) {
-  int publicKeySize = key.y.getByteCount();
-  SmartPtrToUChar publicKeyBuf(new unsigned char[publicKeySize]);
+  int32_t publicKeySize = key.y.getByteCount();
+  UniquePtrToUChar publicKeyBuf(new unsigned char[publicKeySize]);
   key.y.toBytes(publicKeyBuf.get(), publicKeySize);
   outStream.write((char *) &publicKeySize, sizeof(publicKeySize));
   outStream.write((char *) publicKeyBuf.get(), publicKeySize);
@@ -170,20 +170,20 @@ bool BlsThresholdVerifier::operator==(const BlsThresholdVerifier &other) const {
 /************** Deserialization **************/
 
 G2T BlsThresholdVerifier::deserializePublicKey(istream &inStream) {
-  int sizeOfPublicKey = 0;
+  int32_t sizeOfPublicKey = 0;
   inStream.read((char *) &sizeOfPublicKey, sizeof(sizeOfPublicKey));
-  SmartPtrToUChar publicKey(new unsigned char[sizeOfPublicKey]);
+  UniquePtrToUChar publicKey(new unsigned char[sizeOfPublicKey]);
   inStream.read((char *) publicKey.get(), sizeOfPublicKey);
   return G2T(publicKey.get(), sizeOfPublicKey);
 }
 
-SmartPtrToClass BlsThresholdVerifier::create(istream &inStream) {
+UniquePtrToClass BlsThresholdVerifier::create(istream &inStream) {
   // Deserialize class version
   verifyClassVersion(classVersion_, inStream);
 
   // Deserialize params
   BlsPublicParameters params;
-  SmartPtrToClass paramsObj(params.create(inStream));
+  UniquePtrToClass paramsObj(params.create(inStream));
 
   // Deserialize publicKey
   G2T publicKey = deserializePublicKey(inStream);
@@ -202,7 +202,7 @@ SmartPtrToClass BlsThresholdVerifier::create(istream &inStream) {
   // Deserialize numSigners
   inStream.read((char *) &numSigners_, sizeof(numSigners_));
 
-  return SmartPtrToClass(new BlsThresholdVerifier(
+  return UniquePtrToClass(new BlsThresholdVerifier(
       *((BlsPublicParameters *) paramsObj.get()), publicKey, reqSigners_,
       numSigners_, publicKeysVector));
 }

@@ -42,7 +42,7 @@ class BlsPublicParameters : public IPublicParameters {
   // Serialization/deserialization
   void serialize(std::ostream &outStream) const override;
 
-  SmartPtrToClass create(std::istream &inStream) override;
+  UniquePtrToClass create(std::istream &inStream) override;
 
   // To be used ONLY during deserialization. Could not become private/protected,
   // as there is a composition relationship between IPublicParameters and

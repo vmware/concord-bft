@@ -27,7 +27,8 @@ bool BlsThresholdSigner::registered_ = false;
 
 void BlsThresholdSigner::registerClass() {
   if (!registered_) {
-    classNameToObjectMap_[className_] = SmartPtrToClass(new BlsThresholdSigner);
+    classNameToObjectMap_[className_] =
+        UniquePtrToClass(new BlsThresholdSigner);
     registered_ = true;
   }
 }
@@ -62,7 +63,7 @@ void BlsThresholdSigner::signData(const char *hash, int hashLen, char *outSig,
 
 /************** Serialization **************/
 
-void BlsThresholdSigner::serialize(SmartPtrToChar &outBuf, int64_t &outBufSize)
+void BlsThresholdSigner::serialize(UniquePtrToChar &outBuf, int64_t &outBufSize)
 const {
   ofstream outStream(className_.c_str(), ofstream::binary | ofstream::trunc);
   // Serialize first the class name.
@@ -80,8 +81,8 @@ void BlsThresholdSigner::serializeDataMembers(ostream &outStream) const {
   params_.serialize(outStream);
 
   // Serialize secretKey
-  int secretKeySize = secretKey_.x.getByteCount();
-  SmartPtrToUChar secretKeyBuf(new unsigned char[secretKeySize]);
+  int32_t secretKeySize = secretKey_.x.getByteCount();
+  UniquePtrToUChar secretKeyBuf(new unsigned char[secretKeySize]);
   secretKey_.x.toBytes(secretKeyBuf.get(), secretKeySize);
   outStream.write((char *) &secretKeySize, sizeof(secretKeySize));
   outStream.write((char *) secretKeyBuf.get(), secretKeySize);
@@ -111,24 +112,24 @@ bool BlsThresholdSigner::operator==(const BlsThresholdSigner &other) const {
 
 /************** Deserialization **************/
 
-SmartPtrToClass BlsThresholdSigner::create(istream &inStream) {
+UniquePtrToClass BlsThresholdSigner::create(istream &inStream) {
   // Deserialize class version
   verifyClassVersion(classVersion_, inStream);
 
   // Deserialize params
-  SmartPtrToClass params(params_.create(inStream));
+  UniquePtrToClass params(params_.create(inStream));
 
   // Deserialize secretKey
-  int sizeOfSecretKey = 0;
+  int32_t sizeOfSecretKey = 0;
   inStream.read((char *) &sizeOfSecretKey, sizeof(sizeOfSecretKey));
-  SmartPtrToUChar secretKey(new unsigned char[sizeOfSecretKey]);
+  UniquePtrToUChar secretKey(new unsigned char[sizeOfSecretKey]);
   inStream.read((char *) secretKey.get(), sizeOfSecretKey);
   BNT key(secretKey.get(), sizeOfSecretKey);
 
   // Deserialize id
   inStream.read((char *) &id_, sizeof(id_));
 
-  return SmartPtrToClass(new BlsThresholdSigner(
+  return UniquePtrToClass(new BlsThresholdSigner(
       *((BlsPublicParameters *) params.get()), id_, key));
 }
 

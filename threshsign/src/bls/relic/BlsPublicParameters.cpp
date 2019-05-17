@@ -92,15 +92,15 @@ bool BlsPublicParameters::operator==(const BlsPublicParameters &other) const {
 
 /************** Deserialization **************/
 
-SmartPtrToClass BlsPublicParameters::create(istream &inStream) {
+UniquePtrToClass BlsPublicParameters::create(istream &inStream) {
   // Retrieve the base class
-  SmartPtrToClass baseClass(IPublicParameters::create(inStream));
+  UniquePtrToClass baseClass(IPublicParameters::create(inStream));
 
   verifyClassName(className_, inStream);
   verifyClassVersion(classVersion_, inStream);
   inStream.read((char *) &curveType_, sizeof(curveType_));
 
-  return SmartPtrToClass(new BlsPublicParameters(
+  return UniquePtrToClass(new BlsPublicParameters(
       ((IPublicParameters *) baseClass.get())->getSecurityLevel(), curveType_));
 }
 

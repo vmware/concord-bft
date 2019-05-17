@@ -26,12 +26,12 @@ void Serializable::serializeClassName(const string &name, ostream &outStream) {
 }
 
 void Serializable::retrieveSerializedBuffer(
-    const string &className, SmartPtrToChar &outBuf, int64_t &outBufSize) {
+    const string &className, UniquePtrToChar &outBuf, int64_t &outBufSize) {
   ifstream infile(className.c_str(), ofstream::binary);
   infile.seekg(0, ios::end);
   outBufSize = infile.tellg();
   infile.seekg(0, ios::beg);
-  SmartPtrToChar newOne(new char[outBufSize]);
+  UniquePtrToChar newOne(new char[outBufSize]);
   outBuf.swap(newOne);
   infile.read(outBuf.get(), outBufSize);
   infile.close();
@@ -39,21 +39,21 @@ void Serializable::retrieveSerializedBuffer(
 
 /************** Deserialization **************/
 
-SmartPtrToChar Serializable::deserializeClassName(istream &inStream) {
+UniquePtrToChar Serializable::deserializeClassName(istream &inStream) {
   int64_t sizeofClassName = 0;
   inStream.read((char *) &sizeofClassName, sizeof(sizeofClassName));
-  SmartPtrToChar className(new char[sizeofClassName + 1]);
+  UniquePtrToChar className(new char[sizeofClassName + 1]);
   className.get()[sizeofClassName] = '\0';
   inStream.read(className.get(), sizeofClassName);
   return className;
 }
 
-SmartPtrToClass Serializable::deserialize(const SmartPtrToChar &inBuf,
-                                          int64_t inBufSize) {
+UniquePtrToClass Serializable::deserialize(const UniquePtrToChar &inBuf,
+                                           int64_t inBufSize) {
   MemoryBasedStream inStream(inBuf, (uint64_t) inBufSize);
 
   // Deserialize first the class name.
-  SmartPtrToChar className = deserializeClassName(inStream);
+  UniquePtrToChar className = deserializeClassName(inStream);
 
   auto it = classNameToObjectMap_.find(className.get());
   if (it != classNameToObjectMap_.end()) {
@@ -67,7 +67,7 @@ SmartPtrToClass Serializable::deserialize(const SmartPtrToChar &inBuf,
 
 void Serializable::verifyClassName(const string &expectedClassName,
                                    istream &inStream) {
-  SmartPtrToChar className = deserializeClassName(inStream);
+  UniquePtrToChar className = deserializeClassName(inStream);
   if (className.get() != expectedClassName) {
     ostringstream error;
     error << "Unsupported class name: " << className.get()

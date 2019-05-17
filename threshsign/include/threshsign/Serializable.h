@@ -29,13 +29,13 @@
 
 class Serializable;
 
-typedef std::unique_ptr<char> SmartPtrToChar;
-typedef std::unique_ptr<unsigned char> SmartPtrToUChar;
-typedef std::unique_ptr<Serializable> SmartPtrToClass;
+typedef std::unique_ptr<char> UniquePtrToChar;
+typedef std::unique_ptr<unsigned char> UniquePtrToUChar;
+typedef std::unique_ptr<Serializable> UniquePtrToClass;
 
 class MemoryBasedBuf : public std::basic_streambuf<char> {
  public:
-  MemoryBasedBuf(const SmartPtrToChar &buf, size_t size) {
+  MemoryBasedBuf(const UniquePtrToChar &buf, size_t size) {
     setg(buf.get(), buf.get(), buf.get() + size);
   }
 };
@@ -43,7 +43,7 @@ class MemoryBasedBuf : public std::basic_streambuf<char> {
 // This class allows usage of a regular buffer as a stream.
 class MemoryBasedStream : public std::istream {
  public:
-  MemoryBasedStream(const SmartPtrToChar &buf, size_t size) :
+  MemoryBasedStream(const UniquePtrToChar &buf, size_t size) :
       std::istream(&buffer_), buffer_(buf, size) {
     rdbuf(&buffer_);
   }
@@ -53,14 +53,14 @@ class MemoryBasedStream : public std::istream {
 };
 
 class Serializable {
-  typedef std::map<std::string, SmartPtrToClass> ClassNameToObjectMap;
+  typedef std::map<std::string, UniquePtrToClass> ClassNameToObjectMap;
 
  public:
   virtual ~Serializable() = default;
 
  public:
   static void retrieveSerializedBuffer(const std::string &className,
-                                       SmartPtrToChar &outBuf,
+                                       UniquePtrToChar &outBuf,
                                        int64_t &outBufSize);
   static void serializeClassName(const std::string &name,
                                  std::ostream &outStream);
@@ -68,14 +68,14 @@ class Serializable {
                               std::istream &inStream);
   static void verifyClassVersion(uint32_t expectedVersion,
                                  std::istream &inStream);
-  static SmartPtrToClass deserialize(const SmartPtrToChar &inBuf,
+  static UniquePtrToClass deserialize(const UniquePtrToChar &inBuf,
                                      int64_t inBufSize);
 
  protected:
-  virtual SmartPtrToClass create(std::istream &inStream) = 0;
+  virtual UniquePtrToClass create(std::istream &inStream) = 0;
 
  private:
-  static SmartPtrToChar deserializeClassName(std::istream &inStream);
+  static UniquePtrToChar deserializeClassName(std::istream &inStream);
 
  protected:
   static ClassNameToObjectMap classNameToObjectMap_;

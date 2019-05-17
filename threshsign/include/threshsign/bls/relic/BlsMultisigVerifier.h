@@ -57,8 +57,8 @@ class BlsMultisigVerifier : public BlsThresholdVerifier {
   int requiredLengthForSignedData() const override;
 
   // Serialization/deserialization
-  void serialize(SmartPtrToChar &outBuf, int64_t &outBufSize) const override;
-  SmartPtrToClass create(std::istream &inStream) override;
+  void serialize(UniquePtrToChar &outBuf, int64_t &outBufSize) const override;
+  UniquePtrToClass create(std::istream &inStream) override;
 
  protected:
   BlsMultisigVerifier() = default;

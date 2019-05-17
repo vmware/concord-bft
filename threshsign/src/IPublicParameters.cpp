@@ -59,7 +59,7 @@ bool IPublicParameters::operator==(const IPublicParameters &other) const {
 
 /************** Deserialization **************/
 
-SmartPtrToClass IPublicParameters::create(istream &inStream) {
+UniquePtrToClass IPublicParameters::create(istream &inStream) {
   verifyClassName(className_, inStream);
 
   // Deserialize class version
@@ -71,15 +71,15 @@ SmartPtrToClass IPublicParameters::create(istream &inStream) {
   // Deserialize schemeName_
   int64_t sizeOfSchemeName = 0;
   inStream.read((char *) &sizeOfSchemeName, sizeof(sizeOfSchemeName));
-  SmartPtrToChar schemeName(new char[sizeOfSchemeName]);
+  UniquePtrToChar schemeName(new char[sizeOfSchemeName]);
   inStream.read(schemeName.get(), sizeOfSchemeName);
 
   // Deserialize library_
   int64_t sizeOfLibrary = 0;
   inStream.read((char *) &sizeOfLibrary, sizeof(sizeOfLibrary));
-  SmartPtrToChar library(new char[sizeOfLibrary]);
+  UniquePtrToChar library(new char[sizeOfLibrary]);
   inStream.read(library.get(), sizeOfLibrary);
 
-  return SmartPtrToClass(
+  return UniquePtrToClass(
       new IPublicParameters(securityLevel_, schemeName.get(), library.get()));
 }

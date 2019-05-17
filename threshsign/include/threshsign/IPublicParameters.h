@@ -64,7 +64,7 @@ class IPublicParameters : public Serializable {
   // Two functions below should be implemented by all derived classes.
   virtual void serialize(std::ostream &outStream) const;
 
-  SmartPtrToClass create(std::istream &inStream) override;
+  UniquePtrToClass create(std::istream &inStream) override;
 
   // To be used ONLY during deserialization. Could not become private/protected,
   // as there is a composition relationship between IPublicParameters and

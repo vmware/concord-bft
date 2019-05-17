@@ -53,12 +53,12 @@ BlsPublicParameters params(PublicParametersFactory::getWhatever());
 bool testBlsThresholdSigner() {
   ShareID id = 0x208419;
   BNT secretKey(secretKeyValue);
-  SmartPtrToClass origSigner(new BlsThresholdSigner(params, id, secretKey));
+  UniquePtrToClass origSigner(new BlsThresholdSigner(params, id, secretKey));
 
-  SmartPtrToChar buf;
+  UniquePtrToChar buf;
   int64_t bufSize = 0;
   ((BlsThresholdSigner *) origSigner.get())->serialize(buf, bufSize);
-  SmartPtrToClass resultSigner = BlsThresholdSigner::deserialize(buf, bufSize);
+  UniquePtrToClass resultSigner = BlsThresholdSigner::deserialize(buf, bufSize);
 
   auto *inSigner = (BlsThresholdSigner *) origSigner.get();
   auto *outSigner = (BlsThresholdSigner *) resultSigner.get();
@@ -78,7 +78,7 @@ vector<BlsPublicKey> prepareVerificationKeysVector() {
   return verificationKeys;
 }
 
-void printRawBuf(SmartPtrToChar buf, int64_t bufSize) {
+void printRawBuf(UniquePtrToChar buf, int64_t bufSize) {
   for (int i = 0; i < bufSize; ++i) {
     char c = buf.get()[i];
     if (c >= 48 && c <= 57)
@@ -91,15 +91,15 @@ void printRawBuf(SmartPtrToChar buf, int64_t bufSize) {
 bool testBlsThresholdVerifier(const vector<BlsPublicKey> &verificationKeys) {
   G2T publicKey(publicKeyValue);
 
-  SmartPtrToClass origVerifier(
+  UniquePtrToClass origVerifier(
       new BlsThresholdVerifier(params, publicKey, numOfSigners, numOfSigners,
                                verificationKeys));
 
-  SmartPtrToChar buf;
+  UniquePtrToChar buf;
   int64_t bufSize = 0;
   ((BlsThresholdVerifier *) origVerifier.get())->serialize(buf, bufSize);
 
-  SmartPtrToClass resultVerifier =
+  UniquePtrToClass resultVerifier =
       BlsThresholdVerifier::deserialize(buf, bufSize);
 
   auto *inVerifier = (BlsThresholdVerifier *) origVerifier.get();
@@ -108,15 +108,15 @@ bool testBlsThresholdVerifier(const vector<BlsPublicKey> &verificationKeys) {
 }
 
 bool testBlsMultisigVerifier(const vector<BlsPublicKey> &verificationKeys) {
-  SmartPtrToClass origVerifier(
+  UniquePtrToClass origVerifier(
       new BlsMultisigVerifier(params, numOfSigners, numOfSigners,
                               verificationKeys));
 
-  SmartPtrToChar buf;
+  UniquePtrToChar buf;
   int64_t bufSize = 0;
   ((BlsMultisigVerifier *) origVerifier.get())->serialize(buf, bufSize);
 
-  SmartPtrToClass resultVerifier =
+  UniquePtrToClass resultVerifier =
       BlsMultisigVerifier::deserialize(buf, bufSize);
 
   auto *inVerifier = (BlsMultisigVerifier *) origVerifier.get();
