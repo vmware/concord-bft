@@ -31,7 +31,7 @@ class PrepareFullMsg;
 class CommitFullMsg;
 
 // The PersistentStorage interface is used to write/read the concord-bft state 
-// to/from a persistent storage. In case the replica’s process is killed, 
+// to/from a persistent storage. In case the replicas process is killed, 
 // crashed or restarted, this interface is used to restore the concord-bft 
 // state from the persistent storage. 
 // PersistentStorage is designed to only store data elements that are essential 
@@ -67,11 +67,11 @@ class PersistentStorage {
     ViewNum view;
 
     // newViewMsg != nullptr
-    NewViewMsg* newViewMsg;
+    NewViewMsg *newViewMsg;
 
     // viewChangeMsgs.size() == 2*F + 2*C + 1
     // The messages in viewChangeMsgs will never be null
-    std::vector<ViewChangeMsg*> viewChangeMsgs;
+    std::vector<ViewChangeMsg *> viewChangeMsgs;
 
     // maxSeqNumTransferredFromPrevViews >= 0
     SeqNum maxSeqNumTransferredFromPrevViews;
@@ -106,32 +106,31 @@ class PersistentStorage {
 
   virtual void setReplicaConfig(ReplicaConfig config) = 0;
 
-  virtual void setFetchingState(const bool f) = 0;
-  virtual void setLastExecutedSeqNum(const SeqNum s) = 0;
-  virtual void setPrimaryLastUsedSeqNum(const SeqNum s) = 0;
-  virtual void setStrictLowerBoundOfSeqNums(const SeqNum s) = 0;
+  virtual void setFetchingState(const bool &f) = 0;
+  virtual void setLastExecutedSeqNum(const SeqNum &s) = 0;
+  virtual void setPrimaryLastUsedSeqNum(const SeqNum &s) = 0;
+  virtual void setStrictLowerBoundOfSeqNums(const SeqNum &s) = 0;
   virtual void setLastViewThatTransferredSeqNumbersFullyExecuted(
-      const ViewNum v) = 0;
+      const ViewNum &v) = 0;
 
   // DescriptorOfLastExitFromView contains pointers to messages (the content of
-  // the messages should be copied, the caller is the owner of these messagse).
+  // the messages should be copied, the caller is the owner of these messagses).
   virtual void setDescriptorOfLastExitFromView(
-      const DescriptorOfLastExitFromView& prevViewDesc) = 0;
+      const DescriptorOfLastExitFromView &prevViewDesc) = 0;
 
   // DescriptorOfLastNewView contains pointers to messages (the content of the
-  // messages should be copied, the caller is the owner of these messagse).
+  // messages should be copied, the caller is the owner of these messages).
   virtual void setDescriptorOfLastNewView(
-      const DescriptorOfLastNewView& prevViewDesc) = 0;
+      const DescriptorOfLastNewView &prevViewDesc) = 0;
 
   virtual void setDescriptorOfLastExecution(
-      const DescriptorOfLastExecution& prevViewDesc) = 0;
+      const DescriptorOfLastExecution &prevViewDesc) = 0;
 
-	// We have two windows "SeqNumWindow" and "CheckWindow"	
-	// TODO(GG): explain the windows. 
+  // We have two windows "SeqNumWindow" and "CheckWindow"
+  // TODO(GG): explain the windows.
 
-  virtual void setLastStableSeqNum(const SeqNum s) = 0;
-  
-	//
+  virtual void setLastStableSeqNum(const SeqNum &s) = 0;
+
   // The window of sequence numbers is:
   // { i | LS + 1 <= i <= LS + kWorkWindowSize }
   // where LS=lastStableSeqNum
@@ -142,22 +141,22 @@ class PersistentStorage {
 
   virtual void clearSeqNumWindow() = 0;
 
-  virtual void setPrePrepareMsgInSeqNumWindow(const SeqNum s,
-                                              const PrePrepareMsg* const m) = 0;
-  virtual void setSlowStartedInSeqNumWindow(const SeqNum s,
-                                            const bool slowStarted) = 0;
+  virtual void setPrePrepareMsgInSeqNumWindow(const SeqNum &s,
+                                              const PrePrepareMsg *const &m) = 0;
+  virtual void setSlowStartedInSeqNumWindow(const SeqNum &s,
+                                            const bool &slowStarted) = 0;
   virtual void setFullCommitProofMsgInSeqNumWindow(
-      const SeqNum s, const FullCommitProofMsg* const m) = 0;
-  virtual void setForceCompletedInSeqNumWindow(const SeqNum s,
-                                               const bool forceCompleted) = 0;
+      const SeqNum &s, const FullCommitProofMsg *const &m) = 0;
+  virtual void setForceCompletedInSeqNumWindow(const SeqNum &s,
+                                               const bool &forceCompleted) = 0;
   virtual void setPrepareFullMsgInSeqNumWindow(
-      const SeqNum s, const PrepareFullMsg* const m) = 0;
-  virtual void setCommitFullMsgInSeqNumWindow(const SeqNum s,
-                                              const CommitFullMsg* const m) = 0;
-
-  virtual void setCheckpointMsgInCheckWindow(const SeqNum s,
-                                             const CheckpointMsg* const m) = 0;
-  virtual void setCompletedMarkInCheckWindow(const SeqNum s, const bool f) = 0;
+      const SeqNum &s, const PrepareFullMsg *const &m) = 0;
+  virtual void setCommitFullMsgInSeqNumWindow(const SeqNum &s,
+                                              const CommitFullMsg *const &m) = 0;
+  virtual void setCheckpointMsgInCheckWindow(const SeqNum &s,
+                                             const CheckpointMsg *const &m) = 0;
+  virtual void setCompletedMarkInCheckWindow(const SeqNum &s,
+                                             const bool &f) = 0;
 
   //////////////////////////////////////////////////////////////////////////
   // Read methods (should only be used before using write-only transactions)
@@ -184,20 +183,19 @@ class PersistentStorage {
 
   virtual SeqNum getLastStableSeqNum() = 0;
 
-  virtual PrePrepareMsg* getAndAllocatePrePrepareMsgInSeqNumWindow(
-      const SeqNum s) = 0;
-  virtual bool getSlowStartedInSeqNumWindow(const SeqNum s) = 0;
-  virtual FullCommitProofMsg* getAndAllocateFullCommitProofMsgInSeqNumWindow(
-      const SeqNum s) = 0;
-  virtual bool getForceCompletedInSeqNumWindow(const SeqNum s) = 0;
-  virtual PrepareFullMsg* getAndAllocatePrepareFullMsgInSeqNumWindow(
-      const SeqNum s) = 0;
-  virtual CommitFullMsg* getAndAllocateCommitFullMsgInSeqNumWindow(
-      const SeqNum s) = 0;
-
-  virtual CheckpointMsg* getAndAllocateCheckpointMsgInCheckWindow(
-      const SeqNum s) = 0;
-  virtual bool getCompletedMarkInCheckWindow(const SeqNum s) = 0;
+  virtual PrePrepareMsg *getAndAllocatePrePrepareMsgInSeqNumWindow(
+      const SeqNum &s) = 0;
+  virtual bool getSlowStartedInSeqNumWindow(const SeqNum &s) = 0;
+  virtual FullCommitProofMsg *getAndAllocateFullCommitProofMsgInSeqNumWindow(
+      const SeqNum &s) = 0;
+  virtual bool getForceCompletedInSeqNumWindow(const SeqNum &s) = 0;
+  virtual PrepareFullMsg *getAndAllocatePrepareFullMsgInSeqNumWindow(
+      const SeqNum &s) = 0;
+  virtual CommitFullMsg *getAndAllocateCommitFullMsgInSeqNumWindow(
+      const SeqNum &s) = 0;
+  virtual CheckpointMsg *getAndAllocateCheckpointMsgInCheckWindow(
+      const SeqNum &s) = 0;
+  virtual bool getCompletedMarkInCheckWindow(const SeqNum &s) = 0;
 };
 
 }  // namespace impl
