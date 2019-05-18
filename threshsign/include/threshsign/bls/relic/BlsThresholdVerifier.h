@@ -27,30 +27,34 @@ namespace Relic {
 
 class BlsThresholdVerifier : public IThresholdVerifier {
  protected:
-  const BlsPublicParameters params;
-
-  mutable BlsPublicKey pk;
-  const std::vector<BlsPublicKey> vks;
-  const G2T gen2;
-  const NumSharesType reqSigners, numSigners;
+  BlsPublicParameters params_;
+  mutable BlsPublicKey publicKey_;
+  std::vector<BlsPublicKey> publicKeysVector_;
+  const G2T generator2_;
+  const NumSharesType reqSigners_ = 0, numSigners_ = 0;
 
  public:
   BlsThresholdVerifier(const BlsPublicParameters &params, const G2T &pk,
                        NumSharesType reqSigners, NumSharesType numSigners,
-                       const std::vector<BlsPublicKey> &verifKeys);
+                       const std::vector<BlsPublicKey> &verificationKeys);
 
   ~BlsThresholdVerifier() override = default;
+
+  bool operator==(const BlsThresholdVerifier &other) const;
+  bool compare(const BlsThresholdVerifier &other) const {
+    return (*this == other);
+  }
 
   /**
    * For testing and internal use.
    */
- public:
-  void serialize(std::ostream &) const override {}
-  void deserialize(std::istream &) const override {}
-
-  NumSharesType getNumRequiredShares() const { return reqSigners; }
-  NumSharesType getNumTotalShares() const { return numSigners; }
-  const BlsPublicParameters &getParams() const { return params; }
+  NumSharesType getNumRequiredShares() const { return reqSigners_; }
+  NumSharesType getNumTotalShares() const { return numSigners_; }
+  std::vector<BlsPublicKey> getPublicKeysVector() const {
+    return publicKeysVector_;
+  }
+  const BlsPublicParameters &getParams() const { return params_; }
+  const BlsPublicKey getKey() const { return publicKey_; }
   /**
    * NOTE: Used by BlsBatchVerifier to verify shares
    */
@@ -59,7 +63,6 @@ class BlsThresholdVerifier : public IThresholdVerifier {
   /**
    * IThresholdVerifier overrides.
    */
- public:
   IThresholdAccumulator *newAccumulator(bool withShareVerification)
   const override;
 
@@ -71,13 +74,33 @@ class BlsThresholdVerifier : public IThresholdVerifier {
   const override;
 
   int requiredLengthForSignedData() const override {
-    return params.getSignatureSize();
+    return params_.getSignatureSize();
   }
 
-  const IPublicKey &getPublicKey() const override { return pk; }
+  const IPublicKey &getPublicKey() const override { return publicKey_; }
 
   const IShareVerificationKey &getShareVerificationKey(ShareID signer)
   const override;
+
+  // Serialization/deserialization
+  void serialize(UniquePtrToChar &outBuf, int64_t &outBufSize) const override;
+  UniquePtrToClass create(std::istream &inStream) override;
+
+ protected:
+  BlsThresholdVerifier() = default;
+  void serialize(std::ostream &outStream) const;
+
+ private:
+  void serializeDataMembers(std::ostream &outStream) const;
+  static void registerClass();
+  static void serializePublicKey(std::ostream &outStream,
+                                 const BlsPublicKey &key);
+  static G2T deserializePublicKey(std::istream &inStream);
+
+ private:
+  static const std::string className_;
+  static const uint32_t classVersion_;
+  static bool registered_;
 };
 
 } /* namespace Relic */

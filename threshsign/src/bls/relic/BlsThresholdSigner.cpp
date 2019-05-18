@@ -14,6 +14,7 @@
 #include "threshsign/bls/relic/BlsThresholdSigner.h"
 #include "threshsign/bls/relic/BlsPublicParameters.h"
 #include <sstream>
+#include <iostream>
 
 using namespace std;
 
@@ -26,7 +27,8 @@ bool BlsThresholdSigner::registered_ = false;
 
 void BlsThresholdSigner::registerClass() {
   if (!registered_) {
-    classNameToObjectMap_[className_] = SmartPtrToClass(new BlsThresholdSigner);
+    classNameToObjectMap_[className_] =
+        UniquePtrToClass(new BlsThresholdSigner);
     registered_ = true;
   }
 }
@@ -61,17 +63,17 @@ void BlsThresholdSigner::signData(const char *hash, int hashLen, char *outSig,
 
 /************** Serialization **************/
 
-void BlsThresholdSigner::serialize(SmartPtrToChar &outBuf, int64_t &outBufSize)
+void BlsThresholdSigner::serialize(UniquePtrToChar &outBuf, int64_t &outBufSize)
 const {
   ofstream outStream(className_.c_str(), ofstream::binary | ofstream::trunc);
   // Serialize first the class name.
-  IPublicParameters::serializeClassName(className_, outStream);
-  serializeClassDataMembers(outStream);
+  serializeClassName(className_, outStream);
+  serializeDataMembers(outStream);
   outStream.close();
-  IPublicParameters::retrieveSerializedBuffer(className_, outBuf, outBufSize);
+  retrieveSerializedBuffer(className_, outBuf, outBufSize);
 }
 
-void BlsThresholdSigner::serializeClassDataMembers(ostream &outStream) const {
+void BlsThresholdSigner::serializeDataMembers(ostream &outStream) const {
   // Serialize class version
   outStream.write((char *) &classVersion_, sizeof(classVersion_));
 
@@ -79,11 +81,11 @@ void BlsThresholdSigner::serializeClassDataMembers(ostream &outStream) const {
   params_.serialize(outStream);
 
   // Serialize secretKey
-  int64_t secretKeySize = secretKey_.x.getByteCount();
-  SmartPtrToUChar secretKeyBuf(new unsigned char[secretKeySize]);
-  secretKey_.x.toBytes(secretKeyBuf.get(), (int) secretKeySize);
+  int32_t secretKeySize = secretKey_.x.getByteCount();
+  UniquePtrToUChar secretKeyBuf(new unsigned char[secretKeySize]);
+  secretKey_.x.toBytes(secretKeyBuf.get(), secretKeySize);
   outStream.write((char *) &secretKeySize, sizeof(secretKeySize));
-  outStream.write((char *)secretKeyBuf.get(), secretKeySize);
+  outStream.write((char *) secretKeyBuf.get(), secretKeySize);
 
   // Serialize id
   outStream.write((char *) &id_, sizeof(id_));
@@ -99,33 +101,36 @@ bool BlsThresholdSigner::operator==(const BlsThresholdSigner &other) const {
       (other.secretKey_ == secretKey_) &&
       (other.publicKey_ == publicKey_)
   );
+  if (other.secretKey_ == secretKey_);
+  else
+    cout << "secretKeys are not the same" << endl;
+  if (other.publicKey_ == publicKey_);
+  else
+    cout << "publicKeys are not the same" << endl;
   return result;
 }
 
 /************** Deserialization **************/
 
-SmartPtrToClass  BlsThresholdSigner::create(istream &inStream) const {
+UniquePtrToClass BlsThresholdSigner::create(istream &inStream) {
   // Deserialize class version
-  IPublicParameters::verifyClassVersion(classVersion_, inStream);
+  verifyClassVersion(classVersion_, inStream);
 
   // Deserialize params
-  SmartPtrToClass params(params_.create(inStream));
+  UniquePtrToClass params(params_.create(inStream));
 
   // Deserialize secretKey
-  int64_t sizeOfSecretKey = 0;
+  int32_t sizeOfSecretKey = 0;
   inStream.read((char *) &sizeOfSecretKey, sizeof(sizeOfSecretKey));
-  SmartPtrToChar secretKey(new char[sizeOfSecretKey]);
-  inStream.read(secretKey.get(), sizeOfSecretKey);
+  UniquePtrToUChar secretKey(new unsigned char[sizeOfSecretKey]);
+  inStream.read((char *) secretKey.get(), sizeOfSecretKey);
+  BNT key(secretKey.get(), sizeOfSecretKey);
 
   // Deserialize id
   inStream.read((char *) &id_, sizeof(id_));
 
-  string secretKeyStr;
-  secretKeyStr.copy(secretKey.get(), (unsigned) sizeOfSecretKey);
-  BNT key(secretKeyStr);
-
-  return SmartPtrToClass(
-      new BlsThresholdSigner(*((BlsPublicParameters*)params.get()), id_, key));
+  return UniquePtrToClass(new BlsThresholdSigner(
+      *((BlsPublicParameters *) params.get()), id_, key));
 }
 
 } /* namespace Relic */
