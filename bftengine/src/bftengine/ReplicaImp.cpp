@@ -2889,6 +2889,10 @@ namespace bftEngine
 //			initAllocator();
 			DebugStatistics::initDebugStatisticsData();
 
+                        // Register metrics component with the default
+                        // aggregator.
+                        metrics_.Register();
+
 			//CryptographyWrapper::init(); // TODO(GG): here ???
 
 			std::set<SigManager::PublicKeyDesc> replicasSigPublicKeys;
