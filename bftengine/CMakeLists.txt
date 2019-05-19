@@ -42,6 +42,7 @@ set(corebft_source_files
 	src/bftengine/NullStateTransfer.cpp
     src/bftengine/BFTEngine.cpp
     src/bftengine/SimpleClient.cpp
+    src/bftengine/DebugPersistentStorage.cpp
     src/communication/PlainUDPCommunication.cpp
     src/communication/CommFactory.cpp
 	src/bcstatetransfer/BCStateTran.cpp

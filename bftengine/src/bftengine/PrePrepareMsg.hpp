@@ -54,6 +54,10 @@ namespace bftEngine
 
 			// static
 
+			static MsgSize maxSizeOfPrePrepareMsg();
+
+			static MsgSize maxSizeOfPrePrepareMsgInLocalBuffer();
+
 			static PrePrepareMsg* createNullPrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath = CommitPath::SLOW); // TODO(GG): why static method ?
 
 			static const Digest& digestOfNullPrePrepareMsg();
@@ -108,6 +112,8 @@ namespace bftEngine
 		{
 		public:
 			RequestsIterator(const PrePrepareMsg* const m);
+
+			void restart();
 
 			bool getCurrent(char*& pRequest) const;
 

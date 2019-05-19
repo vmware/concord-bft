@@ -43,6 +43,9 @@ namespace bftEngine
 
 			ViewChangeMsg(ReplicaId srcReplicaId, ViewNum newView, SeqNum lastStableSeq);
 
+			static MsgSize maxSizeOfViewChangeMsg();
+			static MsgSize maxSizeOfViewChangeMsgInLocalBuffer();
+
 			void setNewViewNumber(ViewNum newView);
 
 			uint16_t idOfGeneratedReplica() const { return b()->genReplicaId; } // TODO(GG): !!!! change meaning/add similar method - this msg may be sent by a different replica (otherwise, the view-change may not completed)

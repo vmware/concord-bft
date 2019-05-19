@@ -64,6 +64,11 @@ constexpr uint32_t maxExternalMessageSize = 64 * 1000; // TODO(GG): some message
 
 constexpr uint32_t maxReplyMessageSize = 8 * 1024;
 
+///////////////////////////////////////////////////////////////////////////////
+// Batching
+///////////////////////////////////////////////////////////////////////////////
+
+constexpr uint32_t maxNumOfRequestsInBatch = 1024;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Requests for missing information 
@@ -91,8 +96,7 @@ constexpr bool forceViewChangeProtocolEnabled = false;
 constexpr bool forceViewChangeProtocolDisabled = false;
 static_assert(!forceViewChangeProtocolEnabled || !forceViewChangeProtocolDisabled, "");
 
-constexpr int viewChangeTimeoutMilli = 0; //  80 * 1000; // 1 * 60 *
-// 1000; // 20 * 1000; // if 0, this value is taken from config
+constexpr int viewChangeTimeoutMilli = 0; //  80 * 1000; // 1 * 60 * 1000; // 20 * 1000; // if 0, this value is taken from config
 
 
 constexpr bool autoIncViewChangeTimer = true;
@@ -135,3 +139,10 @@ constexpr bool ControllerWithSimpleHistory_debugDowngradeEnabled = true;
 
 constexpr bool ControllerWithSimpleHistory_debugUpgradeEnabled = true;
 
+///////////////////////////////////////////////////////////////////////////////
+// Persistency
+///////////////////////////////////////////////////////////////////////////////
+
+constexpr uint32_t maxSizeOfCombinedsignature = 1024; // TODO(GG): should be checked
+
+constexpr bool debugPersistentStorageEnabled = true;
