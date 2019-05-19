@@ -64,5 +64,16 @@ namespace bftEngine
 
 			return true;
 		}
+
+		MsgSize CheckpointMsg::maxSizeOfCheckpointMsg()
+		{
+			return sizeof(CheckpointMsgHeader);
+		}
+
+		MsgSize CheckpointMsg::maxSizeOfCheckpointMsgInLocalBuffer()
+		{
+			return maxSizeOfCheckpointMsg() + sizeof(RawHeaderOfObjAndMsg);
+		}
+
 	}
 }

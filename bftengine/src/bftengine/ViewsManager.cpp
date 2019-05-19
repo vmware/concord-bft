@@ -272,6 +272,42 @@ NewViewMsg* ViewsManager::getMyNewViewMsgForCurrentView() {
   return r;
 }
 
+vector<ViewChangeMsg*> ViewsManager::getViewChangeMsgsForCurrentView()
+{
+	Assert(stat == Stat::IN_VIEW);
+
+	const uint16_t SMAJOR = (2 * F + 2 * C + 1);
+
+	vector<ViewChangeMsg*> retVal(SMAJOR);
+
+	uint16_t j = 0;
+	for (uint16_t i = 0; (i < N) && (j < SMAJOR); i++)
+	{
+		if (viewChangeMsgsOfPendingView[i] == nullptr) continue;
+
+		Assert(viewChangeMsgsOfPendingView[i]->newView() == myLatestActiveView);
+
+		retVal[j] = viewChangeMsgsOfPendingView[i];
+		j++;
+	}
+	Assert(j == SMAJOR);
+
+	return retVal;
+}
+
+NewViewMsg*	ViewsManager::getNewViewMsgForCurrentView()
+{
+	Assert(stat == Stat::IN_VIEW);
+
+	NewViewMsg* r = newViewMsgOfOfPendingView;
+
+	Assert(r != nullptr);
+	Assert(r->newView() == myLatestActiveView);
+
+	return r;
+}
+
+
 SeqNum ViewsManager::stableLowerBoundWhenEnteredToView() const {
   Assert(stat == Stat::IN_VIEW);
   return lowerBoundStableForPendingView;

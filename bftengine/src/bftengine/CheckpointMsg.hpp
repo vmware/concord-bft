@@ -21,6 +21,10 @@ namespace bftEngine
 
 		public:
 
+			static MsgSize maxSizeOfCheckpointMsg();
+
+			static MsgSize maxSizeOfCheckpointMsgInLocalBuffer();
+
 			CheckpointMsg(ReplicaId senderId, SeqNum seqNum, const Digest& stateDigest, bool stateIsStable);
 
 			SeqNum seqNumber() const { return b()->seqNum; }

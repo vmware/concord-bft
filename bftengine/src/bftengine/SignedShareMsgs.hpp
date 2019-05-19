@@ -79,6 +79,8 @@ namespace bftEngine
 
 		class PrepareFullMsg : public SignedShareBase {
 		public:
+			static MsgSize maxSizeOfPrepareFull();
+			static MsgSize maxSizeOfPrepareFullInLocalBuffer();
 			static PrepareFullMsg* create(ViewNum v, SeqNum s, ReplicaId senderId, const char* sig, uint16_t sigLen);
 			static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, PrepareFullMsg*& outMsg);
 		};
@@ -102,6 +104,8 @@ namespace bftEngine
 
 		class CommitFullMsg : public SignedShareBase {
 		public:
+			static MsgSize maxSizeOfCommitFull();
+			static MsgSize maxSizeOfCommitFullInLocalBuffer();
 			static CommitFullMsg* create(ViewNum v, SeqNum s, int16_t senderId, const char* sig, uint16_t sigLen);
 			static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, CommitFullMsg*& outMsg);
 		};

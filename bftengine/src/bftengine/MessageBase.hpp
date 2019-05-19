@@ -47,6 +47,12 @@ namespace bftEngine
 
 			MsgType type() const { return msgBody_->msgType; }
 
+			MessageBase* cloneObjAndMsg() const;
+
+			void writeObjAndMsgToLocalBuffer(char* buffer, size_t bufferLength, size_t* actualSize) const;
+			size_t sizeNeededForObjAndMsgInLocalBuffer() const;
+			static MessageBase* createObjAndMsgFromLocalBuffer(char* buffer, size_t bufferLength, size_t* actualSize);
+
 #ifdef DEBUG_MEMORY_MSG
 			static void printLiveMessages();
 #endif
@@ -65,6 +71,17 @@ namespace bftEngine
 			MsgSize storageSize_ = 0;
 			NodeIdType sender_;
 			bool owner_ = true; // true IFF this instance is not responsible for deallocating the body
+
+#pragma pack(push,1)
+			struct RawHeaderOfObjAndMsg
+			{
+				uint32_t magicNum;
+				MsgSize msgSize;
+				NodeIdType sender;
+				// TODO(GG): consider to add checksum
+			};
+#pragma pack(pop)
+			static const uint32_t magicNumOfRawFormat = 0x5555897BU;
 		};
 
 
