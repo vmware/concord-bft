@@ -14,14 +14,29 @@ class Error(Exception):
     """Base class for exceptions in this module."""
     pass
 
+##
+## Exceptions for bft_tester
+##
 class AlreadyRunningError(Error):
     def __init__(self, replica):
         self.replica = replica
+        j
+    def __repr__(self):
+        return (f'{self.__class__.__name__}:\n'
+           f'  replica={self.replica}\n')
 
 class AlreadyStoppedError(Error):
     def __init__(self, replica):
         self.replica = replica
 
+    def __repr__(self):
+        return (f'{self.__class__.__name__}:\n'
+           f'  replica={self.replica}\n')
+
 class BadReplyError(Error):
     def __init__(self):
         pass
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}\n'
+

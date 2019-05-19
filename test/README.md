@@ -1,7 +1,7 @@
 This directory contains system tests in python as well as a library of reusable
 test components.
 
-# Design 
+# Design
 
 The design behind the system testing strategy is to provide a collection of
 reusable components to test any application built on concord-bft, as well as
@@ -12,13 +12,12 @@ network partitions. It also provides reusable functions and methods applicable
 to all system tests, such as `wait_for_state_transfer_to_start`. The reusable
 application dependent code provides the client wire protocol for interacting
 with the specific application state machine and mechanisms for verifying
-correctness of operations (such as system models, which are coming in a future
-commit). 
+correctness of concurrent operations.
 
 Tests specific to application instances are written that verify certain
-properties of the system, such that state transfer will start and complete,
+properties of the system. For example: state transfer will start and complete,
 resulting in equivalent execution sequence numbers when a node is started after
-being offline when a lot of data was added to the other nodes in the system. 
+being offline when a lot of data was added to the other nodes in the system.
 
 Application indpendent components as well as the system tests themselves rely on
 the the `bft_client` and `bft_metrics_client` living in `../util/pyclient`.
@@ -27,15 +26,21 @@ the the `bft_client` and `bft_metrics_client` living in `../util/pyclient`.
 
  * `BftTester` - Infrastructure code (`bft_tester.py`)
  * `BftMetrics` - Metrics client wrapper code (`bft_metrics.py`)
- * `BftTesterExceptions` - All exceptions for BftTester
-   (`bft_tester_exceptions.py`)
 
-## SimpleKVBC specific Compoennts
+ All exceptions for BftTester live in `bft_tester_exceptions.py`
+
+## SimpleKVBC specific Components
 
  * `SimpleKVBCProtocol` - Message constructors and parsers for SimpleKVBC
    messages (`skvbc.py`)
  * `SkvbcTest` - Unittest class containing individual system tests for
    SimpleKVBC (`test_skvbc.py`)
+ * `SkvbcTracker` - Code that is used to track concurrent requests and respones
+   and verify linearizability of operations matches the blockchain state
+   (`skvbc_linearizability.py`).
+
+All exceptions for skvbc live in `skvbc_exceptions.py`
+
 
 # Libraries and Conventions
 
@@ -69,7 +74,7 @@ Lastly, we use python's builtin [unit testing
 framework](https://docs.python.org/3/library/unittest.html) for writing and
 executing our tests. We currently only have a single test class for system tests
 in `test_skvbc.py`, although our clients each have their own tests in
-`../util/pyclient`. 
+`../util/pyclient`.
 
 The tests in `test_skvbc.py` can be run from the test directory via `python3
 test_skvbc.py`. They can also be run from the build directory along with every
@@ -78,10 +83,16 @@ other automated test by running `make test`.
 We also follow [Pep 8](https://www.python.org/dev/peps/pep-0008/) guidelines for code style:
  * Class names are `CamelUpperCase`
  * Method, function, and variable names are `snake_lower_case`
- * Lines are limited to 80 chars 
+ * Lines are limited to 80 chars
 
 As a convention to help distinguish public from private methods and fields of a
 class, private methods, fields and functions begin with an underscore.
+
+The built in
+[__repr__](https://docs.python.org/3/reference/datamodel.html#object.__repr__)
+method is used for data and exception classes to return printable information.
+Write now it's human readable and not bound to python types, but we may want to
+change that and add `__str__` methods later.
 
 # Writing a test
 
@@ -97,7 +108,7 @@ tests that use coroutines. An example is the `test_state_transfer` and
 `_test_state_transfer` methods.
 
 Each test must create a `bft_tester.TestConfig`, and then instantiate a
-`bft_tester.BftTester` with the config as a parameter. We specifically 
+`bft_tester.BftTester` with the config as a parameter. We specifically
 use the `with` keyword so that if the test (in the scope under the with) fails,
 all resources in the tester will be cleaned up automatically by the python
 runtime.
@@ -115,7 +126,7 @@ Instead a coroutine object will be returned, which is definitely not what you
 want. Unfortunately, python doesn't generate a compile error here, although it
 will warn you in your output if this happens, with a message like: `__main__:4:
 RuntimeWarning: coroutine 'sleep' was never awaited`. This is [documented
-well](https://trio.readthedocs.io/en/latest/tutorial.html#warning-don-t-forget-that-await) 
+well](https://trio.readthedocs.io/en/latest/tutorial.html#warning-don-t-forget-that-await)
 in the trio docs.
 
 From there you can create a protocol and start coroutines running in the

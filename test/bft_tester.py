@@ -10,7 +10,7 @@
 # terms and conditions of the subcomponent's license, as noted in the LICENSE
 # file.
 
-# Add the pyclient directory to $PYTHONPATH 
+# Add the pyclient directory to $PYTHONPATH
 
 import sys
 
@@ -30,7 +30,7 @@ import bft_client
 import bft_metrics_client
 import bft_metrics
 
-from bft_tester_exceptions import AlreadyRunningError, AlreadyStoppedError 
+from bft_test_exceptions import AlreadyRunningError, AlreadyStoppedError
 
 TestConfig = namedtuple('TestConfig', [
     'n',
@@ -77,7 +77,7 @@ class BftTester:
         self.builddir = os.path.abspath("../build")
         self.toolsdir = os.path.join(self.builddir, "tools")
         self.procs = {}
-        self.replicas = [bft_config.Replica(i, "127.0.0.1", 3710 + 2*i) 
+        self.replicas = [bft_config.Replica(i, "127.0.0.1", 3710 + 2*i)
                 for i in range(0, self.config.n)]
         self.alpha = [i for i in range(65, 91)]
         self.alphanum = [i for i in range(48, 58)]
@@ -91,7 +91,7 @@ class BftTester:
     def _generate_crypto_keys(self):
         keygen = os.path.join(self.toolsdir, "GenerateConcordKeys")
         args = [keygen, "-n", str(self.config.n), "-f", str(self.config.f), "-o",
-               self.config.key_file_prefix] 
+               self.config.key_file_prefix]
         subprocess.run(args, check=True)
 
     def _create_keys(self):
@@ -124,7 +124,7 @@ class BftTester:
         for client_id in range(self.config.n,
                                self.config.num_clients+self.config.n):
             config = bft_config.Config(client_id, self.config.f, self.config.c,
-                    MAX_MSG_SIZE, REQ_TIMEOUT_MILLI, RETRY_TIMEOUT_MILLI) 
+                    MAX_MSG_SIZE, REQ_TIMEOUT_MILLI, RETRY_TIMEOUT_MILLI)
             self.clients[client_id] = bft_client.UdpClient(config, self.replicas)
 
     async def _init_metrics(self):
@@ -141,7 +141,7 @@ class BftTester:
         """
         await self._create_clients()
         await self._init_metrics()
-                
+
     def random_value(self):
         return bytes(random.sample(self.alphanum, KV_LEN))
 
@@ -182,7 +182,7 @@ class BftTester:
         p.wait()
 
     async def wait_for_state_transfer_to_start(self):
-        """ 
+        """
         Retry checking every .5 seconds until state transfer starts at least one
         node. Stop trying, and fail the test after 30 seconds.
         """
@@ -194,7 +194,7 @@ class BftTester:
                                        nursery.cancel_scope)
 
     async def _wait_to_receive_st_msgs(self, replica, cancel_scope):
-        """ 
+        """
         Check metrics to see if state transfer started. If so cancel the
         concurrent coroutines in the request scope.
         """
@@ -205,8 +205,8 @@ class BftTester:
                 if n > 0:
                     cancel_scope.cancel()
 
-    async def wait_for_state_transfer_to_stop(self, 
-                                              up_to_date_node, 
+    async def wait_for_state_transfer_to_stop(self,
+                                              up_to_date_node,
                                               stale_node):
         with trio.fail_after(30): # seconds
             # Get the lastExecutedSeqNumber from a started node
@@ -216,7 +216,7 @@ class BftTester:
                 with trio.move_on_after(.5): # seconds
                     n = await self.metrics.get(stale_node, *key)
                     if n >= last_exec_seq_num:
-                       return 
+                       return
 
     async def assert_state_transfer_not_started_all_up_nodes(self, testcase):
         with trio.fail_after(METRICS_TIMEOUT_SEC):
@@ -226,7 +226,7 @@ class BftTester:
                     nursery.start_soon(self._assert_state_transfer_not_started,
                                        testcase,
                                        r)
-           
+
     async def _assert_state_transfer_not_started(self, testcase, replica):
         key = ['replica', 'Counters', 'receivedStateTransferMsgs']
         n = await self.metrics.get(replica.id, *key)
@@ -248,6 +248,6 @@ class BftTester:
             while True:
                 with trio.move_on_after(interval):
                     if await predicate():
-                        return 
+                        return
 
 
