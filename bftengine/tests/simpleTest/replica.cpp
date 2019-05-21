@@ -99,7 +99,6 @@ void parse_params(int argc, char** argv) {
 
   uint16_t min16_t_u = std::numeric_limits<uint16_t>::min();
   uint16_t max16_t_u = std::numeric_limits<uint16_t>::max();
-  uint32_t min32_t_u = std::numeric_limits<uint32_t>::min();
   uint32_t max32_t_u = std::numeric_limits<uint32_t>::max();
 
   rp.keysFilePrefix = "private_replica_";
@@ -153,12 +152,11 @@ void parse_params(int argc, char** argv) {
           i++;
         } else if (p == "-vct") {
           auto vct = std::stoi(argv[i + 1]);
-          if (vct < min32_t_u || vct > max32_t_u) {
-            printf("-vct value is out of range (%u - %u)", min16_t_u,
-                   max16_t_u);
+          if (vct < 0 || (uint32_t)vct > max32_t_u) {
+            printf("-vct value is out of range (%u - %u)", 0, max32_t_u);
             exit(-1);
           }
-          rp.viewChangeTimeout = vct;
+          rp.viewChangeTimeout = (uint32_t)vct;
           i += 2;
         } else if (p == "-cf") {
           rp.configFileName = argv[i + 1];

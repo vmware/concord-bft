@@ -28,7 +28,7 @@ T FindValue(const char* const val_type,
             const string& val_name,
             const vector<string>& names,
             const vector<T>& values) {
-  for (int i = 0; i < names.size(); i++) {
+  for (size_t i = 0; i < names.size(); i++) {
     if (names[i] == val_name) {
       return values[i];
     }
@@ -139,7 +139,7 @@ std::string Component::ToJson() {
   // Add any gauges
   oss << "\"Gauges\":{";
 
-  for (int i = 0; i < names_.gauge_names_.size(); i++) {
+  for (size_t i = 0; i < names_.gauge_names_.size(); i++) {
     if (i != 0) {
       oss << ",";
     }
@@ -153,7 +153,7 @@ std::string Component::ToJson() {
   // Add any status
   oss << "\"Statuses\":{";
 
-  for (int i = 0; i < names_.status_names_.size(); i++) {
+  for (size_t i = 0; i < names_.status_names_.size(); i++) {
     if (i != 0) {
       oss << ",";
     }
@@ -167,7 +167,7 @@ std::string Component::ToJson() {
   // Add any counters
   oss << "\"Counters\":{";
 
-  for (int i = 0; i < names_.counter_names_.size(); i++) {
+  for (size_t i = 0; i < names_.counter_names_.size(); i++) {
     if (i != 0) {
       oss << ",";
     }
