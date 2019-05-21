@@ -23,15 +23,19 @@ KEY_FILE_PREFIX = "replica_keys_"
 
 
 def start_replica_cmd(builddir, replica_id):
-    """ 
+    """
     Return a command that starts an skvbc replica when passed to
     subprocess.Popen.
 
     Note each arguments is an element in a list.
     """
+    statusTimerMilli = "500"
     path = os.path.join(builddir, "bftengine",
             "tests", "simpleKVBCTests", "TesterReplica", "skvbc_replica")
-    return [path, "-k", KEY_FILE_PREFIX, "-i", str(replica_id)]
+    return [path,
+            "-k", KEY_FILE_PREFIX,
+            "-i", str(replica_id),
+            "-s", statusTimerMilli]
 
 
 class SkvbcTest(unittest.TestCase):
@@ -63,7 +67,7 @@ class SkvbcTest(unittest.TestCase):
             for i in range (100):
                 async with trio.open_nursery() as nursery:
                     for client in tester.clients.values():
-                        msg = self.protocol.write_req([], 
+                        msg = self.protocol.write_req([],
                                 [(tester.random_key(), tester.random_value())])
                         nursery.start_soon(client.sendSync, msg, False)
             await tester.assert_state_transfer_not_started_all_up_nodes(self)

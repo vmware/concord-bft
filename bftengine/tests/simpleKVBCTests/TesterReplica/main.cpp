@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
 	string idStr;
 
 	int o = 0;
-	while ((o = getopt(argc, argv, "r:i:k:n:")) != EOF) {
+	while ((o = getopt(argc, argv, "r:i:k:n:s:")) != EOF) {
 		switch (o) {
 		case 'i':
 		{
@@ -100,6 +100,16 @@ int main(int argc, char **argv) {
 			rp.configFileName = argTempBuffer;
 		}
 		break;
+		case 's':
+		{
+			strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
+			argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
+			idStr = argTempBuffer;
+			int tempId = std::stoi(idStr);
+			if (tempId >= 0 && tempId < UINT16_MAX) 
+				rp.statusReportTimerMillisec = (uint16_t)tempId;
+		}
+                break;
 
 		default:
 			// nop
@@ -160,7 +170,7 @@ int main(int argc, char **argv) {
 	c.numOfClientProxies = replicaConfig.numOfClientProxies;
         // Allow triggering of things like state transfer to occur faster in
         // tests.
-	c.statusReportTimerMillisec = 1000;
+	c.statusReportTimerMillisec = rp.statusReportTimerMillisec;
 	c.concurrencyLevel = 1;
 	c.autoViewChangeEnabled = false;
 	c.viewChangeTimerMillisec = 45 * 1000;
