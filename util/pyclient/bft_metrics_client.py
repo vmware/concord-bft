@@ -42,8 +42,8 @@ class MetricsClient:
                                        trio.socket.SOCK_DGRAM)
     def _req(self):
         """Return a get request to the metrics server"""
-        req = struct.pack(HEADER_FMT, REQUEST_TYPE, self.seq_num)
         self.seq_num += 1
+        req = struct.pack(HEADER_FMT, REQUEST_TYPE, self.seq_num)
         return req
 
     async def get(self):

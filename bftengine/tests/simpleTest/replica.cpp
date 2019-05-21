@@ -77,14 +77,6 @@ concordlogger::Logger replicaLogger =
 bftEngine::Replica* replica = nullptr;
 ReplicaParams rp;
 
-void signalHandler( int signum ) {
-  if(replica)
-    replica->stop();
-
-  LOG_INFO(replicaLogger, "replica " << rp.replicaId << " stopped");
-  exit(0);
-}
-
 #define test_assert(statement, message) \
 { if (!(statement)) { \
 LOG_FATAL(logger, "assert fail with message: " << message); assert(false);}}
@@ -305,12 +297,9 @@ int main(int argc, char **argv) {
   parse_params(argc, argv);
 
   // allows to attach debugger
-  if(rp.debug)
+  if(rp.debug) {
     std::this_thread::sleep_for(chrono::seconds(20));
-
-  signal(SIGABRT, signalHandler);
-  signal(SIGTERM, signalHandler);
-  signal(SIGKILL, signalHandler);
+  }
 
   ReplicaConfig replicaConfig;
   TestCommConfig testCommConfig(replicaLogger);
