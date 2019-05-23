@@ -297,7 +297,7 @@ class AsyncTlsConnection : public
     if (_statusCallback) {
       bool isReplica = check_replica(_destId);
       if (isReplica) {
-        PeerConnectivityStatus pcs;
+        PeerConnectivityStatus pcs{};
         pcs.peerId = _destId;
         pcs.statusType = StatusType::Broken;
 
@@ -801,7 +801,7 @@ class AsyncTlsConnection : public
     read_msg_length_async();
 
     if (_statusCallback && _destIsReplica) {
-      PeerConnectivityStatus pcs;
+      PeerConnectivityStatus pcs{};
       pcs.peerId = _destId;
       pcs.peerIp = _ip;
       pcs.peerPort = _port;
@@ -1010,7 +1010,7 @@ class AsyncTlsConnection : public
                                 << ", length: " << length);
 
     if (_statusCallback && _isReplica) {
-      PeerConnectivityStatus pcs;
+      PeerConnectivityStatus pcs{};
       pcs.peerId = _selfId;
       pcs.statusType = StatusType::MessageSent;
 

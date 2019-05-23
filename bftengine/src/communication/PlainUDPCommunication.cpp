@@ -133,7 +133,7 @@ class PlainUDPCommunication::PlainUdpImpl {
           ", got peer: " << key);
 
       if (statusCallback && next->second.isReplica) {
-        PeerConnectivityStatus pcs;
+        PeerConnectivityStatus pcs{};
         pcs.peerId = next->first;
         pcs.peerIp = next->second.ip;
         pcs.peerPort = next->second.port;
@@ -301,7 +301,7 @@ class PlainUDPCommunication::PlainUdpImpl {
 
     if (error == (ssize_t) messageLength) {
       if (statusCallback) {
-        PeerConnectivityStatus pcs;
+        PeerConnectivityStatus pcs{};
         pcs.peerId = selfId;
         pcs.statusType = StatusType::MessageSent;
 
@@ -406,7 +406,7 @@ class PlainUDPCommunication::PlainUdpImpl {
 
       bool isReplica = check_replica(sendingNode);
       if (statusCallback && isReplica) {
-        PeerConnectivityStatus pcs;
+        PeerConnectivityStatus pcs{};
         pcs.peerId = sendingNode;
 
         char str[INET_ADDRSTRLEN];

@@ -268,7 +268,7 @@ class AsyncTcpConnection :
       if (_statusCallback) {
         bool isReplica = check_replica(_selfId);
         if (isReplica) {
-          PeerConnectivityStatus pcs;
+          PeerConnectivityStatus pcs{};
           pcs.peerId = _selfId;
           pcs.statusType = StatusType::Broken;
 
@@ -390,7 +390,7 @@ class AsyncTcpConnection :
     read_header_async();
 
     if (_statusCallback && _destIsReplica) {
-      PeerConnectivityStatus pcs;
+      PeerConnectivityStatus pcs{};
       pcs.peerId = _destId;
       pcs.peerIp = _ip;
       pcs.peerPort = _port;
@@ -604,7 +604,7 @@ class AsyncTcpConnection :
     write_async(_outBuffer, offset + length);
 
     if (_statusCallback && _isReplica) {
-      PeerConnectivityStatus pcs;
+      PeerConnectivityStatus pcs{};
       pcs.peerId = _selfId;
       pcs.statusType = StatusType::MessageSent;
 
@@ -806,7 +806,7 @@ class PlainTCPCommunication::PlainTcpImpl {
         LOG_TRACE(_logger, "connect called for node " << to_string(it->first));
       }
       if (it->second.isReplica && _statusCallback) {
-        PeerConnectivityStatus pcs;
+        PeerConnectivityStatus pcs{};
         pcs.peerId = it->first;
         pcs.peerIp = it->second.ip;
         pcs.peerPort = it->second.port;
