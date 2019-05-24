@@ -93,8 +93,8 @@ class AsyncTcpConnection :
   function<void(NodeNum, ASYNC_CONN_PTR)> _fOnHellOMessage = nullptr;
   NodeNum _destId;
   NodeNum _selfId;
-  string _ip;
-  uint16_t _port;
+  string _ip = "";
+  uint16_t _port = 0;
   deadline_timer _connectTimer;
   ConnType _connType;
   bool _closed;

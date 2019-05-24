@@ -143,8 +143,8 @@ class AsyncTlsConnection : public
   uint32_t _bufferLength;
   NodeNum _destId = AsyncTlsConnection::UNKNOWN_NODE_ID;
   NodeNum _selfId;
-  string _ip;
-  uint16_t _port;
+  string _ip = "";
+  uint16_t _port = 0;
   asio::deadline_timer _connectTimer;
   asio::deadline_timer _writeTimer;
   asio::deadline_timer _readTimer;
