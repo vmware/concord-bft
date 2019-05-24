@@ -19,10 +19,8 @@
 #include "PrimitiveTypes.hpp"
 #include "ViewsManager.hpp"
 #include "ReplicasInfo.hpp"
-#include "PrePrepareMsg.hpp"
 #include "ViewChangeMsg.hpp"
 #include "NewViewMsg.hpp"
-#include "SignedShareMsgs.hpp"
 
 namespace bftEngine {
 namespace impl {
