@@ -14,6 +14,7 @@
 #pragma once
 
 #include "PrimitiveTypes.hpp"
+#include "SysConsts.hpp"
 #include "assertUtils.hpp"
 
 #include <vector>
@@ -133,6 +134,10 @@ class Bitmap {
 
   static uint32_t maxSizeNeededToStoreInBuffer(uint32_t maxNumOfBits) {
     return (sizeof(uint32_t) + realSize(maxNumOfBits));
+  }
+
+  static uint32_t maxSize() {
+    return (realSize(maxNumOfRequestsInBatch) + sizeof(numBits_));
   }
 
  protected:

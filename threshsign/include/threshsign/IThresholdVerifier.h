@@ -42,4 +42,7 @@ class IThresholdVerifier : public Serializable {
 
   // Serialization/deserialization
   virtual void serialize(UniquePtrToChar &outBuf, int64_t &outBufSize) const = 0;
+
+  static const uint32_t maxSize_ = 2048;
+  static uint32_t maxSize() { return maxSize_; }
 };

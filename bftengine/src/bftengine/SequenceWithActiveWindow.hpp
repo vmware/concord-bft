@@ -14,120 +14,116 @@
 
 // TODO(GG): ItemFuncs should have operations on ItemType: init, free, reset, save, load
 
-namespace bftEngine
-{
-	namespace impl
-	{
+namespace bftEngine {
+namespace impl {
 
-		template <uint16_t WindowSize, uint16_t Resolution, typename NumbersType, typename ItemType, typename ItemFuncs>
-		class SequenceWithActiveWindow
-		{
-			static_assert(WindowSize >= 8, "");
-			static_assert(WindowSize < UINT16_MAX, "");
-			static_assert(Resolution >= 1, "");
-			static_assert(Resolution < WindowSize, "");
-			static_assert(WindowSize % Resolution == 0, "");
+template<uint16_t WindowSize, uint16_t Resolution, typename NumbersType, typename ItemType, typename ItemFuncs>
+class SequenceWithActiveWindow {
+  static_assert(WindowSize >= 8, "");
+  static_assert(WindowSize < UINT16_MAX, "");
+  static_assert(Resolution >= 1, "");
+  static_assert(Resolution < WindowSize, "");
+  static_assert(WindowSize % Resolution == 0, "");
 
-		protected:
+ protected:
 
-			static const uint16_t numItems = WindowSize / Resolution;
+  static const uint16_t numItems = WindowSize / Resolution;
 
-			NumbersType beginningOfActiveWindow;
-			ItemType activeWindow[numItems];
+  NumbersType beginningOfActiveWindow;
+  ItemType activeWindow[numItems];
 
-		public:
-			SequenceWithActiveWindow(NumbersType windowFirst, void* initData)
-			{
-				Assert(windowFirst % Resolution == 0);
+ public:
+  SequenceWithActiveWindow(NumbersType windowFirst, void *initData) {
+    Assert(windowFirst % Resolution == 0);
 
-				beginningOfActiveWindow = windowFirst;
+    beginningOfActiveWindow = windowFirst;
 
-				for (uint16_t i = 0; i < numItems; i++)
-				{
-					ItemFuncs::init(activeWindow[i], initData);
-					ItemFuncs::reset(activeWindow[i]);
-				}
-			}
+    for (uint16_t i = 0; i < numItems; i++) {
+      ItemFuncs::init(activeWindow[i], initData);
+      ItemFuncs::reset(activeWindow[i]);
+    }
+  }
 
-			~SequenceWithActiveWindow()
-			{
-				for (uint16_t i = 0; i < numItems; i++)
-					ItemFuncs::free(activeWindow[i]);
-			}
+  ~SequenceWithActiveWindow() {
+    for (uint16_t i = 0; i < numItems; i++)
+      ItemFuncs::free(activeWindow[i]);
+  }
 
-			bool insideActiveWindow(NumbersType n) const
-			{
-				return((n >= beginningOfActiveWindow) && (n < (beginningOfActiveWindow + WindowSize)));
-			}
+  static uint32_t maxSize() {
+    return (numItems * ItemType::maxSize());
+  }
 
-			ItemType& get(NumbersType n)
-			{
-				Assert(n % Resolution == 0);
-				Assert(insideActiveWindow(n));
+  bool insideActiveWindow(NumbersType n) const {
+    return ((n >= beginningOfActiveWindow)
+        && (n < (beginningOfActiveWindow + WindowSize)));
+  }
 
-				uint16_t i = ((n / Resolution) % numItems);
+  ItemType &get(NumbersType n) {
+    Assert(n % Resolution == 0);
+    Assert(insideActiveWindow(n));
 
-				return activeWindow[i];
-			}
+    uint16_t i = ((n / Resolution) % numItems);
 
-			std::pair<NumbersType, NumbersType> currentActiveWindow() const
-			{
-				std::pair<NumbersType, NumbersType> win;
-				win.first = beginningOfActiveWindow;
-				win.second = beginningOfActiveWindow + WindowSize - 1;
-				return win;
-			}
+    return activeWindow[i];
+  }
 
-			void resetAll(NumbersType windowFirst)
-			{
-				Assert(windowFirst % Resolution == 0);
+  std::pair<NumbersType, NumbersType> currentActiveWindow() const {
+    std::pair<NumbersType, NumbersType> win;
+    win.first = beginningOfActiveWindow;
+    win.second = beginningOfActiveWindow + WindowSize - 1;
+    return win;
+  }
 
-				for (uint16_t i = 0; i < numItems; i++)
-					ItemFuncs::reset(activeWindow[i]);
+  void resetAll(NumbersType windowFirst) {
+    Assert(windowFirst % Resolution == 0);
 
-				beginningOfActiveWindow = windowFirst;
-			}
+    for (uint16_t i = 0; i < numItems; i++)
+      ItemFuncs::reset(activeWindow[i]);
 
+    beginningOfActiveWindow = windowFirst;
+  }
 
-			void advanceActiveWindow(NumbersType newFirstIndexOfActiveWindow)
-			{
-				Assert(newFirstIndexOfActiveWindow % Resolution == 0);
-				Assert(newFirstIndexOfActiveWindow >= beginningOfActiveWindow);
+  void advanceActiveWindow(NumbersType newFirstIndexOfActiveWindow) {
+    Assert(newFirstIndexOfActiveWindow % Resolution == 0);
+    Assert(newFirstIndexOfActiveWindow >= beginningOfActiveWindow);
 
-				if (newFirstIndexOfActiveWindow == beginningOfActiveWindow)
-					return;
+    if (newFirstIndexOfActiveWindow == beginningOfActiveWindow)
+      return;
 
-				if (newFirstIndexOfActiveWindow - beginningOfActiveWindow >= WindowSize)
-				{
-					resetAll(newFirstIndexOfActiveWindow);
-					return;
-				}
+    if (newFirstIndexOfActiveWindow - beginningOfActiveWindow >= WindowSize) {
+      resetAll(newFirstIndexOfActiveWindow);
+      return;
+    }
 
-				const uint16_t inactiveBegin = ((beginningOfActiveWindow / Resolution) % numItems);
+    const uint16_t
+        inactiveBegin = ((beginningOfActiveWindow / Resolution) % numItems);
 
-				const uint16_t activeBegin = ((newFirstIndexOfActiveWindow / Resolution) % numItems);
+    const uint16_t
+        activeBegin = ((newFirstIndexOfActiveWindow / Resolution) % numItems);
 
-				const uint16_t inactiveEnd = ((activeBegin > 0) ? (activeBegin - 1) : (numItems - 1));
+    const uint16_t
+        inactiveEnd = ((activeBegin > 0) ? (activeBegin - 1) : (numItems - 1));
 
-				const uint16_t resetSize = (inactiveBegin <= inactiveEnd) ? (inactiveEnd - inactiveBegin + 1) : (inactiveEnd + 1 + numItems - inactiveBegin);
-				Assert(resetSize > 0 && resetSize < numItems);
+    const uint16_t resetSize =
+        (inactiveBegin <= inactiveEnd) ? (inactiveEnd - inactiveBegin + 1) : (
+            inactiveEnd + 1 + numItems - inactiveBegin);
+    Assert(resetSize > 0 && resetSize < numItems);
 
-				uint16_t debugNumOfReset = 0;
+    uint16_t debugNumOfReset = 0;
 
-				for (uint16_t i = inactiveBegin; i != activeBegin; (i = ((i + 1) % numItems)))
-				{
-					ItemFuncs::reset(activeWindow[i]);
-					debugNumOfReset++;
-				}
+    for (uint16_t i = inactiveBegin; i != activeBegin;
+         (i = ((i + 1) % numItems))) {
+      ItemFuncs::reset(activeWindow[i]);
+      debugNumOfReset++;
+    }
 
-				Assert(debugNumOfReset == resetSize);
+    Assert(debugNumOfReset == resetSize);
 
-				beginningOfActiveWindow = newFirstIndexOfActiveWindow;
-			}
+    beginningOfActiveWindow = newFirstIndexOfActiveWindow;
+  }
 
-			// TODO(GG): add save & load
-		};
+  // TODO(GG): add save & load
+};
 
-
-	}
+}
 }

@@ -27,7 +27,7 @@ class DebugPersistentStorage : public PersistentStorage {
   uint8_t beginWriteTran() override;
   uint8_t endWriteTran() override;
   bool isInWriteTran() const override;
-  void setReplicaConfig(ReplicaConfig config) override;
+  void setReplicaConfig(const ReplicaConfig &config) override;
   void setFetchingState(const bool &f) override;
   void setLastExecutedSeqNum(const SeqNum &s) override;
   void setPrimaryLastUsedSeqNum(const SeqNum &s) override;
@@ -58,7 +58,7 @@ class DebugPersistentStorage : public PersistentStorage {
       const SeqNum &s, const CheckpointMsg *const &m) override;
   void setCompletedMarkInCheckWindow(const SeqNum &s, const bool &f) override;
   bool hasReplicaConfig() override;
-  ReplicaConfig getReplicaConig() override;
+  ReplicaConfig getReplicaConfig() override;
   bool getFetchingState() override;
   SeqNum getLastExecutedSeqNum() override;
   SeqNum getPrimaryLastUsedSeqNum() override;
@@ -94,7 +94,7 @@ class DebugPersistentStorage : public PersistentStorage {
   const uint16_t fVal_;
   const uint16_t cVal_;
 
-  uint8_t numOfNestedTransactions = 0;
+  uint8_t numOfNestedTransactions_ = 0;
 
   bool hasConfig_ = false;
   ReplicaConfig config_;
@@ -144,15 +144,14 @@ class DebugPersistentStorage : public PersistentStorage {
 
   // range: lastStableSeqNum+1 <= i <= lastStableSeqNum + kWorkWindowSize
   SequenceWithActiveWindow<kWorkWindowSize, 1, SeqNum, SeqNumData, WindowFuncs>
-      seqNumWindow;
+      seqNumWindow_;
 
   // range: TODO(GG): !!!!!!!
   SequenceWithActiveWindow<kWorkWindowSize + checkpointWindowSize,
                            checkpointWindowSize,
                            SeqNum,
                            CheckData,
-                           WindowFuncs>
-      checkWindow;
+                           WindowFuncs> checkWindow_;
 };
 
 }  // namespace impl

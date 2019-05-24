@@ -17,18 +17,16 @@
 #include "Bitmap.hpp"
 #include "ViewsManager.hpp"
 #include "ReplicaConfig.hpp"
+#include "PrePrepareMsg.hpp"
+#include "SignedShareMsgs.hpp"
+#include "NewViewMsg.hpp"
+#include "FullCommitProofMsg.hpp"
+#include "CheckpointMsg.hpp"
 
 #include <vector>
 
 namespace bftEngine {
 namespace impl {
-class PrePrepareMsg;
-class CheckpointMsg;
-class ViewChangeMsg;
-class NewViewMsg;
-class FullCommitProofMsg;
-class PrepareFullMsg;
-class CommitFullMsg;
 
 // The PersistentStorage interface is used to write/read the concord-bft state 
 // to/from a persistent storage. In case the replicas process is killed, 
@@ -60,6 +58,11 @@ class PersistentStorage {
     // elements.size() <= kWorkWindowSize
     // The messages in elements[i] may be null
     std::vector<ViewsManager::PrevViewInfo> elements;
+
+    static uint32_t maxSize() {
+      return (sizeof(view) + sizeof(lastStable) + sizeof(lastExecuted) +
+          sizeof(ViewsManager::PrevViewInfo::maxSize() * kWorkWindowSize));
+    }
   };
 
   struct DescriptorOfLastNewView {
@@ -75,6 +78,13 @@ class PersistentStorage {
 
     // maxSeqNumTransferredFromPrevViews >= 0
     SeqNum maxSeqNumTransferredFromPrevViews;
+
+    static uint32_t maxSize(uint16_t fVal, uint16_t cVal) {
+      return (sizeof(view) + NewViewMsg::maxSizeOfNewViewMsg() +
+          ViewChangeMsg::maxSizeOfViewChangeMsg() *
+              (2 * fVal + 2 * cVal + 1) +
+          sizeof(maxSeqNumTransferredFromPrevViews));
+    }
   };
 
   struct DescriptorOfLastExecution {
@@ -83,6 +93,10 @@ class PersistentStorage {
 
     // 1 <= validRequests.numOfBits() <= maxNumOfRequestsInBatch
     Bitmap validRequests;
+
+    static uint32_t maxSize() {
+      return (sizeof(executedSeqNum) + Bitmap::maxSize());
+    };
   };
 
   //////////////////////////////////////////////////////////////////////////
@@ -104,7 +118,7 @@ class PersistentStorage {
   // Update methods (should only be used in write-only transactions)
   //////////////////////////////////////////////////////////////////////////
 
-  virtual void setReplicaConfig(ReplicaConfig config) = 0;
+  virtual void setReplicaConfig(const ReplicaConfig &config) = 0;
 
   virtual void setFetchingState(const bool &f) = 0;
   virtual void setLastExecutedSeqNum(const SeqNum &s) = 0;
@@ -163,7 +177,7 @@ class PersistentStorage {
   //////////////////////////////////////////////////////////////////////////
 
   virtual bool hasReplicaConfig() = 0;
-  virtual ReplicaConfig getReplicaConig() = 0;
+  virtual ReplicaConfig getReplicaConfig() = 0;
 
   virtual bool getFetchingState() = 0;
   virtual SeqNum getLastExecutedSeqNum() = 0;
