@@ -46,18 +46,31 @@ class PersistentStorage {
   //////////////////////////////////////////////////////////////////////////
 
   struct DescriptorOfLastExitFromView {
+    typedef std::vector<ViewsManager::PrevViewInfo> PrevViewInfoElements;
+    DescriptorOfLastExitFromView(ViewNum viewNum, SeqNum stableNum,
+                                 SeqNum execNum, PrevViewInfoElements elem) :
+        view(viewNum), lastStable(stableNum), lastExecuted(execNum),
+        elements(move(elem)) {}
+
+    DescriptorOfLastExitFromView() : view(0), lastStable(0), lastExecuted(0) {}
+
+    bool isEmpty() {
+      return ((view == 0) && (lastStable == 0) && (lastExecuted == 0) &&
+          elements.empty());
+    }
+
     // view >= 0
-    ViewNum view;
+    ViewNum view = 0;
 
     // lastStable >= 0
-    SeqNum lastStable;
+    SeqNum lastStable = 0;
 
     // lastExecuted >= lastStable
-    SeqNum lastExecuted;
+    SeqNum lastExecuted = 0;
 
     // elements.size() <= kWorkWindowSize
     // The messages in elements[i] may be null
-    std::vector<ViewsManager::PrevViewInfo> elements;
+    PrevViewInfoElements elements;
 
     static uint32_t maxSize() {
       return (sizeof(view) + sizeof(lastStable) + sizeof(lastExecuted) +
@@ -66,18 +79,31 @@ class PersistentStorage {
   };
 
   struct DescriptorOfLastNewView {
+    typedef std::vector<ViewChangeMsg *> ViewChangeMsgsVector;
+    DescriptorOfLastNewView(ViewNum viewNum, NewViewMsg *newMsg,
+                            ViewChangeMsgsVector msgs, SeqNum maxSeqNum) :
+        view(viewNum), newViewMsg(newMsg), viewChangeMsgs(move(msgs)),
+        maxSeqNumTransferredFromPrevViews(maxSeqNum) {}
+
+    DescriptorOfLastNewView() : view(0), maxSeqNumTransferredFromPrevViews(0) {}
+
+    bool isEmpty() {
+      return ((view == 0) && (newViewMsg == nullptr) &&
+          viewChangeMsgs.empty() && (maxSeqNumTransferredFromPrevViews == 0));
+    }
+
     // view >= 1
-    ViewNum view;
+    ViewNum view = 0;
 
     // newViewMsg != nullptr
-    NewViewMsg *newViewMsg;
+    NewViewMsg *newViewMsg = nullptr;
 
     // viewChangeMsgs.size() == 2*F + 2*C + 1
     // The messages in viewChangeMsgs will never be null
-    std::vector<ViewChangeMsg *> viewChangeMsgs;
+    ViewChangeMsgsVector viewChangeMsgs;
 
     // maxSeqNumTransferredFromPrevViews >= 0
-    SeqNum maxSeqNumTransferredFromPrevViews;
+    SeqNum maxSeqNumTransferredFromPrevViews = 0;
 
     static uint32_t maxSize(uint16_t fVal, uint16_t cVal) {
       return (sizeof(view) + NewViewMsg::maxSizeOfNewViewMsg() +
@@ -88,8 +114,17 @@ class PersistentStorage {
   };
 
   struct DescriptorOfLastExecution {
+    DescriptorOfLastExecution(SeqNum seqNum, const Bitmap &requests) :
+        executedSeqNum(seqNum), validRequests(requests) {}
+
+    DescriptorOfLastExecution() : executedSeqNum(0) {}
+
+    bool isEmpty() const {
+      return ((executedSeqNum == 0) && (validRequests.isEmpty()));
+    }
+
     // executedSeqNum >= 1
-    SeqNum executedSeqNum;
+    SeqNum executedSeqNum = 0;
 
     // 1 <= validRequests.numOfBits() <= maxNumOfRequestsInBatch
     Bitmap validRequests;

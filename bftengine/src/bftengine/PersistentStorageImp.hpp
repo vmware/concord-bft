@@ -15,19 +15,38 @@
 
 #include "PersistentStorage.hpp"
 #include "MetadataStorage.hpp"
+#include "ReplicaConfigSerializer.hpp"
 #include "SequenceWithActiveWindow.hpp"
 
 namespace bftEngine {
 namespace impl {
 
+enum MetadataParameterIds {
+  LAST_STABLE_SEQ_NUM,
+  LAST_EXEC_SEQ_NUM,
+  PRIMARY_LAST_USED_SEQ_NUM,
+  LOWER_BOUND_OF_SEQ_NUM,
+  LAST_VIEW_TRANSFERRED_SEQ_NUM,
+  FETCHING_STATE,
+  REPLICA_CONFIG,
+  LAST_EXIT_FROM_VIEW_DESC,
+  LAST_NEW_VIEW_DESC,
+  LAST_EXEC_DESC,
+  SEQ_NUM_WINDOW,
+  CHECK_WINDOW,
+  METADATA_PARAMETERS_NUM
+};
+
 class PersistentStorageImp : public PersistentStorage {
  public:
   PersistentStorageImp(uint16_t fVal, uint16_t cVal);
-  virtual ~PersistentStorageImp() { delete config_; }
+  virtual ~PersistentStorageImp() { delete configSerializer_; }
 
   uint8_t beginWriteTran() override;
   uint8_t endWriteTran() override;
   bool isInWriteTran() const override;
+
+  // Setters
   void setReplicaConfig(const ReplicaConfig &config) override;
   void setFetchingState(const bool &state) override;
   void setLastExecutedSeqNum(const SeqNum &seqNum) override;
@@ -42,7 +61,6 @@ class PersistentStorageImp : public PersistentStorage {
   void setDescriptorOfLastExecution(
       const DescriptorOfLastExecution &prevViewDesc) override;
   void setLastStableSeqNum(const SeqNum &seqNum) override;
-  void clearSeqNumWindow() override;
   void setPrePrepareMsgInSeqNumWindow(
       const SeqNum &seqNum, const PrePrepareMsg *const &msg) override;
   void setSlowStartedInSeqNumWindow(const SeqNum &seqNum,
@@ -59,8 +77,7 @@ class PersistentStorageImp : public PersistentStorage {
       const SeqNum &seqNum, const CheckpointMsg *const &msg) override;
   void setCompletedMarkInCheckWindow(const SeqNum &seqNum,
                                      const bool &completed) override;
-
-  bool hasReplicaConfig() override;
+  // Getters
   ReplicaConfig getReplicaConfig() override;
   bool getFetchingState() override;
   SeqNum getLastExecutedSeqNum() override;
@@ -89,12 +106,15 @@ class PersistentStorageImp : public PersistentStorage {
       const SeqNum &seqNum) override;
   bool getCompletedMarkInCheckWindow(const SeqNum &seqNum) override;
 
+  void clearSeqNumWindow() override;
+  bool hasReplicaConfig() override;
   void init(MetadataStorage *&metadataStorage);
 
  protected:
   bool setIsAllowed() const;
   bool getIsAllowed() const;
   bool nonExecSetIsAllowed() const;
+  SeqNum getSeqNum(MetadataParameterIds id, uint32_t size);
 
  private:
   MetadataStorage *metadataStorage_ = nullptr;
@@ -108,23 +128,14 @@ class PersistentStorageImp : public PersistentStorage {
   SeqNum lastExecutedSeqNum_ = 0;
   SeqNum primaryLastUsedSeqNum_ = 0;
   SeqNum strictLowerBoundOfSeqNums_ = 0;
-  ViewNum lastViewThatTransferredSeqNumbersFullyExecuted_ = 0;
+  ViewNum lastViewTransferredSeqNumbersFullyExecuted_ = 0;
   bool fetchingState_ = false;
 
-  ReplicaConfig *config_ = nullptr;
+  ReplicaConfigSerializer *configSerializer_ = nullptr;
 
-  bool hasDescriptorOfLastExitFromView_ = false;
-  DescriptorOfLastExitFromView descriptorOfLastExitFromView_ =
-      DescriptorOfLastExitFromView{
-          0, 0, 0, std::vector<ViewsManager::PrevViewInfo>(0)};
-
-  bool hasDescriptorOfLastNewView_ = false;
-  DescriptorOfLastNewView descriptorOfLastNewView_ =
-      DescriptorOfLastNewView{0, nullptr, std::vector<ViewChangeMsg *>(0), 0};
-
-  bool hasDescriptorOfLastExecution_ = false;
-  DescriptorOfLastExecution descriptorOfLastExecution_ =
-      DescriptorOfLastExecution{0, Bitmap()};
+  DescriptorOfLastExitFromView descriptorOfLastExitFromView_;
+  DescriptorOfLastNewView descriptorOfLastNewView_;
+  DescriptorOfLastExecution descriptorOfLastExecution_;
 
   struct SeqNumData {
     PrePrepareMsg *prePrepareMsg = nullptr;

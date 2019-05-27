@@ -63,12 +63,16 @@ void BlsThresholdSigner::signData(const char *hash, int hashLen, char *outSig,
 
 /************** Serialization **************/
 
-void BlsThresholdSigner::serialize(UniquePtrToChar &outBuf, int64_t &outBufSize)
-const {
-  ofstream outStream(className_.c_str(), ofstream::binary | ofstream::trunc);
+void BlsThresholdSigner::serialize(ostream &outStream) const {
   // Serialize first the class name.
   serializeClassName(className_, outStream);
   serializeDataMembers(outStream);
+}
+
+void BlsThresholdSigner::serialize(UniquePtrToChar &outBuf, int64_t &outBufSize)
+const {
+  ofstream outStream(className_.c_str(), ofstream::binary | ofstream::trunc);
+  serialize(outStream);
   outStream.close();
   retrieveSerializedBuffer(className_, outBuf, outBufSize);
 }
