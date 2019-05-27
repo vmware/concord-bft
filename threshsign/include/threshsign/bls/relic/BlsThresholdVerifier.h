@@ -84,11 +84,11 @@ class BlsThresholdVerifier : public IThresholdVerifier {
 
   // Serialization/deserialization
   void serialize(UniquePtrToChar &outBuf, int64_t &outBufSize) const override;
+  void serialize(std::ostream &outStream) const override;
   UniquePtrToClass create(std::istream &inStream) override;
 
  protected:
   BlsThresholdVerifier() = default;
-  void serialize(std::ostream &outStream) const;
 
  private:
   void serializeDataMembers(std::ostream &outStream) const;

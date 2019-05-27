@@ -12,30 +12,13 @@
 // file.
 
 #include "PersistentStorageImp.hpp"
+#include <sstream>
 
 namespace bftEngine {
 namespace impl {
 
-enum MetadataParameters {
-  LAST_STABLE_SEQ_NUM,
-  LAST_EXEC_SEQ_NUM,
-  PRIMARY_LAST_USED_SEQ_NUM,
-  LOWER_BOUND_OF_SEQ_NUM,
-  LAST_VIEW_TRANSFERRED_SEQ_NUM,
-  FETCHING_STATE,
-  REPLICA_CONFIG,
-  LAST_EXIT_FROM_VIEW_DESC,
-  LAST_NEW_VIEW_DESC,
-  LAST_EXEC_DESC,
-  SEQ_NUM_WINDOW,
-  CHECK_WINDOW,
-  METADATA_PARAMETERS_NUM
-};
-
 PersistentStorageImp::PersistentStorageImp(uint16_t fVal, uint16_t cVal)
-    : fVal_(fVal),
-      cVal_(cVal),
-      seqNumWindow_{1, nullptr},
+    : fVal_(fVal), cVal_(cVal), seqNumWindow_{1, nullptr},
       checkWindow_{0, nullptr} {}
 
 void PersistentStorageImp::init(MetadataStorage *&metadataStorage) {
@@ -51,10 +34,11 @@ void PersistentStorageImp::init(MetadataStorage *&metadataStorage) {
   metadataObjectsArray[LOWER_BOUND_OF_SEQ_NUM].maxSize =
       sizeof(strictLowerBoundOfSeqNums_);
   metadataObjectsArray[LAST_VIEW_TRANSFERRED_SEQ_NUM].maxSize =
-      sizeof(lastViewThatTransferredSeqNumbersFullyExecuted_);
+      sizeof(lastViewTransferredSeqNumbersFullyExecuted_);
   metadataObjectsArray[FETCHING_STATE].maxSize = sizeof(fetchingState_);
 
-  metadataObjectsArray[REPLICA_CONFIG].maxSize = ReplicaConfig::maxSize();
+  metadataObjectsArray[REPLICA_CONFIG].maxSize =
+      ReplicaConfigSerializer::maxSize();
 
   metadataObjectsArray[LAST_EXIT_FROM_VIEW_DESC].maxSize =
       DescriptorOfLastExitFromView::maxSize();
@@ -89,40 +73,64 @@ bool PersistentStorageImp::isInWriteTran() const {
   return (numOfNestedTransactions_ != 0);
 }
 
+// Setters
+
 void PersistentStorageImp::setReplicaConfig(const ReplicaConfig &config) {
-  Assert(config_ == nullptr);
   Assert(isInWriteTran());
-  config_ = new ReplicaConfig;
-  *config_ = config;
+  configSerializer_ = new ReplicaConfigSerializer(config);
+  UniquePtrToChar outBuf;
+  int64_t outBufSize = 0;
+  configSerializer_->serialize(outBuf, outBufSize);
+  metadataStorage_->writeInTransaction(REPLICA_CONFIG, (char *) outBuf.get(),
+                                       outBufSize);
 }
 
 void PersistentStorageImp::setFetchingState(const bool &state) {
   Assert(nonExecSetIsAllowed());
-  Assert(!state || !fetchingState_);  // f ==> !fetchingState_
+  Assert(!state);
   fetchingState_ = state;
+  metadataStorage_->writeInTransaction(FETCHING_STATE, (char *) &state,
+                                       sizeof(state));
 }
 
 void PersistentStorageImp::setLastExecutedSeqNum(const SeqNum &seqNum) {
   Assert(setIsAllowed());
   Assert(lastExecutedSeqNum_ <= seqNum);
   lastExecutedSeqNum_ = seqNum;
+  metadataStorage_->writeInTransaction(LAST_EXEC_SEQ_NUM, (char *) &seqNum,
+                                       sizeof(seqNum));
 }
 
 void PersistentStorageImp::setPrimaryLastUsedSeqNum(const SeqNum &seqNum) {
   Assert(nonExecSetIsAllowed());
   primaryLastUsedSeqNum_ = seqNum;
+  metadataStorage_->writeInTransaction(PRIMARY_LAST_USED_SEQ_NUM,
+                                       (char *) &seqNum, sizeof(seqNum));
 }
 
 void PersistentStorageImp::setStrictLowerBoundOfSeqNums(const SeqNum &seqNum) {
   Assert(nonExecSetIsAllowed());
   strictLowerBoundOfSeqNums_ = seqNum;
+  metadataStorage_->writeInTransaction(LOWER_BOUND_OF_SEQ_NUM,
+                                       (char *) &seqNum, sizeof(seqNum));
 }
 
 void PersistentStorageImp::setLastViewThatTransferredSeqNumbersFullyExecuted(
     const ViewNum &view) {
   Assert(nonExecSetIsAllowed());
-  Assert(lastViewThatTransferredSeqNumbersFullyExecuted_ <= view);
-  lastViewThatTransferredSeqNumbersFullyExecuted_ = view;
+  Assert(lastViewTransferredSeqNumbersFullyExecuted_ <= view);
+  lastViewTransferredSeqNumbersFullyExecuted_ = view;
+  metadataStorage_->writeInTransaction(LAST_VIEW_TRANSFERRED_SEQ_NUM,
+                                       (char *) &view, sizeof(view));
+}
+
+void PersistentStorageImp::setLastStableSeqNum(const SeqNum &seqNum) {
+  Assert(seqNum >= lastStableSeqNum_);
+  lastStableSeqNum_ = seqNum;
+  metadataStorage_->writeInTransaction(LAST_STABLE_SEQ_NUM,
+                                       (char *) &seqNum, sizeof(seqNum));
+  seqNumWindow_.advanceActiveWindow(lastStableSeqNum_ + 1);
+  checkWindow_.advanceActiveWindow(lastStableSeqNum_);
 }
 
 void PersistentStorageImp::setDescriptorOfLastExitFromView(
@@ -131,19 +139,18 @@ void PersistentStorageImp::setDescriptorOfLastExitFromView(
   Assert(d.view >= 0);
 
   // Here we assume that the first view is always 0
-  // (even if we load the initial state from disk)
-  // TODO(GG): check this
-  Assert(hasDescriptorOfLastNewView_ || d.view == 0);
+  // (even if we load the initial state from the disk).
+  Assert(!descriptorOfLastExitFromView_.isEmpty() || d.view == 0);
 
-  Assert(!hasDescriptorOfLastExitFromView_ ||
+  Assert(descriptorOfLastExitFromView_.isEmpty() ||
       d.view > descriptorOfLastExitFromView_.view);
-  Assert(!hasDescriptorOfLastNewView_ ||
+  Assert(descriptorOfLastExitFromView_.isEmpty() ||
       d.view == descriptorOfLastNewView_.view);
   Assert(d.lastStable >= lastStableSeqNum_);
   Assert(d.lastExecuted >= lastExecutedSeqNum_);
   Assert(d.elements.size() <= kWorkWindowSize);
-  Assert(hasDescriptorOfLastExitFromView_ ||
-      descriptorOfLastExitFromView_.elements.size() == 0);
+  Assert(!descriptorOfLastExitFromView_.isEmpty() ||
+      descriptorOfLastExitFromView_.elements.empty());
 
   std::vector<ViewsManager::PrevViewInfo> clonedElements(d.elements.size());
   int i = 0;
@@ -179,22 +186,23 @@ void PersistentStorageImp::setDescriptorOfLastExitFromView(
     delete elem.prepareFull;
   }
 
-  hasDescriptorOfLastExitFromView_ = true;
-  descriptorOfLastExitFromView_ = DescriptorOfLastExitFromView{
-      d.view, d.lastStable, d.lastExecuted, clonedElements};
+  descriptorOfLastExitFromView_ =
+      DescriptorOfLastExitFromView(d.view, d.lastStable, d.lastExecuted,
+                                   clonedElements);
 }
 
 void PersistentStorageImp::setDescriptorOfLastNewView(
     const DescriptorOfLastNewView &d) {
   Assert(nonExecSetIsAllowed());
   Assert(d.view >= 1);
-  Assert(hasDescriptorOfLastExitFromView_);
+  Assert(!descriptorOfLastExitFromView_.isEmpty());
   Assert(d.view > descriptorOfLastExitFromView_.view);
 
   Assert(d.newViewMsg != nullptr);
   Assert(d.newViewMsg->newView() == d.view);
 
-  const size_t numOfVCMsgs = 2 * config_->fVal + 2 * config_->cVal + 1;
+  const size_t numOfVCMsgs = 2 * configSerializer_->getConfig()->fVal +
+      2 * configSerializer_->getConfig()->cVal + 1;
 
   Assert(d.viewChangeMsgs.size() == numOfVCMsgs);
 
@@ -218,7 +226,7 @@ void PersistentStorageImp::setDescriptorOfLastNewView(
   NewViewMsg *clonedNewViewMsg = (NewViewMsg *) d.newViewMsg->cloneObjAndMsg();
   Assert(clonedNewViewMsg->type() == MsgCode::NewView);
 
-  if (hasDescriptorOfLastNewView_) {
+  if (!descriptorOfLastNewView_.isEmpty()) {
     // delete messages from previous descriptor
     delete descriptorOfLastNewView_.newViewMsg;
 
@@ -228,8 +236,6 @@ void PersistentStorageImp::setDescriptorOfLastNewView(
       delete descriptorOfLastNewView_.viewChangeMsgs[i];
     }
   }
-
-  hasDescriptorOfLastNewView_ = true;
   descriptorOfLastNewView_ =
       DescriptorOfLastNewView{d.view,
                               clonedNewViewMsg,
@@ -240,22 +246,14 @@ void PersistentStorageImp::setDescriptorOfLastNewView(
 void PersistentStorageImp::setDescriptorOfLastExecution(
     const DescriptorOfLastExecution &d) {
   Assert(setIsAllowed());
-  Assert(!hasDescriptorOfLastExecution_ ||
+  Assert(descriptorOfLastExecution_.isEmpty() ||
       descriptorOfLastExecution_.executedSeqNum < d.executedSeqNum);
   Assert(lastExecutedSeqNum_ + 1 == d.executedSeqNum);
   Assert(d.validRequests.numOfBits() >= 1);
   Assert(d.validRequests.numOfBits() <= maxNumOfRequestsInBatch);
 
-  hasDescriptorOfLastExecution_ = true;
   descriptorOfLastExecution_ =
       DescriptorOfLastExecution{d.executedSeqNum, d.validRequests};
-}
-
-void PersistentStorageImp::setLastStableSeqNum(const SeqNum &seqNum) {
-  Assert(seqNum >= lastStableSeqNum_);
-  lastStableSeqNum_ = seqNum;
-  seqNumWindow_.advanceActiveWindow(lastStableSeqNum_ + 1);
-  checkWindow_.advanceActiveWindow(lastStableSeqNum_);
 }
 
 void PersistentStorageImp::clearSeqNumWindow() {
@@ -327,50 +325,72 @@ void PersistentStorageImp::setCompletedMarkInCheckWindow(
   checkData.completedMark = completed;
 }
 
-bool PersistentStorageImp::hasReplicaConfig() {
-  return (config_ != nullptr);
-}
+// Getters
 
 ReplicaConfig PersistentStorageImp::getReplicaConfig() {
   Assert(getIsAllowed());
-  return *config_;
+  uint32_t outActualObjectSize = 0;
+  UniquePtrToChar outBuf(new char[ReplicaConfigSerializer::maxSize()]);
+  metadataStorage_->read(REPLICA_CONFIG, ReplicaConfigSerializer::maxSize(),
+                         outBuf.get(), outActualObjectSize);
+  UniquePtrToClass replicaConfigPtr =
+      Serializable::deserialize(outBuf, outActualObjectSize);
+  return *dynamic_cast<ReplicaConfig*>(replicaConfigPtr.get());
 }
 
 bool PersistentStorageImp::getFetchingState() {
   Assert(getIsAllowed());
+  uint32_t outActualObjectSize = 0;
+  metadataStorage_->read(FETCHING_STATE, sizeof(fetchingState_),
+                         (char *) &fetchingState_, outActualObjectSize);
+  Assert(outActualObjectSize == sizeof(fetchingState_));
   return fetchingState_;
+}
+
+SeqNum PersistentStorageImp::getSeqNum(MetadataParameterIds id, uint32_t size) {
+  uint32_t outActualObjectSize = 0;
+  SeqNum seqNum = 0;
+  metadataStorage_->read(id, size, (char *) &seqNum, outActualObjectSize);
+  Assert(outActualObjectSize == size);
+  return seqNum;
 }
 
 SeqNum PersistentStorageImp::getLastExecutedSeqNum() {
   Assert(getIsAllowed());
-  return lastStableSeqNum_;
+  return getSeqNum(LAST_EXEC_SEQ_NUM, sizeof(lastExecutedSeqNum_));
 }
 
 SeqNum PersistentStorageImp::getPrimaryLastUsedSeqNum() {
   Assert(getIsAllowed());
-  return primaryLastUsedSeqNum_;
+  return getSeqNum(PRIMARY_LAST_USED_SEQ_NUM, sizeof(primaryLastUsedSeqNum_));
 }
 
 SeqNum PersistentStorageImp::getStrictLowerBoundOfSeqNums() {
   Assert(getIsAllowed());
-  return strictLowerBoundOfSeqNums_;
+  return getSeqNum(LOWER_BOUND_OF_SEQ_NUM, sizeof(strictLowerBoundOfSeqNums_));
+}
+
+SeqNum PersistentStorageImp::getLastStableSeqNum() {
+  Assert(getIsAllowed());
+  return getSeqNum(LAST_STABLE_SEQ_NUM, sizeof(lastStableSeqNum_));
 }
 
 ViewNum
 PersistentStorageImp::getLastViewThatTransferredSeqNumbersFullyExecuted() {
   Assert(getIsAllowed());
-  return lastViewThatTransferredSeqNumbersFullyExecuted_;
+  return getSeqNum(LAST_VIEW_TRANSFERRED_SEQ_NUM,
+                   sizeof(lastViewTransferredSeqNumbersFullyExecuted_));
 }
 
 bool PersistentStorageImp::hasDescriptorOfLastExitFromView() {
   Assert(getIsAllowed());
-  return hasDescriptorOfLastExitFromView_;
+  return (!descriptorOfLastExitFromView_.isEmpty());
 }
 
 PersistentStorage::DescriptorOfLastExitFromView
 PersistentStorageImp::getAndAllocateDescriptorOfLastExitFromView() {
   Assert(getIsAllowed());
-  Assert(hasDescriptorOfLastExitFromView_);
+  Assert(!descriptorOfLastExitFromView_.isEmpty());
 
   DescriptorOfLastExitFromView &d = descriptorOfLastExitFromView_;
 
@@ -395,13 +415,13 @@ PersistentStorageImp::getAndAllocateDescriptorOfLastExitFromView() {
 
 bool PersistentStorageImp::hasDescriptorOfLastNewView() {
   Assert(getIsAllowed());
-  return hasDescriptorOfLastNewView_;
+  return (!descriptorOfLastNewView_.isEmpty());
 }
 
 PersistentStorage::DescriptorOfLastNewView
 PersistentStorageImp::getAndAllocateDescriptorOfLastNewView() {
   Assert(getIsAllowed());
-  Assert(hasDescriptorOfLastNewView_);
+  Assert(!descriptorOfLastNewView_.isEmpty());
 
   DescriptorOfLastNewView &d = descriptorOfLastNewView_;
 
@@ -421,20 +441,15 @@ PersistentStorageImp::getAndAllocateDescriptorOfLastNewView() {
 
 bool PersistentStorageImp::hasDescriptorOfLastExecution() {
   Assert(getIsAllowed());
-  return hasDescriptorOfLastExecution_;
+  return (!descriptorOfLastExecution_.isEmpty());
 }
 
 PersistentStorage::DescriptorOfLastExecution PersistentStorageImp::getDescriptorOfLastExecution() {
   Assert(getIsAllowed());
-  Assert(hasDescriptorOfLastExecution_);
+  Assert(!descriptorOfLastExecution_.isEmpty());
 
   DescriptorOfLastExecution &d = descriptorOfLastExecution_;
   return DescriptorOfLastExecution{d.executedSeqNum, d.validRequests};
-}
-
-SeqNum PersistentStorageImp::getLastStableSeqNum() {
-  Assert(getIsAllowed());
-  return lastStableSeqNum_;
 }
 
 PrePrepareMsg *PersistentStorageImp::getAndAllocatePrePrepareMsgInSeqNumWindow(
@@ -518,18 +533,21 @@ bool PersistentStorageImp::getCompletedMarkInCheckWindow(const SeqNum &seqNum) {
   return b;
 }
 
+bool PersistentStorageImp::hasReplicaConfig() {
+  return (configSerializer_->getConfig() != nullptr);
+}
+
 bool PersistentStorageImp::setIsAllowed() const {
-  return (isInWriteTran() && (config_ != nullptr));
+  return (isInWriteTran() && (configSerializer_->getConfig() != nullptr));
 }
 
 bool PersistentStorageImp::getIsAllowed() const {
-  return (!isInWriteTran() && (config_ != nullptr));
+  return (!isInWriteTran() && (configSerializer_->getConfig() != nullptr));
 }
 
 bool PersistentStorageImp::nonExecSetIsAllowed() const {
-  return setIsAllowed() &&
-      (!hasDescriptorOfLastExecution_ ||
-          descriptorOfLastExecution_.executedSeqNum <= lastExecutedSeqNum_);
+  return setIsAllowed() && (descriptorOfLastExecution_.isEmpty() ||
+      descriptorOfLastExecution_.executedSeqNum <= lastExecutedSeqNum_);
 }
 
 void PersistentStorageImp::WindowFuncs::free(SeqNumData &seqNumData) {

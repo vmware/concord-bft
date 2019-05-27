@@ -48,10 +48,7 @@ UniquePtrToChar Serializable::deserializeClassName(istream &inStream) {
   return className;
 }
 
-UniquePtrToClass Serializable::deserialize(const UniquePtrToChar &inBuf,
-                                           int64_t inBufSize) {
-  MemoryBasedStream inStream(inBuf, (uint64_t) inBufSize);
-
+UniquePtrToClass Serializable::deserialize(istream &inStream) {
   // Deserialize first the class name.
   UniquePtrToChar className = deserializeClassName(inStream);
 
@@ -63,6 +60,12 @@ UniquePtrToClass Serializable::deserialize(const UniquePtrToChar &inBuf,
   ostringstream error;
   error << "Deserialization failed: unknown class name: " << className.get();
   throw runtime_error(error.str());
+}
+
+UniquePtrToClass Serializable::deserialize(const UniquePtrToChar &inBuf,
+                                           int64_t inBufSize) {
+  MemoryBasedStream inStream(inBuf, (uint64_t) inBufSize);
+  return deserialize(inStream);
 }
 
 void Serializable::verifyClassName(const string &expectedClassName,

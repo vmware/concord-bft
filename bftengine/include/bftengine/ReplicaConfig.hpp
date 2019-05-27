@@ -16,36 +16,39 @@
 #include <set>
 
 namespace bftEngine {
+// This struct gets serialized using ReplicaConfigSerializer class.
+// Any ReplicaConfig changes require synchronization with it and an update of
+// ReplicaConfigSerializer::classVersion_.
 struct ReplicaConfig {
   // F value - max number of faulty/malicious replicas. fVal >= 1
-  uint16_t fVal;
+  uint16_t fVal = 0;
 
   // C value. cVal >=0
-  uint16_t cVal;
+  uint16_t cVal = 0;
 
   // unique identifier of the replica.
   // The number of replicas in the system should be N = 3*fVal + 2*cVal + 1
   // In the current version, replicaId should be a number between 0 and  N-1
   // replicaId should also represent this replica in ICommunication.
-  uint16_t replicaId;
+  uint16_t replicaId = 0;
 
   // number of objects that represent clients.
   // numOfClientProxies >= 1
-  uint16_t numOfClientProxies;
+  uint16_t numOfClientProxies = 0;
 
   // a time interval in milliseconds. represents how often the replica sends a status report to the other replicas.
   // statusReportTimerMillisec > 0
-  uint16_t statusReportTimerMillisec;
+  uint16_t statusReportTimerMillisec = 0;
 
   // number of consensus operations that can be executed in parallel
   // 1 <= concurrencyLevel <= 30
-  uint16_t concurrencyLevel;
+  uint16_t concurrencyLevel = 0;
 
   // autoViewChangeEnabled=true , if the automatic view change protocol is enabled
-  bool autoViewChangeEnabled;
+  bool autoViewChangeEnabled = false;
 
   // a time interval in milliseconds. represents the timeout used by the  view change protocol (TODO: add more details)
-  uint16_t viewChangeTimerMillisec;
+  uint16_t viewChangeTimerMillisec = 0;
 
   // public keys of all replicas. map from replica identifier to a public key
   std::set<std::pair<uint16_t, std::string>> publicKeysOfReplicas;
@@ -55,31 +58,22 @@ struct ReplicaConfig {
 
   // signer and verifier of a threshold signature (for threshold fVal+1 out of N)
   // In the current version, both should be nullptr
-  IThresholdSigner *thresholdSignerForExecution;
-  IThresholdVerifier *thresholdVerifierForExecution;
+  IThresholdSigner *thresholdSignerForExecution = nullptr;
+  IThresholdVerifier *thresholdVerifierForExecution = nullptr;
 
   // signer and verifier of a threshold signature (for threshold N-fVal-cVal out of N)
-  IThresholdSigner *thresholdSignerForSlowPathCommit;
-  IThresholdVerifier *thresholdVerifierForSlowPathCommit;
+  IThresholdSigner *thresholdSignerForSlowPathCommit = nullptr;
+  IThresholdVerifier *thresholdVerifierForSlowPathCommit = nullptr;
 
   // signer and verifier of a threshold signature (for threshold N-cVal out of N)
   // If cVal==0, then both should be nullptr
-  IThresholdSigner *thresholdSignerForCommit;
-  IThresholdVerifier *thresholdVerifierForCommit;
+  IThresholdSigner *thresholdSignerForCommit = nullptr;
+  IThresholdVerifier *thresholdVerifierForCommit = nullptr;
 
   // signer and verifier of a threshold signature (for threshold N out of N)
-  IThresholdSigner *thresholdSignerForOptimisticCommit;
-  IThresholdVerifier *thresholdVerifierForOptimisticCommit;
+  IThresholdSigner *thresholdSignerForOptimisticCommit = nullptr;
+  IThresholdVerifier *thresholdVerifierForOptimisticCommit = nullptr;
 
-  static uint32_t maxSize() {
-    return (sizeof(fVal) + sizeof(cVal) + sizeof(replicaId) +
-            sizeof(numOfClientProxies) + sizeof(statusReportTimerMillisec) +
-            sizeof(concurrencyLevel) + sizeof(autoViewChangeEnabled) +
-            sizeof(viewChangeTimerMillisec) + MaxSizeOfPrivateKey +
-            MaxNumberOfReplicas * MaxSizeOfPublicKey +
-            IThresholdSigner::maxSize() * 3 +
-            IThresholdVerifier::maxSize() * 3);
-  }
 };
 
 }
