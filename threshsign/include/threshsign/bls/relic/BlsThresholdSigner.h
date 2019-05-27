@@ -82,6 +82,7 @@ class BlsThresholdSigner : public IThresholdSigner {
   }
 
   // Serialization/deserialization
+  void serialize(std::ostream &outStream) const override;
   void serialize(UniquePtrToChar &outBuf, int64_t &outBufSize) const override;
   UniquePtrToClass create(std::istream &inStream) override;
 

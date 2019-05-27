@@ -49,6 +49,10 @@ class Bitmap {
     }
   }
 
+  bool isEmpty() const {
+    return ((numBits_ == 0) && (p_ == nullptr));
+  }
+
   Bitmap& operator=(const Bitmap& other) {
     if (numBits_ > 0) {
       Assert(p_ != nullptr);

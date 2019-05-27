@@ -28,6 +28,7 @@ class IThresholdSigner : public Serializable {
   virtual const IShareVerificationKey &getShareVerificationKey() const = 0;
 
   // Serialization/deserialization
+  virtual void serialize(std::ostream &outStream) const = 0;
   virtual void serialize(UniquePtrToChar &outBuf, int64_t &outBufSize) const = 0;
 
   static const uint32_t maxSize_ = 2048;

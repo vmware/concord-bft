@@ -69,12 +69,11 @@ class Serializable {
                                  std::istream &inStream);
   static UniquePtrToClass deserialize(const UniquePtrToChar &inBuf,
                                       int64_t inBufSize);
+  static UniquePtrToClass deserialize(std::istream &inStream);
+  static UniquePtrToChar deserializeClassName(std::istream &inStream);
 
  protected:
   virtual UniquePtrToClass create(std::istream &inStream) = 0;
-
- private:
-  static UniquePtrToChar deserializeClassName(std::istream &inStream);
 
  protected:
   static ClassNameToObjectMap classNameToObjectMap_;
