@@ -509,7 +509,7 @@ class AsyncTlsConnection : public
     // the certificate must have node id, as we put it in OU field on creation.
     // since we use pinning we must know who is the remote peer.
     // peerIdPrefixLength stands for the length of 'OU=' substring
-    size_t peerIdPrefixLength = 3;
+    int peerIdPrefixLength = 3;
     std::regex r("OU=\\d*", std::regex_constants::icase);
     std::smatch sm;
     regex_search(subject, sm, r);

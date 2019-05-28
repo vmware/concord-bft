@@ -107,7 +107,7 @@ int main(int argc, char **argv) {
 			argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
 			string numOfOpsStr = argTempBuffer;
 			int tempfVal = std::stoi(numOfOpsStr);
-			if (tempfVal >= 1 && tempfVal < UINT32_MAX)
+			if (tempfVal >= 1 && (uint32_t)tempfVal < UINT32_MAX)
 				cp.numOfOperations = (uint32_t)tempfVal;
 			// TODO: check numOfOps
 		}

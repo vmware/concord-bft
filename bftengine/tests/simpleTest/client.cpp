@@ -70,16 +70,15 @@ void parse_params(int argc, char** argv, ClientParams &cp,
 
   uint16_t min16_t_u = std::numeric_limits<uint16_t>::min();
   uint16_t max16_t_u = std::numeric_limits<uint16_t>::max();
-  uint32_t min32_t = std::numeric_limits<uint32_t>::min();
-  uint32_t max32_t = std::numeric_limits<uint32_t>::max();
+  uint32_t max32_t_u = std::numeric_limits<uint32_t>::max();
 
   try {
     for (int i = 1; i < argc;) {
       string p(argv[i]);
       if (p == "-i") {
         auto numOp = std::stoi(argv[i + 1]);
-        if (numOp < min32_t || numOp > max32_t) {
-          printf("-i value is out of range (%u - %u)\n", min32_t, max32_t);
+        if (numOp < 0 || (uint32_t)numOp > max32_t_u) {
+          printf("-i value is out of range (%u - %u)\n", 0, max32_t_u);
           exit(-1);
         }
         cp.numOfOperations = (uint32_t)numOp;
@@ -260,7 +259,7 @@ int main(int argc, char **argv) {
 
   LOG_INFO(clientLogger, "Starting " << cp.numOfOperations);
 
-  for (int i = 1; i <= cp.numOfOperations; i++) {
+  for (uint32_t i = 1; i <= cp.numOfOperations; i++) {
 
     // the python script that runs the client needs to know how many
     // iterations has been done - that's the reason we use printf and not

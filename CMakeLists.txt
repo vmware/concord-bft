@@ -102,6 +102,8 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
             " --no-system-header-prefix relic")
     string(APPEND CMAKE_CXX_FLAGS
             " -Wmacro-redefined")
+    string(APPEND CMAKE_CXX_FLAGS
+            " -Wsign-compare")
     string(APPEND CMAKE_CXX_FLAGS_DEBUG
             " -fstack-protector-all")
 
