@@ -1,28 +1,47 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
 //
 // This product may include a number of subcomponents with separate copyright
 // notices and license terms. Your use of these subcomponents is subject to the
-// terms and conditions of the subcomponent's license, as noted in the
+// terms and conditions of the sub-component's license, as noted in the
 // LICENSE file.
 
 #include <sstream>
-#include "threshsign/Serializable.h"
+#include "Serializable.h"
 
 using namespace std;
 
 Serializable::ClassNameToObjectMap Serializable::classNameToObjectMap_;
 
+void Serializable::serialize(ostream &outStream) const {
+  serializeClassName(outStream);
+  serializeClassVersion(outStream);
+  serializeDataMembers(outStream);
+}
+
+void Serializable::serialize(UniquePtrToChar &outBuf,
+                             int64_t &outBufSize) const {
+  ofstream outStream(getName().c_str(), ofstream::binary | ofstream::trunc);
+  serialize(outStream);
+  outStream.close();
+  retrieveSerializedBuffer(getName(), outBuf, outBufSize);
+}
+
 /************** Serialization **************/
 
-void Serializable::serializeClassName(const string &name, ostream &outStream) {
-  auto sizeofClassName = (int64_t) name.size();
+void Serializable::serializeClassName(ostream &outStream) const {
+  auto sizeofClassName = (int64_t) getName().size();
   outStream.write((char *) &sizeofClassName, sizeof(sizeofClassName));
-  outStream.write(name.c_str(), sizeofClassName);
+  outStream.write(getName().c_str(), sizeofClassName);
+}
+
+void Serializable::serializeClassVersion(ostream &outStream) const {
+  const uint32_t version = getVersion();
+  outStream.write((char *) &version, sizeof(version));
 }
 
 void Serializable::retrieveSerializedBuffer(
@@ -51,7 +70,6 @@ UniquePtrToChar Serializable::deserializeClassName(istream &inStream) {
 UniquePtrToClass Serializable::deserialize(istream &inStream) {
   // Deserialize first the class name.
   UniquePtrToChar className = deserializeClassName(inStream);
-
   auto it = classNameToObjectMap_.find(className.get());
   if (it != classNameToObjectMap_.end()) {
     // Create corresponding class instance

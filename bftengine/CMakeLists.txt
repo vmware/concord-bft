@@ -41,6 +41,7 @@ set(corebft_source_files
     src/bftengine/BFTEngine.cpp
     src/bftengine/SimpleClient.cpp
     src/bftengine/PersistentStorageImp.cpp
+    src/bftengine/PersistentStorageDescriptors.cpp
     src/bftengine/DebugPersistentStorage.cpp
     src/bftengine/ReplicaConfigSerializer.cpp
     src/communication/PlainUDPCommunication.cpp

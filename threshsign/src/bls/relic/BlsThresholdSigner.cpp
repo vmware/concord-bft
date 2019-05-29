@@ -21,13 +21,11 @@ using namespace std;
 namespace BLS {
 namespace Relic {
 
-const string BlsThresholdSigner::className_ = "BlsThresholdSigner";
-const uint32_t BlsThresholdSigner::classVersion_ = 1;
 bool BlsThresholdSigner::registered_ = false;
 
 void BlsThresholdSigner::registerClass() {
   if (!registered_) {
-    classNameToObjectMap_[className_] =
+    classNameToObjectMap_["BlsThresholdSigner"] =
         UniquePtrToClass(new BlsThresholdSigner);
     registered_ = true;
   }
@@ -63,24 +61,7 @@ void BlsThresholdSigner::signData(const char *hash, int hashLen, char *outSig,
 
 /************** Serialization **************/
 
-void BlsThresholdSigner::serialize(ostream &outStream) const {
-  // Serialize first the class name.
-  serializeClassName(className_, outStream);
-  serializeDataMembers(outStream);
-}
-
-void BlsThresholdSigner::serialize(UniquePtrToChar &outBuf, int64_t &outBufSize)
-const {
-  ofstream outStream(className_.c_str(), ofstream::binary | ofstream::trunc);
-  serialize(outStream);
-  outStream.close();
-  retrieveSerializedBuffer(className_, outBuf, outBufSize);
-}
-
 void BlsThresholdSigner::serializeDataMembers(ostream &outStream) const {
-  // Serialize class version
-  outStream.write((char *) &classVersion_, sizeof(classVersion_));
-
   // Serialize params
   params_.serialize(outStream);
 

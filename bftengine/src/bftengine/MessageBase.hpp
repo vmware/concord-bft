@@ -21,6 +21,9 @@ class MessageBase {
 #pragma pack(push, 1)
   struct Header {
     MsgType msgType;
+    bool operator==(const Header &other) const {
+      return other.msgType == msgType;
+    }
   };
 #pragma pack(pop)
   static_assert(sizeof(Header) == 2, "MessageBase::Header is 2B");
@@ -35,6 +38,19 @@ class MessageBase {
               bool ownerOfStorage);
 
   virtual ~MessageBase();
+  bool operator==(const MessageBase &other) const {
+    bool equals = (other.msgSize_ == msgSize_ &&
+        other.storageSize_ == storageSize_ &&
+        other.sender_ == sender_ &&
+        other.owner_ == owner_);
+    if (!equals)
+      return false;
+    if (!other.msgBody_ && !msgBody_) // Both are nullptr => OK
+      return true;
+    if (!other.msgBody_ || !msgBody_) // Only one is nullptr => NOK
+      return false;
+    return (*other.msgBody_ == *msgBody_);
+  }
 
   MsgSize size() const { return msgSize_; }
 
@@ -71,8 +87,8 @@ class MessageBase {
   MsgSize msgSize_ = 0;
   MsgSize storageSize_ = 0;
   NodeIdType sender_;
-  bool owner_ =
-      true; // true IFF this instance is not responsible for deallocating the body
+  // true IFF this instance is not responsible for de-allocating the body:
+  bool owner_ = true;
 
 #pragma pack(push, 1)
   struct RawHeaderOfObjAndMsg {

@@ -78,7 +78,7 @@ vector<BlsPublicKey> prepareVerificationKeysVector() {
   return verificationKeys;
 }
 
-void printRawBuf(UniquePtrToChar buf, int64_t bufSize) {
+void printRawBuf(const UniquePtrToChar& buf, int64_t bufSize) {
   for (int i = 0; i < bufSize; ++i) {
     char c = buf.get()[i];
     if (c >= 48 && c <= 57)

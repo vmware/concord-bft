@@ -83,23 +83,25 @@ class BlsThresholdVerifier : public IThresholdVerifier {
   const override;
 
   // Serialization/deserialization
-  void serialize(UniquePtrToChar &outBuf, int64_t &outBufSize) const override;
-  void serialize(std::ostream &outStream) const override;
   UniquePtrToClass create(std::istream &inStream) override;
+
+  UniquePtrToClass createDontVerify(std::istream &inStream);
 
  protected:
   BlsThresholdVerifier() = default;
+  void serializeDataMembers(std::ostream &outStream) const override;
+  std::string getName() const override { return className_; };
+  uint32_t getVersion() const override { return classVersion_; };
 
  private:
-  void serializeDataMembers(std::ostream &outStream) const;
   static void registerClass();
   static void serializePublicKey(std::ostream &outStream,
                                  const BlsPublicKey &key);
   static G2T deserializePublicKey(std::istream &inStream);
 
  private:
-  static const std::string className_;
-  static const uint32_t classVersion_;
+  const std::string className_ = "BlsThresholdVerifier";
+  const uint32_t classVersion_ = 1;
   static bool registered_;
 };
 

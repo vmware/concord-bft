@@ -15,9 +15,6 @@
 
 using namespace std;
 
-const string IPublicParameters::className_ = "IPublicParameters";
-const uint32_t IPublicParameters::classVersion_ = 1;
-
 IPublicParameters::IPublicParameters(int securityLevel, string schemeName,
                                      string library) :
     securityLevel_(securityLevel), schemeName_(move(schemeName)),
@@ -25,16 +22,7 @@ IPublicParameters::IPublicParameters(int securityLevel, string schemeName,
 
 /************** Serialization **************/
 
-void IPublicParameters::serialize(ostream &outStream) const {
-  // Serialize first the class name.
-  serializeClassName(className_, outStream);
-  serializeDataMembers(outStream);
-}
-
 void IPublicParameters::serializeDataMembers(ostream &outStream) const {
-  // Serialize class version
-  outStream.write((char *) &classVersion_, sizeof(classVersion_));
-
   // Serialize securityLevel_
   outStream.write((char *) &securityLevel_, sizeof(securityLevel_));
 
@@ -59,12 +47,7 @@ bool IPublicParameters::operator==(const IPublicParameters &other) const {
 
 /************** Deserialization **************/
 
-UniquePtrToClass IPublicParameters::create(istream &inStream) {
-  verifyClassName(className_, inStream);
-
-  // Deserialize class version
-  verifyClassVersion(classVersion_, inStream);
-
+UniquePtrToClass IPublicParameters::createDontVerify(std::istream &inStream) {
   // Deserialize securityLevel_
   inStream.read((char *) &securityLevel_, sizeof(securityLevel_));
 
@@ -82,4 +65,10 @@ UniquePtrToClass IPublicParameters::create(istream &inStream) {
 
   return UniquePtrToClass(
       new IPublicParameters(securityLevel_, schemeName.get(), library.get()));
+}
+
+UniquePtrToClass IPublicParameters::create(istream &inStream) {
+  verifyClassName(className_, inStream);
+  verifyClassVersion(classVersion_, inStream);
+  return createDontVerify(inStream);
 }

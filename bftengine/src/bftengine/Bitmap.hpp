@@ -53,6 +53,10 @@ class Bitmap {
     return ((numBits_ == 0) && (p_ == nullptr));
   }
 
+  bool operator==(const Bitmap &other) const {
+    return (other.numBits_ == numBits_ && !memcmp(other.p_, p_, realSize()));
+  }
+
   Bitmap& operator=(const Bitmap& other) {
     if (numBits_ > 0) {
       Assert(p_ != nullptr);

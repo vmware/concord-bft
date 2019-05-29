@@ -15,7 +15,7 @@
 #include <cstddef>
 #include <memory>
 
-#include "threshsign/Serializable.h"
+#include "Serializable.h"
 #include "IPublicKey.h"
 #include "ThresholdSignaturesTypes.h"
 
@@ -40,11 +40,6 @@ class IThresholdVerifier : public Serializable {
   virtual const IPublicKey &getPublicKey() const = 0;
   virtual const IShareVerificationKey &getShareVerificationKey(
       ShareID signer) const = 0;
-
-  // Serialization/deserialization
-  virtual void serialize(UniquePtrToChar &outBuf,
-                         int64_t &outBufSize) const = 0;
-  virtual void serialize(std::ostream &outStream) const = 0;
 
   static const uint32_t maxSize_ = 2048;
   static uint32_t maxSize() { return maxSize_; }

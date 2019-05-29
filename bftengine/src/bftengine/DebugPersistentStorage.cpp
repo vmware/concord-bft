@@ -312,7 +312,7 @@ bool DebugPersistentStorage::hasDescriptorOfLastExitFromView() {
   return hasDescriptorOfLastExitFromView_;
 }
 
-PersistentStorage::DescriptorOfLastExitFromView
+DescriptorOfLastExitFromView
 DebugPersistentStorage::getAndAllocateDescriptorOfLastExitFromView() {
   Assert(getIsAllowed());
   Assert(hasDescriptorOfLastExitFromView_);
@@ -343,7 +343,7 @@ bool DebugPersistentStorage::hasDescriptorOfLastNewView() {
   return hasDescriptorOfLastNewView_;
 }
 
-PersistentStorage::DescriptorOfLastNewView
+DescriptorOfLastNewView
 DebugPersistentStorage::getAndAllocateDescriptorOfLastNewView() {
   Assert(getIsAllowed());
   Assert(hasDescriptorOfLastNewView_);
@@ -369,7 +369,7 @@ bool DebugPersistentStorage::hasDescriptorOfLastExecution() {
   return hasDescriptorOfLastExecution_;
 }
 
-PersistentStorage::DescriptorOfLastExecution
+DescriptorOfLastExecution
 DebugPersistentStorage::getDescriptorOfLastExecution() {
   Assert(getIsAllowed());
   Assert(hasDescriptorOfLastExecution_);
