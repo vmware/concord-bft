@@ -7,7 +7,7 @@
 //
 //This product may include a number of subcomponents with separate copyright
 // notices and license terms. Your use of these subcomponents is subject to the
-// terms and conditions of the subcomponent's license, as noted in the LICENSE
+// terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
 #include "ReplicaConfigSerializer.hpp"
@@ -20,10 +20,20 @@ bool ReplicaConfigSerializer::registered_ = false;
 
 void ReplicaConfigSerializer::registerClass() {
   if (!registered_) {
-    classNameToObjectMap_["ReplicaConfigSerializer"] =
+    classNameToObjectMap_["ReplicaConfig"] =
         UniquePtrToClass(new ReplicaConfigSerializer);
     registered_ = true;
   }
+}
+
+ReplicaConfigSerializer::ReplicaConfigSerializer(const ReplicaConfig &config) {
+  config_ = new ReplicaConfig;
+  *config_ = config;
+  registerClass();
+}
+
+ReplicaConfigSerializer::~ReplicaConfigSerializer() {
+  delete config_;
 }
 
 /************** Serialization **************/
@@ -104,8 +114,7 @@ const {
       (other.config_->viewChangeTimerMillisec ==
           config_->viewChangeTimerMillisec) &&
       (other.config_->publicKeysOfReplicas == config_->publicKeysOfReplicas) &&
-      (other.config_->replicaPrivateKey == config_->replicaPrivateKey) &&
-      (other.config_->thresholdVerifierForCommit == config_->thresholdVerifierForCommit));
+      (other.config_->replicaPrivateKey == config_->replicaPrivateKey));
   return result;
 }
 
