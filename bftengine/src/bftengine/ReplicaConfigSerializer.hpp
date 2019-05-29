@@ -20,23 +20,18 @@ namespace bftEngine {
 // class for its serialization/deserialization functionality.
 class ReplicaConfigSerializer : public Serializable {
  public:
-  explicit ReplicaConfigSerializer(const ReplicaConfig &config) {
-    config_ = new ReplicaConfig;
-    *config_ = config;
-    registerClass();
-  }
-  ~ReplicaConfigSerializer() override { delete config_; }
+  explicit ReplicaConfigSerializer(const ReplicaConfig &config);
+  ~ReplicaConfigSerializer() override;
 
   ReplicaConfig *getConfig() { return config_; }
 
   bool operator==(const ReplicaConfigSerializer &other) const;
 
   // Serialization/deserialization
-  // Two functions below should be implemented by all derived classes.
   UniquePtrToClass create(std::istream &inStream) override;
 
   // To be used ONLY during deserialization.
-  ReplicaConfigSerializer() = default;
+  ReplicaConfigSerializer() { config_ = new ReplicaConfig; };
 
   static uint32_t maxSize() {
     return (sizeof(config_->fVal) + sizeof(config_->cVal) +

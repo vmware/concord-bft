@@ -52,10 +52,10 @@ class MemoryBasedStream : public std::istream {
   MemoryBasedBuf buffer_;
 };
 
-class Serializable {
-  typedef std::unordered_map<std::string, UniquePtrToClass>
-      ClassNameToObjectMap;
+typedef std::unordered_map<std::string, UniquePtrToClass>
+    ClassNameToObjectMap;
 
+class Serializable {
  public:
   virtual ~Serializable() = default;
   virtual void serialize(UniquePtrToChar &outBuf, int64_t &outBufSize) const;
@@ -79,9 +79,9 @@ class Serializable {
   static void retrieveSerializedBuffer(const std::string &className,
                                        UniquePtrToChar &outBuf,
                                        int64_t &outBufSize);
+ public:
+  static ClassNameToObjectMap classNameToObjectMap_;
+
  private:
   static UniquePtrToChar deserializeClassName(std::istream &inStream);
-
- protected:
-  static ClassNameToObjectMap classNameToObjectMap_;
 };
