@@ -1,13 +1,13 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
 //
 // This product may include a number of subcomponents with separate copyright
 // notices and license terms. Your use of these subcomponents is subject to the
-// terms and conditions of the subcomponent's license, as noted in the
+// terms and conditions of the sub-component's license, as noted in the
 // LICENSE file.
 
 #pragma once
@@ -53,16 +53,16 @@ class MemoryBasedStream : public std::istream {
 };
 
 class Serializable {
- typedef std::unordered_map<std::string, UniquePtrToClass> ClassNameToObjectMap;
+  typedef std::unordered_map<std::string, UniquePtrToClass>
+      ClassNameToObjectMap;
 
  public:
   virtual ~Serializable() = default;
+  virtual void serialize(UniquePtrToChar &outBuf, int64_t &outBufSize) const;
+  virtual void serialize(std::ostream &outStream) const;
+  virtual std::string getName() const = 0;
+  virtual uint32_t getVersion() const = 0;
 
-  static void retrieveSerializedBuffer(const std::string &className,
-                                       UniquePtrToChar &outBuf,
-                                       int64_t &outBufSize);
-  static void serializeClassName(const std::string &name,
-                                 std::ostream &outStream);
   static void verifyClassName(const std::string &expectedClassName,
                               std::istream &inStream);
   static void verifyClassVersion(uint32_t expectedVersion,
@@ -70,10 +70,17 @@ class Serializable {
   static UniquePtrToClass deserialize(const UniquePtrToChar &inBuf,
                                       int64_t inBufSize);
   static UniquePtrToClass deserialize(std::istream &inStream);
-  static UniquePtrToChar deserializeClassName(std::istream &inStream);
 
  protected:
+  virtual void serializeDataMembers(std::ostream &outStream) const = 0;
+  virtual void serializeClassName(std::ostream &outStream) const;
+  virtual void serializeClassVersion(std::ostream &outStream) const;
   virtual UniquePtrToClass create(std::istream &inStream) = 0;
+  static void retrieveSerializedBuffer(const std::string &className,
+                                       UniquePtrToChar &outBuf,
+                                       int64_t &outBufSize);
+ private:
+  static UniquePtrToChar deserializeClassName(std::istream &inStream);
 
  protected:
   static ClassNameToObjectMap classNameToObjectMap_;

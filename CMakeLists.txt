@@ -145,10 +145,10 @@ include(CTest)
 # Subdirectories
 #
 add_subdirectory(logging)
+add_subdirectory(util)
 add_subdirectory(threshsign)
 add_subdirectory(bftengine)
 add_subdirectory(tools)
-add_subdirectory(util)
 
 #
 # Setup testing

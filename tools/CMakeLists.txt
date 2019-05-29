@@ -14,7 +14,8 @@ target_include_directories(GenerateConcordKeys
                            ${bftengine_SOURCE_DIR}/include)
 target_link_libraries(GenerateConcordKeys
                       PUBLIC
-                      threshsign)
+                      threshsign
+                      util)
 link_with_relic_library(GenerateConcordKeys)
 set_target_properties(GenerateConcordKeys
                       PROPERTIES

@@ -22,9 +22,6 @@ using namespace std;
 namespace BLS {
 namespace Relic {
 
-const string BlsPublicParameters::className_ = "BlsPublicParameters";
-const uint32_t BlsPublicParameters::classVersion_ = 1;
-
 BlsPublicParameters::BlsPublicParameters(int securityLevel, int curveType)
     : IPublicParameters(securityLevel, "", "RELIC"), curveType_(curveType) {
   schemeName_ = Library::getCurveName(curveType);
@@ -42,7 +39,7 @@ BlsPublicParameters::BlsPublicParameters(int securityLevel, int curveType)
 }
 
 BlsPublicParameters::BlsPublicParameters(const BlsPublicParameters &params)
-    : IPublicParameters(params.getSecurityLevel(), params.getName(),
+    : IPublicParameters(params.getSecurityLevel(), params.getSchemeName(),
                         params.getLibrary()), curveType_(params.curveType_) {
   g1_copy(generator1_, params.generator1_);
   g2_copy(generator2_, const_cast<G2T &>(params.generator2_));
@@ -63,18 +60,11 @@ const BNT &BlsPublicParameters::getGroupOrder() const {
 /************** Serialization **************/
 
 void BlsPublicParameters::serialize(ostream &outStream) const {
-  // Serialize the base class
-  IPublicParameters::serialize(outStream);
-
-  // Serialize first the class name.
-  serializeClassName(className_, outStream);
-  serializeDataMembers(outStream);
+  IPublicParameters::serializeDataMembers(outStream);
+  Serializable::serialize(outStream);
 }
 
 void BlsPublicParameters::serializeDataMembers(ostream &outStream) const {
-  // Serialize class version
-  outStream.write((char *) &classVersion_, sizeof(classVersion_));
-
   // generator1_ and generator2_ fields should not be serialized as they are
   // generated on the fly.
 
@@ -94,7 +84,7 @@ bool BlsPublicParameters::operator==(const BlsPublicParameters &other) const {
 
 UniquePtrToClass BlsPublicParameters::create(istream &inStream) {
   // Retrieve the base class
-  UniquePtrToClass baseClass(IPublicParameters::create(inStream));
+  UniquePtrToClass baseClass(IPublicParameters::createDontVerify(inStream));
 
   verifyClassName(className_, inStream);
   verifyClassVersion(classVersion_, inStream);

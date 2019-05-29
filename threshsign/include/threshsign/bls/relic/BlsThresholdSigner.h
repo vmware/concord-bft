@@ -82,20 +82,18 @@ class BlsThresholdSigner : public IThresholdSigner {
   }
 
   // Serialization/deserialization
-  void serialize(std::ostream &outStream) const override;
-  void serialize(UniquePtrToChar &outBuf, int64_t &outBufSize) const override;
   UniquePtrToClass create(std::istream &inStream) override;
 
  protected:
   BlsThresholdSigner() = default;
-
- private:
-  void serializeDataMembers(std::ostream &outStream) const;
+  void serializeDataMembers(std::ostream &outStream) const override;
+  std::string getName() const override { return className_; };
+  uint32_t getVersion() const override { return classVersion_; };
   static void registerClass();
 
  private:
-  static const std::string className_;
-  static const uint32_t classVersion_;
+  const std::string className_ = "BlsThresholdSigner";
+  const uint32_t classVersion_ = 1;
   static bool registered_;
 };
 

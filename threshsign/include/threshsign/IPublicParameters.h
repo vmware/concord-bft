@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "threshsign/Serializable.h"
+#include "Serializable.h"
 #include <string>
 #include <map>
 #include <fstream>
@@ -56,14 +56,11 @@ class IPublicParameters : public Serializable {
    */
   int getSecurityLevel() const { return securityLevel_; }
 
-  const std::string &getName() const { return schemeName_; }
+  const std::string &getSchemeName() const { return schemeName_; }
 
   const std::string &getLibrary() const { return library_; }
 
   // Serialization/deserialization
-  // Two functions below should be implemented by all derived classes.
-  virtual void serialize(std::ostream &outStream) const;
-
   UniquePtrToClass create(std::istream &inStream) override;
 
   // To be used ONLY during deserialization. Could not become private/protected,
@@ -71,10 +68,14 @@ class IPublicParameters : public Serializable {
   // signer/verifier classes.
   IPublicParameters() = default;
 
- private:
-  void serializeDataMembers(std::ostream &outStream) const;
+  UniquePtrToClass createDontVerify(std::istream &inStream);
+
+ protected:
+  void serializeDataMembers(std::ostream &outStream) const override;
+  std::string getName() const override { return className_; };
+  uint32_t getVersion() const override { return classVersion_; };
 
  private:
-  static const std::string className_;
-  static const uint32_t classVersion_;
+  const std::string className_ = "IPublicParameters";
+  const uint32_t classVersion_ = 1;
 };

@@ -16,13 +16,11 @@ using namespace std;
 
 namespace bftEngine {
 
-const string ReplicaConfigSerializer::className_ = "ReplicaConfig";
-const uint32_t ReplicaConfigSerializer::classVersion_ = 1;
 bool ReplicaConfigSerializer::registered_ = false;
 
 void ReplicaConfigSerializer::registerClass() {
   if (!registered_) {
-    classNameToObjectMap_[className_] =
+    classNameToObjectMap_["ReplicaConfigSerializer"] =
         UniquePtrToClass(new ReplicaConfigSerializer);
     registered_ = true;
   }
@@ -30,20 +28,7 @@ void ReplicaConfigSerializer::registerClass() {
 
 /************** Serialization **************/
 
-void ReplicaConfigSerializer::serialize(UniquePtrToChar &outBuf,
-                                        int64_t &outBufSize) const {
-  ofstream outStream(className_.c_str(), ofstream::binary | ofstream::trunc);
-  // Serialize first the class name.
-  serializeClassName(className_, outStream);
-  serializeDataMembers(outStream);
-  outStream.close();
-  retrieveSerializedBuffer(className_, outBuf, outBufSize);
-}
-
 void ReplicaConfigSerializer::serializeDataMembers(ostream &outStream) const {
-  // Serialize class version
-  outStream.write((char *) &classVersion_, sizeof(classVersion_));
-
   // Serialize fVal
   outStream.write((char *) &config_->fVal, sizeof(config_->fVal));
 
@@ -119,15 +104,14 @@ const {
       (other.config_->viewChangeTimerMillisec ==
           config_->viewChangeTimerMillisec) &&
       (other.config_->publicKeysOfReplicas == config_->publicKeysOfReplicas) &&
-      (other.config_->replicaPrivateKey == config_->replicaPrivateKey));
+      (other.config_->replicaPrivateKey == config_->replicaPrivateKey) &&
+      (other.config_->thresholdVerifierForCommit == config_->thresholdVerifierForCommit));
   return result;
 }
 
 /************** Deserialization **************/
 
 UniquePtrToClass ReplicaConfigSerializer::create(istream &inStream) {
-  verifyClassName(className_, inStream);
-
   // Deserialize class version
   verifyClassVersion(classVersion_, inStream);
 
