@@ -41,21 +41,23 @@ class BlsPublicParameters : public IPublicParameters {
 
   // Serialization/deserialization
   void serialize(std::ostream &outStream) const override;
-
   UniquePtrToClass create(std::istream &inStream) override;
+
+  std::string getName() const override { return className_; };
+  uint32_t getVersion() const override { return classVersion_; };
 
   // To be used ONLY during deserialization. Could not become private/protected,
   // as there is a composition relationship between IPublicParameters and
   // signer/verifier classes.
   BlsPublicParameters() = default; // To be used during deserialization.
 
- private:
-  void serializeDataMembers(std::ostream &outStream) const;
+ protected:
+  void serializeDataMembers(std::ostream &outStream) const override;
 
  private:
-  static const std::string className_;
-  static const uint32_t classVersion_;
+  const std::string className_ = "BlsPublicParameters";
+  const uint32_t classVersion_ = 1;
 };
 
-} // end of Libpbc namespace
+} // end of BLS namespace
 } // end of RELIC namespace

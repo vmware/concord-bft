@@ -79,6 +79,20 @@ class ViewsManager {
     bool hasAllRequests;
     PrepareFullMsg *prepareFull;
 
+    bool operator==(const PrevViewInfo &other) const {
+      if (other.hasAllRequests != hasAllRequests)
+        return false;
+      if ((other.prePrepare && !prePrepare) ||
+          (!other.prePrepare && prePrepare))
+        return false;
+      if ((other.prepareFull && !prepareFull) ||
+          (!other.prepareFull && prepareFull))
+        return false;
+      bool res1 = prePrepare ? (*other.prePrepare == *prePrepare) : true;
+      bool res2 = prepareFull ? (*other.prepareFull == *prepareFull) : true;
+      return res1 && res2;
+    }
+
     static uint32_t maxSize() {
       return (PrePrepareMsg::maxSizeOfPrePrepareMsg() + sizeof(hasAllRequests) +
           PrepareFullMsg::maxSizeOfPrepareFull());
@@ -89,7 +103,7 @@ class ViewsManager {
       SeqNum currentLastStable,
       SeqNum currentLastExecuted,
       const std::vector<PrevViewInfo> &prevViewInfo);
-  // TODO(GG): prevViewInfo is defined and used in a confusing way (becuase it
+  // TODO(GG): prevViewInfo is defined and used in a confusing way (because it
   // contains both executed and non-executed items) - TODO: improve by using two
   // different arguments
 

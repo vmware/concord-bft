@@ -117,6 +117,14 @@ class PersistentStorageImp : public PersistentStorage {
   SeqNum getSeqNum(MetadataParameterIds id, uint32_t size);
 
  private:
+  void verifySetDescriptorOfLastExitFromView(
+      const DescriptorOfLastExitFromView &desc) const;
+  void verifyPrevViewInfo(const DescriptorOfLastExitFromView &desc,
+                          const ViewsManager::PrevViewInfo &elem) const;
+  void verifySetDescriptorOfLastNewView(
+      const DescriptorOfLastNewView &desc) const;
+
+ private:
   MetadataStorage *metadataStorage_ = nullptr;
   uint8_t numOfNestedTransactions_ = 0;
 

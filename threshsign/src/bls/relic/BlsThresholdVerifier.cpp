@@ -34,13 +34,11 @@ using namespace std;
 namespace BLS {
 namespace Relic {
 
-const string BlsThresholdVerifier::className_ = "BlsThresholdVerifier";
-const uint32_t BlsThresholdVerifier::classVersion_ = 1;
 bool BlsThresholdVerifier::registered_ = false;
 
 void BlsThresholdVerifier::registerClass() {
   if (!registered_) {
-    classNameToObjectMap_[className_] =
+    classNameToObjectMap_["BlsThresholdVerifier"] =
         UniquePtrToClass(new BlsThresholdVerifier);
     registered_ = true;
   }
@@ -110,20 +108,6 @@ bool BlsThresholdVerifier::verify(const G1T &msgHash,
 
 /************** Serialization **************/
 
-void BlsThresholdVerifier::serialize(ostream &outStream) const {
-  // Serialize first the class name.
-  serializeClassName(className_, outStream);
-  serializeDataMembers(outStream);
-}
-
-void BlsThresholdVerifier::serialize(UniquePtrToChar &outBuf,
-                                     int64_t &outBufSize) const {
-  ofstream outStream(className_.c_str(), ofstream::binary | ofstream::trunc);
-  serialize(outStream);
-  outStream.close();
-  retrieveSerializedBuffer(className_, outBuf, outBufSize);
-}
-
 void BlsThresholdVerifier::serializePublicKey(
     ostream &outStream, const BlsPublicKey &key) {
   int32_t publicKeySize = key.y.getByteCount();
@@ -134,9 +118,6 @@ void BlsThresholdVerifier::serializePublicKey(
 }
 
 void BlsThresholdVerifier::serializeDataMembers(ostream &outStream) const {
-  // Serialize class version
-  outStream.write((char *) &classVersion_, sizeof(classVersion_));
-
   // Serialize params
   params_.serialize(outStream);
 
@@ -177,10 +158,7 @@ G2T BlsThresholdVerifier::deserializePublicKey(istream &inStream) {
   return G2T(publicKey.get(), sizeOfPublicKey);
 }
 
-UniquePtrToClass BlsThresholdVerifier::create(istream &inStream) {
-  // Deserialize class version
-  verifyClassVersion(classVersion_, inStream);
-
+UniquePtrToClass BlsThresholdVerifier::createDontVerify(std::istream &inStream) {
   // Deserialize params
   BlsPublicParameters params;
   UniquePtrToClass paramsObj(params.create(inStream));
@@ -205,6 +183,11 @@ UniquePtrToClass BlsThresholdVerifier::create(istream &inStream) {
   return UniquePtrToClass(new BlsThresholdVerifier(
       *((BlsPublicParameters *) paramsObj.get()), publicKey, reqSigners_,
       numSigners_, publicKeysVector));
+}
+
+UniquePtrToClass BlsThresholdVerifier::create(istream &inStream) {
+  verifyClassVersion(classVersion_, inStream);
+  return createDontVerify(inStream);
 }
 
 } /* namespace Relic */

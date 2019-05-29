@@ -160,7 +160,7 @@ void IThresholdSchemeBenchmark::printHeaders(std::ostream& out) {
 
 void IThresholdSchemeBenchmark::printNumbers(std::ostream& out) {
     out << params.getLibrary() << ",";				// library
-    out << params.getName() << ",";					// cryptosystem
+    out << params.getSchemeName() << ",";					// cryptosystem
     out << params.getSecurityLevel() << ",";		// secparam
     out << skBits << ",";							// sk_size
     out << pkBits << ","; 							// pk_size

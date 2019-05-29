@@ -24,13 +24,11 @@ using namespace std;
 namespace BLS {
 namespace Relic {
 
-const string BlsMultisigVerifier::className_ = "BlsThresholdSigner";
-const uint32_t BlsMultisigVerifier::classVersion_ = 1;
 bool BlsMultisigVerifier::registered_ = false;
 
 void BlsMultisigVerifier::registerClass() {
   if (!registered_) {
-    classNameToObjectMap_[className_] =
+    classNameToObjectMap_["BlsMultisigVerifier"] =
         UniquePtrToClass(new BlsMultisigVerifier);
     registered_ = true;
   }
@@ -119,22 +117,19 @@ bool BlsMultisigVerifier::verify(const char *msg, int msgLen,
 /************** Serialization **************/
 
 void BlsMultisigVerifier::serialize(UniquePtrToChar &outBuf,
-                                    int64_t &outBufSize)
-const {
+                                    int64_t &outBufSize) const {
   ofstream outStream(className_.c_str(), ofstream::binary | ofstream::trunc);
+  serializeClassName(outStream);
+  serializeClassVersion(outStream);
   // Serialize the base class
-  BlsThresholdVerifier::serialize(outStream);
-
-  // Serialize the class name.
-  serializeClassName(className_, outStream);
-  serializeDataMembers(outStream);
+  BlsThresholdVerifier::serializeDataMembers(outStream);
+  Serializable::serialize(outStream);
   outStream.close();
   retrieveSerializedBuffer(className_, outBuf, outBufSize);
 }
 
 void BlsMultisigVerifier::serializeDataMembers(ostream &outStream) const {
-  // Serialize class version
-  outStream.write((char *) &classVersion_, sizeof(classVersion_));
+  (void)outStream;
 }
 
 bool BlsMultisigVerifier::operator==(const BlsMultisigVerifier &other) const {
@@ -145,11 +140,10 @@ bool BlsMultisigVerifier::operator==(const BlsMultisigVerifier &other) const {
 /************** Deserialization **************/
 
 UniquePtrToClass BlsMultisigVerifier::create(istream &inStream) {
-  // Retrieve the base class
-  UniquePtrToClass baseClass(BlsThresholdVerifier::create(inStream));
-
-  verifyClassName(className_, inStream);
   verifyClassVersion(classVersion_, inStream);
+
+  // Retrieve the base class
+  UniquePtrToClass baseClass(BlsThresholdVerifier::createDontVerify(inStream));
 
   auto &baseClassObj = *(BlsThresholdVerifier *) baseClass.get();
   return UniquePtrToClass(new BlsMultisigVerifier(baseClassObj));
