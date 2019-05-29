@@ -15,7 +15,7 @@
 
 using namespace std;
 
-Serializable::ClassNameToObjectMap Serializable::classNameToObjectMap_;
+ClassNameToObjectMap Serializable::classNameToObjectMap_;
 
 void Serializable::serialize(ostream &outStream) const {
   serializeClassName(outStream);

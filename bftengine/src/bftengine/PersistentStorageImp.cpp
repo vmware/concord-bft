@@ -212,6 +212,8 @@ void PersistentStorageImp::setDescriptorOfLastExecution(
       DescriptorOfLastExecution{desc.executedSeqNum, desc.validRequests};
 }
 
+/***** Windows handling *****/
+
 void PersistentStorageImp::setLastStableSeqNum(const SeqNum &seqNum) {
   Assert(seqNum >= lastStableSeqNum_);
   lastStableSeqNum_ = seqNum;

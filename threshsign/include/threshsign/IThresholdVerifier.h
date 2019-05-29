@@ -18,9 +18,7 @@
 #include "Serializable.h"
 #include "IPublicKey.h"
 #include "ThresholdSignaturesTypes.h"
-
-// Forward declarations
-class IThresholdAccumulator;
+#include "IThresholdAccumulator.h"
 
 class IThresholdVerifier : public Serializable {
  public:
