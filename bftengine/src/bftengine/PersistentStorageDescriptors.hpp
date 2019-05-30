@@ -74,14 +74,14 @@ struct DescriptorOfLastExitFromView : public Serializable {
  protected:
   void serializeDataMembers(std::ostream &outStream) const override;
   std::string getName() const override { return className_; };
-  uint32_t getVersion() const override { return classVersion_; };
+  std::string getVersion() const override { return classVersion_; };
 
  private:
   static void registerClass();
 
  private:
   const std::string className_ = "DescriptorOfLastExitFromView";
-  const uint32_t classVersion_ = 1;
+  const std::string classVersion_ = "1";
   static bool registered_;
 };
 
@@ -132,14 +132,14 @@ struct DescriptorOfLastNewView : public Serializable {
  protected:
   void serializeDataMembers(std::ostream &outStream) const override;
   std::string getName() const override { return className_; };
-  uint32_t getVersion() const override { return classVersion_; };
+  std::string getVersion() const override { return classVersion_; };
 
  private:
   static void registerClass();
 
  private:
   const std::string className_ = "DescriptorOfLastNewView";
-  const uint32_t classVersion_ = 1;
+  const std::string classVersion_ = "1";
   static bool registered_;
 };
 
@@ -175,14 +175,14 @@ struct DescriptorOfLastExecution : public Serializable {
  protected:
   void serializeDataMembers(std::ostream &outStream) const override;
   std::string getName() const override { return className_; };
-  uint32_t getVersion() const override { return classVersion_; };
+  std::string getVersion() const override { return classVersion_; };
 
  private:
   static void registerClass();
 
  private:
   const std::string className_ = "DescriptorOfLastExecution";
-  const uint32_t classVersion_ = 1;
+  const std::string classVersion_ = "1";
   static bool registered_;
 };
 

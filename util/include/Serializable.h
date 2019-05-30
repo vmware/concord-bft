@@ -61,20 +61,20 @@ class Serializable {
   virtual void serialize(UniquePtrToChar &outBuf, int64_t &outBufSize) const;
   virtual void serialize(std::ostream &outStream) const;
   virtual std::string getName() const = 0;
-  virtual uint32_t getVersion() const = 0;
+  virtual std::string getVersion() const = 0;
 
   static void verifyClassName(const std::string &expectedClassName,
                               std::istream &inStream);
-  static void verifyClassVersion(uint32_t expectedVersion,
+  static void verifyClassVersion(const std::string &expectedVersion,
                                  std::istream &inStream);
   static UniquePtrToClass deserialize(const UniquePtrToChar &inBuf,
                                       int64_t inBufSize);
   static UniquePtrToClass deserialize(std::istream &inStream);
 
  protected:
+  void serializeClassName(std::ostream &outStream) const;
+  void serializeClassVersion(std::ostream &outStream) const;
   virtual void serializeDataMembers(std::ostream &outStream) const = 0;
-  virtual void serializeClassName(std::ostream &outStream) const;
-  virtual void serializeClassVersion(std::ostream &outStream) const;
   virtual UniquePtrToClass create(std::istream &inStream) = 0;
   static void retrieveSerializedBuffer(const std::string &className,
                                        UniquePtrToChar &outBuf,
@@ -83,5 +83,8 @@ class Serializable {
   static ClassNameToObjectMap classNameToObjectMap_;
 
  private:
+  static void serializeString(const std::string &str, std::ostream &outStream);
   static UniquePtrToChar deserializeClassName(std::istream &inStream);
+  static UniquePtrToChar deserializeClassVersion(std::istream &inStream);
+  static UniquePtrToChar deserializeString(std::istream &inStream);
 };
