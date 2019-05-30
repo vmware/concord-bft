@@ -88,12 +88,12 @@ class BlsThresholdSigner : public IThresholdSigner {
   BlsThresholdSigner() = default;
   void serializeDataMembers(std::ostream &outStream) const override;
   std::string getName() const override { return className_; };
-  uint32_t getVersion() const override { return classVersion_; };
+  std::string getVersion() const override { return classVersion_; };
   static void registerClass();
 
  private:
   const std::string className_ = "BlsThresholdSigner";
-  const uint32_t classVersion_ = 1;
+  const std::string classVersion_ = "1";
   static bool registered_;
 };
 

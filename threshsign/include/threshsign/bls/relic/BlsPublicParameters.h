@@ -44,7 +44,7 @@ class BlsPublicParameters : public IPublicParameters {
   UniquePtrToClass create(std::istream &inStream) override;
 
   std::string getName() const override { return className_; };
-  uint32_t getVersion() const override { return classVersion_; };
+  std::string getVersion() const override { return classVersion_; };
 
   // To be used ONLY during deserialization. Could not become private/protected,
   // as there is a composition relationship between IPublicParameters and
@@ -56,7 +56,7 @@ class BlsPublicParameters : public IPublicParameters {
 
  private:
   const std::string className_ = "BlsPublicParameters";
-  const uint32_t classVersion_ = 1;
+  const std::string classVersion_ = "1" + IPublicParameters::getVersion();
 };
 
 } // end of BLS namespace

@@ -62,9 +62,9 @@ class IThresholdSignerDummy : public IThresholdSigner {
     return shareVerifyKey;
   }
   string getName() const override { return "IThresholdSignerDummy"; }
-  uint32_t getVersion() const override { return 1; }
+  std::string getVersion() const override { return "1"; }
   UniquePtrToClass create(std::istream &inStream) override {
-    verifyClassVersion(1, inStream);
+    verifyClassVersion(getVersion(), inStream);
     return UniquePtrToClass(new IThresholdSignerDummy);
   }
   void serializeDataMembers(std::ostream &outStream) const override {}
@@ -107,9 +107,9 @@ class IThresholdVerifierDummy : public IThresholdVerifier {
       ShareID signer) const override { return shareVerifyKey; }
 
   string getName() const override { return "IThresholdVerifierDummy"; }
-  uint32_t getVersion() const override { return 1; }
+  std::string getVersion() const override { return "1"; }
   UniquePtrToClass create(std::istream &inStream) override {
-    verifyClassVersion(1, inStream);
+    verifyClassVersion(getVersion(), inStream);
     return UniquePtrToClass(new IThresholdVerifierDummy);
   }
   void serializeDataMembers(std::ostream &outStream) const override {}

@@ -91,7 +91,7 @@ class BlsThresholdVerifier : public IThresholdVerifier {
   BlsThresholdVerifier() = default;
   void serializeDataMembers(std::ostream &outStream) const override;
   std::string getName() const override { return className_; };
-  uint32_t getVersion() const override { return classVersion_; };
+  std::string getVersion() const override { return classVersion_; };
 
  private:
   static void registerClass();
@@ -101,7 +101,7 @@ class BlsThresholdVerifier : public IThresholdVerifier {
 
  private:
   const std::string className_ = "BlsThresholdVerifier";
-  const uint32_t classVersion_ = 1;
+  std::string classVersion_ = "1";
   static bool registered_;
 };
 
