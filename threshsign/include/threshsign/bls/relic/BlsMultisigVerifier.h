@@ -64,14 +64,14 @@ class BlsMultisigVerifier : public BlsThresholdVerifier {
   BlsMultisigVerifier() = default;
   void serializeDataMembers(std::ostream &outStream) const override;
   std::string getName() const override { return className_; };
-  uint32_t getVersion() const override { return classVersion_; };
+  std::string getVersion() const override { return classVersion_; };
 
  private:
   static void registerClass();
 
  private:
   const std::string className_ = "BlsMultisigVerifier";
-  const uint32_t classVersion_ = 1;
+  const std::string classVersion_ = "1" + BlsThresholdVerifier::getVersion();
   static bool registered_;
 };
 
