@@ -50,12 +50,6 @@ if(${COMM_MODULES} GREATER 1)
     message(FATAL_ERROR "Only one comm module can be chosen")
 endif()
 
-# Default CONCORD_LOGGER_NAME to "concord"
-if(NOT CONCORD_LOGGER_NAME)
-    set(CONCORD_LOGGER_NAME "concord" CACHE STRING "Set concord logger name" FORCE)
-endif()
-
-
 if(SLEEP_FOR_DBG)
     add_definitions(-DSLEEP_DBG)
 endif()

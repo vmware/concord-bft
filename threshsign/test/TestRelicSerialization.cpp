@@ -24,7 +24,7 @@
 
 #include "app/RelicMain.h"
 
-#include "Log.h"
+#include "Logger.hpp"
 #include "Utils.h"
 #include "Timer.h"
 #include "XAssert.h"
@@ -50,7 +50,7 @@ void testRandomSerialize() {
     ss << "Zero GTT: " << tz << endl;
     ss << "Unity GTT: " << tu << endl;
 
-    logtrace << endl << ss.str() << endl;
+    LOG_TRACE(GL, endl << ss.str());
     ss.clear();
 
     G1T g1r, g1i;
@@ -59,7 +59,7 @@ void testRandomSerialize() {
 
     ss << "Random G1T: " << g1r << endl;
     ss << "Infty G1T: " << g1i << endl;
-    logtrace << endl << ss.str() << endl;
+    LOG_TRACE(GL, endl << ss.str());
     ss.clear();
 
     G2T g2r, g2i;
@@ -68,7 +68,7 @@ void testRandomSerialize() {
 
     ss << "Random G2T: " << g2r << endl;
     ss << "Infty G2T: " << g2i << endl;
-    logtrace << endl << ss.str() << endl;
+    LOG_TRACE(GL, endl << ss.str());
     ss.clear();
 
     BNT b2r, b2z, b2u;
@@ -79,7 +79,7 @@ void testRandomSerialize() {
     ss << "Random BNT: " << b2r << endl;
     ss << "Zero BNT: " << b2z << endl;
     ss << "One BNT: " << b2u << endl;
-    logtrace << endl << ss.str() << endl;
+    LOG_TRACE(GL, endl << ss.str());
     ss.clear();
 }
 
@@ -123,11 +123,11 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
     (void)args;
     (void)lib;
 
-    logtrace << "Serialization test..." << endl;
+    LOG_TRACE(GL, "Serialization test...");
     int n = 1000;
     for(int i = 0; i < n; i++) {
         if(i % 100 == 0) {
-            logtrace << i + 1 << " out of " << n << endl;
+            LOG_TRACE(GL, i + 1 << " out of " << n);
         }
 
         testRandomSerialize();

@@ -18,7 +18,7 @@
 #include "Utils.h"
 #include "AutoBuf.h"
 #include "XAssert.h"
-#include "Log.h"
+#include "Logger.hpp"
 
 using std::endl;
 
@@ -59,7 +59,7 @@ BNT::BNT(int d) : BNT() {
 void BNT::toBytes(unsigned char * buf, int capacity) const {
     int size = getByteCount();
     if(capacity < size) {
-        logerror << "Expected buffer of size " << size << " bytes for serializing BNT object. You provided " << capacity << " bytes" << std::endl;
+        LOG_ERROR(GL, "Expected buffer of size " << size << " bytes for serializing BNT object. You provided " << capacity << " bytes");
         throw std::logic_error("Buffer not large enough for serializing BNT");
     }
 
@@ -229,11 +229,11 @@ BNT BNT::invertModPrime(const BNT& p) const {
 void G1T::toBytes(unsigned char * buf, int size) const {
     assertGreaterThanOrEqual(size, getByteCount());
     g1_write_bin(buf, size, n, 1);
-    //logdbg << "Wrote G1T of " << size << " bytes" << std::endl;
+    //LOG_DEBUG(GL, "Wrote G1T of " << size << " bytes");
 }
 
 void G1T::fromBytes(const unsigned char * buf, int size) {
-    //logdbg << "Reading G1T of " << size << " bytes" << std::endl;
+    //LOG_DEBUG(GL, "Reading G1T of " << size << " bytes");
     g1_read_bin(n, buf, size);
 }
 

@@ -21,7 +21,7 @@
 #include <stdexcept>
 #include <inttypes.h>
 
-#include "Log.h"
+#include "Logger.hpp"
 #include "Utils.h"
 #include "Timer.h"
 #include "XAssert.h"
@@ -77,11 +77,11 @@ void runBatchVerificationTest(int k, int n, int maxShares, int numBadShares = 0)
     for(ShareID id = allSubset.first(); allSubset.isEnd(id) == false; id = allSubset.next(id)) {
         BlsThresholdSigner * signer = dynamic_cast<BlsThresholdSigner*>(signers[static_cast<size_t>(id)]);
 
-        logtrace << "Signing share #" << id << endl;
+        LOG_TRACE(GL, "Signing share #" << id);
         G1T sig = signer->signData(buf, msgLen);
 
         if(badSubset.contains(id)) {
-            logtrace << "Inserting bad share #" << id << std::endl;
+            LOG_TRACE(GL, "Inserting bad share #" << id);
             // Change the signature to sig=sig*2, making it invalid...
             sig.Double();
         }
@@ -92,11 +92,11 @@ void runBatchVerificationTest(int k, int n, int maxShares, int numBadShares = 0)
     G1T msgPoint;
     g1_map(msgPoint, buf, msgLen);
 
-    //logdbg << "Verifying starting from root..." << std::endl;
+    //LOG_DEBUG(GL, "Verifying starting from root...");
     batchVerifyHelper(batchVer, numBadShares, msgPoint, badSubset, goodSubset, true);
 
     if(numBadShares > 0) {
-        //logdbg << "Verifying but skipping root (since we have bad shares)..." << std::endl;
+        //LOG_DEBUG(GL, "Verifying but skipping root (since we have bad shares)...");
         batchVerifyHelper(batchVer, numBadShares, msgPoint, badSubset, goodSubset, false);
     }
 
@@ -115,7 +115,7 @@ void batchVerifyHelper(BlsBatchVerifier& ver, int numBadShares, const G1T& msgPo
 
     // Find bad shares
     if(ver.batchVerify(msgPoint, true, badShares, checkRoot) != shouldVerify) {
-        logerror << "Expected batch verification to return '" << ( shouldVerify ? "true" : "false" ) << "'" << endl;
+        LOG_ERROR(GL, "Expected batch verification to return '" << ( shouldVerify ? "true" : "false" ) << "'");
         throw std::logic_error("batchVerify() returned wrong result");
     }
 
@@ -127,7 +127,7 @@ void batchVerifyHelper(BlsBatchVerifier& ver, int numBadShares, const G1T& msgPo
 
     // Find good shares
     if(ver.batchVerify(msgPoint, false, goodShares, checkRoot) != shouldVerify) {
-        logerror << "Expected batch verification to return '" << ( shouldVerify ? "true" : "false" ) << "'" << endl;
+        LOG_ERROR(GL, "Expected batch verification to return '" << ( shouldVerify ? "true" : "false" ) << "'");
         throw std::logic_error("batchVerify() returned wrong result");
     }
 
@@ -152,9 +152,9 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
 
     for(int k = 1; k < 17; k++) {
         int n = k + 2;
-        logdbg << "Testing the BLS batch verifier with k = " << k << " and n = " << n << endl;
+        LOG_DEBUG(GL, "Testing the BLS batch verifier with k = " << k << " and n = " << n);
         for(int bad = 0; bad <= k; bad++) {
-            //logdbg << " * numBadShares = " << bad << endl;
+            //LOG_DEBUG(GL, " * numBadShares = " << bad);
             runBatchVerificationTest(k, n, k, bad);
             runBatchVerificationTest(k, n, n, bad);
             runBatchVerificationTest(k, n, MAX_NUM_OF_SHARES, bad);

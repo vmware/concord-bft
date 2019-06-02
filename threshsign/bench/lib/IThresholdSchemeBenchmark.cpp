@@ -14,7 +14,7 @@
 
 #include "IThresholdSchemeBenchmark.h"
 
-#include "Log.h"
+#include "Logger.hpp"
 #include "Utils.h"
 
 using std::endl;
@@ -28,7 +28,7 @@ IThresholdSchemeBenchmark::IThresholdSchemeBenchmark(const IPublicParameters& p,
       msgSize(msgSize),
       hasPairing(true), hasShareVerify(true)
 {
-    logtrace << "msgSize = " << msgSize << endl;
+    LOG_TRACE(GL, "msgSize = " << msgSize);
     assertStrictlyGreaterThan(msgSize, 0);
 
     msg = new unsigned char[msgSize];
@@ -45,30 +45,29 @@ IThresholdSchemeBenchmark::~IThresholdSchemeBenchmark() {
 
 void IThresholdSchemeBenchmark::start() {
     started = true;
-    logdbg << "Started benchmark for k = " << reqSigners << ", n = " << numSigners
-            << " (" << numBenchIters << " iterations per test)" << endl;
+    LOG_DEBUG( GL, " (" << numBenchIters << " iterations per test)");
 
     for(int i = 0; i < numBenchIters; i++) {
-        logdbg << "Benchmarking hashing m = " << Utils::bin2hex(msg, msgSize) << ", (" << msgSize << " bytes)" << endl;
+        LOG_DEBUG(GL, "Benchmarking hashing m = " << Utils::bin2hex(msg, msgSize) << ", (" << msgSize << " bytes)");
         // Hash to the signature scheme's group
         hashT.startLap();
         hash();
         hashT.endLap();
 
-        logdbg << "Benchmarking signing (no hashing)..." << endl;
+        LOG_DEBUG(GL, "Benchmarking signing (no hashing)...");
         // Sign a message (normally, not threshold)
         sigT.startLap();
         signSingle();
         sigT.endLap();
 
-        logdbg << "Benchmarking verification (no hashing)..." << endl;
+        LOG_DEBUG(GL, "Benchmarking verification (no hashing)...");
         // Verify a message (normally, not threshold)
         verT.startLap();
         verifySingle();
         verT.endLap();
 
         // Group operations and pairing time
-        logdbg << "Benchmarking group operations..." << endl;
+        LOG_DEBUG(GL, "Benchmarking group operations...");
         if(hasPairing) {
             pairT.startLap();
             pairing();
@@ -81,7 +80,7 @@ void IThresholdSchemeBenchmark::start() {
         assertEqual(signers.count(), reqSigners);
 
         // Signer i will "sign-share" a message
-        logdbg << "Benchmarking share signing (" << reqSigners << " out of " << numSigners << ")..." << endl;
+        LOG_DEBUG(GL, "Benchmarking share signing (" << reqSigners << " out of " << numSigners << ")...");
         for(ShareID id = signers.first(); signers.isEnd(id) == false; id = signers.next(id)) {
             sshareT.startLap();
             signShare(id);
@@ -92,30 +91,30 @@ void IThresholdSchemeBenchmark::start() {
         accumulateShares(signers);
 
         if(hasShareVerify) {
-            logdbg << "Benchmarking share verification (" << reqSigners << " out of " << numSigners << ")..." << endl;
+            LOG_DEBUG(GL, "Benchmarking share verification (" << reqSigners << " out of " << numSigners << ")...");
             // Verify the "sig-shares" of all signers
             vshareT.startLap();
             verifyShares();
             vshareT.endLap();
 
         } else {
-            logdbg << "(Skipping over share verification: hasShareVerify is set to false)" << endl;
+            LOG_DEBUG(GL, "(Skipping over share verification: hasShareVerify is set to false)");
         }
 
-        logdbg << "Benchmarking Lagrange coefficient computation..." << endl;
+        LOG_DEBUG(GL, "Benchmarking Lagrange coefficient computation...");
         lagrangeCoeffT.startLap();
         // Compute the lagrange coefficients L_i(0) for each signer i in signers set.
         computeLagrangeCoeff(signers);
         lagrangeCoeffT.endLap();
 
-        logdbg << "Benchmarking Lagrange coefficient exponentiation..." << endl;
+        LOG_DEBUG(GL, "Benchmarking Lagrange coefficient exponentiation...");
         // Then, exponentiate the sig-share of each signer i by L_i(0)
         // (assuming multiplicative group notation)
         lagrangeExpT.startLap();
         exponentiateLagrangeCoeff(signers);
         lagrangeExpT.endLap();
 
-        logdbg << "Benchmarking signature share aggregation..." << endl;
+        LOG_DEBUG(GL, "Benchmarking signature share aggregation...");
         // Finally, aggregate the signature shares using the lagrange coefficients
         aggT.startLap();
         aggregateShares(signers);

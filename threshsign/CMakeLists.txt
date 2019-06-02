@@ -26,12 +26,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # variables with signed ones. See: http://soundsoftware.ac.uk/c-pitfall-unsigned
 set(CXX_FLAGS_INTEGER_CORRECTNESS
     "-Wconversion -Wsign-conversion")
-set(CXX_FLAGS_FORMAT
-    "-Wformat-y2k -Wno-format-extra-args -Wno-format-zero-length -Wformat-nonliteral -Wformat-security -Wformat=2")
+
 set(CXX_FLAGS_OPTIMIZATIONS "-O3")
 
 string(APPEND CXX_FLAGS " ${CXX_FLAGS_OPTIMIZATIONS}")
-string(APPEND CXX_FLAGS " ${CXX_FLAGS_FORMAT}")
 string(APPEND CXX_FLAGS " ${CXX_FLAGS_INTEGER_CORRECTNESS}")
 # TODO: use target_compile_features instead:
 #   https://cmake.org/cmake/help/v3.1/command/target_compile_features.html#command:target_compile_features
@@ -100,7 +98,7 @@ endfunction()
 function(add_relic_executable appName appSrc appDir)
 
     # Add compile target
-    add_executable(${appName} ${appSrc} $<TARGET_OBJECTS:bench> $<TARGET_OBJECTS:bls_relic> $<TARGET_OBJECTS:common>)
+    add_executable(${appName} ${appSrc} $<TARGET_OBJECTS:bench> $<TARGET_OBJECTS:bls_relic> $<TARGET_OBJECTS:common> $<TARGET_OBJECTS:logging_dev>)
     target_include_directories(${appName} PRIVATE
         ${threshsign_SOURCE_DIR}/src
         #${threshsign_SOURCE_DIR}/src/bls/relic
@@ -117,7 +115,7 @@ endfunction()
 
 function(add_threshsign_executable appName appSrc appDir)
     # Add compile target
-    add_executable(${appName} ${appSrc})
+    add_executable(${appName} ${appSrc} $<TARGET_OBJECTS:logging_dev>)
     # SbftKeygenApp depends on some RSA/Shoup internal functions/classes for generating primes
     target_include_directories(${appName} PRIVATE ${threshsign_SOURCE_DIR}/src ${threshsign_SOURCE_DIR}/lib ${threshsign_SOURCE_DIR}/include)
     target_link_libraries(${appName} PRIVATE mainapp)

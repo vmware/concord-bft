@@ -7,11 +7,7 @@ set(replica_sources
 	${CONFIG_FOLDER_PATH_VALUE}/test_comm_config.cpp
 	${CONFIG_FOLDER_PATH_VALUE}/config_file_parser.cpp)
 
-add_executable(skvbc_replica ${replica_sources})
-
-if(USE_LOG4CPP)
-	target_compile_definitions(skvbc_replica PUBLIC USE_LOG4CPP=1)
-endif()
+add_executable(skvbc_replica ${replica_sources} $<TARGET_OBJECTS:logging_dev>)
 
 if(${USE_COMM_PLAIN_TCP})
 	target_compile_definitions(skvbc_replica PUBLIC USE_COMM_PLAIN_TCP)

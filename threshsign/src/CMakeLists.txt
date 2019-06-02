@@ -2,7 +2,6 @@ set(common_source_files
         XAssert.cpp
         Utils.cpp
         Timer.cpp
-        Log.cpp
         IPublicKey.cpp
         ISecretKey.cpp
         Serializable.cpp

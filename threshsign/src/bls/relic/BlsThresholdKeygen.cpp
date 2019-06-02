@@ -17,7 +17,7 @@
 
 #include "BlsPolynomial.h"
 
-#include "Log.h"
+#include "Logger.hpp"
 #include "XAssert.h"
 
 using std::endl;
@@ -50,11 +50,11 @@ BlsThresholdKeygen::BlsThresholdKeygen(const BlsPublicParameters& params, NumSha
         g2_mul_gen(pkShares[idx], skShares[idx]);
     }
 
-    logalloc << "Created: " << this << endl;
+    LOG_TRACE(GL, "Created: " << this);
 }
 
 BlsThresholdKeygen::~BlsThresholdKeygen() {
-    logalloc << "Destroyed: " << this << endl;
+    LOG_TRACE(GL, "Destroyed: " << this);
 }
 
 } /* namespace Relic */

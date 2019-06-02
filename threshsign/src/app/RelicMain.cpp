@@ -9,7 +9,7 @@
 
 #include "RelicMain.h"
 
-#include "Log.h"
+#include "Logger.hpp"
 
 #include "threshsign/bls/relic/Library.h"
 
@@ -23,14 +23,14 @@ int AppMain(const std::vector<std::string>& args) {
     std::unique_ptr<Library> lib(Library::GetPtr());
 
     TRY {
-        logdbg << "RELIC Type 1 paring: " << pc_map_is_type1() << endl;
-        logdbg << "RELIC Type 3 paring: " << pc_map_is_type3() << endl;
-        logdbg << "Launching RelicAppMain()..." << endl;
+        LOG_DEBUG(GL, "RELIC Type 1 paring: " << pc_map_is_type1());
+        LOG_DEBUG(GL, "RELIC Type 3 paring: " << pc_map_is_type3());
+        LOG_DEBUG(GL, "Launching RelicAppMain()...");
 
         return RelicAppMain(*lib, args);
     }
     CATCH_ANY {
-        logerror << "RELIC threw an exception" << endl;
+        LOG_ERROR(GL, "RELIC threw an exception");
         // WARNING: For this to work you must build RELIC with CHECK and VERBS defined (see preset/ or my-presets/).
         ERR_PRINT(ERR_CAUGHT);
     }

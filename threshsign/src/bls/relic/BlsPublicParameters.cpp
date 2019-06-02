@@ -15,7 +15,7 @@
 #include "threshsign/bls/relic/Library.h"
 
 #include "Utils.h"
-#include "Log.h"
+#include "Logger.hpp"
 
 using namespace std;
 
@@ -38,7 +38,7 @@ BlsPublicParameters::BlsPublicParameters(int securityLevel, int curveType)
   g1_get_gen(generator1_);
   g2_get_gen(generator2_);
 
-  logalloc << "Created: " << this << endl;
+  LOG_TRACE(GL, "Created: " << this);
 }
 
 BlsPublicParameters::BlsPublicParameters(const BlsPublicParameters &params)
@@ -49,7 +49,7 @@ BlsPublicParameters::BlsPublicParameters(const BlsPublicParameters &params)
 }
 
 BlsPublicParameters::~BlsPublicParameters() {
-  logalloc << "Destroyed: " << this << endl;
+  LOG_TRACE(GL, "Destroyed: " << this);
 }
 
 int BlsPublicParameters::getSignatureSize() const {

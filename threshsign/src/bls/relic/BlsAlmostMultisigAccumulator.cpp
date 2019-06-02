@@ -20,7 +20,7 @@
 #include "BlsAlmostMultisigAccumulator.h"
 #include "BlsAlmostMultisigCoefficients.h"
 
-#include "Log.h"
+#include "Logger.hpp"
 
 using std::endl;
 
@@ -31,8 +31,7 @@ BlsAlmostMultisigAccumulator::BlsAlmostMultisigAccumulator(const std::vector<Bls
     : BlsThresholdAccumulator(vks, numSigners - 1, numSigners, false),
 	  almostMultisigCoeffs(BlsAlmostMultisigCoefficients::Get().computeMapAndGet(numSigners))
 {
-    logdbg << "Using 'almost multisig' optimization for reqSigners = " << reqSigners
-           << " out of " << numSigners << endl;
+    LOG_DEBUG(GL, "Using 'almost multisig' optimization for reqSigners = " << reqSigners << " out of " << numSigners );
 }
 
 
@@ -40,7 +39,7 @@ void BlsAlmostMultisigAccumulator::computeLagrangeCoeff() {
     ShareID missingSigner = validSharesBits.findFirstGap();
     assertInclusiveRange(1, missingSigner, totalSigners);
 
-    logtrace << " * Almost multisig, missing signer " << missingSigner << endl;
+    LOG_TRACE(GL, " * Almost multisig, missing signer " << missingSigner);
 
     for (ShareID xVal = validSharesBits.first(); validSharesBits.isEnd(xVal) == false; xVal = validSharesBits.next(xVal))
     {

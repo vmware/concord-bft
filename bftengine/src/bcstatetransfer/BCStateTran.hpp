@@ -22,7 +22,7 @@
 #include <iostream>
 #include <string>
 
-#include "Logging.hpp"
+#include "Logger.hpp"
 #include "SimpleBCStateTransfer.hpp"
 #include "IStateTransfer.hpp"
 #include "DataStore.hpp"

@@ -16,7 +16,7 @@
 #include "threshsign/bls/relic/BlsPublicParameters.h"
 #include "threshsign/VectorOfShares.h"
 
-#include "Log.h"
+#include "Logger.hpp"
 #include "XAssert.h"
 
 using namespace std;
@@ -62,8 +62,8 @@ BlsMultisigVerifier::BlsMultisigVerifier(const BlsThresholdVerifier &base) :
 IThresholdAccumulator *BlsMultisigVerifier::newAccumulator(
     bool withShareVerification) const {
   if (reqSigners_ == numSigners_ && withShareVerification) {
-    logwarn << "BLS n-out-of-n multisig typically has share verification "
-               "disabled in Concord. Are you sure you need this?" << endl;
+    LOG_WARN(GL, "BLS n-out-of-n multisig typically has share verification "
+                 "disabled in Concord. Are you sure you need this?" );
   }
   return new BlsMultisigAccumulator(publicKeysVector_, reqSigners_,
                                     numSigners_, withShareVerification);

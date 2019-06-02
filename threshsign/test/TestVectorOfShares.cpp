@@ -16,7 +16,7 @@
 #include <memory>
 #include <stdexcept>
 
-#include "Log.h"
+#include "Logger.hpp"
 #include "Utils.h"
 #include "XAssert.h"
 #include "AutoBuf.h"
@@ -28,7 +28,7 @@ using namespace std;
 using namespace BLS::Relic;
 
 void testIth() {
-    loginfo << "Testing ith() and skip()..." << endl;
+    LOG_INFO(GL, "Testing ith() and skip()...");
     VectorOfShares signers;
 
     signers.add(3);
@@ -58,7 +58,7 @@ void assertCorrectSerialization(const VectorOfShares& vec) {
     AutoBuf<unsigned char> buf(vec.getByteCount());
     vec.toBytes(buf, buf.size());
 
-    //logdbg << "Serialized vector " << vec << " to " << Utils::bin2hex(buf, buf.size()) << endl;
+    //LOG_DEBUG(GL, "Serialized vector " << vec << " to " << Utils::bin2hex(buf, buf.size()));
     //logdbg << endl;
 
     VectorOfShares vecin;
@@ -67,7 +67,7 @@ void assertCorrectSerialization(const VectorOfShares& vec) {
 }
 
 void testSerialization() {
-    loginfo << "Testing serialization..." << endl;
+    LOG_INFO(GL, "Testing serialization...");
 
     VectorOfShares vec; 
     assertCorrectSerialization(vec);

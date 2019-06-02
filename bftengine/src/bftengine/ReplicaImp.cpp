@@ -903,8 +903,7 @@ namespace bftEngine
 		{
 
                         metric_received_full_commit_proofs_.Get().Inc();
-			LOG_INFO_F(GL, "Node %d received FullCommitProofMsg message for seqNumber %" PRId64 "",
-				(int)myReplicaId, (int)msg->seqNumber());
+			LOG_INFO(GL, "Node " << myReplicaId << " received FullCommitProofMsg message for seqNumber" << msg->seqNumber());
 
 			const SeqNum msgSeqNum = msg->seqNumber();
 
@@ -1990,9 +1989,10 @@ namespace bftEngine
 				lastPPSeq = prePreparesForNewView.back()->seqNumber();
 			}
 
-			LOG_INFO_F(GL, "**************** In onNewView curView=%" PRId64 " (num of PPs=%d, first safe seq=%" PRId64 ", last safe seq=%" PRId64 ", lastStableSeqNum=%" PRId64 ", lastExecutedSeqNum=%" PRId64 ", stableLowerBoundWhenEnteredToView= %" PRId64 ")",
-				curView, prePreparesForNewView.size(), firstPPSeq, lastPPSeq,
-				lastStableSeqNum, lastExecutedSeqNum, viewsManager->stableLowerBoundWhenEnteredToView());
+			LOG_INFO(GL, "**************** In onNewView curView=" << curView <<  " (num of PPs=" << prePreparesForNewView.size()
+			             << " first safe seq=" << firstPPSeq <<  ", last safe seq=" << lastPPSeq
+			             << ", lastStableSeqNum=" << lastStableSeqNum <<  ", lastExecutedSeqNum=" << lastExecutedSeqNum
+			             << ", stableLowerBoundWhenEnteredToView=" << viewsManager->stableLowerBoundWhenEnteredToView() <<  ")");
 
 			Assert(viewsManager->viewIsActive(curView));
 			Assert(lastStableSeqNum >= viewsManager->stableLowerBoundWhenEnteredToView());
@@ -2558,7 +2558,9 @@ namespace bftEngine
 				if ((diffMilli1 > viewChangeTimeout) &&
 					(diffMilli2 > viewChangeTimeout))
 				{
-					LOG_INFO_F(GL, "**************** Node %d asks to jump to view %" PRId64 " (%" PRIu64  " milli seconds after receiving 2f+2c+1 view change msgs for view %" PRId64 ")", myReplicaId, curView, diffMilli2);
+					LOG_INFO(GL, "**************** Node %d asks to jump to view " << myReplicaId
+					             <<  " (" << curView
+					             << " milli seconds after receiving 2f+2c+1 view change msgs for view " << diffMilli2 <<  ")");
 
 					GotoNextView();
 					return;

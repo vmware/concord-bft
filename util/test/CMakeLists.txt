@@ -1,8 +1,8 @@
-add_executable(metric_tests metric_test.cpp)
+add_executable(metric_tests metric_test.cpp $<TARGET_OBJECTS:logging_dev>)
 add_test(metric_tests metric_tests)
 target_link_libraries(metric_tests gtest_main util)
 
-add_executable(metric_server MetricServerTestMain.cpp)
+add_executable(metric_server MetricServerTestMain.cpp $<TARGET_OBJECTS:logging_dev>)
 target_link_libraries(metric_server util)
 
 add_test(NAME metric_server_tests COMMAND python3 -m unittest

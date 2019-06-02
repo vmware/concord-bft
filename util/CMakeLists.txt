@@ -5,7 +5,7 @@ add_library(util STATIC src/Metrics.cpp src/MetricsServer.cpp src/SimpleThreadPo
 
 TARGET_COMPILE_DEFINITIONS(util PUBLIC DEFAULT_LOGGER_NAME="${CONCORD_LOGGER_NAME}")
 
-target_link_libraries(util PUBLIC logging Threads::Threads)
+target_link_libraries(util PUBLIC Threads::Threads)
 target_include_directories(util PUBLIC include)
 
 if (BUILD_TESTING)
@@ -13,7 +13,3 @@ if (BUILD_TESTING)
     add_subdirectory(test)
 endif()
 
-if(${USE_LOG4CPP})
-    TARGET_COMPILE_DEFINITIONS(util PUBLIC USE_LOG4CPP)
-    target_link_libraries(util PUBLIC log4cplus)
-endif()

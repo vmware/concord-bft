@@ -16,7 +16,7 @@
 #include "threshsign/VectorOfShares.h"
 
 #include "XAssert.h"
-#include "Log.h"
+#include "Logger.hpp"
 
 #include <cstring>
 
@@ -173,7 +173,7 @@ void VectorOfShares::fromBytes(const unsigned char * buf, int len) {
 
     int byteCount = getByteCount();
     if(byteCount > len) {
-        logwarn << "Deserializing VectorOfShares of smaller size than MAX_NUM_OF_SHARES IDs (i.e., " << byteCount << " bytes)" << endl;
+        LOG_WARN(GL, "Deserializing VectorOfShares of smaller size than MAX_NUM_OF_SHARES IDs (i.e., " << byteCount << " bytes)");
     }
 
     for(int b = 0; b < len; b++) {
@@ -183,7 +183,7 @@ void VectorOfShares::fromBytes(const unsigned char * buf, int len) {
         for(int c = 0; c < 8; c++) {
             if(byte & bitMask) {
                 int id1 = b * 8 + (c+1);
-                //logdbg << "bitMask = " << bitMask << ", deserialized ID " << id1 << " from byte " << (int)byte << endl;
+                //LOG_DEBUG(GL, "bitMask = " << bitMask << ", deserialized ID " << id1 << " from byte " << (int)byte);
                 add(id1);
             }
 

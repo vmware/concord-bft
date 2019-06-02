@@ -18,8 +18,7 @@
 #include <cstring>
 #include <unordered_map>
 #include "CommDefs.hpp"
-
-#include "Logging.hpp"
+#include "Logger.hpp"
 #include <atomic>
 #include <mutex>
 #include <thread>
@@ -84,7 +83,7 @@ class PlainUDPCommunication::PlainUdpImpl {
   /** Flag to indicate whether the current communication layer still runs. */
   std::atomic<bool> running;
 
-  concordlogger::Logger _logger = concordlogger::Logger::getLogger("plain-udp");
+  concordlogger::Logger _logger = concordlogger::Log::getLogger("plain-udp");
 
   bool check_replica(NodeNum node)
   {

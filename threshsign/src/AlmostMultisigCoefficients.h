@@ -17,7 +17,7 @@
 #include <mutex>
 
 #include "XAssert.h"
-#include "Log.h"
+#include "Logger.hpp"
 
 #include "threshsign/VectorOfShares.h"
 #include "threshsign/ThresholdSignaturesTypes.h"
@@ -42,7 +42,7 @@ public:
 
 public:
     void precompute() {
-        logdbg << "Precomputing Lagrange coefficients for n = " << n << std::endl;
+        LOG_DEBUG(GL, "Precomputing Lagrange coefficients for n = " << n);
 
         VectorOfShares full;
 
@@ -61,7 +61,7 @@ public:
             calculateCoefficientsForAll(vec, j);
         }
 
-        logdbg << "Done precomputing Lagrange coefficients for " << n-1 << " out of " << n << std::endl;
+        LOG_DEBUG(GL, "Done precomputing Lagrange coefficients for " << n-1 << " out of " << n);
     }
 
     virtual void calculateCoefficientsForAll(const VectorOfShares& vec, ShareID missing) = 0;
@@ -82,7 +82,7 @@ public:
      * Returns the coefficient L_i^S(0) for player i w.r.t. to the set S which excludes player 'missing'
      */
     const T& getCoeff(ShareID i, ShareID missing) const {
-        //logtrace << "Getting precomputed L_" << i << "^S-{" << missing << "} (n = " << n << ")..." << endl;
+        //LOG_TRACE(GL, "Getting precomputed L_" << i << "^S-{" << missing << "} (n = " << n << ")...");
         return coeffs[getIndex(i, missing)];
     }
 };

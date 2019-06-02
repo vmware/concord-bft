@@ -12,7 +12,7 @@
 
 #include "Utils.h"
 #include "AutoBuf.h"
-#include "Log.h"
+#include "Logger.hpp"
 
 #include <string>
 #include <stdexcept>
@@ -38,8 +38,8 @@ void Utils::bin2hex(const void * bin, int binLen, char * hexBuf, int hexBufCapac
     static const char hex[] = "0123456789abcdef";
 
     if(hexBufCapacity < needed) {
-        logerror << "You have not supplied a large enough buffer: got "
-                <<  hexBufCapacity << " but need " << needed << " bytes" << endl;
+        LOG_ERROR( GL,  "You have not supplied a large enough buffer: got "
+                <<  hexBufCapacity << " but need " << needed << " bytes" );
         throw std::runtime_error("bin2hex not enough capacity for hexbuf");
     }
 
