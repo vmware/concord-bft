@@ -67,6 +67,7 @@ class BftTester:
         for proc in self.procs.values():
             proc.kill()
             proc.wait()
+        os.chdir(self.origdir)
 
     def __init__(self, config):
         self.origdir = os.getcwd()
