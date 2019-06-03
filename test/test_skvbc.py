@@ -78,6 +78,59 @@ class SkvbcTest(unittest.TestCase):
             tester.stop_replica(2)
             await self.assert_successful_put_get(tester)
 
+    def test_get_block_data(self):
+        """
+        Ensure that we can put a block and use the GetBlockData API request to
+        retrieve its KV pairs.
+        """
+        trio.run(self._test_get_block_data)
+
+    async def _test_get_block_data(self):
+        config = bft_tester.TestConfig(n=4,
+                                       f=1,
+                                       c=0,
+                                       num_clients=10,
+                                       key_file_prefix=KEY_FILE_PREFIX,
+                                       start_replica_cmd=start_replica_cmd)
+        with bft_tester.BftTester(config) as tester:
+            await tester.init()
+            [tester.start_replica(i) for i in range(3)]
+            self.protocol = skvbc.SimpleKVBCProtocol()
+            p = self.protocol
+            client = tester.random_client()
+            last_block = p.parse_reply(await client.read(p.get_last_block_req()))
+
+            # Perform an unconditional KV put.
+            # Ensure keys aren't identical
+            kv = [(tester.keys[0], tester.random_value()),
+                  (tester.keys[1], tester.random_value())]
+
+            reply = await client.write(p.write_req([], kv))
+            reply = p.parse_reply(reply)
+            self.assertTrue(reply.success)
+            self.assertEqual(last_block + 1, reply.last_block_id)
+
+            last_block = reply.last_block_id
+
+            # Get the kvpairs in the last written block
+            data = await client.read(p.get_block_data_req(last_block))
+            kv2 = p.parse_reply(data)
+            self.assertDictEqual(kv2, dict(kv))
+
+            # Write another block with the same keys but (probabilistically)
+            # different data
+            kv3 = [(tester.keys[0], tester.random_value()),
+                   (tester.keys[1], tester.random_value())]
+            reply = await client.write(p.write_req([], kv3))
+            reply = p.parse_reply(reply)
+            self.assertTrue(reply.success)
+            self.assertEqual(last_block + 1, reply.last_block_id)
+
+            # Get the kvpairs in the previously written block
+            data = await client.read(p.get_block_data_req(last_block))
+            kv2 = p.parse_reply(data)
+            self.assertDictEqual(kv2, dict(kv))
+
     async def assert_successful_put_get(self, tester):
         p = self.protocol
         client = tester.random_client()
