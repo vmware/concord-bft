@@ -29,6 +29,7 @@ class SimpleKVBCProtocol:
         self.WRITE = 1
         self.READ = 2
         self.GET_LAST_BLOCK = 3
+        self.GET_BLOCK_DATA = 4
 
     def write_req(self, readset, writeset):
         block_id = 0
@@ -61,6 +62,12 @@ class SimpleKVBCProtocol:
     def get_last_block_req(self):
         data = bytearray()
         data.append(self.GET_LAST_BLOCK)
+        return data
+
+    def get_block_data_req(self, block_id):
+        data = bytearray()
+        data.append(self.GET_BLOCK_DATA)
+        data.extend(struct.pack("<Q", block_id))
         return data
 
     def parse_reply(self, data):
