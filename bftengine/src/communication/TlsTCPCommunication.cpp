@@ -803,8 +803,6 @@ class AsyncTlsConnection : public
     if (_statusCallback && _destIsReplica) {
       PeerConnectivityStatus pcs{};
       pcs.peerId = _destId;
-      pcs.peerIp = _ip;
-      pcs.peerPort = _port;
       pcs.statusType = StatusType::MessageReceived;
 
       // pcs.statusTime = we dont set it since it is set by the aggregator
@@ -1307,6 +1305,15 @@ class TlsTCPCommunication::TlsTcpImpl :
     // and all nodes with higher ID will connect to this node
     // we don't want that clients will connect to other clients
     for (auto it = _nodes.begin(); it != _nodes.end(); it++) {
+      if (_statusCallback && it->second.isReplica) {
+        PeerConnectivityStatus pcs{};
+        pcs.peerId = it->first;
+        pcs.peerIp = it->second.ip;
+        pcs.peerPort = it->second.port;
+        pcs.statusType = StatusType::Started;
+        _statusCallback(pcs);
+      }
+
       // connect only to nodes with ID higher than selfId
       // and all nodes with lower ID will connect to this node
       if (it->first < _selfId && it->first <= _maxServerId) {
