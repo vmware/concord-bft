@@ -32,6 +32,14 @@ ReplicaConfigSerializer::ReplicaConfigSerializer(const ReplicaConfig &config) {
   registerClass();
 }
 
+void ReplicaConfigSerializer::setConfig(const ReplicaConfig& config) {
+  if (config_) {
+    delete config_;
+    config_ = new ReplicaConfig;
+  }
+  *config_ = config;
+}
+
 ReplicaConfigSerializer::~ReplicaConfigSerializer() {
   delete config_;
 }

@@ -49,8 +49,12 @@ class SequenceWithActiveWindow {
       ItemFuncs::free(activeWindow[i]);
   }
 
-  static uint32_t maxSize() {
+  static uint32_t maxElementSize() {
     return (numItems * ItemType::maxSize());
+  }
+
+  static uint32_t simpleParamsSize() {
+    return sizeof(beginningOfActiveWindow);
   }
 
   bool insideActiveWindow(NumbersType n) const {

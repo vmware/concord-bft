@@ -21,20 +21,45 @@
 namespace bftEngine {
 namespace impl {
 
-enum MetadataParameterIds {
-  LAST_STABLE_SEQ_NUM,
+enum ConstMetadataParameterIds {
+  LAST_STABLE_SEQ_NUM = 0,
   LAST_EXEC_SEQ_NUM,
   PRIMARY_LAST_USED_SEQ_NUM,
   LOWER_BOUND_OF_SEQ_NUM,
   LAST_VIEW_TRANSFERRED_SEQ_NUM,
   FETCHING_STATE,
   REPLICA_CONFIG,
-  LAST_EXIT_FROM_VIEW_DESC,
-  LAST_NEW_VIEW_DESC,
-  LAST_EXEC_DESC,
-  SEQ_NUM_WINDOW,
-  CHECK_WINDOW,
-  METADATA_PARAMETERS_NUM
+  CONST_METADATA_PARAMETERS_NUM
+};
+
+const uint16_t checkWinSize =
+    (kWorkWindowSize + checkpointWindowSize) / checkpointWindowSize;
+
+// SEQ_NUM_WINDOW contains kWorkWindowSize objects plus one - for simple window
+// parameters.
+const uint16_t numOfSeqWinObjs = kWorkWindowSize + 1;
+
+// CHECK_WINDOW contains checkWinSize objects plus one - for simple window
+// parameters.
+const uint16_t numOfCheckWinObjs = checkWinSize + 1;
+
+enum WinMetadataParameterIds {
+  SEQ_NUM_WINDOW = CONST_METADATA_PARAMETERS_NUM,
+  CHECK_WINDOW = SEQ_NUM_WINDOW + numOfSeqWinObjs,
+  WIN_PARAMETERS_NUM = CHECK_WINDOW + numOfCheckWinObjs + 1
+};
+
+// LAST_EXIT_FROM_VIEW_DESC contains up to kWorkWindowSize descriptor objects
+// (one per PrevViewInfo) plus one - for simple descriptor parameters.
+const uint16_t numOfLastExitFromViewDescObjs = kWorkWindowSize + 1;
+
+// LAST_NEW_VIEW_DESC contains numOfReplicas_ (2*f + 2*c + 1) descriptor
+// objects plus one - for simple descriptor parameters.
+
+enum DescMetadataParameterIds {
+  LAST_EXIT_FROM_VIEW_DESC = WIN_PARAMETERS_NUM,
+  LAST_EXEC_DESC = LAST_EXIT_FROM_VIEW_DESC + numOfLastExitFromViewDescObjs,
+  LAST_NEW_VIEW_DESC
 };
 
 class PersistentStorageImp : public PersistentStorage {
@@ -54,13 +79,13 @@ class PersistentStorageImp : public PersistentStorage {
   void setStrictLowerBoundOfSeqNums(const SeqNum &seqNum) override;
   void setLastViewThatTransferredSeqNumbersFullyExecuted(
       const ViewNum &view) override;
+  void setLastStableSeqNum(const SeqNum &seqNum) override;
   void setDescriptorOfLastExitFromView(
       const DescriptorOfLastExitFromView &prevViewDesc) override;
   void setDescriptorOfLastNewView(
       const DescriptorOfLastNewView &prevViewDesc) override;
   void setDescriptorOfLastExecution(
       const DescriptorOfLastExecution &prevViewDesc) override;
-  void setLastStableSeqNum(const SeqNum &seqNum) override;
   void setPrePrepareMsgInSeqNumWindow(
       const SeqNum &seqNum, const PrePrepareMsg *const &msg) override;
   void setSlowStartedInSeqNumWindow(const SeqNum &seqNum,
@@ -107,37 +132,45 @@ class PersistentStorageImp : public PersistentStorage {
   bool getCompletedMarkInCheckWindow(const SeqNum &seqNum) override;
 
   void clearSeqNumWindow() override;
-  bool hasReplicaConfig() override;
+  bool hasReplicaConfig() const override;
   void init(MetadataStorage *&metadataStorage);
 
  protected:
   bool setIsAllowed() const;
   bool getIsAllowed() const;
   bool nonExecSetIsAllowed() const;
-  SeqNum getSeqNum(MetadataParameterIds id, uint32_t size);
+  SeqNum getSeqNum(ConstMetadataParameterIds id, uint32_t size);
 
  private:
+  void initMetadataStorage(MetadataStorage *&metadataStorage);
+  void setDefaultsInMetadataStorage();
   void verifySetDescriptorOfLastExitFromView(
       const DescriptorOfLastExitFromView &desc) const;
-  void verifyPrevViewInfo(const DescriptorOfLastExitFromView &desc,
-                          const ViewsManager::PrevViewInfo &elem) const;
+  void verifyPrevViewInfo(const DescriptorOfLastExitFromView &desc) const;
   void verifySetDescriptorOfLastNewView(
       const DescriptorOfLastNewView &desc) const;
+  void verifyLastNewViewMsgs(const DescriptorOfLastNewView &desc) const;
+  void verifyDescriptorOfLastExecution(
+      const DescriptorOfLastExecution &desc) const;
+  void saveDescriptorOfLastExitFromView(
+      const DescriptorOfLastExitFromView &newDesc);
+  void saveDescriptorOfLastNewView(const DescriptorOfLastNewView &newDesc);
+  void saveDescriptorOfLastExecution(const DescriptorOfLastExecution &newDesc);
 
  private:
   MetadataStorage *metadataStorage_ = nullptr;
   uint8_t numOfNestedTransactions_ = 0;
 
-  const uint16_t fVal_;
-  const uint16_t cVal_;
+  const uint32_t numOfReplicas_;
+  const uint32_t metadataParamsNum_;
 
   // Parameters to be saved persistently
-  SeqNum lastStableSeqNum_ = 0;
+  bool fetchingState_ = false;
   SeqNum lastExecutedSeqNum_ = 0;
   SeqNum primaryLastUsedSeqNum_ = 0;
   SeqNum strictLowerBoundOfSeqNums_ = 0;
   ViewNum lastViewTransferredSeqNumbersFullyExecuted_ = 0;
-  bool fetchingState_ = false;
+  SeqNum lastStableSeqNum_ = 0;
 
   ReplicaConfigSerializer *configSerializer_ = nullptr;
 
