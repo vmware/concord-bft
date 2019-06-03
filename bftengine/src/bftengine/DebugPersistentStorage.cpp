@@ -273,7 +273,7 @@ void DebugPersistentStorage::setCompletedMarkInCheckWindow(const SeqNum &s,
   checkData.completedMark = f;
 }
 
-bool DebugPersistentStorage::hasReplicaConfig() { return hasConfig_; }
+bool DebugPersistentStorage::hasReplicaConfig() const { return hasConfig_; }
 
 ReplicaConfig DebugPersistentStorage::getReplicaConfig() {
   Assert(getIsAllowed());

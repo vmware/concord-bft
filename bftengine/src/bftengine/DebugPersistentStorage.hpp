@@ -57,7 +57,7 @@ class DebugPersistentStorage : public PersistentStorage {
   void setCheckpointMsgInCheckWindow(
       const SeqNum &s, const CheckpointMsg *const &m) override;
   void setCompletedMarkInCheckWindow(const SeqNum &s, const bool &f) override;
-  bool hasReplicaConfig() override;
+  bool hasReplicaConfig() const override;
   ReplicaConfig getReplicaConfig() override;
   bool getFetchingState() override;
   SeqNum getLastExecutedSeqNum() override;

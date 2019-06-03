@@ -75,9 +75,28 @@ class ViewsManager {
   SeqNum stableLowerBoundWhenEnteredToView() const;
 
   struct PrevViewInfo {
-    PrePrepareMsg *prePrepare;
-    bool hasAllRequests;
-    PrepareFullMsg *prepareFull;
+    PrePrepareMsg *prePrepare = nullptr;
+    PrepareFullMsg *prepareFull = nullptr;
+    bool hasAllRequests = true;
+
+    PrevViewInfo() = default;
+
+    PrevViewInfo(PrePrepareMsg *prePrep, PrepareFullMsg *prepFull,
+        bool allRequests) : prePrepare(prePrep), prepareFull(prepFull),
+            hasAllRequests(allRequests) {}
+
+    PrevViewInfo& operator=(const PrevViewInfo& other) {
+      hasAllRequests = other.hasAllRequests;
+      delete prePrepare;
+      prePrepare = nullptr;
+      delete prepareFull;
+      prepareFull = nullptr;
+      if (other.prePrepare)
+        prePrepare = (PrePrepareMsg *) other.prePrepare->cloneObjAndMsg();
+      if (other.prepareFull)
+        prepareFull = (PrepareFullMsg *) other.prepareFull->cloneObjAndMsg();
+      return *this;
+    }
 
     bool operator==(const PrevViewInfo &other) const {
       if (other.hasAllRequests != hasAllRequests)
@@ -94,8 +113,9 @@ class ViewsManager {
     }
 
     static uint32_t maxSize() {
-      return (PrePrepareMsg::maxSizeOfPrePrepareMsg() + sizeof(hasAllRequests) +
-          PrepareFullMsg::maxSizeOfPrepareFull());
+      return (PrePrepareMsg::maxSizeOfPrePrepareMsgInLocalBuffer() +
+          PrepareFullMsg::maxSizeOfPrepareFullInLocalBuffer() +
+          sizeof(hasAllRequests));
     }
   };
 
