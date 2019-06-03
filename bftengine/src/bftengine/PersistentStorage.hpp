@@ -108,7 +108,7 @@ class PersistentStorage {
   // Read methods (should only be used before using write-only transactions)
   //////////////////////////////////////////////////////////////////////////
 
-  virtual bool hasReplicaConfig() = 0;
+  virtual bool hasReplicaConfig() const = 0;
   virtual ReplicaConfig getReplicaConfig() = 0;
 
   virtual bool getFetchingState() = 0;

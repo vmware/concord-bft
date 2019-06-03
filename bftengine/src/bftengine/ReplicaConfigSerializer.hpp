@@ -23,7 +23,8 @@ class ReplicaConfigSerializer : public Serializable {
   explicit ReplicaConfigSerializer(const ReplicaConfig &config);
   ~ReplicaConfigSerializer() override;
 
-  ReplicaConfig *getConfig() { return config_; }
+  ReplicaConfig *getConfig() const { return config_; }
+  void setConfig(const ReplicaConfig& config);
 
   bool operator==(const ReplicaConfigSerializer &other) const;
 
@@ -33,7 +34,7 @@ class ReplicaConfigSerializer : public Serializable {
   // To be used ONLY during deserialization.
   ReplicaConfigSerializer() { config_ = new ReplicaConfig; };
 
-  static uint32_t maxSize() {
+  static uint32_t maxSize(uint32_t numOfReplicas) {
     return (sizeof(config_->fVal) + sizeof(config_->cVal) +
         sizeof(config_->replicaId) +
         sizeof(config_->numOfClientProxies) +
@@ -41,7 +42,7 @@ class ReplicaConfigSerializer : public Serializable {
         sizeof(config_->concurrencyLevel) +
         sizeof(config_->autoViewChangeEnabled) +
         sizeof(config_->viewChangeTimerMillisec) + MaxSizeOfPrivateKey +
-        MaxNumberOfReplicas * MaxSizeOfPublicKey +
+        numOfReplicas * MaxSizeOfPublicKey +
         IThresholdSigner::maxSize() * 3 +
         IThresholdVerifier::maxSize() * 3);
   }

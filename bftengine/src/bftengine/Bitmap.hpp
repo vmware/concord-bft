@@ -144,7 +144,7 @@ class Bitmap {
     return (sizeof(uint32_t) + realSize(maxNumOfBits));
   }
 
-  static uint32_t maxSize() {
+  static uint32_t size() {
     return (realSize(maxNumOfRequestsInBatch) + sizeof(numBits_));
   }
 

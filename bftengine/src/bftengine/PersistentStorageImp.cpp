@@ -14,46 +14,115 @@
 #include "PersistentStorageImp.hpp"
 #include <sstream>
 
+using namespace std;
+
 namespace bftEngine {
 namespace impl {
 
 PersistentStorageImp::PersistentStorageImp(uint16_t fVal, uint16_t cVal)
-    : fVal_(fVal), cVal_(cVal), seqNumWindow_{1, nullptr},
+    : numOfReplicas_(2 * fVal + 2 * cVal + 1),
+      metadataParamsNum_(LAST_NEW_VIEW_DESC + numOfReplicas_ + 1),
+      seqNumWindow_{1, nullptr},
       checkWindow_{0, nullptr} {}
 
 void PersistentStorageImp::init(MetadataStorage *&metadataStorage) {
+  initMetadataStorage(metadataStorage);
+  setDefaultsInMetadataStorage();
+}
+
+void PersistentStorageImp::setDefaultsInMetadataStorage() {
+  beginWriteTran();
+  setFetchingState(fetchingState_);
+  setLastExecutedSeqNum(lastExecutedSeqNum_);
+  setPrimaryLastUsedSeqNum(primaryLastUsedSeqNum_);
+  setStrictLowerBoundOfSeqNums(strictLowerBoundOfSeqNums_);
+  setLastViewThatTransferredSeqNumbersFullyExecuted(
+      lastViewTransferredSeqNumbersFullyExecuted_);
+  setLastStableSeqNum(lastStableSeqNum_);
+  setDescriptorOfLastExitFromView(descriptorOfLastExitFromView_);
+  setDescriptorOfLastNewView(descriptorOfLastNewView_);
+  setDescriptorOfLastExecution(descriptorOfLastExecution_);
+
+
+  // TBD: populate default windows in DB
+//  setPrePrepareMsgInSeqNumWindow(
+//  const SeqNum &seqNum, const PrePrepareMsg *const &msg);
+//  setSlowStartedInSeqNumWindow(const SeqNum &seqNum,
+//  const bool &slowStarted);
+//  setFullCommitProofMsgInSeqNumWindow(
+//  const SeqNum &seqNum, const FullCommitProofMsg *const &msg);
+//  setForceCompletedInSeqNumWindow(
+//  const SeqNum &seqNum, const bool &forceCompleted);
+//  setPrepareFullMsgInSeqNumWindow(
+//  const SeqNum &seqNum, const PrepareFullMsg *const &msg);
+//  setCommitFullMsgInSeqNumWindow(
+//  const SeqNum &seqNum, const CommitFullMsg *const &msg);
+//
+//  setCheckpointMsgInCheckWindow(
+//  const SeqNum &seqNum, const CheckpointMsg *const &msg);
+//  setCompletedMarkInCheckWindow(const SeqNum &seqNum,
+//  const bool &completed);
+
+  endWriteTran();
+}
+
+void PersistentStorageImp::initMetadataStorage(
+    MetadataStorage *&metadataStorage) {
   metadataStorage_ = metadataStorage;
 
-  // Init MetadataStorage
-  MetadataStorage::ObjectDesc metadataObjectsArray[METADATA_PARAMETERS_NUM];
-  for (int i = 0; i < METADATA_PARAMETERS_NUM; ++i)
-    metadataObjectsArray[i].id = i;
+  unique_ptr<MetadataStorage::ObjectDesc> metadataObjectsArray(
+      new MetadataStorage::ObjectDesc[metadataParamsNum_]);
+  for (uint32_t i = 0; i < metadataParamsNum_; ++i)
+    metadataObjectsArray.get()[i].id = i;
 
-  metadataObjectsArray[LAST_STABLE_SEQ_NUM].maxSize = sizeof(lastStableSeqNum_);
-  metadataObjectsArray[LAST_EXEC_SEQ_NUM].maxSize = sizeof(lastExecutedSeqNum_);
-  metadataObjectsArray[PRIMARY_LAST_USED_SEQ_NUM].maxSize =
+  metadataObjectsArray.get()[LAST_STABLE_SEQ_NUM].maxSize =
+      sizeof(lastStableSeqNum_);
+  metadataObjectsArray.get()[LAST_EXEC_SEQ_NUM].maxSize =
+      sizeof(lastExecutedSeqNum_);
+  metadataObjectsArray.get()[PRIMARY_LAST_USED_SEQ_NUM].maxSize =
       sizeof(primaryLastUsedSeqNum_);
-  metadataObjectsArray[LOWER_BOUND_OF_SEQ_NUM].maxSize =
+  metadataObjectsArray.get()[LOWER_BOUND_OF_SEQ_NUM].maxSize =
       sizeof(strictLowerBoundOfSeqNums_);
-  metadataObjectsArray[LAST_VIEW_TRANSFERRED_SEQ_NUM].maxSize =
+  metadataObjectsArray.get()[LAST_VIEW_TRANSFERRED_SEQ_NUM].maxSize =
       sizeof(lastViewTransferredSeqNumbersFullyExecuted_);
-  metadataObjectsArray[FETCHING_STATE].maxSize = sizeof(fetchingState_);
+  metadataObjectsArray.get()[FETCHING_STATE].maxSize = sizeof(fetchingState_);
 
-  metadataObjectsArray[REPLICA_CONFIG].maxSize =
-      ReplicaConfigSerializer::maxSize();
+  metadataObjectsArray.get()[REPLICA_CONFIG].maxSize =
+      ReplicaConfigSerializer::maxSize(numOfReplicas_);
 
-  metadataObjectsArray[LAST_EXIT_FROM_VIEW_DESC].maxSize =
-      DescriptorOfLastExitFromView::maxSize();
-  metadataObjectsArray[LAST_NEW_VIEW_DESC].maxSize =
-      DescriptorOfLastNewView::maxSize(fVal_, cVal_);
-  metadataObjectsArray[LAST_EXEC_DESC].maxSize =
+  metadataObjectsArray.get()[SEQ_NUM_WINDOW].maxSize =
+      SeqNumWindow::simpleParamsSize();
+
+  metadataObjectsArray.get()[CHECK_WINDOW].maxSize =
+      CheckWindow::simpleParamsSize();
+
+  for (uint32_t i = 0; i < kWorkWindowSize; ++i) {
+    metadataObjectsArray.get()[LAST_EXIT_FROM_VIEW_DESC + 1 + i].maxSize =
+        DescriptorOfLastExitFromView::maxElementSize();
+    metadataObjectsArray.get()[SEQ_NUM_WINDOW + 1 + i].maxSize =
+        SeqNumWindow::maxElementSize();
+  }
+
+  for (uint32_t i = 0; i < numOfReplicas_; ++i) {
+    metadataObjectsArray.get()[LAST_NEW_VIEW_DESC + 1 + i].maxSize =
+        DescriptorOfLastNewView::maxElementSize();
+  }
+
+  for (uint32_t i = 0; i < checkWinSize; ++i)
+    metadataObjectsArray.get()[CHECK_WINDOW + 1 + i].maxSize =
+        CheckWindow::maxElementSize();
+
+  metadataObjectsArray.get()[LAST_EXIT_FROM_VIEW_DESC].maxSize =
+      DescriptorOfLastExitFromView::simpleParamsSize();
+
+  metadataObjectsArray.get()[LAST_EXEC_DESC].maxSize =
       DescriptorOfLastExecution::maxSize();
 
-  metadataObjectsArray[SEQ_NUM_WINDOW].maxSize = SeqNumWindow::maxSize();
-  metadataObjectsArray[CHECK_WINDOW].maxSize = CheckWindow::maxSize();
+  metadataObjectsArray.get()[LAST_NEW_VIEW_DESC].maxSize =
+      DescriptorOfLastNewView::simpleParamsSize();
 
-  metadataStorage_->initMaxSizeOfObjects(metadataObjectsArray,
-                                         METADATA_PARAMETERS_NUM);
+  metadataStorage_->initMaxSizeOfObjects(metadataObjectsArray.get(),
+                                         metadataParamsNum_);
 }
 
 uint8_t PersistentStorageImp::beginWriteTran() {
@@ -129,87 +198,90 @@ void PersistentStorageImp::setLastViewThatTransferredSeqNumbersFullyExecuted(
 
 /***** Descriptors handling *****/
 
+void PersistentStorageImp::saveDescriptorOfLastExitFromView(
+    const DescriptorOfLastExitFromView &newDesc) {
+  const size_t bufLen = DescriptorOfLastExitFromView::maxSize();
+  char *descBuf = new char[bufLen];
+  const size_t simpleParamsSize =
+      DescriptorOfLastExitFromView::simpleParamsSize();
+  newDesc.serializeSimpleParams(descBuf, simpleParamsSize);
+  metadataStorage_->writeInTransaction(LAST_EXIT_FROM_VIEW_DESC, descBuf,
+                                       simpleParamsSize);
+  size_t actualElementSize = 0;
+  uint32_t elementsNum = newDesc.elements.size();
+  for (uint32_t i = 0; i < elementsNum; ++i) {
+    // Don't re-write unchanged elements
+    if (descriptorOfLastExitFromView_.elements[i] == newDesc.elements[i])
+      continue;
+    newDesc.serializeElement(
+        i, descBuf, DescriptorOfLastExitFromView::maxElementSize(),
+        actualElementSize);
+    Assert(actualElementSize);
+    metadataStorage_->writeInTransaction(
+        LAST_EXIT_FROM_VIEW_DESC + 1 + i, descBuf, actualElementSize);
+  }
+  delete[] descBuf;
+}
+
 void PersistentStorageImp::setDescriptorOfLastExitFromView(
     const DescriptorOfLastExitFromView &desc) {
   verifySetDescriptorOfLastExitFromView(desc);
-  PrevViewInfoElements clonedElements(desc.elements.size());
-  int i = 0;
-  for (auto elem : desc.elements) {
-    verifyPrevViewInfo(desc, elem);
-    auto *clonedPrePrepareMsg =
-        (PrePrepareMsg *) elem.prePrepare->cloneObjAndMsg();
-    Assert(clonedPrePrepareMsg->type() == MsgCode::PrePrepare);
-    PrepareFullMsg *clonedPrepareFull = nullptr;
-    if (elem.prepareFull != nullptr) {
-      clonedPrepareFull = (PrepareFullMsg *) elem.prepareFull->cloneObjAndMsg();
-      Assert(clonedPrepareFull->type() == MsgCode::PrepareFull);
-    }
-    clonedElements[i].prePrepare = clonedPrePrepareMsg;
-    clonedElements[i].hasAllRequests = elem.hasAllRequests;
-    clonedElements[i].prepareFull = clonedPrepareFull;
-    ++i;
+  verifyPrevViewInfo(desc);
+  saveDescriptorOfLastExitFromView(desc);
+  descriptorOfLastExitFromView_ = desc;
+}
+
+void PersistentStorageImp::saveDescriptorOfLastNewView(
+    const DescriptorOfLastNewView &newDesc) {
+  const size_t bufLen = DescriptorOfLastNewView::maxSize(numOfReplicas_);
+  char *descBuf = new char[bufLen];
+  const size_t simpleParamsSize = DescriptorOfLastNewView::simpleParamsSize();
+  size_t actualSize = 0;
+  newDesc.serializeSimpleParams(descBuf, simpleParamsSize, actualSize);
+  metadataStorage_->writeInTransaction(LAST_NEW_VIEW_DESC, descBuf, actualSize);
+  size_t actualElementSize = 0;
+  for (uint32_t i = 0; i < numOfReplicas_; ++i) {
+    // Don't re-write unchanged elements
+    if (descriptorOfLastNewView_.viewChangeMsgs[i] == newDesc.viewChangeMsgs[i])
+      continue;
+    newDesc.serializeElement(
+        i, descBuf, DescriptorOfLastNewView::maxElementSize(),
+        actualElementSize);
+    Assert(actualElementSize);
+    metadataStorage_->writeInTransaction(
+        LAST_NEW_VIEW_DESC + 1 + i, descBuf, actualElementSize);
   }
-  // Delete messages from previous descriptor
-  for (auto elem : descriptorOfLastExitFromView_.elements) {
-    delete elem.prePrepare;
-    delete elem.prepareFull;
-  }
-  descriptorOfLastExitFromView_ =
-      DescriptorOfLastExitFromView(desc.view, desc.lastStable,
-                                   desc.lastExecuted, clonedElements);
+  delete[] descBuf;
 }
 
 void PersistentStorageImp::setDescriptorOfLastNewView(
     const DescriptorOfLastNewView &desc) {
   verifySetDescriptorOfLastNewView(desc);
-  const size_t numOfVCMsgs = 2 * configSerializer_->getConfig()->fVal +
-      2 * configSerializer_->getConfig()->cVal + 1;
-
-  Assert(desc.viewChangeMsgs.size() == numOfVCMsgs);
-  ViewChangeMsgsVector clonedViewChangeMsgs(numOfVCMsgs);
-  for (size_t i = 0; i < numOfVCMsgs; i++) {
-    const ViewChangeMsg *vc = desc.viewChangeMsgs[i];
-    Assert(vc->newView() == desc.view);
-
-    Digest digestOfVCMsg;
-    vc->getMsgDigest(digestOfVCMsg);
-    Assert(desc.newViewMsg->includesViewChangeFromReplica(
-        vc->idOfGeneratedReplica(), digestOfVCMsg));
-
-    auto *clonedVC = (ViewChangeMsg *) vc->cloneObjAndMsg();
-    Assert(clonedVC->type() == MsgCode::ViewChange);
-    clonedViewChangeMsgs[i] = clonedVC;
-  }
+  verifyLastNewViewMsgs(desc);
 
   auto *clonedNewViewMsg = (NewViewMsg *) desc.newViewMsg->cloneObjAndMsg();
   Assert(clonedNewViewMsg->type() == MsgCode::NewView);
 
-  if (!descriptorOfLastNewView_.isEmpty()) {
-    // Delete messages from previous descriptor
-    delete descriptorOfLastNewView_.newViewMsg;
-    Assert(descriptorOfLastNewView_.viewChangeMsgs.size() == numOfVCMsgs);
-    for (size_t i = 0; i < numOfVCMsgs; i++) {
-      delete descriptorOfLastNewView_.viewChangeMsgs[i];
-    }
-  }
-  descriptorOfLastNewView_ =
-      DescriptorOfLastNewView{desc.view,
-                              clonedNewViewMsg,
-                              clonedViewChangeMsgs,
-                              desc.maxSeqNumTransferredFromPrevViews};
+  saveDescriptorOfLastNewView(desc);
+  descriptorOfLastNewView_ = desc;
+}
+
+void PersistentStorageImp::saveDescriptorOfLastExecution(
+    const DescriptorOfLastExecution &newDesc) {
+  const size_t bufLen = DescriptorOfLastExecution::maxSize();
+  char *descBuf = new char[bufLen];
+  size_t actualSize = 0;
+  newDesc.serialize(descBuf, bufLen, actualSize);
+  Assert(actualSize);
+  metadataStorage_->writeInTransaction(LAST_EXEC_DESC, descBuf, actualSize);
+  delete[] descBuf;
 }
 
 void PersistentStorageImp::setDescriptorOfLastExecution(
     const DescriptorOfLastExecution &desc) {
-  Assert(setIsAllowed());
-  Assert(descriptorOfLastExecution_.isEmpty() ||
-      descriptorOfLastExecution_.executedSeqNum < desc.executedSeqNum);
-  Assert(lastExecutedSeqNum_ + 1 == desc.executedSeqNum);
-  Assert(desc.validRequests.numOfBits() >= 1);
-  Assert(desc.validRequests.numOfBits() <= maxNumOfRequestsInBatch);
-
-  descriptorOfLastExecution_ =
-      DescriptorOfLastExecution{desc.executedSeqNum, desc.validRequests};
+  verifyDescriptorOfLastExecution(desc);
+  saveDescriptorOfLastExecution(desc);
+  descriptorOfLastExecution_ = desc;
 }
 
 /***** Windows handling *****/
@@ -297,12 +369,19 @@ void PersistentStorageImp::setCompletedMarkInCheckWindow(
 ReplicaConfig PersistentStorageImp::getReplicaConfig() {
   Assert(getIsAllowed());
   uint32_t outActualObjectSize = 0;
-  UniquePtrToChar outBuf(new char[ReplicaConfigSerializer::maxSize()]);
-  metadataStorage_->read(REPLICA_CONFIG, ReplicaConfigSerializer::maxSize(),
-                         outBuf.get(), outActualObjectSize);
+  UniquePtrToChar
+      outBuf(new char[ReplicaConfigSerializer::maxSize(numOfReplicas_)]);
+  metadataStorage_->read(
+      REPLICA_CONFIG, ReplicaConfigSerializer::maxSize(numOfReplicas_),
+      outBuf.get(), outActualObjectSize);
   UniquePtrToClass replicaConfigPtr =
       Serializable::deserialize(outBuf, outActualObjectSize);
-  return *dynamic_cast<ReplicaConfig *>(replicaConfigPtr.get());
+  auto *configPtr = dynamic_cast<ReplicaConfig *>(replicaConfigPtr.get());
+  if (!configSerializer_)
+    configSerializer_ = new ReplicaConfigSerializer(*configPtr);
+  else
+    configSerializer_->setConfig(*configPtr);
+  return *configPtr;
 }
 
 bool PersistentStorageImp::getFetchingState() {
@@ -314,103 +393,137 @@ bool PersistentStorageImp::getFetchingState() {
   return fetchingState_;
 }
 
-SeqNum PersistentStorageImp::getSeqNum(MetadataParameterIds id, uint32_t size) {
-  uint32_t outActualObjectSize = 0;
-  SeqNum seqNum = 0;
-  metadataStorage_->read(id, size, (char *) &seqNum, outActualObjectSize);
-  Assert(outActualObjectSize == size);
-  return seqNum;
-}
-
 SeqNum PersistentStorageImp::getLastExecutedSeqNum() {
   Assert(getIsAllowed());
-  return getSeqNum(LAST_EXEC_SEQ_NUM, sizeof(lastExecutedSeqNum_));
+  lastExecutedSeqNum_ = getSeqNum(LAST_EXEC_SEQ_NUM,
+                                  sizeof(lastExecutedSeqNum_));
+  return lastExecutedSeqNum_;
 }
 
 SeqNum PersistentStorageImp::getPrimaryLastUsedSeqNum() {
   Assert(getIsAllowed());
-  return getSeqNum(PRIMARY_LAST_USED_SEQ_NUM, sizeof(primaryLastUsedSeqNum_));
+  primaryLastUsedSeqNum_ = getSeqNum(PRIMARY_LAST_USED_SEQ_NUM,
+                                     sizeof(primaryLastUsedSeqNum_));
+  return primaryLastUsedSeqNum_;
 }
 
 SeqNum PersistentStorageImp::getStrictLowerBoundOfSeqNums() {
   Assert(getIsAllowed());
-  return getSeqNum(LOWER_BOUND_OF_SEQ_NUM, sizeof(strictLowerBoundOfSeqNums_));
+  strictLowerBoundOfSeqNums_ = getSeqNum(LOWER_BOUND_OF_SEQ_NUM,
+                                         sizeof(strictLowerBoundOfSeqNums_));
+  return strictLowerBoundOfSeqNums_;
 }
 
 SeqNum PersistentStorageImp::getLastStableSeqNum() {
   Assert(getIsAllowed());
-  return getSeqNum(LAST_STABLE_SEQ_NUM, sizeof(lastStableSeqNum_));
+  lastStableSeqNum_ = getSeqNum(LAST_STABLE_SEQ_NUM, sizeof(lastStableSeqNum_));
+  return lastStableSeqNum_;
 }
 
 ViewNum
 PersistentStorageImp::getLastViewThatTransferredSeqNumbersFullyExecuted() {
   Assert(getIsAllowed());
-  return getSeqNum(LAST_VIEW_TRANSFERRED_SEQ_NUM,
-                   sizeof(lastViewTransferredSeqNumbersFullyExecuted_));
+  lastViewTransferredSeqNumbersFullyExecuted_ =
+      getSeqNum(LAST_VIEW_TRANSFERRED_SEQ_NUM,
+                sizeof(lastViewTransferredSeqNumbersFullyExecuted_));
+  return lastViewTransferredSeqNumbersFullyExecuted_;
 }
+
+/***** Descriptors handling *****/
 
 DescriptorOfLastExitFromView
 PersistentStorageImp::getAndAllocateDescriptorOfLastExitFromView() {
   Assert(getIsAllowed());
-  Assert(!descriptorOfLastExitFromView_.isEmpty());
+  DescriptorOfLastExitFromView dbDesc;
+  size_t simpleParamsSize = DescriptorOfLastExitFromView::simpleParamsSize();
+  uint32_t sizeInDb = 0;
 
-  DescriptorOfLastExitFromView &desc = descriptorOfLastExitFromView_;
-  PrevViewInfoElements elements(desc.elements.size());
-  for (size_t i = 0; i < elements.size(); i++) {
-    const ViewsManager::PrevViewInfo &e = desc.elements[i];
-    elements[i].prePrepare = (PrePrepareMsg *) e.prePrepare->cloneObjAndMsg();
-    elements[i].hasAllRequests = e.hasAllRequests;
-    if (e.prepareFull != nullptr)
-      elements[i].prepareFull =
-          (PrepareFullMsg *) e.prepareFull->cloneObjAndMsg();
-    else
-      elements[i].prepareFull = nullptr;
+  // Read first simple params.
+  UniquePtrToChar simpleParamsBuf(new char[simpleParamsSize]);
+  metadataStorage_->read(LAST_EXIT_FROM_VIEW_DESC, simpleParamsSize,
+                         simpleParamsBuf.get(), sizeInDb);
+  Assert(sizeInDb == simpleParamsSize);
+  uint32_t actualSize = 0;
+  dbDesc.deserializeSimpleParams(simpleParamsBuf.get(), simpleParamsSize,
+                                 actualSize);
+
+  size_t maxElementSize = DescriptorOfLastExitFromView::maxElementSize();
+  UniquePtrToChar elementBuf(new char[maxElementSize]);
+  uint32_t actualElementSize = 0;
+  uint32_t elementsNum = dbDesc.elements.capacity();
+  for (uint32_t i = 0; i < elementsNum; ++i) {
+    metadataStorage_->read(LAST_EXIT_FROM_VIEW_DESC + 1 + i, maxElementSize,
+                           elementBuf.get(), actualSize);
+    dbDesc.deserializeElement(elementBuf.get(), actualSize, actualElementSize);
+    Assert(actualElementSize);
   }
-  DescriptorOfLastExitFromView retVal{
-      desc.view, desc.lastStable, desc.lastExecuted, elements};
-  return retVal;
+
+  descriptorOfLastExitFromView_ = dbDesc;
+  return descriptorOfLastExitFromView_;
 }
 
 DescriptorOfLastNewView
 PersistentStorageImp::getAndAllocateDescriptorOfLastNewView() {
   Assert(getIsAllowed());
-  Assert(!descriptorOfLastNewView_.isEmpty());
+  DescriptorOfLastNewView dbDesc;
+  size_t simpleParamsSize = DescriptorOfLastNewView::simpleParamsSize();
+  uint32_t actualSize = 0;
 
-  DescriptorOfLastNewView &desc = descriptorOfLastNewView_;
-  auto *newViewMsg = (NewViewMsg *) desc.newViewMsg->cloneObjAndMsg();
-  ViewChangeMsgsVector viewChangeMsgs(desc.viewChangeMsgs.size());
-  for (size_t i = 0; i < viewChangeMsgs.size(); i++) {
-    viewChangeMsgs[i] =
-        (ViewChangeMsg *) desc.viewChangeMsgs[i]->cloneObjAndMsg();
+  // Read first simple params.
+  UniquePtrToChar simpleParamsBuf(new char[simpleParamsSize]);
+  metadataStorage_->read(LAST_NEW_VIEW_DESC, simpleParamsSize,
+                         simpleParamsBuf.get(), actualSize);
+  dbDesc.deserializeSimpleParams(simpleParamsBuf.get(), simpleParamsSize,
+                                 actualSize);
+
+  size_t maxElementSize = DescriptorOfLastNewView::maxElementSize();
+  UniquePtrToChar elementBuf(new char[maxElementSize]);
+  uint32_t actualElementSize = 0;
+  for (uint32_t i = 0; i < numOfReplicas_; ++i) {
+    metadataStorage_->read(LAST_NEW_VIEW_DESC + 1 + i, maxElementSize,
+                           elementBuf.get(), actualSize);
+    dbDesc.deserializeElement(elementBuf.get(), actualSize, actualElementSize);
+    Assert(actualElementSize);
   }
-  DescriptorOfLastNewView retVal{
-      desc.view, newViewMsg, viewChangeMsgs,
-      desc.maxSeqNumTransferredFromPrevViews};
-  return retVal;
-}
 
-bool PersistentStorageImp::hasDescriptorOfLastNewView() {
-  Assert(getIsAllowed());
-  return (!descriptorOfLastNewView_.isEmpty());
-}
-
-bool PersistentStorageImp::hasDescriptorOfLastExitFromView() {
-  Assert(getIsAllowed());
-  return (!descriptorOfLastExitFromView_.isEmpty());
-}
-
-bool PersistentStorageImp::hasDescriptorOfLastExecution() {
-  Assert(getIsAllowed());
-  return (!descriptorOfLastExecution_.isEmpty());
+  descriptorOfLastNewView_ = dbDesc;
+  return descriptorOfLastNewView_;
 }
 
 DescriptorOfLastExecution PersistentStorageImp::getDescriptorOfLastExecution() {
   Assert(getIsAllowed());
-  Assert(!descriptorOfLastExecution_.isEmpty());
+  DescriptorOfLastExecution dbDesc;
+  size_t maxSize = DescriptorOfLastExecution::maxSize();
+  uint32_t actualSize = 0;
 
-  DescriptorOfLastExecution &desc = descriptorOfLastExecution_;
-  return DescriptorOfLastExecution{desc.executedSeqNum, desc.validRequests};
+  UniquePtrToChar buf(new char[maxSize]);
+  metadataStorage_->read(LAST_EXEC_DESC, maxSize, buf.get(), actualSize);
+  dbDesc.deserialize(buf.get(), maxSize, actualSize);
+  Assert(actualSize);
+
+  descriptorOfLastExecution_ = dbDesc;
+  return descriptorOfLastExecution_;
 }
+
+bool PersistentStorageImp::hasDescriptorOfLastExitFromView() {
+  Assert(getIsAllowed());
+  getAndAllocateDescriptorOfLastExitFromView();
+  return (!descriptorOfLastExitFromView_.isEmpty());
+}
+
+bool PersistentStorageImp::hasDescriptorOfLastNewView() {
+  Assert(getIsAllowed());
+  getAndAllocateDescriptorOfLastNewView();
+  return (!descriptorOfLastNewView_.isEmpty());
+}
+
+bool PersistentStorageImp::hasDescriptorOfLastExecution() {
+  Assert(getIsAllowed());
+  getDescriptorOfLastExecution();
+  return (!descriptorOfLastExecution_.isEmpty());
+}
+
+/***** Windows handling *****/
 
 PrePrepareMsg *PersistentStorageImp::getAndAllocatePrePrepareMsgInSeqNumWindow(
     const SeqNum &seqNum) {
@@ -509,15 +622,32 @@ void PersistentStorageImp::verifySetDescriptorOfLastExitFromView(
 }
 
 void PersistentStorageImp::verifyPrevViewInfo(
-    const DescriptorOfLastExitFromView &desc,
-    const ViewsManager::PrevViewInfo &elem) const {
-  Assert(elem.prePrepare->seqNumber() >= lastStableSeqNum_ + 1);
-  Assert(elem.prePrepare->seqNumber() <= lastStableSeqNum_ + kWorkWindowSize);
-  Assert(elem.prePrepare->viewNumber() == desc.view);
-  Assert(elem.prepareFull == nullptr ||
-      elem.prepareFull->viewNumber() == desc.view);
-  Assert(elem.prepareFull == nullptr ||
-      elem.prepareFull->seqNumber() == elem.prePrepare->seqNumber());
+    const DescriptorOfLastExitFromView &desc) const {
+  for (auto elem : desc.elements) {
+    Assert(elem.prePrepare->seqNumber() >= lastStableSeqNum_ + 1);
+    Assert(elem.prePrepare->seqNumber() <= lastStableSeqNum_ + kWorkWindowSize);
+    Assert(elem.prePrepare->viewNumber() == desc.view);
+    Assert(elem.prepareFull == nullptr ||
+        elem.prepareFull->viewNumber() == desc.view);
+    Assert(elem.prepareFull == nullptr ||
+        elem.prepareFull->seqNumber() == elem.prePrepare->seqNumber());
+  }
+}
+
+void PersistentStorageImp::verifyLastNewViewMsgs(
+    const DescriptorOfLastNewView &desc) const {
+  for (size_t i = 0; i < desc.viewChangeMsgs.size(); i++) {
+    const ViewChangeMsg *vc = desc.viewChangeMsgs[i];
+    Assert(vc->newView() == desc.view);
+
+    Digest digestOfVCMsg;
+    vc->getMsgDigest(digestOfVCMsg);
+    Assert(desc.newViewMsg->includesViewChangeFromReplica(
+        vc->idOfGeneratedReplica(), digestOfVCMsg));
+
+    auto *clonedVC = (ViewChangeMsg *) vc->cloneObjAndMsg();
+    Assert(clonedVC->type() == MsgCode::ViewChange);
+  }
 }
 
 void PersistentStorageImp::verifySetDescriptorOfLastNewView(
@@ -527,18 +657,44 @@ void PersistentStorageImp::verifySetDescriptorOfLastNewView(
   Assert(!descriptorOfLastExitFromView_.isEmpty());
   Assert(desc.view > descriptorOfLastExitFromView_.view);
   Assert(desc.newViewMsg->newView() == desc.view);
+  Assert(hasReplicaConfig());
+  const size_t numOfVCMsgs = 2 * configSerializer_->getConfig()->fVal +
+      2 * configSerializer_->getConfig()->cVal + 1;
+  Assert(desc.viewChangeMsgs.size() == numOfVCMsgs);
 }
 
-bool PersistentStorageImp::hasReplicaConfig() {
-  return (configSerializer_->getConfig() != nullptr);
+void PersistentStorageImp::verifyDescriptorOfLastExecution(
+    const DescriptorOfLastExecution &desc) const {
+  Assert(setIsAllowed());
+  Assert(descriptorOfLastExecution_.isEmpty() ||
+      descriptorOfLastExecution_.executedSeqNum < desc.executedSeqNum);
+  Assert(lastExecutedSeqNum_ + 1 == desc.executedSeqNum);
+  Assert(desc.validRequests.numOfBits() >= 1);
+  Assert(desc.validRequests.numOfBits() <= maxNumOfRequestsInBatch);
+}
+
+// Helper function for getting different kinds of sequence numbers.
+SeqNum PersistentStorageImp::getSeqNum(
+    ConstMetadataParameterIds id, uint32_t size) {
+  uint32_t actualObjectSize = 0;
+  SeqNum seqNum = 0;
+  metadataStorage_->read(id, size, (char *) &seqNum, actualObjectSize);
+  Assert(actualObjectSize == size);
+  return seqNum;
+}
+
+bool PersistentStorageImp::hasReplicaConfig() const {
+  return (configSerializer_ && configSerializer_->getConfig());
 }
 
 bool PersistentStorageImp::setIsAllowed() const {
-  return (isInWriteTran() && (configSerializer_->getConfig() != nullptr));
+  return (isInWriteTran() && configSerializer_ &&
+      configSerializer_->getConfig());
 }
 
 bool PersistentStorageImp::getIsAllowed() const {
-  return (!isInWriteTran() && (configSerializer_->getConfig() != nullptr));
+  return (!isInWriteTran() && configSerializer_ &&
+      configSerializer_->getConfig());
 }
 
 bool PersistentStorageImp::nonExecSetIsAllowed() const {

@@ -22,7 +22,6 @@
 #include "NewViewMsg.hpp"
 #include "FullCommitProofMsg.hpp"
 #include "CheckpointMsg.hpp"
-#include "Serializable.h"
 
 #include <vector>
 
@@ -30,32 +29,56 @@ namespace bftEngine {
 
 typedef std::vector<ViewsManager::PrevViewInfo> PrevViewInfoElements;
 
-struct DescriptorOfLastExitFromView : public Serializable {
+/***** DescriptorOfLastExitFromView *****/
+
+struct DescriptorOfLastExitFromView {
   DescriptorOfLastExitFromView(ViewNum viewNum, SeqNum stableNum,
                                SeqNum execNum, PrevViewInfoElements elem) :
       view(viewNum), lastStable(stableNum), lastExecuted(execNum),
-      elements(move(elem)) {
-    registerClass();
+      elements(move(elem)) {}
+
+  DescriptorOfLastExitFromView(const DescriptorOfLastExitFromView &other) {
+    setTo(other);
   }
+
+  DescriptorOfLastExitFromView &operator=(
+      const DescriptorOfLastExitFromView &other) {
+    setTo(other);
+    return *this;
+  }
+
+  void setTo(const DescriptorOfLastExitFromView &other);
 
   bool isEmpty() const {
     return ((view == 0) && (lastStable == 0) && (lastExecuted == 0) &&
         elements.empty());
   }
 
-  // Serialization/deserialization
-  UniquePtrToClass create(std::istream &inStream) override;
-
-  // To be used ONLY during deserialization.
+  ~DescriptorOfLastExitFromView();
   DescriptorOfLastExitFromView() = default;
 
+  void serializeSimpleParams(char *&buf, size_t bufLen) const;
+  void serializeElement(
+      uint32_t id, char *&buf, size_t bufLen, size_t &actualSize) const;
+
+  void deserializeSimpleParams(char *buf, size_t bufLen, uint32_t &actualSize);
+  void deserializeElement(char *buf, size_t bufLen, uint32_t &actualSize);
+
   bool operator==(const DescriptorOfLastExitFromView &other) const;
-  DescriptorOfLastExitFromView& operator=(
-      const DescriptorOfLastExitFromView &other);
+
+  static uint32_t simpleParamsSize() {
+    uint32_t elementsNum;
+    return (sizeof(elementsNum) + sizeof(view) + sizeof(lastStable) +
+        sizeof(lastExecuted));
+  }
+
+  static uint32_t maxElementSize() {
+    bool msgEmptyFlag;
+    return 2 * sizeof(msgEmptyFlag) + ViewsManager::PrevViewInfo::maxSize();
+  }
 
   static uint32_t maxSize() {
-    return (sizeof(view) + sizeof(lastStable) + sizeof(lastExecuted) +
-        sizeof(ViewsManager::PrevViewInfo::maxSize() * kWorkWindowSize));
+    return simpleParamsSize() + maxElementSize() * kWorkWindowSize;
   }
 
   // view >= 0
@@ -70,54 +93,67 @@ struct DescriptorOfLastExitFromView : public Serializable {
   // elements.size() <= kWorkWindowSize
   // The messages in elements[i] may be null
   PrevViewInfoElements elements;
-
- protected:
-  void serializeDataMembers(std::ostream &outStream) const override;
-  std::string getName() const override { return className_; };
-  std::string getVersion() const override { return classVersion_; };
-
- private:
-  static void registerClass();
-
- private:
-  const std::string className_ = "DescriptorOfLastExitFromView";
-  const std::string classVersion_ = "1";
-  static bool registered_;
 };
+
+/***** DescriptorOfLastNewView *****/
 
 typedef std::vector<ViewChangeMsg *> ViewChangeMsgsVector;
 
-struct DescriptorOfLastNewView : public Serializable {
+struct DescriptorOfLastNewView {
   DescriptorOfLastNewView(ViewNum viewNum, NewViewMsg *newMsg,
                           ViewChangeMsgsVector msgs, SeqNum maxSeqNum) :
-      view(viewNum), newViewMsg(newMsg), viewChangeMsgs(move(msgs)),
-      maxSeqNumTransferredFromPrevViews(maxSeqNum) {
-    registerClass();
+      view(viewNum), maxSeqNumTransferredFromPrevViews(maxSeqNum),
+      newViewMsg(newMsg), viewChangeMsgs(move(msgs)) {}
+
+  DescriptorOfLastNewView(const DescriptorOfLastNewView &other) {
+    setTo(other);
   }
+
+  DescriptorOfLastNewView &operator=(const DescriptorOfLastNewView &other) {
+    setTo(other);
+    return *this;
+  }
+
+  void setTo(const DescriptorOfLastNewView &other);
+  ~DescriptorOfLastNewView();
 
   bool isEmpty() const {
     return ((view == 0) && (newViewMsg == nullptr) &&
         viewChangeMsgs.empty() && (maxSeqNumTransferredFromPrevViews == 0));
   }
 
-  // Serialization/deserialization
-  UniquePtrToClass create(std::istream &inStream) override;
-
-  // To be used ONLY during deserialization.
   DescriptorOfLastNewView() = default;
 
   bool operator==(const DescriptorOfLastNewView &other) const;
-  DescriptorOfLastNewView& operator=(const DescriptorOfLastNewView &other);
 
-  static uint32_t maxSize(uint16_t fVal, uint16_t cVal) {
-    return (sizeof(view) + NewViewMsg::maxSizeOfNewViewMsg() +
-        ViewChangeMsg::maxSizeOfViewChangeMsg() *
-            (2 * fVal + 2 * cVal + 1) +
-        sizeof(maxSeqNumTransferredFromPrevViews));
+  void serializeSimpleParams(
+      char *&buf, size_t bufLen, size_t &actualSize) const;
+  void serializeElement(
+      uint32_t id, char *&buf, size_t bufLen, size_t &actualSize) const;
+
+  void deserializeSimpleParams(char *buf, size_t bufLen, uint32_t &actualSize);
+  void deserializeElement(char *buf, size_t bufLen, uint32_t &actualSize);
+
+  static uint32_t simpleParamsSize() {
+    bool msgEmptyFlag;
+    return (sizeof(msgEmptyFlag) + sizeof(view) +
+        sizeof(maxSeqNumTransferredFromPrevViews) +
+        NewViewMsg::maxSizeOfNewViewMsgInLocalBuffer());
+  }
+
+  static uint32_t maxElementSize() {
+    return ViewChangeMsg::maxSizeOfViewChangeMsgInLocalBuffer();
+  }
+
+  static uint32_t maxSize(uint32_t numOfReplicas) {
+    return simpleParamsSize() + maxElementSize() * numOfReplicas;
   }
 
   // view >= 1
   ViewNum view = 0;
+
+  // maxSeqNumTransferredFromPrevViews >= 0
+  SeqNum maxSeqNumTransferredFromPrevViews = 0;
 
   // newViewMsg != nullptr
   NewViewMsg *newViewMsg = nullptr;
@@ -125,45 +161,28 @@ struct DescriptorOfLastNewView : public Serializable {
   // viewChangeMsgs.size() == 2*F + 2*C + 1
   // The messages in viewChangeMsgs will never be null
   ViewChangeMsgsVector viewChangeMsgs;
-
-  // maxSeqNumTransferredFromPrevViews >= 0
-  SeqNum maxSeqNumTransferredFromPrevViews = 0;
-
- protected:
-  void serializeDataMembers(std::ostream &outStream) const override;
-  std::string getName() const override { return className_; };
-  std::string getVersion() const override { return classVersion_; };
-
- private:
-  static void registerClass();
-
- private:
-  const std::string className_ = "DescriptorOfLastNewView";
-  const std::string classVersion_ = "1";
-  static bool registered_;
 };
 
-struct DescriptorOfLastExecution : public Serializable {
+/***** DescriptorOfLastExecution *****/
+
+struct DescriptorOfLastExecution {
   DescriptorOfLastExecution(SeqNum seqNum, const Bitmap &requests) :
       executedSeqNum(seqNum), validRequests(requests) {
-    registerClass();
   }
 
   bool isEmpty() const {
     return ((executedSeqNum == 0) && (validRequests.isEmpty()));
   }
 
-  // Serialization/deserialization
-  UniquePtrToClass create(std::istream &inStream) override;
-
-  // To be used ONLY during deserialization.
   DescriptorOfLastExecution() = default;
 
   bool operator==(const DescriptorOfLastExecution &other) const;
-  DescriptorOfLastExecution& operator=(const DescriptorOfLastExecution &other);
+
+  void serialize(char *&buf, size_t bufLen, size_t &actualSize) const;
+  void deserialize(char *buf, size_t bufLen, uint32_t &actualSize);
 
   static uint32_t maxSize() {
-    return (sizeof(executedSeqNum) + Bitmap::maxSize());
+    return (sizeof(executedSeqNum) + Bitmap::size());
   };
 
   // executedSeqNum >= 1
@@ -171,19 +190,6 @@ struct DescriptorOfLastExecution : public Serializable {
 
   // 1 <= validRequests.numOfBits() <= maxNumOfRequestsInBatch
   Bitmap validRequests;
-
- protected:
-  void serializeDataMembers(std::ostream &outStream) const override;
-  std::string getName() const override { return className_; };
-  std::string getVersion() const override { return classVersion_; };
-
- private:
-  static void registerClass();
-
- private:
-  const std::string className_ = "DescriptorOfLastExecution";
-  const std::string classVersion_ = "1";
-  static bool registered_;
 };
 
 }  // namespace bftEngine
