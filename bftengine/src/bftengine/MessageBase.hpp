@@ -38,19 +38,11 @@ class MessageBase {
               bool ownerOfStorage);
 
   virtual ~MessageBase();
-  bool operator==(const MessageBase &other) const {
-    bool equals = (other.msgSize_ == msgSize_ &&
-        other.storageSize_ == storageSize_ &&
-        other.sender_ == sender_ &&
-        other.owner_ == owner_);
-    if (!equals)
-      return false;
-    if (!other.msgBody_ && !msgBody_) // Both are nullptr => OK
-      return true;
-    if (!other.msgBody_ || !msgBody_) // Only one is nullptr => NOK
-      return false;
-    return (*other.msgBody_ == *msgBody_);
-  }
+  bool operator==(const MessageBase &other) const;
+
+  static size_t serializeMsg(char *&buf, MessageBase *msg);
+  static MessageBase *deserializeMsg(char *&buf, size_t bufLen,
+                                     size_t &actualSize);
 
   MsgSize size() const { return msgSize_; }
 

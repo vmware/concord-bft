@@ -16,7 +16,7 @@
 #include "PersistentStorage.hpp"
 #include "MetadataStorage.hpp"
 #include "ReplicaConfigSerializer.hpp"
-#include "SequenceWithActiveWindow.hpp"
+#include "PersistentStorageWindows.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -32,12 +32,14 @@ enum ConstMetadataParameterIds {
   CONST_METADATA_PARAMETERS_NUM
 };
 
+const uint16_t seqWinSize = kWorkWindowSize;
+
 const uint16_t checkWinSize =
     (kWorkWindowSize + checkpointWindowSize) / checkpointWindowSize;
 
 // SEQ_NUM_WINDOW contains kWorkWindowSize objects plus one - for simple window
 // parameters.
-const uint16_t numOfSeqWinObjs = kWorkWindowSize + 1;
+const uint16_t numOfSeqWinObjs = seqWinSize + 1;
 
 // CHECK_WINDOW contains checkWinSize objects plus one - for simple window
 // parameters.
@@ -153,9 +155,31 @@ class PersistentStorageImp : public PersistentStorage {
   void verifyDescriptorOfLastExecution(
       const DescriptorOfLastExecution &desc) const;
   void saveDescriptorOfLastExitFromView(
-      const DescriptorOfLastExitFromView &newDesc);
-  void saveDescriptorOfLastNewView(const DescriptorOfLastNewView &newDesc);
+      const DescriptorOfLastExitFromView &newDesc, bool setAll);
+  void saveDescriptorOfLastNewView(
+      const DescriptorOfLastNewView &newDesc, bool setAll);
+  void initDescriptorOfLastNewView(const DescriptorOfLastNewView &desc);
+  void setDescriptorOfLastNewView(
+      const DescriptorOfLastNewView &desc, bool setAll);
   void saveDescriptorOfLastExecution(const DescriptorOfLastExecution &newDesc);
+  void initDescriptorOfLastExitFromView(
+      const DescriptorOfLastExitFromView &desc);
+  void setDescriptorOfLastExitFromView(
+      const DescriptorOfLastExitFromView &desc, bool setAll);
+
+  void setSeqNumDataElement(SeqNum index, char *&buf) const;
+  void setSeqNumDataElement(SeqNum seqNum) const;
+  void setCheckDataElement(SeqNum index, char *&buf) const;
+  void setCheckDataElement(SeqNum seqNum) const;
+  void setSeqNumWindow() const;
+  void setCheckWindow() const;
+
+  void getSeqNumDataElement(SeqNum index, char *&buf);
+  void getSeqNumDataElement(SeqNum seqNum);
+  void getCheckDataElement(SeqNum index, char *&buf);
+  void getCheckDataElement(SeqNum seqNum);
+  void getSeqNumWindow();
+  void getCheckWindow();
 
  private:
   MetadataStorage *metadataStorage_ = nullptr;
@@ -169,7 +193,7 @@ class PersistentStorageImp : public PersistentStorage {
   SeqNum lastExecutedSeqNum_ = 0;
   SeqNum primaryLastUsedSeqNum_ = 0;
   SeqNum strictLowerBoundOfSeqNums_ = 0;
-  ViewNum lastViewTransferredSeqNumbersFullyExecuted_ = 0;
+  ViewNum lastViewTransferredSeqNum_ = 0;
   SeqNum lastStableSeqNum_ = 0;
 
   ReplicaConfigSerializer *configSerializer_ = nullptr;
@@ -177,68 +201,6 @@ class PersistentStorageImp : public PersistentStorage {
   DescriptorOfLastExitFromView descriptorOfLastExitFromView_;
   DescriptorOfLastNewView descriptorOfLastNewView_;
   DescriptorOfLastExecution descriptorOfLastExecution_;
-
-  struct SeqNumData {
-    PrePrepareMsg *prePrepareMsg = nullptr;
-    bool slowStarted = false;
-    FullCommitProofMsg *fullCommitProofMsg = nullptr;
-    bool forceCompleted = false;
-    PrepareFullMsg *prepareFullMsg = nullptr;
-    CommitFullMsg *commitFullMsg = nullptr;
-
-    void reset() {
-      delete prePrepareMsg;
-      delete fullCommitProofMsg;
-      delete prepareFullMsg;
-      delete commitFullMsg;
-      prePrepareMsg = nullptr;
-      slowStarted = false;
-      fullCommitProofMsg = nullptr;
-      forceCompleted = false;
-      prepareFullMsg = nullptr;
-      commitFullMsg = nullptr;
-    }
-
-    static uint32_t maxSize() {
-      return (PrePrepareMsg::maxSizeOfPrePrepareMsg() +
-          sizeof(slowStarted) +
-          FullCommitProofMsg::maxSizeOfFullCommitProofMsg() +
-          sizeof(forceCompleted) +
-          PrepareFullMsg::maxSizeOfPrepareFull() +
-          CommitFullMsg::maxSizeOfCommitFull());
-    }
-  };
-
-  struct CheckData {
-    CheckpointMsg *checkpointMsg = nullptr;
-    bool completedMark = false;
-
-    void reset() {
-      delete checkpointMsg;
-      checkpointMsg = nullptr;
-      completedMark = false;
-    }
-    static uint32_t maxSize() {
-      return (CheckpointMsg::maxSizeOfCheckpointMsg() + sizeof(completedMark));
-    }
-  };
-
-  struct WindowFuncs {
-    static void init(SeqNumData &seqNumData, void *data) {}
-    static void free(SeqNumData &seqNumData);
-    static void reset(SeqNumData &seqNumData);
-
-    static void init(CheckData &checkData, void *data) {}
-    static void free(CheckData &checkData);
-    static void reset(CheckData &checkData);
-  };
-
-  typedef SequenceWithActiveWindow<kWorkWindowSize, 1, SeqNum, SeqNumData,
-                                   WindowFuncs> SeqNumWindow;
-
-  typedef SequenceWithActiveWindow<kWorkWindowSize + checkpointWindowSize,
-                                   checkpointWindowSize, SeqNum, CheckData,
-                                   WindowFuncs> CheckWindow;
 
   SeqNumWindow seqNumWindow_;
   CheckWindow checkWindow_;
