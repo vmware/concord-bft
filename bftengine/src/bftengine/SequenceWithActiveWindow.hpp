@@ -1,10 +1,14 @@
-//Concord
+// Concord
 //
-//Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
 //
-//This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in compliance with the Apache 2.0 License. 
+// This product is licensed to you under the Apache 2.0 license (the "License").
+// You may not use this product except in compliance with the Apache 2.0 License.
 //
-//This product may include a number of subcomponents with separate copyright notices and license terms. Your use of these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE file.
+// This product may include a number of subcomponents with separate copyright
+// notices and license terms. Your use of these sub-components is subject to
+// the terms and conditions of the subcomponent's license, as noted in the
+// LICENSE file.
 
 #pragma once
 
@@ -49,12 +53,79 @@ class SequenceWithActiveWindow {
       ItemFuncs::free(activeWindow[i]);
   }
 
+  uint16_t getNumItems() const { return numItems; }
+
   static uint32_t maxElementSize() {
-    return (numItems * ItemType::maxSize());
+    return ItemType::maxSize();
   }
 
   static uint32_t simpleParamsSize() {
     return sizeof(beginningOfActiveWindow);
+  }
+
+  static uint32_t maxSize() {
+    return (simpleParamsSize() + numItems * maxElementSize());
+  }
+
+  bool operator==(const SequenceWithActiveWindow &other) const {
+    if (numItems != other.numItems)
+      return false;
+    for (NumbersType i = 0; i < numItems; i++) {
+      if (!(activeWindow[i] == other.activeWindow[i]))
+        return false;
+    }
+    return true;
+  }
+
+  SequenceWithActiveWindow &operator=(const SequenceWithActiveWindow &other) {
+    resetAll(0);
+    for (NumbersType i = 0; i < numItems; i++)
+      activeWindow[i] = other.activeWindow[i];
+    return *this;
+  }
+
+  bool equals(NumbersType index, const ItemType &element) const {
+    Assert(insideActiveWindow(index));
+    return (activeWindow[index] == element);
+  }
+
+  void serializeSimpleParams(char *&buf, size_t bufLen) const {
+    Assert(bufLen >= simpleParamsSize());
+
+    size_t beginningOfActiveWindowSize = sizeof(beginningOfActiveWindow);
+    memcpy(buf, &beginningOfActiveWindow, beginningOfActiveWindowSize);
+    buf += simpleParamsSize();
+  }
+
+  void serializeElement(NumbersType index, char *&buf, size_t bufLen,
+                        size_t &actualSize) const {
+    actualSize = 0;
+    Assert(insideActiveWindow(index));
+    Assert(bufLen >= maxElementSize());
+
+    activeWindow[index].serialize(buf, maxElementSize(), actualSize);
+    buf += actualSize;
+  }
+
+  void deserializeSimpleParams(
+      char *&buf, size_t bufLen, uint32_t &actualSize) {
+    Assert(bufLen >= simpleParamsSize());
+
+    size_t beginningOfActiveWindowSize = sizeof(beginningOfActiveWindow);
+    memcpy(&beginningOfActiveWindow, buf, beginningOfActiveWindowSize);
+    buf += beginningOfActiveWindowSize;
+    actualSize = simpleParamsSize();
+  }
+
+  void deserializeElement(NumbersType index, char *&buf, size_t bufLen,
+                          uint32_t &actualSize) {
+    actualSize = 0;
+    Assert(bufLen >= maxElementSize());
+    Assert(insideActiveWindow(index));
+
+    activeWindow[index] = ItemType::deserialize(buf, bufLen, actualSize);
+    Assert(actualSize);
+    buf += actualSize;
   }
 
   bool insideActiveWindow(NumbersType n) const {
@@ -99,22 +170,21 @@ class SequenceWithActiveWindow {
       return;
     }
 
-    const uint16_t
-        inactiveBegin = ((beginningOfActiveWindow / Resolution) % numItems);
+    const uint16_t inactiveBegin =
+        ((beginningOfActiveWindow / Resolution) % numItems);
 
-    const uint16_t
-        activeBegin = ((newFirstIndexOfActiveWindow / Resolution) % numItems);
+    const uint16_t activeBegin =
+        ((newFirstIndexOfActiveWindow / Resolution) % numItems);
 
-    const uint16_t
-        inactiveEnd = ((activeBegin > 0) ? (activeBegin - 1) : (numItems - 1));
+    const uint16_t inactiveEnd =
+        ((activeBegin > 0) ? (activeBegin - 1) : (numItems - 1));
 
-    const uint16_t resetSize =
-        (inactiveBegin <= inactiveEnd) ? (inactiveEnd - inactiveBegin + 1) : (
-            inactiveEnd + 1 + numItems - inactiveBegin);
+    const uint16_t resetSize = (inactiveBegin <= inactiveEnd) ?
+                               (inactiveEnd - inactiveBegin + 1) :
+                               (inactiveEnd + 1 + numItems - inactiveBegin);
     Assert(resetSize > 0 && resetSize < numItems);
 
     uint16_t debugNumOfReset = 0;
-
     for (uint16_t i = inactiveBegin; i != activeBegin;
          (i = ((i + 1) % numItems))) {
       ItemFuncs::reset(activeWindow[i]);
@@ -122,7 +192,6 @@ class SequenceWithActiveWindow {
     }
 
     Assert(debugNumOfReset == resetSize);
-
     beginningOfActiveWindow = newFirstIndexOfActiveWindow;
   }
 

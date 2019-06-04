@@ -36,7 +36,11 @@ void DescriptorOfLastExitFromView::setTo(
     delete elem.prepareFull;
   }
   elements.clear();
-  elements = other.elements;
+  uint32_t elementsNum = other.elements.size();
+  for (uint32_t i = 0; i < elementsNum; ++i) {
+    ViewsManager::PrevViewInfo clone = other.elements[i];
+    elements.push_back(clone);
+  }
 }
 
 bool DescriptorOfLastExitFromView::operator==(
@@ -69,49 +73,15 @@ void DescriptorOfLastExitFromView::serializeElement(
     uint32_t id, char *&buf, size_t bufLen, size_t &actualSize) const {
   actualSize = 0;
   Assert(id < elements.size());
-  bool msgEmptyFlag = false;
-  size_t msgEmptyFlagSize = sizeof(msgEmptyFlag);
+
+  actualSize += MessageBase::serializeMsg(buf, elements[id].prePrepare);
+  actualSize += MessageBase::serializeMsg(buf, elements[id].prepareFull);
+
   size_t hasAllRequestsSize = sizeof(elements[id].hasAllRequests);
-
-  size_t prePrepareMsgSize = 0;
-  if (elements[id].prePrepare)
-    prePrepareMsgSize =
-        elements[id].prePrepare->sizeNeededForObjAndMsgInLocalBuffer();
-
-  size_t prepareFullMsgSize = 0;
-  if (elements[id].prepareFull)
-    prepareFullMsgSize =
-        elements[id].prepareFull->sizeNeededForObjAndMsgInLocalBuffer();
-
-  actualSize = 2 * msgEmptyFlagSize + prePrepareMsgSize + prepareFullMsgSize +
-      hasAllRequestsSize;
-  Assert(actualSize <= bufLen);
-
-  // As messages could be empty (nullptr), an additional flag is required to
-  // distinguish between empty and full ones.
-  msgEmptyFlag = (elements[id].prePrepare == nullptr);
-  memcpy(buf, &msgEmptyFlag, msgEmptyFlagSize);
-  buf += msgEmptyFlagSize;
-
-  size_t msgSize = 0;
-  if (prePrepareMsgSize) {
-    elements[id].prePrepare->writeObjAndMsgToLocalBuffer(buf, prePrepareMsgSize,
-                                                         &msgSize);
-    buf += prePrepareMsgSize;
-  }
-
-  msgEmptyFlag = (elements[id].prepareFull == nullptr);
-  memcpy(buf, &msgEmptyFlag, msgEmptyFlagSize);
-  buf += msgEmptyFlagSize;
-
-  if (prepareFullMsgSize) {
-    elements[id].prepareFull->writeObjAndMsgToLocalBuffer(
-        buf, prepareFullMsgSize, &msgSize);
-    buf += prepareFullMsgSize;
-  }
-
   memcpy(buf, &elements[id].hasAllRequests, hasAllRequestsSize);
   buf += hasAllRequestsSize;
+
+  actualSize += hasAllRequestsSize;
 }
 
 void DescriptorOfLastExitFromView::deserializeSimpleParams(
@@ -146,43 +116,19 @@ void DescriptorOfLastExitFromView::deserializeElement(
   actualSize = 0;
   Assert(bufLen >= maxElementSize());
 
-  bool msgEmptyFlag = false;
-  size_t msgEmptyFlagSize = sizeof(msgEmptyFlag);
-  memcpy(&msgEmptyFlag, buf, msgEmptyFlagSize);
-  buf += msgEmptyFlagSize;
-
-  size_t prePrepareMsgSize = 0;
-  MessageBase *prePrepareMsgPtr = nullptr;
-  if (!msgEmptyFlag) {
-    prePrepareMsgPtr = PrePrepareMsg::createObjAndMsgFromLocalBuffer(
-        buf, bufLen, &prePrepareMsgSize);
-    Assert(prePrepareMsgSize);
-    buf += prePrepareMsgSize;
-  }
-
-  memcpy(&msgEmptyFlag, buf, msgEmptyFlagSize);
-  buf += msgEmptyFlagSize;
-
-  size_t prepareFullMsgSize = 0;
-  MessageBase *prepareFullMsgPtr = nullptr;
-  if (!msgEmptyFlag) {
-    prepareFullMsgPtr = PrepareFullMsg::createObjAndMsgFromLocalBuffer(
-        buf, bufLen, &prepareFullMsgSize);
-    Assert(prepareFullMsgSize);
-    buf += prepareFullMsgSize;
-  }
+  size_t msgSize1 = 0, msgSize2 = 0;
+  auto *prePrepareMsgPtr = MessageBase::deserializeMsg(buf, bufLen, msgSize1);
+  auto *prepareFullMsgPtr = MessageBase::deserializeMsg(buf, bufLen, msgSize2);
 
   bool hasAllRequests = false;
   size_t hasAllRequestsSize = sizeof(hasAllRequestsSize);
   memcpy(&hasAllRequests, buf, hasAllRequestsSize);
 
-  actualSize = 2 * msgEmptyFlagSize + prePrepareMsgSize + prepareFullMsgSize +
-      hasAllRequestsSize;
-
   elements.push_back(
       ViewsManager::PrevViewInfo((PrePrepareMsg *) prePrepareMsgPtr,
                                  (PrepareFullMsg *) prepareFullMsgPtr,
                                  hasAllRequests));
+  actualSize = msgSize1 + msgSize2 + hasAllRequestsSize;
 }
 
 /***** DescriptorOfLastNewView *****/
@@ -191,13 +137,19 @@ void DescriptorOfLastNewView::setTo(const DescriptorOfLastNewView &other) {
   view = other.view;
   maxSeqNumTransferredFromPrevViews = other.maxSeqNumTransferredFromPrevViews;
   delete newViewMsg;
-  newViewMsg = (NewViewMsg *) other.newViewMsg->cloneObjAndMsg();
+  newViewMsg = nullptr;
+  if (other.newViewMsg)
+    newViewMsg = (NewViewMsg *) other.newViewMsg->cloneObjAndMsg();
   for (auto elem : viewChangeMsgs)
     delete elem;
   viewChangeMsgs.clear();
-  for (uint32_t i = 0; i < other.viewChangeMsgs.size(); ++i)
-    viewChangeMsgs[i] =
-        (ViewChangeMsg *) other.viewChangeMsgs[i]->cloneObjAndMsg();
+  uint32_t otherMsgsNum = other.viewChangeMsgs.size();
+  for (uint32_t i = 0; i < otherMsgsNum; ++i)
+    if (other.viewChangeMsgs[i])
+      viewChangeMsgs[i] =
+          (ViewChangeMsg *) other.viewChangeMsgs[i]->cloneObjAndMsg();
+    else
+      viewChangeMsgs[i] = nullptr;
 }
 
 DescriptorOfLastNewView::~DescriptorOfLastNewView() {
@@ -208,11 +160,26 @@ DescriptorOfLastNewView::~DescriptorOfLastNewView() {
 
 bool DescriptorOfLastNewView::operator==(
     const DescriptorOfLastNewView &other) const {
-  return (other.view == view &&
-      *other.newViewMsg == *newViewMsg &&
-      other.viewChangeMsgs == viewChangeMsgs &&
-      other.maxSeqNumTransferredFromPrevViews ==
-          maxSeqNumTransferredFromPrevViews);
+  if ((other.newViewMsg && !newViewMsg) || (!other.newViewMsg && newViewMsg))
+    return false;
+  bool res = newViewMsg ? (*other.newViewMsg == *newViewMsg) : true;
+  if (!res)
+    return false;
+
+  if (other.viewChangeMsgs.size() != viewChangeMsgs.size())
+    return false;
+  for (uint32_t i = 0; i < viewChangeMsgs.size(); ++i) {
+    if ((other.viewChangeMsgs[i] && !viewChangeMsgs[i]) ||
+        (!other.viewChangeMsgs[i] && viewChangeMsgs[i]))
+      return false;
+    res = viewChangeMsgs[i] ?
+          (*other.viewChangeMsgs[i] == *viewChangeMsgs[i]) : true;
+    if (!res)
+      return false;
+  }
+
+  return (other.view == view && (other.maxSeqNumTransferredFromPrevViews ==
+      maxSeqNumTransferredFromPrevViews));
 }
 
 void DescriptorOfLastNewView::serializeSimpleParams(
@@ -228,28 +195,18 @@ void DescriptorOfLastNewView::serializeSimpleParams(
   memcpy(buf, &maxSeqNumTransferredFromPrevViews, maxSeqNumSize);
   buf += maxSeqNumSize;
 
-  bool msgEmptyFlag = (newViewMsg == nullptr);
-  size_t msgEmptyFLagSize = sizeof(msgEmptyFlag);
-  memcpy(&msgEmptyFlag, buf, msgEmptyFLagSize);
-  buf += msgEmptyFLagSize;
-
-  size_t msgSize = 0;
-  if (newViewMsg) {
-    newViewMsg->writeObjAndMsgToLocalBuffer(
-        buf, newViewMsg->sizeNeededForObjAndMsgInLocalBuffer(), &msgSize);
-    Assert(msgSize);
-    buf += msgSize;
-  }
-  actualSize = viewSize + maxSeqNumSize + msgEmptyFLagSize + msgSize;
+  actualSize = MessageBase::serializeMsg(buf, newViewMsg) +
+      viewSize + maxSeqNumSize;
 }
 
 void DescriptorOfLastNewView::serializeElement(
     uint32_t id, char *&buf, size_t bufLen, size_t &actualSize) const {
+  actualSize = 0;
   Assert(id < viewChangeMsgs.size());
-  size_t msgSize = viewChangeMsgs[id]->sizeNeededForObjAndMsgInLocalBuffer();
-  Assert(msgSize <= bufLen);
-  viewChangeMsgs[id]->writeObjAndMsgToLocalBuffer(buf, msgSize, &actualSize);
-  buf += msgSize;
+
+  actualSize = MessageBase::serializeMsg(buf, viewChangeMsgs[id]);
+  Assert(bufLen >= actualSize);
+  buf += actualSize;
 }
 
 void DescriptorOfLastNewView::deserializeSimpleParams(
@@ -265,29 +222,19 @@ void DescriptorOfLastNewView::deserializeSimpleParams(
   memcpy(&maxSeqNumTransferredFromPrevViews, buf, maxSeqNumSize);
   buf += maxSeqNumSize;
 
-  bool msgEmptyFlag = false;
-  size_t msgEmptyFlagSize = sizeof(msgEmptyFlag);
-  memcpy(&msgEmptyFlag, buf, msgEmptyFlagSize);
-  buf += msgEmptyFlagSize;
-
-  size_t msgSize = 0;
-  newViewMsg = nullptr;
-  if (!msgEmptyFlag) {
-    newViewMsg = (NewViewMsg *) NewViewMsg::createObjAndMsgFromLocalBuffer(
-        buf, bufLen, &msgSize);
-    Assert(msgSize);
-  }
-  actualSize = viewSize + maxSeqNumSize + msgEmptyFlagSize + msgSize;
+  size_t actualMsgSize = 0;
+  newViewMsg = (NewViewMsg *) MessageBase::deserializeMsg(
+      buf, bufLen, actualMsgSize);
+  actualSize = viewSize + maxSeqNumSize + actualMsgSize;
 }
 
 void DescriptorOfLastNewView::deserializeElement(
-    char *buf, size_t bufLen, uint32_t &actualSize) {
+    char *buf, size_t bufLen, size_t &actualSize) {
   actualSize = 0;
   Assert(bufLen >= maxElementSize());
 
-  viewChangeMsgs.push_back(
-      (ViewChangeMsg *) MessageBase::createObjAndMsgFromLocalBuffer(
-          buf, bufLen, (size_t *) &actualSize));
+  viewChangeMsgs.push_back((ViewChangeMsg *) MessageBase::deserializeMsg(
+      buf, bufLen, actualSize));
 }
 
 /***** DescriptorOfLastExecution *****/

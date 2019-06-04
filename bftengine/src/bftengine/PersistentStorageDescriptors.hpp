@@ -132,7 +132,7 @@ struct DescriptorOfLastNewView {
       uint32_t id, char *&buf, size_t bufLen, size_t &actualSize) const;
 
   void deserializeSimpleParams(char *buf, size_t bufLen, uint32_t &actualSize);
-  void deserializeElement(char *buf, size_t bufLen, uint32_t &actualSize);
+  void deserializeElement(char *buf, size_t bufLen, size_t &actualSize);
 
   static uint32_t simpleParamsSize() {
     bool msgEmptyFlag;
@@ -173,6 +173,9 @@ struct DescriptorOfLastExecution {
   bool isEmpty() const {
     return ((executedSeqNum == 0) && (validRequests.isEmpty()));
   }
+
+  DescriptorOfLastExecution &operator=(const DescriptorOfLastExecution
+                                       &other) = default;
 
   DescriptorOfLastExecution() = default;
 

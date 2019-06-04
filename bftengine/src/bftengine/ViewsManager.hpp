@@ -82,15 +82,16 @@ class ViewsManager {
     PrevViewInfo() = default;
 
     PrevViewInfo(PrePrepareMsg *prePrep, PrepareFullMsg *prepFull,
-        bool allRequests) : prePrepare(prePrep), prepareFull(prepFull),
-            hasAllRequests(allRequests) {}
+                 bool allRequests) : prePrepare(prePrep), prepareFull(prepFull),
+                                     hasAllRequests(allRequests) {}
 
-    PrevViewInfo& operator=(const PrevViewInfo& other) {
+    PrevViewInfo &operator=(const PrevViewInfo &other) {
       hasAllRequests = other.hasAllRequests;
       delete prePrepare;
-      prePrepare = nullptr;
       delete prepareFull;
+      prePrepare = nullptr;
       prepareFull = nullptr;
+
       if (other.prePrepare)
         prePrepare = (PrePrepareMsg *) other.prePrepare->cloneObjAndMsg();
       if (other.prepareFull)
