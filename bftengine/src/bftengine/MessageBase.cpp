@@ -12,7 +12,7 @@
 #include "assertUtils.hpp"
 
 #ifdef DEBUG_MEMORY_MSG
-#include <set> 
+#include <set>
 
 #ifdef USE_TLS
 #error DEBUG_MEMORY_MSG is not supported with USE_TLS
@@ -20,175 +20,234 @@
 
 namespace bftEngine
 {
-	namespace impl
-	{
+    namespace impl
+    {
 
-		static std::set<MessageBase*> liveMessagesDebug; // GG: if needed, add debug information
+        static std::set<MessageBase*> liveMessagesDebug; // GG: if needed, add debug information
 
-		void MessageBase::printLiveMessages()
-		{
-			printf("\nDumping all live messages:");
-			for (std::set<MessageBase*>::iterator it = liveMessagesDebug.begin(); it != liveMessagesDebug.end(); it++)
-			{
-				printf("<type=%d, size=%d>", (*it)->type(), (*it)->size());
-				printf("%8s", " "); // space
-			}
-			printf("\n");
-		}
+        void MessageBase::printLiveMessages()
+        {
+            printf("\nDumping all live messages:");
+            for (std::set<MessageBase*>::iterator it = liveMessagesDebug.begin(); it != liveMessagesDebug.end(); it++)
+            {
+                printf("<type=%d, size=%d>", (*it)->type(), (*it)->size());
+                printf("%8s", " "); // space
+            }
+            printf("\n");
+        }
 
-	}
+    }
 }
 
 #endif
 
-namespace bftEngine
-{
-	namespace impl
-	{
+namespace bftEngine {
+namespace impl {
 
-		MessageBase::~MessageBase() {
+MessageBase::~MessageBase() {
 #ifdef DEBUG_MEMORY_MSG
-			liveMessagesDebug.erase(this);
+  liveMessagesDebug.erase(this);
 #endif
-			if (owner_) std::free((char*)msgBody_);
-		}
+  if (owner_) std::free((char *) msgBody_);
+}
 
-		void MessageBase::shrinkToFit() {
-			Assert(owner_);
+void MessageBase::shrinkToFit() {
+  Assert(owner_);
 
-			// TODO(GG): need to verify more conditions??
+  // TODO(GG): need to verify more conditions??
 
-			void* p = (void*)msgBody_;
-			p = std::realloc(p, msgSize_);
-			// always shrinks allocated size, so no bytes should be 0'd
+  void *p = (void *) msgBody_;
+  p = std::realloc(p, msgSize_);
+  // always shrinks allocated size, so no bytes should be 0'd
 
-			msgBody_ = (MessageBase::Header*)p;
-			storageSize_ = msgSize_;
-		}
+  msgBody_ = (MessageBase::Header *) p;
+  storageSize_ = msgSize_;
+}
 
-
-		MessageBase::MessageBase(NodeIdType sender)
-		{
-			storageSize_ = 0;
-			msgBody_ = nullptr;
-			msgSize_ = 0;
-			owner_ = false;
-			sender_ = sender;
+MessageBase::MessageBase(NodeIdType sender) {
+  storageSize_ = 0;
+  msgBody_ = nullptr;
+  msgSize_ = 0;
+  owner_ = false;
+  sender_ = sender;
 
 #ifdef DEBUG_MEMORY_MSG
-			liveMessagesDebug.insert(this);
+  liveMessagesDebug.insert(this);
 #endif
-		}
+}
 
-		MessageBase::MessageBase(NodeIdType sender, MsgType type, MsgSize size)
-		{
-			Assert(size > 0);
-			msgBody_ = (MessageBase::Header*)std::malloc(size);
-			memset(msgBody_, 0, size);
-			storageSize_ = size;
-			msgSize_ = size;
-			owner_ = true;
-			sender_ = sender;
-			msgBody_->msgType = type;
+MessageBase::MessageBase(NodeIdType sender, MsgType type, MsgSize size) {
+  Assert(size > 0);
+  msgBody_ = (MessageBase::Header *) std::malloc(size);
+  memset(msgBody_, 0, size);
+  storageSize_ = size;
+  msgSize_ = size;
+  owner_ = true;
+  sender_ = sender;
+  msgBody_->msgType = type;
 
 #ifdef DEBUG_MEMORY_MSG
-			liveMessagesDebug.insert(this);
+  liveMessagesDebug.insert(this);
 #endif
-		}
+}
 
-		MessageBase::MessageBase(NodeIdType sender, MessageBase::Header* body, MsgSize size, bool ownerOfStorage)
-		{
-			msgBody_ = body;
-			msgSize_ = size;
-			storageSize_ = size;
-			sender_ = sender;
-			owner_ = ownerOfStorage;
+MessageBase::MessageBase(NodeIdType sender,
+                         MessageBase::Header *body,
+                         MsgSize size,
+                         bool ownerOfStorage) {
+  msgBody_ = body;
+  msgSize_ = size;
+  storageSize_ = size;
+  sender_ = sender;
+  owner_ = ownerOfStorage;
 
 #ifdef DEBUG_MEMORY_MSG
-			liveMessagesDebug.insert(this);
+  liveMessagesDebug.insert(this);
 #endif
-		}
+}
 
-		void MessageBase::setMsgSize(MsgSize size) {
-			Assert((msgBody_ != nullptr));
-			Assert(size <= storageSize_);
+void MessageBase::setMsgSize(MsgSize size) {
+  Assert((msgBody_ != nullptr));
+  Assert(size <= storageSize_);
 
-			// TODO(GG): do we need to reset memory here?
-			if (storageSize_ > size)	memset(body() + size, 0, (storageSize_ - size));
+  // TODO(GG): do we need to reset memory here?
+  if (storageSize_ > size) memset(body() + size, 0, (storageSize_ - size));
 
-			msgSize_ = size;
-		}
+  msgSize_ = size;
+}
 
-		MessageBase* MessageBase::cloneObjAndMsg() const
-		{
-			Assert(owner_);
-			Assert(msgSize_ > 0);
+MessageBase *MessageBase::cloneObjAndMsg() const {
+  Assert(owner_);
+  Assert(msgSize_ > 0);
 
-			void* msgBody = std::malloc(msgSize_);
-			memcpy(msgBody, msgBody_, msgSize_);
+  void *msgBody = std::malloc(msgSize_);
+  memcpy(msgBody, msgBody_, msgSize_);
 
-			MessageBase* otherMsg = 
-				new MessageBase(sender_, (MessageBase::Header*)msgBody, msgSize_,true);
+  MessageBase *otherMsg =
+      new MessageBase(sender_, (MessageBase::Header *) msgBody, msgSize_, true);
 
-			return otherMsg;
-		}
+  return otherMsg;
+}
 
+void MessageBase::writeObjAndMsgToLocalBuffer(char *buffer,
+                                              size_t bufferLength,
+                                              size_t *actualSize) const {
+  Assert(owner_);
+  Assert(msgSize_ > 0);
 
-		void MessageBase::writeObjAndMsgToLocalBuffer(char* buffer, size_t bufferLength, size_t* actualSize) const
-		{
-			Assert(owner_);
-			Assert(msgSize_ > 0);
+  const size_t sizeNeeded = sizeof(RawHeaderOfObjAndMsg) + msgSize_;
 
-			const size_t sizeNeeded = sizeof(RawHeaderOfObjAndMsg) + msgSize_;
+  Assert(sizeNeeded <= bufferLength);
 
-			Assert(sizeNeeded <= bufferLength);
+  RawHeaderOfObjAndMsg *pHeader = (RawHeaderOfObjAndMsg *) buffer;
+  pHeader->magicNum = magicNumOfRawFormat;
+  pHeader->msgSize = msgSize_;
+  pHeader->sender = sender_;
 
-			RawHeaderOfObjAndMsg* pHeader = (RawHeaderOfObjAndMsg*)buffer;
-			pHeader->magicNum = magicNumOfRawFormat;
-			pHeader->msgSize = msgSize_;
-			pHeader->sender = sender_;
+  char *pRawMsg = buffer + sizeof(RawHeaderOfObjAndMsg);
+  memcpy(pRawMsg, msgBody_, msgSize_);
 
-			char* pRawMsg = buffer + sizeof(RawHeaderOfObjAndMsg);
-			memcpy(pRawMsg, msgBody_, msgSize_);
+  if (actualSize) *actualSize = sizeNeeded;
+}
 
-			if(actualSize) *actualSize = sizeNeeded;
-		}
+size_t MessageBase::sizeNeededForObjAndMsgInLocalBuffer() const {
+  Assert(owner_);
+  Assert(msgSize_ > 0);
 
-		size_t MessageBase::sizeNeededForObjAndMsgInLocalBuffer() const
-		{
-			Assert(owner_);
-			Assert(msgSize_ > 0);
+  const size_t sizeNeeded = sizeof(RawHeaderOfObjAndMsg) + msgSize_;
 
-			const size_t sizeNeeded = sizeof(RawHeaderOfObjAndMsg) + msgSize_;
+  return sizeNeeded;
+}
 
-			return sizeNeeded;
-		}
+MessageBase *MessageBase::createObjAndMsgFromLocalBuffer(char *buffer,
+                                                         size_t bufferLength,
+                                                         size_t *actualSize) {
+  if (actualSize) *actualSize = 0;
 
-		MessageBase* MessageBase::createObjAndMsgFromLocalBuffer(char* buffer, size_t bufferLength, size_t* actualSize)
-		{
-			if(actualSize) *actualSize = 0;
+  if (bufferLength <= sizeof(RawHeaderOfObjAndMsg)) return nullptr;
 
-			if (bufferLength <= sizeof(RawHeaderOfObjAndMsg)) return nullptr;
+  RawHeaderOfObjAndMsg *pHeader = (RawHeaderOfObjAndMsg *) buffer;
+  if (pHeader->magicNum != magicNumOfRawFormat) return nullptr;
+  if (pHeader->msgSize == 0) return nullptr;
+  if (pHeader->msgSize > maxExternalMessageSize) return nullptr;
+  if (pHeader->msgSize + sizeof(RawHeaderOfObjAndMsg) > bufferLength)
+    return nullptr;
 
-			RawHeaderOfObjAndMsg* pHeader = (RawHeaderOfObjAndMsg*)buffer;
-			if (pHeader->magicNum != magicNumOfRawFormat) return nullptr;
-			if (pHeader->msgSize == 0) return nullptr;
-			if (pHeader->msgSize > maxExternalMessageSize) return nullptr;
-			if (pHeader->msgSize + sizeof(RawHeaderOfObjAndMsg) > bufferLength) return nullptr;
-			
-			char* pBodyInBuffer = buffer + sizeof(RawHeaderOfObjAndMsg);
+  char *pBodyInBuffer = buffer + sizeof(RawHeaderOfObjAndMsg);
 
-			void* msgBody = std::malloc(pHeader->msgSize);
-			memcpy(msgBody, pBodyInBuffer, pHeader->msgSize);
+  void *msgBody = std::malloc(pHeader->msgSize);
+  memcpy(msgBody, pBodyInBuffer, pHeader->msgSize);
 
-			MessageBase* msgObj =
-				new MessageBase(pHeader->sender, (MessageBase::Header*)msgBody, pHeader->msgSize, true);
+  MessageBase *msgObj =
+      new MessageBase(pHeader->sender,
+                      (MessageBase::Header *) msgBody,
+                      pHeader->msgSize,
+                      true);
 
-			if (actualSize) *actualSize = (pHeader->msgSize + sizeof(RawHeaderOfObjAndMsg));
+  if (actualSize)
+    *actualSize = (pHeader->msgSize + sizeof(RawHeaderOfObjAndMsg));
 
-			return msgObj;
-		}
+  return msgObj;
+}
 
+bool MessageBase::operator==(const MessageBase &other) const {
+  bool equals = (other.msgSize_ == msgSize_ &&
+      other.storageSize_ == storageSize_ &&
+      other.sender_ == sender_ &&
+      other.owner_ == owner_);
+  if (!equals)
+    return false;
+  if (!other.msgBody_ && !msgBody_) // Both are nullptr => OK
+    return true;
+  if (!other.msgBody_ || !msgBody_) // Only one is nullptr => NOK
+    return false;
+  return (*other.msgBody_ == *msgBody_);
+}
 
-	}
+size_t MessageBase::serializeMsg(char *&buf, MessageBase *msg) {
+  // As messages could be empty (nullptr), an additional flag is required to
+  // distinguish between empty and full ones.
+  bool msgEmptyFlag = (msg == nullptr);
+  uint32_t msgEmptyFLagSize = sizeof(msgEmptyFlag);
+  std::memcpy(buf, &msgEmptyFlag, msgEmptyFLagSize);
+  buf += msgEmptyFLagSize;
+
+  uint32_t msgSize = 0;
+  uint32_t sizeOfMsgSize = sizeof(msgSize);
+  std::memcpy(buf, &msgSize, sizeOfMsgSize);
+  buf += sizeOfMsgSize;
+
+  size_t actualMsgSize = 0;
+  if (msg) {
+    msgSize = msg->sizeNeededForObjAndMsgInLocalBuffer();
+    msg->writeObjAndMsgToLocalBuffer(buf, msgSize, &actualMsgSize);
+    Assert(actualMsgSize);
+    buf += actualMsgSize;
+  }
+  return msgEmptyFLagSize + sizeOfMsgSize + actualMsgSize;
+}
+
+MessageBase *MessageBase::deserializeMsg(char *&buf, size_t bufLen,
+                                         size_t &actualSize) {
+  bool msgEmptyFlag = false;
+  uint32_t msgEmptyFlagSize = sizeof(msgEmptyFlag);
+  std::memcpy(&msgEmptyFlag, buf, msgEmptyFlagSize);
+  buf += msgEmptyFlagSize;
+
+  uint32_t msgSize = 0;
+  uint32_t sizeOfMsgSize = sizeof(msgSize);
+  std::memcpy(&msgSize, buf, sizeOfMsgSize);
+  buf += sizeOfMsgSize;
+
+  MessageBase *msg = nullptr;
+  if (!msgEmptyFlag) {
+    msg = createObjAndMsgFromLocalBuffer(buf, bufLen, (size_t *) &msgSize);
+    Assert(msgSize);
+    buf += msgSize;
+  }
+  actualSize = msgEmptyFlagSize + sizeOfMsgSize + msgSize;
+  return msg;
+}
+
+}
 }
