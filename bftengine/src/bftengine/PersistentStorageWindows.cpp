@@ -132,10 +132,10 @@ SeqNumData &SeqNumData::operator=(const SeqNumData &other) {
 
 uint32_t SeqNumData::maxSize() {
   bool msgEmptyFlag;
-  return (PrePrepareMsg::maxSizeOfPrePrepareMsg() +
-      FullCommitProofMsg::maxSizeOfFullCommitProofMsg() +
-      PrepareFullMsg::maxSizeOfPrepareFull() +
-      CommitFullMsg::maxSizeOfCommitFull() +
+  return (PrePrepareMsg::maxSizeOfPrePrepareMsgInLocalBuffer() +
+      FullCommitProofMsg::maxSizeOfFullCommitProofMsgInLocalBuffer() +
+      PrepareFullMsg::maxSizeOfPrepareFullInLocalBuffer() +
+      CommitFullMsg::maxSizeOfCommitFullInLocalBuffer() +
       4 * sizeof(msgEmptyFlag) +
       sizeof(slowStarted) +
       sizeof(forceCompleted));
@@ -200,8 +200,8 @@ CheckData &CheckData::operator=(const CheckData &other) {
 
 uint32_t CheckData::maxSize() {
   bool msgEmptyFlag;
-  return (CheckpointMsg::maxSizeOfCheckpointMsg() + sizeof(msgEmptyFlag) +
-      sizeof(completedMark));
+  return (CheckpointMsg::maxSizeOfCheckpointMsgInLocalBuffer() +
+      sizeof(msgEmptyFlag) + sizeof(completedMark));
 }
 
 }  // namespace bftEngine

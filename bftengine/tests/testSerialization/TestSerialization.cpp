@@ -11,6 +11,8 @@
 // LICENSE file.
 
 #include "ReplicaConfigSerializer.hpp"
+#include "PersistentStorageImp.hpp"
+#include "../simpleStorage/FileStorage.hpp"
 
 #include <string>
 #include <cassert>
@@ -167,8 +169,18 @@ bool testReplicaConfig() {
   return (result && (in == *out));
 }
 
+uint16_t fVal = 2;
+uint16_t cVal = 1;
+
 int main() {
   assert(testReplicaConfig());
+  PersistentStorageImp persistentStorageImp(fVal, cVal);
+  concordlogger::Logger logger =
+      concordlogger::Logger::getLogger("testSerialization.replica");
+  const string dbFile = "testPersistency.txt";
+  MetadataStorage *metadataStorage = new FileStorage(logger, dbFile);
+  persistentStorageImp.init(metadataStorage);
+
   // Release static objects to enforce deletion order.
   for (auto it = Serializable::classNameToObjectMap_.begin();
        it != Serializable::classNameToObjectMap_.end(); ++it) {

@@ -1,5 +1,7 @@
 set(test_serialization_source_files
-    TestSerialization.cpp)
+    TestSerialization.cpp
+    ../simpleStorage/ObjectsMetadataHandler.cpp
+    ../simpleStorage/FileStorage.cpp)
 
 add_executable(test_serialization
     ${test_serialization_source_files})

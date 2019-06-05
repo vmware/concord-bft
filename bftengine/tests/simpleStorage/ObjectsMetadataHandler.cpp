@@ -23,9 +23,9 @@ namespace bftEngine {
 ostream &operator<<(ostream &stream,
                     const ObjectsMetadataHandler &objectsMetadataHandler) {
   stream << "ObjectsMetadataHandler: objectsNumber="
-         << objectsMetadataHandler.getObjectsNum() << " ";
+         << objectsMetadataHandler.getObjectsNum() << '\n';
   for (auto it : objectsMetadataHandler.getObjectsMap()) {
-    stream << it.second.toString();
+    stream << it.second.toString() << '\n';
   }
   return stream;
 }
