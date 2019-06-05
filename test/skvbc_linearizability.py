@@ -157,6 +157,7 @@ class CausalState:
 
     def __repr__(self):
         return (f'{self.__class__.__name__}:\n'
+           f'    req_index={self.req_index}\n'
            f'    last_known_block={self.last_known_block}\n'
            f'    last_consecutive_block={self.last_consecutive_block}\n'
            f'    kvpairs={self.kvpairs}\n')
@@ -306,10 +307,7 @@ class SkvbcTracker:
     clusters with lots of blocks, but we may want to add it as an optional check
     in the future.
     """
-    def __init__(self):
-        # Last block_id received in a response
-        self.last_block_id = 0
-
+    def __init__(self, initial_kvpairs={}):
         # A partial order of all requests (SkvbcWriteRequest | SkvbcReadRequest)
         # issued against SimpleKVBC.  History tracks requests and responses. A
         # happens-before relationship exists between responses and requests
@@ -336,9 +334,10 @@ class SkvbcTracker:
         self.blocks = {}
 
         # The value of all keys at last_consecutive_block
-        self.kvpairs = {}
+        self.kvpairs = initial_kvpairs
         self.last_consecutive_block = 0
 
+        # The block last received in a write
         self.last_known_block = 0
 
         # Blocks that get filled in by the call to fill_missing_blocks
@@ -560,7 +559,7 @@ class SkvbcTracker:
         """
         for req_index, completed_read  in self.completed_reads.items():
             cs = completed_read.causal_state
-            kv = cs.kvpairs
+            kv = cs.kvpairs.copy()
             num_intermediate_blocks = (cs.last_known_block
                                       - cs.last_consecutive_block)
 

@@ -120,6 +120,11 @@ class BftTester:
             keys.append(bytes(key))
         return keys
 
+    def initial_state(self):
+        """Return a dict with KV_LEN zero byte values for all keys"""
+        all_zeros = b''.join([b'\x00' for _ in range(0, KV_LEN)])
+        return dict([(k, all_zeros) for k in self.keys])
+
     async def _create_clients(self):
         for client_id in range(self.config.n,
                                self.config.num_clients+self.config.n):
@@ -145,11 +150,21 @@ class BftTester:
     def random_value(self):
         return bytes(random.sample(self.alphanum, KV_LEN))
 
+    def random_values(self, n):
+        return [self.random_value() for _ in range(0, n)]
+
     def random_client(self):
         return random.choice(list(self.clients.values()))
 
+    def random_clients(self, max_clients):
+        return set(random.choices(list(self.clients.values()), k=max_clients))
+
     def random_key(self):
         return random.choice(self.keys)
+
+    def random_keys(self, max_keys):
+        """Return a set of keys that is of size <= max_keys"""
+        return set(random.choices(self.keys, k=max_keys))
 
     def start_all_replicas(self):
         [self.start_replica(i) for i in range(0, self.config.n)]
