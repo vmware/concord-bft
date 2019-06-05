@@ -22,12 +22,12 @@ namespace bftEngine {
 namespace impl {
 
 enum ConstMetadataParameterIds {
-  LAST_STABLE_SEQ_NUM = 0,
+  FETCHING_STATE = 0,
   LAST_EXEC_SEQ_NUM,
   PRIMARY_LAST_USED_SEQ_NUM,
   LOWER_BOUND_OF_SEQ_NUM,
   LAST_VIEW_TRANSFERRED_SEQ_NUM,
-  FETCHING_STATE,
+  LAST_STABLE_SEQ_NUM,
   REPLICA_CONFIG,
   CONST_METADATA_PARAMETERS_NUM
 };
@@ -154,18 +154,22 @@ class PersistentStorageImp : public PersistentStorage {
   void verifyLastNewViewMsgs(const DescriptorOfLastNewView &desc) const;
   void verifyDescriptorOfLastExecution(
       const DescriptorOfLastExecution &desc) const;
+
   void saveDescriptorOfLastExitFromView(
       const DescriptorOfLastExitFromView &newDesc, bool setAll);
-  void saveDescriptorOfLastNewView(
-      const DescriptorOfLastNewView &newDesc, bool setAll);
-  void initDescriptorOfLastNewView(const DescriptorOfLastNewView &desc);
-  void setDescriptorOfLastNewView(
-      const DescriptorOfLastNewView &desc, bool setAll);
-  void saveDescriptorOfLastExecution(const DescriptorOfLastExecution &newDesc);
-  void initDescriptorOfLastExitFromView(
-      const DescriptorOfLastExitFromView &desc);
   void setDescriptorOfLastExitFromView(
       const DescriptorOfLastExitFromView &desc, bool setAll);
+  void initDescriptorOfLastExitFromView(
+      const DescriptorOfLastExitFromView &desc);
+  void saveDescriptorOfLastNewView(
+      const DescriptorOfLastNewView &newDesc, bool setAll);
+  void setDescriptorOfLastNewView(
+      const DescriptorOfLastNewView &desc, bool setAll);
+  void initDescriptorOfLastNewView(const DescriptorOfLastNewView &desc);
+  void saveDescriptorOfLastExecution(const DescriptorOfLastExecution &newDesc);
+  void setDescriptorOfLastExecution(
+      const DescriptorOfLastExecution &desc, bool setAll);
+  void initDescriptorOfLastExecution(const DescriptorOfLastExecution &desc);
 
   void setSeqNumDataElement(SeqNum index, char *&buf) const;
   void setSeqNumDataElement(SeqNum seqNum) const;
@@ -181,12 +185,23 @@ class PersistentStorageImp : public PersistentStorage {
   void getSeqNumWindow();
   void getCheckWindow();
 
+  void setFetchingStateInternal(const bool &state);
+  void setLastExecutedSeqNumInternal(const SeqNum &seqNum);
+  void setPrimaryLastUsedSeqNumInternal(const SeqNum &seqNum);
+  void setStrictLowerBoundOfSeqNumsInternal(const SeqNum &seqNum);
+  void setLastViewTransferredSeqNumbersInternal(const ViewNum &view);
+  void setLastStableSeqNumInternal(const SeqNum &seqNum);
+
  private:
   MetadataStorage *metadataStorage_ = nullptr;
   uint8_t numOfNestedTransactions_ = 0;
 
   const uint32_t numOfReplicas_;
   const uint32_t metadataParamsNum_;
+  const SeqNum seqNumWindowFirst_ = 1;
+  SeqNum seqNumWindowLast_ = seqNumWindowFirst_;
+  const SeqNum checkWindowFirst_ = 0;
+  SeqNum checkWindowLast_ = checkWindowFirst_;
 
   // Parameters to be saved persistently
   bool fetchingState_ = false;

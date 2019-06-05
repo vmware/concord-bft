@@ -195,14 +195,19 @@ void DescriptorOfLastNewView::serializeSimpleParams(
   memcpy(buf, &maxSeqNumTransferredFromPrevViews, maxSeqNumSize);
   buf += maxSeqNumSize;
 
-  actualSize = MessageBase::serializeMsg(buf, newViewMsg) +
-      viewSize + maxSeqNumSize;
+  size_t msgSize = 0;
+  if (newViewMsg) {
+    msgSize = MessageBase::serializeMsg(buf, newViewMsg);
+    buf += msgSize;
+  }
+
+  actualSize = msgSize + viewSize + maxSeqNumSize;
 }
 
 void DescriptorOfLastNewView::serializeElement(
     uint32_t id, char *&buf, size_t bufLen, size_t &actualSize) const {
   actualSize = 0;
-  Assert(id < viewChangeMsgs.size());
+  Assert(id <= viewChangeMsgs.size());
 
   actualSize = MessageBase::serializeMsg(buf, viewChangeMsgs[id]);
   Assert(bufLen >= actualSize);
