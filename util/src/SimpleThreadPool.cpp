@@ -8,10 +8,10 @@
 
 
 #include "SimpleThreadPool.hpp"
-#include "Logging.hpp"
+#include "Logger.hpp"
 #include <iostream>
 
-concordlogger::Logger GLOB = concordlogger::Logger::getLogger(DEFAULT_LOGGER_NAME);
+concordlogger::Logger SP = concordlogger::Log::getLogger("thread-pool");
 namespace util
 {
 
@@ -22,7 +22,7 @@ void SimpleThreadPool::start(uint8_t num_of_threads)
   for (auto i = 0; i < num_of_threads; ++i)
   {
     threads_.push_back(std::thread([this]{
-      LOG_DEBUG_F(GLOB, "thread start [%X]", std::this_thread::get_id());
+      LOG_DEBUG(SP, "thread start " << std::this_thread::get_id());
 
       SimpleThreadPool::Job *j = nullptr;
       while (load(j))
@@ -41,7 +41,7 @@ void SimpleThreadPool::stop(bool executeAllJobs)
   if (!stopped_.compare_exchange_strong(test_false, true))
   {
     // stop has already been called // TODO(TK) throw?
-    LOG_ERROR(GLOB, "SimpleThreadPool::stop called more than once");
+    LOG_ERROR(SP, "SimpleThreadPool::stop called more than once");
     return;
   }
   queue_cond_.notify_all();
@@ -49,11 +49,11 @@ void SimpleThreadPool::stop(bool executeAllJobs)
   {
     auto tid = t.get_id();
     t.join();
-    LOG_DEBUG_F(GLOB, "thread joined [%X]", tid);
+    LOG_DEBUG(SP, "thread joined " << tid);
   }
   threads_.clear();
   // no more concurrent threads, can cleanup without locking
-  LOG_DEBUG_F(GLOB, "will %s %u jobs in queue" , executeAllJobs?"execute":"discard", job_queue_.size());
+  LOG_DEBUG(SP, "will " << (executeAllJobs?"execute ":"discard ") <<  job_queue_.size() <<  " jobs in queue");
   while (!job_queue_.empty())
   {
     Job* j = job_queue_.front();
@@ -95,9 +95,9 @@ void SimpleThreadPool::execute(Job* j)
   {
     j->execute();
   }catch(std::exception& e){
-    LOG_ERROR_F(GLOB, "SimpleThreadPool: exception during execution of %s : %s"   , typeid(*j).name(), e.what());
+    LOG_ERROR(SP, "SimpleThreadPool: exception during execution of " << typeid(*j).name()  << " Reason: " << e.what());
   }catch(...){
-    LOG_ERROR_F(GLOB, "SimpleThreadPool: unknown exception during execution of %s", typeid(*j).name());
+    LOG_ERROR(SP, "SimpleThreadPool: unknown exception during execution of " << typeid(*j).name());
   }
 }
 
