@@ -68,7 +68,8 @@ class SkvbcTest(unittest.TestCase):
                 async with trio.open_nursery() as nursery:
                     for client in tester.clients.values():
                         msg = self.protocol.write_req([],
-                                [(tester.random_key(), tester.random_value())])
+                                [(tester.random_key(), tester.random_value())],
+                                0)
                         nursery.start_soon(client.sendSync, msg, False)
             await tester.assert_state_transfer_not_started_all_up_nodes(self)
             tester.start_replica(3)
@@ -105,7 +106,7 @@ class SkvbcTest(unittest.TestCase):
             kv = [(tester.keys[0], tester.random_value()),
                   (tester.keys[1], tester.random_value())]
 
-            reply = await client.write(p.write_req([], kv))
+            reply = await client.write(p.write_req([], kv, 0))
             reply = p.parse_reply(reply)
             self.assertTrue(reply.success)
             self.assertEqual(last_block + 1, reply.last_block_id)
@@ -121,7 +122,7 @@ class SkvbcTest(unittest.TestCase):
             # different data
             kv3 = [(tester.keys[0], tester.random_value()),
                    (tester.keys[1], tester.random_value())]
-            reply = await client.write(p.write_req([], kv3))
+            reply = await client.write(p.write_req([], kv3, 0))
             reply = p.parse_reply(reply)
             self.assertTrue(reply.success)
             self.assertEqual(last_block + 1, reply.last_block_id)
@@ -141,7 +142,7 @@ class SkvbcTest(unittest.TestCase):
         key = tester.random_key()
         val = tester.random_value()
 
-        reply = await client.write(p.write_req([], [(key, val)]))
+        reply = await client.write(p.write_req([], [(key, val)], 0))
         reply = p.parse_reply(reply)
         self.assertTrue(reply.success)
         self.assertEqual(last_block + 1, reply.last_block_id)

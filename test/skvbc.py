@@ -18,6 +18,8 @@ from collections import namedtuple
 ## SimpleKVBC requies fixed size keys and values right now
 KV_LEN = 21
 
+READ_LATEST = 0xFFFFFFFFFFFFFFFF
+
 WriteReply = namedtuple('WriteReply', ['success', 'last_block_id'])
 
 class SimpleKVBCProtocol:
@@ -32,7 +34,7 @@ class SimpleKVBCProtocol:
         self.GET_LAST_BLOCK = 3
         self.GET_BLOCK_DATA = 4
 
-    def write_req(self, readset, writeset, block_id=0):
+    def write_req(self, readset, writeset, block_id):
         data = bytearray()
         # A conditional write request type
         data.append(self.WRITE)
@@ -49,7 +51,7 @@ class SimpleKVBCProtocol:
 
         return data
 
-    def read_req(self, readset, block_id=0):
+    def read_req(self, readset, block_id=READ_LATEST):
         data = bytearray()
         data.append(self.READ)
         # SimpleReadHeader
