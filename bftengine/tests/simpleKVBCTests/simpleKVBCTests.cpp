@@ -157,7 +157,7 @@ namespace BasicRandomTests
 		struct SimpleReadHeader
 		{
 			SimpleRequestHeader h;
-			BlockId readVersion; // if 0, then read from the latest version
+			BlockId readVersion;
 			size_t numberOfKeysToRead;
 			SimpleKey keys[1];
 
