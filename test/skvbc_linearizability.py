@@ -395,8 +395,14 @@ class SkvbcTracker:
                 # Update consecutive kvpairs
                 if reply.last_block_id == self.last_consecutive_block + 1:
                     self.last_consecutive_block += 1
-                    for k,v in req.writeset.items():
-                        self.kvpairs[k] = v
+                    self.kvpairs.update(req.writeset)
+                    # Did we already have the next consecutive blocks?
+                    while True:
+                        block = self.blocks.get(self.last_consecutive_block + 1)
+                        if block is None:
+                            break
+                        self.last_consecutive_block += 1
+                        self.kvpairs.update(block.kvpairs)
         else:
             self._record_concurrent_write_failure(req_index, rpy)
 
@@ -425,6 +431,8 @@ class SkvbcTracker:
         # Include last_block_id if not already known
         for i in range(self.last_known_block + 1, last_block_id + 1):
             missing_blocks.add(i)
+
+        print(f'{len(missing_blocks)} missing blocks found.')
         return missing_blocks
 
     def fill_missing_blocks(self, missing_blocks):
@@ -444,6 +452,7 @@ class SkvbcTracker:
             if block_id > self.last_known_block:
                 self.last_known_block = block_id
         self.filled_blocks = missing_blocks
+        print(f'{len(missing_blocks)} missing blocks filled.')
 
     def verify(self):
         self._match_filled_blocks()
