@@ -11,10 +11,27 @@
 // file.
 
 #include "ReplicaConfigSerializer.hpp"
+#include "threshsign/IThresholdSigner.h"
+#include "threshsign/IThresholdVerifier.h"
+#include "../../src/bftengine/SysConsts.hpp"
 
 using namespace std;
 
 namespace bftEngine {
+namespace impl {
+
+uint32_t ReplicaConfigSerializer::maxSize(uint32_t numOfReplicas) {
+  return (sizeof(config_->fVal) + sizeof(config_->cVal) +
+      sizeof(config_->replicaId) +
+      sizeof(config_->numOfClientProxies) +
+      sizeof(config_->statusReportTimerMillisec) +
+      sizeof(config_->concurrencyLevel) +
+      sizeof(config_->autoViewChangeEnabled) +
+      sizeof(config_->viewChangeTimerMillisec) + MaxSizeOfPrivateKey +
+      numOfReplicas * MaxSizeOfPublicKey +
+      IThresholdSigner::maxSize() * 3 +
+      IThresholdVerifier::maxSize() * 3);
+}
 
 bool ReplicaConfigSerializer::registered_ = false;
 
@@ -32,7 +49,7 @@ ReplicaConfigSerializer::ReplicaConfigSerializer(const ReplicaConfig &config) {
   registerClass();
 }
 
-void ReplicaConfigSerializer::setConfig(const ReplicaConfig& config) {
+void ReplicaConfigSerializer::setConfig(const ReplicaConfig &config) {
   if (config_) {
     delete config_;
     config_ = new ReplicaConfig;
@@ -121,8 +138,8 @@ const {
           config_->autoViewChangeEnabled) &&
       (other.config_->viewChangeTimerMillisec ==
           config_->viewChangeTimerMillisec) &&
-      (other.config_->publicKeysOfReplicas == config_->publicKeysOfReplicas) &&
-      (other.config_->replicaPrivateKey == config_->replicaPrivateKey));
+      (other.config_->replicaPrivateKey == config_->replicaPrivateKey) &&
+      (other.config_->publicKeysOfReplicas == config_->publicKeysOfReplicas));
   return result;
 }
 
@@ -213,11 +230,13 @@ void ReplicaConfigSerializer::createSignersAndVerifiers(istream &inStream) {
 }
 
 string ReplicaConfigSerializer::deserializeKey(istream &inStream) const {
-  int64_t sizeOfKey = 0;
-  inStream.read((char *) &sizeOfKey, sizeof(sizeOfKey));
-  UniquePtrToChar key(new char[sizeOfKey]);
-  inStream.read(key.get(), sizeOfKey);
+  int64_t keyLength = 0;
+  inStream.read((char *) &keyLength, sizeof(keyLength));
+  UniquePtrToChar key(new char[keyLength + 1]);
+  key.get()[keyLength] = '\0';
+  inStream.read(key.get(), keyLength);
   return key.get();
 }
 
+}
 }

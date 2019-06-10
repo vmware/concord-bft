@@ -36,6 +36,8 @@ namespace bftEngine
 
 			bool includesViewChangeFromReplica(ReplicaId replicaId, const Digest& viewChangeReplica) const;
 
+			const uint16_t elementsCount() const;
+
 		protected:
 #pragma pack(push,1)
 			struct NewViewMsgHeader

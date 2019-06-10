@@ -190,7 +190,7 @@ MessageBase *MessageBase::createObjAndMsgFromLocalBuffer(char *buffer,
   return msgObj;
 }
 
-bool MessageBase::operator==(const MessageBase &other) const {
+bool MessageBase::equals(const MessageBase &other) const {
   bool equals = (other.msgSize_ == msgSize_ &&
       other.storageSize_ == storageSize_ &&
       other.sender_ == sender_ &&
@@ -212,19 +212,14 @@ size_t MessageBase::serializeMsg(char *&buf, MessageBase *msg) {
   std::memcpy(buf, &msgEmptyFlag, msgEmptyFLagSize);
   buf += msgEmptyFLagSize;
 
-  uint32_t msgSize = 0;
-  uint32_t sizeOfMsgSize = sizeof(msgSize);
-  std::memcpy(buf, &msgSize, sizeOfMsgSize);
-  buf += sizeOfMsgSize;
-
   size_t actualMsgSize = 0;
   if (msg) {
-    msgSize = msg->sizeNeededForObjAndMsgInLocalBuffer();
+    uint32_t msgSize = msg->sizeNeededForObjAndMsgInLocalBuffer();
     msg->writeObjAndMsgToLocalBuffer(buf, msgSize, &actualMsgSize);
-    Assert(actualMsgSize);
+    Assert(actualMsgSize != 0);
     buf += actualMsgSize;
   }
-  return msgEmptyFLagSize + sizeOfMsgSize + actualMsgSize;
+  return msgEmptyFLagSize + actualMsgSize;
 }
 
 MessageBase *MessageBase::deserializeMsg(char *&buf, size_t bufLen,
@@ -234,18 +229,14 @@ MessageBase *MessageBase::deserializeMsg(char *&buf, size_t bufLen,
   std::memcpy(&msgEmptyFlag, buf, msgEmptyFlagSize);
   buf += msgEmptyFlagSize;
 
-  uint32_t msgSize = 0;
-  uint32_t sizeOfMsgSize = sizeof(msgSize);
-  std::memcpy(&msgSize, buf, sizeOfMsgSize);
-  buf += sizeOfMsgSize;
-
   MessageBase *msg = nullptr;
+  size_t msgSize = 0;
   if (!msgEmptyFlag) {
-    msg = createObjAndMsgFromLocalBuffer(buf, bufLen, (size_t *) &msgSize);
-    Assert(msgSize);
+    msg = createObjAndMsgFromLocalBuffer(buf, bufLen, &msgSize);
+    Assert(msgSize != 0);
     buf += msgSize;
   }
-  actualSize = msgEmptyFlagSize + sizeOfMsgSize + msgSize;
+  actualSize = msgEmptyFlagSize + msgSize;
   return msg;
 }
 

@@ -14,7 +14,6 @@
 #pragma once
 
 #include "PrimitiveTypes.hpp"
-#include "SysConsts.hpp"
 #include "assertUtils.hpp"
 
 #include <vector>
@@ -50,10 +49,10 @@ class Bitmap {
   }
 
   bool isEmpty() const {
-    return ((numBits_ == 0) && (p_ == nullptr));
+    return (numBits_ == 0);
   }
 
-  bool operator==(const Bitmap &other) const {
+  bool equals(const Bitmap &other) const {
     return (other.numBits_ == numBits_ && !memcmp(other.p_, p_, realSize()));
   }
 
@@ -117,7 +116,7 @@ class Bitmap {
   }
 
   uint32_t sizeNeededInBuffer() const {
-    return (sizeof(uint32_t) + realSize(numBits_));
+    return (sizeof(numBits_) + realSize(numBits_));
   }
 
   static Bitmap* createBitmapFromBuffer(char* buffer,
@@ -142,10 +141,6 @@ class Bitmap {
 
   static uint32_t maxSizeNeededToStoreInBuffer(uint32_t maxNumOfBits) {
     return (sizeof(uint32_t) + realSize(maxNumOfBits));
-  }
-
-  static uint32_t size() {
-    return (realSize(maxNumOfRequestsInBatch) + sizeof(numBits_));
   }
 
  protected:

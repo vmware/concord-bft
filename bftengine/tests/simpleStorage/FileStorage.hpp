@@ -26,7 +26,7 @@ class ObjectsMetadataHandler;
 
 class FileStorage : public MetadataStorage {
  public:
-  FileStorage(concordlogger::Logger &logger, std::string fileName);
+  FileStorage(concordlogger::Logger &logger, const std::string &fileName);
 
   virtual ~FileStorage();
 
@@ -60,7 +60,8 @@ class FileStorage : public MetadataStorage {
   void writeFileObjectsMetadata();
   void updateFileObjectMetadata(MetadataObjectInfo &objectInfo);
   void verifyFileMetadataSetup() const;
-  void verifyOperation(uint16_t objectId, uint32_t dataLen, char *buffer) const;
+  void verifyOperation(
+      uint16_t objectId, uint32_t dataLen, const char *buffer) const;
 
  private:
   const char *WRONG_NUM_OF_OBJ_READ =

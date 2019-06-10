@@ -8,17 +8,14 @@
 
 #pragma once
 
-#include "threshsign/IThresholdSigner.h"
-#include "threshsign/IThresholdVerifier.h"
-#include "../../src/bftengine/SysConsts.hpp"
-
 #include <stdint.h>
 #include <set>
+#include <string>
+
+class IThresholdSigner;
+class IThresholdVerifier;
 
 namespace bftEngine {
-// This struct gets serialized using ReplicaConfigSerializer class.
-// Any ReplicaConfig changes require synchronization with it and an update of
-// ReplicaConfigSerializer::classVersion_.
 struct ReplicaConfig {
   // F value - max number of faulty/malicious replicas. fVal >= 1
   uint16_t fVal = 0;
@@ -73,7 +70,6 @@ struct ReplicaConfig {
   // signer and verifier of a threshold signature (for threshold N out of N)
   IThresholdSigner *thresholdSignerForOptimisticCommit = nullptr;
   IThresholdVerifier *thresholdVerifierForOptimisticCommit = nullptr;
-
 };
 
 }
