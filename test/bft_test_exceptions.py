@@ -20,7 +20,7 @@ class Error(Exception):
 class AlreadyRunningError(Error):
     def __init__(self, replica):
         self.replica = replica
-        j
+
     def __repr__(self):
         return (f'{self.__class__.__name__}:\n'
            f'  replica={self.replica}\n')

@@ -420,14 +420,16 @@ class SkvbcTracker:
         """
         Retrieve the set of missing blocks.
 
-        This is called during synchronization before continuing with a test,
-        so that the tester can retrieve these blocks and call
-        self.fill_in_missing_blocks().
+        This is called during verification so that the test can retrieve these
+        blocks and call self.fill_in_missing_blocks().
 
         After missing blocks are filled in, successful reads can be linearized.
         """
-        missing_blocks = set([i for i in range(self.last_consecutive_block + 1,
-                                               self.last_known_block)])
+        missing_blocks = set()
+        for i in range(self.last_consecutive_block + 1, self.last_known_block):
+            if self.blocks.get(i) is None:
+                missing_blocks.add(i)
+
         # Include last_block_id if not already known
         for i in range(self.last_known_block + 1, last_block_id + 1):
             missing_blocks.add(i)
