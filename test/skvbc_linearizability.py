@@ -146,11 +146,16 @@ class CompletedRead:
 
 class CausalState:
     """Relevant state of the tracker before a request is started"""
-    def __init__(
-            self, req_index, last_known_block, last_consecutive_block, kvpairs):
+    def __init__(self,
+                 req_index,
+                 last_known_block,
+                 last_consecutive_block,
+                 missing_intermediate_blocks,
+                 kvpairs):
         self.req_index = req_index
         self.last_known_block = last_known_block
         self.last_consecutive_block = last_consecutive_block
+        self.missing_intermediate_blocks = missing_intermediate_blocks
 
         # KV pairs contain the value up keys up until last_consecutive_block
         self.kvpairs = kvpairs
@@ -160,7 +165,9 @@ class CausalState:
            f'    req_index={self.req_index}\n'
            f'    last_known_block={self.last_known_block}\n'
            f'    last_consecutive_block={self.last_consecutive_block}\n'
-           f'    kvpairs={self.kvpairs}\n')
+           f'    '
+           f'missing_intermediate_blocks={self.missing_intermediate_blocks}\n'
+           f'    causal state kvpairs={self.kvpairs}\n')
 
 class ConcurrentValue:
     """Track the state for a request / reply in self.concurrent"""
@@ -367,6 +374,7 @@ class SkvbcTracker:
         cs = CausalState(index,
                          self.last_known_block,
                          self.last_consecutive_block,
+                         self._count_non_consecutive_blocks(),
                          self.kvpairs.copy())
         self.outstanding[(req.client_id, req.seq_num)] = cs
 
@@ -528,14 +536,12 @@ class SkvbcTracker:
         have succeeded or failed.
         """
         for req_index, causal_state in self.failed_writes.items():
-            num_intermediate_blocks = (causal_state.last_known_block
-                                      - causal_state.last_consecutive_block)
             num_concurrent = self._max_possible_concurrent_writes(req_index)
             # Any missing intermediate block is by definition concurrent, so we
             # need to subtract it as well.
             blocks_remaining = (self.last_known_block
                                 - causal_state.last_known_block
-                                - num_intermediate_blocks)
+                                - causal_state.missing_intermediate_blocks)
             blocks_to_check = min(num_concurrent, blocks_remaining)
 
             failed_req = self.history[req_index]
@@ -571,8 +577,6 @@ class SkvbcTracker:
         for req_index, completed_read  in self.completed_reads.items():
             cs = completed_read.causal_state
             kv = cs.kvpairs.copy()
-            num_intermediate_blocks = (cs.last_known_block
-                                      - cs.last_consecutive_block)
 
             # We must check that the read linearizes after
             # causal_state.last_known_block, since it must have started after
@@ -586,7 +590,7 @@ class SkvbcTracker:
             # need to subtract it as well.
             blocks_remaining = (self.last_known_block
                                 - cs.last_known_block
-                                - num_intermediate_blocks)
+                                - cs.missing_intermediate_blocks)
             blocks_to_check = min(num_concurrent, blocks_remaining)
 
             success = False
@@ -702,6 +706,17 @@ class SkvbcTracker:
 
         for i in self.concurrent[req_index].keys():
             self.concurrent[i][req_index].result = Result.READ_REPLY
+
+    def _count_non_consecutive_blocks(self):
+        """
+        Count the number of missing blocks between self.last_consecutive_block
+        to self.last_known_block.
+        """
+        count = 0
+        for i in range(self.last_consecutive_block + 1, self.last_known_block):
+            if i not in self.blocks:
+                count += 1
+        return count
 
     def _get_matching_request(self, rpy):
         """
