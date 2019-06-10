@@ -16,43 +16,38 @@
 using namespace std;
 
 namespace bftEngine {
+namespace impl {
 
 /***** DescriptorOfLastExitFromView *****/
 
-DescriptorOfLastExitFromView::~DescriptorOfLastExitFromView() {
-  for (auto elem : elements) {
-    delete elem.prepareFull;
-    delete elem.prePrepare;
+DescriptorOfLastExitFromView::DescriptorOfLastExitFromView() {
+  ViewsManager::PrevViewInfo element;
+  for (uint32_t i = 0; i < kWorkWindowSize; ++i) {
+    elements.push_back(element);
   }
 }
 
-void DescriptorOfLastExitFromView::setTo(
-    const DescriptorOfLastExitFromView &other) {
-  view = other.view;
-  lastStable = other.lastStable;
-  lastExecuted = other.lastExecuted;
+void DescriptorOfLastExitFromView::clean() {
   for (auto elem : elements) {
-    delete elem.prePrepare;
     delete elem.prepareFull;
+    delete elem.prePrepare;
   }
   elements.clear();
-  uint32_t elementsNum = other.elements.size();
-  for (uint32_t i = 0; i < elementsNum; ++i) {
-    ViewsManager::PrevViewInfo clone = other.elements[i];
-    elements.push_back(clone);
-  }
 }
 
-bool DescriptorOfLastExitFromView::operator==(
+bool DescriptorOfLastExitFromView::equals(
     const DescriptorOfLastExitFromView &other) const {
-  return (other.view == view &&
-      other.lastStable == lastStable &&
-      other.lastExecuted == lastExecuted &&
-      other.elements == elements);
+  if (other.elements.size() != elements.size())
+    return false;
+  for (uint32_t i = 0; i < elements.size(); ++i)
+    if (!elements[i].equals(other.elements[i]))
+      return false;
+  return (other.view == view && other.lastStable == lastStable &&
+      other.lastExecuted == lastExecuted);
 }
 
 void DescriptorOfLastExitFromView::serializeSimpleParams(
-    char *&buf, size_t bufLen) const {
+    char *buf, size_t bufLen) const {
   Assert(bufLen >= simpleParamsSize());
 
   memcpy(buf, &view, sizeof(view));
@@ -66,20 +61,24 @@ void DescriptorOfLastExitFromView::serializeSimpleParams(
 
   uint32_t elementsNum = elements.size();
   memcpy(buf, &elementsNum, sizeof(elementsNum));
-  buf += sizeof(elementsNum);
 }
 
 void DescriptorOfLastExitFromView::serializeElement(
-    uint32_t id, char *&buf, size_t bufLen, size_t &actualSize) const {
+    uint32_t id, char *buf, size_t bufLen, size_t &actualSize) const {
   actualSize = 0;
   Assert(id < elements.size());
+  Assert(bufLen >= maxElementSize());
 
-  actualSize += MessageBase::serializeMsg(buf, elements[id].prePrepare);
-  actualSize += MessageBase::serializeMsg(buf, elements[id].prepareFull);
+  PrePrepareMsg *prePrepareMsg =
+      (id < elements.size()) ? elements[id].prePrepare : nullptr;
+  PrepareFullMsg *prePrepareFullMsg =
+      (id < elements.size()) ? elements[id].prepareFull : nullptr;
+
+  actualSize += MessageBase::serializeMsg(buf, prePrepareMsg);
+  actualSize += MessageBase::serializeMsg(buf, prePrepareFullMsg);
 
   size_t hasAllRequestsSize = sizeof(elements[id].hasAllRequests);
   memcpy(buf, &elements[id].hasAllRequests, hasAllRequestsSize);
-  buf += hasAllRequestsSize;
 
   actualSize += hasAllRequestsSize;
 }
@@ -112,9 +111,8 @@ void DescriptorOfLastExitFromView::deserializeSimpleParams(
 }
 
 void DescriptorOfLastExitFromView::deserializeElement(
-    char *buf, size_t bufLen, uint32_t &actualSize) {
+    uint32_t id, char *buf, size_t bufLen, uint32_t &actualSize) {
   actualSize = 0;
-  Assert(bufLen >= maxElementSize());
 
   size_t msgSize1 = 0, msgSize2 = 0;
   auto *prePrepareMsgPtr = MessageBase::deserializeMsg(buf, bufLen, msgSize1);
@@ -124,45 +122,39 @@ void DescriptorOfLastExitFromView::deserializeElement(
   size_t hasAllRequestsSize = sizeof(hasAllRequestsSize);
   memcpy(&hasAllRequests, buf, hasAllRequestsSize);
 
-  elements.push_back(
+  Assert(elements[id].prePrepare == nullptr);
+  Assert(elements[id].prepareFull == nullptr);
+
+  elements[id] =
       ViewsManager::PrevViewInfo((PrePrepareMsg *) prePrepareMsgPtr,
                                  (PrepareFullMsg *) prepareFullMsgPtr,
-                                 hasAllRequests));
+                                 hasAllRequests);
   actualSize = msgSize1 + msgSize2 + hasAllRequestsSize;
 }
 
 /***** DescriptorOfLastNewView *****/
 
-void DescriptorOfLastNewView::setTo(const DescriptorOfLastNewView &other) {
-  view = other.view;
-  maxSeqNumTransferredFromPrevViews = other.maxSeqNumTransferredFromPrevViews;
+// This static variable is needed for an initial values population.
+uint32_t DescriptorOfLastNewView::viewChangeMsgsNum_ = 0;
+
+DescriptorOfLastNewView::DescriptorOfLastNewView() {
+  for (uint32_t i = 0; i < viewChangeMsgsNum_; ++i)
+    viewChangeMsgs.push_back(nullptr);
+}
+
+void DescriptorOfLastNewView::clean() {
   delete newViewMsg;
   newViewMsg = nullptr;
-  if (other.newViewMsg)
-    newViewMsg = (NewViewMsg *) other.newViewMsg->cloneObjAndMsg();
-  for (auto elem : viewChangeMsgs)
-    delete elem;
-  viewChangeMsgs.clear();
-  uint32_t otherMsgsNum = other.viewChangeMsgs.size();
-  for (uint32_t i = 0; i < otherMsgsNum; ++i)
-    if (other.viewChangeMsgs[i])
-      viewChangeMsgs[i] =
-          (ViewChangeMsg *) other.viewChangeMsgs[i]->cloneObjAndMsg();
-    else
-      viewChangeMsgs[i] = nullptr;
-}
-
-DescriptorOfLastNewView::~DescriptorOfLastNewView() {
-  delete newViewMsg;
   for (auto msg : viewChangeMsgs)
     delete msg;
+  viewChangeMsgs.clear();
 }
 
-bool DescriptorOfLastNewView::operator==(
+bool DescriptorOfLastNewView::equals(
     const DescriptorOfLastNewView &other) const {
   if ((other.newViewMsg && !newViewMsg) || (!other.newViewMsg && newViewMsg))
     return false;
-  bool res = newViewMsg ? (*other.newViewMsg == *newViewMsg) : true;
+  bool res = newViewMsg ? (other.newViewMsg->equals(*newViewMsg)) : true;
   if (!res)
     return false;
 
@@ -173,7 +165,7 @@ bool DescriptorOfLastNewView::operator==(
         (!other.viewChangeMsgs[i] && viewChangeMsgs[i]))
       return false;
     res = viewChangeMsgs[i] ?
-          (*other.viewChangeMsgs[i] == *viewChangeMsgs[i]) : true;
+          (other.viewChangeMsgs[i]->equals(*viewChangeMsgs[i])) : true;
     if (!res)
       return false;
   }
@@ -183,7 +175,7 @@ bool DescriptorOfLastNewView::operator==(
 }
 
 void DescriptorOfLastNewView::serializeSimpleParams(
-    char *&buf, size_t bufLen, size_t &actualSize) const {
+    char *buf, size_t bufLen, size_t &actualSize) const {
   actualSize = 0;
   Assert(bufLen >= simpleParamsSize());
 
@@ -195,23 +187,21 @@ void DescriptorOfLastNewView::serializeSimpleParams(
   memcpy(buf, &maxSeqNumTransferredFromPrevViews, maxSeqNumSize);
   buf += maxSeqNumSize;
 
-  size_t msgSize = 0;
-  if (newViewMsg) {
-    msgSize = MessageBase::serializeMsg(buf, newViewMsg);
-    buf += msgSize;
-  }
+  size_t msgSize = MessageBase::serializeMsg(buf, newViewMsg);
 
-  actualSize = msgSize + viewSize + maxSeqNumSize;
+  actualSize = viewSize + maxSeqNumSize + msgSize;
 }
 
 void DescriptorOfLastNewView::serializeElement(
-    uint32_t id, char *&buf, size_t bufLen, size_t &actualSize) const {
+    uint32_t id, char *buf, size_t bufLen, size_t &actualSize) const {
   actualSize = 0;
-  Assert(id <= viewChangeMsgs.size());
+  Assert(id < viewChangeMsgsNum_);
+  Assert(bufLen >= maxElementSize());
 
-  actualSize = MessageBase::serializeMsg(buf, viewChangeMsgs[id]);
-  Assert(bufLen >= actualSize);
-  buf += actualSize;
+  ViewChangeMsg *msg =
+      (id < viewChangeMsgs.size()) ? viewChangeMsgs[id] : nullptr;
+
+  actualSize = MessageBase::serializeMsg(buf, msg);
 }
 
 void DescriptorOfLastNewView::deserializeSimpleParams(
@@ -234,20 +224,21 @@ void DescriptorOfLastNewView::deserializeSimpleParams(
 }
 
 void DescriptorOfLastNewView::deserializeElement(
-    char *buf, size_t bufLen, size_t &actualSize) {
+    uint32_t id, char *buf, size_t bufLen, size_t &actualSize) {
   actualSize = 0;
-  Assert(bufLen >= maxElementSize());
+  Assert(id < viewChangeMsgsNum_);
 
-  viewChangeMsgs.push_back((ViewChangeMsg *) MessageBase::deserializeMsg(
-      buf, bufLen, actualSize));
+  auto *msg = MessageBase::deserializeMsg(buf, bufLen, actualSize);
+  Assert(viewChangeMsgs[id] == nullptr);
+  viewChangeMsgs[id] = ((ViewChangeMsg *) msg);
 }
 
 /***** DescriptorOfLastExecution *****/
 
-bool DescriptorOfLastExecution::operator==(
+bool DescriptorOfLastExecution::equals(
     const DescriptorOfLastExecution &other) const {
   return (other.executedSeqNum == executedSeqNum &&
-      other.validRequests == validRequests);
+      other.validRequests.equals(validRequests));
 }
 
 void DescriptorOfLastExecution::serialize(
@@ -278,8 +269,8 @@ void DescriptorOfLastExecution::deserialize(
   uint32_t bitMapSize = 0;
   validRequests = *Bitmap::createBitmapFromBuffer(
       buf, bufLen - sizeofSeqNum, &bitMapSize);
-  Assert(bitMapSize);
   actualSize = sizeofSeqNum + bitMapSize;
 }
 
+}
 }  // namespace bftEngine

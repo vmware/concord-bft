@@ -23,7 +23,7 @@ using namespace concordlogger;
 
 namespace bftEngine {
 
-FileStorage::FileStorage(Logger &logger, string fileName) :
+FileStorage::FileStorage(Logger &logger, const string &fileName) :
     logger_(logger), fileName_(fileName) {
 
   dataStream_ = fopen(fileName.c_str(), "wxb+");
@@ -147,7 +147,7 @@ void FileStorage::verifyFileMetadataSetup() const {
 }
 
 void FileStorage::verifyOperation(uint16_t objectId, uint32_t dataLen,
-                                  char *buffer) const {
+                                  const char *buffer) const {
   verifyFileMetadataSetup();
   MetadataObjectInfo *objectInfo = objectsMetadata_->getObjectInfo(objectId);
   if (!objectInfo || objectId > objectsMetadata_->getObjectsNum() - 1 ||
@@ -246,7 +246,7 @@ void FileStorage::commitAtomicWriteOnlyTransaction() {
   }
   fflush(dataStream_);
   delete transaction_;
+  transaction_ = nullptr;
 }
 
 }
-

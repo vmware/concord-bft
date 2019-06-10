@@ -67,65 +67,48 @@ class SequenceWithActiveWindow {
     return (simpleParamsSize() + numItems * maxElementSize());
   }
 
-  bool operator==(const SequenceWithActiveWindow &other) const {
+  bool equals(const SequenceWithActiveWindow &other) const {
     if (numItems != other.numItems)
       return false;
     for (NumbersType i = 0; i < numItems; i++) {
-      if (!(activeWindow[i] == other.activeWindow[i]))
+      if (!(activeWindow[i].equals(other.activeWindow[i])))
         return false;
     }
     return true;
   }
 
-  SequenceWithActiveWindow &operator=(const SequenceWithActiveWindow &other) {
-    resetAll(0);
-    for (NumbersType i = 0; i < numItems; i++)
-      activeWindow[i] = other.activeWindow[i];
-    return *this;
-  }
-
-  bool equals(NumbersType index, const ItemType &element) const {
-    Assert(insideActiveWindow(index));
-    return (activeWindow[index] == element);
-  }
-
-  void serializeSimpleParams(char *&buf, size_t bufLen) const {
+  void serializeSimpleParams(char *buf, size_t bufLen) const {
     Assert(bufLen >= simpleParamsSize());
 
     size_t beginningOfActiveWindowSize = sizeof(beginningOfActiveWindow);
     memcpy(buf, &beginningOfActiveWindow, beginningOfActiveWindowSize);
-    buf += simpleParamsSize();
   }
 
-  void serializeElement(NumbersType index, char *&buf, size_t bufLen,
+  void serializeElement(NumbersType index, char *buf, size_t bufLen,
                         size_t &actualSize) const {
     actualSize = 0;
     Assert(insideActiveWindow(index));
     Assert(bufLen >= maxElementSize());
 
     activeWindow[index].serialize(buf, maxElementSize(), actualSize);
-    buf += actualSize;
   }
 
   void deserializeSimpleParams(
-      char *&buf, size_t bufLen, uint32_t &actualSize) {
+      char *buf, size_t bufLen, uint32_t &actualSize) {
     Assert(bufLen >= simpleParamsSize());
 
     size_t beginningOfActiveWindowSize = sizeof(beginningOfActiveWindow);
     memcpy(&beginningOfActiveWindow, buf, beginningOfActiveWindowSize);
-    buf += beginningOfActiveWindowSize;
     actualSize = simpleParamsSize();
   }
 
-  void deserializeElement(NumbersType index, char *&buf, size_t bufLen,
+  void deserializeElement(NumbersType index, char *buf, size_t bufLen,
                           uint32_t &actualSize) {
     actualSize = 0;
-    Assert(bufLen >= maxElementSize());
     Assert(insideActiveWindow(index));
 
     activeWindow[index] = ItemType::deserialize(buf, bufLen, actualSize);
-    Assert(actualSize);
-    buf += actualSize;
+    Assert(actualSize != 0);
   }
 
   bool insideActiveWindow(NumbersType n) const {
@@ -138,7 +121,6 @@ class SequenceWithActiveWindow {
     Assert(insideActiveWindow(n));
 
     uint16_t i = ((n / Resolution) % numItems);
-
     return activeWindow[i];
   }
 

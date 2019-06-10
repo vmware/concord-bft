@@ -22,10 +22,12 @@
 #include "NewViewMsg.hpp"
 #include "FullCommitProofMsg.hpp"
 #include "CheckpointMsg.hpp"
+#include "SysConsts.hpp"
 
 #include <vector>
 
 namespace bftEngine {
+namespace impl {
 
 typedef std::vector<ViewsManager::PrevViewInfo> PrevViewInfoElements;
 
@@ -33,38 +35,22 @@ typedef std::vector<ViewsManager::PrevViewInfo> PrevViewInfoElements;
 
 struct DescriptorOfLastExitFromView {
   DescriptorOfLastExitFromView(ViewNum viewNum, SeqNum stableNum,
-                               SeqNum execNum, PrevViewInfoElements elem) :
+                               SeqNum execNum, PrevViewInfoElements elements) :
       view(viewNum), lastStable(stableNum), lastExecuted(execNum),
-      elements(move(elem)) {}
+      elements(move(elements)) {}
 
-  DescriptorOfLastExitFromView(const DescriptorOfLastExitFromView &other) {
-    setTo(other);
-  }
+  DescriptorOfLastExitFromView();
 
-  DescriptorOfLastExitFromView &operator=(
-      const DescriptorOfLastExitFromView &other) {
-    setTo(other);
-    return *this;
-  }
-
-  void setTo(const DescriptorOfLastExitFromView &other);
-
-  bool isEmpty() const {
-    return ((view == 0) && (lastStable == 0) && (lastExecuted == 0) &&
-        elements.empty());
-  }
-
-  ~DescriptorOfLastExitFromView();
-  DescriptorOfLastExitFromView() = default;
-
-  void serializeSimpleParams(char *&buf, size_t bufLen) const;
+  void clean();
+  void serializeSimpleParams(char *buf, size_t bufLen) const;
   void serializeElement(
-      uint32_t id, char *&buf, size_t bufLen, size_t &actualSize) const;
+      uint32_t id, char *buf, size_t bufLen, size_t &actualSize) const;
 
   void deserializeSimpleParams(char *buf, size_t bufLen, uint32_t &actualSize);
-  void deserializeElement(char *buf, size_t bufLen, uint32_t &actualSize);
+  void deserializeElement(
+      uint32_t id, char *buf, size_t bufLen, uint32_t &actualSize);
 
-  bool operator==(const DescriptorOfLastExitFromView &other) const;
+  bool equals(const DescriptorOfLastExitFromView &other) const;
 
   static uint32_t simpleParamsSize() {
     uint32_t elementsNum;
@@ -105,44 +91,36 @@ struct DescriptorOfLastNewView {
       view(viewNum), maxSeqNumTransferredFromPrevViews(maxSeqNum),
       newViewMsg(newMsg), viewChangeMsgs(move(msgs)) {}
 
-  DescriptorOfLastNewView(const DescriptorOfLastNewView &other) {
-    setTo(other);
-  }
+  DescriptorOfLastNewView();
 
-  DescriptorOfLastNewView &operator=(const DescriptorOfLastNewView &other) {
-    setTo(other);
-    return *this;
-  }
+  bool equals(const DescriptorOfLastNewView &other) const;
 
-  void setTo(const DescriptorOfLastNewView &other);
-  ~DescriptorOfLastNewView();
-
-  bool isEmpty() const {
-    return ((view == 0) && (newViewMsg == nullptr) &&
-        viewChangeMsgs.empty() && (maxSeqNumTransferredFromPrevViews == 0));
-  }
-
-  DescriptorOfLastNewView() = default;
-
-  bool operator==(const DescriptorOfLastNewView &other) const;
-
+  void clean();
   void serializeSimpleParams(
-      char *&buf, size_t bufLen, size_t &actualSize) const;
+      char *buf, size_t bufLen, size_t &actualSize) const;
   void serializeElement(
-      uint32_t id, char *&buf, size_t bufLen, size_t &actualSize) const;
+      uint32_t id, char *buf, size_t bufLen, size_t &actualSize) const;
 
   void deserializeSimpleParams(char *buf, size_t bufLen, uint32_t &actualSize);
-  void deserializeElement(char *buf, size_t bufLen, size_t &actualSize);
+  void deserializeElement(
+      uint32_t id, char *buf, size_t bufLen, size_t &actualSize);
 
   static uint32_t simpleParamsSize() {
     bool msgEmptyFlag;
-    return (sizeof(msgEmptyFlag) + sizeof(view) +
-        sizeof(maxSeqNumTransferredFromPrevViews) +
-        NewViewMsg::maxSizeOfNewViewMsgInLocalBuffer());
+    return (sizeof(view) + sizeof(maxSeqNumTransferredFromPrevViews) +
+        sizeof(msgEmptyFlag) + NewViewMsg::maxSizeOfNewViewMsgInLocalBuffer());
   }
 
+  static void setViewChangeMsgsNum(uint16_t fVal, uint16_t cVal) {
+    viewChangeMsgsNum_ = 2 * fVal + 2 * cVal + 1;
+  }
+
+  static uint32_t getViewChangeMsgsNum() { return viewChangeMsgsNum_; }
+
   static uint32_t maxElementSize() {
-    return ViewChangeMsg::maxSizeOfViewChangeMsgInLocalBuffer();
+    bool msgEmptyFlag;
+    return sizeof(msgEmptyFlag) +
+        ViewChangeMsg::maxSizeOfViewChangeMsgInLocalBuffer();
   }
 
   static uint32_t maxSize(uint32_t numOfReplicas) {
@@ -161,6 +139,8 @@ struct DescriptorOfLastNewView {
   // viewChangeMsgs.size() == 2*F + 2*C + 1
   // The messages in viewChangeMsgs will never be null
   ViewChangeMsgsVector viewChangeMsgs;
+
+  static uint32_t viewChangeMsgsNum_;
 };
 
 /***** DescriptorOfLastExecution *****/
@@ -170,22 +150,16 @@ struct DescriptorOfLastExecution {
       executedSeqNum(seqNum), validRequests(requests) {
   }
 
-  bool isEmpty() const {
-    return ((executedSeqNum == 0) && (validRequests.isEmpty()));
-  }
-
-  DescriptorOfLastExecution &operator=(const DescriptorOfLastExecution
-                                       &other) = default;
-
   DescriptorOfLastExecution() = default;
 
-  bool operator==(const DescriptorOfLastExecution &other) const;
+  bool equals(const DescriptorOfLastExecution &other) const;
 
   void serialize(char *&buf, size_t bufLen, size_t &actualSize) const;
   void deserialize(char *buf, size_t bufLen, uint32_t &actualSize);
 
   static uint32_t maxSize() {
-    return (sizeof(executedSeqNum) + Bitmap::size());
+    return (sizeof(executedSeqNum) +
+        Bitmap::maxSizeNeededToStoreInBuffer(maxNumOfRequestsInBatch));
   };
 
   // executedSeqNum >= 1
@@ -195,4 +169,5 @@ struct DescriptorOfLastExecution {
   Bitmap validRequests;
 };
 
+}
 }  // namespace bftEngine

@@ -13,26 +13,34 @@
 
 #include "DebugPersistentStorage.hpp"
 
+#include "PrePrepareMsg.hpp"
+#include "SignedShareMsgs.hpp"
+#include "NewViewMsg.hpp"
+#include "FullCommitProofMsg.hpp"
+#include "CheckpointMsg.hpp"
+
 namespace bftEngine {
 namespace impl {
 
 DebugPersistentStorage::DebugPersistentStorage(uint16_t fVal, uint16_t cVal)
     : fVal_{fVal},
       cVal_{cVal},
-      seqNumWindow_{1, nullptr},
-      checkWindow_{0, nullptr} {}
+      seqNumWindow{1, nullptr},
+      checkWindow{0, nullptr}
+
+{}
 
 uint8_t DebugPersistentStorage::beginWriteTran() {
-  return ++numOfNestedTransactions_;
+  return ++numOfNestedTransactions;
 }
 
 uint8_t DebugPersistentStorage::endWriteTran() {
-  Assert(numOfNestedTransactions_ != 0);
-  return --numOfNestedTransactions_;
+  Assert(numOfNestedTransactions != 0);
+  return --numOfNestedTransactions;
 }
 
 bool DebugPersistentStorage::isInWriteTran() const {
-  return (numOfNestedTransactions_ != 0);
+  return (numOfNestedTransactions != 0);
 }
 
 void DebugPersistentStorage::setReplicaConfig(const ReplicaConfig &config) {
@@ -42,37 +50,37 @@ void DebugPersistentStorage::setReplicaConfig(const ReplicaConfig &config) {
   config_ = config;
 }
 
-void DebugPersistentStorage::setFetchingState(const bool &f) {
+void DebugPersistentStorage::setFetchingState(const bool f) {
   Assert(nonExecSetIsAllowed());
   Assert(!f || !fetchingState_);  // f ==> !fetchingState_
   fetchingState_ = f;
 }
 
-void DebugPersistentStorage::setLastExecutedSeqNum(const SeqNum &s) {
+void DebugPersistentStorage::setLastExecutedSeqNum(const SeqNum s) {
   Assert(setIsAllowed());
   Assert(lastExecutedSeqNum_ <= s);
   lastExecutedSeqNum_ = s;
 }
 
-void DebugPersistentStorage::setPrimaryLastUsedSeqNum(const SeqNum &s) {
+void DebugPersistentStorage::setPrimaryLastUsedSeqNum(const SeqNum s) {
   Assert(nonExecSetIsAllowed());
   primaryLastUsedSeqNum_ = s;
 }
 
-void DebugPersistentStorage::setStrictLowerBoundOfSeqNums(const SeqNum &s) {
+void DebugPersistentStorage::setStrictLowerBoundOfSeqNums(const SeqNum s) {
   Assert(nonExecSetIsAllowed());
   strictLowerBoundOfSeqNums_ = s;
 }
 
 void DebugPersistentStorage::setLastViewThatTransferredSeqNumbersFullyExecuted(
-    const ViewNum &v) {
+    const ViewNum v) {
   Assert(nonExecSetIsAllowed());
   Assert(lastViewThatTransferredSeqNumbersFullyExecuted_ <= v);
   lastViewThatTransferredSeqNumbersFullyExecuted_ = v;
 }
 
 void DebugPersistentStorage::setDescriptorOfLastExitFromView(
-    const DescriptorOfLastExitFromView &d) {
+    const DescriptorOfLastExitFromView& d) {
   Assert(nonExecSetIsAllowed());
   Assert(d.view >= 0);
 
@@ -82,33 +90,33 @@ void DebugPersistentStorage::setDescriptorOfLastExitFromView(
   Assert(hasDescriptorOfLastNewView_ || d.view == 0);
 
   Assert(!hasDescriptorOfLastExitFromView_ ||
-      d.view > descriptorOfLastExitFromView_.view);
+         d.view > descriptorOfLastExitFromView_.view);
   Assert(!hasDescriptorOfLastNewView_ ||
-      d.view == descriptorOfLastNewView_.view);
+         d.view == descriptorOfLastNewView_.view);
   Assert(d.lastStable >= lastStableSeqNum_);
   Assert(d.lastExecuted >= lastExecutedSeqNum_);
   Assert(d.elements.size() <= kWorkWindowSize);
   Assert(hasDescriptorOfLastExitFromView_ ||
-      descriptorOfLastExitFromView_.elements.size() == 0);
+         descriptorOfLastExitFromView_.elements.size() == 0);
 
   std::vector<ViewsManager::PrevViewInfo> clonedElements(d.elements.size());
 
   for (size_t i = 0; i < d.elements.size(); i++) {
-    const ViewsManager::PrevViewInfo &e = d.elements[i];
+    const ViewsManager::PrevViewInfo& e = d.elements[i];
     Assert(e.prePrepare != nullptr);
     Assert(e.prePrepare->seqNumber() >= lastStableSeqNum_ + 1);
     Assert(e.prePrepare->seqNumber() <= lastStableSeqNum_ + kWorkWindowSize);
     Assert(e.prePrepare->viewNumber() == d.view);
     Assert(e.prepareFull == nullptr || e.prepareFull->viewNumber() == d.view);
     Assert(e.prepareFull == nullptr ||
-        e.prepareFull->seqNumber() == e.prePrepare->seqNumber());
+           e.prepareFull->seqNumber() == e.prePrepare->seqNumber());
 
-    PrePrepareMsg *clonedPrePrepareMsg = (PrePrepareMsg *) e
-        .prePrepare->cloneObjAndMsg();
+    PrePrepareMsg* clonedPrePrepareMsg =
+        (PrePrepareMsg*)e.prePrepare->cloneObjAndMsg();
     Assert(clonedPrePrepareMsg->type() == MsgCode::PrePrepare);
-    PrepareFullMsg *clonedPrepareFull = nullptr;
+    PrepareFullMsg* clonedPrepareFull = nullptr;
     if (e.prepareFull != nullptr) {
-      clonedPrepareFull = (PrepareFullMsg *) e.prepareFull->cloneObjAndMsg();
+      clonedPrepareFull = (PrepareFullMsg*)e.prepareFull->cloneObjAndMsg();
       Assert(clonedPrepareFull->type() == MsgCode::PrepareFull);
     }
 
@@ -118,11 +126,12 @@ void DebugPersistentStorage::setDescriptorOfLastExitFromView(
   }
 
   // delete messages from previous descriptor
-  for (auto elem : descriptorOfLastExitFromView_.elements) {
-    const ViewsManager::PrevViewInfo &e = elem;
+  for (size_t i = 0; i < descriptorOfLastExitFromView_.elements.size(); i++) {
+    const ViewsManager::PrevViewInfo& e =
+        descriptorOfLastExitFromView_.elements[i];
     Assert(e.prePrepare != nullptr);
     delete e.prePrepare;
-    delete e.prepareFull;
+    if (e.prepareFull != nullptr) delete e.prepareFull;
   }
 
   hasDescriptorOfLastExitFromView_ = true;
@@ -131,7 +140,7 @@ void DebugPersistentStorage::setDescriptorOfLastExitFromView(
 }
 
 void DebugPersistentStorage::setDescriptorOfLastNewView(
-    const DescriptorOfLastNewView &d) {
+    const DescriptorOfLastNewView& d) {
   Assert(nonExecSetIsAllowed());
   Assert(d.view >= 1);
   Assert(hasDescriptorOfLastExitFromView_);
@@ -144,10 +153,10 @@ void DebugPersistentStorage::setDescriptorOfLastNewView(
 
   Assert(d.viewChangeMsgs.size() == numOfVCMsgs);
 
-  std::vector<ViewChangeMsg *> clonedViewChangeMsgs(numOfVCMsgs);
+  std::vector<ViewChangeMsg*> clonedViewChangeMsgs(numOfVCMsgs);
 
   for (size_t i = 0; i < numOfVCMsgs; i++) {
-    const ViewChangeMsg *vc = d.viewChangeMsgs[i];
+    const ViewChangeMsg* vc = d.viewChangeMsgs[i];
     Assert(vc != nullptr);
     Assert(vc->newView() == d.view);
 
@@ -156,12 +165,12 @@ void DebugPersistentStorage::setDescriptorOfLastNewView(
     Assert(d.newViewMsg->includesViewChangeFromReplica(
         vc->idOfGeneratedReplica(), digestOfVCMsg));
 
-    ViewChangeMsg *clonedVC = (ViewChangeMsg *) vc->cloneObjAndMsg();
+    ViewChangeMsg* clonedVC = (ViewChangeMsg*)vc->cloneObjAndMsg();
     Assert(clonedVC->type() == MsgCode::ViewChange);
     clonedViewChangeMsgs[i] = clonedVC;
   }
 
-  NewViewMsg *clonedNewViewMsg = (NewViewMsg *) d.newViewMsg->cloneObjAndMsg();
+  NewViewMsg* clonedNewViewMsg = (NewViewMsg*)d.newViewMsg->cloneObjAndMsg();
   Assert(clonedNewViewMsg->type() == MsgCode::NewView);
 
   if (hasDescriptorOfLastNewView_) {
@@ -184,10 +193,10 @@ void DebugPersistentStorage::setDescriptorOfLastNewView(
 }
 
 void DebugPersistentStorage::setDescriptorOfLastExecution(
-    const DescriptorOfLastExecution &d) {
+    const DescriptorOfLastExecution& d) {
   Assert(setIsAllowed());
   Assert(!hasDescriptorOfLastExecution_ ||
-      descriptorOfLastExecution_.executedSeqNum < d.executedSeqNum);
+         descriptorOfLastExecution_.executedSeqNum < d.executedSeqNum);
   Assert(lastExecutedSeqNum_ + 1 == d.executedSeqNum);
   Assert(d.validRequests.numOfBits() >= 1);
   Assert(d.validRequests.numOfBits() <= maxNumOfRequestsInBatch);
@@ -197,79 +206,79 @@ void DebugPersistentStorage::setDescriptorOfLastExecution(
       DescriptorOfLastExecution{d.executedSeqNum, d.validRequests};
 }
 
-void DebugPersistentStorage::setLastStableSeqNum(const SeqNum &s) {
+void DebugPersistentStorage::setLastStableSeqNum(const SeqNum s) {
   Assert(s >= lastStableSeqNum_);
   lastStableSeqNum_ = s;
-  seqNumWindow_.advanceActiveWindow(lastStableSeqNum_ + 1);
-  checkWindow_.advanceActiveWindow(lastStableSeqNum_);
+  seqNumWindow.advanceActiveWindow(lastStableSeqNum_ + 1);
+  checkWindow.advanceActiveWindow(lastStableSeqNum_);
 }
 
 void DebugPersistentStorage::DebugPersistentStorage::clearSeqNumWindow() {
-  SeqNum s = seqNumWindow_.currentActiveWindow().first;
+  SeqNum s = seqNumWindow.currentActiveWindow().first;
   Assert(s == lastStableSeqNum_ + 1);
-  seqNumWindow_.resetAll(s);
+  seqNumWindow.resetAll(s);
 }
 
 void DebugPersistentStorage::setPrePrepareMsgInSeqNumWindow(
-    const SeqNum &s, const PrePrepareMsg *const &m) {
-  Assert(seqNumWindow_.insideActiveWindow(s));
-  SeqNumData &seqNumData = seqNumWindow_.get(s);
+    const SeqNum s, const PrePrepareMsg* const m) {
+  Assert(seqNumWindow.insideActiveWindow(s));
+  SeqNumData& seqNumData = seqNumWindow.get(s);
   Assert(seqNumData.prePrepareMsg == nullptr);
-  seqNumData.prePrepareMsg = (PrePrepareMsg *) m->cloneObjAndMsg();
+  seqNumData.prePrepareMsg = (PrePrepareMsg*)m->cloneObjAndMsg();
 }
 
 void DebugPersistentStorage::setSlowStartedInSeqNumWindow(
-    const SeqNum &s, const bool &slowStarted) {
-  Assert(seqNumWindow_.insideActiveWindow(s));
-  SeqNumData &seqNumData = seqNumWindow_.get(s);
+    const SeqNum s, const bool slowStarted) {
+  Assert(seqNumWindow.insideActiveWindow(s));
+  SeqNumData& seqNumData = seqNumWindow.get(s);
   seqNumData.slowStarted = slowStarted;
 }
 
 void DebugPersistentStorage::setFullCommitProofMsgInSeqNumWindow(
-    const SeqNum &s, const FullCommitProofMsg *const &m) {
-  Assert(seqNumWindow_.insideActiveWindow(s));
-  SeqNumData &seqNumData = seqNumWindow_.get(s);
+    const SeqNum s, const FullCommitProofMsg* const m) {
+  Assert(seqNumWindow.insideActiveWindow(s));
+  SeqNumData& seqNumData = seqNumWindow.get(s);
   Assert(seqNumData.fullCommitProofMsg == nullptr);
-  seqNumData.fullCommitProofMsg = (FullCommitProofMsg *) m->cloneObjAndMsg();
+  seqNumData.fullCommitProofMsg = (FullCommitProofMsg*)m->cloneObjAndMsg();
 }
 
 void DebugPersistentStorage::setForceCompletedInSeqNumWindow(
-    const SeqNum &s, const bool &forceCompleted) {
+    const SeqNum s, const bool forceCompleted) {
   Assert(forceCompleted == true);
-  Assert(seqNumWindow_.insideActiveWindow(s));
-  SeqNumData &seqNumData = seqNumWindow_.get(s);
+  Assert(seqNumWindow.insideActiveWindow(s));
+  SeqNumData& seqNumData = seqNumWindow.get(s);
   seqNumData.forceCompleted = forceCompleted;
 }
 
 void DebugPersistentStorage::setPrepareFullMsgInSeqNumWindow(
-    const SeqNum &s, const PrepareFullMsg *const &m) {
-  Assert(seqNumWindow_.insideActiveWindow(s));
-  SeqNumData &seqNumData = seqNumWindow_.get(s);
+    const SeqNum s, const PrepareFullMsg* const m) {
+  Assert(seqNumWindow.insideActiveWindow(s));
+  SeqNumData& seqNumData = seqNumWindow.get(s);
   Assert(seqNumData.prepareFullMsg == nullptr);
-  seqNumData.prepareFullMsg = (PrepareFullMsg *) m->cloneObjAndMsg();
+  seqNumData.prepareFullMsg = (PrepareFullMsg*)m->cloneObjAndMsg();
 }
 
 void DebugPersistentStorage::setCommitFullMsgInSeqNumWindow(
-    const SeqNum &s, const CommitFullMsg *const &m) {
-  Assert(seqNumWindow_.insideActiveWindow(s));
-  SeqNumData &seqNumData = seqNumWindow_.get(s);
+    const SeqNum s, const CommitFullMsg* const m) {
+  Assert(seqNumWindow.insideActiveWindow(s));
+  SeqNumData& seqNumData = seqNumWindow.get(s);
   Assert(seqNumData.commitFullMsg == nullptr);
-  seqNumData.commitFullMsg = (CommitFullMsg *) m->cloneObjAndMsg();
+  seqNumData.commitFullMsg = (CommitFullMsg*)m->cloneObjAndMsg();
 }
 
 void DebugPersistentStorage::setCheckpointMsgInCheckWindow(
-    const SeqNum &s, const CheckpointMsg *const &m) {
-  Assert(checkWindow_.insideActiveWindow(s));
-  CheckData &checkData = checkWindow_.get(s);
+    const SeqNum s, const CheckpointMsg* const m) {
+  Assert(checkWindow.insideActiveWindow(s));
+  CheckData& checkData = checkWindow.get(s);
   if (checkData.checkpointMsg != nullptr) delete checkData.checkpointMsg;
-  checkData.checkpointMsg = (CheckpointMsg *) m->cloneObjAndMsg();
+  checkData.checkpointMsg = (CheckpointMsg*)m->cloneObjAndMsg();
 }
 
-void DebugPersistentStorage::setCompletedMarkInCheckWindow(const SeqNum &s,
-                                                           const bool &f) {
+void DebugPersistentStorage::setCompletedMarkInCheckWindow(const SeqNum s,
+                                                           const bool f) {
   Assert(f == true);
-  Assert(checkWindow_.insideActiveWindow(s));
-  CheckData &checkData = checkWindow_.get(s);
+  Assert(checkWindow.insideActiveWindow(s));
+  CheckData& checkData = checkWindow.get(s);
   checkData.completedMark = f;
 }
 
@@ -317,17 +326,17 @@ DebugPersistentStorage::getAndAllocateDescriptorOfLastExitFromView() {
   Assert(getIsAllowed());
   Assert(hasDescriptorOfLastExitFromView_);
 
-  DescriptorOfLastExitFromView &d = descriptorOfLastExitFromView_;
+  DescriptorOfLastExitFromView& d = descriptorOfLastExitFromView_;
 
   std::vector<ViewsManager::PrevViewInfo> elements(d.elements.size());
 
   for (size_t i = 0; i < elements.size(); i++) {
-    const ViewsManager::PrevViewInfo &e = d.elements[i];
-    elements[i].prePrepare = (PrePrepareMsg *) e.prePrepare->cloneObjAndMsg();
+    const ViewsManager::PrevViewInfo& e = d.elements[i];
+    elements[i].prePrepare = (PrePrepareMsg*)e.prePrepare->cloneObjAndMsg();
     elements[i].hasAllRequests = e.hasAllRequests;
     if (e.prepareFull != nullptr)
       elements[i].prepareFull =
-          (PrepareFullMsg *) e.prepareFull->cloneObjAndMsg();
+          (PrepareFullMsg*)e.prepareFull->cloneObjAndMsg();
     else
       elements[i].prepareFull = nullptr;
   }
@@ -348,14 +357,14 @@ DebugPersistentStorage::getAndAllocateDescriptorOfLastNewView() {
   Assert(getIsAllowed());
   Assert(hasDescriptorOfLastNewView_);
 
-  DescriptorOfLastNewView &d = descriptorOfLastNewView_;
+  DescriptorOfLastNewView& d = descriptorOfLastNewView_;
 
-  NewViewMsg *newViewMsg = (NewViewMsg *) d.newViewMsg->cloneObjAndMsg();
+  NewViewMsg* newViewMsg = (NewViewMsg*)d.newViewMsg->cloneObjAndMsg();
 
-  std::vector<ViewChangeMsg *> viewChangeMsgs(d.viewChangeMsgs.size());
+  std::vector<ViewChangeMsg*> viewChangeMsgs(d.viewChangeMsgs.size());
 
   for (size_t i = 0; i < viewChangeMsgs.size(); i++) {
-    viewChangeMsgs[i] = (ViewChangeMsg *) d.viewChangeMsgs[i]->cloneObjAndMsg();
+    viewChangeMsgs[i] = (ViewChangeMsg*)d.viewChangeMsgs[i]->cloneObjAndMsg();
   }
 
   DescriptorOfLastNewView retVal{
@@ -374,7 +383,8 @@ DebugPersistentStorage::getDescriptorOfLastExecution() {
   Assert(getIsAllowed());
   Assert(hasDescriptorOfLastExecution_);
 
-  DescriptorOfLastExecution &d = descriptorOfLastExecution_;
+  DescriptorOfLastExecution& d = descriptorOfLastExecution_;
+
   return DescriptorOfLastExecution{d.executedSeqNum, d.validRequests};
 }
 
@@ -383,86 +393,86 @@ SeqNum DebugPersistentStorage::getLastStableSeqNum() {
   return lastStableSeqNum_;
 }
 
-PrePrepareMsg *
+PrePrepareMsg*
 DebugPersistentStorage::getAndAllocatePrePrepareMsgInSeqNumWindow(
-    const SeqNum &s) {
+    const SeqNum s) {
   Assert(getIsAllowed());
-  Assert(lastStableSeqNum_ + 1 == seqNumWindow_.currentActiveWindow().first);
-  Assert(seqNumWindow_.insideActiveWindow(s));
-  PrePrepareMsg *m =
-      (PrePrepareMsg *) seqNumWindow_.get(s).prePrepareMsg->cloneObjAndMsg();
+  Assert(lastStableSeqNum_ + 1 == seqNumWindow.currentActiveWindow().first);
+  Assert(seqNumWindow.insideActiveWindow(s));
+  PrePrepareMsg* m =
+      (PrePrepareMsg*)seqNumWindow.get(s).prePrepareMsg->cloneObjAndMsg();
   Assert(m->type() == MsgCode::PrePrepare);
   return m;
 }
 
-bool DebugPersistentStorage::getSlowStartedInSeqNumWindow(const SeqNum &s) {
+bool DebugPersistentStorage::getSlowStartedInSeqNumWindow(const SeqNum s) {
   Assert(getIsAllowed());
-  Assert(lastStableSeqNum_ + 1 == seqNumWindow_.currentActiveWindow().first);
-  Assert(seqNumWindow_.insideActiveWindow(s));
-  bool b = seqNumWindow_.get(s).slowStarted;
+  Assert(lastStableSeqNum_ + 1 == seqNumWindow.currentActiveWindow().first);
+  Assert(seqNumWindow.insideActiveWindow(s));
+  bool b = seqNumWindow.get(s).slowStarted;
   return b;
 }
 
-FullCommitProofMsg *
+FullCommitProofMsg*
 DebugPersistentStorage::getAndAllocateFullCommitProofMsgInSeqNumWindow(
-    const SeqNum &s) {
+    const SeqNum s) {
   Assert(getIsAllowed());
-  Assert(lastStableSeqNum_ + 1 == seqNumWindow_.currentActiveWindow().first);
-  Assert(seqNumWindow_.insideActiveWindow(s));
-  FullCommitProofMsg *m = (FullCommitProofMsg *) seqNumWindow_.get(s)
-      .fullCommitProofMsg->cloneObjAndMsg();
+  Assert(lastStableSeqNum_ + 1 == seqNumWindow.currentActiveWindow().first);
+  Assert(seqNumWindow.insideActiveWindow(s));
+  FullCommitProofMsg* m = (FullCommitProofMsg*)seqNumWindow.get(s)
+                              .fullCommitProofMsg->cloneObjAndMsg();
   Assert(m->type() == MsgCode::FullCommitProof);
   return m;
 }
 
-bool DebugPersistentStorage::getForceCompletedInSeqNumWindow(const SeqNum &s) {
+bool DebugPersistentStorage::getForceCompletedInSeqNumWindow(const SeqNum s) {
   Assert(getIsAllowed());
-  Assert(lastStableSeqNum_ + 1 == seqNumWindow_.currentActiveWindow().first);
-  Assert(seqNumWindow_.insideActiveWindow(s));
-  bool b = seqNumWindow_.get(s).forceCompleted;
+  Assert(lastStableSeqNum_ + 1 == seqNumWindow.currentActiveWindow().first);
+  Assert(seqNumWindow.insideActiveWindow(s));
+  bool b = seqNumWindow.get(s).forceCompleted;
   return b;
 }
 
-PrepareFullMsg *
+PrepareFullMsg*
 DebugPersistentStorage::getAndAllocatePrepareFullMsgInSeqNumWindow(
-    const SeqNum &s) {
+    const SeqNum s) {
   Assert(getIsAllowed());
-  Assert(lastStableSeqNum_ + 1 == seqNumWindow_.currentActiveWindow().first);
-  Assert(seqNumWindow_.insideActiveWindow(s));
-  PrepareFullMsg *m =
-      (PrepareFullMsg *) seqNumWindow_.get(s).prepareFullMsg->cloneObjAndMsg();
+  Assert(lastStableSeqNum_ + 1 == seqNumWindow.currentActiveWindow().first);
+  Assert(seqNumWindow.insideActiveWindow(s));
+  PrepareFullMsg* m =
+      (PrepareFullMsg*)seqNumWindow.get(s).prepareFullMsg->cloneObjAndMsg();
   Assert(m->type() == MsgCode::PrepareFull);
   return m;
 }
 
-CommitFullMsg *
+CommitFullMsg*
 DebugPersistentStorage::getAndAllocateCommitFullMsgInSeqNumWindow(
-    const SeqNum &s) {
+    const SeqNum s) {
   Assert(getIsAllowed());
-  Assert(lastStableSeqNum_ + 1 == seqNumWindow_.currentActiveWindow().first);
-  Assert(seqNumWindow_.insideActiveWindow(s));
-  CommitFullMsg *m =
-      (CommitFullMsg *) seqNumWindow_.get(s).commitFullMsg->cloneObjAndMsg();
+  Assert(lastStableSeqNum_ + 1 == seqNumWindow.currentActiveWindow().first);
+  Assert(seqNumWindow.insideActiveWindow(s));
+  CommitFullMsg* m =
+      (CommitFullMsg*)seqNumWindow.get(s).commitFullMsg->cloneObjAndMsg();
   Assert(m->type() == MsgCode::CommitFull);
   return m;
 }
 
-CheckpointMsg *DebugPersistentStorage::getAndAllocateCheckpointMsgInCheckWindow(
-    const SeqNum &s) {
+CheckpointMsg* DebugPersistentStorage::getAndAllocateCheckpointMsgInCheckWindow(
+    const SeqNum s) {
   Assert(getIsAllowed());
-  Assert(lastStableSeqNum_ == checkWindow_.currentActiveWindow().first);
-  Assert(checkWindow_.insideActiveWindow(s));
-  CheckpointMsg *m =
-      (CheckpointMsg *) checkWindow_.get(s).checkpointMsg->cloneObjAndMsg();
+  Assert(lastStableSeqNum_ == checkWindow.currentActiveWindow().first);
+  Assert(checkWindow.insideActiveWindow(s));
+  CheckpointMsg* m =
+      (CheckpointMsg*)checkWindow.get(s).checkpointMsg->cloneObjAndMsg();
   Assert(m->type() == MsgCode::Checkpoint);
   return m;
 }
 
-bool DebugPersistentStorage::getCompletedMarkInCheckWindow(const SeqNum &s) {
+bool DebugPersistentStorage::getCompletedMarkInCheckWindow(const SeqNum s) {
   Assert(getIsAllowed());
-  Assert(lastStableSeqNum_ == checkWindow_.currentActiveWindow().first);
-  Assert(checkWindow_.insideActiveWindow(s));
-  bool b = checkWindow_.get(s).completedMark;
+  Assert(lastStableSeqNum_ == checkWindow.currentActiveWindow().first);
+  Assert(checkWindow.insideActiveWindow(s));
+  bool b = checkWindow.get(s).completedMark;
   return b;
 }
 
@@ -476,11 +486,11 @@ bool DebugPersistentStorage::getIsAllowed() const {
 
 bool DebugPersistentStorage::nonExecSetIsAllowed() const {
   return setIsAllowed() &&
-      (!hasDescriptorOfLastExecution_ ||
+         (!hasDescriptorOfLastExecution_ ||
           descriptorOfLastExecution_.executedSeqNum <= lastExecutedSeqNum_);
 }
 
-void DebugPersistentStorage::WindowFuncs::init(SeqNumData &i, void *d) {
+void DebugPersistentStorage::WindowFuncs::init(SeqNumData& i, void* d) {
   i.prePrepareMsg = nullptr;
   i.slowStarted = false;
   i.fullCommitProofMsg = nullptr;
@@ -489,13 +499,13 @@ void DebugPersistentStorage::WindowFuncs::init(SeqNumData &i, void *d) {
   i.commitFullMsg = nullptr;
 }
 
-void DebugPersistentStorage::WindowFuncs::free(SeqNumData &i) { reset(i); }
+void DebugPersistentStorage::WindowFuncs::free(SeqNumData& i) { reset(i); }
 
-void DebugPersistentStorage::WindowFuncs::reset(SeqNumData &i) {
-  delete i.prePrepareMsg;
-  delete i.fullCommitProofMsg;
-  delete i.prepareFullMsg;
-  delete i.commitFullMsg;
+void DebugPersistentStorage::WindowFuncs::reset(SeqNumData& i) {
+  if (i.prePrepareMsg != nullptr) delete i.prePrepareMsg;
+  if (i.fullCommitProofMsg != nullptr) delete i.fullCommitProofMsg;
+  if (i.prepareFullMsg != nullptr) delete i.prepareFullMsg;
+  if (i.commitFullMsg != nullptr) delete i.commitFullMsg;
   i.prePrepareMsg = nullptr;
   i.slowStarted = false;
   i.fullCommitProofMsg = nullptr;
@@ -504,14 +514,14 @@ void DebugPersistentStorage::WindowFuncs::reset(SeqNumData &i) {
   i.commitFullMsg = nullptr;
 }
 
-void DebugPersistentStorage::WindowFuncs::init(CheckData &i, void *d) {
+void DebugPersistentStorage::WindowFuncs::init(CheckData& i, void* d) {
   i.checkpointMsg = nullptr;
   i.completedMark = false;
 }
-void DebugPersistentStorage::WindowFuncs::free(CheckData &i) { reset(i); }
+void DebugPersistentStorage::WindowFuncs::free(CheckData& i) { reset(i); }
 
-void DebugPersistentStorage::WindowFuncs::reset(CheckData &i) {
-  delete i.checkpointMsg;
+void DebugPersistentStorage::WindowFuncs::reset(CheckData& i) {
+  if (i.checkpointMsg != nullptr) delete i.checkpointMsg;
   i.checkpointMsg = nullptr;
   i.completedMark = false;
 }
