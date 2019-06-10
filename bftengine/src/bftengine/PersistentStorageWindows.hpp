@@ -20,6 +20,7 @@
 #include "CheckpointMsg.hpp"
 
 namespace bftEngine {
+namespace impl {
 
 struct SeqNumData {
   PrePrepareMsg *prePrepareMsg = nullptr;
@@ -44,13 +45,12 @@ struct SeqNumData {
 
   SeqNumData() = default;
 
-  bool operator==(const SeqNumData &other) const;
-  SeqNumData &operator=(const SeqNumData &other);
+  bool equals(const SeqNumData &other) const;
   void reset();
-  void serialize(char *&buf, uint32_t bufLen, size_t &actualSize) const;
+  void serialize(char *buf, uint32_t bufLen, size_t &actualSize) const;
 
   static SeqNumData deserialize(
-      char *&buf, uint32_t bufLen, uint32_t &actualSize);
+      char *buf, uint32_t bufLen, uint32_t &actualSize);
   static uint32_t maxSize();
 
  private:
@@ -67,13 +67,12 @@ struct CheckData {
 
   CheckData() = default;
 
-  bool operator==(const CheckData &other) const;
-  CheckData &operator=(const CheckData &other);
+  bool equals(const CheckData &other) const;
   void reset();
-  void serialize(char *&buf, uint32_t bufLen, size_t &actualSize) const;
+  void serialize(char *buf, uint32_t bufLen, size_t &actualSize) const;
 
   static CheckData deserialize(
-      char *&buf, uint32_t bufLen, uint32_t &actualSize);
+      char *buf, uint32_t bufLen, uint32_t &actualSize);
   static uint32_t maxSize();
 };
 
@@ -93,5 +92,5 @@ typedef SequenceWithActiveWindow<kWorkWindowSize, 1, SeqNum, SeqNumData,
 typedef SequenceWithActiveWindow<kWorkWindowSize + checkpointWindowSize,
                                  checkpointWindowSize, SeqNum, CheckData,
                                  WindowFuncs> CheckWindow;
-
+}
 }  // namespace bftEngine

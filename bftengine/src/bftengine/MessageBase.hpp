@@ -37,8 +37,9 @@ class MessageBase {
               MsgSize size,
               bool ownerOfStorage);
 
-  virtual ~MessageBase();
-  bool operator==(const MessageBase &other) const;
+  ~MessageBase();
+
+  bool equals(const MessageBase &other) const;
 
   static size_t serializeMsg(char *&buf, MessageBase *msg);
   static MessageBase *deserializeMsg(char *&buf, size_t bufLen,

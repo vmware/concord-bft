@@ -85,21 +85,7 @@ class ViewsManager {
                  bool allRequests) : prePrepare(prePrep), prepareFull(prepFull),
                                      hasAllRequests(allRequests) {}
 
-    PrevViewInfo &operator=(const PrevViewInfo &other) {
-      hasAllRequests = other.hasAllRequests;
-      delete prePrepare;
-      delete prepareFull;
-      prePrepare = nullptr;
-      prepareFull = nullptr;
-
-      if (other.prePrepare)
-        prePrepare = (PrePrepareMsg *) other.prePrepare->cloneObjAndMsg();
-      if (other.prepareFull)
-        prepareFull = (PrepareFullMsg *) other.prepareFull->cloneObjAndMsg();
-      return *this;
-    }
-
-    bool operator==(const PrevViewInfo &other) const {
+    bool equals(const PrevViewInfo &other) const {
       if (other.hasAllRequests != hasAllRequests)
         return false;
       if ((other.prePrepare && !prePrepare) ||
@@ -108,8 +94,9 @@ class ViewsManager {
       if ((other.prepareFull && !prepareFull) ||
           (!other.prepareFull && prepareFull))
         return false;
-      bool res1 = prePrepare ? (*other.prePrepare == *prePrepare) : true;
-      bool res2 = prepareFull ? (*other.prepareFull == *prepareFull) : true;
+      bool res1 = prePrepare ? (other.prePrepare->equals(*prePrepare)) : true;
+      bool res2 =
+          prepareFull ? (other.prepareFull->equals(*prepareFull)) : true;
       return res1 && res2;
     }
 

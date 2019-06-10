@@ -16,15 +16,19 @@
 #include "Serializable.h"
 
 namespace bftEngine {
+namespace impl {
+
 // As ReplicaConfig is an interface struct, we need this additional wrapper
 // class for its serialization/deserialization functionality.
+// Any ReplicaConfig changes require synchronization with this class and an
+// update of ReplicaConfigSerializer::classVersion_.
 class ReplicaConfigSerializer : public Serializable {
  public:
   explicit ReplicaConfigSerializer(const ReplicaConfig &config);
   ~ReplicaConfigSerializer() override;
 
   ReplicaConfig *getConfig() const { return config_; }
-  void setConfig(const ReplicaConfig& config);
+  void setConfig(const ReplicaConfig &config);
 
   bool operator==(const ReplicaConfigSerializer &other) const;
 
@@ -34,18 +38,7 @@ class ReplicaConfigSerializer : public Serializable {
   // To be used ONLY during deserialization.
   ReplicaConfigSerializer() { config_ = new ReplicaConfig; };
 
-  static uint32_t maxSize(uint32_t numOfReplicas) {
-    return (sizeof(config_->fVal) + sizeof(config_->cVal) +
-        sizeof(config_->replicaId) +
-        sizeof(config_->numOfClientProxies) +
-        sizeof(config_->statusReportTimerMillisec) +
-        sizeof(config_->concurrencyLevel) +
-        sizeof(config_->autoViewChangeEnabled) +
-        sizeof(config_->viewChangeTimerMillisec) + MaxSizeOfPrivateKey +
-        numOfReplicas * MaxSizeOfPublicKey +
-        IThresholdSigner::maxSize() * 3 +
-        IThresholdVerifier::maxSize() * 3);
-  }
+  static uint32_t maxSize(uint32_t numOfReplicas);
 
  protected:
   void serializeDataMembers(std::ostream &outStream) const override;
@@ -67,4 +60,5 @@ class ReplicaConfigSerializer : public Serializable {
   static bool registered_;
 };
 
+}
 }
