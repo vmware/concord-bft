@@ -523,6 +523,51 @@ class TestPartialHistories(unittest.TestCase):
         self.assertEqual(1, len(err.exception.matched_blocks))
         self.assertEqual(0, len(err.exception.unmatched_requests))
 
+class TestUnit(unittest.TestCase):
+
+    def test_num_blocks_to_linearize_over(self):
+        """
+        Create a tracker with enough information to allow running
+        _num_blocks_to_linearize_over. Verify that the correct number of blocks
+        is returned.
+        """
+        req_index = 14
+        last_known_block = 6
+        last_consecutive_block = 3
+        missing_intermediate_blocks = 2
+        kvpairs = {'a': 1, 'b': 2, 'c': 3}
+        cs = skvbc_linearizability.CausalState(req_index,
+                                               last_known_block,
+                                               last_consecutive_block,
+                                               missing_intermediate_blocks,
+                                               kvpairs)
+
+        is_read = False
+        write = skvbc_linearizability.ConcurrentValue(is_read)
+        tracker = skvbc_linearizability.SkvbcTracker()
+        tracker.concurrent[req_index] = \
+            {2: write, 4: write, 7: write, 11: write, 16: write}
+
+        tracker.last_known_block = 7
+        self.assertEqual(1,
+                        tracker._num_blocks_to_linearize_over(req_index, cs))
+
+        tracker.last_known_block = 8
+        self.assertEqual(2,
+                         tracker._num_blocks_to_linearize_over(req_index, cs))
+
+        tracker.last_known_block = 9
+        self.assertEqual(3,
+                         tracker._num_blocks_to_linearize_over(req_index, cs))
+
+        tracker.last_known_block = 10
+        self.assertEqual(3,
+                         tracker._num_blocks_to_linearize_over(req_index, cs))
+
+        tracker.last_known_block = 11
+        self.assertEqual(3,
+                         tracker._num_blocks_to_linearize_over(req_index, cs))
+
 if __name__ == '__main__':
     unittest.main()
 

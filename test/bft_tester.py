@@ -128,9 +128,23 @@ class BftTester:
     async def _create_clients(self):
         for client_id in range(self.config.n,
                                self.config.num_clients+self.config.n):
-            config = bft_config.Config(client_id, self.config.f, self.config.c,
-                    MAX_MSG_SIZE, REQ_TIMEOUT_MILLI, RETRY_TIMEOUT_MILLI)
+            config = self._bft_config(client_id)
             self.clients[client_id] = bft_client.UdpClient(config, self.replicas)
+
+    async def new_client(self):
+        client_id = max(self.clients.keys()) + 1
+        config = self._bft_config(client_id)
+        client = bft_client.UdpClient(config, self.replicas)
+        self.clients[client_id] = client
+        return client
+
+    def _bft_config(self, client_id):
+        return bft_config.Config(client_id,
+                                 self.config.f,
+                                 self.config.c,
+                                 MAX_MSG_SIZE,
+                                 REQ_TIMEOUT_MILLI,
+                                 RETRY_TIMEOUT_MILLI)
 
     async def _init_metrics(self):
         metric_clients = {}

@@ -536,14 +536,8 @@ class SkvbcTracker:
         have succeeded or failed.
         """
         for req_index, causal_state in self.failed_writes.items():
-            num_concurrent = self._max_possible_concurrent_writes(req_index)
-            # Any missing intermediate block is by definition concurrent, so we
-            # need to subtract it as well.
-            blocks_remaining = (self.last_known_block
-                                - causal_state.last_known_block
-                                - causal_state.missing_intermediate_blocks)
-            blocks_to_check = min(num_concurrent, blocks_remaining)
-
+            blocks_to_check = self._num_blocks_to_linearize_over(req_index,
+                                                                 causal_state)
             failed_req = self.history[req_index]
 
             # Check for writeset intersection at every block from the block
@@ -564,7 +558,6 @@ class SkvbcTracker:
                 # failed_req should have succeeded!
                 raise NoConflictError(failed_req, causal_state)
 
-
     def _linearize_reads(self):
         """
         At this point, we should know the kv pairs of all blocks.
@@ -584,15 +577,8 @@ class SkvbcTracker:
             for block_id in range(cs.last_consecutive_block + 1,
                                   cs.last_known_block + 1):
                 kv.update(self.blocks[block_id].kvpairs)
-            num_concurrent = self._max_possible_concurrent_writes(req_index)
 
-            # Any missing intermediate block is by definition concurrent, so we
-            # need to subtract it as well.
-            blocks_remaining = (self.last_known_block
-                                - cs.last_known_block
-                                - cs.missing_intermediate_blocks)
-            blocks_to_check = min(num_concurrent, blocks_remaining)
-
+            blocks_to_check = self._num_blocks_to_linearize_over(req_index, cs)
             success = False
             for i in range(cs.last_known_block,
                            cs.last_known_block + blocks_to_check + 1):
@@ -606,6 +592,18 @@ class SkvbcTracker:
             if not success:
                 raise InvalidReadError(completed_read,
                                        self.concurrent[req_index])
+
+    def _num_blocks_to_linearize_over(self, req_index, causal_state):
+        """
+        The number of blocks after causal_sate.last_known_block that we must
+        iterate over fo see if a read or write failure can linearize after each
+        of the blocks.
+        """
+        cs = causal_state
+        max_concurrent = self._max_possible_concurrent_writes(req_index)
+        concurrent_remaining = max_concurrent - cs.missing_intermediate_blocks
+        total_remaining = self.last_known_block - cs.last_known_block
+        return min(concurrent_remaining, total_remaining)
 
     def _read_is_valid(self, kv_state, read_kvpairs):
         """Return if a read of read_kvpairs is possible given kv_state."""
