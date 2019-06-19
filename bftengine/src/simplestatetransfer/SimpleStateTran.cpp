@@ -20,14 +20,13 @@
 
 #include "SimpleStateTransfer.hpp"
 #include "SimpleBCStateTransfer.hpp"
-#include "Logger.hpp"
+#include "Logging.hpp"
 
-#define Assert(expr) {                                                          \
-    if((expr) != true) {                                                        \
-        LOG_ERROR_F(STLogger, "'%s' is NOT true (in function '%s' in %s:%d)\n", \
-                              #expr, __FUNCTION__, __FILE__, __LINE__);         \
-        assert(false);                                                          \
-    }                                                                           \
+#define Assert(expr) {                                             \
+    if((expr) != true) {                                                    \
+        LOG_ERROR_F(STLogger,"'%s' is NOT true (in function '%s' in %s:%d)\n", \
+            #expr, __FUNCTION__, __FILE__, __LINE__); assert(false);                \
+    }                                                                       \
 }
 
 namespace bftEngine {
@@ -37,8 +36,7 @@ namespace SimpleInMemoryStateTransfer {
 namespace impl {
 
 
-concordlogger::Logger STLogger =
-        concordlogger::Log::getLogger("state-transfer");
+concordlogger::Logger STLogger = concordlogger::Log::getLogger("state-transfer");
 
 class SimpleStateTran : public ISimpleInMemoryStateTransfer {
  public:
@@ -421,10 +419,10 @@ void SimpleStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
 
 void SimpleStateTran::startRunning(IReplicaForStateTransfer* r) {
   Assert(isInitialized());
-  Assert(!internalST_->isRunning());
-  Assert(updateAppPages_.empty());
+//  Assert(!internalST_->isRunning());
+//  Assert(updateAppPages_.empty());
 
-  Assert(replicaWrapper_.realInterface_ == nullptr);
+//  Assert(replicaWrapper_.realInterface_ == nullptr);
   replicaWrapper_.realInterface_ = r;
 
   internalST_->startRunning(&replicaWrapper_);

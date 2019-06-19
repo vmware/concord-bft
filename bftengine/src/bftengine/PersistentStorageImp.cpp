@@ -44,17 +44,18 @@ void PersistentStorageImp::retrieveWindowsMetadata() {
   checkWindowBeginning_ = CheckWindow::deserializeActiveWindowBeginning(buf);
 }
 
-void PersistentStorageImp::init(MetadataStorage *&metadataStorage) {
+bool PersistentStorageImp::init(MetadataStorage *&metadataStorage) {
   metadataStorage_ = metadataStorage;
   try {
     if (!getStoredVersion().empty()) {
       retrieveWindowsMetadata();
-      return;
+      return false;
     }
   } catch (const runtime_error &exc) {}
   initMetadataStorage(metadataStorage);
   // DB is not populated yet with default metadata parameter values.
   setDefaultsInMetadataStorage();
+  return true;
 }
 
 void PersistentStorageImp::setDefaultsInMetadataStorage() {

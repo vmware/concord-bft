@@ -69,28 +69,26 @@ class PersistentStorage {
   virtual void setLastExecutedSeqNum(const SeqNum s) = 0;
   virtual void setPrimaryLastUsedSeqNum(const SeqNum s) = 0;
   virtual void setStrictLowerBoundOfSeqNums(const SeqNum s) = 0;
-  virtual void setLastViewThatTransferredSeqNumbersFullyExecuted(
-      const ViewNum v) = 0;
+  virtual void setLastViewThatTransferredSeqNumbersFullyExecuted(const ViewNum v) = 0;
 
   // DescriptorOfLastExitFromView contains pointers to messages (the content of
   // the messages should be copied, the caller is the owner of these messagse).
   virtual void setDescriptorOfLastExitFromView(
-      const DescriptorOfLastExitFromView& prevViewDesc) = 0;
+      const DescriptorOfLastExitFromView &prevViewDesc) = 0;
 
   // DescriptorOfLastNewView contains pointers to messages (the content of the
   // messages should be copied, the caller is the owner of these messagse).
   virtual void setDescriptorOfLastNewView(
-      const DescriptorOfLastNewView& prevViewDesc) = 0;
+      const DescriptorOfLastNewView &prevViewDesc) = 0;
 
   virtual void setDescriptorOfLastExecution(
-      const DescriptorOfLastExecution& prevViewDesc) = 0;
+      const DescriptorOfLastExecution &prevViewDesc) = 0;
 
-	// We have two windows "SeqNumWindow" and "CheckWindow"	
-	// TODO(GG): explain the windows. 
+  // We have two windows "SeqNumWindow" and "CheckWindow"
+  // TODO(GG): explain the windows.
 
   virtual void setLastStableSeqNum(const SeqNum s) = 0;
-  
-	//
+
   // The window of sequence numbers is:
   // { i | LS + 1 <= i <= LS + kWorkWindowSize }
   // where LS=lastStableSeqNum
@@ -102,20 +100,20 @@ class PersistentStorage {
   virtual void clearSeqNumWindow() = 0;
 
   virtual void setPrePrepareMsgInSeqNumWindow(const SeqNum s,
-                                              const PrePrepareMsg* const m) = 0;
+                                              const PrePrepareMsg *const m) = 0;
   virtual void setSlowStartedInSeqNumWindow(const SeqNum s,
                                             const bool slowStarted) = 0;
   virtual void setFullCommitProofMsgInSeqNumWindow(
-      const SeqNum s, const FullCommitProofMsg* const m) = 0;
+      const SeqNum s, const FullCommitProofMsg *const m) = 0;
   virtual void setForceCompletedInSeqNumWindow(const SeqNum s,
                                                const bool forceCompleted) = 0;
   virtual void setPrepareFullMsgInSeqNumWindow(
-      const SeqNum s, const PrepareFullMsg* const m) = 0;
+      const SeqNum s, const PrepareFullMsg *const m) = 0;
   virtual void setCommitFullMsgInSeqNumWindow(const SeqNum s,
-                                              const CommitFullMsg* const m) = 0;
+                                              const CommitFullMsg *const m) = 0;
 
   virtual void setCheckpointMsgInCheckWindow(const SeqNum s,
-                                             const CheckpointMsg* const m) = 0;
+                                             const CheckpointMsg *const m) = 0;
   virtual void setCompletedMarkInCheckWindow(const SeqNum s, const bool f) = 0;
 
   //////////////////////////////////////////////////////////////////////////
@@ -143,18 +141,18 @@ class PersistentStorage {
 
   virtual SeqNum getLastStableSeqNum() = 0;
 
-  virtual PrePrepareMsg* getAndAllocatePrePrepareMsgInSeqNumWindow(
+  virtual PrePrepareMsg *getAndAllocatePrePrepareMsgInSeqNumWindow(
       const SeqNum s) = 0;
   virtual bool getSlowStartedInSeqNumWindow(const SeqNum s) = 0;
-  virtual FullCommitProofMsg* getAndAllocateFullCommitProofMsgInSeqNumWindow(
+  virtual FullCommitProofMsg *getAndAllocateFullCommitProofMsgInSeqNumWindow(
       const SeqNum s) = 0;
   virtual bool getForceCompletedInSeqNumWindow(const SeqNum s) = 0;
-  virtual PrepareFullMsg* getAndAllocatePrepareFullMsgInSeqNumWindow(
+  virtual PrepareFullMsg *getAndAllocatePrepareFullMsgInSeqNumWindow(
       const SeqNum s) = 0;
-  virtual CommitFullMsg* getAndAllocateCommitFullMsgInSeqNumWindow(
+  virtual CommitFullMsg *getAndAllocateCommitFullMsgInSeqNumWindow(
       const SeqNum s) = 0;
 
-  virtual CheckpointMsg* getAndAllocateCheckpointMsgInCheckWindow(
+  virtual CheckpointMsg *getAndAllocateCheckpointMsgInCheckWindow(
       const SeqNum s) = 0;
   virtual bool getCompletedMarkInCheckWindow(const SeqNum s) = 0;
 };
