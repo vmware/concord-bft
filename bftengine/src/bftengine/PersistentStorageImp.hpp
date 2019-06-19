@@ -125,7 +125,8 @@ class PersistentStorageImp : public PersistentStorage {
   bool hasDescriptorOfLastNewView() override;
   bool hasDescriptorOfLastExecution() override;
 
-  void init(MetadataStorage *&metadataStorage);
+  // Returns 'true' in case storage is empty
+  bool init(MetadataStorage *&metadataStorage);
 
  protected:
   bool setIsAllowed() const;

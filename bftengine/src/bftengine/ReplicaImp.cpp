@@ -897,9 +897,6 @@ namespace bftEngine
 			return;
 		}
 
-
-
-
 		void ReplicaImp::onInternalMsg(FullCommitProofMsg* msg)
 		{
 			if ((stateTransfer->isCollectingState()) ||
@@ -2752,7 +2749,8 @@ namespace bftEngine
 
 		void ReplicaImp::onMetricsTimer(Time cTime, Timer& timer)
 		{
-			metrics_.UpdateAggregator();
+		    // TODO: This code throws out_of_range exception when called during restartForDebug : fix it.
+			// metrics_.UpdateAggregator();
 		}
 
 		void ReplicaImp::onMessage(SimpleAckMsg* msg)
@@ -2776,13 +2774,10 @@ namespace bftEngine
 
 		void ReplicaImp::onMessage(StateTransferMsg* m)
 		{
-                        metric_received_state_transfers_.Get().Inc();
+			metric_received_state_transfers_.Get().Inc();
 			size_t h = sizeof(MessageBase::Header);
 			stateTransfer->handleStateTransferMessage(m->body() + h, m->size() - h, m->senderId());
 		}
-
-
-
 
 		void ReplicaImp::freeStateTransferMsg(char* m)
 		{
@@ -2790,8 +2785,6 @@ namespace bftEngine
 			char* p = (m - sizeof(MessageBase::Header));
 			std::free(p);
 		}
-
-
 
 		void ReplicaImp::sendStateTransferMessage(char* m, uint32_t size, uint16_t replicaId)
 		{
@@ -2813,7 +2806,6 @@ namespace bftEngine
 			}
 		}
 
-
 		void ReplicaImp::onTransferringComplete(int64_t checkpointNumberOfNewState)
 		{
 			// This method may be called by external threads
@@ -2827,15 +2819,12 @@ namespace bftEngine
 				//TODO(GG): implement
 				Assert(false);
 			}
-
 		}
-
 
 		void ReplicaImp::changeStateTransferTimerPeriod(uint32_t timerPeriodMilli)
 		{
 			// This method may be called by external threads
 			// TODO(GG): if this method is invoked by an external thread, then send an "internal message" to the replica's main thread
-
 
 			if (mainThread.get_id() == std::this_thread::get_id())
 			{
@@ -2846,9 +2835,7 @@ namespace bftEngine
 				//TODO(GG): implement
 				Assert(false);
 			}
-
 		}
-
 
 		void ReplicaImp::onMerkleExecSignature(ViewNum v, SeqNum s, uint16_t signatureLength, const char* signature)
 		{
@@ -2856,14 +2843,11 @@ namespace bftEngine
 			// TODO(GG): use code from previous drafts
 		}
 
-
-
 		void ReplicaImp::onMessage(PartialExecProofMsg* m)
 		{
 			Assert(false);
 			// TODO(GG): use code from previous drafts
 		}
-
 
 		void ReplicaImp::onReportAboutAdvancedReplica(ReplicaId reportedReplica, SeqNum seqNum, ViewNum viewNum)
 		{
@@ -2914,7 +2898,7 @@ namespace bftEngine
 
 			if(inView) {
 
-				const bool isPrimaryOfView = (repsInfo->primaryOfView(curView) == myReplicaId);
+			const bool isPrimaryOfView = (repsInfo->primaryOfView(curView) == myReplicaId);
 
 			SeqNum s = ld.lastStableSeqNum;
 
@@ -3068,7 +3052,6 @@ namespace bftEngine
 			int comStatus = communication->Start();
 			Assert(comStatus == 0);
 
-
 			internalThreadPool.start(8); // TODO(GG): use configuration
 		}
 
@@ -3094,7 +3077,6 @@ namespace bftEngine
 
 			internalThreadPool.start(8); // TODO(GG): use configuration
 		}
-
 
 		ReplicaImp::ReplicaImp(bool firstTime, const ReplicaConfig& config, RequestsHandler* requestsHandler,
 			IStateTransfer* stateTransferr, SigManager* sigMgr, ReplicasInfo* replicasInfo, ViewsManager* viewsMgr)
@@ -3248,7 +3230,6 @@ namespace bftEngine
 				// TODO(GG): consider to add relevant asserts
 			}
 
-
 			msgReceiver = new MsgReceiver(incomingMsgsStorage);
 
 			std::set<NodeIdType> clientsSet;
@@ -3265,7 +3246,6 @@ namespace bftEngine
 			}
 
 			clientsManager->init(stateTransfer);
-
 
 			if (firstTime)
 			clientsManager->clearReservedPages();
@@ -3334,7 +3314,6 @@ namespace bftEngine
 				retransmissionsManager = nullptr;
 		}
 
-
 		ReplicaImp::~ReplicaImp()
 		{
 			// TODO(GG): rewrite this method !!!!!!!! (notice that the order may be important here ).
@@ -3357,7 +3336,6 @@ namespace bftEngine
 			delete mainLog;
 
 			delete checkpointsLog;
-
 
 			DebugStatistics::freeDebugStatisticsData();
 //			freeAllocator();
@@ -3410,7 +3388,6 @@ namespace bftEngine
 			mainThreadStarted = false;
 		}
 
-
 		bool ReplicaImp::isRunning() const
 		{
 			return mainThreadStarted;
@@ -3441,7 +3418,7 @@ namespace bftEngine
 			if(replica->stateTransfer->isCollectingState())
 			  replica->mainThreadShouldStopWhenStateIsNotCollected = true;
 			else
-				replica->mainThreadShouldStop = true;
+			  replica->mainThreadShouldStop = true;
 		}
 
 		void ReplicaImp::processMessages()
@@ -3488,7 +3465,7 @@ namespace bftEngine
 				if (!externalMsg) // if internal message
 				{
 					// TODO(GG): clean
-                                        metric_received_internal_msgs_.Get().Inc();
+					metric_received_internal_msgs_.Get().Inc();
 					InternalMessage* inMsg = (InternalMessage*)absMsg;
 					inMsg->handle();
 					delete inMsg;
@@ -3514,7 +3491,6 @@ namespace bftEngine
 				}
 			}
 		}
-
 
 		void ReplicaImp::executeReadOnlyRequest(ClientRequestMsg* request)
 		{
@@ -3554,8 +3530,6 @@ namespace bftEngine
 			DebugStatistics::onRequestCompleted(true);
 		#endif
 		}
-
-
 
 		void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg* ppMsg, bool recoverFromErrorInRequestsExecution)
 		{
@@ -3773,7 +3747,6 @@ namespace bftEngine
                     std::shared_ptr<concordMetrics::Aggregator> aggregator) {
                   metrics_.SetAggregator(aggregator);
                 }
-
 
 // TODO(GG): the timer for state transfer !!!!
 

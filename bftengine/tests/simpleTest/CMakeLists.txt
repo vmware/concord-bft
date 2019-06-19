@@ -18,28 +18,32 @@ set(config_source_files
     ${CONFIG_FOLDER_PATH_VALUE}/config_file_parser_test.cpp
 )
 
-add_executable(simpleTest_client
+add_executable(simpleTest_client $<TARGET_OBJECTS:logging_dev>
     ${simpleTest_client_source_files}
-    $<TARGET_OBJECTS:logging_dev>
 )
 
-add_executable(simpleTest_server
+add_executable(simpleTest_server $<TARGET_OBJECTS:logging_dev>
     ${simpleTest_replica_source_files}
-    $<TARGET_OBJECTS:logging_dev>
 )
 
 add_executable(configTest
     ${config_source_files}
 )
 
+if(USE_LOG4CPP)
+    target_compile_definitions(simpleTest_server PUBLIC USE_LOG4CPP=1)
+    target_compile_definitions(simpleTest_client PUBLIC USE_LOG4CPP=1)
+    target_compile_definitions(configTest PUBLIC USE_LOG4CPP=1)
+endif()
+
 if(${USE_COMM_PLAIN_TCP})
-    target_compile_definitions(simnpleTest_client PUBLIC USE_COMM_PLAIN_TCP)
-    target_compile_definitions(simnpleTest_server PUBLIC USE_COMM_PLAIN_TCP)
+    target_compile_definitions(simpleTest_client PUBLIC USE_COMM_PLAIN_TCP)
+    target_compile_definitions(simpleTest_server PUBLIC USE_COMM_PLAIN_TCP)
 endif()
 
 if(${USE_COMM_TLS_TCP})
-    target_compile_definitions(simnpleTest_client PUBLIC USE_COMM_TLS_TCP)
-    target_compile_definitions(simnpleTest_server PUBLIC USE_COMM_TLS_TCP)
+    target_compile_definitions(simpleTest_client PUBLIC USE_COMM_TLS_TCP)
+    target_compile_definitions(simpleTest_server PUBLIC USE_COMM_TLS_TCP)
 endif()
 
 set_target_properties(simpleTest_client PROPERTIES OUTPUT_NAME client)
