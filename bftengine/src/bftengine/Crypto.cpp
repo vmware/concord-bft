@@ -52,7 +52,6 @@ namespace bftEngine
 {
 namespace impl
 {
-const unsigned int rsaKeyLength = 2048; // Key length in bits
 
 #define RSA_STANDARD OAEP<SHA256>
 //#define RSA_STANDARD PKCS1v15
