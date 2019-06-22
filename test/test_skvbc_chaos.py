@@ -14,6 +14,7 @@ import unittest
 import trio
 import os.path
 import random
+import time
 
 import bft_tester
 import skvbc
@@ -33,18 +34,56 @@ def start_replica_cmd(builddir, replica_id):
     Note each arguments is an element in a list.
     """
     statusTimerMilli = "500"
+    viewChangeTimeoutMilli = "3000"
+
     path = os.path.join(builddir, "bftengine",
             "tests", "simpleKVBCTests", "TesterReplica", "skvbc_replica")
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
-            "-s", statusTimerMilli]
+            "-s", statusTimerMilli,
+            "-v", viewChangeTimeoutMilli
+            ]
 
 def interesting_configs():
-    return [{'n': 4, 'f': 1, 'c': 0, 'num_clients': 4},
-            {'n': 6, 'f': 1, 'c': 1, 'num_clients': 4},
-            {'n': 11, 'f': 2, 'c': 2, 'num_clients': 6}
-            ]
+#    return [{'n': 4, 'f': 1, 'c': 0, 'num_clients': 4},
+#            {'n': 6, 'f': 1, 'c': 1, 'num_clients': 4},
+#            {'n': 11, 'f': 2, 'c': 2, 'num_clients': 6}
+#            ]
+    return [{'n': 11, 'f': 2, 'c': 2, 'num_clients': 6}]
+
+class Status:
+    """
+    Status about the running test.
+    This is useful for debugging if the test fails.
+
+    TODO: Should this live in the tracker?
+    """
+    def __init__(self, config):
+        self.config = config
+        self.start_time = time.monotonic()
+        self.end_time = 0
+        self.last_client_reply = 0
+        self.client_timeouts = {}
+        self.client_replies = {}
+
+    def record_client_reply(self, client_id):
+        self.last_client_reply = time.monotonic()
+        count = self.client_replies.get(client_id, 0)
+        self.client_replies[client_id] = count + 1
+
+    def record_client_timeout(self, client_id):
+        count = self.client_timeouts.get(client_id, 0)
+        self.client_timeouts[client_id] = count + 1
+
+    def __str__(self):
+        return (f'{self.__class__.__name__}:\n'
+           f'  config={self.config}\n'
+           f'  test_duration={self.end_time - self.start_time} seconds\n'
+           f'  time_since_last_client_reply='
+           f'{self.end_time - self.last_client_reply} seconds\n'
+           f'  client_timeouts={self.client_timeouts}\n'
+           f'  client_replies={self.client_replies}\n')
 
 class SkvbcChaosTest(unittest.TestCase):
     def test_healthy(self):
@@ -57,12 +96,11 @@ class SkvbcChaosTest(unittest.TestCase):
 
     async def _test_healthy(self):
         num_ops = 500
-        for config in interesting_configs():
-            self.config = config
-            config = bft_tester.TestConfig(config['n'],
-                                           config['f'],
-                                           config['c'],
-                                           config['num_clients'],
+        for c in interesting_configs():
+            config = bft_tester.TestConfig(c['n'],
+                                           c['f'],
+                                           c['c'],
+                                           c['num_clients'],
                                            key_file_prefix=KEY_FILE_PREFIX,
                                            start_replica_cmd=start_replica_cmd)
 
@@ -70,6 +108,7 @@ class SkvbcChaosTest(unittest.TestCase):
                 init_state = tester.initial_state()
                 self.tracker = skvbc_linearizability.SkvbcTracker(init_state)
                 self.tester = tester
+                self.status = Status(c)
                 await tester.init()
                 tester.start_all_replicas()
                 async with trio.open_nursery() as nursery:
@@ -77,31 +116,86 @@ class SkvbcChaosTest(unittest.TestCase):
 
                 await self.verify()
 
+    def test_wreak_havoc(self):
+        """
+        Run a bunch of concurrrent requests in batches and verify
+        linearizability. In this test we generate faults periodically and verify
+        linearizability at the end of the run.
+        """
+        trio.run(self._test_wreak_havoc)
+
+    async def _test_wreak_havoc(self):
+        num_ops = 500
+        for c in interesting_configs():
+            print(f"\n\nStarting test with configuration={c}", flush=True)
+            config = bft_tester.TestConfig(c['n'],
+                                           c['f'],
+                                           c['c'],
+                                           c['num_clients'],
+                                           key_file_prefix=KEY_FILE_PREFIX,
+                                           start_replica_cmd=start_replica_cmd)
+
+            with bft_tester.BftTester(config) as tester:
+                init_state = tester.initial_state()
+                self.tracker = skvbc_linearizability.SkvbcTracker(init_state)
+                self.tester = tester
+                self.status = Status(c)
+                await tester.init()
+                tester.start_all_replicas()
+                async with trio.open_nursery() as nursery:
+                    nursery.start_soon(self.run_concurrent_ops, num_ops)
+                    nursery.start_soon(self.crash_primary)
+
+                await self.verify()
+
+            time.sleep(2)
+
     async def verify(self):
-        last_block_id = await self.get_last_block_id()
-        missing_block_ids = self.tracker.get_missing_blocks(last_block_id)
-        blocks = await self.get_blocks(missing_block_ids)
-        self.tracker.fill_missing_blocks(blocks)
         try:
+            # Use a new client, since other clients may not be responsive due to
+            # past failed responses.
+            client = await self.tester.new_client()
+            last_block_id = await self.get_last_block_id(client)
+            print(f'Last Block ID = {last_block_id}')
+            missing_block_ids = self.tracker.get_missing_blocks(last_block_id)
+            print(f'Missing Block IDs = {missing_block_ids}')
+            blocks = await self.get_blocks(client, missing_block_ids)
+            self.tracker.fill_missing_blocks(blocks)
             self.tracker.verify()
         except Exception as e:
+            print(f'retries = {client.retries}')
+            self.status.end_time = time.monotonic()
+            print("HISTORY...")
             for i, entry in enumerate(self.tracker.history):
-                print(f'Index = {i}: {entry}')
-            print(e)
+                print(f'Index = {i}: {entry}\n')
+            print("BLOCKS...")
+            print(f'{self.tracker.blocks}\n')
+            print(str(self.status), flush=True)
+            print("FAILURE...")
             raise(e)
 
-    async def get_blocks(self, block_ids):
-        client = self.tester.random_client()
+    async def get_blocks(self, client, block_ids):
         blocks = {}
         for block_id in block_ids:
-            msg = self.protocol.get_block_data_req(block_id)
-            blocks[block_id] = self.protocol.parse_reply(await client.read(msg))
+            retries = 12 # 60 seconds
+            for i in range(0, retries):
+                try:
+                    msg = self.protocol.get_block_data_req(block_id)
+                    blocks[block_id] = self.protocol.parse_reply(await client.read(msg))
+                    break
+                except trio.TooSlowError:
+                    if i == retries - 1:
+                        raise
+            print(f'Retrieved block {block_id}')
         return blocks
 
-    async def get_last_block_id(self):
-        client = self.tester.random_client()
+    async def get_last_block_id(self, client):
         msg = self.protocol.get_last_block_req()
         return self.protocol.parse_reply(await client.read(msg))
+
+    async def crash_primary(self):
+        await trio.sleep(.5)
+        self.tester.stop_replica(0)
 
     async def run_concurrent_ops(self, num_ops):
         max_concurrency = len(self.tester.clients)//2
@@ -130,9 +224,11 @@ class SkvbcChaosTest(unittest.TestCase):
             client_id, seq_num, readset, dict(writeset), read_version)
         try:
             serialized_reply = await client.write(msg, seq_num)
+            self.status.record_client_reply(client_id)
             reply = self.protocol.parse_reply(serialized_reply)
             self.tracker.handle_write_reply(client_id, seq_num, reply)
         except trio.TooSlowError:
+            self.status.record_client_timeout(client_id)
             return
 
     async def send_read(self, client, max_set_size):
@@ -143,9 +239,11 @@ class SkvbcChaosTest(unittest.TestCase):
         self.tracker.send_read(client_id, seq_num, readset)
         try:
             serialized_reply = await client.read(msg, seq_num)
+            self.status.record_client_reply(client_id)
             reply = self.protocol.parse_reply(serialized_reply)
             self.tracker.handle_read_reply(client_id, seq_num, reply)
         except trio.TooSlowError:
+            self.status.record_client_timeout(client_id)
             return
 
     def read_block_id(self):
