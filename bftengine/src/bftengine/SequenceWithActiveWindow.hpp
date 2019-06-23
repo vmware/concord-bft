@@ -53,64 +53,6 @@ class SequenceWithActiveWindow {
       ItemFuncs::free(activeWindow[i]);
   }
 
-  uint16_t getNumItems() const { return numItems; }
-
-  static uint32_t maxElementSize() {
-    return ItemType::maxSize();
-  }
-
-  static uint32_t simpleParamsSize() {
-    return sizeof(beginningOfActiveWindow);
-  }
-
-  static uint32_t maxSize() {
-    return (simpleParamsSize() + numItems * maxElementSize());
-  }
-
-  bool equals(const SequenceWithActiveWindow &other) const {
-    if (numItems != other.numItems)
-      return false;
-    for (NumbersType i = 0; i < numItems; i++) {
-      if (!(activeWindow[i].equals(other.activeWindow[i])))
-        return false;
-    }
-    return true;
-  }
-
-  void serializeSimpleParams(char *buf, size_t bufLen) const {
-    Assert(bufLen >= simpleParamsSize());
-
-    size_t beginningOfActiveWindowSize = sizeof(beginningOfActiveWindow);
-    memcpy(buf, &beginningOfActiveWindow, beginningOfActiveWindowSize);
-  }
-
-  void serializeElement(NumbersType index, char *buf, size_t bufLen,
-                        size_t &actualSize) const {
-    actualSize = 0;
-    Assert(insideActiveWindow(index));
-    Assert(bufLen >= maxElementSize());
-
-    activeWindow[index].serialize(buf, maxElementSize(), actualSize);
-  }
-
-  void deserializeSimpleParams(
-      char *buf, size_t bufLen, uint32_t &actualSize) {
-    Assert(bufLen >= simpleParamsSize());
-
-    size_t beginningOfActiveWindowSize = sizeof(beginningOfActiveWindow);
-    memcpy(&beginningOfActiveWindow, buf, beginningOfActiveWindowSize);
-    actualSize = simpleParamsSize();
-  }
-
-  void deserializeElement(NumbersType index, char *buf, size_t bufLen,
-                          uint32_t &actualSize) {
-    actualSize = 0;
-    Assert(insideActiveWindow(index));
-
-    activeWindow[index] = ItemType::deserialize(buf, bufLen, actualSize);
-    Assert(actualSize != 0);
-  }
-
   bool insideActiveWindow(NumbersType n) const {
     return ((n >= beginningOfActiveWindow)
         && (n < (beginningOfActiveWindow + WindowSize)));

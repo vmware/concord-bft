@@ -1,15 +1,14 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
 // License.
 //
-// This product may include a number of subcomponents with separate copyright
+// This product may include a number of sub-components with separate copyright
 // notices and license terms. Your use of these subcomponents is subject to the
-// terms and conditions of the subcomponent's license, as noted in the LICENSE
-// file.
+// terms and conditions of the sub-component's license, as noted in the LICENSE file.
 
 #pragma once
 
@@ -35,15 +34,12 @@ enum ConstMetadataParameterIds {
 
 const uint16_t seqWinSize = kWorkWindowSize;
 
-// SEQ_NUM_WINDOW contains kWorkWindowSize objects plus one - for simple window
-// parameters.
+// SEQ_NUM_WINDOW contains kWorkWindowSize objects plus one - for simple window parameters.
 const uint16_t numOfSeqWinObjs = seqWinSize + 1;
 
-const uint16_t checkWinSize =
-    (kWorkWindowSize + checkpointWindowSize) / checkpointWindowSize;
+const uint16_t checkWinSize = (kWorkWindowSize + checkpointWindowSize) / checkpointWindowSize;
 
-// CHECK_WINDOW contains checkWinSize objects plus one - for simple window
-// parameters.
+// CHECK_WINDOW contains checkWinSize objects plus one - for simple window parameters.
 const uint16_t numOfCheckWinObjs = checkWinSize + 1;
 
 enum WinMetadataParameterIds {
@@ -79,34 +75,23 @@ class PersistentStorageImp : public PersistentStorage {
   void setLastExecutedSeqNum(const SeqNum seqNum) override;
   void setPrimaryLastUsedSeqNum(const SeqNum seqNum) override;
   void setStrictLowerBoundOfSeqNums(const SeqNum seqNum) override;
-  void setLastViewThatTransferredSeqNumbersFullyExecuted(
-      const ViewNum view) override;
+  void setLastViewThatTransferredSeqNumbersFullyExecuted(const ViewNum view) override;
 
-  void setDescriptorOfLastExitFromView(
-      const DescriptorOfLastExitFromView &prevViewDesc) override;
-  void setDescriptorOfLastNewView(
-      const DescriptorOfLastNewView &prevViewDesc) override;
-  void setDescriptorOfLastExecution(
-      const DescriptorOfLastExecution &prevViewDesc) override;
+  void setDescriptorOfLastExitFromView(const DescriptorOfLastExitFromView &prevViewDesc) override;
+  void setDescriptorOfLastNewView(const DescriptorOfLastNewView &prevViewDesc) override;
+  void setDescriptorOfLastExecution(const DescriptorOfLastExecution &prevViewDesc) override;
 
   void setLastStableSeqNum(const SeqNum seqNum) override;
-  void setPrePrepareMsgInSeqNumWindow(
-      const SeqNum seqNum, const PrePrepareMsg *const msg) override;
-  void setSlowStartedInSeqNumWindow(const SeqNum seqNum,
-                                    const bool slowStarted) override;
-  void setFullCommitProofMsgInSeqNumWindow(
-      const SeqNum seqNum, const FullCommitProofMsg *const msg) override;
-  void setForceCompletedInSeqNumWindow(
-      const SeqNum seqNum, const bool forceCompleted) override;
-  void setPrepareFullMsgInSeqNumWindow(
-      const SeqNum seqNum, const PrepareFullMsg *const msg) override;
-  void setCommitFullMsgInSeqNumWindow(
-      const SeqNum seqNum, const CommitFullMsg *const msg) override;
+  void setPrePrepareMsgInSeqNumWindow(const SeqNum seqNum, const PrePrepareMsg *const msg) override;
+  void setSlowStartedInSeqNumWindow(const SeqNum seqNum, const bool slowStarted) override;
+  void setFullCommitProofMsgInSeqNumWindow(const SeqNum seqNum, const FullCommitProofMsg *const msg) override;
+  void setForceCompletedInSeqNumWindow(const SeqNum seqNum, const bool forceCompleted) override;
+  void setPrepareFullMsgInSeqNumWindow(const SeqNum seqNum, const PrepareFullMsg *const msg) override;
+  void setCommitFullMsgInSeqNumWindow(const SeqNum seqNum, const CommitFullMsg *const msg) override;
+  void setCheckpointMsgInCheckWindow(const SeqNum seqNum, const CheckpointMsg *const msg) override;
+  void setCompletedMarkInCheckWindow(const SeqNum seqNum, const bool completed) override;
+  void clearSeqNumWindow() override;
 
-  void setCheckpointMsgInCheckWindow(
-      const SeqNum seqNum, const CheckpointMsg *const msg) override;
-  void setCompletedMarkInCheckWindow(const SeqNum seqNum,
-                                     const bool completed) override;
   // Getters
   std::string getStoredVersion();
   std::string getCurrentVersion() const { return version_; }
@@ -118,30 +103,22 @@ class PersistentStorageImp : public PersistentStorage {
   ViewNum getLastViewThatTransferredSeqNumbersFullyExecuted() override;
   SeqNum getLastStableSeqNum() override;
 
-  DescriptorOfLastExitFromView
-  getAndAllocateDescriptorOfLastExitFromView() override;
+  DescriptorOfLastExitFromView getAndAllocateDescriptorOfLastExitFromView() override;
   DescriptorOfLastNewView getAndAllocateDescriptorOfLastNewView() override;
   DescriptorOfLastExecution getDescriptorOfLastExecution() override;
 
-  PrePrepareMsg *getAndAllocatePrePrepareMsgInSeqNumWindow(
-      const SeqNum seqNum) override;
+  PrePrepareMsg *getAndAllocatePrePrepareMsgInSeqNumWindow(const SeqNum seqNum) override;
   bool getSlowStartedInSeqNumWindow(const SeqNum seqNum) override;
-  FullCommitProofMsg *getAndAllocateFullCommitProofMsgInSeqNumWindow(
-      const SeqNum seqNum) override;
+  FullCommitProofMsg *getAndAllocateFullCommitProofMsgInSeqNumWindow(const SeqNum seqNum) override;
   bool getForceCompletedInSeqNumWindow(const SeqNum seqNum) override;
-  PrepareFullMsg *getAndAllocatePrepareFullMsgInSeqNumWindow(
-      const SeqNum seqNum) override;
-  CommitFullMsg *getAndAllocateCommitFullMsgInSeqNumWindow(
-      const SeqNum seqNum) override;
-
-  CheckpointMsg *getAndAllocateCheckpointMsgInCheckWindow(
-      const SeqNum seqNum) override;
+  PrepareFullMsg *getAndAllocatePrepareFullMsgInSeqNumWindow(const SeqNum seqNum) override;
+  CommitFullMsg *getAndAllocateCommitFullMsgInSeqNumWindow(const SeqNum seqNum) override;
+  CheckpointMsg *getAndAllocateCheckpointMsgInCheckWindow(const SeqNum seqNum) override;
   bool getCompletedMarkInCheckWindow(const SeqNum seqNum) override;
 
   SeqNumWindow &getSeqNumWindow();
   CheckWindow &getCheckWindow();
 
-  void clearSeqNumWindow() override;
   bool hasReplicaConfig() const override;
 
   bool hasDescriptorOfLastExitFromView() override;
@@ -159,41 +136,36 @@ class PersistentStorageImp : public PersistentStorage {
  private:
   void initMetadataStorage(MetadataStorage *&metadataStorage);
   void setDefaultsInMetadataStorage();
-  void verifySetDescriptorOfLastExitFromView(
-      const DescriptorOfLastExitFromView &desc) const;
+  void verifySetDescriptorOfLastExitFromView(const DescriptorOfLastExitFromView &desc) const;
   void verifyPrevViewInfo(const DescriptorOfLastExitFromView &desc) const;
-  void verifySetDescriptorOfLastNewView(
-      const DescriptorOfLastNewView &desc) const;
+  void verifySetDescriptorOfLastNewView(const DescriptorOfLastNewView &desc) const;
   void verifyLastNewViewMsgs(const DescriptorOfLastNewView &desc) const;
-  void verifyDescriptorOfLastExecution(
-      const DescriptorOfLastExecution &desc) const;
+  void verifyDescriptorOfLastExecution(const DescriptorOfLastExecution &desc) const;
 
-  void saveDescriptorOfLastExitFromView(
-      const DescriptorOfLastExitFromView &newDesc);
-  void setDescriptorOfLastExitFromView(
-      const DescriptorOfLastExitFromView &desc, bool init);
+  void saveDescriptorOfLastExitFromView(const DescriptorOfLastExitFromView &newDesc);
+  void setDescriptorOfLastExitFromView(const DescriptorOfLastExitFromView &desc, bool init);
   void initDescriptorOfLastExitFromView();
   void saveDescriptorOfLastNewView(const DescriptorOfLastNewView &newDesc);
-  void setDescriptorOfLastNewView(
-      const DescriptorOfLastNewView &desc, bool init);
+  void setDescriptorOfLastNewView(const DescriptorOfLastNewView &desc, bool init);
   void initDescriptorOfLastNewView();
   void saveDescriptorOfLastExecution(const DescriptorOfLastExecution &newDesc);
-  void setDescriptorOfLastExecution(
-      const DescriptorOfLastExecution &desc, bool init);
+  void setDescriptorOfLastExecution(const DescriptorOfLastExecution &desc, bool init);
   void initDescriptorOfLastExecution();
 
   void setVersion() const;
+
   void setSeqNumDataElement(SeqNum index, char *buf) const;
-  void setSeqNumDataElement(SeqNum seqNum) const;
+  void setSeqNumDataElementBySeqNum(SeqNum seqNum) const;
+  void serializeAndSaveSeqNumWindow() const;
+
   void setCheckDataElement(SeqNum index, char *buf) const;
-  void setCheckDataElement(SeqNum seqNum) const;
-  void setSeqNumWindow() const;
-  void setCheckWindow() const;
+  void setCheckDataElementBySeqNum(SeqNum seqNum) const;
+  void serializeAndSaveCheckWindow() const;
 
   void getSeqNumDataElement(SeqNum index, char *buf);
-  void getSeqNumDataElement(SeqNum seqNum);
+  void getSeqNumDataElementBySeqNum(SeqNum seqNum);
   void getCheckDataElement(SeqNum index, char *buf);
-  void getCheckDataElement(SeqNum seqNum);
+  void getCheckDataElementBySeqNum(SeqNum seqNum);
 
   void setFetchingStateInternal(const bool &state);
   void setLastExecutedSeqNumInternal(const SeqNum &seqNum);
@@ -213,7 +185,6 @@ class PersistentStorageImp : public PersistentStorage {
 
   uint8_t numOfNestedTransactions_ = 0;
   const uint32_t numOfReplicas_;
-  const uint32_t metadataParamsNum_;
   const SeqNum seqNumWindowFirst_ = 1;
   SeqNum seqNumWindowLast_ = seqNumWindowFirst_;
   const SeqNum checkWindowFirst_ = 0;
