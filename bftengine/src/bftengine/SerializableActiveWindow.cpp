@@ -55,7 +55,6 @@ template<TEMPLATE_PARAMS>
 void SerializableActiveWindow<INPUT_PARAMS>::serializeElement(
     uint16_t index, char *buf, size_t bufLen, size_t &actualSize) const {
   actualSize = 0;
-  Assert(insideActiveWindow(beginningOfActiveWindow_+ index));
   Assert(bufLen >= maxElementSize());
   activeWindow_[index].serialize(buf, maxElementSize(), actualSize);
 }
@@ -72,7 +71,8 @@ template<TEMPLATE_PARAMS>
 void SerializableActiveWindow<INPUT_PARAMS>::deserializeElement(
     uint16_t index, char *buf, size_t bufLen, uint32_t &actualSize) {
   actualSize = 0;
-  Assert(insideActiveWindow(beginningOfActiveWindow_+ index));
+  Assert(insideActiveWindow(beginningOfActiveWindow_ + index));
+  activeWindow_[index].reset();
   activeWindow_[index] = ItemType::deserialize(buf, bufLen, actualSize);
   Assert(actualSize != 0);
 }
@@ -86,12 +86,14 @@ template<TEMPLATE_PARAMS>
 SeqNum SerializableActiveWindow<INPUT_PARAMS>::convertIndex(const SeqNum &seqNum) const {
   Assert(seqNum % Resolution == 0);
   Assert(insideActiveWindow(seqNum));
-  return (seqNum / Resolution) % numItems_;
+  SeqNum converted = (seqNum / Resolution) % numItems_;
+  return converted;
 }
 
+// Accessed by an internal index
 template<TEMPLATE_PARAMS>
-ItemType &SerializableActiveWindow<INPUT_PARAMS>::get(uint16_t num) {
-  return activeWindow_[convertIndex(num)];
+ItemType &SerializableActiveWindow<INPUT_PARAMS>::get(uint16_t seqNum) {
+  return activeWindow_[(seqNum / Resolution) % numItems_];
 }
 
 template<TEMPLATE_PARAMS>
