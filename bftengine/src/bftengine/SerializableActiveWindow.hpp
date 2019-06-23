@@ -44,10 +44,6 @@ class SerializableActiveWindow {
     return sizeof(beginningOfActiveWindow_);
   }
 
-  static uint32_t maxSize() {
-    return (simpleParamsSize() + numItems_ * maxElementSize());
-  }
-
   SeqNum convertIndex(const SeqNum &seqNum) const;
 
   bool equals(const SerializableActiveWindow &other) const;

@@ -220,8 +220,7 @@ size_t MessageBase::serializeMsg(char *&buf, MessageBase *msg) {
   return msgEmptyFLagSize + actualMsgSize;
 }
 
-MessageBase *MessageBase::deserializeMsg(char *&buf, size_t bufLen,
-                                         size_t &actualSize) {
+MessageBase *MessageBase::deserializeMsg(char *&buf, size_t bufLen, size_t &actualSize) {
   bool msgEmptyFlag = false;
   uint32_t msgEmptyFlagSize = sizeof(msgEmptyFlag);
   std::memcpy(&msgEmptyFlag, buf, msgEmptyFlagSize);
