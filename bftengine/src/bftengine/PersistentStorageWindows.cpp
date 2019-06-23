@@ -17,42 +17,40 @@ namespace bftEngine {
 namespace impl {
 
 void SeqNumData::reset() {
-  delete prePrepareMsg;
-  delete fullCommitProofMsg;
-  delete prepareFullMsg;
-  delete commitFullMsg;
+  delete prePrepareMsg_;
+  delete fullCommitProofMsg_;
+  delete prepareFullMsg_;
+  delete commitFullMsg_;
 
-  prePrepareMsg = nullptr;
-  fullCommitProofMsg = nullptr;
-  prepareFullMsg = nullptr;
-  commitFullMsg = nullptr;
+  prePrepareMsg_ = nullptr;
+  fullCommitProofMsg_ = nullptr;
+  prepareFullMsg_ = nullptr;
+  commitFullMsg_ = nullptr;
 
-  slowStarted = false;
-  forceCompleted = false;
+  slowStarted_ = false;
+  forceCompleted_ = false;
 }
 
-void SeqNumData::serialize(
-    char *buf, uint32_t bufLen, size_t &actualSize) const {
+void SeqNumData::serialize(char *buf, uint32_t bufLen, size_t &actualSize) const {
   actualSize = 0;
   Assert(bufLen >= maxSize());
 
-  actualSize += MessageBase::serializeMsg(buf, prePrepareMsg);
-  actualSize += MessageBase::serializeMsg(buf, fullCommitProofMsg);
-  actualSize += MessageBase::serializeMsg(buf, prepareFullMsg);
-  actualSize += MessageBase::serializeMsg(buf, commitFullMsg);
+  actualSize += MessageBase::serializeMsg(buf, prePrepareMsg_);
+  actualSize += MessageBase::serializeMsg(buf, fullCommitProofMsg_);
+  actualSize += MessageBase::serializeMsg(buf, prepareFullMsg_);
+  actualSize += MessageBase::serializeMsg(buf, commitFullMsg_);
 
-  size_t slowStartedSize = sizeof(slowStarted);
-  memcpy(buf, &slowStarted, slowStartedSize);
+  size_t slowStartedSize = sizeof(slowStarted_);
+  memcpy(buf, &slowStarted_, slowStartedSize);
   buf += slowStartedSize;
 
-  size_t forceCompletedSize = sizeof(forceCompleted);
-  memcpy(buf, &forceCompleted, forceCompletedSize);
+  size_t forceCompletedSize = sizeof(forceCompleted_);
+  memcpy(buf, &forceCompleted_, forceCompletedSize);
 
   actualSize += slowStartedSize + forceCompletedSize;
 }
 
-SeqNumData SeqNumData::deserialize(
-    char *buf, uint32_t bufLen, uint32_t &actualSize) {
+SeqNumData SeqNumData::deserialize(char *buf, uint32_t bufLen, uint32_t &actualSize) {
   actualSize = 0;
 
   size_t msgSize1 = 0, msgSize2 = 0, msgSize3 = 0, msgSize4 = 0;
@@ -70,8 +68,7 @@ SeqNumData SeqNumData::deserialize(
   size_t slowStartedSize = sizeof(slowStarted);
   memcpy(&slowStarted, buf, slowStartedSize);
 
-  actualSize = msgSize1 + msgSize2 + msgSize3 + msgSize4 + slowStartedSize +
-      forceCompletedSize;
+  actualSize = msgSize1 + msgSize2 + msgSize3 + msgSize4 + slowStartedSize + forceCompletedSize;
   return SeqNumData{(PrePrepareMsg *) prePrepareMsg,
                     (FullCommitProofMsg *) fullCommitProofMsg,
                     (PrepareFullMsg *) prepareFullMsg,
@@ -86,17 +83,16 @@ bool SeqNumData::compareMessages(MessageBase *msg, MessageBase *otherMsg) {
 }
 
 bool SeqNumData::equals(const SeqNumData &other) const {
-  if (!compareMessages(prePrepareMsg, other.prePrepareMsg))
+  if (!compareMessages(prePrepareMsg_, other.prePrepareMsg_))
     return false;
-  if (!compareMessages(fullCommitProofMsg, other.fullCommitProofMsg))
+  if (!compareMessages(fullCommitProofMsg_, other.fullCommitProofMsg_))
     return false;
-  if (!compareMessages(prepareFullMsg, other.prepareFullMsg))
+  if (!compareMessages(prepareFullMsg_, other.prepareFullMsg_))
     return false;
-  if (!compareMessages(commitFullMsg, other.commitFullMsg))
+  if (!compareMessages(commitFullMsg_, other.commitFullMsg_))
     return false;
 
-  return ((slowStarted == other.slowStarted) &&
-      (forceCompleted == other.forceCompleted));
+  return ((slowStarted_ == other.slowStarted_) && (forceCompleted_ == other.forceCompleted_));
 }
 
 uint32_t SeqNumData::maxSize() {
@@ -105,34 +101,29 @@ uint32_t SeqNumData::maxSize() {
       FullCommitProofMsg::maxSizeOfFullCommitProofMsgInLocalBuffer() +
       PrepareFullMsg::maxSizeOfPrepareFullInLocalBuffer() +
       CommitFullMsg::maxSizeOfCommitFullInLocalBuffer() +
-      4 * sizeof(msgEmptyFlag) +
-      sizeof(slowStarted) +
-      sizeof(forceCompleted));
+      4 * sizeof(msgEmptyFlag) + sizeof(slowStarted_) + sizeof(forceCompleted_));
 }
 
 /*****************************************************************************/
 
 void CheckData::reset() {
-  delete checkpointMsg;
-  checkpointMsg = nullptr;
-  completedMark = false;
+  delete checkpointMsg_;
+  checkpointMsg_ = nullptr;
+  completedMark_ = false;
 }
 
-void CheckData::serialize(char *buf, uint32_t bufLen,
-                          size_t &actualSize) const {
+void CheckData::serialize(char *buf, uint32_t bufLen, size_t &actualSize) const {
   actualSize = 0;
   Assert(bufLen >= maxSize());
 
-  size_t completedMarkSize = sizeof(completedMark);
-  memcpy(buf, &completedMark, completedMarkSize);
+  size_t completedMarkSize = sizeof(completedMark_);
+  memcpy(buf, &completedMark_, completedMarkSize);
   buf += completedMarkSize;
 
-  actualSize += MessageBase::serializeMsg(buf, checkpointMsg) +
-      completedMarkSize;
+  actualSize += MessageBase::serializeMsg(buf, checkpointMsg_) + completedMarkSize;
 }
 
-CheckData CheckData::deserialize(
-    char *buf, uint32_t bufLen, uint32_t &actualSize) {
+CheckData CheckData::deserialize(char *buf, uint32_t bufLen, uint32_t &actualSize) {
   actualSize = 0;
 
   bool completedMark = false;
@@ -148,20 +139,17 @@ CheckData CheckData::deserialize(
 }
 
 bool CheckData::equals(const CheckData &other) const {
-  if ((checkpointMsg && !other.checkpointMsg) ||
-      (!checkpointMsg && other.checkpointMsg))
+  if ((checkpointMsg_ && !other.checkpointMsg_) || (!checkpointMsg_ && other.checkpointMsg_))
     return false;
-  bool res =
-      checkpointMsg ? (checkpointMsg->equals(*other.checkpointMsg)) : true;
+  bool res = checkpointMsg_ ? (checkpointMsg_->equals(*other.checkpointMsg_)) : true;
   if (!res)
     return false;
-  return (completedMark == other.completedMark);
+  return (completedMark_ == other.completedMark_);
 }
 
 uint32_t CheckData::maxSize() {
   bool msgEmptyFlag;
-  return (CheckpointMsg::maxSizeOfCheckpointMsgInLocalBuffer() +
-      sizeof(msgEmptyFlag) + sizeof(completedMark));
+  return (CheckpointMsg::maxSizeOfCheckpointMsgInLocalBuffer() + sizeof(msgEmptyFlag) + sizeof(completedMark_));
 }
 
 }

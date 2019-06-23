@@ -13,7 +13,8 @@
 
 #pragma once
 
-#include "SequenceWithActiveWindow.hpp"
+#include "SerializableActiveWindow.hpp"
+#include "SerializableActiveWindow.cpp"
 #include "PrePrepareMsg.hpp"
 #include "SignedShareMsgs.hpp"
 #include "FullCommitProofMsg.hpp"
@@ -22,26 +23,14 @@
 namespace bftEngine {
 namespace impl {
 
-struct SeqNumData {
-  PrePrepareMsg *prePrepareMsg = nullptr;
-  FullCommitProofMsg *fullCommitProofMsg = nullptr;
-  PrepareFullMsg *prepareFullMsg = nullptr;
-  CommitFullMsg *commitFullMsg = nullptr;
-  bool forceCompleted = false;
-  bool slowStarted = false;
-
-  SeqNumData(PrePrepareMsg *prePrepare,
-             FullCommitProofMsg *fullCommitProof,
-             PrepareFullMsg *prepareFull,
-             CommitFullMsg *commitFull,
-             bool forceComplete,
-             bool slowStart) :
-      prePrepareMsg(prePrepare),
-      fullCommitProofMsg(fullCommitProof),
-      prepareFullMsg(prepareFull),
-      commitFullMsg(commitFull),
-      forceCompleted(forceComplete),
-      slowStarted(slowStart) {}
+class SeqNumData {
+ public:
+  SeqNumData(PrePrepareMsg *prePrepare, FullCommitProofMsg *fullCommitProof,
+             PrepareFullMsg *prepareFull, CommitFullMsg *commitFull,
+             bool forceComplete, bool slowStart) :
+      prePrepareMsg_(prePrepare), fullCommitProofMsg_(fullCommitProof),
+      prepareFullMsg_(prepareFull), commitFullMsg_(commitFull),
+      forceCompleted_(forceComplete), slowStarted_(slowStart) {}
 
   SeqNumData() = default;
 
@@ -49,21 +38,25 @@ struct SeqNumData {
   void reset();
   void serialize(char *buf, uint32_t bufLen, size_t &actualSize) const;
 
-  static SeqNumData deserialize(
-      char *buf, uint32_t bufLen, uint32_t &actualSize);
+  static SeqNumData deserialize(char *buf, uint32_t bufLen, uint32_t &actualSize);
   static uint32_t maxSize();
 
  private:
   static bool compareMessages(MessageBase *msg, MessageBase *otherMsg);
+
+ public:
+  PrePrepareMsg *prePrepareMsg_ = nullptr;
+  FullCommitProofMsg *fullCommitProofMsg_ = nullptr;
+  PrepareFullMsg *prepareFullMsg_ = nullptr;
+  CommitFullMsg *commitFullMsg_ = nullptr;
+  bool forceCompleted_ = false;
+  bool slowStarted_ = false;
 };
 
-struct CheckData {
-  CheckpointMsg *checkpointMsg = nullptr;
-  bool completedMark = false;
-
+class CheckData {
+ public:
   CheckData(CheckpointMsg *checkpoint, bool completed) :
-      checkpointMsg(checkpoint),
-      completedMark(completed) {}
+      checkpointMsg_(checkpoint), completedMark_(completed) {}
 
   CheckData() = default;
 
@@ -71,26 +64,16 @@ struct CheckData {
   void reset();
   void serialize(char *buf, uint32_t bufLen, size_t &actualSize) const;
 
-  static CheckData deserialize(
-      char *buf, uint32_t bufLen, uint32_t &actualSize);
+  static CheckData deserialize(char *buf, uint32_t bufLen, uint32_t &actualSize);
   static uint32_t maxSize();
+
+ public:
+  CheckpointMsg *checkpointMsg_ = nullptr;
+  bool completedMark_ = false;
 };
 
-struct WindowFuncs {
-  static void init(SeqNumData &seqNumData, void *data) {}
-  static void free(SeqNumData &seqNumData) { reset(seqNumData); }
-  static void reset(SeqNumData &seqNumData) { seqNumData.reset(); }
+typedef SerializableActiveWindow<kWorkWindowSize, 1, SeqNumData> SeqNumWindow;
 
-  static void init(CheckData &checkData, void *data) {}
-  static void free(CheckData &checkData) { reset(checkData); }
-  static void reset(CheckData &checkData) { checkData.reset(); }
-};
-
-typedef SequenceWithActiveWindow<kWorkWindowSize, 1, SeqNum, SeqNumData,
-                                 WindowFuncs> SeqNumWindow;
-
-typedef SequenceWithActiveWindow<kWorkWindowSize + checkpointWindowSize,
-                                 checkpointWindowSize, SeqNum, CheckData,
-                                 WindowFuncs> CheckWindow;
+typedef SerializableActiveWindow<kWorkWindowSize + checkpointWindowSize, checkpointWindowSize, CheckData> CheckWindow;
 }
 }  // namespace bftEngine

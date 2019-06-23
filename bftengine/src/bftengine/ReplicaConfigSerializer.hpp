@@ -31,12 +31,17 @@ class ReplicaConfigSerializer : public Serializable {
   void setConfig(const ReplicaConfig &config);
 
   bool operator==(const ReplicaConfigSerializer &other) const;
+  ReplicaConfigSerializer &operator=(const ReplicaConfigSerializer &other);
 
   // Serialization/deserialization
   UniquePtrToClass create(std::istream &inStream) override;
 
-  // To be used ONLY during deserialization.
-  ReplicaConfigSerializer() { config_ = new ReplicaConfig; };
+  // To be used ONLY during object registration and deserialization.
+  ReplicaConfigSerializer() {
+    if (config_)
+      delete config_;
+    config_ = new ReplicaConfig;
+  };
 
   static uint32_t maxSize(uint32_t numOfReplicas);
 

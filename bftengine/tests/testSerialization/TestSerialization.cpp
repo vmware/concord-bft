@@ -65,8 +65,7 @@ class IShareVerificationKeyDummy : public IShareVerificationKey {
 class IThresholdSignerDummy : public IThresholdSigner {
  public:
   int requiredLengthForSignedData() const override { return 2048; }
-  void signData(const char *hash, int hashLen,
-                char *outSig, int outSigLen) override {}
+  void signData(const char *hash, int hashLen, char *outSig, int outSigLen) override {}
 
   const IShareSecretKey &getShareSecretKey() const override {
     return shareSecretKey;
@@ -89,8 +88,7 @@ class IThresholdSignerDummy : public IThresholdSigner {
 };
 
 void IThresholdSignerDummy::registerClass() {
-  classNameToObjectMap_["IThresholdSignerDummy"] =
-      UniquePtrToClass(new IThresholdSignerDummy);
+  classNameToObjectMap_["IThresholdSignerDummy"] = UniquePtrToClass(new IThresholdSignerDummy);
 }
 
 class IThresholdAccumulatorDummy : public IThresholdAccumulator {
@@ -106,14 +104,9 @@ class IThresholdAccumulatorDummy : public IThresholdAccumulator {
 class IThresholdVerifierDummy : public IThresholdVerifier {
  public:
   IThresholdAccumulator *newAccumulator(
-      bool withShareVerification) const override {
-    return new IThresholdAccumulatorDummy;
-  }
+      bool withShareVerification) const override { return new IThresholdAccumulatorDummy; }
   void release(IThresholdAccumulator *acc) override {}
-  bool verify(const char *msg,
-              int msgLen,
-              const char *sig,
-              int sigLen) const override { return true; }
+  bool verify(const char *msg, int msgLen, const char *sig, int sigLen) const override { return true; }
   int requiredLengthForSignedData() const override { return 2048; }
   const IPublicKey &getPublicKey() const override { return shareVerifyKey; }
   const IShareVerificationKey &getShareVerificationKey(
@@ -133,8 +126,7 @@ class IThresholdVerifierDummy : public IThresholdVerifier {
 };
 
 void IThresholdVerifierDummy::registerClass() {
-  classNameToObjectMap_["IThresholdVerifierDummy"] =
-      UniquePtrToClass(new IThresholdVerifierDummy);
+  classNameToObjectMap_["IThresholdVerifierDummy"] = UniquePtrToClass(new IThresholdVerifierDummy);
 }
 
 void printRawBuf(const UniquePtrToChar &buf, int64_t bufSize) {
@@ -149,6 +141,8 @@ void printRawBuf(const UniquePtrToChar &buf, int64_t bufSize) {
 
 uint16_t fVal = 2;
 uint16_t cVal = 1;
+
+const uint16_t msgsNum = 2 * fVal + 2 * cVal + 1;
 
 typedef pair<uint16_t, string> IdToKeyPair;
 
@@ -168,62 +162,19 @@ DescriptorOfLastExitFromView *descriptorOfLastExitFromView = nullptr;
 DescriptorOfLastNewView *descriptorOfLastNewView = nullptr;
 DescriptorOfLastExecution *descriptorOfLastExecution = nullptr;
 
-SeqNumWindow seqNumWindow{1, nullptr};
-CheckWindow checkWindow{0, nullptr};
+SeqNumWindow seqNumWindow{1};
+CheckWindow checkWindow{0};
 
-void fillReplicaConfig() {
-  config.fVal = fVal;
-  config.cVal = cVal;
-  config.replicaId = 3;
-  config.numOfClientProxies = 8;
-  config.statusReportTimerMillisec = 15;
-  config.concurrencyLevel = 5;
-  config.autoViewChangeEnabled = true;
-  config.viewChangeTimerMillisec = 12;
+void testInit(bool testInitFunctionality) {
+  if (!testInitFunctionality)
+    return;
 
-  config.replicaPrivateKey = replicaPrivateKey;
-  config.publicKeysOfReplicas.insert(IdToKeyPair(0, publicKeyValue1));
-  config.publicKeysOfReplicas.insert(IdToKeyPair(1, publicKeyValue2));
-  config.publicKeysOfReplicas.insert(IdToKeyPair(2, publicKeyValue3));
-  config.publicKeysOfReplicas.insert(IdToKeyPair(3, publicKeyValue4));
-
-  config.thresholdSignerForExecution = new IThresholdSignerDummy;
-  config.thresholdVerifierForExecution = new IThresholdVerifierDummy;
-  config.thresholdSignerForSlowPathCommit = new IThresholdSignerDummy;
-  config.thresholdVerifierForSlowPathCommit = new IThresholdVerifierDummy;
-  config.thresholdSignerForCommit = new IThresholdSignerDummy;
-  config.thresholdVerifierForCommit = new IThresholdVerifierDummy;
-  config.thresholdSignerForOptimisticCommit = new IThresholdSignerDummy;
-  config.thresholdVerifierForOptimisticCommit = new IThresholdVerifierDummy;
-
-  IThresholdVerifierDummy::registerClass();
-  IThresholdSignerDummy::registerClass();
-
-  replicaConfigSerializer = new ReplicaConfigSerializer(config);
-  UniquePtrToChar buf;
-  int64_t bufSize = 0;
-  replicaConfigSerializer->serialize(buf, bufSize);
-
-  UniquePtrToClass result =
-      ReplicaConfigSerializer::deserialize(buf, bufSize);
-
-  auto *outResult = (ReplicaConfigSerializer *) result.get();
-  bool res = result && (*replicaConfigSerializer == *outResult);
-  assert(res);
-}
-
-void testInit() {
-  assert(persistentStorageImp->getStoredVersion() ==
-      persistentStorageImp->getCurrentVersion());
+  assert(persistentStorageImp->getStoredVersion() == persistentStorageImp->getCurrentVersion());
   assert(persistentStorageImp->getFetchingState() == fetchingState);
   assert(persistentStorageImp->getLastExecutedSeqNum() == lastExecutedSeqNum);
-  assert(persistentStorageImp->getPrimaryLastUsedSeqNum() ==
-      primaryLastUsedSeqNum);
-  assert(persistentStorageImp->getStrictLowerBoundOfSeqNums() ==
-      strictLowerBoundOfSeqNums);
-  assert(persistentStorageImp->
-      getLastViewThatTransferredSeqNumbersFullyExecuted()
-             == lastViewTransferredSeqNum);
+  assert(persistentStorageImp->getPrimaryLastUsedSeqNum() == primaryLastUsedSeqNum);
+  assert(persistentStorageImp->getStrictLowerBoundOfSeqNums() == strictLowerBoundOfSeqNums);
+  assert(persistentStorageImp->getLastViewThatTransferredSeqNumbersFullyExecuted() == lastViewTransferredSeqNum);
   assert(persistentStorageImp->getLastStableSeqNum() == lastStableSeqNum);
 
   SeqNumWindow retrievedSeqNumWindow = persistentStorageImp->getSeqNumWindow();
@@ -232,20 +183,17 @@ void testInit() {
   CheckWindow retrievedCheckWindow = persistentStorageImp->getCheckWindow();
   assert(retrievedCheckWindow.equals(checkWindow));
 
-  DescriptorOfLastExitFromView lastExitFromView =
-      persistentStorageImp->getAndAllocateDescriptorOfLastExitFromView();
+  DescriptorOfLastExitFromView lastExitFromView = persistentStorageImp->getAndAllocateDescriptorOfLastExitFromView();
   assert(lastExitFromView.equals(*descriptorOfLastExitFromView));
   bool descHasSet = persistentStorageImp->hasDescriptorOfLastExitFromView();
   assert(!descHasSet);
 
-  DescriptorOfLastNewView lastNewView =
-      persistentStorageImp->getAndAllocateDescriptorOfLastNewView();
+  DescriptorOfLastNewView lastNewView = persistentStorageImp->getAndAllocateDescriptorOfLastNewView();
   assert(lastNewView.equals(*descriptorOfLastNewView));
   descHasSet = persistentStorageImp->hasDescriptorOfLastNewView();
   assert(!descHasSet);
 
-  DescriptorOfLastExecution lastExecution =
-      persistentStorageImp->getDescriptorOfLastExecution();
+  DescriptorOfLastExecution lastExecution = persistentStorageImp->getDescriptorOfLastExecution();
   assert(lastExecution.equals(*descriptorOfLastExecution));
   descHasSet = persistentStorageImp->hasDescriptorOfLastExecution();
   assert(!descHasSet);
@@ -254,73 +202,138 @@ void testInit() {
   lastExitFromView.clean();
   descriptorOfLastNewView->clean();
   lastNewView.clean();
-  delete descriptorOfLastExecution;
+}
+
+void testWindowsSetUp() {
+  const SeqNum prePrepareMsgSeqNum = 172;
+  ReplicaId sender = 2;
+  ViewNum view = 6;
+  CommitPath firstPath = CommitPath::FAST_WITH_THRESHOLD;
+  PrePrepareMsg prePrepareInitialMsg(sender, view, prePrepareMsgSeqNum, firstPath);
+
+  const SeqNum slowStartedSeqNum = 192;
+  bool slowStarted = true;
+
+  const SeqNum fullCommitProofSeqNum = 292;
+  FullCommitProofMsg fullCommitProofInitialMsg(sender, view, fullCommitProofSeqNum, nullptr, 0);
+
+  const bool forceCompleted = true;
+
+  const SeqNum prePrepareFullSeqNum = 202;
+  PrepareFullMsg *prePrepareFullInitialMsg = PrepareFullMsg::create(view, prePrepareFullSeqNum, sender, nullptr, 0);
+
+  const SeqNum commitFullSeqNum = 242;
+  CommitFullMsg *commitFullInitialMsg = CommitFullMsg::create(view, commitFullSeqNum, sender, nullptr, 0);
+
+  const SeqNum checkpointSeqNum = 150;
+  Digest stateDigest;
+  const bool stateIsStable = true;
+  CheckpointMsg checkpointInitialMsg(sender, checkpointSeqNum, stateDigest, stateIsStable);
+
+  const bool completed = true;
+
+  persistentStorageImp->beginWriteTran();
+  persistentStorageImp->setPrePrepareMsgInSeqNumWindow(prePrepareMsgSeqNum, &prePrepareInitialMsg);
+  persistentStorageImp->setSlowStartedInSeqNumWindow(slowStartedSeqNum, slowStarted);
+  persistentStorageImp->setFullCommitProofMsgInSeqNumWindow(fullCommitProofSeqNum, &fullCommitProofInitialMsg);
+  persistentStorageImp->setForceCompletedInSeqNumWindow(fullCommitProofSeqNum, forceCompleted);
+  persistentStorageImp->setPrepareFullMsgInSeqNumWindow(prePrepareFullSeqNum, prePrepareFullInitialMsg);
+  persistentStorageImp->setCommitFullMsgInSeqNumWindow(commitFullSeqNum, commitFullInitialMsg);
+
+  persistentStorageImp->setCheckpointMsgInCheckWindow(checkpointSeqNum, &checkpointInitialMsg);
+  persistentStorageImp->setCompletedMarkInCheckWindow(checkpointSeqNum, completed);
+  persistentStorageImp->endWriteTran();
+
+  PrePrepareMsg *prePrepareMsg = persistentStorageImp->getAndAllocatePrePrepareMsgInSeqNumWindow(prePrepareMsgSeqNum);
+  Assert(prePrepareMsg->equals(prePrepareInitialMsg));
+
+  Assert(slowStarted == persistentStorageImp->getSlowStartedInSeqNumWindow(slowStartedSeqNum));
+
+  FullCommitProofMsg *fullCommitProofMsg =
+      persistentStorageImp->getAndAllocateFullCommitProofMsgInSeqNumWindow(fullCommitProofSeqNum);
+  Assert(fullCommitProofMsg->equals(fullCommitProofInitialMsg));
+
+  Assert(forceCompleted == persistentStorageImp->getForceCompletedInSeqNumWindow(fullCommitProofSeqNum));
+
+  PrepareFullMsg *prepareFullMsg =
+      persistentStorageImp->getAndAllocatePrepareFullMsgInSeqNumWindow(prePrepareFullSeqNum);
+  Assert(prepareFullMsg->equals(*prePrepareFullInitialMsg));
+
+  CommitFullMsg *commitFullMsg = persistentStorageImp->getAndAllocateCommitFullMsgInSeqNumWindow(commitFullSeqNum);
+  Assert(commitFullMsg->equals(*commitFullInitialMsg));
+
+  CheckpointMsg *checkpointMsg = persistentStorageImp->getAndAllocateCheckpointMsgInCheckWindow(checkpointSeqNum);
+  Assert(checkpointMsg->equals(checkpointInitialMsg));
+
+  Assert(persistentStorageImp->getCompletedMarkInCheckWindow(checkpointSeqNum) == completed);
+
+  delete prePrepareFullInitialMsg;
+  delete commitFullInitialMsg;
+}
+
+void testWindows() {
+  testWindowsSetUp();
+//  const SeqNum moveToSeqNum = 150;
+//
+//  persistentStorageImp->beginWriteTran();
+//  persistentStorageImp->setLastStableSeqNum(moveToSeqNum);
+//  persistentStorageImp->endWriteTran();
+//
+//  Assert(moveToSeqNum == persistentStorageImp->getLastStableSeqNum());
+//  SeqNumWindow defaultSeqWin(moveToSeqNum);
+//  CheckWindow defaultCheckWin(moveToSeqNum);
+//  Assert(persistentStorageImp->getSeqNumWindow().equals(defaultSeqWin));
+//  Assert(persistentStorageImp->getCheckWindow().equals(defaultCheckWin));
+//
+//  testWindowsSetUp();
 }
 
 void testSetDescriptors() {
+  SeqNum lastExecutionSeqNum = 1;
+  Bitmap requests(100);
+  DescriptorOfLastExecution lastExecutionDesc(lastExecutionSeqNum, requests);
+
+  ViewNum viewNum = 1;
+  SeqNum lastExitExecNum = 62;
+  PrevViewInfoElements elements;
+  ViewsManager::PrevViewInfo element;
+  ReplicaId senderId = 1;
+  element.hasAllRequests = true;
+  element.prePrepare = new PrePrepareMsg(senderId, viewNum, lastExitExecNum, CommitPath::OPTIMISTIC_FAST, true);
+  element.prepareFull = PrepareFullMsg::create(viewNum, lastExitExecNum, senderId, nullptr, 0);
+  for (uint32_t i = 0; i < kWorkWindowSize; ++i) {
+    elements.push_back(element);
+  }
+  SeqNum lastExitStableNum = 60;
+  DescriptorOfLastExitFromView lastExitFromViewDesc(viewNum, lastExitStableNum, lastExitExecNum, elements);
+
+  ViewChangeMsgsVector msgs;
+  ViewNum newViewNum = 1;
+  for (auto i = 1; i <= msgsNum; i++)
+    msgs.push_back(new ViewChangeMsg(i, newViewNum, lastExitStableNum));
+  SeqNum maxSeqNum = 200;
+  auto *newViewMsg = new NewViewMsg(0x01234, newViewNum);
+  DescriptorOfLastNewView lastNewViewDesc(newViewNum, newViewMsg, msgs, maxSeqNum);
+
   persistentStorageImp->beginWriteTran();
-  SeqNum seqNum = 1;
-  Bitmap requests(1);
-  DescriptorOfLastExecution lastExecutionDesc(seqNum, requests);
   persistentStorageImp->setDescriptorOfLastExecution(lastExecutionDesc);
+  persistentStorageImp->setDescriptorOfLastExitFromView(lastExitFromViewDesc);
+  persistentStorageImp->setDescriptorOfLastNewView(lastNewViewDesc);
   persistentStorageImp->endWriteTran();
 
-  DescriptorOfLastExecution lastExecution =
-      persistentStorageImp->getDescriptorOfLastExecution();
+  DescriptorOfLastExecution lastExecution = persistentStorageImp->getDescriptorOfLastExecution();
   assert(lastExecution.equals(lastExecutionDesc));
   bool descHasSet = persistentStorageImp->hasDescriptorOfLastExecution();
   assert(descHasSet);
 
-  persistentStorageImp->beginWriteTran();
-  ViewNum viewNum = 1;
-  SeqNum stableNum = 60;
-  SeqNum execNum = 62;
-  PrevViewInfoElements elements;
-
-  ViewsManager::PrevViewInfo element;
-  ReplicaId senderId = 1;
-  element.hasAllRequests = true;
-  element.prePrepare = new PrePrepareMsg(senderId, viewNum, execNum,
-                                         CommitPath::OPTIMISTIC_FAST, true);
-  element.prepareFull = PrepareFullMsg::create(viewNum, execNum, senderId,
-                                               nullptr, 0);
-  for (uint32_t i = 0; i < kWorkWindowSize; ++i) {
-    elements.push_back(element);
-  }
-
-  DescriptorOfLastExitFromView lastExitFromViewDesc(viewNum, stableNum, execNum,
-                                                    elements);
-  persistentStorageImp->setDescriptorOfLastExitFromView(lastExitFromViewDesc);
-  persistentStorageImp->endWriteTran();
-
-  DescriptorOfLastExitFromView lastExitFromView =
-      persistentStorageImp->getAndAllocateDescriptorOfLastExitFromView();
-  assert(lastExitFromView.equals(lastExitFromViewDesc));
-  descHasSet = persistentStorageImp->hasDescriptorOfLastExitFromView();
-  assert(descHasSet);
-
-  persistentStorageImp->beginWriteTran();
-  ViewChangeMsgsVector msgs;
-  ViewNum newViewNum = 1;
-  msgs.push_back(new ViewChangeMsg(1, newViewNum, stableNum));
-  msgs.push_back(new ViewChangeMsg(2, newViewNum, stableNum));
-  msgs.push_back(new ViewChangeMsg(3, newViewNum, stableNum));
-  msgs.push_back(new ViewChangeMsg(4, newViewNum, stableNum));
-  msgs.push_back(new ViewChangeMsg(5, newViewNum, stableNum));
-  msgs.push_back(new ViewChangeMsg(6, newViewNum, stableNum));
-  msgs.push_back(new ViewChangeMsg(7, newViewNum, stableNum));
-
-  SeqNum maxSeqNum = 200;
-  auto *newViewMsg = new NewViewMsg(0x01234, newViewNum);
-  DescriptorOfLastNewView lastNewViewDesc(
-      newViewNum, newViewMsg, msgs, maxSeqNum);
-  persistentStorageImp->setDescriptorOfLastNewView(lastNewViewDesc);
-  persistentStorageImp->endWriteTran();
-
-  DescriptorOfLastNewView lastNewView =
-      persistentStorageImp->getAndAllocateDescriptorOfLastNewView();
+  DescriptorOfLastNewView lastNewView = persistentStorageImp->getAndAllocateDescriptorOfLastNewView();
   assert(lastNewView.equals(lastNewViewDesc));
   descHasSet = persistentStorageImp->hasDescriptorOfLastNewView();
+  assert(descHasSet);
+
+  DescriptorOfLastExitFromView lastExitFromView = persistentStorageImp->getAndAllocateDescriptorOfLastExitFromView();
+  assert(lastExitFromView.equals(lastExitFromViewDesc));
+  descHasSet = persistentStorageImp->hasDescriptorOfLastExitFromView();
   assert(descHasSet);
 
   lastExitFromView.clean();
@@ -350,17 +363,50 @@ void testSetSimpleParams() {
   assert(persistentStorageImp->getFetchingState() == state);
   assert(persistentStorageImp->getLastExecutedSeqNum() == lastExecSeqNum);
   assert(persistentStorageImp->getPrimaryLastUsedSeqNum() == lastUsedSeqNum);
-  assert(
-      persistentStorageImp->getStrictLowerBoundOfSeqNums() == lowBoundSeqNum);
-  assert(persistentStorageImp->
-      getLastViewThatTransferredSeqNumbersFullyExecuted() == view);
+  assert(persistentStorageImp->getStrictLowerBoundOfSeqNums() == lowBoundSeqNum);
+  assert(persistentStorageImp->getLastViewThatTransferredSeqNumbersFullyExecuted() == view);
 }
 
-void testSetReplicaConfig() {
-  fillReplicaConfig();
-  persistentStorageImp->beginWriteTran();
-  persistentStorageImp->setReplicaConfig(config);
-  persistentStorageImp->endWriteTran();
+void fillReplicaConfig() {
+  config.fVal = fVal;
+  config.cVal = cVal;
+  config.replicaId = 3;
+  config.numOfClientProxies = 8;
+  config.statusReportTimerMillisec = 15;
+  config.concurrencyLevel = 5;
+  config.autoViewChangeEnabled = true;
+  config.viewChangeTimerMillisec = 12;
+
+  config.replicaPrivateKey = replicaPrivateKey;
+  config.publicKeysOfReplicas.insert(IdToKeyPair(0, publicKeyValue1));
+  config.publicKeysOfReplicas.insert(IdToKeyPair(1, publicKeyValue2));
+  config.publicKeysOfReplicas.insert(IdToKeyPair(2, publicKeyValue3));
+  config.publicKeysOfReplicas.insert(IdToKeyPair(3, publicKeyValue4));
+
+  config.thresholdSignerForExecution = new IThresholdSignerDummy;
+  config.thresholdVerifierForExecution = new IThresholdVerifierDummy;
+  config.thresholdSignerForSlowPathCommit = new IThresholdSignerDummy;
+  config.thresholdVerifierForSlowPathCommit = new IThresholdVerifierDummy;
+  config.thresholdSignerForCommit = new IThresholdSignerDummy;
+  config.thresholdVerifierForCommit = new IThresholdVerifierDummy;
+  config.thresholdSignerForOptimisticCommit = new IThresholdSignerDummy;
+  config.thresholdVerifierForOptimisticCommit = new IThresholdVerifierDummy;
+
+  IThresholdVerifierDummy::registerClass();
+  IThresholdSignerDummy::registerClass();
+}
+
+void testSetReplicaConfig(bool toSet) {
+  if (toSet) {
+    fillReplicaConfig();
+    persistentStorageImp->beginWriteTran();
+    persistentStorageImp->setReplicaConfig(config);
+    persistentStorageImp->endWriteTran();
+    replicaConfigSerializer = new ReplicaConfigSerializer(config);
+  }
+  ReplicaConfig storedConfig = persistentStorageImp->getReplicaConfig();
+  ReplicaConfigSerializer storedConfigSerializer(storedConfig);
+  Assert(storedConfigSerializer == *replicaConfigSerializer);
 }
 
 int main() {
@@ -372,19 +418,34 @@ int main() {
   persistentStorageImp = new PersistentStorageImp(fVal, cVal);
   Logger logger = Logger::getLogger("testSerialization.replica");
   const string dbFile = "testPersistency.txt";
-  remove(dbFile.c_str()); // Required for an initialization testing.
-  metadataStorage = new FileStorage(logger, dbFile);
-  persistentStorageImp->init(metadataStorage);
 
-  testSetReplicaConfig();
-  testInit();
-  testSetDescriptors();
-  testSetSimpleParams();
+  bool testInitFunctionality = true;
+  for (auto i = 0; i < 1; ++i) {
+    if (testInitFunctionality)
+      remove(dbFile.c_str()); // Required for the initialization testing.
+    else
+      delete (FileStorage *) metadataStorage;
+
+    metadataStorage = new FileStorage(logger, dbFile);
+    persistentStorageImp->init(metadataStorage);
+
+    testSetReplicaConfig(testInitFunctionality);
+    testInit(testInitFunctionality);
+    testSetDescriptors();
+    testSetSimpleParams();
+    testWindows();
+    testInitFunctionality = false;
+  }
+
+  delete descriptorOfLastExitFromView;
+  delete descriptorOfLastNewView;
+  delete descriptorOfLastExecution;
+  delete persistentStorageImp;
+  delete (FileStorage *) metadataStorage;
+  delete replicaConfigSerializer;
 
   // Release static objects to enforce deletion order.
-  for (auto it = Serializable::classNameToObjectMap_.begin();
-       it != Serializable::classNameToObjectMap_.end(); ++it) {
+  for (auto it = Serializable::classNameToObjectMap_.begin(); it != Serializable::classNameToObjectMap_.end(); ++it)
     it->second.release();
-  }
   return 0;
 }
