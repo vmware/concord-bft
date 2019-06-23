@@ -191,10 +191,8 @@ MessageBase *MessageBase::createObjAndMsgFromLocalBuffer(char *buffer,
 }
 
 bool MessageBase::equals(const MessageBase &other) const {
-  bool equals = (other.msgSize_ == msgSize_ &&
-      other.storageSize_ == storageSize_ &&
-      other.sender_ == sender_ &&
-      other.owner_ == owner_);
+  bool equals = (other.msgSize_ == msgSize_ && other.storageSize_ == storageSize_ &&
+      other.sender_ == sender_ && other.owner_ == owner_);
   if (!equals)
     return false;
   if (!other.msgBody_ && !msgBody_) // Both are nullptr => OK

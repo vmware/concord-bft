@@ -45,6 +45,7 @@ set(corebft_source_files
     src/bftengine/PersistentStorageWindows.cpp
     src/bftengine/DebugPersistentStorage.cpp
     src/bftengine/ReplicaConfigSerializer.cpp
+    src/bftengine/SerializableActiveWindow.cpp
     src/communication/PlainUDPCommunication.cpp
     src/communication/CommFactory.cpp
     src/bcstatetransfer/BCStateTran.cpp
