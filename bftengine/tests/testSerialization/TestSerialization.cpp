@@ -204,28 +204,28 @@ void testInit(bool testInitFunctionality) {
   lastNewView.clean();
 }
 
-void testWindowsSetUp() {
-  const SeqNum prePrepareMsgSeqNum = 172;
+void testWindowsSetUp(const uint16_t shift) {
+  const SeqNum prePrepareMsgSeqNum = 172 + shift;
   ReplicaId sender = 2;
   ViewNum view = 6;
   CommitPath firstPath = CommitPath::FAST_WITH_THRESHOLD;
   PrePrepareMsg prePrepareInitialMsg(sender, view, prePrepareMsgSeqNum, firstPath);
 
-  const SeqNum slowStartedSeqNum = 192;
+  const SeqNum slowStartedSeqNum = 192 + shift;
   bool slowStarted = true;
 
-  const SeqNum fullCommitProofSeqNum = 292;
+  const SeqNum fullCommitProofSeqNum = 292 + shift;
   FullCommitProofMsg fullCommitProofInitialMsg(sender, view, fullCommitProofSeqNum, nullptr, 0);
 
   const bool forceCompleted = true;
 
-  const SeqNum prePrepareFullSeqNum = 202;
+  const SeqNum prePrepareFullSeqNum = 202 + shift;
   PrepareFullMsg *prePrepareFullInitialMsg = PrepareFullMsg::create(view, prePrepareFullSeqNum, sender, nullptr, 0);
 
-  const SeqNum commitFullSeqNum = 242;
+  const SeqNum commitFullSeqNum = 242 + shift;
   CommitFullMsg *commitFullInitialMsg = CommitFullMsg::create(view, commitFullSeqNum, sender, nullptr, 0);
 
-  const SeqNum checkpointSeqNum = 150;
+  const SeqNum checkpointSeqNum = 150 + shift;
   Digest stateDigest;
   const bool stateIsStable = true;
   CheckpointMsg checkpointInitialMsg(sender, checkpointSeqNum, stateDigest, stateIsStable);
@@ -272,20 +272,16 @@ void testWindowsSetUp() {
 }
 
 void testWindows() {
-  testWindowsSetUp();
-//  const SeqNum moveToSeqNum = 150;
-//
-//  persistentStorageImp->beginWriteTran();
-//  persistentStorageImp->setLastStableSeqNum(moveToSeqNum);
-//  persistentStorageImp->endWriteTran();
-//
-//  Assert(moveToSeqNum == persistentStorageImp->getLastStableSeqNum());
-//  SeqNumWindow defaultSeqWin(moveToSeqNum);
-//  CheckWindow defaultCheckWin(moveToSeqNum);
-//  Assert(persistentStorageImp->getSeqNumWindow().equals(defaultSeqWin));
-//  Assert(persistentStorageImp->getCheckWindow().equals(defaultCheckWin));
-//
-//  testWindowsSetUp();
+  testWindowsSetUp(0);
+  const SeqNum moveToSeqNum = 150;
+
+  persistentStorageImp->beginWriteTran();
+  persistentStorageImp->setLastStableSeqNum(moveToSeqNum);
+  persistentStorageImp->endWriteTran();
+
+  Assert(moveToSeqNum == persistentStorageImp->getLastStableSeqNum());
+
+  testWindowsSetUp(moveToSeqNum);
 }
 
 void testSetDescriptors() {

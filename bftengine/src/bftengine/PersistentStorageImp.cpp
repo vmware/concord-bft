@@ -327,8 +327,7 @@ void PersistentStorageImp::serializeAndSaveSeqNumWindow() const {
 void PersistentStorageImp::setSeqNumDataElementBySeqNum(SeqNum seqNum) const {
   size_t bufLen = SeqNumWindow::maxElementSize();
   char *buf = new char[bufLen];
-  SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
-  setSeqNumDataElement(convertedIndex, buf);
+  setSeqNumDataElement(seqNum, buf);
   delete[] buf;
 }
 
@@ -355,8 +354,7 @@ void PersistentStorageImp::setCheckDataElement(SeqNum index, char *buf) const {
 void PersistentStorageImp::setCheckDataElementBySeqNum(SeqNum seqNum) const {
   size_t bufLen = CheckWindow::maxElementSize();
   char *buf = new char[bufLen];
-  SeqNum convertedIndex = checkWindow_.convertIndex(seqNum);
-  setCheckDataElement(convertedIndex, buf);
+  setCheckDataElement(seqNum, buf);
   delete[] buf;
 }
 
@@ -389,81 +387,81 @@ void PersistentStorageImp::setLastStableSeqNum(const SeqNum seqNum) {
 void PersistentStorageImp::setPrePrepareMsgInSeqNumWindow(const SeqNum seqNum, const PrePrepareMsg *const msg) {
   if (!seqNumWindowReadFromDisk_)
     getSeqNumWindow();
-  Assert(seqNumWindow_.insideActiveWindow(seqNum));
-  SeqNumData &seqNumData = seqNumWindow_.get(seqNum);
+  const SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
+  SeqNumData &seqNumData = seqNumWindow_.get(convertedIndex);
   Assert(seqNumData.prePrepareMsg_ == nullptr);
   seqNumData.prePrepareMsg_ = (PrePrepareMsg *) msg->cloneObjAndMsg();
-  setSeqNumDataElementBySeqNum(seqNum);
+  setSeqNumDataElementBySeqNum(convertedIndex);
 }
 
 void PersistentStorageImp::setSlowStartedInSeqNumWindow(const SeqNum seqNum, const bool slowStarted) {
   if (!seqNumWindowReadFromDisk_)
     getSeqNumWindow();
-  Assert(seqNumWindow_.insideActiveWindow(seqNum));
-  SeqNumData &seqNumData = seqNumWindow_.get(seqNum);
+  const SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
+  SeqNumData &seqNumData = seqNumWindow_.get(convertedIndex);
   seqNumData.slowStarted_ = slowStarted;
-  setSeqNumDataElementBySeqNum(seqNum);
+  setSeqNumDataElementBySeqNum(convertedIndex);
 }
 
 void PersistentStorageImp::setFullCommitProofMsgInSeqNumWindow(
     const SeqNum seqNum, const FullCommitProofMsg *const msg) {
   if (!seqNumWindowReadFromDisk_)
     getSeqNumWindow();
-  Assert(seqNumWindow_.insideActiveWindow(seqNum));
-  SeqNumData &seqNumData = seqNumWindow_.get(seqNum);
+  const SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
+  SeqNumData &seqNumData = seqNumWindow_.get(convertedIndex);
   Assert(seqNumData.fullCommitProofMsg_ == nullptr);
   seqNumData.fullCommitProofMsg_ = (FullCommitProofMsg *) msg->cloneObjAndMsg();
-  setSeqNumDataElementBySeqNum(seqNum);
+  setSeqNumDataElementBySeqNum(convertedIndex);
 }
 
 void PersistentStorageImp::setForceCompletedInSeqNumWindow(const SeqNum seqNum, const bool forceCompleted) {
   if (!seqNumWindowReadFromDisk_)
     getSeqNumWindow();
   Assert(forceCompleted);
-  Assert(seqNumWindow_.insideActiveWindow(seqNum));
-  SeqNumData &seqNumData = seqNumWindow_.get(seqNum);
+  const SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
+  SeqNumData &seqNumData = seqNumWindow_.get(convertedIndex);
   seqNumData.forceCompleted_ = forceCompleted;
-  setSeqNumDataElementBySeqNum(seqNum);
+  setSeqNumDataElementBySeqNum(convertedIndex);
 }
 
 void PersistentStorageImp::setPrepareFullMsgInSeqNumWindow(const SeqNum seqNum, const PrepareFullMsg *const msg) {
   if (!seqNumWindowReadFromDisk_)
     getSeqNumWindow();
-  Assert(seqNumWindow_.insideActiveWindow(seqNum));
-  SeqNumData &seqNumData = seqNumWindow_.get(seqNum);
+  const SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
+  SeqNumData &seqNumData = seqNumWindow_.get(convertedIndex);
   Assert(seqNumData.prepareFullMsg_ == nullptr);
   seqNumData.prepareFullMsg_ = (PrepareFullMsg *) msg->cloneObjAndMsg();
-  setSeqNumDataElementBySeqNum(seqNum);
+  setSeqNumDataElementBySeqNum(convertedIndex);
 }
 
 void PersistentStorageImp::setCommitFullMsgInSeqNumWindow(const SeqNum seqNum, const CommitFullMsg *const msg) {
   if (!seqNumWindowReadFromDisk_)
     getSeqNumWindow();
-  Assert(seqNumWindow_.insideActiveWindow(seqNum));
-  SeqNumData &seqNumData = seqNumWindow_.get(seqNum);
+  const SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
+  SeqNumData &seqNumData = seqNumWindow_.get(convertedIndex);
   Assert(seqNumData.commitFullMsg_ == nullptr);
   seqNumData.commitFullMsg_ = (CommitFullMsg *) msg->cloneObjAndMsg();
-  setSeqNumDataElementBySeqNum(seqNum);
+  setSeqNumDataElementBySeqNum(convertedIndex);
 }
 
 void PersistentStorageImp::setCheckpointMsgInCheckWindow(const SeqNum seqNum, const CheckpointMsg *const msg) {
   if (!checkWindowReadFromDisk_)
     getCheckWindow();
-  Assert(checkWindow_.insideActiveWindow(seqNum));
-  CheckData &checkData = checkWindow_.get(seqNum);
+  const SeqNum convertedIndex = checkWindow_.convertIndex(seqNum);
+  CheckData &checkData = checkWindow_.get(convertedIndex);
   delete checkData.checkpointMsg_;
   checkData.checkpointMsg_ = (CheckpointMsg *) msg->cloneObjAndMsg();
-  setCheckDataElementBySeqNum(seqNum);
+  setCheckDataElementBySeqNum(convertedIndex);
 }
 
 void PersistentStorageImp::setCompletedMarkInCheckWindow(const SeqNum seqNum, const bool completed) {
   if (!checkWindowReadFromDisk_)
     getCheckWindow();
   Assert(completed);
-  Assert(checkWindow_.insideActiveWindow(seqNum));
-  CheckData &checkData = checkWindow_.get(seqNum);
+  const SeqNum convertedIndex = checkWindow_.convertIndex(seqNum);
+  CheckData &checkData = checkWindow_.get(convertedIndex);
   checkData.completedMark_ = completed;
-  setCheckDataElementBySeqNum(seqNum);
+  setCheckDataElementBySeqNum(convertedIndex);
 }
 
 /***** Getters *****/
@@ -720,60 +718,68 @@ CheckWindow &PersistentStorageImp::getCheckWindow() {
   return checkWindow_;
 }
 
+CheckpointMsg *PersistentStorageImp::getAndAllocateCheckpointMsgInCheckWindow(const SeqNum seqNum) {
+  if (!checkWindowReadFromDisk_)
+    getCheckWindow();
+  Assert(getIsAllowed());
+  SeqNum convertedIndex = checkWindow_.convertIndex(seqNum);
+  return (CheckpointMsg *)checkWindow_.get(convertedIndex).checkpointMsg_->cloneObjAndMsg();
+}
+
 bool PersistentStorageImp::getCompletedMarkInCheckWindow(const SeqNum seqNum) {
   if (!checkWindowReadFromDisk_)
     getCheckWindow();
   Assert(getIsAllowed());
-  return checkWindow_.get(seqNum).completedMark_;
+  SeqNum convertedIndex = checkWindow_.convertIndex(seqNum);
+  return checkWindow_.get(convertedIndex).completedMark_;
 }
 
 bool PersistentStorageImp::getSlowStartedInSeqNumWindow(const SeqNum seqNum) {
   if (!seqNumWindowReadFromDisk_)
     getSeqNumWindow();
   Assert(getIsAllowed());
-  return seqNumWindow_.get(seqNum).slowStarted_;
+  SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
+  return seqNumWindow_.get(convertedIndex).slowStarted_;
 }
 
 bool PersistentStorageImp::getForceCompletedInSeqNumWindow(const SeqNum seqNum) {
   if (!seqNumWindowReadFromDisk_)
     getSeqNumWindow();
   Assert(getIsAllowed());
-  return seqNumWindow_.get(seqNum).forceCompleted_;
+  SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
+  return seqNumWindow_.get(convertedIndex).forceCompleted_;
 }
 
 PrePrepareMsg *PersistentStorageImp::getAndAllocatePrePrepareMsgInSeqNumWindow(const SeqNum seqNum) {
   if (!seqNumWindowReadFromDisk_)
     getSeqNumWindow();
   Assert(getIsAllowed());
-  return (PrePrepareMsg *) seqNumWindow_.get(seqNum).prePrepareMsg_->cloneObjAndMsg();
+  SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
+  return (PrePrepareMsg *) seqNumWindow_.get(convertedIndex).prePrepareMsg_->cloneObjAndMsg();
 }
 
 FullCommitProofMsg *PersistentStorageImp::getAndAllocateFullCommitProofMsgInSeqNumWindow(const SeqNum seqNum) {
   if (!seqNumWindowReadFromDisk_)
     getSeqNumWindow();
   Assert(getIsAllowed());
-  return (FullCommitProofMsg *)seqNumWindow_.get(seqNum).fullCommitProofMsg_->cloneObjAndMsg();
+  SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
+  return (FullCommitProofMsg *)seqNumWindow_.get(convertedIndex).fullCommitProofMsg_->cloneObjAndMsg();
 }
 
 PrepareFullMsg *PersistentStorageImp::getAndAllocatePrepareFullMsgInSeqNumWindow(const SeqNum seqNum) {
   if (!seqNumWindowReadFromDisk_)
     getSeqNumWindow();
   Assert(getIsAllowed());
-  return (PrepareFullMsg *)seqNumWindow_.get(seqNum).prepareFullMsg_->cloneObjAndMsg();
+  SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
+  return (PrepareFullMsg *)seqNumWindow_.get(convertedIndex).prepareFullMsg_->cloneObjAndMsg();
 }
 
 CommitFullMsg *PersistentStorageImp::getAndAllocateCommitFullMsgInSeqNumWindow(const SeqNum seqNum) {
   if (!seqNumWindowReadFromDisk_)
     getSeqNumWindow();
   Assert(getIsAllowed());
-  return (CommitFullMsg *)seqNumWindow_.get(seqNum).commitFullMsg_->cloneObjAndMsg();
-}
-
-CheckpointMsg *PersistentStorageImp::getAndAllocateCheckpointMsgInCheckWindow(const SeqNum seqNum) {
-  if (!checkWindowReadFromDisk_)
-    getCheckWindow();
-  Assert(getIsAllowed());
-  return (CheckpointMsg *)checkWindow_.get(seqNum).checkpointMsg_->cloneObjAndMsg();
+  SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
+  return (CommitFullMsg *)seqNumWindow_.get(convertedIndex).commitFullMsg_->cloneObjAndMsg();
 }
 
 /***** Verification/helper functions *****/
