@@ -31,6 +31,26 @@ void SeqNumData::reset() {
   forceCompleted_ = false;
 }
 
+void SeqNumData::setPrePrepareMsg(PrePrepareMsg *msg) {
+  delete prePrepareMsg_;
+  prePrepareMsg_ = msg;
+}
+
+void SeqNumData::setFullCommitProofMsg(FullCommitProofMsg *msg) {
+  delete fullCommitProofMsg_;
+  fullCommitProofMsg_ = msg;
+}
+
+void SeqNumData::setPrepareFullMsg(PrepareFullMsg *msg) {
+  delete prepareFullMsg_;
+  prepareFullMsg_ = msg;
+}
+
+void SeqNumData::setCommitFullMsg(CommitFullMsg *msg) {
+  delete commitFullMsg_;
+  commitFullMsg_ = msg;
+}
+
 void SeqNumData::serialize(char *buf, uint32_t bufLen, size_t &actualSize) const {
   actualSize = 0;
   Assert(bufLen >= maxSize());
@@ -110,6 +130,11 @@ void CheckData::reset() {
   delete checkpointMsg_;
   checkpointMsg_ = nullptr;
   completedMark_ = false;
+}
+
+void CheckData::setCheckpointMsg(CheckpointMsg *msg) {
+  delete checkpointMsg_;
+  checkpointMsg_ = msg;
 }
 
 void CheckData::serialize(char *buf, uint32_t bufLen, size_t &actualSize) const {

@@ -16,6 +16,7 @@
 #include "../../src/bftengine/SysConsts.hpp"
 
 using namespace std;
+using namespace concordSerializable;
 
 namespace bftEngine {
 namespace impl {
@@ -33,19 +34,23 @@ uint32_t ReplicaConfigSerializer::maxSize(uint32_t numOfReplicas) {
       IThresholdVerifier::maxSize() * 3);
 }
 
-bool ReplicaConfigSerializer::registered_ = false;
-
 void ReplicaConfigSerializer::registerClass() {
-  if (!registered_) {
-    classNameToObjectMap_["ReplicaConfig"] = UniquePtrToClass(new ReplicaConfigSerializer);
-    registered_ = true;
-  }
+  SerializableObjectsDB::registerObject("ReplicaConfig", SharedPtrToClass(new ReplicaConfigSerializer));
 }
 
-ReplicaConfigSerializer::ReplicaConfigSerializer(const ReplicaConfig &config) {
+ReplicaConfigSerializer::ReplicaConfigSerializer(ReplicaConfig *config) {
   config_ = new ReplicaConfig;
-  *config_ = config;
+  if (config)
+    *config_ = *config;
   registerClass();
+}
+
+ReplicaConfigSerializer::ReplicaConfigSerializer() {
+  config_ = new ReplicaConfig;
+};
+
+ReplicaConfigSerializer::~ReplicaConfigSerializer() {
+  delete config_;
 }
 
 void ReplicaConfigSerializer::setConfig(const ReplicaConfig &config) {
@@ -54,11 +59,6 @@ void ReplicaConfigSerializer::setConfig(const ReplicaConfig &config) {
     config_ = new ReplicaConfig;
   }
   *config_ = config;
-}
-
-ReplicaConfigSerializer::~ReplicaConfigSerializer() {
-  delete config_;
-  config_ = nullptr;
 }
 
 /************** Serialization **************/
@@ -134,59 +134,38 @@ const {
   return result;
 }
 
-ReplicaConfigSerializer &ReplicaConfigSerializer::operator=(const ReplicaConfigSerializer &other) {
-  this->config_->fVal = other.config_->fVal;
-  this->config_->cVal = other.config_->cVal;
-  this->config_->replicaId = other.config_->replicaId;
-  this->config_->numOfClientProxies = other.config_->numOfClientProxies;
-  this->config_->statusReportTimerMillisec = other.config_->statusReportTimerMillisec;
-  this->config_->concurrencyLevel = other.config_->concurrencyLevel;
-  this->config_->autoViewChangeEnabled = other.config_->autoViewChangeEnabled;
-  this->config_->viewChangeTimerMillisec = other.config_->viewChangeTimerMillisec;
-  this->config_->replicaPrivateKey = other.config_->replicaPrivateKey;
-
-  this->config_->thresholdSignerForCommit = other.config_->thresholdSignerForCommit;
-  this->config_->thresholdSignerForExecution = other.config_->thresholdSignerForExecution;
-  this->config_->thresholdSignerForOptimisticCommit = other.config_->thresholdSignerForOptimisticCommit;
-  this->config_->thresholdSignerForSlowPathCommit = other.config_->thresholdSignerForSlowPathCommit;
-
-  this->config_->thresholdVerifierForCommit = other.config_->thresholdVerifierForCommit;
-  this->config_->thresholdVerifierForExecution = other.config_->thresholdVerifierForExecution;
-  this->config_->thresholdVerifierForOptimisticCommit = other.config_->thresholdVerifierForOptimisticCommit;
-  this->config_->thresholdVerifierForSlowPathCommit = other.config_->thresholdVerifierForSlowPathCommit;
-
-  return *this;
-}
-
 /************** Deserialization **************/
 
-UniquePtrToClass ReplicaConfigSerializer::create(istream &inStream) {
+SharedPtrToClass ReplicaConfigSerializer::create(istream &inStream) {
+  SharedPtrToClass replicaConfigSerializer(new ReplicaConfigSerializer());
+  ReplicaConfig& config = *((ReplicaConfigSerializer *)replicaConfigSerializer.get())->config_;
+
   // Deserialize class version
-  verifyClassVersion(classVersion_, inStream);
+  verifyClassVersion(((ReplicaConfigSerializer *)replicaConfigSerializer.get())->classVersion_, inStream);
 
   // Deserialize fVal
-  inStream.read((char *) &config_->fVal, sizeof(config_->fVal));
+  inStream.read((char *) &config.fVal, sizeof(config.fVal));
 
   // Deserialize cVal
-  inStream.read((char *) &config_->cVal, sizeof(config_->cVal));
+  inStream.read((char *) &config.cVal, sizeof(config.cVal));
 
   // Deserialize replicaId
-  inStream.read((char *) &config_->replicaId, sizeof(config_->replicaId));
+  inStream.read((char *) &config.replicaId, sizeof(config.replicaId));
 
   // Deserialize numOfClientProxies
-  inStream.read((char *) &config_->numOfClientProxies, sizeof(config_->numOfClientProxies));
+  inStream.read((char *) &config.numOfClientProxies, sizeof(config.numOfClientProxies));
 
   // Deserialize statusReportTimerMillisec
-  inStream.read((char *) &config_->statusReportTimerMillisec, sizeof(config_->statusReportTimerMillisec));
+  inStream.read((char *) &config.statusReportTimerMillisec, sizeof(config.statusReportTimerMillisec));
 
   // Deserialize concurrencyLevel
-  inStream.read((char *) &config_->concurrencyLevel, sizeof(config_->concurrencyLevel));
+  inStream.read((char *) &config.concurrencyLevel, sizeof(config.concurrencyLevel));
 
   // Deserialize autoViewChangeEnabled
-  inStream.read((char *) &config_->autoViewChangeEnabled, sizeof(config_->autoViewChangeEnabled));
+  inStream.read((char *) &config.autoViewChangeEnabled, sizeof(config.autoViewChangeEnabled));
 
   // Deserialize viewChangeTimerMillisec
-  inStream.read((char *) &config_->viewChangeTimerMillisec, sizeof(config_->viewChangeTimerMillisec));
+  inStream.read((char *) &config.viewChangeTimerMillisec, sizeof(config.viewChangeTimerMillisec));
 
   // Deserialize public keys
   int64_t numOfPublicKeys = 0;
@@ -195,40 +174,25 @@ UniquePtrToClass ReplicaConfigSerializer::create(istream &inStream) {
     uint16_t id = 0;
     inStream.read((char *) &id, sizeof(id));
     string key = deserializeKey(inStream);
-    config_->publicKeysOfReplicas.insert(pair<uint16_t, string>(id, key));
+    config.publicKeysOfReplicas.insert(pair<uint16_t, string>(id, key));
   }
 
   // Serialize replicaPrivateKey
-  config_->replicaPrivateKey = deserializeKey(inStream);
+  config.replicaPrivateKey = deserializeKey(inStream);
 
-  createSignersAndVerifiers(inStream);
-  return UniquePtrToClass(this);
+  createSignersAndVerifiers(inStream, config);
+  return replicaConfigSerializer;
 }
 
-void ReplicaConfigSerializer::createSignersAndVerifiers(istream &inStream) {
-  delete config_->thresholdSignerForExecution;
-  config_->thresholdSignerForExecution = dynamic_cast<IThresholdSigner *>(deserialize(inStream).get());
-
-  delete config_->thresholdVerifierForExecution;
-  config_->thresholdVerifierForExecution = dynamic_cast<IThresholdVerifier *>(deserialize(inStream).get());
-
-  delete config_->thresholdSignerForSlowPathCommit;
-  config_->thresholdSignerForSlowPathCommit = dynamic_cast<IThresholdSigner *>(deserialize(inStream).get());
-
-  delete config_->thresholdVerifierForSlowPathCommit;
-  config_->thresholdVerifierForSlowPathCommit = dynamic_cast<IThresholdVerifier *>(deserialize(inStream).get());
-
-  delete config_->thresholdSignerForCommit;
-  config_->thresholdSignerForCommit = dynamic_cast<IThresholdSigner *>(deserialize(inStream).get());
-
-  delete config_->thresholdVerifierForCommit;
-  config_->thresholdVerifierForCommit = dynamic_cast<IThresholdVerifier *>(deserialize(inStream).get());
-
-  delete config_->thresholdSignerForOptimisticCommit;
-  config_->thresholdSignerForOptimisticCommit = dynamic_cast<IThresholdSigner *>(deserialize(inStream).get());
-
-  delete config_->thresholdVerifierForOptimisticCommit;
-  config_->thresholdVerifierForOptimisticCommit = dynamic_cast<IThresholdVerifier *>(deserialize(inStream).get());
+void ReplicaConfigSerializer::createSignersAndVerifiers(istream &inStream, ReplicaConfig &newObject) {
+  newObject.thresholdSignerForExecution = dynamic_cast<IThresholdSigner *>(deserialize(inStream).get());
+  newObject.thresholdVerifierForExecution = dynamic_cast<IThresholdVerifier *>(deserialize(inStream).get());
+  newObject.thresholdSignerForSlowPathCommit = dynamic_cast<IThresholdSigner *>(deserialize(inStream).get());
+  newObject.thresholdVerifierForSlowPathCommit = dynamic_cast<IThresholdVerifier *>(deserialize(inStream).get());
+  newObject.thresholdSignerForCommit = dynamic_cast<IThresholdSigner *>(deserialize(inStream).get());
+  newObject.thresholdVerifierForCommit = dynamic_cast<IThresholdVerifier *>(deserialize(inStream).get());
+  newObject.thresholdSignerForOptimisticCommit = dynamic_cast<IThresholdSigner *>(deserialize(inStream).get());
+  newObject.thresholdVerifierForOptimisticCommit = dynamic_cast<IThresholdVerifier *>(deserialize(inStream).get());
 }
 
 string ReplicaConfigSerializer::deserializeKey(istream &inStream) const {

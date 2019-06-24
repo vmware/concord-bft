@@ -20,18 +20,13 @@
 #include "XAssert.h"
 
 using namespace std;
+using namespace concordSerializable;
 
 namespace BLS {
 namespace Relic {
 
-bool BlsMultisigVerifier::registered_ = false;
-
 void BlsMultisigVerifier::registerClass() {
-  if (!registered_) {
-    classNameToObjectMap_["BlsMultisigVerifier"] =
-        UniquePtrToClass(new BlsMultisigVerifier);
-    registered_ = true;
-  }
+  SerializableObjectsDB::registerObject("BlsMultisigVerifier", SharedPtrToClass(new BlsMultisigVerifier));
 }
 
 BlsMultisigVerifier::BlsMultisigVerifier(
@@ -139,14 +134,14 @@ bool BlsMultisigVerifier::operator==(const BlsMultisigVerifier &other) const {
 
 /************** Deserialization **************/
 
-UniquePtrToClass BlsMultisigVerifier::create(istream &inStream) {
+SharedPtrToClass BlsMultisigVerifier::create(istream &inStream) {
   verifyClassVersion(classVersion_, inStream);
 
   // Retrieve the base class
-  UniquePtrToClass baseClass(BlsThresholdVerifier::createDontVerify(inStream));
+  SharedPtrToClass baseClass(BlsThresholdVerifier::createDontVerify(inStream));
 
   auto &baseClassObj = *(BlsThresholdVerifier *) baseClass.get();
-  return UniquePtrToClass(new BlsMultisigVerifier(baseClassObj));
+  return SharedPtrToClass(new BlsMultisigVerifier(baseClassObj));
 }
 
 } /* namespace Relic */

@@ -22,30 +22,23 @@ namespace impl {
 // class for its serialization/deserialization functionality.
 // Any ReplicaConfig changes require synchronization with this class and an
 // update of ReplicaConfigSerializer::classVersion_.
-class ReplicaConfigSerializer : public Serializable {
+ class ReplicaConfigSerializer : public concordSerializable::Serializable {
  public:
-  explicit ReplicaConfigSerializer(const ReplicaConfig &config);
+  explicit ReplicaConfigSerializer(ReplicaConfig *config);
   ~ReplicaConfigSerializer() override;
 
   ReplicaConfig *getConfig() const { return config_; }
   void setConfig(const ReplicaConfig &config);
 
   bool operator==(const ReplicaConfigSerializer &other) const;
-  ReplicaConfigSerializer &operator=(const ReplicaConfigSerializer &other);
 
   // Serialization/deserialization
-  UniquePtrToClass create(std::istream &inStream) override;
-
-  // To be used ONLY during object registration and deserialization.
-  ReplicaConfigSerializer() {
-    if (config_)
-      delete config_;
-    config_ = new ReplicaConfig;
-  };
+  concordSerializable::SharedPtrToClass create(std::istream &inStream) override;
 
   static uint32_t maxSize(uint32_t numOfReplicas);
 
  protected:
+  ReplicaConfigSerializer();
   void serializeDataMembers(std::ostream &outStream) const override;
   std::string getName() const override { return className_; };
   std::string getVersion() const override { return classVersion_; };
@@ -53,7 +46,7 @@ class ReplicaConfigSerializer : public Serializable {
  private:
   void serializeKey(const std::string &key, std::ostream &outStream) const;
   std::string deserializeKey(std::istream &inStream) const;
-  void createSignersAndVerifiers(std::istream &inStream);
+  void createSignersAndVerifiers(std::istream &inStream, ReplicaConfig &newObject);
 
   static void registerClass();
 
@@ -62,7 +55,6 @@ class ReplicaConfigSerializer : public Serializable {
 
   const std::string className_ = "ReplicaConfig";
   const std::string classVersion_ = "1";
-  static bool registered_;
 };
 
 }
