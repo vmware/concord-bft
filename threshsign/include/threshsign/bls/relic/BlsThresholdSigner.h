@@ -46,7 +46,7 @@ class BlsThresholdSigner : public IThresholdSigner {
                      const BNT &secretKey);
   ~BlsThresholdSigner() override = default;
 
-  bool operator==(const BlsThresholdSigner& other) const;
+  bool operator==(const BlsThresholdSigner &other) const;
 
   int requiredLengthForSignedData() const override {
     return sigSize_ + static_cast<int>(sizeof(id_));
@@ -82,7 +82,7 @@ class BlsThresholdSigner : public IThresholdSigner {
   }
 
   // Serialization/deserialization
-  UniquePtrToClass create(std::istream &inStream) override;
+  concordSerializable::SharedPtrToClass create(std::istream &inStream) override;
 
  protected:
   BlsThresholdSigner() = default;
@@ -94,7 +94,6 @@ class BlsThresholdSigner : public IThresholdSigner {
  private:
   const std::string className_ = "BlsThresholdSigner";
   const std::string classVersion_ = "1";
-  static bool registered_;
 };
 
 } /* namespace Relic */

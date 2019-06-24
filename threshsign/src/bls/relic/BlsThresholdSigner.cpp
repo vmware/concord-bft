@@ -17,18 +17,13 @@
 #include <iostream>
 
 using namespace std;
+using namespace concordSerializable;
 
 namespace BLS {
 namespace Relic {
 
-bool BlsThresholdSigner::registered_ = false;
-
 void BlsThresholdSigner::registerClass() {
-  if (!registered_) {
-    classNameToObjectMap_["BlsThresholdSigner"] =
-        UniquePtrToClass(new BlsThresholdSigner);
-    registered_ = true;
-  }
+  SerializableObjectsDB::registerObject("BlsThresholdSigner", SharedPtrToClass(new BlsThresholdSigner));
 }
 
 BlsThresholdSigner::BlsThresholdSigner(const BlsPublicParameters &params,
@@ -97,12 +92,12 @@ bool BlsThresholdSigner::operator==(const BlsThresholdSigner &other) const {
 
 /************** Deserialization **************/
 
-UniquePtrToClass BlsThresholdSigner::create(istream &inStream) {
+SharedPtrToClass BlsThresholdSigner::create(istream &inStream) {
   // Deserialize class version
   verifyClassVersion(classVersion_, inStream);
 
   // Deserialize params
-  UniquePtrToClass params(params_.create(inStream));
+  SharedPtrToClass params(params_.create(inStream));
 
   // Deserialize secretKey
   int32_t sizeOfSecretKey = 0;
@@ -114,7 +109,7 @@ UniquePtrToClass BlsThresholdSigner::create(istream &inStream) {
   // Deserialize id
   inStream.read((char *) &id_, sizeof(id_));
 
-  return UniquePtrToClass(new BlsThresholdSigner(
+  return SharedPtrToClass(new BlsThresholdSigner(
       *((BlsPublicParameters *) params.get()), id_, key));
 }
 

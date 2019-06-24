@@ -14,9 +14,9 @@
 #include "threshsign/IPublicParameters.h"
 
 using namespace std;
+using namespace concordSerializable;
 
-IPublicParameters::IPublicParameters(int securityLevel, string schemeName,
-                                     string library) :
+IPublicParameters::IPublicParameters(int securityLevel, string schemeName, string library) :
     securityLevel_(securityLevel), schemeName_(move(schemeName)),
     library_(move(library)) {}
 
@@ -47,7 +47,7 @@ bool IPublicParameters::operator==(const IPublicParameters &other) const {
 
 /************** Deserialization **************/
 
-UniquePtrToClass IPublicParameters::createDontVerify(std::istream &inStream) {
+SharedPtrToClass IPublicParameters::createDontVerify(std::istream &inStream) {
   // Deserialize securityLevel_
   inStream.read((char *) &securityLevel_, sizeof(securityLevel_));
 
@@ -63,11 +63,11 @@ UniquePtrToClass IPublicParameters::createDontVerify(std::istream &inStream) {
   UniquePtrToChar library(new char[sizeOfLibrary]);
   inStream.read(library.get(), sizeOfLibrary);
 
-  return UniquePtrToClass(
+  return SharedPtrToClass(
       new IPublicParameters(securityLevel_, schemeName.get(), library.get()));
 }
 
-UniquePtrToClass IPublicParameters::create(istream &inStream) {
+SharedPtrToClass IPublicParameters::create(istream &inStream) {
   verifyClassName(className_, inStream);
   verifyClassVersion(classVersion_, inStream);
   return createDontVerify(inStream);

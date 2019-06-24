@@ -88,7 +88,7 @@ void FileStorage::writeFileMetadata() {
 void FileStorage::read(void *dataPtr, size_t offset, size_t itemSize, size_t count, const char *errorMsg) {
   fseek(dataStream_, offset, SEEK_SET);
   if (fread(dataPtr, itemSize, count, dataStream_) != count) {
-    LOG_FATAL(logger_, "FileStorage::read " << errorMsg);
+    LOG_WARN(logger_, "FileStorage::read " << errorMsg);
     throw runtime_error(errorMsg);
   }
 }

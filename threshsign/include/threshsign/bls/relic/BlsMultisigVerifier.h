@@ -57,8 +57,8 @@ class BlsMultisigVerifier : public BlsThresholdVerifier {
   int requiredLengthForSignedData() const override;
 
   // Serialization/deserialization
-  void serialize(UniquePtrToChar &outBuf, int64_t &outBufSize) const override;
-  UniquePtrToClass create(std::istream &inStream) override;
+  void serialize(concordSerializable::UniquePtrToChar &outBuf, int64_t &outBufSize) const override;
+  concordSerializable::SharedPtrToClass create(std::istream &inStream) override;
 
  protected:
   BlsMultisigVerifier() = default;
@@ -72,7 +72,6 @@ class BlsMultisigVerifier : public BlsThresholdVerifier {
  private:
   const std::string className_ = "BlsMultisigVerifier";
   const std::string classVersion_ = "1" + BlsThresholdVerifier::getVersion();
-  static bool registered_;
 };
 
 } /* namespace Relic */

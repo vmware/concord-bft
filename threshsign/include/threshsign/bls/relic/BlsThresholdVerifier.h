@@ -83,9 +83,9 @@ class BlsThresholdVerifier : public IThresholdVerifier {
   const override;
 
   // Serialization/deserialization
-  UniquePtrToClass create(std::istream &inStream) override;
+  concordSerializable::SharedPtrToClass create(std::istream &inStream) override;
 
-  UniquePtrToClass createDontVerify(std::istream &inStream);
+  concordSerializable::SharedPtrToClass createDontVerify(std::istream &inStream);
 
  protected:
   BlsThresholdVerifier() = default;
@@ -102,7 +102,6 @@ class BlsThresholdVerifier : public IThresholdVerifier {
  private:
   const std::string className_ = "BlsThresholdVerifier";
   std::string classVersion_ = "1";
-  static bool registered_;
 };
 
 } /* namespace Relic */

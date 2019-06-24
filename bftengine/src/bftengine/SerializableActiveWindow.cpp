@@ -93,7 +93,8 @@ SeqNum SerializableActiveWindow<INPUT_PARAMS>::convertIndex(const SeqNum &seqNum
 // Accessed by an internal index
 template<TEMPLATE_PARAMS>
 ItemType &SerializableActiveWindow<INPUT_PARAMS>::get(uint16_t seqNum) {
-  return activeWindow_[(seqNum / Resolution) % numItems_];
+  SeqNum index = (seqNum / Resolution) % numItems_;
+  return activeWindow_[index];
 }
 
 template<TEMPLATE_PARAMS>

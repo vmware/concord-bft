@@ -63,7 +63,7 @@ enum DescMetadataParameterIds {
 class PersistentStorageImp : public PersistentStorage {
  public:
   PersistentStorageImp(uint16_t fVal, uint16_t cVal);
-  virtual ~PersistentStorageImp() { delete configSerializer_; }
+  virtual ~PersistentStorageImp();
 
   uint8_t beginWriteTran() override;
   uint8_t endWriteTran() override;
