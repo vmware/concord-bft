@@ -17,6 +17,8 @@
 #include <fstream>
 #include <memory>
 
+namespace concordSerializable {
+
 /**
  * This class defines common functionality used for classes
  * serialization/deserialization. This provides an ability to save/retrieve
@@ -31,7 +33,7 @@ class Serializable;
 
 typedef std::unique_ptr<char> UniquePtrToChar;
 typedef std::unique_ptr<unsigned char> UniquePtrToUChar;
-typedef std::unique_ptr<Serializable> UniquePtrToClass;
+typedef std::shared_ptr<Serializable> SharedPtrToClass;
 
 class MemoryBasedBuf : public std::basic_streambuf<char> {
  public:
@@ -43,8 +45,7 @@ class MemoryBasedBuf : public std::basic_streambuf<char> {
 // This class allows usage of a regular buffer as a stream.
 class MemoryBasedStream : public std::istream {
  public:
-  MemoryBasedStream(const UniquePtrToChar &buf, size_t size) :
-      std::istream(&buffer_), buffer_(buf, size) {
+  MemoryBasedStream(const UniquePtrToChar &buf, size_t size) : std::istream(&buffer_), buffer_(buf, size) {
     rdbuf(&buffer_);
   }
 
@@ -52,8 +53,7 @@ class MemoryBasedStream : public std::istream {
   MemoryBasedBuf buffer_;
 };
 
-typedef std::unordered_map<std::string, UniquePtrToClass>
-    ClassNameToObjectMap;
+typedef std::unordered_map<std::string, SharedPtrToClass> ClassNameToObjectMap;
 
 class Serializable {
  public:
@@ -63,24 +63,17 @@ class Serializable {
   virtual std::string getName() const = 0;
   virtual std::string getVersion() const = 0;
 
-  static void verifyClassName(const std::string &expectedClassName,
-                              std::istream &inStream);
-  static void verifyClassVersion(const std::string &expectedVersion,
-                                 std::istream &inStream);
-  static UniquePtrToClass deserialize(const UniquePtrToChar &inBuf,
-                                      int64_t inBufSize);
-  static UniquePtrToClass deserialize(std::istream &inStream);
+  static void verifyClassName(const std::string &expectedClassName, std::istream &inStream);
+  static void verifyClassVersion(const std::string &expectedVersion, std::istream &inStream);
+  static SharedPtrToClass deserialize(const UniquePtrToChar &inBuf, int64_t inBufSize);
+  static SharedPtrToClass deserialize(std::istream &inStream);
 
  protected:
   void serializeClassName(std::ostream &outStream) const;
   void serializeClassVersion(std::ostream &outStream) const;
   virtual void serializeDataMembers(std::ostream &outStream) const = 0;
-  virtual UniquePtrToClass create(std::istream &inStream) = 0;
-  static void retrieveSerializedBuffer(const std::string &className,
-                                       UniquePtrToChar &outBuf,
-                                       int64_t &outBufSize);
- public:
-  static ClassNameToObjectMap classNameToObjectMap_;
+  virtual SharedPtrToClass create(std::istream &inStream) = 0;
+  static void retrieveSerializedBuffer(const std::string &className, UniquePtrToChar &outBuf, int64_t &outBufSize);
 
  private:
   static void serializeString(const std::string &str, std::ostream &outStream);
@@ -88,3 +81,14 @@ class Serializable {
   static UniquePtrToChar deserializeClassVersion(std::istream &inStream);
   static UniquePtrToChar deserializeString(std::istream &inStream);
 };
+
+class SerializableObjectsDB {
+ public:
+  static void registerObject(const std::string &className, const SharedPtrToClass &objectPtr);
+  friend class Serializable;
+
+ private:
+  static ClassNameToObjectMap classNameToObjectMap_;
+};
+
+}

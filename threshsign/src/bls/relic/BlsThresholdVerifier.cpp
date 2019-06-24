@@ -30,18 +30,14 @@
 #include "XAssert.h"
 
 using namespace std;
+using namespace concordSerializable;
 
 namespace BLS {
 namespace Relic {
 
-bool BlsThresholdVerifier::registered_ = false;
 
 void BlsThresholdVerifier::registerClass() {
-  if (!registered_) {
-    classNameToObjectMap_["BlsThresholdVerifier"] =
-        UniquePtrToClass(new BlsThresholdVerifier);
-    registered_ = true;
-  }
+  SerializableObjectsDB::registerObject("BlsThresholdVerifier", SharedPtrToClass(new BlsThresholdVerifier));
 }
 
 BlsThresholdVerifier::BlsThresholdVerifier(
@@ -158,10 +154,10 @@ G2T BlsThresholdVerifier::deserializePublicKey(istream &inStream) {
   return G2T(publicKey.get(), sizeOfPublicKey);
 }
 
-UniquePtrToClass BlsThresholdVerifier::createDontVerify(std::istream &inStream) {
+SharedPtrToClass BlsThresholdVerifier::createDontVerify(std::istream &inStream) {
   // Deserialize params
   BlsPublicParameters params;
-  UniquePtrToClass paramsObj(params.create(inStream));
+  SharedPtrToClass paramsObj(params.create(inStream));
 
   // Deserialize publicKey
   G2T publicKey = deserializePublicKey(inStream);
@@ -180,12 +176,12 @@ UniquePtrToClass BlsThresholdVerifier::createDontVerify(std::istream &inStream) 
   // Deserialize numSigners
   inStream.read((char *) &numSigners_, sizeof(numSigners_));
 
-  return UniquePtrToClass(new BlsThresholdVerifier(
+  return SharedPtrToClass(new BlsThresholdVerifier(
       *((BlsPublicParameters *) paramsObj.get()), publicKey, reqSigners_,
       numSigners_, publicKeysVector));
 }
 
-UniquePtrToClass BlsThresholdVerifier::create(istream &inStream) {
+SharedPtrToClass BlsThresholdVerifier::create(istream &inStream) {
   verifyClassVersion(classVersion_, inStream);
   return createDontVerify(inStream);
 }

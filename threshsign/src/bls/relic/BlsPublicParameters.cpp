@@ -18,6 +18,7 @@
 #include "Logger.hpp"
 
 using namespace std;
+using namespace concordSerializable;
 
 namespace BLS {
 namespace Relic {
@@ -82,15 +83,15 @@ bool BlsPublicParameters::operator==(const BlsPublicParameters &other) const {
 
 /************** Deserialization **************/
 
-UniquePtrToClass BlsPublicParameters::create(istream &inStream) {
+SharedPtrToClass BlsPublicParameters::create(istream &inStream) {
   // Retrieve the base class
-  UniquePtrToClass baseClass(IPublicParameters::createDontVerify(inStream));
+  SharedPtrToClass baseClass(IPublicParameters::createDontVerify(inStream));
 
   verifyClassName(className_, inStream);
   verifyClassVersion(classVersion_, inStream);
   inStream.read((char *) &curveType_, sizeof(curveType_));
 
-  return UniquePtrToClass(new BlsPublicParameters(
+  return SharedPtrToClass(new BlsPublicParameters(
       ((IPublicParameters *) baseClass.get())->getSecurityLevel(), curveType_));
 }
 

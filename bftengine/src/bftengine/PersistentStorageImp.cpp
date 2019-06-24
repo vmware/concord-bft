@@ -14,6 +14,7 @@
 #include <sstream>
 
 using namespace std;
+using namespace concordSerializable;
 
 namespace bftEngine {
 namespace impl {
@@ -28,14 +29,20 @@ PersistentStorageImp::PersistentStorageImp(uint16_t fVal, uint16_t cVal)
   seqNumWindowLast_ = seqNumWindowFirst_ + seqNumWindow_.getNumItems() - 1;
   checkWindowLast_ = checkWindowFirst_ + checkWindow_.getNumItems() - 1;
   DescriptorOfLastNewView::setViewChangeMsgsNum(fVal, cVal);
+  configSerializer_ = new ReplicaConfigSerializer(nullptr); // ReplicaConfig placeholder
+}
+
+PersistentStorageImp::~PersistentStorageImp() {
+  delete configSerializer_;
 }
 
 void PersistentStorageImp::init(MetadataStorage *&metadataStorage) {
-  initMetadataStorage(metadataStorage);
+  metadataStorage_ = metadataStorage;
   try {
     if (!getStoredVersion().empty())
       return;
   } catch (const runtime_error &exc) {}
+  initMetadataStorage(metadataStorage);
   // DB is not populated yet with default metadata parameter values.
   setDefaultsInMetadataStorage();
 }
@@ -59,8 +66,6 @@ void PersistentStorageImp::setDefaultsInMetadataStorage() {
 }
 
 void PersistentStorageImp::initMetadataStorage(MetadataStorage *&metadataStorage) {
-  metadataStorage_ = metadataStorage;
-
   unique_ptr<MetadataStorage::ObjectDesc> metadataObjectsArray(
       new MetadataStorage::ObjectDesc[MAX_METADATA_PARAMS_NUM]);
 
@@ -126,10 +131,9 @@ bool PersistentStorageImp::isInWriteTran() const {
 
 void PersistentStorageImp::setReplicaConfig(const ReplicaConfig &config) {
   Assert(isInWriteTran());
-  Assert(configSerializer_ == nullptr);
   UniquePtrToChar outBuf;
   int64_t outBufSize = ReplicaConfigSerializer::maxSize(numOfReplicas_);
-  configSerializer_ = new ReplicaConfigSerializer(config);
+  configSerializer_->setConfig(config);
   configSerializer_->serialize(outBuf, outBufSize);
   metadataStorage_->writeInTransaction(REPLICA_CONFIG, (char *) outBuf.get(), outBufSize);
 }
@@ -389,8 +393,7 @@ void PersistentStorageImp::setPrePrepareMsgInSeqNumWindow(const SeqNum seqNum, c
     getSeqNumWindow();
   const SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
   SeqNumData &seqNumData = seqNumWindow_.get(convertedIndex);
-  Assert(seqNumData.prePrepareMsg_ == nullptr);
-  seqNumData.prePrepareMsg_ = (PrePrepareMsg *) msg->cloneObjAndMsg();
+  seqNumData.setPrePrepareMsg((PrePrepareMsg *) msg->cloneObjAndMsg());
   setSeqNumDataElementBySeqNum(convertedIndex);
 }
 
@@ -399,7 +402,7 @@ void PersistentStorageImp::setSlowStartedInSeqNumWindow(const SeqNum seqNum, con
     getSeqNumWindow();
   const SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
   SeqNumData &seqNumData = seqNumWindow_.get(convertedIndex);
-  seqNumData.slowStarted_ = slowStarted;
+  seqNumData.setSlowStarted(slowStarted);
   setSeqNumDataElementBySeqNum(convertedIndex);
 }
 
@@ -409,8 +412,7 @@ void PersistentStorageImp::setFullCommitProofMsgInSeqNumWindow(
     getSeqNumWindow();
   const SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
   SeqNumData &seqNumData = seqNumWindow_.get(convertedIndex);
-  Assert(seqNumData.fullCommitProofMsg_ == nullptr);
-  seqNumData.fullCommitProofMsg_ = (FullCommitProofMsg *) msg->cloneObjAndMsg();
+  seqNumData.setFullCommitProofMsg((FullCommitProofMsg *) msg->cloneObjAndMsg());
   setSeqNumDataElementBySeqNum(convertedIndex);
 }
 
@@ -420,7 +422,7 @@ void PersistentStorageImp::setForceCompletedInSeqNumWindow(const SeqNum seqNum, 
   Assert(forceCompleted);
   const SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
   SeqNumData &seqNumData = seqNumWindow_.get(convertedIndex);
-  seqNumData.forceCompleted_ = forceCompleted;
+  seqNumData.setForceCompleted(forceCompleted);
   setSeqNumDataElementBySeqNum(convertedIndex);
 }
 
@@ -429,8 +431,7 @@ void PersistentStorageImp::setPrepareFullMsgInSeqNumWindow(const SeqNum seqNum, 
     getSeqNumWindow();
   const SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
   SeqNumData &seqNumData = seqNumWindow_.get(convertedIndex);
-  Assert(seqNumData.prepareFullMsg_ == nullptr);
-  seqNumData.prepareFullMsg_ = (PrepareFullMsg *) msg->cloneObjAndMsg();
+  seqNumData.setPrepareFullMsg((PrepareFullMsg *) msg->cloneObjAndMsg());
   setSeqNumDataElementBySeqNum(convertedIndex);
 }
 
@@ -439,8 +440,7 @@ void PersistentStorageImp::setCommitFullMsgInSeqNumWindow(const SeqNum seqNum, c
     getSeqNumWindow();
   const SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
   SeqNumData &seqNumData = seqNumWindow_.get(convertedIndex);
-  Assert(seqNumData.commitFullMsg_ == nullptr);
-  seqNumData.commitFullMsg_ = (CommitFullMsg *) msg->cloneObjAndMsg();
+  seqNumData.setCommitFullMsg((CommitFullMsg *) msg->cloneObjAndMsg());
   setSeqNumDataElementBySeqNum(convertedIndex);
 }
 
@@ -449,8 +449,7 @@ void PersistentStorageImp::setCheckpointMsgInCheckWindow(const SeqNum seqNum, co
     getCheckWindow();
   const SeqNum convertedIndex = checkWindow_.convertIndex(seqNum);
   CheckData &checkData = checkWindow_.get(convertedIndex);
-  delete checkData.checkpointMsg_;
-  checkData.checkpointMsg_ = (CheckpointMsg *) msg->cloneObjAndMsg();
+  checkData.setCheckpointMsg((CheckpointMsg *) msg->cloneObjAndMsg());
   setCheckDataElementBySeqNum(convertedIndex);
 }
 
@@ -460,7 +459,7 @@ void PersistentStorageImp::setCompletedMarkInCheckWindow(const SeqNum seqNum, co
   Assert(completed);
   const SeqNum convertedIndex = checkWindow_.convertIndex(seqNum);
   CheckData &checkData = checkWindow_.get(convertedIndex);
-  checkData.completedMark_ = completed;
+  checkData.setCompletedMark(completed);
   setCheckDataElementBySeqNum(convertedIndex);
 }
 
@@ -487,17 +486,13 @@ string PersistentStorageImp::getStoredVersion() {
 }
 
 ReplicaConfig PersistentStorageImp::getReplicaConfig() {
-  Assert(getIsAllowed());
   uint32_t outActualObjectSize = 0;
   UniquePtrToChar outBuf(new char[ReplicaConfigSerializer::maxSize(numOfReplicas_)]);
   metadataStorage_->read(REPLICA_CONFIG, ReplicaConfigSerializer::maxSize(numOfReplicas_),
                          outBuf.get(), outActualObjectSize);
-  UniquePtrToClass replicaConfigPtr = Serializable::deserialize(outBuf, outActualObjectSize);
+  SharedPtrToClass replicaConfigPtr = ReplicaConfigSerializer::deserialize(outBuf, outActualObjectSize);
   auto *configPtr = ((ReplicaConfigSerializer *)(replicaConfigPtr.get()))->getConfig();
-  if (!configSerializer_)
-    configSerializer_ = new ReplicaConfigSerializer(*configPtr);
-  else
-    configSerializer_->setConfig(*configPtr);
+  configSerializer_->setConfig(*configPtr);
   return *configPtr;
 }
 
@@ -536,7 +531,7 @@ PersistentStorageImp::getLastViewThatTransferredSeqNumbersFullyExecuted() {
 }
 
 bool PersistentStorageImp::hasReplicaConfig() const {
-  return (configSerializer_ && configSerializer_->getConfig());
+  return (configSerializer_->getConfig());
 }
 
 /***** Descriptors handling *****/
@@ -723,7 +718,7 @@ CheckpointMsg *PersistentStorageImp::getAndAllocateCheckpointMsgInCheckWindow(co
     getCheckWindow();
   Assert(getIsAllowed());
   SeqNum convertedIndex = checkWindow_.convertIndex(seqNum);
-  return (CheckpointMsg *)checkWindow_.get(convertedIndex).checkpointMsg_->cloneObjAndMsg();
+  return (CheckpointMsg *)checkWindow_.get(convertedIndex).getCheckpointMsg()->cloneObjAndMsg();
 }
 
 bool PersistentStorageImp::getCompletedMarkInCheckWindow(const SeqNum seqNum) {
@@ -731,7 +726,7 @@ bool PersistentStorageImp::getCompletedMarkInCheckWindow(const SeqNum seqNum) {
     getCheckWindow();
   Assert(getIsAllowed());
   SeqNum convertedIndex = checkWindow_.convertIndex(seqNum);
-  return checkWindow_.get(convertedIndex).completedMark_;
+  return checkWindow_.get(convertedIndex).getCompletedMark();
 }
 
 bool PersistentStorageImp::getSlowStartedInSeqNumWindow(const SeqNum seqNum) {
@@ -739,7 +734,7 @@ bool PersistentStorageImp::getSlowStartedInSeqNumWindow(const SeqNum seqNum) {
     getSeqNumWindow();
   Assert(getIsAllowed());
   SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
-  return seqNumWindow_.get(convertedIndex).slowStarted_;
+  return seqNumWindow_.get(convertedIndex).getSlowStarted();
 }
 
 bool PersistentStorageImp::getForceCompletedInSeqNumWindow(const SeqNum seqNum) {
@@ -747,7 +742,7 @@ bool PersistentStorageImp::getForceCompletedInSeqNumWindow(const SeqNum seqNum) 
     getSeqNumWindow();
   Assert(getIsAllowed());
   SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
-  return seqNumWindow_.get(convertedIndex).forceCompleted_;
+  return seqNumWindow_.get(convertedIndex).getForceCompleted();
 }
 
 PrePrepareMsg *PersistentStorageImp::getAndAllocatePrePrepareMsgInSeqNumWindow(const SeqNum seqNum) {
@@ -755,7 +750,7 @@ PrePrepareMsg *PersistentStorageImp::getAndAllocatePrePrepareMsgInSeqNumWindow(c
     getSeqNumWindow();
   Assert(getIsAllowed());
   SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
-  return (PrePrepareMsg *) seqNumWindow_.get(convertedIndex).prePrepareMsg_->cloneObjAndMsg();
+  return (PrePrepareMsg *) seqNumWindow_.get(convertedIndex).getPrePrepareMsg()->cloneObjAndMsg();
 }
 
 FullCommitProofMsg *PersistentStorageImp::getAndAllocateFullCommitProofMsgInSeqNumWindow(const SeqNum seqNum) {
@@ -763,7 +758,7 @@ FullCommitProofMsg *PersistentStorageImp::getAndAllocateFullCommitProofMsgInSeqN
     getSeqNumWindow();
   Assert(getIsAllowed());
   SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
-  return (FullCommitProofMsg *)seqNumWindow_.get(convertedIndex).fullCommitProofMsg_->cloneObjAndMsg();
+  return (FullCommitProofMsg *)seqNumWindow_.get(convertedIndex).getFullCommitProofMsg()->cloneObjAndMsg();
 }
 
 PrepareFullMsg *PersistentStorageImp::getAndAllocatePrepareFullMsgInSeqNumWindow(const SeqNum seqNum) {
@@ -771,7 +766,7 @@ PrepareFullMsg *PersistentStorageImp::getAndAllocatePrepareFullMsgInSeqNumWindow
     getSeqNumWindow();
   Assert(getIsAllowed());
   SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
-  return (PrepareFullMsg *)seqNumWindow_.get(convertedIndex).prepareFullMsg_->cloneObjAndMsg();
+  return (PrepareFullMsg *)seqNumWindow_.get(convertedIndex).getPrepareFullMsg()->cloneObjAndMsg();
 }
 
 CommitFullMsg *PersistentStorageImp::getAndAllocateCommitFullMsgInSeqNumWindow(const SeqNum seqNum) {
@@ -779,7 +774,7 @@ CommitFullMsg *PersistentStorageImp::getAndAllocateCommitFullMsgInSeqNumWindow(c
     getSeqNumWindow();
   Assert(getIsAllowed());
   SeqNum convertedIndex = seqNumWindow_.convertIndex(seqNum);
-  return (CommitFullMsg *)seqNumWindow_.get(convertedIndex).commitFullMsg_->cloneObjAndMsg();
+  return (CommitFullMsg *)seqNumWindow_.get(convertedIndex).getCommitFullMsg()->cloneObjAndMsg();
 }
 
 /***** Verification/helper functions *****/
@@ -838,13 +833,11 @@ SeqNum PersistentStorageImp::getSeqNum(ConstMetadataParameterIds id, uint32_t si
 }
 
 bool PersistentStorageImp::setIsAllowed() const {
-  return (isInWriteTran() && configSerializer_ &&
-      configSerializer_->getConfig());
+  return (isInWriteTran() && configSerializer_->getConfig());
 }
 
 bool PersistentStorageImp::getIsAllowed() const {
-  return (!isInWriteTran() && configSerializer_ &&
-      configSerializer_->getConfig());
+  return (!isInWriteTran() && configSerializer_->getConfig());
 }
 
 bool PersistentStorageImp::nonExecSetIsAllowed() const {

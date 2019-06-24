@@ -41,7 +41,7 @@ class BlsPublicParameters : public IPublicParameters {
 
   // Serialization/deserialization
   void serialize(std::ostream &outStream) const override;
-  UniquePtrToClass create(std::istream &inStream) override;
+  concordSerializable::SharedPtrToClass create(std::istream &inStream) override;
 
   std::string getName() const override { return className_; };
   std::string getVersion() const override { return classVersion_; };

@@ -20,7 +20,7 @@
 #include "ThresholdSignaturesTypes.h"
 #include "IThresholdAccumulator.h"
 
-class IThresholdVerifier : public Serializable {
+class IThresholdVerifier : public concordSerializable::Serializable {
  public:
   ~IThresholdVerifier() override = default;
 
