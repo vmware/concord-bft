@@ -26,8 +26,6 @@ PersistentStorageImp::PersistentStorageImp(uint16_t fVal, uint16_t cVal)
     : fVal_(fVal), cVal_(cVal), numOfReplicas_(3 * fVal + 2 * cVal + 1),
       version_(METADATA_PARAMS_VERSION), seqNumWindow_{seqNumWindowFirst_},
       checkWindow_{checkWindowFirst_} {
-  seqNumWindowLast_ = seqNumWindowFirst_ + seqNumWindow_.getNumItems() - 1;
-  checkWindowLast_ = checkWindowFirst_ + checkWindow_.getNumItems() - 1;
   DescriptorOfLastNewView::setViewChangeMsgsNum(fVal, cVal);
   configSerializer_ = new ReplicaConfigSerializer(nullptr); // ReplicaConfig placeholder
 }
