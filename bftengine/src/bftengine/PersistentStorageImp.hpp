@@ -186,9 +186,9 @@ class PersistentStorageImp : public PersistentStorage {
   uint8_t numOfNestedTransactions_ = 0;
   const uint32_t numOfReplicas_;
   const SeqNum seqNumWindowFirst_ = 1;
-  SeqNum seqNumWindowLast_ = seqNumWindowFirst_;
+  const SeqNum seqNumWindowLast_ = seqWinSize;
   const SeqNum checkWindowFirst_ = 0;
-  SeqNum checkWindowLast_ = checkWindowFirst_;
+  const SeqNum checkWindowLast_ = checkWinSize;
 
   bool hasDescriptorOfLastExitFromView_ = false;
   bool hasDescriptorOfLastNewView_ = false;
