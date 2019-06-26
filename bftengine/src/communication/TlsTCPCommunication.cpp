@@ -45,7 +45,7 @@
 #include "openssl/ssl.h"
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
-#include "Logging.hpp"
+#include "Logger.hpp"
 
 using namespace std;
 using namespace concordlogger;
@@ -193,7 +193,7 @@ class AsyncTlsConnection : public
       _connType(type),
       _cipherSuite(cipherSuite),
       _certificatesRootFolder(certificatesRootFolder),
-      _logger(Logger::getLogger("concord-bft.tls")),
+      _logger(Log::getLogger("concord-bft.tls")),
       _statusCallback{statusCallback},
       _nodes{std::move(nodes)},
       _sslContext{asio::ssl::context(type == ConnType::Incoming
@@ -1218,7 +1218,7 @@ class TlsTCPCommunication::TlsTcpImpl :
       _bufferLength(bufferLength),
       _maxServerId(maxServerId),
       _certRootFolder(certRootFolder),
-      _logger(Logger::getLogger("concord.tls")),
+      _logger(Log::getLogger("concord.tls")),
       _statusCallback{statusCallback},
       _cipherSuite{cipherSuite} {
     //_service = new io_service();

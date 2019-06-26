@@ -61,19 +61,15 @@
 #include "SimpleStateTransfer.hpp"
 #include "test_comm_config.hpp"
 #include "test_parameters.hpp"
-#include "Logging.hpp"
+#include "Logger.hpp"
 
 // simpleTest includes
 #include "commonDefs.h"
 
-#ifdef USE_LOG4CPP
-#include <log4cplus/configurator.h>
-#endif
-
 using namespace std;
 
 concordlogger::Logger replicaLogger =
-    concordlogger::Logger::getLogger("simpletest.replica");
+    concordlogger::Log::getLogger("simpletest.replica");
 bftEngine::Replica* replica = nullptr;
 ReplicaParams rp;
 
@@ -279,19 +275,13 @@ class SimpleAppState : public RequestsHandler {
   uint16_t numOfClients;
   uint16_t numOfReplicas;
 
-  concordlogger::Logger logger = concordlogger::Logger::getLogger
+  concordlogger::Logger logger = concordlogger::Log::getLogger
       ("simpletest.replica");
 
   bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer* st = nullptr;
 };
 
 int main(int argc, char **argv) {
-#ifdef USE_LOG4CPP
-  using namespace log4cplus;
-  initialize();
-  BasicConfigurator config;
-  config.configure();
-#endif
   parse_params(argc, argv);
 
   // allows to attach debugger

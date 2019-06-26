@@ -12,5 +12,24 @@
 
 #include "Logger.hpp"
 
-concordlogger::Logger GL =
-    concordlogger::Logger::getLogger(DEFAULT_LOGGER_NAME);
+#ifndef USE_LOG4CPP
+concordlogger::Logger initLogger()
+{
+  return concordlogger::Log::getLogger(DEFAULT_LOGGER_NAME);
+}
+#else
+#include <log4cplus/logger.h>
+#include <log4cplus/configurator.h>
+
+concordlogger::Logger initLogger()
+{
+  log4cplus::initialize();
+  log4cplus::BasicConfigurator config;
+  config.configure();
+  return log4cplus::Logger::getInstance( LOG4CPLUS_TEXT(DEFAULT_LOGGER_NAME));
+}
+
+
+#endif
+
+concordlogger::Logger GL = initLogger();

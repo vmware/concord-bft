@@ -31,7 +31,7 @@
 #endif
 
 #include "CommDefs.hpp"
-#include "Logging.hpp"
+#include "Logger.hpp"
 #include "boost/bind.hpp"
 #include <boost/asio.hpp>
 #include <boost/shared_ptr.hpp>
@@ -669,7 +669,7 @@ class AsyncTcpConnection :
 class PlainTCPCommunication::PlainTcpImpl {
  private:
   unordered_map<NodeNum, ASYNC_CONN_PTR> _connections;
-  concordlogger::Logger _logger = concordlogger::Logger::getLogger
+  concordlogger::Logger _logger = concordlogger::Log::getLogger
       ("concord-bft.tcp");
 
   unique_ptr<tcp::acceptor> _pAcceptor;

@@ -15,7 +15,7 @@
 #define BFTENGINE_INCLUDE_COMMUNICATION_COMMFACTORY_HPP_
 
 #include "CommDefs.hpp"
-#include "Logging.hpp"
+#include "Logger.hpp"
 
 namespace bftEngine {
 class CommFactory {  

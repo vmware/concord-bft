@@ -34,11 +34,12 @@ using std::chrono::milliseconds;
 using std::chrono::time_point;
 using std::chrono::system_clock;
 
-#define Assert(expr) {                                             \
-    if((expr) != true) {                                                    \
-        STLogger.error("'%s' is NOT true (in function '%s' in %s:%d)\n", \
-            #expr, __FUNCTION__, __FILE__, __LINE__); assert(false);                \
-    }                                                                       \
+#define Assert(expr) {                                                          \
+    if((expr) != true) {                                                        \
+        LOG_ERROR_F(STLogger, "'%s' is NOT true (in function '%s' in %s:%d)\n", \
+                              #expr, __FUNCTION__, __FILE__, __LINE__);         \
+        assert(false);                                                          \
+    }                                                                           \
 }
 
 namespace bftEngine {
@@ -72,7 +73,7 @@ namespace impl {
 //////////////////////////////////////////////////////////////////////////////
 
 concordlogger::Logger STLogger =
-  concordlogger::Logger::getLogger("state-transfer");
+  concordlogger::Log::getLogger("state-transfer");
 
 //////////////////////////////////////////////////////////////////////////////
 // Time

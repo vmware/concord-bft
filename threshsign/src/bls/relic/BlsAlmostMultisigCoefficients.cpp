@@ -25,7 +25,7 @@
 
 #include <vector>
 
-#include "Log.h"
+#include "Logger.hpp"
 
 using std::endl;
 

@@ -40,11 +40,8 @@
 #include "commonDefs.h"
 #include "test_comm_config.hpp"
 #include "test_parameters.hpp"
-#include "Logging.hpp"
+#include "Logger.hpp"
 
-#ifdef USE_LOG4CPP
-#include <log4cplus/configurator.h>
-#endif
 
 using bftEngine::ICommunication;
 using bftEngine::PlainUDPCommunication;
@@ -57,7 +54,7 @@ using bftEngine::SeqNumberGeneratorForClientRequests;
 using bftEngine::SimpleClient;
 
 concordlogger::Logger clientLogger =
-    concordlogger::Logger::getLogger("simpletest.client");
+    concordlogger::Log::getLogger("simpletest.client");
 
 #define test_assert(statement, message) \
 { if (!(statement)) { \
@@ -176,14 +173,6 @@ void parse_params(int argc, char** argv, ClientParams &cp,
 }
 
 int main(int argc, char **argv) {
-// TODO(IG:) configure Log4Cplus's output format, using default for now
-#ifdef USE_LOG4CPP
-  using namespace log4cplus;
-  initialize();
-  BasicConfigurator config;
-  config.configure();
-#endif
-
   ClientParams cp;
   bftEngine::SimpleClientParams scp;
   parse_params(argc, argv, cp, scp);

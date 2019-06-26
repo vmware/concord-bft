@@ -21,7 +21,7 @@
 #include <algorithm>
 #include <stdexcept>
 
-#include "Log.h"
+#include "Logger.hpp"
 #include "Utils.h"
 #include "XAssert.h"
 #include "app/Main.h"
@@ -48,7 +48,7 @@ void testUtils() {
     testAssertEqual(Utils::numBits(7), 3);
     testAssertEqual(Utils::numBits(8), 4);
 
-    loginfo << "Utils::numBits passed!" << endl;
+    LOG_INFO(GL, "Utils::numBits passed!");
 
     testAssertEqual(Utils::pow2(0), 1);
     testAssertEqual(Utils::pow2(1), 2);
@@ -57,6 +57,6 @@ void testUtils() {
     testAssertEqual(Utils::pow2(4), 16);
     testAssertEqual(Utils::pow2(5), 32);
 
-    loginfo << "Utils::pow2 passed!" << endl;
+    LOG_INFO(GL, "Utils::pow2 passed!");
 
 }

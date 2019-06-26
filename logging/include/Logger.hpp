@@ -10,14 +10,20 @@
 // the terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 
-#ifndef BFT_LOGGER_HPP_1
-#define BFT_LOGGER_HPP_1
+#pragma once
 
+#ifndef USE_LOG4CPP
 #include "Logging.hpp"
+#else
+#include "Logging4cplus.hpp"
+#endif
 
-// globals to support easy logging
+/**
+ * GL and initLogger() have to be defined by a user in a following way:
+ * concordlogger::Logger GL = initLogger();
+ *
+ * For development purposes anyone can link with $<TARGET_OBJECTS:logging_dev>
+ * and get a default initializations for both loggers.
+ */
 extern concordlogger::Logger GL;
-#define GL GL
-
-#endif // BFT_LOGGER_HPP_1
-
+extern concordlogger::Logger initLogger();

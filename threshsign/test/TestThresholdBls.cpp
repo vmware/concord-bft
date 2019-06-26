@@ -23,7 +23,7 @@
 #include <stdexcept>
 #include <inttypes.h>
 
-#include "Log.h"
+#include "Logger.hpp"
 #include "Utils.h"
 #include "Timer.h"
 #include "XAssert.h"
@@ -54,9 +54,9 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
 
     const char * msg = "blaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBla";
     for(bool multisig : {true, false}) {
-        loginfo << endl;
-        loginfo << "Testing threshold signatures (useMultisig = " << multisig << ")" << endl;
-        loginfo << endl;
+        LOG_INFO(GL,"");
+        LOG_INFO(GL, "Testing threshold signatures (useMultisig = " << multisig << ")");
+        LOG_INFO(GL,"");
 
         for(auto it = nk.begin(); it != nk.end(); it++) {
             int n = it->first;

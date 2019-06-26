@@ -26,7 +26,7 @@
 #include <algorithm>
 #include <iterator>
 
-#include "Log.h"
+#include "Logger.hpp"
 #include "XAssert.h"
 
 using namespace std;
@@ -61,7 +61,7 @@ BlsThresholdVerifier::BlsThresholdVerifier(
   registerClass();
 
 #ifdef TRACE
-  logtrace << "VKs (array has size " << vks.size() << ")" << endl;
+  LOG_TRACE(GL, "VKs (array has size " << vks.size() << ")");
   copy(vks.begin(), vks.end(), ostream_iterator<BlsPublicKey>(cout, "\n"));
 #endif
 }

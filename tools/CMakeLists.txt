@@ -3,7 +3,8 @@ project(concord_bft_tools LANGUAGES CXX)
 add_executable(GenerateConcordKeys
                GenerateConcordKeys.cpp
                KeyfileIOUtils.hpp
-               KeyfileIOUtils.cpp)
+               KeyfileIOUtils.cpp
+               $<TARGET_OBJECTS:logging_dev>)
 target_include_directories(GenerateConcordKeys
                            PRIVATE
                            ${threshsign_SOURCE_DIR}/src
@@ -23,7 +24,8 @@ set_target_properties(GenerateConcordKeys
 add_executable(TestGeneratedKeys
                TestGeneratedKeys.cpp
                KeyfileIOUtils.hpp
-               KeyfileIOUtils.cpp)
+               KeyfileIOUtils.cpp
+               $<TARGET_OBJECTS:logging_dev>)
 target_include_directories(TestGeneratedKeys
                            PRIVATE
                            ${threshsign_SOURCE_DIR}/src

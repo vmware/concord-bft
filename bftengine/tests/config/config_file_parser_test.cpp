@@ -33,7 +33,7 @@ int main(int argc, char **argv) {
   if (given_config_file != use_default_config_file)
     config_file = given_config_file;
   concordlogger::Logger logger =
-      concordlogger::Logger::getLogger("simpletest.test");
+      concordlogger::Log::getLogger("simpletest.test");
   ConfigFileParser parser(logger, config_file);
   if (!parser.Parse())
     return 1;

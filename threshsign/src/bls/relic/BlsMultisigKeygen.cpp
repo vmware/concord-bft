@@ -16,7 +16,7 @@
 #include "threshsign/bls/relic/BlsPublicParameters.h"
 #include "threshsign/bls/relic/Library.h"
 
-#include "Log.h"
+#include "Logger.hpp"
 
 using std::endl;
 
@@ -42,11 +42,11 @@ BlsMultisigKeygen::BlsMultisigKeygen(const BlsPublicParameters& params, NumShare
 
     g2_mul_gen(pk, sk);
 
-    logalloc << "Created: " << this << endl;
+    LOG_TRACE(GL, "Created: " << this);
 }
 
 BlsMultisigKeygen::~BlsMultisigKeygen() {
-    logalloc << "Destroyed: " << this << endl;
+    LOG_TRACE(GL, "Destroyed: " << this);
 }
 
 } /* namespace Relic */

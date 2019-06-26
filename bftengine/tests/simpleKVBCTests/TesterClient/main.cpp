@@ -31,28 +31,17 @@
 #include "winUtils.h"
 #endif
 
-#ifdef USE_LOG4CPP
-#include <log4cplus/configurator.h>
-#endif
-
 using namespace SimpleKVBC;
 using namespace bftEngine;
 
 using std::string;
 
 concordlogger::Logger clientLogger =
-		concordlogger::Logger::getLogger("skvbctest.client");
+		concordlogger::Log::getLogger("skvbctest.client");
 
 int main(int argc, char **argv) {
 #if defined(_WIN32)
 	initWinSock();
-#endif
-
-#ifdef USE_LOG4CPP
-	using namespace log4cplus;
-  initialize();
-  BasicConfigurator logConfig;
-  logConfig.configure();
 #endif
 
 	char argTempBuffer[PATH_MAX + 10];

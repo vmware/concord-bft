@@ -17,7 +17,7 @@
 #include "threshsign/bls/relic/BlsNumTypes.h"
 
 #include "Utils.h"
-#include "Log.h"
+#include "Logger.hpp"
 
 #include <vector>
 
@@ -137,7 +137,7 @@ public:
     const T& getNode(int node) const {
         // Range check
         if(node < 0 || node > maxNumNodes - 1) {
-            logerror << "Accessed node " << node << " is not in [0, " << maxNumNodes << ") range" << std::endl;
+            LOG_ERROR(GL, "Accessed node " << node << " is not in [0, " << maxNumNodes << ") range");
             throw std::logic_error("Accessing tree node out-of-bounds");
         }
 

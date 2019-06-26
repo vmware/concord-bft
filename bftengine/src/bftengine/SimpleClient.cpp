@@ -197,10 +197,11 @@ namespace bftEngine
 		int SimpleClientImp::sendRequest(bool isReadOnly, const char* request, uint32_t lengthOfRequest, uint64_t reqSeqNum, uint64_t timeoutMilli, uint32_t lengthOfReplyBuffer, char* replyBuffer, uint32_t& actualReplyLength)
 		{			
 			// TODO(GG): check params ...
-			LOG_INFO_F(GL, "Client %d - sends request %" PRIu64 " (isRO=%d, "
-                            "request "
-                            "size=%zu, retransmissionMilli=%d) ",
-                            _clientId, reqSeqNum, (int)isReadOnly, (size_t)lengthOfRequest,  (int)limitOfExpectedOperationTime.upperLimit());
+			LOG_INFO(GL, "Client " << _clientId
+			                       << " - sends request " << reqSeqNum
+			                       << " (isRO=" << isReadOnly
+			                       << " , request size=" << lengthOfRequest
+			                       << ", retransmissionMilli=" << limitOfExpectedOperationTime.upperLimit()  << " ) ");
 
 			if (!_communication->isRunning())
 			{

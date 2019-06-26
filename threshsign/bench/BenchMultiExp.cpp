@@ -20,7 +20,7 @@
 #include <memory>
 #include <stdexcept>
 
-#include "Log.h"
+#include "Logger.hpp"
 #include "Utils.h"
 #include "Timer.h"
 #include "XAssert.h"
@@ -42,15 +42,15 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
     (void)args;
 
     unsigned int seed = static_cast<unsigned int>(time(NULL));
-    loginfo << "Randomness seed passed to srand(): " << seed << endl;
+    LOG_INFO(GL, "Randomness seed passed to srand(): " << seed);
     srand(seed);
 
-    loginfo << "Benchmarking fast exponentiated multiplication in G1..." << endl;
+    LOG_INFO(GL, "Benchmarking fast exponentiated multiplication in G1...");
     benchFastMultExp<G1T>(100, 1500, 1000);
 
-    loginfo << endl;
+    LOG_INFO(GL,"");
 
-    loginfo << "Benchmarking fast exponentiated multiplication in G2..." << endl;
+    LOG_INFO(GL, "Benchmarking fast exponentiated multiplication in G2...");
     benchFastMultExp<G2T>(100, 1500, 1000);
 
     return 0;
@@ -64,7 +64,7 @@ void benchFastMultExp(int numIters, int numSigners, int reqSigners) {
     assertLessThanOrEqual(reqSigners, numSigners);
     int maxBits = Library::Get().getG2OrderNumBits();
     //int maxBits = 256;
-    loginfo << "iters = " << numIters << ", reqSigners = " << reqSigners << ", numSigners = " << numSigners << ", max bits = " << maxBits << endl;
+    LOG_INFO(GL, "iters = " << numIters << ", reqSigners = " << reqSigners << ", numSigners = " << numSigners << ", max bits = " << maxBits);
 
     VectorOfShares s;
     VectorOfShares::randomSubset(s, n, k);
@@ -116,10 +116,10 @@ void benchFastMultExp(int numIters, int numSigners, int reqSigners) {
         t3.endLap();
     }
 
-    loginfo << "Ran for " << numIters << " iterations" << endl;
-    loginfo << t1 << endl;
-    loginfo << t2 << endl;
-    loginfo << t3 << endl;
+    LOG_INFO(GL, "Ran for " << numIters << " iterations");
+    LOG_INFO(GL, t1);
+    LOG_INFO(GL, t2);
+    LOG_INFO(GL, t3);
 
     // Same way?
     if(r1 != r2 || r1 != r3) {

@@ -9,40 +9,40 @@
 #include "Main.h"
 
 #include "XAssert.h"
-#include "Log.h"
+#include "Logger.hpp"
 
 using std::endl;
 
 int main(int argc, char *argv[]) {
-	logerror << "Error logging is enabled!" << endl;
-	logwarn << "Warning logging is enabled!" << endl;
-	loginfo << "Info logging is enabled!" << endl;
-	logdbg << "Debug logging is enabled!" << endl;
-	logtrace << "Trace logging is enabled!" << endl;
-	loginfo << endl;
+  LOG_ERROR(GL, "Error logging is enabled!");
+  LOG_WARN(GL, "Warning logging is enabled!");
+  LOG_INFO(GL, "Info logging is enabled!");
+  LOG_DEBUG(GL, "Debug logging is enabled!");
+  LOG_TRACE(GL, "Trace logging is enabled!");
+  LOG_INFO(GL,"");
 #ifndef NDEBUG
-	loginfo << "Assertions are enabled!" << endl;
-	assertTrue(true);
-	assertFalse(false);
+  LOG_INFO(GL, "Assertions are enabled!");
+  assertTrue(true);
+  assertFalse(false);
 #else
-	loginfo << "Assertions are disabled!" << endl;
-	assertFalse(true);
-	assertTrue(false);
+  LOG_INFO(GL, "Assertions are disabled!");
+  assertFalse(true);
+  assertTrue(false);
 #endif
-	logdbg << endl;
-    logdbg << "Number of arguments: " << argc << endl;
+  LOG_DEBUG(GL, "");
+  LOG_DEBUG(GL, "Number of arguments: " << argc);
 
-	std::vector<std::string> args;
-	for(int i = 0; i < argc; i++) {
-		args.push_back(std::string(argv[i]));
-	}
+  std::vector<std::string> args;
+  for(int i = 0; i < argc; i++) {
+    args.push_back(std::string(argv[i]));
+  }
     
     unsigned int seed = static_cast<unsigned int>(time(NULL));
-    loginfo << "Randomness seed passed to srand(): " << seed << endl;
+    LOG_INFO(GL, "Randomness seed passed to srand(): " << seed);
     srand(seed);
 
-	// Call application-defined AppMain()
-	int rc = AppMain(args);
-	loginfo << "Exited gracefully with rc = " << rc << "." << endl;
-	return rc;
+  // Call application-defined AppMain()
+  int rc = AppMain(args);
+  LOG_INFO(GL, "Exited gracefully with rc = " << rc << ".");
+  return rc;
 }

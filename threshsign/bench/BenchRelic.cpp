@@ -23,7 +23,7 @@
 
 #include "Utils.h"
 #include "Timer.h"
-#include "Log.h"
+#include "Logger.hpp"
 #include "app/RelicMain.h"
 
 #include "lib/Benchmark.h"
@@ -37,9 +37,9 @@ using namespace BLS::Relic;
 using std::endl;
 
 void printTime(const AveragingTimer& t, bool printAvg = false) {
-    logperf << t.numIterations() << " iters of " << t.getName() << ": " << t.totalLapTime() << " microsecs" << std::endl;
+    LOG_DEBUG(GL, t.numIterations() << " iters of " << t.getName() << ": " << t.totalLapTime() << " microsecs" );
     if(printAvg)
-        logperf << " * Average: " << t.averageLapTime() << " micros" << endl;
+        LOG_DEBUG(GL, " * Average: " << t.averageLapTime() << " micros");
 }
 
 typedef BNT& (BNT::*ModFunc)(const BNT& , const BNT& );
@@ -63,8 +63,8 @@ void benchmarkModulo(const BNT& fieldOrder, int numIters, AveragingTimer &t,
         a = a*b;
         c = a;
 
-        //loginfo << "a = " << a << endl;
-        //loginfo << "p = " << fieldOrder << endl;
+        //LOG_INFO(GL, "a = " << a);
+        //LOG_INFO(GL, "p = " << fieldOrder);
 
         // We want a to be bigger than p, so that modular reduction does *some* work!
         if(a < fieldOrder || c < fieldOrder) {
@@ -128,17 +128,17 @@ void benchModulo(const BNT& fieldOrder, int bigNumIters) {
     if(bigNumIters < 100 * 1000 + 1)
         benchmarkModulo(fieldOrder, bigNumIters, tFastModPmers, BNT::FastModuloPrePmers, &BNT::FastModuloPmers);
     else
-        loginfo << "Not running PMERS modular reduction benchmarks cause they're too slow" << endl;
+        LOG_INFO(GL, "Not running PMERS modular reduction benchmarks cause they're too slow");
 }
 
 int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
     (void)args;
     
-    loginfo << "RELIC Type 1 paring: " << pc_map_is_type1() << endl;
-    loginfo << "RELIC Type 3 paring: " << pc_map_is_type3() << endl;
+    LOG_INFO(GL, "RELIC Type 1 paring: " << pc_map_is_type1());
+    LOG_INFO(GL, "RELIC Type 3 paring: " << pc_map_is_type3());
 
     unsigned int seed = static_cast<unsigned int>(time(NULL));
-    loginfo << "Randomness seed passed to srand(): " << seed << endl;
+    LOG_INFO(GL, "Randomness seed passed to srand(): " << seed);
     srand(seed);
 
 #ifdef NDEBUG
@@ -155,16 +155,16 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
     BlsPublicParameters params = PublicParametersFactory::getWhatever();
     BNT fieldOrder = params.getGroupOrder();
 
-    loginfo << endl;
+    LOG_INFO(GL,"");
 
     benchPairing(fieldOrder, 100);
 
-    loginfo << endl;
+    LOG_INFO(GL,"");
 
     benchChaPedSign(fieldOrder, 100);
     benchChaPedVerify(fieldOrder, 100);
 
-    loginfo << endl;
+    LOG_INFO(GL,"");
 
 //    AveragingTimer tDiv("BNT::DivideBy"); // Don't use this (except rarely in old Lagrange coefficient implementation)
     AveragingTimer tTimes("BNT::Times");
@@ -206,12 +206,12 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
 //    printTime(tDiv, numIters);
     printTime(tTimes);
 
-    logperf << endl;
+    LOG_INFO(GL,"");
 
     printTime(g1exp, true);
     printTime(g2exp, true);
 
-    logperf << endl;
+    LOG_INFO(GL,"");
 
     benchPrecompute(fieldOrder, bigNumIters);
 
@@ -235,12 +235,12 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
         tInvertDigtModPrime.endLap();
     }
 
-    loginfo << endl;
+    LOG_INFO(GL,"");
 
     printTime(tInvertModPrime);
     printTime(tInvertDigtModPrime);
 
-    loginfo << endl;
+    LOG_INFO(GL,"");
 
     benchModulo(fieldOrder, bigNumIters);
 
@@ -296,7 +296,7 @@ void benchPrecompute(const BNT& fieldOrder, int numIters) {
     printTime(g1pre, true);
     printTime(g1mul, true);
 
-    logperf << endl;
+    LOG_INFO(GL,"");
 
     printTime(g2pre, true);
     printTime(g2mul, true);
@@ -314,7 +314,7 @@ void benchChaPedVerify(const BNT& fieldOrder, int numIters) {
     }
     g1_mul_pre(ht, h);
     auto time = preh.stop().count();
-    loginfo << "Precomputing on message hash took: " << time << " microsecs"<< endl;
+    LOG_INFO(GL,"Precomputing on message hash took: " << time << " microsecs");
 
     AveragingTimer t("DlogEqVerify");
     for(int i = 0; i < numIters; i++) {
@@ -359,7 +359,7 @@ void benchChaPedVerify(const BNT& fieldOrder, int numIters) {
 
     }
 
-    loginfo << endl;
+    LOG_INFO(GL,"");
 
     printTime(t, true);
 }
@@ -379,7 +379,7 @@ void benchPairing(const BNT& fieldOrder, int numIters) {
         t.endLap();
     }
 
-    loginfo << endl;
+    LOG_INFO(GL,"");
 
     printTime(t, true);
 }
@@ -418,7 +418,7 @@ void benchChaPedSign(const BNT& fieldOrder, int numIters) {
         t.endLap();
     }
 
-    loginfo << endl;
+    LOG_INFO(GL,"");
 
     printTime(t, true);
 }

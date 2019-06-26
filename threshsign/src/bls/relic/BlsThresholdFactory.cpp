@@ -34,7 +34,7 @@
 
 #include "BlsPolynomial.h"
 
-#include "Log.h"
+#include "Logger.hpp"
 
 using std::endl;
 
@@ -103,7 +103,7 @@ std::tuple<std::vector<IThresholdSigner*>, IThresholdVerifier*> BlsThresholdFact
     IThresholdVerifier* verifier;
 
     if(useMultisig || reqSigners == numSigners) {
-        logdbg << "Creating multisig BLS verifier" << endl;
+        LOG_DEBUG(GL, "Creating multisig BLS verifier");
         verifier = new BlsMultisigVerifier(params, reqSigners, numSigners, verifKeys);
     } else {
         verifier = new BlsThresholdVerifier(params, keygen->getPublicKey(), reqSigners, numSigners, verifKeys);

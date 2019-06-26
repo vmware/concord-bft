@@ -21,7 +21,7 @@
 #include <stdexcept>
 #include <inttypes.h>
 
-#include "Log.h"
+#include "Logger.hpp"
 #include "Utils.h"
 #include "Timer.h"
 #include "XAssert.h"
@@ -44,7 +44,7 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
     int n = 10000;
     for(int i = 0; i < n; i++) {
         if(i % 1000 == 0) {
-            loginfo << i+1 << " out of " << n << endl;
+            LOG_INFO(GL, i+1 << " out of " << n);
         }
 
         G1T g1a, g1b;

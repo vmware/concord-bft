@@ -18,7 +18,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
-#include "Logging.hpp"
+#include "Logger.hpp"
 #include "Metrics.hpp"
 
 #ifndef CONCORD_BFT_METRICS_SERVER_HPP
@@ -49,7 +49,7 @@ class Server {
  public:
   Server(uint16_t listenPort)
       : listenPort_{listenPort},
-        logger_{concordlogger::Logger::getLogger("metrics-server")},
+        logger_{concordlogger::Log::getLogger("metrics-server")},
         running_{false},
         aggregator_{std::make_shared<Aggregator>()} {}
 
