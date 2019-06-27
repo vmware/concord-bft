@@ -419,7 +419,7 @@ int main() {
   descriptorOfLastExecution = new DescriptorOfLastExecution();
 
   persistentStorageImp = new PersistentStorageImp(fVal, cVal);
-  Logger logger = Logger::getLogger("testSerialization.replica");
+  Logger logger = concordlogger::Log::getLogger("testSerialization.replica");
 
   const string dbFile = "testPersistency.txt";
   remove(dbFile.c_str()); // Required for the init testing.
