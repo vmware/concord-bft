@@ -34,17 +34,17 @@ enum ConstMetadataParameterIds {
 
 const uint16_t seqWinSize = kWorkWindowSize;
 
-// SEQ_NUM_WINDOW contains kWorkWindowSize objects plus one - for simple window parameters.
-const uint16_t numOfSeqWinObjs = seqWinSize + 1;
+constexpr uint16_t numOfSeqNumWinParameters = SeqNumData::getNumOfParams();
+const uint16_t numOfSeqNumWinObjs = seqWinSize * numOfSeqNumWinParameters + 1;
 
 const uint16_t checkWinSize = (kWorkWindowSize + checkpointWindowSize) / checkpointWindowSize;
 
-// CHECK_WINDOW contains checkWinSize objects plus one - for simple window parameters.
-const uint16_t numOfCheckWinObjs = checkWinSize + 1;
+constexpr uint16_t numOfCheckWinParameters = CheckData::getNumOfParams();
+const uint16_t numOfCheckWinObjs = checkWinSize * numOfCheckWinParameters + 1;
 
 enum WinMetadataParameterIds {
   SEQ_NUM_WINDOW = CONST_METADATA_PARAMETERS_NUM,
-  CHECK_WINDOW = SEQ_NUM_WINDOW + numOfSeqWinObjs,
+  CHECK_WINDOW = SEQ_NUM_WINDOW + numOfSeqNumWinObjs,
   WIN_PARAMETERS_NUM = CHECK_WINDOW + numOfCheckWinObjs
 };
 
@@ -116,8 +116,8 @@ class PersistentStorageImp : public PersistentStorage {
   CheckpointMsg *getAndAllocateCheckpointMsgInCheckWindow(const SeqNum seqNum) override;
   bool getCompletedMarkInCheckWindow(const SeqNum seqNum) override;
 
-  SeqNumWindow &getSeqNumWindow();
-  CheckWindow &getCheckWindow();
+  SharedPtrSeqNumWindow getSeqNumWindow();
+  SharedPtrCheckWindow getCheckWindow();
 
   bool hasReplicaConfig() const override;
 
@@ -134,6 +134,7 @@ class PersistentStorageImp : public PersistentStorage {
   SeqNum getSeqNum(ConstMetadataParameterIds id, uint32_t size);
 
  private:
+  void retrieveWindowsMetadata();
   void initMetadataStorage(MetadataStorage *&metadataStorage);
   void setDefaultsInMetadataStorage();
   void verifySetDescriptorOfLastExitFromView(const DescriptorOfLastExitFromView &desc) const;
@@ -154,25 +155,33 @@ class PersistentStorageImp : public PersistentStorage {
 
   void setVersion() const;
 
-  void setSeqNumDataElement(SeqNum index, char *buf) const;
-  void setSeqNumDataElementBySeqNum(SeqNum seqNum) const;
-  void serializeAndSaveSeqNumWindow() const;
+  void setMsgInSeqNumWindow(const SeqNum seqNum, const SeqNum parameterId, MessageBase *msg) const;
+  void setBooleanInSeqNumWindow(const SeqNum seqNum, const SeqNum parameterId, const bool boolean) const;
+  void setSeqNumDataElement(SeqNum index, char *buf, SharedPtrSeqNumWindow seqNumWindow) const;
+  void serializeAndSaveSeqNumWindow(SharedPtrSeqNumWindow seqNumWindow);
 
-  void setCheckDataElement(SeqNum index, char *buf) const;
-  void setCheckDataElementBySeqNum(SeqNum seqNum) const;
-  void serializeAndSaveCheckWindow() const;
+  void setCheckDataElement(SeqNum index, char *buf, SharedPtrCheckWindow checkWindow) const;
+  void serializeAndSaveCheckWindow(SharedPtrCheckWindow checkWindow);
 
-  void getSeqNumDataElement(SeqNum index, char *buf);
-  void getSeqNumDataElementBySeqNum(SeqNum seqNum);
-  void getCheckDataElement(SeqNum index, char *buf);
-  void getCheckDataElementBySeqNum(SeqNum seqNum);
+  MessageBase *readMsgFromDisk(SeqNum seqNum, SeqNum parameterId) const;
+  PrePrepareMsg *readPrePrepareMsgFromDisk(SeqNum seqNum) const;
+  FullCommitProofMsg *readFullCommitProofMsgFromDisk(SeqNum seqNum) const;
+  PrepareFullMsg *readPrepareFullMsgFromDisk(SeqNum seqNum) const;
+  CommitFullMsg *readCommitFullMsgFromDisk(SeqNum seqNum) const;
+  bool readBooleanFromDisk(SeqNum seqNum, SeqNum parameterId) const;
+  void readSeqNumDataElementFromDisk(SeqNum index, char *buf, SharedPtrSeqNumWindow seqNumWindow);
+
+  void readCheckDataElementFromDisk(SeqNum index, char *buf, SharedPtrCheckWindow checkWindow);
+  CheckpointMsg *readCheckpointMsgFromDisk(SeqNum seqNum) const;
+  bool readCompletedMarkFromDisk(SeqNum seqNum) const;
 
   void setFetchingStateInternal(const bool &state);
   void setLastExecutedSeqNumInternal(const SeqNum &seqNum);
   void setPrimaryLastUsedSeqNumInternal(const SeqNum &seqNum);
   void setStrictLowerBoundOfSeqNumsInternal(const SeqNum &seqNum);
   void setLastViewTransferredSeqNumbersInternal(const ViewNum &view);
-  void setLastStableSeqNumInternal(const SeqNum &seqNum);
+  void setLastStableSeqNumInternal(const SeqNum &seqNum, SharedPtrSeqNumWindow seqNumWindow,
+                                   SharedPtrCheckWindow checkWindow);
 
  private:
   MetadataStorage *metadataStorage_ = nullptr;
@@ -189,13 +198,12 @@ class PersistentStorageImp : public PersistentStorage {
   const SeqNum seqNumWindowLast_ = seqWinSize;
   const SeqNum checkWindowFirst_ = 0;
   const SeqNum checkWindowLast_ = checkWinSize;
+  SeqNum checkWindowBeginning_ = 0;
+  SeqNum seqNumWindowBeginning_ = 0;
 
   bool hasDescriptorOfLastExitFromView_ = false;
   bool hasDescriptorOfLastNewView_ = false;
   bool hasDescriptorOfLastExecution_ = false;
-
-  bool seqNumWindowReadFromDisk_ = false;
-  bool checkWindowReadFromDisk_ = false;
 
   // Parameters to be saved persistently
   std::string version_;
@@ -205,9 +213,6 @@ class PersistentStorageImp : public PersistentStorage {
   SeqNum strictLowerBoundOfSeqNums_ = 0;
   ViewNum lastViewTransferredSeqNum_ = 0;
   SeqNum lastStableSeqNum_ = 0;
-
-  SeqNumWindow seqNumWindow_;
-  CheckWindow checkWindow_;
 };
 
 }  // namespace impl

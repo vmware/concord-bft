@@ -11,6 +11,8 @@
 // LICENSE file.
 
 #include "SerializableActiveWindow.hpp"
+#include <memory>
+#include <cstring>
 
 using namespace std;
 
@@ -45,26 +47,20 @@ bool SerializableActiveWindow<INPUT_PARAMS>::equals(const SerializableActiveWind
 }
 
 template<TEMPLATE_PARAMS>
-void SerializableActiveWindow<INPUT_PARAMS>::serializeSimpleParams(char *buf, size_t bufLen) const {
-  Assert(bufLen >= simpleParamsSize());
-  size_t beginningOfActiveWindowSize = sizeof(beginningOfActiveWindow_);
-  memcpy(buf, &beginningOfActiveWindow_, beginningOfActiveWindowSize);
+void SerializableActiveWindow<INPUT_PARAMS>::serializeActiveWindowBeginning(char *buf) const {
+  memcpy(buf, &beginningOfActiveWindow_, sizeof(beginningOfActiveWindow_));
 }
 
 template<TEMPLATE_PARAMS>
-void SerializableActiveWindow<INPUT_PARAMS>::serializeElement(
-    uint16_t index, char *buf, size_t bufLen, size_t &actualSize) const {
-  actualSize = 0;
-  Assert(bufLen >= maxElementSize());
-  activeWindow_[index].serialize(buf, maxElementSize(), actualSize);
+SeqNum SerializableActiveWindow<INPUT_PARAMS>::deserializeActiveWindowBeginning(char *buf) {
+  SeqNum beginningOfActiveWindow = 0;
+  memcpy(&beginningOfActiveWindow, buf, sizeof(beginningOfActiveWindow));
+  return beginningOfActiveWindow;
 }
 
 template<TEMPLATE_PARAMS>
-void SerializableActiveWindow<INPUT_PARAMS>::deserializeSimpleParams(char *buf, size_t bufLen, uint32_t &actualSize) {
-  Assert(bufLen >= simpleParamsSize());
-  size_t beginningOfActiveWindowSize = sizeof(beginningOfActiveWindow_);
-  memcpy(&beginningOfActiveWindow_, buf, beginningOfActiveWindowSize);
-  actualSize = simpleParamsSize();
+void SerializableActiveWindow<INPUT_PARAMS>::deserializeBeginningOfActiveWindow(char *buf) {
+  beginningOfActiveWindow_ = deserializeActiveWindowBeginning(buf);
 }
 
 template<TEMPLATE_PARAMS>
@@ -79,30 +75,37 @@ void SerializableActiveWindow<INPUT_PARAMS>::deserializeElement(
 
 template<TEMPLATE_PARAMS>
 bool SerializableActiveWindow<INPUT_PARAMS>::insideActiveWindow(uint16_t num) const {
-  return ((num >= beginningOfActiveWindow_) && (num < (beginningOfActiveWindow_ + WindowSize)));
+  return insideActiveWindow(num, beginningOfActiveWindow_);
 }
 
 template<TEMPLATE_PARAMS>
-SeqNum SerializableActiveWindow<INPUT_PARAMS>::convertIndex(const SeqNum &seqNum) const {
+bool SerializableActiveWindow<INPUT_PARAMS>::insideActiveWindow(uint16_t num, const SeqNum& beginningOfActiveWindow) {
+  return ((num >= beginningOfActiveWindow) && (num < (beginningOfActiveWindow + WindowSize)));
+}
+
+template<TEMPLATE_PARAMS>
+SeqNum SerializableActiveWindow<INPUT_PARAMS>::convertIndex(const SeqNum &seqNum) {
+  convertIndex(seqNum, beginningOfActiveWindow_);
+}
+
+template<TEMPLATE_PARAMS>
+SeqNum SerializableActiveWindow<INPUT_PARAMS>::convertIndex(
+    const SeqNum &seqNum, const SeqNum& beginningOfActiveWindow) {
   Assert(seqNum % Resolution == 0);
-  Assert(insideActiveWindow(seqNum));
-  SeqNum converted = (seqNum / Resolution) % numItems_;
+  Assert(insideActiveWindow(seqNum, beginningOfActiveWindow));
+  SeqNum converted = (((seqNum / Resolution) % numItems_) / Resolution) % numItems_;
   return converted;
 }
 
-// Accessed by an internal index
 template<TEMPLATE_PARAMS>
 ItemType &SerializableActiveWindow<INPUT_PARAMS>::get(uint16_t seqNum) {
-  SeqNum index = (seqNum / Resolution) % numItems_;
+  SeqNum index = convertIndex(seqNum);
   return activeWindow_[index];
 }
 
 template<TEMPLATE_PARAMS>
-std::pair<uint16_t, uint16_t> SerializableActiveWindow<INPUT_PARAMS>::currentActiveWindow() const {
-  std::pair<uint16_t, uint16_t> win;
-  win.first = beginningOfActiveWindow_;
-  win.second = beginningOfActiveWindow_ + WindowSize - 1;
-  return win;
+ItemType &SerializableActiveWindow<INPUT_PARAMS>::getByRealIndex(uint16_t index) {
+  return activeWindow_[index];
 }
 
 template<TEMPLATE_PARAMS>

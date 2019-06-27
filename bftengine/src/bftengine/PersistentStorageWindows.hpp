@@ -19,9 +19,19 @@
 #include "SignedShareMsgs.hpp"
 #include "FullCommitProofMsg.hpp"
 #include "CheckpointMsg.hpp"
+#include <memory>
 
 namespace bftEngine {
 namespace impl {
+
+enum SeqNumDataParameters {
+  PRE_PREPARE_MSG = 1,
+  FULL_COMMIT_PROOF_MSG = 2,
+  PRE_PREPARE_FULL_MSG = 3,
+  COMMIT_FULL_MSG = 4,
+  FORCE_COMPLETED = 5,
+  SLOW_STARTED = 6
+};
 
 class SeqNumData {
  public:
@@ -35,26 +45,23 @@ class SeqNumData {
 
   bool equals(const SeqNumData &other) const;
   void reset();
+
+  size_t serializePrePrepareMsg(char *&buf) const;
+  size_t serializeFullCommitProofMsg(char *&buf) const;
+  size_t serializePrepareFullMsg(char *&buf) const;
+  size_t serializeCommitFullMsg(char *&buf) const;
+  size_t serializeForceCompleted(char *&buf) const;
+  size_t serializeSlowStarted(char *&buf) const;
   void serialize(char *buf, uint32_t bufLen, size_t &actualSize) const;
 
-  void setPrePrepareMsg(PrePrepareMsg *msg);
-  void setFullCommitProofMsg(FullCommitProofMsg *msg);
-  void setPrepareFullMsg(PrepareFullMsg *msg);
-  void setCommitFullMsg(CommitFullMsg *msg);
+  static size_t serializeMsg(char *&buf, MessageBase *msg);
+  static size_t serializeBoolean(char *&buf, const bool& boolean);
 
-  void setForceCompleted(const bool &forceCompleted) { forceCompleted_ = forceCompleted; }
-  void setSlowStarted(const bool &slowStarted) { slowStarted_ = slowStarted; }
-
-  PrePrepareMsg *getPrePrepareMsg() const { return prePrepareMsg_; }
-  FullCommitProofMsg *getFullCommitProofMsg() const { return fullCommitProofMsg_; }
-  PrepareFullMsg *getPrepareFullMsg() const { return prepareFullMsg_; }
-  CommitFullMsg *getCommitFullMsg() const { return commitFullMsg_; }
-
-  bool getForceCompleted() const { return forceCompleted_; }
-  bool getSlowStarted() const { return slowStarted_; }
-
+  static MessageBase *deserializeMsg(char *&buf, uint32_t bufLen, size_t &actualMsgSize);
+  static bool deserializeBoolean(char *&buf);
   static SeqNumData deserialize(char *buf, uint32_t bufLen, uint32_t &actualSize);
   static uint32_t maxSize();
+  static constexpr uint16_t getNumOfParams() { return 6; }
 
  private:
   static bool compareMessages(MessageBase *msg, MessageBase *otherMsg);
@@ -68,32 +75,46 @@ class SeqNumData {
   bool slowStarted_ = false;
 };
 
+enum CheckDataParameters {
+  COMPLETED_MARK = 1,
+  CHECKPOINT_MSG = 2
+};
+
 class CheckData {
  public:
-  CheckData(CheckpointMsg *checkpoint, bool completed) : checkpointMsg_(checkpoint), completedMark_(completed) {}
+  CheckData(CheckpointMsg *checkpoint, bool completed) : completedMark_(completed), checkpointMsg_(checkpoint) {}
 
   CheckData() = default;
 
   bool equals(const CheckData &other) const;
   void reset();
+
+  size_t serializeCompletedMark(char *&buf) const;
+  size_t serializeCheckpointMsg(char *&buf) const;
   void serialize(char *buf, uint32_t bufLen, size_t &actualSize) const;
 
-  void setCheckpointMsg(CheckpointMsg *msg);
-  void setCompletedMark(const bool &completedMark) { completedMark_ = completedMark; }
+  static size_t serializeCompletedMark(char *&buf, const bool &completedMark);
+  static size_t serializeCheckpointMsg(char *&buf, CheckpointMsg *msg);
 
-  CheckpointMsg *getCheckpointMsg() const { return checkpointMsg_; }
-  bool getCompletedMark() const { return completedMark_; }
-
+  static bool deserializeCompletedMark(char *&buf);
+  static CheckpointMsg *deserializeCheckpointMsg(char *buf, uint32_t bufLen, size_t &actualMsgSize);
   static CheckData deserialize(char *buf, uint32_t bufLen, uint32_t &actualSize);
+
   static uint32_t maxSize();
+  static uint32_t maxCheckpointMsgSize();
+  static constexpr uint16_t getNumOfParams() { return 2; }
 
  private:
-  CheckpointMsg *checkpointMsg_ = nullptr;
   bool completedMark_ = false;
+  CheckpointMsg *checkpointMsg_ = nullptr;
 };
 
 typedef SerializableActiveWindow<kWorkWindowSize, 1, SeqNumData> SeqNumWindow;
-
 typedef SerializableActiveWindow<kWorkWindowSize + checkpointWindowSize, checkpointWindowSize, CheckData> CheckWindow;
+
+typedef std::shared_ptr<SeqNumWindow> SharedPtrSeqNumWindow;
+typedef std::shared_ptr<CheckWindow> SharedPtrCheckWindow;
+
 }
+
 }  // namespace bftEngine
