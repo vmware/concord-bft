@@ -227,15 +227,16 @@ namespace bftEngine
 		}
 
 
-		void ReplicaImp::recvMsg(void*& item, bool& external)
-		{
-			bool newMsg = false;
-			while (!newMsg)
-			{
-				newMsg = incomingMsgsStorage.pop(item, external, timersResolution);
-
-				if (!newMsg) timersScheduler.evaluate(); // TODO(GG): make sure that we don't check timers too often (i.e. much faster than timersResolution)
-			}
+                IncomingMsg ReplicaImp::recvMsg() {
+                  while (true) {
+                    auto msg = incomingMsgsStorage.pop(timersResolution);
+                    if (msg.tag != IncomingMsg::INVALID) {
+                      return msg;
+                    }
+                    // TODO(GG): make sure that we don't check timers too often
+                    // (i.e. much faster than timersResolution)
+                    timersScheduler.evaluate(); 
+                  }
 		}
 
 		ReplicaImp::MsgReceiver::MsgReceiver(IncomingMsgsStorage& queue)
@@ -257,11 +258,11 @@ namespace bftEngine
 
 			NodeIdType n = (uint16_t)sourceNode; // TODO(GG): make sure that this casting is okay
 
-			MessageBase* pMsg = new MessageBase(n, msgBody, messageLength, true);
+                        std::unique_ptr<MessageBase> pMsg(new MessageBase(n, msgBody, messageLength, true));
 
 			// TODO(GG): TBD: do we want to verify messages in this thread (communication) ?
 
-			incomingMsgs.pushExternalMsg(pMsg);
+			incomingMsgs.pushExternalMsg(std::move(pMsg));
 		}
 
 		void ReplicaImp::MsgReceiver::onConnectionStatusChanged(const NodeNum node, const ConnectionStatus newStatus)
@@ -3279,8 +3280,8 @@ namespace bftEngine
 
 		void ReplicaImp::stop()
 		{
-			StopInternalMsg* stopMsg = new StopInternalMsg(this);
-			incomingMsgsStorage.pushInternalMsg(stopMsg);
+                        std::unique_ptr<InternalMessage> stopMsg(new StopInternalMsg(this));
+			incomingMsgsStorage.pushInternalMsg(std::move(stopMsg));
 
 			mainThread.join();
 
@@ -3295,8 +3296,8 @@ namespace bftEngine
 
 		void ReplicaImp::stopWhenStateIsNotCollected()
 		{
-			StopWhenStateIsNotCollectedInternalMsg* stopMsg = new StopWhenStateIsNotCollectedInternalMsg(this);
-			incomingMsgsStorage.pushInternalMsg(stopMsg);
+                        std::unique_ptr<InternalMessage> stopMsg(new StopWhenStateIsNotCollectedInternalMsg(this));
+			incomingMsgsStorage.pushInternalMsg(std::move(stopMsg));
 
 			mainThread.join();
 
@@ -3377,23 +3378,19 @@ namespace bftEngine
 
 			while (!mainThreadShouldStop)
 			{
-				void* absMsg = nullptr;
-				bool externalMsg = false;
-
 				Assert(ps_ == nullptr || !ps_->isInWriteTran());
 
-				recvMsg(absMsg, externalMsg); // wait for a message
-				if (!externalMsg) // if internal message
-				{
-					// TODO(GG): clean
-					metric_received_internal_msgs_.Get().Inc();
-					InternalMessage* inMsg = (InternalMessage*)absMsg;
-					inMsg->handle();
-					delete inMsg;
-					continue;
+                                auto msg = recvMsg(); // wait for a message
+				if (msg.tag == IncomingMsg::INTERNAL) {
+                                  metric_received_internal_msgs_.Get().Inc();
+                                  msg.internal->handle();
+                                  continue;
 				}
 
-				MessageBase* m = (MessageBase*)absMsg;
+                                // TODO: (AJS) Don't turn this back into a raw
+                                // pointer. Pass the smart pointer through the
+                                // messsage handlers so they take ownership.
+                                auto m = msg.external.release();
 
 		#ifdef DEBUG_STATISTICS
 				DebugStatistics::onReceivedExMessage(m->type());
@@ -3408,7 +3405,7 @@ namespace bftEngine
 				else
 				{
 					LOG_WARN_F(GL, "Unknown message");
-					delete m;
+                                        delete m;
 				}
 			}
 		}

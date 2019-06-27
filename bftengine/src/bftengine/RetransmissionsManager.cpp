@@ -574,11 +574,11 @@ namespace bftEngine
 
 					logic->getSuggestedRetransmissions(currTime, *suggestedRetransmissions);
 
-					RetranProcResultInternalMsg* iMsg = new	RetranProcResultInternalMsg(
-						replica, lastStable, lastView, suggestedRetransmissions, retranManager);
+                                        std::unique_ptr<InternalMessage> iMsg(new RetranProcResultInternalMsg(
+						replica, lastStable, lastView, suggestedRetransmissions, retranManager));
 
 					// send to main thread
-					incomingMsgs->pushInternalMsg(iMsg);
+					incomingMsgs->pushInternalMsg(std::move(iMsg));
 
 				}
 

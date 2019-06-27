@@ -306,7 +306,7 @@ namespace bftEngine
 			IStateTransfer* getStateTransfer() const { return stateTransfer; }
 			ICommunication* getCommunication() const { return communication; }
 
-			void recvMsg(void*& item, bool& external);
+                        IncomingMsg recvMsg();
 
 			void processMessages();
 
