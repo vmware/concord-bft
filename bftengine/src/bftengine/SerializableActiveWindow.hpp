@@ -34,8 +34,6 @@ class SerializableActiveWindow {
   SerializableActiveWindow(SeqNum windowFirst);
   ~SerializableActiveWindow();
 
-  uint32_t getNumItems() const { return numItems_; }
-
   static uint32_t maxElementSize() {
     return ItemType::maxSize();
   }
@@ -44,33 +42,38 @@ class SerializableActiveWindow {
     return sizeof(beginningOfActiveWindow_);
   }
 
-  SeqNum convertIndex(const SeqNum &seqNum) const;
+  SeqNum getBeginningOfActiveWindow() const { return beginningOfActiveWindow_; }
 
   bool equals(const SerializableActiveWindow &other) const;
 
-  void serializeSimpleParams(char *buf, size_t bufLen) const;
+  void serializeActiveWindowBeginning(char *buf) const;
 
-  void serializeElement(uint16_t index, char *buf, size_t bufLen,
-                        size_t &actualSize) const;
+  void deserializeBeginningOfActiveWindow(char *buf);
 
-  void deserializeSimpleParams(char *buf, size_t bufLen, uint32_t &actualSize);
+  static SeqNum deserializeActiveWindowBeginning(char *buf);
 
-  void deserializeElement(uint16_t index, char *buf, size_t bufLen,
-                          uint32_t &actualSize);
+  void deserializeElement(uint16_t index, char *buf, size_t bufLen, uint32_t &actualSize);
 
   bool insideActiveWindow(uint16_t num) const;
 
-  ItemType &get(uint16_t num);
+  static bool insideActiveWindow(uint16_t num, const SeqNum& beginningOfActiveWindow);
 
-  std::pair<uint16_t, uint16_t> currentActiveWindow() const;
+  ItemType &get(uint16_t num) ;
+
+  ItemType &getByRealIndex(uint16_t index);
 
   void resetAll(SeqNum windowFirst);
 
   void advanceActiveWindow(uint32_t newFirstIndexOfActiveWindow);
 
- protected:
+  SeqNum convertIndex(const SeqNum &seqNum);
+
+  static SeqNum convertIndex(const SeqNum &seqNum, const SeqNum& beginningOfActiveWindow);
+
+ private:
   static const uint32_t numItems_ = WindowSize / Resolution;
 
+ private:
   SeqNum beginningOfActiveWindow_;
   ItemType activeWindow_[numItems_];
 };

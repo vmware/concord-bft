@@ -174,12 +174,6 @@ void testInit() {
   assert(persistentStorageImp->getLastViewThatTransferredSeqNumbersFullyExecuted() == lastViewTransferredSeqNum);
   assert(persistentStorageImp->getLastStableSeqNum() == lastStableSeqNum);
 
-  SeqNumWindow retrievedSeqNumWindow = persistentStorageImp->getSeqNumWindow();
-  assert(retrievedSeqNumWindow.equals(seqNumWindow));
-
-  CheckWindow retrievedCheckWindow = persistentStorageImp->getCheckWindow();
-  assert(retrievedCheckWindow.equals(checkWindow));
-
   DescriptorOfLastExitFromView lastExitFromView = persistentStorageImp->getAndAllocateDescriptorOfLastExitFromView();
   assert(lastExitFromView.equals(*descriptorOfLastExitFromView));
   bool descHasSet = persistentStorageImp->hasDescriptorOfLastExitFromView();
@@ -199,6 +193,12 @@ void testInit() {
   lastExitFromView.clean();
   descriptorOfLastNewView->clean();
   lastNewView.clean();
+
+  SharedPtrCheckWindow storedCheckWindow = persistentStorageImp->getCheckWindow();
+  assert(storedCheckWindow.get()->equals(checkWindow));
+
+  SharedPtrSeqNumWindow storedSeqNumWindow = persistentStorageImp->getSeqNumWindow();
+  assert(storedSeqNumWindow.get()->equals(seqNumWindow));
 }
 
 void testCheckWindowSetUp(const SeqNum shift, bool toSet) {
@@ -220,7 +220,7 @@ void testCheckWindowSetUp(const SeqNum shift, bool toSet) {
   CheckpointMsg *checkpointMsg = persistentStorageImp->getAndAllocateCheckpointMsgInCheckWindow(checkpointSeqNum);
   Assert(checkpointMsg->equals(checkpointInitialMsg));
 
-  Assert(persistentStorageImp->getCompletedMarkInCheckWindow(checkpointSeqNum) == completed);
+  Assert(completed == persistentStorageImp->getCompletedMarkInCheckWindow(checkpointSeqNum));
 }
 
 void testSeqNumWindowSetUp(const SeqNum shift, bool toSet) {
@@ -421,7 +421,6 @@ int main() {
   persistentStorageImp = new PersistentStorageImp(fVal, cVal);
   Logger logger = Logger::getLogger("testSerialization.replica");
 
-  // To be tested twice: during init and with existing DB file.
   const string dbFile = "testPersistency.txt";
   remove(dbFile.c_str()); // Required for the init testing.
   metadataStorage = new FileStorage(logger, dbFile);
