@@ -33,6 +33,8 @@ class RequestsHandler {
                       uint32_t maxReplySize,
                       char *outReply,
                       uint32_t &outActualReplySize) = 0;
+
+  virtual void onFinishExecutingReadWriteRequests() {};
 };
 
 class Replica {
@@ -43,22 +45,21 @@ class Replica {
                                    ICommunication *communication,
                                    MetadataStorage *metadataStorage);
 
-  static Replica *loadExistingReplica(RequestsHandler *requestsHandler,
-                                      IStateTransfer *stateTransfer,
-                                      ICommunication *communication,
-                                      MetadataStorage *metadataStorage);
-
-  virtual ~Replica();
+  virtual ~Replica() = 0;
 
   virtual bool isRunning() const = 0;
 
   virtual uint64_t getLastExecutedSequenceNum() const = 0;
 
+  virtual bool requestsExecutionWasInterrupted() const = 0;
+
   virtual void start() = 0;
 
   virtual void stop() = 0;
 
+  //TODO(GG) : move the following methods to an "advanced interface"
   virtual void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a) = 0;
+  virtual void restartForDebug() = 0; // for debug only.
 };
 
 }  // namespace bftEngine

@@ -9,7 +9,6 @@
 // TODO(GG): clean/move 'include' statements
 #include "SeqNumInfo.hpp"
 #include "InternalReplicaApi.hpp"
-#include "SimpleThreadPool.hpp"
 
 namespace bftEngine
 {
@@ -42,7 +41,6 @@ namespace bftEngine
 			delete partialExecProofsSet;
 		}
 
-
 		void SeqNumInfo::resetAndFree()
 		{
 			delete prePrepareMsg;
@@ -74,8 +72,7 @@ namespace bftEngine
 			resetAndFree();
 		}
 
-
-		bool SeqNumInfo::addMsg(PrePrepareMsg* m)
+		bool SeqNumInfo::addMsg(PrePrepareMsg* m, bool directAdd)
 		{
 			if (prePrepareMsg != nullptr) return false;
 
@@ -88,7 +85,10 @@ namespace bftEngine
 			// set expected
 			Digest tmpDigest;
 			Digest::calcCombination(m->digestOfRequests(), m->viewNumber(), m->seqNumber(), tmpDigest);
-			prepareSigCollector->setExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
+			if(!directAdd)
+			  prepareSigCollector->setExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
+			else
+			  prepareSigCollector->initExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
 
 			if (firstSeenFromPrimary == MinTime) // TODO(GG): remove condition - TBD
 				firstSeenFromPrimary = getMonotonicTime();
@@ -96,10 +96,8 @@ namespace bftEngine
 			return true;
 		}
 
-
-		bool SeqNumInfo::addSelfMsg(PrePrepareMsg* m)
+		bool SeqNumInfo::addSelfMsg(PrePrepareMsg* m, bool directAdd)
 		{
-
 			Assert(primary == false);
 			Assert(replica->getReplicasInfo().myId() == replica->getReplicasInfo().primaryOfView(m->viewNumber()));
 			Assert(!forcedCompleted);
@@ -107,21 +105,22 @@ namespace bftEngine
 
 			//Assert(me->id() == m->senderId()); // GG: incorrect assert - becuase after a view change it may has been sent by another replica
 
-
 			prePrepareMsg = m;
 			primary = true;
 
 			// set expected
 			Digest tmpDigest;
 			Digest::calcCombination(m->digestOfRequests(), m->viewNumber(), m->seqNumber(), tmpDigest);
-			prepareSigCollector->setExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
+			if(!directAdd)
+			  prepareSigCollector->setExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
+			else
+			  prepareSigCollector->initExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
 
 			if (firstSeenFromPrimary == MinTime) // TODO(GG): remove condition - TBD
 				firstSeenFromPrimary = getMonotonicTime();
 
 			return true;
 		}
-
 
 		bool SeqNumInfo::addMsg(PreparePartialMsg* m)
 		{
@@ -133,28 +132,36 @@ namespace bftEngine
 			return retVal;
 		}
 
-		bool SeqNumInfo::addSelfMsg(PreparePartialMsg* m)
+		bool SeqNumInfo::addSelfMsg(PreparePartialMsg* m, bool directAdd)
 		{
 			Assert(replica->getReplicasInfo().myId() == m->senderId());
 			Assert(!forcedCompleted);
 
-			bool r = prepareSigCollector->addMsgWithPartialSignature(m, m->senderId());
+			bool r;
+
+			if(!directAdd)
+			  r = prepareSigCollector->addMsgWithPartialSignature(m, m->senderId());
+			else
+			  r = prepareSigCollector->initMsgWithPartialSignature(m, m->senderId());
+
 			Assert(r);
 
 			return true;
 		}
 
-
-		bool SeqNumInfo::addMsg(PrepareFullMsg *m)
+		bool SeqNumInfo::addMsg(PrepareFullMsg *m, bool directAdd)
 		{
-			Assert(replica->getReplicasInfo().myId() != m->senderId()); // TODO(GG): TBD
+			Assert(directAdd || replica->getReplicasInfo().myId() != m->senderId()); // TODO(GG): TBD
 			Assert(!forcedCompleted);
 
-			bool retVal = prepareSigCollector->addMsgWithCombinedSignature(m);
+			bool retVal;
+			if(!directAdd)
+			  retVal = prepareSigCollector->addMsgWithCombinedSignature(m);
+			else
+				retVal = prepareSigCollector->initMsgWithCombinedSignature(m);
 
 			return retVal;
 		}
-
 
 		bool SeqNumInfo::addMsg(CommitPartialMsg *m)
 		{
@@ -168,39 +175,51 @@ namespace bftEngine
 			return r;
 		}
 
-
-		bool SeqNumInfo::addSelfCommitPartialMsgAndDigest(CommitPartialMsg *m, Digest& commitDigest)
+		bool SeqNumInfo::addSelfCommitPartialMsgAndDigest(CommitPartialMsg *m, Digest& commitDigest, bool directAdd)
 		{
 			Assert(replica->getReplicasInfo().myId() == m->senderId());
 			Assert(!forcedCompleted);
 
-			// set expected
-			Digest tmpDigest;
-			Digest::calcCombination(commitDigest, m->viewNumber(), m->seqNumber(), tmpDigest);
-			commitMsgsCollector->setExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
+			if (!directAdd) {
+				// set expected
+				Digest tmpDigest;
+				Digest::calcCombination(commitDigest, m->viewNumber(), m->seqNumber(), tmpDigest);
+				commitMsgsCollector->setExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
 
-			// add msg
-			bool r = commitMsgsCollector->addMsgWithPartialSignature(m, m->senderId());
-			Assert(r);
+				// add msg
+				bool r = commitMsgsCollector->addMsgWithPartialSignature(m, m->senderId());
+				Assert(r);
+			}	else {
+				// set expected
+				Digest tmpDigest;
+				Digest::calcCombination(commitDigest, m->viewNumber(), m->seqNumber(), tmpDigest);
+				commitMsgsCollector->initExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
+
+				// add msg
+				bool r = commitMsgsCollector->initMsgWithPartialSignature(m, m->senderId());
+				Assert(r);
+			}
 
 			commitUpdateTime = getMonotonicTime();
 
 			return true;
 		}
 
-
-		bool SeqNumInfo::addMsg(CommitFullMsg *m)
+		bool SeqNumInfo::addMsg(CommitFullMsg *m, bool directAdd)
 		{
-			Assert(replica->getReplicasInfo().myId() != m->senderId()); // TODO(GG): TBD
+			Assert(directAdd || replica->getReplicasInfo().myId() != m->senderId()); // TODO(GG): TBD
 			Assert(!forcedCompleted);
 
-			bool r = commitMsgsCollector->addMsgWithCombinedSignature(m);
+			bool r;
+			if(!directAdd)
+			  r = commitMsgsCollector->addMsgWithCombinedSignature(m);
+			else
+			  r = commitMsgsCollector->initMsgWithCombinedSignature(m);
 
 			if (r) commitUpdateTime = getMonotonicTime();
 
 			return r;
 		}
-
 
 		void SeqNumInfo::forceComplete()
 		{
@@ -212,10 +231,7 @@ namespace bftEngine
 			commitUpdateTime = getMonotonicTime();
 		}
 
-
-
 		PrePrepareMsg *SeqNumInfo::getPrePrepareMsg()  const { return prePrepareMsg; }
-
 
 		PrePrepareMsg* SeqNumInfo::getSelfPrePrepareMsg() const
 		{
@@ -225,20 +241,16 @@ namespace bftEngine
 			return nullptr;
 		}
 
-
 		PreparePartialMsg* SeqNumInfo::getSelfPreparePartialMsg() const
 		{
 			PreparePartialMsg* p = prepareSigCollector->getPartialMsgFromReplica(replica->getReplicasInfo().myId());
 			return p;
 		}
 
-
-
 		PrepareFullMsg* SeqNumInfo::getValidPrepareFullMsg() const
 		{
 			return prepareSigCollector->getMsgWithValidCombinedSignature();
 		}
-
 
 		CommitPartialMsg* SeqNumInfo::getSelfCommitPartialMsg() const
 		{
@@ -251,17 +263,14 @@ namespace bftEngine
 			return commitMsgsCollector->getMsgWithValidCombinedSignature();
 		}
 
-
 		bool SeqNumInfo::hasPrePrepareMsg() const
 		{
 			return (prePrepareMsg != nullptr);
 		}
 
-
 		bool SeqNumInfo::isPrepared() const {
 			return forcedCompleted || ((prePrepareMsg != nullptr) && prepareSigCollector->isComplete());
 		}
-
 
 		bool SeqNumInfo::isCommitted__gg() const
 		{
@@ -271,18 +280,15 @@ namespace bftEngine
 			return retVal;
 		}
 
-
 		bool SeqNumInfo::preparedOrHasPreparePartialFromReplica(ReplicaId repId) const
 		{
 			return isPrepared() || prepareSigCollector->hasPartialMsgFromReplica(repId);
 		}
 
-
 		bool SeqNumInfo::committedOrHasCommitPartialFromReplica(ReplicaId repId) const
 		{
 			return isCommitted__gg() || commitMsgsCollector->hasPartialMsgFromReplica(repId);
 		}
-
 
 		Time SeqNumInfo::getTimeOfFisrtRelevantInfoFromPrimary() const
 		{
@@ -304,8 +310,6 @@ namespace bftEngine
 			return *partialExecProofsSet;
 		}
 
-
-
 		void SeqNumInfo::startSlowPath()
 		{
 			slowPathHasStarted = true;
@@ -313,12 +317,10 @@ namespace bftEngine
 
 		bool SeqNumInfo::slowPathStarted() { return slowPathHasStarted; }
 
-
 		void SeqNumInfo::setTimeOfLastInfoRequest(Time t)
 		{
 			timeOfLastInfoRequest = t;
 		}
-
 
 		void SeqNumInfo::onCompletionOfPrepareSignaturesProcessing(SeqNum seqNumber, ViewNum  viewNumber, const std::set<ReplicaId>& replicasWithBadSigs)
 		{
@@ -335,11 +337,9 @@ namespace bftEngine
 			prepareSigCollector->onCompletionOfCombinedSigVerification(seqNumber, viewNumber, isValid);
 		}
 
-
 		///////////////////////////////////////////////////////////////////////////////
 		// Internal message classes
 		///////////////////////////////////////////////////////////////////////////////
-
 
 		class CombinedSigFailedInternalMsg : public InternalMessage
 		{
@@ -407,7 +407,6 @@ namespace bftEngine
 			}
 		};
 
-
 		class CombinedCommitSigSucceededInternalMsg : public InternalMessage
 		{
 		protected:
@@ -436,7 +435,6 @@ namespace bftEngine
 			}
 		};
 
-
 		class CombinedCommitSigFailedInternalMsg : public InternalMessage
 		{
 		protected:
@@ -455,7 +453,6 @@ namespace bftEngine
 				replica->onCommitCombinedSigFailed(seqNumber, view, replicasWithBadSigs);
 			}
 		};
-
 
 		class VerifyCombinedCommitSigResultInternalMsg : public InternalMessage
 		{
@@ -476,12 +473,9 @@ namespace bftEngine
 			}
 		};
 
-
-
 		///////////////////////////////////////////////////////////////////////////////
 		// class SeqNumInfo::ExFuncForPrepareCollector
 		///////////////////////////////////////////////////////////////////////////////
-
 
 		PrepareFullMsg* SeqNumInfo::ExFuncForPrepareCollector::createCombinedSignatureMsg(void* context, SeqNum seqNumber, ViewNum  viewNumber, const char* const combinedSig, uint16_t combinedSigLen)
 		{
@@ -529,11 +523,9 @@ namespace bftEngine
 			return r->getIncomingMsgsStorage();
 		}
 
-
 		///////////////////////////////////////////////////////////////////////////////
 		// class SeqNumInfo::ExFuncForCommitCollector
 		///////////////////////////////////////////////////////////////////////////////
-
 
 		CommitFullMsg* SeqNumInfo::ExFuncForCommitCollector::createCombinedSignatureMsg(void* context, SeqNum seqNumber, ViewNum  viewNumber, const char* const combinedSig, uint16_t combinedSigLen)
 		{
@@ -580,7 +572,6 @@ namespace bftEngine
 			InternalReplicaApi* r = (InternalReplicaApi*)context;
 			return r->getIncomingMsgsStorage();
 		}
-
 
 		///////////////////////////////////////////////////////////////////////////////
 		///////////////////////////////////////////////////////////////////////////////

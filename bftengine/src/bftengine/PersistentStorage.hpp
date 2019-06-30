@@ -32,7 +32,7 @@ class PrepareFullMsg;
 class CommitFullMsg;
 
 // The PersistentStorage interface is used to write/read the concord-bft state 
-// to/from a persistent storage. In case the replica�s process is killed, 
+// to/from a persistent storage. In case the replica's process is killed,
 // crashed or restarted, this interface is used to restore the concord-bft 
 // state from the persistent storage. 
 // PersistentStorage is designed to only store data elements that are essential 
