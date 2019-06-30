@@ -34,28 +34,27 @@ typedef std::vector<ViewsManager::PrevViewInfo> PrevViewInfoElements;
 /***** DescriptorOfLastExitFromView *****/
 
 struct DescriptorOfLastExitFromView {
-  DescriptorOfLastExitFromView(ViewNum viewNum, SeqNum stableNum,
-                               SeqNum execNum, PrevViewInfoElements elements) :
-      view(viewNum), lastStable(stableNum), lastExecuted(execNum),
-      elements(move(elements)) {}
+  DescriptorOfLastExitFromView(ViewNum viewNum, SeqNum stableNum, SeqNum execNum, PrevViewInfoElements elements,
+                               ViewChangeMsg *viewChangeMsg, SeqNum stableLowerBound) :
+      view(viewNum), lastStable(stableNum), lastExecuted(execNum), stableLowerBoundWhenEnteredToView(stableLowerBound),
+      myViewChangeMsg(viewChangeMsg), elements(move(elements)) {}
 
   DescriptorOfLastExitFromView();
 
   void clean();
-  void serializeSimpleParams(char *buf, size_t bufLen) const;
-  void serializeElement(
-      uint32_t id, char *buf, size_t bufLen, size_t &actualSize) const;
+  void serializeSimpleParams(char *buf, size_t bufLen, size_t &actualSize) const;
+  void serializeElement(uint32_t id, char *buf, size_t bufLen, size_t &actualSize) const;
 
   void deserializeSimpleParams(char *buf, size_t bufLen, uint32_t &actualSize);
-  void deserializeElement(
-      uint32_t id, char *buf, size_t bufLen, uint32_t &actualSize);
+  void deserializeElement(uint32_t id, char *buf, size_t bufLen, uint32_t &actualSize);
 
   bool equals(const DescriptorOfLastExitFromView &other) const;
 
   static uint32_t simpleParamsSize() {
     uint32_t elementsNum;
-    return (sizeof(elementsNum) + sizeof(view) + sizeof(lastStable) +
-        sizeof(lastExecuted));
+    bool msgEmptyFlag;
+    return (sizeof(view) + sizeof(lastStable) + sizeof(lastExecuted) + sizeof(stableLowerBoundWhenEnteredToView) +
+        sizeof(msgEmptyFlag) + ViewChangeMsg::maxSizeOfViewChangeMsgInLocalBuffer() + sizeof(elementsNum));
   }
 
   static uint32_t maxElementSize() {
@@ -67,6 +66,8 @@ struct DescriptorOfLastExitFromView {
     return simpleParamsSize() + maxElementSize() * kWorkWindowSize;
   }
 
+  // Simple parameters - serialized together
+
   // view >= 0
   ViewNum view = 0;
 
@@ -76,8 +77,15 @@ struct DescriptorOfLastExitFromView {
   // lastExecuted >= lastStable
   SeqNum lastExecuted = 0;
 
-  // elements.size() <= kWorkWindowSize
-  // The messages in elements[i] may be null
+  // Last stable when the view became active; lastStable >= stableLowerBoundWhenEnteredToView
+  SeqNum stableLowerBoundWhenEnteredToView = 0;
+
+  // myViewChangeMsg!=nullptr OR view==0; this message was relevant when the view became active
+  ViewChangeMsg *myViewChangeMsg = nullptr;
+
+  // List of messages - serialized separately
+
+  // elements.size() <= kWorkWindowSize; the messages in elements[i] may be null
   PrevViewInfoElements elements;
 };
 
@@ -86,46 +94,48 @@ struct DescriptorOfLastExitFromView {
 typedef std::vector<ViewChangeMsg *> ViewChangeMsgsVector;
 
 struct DescriptorOfLastNewView {
-  DescriptorOfLastNewView(ViewNum viewNum, NewViewMsg *newMsg,
-                          ViewChangeMsgsVector msgs, SeqNum maxSeqNum) :
+  DescriptorOfLastNewView(ViewNum viewNum, NewViewMsg *newMsg, ViewChangeMsgsVector msgs,
+                          ViewChangeMsg *viewChangeMsg, SeqNum stableLowerBound, SeqNum maxSeqNum) :
       view(viewNum), maxSeqNumTransferredFromPrevViews(maxSeqNum),
-      newViewMsg(newMsg), viewChangeMsgs(move(msgs)) {}
+      stableLowerBoundWhenEnteredToView(stableLowerBound),
+      newViewMsg(newMsg), myViewChangeMsg(viewChangeMsg), viewChangeMsgs(move(msgs)) {}
 
   DescriptorOfLastNewView();
 
   bool equals(const DescriptorOfLastNewView &other) const;
 
   void clean();
-  void serializeSimpleParams(
-      char *buf, size_t bufLen, size_t &actualSize) const;
-  void serializeElement(
-      uint32_t id, char *buf, size_t bufLen, size_t &actualSize) const;
+  void serializeSimpleParams(char *buf, size_t bufLen, size_t &actualSize) const;
+  void serializeElement(uint32_t id, char *buf, size_t bufLen, size_t &actualSize) const;
 
   void deserializeSimpleParams(char *buf, size_t bufLen, uint32_t &actualSize);
-  void deserializeElement(
-      uint32_t id, char *buf, size_t bufLen, size_t &actualSize);
+  void deserializeElement(uint32_t id, char *buf, size_t bufLen, size_t &actualSize);
+
+  static void setViewChangeMsgsNum(uint16_t fVal, uint16_t cVal) {
+    viewChangeMsgsNum = 2 * fVal + 2 * cVal + 1;
+  }
+
+  static uint32_t getViewChangeMsgsNum() { return viewChangeMsgsNum; }
 
   static uint32_t simpleParamsSize() {
     bool msgEmptyFlag;
-    return (sizeof(view) + sizeof(maxSeqNumTransferredFromPrevViews) +
-        sizeof(msgEmptyFlag) + NewViewMsg::maxSizeOfNewViewMsgInLocalBuffer());
+    return (sizeof(view) + sizeof(maxSeqNumTransferredFromPrevViews) + 2 * sizeof(msgEmptyFlag) +
+        sizeof(stableLowerBoundWhenEnteredToView) + NewViewMsg::maxSizeOfNewViewMsgInLocalBuffer() +
+        ViewChangeMsg::maxSizeOfViewChangeMsgInLocalBuffer());
   }
-
-  static void setViewChangeMsgsNum(uint16_t fVal, uint16_t cVal) {
-    viewChangeMsgsNum_ = 2 * fVal + 2 * cVal + 1;
-  }
-
-  static uint32_t getViewChangeMsgsNum() { return viewChangeMsgsNum_; }
 
   static uint32_t maxElementSize() {
     bool msgEmptyFlag;
-    return sizeof(msgEmptyFlag) +
-        ViewChangeMsg::maxSizeOfViewChangeMsgInLocalBuffer();
+    return sizeof(msgEmptyFlag) + ViewChangeMsg::maxSizeOfViewChangeMsgInLocalBuffer();
   }
 
   static uint32_t maxSize(uint32_t numOfReplicas) {
     return simpleParamsSize() + maxElementSize() * numOfReplicas;
   }
+
+  static uint32_t viewChangeMsgsNum;
+
+  // Simple parameters - serialized together
 
   // view >= 1
   ViewNum view = 0;
@@ -133,14 +143,21 @@ struct DescriptorOfLastNewView {
   // maxSeqNumTransferredFromPrevViews >= 0
   SeqNum maxSeqNumTransferredFromPrevViews = 0;
 
+  // Last stable when the view became active; lastStable >= stableLowerBoundWhenEnteredToView
+  SeqNum stableLowerBoundWhenEnteredToView = 0;
+
   // newViewMsg != nullptr
   NewViewMsg *newViewMsg = nullptr;
+
+  // This message is relevant when the view becomes active
+  // if myViewChangeMsg == nullptr, then the replica has message in viewChangeMsgs
+  ViewChangeMsg *myViewChangeMsg = nullptr;
+
+  // List of messages - serialized separately
 
   // viewChangeMsgs.size() == 2*F + 2*C + 1
   // The messages in viewChangeMsgs will never be null
   ViewChangeMsgsVector viewChangeMsgs;
-
-  static uint32_t viewChangeMsgsNum_;
 };
 
 /***** DescriptorOfLastExecution *****/
@@ -158,8 +175,7 @@ struct DescriptorOfLastExecution {
   void deserialize(char *buf, size_t bufLen, uint32_t &actualSize);
 
   static uint32_t maxSize() {
-    return (sizeof(executedSeqNum) +
-        Bitmap::maxSizeNeededToStoreInBuffer(maxNumOfRequestsInBatch));
+    return (sizeof(executedSeqNum) + Bitmap::maxSizeNeededToStoreInBuffer(maxNumOfRequestsInBatch));
   };
 
   // executedSeqNum >= 1

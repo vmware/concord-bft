@@ -298,7 +298,7 @@ void testSetDescriptors(bool toSet) {
   Bitmap requests(100);
   DescriptorOfLastExecution lastExecutionDesc(lastExecutionSeqNum, requests);
 
-  ViewNum viewNum = 1;
+  ViewNum viewNum = 2;
   SeqNum lastExitExecNum = 62;
   PrevViewInfoElements elements;
   ViewsManager::PrevViewInfo element;
@@ -310,15 +310,22 @@ void testSetDescriptors(bool toSet) {
     elements.push_back(element);
   }
   SeqNum lastExitStableNum = 60;
-  DescriptorOfLastExitFromView lastExitFromViewDesc(viewNum, lastExitStableNum, lastExitExecNum, elements);
+  SeqNum lastExitStableLowerBound = 50;
+  SeqNum lastStable = 48;
+  auto *viewChangeMsg = new ViewChangeMsg(senderId, viewNum, lastStable);
+  DescriptorOfLastExitFromView lastExitFromViewDesc(viewNum, lastExitStableNum, lastExitExecNum, elements,
+                                                    viewChangeMsg, lastExitStableLowerBound);
 
   ViewChangeMsgsVector msgs;
-  ViewNum newViewNum = 1;
+  ViewNum newViewNum = 6;
   for (auto i = 1; i <= msgsNum; i++)
     msgs.push_back(new ViewChangeMsg(i, newViewNum, lastExitStableNum));
   SeqNum maxSeqNum = 200;
   auto *newViewMsg = new NewViewMsg(0x01234, newViewNum);
-  DescriptorOfLastNewView lastNewViewDesc(newViewNum, newViewMsg, msgs, maxSeqNum);
+  SeqNum lastNewViewStableLowerBound = 51;
+  auto *lastNewViewViewChangeMsg = new ViewChangeMsg(senderId, newViewNum, lastStable + 2);
+  DescriptorOfLastNewView lastNewViewDesc(newViewNum, newViewMsg, msgs, lastNewViewViewChangeMsg,
+                                          lastNewViewStableLowerBound, maxSeqNum);
 
   if (toSet) {
     persistentStorageImp->beginWriteTran();
@@ -345,6 +352,9 @@ void testSetDescriptors(bool toSet) {
 
   lastExitFromView.clean();
   lastNewView.clean();
+  delete viewChangeMsg;
+  delete newViewMsg;
+  delete lastNewViewViewChangeMsg;
 }
 
 void testSetSimpleParams(bool toSet) {

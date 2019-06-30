@@ -13,6 +13,8 @@ std::string CommitPathToStr(CommitPath path) {
       return "FAST_WITH_THRESHOLD";
     case CommitPath::SLOW:
       return "SLOW";
+    default:
+      return "";
   }
 }
 

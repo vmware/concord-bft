@@ -47,7 +47,7 @@ ReplicaConfigSerializer::ReplicaConfigSerializer(ReplicaConfig *config) {
 
 ReplicaConfigSerializer::ReplicaConfigSerializer() {
   config_ = new ReplicaConfig;
-};
+}
 
 ReplicaConfigSerializer::~ReplicaConfigSerializer() {
   delete config_;
