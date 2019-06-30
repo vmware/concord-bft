@@ -20,12 +20,12 @@
 #include <unordered_map>
 #include <unordered_set>
 #include "ViewChangeSafetyLogic.hpp"
-#include "PrePrepareMsg.hpp"
-#include "SignedShareMsgs.hpp"
 
 namespace bftEngine {
 namespace impl {
 
+class PrePrepareMsg;
+class PrepareFullMsg;
 class ViewChangeMsg;
 class NewViewMsg;
 class ViewChangeSafetyLogic;
@@ -34,9 +34,48 @@ using std::vector;
 
 class ViewsManager {
  public:
+
+  struct PrevViewInfo {
+    PrePrepareMsg *prePrepare = nullptr;
+    PrepareFullMsg *prepareFull = nullptr;
+    bool hasAllRequests = true;
+
+    PrevViewInfo() = default;
+
+    PrevViewInfo(PrePrepareMsg *prePrep, PrepareFullMsg *prepFull, bool allRequests) :
+        prePrepare(prePrep), prepareFull(prepFull), hasAllRequests(allRequests) {}
+
+    bool equals(const PrevViewInfo &other) const;
+
+    static uint32_t maxSize();
+  };
+
   ViewsManager(const ReplicasInfo *const r,
-               IThresholdVerifier *const preparedCertificateVerifier);
+               IThresholdVerifier *const preparedCertificateVerifier); // TODO(GG): move to protected
   ~ViewsManager();
+
+  static ViewsManager *createOutsideView(
+      const ReplicasInfo *const r,
+      IThresholdVerifier *const preparedCertificateVerifier,
+      ViewNum lastActiveView,
+      SeqNum lastStable,
+      SeqNum lastExecuted,
+      SeqNum stableLowerBound,
+      ViewChangeMsg *myLastViewChange,
+      std::vector<PrevViewInfo> &elementsOfPrevView);
+
+  static ViewsManager *createInsideViewZero(
+      const ReplicasInfo *const r,
+      IThresholdVerifier *const preparedCertificateVerifier);
+
+  static ViewsManager *createInsideView(
+      const ReplicasInfo *const r,
+      IThresholdVerifier *const preparedCertificateVerifier,
+      ViewNum view,
+      SeqNum stableLowerBound,
+      NewViewMsg *newViewMsg,
+      ViewChangeMsg *myLastViewChange,     // nullptr IFF the replica has a VC message in viewChangeMsgs
+      std::vector<ViewChangeMsg *> viewChangeMsgs);
 
   ViewNum latestActiveView() const { return myLatestActiveView; }
   bool viewIsActive(ViewNum v) const {
@@ -74,44 +113,11 @@ class ViewsManager {
 
   SeqNum stableLowerBoundWhenEnteredToView() const;
 
-  struct PrevViewInfo {
-    PrePrepareMsg *prePrepare = nullptr;
-    PrepareFullMsg *prepareFull = nullptr;
-    bool hasAllRequests = true;
-
-    PrevViewInfo() = default;
-
-    PrevViewInfo(PrePrepareMsg *prePrep, PrepareFullMsg *prepFull,
-                 bool allRequests) : prePrepare(prePrep), prepareFull(prepFull),
-                                     hasAllRequests(allRequests) {}
-
-    bool equals(const PrevViewInfo &other) const {
-      if (other.hasAllRequests != hasAllRequests)
-        return false;
-      if ((other.prePrepare && !prePrepare) ||
-          (!other.prePrepare && prePrepare))
-        return false;
-      if ((other.prepareFull && !prepareFull) ||
-          (!other.prepareFull && prepareFull))
-        return false;
-      bool res1 = prePrepare ? (other.prePrepare->equals(*prePrepare)) : true;
-      bool res2 =
-          prepareFull ? (other.prepareFull->equals(*prepareFull)) : true;
-      return res1 && res2;
-    }
-
-    static uint32_t maxSize() {
-      return (PrePrepareMsg::maxSizeOfPrePrepareMsgInLocalBuffer() +
-          PrepareFullMsg::maxSizeOfPrepareFullInLocalBuffer() +
-          sizeof(hasAllRequests));
-    }
-  };
-
   ViewChangeMsg *exitFromCurrentView(
       SeqNum currentLastStable,
       SeqNum currentLastExecuted,
       const std::vector<PrevViewInfo> &prevViewInfo);
-  // TODO(GG): prevViewInfo is defined and used in a confusing way (because it
+  // TODO(GG): prevViewInfo is defined and used in a confusing way (becuase it
   // contains both executed and non-executed items) - TODO: improve by using two
   // different arguments
 

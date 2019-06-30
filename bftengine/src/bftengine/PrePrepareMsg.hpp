@@ -19,13 +19,10 @@ namespace bftEngine
 {
 	namespace impl
 	{
-
-
 		class RequestsIterator;
 
 		class PrePrepareMsg : public MessageBase
 		{
-
 		protected:
 #pragma pack(push,1)
 			struct PrePrepareMsgHeader
@@ -51,7 +48,6 @@ namespace bftEngine
 			static const size_t prePrepareHeaderPrefix = sizeof(PrePrepareMsgHeader) - sizeof(PrePrepareMsgHeader::numberOfRequests) - sizeof(PrePrepareMsgHeader::endLocationOfLastRequest);
 
 		public:
-
 			// static
 
 			static MsgSize maxSizeOfPrePrepareMsg();
@@ -93,7 +89,6 @@ namespace bftEngine
 			void updateView(ViewNum v, CommitPath firstPath = CommitPath::SLOW);
 
 		protected:
-
 			static int16_t computeFlagsForPrePrepareMsg(bool isNull, bool isReady, CommitPath firstPath);
 
 			bool isReady() const { return (((b()->flags >> 1) & 0x1) == 1); }
@@ -122,10 +117,10 @@ namespace bftEngine
 			void gotoNext();
 
 			bool getAndGoToNext(char*& pRequest);
+
 		protected:
 			const PrePrepareMsg* const msg;
 			uint32_t currLoc;
 		};
-
 	}
 }
