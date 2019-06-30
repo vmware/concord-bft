@@ -14,7 +14,7 @@
 
 #include "threshsign/bls/relic/Library.h"
 
-#include "Log.h"
+#include "Logger.hpp"
 #include "Utils.h"
 
 namespace BLS {
@@ -29,7 +29,7 @@ void PrecomputedInverses::precompute() {
     // (-a)^{-1} (mod p) = (-1)^{-1} * (a)^{-1} (mod p)
     BNT invOne = (fieldOrder - BNT(2)).invertModPrime(fieldOrder).SlowModulo(fieldOrder);
 
-	logdbg << "Precomputing i^-1 mod p, for all signers i < " << invs.size() << std::endl;
+	LOG_DEBUG(GL, "Precomputing i^-1 mod p, for all signers i < " << invs.size());
 	for(size_t i = 1; i <= invs.size() - 1; i++) {
 		dig_t n = i;
 
@@ -52,7 +52,7 @@ LibraryInitializer::LibraryInitializer() {
 	//conf_print();
 
 	if (pc_param_set_any() != STS_OK) {
-		logerror << "Couldn't set up RELIC elliptic curve" << std::endl;
+		LOG_ERROR(GL, "Couldn't set up RELIC elliptic curve");
 		throw std::runtime_error("Could not set up RELIC elliptic curve library");
 	}
 }
@@ -91,7 +91,7 @@ Library::Library()
 
     pi.setFieldOrder(g2size);
 
-    logdbg << "Successfully initialized RELIC library" << std::endl;
+    LOG_DEBUG(GL, "Successfully initialized RELIC library");
 }
 
 Library::~Library() {

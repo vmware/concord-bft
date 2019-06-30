@@ -45,7 +45,7 @@
 #include "openssl/ssl.h"
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
-#include "Logging.hpp"
+#include "Logger.hpp"
 
 using namespace std;
 using namespace concordlogger;
@@ -143,8 +143,8 @@ class AsyncTlsConnection : public
   uint32_t _bufferLength;
   NodeNum _destId = AsyncTlsConnection::UNKNOWN_NODE_ID;
   NodeNum _selfId;
-  string _ip;
-  uint16_t _port;
+  string _ip = "";
+  uint16_t _port = 0;
   asio::deadline_timer _connectTimer;
   asio::deadline_timer _writeTimer;
   asio::deadline_timer _readTimer;
@@ -193,7 +193,7 @@ class AsyncTlsConnection : public
       _connType(type),
       _cipherSuite(cipherSuite),
       _certificatesRootFolder(certificatesRootFolder),
-      _logger(Logger::getLogger("concord-bft.tls")),
+      _logger(Log::getLogger("concord-bft.tls")),
       _statusCallback{statusCallback},
       _nodes{std::move(nodes)},
       _sslContext{asio::ssl::context(type == ConnType::Incoming
@@ -297,7 +297,7 @@ class AsyncTlsConnection : public
     if (_statusCallback) {
       bool isReplica = check_replica(_destId);
       if (isReplica) {
-        PeerConnectivityStatus pcs;
+        PeerConnectivityStatus pcs{};
         pcs.peerId = _destId;
         pcs.statusType = StatusType::Broken;
 
@@ -318,6 +318,16 @@ class AsyncTlsConnection : public
    * @param error code
    */
   void on_handshake_complete_outbound(const B_ERROR_CODE &ec) {
+    set_connected(true);
+    // When authenticated, replace custom verification by default one.
+    // This is mandatory to avoid leaking 'this' since the verification
+    // callback was binded using shared_from_this and the SSL context
+    // will retain the callback and thus 'this' will not be destroyed
+    // when needed
+    _sslContext.set_verify_callback([](bool p,
+                                       asio::ssl::verify_context&) {
+      return p;
+    });
     bool err = was_error(ec, "on_handshake_complete_outbound");
     if (err) {
       handle_error();
@@ -338,6 +348,15 @@ class AsyncTlsConnection : public
    */
   void on_handshake_complete_inbound(const B_ERROR_CODE &ec) {
     set_connected(true);
+    // When authenticated, replace custom verification by default one.
+    // This is mandatory to avoid leaking 'this' since the verification
+    // callback was binded using shared_from_this and the SSL context
+    // will retain the callback and thus 'this' will not be destroyed
+    // when needed
+    _sslContext.set_verify_callback([](bool p,
+                                       asio::ssl::verify_context&) {
+      return p;
+    });
     bool err = was_error(ec, "on_handshake_complete_inbound");
     if (err) {
       handle_error();
@@ -490,7 +509,7 @@ class AsyncTlsConnection : public
     // the certificate must have node id, as we put it in OU field on creation.
     // since we use pinning we must know who is the remote peer.
     // peerIdPrefixLength stands for the length of 'OU=' substring
-    size_t peerIdPrefixLength = 3;
+    int peerIdPrefixLength = 3;
     std::regex r("OU=\\d*", std::regex_constants::icase);
     std::smatch sm;
     regex_search(subject, sm, r);
@@ -782,10 +801,8 @@ class AsyncTlsConnection : public
     read_msg_length_async();
 
     if (_statusCallback && _destIsReplica) {
-      PeerConnectivityStatus pcs;
+      PeerConnectivityStatus pcs{};
       pcs.peerId = _destId;
-      pcs.peerIp = _ip;
-      pcs.peerPort = _port;
       pcs.statusType = StatusType::MessageReceived;
 
       // pcs.statusTime = we dont set it since it is set by the aggregator
@@ -991,7 +1008,7 @@ class AsyncTlsConnection : public
                                 << ", length: " << length);
 
     if (_statusCallback && _isReplica) {
-      PeerConnectivityStatus pcs;
+      PeerConnectivityStatus pcs{};
       pcs.peerId = _selfId;
       pcs.statusType = StatusType::MessageSent;
 
@@ -1201,7 +1218,7 @@ class TlsTCPCommunication::TlsTcpImpl :
       _bufferLength(bufferLength),
       _maxServerId(maxServerId),
       _certRootFolder(certRootFolder),
-      _logger(Logger::getLogger("concord.tls")),
+      _logger(Log::getLogger("concord.tls")),
       _statusCallback{statusCallback},
       _cipherSuite{cipherSuite} {
     //_service = new io_service();
@@ -1288,6 +1305,15 @@ class TlsTCPCommunication::TlsTcpImpl :
     // and all nodes with higher ID will connect to this node
     // we don't want that clients will connect to other clients
     for (auto it = _nodes.begin(); it != _nodes.end(); it++) {
+      if (_statusCallback && it->second.isReplica) {
+        PeerConnectivityStatus pcs{};
+        pcs.peerId = it->first;
+        pcs.peerIp = it->second.ip;
+        pcs.peerPort = it->second.port;
+        pcs.statusType = StatusType::Started;
+        _statusCallback(pcs);
+      }
+
       // connect only to nodes with ID higher than selfId
       // and all nodes with lower ID will connect to this node
       if (it->first < _selfId && it->first <= _maxServerId) {

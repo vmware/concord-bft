@@ -31,7 +31,7 @@
 #endif
 
 #include "CommDefs.hpp"
-#include "Logging.hpp"
+#include "Logger.hpp"
 #include "boost/bind.hpp"
 #include <boost/asio.hpp>
 #include <boost/shared_ptr.hpp>
@@ -93,8 +93,8 @@ class AsyncTcpConnection :
   function<void(NodeNum, ASYNC_CONN_PTR)> _fOnHellOMessage = nullptr;
   NodeNum _destId;
   NodeNum _selfId;
-  string _ip;
-  uint16_t _port;
+  string _ip = "";
+  uint16_t _port = 0;
   deadline_timer _connectTimer;
   ConnType _connType;
   bool _closed;
@@ -268,7 +268,7 @@ class AsyncTcpConnection :
       if (_statusCallback) {
         bool isReplica = check_replica(_selfId);
         if (isReplica) {
-          PeerConnectivityStatus pcs;
+          PeerConnectivityStatus pcs{};
           pcs.peerId = _selfId;
           pcs.statusType = StatusType::Broken;
 
@@ -390,7 +390,7 @@ class AsyncTcpConnection :
     read_header_async();
 
     if (_statusCallback && _destIsReplica) {
-      PeerConnectivityStatus pcs;
+      PeerConnectivityStatus pcs{};
       pcs.peerId = _destId;
       pcs.peerIp = _ip;
       pcs.peerPort = _port;
@@ -604,7 +604,7 @@ class AsyncTcpConnection :
     write_async(_outBuffer, offset + length);
 
     if (_statusCallback && _isReplica) {
-      PeerConnectivityStatus pcs;
+      PeerConnectivityStatus pcs{};
       pcs.peerId = _selfId;
       pcs.statusType = StatusType::MessageSent;
 
@@ -669,7 +669,7 @@ class AsyncTcpConnection :
 class PlainTCPCommunication::PlainTcpImpl {
  private:
   unordered_map<NodeNum, ASYNC_CONN_PTR> _connections;
-  concordlogger::Logger _logger = concordlogger::Logger::getLogger
+  concordlogger::Logger _logger = concordlogger::Log::getLogger
       ("concord-bft.tcp");
 
   unique_ptr<tcp::acceptor> _pAcceptor;
@@ -806,7 +806,7 @@ class PlainTCPCommunication::PlainTcpImpl {
         LOG_TRACE(_logger, "connect called for node " << to_string(it->first));
       }
       if (it->second.isReplica && _statusCallback) {
-        PeerConnectivityStatus pcs;
+        PeerConnectivityStatus pcs{};
         pcs.peerId = it->first;
         pcs.peerIp = it->second.ip;
         pcs.peerPort = it->second.port;

@@ -33,10 +33,6 @@
 #include "winUtils.h"
 #endif
 
-#ifdef USE_LOG4CPP
-#include <log4cplus/configurator.h>
-#endif
-
 using namespace SimpleKVBC;
 using namespace bftEngine;
 
@@ -46,19 +42,13 @@ using ::TestCommConfig;
 IReplica* r = nullptr;
 ReplicaParams rp;
 concordlogger::Logger replicaLogger =
-		concordlogger::Logger::getLogger("skvbctest.replica");
+		concordlogger::Log::getLogger("skvbctest.replica");
 
 int main(int argc, char **argv) {
 #if defined(_WIN32)
 	initWinSock();
 #endif
 
-#ifdef USE_LOG4CPP
-  using namespace log4cplus;
-  initialize();
-  BasicConfigurator logConfig;
-  logConfig.configure();
-#endif
 	rp.replicaId = UINT16_MAX;
 
 	// allows to attach debugger
@@ -70,7 +60,7 @@ int main(int argc, char **argv) {
 	string idStr;
 
 	int o = 0;
-	while ((o = getopt(argc, argv, "r:i:k:n:")) != EOF) {
+	while ((o = getopt(argc, argv, "r:i:k:n:s:")) != EOF) {
 		switch (o) {
 		case 'i':
 		{
@@ -100,6 +90,16 @@ int main(int argc, char **argv) {
 			rp.configFileName = argTempBuffer;
 		}
 		break;
+		case 's':
+		{
+			strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
+			argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
+			idStr = argTempBuffer;
+			int tempId = std::stoi(idStr);
+			if (tempId >= 0 && tempId < UINT16_MAX) 
+				rp.statusReportTimerMillisec = (uint16_t)tempId;
+		}
+                break;
 
 		default:
 			// nop
@@ -122,7 +122,10 @@ int main(int argc, char **argv) {
     TestCommConfig testCommConfig(replicaLogger);
 	testCommConfig.GetReplicaConfig(
 			rp.replicaId, rp.keysFilePrefix, &replicaConfig);
-	replicaConfig.numOfClientProxies = rp.numOfClients;
+
+        // This allows more concurrency and only affects known ids in the
+        // communication classes.
+	replicaConfig.numOfClientProxies = 100;
 	replicaConfig.autoViewChangeEnabled = rp.viewChangeEnabled;
 	replicaConfig.viewChangeTimerMillisec = rp.viewChangeTimeout;
 
@@ -130,19 +133,20 @@ int main(int argc, char **argv) {
 			(uint16_t)(3 * replicaConfig.fVal + 2 * replicaConfig.cVal + 1);
 #ifdef USE_COMM_PLAIN_TCP
 	PlainTcpConfig conf = testCommConfig.GetTCPConfig(true, rp.replicaId,
-                                                      rp.numOfClients,
+                                                      replicaConfig.numOfClientProxies,
                                                       numOfReplicas,
                                                       rp.configFileName);
 #elif USE_COMM_TLS_TCP
 	TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(true, rp.replicaId,
-                                                       rp.numOfClients,
+                                                       replicaConfig.numOfClientProxies,
                                                        numOfReplicas,
                                                        rp.configFileName);
 #else
-	PlainUdpConfig conf = testCommConfig.GetUDPConfig(true, rp.replicaId,
-													  rp.numOfClients,
-													  numOfReplicas,
-                                                      rp.configFileName);
+        PlainUdpConfig conf = testCommConfig.GetUDPConfig(true, 
+                                                          rp.replicaId,
+                                                          replicaConfig.numOfClientProxies,
+                                                          numOfReplicas,
+                                                          rp.configFileName);
 #endif
 	//used to run tests. TODO(IG): use the standard config structs for all tests
 	SimpleKVBC::ReplicaConfig c;
@@ -153,8 +157,10 @@ int main(int argc, char **argv) {
 	c.replicaId = rp.replicaId;
 	c.fVal = replicaConfig.fVal;
 	c.cVal = replicaConfig.cVal;
-	c.numOfClientProxies = rp.numOfClients;
-	c.statusReportTimerMillisec = 20 * 1000;
+	c.numOfClientProxies = replicaConfig.numOfClientProxies;
+        // Allow triggering of things like state transfer to occur faster in
+        // tests.
+	c.statusReportTimerMillisec = rp.statusReportTimerMillisec;
 	c.concurrencyLevel = 1;
 	c.autoViewChangeEnabled = false;
 	c.viewChangeTimerMillisec = 45 * 1000;

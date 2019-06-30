@@ -61,29 +61,17 @@
 #include "SimpleStateTransfer.hpp"
 #include "test_comm_config.hpp"
 #include "test_parameters.hpp"
-#include "Logging.hpp"
+#include "Logger.hpp"
 
 // simpleTest includes
 #include "commonDefs.h"
 
-#ifdef USE_LOG4CPP
-#include <log4cplus/configurator.h>
-#endif
-
 using namespace std;
 
 concordlogger::Logger replicaLogger =
-    concordlogger::Logger::getLogger("simpletest.replica");
+    concordlogger::Log::getLogger("simpletest.replica");
 bftEngine::Replica* replica = nullptr;
 ReplicaParams rp;
-
-void signalHandler( int signum ) {
-  if(replica)
-    replica->stop();
-
-  LOG_INFO(replicaLogger, "replica " << rp.replicaId << " stopped");
-  exit(0);
-}
 
 #define test_assert(statement, message) \
 { if (!(statement)) { \
@@ -107,7 +95,6 @@ void parse_params(int argc, char** argv) {
 
   uint16_t min16_t_u = std::numeric_limits<uint16_t>::min();
   uint16_t max16_t_u = std::numeric_limits<uint16_t>::max();
-  uint32_t min32_t_u = std::numeric_limits<uint32_t>::min();
   uint32_t max32_t_u = std::numeric_limits<uint32_t>::max();
 
   rp.keysFilePrefix = "private_replica_";
@@ -161,12 +148,11 @@ void parse_params(int argc, char** argv) {
           i++;
         } else if (p == "-vct") {
           auto vct = std::stoi(argv[i + 1]);
-          if (vct < min32_t_u || vct > max32_t_u) {
-            printf("-vct value is out of range (%u - %u)", min16_t_u,
-                   max16_t_u);
+          if (vct < 0 || (uint32_t)vct > max32_t_u) {
+            printf("-vct value is out of range (%u - %u)", 0, max32_t_u);
             exit(-1);
           }
-          rp.viewChangeTimeout = vct;
+          rp.viewChangeTimeout = (uint32_t)vct;
           i += 2;
         } else if (p == "-cf") {
           rp.configFileName = argv[i + 1];
@@ -289,28 +275,19 @@ class SimpleAppState : public RequestsHandler {
   uint16_t numOfClients;
   uint16_t numOfReplicas;
 
-  concordlogger::Logger logger = concordlogger::Logger::getLogger
+  concordlogger::Logger logger = concordlogger::Log::getLogger
       ("simpletest.replica");
 
   bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer* st = nullptr;
 };
 
 int main(int argc, char **argv) {
-#ifdef USE_LOG4CPP
-  using namespace log4cplus;
-  initialize();
-  BasicConfigurator config;
-  config.configure();
-#endif
   parse_params(argc, argv);
 
   // allows to attach debugger
-  if(rp.debug)
+  if(rp.debug) {
     std::this_thread::sleep_for(chrono::seconds(20));
-
-  signal(SIGABRT, signalHandler);
-  signal(SIGTERM, signalHandler);
-  signal(SIGKILL, signalHandler);
+  }
 
   ReplicaConfig replicaConfig;
   TestCommConfig testCommConfig(replicaLogger);

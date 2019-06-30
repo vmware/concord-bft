@@ -69,6 +69,9 @@ class ViewsManager {
   // should only be called by the primary of the current active view
   NewViewMsg* getMyNewViewMsgForCurrentView();
 
+	vector<ViewChangeMsg*> getViewChangeMsgsForCurrentView();
+	NewViewMsg*	getNewViewMsgForCurrentView();
+
   SeqNum stableLowerBoundWhenEnteredToView() const;
 
   struct PrevViewInfo {

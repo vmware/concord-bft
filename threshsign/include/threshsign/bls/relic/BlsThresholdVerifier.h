@@ -26,52 +26,81 @@ namespace BLS {
 namespace Relic {
 
 class BlsThresholdVerifier : public IThresholdVerifier {
-protected:
-    const BlsPublicParameters params;
+ protected:
+  BlsPublicParameters params_;
+  mutable BlsPublicKey publicKey_;
+  std::vector<BlsPublicKey> publicKeysVector_;
+  const G2T generator2_;
+  const NumSharesType reqSigners_ = 0, numSigners_ = 0;
 
-    mutable BlsPublicKey pk;
-    const std::vector<BlsPublicKey> vks;
-    const G2T gen2;
-    const NumSharesType reqSigners, numSigners;
+ public:
+  BlsThresholdVerifier(const BlsPublicParameters &params, const G2T &pk,
+                       NumSharesType reqSigners, NumSharesType numSigners,
+                       const std::vector<BlsPublicKey> &verificationKeys);
 
-public:
-    BlsThresholdVerifier(const BlsPublicParameters& params, const G2T& pk,
-            NumSharesType reqSigners, NumSharesType numSigners,
-            const std::vector<BlsPublicKey>& verifKeys);
+  ~BlsThresholdVerifier() override = default;
 
-    virtual ~BlsThresholdVerifier();
+  bool operator==(const BlsThresholdVerifier &other) const;
+  bool compare(const BlsThresholdVerifier &other) const {
+    return (*this == other);
+  }
 
-    /**
-     * For testing and internal use.
-     */
-public:
-    NumSharesType getNumRequiredShares() const { return reqSigners; }
-    NumSharesType getNumTotalShares() const { return numSigners; }
-    const BlsPublicParameters& getParams() const { return params; }
-    /**
-     * NOTE: Used by BlsBatchVerifier to verify shares
-     */
-    bool verify(const G1T& msgHash, const G1T& sigShare, const G2T& pk) const;
+  /**
+   * For testing and internal use.
+   */
+  NumSharesType getNumRequiredShares() const { return reqSigners_; }
+  NumSharesType getNumTotalShares() const { return numSigners_; }
+  std::vector<BlsPublicKey> getPublicKeysVector() const {
+    return publicKeysVector_;
+  }
+  const BlsPublicParameters &getParams() const { return params_; }
+  const BlsPublicKey getKey() const { return publicKey_; }
+  /**
+   * NOTE: Used by BlsBatchVerifier to verify shares
+   */
+  bool verify(const G1T &msgHash, const G1T &sigShare, const G2T &pk) const;
 
-    /**
-     * IThresholdVerifier overrides.
-     */
-public:
-    virtual IThresholdAccumulator* newAccumulator(bool withShareVerification) const;
+  /**
+   * IThresholdVerifier overrides.
+   */
+  IThresholdAccumulator *newAccumulator(bool withShareVerification)
+  const override;
 
-    virtual void release(IThresholdAccumulator* acc) {
-        delete acc;
-    }
+  void release(IThresholdAccumulator *acc) override {
+    delete acc;
+  }
 
-    virtual bool verify(const char* msg, int msgLen, const char* sig, int sigLen) const;
+  bool verify(const char *msg, int msgLen, const char *sig, int sigLen)
+  const override;
 
-    virtual int requiredLengthForSignedData() const {
-        return params.getSignatureSize();
-    }
+  int requiredLengthForSignedData() const override {
+    return params_.getSignatureSize();
+  }
 
-    virtual const IPublicKey& getPublicKey() const { return pk; }
+  const IPublicKey &getPublicKey() const override { return publicKey_; }
 
-    virtual const IShareVerificationKey& getShareVerificationKey(ShareID signer) const;
+  const IShareVerificationKey &getShareVerificationKey(ShareID signer)
+  const override;
+
+  // Serialization/deserialization
+  void serialize(UniquePtrToChar &outBuf, int64_t &outBufSize) const override;
+  UniquePtrToClass create(std::istream &inStream) override;
+
+ protected:
+  BlsThresholdVerifier() = default;
+  void serialize(std::ostream &outStream) const;
+
+ private:
+  void serializeDataMembers(std::ostream &outStream) const;
+  static void registerClass();
+  static void serializePublicKey(std::ostream &outStream,
+                                 const BlsPublicKey &key);
+  static G2T deserializePublicKey(std::istream &inStream);
+
+ private:
+  static const std::string className_;
+  static const uint32_t classVersion_;
+  static bool registered_;
 };
 
 } /* namespace Relic */

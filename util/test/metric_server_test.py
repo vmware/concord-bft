@@ -16,6 +16,14 @@ import subprocess
 import json
 import os.path
 import time
+import struct
+
+REQUEST_TYPE = 0
+REPLY_TYPE = 1
+ERROR_TYPE = 2
+
+HEADER_FMT = "<BQ"
+HEADER_SIZE = struct.calcsize(HEADER_FMT)
 
 class MetricsSeverTest(unittest.TestCase):
     """
@@ -51,11 +59,14 @@ class MetricsSeverTest(unittest.TestCase):
 
     def testSuccess(self):
        """ Send a valid request and wait for a correct reply """
-       request = bytearray()
-       request.append(0) # requests only consist of single byte 0
+       seq_num = 9
+       request = struct.pack(HEADER_FMT, REQUEST_TYPE, seq_num)
        reply = self.sendAndReceive(request)
-       self.assertEqual(1, reply[0])
-       metrics = json.loads(reply[1:])
+       reply_type, replied_seq_num = struct.unpack(HEADER_FMT,
+                                                   reply[0:HEADER_SIZE])
+       self.assertEqual(REPLY_TYPE, reply_type)
+       self.assertEqual(seq_num, replied_seq_num)
+       metrics = json.loads(reply[HEADER_SIZE:])
        self.assertEqual([], metrics['Components'])
 
     def testFailure(self):

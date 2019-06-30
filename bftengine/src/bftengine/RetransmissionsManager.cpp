@@ -386,7 +386,7 @@ namespace bftEngine
 		// RetransmissionsManager
 		///////////////////////////////////////////////////////////////////////////////
 
-		RetransmissionsManager::RetransmissionsManager(InternalReplicaApi* r, SimpleThreadPool* threadPool, IncomingMsgsStorage* const  incomingMsgsStorage, uint16_t maxOutNumOfSeqNumbers, SeqNum lastStableSeqNum) :
+		RetransmissionsManager::RetransmissionsManager(InternalReplicaApi* r, util::SimpleThreadPool* threadPool, IncomingMsgsStorage* const  incomingMsgsStorage, uint16_t maxOutNumOfSeqNumbers, SeqNum lastStableSeqNum) :
 			replica{ r },
 			pool{ threadPool },
 			incomingMsgs{ incomingMsgsStorage },
@@ -505,7 +505,7 @@ namespace bftEngine
 		bool RetransmissionsManager::tryToStartProcessing()
 		{
 			// this class is local to this method
-			class RetransmissionsProcessingJob : public SimpleThreadPool::Job
+			class RetransmissionsProcessingJob : public util::SimpleThreadPool::Job
 			{
 			private:
 				InternalReplicaApi* const replica;

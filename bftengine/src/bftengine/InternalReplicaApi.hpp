@@ -13,13 +13,14 @@
 
 #include "PrimitiveTypes.hpp"
 #include "IncomingMsgsStorage.hpp"
-#include "SimpleThreadPool.hpp"
-
 
 
 class IThresholdVerifier;
 class ReplicasInfo;
-
+namespace util
+{
+class SimpleThreadPool;
+}
 
 
 
@@ -55,7 +56,7 @@ namespace bftEngine
 			virtual const ReplicasInfo& getReplicasInfo() = 0;
 
 			virtual IncomingMsgsStorage& getIncomingMsgsStorage() = 0;
-			virtual SimpleThreadPool& getInternalThreadPool() = 0;
+			virtual util::SimpleThreadPool& getInternalThreadPool() = 0;
 
 
 			virtual IThresholdVerifier* getThresholdVerifierForExecution() = 0;
@@ -70,6 +71,7 @@ namespace bftEngine
 			virtual Timer& getSlowPathTimer() = 0;
 			virtual Timer& getInfoRequestTimer() = 0;
 			virtual Timer& getDebugStatTimer() = 0;
+			virtual Timer& getMetricsTimer() = 0;
 
 
 			virtual void onViewsChangeTimer(Time currTime, Timer& timer) = 0;
@@ -79,6 +81,7 @@ namespace bftEngine
 			virtual void onSlowPathTimer(Time cTime, Timer& timer) = 0;
 			virtual void onInfoRequestTimer(Time cTime, Timer& timer) = 0;
 			virtual void onDebugStatTimer(Time cTime, Timer& timer) = 0;
+			virtual void onMetricsTimer(Time cTime, Timer& timer) = 0;
 
 
 

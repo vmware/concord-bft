@@ -26,12 +26,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # variables with signed ones. See: http://soundsoftware.ac.uk/c-pitfall-unsigned
 set(CXX_FLAGS_INTEGER_CORRECTNESS
     "-Wconversion -Wsign-conversion")
-set(CXX_FLAGS_FORMAT
-    "-Wformat-y2k -Wno-format-extra-args -Wno-format-zero-length -Wformat-nonliteral -Wformat-security -Wformat=2")
+
 set(CXX_FLAGS_OPTIMIZATIONS "-O3")
 
 string(APPEND CXX_FLAGS " ${CXX_FLAGS_OPTIMIZATIONS}")
-string(APPEND CXX_FLAGS " ${CXX_FLAGS_FORMAT}")
 string(APPEND CXX_FLAGS " ${CXX_FLAGS_INTEGER_CORRECTNESS}")
 # TODO: use target_compile_features instead:
 #   https://cmake.org/cmake/help/v3.1/command/target_compile_features.html#command:target_compile_features
@@ -92,15 +90,15 @@ string(APPEND CMAKE_CXX_FLAGS_TRACE
 function(link_with_relic_library targetName)
     target_link_libraries(${targetName}
         PUBLIC
-        "relic_s"
-        "gmp"
-        "cryptopp.a")
+        ${RELIC_STATIC_LIBRARY}
+        ${GMP_STATIC_LIBRARY}
+        ${CRYPTOPP_STATIC_LIBRARY})
 endfunction()
 
 function(add_relic_executable appName appSrc appDir)
 
     # Add compile target
-    add_executable(${appName} ${appSrc} $<TARGET_OBJECTS:bench> $<TARGET_OBJECTS:bls_relic> $<TARGET_OBJECTS:common>)
+    add_executable(${appName} ${appSrc} $<TARGET_OBJECTS:bench> $<TARGET_OBJECTS:bls_relic> $<TARGET_OBJECTS:common> $<TARGET_OBJECTS:logging_dev>)
     target_include_directories(${appName} PRIVATE
         ${threshsign_SOURCE_DIR}/src
         #${threshsign_SOURCE_DIR}/src/bls/relic
@@ -117,7 +115,7 @@ endfunction()
 
 function(add_threshsign_executable appName appSrc appDir)
     # Add compile target
-    add_executable(${appName} ${appSrc})
+    add_executable(${appName} ${appSrc} $<TARGET_OBJECTS:logging_dev>)
     # SbftKeygenApp depends on some RSA/Shoup internal functions/classes for generating primes
     target_include_directories(${appName} PRIVATE ${threshsign_SOURCE_DIR}/src ${threshsign_SOURCE_DIR}/lib ${threshsign_SOURCE_DIR}/include)
     target_link_libraries(${appName} PRIVATE mainapp)
@@ -141,6 +139,17 @@ endfunction()
 # http://cmake.3232098.n2.nabble.com/Trying-to-set-up-a-quot-superbuild-quot-with-external-project-and-install-it-td6353184.html
 #
 find_package(relic REQUIRED)
+include_directories(${RELIC_INCLUDE_DIRS})
+get_directory_property(hasParent PARENT_DIRECTORY)
+if(hasParent)
+  set_property(DIRECTORY .. APPEND PROPERTY INCLUDE_DIRECTORIES ${RELIC_INCLUDE_DIRS})
+endif()
+find_library(RELIC_STATIC_LIBRARY NAMES "librelic_s.a")
+
+find_library(GMP_STATIC_LIBRARY NAMES "libgmp.a")
+
+find_package(cryptopp REQUIRED)
+find_library(CRYPTOPP_STATIC_LIBRARY NAMES "libcryptopp.a")
 
 #
 # Targets

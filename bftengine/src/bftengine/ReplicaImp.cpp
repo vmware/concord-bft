@@ -108,6 +108,14 @@ namespace bftEngine
 			timer.start(); // restart timer
 		}
 
+                static void metricsTimerHandlerFunc(Time t, void* p) {
+			InternalReplicaApi* r = (InternalReplicaApi*)p;
+			Assert(r != nullptr);
+			Timer& timer = r->getMetricsTimer();
+			r->onMetricsTimer(t, timer);
+
+			timer.start(); // restart timer
+                }
 
 		std::unordered_map<uint16_t, PtrToMetaMsgHandler> ReplicaImp::createMapOfMetaMsgHandlers()
 		{
@@ -597,7 +605,7 @@ namespace bftEngine
 				if (absDifference(currTime, timeOfPartProof) < controller->timeToStartSlowPathMilli() * 1000)
 					break; // don't try the next seq numbers
 
-				LOG_INFO_F(GL, "Primary initiates slow path for seqNum=%" PRId64 " (currTime=%lld timeOfPartProof=%lld", i, currTime, timeOfPartProof);
+				LOG_INFO_F(GL, "Primary initiates slow path for seqNum=%" PRId64 " (currTime=%ld timeOfPartProof=%ld", i, currTime, timeOfPartProof);
 
 				controller->onStartingSlowCommit(i);
 
@@ -896,7 +904,7 @@ namespace bftEngine
 
                         metric_received_full_commit_proofs_.Get().Inc();
 			LOG_INFO_F(GL, "Node %d received FullCommitProofMsg message for seqNumber %" PRId64 "",
-				(int)myReplicaId, (int)msg->seqNumber());
+				(int)myReplicaId, msg->seqNumber());
 
 			const SeqNum msgSeqNum = msg->seqNumber();
 
@@ -1982,7 +1990,7 @@ namespace bftEngine
 				lastPPSeq = prePreparesForNewView.back()->seqNumber();
 			}
 
-			LOG_INFO_F(GL, "**************** In onNewView curView=%" PRId64 " (num of PPs=%d, first safe seq=%" PRId64 ", last safe seq=%" PRId64 ", lastStableSeqNum=%" PRId64 ", lastExecutedSeqNum=%" PRId64 ", stableLowerBoundWhenEnteredToView= %" PRId64 ")",
+			LOG_INFO_F(GL, "**************** In onNewView curView=%" PRId64 " (num of PPs=%" PRIu64 ", first safe seq=%" PRId64 ", last safe seq=%" PRId64 ", lastStableSeqNum=%" PRId64 ", lastExecutedSeqNum=%" PRId64 ", stableLowerBoundWhenEnteredToView= %" PRId64 ")",
 				curView, prePreparesForNewView.size(), firstPPSeq, lastPPSeq,
 				lastStableSeqNum, lastExecutedSeqNum, viewsManager->stableLowerBoundWhenEnteredToView());
 
@@ -2550,7 +2558,7 @@ namespace bftEngine
 				if ((diffMilli1 > viewChangeTimeout) &&
 					(diffMilli2 > viewChangeTimeout))
 				{
-					LOG_INFO_F(GL, "**************** Node %d asks to jump to view %" PRId64 " (%" PRIu64  " milli seconds after receiving 2f+2c+1 view change msgs for view %" PRId64 ")", myReplicaId, curView, diffMilli2);
+					LOG_INFO_F(GL, "**************** Node %d asks to jump to view %" PRId64 " (%" PRIu64  " milli seconds after receiving 2f+2c+1 view change msgs for view %" PRId64 ")", myReplicaId, curView, diffMilli2, lastAgreedView);
 
 					GotoNextView();
 					return;
@@ -2594,6 +2602,11 @@ namespace bftEngine
 		void ReplicaImp::onDebugStatTimer(Time cTime, Timer& timer)
 		{
 			DebugStatistics::onCycleCheck();
+		}
+
+		void ReplicaImp::onMetricsTimer(Time cTime, Timer& timer)
+		{
+                  metrics_.UpdateAggregator();
 		}
 
 
@@ -2770,7 +2783,6 @@ namespace bftEngine
 			mainThread(),
 			mainThreadStarted(false),
 			mainThreadShouldStop(false),
-			internalThreadPool{ 8 }, // TODO(GG): use configuration
 			retransmissionsManager{ nullptr },
 			controller{ nullptr },
 			repsInfo{ nullptr },
@@ -2813,6 +2825,7 @@ namespace bftEngine
 			statusReportTimer{ nullptr },
 			viewChangeTimer{ nullptr },
 			debugStatTimer{ nullptr },
+                        metricsTimer_{ nullptr },
 			viewChangeTimerMilli{ 0 },
 			startSyncEvent{false},
                         metrics_{concordMetrics::Component("replica",
@@ -2874,6 +2887,10 @@ namespace bftEngine
 
 //			initAllocator();
 			DebugStatistics::initDebugStatisticsData();
+
+                        // Register metrics component with the default
+                        // aggregator.
+                        metrics_.Register();
 
 			//CryptographyWrapper::init(); // TODO(GG): here ???
 
@@ -2960,6 +2977,8 @@ namespace bftEngine
 			debugStatTimer = new Timer(timersScheduler, (uint16_t)(DEBUG_STAT_PERIOD_SECONDS * 1000), debugStatHandlerFunc, (InternalReplicaApi*)this);
 		#endif
 
+                        metricsTimer_ = new Timer(timersScheduler, 100, metricsTimerHandlerFunc, (InternalReplicaApi*)this);
+
 			viewsManager = new ViewsManager(repsInfo, thresholdVerifierForSlowPathCommit);
 
 			if (retransmissionsLogicEnabled)
@@ -2967,7 +2986,7 @@ namespace bftEngine
 			else
 				retransmissionsManager = nullptr;
 
-			internalThreadPool.start();
+			internalThreadPool.start(8); // TODO(GG): use configuration
 		}
 
 
@@ -3066,6 +3085,7 @@ namespace bftEngine
 		#ifdef DEBUG_STATISTICS
 			debugStatTimer->start();
 		#endif
+                        metricsTimer_->start();
 
 			fprintf(stderr, "Running");
 

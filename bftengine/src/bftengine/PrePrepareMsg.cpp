@@ -24,6 +24,16 @@ namespace bftEngine
 		// PrePrepareMsg
 		///////////////////////////////////////////////////////////////////////////////
 
+		MsgSize PrePrepareMsg::maxSizeOfPrePrepareMsg()
+		{
+			return maxExternalMessageSize;
+		}
+
+		MsgSize PrePrepareMsg::maxSizeOfPrePrepareMsgInLocalBuffer()
+		{
+			return maxSizeOfPrePrepareMsg() + sizeof(RawHeaderOfObjAndMsg);
+		}
+
 		PrePrepareMsg* PrePrepareMsg::createNullPrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath)
 		{
 			PrePrepareMsg* p = new PrePrepareMsg(sender, v, s, firstPath, true);
@@ -88,7 +98,7 @@ namespace bftEngine
 
 
 		PrePrepareMsg::PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, bool isNull) :
-			MessageBase(sender, MsgCode::PrePrepare, (isNull ? sizeof(PrePrepareMsgHeader) : maxExternalMessageSize))
+			MessageBase(sender, MsgCode::PrePrepare, (isNull ? sizeof(PrePrepareMsgHeader) : maxSizeOfPrePrepareMsg()))
 
 		{
 			b()->viewNum = v;
@@ -237,6 +247,11 @@ namespace bftEngine
 			: msg{ m }, currLoc{ sizeof(PrePrepareMsg::PrePrepareMsgHeader) }
 		{
 			Assert(msg->isReady());
+		}
+
+		void RequestsIterator::restart()
+		{
+			currLoc = sizeof(PrePrepareMsg::PrePrepareMsgHeader);
 		}
 
 		bool RequestsIterator::getCurrent(char*& pRequest) const

@@ -9,6 +9,7 @@
 // TODO(GG): clean/move 'include' statements
 #include "SeqNumInfo.hpp"
 #include "InternalReplicaApi.hpp"
+#include "SimpleThreadPool.hpp"
 
 namespace bftEngine
 {
@@ -516,7 +517,7 @@ namespace bftEngine
 			return r->getThresholdVerifierForSlowPathCommit();
 		}
 
-		SimpleThreadPool& SeqNumInfo::ExFuncForPrepareCollector::threadPool(void* context)
+		util::SimpleThreadPool& SeqNumInfo::ExFuncForPrepareCollector::threadPool(void* context)
 		{
 			InternalReplicaApi* r = (InternalReplicaApi*)context;
 			return r->getInternalThreadPool();
@@ -568,7 +569,7 @@ namespace bftEngine
 			return r->getThresholdVerifierForSlowPathCommit();
 		}
 
-		SimpleThreadPool& SeqNumInfo::ExFuncForCommitCollector::threadPool(void* context)
+		util::SimpleThreadPool& SeqNumInfo::ExFuncForCommitCollector::threadPool(void* context)
 		{
 			InternalReplicaApi* r = (InternalReplicaApi*)context;
 			return r->getInternalThreadPool();

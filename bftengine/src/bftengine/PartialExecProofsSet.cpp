@@ -143,7 +143,7 @@ namespace bftEngine
 			}
 		};
 
-		class AsynchExecProofCreationJob : public SimpleThreadPool::Job
+		class AsynchExecProofCreationJob : public util::SimpleThreadPool::Job
 		{
 		public:
 			AsynchExecProofCreationJob(InternalReplicaApi* const internalReplicaApi, IThresholdVerifier* verifier, IThresholdAccumulator* acc, Digest& expectedDigest, SeqNum seqNumber, ViewNum view)
@@ -225,7 +225,7 @@ namespace bftEngine
 
 		void PartialExecProofsSet::setMerkleSignature(const char* sig, uint16_t sigLength)
 		{
-			for (set<FullExecProofMsg*>::iterator it = setOfFullExecProofs.begin(); it != setOfFullExecProofs.end(); ++it)
+			for (std::set<FullExecProofMsg*>::iterator it = setOfFullExecProofs.begin(); it != setOfFullExecProofs.end(); ++it)
 			{
 				FullExecProofMsg* fep = *it;
 				fep->setSignature(sig, sigLength);

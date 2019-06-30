@@ -25,26 +25,52 @@ namespace Relic {
 class BlsPublicParameters;
 
 class BlsMultisigVerifier : public BlsThresholdVerifier {
-public:
-    BlsMultisigVerifier(const BlsPublicParameters& params, NumSharesType reqSigners, NumSharesType numSigners, const std::vector<BlsPublicKey>& verifKeys);
+ public:
+  BlsMultisigVerifier(const BlsPublicParameters &params,
+                      NumSharesType reqSigners,
+                      NumSharesType numSigners,
+                      const std::vector<BlsPublicKey> &verificationKeys);
 
-    virtual ~BlsMultisigVerifier() {}
+  explicit BlsMultisigVerifier(const BlsThresholdVerifier &base);
 
-public:
-    virtual IThresholdAccumulator* newAccumulator(bool withShareVerification) const;
+  ~BlsMultisigVerifier() override = default;
 
-    virtual const IPublicKey& getPublicKey() const {
-        // TODO(Alin): Should return a BlsMultisigPK object which has all signers' VKs
-        if(reqSigners != numSigners) {
-            throw std::runtime_error("k-out-of-n multisigs do not have a fixed PK");
-        }
+  bool operator==(const BlsMultisigVerifier &other) const;
 
-        return BlsThresholdVerifier::getPublicKey();
+  IThresholdAccumulator *newAccumulator(
+      bool withShareVerification) const override;
+
+  const IPublicKey &getPublicKey() const override {
+    // TODO(Alin): Should return a BlsMultisigPK object which has all signers' VKs
+    if (reqSigners_ != numSigners_) {
+      throw std::runtime_error("k-out-of-n multisigs do not have a fixed PK");
     }
 
-    virtual bool verify(const char * msg, int msgLen, const char * sig, int sigLen) const;
+    return BlsThresholdVerifier::getPublicKey();
+  }
 
-    virtual int requiredLengthForSignedData() const;
+  bool verify(const char *msg,
+              int msgLen,
+              const char *sig,
+              int sigLen) const override;
+
+  int requiredLengthForSignedData() const override;
+
+  // Serialization/deserialization
+  void serialize(UniquePtrToChar &outBuf, int64_t &outBufSize) const override;
+  UniquePtrToClass create(std::istream &inStream) override;
+
+ protected:
+  BlsMultisigVerifier() = default;
+
+ private:
+  void serializeDataMembers(std::ostream &outStream) const;
+  static void registerClass();
+
+ private:
+  static const std::string className_;
+  static const uint32_t classVersion_;
+  static bool registered_;
 };
 
 } /* namespace Relic */

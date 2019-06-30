@@ -18,7 +18,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
-#include "Logging.hpp"
+#include "Logger.hpp"
 #include "Metrics.hpp"
 
 #ifndef CONCORD_BFT_METRICS_SERVER_HPP
@@ -28,12 +28,28 @@
 
 namespace concordMetrics {
 
+const uint8_t kRequest = 0;
+const uint8_t kReply = 1;
+const uint8_t kError = 2;
+
+#pragma pack(push, 1)
+// All requests are solely Headers with msg_type_ set to kRequest. Replies are
+// JSON strings preceded by a Header with msg_type set to kReply or kError.
+// Since we are using UDP, the entire message will always be included, so no
+// need to worry about framing. We can always change the protocol if we decide
+// to enhance the Metric server later on or move to a different transport.
+struct Header {
+  uint8_t msg_type_;
+  uint64_t seq_num_;
+};
+#pragma pack(pop)
+
 // A UDP server that returns aggregated metrics
 class Server {
  public:
   Server(uint16_t listenPort)
       : listenPort_{listenPort},
-        logger_{concordlogger::Logger::getLogger("metrics-server")},
+        logger_{concordlogger::Log::getLogger("metrics-server")},
         running_{false},
         aggregator_{std::make_shared<Aggregator>()} {}
 

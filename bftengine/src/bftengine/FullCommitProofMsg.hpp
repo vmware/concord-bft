@@ -20,6 +20,11 @@ namespace bftEngine
 		{
 
 		public:
+
+			static MsgSize maxSizeOfFullCommitProofMsg();
+
+			static MsgSize maxSizeOfFullCommitProofMsgInLocalBuffer();
+
 			FullCommitProofMsg(ReplicaId senderId, ViewNum v, SeqNum s, const char* commitProofSig, uint16_t commitProofSigLength);
 
 			ViewNum viewNumber() const { return b()->viewNum; }

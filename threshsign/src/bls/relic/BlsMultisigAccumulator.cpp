@@ -15,7 +15,7 @@
 #include "threshsign/bls/relic/BlsMultisigAccumulator.h"
 #include "threshsign/bls/relic/Library.h"
 
-#include "Log.h"
+#include "Logger.hpp"
 #include "XAssert.h"
 
 #include <vector>

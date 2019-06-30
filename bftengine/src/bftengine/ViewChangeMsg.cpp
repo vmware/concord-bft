@@ -294,5 +294,16 @@ namespace bftEngine
 
 			return validElement;
 		}
+
+		MsgSize ViewChangeMsg::maxSizeOfViewChangeMsg()
+		{
+			return maxExternalMessageSize;
+		}
+
+		MsgSize ViewChangeMsg::maxSizeOfViewChangeMsgInLocalBuffer()
+		{
+			return maxSizeOfViewChangeMsg() + sizeof(RawHeaderOfObjAndMsg);
+		}
+
 	}
 }

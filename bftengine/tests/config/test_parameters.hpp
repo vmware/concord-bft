@@ -36,6 +36,7 @@ struct ReplicaParams {
   bool debug = false;
   bool viewChangeEnabled = false;
   uint32_t viewChangeTimeout = 60000; // ms
+  uint16_t statusReportTimerMillisec = 20 * 1000; // ms
   std::string   configFileName;
   std::string   keysFilePrefix;
 };

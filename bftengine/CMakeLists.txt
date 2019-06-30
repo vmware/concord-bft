@@ -9,7 +9,6 @@ set(corebft_source_files
     src/bftengine/FullCommitProofMsg.cpp
     src/bftengine/FullExecProofMsg.cpp
     src/bftengine/TimeUtils.cpp
-    src/bftengine/Logger.cpp
     src/bftengine/MessageBase.cpp
     src/bftengine/PartialCommitProofMsg.cpp
     src/bftengine/PartialExecProofMsg.cpp
@@ -29,7 +28,6 @@ set(corebft_source_files
     src/bftengine/RetransmissionsManager.cpp
     src/bftengine/NewViewMsg.cpp
     src/bftengine/SigManager.cpp
-    src/bftengine/SimpleThreadPool.cpp
     src/bftengine/ReplicasInfo.cpp
     src/bftengine/ViewChangeMsg.cpp
     src/bftengine/ViewChangeSafetyLogic.cpp
@@ -42,6 +40,7 @@ set(corebft_source_files
 	src/bftengine/NullStateTransfer.cpp
     src/bftengine/BFTEngine.cpp
     src/bftengine/SimpleClient.cpp
+    src/bftengine/DebugPersistentStorage.cpp
     src/communication/PlainUDPCommunication.cpp
     src/communication/CommFactory.cpp
 	src/bcstatetransfer/BCStateTran.cpp
@@ -90,13 +89,6 @@ if(${BUILD_COMM_TCP_PLAIN} OR ${BUILD_COMM_TCP_TLS})
 
 endif()
 
-TARGET_COMPILE_DEFINITIONS(corebft PUBLIC
-        DEFAULT_LOGGER_NAME="${CONCORD_LOGGER_NAME}")
-if(${USE_LOG4CPP})
-    TARGET_COMPILE_DEFINITIONS(corebft PUBLIC USE_LOG4CPP)
-    target_link_libraries(corebft PUBLIC log4cplus)
-endif()
-
 target_include_directories(corebft PUBLIC include/)
 target_include_directories(corebft PUBLIC include/bftengine)
 target_include_directories(corebft PUBLIC include/communication)
@@ -107,4 +99,3 @@ target_include_directories(corebft PUBLIC include/metadatastorage)
 target_link_libraries(corebft PUBLIC threshsign)
 target_link_libraries(corebft PUBLIC Threads::Threads)
 target_link_libraries(corebft PUBLIC util)
-target_link_libraries(corebft PUBLIC logging)

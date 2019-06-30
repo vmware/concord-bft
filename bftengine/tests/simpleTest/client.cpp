@@ -40,13 +40,10 @@
 #include "commonDefs.h"
 #include "test_comm_config.hpp"
 #include "test_parameters.hpp"
-#include "Logging.hpp"
 #include "histogram.hpp"
 #include "misc.hpp"
+#include "Logger.hpp"
 
-#ifdef USE_LOG4CPP
-#include <log4cplus/configurator.h>
-#endif
 
 using bftEngine::ICommunication;
 using bftEngine::PlainUDPCommunication;
@@ -59,7 +56,7 @@ using bftEngine::SeqNumberGeneratorForClientRequests;
 using bftEngine::SimpleClient;
 
 concordlogger::Logger clientLogger =
-    concordlogger::Logger::getLogger("simpletest.client");
+    concordlogger::Log::getLogger("simpletest.client");
 
 #define test_assert(statement, message) \
 { if (!(statement)) { \
@@ -72,16 +69,15 @@ void parse_params(int argc, char** argv, ClientParams &cp,
 
   uint16_t min16_t_u = std::numeric_limits<uint16_t>::min();
   uint16_t max16_t_u = std::numeric_limits<uint16_t>::max();
-  uint32_t min32_t = std::numeric_limits<uint32_t>::min();
-  uint32_t max32_t = std::numeric_limits<uint32_t>::max();
+  uint32_t max32_t_u = std::numeric_limits<uint32_t>::max();
 
   try {
     for (int i = 1; i < argc;) {
       string p(argv[i]);
       if (p == "-i") {
         auto numOp = std::stoi(argv[i + 1]);
-        if (numOp < min32_t || numOp > max32_t) {
-          printf("-i value is out of range (%u - %u)\n", min32_t, max32_t);
+        if (numOp < 0 || (uint32_t)numOp > max32_t_u) {
+          printf("-i value is out of range (%u - %u)\n", 0, max32_t_u);
           exit(-1);
         }
         cp.numOfOperations = (uint32_t)numOp;
@@ -182,14 +178,6 @@ void parse_params(int argc, char** argv, ClientParams &cp,
 }
 
 int main(int argc, char **argv) {
-// TODO(IG:) configure Log4Cplus's output format, using default for now
-#ifdef USE_LOG4CPP
-  using namespace log4cplus;
-  initialize();
-  BasicConfigurator config;
-  config.configure();
-#endif
-
   ClientParams cp;
   bftEngine::SimpleClientParams scp;
   parse_params(argc, argv, cp, scp);
@@ -268,7 +256,7 @@ int main(int argc, char **argv) {
   concordUtils::Histogram hist;
   hist.Clear();
 
-  for (int i = 1; i <= cp.numOfOperations; i++) {
+  for (uint32_t i = 1; i <= cp.numOfOperations; i++) {
 
     // the python script that runs the client needs to know how many
     // iterations has been done - that's the reason we use printf and not

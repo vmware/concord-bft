@@ -21,7 +21,7 @@
 #include "threshsign/IPublicParameters.h"
 #include "threshsign/VectorOfShares.h"
 
-#include "Log.h"
+#include "Logger.hpp"
 #include "Utils.h"
 #include "AutoBuf.h"
 #include "XAssert.h"
@@ -94,7 +94,7 @@ public:
         testAssertNotNull(verif);
         testAssertNotNull(verifier());
 
-        loginfo << "Testing " << params.getName() << " on " << reqSigners << " out of " << numSigners << " signers" << endl;
+        LOG_INFO(GL, "Testing " << params.getName() << " on " << reqSigners << " out of " << numSigners << " signers");
         GroupType h = hashMessage(msg, msgSize);
 
         VectorOfShares signers;
@@ -106,12 +106,12 @@ public:
         // If we call this before adding the shares, the shares will be verified at addNumById() time
         shareAccum->setExpectedDigest(msg, msgSize);
 
-        logtrace << "Testing numerical API..." << endl;
+        LOG_TRACE(GL, "Testing numerical API...");
         for(ShareID i = signers.first(); signers.isEnd(i) == false; i = signers.next(i)) {
             testAssertNotNull(signer(i));
             GroupType sigShare = signer(i)->signData(h);
 
-            logtrace << "Signed sigshare #" << i << ": " << sigShare << endl;
+            LOG_TRACE(GL, "Signed sigshare #" << i << ": " << sigShare);
             accumulator()->addNumById(i, sigShare);
         }
 
@@ -120,7 +120,7 @@ public:
         /**
          * Test the char * API too.
          */
-        logtrace << "Testing char * API too..." << endl;
+        LOG_TRACE(GL, "Testing char * API too...");
 
         // We want to call setExpectedDigest at 5 different points:
         //	- after accumulating the first share
@@ -149,7 +149,7 @@ public:
                 shareAccum->add(shareBuf, shareLen);
 
                 if(i == *p) {
-                    logtrace << "Calling setExpectedDigest() after adding share " << i << endl;
+                    LOG_TRACE(GL, "Calling setExpectedDigest() after adding share " << i);
                     shareAccum->setExpectedDigest(msg, msgSize);
                 }
             }
@@ -163,9 +163,9 @@ public:
         AutoBuf<char> sig(sigLen);
         accumulator()->getFullSignedData(sig, sigLen);
 
-        //logdbg << "Verifying signature(" << Utils::bin2hex(msg) << "): " << Utils::bin2hex(sig, sigLen) << endl;
+        //LOG_DEBUG(GL, "Verifying signature(" << Utils::bin2hex(msg) << "): " << Utils::bin2hex(sig, sigLen));
         if(false == verifier()->verify(reinterpret_cast<const char *>(msg), msgLen, sig, sigLen)) {
-            logerror << reqSigners << " out of " << numSigners << " signature " << Utils::bin2hex(sig, sigLen) << " did not verify" << endl;
+            LOG_ERROR(GL, reqSigners << " out of " << numSigners << " signature " << Utils::bin2hex(sig, sigLen) << " did not verify");
             throw std::logic_error("Signature did not verify");
         }
     }

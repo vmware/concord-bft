@@ -20,21 +20,17 @@ set(config_source_files
 
 add_executable(simpleTest_client
     ${simpleTest_client_source_files}
+    $<TARGET_OBJECTS:logging_dev>
 )
 
 add_executable(simpleTest_server
     ${simpleTest_replica_source_files}
+    $<TARGET_OBJECTS:logging_dev>
 )
 
 add_executable(configTest
     ${config_source_files}
 )
-
-if(USE_LOG4CPP)
-    target_compile_definitions(simpleTest_server PUBLIC USE_LOG4CPP=1)
-    target_compile_definitions(simpleTest_client PUBLIC USE_LOG4CPP=1)
-    target_compile_definitions(configTest PUBLIC USE_LOG4CPP=1)
-endif()
 
 if(${USE_COMM_PLAIN_TCP})
     target_compile_definitions(simnpleTest_client PUBLIC USE_COMM_PLAIN_TCP)

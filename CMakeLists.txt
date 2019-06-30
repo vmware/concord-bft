@@ -2,10 +2,6 @@ cmake_minimum_required(VERSION 3.2)
 
 # Default to building with clang on Linux,OSX,BSD etc...
 # This must come before the project definition or it won't be picked up.
-if(NOT ENV{CXX} AND UNIX)
-    set(ENV{CXX} clang++)
-endif()
-
 project(concord-bft VERSION 0.1.0.0 LANGUAGES CXX)
 
 #
@@ -49,12 +45,6 @@ endif()
 if(${COMM_MODULES} GREATER 1)
     message(FATAL_ERROR "Only one comm module can be chosen")
 endif()
-
-# Default CONCORD_LOGGER_NAME to "concord"
-if(NOT CONCORD_LOGGER_NAME)
-    set(CONCORD_LOGGER_NAME "concord" CACHE STRING "Set concord logger name" FORCE)
-endif()
-
 
 if(SLEEP_FOR_DBG)
     add_definitions(-DSLEEP_DBG)
@@ -102,6 +92,8 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
             " --no-system-header-prefix relic")
     string(APPEND CMAKE_CXX_FLAGS
             " -Wmacro-redefined")
+    string(APPEND CMAKE_CXX_FLAGS
+            " -Wsign-compare")
     string(APPEND CMAKE_CXX_FLAGS_DEBUG
             " -fstack-protector-all")
 
@@ -165,4 +157,5 @@ if(BUILD_TESTING)
     add_submodule("deps/gtest")
     add_subdirectory(deps/gtest)
     add_subdirectory(bftengine/tests)
+    add_subdirectory(test)
 endif()

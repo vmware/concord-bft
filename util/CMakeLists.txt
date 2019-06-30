@@ -1,17 +1,14 @@
 # pthread dependency
 find_package(Threads REQUIRED)
-add_library(util STATIC src/Metrics.cpp src/MetricsServer.cpp src/histogram.cpp
-        include/misc.hpp)
 
-target_link_libraries(util PUBLIC logging Threads::Threads)
+add_library(util STATIC src/Metrics.cpp src/MetricsServer.cpp src/SimpleThreadPool.cpp src/histogram.cpp include/misc.hpp)
+
+TARGET_COMPILE_DEFINITIONS(util PUBLIC DEFAULT_LOGGER_NAME="${CONCORD_LOGGER_NAME}")
+
+target_link_libraries(util PUBLIC Threads::Threads)
 target_include_directories(util PUBLIC include)
 
 if (BUILD_TESTING)
     add_subdirectory(pyclient)
     add_subdirectory(test)
-endif()
-
-if(${USE_LOG4CPP})
-    TARGET_COMPILE_DEFINITIONS(util PUBLIC USE_LOG4CPP)
-    target_link_libraries(util PUBLIC log4cplus)
 endif()

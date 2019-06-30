@@ -55,7 +55,7 @@ void verifyData(FileStorage &fileStorage, uint16_t objId) {
 int main(int argc, char **argv) {
 
   try {
-    auto logger = concordlogger::Logger::getLogger("simpleStorage.test");
+    auto logger = concordlogger::Log::getLogger("simpleStorage.test");
     FileStorage fileStorage(logger, "test.txt");
     const uint32_t objNum = 6;
     FileStorage::ObjectDesc objects[objNum];

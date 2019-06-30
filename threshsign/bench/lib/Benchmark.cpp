@@ -16,7 +16,7 @@
 
 #include "threshsign/ThresholdSignaturesTypes.h"
 
-#include "Log.h"
+#include "Logger.hpp"
 
 std::vector<std::pair<int, int>> Benchmark::getThresholdTestCases(int maxf, bool oneF, bool twoF, bool threeF, int increment) {
     std::vector<std::pair<int,int>> nk;	// first = n, second = k
@@ -27,7 +27,7 @@ std::vector<std::pair<int, int>> Benchmark::getThresholdTestCases(int maxf, bool
         int n = 3*f + 1 + 2*c;
 
         if(n > MAX_NUM_OF_SHARES) {
-            logerror << "You're asking for n = " << n << " signers, but MAX_NUM_OF_SHARES = " << MAX_NUM_OF_SHARES << std::endl;
+            LOG_ERROR(GL, "You're asking for n = " << n << " signers, but MAX_NUM_OF_SHARES = " << MAX_NUM_OF_SHARES);
             throw std::runtime_error("Cannot support that many signers. Please recompile with higher MAX_NUM_OF_SHARES");
         }
 

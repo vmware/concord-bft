@@ -19,7 +19,7 @@
 #include <vector>
 
 #include "XAssert.h"
-#include "Log.h"
+#include "Logger.hpp"
 
 using std::endl;
 

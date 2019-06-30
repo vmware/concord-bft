@@ -12,7 +12,7 @@ set(simpleKVBC_sources
 )
 
 add_library(simpleKVBC ${simpleKVBC_sources})
-target_link_libraries(simpleKVBC PUBLIC corebft threshsign util logging)
+target_link_libraries(simpleKVBC PUBLIC corebft threshsign util)
 
 target_include_directories(simpleKVBC PUBLIC .)
 target_include_directories(simpleKVBC PUBLIC ../../../../tools)

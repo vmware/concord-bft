@@ -31,9 +31,8 @@
 #include "CheckpointInfo.hpp"
 #include "ICommunication.hpp"
 #include "Replica.hpp"
-#include "Threading.h"
+#include "SimpleAutoResetEvent.hpp"
 #include "Metrics.hpp"
-
 #include <thread>
 
 
@@ -90,7 +89,7 @@ namespace bftEngine
 			bool mainThreadShouldStop;
 
 			// thread pool of this replica
-			SimpleThreadPool internalThreadPool; // TODO(GG): !!!! rename
+			util::SimpleThreadPool internalThreadPool; // TODO(GG): !!!! rename
 
 			// retransmissions manager (can be disabled)
 			RetransmissionsManager* retransmissionsManager = nullptr;
@@ -198,6 +197,7 @@ namespace bftEngine
 			Timer* statusReportTimer;
 			Timer* viewChangeTimer;
 			Timer* debugStatTimer = nullptr;
+                        Timer* metricsTimer_;
 
 			int viewChangeTimerMilli;
 
@@ -402,7 +402,7 @@ namespace bftEngine
 				return incomingMsgsStorage;
 			}
 
-			virtual SimpleThreadPool& getInternalThreadPool() override
+			virtual util::SimpleThreadPool& getInternalThreadPool() override
 			{
 				return internalThreadPool;
 			}
@@ -467,6 +467,10 @@ namespace bftEngine
 				return *debugStatTimer;
 			}
 
+			virtual Timer& getMetricsTimer() override
+			{
+				return *metricsTimer_;
+			}
 
 
 			virtual void onViewsChangeTimer(Time cTime, Timer& timer) override;
@@ -476,6 +480,7 @@ namespace bftEngine
 			virtual void onSlowPathTimer(Time cTime, Timer& timer) override;
 			virtual void onInfoRequestTimer(Time cTime, Timer& timer) override;
 			virtual void onDebugStatTimer(Time cTime, Timer& timer) override;
+			virtual void onMetricsTimer(Time cTime, Timer& timer) override;
 
 			// handlers for internal messages
 
