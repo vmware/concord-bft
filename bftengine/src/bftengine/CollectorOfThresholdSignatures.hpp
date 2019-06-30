@@ -27,6 +27,7 @@ namespace bftEngine
 
 		template <typename PART, typename FULL, typename ExternalFunc>
 		// TODO(GG): consider to enforce the requirements from PART, FULL and ExternalFunc
+		// TODO(GG): add Assert(ExternalFunc::numberOfRequiredSignatures(context) > 1);
 		class CollectorOfThresholdSignatures
 		{
 		public:
@@ -191,6 +192,67 @@ namespace bftEngine
 
 					trySendToBkThread();
 				}
+			}
+
+			// init the expected values (seqNum, view and digest) directly (without sending to a background thread)
+			void initExpected(SeqNum seqNumber, ViewNum  view, Digest& digest)
+			{
+				Assert(seqNumber != 0);
+				Assert(expectedSeqNumber == 0);
+				Assert(!processingSignaturesInTheBackground);
+
+				expectedSeqNumber = seqNumber;
+				expectedView = view;
+				expectedDigest = digest;
+			}
+
+
+			// init the PART message directly (without sending to a background thread)
+			bool initMsgWithPartialSignature(PART* partialSigMsg, ReplicaId repId)
+			{
+				Assert(partialSigMsg != nullptr);
+
+				Assert(!processingSignaturesInTheBackground);
+				Assert(expectedSeqNumber != 0);
+				Assert(combinedValidSignatureMsg == nullptr);
+				Assert(candidateCombinedSignatureMsg == nullptr);
+				Assert(replicasInfo.count(repId) == 0);
+				Assert(numberOfUnknownSignatures == 0); // we can use this method to add at most one PART message
+
+				// add partialSigMsg to replicasInfo
+				RepInfo info = { partialSigMsg, SigState::Unknown };
+				replicasInfo[repId] = info;
+
+				//TODO(GG): do we want to verify the partial signature here?
+
+				numberOfUnknownSignatures++;
+
+				if (numOfRequiredSigs == 0) // init numOfRequiredSigs
+					numOfRequiredSigs = ExternalFunc::numberOfRequiredSignatures(context);
+
+				Assert(numberOfUnknownSignatures < numOfRequiredSigs); // because numOfRequiredSigs > 1
+
+				return true;
+			}
+
+
+			// init the FULL message directly (without sending to a background thread)
+			bool initMsgWithCombinedSignature(FULL* combinedSigMsg)
+			{
+				Assert(!processingSignaturesInTheBackground);
+				Assert(expectedSeqNumber != 0);
+				Assert(combinedValidSignatureMsg == nullptr);
+				Assert(candidateCombinedSignatureMsg == nullptr);
+
+				IThresholdVerifier* const verifier = ExternalFunc::thresholdVerifier(context);
+				bool succ = verifier->verify(
+					(char*)&expectedDigest, sizeof(Digest),
+					combinedSigMsg->signatureBody(), combinedSigMsg->signatureLen());
+				Assert(succ); // we should verify this signature when it is loaded
+
+				combinedValidSignatureMsg = combinedSigMsg;
+
+				return true;
 			}
 
 		protected:

@@ -221,7 +221,9 @@ void PersistentStorageImp::setLastViewThatTransferredSeqNumbersFullyExecuted(con
 void PersistentStorageImp::saveDescriptorOfLastExitFromView(const DescriptorOfLastExitFromView &newDesc) {
   const size_t simpleParamsSize = DescriptorOfLastExitFromView::simpleParamsSize();
   char *simpleParamsBuf = new char[simpleParamsSize];
-  newDesc.serializeSimpleParams(simpleParamsBuf, simpleParamsSize);
+
+  size_t actualSize = 0;
+  newDesc.serializeSimpleParams(simpleParamsBuf, simpleParamsSize, actualSize);
   metadataStorage_->writeInTransaction(LAST_EXIT_FROM_VIEW_DESC, simpleParamsBuf, simpleParamsSize);
   delete[] simpleParamsBuf;
 
