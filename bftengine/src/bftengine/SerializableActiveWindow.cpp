@@ -109,6 +109,14 @@ ItemType &SerializableActiveWindow<INPUT_PARAMS>::getByRealIndex(uint16_t index)
 }
 
 template<TEMPLATE_PARAMS>
+std::pair<SeqNum, SeqNum> SerializableActiveWindow<INPUT_PARAMS>::currentActiveWindow() const {
+  std::pair<SeqNum, SeqNum> window;
+  window.first = beginningOfActiveWindow_;
+  window.second = beginningOfActiveWindow_ + WindowSize - 1;
+  return window;
+}
+
+template<TEMPLATE_PARAMS>
 void SerializableActiveWindow<INPUT_PARAMS>::resetAll(SeqNum windowFirst) {
   Assert(windowFirst % Resolution == 0);
   for (uint32_t i = 0; i < numItems_; i++)

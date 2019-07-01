@@ -31,7 +31,7 @@ class SerializableActiveWindow {
   static_assert(Resolution < WindowSize, "");
   static_assert(WindowSize % Resolution == 0, "");
 
-  SerializableActiveWindow(SeqNum windowFirst);
+  explicit SerializableActiveWindow(SeqNum windowFirst);
   ~SerializableActiveWindow();
 
   static uint32_t maxElementSize() {
@@ -61,6 +61,8 @@ class SerializableActiveWindow {
   ItemType &get(uint16_t num) ;
 
   ItemType &getByRealIndex(uint16_t index);
+
+  std::pair<SeqNum, SeqNum> currentActiveWindow() const;
 
   void resetAll(SeqNum windowFirst);
 
