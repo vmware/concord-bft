@@ -25,8 +25,8 @@ namespace impl {
 DebugPersistentStorage::DebugPersistentStorage(uint16_t fVal, uint16_t cVal)
     : fVal_{fVal},
       cVal_{cVal},
-      seqNumWindow{1, nullptr},
-      checkWindow{0, nullptr} {}
+      seqNumWindow(1),
+      checkWindow(0) {}
 
 uint8_t DebugPersistentStorage::beginWriteTran() {
   return ++numOfNestedTransactions;
@@ -253,23 +253,23 @@ void DebugPersistentStorage::setPrePrepareMsgInSeqNumWindow(
     const SeqNum s, const PrePrepareMsg *const m) {
   Assert(seqNumWindow.insideActiveWindow(s));
   SeqNumData &seqNumData = seqNumWindow.get(s);
-  Assert(seqNumData.prePrepareMsg == nullptr);
-  seqNumData.prePrepareMsg = (PrePrepareMsg *) m->cloneObjAndMsg();
+  Assert(!seqNumData.isPrePrepareMsgSet());
+  seqNumData.setPrePrepareMsg(m->cloneObjAndMsg());
 }
 
 void DebugPersistentStorage::setSlowStartedInSeqNumWindow(
     const SeqNum s, const bool slowStarted) {
   Assert(seqNumWindow.insideActiveWindow(s));
   SeqNumData &seqNumData = seqNumWindow.get(s);
-  seqNumData.slowStarted = slowStarted;
+  seqNumData.setSlowStarted(slowStarted);
 }
 
 void DebugPersistentStorage::setFullCommitProofMsgInSeqNumWindow(
     const SeqNum s, const FullCommitProofMsg *const m) {
   Assert(seqNumWindow.insideActiveWindow(s));
   SeqNumData &seqNumData = seqNumWindow.get(s);
-  Assert(seqNumData.fullCommitProofMsg == nullptr);
-  seqNumData.fullCommitProofMsg = (FullCommitProofMsg *) m->cloneObjAndMsg();
+  Assert(!seqNumData.isFullCommitProofMsgSet());
+  seqNumData.setFullCommitProofMsg(m->cloneObjAndMsg());
 }
 
 void DebugPersistentStorage::setForceCompletedInSeqNumWindow(
@@ -277,31 +277,31 @@ void DebugPersistentStorage::setForceCompletedInSeqNumWindow(
   Assert(forceCompleted == true);
   Assert(seqNumWindow.insideActiveWindow(s));
   SeqNumData &seqNumData = seqNumWindow.get(s);
-  seqNumData.forceCompleted = forceCompleted;
+  seqNumData.setForceCompleted(forceCompleted);
 }
 
 void DebugPersistentStorage::setPrepareFullMsgInSeqNumWindow(
     const SeqNum s, const PrepareFullMsg *const m) {
   Assert(seqNumWindow.insideActiveWindow(s));
   SeqNumData &seqNumData = seqNumWindow.get(s);
-  Assert(seqNumData.prepareFullMsg == nullptr);
-  seqNumData.prepareFullMsg = (PrepareFullMsg *) m->cloneObjAndMsg();
+  Assert(!seqNumData.isPrepareFullMsgSet());
+  seqNumData.setPrepareFullMsg(m->cloneObjAndMsg());
 }
 
 void DebugPersistentStorage::setCommitFullMsgInSeqNumWindow(
     const SeqNum s, const CommitFullMsg *const m) {
   Assert(seqNumWindow.insideActiveWindow(s));
   SeqNumData &seqNumData = seqNumWindow.get(s);
-  Assert(seqNumData.commitFullMsg == nullptr);
-  seqNumData.commitFullMsg = (CommitFullMsg *) m->cloneObjAndMsg();
+  Assert(!seqNumData.isCommitFullMsgSet());
+  seqNumData.setCommitFullMsg(m->cloneObjAndMsg());
 }
 
 void DebugPersistentStorage::setCheckpointMsgInCheckWindow(
     const SeqNum s, const CheckpointMsg *const m) {
   Assert(checkWindow.insideActiveWindow(s));
   CheckData &checkData = checkWindow.get(s);
-  if (checkData.checkpointMsg != nullptr) delete checkData.checkpointMsg;
-  checkData.checkpointMsg = (CheckpointMsg *) m->cloneObjAndMsg();
+  checkData.deleteCheckpointMsg();
+  checkData.setCheckpointMsg(m->cloneObjAndMsg());
 }
 
 void DebugPersistentStorage::setCompletedMarkInCheckWindow(const SeqNum s,
@@ -309,7 +309,7 @@ void DebugPersistentStorage::setCompletedMarkInCheckWindow(const SeqNum s,
   Assert(f == true);
   Assert(checkWindow.insideActiveWindow(s));
   CheckData &checkData = checkWindow.get(s);
-  checkData.completedMark = f;
+  checkData.setCompletedMark(f);
 }
 
 bool DebugPersistentStorage::hasReplicaConfig() const { return hasConfig_; }
@@ -439,7 +439,7 @@ DebugPersistentStorage::getAndAllocatePrePrepareMsgInSeqNumWindow(
   Assert(lastStableSeqNum_ + 1 == seqNumWindow.currentActiveWindow().first);
   Assert(seqNumWindow.insideActiveWindow(s));
 
-  PrePrepareMsg *orgMsg = seqNumWindow.get(s).prePrepareMsg;
+  PrePrepareMsg *orgMsg = seqNumWindow.get(s).getPrePrepareMsg();
   if (orgMsg == nullptr) return nullptr;
 
   PrePrepareMsg *m = (PrePrepareMsg *) orgMsg->cloneObjAndMsg();
@@ -451,7 +451,7 @@ bool DebugPersistentStorage::getSlowStartedInSeqNumWindow(const SeqNum s) {
   Assert(getIsAllowed());
   Assert(lastStableSeqNum_ + 1 == seqNumWindow.currentActiveWindow().first);
   Assert(seqNumWindow.insideActiveWindow(s));
-  bool b = seqNumWindow.get(s).slowStarted;
+  bool b = seqNumWindow.get(s).getSlowStarted();
   return b;
 }
 
@@ -462,7 +462,7 @@ DebugPersistentStorage::getAndAllocateFullCommitProofMsgInSeqNumWindow(
   Assert(lastStableSeqNum_ + 1 == seqNumWindow.currentActiveWindow().first);
   Assert(seqNumWindow.insideActiveWindow(s));
 
-  FullCommitProofMsg *orgMsg = seqNumWindow.get(s).fullCommitProofMsg;
+  FullCommitProofMsg *orgMsg = seqNumWindow.get(s).getFullCommitProofMsg();
   if (orgMsg == nullptr) return nullptr;
 
   FullCommitProofMsg *m = (FullCommitProofMsg *) orgMsg->cloneObjAndMsg();
@@ -474,7 +474,7 @@ bool DebugPersistentStorage::getForceCompletedInSeqNumWindow(const SeqNum s) {
   Assert(getIsAllowed());
   Assert(lastStableSeqNum_ + 1 == seqNumWindow.currentActiveWindow().first);
   Assert(seqNumWindow.insideActiveWindow(s));
-  bool b = seqNumWindow.get(s).forceCompleted;
+  bool b = seqNumWindow.get(s).getForceCompleted();
   return b;
 }
 
@@ -485,7 +485,7 @@ DebugPersistentStorage::getAndAllocatePrepareFullMsgInSeqNumWindow(
   Assert(lastStableSeqNum_ + 1 == seqNumWindow.currentActiveWindow().first);
   Assert(seqNumWindow.insideActiveWindow(s));
 
-  PrepareFullMsg *orgMsg = seqNumWindow.get(s).prepareFullMsg;
+  PrepareFullMsg *orgMsg = seqNumWindow.get(s).getPrepareFullMsg();
   if (orgMsg == nullptr) return nullptr;
 
   PrepareFullMsg *m = (PrepareFullMsg *) orgMsg->cloneObjAndMsg();
@@ -500,7 +500,7 @@ DebugPersistentStorage::getAndAllocateCommitFullMsgInSeqNumWindow(
   Assert(lastStableSeqNum_ + 1 == seqNumWindow.currentActiveWindow().first);
   Assert(seqNumWindow.insideActiveWindow(s));
 
-  CommitFullMsg *orgMsg = seqNumWindow.get(s).commitFullMsg;
+  CommitFullMsg *orgMsg = seqNumWindow.get(s).getCommitFullMsg();
   if (orgMsg == nullptr) return nullptr;
 
   CommitFullMsg *m = (CommitFullMsg *) orgMsg->cloneObjAndMsg();
@@ -514,7 +514,7 @@ CheckpointMsg *DebugPersistentStorage::getAndAllocateCheckpointMsgInCheckWindow(
   Assert(lastStableSeqNum_ == checkWindow.currentActiveWindow().first);
   Assert(checkWindow.insideActiveWindow(s));
 
-  CheckpointMsg *orgMsg = checkWindow.get(s).checkpointMsg;
+  CheckpointMsg *orgMsg = checkWindow.get(s).getCheckpointMsg();
   if (orgMsg == nullptr) return nullptr;
 
   CheckpointMsg *m = (CheckpointMsg *) orgMsg->cloneObjAndMsg();
@@ -526,7 +526,7 @@ bool DebugPersistentStorage::getCompletedMarkInCheckWindow(const SeqNum s) {
   Assert(getIsAllowed());
   Assert(lastStableSeqNum_ == checkWindow.currentActiveWindow().first);
   Assert(checkWindow.insideActiveWindow(s));
-  bool b = checkWindow.get(s).completedMark;
+  bool b = checkWindow.get(s).getCompletedMark();
   return b;
 }
 
@@ -542,42 +542,6 @@ bool DebugPersistentStorage::nonExecSetIsAllowed() const {
   return setIsAllowed() &&
       (!hasDescriptorOfLastExecution_ ||
           descriptorOfLastExecution_.executedSeqNum <= lastExecutedSeqNum_);
-}
-
-void DebugPersistentStorage::WindowFuncs::init(SeqNumData &i, void *d) {
-  i.prePrepareMsg = nullptr;
-  i.slowStarted = false;
-  i.fullCommitProofMsg = nullptr;
-  i.forceCompleted = false;
-  i.prepareFullMsg = nullptr;
-  i.commitFullMsg = nullptr;
-}
-
-void DebugPersistentStorage::WindowFuncs::free(SeqNumData &i) { reset(i); }
-
-void DebugPersistentStorage::WindowFuncs::reset(SeqNumData &i) {
-  if (i.prePrepareMsg != nullptr) delete i.prePrepareMsg;
-  if (i.fullCommitProofMsg != nullptr) delete i.fullCommitProofMsg;
-  if (i.prepareFullMsg != nullptr) delete i.prepareFullMsg;
-  if (i.commitFullMsg != nullptr) delete i.commitFullMsg;
-  i.prePrepareMsg = nullptr;
-  i.slowStarted = false;
-  i.fullCommitProofMsg = nullptr;
-  i.forceCompleted = false;
-  i.prepareFullMsg = nullptr;
-  i.commitFullMsg = nullptr;
-}
-
-void DebugPersistentStorage::WindowFuncs::init(CheckData &i, void *d) {
-  i.checkpointMsg = nullptr;
-  i.completedMark = false;
-}
-void DebugPersistentStorage::WindowFuncs::free(CheckData &i) { reset(i); }
-
-void DebugPersistentStorage::WindowFuncs::reset(CheckData &i) {
-  if (i.checkpointMsg != nullptr) delete i.checkpointMsg;
-  i.checkpointMsg = nullptr;
-  i.completedMark = false;
 }
 
 }  // namespace impl
