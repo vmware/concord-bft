@@ -14,7 +14,7 @@
 #pragma once
 
 #include "PersistentStorage.hpp"
-#include "SequenceWithActiveWindow.hpp"
+#include "PersistentStorageWindows.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -120,41 +120,11 @@ class DebugPersistentStorage : public PersistentStorage {
 
   SeqNum lastStableSeqNum_ = 0;
 
-  struct SeqNumData {
-    PrePrepareMsg* prePrepareMsg;
-    bool slowStarted;
-    FullCommitProofMsg* fullCommitProofMsg;
-    bool forceCompleted;
-    PrepareFullMsg* prepareFullMsg;
-    CommitFullMsg* commitFullMsg;
-  };
-
-  struct CheckData {
-    CheckpointMsg* checkpointMsg;
-    bool completedMark;
-  };
-
-  struct WindowFuncs {
-    static void init(SeqNumData& i, void* d);
-    static void free(SeqNumData& i);
-    static void reset(SeqNumData& i);
-
-    static void init(CheckData& i, void* d);
-    static void free(CheckData& i);
-    static void reset(CheckData& i);
-  };
-
   // range: lastStableSeqNum+1 <= i <= lastStableSeqNum + kWorkWindowSize
-  SequenceWithActiveWindow<kWorkWindowSize, 1, SeqNum, SeqNumData, WindowFuncs>
-      seqNumWindow;
+  SeqNumWindow seqNumWindow;
 
   // range: TODO(GG): !!!!!!!
-  SequenceWithActiveWindow<kWorkWindowSize + checkpointWindowSize,
-                           checkpointWindowSize,
-                           SeqNum,
-                           CheckData,
-                           WindowFuncs>
-      checkWindow;
+  CheckWindow checkWindow;
 };
 
 }  // namespace impl
