@@ -54,8 +54,27 @@ class SeqNumData {
   size_t serializeSlowStarted(char *&buf) const;
   void serialize(char *buf, uint32_t bufLen, size_t &actualSize) const;
 
+  bool isPrePrepareMsgSet() const { return (prePrepareMsg_ != nullptr); }
+  bool isFullCommitProofMsgSet() const { return (fullCommitProofMsg_ != nullptr); }
+  bool isPrepareFullMsgSet() const { return (prepareFullMsg_ != nullptr); }
+  bool isCommitFullMsgSet() const { return (commitFullMsg_ != nullptr); }
+
+  PrePrepareMsg *getPrePrepareMsg() const { return prePrepareMsg_; }
+  FullCommitProofMsg *getFullCommitProofMsg() const { return fullCommitProofMsg_; }
+  PrepareFullMsg *getPrepareFullMsg() const { return prepareFullMsg_; }
+  CommitFullMsg *getCommitFullMsg() const { return commitFullMsg_; }
+  bool getSlowStarted() const { return slowStarted_; }
+  bool getForceCompleted() const { return forceCompleted_; }
+
+  void setPrePrepareMsg(MessageBase *msg) { prePrepareMsg_ = (PrePrepareMsg *) msg; }
+  void setFullCommitProofMsg(MessageBase *msg) { fullCommitProofMsg_ = (FullCommitProofMsg *) msg; }
+  void setPrepareFullMsg(MessageBase *msg) { prepareFullMsg_ = (PrepareFullMsg *) msg; }
+  void setCommitFullMsg(MessageBase *msg) { commitFullMsg_ = (CommitFullMsg *) msg; }
+  void setSlowStarted(const bool &slowStarted) { slowStarted_ = slowStarted; }
+  void setForceCompleted(const bool &forceCompleted) { forceCompleted_ = forceCompleted; }
+
   static size_t serializeMsg(char *&buf, MessageBase *msg);
-  static size_t serializeBoolean(char *&buf, const bool& boolean);
+  static size_t serializeBoolean(char *&buf, const bool &boolean);
 
   static MessageBase *deserializeMsg(char *&buf, uint32_t bufLen, size_t &actualMsgSize);
   static bool deserializeBoolean(char *&buf);
@@ -96,6 +115,13 @@ class CheckData {
   size_t serializeCompletedMark(char *&buf) const;
   size_t serializeCheckpointMsg(char *&buf) const;
   void serialize(char *buf, uint32_t bufLen, size_t &actualSize) const;
+
+  CheckpointMsg *getCheckpointMsg() const { return checkpointMsg_; }
+  bool getCompletedMark() const { return completedMark_; }
+
+  void deleteCheckpointMsg() { delete checkpointMsg_; }
+  void setCheckpointMsg(MessageBase *msg) { checkpointMsg_ = (CheckpointMsg *) msg; }
+  void setCompletedMark(const bool &completedMark) { completedMark_ = completedMark; }
 
   static size_t serializeCompletedMark(char *&buf, const bool &completedMark);
   static size_t serializeCheckpointMsg(char *&buf, CheckpointMsg *msg);
