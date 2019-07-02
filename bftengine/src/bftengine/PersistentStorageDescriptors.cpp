@@ -20,13 +20,6 @@ namespace impl {
 
 /***** DescriptorOfLastExitFromView *****/
 
-DescriptorOfLastExitFromView::DescriptorOfLastExitFromView() {
-  ViewsManager::PrevViewInfo element;
-  for (uint32_t i = 0; i < kWorkWindowSize; ++i) {
-    elements.push_back(element);
-  }
-}
-
 void DescriptorOfLastExitFromView::clean() {
   for (auto elem : elements) {
     delete elem.prepareFull;
@@ -69,10 +62,8 @@ void DescriptorOfLastExitFromView::serializeElement(
   Assert(id < elements.size());
   Assert(bufLen >= maxElementSize());
 
-  PrePrepareMsg *prePrepareMsg =
-      (id < elements.size()) ? elements[id].prePrepare : nullptr;
-  PrepareFullMsg *prePrepareFullMsg =
-      (id < elements.size()) ? elements[id].prepareFull : nullptr;
+  PrePrepareMsg *prePrepareMsg = (id < elements.size()) ? elements[id].prePrepare : nullptr;
+  PrepareFullMsg *prePrepareFullMsg = (id < elements.size()) ? elements[id].prepareFull : nullptr;
 
   actualSize += MessageBase::serializeMsg(buf, prePrepareMsg);
   actualSize += MessageBase::serializeMsg(buf, prePrepareFullMsg);
