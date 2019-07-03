@@ -34,8 +34,7 @@ PersistentStorageImp::~PersistentStorageImp() {
 }
 
 void PersistentStorageImp::retrieveWindowsMetadata() {
-  SeqNum seqNum = 0;
-  const size_t sizeofSeqNum = sizeof(seqNum);
+  const size_t sizeofSeqNum = sizeof(SeqNum);
   uint32_t actualSize = 0;
   char buf[sizeofSeqNum];
   metadataStorage_->read(SEQ_NUM_WINDOW, sizeofSeqNum, buf, actualSize);
@@ -44,6 +43,7 @@ void PersistentStorageImp::retrieveWindowsMetadata() {
   checkWindowBeginning_ = CheckWindow::deserializeActiveWindowBeginning(buf);
 }
 
+// TODO: Yulia Init code should be taken out the class to enable StateTransfer using the same DB.
 void PersistentStorageImp::init(MetadataStorage *&metadataStorage) {
   metadataStorage_ = metadataStorage;
   try {
@@ -336,7 +336,8 @@ void PersistentStorageImp::serializeAndSaveSeqNumWindow(SharedPtrSeqNumWindow se
   delete[] winBuf;
 }
 
-void PersistentStorageImp::setSeqNumDataElement(SeqNum index, char *buf, SharedPtrSeqNumWindow seqNumWindow) const {
+void PersistentStorageImp::setSeqNumDataElement(const SeqNum &index, char *buf,
+                                                SharedPtrSeqNumWindow seqNumWindow) const {
   SeqNumData &seqNumData = seqNumWindow.get()->getByRealIndex(index);
   SeqNum shift = (index - 1) * numOfSeqNumWinParameters;
   char *movablePtr = buf;
@@ -380,7 +381,7 @@ void PersistentStorageImp::serializeAndSaveCheckWindow(SharedPtrCheckWindow chec
   delete[] winBuf;
 }
 
-void PersistentStorageImp::setCheckDataElement(SeqNum index, char *buf, SharedPtrCheckWindow checkWindow) const {
+void PersistentStorageImp::setCheckDataElement(const SeqNum &index, char *buf, SharedPtrCheckWindow checkWindow) const {
   CheckData &checkData = checkWindow.get()->getByRealIndex(index);
   char *movablePtr = buf;
   size_t actualSize = checkData.serializeCompletedMark(movablePtr);
@@ -392,6 +393,7 @@ void PersistentStorageImp::setCheckDataElement(SeqNum index, char *buf, SharedPt
   metadataStorage_->writeInTransaction(CHECK_WINDOW + CHECKPOINT_MSG + shift, buf, actualSize);
 }
 
+// TODO: Yulia Optimize - write only removed messages to DB.
 void PersistentStorageImp::setLastStableSeqNumInternal(const SeqNum &seqNum, SharedPtrSeqNumWindow seqNumWindow,
                                                        SharedPtrCheckWindow checkWindow) {
   metadataStorage_->writeInTransaction(LAST_STABLE_SEQ_NUM, (char *) &seqNum, sizeof(seqNum));
@@ -416,36 +418,37 @@ void PersistentStorageImp::setLastStableSeqNum(const SeqNum seqNum) {
   setLastStableSeqNumInternal(seqNum, seqNumWindow, checkWindow);
 }
 
-void PersistentStorageImp::setMsgInSeqNumWindow(const SeqNum seqNum, const SeqNum parameterId, MessageBase *msg) const {
-  const size_t bufLen = SeqNumData::maxSize();
-  char *buf = new char[bufLen];
+void PersistentStorageImp::setMsgInSeqNumWindow(const SeqNum &seqNum, const SeqNum &parameterId, MessageBase *msg,
+                                                const size_t &msgSize) const {
+  char *buf = new char[msgSize];
   char *movablePtr = buf;
   const size_t actualSize = SeqNumData::serializeMsg(movablePtr, msg);
   Assert(actualSize != 0);
-  metadataStorage_->writeInTransaction(
-      SEQ_NUM_WINDOW + parameterId + SeqNumWindow::convertIndex(seqNum, seqNumWindowBeginning_), buf, actualSize);
+  metadataStorage_->writeInTransaction(SEQ_NUM_WINDOW + parameterId +
+      SeqNumWindow::convertIndex(seqNum, seqNumWindowBeginning_), buf, actualSize);
   delete[] buf;
 }
 
 void PersistentStorageImp::setPrePrepareMsgInSeqNumWindow(const SeqNum seqNum, const PrePrepareMsg *const msg) {
-  setMsgInSeqNumWindow(seqNum, PRE_PREPARE_MSG, (MessageBase *) msg);
+  setMsgInSeqNumWindow(seqNum, PRE_PREPARE_MSG, (MessageBase *) msg, SeqNumData::maxPrePrepareMsgSize());
 }
 
 void PersistentStorageImp::setFullCommitProofMsgInSeqNumWindow(
     const SeqNum seqNum, const FullCommitProofMsg *const msg) {
-  setMsgInSeqNumWindow(seqNum, FULL_COMMIT_PROOF_MSG, (MessageBase *) msg);
+  setMsgInSeqNumWindow(seqNum, FULL_COMMIT_PROOF_MSG, (MessageBase *) msg, SeqNumData::maxFullCommitProofMsgSize());
 }
 
 void PersistentStorageImp::setPrepareFullMsgInSeqNumWindow(const SeqNum seqNum, const PrepareFullMsg *const msg) {
-  setMsgInSeqNumWindow(seqNum, PRE_PREPARE_FULL_MSG, (MessageBase *) msg);
+  setMsgInSeqNumWindow(seqNum, PRE_PREPARE_FULL_MSG, (MessageBase *) msg, SeqNumData::maxPrepareFullMsgSize());
 }
 
 void PersistentStorageImp::setCommitFullMsgInSeqNumWindow(const SeqNum seqNum, const CommitFullMsg *const msg) {
-  setMsgInSeqNumWindow(seqNum, COMMIT_FULL_MSG, (MessageBase *) msg);
+  setMsgInSeqNumWindow(seqNum, COMMIT_FULL_MSG, (MessageBase *) msg, SeqNumData::maxCommitFullMsgSize());
 }
 
 void PersistentStorageImp::setBooleanInSeqNumWindow(
-    const SeqNum seqNum, const SeqNum parameterId, const bool boolean) const {
+    const SeqNum &seqNum, const SeqNum &parameterId, const bool &boolean) const {
+  // TODO: Yulia Serialize/deserialize booleans as uint8_t
   const size_t sizeofBoolean = sizeof(boolean);
   char buf[sizeofBoolean];
   char *movablePtr = buf;
@@ -657,7 +660,8 @@ bool PersistentStorageImp::hasDescriptorOfLastExecution() {
 
 /***** Private functions *****/
 
-void PersistentStorageImp::readSeqNumDataElementFromDisk(SeqNum index, char *buf, SharedPtrSeqNumWindow seqNumWindow) {
+void PersistentStorageImp::readSeqNumDataElementFromDisk(const SeqNum &index, char *buf,
+                                                         SharedPtrSeqNumWindow seqNumWindow) {
   uint32_t actualElementSize = 0;
   uint32_t actualParameterSize = 0;
   char *movablePtr = buf;
@@ -672,7 +676,8 @@ void PersistentStorageImp::readSeqNumDataElementFromDisk(SeqNum index, char *buf
   seqNumWindow.get()->deserializeElement(index, buf, actualElementSize, actualSize);
 }
 
-void PersistentStorageImp::readCheckDataElementFromDisk(SeqNum index, char *buf, SharedPtrCheckWindow checkWindow) {
+void PersistentStorageImp::readCheckDataElementFromDisk(const SeqNum &index, char *buf,
+                                                        SharedPtrCheckWindow checkWindow) {
   uint32_t actualElementSize = 0;
   uint32_t actualParameterSize = 0;
   char *movablePtr = buf;
@@ -688,7 +693,7 @@ void PersistentStorageImp::readCheckDataElementFromDisk(SeqNum index, char *buf,
   Assert(actualSize == actualElementSize);
 }
 
-bool PersistentStorageImp::readBooleanFromDisk(SeqNum seqNum, SeqNum parameterId) const {
+bool PersistentStorageImp::readBooleanFromDisk(const SeqNum &seqNum, const SeqNum &parameterId) const {
   bool boolean = false;
   uint32_t actualSize = 0;
   metadataStorage_->read(SEQ_NUM_WINDOW + parameterId + SeqNumWindow::convertIndex(seqNum, seqNumWindowBeginning_),
@@ -696,38 +701,38 @@ bool PersistentStorageImp::readBooleanFromDisk(SeqNum seqNum, SeqNum parameterId
   return boolean;
 }
 
-MessageBase *PersistentStorageImp::readMsgFromDisk(SeqNum seqNum, SeqNum parameterId) const {
-  const size_t bufLen = SeqNumData::maxSize();
-  char *buf = new char[bufLen];
+MessageBase *PersistentStorageImp::readMsgFromDisk(const SeqNum &seqNum, const SeqNum &parameterId,
+                                                   const size_t &msgSize) const {
+  char *buf = new char[msgSize];
   uint32_t actualMsgSize = 0;
   metadataStorage_->read(SEQ_NUM_WINDOW + parameterId + SeqNumWindow::convertIndex(seqNum, seqNumWindowBeginning_),
-                         bufLen, buf, actualMsgSize);
+                         msgSize, buf, actualMsgSize);
   size_t actualSize = 0;
   char *movablePtr = buf;
-  auto *msg = SeqNumData::deserializeMsg(movablePtr, bufLen, actualSize);
+  auto *msg = SeqNumData::deserializeMsg(movablePtr, msgSize, actualSize);
   Assert(actualSize == actualMsgSize);
 
   delete[] buf;
   return msg;
 }
 
-PrePrepareMsg *PersistentStorageImp::readPrePrepareMsgFromDisk(SeqNum seqNum) const {
-  return (PrePrepareMsg *) readMsgFromDisk(seqNum, PRE_PREPARE_MSG);
+PrePrepareMsg *PersistentStorageImp::readPrePrepareMsgFromDisk(const SeqNum &seqNum) const {
+  return (PrePrepareMsg *) readMsgFromDisk(seqNum, PRE_PREPARE_MSG, SeqNumData::maxPrePrepareMsgSize());
 }
 
-FullCommitProofMsg *PersistentStorageImp::readFullCommitProofMsgFromDisk(SeqNum seqNum) const {
-  return (FullCommitProofMsg *) readMsgFromDisk(seqNum, FULL_COMMIT_PROOF_MSG);
+FullCommitProofMsg *PersistentStorageImp::readFullCommitProofMsgFromDisk(const SeqNum &seqNum) const {
+  return (FullCommitProofMsg *) readMsgFromDisk(seqNum, FULL_COMMIT_PROOF_MSG, SeqNumData::maxFullCommitProofMsgSize());
 }
 
-PrepareFullMsg *PersistentStorageImp::readPrepareFullMsgFromDisk(SeqNum seqNum) const {
-  return (PrepareFullMsg *) readMsgFromDisk(seqNum, PRE_PREPARE_FULL_MSG);
+PrepareFullMsg *PersistentStorageImp::readPrepareFullMsgFromDisk(const SeqNum &seqNum) const {
+  return (PrepareFullMsg *) readMsgFromDisk(seqNum, PRE_PREPARE_FULL_MSG, SeqNumData::maxPrepareFullMsgSize());
 }
 
-CommitFullMsg *PersistentStorageImp::readCommitFullMsgFromDisk(SeqNum seqNum) const {
-  return (CommitFullMsg *) readMsgFromDisk(seqNum, COMMIT_FULL_MSG);
+CommitFullMsg *PersistentStorageImp::readCommitFullMsgFromDisk(const SeqNum &seqNum) const {
+  return (CommitFullMsg *) readMsgFromDisk(seqNum, COMMIT_FULL_MSG, SeqNumData::maxCommitFullMsgSize());
 }
 
-bool PersistentStorageImp::readCompletedMarkFromDisk(SeqNum seqNum) const {
+bool PersistentStorageImp::readCompletedMarkFromDisk(const SeqNum &seqNum) const {
   bool completedMark = false;
   CheckWindow checkWindow(checkWindowFirst_);
   uint32_t actualSize = 0;
@@ -736,7 +741,7 @@ bool PersistentStorageImp::readCompletedMarkFromDisk(SeqNum seqNum) const {
   return completedMark;
 }
 
-CheckpointMsg *PersistentStorageImp::readCheckpointMsgFromDisk(SeqNum seqNum) const {
+CheckpointMsg *PersistentStorageImp::readCheckpointMsgFromDisk(const SeqNum &seqNum) const {
   const size_t bufLen = CheckData::maxSize();
   char *buf = new char[bufLen];
   uint32_t actualMsgSize = 0;

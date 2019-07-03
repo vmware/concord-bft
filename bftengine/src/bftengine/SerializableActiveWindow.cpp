@@ -85,7 +85,7 @@ bool SerializableActiveWindow<INPUT_PARAMS>::insideActiveWindow(uint16_t num, co
 
 template<TEMPLATE_PARAMS>
 SeqNum SerializableActiveWindow<INPUT_PARAMS>::convertIndex(const SeqNum &seqNum) {
-  convertIndex(seqNum, beginningOfActiveWindow_);
+  return convertIndex(seqNum, beginningOfActiveWindow_);
 }
 
 template<TEMPLATE_PARAMS>
@@ -140,6 +140,6 @@ void SerializableActiveWindow<INPUT_PARAMS>::advanceActiveWindow(uint32_t newFir
   Assert(debugNumOfReset == resetSize);
   beginningOfActiveWindow_ = newFirstIndexOfActiveWindow;
 }
-};
+}
 
 }

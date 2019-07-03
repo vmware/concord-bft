@@ -61,6 +61,10 @@ class SeqNumData {
   static bool deserializeBoolean(char *&buf);
   static SeqNumData deserialize(char *buf, uint32_t bufLen, uint32_t &actualSize);
   static uint32_t maxSize();
+  static uint32_t maxPrePrepareMsgSize();
+  static uint32_t maxFullCommitProofMsgSize();
+  static uint32_t maxPrepareFullMsgSize();
+  static uint32_t maxCommitFullMsgSize();
   static constexpr uint16_t getNumOfParams() { return 6; }
 
  private:
