@@ -1,7 +1,7 @@
 # pthread dependency
 find_package(Threads REQUIRED)
 
-add_library(util STATIC src/Metrics.cpp src/MetricsServer.cpp src/SimpleThreadPool.cpp)
+add_library(util STATIC src/Metrics.cpp src/MetricsServer.cpp src/SimpleThreadPool.cpp src/histogram.cpp include/misc.hpp)
 
 TARGET_COMPILE_DEFINITIONS(util PUBLIC DEFAULT_LOGGER_NAME="${CONCORD_LOGGER_NAME}")
 
@@ -12,4 +12,3 @@ if (BUILD_TESTING)
     add_subdirectory(pyclient)
     add_subdirectory(test)
 endif()
-
