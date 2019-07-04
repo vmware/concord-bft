@@ -6,7 +6,6 @@
 //
 //This product may include a number of subcomponents with separate copyright notices and license terms. Your use of these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE file.
 
-
 #include "ReplicaImp.hpp"
 #include "assertUtils.hpp"
 #include "ClientRequestMsg.hpp"
@@ -181,8 +180,6 @@ namespace bftEngine
 			// TODO(GG): logic that deals with invalid messages (e.g., a node that sends invalid messages may have a problem (old version,bug,malicious,...)).
 		}
 
-
-
 		void ReplicaImp::send(MessageBase* m, NodeIdType dest)
 		{
 			// debug code begin
@@ -195,8 +192,6 @@ namespace bftEngine
 
 
 			// debug code end
-
-
 
 			sendRaw(m->body(), dest, m->type(), m->size());
 		}
@@ -269,11 +264,9 @@ namespace bftEngine
 			incomingMsgs.pushExternalMsg(pMsg);
 		}
 
-
 		void ReplicaImp::MsgReceiver::onConnectionStatusChanged(const NodeNum node, const ConnectionStatus newStatus)
 		{
 		}
-
 
 		void ReplicaImp::onMessage(ClientRequestMsg *m)
 		{
@@ -365,7 +358,6 @@ namespace bftEngine
 			{
 				LOG_INFO_F(GL, "ClientRequestMsg is ignored becuase request is old");
 			}
-
 
 			delete m;
 		}
@@ -482,7 +474,6 @@ namespace bftEngine
 			}
 		}
 
-
 		template <typename T>
 		bool ReplicaImp::relevantMsgForActiveView(const T* msg)
 		{
@@ -517,10 +508,9 @@ namespace bftEngine
 			}
 		}
 
-
 		void ReplicaImp::onMessage(PrePrepareMsg* msg)
 		{
-                        metric_received_pre_prepares_.Get().Inc();
+			metric_received_pre_prepares_.Get().Inc();
 			const SeqNum msgSeqNum = msg->seqNumber();
 
 			LOG_INFO_F(GL, "Node %d received PrePrepareMsg from node %d for seqNumber %" PRId64 " (size=%d)",
@@ -579,7 +569,6 @@ namespace bftEngine
 
 			if (!msgAdded) delete msg;
 		}
-
 
 		void ReplicaImp::tryToStartSlowPaths()
 		{
@@ -651,8 +640,6 @@ namespace bftEngine
 			}
 		}
 
-
-
 		void ReplicaImp::tryToAskForMissingInfo()
 		{
 			if (!currentViewIsActive() || stateTransfer->isCollectingState()) return;
@@ -719,11 +706,9 @@ namespace bftEngine
 			}
 		}
 
-
-
 		void ReplicaImp::onMessage(StartSlowCommitMsg* msg)
 		{
-                        metric_received_start_slow_commits_.Get().Inc();
+			metric_received_start_slow_commits_.Get().Inc();
 			const SeqNum msgSeqNum = msg->seqNumber();
 
 			LOG_INFO_F(GL, "Node %d received StartSlowCommitMsg for seqNumber %" PRId64 "", myReplicaId, msgSeqNum);
@@ -756,7 +741,6 @@ namespace bftEngine
 
 			delete msg;
 		}
-
 
 		void ReplicaImp::sendPartialProof(SeqNumInfo& seqNumInfo)
 		{
@@ -816,26 +800,29 @@ namespace bftEngine
 			}
 		}
 
+		void ReplicaImp::sendPreparePartial(SeqNumInfo& seqNumInfo) {
+          Assert(currentViewIsActive());
 
-		void ReplicaImp::sendPreparePartial(SeqNumInfo& seqNumInfo)
-		{
-			Assert(currentViewIsActive());
+          if (seqNumInfo.getSelfPreparePartialMsg() == nullptr && seqNumInfo.hasPrePrepareMsg()
+              && !seqNumInfo.isPrepared()) {
+            PrePrepareMsg *pp = seqNumInfo.getPrePrepareMsg();
 
-			if (seqNumInfo.getSelfPreparePartialMsg() == nullptr && seqNumInfo.hasPrePrepareMsg() && !seqNumInfo.isPrepared())
-			{
-				PrePrepareMsg* pp = seqNumInfo.getPrePrepareMsg();
+            Assert(pp != nullptr);
 
-				Assert(pp != nullptr);
+            LOG_INFO_F(GL, "Sending PreparePartialMsg for seqNumber %"
+                PRId64
+                "", pp->seqNumber());
 
-				LOG_INFO_F(GL, "Sending PreparePartialMsg for seqNumber %" PRId64 "", pp->seqNumber());
+            PreparePartialMsg *p = PreparePartialMsg::create(curView,
+                                                             pp->seqNumber(),
+                                                             myReplicaId,
+                                                             pp->digestOfRequests(),
+                                                             thresholdSignerForSlowPathCommit);
+            seqNumInfo.addSelfMsg(p);
 
-				PreparePartialMsg* p = PreparePartialMsg::create(curView, pp->seqNumber(), myReplicaId, pp->digestOfRequests(), thresholdSignerForSlowPathCommit);
-				seqNumInfo.addSelfMsg(p);
-
-				if (!isCurrentPrimary()) sendRetransmittableMsgToReplica(p, currentPrimary(), pp->seqNumber());
-			}
-		}
-
+            if (!isCurrentPrimary()) sendRetransmittableMsgToReplica(p, currentPrimary(), pp->seqNumber());
+          }
+        }
 
 		void ReplicaImp::sendCommitPartial(const SeqNum s)
 		{
@@ -863,10 +850,9 @@ namespace bftEngine
 			if (!isCurrentPrimary()) sendRetransmittableMsgToReplica(c, currentPrimary(), s);
 		}
 
-
 		void ReplicaImp::onMessage(PartialCommitProofMsg* msg)
 		{
-                        metric_received_partial_commit_proofs_.Get().Inc();
+			metric_received_partial_commit_proofs_.Get().Inc();
 			const SeqNum msgSeqNum = msg->seqNumber();
 			const SeqNum msgView = msg->viewNumber();
 			const NodeIdType msgSender = msg->senderId();
@@ -951,11 +937,9 @@ namespace bftEngine
 			return;
 		}
 
-
-
 		void ReplicaImp::onMessage(PreparePartialMsg* msg)
 		{
-                        metric_received_prepare_partials_.Get().Inc();
+			metric_received_prepare_partials_.Get().Inc();
 			const SeqNum msgSeqNum = msg->seqNumber();
 			const ReplicaId msgSender = msg->senderId();
 
@@ -1004,10 +988,9 @@ namespace bftEngine
 			}
 		}
 
-
 		void ReplicaImp::onMessage(CommitPartialMsg* msg)
 		{
-                        metric_received_commit_partials_.Get().Inc();
+			metric_received_commit_partials_.Get().Inc();
 			const SeqNum msgSeqNum = msg->seqNumber();
 			const ReplicaId msgSender = msg->senderId();
 
@@ -1050,7 +1033,7 @@ namespace bftEngine
 
 		void ReplicaImp::onMessage(PrepareFullMsg* msg)
 		{
-                        metric_received_prepare_fulls_.Get().Inc();
+			metric_received_prepare_fulls_.Get().Inc();
 			const SeqNum msgSeqNum = msg->seqNumber();
 			const ReplicaId msgSender = msg->senderId();
 
@@ -1095,10 +1078,9 @@ namespace bftEngine
 			}
 		}
 
-
 		void ReplicaImp::onMessage(CommitFullMsg* msg)
 		{
-                        metric_received_commit_fulls_.Get().Inc();
+			metric_received_commit_fulls_.Get().Inc();
 			const SeqNum msgSeqNum = msg->seqNumber();
 			const ReplicaId msgSender = msg->senderId();
 
@@ -1137,8 +1119,6 @@ namespace bftEngine
 			}
 		}
 
-
-
 		void ReplicaImp::onPrepareCombinedSigFailed(SeqNum seqNumber, ViewNum  v, const std::set<uint16_t>& replicasWithBadSigs)
 		{
 			LOG_INFO_F(GL, "Node %d - onPrepareCombinedSigFailed seqNumber=%" PRId64 " view=%" PRId64 "", (int)myReplicaId, seqNumber, v);
@@ -1160,7 +1140,6 @@ namespace bftEngine
 
 			//TODO(GG): add logic that handles bad replicas ...
 		}
-
 
 		void ReplicaImp::onPrepareCombinedSigSucceeded(SeqNum seqNumber, ViewNum  v, const char* combinedSig, uint16_t combinedSigLen)
 		{
@@ -1241,7 +1220,6 @@ namespace bftEngine
 			sendCommitPartial(seqNumber);
 		}
 
-
 		void ReplicaImp::onCommitCombinedSigFailed(SeqNum seqNumber, ViewNum  v, const std::set<uint16_t>& replicasWithBadSigs)
 		{
 			LOG_INFO_F(GL, "Node %d - onCommitCombinedSigFailed seqNumber=%" PRId64 " view=%" PRId64 "", (int)myReplicaId, seqNumber, v);
@@ -1306,7 +1284,6 @@ namespace bftEngine
 			executeNextCommittedRequests(askForMissingInfoAboutCommittedItems);
 		}
 
-
 		void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum  v, bool isValid)
 		{
 			LOG_INFO_F(GL, "Node %d - onCommitVerifyCombinedSigResult seqNumber=%" PRId64 " view=%" PRId64 "", myReplicaId, seqNumber, v);
@@ -1342,12 +1319,9 @@ namespace bftEngine
 			executeNextCommittedRequests(askForMissingInfoAboutCommittedItems);
 		}
 
-
-
-
 		void ReplicaImp::onMessage(CheckpointMsg* msg)
 		{
-                        metric_received_checkpoints_.Get().Inc();
+			metric_received_checkpoints_.Get().Inc();
 			const ReplicaId msgSenderId = msg->senderId();
 			const SeqNum msgSeqNum = msg->seqNumber();
 			const Digest msgDigest = msg->digestOfState();
@@ -1452,7 +1426,6 @@ namespace bftEngine
 			}
 		}
 
-
 		bool ReplicaImp::handledByRetransmissionsManager(const ReplicaId sourceReplica, const ReplicaId destReplica,
 			const ReplicaId primaryReplica, const SeqNum seqNum, const uint16_t msgType)
 		{
@@ -1481,7 +1454,6 @@ namespace bftEngine
 			return false;
 		}
 
-
 		void ReplicaImp::sendAckIfNeeded(MessageBase* msg, const NodeIdType sourceNode, const SeqNum seqNum)
 		{
 			if (!retransmissionsLogicEnabled) return;
@@ -1498,7 +1470,6 @@ namespace bftEngine
 			}
 		}
 
-
 		void ReplicaImp::sendRetransmittableMsgToReplica(MessageBase* msg, ReplicaId destReplica, SeqNum s, bool ignorePreviousAcks)
 		{
 			send(msg, destReplica);
@@ -1509,16 +1480,12 @@ namespace bftEngine
 				retransmissionsManager->onSend(destReplica, s, msg->type(), ignorePreviousAcks);
 		}
 
-
-
 		void ReplicaImp::onRetransmissionsTimer(Time cTime, Timer& timer)
 		{
 			Assert(retransmissionsLogicEnabled);
 
 			retransmissionsManager->tryToStartProcessing();
 		}
-
-
 
 		void ReplicaImp::onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqNum, const ViewNum relatedViewNumber,
 			const std::forward_list<RetSuggestion>* const suggestedRetransmissions)
@@ -1613,11 +1580,9 @@ namespace bftEngine
 			}
 		}
 
-
-
 		void ReplicaImp::onMessage(ReplicaStatusMsg* msg)
 		{
-                        metric_received_replica_statuses_.Get().Inc();
+			metric_received_replica_statuses_.Get().Inc();
 			// TODO(GG): we need filter for msgs (to avoid denial of service attack) + avoid sending messages at a high rate.
 			// TODO(GG): for some communication modules/protocols, we can also utilize information about connection/disconnection.
 
@@ -1671,7 +1636,6 @@ namespace bftEngine
 					}
 				}
 			}
-
 
 			/////////////////////////////////////////////////////////////////////////
 			// msgSenderId in older view
@@ -1775,8 +1739,6 @@ namespace bftEngine
 							PrePrepareMsg *prePrepareMsg = mainLog->get(i).getSelfPrePrepareMsg();
 							if (prePrepareMsg != 0) send(prePrepareMsg, msgSenderId);
 						}
-
-
 					}
 					else
 					{
@@ -1800,7 +1762,6 @@ namespace bftEngine
 
 			delete msg;
 		}
-
 
 		void ReplicaImp::tryToSendStatusReport()
 		{
@@ -1865,11 +1826,10 @@ namespace bftEngine
 			sendToAllOtherReplicas(&msg);
 		}
 
-
 		void ReplicaImp::onMessage(ViewChangeMsg* msg)
 		{
 			if (!viewChangeProtocolEnabled) { delete msg; return; }
-                        metric_received_view_changes_.Get().Inc();
+			metric_received_view_changes_.Get().Inc();
 
 			const ReplicaId generatedReplicaId = msg->idOfGeneratedReplica(); // Notice that generatedReplicaId may be != msg->senderId()
 			Assert(generatedReplicaId != myReplicaId);
@@ -1921,11 +1881,10 @@ namespace bftEngine
 			tryToEnterView();
 		}
 
-
 		void ReplicaImp::onMessage(NewViewMsg* msg)
 		{
 			if (!viewChangeProtocolEnabled) { delete msg; return; }
-                        metric_received_new_views_.Get().Inc();
+			metric_received_new_views_.Get().Inc();
 
 			const ReplicaId senderId = msg->senderId();
 
@@ -1944,7 +1903,6 @@ namespace bftEngine
 
 			tryToEnterView();
 		}
-
 
 		void ReplicaImp::MoveToHigherView(ViewNum nextView)
 		{
@@ -1967,7 +1925,6 @@ namespace bftEngine
 			}
 			else
 			{
-
 				std::vector<ViewsManager::PrevViewInfo> prevViewInfo;
 				for (SeqNum i = lastStableSeqNum + 1; i <= lastStableSeqNum + kWorkWindowSize; i++)
 				{
@@ -2035,7 +1992,6 @@ namespace bftEngine
 
 			std::vector<PrePrepareMsg*> prePreparesForNewView;
 
-
 			LOG_INFO_F(GL, "**************** Calling to viewsManager->tryToEnterView(curView=%" PRId64 ", lastStableSeqNum=%" PRId64 ", lastExecutedSeqNum=%" PRId64 ")",
 				curView, lastStableSeqNum, lastExecutedSeqNum);
 
@@ -2095,7 +2051,6 @@ namespace bftEngine
 				strictLowerBoundOfSeqNums = firstPPSeq - 1;
 				maxSeqNumTransferredFromPrevViews = lastPPSeq;
 			}
-
 
 			if (ps_) {
 				vector<ViewChangeMsg*> viewChangeMsgsForCurrentView = viewsManager->getViewChangeMsgsForCurrentView();
@@ -2157,7 +2112,7 @@ namespace bftEngine
 					seqNumInfo.addMsg(pp);
 
 				seqNumInfo.startSlowPath();
-                                metric_slow_path_count_.Get().Inc();
+				metric_slow_path_count_.Get().Inc();
 			}
 
 			if (ps_)
@@ -2223,13 +2178,11 @@ namespace bftEngine
 
 			//LOG_INFO_F(GL, "Debug - sendCheckpointIfNeeded - 3");
 
-
 			const SeqNum refSeqNumberForCheckpoint = lastCheckpointNumber + MaxConcurrentFastPaths;
 
 			if (lastExecutedSeqNum < refSeqNumberForCheckpoint) return;
 
 			//LOG_INFO_F(GL, "Debug - sendCheckpointIfNeeded - 4");
-
 
 			if (mainLog->insideActiveWindow(lastExecutedSeqNum)) // TODO(GG): condition is needed ?
 			{
@@ -2237,10 +2190,8 @@ namespace bftEngine
 
 				//LOG_INFO_F(GL, "Debug - sendCheckpointIfNeeded - 5");
 
-
 				if (seqNumInfo.partialProofs().hasFullProof())
 				{
-
 					//LOG_INFO_F(GL, "Debug - sendCheckpointIfNeeded - 6");
 
 					checkInfo.tryToMarkCheckpointCertificateCompleted();
@@ -2353,7 +2304,7 @@ namespace bftEngine
 					askAnotherStateTransfer = true;
 			}
 
-			if(askAnotherStateTransfer)
+			if (askAnotherStateTransfer)
 			{
 				LOG_INFO_F(GL, "call to startCollectingState()");
 
@@ -2545,7 +2496,7 @@ namespace bftEngine
 
 		void ReplicaImp::onMessage(ReqMissingDataMsg* msg)
 		{
-                        metric_received_req_missing_datas_.Get().Inc();
+			metric_received_req_missing_datas_.Get().Inc();
 			const SeqNum msgSeqNum = msg->seqNumber();
 			const ReplicaId msgSender = msg->senderId();
 
@@ -2596,7 +2547,6 @@ namespace bftEngine
 					if (pf != nullptr) send(pf, msgSender);
 				}
 
-
 				if (msg->getPartialCommitIsMissing() && (currentPrimary() == msgSender))
 				{
 					CommitPartialMsg* c = mainLog->get(msgSeqNum).getSelfCommitPartialMsg();
@@ -2622,7 +2572,6 @@ namespace bftEngine
 
 			delete msg;
 		}
-
 
 		void ReplicaImp::onViewsChangeTimer(Time cTime, Timer& timer) // TODO(GG): review/update logic
 		{
@@ -2712,7 +2661,6 @@ namespace bftEngine
 		{
 			stateTransfer->onTimer();
 		}
-
 
 		void ReplicaImp::onStatusReportTimer(Time cTime, Timer& timer)
 		{
@@ -2873,8 +2821,8 @@ namespace bftEngine
 		}
 
 		ReplicaImp::ReplicaImp(const LoadedReplicaData& ld, RequestsHandler* requestsHandler,
-			IStateTransfer* stateTransferr, ICommunication* comm, PersistentStorage* persistentStorage) :
-			ReplicaImp(false, ld.repConfig, requestsHandler, stateTransferr, ld.sigManager, ld.repsInfo, ld.viewsManager)
+			IStateTransfer* stateTrans, ICommunication* comm, PersistentStorage* persistentStorage) :
+			ReplicaImp(false, ld.repConfig, requestsHandler, stateTrans, ld.sigManager, ld.repsInfo, ld.viewsManager)
 		{
 			Assert(persistentStorage != nullptr);
 
@@ -2904,34 +2852,34 @@ namespace bftEngine
 					s++;
 					Assert(mainLog->insideActiveWindow(s));
 
-					const LoadedReplicaData::SeqNumWinData& e = ld.seqNumWinArr[i];
+					const SeqNumData& e = ld.seqNumWinArr[i];
 
-					if (e.prePrepareMsg == nullptr) continue;
+					if (!e.isPrePrepareMsgSet()) continue;
 
 					// such properties should be verified by the code the loads the persistent data
-					Assert(e.prePrepareMsg->seqNumber() == s);
+					Assert(e.getPrePrepareMsg()->seqNumber() == s);
 
 					SeqNumInfo& seqNumInfo = mainLog->get(s);
 
 					// add prePrepareMsg
 
 					if (isPrimaryOfView)
-						seqNumInfo.addSelfMsg(e.prePrepareMsg, true);
+						seqNumInfo.addSelfMsg(e.getPrePrepareMsg(), true);
 					else
-						seqNumInfo.addMsg(e.prePrepareMsg, true);
+						seqNumInfo.addMsg(e.getPrePrepareMsg(), true);
 
-					Assert(seqNumInfo.getPrePrepareMsg() == e.prePrepareMsg);
+					Assert(e.getPrePrepareMsg()->equals(*seqNumInfo.getPrePrepareMsg()));
 
-					const CommitPath pathInPrePrepare = e.prePrepareMsg->firstPath();
+					const CommitPath pathInPrePrepare = e.getPrePrepareMsg()->firstPath();
 
-					Assert(pathInPrePrepare != CommitPath::SLOW || e.slowStarted); // TODO(GG): check this when we load the data from disk
+					Assert(pathInPrePrepare != CommitPath::SLOW || e.getSlowStarted()); // TODO(GG): check this when we load the data from disk
 
 					if (pathInPrePrepare != CommitPath::SLOW)
 					{
 						// add PartialCommitProofMsg
 
 						PrePrepareMsg* pp = seqNumInfo.getPrePrepareMsg();
-						Assert(pp == e.prePrepareMsg);
+						Assert(e.getPrePrepareMsg()->equals(*pp));
 						Digest& ppDigest = pp->digestOfRequests();
 						const SeqNum seqNum = pp->seqNumber();
 
@@ -2951,7 +2899,7 @@ namespace bftEngine
 						seqNumInfo.partialProofs().addSelfMsgAndPPDigest(p, tmpDigest); // TODO(GG): consider using a method that directly adds the message/digest (as in the examples below)
 					}
 
-					if (e.slowStarted)
+					if (e.getSlowStarted())
 					{
 						seqNumInfo.startSlowPath();
 
@@ -2962,34 +2910,33 @@ namespace bftEngine
 						Assert(added);
 					}
 
-					if (e.prepareFullMsg != nullptr)
+					if (e.isPrepareFullMsgSet())
 					{
-						seqNumInfo.addMsg(e.prepareFullMsg, true);
+						seqNumInfo.addMsg(e.getPrepareFullMsg(), true);
 
 						Digest d;
-						Digest::digestOfDigest(e.prePrepareMsg->digestOfRequests(), d);
+						Digest::digestOfDigest(e.getPrePrepareMsg()->digestOfRequests(), d);
 						CommitPartialMsg* c = CommitPartialMsg::create(curView, s, myReplicaId, d, thresholdSignerForSlowPathCommit);
 
 						seqNumInfo.addSelfCommitPartialMsgAndDigest(c, d, true);
 					}
 
-					if (e.commitFullMsg != nullptr)
+					if (e.isCommitFullMsgSet())
 					{
-						seqNumInfo.addMsg(e.commitFullMsg, true);
-						Assert(seqNumInfo.getValidCommitFullMsg() == e.commitFullMsg);
+						seqNumInfo.addMsg(e.getCommitFullMsg(), true);
+						Assert(e.getCommitFullMsg()->equals(*seqNumInfo.getValidCommitFullMsg()));
 					}
 
-					if (e.fullCommitProofMsg != nullptr)
+					if (e.isFullCommitProofMsgSet())
 					{
 						PartialProofsSet& pps = seqNumInfo.partialProofs();
-						bool added = pps.addMsg(e.fullCommitProofMsg); // TODO(GG): consider using a method that directly adds the message (as in the examples below)
+						bool added = pps.addMsg(e.getFullCommitProofMsg()); // TODO(GG): consider using a method that directly adds the message (as in the examples below)
 						Assert(added); // we should verify the relevant signature when it is loaded
-						Assert(pps.getFullProof() == e.fullCommitProofMsg);
+						Assert(e.getFullCommitProofMsg()->equals(*pps.getFullProof()));
 					}
 
-					if (e.forceCompleted)
+					if (e.getForceCompleted())
 						seqNumInfo.forceComplete();
-
 				}
 			}
 
@@ -2999,27 +2946,26 @@ namespace bftEngine
 				   s <= ld.lastStableSeqNum + kWorkWindowSize;
 				   s = s + checkpointWindowSize)
 			{
-				uint64_t i = (s - ld.lastStableSeqNum) / checkpointWindowSize;
+				size_t i = (s - ld.lastStableSeqNum) / checkpointWindowSize;
 				Assert(i < (sizeof(ld.checkWinArr) / sizeof(ld.checkWinArr[0])));
-				const LoadedReplicaData::CheckWinData& e = ld.checkWinArr[i];
+				const CheckData& e = ld.checkWinArr[i];
 
 				Assert(checkpointsLog->insideActiveWindow(s));
-
 				// e.checkpointMsg==nullptr ==> (s>ld.lastStableSeqNum || s == 0)
-				Assert(e.checkpointMsg != nullptr || (s > ld.lastStableSeqNum || s == 0));
+				Assert(e.isCheckpointMsgSet() || (s > ld.lastStableSeqNum || s == 0));
 
-				if (e.checkpointMsg == nullptr) continue;
+				if (!e.isCheckpointMsgSet()) continue;
 
 				CheckpointInfo& checkInfo = checkpointsLog->get(s);
 
-				Assert(e.checkpointMsg->seqNumber() == s);
-				Assert(e.checkpointMsg->senderId() == myReplicaId);
-				Assert(!(s == ld.lastStableSeqNum) || e.checkpointMsg->isStableState());
+				Assert(e.getCheckpointMsg()->seqNumber() == s);
+				Assert(e.getCheckpointMsg()->senderId() == myReplicaId);
+				Assert((s != ld.lastStableSeqNum) || e.getCheckpointMsg()->isStableState());
 
-				checkInfo.addCheckpointMsg(e.checkpointMsg, myReplicaId);
-				Assert(checkInfo.selfCheckpointMsg() == e.checkpointMsg);
+				checkInfo.addCheckpointMsg(e.getCheckpointMsg(), myReplicaId);
+				Assert(checkInfo.selfCheckpointMsg()->equals(*e.getCheckpointMsg()));
 
-				if (e.completedMark)
+				if (e.getCompletedMark())
 					checkInfo.tryToMarkCheckpointCertificateCompleted();
 			}
 
@@ -3054,8 +3000,8 @@ namespace bftEngine
 		}
 
 		ReplicaImp::ReplicaImp(const ReplicaConfig& config, RequestsHandler* requestsHandler,
-			IStateTransfer* stateTransferr, ICommunication* comm, PersistentStorage* persistentStorage) :
-			ReplicaImp(true, config, requestsHandler, stateTransferr, nullptr, nullptr, nullptr)
+			IStateTransfer* stateTrans, ICommunication* comm, PersistentStorage* persistentStorage) :
+			ReplicaImp(true, config, requestsHandler, stateTrans, nullptr, nullptr, nullptr)
 		{
 			if (persistentStorage != nullptr)
 			{
@@ -3077,14 +3023,16 @@ namespace bftEngine
 		}
 
 		ReplicaImp::ReplicaImp(bool firstTime, const ReplicaConfig& config, RequestsHandler* requestsHandler,
-			IStateTransfer* stateTransferr, SigManager* sigMgr, ReplicasInfo* replicasInfo, ViewsManager* viewsMgr)
+			IStateTransfer* stateTrans, SigManager* sigMgr, ReplicasInfo* replicasInfo, ViewsManager* viewsMgr)
 			:
 			myReplicaId{ config.replicaId },
 			fVal{ config.fVal },
 			cVal{ config.cVal },
 			numOfReplicas{ (uint16_t)(3 * config.fVal + 2 * config.cVal + 1) },
 			numOfClientProxies{ config.numOfClientProxies },
-			viewChangeProtocolEnabled{( (!forceViewChangeProtocolEnabled && !forceViewChangeProtocolDisabled) ? config.autoViewChangeEnabled : forceViewChangeProtocolEnabled)},
+			viewChangeProtocolEnabled{(
+			    (!forceViewChangeProtocolEnabled && !forceViewChangeProtocolDisabled) ?
+			    config.autoViewChangeEnabled : forceViewChangeProtocolEnabled)},
 			supportDirectProofs{ false },
 			metaMsgHandlers{ createMapOfMetaMsgHandlers() },
 			incomingMsgsStorage{ 20000 }, // TODO(GG): use configuration
@@ -3110,7 +3058,7 @@ namespace bftEngine
 			checkpointsLog{ nullptr },
 			clientsManager{ nullptr },
 			replyBuffer{ (char*)std::malloc(maxReplyMessageSize - sizeof(ClientReplyMsgHeader)) },
-			stateTransfer{ (stateTransferr!=nullptr ? stateTransferr : new NullStateTransfer()) },
+			stateTransfer{ (stateTrans != nullptr ? stateTrans : new NullStateTransfer()) },
 			maxNumberOfPendingRequestsInRecentHistory{ 0 },
 			batchingFactor{ 1 },
 			userRequestsHandler{ requestsHandler },
@@ -3136,62 +3084,34 @@ namespace bftEngine
 			statusReportTimer{ nullptr },
 			viewChangeTimer{ nullptr },
 			debugStatTimer{ nullptr },
-            metricsTimer_{ nullptr },
+			metricsTimer_{ nullptr },
 			viewChangeTimerMilli{ 0 },
 			startSyncEvent{false},
-                        metrics_{concordMetrics::Component("replica",
-                            std::make_shared<concordMetrics::Aggregator>())},
-                        metric_view_{
-                          metrics_.RegisterGauge("view", curView)},
-                        metric_last_stable_seq_num__{
-                          metrics_.RegisterGauge("lastStableSeqNum",
-                                                 lastStableSeqNum)},
-                        metric_last_executed_seq_num_{
-                          metrics_.RegisterGauge("lastExecutedSeqNum",
-                                                 lastExecutedSeqNum)},
-                        metric_last_agreed_view_{
-                          metrics_.RegisterGauge("lastAgreedView",
-                                                 lastAgreedView)},
-                        metric_first_commit_path_{
-                          metrics_.RegisterStatus("firstCommitPath", CommitPathToStr(
-                            ControllerWithSimpleHistory_debugInitialFirstPath))},
-                        metric_slow_path_count_{
-                          metrics_.RegisterCounter("slowPathCount", 0)},
-                        metric_received_internal_msgs_{
-                          metrics_.RegisterCounter("receivedInternalMsgs")},
-                        metric_received_client_requests_{
-                          metrics_.RegisterCounter("receivedClientRequestMsgs")},
-                        metric_received_pre_prepares_{
-                          metrics_.RegisterCounter("receivedPrePrepareMsgs")},
-                        metric_received_start_slow_commits_{
-                          metrics_.RegisterCounter("receivedStartSlowCommitMsgs")},
-                        metric_received_partial_commit_proofs_{
-                          metrics_.RegisterCounter("receivedPartialCommitProofMsgs")},
-                        metric_received_full_commit_proofs_{
-                          metrics_.RegisterCounter("receivedFullCommitProofMsgs")},
-                        metric_received_prepare_partials_{
-                          metrics_.RegisterCounter("receivedPreparePartialMsgs")},
-                        metric_received_commit_partials_{
-                          metrics_.RegisterCounter("receivedCommitPartialMsgs")},
-                        metric_received_prepare_fulls_{
-                          metrics_.RegisterCounter("receivedPrepareFullMsgs")},
-                        metric_received_commit_fulls_{
-                          metrics_.RegisterCounter("receivedCommitFullMsgs")},
-                        metric_received_checkpoints_{
-                          metrics_.RegisterCounter("receivedCheckpointMsgs")},
-                        metric_received_replica_statuses_{
-                          metrics_.RegisterCounter("receivedReplicaStatusMsgs")},
-                        metric_received_view_changes_{
-                          metrics_.RegisterCounter("receivedViewChangeMsgs")},
-                        metric_received_new_views_{
-                          metrics_.RegisterCounter("receivedNewViewMsgs")},
-                        metric_received_req_missing_datas_{
-                          metrics_.RegisterCounter("receivedReqMissingDataMsgs")},
-                        metric_received_simple_acks_{
-                          metrics_.RegisterCounter("receivedSimpleAckMsgs")},
-                        metric_received_state_transfers_{
-                          metrics_.RegisterCounter("receivedStateTransferMsgs")}
-
+			metrics_{concordMetrics::Component("replica", std::make_shared<concordMetrics::Aggregator>())},
+			metric_view_{metrics_.RegisterGauge("view", curView)},
+			metric_last_stable_seq_num__{metrics_.RegisterGauge("lastStableSeqNum", lastStableSeqNum)},
+			metric_last_executed_seq_num_{metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)},
+			metric_last_agreed_view_{metrics_.RegisterGauge("lastAgreedView", lastAgreedView)},
+			metric_first_commit_path_{metrics_.RegisterStatus("firstCommitPath", CommitPathToStr(
+			  ControllerWithSimpleHistory_debugInitialFirstPath))},
+			metric_slow_path_count_{metrics_.RegisterCounter("slowPathCount", 0)},
+			metric_received_internal_msgs_{metrics_.RegisterCounter("receivedInternalMsgs")},
+			metric_received_client_requests_{metrics_.RegisterCounter("receivedClientRequestMsgs")},
+			metric_received_pre_prepares_{metrics_.RegisterCounter("receivedPrePrepareMsgs")},
+			metric_received_start_slow_commits_{metrics_.RegisterCounter("receivedStartSlowCommitMsgs")},
+			metric_received_partial_commit_proofs_{metrics_.RegisterCounter("receivedPartialCommitProofMsgs")},
+			metric_received_full_commit_proofs_{metrics_.RegisterCounter("receivedFullCommitProofMsgs")},
+			metric_received_prepare_partials_{metrics_.RegisterCounter("receivedPreparePartialMsgs")},
+			metric_received_commit_partials_{metrics_.RegisterCounter("receivedCommitPartialMsgs")},
+			metric_received_prepare_fulls_{metrics_.RegisterCounter("receivedPrepareFullMsgs")},
+			metric_received_commit_fulls_{metrics_.RegisterCounter("receivedCommitFullMsgs")},
+			metric_received_checkpoints_{metrics_.RegisterCounter("receivedCheckpointMsgs")},
+			metric_received_replica_statuses_{metrics_.RegisterCounter("receivedReplicaStatusMsgs")},
+			metric_received_view_changes_{metrics_.RegisterCounter("receivedViewChangeMsgs")},
+			metric_received_new_views_{metrics_.RegisterCounter("receivedNewViewMsgs")},
+			metric_received_req_missing_datas_{metrics_.RegisterCounter("receivedReqMissingDataMsgs")},
+			metric_received_simple_acks_{metrics_.RegisterCounter("receivedSimpleAckMsgs")},
+			metric_received_state_transfers_{metrics_.RegisterCounter("receivedStateTransferMsgs")}
 		{
 			Assert(myReplicaId < numOfReplicas);
 			// TODO(GG): more asserts on params !!!!!!!!!!!
@@ -3250,7 +3170,7 @@ namespace bftEngine
 			else
 				clientsManager->loadInfoFromReservedPages();
 
-			int statusReportTimerMilli = (sendStatusPeriodMilli > 0) ? sendStatusPeriodMilli : config.statusReportTimerMillisec;;
+			int statusReportTimerMilli = (sendStatusPeriodMilli > 0) ? sendStatusPeriodMilli : config.statusReportTimerMillisec;
 			Assert(statusReportTimerMilli > 0);
 
 			viewChangeTimerMilli = (viewChangeTimeoutMilli > 0) ? viewChangeTimeoutMilli : config.viewChangeTimerMillisec;
@@ -3385,7 +3305,6 @@ namespace bftEngine
 			mainThreadShouldStopWhenStateIsNotCollected = false;
 			mainThreadStarted = false;
 		}
-
 
 		bool ReplicaImp::isRunning() const
 		{
@@ -3530,218 +3449,217 @@ namespace bftEngine
 		#endif
 		}
 
-		void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg* ppMsg, bool recoverFromErrorInRequestsExecution)
-		{
-			Assert(!stateTransfer->isCollectingState() && currentViewIsActive());
-			Assert(ppMsg != nullptr);
-			Assert(ppMsg->viewNumber() == curView);
-			Assert(ppMsg->seqNumber() == lastExecutedSeqNum + 1);
+		void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg* ppMsg, bool recoverFromErrorInRequestsExecution) {
+          Assert(!stateTransfer->isCollectingState() && currentViewIsActive());
+          Assert(ppMsg != nullptr);
+          Assert(ppMsg->viewNumber() == curView);
+          Assert(ppMsg->seqNumber() == lastExecutedSeqNum + 1);
 
-			const uint16_t numOfRequests = ppMsg->numberOfRequests();
+          const uint16_t numOfRequests = ppMsg->numberOfRequests();
 
-			Assert(!recoverFromErrorInRequestsExecution || (numOfRequests > 0)); // recoverFromErrorInRequestsExecution ==> (numOfRequests > 0)
+          Assert(!recoverFromErrorInRequestsExecution
+                     || (numOfRequests > 0)); // recoverFromErrorInRequestsExecution ==> (numOfRequests > 0)
 
-			if (numOfRequests > 0)
-			{
-				Bitmap requestSet(numOfRequests);
-				size_t reqIdx = 0;
-				RequestsIterator reqIter(ppMsg);
-				char* requestBody = nullptr;
+          if (numOfRequests > 0) {
+            Bitmap requestSet(numOfRequests);
+            size_t reqIdx = 0;
+            RequestsIterator reqIter(ppMsg);
+            char *requestBody = nullptr;
 
-				//////////////////////////////////////////////////////////////////////
-				// Phase 1:
-				// a. Find the requests that should be executed
-				// b. Send reply for each request that has already been executed
-				//////////////////////////////////////////////////////////////////////
-				if (!recoverFromErrorInRequestsExecution)
-				{
-					while (reqIter.getAndGoToNext(requestBody))
-					{
-					  ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
-                      NodeIdType clientId = req.clientProxyId();
+            //////////////////////////////////////////////////////////////////////
+            // Phase 1:
+            // a. Find the requests that should be executed
+            // b. Send reply for each request that has already been executed
+            //////////////////////////////////////////////////////////////////////
+            if (!recoverFromErrorInRequestsExecution) {
+              while (reqIter.getAndGoToNext(requestBody)) {
+                ClientRequestMsg req((ClientRequestMsgHeader *) requestBody);
+                NodeIdType clientId = req.clientProxyId();
 
-                      const bool validClient = clientsManager->isValidClient(clientId);
-                      if (!validClient) {
-					  // TODO(GG): TBD - warning and/or report
-                      continue;
-                      }
-
-                      if (clientsManager->seqNumberOfLastReplyToClient(clientId) >= req.requestSeqNum()) {
-                      ClientReplyMsg* replyMsg = clientsManager->allocateMsgWithLatestReply(clientId, currentPrimary());
-                      send(replyMsg, clientId);
-                      delete replyMsg;
-                      continue;
-                      }
-                      requestSet.set(reqIdx);
-                      reqIdx++;
-					}
-					reqIter.restart();
-
-					if (ps_) {
-                      DescriptorOfLastExecution execDesc{ lastExecutedSeqNum + 1 , requestSet };
-                      ps_->beginWriteTran();
-                      ps_->setDescriptorOfLastExecution(execDesc);
-                      ps_->endWriteTran();
-					}
-					else
-					{
-                      requestSet = mapOfRequestsThatAreBeingRecovered;
-					}
-
-				//////////////////////////////////////////////////////////////////////
-				// Phase 2: execute requests + send replies
-				// In this phase the application state may be changed. We also change data in the state transfer module.
-				// TODO(GG): Explain what happens in recovery mode (what are the requirements from  the application, and from the state transfer module.
-				//////////////////////////////////////////////////////////////////////
-
-				reqIdx = 0;
-				requestBody = nullptr;
-				while (reqIter.getAndGoToNext(requestBody))
-				{
-					size_t tmp = reqIdx;
-					reqIdx++;
-					if (!requestSet.get(tmp)) continue;
-
-					ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
-					NodeIdType clientId = req.clientProxyId();
-
-					uint32_t actualReplyLength = 0;
-					userRequestsHandler->execute(
-						clientId, lastExecutedSeqNum + 1, req.isReadOnly(),
-						req.requestLength(), req.requestBuf(),
-						maxReplyMessageSize - sizeof(ClientReplyMsgHeader),
-						replyBuffer, actualReplyLength);
-
-				Assert(actualReplyLength > 0); // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
-
-				ClientReplyMsg* replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(clientId, req.requestSeqNum(), currentPrimary(), replyBuffer, actualReplyLength);
-
-				send(replyMsg, clientId);
-
-				delete replyMsg;
-
-				clientsManager->removePendingRequestOfClient(clientId);
-			}
-
-			}
-
-			if ((lastExecutedSeqNum + 1) % checkpointWindowSize == 0)
-			{
-				const uint64_t checkpointNum = (lastExecutedSeqNum + 1) / checkpointWindowSize;
-				stateTransfer->createCheckpointOfCurrentState(checkpointNum);
-			}
-
-			//////////////////////////////////////////////////////////////////////
-			// Phase 3: finalize the execution of lastExecutedSeqNum+1
-			// TODO(GG): Explain what happens in recovery mode
-			//////////////////////////////////////////////////////////////////////
-
-			LOG_INFO_F(GL, "\nReplica - executeRequestsInPrePrepareMsg() - lastExecutedSeqNum==%" PRId64 "", (lastExecutedSeqNum+1));
-
-			if (ps_) {
-				ps_->beginWriteTran();
-				ps_->setLastExecutedSeqNum(lastExecutedSeqNum + 1);
-                        }
-
-			lastExecutedSeqNum = lastExecutedSeqNum + 1;
-
-			metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
-
-			if (lastViewThatTransferredSeqNumbersFullyExecuted < curView && (lastExecutedSeqNum >= maxSeqNumTransferredFromPrevViews)) {
-				lastViewThatTransferredSeqNumbersFullyExecuted = curView;
-				if (ps_) {
-					ps_->setLastViewThatTransferredSeqNumbersFullyExecuted(lastViewThatTransferredSeqNumbersFullyExecuted);
-				}
-			}
-
-			if (lastExecutedSeqNum % checkpointWindowSize == 0)
-			{
-				Digest checkDigest;
-				const uint64_t checkpointNum = lastExecutedSeqNum / checkpointWindowSize;
-				stateTransfer->getDigestOfCheckpoint(checkpointNum, sizeof(Digest), (char*)&checkDigest);
-				CheckpointMsg* checkMsg = new CheckpointMsg(myReplicaId, lastExecutedSeqNum, checkDigest, false);
-				CheckpointInfo& checkInfo = checkpointsLog->get(lastExecutedSeqNum);
-				checkInfo.addCheckpointMsg(checkMsg, myReplicaId);
-
-				if (ps_)
-					ps_->setCheckpointMsgInCheckWindow(lastExecutedSeqNum, checkMsg);
-
-				if (checkInfo.isCheckpointCertificateComplete())
-				{
-					onSeqNumIsStable(lastExecutedSeqNum);
-				}
-				checkInfo.setSelfExecutionTime(getMonotonicTime());
-			}
-
-			if (ps_)
-			  ps_->endWriteTran();
-
-			if(numOfRequests > 0)
-			  userRequestsHandler->onFinishExecutingReadWriteRequests();
-
-			sendCheckpointIfNeeded();
-
-			bool firstCommitPathChanged =
-                          controller->onNewSeqNumberExecution(lastExecutedSeqNum);
-
-      if (firstCommitPathChanged) {
-        metric_first_commit_path_.Get().Set(CommitPathToStr(
-            controller->getCurrentFirstPath()));
-      }
-
-			// TODO(GG): clean the following logic
-			{ // update dynamicUpperLimitOfRounds
-				const SeqNumInfo& seqNumInfo = mainLog->get(lastExecutedSeqNum);
-				const Time firstInfo = seqNumInfo.getTimeOfFisrtRelevantInfoFromPrimary();
-				const Time currTime = getMonotonicTime();
-				if ((firstInfo < currTime)) {
-					const int64_t durationMilli = (subtract(currTime, firstInfo) / 1000);
-					dynamicUpperLimitOfRounds->add(durationMilli);
-				}
-			}
-
-		#ifdef DEBUG_STATISTICS
-			DebugStatistics::onRequestCompleted(false);
-		#endif
-		}
-
-		void ReplicaImp::executeNextCommittedRequests(const bool requestMissingInfo)
-		{
-			Assert(!stateTransfer->isCollectingState() && currentViewIsActive());
-			Assert(lastExecutedSeqNum >= lastStableSeqNum);
-
-			LOG_INFO_F(GL, "Calling to executeNextCommittedRequests(requestMissingInfo=%d)",(int)requestMissingInfo);
-
-			while (lastExecutedSeqNum < lastStableSeqNum + kWorkWindowSize)
-			{
-				SeqNumInfo& seqNumInfo = mainLog->get(lastExecutedSeqNum + 1);
-
-				PrePrepareMsg* prePrepareMsg = seqNumInfo.getPrePrepareMsg();
-
-				const bool ready = (prePrepareMsg != nullptr) && (seqNumInfo.isCommitted__gg());
-
-				if (requestMissingInfo && !ready)
-				{
-					LOG_INFO_F(GL, "executeNextCommittedRequests - Asking for missing information about %" PRId64 "", lastExecutedSeqNum + 1);
-					tryToSendReqMissingDataMsg(lastExecutedSeqNum + 1);
-				}
-
-				if (!ready) break;
-
-				Assert(prePrepareMsg->seqNumber() == lastExecutedSeqNum + 1);
-				Assert(prePrepareMsg->viewNumber() == curView); // TODO(GG): TBD
-
-				executeRequestsInPrePrepareMsg(prePrepareMsg);
-			}
-
-			if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0)
-				tryToSendPrePrepareMsg(true);
-		}
-
-                void ReplicaImp::SetAggregator(
-                    std::shared_ptr<concordMetrics::Aggregator> aggregator) {
-                  metrics_.SetAggregator(aggregator);
+                const bool validClient = clientsManager->isValidClient(clientId);
+                if (!validClient) {
+                  // TODO(GG): TBD - warning and/or report
+                  continue;
                 }
+
+                if (clientsManager->seqNumberOfLastReplyToClient(clientId) >= req.requestSeqNum()) {
+                  ClientReplyMsg *replyMsg = clientsManager->allocateMsgWithLatestReply(clientId, currentPrimary());
+                  send(replyMsg, clientId);
+                  delete replyMsg;
+                  continue;
+                }
+                requestSet.set(reqIdx);
+                reqIdx++;
+              }
+              reqIter.restart();
+
+              if (ps_) {
+                DescriptorOfLastExecution execDesc{lastExecutedSeqNum + 1, requestSet};
+                ps_->beginWriteTran();
+                ps_->setDescriptorOfLastExecution(execDesc);
+                ps_->endWriteTran();
+              } else {
+                requestSet = mapOfRequestsThatAreBeingRecovered;
+              }
+
+              //////////////////////////////////////////////////////////////////////
+              // Phase 2: execute requests + send replies
+              // In this phase the application state may be changed. We also change data in the state transfer module.
+              // TODO(GG): Explain what happens in recovery mode (what are the requirements from  the application, and from the state transfer module.
+              //////////////////////////////////////////////////////////////////////
+
+              reqIdx = 0;
+              requestBody = nullptr;
+              while (reqIter.getAndGoToNext(requestBody)) {
+                size_t tmp = reqIdx;
+                reqIdx++;
+                if (!requestSet.get(tmp)) continue;
+
+                ClientRequestMsg req((ClientRequestMsgHeader *) requestBody);
+                NodeIdType clientId = req.clientProxyId();
+
+                uint32_t actualReplyLength = 0;
+                userRequestsHandler->execute(
+                    clientId, lastExecutedSeqNum + 1, req.isReadOnly(),
+                    req.requestLength(), req.requestBuf(),
+                    maxReplyMessageSize - sizeof(ClientReplyMsgHeader),
+                    replyBuffer, actualReplyLength);
+
+                Assert(actualReplyLength
+                           > 0); // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
+
+                ClientReplyMsg *replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(clientId,
+                                                                                                req.requestSeqNum(),
+                                                                                                currentPrimary(),
+                                                                                                replyBuffer,
+                                                                                                actualReplyLength);
+                send(replyMsg, clientId);
+
+                delete replyMsg;
+
+                clientsManager->removePendingRequestOfClient(clientId);
+              }
+
+            }
+
+            if ((lastExecutedSeqNum + 1) % checkpointWindowSize == 0) {
+              const uint64_t checkpointNum = (lastExecutedSeqNum + 1) / checkpointWindowSize;
+              stateTransfer->createCheckpointOfCurrentState(checkpointNum);
+            }
+
+            //////////////////////////////////////////////////////////////////////
+            // Phase 3: finalize the execution of lastExecutedSeqNum+1
+            // TODO(GG): Explain what happens in recovery mode
+            //////////////////////////////////////////////////////////////////////
+
+            LOG_INFO_F(GL, "\nReplica - executeRequestsInPrePrepareMsg() - lastExecutedSeqNum==%"
+                PRId64
+                "", (lastExecutedSeqNum + 1));
+
+            if (ps_) {
+              ps_->beginWriteTran();
+              ps_->setLastExecutedSeqNum(lastExecutedSeqNum + 1);
+            }
+
+            lastExecutedSeqNum = lastExecutedSeqNum + 1;
+
+            metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
+
+            if (lastViewThatTransferredSeqNumbersFullyExecuted < curView
+                && (lastExecutedSeqNum >= maxSeqNumTransferredFromPrevViews)) {
+              lastViewThatTransferredSeqNumbersFullyExecuted = curView;
+              if (ps_) {
+                ps_->setLastViewThatTransferredSeqNumbersFullyExecuted(lastViewThatTransferredSeqNumbersFullyExecuted);
+              }
+            }
+
+            if (lastExecutedSeqNum % checkpointWindowSize == 0) {
+              Digest checkDigest;
+              const uint64_t checkpointNum = lastExecutedSeqNum / checkpointWindowSize;
+              stateTransfer->getDigestOfCheckpoint(checkpointNum, sizeof(Digest), (char *) &checkDigest);
+              CheckpointMsg *checkMsg = new CheckpointMsg(myReplicaId, lastExecutedSeqNum, checkDigest, false);
+              CheckpointInfo &checkInfo = checkpointsLog->get(lastExecutedSeqNum);
+              checkInfo.addCheckpointMsg(checkMsg, myReplicaId);
+
+              if (ps_)
+                ps_->setCheckpointMsgInCheckWindow(lastExecutedSeqNum, checkMsg);
+
+              if (checkInfo.isCheckpointCertificateComplete()) {
+                onSeqNumIsStable(lastExecutedSeqNum);
+              }
+              checkInfo.setSelfExecutionTime(getMonotonicTime());
+            }
+
+            if (ps_)
+              ps_->endWriteTran();
+
+            if (numOfRequests > 0)
+              userRequestsHandler->onFinishExecutingReadWriteRequests();
+
+            sendCheckpointIfNeeded();
+
+            bool firstCommitPathChanged =
+                controller->onNewSeqNumberExecution(lastExecutedSeqNum);
+
+            if (firstCommitPathChanged) {
+              metric_first_commit_path_.Get().Set(CommitPathToStr(
+                  controller->getCurrentFirstPath()));
+            }
+
+            // TODO(GG): clean the following logic
+            { // update dynamicUpperLimitOfRounds
+              const SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum);
+              const Time firstInfo = seqNumInfo.getTimeOfFisrtRelevantInfoFromPrimary();
+              const Time currTime = getMonotonicTime();
+              if ((firstInfo < currTime)) {
+                const int64_t durationMilli = (subtract(currTime, firstInfo) / 1000);
+                dynamicUpperLimitOfRounds->add(durationMilli);
+              }
+            }
+
+#ifdef DEBUG_STATISTICS
+            DebugStatistics::onRequestCompleted(false);
+#endif
+          }
+        }
+
+        void ReplicaImp::executeNextCommittedRequests(const bool requestMissingInfo)
+        {
+            Assert(!stateTransfer->isCollectingState() && currentViewIsActive());
+            Assert(lastExecutedSeqNum >= lastStableSeqNum);
+
+            LOG_INFO_F(GL, "Calling to executeNextCommittedRequests(requestMissingInfo=%d)",(int)requestMissingInfo);
+
+            while (lastExecutedSeqNum < lastStableSeqNum + kWorkWindowSize)
+            {
+                SeqNumInfo& seqNumInfo = mainLog->get(lastExecutedSeqNum + 1);
+
+                PrePrepareMsg* prePrepareMsg = seqNumInfo.getPrePrepareMsg();
+
+                const bool ready = (prePrepareMsg != nullptr) && (seqNumInfo.isCommitted__gg());
+
+                if (requestMissingInfo && !ready)
+                {
+                    LOG_INFO_F(GL, "executeNextCommittedRequests - Asking for missing information about %" PRId64 "", lastExecutedSeqNum + 1);
+                    tryToSendReqMissingDataMsg(lastExecutedSeqNum + 1);
+                }
+
+                if (!ready) break;
+
+                Assert(prePrepareMsg->seqNumber() == lastExecutedSeqNum + 1);
+                Assert(prePrepareMsg->viewNumber() == curView); // TODO(GG): TBD
+
+                executeRequestsInPrePrepareMsg(prePrepareMsg);
+            }
+
+            if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0)
+                tryToSendPrePrepareMsg(true);
+        }
+
+        void ReplicaImp::SetAggregator(
+            std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+          metrics_.SetAggregator(aggregator);
+        }
 
 // TODO(GG): the timer for state transfer !!!!
 
