@@ -2301,7 +2301,7 @@ namespace bftEngine
 				const SeqNum refPoint = newStateCheckpoint - kWorkWindowSize;
 				const bool withRefCheckpoint = (checkpointsLog->insideActiveWindow(refPoint) && (checkpointsLog->get(refPoint).selfCheckpointMsg() != nullptr));
 
-			onSeqNumIsStable(refPoint, withRefCheckpoint, true);
+				onSeqNumIsStable(refPoint, withRefCheckpoint, true);
 			}
 
 			// newStateCheckpoint should be in the active window
@@ -2362,7 +2362,6 @@ namespace bftEngine
 					ps_->setFetchingState(true);
 					ps_->endWriteTran();
 			    }
-
 				stateTransfer->startCollectingState();
 			}
 		}
@@ -2897,10 +2896,9 @@ namespace bftEngine
 			checkpointsLog->resetAll(lastStableSeqNum);
 
 			if(inView) {
+			  const bool isPrimaryOfView = (repsInfo->primaryOfView(curView) == myReplicaId);
 
-			const bool isPrimaryOfView = (repsInfo->primaryOfView(curView) == myReplicaId);
-
-			SeqNum s = ld.lastStableSeqNum;
+			  SeqNum s = ld.lastStableSeqNum;
 
 				for (size_t i = 0; i < kWorkWindowSize; i++) {
 					s++;
@@ -3388,6 +3386,7 @@ namespace bftEngine
 			mainThreadStarted = false;
 		}
 
+
 		bool ReplicaImp::isRunning() const
 		{
 			return mainThreadStarted;
@@ -3546,8 +3545,8 @@ namespace bftEngine
 			{
 				Bitmap requestSet(numOfRequests);
 				size_t reqIdx = 0;
-			RequestsIterator reqIter(ppMsg);
-			char* requestBody = nullptr;
+				RequestsIterator reqIter(ppMsg);
+				char* requestBody = nullptr;
 
 				//////////////////////////////////////////////////////////////////////
 				// Phase 1:
@@ -3556,41 +3555,38 @@ namespace bftEngine
 				//////////////////////////////////////////////////////////////////////
 				if (!recoverFromErrorInRequestsExecution)
 				{
-			while (reqIter.getAndGoToNext(requestBody))
-			{
-				ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
-				NodeIdType clientId = req.clientProxyId();
+					while (reqIter.getAndGoToNext(requestBody))
+					{
+					  ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
+                      NodeIdType clientId = req.clientProxyId();
 
-				const bool validClient = clientsManager->isValidClient(clientId);
-						if (!validClient) {
-							// TODO(GG): TBD - warning and/or report
-					continue;
-				}
+                      const bool validClient = clientsManager->isValidClient(clientId);
+                      if (!validClient) {
+					  // TODO(GG): TBD - warning and/or report
+                      continue;
+                      }
 
-						if (clientsManager->seqNumberOfLastReplyToClient(clientId) >= req.requestSeqNum()) {
-					ClientReplyMsg* replyMsg = clientsManager->allocateMsgWithLatestReply(clientId, currentPrimary());
-					send(replyMsg, clientId);
-					delete replyMsg;
-							continue;
-						}
-
-						requestSet.set(reqIdx);
-						reqIdx++;
+                      if (clientsManager->seqNumberOfLastReplyToClient(clientId) >= req.requestSeqNum()) {
+                      ClientReplyMsg* replyMsg = clientsManager->allocateMsgWithLatestReply(clientId, currentPrimary());
+                      send(replyMsg, clientId);
+                      delete replyMsg;
+                      continue;
+                      }
+                      requestSet.set(reqIdx);
+                      reqIdx++;
 					}
 					reqIter.restart();
 
-
 					if (ps_) {
-						DescriptorOfLastExecution execDesc{ lastExecutedSeqNum + 1 , requestSet };
-						ps_->beginWriteTran();
-						ps_->setDescriptorOfLastExecution(execDesc);
-						ps_->endWriteTran();
+                      DescriptorOfLastExecution execDesc{ lastExecutedSeqNum + 1 , requestSet };
+                      ps_->beginWriteTran();
+                      ps_->setDescriptorOfLastExecution(execDesc);
+                      ps_->endWriteTran();
 					}
-				}
-				else
-				{
-					requestSet = mapOfRequestsThatAreBeingRecovered;
-				}
+					else
+					{
+                      requestSet = mapOfRequestsThatAreBeingRecovered;
+					}
 
 				//////////////////////////////////////////////////////////////////////
 				// Phase 2: execute requests + send replies
@@ -3609,7 +3605,7 @@ namespace bftEngine
 					ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
 					NodeIdType clientId = req.clientProxyId();
 
-				uint32_t actualReplyLength = 0;
+					uint32_t actualReplyLength = 0;
 					userRequestsHandler->execute(
 						clientId, lastExecutedSeqNum + 1, req.isReadOnly(),
 						req.requestLength(), req.requestBuf(),
@@ -3620,7 +3616,7 @@ namespace bftEngine
 
 				ClientReplyMsg* replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(clientId, req.requestSeqNum(), currentPrimary(), replyBuffer, actualReplyLength);
 
-					send(replyMsg, clientId);
+				send(replyMsg, clientId);
 
 				delete replyMsg;
 
@@ -3727,7 +3723,6 @@ namespace bftEngine
 				if (requestMissingInfo && !ready)
 				{
 					LOG_INFO_F(GL, "executeNextCommittedRequests - Asking for missing information about %" PRId64 "", lastExecutedSeqNum + 1);
-
 					tryToSendReqMissingDataMsg(lastExecutedSeqNum + 1);
 				}
 
