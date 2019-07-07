@@ -221,6 +221,52 @@ class SimpleTestReplica {
     runnerThread = new std::thread(std::bind(&SimpleTestReplica::run, this));
   }
 
+  static SimpleTestReplica* create_replica(
+  PersistencyTestInfo pti, ReplicaParams rp) {
+      TestCommConfig testCommConfig(replicaLogger);
+      ReplicaConfig replicaConfig;
+      testCommConfig.GetReplicaConfig(
+          rp.replicaId, rp.keysFilePrefix, &replicaConfig);
+      replicaConfig.numOfClientProxies = rp.numOfClients;
+      replicaConfig.autoViewChangeEnabled = rp.viewChangeEnabled;
+      replicaConfig.viewChangeTimerMillisec = rp.viewChangeTimeout;
+
+      // This is the state machine that the replica will drive.
+      SimpleAppState *simpleAppState = new SimpleAppState(rp.numOfClients, rp
+          .numOfReplicas);
+
+#ifdef USE_COMM_PLAIN_TCP
+      PlainTcpConfig conf = testCommConfig.GetTCPConfig(true, rp.replicaId,
+                                                    rp.numOfClients,
+                                                    rp.numOfReplicas,
+                                                    rp.configFileName);
+#elif USE_COMM_TLS_TCP
+      TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(true, rp.replicaId,
+                                                         rp.numOfClients,
+                                                         rp.numOfReplicas,
+                                                         rp.configFileName);
+#else
+      PlainUdpConfig conf = testCommConfig.GetUDPConfig(true, rp.replicaId,
+                                                      rp.numOfClients,
+                                                      rp.numOfReplicas,
+                                                      rp.configFileName);
+#endif
+      auto comm = bftEngine::CommFactory::create(conf);
+
+      bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer *st =
+          bftEngine::SimpleInMemoryStateTransfer::create(
+              simpleAppState->statePtr,
+              sizeof(SimpleAppState::State) * rp.numOfClients,
+              replicaConfig.replicaId,
+              replicaConfig.fVal,
+              replicaConfig.cVal, true);
+
+      simpleAppState->st = st;
+      SimpleTestReplica *replica = new SimpleTestReplica(comm, *simpleAppState,
+                                                         &replicaConfig, pti, st);
+      return replica;
+}
+
 };
 
 #endif //CONCORD_BFT_SIMPLE_TEST_REPLICA_HPP
