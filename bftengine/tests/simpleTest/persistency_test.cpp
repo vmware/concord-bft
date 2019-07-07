@@ -19,10 +19,6 @@ class PersistencyTest: public testing::Test
  protected:
   PersistencyTest() {
     //std::this_thread::sleep_for(std::chrono::seconds(20));
-    ClientParams cp;
-    cp.numOfOperations = 10000;
-    bftEngine::SimpleClientParams scp;
-    client = new SimpleTestClient(cp, clientLogger);
   }
 
   ~PersistencyTest() {
@@ -50,7 +46,11 @@ void run_replica(SimpleTestReplica *rep) {
 }
 
 TEST_F(PersistencyTest, RegressionNoPersistency) {
-  for(int i = 0; i < 4;) {
+  ClientParams cp;
+  bftEngine::SimpleClientParams scp;
+  client = new SimpleTestClient(cp, clientLogger);
+
+  for(int i = 0; i < 4;i++) {
     PersistencyTestInfo pti;
     ReplicaParams rp;
     rp.keysFilePrefix = "private_replica_";
@@ -65,7 +65,11 @@ TEST_F(PersistencyTest, RegressionNoPersistency) {
 }
 
 TEST_F(PersistencyTest, Replica2RestartNoVC) {
- for(int i = 0; i < 4;) {
+  ClientParams cp;
+  cp.numOfOperations = 5000;
+  bftEngine::SimpleClientParams scp;
+  client = new SimpleTestClient(cp, clientLogger);
+  for(int i = 0; i < 4;i++) {
     PersistencyTestInfo pti;
     pti.replica2RestartNoVC = true;
     ReplicaParams rp;
@@ -80,8 +84,9 @@ TEST_F(PersistencyTest, Replica2RestartNoVC) {
   ASSERT_TRUE(client->run());
 }
 
+/*
 TEST_F(PersistencyTest, Replica2RestartVC) {
-  for(int i = 0; i < 4;) {
+  for(int i = 0; i < 4;i++) {
     PersistencyTestInfo pti;
     pti.replica2RestartVC = true;
     ReplicaParams rp;
@@ -97,6 +102,7 @@ TEST_F(PersistencyTest, Replica2RestartVC) {
 
   ASSERT_TRUE(client->run());
 }
+*/
 
 }
 }

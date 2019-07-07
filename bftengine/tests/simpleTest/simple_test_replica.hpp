@@ -142,7 +142,7 @@ class SimpleTestReplica {
  private:
   ICommunication *comm;
   bftEngine::Replica* replica = nullptr;
-  ReplicaConfig *replicaConfig;
+  ReplicaConfig replicaConfig;
   std::thread *runnerThread = nullptr;
 
  public:
@@ -151,11 +151,11 @@ class SimpleTestReplica {
   SimpleTestReplica(
       ICommunication *commObject,
       RequestsHandler &state,
-      ReplicaConfig *rc,
+      ReplicaConfig rc,
       const PersistencyTestInfo &persistencyTestInfo,
       bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer *inMemoryST) :
       comm{commObject}, pti{persistencyTestInfo}, replicaConfig{rc} {
-    replica = Replica::createNewReplica(rc,  &state, inMemoryST, comm, nullptr);
+    replica = Replica::createNewReplica(&rc,  &state, inMemoryST, comm, nullptr);
   }
 
   ~SimpleTestReplica() {
@@ -169,7 +169,7 @@ class SimpleTestReplica {
   }
 
   uint16_t get_replica_id(){
-    return replicaConfig->replicaId;
+    return replicaConfig.replicaId;
   }
 
   void start() {
@@ -178,7 +178,7 @@ class SimpleTestReplica {
 
   void stop() {
     replica->stop();
-    LOG_INFO(replicaLogger, "replica " << replicaConfig->replicaId << " stopped");
+    LOG_INFO(replicaLogger, "replica " << replicaConfig.replicaId << " stopped");
   }
 
   bool isRunning() {
@@ -188,24 +188,25 @@ class SimpleTestReplica {
   void run() {
     while (replica->isRunning()) {
       if(pti.replica2RestartNoVC) {
-        std::this_thread::sleep_for(std::chrono::seconds(10));
-        if (replicaConfig->replicaId == 2) {
+        if (replicaConfig.replicaId == 2) {
+          std::this_thread::sleep_for(std::chrono::seconds(10));
           replica->restartForDebug();
         }
       }
       else if (pti.replica2RestartVC) {
-        std::this_thread::sleep_for(std::chrono::seconds(60));
-        if (replicaConfig->replicaId == 2)
+        if (replicaConfig.replicaId == 2) {
+          std::this_thread::sleep_for(std::chrono::seconds(60));
           replica->restartForDebug();
+        }
       }
       else if (pti.allReplicasRestartNoVC) {
         std::this_thread::sleep_for(std::chrono::seconds(3 *
-            (2 + replicaConfig->replicaId) * (2 + replicaConfig->replicaId)));
+            (2 + replicaConfig.replicaId) * (2 + replicaConfig.replicaId)));
         replica->restartForDebug();
       }
       else if (pti.allReplicasRestartVC) {
         std::this_thread::sleep_for(std::chrono::seconds(18 *
-            (2 + replicaConfig->replicaId) * (2 + replicaConfig->replicaId)));
+            (2 + replicaConfig.replicaId) * (2 + replicaConfig.replicaId)));
         replica->restartForDebug();
       }
       else if(pti.primaryReplicaRestart) {
@@ -230,6 +231,7 @@ class SimpleTestReplica {
       replicaConfig.numOfClientProxies = rp.numOfClients;
       replicaConfig.autoViewChangeEnabled = rp.viewChangeEnabled;
       replicaConfig.viewChangeTimerMillisec = rp.viewChangeTimeout;
+      replicaConfig.replicaId = rp.replicaId;
 
       // This is the state machine that the replica will drive.
       SimpleAppState *simpleAppState = new SimpleAppState(rp.numOfClients, rp
@@ -263,7 +265,7 @@ class SimpleTestReplica {
 
       simpleAppState->st = st;
       SimpleTestReplica *replica = new SimpleTestReplica(comm, *simpleAppState,
-                                                         &replicaConfig, pti, st);
+                                                         replicaConfig, pti, st);
       return replica;
 }
 
