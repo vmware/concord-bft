@@ -43,9 +43,9 @@ constexpr uint16_t numOfCheckWinParameters = CheckData::getNumOfParams();
 const uint16_t numOfCheckWinObjs = checkWinSize * numOfCheckWinParameters + 1;
 
 enum WinMetadataParameterIds {
-  SEQ_NUM_WINDOW = CONST_METADATA_PARAMETERS_NUM,
-  CHECK_WINDOW = SEQ_NUM_WINDOW + numOfSeqNumWinObjs,
-  WIN_PARAMETERS_NUM = CHECK_WINDOW + numOfCheckWinObjs
+  BEGINNING_OF_SEQ_NUM_WINDOW = CONST_METADATA_PARAMETERS_NUM,
+  BEGINNING_OF_CHECK_WINDOW = BEGINNING_OF_SEQ_NUM_WINDOW + numOfSeqNumWinObjs,
+  WIN_PARAMETERS_NUM = BEGINNING_OF_CHECK_WINDOW + numOfCheckWinObjs
 };
 
 // LAST_EXIT_FROM_VIEW_DESC contains up to kWorkWindowSize descriptor objects
@@ -164,6 +164,7 @@ class PersistentStorageImp : public PersistentStorage {
   void setCheckDataElement(const SeqNum &index, char *buf, const SharedPtrCheckWindow &checkWindow) const;
   void serializeAndSaveCheckWindow(const SharedPtrCheckWindow &checkWindow);
 
+  SeqNum readBeginningOfActiveWindow(const uint32_t &index) const;
   MessageBase *readMsgFromDisk(const SeqNum &seqNum, const SeqNum &parameterId) const;
   PrePrepareMsg *readPrePrepareMsgFromDisk(const SeqNum &seqNum) const;
   FullCommitProofMsg *readFullCommitProofMsgFromDisk(const SeqNum &seqNum) const;
@@ -176,13 +177,13 @@ class PersistentStorageImp : public PersistentStorage {
   CheckpointMsg *readCheckpointMsgFromDisk(const SeqNum &seqNum) const;
   bool readCompletedMarkFromDisk(const SeqNum &seqNum) const;
 
+  void writeBeginningOfActiveWindow(const uint32_t &index, const SeqNum &beginning) const;
   void setFetchingStateInternal(const bool &state);
   void setLastExecutedSeqNumInternal(const SeqNum &seqNum);
   void setPrimaryLastUsedSeqNumInternal(const SeqNum &seqNum);
   void setStrictLowerBoundOfSeqNumsInternal(const SeqNum &seqNum);
   void setLastViewTransferredSeqNumbersInternal(const ViewNum &view);
-  void setLastStableSeqNumInternal(const SeqNum &seqNum, const SharedPtrSeqNumWindow &seqNumWindow,
-                                   const SharedPtrCheckWindow &checkWindow);
+  void setDefaultWindowsValues();
 
  private:
   MetadataStorage *metadataStorage_ = nullptr;
