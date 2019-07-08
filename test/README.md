@@ -91,7 +91,7 @@ class, private methods, fields and functions begin with an underscore.
 The built in
 [__repr__](https://docs.python.org/3/reference/datamodel.html#object.__repr__)
 method is used for data and exception classes to return printable information.
-Write now it's human readable and not bound to python types, but we may want to
+Right now it's human readable and not bound to python types, but we may want to
 change that and add `__str__` methods later.
 
 # Writing a test
