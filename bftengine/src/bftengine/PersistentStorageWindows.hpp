@@ -25,7 +25,8 @@ namespace bftEngine {
 namespace impl {
 
 enum SeqNumDataParameters {
-  PRE_PREPARE_MSG = 1,
+  SEQ_NUM_FIRST_PARAM = 1,
+  PRE_PREPARE_MSG = SEQ_NUM_FIRST_PARAM,
   FULL_COMMIT_PROOF_MSG = 2,
   PRE_PREPARE_FULL_MSG = 3,
   COMMIT_FULL_MSG = 4,
@@ -95,21 +96,22 @@ class SeqNumData {
 };
 
 enum CheckDataParameters {
-  COMPLETED_MARK = 1,
-  CHECKPOINT_MSG = 2
+  CHECK_DATA_FIRST_PARAM = 1,
+  CHECKPOINT_MSG = CHECK_DATA_FIRST_PARAM,
+  COMPLETED_MARK = 2
 };
 
 class CheckData {
  public:
-  CheckData(CheckpointMsg *checkpoint, bool completed) : completedMark_(completed), checkpointMsg_(checkpoint) {}
+  CheckData(CheckpointMsg *checkpoint, bool completed) : checkpointMsg_(checkpoint), completedMark_(completed) {}
 
   CheckData() = default;
 
   bool equals(const CheckData &other) const;
   void reset();
 
-  size_t serializeCompletedMark(char *&buf) const;
   size_t serializeCheckpointMsg(char *&buf) const;
+  size_t serializeCompletedMark(char *&buf) const;
   void serialize(char *buf, uint32_t bufLen, size_t &actualSize) const;
 
   bool isCheckpointMsgSet() const { return (checkpointMsg_ != nullptr); }
@@ -120,11 +122,11 @@ class CheckData {
   void setCheckpointMsg(MessageBase *msg) { checkpointMsg_ = (CheckpointMsg *) msg; }
   void setCompletedMark(const bool &completedMark) { completedMark_ = completedMark; }
 
-  static size_t serializeCompletedMark(char *&buf, const bool &completedMark);
   static size_t serializeCheckpointMsg(char *&buf, CheckpointMsg *msg);
+  static size_t serializeCompletedMark(char *&buf, const bool &completedMark);
 
+  static CheckpointMsg *deserializeCheckpointMsg(char *&buf, uint32_t bufLen, size_t &actualMsgSize);
   static bool deserializeCompletedMark(char *&buf);
-  static CheckpointMsg *deserializeCheckpointMsg(char *buf, uint32_t bufLen, size_t &actualMsgSize);
   static CheckData deserialize(char *buf, uint32_t bufLen, uint32_t &actualSize);
 
   static uint32_t maxSize();
@@ -132,8 +134,8 @@ class CheckData {
   static constexpr uint16_t getNumOfParams() { return 2; }
 
  private:
-  bool completedMark_ = false;
   CheckpointMsg *checkpointMsg_ = nullptr;
+  bool completedMark_ = false;
 };
 
 typedef SerializableActiveWindow<kWorkWindowSize, 1, SeqNumData> SeqNumWindow;
