@@ -291,7 +291,7 @@ class SkvbcTracker:
     been returned from the *state* of the kvstore before or after any concurrent
     requests with the read.
 
-    `_linearize_write_failures` works similar to `_linearize_reads`, in that it
+    `_linearize_write_failures` works similarly to `_linearize_reads`, in that it
     looks at concurrent write requests to determine if there was an anomaly. The
     anomaly in this case would be if the failed request had a readset that
     didn't actually intersect with any writesets in concurrent requests. This

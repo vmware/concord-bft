@@ -605,7 +605,7 @@ namespace bftEngine
 				if (absDifference(currTime, timeOfPartProof) < controller->timeToStartSlowPathMilli() * 1000)
 					break; // don't try the next seq numbers
 
-				LOG_INFO_F(GL, "Primary initiates slow path for seqNum=%" PRId64 " (currTime=%lld timeOfPartProof=%lld", i, currTime, timeOfPartProof);
+				LOG_INFO_F(GL, "Primary initiates slow path for seqNum=%" PRId64 " (currTime=%ld timeOfPartProof=%ld", i, currTime, timeOfPartProof);
 
 				controller->onStartingSlowCommit(i);
 
@@ -904,7 +904,7 @@ namespace bftEngine
 
                         metric_received_full_commit_proofs_.Get().Inc();
 			LOG_INFO_F(GL, "Node %d received FullCommitProofMsg message for seqNumber %" PRId64 "",
-				(int)myReplicaId, (int)msg->seqNumber());
+				(int)myReplicaId, msg->seqNumber());
 
 			const SeqNum msgSeqNum = msg->seqNumber();
 
@@ -1990,7 +1990,7 @@ namespace bftEngine
 				lastPPSeq = prePreparesForNewView.back()->seqNumber();
 			}
 
-			LOG_INFO_F(GL, "**************** In onNewView curView=%" PRId64 " (num of PPs=%d, first safe seq=%" PRId64 ", last safe seq=%" PRId64 ", lastStableSeqNum=%" PRId64 ", lastExecutedSeqNum=%" PRId64 ", stableLowerBoundWhenEnteredToView= %" PRId64 ")",
+			LOG_INFO_F(GL, "**************** In onNewView curView=%" PRId64 " (num of PPs=%" PRIu64 ", first safe seq=%" PRId64 ", last safe seq=%" PRId64 ", lastStableSeqNum=%" PRId64 ", lastExecutedSeqNum=%" PRId64 ", stableLowerBoundWhenEnteredToView= %" PRId64 ")",
 				curView, prePreparesForNewView.size(), firstPPSeq, lastPPSeq,
 				lastStableSeqNum, lastExecutedSeqNum, viewsManager->stableLowerBoundWhenEnteredToView());
 
@@ -2558,7 +2558,7 @@ namespace bftEngine
 				if ((diffMilli1 > viewChangeTimeout) &&
 					(diffMilli2 > viewChangeTimeout))
 				{
-					LOG_INFO_F(GL, "**************** Node %d asks to jump to view %" PRId64 " (%" PRIu64  " milli seconds after receiving 2f+2c+1 view change msgs for view %" PRId64 ")", myReplicaId, curView, diffMilli2);
+					LOG_INFO_F(GL, "**************** Node %d asks to jump to view %" PRId64 " (%" PRIu64  " milli seconds after receiving 2f+2c+1 view change msgs for view %" PRId64 ")", myReplicaId, curView, diffMilli2, lastAgreedView);
 
 					GotoNextView();
 					return;
