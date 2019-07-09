@@ -20,13 +20,6 @@ namespace impl {
 
 /***** DescriptorOfLastExitFromView *****/
 
-DescriptorOfLastExitFromView::DescriptorOfLastExitFromView() {
-  ViewsManager::PrevViewInfo element;
-  for (uint32_t i = 0; i < kWorkWindowSize; ++i) {
-    elements.push_back(element);
-  }
-}
-
 void DescriptorOfLastExitFromView::clean() {
   delete myViewChangeMsg;
   myViewChangeMsg = nullptr;
@@ -257,7 +250,6 @@ void DescriptorOfLastNewView::deserializeSimpleParams(char *buf, size_t bufLen, 
 void DescriptorOfLastNewView::deserializeElement(uint32_t id, char *buf, size_t bufLen, size_t &actualSize) {
   actualSize = 0;
   Assert(id < viewChangeMsgsNum);
-
   auto *msg = MessageBase::deserializeMsg(buf, bufLen, actualSize);
   Assert(viewChangeMsgs[id] == nullptr);
   viewChangeMsgs[id] = ((ViewChangeMsg *) msg);
@@ -285,9 +277,7 @@ void DescriptorOfLastExecution::serialize(char *&buf, size_t bufLen, size_t &act
 
 void DescriptorOfLastExecution::deserialize(char *buf, size_t bufLen, uint32_t &actualSize) {
   actualSize = 0;
-
   Assert(bufLen >= maxSize())
-
   size_t seqNumSize = sizeof(executedSeqNum);
   memcpy(&executedSeqNum, buf, seqNumSize);
   buf += seqNumSize;

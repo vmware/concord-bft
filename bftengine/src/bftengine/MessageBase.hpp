@@ -21,9 +21,6 @@ class MessageBase {
 #pragma pack(push, 1)
   struct Header {
     MsgType msgType;
-    bool operator==(const Header &other) const {
-      return other.msgType == msgType;
-    }
   };
 #pragma pack(pop)
   static_assert(sizeof(Header) == 2, "MessageBase::Header is 2B");

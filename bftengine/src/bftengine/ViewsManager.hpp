@@ -20,12 +20,12 @@
 #include <unordered_map>
 #include <unordered_set>
 #include "ViewChangeSafetyLogic.hpp"
+#include "PrePrepareMsg.hpp"
+#include "SignedShareMsgs.hpp"
 
 namespace bftEngine {
 namespace impl {
 
-class PrePrepareMsg;
-class PrepareFullMsg;
 class ViewChangeMsg;
 class NewViewMsg;
 class ViewChangeSafetyLogic;
@@ -34,7 +34,6 @@ using std::vector;
 
 class ViewsManager {
  public:
-
   struct PrevViewInfo {
     PrePrepareMsg *prePrepare = nullptr;
     PrepareFullMsg *prepareFull = nullptr;
@@ -52,6 +51,7 @@ class ViewsManager {
 
   ViewsManager(const ReplicasInfo *const r,
                IThresholdVerifier *const preparedCertificateVerifier); // TODO(GG): move to protected
+
   ~ViewsManager();
 
   static ViewsManager *createOutsideView(
@@ -117,6 +117,7 @@ class ViewsManager {
       SeqNum currentLastStable,
       SeqNum currentLastExecuted,
       const std::vector<PrevViewInfo> &prevViewInfo);
+
   // TODO(GG): prevViewInfo is defined and used in a confusing way (becuase it
   // contains both executed and non-executed items) - TODO: improve by using two
   // different arguments
@@ -181,7 +182,6 @@ class ViewsManager {
   ///////////////////////////////////////////////////////////////////////////
   // Member variables
   ///////////////////////////////////////////////////////////////////////////
-
 
   Stat stat;
 

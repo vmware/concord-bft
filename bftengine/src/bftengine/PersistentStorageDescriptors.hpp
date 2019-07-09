@@ -39,7 +39,7 @@ struct DescriptorOfLastExitFromView {
       view(viewNum), lastStable(stableNum), lastExecuted(execNum), stableLowerBoundWhenEnteredToView(stableLowerBound),
       myViewChangeMsg(viewChangeMsg), elements(move(elements)) {}
 
-  DescriptorOfLastExitFromView();
+  DescriptorOfLastExitFromView() = default;
 
   void clean();
   void serializeSimpleParams(char *buf, size_t bufLen, size_t &actualSize) const;
