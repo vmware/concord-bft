@@ -195,11 +195,7 @@ bool MessageBase::equals(const MessageBase &other) const {
       other.sender_ == sender_ && other.owner_ == owner_);
   if (!equals)
     return false;
-  if (!other.msgBody_ && !msgBody_) // Both are nullptr => OK
-    return true;
-  if (!other.msgBody_ || !msgBody_) // Only one is nullptr => NOK
-    return false;
-  return (*other.msgBody_ == *msgBody_);
+  return (memcmp(other.msgBody_, msgBody_, msgSize_) == 0);
 }
 
 size_t MessageBase::serializeMsg(char *&buf, MessageBase *msg) {

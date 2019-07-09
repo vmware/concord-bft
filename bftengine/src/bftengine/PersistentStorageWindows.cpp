@@ -125,12 +125,28 @@ bool SeqNumData::equals(const SeqNumData &other) const {
 }
 
 uint32_t SeqNumData::maxSize() {
+  return (maxPrePrepareMsgSize() + maxFullCommitProofMsgSize() + maxPrepareFullMsgSize() + maxCommitFullMsgSize() +
+      sizeof(slowStarted_) + sizeof(forceCompleted_));
+}
+
+uint32_t SeqNumData::maxPrePrepareMsgSize() {
   bool msgEmptyFlag;
-  return (PrePrepareMsg::maxSizeOfPrePrepareMsgInLocalBuffer() +
-      FullCommitProofMsg::maxSizeOfFullCommitProofMsgInLocalBuffer() +
-      PrepareFullMsg::maxSizeOfPrepareFullInLocalBuffer() +
-      CommitFullMsg::maxSizeOfCommitFullInLocalBuffer() +
-      4 * sizeof(msgEmptyFlag) + sizeof(slowStarted_) + sizeof(forceCompleted_));
+  return (PrePrepareMsg::maxSizeOfPrePrepareMsgInLocalBuffer() + sizeof(msgEmptyFlag));
+}
+
+uint32_t SeqNumData::maxFullCommitProofMsgSize() {
+  bool msgEmptyFlag;
+  return (FullCommitProofMsg::maxSizeOfFullCommitProofMsgInLocalBuffer() + sizeof(msgEmptyFlag));
+}
+
+uint32_t SeqNumData::maxPrepareFullMsgSize() {
+  bool msgEmptyFlag;
+  return (PrepareFullMsg::maxSizeOfPrepareFullInLocalBuffer() + sizeof(msgEmptyFlag));
+}
+
+uint32_t SeqNumData::maxCommitFullMsgSize() {
+  bool msgEmptyFlag;
+  return (CommitFullMsg::maxSizeOfCommitFullInLocalBuffer() + sizeof(msgEmptyFlag));
 }
 
 /*****************************************************************************/

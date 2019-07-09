@@ -838,6 +838,7 @@ namespace BasicRandomTests
                                         auto block_id = pGetBlock->block_id;
                                         SetOfKeyValuePairs outBlockData;
                                         if (!roStorage.getBlockData(block_id, outBlockData).ok()) {
+                                          printf("GetBlockData: Failed to retrieve block %" PRId64, block_id);
                                           return false;
                                         }
 
