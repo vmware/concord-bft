@@ -156,7 +156,8 @@ class PersistentStorageImp : public PersistentStorage {
 
   void setVersion() const;
 
-  void setMsgInSeqNumWindow(const SeqNum &seqNum, const SeqNum &parameterId, MessageBase *msg) const;
+  void setMsgInSeqNumWindow(const SeqNum &seqNum, const SeqNum &parameterId, MessageBase *msg,
+                            const size_t &maxMsgSize) const;
   void setBooleanInSeqNumWindow(const SeqNum &seqNum, const SeqNum &parameterId, const bool &boolean) const;
   void setSeqNumDataElement(const SeqNum &index, const SharedPtrSeqNumWindow &seqNumWindow) const;
   void serializeAndSaveSeqNumWindow(const SharedPtrSeqNumWindow &seqNumWindow);
@@ -167,7 +168,7 @@ class PersistentStorageImp : public PersistentStorage {
   void setCheckDataElement(const SeqNum &index, const SharedPtrCheckWindow &checkWindow) const;
 
   SeqNum readBeginningOfActiveWindow(const uint32_t &index) const;
-  MessageBase *readMsgFromDisk(const SeqNum &seqNum, const SeqNum &parameterId) const;
+  MessageBase *readMsgFromDisk(const SeqNum &seqNum, const SeqNum &parameterId, const size_t &maxMsgSize) const;
   PrePrepareMsg *readPrePrepareMsgFromDisk(const SeqNum &seqNum) const;
   FullCommitProofMsg *readFullCommitProofMsgFromDisk(const SeqNum &seqNum) const;
   PrepareFullMsg *readPrepareFullMsgFromDisk(const SeqNum &seqNum) const;

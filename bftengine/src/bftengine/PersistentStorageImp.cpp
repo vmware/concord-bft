@@ -449,9 +449,8 @@ void PersistentStorageImp::setLastStableSeqNum(const SeqNum seqNum) {
 }
 
 void PersistentStorageImp::setMsgInSeqNumWindow(const SeqNum &seqNum, const SeqNum &parameterId,
-                                                MessageBase *msg) const {
-  const size_t bufLen = SeqNumData::maxSize();
-  char *buf = new char[bufLen];
+                                                MessageBase *msg, const size_t &maxMsgSize) const {
+  char *buf = new char[maxMsgSize];
   char *movablePtr = buf;
   const size_t actualSize = SeqNumData::serializeMsg(movablePtr, msg);
   Assert(actualSize != 0);
@@ -467,7 +466,7 @@ void PersistentStorageImp::setPrePrepareMsgInSeqNumWindow(const SeqNum seqNum, c
 
 void PersistentStorageImp::setFullCommitProofMsgInSeqNumWindow(const SeqNum seqNum,
                                                                const FullCommitProofMsg *const msg) {
-  setMsgInSeqNumWindow(seqNum, FULL_COMMIT_PROOF_MSG, (MessageBase *) msg);
+  setMsgInSeqNumWindow(seqNum, FULL_COMMIT_PROOF_MSG, (MessageBase *) msg, SeqNumData::maxFullCommitProofMsgSize());
 }
 
 void PersistentStorageImp::setPrepareFullMsgInSeqNumWindow(const SeqNum seqNum, const PrepareFullMsg *const msg) {
@@ -745,35 +744,35 @@ bool PersistentStorageImp::readBooleanFromDisk(const SeqNum &index, const SeqNum
   return boolean;
 }
 
-MessageBase *PersistentStorageImp::readMsgFromDisk(const SeqNum &index, const SeqNum &parameterId) const {
-  const size_t bufLen = SeqNumData::maxSize();
-  char *buf = new char[bufLen];
+MessageBase *PersistentStorageImp::readMsgFromDisk(const SeqNum &index, const SeqNum &parameterId,
+                                                   const size_t &maxMsgSize) const {
+  char *buf = new char[maxMsgSize];
   uint32_t actualMsgSize = 0;
   const SeqNum convertedIndex = BEGINNING_OF_SEQ_NUM_WINDOW + parameterId + convertSeqNumWindowIndex(index);
   Assert(convertedIndex < BEGINNING_OF_CHECK_WINDOW);
-  metadataStorage_->read(convertedIndex, bufLen, buf, actualMsgSize);
+  metadataStorage_->read(convertedIndex, maxMsgSize, buf, actualMsgSize);
   size_t actualSize = 0;
   char *movablePtr = buf;
-  auto *msg = SeqNumData::deserializeMsg(movablePtr, msgSize, actualSize);
+  auto *msg = SeqNumData::deserializeMsg(movablePtr, maxMsgSize, actualSize);
   Assert(actualSize == actualMsgSize);
   delete[] buf;
   return msg;
 }
 
 PrePrepareMsg *PersistentStorageImp::readPrePrepareMsgFromDisk(const SeqNum &seqNum) const {
-  return (PrePrepareMsg *) readMsgFromDisk(seqNum, PRE_PREPARE_MSG);
+  return (PrePrepareMsg *) readMsgFromDisk(seqNum, PRE_PREPARE_MSG, SeqNumData::maxPrePrepareMsgSize());
 }
 
 FullCommitProofMsg *PersistentStorageImp::readFullCommitProofMsgFromDisk(const SeqNum &seqNum) const {
-  return (FullCommitProofMsg *) readMsgFromDisk(seqNum, FULL_COMMIT_PROOF_MSG);
+  return (FullCommitProofMsg *) readMsgFromDisk(seqNum, FULL_COMMIT_PROOF_MSG, SeqNumData::maxFullCommitProofMsgSize());
 }
 
 PrepareFullMsg *PersistentStorageImp::readPrepareFullMsgFromDisk(const SeqNum &seqNum) const {
-  return (PrepareFullMsg *) readMsgFromDisk(seqNum, PRE_PREPARE_FULL_MSG);
+  return (PrepareFullMsg *) readMsgFromDisk(seqNum, PRE_PREPARE_FULL_MSG, SeqNumData::maxPrepareFullMsgSize());
 }
 
 CommitFullMsg *PersistentStorageImp::readCommitFullMsgFromDisk(const SeqNum &seqNum) const {
-  return (CommitFullMsg *) readMsgFromDisk(seqNum, COMMIT_FULL_MSG);
+  return (CommitFullMsg *) readMsgFromDisk(seqNum, COMMIT_FULL_MSG, SeqNumData::maxCommitFullMsgSize());
 }
 
 const SeqNum PersistentStorageImp::convertCheckWindowIndex(const SeqNum &index) const {
