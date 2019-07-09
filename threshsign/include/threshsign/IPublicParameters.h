@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "threshsign/Serializable.h"
+#include "Serializable.h"
 #include <string>
 #include <map>
 #include <fstream>
@@ -23,7 +23,7 @@
  * the prime p for BLS.
  */
 
-class IPublicParameters : public Serializable {
+class IPublicParameters : public concordSerializable::Serializable {
  protected:
   /**
    * Security level.
@@ -40,9 +40,9 @@ class IPublicParameters : public Serializable {
                     std::string library);
   ~IPublicParameters() override = default;
 
-  bool operator==(const IPublicParameters& other) const;
+  bool operator==(const IPublicParameters &other) const;
 
-  bool compare(const IPublicParameters& other) const {
+  bool compare(const IPublicParameters &other) const {
     return *this == other;
   }
 
@@ -56,25 +56,26 @@ class IPublicParameters : public Serializable {
    */
   int getSecurityLevel() const { return securityLevel_; }
 
-  const std::string &getName() const { return schemeName_; }
+  const std::string &getSchemeName() const { return schemeName_; }
 
   const std::string &getLibrary() const { return library_; }
 
   // Serialization/deserialization
-  // Two functions below should be implemented by all derived classes.
-  virtual void serialize(std::ostream &outStream) const;
-
-  UniquePtrToClass create(std::istream &inStream) override;
+  concordSerializable::SharedPtrToClass create(std::istream &inStream) override;
 
   // To be used ONLY during deserialization. Could not become private/protected,
   // as there is a composition relationship between IPublicParameters and
   // signer/verifier classes.
   IPublicParameters() = default;
 
- private:
-  void serializeDataMembers(std::ostream &outStream) const;
+  concordSerializable::SharedPtrToClass createDontVerify(std::istream &inStream);
+
+ protected:
+  void serializeDataMembers(std::ostream &outStream) const override;
+  std::string getName() const override { return className_; };
+  std::string getVersion() const override { return classVersion_; };
 
  private:
-  static const std::string className_;
-  static const uint32_t classVersion_;
+  const std::string className_ = "IPublicParameters";
+  std::string classVersion_ = "1";
 };

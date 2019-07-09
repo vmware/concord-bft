@@ -102,6 +102,10 @@ namespace bftEngine
 			return true;
 		}
 
+		const uint16_t NewViewMsg::elementsCount() const {
+			return b()->elementsCount;
+		}
+
 		bool NewViewMsg::includesViewChangeFromReplica(ReplicaId replicaId, const Digest& viewChangeReplica) const
 		{
 			const uint16_t numOfElements = b()->elementsCount;

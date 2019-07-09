@@ -15,20 +15,18 @@
 #include <cstddef>
 #include <memory>
 
-#include "threshsign/Serializable.h"
+#include "Serializable.h"
 #include "IPublicKey.h"
 #include "ThresholdSignaturesTypes.h"
+#include "IThresholdAccumulator.h"
 
-// Forward declarations
-class IThresholdAccumulator;
-
-class IThresholdVerifier : public Serializable {
- protected:
+class IThresholdVerifier : public concordSerializable::Serializable {
  public:
   ~IThresholdVerifier() override = default;
 
  public:
-  virtual IThresholdAccumulator *newAccumulator(bool withShareVerification) const = 0;
+  virtual IThresholdAccumulator *newAccumulator(
+      bool withShareVerification) const = 0;
   virtual void release(IThresholdAccumulator *acc) = 0;
 
   virtual bool verify(const char *msg,
@@ -38,8 +36,9 @@ class IThresholdVerifier : public Serializable {
   virtual int requiredLengthForSignedData() const = 0;
 
   virtual const IPublicKey &getPublicKey() const = 0;
-  virtual const IShareVerificationKey &getShareVerificationKey(ShareID signer) const = 0;
+  virtual const IShareVerificationKey &getShareVerificationKey(
+      ShareID signer) const = 0;
 
-  // Serialization/deserialization
-  virtual void serialize(UniquePtrToChar &outBuf, int64_t &outBufSize) const = 0;
+  static const uint32_t maxSize_ = 2048;
+  static uint32_t maxSize() { return maxSize_; }
 };

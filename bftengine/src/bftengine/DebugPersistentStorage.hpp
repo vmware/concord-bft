@@ -27,7 +27,7 @@ class DebugPersistentStorage : public PersistentStorage {
   virtual uint8_t beginWriteTran() override;
   virtual uint8_t endWriteTran() override;
   virtual bool isInWriteTran() const override;
-  virtual void setReplicaConfig(ReplicaConfig config) override;
+  virtual void setReplicaConfig(const ReplicaConfig &config) override;
   virtual void setFetchingState(const bool f) override;
   virtual void setLastExecutedSeqNum(const SeqNum s) override;
   virtual void setPrimaryLastUsedSeqNum(const SeqNum s) override;
@@ -58,8 +58,8 @@ class DebugPersistentStorage : public PersistentStorage {
       const SeqNum s, const CheckpointMsg* const m) override;
   virtual void setCompletedMarkInCheckWindow(const SeqNum s,
                                              const bool f) override;
-  virtual bool hasReplicaConfig() override;
-  virtual ReplicaConfig getReplicaConig() override;
+  virtual bool hasReplicaConfig() const override;
+  virtual ReplicaConfig getReplicaConfig() override;
   virtual bool getFetchingState() override;
   virtual SeqNum getLastExecutedSeqNum() override;
   virtual SeqNum getPrimaryLastUsedSeqNum() override;

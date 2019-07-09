@@ -1,14 +1,14 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
 // License.
 //
-// This product may include a number of subcomponents with separate copyright
+// This product may include a number of sub-components with separate copyright
 // notices and license terms. Your use of these subcomponents is subject to the
-// terms and conditions of the subcomponent's license, as noted in the LICENSE
+// terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
 #include "FileStorage.hpp"
@@ -17,12 +17,12 @@
 #include <string.h>
 #include <cassert>
 
+using namespace std;
 using namespace bftEngine;
 
 struct Object {
   Object() : elem1(0), elem2(0), elem3(0), elem4(0) {}
-  Object(int e1, long e2, short e3, int e4) :
-      elem1(e1), elem2(e2), elem3(e3), elem4(e4) {}
+  Object(int e1, long e2, short e3, int e4) : elem1(e1), elem2(e2), elem3(e3), elem4(e4) {}
 
   int elem1;
   long elem2;
@@ -50,10 +50,8 @@ void verifyData(FileStorage &fileStorage, uint16_t objId) {
   assert(objIn.elem4 == ELEM4);
 }
 
-// The tests verify that all MetadataStorage interfaces work correctly using
-// file-based storage.
+// The tests verify that all MetadataStorage interfaces work correctly using file-based storage.
 int main(int argc, char **argv) {
-
   try {
     auto logger = concordlogger::Log::getLogger("simpleStorage.test");
     FileStorage fileStorage(logger, "test.txt");
@@ -82,7 +80,7 @@ int main(int argc, char **argv) {
     verifyData(fileStorage, objId2);
     verifyData(fileStorage, objId3);
     verifyData(fileStorage, objId4);
-  } catch (std::exception &e) {
+  } catch (exception &e) {
     return -1;
   }
 

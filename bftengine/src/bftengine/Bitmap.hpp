@@ -48,6 +48,14 @@ class Bitmap {
     }
   }
 
+  bool isEmpty() const {
+    return (numBits_ == 0);
+  }
+
+  bool equals(const Bitmap &other) const {
+    return (other.numBits_ == numBits_ && !memcmp(other.p_, p_, realSize()));
+  }
+
   Bitmap& operator=(const Bitmap& other) {
     if (numBits_ > 0) {
       Assert(p_ != nullptr);
@@ -108,7 +116,7 @@ class Bitmap {
   }
 
   uint32_t sizeNeededInBuffer() const {
-    return (sizeof(uint32_t) + realSize(numBits_));
+    return (sizeof(numBits_) + realSize(numBits_));
   }
 
   static Bitmap* createBitmapFromBuffer(char* buffer,

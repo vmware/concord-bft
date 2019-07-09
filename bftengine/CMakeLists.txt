@@ -37,16 +37,21 @@ set(corebft_source_files
     src/bftengine/StateTransferMsg.cpp
     src/bftengine/ClientsManager.cpp
     src/bftengine/Crypto.cpp
-	src/bftengine/NullStateTransfer.cpp
+    src/bftengine/NullStateTransfer.cpp
     src/bftengine/BFTEngine.cpp
     src/bftengine/SimpleClient.cpp
+    src/bftengine/PersistentStorageImp.cpp
+    src/bftengine/PersistentStorageDescriptors.cpp
+    src/bftengine/PersistentStorageWindows.cpp
     src/bftengine/DebugPersistentStorage.cpp
+    src/bftengine/ReplicaConfigSerializer.cpp
+    src/bftengine/SerializableActiveWindow.cpp
     src/communication/PlainUDPCommunication.cpp
     src/communication/CommFactory.cpp
-	src/bcstatetransfer/BCStateTran.cpp
-	src/bcstatetransfer/InMemoryDataStore.cpp
-	src/bcstatetransfer/STDigest.cpp
-	src/simplestatetransfer/SimpleStateTran.cpp
+    src/bcstatetransfer/BCStateTran.cpp
+    src/bcstatetransfer/InMemoryDataStore.cpp
+    src/bcstatetransfer/STDigest.cpp
+    src/simplestatetransfer/SimpleStateTran.cpp
 )
 #
 # pthread dependency

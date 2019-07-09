@@ -8,89 +8,95 @@
 
 #pragma once
 
-
 #include "SysConsts.hpp"
 #include "PrimitiveTypes.hpp"
 #include "MsgCode.hpp"
-#include "ReplicasInfo.hpp" 
+#include "ReplicasInfo.hpp"
 
+namespace bftEngine {
+namespace impl {
 
-namespace bftEngine
-{
-	namespace impl
-	{
-
-		class MessageBase
-		{
-		public:
-#pragma pack(push,1)
-			struct Header
-			{
-				MsgType msgType;
-			};
+class MessageBase {
+ public:
+#pragma pack(push, 1)
+  struct Header {
+    MsgType msgType;
+  };
 #pragma pack(pop)
-			static_assert(sizeof(Header) == 2, "MessageBase::Header is 2B");
+  static_assert(sizeof(Header) == 2, "MessageBase::Header is 2B");
 
-			MessageBase(NodeIdType sender);
+  explicit MessageBase(NodeIdType sender);
 
-			MessageBase(NodeIdType sender, MsgType type, MsgSize size);
+  MessageBase(NodeIdType sender, MsgType type, MsgSize size);
 
-			MessageBase(NodeIdType sender, Header* body, MsgSize size, bool ownerOfStorage);
+  MessageBase(NodeIdType sender,
+              Header *body,
+              MsgSize size,
+              bool ownerOfStorage);
 
-			~MessageBase();
+  ~MessageBase();
 
-			MsgSize size() const { return msgSize_; }
+  bool equals(const MessageBase &other) const;
 
-			char* body() const { return (char*)msgBody_; }
+  static size_t serializeMsg(char *&buf, MessageBase *msg);
+  static MessageBase *deserializeMsg(char *&buf, size_t bufLen,
+                                     size_t &actualSize);
 
-			NodeIdType senderId() const { return sender_; }
+  MsgSize size() const { return msgSize_; }
 
-			MsgType type() const { return msgBody_->msgType; }
+  char *body() const { return (char *) msgBody_; }
 
-			MessageBase* cloneObjAndMsg() const;
+  NodeIdType senderId() const { return sender_; }
 
-			void writeObjAndMsgToLocalBuffer(char* buffer, size_t bufferLength, size_t* actualSize) const;
-			size_t sizeNeededForObjAndMsgInLocalBuffer() const;
-			static MessageBase* createObjAndMsgFromLocalBuffer(char* buffer, size_t bufferLength, size_t* actualSize);
+  MsgType type() const { return msgBody_->msgType; }
+
+  MessageBase *cloneObjAndMsg() const;
+
+  void writeObjAndMsgToLocalBuffer(char *buffer,
+                                   size_t bufferLength,
+                                   size_t *actualSize) const;
+  size_t sizeNeededForObjAndMsgInLocalBuffer() const;
+  static MessageBase *createObjAndMsgFromLocalBuffer(char *buffer,
+                                                     size_t bufferLength,
+                                                     size_t *actualSize);
 
 #ifdef DEBUG_MEMORY_MSG
-			static void printLiveMessages();
+  static void printLiveMessages();
 #endif
 
-		protected:
+ protected:
 
-			void shrinkToFit();
+  void shrinkToFit();
 
-			void setMsgSize(MsgSize size);
+  void setMsgSize(MsgSize size);
 
-			MsgSize internalStorageSize() const { return storageSize_; }
+  MsgSize internalStorageSize() const { return storageSize_; }
 
-		protected:
-			Header* msgBody_ = nullptr;
-			MsgSize msgSize_ = 0;
-			MsgSize storageSize_ = 0;
-			NodeIdType sender_;
-			bool owner_ = true; // true IFF this instance is not responsible for deallocating the body
+ protected:
+  Header *msgBody_ = nullptr;
+  MsgSize msgSize_ = 0;
+  MsgSize storageSize_ = 0;
+  NodeIdType sender_;
+  // true IFF this instance is not responsible for de-allocating the body:
+  bool owner_ = true;
 
-#pragma pack(push,1)
-			struct RawHeaderOfObjAndMsg
-			{
-				uint32_t magicNum;
-				MsgSize msgSize;
-				NodeIdType sender;
-				// TODO(GG): consider to add checksum
-			};
+#pragma pack(push, 1)
+  struct RawHeaderOfObjAndMsg {
+    uint32_t magicNum;
+    MsgSize msgSize;
+    NodeIdType sender;
+    // TODO(GG): consider to add checksum
+  };
 #pragma pack(pop)
-			static const uint32_t magicNumOfRawFormat = 0x5555897BU;
-		};
+  static const uint32_t magicNumOfRawFormat = 0x5555897BU;
+};
 
+class InternalMessage // TODO(GG): move class to another file
+{
+ public:
+  virtual ~InternalMessage() = default;
+  virtual void handle() = 0;
+};
 
-		class InternalMessage // TODO(GG): move class to another file
-		{
-		public:
-			virtual ~InternalMessage() {}
-			virtual void handle() = 0;
-		};
-
-	}
+}
 }

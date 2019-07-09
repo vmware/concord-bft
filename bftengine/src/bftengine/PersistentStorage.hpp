@@ -17,6 +17,7 @@
 #include "Bitmap.hpp"
 #include "ViewsManager.hpp"
 #include "ReplicaConfig.hpp"
+#include "PersistentStorageDescriptors.hpp"
 
 #include <vector>
 
@@ -31,7 +32,7 @@ class PrepareFullMsg;
 class CommitFullMsg;
 
 // The PersistentStorage interface is used to write/read the concord-bft state 
-// to/from a persistent storage. In case the replica’s process is killed, 
+// to/from a persistent storage. In case the replicaï¿½s process is killed, 
 // crashed or restarted, this interface is used to restore the concord-bft 
 // state from the persistent storage. 
 // PersistentStorage is designed to only store data elements that are essential 
@@ -43,48 +44,6 @@ class CommitFullMsg;
 
 class PersistentStorage {
  public:
-  //////////////////////////////////////////////////////////////////////////
-  // Types
-  //////////////////////////////////////////////////////////////////////////
-
-  struct DescriptorOfLastExitFromView {
-    // view >= 0
-    ViewNum view;
-
-    // lastStable >= 0
-    SeqNum lastStable;
-
-    // lastExecuted >= lastStable
-    SeqNum lastExecuted;
-
-    // elements.size() <= kWorkWindowSize
-    // The messages in elements[i] may be null
-    std::vector<ViewsManager::PrevViewInfo> elements;
-  };
-
-  struct DescriptorOfLastNewView {
-    // view >= 1
-    ViewNum view;
-
-    // newViewMsg != nullptr
-    NewViewMsg* newViewMsg;
-
-    // viewChangeMsgs.size() == 2*F + 2*C + 1
-    // The messages in viewChangeMsgs will never be null
-    std::vector<ViewChangeMsg*> viewChangeMsgs;
-
-    // maxSeqNumTransferredFromPrevViews >= 0
-    SeqNum maxSeqNumTransferredFromPrevViews;
-  };
-
-  struct DescriptorOfLastExecution {
-    // executedSeqNum >= 1
-    SeqNum executedSeqNum;
-
-    // 1 <= validRequests.numOfBits() <= maxNumOfRequestsInBatch
-    Bitmap validRequests;
-  };
-
   //////////////////////////////////////////////////////////////////////////
   // Transactions management
   //////////////////////////////////////////////////////////////////////////
@@ -104,7 +63,7 @@ class PersistentStorage {
   // Update methods (should only be used in write-only transactions)
   //////////////////////////////////////////////////////////////////////////
 
-  virtual void setReplicaConfig(ReplicaConfig config) = 0;
+  virtual void setReplicaConfig(const ReplicaConfig &config) = 0;
 
   virtual void setFetchingState(const bool f) = 0;
   virtual void setLastExecutedSeqNum(const SeqNum s) = 0;
@@ -163,8 +122,8 @@ class PersistentStorage {
   // Read methods (should only be used before using write-only transactions)
   //////////////////////////////////////////////////////////////////////////
 
-  virtual bool hasReplicaConfig() = 0;
-  virtual ReplicaConfig getReplicaConig() = 0;
+  virtual bool hasReplicaConfig() const = 0;
+  virtual ReplicaConfig getReplicaConfig() = 0;
 
   virtual bool getFetchingState() = 0;
   virtual SeqNum getLastExecutedSeqNum() = 0;

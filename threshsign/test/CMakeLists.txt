@@ -1,18 +1,18 @@
 set(bls_test_sources
-  TestBlsBatchVerifier.cpp
-  TestGroupElementSizes.cpp
-  TestRelicSerialization.cpp
-  TestLagrange.cpp
-  TestRelic.cpp
-  TestThresholdBls.cpp
-  TestVectorOfShares.cpp
-  TestThresholdSerialization.cpp
+    TestBlsBatchVerifier.cpp
+    TestGroupElementSizes.cpp
+    TestRelicSerialization.cpp
+    TestLagrange.cpp
+    TestRelic.cpp
+    TestThresholdBls.cpp
+    TestVectorOfShares.cpp
+    TestThresholdSerialization.cpp
 )
 
 foreach(appSrc ${bls_test_sources})
     get_filename_component(appName ${appSrc} NAME_WE)
     add_relic_executable(${appName} ${appSrc} ../bin/test)
-
+    target_link_libraries(${appName} PUBLIC util)
     add_test(NAME ${appName} COMMAND ${appName})
 endforeach()
 
@@ -23,6 +23,5 @@ set(test_sources
 foreach(appSrc ${test_sources})
     get_filename_component(appName ${appSrc} NAME_WE)
     add_threshsign_executable(${appName} ${appSrc} ../bin/test)
-
     add_test(NAME ${appName} COMMAND ${appName})
 endforeach()

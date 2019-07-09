@@ -20,12 +20,12 @@
 #include <unordered_map>
 #include <unordered_set>
 #include "ViewChangeSafetyLogic.hpp"
+#include "PrePrepareMsg.hpp"
+#include "SignedShareMsgs.hpp"
 
 namespace bftEngine {
 namespace impl {
 
-class PrePrepareMsg;
-class PrepareFullMsg;
 class ViewChangeMsg;
 class NewViewMsg;
 class ViewChangeSafetyLogic;
@@ -34,8 +34,8 @@ using std::vector;
 
 class ViewsManager {
  public:
-  ViewsManager(const ReplicasInfo* const r,
-               IThresholdVerifier* const preparedCertificateVerifier);
+  ViewsManager(const ReplicasInfo *const r,
+               IThresholdVerifier *const preparedCertificateVerifier);
   ~ViewsManager();
 
   ViewNum latestActiveView() const { return myLatestActiveView; }
@@ -51,13 +51,13 @@ class ViewsManager {
   }
 
   // should always return non-null (unless we are at the first view)
-  ViewChangeMsg* getMyLatestViewChangeMsg() const;
+  ViewChangeMsg *getMyLatestViewChangeMsg() const;
 
-  bool add(NewViewMsg* m);
-  bool add(ViewChangeMsg* m);
+  bool add(NewViewMsg *m);
+  bool add(ViewChangeMsg *m);
 
-  void computeCorrectRelevantViewNumbers(ViewNum* outMaxKnownCorrectView,
-                                         ViewNum* outMaxKnownAgreedView) const;
+  void computeCorrectRelevantViewNumbers(ViewNum *outMaxKnownCorrectView,
+                                         ViewNum *outMaxKnownAgreedView) const;
 
   // should only be called when v >= myLatestPendingView
   bool hasNewViewMessage(ViewNum v);
@@ -67,23 +67,51 @@ class ViewsManager {
   ///////////////////////////////////////////////////////////////////////////
 
   // should only be called by the primary of the current active view
-  NewViewMsg* getMyNewViewMsgForCurrentView();
+  NewViewMsg *getMyNewViewMsgForCurrentView();
 
-	vector<ViewChangeMsg*> getViewChangeMsgsForCurrentView();
-	NewViewMsg*	getNewViewMsgForCurrentView();
+  vector<ViewChangeMsg *> getViewChangeMsgsForCurrentView();
+  NewViewMsg *getNewViewMsgForCurrentView();
 
   SeqNum stableLowerBoundWhenEnteredToView() const;
 
   struct PrevViewInfo {
-    PrePrepareMsg* prePrepare;
-    bool hasAllRequests;
-    PrepareFullMsg* prepareFull;
+    PrePrepareMsg *prePrepare = nullptr;
+    PrepareFullMsg *prepareFull = nullptr;
+    bool hasAllRequests = true;
+
+    PrevViewInfo() = default;
+
+    PrevViewInfo(PrePrepareMsg *prePrep, PrepareFullMsg *prepFull,
+                 bool allRequests) : prePrepare(prePrep), prepareFull(prepFull),
+                                     hasAllRequests(allRequests) {}
+
+    bool equals(const PrevViewInfo &other) const {
+      if (other.hasAllRequests != hasAllRequests)
+        return false;
+      if ((other.prePrepare && !prePrepare) ||
+          (!other.prePrepare && prePrepare))
+        return false;
+      if ((other.prepareFull && !prepareFull) ||
+          (!other.prepareFull && prepareFull))
+        return false;
+      bool res1 = prePrepare ? (other.prePrepare->equals(*prePrepare)) : true;
+      bool res2 =
+          prepareFull ? (other.prepareFull->equals(*prepareFull)) : true;
+      return res1 && res2;
+    }
+
+    static uint32_t maxSize() {
+      return (PrePrepareMsg::maxSizeOfPrePrepareMsgInLocalBuffer() +
+          PrepareFullMsg::maxSizeOfPrepareFullInLocalBuffer() +
+          sizeof(hasAllRequests));
+    }
   };
-  ViewChangeMsg* exitFromCurrentView(
-    SeqNum currentLastStable,
-    SeqNum currentLastExecuted,
-    const std::vector<PrevViewInfo>& prevViewInfo);
-  // TODO(GG): prevViewInfo is defined and used in a confusing way (becuase it
+
+  ViewChangeMsg *exitFromCurrentView(
+      SeqNum currentLastStable,
+      SeqNum currentLastExecuted,
+      const std::vector<PrevViewInfo> &prevViewInfo);
+  // TODO(GG): prevViewInfo is defined and used in a confusing way (because it
   // contains both executed and non-executed items) - TODO: improve by using two
   // different arguments
 
@@ -94,23 +122,22 @@ class ViewsManager {
   bool tryToEnterView(ViewNum v,
                       SeqNum currentLastStable,
                       SeqNum currentLastExecuted,
-                      std::vector<PrePrepareMsg*>* outPrePrepareMsgsOfView);
+                      std::vector<PrePrepareMsg *> *outPrePrepareMsgsOfView);
 
-  bool addPotentiallyMissingPP(PrePrepareMsg* p, SeqNum currentLastStable);
+  bool addPotentiallyMissingPP(PrePrepareMsg *p, SeqNum currentLastStable);
 
-  PrePrepareMsg* getPrePrepare(SeqNum s);
+  PrePrepareMsg *getPrePrepare(SeqNum s);
 
 
   // TODO(GG): we should also handle large Requests
 
   bool getNumbersOfMissingPP(SeqNum currentLastStable,
-                             std::vector<SeqNum>* outMissingPPNumbers);
+                             std::vector<SeqNum> *outMissingPPNumbers);
 
   bool hasViewChangeMessageForFutureView(uint16_t repId);
 
  protected:
   bool inView() const { return (stat == Stat::IN_VIEW); }
-
 
   bool tryMoveToPendingViewAsPrimary(ViewNum v);
   bool tryMoveToPendingViewAsNonPrimary(ViewNum v);
@@ -125,14 +152,14 @@ class ViewsManager {
   // consts
   ///////////////////////////////////////////////////////////////////////////
 
-  const ReplicasInfo* const replicasInfo;
+  const ReplicasInfo *const replicasInfo;
 
   const uint16_t N;  // number of replicas
   const uint16_t F;  // f
   const uint16_t C;  // c
   const uint16_t myId;
 
-  const ViewChangeSafetyLogic* viewChangeSafetyLogic;
+  const ViewChangeSafetyLogic *viewChangeSafetyLogic;
 
   ///////////////////////////////////////////////////////////////////////////
   // Types
@@ -143,7 +170,7 @@ class ViewsManager {
     PENDING,
     PENDING_WITH_RESTRICTIONS,
     IN_VIEW
-      };
+  };
 
   ///////////////////////////////////////////////////////////////////////////
   // Member variables
@@ -157,16 +184,16 @@ class ViewsManager {
   ViewNum myLatestPendingView;
 
   // for each replica it holds the latest ViewChangeMsg message
-  ViewChangeMsg** viewChangeMessages;
+  ViewChangeMsg **viewChangeMessages;
   // for each replica it holds the latest NewViewMsg message
-  NewViewMsg**  newViewMessages;
+  NewViewMsg **newViewMessages;
 
   // holds PrePrepareMsg messages from last view
   // messages are added when we leave a view
   // some message are deleted when we enter a new view (we don't delete messages
   // that are passed to the new view)
   // not empty, only if inView==false
-  std::map<SeqNum, PrePrepareMsg*> collectionOfPrePrepareMsgs;
+  std::map<SeqNum, PrePrepareMsg *> collectionOfPrePrepareMsgs;
 
 
   ///////////////////////////////////////////////////////////////////////////
@@ -174,15 +201,13 @@ class ViewsManager {
   // Otherwise, they refer to the current active view
   ///////////////////////////////////////////////////////////////////////////
 
-  ViewChangeMsg** viewChangeMsgsOfPendingView;
-  NewViewMsg*     newViewMsgOfOfPendingView;  // (null for v==0)
+  ViewChangeMsg **viewChangeMsgsOfPendingView;
+  NewViewMsg *newViewMsgOfOfPendingView;  // (null for v==0)
 
   SeqNum minRestrictionOfPendingView;
   SeqNum maxRestrictionOfPendingView;
   ViewChangeSafetyLogic::Restriction restrictionsOfPendingView[kWorkWindowSize];
-  PrePrepareMsg* prePrepareMsgsOfRestrictions[kWorkWindowSize];
-
-
+  PrePrepareMsg *prePrepareMsgsOfRestrictions[kWorkWindowSize];
 
   SeqNum lowerBoundStableForPendingView;  // monotone increasing
 
@@ -191,7 +216,7 @@ class ViewsManager {
   // for debug
   ///////////////////////////////////////////////////////////////////////////
   SeqNum debugHighestKnownStable;
-  ViewNum  debugHighestViewNumberPassedByClient;
+  ViewNum debugHighestViewNumberPassedByClient;
 };
 
 }  // namespace impl

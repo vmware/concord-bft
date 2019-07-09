@@ -43,7 +43,7 @@ bool DebugPersistentStorage::isInWriteTran() const {
   return (numOfNestedTransactions != 0);
 }
 
-void DebugPersistentStorage::setReplicaConfig(ReplicaConfig config) {
+void DebugPersistentStorage::setReplicaConfig(const ReplicaConfig &config) {
   Assert(!hasConfig_);
   Assert(isInWriteTran());
   hasConfig_ = true;
@@ -282,9 +282,9 @@ void DebugPersistentStorage::setCompletedMarkInCheckWindow(const SeqNum s,
   checkData.completedMark = f;
 }
 
-bool DebugPersistentStorage::hasReplicaConfig() { return hasConfig_; }
+bool DebugPersistentStorage::hasReplicaConfig() const { return hasConfig_; }
 
-ReplicaConfig DebugPersistentStorage::getReplicaConig() {
+ReplicaConfig DebugPersistentStorage::getReplicaConfig() {
   Assert(getIsAllowed());
   Assert(hasConfig_);
   return config_;
@@ -321,7 +321,7 @@ bool DebugPersistentStorage::hasDescriptorOfLastExitFromView() {
   return hasDescriptorOfLastExitFromView_;
 }
 
-PersistentStorage::DescriptorOfLastExitFromView
+DescriptorOfLastExitFromView
 DebugPersistentStorage::getAndAllocateDescriptorOfLastExitFromView() {
   Assert(getIsAllowed());
   Assert(hasDescriptorOfLastExitFromView_);
@@ -352,7 +352,7 @@ bool DebugPersistentStorage::hasDescriptorOfLastNewView() {
   return hasDescriptorOfLastNewView_;
 }
 
-PersistentStorage::DescriptorOfLastNewView
+DescriptorOfLastNewView
 DebugPersistentStorage::getAndAllocateDescriptorOfLastNewView() {
   Assert(getIsAllowed());
   Assert(hasDescriptorOfLastNewView_);
@@ -378,15 +378,14 @@ bool DebugPersistentStorage::hasDescriptorOfLastExecution() {
   return hasDescriptorOfLastExecution_;
 }
 
-PersistentStorage::DescriptorOfLastExecution
+DescriptorOfLastExecution
 DebugPersistentStorage::getDescriptorOfLastExecution() {
   Assert(getIsAllowed());
   Assert(hasDescriptorOfLastExecution_);
 
   DescriptorOfLastExecution& d = descriptorOfLastExecution_;
 
-  return PersistentStorage::DescriptorOfLastExecution{d.executedSeqNum,
-                                                      d.validRequests};
+  return DescriptorOfLastExecution{d.executedSeqNum, d.validRequests};
 }
 
 SeqNum DebugPersistentStorage::getLastStableSeqNum() {

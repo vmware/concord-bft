@@ -17,20 +17,13 @@
 #include <iostream>
 
 using namespace std;
+using namespace concordSerializable;
 
 namespace BLS {
 namespace Relic {
 
-const string BlsThresholdSigner::className_ = "BlsThresholdSigner";
-const uint32_t BlsThresholdSigner::classVersion_ = 1;
-bool BlsThresholdSigner::registered_ = false;
-
 void BlsThresholdSigner::registerClass() {
-  if (!registered_) {
-    classNameToObjectMap_[className_] =
-        UniquePtrToClass(new BlsThresholdSigner);
-    registered_ = true;
-  }
+  SerializableObjectsDB::registerObject("BlsThresholdSigner", SharedPtrToClass(new BlsThresholdSigner));
 }
 
 BlsThresholdSigner::BlsThresholdSigner(const BlsPublicParameters &params,
@@ -63,20 +56,7 @@ void BlsThresholdSigner::signData(const char *hash, int hashLen, char *outSig,
 
 /************** Serialization **************/
 
-void BlsThresholdSigner::serialize(UniquePtrToChar &outBuf, int64_t &outBufSize)
-const {
-  ofstream outStream(className_.c_str(), ofstream::binary | ofstream::trunc);
-  // Serialize first the class name.
-  serializeClassName(className_, outStream);
-  serializeDataMembers(outStream);
-  outStream.close();
-  retrieveSerializedBuffer(className_, outBuf, outBufSize);
-}
-
 void BlsThresholdSigner::serializeDataMembers(ostream &outStream) const {
-  // Serialize class version
-  outStream.write((char *) &classVersion_, sizeof(classVersion_));
-
   // Serialize params
   params_.serialize(outStream);
 
@@ -112,12 +92,12 @@ bool BlsThresholdSigner::operator==(const BlsThresholdSigner &other) const {
 
 /************** Deserialization **************/
 
-UniquePtrToClass BlsThresholdSigner::create(istream &inStream) {
+SharedPtrToClass BlsThresholdSigner::create(istream &inStream) {
   // Deserialize class version
   verifyClassVersion(classVersion_, inStream);
 
   // Deserialize params
-  UniquePtrToClass params(params_.create(inStream));
+  SharedPtrToClass params(params_.create(inStream));
 
   // Deserialize secretKey
   int32_t sizeOfSecretKey = 0;
@@ -129,7 +109,7 @@ UniquePtrToClass BlsThresholdSigner::create(istream &inStream) {
   // Deserialize id
   inStream.read((char *) &id_, sizeof(id_));
 
-  return UniquePtrToClass(new BlsThresholdSigner(
+  return SharedPtrToClass(new BlsThresholdSigner(
       *((BlsPublicParameters *) params.get()), id_, key));
 }
 

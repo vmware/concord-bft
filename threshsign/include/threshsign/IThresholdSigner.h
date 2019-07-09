@@ -12,11 +12,11 @@
 
 #pragma once
 
-#include "threshsign/Serializable.h"
+#include "Serializable.h"
 #include "ISecretKey.h"
 #include "IPublicKey.h"
 
-class IThresholdSigner : public Serializable {
+class IThresholdSigner : public concordSerializable::Serializable {
  public:
   ~IThresholdSigner() override = default;
 
@@ -27,6 +27,6 @@ class IThresholdSigner : public Serializable {
   virtual const IShareSecretKey &getShareSecretKey() const = 0;
   virtual const IShareVerificationKey &getShareVerificationKey() const = 0;
 
-  // Serialization/deserialization
-  virtual void serialize(UniquePtrToChar &outBuf, int64_t &outBufSize) const = 0;
+  static const uint32_t maxSize_ = 2048;
+  static uint32_t maxSize() { return maxSize_; }
 };
