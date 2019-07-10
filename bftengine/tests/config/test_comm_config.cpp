@@ -64,10 +64,6 @@ void TestCommConfig::GetReplicaConfig(uint16_t replica_id,
   bool success = inputReplicaKeyfile(keyfile, key_file_name, *out_config);
   if (!success)
     throw std::runtime_error("Unable to parse replica keyfile.");
-
-  // Set non-cryptographic configuration
-  out_config -> statusReportTimerMillisec = 2000;
-  out_config -> concurrencyLevel = 1;
 }
 
 std::unordered_map<NodeNum, NodeInfo> TestCommConfig::SetUpConfiguredNodes(

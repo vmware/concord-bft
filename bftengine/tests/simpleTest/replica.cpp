@@ -316,6 +316,8 @@ int main(int argc, char **argv) {
   replicaConfig.numOfClientProxies = rp.numOfClients;
   replicaConfig.autoViewChangeEnabled = rp.viewChangeEnabled;
   replicaConfig.viewChangeTimerMillisec = rp.viewChangeTimeout;
+  replicaConfig.statusReportTimerMillisec = rp.statusReportTimerMillisec;
+  replicaConfig.concurrencyLevel = 1;
 
 #if REPLICA2_RESTART_NO_VC || ALL_REPLICAS_RESTART_NO_VC
   replicaConfig.autoViewChangeEnabled = false;
@@ -372,19 +374,14 @@ int main(int argc, char **argv) {
 
   simpleAppState.st = st;
 
-  replica = Replica::createNewReplica(
-      &replicaConfig,
-      &simpleAppState,
-      st,
-      comm,
-      nullptr);
+  replica = Replica::createNewReplica(&replicaConfig, &simpleAppState, st, comm, nullptr);
 
   replica->start();
 
   while (replica->isRunning()) {
 
 #if REPLICA2_RESTART_NO_VC
-    std::this_thread::sleep_for(std::chrono::seconds(6));
+    std::this_thread::sleep_for(std::chrono::seconds(30));
     if (replicaConfig.replicaId == 2)
       replica->restartForDebug();
 #elif REPLICA2_RESTART_VC
