@@ -244,9 +244,8 @@ void DebugPersistentStorage::setLastStableSeqNum(const SeqNum s) {
 }
 
 void DebugPersistentStorage::DebugPersistentStorage::clearSeqNumWindow() {
-  SeqNum s = seqNumWindow.currentActiveWindow().first;
-  Assert(s == lastStableSeqNum_ + 1);
-  seqNumWindow.resetAll(s);
+  Assert(seqNumWindow.getBeginningOfActiveWindow() == lastStableSeqNum_ + 1);
+  seqNumWindow.resetAll(seqNumWindow.getBeginningOfActiveWindow());
 }
 
 void DebugPersistentStorage::setPrePrepareMsgInSeqNumWindow(
@@ -274,7 +273,7 @@ void DebugPersistentStorage::setFullCommitProofMsgInSeqNumWindow(
 
 void DebugPersistentStorage::setForceCompletedInSeqNumWindow(
     const SeqNum s, const bool forceCompleted) {
-  Assert(forceCompleted == true);
+  Assert(forceCompleted);
   Assert(seqNumWindow.insideActiveWindow(s));
   SeqNumData &seqNumData = seqNumWindow.get(s);
   seqNumData.setForceCompleted(forceCompleted);
@@ -436,7 +435,7 @@ PrePrepareMsg *
 DebugPersistentStorage::getAndAllocatePrePrepareMsgInSeqNumWindow(
     const SeqNum s) {
   Assert(getIsAllowed());
-  Assert(lastStableSeqNum_ + 1 == seqNumWindow.currentActiveWindow().first);
+  Assert(lastStableSeqNum_ + 1 == seqNumWindow.getBeginningOfActiveWindow());
   Assert(seqNumWindow.insideActiveWindow(s));
 
   PrePrepareMsg *orgMsg = seqNumWindow.get(s).getPrePrepareMsg();
@@ -449,7 +448,7 @@ DebugPersistentStorage::getAndAllocatePrePrepareMsgInSeqNumWindow(
 
 bool DebugPersistentStorage::getSlowStartedInSeqNumWindow(const SeqNum s) {
   Assert(getIsAllowed());
-  Assert(lastStableSeqNum_ + 1 == seqNumWindow.currentActiveWindow().first);
+  Assert(lastStableSeqNum_ + 1 == seqNumWindow.getBeginningOfActiveWindow());
   Assert(seqNumWindow.insideActiveWindow(s));
   bool b = seqNumWindow.get(s).getSlowStarted();
   return b;
@@ -459,7 +458,7 @@ FullCommitProofMsg *
 DebugPersistentStorage::getAndAllocateFullCommitProofMsgInSeqNumWindow(
     const SeqNum s) {
   Assert(getIsAllowed());
-  Assert(lastStableSeqNum_ + 1 == seqNumWindow.currentActiveWindow().first);
+  Assert(lastStableSeqNum_ + 1 == seqNumWindow.getBeginningOfActiveWindow());
   Assert(seqNumWindow.insideActiveWindow(s));
 
   FullCommitProofMsg *orgMsg = seqNumWindow.get(s).getFullCommitProofMsg();
@@ -472,7 +471,7 @@ DebugPersistentStorage::getAndAllocateFullCommitProofMsgInSeqNumWindow(
 
 bool DebugPersistentStorage::getForceCompletedInSeqNumWindow(const SeqNum s) {
   Assert(getIsAllowed());
-  Assert(lastStableSeqNum_ + 1 == seqNumWindow.currentActiveWindow().first);
+  Assert(lastStableSeqNum_ + 1 == seqNumWindow.getBeginningOfActiveWindow());
   Assert(seqNumWindow.insideActiveWindow(s));
   bool b = seqNumWindow.get(s).getForceCompleted();
   return b;
@@ -482,7 +481,7 @@ PrepareFullMsg *
 DebugPersistentStorage::getAndAllocatePrepareFullMsgInSeqNumWindow(
     const SeqNum s) {
   Assert(getIsAllowed());
-  Assert(lastStableSeqNum_ + 1 == seqNumWindow.currentActiveWindow().first);
+  Assert(lastStableSeqNum_ + 1 == seqNumWindow.getBeginningOfActiveWindow());
   Assert(seqNumWindow.insideActiveWindow(s));
 
   PrepareFullMsg *orgMsg = seqNumWindow.get(s).getPrepareFullMsg();
@@ -497,7 +496,7 @@ CommitFullMsg *
 DebugPersistentStorage::getAndAllocateCommitFullMsgInSeqNumWindow(
     const SeqNum s) {
   Assert(getIsAllowed());
-  Assert(lastStableSeqNum_ + 1 == seqNumWindow.currentActiveWindow().first);
+  Assert(lastStableSeqNum_ + 1 == seqNumWindow.getBeginningOfActiveWindow());
   Assert(seqNumWindow.insideActiveWindow(s));
 
   CommitFullMsg *orgMsg = seqNumWindow.get(s).getCommitFullMsg();
@@ -511,7 +510,7 @@ DebugPersistentStorage::getAndAllocateCommitFullMsgInSeqNumWindow(
 CheckpointMsg *DebugPersistentStorage::getAndAllocateCheckpointMsgInCheckWindow(
     const SeqNum s) {
   Assert(getIsAllowed());
-  Assert(lastStableSeqNum_ == checkWindow.currentActiveWindow().first);
+  Assert(lastStableSeqNum_ == checkWindow.getBeginningOfActiveWindow());
   Assert(checkWindow.insideActiveWindow(s));
 
   CheckpointMsg *orgMsg = checkWindow.get(s).getCheckpointMsg();
@@ -524,7 +523,7 @@ CheckpointMsg *DebugPersistentStorage::getAndAllocateCheckpointMsgInCheckWindow(
 
 bool DebugPersistentStorage::getCompletedMarkInCheckWindow(const SeqNum s) {
   Assert(getIsAllowed());
-  Assert(lastStableSeqNum_ == checkWindow.currentActiveWindow().first);
+  Assert(lastStableSeqNum_ == checkWindow.getBeginningOfActiveWindow());
   Assert(checkWindow.insideActiveWindow(s));
   bool b = checkWindow.get(s).getCompletedMark();
   return b;

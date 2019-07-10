@@ -116,6 +116,7 @@ class CheckData {
   size_t serializeCheckpointMsg(char *&buf) const;
   void serialize(char *buf, uint32_t bufLen, size_t &actualSize) const;
 
+  bool isCheckpointMsgSet() const { return (checkpointMsg_ != nullptr); }
   CheckpointMsg *getCheckpointMsg() const { return checkpointMsg_; }
   bool getCompletedMark() const { return completedMark_; }
 

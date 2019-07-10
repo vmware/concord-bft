@@ -159,11 +159,11 @@ class PersistentStorageImp : public PersistentStorage {
   void setMsgInSeqNumWindow(const SeqNum &seqNum, const SeqNum &parameterId,
                             MessageBase *msg, const size_t &msgSize) const;
   void setBooleanInSeqNumWindow(const SeqNum &seqNum, const SeqNum &parameterId, const bool &boolean) const;
-  void setSeqNumDataElement(const SeqNum &index, char *buf, SharedPtrSeqNumWindow seqNumWindow) const;
-  void serializeAndSaveSeqNumWindow(SharedPtrSeqNumWindow seqNumWindow);
+  void setSeqNumDataElement(const SeqNum &index, char *buf, const SharedPtrSeqNumWindow &seqNumWindow) const;
+  void serializeAndSaveSeqNumWindow(const SharedPtrSeqNumWindow &seqNumWindow);
 
-  void setCheckDataElement(const SeqNum &index, char *buf, SharedPtrCheckWindow checkWindow) const;
-  void serializeAndSaveCheckWindow(SharedPtrCheckWindow checkWindow);
+  void setCheckDataElement(const SeqNum &index, char *buf, const SharedPtrCheckWindow &checkWindow) const;
+  void serializeAndSaveCheckWindow(const SharedPtrCheckWindow &checkWindow);
 
   MessageBase *readMsgFromDisk(const SeqNum &seqNum, const SeqNum &parameterId, const size_t &msgSize) const;
   PrePrepareMsg *readPrePrepareMsgFromDisk(const SeqNum &seqNum) const;
@@ -171,9 +171,9 @@ class PersistentStorageImp : public PersistentStorage {
   PrepareFullMsg *readPrepareFullMsgFromDisk(const SeqNum &seqNum) const;
   CommitFullMsg *readCommitFullMsgFromDisk(const SeqNum &seqNum) const;
   bool readBooleanFromDisk(const SeqNum &seqNum, const SeqNum &parameterId) const;
-  void readSeqNumDataElementFromDisk(const SeqNum &index, char *buf, SharedPtrSeqNumWindow seqNumWindow);
+  void readSeqNumDataElementFromDisk(const SeqNum &index, char *buf, const SharedPtrSeqNumWindow &seqNumWindow);
 
-  void readCheckDataElementFromDisk(const SeqNum &index, char *buf, SharedPtrCheckWindow checkWindow);
+  void readCheckDataElementFromDisk(const SeqNum &index, char *buf, const SharedPtrCheckWindow &checkWindow);
   CheckpointMsg *readCheckpointMsgFromDisk(const SeqNum &seqNum) const;
   bool readCompletedMarkFromDisk(const SeqNum &seqNum) const;
 
@@ -182,8 +182,8 @@ class PersistentStorageImp : public PersistentStorage {
   void setPrimaryLastUsedSeqNumInternal(const SeqNum &seqNum);
   void setStrictLowerBoundOfSeqNumsInternal(const SeqNum &seqNum);
   void setLastViewTransferredSeqNumbersInternal(const ViewNum &view);
-  void setLastStableSeqNumInternal(const SeqNum &seqNum, SharedPtrSeqNumWindow seqNumWindow,
-                                   SharedPtrCheckWindow checkWindow);
+  void setLastStableSeqNumInternal(const SeqNum &seqNum, const SharedPtrSeqNumWindow &seqNumWindow,
+                                   const SharedPtrCheckWindow &checkWindow);
 
  private:
   MetadataStorage *metadataStorage_ = nullptr;
