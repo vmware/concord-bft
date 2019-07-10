@@ -64,9 +64,7 @@ class BftTester:
         for client in self.clients.values():
             client.__exit__()
         self.metrics.__exit__()
-        for proc in self.procs.values():
-            proc.kill()
-            proc.wait()
+        self.stop_all_replicas()
         os.chdir(self.origdir)
 
     def __init__(self, config):
@@ -189,6 +187,8 @@ class BftTester:
             p.kill()
             p.wait()
 
+        self.procs = {}
+
     def start_replica(self, replica_id):
         """
         Start a replica if it isn't already started.
@@ -209,6 +209,8 @@ class BftTester:
         p = self.procs[replica]
         p.kill()
         p.wait()
+
+        del self.procs[replica]
 
     async def wait_for_state_transfer_to_start(self):
         """
