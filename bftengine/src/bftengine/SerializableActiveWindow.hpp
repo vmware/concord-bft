@@ -14,6 +14,7 @@
 
 #include <stdint.h>
 #include <utility>
+#include <list>
 #include "assertUtils.hpp"
 #include "PrimitiveTypes.hpp"
 
@@ -46,7 +47,7 @@ class SerializableActiveWindow {
 
   bool insideActiveWindow(const uint16_t &num) const;
 
-  static bool insideActiveWindow(const uint16_t &num, const SeqNum &beginningOfActiveWindow);
+  static bool insideActiveWindow(const uint16_t &num, const SeqNum &newFirstIndex);
 
   ItemType &get(const uint16_t &num);
 
@@ -56,7 +57,7 @@ class SerializableActiveWindow {
 
   void resetAll(const SeqNum &windowFirst);
 
-  void advanceActiveWindow(const uint32_t &newFirstIndexOfActiveWindow);
+  std::list<SeqNum> advanceActiveWindow(const uint32_t &newFirstIndex);
 
   static SeqNum convertIndex(const SeqNum &seqNum, const SeqNum& beginningOfActiveWindow);
 

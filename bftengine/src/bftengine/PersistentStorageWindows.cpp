@@ -26,7 +26,6 @@ void SeqNumData::reset() {
   fullCommitProofMsg_ = nullptr;
   prepareFullMsg_ = nullptr;
   commitFullMsg_ = nullptr;
-
   slowStarted_ = false;
   forceCompleted_ = false;
 }
@@ -154,6 +153,7 @@ uint32_t SeqNumData::maxCommitFullMsgSize() {
 
 void CheckData::reset() {
   delete checkpointMsg_;
+
   checkpointMsg_ = nullptr;
   completedMark_ = false;
 }
@@ -191,7 +191,7 @@ bool CheckData::deserializeCompletedMark(char *&buf) {
   return completedMark;
 }
 
-CheckpointMsg *CheckData::deserializeCheckpointMsg(char *buf, uint32_t bufLen, size_t &actualMsgSize) {
+CheckpointMsg *CheckData::deserializeCheckpointMsg(char *&buf, uint32_t bufLen, size_t &actualMsgSize) {
   return (CheckpointMsg *) MessageBase::deserializeMsg(buf, bufLen, actualMsgSize);
 }
 
@@ -199,8 +199,8 @@ CheckData CheckData::deserialize(char *buf, uint32_t bufLen, uint32_t &actualSiz
   actualSize = 0;
   size_t msgSize = 0;
 
-  bool completedMark = deserializeCompletedMark(buf);
   auto *checkpointMsg = deserializeCheckpointMsg(buf, bufLen, msgSize);
+  bool completedMark = deserializeCompletedMark(buf);
 
   actualSize += sizeof(completedMark) + msgSize;
   return CheckData{checkpointMsg, completedMark};

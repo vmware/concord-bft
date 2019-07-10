@@ -94,35 +94,41 @@ ItemType &SerializableActiveWindow<INPUT_PARAMS>::getByRealIndex(const uint16_t 
 template<TEMPLATE_PARAMS>
 void SerializableActiveWindow<INPUT_PARAMS>::resetAll(const SeqNum &windowFirst) {
   Assert(windowFirst % Resolution == 0);
-  for (uint32_t i = 0; i < numItems_; i++)
+  for (SeqNum i = 0; i < numItems_; i++)
     activeWindow_[i].reset();
   beginningOfActiveWindow_ = windowFirst;
 }
 
 template<TEMPLATE_PARAMS>
-void SerializableActiveWindow<INPUT_PARAMS>::advanceActiveWindow(const uint32_t &newFirstIndexOfActiveWindow) {
-  Assert(newFirstIndexOfActiveWindow % Resolution == 0);
-  Assert(newFirstIndexOfActiveWindow >= beginningOfActiveWindow_);
-  if (newFirstIndexOfActiveWindow == beginningOfActiveWindow_)
-    return;
-  if (newFirstIndexOfActiveWindow - beginningOfActiveWindow_ >= WindowSize) {
-    resetAll(newFirstIndexOfActiveWindow);
-    return;
+std::list<SeqNum> SerializableActiveWindow<INPUT_PARAMS>::advanceActiveWindow(const uint32_t &newFirstIndex) {
+  Assert(newFirstIndex % Resolution == 0);
+  Assert(newFirstIndex >= beginningOfActiveWindow_);
+
+  std::list<SeqNum> cleanedItems;
+  if (newFirstIndex == beginningOfActiveWindow_)
+    return cleanedItems;
+  if (newFirstIndex - beginningOfActiveWindow_ >= WindowSize) {
+    resetAll(newFirstIndex);
+    for (SeqNum i = 0; i < numItems_; i++)
+      cleanedItems.push_back(i);
+    return cleanedItems;
   }
   const uint16_t inactiveBegin = ((beginningOfActiveWindow_ / Resolution) % numItems_);
-  const uint16_t activeBegin = ((newFirstIndexOfActiveWindow / Resolution) % numItems_);
+  const uint16_t activeBegin = ((newFirstIndex / Resolution) % numItems_);
   const uint16_t inactiveEnd = ((activeBegin > 0) ? (activeBegin - 1) : (numItems_ - 1));
   const uint16_t resetSize = (inactiveBegin <= inactiveEnd) ? (inactiveEnd - inactiveBegin + 1) :
                              (inactiveEnd + 1 + numItems_ - inactiveBegin);
   Assert(resetSize > 0 && resetSize < numItems_);
   uint16_t debugNumOfReset = 0;
-  for (uint32_t i = inactiveBegin; i != activeBegin; (i = ((i + 1) % numItems_))) {
+  for (SeqNum i = inactiveBegin; i != activeBegin; (i = ((i + 1) % numItems_))) {
     activeWindow_[i].reset();
+    cleanedItems.push_back(i);
     debugNumOfReset++;
   }
   Assert(debugNumOfReset == resetSize);
-  beginningOfActiveWindow_ = newFirstIndexOfActiveWindow;
+  beginningOfActiveWindow_ = newFirstIndex;
+  return cleanedItems;
 }
 
-}
-}
+} // impl
+} // bftEngine

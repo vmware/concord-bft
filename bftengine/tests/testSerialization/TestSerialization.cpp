@@ -202,44 +202,65 @@ void testInit() {
 }
 
 void testCheckWindowSetUp(const SeqNum shift, bool toSet) {
-  const SeqNum checkpointSeqNum = 150 + shift;
+  const SeqNum checkpointSeqNum1 = shift;
+  const SeqNum checkpointSeqNum2 = 150 + shift;
+  const SeqNum checkpointSeqNum3 = 300 + shift;
+
   ReplicaId sender = 3;
   Digest stateDigest;
   const bool stateIsStable = true;
-  CheckpointMsg checkpointInitialMsg(sender, checkpointSeqNum, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg1(sender, checkpointSeqNum1, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg2(sender, checkpointSeqNum2, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg3(sender, checkpointSeqNum3, stateDigest, stateIsStable);
 
   const bool completed = true;
 
   if (toSet) {
     persistentStorageImp->beginWriteTran();
-    persistentStorageImp->setCheckpointMsgInCheckWindow(checkpointSeqNum, &checkpointInitialMsg);
-    persistentStorageImp->setCompletedMarkInCheckWindow(checkpointSeqNum, completed);
+    persistentStorageImp->setCheckpointMsgInCheckWindow(checkpointSeqNum1, &checkpointInitialMsg1);
+    persistentStorageImp->setCompletedMarkInCheckWindow(checkpointSeqNum1, completed);
+    persistentStorageImp->setCheckpointMsgInCheckWindow(checkpointSeqNum2, &checkpointInitialMsg2);
+    persistentStorageImp->setCompletedMarkInCheckWindow(checkpointSeqNum2, completed);
+    persistentStorageImp->setCheckpointMsgInCheckWindow(checkpointSeqNum3, &checkpointInitialMsg3);
+    persistentStorageImp->setCompletedMarkInCheckWindow(checkpointSeqNum3, completed);
     persistentStorageImp->endWriteTran();
   }
 
-  CheckpointMsg *checkpointMsg = persistentStorageImp->getAndAllocateCheckpointMsgInCheckWindow(checkpointSeqNum);
-  Assert(checkpointMsg->equals(checkpointInitialMsg));
+  CheckpointMsg *checkpointMsg1 = persistentStorageImp->getAndAllocateCheckpointMsgInCheckWindow(checkpointSeqNum1);
+  if (!shift) {
+    Assert(checkpointMsg1->equals(checkpointInitialMsg1));
+    Assert(completed == persistentStorageImp->getCompletedMarkInCheckWindow(checkpointSeqNum1));
+  } else {
+    Assert(!checkpointMsg1);
+    Assert(!persistentStorageImp->getCompletedMarkInCheckWindow(checkpointSeqNum1));
+  }
 
-  Assert(completed == persistentStorageImp->getCompletedMarkInCheckWindow(checkpointSeqNum));
+  CheckpointMsg *checkpointMsg2 = persistentStorageImp->getAndAllocateCheckpointMsgInCheckWindow(checkpointSeqNum2);
+  Assert(checkpointMsg2->equals(checkpointInitialMsg2));
+  CheckpointMsg *checkpointMsg3 = persistentStorageImp->getAndAllocateCheckpointMsgInCheckWindow(checkpointSeqNum3);
+  Assert(checkpointMsg3->equals(checkpointInitialMsg3));
+
+  Assert(completed == persistentStorageImp->getCompletedMarkInCheckWindow(checkpointSeqNum2));
+  Assert(completed == persistentStorageImp->getCompletedMarkInCheckWindow(checkpointSeqNum3));
 }
 
 void testSeqNumWindowSetUp(const SeqNum shift, bool toSet) {
-  const SeqNum prePrepareMsgSeqNum = 172 + shift;
+  const SeqNum prePrepareMsgSeqNum = 4 + shift;
   ReplicaId sender = 2;
   ViewNum view = 6;
   CommitPath firstPath = CommitPath::FAST_WITH_THRESHOLD;
   PrePrepareMsg prePrepareInitialMsg(sender, view, prePrepareMsgSeqNum, firstPath);
 
-  const SeqNum slowStartedSeqNum = 192 + shift;
+  const SeqNum slowStartedSeqNum = 140 + shift;
   bool slowStarted = true;
 
-  const SeqNum fullCommitProofSeqNum = 292 + shift;
+  const SeqNum prePrepareFullSeqNum = 165 + shift;
+  PrepareFullMsg *prePrepareFullInitialMsg = PrepareFullMsg::create(view, prePrepareFullSeqNum, sender, nullptr, 0);
+
+  const SeqNum fullCommitProofSeqNum = 100 + shift;
   FullCommitProofMsg fullCommitProofInitialMsg(sender, view, fullCommitProofSeqNum, nullptr, 0);
 
   const bool forceCompleted = true;
-
-  const SeqNum prePrepareFullSeqNum = 202 + shift;
-  PrepareFullMsg *prePrepareFullInitialMsg = PrepareFullMsg::create(view, prePrepareFullSeqNum, sender, nullptr, 0);
 
   const SeqNum commitFullSeqNum = 242 + shift;
   CommitFullMsg *commitFullInitialMsg = CommitFullMsg::create(view, commitFullSeqNum, sender, nullptr, 0);
@@ -249,22 +270,26 @@ void testSeqNumWindowSetUp(const SeqNum shift, bool toSet) {
     persistentStorageImp->setPrePrepareMsgInSeqNumWindow(prePrepareMsgSeqNum, &prePrepareInitialMsg);
     persistentStorageImp->setSlowStartedInSeqNumWindow(slowStartedSeqNum, slowStarted);
     persistentStorageImp->setFullCommitProofMsgInSeqNumWindow(fullCommitProofSeqNum, &fullCommitProofInitialMsg);
-    persistentStorageImp->setForceCompletedInSeqNumWindow(fullCommitProofSeqNum, forceCompleted);
+    persistentStorageImp->setForceCompletedInSeqNumWindow(commitFullSeqNum, forceCompleted);
     persistentStorageImp->setPrepareFullMsgInSeqNumWindow(prePrepareFullSeqNum, prePrepareFullInitialMsg);
     persistentStorageImp->setCommitFullMsgInSeqNumWindow(commitFullSeqNum, commitFullInitialMsg);
     persistentStorageImp->endWriteTran();
   }
 
   PrePrepareMsg *prePrepareMsg = persistentStorageImp->getAndAllocatePrePrepareMsgInSeqNumWindow(prePrepareMsgSeqNum);
-  Assert(prePrepareMsg->equals(prePrepareInitialMsg));
-
-  Assert(slowStarted == persistentStorageImp->getSlowStartedInSeqNumWindow(slowStartedSeqNum));
-
   FullCommitProofMsg *fullCommitProofMsg =
       persistentStorageImp->getAndAllocateFullCommitProofMsgInSeqNumWindow(fullCommitProofSeqNum);
-  Assert(fullCommitProofMsg->equals(fullCommitProofInitialMsg));
+  if (!shift) {
+    Assert(prePrepareMsg->equals(prePrepareInitialMsg));
+    Assert(slowStarted == persistentStorageImp->getSlowStartedInSeqNumWindow(slowStartedSeqNum));
+    Assert(fullCommitProofMsg->equals(fullCommitProofInitialMsg));
+  } else {
+    Assert(!prePrepareMsg);
+    Assert(!persistentStorageImp->getSlowStartedInSeqNumWindow(slowStartedSeqNum));
+    Assert(!fullCommitProofMsg);
+  }
 
-  Assert(forceCompleted == persistentStorageImp->getForceCompletedInSeqNumWindow(fullCommitProofSeqNum));
+  Assert(forceCompleted == persistentStorageImp->getForceCompletedInSeqNumWindow(commitFullSeqNum));
 
   PrepareFullMsg *prepareFullMsg =
       persistentStorageImp->getAndAllocatePrepareFullMsgInSeqNumWindow(prePrepareFullSeqNum);
@@ -289,8 +314,8 @@ void testWindowsAdvance() {
   persistentStorageImp->endWriteTran();
 
   Assert(moveToSeqNum == persistentStorageImp->getLastStableSeqNum());
-  testSeqNumWindowSetUp(moveToSeqNum, true);
-  testCheckWindowSetUp(moveToSeqNum, true);
+  testCheckWindowSetUp(moveToSeqNum, false);
+  testSeqNumWindowSetUp(moveToSeqNum, false);
 }
 
 void testSetDescriptors(bool toSet) {

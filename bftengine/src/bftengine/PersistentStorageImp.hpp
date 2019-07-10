@@ -159,24 +159,28 @@ class PersistentStorageImp : public PersistentStorage {
   void setMsgInSeqNumWindow(const SeqNum &seqNum, const SeqNum &parameterId,
                             MessageBase *msg, const size_t &msgSize) const;
   void setBooleanInSeqNumWindow(const SeqNum &seqNum, const SeqNum &parameterId, const bool &boolean) const;
-  void setSeqNumDataElement(const SeqNum &index, char *buf, const SharedPtrSeqNumWindow &seqNumWindow) const;
+  void setSeqNumDataElement(const SeqNum &index, const SharedPtrSeqNumWindow &seqNumWindow) const;
   void serializeAndSaveSeqNumWindow(const SharedPtrSeqNumWindow &seqNumWindow);
+  void setSeqNumDataElement(const SeqNum &index, const SeqNumData &elem) const;
 
-  void setCheckDataElement(const SeqNum &index, char *buf, const SharedPtrCheckWindow &checkWindow) const;
   void serializeAndSaveCheckWindow(const SharedPtrCheckWindow &checkWindow);
+  void setCheckDataElement(const SeqNum &index, const CheckData &elem) const;
+  void setCheckDataElement(const SeqNum &index, const SharedPtrCheckWindow &checkWindow) const;
 
   SeqNum readBeginningOfActiveWindow(const uint32_t &index) const;
-  MessageBase *readMsgFromDisk(const SeqNum &seqNum, const SeqNum &parameterId, const size_t &msgSize) const;
+  MessageBase *readMsgFromDisk(const SeqNum &index, const SeqNum &parameterId, const size_t &msgSize) const;
   PrePrepareMsg *readPrePrepareMsgFromDisk(const SeqNum &seqNum) const;
   FullCommitProofMsg *readFullCommitProofMsgFromDisk(const SeqNum &seqNum) const;
   PrepareFullMsg *readPrepareFullMsgFromDisk(const SeqNum &seqNum) const;
   CommitFullMsg *readCommitFullMsgFromDisk(const SeqNum &seqNum) const;
   bool readBooleanFromDisk(const SeqNum &seqNum, const SeqNum &parameterId) const;
-  void readSeqNumDataElementFromDisk(const SeqNum &index, char *buf, const SharedPtrSeqNumWindow &seqNumWindow);
+  void readSeqNumDataElementFromDisk(const SeqNum &index, const SharedPtrSeqNumWindow &seqNumWindow);
+  const SeqNum convertSeqNumWindowIndex(const SeqNum &index) const;
 
-  void readCheckDataElementFromDisk(const SeqNum &index, char *buf, const SharedPtrCheckWindow &checkWindow);
+  void readCheckDataElementFromDisk(const SeqNum &index, const SharedPtrCheckWindow &checkWindow);
+  const SeqNum convertCheckWindowIndex(const SeqNum &index) const;
   CheckpointMsg *readCheckpointMsgFromDisk(const SeqNum &seqNum) const;
-  bool readCompletedMarkFromDisk(const SeqNum &seqNum) const;
+  bool readCompletedMarkFromDisk(const SeqNum &index) const;
 
   void writeBeginningOfActiveWindow(const uint32_t &index, const SeqNum &beginning) const;
   void setFetchingStateInternal(const bool &state);
