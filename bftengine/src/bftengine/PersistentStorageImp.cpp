@@ -44,17 +44,18 @@ void PersistentStorageImp::retrieveWindowsMetadata() {
 }
 
 // TODO: Yulia Init code should be taken out the class to enable StateTransfer using the same DB.
-void PersistentStorageImp::init(MetadataStorage *&metadataStorage) {
+bool PersistentStorageImp::init(MetadataStorage *&metadataStorage) {
   metadataStorage_ = metadataStorage;
   try {
     if (!getStoredVersion().empty()) {
       retrieveWindowsMetadata();
-      return;
+      return false;
     }
   } catch (const runtime_error &exc) {}
   initMetadataStorage(metadataStorage);
   // DB is not populated yet with default metadata parameter values.
   setDefaultsInMetadataStorage();
+  return true;
 }
 
 void PersistentStorageImp::setDefaultsInMetadataStorage() {

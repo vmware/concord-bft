@@ -142,7 +142,7 @@ Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
     }
     retVal = new ReplicaInternal();
 
-    // TODO(GG): comapre ld.repConfig and replicaConfig
+    // TODO(GG): compare ld.repConfig and replicaConfig
 
     retVal->rep = new ReplicaImp(ld, requestsHandler, stateTransfer, communication, ps);
   }
