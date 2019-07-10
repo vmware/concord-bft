@@ -47,23 +47,6 @@ bool SerializableActiveWindow<INPUT_PARAMS>::equals(const SerializableActiveWind
 }
 
 template<TEMPLATE_PARAMS>
-void SerializableActiveWindow<INPUT_PARAMS>::serializeActiveWindowBeginning(char *buf) const {
-  memcpy(buf, &beginningOfActiveWindow_, sizeof(beginningOfActiveWindow_));
-}
-
-template<TEMPLATE_PARAMS>
-SeqNum SerializableActiveWindow<INPUT_PARAMS>::deserializeActiveWindowBeginning(char *buf) {
-  SeqNum beginningOfActiveWindow = 0;
-  memcpy(&beginningOfActiveWindow, buf, sizeof(beginningOfActiveWindow));
-  return beginningOfActiveWindow;
-}
-
-template<TEMPLATE_PARAMS>
-void SerializableActiveWindow<INPUT_PARAMS>::deserializeBeginningOfActiveWindow(char *buf) {
-  beginningOfActiveWindow_ = deserializeActiveWindowBeginning(buf);
-}
-
-template<TEMPLATE_PARAMS>
 void SerializableActiveWindow<INPUT_PARAMS>::deserializeElement(const uint16_t &index, char *buf, const size_t &bufLen,
                                                                 uint32_t &actualSize) {
   actualSize = 0;

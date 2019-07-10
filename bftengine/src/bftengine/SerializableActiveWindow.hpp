@@ -38,20 +38,9 @@ class SerializableActiveWindow {
     return ItemType::maxSize();
   }
 
-  static uint32_t simpleParamsSize() {
-    return sizeof(beginningOfActiveWindow_);
-  }
-
   SeqNum getBeginningOfActiveWindow() const { return beginningOfActiveWindow_; }
-  SeqNum getNumOfItems() const { return numItems_; }
 
   bool equals(const SerializableActiveWindow &other) const;
-
-  void serializeActiveWindowBeginning(char *buf) const;
-
-  void deserializeBeginningOfActiveWindow(char *buf);
-
-  static SeqNum deserializeActiveWindowBeginning(char *buf);
 
   void deserializeElement(const uint16_t &index, char *buf, const size_t &bufLen, uint32_t &actualSize);
 
