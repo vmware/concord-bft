@@ -15,7 +15,7 @@
 using namespace bftEngine;
 using namespace std;
 
-#define test_assert(statement, message) \
+#define test_assert_replica(statement, message) \
 { if (!(statement)) { \
 LOG_FATAL(logger, "assert fail with message: " << message); assert(false);}}
 
@@ -67,15 +67,15 @@ class SimpleAppState : public RequestsHandler {
               uint32_t& outActualReplySize) override {
     if (readOnly) {
       // Our read-only request includes only a type, no argument.
-      test_assert(requestSize == sizeof(uint64_t),
+      test_assert_replica(requestSize == sizeof(uint64_t),
                   "requestSize =! " << sizeof(uint64_t));
 
       // We only support the READ operation in read-only mode.
-      test_assert(*reinterpret_cast<const uint64_t*>(request) == READ_VAL_REQ,
+      test_assert_replica(*reinterpret_cast<const uint64_t*>(request) == READ_VAL_REQ,
                   "request is NOT " << READ_VAL_REQ);
 
       // Copy the latest register value to the reply buffer.
-      test_assert(maxReplySize >= sizeof(uint64_t),
+      test_assert_replica(maxReplySize >= sizeof(uint64_t),
                   "maxReplySize < " << sizeof(uint64_t));
       uint64_t* pRet = reinterpret_cast<uint64_t*>(outReply);
       auto lastValue = get_last_state_value(clientId);
@@ -84,12 +84,12 @@ class SimpleAppState : public RequestsHandler {
     } else {
       // Our read-write request includes one eight-byte argument, in addition to
       // the request type.
-      test_assert(requestSize == 2 * sizeof(uint64_t),
+      test_assert_replica(requestSize == 2 * sizeof(uint64_t),
                   "requestSize != " << 2 * sizeof(uint64_t));
 
       // We only support the WRITE operation in read-write mode.
       const uint64_t* pReqId = reinterpret_cast<const uint64_t*>(request);
-      test_assert(*pReqId == SET_VAL_REQ, "*preqId != " << SET_VAL_REQ);
+      test_assert_replica(*pReqId == SET_VAL_REQ, "*preqId != " << SET_VAL_REQ);
 
       // The value to write is the second eight bytes of the request.
       const uint64_t* pReqVal = (pReqId + 1);
@@ -101,7 +101,7 @@ class SimpleAppState : public RequestsHandler {
       set_last_state_num(clientId, stateNum + 1);
 
       // Reply with the number of times we've modified the register.
-      test_assert(maxReplySize >= sizeof(uint64_t),
+      test_assert_replica(maxReplySize >= sizeof(uint64_t),
                   "maxReplySize < " << sizeof(uint64_t));
       uint64_t* pRet = reinterpret_cast<uint64_t*>(outReply);
       *pRet = stateNum;
@@ -133,9 +133,9 @@ class SimpleAppState : public RequestsHandler {
 struct PersistencyTestInfo {
   bool replica2RestartNoVC = false;
   bool allReplicasRestartNoVC = false;
-  bool replica2RestartVC = false;
   bool allReplicasRestartVC = false;
-  bool primaryReplicaRestart = false;
+  bool primaryReplicaRestartVC = false;
+  uint32_t restartDelay = 0;
 };
 
 class SimpleTestReplica {
@@ -154,18 +154,21 @@ class SimpleTestReplica {
       ReplicaConfig rc,
       const PersistencyTestInfo &persistencyTestInfo,
       bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer *inMemoryST) :
-      comm{commObject}, pti{persistencyTestInfo}, replicaConfig{rc} {
+      comm{commObject}, replicaConfig{rc}, pti{persistencyTestInfo} {
     replica = Replica::createNewReplica(&rc,  &state, inMemoryST, comm, nullptr);
   }
 
   ~SimpleTestReplica() {
     if(replica) {
       replica->stop();
-      delete replica;
     }
     if(runnerThread) {
       runnerThread->join();
     }
+    if(replica) {
+      delete replica;
+    }
+
   }
 
   uint16_t get_replica_id(){
@@ -190,30 +193,43 @@ class SimpleTestReplica {
       if(pti.replica2RestartNoVC) {
         if (replicaConfig.replicaId == 2) {
           std::this_thread::sleep_for(std::chrono::seconds(10));
-          replica->restartForDebug();
-        }
-      }
-      else if (pti.replica2RestartVC) {
-        if (replicaConfig.replicaId == 2) {
-          std::this_thread::sleep_for(std::chrono::seconds(60));
-          replica->restartForDebug();
+          if(replica && replica->isRunning()) {
+            LOG_INFO(replicaLogger, "Restarting");
+            replica->restartForDebug(pti.restartDelay);
+            LOG_INFO(replicaLogger, "Restarted");
+          }
         }
       }
       else if (pti.allReplicasRestartNoVC) {
         std::this_thread::sleep_for(std::chrono::seconds(3 *
             (2 + replicaConfig.replicaId) * (2 + replicaConfig.replicaId)));
-        replica->restartForDebug();
+        if(replica && replica->isRunning()) {
+            LOG_INFO(replicaLogger, "Restarting");
+            replica->restartForDebug(pti.restartDelay);
+            LOG_INFO(replicaLogger, "Restarted");
+          }
       }
       else if (pti.allReplicasRestartVC) {
         std::this_thread::sleep_for(std::chrono::seconds(18 *
             (2 + replicaConfig.replicaId) * (2 + replicaConfig.replicaId)));
-        replica->restartForDebug();
+       if(replica && replica->isRunning()) {
+            LOG_INFO(replicaLogger, "Restarting");
+            replica->restartForDebug(pti.restartDelay);
+            LOG_INFO(replicaLogger, "Restarted");
+          }
       }
-      else if(pti.primaryReplicaRestart) {
-        throw std::logic_error("not implemented");
+      else if(pti.primaryReplicaRestartVC) {
+        if(replicaConfig.replicaId == 0) {
+          std::this_thread::sleep_for(std::chrono::seconds(5));
+          if(replica && replica->isRunning()) {
+            LOG_INFO(replicaLogger, "Restarting");
+            replica->restartForDebug(pti.restartDelay);
+            LOG_INFO(replicaLogger, "Restarted");
+          }
+        }
       }
       else {
-        std::this_thread::sleep_for(std::chrono::seconds(10));
+        std::this_thread::sleep_for(std::chrono::seconds(1));
       }
     }
   }
