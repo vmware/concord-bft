@@ -20,6 +20,7 @@
 #include "ReplicaImp.hpp"
 #include "ViewsManager.hpp"
 #include "FullCommitProofMsg.hpp"
+#include "Logging.hpp"
 
 # define Verify(expr, errorCode) {                                          \
     Assert(expr);                                                    \
@@ -255,11 +256,15 @@ ReplicaLoader::ErrorCode loadReplicaData(
   ld.lastExecutedSeqNum = p->getLastExecutedSeqNum();
   ld.strictLowerBoundOfSeqNums = p->getStrictLowerBoundOfSeqNums();
 
+  LOG_INFO(GL, "primaryLastUsedSeqNum=" << ld.primaryLastUsedSeqNum << ", lastStableSeqNum="
+                                        << ld.lastStableSeqNum << ", lastExecutedSeqNum=" << ld.lastExecutedSeqNum
+                                        << ", strictLowerBoundOfSeqNums=" << ld.strictLowerBoundOfSeqNums);
+
   Verify((ld.primaryLastUsedSeqNum >= 0), InconsistentErr);
   Verify((ld.primaryLastUsedSeqNum <= ld.lastStableSeqNum + kWorkWindowSize), InconsistentErr);
   Verify((ld.lastStableSeqNum >= 0), InconsistentErr);
   Verify((ld.lastExecutedSeqNum >= ld.lastStableSeqNum), InconsistentErr);
-  Verify((ld.lastExecutedSeqNum < ld.lastStableSeqNum + kWorkWindowSize), InconsistentErr);
+  Verify((ld.lastExecutedSeqNum <= ld.lastStableSeqNum + kWorkWindowSize), InconsistentErr);
   Verify((ld.strictLowerBoundOfSeqNums >= 0), InconsistentErr);
   Verify((ld.strictLowerBoundOfSeqNums < ld.lastStableSeqNum + kWorkWindowSize), InconsistentErr);
 
@@ -268,10 +273,11 @@ ReplicaLoader::ErrorCode loadReplicaData(
 
   ld.lastViewThatTransferredSeqNumbersFullyExecuted = p->getLastViewThatTransferredSeqNumbersFullyExecuted();
 
+  LOG_INFO(GL, "lastViewThatTransferredSeqNumbersFullyExecuted=" << ld.lastViewThatTransferredSeqNumbersFullyExecuted);
+
   Verify((ld.lastViewThatTransferredSeqNumbersFullyExecuted >= 0), InconsistentErr);
   Verify((ld.lastViewThatTransferredSeqNumbersFullyExecuted <= lastView), InconsistentErr);
 
-  Assert(ld.maxSeqNumTransferredFromPrevViews != 0 || lastView == 0);
   Verify((ld.maxSeqNumTransferredFromPrevViews >= 0), InconsistentErr);
   Verify((ld.maxSeqNumTransferredFromPrevViews <= ld.lastStableSeqNum + kWorkWindowSize), InconsistentErr);
 
