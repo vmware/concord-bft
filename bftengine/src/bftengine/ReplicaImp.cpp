@@ -3608,8 +3608,9 @@ namespace bftEngine
                   controller->getCurrentFirstPath()));
             }
 
-            // TODO(GG): clean the following logic
-            { // update dynamicUpperLimitOfRounds
+            if (mainLog->insideActiveWindow(lastExecutedSeqNum))
+            {
+              // update dynamicUpperLimitOfRounds
               const SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum);
               const Time firstInfo = seqNumInfo.getTimeOfFisrtRelevantInfoFromPrimary();
               const Time currTime = getMonotonicTime();
