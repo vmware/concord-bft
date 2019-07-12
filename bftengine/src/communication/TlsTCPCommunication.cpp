@@ -202,7 +202,9 @@ class AsyncTlsConnection : public
       _disposed(false),
       _authenticated{false},
       _connected{false} {
-    LOG_DEBUG(_logger, "ctor, node " << _selfId << ", connType: " << _destId);
+    LOG_DEBUG(_logger, "ctor, node " << _selfId
+                                     << ", destId: " << _expectedDestId
+                                     << ", connType: " << _connType);
 
     _inBuffer = new char[_bufferLength];
     _connectTimer.expires_at(boost::posix_time::pos_infin);
@@ -258,6 +260,7 @@ class AsyncTlsConnection : public
                 "was_error, where: " << where
                                      << ", node " << _selfId
                                      << ", dest: " << _destId
+                                     << ", expectedDest: " << _expectedDestId
                                      << ", connected: " << _connected
                                      << ", ex: " << ec.message());
     }
@@ -277,7 +280,8 @@ class AsyncTlsConnection : public
     set_disposed(true);
 
     LOG_DEBUG(_logger,
-              "dispose_connection, node " << _selfId << ", dest: " << _destId
+              "dispose_connection, node " << _selfId
+                                          << ", dest: " << _expectedDestId
                                           << ", connected: " << _connected
                                           << ", closed: " << _disposed);
 
@@ -285,7 +289,9 @@ class AsyncTlsConnection : public
     _writeTimer.cancel();
     _readTimer.cancel();
 
-    _fOnError(_destId);
+    // We use _expectedDestId here instead of _destId, because _destId may not
+    // be set yet, if the connection failed before authentication completes.
+    _fOnError(_expectedDestId);
   }
 
   /**
