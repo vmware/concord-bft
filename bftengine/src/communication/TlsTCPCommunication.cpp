@@ -301,7 +301,7 @@ class AsyncTlsConnection : public
     assert(_connType != ConnType::NotDefined);
 
     if (_statusCallback) {
-      bool isReplica = check_replica(_destId);
+      bool isReplica = check_replica(_expectedDestId);
       if (isReplica) {
         PeerConnectivityStatus pcs{};
         pcs.peerId = _destId;
