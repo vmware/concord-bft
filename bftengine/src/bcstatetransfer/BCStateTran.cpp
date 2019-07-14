@@ -144,7 +144,7 @@ BCStateTran::BCStateTran(
   :
   pedanticChecks_{ config.pedanticChecks },
   as_{ stateApi },
-  psd_{ createDataStore(persistentDataStore, kSizeOfReservedPage) },
+  psd_{ createDataStore(persistentDataStore, config.sizeOfReservedPage) },
   replicas_{ generateSetOfReplicas((3*config.fVal) + (2*config .cVal) + 1) },
   myId_{ config.myReplicaId },
   fVal_{ config.fVal },
@@ -153,6 +153,7 @@ BCStateTran::BCStateTran(
   maxNumberOfChunksInBatch_{ config.maxNumberOfChunksInBatch },
   maxPendingDataFromSourceReplica_{ config.maxPendingDataFromSourceReplica },
   maxNumOfReservedPages_{ config.maxNumOfReservedPages },
+  sizeOfReservedPage_{ config.sizeOfReservedPage },
   refreshTimerMilli_{ config.refreshTimerMilli },
   checkpointSummariesRetransmissionTimeoutMilli_
                     { config.checkpointSummariesRetransmissionTimeoutMilli },
@@ -161,10 +162,10 @@ BCStateTran::BCStateTran(
                              { config.sourceReplicaReplacementTimeoutMilli },
   fetchRetransmissionTimeoutMilli_{ config.fetchRetransmissionTimeoutMilli },
   maxVBlockSize_
-  { calcMaxVBlockSize(config.maxNumOfReservedPages, kSizeOfReservedPage) },
+  { calcMaxVBlockSize(config.maxNumOfReservedPages, sizeOfReservedPage_) },
   maxItemSize_{ calcMaxItemSize(config.maxBlockSize,
                                 config.maxNumOfReservedPages,
-                                 kSizeOfReservedPage) },
+                                config.sizeOfReservedPage) },
   maxNumOfChunksInAppBlock_{ calcMaxNumOfChunksInBlock(maxItemSize_,
                                                        config.maxBlockSize ,
                                                        config.maxChunkSize,
@@ -191,7 +192,7 @@ BCStateTran::BCStateTran(
     LOG_INFO(STLogger, "Creating BCStateTran object:" <<
         " myId_=" << myId_ <<
         " fVal_=" << fVal_ <<
-        " kSizeOfReservedPage=" << kSizeOfReservedPage);
+        " sizeOfReservedPage_=" << sizeOfReservedPage_);
 }
 
 BCStateTran::~BCStateTran() {
@@ -214,7 +215,7 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
   Assert(!running_);
   Assert(replicaForStateTransfer_ == nullptr);
 
-  Assert(sizeOfReservedPage == kSizeOfReservedPage);
+  Assert(sizeOfReservedPage == sizeOfReservedPage_);
 
   maxNumOfStoredCheckpoints_ = maxNumOfRequiredStoredCheckpoints;
   numberOfReservedPages_ = numberOfRequiredReservedPages;
@@ -224,7 +225,7 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
     LOG_INFO(STLogger, "Init BCStateTran object:" <<
     " maxNumOfStoredCheckpoints_=" << maxNumOfStoredCheckpoints_ <<
     " numberOfReservedPages_=" << numberOfReservedPages_ <<
-    " kSizeOfReservedPage=" << kSizeOfReservedPage);
+    " sizeOfReservedPage_=" << sizeOfReservedPage_);
 
   if (psd_->initialized()) {
     LOG_INFO(STLogger,
@@ -259,7 +260,7 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
     psd_->setFirstStoredCheckpoint(0);
 
     for (uint32_t i = 0; i < numberOfReservedPages_; i++)  // reset all pages
-      psd_->setPendingResPage(i, buffer_, kSizeOfReservedPage);
+      psd_->setPendingResPage(i, buffer_, sizeOfReservedPage_);
 
     psd_->setIsFetchingState(false);
     psd_->setFirstRequiredBlock(0);
@@ -391,12 +392,12 @@ STDigest BCStateTran::checkpointReservedPages(uint64_t checkpointNumber) {
 
   for (uint32_t p : pages) {
     STDigest d;
-    psd_->getPendingResPage(p, buffer_, kSizeOfReservedPage);
-    computeDigestOfPage(p, checkpointNumber, buffer_, d);
+    psd_->getPendingResPage(p, buffer_, sizeOfReservedPage_);
+    computeDigestOfPage(p, checkpointNumber, buffer_, sizeOfReservedPage_, d);
     psd_->associatePendingResPageWithCheckpoint(p, checkpointNumber, d);
   }
 
-  memset(buffer_, 0, kSizeOfReservedPage);
+  memset(buffer_, 0, sizeOfReservedPage_);
   Assert(psd_->numOfAllPendingResPage() == 0);
   DataStore::ResPagesDescriptor* allPagesDesc =
                                   psd_->getResPagesDescriptor(checkpointNumber);
@@ -518,7 +519,7 @@ uint32_t BCStateTran::numberOfReservedPages() const {
 
 
 uint32_t BCStateTran::sizeOfReservedPage() const {
-  return kSizeOfReservedPage;
+  return sizeOfReservedPage_;
 }
 
 bool BCStateTran::loadReservedPage(uint32_t reservedPageId,
@@ -530,7 +531,7 @@ bool BCStateTran::loadReservedPage(uint32_t reservedPageId,
   Assert(running_);
   Assert(!isFetching());
   Assert(reservedPageId < numberOfReservedPages_);
-  Assert(copyLength <= kSizeOfReservedPage);
+  Assert(copyLength <= sizeOfReservedPage_);
 
 
   if (psd_->hasPendingResPage(reservedPageId)) {
@@ -558,21 +559,21 @@ void BCStateTran::saveReservedPage(uint32_t reservedPageId,
 
   Assert(!isFetching());
   Assert(reservedPageId < numberOfReservedPages_);
-  Assert(copyLength <= kSizeOfReservedPage);
+  Assert(copyLength <= sizeOfReservedPage_);
 
   psd_->setPendingResPage(reservedPageId, inReservedPage, copyLength);
 }
 
 void BCStateTran::zeroReservedPage(uint32_t reservedPageId) {
-    LOG_INFO(STLogger, "BCStateTran::zeroReservedPage - reservedPageId="
+    LOG_DEBUG(STLogger, "BCStateTran::zeroReservedPage - reservedPageId="
     << reservedPageId);
 
   Assert(!isFetching());
   Assert(reservedPageId < numberOfReservedPages_);
 
-  memset(buffer_, 0, kSizeOfReservedPage);
+  memset(buffer_, 0, sizeOfReservedPage_);
 
-  psd_->setPendingResPage(reservedPageId, buffer_, kSizeOfReservedPage);
+  psd_->setPendingResPage(reservedPageId, buffer_, sizeOfReservedPage_);
 }
 
 void BCStateTran::startCollectingState() {
@@ -692,7 +693,7 @@ struct ElementOfVirtualBlock {
   uint32_t pageId;
   uint64_t checkpointNumber;
   STDigest pageDigest;
-  char page[1];  // the actual size is kSizeOfReservedPage bytes
+  char page[1];  // the actual size is sizeOfReservedPage_ bytes
 };
 #pragma pack(pop)
 
@@ -1375,11 +1376,11 @@ bool BCStateTran::onMessage(const FetchResPagesMsg* m,
   }
 
   uint32_t vblockSize = getSizeOfVirtualBlock(vblock,
-                                              kSizeOfReservedPage);
+                                              sizeOfReservedPage_);
 
   Assert(vblockSize > sizeof(HeaderOfVirtualBlock));
   Assert(checkStructureOfVirtualBlock(vblock, vblockSize,
-                                      kSizeOfReservedPage));
+                                      sizeOfReservedPage_));
 
   // compute information about next chunk
 
@@ -1661,7 +1662,7 @@ char* BCStateTran::createVBlock(const DescOfVBlockForResPages& desc) {
 
   // allocate and fill block
   const uint32_t elementSize =
-    sizeof(ElementOfVirtualBlock) + kSizeOfReservedPage - 1;
+    sizeof(ElementOfVirtualBlock) + sizeOfReservedPage_ - 1;
   const uint32_t size =
     sizeof(HeaderOfVirtualBlock) + numberOfUpdatedPages * elementSize;
 
@@ -1674,7 +1675,7 @@ char* BCStateTran::createVBlock(const DescOfVBlockForResPages& desc) {
 
   if (numberOfUpdatedPages == 0) {
     Assert(checkStructureOfVirtualBlock(rawVBlock, size,
-                                        kSizeOfReservedPage));
+                                        sizeOfReservedPage_));
         LOG_INFO(STLogger, "New vblock contains " << 0
          << " updated pages , its size is " << size);
     return rawVBlock;
@@ -1690,7 +1691,7 @@ char* BCStateTran::createVBlock(const DescOfVBlockForResPages& desc) {
     STDigest pageDigest;
 
     psd_->getResPage(pageId, desc.checkpointNum, &actualPageCheckpoint,
-                     &pageDigest, buffer_, kSizeOfReservedPage);
+                     &pageDigest, buffer_, sizeOfReservedPage_);
     Assert(actualPageCheckpoint <= desc.checkpointNum);
     Assert(actualPageCheckpoint > desc.lastCheckpointKnownToRequester);
     Assert(!pageDigest.isZero());
@@ -1701,8 +1702,8 @@ char* BCStateTran::createVBlock(const DescOfVBlockForResPages& desc) {
     currElement->pageId = pageId;
     currElement->checkpointNumber = actualPageCheckpoint;
     currElement->pageDigest = pageDigest;
-    memcpy(currElement->page, buffer_, kSizeOfReservedPage);
-    memset(buffer_, 0, kSizeOfReservedPage);
+    memcpy(currElement->page, buffer_, sizeOfReservedPage_);
+    memset(buffer_, 0, sizeOfReservedPage_);
 
     idx++;
   }
@@ -1710,7 +1711,7 @@ char* BCStateTran::createVBlock(const DescOfVBlockForResPages& desc) {
   Assert(idx == numberOfUpdatedPages);
 
   Assert(!pedanticChecks_ ||
-         checkStructureOfVirtualBlock(rawVBlock, size, kSizeOfReservedPage));
+         checkStructureOfVirtualBlock(rawVBlock, size, sizeOfReservedPage_));
 
     LOG_INFO(STLogger, "New vblock contains " << numberOfUpdatedPages
     << " updated pages , its size is " << size);
@@ -1912,7 +1913,7 @@ bool BCStateTran::checkVirtualBlockOfResPages(
 
 
   if (!checkStructureOfVirtualBlock(vblock, vblockSize,
-                                    kSizeOfReservedPage)) {
+                                    sizeOfReservedPage_)) {
         LOG_WARN(STLogger, "vblock has illegal structure");
     return false;
   }
@@ -1942,7 +1943,7 @@ bool BCStateTran::checkVirtualBlockOfResPages(
     uint32_t nextUpdateIndex = 0;
 
     ElementOfVirtualBlock* nextUpdate =
-      getVirtualElement(0, kSizeOfReservedPage, vblock);
+      getVirtualElement(0, sizeOfReservedPage_, vblock);
 
     for (uint32_t i = 0; i < numberOfReservedPages_; i++) {
       Assert(pagesDesc->d[i].pageId == i);
@@ -1956,7 +1957,7 @@ bool BCStateTran::checkVirtualBlockOfResPages(
         nextUpdateIndex++;
         if (nextUpdateIndex < numberOfUpdatedPages) {
           nextUpdate =
-            getVirtualElement(nextUpdateIndex, kSizeOfReservedPage, vblock);
+            getVirtualElement(nextUpdateIndex, sizeOfReservedPage_, vblock);
         } else {
           nextUpdate = nullptr;
           break;
@@ -1982,13 +1983,13 @@ bool BCStateTran::checkVirtualBlockOfResPages(
   // check digests of new pages
   for (uint32_t i = 0; i < numberOfUpdatedPages; i++) {
     ElementOfVirtualBlock* e =
-      getVirtualElement(i, kSizeOfReservedPage, vblock);
+      getVirtualElement(i, sizeOfReservedPage_, vblock);
 
     // verified in checkStructureOfVirtualBlock
     Assert(e->checkpointNumber > 0);
 
     STDigest pageDigest;
-    computeDigestOfPage(e->pageId, e->checkpointNumber, e->page, pageDigest);
+    computeDigestOfPage(e->pageId, e->checkpointNumber, e->page, sizeOfReservedPage_, pageDigest);
 
     if (pageDigest != e->pageDigest) {
         LOG_WARN(STLogger, "vblock contains invalid digest for page "
@@ -2245,7 +2246,7 @@ void BCStateTran::processData() {
       uint32_t numOfUpdates = getNumberOfElements(buffer_);
       for (uint32_t i = 0; i < numOfUpdates; i++) {
         ElementOfVirtualBlock* e =
-          getVirtualElement(i, kSizeOfReservedPage, buffer_);
+          getVirtualElement(i, sizeOfReservedPage_, buffer_);
 
         psd_->setResPage(e->pageId, e->checkpointNumber,
                          e->pageDigest, e->page);
@@ -2520,19 +2521,19 @@ bool BCStateTran::checkConsistency(bool checkAllBlocks) {
 
         uint64_t actualCheckpoint = 0;
         psd_->getResPage(j, i, &actualCheckpoint,
-                         buffer_, kSizeOfReservedPage);
+                         buffer_, sizeOfReservedPage_);
 
         CH(allPagesDesc->d[j].relevantCheckpoint == actualCheckpoint);
 
         {
           STDigest d3;
-          computeDigestOfPage(j, actualCheckpoint, buffer_, d3);
+          computeDigestOfPage(j, actualCheckpoint, buffer_, sizeOfReservedPage_, d3);
 
           CH(d3 == allPagesDesc->d[j].pageDigest);
         }
       }
 
-      memset(buffer_, 0, kSizeOfReservedPage);
+      memset(buffer_, 0, sizeOfReservedPage_);
 
       psd_->free(allPagesDesc);
     }
@@ -2563,12 +2564,12 @@ bool BCStateTran::checkConsistency(bool checkAllBlocks) {
 
 void BCStateTran::computeDigestOfPage(
   const uint32_t pageId, const uint64_t checkpointNumber,
-  const char* page, STDigest& outDigest) {
+  const char* page, uint32_t pageSize, STDigest& outDigest) {
   DigestContext c;
   c.update(reinterpret_cast<const char*>(&pageId), sizeof(pageId));
   c.update(reinterpret_cast<const char*>(&checkpointNumber),
            sizeof(checkpointNumber));
-  if (checkpointNumber > 0) c.update(page, kSizeOfReservedPage);
+  if (checkpointNumber > 0) c.update(page, pageSize);
   c.writeDigest(reinterpret_cast<char*>(&outDigest));
 }
 

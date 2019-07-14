@@ -118,4 +118,24 @@ IThresholdVerifier const* ReplicaConfigSingleton::GetThresholdVerifierForOptimis
     return config_.thresholdVerifierForOptimisticCommit;
 }
 
+uint32_t ReplicaConfigSingleton::GetMaxExternalMessageSize() const
+{
+    return config_.maxExternalMessageSize;
+}
+
+uint32_t ReplicaConfigSingleton::GetMaxReplyMessageSize() const
+{
+    return config_.maxReplyMessageSize;
+}
+
+uint32_t ReplicaConfigSingleton::GetMaxNumOfReservedPages() const
+{
+    return config_.maxNumOfReservedPages;
+}
+
+uint32_t ReplicaConfigSingleton::GetSizeOfReservedPage() const
+{
+    return config_.sizeOfReservedPage;
+}
+
 } // namespace bftEngine

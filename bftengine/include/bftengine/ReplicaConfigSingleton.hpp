@@ -44,6 +44,10 @@ class ReplicaConfigSingleton {
 	IThresholdVerifier const* GetThresholdVerifierForCommit() const;
 	IThresholdSigner const* GetThresholdSignerForOptimisticCommit() const;
 	IThresholdVerifier const* GetThresholdVerifierForOptimisticCommit() const;
+	uint32_t GetMaxExternalMessageSize() const;
+	uint32_t GetMaxReplyMessageSize() const;
+	uint32_t GetMaxNumOfReservedPages() const;
+	uint32_t GetSizeOfReservedPage() const;
 
     private:
 	ReplicaConfigSingleton();

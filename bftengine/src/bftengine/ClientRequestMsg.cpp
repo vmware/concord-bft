@@ -9,6 +9,7 @@
 #include <cstring>
 #include "ClientRequestMsg.hpp"
 #include "assertUtils.hpp"
+#include "ReplicaConfigSingleton.hpp"
 
 namespace bftEngine
 {
@@ -54,7 +55,7 @@ namespace bftEngine
 		}
 
 		ClientRequestMsg::ClientRequestMsg(NodeIdType sender)
-			: MessageBase(sender, MsgCode::Request, maxExternalMessageSize)
+			: MessageBase(sender, MsgCode::Request, ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize())
 		{
 			b()->idOfClientProxy = sender;
 			b()->reqSeqNum = 0;

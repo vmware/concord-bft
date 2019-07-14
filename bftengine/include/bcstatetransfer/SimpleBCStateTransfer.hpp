@@ -101,6 +101,7 @@ struct Config {
   uint32_t maxPendingDataFromSourceReplica = 32 * 1024 * 1024;
 
   uint32_t maxNumOfReservedPages = 2048;
+  uint32_t sizeOfReservedPage = 4 * 1024;
 
   uint32_t refreshTimerMilli = 300;  // 300ms
   uint32_t checkpointSummariesRetransmissionTimeoutMilli = 2500;  // 2500ms

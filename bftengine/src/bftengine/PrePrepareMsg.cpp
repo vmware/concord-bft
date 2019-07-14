@@ -9,6 +9,7 @@
 #include "PrePrepareMsg.hpp"
 #include "SysConsts.hpp"
 #include "Crypto.hpp"
+#include "ReplicaConfigSingleton.hpp"
 
 namespace bftEngine
 {
@@ -26,7 +27,7 @@ namespace bftEngine
 
 		MsgSize PrePrepareMsg::maxSizeOfPrePrepareMsg()
 		{
-			return maxExternalMessageSize;
+			return ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize();
 		}
 
 		MsgSize PrePrepareMsg::maxSizeOfPrePrepareMsgInLocalBuffer()
