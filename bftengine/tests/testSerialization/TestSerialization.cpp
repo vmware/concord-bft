@@ -472,8 +472,14 @@ int main() {
 
   const string dbFile = "testPersistency.txt";
   remove(dbFile.c_str()); // Required for the init testing.
+
+  PersistentStorageImp persistentStorage(fVal, cVal);
   metadataStorage = new FileStorage(logger, dbFile);
+  uint16_t numOfObjects = 0;
+  ObjectDescUniquePtr objectDescArray = persistentStorage.getDefaultMetadataObjectDescriptors(numOfObjects);
+  metadataStorage -> initMaxSizeOfObjects(objectDescArray.get(), numOfObjects);
   persistentStorageImp->init(metadataStorage);
+
   fillReplicaConfig();
   testInit();
 
@@ -483,6 +489,7 @@ int main() {
       // Re-open existing DB file
       delete (FileStorage *) metadataStorage;
       metadataStorage = new FileStorage(logger, dbFile);
+      metadataStorage -> initMaxSizeOfObjects(objectDescArray.get(), numOfObjects);
       persistentStorageImp->init(metadataStorage);
     }
     testSetReplicaConfig(init);

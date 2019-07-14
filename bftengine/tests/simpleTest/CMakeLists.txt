@@ -1,7 +1,7 @@
 set(simpleTest_client_source_files
     client.cpp
-        ${CONFIG_FOLDER_PATH_VALUE}/test_comm_config.cpp
-        ${CONFIG_FOLDER_PATH_VALUE}/config_file_parser.cpp
+    ${CONFIG_FOLDER_PATH_VALUE}/test_comm_config.cpp
+    ${CONFIG_FOLDER_PATH_VALUE}/config_file_parser.cpp
     ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
 )
 
@@ -51,7 +51,7 @@ set_target_properties(simpleTest_server PROPERTIES OUTPUT_NAME server)
 set_target_properties(configTest PROPERTIES OUTPUT_NAME config)
 
 target_link_libraries(simpleTest_client PUBLIC corebft)
-target_link_libraries(simpleTest_server PUBLIC corebft)
+target_link_libraries(simpleTest_server PUBLIC corebft simple_file_storage_lib)
 target_link_libraries(configTest PUBLIC corebft)
 
 target_include_directories(simpleTest_client
@@ -62,7 +62,9 @@ target_include_directories(simpleTest_client
 
 target_include_directories(simpleTest_server
                            PRIVATE
+                           ${bftengine_SOURCE_DIR}/tests/simpleStorage
                            ${concord_bft_tools_SOURCE_DIR}
+                           ${bftengine_SOURCE_DIR}/src/bftengine
                            ${bftengine_SOURCE_DIR}/include
                            ${CONFIG_FOLDER_PATH_VALUE})
 

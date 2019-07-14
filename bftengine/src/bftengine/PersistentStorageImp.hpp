@@ -20,8 +20,13 @@
 namespace bftEngine {
 namespace impl {
 
-enum ConstMetadataParameterIds {
-  VERSION_PARAMETER = 0,
+// Make a reservation for future params
+const uint16_t reservedParamsNum = 50;
+
+enum ConstMetadataParameterIds : uint16_t {
+  INITIALIZED_FLAG = 0, // A flag saying whether DB is initialized or not; handled by storage class itself.
+  FIRST_METADATA_PARAMETER = 1,
+  VERSION_PARAMETER = FIRST_METADATA_PARAMETER,
   FETCHING_STATE,
   LAST_EXEC_SEQ_NUM,
   PRIMARY_LAST_USED_SEQ_NUM,
@@ -43,7 +48,7 @@ constexpr uint16_t numOfCheckWinParameters = CheckData::getNumOfParams();
 const uint16_t numOfCheckWinObjs = checkWinSize * numOfCheckWinParameters + 1;
 
 enum WinMetadataParameterIds {
-  BEGINNING_OF_SEQ_NUM_WINDOW = CONST_METADATA_PARAMETERS_NUM,
+  BEGINNING_OF_SEQ_NUM_WINDOW = CONST_METADATA_PARAMETERS_NUM + reservedParamsNum,
   BEGINNING_OF_CHECK_WINDOW = BEGINNING_OF_SEQ_NUM_WINDOW + numOfSeqNumWinObjs,
   WIN_PARAMETERS_NUM = BEGINNING_OF_CHECK_WINDOW + numOfCheckWinObjs
 };
@@ -59,6 +64,10 @@ enum DescMetadataParameterIds {
   LAST_EXEC_DESC = LAST_EXIT_FROM_VIEW_DESC + numOfLastExitFromViewDescObjs,
   LAST_NEW_VIEW_DESC
 };
+
+const uint16_t MAX_METADATA_PARAMS_NUM = 10000;
+
+typedef unique_ptr<MetadataStorage::ObjectDesc> ObjectDescUniquePtr;
 
 class PersistentStorageImp : public PersistentStorage {
  public:
@@ -91,6 +100,7 @@ class PersistentStorageImp : public PersistentStorage {
   void setCheckpointMsgInCheckWindow(const SeqNum seqNum, const CheckpointMsg *const msg) override;
   void setCompletedMarkInCheckWindow(const SeqNum seqNum, const bool completed) override;
   void clearSeqNumWindow() override;
+  ObjectDescUniquePtr getDefaultMetadataObjectDescriptors(uint16_t &numOfObjects) const;
 
   // Getters
   std::string getStoredVersion();
@@ -136,7 +146,6 @@ class PersistentStorageImp : public PersistentStorage {
 
  private:
   void retrieveWindowsMetadata();
-  void initMetadataStorage(MetadataStorage *&metadataStorage);
   void setDefaultsInMetadataStorage();
   void verifySetDescriptorOfLastExitFromView(const DescriptorOfLastExitFromView &desc) const;
   void verifyPrevViewInfo(const DescriptorOfLastExitFromView &desc) const;

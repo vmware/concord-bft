@@ -20,7 +20,6 @@ namespace bftEngine {
 namespace impl {
 
 const string METADATA_PARAMS_VERSION = "1.1";
-const uint16_t MAX_METADATA_PARAMS_NUM = 10000;
 
 PersistentStorageImp::PersistentStorageImp(uint16_t fVal, uint16_t cVal)
     : fVal_(fVal), cVal_(cVal), numOfReplicas_(3 * fVal + 2 * cVal + 1),
@@ -38,7 +37,6 @@ void PersistentStorageImp::retrieveWindowsMetadata() {
   checkWindowBeginning_ = readBeginningOfActiveWindow(BEGINNING_OF_CHECK_WINDOW);
 }
 
-// TODO: Yulia Init code should be taken out the class to enable StateTransfer using the same DB.
 bool PersistentStorageImp::init(MetadataStorage *&metadataStorage) {
   metadataStorage_ = metadataStorage;
   try {
@@ -47,7 +45,6 @@ bool PersistentStorageImp::init(MetadataStorage *&metadataStorage) {
       return false;
     }
   } catch (const runtime_error &exc) {}
-  initMetadataStorage(metadataStorage);
   // DB is not populated yet with default metadata parameter values.
   setDefaultsInMetadataStorage();
   return true;
@@ -73,11 +70,12 @@ void PersistentStorageImp::setDefaultsInMetadataStorage() {
   endWriteTran();
 }
 
-void PersistentStorageImp::initMetadataStorage(MetadataStorage *&metadataStorage) {
-  unique_ptr<MetadataStorage::ObjectDesc> metadataObjectsArray(
-      new MetadataStorage::ObjectDesc[MAX_METADATA_PARAMS_NUM]);
+// This function is used by an external code to initialize MetadataStorage and enable StateTransfer using the same DB.
+ObjectDescUniquePtr PersistentStorageImp::getDefaultMetadataObjectDescriptors(uint16_t &numOfObjects) const {
+  numOfObjects = MAX_METADATA_PARAMS_NUM;
+  ObjectDescUniquePtr metadataObjectsArray(new MetadataStorage::ObjectDesc[MAX_METADATA_PARAMS_NUM]);
 
-  for (auto i = 0; i < MAX_METADATA_PARAMS_NUM; ++i) {
+  for (uint16_t i = FIRST_METADATA_PARAMETER; i < MAX_METADATA_PARAMS_NUM; ++i) {
     metadataObjectsArray.get()[i].id = i;
     metadataObjectsArray.get()[i].maxSize = 0;
   }
@@ -118,7 +116,7 @@ void PersistentStorageImp::initMetadataStorage(MetadataStorage *&metadataStorage
   metadataObjectsArray.get()[LAST_EXEC_DESC].maxSize = DescriptorOfLastExecution::maxSize();
   metadataObjectsArray.get()[LAST_NEW_VIEW_DESC].maxSize = DescriptorOfLastNewView::simpleParamsSize();
 
-  metadataStorage_->initMaxSizeOfObjects(metadataObjectsArray.get(), MAX_METADATA_PARAMS_NUM);
+  return metadataObjectsArray;
 }
 
 uint8_t PersistentStorageImp::beginWriteTran() {
@@ -745,8 +743,8 @@ bool PersistentStorageImp::readBooleanFromDisk(const SeqNum &index, const SeqNum
   return boolean;
 }
 
-  MessageBase *PersistentStorageImp::readMsgFromDisk(const SeqNum &index, const SeqNum &parameterId,
-                                                     const size_t &msgSize) const {
+MessageBase *PersistentStorageImp::readMsgFromDisk(const SeqNum &index, const SeqNum &parameterId,
+                                                   const size_t &msgSize) const {
   char *buf = new char[msgSize];
   uint32_t actualMsgSize = 0;
   const SeqNum convertedIndex = BEGINNING_OF_SEQ_NUM_WINDOW + parameterId + convertSeqNumWindowIndex(index);
