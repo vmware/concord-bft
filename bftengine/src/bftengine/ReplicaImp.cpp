@@ -2145,7 +2145,10 @@ namespace bftEngine
 //				const SeqNum prevLastExecutedSeqNum = lastExecutedSeqNum;
 
 				lastExecutedSeqNum = newStateCheckpoint;
-                                metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
+				metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
+#ifdef DEBUG_STATISTICS
+				DebugStatistics::onLastExecutedSequenceNumberChanged(lastExecutedSeqNum);
+#endif
 
 				clientsManager->loadInfoFromReservedPages();
 
@@ -2261,7 +2264,10 @@ namespace bftEngine
 			if (lastStableSeqNum > lastExecutedSeqNum)
 			{
 				lastExecutedSeqNum = lastStableSeqNum;
-                                metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
+				metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
+#ifdef DEBUG_STATISTICS
+				DebugStatistics::onLastExecutedSequenceNumberChanged(lastExecutedSeqNum);
+#endif
 
 				clientsManager->loadInfoFromReservedPages();
 			}
@@ -3228,7 +3234,10 @@ namespace bftEngine
 			}
 
 			lastExecutedSeqNum = lastExecutedSeqNum + 1;
-                        metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
+			metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
+#ifdef DEBUG_STATISTICS
+			DebugStatistics::onLastExecutedSequenceNumberChanged(lastExecutedSeqNum);
+#endif
 
 			LOG_INFO_F(GL, "\nReplica - executeRequestsInPrePrepareMsg() - lastExecutedSeqNum==%" PRId64 "", lastExecutedSeqNum);
 

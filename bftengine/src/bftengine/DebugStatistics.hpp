@@ -41,6 +41,8 @@ namespace bftEngine
 
 			static void freeDebugStatisticsData();
 
+			static void onLastExecutedSequenceNumberChanged(int64_t newNumber);
+
 		private:
 
 
@@ -56,6 +58,7 @@ namespace bftEngine
 				size_t   numberOfReceivedSTMessages;
 				size_t   numberOfReceivedStatusMessages;
 				size_t   numberOfReceivedCommitMessages;
+				int64_t  lastExecutedSequenceNumber;
 
 				DebugStatDesc() : initialized(false) {}
 			};
