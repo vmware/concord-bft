@@ -2145,7 +2145,7 @@ namespace bftEngine
 //				const SeqNum prevLastExecutedSeqNum = lastExecutedSeqNum;
 
 				lastExecutedSeqNum = newStateCheckpoint;
-                metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
+				metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
 #ifdef DEBUG_STATISTICS
 				DebugStatistics::onLastExecutedSequenceNumberChanged(lastExecutedSeqNum);
 #endif
@@ -3234,7 +3234,7 @@ namespace bftEngine
 			}
 
 			lastExecutedSeqNum = lastExecutedSeqNum + 1;
-            metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
+			metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
 #ifdef DEBUG_STATISTICS
 			DebugStatistics::onLastExecutedSequenceNumberChanged(lastExecutedSeqNum);
 #endif
