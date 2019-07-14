@@ -83,22 +83,6 @@ class BCStateTran : public IStateTransfer {
   void handleStateTransferMessage(char* msg, uint32_t msgLen,
                                   uint16_t senderId) override;
 
-  ///////////////////////////////////////////////////////////////////////////
-  // State
-  ///////////////////////////////////////////////////////////////////////////
-
-  enum class FetchingState {
-    NotFetching,
-    GettingCheckpointSummaries,
-    GettingMissingBlocks,
-    GettingMissingResPages
-  };
-
-  string stateName(FetchingState fs);
-
-  FetchingState getFetchingState() const;
-  bool isFetching() const;
-
  protected:
   const bool pedanticChecks_;
 
@@ -177,8 +161,27 @@ class BCStateTran : public IStateTransfer {
   map<uint16_t, uint64_t> lastMsgSeqNumOfReplicas_;
 
   ///////////////////////////////////////////////////////////////////////////
+  // State
+  ///////////////////////////////////////////////////////////////////////////
+
+ // Public for testing and status
+ public:
+  enum class FetchingState {
+    NotFetching,
+    GettingCheckpointSummaries,
+    GettingMissingBlocks,
+    GettingMissingResPages
+  };
+
+  string stateName(FetchingState fs);
+
+  FetchingState getFetchingState() const;
+  bool isFetching() const;
+
+  ///////////////////////////////////////////////////////////////////////////
   // Send messages
   ///////////////////////////////////////////////////////////////////////////
+ protected:
 
   void sendToAllOtherReplicas(char* msg, uint32_t msgSize);
 
@@ -264,8 +267,8 @@ class BCStateTran : public IStateTransfer {
   set<uint16_t> preferredReplicas_;
   uint16_t currentSourceReplica_ = NO_REPLICA;
 
-  uint64_t timeMilliCurrentSourceReplica = 0;
-  uint64_t nextRequiredBlock = 0;
+  uint64_t timeMilliCurrentSourceReplica_ = 0;
+  uint64_t nextRequiredBlock_ = 0;
   STDigest digestOfNextRequiredBlock;
 
   struct compareItemDataMsg {
@@ -296,6 +299,23 @@ class BCStateTran : public IStateTransfer {
   uint16_t selectSourceReplica();
 
   void processData();
+
+  void EnterGettingCheckpointSummariesState();
+  void SetAllReplicasAsPreferred();
+  bool ShouldReplaceSourceReplica(
+      bool badDataFromCurrentSourceReplica, uint64_t diffMilli);
+
+
+  ///////////////////////////////////////////////////////////////////////////
+  // Helper methods
+  ///////////////////////////////////////////////////////////////////////////
+
+  DataStore::CheckpointDesc createCheckpointDesc(
+      uint64_t checkpointNumber, STDigest digestOfResPagesDescriptor);
+
+  STDigest checkpointReservedPages(uint64_t checkpointNumber);
+
+  void deleteOldCheckpoints(uint64_t checkpointNumber);
 
   ///////////////////////////////////////////////////////////////////////////
   // Consistency
