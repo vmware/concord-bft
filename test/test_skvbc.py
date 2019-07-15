@@ -40,6 +40,9 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcTest(unittest.TestCase):
 
+    def setUp(self):
+        self.protocol = skvbc.SimpleKVBCProtocol()
+
     def test_state_transfer(self):
         """
         Test that state transfer starts and completes.
@@ -61,7 +64,6 @@ class SkvbcTest(unittest.TestCase):
         with bft_tester.BftTester(config) as tester:
             await tester.init()
             [tester.start_replica(i) for i in range(3)]
-            self.protocol = skvbc.SimpleKVBCProtocol()
             # Write enough data to create a need for state transfer
             # Run num_clients concurrent requests a bunch of times
             for i in range (100):
@@ -96,7 +98,6 @@ class SkvbcTest(unittest.TestCase):
         with bft_tester.BftTester(config) as tester:
             await tester.init()
             [tester.start_replica(i) for i in range(3)]
-            self.protocol = skvbc.SimpleKVBCProtocol()
             p = self.protocol
             client = tester.random_client()
             last_block = p.parse_reply(await client.read(p.get_last_block_req()))
@@ -131,6 +132,66 @@ class SkvbcTest(unittest.TestCase):
             data = await client.read(p.get_block_data_req(last_block))
             kv2 = p.parse_reply(data)
             self.assertDictEqual(kv2, dict(kv))
+
+    def test_conflicting_write(self):
+        """
+        The goal is to validate that a conflicting write request does not
+        modify the blockchain state. Verifying this can be done as follows:
+        1) write a key K several times with different values
+        (to ensure several versions in the blockchain)
+        2) create a (conflicting) conditional write on K'
+        based on an old version of K
+        3) execute the conflicting write
+        4) verify K' is not written to the blockchain
+        """
+        trio.run(self._test_conflicting_write)
+
+    async def _test_conflicting_write(self):
+        config = bft_tester.TestConfig(n=4,
+                                       f=1,
+                                       c=0,
+                                       num_clients=1,
+                                       key_file_prefix=KEY_FILE_PREFIX,
+                                       start_replica_cmd=start_replica_cmd)
+
+        with bft_tester.BftTester(config) as tester:
+            await tester.init()
+            tester.start_all_replicas()
+
+            key = tester.random_key()
+
+            write_1 = self.protocol.write_req(
+                readset=[],
+                writeset=[(key, tester.random_value())],
+                block_id=0)
+
+            write_2 = self.protocol.write_req(
+                readset=[],
+                writeset=[(key, tester.random_value())],
+                block_id=0)
+
+            client = tester.random_client()
+
+            await client.write(write_1)
+            last_write_reply = \
+                self.protocol.parse_reply(await client.write(write_2))
+
+            last_block_id = last_write_reply.last_block_id
+
+            key_prime = tester.random_key()
+
+            # this write is conflicting because the writeset (key_prime) is
+            # based on an outdated version of the readset (key)
+            conflicting_write = self.protocol.write_req(
+                readset=[key],
+                writeset=[(key_prime, tester.random_value())],
+                block_id=last_block_id-1)
+
+            write_result = \
+                self.protocol.parse_reply(await client.write(conflicting_write))
+            successful_write = write_result.success
+
+            self.assertTrue(not successful_write)
 
     async def assert_successful_put_get(self, tester):
         p = self.protocol
