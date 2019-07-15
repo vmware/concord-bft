@@ -3451,218 +3451,222 @@ namespace bftEngine
 		#endif
 		}
 
-		void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg* ppMsg, bool recoverFromErrorInRequestsExecution) {
-          Assert(!stateTransfer->isCollectingState() && currentViewIsActive());
-          Assert(ppMsg != nullptr);
-          Assert(ppMsg->viewNumber() == curView);
-          Assert(ppMsg->seqNumber() == lastExecutedSeqNum + 1);
+    void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg* ppMsg, bool recoverFromErrorInRequestsExecution)
+    {
+      Assert(!stateTransfer->isCollectingState() && currentViewIsActive());
+      Assert(ppMsg != nullptr);
+      Assert(ppMsg->viewNumber() == curView);
+      Assert(ppMsg->seqNumber() == lastExecutedSeqNum + 1);
 
-          const uint16_t numOfRequests = ppMsg->numberOfRequests();
+      const uint16_t numOfRequests = ppMsg->numberOfRequests();
 
-          Assert(!recoverFromErrorInRequestsExecution
-                     || (numOfRequests > 0)); // recoverFromErrorInRequestsExecution ==> (numOfRequests > 0)
+      Assert(!recoverFromErrorInRequestsExecution || (numOfRequests > 0)); // recoverFromErrorInRequestsExecution ==> (numOfRequests > 0)
 
-          if (numOfRequests > 0) {
-            Bitmap requestSet(numOfRequests);
-            size_t reqIdx = 0;
-            RequestsIterator reqIter(ppMsg);
-            char *requestBody = nullptr;
+      if (numOfRequests > 0)
+      {
+        Bitmap requestSet(numOfRequests);
+        size_t reqIdx = 0;
+        RequestsIterator reqIter(ppMsg);
+        char* requestBody = nullptr;
 
-            //////////////////////////////////////////////////////////////////////
-            // Phase 1:
-            // a. Find the requests that should be executed
-            // b. Send reply for each request that has already been executed
-            //////////////////////////////////////////////////////////////////////
-            if (!recoverFromErrorInRequestsExecution) {
-              while (reqIter.getAndGoToNext(requestBody)) {
-                ClientRequestMsg req((ClientRequestMsgHeader *) requestBody);
-                NodeIdType clientId = req.clientProxyId();
+        //////////////////////////////////////////////////////////////////////
+        // Phase 1:
+        // a. Find the requests that should be executed
+        // b. Send reply for each request that has already been executed
+        //////////////////////////////////////////////////////////////////////
+        if (!recoverFromErrorInRequestsExecution)
+        {
+          while (reqIter.getAndGoToNext(requestBody))
+          {
+            ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
+            NodeIdType clientId = req.clientProxyId();
 
-                const bool validClient = clientsManager->isValidClient(clientId);
-                if (!validClient) {
-                  // TODO(GG): TBD - warning and/or report
-                  continue;
-                }
-
-                if (clientsManager->seqNumberOfLastReplyToClient(clientId) >= req.requestSeqNum()) {
-                  ClientReplyMsg *replyMsg = clientsManager->allocateMsgWithLatestReply(clientId, currentPrimary());
-                  send(replyMsg, clientId);
-                  delete replyMsg;
-                  continue;
-                }
-                requestSet.set(reqIdx);
-                reqIdx++;
-              }
-              reqIter.restart();
-
-              if (ps_) {
-                DescriptorOfLastExecution execDesc{lastExecutedSeqNum + 1, requestSet};
-                ps_->beginWriteTran();
-                ps_->setDescriptorOfLastExecution(execDesc);
-                ps_->endWriteTran();
-              } else {
-                requestSet = mapOfRequestsThatAreBeingRecovered;
-              }
-
-              //////////////////////////////////////////////////////////////////////
-              // Phase 2: execute requests + send replies
-              // In this phase the application state may be changed. We also change data in the state transfer module.
-              // TODO(GG): Explain what happens in recovery mode (what are the requirements from  the application, and from the state transfer module.
-              //////////////////////////////////////////////////////////////////////
-
-              reqIdx = 0;
-              requestBody = nullptr;
-              while (reqIter.getAndGoToNext(requestBody)) {
-                size_t tmp = reqIdx;
-                reqIdx++;
-                if (!requestSet.get(tmp)) continue;
-
-                ClientRequestMsg req((ClientRequestMsgHeader *) requestBody);
-                NodeIdType clientId = req.clientProxyId();
-
-                uint32_t actualReplyLength = 0;
-                userRequestsHandler->execute(
-                    clientId, lastExecutedSeqNum + 1, req.isReadOnly(),
-                    req.requestLength(), req.requestBuf(),
-                    maxReplyMessageSize - sizeof(ClientReplyMsgHeader),
-                    replyBuffer, actualReplyLength);
-
-                Assert(actualReplyLength
-                           > 0); // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
-
-                ClientReplyMsg *replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(clientId,
-                                                                                                req.requestSeqNum(),
-                                                                                                currentPrimary(),
-                                                                                                replyBuffer,
-                                                                                                actualReplyLength);
-                send(replyMsg, clientId);
-
-                delete replyMsg;
-
-                clientsManager->removePendingRequestOfClient(clientId);
-              }
-
+            const bool validClient = clientsManager->isValidClient(clientId);
+            if (!validClient) {
+              // TODO(GG): TBD - warning and/or report
+              continue;
             }
 
-            if ((lastExecutedSeqNum + 1) % checkpointWindowSize == 0) {
-              const uint64_t checkpointNum = (lastExecutedSeqNum + 1) / checkpointWindowSize;
-              stateTransfer->createCheckpointOfCurrentState(checkpointNum);
+            if (clientsManager->seqNumberOfLastReplyToClient(clientId) >= req.requestSeqNum()) {
+              ClientReplyMsg* replyMsg = clientsManager->allocateMsgWithLatestReply(clientId, currentPrimary());
+              send(replyMsg, clientId);
+              delete replyMsg;
+              continue;
             }
 
-            //////////////////////////////////////////////////////////////////////
-            // Phase 3: finalize the execution of lastExecutedSeqNum+1
-            // TODO(GG): Explain what happens in recovery mode
-            //////////////////////////////////////////////////////////////////////
+            requestSet.set(reqIdx);
+            reqIdx++;
+          }
+          reqIter.restart();
 
-            LOG_INFO_F(GL, "\nReplica - executeRequestsInPrePrepareMsg() - lastExecutedSeqNum==%"
-                PRId64
-                "", (lastExecutedSeqNum + 1));
 
-            if (ps_) {
-              ps_->beginWriteTran();
-              ps_->setLastExecutedSeqNum(lastExecutedSeqNum + 1);
-            }
-
-            lastExecutedSeqNum = lastExecutedSeqNum + 1;
-
-            metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
-
-            if (lastViewThatTransferredSeqNumbersFullyExecuted < curView
-                && (lastExecutedSeqNum >= maxSeqNumTransferredFromPrevViews)) {
-              lastViewThatTransferredSeqNumbersFullyExecuted = curView;
-              if (ps_) {
-                ps_->setLastViewThatTransferredSeqNumbersFullyExecuted(lastViewThatTransferredSeqNumbersFullyExecuted);
-              }
-            }
-
-            if (lastExecutedSeqNum % checkpointWindowSize == 0) {
-              Digest checkDigest;
-              const uint64_t checkpointNum = lastExecutedSeqNum / checkpointWindowSize;
-              stateTransfer->getDigestOfCheckpoint(checkpointNum, sizeof(Digest), (char *) &checkDigest);
-              CheckpointMsg *checkMsg = new CheckpointMsg(myReplicaId, lastExecutedSeqNum, checkDigest, false);
-              CheckpointInfo &checkInfo = checkpointsLog->get(lastExecutedSeqNum);
-              checkInfo.addCheckpointMsg(checkMsg, myReplicaId);
-
-              if (ps_)
-                ps_->setCheckpointMsgInCheckWindow(lastExecutedSeqNum, checkMsg);
-
-              if (checkInfo.isCheckpointCertificateComplete()) {
-                onSeqNumIsStable(lastExecutedSeqNum);
-              }
-              checkInfo.setSelfExecutionTime(getMonotonicTime());
-            }
-
-            if (ps_)
-              ps_->endWriteTran();
-
-            if (numOfRequests > 0)
-              userRequestsHandler->onFinishExecutingReadWriteRequests();
-
-            sendCheckpointIfNeeded();
-
-            bool firstCommitPathChanged =
-                controller->onNewSeqNumberExecution(lastExecutedSeqNum);
-
-            if (firstCommitPathChanged) {
-              metric_first_commit_path_.Get().Set(CommitPathToStr(
-                  controller->getCurrentFirstPath()));
-            }
-
-            if (mainLog->insideActiveWindow(lastExecutedSeqNum))
-            {
-              // update dynamicUpperLimitOfRounds
-              const SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum);
-              const Time firstInfo = seqNumInfo.getTimeOfFisrtRelevantInfoFromPrimary();
-              const Time currTime = getMonotonicTime();
-              if ((firstInfo < currTime)) {
-                const int64_t durationMilli = (subtract(currTime, firstInfo) / 1000);
-                dynamicUpperLimitOfRounds->add(durationMilli);
-              }
-            }
-
-#ifdef DEBUG_STATISTICS
-            DebugStatistics::onRequestCompleted(false);
-#endif
+          if (ps_) {
+            DescriptorOfLastExecution execDesc{ lastExecutedSeqNum + 1 , requestSet };
+            ps_->beginWriteTran();
+            ps_->setDescriptorOfLastExecution(execDesc);
+            ps_->endWriteTran();
           }
         }
-
-        void ReplicaImp::executeNextCommittedRequests(const bool requestMissingInfo)
+        else
         {
-            Assert(!stateTransfer->isCollectingState() && currentViewIsActive());
-            Assert(lastExecutedSeqNum >= lastStableSeqNum);
-
-            LOG_INFO_F(GL, "Calling to executeNextCommittedRequests(requestMissingInfo=%d)",(int)requestMissingInfo);
-
-            while (lastExecutedSeqNum < lastStableSeqNum + kWorkWindowSize)
-            {
-                SeqNumInfo& seqNumInfo = mainLog->get(lastExecutedSeqNum + 1);
-
-                PrePrepareMsg* prePrepareMsg = seqNumInfo.getPrePrepareMsg();
-
-                const bool ready = (prePrepareMsg != nullptr) && (seqNumInfo.isCommitted__gg());
-
-                if (requestMissingInfo && !ready)
-                {
-                    LOG_INFO_F(GL, "executeNextCommittedRequests - Asking for missing information about %" PRId64 "", lastExecutedSeqNum + 1);
-                    tryToSendReqMissingDataMsg(lastExecutedSeqNum + 1);
-                }
-
-                if (!ready) break;
-
-                Assert(prePrepareMsg->seqNumber() == lastExecutedSeqNum + 1);
-                Assert(prePrepareMsg->viewNumber() == curView); // TODO(GG): TBD
-
-                executeRequestsInPrePrepareMsg(prePrepareMsg);
-            }
-
-            if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0)
-                tryToSendPrePrepareMsg(true);
+          requestSet = mapOfRequestsThatAreBeingRecovered;
         }
 
-        void ReplicaImp::SetAggregator(
-            std::shared_ptr<concordMetrics::Aggregator> aggregator) {
-          metrics_.SetAggregator(aggregator);
+        //////////////////////////////////////////////////////////////////////
+        // Phase 2: execute requests + send replies
+        // In this phase the application state may be changed. We also change data in the state transfer module.
+        // TODO(GG): Explain what happens in recovery mode (what are the requirements from  the application, and from the state transfer module.
+        //////////////////////////////////////////////////////////////////////
+
+        reqIdx = 0;
+        requestBody = nullptr;
+        while (reqIter.getAndGoToNext(requestBody))
+        {
+          size_t tmp = reqIdx;
+          reqIdx++;
+          if (!requestSet.get(tmp)) continue;
+
+          ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
+          NodeIdType clientId = req.clientProxyId();
+
+          uint32_t actualReplyLength = 0;
+          userRequestsHandler->execute(
+              clientId, lastExecutedSeqNum + 1, req.isReadOnly(),
+              req.requestLength(), req.requestBuf(),
+              maxReplyMessageSize - sizeof(ClientReplyMsgHeader),
+              replyBuffer, actualReplyLength);
+
+          Assert(actualReplyLength > 0); // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
+
+          ClientReplyMsg* replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(clientId, req.requestSeqNum(), currentPrimary(), replyBuffer, actualReplyLength);
+
+          send(replyMsg, clientId);
+
+          delete replyMsg;
+
+          clientsManager->removePendingRequestOfClient(clientId);
         }
+
+      }
+
+      if ((lastExecutedSeqNum + 1) % checkpointWindowSize == 0)
+      {
+        const uint64_t checkpointNum = (lastExecutedSeqNum + 1) / checkpointWindowSize;
+        stateTransfer->createCheckpointOfCurrentState(checkpointNum);
+      }
+
+      //////////////////////////////////////////////////////////////////////
+      // Phase 3: finalize the execution of lastExecutedSeqNum+1
+      // TODO(GG): Explain what happens in recovery mode
+      //////////////////////////////////////////////////////////////////////
+
+      LOG_INFO_F(GL, "\nReplica - executeRequestsInPrePrepareMsg() - lastExecutedSeqNum==%" PRId64 "", (lastExecutedSeqNum+1));
+
+      if (ps_) {
+        ps_->beginWriteTran();
+        ps_->setLastExecutedSeqNum(lastExecutedSeqNum + 1);
+      }
+
+      lastExecutedSeqNum = lastExecutedSeqNum + 1;
+
+      metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
+
+      if (lastViewThatTransferredSeqNumbersFullyExecuted < curView && (lastExecutedSeqNum >= maxSeqNumTransferredFromPrevViews)) {
+        lastViewThatTransferredSeqNumbersFullyExecuted = curView;
+        if (ps_) {
+          ps_->setLastViewThatTransferredSeqNumbersFullyExecuted(lastViewThatTransferredSeqNumbersFullyExecuted);
+        }
+      }
+
+      if (lastExecutedSeqNum % checkpointWindowSize == 0)
+      {
+        Digest checkDigest;
+        const uint64_t checkpointNum = lastExecutedSeqNum / checkpointWindowSize;
+        stateTransfer->getDigestOfCheckpoint(checkpointNum, sizeof(Digest), (char*)&checkDigest);
+        CheckpointMsg* checkMsg = new CheckpointMsg(myReplicaId, lastExecutedSeqNum, checkDigest, false);
+        CheckpointInfo& checkInfo = checkpointsLog->get(lastExecutedSeqNum);
+        checkInfo.addCheckpointMsg(checkMsg, myReplicaId);
+
+        if (ps_)
+          ps_->setCheckpointMsgInCheckWindow(lastExecutedSeqNum, checkMsg);
+
+        if (checkInfo.isCheckpointCertificateComplete())
+        {
+          onSeqNumIsStable(lastExecutedSeqNum);
+        }
+        checkInfo.setSelfExecutionTime(getMonotonicTime());
+      }
+
+      if (ps_)
+        ps_->endWriteTran();
+
+      if(numOfRequests > 0)
+        userRequestsHandler->onFinishExecutingReadWriteRequests();
+
+      sendCheckpointIfNeeded();
+
+      bool firstCommitPathChanged =
+          controller->onNewSeqNumberExecution(lastExecutedSeqNum);
+
+      if (firstCommitPathChanged) {
+        metric_first_commit_path_.Get().Set(CommitPathToStr(
+            controller->getCurrentFirstPath()));
+      }
+      // TODO(GG): clean the following logic
+      if(mainLog->insideActiveWindow(lastExecutedSeqNum))
+      { // update dynamicUpperLimitOfRounds
+        const SeqNumInfo& seqNumInfo = mainLog->get(lastExecutedSeqNum);
+        const Time firstInfo = seqNumInfo.getTimeOfFisrtRelevantInfoFromPrimary();
+        const Time currTime = getMonotonicTime();
+        if ((firstInfo < currTime)) {
+          const int64_t durationMilli = (subtract(currTime, firstInfo) / 1000);
+          dynamicUpperLimitOfRounds->add(durationMilli);
+        }
+      }
+
+#ifdef DEBUG_STATISTICS
+      DebugStatistics::onRequestCompleted(false);
+#endif
+    }
+
+    void ReplicaImp::executeNextCommittedRequests(const bool requestMissingInfo)
+    {
+      Assert(!stateTransfer->isCollectingState() && currentViewIsActive());
+      Assert(lastExecutedSeqNum >= lastStableSeqNum);
+
+      LOG_INFO_F(GL, "Calling to executeNextCommittedRequests(requestMissingInfo=%d)",(int)requestMissingInfo);
+
+      while (lastExecutedSeqNum < lastStableSeqNum + kWorkWindowSize)
+      {
+        SeqNumInfo& seqNumInfo = mainLog->get(lastExecutedSeqNum + 1);
+
+        PrePrepareMsg* prePrepareMsg = seqNumInfo.getPrePrepareMsg();
+
+        const bool ready = (prePrepareMsg != nullptr) && (seqNumInfo.isCommitted__gg());
+
+        if (requestMissingInfo && !ready)
+        {
+          LOG_INFO_F(GL, "executeNextCommittedRequests - Asking for missing information about %" PRId64 "", lastExecutedSeqNum + 1);
+
+          tryToSendReqMissingDataMsg(lastExecutedSeqNum + 1);
+        }
+
+        if (!ready) break;
+
+        Assert(prePrepareMsg->seqNumber() == lastExecutedSeqNum + 1);
+        Assert(prePrepareMsg->viewNumber() == curView); // TODO(GG): TBD
+
+        executeRequestsInPrePrepareMsg(prePrepareMsg);
+      }
+
+      if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0)
+        tryToSendPrePrepareMsg(true);
+    }
+
+    void ReplicaImp::SetAggregator(
+        std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+      metrics_.SetAggregator(aggregator);
+    }
 
 // TODO(GG): the timer for state transfer !!!!
 
