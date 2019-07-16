@@ -89,7 +89,7 @@ ReplicaLoader::ErrorCode checkReplicaConfig(const LoadedReplicaData &ld) {
   return Succ;
 }
 
-ReplicaLoader::ErrorCode loadConfig(PersistentStorage *p, LoadedReplicaData &ld) {
+ReplicaLoader::ErrorCode loadConfig(shared_ptr<PersistentStorage> &p, LoadedReplicaData &ld) {
   Assert(p != nullptr);
 
   Verify(p->hasReplicaConfig(), NoDataErr);
@@ -132,7 +132,7 @@ ReplicaLoader::ErrorCode checkViewDesc(
   return Succ;
 }
 
-ReplicaLoader::ErrorCode loadViewInfo(PersistentStorage *p, LoadedReplicaData &ld) {
+ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedReplicaData &ld) {
   Assert(p != nullptr);
   Assert(ld.repsInfo != nullptr)
   Assert(ld.repConfig.thresholdVerifierForSlowPathCommit != nullptr);
@@ -238,9 +238,7 @@ ReplicaLoader::ErrorCode loadViewInfo(PersistentStorage *p, LoadedReplicaData &l
   return Succ;
 }
 
-ReplicaLoader::ErrorCode loadReplicaData(
-    PersistentStorage *p,
-    LoadedReplicaData &ld) {
+ReplicaLoader::ErrorCode loadReplicaData(shared_ptr<PersistentStorage> p, LoadedReplicaData &ld) {
   Assert(p != nullptr);
 
   ReplicaLoader::ErrorCode stat = loadConfig(p, ld);
@@ -378,7 +376,7 @@ void freeReplicaData(LoadedReplicaData &ld) {
 }
 }
 
-LoadedReplicaData ReplicaLoader::loadReplica(PersistentStorage *p, ReplicaLoader::ErrorCode &outErrCode) {
+LoadedReplicaData ReplicaLoader::loadReplica(shared_ptr<PersistentStorage> &p, ReplicaLoader::ErrorCode &outErrCode) {
   Assert(p != nullptr);
   LoadedReplicaData ld;
   outErrCode = loadReplicaData(p, ld);

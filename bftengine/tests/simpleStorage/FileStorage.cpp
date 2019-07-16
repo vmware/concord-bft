@@ -104,10 +104,10 @@ void FileStorage::write(void *dataPtr, size_t offset, size_t itemSize,
     fflush(dataStream_);
 }
 
-void FileStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint16_t metadataObjectsArrayLength) {
+bool FileStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint16_t metadataObjectsArrayLength) {
   if (objectsMetadata_) {
     LOG_WARN(logger_, "FileStorage::initMaxSizeOfObjects Storage file already initialized; ignoring");
-    return;
+    return false;
   }
   objectsMetadata_ = new ObjectsMetadataHandler(metadataObjectsArrayLength);
   const uint64_t fileMetadataSize = objectsMetadata_->getObjectsMetadataSize();
@@ -128,6 +128,7 @@ void FileStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint16_
   ftruncate(fileno(dataStream_), maxFileSize);
   writeFileMetadata();
   LOG_DEBUG(logger_, "" << *objectsMetadata_);
+  return true;
 }
 
 void FileStorage::verifyFileMetadataSetup() const {
@@ -140,11 +141,23 @@ void FileStorage::verifyFileMetadataSetup() const {
 void FileStorage::verifyOperation(uint16_t objectId, uint32_t dataLen, const char *buffer) const {
   verifyFileMetadataSetup();
   MetadataObjectInfo *objectInfo = objectsMetadata_->getObjectInfo(objectId);
-  if (!objectInfo || objectId > objectsMetadata_->getObjectsNum() - 1 ||
-      !dataLen || dataLen > objectInfo->maxSize || !buffer) {
-    LOG_FATAL(logger_, "FileStorage::verifyOperation " << WRONG_PARAMETER);
-    throw runtime_error(WRONG_PARAMETER);
+  if (objectInfo && objectId <= (objectsMetadata_->getObjectsNum() - 1) &&
+      dataLen && (dataLen <= objectInfo->maxSize && buffer))
+    return;
+  if (!objectInfo) {
+    LOG_FATAL(logger_, "FileStorage::verifyOperation objectInfo is NULL for objectId=" << objectId);
+  } else if (objectId > objectsMetadata_->getObjectsNum() - 1) {
+    LOG_FATAL(logger_, "FileStorage::verifyOperation objectId=" << objectId << " is too big; maximum value is "
+                                                                << objectsMetadata_->getObjectsNum() - 2);
+  } else if (!dataLen) {
+    LOG_FATAL(logger_, "FileStorage::verifyOperation dataLen is 0 for objectId=" << objectId);
+  } else if (dataLen > objectInfo->maxSize) {
+    LOG_FATAL(logger_, "FileStorage::verifyOperation dataLen is too big for objectId="
+        << objectId << "; maximum value is " << objectInfo->maxSize);
+  } else if (!buffer) {
+    LOG_FATAL(logger_, "FileStorage::verifyOperation buffer is NULL for objectId=" << objectId);
   }
+  throw runtime_error(WRONG_PARAMETER);
 }
 
 void FileStorage::handleObjectWrite(uint16_t objectId, void *dataPtr, uint32_t objectSize, bool toFlush) {
@@ -204,7 +217,7 @@ void FileStorage::writeInTransaction(uint16_t objectId, char *data, uint32_t dat
   }
   char *buf = new char[dataLength];
   memcpy(buf, data, dataLength);
-  transaction_->insert(pair<uint16_t, RequestInfo> (objectId, RequestInfo(buf, dataLength)));
+  transaction_->insert(pair<uint16_t, RequestInfo>(objectId, RequestInfo(buf, dataLength)));
 }
 
 void FileStorage::commitAtomicWriteOnlyTransaction() {

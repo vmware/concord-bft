@@ -62,7 +62,7 @@ class ReplicaLoader {
     // NB: consider to add specific error codes
   };
 
-  static LoadedReplicaData loadReplica(PersistentStorage *p, ErrorCode &outErrCode);
+  static LoadedReplicaData loadReplica(std::shared_ptr<PersistentStorage> &p, ErrorCode &outErrCode);
 };
 
 }  // namespace impl

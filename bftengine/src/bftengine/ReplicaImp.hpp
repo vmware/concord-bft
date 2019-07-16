@@ -198,7 +198,7 @@ namespace bftEngine
 
 			int viewChangeTimerMilli;
 
-			PersistentStorage* ps_ = nullptr;
+			std::shared_ptr<PersistentStorage> ps_;
 
 			bool recoveringFromExecutionOfRequests = false;
 			Bitmap mapOfRequestsThatAreBeingRecovered;
@@ -286,11 +286,11 @@ namespace bftEngine
 
                         //*****************************************************
 		public:
-			ReplicaImp(const ReplicaConfig&, RequestsHandler* requestsHandler,
-				IStateTransfer* stateTransfer, ICommunication* communication, PersistentStorage* persistentStorage);
+			ReplicaImp(const ReplicaConfig&, RequestsHandler* requestsHandler, IStateTransfer* stateTransfer,
+			    ICommunication* communication, shared_ptr<PersistentStorage> &persistentStorage);
 
-			ReplicaImp(const LoadedReplicaData&, RequestsHandler* requestsHandler,
-				IStateTransfer* stateTransfer, ICommunication* communication, PersistentStorage* persistentStorage);
+			ReplicaImp(const LoadedReplicaData&, RequestsHandler* requestsHandler, IStateTransfer* stateTransfer,
+			    ICommunication* communication, shared_ptr<PersistentStorage> &persistentStorage);
 
 			virtual ~ReplicaImp();
 
@@ -301,7 +301,7 @@ namespace bftEngine
 			SeqNum getLastExecutedSequenceNum() const;
 			bool isRecoveringFromExecutionOfRequests() const { return recoveringFromExecutionOfRequests; }
 
-			PersistentStorage* getPersistentStorage() const { return ps_; }
+			shared_ptr<PersistentStorage> getPersistentStorage() const { return ps_; }
 			RequestsHandler* getRequestsHandler() const { return userRequestsHandler; }
 			IStateTransfer* getStateTransfer() const { return stateTransfer; }
 			ICommunication* getCommunication() const { return communication; }
