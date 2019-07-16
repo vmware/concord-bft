@@ -65,9 +65,9 @@
 #endif
 
 #define REPLICA2_RESTART_NO_VC (0)
-#define ALL_REPLICAS_RESTART_NO_VC (0)
+#define ALL_REPLICAS_RESTART_NO_VC (1)
 #define ALL_REPLICAS_RESTART_VC (0)
-#define PRIMARY_REPLICA_RESTART_VC (1)
+#define PRIMARY_REPLICA_RESTART_VC (0)
 static_assert(REPLICA2_RESTART_NO_VC + ALL_REPLICAS_RESTART_NO_VC + ALL_REPLICAS_RESTART_VC + PRIMARY_REPLICA_RESTART_VC <= 1, "");
 
 using bftEngine::ICommunication;
@@ -213,7 +213,8 @@ int main(int argc, char **argv) {
 #endif
 #if ALL_REPLICAS_RESTART_NO_VC
   pti.allReplicasRestartNoVC = true;
-  pti.restartDelay = 5000;
+  pti.initialSleepBetweenRestartsMillis = 5000;
+  pti.sleepBetweenRestartsMultipler = 1.5;
 #endif
 #if ALL_REPLICAS_RESTART_VC
   pti.allReplicasRestartVC = true;

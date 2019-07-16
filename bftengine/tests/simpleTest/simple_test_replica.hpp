@@ -136,6 +136,8 @@ struct PersistencyTestInfo {
   bool allReplicasRestartVC = false;
   bool primaryReplicaRestartVC = false;
   uint32_t restartDelay = 0;
+  uint32_t initialSleepBetweenRestartsMillis = 5000;
+  double sleepBetweenRestartsMultipler = 1.2;
 };
 
 class SimpleTestReplica {
@@ -189,6 +191,7 @@ class SimpleTestReplica {
   }
 
   void run() {
+    srand (time(NULL));
     while (replica->isRunning()) {
       if(pti.replica2RestartNoVC) {
         if (replicaConfig.replicaId == 2) {
@@ -201,10 +204,14 @@ class SimpleTestReplica {
         }
       }
       else if (pti.allReplicasRestartNoVC) {
-        std::this_thread::sleep_for(std::chrono::seconds(3 *
-            (2 + replicaConfig.replicaId) * (2 + replicaConfig.replicaId)));
+        std::this_thread::sleep_for(std::chrono::milliseconds(
+          pti.initialSleepBetweenRestartsMillis
+        ));
+        pti.initialSleepBetweenRestartsMillis = pti.initialSleepBetweenRestartsMillis *
+          pti.sleepBetweenRestartsMultipler + (1000 * replicaConfig.replicaId * replicaConfig.replicaId);
         if(replica && replica->isRunning()) {
             LOG_INFO(replicaLogger, "Restarting");
+            pti.restartDelay = (rand() % 40 + 2) * 1000;
             replica->restartForDebug(pti.restartDelay);
             LOG_INFO(replicaLogger, "Restarted");
           }
@@ -220,7 +227,10 @@ class SimpleTestReplica {
       }
       else if(pti.primaryReplicaRestartVC) {
         if(replicaConfig.replicaId == 0) {
-          std::this_thread::sleep_for(std::chrono::seconds(5));
+          std::this_thread::sleep_for(std::chrono::milliseconds((uint32_t)
+            (pti.initialSleepBetweenRestartsMillis * pti.sleepBetweenRestartsMultipler)
+          ));
+          pti.sleepBetweenRestartsMultipler *= 1.2;
           if(replica && replica->isRunning()) {
             LOG_INFO(replicaLogger, "Restarting");
             replica->restartForDebug(pti.restartDelay);
@@ -248,6 +258,8 @@ class SimpleTestReplica {
       replicaConfig.autoViewChangeEnabled = rp.viewChangeEnabled;
       replicaConfig.viewChangeTimerMillisec = rp.viewChangeTimeout;
       replicaConfig.replicaId = rp.replicaId;
+      replicaConfig.statusReportTimerMillisec = 10000;
+      replicaConfig.concurrencyLevel = 1;
 
       // This is the state machine that the replica will drive.
       SimpleAppState *simpleAppState = new SimpleAppState(rp.numOfClients, rp

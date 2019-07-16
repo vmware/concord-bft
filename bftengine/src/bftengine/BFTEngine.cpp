@@ -78,6 +78,9 @@ void ReplicaInternal::SetAggregator(std::shared_ptr<concordMetrics::Aggregator> 
 void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
   Assert(debugPersistentStorageEnabled);
   rep->stopWhenStateIsNotCollected();
+  if(delayMillis > 0) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(delayMillis));
+  }
 
   shared_ptr<PersistentStorage> persistentStorage(rep->getPersistentStorage());
   RequestsHandler *requestsHandler = rep->getRequestsHandler();
@@ -94,10 +97,7 @@ void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
   Assert(loadErrCode == ReplicaLoader::ErrorCode::Success);
 
   rep = new ReplicaImp(ld, requestsHandler, stateTransfer, comm, persistentStorage);
-
-  if(delayMillis > 0) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(delayMillis));
-  }
+  
   rep->start();
 }
 }
