@@ -136,22 +136,22 @@ class PersistentStorageImp : public PersistentStorage {
   bool hasDescriptorOfLastExecution() override;
 
   // Returns 'true' in case storage is empty
-  bool init(MetadataStorage *&metadataStorage);
+  bool init(const shared_ptr<MetadataStorage> &metadataStorage);
 
  protected:
   bool setIsAllowed() const;
   bool getIsAllowed() const;
-  bool nonExecSetIsAllowed() const;
+  bool nonExecSetIsAllowed();
   SeqNum getSeqNum(ConstMetadataParameterIds id, uint32_t size);
 
  private:
   void retrieveWindowsMetadata();
   void setDefaultsInMetadataStorage();
-  void verifySetDescriptorOfLastExitFromView(const DescriptorOfLastExitFromView &desc) const;
+  void verifySetDescriptorOfLastExitFromView(const DescriptorOfLastExitFromView &desc) ;
   void verifyPrevViewInfo(const DescriptorOfLastExitFromView &desc) const;
-  void verifySetDescriptorOfLastNewView(const DescriptorOfLastNewView &desc) const;
+  void verifySetDescriptorOfLastNewView(const DescriptorOfLastNewView &desc);
   void verifyLastNewViewMsgs(const DescriptorOfLastNewView &desc) const;
-  void verifyDescriptorOfLastExecution(const DescriptorOfLastExecution &desc) const;
+  void verifyDescriptorOfLastExecution(const DescriptorOfLastExecution &desc);
 
   void saveDescriptorOfLastExitFromView(const DescriptorOfLastExitFromView &newDesc);
   void setDescriptorOfLastExitFromView(const DescriptorOfLastExitFromView &desc, bool init);
@@ -168,13 +168,13 @@ class PersistentStorageImp : public PersistentStorage {
   void setMsgInSeqNumWindow(const SeqNum &seqNum, const SeqNum &parameterId,
                             MessageBase *msg, const size_t &msgSize) const;
   void setBooleanInSeqNumWindow(const SeqNum &seqNum, const SeqNum &parameterId, const bool &boolean) const;
-  void setSeqNumDataElement(const SeqNum &index, const SharedPtrSeqNumWindow &seqNumWindow) const;
   void serializeAndSaveSeqNumWindow(const SharedPtrSeqNumWindow &seqNumWindow);
   void setSeqNumDataElement(const SeqNum &index, const SeqNumData &elem) const;
+  void saveSeqNumDataElement(const SeqNum &index, const SharedPtrSeqNumWindow &seqNumWindow) const;
 
   void serializeAndSaveCheckWindow(const SharedPtrCheckWindow &checkWindow);
   void setCheckDataElement(const SeqNum &index, const CheckData &elem) const;
-  void setCheckDataElement(const SeqNum &index, const SharedPtrCheckWindow &checkWindow) const;
+  void saveCheckDataElement(const SeqNum &index, const SharedPtrCheckWindow &checkWindow) const;
 
   SeqNum readBeginningOfActiveWindow(const uint32_t &index) const;
   MessageBase *readMsgFromDisk(const SeqNum &index, const SeqNum &parameterId, const size_t &msgSize) const;
@@ -200,8 +200,9 @@ class PersistentStorageImp : public PersistentStorage {
   void setDefaultWindowsValues();
 
  private:
-  MetadataStorage *metadataStorage_ = nullptr;
+  std::shared_ptr<MetadataStorage> metadataStorage_;
   ReplicaConfigSerializer *configSerializer_ = nullptr;
+  const ReplicaConfigSerializer defaultReplicaConfig_;
 
   const uint32_t maxVersionSize_ = 80;
 
@@ -220,6 +221,8 @@ class PersistentStorageImp : public PersistentStorage {
   bool hasDescriptorOfLastExitFromView_ = false;
   bool hasDescriptorOfLastNewView_ = false;
   bool hasDescriptorOfLastExecution_ = false;
+
+  DescriptorOfLastExecution descriptorOfLastExecution_ = DescriptorOfLastExecution{0, Bitmap()};
 
   // Parameters to be saved persistently
   std::string version_;

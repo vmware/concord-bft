@@ -562,6 +562,7 @@ void BCStateTran::saveReservedPage(uint32_t reservedPageId,
     psd_->setPendingResPage(reservedPageId, inReservedPage, copyLength);
   } catch (std::out_of_range e) {
     LOG_ERROR(STLogger, "BCStateTran::saveReservedPage - got out_of_range exception");
+    throw(e);
   }
 }
 

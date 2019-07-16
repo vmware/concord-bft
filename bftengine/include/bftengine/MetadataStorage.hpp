@@ -25,9 +25,9 @@ class MetadataStorage {
     uint32_t maxSize;
   };
 
-  // Used to initialize the storage the first time this storage is used
-  // (the IDs and their maximal size are known in advance)
-  virtual void initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray,
+  // Initialize the storage before the first time used. In case storage is already initialized, do nothing.
+  // Return boolean saying whether been initialized or not (the IDs and their maximal size are known in advance).
+  virtual bool initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray,
                                     uint16_t metadataObjectsArrayLength) = 0;
 
   // Read object from storage (only used to restart/recovery)

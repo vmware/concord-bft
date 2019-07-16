@@ -59,9 +59,10 @@
 #include "Replica.hpp"
 #include "ReplicaConfig.hpp"
 #include "SimpleStateTransfer.hpp"
+#include "Logging.hpp"
+#include "FileStorage.hpp"
 #include "test_comm_config.hpp"
 #include "test_parameters.hpp"
-#include "Logging.hpp"
 
 // simpleTest includes
 #include "commonDefs.h"
@@ -76,6 +77,7 @@ static_assert(REPLICA2_RESTART_NO_VC + ALL_REPLICAS_RESTART_NO_VC + REPLICA2_RES
                   + PRIMARY_REPLICA_RESTART <= 1, "");
 
 using namespace std;
+using namespace bftEngine;
 
 concordlogger::Logger replicaLogger = concordlogger::Log::getLogger("simpletest.replica");
 bftEngine::Replica *replica = nullptr;
@@ -244,7 +246,7 @@ class SimpleAppState : public RequestsHandler {
 
       // Copy the latest register value to the reply buffer.
       test_assert(maxReplySize >= sizeof(uint64_t), "maxReplySize < " << sizeof(uint64_t));
-      uint64_t *pRet = reinterpret_cast<uint64_t *>(outReply);
+      auto *pRet = reinterpret_cast<uint64_t *>(outReply);
       auto lastValue = get_last_state_value(clientId);
       *pRet = lastValue;
       outActualReplySize = sizeof(uint64_t);
@@ -254,7 +256,7 @@ class SimpleAppState : public RequestsHandler {
       test_assert(requestSize == 2 * sizeof(uint64_t), "requestSize != " << 2 * sizeof(uint64_t));
 
       // We only support the WRITE operation in read-write mode.
-      const uint64_t *pReqId = reinterpret_cast<const uint64_t *>(request);
+      auto *pReqId = reinterpret_cast<const uint64_t *>(request);
       test_assert(*pReqId == SET_VAL_REQ, "*preqId != " << SET_VAL_REQ);
 
       // The value to write is the second eight bytes of the request.
@@ -268,7 +270,7 @@ class SimpleAppState : public RequestsHandler {
 
       // Reply with the number of times we've modified the register.
       test_assert(maxReplySize >= sizeof(uint64_t), "maxReplySize < " << sizeof(uint64_t));
-      uint64_t *pRet = reinterpret_cast<uint64_t *>(outReply);
+      auto *pRet = reinterpret_cast<uint64_t *>(outReply);
       *pRet = stateNum;
       outActualReplySize = sizeof(uint64_t);
 
@@ -374,6 +376,14 @@ int main(int argc, char **argv) {
 
   simpleAppState.st = st;
 
+  replicaConfig.statusReportTimerMillisec = 3000;
+  replicaConfig.viewChangeTimerMillisec = 20000;
+  ostringstream dbFile;
+  dbFile << "metadataStorageTest_" << replicaConfig.replicaId << ".txt";
+  remove(dbFile.str().c_str());
+  MetadataStorage *fileStorage = new FileStorage(replicaLogger, dbFile.str());
+
+  //replica = Replica::createNewReplica(&replicaConfig, &simpleAppState, st, comm, fileStorage);
   replica = Replica::createNewReplica(&replicaConfig, &simpleAppState, st, comm, nullptr);
 
   replica->start();

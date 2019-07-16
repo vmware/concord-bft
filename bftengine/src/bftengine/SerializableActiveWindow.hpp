@@ -14,7 +14,6 @@
 
 #include <stdint.h>
 #include <utility>
-#include <list>
 #include "assertUtils.hpp"
 #include "PrimitiveTypes.hpp"
 
@@ -57,7 +56,7 @@ class SerializableActiveWindow {
 
   void resetAll(const SeqNum &windowFirst);
 
-  std::list<SeqNum> advanceActiveWindow(const uint32_t &newFirstIndex);
+  void advanceActiveWindow(const uint32_t &newFirstIndex);
 
   static SeqNum convertIndex(const SeqNum &seqNum, const SeqNum& beginningOfActiveWindow);
 

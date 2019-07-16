@@ -2822,7 +2822,7 @@ namespace bftEngine
 		}
 
 		ReplicaImp::ReplicaImp(const LoadedReplicaData& ld, RequestsHandler* requestsHandler,
-			IStateTransfer* stateTrans, ICommunication* comm, PersistentStorage* persistentStorage) :
+			IStateTransfer* stateTrans, ICommunication* comm, shared_ptr<PersistentStorage> &persistentStorage) :
 			ReplicaImp(false, ld.repConfig, requestsHandler, stateTrans, ld.sigManager, ld.repsInfo, ld.viewsManager)
 		{
 			Assert(persistentStorage != nullptr);
@@ -3002,7 +3002,7 @@ namespace bftEngine
 		}
 
 		ReplicaImp::ReplicaImp(const ReplicaConfig& config, RequestsHandler* requestsHandler,
-			IStateTransfer* stateTrans, ICommunication* comm, PersistentStorage* persistentStorage) :
+			IStateTransfer* stateTrans, ICommunication* comm, shared_ptr<PersistentStorage> &persistentStorage) :
 			ReplicaImp(true, config, requestsHandler, stateTrans, nullptr, nullptr, nullptr)
 		{
 			if (persistentStorage != nullptr)

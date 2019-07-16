@@ -31,7 +31,8 @@ enum SeqNumDataParameters {
   PRE_PREPARE_FULL_MSG = 3,
   COMMIT_FULL_MSG = 4,
   FORCE_COMPLETED = 5,
-  SLOW_STARTED = 6
+  SLOW_STARTED = 6,
+  SEQ_NUM_LAST_PARAM = SLOW_STARTED
 };
 
 class SeqNumData {
@@ -85,7 +86,7 @@ class SeqNumData {
   static uint32_t maxFullCommitProofMsgSize();
   static uint32_t maxPrepareFullMsgSize();
   static uint32_t maxCommitFullMsgSize();
-  static constexpr uint16_t getNumOfParams() { return 6; }
+  static constexpr uint16_t getNumOfParams() { return SEQ_NUM_LAST_PARAM; }
 
  private:
   static bool compareMessages(MessageBase *msg, MessageBase *otherMsg);
@@ -102,7 +103,8 @@ class SeqNumData {
 enum CheckDataParameters {
   CHECK_DATA_FIRST_PARAM = 1,
   CHECKPOINT_MSG = CHECK_DATA_FIRST_PARAM,
-  COMPLETED_MARK = 2
+  COMPLETED_MARK = 2,
+  CHECK_DATA_LAST_PARAM = COMPLETED_MARK
 };
 
 class CheckData {
@@ -135,7 +137,7 @@ class CheckData {
 
   static uint32_t maxSize();
   static uint32_t maxCheckpointMsgSize();
-  static constexpr uint16_t getNumOfParams() { return 2; }
+  static constexpr uint16_t getNumOfParams() { return CHECK_DATA_LAST_PARAM; }
 
  private:
   CheckpointMsg *checkpointMsg_ = nullptr;

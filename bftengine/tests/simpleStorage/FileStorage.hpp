@@ -30,7 +30,7 @@ class FileStorage : public MetadataStorage {
 
   virtual ~FileStorage();
 
-  void initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray,
+  bool initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray,
                             uint16_t metadataObjectsArrayLength) override;
 
   void read(uint16_t objectId, uint32_t bufferSize,

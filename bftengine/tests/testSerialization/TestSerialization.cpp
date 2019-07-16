@@ -149,7 +149,7 @@ typedef pair<uint16_t, string> IdToKeyPair;
 
 ReplicaConfig config;
 PersistentStorageImp *persistentStorageImp = nullptr;
-MetadataStorage *metadataStorage = nullptr;
+shared_ptr<MetadataStorage> metadataStorage;
 
 bool fetchingState = false;
 SeqNum lastExecutedSeqNum = 0;
@@ -333,12 +333,12 @@ void testWindowsAdvance() {
 }
 
 void testSetDescriptors(bool toSet) {
-  SeqNum lastExecutionSeqNum = 1;
+  SeqNum lastExecutionSeqNum = 33;
   Bitmap requests(100);
   DescriptorOfLastExecution lastExecutionDesc(lastExecutionSeqNum, requests);
 
   ViewNum viewNum = 2;
-  SeqNum lastExitExecNum = 62;
+  SeqNum lastExitExecNum = 65;
   PrevViewInfoElements elements;
   ViewsManager::PrevViewInfo element;
   ReplicaId senderId = 1;
@@ -474,7 +474,7 @@ int main() {
   remove(dbFile.c_str()); // Required for the init testing.
 
   PersistentStorageImp persistentStorage(fVal, cVal);
-  metadataStorage = new FileStorage(logger, dbFile);
+  metadataStorage.reset(new FileStorage(logger, dbFile));
   uint16_t numOfObjects = 0;
   ObjectDescUniquePtr objectDescArray = persistentStorage.getDefaultMetadataObjectDescriptors(numOfObjects);
   metadataStorage -> initMaxSizeOfObjects(objectDescArray.get(), numOfObjects);
@@ -487,14 +487,14 @@ int main() {
   for (auto i = 1; i <= 2; ++i) {
     if (!init) {
       // Re-open existing DB file
-      delete (FileStorage *) metadataStorage;
-      metadataStorage = new FileStorage(logger, dbFile);
+      metadataStorage.reset();
+      metadataStorage.reset(new FileStorage(logger, dbFile));
       metadataStorage -> initMaxSizeOfObjects(objectDescArray.get(), numOfObjects);
       persistentStorageImp->init(metadataStorage);
     }
     testSetReplicaConfig(init);
-    testSetDescriptors(init);
     testSetSimpleParams(init);
+    testSetDescriptors(init);
     testWindows(init);
     if (!init)
       testWindowsAdvance();
@@ -505,7 +505,6 @@ int main() {
   delete descriptorOfLastNewView;
   delete descriptorOfLastExecution;
   delete persistentStorageImp;
-  delete (FileStorage *) metadataStorage;
 
   return 0;
 }
