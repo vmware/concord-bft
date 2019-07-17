@@ -80,8 +80,7 @@ class Logger
     va_start (args, format);
     static constexpr size_t size = 1024;
     std::string output(size, '\0');
-    int res = std::vsnprintf(const_cast<char*>(output.c_str()), size, format, args);
-    assert(res >= 0);
+    std::vsnprintf(const_cast<char*>(output.c_str()), size, format, args);
     va_end(args);
 
     printf("%s %s (%s) %s\n",

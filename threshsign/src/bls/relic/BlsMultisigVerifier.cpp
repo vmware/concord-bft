@@ -93,14 +93,13 @@ bool BlsMultisigVerifier::verify(const char *msg, int msgLen,
     int idbufLen = VectorOfShares::getByteCount();
     signers.fromBytes(reinterpret_cast<const unsigned char *>(idbuf), idbufLen);
 
+    if(signers.count() < reqSigners_)
+      return false;
     // for reqSigners != numSigners, need to derive PK from signer IDs
-    if (reqSigners_ != numSigners_) {
-      publicKey_ = G2T::Identity();
-      for (ShareID id = signers.first(); !signers.isEnd(id);
-           id = signers.next(id)) {
-        auto idx = static_cast<size_t>(id);
-        publicKey_.y.Add(publicKeysVector_[idx].getPoint());
-      }
+    publicKey_ = G2T::Identity();
+    for (ShareID id = signers.first(); !signers.isEnd(id); id = signers.next(id)) {
+      auto idx = static_cast<size_t>(id);
+      publicKey_.y.Add(publicKeysVector_[idx].getPoint());
     }
   }
 

@@ -51,7 +51,7 @@ BlsThresholdFactory::BlsThresholdFactory(const BlsPublicParameters& params, bool
 
 std::unique_ptr<BlsThresholdKeygenBase> BlsThresholdFactory::newKeygen(NumSharesType reqSigners, NumSharesType numSigners) const {
     std::unique_ptr<BlsThresholdKeygenBase> keygen;
-    if(useMultisig || reqSigners == numSigners) {
+    if(useMultisig) {
         keygen.reset(new BlsMultisigKeygen(params, numSigners));
     } else {
         keygen.reset(new BlsThresholdKeygen(params, reqSigners, numSigners));
@@ -61,7 +61,6 @@ std::unique_ptr<BlsThresholdKeygenBase> BlsThresholdFactory::newKeygen(NumShares
 
 IThresholdVerifier * BlsThresholdFactory::newVerifier(NumSharesType reqSigners, NumSharesType numSigners,
         const char * publicKeyStr, const std::vector<std::string>& verifKeysStr) const {
-    G2T pk( (std::string(publicKeyStr)) );
 
     std::vector<BlsPublicKey> verifKeys;
     verifKeys.push_back(BlsPublicKey());	// signer 0 has no PK
@@ -72,10 +71,10 @@ IThresholdVerifier * BlsThresholdFactory::newVerifier(NumSharesType reqSigners, 
     std::transform(begin, verifKeysStr.end(), std::back_inserter(verifKeys),
             [](const std::string& str) -> BlsPublicKey { return BlsPublicKey(G2T(str)); });
 
-    if(useMultisig || reqSigners == numSigners)
-        return new BlsMultisigVerifier(params, reqSigners, numSigners, verifKeys);
+    if(useMultisig)
+      return new BlsMultisigVerifier(params, reqSigners, numSigners, verifKeys);
     else
-        return new BlsThresholdVerifier(params, pk, reqSigners, numSigners, verifKeys);
+      return new BlsThresholdVerifier(params, G2T(std::string(publicKeyStr)), reqSigners, numSigners, verifKeys);
 }
 
 IThresholdSigner * BlsThresholdFactory::newSigner(ShareID id, const char * secretKeyStr) const {
@@ -102,7 +101,7 @@ std::tuple<std::vector<IThresholdSigner*>, IThresholdVerifier*> BlsThresholdFact
     // Create verifier
     IThresholdVerifier* verifier;
 
-    if(useMultisig || reqSigners == numSigners) {
+    if(useMultisig) {
         LOG_DEBUG(GL, "Creating multisig BLS verifier");
         verifier = new BlsMultisigVerifier(params, reqSigners, numSigners, verifKeys);
     } else {
