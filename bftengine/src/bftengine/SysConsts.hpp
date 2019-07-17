@@ -55,15 +55,6 @@ constexpr uint16_t MaxConcurrentFastPaths = 75;
 static_assert(kWorkWindowSize > MaxConcurrentFastPaths + checkpointWindowSize, "Violation of kWorkWindowSize > MaxConcurrentFastPaths + checkpointWindowSize");
 static_assert(maxLegalConcurrentAgreementsByPrimary < MaxConcurrentFastPaths, "Violation of maxConcurrentAgreementsByPrimary < MaxConcurrentFastPaths");
 
-
-///////////////////////////////////////////////////////////////////////////////
-// Messages
-///////////////////////////////////////////////////////////////////////////////
-
-constexpr uint32_t maxExternalMessageSize = 64 * 1000; // TODO(GG): some message types may need different values  
-
-constexpr uint32_t maxReplyMessageSize = 8 * 1024;
-
 ///////////////////////////////////////////////////////////////////////////////
 // Batching
 ///////////////////////////////////////////////////////////////////////////////
@@ -117,9 +108,6 @@ constexpr bool dynamicCollectorForExecutionProofs = false; // if false, then the
 ///////////////////////////////////////////////////////////////////////////////
 
 constexpr int timeToWaitBeforeStartingStateTransferInMainWindowMilli = 2000; // TODO(GG): move to configuration??
-
-constexpr uint32_t sizeOfReservedPage = 4096;
-
 
 ///////////////////////////////////////////////////////////////////////////////
 // Debug and Tuning of ControllerWithSimpleHistory

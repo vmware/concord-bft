@@ -29,6 +29,7 @@
 #include "ReplicaStatusMsg.hpp"
 #include "NullStateTransfer.hpp"
 #include "SysConsts.hpp"
+#include "ReplicaConfigSingleton.hpp"
 
 
 namespace bftEngine
@@ -254,7 +255,7 @@ namespace bftEngine
 			const char* const message,
 			const size_t messageLength)
 		{
-			if (messageLength > maxExternalMessageSize) return;
+			if (messageLength > ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize()) return;
 			if (messageLength < sizeof(MessageBase::Header)) return;
 
 			MessageBase::Header* msgBody = (MessageBase::Header*)std::malloc(messageLength);
@@ -2804,7 +2805,7 @@ namespace bftEngine
 			mainLog{ nullptr },
 			checkpointsLog{ nullptr },
 			clientsManager{ nullptr },
-			replyBuffer{ (char*)std::malloc(maxReplyMessageSize - sizeof(ClientReplyMsgHeader)) },
+			replyBuffer{ (char*)std::malloc(config.maxReplyMessageSize - sizeof(ClientReplyMsgHeader)) },
 			stateTransfer{ (stateTransferr!=nullptr ? stateTransferr : new NullStateTransfer()) },
 			maxNumberOfPendingRequestsInRecentHistory{ 0 },
 			batchingFactor{ 1 },
@@ -2888,6 +2889,9 @@ namespace bftEngine
                           metrics_.RegisterCounter("receivedStateTransferMsgs")}
 
 		{
+			// Initialize the config singleton
+			ReplicaConfigSingleton::GetInstance(&config);
+
 			Assert(myReplicaId < numOfReplicas);
 			// TODO(GG): more asserts on params !!!!!!!!!!!
 
@@ -2919,9 +2923,9 @@ namespace bftEngine
 			std::set<NodeIdType> clientsSet;
 			for (uint16_t i = numOfReplicas; i < numOfReplicas + numOfClientProxies; i++) clientsSet.insert(i);
 
-			clientsManager = new ClientsManager(myReplicaId, clientsSet, sizeOfReservedPage);
+			clientsManager = new ClientsManager(myReplicaId, clientsSet, ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage());
 
-			stateTransfer->init(kWorkWindowSize / checkpointWindowSize + 1, clientsManager->numberOfRequiredReservedPages(), sizeOfReservedPage);
+			stateTransfer->init(kWorkWindowSize / checkpointWindowSize + 1, clientsManager->numberOfRequiredReservedPages(), ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage());
 			clientsManager->init(stateTransfer);
 
 			clientsManager->clearReservedPages();
@@ -3208,7 +3212,7 @@ namespace bftEngine
 				int error = userRequestsHandler->execute(
 						clientId, lastExecutedSeqNum + 1, req.isReadOnly(),
 						req.requestLength(), req.requestBuf(),
-						maxReplyMessageSize - sizeof(ClientReplyMsgHeader),
+						ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize() - sizeof(ClientReplyMsgHeader),
 						replyBuffer, actualReplyLength);
 
 				Assert(error == 0); // TODO(GG): TBD

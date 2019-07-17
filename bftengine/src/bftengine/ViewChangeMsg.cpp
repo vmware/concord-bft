@@ -12,13 +12,14 @@
 #include "assertUtils.hpp"
 #include "ViewChangeMsg.hpp"
 #include "Crypto.hpp"
+#include "ReplicaConfigSingleton.hpp"
 
 namespace bftEngine
 {
 	namespace impl
 	{
 
-		ViewChangeMsg::ViewChangeMsg(ReplicaId srcReplicaId, ViewNum newView, SeqNum lastStableSeq) : MessageBase(srcReplicaId, MsgCode::ViewChange, maxExternalMessageSize)
+		ViewChangeMsg::ViewChangeMsg(ReplicaId srcReplicaId, ViewNum newView, SeqNum lastStableSeq) : MessageBase(srcReplicaId, MsgCode::ViewChange, ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize())
 		{
 			b()->genReplicaId = srcReplicaId;
 			b()->newView = newView;
@@ -297,7 +298,7 @@ namespace bftEngine
 
 		MsgSize ViewChangeMsg::maxSizeOfViewChangeMsg()
 		{
-			return maxExternalMessageSize;
+			return ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize();
 		}
 
 		MsgSize ViewChangeMsg::maxSizeOfViewChangeMsgInLocalBuffer()

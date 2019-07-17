@@ -9,6 +9,7 @@
 #include <string.h>
 #include "ClientReplyMsg.hpp"
 #include "assertUtils.hpp"
+#include "ReplicaConfigSingleton.hpp"
 
 namespace bftEngine
 {
@@ -16,7 +17,7 @@ namespace bftEngine
 	{
 
 		ClientReplyMsg::ClientReplyMsg(ReplicaId primaryId, ReqId reqSeqNum, ReplicaId replicaId)
-			: MessageBase(replicaId, MsgCode::Reply, maxExternalMessageSize) 
+			: MessageBase(replicaId, MsgCode::Reply, ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize())
 		{
 			b()->reqSeqNum = reqSeqNum;
 			b()->currentPrimaryId = primaryId;

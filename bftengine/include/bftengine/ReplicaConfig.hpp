@@ -70,6 +70,14 @@ struct ReplicaConfig {
   // signer and verifier of a threshold signature (for threshold N out of N)
   IThresholdSigner *thresholdSignerForOptimisticCommit = nullptr;
   IThresholdVerifier *thresholdVerifierForOptimisticCommit = nullptr;
+
+  // Messages
+  uint32_t maxExternalMessageSize = 1 << 16;
+  uint32_t maxReplyMessageSize = 1 << 13;
+
+  // StateTransfer
+  uint32_t maxNumOfReservedPages = 1 << 11;
+  uint32_t sizeOfReservedPage = 1 << 12;
 };
 
 }

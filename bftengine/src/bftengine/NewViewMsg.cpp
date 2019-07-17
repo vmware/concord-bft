@@ -8,6 +8,7 @@
 
 #include "NewViewMsg.hpp"
 #include "assertUtils.hpp"
+#include "ReplicaConfigSingleton.hpp"
  
 namespace bftEngine
 {
@@ -15,7 +16,7 @@ namespace bftEngine
 	{
 
 		NewViewMsg::NewViewMsg(ReplicaId senderId, ViewNum newView)
-			: MessageBase(senderId, MsgCode::NewView, maxExternalMessageSize)
+			: MessageBase(senderId, MsgCode::NewView, ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize())
 		{
 			b()->newViewNum = newView;
 			b()->elementsCount = 0;
@@ -28,7 +29,7 @@ namespace bftEngine
 			uint16_t requiredSize = sizeof(NewViewMsgHeader) + ((currNumOfElements + 1) * sizeof(NewViewElement));
 
 			// TODO(GG): we should reject configurations that may violate this assert. TODO(GG): we need something similar for the VC message
-			Assert(requiredSize <= maxExternalMessageSize); // not enough space in the message
+			Assert(requiredSize <= ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize()); // not enough space in the message
 
 			NewViewElement* elementsArray = (NewViewElement*)(body() + sizeof(NewViewMsgHeader));
 
@@ -126,7 +127,7 @@ namespace bftEngine
 
 		MsgSize NewViewMsg::maxSizeOfNewViewMsg()
 		{
-			return maxExternalMessageSize;
+			return ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize();
 		}
 
 		MsgSize NewViewMsg::maxSizeOfNewViewMsgInLocalBuffer()
