@@ -124,7 +124,8 @@ void BlsMultisigVerifier::serialize(UniquePtrToChar &outBuf,
 }
 
 void BlsMultisigVerifier::serializeDataMembers(ostream &outStream) const {
-  (void)outStream;
+  // Serialize the base class
+  BlsThresholdVerifier::serializeDataMembers(outStream);
 }
 
 bool BlsMultisigVerifier::operator==(const BlsMultisigVerifier &other) const {

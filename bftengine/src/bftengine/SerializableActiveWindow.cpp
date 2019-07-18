@@ -100,15 +100,19 @@ void SerializableActiveWindow<INPUT_PARAMS>::resetAll(const SeqNum &windowFirst)
 }
 
 template<TEMPLATE_PARAMS>
-void SerializableActiveWindow<INPUT_PARAMS>::advanceActiveWindow(const uint32_t &newFirstIndex) {
+list<SeqNum> SerializableActiveWindow<INPUT_PARAMS>::advanceActiveWindow(const uint32_t &newFirstIndex) {
   Assert(newFirstIndex % Resolution == 0);
   Assert(newFirstIndex >= beginningOfActiveWindow_);
 
+  list<SeqNum> cleanedItems;
   if (newFirstIndex == beginningOfActiveWindow_)
-    return;
+    return cleanedItems;
+
   if (newFirstIndex - beginningOfActiveWindow_ >= WindowSize) {
     resetAll(newFirstIndex);
-    return;
+    for (SeqNum i = 0; i < numItems_; i++)
+      cleanedItems.push_back(i);
+    return cleanedItems;
   }
   const uint16_t inactiveBegin = ((beginningOfActiveWindow_ / Resolution) % numItems_);
   const uint16_t activeBegin = ((newFirstIndex / Resolution) % numItems_);
@@ -120,9 +124,11 @@ void SerializableActiveWindow<INPUT_PARAMS>::advanceActiveWindow(const uint32_t 
   for (SeqNum i = inactiveBegin; i != activeBegin; (i = ((i + 1) % numItems_))) {
     activeWindow_[i].reset();
     debugNumOfReset++;
+    cleanedItems.push_back(i);
   }
   Assert(debugNumOfReset == resetSize);
   beginningOfActiveWindow_ = newFirstIndex;
+  return cleanedItems;
 }
 
 } // impl
