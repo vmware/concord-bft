@@ -12,7 +12,7 @@
 
 #include "PersistentStorageImp.hpp"
 #include "Logger.hpp"
-
+#include <list>
 #include <sstream>
 
 using namespace std;
@@ -43,6 +43,7 @@ bool PersistentStorageImp::init(const shared_ptr<MetadataStorage> &metadataStora
   metadataStorage_ = metadataStorage;
   try {
     if (!getStoredVersion().empty()) {
+      LOG_INFO_F(GL, "PersistentStorageImp::init version=%s", version_.c_str());
       retrieveWindowsMetadata();
       return false;
     }
@@ -53,6 +54,7 @@ bool PersistentStorageImp::init(const shared_ptr<MetadataStorage> &metadataStora
 }
 
 void PersistentStorageImp::setDefaultsInMetadataStorage() {
+  LOG_INFO_F(GL, "PersistentStorageImp::setDefaultsInMetadataStorage");
   beginWriteTran();
 
   setVersion();
@@ -327,15 +329,16 @@ void PersistentStorageImp::setDescriptorOfLastExecution(const DescriptorOfLastEx
 
 /***** Private functions *****/
 
-void PersistentStorageImp::serializeAndSaveSeqNumWindow(const SharedPtrSeqNumWindow &seqNumWindow) {
-  writeBeginningOfActiveWindow(BEGINNING_OF_SEQ_NUM_WINDOW, seqNumWindow.get()->getBeginningOfActiveWindow());
-  for (uint32_t i = seqNumWindowFirst_; i < seqNumWindowLast_; ++i)
-    saveSeqNumDataElement(i, seqNumWindow);
+void PersistentStorageImp::saveDefaultsInSeqNumWindow() {
+  writeBeginningOfActiveWindow(BEGINNING_OF_SEQ_NUM_WINDOW, seqNumWindowBeginning_);
+  const SeqNumData seqNumData;
+  for (uint32_t i = 0; i < seqWinSize; ++i)
+    setSeqNumDataElement(i, seqNumData);
 }
 
 void PersistentStorageImp::setSeqNumDataElement(const SeqNum &index, const SeqNumData &seqNumData) const {
   char *buf = new char[SeqNumData::maxSize()];
-  SeqNum shift = (index - 1) * numOfSeqNumWinParameters;
+  SeqNum shift = index * numOfSeqNumWinParameters;
   char *movablePtr = buf;
   size_t actualSize = seqNumData.serializePrePrepareMsg(movablePtr);
   uint32_t itemId = BEGINNING_OF_SEQ_NUM_WINDOW + PRE_PREPARE_MSG + shift;
@@ -375,17 +378,15 @@ void PersistentStorageImp::setSeqNumDataElement(const SeqNum &index, const SeqNu
   itemId = BEGINNING_OF_SEQ_NUM_WINDOW + SLOW_STARTED + shift;
   Assert(itemId < BEGINNING_OF_CHECK_WINDOW);
   metadataStorage_->writeInTransaction(itemId, buf, actualSize);
+
   delete[] buf;
 }
 
-void PersistentStorageImp::saveSeqNumDataElement(const SeqNum &index, const SharedPtrSeqNumWindow &seqNumWindow) const {
-  setSeqNumDataElement(index, seqNumWindow.get()->getByRealIndex(index));
-}
-
-void PersistentStorageImp::serializeAndSaveCheckWindow(const SharedPtrCheckWindow &checkWindow) {
-  writeBeginningOfActiveWindow(BEGINNING_OF_CHECK_WINDOW, checkWindow.get()->getBeginningOfActiveWindow());
-  for (uint32_t i = checkWindowFirst_; i < checkWindowLast_; ++i)
-    saveCheckDataElement(i, checkWindow);
+void PersistentStorageImp::saveDefaultsInCheckWindow() {
+  writeBeginningOfActiveWindow(BEGINNING_OF_CHECK_WINDOW, checkWindowBeginning_);
+  const CheckData checkData;
+  for (uint32_t i = 0; i < checkWinSize; ++i)
+    setCheckDataElement(i, checkData);
 }
 
 void PersistentStorageImp::setCheckDataElement(const SeqNum &index, const CheckData &checkData) const {
@@ -393,6 +394,7 @@ void PersistentStorageImp::setCheckDataElement(const SeqNum &index, const CheckD
   char *movablePtr = buf;
   SeqNum shift = index * numOfCheckWinParameters;
   size_t actualSize = checkData.serializeCheckpointMsg(movablePtr);
+
   uint32_t itemId = BEGINNING_OF_CHECK_WINDOW + CHECK_DATA_FIRST_PARAM + shift;
   Assert(itemId < WIN_PARAMETERS_NUM);
   metadataStorage_->writeInTransaction(itemId, buf, actualSize);
@@ -405,17 +407,11 @@ void PersistentStorageImp::setCheckDataElement(const SeqNum &index, const CheckD
   delete[] buf;
 }
 
-void PersistentStorageImp::saveCheckDataElement(const SeqNum &index, const SharedPtrCheckWindow &checkWindow) const {
-  setCheckDataElement(index, checkWindow.get()->getByRealIndex(index));
-}
-
 void PersistentStorageImp::setDefaultWindowsValues() {
-  SharedPtrSeqNumWindow seqNumWindow(new SeqNumWindow(seqNumWindowFirst_));
-  SharedPtrCheckWindow checkWindow(new CheckWindow(checkWindowFirst_));
-  serializeAndSaveSeqNumWindow(seqNumWindow);
-  serializeAndSaveCheckWindow(checkWindow);
   seqNumWindowBeginning_ = seqNumWindowFirst_;
   checkWindowBeginning_ = checkWindowFirst_;
+  saveDefaultsInSeqNumWindow();
+  saveDefaultsInCheckWindow();
 }
 
 void PersistentStorageImp::writeBeginningOfActiveWindow(const uint32_t &index, const SeqNum &beginning) const {
@@ -426,35 +422,30 @@ void PersistentStorageImp::writeBeginningOfActiveWindow(const uint32_t &index, c
 /***** Public functions *****/
 
 void PersistentStorageImp::clearSeqNumWindow() {
-  SharedPtrSeqNumWindow seqNumWindow(new SeqNumWindow(seqNumWindowFirst_));
-  serializeAndSaveSeqNumWindow(seqNumWindow);
+  saveDefaultsInSeqNumWindow();
 }
 
 void PersistentStorageImp::setLastStableSeqNum(const SeqNum seqNum) {
-  SeqNum prevCheckWindowBeginning_ = checkWindowBeginning_;
-  SeqNum prevSeqNumWindowBeginning_ = seqNumWindowBeginning_;
   SharedPtrCheckWindow checkWindow(new CheckWindow(checkWindowBeginning_));
   SharedPtrSeqNumWindow seqNumWindow(new SeqNumWindow(seqNumWindowBeginning_));
 
   metadataStorage_->writeInTransaction(LAST_STABLE_SEQ_NUM, (char *) &seqNum, sizeof(seqNum));
-  checkWindow.get()->advanceActiveWindow(seqNum);
-  seqNumWindow.get()->advanceActiveWindow(seqNum + 1);
+  list<SeqNum> cleanedCheckWindowItems = checkWindow.get()->advanceActiveWindow(seqNum);
+  list<SeqNum> cleanedSeqNumWindowItems = seqNumWindow.get()->advanceActiveWindow(seqNum + 1);
   checkWindowBeginning_ = checkWindow.get()->getBeginningOfActiveWindow();
   seqNumWindowBeginning_ = seqNumWindow.get()->getBeginningOfActiveWindow();
   writeBeginningOfActiveWindow(BEGINNING_OF_CHECK_WINDOW, checkWindowBeginning_);
   writeBeginningOfActiveWindow(BEGINNING_OF_SEQ_NUM_WINDOW, seqNumWindowBeginning_);
 
   const CheckData emptyCheckDataElement;
-  const SeqNum numOfCheckElementsToClean = (checkWindowBeginning_ - prevCheckWindowBeginning_) / checkpointWindowSize;
-  for (SeqNum id = 0; id < numOfCheckElementsToClean; ++id) {
-    LOG_DEBUG_F(GL, "PersistentStorageImp::setLastStableSeqNum setCheckDataElement id=%ld", id);
+  for (auto id : cleanedCheckWindowItems) {
+    LOG_DEBUG_F(GL, "PersistentStorageImp::setLastStableSeqNum (setCheckDataElement) id=%ld", id);
     setCheckDataElement(id, emptyCheckDataElement);
   }
 
   const SeqNumData emptySeqNumDataElement;
-  const SeqNum numOfSeqNumElementsToClean = seqNumWindowBeginning_ - prevSeqNumWindowBeginning_ + 1;
-  for (SeqNum id = 1; id < numOfSeqNumElementsToClean; ++id) {
-    LOG_DEBUG_F(GL, "PersistentStorageImp::setLastStableSeqNum setSeqNumDataElement id=%ld", id);
+  for (auto id : cleanedSeqNumWindowItems) {
+    LOG_DEBUG_F(GL, "PersistentStorageImp::setLastStableSeqNum (setSeqNumDataElement) id=%ld", id);
     setSeqNumDataElement(id, emptySeqNumDataElement);
   }
 }
@@ -467,6 +458,7 @@ void PersistentStorageImp::setMsgInSeqNumWindow(const SeqNum &seqNum, const SeqN
   Assert(actualSize != 0);
   const SeqNum convertedIndex = BEGINNING_OF_SEQ_NUM_WINDOW + parameterId + convertSeqNumWindowIndex(seqNum);
   Assert(convertedIndex < BEGINNING_OF_CHECK_WINDOW);
+  LOG_DEBUG_F(GL, "PersistentStorageImp::setMsgInSeqNumWindow convertedIndex=%ld", convertedIndex);
   metadataStorage_->writeInTransaction(convertedIndex, buf, actualSize);
   delete[] buf;
 }
@@ -521,6 +513,7 @@ void PersistentStorageImp::setCheckpointMsgInCheckWindow(const SeqNum seqNum, co
   Assert(actualSize != 0);
   const SeqNum convertedIndex = BEGINNING_OF_CHECK_WINDOW + CHECKPOINT_MSG + convertCheckWindowIndex(seqNum);
   Assert(convertedIndex < WIN_PARAMETERS_NUM);
+  LOG_DEBUG_F(GL, "PersistentStorageImp::setCheckpointMsgInCheckWindow convertedIndex=%ld", convertedIndex);
   metadataStorage_->writeInTransaction(convertedIndex, buf, actualSize);
   delete[] buf;
 }
@@ -706,7 +699,7 @@ void PersistentStorageImp::readSeqNumDataElementFromDisk(const SeqNum &index,
   uint32_t actualElementSize = 0;
   uint32_t actualParameterSize = 0;
   char *buf = new char[SeqNumWindow::maxElementSize()];
-  SeqNum shift = (index - 1) * numOfSeqNumWinParameters;
+  SeqNum shift = index * numOfSeqNumWinParameters;
   char *movablePtr = buf;
   for (auto i = 0; i < numOfSeqNumWinParameters; ++i) {
     uint32_t itemId = BEGINNING_OF_SEQ_NUM_WINDOW + SEQ_NUM_FIRST_PARAM + i + shift;
@@ -739,13 +732,13 @@ void PersistentStorageImp::readCheckDataElementFromDisk(const SeqNum &index, con
   delete[] buf;
 }
 
-const SeqNum PersistentStorageImp::convertSeqNumWindowIndex(const SeqNum &index) const {
-  SeqNum shiftedIndex = 0;
-  if (index >= seqNumWindowBeginning_)
-    shiftedIndex = index - seqNumWindowBeginning_ + 1;
-  LOG_DEBUG_F(GL, "convertSeqNumWindowIndex index=%ld, seqNumWindowBeginning_=%ld, shiftedIndex=%ld",
-              index, seqNumWindowBeginning_, shiftedIndex);
-  return SeqNumWindow::convertIndex(shiftedIndex, seqNumWindowFirst_) * numOfSeqNumWinParameters;
+const SeqNum PersistentStorageImp::convertSeqNumWindowIndex(const SeqNum &seqNum) const {
+  SeqNum convertedIndex = SeqNumWindow::convertIndex(seqNum, seqNumWindowBeginning_);
+//  if (seqNum >= seqNumWindowBeginning_)
+//    convertedIndex = (seqNum - seqNumWindowBeginning_ + 1) * numOfSeqNumWinParameters;
+  LOG_DEBUG_F(GL, "convertSeqNumWindowIndex seqNumWindowBeginning_=%ld, seqNum=%ld, convertedIndex=%ld",
+             seqNumWindowBeginning_, seqNum, convertedIndex);
+  return convertedIndex * numOfSeqNumWinParameters;
 }
 
 bool PersistentStorageImp::readBooleanFromDisk(const SeqNum &index, const SeqNum &parameterId) const {
@@ -757,12 +750,13 @@ bool PersistentStorageImp::readBooleanFromDisk(const SeqNum &index, const SeqNum
   return boolean;
 }
 
-MessageBase *PersistentStorageImp::readMsgFromDisk(const SeqNum &index, const SeqNum &parameterId,
+MessageBase *PersistentStorageImp::readMsgFromDisk(const SeqNum &seqNum, const SeqNum &parameterId,
                                                    const size_t &msgSize) const {
   char *buf = new char[msgSize];
   uint32_t actualMsgSize = 0;
-  const SeqNum convertedIndex = BEGINNING_OF_SEQ_NUM_WINDOW + parameterId + convertSeqNumWindowIndex(index);
+  const SeqNum convertedIndex = BEGINNING_OF_SEQ_NUM_WINDOW + parameterId + convertSeqNumWindowIndex(seqNum);
   Assert(convertedIndex < BEGINNING_OF_CHECK_WINDOW);
+  LOG_DEBUG_F(GL, "PersistentStorageImp::readMsgFromDisk seqNum=%ld, dbIndex=%ld", seqNum, convertedIndex);
   metadataStorage_->read(convertedIndex, msgSize, buf, actualMsgSize);
   size_t actualSize = 0;
   char *movablePtr = buf;
@@ -789,10 +783,10 @@ CommitFullMsg *PersistentStorageImp::readCommitFullMsgFromDisk(const SeqNum &seq
 }
 
 const SeqNum PersistentStorageImp::convertCheckWindowIndex(const SeqNum &index) const {
-  SeqNum shiftedIndex = 0;
-  if (index >= checkWindowBeginning_)
-    shiftedIndex = index - checkWindowBeginning_;
-  return CheckWindow::convertIndex(shiftedIndex, checkWindowFirst_) * numOfCheckWinParameters;
+  SeqNum convertedIndex = CheckWindow::convertIndex(index, checkWindowBeginning_);
+//  if (index >= checkWindowBeginning_)
+//    shiftedIndex = index - checkWindowBeginning_;
+  return convertedIndex * numOfCheckWinParameters;
 }
 
 bool PersistentStorageImp::readCompletedMarkFromDisk(const SeqNum &index) const {
@@ -811,6 +805,7 @@ CheckpointMsg *PersistentStorageImp::readCheckpointMsgFromDisk(const SeqNum &ind
   uint32_t actualMsgSize = 0;
   const SeqNum convertedIndex = BEGINNING_OF_CHECK_WINDOW + CHECKPOINT_MSG + convertCheckWindowIndex(index);
   Assert(convertedIndex < WIN_PARAMETERS_NUM);
+  LOG_DEBUG_F(GL, "PersistentStorageImp::readCheckpointMsgFromDisk convertedIndex=%ld", convertedIndex);
   metadataStorage_->read(convertedIndex, bufLen, buf, actualMsgSize);
   size_t actualSize = 0;
   char *movablePtr = buf;
@@ -835,7 +830,7 @@ SharedPtrSeqNumWindow PersistentStorageImp::getSeqNumWindow() {
   auto windowBeginning = readBeginningOfActiveWindow(BEGINNING_OF_SEQ_NUM_WINDOW);
   SharedPtrSeqNumWindow seqNumWindow(new SeqNumWindow(windowBeginning));
 
-  for (auto i = seqNumWindowFirst_; i < seqNumWindowLast_; ++i)
+  for (auto i = 0; i < seqWinSize; ++i)
     readSeqNumDataElementFromDisk(i, seqNumWindow);
   return seqNumWindow;
 }
@@ -844,7 +839,7 @@ SharedPtrCheckWindow PersistentStorageImp::getCheckWindow() {
   auto windowBeginning = readBeginningOfActiveWindow(BEGINNING_OF_CHECK_WINDOW);
   SharedPtrCheckWindow checkWindow(new CheckWindow(windowBeginning));
 
-  for (auto i = checkWindowFirst_; i < checkWindowLast_; ++i)
+  for (auto i = 0; i < checkWinSize; ++i)
     readCheckDataElementFromDisk(i, checkWindow);
   return checkWindow;
 }

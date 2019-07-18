@@ -254,9 +254,10 @@ ReplicaLoader::ErrorCode loadReplicaData(shared_ptr<PersistentStorage> p, Loaded
   ld.lastExecutedSeqNum = p->getLastExecutedSeqNum();
   ld.strictLowerBoundOfSeqNums = p->getStrictLowerBoundOfSeqNums();
 
-  LOG_INFO(GL, "primaryLastUsedSeqNum=" << ld.primaryLastUsedSeqNum << ", lastStableSeqNum="
-                                        << ld.lastStableSeqNum << ", lastExecutedSeqNum=" << ld.lastExecutedSeqNum
-                                        << ", strictLowerBoundOfSeqNums=" << ld.strictLowerBoundOfSeqNums);
+  LOG_INFO(GL, "loadReplicaData primaryLastUsedSeqNum=" << ld.primaryLastUsedSeqNum << ", lastStableSeqNum="
+                                                        << ld.lastStableSeqNum << ", lastExecutedSeqNum="
+                                                        << ld.lastExecutedSeqNum << ", strictLowerBoundOfSeqNums="
+                                                        << ld.strictLowerBoundOfSeqNums);
 
   Verify((ld.primaryLastUsedSeqNum >= 0), InconsistentErr);
   Verify((ld.primaryLastUsedSeqNum <= ld.lastStableSeqNum + kWorkWindowSize), InconsistentErr);
@@ -270,8 +271,6 @@ ReplicaLoader::ErrorCode loadReplicaData(shared_ptr<PersistentStorage> p, Loaded
   const bool isInView = ld.viewsManager->viewIsActive(lastView);
 
   ld.lastViewThatTransferredSeqNumbersFullyExecuted = p->getLastViewThatTransferredSeqNumbersFullyExecuted();
-
-  LOG_INFO(GL, "lastViewThatTransferredSeqNumbersFullyExecuted=" << ld.lastViewThatTransferredSeqNumbersFullyExecuted);
 
   Verify((ld.lastViewThatTransferredSeqNumbersFullyExecuted >= 0), InconsistentErr);
   Verify((ld.lastViewThatTransferredSeqNumbersFullyExecuted <= lastView), InconsistentErr);
@@ -359,7 +358,7 @@ ReplicaLoader::ErrorCode loadReplicaData(shared_ptr<PersistentStorage> p, Loaded
       ld.validRequestsThatAreBeingExecuted = d.validRequests;
     }
   }
-
+  LOG_INFO(GL, "loadReplicaData Successfully loaded!");
   return Succ;
 }
 

@@ -202,52 +202,45 @@ void testInit() {
 }
 
 void testCheckWindowSetUp(const SeqNum shift, bool toSet) {
-  const SeqNum checkpointSeqNum1 = 0;
-  const SeqNum checkpointSeqNum2 = 150;
-  const SeqNum checkpointSeqNum3 = 300;
+  const SeqNum checkpointSeqNum0 = 0;
+  const SeqNum checkpointSeqNum1 = 150;
+  const SeqNum checkpointSeqNum2 = 300;
 
   ReplicaId sender = 3;
   Digest stateDigest;
   const bool stateIsStable = true;
+  CheckpointMsg checkpointInitialMsg0(sender, checkpointSeqNum0, stateDigest, stateIsStable);
   CheckpointMsg checkpointInitialMsg1(sender, checkpointSeqNum1, stateDigest, stateIsStable);
   CheckpointMsg checkpointInitialMsg2(sender, checkpointSeqNum2, stateDigest, stateIsStable);
-  CheckpointMsg checkpointInitialMsg3(sender, checkpointSeqNum3, stateDigest, stateIsStable);
 
   const bool completed = true;
 
   if (toSet) {
     persistentStorageImp->beginWriteTran();
+    persistentStorageImp->setCheckpointMsgInCheckWindow(checkpointSeqNum0, &checkpointInitialMsg0);
+    persistentStorageImp->setCompletedMarkInCheckWindow(checkpointSeqNum0, completed);
     persistentStorageImp->setCheckpointMsgInCheckWindow(checkpointSeqNum1, &checkpointInitialMsg1);
     persistentStorageImp->setCompletedMarkInCheckWindow(checkpointSeqNum1, completed);
     persistentStorageImp->setCheckpointMsgInCheckWindow(checkpointSeqNum2, &checkpointInitialMsg2);
     persistentStorageImp->setCompletedMarkInCheckWindow(checkpointSeqNum2, completed);
-    persistentStorageImp->setCheckpointMsgInCheckWindow(checkpointSeqNum3, &checkpointInitialMsg3);
-    persistentStorageImp->setCompletedMarkInCheckWindow(checkpointSeqNum3, completed);
     persistentStorageImp->endWriteTran();
   }
 
-  const SeqNum checkpointSeqNum1Shifted = checkpointSeqNum1 + shift;
-  const SeqNum checkpointSeqNum2Shifted = checkpointSeqNum2 + shift;
-  const SeqNum checkpointSeqNum3Shifted = checkpointSeqNum3 + shift;
-  CheckpointMsg *checkpointMsg1 =
-      persistentStorageImp->getAndAllocateCheckpointMsgInCheckWindow(checkpointSeqNum1Shifted);
+  auto checkWindowPtr = persistentStorageImp->getCheckWindow();
+  CheckData &element0 = checkWindowPtr.get()->getByRealIndex(0);
+  CheckData &element1 = checkWindowPtr.get()->getByRealIndex(1);
+  CheckData &element2 = checkWindowPtr.get()->getByRealIndex(2);
+
   if (!shift) {
-    Assert(checkpointMsg1->equals(checkpointInitialMsg1));
-    Assert(completed == persistentStorageImp->getCompletedMarkInCheckWindow(checkpointSeqNum1Shifted));
-  } else {
-    Assert(!checkpointMsg1);
-    Assert(!persistentStorageImp->getCompletedMarkInCheckWindow(checkpointSeqNum1Shifted));
-  }
+    Assert(element0.getCheckpointMsg()->equals(checkpointInitialMsg0));
+    Assert(completed == element0.getCompletedMark());
+  } else Assert(element0.equals(CheckData()));
 
-  CheckpointMsg *checkpointMsg2 =
-      persistentStorageImp->getAndAllocateCheckpointMsgInCheckWindow(checkpointSeqNum2Shifted);
-  Assert(checkpointMsg2->equals(checkpointInitialMsg2));
-  CheckpointMsg *checkpointMsg3 =
-      persistentStorageImp->getAndAllocateCheckpointMsgInCheckWindow(checkpointSeqNum3Shifted);
-  Assert(checkpointMsg3->equals(checkpointInitialMsg3));
+  Assert(element1.getCheckpointMsg()->equals(checkpointInitialMsg1));
+  Assert(element2.getCheckpointMsg()->equals(checkpointInitialMsg2));
 
-  Assert(completed == persistentStorageImp->getCompletedMarkInCheckWindow(checkpointSeqNum2Shifted));
-  Assert(completed == persistentStorageImp->getCompletedMarkInCheckWindow(checkpointSeqNum3Shifted));
+  Assert(completed == element1.getCompletedMark());
+  Assert(completed == element2.getCompletedMark());
 }
 
 void testSeqNumWindowSetUp(const SeqNum shift, bool toSet) {
@@ -257,18 +250,18 @@ void testSeqNumWindowSetUp(const SeqNum shift, bool toSet) {
   CommitPath firstPath = CommitPath::FAST_WITH_THRESHOLD;
   PrePrepareMsg prePrepareInitialMsg(sender, view, prePrepareMsgSeqNum, firstPath);
 
-  const SeqNum slowStartedSeqNum = 140;
+  const SeqNum slowStartedSeqNum = 144;
   bool slowStarted = true;
 
-  const SeqNum prePrepareFullSeqNum = 165;
+  const SeqNum prePrepareFullSeqNum = 101;
   PrepareFullMsg *prePrepareFullInitialMsg = PrepareFullMsg::create(view, prePrepareFullSeqNum, sender, nullptr, 0);
 
-  const SeqNum fullCommitProofSeqNum = 100;
+  const SeqNum fullCommitProofSeqNum = 160;
   FullCommitProofMsg fullCommitProofInitialMsg(sender, view, fullCommitProofSeqNum, nullptr, 0);
 
   const bool forceCompleted = true;
 
-  const SeqNum commitFullSeqNum = 242;
+  const SeqNum commitFullSeqNum = 240;
   CommitFullMsg *commitFullInitialMsg = CommitFullMsg::create(view, commitFullSeqNum, sender, nullptr, 0);
 
   if (toSet) {
@@ -283,34 +276,45 @@ void testSeqNumWindowSetUp(const SeqNum shift, bool toSet) {
   }
 
   const SeqNum prePrepareMsgSeqNumShifted = prePrepareMsgSeqNum + shift;
-  const SeqNum slowStartedSeqNumShifted = slowStartedSeqNum + shift;
   const SeqNum prePrepareFullSeqNumShifted = prePrepareFullSeqNum + shift;
   const SeqNum fullCommitProofSeqNumShifted = fullCommitProofSeqNum + shift;
   const SeqNum commitFullSeqNumShifted = commitFullSeqNum + shift;
+  const SeqNum slowStartedSeqNumShifted = slowStartedSeqNum + shift;
 
-  PrePrepareMsg *prePrepareMsg =
-      persistentStorageImp->getAndAllocatePrePrepareMsgInSeqNumWindow(prePrepareMsgSeqNumShifted);
-  FullCommitProofMsg *fullCommitProofMsg =
-      persistentStorageImp->getAndAllocateFullCommitProofMsgInSeqNumWindow(fullCommitProofSeqNumShifted);
-  if (!shift) {
-    Assert(prePrepareMsg->equals(prePrepareInitialMsg));
-    Assert(slowStarted == persistentStorageImp->getSlowStartedInSeqNumWindow(slowStartedSeqNumShifted));
-    Assert(fullCommitProofMsg->equals(fullCommitProofInitialMsg));
-  } else {
-    Assert(!prePrepareMsg);
-    Assert(!persistentStorageImp->getSlowStartedInSeqNumWindow(slowStartedSeqNumShifted));
-    Assert(!fullCommitProofMsg);
+  auto seqNumWindowPtr = persistentStorageImp->getSeqNumWindow();
+  SeqNum shiftedSeqNum = shift;
+  const SeqNumData emptySeqNumData;
+  for (SeqNum i = 0; i < kWorkWindowSize; ++i) {
+    ++shiftedSeqNum;
+    SeqNumData &element = seqNumWindowPtr.get()->getByRealIndex(i);
+    PrePrepareMsg *prePrepareMsg = element.getPrePrepareMsg();
+    FullCommitProofMsg *fullCommitProofMsg = element.getFullCommitProofMsg();
+    PrepareFullMsg *prepareFullMsg = element.getPrepareFullMsg();
+    CommitFullMsg *commitFullMsg = element.getCommitFullMsg();
+
+    if (!shift) {
+      if (prePrepareMsgSeqNumShifted == shiftedSeqNum - 1) {
+        Assert(prePrepareMsg->equals(prePrepareInitialMsg));
+      } else Assert(!prePrepareMsg);
+
+      if (prePrepareFullSeqNumShifted == shiftedSeqNum - 1) {
+        Assert(prepareFullMsg->equals(*prePrepareFullInitialMsg));
+      } else Assert(!prepareFullMsg);
+
+      if (commitFullSeqNumShifted == shiftedSeqNum - 1) Assert(forceCompleted == element.getForceCompleted());
+      if (slowStartedSeqNumShifted == shiftedSeqNum - 1) Assert(slowStarted == element.getSlowStarted());
+    } else {
+      if ((fullCommitProofSeqNumShifted != shiftedSeqNum - 1) && (commitFullSeqNumShifted != shiftedSeqNum - 1)) Assert(
+          element.equals(emptySeqNumData));
+    }
+    if (fullCommitProofSeqNumShifted == shiftedSeqNum - 1) {
+      Assert(fullCommitProofMsg->equals(fullCommitProofInitialMsg));
+    } else Assert(!fullCommitProofMsg);
+
+    if (commitFullSeqNumShifted == shiftedSeqNum - 1) {
+      Assert(commitFullMsg->equals(*commitFullInitialMsg));
+    } else Assert(!commitFullMsg);
   }
-
-  Assert(forceCompleted == persistentStorageImp->getForceCompletedInSeqNumWindow(commitFullSeqNumShifted));
-
-  PrepareFullMsg *prepareFullMsg =
-      persistentStorageImp->getAndAllocatePrepareFullMsgInSeqNumWindow(prePrepareFullSeqNumShifted);
-  Assert(prepareFullMsg->equals(*prePrepareFullInitialMsg));
-
-  CommitFullMsg *commitFullMsg =
-      persistentStorageImp->getAndAllocateCommitFullMsgInSeqNumWindow(commitFullSeqNumShifted);
-  Assert(commitFullMsg->equals(*commitFullInitialMsg));
 
   delete prePrepareFullInitialMsg;
   delete commitFullInitialMsg;
@@ -477,7 +481,7 @@ int main() {
   metadataStorage.reset(new FileStorage(logger, dbFile));
   uint16_t numOfObjects = 0;
   ObjectDescUniquePtr objectDescArray = persistentStorage.getDefaultMetadataObjectDescriptors(numOfObjects);
-  metadataStorage -> initMaxSizeOfObjects(objectDescArray.get(), numOfObjects);
+  metadataStorage->initMaxSizeOfObjects(objectDescArray.get(), numOfObjects);
   persistentStorageImp->init(metadataStorage);
 
   fillReplicaConfig();
@@ -489,7 +493,7 @@ int main() {
       // Re-open existing DB file
       metadataStorage.reset();
       metadataStorage.reset(new FileStorage(logger, dbFile));
-      metadataStorage -> initMaxSizeOfObjects(objectDescArray.get(), numOfObjects);
+      metadataStorage->initMaxSizeOfObjects(objectDescArray.get(), numOfObjects);
       persistentStorageImp->init(metadataStorage);
     }
     testSetReplicaConfig(init);
