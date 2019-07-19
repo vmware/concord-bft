@@ -54,32 +54,42 @@ void verifyData(FileStorage &fileStorage, uint16_t objId) {
 int main(int argc, char **argv) {
   try {
     auto logger = concordlogger::Log::getLogger("simpleStorage.test");
-    FileStorage fileStorage(logger, "test.txt");
+    string dbFile = "fileStorageTest.txt";
+    remove(dbFile.c_str());
+    auto *fileStorage = new FileStorage(logger, dbFile);
     const uint32_t objNum = 6;
     FileStorage::ObjectDesc objects[objNum];
     for (uint16_t i = 0; i < objNum; i++) {
       objects[i].id = i;
       objects[i].maxSize = (uint32_t) i * 2 + 30;
     }
-    fileStorage.initMaxSizeOfObjects(objects, objNum);
+    fileStorage->initMaxSizeOfObjects(objects, objNum);
     Object objOut = {ELEM1, ELEM2, ELEM3, ELEM4};
     const uint16_t objId1 = 1;
     char *objOutBuf = new char[sizeof(objOut)];
     memcpy(objOutBuf, &objOut, sizeof(objOut));
-    fileStorage.atomicWrite(objId1, objOutBuf, sizeof(objOut));
-    verifyData(fileStorage, objId1);
+    fileStorage->atomicWrite(objId1, objOutBuf, sizeof(objOut));
+    verifyData(*fileStorage, objId1);
 
     const uint16_t objId2 = 2;
     const uint16_t objId3 = 3;
     const uint16_t objId4 = 4;
-    fileStorage.beginAtomicWriteOnlyTransaction();
-    fileStorage.writeInTransaction(objId2, objOutBuf, sizeof(objOut));
-    fileStorage.writeInTransaction(objId3, objOutBuf, sizeof(objOut));
-    fileStorage.writeInTransaction(objId4, objOutBuf, sizeof(objOut));
-    fileStorage.commitAtomicWriteOnlyTransaction();
-    verifyData(fileStorage, objId2);
-    verifyData(fileStorage, objId3);
-    verifyData(fileStorage, objId4);
+    fileStorage->beginAtomicWriteOnlyTransaction();
+    fileStorage->writeInTransaction(objId2, objOutBuf, sizeof(objOut));
+    fileStorage->writeInTransaction(objId3, objOutBuf, sizeof(objOut));
+    fileStorage->writeInTransaction(objId4, objOutBuf, sizeof(objOut));
+    fileStorage->commitAtomicWriteOnlyTransaction();
+    for (int i = 0; i < 2; i++) {
+      verifyData(*fileStorage, objId2);
+      verifyData(*fileStorage, objId3);
+      verifyData(*fileStorage, objId4);
+      delete fileStorage;
+      // Verify that data persists after a restart.
+      if (i == 0) {
+        fileStorage = new FileStorage(logger, dbFile);
+        fileStorage->initMaxSizeOfObjects(objects, objNum);
+      }
+    }
   } catch (exception &e) {
     return -1;
   }

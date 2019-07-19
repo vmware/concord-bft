@@ -34,12 +34,11 @@ using std::chrono::milliseconds;
 using std::chrono::time_point;
 using std::chrono::system_clock;
 
-#define Assert(expr) {                                                          \
-    if((expr) != true) {                                                        \
+#define Assert(expr) {                                             \
+    if((expr) != true) {                                                    \
         LOG_ERROR_F(STLogger, "'%s' is NOT true (in function '%s' in %s:%d)\n", \
-                              #expr, __FUNCTION__, __FILE__, __LINE__);         \
-        assert(false);                                                          \
-    }                                                                           \
+            #expr, __FUNCTION__, __FILE__, __LINE__); assert(false);                \
+    }                                                                       \
 }
 
 namespace bftEngine {
@@ -72,8 +71,7 @@ namespace impl {
 // Logger
 //////////////////////////////////////////////////////////////////////////////
 
-concordlogger::Logger STLogger =
-  concordlogger::Log::getLogger("state-transfer");
+concordlogger::Logger STLogger = concordlogger::Log::getLogger("state-transfer");
 
 //////////////////////////////////////////////////////////////////////////////
 // Time
@@ -276,8 +274,8 @@ void BCStateTran::startRunning(IReplicaForStateTransfer* r) {
     LOG_INFO(STLogger, "BCStateTran::startRunning");
 
   Assert(r != nullptr);
-  Assert(!running_);
-  Assert(replicaForStateTransfer_ == nullptr);
+//  Assert(!running_);
+//  Assert(replicaForStateTransfer_ == nullptr);
 
   // TODO(GG): add asserts for all relevant data members
 
@@ -554,14 +552,17 @@ bool BCStateTran::loadReservedPage(uint32_t reservedPageId,
 void BCStateTran::saveReservedPage(uint32_t reservedPageId,
                                    uint32_t copyLength,
                                    const char* inReservedPage) {
-    LOG_INFO(STLogger, "BCStateTran::saveReservedPage - reservedPageId="
-    << reservedPageId);
+  try {
+    LOG_INFO(STLogger, "BCStateTran::saveReservedPage - reservedPageId=" << reservedPageId);
 
   Assert(!isFetching());
   Assert(reservedPageId < numberOfReservedPages_);
   Assert(copyLength <= sizeOfReservedPage_);
 
-  psd_->setPendingResPage(reservedPageId, inReservedPage, copyLength);
+    psd_->setPendingResPage(reservedPageId, inReservedPage, copyLength);
+  } catch (std::out_of_range e) {
+    LOG_ERROR(STLogger, "BCStateTran::saveReservedPage - got out_of_range exception");
+  }
 }
 
 void BCStateTran::zeroReservedPage(uint32_t reservedPageId) {
@@ -1630,7 +1631,7 @@ void BCStateTran::setVBlockInCache(const DescOfVBlockForResPages& desc,
 
   Assert(p == cacheOfVirtualBlockForResPages.end());
 
-  if (cacheOfVirtualBlockForResPages.size() >= kMaxVBlocksInCache) {
+  if (cacheOfVirtualBlockForResPages.size() > kMaxVBlocksInCache) {
     auto minItem = cacheOfVirtualBlockForResPages.begin();
     std::free(minItem->second);
     cacheOfVirtualBlockForResPages.erase(minItem);
@@ -2099,7 +2100,6 @@ void BCStateTran::processData() {
 
     if (ShouldReplaceSourceReplica(badDataFromCurrentSourceReplica,
                                    diffMilli)) {
-
         if (preferredReplicas_.size() == 0) {
           if (fs == FetchingState::GettingMissingBlocks) {
             LOG_INFO(STLogger, "Adding all peer replicas to preferredReplicas_"

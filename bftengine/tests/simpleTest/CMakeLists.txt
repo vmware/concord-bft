@@ -1,7 +1,7 @@
 set(simpleTest_client_source_files
     client.cpp
-        ${CONFIG_FOLDER_PATH_VALUE}/test_comm_config.cpp
-        ${CONFIG_FOLDER_PATH_VALUE}/config_file_parser.cpp
+    ${CONFIG_FOLDER_PATH_VALUE}/test_comm_config.cpp
+    ${CONFIG_FOLDER_PATH_VALUE}/config_file_parser.cpp
     ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
 )
 
@@ -18,28 +18,32 @@ set(config_source_files
     ${CONFIG_FOLDER_PATH_VALUE}/config_file_parser_test.cpp
 )
 
-add_executable(simpleTest_client
+add_executable(simpleTest_client $<TARGET_OBJECTS:logging_dev>
     ${simpleTest_client_source_files}
-    $<TARGET_OBJECTS:logging_dev>
 )
 
-add_executable(simpleTest_server
+add_executable(simpleTest_server $<TARGET_OBJECTS:logging_dev>
     ${simpleTest_replica_source_files}
-    $<TARGET_OBJECTS:logging_dev>
 )
 
 add_executable(configTest
     ${config_source_files}
 )
 
+if(USE_LOG4CPP)
+    target_compile_definitions(simpleTest_server PUBLIC USE_LOG4CPP=1)
+    target_compile_definitions(simpleTest_client PUBLIC USE_LOG4CPP=1)
+    target_compile_definitions(configTest PUBLIC USE_LOG4CPP=1)
+endif()
+
 if(${USE_COMM_PLAIN_TCP})
-    target_compile_definitions(simnpleTest_client PUBLIC USE_COMM_PLAIN_TCP)
-    target_compile_definitions(simnpleTest_server PUBLIC USE_COMM_PLAIN_TCP)
+    target_compile_definitions(simpleTest_client PUBLIC USE_COMM_PLAIN_TCP)
+    target_compile_definitions(simpleTest_server PUBLIC USE_COMM_PLAIN_TCP)
 endif()
 
 if(${USE_COMM_TLS_TCP})
-    target_compile_definitions(simnpleTest_client PUBLIC USE_COMM_TLS_TCP)
-    target_compile_definitions(simnpleTest_server PUBLIC USE_COMM_TLS_TCP)
+    target_compile_definitions(simpleTest_client PUBLIC USE_COMM_TLS_TCP)
+    target_compile_definitions(simpleTest_server PUBLIC USE_COMM_TLS_TCP)
 endif()
 
 set_target_properties(simpleTest_client PROPERTIES OUTPUT_NAME client)
@@ -47,7 +51,7 @@ set_target_properties(simpleTest_server PROPERTIES OUTPUT_NAME server)
 set_target_properties(configTest PROPERTIES OUTPUT_NAME config)
 
 target_link_libraries(simpleTest_client PUBLIC corebft)
-target_link_libraries(simpleTest_server PUBLIC corebft)
+target_link_libraries(simpleTest_server PUBLIC corebft simple_file_storage_lib)
 target_link_libraries(configTest PUBLIC corebft)
 
 target_include_directories(simpleTest_client
@@ -58,7 +62,9 @@ target_include_directories(simpleTest_client
 
 target_include_directories(simpleTest_server
                            PRIVATE
+                           ${bftengine_SOURCE_DIR}/tests/simpleStorage
                            ${concord_bft_tools_SOURCE_DIR}
+                           ${bftengine_SOURCE_DIR}/src/bftengine
                            ${bftengine_SOURCE_DIR}/include
                            ${CONFIG_FOLDER_PATH_VALUE})
 

@@ -14,6 +14,7 @@
 
 #include <stdint.h>
 #include <utility>
+#include <list>
 #include "assertUtils.hpp"
 #include "PrimitiveTypes.hpp"
 
@@ -31,42 +32,32 @@ class SerializableActiveWindow {
   static_assert(Resolution < WindowSize, "");
   static_assert(WindowSize % Resolution == 0, "");
 
-  SerializableActiveWindow(SeqNum windowFirst);
+  explicit SerializableActiveWindow(const SeqNum &windowFirst);
   ~SerializableActiveWindow();
 
   static uint32_t maxElementSize() {
     return ItemType::maxSize();
   }
 
-  static uint32_t simpleParamsSize() {
-    return sizeof(beginningOfActiveWindow_);
-  }
-
   SeqNum getBeginningOfActiveWindow() const { return beginningOfActiveWindow_; }
 
   bool equals(const SerializableActiveWindow &other) const;
 
-  void serializeActiveWindowBeginning(char *buf) const;
+  void deserializeElement(const uint16_t &index, char *buf, const size_t &bufLen, uint32_t &actualSize);
 
-  void deserializeBeginningOfActiveWindow(char *buf);
+  bool insideActiveWindow(const uint16_t &num) const;
 
-  static SeqNum deserializeActiveWindowBeginning(char *buf);
+  static bool insideActiveWindow(const uint16_t &num, const SeqNum &newFirstIndex);
 
-  void deserializeElement(uint16_t index, char *buf, size_t bufLen, uint32_t &actualSize);
+  ItemType &get(const uint16_t &num);
 
-  bool insideActiveWindow(uint16_t num) const;
-
-  static bool insideActiveWindow(uint16_t num, const SeqNum& beginningOfActiveWindow);
-
-  ItemType &get(uint16_t num) ;
-
-  ItemType &getByRealIndex(uint16_t index);
-
-  void resetAll(SeqNum windowFirst);
-
-  void advanceActiveWindow(uint32_t newFirstIndexOfActiveWindow);
+  ItemType &getByRealIndex(const uint16_t &index);
 
   SeqNum convertIndex(const SeqNum &seqNum);
+
+  void resetAll(const SeqNum &windowFirst);
+
+  std::list<SeqNum> advanceActiveWindow(const uint32_t &newFirstIndex);
 
   static SeqNum convertIndex(const SeqNum &seqNum, const SeqNum& beginningOfActiveWindow);
 

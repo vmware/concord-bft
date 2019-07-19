@@ -19,11 +19,30 @@
 #include "PrimitiveTypes.hpp"
 #include "ViewsManager.hpp"
 #include "ReplicasInfo.hpp"
+#include "PrePrepareMsg.hpp"
 #include "ViewChangeMsg.hpp"
 #include "NewViewMsg.hpp"
+#include "SignedShareMsgs.hpp"
 
 namespace bftEngine {
 namespace impl {
+
+bool ViewsManager::PrevViewInfo::equals(const PrevViewInfo &other) const {
+  if (other.hasAllRequests != hasAllRequests)
+    return false;
+  if ((other.prePrepare && !prePrepare) || (!other.prePrepare && prePrepare))
+    return false;
+  if ((other.prepareFull && !prepareFull) || (!other.prepareFull && prepareFull))
+    return false;
+  bool res1 = prePrepare ? (other.prePrepare->equals(*prePrepare)) : true;
+  bool res2 = prepareFull ? (other.prepareFull->equals(*prepareFull)) : true;
+  return res1 && res2;
+}
+
+uint32_t ViewsManager::PrevViewInfo::maxSize() {
+  return (PrePrepareMsg::maxSizeOfPrePrepareMsgInLocalBuffer() +
+      PrepareFullMsg::maxSizeOfPrepareFullInLocalBuffer() + sizeof(hasAllRequests));
+}
 
 ViewsManager::ViewsManager(
   const ReplicasInfo* const r,
@@ -104,6 +123,143 @@ ViewsManager::~ViewsManager() {
 
   for (auto it : collectionOfPrePrepareMsgs) delete it.second;
 }
+
+ViewsManager* ViewsManager::createOutsideView(
+	const ReplicasInfo* const r,
+	IThresholdVerifier* const preparedCertificateVerifier,
+	ViewNum lastActiveView,
+	SeqNum lastStable,
+	SeqNum lastExecuted,
+	SeqNum stableLowerBound,
+	ViewChangeMsg* myLastViewChange,
+	std::vector<PrevViewInfo>& elementsOfPrevView)
+{
+	// check arguments
+	Assert(lastActiveView >= 0);
+	Assert(lastStable >= 0);
+	Assert(lastExecuted >= lastStable);
+	Assert(stableLowerBound >= 0 && lastStable >= stableLowerBound);
+	if (lastActiveView > 0) {
+		Assert(myLastViewChange != nullptr);
+		Assert(myLastViewChange->idOfGeneratedReplica() == r->myId());
+		Assert(myLastViewChange->newView() == lastActiveView);
+		Assert(myLastViewChange->lastStable() <= lastStable);
+	}	else {
+		Assert(myLastViewChange == nullptr);
+	}
+
+	Assert(elementsOfPrevView.size() <= kWorkWindowSize);
+	for (size_t i = 0; i < elementsOfPrevView.size(); i++) {
+		const PrevViewInfo& pvi = elementsOfPrevView[i];
+		Assert(pvi.prePrepare != nullptr && pvi.prePrepare->viewNumber() == lastActiveView);
+		Assert(pvi.hasAllRequests == true);
+		Assert(pvi.prepareFull == nullptr || pvi.prepareFull->viewNumber() == lastActiveView);
+		Assert(pvi.prepareFull == nullptr || pvi.prepareFull->seqNumber() == pvi.prePrepare->seqNumber());
+	}
+
+	ViewsManager* v = new ViewsManager(r, preparedCertificateVerifier);
+	Assert(v->stat == Stat::IN_VIEW);
+	Assert(v->myLatestActiveView == 0);
+
+	v->myLatestActiveView = lastActiveView;
+	v->myLatestPendingView = lastActiveView;
+	v->viewChangeMessages[v->myId] = myLastViewChange;	
+	v->lowerBoundStableForPendingView = stableLowerBound;
+
+	v->exitFromCurrentView(lastStable, lastExecuted, elementsOfPrevView);
+																												
+	// check the new ViewsManager
+	Assert(v->stat == Stat::NO_VIEW);
+	Assert(v->myLatestActiveView == lastActiveView);
+	Assert(v->myLatestPendingView == lastActiveView);
+	for (size_t i = 0; i < v->N; i++)	{
+		Assert(v->viewChangeMessages[i] == nullptr || i == v->myId);
+		Assert(v->newViewMessages[i] == nullptr);
+		Assert(v->viewChangeMsgsOfPendingView[i] == nullptr);
+ 	}
+	Assert(v->viewChangeMessages[v->myId]->idOfGeneratedReplica() == r->myId());
+	Assert(v->viewChangeMessages[v->myId]->newView() == lastActiveView + 1);
+	Assert(v->viewChangeMessages[v->myId]->lastStable() == lastStable);
+	Assert(v->newViewMsgOfOfPendingView == nullptr);
+
+	return v;
+}
+
+ViewsManager* ViewsManager::createInsideViewZero(
+	const ReplicasInfo* const r,
+	IThresholdVerifier* const preparedCertificateVerifier)
+{
+	ViewsManager* v = new ViewsManager(r, preparedCertificateVerifier);
+	return v;
+}
+
+
+ViewsManager* ViewsManager::createInsideView(
+	const ReplicasInfo* const r,
+	IThresholdVerifier* const preparedCertificateVerifier,
+	ViewNum view,
+	SeqNum stableLowerBound,
+	NewViewMsg* newViewMsg,
+	ViewChangeMsg* myLastViewChange,
+	std::vector<ViewChangeMsg*> viewChangeMsgs)
+{
+	// check arguments
+	Assert(view >= 1);
+	Assert(stableLowerBound >= 0);
+	Assert(newViewMsg != nullptr);
+	Assert(newViewMsg->newView() == view);
+	Assert(viewChangeMsgs.size() == (size_t)(2 * r->fVal() + 2 * r->cVal() + 1));
+	std::set<ReplicaId> replicasWithVCMsg;
+	for (size_t i = 0; i < viewChangeMsgs.size(); i++) {
+		Assert(viewChangeMsgs[i] != nullptr);
+		Assert(viewChangeMsgs[i]->newView() == view);
+		Digest msgDigest;
+		viewChangeMsgs[i]->getMsgDigest(msgDigest);
+		ReplicaId idOfGenReplica = viewChangeMsgs[i]->idOfGeneratedReplica();
+		Assert(newViewMsg->includesViewChangeFromReplica(idOfGenReplica, msgDigest) == true);
+		replicasWithVCMsg.insert(idOfGenReplica);
+	}
+	Assert(replicasWithVCMsg.size() == viewChangeMsgs.size());
+	Assert(replicasWithVCMsg.count(r->myId()) == 1 || myLastViewChange != nullptr);
+	if (myLastViewChange != nullptr) {
+		Assert(myLastViewChange->newView() == view);
+		Digest msgDigest;
+		myLastViewChange->getMsgDigest(msgDigest);
+		Assert(myLastViewChange->idOfGeneratedReplica() == r->myId());
+		Assert(newViewMsg->includesViewChangeFromReplica(r->myId(), msgDigest) == false);
+	}
+
+	ViewsManager* v = new ViewsManager(r, preparedCertificateVerifier);
+
+	Assert(v->stat == Stat::IN_VIEW);
+	v->myLatestActiveView = view;
+	v->myLatestPendingView = view;
+
+	Assert(v->collectionOfPrePrepareMsgs.empty());
+
+	for (size_t i = 0; i < viewChangeMsgs.size(); i++)
+	{
+		ViewChangeMsg* vcm = viewChangeMsgs[i];
+
+		Assert(v->viewChangeMsgsOfPendingView[vcm->idOfGeneratedReplica()] == nullptr);
+		v->viewChangeMsgsOfPendingView[vcm->idOfGeneratedReplica()] = vcm;
+	}
+
+	v->newViewMsgOfOfPendingView = newViewMsg;
+
+	if (v->viewChangeMsgsOfPendingView[v->myId] == nullptr)	{
+		Assert(myLastViewChange != nullptr);
+		v->viewChangeMessages[v->myId] = myLastViewChange;
+	}
+	else if (myLastViewChange != nullptr)
+		delete myLastViewChange;
+
+	v->lowerBoundStableForPendingView = stableLowerBound;
+
+	return v;
+}
+
+
 
 ViewChangeMsg* ViewsManager::getMyLatestViewChangeMsg() const {
   ViewChangeMsg* vc = viewChangeMsgsOfPendingView[myId];

@@ -22,7 +22,7 @@
 #include <iostream>
 #include <string>
 
-#include "Logger.hpp"
+#include "Logging.hpp"
 #include "SimpleBCStateTransfer.hpp"
 #include "IStateTransfer.hpp"
 #include "DataStore.hpp"
@@ -123,8 +123,6 @@ class BCStateTran : public IStateTransfer {
   const uint32_t sourceReplicaReplacementTimeoutMilli_;
   const uint32_t fetchRetransmissionTimeoutMilli_;
 
-
-
   const uint32_t maxVBlockSize_;
   const uint32_t maxItemSize_;
   const uint32_t maxNumOfChunksInAppBlock_;
@@ -184,7 +182,6 @@ class BCStateTran : public IStateTransfer {
   ///////////////////////////////////////////////////////////////////////////
  protected:
 
- protected:
   void sendToAllOtherReplicas(char* msg, uint32_t msgSize);
 
   void sendAskForCheckpointSummariesMsg();
