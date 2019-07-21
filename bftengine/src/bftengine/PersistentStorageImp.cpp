@@ -171,26 +171,29 @@ void PersistentStorageImp::setVersion() const {
 
 void PersistentStorageImp::setFetchingStateInternal(const bool &state) {
   metadataStorage_->writeInTransaction(FETCHING_STATE, (char *) &state, sizeof(state));
+  fetchingState_ = state;
 }
 
 void PersistentStorageImp::setFetchingState(const bool state) {
   Assert(nonExecSetIsAllowed());
-  Assert(state);
+  Assert(!state || !fetchingState_);
   setFetchingStateInternal(state);
 }
 
 void PersistentStorageImp::setLastExecutedSeqNumInternal(const SeqNum &seqNum) {
   metadataStorage_->writeInTransaction(LAST_EXEC_SEQ_NUM, (char *) &seqNum, sizeof(seqNum));
+  lastExecutedSeqNum_ = seqNum;
 }
 
 void PersistentStorageImp::setLastExecutedSeqNum(const SeqNum seqNum) {
   Assert(setIsAllowed());
-  lastExecutedSeqNum_ = seqNum;
+  Assert(lastExecutedSeqNum_ <= seqNum);
   setLastExecutedSeqNumInternal(seqNum);
 }
 
 void PersistentStorageImp::setPrimaryLastUsedSeqNumInternal(const SeqNum &seqNum) {
   metadataStorage_->writeInTransaction(PRIMARY_LAST_USED_SEQ_NUM, (char *) &seqNum, sizeof(seqNum));
+  primaryLastUsedSeqNum_ = seqNum;
 }
 
 void PersistentStorageImp::setPrimaryLastUsedSeqNum(const SeqNum seqNum) {
@@ -200,6 +203,7 @@ void PersistentStorageImp::setPrimaryLastUsedSeqNum(const SeqNum seqNum) {
 
 void PersistentStorageImp::setStrictLowerBoundOfSeqNumsInternal(const SeqNum &seqNum) {
   metadataStorage_->writeInTransaction(LOWER_BOUND_OF_SEQ_NUM, (char *) &seqNum, sizeof(seqNum));
+  strictLowerBoundOfSeqNums_ = seqNum;
 }
 
 void PersistentStorageImp::setStrictLowerBoundOfSeqNums(const SeqNum seqNum) {
@@ -209,10 +213,12 @@ void PersistentStorageImp::setStrictLowerBoundOfSeqNums(const SeqNum seqNum) {
 
 void PersistentStorageImp::setLastViewTransferredSeqNumbersInternal(const ViewNum &view) {
   metadataStorage_->writeInTransaction(LAST_VIEW_TRANSFERRED_SEQ_NUM, (char *) &view, sizeof(view));
+  lastViewTransferredSeqNum_ = view;
 }
 
 void PersistentStorageImp::setLastViewThatTransferredSeqNumbersFullyExecuted(const ViewNum view) {
   Assert(nonExecSetIsAllowed());
+  Assert(lastViewTransferredSeqNum_ <= view);
   setLastViewTransferredSeqNumbersInternal(view);
 }
 
@@ -567,23 +573,27 @@ SeqNum PersistentStorageImp::getLastExecutedSeqNum() {
 
 SeqNum PersistentStorageImp::getPrimaryLastUsedSeqNum() {
   Assert(getIsAllowed());
-  return getSeqNum(PRIMARY_LAST_USED_SEQ_NUM, sizeof(primaryLastUsedSeqNum_));
+  primaryLastUsedSeqNum_ = getSeqNum(PRIMARY_LAST_USED_SEQ_NUM, sizeof(primaryLastUsedSeqNum_));
+  return primaryLastUsedSeqNum_;
 }
 
 SeqNum PersistentStorageImp::getStrictLowerBoundOfSeqNums() {
   Assert(getIsAllowed());
-  return getSeqNum(LOWER_BOUND_OF_SEQ_NUM, sizeof(strictLowerBoundOfSeqNums_));
+  strictLowerBoundOfSeqNums_ = getSeqNum(LOWER_BOUND_OF_SEQ_NUM, sizeof(strictLowerBoundOfSeqNums_));
+  return strictLowerBoundOfSeqNums_;
 }
 
 SeqNum PersistentStorageImp::getLastStableSeqNum() {
   Assert(getIsAllowed());
-  return getSeqNum(LAST_STABLE_SEQ_NUM, sizeof(lastStableSeqNum_));
+  lastStableSeqNum_ = getSeqNum(LAST_STABLE_SEQ_NUM, sizeof(lastStableSeqNum_));
+  return lastStableSeqNum_;
 }
 
 ViewNum
 PersistentStorageImp::getLastViewThatTransferredSeqNumbersFullyExecuted() {
   Assert(getIsAllowed());
-  return getSeqNum(LAST_VIEW_TRANSFERRED_SEQ_NUM, sizeof(lastViewTransferredSeqNum_));
+  lastViewTransferredSeqNum_ = getSeqNum(LAST_VIEW_TRANSFERRED_SEQ_NUM, sizeof(lastViewTransferredSeqNum_));
+  return lastViewTransferredSeqNum_;
 }
 
 bool PersistentStorageImp::hasReplicaConfig() const {
@@ -734,10 +744,8 @@ void PersistentStorageImp::readCheckDataElementFromDisk(const SeqNum &index, con
 
 const SeqNum PersistentStorageImp::convertSeqNumWindowIndex(const SeqNum &seqNum) const {
   SeqNum convertedIndex = SeqNumWindow::convertIndex(seqNum, seqNumWindowBeginning_);
-//  if (seqNum >= seqNumWindowBeginning_)
-//    convertedIndex = (seqNum - seqNumWindowBeginning_ + 1) * numOfSeqNumWinParameters;
   LOG_DEBUG_F(GL, "convertSeqNumWindowIndex seqNumWindowBeginning_=%ld, seqNum=%ld, convertedIndex=%ld",
-             seqNumWindowBeginning_, seqNum, convertedIndex);
+              seqNumWindowBeginning_, seqNum, convertedIndex);
   return convertedIndex * numOfSeqNumWinParameters;
 }
 
@@ -784,8 +792,6 @@ CommitFullMsg *PersistentStorageImp::readCommitFullMsgFromDisk(const SeqNum &seq
 
 const SeqNum PersistentStorageImp::convertCheckWindowIndex(const SeqNum &index) const {
   SeqNum convertedIndex = CheckWindow::convertIndex(index, checkWindowBeginning_);
-//  if (index >= checkWindowBeginning_)
-//    shiftedIndex = index - checkWindowBeginning_;
   return convertedIndex * numOfCheckWinParameters;
 }
 
