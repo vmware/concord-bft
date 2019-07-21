@@ -28,7 +28,6 @@
 #include "ReplicaStatusMsg.hpp"
 #include "NullStateTransfer.hpp"
 #include "SysConsts.hpp"
-#include "DebugPersistentStorage.hpp"
 
 namespace bftEngine
 {
@@ -2425,7 +2424,7 @@ namespace bftEngine
 
 			seqNumInfo.setTimeOfLastInfoRequest(curTime);
 
-			LOG_INFO_F(GL, "Node %d trys to request missing data for seqNumber %" PRId64 "", (int)myReplicaId, seqNumber);
+			LOG_INFO_F(GL, "Node %d tries to request missing data for seqNumber %" PRId64 "", (int)myReplicaId, seqNumber);
 
 			ReqMissingDataMsg reqData(myReplicaId, curView, seqNumber);
 
@@ -3483,7 +3482,7 @@ namespace bftEngine
 
             const bool validClient = clientsManager->isValidClient(clientId);
             if (!validClient) {
-              // TODO(GG): TBD - warning and/or report
+              LOG_WARN(GL, "The client clientId=%d is not valid" << clientId);
               continue;
             }
 
