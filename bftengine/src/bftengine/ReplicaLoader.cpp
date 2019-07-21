@@ -41,6 +41,12 @@ namespace {
 
 ReplicaLoader::ErrorCode checkReplicaConfig(const LoadedReplicaData &ld) {
   const ReplicaConfig &c = ld.repConfig;
+
+  LOG_INFO(GL, "checkReplicaConfig cVal=" << c.cVal << ", fVal=" << c.fVal << ", replicaId=" << c.replicaId
+                                          << ", concurrencyLevel=" << c.concurrencyLevel
+                                          << ", autoViewChangeEnabled=" << c.autoViewChangeEnabled
+                                          << ", viewChangeTimerMillisec=" << c.viewChangeTimerMillisec);
+
   Verify(c.fVal >= 1, InconsistentErr);
   Verify(c.cVal >= 0, InconsistentErr);
 

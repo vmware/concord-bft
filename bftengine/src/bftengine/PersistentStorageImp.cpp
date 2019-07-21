@@ -548,7 +548,7 @@ ReplicaConfig PersistentStorageImp::getReplicaConfig() {
   SharedPtrToClass replicaConfigPtr = ReplicaConfigSerializer::deserialize(outBuf, outActualObjectSize);
   auto *configPtr = ((ReplicaConfigSerializer *) (replicaConfigPtr.get()))->getConfig();
   configSerializer_->setConfig(*configPtr);
-  return *configPtr;
+  return *configSerializer_->getConfig();
 }
 
 bool PersistentStorageImp::getFetchingState() {
