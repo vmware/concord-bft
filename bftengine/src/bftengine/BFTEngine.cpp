@@ -120,10 +120,13 @@ Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
   uint16_t numOfObjects = 0;
   bool isNewStorage = true;
 
-  if (debugPersistentStorageEnabled) {
-    Assert(metadataStorage == nullptr);
-    persistentStoragePtr.reset(new impl::DebugPersistentStorage(replicaConfig->fVal, replicaConfig->cVal));
-  } else if (metadataStorage != nullptr) {
+  if (!debugPersistentStorageEnabled) Assert(metadataStorage != nullptr);
+
+  if (debugPersistentStorageEnabled)
+    if (metadataStorage == nullptr)
+      persistentStoragePtr.reset(new impl::DebugPersistentStorage(replicaConfig->fVal, replicaConfig->cVal));
+
+  if (metadataStorage != nullptr) {
     persistentStoragePtr.reset(new impl::PersistentStorageImp(replicaConfig->fVal, replicaConfig->cVal));
     shared_ptr<MetadataStorage> metadataStoragePtr(metadataStorage);
     auto objectDescriptors =

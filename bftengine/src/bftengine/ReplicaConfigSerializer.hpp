@@ -22,7 +22,7 @@ namespace impl {
 // class for its serialization/deserialization functionality.
 // Any ReplicaConfig changes require synchronization with this class and an
 // update of ReplicaConfigSerializer::classVersion_.
- class ReplicaConfigSerializer : public concordSerializable::Serializable {
+class ReplicaConfigSerializer : public concordSerializable::Serializable {
  public:
   explicit ReplicaConfigSerializer(ReplicaConfig *config);
   ~ReplicaConfigSerializer() override;
@@ -52,6 +52,16 @@ namespace impl {
 
  private:
   ReplicaConfig *config_ = nullptr;
+
+  // Place holders for shared pointers to serializable classes
+  concordSerializable::SharedPtrToClass thresholdSignerForExecution_;
+  concordSerializable::SharedPtrToClass thresholdVerifierForExecution_;
+  concordSerializable::SharedPtrToClass thresholdSignerForSlowPathCommit_;
+  concordSerializable::SharedPtrToClass thresholdVerifierForSlowPathCommit_;
+  concordSerializable::SharedPtrToClass thresholdSignerForCommit_;
+  concordSerializable::SharedPtrToClass thresholdVerifierForCommit_;
+  concordSerializable::SharedPtrToClass thresholdSignerForOptimisticCommit_;
+  concordSerializable::SharedPtrToClass thresholdVerifierForOptimisticCommit_;
 
   const std::string className_ = "ReplicaConfig";
   const std::string classVersion_ = "1";

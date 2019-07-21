@@ -13,7 +13,7 @@
 #include "ReplicaConfigSerializer.hpp"
 #include "threshsign/IThresholdSigner.h"
 #include "threshsign/IThresholdVerifier.h"
-#include "../../src/bftengine/SysConsts.hpp"
+#include "SysConsts.hpp"
 
 using namespace std;
 using namespace concordSerializable;
@@ -138,10 +138,10 @@ const {
 
 SharedPtrToClass ReplicaConfigSerializer::create(istream &inStream) {
   SharedPtrToClass replicaConfigSerializer(new ReplicaConfigSerializer());
-  ReplicaConfig& config = *((ReplicaConfigSerializer *)replicaConfigSerializer.get())->config_;
+  ReplicaConfig &config = *((ReplicaConfigSerializer *) replicaConfigSerializer.get())->config_;
 
   // Deserialize class version
-  verifyClassVersion(((ReplicaConfigSerializer *)replicaConfigSerializer.get())->classVersion_, inStream);
+  verifyClassVersion(((ReplicaConfigSerializer *) replicaConfigSerializer.get())->classVersion_, inStream);
 
   // Deserialize fVal
   inStream.read((char *) &config.fVal, sizeof(config.fVal));
@@ -185,14 +185,30 @@ SharedPtrToClass ReplicaConfigSerializer::create(istream &inStream) {
 }
 
 void ReplicaConfigSerializer::createSignersAndVerifiers(istream &inStream, ReplicaConfig &newObject) {
-  newObject.thresholdSignerForExecution = dynamic_cast<IThresholdSigner *>(deserialize(inStream).get());
-  newObject.thresholdVerifierForExecution = dynamic_cast<IThresholdVerifier *>(deserialize(inStream).get());
-  newObject.thresholdSignerForSlowPathCommit = dynamic_cast<IThresholdSigner *>(deserialize(inStream).get());
-  newObject.thresholdVerifierForSlowPathCommit = dynamic_cast<IThresholdVerifier *>(deserialize(inStream).get());
-  newObject.thresholdSignerForCommit = dynamic_cast<IThresholdSigner *>(deserialize(inStream).get());
-  newObject.thresholdVerifierForCommit = dynamic_cast<IThresholdVerifier *>(deserialize(inStream).get());
-  newObject.thresholdSignerForOptimisticCommit = dynamic_cast<IThresholdSigner *>(deserialize(inStream).get());
-  newObject.thresholdVerifierForOptimisticCommit = dynamic_cast<IThresholdVerifier *>(deserialize(inStream).get());
+  thresholdSignerForExecution_ = deserialize(inStream);
+  thresholdVerifierForExecution_ = deserialize(inStream);
+  thresholdSignerForSlowPathCommit_ = deserialize(inStream);
+  thresholdVerifierForSlowPathCommit_ = deserialize(inStream);
+  thresholdSignerForCommit_ = deserialize(inStream);
+  thresholdVerifierForCommit_ = deserialize(inStream);
+  thresholdSignerForOptimisticCommit_ = deserialize(inStream);
+  thresholdVerifierForOptimisticCommit_ = deserialize(inStream);
+
+  newObject.thresholdSignerForExecution = dynamic_cast<IThresholdSigner *>(thresholdSignerForExecution_.get());
+  newObject.thresholdVerifierForExecution = dynamic_cast<IThresholdVerifier *>(thresholdVerifierForExecution_.get());
+
+  newObject.thresholdSignerForSlowPathCommit =
+      dynamic_cast<IThresholdSigner *>(thresholdSignerForSlowPathCommit_.get());
+  newObject.thresholdVerifierForSlowPathCommit =
+      dynamic_cast<IThresholdVerifier *>(thresholdVerifierForSlowPathCommit_.get());
+
+  newObject.thresholdSignerForCommit = dynamic_cast<IThresholdSigner *>(thresholdSignerForCommit_.get());
+  newObject.thresholdVerifierForCommit = dynamic_cast<IThresholdVerifier *>(thresholdVerifierForCommit_.get());
+
+  newObject.thresholdSignerForOptimisticCommit =
+      dynamic_cast<IThresholdSigner *>(thresholdSignerForOptimisticCommit_.get());
+  newObject.thresholdVerifierForOptimisticCommit =
+      dynamic_cast<IThresholdVerifier *>(thresholdVerifierForOptimisticCommit_.get());
 }
 
 string ReplicaConfigSerializer::deserializeKey(istream &inStream) const {
