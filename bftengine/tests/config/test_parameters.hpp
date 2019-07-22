@@ -39,6 +39,7 @@ struct ReplicaParams {
   uint16_t statusReportTimerMillisec = 20 * 1000; // ms
   std::string   configFileName;
   std::string   keysFilePrefix;
+  bool useFileForPersistency = false;
 };
 
 #endif //CONCORD_BFT_TEST_PARAMETERS_HPP

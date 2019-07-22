@@ -14,3 +14,5 @@ add_library(simple_file_storage_lib ${simple_file_storage_source_files_lib})
 target_link_libraries(simple_file_storage PUBLIC corebft)
 
 target_link_libraries(simple_file_storage_lib PUBLIC corebft)
+
+set(SIMPLE_STORAGE_DIR ${CMAKE_CURRENT_SOURCE_DIR})

@@ -10,6 +10,8 @@
 #include "Replica.hpp"
 #include "ReplicaConfig.hpp"
 #include "SimpleStateTransfer.hpp"
+#include "FileStorage.hpp"
+#include "simple_test_replica_behavior.hpp"
 #include <thread>
 
 using namespace bftEngine;
@@ -130,34 +132,24 @@ class SimpleAppState : public RequestsHandler {
   bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer* st = nullptr;
 };
 
-struct PersistencyTestInfo {
-  bool replica2RestartNoVC = false;
-  bool allReplicasRestartNoVC = false;
-  bool allReplicasRestartVC = false;
-  bool primaryReplicaRestartVC = false;
-  uint32_t restartDelay = 0;
-  uint32_t initialSleepBetweenRestartsMillis = 5000;
-  double sleepBetweenRestartsMultipler = 1.2;
-};
-
 class SimpleTestReplica {
  private:
   ICommunication *comm;
   bftEngine::Replica* replica = nullptr;
   ReplicaConfig replicaConfig;
   std::thread *runnerThread = nullptr;
+  ISimpleTestReplicaBehavior *behaviorPtr;
 
- public:
-  PersistencyTestInfo pti;
-
+public:
   SimpleTestReplica(
       ICommunication *commObject,
       RequestsHandler &state,
       ReplicaConfig rc,
-      const PersistencyTestInfo &persistencyTestInfo,
-      bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer *inMemoryST) :
-      comm{commObject}, replicaConfig{rc}, pti{persistencyTestInfo} {
-    replica = Replica::createNewReplica(&rc,  &state, inMemoryST, comm, nullptr);
+      ISimpleTestReplicaBehavior *behvPtr,
+      bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer *inMemoryST,
+      MetadataStorage *metaDataStorage) :
+      comm{commObject}, replicaConfig{rc}, behaviorPtr{behvPtr} {
+    replica = Replica::createNewReplica(&rc,  &state, inMemoryST, comm, metaDataStorage);
   }
 
   ~SimpleTestReplica() {
@@ -191,65 +183,30 @@ class SimpleTestReplica {
   }
 
   void run() {
-    srand (time(NULL));
     while (replica->isRunning()) {
-      if(pti.replica2RestartNoVC) {
-        if (replicaConfig.replicaId == 2) {
-          std::this_thread::sleep_for(std::chrono::seconds(10));
-          if(replica && replica->isRunning()) {
-            LOG_INFO(replicaLogger, "Restarting");
-            replica->restartForDebug(pti.restartDelay);
-            LOG_INFO(replicaLogger, "Restarted");
-          }
-        }
-      }
-      else if (pti.allReplicasRestartNoVC) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(
-          pti.initialSleepBetweenRestartsMillis
-        ));
-        pti.initialSleepBetweenRestartsMillis = pti.initialSleepBetweenRestartsMillis *
-          pti.sleepBetweenRestartsMultipler + (1000 * replicaConfig.replicaId * replicaConfig.replicaId);
+      bool down = behaviorPtr->should_be_down();
+      if(down) {
         if(replica && replica->isRunning()) {
-            LOG_INFO(replicaLogger, "Restarting");
-            pti.restartDelay = (rand() % 40 + 2) * 1000;
-            replica->restartForDebug(pti.restartDelay);
-            LOG_INFO(replicaLogger, "Restarted");
-          }
-      }
-      else if (pti.allReplicasRestartVC) {
-        std::this_thread::sleep_for(std::chrono::seconds(18 *
-            (2 + replicaConfig.replicaId) * (2 + replicaConfig.replicaId)));
-       if(replica && replica->isRunning()) {
-            LOG_INFO(replicaLogger, "Restarting");
-            replica->restartForDebug(pti.restartDelay);
-            LOG_INFO(replicaLogger, "Restarted");
-          }
-      }
-      else if(pti.primaryReplicaRestartVC) {
-        if(replicaConfig.replicaId == 0) {
-          std::this_thread::sleep_for(std::chrono::milliseconds((uint32_t)
-            (pti.initialSleepBetweenRestartsMillis * pti.sleepBetweenRestartsMultipler)
-          ));
-          pti.sleepBetweenRestartsMultipler *= 1.2;
-          if(replica && replica->isRunning()) {
-            LOG_INFO(replicaLogger, "Restarting");
-            replica->restartForDebug(pti.restartDelay);
-            LOG_INFO(replicaLogger, "Restarted");
-          }
+          LOG_INFO(replicaLogger, "Restarting");
+          uint32_t downTime = behaviorPtr->get_down_time_millis();
+          replica->restartForDebug(downTime);
+          behaviorPtr->on_restarted();
+          LOG_INFO(replicaLogger, "Restarted");
         }
-      }
-      else {
+      } else {
         std::this_thread::sleep_for(std::chrono::seconds(1));
       }
     }
   }
-
+  
   void run_non_blocking() {
     runnerThread = new std::thread(std::bind(&SimpleTestReplica::run, this));
   }
 
   static SimpleTestReplica* create_replica(
-  PersistencyTestInfo pti, ReplicaParams rp) {
+    ISimpleTestReplicaBehavior *behv,
+    ReplicaParams rp, 
+    MetadataStorage *metaDataStorage) {
       TestCommConfig testCommConfig(replicaLogger);
       ReplicaConfig replicaConfig;
       testCommConfig.GetReplicaConfig(
@@ -292,11 +249,11 @@ class SimpleTestReplica {
               replicaConfig.cVal, true);
 
       simpleAppState->st = st;
-      SimpleTestReplica *replica = new SimpleTestReplica(comm, *simpleAppState,
-                                                         replicaConfig, pti, st);
+      SimpleTestReplica *replica = 
+        new SimpleTestReplica(
+          comm, *simpleAppState, replicaConfig, behv, st, metaDataStorage);
       return replica;
-}
-
+  }
 };
 
 #endif //CONCORD_BFT_SIMPLE_TEST_REPLICA_HPP

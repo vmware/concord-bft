@@ -9,7 +9,6 @@
 #include "Logging.hpp"
 #include <thread>
 #include <chrono>
-#include <cstdlib>
 #include <time.h>
 
 namespace test
@@ -45,12 +44,15 @@ class PersistencyTest: public testing::Test
     client = new SimpleTestClient(cp, clientLogger);
   }
 
-  void create_and_run_replica(ReplicaParams rp, PersistencyTestInfo pti) {
-    rp.keysFilePrefix = "private_replica_";
-    SimpleTestReplica *replica = SimpleTestReplica::create_replica(pti, rp);
-    replicas.push_back(replica);
-    std::thread *t = new std::thread(std::bind(&PersistencyTest::run_replica, this ,replica));
-    replicaThreads.push_back(t);
+  void create_and_run_replica(
+    ReplicaParams rp, ISimpleTestReplicaBehavior *behv) {
+      rp.keysFilePrefix = "private_replica_";
+      SimpleTestReplica *replica = SimpleTestReplica::create_replica(
+        behv, rp, nullptr);
+      replicas.push_back(replica);
+      std::thread *t = new std::thread(
+        std::bind(&PersistencyTest::run_replica, this ,replica));
+      replicaThreads.push_back(t);
   }
 
   SimpleTestClient *client;
@@ -93,16 +95,12 @@ TEST_F(PersistencyTest, Replica2RestartNoVC) {
 
 TEST_F(PersistencyTest, AllReplicasRestartNoVC) {
   create_client(20000);
-  srand (time(NULL));
   
   for(int i = 0; i < 4;i++) {
-    auto delay = rand() % 8;
-    PersistencyTestInfo pti;
-    pti.allReplicasRestartNoVC = true;
-    pti.restartDelay = delay * 1000;
     ReplicaParams rp;
     rp.replicaId = i;
-    create_and_run_replica(rp, pti);
+    ISimpleTestReplicaBehavior *b = new AllReplicasRestartNoVC(rp);
+    create_and_run_replica(rp, b);
   }
 
   ASSERT_TRUE(client->run());
@@ -110,17 +108,13 @@ TEST_F(PersistencyTest, AllReplicasRestartNoVC) {
 
 TEST_F(PersistencyTest, PrimaryRestartVC) {
   create_client(20000);
-  srand (time(NULL));
   
   for(int i = 0; i < 4;i++) {
-    auto delay = rand() % 20 + 60;
-    PersistencyTestInfo pti;
-    pti.restartDelay = delay * 1000;
-    pti.primaryReplicaRestartVC = true;
     ReplicaParams rp;
     rp.viewChangeEnabled = true;
     rp.replicaId = i;
-    create_and_run_replica(rp, pti);
+    ISimpleTestReplicaBehavior *b = new OneTimePrimaryDownVC(rp);
+    create_and_run_replica(rp, b);
   }
 
   ASSERT_TRUE(client->run());

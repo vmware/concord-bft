@@ -59,14 +59,15 @@
 #include "test_parameters.hpp"
 #include "simple_test_replica.hpp"
 #include "Logging.hpp"
+#include "simple_test_replica_behavior.hpp"
 
 #ifdef USE_LOG4CPP
 #include <log4cplus/configurator.h>
 #endif
 
 #define REPLICA2_RESTART_NO_VC (0)
-#define ALL_REPLICAS_RESTART_NO_VC (1)
-#define ALL_REPLICAS_RESTART_VC (0)
+#define ALL_REPLICAS_RESTART_NO_VC (0)
+#define ALL_REPLICAS_RESTART_VC (1)
 #define PRIMARY_REPLICA_RESTART_VC (0)
 static_assert(REPLICA2_RESTART_NO_VC + ALL_REPLICAS_RESTART_NO_VC + ALL_REPLICAS_RESTART_VC + PRIMARY_REPLICA_RESTART_VC <= 1, "");
 
@@ -153,6 +154,10 @@ void parse_params(int argc, char** argv, ReplicaParams &rp) {
         } else if (p == "-cf") {
           rp.configFileName = argv[i + 1];
           i += 2;
+        }
+          else if (p == "-pf") {
+          rp.useFileForPersistency = true;
+          i ++;
         } else {
           printf("Unknown parameter %s\n", p.c_str());
           exit(-1);
@@ -190,8 +195,24 @@ int main(int argc, char **argv) {
   if(rp.debug)
     std::this_thread::sleep_for(chrono::seconds(20));
 
-  signal(SIGABRT, signalHandler);
   signal(SIGTERM, signalHandler);
+
+ISimpleTestReplicaBehavior *replicaBehavior = nullptr;
+
+#if REPLICA2_RESTART_NO_VC
+  replicaBehavior = new Replica2RestartNoVC(rp);
+#endif
+#if ALL_REPLICAS_RESTART_NO_VC
+  replicaBehavior = new AllReplicasRestartNoVC(rp);
+#endif
+#if ALL_REPLICAS_RESTART_VC
+  rp.viewChangeEnabled = true;
+  replicaBehavior = new AllReplicasRestartVC(rp);
+#endif
+#if PRIMARY_REPLICA_RESTART_VC
+  rp.viewChangeEnabled = true;
+  replicaBehavior = new OneTimePrimaryDownVC(rp);
+#endif
 
   ReplicaConfig replicaConfig;
   TestCommConfig testCommConfig(replicaLogger);
@@ -199,31 +220,6 @@ int main(int argc, char **argv) {
   replicaConfig.numOfClientProxies = rp.numOfClients;
   replicaConfig.autoViewChangeEnabled = rp.viewChangeEnabled;
   replicaConfig.viewChangeTimerMillisec = rp.viewChangeTimeout;
-
-#if REPLICA2_RESTART_VC || ALL_REPLICAS_RESTART_VC || PRIMARY_REPLICA_RESTART_VC
-  rp.viewChangeEnabled = true;
-#endif
-
-  PersistencyTestInfo pti;
-#if REPLICA2_RESTART_NO_VC
-  pti.replica2RestartNoVC = true;
-#endif
-#if REPLICA2_RESTART_VC
-  pti.replica2RestartVC = true;
-#endif
-#if ALL_REPLICAS_RESTART_NO_VC
-  pti.allReplicasRestartNoVC = true;
-  pti.initialSleepBetweenRestartsMillis = 5000;
-  pti.sleepBetweenRestartsMultipler = 1.5;
-#endif
-#if ALL_REPLICAS_RESTART_VC
-  pti.allReplicasRestartVC = true;
-  pti.restartDelay = 65000;
-#endif
-#if PRIMARY_REPLICA_RESTART_VC
-  pti.primaryReplicaRestartVC = true;
-  pti.restartDelay = 120000;
-#endif
 
   LOG_INFO(replicaLogger, "ReplicaParams: replicaId: "
       << rp.replicaId
@@ -245,7 +241,15 @@ int main(int argc, char **argv) {
           replicaConfig.cVal, true);
 
   simpleAppState.st = st;
-  SimpleTestReplica *replica = SimpleTestReplica::create_replica(pti, rp);
+  MetadataStorage *metaDataStorage = nullptr;
+  if(rp.useFileForPersistency) {
+    ostringstream dbFile;
+    dbFile << "metadataStorageTest_" << replicaConfig.replicaId << ".txt";
+    remove(dbFile.str().c_str());
+    metaDataStorage = new FileStorage(replicaLogger, dbFile.str());
+  }
+  SimpleTestReplica *replica
+    = SimpleTestReplica::create_replica(replicaBehavior, rp, metaDataStorage);
   replica->start();
   // The replica is now running in its own thread. Block the main thread until
   // sigabort, sigkill or sigterm are not raised and then exit gracefully
