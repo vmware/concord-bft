@@ -72,7 +72,7 @@ typedef unique_ptr<MetadataStorage::ObjectDesc> ObjectDescUniquePtr;
 class PersistentStorageImp : public PersistentStorage {
  public:
   PersistentStorageImp(uint16_t fVal, uint16_t cVal);
-  virtual ~PersistentStorageImp();
+  virtual ~PersistentStorageImp() = default;
 
   uint8_t beginWriteTran() override;
   uint8_t endWriteTran() override;
@@ -199,7 +199,7 @@ class PersistentStorageImp : public PersistentStorage {
 
  private:
   std::shared_ptr<MetadataStorage> metadataStorage_;
-  ReplicaConfigSerializer *configSerializer_ = nullptr;
+  std::unique_ptr<ReplicaConfigSerializer> configSerializer_;
   const ReplicaConfigSerializer defaultReplicaConfig_;
 
   const uint32_t maxVersionSize_ = 80;

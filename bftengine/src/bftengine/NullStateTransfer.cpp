@@ -66,7 +66,7 @@ namespace bftEngine
 		void NullStateTransfer::getDigestOfCheckpoint(uint64_t checkpointNumber, uint16_t sizeOfDigestBuffer, char* outDigestBuffer)
 		{
 			Assert(sizeOfDigestBuffer >= sizeof(Digest));
-			LOG_WARN_F(GL, "State digest is only based on sequence number (becuase state transfer module has not been loaded)");
+			LOG_WARN_F(GL, "State digest is only based on sequence number (because state transfer module has not been loaded)");
 
 			memset(outDigestBuffer, 0, sizeOfDigestBuffer);
 
@@ -82,7 +82,7 @@ namespace bftEngine
 		{
 			if (errorReport) return;
 				
-			LOG_ERROR_F(GL, "Replica is not able to collect state from the other replicas (becuase state transfer module has not been loaded)");
+			LOG_ERROR_F(GL, "Replica is not able to collect state from the other replicas (because state transfer module has not been loaded)");
 			errorReport = true;
 		}
 

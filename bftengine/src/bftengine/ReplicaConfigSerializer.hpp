@@ -25,9 +25,9 @@ namespace impl {
 class ReplicaConfigSerializer : public concordSerializable::Serializable {
  public:
   explicit ReplicaConfigSerializer(ReplicaConfig *config);
-  ~ReplicaConfigSerializer() override;
+  ~ReplicaConfigSerializer() override = default;
 
-  ReplicaConfig *getConfig() const { return config_; }
+  ReplicaConfig *getConfig() const { return config_.get(); }
   void setConfig(const ReplicaConfig &config);
 
   bool operator==(const ReplicaConfigSerializer &other) const;
@@ -51,7 +51,7 @@ class ReplicaConfigSerializer : public concordSerializable::Serializable {
   static void registerClass();
 
  private:
-  ReplicaConfig *config_ = nullptr;
+  std::unique_ptr<ReplicaConfig> config_;
 
   // Place holders for shared pointers to serializable classes
   concordSerializable::SharedPtrToClass thresholdSignerForExecution_;

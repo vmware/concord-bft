@@ -280,7 +280,7 @@ namespace bftEngine
 
 			if (stateTransfer->isCollectingState())
 			{
-				LOG_INFO_F(GL, "ClientRequestMsg is ignored becuase this replica is collecting missing state from the other replicas");
+				LOG_INFO_F(GL, "ClientRequestMsg is ignored because this replica is collecting missing state from the other replicas");
 				delete m;
 				return;
 			}
@@ -306,7 +306,7 @@ namespace bftEngine
 
 			if (!currentViewIsActive())
 			{
-				LOG_INFO_F(GL, "ClientRequestMsg is ignored becuase current view is inactive");
+				LOG_INFO_F(GL, "ClientRequestMsg is ignored because current view is inactive");
 				delete m;
 				return;
 			}
@@ -325,7 +325,7 @@ namespace bftEngine
 					}
 					else
 					{
-						LOG_INFO_F(GL, "ClientRequestMsg is ignored becuase: request is old, OR primary is current working on a request from the same client, OR queue contains too many requests");
+						LOG_INFO_F(GL, "ClientRequestMsg is ignored because: request is old, OR primary is current working on a request from the same client, OR queue contains too many requests");
 					}
 				}
 				else // not the current primary
@@ -340,7 +340,7 @@ namespace bftEngine
 					}
 					else
 					{
-						LOG_INFO_F(GL, "ClientRequestMsg is ignored becuase request is old or replica has another pending request from the same client");
+						LOG_INFO_F(GL, "ClientRequestMsg is ignored because request is old or replica has another pending request from the same client");
 					}
 				}
 			}
@@ -356,7 +356,7 @@ namespace bftEngine
 			}
 			else
 			{
-				LOG_INFO_F(GL, "ClientRequestMsg is ignored becuase request is old");
+				LOG_INFO_F(GL, "ClientRequestMsg is ignored because request is old");
 			}
 
 			delete m;
@@ -914,7 +914,7 @@ namespace bftEngine
 				{
 					Assert(seqNumInfo.hasPrePrepareMsg());
 
-					seqNumInfo.forceComplete();	// TODO(GG): remove forceComplete() (we know that  seqNumInfo is committed becuase of the  FullCommitProofMsg message)
+					seqNumInfo.forceComplete();	// TODO(GG): remove forceComplete() (we know that  seqNumInfo is committed because of the  FullCommitProofMsg message)
 
 					if (ps_) {
 						ps_->beginWriteTran();
@@ -1644,7 +1644,7 @@ namespace bftEngine
 			if (msgViewNum < curView)
 			{
 				ViewChangeMsg* myVC = viewsManager->getMyLatestViewChangeMsg();
-				Assert(myVC != nullptr); // becuase curView>0
+				Assert(myVC != nullptr); // because curView>0
 				send(myVC, msgSenderId);
 			}
 
