@@ -15,6 +15,7 @@
 #define METADATA_STORAGE_TYPES_HPP
 
 #include <sstream>
+#include <memory>
 #include <map>
 
 namespace bftEngine {
@@ -46,8 +47,8 @@ struct MetadataObjectInfo {
 
 // Object data to be stored for every write operation in transaction.
 struct RequestInfo {
-  RequestInfo(char *buf, uint32_t len): data(buf), dataLen(len) {}
-  char *data;
+  RequestInfo(std::unique_ptr<char> &buf, uint32_t len): data(move(buf)), dataLen(len) {}
+  std::unique_ptr<char> data;
   uint32_t dataLen;
 };
 
