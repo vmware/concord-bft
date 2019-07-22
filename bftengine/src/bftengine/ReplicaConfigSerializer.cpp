@@ -39,24 +39,19 @@ void ReplicaConfigSerializer::registerClass() {
 }
 
 ReplicaConfigSerializer::ReplicaConfigSerializer(ReplicaConfig *config) {
-  config_ = new ReplicaConfig;
+  config_.reset(new ReplicaConfig);
   if (config)
     *config_ = *config;
   registerClass();
 }
 
 ReplicaConfigSerializer::ReplicaConfigSerializer() {
-  config_ = new ReplicaConfig;
-}
-
-ReplicaConfigSerializer::~ReplicaConfigSerializer() {
-  delete config_;
+  config_.reset(new ReplicaConfig);
 }
 
 void ReplicaConfigSerializer::setConfig(const ReplicaConfig &config) {
   if (config_) {
-    delete config_;
-    config_ = new ReplicaConfig;
+    config_.reset(new ReplicaConfig);
   }
   *config_ = config;
 }
