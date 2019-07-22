@@ -43,21 +43,21 @@ class SerializableActiveWindow {
 
   bool equals(const SerializableActiveWindow &other) const;
 
-  void deserializeElement(const uint16_t &index, char *buf, const size_t &bufLen, uint32_t &actualSize);
+  void deserializeElement(const SeqNum &index, char *buf, const size_t &bufLen, uint32_t &actualSize);
 
-  bool insideActiveWindow(const uint16_t &num) const;
+  bool insideActiveWindow(const SeqNum &num) const;
 
-  static bool insideActiveWindow(const uint16_t &num, const SeqNum &newFirstIndex);
+  static bool insideActiveWindow(const SeqNum &num, const SeqNum &newFirstIndex);
 
-  ItemType &get(const uint16_t &num);
+  ItemType &get(const SeqNum &num);
 
-  ItemType &getByRealIndex(const uint16_t &index);
+  ItemType &getByRealIndex(const SeqNum &index);
 
   SeqNum convertIndex(const SeqNum &seqNum);
 
   void resetAll(const SeqNum &windowFirst);
 
-  std::list<SeqNum> advanceActiveWindow(const uint32_t &newFirstIndex);
+  std::list<SeqNum> advanceActiveWindow(const SeqNum &newFirstIndex);
 
   static SeqNum convertIndex(const SeqNum &seqNum, const SeqNum& beginningOfActiveWindow);
 
