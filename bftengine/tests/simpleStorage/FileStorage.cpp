@@ -215,8 +215,11 @@ void FileStorage::writeInTransaction(uint16_t objectId, char *data, uint32_t dat
     LOG_ERROR(logger_, "FileStorage::writeInTransaction " << WRONG_FLOW);
     throw runtime_error(WRONG_FLOW);
   }
-  char *buf = new char[dataLength];
-  memcpy(buf, data, dataLength);
+  std::unique_ptr<char> buf(new char[dataLength]);
+  memcpy(buf.get(), data, dataLength);
+  auto it = transaction_->find(objectId);
+  if (it != transaction_->end())
+    transaction_->erase(it);
   transaction_->insert(pair<uint16_t, RequestInfo>(objectId, RequestInfo(buf, dataLength)));
 }
 
@@ -228,9 +231,8 @@ void FileStorage::commitAtomicWriteOnlyTransaction() {
     LOG_ERROR(logger_, "FileStorage::commitAtomicWriteOnlyTransaction " << WRONG_FLOW);
     throw runtime_error(WRONG_FLOW);
   }
-  for (auto it : *transaction_) {
-    handleObjectWrite(it.first, it.second.data, it.second.dataLen, false);
-    delete[] it.second.data;
+  for (const auto &it : *transaction_) {
+    handleObjectWrite(it.first, it.second.data.get(), it.second.dataLen, false);
   }
   fflush(dataStream_);
   delete transaction_;
