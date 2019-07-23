@@ -20,7 +20,7 @@
 #include "ReplicaImp.hpp"
 #include "ViewsManager.hpp"
 #include "FullCommitProofMsg.hpp"
-#include "Logging.hpp"
+#include "Logger.hpp"
 
 # define Verify(expr, errorCode) {                                          \
     Assert(expr);                                                    \
@@ -68,7 +68,7 @@ ReplicaLoader::ErrorCode checkReplicaConfig(const LoadedReplicaData &ld) {
   Verify(!c.replicaPrivateKey.empty(), InconsistentErr); // TODO(GG): make sure that the key is valid
 
 //	Verify(c.thresholdSignerForExecution == nullptr, InconsistentErr);
-//	Verify(c.thresholdVerifierForExecution == nullptr, InconsistentErr); 
+//	Verify(c.thresholdVerifierForExecution == nullptr, InconsistentErr);
 
   Verify(c.thresholdSignerForSlowPathCommit != nullptr, InconsistentErr);
   Verify(c.thresholdVerifierForSlowPathCommit != nullptr, InconsistentErr);

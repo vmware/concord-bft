@@ -10,7 +10,7 @@
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 
-#include "Logging.hpp"
+#include "Logger.hpp"
 #include "CommDefs.hpp"
 
 #include <iostream>
