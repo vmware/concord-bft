@@ -180,26 +180,17 @@ namespace bftEngine
 			Assert(replica->getReplicasInfo().myId() == m->senderId());
 			Assert(!forcedCompleted);
 
+			Digest tmpDigest;
+			Digest::calcCombination(commitDigest, m->viewNumber(), m->seqNumber(), tmpDigest);
+			bool r;
 			if (!directAdd) {
-				// set expected
-				Digest tmpDigest;
-				Digest::calcCombination(commitDigest, m->viewNumber(), m->seqNumber(), tmpDigest);
-				commitMsgsCollector->setExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
-
-				// add msg
-				bool r = commitMsgsCollector->addMsgWithPartialSignature(m, m->senderId());
-				Assert(r);
-			}	else {
-				// set expected
-				Digest tmpDigest;
-				Digest::calcCombination(commitDigest, m->viewNumber(), m->seqNumber(), tmpDigest);
-				commitMsgsCollector->initExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
-
-				// add msg
-				bool r = commitMsgsCollector->initMsgWithPartialSignature(m, m->senderId());
-				Assert(r);
+			  commitMsgsCollector->setExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
+			  r = commitMsgsCollector->addMsgWithPartialSignature(m, m->senderId());
+			} else {
+			  commitMsgsCollector->initExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
+			  r = commitMsgsCollector->initMsgWithPartialSignature(m, m->senderId());
 			}
-
+			Assert(r);
 			commitUpdateTime = getMonotonicTime();
 
 			return true;

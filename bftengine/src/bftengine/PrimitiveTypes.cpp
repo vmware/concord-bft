@@ -1,4 +1,5 @@
 #include "PrimitiveTypes.hpp"
+#include <stdexcept>
 
 namespace bftEngine {
 namespace impl {
@@ -14,7 +15,7 @@ std::string CommitPathToStr(CommitPath path) {
     case CommitPath::SLOW:
       return "SLOW";
     default:
-      return "";
+      throw std::runtime_error("Unsupported CommitPath specified.");
   }
 }
 
