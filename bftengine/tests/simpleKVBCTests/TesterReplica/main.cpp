@@ -142,9 +142,10 @@ int main(int argc, char **argv) {
 	replicaConfig.numOfClientProxies = 100;
 	replicaConfig.autoViewChangeEnabled = rp.viewChangeEnabled;
 	replicaConfig.viewChangeTimerMillisec = rp.viewChangeTimeout;
+	replicaConfig.statusReportTimerMillisec = rp.statusReportTimerMillisec;
+	replicaConfig.concurrencyLevel = 1;
 
-	uint16_t numOfReplicas =
-			(uint16_t)(3 * replicaConfig.fVal + 2 * replicaConfig.cVal + 1);
+	uint16_t numOfReplicas = (uint16_t)(3 * replicaConfig.fVal + 2 * replicaConfig.cVal + 1);
 #ifdef USE_COMM_PLAIN_TCP
 	PlainTcpConfig conf = testCommConfig.GetTCPConfig(true, rp.replicaId,
                                                       replicaConfig.numOfClientProxies,

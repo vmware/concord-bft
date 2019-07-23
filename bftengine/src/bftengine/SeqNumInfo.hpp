@@ -41,18 +41,18 @@ namespace bftEngine
 			void getAndReset(PrePrepareMsg*& outPrePrepare, PrepareFullMsg*& outcombinedValidSignatureMsg);
 
 
-			bool addMsg(PrePrepareMsg* m);
-			bool addSelfMsg(PrePrepareMsg* m);
+			bool addMsg(PrePrepareMsg* m, bool directAdd = false);
+			bool addSelfMsg(PrePrepareMsg* m, bool directAdd = false);
 
 			bool addMsg(PreparePartialMsg* m);
-			bool addSelfMsg(PreparePartialMsg* m);
+			bool addSelfMsg(PreparePartialMsg* m, bool directAdd = false);
 
-			bool addMsg(PrepareFullMsg* m);
+			bool addMsg(PrepareFullMsg* m, bool directAdd = false);
 
 			bool addMsg(CommitPartialMsg* m);
-			bool addSelfCommitPartialMsgAndDigest(CommitPartialMsg* m, Digest& commitDigest);
+			bool addSelfCommitPartialMsgAndDigest(CommitPartialMsg* m, Digest& commitDigest, bool directAdd = false);
 
-			bool addMsg(CommitFullMsg* m);
+			bool addMsg(CommitFullMsg* m, bool directAdd = false);
 
 			void forceComplete();
 

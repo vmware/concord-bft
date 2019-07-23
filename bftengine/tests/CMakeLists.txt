@@ -1,7 +1,7 @@
 set(CONFIG_FOLDER_PATH_VALUE "${CMAKE_CURRENT_SOURCE_DIR}/config")
+add_subdirectory(simpleStorage)
 add_subdirectory(simpleTest)
 add_subdirectory(simpleKVBC)
 add_subdirectory(simpleKVBCTests)
-add_subdirectory(simpleStorage)
 add_subdirectory(bcstatetransfer)
 add_subdirectory(testSerialization)
