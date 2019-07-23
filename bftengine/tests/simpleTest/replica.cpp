@@ -383,8 +383,8 @@ int main(int argc, char **argv) {
   remove(dbFile.str().c_str());
   MetadataStorage *fileStorage = new FileStorage(replicaLogger, dbFile.str());
 
-  //replica = Replica::createNewReplica(&replicaConfig, &simpleAppState, st, comm, fileStorage);
-  replica = Replica::createNewReplica(&replicaConfig, &simpleAppState, st, comm, nullptr);
+  replica = Replica::createNewReplica(&replicaConfig, &simpleAppState, st, comm, fileStorage);
+  //replica = Replica::createNewReplica(&replicaConfig, &simpleAppState, st, comm, nullptr);
 
   replica->start();
 
