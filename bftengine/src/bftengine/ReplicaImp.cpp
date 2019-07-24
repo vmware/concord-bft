@@ -2015,7 +2015,7 @@ namespace bftEngine
 			}
 
 			LOG_INFO_F(GL, "**************** In onNewView curView=%" PRId64 " (num of PPs=%ld, first safe seq=%" PRId64 ","
-                       " last safe seq=%" PRId64 ", lastStableSeqNum=%lld, lastExecutedSeqNum=%" PRId64 ","
+                       " last safe seq=%" PRId64 ", lastStableSeqNum=%" PRId64 ", lastExecutedSeqNum=%" PRId64 ","
                        "stableLowerBoundWhenEnteredToView= %" PRId64 ")",
 				       curView, prePreparesForNewView.size(), firstPPSeq, lastPPSeq,
 				       lastStableSeqNum, lastExecutedSeqNum, viewsManager->stableLowerBoundWhenEnteredToView());
