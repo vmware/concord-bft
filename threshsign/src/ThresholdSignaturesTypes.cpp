@@ -26,7 +26,7 @@ Cryptosystem::Cryptosystem(const std::string& sysType,
                              subtype(sysSubtype),
                              numSigners(sysNumSigners),
                              threshold(sysThreshold),
-                             forceMultisig_((numSigners == threshold)?true:false),
+                             forceMultisig_(numSigners == threshold),
                              signerID(NID),
                              publicKey("uninitialized")
 {
