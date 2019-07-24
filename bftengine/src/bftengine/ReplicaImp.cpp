@@ -611,7 +611,7 @@ namespace bftEngine
 				if (absDifference(currTime, timeOfPartProof) < controller->timeToStartSlowPathMilli() * 1000)
 					break; // don't try the next seq numbers
 
-				LOG_INFO_F(GL, "Primary initiates slow path for seqNum=%" PRId64 " (currTime=%llu timeOfPartProof=%llu",
+				LOG_INFO_F(GL, "Primary initiates slow path for seqNum=%" PRId64 " (currTime=%" PRIu64 " timeOfPartProof=%" PRIu64,
 				           i, currTime, timeOfPartProof);
 
 				controller->onStartingSlowCommit(i);
