@@ -101,18 +101,6 @@ Build and install [RELIC](https://github.com/relic-toolkit/relic)
     make
     sudo make install
 
-Build and install [cryptopp](https://github.com/weidai11/cryptopp)
-
-    cd
-    git clone https://github.com/weidai11/cryptopp.git
-    cd cryptopp/
-    git checkout CRYPTOPP_5_6_5;
-    mkdir build/
-    cd build/
-    cmake ..
-    make
-    sudo make install
-
 Get GNU Parallel
 
     sudo apt-get install parallel

@@ -10,5 +10,5 @@ target_include_directories(bcstatetransfer_tests
     ${bftengine_SOURCE_DIR}/src/bcstatetransfer
     ${bftengine_SOURCE_DIR}/src/bftengine)
 
-target_link_libraries(bcstatetransfer_tests gtest_main)
+target_link_libraries(bcstatetransfer_tests CONAN_PKG::gtest)
 target_link_libraries(bcstatetransfer_tests corebft)

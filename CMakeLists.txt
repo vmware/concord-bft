@@ -50,6 +50,16 @@ if(SLEEP_FOR_DBG)
     add_definitions(-DSLEEP_DBG)
 endif()
 
+# Package Manager Manager (pmm) which pulls Conan
+# https://github.com/vector-of-bool/pmm
+# CMP0057 is required
+cmake_policy(SET CMP0057 NEW)
+include(.cmake/pmm.cmake)
+pmm(CONAN
+    BUILD missing
+    BINCRAFTERS
+    COMMUNITY)
+
 #
 # Compiler options
 #
@@ -154,8 +164,6 @@ add_subdirectory(tools)
 # Setup testing
 #
 if(BUILD_TESTING)
-    add_submodule("deps/gtest")
-    add_subdirectory(deps/gtest)
     add_subdirectory(bftengine/tests)
     add_subdirectory(test)
 endif()
