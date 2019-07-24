@@ -63,6 +63,11 @@
 #include "FileStorage.hpp"
 #include "test_comm_config.hpp"
 #include "test_parameters.hpp"
+#include "Logger.hpp"
+
+#ifdef USE_LOG4CPP
+#include <log4cplus/configurator.h>
+#endif
 
 // simpleTest includes
 #include "commonDefs.h"
