@@ -611,7 +611,7 @@ namespace bftEngine
 				if (absDifference(currTime, timeOfPartProof) < controller->timeToStartSlowPathMilli() * 1000)
 					break; // don't try the next seq numbers
 
-				LOG_INFO_F(GL, "Primary initiates slow path for seqNum=%" PRId64 " (currTime=%ld timeOfPartProof=%ld",
+				LOG_INFO_F(GL, "Primary initiates slow path for seqNum=%" PRId64 " (currTime=%" PRIu64 " timeOfPartProof=%" PRIu64,
 				           i, currTime, timeOfPartProof);
 
 				controller->onStartingSlowCommit(i);
@@ -2015,7 +2015,7 @@ namespace bftEngine
 			}
 
 			LOG_INFO_F(GL, "**************** In onNewView curView=%" PRId64 " (num of PPs=%ld, first safe seq=%" PRId64 ","
-                       " last safe seq=%" PRId64 ", lastStableSeqNum=%ld, lastExecutedSeqNum=%" PRId64 ","
+                       " last safe seq=%" PRId64 ", lastStableSeqNum=%" PRId64 ", lastExecutedSeqNum=%" PRId64 ","
                        "stableLowerBoundWhenEnteredToView= %" PRId64 ")",
 				       curView, prePreparesForNewView.size(), firstPPSeq, lastPPSeq,
 				       lastStableSeqNum, lastExecutedSeqNum, viewsManager->stableLowerBoundWhenEnteredToView());
