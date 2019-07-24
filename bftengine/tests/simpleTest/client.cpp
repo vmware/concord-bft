@@ -42,7 +42,11 @@
 #include "test_parameters.hpp"
 #include "histogram.hpp"
 #include "misc.hpp"
-#include "Logging.hpp"
+#include "Logger.hpp"
+
+#ifdef USE_LOG4CPP
+#include <log4cplus/configurator.h>
+#endif
 
 using bftEngine::ICommunication;
 using bftEngine::PlainUDPCommunication;

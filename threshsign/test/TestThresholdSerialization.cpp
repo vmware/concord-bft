@@ -75,9 +75,7 @@ const char verificationKeyValue4[] =
 
 const int numOfSigners = 3;
 
-BlsPublicParameters params(PublicParametersFactory::getWhatever());
-
-bool testBlsThresholdSigner() {
+bool testBlsThresholdSigner(const BlsPublicParameters &params) {
   ShareID id = 0x208419;
   BNT secretKey(secretKeyValue);
   SharedPtrToClass origSigner(new BlsThresholdSigner(params, id, secretKey));
@@ -115,7 +113,7 @@ void printRawBuf(const UniquePtrToChar &buf, int64_t bufSize) {
   }
 }
 
-bool testBlsThresholdVerifier(const vector<BlsPublicKey> &verificationKeys) {
+bool testBlsThresholdVerifier(const BlsPublicParameters &params, const vector<BlsPublicKey> &verificationKeys) {
   G2T publicKey(publicKeyValue);
 
   SharedPtrToClass origVerifier(new BlsThresholdVerifier(params, publicKey, numOfSigners,
@@ -132,7 +130,7 @@ bool testBlsThresholdVerifier(const vector<BlsPublicKey> &verificationKeys) {
   return (resultVerifier && (*inVerifier == *outVerifier));
 }
 
-bool testBlsMultisigVerifier(const vector<BlsPublicKey> &verificationKeys) {
+bool testBlsMultisigVerifier(const BlsPublicParameters &params, const vector<BlsPublicKey> &verificationKeys) {
   SharedPtrToClass origVerifier(new BlsMultisigVerifier(params, numOfSigners, numOfSigners, verificationKeys));
 
   UniquePtrToChar buf;
@@ -150,10 +148,12 @@ int RelicAppMain(const Library &lib, const vector<string> &args) {
   (void) args;
   (void) lib;
 
-  assertTrue(testBlsThresholdSigner());
+  BlsPublicParameters params(PublicParametersFactory::getWhatever());
+
+  assertTrue(testBlsThresholdSigner(params));
   vector<BlsPublicKey> verificationKeys = prepareVerificationKeysVector();
-  assertTrue(testBlsThresholdVerifier(verificationKeys));
-  assertTrue(testBlsMultisigVerifier(verificationKeys));
+  assertTrue(testBlsThresholdVerifier(params, verificationKeys));
+  assertTrue(testBlsMultisigVerifier(params, verificationKeys));
 
   return 0;
 }

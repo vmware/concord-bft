@@ -20,7 +20,7 @@
 
 #include "SimpleStateTransfer.hpp"
 #include "SimpleBCStateTransfer.hpp"
-#include "Logging.hpp"
+#include "Logger.hpp"
 
 #define Assert(expr) {                                             \
     if((expr) != true) {                                                    \
@@ -681,4 +681,3 @@ uint64_t SimpleStateTran::DummyBDState::getLastBlockNum() {
 }  // namespace impl
 }  // namespace SimpleInMemoryStateTransfer
 }  // namespace bftEngine
-
