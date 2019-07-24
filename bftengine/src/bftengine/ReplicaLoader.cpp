@@ -156,13 +156,9 @@ ReplicaLoader::ErrorCode loadViewInfo(PersistentStorage *p, LoadedReplicaData &l
 
   Verify((stat == Succ), stat);
 
-  ViewNum initialViewNum = 0;
-  bool isInView = false;
   ViewsManager *viewsManager = nullptr;
   if (!hasDescLastExitFromView && !hasDescOfLastNewView) {
 
-    initialViewNum = 0;
-    isInView = true;
     viewsManager = ViewsManager::createInsideViewZero(
         ld.repsInfo,
         ld.repConfig.thresholdVerifierForSlowPathCommit);
@@ -175,8 +171,6 @@ ReplicaLoader::ErrorCode loadViewInfo(PersistentStorage *p, LoadedReplicaData &l
 
     Verify((descriptorOfLastExitFromView.view == 0), InconsistentErr);
 
-    initialViewNum = 0;
-    isInView = false;
     viewsManager = ViewsManager::createOutsideView(
         ld.repsInfo,
         ld.repConfig.thresholdVerifierForSlowPathCommit,
@@ -196,8 +190,6 @@ ReplicaLoader::ErrorCode loadViewInfo(PersistentStorage *p, LoadedReplicaData &l
 
     Verify((descriptorOfLastExitFromView.view >= 1), InconsistentErr);
 
-    initialViewNum = descriptorOfLastExitFromView.view;
-    isInView = false;
     viewsManager = ViewsManager::createOutsideView(
         ld.repsInfo,
         ld.repConfig.thresholdVerifierForSlowPathCommit,
@@ -218,8 +210,6 @@ ReplicaLoader::ErrorCode loadViewInfo(PersistentStorage *p, LoadedReplicaData &l
     Verify((descriptorOfLastExitFromView.view >= 0), InconsistentErr);
     Verify((descriptorOfLastNewView.view >= 1), InconsistentErr);
 
-    initialViewNum = descriptorOfLastNewView.view;
-    isInView = true;
     viewsManager = ViewsManager::createInsideView(
         ld.repsInfo,
         ld.repConfig.thresholdVerifierForSlowPathCommit,
