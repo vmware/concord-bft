@@ -59,15 +59,11 @@
 #include "Replica.hpp"
 #include "ReplicaConfig.hpp"
 #include "SimpleStateTransfer.hpp"
-#include "Logging.hpp"
+#include "Logger.hpp"
 #include "FileStorage.hpp"
 #include "test_comm_config.hpp"
 #include "test_parameters.hpp"
 #include "Logger.hpp"
-
-#ifdef USE_LOG4CPP
-#include <log4cplus/configurator.h>
-#endif
 
 // simpleTest includes
 #include "commonDefs.h"
@@ -302,12 +298,6 @@ class SimpleAppState : public RequestsHandler {
 };
 
 int main(int argc, char **argv) {
-#ifdef USE_LOG4CPP
-  using namespace log4cplus;
-  initialize();
-  BasicConfigurator config;
-  config.configure();
-#endif
   parse_params(argc, argv);
 
   // allows to attach debugger

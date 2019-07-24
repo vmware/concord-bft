@@ -73,7 +73,7 @@ void PersistentStorageImp::setDefaultsInMetadataStorage() {
 
 // This function is used by an external code to initialize MetadataStorage and enable StateTransfer using the same DB.
 ObjectDescUniquePtr PersistentStorageImp::getDefaultMetadataObjectDescriptors(uint16_t &numOfObjects) const {
-  numOfObjects = MAX_METADATA_PARAMS_NUM;
+  numOfObjects = MAX_METADATA_PARAMS_NUM - FIRST_METADATA_PARAMETER;
   ObjectDescUniquePtr metadataObjectsArray(new MetadataStorage::ObjectDesc[MAX_METADATA_PARAMS_NUM]);
 
   for (uint16_t i = FIRST_METADATA_PARAMETER; i < MAX_METADATA_PARAMS_NUM; ++i) {

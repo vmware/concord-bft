@@ -135,7 +135,7 @@ Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
     auto objectDescriptors =
         ((PersistentStorageImp *) persistentStoragePtr.get())->getDefaultMetadataObjectDescriptors(numOfObjects);
     isNewStorage = metadataStoragePtr->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);
-    ((PersistentStorageImp *) persistentStoragePtr.get())->init(metadataStoragePtr);
+    ((PersistentStorageImp *) persistentStoragePtr.get())->init(move(metadataStoragePtr));
   }
 
   auto *replicaInternal = new ReplicaInternal();

@@ -23,7 +23,7 @@ namespace impl {
 // Make a reservation for future params
 const uint16_t reservedParamsNum = 50;
 
-enum ConstMetadataParameterIds : uint16_t {
+enum ConstMetadataParameterIds : uint32_t {
   INITIALIZED_FLAG = 0, // A flag saying whether DB is initialized or not; handled by storage class itself.
   FIRST_METADATA_PARAMETER = 1,
   VERSION_PARAMETER = FIRST_METADATA_PARAMETER,
@@ -70,7 +70,7 @@ typedef unique_ptr<MetadataStorage::ObjectDesc> ObjectDescUniquePtr;
 class PersistentStorageImp : public PersistentStorage {
  public:
   PersistentStorageImp(uint16_t fVal, uint16_t cVal);
-  virtual ~PersistentStorageImp() = default;
+  ~PersistentStorageImp() override = default;
 
   uint8_t beginWriteTran() override;
   uint8_t endWriteTran() override;

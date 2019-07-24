@@ -28,20 +28,20 @@ class FileStorage : public MetadataStorage {
  public:
   FileStorage(concordlogger::Logger &logger, const std::string &fileName);
 
-  virtual ~FileStorage();
+  ~FileStorage() override;
 
   bool initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray,
-                            uint16_t metadataObjectsArrayLength) override;
+                            uint32_t metadataObjectsArrayLength) override;
 
-  void read(uint16_t objectId, uint32_t bufferSize,
+  void read(uint32_t objectId, uint32_t bufferSize,
             char *outBufferForObject,
             uint32_t &outActualObjectSize) override;
 
-  void atomicWrite(uint16_t objectId, char *data, uint32_t dataLength) override;
+  void atomicWrite(uint32_t objectId, char *data, uint32_t dataLength) override;
 
   void beginAtomicWriteOnlyTransaction() override;
 
-  void writeInTransaction(uint16_t objectId, char *data,
+  void writeInTransaction(uint32_t objectId, char *data,
                           uint32_t dataLength) override;
 
   void commitAtomicWriteOnlyTransaction() override;
@@ -51,9 +51,9 @@ class FileStorage : public MetadataStorage {
             size_t count, const char *errorMsg);
   void write(void *dataPtr, size_t offset, size_t itemSize,
              size_t count, const char *errorMsg, bool toFlush = true);
-  void handleObjectWrite(uint16_t objectId, void *dataPtr, uint32_t objectSize,
+  void handleObjectWrite(uint32_t objectId, void *dataPtr, uint32_t objectSize,
                          bool toFlush = true);
-  void handleObjectRead(uint16_t objectId, char *outBufferForObject,
+  void handleObjectRead(uint32_t objectId, char *outBufferForObject,
                         uint32_t &outActualObjectSize);
   void loadFileMetadata();
   void writeFileMetadata();
@@ -61,7 +61,7 @@ class FileStorage : public MetadataStorage {
   void updateFileObjectMetadata(MetadataObjectInfo &objectInfo);
   void verifyFileMetadataSetup() const;
   void verifyOperation(
-      uint16_t objectId, uint32_t dataLen, const char *buffer) const;
+      uint32_t objectId, uint32_t dataLen, const char *buffer) const;
 
  private:
   const char *WRONG_NUM_OF_OBJ_READ =

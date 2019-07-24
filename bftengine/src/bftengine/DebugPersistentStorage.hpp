@@ -22,6 +22,7 @@ namespace impl {
 class DebugPersistentStorage : public PersistentStorage {
  public:
   DebugPersistentStorage(uint16_t fVal, uint16_t cVal);
+  ~DebugPersistentStorage() override = default;
 
   // Inherited via PersistentStorage
   uint8_t beginWriteTran() override;
