@@ -59,7 +59,8 @@ int main(int argc, char **argv) {
     auto *fileStorage = new FileStorage(logger, dbFile);
     const uint32_t objNum = 6;
     FileStorage::ObjectDesc objects[objNum];
-    for (uint16_t i = 0; i < objNum; i++) {
+    // Metadata object with id=0 is used to indicate storage initialization state
+    for (uint16_t i = 1; i < objNum; i++) {
       objects[i].id = i;
       objects[i].maxSize = (uint32_t) i * 2 + 30;
     }

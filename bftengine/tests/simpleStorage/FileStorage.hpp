@@ -83,6 +83,8 @@ class FileStorage : public MetadataStorage {
   const char *WRONG_FLOW =
       "beginAtomicWriteOnlyTransaction should be launched first";
 
+  const uint8_t initializedObjectId_ = 0;
+
   concordlogger::Logger &logger_;
   const std::string fileName_;
   FILE *dataStream_ = nullptr;

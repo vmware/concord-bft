@@ -56,7 +56,7 @@ void FileStorage::loadFileMetadata() {
     objectsMetadata_ = new ObjectsMetadataHandler(objectsNum);
     MetadataObjectInfo objectInfo;
     size_t readOffset = sizeOfObjectsNum;
-    for (auto i = 0; i < objectsNum; i++) {
+    for (auto i = initializedObjectId_ + 1; i < objectsNum; i++) {
       read(&objectInfo, readOffset, sizeof(objectInfo), 1, WRONG_OBJ_INFO_READ);
       readOffset += sizeof(objectInfo);
       objectsMetadata_->setObjectInfo(objectInfo);
@@ -114,7 +114,8 @@ bool FileStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint16_
   LOG_INFO(logger_, "FileStorage::initMaxSizeOfObjects objectsNum=" << objectsMetadata_->getObjectsNum());
   uint64_t objMetaOffset = sizeof(objectsMetadata_->getObjectsNum());
   uint64_t objOffset = fileMetadataSize;
-  for (auto i = 0; i < metadataObjectsArrayLength; i++) {
+  // Metadata object with id=0 is used to indicate storage initialization state (not used by FileStorage).
+  for (auto i = initializedObjectId_ + 1; i < metadataObjectsArrayLength; i++) {
     MetadataObjectInfo objectInfo(metadataObjectsArray[i].id, objMetaOffset,
                                   objOffset, metadataObjectsArray[i].maxSize);
     objMetaOffset += sizeof(objectInfo);
