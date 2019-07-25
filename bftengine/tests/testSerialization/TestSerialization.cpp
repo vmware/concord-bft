@@ -149,7 +149,7 @@ typedef pair<uint16_t, string> IdToKeyPair;
 
 ReplicaConfig config;
 PersistentStorageImp *persistentStorageImp = nullptr;
-shared_ptr<MetadataStorage> metadataStorage;
+unique_ptr<MetadataStorage> metadataStorage;
 
 bool fetchingState = false;
 SeqNum lastExecutedSeqNum = 0;
@@ -482,7 +482,7 @@ int main() {
   uint16_t numOfObjects = 0;
   ObjectDescUniquePtr objectDescArray = persistentStorage.getDefaultMetadataObjectDescriptors(numOfObjects);
   metadataStorage->initMaxSizeOfObjects(objectDescArray.get(), numOfObjects);
-  persistentStorageImp->init(metadataStorage);
+  persistentStorageImp->init(move(metadataStorage));
 
   fillReplicaConfig();
   testInit();
@@ -494,7 +494,7 @@ int main() {
       metadataStorage.reset();
       metadataStorage.reset(new FileStorage(logger, dbFile));
       metadataStorage->initMaxSizeOfObjects(objectDescArray.get(), numOfObjects);
-      persistentStorageImp->init(metadataStorage);
+      persistentStorageImp->init(move(metadataStorage));
     }
     testSetReplicaConfig(init);
     testSetSimpleParams(init);

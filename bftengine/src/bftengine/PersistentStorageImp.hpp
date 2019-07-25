@@ -65,8 +65,6 @@ enum DescMetadataParameterIds {
   LAST_NEW_VIEW_DESC
 };
 
-const uint16_t MAX_METADATA_PARAMS_NUM = 10000;
-
 typedef unique_ptr<MetadataStorage::ObjectDesc> ObjectDescUniquePtr;
 
 class PersistentStorageImp : public PersistentStorage {
@@ -80,25 +78,25 @@ class PersistentStorageImp : public PersistentStorage {
 
   // Setters
   void setReplicaConfig(const ReplicaConfig &config) override;
-  void setFetchingState(const bool state) override;
-  void setLastExecutedSeqNum(const SeqNum seqNum) override;
-  void setPrimaryLastUsedSeqNum(const SeqNum seqNum) override;
-  void setStrictLowerBoundOfSeqNums(const SeqNum seqNum) override;
-  void setLastViewThatTransferredSeqNumbersFullyExecuted(const ViewNum view) override;
+  void setFetchingState(bool state) override;
+  void setLastExecutedSeqNum(SeqNum seqNum) override;
+  void setPrimaryLastUsedSeqNum(SeqNum seqNum) override;
+  void setStrictLowerBoundOfSeqNums(SeqNum seqNum) override;
+  void setLastViewThatTransferredSeqNumbersFullyExecuted(ViewNum view) override;
 
   void setDescriptorOfLastExitFromView(const DescriptorOfLastExitFromView &prevViewDesc) override;
   void setDescriptorOfLastNewView(const DescriptorOfLastNewView &prevViewDesc) override;
   void setDescriptorOfLastExecution(const DescriptorOfLastExecution &prevViewDesc) override;
 
-  void setLastStableSeqNum(const SeqNum seqNum) override;
-  void setPrePrepareMsgInSeqNumWindow(const SeqNum seqNum, const PrePrepareMsg *const msg) override;
-  void setSlowStartedInSeqNumWindow(const SeqNum seqNum, const bool slowStarted) override;
-  void setFullCommitProofMsgInSeqNumWindow(const SeqNum seqNum, const FullCommitProofMsg *const msg) override;
-  void setForceCompletedInSeqNumWindow(const SeqNum seqNum, const bool forceCompleted) override;
-  void setPrepareFullMsgInSeqNumWindow(const SeqNum seqNum, const PrepareFullMsg *const msg) override;
-  void setCommitFullMsgInSeqNumWindow(const SeqNum seqNum, const CommitFullMsg *const msg) override;
-  void setCheckpointMsgInCheckWindow(const SeqNum seqNum, const CheckpointMsg *const msg) override;
-  void setCompletedMarkInCheckWindow(const SeqNum seqNum, const bool completed) override;
+  void setLastStableSeqNum(SeqNum seqNum) override;
+  void setPrePrepareMsgInSeqNumWindow(SeqNum seqNum, PrePrepareMsg *msg) override;
+  void setSlowStartedInSeqNumWindow(SeqNum seqNum, bool slowStarted) override;
+  void setFullCommitProofMsgInSeqNumWindow(SeqNum seqNum, FullCommitProofMsg *msg) override;
+  void setForceCompletedInSeqNumWindow(SeqNum seqNum, bool forceCompleted) override;
+  void setPrepareFullMsgInSeqNumWindow(SeqNum seqNum, PrepareFullMsg *msg) override;
+  void setCommitFullMsgInSeqNumWindow(SeqNum seqNum, CommitFullMsg *msg) override;
+  void setCheckpointMsgInCheckWindow(SeqNum seqNum, CheckpointMsg *msg) override;
+  void setCompletedMarkInCheckWindow(SeqNum seqNum, bool completed) override;
   void clearSeqNumWindow() override;
   ObjectDescUniquePtr getDefaultMetadataObjectDescriptors(uint16_t &numOfObjects) const;
 
@@ -117,14 +115,14 @@ class PersistentStorageImp : public PersistentStorage {
   DescriptorOfLastNewView getAndAllocateDescriptorOfLastNewView() override;
   DescriptorOfLastExecution getDescriptorOfLastExecution() override;
 
-  PrePrepareMsg *getAndAllocatePrePrepareMsgInSeqNumWindow(const SeqNum seqNum) override;
-  bool getSlowStartedInSeqNumWindow(const SeqNum seqNum) override;
-  FullCommitProofMsg *getAndAllocateFullCommitProofMsgInSeqNumWindow(const SeqNum seqNum) override;
-  bool getForceCompletedInSeqNumWindow(const SeqNum seqNum) override;
-  PrepareFullMsg *getAndAllocatePrepareFullMsgInSeqNumWindow(const SeqNum seqNum) override;
-  CommitFullMsg *getAndAllocateCommitFullMsgInSeqNumWindow(const SeqNum seqNum) override;
-  CheckpointMsg *getAndAllocateCheckpointMsgInCheckWindow(const SeqNum seqNum) override;
-  bool getCompletedMarkInCheckWindow(const SeqNum seqNum) override;
+  PrePrepareMsg *getAndAllocatePrePrepareMsgInSeqNumWindow(SeqNum seqNum) override;
+  bool getSlowStartedInSeqNumWindow(SeqNum seqNum) override;
+  FullCommitProofMsg *getAndAllocateFullCommitProofMsgInSeqNumWindow(SeqNum seqNum) override;
+  bool getForceCompletedInSeqNumWindow(SeqNum seqNum) override;
+  PrepareFullMsg *getAndAllocatePrepareFullMsgInSeqNumWindow(SeqNum seqNum) override;
+  CommitFullMsg *getAndAllocateCommitFullMsgInSeqNumWindow(SeqNum seqNum) override;
+  CheckpointMsg *getAndAllocateCheckpointMsgInCheckWindow(SeqNum seqNum) override;
+  bool getCompletedMarkInCheckWindow(SeqNum seqNum) override;
 
   SharedPtrSeqNumWindow getSeqNumWindow();
   SharedPtrCheckWindow getCheckWindow();
@@ -136,7 +134,7 @@ class PersistentStorageImp : public PersistentStorage {
   bool hasDescriptorOfLastExecution() override;
 
   // Returns 'true' in case storage is empty
-  bool init(const shared_ptr<MetadataStorage> &metadataStorage);
+  bool init(std::unique_ptr<MetadataStorage> metadataStorage);
 
  protected:
   bool setIsAllowed() const;
@@ -147,7 +145,7 @@ class PersistentStorageImp : public PersistentStorage {
  private:
   void retrieveWindowsMetadata();
   void setDefaultsInMetadataStorage();
-  void verifySetDescriptorOfLastExitFromView(const DescriptorOfLastExitFromView &desc) ;
+  void verifySetDescriptorOfLastExitFromView(const DescriptorOfLastExitFromView &desc);
   void verifyPrevViewInfo(const DescriptorOfLastExitFromView &desc) const;
   void verifySetDescriptorOfLastNewView(const DescriptorOfLastNewView &desc);
   void verifyLastNewViewMsgs(const DescriptorOfLastNewView &desc) const;
@@ -165,40 +163,39 @@ class PersistentStorageImp : public PersistentStorage {
 
   void setVersion() const;
 
-  void setMsgInSeqNumWindow(const SeqNum &seqNum, const SeqNum &parameterId,
-                            MessageBase *msg, const size_t &msgSize) const;
-  void setBooleanInSeqNumWindow(const SeqNum &seqNum, const SeqNum &parameterId, const bool &boolean) const;
+  void setMsgInSeqNumWindow(SeqNum seqNum, SeqNum parameterId, MessageBase *msg, size_t msgSize) const;
+  void setBooleanInSeqNumWindow(SeqNum seqNum, SeqNum parameterId, bool boolean) const;
   void saveDefaultsInSeqNumWindow();
-  void setSeqNumDataElement(const SeqNum &index, const SeqNumData &elem) const;
+  void setSeqNumDataElement(SeqNum index, const SeqNumData &elem) const;
 
   void saveDefaultsInCheckWindow();
-  void setCheckDataElement(const SeqNum &index, const CheckData &elem) const;
+  void setCheckDataElement(SeqNum index, const CheckData &elem) const;
 
-  SeqNum readBeginningOfActiveWindow(const uint32_t &index) const;
-  MessageBase *readMsgFromDisk(const SeqNum &seqNum, const SeqNum &parameterId, const size_t &msgSize) const;
-  PrePrepareMsg *readPrePrepareMsgFromDisk(const SeqNum &seqNum) const;
-  FullCommitProofMsg *readFullCommitProofMsgFromDisk(const SeqNum &seqNum) const;
-  PrepareFullMsg *readPrepareFullMsgFromDisk(const SeqNum &seqNum) const;
-  CommitFullMsg *readCommitFullMsgFromDisk(const SeqNum &seqNum) const;
-  bool readBooleanFromDisk(const SeqNum &seqNum, const SeqNum &parameterId) const;
-  void readSeqNumDataElementFromDisk(const SeqNum &index, const SharedPtrSeqNumWindow &seqNumWindow);
-  const SeqNum convertSeqNumWindowIndex(const SeqNum &seqNum) const;
+  SeqNum readBeginningOfActiveWindow(uint32_t index) const;
+  MessageBase *readMsgFromDisk(SeqNum seqNum, SeqNum parameterId, size_t msgSize) const;
+  PrePrepareMsg *readPrePrepareMsgFromDisk(SeqNum seqNum) const;
+  FullCommitProofMsg *readFullCommitProofMsgFromDisk(SeqNum seqNum) const;
+  PrepareFullMsg *readPrepareFullMsgFromDisk(SeqNum seqNum) const;
+  CommitFullMsg *readCommitFullMsgFromDisk(SeqNum seqNum) const;
+  bool readBooleanFromDisk(SeqNum seqNum, SeqNum parameterId) const;
+  void readSeqNumDataElementFromDisk(SeqNum index, const SharedPtrSeqNumWindow &seqNumWindow);
+  const SeqNum convertSeqNumWindowIndex(SeqNum seqNum) const;
 
-  void readCheckDataElementFromDisk(const SeqNum &index, const SharedPtrCheckWindow &checkWindow);
-  const SeqNum convertCheckWindowIndex(const SeqNum &index) const;
-  CheckpointMsg *readCheckpointMsgFromDisk(const SeqNum &seqNum) const;
-  bool readCompletedMarkFromDisk(const SeqNum &index) const;
+  void readCheckDataElementFromDisk(SeqNum index, const SharedPtrCheckWindow &checkWindow);
+  const SeqNum convertCheckWindowIndex(SeqNum index) const;
+  CheckpointMsg *readCheckpointMsgFromDisk(SeqNum seqNum) const;
+  bool readCompletedMarkFromDisk(SeqNum index) const;
 
-  void writeBeginningOfActiveWindow(const uint32_t &index, const SeqNum &beginning) const;
-  void setFetchingStateInternal(const bool &state);
-  void setLastExecutedSeqNumInternal(const SeqNum &seqNum);
-  void setPrimaryLastUsedSeqNumInternal(const SeqNum &seqNum);
-  void setStrictLowerBoundOfSeqNumsInternal(const SeqNum &seqNum);
-  void setLastViewTransferredSeqNumbersInternal(const ViewNum &view);
+  void writeBeginningOfActiveWindow(uint32_t index, SeqNum beginning) const;
+  void setFetchingStateInternal(bool state);
+  void setLastExecutedSeqNumInternal(SeqNum seqNum);
+  void setPrimaryLastUsedSeqNumInternal(SeqNum seqNum);
+  void setStrictLowerBoundOfSeqNumsInternal(SeqNum seqNum);
+  void setLastViewTransferredSeqNumbersInternal(ViewNum view);
   void setDefaultWindowsValues();
 
  private:
-  std::shared_ptr<MetadataStorage> metadataStorage_;
+  std::unique_ptr<MetadataStorage> metadataStorage_;
   std::unique_ptr<ReplicaConfigSerializer> configSerializer_;
   const ReplicaConfigSerializer defaultReplicaConfig_;
 

@@ -24,69 +24,50 @@ class DebugPersistentStorage : public PersistentStorage {
   DebugPersistentStorage(uint16_t fVal, uint16_t cVal);
 
   // Inherited via PersistentStorage
-  virtual uint8_t beginWriteTran() override;
-  virtual uint8_t endWriteTran() override;
-  virtual bool isInWriteTran() const override;
-  virtual void setReplicaConfig(const ReplicaConfig &config) override;
-  virtual void setFetchingState(const bool f) override;
-  virtual void setLastExecutedSeqNum(const SeqNum s) override;
-  virtual void setPrimaryLastUsedSeqNum(const SeqNum s) override;
-  virtual void setStrictLowerBoundOfSeqNums(const SeqNum s) override;
-  virtual void setLastViewThatTransferredSeqNumbersFullyExecuted(
-      const ViewNum v) override;
-  virtual void setDescriptorOfLastExitFromView(
-      const DescriptorOfLastExitFromView& prevViewDesc) override;
-  virtual void setDescriptorOfLastNewView(
-      const DescriptorOfLastNewView& prevViewDesc) override;
-  virtual void setDescriptorOfLastExecution(
-      const DescriptorOfLastExecution& prevViewDesc) override;
-  virtual void setLastStableSeqNum(const SeqNum s) override;
-  virtual void clearSeqNumWindow() override;
-  virtual void setPrePrepareMsgInSeqNumWindow(
-      const SeqNum s, const PrePrepareMsg* const m) override;
-  virtual void setSlowStartedInSeqNumWindow(const SeqNum s,
-                                            const bool slowStarted) override;
-  virtual void setFullCommitProofMsgInSeqNumWindow(
-      const SeqNum s, const FullCommitProofMsg* const m) override;
-  virtual void setForceCompletedInSeqNumWindow(
-      const SeqNum s, const bool forceCompleted) override;
-  virtual void setPrepareFullMsgInSeqNumWindow(
-      const SeqNum s, const PrepareFullMsg* const m) override;
-  virtual void setCommitFullMsgInSeqNumWindow(
-      const SeqNum s, const CommitFullMsg* const m) override;
-  virtual void setCheckpointMsgInCheckWindow(
-      const SeqNum s, const CheckpointMsg* const m) override;
-  virtual void setCompletedMarkInCheckWindow(const SeqNum s,
-                                             const bool f) override;
-  virtual bool hasReplicaConfig() const override;
-  virtual ReplicaConfig getReplicaConfig() override;
-  virtual bool getFetchingState() override;
-  virtual SeqNum getLastExecutedSeqNum() override;
-  virtual SeqNum getPrimaryLastUsedSeqNum() override;
-  virtual SeqNum getStrictLowerBoundOfSeqNums() override;
-  virtual ViewNum getLastViewThatTransferredSeqNumbersFullyExecuted() override;
-  virtual bool hasDescriptorOfLastExitFromView() override;
-  virtual DescriptorOfLastExitFromView
-  getAndAllocateDescriptorOfLastExitFromView() override;
-  virtual bool hasDescriptorOfLastNewView() override;
-  virtual DescriptorOfLastNewView getAndAllocateDescriptorOfLastNewView()
-      override;
-  virtual bool hasDescriptorOfLastExecution() override;
-  virtual DescriptorOfLastExecution getDescriptorOfLastExecution() override;
-  virtual SeqNum getLastStableSeqNum() override;
-  virtual PrePrepareMsg* getAndAllocatePrePrepareMsgInSeqNumWindow(
-      const SeqNum s) override;
-  virtual bool getSlowStartedInSeqNumWindow(const SeqNum s) override;
-  virtual FullCommitProofMsg* getAndAllocateFullCommitProofMsgInSeqNumWindow(
-      const SeqNum s) override;
-  virtual bool getForceCompletedInSeqNumWindow(const SeqNum s) override;
-  virtual PrepareFullMsg* getAndAllocatePrepareFullMsgInSeqNumWindow(
-      const SeqNum s) override;
-  virtual CommitFullMsg* getAndAllocateCommitFullMsgInSeqNumWindow(
-      const SeqNum s) override;
-  virtual CheckpointMsg* getAndAllocateCheckpointMsgInCheckWindow(
-      const SeqNum s) override;
-  virtual bool getCompletedMarkInCheckWindow(const SeqNum s) override;
+  uint8_t beginWriteTran() override;
+  uint8_t endWriteTran() override;
+  bool isInWriteTran() const override;
+  void setReplicaConfig(const ReplicaConfig &config) override;
+  void setFetchingState(bool state) override;
+  void setLastExecutedSeqNum(SeqNum seqNum) override;
+  void setPrimaryLastUsedSeqNum(SeqNum seqNum) override;
+  void setStrictLowerBoundOfSeqNums(SeqNum seqNum) override;
+  void setLastViewThatTransferredSeqNumbersFullyExecuted(ViewNum view) override;
+  void setDescriptorOfLastExitFromView(const DescriptorOfLastExitFromView& prevViewDesc) override;
+  void setDescriptorOfLastNewView(const DescriptorOfLastNewView& prevViewDesc) override;
+  void setDescriptorOfLastExecution(const DescriptorOfLastExecution& prevViewDesc) override;
+  void setLastStableSeqNum(SeqNum seqNum) override;
+  void clearSeqNumWindow() override;
+  void setPrePrepareMsgInSeqNumWindow(SeqNum seqNum, PrePrepareMsg *msg) override;
+  void setSlowStartedInSeqNumWindow(SeqNum seqNum, bool slowStarted) override;
+  void setFullCommitProofMsgInSeqNumWindow(SeqNum s, FullCommitProofMsg *msg) override;
+  void setForceCompletedInSeqNumWindow(SeqNum seqNum, bool forceCompleted) override;
+  void setPrepareFullMsgInSeqNumWindow(SeqNum seqNum, PrepareFullMsg *msg) override;
+  void setCommitFullMsgInSeqNumWindow(SeqNum seqNum, CommitFullMsg *msg) override;
+  void setCheckpointMsgInCheckWindow(SeqNum seqNum, CheckpointMsg *msg) override;
+  void setCompletedMarkInCheckWindow(SeqNum seqNum, bool mark) override;
+  bool hasReplicaConfig() const override;
+  ReplicaConfig getReplicaConfig() override;
+  bool getFetchingState() override;
+  SeqNum getLastExecutedSeqNum() override;
+  SeqNum getPrimaryLastUsedSeqNum() override;
+  SeqNum getStrictLowerBoundOfSeqNums() override;
+  ViewNum getLastViewThatTransferredSeqNumbersFullyExecuted() override;
+  bool hasDescriptorOfLastExitFromView() override;
+  DescriptorOfLastExitFromView getAndAllocateDescriptorOfLastExitFromView() override;
+  bool hasDescriptorOfLastNewView() override;
+  DescriptorOfLastNewView getAndAllocateDescriptorOfLastNewView() override;
+  bool hasDescriptorOfLastExecution() override;
+  DescriptorOfLastExecution getDescriptorOfLastExecution() override;
+  SeqNum getLastStableSeqNum() override;
+  PrePrepareMsg* getAndAllocatePrePrepareMsgInSeqNumWindow(SeqNum seqNum) override;
+  bool getSlowStartedInSeqNumWindow(SeqNum seqNum) override;
+  FullCommitProofMsg* getAndAllocateFullCommitProofMsgInSeqNumWindow(SeqNum seqNum) override;
+  bool getForceCompletedInSeqNumWindow(SeqNum seqNum) override;
+  PrepareFullMsg* getAndAllocatePrepareFullMsgInSeqNumWindow(SeqNum seqNum) override;
+  CommitFullMsg* getAndAllocateCommitFullMsgInSeqNumWindow(SeqNum seqNum) override;
+  CheckpointMsg* getAndAllocateCheckpointMsgInCheckWindow(SeqNum seqNum) override;
+  bool getCompletedMarkInCheckWindow(SeqNum seqNum) override;
 
  protected:
   bool setIsAllowed() const;
@@ -109,14 +90,12 @@ class DebugPersistentStorage : public PersistentStorage {
 
   bool hasDescriptorOfLastExitFromView_ = false;
   DescriptorOfLastExitFromView descriptorOfLastExitFromView_ =
-      DescriptorOfLastExitFromView{
-          0, 0, 0, std::vector<ViewsManager::PrevViewInfo>(0), 0, 0};
+      DescriptorOfLastExitFromView{0, 0, 0, std::vector<ViewsManager::PrevViewInfo>(0), 0, 0};
   bool hasDescriptorOfLastNewView_ = false;
   DescriptorOfLastNewView descriptorOfLastNewView_ =
       DescriptorOfLastNewView{0, nullptr, std::vector<ViewChangeMsg*>(0), nullptr, 0, 0};
   bool hasDescriptorOfLastExecution_ = false;
-  DescriptorOfLastExecution descriptorOfLastExecution_ =
-      DescriptorOfLastExecution{0, Bitmap()};
+  DescriptorOfLastExecution descriptorOfLastExecution_ = DescriptorOfLastExecution{0, Bitmap()};
 
   SeqNum lastStableSeqNum_ = 0;
 

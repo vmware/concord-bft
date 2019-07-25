@@ -17,6 +17,7 @@
 #include <sstream>
 #include <memory>
 #include <map>
+#include <cstring>
 
 namespace bftEngine {
 
@@ -47,8 +48,12 @@ struct MetadataObjectInfo {
 
 // Object data to be stored for every write operation in transaction.
 struct RequestInfo {
-  RequestInfo(std::unique_ptr<char> &buf, uint32_t len): data(move(buf)), dataLen(len) {}
-  std::unique_ptr<char> data;
+  RequestInfo(char *buf, uint32_t len) {
+    dataLen = len;
+    data.reset(new char[dataLen]);
+    std::memcpy(data.get(), buf, dataLen);
+  }
+  std::unique_ptr<char[], std::default_delete<char[]>> data;
   uint32_t dataLen;
 };
 

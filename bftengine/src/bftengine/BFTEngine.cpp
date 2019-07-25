@@ -120,15 +120,18 @@ Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
   uint16_t numOfObjects = 0;
   bool isNewStorage = true;
 
+  // metadataStorage is essential for a non-testing mode.
   if (!debugPersistentStorageEnabled) Assert(metadataStorage != nullptr);
 
-  if (debugPersistentStorageEnabled)
-    if (metadataStorage == nullptr)
+  // Create debug metadataStorage for a testing mode.
+  if (debugPersistentStorageEnabled && metadataStorage == nullptr) {
       persistentStoragePtr.reset(new impl::DebugPersistentStorage(replicaConfig->fVal, replicaConfig->cVal));
+  }
 
+  // Testing/real metadataStorage passed.
   if (metadataStorage != nullptr) {
     persistentStoragePtr.reset(new impl::PersistentStorageImp(replicaConfig->fVal, replicaConfig->cVal));
-    shared_ptr<MetadataStorage> metadataStoragePtr(metadataStorage);
+    unique_ptr<MetadataStorage> metadataStoragePtr(metadataStorage);
     auto objectDescriptors =
         ((PersistentStorageImp *) persistentStoragePtr.get())->getDefaultMetadataObjectDescriptors(numOfObjects);
     isNewStorage = metadataStoragePtr->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);
