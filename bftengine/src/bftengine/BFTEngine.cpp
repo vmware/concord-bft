@@ -76,7 +76,6 @@ void ReplicaInternal::SetAggregator(std::shared_ptr<concordMetrics::Aggregator> 
 }
 
 void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
-  Assert(debugPersistentStorageEnabled);
   rep->stopWhenStateIsNotCollected();
   if(delayMillis > 0) {
     std::this_thread::sleep_for(std::chrono::milliseconds(delayMillis));
@@ -123,9 +122,11 @@ Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
   uint16_t numOfObjects = 0;
   bool isNewStorage = true;
 
-  if (!debugPersistentStorageEnabled) Assert(metadataStorage != nullptr);
+  if (replicaConfig->usePedanticPersistencyChecks) {
+    Assert(metadataStorage == nullptr);
+  }
 
-  if (debugPersistentStorageEnabled)
+  if (replicaConfig->usePedanticPersistencyChecks)
     if (metadataStorage == nullptr)
       persistentStoragePtr.reset(new impl::DebugPersistentStorage(replicaConfig->fVal, replicaConfig->cVal));
 

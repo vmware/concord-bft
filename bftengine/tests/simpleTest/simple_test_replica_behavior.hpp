@@ -48,6 +48,8 @@ public:
     return 0;
   }
 
+  virtual void on_restarted(){};
+
   explicit DefaultReplicaBehavior(ReplicaParams &rp) 
   : ISimpleTestReplicaBehavior{rp} {}
 
@@ -96,7 +98,7 @@ public:
   
   virtual void on_restarted() override {
     nextDownTime = get_epoch_seconds() +
-         pti.initialSleepBetweenRestartsMillis * pti.sleepBetweenRestartsMultipler;
+      pti.initialSleepBetweenRestartsMillis * pti.sleepBetweenRestartsMultipler;
   }
 
   Replica2RestartNoVC(ReplicaParams &rp, PersistencyTestInfo &pti) 
@@ -202,13 +204,35 @@ private:
       nextDownTime = 
         get_epoch_seconds() + 
           (replicaParams.replicaId * replicaParams.viewChangeTimeout / 1000
-            + pti.initialSleepBetweenRestartsMillis / 1000 + replicaParams.replicaId);
+            + pti.initialSleepBetweenRestartsMillis 
+              / 1000 + replicaParams.replicaId);
     } else {
       nextDownTime = 
         get_epoch_seconds()
-          + 3 * (replicaParams.viewChangeTimeout / 1000 + pti.initialSleepBetweenRestartsMillis / 1000);
+          + 3 * (replicaParams.viewChangeTimeout / 1000 
+            + pti.initialSleepBetweenRestartsMillis / 1000);
     }
   }
 };
+
+ISimpleTestReplicaBehavior *create_replica_behavior(
+  ReplicaBehavior b, ReplicaParams rp){
+  switch(b) {
+    case ReplicaBehavior::Default:
+      return new DefaultReplicaBehavior(rp);
+    case ReplicaBehavior::Replica0OneTimeRestartVC:
+      assert(rp.viewChangeEnabled);
+      return new OneTimePrimaryDownVC(rp);
+    case ReplicaBehavior::Replica2PeriodicRestartNoVC:
+      return new Replica2RestartNoVC(rp);
+    case ReplicaBehavior::AllReplicasRandomRestartNoVC:
+      return new AllReplicasRestartNoVC(rp);
+    case ReplicaBehavior::AllReplicasRandomRestartVC:
+      assert(rp.viewChangeEnabled);
+      return new AllReplicasRestartVC(rp);
+    default:
+      throw std::logic_error("None supported behavior");
+  }
+}
 
 #endif // CONCORD_BFT_SIMPLE_TEST_REPLICA_BEHAVIOR_HPP

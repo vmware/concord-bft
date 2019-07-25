@@ -3156,7 +3156,7 @@ namespace bftEngine
 
 			clientsManager = new ClientsManager(myReplicaId, clientsSet, sizeOfReservedPage);
 
-			if (firstTime || !debugPersistentStorageEnabled) {
+			if (firstTime || !config.usePedanticPersistencyChecks) {
 			stateTransfer->init(kWorkWindowSize / checkpointWindowSize + 1, clientsManager->numberOfRequiredReservedPages(), sizeOfReservedPage);
 			}
 			else // !firstTime && debugPersistentStorageEnabled

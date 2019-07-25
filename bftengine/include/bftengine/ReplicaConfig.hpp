@@ -70,6 +70,8 @@ struct ReplicaConfig {
   // signer and verifier of a threshold signature (for threshold N out of N)
   IThresholdSigner *thresholdSignerForOptimisticCommit = nullptr;
   IThresholdVerifier *thresholdVerifierForOptimisticCommit = nullptr;
+
+  bool usePedanticPersistencyChecks = false;
 };
 
 }

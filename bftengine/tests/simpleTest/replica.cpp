@@ -65,12 +65,6 @@
 #include <log4cplus/configurator.h>
 #endif
 
-#define REPLICA2_RESTART_NO_VC (0)
-#define ALL_REPLICAS_RESTART_NO_VC (0)
-#define ALL_REPLICAS_RESTART_VC (1)
-#define PRIMARY_REPLICA_RESTART_VC (0)
-static_assert(REPLICA2_RESTART_NO_VC + ALL_REPLICAS_RESTART_NO_VC + ALL_REPLICAS_RESTART_VC + PRIMARY_REPLICA_RESTART_VC <= 1, "");
-
 using bftEngine::ICommunication;
 using bftEngine::PlainUDPCommunication;
 using bftEngine::PlainUdpConfig;
@@ -154,10 +148,22 @@ void parse_params(int argc, char** argv, ReplicaParams &rp) {
         } else if (p == "-cf") {
           rp.configFileName = argv[i + 1];
           i += 2;
-        }
-          else if (p == "-pf") {
-          rp.useFileForPersistency = true;
-          i ++;
+        } else if (p == "-pm") {
+          uint16_t pm = std::stoi(argv[i + 1]);
+          if(pm > (uint16_t)PersistencyMode::MAX_VALUE) {
+            printf("-pm value is out of range");
+            exit(-1);
+          }
+          rp.persistencyMode = (PersistencyMode)pm;
+          i += 2;
+        } else if (p == "-rb") {
+          uint16_t rb = std::stoi(argv[i + 1]);
+          if(rb > (uint16_t)ReplicaBehavior::MAX_VALUE) {
+            printf("-rb value is out of range");
+            exit(-1);
+          }
+          rp.replicaBehavior = (ReplicaBehavior)rb;
+          i +=2;
         } else {
           printf("Unknown parameter %s\n", p.c_str());
           exit(-1);
@@ -197,54 +203,23 @@ int main(int argc, char **argv) {
 
   signal(SIGTERM, signalHandler);
 
-ISimpleTestReplicaBehavior *replicaBehavior = nullptr;
+  ISimpleTestReplicaBehavior *replicaBehavior = 
+    create_replica_behavior(rp.replicaBehavior, rp);
 
-#if REPLICA2_RESTART_NO_VC
-  replicaBehavior = new Replica2RestartNoVC(rp);
-#endif
-#if ALL_REPLICAS_RESTART_NO_VC
-  replicaBehavior = new AllReplicasRestartNoVC(rp);
-#endif
-#if ALL_REPLICAS_RESTART_VC
-  rp.viewChangeEnabled = true;
-  replicaBehavior = new AllReplicasRestartVC(rp);
-#endif
-#if PRIMARY_REPLICA_RESTART_VC
-  rp.viewChangeEnabled = true;
-  replicaBehavior = new OneTimePrimaryDownVC(rp);
-#endif
-
-  ReplicaConfig replicaConfig;
-  TestCommConfig testCommConfig(replicaLogger);
-  testCommConfig.GetReplicaConfig(rp.replicaId, rp.keysFilePrefix, &replicaConfig);
-  replicaConfig.numOfClientProxies = rp.numOfClients;
-  replicaConfig.autoViewChangeEnabled = rp.viewChangeEnabled;
-  replicaConfig.viewChangeTimerMillisec = rp.viewChangeTimeout;
-
-  LOG_INFO(replicaLogger, "ReplicaParams: replicaId: "
-      << rp.replicaId
+  LOG_INFO(replicaLogger, 
+      "ReplicaParams: replicaId: " << rp.replicaId
       << ", numOfReplicas: " << rp.numOfReplicas
       << ", numOfClients: " << rp.numOfClients
       << ", vcEnabled: " << rp.viewChangeEnabled
       << ", vcTimeout: " << rp.viewChangeTimeout
-      << ", debug: " << rp.debug);
-
-  // This is the state machine that the replica will drive.
-  SimpleAppState simpleAppState(rp.numOfClients, rp.numOfReplicas);
-
-  bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer* st =
-      bftEngine::SimpleInMemoryStateTransfer::create(
-          simpleAppState.statePtr,
-          sizeof(SimpleAppState::State) * rp.numOfClients,
-          replicaConfig.replicaId,
-          replicaConfig.fVal,
-          replicaConfig.cVal, true);
-
-  simpleAppState.st = st;
+      << ", debug: " << rp.debug
+      << ", behavior: " << (uint16_t)rp.replicaBehavior
+      << ", persistencyMode: " << (uint16_t)rp.persistencyMode);
+  
   MetadataStorage *metaDataStorage = nullptr;
-  if(rp.useFileForPersistency) {
+  if(rp.persistencyMode == PersistencyMode::File) {
     ostringstream dbFile;
-    dbFile << "metadataStorageTest_" << replicaConfig.replicaId << ".txt";
+    dbFile << "metadataStorageTest_" << rp.replicaId << ".txt";
     remove(dbFile.str().c_str());
     metaDataStorage = new FileStorage(replicaLogger, dbFile.str());
   }
