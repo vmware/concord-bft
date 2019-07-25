@@ -17,7 +17,6 @@
 #include "PersistentStorageImp.hpp"
 
 #include <mutex>
-#include <zconf.h>
 
 namespace bftEngine {
 namespace impl {
