@@ -106,7 +106,8 @@ static bool parseUInt16(uint16_t& output,
  *         parameters, but it will not return an exit code indicating an error.
  */
 int main(int argc, char** argv) {
-
+try
+{
   std::string usageMessage = "Usage:\n"
     "GenerateConcordKeys -n TOTAL_NUMBER_OF_REPLICAS \\\n"
       "  -f NUMBER_OF_FAULTY_REPLICAS_TO_TOLERATE -o OUTPUT_FILE_PREFIX\n"
@@ -155,13 +156,22 @@ int main(int argc, char** argv) {
   bool hasN = false;
   bool hasOutput = false;
 
-  std::string execType = "threshold-bls";
+//  std::string execType = MULTISIG_BLS_SCHEME;
+//  std::string execParam = "BN-P254";
+//  std::string slowType = MULTISIG_BLS_SCHEME;
+//  std::string slowParam = "BN-P254";
+//  std::string commitType = MULTISIG_BLS_SCHEME;
+//  std::string commitParam = "BN-P254";
+//  std::string optType = MULTISIG_BLS_SCHEME;
+//  std::string optParam = "BN-P254";
+
+  std::string execType = THRESHOLD_BLS_SCHEME;
   std::string execParam = "BN-P254";
-  std::string slowType = "threshold-bls";
+  std::string slowType = THRESHOLD_BLS_SCHEME;
   std::string slowParam = "BN-P254";
-  std::string commitType = "threshold-bls";
+  std::string commitType = THRESHOLD_BLS_SCHEME;
   std::string commitParam = "BN-P254";
-  std::string optType = "multisig-bls";
+  std::string optType = MULTISIG_BLS_SCHEME;
   std::string optParam = "BN-P254";
   
   // Read input from the command line.
@@ -358,6 +368,10 @@ int main(int argc, char** argv) {
       return -1;
     }
   }
-
+}catch(std::exception& e)
+{
+  std::cerr << "Exception: " << e.what() << std::endl;
+  return 1;
+}
   return 0;
 }

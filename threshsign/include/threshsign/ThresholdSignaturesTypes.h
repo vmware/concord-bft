@@ -105,6 +105,7 @@ private:
 
   uint16_t numSigners;
   uint16_t threshold;
+  bool     forceMultisig_;   // is true if  signers == threshold
 
   // If only one signer's private key is known and stored in this cryptosystem,
   // this field records that signer's ID; otherwise (if no or all private keys

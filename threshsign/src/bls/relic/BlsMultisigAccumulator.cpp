@@ -58,7 +58,6 @@ void BlsMultisigAccumulator::sigToBytes(unsigned char * outThreshSig, int thresh
 }
 
 void BlsMultisigAccumulator::aggregateShares() {
-    assertEqual(validSharesBits.count(), reqSigners);
     threshSig = G1T::Identity();
 
     // multiply all the signature shares to obtain the multisig

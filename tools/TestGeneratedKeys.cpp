@@ -571,8 +571,8 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
     char* sigBuf = new char[signatureLength];
     try {
       accumulator->getFullSignedData(sigBuf, signatureLength);
-    } catch (std::exception e) {
-      std::cout << invalidKeyset;
+    } catch (std::exception& e) {
+      std::cout << invalidKeyset << e.what() << std::endl;
       releaseAccumulator(verifier, accumulator);
       delete[] sigBuf;
       return false;

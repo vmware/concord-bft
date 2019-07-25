@@ -85,13 +85,13 @@ concordlogger::Logger replicaLogger = concordlogger::Log::getLogger("simpletest.
 bftEngine::Replica *replica = nullptr;
 ReplicaParams rp;
 
-//void signalHandler(int signum) {
-//  if(replica)
-//    replica->stop();
-//
-//  LOG_INFO(replicaLogger, "replica " << rp.replicaId << " stopped");
-//  exit(0);
-//}
+void signalHandler( int signum ) {
+  if(replica)
+    replica->stop();
+
+  LOG_INFO(replicaLogger, "replica " << rp.replicaId << " stopped");
+  exit(0);
+}
 
 #define test_assert(statement, message) \
 { if (!(statement)) { \
