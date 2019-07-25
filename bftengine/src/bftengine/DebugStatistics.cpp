@@ -87,7 +87,7 @@ namespace bftEngine
 			fprintf(stdout, "numberOfReceivedSTMessages = %zd\t", d.numberOfReceivedSTMessages);
 			fprintf(stdout, "numberOfReceivedStatusMessages = %zd\t", d.numberOfReceivedStatusMessages);
 			fprintf(stdout, "numberOfReceivedCommitMessages = %zd\t", d.numberOfReceivedCommitMessages);
-			fprintf(stdout, "lastExecutedSeqNumber = %" PRId64 "\t", d.lastExecutedSequenceNumber);
+			fprintf(stdout, "lastExecutedSeqNumber = %lld\t", d.lastExecutedSequenceNumber);
 			fprintf(stdout, "\n");
 
 			if (d.completedReadOnlyRequests > 0 || d.completedReadWriteRequests > 0)
