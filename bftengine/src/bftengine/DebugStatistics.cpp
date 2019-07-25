@@ -1,205 +1,156 @@
-//Concord
+// Concord
 //
-//Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
 //
-//This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in compliance with the Apache 2.0 License. 
+// This product is licensed to you under the Apache 2.0 license (the "License").
+// You may not use this product except in compliance with the Apache 2.0 License.
 //
-//This product may include a number of subcomponents with separate copyright notices and license terms. Your use of these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE file.
+// This product may include a number of subcomponents with separate copyright
+// notices and license terms. Your use of these subcomponents is subject to the
+// terms and conditions of the subcomponent's license, as noted in the LICENSE
+// file.
 
 #include "DebugStatistics.hpp"
 
-
 #ifdef DEBUG_STATISTICS
 
-#if defined(_WIN32)
-#include <winsock2.h>
-#include <WinBase.h>
-#else
-#include <sys/time.h>
-#endif
+#include <iomanip>
 #include <inttypes.h>
-#include <stdio.h>
 #include "MsgCode.hpp"
+#include "Logger.hpp"
 
-namespace bftEngine
-{
-	namespace impl
-	{
+using namespace std;
 
+namespace bftEngine {
+namespace impl {
 
-		void DebugStatistics::onCycleCheck()
-		{
-			DebugStatDesc& d = getDebugStatDesc();
+void DebugStatistics::onCycleCheck() {
+  DebugStatDesc& d = getDebugStatDesc();
 
-			if (!d.initialized) // if this is the first time
-			{
-				d.initialized = true;
-				d.lastCycleTime = getMonotonicTime();
-				clearCounters(d);
-				return;
-			}
+  if (!d.initialized)  // if this is the first time
+  {
+    d.initialized = true;
+    d.lastCycleTime = getMonotonicTime();
+    clearCounters(d);
+    return;
+  }
 
-			Time currTime = getMonotonicTime();
+  Time currTime = getMonotonicTime();
 
-			long long durationMicroSec = subtract(currTime, d.lastCycleTime);
+  long long durationMicroSec = subtract(currTime, d.lastCycleTime);
 
-			double durationSec = durationMicroSec / 1000000.0;
+  double durationSec = durationMicroSec / 1000000.0;
 
-			if (durationSec < DEBUG_STAT_PERIOD_SECONDS)
-				return;
+  if (durationSec < DEBUG_STAT_PERIOD_SECONDS) return;
 
-			double readThroughput = 0;
-			double writeThroughput = 0;
+  double readThroughput = 0;
+  double writeThroughput = 0;
 
-			if (d.completedReadOnlyRequests > 0)
-				readThroughput = (d.completedReadOnlyRequests / durationSec);
+  if (d.completedReadOnlyRequests > 0)
+    readThroughput = (d.completedReadOnlyRequests / durationSec);
 
-			if (d.completedReadWriteRequests > 0)
-				writeThroughput = (d.completedReadWriteRequests / durationSec);
+  if (d.completedReadWriteRequests > 0)
+    writeThroughput = (d.completedReadWriteRequests / durationSec);
 
-#if defined(_WIN32)
+  // We use INFO logging instead of DEBUG logging since there is already a
+  // separate switch to turn DebugStatistics on and off. It's likely we want
+  // this data to appear when we do not want full debug logging.
+  LOG_INFO(GL, " STAT:" << endl <<
+      "    ReadOnlyThroughput = " << fixed << setprecision(2) 
+      << readThroughput << endl <<
+      "    WriteThroughput = " << fixed << setprecision(2) 
+      << writeThroughput << endl <<
+      "    ReceivedMessages = " << d.receivedMessages << endl <<
+      "    SentMessages = " << d.sendMessages << endl << 
+      "    NumberOfReceivedSTMessages = " << 
+      d.numberOfReceivedSTMessages << endl << 
+      "    NumberOfReceivedStatusMessages = " << 
+      d.numberOfReceivedStatusMessages << endl <<
+      "    NumberOfReceivedCommitMessages = " << 
+      d.numberOfReceivedCommitMessages << endl <<
+      "    LastExecutedSeqNumber = " <<
+      d.lastExecutedSequenceNumber << endl);
 
-			SYSTEMTIME  sysTime;
-			GetLocalTime(&sysTime); // TODO(GG): GetSystemTime ???
-
-			uint32_t hour = sysTime.wHour;
-			uint32_t minute = sysTime.wMinute;
-			uint32_t seconds = sysTime.wSecond;
-			uint32_t milli = sysTime.wMilliseconds;
-
-#else
-
-			timeval t;
-			gettimeofday(&t, nullptr);
-			uint32_t secondsInDay = t.tv_sec % (3600 * 24);
-			uint32_t hour = secondsInDay / 3600;
-			uint32_t minute = (secondsInDay % 3600) / 60;
-			uint32_t seconds = secondsInDay % 60;
-			uint32_t milli = t.tv_usec / 1000;
-
-#endif
-
-			fprintf(stdout, "\n %02u:%02u:%02u.%03u STAT:\t", hour, minute, seconds, milli);
-			fprintf(stdout, "ReadOnlyThroughput = %7.2f\t", readThroughput);
-			fprintf(stdout, "WriteThroughput = %7.2f\t", writeThroughput);
-			fprintf(stdout, "receivedMessages = %zd\t", d.receivedMessages);
-			fprintf(stdout, "sendMessages = %zd\t", d.sendMessages);
-			fprintf(stdout, "numberOfReceivedSTMessages = %zd\t", d.numberOfReceivedSTMessages);
-			fprintf(stdout, "numberOfReceivedStatusMessages = %zd\t", d.numberOfReceivedStatusMessages);
-			fprintf(stdout, "numberOfReceivedCommitMessages = %zd\t", d.numberOfReceivedCommitMessages);
-			fprintf(stdout, "lastExecutedSeqNumber = %ld\t", d.lastExecutedSequenceNumber);
-			fprintf(stdout, "\n");
-
-			if (d.completedReadOnlyRequests > 0 || d.completedReadWriteRequests > 0)
-			{
-				fprintf(stdout, "\n %02u:%02u:%02u.%03u SHRES:\t", hour, minute, seconds, milli);
-				fprintf(stdout, "ReadOnlyThroughput = %7.2f\t", readThroughput);
-				fprintf(stdout, "WriteThroughput = %7.2f\t", writeThroughput);
-				fprintf(stdout, "\n\n\n");
-
-				fprintf(stderr, "\n %02u:%02u:%02u.%03u SHRES:\t", hour, minute, seconds, milli);
-				fprintf(stderr, "ReadOnlyThroughput = %7.2f\t", readThroughput);
-				fprintf(stderr, "WriteThroughput = %7.2f\t", writeThroughput);
-				fprintf(stderr, "\n\n\n");
-
-			}
-
-
-			d.lastCycleTime = currTime;
-			clearCounters(d);
-		}
-
-
-		void DebugStatistics::onReceivedExMessage(uint16_t type)
-		{
-			DebugStatDesc& d = getDebugStatDesc();
-
-			d.receivedMessages++;
-
-			switch (type)
-			{
-			case MsgCode::ReplicaStatus:
-				d.numberOfReceivedStatusMessages++;
-				break;
-			case MsgCode::StateTransfer: // TODO(GG): TBD?
-				d.numberOfReceivedSTMessages++;
-				break;
-			case MsgCode::CommitPartial:
-			case MsgCode::CommitFull:
-				d.numberOfReceivedCommitMessages++;
-				break;
-			default:
-				break;
-			}
-		}
-
-		void DebugStatistics::onSendExMessage(uint16_t type)
-		{
-			DebugStatDesc& d = getDebugStatDesc();
-
-			d.sendMessages++;
-		}
-
-
-		void DebugStatistics::onRequestCompleted(bool isReadOnly)
-		{
-			DebugStatDesc& d = getDebugStatDesc();
-
-			if (isReadOnly) d.completedReadOnlyRequests++;
-			else d.completedReadWriteRequests++;
-		}
-
-		void DebugStatistics::onLastExecutedSequenceNumberChanged(int64_t newNumber)
-		{
-			DebugStatDesc& d = getDebugStatDesc();
-			d.lastExecutedSequenceNumber = newNumber;
-		}
-
-		void DebugStatistics::clearCounters(DebugStatDesc& d)
-		{
-			d.receivedMessages = 0;
-			d.sendMessages = 0;
-			d.completedReadOnlyRequests = 0;
-			d.completedReadWriteRequests = 0;
-			d.numberOfReceivedSTMessages = 0;
-			d.numberOfReceivedStatusMessages = 0;
-			d.numberOfReceivedCommitMessages = 0;
-			d.lastExecutedSequenceNumber = 0;
-		}
-
-#ifdef USE_TLS
-		void DebugStatistics::initDebugStatisticsData()
-		{
-			ThreadLocalData* l = ThreadLocalData::Get();
-			Assert(l->debugStatData == nullptr);
-			DebugStatDesc* dsd = new DebugStatDesc;
-			l->debugStatData = dsd;
-		}
-
-		void DebugStatistics::freeDebugStatisticsData()
-		{
-			ThreadLocalData* l = ThreadLocalData::Get();
-			DebugStatDesc* dsd = (DebugStatDesc*)l->debugStatData;
-			delete dsd;
-			l->debugStatData = nullptr;
-		}
-#else
-
-		DebugStatistics::DebugStatDesc DebugStatistics::globalDebugStatDesc;
-
-		void DebugStatistics::initDebugStatisticsData()
-		{
-		}
-
-		void DebugStatistics::freeDebugStatisticsData()
-		{
-		}
-
-	}
+  d.lastCycleTime = currTime;
+  clearCounters(d);
 }
 
+void DebugStatistics::onReceivedExMessage(uint16_t type) {
+  DebugStatDesc& d = getDebugStatDesc();
+
+  d.receivedMessages++;
+
+  switch (type) {
+    case MsgCode::ReplicaStatus:
+      d.numberOfReceivedStatusMessages++;
+      break;
+    case MsgCode::StateTransfer:  // TODO(GG): TBD?
+      d.numberOfReceivedSTMessages++;
+      break;
+    case MsgCode::CommitPartial:
+    case MsgCode::CommitFull:
+      d.numberOfReceivedCommitMessages++;
+      break;
+    default:
+      break;
+  }
+}
+
+void DebugStatistics::onSendExMessage(uint16_t type) {
+  DebugStatDesc& d = getDebugStatDesc();
+
+  d.sendMessages++;
+}
+
+void DebugStatistics::onRequestCompleted(bool isReadOnly) {
+  DebugStatDesc& d = getDebugStatDesc();
+
+  if (isReadOnly)
+    d.completedReadOnlyRequests++;
+  else
+    d.completedReadWriteRequests++;
+}
+
+void DebugStatistics::onLastExecutedSequenceNumberChanged(int64_t newNumber) {
+  DebugStatDesc& d = getDebugStatDesc();
+  d.lastExecutedSequenceNumber = newNumber;
+}
+
+void DebugStatistics::clearCounters(DebugStatDesc& d) {
+  d.receivedMessages = 0;
+  d.sendMessages = 0;
+  d.completedReadOnlyRequests = 0;
+  d.completedReadWriteRequests = 0;
+  d.numberOfReceivedSTMessages = 0;
+  d.numberOfReceivedStatusMessages = 0;
+  d.numberOfReceivedCommitMessages = 0;
+  d.lastExecutedSequenceNumber = 0;
+}
+
+#ifdef USE_TLS
+void DebugStatistics::initDebugStatisticsData() {
+  ThreadLocalData* l = ThreadLocalData::Get();
+  Assert(l->debugStatData == nullptr);
+  DebugStatDesc* dsd = new DebugStatDesc;
+  l->debugStatData = dsd;
+}
+
+void DebugStatistics::freeDebugStatisticsData() {
+  ThreadLocalData* l = ThreadLocalData::Get();
+  DebugStatDesc* dsd = (DebugStatDesc*)l->debugStatData;
+  delete dsd;
+  l->debugStatData = nullptr;
+}
+#else
+
+DebugStatistics::DebugStatDesc DebugStatistics::globalDebugStatDesc;
+
+void DebugStatistics::initDebugStatisticsData() {}
+
+void DebugStatistics::freeDebugStatisticsData() {}
+}
+}
 
 #endif
 
 #endif
-
