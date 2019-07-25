@@ -17,6 +17,7 @@
 #else
 #include <sys/time.h>
 #endif
+#include <inttypes.h>
 #include <stdio.h>
 #include "MsgCode.hpp"
 
