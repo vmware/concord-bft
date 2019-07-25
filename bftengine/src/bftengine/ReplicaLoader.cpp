@@ -41,6 +41,12 @@ namespace {
 
 ReplicaLoader::ErrorCode checkReplicaConfig(const LoadedReplicaData &ld) {
   const ReplicaConfig &c = ld.repConfig;
+
+  LOG_INFO(GL, "checkReplicaConfig cVal=" << c.cVal << ", fVal=" << c.fVal << ", replicaId=" << c.replicaId
+                                          << ", concurrencyLevel=" << c.concurrencyLevel
+                                          << ", autoViewChangeEnabled=" << c.autoViewChangeEnabled
+                                          << ", viewChangeTimerMillisec=" << c.viewChangeTimerMillisec);
+
   Verify(c.fVal >= 1, InconsistentErr);
   Verify(c.cVal >= 0, InconsistentErr);
 
@@ -89,7 +95,7 @@ ReplicaLoader::ErrorCode checkReplicaConfig(const LoadedReplicaData &ld) {
   return Succ;
 }
 
-ReplicaLoader::ErrorCode loadConfig(PersistentStorage *p, LoadedReplicaData &ld) {
+ReplicaLoader::ErrorCode loadConfig(shared_ptr<PersistentStorage> &p, LoadedReplicaData &ld) {
   Assert(p != nullptr);
 
   Verify(p->hasReplicaConfig(), NoDataErr);
@@ -132,7 +138,7 @@ ReplicaLoader::ErrorCode checkViewDesc(
   return Succ;
 }
 
-ReplicaLoader::ErrorCode loadViewInfo(PersistentStorage *p, LoadedReplicaData &ld) {
+ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedReplicaData &ld) {
   Assert(p != nullptr);
   Assert(ld.repsInfo != nullptr)
   Assert(ld.repConfig.thresholdVerifierForSlowPathCommit != nullptr);
@@ -156,13 +162,9 @@ ReplicaLoader::ErrorCode loadViewInfo(PersistentStorage *p, LoadedReplicaData &l
 
   Verify((stat == Succ), stat);
 
-  ViewNum initialViewNum = 0;
-  bool isInView = false;
   ViewsManager *viewsManager = nullptr;
   if (!hasDescLastExitFromView && !hasDescOfLastNewView) {
 
-    initialViewNum = 0;
-    isInView = true;
     viewsManager = ViewsManager::createInsideViewZero(
         ld.repsInfo,
         ld.repConfig.thresholdVerifierForSlowPathCommit);
@@ -175,8 +177,6 @@ ReplicaLoader::ErrorCode loadViewInfo(PersistentStorage *p, LoadedReplicaData &l
 
     Verify((descriptorOfLastExitFromView.view == 0), InconsistentErr);
 
-    initialViewNum = 0;
-    isInView = false;
     viewsManager = ViewsManager::createOutsideView(
         ld.repsInfo,
         ld.repConfig.thresholdVerifierForSlowPathCommit,
@@ -196,8 +196,6 @@ ReplicaLoader::ErrorCode loadViewInfo(PersistentStorage *p, LoadedReplicaData &l
 
     Verify((descriptorOfLastExitFromView.view >= 1), InconsistentErr);
 
-    initialViewNum = descriptorOfLastExitFromView.view;
-    isInView = false;
     viewsManager = ViewsManager::createOutsideView(
         ld.repsInfo,
         ld.repConfig.thresholdVerifierForSlowPathCommit,
@@ -218,8 +216,6 @@ ReplicaLoader::ErrorCode loadViewInfo(PersistentStorage *p, LoadedReplicaData &l
     Verify((descriptorOfLastExitFromView.view >= 0), InconsistentErr);
     Verify((descriptorOfLastNewView.view >= 1), InconsistentErr);
 
-    initialViewNum = descriptorOfLastNewView.view;
-    isInView = true;
     viewsManager = ViewsManager::createInsideView(
         ld.repsInfo,
         ld.repConfig.thresholdVerifierForSlowPathCommit,
@@ -238,9 +234,7 @@ ReplicaLoader::ErrorCode loadViewInfo(PersistentStorage *p, LoadedReplicaData &l
   return Succ;
 }
 
-ReplicaLoader::ErrorCode loadReplicaData(
-    PersistentStorage *p,
-    LoadedReplicaData &ld) {
+ReplicaLoader::ErrorCode loadReplicaData(shared_ptr<PersistentStorage> p, LoadedReplicaData &ld) {
   Assert(p != nullptr);
 
   ReplicaLoader::ErrorCode stat = loadConfig(p, ld);
@@ -256,9 +250,10 @@ ReplicaLoader::ErrorCode loadReplicaData(
   ld.lastExecutedSeqNum = p->getLastExecutedSeqNum();
   ld.strictLowerBoundOfSeqNums = p->getStrictLowerBoundOfSeqNums();
 
-  LOG_INFO(GL, "primaryLastUsedSeqNum=" << ld.primaryLastUsedSeqNum << ", lastStableSeqNum="
-                                        << ld.lastStableSeqNum << ", lastExecutedSeqNum=" << ld.lastExecutedSeqNum
-                                        << ", strictLowerBoundOfSeqNums=" << ld.strictLowerBoundOfSeqNums);
+  LOG_INFO(GL, "loadReplicaData primaryLastUsedSeqNum=" << ld.primaryLastUsedSeqNum << ", lastStableSeqNum="
+                                                        << ld.lastStableSeqNum << ", lastExecutedSeqNum="
+                                                        << ld.lastExecutedSeqNum << ", strictLowerBoundOfSeqNums="
+                                                        << ld.strictLowerBoundOfSeqNums);
 
   Verify((ld.primaryLastUsedSeqNum >= 0), InconsistentErr);
   Verify((ld.primaryLastUsedSeqNum <= ld.lastStableSeqNum + kWorkWindowSize), InconsistentErr);
@@ -272,8 +267,6 @@ ReplicaLoader::ErrorCode loadReplicaData(
   const bool isInView = ld.viewsManager->viewIsActive(lastView);
 
   ld.lastViewThatTransferredSeqNumbersFullyExecuted = p->getLastViewThatTransferredSeqNumbersFullyExecuted();
-
-  LOG_INFO(GL, "lastViewThatTransferredSeqNumbersFullyExecuted=" << ld.lastViewThatTransferredSeqNumbersFullyExecuted);
 
   Verify((ld.lastViewThatTransferredSeqNumbersFullyExecuted >= 0), InconsistentErr);
   Verify((ld.lastViewThatTransferredSeqNumbersFullyExecuted <= lastView), InconsistentErr);
@@ -361,7 +354,7 @@ ReplicaLoader::ErrorCode loadReplicaData(
       ld.validRequestsThatAreBeingExecuted = d.validRequests;
     }
   }
-
+  LOG_INFO(GL, "loadReplicaData Successfully loaded!");
   return Succ;
 }
 
@@ -378,7 +371,7 @@ void freeReplicaData(LoadedReplicaData &ld) {
 }
 }
 
-LoadedReplicaData ReplicaLoader::loadReplica(PersistentStorage *p, ReplicaLoader::ErrorCode &outErrCode) {
+LoadedReplicaData ReplicaLoader::loadReplica(shared_ptr<PersistentStorage> &p, ReplicaLoader::ErrorCode &outErrCode) {
   Assert(p != nullptr);
   LoadedReplicaData ld;
   outErrCode = loadReplicaData(p, ld);

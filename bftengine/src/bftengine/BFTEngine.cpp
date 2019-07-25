@@ -14,8 +14,10 @@
 #include "Replica.hpp"
 #include "ReplicaImp.hpp"
 #include "DebugPersistentStorage.hpp"
+#include "PersistentStorageImp.hpp"
 
 #include <mutex>
+#include <zconf.h>
 
 namespace bftEngine {
 namespace impl {
@@ -77,7 +79,7 @@ void ReplicaInternal::restartForDebug() {
   Assert(debugPersistentStorageEnabled);
   rep->stopWhenStateIsNotCollected();
 
-  PersistentStorage *persistentStorage = rep->getPersistentStorage();
+  shared_ptr<PersistentStorage> persistentStorage(rep->getPersistentStorage());
   RequestsHandler *requestsHandler = rep->getRequestsHandler();
   IStateTransfer *stateTransfer = rep->getStateTransfer();
   ICommunication *comm = rep->getCommunication();
@@ -114,40 +116,45 @@ Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
     }
   }
 
-  bool isNewReplica = true;
+  shared_ptr<PersistentStorage> persistentStoragePtr;
+  uint16_t numOfObjects = 0;
+  bool isNewStorage = true;
 
-  PersistentStorage *ps = nullptr;
+  // metadataStorage is essential for a non-testing mode.
+  if (!debugPersistentStorageEnabled) Assert(metadataStorage != nullptr);
 
-  if (debugPersistentStorageEnabled) {
-    Assert(metadataStorage == nullptr);
-    ps = new impl::DebugPersistentStorage(replicaConfig->fVal, replicaConfig->cVal);
-  } else if (metadataStorage != nullptr) {
-    // TODO(GG):
-    // - use metadataStorage to create an instance of PersistentStorage
-    // - if needed, write false to isNewReplica
-    Assert(false);
+  // Create debug metadataStorage for a testing mode.
+  if (debugPersistentStorageEnabled && metadataStorage == nullptr) {
+      persistentStoragePtr.reset(new impl::DebugPersistentStorage(replicaConfig->fVal, replicaConfig->cVal));
   }
 
-  ReplicaInternal *retVal = nullptr;
-  if (isNewReplica) {
-    retVal = new ReplicaInternal();
-    retVal->rep = new ReplicaImp(*replicaConfig, requestsHandler, stateTransfer, communication, ps);
+  // Testing/real metadataStorage passed.
+  if (metadataStorage != nullptr) {
+    persistentStoragePtr.reset(new impl::PersistentStorageImp(replicaConfig->fVal, replicaConfig->cVal));
+    unique_ptr<MetadataStorage> metadataStoragePtr(metadataStorage);
+    auto objectDescriptors =
+        ((PersistentStorageImp *) persistentStoragePtr.get())->getDefaultMetadataObjectDescriptors(numOfObjects);
+    isNewStorage = metadataStoragePtr->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);
+    ((PersistentStorageImp *) persistentStoragePtr.get())->init(move(metadataStoragePtr));
+  }
+
+  auto *replicaInternal = new ReplicaInternal();
+  if (isNewStorage) {
+    replicaInternal->rep =
+        new ReplicaImp(*replicaConfig, requestsHandler, stateTransfer, communication, persistentStoragePtr);
   } else {
-    LoadedReplicaData ld;
     ReplicaLoader::ErrorCode loadErrCode;
-    ld = ReplicaLoader::loadReplica(ps, loadErrCode);
+    auto loadedReplicaData = ReplicaLoader::loadReplica(persistentStoragePtr, loadErrCode);
     if (loadErrCode != ReplicaLoader::ErrorCode::Success) {
       LOG_ERROR_F(GL, "Unable to load replica state from storage. Error %X", (uint32_t) loadErrCode);
       return nullptr;
     }
-    retVal = new ReplicaInternal();
-
     // TODO(GG): compare ld.repConfig and replicaConfig
-
-    retVal->rep = new ReplicaImp(ld, requestsHandler, stateTransfer, communication, ps);
+    replicaInternal->rep = new ReplicaImp(loadedReplicaData, requestsHandler, stateTransfer,
+                                          communication, persistentStoragePtr);
   }
 
-  return retVal;
+  return replicaInternal;
 }
 
 Replica::~Replica() {}

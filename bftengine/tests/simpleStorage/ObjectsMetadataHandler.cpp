@@ -36,11 +36,11 @@ size_t ObjectsMetadataHandler::getObjectsMetadataSize() {
 
 void ObjectsMetadataHandler::setObjectInfo(
     const MetadataObjectInfo &objectInfo) {
-  objectsMap_.insert(pair<uint16_t, MetadataObjectInfo>(objectInfo.id,
+  objectsMap_.insert(pair<uint32_t, MetadataObjectInfo>(objectInfo.id,
                                                         objectInfo));
 }
 
-MetadataObjectInfo *ObjectsMetadataHandler::getObjectInfo(uint16_t objectId) {
+MetadataObjectInfo *ObjectsMetadataHandler::getObjectInfo(uint32_t objectId) {
   auto it = objectsMap_.find(objectId);
   if (it != objectsMap_.end()) {
     return &(it->second);

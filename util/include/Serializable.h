@@ -31,8 +31,8 @@ namespace concordSerializable {
 
 class Serializable;
 
-typedef std::unique_ptr<char> UniquePtrToChar;
-typedef std::unique_ptr<unsigned char> UniquePtrToUChar;
+typedef std::unique_ptr<char[], std::default_delete<char[]>> UniquePtrToChar;
+typedef std::unique_ptr<unsigned char[], std::default_delete<unsigned char[]>> UniquePtrToUChar;
 typedef std::shared_ptr<Serializable> SharedPtrToClass;
 
 class MemoryBasedBuf : public std::basic_streambuf<char> {
