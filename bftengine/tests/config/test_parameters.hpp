@@ -37,9 +37,10 @@ struct ReplicaParams {
   bool viewChangeEnabled = false;
   uint32_t viewChangeTimeout = 60000; // ms
   uint16_t statusReportTimerMillisec = 20 * 1000; // ms
-  std::string   configFileName;
-  std::string   keysFilePrefix;
+  std::string configFileName;
+  std::string keysFilePrefix;
   bool useFileForPersistency = false;
+  uint16_t replicaBehavior = 0;
 };
 
 #endif //CONCORD_BFT_TEST_PARAMETERS_HPP
