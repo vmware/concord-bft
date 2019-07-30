@@ -34,7 +34,6 @@
 #include "SimpleBCStateTransfer.hpp"
 #include "InMemoryDBClient.h"
 #include "KeyfileIOUtils.hpp"
-#include "FileStorage.hpp"
 #include "Logger.hpp"
 
 using namespace bftEngine;
@@ -777,20 +776,11 @@ IReplica* createReplica(const ReplicaConfig& c,
 		RequestsHandlerImp* reqHandler = new RequestsHandlerImp();
 		reqHandler->m_Executor = r;
 
-                // Use a file for persistence
-                std::ostringstream dbFile;
-                dbFile << "SimpleKVBCTest" << replicaConfig.replicaId << ".txt";
-                remove(dbFile.str().c_str());
-                concordlogger::Logger replicaLogger = 
-                  concordlogger::Log::getLogger("simpletest.replica");
-
-                MetadataStorage *fileStorage = new FileStorage(replicaLogger, dbFile.str());
-
 		Replica* replica = Replica::createNewReplica(&replicaConfig,
 			reqHandler,
 			stateTransfer,
 			comm,
-			fileStorage);
+			nullptr);
                 replica->SetAggregator(aggregator);
 
 		r->m_replica = replica;
