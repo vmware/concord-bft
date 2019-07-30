@@ -33,6 +33,8 @@ class FileStorage : public MetadataStorage {
   bool initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray,
                             uint32_t metadataObjectsArrayLength) override;
 
+  bool isNewStorage() override;
+
   void read(uint32_t objectId, uint32_t bufferSize,
             char *outBufferForObject,
             uint32_t &outActualObjectSize) override;

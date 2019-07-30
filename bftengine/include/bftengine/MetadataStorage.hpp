@@ -28,9 +28,13 @@ class MetadataStorage {
   virtual ~MetadataStorage() = default;
 
   // Initialize the storage before the first time used. In case storage is already initialized, do nothing.
-  // Return boolean saying whether been initialized or not (the IDs and their maximal size are known in advance).
+  // Return 'true' in case DB was virgin (not initialized) before a call to this function
+  // (the IDs and their maximal size are known in advance).
   virtual bool initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray,
                                     uint32_t metadataObjectsArrayLength) = 0;
+
+  // Return 'true' in case DB is virgin (not initialized).
+  virtual bool isNewStorage() = 0;
 
   // Read object from storage (only used to restart/recovery)
   virtual void read(uint32_t objectId,
