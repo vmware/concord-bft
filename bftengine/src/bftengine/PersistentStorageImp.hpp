@@ -215,7 +215,8 @@ class PersistentStorageImp : public PersistentStorage {
   bool hasDescriptorOfLastNewView_ = false;
   bool hasDescriptorOfLastExecution_ = false;
 
-  DescriptorOfLastExecution descriptorOfLastExecution_ = DescriptorOfLastExecution{0, Bitmap()};
+  const DescriptorOfLastExecution emptyDescriptorOfLastExecution_ = DescriptorOfLastExecution{0, Bitmap()};
+  DescriptorOfLastExecution descriptorOfLastExecution_ = emptyDescriptorOfLastExecution_;
 
   // Parameters to be saved persistently
   std::string version_;

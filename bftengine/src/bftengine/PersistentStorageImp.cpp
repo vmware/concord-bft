@@ -42,6 +42,9 @@ bool PersistentStorageImp::init(unique_ptr<MetadataStorage> metadataStorage) {
     if (!getStoredVersion().empty()) {
       LOG_INFO_F(GL, "PersistentStorageImp::init version=%s", version_.c_str());
       retrieveWindowsMetadata();
+      // Retrieve metadata parameters stored in the memory
+      getReplicaConfig();
+      getDescriptorOfLastExecution();
       return false;
     }
   } catch (const runtime_error &exc) {}
@@ -643,7 +646,7 @@ DescriptorOfLastExecution PersistentStorageImp::getDescriptorOfLastExecution() {
   metadataStorage_->read(LAST_EXEC_DESC, maxSize, buf.get(), actualSize);
   dbDesc.deserialize(buf.get(), maxSize, actualSize);
   Assert(actualSize != 0);
-  if (!dbDesc.equals(DescriptorOfLastExecution{0, Bitmap()})) {
+  if (!dbDesc.equals(emptyDescriptorOfLastExecution_)) {
     descriptorOfLastExecution_ = dbDesc;
     hasDescriptorOfLastExecution_ = true;
   }
@@ -675,8 +678,6 @@ bool PersistentStorageImp::hasDescriptorOfLastNewView() {
 }
 
 bool PersistentStorageImp::hasDescriptorOfLastExecution() {
-  if (descriptorOfLastExecution_.equals(DescriptorOfLastExecution{0, Bitmap()}))
-    getDescriptorOfLastExecution();
   return hasDescriptorOfLastExecution_;
 }
 
