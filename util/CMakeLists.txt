@@ -3,8 +3,6 @@ find_package(Threads REQUIRED)
 
 add_library(util STATIC src/Metrics.cpp src/MetricsServer.cpp src/SimpleThreadPool.cpp src/Serializable.cpp src/histogram.cpp include/misc.hpp)
 
-TARGET_COMPILE_DEFINITIONS(util PUBLIC DEFAULT_LOGGER_NAME="${CONCORD_LOGGER_NAME}")
-
 target_link_libraries(util PUBLIC Threads::Threads)
 target_include_directories(util PUBLIC include)
 
