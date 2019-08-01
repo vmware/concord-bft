@@ -13,6 +13,7 @@
 #include "IStateTransfer.hpp"
 #include "assertUtils.hpp"
 #include "Logger.hpp"
+#include "ReplicaConfigSingleton.hpp"
 
 namespace bftEngine
 {
@@ -43,8 +44,8 @@ namespace bftEngine
 				idx++;
 			}
 
-			reservedPagesPerClient_ = maxReplyMessageSize / sizeOfReservedPage;
-			if (maxReplyMessageSize % sizeOfReservedPage != 0) reservedPagesPerClient_++;
+			reservedPagesPerClient_ = ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize() / sizeOfReservedPage;
+			if (ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize() % sizeOfReservedPage != 0) reservedPagesPerClient_++;
 
 			uint16_t numOfClients = (uint16_t)clientsSet.size();
 
@@ -88,7 +89,7 @@ namespace bftEngine
 				Assert(replyHeader->msgType == 0 || replyHeader->msgType == MsgCode::Reply);
 				Assert(replyHeader->currentPrimaryId == 0);
 				Assert(replyHeader->replyLength >= 0);
-				Assert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader)  <= maxReplyMessageSize);
+				Assert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader)  <= ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize());
 
 				ClientInfo& ci = indexToClientInfo_.at(e.second);
 				ci.lastSeqNumberOfReply = replyHeader->reqSeqNum;
@@ -195,7 +196,7 @@ namespace bftEngine
 			Assert(replyHeader->msgType == MsgCode::Reply); 
 			Assert(replyHeader->currentPrimaryId == 0);
 			Assert(replyHeader->replyLength > 0);
-			Assert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <= maxReplyMessageSize);
+			Assert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <= ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize());
 
 			uint32_t replyMsgSize = sizeof(ClientReplyMsgHeader) + replyHeader->replyLength;
 

@@ -17,7 +17,6 @@
 #include "PersistentStorageImp.hpp"
 
 #include <mutex>
-#include <zconf.h>
 
 namespace bftEngine {
 namespace impl {
@@ -96,7 +95,7 @@ void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
   Assert(loadErrCode == ReplicaLoader::ErrorCode::Success);
 
   rep = new ReplicaImp(ld, requestsHandler, stateTransfer, comm, persistentStorage);
-  
+
   rep->start();
 }
 }
@@ -130,13 +129,14 @@ Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
     if (metadataStorage == nullptr)
       persistentStoragePtr.reset(new impl::DebugPersistentStorage(replicaConfig->fVal, replicaConfig->cVal));
 
+  // Testing/real metadataStorage passed.
   if (metadataStorage != nullptr) {
     persistentStoragePtr.reset(new impl::PersistentStorageImp(replicaConfig->fVal, replicaConfig->cVal));
-    shared_ptr<MetadataStorage> metadataStoragePtr(metadataStorage);
+    unique_ptr<MetadataStorage> metadataStoragePtr(metadataStorage);
     auto objectDescriptors =
         ((PersistentStorageImp *) persistentStoragePtr.get())->getDefaultMetadataObjectDescriptors(numOfObjects);
     isNewStorage = metadataStoragePtr->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);
-    ((PersistentStorageImp *) persistentStoragePtr.get())->init(metadataStoragePtr);
+    ((PersistentStorageImp *) persistentStoragePtr.get())->init(move(metadataStoragePtr));
   }
 
   auto *replicaInternal = new ReplicaInternal();

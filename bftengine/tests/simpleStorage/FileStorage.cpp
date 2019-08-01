@@ -48,7 +48,7 @@ FileStorage::~FileStorage() {
 }
 
 void FileStorage::loadFileMetadata() {
-  uint16_t objectsNum = 0;
+  uint32_t objectsNum = 0;
   const size_t sizeOfObjectsNum = sizeof(objectsNum);
   read(&objectsNum, 0, sizeOfObjectsNum, 1, WRONG_NUM_OF_OBJ_READ);
   LOG_DEBUG(logger_, "FileStorage::readFileMetadata objectsNum=" << objectsNum);
@@ -56,7 +56,7 @@ void FileStorage::loadFileMetadata() {
     objectsMetadata_ = new ObjectsMetadataHandler(objectsNum);
     MetadataObjectInfo objectInfo;
     size_t readOffset = sizeOfObjectsNum;
-    for (auto i = 0; i < objectsNum; i++) {
+    for (uint32_t i = initializedObjectId_ + 1; i < objectsNum; i++) {
       read(&objectInfo, readOffset, sizeof(objectInfo), 1, WRONG_OBJ_INFO_READ);
       readOffset += sizeof(objectInfo);
       objectsMetadata_->setObjectInfo(objectInfo);
@@ -70,7 +70,7 @@ void FileStorage::updateFileObjectMetadata(MetadataObjectInfo &objectInfo) {
 }
 
 void FileStorage::writeFileObjectsMetadata() {
-  const uint16_t objectsNum = objectsMetadata_->getObjectsNum();
+  const uint32_t objectsNum = objectsMetadata_->getObjectsNum();
   size_t writeOffset = sizeof(objectsNum);
   for (auto it : objectsMetadata_->getObjectsMap()) {
     MetadataObjectInfo &objectInfo = it.second;
@@ -80,7 +80,7 @@ void FileStorage::writeFileObjectsMetadata() {
 }
 
 void FileStorage::writeFileMetadata() {
-  uint16_t objectsNum = objectsMetadata_->getObjectsNum();
+  uint32_t objectsNum = objectsMetadata_->getObjectsNum();
   write(&objectsNum, 0, sizeof(objectsNum), 1, WRONG_NUM_OF_OBJ_WRITE);
   writeFileObjectsMetadata();
 }
@@ -104,7 +104,7 @@ void FileStorage::write(void *dataPtr, size_t offset, size_t itemSize,
     fflush(dataStream_);
 }
 
-bool FileStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint16_t metadataObjectsArrayLength) {
+bool FileStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint32_t metadataObjectsArrayLength) {
   if (objectsMetadata_) {
     LOG_WARN(logger_, "FileStorage::initMaxSizeOfObjects Storage file already initialized; ignoring");
     return false;
@@ -114,7 +114,8 @@ bool FileStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint16_
   LOG_INFO(logger_, "FileStorage::initMaxSizeOfObjects objectsNum=" << objectsMetadata_->getObjectsNum());
   uint64_t objMetaOffset = sizeof(objectsMetadata_->getObjectsNum());
   uint64_t objOffset = fileMetadataSize;
-  for (auto i = 0; i < metadataObjectsArrayLength; i++) {
+  // Metadata object with id=0 is used to indicate storage initialization state (not used by FileStorage).
+  for (uint32_t i = initializedObjectId_ + 1; i < metadataObjectsArrayLength; i++) {
     MetadataObjectInfo objectInfo(metadataObjectsArray[i].id, objMetaOffset,
                                   objOffset, metadataObjectsArray[i].maxSize);
     objMetaOffset += sizeof(objectInfo);
@@ -138,7 +139,7 @@ void FileStorage::verifyFileMetadataSetup() const {
   }
 }
 
-void FileStorage::verifyOperation(uint16_t objectId, uint32_t dataLen, const char *buffer) const {
+void FileStorage::verifyOperation(uint32_t objectId, uint32_t dataLen, const char *buffer) const {
   verifyFileMetadataSetup();
   MetadataObjectInfo *objectInfo = objectsMetadata_->getObjectInfo(objectId);
   if (objectInfo && objectId <= (objectsMetadata_->getObjectsNum() - 1) &&
@@ -160,7 +161,7 @@ void FileStorage::verifyOperation(uint16_t objectId, uint32_t dataLen, const cha
   throw runtime_error(WRONG_PARAMETER);
 }
 
-void FileStorage::handleObjectWrite(uint16_t objectId, void *dataPtr, uint32_t objectSize, bool toFlush) {
+void FileStorage::handleObjectWrite(uint32_t objectId, void *dataPtr, uint32_t objectSize, bool toFlush) {
   MetadataObjectInfo *objectInfo = objectsMetadata_->getObjectInfo(objectId);
   if (objectInfo) {
     write(dataPtr, objectInfo->offset, objectSize, 1, FAILED_TO_WRITE_OBJECT, toFlush);
@@ -172,7 +173,7 @@ void FileStorage::handleObjectWrite(uint16_t objectId, void *dataPtr, uint32_t o
   }
 }
 
-void FileStorage::handleObjectRead(uint16_t objectId, char *outBufferForObject, uint32_t &outActualObjectSize) {
+void FileStorage::handleObjectRead(uint32_t objectId, char *outBufferForObject, uint32_t &outActualObjectSize) {
   MetadataObjectInfo *objectInfo = objectsMetadata_->getObjectInfo(objectId);
   if (objectInfo) {
     read(outBufferForObject, objectInfo->offset, objectInfo->realSize, 1, FAILED_TO_READ_OBJECT);
@@ -181,7 +182,7 @@ void FileStorage::handleObjectRead(uint16_t objectId, char *outBufferForObject, 
   }
 }
 
-void FileStorage::read(uint16_t objectId, uint32_t bufferSize, char *outBufferForObject,
+void FileStorage::read(uint32_t objectId, uint32_t bufferSize, char *outBufferForObject,
                        uint32_t &outActualObjectSize) {
   LOG_DEBUG(logger_, "FileStorage::read objectId=" << objectId << ", bufferSize=" << bufferSize);
   lock_guard<mutex> lock(ioMutex_);
@@ -189,7 +190,7 @@ void FileStorage::read(uint16_t objectId, uint32_t bufferSize, char *outBufferFo
   handleObjectRead(objectId, outBufferForObject, outActualObjectSize);
 }
 
-void FileStorage::atomicWrite(uint16_t objectId, char *data, uint32_t dataLength) {
+void FileStorage::atomicWrite(uint32_t objectId, char *data, uint32_t dataLength) {
   LOG_DEBUG(logger_, "FileStorage::atomicWrite objectId=" << objectId << ", dataLength=" << dataLength);
   lock_guard<mutex> lock(ioMutex_);
   verifyOperation(objectId, dataLength, data);
@@ -207,7 +208,7 @@ void FileStorage::beginAtomicWriteOnlyTransaction() {
   transaction_ = new ObjectIdToRequestMap;
 }
 
-void FileStorage::writeInTransaction(uint16_t objectId, char *data, uint32_t dataLength) {
+void FileStorage::writeInTransaction(uint32_t objectId, char *data, uint32_t dataLength) {
   LOG_DEBUG(logger_, "FileStorage::writeInTransaction objectId=" << objectId << ", dataLength=" << dataLength);
   lock_guard<mutex> lock(ioMutex_);
   verifyOperation(objectId, dataLength, data);
@@ -215,12 +216,11 @@ void FileStorage::writeInTransaction(uint16_t objectId, char *data, uint32_t dat
     LOG_ERROR(logger_, "FileStorage::writeInTransaction " << WRONG_FLOW);
     throw runtime_error(WRONG_FLOW);
   }
-  std::unique_ptr<char> buf(new char[dataLength]);
-  memcpy(buf.get(), data, dataLength);
+
   auto it = transaction_->find(objectId);
   if (it != transaction_->end())
     transaction_->erase(it);
-  transaction_->insert(pair<uint16_t, RequestInfo>(objectId, RequestInfo(buf, dataLength)));
+  transaction_->insert(pair<uint32_t, RequestInfo>(objectId, RequestInfo(data, dataLength)));
 }
 
 void FileStorage::commitAtomicWriteOnlyTransaction() {

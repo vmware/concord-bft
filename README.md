@@ -28,8 +28,11 @@ Blockchains](https://arxiv.org/pdf/1804.01626.pdf).
 Releases
 ----
 
- [v0.5](https://github.com/vmware/concord-bft/releases/tag/v0.5)
+We abide by [semantic versioning](https://semver.org/). Public APIs can change
+at any time until we reach version 1.0. We will, however, bump the minor version
+when a backwards incompatible change is made.
 
+ [v0.5](https://github.com/vmware/concord-bft/releases/tag/v0.5)
 
 Roadmap
 ----

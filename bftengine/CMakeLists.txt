@@ -17,6 +17,7 @@ set(corebft_source_files
     src/bftengine/SeqNumInfo.cpp
     src/bftengine/SignedShareMsgs.cpp
     src/bftengine/ReplicaImp.cpp
+    src/bftengine/ReplicaConfigSingleton.cpp
     src/bftengine/ClientReplyMsg.cpp
     src/bftengine/ReqMissingDataMsg.cpp
     src/bftengine/ClientRequestMsg.cpp

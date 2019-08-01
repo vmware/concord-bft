@@ -229,11 +229,11 @@ BNT BNT::invertModPrime(const BNT& p) const {
 void G1T::toBytes(unsigned char * buf, int size) const {
     assertGreaterThanOrEqual(size, getByteCount());
     g1_write_bin(buf, size, n, 1);
-    //LOG_DEBUG(GL, "Wrote G1T of " << size << " bytes");
+    //LOG_TRACE(GL, "Wrote G1T of " << size << " bytes");
 }
 
 void G1T::fromBytes(const unsigned char * buf, int size) {
-    //LOG_DEBUG(GL, "Reading G1T of " << size << " bytes");
+    //LOG_TRACE(GL, "Reading G1T of " << size << " bytes");
     g1_read_bin(n, buf, size);
 }
 

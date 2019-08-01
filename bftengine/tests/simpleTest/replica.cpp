@@ -58,7 +58,7 @@
 #include "test_comm_config.hpp"
 #include "test_parameters.hpp"
 #include "simple_test_replica.hpp"
-#include "Logging.hpp"
+#include "Logger.hpp"
 #include "simple_test_replica_behavior.hpp"
 
 #ifdef USE_LOG4CPP

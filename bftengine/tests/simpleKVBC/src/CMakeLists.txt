@@ -12,8 +12,11 @@ set(simpleKVBC_sources
 )
 
 add_library(simpleKVBC ${simpleKVBC_sources})
-target_link_libraries(simpleKVBC PUBLIC corebft threshsign util)
+target_link_libraries(simpleKVBC PUBLIC corebft threshsign util
+    simple_file_storage_lib)
 
 target_include_directories(simpleKVBC PUBLIC .)
 target_include_directories(simpleKVBC PUBLIC ../../../../tools)
 target_include_directories(simpleKVBC PUBLIC ../include)
+target_include_directories(simpleKVBC PUBLIC ${bftengine_SOURCE_DIR}/tests/simpleStorage)
+

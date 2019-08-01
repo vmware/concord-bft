@@ -92,8 +92,6 @@ class BCStateTran : public IStateTransfer {
 
   static const uint64_t kMaxNumOfStoredCheckpoints = 10;
 
-  static const uint32_t kSizeOfReservedPage = 4 * 1024;
-
   static const uint16_t kMaxVBlocksInCache = 28;  // TBD
 
   static const uint32_t kResetCount_AskForCheckpointSummaries = 4;  // TBD
@@ -118,6 +116,7 @@ class BCStateTran : public IStateTransfer {
   const uint32_t maxPendingDataFromSourceReplica_;
 
   const uint32_t maxNumOfReservedPages_;
+  const uint32_t sizeOfReservedPage_;
   const uint32_t refreshTimerMilli_;
   const uint32_t checkpointSummariesRetransmissionTimeoutMilli_;
   const uint32_t maxAcceptableMsgDelayMilli_;
@@ -330,7 +329,7 @@ class BCStateTran : public IStateTransfer {
 
   static void computeDigestOfPage(
              const uint32_t pageId, const uint64_t checkpointNumber,
-             const char* page, STDigest& outDigest);
+             const char* page, uint32_t pageSize, STDigest& outDigest);
 
   static void computeDigestOfPagesDescriptor(
              const DataStore::ResPagesDescriptor* pagesDesc,

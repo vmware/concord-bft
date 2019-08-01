@@ -48,7 +48,7 @@ public:
     return 0;
   }
 
-  virtual void on_restarted(){};
+  virtual void on_restarted() override {};
 
   explicit DefaultReplicaBehavior(ReplicaParams &rp) 
   : ISimpleTestReplicaBehavior{rp} {}
@@ -174,7 +174,7 @@ public:
     return (rand() % 20 + 80) * 1000;
   }
 
-  virtual void on_restarted() {
+  virtual void on_restarted() override {
     update_next_down_time();
   }
 

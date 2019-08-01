@@ -257,7 +257,8 @@ namespace bftEngine
 
 				const Time currTime = getMonotonicTime();
 
-				if (timeoutMilli != INFINITE_TIMEOUT && (uint64_t)absDifference(beginTime, currTime) > timeoutMilli)
+                                // absDifference returns microseconds, so scale up timeoutMilli to match
+				if (timeoutMilli != INFINITE_TIMEOUT && (uint64_t)absDifference(beginTime, currTime) > timeoutMilli * 1000)
 				{
 					requestTimeout = true;
 					break;

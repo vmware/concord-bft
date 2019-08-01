@@ -17,6 +17,7 @@
 #else
 #include <sys/time.h>
 #endif
+#include <inttypes.h>
 #include <stdio.h>
 #include "MsgCode.hpp"
 
@@ -86,6 +87,7 @@ namespace bftEngine
 			fprintf(stdout, "numberOfReceivedSTMessages = %zd\t", d.numberOfReceivedSTMessages);
 			fprintf(stdout, "numberOfReceivedStatusMessages = %zd\t", d.numberOfReceivedStatusMessages);
 			fprintf(stdout, "numberOfReceivedCommitMessages = %zd\t", d.numberOfReceivedCommitMessages);
+			fprintf(stdout, "lastExecutedSeqNumber = %lld\t", d.lastExecutedSequenceNumber);
 			fprintf(stdout, "\n");
 
 			if (d.completedReadOnlyRequests > 0 || d.completedReadWriteRequests > 0)
@@ -147,6 +149,12 @@ namespace bftEngine
 			else d.completedReadWriteRequests++;
 		}
 
+		void DebugStatistics::onLastExecutedSequenceNumberChanged(int64_t newNumber)
+		{
+			DebugStatDesc& d = getDebugStatDesc();
+			d.lastExecutedSequenceNumber = newNumber;
+		}
+
 		void DebugStatistics::clearCounters(DebugStatDesc& d)
 		{
 			d.receivedMessages = 0;
@@ -156,6 +164,7 @@ namespace bftEngine
 			d.numberOfReceivedSTMessages = 0;
 			d.numberOfReceivedStatusMessages = 0;
 			d.numberOfReceivedCommitMessages = 0;
+			d.lastExecutedSequenceNumber = 0;
 		}
 
 #ifdef USE_TLS

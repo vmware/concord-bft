@@ -72,6 +72,14 @@ struct ReplicaConfig {
   IThresholdVerifier *thresholdVerifierForOptimisticCommit = nullptr;
 
   bool usePedanticPersistencyChecks = false;
+
+  // Messages
+  uint32_t maxExternalMessageSize = 1 << 16;
+  uint32_t maxReplyMessageSize = 1 << 13;
+
+  // StateTransfer
+  uint32_t maxNumOfReservedPages = 1 << 11;
+  uint32_t sizeOfReservedPage = 1 << 12;
 };
 
 }

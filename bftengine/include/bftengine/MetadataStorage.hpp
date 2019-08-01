@@ -21,29 +21,31 @@ namespace bftEngine {
 class MetadataStorage {
  public:
   struct ObjectDesc {
-    uint16_t id;
+    uint32_t id;
     uint32_t maxSize;
   };
+
+  virtual ~MetadataStorage() = default;
 
   // Initialize the storage before the first time used. In case storage is already initialized, do nothing.
   // Return boolean saying whether been initialized or not (the IDs and their maximal size are known in advance).
   virtual bool initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray,
-                                    uint16_t metadataObjectsArrayLength) = 0;
+                                    uint32_t metadataObjectsArrayLength) = 0;
 
   // Read object from storage (only used to restart/recovery)
-  virtual void read(uint16_t objectId,
+  virtual void read(uint32_t objectId,
                     uint32_t bufferSize,
                     char *outBufferForObject,
                     uint32_t &outActualObjectSize) = 0;
 
   // Atomically write an object to storage
-  virtual void atomicWrite(uint16_t objectId,
+  virtual void atomicWrite(uint32_t objectId,
                            char *data,
                            uint32_t dataLength) = 0;
 
   // Atomic write-only transactions
   virtual void beginAtomicWriteOnlyTransaction() = 0;
-  virtual void writeInTransaction(uint16_t objectId,
+  virtual void writeInTransaction(uint32_t objectId,
                                   char *data,
                                   uint32_t dataLength) = 0;
   virtual void commitAtomicWriteOnlyTransaction() = 0;

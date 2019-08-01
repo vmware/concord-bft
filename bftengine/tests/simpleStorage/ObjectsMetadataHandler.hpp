@@ -18,24 +18,24 @@
 
 namespace bftEngine {
 
-typedef std::map<uint16_t, MetadataObjectInfo> MetadataObjectIdToInfoMap;
+typedef std::map<uint32_t, MetadataObjectInfo> MetadataObjectIdToInfoMap;
 
 // This class represents a memory copy of objects metadata information stored
 // in the beginning of the DB file.
 class ObjectsMetadataHandler {
  public:
-  explicit ObjectsMetadataHandler(uint16_t objectsNum)
+  explicit ObjectsMetadataHandler(uint32_t objectsNum)
       : objectsNum_(objectsNum) {}
 
   size_t getObjectsMetadataSize();
   void setObjectInfo(const MetadataObjectInfo &objectInfo);
-  MetadataObjectInfo *getObjectInfo(uint16_t objectId);
-  uint16_t getObjectsNum() const { return objectsNum_; }
+  MetadataObjectInfo *getObjectInfo(uint32_t objectId);
+  uint32_t getObjectsNum() const { return objectsNum_; }
   MetadataObjectIdToInfoMap getObjectsMap() const { return objectsMap_; }
   friend std::ostream &operator<<(std::ostream &stream,
                                   const ObjectsMetadataHandler &fileMetadata);
  private:
-  uint16_t objectsNum_;
+  uint32_t objectsNum_;
   MetadataObjectIdToInfoMap objectsMap_;
 };
 

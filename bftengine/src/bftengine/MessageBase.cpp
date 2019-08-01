@@ -10,6 +10,7 @@
 
 #include "MessageBase.hpp"
 #include "assertUtils.hpp"
+#include "ReplicaConfigSingleton.hpp"
 
 #ifdef DEBUG_MEMORY_MSG
 #include <set>
@@ -169,7 +170,7 @@ MessageBase *MessageBase::createObjAndMsgFromLocalBuffer(char *buffer,
   RawHeaderOfObjAndMsg *pHeader = (RawHeaderOfObjAndMsg *) buffer;
   if (pHeader->magicNum != magicNumOfRawFormat) return nullptr;
   if (pHeader->msgSize == 0) return nullptr;
-  if (pHeader->msgSize > maxExternalMessageSize) return nullptr;
+  if (pHeader->msgSize > ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize()) return nullptr;
   if (pHeader->msgSize + sizeof(RawHeaderOfObjAndMsg) > bufferLength)
     return nullptr;
 

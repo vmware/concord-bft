@@ -27,9 +27,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CXX_FLAGS_INTEGER_CORRECTNESS
     "-Wconversion -Wsign-conversion")
 
-set(CXX_FLAGS_OPTIMIZATIONS "-O3")
-
-string(APPEND CXX_FLAGS " ${CXX_FLAGS_OPTIMIZATIONS}")
 string(APPEND CXX_FLAGS " ${CXX_FLAGS_INTEGER_CORRECTNESS}")
 # TODO: use target_compile_features instead:
 #   https://cmake.org/cmake/help/v3.1/command/target_compile_features.html#command:target_compile_features

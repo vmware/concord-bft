@@ -40,13 +40,13 @@ class PersistencyTest: public testing::Test
   void create_client(int numOfOperations) {
     ClientParams cp;
     cp.numOfOperations = numOfOperations;
-    bftEngine::SimpleClientParams scp;
     client = new SimpleTestClient(cp, clientLogger);
   }
 
   void create_and_run_replica(
     ReplicaParams rp, ISimpleTestReplicaBehavior *behv) {
       rp.keysFilePrefix = "private_replica_";
+      rp.persistencyMode = PersistencyMode::InMemory;
       SimpleTestReplica *replica = SimpleTestReplica::create_replica(
         behv, rp, nullptr);
       replicas.push_back(replica);
@@ -93,6 +93,7 @@ TEST_F(PersistencyTest, Replica2RestartNoVC) {
 }
 */
 
+/*
 TEST_F(PersistencyTest, AllReplicasRestartNoVC) {
   create_client(20000);
   
@@ -105,6 +106,7 @@ TEST_F(PersistencyTest, AllReplicasRestartNoVC) {
 
   ASSERT_TRUE(client->run());
 }
+ */
 
 TEST_F(PersistencyTest, PrimaryRestartVC) {
   create_client(20000);

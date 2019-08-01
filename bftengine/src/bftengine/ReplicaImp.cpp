@@ -28,6 +28,7 @@
 #include "ReplicaStatusMsg.hpp"
 #include "NullStateTransfer.hpp"
 #include "SysConsts.hpp"
+#include "ReplicaConfigSingleton.hpp"
 
 namespace bftEngine
 {
@@ -248,7 +249,7 @@ namespace bftEngine
 			const char* const message,
 			const size_t messageLength)
 		{
-			if (messageLength > maxExternalMessageSize) return;
+			if (messageLength > ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize()) return;
 			if (messageLength < sizeof(MessageBase::Header)) return;
 
 			MessageBase::Header* msgBody = (MessageBase::Header*)std::malloc(messageLength);
@@ -610,7 +611,7 @@ namespace bftEngine
 				if (absDifference(currTime, timeOfPartProof) < controller->timeToStartSlowPathMilli() * 1000)
 					break; // don't try the next seq numbers
 
-				LOG_INFO_F(GL, "Primary initiates slow path for seqNum=%" PRId64 " (currTime=%ld timeOfPartProof=%ld",
+				LOG_INFO_F(GL, "Primary initiates slow path for seqNum=%" PRId64 " (currTime=%" PRIu64 " timeOfPartProof=%" PRIu64,
 				           i, currTime, timeOfPartProof);
 
 				controller->onStartingSlowCommit(i);
@@ -2014,7 +2015,7 @@ namespace bftEngine
 			}
 
 			LOG_INFO_F(GL, "**************** In onNewView curView=%" PRId64 " (num of PPs=%ld, first safe seq=%" PRId64 ","
-                       " last safe seq=%" PRId64 ", lastStableSeqNum=%ld, lastExecutedSeqNum=%" PRId64 ","
+                       " last safe seq=%" PRId64 ", lastStableSeqNum=%" PRId64 ", lastExecutedSeqNum=%" PRId64 ","
                        "stableLowerBoundWhenEnteredToView= %" PRId64 ")",
 				       curView, prePreparesForNewView.size(), firstPPSeq, lastPPSeq,
 				       lastStableSeqNum, lastExecutedSeqNum, viewsManager->stableLowerBoundWhenEnteredToView());
@@ -2233,16 +2234,16 @@ namespace bftEngine
 				if (ps_) ps_->endWriteTran();
 				return;
 			}
-
+			lastExecutedSeqNum = newStateCheckpoint;
+			metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
+			if (ps_)
+			  ps_->setLastExecutedSeqNum(lastExecutedSeqNum);
+#ifdef DEBUG_STATISTICS
+			DebugStatistics::onLastExecutedSequenceNumberChanged(lastExecutedSeqNum);
+#endif
 			bool askAnotherStateTransfer = false;
 
 			timeOfLastStateSynch = getMonotonicTime(); // TODO(GG): handle restart/pause
-
-			lastExecutedSeqNum = newStateCheckpoint;
-			metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
-
-			if (ps_)
-				ps_->setLastExecutedSeqNum(lastExecutedSeqNum);
 
 			clientsManager->loadInfoFromReservedPages();
 
@@ -2352,10 +2353,11 @@ namespace bftEngine
 				if (lastStableSeqNum > lastExecutedSeqNum)
 				{
 					lastExecutedSeqNum = lastStableSeqNum;
-
 					if (ps_) ps_->setLastExecutedSeqNum(lastExecutedSeqNum);
-                	metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
-
+					metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
+#ifdef DEBUG_STATISTICS
+					DebugStatistics::onLastExecutedSequenceNumberChanged(lastExecutedSeqNum);
+#endif
 					clientsManager->loadInfoFromReservedPages();
 				}
 
@@ -2696,8 +2698,7 @@ namespace bftEngine
 
 		void ReplicaImp::onMetricsTimer(Time cTime, Timer& timer)
 		{
-		    // TODO: This code throws out_of_range exception when called during restartForDebug : fix it.
-			// metrics_.UpdateAggregator();
+			metrics_.UpdateAggregator();
 		}
 
 		void ReplicaImp::onMessage(SimpleAckMsg* msg)
@@ -3058,8 +3059,8 @@ namespace bftEngine
 			mainLog{ nullptr },
 			checkpointsLog{ nullptr },
 			clientsManager{ nullptr },
-			replyBuffer{ (char*)std::malloc(maxReplyMessageSize - sizeof(ClientReplyMsgHeader)) },
-			stateTransfer{ (stateTrans != nullptr ? stateTrans : new NullStateTransfer()) },
+			replyBuffer{ (char*)std::malloc(config.maxReplyMessageSize - sizeof(ClientReplyMsgHeader)) },
+			stateTransfer{ (stateTrans !=nullptr ? stateTrans : new NullStateTransfer()) },
 			maxNumberOfPendingRequestsInRecentHistory{ 0 },
 			batchingFactor{ 1 },
 			userRequestsHandler{ requestsHandler },
@@ -3114,6 +3115,9 @@ namespace bftEngine
 			metric_received_simple_acks_{metrics_.RegisterCounter("receivedSimpleAckMsgs")},
 			metric_received_state_transfers_{metrics_.RegisterCounter("receivedStateTransferMsgs")}
 		{
+			// Initialize the config singleton
+			ReplicaConfigSingleton::GetInstance(&config);
+
 			Assert(myReplicaId < numOfReplicas);
 			// TODO(GG): more asserts on params !!!!!!!!!!!
 
@@ -3122,22 +3126,20 @@ namespace bftEngine
 
 			DebugStatistics::initDebugStatisticsData();
 
-            if (firstTime) {
-			  std::set<SigManager::PublicKeyDesc> replicasSigPublicKeys;
+			// Register metrics component with the default aggregator.
+			metrics_.Register();
 
-            // Register metrics component with the default aggregator.
-            metrics_.Register();
+			if (firstTime) {
+				std::set<SigManager::PublicKeyDesc> replicasSigPublicKeys;
 
-			for (auto e : config.publicKeysOfReplicas)
-			{
-				SigManager::PublicKeyDesc keyDesc = { e.first, e.second };
-				replicasSigPublicKeys.insert(keyDesc);
-			}
+				for (auto e : config.publicKeysOfReplicas)
+				{
+				    SigManager::PublicKeyDesc keyDesc = { e.first, e.second };
+				    replicasSigPublicKeys.insert(keyDesc);
+				}
 
-			sigManager = new SigManager(myReplicaId, numOfReplicas + numOfClientProxies, config.replicaPrivateKey, replicasSigPublicKeys);
-
+				sigManager = new SigManager(myReplicaId, numOfReplicas + numOfClientProxies, config.replicaPrivateKey, replicasSigPublicKeys);
 				repsInfo = new ReplicasInfo(myReplicaId, *sigManager, numOfReplicas, fVal, cVal, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
-
 				viewsManager = new ViewsManager(repsInfo, thresholdVerifierForSlowPathCommit);
 			}
 			else
@@ -3154,10 +3156,10 @@ namespace bftEngine
 			std::set<NodeIdType> clientsSet;
 			for (uint16_t i = numOfReplicas; i < numOfReplicas + numOfClientProxies; i++) clientsSet.insert(i);
 
-			clientsManager = new ClientsManager(myReplicaId, clientsSet, sizeOfReservedPage);
+			clientsManager = new ClientsManager(myReplicaId, clientsSet, ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage());
 
 			if (firstTime || !config.usePedanticPersistencyChecks) {
-			stateTransfer->init(kWorkWindowSize / checkpointWindowSize + 1, clientsManager->numberOfRequiredReservedPages(), sizeOfReservedPage);
+              stateTransfer->init(kWorkWindowSize / checkpointWindowSize + 1, clientsManager->numberOfRequiredReservedPages(), ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage());
 			}
 			else // !firstTime && debugPersistentStorageEnabled
 			{
@@ -3532,7 +3534,7 @@ namespace bftEngine
           userRequestsHandler->execute(
               clientId, lastExecutedSeqNum + 1, req.isReadOnly(),
               req.requestLength(), req.requestBuf(),
-              maxReplyMessageSize - sizeof(ClientReplyMsgHeader),
+						ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize() - sizeof(ClientReplyMsgHeader),
               replyBuffer, actualReplyLength);
 
           Assert(actualReplyLength > 0); // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
@@ -3569,8 +3571,10 @@ namespace bftEngine
       lastExecutedSeqNum = lastExecutedSeqNum + 1;
 
       metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
-
-      if (lastViewThatTransferredSeqNumbersFullyExecuted < curView && (lastExecutedSeqNum >= maxSeqNumTransferredFromPrevViews)) {
+#ifdef DEBUG_STATISTICS
+          DebugStatistics::onLastExecutedSequenceNumberChanged(lastExecutedSeqNum);
+#endif
+			if (lastViewThatTransferredSeqNumbersFullyExecuted < curView && (lastExecutedSeqNum >= maxSeqNumTransferredFromPrevViews)) {
         lastViewThatTransferredSeqNumbersFullyExecuted = curView;
         if (ps_) {
           ps_->setLastViewThatTransferredSeqNumbersFullyExecuted(lastViewThatTransferredSeqNumbersFullyExecuted);

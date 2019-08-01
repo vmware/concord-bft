@@ -36,7 +36,7 @@
 #include "test_comm_config.hpp"
 #include "test_parameters.hpp"
 #include "simple_test_client.hpp"
-#include "Logging.hpp"
+#include "Logger.hpp"
 
 #ifdef USE_LOG4CPP
 #include <log4cplus/configurator.h>

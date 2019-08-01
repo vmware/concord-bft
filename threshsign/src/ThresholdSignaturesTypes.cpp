@@ -21,7 +21,15 @@
 Cryptosystem::Cryptosystem(const std::string& sysType,
                            const std::string& sysSubtype,
                            uint16_t sysNumSigners,
-                           uint16_t sysThreshold) {
+                           uint16_t sysThreshold) :
+                             type(sysType),
+                             subtype(sysSubtype),
+                             numSigners(sysNumSigners),
+                             threshold(sysThreshold),
+                             forceMultisig_(numSigners == threshold),
+                             signerID(NID),
+                             publicKey("uninitialized")
+{
   if (!isValidCryptosystemSelection(sysType, sysSubtype, sysNumSigners,
         sysThreshold)) {
     throw InvalidCryptosystemException("Invalid cryptosystem selection:"
@@ -29,18 +37,13 @@ Cryptosystem::Cryptosystem(const std::string& sysType,
       + std::to_string(sysNumSigners) + " signers and threshold of "
       + std::to_string(sysThreshold) + ".");
   }
-  type = sysType;
-  subtype = sysSubtype;
-  numSigners = sysNumSigners;
-  threshold = sysThreshold;
-  signerID = NID;
 }
 
 // Helper function to generateNewPseudorandomKeys.
 IThresholdFactory* Cryptosystem::createThresholdFactory() {
-  if (type == MULTISIG_BLS_SCHEME) {
+  if (type == MULTISIG_BLS_SCHEME || forceMultisig_) {
     return new BLS::Relic::BlsThresholdFactory(
-      BLS::Relic::PublicParametersFactory::getByCurveType(subtype.c_str()));
+      BLS::Relic::PublicParametersFactory::getByCurveType(subtype.c_str()), true);
   } else if (type == THRESHOLD_BLS_SCHEME) {
     return new BLS::Relic::BlsThresholdFactory(
       BLS::Relic::PublicParametersFactory::getByCurveType(subtype.c_str()));
@@ -59,8 +62,8 @@ void Cryptosystem::generateNewPseudorandomKeys() {
 
   std::tie(signers, verifier)
     = factory->newRandomSigners(threshold, numSigners);
-
-  publicKey = verifier->getPublicKey().toString();
+  if (forceMultisig_ || type == THRESHOLD_BLS_SCHEME)
+    publicKey = verifier->getPublicKey().toString();
 
   verificationKeys.clear();
   verificationKeys.push_back(""); // Account for 1-indexing of signer IDs.
@@ -85,7 +88,7 @@ void Cryptosystem::generateNewPseudorandomKeys() {
 }
 
 std::string Cryptosystem::getSystemPublicKey() const {
-  if (publicKey.length() < 1) {
+  if ((forceMultisig_ || type == THRESHOLD_BLS_SCHEME) && publicKey.length() < 1) {
     throw UninitializedCryptosystemException("A public key has not been"
       " generated or loaded for this cryptosystem.");
   }
@@ -225,8 +228,11 @@ static const size_t expectedPublicKeyLength = 130;
 static const size_t expectedVerificationKeyLength = 130;
 
 bool Cryptosystem::isValidPublicKey(const std::string& key) const {
-  return (key.length() == expectedPublicKeyLength)
-      && (std::regex_match(key, std::regex("[0-9A-Fa-f]+")));
+  if (forceMultisig_ || type == THRESHOLD_BLS_SCHEME)
+    return (key.length() == expectedPublicKeyLength)
+        && (std::regex_match(key, std::regex("[0-9A-Fa-f]+")));
+  else
+    return true;
 }
 
 bool Cryptosystem::isValidVerificationKey(const std::string& key) const {
@@ -284,13 +290,7 @@ bool Cryptosystem::isValidCryptosystemSelection(const std::string& type,
     return false;
   }
 
-  // Note MULTISIG_BLS scheme is not a true threshold scheme and is only
-  // allowable if the threshold equals the number of signers.
-  if ((type == MULTISIG_BLS_SCHEME) && (threshold != numSigners)) {
-   return false;
-  } else {
    return isValidCryptosystemSelection(type, subtype);
-  }
 }
 
 void Cryptosystem::getAvailableCryptosystemTypes(
