@@ -59,22 +59,22 @@ int main(int argc, char **argv) {
     auto *fileStorage = new FileStorage(logger, dbFile);
     const uint32_t objNum = 6;
     FileStorage::ObjectDesc objects[objNum];
-    // Metadata object with id=0 is used to indicate storage initialization state
-    for (uint32_t i = 1; i < objNum; i++) {
+    // Metadata object with id=1 is used to indicate storage initialization state
+    for (uint32_t i = 2; i < objNum; i++) {
       objects[i].id = i;
       objects[i].maxSize = (uint32_t) i * 2 + 30;
     }
     fileStorage->initMaxSizeOfObjects(objects, objNum);
     Object objOut = {ELEM1, ELEM2, ELEM3, ELEM4};
-    const uint32_t objId1 = 1;
+    const uint32_t objId1 = 2;
     char *objOutBuf = new char[sizeof(objOut)];
     memcpy(objOutBuf, &objOut, sizeof(objOut));
     fileStorage->atomicWrite(objId1, objOutBuf, sizeof(objOut));
     verifyData(*fileStorage, objId1);
 
-    const uint32_t objId2 = 2;
-    const uint32_t objId3 = 3;
-    const uint32_t objId4 = 4;
+    const uint32_t objId2 = 3;
+    const uint32_t objId3 = 4;
+    const uint32_t objId4 = 5;
     fileStorage->beginAtomicWriteOnlyTransaction();
     fileStorage->writeInTransaction(objId2, objOutBuf, sizeof(objOut));
     fileStorage->writeInTransaction(objId3, objOutBuf, sizeof(objOut));
