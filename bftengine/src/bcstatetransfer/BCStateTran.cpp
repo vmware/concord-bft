@@ -1395,7 +1395,7 @@ bool BCStateTran::onMessage(const FetchResPagesMsg* m,
 
   uint16_t nextChunk = m->lastKnownChunk + 1;
 
-  // if msg is invalid (becuase lastKnownChunk+1 does not exist)
+  // if msg is invalid (because lastKnownChunk+1 does not exist)
   if (nextChunk > numOfChunksInVBlock) {
         LOG_WARN(STLogger, "msg is invalid (illegal chunk number)");
     return false;

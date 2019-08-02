@@ -570,7 +570,7 @@ ViewChangeMsg* ViewsManager::exitFromCurrentView(
                           preparedCertInPrev->certificateSigLength,
                           sig);
     } else if (allRequests && !pp->isNull()) {
-      // we don't add null-operation to a VC message, becuase our default for
+      // we don't add null-operation to a VC message, because our default for
       // non-safe operations is null-operation (notice that, in the above
       // lines, we still may add prepared certificate for null-op)
       myNewVC->addElement(*replicasInfo,
@@ -752,7 +752,7 @@ bool ViewsManager::tryToEnterView(
         outPrePrepareMsgsOfView->push_back(pp);
         prePrepareMsgsOfRestrictions[idx] = nullptr;
 
-        // if needed, remove from collectionOfPrePrepareMsgs (becuase we don't
+        // if needed, remove from collectionOfPrePrepareMsgs (because we don't
         // want to delete messages returned in outPrePrepareMsgsOfView)
         auto pos = collectionOfPrePrepareMsgs.find(i);
         if ((pos != collectionOfPrePrepareMsgs.end()) && (pos->second == pp))
