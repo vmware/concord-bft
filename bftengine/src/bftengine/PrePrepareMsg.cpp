@@ -56,7 +56,7 @@ namespace bftEngine
 
 			// sender
 			if (!repInfo.isIdOfReplica(inMsg->senderId())) return false;
-			// NB: the actual expected sender is verified outside this class (becuase in some cases, during view-change protocol,  this message may sent by a non-primary replica to the primary replica).
+			// NB: the actual expected sender is verified outside this class (because in some cases, during view-change protocol,  this message may sent by a non-primary replica to the primary replica).
 
 			PrePrepareMsg* tmp = (PrePrepareMsg*)inMsg;
 
