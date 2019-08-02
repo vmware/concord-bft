@@ -314,7 +314,7 @@ bool DebugPersistentStorage::getFetchingState() {
 
 SeqNum DebugPersistentStorage::getLastExecutedSeqNum() {
   Assert(getIsAllowed());
-  return lastExecutedSeqNum_;;
+  return lastExecutedSeqNum_;
 }
 
 SeqNum DebugPersistentStorage::getPrimaryLastUsedSeqNum() {

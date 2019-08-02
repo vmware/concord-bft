@@ -756,9 +756,9 @@ IReplica* createReplica(const ReplicaConfig& c,
 			throw std::runtime_error("Unexpected C value in security keys file");
 
 		replicaConfig.numOfClientProxies = c.numOfClientProxies;
-		replicaConfig.statusReportTimerMillisec = c.statusReportTimerMillisec;;
-		replicaConfig.concurrencyLevel = c.concurrencyLevel;;
-		replicaConfig.autoViewChangeEnabled = c.autoViewChangeEnabled;;
+		replicaConfig.statusReportTimerMillisec = c.statusReportTimerMillisec;
+		replicaConfig.concurrencyLevel = c.concurrencyLevel;
+		replicaConfig.autoViewChangeEnabled = c.autoViewChangeEnabled;
 		replicaConfig.viewChangeTimerMillisec = c.viewChangeTimerMillisec;
 
 
