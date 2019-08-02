@@ -22,13 +22,17 @@ namespace impl {
 
 IncomingMsgsStorage::IncomingMsgsStorage(uint16_t maxNumOfPendingExternalMsgs)
     : maxNumberOfPendingExternalMsgs{maxNumOfPendingExternalMsgs} {
-  ptrProtectedQueueForExternalMessages = new queue<MessageBase*>();
-  ptrProtectedQueueForInternalMessages = new queue<InternalMessage*>();
+  ptrProtectedQueueForExternalMessages =
+      new queue<std::unique_ptr<MessageBase>>();
+  ptrProtectedQueueForInternalMessages =
+      new queue<std::unique_ptr<InternalMessage>>();
 
   lastOverflowWarning = MinTime;
 
-  ptrThreadLocalQueueForExternalMessages = new queue<MessageBase*>();
-  ptrThreadLocalQueueForInternalMessages = new queue<InternalMessage*>();
+  ptrThreadLocalQueueForExternalMessages =
+      new queue<std::unique_ptr<MessageBase>>();
+  ptrThreadLocalQueueForInternalMessages =
+      new queue<std::unique_ptr<InternalMessage>>();
 }
 
 IncomingMsgsStorage::~IncomingMsgsStorage() {
@@ -39,7 +43,7 @@ IncomingMsgsStorage::~IncomingMsgsStorage() {
 }
 
 // can be called by any thread
-void IncomingMsgsStorage::pushExternalMsg(MessageBase* m) {
+void IncomingMsgsStorage::pushExternalMsg(std::unique_ptr<MessageBase> m) {
   std::unique_lock<std::mutex> mlock(lock);
   {
     if (ptrProtectedQueueForExternalMessages->size() >=
@@ -54,31 +58,27 @@ void IncomingMsgsStorage::pushExternalMsg(MessageBase* m) {
 
         lastOverflowWarning = n;
       }
-
-      // ignore message
-      delete m;
     } else {
-      ptrProtectedQueueForExternalMessages->push(m);
+      ptrProtectedQueueForExternalMessages->push(std::move(m));
       condVar.notify_one();
     }
   }
 }
 
 // can be called by any thread
-void IncomingMsgsStorage::pushInternalMsg(InternalMessage* m) {
+void IncomingMsgsStorage::pushInternalMsg(std::unique_ptr<InternalMessage> m) {
   std::unique_lock<std::mutex> mlock(lock);
   {
-    ptrProtectedQueueForInternalMessages->push(m);
+    ptrProtectedQueueForInternalMessages->push(std::move(m));
     condVar.notify_one();
   }
 }
 
 // should only be called by the main thread
-bool IncomingMsgsStorage::pop(void*& item,
-                              bool& external,
-                              std::chrono::milliseconds timeout) {
-  if (popThreadLocal(item, external)) {
-    return true;
+IncomingMsg IncomingMsgsStorage::pop(std::chrono::milliseconds timeout) {
+  auto msg = popThreadLocal();
+  if (msg.tag != IncomingMsg::INVALID) {
+    return msg;
   }
 
   {
@@ -91,24 +91,27 @@ bool IncomingMsgsStorage::pop(void*& item,
 
       // no new message
       if (ptrProtectedQueueForExternalMessages->empty() &&
-          ptrProtectedQueueForInternalMessages->empty())
-        return false;
+          ptrProtectedQueueForInternalMessages->empty()) {
+        return IncomingMsg();
+      }
 
       // swap queues
 
-      std::queue<MessageBase*>* t1 = ptrThreadLocalQueueForExternalMessages;
+      std::queue<std::unique_ptr<MessageBase>>* t1 =
+          ptrThreadLocalQueueForExternalMessages;
       ptrThreadLocalQueueForExternalMessages =
           ptrProtectedQueueForExternalMessages;
       ptrProtectedQueueForExternalMessages = t1;
 
-      std::queue<InternalMessage*>* t2 = ptrThreadLocalQueueForInternalMessages;
+      std::queue<std::unique_ptr<InternalMessage>>* t2 =
+          ptrThreadLocalQueueForInternalMessages;
       ptrThreadLocalQueueForInternalMessages =
           ptrProtectedQueueForInternalMessages;
       ptrProtectedQueueForInternalMessages = t2;
     }
   }
 
-  return popThreadLocal(item, external);
+  return popThreadLocal();
 }
 
 // should only be called by the main thread.
@@ -126,21 +129,19 @@ bool IncomingMsgsStorage::empty() {
   }
 }
 
-bool IncomingMsgsStorage::popThreadLocal(void*& item, bool& external) {
+IncomingMsg IncomingMsgsStorage::popThreadLocal() {
   if (!ptrThreadLocalQueueForInternalMessages->empty()) {
-    InternalMessage* iMsg = ptrThreadLocalQueueForInternalMessages->front();
+    auto item =
+        IncomingMsg(std::move(ptrThreadLocalQueueForInternalMessages->front()));
     ptrThreadLocalQueueForInternalMessages->pop();
-    item = (void*)iMsg;
-    external = false;
-    return true;
+    return item;
   } else if (!ptrThreadLocalQueueForExternalMessages->empty()) {
-    MessageBase* eMsg = ptrThreadLocalQueueForExternalMessages->front();
+    auto item =
+        IncomingMsg(std::move(ptrThreadLocalQueueForExternalMessages->front()));
     ptrThreadLocalQueueForExternalMessages->pop();
-    item = (void*)eMsg;
-    external = true;
-    return true;
+    return item;
   } else {
-    return false;
+    return IncomingMsg();
   }
 }
 
