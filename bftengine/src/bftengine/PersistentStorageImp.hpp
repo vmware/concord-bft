@@ -24,8 +24,8 @@ namespace impl {
 const uint16_t reservedParamsNum = 50;
 
 enum ConstMetadataParameterIds : uint32_t {
-  INITIALIZED_FLAG = 0, // A flag saying whether DB is initialized or not; handled by storage class itself.
-  FIRST_METADATA_PARAMETER = 1,
+  INITIALIZED_FLAG = 1, // A flag saying whether DB is initialized or not; handled by storage class itself.
+  FIRST_METADATA_PARAMETER,
   VERSION_PARAMETER = FIRST_METADATA_PARAMETER,
   FETCHING_STATE,
   LAST_EXEC_SEQ_NUM,
@@ -215,7 +215,8 @@ class PersistentStorageImp : public PersistentStorage {
   bool hasDescriptorOfLastNewView_ = false;
   bool hasDescriptorOfLastExecution_ = false;
 
-  DescriptorOfLastExecution descriptorOfLastExecution_ = DescriptorOfLastExecution{0, Bitmap()};
+  const DescriptorOfLastExecution emptyDescriptorOfLastExecution_ = DescriptorOfLastExecution{0, Bitmap()};
+  DescriptorOfLastExecution descriptorOfLastExecution_ = emptyDescriptorOfLastExecution_;
 
   // Parameters to be saved persistently
   std::string version_;
