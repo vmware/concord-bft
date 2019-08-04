@@ -48,14 +48,14 @@ namespace bftEngine
 			if (durationSec < DEBUG_STAT_PERIOD_SECONDS)
 				return;
 
-			double readThruput = 0;
-			double writeThruput = 0;
+			double readThroughput = 0;
+			double writeThroughput = 0;
 
 			if (d.completedReadOnlyRequests > 0)
-				readThruput = (d.completedReadOnlyRequests / durationSec);
+				readThroughput = (d.completedReadOnlyRequests / durationSec);
 
 			if (d.completedReadWriteRequests > 0)
-				writeThruput = (d.completedReadWriteRequests / durationSec);
+				writeThroughput = (d.completedReadWriteRequests / durationSec);
 
 #if defined(_WIN32)
 
@@ -80,26 +80,26 @@ namespace bftEngine
 #endif
 
 			fprintf(stdout, "\n %02u:%02u:%02u.%03u STAT:\t", hour, minute, seconds, milli);
-			fprintf(stdout, "ReadOnlyThruput = %7.2f\t", readThruput);
-			fprintf(stdout, "WriteThruput = %7.2f\t", writeThruput);
+			fprintf(stdout, "ReadOnlyThroughput = %7.2f\t", readThroughput);
+			fprintf(stdout, "WriteThroughput = %7.2f\t", writeThroughput);
 			fprintf(stdout, "receivedMessages = %zd\t", d.receivedMessages);
 			fprintf(stdout, "sendMessages = %zd\t", d.sendMessages);
 			fprintf(stdout, "numberOfReceivedSTMessages = %zd\t", d.numberOfReceivedSTMessages);
 			fprintf(stdout, "numberOfReceivedStatusMessages = %zd\t", d.numberOfReceivedStatusMessages);
 			fprintf(stdout, "numberOfReceivedCommitMessages = %zd\t", d.numberOfReceivedCommitMessages);
-			fprintf(stdout, "lastExecutedSeqNumber = %lld\t", d.lastExecutedSequenceNumber);
+			fprintf(stdout, "lastExecutedSeqNumber = %ld\t", d.lastExecutedSequenceNumber);
 			fprintf(stdout, "\n");
 
 			if (d.completedReadOnlyRequests > 0 || d.completedReadWriteRequests > 0)
 			{
 				fprintf(stdout, "\n %02u:%02u:%02u.%03u SHRES:\t", hour, minute, seconds, milli);
-				fprintf(stdout, "ReadOnlyThruput = %7.2f\t", readThruput);
-				fprintf(stdout, "WriteThruput = %7.2f\t", writeThruput);
+				fprintf(stdout, "ReadOnlyThroughput = %7.2f\t", readThroughput);
+				fprintf(stdout, "WriteThroughput = %7.2f\t", writeThroughput);
 				fprintf(stdout, "\n\n\n");
 
 				fprintf(stderr, "\n %02u:%02u:%02u.%03u SHRES:\t", hour, minute, seconds, milli);
-				fprintf(stderr, "ReadOnlyThruput = %7.2f\t", readThruput);
-				fprintf(stderr, "WriteThruput = %7.2f\t", writeThruput);
+				fprintf(stderr, "ReadOnlyThroughput = %7.2f\t", readThroughput);
+				fprintf(stderr, "WriteThroughput = %7.2f\t", writeThroughput);
 				fprintf(stderr, "\n\n\n");
 
 			}

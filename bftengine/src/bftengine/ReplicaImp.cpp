@@ -3169,10 +3169,11 @@ namespace bftEngine
 
 			clientsManager->init(stateTransfer);
 
-			if (firstTime)
-			clientsManager->clearReservedPages();
-			else
+			// TODO: Yulia Adapt this code after state transfer persistency implemented
+			if (!firstTime && debugPersistentStorageEnabled)
 				clientsManager->loadInfoFromReservedPages();
+			else
+				clientsManager->clearReservedPages();
 
 			int statusReportTimerMilli = (sendStatusPeriodMilli > 0) ? sendStatusPeriodMilli : config.statusReportTimerMillisec;
 			Assert(statusReportTimerMilli > 0);
