@@ -117,7 +117,7 @@ class ViewsManager {
       SeqNum currentLastStable,
       SeqNum currentLastExecuted,
       const std::vector<PrevViewInfo> &prevViewInfo);
-  // TODO(GG): prevViewInfo is defined and used in a confusing way (becuase it
+  // TODO(GG): prevViewInfo is defined and used in a confusing way (because it
   // contains both executed and non-executed items) - TODO: improve by using two
   // different arguments
 

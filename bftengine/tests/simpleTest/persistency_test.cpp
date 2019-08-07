@@ -29,6 +29,8 @@ class PersistencyTest: public testing::Test
     for(auto t : replicaThreads) {
       t->join();
     }
+
+    replicas.clear();
   }
 
   void run_replica(SimpleTestReplica *rep) {
@@ -76,22 +78,9 @@ TEST_F(PersistencyTest, RegressionNoPersistency) {
   ASSERT_TRUE(client->run());
 }
 
-TEST_F(PersistencyTest, Replica2RestartNoVC) {
-  create_client(3000);
-  for(int i = 0; i < 4;i++) {
-    ReplicaParams rp;
-    rp.persistencyMode = PersistencyMode::InMemory;
-    rp.replicaId = i;
-    auto b = 
-      create_replica_behavior(ReplicaBehavior::Replica2PeriodicRestartNoVC, rp);
-    create_and_run_replica(rp, b);
-  }
-
-  ASSERT_TRUE(client->run());
-}
-
+// this test make take a while to complete...
 TEST_F(PersistencyTest, PrimaryRestartVC) {
-  create_client(3000);
+  create_client(2000);
   
   for(int i = 0; i < 4;i++) {
     ReplicaParams rp;

@@ -188,8 +188,8 @@ namespace bftEngine
 				}
 				else
 				{
-					MerkleExecSignatureInternalMsg* pInMsg = new MerkleExecSignatureInternalMsg(replicaApi, view, seqNumber, (uint16_t)sigLength, bufferForSigComputations);
-					replicaApi->getIncomingMsgsStorage().pushInternalMsg(pInMsg);
+                                        std::unique_ptr<InternalMessage> pInMsg(new MerkleExecSignatureInternalMsg(replicaApi, view, seqNumber, (uint16_t)sigLength, bufferForSigComputations));
+					replicaApi->getIncomingMsgsStorage().pushInternalMsg(std::move(pInMsg));
 				}
 				LOG_INFO_F(GL, "PartialExecProofsSet::AsynchProofCreationJob::execute - end (for seqNumber %" PRId64 ")", seqNumber);
 			}

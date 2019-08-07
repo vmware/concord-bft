@@ -434,14 +434,14 @@ namespace bftEngine
 						verifier->release(accWithVer);
 
 						// send internal message with the results
-						InternalMessage* iMsg = ExternalFunc::createInterCombinedSigFailed(context, expectedSeqNumber, expectedView, replicasWithBadSigs);
-						repMsgsStorage->pushInternalMsg(iMsg);
+                                                std::unique_ptr<InternalMessage> iMsg(ExternalFunc::createInterCombinedSigFailed(context, expectedSeqNumber, expectedView, replicasWithBadSigs));
+						repMsgsStorage->pushInternalMsg(std::move(iMsg));
 					}
 					else
 					{
 						// send internal message with the results
-						InternalMessage* iMsg = ExternalFunc::createInterCombinedSigSucceeded(context, expectedSeqNumber, expectedView, bufferForSigComputations, bufferSize);
-						repMsgsStorage->pushInternalMsg(iMsg);
+                                                std::unique_ptr<InternalMessage> iMsg(ExternalFunc::createInterCombinedSigSucceeded(context, expectedSeqNumber, expectedView, bufferForSigComputations, bufferSize));
+						repMsgsStorage->pushInternalMsg(std::move(iMsg));
 					}
 				}
 			};
@@ -490,8 +490,8 @@ namespace bftEngine
 				{
 					bool succ = verifier->verify((char*)&expectedDigest, sizeof(Digest), combinedSig, combinedSigLen);
 
-					InternalMessage* iMsg = ExternalFunc::createInterVerifyCombinedSigResult(context, expectedSeqNumber, expectedView, succ);
-					repMsgsStorage->pushInternalMsg(iMsg);
+                                        std::unique_ptr<InternalMessage> iMsg(ExternalFunc::createInterVerifyCombinedSigResult(context, expectedSeqNumber, expectedView, succ));
+					repMsgsStorage->pushInternalMsg(std::move(iMsg));
 				}
 			};
 

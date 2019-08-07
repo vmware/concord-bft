@@ -104,8 +104,12 @@ void FileStorage::write(void *dataPtr, size_t offset, size_t itemSize,
     fflush(dataStream_);
 }
 
+bool FileStorage::isNewStorage() {
+  return (objectsMetadata_ == nullptr);
+}
+
 bool FileStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint32_t metadataObjectsArrayLength) {
-  if (objectsMetadata_) {
+  if (!isNewStorage()) {
     LOG_WARN(logger_, "FileStorage::initMaxSizeOfObjects Storage file already initialized; ignoring");
     return false;
   }

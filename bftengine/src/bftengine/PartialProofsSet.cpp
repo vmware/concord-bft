@@ -292,8 +292,8 @@ namespace bftEngine
 
 					//			me->sendToAllOtherReplicas(fcpMsg);
 
-					PassFullCommitProofAsInternalMsg* p = new PassFullCommitProofAsInternalMsg(me, fcpMsg);
-					me->getIncomingMsgsStorage().pushInternalMsg(p);
+                                        std::unique_ptr<InternalMessage> p(new PassFullCommitProofAsInternalMsg(me, fcpMsg));
+					me->getIncomingMsgsStorage().pushInternalMsg(std::move(p));
 				}
 
 				LOG_INFO_F(GL, "PartialProofsSet::AsynchProofCreationJob::execute - end (for seqNumber %" PRId64 ")", seqNumber);

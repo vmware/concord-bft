@@ -1,21 +1,16 @@
 add_library(logging INTERFACE)
 target_include_directories(logging INTERFACE include/)
 
-#default logger initialization for tests
-add_library(logging_dev OBJECT src/Logger.cpp)
-target_include_directories(logging_dev PUBLIC include/)
-
-
-#############################################################################################
-#  Find log4cplus
+#######################################################################################################################
+#  Find log4cplus TODO [TK] drop when use conan
 #  Once done this will define
 #  LOG4CPLUS_FOUND        - System has log4cplus
 #  LOG4CPLUS_INCLUDE_DIRS - The log4cplus include directories
 #  LOG4CPLUS_LIBRARIES    - The libraries needed to use log4cplus
 #  LOG4CPLUS_DEFINITIONS  - Compiler switches required for using log4cplus
 
-if(${USE_LOG4CPP})
-  set_property(DIRECTORY . APPEND PROPERTY COMPILE_DEFINITIONS USE_LOG4CPP) 
+if(USE_LOG4CPP)
+  message(STATUS "USE_LOG4CPP")
   # First try pkg-config piggybacking
   find_package(PkgConfig)
   if (PKG_CONFIG_FOUND)
@@ -43,23 +38,33 @@ if(${USE_LOG4CPP})
     include(FindPackageHandleStandardArgs)
     find_package_handle_standard_args(LOG4CPLUS DEFAULT_MSG LOG4CPLUS_LIBRARIES LOG4CPLUS_INCLUDE_DIRS)
   endif()
-  
-  #export to upper level 
-  set_property(DIRECTORY .. APPEND PROPERTY LINK_LIBRARIES      ${LOG4CPLUS_LIBRARIES})
-  set_property(DIRECTORY .. APPEND PROPERTY INCLUDE_DIRECTORIES ${LOG4CPLUS_INCLUDE_DIRS})
-  set_property(DIRECTORY .. APPEND PROPERTY COMPILE_DEFINITIONS USE_LOG4CPP) 
-  target_include_directories(logging_dev PUBLIC ${LOG4CPLUS_INCLUDE_DIRS})
-
 endif()
-#############################################################################################
+#######################################################################################################################
 # Default CONCORD_LOGGER_NAME to "concord"
+
 if(NOT CONCORD_LOGGER_NAME)
     set(CONCORD_LOGGER_NAME "concord" CACHE STRING "Set concord logger name" FORCE)
 endif()
-target_compile_definitions(logging INTERFACE DEFAULT_LOGGER_NAME="${CONCORD_LOGGER_NAME}")
-target_compile_definitions(logging_dev PUBLIC DEFAULT_LOGGER_NAME="${CONCORD_LOGGER_NAME}")
 
-#export to upper level
-set_property(DIRECTORY .. APPEND PROPERTY COMPILE_DEFINITIONS DEFAULT_LOGGER_NAME="${CONCORD_LOGGER_NAME}") 
-set_property(DIRECTORY .. APPEND PROPERTY INCLUDE_DIRECTORIES "$<TARGET_PROPERTY:logging,INTERFACE_INCLUDE_DIRECTORIES>")
-set_property(DIRECTORY .. APPEND PROPERTY COMPILE_OPTIONS "-Wformat=2")
+#######################################################################################################################
+#export all the way up to the top level directory
+
+set(current_dir ${CMAKE_CURRENT_SOURCE_DIR})
+while(NOT current_dir STREQUAL "")
+  message(STATUS "setting logger compile definitions for [${current_dir}]")
+  if(USE_LOG4CPP)
+    set_property(DIRECTORY ${current_dir} APPEND PROPERTY COMPILE_DEFINITIONS USE_LOG4CPP)
+    set_property(DIRECTORY ${current_dir} APPEND PROPERTY LINK_LIBRARIES      ${LOG4CPLUS_LIBRARIES})
+    set_property(DIRECTORY ${current_dir} APPEND PROPERTY INCLUDE_DIRECTORIES ${LOG4CPLUS_INCLUDE_DIRS})
+  endif()
+  set_property(DIRECTORY ${current_dir} APPEND PROPERTY COMPILE_DEFINITIONS DEFAULT_LOGGER_NAME="${CONCORD_LOGGER_NAME}")
+  set_property(DIRECTORY ${current_dir} APPEND PROPERTY INCLUDE_DIRECTORIES "$<TARGET_PROPERTY:logging,INTERFACE_INCLUDE_DIRECTORIES>")
+  set_property(DIRECTORY ${current_dir} APPEND PROPERTY COMPILE_OPTIONS "-Wformat=2")
+  get_property(current_dir DIRECTORY ${current_dir} PROPERTY PARENT_DIRECTORY)
+endwhile()
+
+#######################################################################################################################
+#default logger initialization for tests
+
+add_library(logging_dev OBJECT src/Logger.cpp)
+target_include_directories(logging_dev PUBLIC include/)

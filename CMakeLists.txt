@@ -23,7 +23,9 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Default USE_LOG4CPP to FALSE
-option(USE_LOG4CPP "Enable LOG4CPP" FALSE)
+if (NOT DEFINED USE_LOG4CPP)
+  option(USE_LOG4CPP "Enable LOG4CPP" FALSE)
+endif()
 
 # Default BUILD_COMM_TCP_PLAIN to FALSE
 option(BUILD_COMM_TCP_PLAIN "Enable TCP communication" FALSE)
@@ -60,7 +62,7 @@ string(APPEND CXX_FLAGS " -Wbuiltin-macro-redefined")
 if(IS_LEAKCHECK)
     string(APPEND CXX_FLAGS " -fsanitize=leak")
 endif()
-#string(APPEND CXX_FLAGS " -Werror")
+string(APPEND CXX_FLAGS " -Werror")
 #string(APPEND CXX_FLAGS " -Wextra")
 
 # TODO: Figure out right way to deal with -fstrict-overflow / -Wstrict-overflow related errors

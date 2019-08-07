@@ -144,7 +144,7 @@ struct ItemDataMsg : public BCStateTranBaseMsg {
   char data[1];
 
   uint32_t size() const {
-    return sizeof(ItemDataMsg) - 1 + dataSize;;
+    return sizeof(ItemDataMsg) - 1 + dataSize;
   }
 };
 

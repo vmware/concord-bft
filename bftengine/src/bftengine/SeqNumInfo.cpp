@@ -103,7 +103,7 @@ namespace bftEngine
 			Assert(!forcedCompleted);
 			Assert(prePrepareMsg == nullptr);
 
-			//Assert(me->id() == m->senderId()); // GG: incorrect assert - becuase after a view change it may has been sent by another replica
+			//Assert(me->id() == m->senderId()); // GG: incorrect assert - because after a view change it may has been sent by another replica
 
 			prePrepareMsg = m;
 			primary = true;

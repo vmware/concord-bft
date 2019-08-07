@@ -14,6 +14,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <iostream>
+#include <arpa/inet.h>
 
 #include "MetricsServer.hpp"
 
@@ -32,10 +33,18 @@ void Server::Start() {
   servaddr.sin_port = htons(listenPort_);
 
   if (bind(sock_, (const struct sockaddr*)&servaddr, sizeof(servaddr)) < 0) {
-    LOG_FATAL(logger_,
-              "Error binding UDP socket: IP=" << servaddr.sin_addr.s_addr
-                                              << ", Port=" << servaddr.sin_port
-                                              << ", errno=" << strerror(errno));
+    char addr[INET_ADDRSTRLEN];
+    if (inet_ntop(AF_INET, &servaddr.sin_addr.s_addr, addr, INET_ADDRSTRLEN)) {
+      LOG_FATAL(logger_,
+                "Error binding UDP socket: IP=" << addr
+                                                << ", Port=" << listenPort_
+                                                << ", errno=" << strerror(errno));
+    } else {
+      LOG_FATAL(logger_,
+                "Error binding UDP socket: IP=" << "unknown"
+                                                << ", Port=" << listenPort_
+                                                << ", errno=" << strerror(errno));
+    }
     exit(1);
   }
 

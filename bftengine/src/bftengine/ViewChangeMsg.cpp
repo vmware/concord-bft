@@ -172,7 +172,7 @@ namespace bftEngine
 
 					if (remainingBytes < s) return false;
 
-					// we don't check the certificate here (becuase in many cases it is not needed to make progress)
+					// we don't check the certificate here (because in many cases it is not needed to make progress)
 
 					remainingBytes -= s;
 					currLoc += s;
