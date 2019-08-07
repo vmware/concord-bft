@@ -31,6 +31,7 @@ class PersistencyTest: public testing::Test
     }
 
     replicas.clear();
+    delete client;
   }
 
   void run_replica(SimpleTestReplica *rep) {
