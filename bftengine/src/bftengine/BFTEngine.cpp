@@ -16,6 +16,7 @@
 #include "DebugPersistentStorage.hpp"
 #include "PersistentStorageImp.hpp"
 
+#include <condition_variable>
 #include <mutex>
 
 namespace bftEngine {
@@ -42,6 +43,10 @@ struct ReplicaInternal : public Replica {
   virtual void restartForDebug(uint32_t delayMillis) override;
 
   ReplicaImp *rep;
+
+  private:
+    std::condition_variable debugWait;
+    std::mutex debugWaitLock;
 };
 
 ReplicaInternal::~ReplicaInternal() {
@@ -67,7 +72,8 @@ void ReplicaInternal::start() {
 }
 
 void ReplicaInternal::stop() {
-  return rep->stop();
+  rep->stop();
+  debugWait.notify_all();
 }
 
 void ReplicaInternal::SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a) {
@@ -77,7 +83,11 @@ void ReplicaInternal::SetAggregator(std::shared_ptr<concordMetrics::Aggregator> 
 void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
   rep->stopWhenStateIsNotCollected();
   if(delayMillis > 0) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(delayMillis));
+    unique_lock<std::mutex> lk(debugWaitLock);
+    std::cv_status res = 
+      debugWait.wait_for(lk, std::chrono::milliseconds(delayMillis));
+    if (std::cv_status::no_timeout == res) //stop() was called
+      return;
   }
 
   shared_ptr<PersistentStorage> persistentStorage(rep->getPersistentStorage());

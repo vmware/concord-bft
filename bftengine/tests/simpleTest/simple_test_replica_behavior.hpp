@@ -89,7 +89,7 @@ public:
 class Replica2RestartNoVC : public ISimpleTestReplicaBehavior {
 public:
    virtual bool should_be_down() override {
-    return replicaParams.replicaId == 2;
+    return replicaParams.replicaId == 2 && get_epoch_seconds() >= nextDownTime;
   } 
 
   virtual uint32_t get_down_time_millis() override {
@@ -97,13 +97,14 @@ public:
   }
   
   virtual void on_restarted() override {
-    nextDownTime = get_epoch_seconds() +
-      pti.initialSleepBetweenRestartsMillis * pti.sleepBetweenRestartsMultipler;
+    update_next_down_time();
   }
 
   Replica2RestartNoVC(ReplicaParams &rp, PersistencyTestInfo &pti) 
   : ISimpleTestReplicaBehavior{rp, pti} {
-    init_rand();    
+    init_rand();
+    update_next_down_time();
+    pti.sleepBetweenRestartsMultipler = 3;
   }
 
   Replica2RestartNoVC(ReplicaParams &rp, PersistencyTestInfo &&pti) 
@@ -112,12 +113,18 @@ public:
   }
 
   explicit Replica2RestartNoVC(ReplicaParams &rp) : 
-    Replica2RestartNoVC(rp, PersistencyTestInfo{5000, 8000, 1.1}) {
+    Replica2RestartNoVC(rp, PersistencyTestInfo{3000, 2000, 1}) {
   }
   
   Replica2RestartNoVC() = delete;
 private:
   uint64_t nextDownTime;
+
+  void update_next_down_time() {
+    nextDownTime =
+     get_epoch_seconds() + pti.initialSleepBetweenRestartsMillis
+      * pti.sleepBetweenRestartsMultipler / 1000;
+  }
 };
 
 class AllReplicasRestartNoVC : public ISimpleTestReplicaBehavior {
