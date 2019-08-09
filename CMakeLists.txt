@@ -33,6 +33,9 @@ option(BUILD_COMM_TCP_PLAIN "Enable TCP communication" FALSE)
 # Default BUILD_COMM_TCP_TLS to FALSE
 option(BUILD_COMM_TCP_TLS "Enable TCP TLS communication" FALSE)
 
+# This requires the rocksdb dependencies to be installed, so defaults to FALSE
+option(BUILD_ROCKSDB_STORAGE "Enable building of RocksDB storage library" FALSE)
+
 set(COMM_MODULES 0)
 if(BUILD_COMM_TCP_PLAIN)
     math(EXPR COMM_MODULES "${COMM_MODULES}+1")
@@ -151,6 +154,7 @@ add_subdirectory(util)
 add_subdirectory(threshsign)
 add_subdirectory(bftengine)
 add_subdirectory(tools)
+add_subdirectory(storage)
 
 #
 # Setup testing

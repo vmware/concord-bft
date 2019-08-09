@@ -1,0 +1,7 @@
+if (BUILD_ROCKSDB_STORAGE)
+    add_subdirectory(rocksdb)
+    add_subdirectory(blockchain)
+    if (BUILD_TESTING AND USE_LOG4CPP)
+        add_subdirectory(test)
+    endif()
+endif()
