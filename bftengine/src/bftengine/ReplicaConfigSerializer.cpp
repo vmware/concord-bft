@@ -31,7 +31,11 @@ uint32_t ReplicaConfigSerializer::maxSize(uint32_t numOfReplicas) {
       sizeof(config_->viewChangeTimerMillisec) + MaxSizeOfPrivateKey +
       numOfReplicas * MaxSizeOfPublicKey +
       IThresholdSigner::maxSize() * 3 +
-      IThresholdVerifier::maxSize() * 3);
+      IThresholdVerifier::maxSize() * 3 +
+      sizeof(config_->maxExternalMessageSize) +
+      sizeof(config_->maxReplyMessageSize) +
+      sizeof(config_->maxNumOfReservedPages) +
+      sizeof(config_->sizeOfReservedPage));
 }
 
 void ReplicaConfigSerializer::registerClass() {
@@ -105,6 +109,11 @@ void ReplicaConfigSerializer::serializeDataMembers(ostream &outStream) const {
 
   config_->thresholdSignerForOptimisticCommit->serialize(outStream);
   config_->thresholdVerifierForOptimisticCommit->serialize(outStream);
+
+  outStream.write((char *) &config_->maxExternalMessageSize, sizeof(config_->maxExternalMessageSize));
+  outStream.write((char *) &config_->maxReplyMessageSize, sizeof(config_->maxReplyMessageSize));
+  outStream.write((char *) &config_->maxNumOfReservedPages, sizeof(config_->maxNumOfReservedPages));
+  outStream.write((char *) &config_->sizeOfReservedPage, sizeof(config_->sizeOfReservedPage));
 }
 
 void ReplicaConfigSerializer::serializeKey(const string &key, ostream &outStream) const {
@@ -125,7 +134,11 @@ const {
       (other.config_->autoViewChangeEnabled == config_->autoViewChangeEnabled) &&
       (other.config_->viewChangeTimerMillisec == config_->viewChangeTimerMillisec) &&
       (other.config_->replicaPrivateKey == config_->replicaPrivateKey) &&
-      (other.config_->publicKeysOfReplicas == config_->publicKeysOfReplicas));
+      (other.config_->publicKeysOfReplicas == config_->publicKeysOfReplicas) &&
+      (other.config_->maxExternalMessageSize == config_->maxExternalMessageSize) &&
+      (other.config_->maxReplyMessageSize == config_->maxReplyMessageSize) &&
+      (other.config_->maxNumOfReservedPages == config_->maxNumOfReservedPages) &&
+      (other.config_->sizeOfReservedPage == config_->sizeOfReservedPage));
   return result;
 }
 
@@ -176,6 +189,12 @@ SharedPtrToClass ReplicaConfigSerializer::create(istream &inStream) {
   config.replicaPrivateKey = deserializeKey(inStream);
 
   createSignersAndVerifiers(inStream, config);
+
+  inStream.read((char *) &config.maxExternalMessageSize, sizeof(config.maxExternalMessageSize));
+  inStream.read((char *) &config.maxReplyMessageSize, sizeof(config.maxReplyMessageSize));
+  inStream.read((char *) &config.maxNumOfReservedPages, sizeof(config.maxNumOfReservedPages));
+  inStream.read((char *) &config.sizeOfReservedPage, sizeof(config.sizeOfReservedPage));
+
   return replicaConfigSerializer;
 }
 
