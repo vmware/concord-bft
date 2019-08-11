@@ -433,6 +433,10 @@ void fillReplicaConfig() {
   config.concurrencyLevel = 5;
   config.autoViewChangeEnabled = true;
   config.viewChangeTimerMillisec = 12;
+  config.maxExternalMessageSize = 2048;
+  config.maxNumOfReservedPages = 256;
+  config.maxReplyMessageSize = 1024;
+  config.sizeOfReservedPage = 2048;
 
   config.replicaPrivateKey = replicaPrivateKey;
   config.publicKeysOfReplicas.insert(IdToKeyPair(0, publicKeyValue1));
