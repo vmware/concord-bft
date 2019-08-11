@@ -777,7 +777,7 @@ IReplica* createReplica(const ReplicaConfig& c,
 	RequestsHandlerImp* reqHandler = new RequestsHandlerImp();
 	reqHandler->m_Executor = r;
 
-	replicaConfig.usePedanticPersistencyChecks = true;
+	replicaConfig.debugPersistentStorageEnabled = true;
 	Replica* replica = Replica::createNewReplica(&replicaConfig,
 		reqHandler,
 		stateTransfer,

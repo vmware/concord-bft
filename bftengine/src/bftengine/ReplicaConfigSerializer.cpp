@@ -32,7 +32,7 @@ uint32_t ReplicaConfigSerializer::maxSize(uint32_t numOfReplicas) {
       numOfReplicas * MaxSizeOfPublicKey +
       IThresholdSigner::maxSize() * 3 +
       IThresholdVerifier::maxSize() * 3) + 
-      sizeof(config_->usePedanticPersistencyChecks);
+      sizeof(config_->debugPersistentStorageEnabled);
 }
 
 void ReplicaConfigSerializer::registerClass() {
@@ -108,7 +108,7 @@ void ReplicaConfigSerializer::serializeDataMembers(ostream &outStream) const {
   config_->thresholdVerifierForOptimisticCommit->serialize(outStream);
 
   // Serialize usePedanticPersistencyChecks
-  outStream.write((char *) &config_->usePedanticPersistencyChecks, sizeof(config_->usePedanticPersistencyChecks));
+  outStream.write((char *) &config_->debugPersistentStorageEnabled, sizeof(config_->debugPersistentStorageEnabled));
 }
 
 void ReplicaConfigSerializer::serializeKey(const string &key, ostream &outStream) const {
@@ -130,7 +130,7 @@ const {
       (other.config_->viewChangeTimerMillisec == config_->viewChangeTimerMillisec) &&
       (other.config_->replicaPrivateKey == config_->replicaPrivateKey) &&
       (other.config_->publicKeysOfReplicas == config_->publicKeysOfReplicas) &&
-      (other.config_->usePedanticPersistencyChecks == config_->usePedanticPersistencyChecks));
+      (other.config_->debugPersistentStorageEnabled == config_->debugPersistentStorageEnabled));
   return result;
 }
 
@@ -182,7 +182,7 @@ SharedPtrToClass ReplicaConfigSerializer::create(istream &inStream) {
 
   createSignersAndVerifiers(inStream, config);
 
-  inStream.read((char *) &config.usePedanticPersistencyChecks, sizeof(config.usePedanticPersistencyChecks));
+  inStream.read((char *) &config.debugPersistentStorageEnabled, sizeof(config.debugPersistentStorageEnabled));
 
   return replicaConfigSerializer;
 }

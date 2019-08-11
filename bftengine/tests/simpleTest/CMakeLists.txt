@@ -33,6 +33,22 @@ add_executable(configTest
     ${config_source_files}
 )
 
+if(USE_LOG4CPP)
+    target_compile_definitions(simpleTest_server PUBLIC USE_LOG4CPP=1)
+    target_compile_definitions(simpleTest_client PUBLIC USE_LOG4CPP=1)
+    target_compile_definitions(configTest PUBLIC USE_LOG4CPP=1)
+endif()
+
+if(${USE_COMM_PLAIN_TCP})
+    target_compile_definitions(simpleTest_client PUBLIC USE_COMM_PLAIN_TCP)
+    target_compile_definitions(simpleTest_server PUBLIC USE_COMM_PLAIN_TCP)
+endif()
+
+if(${USE_COMM_TLS_TCP})
+    target_compile_definitions(simpleTest_client PUBLIC USE_COMM_TLS_TCP)
+    target_compile_definitions(simpleTest_server PUBLIC USE_COMM_TLS_TCP)
+endif()
+
 add_executable(persistency_test
         persistency_test.cpp
         ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp)
@@ -60,22 +76,6 @@ add_custom_command(TARGET copy_simple_test_config
         COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_CURRENT_SOURCE_DIR}/test_config
         $<TARGET_FILE_DIR:simpleTest_client>/)
-
-if(USE_LOG4CPP)
-    target_compile_definitions(simpleTest_server PUBLIC USE_LOG4CPP=1)
-    target_compile_definitions(simpleTest_client PUBLIC USE_LOG4CPP=1)
-    target_compile_definitions(configTest PUBLIC USE_LOG4CPP=1)
-endif()
-
-if(${USE_COMM_PLAIN_TCP})
-    target_compile_definitions(simnpleTest_client PUBLIC USE_COMM_PLAIN_TCP)
-    target_compile_definitions(simnpleTest_server PUBLIC USE_COMM_PLAIN_TCP)
-endif()
-
-if(${USE_COMM_TLS_TCP})
-    target_compile_definitions(simnpleTest_client PUBLIC USE_COMM_TLS_TCP)
-    target_compile_definitions(simnpleTest_server PUBLIC USE_COMM_TLS_TCP)
-endif()
 
 set_target_properties(simpleTest_client PROPERTIES OUTPUT_NAME client)
 set_target_properties(simpleTest_server PROPERTIES OUTPUT_NAME server)

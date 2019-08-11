@@ -131,11 +131,11 @@ Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
   uint16_t numOfObjects = 0;
   bool isNewStorage = true;
 
-  if (replicaConfig->usePedanticPersistencyChecks) {
+  if (replicaConfig->debugPersistentStorageEnabled) {
     Assert(metadataStorage == nullptr);
   }
 
-  if (replicaConfig->usePedanticPersistencyChecks)
+  if (replicaConfig->debugPersistentStorageEnabled )
     if (metadataStorage == nullptr)
       persistentStoragePtr.reset(new impl::DebugPersistentStorage(replicaConfig->fVal, replicaConfig->cVal));
 

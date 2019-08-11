@@ -3159,7 +3159,7 @@ namespace bftEngine
 
 			clientsManager = new ClientsManager(myReplicaId, clientsSet, ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage());
 
-			if (firstTime || !config.usePedanticPersistencyChecks) {
+			if (firstTime || !config.debugPersistentStorageEnabled) {
               stateTransfer->init(kWorkWindowSize / checkpointWindowSize + 1, clientsManager->numberOfRequiredReservedPages(), ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage());
 			}
 			else // !firstTime && debugPersistentStorageEnabled
@@ -3170,7 +3170,7 @@ namespace bftEngine
 			clientsManager->init(stateTransfer);
 
 			// TODO: Yulia Adapt this code after state transfer persistency implemented
-			if (!firstTime && config.usePedanticPersistencyChecks)
+			if (!firstTime && config.debugPersistentStorageEnabled)
 				clientsManager->loadInfoFromReservedPages();
 			else
 				clientsManager->clearReservedPages();
