@@ -47,6 +47,8 @@ class ReplicaConfigSerializer : public concordSerializable::Serializable {
   void serializeKey(const std::string &key, std::ostream &outStream) const;
   std::string deserializeKey(std::istream &inStream) const;
   void createSignersAndVerifiers(std::istream &inStream, ReplicaConfig &newObject);
+  void serializePointer(concordSerializable::Serializable *ptrToClass, std::ostream &outStream) const;
+  static concordSerializable::SharedPtrToClass deserializePointer(std::istream &inStream);
 
   static void registerClass();
 
