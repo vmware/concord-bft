@@ -433,6 +433,10 @@ void fillReplicaConfig() {
   config.concurrencyLevel = 5;
   config.autoViewChangeEnabled = true;
   config.viewChangeTimerMillisec = 12;
+  config.maxExternalMessageSize = 2048;
+  config.maxNumOfReservedPages = 256;
+  config.maxReplyMessageSize = 1024;
+  config.sizeOfReservedPage = 2048;
 
   config.replicaPrivateKey = replicaPrivateKey;
   config.publicKeysOfReplicas.insert(IdToKeyPair(0, publicKeyValue1));
@@ -440,7 +444,7 @@ void fillReplicaConfig() {
   config.publicKeysOfReplicas.insert(IdToKeyPair(2, publicKeyValue3));
   config.publicKeysOfReplicas.insert(IdToKeyPair(3, publicKeyValue4));
 
-  config.thresholdSignerForExecution = new IThresholdSignerDummy;
+  config.thresholdSignerForExecution = nullptr;
   config.thresholdVerifierForExecution = new IThresholdVerifierDummy;
   config.thresholdSignerForSlowPathCommit = new IThresholdSignerDummy;
   config.thresholdVerifierForSlowPathCommit = new IThresholdVerifierDummy;

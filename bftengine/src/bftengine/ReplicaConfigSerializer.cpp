@@ -31,8 +31,12 @@ uint32_t ReplicaConfigSerializer::maxSize(uint32_t numOfReplicas) {
       sizeof(config_->viewChangeTimerMillisec) + MaxSizeOfPrivateKey +
       numOfReplicas * MaxSizeOfPublicKey +
       IThresholdSigner::maxSize() * 3 +
-      IThresholdVerifier::maxSize() * 3) + 
-      sizeof(config_->debugPersistentStorageEnabled);
+      IThresholdVerifier::maxSize() * 3 +
+      sizeof(config_->maxExternalMessageSize) +
+      sizeof(config_->maxReplyMessageSize) +
+      sizeof(config_->maxNumOfReservedPages) +
+      sizeof(config_->sizeOfReservedPage) +
+      sizeof(config_->debugPersistentStorageEnabled));
 }
 
 void ReplicaConfigSerializer::registerClass() {
@@ -95,20 +99,32 @@ void ReplicaConfigSerializer::serializeDataMembers(ostream &outStream) const {
   // Serialize replicaPrivateKey
   serializeKey(config_->replicaPrivateKey, outStream);
 
-  config_->thresholdSignerForExecution->serialize(outStream);
-  config_->thresholdVerifierForExecution->serialize(outStream);
+  serializePointer(config_->thresholdSignerForExecution, outStream);
+  serializePointer(config_->thresholdVerifierForExecution, outStream);
 
-  config_->thresholdSignerForSlowPathCommit->serialize(outStream);
-  config_->thresholdVerifierForSlowPathCommit->serialize(outStream);
+  serializePointer(config_->thresholdSignerForSlowPathCommit, outStream);
+  serializePointer(config_->thresholdVerifierForSlowPathCommit, outStream);
 
-  config_->thresholdSignerForCommit->serialize(outStream);
-  config_->thresholdVerifierForCommit->serialize(outStream);
+  serializePointer(config_->thresholdSignerForCommit, outStream);
+  serializePointer(config_->thresholdVerifierForCommit, outStream);
 
-  config_->thresholdSignerForOptimisticCommit->serialize(outStream);
-  config_->thresholdVerifierForOptimisticCommit->serialize(outStream);
+  serializePointer(config_->thresholdSignerForOptimisticCommit, outStream);
+  serializePointer(config_->thresholdVerifierForOptimisticCommit, outStream);
 
-  // Serialize usePedanticPersistencyChecks
+  outStream.write((char *) &config_->maxExternalMessageSize, sizeof(config_->maxExternalMessageSize));
+  outStream.write((char *) &config_->maxReplyMessageSize, sizeof(config_->maxReplyMessageSize));
+  outStream.write((char *) &config_->maxNumOfReservedPages, sizeof(config_->maxNumOfReservedPages));
+  outStream.write((char *) &config_->sizeOfReservedPage, sizeof(config_->sizeOfReservedPage));
+
+  // Serialize debugPersistentStorageEnabled
   outStream.write((char *) &config_->debugPersistentStorageEnabled, sizeof(config_->debugPersistentStorageEnabled));
+}
+
+void ReplicaConfigSerializer::serializePointer(Serializable *ptrToClass, ostream &outStream) const {
+  uint8_t ptrToClassSpecified = ptrToClass ? 1 : 0;
+  outStream.write((char *) &ptrToClassSpecified, sizeof(ptrToClassSpecified));
+  if (ptrToClass)
+    ptrToClass->serialize(outStream);
 }
 
 void ReplicaConfigSerializer::serializeKey(const string &key, ostream &outStream) const {
@@ -130,7 +146,11 @@ const {
       (other.config_->viewChangeTimerMillisec == config_->viewChangeTimerMillisec) &&
       (other.config_->replicaPrivateKey == config_->replicaPrivateKey) &&
       (other.config_->publicKeysOfReplicas == config_->publicKeysOfReplicas) &&
-      (other.config_->debugPersistentStorageEnabled == config_->debugPersistentStorageEnabled));
+      (other.config_->debugPersistentStorageEnabled == config_->debugPersistentStorageEnabled) &&
+      (other.config_->maxExternalMessageSize == config_->maxExternalMessageSize) &&
+      (other.config_->maxReplyMessageSize == config_->maxReplyMessageSize) &&
+      (other.config_->maxNumOfReservedPages == config_->maxNumOfReservedPages) &&
+      (other.config_->sizeOfReservedPage == config_->sizeOfReservedPage));
   return result;
 }
 
@@ -182,20 +202,33 @@ SharedPtrToClass ReplicaConfigSerializer::create(istream &inStream) {
 
   createSignersAndVerifiers(inStream, config);
 
+  inStream.read((char *) &config.maxExternalMessageSize, sizeof(config.maxExternalMessageSize));
+  inStream.read((char *) &config.maxReplyMessageSize, sizeof(config.maxReplyMessageSize));
+  inStream.read((char *) &config.maxNumOfReservedPages, sizeof(config.maxNumOfReservedPages));
+  inStream.read((char *) &config.sizeOfReservedPage, sizeof(config.sizeOfReservedPage));
+
   inStream.read((char *) &config.debugPersistentStorageEnabled, sizeof(config.debugPersistentStorageEnabled));
 
   return replicaConfigSerializer;
 }
 
+SharedPtrToClass ReplicaConfigSerializer::deserializePointer(std::istream &inStream) {
+  uint8_t ptrToClassSpecified = 0;
+  inStream.read((char *) &ptrToClassSpecified, sizeof(ptrToClassSpecified));
+  if (ptrToClassSpecified)
+    return deserialize(inStream);
+  return SharedPtrToClass();
+}
+
 void ReplicaConfigSerializer::createSignersAndVerifiers(istream &inStream, ReplicaConfig &newObject) {
-  thresholdSignerForExecution_ = deserialize(inStream);
-  thresholdVerifierForExecution_ = deserialize(inStream);
-  thresholdSignerForSlowPathCommit_ = deserialize(inStream);
-  thresholdVerifierForSlowPathCommit_ = deserialize(inStream);
-  thresholdSignerForCommit_ = deserialize(inStream);
-  thresholdVerifierForCommit_ = deserialize(inStream);
-  thresholdSignerForOptimisticCommit_ = deserialize(inStream);
-  thresholdVerifierForOptimisticCommit_ = deserialize(inStream);
+  thresholdSignerForExecution_ = deserializePointer(inStream);
+  thresholdVerifierForExecution_ = deserializePointer(inStream);
+  thresholdSignerForSlowPathCommit_ = deserializePointer(inStream);
+  thresholdVerifierForSlowPathCommit_ = deserializePointer(inStream);
+  thresholdSignerForCommit_ = deserializePointer(inStream);
+  thresholdVerifierForCommit_ = deserializePointer(inStream);
+  thresholdSignerForOptimisticCommit_ = deserializePointer(inStream);
+  thresholdVerifierForOptimisticCommit_ = deserializePointer(inStream);
 
   newObject.thresholdSignerForExecution = dynamic_cast<IThresholdSigner *>(thresholdSignerForExecution_.get());
   newObject.thresholdVerifierForExecution = dynamic_cast<IThresholdVerifier *>(thresholdVerifierForExecution_.get());
