@@ -144,8 +144,8 @@ create it's historgram and will print raw latencies, which eventually will be
 	*   c is max. number of slow replicas
 	*   cl is number of clients to run
 	*   testViewChange - if presents, primary replica will be killed after 1/2 of the total transactions been sent
-*   ```-pm``` Metadata persistency mode. One of the values of PersistencyMode enum
-*   ```-rb``` Replica behavior for the persistency tests. One of the values of ReplicaBehavior enum
+*   ```-pm``` Metadata persistency mode. One of the values of [PersistencyMode enum](https://github.com/vmware/concord-bft/blob/e36b83c34539b77bc7dc0538237909142dff4ed6/bftengine/tests/config/test_parameters.hpp#L32)
+*   ```-rb``` Replica behavior for the persistency tests. One of the values of [ReplicaBehavior enum](https://github.com/vmware/concord-bft/blob/e36b83c34539b77bc7dc0538237909142dff4ed6/bftengine/tests/config/test_parameters.hpp#L39)
 
 **IMPORTANT** if n - r >= f and the testViewChange is present, the system will NOT complete the View Change
 protocol and will exit after timeout - *THIS TEST WILL BE CONSIDERED AS SUCCESS*
