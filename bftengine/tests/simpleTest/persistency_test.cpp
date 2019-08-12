@@ -17,11 +17,15 @@
 #include <vector>
 #include "simple_test_client.hpp"
 #include "simple_test_replica.hpp"
-#include "Logging.hpp"
+#include "Logger.hpp"
 #include <thread>
 #include <chrono>
 #include <time.h>
 #include <memory>
+
+#ifdef USE_LOG4CPP
+#include <log4cplus/configurator.h>
+#endif
 
 namespace test
 {
