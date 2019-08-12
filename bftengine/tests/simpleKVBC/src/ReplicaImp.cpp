@@ -734,67 +734,59 @@ IReplica* createReplica(const ReplicaConfig& c,
 	ReplicaImp* r = new ReplicaImp();
 
 
-		bftEngine::ReplicaConfig replicaConfig;
+	bftEngine::ReplicaConfig replicaConfig;
 
 
-		std::ifstream keyfile(c.pathOfKeysfile);
-		if (!keyfile.is_open()) {
-			throw std::runtime_error("Unable to read replica keyfile.");
-		}
+	std::ifstream keyfile(c.pathOfKeysfile);
+	if (!keyfile.is_open()) {
+		throw std::runtime_error("Unable to read replica keyfile.");
+	}
 
-		bool succ = inputReplicaKeyfile(keyfile, c.pathOfKeysfile, replicaConfig);
-		if (!succ)
-			throw std::runtime_error("Unable to parse replica keyfile.");
+	bool succ = inputReplicaKeyfile(keyfile, c.pathOfKeysfile, replicaConfig);
+	if (!succ)
+		throw std::runtime_error("Unable to parse replica keyfile.");
 
-		if(replicaConfig.replicaId != c.replicaId)
-			throw std::runtime_error("Unexpected replica ID in security keys file");
+	if(replicaConfig.replicaId != c.replicaId)
+		throw std::runtime_error("Unexpected replica ID in security keys file");
 
-		if (replicaConfig.fVal != c.fVal)
-			throw std::runtime_error("Unexpected F value in security keys file");
+	if (replicaConfig.fVal != c.fVal)
+		throw std::runtime_error("Unexpected F value in security keys file");
 
-		if (replicaConfig.cVal != c.cVal)
-			throw std::runtime_error("Unexpected C value in security keys file");
+	if (replicaConfig.cVal != c.cVal)
+		throw std::runtime_error("Unexpected C value in security keys file");
 
-		replicaConfig.numOfClientProxies = c.numOfClientProxies;
-		replicaConfig.statusReportTimerMillisec = c.statusReportTimerMillisec;
-		replicaConfig.concurrencyLevel = c.concurrencyLevel;
-		replicaConfig.autoViewChangeEnabled = c.autoViewChangeEnabled;
-		replicaConfig.viewChangeTimerMillisec = c.viewChangeTimerMillisec;
+	replicaConfig.numOfClientProxies = c.numOfClientProxies;
+	replicaConfig.statusReportTimerMillisec = c.statusReportTimerMillisec;;
+	replicaConfig.concurrencyLevel = c.concurrencyLevel;;
+	replicaConfig.autoViewChangeEnabled = c.autoViewChangeEnabled;;
+	replicaConfig.viewChangeTimerMillisec = c.viewChangeTimerMillisec;
 
 
 
-		bftEngine::SimpleBlockchainStateTransfer::Config stConfig;
+	bftEngine::SimpleBlockchainStateTransfer::Config stConfig;
 
-		stConfig.myReplicaId = replicaConfig.replicaId;
-		stConfig.pedanticChecks = true;
-		stConfig.fVal = replicaConfig.fVal;
-		stConfig.cVal = replicaConfig.cVal;
-		stConfig.maxBlockSize = c.maxBlockSize;
+	stConfig.myReplicaId = replicaConfig.replicaId;
+	stConfig.pedanticChecks = true;
+	stConfig.fVal = replicaConfig.fVal;
+	stConfig.cVal = replicaConfig.cVal;
+	stConfig.maxBlockSize = c.maxBlockSize;
 
-		bftEngine::IStateTransfer *stateTransfer
-			= bftEngine::SimpleBlockchainStateTransfer::create(stConfig, r, false);
+	bftEngine::IStateTransfer *stateTransfer
+		= bftEngine::SimpleBlockchainStateTransfer::create(stConfig, r, false);
 
-		RequestsHandlerImp* reqHandler = new RequestsHandlerImp();
-		reqHandler->m_Executor = r;
+	RequestsHandlerImp* reqHandler = new RequestsHandlerImp();
+	reqHandler->m_Executor = r;
 
-                // Use a file for persistence
-                std::ostringstream dbFile;
-                dbFile << "SimpleKVBCTest" << replicaConfig.replicaId << ".txt";
-                remove(dbFile.str().c_str());
-                concordlogger::Logger replicaLogger = 
-                  concordlogger::Log::getLogger("simpletest.replica");
+	replicaConfig.debugPersistentStorageEnabled = true;
+	Replica* replica = Replica::createNewReplica(&replicaConfig,
+		reqHandler,
+		stateTransfer,
+		comm,
+		nullptr);
+	replica->SetAggregator(aggregator);
 
-                MetadataStorage *fileStorage = new FileStorage(replicaLogger, dbFile.str());
-
-		Replica* replica = Replica::createNewReplica(&replicaConfig,
-			reqHandler,
-			stateTransfer,
-			comm,
-			fileStorage);
-                replica->SetAggregator(aggregator);
-
-		r->m_replica = replica;
-		r->maxBlockSize = c.maxBlockSize;
+	r->m_replica = replica;
+	r->maxBlockSize = c.maxBlockSize;
 	
 	BlockchainDBAdapter* dbAdapter = new BlockchainDBAdapter(_db);
 	r->m_bcDbAdapter = dbAdapter;

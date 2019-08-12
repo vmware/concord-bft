@@ -35,7 +35,8 @@ uint32_t ReplicaConfigSerializer::maxSize(uint32_t numOfReplicas) {
       sizeof(config_->maxExternalMessageSize) +
       sizeof(config_->maxReplyMessageSize) +
       sizeof(config_->maxNumOfReservedPages) +
-      sizeof(config_->sizeOfReservedPage));
+      sizeof(config_->sizeOfReservedPage) +
+      sizeof(config_->debugPersistentStorageEnabled));
 }
 
 void ReplicaConfigSerializer::registerClass() {
@@ -114,6 +115,9 @@ void ReplicaConfigSerializer::serializeDataMembers(ostream &outStream) const {
   outStream.write((char *) &config_->maxReplyMessageSize, sizeof(config_->maxReplyMessageSize));
   outStream.write((char *) &config_->maxNumOfReservedPages, sizeof(config_->maxNumOfReservedPages));
   outStream.write((char *) &config_->sizeOfReservedPage, sizeof(config_->sizeOfReservedPage));
+
+  // Serialize debugPersistentStorageEnabled
+  outStream.write((char *) &config_->debugPersistentStorageEnabled, sizeof(config_->debugPersistentStorageEnabled));
 }
 
 void ReplicaConfigSerializer::serializePointer(Serializable *ptrToClass, ostream &outStream) const {
@@ -142,6 +146,7 @@ const {
       (other.config_->viewChangeTimerMillisec == config_->viewChangeTimerMillisec) &&
       (other.config_->replicaPrivateKey == config_->replicaPrivateKey) &&
       (other.config_->publicKeysOfReplicas == config_->publicKeysOfReplicas) &&
+      (other.config_->debugPersistentStorageEnabled == config_->debugPersistentStorageEnabled) &&
       (other.config_->maxExternalMessageSize == config_->maxExternalMessageSize) &&
       (other.config_->maxReplyMessageSize == config_->maxReplyMessageSize) &&
       (other.config_->maxNumOfReservedPages == config_->maxNumOfReservedPages) &&
@@ -201,6 +206,8 @@ SharedPtrToClass ReplicaConfigSerializer::create(istream &inStream) {
   inStream.read((char *) &config.maxReplyMessageSize, sizeof(config.maxReplyMessageSize));
   inStream.read((char *) &config.maxNumOfReservedPages, sizeof(config.maxNumOfReservedPages));
   inStream.read((char *) &config.sizeOfReservedPage, sizeof(config.sizeOfReservedPage));
+
+  inStream.read((char *) &config.debugPersistentStorageEnabled, sizeof(config.debugPersistentStorageEnabled));
 
   return replicaConfigSerializer;
 }

@@ -120,6 +120,10 @@ Note: if you run the command as described above and experience Python related
 
     python3 build/bftengine/tests/simpleTest/scripts/simpleTest.py -bft n=4,r=4,f=1,c=0,cl=1
 
+### BFT Metadata with the simple test
+BFT metadata allows replica to recover from crash if the metadata has been written to the disk when replica is running.
+The library itself is not writing anything, leaving it to the application level. However, we have implemented in-memory mock of persistency for this metadata, and the simple test can be run in the mode where replicas perform "soft" start and stop, allowing to simulate failures and then using the metadata to continue running. See the ```-pm``` and ```-rb``` CLI parameters below.
+
 ### Command line parameters
 The following CLI parameters are supported:
 
@@ -140,6 +144,8 @@ create it's historgram and will print raw latencies, which eventually will be
 	*   c is max. number of slow replicas
 	*   cl is number of clients to run
 	*   testViewChange - if presents, primary replica will be killed after 1/2 of the total transactions been sent
+*   ```-pm``` Metadata persistency mode. One of the values of [PersistencyMode enum](https://github.com/vmware/concord-bft/blob/e36b83c34539b77bc7dc0538237909142dff4ed6/bftengine/tests/config/test_parameters.hpp#L32)
+*   ```-rb``` Replica behavior for the persistency tests. One of the values of [ReplicaBehavior enum](https://github.com/vmware/concord-bft/blob/e36b83c34539b77bc7dc0538237909142dff4ed6/bftengine/tests/config/test_parameters.hpp#L39)
 
 **IMPORTANT** if n - r >= f and the testViewChange is present, the system will NOT complete the View Change
 protocol and will exit after timeout - *THIS TEST WILL BE CONSIDERED AS SUCCESS*

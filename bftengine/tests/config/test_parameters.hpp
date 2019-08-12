@@ -29,6 +29,22 @@ struct ClientParams {
   }
 };
 
+enum class PersistencyMode {
+  Off, // no persistency at all
+  InMemory, // use in memory module
+  File, // use file as a storage
+  MAX_VALUE = File
+};
+
+enum class ReplicaBehavior {
+  Default,
+  Replica0OneTimeRestartVC,
+  Replica2PeriodicRestartNoVC,
+  AllReplicasRandomRestartNoVC,
+  AllReplicasRandomRestartVC,
+  MAX_VALUE = AllReplicasRandomRestartVC
+};
+
 struct ReplicaParams {
   uint16_t replicaId;
   uint16_t numOfReplicas = 4;
@@ -37,8 +53,10 @@ struct ReplicaParams {
   bool viewChangeEnabled = false;
   uint32_t viewChangeTimeout = 60000; // ms
   uint16_t statusReportTimerMillisec = 20 * 1000; // ms
-  std::string   configFileName;
-  std::string   keysFilePrefix;
+  std::string configFileName;
+  std::string keysFilePrefix;
+  PersistencyMode persistencyMode = PersistencyMode::Off;
+  ReplicaBehavior replicaBehavior = ReplicaBehavior::Default;
 };
 
 #endif //CONCORD_BFT_TEST_PARAMETERS_HPP

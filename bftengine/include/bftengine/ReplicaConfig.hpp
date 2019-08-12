@@ -71,6 +71,8 @@ struct ReplicaConfig {
   IThresholdSigner *thresholdSignerForOptimisticCommit = nullptr;
   IThresholdVerifier *thresholdVerifierForOptimisticCommit = nullptr;
 
+  bool debugPersistentStorageEnabled = false;
+
   // Messages
   uint32_t maxExternalMessageSize = 1 << 16;
   uint32_t maxReplyMessageSize = 1 << 13;

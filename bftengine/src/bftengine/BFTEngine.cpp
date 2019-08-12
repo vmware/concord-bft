@@ -16,6 +16,7 @@
 #include "DebugPersistentStorage.hpp"
 #include "PersistentStorageImp.hpp"
 
+#include <condition_variable>
 #include <mutex>
 
 namespace bftEngine {
@@ -39,9 +40,13 @@ struct ReplicaInternal : public Replica {
 
   virtual void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a) override;
 
-  virtual void restartForDebug() override;
+  virtual void restartForDebug(uint32_t delayMillis) override;
 
   ReplicaImp *rep;
+
+  private:
+    std::condition_variable debugWait;
+    std::mutex debugWaitLock;
 };
 
 ReplicaInternal::~ReplicaInternal() {
@@ -67,17 +72,30 @@ void ReplicaInternal::start() {
 }
 
 void ReplicaInternal::stop() {
-  return rep->stop();
+  unique_lock<std::mutex> lk(debugWaitLock);
+  if(rep->isRunning()) {
+    rep->stop();
+  }
+
+  debugWait.notify_all();
 }
 
 void ReplicaInternal::SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a) {
   return rep->SetAggregator(a);
 }
 
-void ReplicaInternal::restartForDebug() {
-  Assert(debugPersistentStorageEnabled);
-  rep->stopWhenStateIsNotCollected();
-
+void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
+  {
+    unique_lock<std::mutex> lk(debugWaitLock);
+      rep->stopWhenStateIsNotCollected();
+    if(delayMillis > 0) {
+      std::cv_status res =  
+        debugWait.wait_for(lk, std::chrono::milliseconds(delayMillis));
+      if (std::cv_status::no_timeout == res) //stop() was called
+        return;
+    }
+  }
+  
   shared_ptr<PersistentStorage> persistentStorage(rep->getPersistentStorage());
   RequestsHandler *requestsHandler = rep->getRequestsHandler();
   IStateTransfer *stateTransfer = rep->getStateTransfer();
@@ -119,13 +137,13 @@ Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
   uint16_t numOfObjects = 0;
   bool isNewStorage = true;
 
-  // metadataStorage is essential for a non-testing mode.
-  if (!debugPersistentStorageEnabled) Assert(metadataStorage != nullptr);
-
-  // Create debug metadataStorage for a testing mode.
-  if (debugPersistentStorageEnabled && metadataStorage == nullptr) {
-      persistentStoragePtr.reset(new impl::DebugPersistentStorage(replicaConfig->fVal, replicaConfig->cVal));
+  if (replicaConfig->debugPersistentStorageEnabled) {
+    Assert(metadataStorage == nullptr);
   }
+
+  if (replicaConfig->debugPersistentStorageEnabled )
+    if (metadataStorage == nullptr)
+      persistentStoragePtr.reset(new impl::DebugPersistentStorage(replicaConfig->fVal, replicaConfig->cVal));
 
   // Testing/real metadataStorage passed.
   if (metadataStorage != nullptr) {

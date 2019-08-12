@@ -1,16 +1,19 @@
 set(simpleTest_client_source_files
-    client.cpp
-    ${CONFIG_FOLDER_PATH_VALUE}/test_comm_config.cpp
-    ${CONFIG_FOLDER_PATH_VALUE}/config_file_parser.cpp
-    ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
-)
+        client.cpp
+        ${CONFIG_FOLDER_PATH_VALUE}/test_comm_config.cpp
+        ${CONFIG_FOLDER_PATH_VALUE}/config_file_parser.cpp
+        ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
+        simple_test_client.hpp
+        )
 
 set(simpleTest_replica_source_files
-    replica.cpp
-    ${CONFIG_FOLDER_PATH_VALUE}/test_comm_config.cpp
-    ${CONFIG_FOLDER_PATH_VALUE}/config_file_parser.cpp
-    ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
-)
+        replica.cpp
+        ${CONFIG_FOLDER_PATH_VALUE}/test_comm_config.cpp
+        ${CONFIG_FOLDER_PATH_VALUE}/config_file_parser.cpp
+        ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
+        simple_test_replica.hpp
+        simple_test_replica_behavior.hpp
+        )
 
 # This target should be moved to UT infrastructure code when created.
 set(config_source_files
@@ -29,6 +32,34 @@ add_executable(simpleTest_server $<TARGET_OBJECTS:logging_dev>
 add_executable(configTest
     ${config_source_files}
 )
+
+add_executable(persistency_test
+        persistency_test.cpp
+        ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp)
+
+target_include_directories(persistency_test PUBLIC
+        ${bftengine_SOURCE_DIR}/tests/simpleStorage
+        ${CONFIG_FOLDER_PATH_VALUE}
+        ${bftengine_SOURCE_DIR}/include/communication
+        ${concord_bft_tools_SOURCE_DIR}
+        ${SIMPLE_STORAGE_DIR})
+
+target_link_libraries(persistency_test PUBLIC
+        corebft
+        gtest
+        gtest_main
+        test_config_lib
+        $<TARGET_OBJECTS:logging_dev>
+        simple_file_storage_lib)
+
+add_test( persistency_test persistency_test )
+add_custom_target(copy_simple_test_config ALL
+        COMMENT "Copying config files of
+        simpleTest")
+add_custom_command(TARGET copy_simple_test_config
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/test_config
+        $<TARGET_FILE_DIR:simpleTest_client>/)
 
 if(USE_LOG4CPP)
     target_compile_definitions(simpleTest_server PUBLIC USE_LOG4CPP=1)
