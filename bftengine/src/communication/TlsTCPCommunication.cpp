@@ -271,7 +271,7 @@ class AsyncTlsConnection : public
    * this method closes the socket and frees the object by calling the _fOnError
    * we rely on boost cleanup and do not shutdown ssl and sockets explicitly
    */
-  void dispose_connection() {
+  void dispose_connection(bool remove) {
     if (_disposed)
       return;
 
@@ -291,7 +291,13 @@ class AsyncTlsConnection : public
 
     // We use _expectedDestId here instead of _destId, because _destId may not
     // be set yet, if the connection failed before authentication completes.
-    _fOnError(_expectedDestId);
+    if(remove) {
+      _fOnError(_expectedDestId);
+    }
+
+    _receiver = nullptr;
+    _fOnError = nullptr;
+    _fOnTlsReady = nullptr;
   }
 
   /**
@@ -313,7 +319,7 @@ class AsyncTlsConnection : public
       }
     }
 
-    dispose_connection();
+    dispose_connection(true);
   }
   /// ****************** cleanup functions* end ******************* ///
 
@@ -688,7 +694,7 @@ class AsyncTlsConnection : public
     }
     // check if the handle is not a result of calling expire_at()
     if(ec != boost::asio::error::operation_aborted) {
-      dispose_connection();
+      dispose_connection(true);
     }
   }
 
@@ -872,7 +878,7 @@ class AsyncTlsConnection : public
     }
     // check if we the handle is not a result of calling expire_at()
     if(ec != boost::asio::error::operation_aborted) {
-      dispose_connection();
+      dispose_connection(true);
     }
   }
 
@@ -907,7 +913,7 @@ class AsyncTlsConnection : public
     }
     bool err = was_error(ec, "async_write_complete");
     if(err) {
-      dispose_connection();
+      dispose_connection(true);
       return;
     }
 
@@ -1061,9 +1067,11 @@ class AsyncTlsConnection : public
 
     delete[] _inBuffer;
 
-    _receiver = nullptr;
-    _fOnError = nullptr;
-    _fOnTlsReady = nullptr;
+    
+  }
+
+  void dispose() {
+    dispose_connection(false);
   }
 };
 
@@ -1348,10 +1356,20 @@ class TlsTCPCommunication::TlsTcpImpl :
     }
 
     _service.stop();
-    _pIoThread->join();
+    if(_pIoThread->joinable()) {
+      _pIoThread->join();
+    }
+    _pIoThread = nullptr;
+
+    if(_pAcceptor) {
+      _pAcceptor->close();
+    }
+
+    for (auto it = _connections.begin(); it != _connections.end(); it++) {
+      it->second->dispose();
+    }
 
     _connections.clear();
-
     return 0;
   }
 
@@ -1400,7 +1418,7 @@ class TlsTCPCommunication::TlsTcpImpl :
   }
 
   ~TlsTcpImpl() {
-    LOG_DEBUG(_logger, "TlsTCPDtor");
+    LOG_DEBUG(_logger, "TlsTcpImpl dtor");
     _pIoThread = nullptr;
   }
 };

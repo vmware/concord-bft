@@ -72,7 +72,11 @@ void ReplicaInternal::start() {
 }
 
 void ReplicaInternal::stop() {
-  rep->stop();
+  unique_lock<std::mutex> lk(debugWaitLock);
+  if(rep->isRunning()) {
+    rep->stop();
+  }
+
   debugWait.notify_all();
 }
 
@@ -81,15 +85,17 @@ void ReplicaInternal::SetAggregator(std::shared_ptr<concordMetrics::Aggregator> 
 }
 
 void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
-  rep->stopWhenStateIsNotCollected();
-  if(delayMillis > 0) {
+  {
     unique_lock<std::mutex> lk(debugWaitLock);
-    std::cv_status res = 
-      debugWait.wait_for(lk, std::chrono::milliseconds(delayMillis));
-    if (std::cv_status::no_timeout == res) //stop() was called
-      return;
+      rep->stopWhenStateIsNotCollected();
+    if(delayMillis > 0) {
+      std::cv_status res =  
+        debugWait.wait_for(lk, std::chrono::milliseconds(delayMillis));
+      if (std::cv_status::no_timeout == res) //stop() was called
+        return;
+    }
   }
-
+  
   shared_ptr<PersistentStorage> persistentStorage(rep->getPersistentStorage());
   RequestsHandler *requestsHandler = rep->getRequestsHandler();
   IStateTransfer *stateTransfer = rep->getStateTransfer();

@@ -154,15 +154,8 @@ public:
 
   ~SimpleTestReplica() {
     if(replica) {
-      replica->stop();
-    }
-    if(runnerThread) {
-      runnerThread->join();
-    }
-    if(replica) {
       delete replica;
     }
-
   }
 
   uint16_t get_replica_id(){
@@ -175,6 +168,10 @@ public:
 
   void stop() {
     replica->stop();
+    if(runnerThread) {
+      runnerThread->join();
+    }
+    
     LOG_INFO(replicaLogger, "replica " << replicaConfig.replicaId << " stopped");
   }
 

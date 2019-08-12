@@ -21,6 +21,7 @@
 #include <thread>
 #include <chrono>
 #include <time.h>
+#include <memory>
 
 namespace test
 {
@@ -29,23 +30,19 @@ namespace persistency
 class PersistencyTest: public testing::Test
 {
  protected:
-  PersistencyTest() {
-  }
-
-  ~PersistencyTest() {
-    for(auto replica : replicas) {
-        replica->stop();
+  void TearDown() override {
+    for(auto it : replicas) {
+      it->stop();
     }
 
-    for(auto t : replicaThreads) {
-      t->join();
+    for(auto it : replicaThreads) {
+      if(it->joinable()) {
+        it->join();
+      }
     }
-
-    replicas.clear();
-    delete client;
   }
 
-  void run_replica(SimpleTestReplica *rep) {
+  void run_replica(shared_ptr<SimpleTestReplica> rep) {
     rep->start();
     rep->run();
   }
@@ -53,23 +50,23 @@ class PersistencyTest: public testing::Test
   void create_client(int numOfOperations) {
     ClientParams cp;
     cp.numOfOperations = numOfOperations;
-    client = new SimpleTestClient(cp, clientLogger);
+    client = std::unique_ptr<SimpleTestClient>(new SimpleTestClient(cp, clientLogger));
   }
 
   void create_and_run_replica(
     ReplicaParams rp, ISimpleTestReplicaBehavior *behv) {
       rp.keysFilePrefix = "private_replica_";
-      SimpleTestReplica *replica = SimpleTestReplica::create_replica(
-        behv, rp, nullptr);
+      auto replica = std::shared_ptr<SimpleTestReplica>(SimpleTestReplica::create_replica(
+        behv, rp, nullptr));
       replicas.push_back(replica);
-      std::thread *t = new std::thread(
-        std::bind(&PersistencyTest::run_replica, this ,replica));
+     auto t = std::shared_ptr<std::thread>(new std::thread(
+        std::bind(&PersistencyTest::run_replica, this ,replica)));
       replicaThreads.push_back(t);
   }
 
-  SimpleTestClient *client;
-  vector<SimpleTestReplica*> replicas;
-  vector<std::thread*> replicaThreads;
+  std::unique_ptr<SimpleTestClient> client;
+  vector<std::shared_ptr<SimpleTestReplica>> replicas;
+  vector<std::shared_ptr<std::thread>> replicaThreads;
   concordlogger::Logger clientLogger = concordlogger::Log::getLogger
       ("clientlogger");
   concordlogger::Logger replicaLogger = concordlogger::Log::getLogger
@@ -77,7 +74,7 @@ class PersistencyTest: public testing::Test
 };
 
 TEST_F(PersistencyTest, RegressionNoPersistency) {
-  create_client(2800);
+  create_client(1500);
   for(int i = 0; i < 4;i++) {
     ReplicaParams rp;
     rp.persistencyMode = PersistencyMode::Off;
@@ -88,11 +85,11 @@ TEST_F(PersistencyTest, RegressionNoPersistency) {
   }
 
   ASSERT_TRUE(client->run());
-}
+} 
 
 // this test make take a while to complete...
 TEST_F(PersistencyTest, PrimaryRestartVC) {
-  create_client(2000);
+  create_client(1500);
   
   for(int i = 0; i < 4;i++) {
     ReplicaParams rp;
@@ -104,6 +101,12 @@ TEST_F(PersistencyTest, PrimaryRestartVC) {
   }
 
   ASSERT_TRUE(client->run());
+}
+
+GTEST_API_ int main(int argc, char **argv) {
+   printf("Running main() from gtest_main.cc\n");
+   testing::InitGoogleTest(&argc, argv);
+	 return RUN_ALL_TESTS();
 }
 
 }
