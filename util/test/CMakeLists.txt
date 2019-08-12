@@ -12,3 +12,7 @@ add_test(NAME metric_server_tests COMMAND python3 -m unittest
 add_executable(mt_tests multithreading.cpp)
 add_test(util_mt_tests mt_tests)
 target_link_libraries(mt_tests gtest_main util)
+
+add_executable(sliver_test sliver_test.cpp)
+add_test(sliver_test sliver_test)
+target_link_libraries(sliver_test gtest util)
