@@ -18,7 +18,7 @@
 
 #include <mutex>
 #include <functional>
-#include <log4cplus/loggingmacros.h>
+#include "Logger.hpp"
 #include "bftengine/MetadataStorage.hpp"
 #include "../database_interface.h"
 #include "sliver.hpp"
@@ -32,8 +32,7 @@ class RocksDBMetadataStorage : public bftEngine::MetadataStorage {
  public:
   explicit RocksDBMetadataStorage(IDBClient *dbClient, 
                                   std::function<concordUtils::Sliver(uint32_t)> genMetadataKey)
-      : logger_(log4cplus::Logger::getInstance(
-            "com.concord.vmware.metadatastorage")),
+      : logger_(concordlogger::Log::getLogger("com.concord.vmware.metadatastorage")),
         dbClient_(dbClient),
         genMetadataKey_(std::move(genMetadataKey)){}
 
@@ -59,7 +58,7 @@ class RocksDBMetadataStorage : public bftEngine::MetadataStorage {
 
   const uint8_t objectsNumParameterId_ = 1;
 
-  log4cplus::Logger logger_;
+  concordlogger::Logger logger_;
   IDBClient *dbClient_ = nullptr;
   SetOfKeyValuePairs *transaction_ = nullptr;
   std::mutex ioMutex_;
