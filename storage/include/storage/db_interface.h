@@ -1,7 +1,6 @@
 // Copyright 2018 VMware, all rights reserved
 
-#ifndef CONCORD_STORAGE_DATABASE_INTERFACE_H_
-#define CONCORD_STORAGE_DATABASE_INTERFACE_H_
+#pragma once
 
 #include "sliver.hpp"
 #include "status.hpp"
@@ -9,7 +8,8 @@
 
 #define OUT
 
-namespace concordStorage {
+namespace concord {
+namespace storage {
 
 using concordUtils::Sliver;
 using concordUtils::Status;
@@ -57,6 +57,5 @@ class IDBClient {
   virtual Status freeIterator(IDBClientIterator *_iter) const = 0;
 };
 
-}  // namespace concordStorage
-
-#endif  // CONCORD_STORAGE_DATABASE_INTERFACE_H_
+}
+}

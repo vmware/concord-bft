@@ -17,9 +17,10 @@
 
 using concordUtils::Sliver;
 using concordlogger::Logger;
-using concordStorage::rocksdb::copyRocksdbSlice;
+using concord::storage::rocksdb::copyRocksdbSlice;
 
-namespace concordStorage {
+namespace concord {
+namespace storage {
 namespace blockchain {
 
 /*
@@ -120,5 +121,6 @@ bool RocksKeyComparator::InMemKeyComp(const Sliver& _a, const Sliver& _b) {
   return comp < 0;
 }
 
-}  // namespace blockchain 
-}  // namespace concordStorage
+}
+}
+}

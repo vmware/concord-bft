@@ -23,7 +23,8 @@
 using concordUtils::Sliver;
 using concordUtils::Status;
 
-namespace concordStorage {
+namespace concord {
+namespace storage {
 namespace rocksdb {
 
 // Counter for number of read requests
@@ -511,7 +512,7 @@ bool RocksDBClientIterator::isEnd() { return !m_iter->Valid(); }
  */
 Status RocksDBClientIterator::getStatus() { return m_status; }
 
-}  // namespace rocksdb 
-}  // namespace concordStorage
-
+}
+}
+}
 #endif

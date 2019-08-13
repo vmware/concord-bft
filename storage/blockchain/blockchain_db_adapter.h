@@ -3,17 +3,17 @@
 // Translation between BlockAppender/ILocalkeyValueStorage* to the underlying
 // database.
 
-#ifndef CONCORD_STORAGE_BLOCKCHAIN_DB_ADAPTER_H_
-#define CONCORD_STORAGE_BLOCKCHAIN_DB_ADAPTER_H_
+#pragma once
 
 #include "Logger.hpp"
 
 #include "sliver.hpp"
 #include "blockchain_db_types.h"
 #include "blockchain_db_interfaces.h"
-#include "../database_interface.h"
+#include "storage/db_interface.h"
 
-namespace concordStorage {
+namespace concord {
+namespace storage {
 namespace blockchain {
 
 class BlockchainDBAdapter {
@@ -79,7 +79,6 @@ class KeyManipulator {
   static Sliver       generateMetadataKey(ObjectId objectId);
 };
 
-}  // namespace blockchain 
-}  // namespace concordStorage
-
-#endif  // CONCORD_STORAGE_BLOCKCHAIN_DB_ADAPTER_H_
+}
+}
+}
