@@ -5,7 +5,6 @@ target_include_directories(concordbft_storage PUBLIC include)
 target_link_libraries(concordbft_storage corebft)
 
 if (BUILD_ROCKSDB_STORAGE)
-
   find_library(ROCKSDB   rocksdb)
   find_library(LIBBZ2    bz2)
   find_library(LIBLZ4    lz4)

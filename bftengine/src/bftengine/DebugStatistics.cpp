@@ -71,9 +71,9 @@ void DebugStatistics::onCycleCheck() {
       "    LastExecutedSeqNumber = " <<
       d.lastExecutedSequenceNumber << endl);
 
-			d.lastCycleTime = currTime;
-			clearCounters(d);
-		}
+  d.lastCycleTime = currTime;
+  clearCounters(d);
+}
 
 void DebugStatistics::onReceivedExMessage(uint16_t type) {
 			DebugStatDesc& d = getDebugStatDesc();
