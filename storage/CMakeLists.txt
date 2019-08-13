@@ -6,9 +6,9 @@ target_link_libraries(storage corebft)
 
 if (BUILD_ROCKSDB_STORAGE)
   add_subdirectory(rocksdb)
-endif()
-add_subdirectory(blockchain)
-if (BUILD_TESTING)
-  add_subdirectory(test)
+  add_subdirectory(blockchain)
+  if (BUILD_TESTING)
+    add_subdirectory(test)
+  endif()
 endif()
 
