@@ -5,7 +5,7 @@
 #ifndef CONCORD_STORAGE_COMPARATORS_H_
 #define CONCORD_STORAGE_COMPARATORS_H_
 
-#include <log4cplus/loggingmacros.h>
+#include "Logger.hpp"
 
 #ifdef USE_ROCKSDB
 #include "rocksdb/comparator.h"
@@ -27,7 +27,7 @@ using concordUtils::Sliver;
 class RocksKeyComparator : public rocksdb::Comparator {
  public:
   RocksKeyComparator()
-      : logger(log4cplus::Logger::getInstance(
+      : logger(concordlogger::Log::getLogger(
             "concord.storage.RocksKeyComparator")) {}
   int Compare(const rocksdb::Slice& _a, const rocksdb::Slice& _b) const;
 
@@ -38,12 +38,12 @@ class RocksKeyComparator : public rocksdb::Comparator {
   static bool InMemKeyComp(const Sliver& _a, const Sliver& _b);
 
  private:
-  static int ComposedKeyComparison(const log4cplus::Logger& logger,
+  static int ComposedKeyComparison(const concordlogger::Logger& logger,
                                    const Sliver& _a,
                                    const Sliver& _b);
 
  private:
-  log4cplus::Logger logger;
+  concordlogger::Logger logger;
 };
 #endif
 

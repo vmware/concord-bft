@@ -4,7 +4,7 @@
 
 #include "comparators.h"
 
-#include <log4cplus/loggingmacros.h>
+#include "Logger.hpp"
 
 #include "hex_tools.h"
 #include "sliver.hpp"
@@ -16,7 +16,7 @@
 #include <chrono>
 
 using concordUtils::Sliver;
-using log4cplus::Logger;
+using concordlogger::Logger;
 using concordStorage::rocksdb::copyRocksdbSlice;
 
 namespace concordStorage {
@@ -100,7 +100,7 @@ int RocksKeyComparator::Compare(const ::rocksdb::Slice& _a,
   Sliver b = copyRocksdbSlice(_b);
   int ret = ComposedKeyComparison(logger, a, b);
 
-  LOG4CPLUS_DEBUG(logger,
+  LOG_DEBUG(logger,
                   "Compared " << a << " with " << b << ", returning " << ret);
 
   return ret;
@@ -110,10 +110,10 @@ int RocksKeyComparator::Compare(const ::rocksdb::Slice& _a,
 /* In memory */
 bool RocksKeyComparator::InMemKeyComp(const Sliver& _a, const Sliver& _b) {
   Logger logger(
-      log4cplus::Logger::getInstance("concord.storage.RocksKeyComparator"));
+      concordlogger::Log::getLogger("concord.storage.RocksKeyComparator"));
   int comp = ComposedKeyComparison(logger, _a, _b);
 
-  LOG4CPLUS_DEBUG(logger, "Compared " << _a << " with " << _b
+  LOG_DEBUG(logger, "Compared " << _a << " with " << _b
                                       << ", a < b == " << (comp < 0));
 
   // Check: comp < 0 ==> _a < _b

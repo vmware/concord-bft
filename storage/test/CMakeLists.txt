@@ -5,7 +5,6 @@ target_link_libraries(multiIO_test PUBLIC
     util
     concordbft_storage_rocksdb
     concordbft_storage_blockchain
-    ${LOG4CPLUS_LIBRARIES}
 )
 
 add_executable(metadataStorage_test metadataStorage_test.cpp)
@@ -15,5 +14,4 @@ target_link_libraries(metadataStorage_test PUBLIC
     util
     concordbft_storage_rocksdb
     concordbft_storage_blockchain
-    ${LOG4CPLUS_LIBRARIES}
 )

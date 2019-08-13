@@ -61,11 +61,6 @@ add_custom_command(TARGET copy_simple_test_config
         ${CMAKE_CURRENT_SOURCE_DIR}/test_config
         $<TARGET_FILE_DIR:simpleTest_client>/)
 
-if(USE_LOG4CPP)
-    target_compile_definitions(simpleTest_server PUBLIC USE_LOG4CPP=1)
-    target_compile_definitions(simpleTest_client PUBLIC USE_LOG4CPP=1)
-    target_compile_definitions(configTest PUBLIC USE_LOG4CPP=1)
-endif()
 
 if(${USE_COMM_PLAIN_TCP})
     target_compile_definitions(simpleTest_client PUBLIC USE_COMM_PLAIN_TCP)

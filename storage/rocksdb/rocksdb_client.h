@@ -19,7 +19,7 @@
 #define CONCORD_STORAGE_ROCKSDB_CLIENT_H_
 
 #ifdef USE_ROCKSDB
-#include <log4cplus/loggingmacros.h>
+#include "Logger.hpp"
 #include "rocksdb/db.h"
 #include "kv_types.hpp"
 #include "../database_interface.h"
@@ -47,7 +47,7 @@ class RocksDBClientIterator
   concordUtils::Status getStatus() override;
 
  private:
-  log4cplus::Logger logger;
+  concordlogger::Logger logger;
 
   ::rocksdb::Iterator *m_iter;
 
@@ -60,7 +60,7 @@ class RocksDBClientIterator
 class RocksDBClient : public concordStorage::IDBClient {
  public:
   RocksDBClient(std::string _dbPath, ::rocksdb::Comparator *_comparator)
-      : logger(log4cplus::Logger::getInstance("com.concord.vmware.kvb")),
+      : logger(concordlogger::Log::getLogger("com.concord.vmware.kvb")),
         m_dbPath(_dbPath),
         m_comparator(_comparator) {}
 
@@ -98,7 +98,7 @@ class RocksDBClient : public concordStorage::IDBClient {
                                  OUT std::string &_value) const;
 
  private:
-  log4cplus::Logger logger;
+  concordlogger::Logger logger;
 
   // Database path on directory (used for connection).
   std::string m_dbPath;
