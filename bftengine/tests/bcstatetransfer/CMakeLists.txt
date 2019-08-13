@@ -12,3 +12,4 @@ target_include_directories(bcstatetransfer_tests
 
 target_link_libraries(bcstatetransfer_tests gtest_main)
 target_link_libraries(bcstatetransfer_tests corebft)
+target_compile_options(bcstatetransfer_tests PUBLIC "-Wno-sign-compare") 

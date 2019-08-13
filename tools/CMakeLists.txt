@@ -21,7 +21,8 @@ set_target_properties(GenerateConcordKeys
                       PROPERTIES
                       RUNTIME_OUTPUT_DIRECTORY
                       .)
-
+                      
+target_compile_options(GenerateConcordKeys PUBLIC "-Wno-extra-semi" "-Wno-undefined-var-template") # TODO tmp cryptopp
 add_executable(TestGeneratedKeys
                TestGeneratedKeys.cpp
                KeyfileIOUtils.hpp
