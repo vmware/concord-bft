@@ -5,9 +5,7 @@
 
 #define USE_ROCKSDB 1
 
-#include <log4cplus/configurator.h>
-#include <log4cplus/hierarchy.h>
-#include <log4cplus/loggingmacros.h>
+#include "Logger.hpp"
 #include "hash_defs.h"
 #include "gtest/gtest.h"
 #include "comparators.h"
@@ -99,11 +97,7 @@ TEST(metadataStorage_test, multi_write) {
 
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
-  log4cplus::initialize();
-  log4cplus::Hierarchy &hierarchy = log4cplus::Logger::getDefaultHierarchy();
-  hierarchy.disableDebug();
-  log4cplus::BasicConfigurator config(hierarchy, false);
-  config.configure();
+
   const string dbPath = "./metadataStorage_test_db";
   RocksDBClient *dbClient = new RocksDBClient(dbPath, new RocksKeyComparator());
   dbClient->init();

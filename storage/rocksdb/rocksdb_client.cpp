@@ -15,7 +15,7 @@
 
 #include "rocksdb_client.h"
 
-#include <log4cplus/loggingmacros.h>
+#include "Logger.hpp"
 
 #include "hash_defs.h"
 #include "rocksdb/comparator.h"
@@ -99,7 +99,7 @@ Status RocksDBClient::init(bool readOnly) {
   m_dbInstance.reset(db);
 
   if (!s.ok()) {
-    LOG4CPLUS_ERROR(logger, "Failed to open rocksdb database at "
+    LOG_ERROR(logger, "Failed to open rocksdb database at "
                                 << m_dbPath << " due to " << s.ToString());
     return Status::GeneralError("Database open error");
   }
@@ -116,7 +116,7 @@ Status RocksDBClient::init(bool readOnly) {
 Status RocksDBClient::get(Sliver _key, OUT std::string &_value) const {
   ++g_rocksdb_called_read;
   if (g_rocksdb_print_measurements) {
-    LOG4CPLUS_DEBUG(logger, "Reading count = " << g_rocksdb_called_read
+    LOG_DEBUG(logger, "Reading count = " << g_rocksdb_called_read
                                                << ", key " << _key);
   }
   ::rocksdb::Status s =
@@ -127,7 +127,7 @@ Status RocksDBClient::get(Sliver _key, OUT std::string &_value) const {
   }
 
   if (!s.ok()) {
-    LOG4CPLUS_DEBUG(logger,
+    LOG_DEBUG(logger,
                     "Failed to get key " << _key << " due to " << s.ToString());
     return Status::GeneralError("Failed to read key");
   }
@@ -172,7 +172,7 @@ Status RocksDBClient::get(Sliver _key, OUT char *&buf, uint32_t bufSize,
 
   _realSize = static_cast<uint32_t>(value.length());
   if (bufSize < _realSize) {
-    LOG4CPLUS_ERROR(logger,
+    LOG_ERROR(logger,
                     "Object value is bigger than specified buffer bufSize="
                         << bufSize << ", _realSize=" << _realSize);
     return Status::GeneralError("Object value is bigger than specified buffer");
@@ -225,7 +225,7 @@ void RocksDBClient::monitor() const {
   // TODO Can be used for additional sanity checks and debugging.
 
   if (g_rocksdb_print_measurements) {
-    LOG4CPLUS_DEBUG(logger, "No. of times read: " << g_rocksdb_called_read);
+    LOG_DEBUG(logger, "No. of times read: " << g_rocksdb_called_read);
   }
 }
 
@@ -235,7 +235,7 @@ void RocksDBClient::monitor() const {
  * Calls the getNewRocksDbIterator function.
  */
 RocksDBClientIterator::RocksDBClientIterator(const RocksDBClient *_parentClient)
-    : logger(log4cplus::Logger::getInstance("com.vmware.concord.kvb")),
+    : logger(concordlogger::Log::getLogger("com.vmware.concord.kvb")),
       m_parentClient(_parentClient),
       m_status(Status::OK()) {
   m_iter = m_parentClient->getNewRocksDbIterator();
@@ -256,10 +256,10 @@ Status RocksDBClient::put(Sliver _key, Sliver _value) {
   ::rocksdb::Status s =
       m_dbInstance->Put(woptions, toRocksdbSlice(_key), toRocksdbSlice(_value));
 
-  LOG4CPLUS_DEBUG(logger, "Rocksdb Put " << _key << " : " << _value);
+  LOG_DEBUG(logger, "Rocksdb Put " << _key << " : " << _value);
 
   if (!s.ok()) {
-    LOG4CPLUS_ERROR(logger,
+    LOG_ERROR(logger,
                     "Failed to put key " << _key << ", value " << _value);
     return Status::GeneralError("Failed to put key");
   }
@@ -280,10 +280,10 @@ Status RocksDBClient::del(Sliver _key) {
   ::rocksdb::WriteOptions woptions = ::rocksdb::WriteOptions();
   ::rocksdb::Status s = m_dbInstance->Delete(woptions, toRocksdbSlice(_key));
 
-  LOG4CPLUS_DEBUG(logger, "Rocksdb delete " << _key);
+  LOG_DEBUG(logger, "Rocksdb delete " << _key);
 
   if (!s.ok()) {
-    LOG4CPLUS_ERROR(logger, "Failed to delete key " << _key);
+    LOG_ERROR(logger, "Failed to delete key " << _key);
     return Status::GeneralError("Failed to delete key");
   }
 
@@ -303,7 +303,7 @@ Status RocksDBClient::multiGet(const KeysVector &_keysVec,
     if (statuses[i].IsNotFound()) return Status::NotFound("Not found");
 
     if (!statuses[i].ok()) {
-      LOG4CPLUS_WARN(logger, "Failed to get key " << _keysVec[i] << " due to "
+      LOG_WARN(logger, "Failed to get key " << _keysVec[i] << " due to "
                                                   << statuses[i].ToString());
       return Status::GeneralError("Failed to read key");
     }
@@ -327,11 +327,11 @@ Status RocksDBClient::launchBatchJob(::rocksdb::WriteBatch &_batchJob,
   ::rocksdb::WriteOptions wOptions = ::rocksdb::WriteOptions();
   ::rocksdb::Status status = m_dbInstance->Write(wOptions, &_batchJob);
   if (!status.ok()) {
-    LOG4CPLUS_ERROR(logger, "Execution of batch job failed; keys: "
+    LOG_ERROR(logger, "Execution of batch job failed; keys: "
                                 << collectKeysForPrint(_keysVec).str());
     return Status::GeneralError("Execution of batch job failed");
   }
-  LOG4CPLUS_DEBUG(logger, "Successfully executed a batch job for keys: "
+  LOG_DEBUG(logger, "Successfully executed a batch job for keys: "
                               << collectKeysForPrint(_keysVec).str());
   return Status::OK();
 }
@@ -342,13 +342,13 @@ Status RocksDBClient::multiPut(const SetOfKeyValuePairs &_keyValueMap) {
   for (const auto &it : _keyValueMap) {
     batch.Put(toRocksdbSlice(it.first), toRocksdbSlice(it.second));
     keysVec.push_back(it.first);
-    LOG4CPLUS_DEBUG(logger, "RocksDB Added entry: key ="
+    LOG_DEBUG(logger, "RocksDB Added entry: key ="
                                 << it.first << ", value= " << it.second
                                 << " to the batch job");
   }
   Status status = launchBatchJob(batch, keysVec);
   if (status.isOK())
-    LOG4CPLUS_DEBUG(logger, "Successfully put all entries to the database");
+    LOG_DEBUG(logger, "Successfully put all entries to the database");
   return status;
 }
 
@@ -359,7 +359,7 @@ Status RocksDBClient::multiDel(const KeysVector &_keysVec) {
     batch.Delete(toRocksdbSlice(it));
   }
   Status status = launchBatchJob(batch, _keysVec);
-  if (status.isOK()) LOG4CPLUS_DEBUG(logger, "Successfully deleted entries");
+  if (status.isOK()) LOG_DEBUG(logger, "Successfully deleted entries");
   return status;
 }
 
@@ -371,14 +371,14 @@ Status RocksDBClient::multiDel(const KeysVector &_keysVec) {
 KeyValuePair RocksDBClientIterator::first() {
   ++g_rocksdb_called_read;
   if (g_rocksdb_print_measurements) {
-    LOG4CPLUS_DEBUG(logger, "Reading count = " << g_rocksdb_called_read);
+    LOG_DEBUG(logger, "Reading count = " << g_rocksdb_called_read);
   }
 
   // Position at the first key in the database
   m_iter->SeekToFirst();
 
   if (!m_iter->Valid()) {
-    LOG4CPLUS_ERROR(logger, "Did not find a first key");
+    LOG_ERROR(logger, "Did not find a first key");
     m_status = Status::NotFound("Empty database");
     return KeyValuePair();
   }
@@ -404,13 +404,13 @@ KeyValuePair RocksDBClientIterator::first() {
 KeyValuePair RocksDBClientIterator::seekAtLeast(Sliver _searchKey) {
   ++g_rocksdb_called_read;
   if (g_rocksdb_print_measurements) {
-    LOG4CPLUS_DEBUG(logger, "Reading count = " << g_rocksdb_called_read
+    LOG_DEBUG(logger, "Reading count = " << g_rocksdb_called_read
                                                << ", key " << _searchKey);
   }
 
   m_iter->Seek(toRocksdbSlice(_searchKey));
   if (!m_iter->Valid()) {
-    LOG4CPLUS_WARN(logger, "Did not find search key " << _searchKey);
+    LOG_WARN(logger, "Did not find search key " << _searchKey);
     // TODO(SG): Status to exception?
     return KeyValuePair();
   }
@@ -420,7 +420,7 @@ KeyValuePair RocksDBClientIterator::seekAtLeast(Sliver _searchKey) {
   Sliver key = copyRocksdbSlice(m_iter->key());
   Sliver value = copyRocksdbSlice(m_iter->value());
 
-  LOG4CPLUS_DEBUG(logger, "Key " << key << " value " << value);
+  LOG_DEBUG(logger, "Key " << key << " value " << value);
   m_status = Status::OK();
   return KeyValuePair(key, value);
 }
@@ -436,14 +436,14 @@ KeyValuePair RocksDBClientIterator::previous() {
   m_iter->Prev();
 
   if (!m_iter->Valid()) {
-    LOG4CPLUS_ERROR(logger, "Iterator out of bounds");
+    LOG_ERROR(logger, "Iterator out of bounds");
     return KeyValuePair();
   }
 
   Sliver key = copyRocksdbSlice(m_iter->key());
   Sliver value = copyRocksdbSlice(m_iter->value());
 
-  LOG4CPLUS_DEBUG(logger, "Key " << key << " value " << value);
+  LOG_DEBUG(logger, "Key " << key << " value " << value);
   m_status = Status::OK();
 
   return KeyValuePair(key, value);
@@ -459,12 +459,12 @@ KeyValuePair RocksDBClientIterator::previous() {
 KeyValuePair RocksDBClientIterator::next() {
   ++g_rocksdb_called_read;
   if (g_rocksdb_print_measurements) {
-    LOG4CPLUS_DEBUG(logger, "Reading count = " << g_rocksdb_called_read);
+    LOG_DEBUG(logger, "Reading count = " << g_rocksdb_called_read);
   }
 
   m_iter->Next();
   if (!m_iter->Valid()) {
-    LOG4CPLUS_ERROR(logger, "No next key");
+    LOG_ERROR(logger, "No next key");
     m_status = Status::GeneralError("No next key");
     return KeyValuePair();
   }
@@ -472,7 +472,7 @@ KeyValuePair RocksDBClientIterator::next() {
   Sliver key = copyRocksdbSlice(m_iter->key());
   Sliver value = copyRocksdbSlice(m_iter->value());
 
-  LOG4CPLUS_DEBUG(logger, "Key " << key << " value " << value);
+  LOG_DEBUG(logger, "Key " << key << " value " << value);
   m_status = Status::OK();
   return KeyValuePair(key, value);
 }
@@ -484,7 +484,7 @@ KeyValuePair RocksDBClientIterator::next() {
  */
 KeyValuePair RocksDBClientIterator::getCurrent() {
   if (!m_iter->Valid()) {
-    LOG4CPLUS_ERROR(logger, "Iterator is not pointing at an element");
+    LOG_ERROR(logger, "Iterator is not pointing at an element");
     m_status = Status::GeneralError("Iterator is not pointing at an element");
     return KeyValuePair();
   }
