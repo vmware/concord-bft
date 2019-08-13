@@ -5,9 +5,7 @@
 
 #define USE_ROCKSDB 1
 
-#include <log4cplus/configurator.h>
-#include <log4cplus/hierarchy.h>
-#include <log4cplus/loggingmacros.h>
+#include "Logger.hpp"
 #include "hash_defs.h"
 #include "gtest/gtest.h"
 #include "comparators.h"
@@ -21,8 +19,8 @@ using concordUtils::Sliver;
 using concordUtils::KeysVector;
 using concordUtils::KeyValuePair;
 using concordUtils::SetOfKeyValuePairs;
-using concordStorage::rocksdb::RocksDBClient;
-using concordStorage::blockchain::RocksKeyComparator;
+using concord::storage::rocksdb::RocksDBClient;
+using concord::storage::blockchain::RocksKeyComparator;
 
 namespace {
 
@@ -101,11 +99,6 @@ TEST(multiIO_test, multi_del) {
 
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
-  log4cplus::initialize();
-  log4cplus::Hierarchy &hierarchy = log4cplus::Logger::getDefaultHierarchy();
-  hierarchy.disableDebug();
-  log4cplus::BasicConfigurator config(hierarchy, false);
-  config.configure();
   const string dbPath = "./rocksdb_test";
   dbClient = new RocksDBClient(dbPath, new RocksKeyComparator());
   dbClient->init();

@@ -23,10 +23,6 @@
 #include <time.h>
 #include <memory>
 
-#ifdef USE_LOG4CPP
-#include <log4cplus/configurator.h>
-#endif
-
 namespace test
 {
 namespace persistency

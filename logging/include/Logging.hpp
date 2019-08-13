@@ -47,7 +47,7 @@ class Logger
        "ERROR",
        "FATAL"};
 
-  inline void get_time(std::stringstream &ss) {
+  inline void get_time(std::stringstream &ss) const {
     using namespace std::chrono;
     auto now = system_clock::now();
     auto ms = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
@@ -63,7 +63,7 @@ class Logger
 
   explicit Logger(std::string name) : _name{std::move(name)} {}
 
-  void print(concordlogger::LogLevel l, const std::string& s) {
+  void print(concordlogger::LogLevel l, const std::string& s) const{
     std::stringstream time;
     get_time(time);
     std::cout << Logger::LEVELS_STRINGS[l].c_str() << " "

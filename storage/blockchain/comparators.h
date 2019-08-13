@@ -2,19 +2,16 @@
 //
 // Storage key comparators definition.
 
-#ifndef CONCORD_STORAGE_COMPARATORS_H_
-#define CONCORD_STORAGE_COMPARATORS_H_
-
-#include <log4cplus/loggingmacros.h>
-
+#pragma once
 #ifdef USE_ROCKSDB
+
+#include "Logger.hpp"
 #include "rocksdb/comparator.h"
 #include "rocksdb/slice.h"
-#endif
-
 #include "sliver.hpp"
 
-namespace concordStorage {
+namespace concord {
+namespace storage {
 namespace blockchain {
 
 using concordUtils::Sliver;
@@ -22,12 +19,10 @@ using concordUtils::Sliver;
 // Basic comparator. Decomposes storage key into parts (type, version,
 // application key).
 
-// RocksDB
-#ifdef USE_ROCKSDB
 class RocksKeyComparator : public rocksdb::Comparator {
  public:
   RocksKeyComparator()
-      : logger(log4cplus::Logger::getInstance(
+      : logger(concordlogger::Log::getLogger(
             "concord.storage.RocksKeyComparator")) {}
   int Compare(const rocksdb::Slice& _a, const rocksdb::Slice& _b) const;
 
@@ -38,16 +33,15 @@ class RocksKeyComparator : public rocksdb::Comparator {
   static bool InMemKeyComp(const Sliver& _a, const Sliver& _b);
 
  private:
-  static int ComposedKeyComparison(const log4cplus::Logger& logger,
+  static int ComposedKeyComparison(const concordlogger::Logger& logger,
                                    const Sliver& _a,
                                    const Sliver& _b);
 
  private:
-  log4cplus::Logger logger;
+  concordlogger::Logger logger;
 };
+
+}
+}
+}
 #endif
-
-}  // namespace blockchain
-}  // namespace concordStorage
-
-#endif  // CONCORD_STORAGE_COMPARATORS_H_

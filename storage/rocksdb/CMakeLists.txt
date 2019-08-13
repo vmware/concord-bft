@@ -1,6 +1,5 @@
-add_library(concordbft_storage_rocksdb STATIC
+add_library(concordbft_storage_rocksdb STATIC 
     rocksdb_client.cpp
-    rocksdb_metadata_storage.cpp
 )
 target_include_directories(concordbft_storage_rocksdb PUBLIC
     ${bftengine_SOURCE_DIR}/include)
@@ -14,7 +13,7 @@ find_library(LIBZSTD zstd)
 find_library(LIBZ z)
 find_library(LIBSNAPPY snappy)
 target_compile_definitions(concordbft_storage_rocksdb PUBLIC USE_ROCKSDB=1)
-target_link_libraries(concordbft_storage_rocksdb PUBLIC ${ROCKSDB} ${LIBBZ2} ${LIBLZ4} ${LIBZSTD} ${LIBZ} ${LIBSNAPPY})
+target_link_libraries(concordbft_storage_rocksdb PUBLIC ${ROCKSDB} ${LIBBZ2} ${LIBLZ4} ${LIBZSTD} ${LIBZ} ${LIBSNAPPY} storage)
 
 target_compile_definitions(concordbft_storage_rocksdb PUBLIC __BASE=1 SPARSE_STATE=1 USE_TLS=1)
 if(${BUILD_COMM_TCP_TLS})

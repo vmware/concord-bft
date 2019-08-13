@@ -20,6 +20,6 @@ std::ostream &hexPrint(std::ostream &s, const uint8_t *data, size_t size) {
   // restore current state
   s.flags(f);
   return s;
-};
+}
 
 }  // namespace concordUtils 

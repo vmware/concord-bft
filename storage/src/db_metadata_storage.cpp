@@ -11,7 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "rocksdb_metadata_storage.h"
+#include "storage/db_metadata_storage.h"
 
 #include <cstring>
 #include <exception>
@@ -21,26 +21,25 @@ using namespace std;
 
 using concordUtils::Status;
 
-namespace concordStorage {
-namespace rocksdb {
+namespace concord {
+namespace storage {
 
-void RocksDBMetadataStorage::verifyOperation(uint32_t dataLen,
-                                             const char *buffer) const {
+void DBMetadataStorage::verifyOperation(uint32_t dataLen,
+                                        const char *buffer) const {
   if (!dataLen || !buffer) {
-    LOG4CPLUS_ERROR(logger_, WRONG_PARAMETER);
+    LOG_ERROR(logger_, WRONG_PARAMETER);
     throw runtime_error(WRONG_PARAMETER);
   }
 }
 
-bool RocksDBMetadataStorage::isNewStorage() {
+bool DBMetadataStorage::isNewStorage() {
   uint32_t outActualObjectSize;
   read(objectsNumParameterId_, sizeof(objectsNum_), (char *)&objectsNum_,
        outActualObjectSize);
   return (outActualObjectSize == 0);
 }
 
-bool RocksDBMetadataStorage::initMaxSizeOfObjects(
-    ObjectDesc *metadataObjectsArray, uint32_t metadataObjectsArrayLength) {
+bool DBMetadataStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint32_t metadataObjectsArrayLength) {
   // Metadata object with id=0 is used to indicate storage initialization state
   // (number of specified metadata objects).
   bool isNew = isNewStorage();
@@ -49,13 +48,14 @@ bool RocksDBMetadataStorage::initMaxSizeOfObjects(
     atomicWrite(objectsNumParameterId_, (char *)&objectsNum_,
                 sizeof(objectsNum_));
   }
-  LOG4CPLUS_DEBUG(logger_, "initMaxSizeOfObjects objectsNum_=" << objectsNum_);
+  LOG_DEBUG(logger_, "initMaxSizeOfObjects objectsNum_=" << objectsNum_);
   return isNew;
 }
 
-void RocksDBMetadataStorage::read(uint32_t objectId, uint32_t bufferSize,
-                                  char *outBufferForObject,
-                                  uint32_t &outActualObjectSize) {
+void DBMetadataStorage::read(uint32_t objectId,
+                             uint32_t bufferSize,
+                             char *outBufferForObject,
+                             uint32_t &outActualObjectSize) {
   verifyOperation(bufferSize, outBufferForObject);
   lock_guard<mutex> lock(ioMutex_);
   Status status =
@@ -71,8 +71,9 @@ void RocksDBMetadataStorage::read(uint32_t objectId, uint32_t bufferSize,
   }
 }
 
-void RocksDBMetadataStorage::atomicWrite(uint32_t objectId, char *data,
-                                         uint32_t dataLength) {
+void DBMetadataStorage::atomicWrite(uint32_t objectId,
+                                    char *data,
+                                    uint32_t dataLength) {
   verifyOperation(dataLength, data);
   auto *dataCopy = new uint8_t[dataLength];
   memcpy(dataCopy, data, dataLength);
@@ -84,26 +85,27 @@ void RocksDBMetadataStorage::atomicWrite(uint32_t objectId, char *data,
   }
 }
 
-void RocksDBMetadataStorage::beginAtomicWriteOnlyTransaction() {
-  LOG4CPLUS_DEBUG(logger_, "Begin atomic transaction");
+void DBMetadataStorage::beginAtomicWriteOnlyTransaction() {
+  LOG_DEBUG(logger_, "Begin atomic transaction");
   lock_guard<mutex> lock(ioMutex_);
   if (transaction_) {
-    LOG4CPLUS_INFO(logger_, "Transaction has been opened before; ignoring");
+    LOG_INFO(logger_, "Transaction has been opened before; ignoring");
     return;
   }
   transaction_ = new SetOfKeyValuePairs;
 }
 
-void RocksDBMetadataStorage::writeInTransaction(uint32_t objectId, char *data,
-                                                uint32_t dataLength) {
-  LOG4CPLUS_DEBUG(logger_,
+void DBMetadataStorage::writeInTransaction(uint32_t objectId,
+                                           char *data,
+                                           uint32_t dataLength) {
+  LOG_DEBUG(logger_,
                   "objectId=" << objectId << ", dataLength=" << dataLength);
   verifyOperation(dataLength, data);
   auto *dataCopy = new uint8_t[dataLength];
   memcpy(dataCopy, data, dataLength);
   lock_guard<mutex> lock(ioMutex_);
   if (!transaction_) {
-    LOG4CPLUS_ERROR(logger_, WRONG_FLOW);
+    LOG_ERROR(logger_, WRONG_FLOW);
     throw runtime_error(WRONG_FLOW);
   }
   transaction_->insert(
@@ -111,11 +113,11 @@ void RocksDBMetadataStorage::writeInTransaction(uint32_t objectId, char *data,
                    Sliver(dataCopy, dataLength)));
 }
 
-void RocksDBMetadataStorage::commitAtomicWriteOnlyTransaction() {
-  LOG4CPLUS_DEBUG(logger_, "Commit atomic transaction");
+void DBMetadataStorage::commitAtomicWriteOnlyTransaction() {
+  LOG_DEBUG(logger_, "Commit atomic transaction");
   lock_guard<mutex> lock(ioMutex_);
   if (!transaction_) {
-    LOG4CPLUS_ERROR(logger_, WRONG_FLOW);
+    LOG_ERROR(logger_, WRONG_FLOW);
     throw runtime_error(WRONG_FLOW);
   }
   Status status = dbClient_->multiPut(*transaction_);
@@ -126,19 +128,19 @@ void RocksDBMetadataStorage::commitAtomicWriteOnlyTransaction() {
   transaction_ = nullptr;
 }
 
-Status RocksDBMetadataStorage::multiDel(const ObjectIdsVector &objectIds) {
+Status DBMetadataStorage::multiDel(const ObjectIdsVector &objectIds) {
   size_t objectsNumber = objectIds.size();
   assert(objectsNum_ >= objectsNumber);
-  LOG4CPLUS_DEBUG(logger_, "Going to perform multiple delete");
+  LOG_DEBUG(logger_, "Going to perform multiple delete");
   KeysVector keysVec;
   for (size_t objectId = 0; objectId < objectsNumber; objectId++) {
     auto key = genMetadataKey_(objectId);
     keysVec.push_back(key);
-    LOG4CPLUS_INFO(logger_,
+    LOG_INFO(logger_,
                    "Deleted object id=" << objectId << ", key=" << key);
   }
   return dbClient_->multiDel(keysVec);
 }
 
-}  // namespace rocksdb 
-}  // namespace concordStorage
+}
+}

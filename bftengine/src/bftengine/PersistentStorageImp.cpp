@@ -409,8 +409,8 @@ void PersistentStorageImp::setDefaultWindowsValues() {
 }
 
 void PersistentStorageImp::writeBeginningOfActiveWindow(uint32_t index, SeqNum beginning) const {
-  LOG_DEBUG_F(GL, "PersistentStorageImp::writeBeginningOfActiveWindow index=%d, beginning=%ld", index, beginning);
-  metadataStorage_->writeInTransaction(index, (char *) &beginning, sizeof(beginning));
+ LOG_DEBUG(GL, "PersistentStorageImp::writeBeginningOfActiveWindow index=" << index <<  "beginning=" << beginning);
+ metadataStorage_->writeInTransaction(index, (char *) &beginning, sizeof(beginning));
 }
 
 /***** Public functions *****/
@@ -433,13 +433,13 @@ void PersistentStorageImp::setLastStableSeqNum(SeqNum seqNum) {
 
   const CheckData emptyCheckDataElement;
   for (auto id : cleanedCheckWindowItems) {
-    LOG_DEBUG_F(GL, "PersistentStorageImp::setLastStableSeqNum (setCheckDataElement) id=%ld", id);
+    LOG_DEBUG(GL, "PersistentStorageImp::setLastStableSeqNum (setCheckDataElement) id=" << id);
     setCheckDataElement(id, emptyCheckDataElement);
   }
 
   const SeqNumData emptySeqNumDataElement;
   for (auto id : cleanedSeqNumWindowItems) {
-    LOG_DEBUG_F(GL, "PersistentStorageImp::setLastStableSeqNum (setSeqNumDataElement) id=%ld", id);
+    LOG_DEBUG(GL, "PersistentStorageImp::setLastStableSeqNum (setSeqNumDataElement) id=" << id);
     setSeqNumDataElement(id, emptySeqNumDataElement);
   }
 }
@@ -452,7 +452,7 @@ void PersistentStorageImp::setMsgInSeqNumWindow(SeqNum seqNum, SeqNum parameterI
   Assert(actualSize != 0);
   const SeqNum convertedIndex = BEGINNING_OF_SEQ_NUM_WINDOW + parameterId + convertSeqNumWindowIndex(seqNum);
   Assert(convertedIndex < BEGINNING_OF_CHECK_WINDOW);
-  LOG_DEBUG_F(GL, "PersistentStorageImp::setMsgInSeqNumWindow convertedIndex=%ld", convertedIndex);
+  LOG_DEBUG(GL, "PersistentStorageImp::setMsgInSeqNumWindow convertedIndex=" << convertedIndex);
   metadataStorage_->writeInTransaction(convertedIndex, buf.get(), actualSize);
 }
 
@@ -504,7 +504,7 @@ void PersistentStorageImp::setCheckpointMsgInCheckWindow(SeqNum seqNum, Checkpoi
   Assert(actualSize != 0);
   const SeqNum convertedIndex = BEGINNING_OF_CHECK_WINDOW + CHECKPOINT_MSG + convertCheckWindowIndex(seqNum);
   Assert(convertedIndex < WIN_PARAMETERS_NUM);
-  LOG_DEBUG_F(GL, "PersistentStorageImp::setCheckpointMsgInCheckWindow convertedIndex=%ld", convertedIndex);
+  LOG_DEBUG(GL, "PersistentStorageImp::setCheckpointMsgInCheckWindow convertedIndex=" << convertedIndex);
   metadataStorage_->writeInTransaction(convertedIndex, buf.get(), actualSize);
 }
 
@@ -722,8 +722,7 @@ void PersistentStorageImp::readCheckDataElementFromDisk(SeqNum index, const Shar
 
 const SeqNum PersistentStorageImp::convertSeqNumWindowIndex(SeqNum seqNum) const {
   SeqNum convertedIndex = SeqNumWindow::convertIndex(seqNum, seqNumWindowBeginning_);
-  LOG_DEBUG_F(GL, "convertSeqNumWindowIndex seqNumWindowBeginning_=%ld, seqNum=%ld, convertedIndex=%ld",
-              seqNumWindowBeginning_, seqNum, convertedIndex);
+  LOG_DEBUG(GL, "convertSeqNumWindowIndex seqNumWindowBeginning_=" << seqNumWindowBeginning_ << " seqNum=" << seqNum << " convertedIndex=" << convertedIndex);
   return convertedIndex * numOfSeqNumWinParameters;
 }
 
@@ -741,7 +740,7 @@ MessageBase *PersistentStorageImp::readMsgFromDisk(SeqNum seqNum, SeqNum paramet
   uint32_t actualMsgSize = 0;
   const SeqNum convertedIndex = BEGINNING_OF_SEQ_NUM_WINDOW + parameterId + convertSeqNumWindowIndex(seqNum);
   Assert(convertedIndex < BEGINNING_OF_CHECK_WINDOW);
-  LOG_DEBUG_F(GL, "PersistentStorageImp::readMsgFromDisk seqNum=%ld, dbIndex=%ld", seqNum, convertedIndex);
+  LOG_DEBUG(GL, "PersistentStorageImp::readMsgFromDisk seqNum=" << seqNum << " dbIndex=" <<  convertedIndex);
   metadataStorage_->read(convertedIndex, msgSize, buf.get(), actualMsgSize);
   size_t actualSize = 0;
   char *movablePtr = buf.get();
@@ -787,7 +786,7 @@ CheckpointMsg *PersistentStorageImp::readCheckpointMsgFromDisk(SeqNum index) con
   uint32_t actualMsgSize = 0;
   const SeqNum convertedIndex = BEGINNING_OF_CHECK_WINDOW + CHECKPOINT_MSG + convertCheckWindowIndex(index);
   Assert(convertedIndex < WIN_PARAMETERS_NUM);
-  LOG_DEBUG_F(GL, "PersistentStorageImp::readCheckpointMsgFromDisk convertedIndex=%ld", convertedIndex);
+  LOG_DEBUG(GL, "PersistentStorageImp::readCheckpointMsgFromDisk convertedIndex=" <<  convertedIndex);
   metadataStorage_->read(convertedIndex, bufLen, buf.get(), actualMsgSize);
   size_t actualSize = 0;
   char *movablePtr = buf.get();
