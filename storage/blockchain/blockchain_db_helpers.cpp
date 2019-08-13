@@ -2,7 +2,8 @@
 
 #include "blockchain_db_helpers.h"
 
-namespace concordStorage {
+namespace concord {
+namespace storage {
 namespace blockchain {
 
 bool copyToAndAdvance(uint8_t *_buf, size_t *_offset, size_t _maxOffset,
@@ -29,5 +30,6 @@ bool copyToAndAdvance(uint8_t *_buf, size_t *_offset, size_t _maxOffset,
   return true;
 }
 
-}  // namespace blockchain 
-}  // namespace concordStorage
+}
+}
+}

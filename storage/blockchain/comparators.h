@@ -2,19 +2,16 @@
 //
 // Storage key comparators definition.
 
-#ifndef CONCORD_STORAGE_COMPARATORS_H_
-#define CONCORD_STORAGE_COMPARATORS_H_
+#pragma once
+#ifdef USE_ROCKSDB
 
 #include "Logger.hpp"
-
-#ifdef USE_ROCKSDB
 #include "rocksdb/comparator.h"
 #include "rocksdb/slice.h"
-#endif
-
 #include "sliver.hpp"
 
-namespace concordStorage {
+namespace concord {
+namespace storage {
 namespace blockchain {
 
 using concordUtils::Sliver;
@@ -22,8 +19,6 @@ using concordUtils::Sliver;
 // Basic comparator. Decomposes storage key into parts (type, version,
 // application key).
 
-// RocksDB
-#ifdef USE_ROCKSDB
 class RocksKeyComparator : public rocksdb::Comparator {
  public:
   RocksKeyComparator()
@@ -45,9 +40,8 @@ class RocksKeyComparator : public rocksdb::Comparator {
  private:
   concordlogger::Logger logger;
 };
+
+}
+}
+}
 #endif
-
-}  // namespace blockchain
-}  // namespace concordStorage
-
-#endif  // CONCORD_STORAGE_COMPARATORS_H_
