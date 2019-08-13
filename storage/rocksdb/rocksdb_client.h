@@ -60,7 +60,7 @@ class RocksDBClientIterator
 class RocksDBClient : public concord::storage::IDBClient {
  public:
   RocksDBClient(std::string _dbPath, ::rocksdb::Comparator *_comparator)
-      : logger(concordlogger::Log::getLogger("com.concord.vmware.kvb")),
+      : logger(concordlogger::Log::getLogger("concord.storage.rocksdb")),
         m_dbPath(_dbPath),
         m_comparator(_comparator) {}
 

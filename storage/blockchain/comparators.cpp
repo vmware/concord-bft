@@ -2,6 +2,7 @@
 //
 // Storage key comparators implementation.
 
+#ifdef USE_ROCKSDB
 #include "comparators.h"
 
 #include "Logger.hpp"
@@ -11,6 +12,7 @@
 #include "blockchain_db_adapter.h"
 #include "blockchain_db_types.h"
 #include "blockchain_db_interfaces.h"
+
 #include "rocksdb_client.h"
 
 #include <chrono>
@@ -93,8 +95,6 @@ int RocksKeyComparator::ComposedKeyComparison(const Logger& logger,
   return keyComp;
 }
 
-/* RocksDB */
-#ifdef USE_ROCKSDB
 int RocksKeyComparator::Compare(const ::rocksdb::Slice& _a,
                                 const ::rocksdb::Slice& _b) const {
   Sliver a = copyRocksdbSlice(_a);
@@ -106,12 +106,11 @@ int RocksKeyComparator::Compare(const ::rocksdb::Slice& _a,
 
   return ret;
 }
-#endif
 
 /* In memory */
 bool RocksKeyComparator::InMemKeyComp(const Sliver& _a, const Sliver& _b) {
   Logger logger(
-      concordlogger::Log::getLogger("concord.storage.RocksKeyComparator"));
+      concordlogger::Log::getLogger("concord.storage.blockchain.RocksKeyComparator"));
   int comp = ComposedKeyComparison(logger, _a, _b);
 
   LOG_DEBUG(logger, "Compared " << _a << " with " << _b
@@ -124,3 +123,4 @@ bool RocksKeyComparator::InMemKeyComp(const Sliver& _a, const Sliver& _b) {
 }
 }
 }
+#endif

@@ -9,7 +9,11 @@ target_include_directories(concordbft_storage_blockchain PUBLIC
     .
 )
 
-target_link_libraries(concordbft_storage_blockchain PUBLIC
-    concordbft_storage_rocksdb
-    util
-)
+target_link_libraries(concordbft_storage_blockchain PUBLIC util)
+
+if (BUILD_ROCKSDB_STORAGE)
+    target_link_libraries(concordbft_storage_blockchain PUBLIC concordbft_storage_rocksdb)
+else()
+    target_link_libraries(concordbft_storage_blockchain PUBLIC concordbft_storage_memory)
+endif()
+
