@@ -18,6 +18,7 @@
 
 #include <condition_variable>
 #include <mutex>
+#include "bftengine/ReplicaConfigSingleton.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -111,7 +112,6 @@ void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
   Assert(loadErrCode == ReplicaLoader::ErrorCode::Success);
 
   rep = new ReplicaImp(ld, requestsHandler, stateTransfer, comm, persistentStorage);
-
   rep->start();
 }
 }
@@ -123,7 +123,6 @@ Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
                                    IStateTransfer *stateTransfer,
                                    ICommunication *communication,
                                    MetadataStorage *metadataStorage) {
-
   {
     std::lock_guard<std::mutex> lock(mutexForCryptoInitialization);
 
@@ -140,6 +139,9 @@ Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
   if (replicaConfig->debugPersistentStorageEnabled) {
     Assert(metadataStorage == nullptr);
   }
+
+  // Initialize the configuration singleton here to use correct values during persistent storage initialization.
+  ReplicaConfigSingleton::GetInstance(replicaConfig);
 
   if (replicaConfig->debugPersistentStorageEnabled )
     if (metadataStorage == nullptr)

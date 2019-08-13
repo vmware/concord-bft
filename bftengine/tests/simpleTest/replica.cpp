@@ -180,7 +180,7 @@ void parse_params(int argc, char** argv, ReplicaParams &rp) {
 
 }
 
-SimpleTestReplica *replica;
+SimpleTestReplica *replica = nullptr;
 void signalHandler( int signum ) {
   if(replica)
     replica->stop();
@@ -223,8 +223,7 @@ int main(int argc, char **argv) {
     remove(dbFile.str().c_str());
     metaDataStorage = new FileStorage(replicaLogger, dbFile.str());
   }
-  SimpleTestReplica *replica
-    = SimpleTestReplica::create_replica(replicaBehavior, rp, metaDataStorage);
+  replica = SimpleTestReplica::create_replica(replicaBehavior, rp, metaDataStorage);
   replica->start();
   // The replica is now running in its own thread. Block the main thread until
   // sigabort, sigkill or sigterm are not raised and then exit gracefully
