@@ -11,15 +11,15 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef CONCORD_STORAGE_BLOCKCHAIN_DB_TYPES_H_
-#define CONCORD_STORAGE_BLOCKCHAIN_DB_TYPES_H_
+#pragma once
 
 #include <cstdint>
 #include <unordered_map>
 #include <vector>
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 
-namespace concordStorage {
+namespace concord {
+namespace storage {
 namespace blockchain {
 
 struct BlockHeader {
@@ -48,7 +48,6 @@ enum class EDBKeyType : std::uint8_t {
 typedef uint64_t BlockId;
 typedef uint32_t ObjectId;
 
-}  // namespace blockchain 
-}  // namespace concordStorage 
-
-#endif  // CONCORD_STORAGE_BLOCKCHAIN_DB_TYPES_H_
+}
+}
+}

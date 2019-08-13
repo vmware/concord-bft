@@ -15,22 +15,22 @@
  *
  */
 
-#ifndef CONCORD_STORAGE_ROCKSDB_CLIENT_H_
-#define CONCORD_STORAGE_ROCKSDB_CLIENT_H_
+#pragma once
 
 #ifdef USE_ROCKSDB
 #include "Logger.hpp"
 #include "rocksdb/db.h"
 #include "kv_types.hpp"
-#include "../database_interface.h"
+#include "storage/db_interface.h"
 
-namespace concordStorage {
+namespace concord {
+namespace storage {
 namespace rocksdb {
 
 class RocksDBClient;
 
 class RocksDBClientIterator
-    : public concordStorage::IDBClient::IDBClientIterator {
+    : public concord::storage::IDBClient::IDBClientIterator {
   friend class RocksDBClient;
 
  public:
@@ -57,7 +57,7 @@ class RocksDBClientIterator
   concordUtils::Status m_status;
 };
 
-class RocksDBClient : public concordStorage::IDBClient {
+class RocksDBClient : public concord::storage::IDBClient {
  public:
   RocksDBClient(std::string _dbPath, ::rocksdb::Comparator *_comparator)
       : logger(concordlogger::Log::getLogger("com.concord.vmware.kvb")),
@@ -114,8 +114,7 @@ class RocksDBClient : public concordStorage::IDBClient {
 concordUtils::Sliver fromRocksdbSlice(::rocksdb::Slice _s);
 concordUtils::Sliver copyRocksdbSlice(::rocksdb::Slice _s);
 
-}  // namespace rocksdb
-}  // namespace concordStorage
-
+}
+}
+}
 #endif  // USE_ROCKSDB
-#endif  // CONCORD_STORAGE_ROCKSDB_CLIENT_H_

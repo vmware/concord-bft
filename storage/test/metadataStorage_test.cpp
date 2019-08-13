@@ -10,21 +10,21 @@
 #include "gtest/gtest.h"
 #include "comparators.h"
 #include "rocksdb_client.h"
-#include "rocksdb_metadata_storage.h"
+#include "storage/db_metadata_storage.h"
 #include "blockchain_db_types.h"
 #include "blockchain_db_adapter.h"
 
 using namespace std;
 
-using concordStorage::blockchain::ObjectId;
-using concordStorage::blockchain::RocksKeyComparator;
-using concordStorage::blockchain::KeyManipulator;
-using concordStorage::rocksdb::RocksDBClient;
-using concordStorage::rocksdb::RocksDBMetadataStorage;
+using concord::storage::blockchain::ObjectId;
+using concord::storage::blockchain::RocksKeyComparator;
+using concord::storage::blockchain::KeyManipulator;
+using concord::storage::rocksdb::RocksDBClient;
+using concord::storage::DBMetadataStorage;
 
 namespace {
 
-RocksDBMetadataStorage *metadataStorage = nullptr;
+DBMetadataStorage *metadataStorage = nullptr;
 const ObjectId initialObjectId = 1;
 const uint32_t initialObjDataSize = 80;
 const uint16_t objectsNum = 100;
@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
   const string dbPath = "./metadataStorage_test_db";
   RocksDBClient *dbClient = new RocksDBClient(dbPath, new RocksKeyComparator());
   dbClient->init();
-  metadataStorage = new RocksDBMetadataStorage(dbClient, KeyManipulator::generateMetadataKey);
+  metadataStorage = new DBMetadataStorage(dbClient, KeyManipulator::generateMetadataKey);
   int res = RUN_ALL_TESTS();
   return res;
 }

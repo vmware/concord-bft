@@ -1,7 +1,6 @@
 // Copyright 2018-2019 VMware, all rights reserved
 
-#ifndef CONCORD_STORAGE_BLOCKCHAIN_DB_INTERFACES_H_
-#define CONCORD_STORAGE_BLOCKCHAIN_DB_INTERFACES_H_
+#pragma once
 
 #include <iterator>
 #include <set>
@@ -9,13 +8,14 @@
 #include <unordered_map>
 #include "sliver.hpp"
 #include "status.hpp"
-#include "../database_interface.h"
+#include "storage/db_interface.h"
 
 using std::pair;
 using std::string;
 using std::unordered_map;
 
-namespace concordStorage {
+namespace concord {
+namespace storage {
 namespace blockchain {
 
 using concordUtils::Status;
@@ -85,7 +85,6 @@ class IBlocksAppender {
                           BlockId& outBlockId) = 0;
 };
 
-}  // namespace blockchain 
-}  // namespace concordStorage 
-
-#endif  // CONCORD_STORAGE_BLOCKCHAIN_DB_INTERFACES_H_
+}
+}
+}

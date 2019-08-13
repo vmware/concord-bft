@@ -19,8 +19,8 @@ using concordUtils::Sliver;
 using concordUtils::KeysVector;
 using concordUtils::KeyValuePair;
 using concordUtils::SetOfKeyValuePairs;
-using concordStorage::rocksdb::RocksDBClient;
-using concordStorage::blockchain::RocksKeyComparator;
+using concord::storage::rocksdb::RocksDBClient;
+using concord::storage::blockchain::RocksKeyComparator;
 
 namespace {
 

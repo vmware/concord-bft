@@ -28,7 +28,8 @@
 using concordlogger::Logger;
 using concordUtils::Status;
 
-namespace concordStorage {
+namespace concord {
+namespace storage {
 namespace blockchain {
 
 BlockchainDBAdapter::BlockchainDBAdapter(IDBClient *db, bool readOnly):
@@ -810,5 +811,6 @@ BlockId BlockchainDBAdapter::getLastReachableBlock() {
   return lastReachableId;
 }
 
-}  // namespace blockchain 
-}  // namespace concordStorage
+}
+}
+}

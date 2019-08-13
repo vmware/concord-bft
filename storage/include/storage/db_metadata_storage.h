@@ -11,27 +11,24 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef CONCORD_STORAGE_ROCKSDB_METADATA_STORAGE_H_
-#define CONCORD_STORAGE_ROCKSDB_METADATA_STORAGE_H_
-
-#ifdef USE_ROCKSDB
+#pragma once
 
 #include <mutex>
 #include <functional>
 #include "Logger.hpp"
 #include "bftengine/MetadataStorage.hpp"
-#include "../database_interface.h"
+#include "storage/db_interface.h"
 #include "sliver.hpp"
 
-namespace concordStorage {
-namespace rocksdb {
+namespace concord {
+namespace storage {
 
 typedef std::vector<uint32_t> ObjectIdsVector;
 
-class RocksDBMetadataStorage : public bftEngine::MetadataStorage {
+class DBMetadataStorage : public bftEngine::MetadataStorage {
  public:
-  explicit RocksDBMetadataStorage(IDBClient *dbClient, 
-                                  std::function<concordUtils::Sliver(uint32_t)> genMetadataKey)
+  explicit DBMetadataStorage(IDBClient *dbClient, 
+                             std::function<concordUtils::Sliver(uint32_t)> genMetadataKey)
       : logger_(concordlogger::Log::getLogger("com.concord.vmware.metadatastorage")),
         dbClient_(dbClient),
         genMetadataKey_(std::move(genMetadataKey)){}
@@ -68,8 +65,5 @@ class RocksDBMetadataStorage : public bftEngine::MetadataStorage {
   std::function<Sliver(uint32_t)> genMetadataKey_;
 };
 
-}  // namespace rocksdb 
-}  // namespace concordStorage 
-
-#endif  // USE_ROCKSDB
-#endif  // CONCORD_STORAGE_ROCKSDB_METADATA_STORAGE_H_
+}
+}
