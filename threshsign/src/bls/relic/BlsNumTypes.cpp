@@ -82,7 +82,6 @@ void BNT::fromString(const std::string& str, int base) {
 }
 
 BNT& BNT::FastModuloMonty(const BNT& m, const BNT& u) {
-    //loginfo << "Using BN_MOD = MONTY" << std::endl;
     // RELIC API quirk: Need to convert 'n' to Montgomery form
     BNT montyN;
     bn_mod_monty_conv(montyN, n, m);
@@ -125,16 +124,6 @@ BNT& BNT::FastModulo(const BNT& m, const BNT& u) {
 #if BN_MOD == MONTY
     FastModuloMonty(m, u);
 #else
-//# if BN_MOD == BARRT
-//    loginfo << "Using BN_MOD = BARRT" << std::endl;
-//# elif BN_MOD == PMERS
-//    loginfo << "Using BN_MOD = PMERS" << std::endl;
-//# elif BN_MOD == BASIC
-//	loginfo << "Using BN_MOD = BASIC" << std::endl;
-//#else
-//	loginfo << "Using unknown BN_MOD = " << BN_MOD << std::endl;
-//#endif
-
 	bn_mod(n, n, m, u);
 #endif
 

@@ -772,7 +772,7 @@ class PlainTCPCommunication::PlainTcpImpl {
       _pAcceptor = boost::make_unique<tcp::acceptor>(_service, ep);
       start_accept(nodes);
     } else // clients dont need to listen
-      LOG_INFO(_logger, "skipping listen for node: " << _selfId);
+      LOG_DEBUG(_logger, "skipping listen for node: " << _selfId);
 
     // this node should connect only to nodes with lower ID
     // and all nodes with higher ID will connect to this node

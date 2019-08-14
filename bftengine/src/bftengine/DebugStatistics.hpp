@@ -8,11 +8,6 @@
 
 #pragma once
 
-// TODO(GG): remove
-#define DEBUG_STATISTICS 
-
-#ifdef DEBUG_STATISTICS
-
 #include <cstddef>
 #include <stdint.h>
 #include "TimeUtils.hpp"
@@ -84,5 +79,3 @@ namespace bftEngine
 
 	}
 }
-
-#endif

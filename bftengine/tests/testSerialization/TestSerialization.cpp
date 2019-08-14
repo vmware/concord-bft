@@ -440,6 +440,7 @@ void fillReplicaConfig() {
   config.maxNumOfReservedPages = 256;
   config.maxReplyMessageSize = 1024;
   config.sizeOfReservedPage = 2048;
+  config.debugStatisticsEnabled = true;
 
   config.replicaPrivateKey = replicaPrivateKey;
   config.publicKeysOfReplicas.insert(IdToKeyPair(0, publicKeyValue1));
