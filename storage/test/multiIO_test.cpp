@@ -1,4 +1,4 @@
-// Copyright 2019 VMware, all rights reserved
+ // Copyright 2019 VMware, all rights reserved
 /**
  * Test multi* functions for RocksDBClient class.
  */
@@ -8,9 +8,10 @@
 #include "Logger.hpp"
 #include "hash_defs.h"
 #include "gtest/gtest.h"
-#include "comparators.h"
-#include "rocksdb_client.h"
+#include "rocksdb/key_comparator.h"
+#include "rocksdb/client.h"
 #include "kv_types.hpp"
+#include "blockchain/db_adapter.h"
 
 using namespace std;
 
@@ -19,12 +20,12 @@ using concordUtils::Sliver;
 using concordUtils::KeysVector;
 using concordUtils::KeyValuePair;
 using concordUtils::SetOfKeyValuePairs;
-using concord::storage::rocksdb::RocksDBClient;
-using concord::storage::blockchain::RocksKeyComparator;
-
+using concord::storage::rocksdb::Client;
+using concord::storage::rocksdb::KeyComparator;
+using concord::storage::blockchain::KeyManipulator;
 namespace {
 
-RocksDBClient *dbClient = nullptr;
+Client *dbClient = nullptr;
 const uint16_t blocksNum = 50;
 const uint16_t keyLen = 120;
 const uint16_t valueLen = 500;
@@ -100,7 +101,7 @@ TEST(multiIO_test, multi_del) {
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   const string dbPath = "./rocksdb_test";
-  dbClient = new RocksDBClient(dbPath, new RocksKeyComparator());
+  dbClient = new Client(dbPath, new KeyComparator(new KeyManipulator()));
   dbClient->init();
   int res = RUN_ALL_TESTS();
   return res;

@@ -19,7 +19,7 @@
 
 #ifdef USE_ROCKSDB
 #include "Logger.hpp"
-#include "rocksdb/db.h"
+#include <rocksdb/db.h>
 #include "kv_types.hpp"
 #include "storage/db_interface.h"
 
@@ -27,15 +27,15 @@ namespace concord {
 namespace storage {
 namespace rocksdb {
 
-class RocksDBClient;
+class Client;
 
-class RocksDBClientIterator
+class ClientIterator
     : public concord::storage::IDBClient::IDBClientIterator {
-  friend class RocksDBClient;
+  friend class Client;
 
  public:
-  RocksDBClientIterator(const RocksDBClient *_parentClient);
-  ~RocksDBClientIterator() { delete m_iter; }
+  ClientIterator(const Client *_parentClient);
+  ~ClientIterator() { delete m_iter; }
 
   // Inherited via IDBClientIterator
   concordUtils::KeyValuePair first() override;
@@ -52,14 +52,14 @@ class RocksDBClientIterator
   ::rocksdb::Iterator *m_iter;
 
   // Reference to the RocksDBClient
-  const RocksDBClient *m_parentClient;
+  const Client *m_parentClient;
 
   concordUtils::Status m_status;
 };
 
-class RocksDBClient : public concord::storage::IDBClient {
+class Client : public concord::storage::IDBClient {
  public:
-  RocksDBClient(std::string _dbPath, ::rocksdb::Comparator *_comparator)
+  Client(std::string _dbPath, ::rocksdb::Comparator *_comparator)
       : logger(concordlogger::Log::getLogger("com.concord.vmware.kvb")),
         m_dbPath(_dbPath),
         m_comparator(_comparator) {}

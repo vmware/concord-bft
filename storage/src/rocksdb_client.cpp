@@ -13,12 +13,10 @@
 
 #ifdef USE_ROCKSDB
 
-#include "rocksdb_client.h"
-
+#include "rocksdb/client.h"
 #include "Logger.hpp"
-
 #include "hash_defs.h"
-#include "rocksdb/comparator.h"
+
 
 using concordUtils::Sliver;
 using concordUtils::Status;
@@ -69,7 +67,7 @@ Sliver copyRocksdbSlice(::rocksdb::Slice _s) {
   return Sliver(copyData, _s.size());
 }
 
-bool RocksDBClient::isNew() {
+bool Client::isNew() {
   ::rocksdb::DB *db;
   ::rocksdb::Options options;
   options.error_if_exists = true;
@@ -85,7 +83,7 @@ bool RocksDBClient::isNew() {
  *
  *  @return GeneralError in case of error in connection, else OK.
  */
-Status RocksDBClient::init(bool readOnly) {
+Status Client::init(bool readOnly) {
   ::rocksdb::DB *db;
   ::rocksdb::Options options;
   options.create_if_missing = true;
@@ -114,7 +112,7 @@ Status RocksDBClient::init(bool readOnly) {
   return Status::OK();
 }
 
-Status RocksDBClient::get(Sliver _key, OUT std::string &_value) const {
+Status Client::get(Sliver _key, OUT std::string &_value) const {
   ++g_rocksdb_called_read;
   if (g_rocksdb_print_measurements) {
     LOG_DEBUG(logger, "Reading count = " << g_rocksdb_called_read
@@ -150,7 +148,7 @@ Status RocksDBClient::get(Sliver _key, OUT std::string &_value) const {
  * @return Status NotFound if key is not present, Status GeneralError if error
  *         in Get, else Status OK.
  */
-Status RocksDBClient::get(Sliver _key, OUT Sliver &_outValue) const {
+Status Client::get(Sliver _key, OUT Sliver &_outValue) const {
   std::string value;
   Status ret = get(_key, value);
   if (!ret.isOK()) return ret;
@@ -165,7 +163,7 @@ Status RocksDBClient::get(Sliver _key, OUT Sliver &_outValue) const {
 }
 
 // A memory for the output buffer is expected to be allocated by a caller.
-Status RocksDBClient::get(Sliver _key, OUT char *&buf, uint32_t bufSize,
+Status Client::get(Sliver _key, OUT char *&buf, uint32_t bufSize,
                           OUT uint32_t &_realSize) const {
   std::string value;
   Status ret = get(_key, value);
@@ -187,8 +185,8 @@ Status RocksDBClient::get(Sliver _key, OUT char *&buf, uint32_t bufSize,
  *
  * @return RocksDBClientIterator object.
  */
-IDBClient::IDBClientIterator *RocksDBClient::getIterator() const {
-  return new RocksDBClientIterator(this);
+IDBClient::IDBClientIterator *Client::getIterator() const {
+  return new ClientIterator(this);
 }
 
 /**
@@ -198,12 +196,12 @@ IDBClient::IDBClientIterator *RocksDBClient::getIterator() const {
  *              that needs to be freed.
  * @return Status InvalidArgument if iterator is null pointer, else, Status OK.
  */
-Status RocksDBClient::freeIterator(IDBClientIterator *_iter) const {
+Status Client::freeIterator(IDBClientIterator *_iter) const {
   if (_iter == NULL) {
     return Status::InvalidArgument("Invalid iterator");
   }
 
-  delete (RocksDBClientIterator *)_iter;
+  delete (ClientIterator *)_iter;
 
   return Status::OK();
 }
@@ -215,14 +213,14 @@ Status RocksDBClient::freeIterator(IDBClientIterator *_iter) const {
  *
  * @return A pointer to RocksDbIterator object.
  */
-::rocksdb::Iterator *RocksDBClient::getNewRocksDbIterator() const {
+::rocksdb::Iterator *Client::getNewRocksDbIterator() const {
   return m_dbInstance->NewIterator(::rocksdb::ReadOptions());
 }
 
 /**
  * @brief Currently used to check the number of read requests received.
  */
-void RocksDBClient::monitor() const {
+void Client::monitor() const {
   // TODO Can be used for additional sanity checks and debugging.
 
   if (g_rocksdb_print_measurements) {
@@ -235,7 +233,7 @@ void RocksDBClient::monitor() const {
  *
  * Calls the getNewRocksDbIterator function.
  */
-RocksDBClientIterator::RocksDBClientIterator(const RocksDBClient *_parentClient)
+ClientIterator::ClientIterator(const Client *_parentClient)
     : logger(concordlogger::Log::getLogger("com.vmware.concord.kvb")),
       m_parentClient(_parentClient),
       m_status(Status::OK()) {
@@ -251,7 +249,7 @@ RocksDBClientIterator::RocksDBClientIterator(const RocksDBClient *_parentClient)
  * @param _value The value that needs to be stored against the key.
  * @return Status GeneralError if error in Put, else Status OK.
  */
-Status RocksDBClient::put(Sliver _key, Sliver _value) {
+Status Client::put(Sliver _key, Sliver _value) {
   ::rocksdb::WriteOptions woptions = ::rocksdb::WriteOptions();
 
   ::rocksdb::Status s =
@@ -277,7 +275,7 @@ Status RocksDBClient::put(Sliver _key, Sliver _value) {
  *              deleted.
  *  @return Status GeneralError if error in delete, else Status OK.
  */
-Status RocksDBClient::del(Sliver _key) {
+Status Client::del(Sliver _key) {
   ::rocksdb::WriteOptions woptions = ::rocksdb::WriteOptions();
   ::rocksdb::Status s = m_dbInstance->Delete(woptions, toRocksdbSlice(_key));
 
@@ -291,7 +289,7 @@ Status RocksDBClient::del(Sliver _key) {
   return Status::OK();
 }
 
-Status RocksDBClient::multiGet(const KeysVector &_keysVec,
+Status Client::multiGet(const KeysVector &_keysVec,
                                OUT ValuesVector &_valuesVec) {
   std::vector<std::string> values;
   std::vector<::rocksdb::Slice> keys;
@@ -316,14 +314,14 @@ Status RocksDBClient::multiGet(const KeysVector &_keysVec,
   return Status::OK();
 }
 
-std::ostringstream RocksDBClient::collectKeysForPrint(
+std::ostringstream Client::collectKeysForPrint(
     const KeysVector &_keysVec) {
   std::ostringstream keys;
   for (auto const &it : _keysVec) keys << it << ", ";
   return keys;
 }
 
-Status RocksDBClient::launchBatchJob(::rocksdb::WriteBatch &_batchJob,
+Status Client::launchBatchJob(::rocksdb::WriteBatch &_batchJob,
                                      const KeysVector &_keysVec) {
   ::rocksdb::WriteOptions wOptions = ::rocksdb::WriteOptions();
   ::rocksdb::Status status = m_dbInstance->Write(wOptions, &_batchJob);
@@ -337,7 +335,7 @@ Status RocksDBClient::launchBatchJob(::rocksdb::WriteBatch &_batchJob,
   return Status::OK();
 }
 
-Status RocksDBClient::multiPut(const SetOfKeyValuePairs &_keyValueMap) {
+Status Client::multiPut(const SetOfKeyValuePairs &_keyValueMap) {
   ::rocksdb::WriteBatch batch;
   KeysVector keysVec;
   for (const auto &it : _keyValueMap) {
@@ -353,7 +351,7 @@ Status RocksDBClient::multiPut(const SetOfKeyValuePairs &_keyValueMap) {
   return status;
 }
 
-Status RocksDBClient::multiDel(const KeysVector &_keysVec) {
+Status Client::multiDel(const KeysVector &_keysVec) {
   ::rocksdb::WriteBatch batch;
   std::ostringstream keys;
   for (auto const &it : _keysVec) {
@@ -369,7 +367,7 @@ Status RocksDBClient::multiDel(const KeysVector &_keysVec) {
  *
  * @return The KeyValuePair object of the first key.
  */
-KeyValuePair RocksDBClientIterator::first() {
+KeyValuePair ClientIterator::first() {
   ++g_rocksdb_called_read;
   if (g_rocksdb_print_measurements) {
     LOG_DEBUG(logger, "Reading count = " << g_rocksdb_called_read);
@@ -402,7 +400,7 @@ KeyValuePair RocksDBClientIterator::first() {
  * @return Key value pair of the key which is greater than or equal to
  *         _searchKey.
  */
-KeyValuePair RocksDBClientIterator::seekAtLeast(Sliver _searchKey) {
+KeyValuePair ClientIterator::seekAtLeast(Sliver _searchKey) {
   ++g_rocksdb_called_read;
   if (g_rocksdb_print_measurements) {
     LOG_DEBUG(logger, "Reading count = " << g_rocksdb_called_read
@@ -433,7 +431,7 @@ KeyValuePair RocksDBClientIterator::seekAtLeast(Sliver _searchKey) {
  *
  * @return The previous key value pair.
  */
-KeyValuePair RocksDBClientIterator::previous() {
+KeyValuePair ClientIterator::previous() {
   m_iter->Prev();
 
   if (!m_iter->Valid()) {
@@ -457,7 +455,7 @@ KeyValuePair RocksDBClientIterator::previous() {
  *
  * @return The next key value pair.
  */
-KeyValuePair RocksDBClientIterator::next() {
+KeyValuePair ClientIterator::next() {
   ++g_rocksdb_called_read;
   if (g_rocksdb_print_measurements) {
     LOG_DEBUG(logger, "Reading count = " << g_rocksdb_called_read);
@@ -483,7 +481,7 @@ KeyValuePair RocksDBClientIterator::next() {
  *
  * @return Current key value pair.
  */
-KeyValuePair RocksDBClientIterator::getCurrent() {
+KeyValuePair ClientIterator::getCurrent() {
   if (!m_iter->Valid()) {
     LOG_ERROR(logger, "Iterator is not pointing at an element");
     m_status = Status::GeneralError("Iterator is not pointing at an element");
@@ -503,14 +501,14 @@ KeyValuePair RocksDBClientIterator::getCurrent() {
  *
  * @return True if iterator is beyond the bounds, else False.
  */
-bool RocksDBClientIterator::isEnd() { return !m_iter->Valid(); }
+bool ClientIterator::isEnd() { return !m_iter->Valid(); }
 
 /**
  * @brief Returns the Status.
  *
  * @return The latest Status logged.
  */
-Status RocksDBClientIterator::getStatus() { return m_status; }
+Status ClientIterator::getStatus() { return m_status; }
 
 }
 }
