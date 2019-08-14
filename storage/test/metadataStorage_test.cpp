@@ -8,18 +8,18 @@
 #include "Logger.hpp"
 #include "hash_defs.h"
 #include "gtest/gtest.h"
-#include "comparators.h"
-#include "rocksdb_client.h"
+#include "rocksdb/key_comparator.h"
+#include "rocksdb/client.h"
 #include "storage/db_metadata_storage.h"
-#include "blockchain_db_types.h"
-#include "blockchain_db_adapter.h"
+#include "blockchain/db_types.h"
+#include "blockchain/db_adapter.h"
 
 using namespace std;
 
 using concord::storage::blockchain::ObjectId;
-using concord::storage::blockchain::RocksKeyComparator;
 using concord::storage::blockchain::KeyManipulator;
-using concord::storage::rocksdb::RocksDBClient;
+using concord::storage::rocksdb::KeyComparator;
+using concord::storage::rocksdb::Client;
 using concord::storage::DBMetadataStorage;
 
 namespace {
@@ -97,9 +97,9 @@ TEST(metadataStorage_test, multi_write) {
 
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
-
+  KeyComparator* kk = new KeyComparator(new KeyManipulator);
   const string dbPath = "./metadataStorage_test_db";
-  RocksDBClient *dbClient = new RocksDBClient(dbPath, new RocksKeyComparator());
+  Client *dbClient = new Client(dbPath, kk);
   dbClient->init();
   metadataStorage = new DBMetadataStorage(dbClient, KeyManipulator::generateMetadataKey);
   int res = RUN_ALL_TESTS();
