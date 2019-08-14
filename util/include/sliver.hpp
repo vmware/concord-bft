@@ -38,6 +38,9 @@ class Sliver {
   Sliver(char* data, const size_t length);
   Sliver(const Sliver& base, const size_t offset, const size_t length);
 
+  static Sliver copy(uint8_t* data, const size_t length);
+  static Sliver copy(char* data, const size_t length);
+
   uint8_t operator[](const size_t offset) const;
 
   Sliver subsliver(const size_t offset, const size_t length) const;
