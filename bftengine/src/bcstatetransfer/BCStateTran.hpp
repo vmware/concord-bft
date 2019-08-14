@@ -22,7 +22,7 @@
 #include <iostream>
 #include <string>
 
-#include "Logging.hpp"
+#include "Logger.hpp"
 #include "SimpleBCStateTransfer.hpp"
 #include "IStateTransfer.hpp"
 #include "DataStore.hpp"
@@ -339,12 +339,6 @@ class BCStateTran : public IStateTransfer {
              const uint64_t blockNum, const char* block,
              const uint32_t blockSize, STDigest* outDigest);
 };
-
-//////////////////////////////////////////////////////////////////////////////
-// Logger
-//////////////////////////////////////////////////////////////////////////////
-
-extern concordlogger::Logger STLogger;
 
 }  // namespace impl
 }  // namespace SimpleBlockchainStateTransfer

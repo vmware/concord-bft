@@ -43,6 +43,8 @@ struct ReplicaInternal : public Replica {
 
   virtual void restartForDebug(uint32_t delayMillis) override;
 
+  virtual void stopWhenStateIsNotCollected() override;
+
   ReplicaImp *rep;
 
   private:
@@ -70,6 +72,12 @@ bool ReplicaInternal::requestsExecutionWasInterrupted() const {
 
 void ReplicaInternal::start() {
   return rep->start();
+}
+
+void ReplicaInternal::stopWhenStateIsNotCollected() {
+  if(rep->isRunning()) {
+    rep->stopWhenStateIsNotCollected();
+  }
 }
 
 void ReplicaInternal::stop() {
