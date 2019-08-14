@@ -9,6 +9,7 @@
 
 #include "sliver.hpp"
 #include "gtest/gtest.h"
+#include <iostream>
 
 using namespace std;
 using concordUtils::Sliver;
@@ -53,6 +54,18 @@ TEST(sliver_test, simple_wrap) {
 
   Sliver actual(expected, test_size);
   ASSERT_TRUE(is_match(expected, test_size, actual));
+}
+
+/**
+ * Test that a sliver wraps a copy of a char pointer exactly.
+ */
+TEST(sliver_test, simple_copy) {
+  const size_t test_size = 100;
+  uint8_t* expected = new_test_memory(test_size);
+
+  auto actual = Sliver::copy(expected, test_size);
+  ASSERT_TRUE(is_match(expected, test_size, actual));
+  ASSERT_NE(expected, actual.data());
 }
 
 /**

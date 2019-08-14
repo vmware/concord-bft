@@ -22,7 +22,7 @@ if (BUILD_ROCKSDB_STORAGE)
   if (BUILD_TESTING)
     add_subdirectory(test)
   endif()
-
-else() # NOT BUILD_ROCKSDB_STORAGE
-  target_sources(concordbft_storage PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/memorydb_client.cpp)
 endif(BUILD_ROCKSDB_STORAGE)
+
+target_sources(concordbft_storage PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/memorydb_client.cpp)
+
