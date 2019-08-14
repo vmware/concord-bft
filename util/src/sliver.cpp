@@ -62,6 +62,20 @@ Sliver::Sliver(const Sliver& base, const size_t offset, const size_t length)
 }
 
 /**
+ * Create a sliver from a copy of the memory pointed to by `data`, which is
+ * `length` bytes in size.
+ */
+Sliver Sliver::copy(uint8_t* data, const size_t length) {
+   auto* copy = new uint8_t[length];
+   memcpy(copy, data, length);
+   return Sliver(copy, length);
+}
+
+Sliver Sliver::copy(char* data, const size_t length) {
+  return Sliver::copy(reinterpret_cast<uint8_t*>(data), length);
+}
+
+/**
  * Get the byte at `offset` in this sliver.
  */
 uint8_t Sliver::operator[](const size_t offset) const {

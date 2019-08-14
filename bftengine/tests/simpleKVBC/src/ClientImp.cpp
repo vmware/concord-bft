@@ -12,6 +12,7 @@
 // file.
 
 #include "ClientImp.h"
+#include <cstring>
 
 using bftEngine::ICommunication;
 
@@ -56,37 +57,30 @@ namespace SimpleKVBC {
 		return (bftClient_ != nullptr);
 	}
 
-	Status ClientImp::invokeCommandSynch(const Slice command, bool isReadOnly, Slice& outReply)
+	Status ClientImp::invokeCommandSynch(const Sliver command, bool isReadOnly, Sliver& outReply)
 	{
 		if (!isRunning()) return Status::IllegalOperation("todo");
 
 		uint32_t replySize = 0;
 
 		
-		bftClient_->sendRequest(isReadOnly, command.data, command.size, 
+		bftClient_->sendRequest(isReadOnly, (const char*) command.data(), command.length(), 
 			seqGen_->generateUniqueSequenceNumberForRequest(), 
 			bftEngine::SimpleClient::INFINITE_TIMEOUT, 
 			config_.maxReplySize, replyBuf_, replySize);
 
-		char* p = (char*)std::malloc(replySize);
+		char* p = new char[replySize];
 		memcpy(p, replyBuf_, replySize);
 		memset(replyBuf_, 0, replySize);
 
-		outReply = Slice(p, replySize);
+		outReply = Sliver(p, replySize);
 
 		return Status::OK();
 	}
 
 
-	Status ClientImp::release(Slice& slice)
+	Status ClientImp::release(Sliver& _slice)
 	{
-		if (slice.size > 0)
-		{
-			char* p = (char*)slice.data;
-			std::free(p);
-			slice = Slice();
-		}
-
 		return Status::OK();
 	}
 }

@@ -17,6 +17,7 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <thread>
+#include <sys/param.h>
 
 #include "KVBCInterfaces.h"
 #include "simpleKVBCTests.h"
@@ -26,12 +27,6 @@
 #include "MetricsServer.hpp"
 #include "ReplicaImp.h"
 
-#ifndef _WIN32
-#include <sys/param.h>
-#include <unistd.h>
-#else
-#include "winUtils.h"
-#endif
 
 using namespace SimpleKVBC;
 using namespace bftEngine;

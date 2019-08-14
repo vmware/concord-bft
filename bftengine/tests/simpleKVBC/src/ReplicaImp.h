@@ -17,10 +17,20 @@
 #include <memory>
 
 #include "KVBCInterfaces.h"
-#include "BlockchainDBAdapter.h"
+#include "blockchain/db_interfaces.h"
+#include "blockchain/db_adapter.h"
 #include "SimpleBCStateTransfer.hpp"
 #include "Replica.hpp"
 #include "Metrics.hpp"
+
+using concord::storage::blockchain::ILocalKeyValueStorageReadOnly;
+using concord::storage::blockchain::ILocalKeyValueStorageReadOnlyIterator;
+using concord::storage::blockchain::IBlocksAppender;
+using concord::storage::blockchain::DBAdapter;
+using concordUtils::BlockId;
+using concordUtils::Key;
+using concordUtils::SetOfKeyValuePairs;
+using concordUtils::KeyValuePair;
 
 using namespace bftEngine::SimpleBlockchainStateTransfer;
 
@@ -33,19 +43,20 @@ namespace SimpleKVBC {
 	{
 	public:
 		// IReplica methods
-																	 
+                
 		virtual Status start() override;
 		virtual Status stop() override;
 		virtual RepStatus getReplicaStatus() const override;
 		virtual bool isRunning() const override;
-																				 
+                virtual void monitor() const override {}
+
 		// ILocalKeyValueStorageReadOnly methods
 		
-		virtual Status get(Slice key, Slice& outValue) const override;
-		virtual Status get(BlockId readVersion, Slice key, Slice& outValue, BlockId& outBlock) const override;
+		virtual Status get(Sliver key, Sliver& outValue) const override;
+		virtual Status get(BlockId readVersion, Sliver key, Sliver& outValue, BlockId& outBlock) const override;
 		virtual BlockId getLastBlock() const override;
 		virtual Status getBlockData(BlockId blockId, SetOfKeyValuePairs& outBlockData) const override;
-		Status mayHaveConflictBetween(Slice key, BlockId fromBlock, BlockId toBlock, bool& outRes) const override;
+		Status mayHaveConflictBetween(Sliver key, BlockId fromBlock, BlockId toBlock, bool& outRes) const override;
 		virtual ILocalKeyValueStorageReadOnlyIterator* getSnapIterator() const override;
 		virtual Status freeSnapIterator(ILocalKeyValueStorageReadOnlyIterator* iter) const override;
 
@@ -70,10 +81,10 @@ namespace SimpleKVBC {
 
 		// methods
 		Status addBlockInternal(const SetOfKeyValuePairs& updates, BlockId& outBlockId);
-		Status getInternal(BlockId readVersion, Slice key, Slice& outValue, BlockId& outBlock) const;
-		void insertBlockInternal(BlockId blockId, Slice block);
-		Slice getBlockInternal(BlockId blockId) const;
-		BlockchainDBAdapter* getBcDbAdapter() const { return m_bcDbAdapter; }
+		Status getInternal(BlockId readVersion, Sliver key, Sliver& outValue, BlockId& outBlock) const;
+		void insertBlockInternal(BlockId blockId, Sliver block);
+		Sliver getBlockInternal(BlockId blockId) const;
+                DBAdapter* getBcDbAdapter() const { return m_bcDbAdapter; }
 		bool executeCommand(uint16_t clientId,
 			bool readOnly,
 			uint32_t requestSize,
@@ -89,10 +100,10 @@ namespace SimpleKVBC {
 		class KeyIDPair // represents <key,blockId>
 		{
 		public:
-			const Slice key;
+			const Sliver key;
 			const BlockId blockId;
 
-			KeyIDPair(Slice s, BlockId i) : key(s), blockId(i)
+			KeyIDPair(Sliver s, BlockId i) : key(s), blockId(i)
 			{
 			}
 
@@ -118,13 +129,14 @@ namespace SimpleKVBC {
 			const ReplicaImp* rep;
 		public:
 			StorageWrapperForIdleMode(const ReplicaImp* r);
-			virtual Status get(Slice key, Slice& outValue) const;
-			virtual Status get(BlockId readVersion, Slice key, Slice& outValue, BlockId& outBlock) const;
-			virtual BlockId getLastBlock() const;
-			virtual Status getBlockData(BlockId blockId, SetOfKeyValuePairs& outBlockData) const;
-			Status mayHaveConflictBetween(Slice key, BlockId fromBlock, BlockId toBlock, bool& outRes) const;
-			virtual ILocalKeyValueStorageReadOnlyIterator* getSnapIterator() const;
-			virtual Status freeSnapIterator(ILocalKeyValueStorageReadOnlyIterator* iter) const;
+			Status get(Sliver key, Sliver& outValue) const override;
+			Status get(BlockId readVersion, Sliver key, Sliver& outValue, BlockId& outBlock) const override;
+			BlockId getLastBlock() const override;
+			Status getBlockData(BlockId blockId, SetOfKeyValuePairs& outBlockData) const override;
+			Status mayHaveConflictBetween(Sliver key, BlockId fromBlock, BlockId toBlock, bool& outRes) const override;
+			ILocalKeyValueStorageReadOnlyIterator* getSnapIterator() const override;
+			Status freeSnapIterator(ILocalKeyValueStorageReadOnlyIterator* iter) const override;
+                        void monitor() const override{}
 		};
 
 		class StorageIterator : public ILocalKeyValueStorageReadOnlyIterator
@@ -135,7 +147,7 @@ namespace SimpleKVBC {
 			KeyValuePair m_current;
 			BlockId m_currentBlock;
 			bool m_isEnd;
-			IDBClient::IDBClientIterator* m_iter;
+                        concord::storage::IDBClient::IDBClientIterator* m_iter;
 		public:
 			StorageIterator(const ReplicaImp* r);
 			virtual ~StorageIterator() {}
@@ -161,12 +173,12 @@ namespace SimpleKVBC {
 		RepStatus m_currentRepStatus;
 		StorageWrapperForIdleMode m_InternalStorageWrapperForIdleMode;
 
-		BlockchainDBAdapter* m_bcDbAdapter;
+                DBAdapter* m_bcDbAdapter;
 		BlockId lastBlock = 0;
 		
 		// static methods 
-		static Slice createBlockFromUpdates(const SetOfKeyValuePairs& updates, SetOfKeyValuePairs& outUpdatesInNewBlock, bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest digestOfPrev);
-		static SetOfKeyValuePairs fetchBlockData(Slice block);
+		static Sliver createBlockFromUpdates(const SetOfKeyValuePairs& updates, SetOfKeyValuePairs& outUpdatesInNewBlock, bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest digestOfPrev);
+		static SetOfKeyValuePairs fetchBlockData(Sliver block);
 
 
 		// friends
