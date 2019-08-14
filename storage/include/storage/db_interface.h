@@ -20,7 +20,6 @@ using concordUtils::SetOfKeyValuePairs;
 
 class IDBClient {
  public:
-  typedef bool (*KeyComparator)(const Sliver &, const Sliver &);
 
   virtual ~IDBClient() = default;
   virtual Status init(bool readOnly = false) = 0;
@@ -50,7 +49,13 @@ class IDBClient {
     // Status of last operation
     virtual Status getStatus() = 0;
 
-    virtual ~IDBClientIterator() {}
+    virtual ~IDBClientIterator() = default;
+  };
+
+  class IKeyManipulator{
+    public:
+      virtual int composedKeyComparison(const Sliver&, const Sliver& ) = 0;
+      virtual ~IKeyManipulator() = default;
   };
 
   virtual IDBClientIterator *getIterator() const = 0;
