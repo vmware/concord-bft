@@ -8,21 +8,44 @@
 #include "Logger.hpp"
 
 #include "sliver.hpp"
-#include "blockchain_db_types.h"
-#include "blockchain_db_interfaces.h"
+#include "blockchain/db_types.h"
+#include "blockchain/db_interfaces.h"
 #include "storage/db_interface.h"
-
+#include <memory>
 namespace concord {
 namespace storage {
 namespace blockchain {
 
-class BlockchainDBAdapter {
- public:
-  explicit BlockchainDBAdapter(IDBClient *db, bool readOnly = false);
 
-  IDBClient* getDb() {
-    return m_db;
-  }
+class KeyManipulator: public IDBClient::IKeyManipulator{
+ public:
+  KeyManipulator():logger_(concordlogger::Log::getLogger("concord.storage.blockchain.KeyManipulator")){}
+  virtual int   composedKeyComparison(const Sliver&, const Sliver& ) override;
+
+  Sliver        genDbKey(EDBKeyType _type, Key _key, BlockId _blockId);
+  Sliver        genBlockDbKey(BlockId _blockId);
+  Sliver        genDataDbKey(Key _key, BlockId _blockId);
+  char          extractTypeFromKey(Key _key);
+  BlockId       extractBlockIdFromKey(Key _key);
+  ObjectId      extractObjectIdFromKey(Key _key);
+  Sliver        extractKeyFromKeyComposedWithBlockId(Key _composedKey);
+  Sliver        extractKeyFromMetadataKey(Key _composedKey);
+  bool          isKeyContainBlockId(Key _composedKey);
+  KeyValuePair  composedToSimple(KeyValuePair _p);
+  static Sliver generateMetadataKey(ObjectId objectId);
+ protected:
+
+  static bool   copyToAndAdvance(uint8_t *_buf, size_t *_offset, size_t _maxOffset, uint8_t *_src, size_t _srcSize);
+
+
+  concordlogger::Logger logger_;
+};
+
+class DBAdapter {
+ public:
+  explicit DBAdapter(IDBClient *db, bool readOnly = false);
+
+  std::shared_ptr<IDBClient> getDb() { return db_; }
 
   Status addBlock(BlockId _blockId, Sliver _blockRaw);
   Status updateKey(Key _key, BlockId _block, Value _value);
@@ -30,13 +53,9 @@ class BlockchainDBAdapter {
   Status getKeyByReadVersion(BlockId readVersion, Sliver key, Sliver &outValue, BlockId &outBlock) const;
   Status getBlockById(BlockId _blockId, Sliver &_blockRaw, bool &_found) const;
 
-  IDBClient::IDBClientIterator* getIterator() {
-    return m_db->getIterator();
-  }
+  IDBClient::IDBClientIterator* getIterator() { return db_->getIterator(); }
 
-  Status freeIterator(IDBClient::IDBClientIterator *_iter) {
-    return m_db->freeIterator(_iter);
-  }
+  Status freeIterator(IDBClient::IDBClientIterator *_iter) { return db_->freeIterator(_iter); }
 
   Status first(IDBClient::IDBClientIterator *iter, BlockId readVersion, OUT BlockId &actualVersion, OUT bool &isEnd,
                OUT Sliver &_key, OUT Sliver &_value);
@@ -50,34 +69,20 @@ class BlockchainDBAdapter {
 
   Status delKey(Sliver _key, BlockId _blockID);
   Status delBlock(BlockId _blockId);
-  void deleteBlockAndItsKeys(BlockId blockId);
-
-  void monitor() const;
+  void   deleteBlockAndItsKeys(BlockId blockId);
+  void   monitor() const;
 
   BlockId getLatestBlock();
   BlockId getLastReachableBlock();
 
  private:
-  concordlogger::Logger logger;
-  IDBClient *m_db;
+  concordlogger::Logger      logger_;
+  std::shared_ptr<IDBClient> db_;
+  std::shared_ptr<KeyManipulator> key_manipulator_;
   KeyValuePair m_current;
   bool m_isEnd;
 };
 
-class KeyManipulator {
- public:
-  static Sliver       genDbKey(EDBKeyType _type, Key _key, BlockId _blockId);
-  static Sliver       genBlockDbKey(BlockId _blockId);
-  static Sliver       genDataDbKey(Key _key, BlockId _blockId);
-  static char         extractTypeFromKey(Key _key);
-  static BlockId      extractBlockIdFromKey(const concordlogger::Logger &logger, Key _key);
-  static ObjectId     extractObjectIdFromKey(const concordlogger::Logger &logger, Key _key);
-  static Sliver       extractKeyFromKeyComposedWithBlockId(const concordlogger::Logger &logger, Key _composedKey);
-  static Sliver       extractKeyFromMetadataKey(const concordlogger::Logger &logger, Key _composedKey);
-  static bool         isKeyContainBlockId(Key _composedKey);
-  static KeyValuePair composedToSimple(const concordlogger::Logger &logger, KeyValuePair _p);
-  static Sliver       generateMetadataKey(ObjectId objectId);
-};
 
 }
 }
