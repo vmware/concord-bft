@@ -3116,9 +3116,6 @@ namespace bftEngine
 			metric_received_simple_acks_{metrics_.RegisterCounter("receivedSimpleAckMsgs")},
 			metric_received_state_transfers_{metrics_.RegisterCounter("receivedStateTransferMsgs")}
 		{
-			// Initialize the config singleton
-			ReplicaConfigSingleton::GetInstance(&config);
-
 			Assert(myReplicaId < numOfReplicas);
 			// TODO(GG): more asserts on params !!!!!!!!!!!
 
