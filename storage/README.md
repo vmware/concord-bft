@@ -2,27 +2,24 @@
 This directory contains **optional** storage libraries that serve as examples of how
 to use the persistent storage interfaces of concord-bft.
 
-Applications must implement the MetadataStorage API, and so we have provided a
-RocksDB implementation in the `rocksdb` directory. The rocksdb directory also
-contains a `rocksdb_client` that implements the interfaces in
-`database_interface.h`. This can be used by higher level storage code to build
-complete systems on top of RocksDB. Again, this is only one way to use RocksDB
-to build a system, and the rocksdb library is completely optional.
+The code is structured such that the headers are divided into the individually
+usable subsystems of the storage library. `include/storage` contains common code,
+including generic database interfaces that are implemented by the `memorydb` and
+`rocksdb` components. The `blockchain` code is a layer of code useful for
+building blockchain systems that utilize the database interfaces and is usable with
+either the `memorydb` or `rocksdb` implementations of these interfaces.
 
-Additionally, users may wish to build a blockchain on top of concord-bft. The
-`blockchain` directory contains an example of how to structure the keyspace and
-use the database interfaces to build a blockchain storage layer. Currently, the
-only provided implementation of the database interfaces is the rocksdb library,
-and it is required for linking. However, users can provide alternate
-implementations of these interfaces and use a different low level storage
-mechanism, making the blockchain code independent of the rocksdb library.
+Source code for all subsystems lives in `storage/src`. Applications must
+implement the MetadataStorage API, and so we have provided a an implementation
+in `storage/src/db_metadata_strorage` that also uses the database interfaces.
 
-Both libraries rely on the util library in `../util` for types such as `Status`
+Both libraries rely on the util library in the `util` directory for types such as `Status`
 and `Sliver`.
 
 # Building and testing
 
-The storage libraries rely on RocksDB.
+The storage library may optionally use RocksDB. The tests currently require
+RocksDB.
 
 First install RocksDB dependencies:
 
@@ -41,15 +38,12 @@ make shared_lib
 sudo make install-shared
 ```
 
-Configure CMake to build the storage code and tests based on RocksDB. Some tests
-require LOG4CPP, so that also must be installed and enabled. Installation of
-LOG4CPP is detailed in the [main
-README](https://github.com/vmware/concord-bft/blob/master/README.md).
+Configure CMake to build the storage code and tests based on RocksDB.
 
 ```shell
 cd
 cd concord-bft/build
-cmake -DBUILD_ROCKSDB_STORAGE=TRUE -DBUILD_TESTING=TRUE -DUSE_LOG4CPP=TRUE ..
+cmake -DBUILD_ROCKSDB_STORAGE=TRUE -DBUILD_TESTING=TRUE ..
 make
 ```
 

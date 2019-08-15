@@ -12,7 +12,7 @@ if (BUILD_ROCKSDB_STORAGE)
   find_library(LIBZSTD   zstd)
   find_library(LIBZ      z)
   find_library(LIBSNAPPY snappy)
-  
+
   #cmake_policy(SET CMP0076 NEW) for cmake 3.14
   target_sources(concordbft_storage PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/rocksdb_client.cpp
                                             ${CMAKE_CURRENT_SOURCE_DIR}/src/rocksdb_key_comparator.cpp)
@@ -22,4 +22,7 @@ if (BUILD_ROCKSDB_STORAGE)
   if (BUILD_TESTING)
     add_subdirectory(test)
   endif()
+
+else() # NOT BUILD_ROCKSDB_STORAGE
+  target_sources(concordbft_storage PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/memorydb_client.cpp)
 endif(BUILD_ROCKSDB_STORAGE)
