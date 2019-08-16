@@ -170,7 +170,11 @@ namespace bftEngine
 			clientSendsRequestToAllReplicasPeriodThresh{p.clientSendsRequestToAllReplicasPeriodThresh},
 			clientPeriodicResetThresh{p.clientPeriodicResetThresh}
 		{
-				Assert(_fVal >= 1);
+#ifdef ALLOW_0_FAULT_TOLERANCE
+                Assert(_fVal >= 0);
+#else
+                Assert(_fVal >= 1);
+#endif
 				//Assert(!_communication->isRunning());
 
 				pendingRequest = nullptr;

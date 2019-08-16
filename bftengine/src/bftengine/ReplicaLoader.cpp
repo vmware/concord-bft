@@ -46,8 +46,12 @@ ReplicaLoader::ErrorCode checkReplicaConfig(const LoadedReplicaData &ld) {
                                           << ", concurrencyLevel=" << c.concurrencyLevel
                                           << ", autoViewChangeEnabled=" << c.autoViewChangeEnabled
                                           << ", viewChangeTimerMillisec=" << c.viewChangeTimerMillisec);
-
+#ifdef ALLOW_0_FAULT_TOLERANCE
+  Verify(c.fVal >= 0, InconsistentErr);
+#else
   Verify(c.fVal >= 1, InconsistentErr);
+#endif
+
   Verify(c.cVal >= 0, InconsistentErr);
 
   uint16_t numOfReplicas = 3 * c.fVal + 2 * c.cVal + 1;
