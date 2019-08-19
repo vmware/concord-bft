@@ -16,7 +16,7 @@
 #include "ISecretKey.h"
 #include "IPublicKey.h"
 
-class IThresholdSigner : public concordSerializable::Serializable {
+class IThresholdSigner : public serialize::Serializable {
  public:
   ~IThresholdSigner() override = default;
 

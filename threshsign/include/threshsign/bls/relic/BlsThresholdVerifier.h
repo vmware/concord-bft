@@ -30,8 +30,8 @@ class BlsThresholdVerifier : public IThresholdVerifier {
   BlsPublicParameters params_;
   mutable BlsPublicKey publicKey_;
   std::vector<BlsPublicKey> publicKeysVector_;
-  const G2T generator2_;
-  const NumSharesType reqSigners_ = 0, numSigners_ = 0;
+  G2T generator2_;
+  NumSharesType reqSigners_ = 0, numSigners_ = 0;
 
  public:
   BlsThresholdVerifier(const BlsPublicParameters &params, const G2T &pk,
@@ -83,24 +83,24 @@ class BlsThresholdVerifier : public IThresholdVerifier {
   const override;
 
   // Serialization/deserialization
-  concordSerializable::SharedPtrToClass create(std::istream &inStream) override;
+  serialize::SerializablePtr create(std::istream &inStream) override;
 
-  concordSerializable::SharedPtrToClass createDontVerify(std::istream &inStream);
+  serialize::SerializablePtr createDontVerify(std::istream &inStream);
 
  protected:
   BlsThresholdVerifier() = default;
-  void serializeDataMembers(std::ostream &outStream) const override;
+  virtual void serializeDataMembers  (std::ostream&) const override;
+  virtual void deserializeDataMembers(std::istream&)       override;
   std::string getName() const override { return className_; };
   std::string getVersion() const override { return classVersion_; };
 
  private:
   static void registerClass();
-  static void serializePublicKey(std::ostream &outStream,
-                                 const BlsPublicKey &key);
+  void serializePublicKey(const BlsPublicKey&, std::ostream&) const;
   static G2T deserializePublicKey(std::istream &inStream);
 
  private:
-  const std::string className_ = "BlsThresholdVerifier";
+  std::string className_ = "BlsThresholdVerifier";
   std::string classVersion_ = "1";
 };
 

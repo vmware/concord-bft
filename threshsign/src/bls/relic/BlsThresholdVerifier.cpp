@@ -30,14 +30,14 @@
 #include "XAssert.h"
 
 using namespace std;
-using namespace concordSerializable;
+using namespace serialize;
 
 namespace BLS {
 namespace Relic {
 
 
 void BlsThresholdVerifier::registerClass() {
-  SerializableObjectsDB::registerObject("BlsThresholdVerifier", SharedPtrToClass(new BlsThresholdVerifier));
+  registerObject("BlsThresholdVerifier", SerializablePtr(new BlsThresholdVerifier));
 }
 
 BlsThresholdVerifier::BlsThresholdVerifier(
@@ -104,34 +104,27 @@ bool BlsThresholdVerifier::verify(const G1T &msgHash,
 
 /************** Serialization **************/
 
-void BlsThresholdVerifier::serializePublicKey(
-    ostream &outStream, const BlsPublicKey &key) {
-  int32_t publicKeySize = key.y.getByteCount();
-  UniquePtrToUChar publicKeyBuf(new unsigned char[publicKeySize]);
-  key.y.toBytes(publicKeyBuf.get(), publicKeySize);
-  outStream.write((char *) &publicKeySize, sizeof(publicKeySize));
-  outStream.write((char *) publicKeyBuf.get(), publicKeySize);
+void BlsThresholdVerifier::serializePublicKey(const BlsPublicKey& key, std::ostream& outStream) const {
+  int publicKeySize = key.y.getByteCount();
+  LOG_TRACE(log_srlz_, "<<< public key size: " <<  publicKeySize);
+  serializeInt(publicKeySize, outStream);
+  unsigned char* publicKeyBuf = new unsigned char[publicKeySize];
+  key.y.toBytes(publicKeyBuf, publicKeySize);
+  outStream.write((char *) publicKeyBuf, publicKeySize);
+  LOG_TRACE(log_srlz_, "<<< public key buf: ["  << key.y.toString() << "]");
+  delete [] publicKeyBuf;
 }
 
 void BlsThresholdVerifier::serializeDataMembers(ostream &outStream) const {
-  // Serialize params
   params_.serialize(outStream);
+  serializePublicKey(publicKey_, outStream);
 
-  // Serialize publicKey
-  serializePublicKey(outStream, publicKey_);
+  serializeInt(publicKeysVector_.size(), outStream);
+  for (const auto &elem : publicKeysVector_)
+    serializePublicKey(elem, outStream);
 
-  // Serialize publicKeysVector
-  uint64_t publicKeysVectorNum = publicKeysVector_.size();
-  outStream.write((char *) &publicKeysVectorNum, sizeof(publicKeysVectorNum));
-  for (const auto &elem : publicKeysVector_) {
-    serializePublicKey(outStream, elem);
-  }
-
-  // Serialize reqSigners
-  outStream.write((char *) &reqSigners_, sizeof(reqSigners_));
-
-  // Serialize numSigners
-  outStream.write((char *) &numSigners_, sizeof(numSigners_));
+  serializeInt(reqSigners_, outStream);
+  serializeInt(numSigners_, outStream);
 }
 
 bool BlsThresholdVerifier::operator==(const BlsThresholdVerifier &other) const {
@@ -145,45 +138,37 @@ bool BlsThresholdVerifier::operator==(const BlsThresholdVerifier &other) const {
 }
 
 /************** Deserialization **************/
-
+// static
 G2T BlsThresholdVerifier::deserializePublicKey(istream &inStream) {
-  int32_t sizeOfPublicKey = 0;
-  inStream.read((char *) &sizeOfPublicKey, sizeof(sizeOfPublicKey));
-  UniquePtrToUChar publicKey(new unsigned char[sizeOfPublicKey]);
-  inStream.read((char *) publicKey.get(), sizeOfPublicKey);
-  return G2T(publicKey.get(), sizeOfPublicKey);
+  int publicKeySize = deserializeInt<int>(inStream);
+  LOG_TRACE(concordlogger::Log::getLogger("serialize"), ">>> public key size: " <<  publicKeySize);
+  unsigned char* publicKeyBuf = new unsigned char[publicKeySize];
+  inStream.read((char *) publicKeyBuf, publicKeySize);
+  G2T g2t_(publicKeyBuf, publicKeySize);
+  LOG_TRACE(concordlogger::Log::getLogger("serialize"), ">>> public key buf: ["  << g2t_.toString() << "]");
+  delete [] publicKeyBuf;
+  return g2t_;
 }
 
-SharedPtrToClass BlsThresholdVerifier::createDontVerify(std::istream &inStream) {
-  // Deserialize params
-  BlsPublicParameters params;
-  SharedPtrToClass paramsObj(params.create(inStream));
-
-  // Deserialize publicKey
-  G2T publicKey = deserializePublicKey(inStream);
-
-  // Deserialize publicKeysVector
-  uint64_t publicKeysVectorNum = 0;
-  inStream.read((char *) &publicKeysVectorNum, sizeof(publicKeysVectorNum));
-  vector<BlsPublicKey> publicKeysVector;
-  for (uint64_t i = 0; i < publicKeysVectorNum; ++i) {
-    publicKeysVector.emplace_back(deserializePublicKey(inStream));
-  }
-
-  // Deserialize reqSigners
-  inStream.read((char *) &reqSigners_, sizeof(reqSigners_));
-
-  // Deserialize numSigners
-  inStream.read((char *) &numSigners_, sizeof(numSigners_));
-
-  return SharedPtrToClass(new BlsThresholdVerifier(
-      *((BlsPublicParameters *) paramsObj.get()), publicKey, reqSigners_,
-      numSigners_, publicKeysVector));
-}
-
-SharedPtrToClass BlsThresholdVerifier::create(istream &inStream) {
+SerializablePtr BlsThresholdVerifier::create(std::istream &inStream) {
   verifyClassVersion(classVersion_, inStream);
-  return createDontVerify(inStream);
+  return SerializablePtr(new BlsThresholdVerifier);
+}
+
+void BlsThresholdVerifier::deserializeDataMembers(istream &inStream){
+  SerializablePtr params(BlsPublicParameters::deserialize(inStream));
+  params_ = *static_cast<BlsPublicParameters*>(params.get());
+  generator2_ = G2T(params_.getGenerator2());
+
+  publicKey_ = BlsPublicKey(deserializePublicKey(inStream));
+
+  auto publicKeysVectorNum = deserializeInt<std::vector<BlsPublicKey>::size_type>(inStream);
+  for (std::vector<BlsPublicKey>::size_type i = 0; i < publicKeysVectorNum; ++i)
+    publicKeysVector_.emplace_back(deserializePublicKey(inStream));
+
+ reqSigners_ = deserializeInt<NumSharesType>(inStream);
+ numSigners_ = deserializeInt<NumSharesType>(inStream);
+
 }
 
 } /* namespace Relic */

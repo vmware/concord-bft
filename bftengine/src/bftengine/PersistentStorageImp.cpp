@@ -16,7 +16,7 @@
 #include <sstream>
 
 using namespace std;
-using namespace concordSerializable;
+using namespace serialize;
 
 namespace bftEngine {
 namespace impl {
@@ -146,11 +146,10 @@ bool PersistentStorageImp::isInWriteTran() const {
 
 void PersistentStorageImp::setReplicaConfig(const ReplicaConfig &config) {
   Assert(isInWriteTran());
-  UniquePtrToChar outBuf;
-  int64_t outBufSize = ReplicaConfigSerializer::maxSize(numOfReplicas_);
+  std::ostringstream oss;
   configSerializer_->setConfig(config);
-  configSerializer_->serialize(outBuf, outBufSize);
-  metadataStorage_->writeInTransaction(REPLICA_CONFIG, (char *) outBuf.get(), outBufSize);
+  configSerializer_->serialize(oss);
+  metadataStorage_->writeInTransaction(REPLICA_CONFIG, (char *) oss.rdbuf()->str().c_str(), oss.tellp());
 }
 
 void PersistentStorageImp::setVersion() const {
@@ -534,7 +533,7 @@ ReplicaConfig PersistentStorageImp::getReplicaConfig() {
   UniquePtrToChar outBuf(new char[ReplicaConfigSerializer::maxSize(numOfReplicas_)]);
   metadataStorage_->read(REPLICA_CONFIG, ReplicaConfigSerializer::maxSize(numOfReplicas_),
                          outBuf.get(), outActualObjectSize);
-  SharedPtrToClass replicaConfigPtr = ReplicaConfigSerializer::deserialize(outBuf, outActualObjectSize);
+  SerializablePtr replicaConfigPtr = ReplicaConfigSerializer::deserialize(outBuf, outActualObjectSize);
   auto *configPtr = ((ReplicaConfigSerializer *) (replicaConfigPtr.get()))->getConfig();
   configSerializer_->setConfig(*configPtr);
   return *configSerializer_->getConfig();

@@ -22,7 +22,7 @@ namespace impl {
 // class for its serialization/deserialization functionality.
 // Any ReplicaConfig changes require synchronization with this class and an
 // update of ReplicaConfigSerializer::classVersion_.
-class ReplicaConfigSerializer : public concordSerializable::Serializable {
+class ReplicaConfigSerializer: public serialize::Serializable {
  public:
   explicit ReplicaConfigSerializer(ReplicaConfig *config);
   ~ReplicaConfigSerializer() override = default;
@@ -33,13 +33,14 @@ class ReplicaConfigSerializer : public concordSerializable::Serializable {
   bool operator==(const ReplicaConfigSerializer &other) const;
 
   // Serialization/deserialization
-  concordSerializable::SharedPtrToClass create(std::istream &inStream) override;
+  serialize::SerializablePtr create(std::istream &inStream) override;
 
   static uint32_t maxSize(uint32_t numOfReplicas);
 
  protected:
   ReplicaConfigSerializer();
-  void serializeDataMembers(std::ostream &outStream) const override;
+  virtual void serializeDataMembers  (std::ostream&) const override;
+  virtual void deserializeDataMembers(std::istream&)       override;
   std::string getName() const override { return className_; };
   std::string getVersion() const override { return classVersion_; };
 
@@ -47,8 +48,8 @@ class ReplicaConfigSerializer : public concordSerializable::Serializable {
   void serializeKey(const std::string &key, std::ostream &outStream) const;
   std::string deserializeKey(std::istream &inStream) const;
   void createSignersAndVerifiers(std::istream &inStream, ReplicaConfig &newObject);
-  void serializePointer(concordSerializable::Serializable *ptrToClass, std::ostream &outStream) const;
-  static concordSerializable::SharedPtrToClass deserializePointer(std::istream &inStream);
+  void serializePointer(serialize::Serializable *ptrToClass, std::ostream &outStream) const;
+  static serialize::SerializablePtr deserializePointer(std::istream &inStream);
 
   static void registerClass();
 
@@ -56,14 +57,14 @@ class ReplicaConfigSerializer : public concordSerializable::Serializable {
   std::unique_ptr<ReplicaConfig> config_;
 
   // Place holders for shared pointers to serializable classes
-  concordSerializable::SharedPtrToClass thresholdSignerForExecution_;
-  concordSerializable::SharedPtrToClass thresholdVerifierForExecution_;
-  concordSerializable::SharedPtrToClass thresholdSignerForSlowPathCommit_;
-  concordSerializable::SharedPtrToClass thresholdVerifierForSlowPathCommit_;
-  concordSerializable::SharedPtrToClass thresholdSignerForCommit_;
-  concordSerializable::SharedPtrToClass thresholdVerifierForCommit_;
-  concordSerializable::SharedPtrToClass thresholdSignerForOptimisticCommit_;
-  concordSerializable::SharedPtrToClass thresholdVerifierForOptimisticCommit_;
+  serialize::SerializablePtr thresholdSignerForExecution_;
+  serialize::SerializablePtr thresholdVerifierForExecution_;
+  serialize::SerializablePtr thresholdSignerForSlowPathCommit_;
+  serialize::SerializablePtr thresholdVerifierForSlowPathCommit_;
+  serialize::SerializablePtr thresholdSignerForCommit_;
+  serialize::SerializablePtr thresholdVerifierForCommit_;
+  serialize::SerializablePtr thresholdSignerForOptimisticCommit_;
+  serialize::SerializablePtr thresholdVerifierForOptimisticCommit_;
 
   const std::string className_ = "ReplicaConfig";
   const std::string classVersion_ = "1";

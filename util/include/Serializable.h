@@ -16,8 +16,9 @@
 #include <unordered_map>
 #include <fstream>
 #include <memory>
+#include "Logger.hpp"
 
-namespace concordSerializable {
+namespace serialize {
 
 /**
  * This class defines common functionality used for classes
@@ -33,8 +34,11 @@ class Serializable;
 
 typedef std::unique_ptr<char[], std::default_delete<char[]>> UniquePtrToChar;
 typedef std::unique_ptr<unsigned char[], std::default_delete<unsigned char[]>> UniquePtrToUChar;
-typedef std::shared_ptr<Serializable> SharedPtrToClass;
+typedef std::shared_ptr<Serializable> SerializablePtr;
 
+
+
+//TODO [TK] remove
 class MemoryBasedBuf : public std::basic_streambuf<char> {
  public:
   MemoryBasedBuf(const UniquePtrToChar &buf, size_t size) {
@@ -43,6 +47,7 @@ class MemoryBasedBuf : public std::basic_streambuf<char> {
 };
 
 // This class allows usage of a regular buffer as a stream.
+// TODO [TK] remove
 class MemoryBasedStream : public std::istream {
  public:
   MemoryBasedStream(const UniquePtrToChar &buf, size_t size) : std::istream(&buffer_), buffer_(buf, size) {
@@ -53,42 +58,57 @@ class MemoryBasedStream : public std::istream {
   MemoryBasedBuf buffer_;
 };
 
-typedef std::unordered_map<std::string, SharedPtrToClass> ClassNameToObjectMap;
-
 class Serializable {
- public:
+public:
+
+  Serializable();
   virtual ~Serializable() = default;
-  virtual void serialize(UniquePtrToChar &outBuf, int64_t &outBufSize) const;
-  virtual void serialize(std::ostream &outStream) const;
+
+  virtual void        serialize  (std::ostream&) const final;
+
   virtual std::string getName() const = 0;
   virtual std::string getVersion() const = 0;
 
   static void verifyClassName(const std::string &expectedClassName, std::istream &inStream);
   static void verifyClassVersion(const std::string &expectedVersion, std::istream &inStream);
-  static SharedPtrToClass deserialize(const UniquePtrToChar &inBuf, int64_t inBufSize);
-  static SharedPtrToClass deserialize(std::istream &inStream);
+  static SerializablePtr deserialize(const UniquePtrToChar &inBuf, int64_t inBufSize); //__attribute__ ((deprecated)) TODO [TK] remove;
+  static SerializablePtr deserialize(std::istream &inStream);
 
- protected:
-  void serializeClassName(std::ostream &outStream) const;
-  void serializeClassVersion(std::ostream &outStream) const;
-  virtual void serializeDataMembers(std::ostream &outStream) const = 0;
-  virtual SharedPtrToClass create(std::istream &inStream) = 0;
-  static void retrieveSerializedBuffer(const std::string &className, UniquePtrToChar &outBuf, int64_t &outBufSize);
+protected:
+  virtual void serializeClassName    (std::ostream&) const final;
+  virtual void serializeClassVersion (std::ostream&) const final;
+  virtual void serializeDataMembers  (std::ostream&) const = 0;
+  virtual void deserializeDataMembers(std::istream&)       = 0;
+  virtual SerializablePtr create(std::istream&) = 0;
 
- private:
-  static void serializeString(const std::string &str, std::ostream &outStream);
-  static UniquePtrToChar deserializeClassName(std::istream &inStream);
-  static UniquePtrToChar deserializeClassVersion(std::istream &inStream);
-  static UniquePtrToChar deserializeString(std::istream &inStream);
+
+  void serializeString(const std::string &str, std::ostream &outStream) const;
+  template<typename INT>
+  void serializeInt(const INT& num, std::ostream& outStream) const
+  {
+    outStream.write((char*)&num, sizeof(INT));
+  }
+  static std::string deserializeClassName(std::istream &inStream);
+  static std::string deserializeClassVersion(std::istream &inStream);
+  static std::string deserializeString(std::istream &inStream);
+  template<typename INT>
+  static INT deserializeInt(std::istream& inStream)
+  {
+    INT res = 0;
+    inStream.read((char*)&res, sizeof(INT));
+    return res;
+  }
+
+  static void registerObject(const std::string& className, const SerializablePtr& objectPtr)
+  {
+      objectFactory_[className] = objectPtr;
+  }
+  typedef std::unordered_map<std::string, SerializablePtr> ClassToObjectMap;
+  static std::unordered_map<std::string, SerializablePtr> objectFactory_;
+  concordlogger::Logger log_srlz_;
+
 };
 
-class SerializableObjectsDB {
- public:
-  static void registerObject(const std::string &className, const SharedPtrToClass &objectPtr);
-  friend class Serializable;
 
- private:
-  static ClassNameToObjectMap classNameToObjectMap_;
-};
 
 }

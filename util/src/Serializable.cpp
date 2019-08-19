@@ -15,14 +15,12 @@
 
 using namespace std;
 
-namespace concordSerializable {
+namespace serialize {
 
-ClassNameToObjectMap SerializableObjectsDB::classNameToObjectMap_;
+Serializable::ClassToObjectMap Serializable:: objectFactory_;
 
-void SerializableObjectsDB::registerObject(const string &className, const SharedPtrToClass &objectPtr) {
-  if (classNameToObjectMap_.find(className) != classNameToObjectMap_.end())
-    return;
-  classNameToObjectMap_[className] = objectPtr;
+Serializable::Serializable(): log_srlz_(concordlogger::Log::getLogger("serialize"))
+{
 }
 
 /************** Serialization **************/
@@ -33,91 +31,74 @@ void Serializable::serialize(ostream &outStream) const {
   serializeDataMembers(outStream);
 }
 
-void Serializable::serialize(UniquePtrToChar &outBuf, int64_t &outBufSize) const {
-  ofstream outStream(getName().c_str(), ofstream::binary | ofstream::trunc);
-  serialize(outStream);
-  outStream.close();
-  retrieveSerializedBuffer(getName(), outBuf, outBufSize);
-}
-
 void Serializable::serializeClassName(ostream &outStream) const {
   serializeString(getName(), outStream);
+  LOG_TRACE(log_srlz_, "<<< class name: " << getName());
 }
 
 void Serializable::serializeClassVersion(ostream &outStream) const {
   serializeString(getVersion(), outStream);
+  LOG_TRACE(log_srlz_, "<<< class version: " << getVersion());
 }
 
-void Serializable::serializeString(const string &str, ostream &outStream) {
-  auto sizeofString = (int64_t) str.size();
-  outStream.write((char *) &sizeofString, sizeof(sizeofString));
-  outStream.write(str.c_str(), sizeofString);
-}
-
-void Serializable::retrieveSerializedBuffer(const string &className, UniquePtrToChar &outBuf, int64_t &outBufSize) {
-  ifstream infile(className.c_str(), ofstream::binary);
-  infile.seekg(0, ios::end);
-  outBufSize = infile.tellg();
-  infile.seekg(0, ios::beg);
-  UniquePtrToChar newOne(new char[outBufSize]);
-  outBuf.swap(newOne);
-  infile.read(outBuf.get(), outBufSize);
-  infile.close();
+void Serializable::serializeString(const string &str, ostream &outStream) const {
+  serializeInt(str.size(), outStream);
+  std::string::size_type sizeofString = str.size();
+  outStream.write(str.data(), sizeofString);
+  LOG_TRACE(log_srlz_, "<<< string size: " << sizeofString);
 }
 
 /************** Deserialization **************/
 
-UniquePtrToChar Serializable::deserializeString(istream &inStream) {
-  int64_t sizeofString = 0;
-  inStream.read((char *) &sizeofString, sizeof(sizeofString));
-  UniquePtrToChar str(new char[sizeofString + 1]);
-  str.get()[sizeofString] = '\0';
-  inStream.read(str.get(), sizeofString);
-  return str;
+std::string Serializable::deserializeString(istream &inStream) {
+  auto sizeofString = deserializeInt<std::string::size_type>(inStream);
+  LOG_TRACE(concordlogger::Log::getLogger("serializable"), ">>> string size: " << sizeofString);
+  char* str =  new char[sizeofString];
+  inStream.read(str, sizeofString);
+  std::string result(str, sizeofString);
+  delete [] str;
+  return result;
 }
 
-UniquePtrToChar Serializable::deserializeClassName(istream &inStream) {
-  return deserializeString(inStream);
+std::string Serializable::deserializeClassName(istream &inStream) {
+  std::string res = deserializeString(inStream);
+  LOG_TRACE(concordlogger::Log::getLogger("serialize"), ">>> class name: " << res);
+  return res;
 }
 
-UniquePtrToChar Serializable::deserializeClassVersion(istream &inStream) {
-  return deserializeString(inStream);
+std::string Serializable::deserializeClassVersion(istream &inStream) {
+  std::string res = deserializeString(inStream);
+  LOG_TRACE(concordlogger::Log::getLogger("serialize"), ">>> class version: " << res);
+  return res;
 }
 
-SharedPtrToClass Serializable::deserialize(istream &inStream) {
+SerializablePtr Serializable::deserialize(istream &inStream) {
   // Deserialize first the class name.
-  UniquePtrToChar className = deserializeString(inStream);
-  auto it = SerializableObjectsDB::classNameToObjectMap_.find(className.get());
-  if (it != SerializableObjectsDB::classNameToObjectMap_.end()) {
-    // Create corresponding class instance
-    return it->second->create(inStream);
-  }
-  ostringstream error;
-  error << "Deserialization failed: unknown class name: " << className.get();
-  throw runtime_error(error.str());
+  std::string className = deserializeClassName(inStream);
+  auto it = objectFactory_.find(className);
+  if (it == objectFactory_.end())
+    throw runtime_error("Deserialization failed: unknown class name: " + className);
+
+  SerializablePtr obj = it->second->create(inStream);
+  obj->deserializeDataMembers(inStream);
+  return obj;
 }
 
-SharedPtrToClass Serializable::deserialize(const UniquePtrToChar &inBuf, int64_t inBufSize) {
+SerializablePtr Serializable::deserialize(const UniquePtrToChar &inBuf, int64_t inBufSize) {
   MemoryBasedStream inStream(inBuf, (uint64_t) inBufSize);
   return deserialize(inStream);
 }
 
-void Serializable::verifyClassName(const string &expectedClassName, istream &inStream) {
-  UniquePtrToChar className = deserializeString(inStream);
-  if (className.get() != expectedClassName) {
-    ostringstream error;
-    error << "Unsupported class name: " << className.get() << ", expected class name: " << expectedClassName;
-    throw runtime_error(error.str());
-  }
+void Serializable::verifyClassName(const string& expectedClassName, istream& inStream) {
+  std::string className = deserializeString(inStream);
+  if (className != expectedClassName)
+    throw runtime_error("Unsupported class name: " + className  + std::string(", expected class name: ") + expectedClassName);
 }
 
 void Serializable::verifyClassVersion(const string &expectedVersion, istream &inStream) {
-  UniquePtrToChar version = deserializeClassVersion(inStream);
-  if (version.get() != expectedVersion) {
-    ostringstream error;
-    error << "Unsupported class version: " << version.get() << ", expected version: " << expectedVersion;
-    throw runtime_error(error.str());
-  }
+  std::string version = deserializeClassVersion(inStream);
+  if (version != expectedVersion)
+    throw runtime_error( "Unsupported class version: " +  version + std::string(", expected version: ") + expectedVersion);
 }
 
 }

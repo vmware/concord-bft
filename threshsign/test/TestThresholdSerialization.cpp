@@ -32,7 +32,7 @@
 
 using namespace std;
 using namespace BLS::Relic;
-using namespace concordSerializable;
+using namespace serialize;
 
 const char secretKeyValue[] =
     "308204BA020100300D06092A864886F70D0101010500048204A4308204A00201000282010100C55B8F7979BF24B335017082BF33EE2960E3A"
@@ -78,12 +78,11 @@ const int numOfSigners = 3;
 bool testBlsThresholdSigner(const BlsPublicParameters &params) {
   ShareID id = 0x208419;
   BNT secretKey(secretKeyValue);
-  SharedPtrToClass origSigner(new BlsThresholdSigner(params, id, secretKey));
+  SerializablePtr origSigner(new BlsThresholdSigner(params, id, secretKey));
+  std::stringstream strstr;
 
-  UniquePtrToChar buf;
-  int64_t bufSize = 0;
-  ((BlsThresholdSigner *) origSigner.get())->serialize(buf, bufSize);
-  SharedPtrToClass resultSigner = BlsThresholdSigner::deserialize(buf, bufSize);
+  origSigner->serialize(strstr);
+  SerializablePtr resultSigner = BlsThresholdSigner::deserialize(strstr);
 
   auto *inSigner = (BlsThresholdSigner *) origSigner.get();
   auto *outSigner = (BlsThresholdSigner *) resultSigner.get();
@@ -116,14 +115,11 @@ void printRawBuf(const UniquePtrToChar &buf, int64_t bufSize) {
 bool testBlsThresholdVerifier(const BlsPublicParameters &params, const vector<BlsPublicKey> &verificationKeys) {
   G2T publicKey(publicKeyValue);
 
-  SharedPtrToClass origVerifier(new BlsThresholdVerifier(params, publicKey, numOfSigners,
+  SerializablePtr origVerifier(new BlsThresholdVerifier(params, publicKey, numOfSigners,
                                                          numOfSigners, verificationKeys));
-
-  UniquePtrToChar buf;
-  int64_t bufSize = 0;
-  ((BlsThresholdVerifier *) origVerifier.get())->serialize(buf, bufSize);
-
-  SharedPtrToClass resultVerifier = BlsThresholdVerifier::deserialize(buf, bufSize);
+  std::stringstream strstr;
+  origVerifier->serialize(strstr);
+  SerializablePtr resultVerifier = BlsThresholdVerifier::deserialize(strstr);
 
   auto *inVerifier = (BlsThresholdVerifier *) origVerifier.get();
   auto *outVerifier = (BlsThresholdVerifier *) resultVerifier.get();
@@ -131,13 +127,12 @@ bool testBlsThresholdVerifier(const BlsPublicParameters &params, const vector<Bl
 }
 
 bool testBlsMultisigVerifier(const BlsPublicParameters &params, const vector<BlsPublicKey> &verificationKeys) {
-  SharedPtrToClass origVerifier(new BlsMultisigVerifier(params, numOfSigners, numOfSigners, verificationKeys));
+  SerializablePtr origVerifier(new BlsMultisigVerifier(params, numOfSigners, numOfSigners, verificationKeys));
 
-  UniquePtrToChar buf;
-  int64_t bufSize = 0;
-  ((BlsMultisigVerifier *) origVerifier.get())->serialize(buf, bufSize);
+  std::stringstream strstr;
+  origVerifier->serialize(strstr);
 
-  SharedPtrToClass resultVerifier = BlsMultisigVerifier::deserialize(buf, bufSize);
+  SerializablePtr resultVerifier = BlsMultisigVerifier::deserialize(strstr);
 
   auto *inVerifier = (BlsMultisigVerifier *) origVerifier.get();
   auto *outVerifier = (BlsMultisigVerifier *) resultVerifier.get();

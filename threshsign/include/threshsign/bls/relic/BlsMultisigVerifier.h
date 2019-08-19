@@ -56,13 +56,10 @@ class BlsMultisigVerifier : public BlsThresholdVerifier {
 
   int requiredLengthForSignedData() const override;
 
-  // Serialization/deserialization
-  void serialize(concordSerializable::UniquePtrToChar &outBuf, int64_t &outBufSize) const override;
-  concordSerializable::SharedPtrToClass create(std::istream &inStream) override;
+  serialize::SerializablePtr create(std::istream &inStream) override;
 
  protected:
   BlsMultisigVerifier() = default;
-  void serializeDataMembers(std::ostream &outStream) const override;
   std::string getName() const override { return className_; };
   std::string getVersion() const override { return classVersion_; };
 

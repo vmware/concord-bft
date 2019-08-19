@@ -20,13 +20,13 @@
 #include "XAssert.h"
 
 using namespace std;
-using namespace concordSerializable;
+using namespace serialize;
 
 namespace BLS {
 namespace Relic {
 
 void BlsMultisigVerifier::registerClass() {
-  SerializableObjectsDB::registerObject("BlsMultisigVerifier", SharedPtrToClass(new BlsMultisigVerifier));
+  registerObject("BlsMultisigVerifier", SerializablePtr(new BlsMultisigVerifier));
 }
 
 BlsMultisigVerifier::BlsMultisigVerifier(
@@ -109,24 +109,6 @@ bool BlsMultisigVerifier::verify(const char *msg, int msgLen,
 }
 
 /************** Serialization **************/
-
-void BlsMultisigVerifier::serialize(UniquePtrToChar &outBuf,
-                                    int64_t &outBufSize) const {
-  ofstream outStream(className_.c_str(), ofstream::binary | ofstream::trunc);
-  serializeClassName(outStream);
-  serializeClassVersion(outStream);
-  // Serialize the base class
-  BlsThresholdVerifier::serializeDataMembers(outStream);
-  Serializable::serialize(outStream);
-  outStream.close();
-  retrieveSerializedBuffer(className_, outBuf, outBufSize);
-}
-
-void BlsMultisigVerifier::serializeDataMembers(ostream &outStream) const {
-  // Serialize the base class
-  BlsThresholdVerifier::serializeDataMembers(outStream);
-}
-
 bool BlsMultisigVerifier::operator==(const BlsMultisigVerifier &other) const {
   bool result = BlsThresholdVerifier::compare(other);
   return result;
@@ -134,14 +116,9 @@ bool BlsMultisigVerifier::operator==(const BlsMultisigVerifier &other) const {
 
 /************** Deserialization **************/
 
-SharedPtrToClass BlsMultisigVerifier::create(istream &inStream) {
+SerializablePtr BlsMultisigVerifier::create(istream &inStream) {
   verifyClassVersion(classVersion_, inStream);
-
-  // Retrieve the base class
-  SharedPtrToClass baseClass(BlsThresholdVerifier::createDontVerify(inStream));
-
-  auto &baseClassObj = *(BlsThresholdVerifier *) baseClass.get();
-  return SharedPtrToClass(new BlsMultisigVerifier(baseClassObj));
+  return SerializablePtr(new BlsMultisigVerifier);
 }
 
 } /* namespace Relic */

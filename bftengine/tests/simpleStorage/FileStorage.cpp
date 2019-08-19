@@ -26,9 +26,10 @@ namespace bftEngine {
 FileStorage::FileStorage(Logger &logger, const string &fileName) :
     logger_(logger), fileName_(fileName) {
 
-  dataStream_ = fopen(fileName.c_str(), "wxb+");
+  dataStream_ = fopen(fileName.c_str(), "w+x");
   if (!dataStream_) { // The file already exists
-    dataStream_ = fopen(fileName.c_str(), "rb+");
+    LOG_INFO(logger_, "FileStorage::ctor File " << fileName_ << " exists");
+    dataStream_ = fopen(fileName.c_str(), "r+");
     if (!dataStream_) {
       ostringstream err;
       err << "Failed to open file " << fileName_ << ", errno is " << errno;
@@ -87,7 +88,19 @@ void FileStorage::writeFileMetadata() {
 
 void FileStorage::read(void *dataPtr, size_t offset, size_t itemSize, size_t count, const char *errorMsg) {
   fseek(dataStream_, offset, SEEK_SET);
-  if (fread(dataPtr, itemSize, count, dataStream_) != count) {
+  size_t read_ = fread(dataPtr, itemSize, count, dataStream_);
+  int err = ferror(dataStream_);
+  if (err)
+  {
+   LOG_WARN(logger_, "FileStorage::read " << strerror(err));
+   throw runtime_error(errorMsg);
+  }
+  int eof = feof(dataStream_);
+  if (eof){
+    LOG_WARN(logger_, "FileStorage::read EOF" );
+    throw runtime_error(errorMsg);
+  }
+  if (read_ != count) {
     LOG_WARN(logger_, "FileStorage::read " << errorMsg);
     throw runtime_error(errorMsg);
   }

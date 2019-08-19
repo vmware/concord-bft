@@ -41,6 +41,7 @@ class BlsThresholdSigner : public IThresholdSigner {
   G1T hTmp_, sigTmp_;
 
  public:
+  BlsThresholdSigner() = default;
   BlsThresholdSigner(const BlsPublicParameters &params,
                      ShareID id,
                      const BNT &secretKey);
@@ -82,11 +83,11 @@ class BlsThresholdSigner : public IThresholdSigner {
   }
 
   // Serialization/deserialization
-  concordSerializable::SharedPtrToClass create(std::istream &inStream) override;
+  serialize::SerializablePtr create(std::istream&) override;
 
  protected:
-  BlsThresholdSigner() = default;
-  void serializeDataMembers(std::ostream &outStream) const override;
+  virtual void serializeDataMembers  (std::ostream&) const override;
+  virtual void deserializeDataMembers(std::istream&)       override;
   std::string getName() const override { return className_; };
   std::string getVersion() const override { return classVersion_; };
   static void registerClass();
