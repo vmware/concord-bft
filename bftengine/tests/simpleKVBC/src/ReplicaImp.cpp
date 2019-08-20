@@ -36,8 +36,12 @@
 #include "hash_defs.h"
 
 using namespace bftEngine::SimpleBlockchainStateTransfer;
+using concordUtils::BlockId;
 using concordUtils::Key;
 using concordUtils::Value;
+using concordUtils::SetOfKeyValuePairs;
+using concordUtils::KeyValuePair;
+using concord::storage::blockchain::ILocalKeyValueStorageReadOnlyIterator;
 
 namespace SimpleKVBC {
 

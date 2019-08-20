@@ -77,10 +77,4 @@ namespace SimpleKVBC {
 
 		return Status::OK();
 	}
-
-
-	Status ClientImp::release(Sliver& _slice)
-	{
-		return Status::OK();
-	}
 }

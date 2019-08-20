@@ -931,8 +931,6 @@ namespace BasicRandomTests
 
 			assert(pReplyData->h.type == 3);
 			assert(pReplyData->latestBlock == 0);
-
-			client->release(reply);
 		}
 	}
 
@@ -991,7 +989,6 @@ namespace BasicRandomTests
 				if(ops % 20 == 0) printf("\nop %d passed", ops);
 			}
 
-			client->release(reply);
 		}
 
 		client->stop();
