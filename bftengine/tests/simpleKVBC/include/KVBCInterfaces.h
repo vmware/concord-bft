@@ -104,8 +104,6 @@ class IClient {
   virtual bool isRunning() = 0;
 
   virtual Status invokeCommandSynch(const Sliver command, bool isReadOnly, Sliver& outReply) = 0;
-
-  virtual Status release(Sliver& slice) = 0;  // release memory allocated by invokeCommandSynch
 };
 
 // creates a new Client object
