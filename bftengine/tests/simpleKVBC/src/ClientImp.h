@@ -29,9 +29,7 @@ namespace SimpleKVBC {
 
 		virtual bool isRunning() ;
 
-		virtual Status invokeCommandSynch(const Slice command, bool isReadOnly, Slice& outReply) ;
-
-		virtual Status release(Slice& slice) ; // release memory allocated by invokeCommandSynch  
+		virtual Status invokeCommandSynch(const Sliver command, bool isReadOnly, Sliver& outReply) ;
 
 
 	protected:

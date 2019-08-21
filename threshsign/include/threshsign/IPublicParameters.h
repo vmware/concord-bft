@@ -23,7 +23,7 @@
  * the prime p for BLS.
  */
 
-class IPublicParameters : public concordSerializable::Serializable {
+class IPublicParameters : public concord::serialize::Serializable {
  protected:
   /**
    * Security level.
@@ -61,21 +61,22 @@ class IPublicParameters : public concordSerializable::Serializable {
   const std::string &getLibrary() const { return library_; }
 
   // Serialization/deserialization
-  concordSerializable::SharedPtrToClass create(std::istream &inStream) override;
+  concord::serialize::SerializablePtr create(std::istream &inStream) override;
 
   // To be used ONLY during deserialization. Could not become private/protected,
   // as there is a composition relationship between IPublicParameters and
   // signer/verifier classes.
   IPublicParameters() = default;
 
-  concordSerializable::SharedPtrToClass createDontVerify(std::istream &inStream);
+  concord::serialize::SerializablePtr createDontVerify(std::istream &inStream);
 
  protected:
-  void serializeDataMembers(std::ostream &outStream) const override;
+  virtual void serializeDataMembers(std::ostream &outStream) const override;
+  virtual void deserializeDataMembers(std::istream&) override;
   std::string getName() const override { return className_; };
   std::string getVersion() const override { return classVersion_; };
 
  private:
-  const std::string className_ = "IPublicParameters";
+  std::string className_ = "IPublicParameters";
   std::string classVersion_ = "1";
 };

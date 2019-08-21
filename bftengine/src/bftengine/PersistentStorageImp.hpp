@@ -196,7 +196,7 @@ class PersistentStorageImp : public PersistentStorage {
 
  private:
   std::unique_ptr<MetadataStorage> metadataStorage_;
-  std::unique_ptr<ReplicaConfigSerializer> configSerializer_;
+  std::shared_ptr<ReplicaConfigSerializer> configSerializer_;
   const ReplicaConfigSerializer defaultReplicaConfig_;
 
   const uint32_t maxVersionSize_ = 80;

@@ -144,10 +144,6 @@ Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
   uint16_t numOfObjects = 0;
   bool isNewStorage = true;
 
-  if (replicaConfig->debugPersistentStorageEnabled) {
-    Assert(metadataStorage == nullptr);
-  }
-
   // Initialize the configuration singleton here to use correct values during persistent storage initialization.
   ReplicaConfigSingleton::GetInstance(replicaConfig);
 

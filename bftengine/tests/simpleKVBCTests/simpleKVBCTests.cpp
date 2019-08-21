@@ -11,15 +11,18 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "simpleKVBCTests.h"
 #include <inttypes.h>
 #include <map>
 #include <set>
 #include <list>
 #include <chrono>
-#ifndef _WIN32
+#include <cstring>
+#include <assert.h>
 #include <unistd.h>
-#endif
+
+#include "simpleKVBCTests.h"
+#include "kv_types.hpp"
+#include "hash_defs.h"
 
 using std::list;
 using std::map;
@@ -34,6 +37,9 @@ using std::set;
 #define MAX_READS_IN_REQ (7)
 
 using namespace SimpleKVBC;
+using concordUtils::BlockId; 
+using concordUtils::SetOfKeyValuePairs; 
+using concordUtils::KeyValuePair; 
 
 #define CHECK(_cond_, _msg_)  if (!(_cond_)) { \
       printf("\nTest failed: %s\n", _msg_); \
@@ -699,24 +705,24 @@ namespace BasicRandomTests
 		{
 		public:
 
-			virtual bool executeCommand(const Slice command,
-				const ILocalKeyValueStorageReadOnly& roStorage,
-				IBlocksAppender& blockAppender,
+			virtual bool executeCommand(const Sliver command,
+				const concord::storage::blockchain::ILocalKeyValueStorageReadOnly& roStorage,
+				concord::storage::blockchain::IBlocksAppender& blockAppender,
 				const size_t maxReplySize,
 				char* outReply, size_t& outReplySize) const
 			{
-				printf("Got message of size %zu\n",command.size);
+				printf("Got message of size %zu\n",command.length());
 	
 				//DEBUG_RNAME("InternalCommandsHandler::executeCommand");
-				CHECK((command.size >= sizeof(SimpleRequestHeader)), "small message");
-				SimpleRequestHeader* p = (SimpleRequestHeader*)command.data;
+				CHECK((command.length()>= sizeof(SimpleRequestHeader)), "small message");
+				SimpleRequestHeader* p = (SimpleRequestHeader*)command.data();
 				if (p->type != 1) return executeReadOnlyCommand(command, roStorage, maxReplySize, outReply, outReplySize);
 
 				// conditional write
 
-				CHECK(command.size >= sizeof(SimpleConditionalWriteHeader), "small message");
-				SimpleConditionalWriteHeader* pCondWrite = (SimpleConditionalWriteHeader*)command.data;
-				CHECK(command.size >= pCondWrite->size(), "small message");
+				CHECK(command.length() >= sizeof(SimpleConditionalWriteHeader), "small message");
+				SimpleConditionalWriteHeader* pCondWrite = (SimpleConditionalWriteHeader*)command.data();
+				CHECK(command.length() >= pCondWrite->size(), "small message");
 				SimpleKey* readSetArray = pCondWrite->readSetArray();
 
 				BlockId currBlock = roStorage.getLastBlock();
@@ -725,8 +731,8 @@ namespace BasicRandomTests
 				bool hasConflict = false;
 				for (size_t i = 0; !hasConflict && i < pCondWrite->numberOfKeysInReadSet; i++)
 				{
-					Slice key(readSetArray[i].key, KV_LEN);
-					roStorage.mayHaveConflictBetween(key, pCondWrite->readVersion + 1, currBlock, hasConflict);
+                                  auto key = Sliver::copy(readSetArray[i].key, KV_LEN);
+                                  roStorage.mayHaveConflictBetween(key, pCondWrite->readVersion + 1, currBlock, hasConflict);
 				}
 
 				if (!hasConflict)
@@ -734,26 +740,16 @@ namespace BasicRandomTests
 					SimpleKV* keyValArray = pCondWrite->keyValArray();
 					SetOfKeyValuePairs updates;
 
-					//printf("\nAdding BlockId=%" PRId64 " ", currBlock + 1);
-
 					for (size_t i = 0; i < pCondWrite->numberOfWrites; i++)
 					{
-						Slice key(keyValArray[i].key, KV_LEN);
-						Slice val(keyValArray[i].val, KV_LEN);
+						auto key = Sliver::copy(keyValArray[i].key, KV_LEN);
+						auto val = Sliver::copy(keyValArray[i].val, KV_LEN);
 						KeyValuePair kv(key, val);
 						updates.insert(kv);
-						//printf("\n");
-						//for (int k = 0; k < sizeof(size_t); k++)
-						//	printf("%02X", key.data()[k]);
-						//printf("%04s", " ");
-						//for (int k = 0; k < sizeof(size_t); k++)
-						//	printf("%02X", val.data()[k]);
-
 					}
-					//printf("\n\n");
 					BlockId newBlockId = 0;
 					Status addSucc = blockAppender.addBlock(updates, newBlockId);
-					assert(addSucc.ok());
+					assert(addSucc.isOK());
 					assert(newBlockId == currBlock + 1);
 				}
 
@@ -771,19 +767,19 @@ namespace BasicRandomTests
 				return true;
 			}
 
-			virtual bool executeReadOnlyCommand(const Slice command,
-				const ILocalKeyValueStorageReadOnly& roStorage,
+			virtual bool executeReadOnlyCommand(const Sliver command,
+				const concord::storage::blockchain::ILocalKeyValueStorageReadOnly& roStorage,
 				const size_t maxReplySize,
 				char* outReply, size_t& outReplySize) const
 			{
-				CHECK(command.size >= sizeof(SimpleRequestHeader), "small message");
-				SimpleRequestHeader* p = (SimpleRequestHeader*)command.data;
+				CHECK(command.length() >= sizeof(SimpleRequestHeader), "small message");
+				SimpleRequestHeader* p = (SimpleRequestHeader*)command.data();
 				if (p->type == 2)
 				{
 					// read
-					CHECK(command.size >= sizeof(SimpleReadHeader), "small message");
-					SimpleReadHeader* pRead = (SimpleReadHeader*)command.data;
-					CHECK(command.size >= pRead->size(), "small message");
+					CHECK(command.length() >= sizeof(SimpleReadHeader), "small message");
+					SimpleReadHeader* pRead = (SimpleReadHeader*)command.data();
+					CHECK(command.length() >= pRead->size(), "small message");
 					size_t numOfElements = pRead->numberOfKeysToRead;
 					size_t replySize = SimpleReplyHeader_Read::size(numOfElements);
 
@@ -801,12 +797,14 @@ namespace BasicRandomTests
 					for (size_t i = 0; i < numOfElements; i++)
 					{
 						memcpy(pReply->elements[i].key, keysArray[i].key, KV_LEN);
-						Slice val;
-						Slice k(keysArray[i].key, KV_LEN);
+						Sliver val;
+                                                // We need to do a copy here
+                                                // since Sliver takes ownership
+						auto k = Sliver::copy(keysArray[i].key, KV_LEN);
 						BlockId outBlock = 0;
 						roStorage.get(pRead->readVersion, k, val, outBlock);
-						if (val.size > 0)
-							memcpy(pReply->elements[i].val, val.data, KV_LEN);
+						if (val.length() > 0)
+							memcpy(pReply->elements[i].val, val.data(), KV_LEN);
 						else
 							memset(pReply->elements[i].val, 0, KV_LEN);
 					}
@@ -820,7 +818,7 @@ namespace BasicRandomTests
 				else if (p->type == 3)
 				{
 					// read
-					CHECK(command.size >= sizeof(SimpleGetLastBlockHeader), "small message");
+					CHECK(command.length() >= sizeof(SimpleGetLastBlockHeader), "small message");
 //					SimpleGetLastBlockHeader* pGetLast = (SimpleGetLastBlockHeader*)command.data;
 
 					CHECK(maxReplySize >= sizeof(SimpleReplyHeader_GetLastBlockHeader), "small message");
@@ -833,11 +831,11 @@ namespace BasicRandomTests
 					return true;
 				}
                                 else if (p->type == 4) {
-					CHECK(command.size >= sizeof(SimpleGetBlockDataHeader), "small message");
-					SimpleGetBlockDataHeader* pGetBlock = (SimpleGetBlockDataHeader*)command.data;
+					CHECK(command.length() >= sizeof(SimpleGetBlockDataHeader), "small message");
+					SimpleGetBlockDataHeader* pGetBlock = (SimpleGetBlockDataHeader*)command.data();
                                         auto block_id = pGetBlock->block_id;
                                         SetOfKeyValuePairs outBlockData;
-                                        if (!roStorage.getBlockData(block_id, outBlockData).ok()) {
+                                        if (!roStorage.getBlockData(block_id, outBlockData).isOK()) {
                                           printf("GetBlockData: Failed to retrieve block %" PRId64, block_id);
                                           return false;
                                         }
@@ -854,8 +852,8 @@ namespace BasicRandomTests
 
                                         auto i = 0;
                                         for (auto kv: outBlockData) {
-                                          memcpy(pReply->elements[i].key, kv.first.data, KV_LEN);
-                                          memcpy(pReply->elements[i].val, kv.second.data, KV_LEN);
+                                          memcpy(pReply->elements[i].key, kv.first.data(), KV_LEN);
+                                          memcpy(pReply->elements[i].val, kv.second.data(), KV_LEN);
                                           ++i;
                                         }
                                         return true;
@@ -921,20 +919,18 @@ namespace BasicRandomTests
 		{
 			SimpleGetLastBlockHeader* p = SimpleGetLastBlockHeader::alloc();
 			p->h.type = 3;
-			Slice command((const char*)p, sizeof(SimpleGetLastBlockHeader));
-			Slice reply;
+			auto command = Sliver::copy((char*)p, sizeof(SimpleGetLastBlockHeader));
+			Sliver reply;
 
 			client->invokeCommandSynch(command, true, reply);
 
-			assert(reply.size == sizeof(SimpleReplyHeader_GetLastBlockHeader));
+			assert(reply.length() == sizeof(SimpleReplyHeader_GetLastBlockHeader));
 
-			SimpleReplyHeader_GetLastBlockHeader* pReplyData = (SimpleReplyHeader_GetLastBlockHeader*)reply.data;
+			SimpleReplyHeader_GetLastBlockHeader* pReplyData = (SimpleReplyHeader_GetLastBlockHeader*)reply.data();
 			(void)pReplyData;
 
 			assert(pReplyData->h.type == 3);
 			assert(pReplyData->latestBlock == 0);
-
-			client->release(reply);
 		}
 	}
 
@@ -968,15 +964,15 @@ namespace BasicRandomTests
 			bool readOnly = (pReq->type != 1);
 			size_t expectedReplySize = Internal::sizeOfRep(pExpectedRep);
 
-			Slice command((const char*)pReq, Internal::sizeOfReq(pReq));
-			Slice reply;
+			auto command = Sliver::copy((char*)pReq, Internal::sizeOfReq(pReq));
+			Sliver reply;
 
 			client->invokeCommandSynch(command, readOnly, reply);
 
-			bool equiv = (reply.size == expectedReplySize);
+			bool equiv = (reply.length() == expectedReplySize);
 
 			if (equiv)
-				equiv = (memcmp(reply.data, pExpectedRep, expectedReplySize) == 0);
+				equiv = (memcmp(reply.data(), pExpectedRep, expectedReplySize) == 0);
 
 //			if (!equiv)	{
 //				print(pReq);
@@ -993,7 +989,6 @@ namespace BasicRandomTests
 				if(ops % 20 == 0) printf("\nop %d passed", ops);
 			}
 
-			client->release(reply);
 		}
 
 		client->stop();

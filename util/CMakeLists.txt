@@ -1,7 +1,15 @@
 # pthread dependency
 find_package(Threads REQUIRED)
 
-add_library(util STATIC src/Metrics.cpp src/MetricsServer.cpp src/SimpleThreadPool.cpp src/Serializable.cpp src/histogram.cpp include/misc.hpp)
+add_library(util STATIC
+    src/Metrics.cpp
+    src/MetricsServer.cpp
+    src/SimpleThreadPool.cpp
+    src/Serializable.cpp
+    src/histogram.cpp
+    src/status.cpp
+    src/sliver.cpp
+    src/hex_tools.cpp)
 
 target_link_libraries(util PUBLIC Threads::Threads)
 target_include_directories(util PUBLIC include)

@@ -26,9 +26,10 @@ namespace bftEngine {
 FileStorage::FileStorage(Logger &logger, const string &fileName) :
     logger_(logger), fileName_(fileName) {
 
-  dataStream_ = fopen(fileName.c_str(), "wxb+");
+  dataStream_ = fopen(fileName.c_str(), "w+x");
   if (!dataStream_) { // The file already exists
-    dataStream_ = fopen(fileName.c_str(), "rb+");
+    LOG_INFO(logger_, "FileStorage::ctor File " << fileName_ << " exists");
+    dataStream_ = fopen(fileName.c_str(), "r+");
     if (!dataStream_) {
       ostringstream err;
       err << "Failed to open file " << fileName_ << ", errno is " << errno;
@@ -87,19 +88,21 @@ void FileStorage::writeFileMetadata() {
 
 void FileStorage::read(void *dataPtr, size_t offset, size_t itemSize, size_t count, const char *errorMsg) {
   fseek(dataStream_, offset, SEEK_SET);
-  if (fread(dataPtr, itemSize, count, dataStream_) != count) {
-    LOG_WARN(logger_, "FileStorage::read " << errorMsg);
-    throw runtime_error(errorMsg);
-  }
+  size_t read_ = fread(dataPtr, itemSize, count, dataStream_);
+  int err = ferror(dataStream_);
+  if (err)
+    throw runtime_error("FileStorage::read " +  std::string(strerror(err)));
+  if (feof(dataStream_))
+    throw runtime_error("FileStorage::read EOF" );
+  if (read_ != count)
+    throw runtime_error("FileStorage::read " + std::string(errorMsg));
 }
 
 void FileStorage::write(void *dataPtr, size_t offset, size_t itemSize,
                         size_t count, const char *errorMsg, bool toFlush) {
   fseek(dataStream_, offset, SEEK_SET);
-  if (fwrite(dataPtr, itemSize, count, dataStream_) != count) {
-    LOG_FATAL(logger_, "FileStorage::write " << errorMsg);
-    throw runtime_error(errorMsg);
-  }
+  if (fwrite(dataPtr, itemSize, count, dataStream_) != count)
+    throw runtime_error("FileStorage::write " + std::string(errorMsg));
   if (toFlush)
     fflush(dataStream_);
 }

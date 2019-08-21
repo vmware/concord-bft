@@ -38,10 +38,6 @@
 #include "simple_test_client.hpp"
 #include "Logger.hpp"
 
-#ifdef USE_LOG4CPP
-#include <log4cplus/configurator.h>
-#endif
-
 using bftEngine::ICommunication;
 using bftEngine::PlainUDPCommunication;
 using bftEngine::PlainUdpConfig;
@@ -172,12 +168,6 @@ void parse_params(int argc, char** argv, ClientParams &cp,
 
 int main(int argc, char **argv) {
 // TODO(IG:) configure Log4Cplus's output format, using default for now
-#ifdef USE_LOG4CPP
-  using namespace log4cplus;
-  initialize();
-  BasicConfigurator config;
-  config.configure();
-#endif
 
   ClientParams cp;
   bftEngine::SimpleClientParams scp;

@@ -19,16 +19,16 @@ namespace BLS {
 namespace Relic {
 
 class BlsPublicParameters : public IPublicParameters {
- protected:
+protected:
   G1T generator1_;
   G2T generator2_;
   int curveType_ = 0;
 
- public:
+public:
   BlsPublicParameters(int securityLevel, int curveType);
   BlsPublicParameters(const BlsPublicParameters &params);
   ~BlsPublicParameters() override;
-
+  BlsPublicParameters& operator=(const BlsPublicParameters& other);
   bool operator==(const BlsPublicParameters &other) const;
 
   /**
@@ -40,8 +40,7 @@ class BlsPublicParameters : public IPublicParameters {
   const BNT &getGroupOrder() const;
 
   // Serialization/deserialization
-  void serialize(std::ostream &outStream) const override;
-  concordSerializable::SharedPtrToClass create(std::istream &inStream) override;
+  virtual concord::serialize::SerializablePtr create(std::istream &inStream) override;
 
   std::string getName() const override { return className_; };
   std::string getVersion() const override { return classVersion_; };
@@ -51,12 +50,13 @@ class BlsPublicParameters : public IPublicParameters {
   // signer/verifier classes.
   BlsPublicParameters() = default; // To be used during deserialization.
 
- protected:
-  void serializeDataMembers(std::ostream &outStream) const override;
+protected:
+  virtual void serializeDataMembers(std::ostream &outStream) const override;
+  virtual void deserializeDataMembers(std::istream& inStream) override;
 
  private:
-  const std::string className_ = "BlsPublicParameters";
-  const std::string classVersion_ = "1" + IPublicParameters::getVersion();
+  std::string className_ = "BlsPublicParameters";
+  std::string classVersion_ = "1" + IPublicParameters::getVersion();
 };
 
 } // end of BLS namespace
