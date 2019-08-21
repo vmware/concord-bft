@@ -40,7 +40,7 @@ public:
   const BNT &getGroupOrder() const;
 
   // Serialization/deserialization
-  virtual serialize::SerializablePtr create(std::istream &inStream) override;
+  virtual concord::serialize::SerializablePtr create(std::istream &inStream) override;
 
   std::string getName() const override { return className_; };
   std::string getVersion() const override { return classVersion_; };

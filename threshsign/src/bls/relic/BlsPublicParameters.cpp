@@ -18,7 +18,7 @@
 #include "Logger.hpp"
 
 using namespace std;
-using namespace serialize;
+using namespace concord::serialize;
 
 namespace BLS {
 namespace Relic {
@@ -54,8 +54,6 @@ BlsPublicParameters& BlsPublicParameters::operator=(const BlsPublicParameters& p
   BLS::Relic::Library::Get();
   g1_get_gen(generator1_);
   g2_get_gen(generator2_);
-//  g1_copy(generator1_, params.generator1_);
-//  g2_copy(generator2_, const_cast<G2T &>(params.generator2_));
   return *this;
 }
 

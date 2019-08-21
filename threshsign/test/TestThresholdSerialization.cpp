@@ -32,7 +32,7 @@
 
 using namespace std;
 using namespace BLS::Relic;
-using namespace serialize;
+using namespace concord::serialize;
 
 const char secretKeyValue[] =
     "308204BA020100300D06092A864886F70D0101010500048204A4308204A00201000282010100C55B8F7979BF24B335017082BF33EE2960E3A"

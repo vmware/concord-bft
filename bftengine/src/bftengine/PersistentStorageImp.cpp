@@ -16,7 +16,7 @@
 #include <sstream>
 
 using namespace std;
-using namespace serialize;
+using namespace concord::serialize;
 
 namespace bftEngine {
 namespace impl {

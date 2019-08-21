@@ -18,6 +18,7 @@
 #include <memory>
 #include "Logger.hpp"
 
+namespace concord{
 namespace serialize {
 
 /**
@@ -111,4 +112,5 @@ protected:
 
 
 
+}
 }

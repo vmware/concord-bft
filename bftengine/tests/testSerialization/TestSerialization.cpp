@@ -25,7 +25,7 @@
 using namespace std;
 using namespace bftEngine;
 using namespace bftEngine::impl;
-using namespace serialize;
+using namespace concord::serialize;
 
 const char replicaPrivateKey[] =
     "308204BA020100300D06092A864886F70D0101010500048204A4308204A00201000282010100C55B8F7979BF24B335017082BF33EE2960E3A068DCDB45CA301721"

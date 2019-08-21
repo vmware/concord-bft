@@ -83,9 +83,9 @@ class BlsThresholdVerifier : public IThresholdVerifier {
   const override;
 
   // Serialization/deserialization
-  serialize::SerializablePtr create(std::istream &inStream) override;
+  concord::serialize::SerializablePtr create(std::istream &inStream) override;
 
-  serialize::SerializablePtr createDontVerify(std::istream &inStream);
+  concord::serialize::SerializablePtr createDontVerify(std::istream &inStream);
 
  protected:
   BlsThresholdVerifier() = default;

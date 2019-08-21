@@ -83,7 +83,7 @@ class BlsThresholdSigner : public IThresholdSigner {
   }
 
   // Serialization/deserialization
-  serialize::SerializablePtr create(std::istream&) override;
+  concord::serialize::SerializablePtr create(std::istream&) override;
 
  protected:
   virtual void serializeDataMembers  (std::ostream&) const override;

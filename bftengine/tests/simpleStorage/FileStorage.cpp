@@ -91,28 +91,18 @@ void FileStorage::read(void *dataPtr, size_t offset, size_t itemSize, size_t cou
   size_t read_ = fread(dataPtr, itemSize, count, dataStream_);
   int err = ferror(dataStream_);
   if (err)
-  {
-   LOG_WARN(logger_, "FileStorage::read " << strerror(err));
-   throw runtime_error(errorMsg);
-  }
-  int eof = feof(dataStream_);
-  if (eof){
-    LOG_WARN(logger_, "FileStorage::read EOF" );
-    throw runtime_error(errorMsg);
-  }
-  if (read_ != count) {
-    LOG_WARN(logger_, "FileStorage::read " << errorMsg);
-    throw runtime_error(errorMsg);
-  }
+    throw runtime_error("FileStorage::read " +  std::string(strerror(err)));
+  if (feof(dataStream_))
+    throw runtime_error("FileStorage::read EOF" );
+  if (read_ != count)
+    throw runtime_error("FileStorage::read " + std::string(errorMsg));
 }
 
 void FileStorage::write(void *dataPtr, size_t offset, size_t itemSize,
                         size_t count, const char *errorMsg, bool toFlush) {
   fseek(dataStream_, offset, SEEK_SET);
-  if (fwrite(dataPtr, itemSize, count, dataStream_) != count) {
-    LOG_FATAL(logger_, "FileStorage::write " << errorMsg);
-    throw runtime_error(errorMsg);
-  }
+  if (fwrite(dataPtr, itemSize, count, dataStream_) != count)
+    throw runtime_error("FileStorage::write " + std::string(errorMsg));
   if (toFlush)
     fflush(dataStream_);
 }

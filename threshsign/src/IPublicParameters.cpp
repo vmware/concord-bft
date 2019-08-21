@@ -15,7 +15,7 @@
 #include "threshsign/IPublicParameters.h"
 
 using namespace std;
-using namespace serialize;
+using namespace concord::serialize;
 
 IPublicParameters::IPublicParameters(int securityLevel, string schemeName, string library) :
     securityLevel_(securityLevel), schemeName_(move(schemeName)),

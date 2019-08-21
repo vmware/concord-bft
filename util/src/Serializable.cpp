@@ -15,6 +15,7 @@
 
 using namespace std;
 
+namespace concord {
 namespace serialize {
 
 Serializable::ClassToObjectMap Serializable:: objectFactory_;
@@ -101,4 +102,5 @@ void Serializable::verifyClassVersion(const string &expectedVersion, istream &in
     throw runtime_error( "Unsupported class version: " +  version + std::string(", expected version: ") + expectedVersion);
 }
 
+}
 }
