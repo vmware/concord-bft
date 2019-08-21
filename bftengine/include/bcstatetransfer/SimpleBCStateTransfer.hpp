@@ -91,9 +91,16 @@ struct Config {
 
   bool pedanticChecks = false;
 
-  uint32_t maxBlockSize = 10 * 1024 * 1024; // 10MB
-  uint32_t maxChunkSize = 16384; // 128 - for debugging/testing
+#if defined USE_COMM_PLAIN_TCP || defined USE_COMM_TLS_TCP
+  uint32_t maxChunkSize = 16384;
   uint16_t maxNumberOfChunksInBatch = 8;
+#else
+  // maxChunkSize * maxNumberOfChunksInBatch should not exceed 64KB as UDP message size is limited to 64KB.
+  uint32_t maxChunkSize = 2048;
+  uint16_t maxNumberOfChunksInBatch = 32;
+#endif
+
+  uint32_t maxBlockSize = 10 * 1024 * 1024; // 10MB
   uint32_t maxPendingDataFromSourceReplica = 256 * 1024 * 1024; // Maximal internal buffer size for all ST data
   uint32_t maxNumOfReservedPages = 2048;
   uint32_t sizeOfReservedPage = 4096;
