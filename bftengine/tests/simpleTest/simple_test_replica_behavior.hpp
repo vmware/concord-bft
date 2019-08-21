@@ -113,7 +113,7 @@ public:
   }
 
   explicit Replica2RestartNoVC(ReplicaParams &rp) : 
-    Replica2RestartNoVC(rp, PersistencyTestInfo{3000, 2000, 1}) {
+    Replica2RestartNoVC(rp, PersistencyTestInfo{10000, 2000, 1}) {
   }
   
   Replica2RestartNoVC() = delete;

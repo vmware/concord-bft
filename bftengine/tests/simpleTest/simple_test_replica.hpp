@@ -215,7 +215,8 @@ public:
       replicaConfig.statusReportTimerMillisec = 10000;
       replicaConfig.concurrencyLevel = 1;
       replicaConfig.debugPersistentStorageEnabled =
-        rp.persistencyMode == PersistencyMode::InMemory;
+        rp.persistencyMode == PersistencyMode::InMemory||
+        rp.persistencyMode == PersistencyMode::File;
 
       // This is the state machine that the replica will drive.
       SimpleAppState *simpleAppState = new SimpleAppState(rp.numOfClients, rp

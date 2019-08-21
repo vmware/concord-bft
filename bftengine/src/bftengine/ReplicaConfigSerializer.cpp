@@ -122,7 +122,7 @@ void ReplicaConfigSerializer::serializeDataMembers(ostream &outStream) const {
 
 void ReplicaConfigSerializer::serializePointer(Serializable *ptrToClass, ostream &outStream) const {
   uint8_t ptrToClassSpecified = ptrToClass ? 1 : 0;
-  outStream.write((char *) &ptrToClassSpecified, sizeof(ptrToClassSpecified));
+  serializeInt(ptrToClassSpecified, outStream);
   if (ptrToClass)
     ptrToClass->serialize(outStream);
 }
@@ -215,8 +215,7 @@ void ReplicaConfigSerializer::deserializeDataMembers(istream &inStream) {
 }
 
 SerializablePtr ReplicaConfigSerializer::deserializePointer(std::istream &inStream) {
-  uint8_t ptrToClassSpecified = 0;
-  inStream.read((char *) &ptrToClassSpecified, sizeof(ptrToClassSpecified));
+  uint8_t ptrToClassSpecified = deserializeInt<uint8_t>(inStream);
   if (ptrToClassSpecified)
     return deserialize(inStream);
   return SerializablePtr();
