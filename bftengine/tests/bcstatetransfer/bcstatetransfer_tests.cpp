@@ -30,6 +30,7 @@ Config TestConfig() {
     config.fVal = 1;
     config.maxBlockSize = kMaxBlockSize;
     config.maxChunkSize = 128;
+    config.maxNumberOfChunksInBatch = 128;
     return config;
 }
 
