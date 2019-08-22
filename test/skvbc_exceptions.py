@@ -14,6 +14,9 @@ class Error(Exception):
     """Base class for exceptions in this module."""
     pass
 
+class BadReplyError(Exception):
+    """An invalid reply was returned from the client"""
+    pass
 ##
 ## Exceptions for skvbc_linearizability
 ##

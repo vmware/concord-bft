@@ -188,8 +188,6 @@ char KeyManipulator::extractTypeFromKey(Key _key) {
 BlockId KeyManipulator::extractBlockIdFromKey(Key _key) {
   size_t offset = _key.length() - sizeof(BlockId);
   BlockId id = *(BlockId *)(_key.data() + offset);
-
-  LOG_DEBUG(logger_, "Got block ID " << id << " from key " << _key  << ", offset " << offset);
   return id;
 }
 
@@ -206,8 +204,6 @@ ObjectId KeyManipulator::extractObjectIdFromKey(Key _key) {
   assert(_key.length() >= sizeof(ObjectId));
   size_t offset = _key.length() - sizeof(ObjectId);
   ObjectId id = *(ObjectId *)(_key.data() + offset);
-
-  LOG_DEBUG(logger_, "Got object ID " << id << " from key " << _key << ", offset " << offset);
   return id;
 }
 
@@ -220,15 +216,12 @@ ObjectId KeyManipulator::extractObjectIdFromKey(Key _key) {
 Sliver KeyManipulator::extractKeyFromKeyComposedWithBlockId(Key _composedKey) {
   size_t sz = _composedKey.length() - sizeof(BlockId) - sizeof(EDBKeyType);
   Sliver out = Sliver(_composedKey, sizeof(EDBKeyType), sz);
-  LOG_DEBUG(logger_, "Got key " << out << " from composed key " << _composedKey);
   return out;
 }
 
 Sliver KeyManipulator::extractKeyFromMetadataKey(Key _composedKey) {
   size_t sz = _composedKey.length() - sizeof(EDBKeyType);
   Sliver out = Sliver(_composedKey, sizeof(EDBKeyType), sz);
-  LOG_DEBUG(logger_, "Got metadata key " << out << " from composed key "
-                                              << _composedKey);
   return out;
 }
 

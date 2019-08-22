@@ -67,7 +67,7 @@ void DBMetadataStorage::read(uint32_t objectId,
     return;
   }
   if (!status.isOK()) {
-    throw runtime_error("RocksDB get operation failed");
+    throw runtime_error("DBClient get operation failed");
   }
 }
 
@@ -81,7 +81,7 @@ void DBMetadataStorage::atomicWrite(uint32_t objectId,
   Status status = dbClient_->put(genMetadataKey_(objectId),
                                  Sliver(dataCopy, dataLength));
   if (!status.isOK()) {
-    throw runtime_error("RocksDB put operation failed");
+    throw runtime_error("DBClient put operation failed");
   }
 }
 
@@ -122,7 +122,7 @@ void DBMetadataStorage::commitAtomicWriteOnlyTransaction() {
   }
   Status status = dbClient_->multiPut(*transaction_);
   if (!status.isOK()) {
-    throw runtime_error("RocksDB multiPut operation failed");
+    throw runtime_error("DBClient multiPut operation failed");
   }
   delete transaction_;
   transaction_ = nullptr;
