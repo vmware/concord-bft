@@ -185,7 +185,6 @@ void signalHandler( int signum ) {
 
 int main(int argc, char **argv) {
   ReplicaParams rp;
-  rp.viewChangeEnabled = true;
   parse_params(argc, argv, rp);
 
   // allows to attach debugger
