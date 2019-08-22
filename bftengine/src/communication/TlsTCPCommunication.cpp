@@ -1062,7 +1062,7 @@ class AsyncTlsConnection : public
   }
 
   virtual ~AsyncTlsConnection() {
-    LOG_INFO(_logger, "Dtor called, node: " << _selfId << "peer: " << _destId << ", type: " <<
+    LOG_DEBUG(_logger, "Dtor called, node: " << _selfId << "peer: " << _destId << ", type: " <<
                                             _connType);
 
     delete[] _inBuffer;
@@ -1313,7 +1313,7 @@ class TlsTCPCommunication::TlsTcpImpl :
       _pAcceptor = boost::make_unique<asio::ip::tcp::acceptor>(_service, ep);
       start_accept();
     } else // clients don't listen
-    LOG_INFO(_logger, "skipping listen for node: " << _selfId);
+    LOG_DEBUG(_logger, "skipping listen for node: " << _selfId);
 
     // this node should connect only to nodes with lower ID
     // and all nodes with higher ID will connect to this node

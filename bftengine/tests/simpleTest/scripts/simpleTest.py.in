@@ -116,7 +116,9 @@ class TestProcess:
             user_msg = "No match"
 
         if self.perf_enabled and self.is_waitable: # only for clients
-            m = re.search("(?<=Performance info:\n).*(?=INFO)", log, re.DOTALL)
+            m = re.search("(?<=Performance summary:\n).*" \
+                + "(?=((FATAL)|(ERROR)|(WARN)|(INFO)|(DEBUG)|(TRACE)))",
+                log, re.DOTALL)
             if m:
                 self.perf_file = os.path.join(self.log_dir,
                                               self.friendly_name +

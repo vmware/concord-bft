@@ -12,8 +12,6 @@
 
 #include "DebugStatistics.hpp"
 
-#ifdef DEBUG_STATISTICS
-
 #include <iomanip>
 #include <inttypes.h>
 #include "MsgCode.hpp"
@@ -150,7 +148,5 @@ void DebugStatistics::initDebugStatisticsData() {}
 void DebugStatistics::freeDebugStatisticsData() {}
 }
 }
-
-#endif
 
 #endif

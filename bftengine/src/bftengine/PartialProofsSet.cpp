@@ -260,7 +260,7 @@ namespace bftEngine
 
 			virtual void execute()
 			{
-				LOG_INFO_F(GL, "PartialProofsSet::AsynchProofCreationJob::execute - begin (for seqNumber %" PRId64 ")", seqNumber);
+				LOG_DEBUG_F(GL, "PartialProofsSet::AsynchProofCreationJob::execute - begin (for seqNumber %" PRId64 ")", seqNumber);
 
 				const uint16_t bufferSize = (uint16_t)verifier->requiredLengthForSignedData();
 				char* const bufferForSigComputations = (char*)alloca(bufferSize);
@@ -283,7 +283,7 @@ namespace bftEngine
 				if (!succ)
 				{
 					LOG_WARN_F(GL, "Failed to create FullProof for seqNumber %" PRId64 "", seqNumber);
-					LOG_INFO_F(GL, "PartialProofsSet::AsynchProofCreationJob::execute - end (for seqNumber %" PRId64 ")", seqNumber);
+					LOG_DEBUG_F(GL, "PartialProofsSet::AsynchProofCreationJob::execute - end (for seqNumber %" PRId64 ")", seqNumber);
 					return;
 				}
 				else
@@ -296,7 +296,7 @@ namespace bftEngine
 					me->getIncomingMsgsStorage().pushInternalMsg(std::move(p));
 				}
 
-				LOG_INFO_F(GL, "PartialProofsSet::AsynchProofCreationJob::execute - end (for seqNumber %" PRId64 ")", seqNumber);
+				LOG_DEBUG_F(GL, "PartialProofsSet::AsynchProofCreationJob::execute - end (for seqNumber %" PRId64 ")", seqNumber);
 			}
 
 			virtual void release() {}
@@ -346,7 +346,7 @@ namespace bftEngine
 
 				replica->getInternalThreadPool().add(j);
 
-				LOG_INFO_F(GL, "PartialProofsSet - send to BK thread (for seqNumber %" PRId64 ")", seqNumber);
+				LOG_DEBUG_F(GL, "PartialProofsSet - send to BK thread (for seqNumber %" PRId64 ")", seqNumber);
 			}
 		}
 

@@ -139,6 +139,7 @@ int main(int argc, char **argv) {
 	replicaConfig.viewChangeTimerMillisec = rp.viewChangeTimeout;
 	replicaConfig.statusReportTimerMillisec = rp.statusReportTimerMillisec;
 	replicaConfig.concurrencyLevel = 1;
+	replicaConfig.debugStatisticsEnabled = true;
 
 	uint16_t numOfReplicas = (uint16_t)(3 * replicaConfig.fVal + 2 * replicaConfig.cVal + 1);
 #ifdef USE_COMM_PLAIN_TCP
