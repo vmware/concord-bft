@@ -171,9 +171,9 @@ namespace bftEngine
 			clientPeriodicResetThresh{p.clientPeriodicResetThresh}
 		{
 #ifdef ALLOW_0_FAULT_TOLERANCE
-                Assert(_fVal >= 0);
+				Assert(_fVal >= 0);
 #else
-                Assert(_fVal >= 1);
+				Assert(_fVal >= 1);
 #endif
 				//Assert(!_communication->isRunning());
 
