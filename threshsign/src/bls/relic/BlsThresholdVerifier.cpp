@@ -35,7 +35,6 @@ using namespace concord::serialize;
 namespace BLS {
 namespace Relic {
 
-
 void BlsThresholdVerifier::registerClass() {
   registerObject("BlsThresholdVerifier", SerializablePtr(new BlsThresholdVerifier));
 }
@@ -104,15 +103,15 @@ bool BlsThresholdVerifier::verify(const G1T &msgHash,
 
 /************** Serialization **************/
 
-void BlsThresholdVerifier::serializePublicKey(const BlsPublicKey& key, std::ostream& outStream) const {
+void BlsThresholdVerifier::serializePublicKey(const BlsPublicKey &key, std::ostream &outStream) const {
   int publicKeySize = key.y.getByteCount();
-  LOG_TRACE(log_srlz_, "<<< public key size: " <<  publicKeySize);
+  LOG_TRACE(loggerSerializable_, "<<< public key size: " << publicKeySize);
   serializeInt(publicKeySize, outStream);
-  unsigned char* publicKeyBuf = new unsigned char[publicKeySize];
+  unsigned char *publicKeyBuf = new unsigned char[publicKeySize];
   key.y.toBytes(publicKeyBuf, publicKeySize);
   outStream.write((char *) publicKeyBuf, publicKeySize);
-  LOG_TRACE(log_srlz_, "<<< public key buf: ["  << key.y.toString() << "]");
-  delete [] publicKeyBuf;
+  LOG_TRACE(loggerSerializable_, "<<< public key buf: [" << key.y.toString() << "]");
+  delete[] publicKeyBuf;
 }
 
 void BlsThresholdVerifier::serializeDataMembers(ostream &outStream) const {
@@ -141,12 +140,12 @@ bool BlsThresholdVerifier::operator==(const BlsThresholdVerifier &other) const {
 // static
 G2T BlsThresholdVerifier::deserializePublicKey(istream &inStream) {
   int publicKeySize = deserializeInt<int>(inStream);
-  LOG_TRACE(concordlogger::Log::getLogger("serialize"), ">>> public key size: " <<  publicKeySize);
-  unsigned char* publicKeyBuf = new unsigned char[publicKeySize];
+  LOG_TRACE(concordlogger::Log::getLogger("serialize"), ">>> public key size: " << publicKeySize);
+  unsigned char *publicKeyBuf = new unsigned char[publicKeySize];
   inStream.read((char *) publicKeyBuf, publicKeySize);
   G2T g2t_(publicKeyBuf, publicKeySize);
-  LOG_TRACE(concordlogger::Log::getLogger("serialize"), ">>> public key buf: ["  << g2t_.toString() << "]");
-  delete [] publicKeyBuf;
+  LOG_TRACE(concordlogger::Log::getLogger("serialize"), ">>> public key buf: [" << g2t_.toString() << "]");
+  delete[] publicKeyBuf;
   return g2t_;
 }
 
@@ -155,9 +154,9 @@ SerializablePtr BlsThresholdVerifier::create(std::istream &inStream) {
   return SerializablePtr(new BlsThresholdVerifier);
 }
 
-void BlsThresholdVerifier::deserializeDataMembers(istream &inStream){
+void BlsThresholdVerifier::deserializeDataMembers(istream &inStream) {
   SerializablePtr params(BlsPublicParameters::deserialize(inStream));
-  params_ = *static_cast<BlsPublicParameters*>(params.get());
+  params_ = *static_cast<BlsPublicParameters *>(params.get());
   generator2_ = G2T(params_.getGenerator2());
 
   publicKey_ = BlsPublicKey(deserializePublicKey(inStream));
@@ -166,8 +165,8 @@ void BlsThresholdVerifier::deserializeDataMembers(istream &inStream){
   for (std::vector<BlsPublicKey>::size_type i = 0; i < publicKeysVectorNum; ++i)
     publicKeysVector_.emplace_back(deserializePublicKey(inStream));
 
- reqSigners_ = deserializeInt<NumSharesType>(inStream);
- numSigners_ = deserializeInt<NumSharesType>(inStream);
+  reqSigners_ = deserializeInt<NumSharesType>(inStream);
+  numSigners_ = deserializeInt<NumSharesType>(inStream);
 
 }
 
