@@ -73,8 +73,8 @@ using bftEngine::RequestsHandler;
 using namespace std;
 using namespace bftEngine;
 
-void parse_params(int argc, char** argv, ReplicaParams &rp) {
-  if(argc < 2) {
+void parse_params(int argc, char **argv, ReplicaParams &rp) {
+  if (argc < 2) {
     throw std::runtime_error("Unable to read replica id");
   }
 
@@ -146,20 +146,20 @@ void parse_params(int argc, char** argv, ReplicaParams &rp) {
           i += 2;
         } else if (p == "-pm") {
           uint16_t pm = std::stoi(argv[i + 1]);
-          if(pm > (uint16_t)PersistencyMode::MAX_VALUE) {
+          if (pm > (uint16_t) PersistencyMode::MAX_VALUE) {
             printf("-pm value is out of range");
             exit(-1);
           }
-          rp.persistencyMode = (PersistencyMode)pm;
+          rp.persistencyMode = (PersistencyMode) pm;
           i += 2;
         } else if (p == "-rb") {
           uint16_t rb = std::stoi(argv[i + 1]);
-          if(rb > (uint16_t)ReplicaBehavior::MAX_VALUE) {
+          if (rb > (uint16_t) ReplicaBehavior::MAX_VALUE) {
             printf("-rb value is out of range");
             exit(-1);
           }
-          rp.replicaBehavior = (ReplicaBehavior)rb;
-          i +=2;
+          rp.replicaBehavior = (ReplicaBehavior) rb;
+          i += 2;
         } else {
           printf("Unknown parameter %s\n", p.c_str());
           exit(-1);
@@ -173,14 +173,13 @@ void parse_params(int argc, char** argv, ReplicaParams &rp) {
       exit(-1);
     }
   }
-
 }
 
 SimpleTestReplica *replica = nullptr;
-void signalHandler( int signum ) {
-  if(replica)
+void signalHandler(int signum) {
+  if (replica)
     replica->stop();
-  exit(0);  
+  exit(0);
 }
 
 int main(int argc, char **argv) {
@@ -188,31 +187,34 @@ int main(int argc, char **argv) {
   parse_params(argc, argv, rp);
 
   // allows to attach debugger
-  if(rp.debug)
+  if (rp.debug)
     std::this_thread::sleep_for(chrono::seconds(20));
 
   signal(SIGTERM, signalHandler);
 
-  ISimpleTestReplicaBehavior *replicaBehavior = 
-    create_replica_behavior(rp.replicaBehavior, rp);
+  ISimpleTestReplicaBehavior *replicaBehavior = create_replica_behavior(rp.replicaBehavior, rp);
 
-  LOG_INFO(replicaLogger, 
-      "ReplicaParams: replicaId: " << rp.replicaId
-      << ", numOfReplicas: " << rp.numOfReplicas
-      << ", numOfClients: " << rp.numOfClients
-      << ", vcEnabled: " << rp.viewChangeEnabled
-      << ", vcTimeout: " << rp.viewChangeTimeout
-      << ", debug: " << rp.debug
-      << ", behavior: " << (uint16_t)rp.replicaBehavior
-      << ", persistencyMode: " << (uint16_t)rp.persistencyMode);
-  
   MetadataStorage *metaDataStorage = nullptr;
-  if(rp.persistencyMode == PersistencyMode::File) {
+  if (rp.persistencyMode == PersistencyMode::File) {
     ostringstream dbFile;
     dbFile << "metadataStorageTest_" << rp.replicaId << ".txt";
     remove(dbFile.str().c_str());
     metaDataStorage = new FileStorage(replicaLogger, dbFile.str());
   }
+  if (rp.replicaBehavior == ReplicaBehavior::Replica0OneTimeRestartVC ||
+      rp.replicaBehavior == ReplicaBehavior::AllReplicasRandomRestartVC)
+    rp.viewChangeEnabled = true;
+
+  LOG_INFO(replicaLogger,
+           "ReplicaParams: replicaId: " << rp.replicaId
+                                        << ", numOfReplicas: " << rp.numOfReplicas
+                                        << ", numOfClients: " << rp.numOfClients
+                                        << ", vcEnabled: " << rp.viewChangeEnabled
+                                        << ", vcTimeout: " << rp.viewChangeTimeout
+                                        << ", statusReportTimerMillisec: " << rp.statusReportTimerMillisec
+                                        << ", behavior: " << (uint16_t) rp.replicaBehavior
+                                        << ", persistencyMode: " << (uint16_t) rp.persistencyMode);
+
   replica = SimpleTestReplica::create_replica(replicaBehavior, rp, metaDataStorage);
   replica->start();
   // The replica is now running in its own thread. Block the main thread until

@@ -1564,7 +1564,7 @@ void ReplicaImp::onMessage(ReplicaStatusMsg *msg) {
   const ViewNum msgViewNum = msg->getViewNumber();
   Assert(msgLastStable % checkpointWindowSize == 0);
 
-  LOG_DEBUG_F(GL, "Node %d received ReplicaStatusMsg from node %d", (int) myReplicaId, (int) msgSenderId);
+  LOG_INFO_F(GL, "Node %d received ReplicaStatusMsg from node %d", (int) myReplicaId, (int) msgSenderId);
 
   /////////////////////////////////////////////////////////////////////////
   // Checkpoints

@@ -146,7 +146,7 @@ void parse_params(int argc, char** argv, ClientParams &cp,
       } else if (p == "-cf") {
         cp.configFileName = argv[i + 1];
       } else if (p == "-p") {
-        cp.measurePerfomance = true;
+        cp.measurePerformance = true;
         i += 1;
         continue; //skip i+=2
       } else {
