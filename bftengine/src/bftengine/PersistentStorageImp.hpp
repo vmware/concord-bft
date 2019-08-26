@@ -164,7 +164,7 @@ class PersistentStorageImp : public PersistentStorage {
   void setVersion() const;
 
   void setMsgInSeqNumWindow(SeqNum seqNum, SeqNum parameterId, MessageBase *msg, size_t msgSize) const;
-  void seOneByteInSeqNumWindow(SeqNum seqNum, SeqNum parameterId, uint8_t oneByte) const;
+  void setOneByteInSeqNumWindow(SeqNum seqNum, SeqNum parameterId, uint8_t oneByte) const;
   void saveDefaultsInSeqNumWindow();
   void setSeqNumDataElement(SeqNum index, const SeqNumData &elem) const;
 

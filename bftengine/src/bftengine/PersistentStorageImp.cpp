@@ -471,17 +471,17 @@ void PersistentStorageImp::setCommitFullMsgInSeqNumWindow(SeqNum seqNum, CommitF
   setMsgInSeqNumWindow(seqNum, COMMIT_FULL_MSG, (MessageBase *) msg, SeqNumData::maxCommitFullMsgSize());
 }
 
-void PersistentStorageImp::seOneByteInSeqNumWindow(SeqNum seqNum, SeqNum parameterId, uint8_t oneByte) const {
+void PersistentStorageImp::setOneByteInSeqNumWindow(SeqNum seqNum, SeqNum parameterId, uint8_t oneByte) const {
   const SeqNum convertedIndex = BEGINNING_OF_SEQ_NUM_WINDOW + parameterId + convertSeqNumWindowIndex(seqNum);
   metadataStorage_->writeInTransaction(convertedIndex, (char *) &oneByte, sizeof(oneByte));
 }
 
 void PersistentStorageImp::setForceCompletedInSeqNumWindow(SeqNum seqNum, bool forceCompleted) {
-  seOneByteInSeqNumWindow(seqNum, FORCE_COMPLETED, forceCompleted);
+  setOneByteInSeqNumWindow(seqNum, FORCE_COMPLETED, forceCompleted);
 }
 
 void PersistentStorageImp::setSlowStartedInSeqNumWindow(SeqNum seqNum, bool slowStarted) {
-  seOneByteInSeqNumWindow(seqNum, SLOW_STARTED, slowStarted);
+  setOneByteInSeqNumWindow(seqNum, SLOW_STARTED, slowStarted);
 }
 
 void PersistentStorageImp::setCompletedMarkInCheckWindow(SeqNum seqNum, bool completed) {
