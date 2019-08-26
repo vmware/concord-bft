@@ -52,14 +52,14 @@ struct DescriptorOfLastExitFromView {
 
   static uint32_t simpleParamsSize() {
     uint32_t elementsNum;
-    bool msgEmptyFlag;
+    uint8_t msgFilledFlag;
     return (sizeof(view) + sizeof(lastStable) + sizeof(lastExecuted) + sizeof(stableLowerBoundWhenEnteredToView) +
-        sizeof(msgEmptyFlag) + ViewChangeMsg::maxSizeOfViewChangeMsgInLocalBuffer() + sizeof(elementsNum));
+        sizeof(msgFilledFlag) + ViewChangeMsg::maxSizeOfViewChangeMsgInLocalBuffer() + sizeof(elementsNum));
   }
 
   static uint32_t maxElementSize() {
-    bool msgEmptyFlag;
-    return 2 * sizeof(msgEmptyFlag) + ViewsManager::PrevViewInfo::maxSize();
+    uint8_t msgFilledFlag;
+    return 2 * sizeof(msgFilledFlag) + ViewsManager::PrevViewInfo::maxSize();
   }
 
   static uint32_t maxSize() {
@@ -118,15 +118,15 @@ struct DescriptorOfLastNewView {
   static uint32_t getViewChangeMsgsNum() { return viewChangeMsgsNum; }
 
   static uint32_t simpleParamsSize() {
-    bool msgEmptyFlag;
-    return (sizeof(view) + sizeof(maxSeqNumTransferredFromPrevViews) + 2 * sizeof(msgEmptyFlag) +
+    uint8_t msgFilledFlag;
+    return (sizeof(view) + sizeof(maxSeqNumTransferredFromPrevViews) + 2 * sizeof(msgFilledFlag) +
         sizeof(stableLowerBoundWhenEnteredToView) + NewViewMsg::maxSizeOfNewViewMsgInLocalBuffer() +
         ViewChangeMsg::maxSizeOfViewChangeMsgInLocalBuffer());
   }
 
   static uint32_t maxElementSize() {
-    bool msgEmptyFlag;
-    return sizeof(msgEmptyFlag) + ViewChangeMsg::maxSizeOfViewChangeMsgInLocalBuffer();
+    uint8_t msgFilledFlag;
+    return sizeof(msgFilledFlag) + ViewChangeMsg::maxSizeOfViewChangeMsgInLocalBuffer();
   }
 
   static uint32_t maxSize(uint32_t numOfReplicas) {

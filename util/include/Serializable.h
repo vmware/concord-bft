@@ -18,7 +18,7 @@
 #include <memory>
 #include "Logger.hpp"
 
-namespace concord{
+namespace concord {
 namespace serialize {
 
 /**
@@ -36,8 +36,6 @@ class Serializable;
 typedef std::unique_ptr<char[], std::default_delete<char[]>> UniquePtrToChar;
 typedef std::unique_ptr<unsigned char[], std::default_delete<unsigned char[]>> UniquePtrToUChar;
 typedef std::shared_ptr<Serializable> SerializablePtr;
-
-
 
 //TODO [TK] remove
 class MemoryBasedBuf : public std::basic_streambuf<char> {
@@ -60,57 +58,51 @@ class MemoryBasedStream : public std::istream {
 };
 
 class Serializable {
-public:
+ public:
 
   Serializable();
   virtual ~Serializable() = default;
 
-  virtual void        serialize  (std::ostream&) const final;
+  virtual void serialize(std::ostream &) const final;
 
   virtual std::string getName() const = 0;
   virtual std::string getVersion() const = 0;
 
-  static void verifyClassName(const std::string &expectedClassName, std::istream &inStream);
   static void verifyClassVersion(const std::string &expectedVersion, std::istream &inStream);
-  static SerializablePtr deserialize(const UniquePtrToChar &inBuf, int64_t inBufSize); //__attribute__ ((deprecated)) TODO [TK] remove;
+  static SerializablePtr deserialize(const UniquePtrToChar &inBuf,
+                                     int64_t inBufSize); //__attribute__ ((deprecated)) TODO [TK] remove;
   static SerializablePtr deserialize(std::istream &inStream);
 
-protected:
-  virtual void serializeClassName    (std::ostream&) const final;
-  virtual void serializeClassVersion (std::ostream&) const final;
-  virtual void serializeDataMembers  (std::ostream&) const = 0;
-  virtual void deserializeDataMembers(std::istream&)       = 0;
-  virtual SerializablePtr create(std::istream&) = 0;
-
+ protected:
+  virtual void serializeClassName(std::ostream &) const final;
+  virtual void serializeClassVersion(std::ostream &) const final;
+  virtual void serializeDataMembers(std::ostream &) const = 0;
+  virtual void deserializeDataMembers(std::istream &) = 0;
+  virtual SerializablePtr create(std::istream &) = 0;
 
   void serializeString(const std::string &str, std::ostream &outStream) const;
   template<typename INT>
-  void serializeInt(const INT& num, std::ostream& outStream) const
-  {
-    outStream.write((char*)&num, sizeof(INT));
+  void serializeInt(const INT &num, std::ostream &outStream) const {
+    outStream.write((char *) &num, sizeof(INT));
   }
   static std::string deserializeClassName(std::istream &inStream);
   static std::string deserializeClassVersion(std::istream &inStream);
   static std::string deserializeString(std::istream &inStream);
   template<typename INT>
-  static INT deserializeInt(std::istream& inStream)
-  {
+  static INT deserializeInt(std::istream &inStream) {
     INT res = 0;
-    inStream.read((char*)&res, sizeof(INT));
+    inStream.read((char *) &res, sizeof(INT));
     return res;
   }
 
-  static void registerObject(const std::string& className, const SerializablePtr& objectPtr)
-  {
-      objectFactory_[className] = objectPtr;
+  static void registerObject(const std::string &className, const SerializablePtr &objectPtr) {
+    objectFactory_[className] = objectPtr;
   }
   typedef std::unordered_map<std::string, SerializablePtr> ClassToObjectMap;
   static std::unordered_map<std::string, SerializablePtr> objectFactory_;
-  concordlogger::Logger log_srlz_;
+  concordlogger::Logger loggerSerializable_;
 
 };
-
-
 
 }
 }

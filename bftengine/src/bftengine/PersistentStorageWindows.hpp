@@ -76,10 +76,10 @@ class SeqNumData {
   void setForceCompleted(const bool &forceCompleted) { forceCompleted_ = forceCompleted; }
 
   static size_t serializeMsg(char *&buf, MessageBase *msg);
-  static size_t serializeBoolean(char *&buf, const bool &boolean);
+  static size_t serializeOneByte(char *&buf, const uint8_t &oneByte);
 
   static MessageBase *deserializeMsg(char *&buf, uint32_t bufLen, size_t &actualMsgSize);
-  static bool deserializeBoolean(char *&buf);
+  static uint8_t deserializeOneByte(char *&buf);
   static SeqNumData deserialize(char *buf, uint32_t bufLen, uint32_t &actualSize);
   static uint32_t maxSize();
   static uint32_t maxPrePrepareMsgSize();
@@ -129,10 +129,10 @@ class CheckData {
   void setCompletedMark(const bool &completedMark) { completedMark_ = completedMark; }
 
   static size_t serializeCheckpointMsg(char *&buf, CheckpointMsg *msg);
-  static size_t serializeCompletedMark(char *&buf, const bool &completedMark);
+  static size_t serializeCompletedMark(char *&buf, const uint8_t &completedMark);
 
   static CheckpointMsg *deserializeCheckpointMsg(char *&buf, uint32_t bufLen, size_t &actualMsgSize);
-  static bool deserializeCompletedMark(char *&buf);
+  static uint8_t deserializeCompletedMark(char *&buf);
   static CheckData deserialize(char *buf, uint32_t bufLen, uint32_t &actualSize);
 
   static uint32_t maxSize();

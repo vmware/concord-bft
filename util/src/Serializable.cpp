@@ -18,11 +18,9 @@ using namespace std;
 namespace concord {
 namespace serialize {
 
-Serializable::ClassToObjectMap Serializable:: objectFactory_;
+Serializable::ClassToObjectMap Serializable::objectFactory_;
 
-Serializable::Serializable(): log_srlz_(concordlogger::Log::getLogger("serialize"))
-{
-}
+Serializable::Serializable() : loggerSerializable_(concordlogger::Log::getLogger("serializable")) {}
 
 /************** Serialization **************/
 
@@ -34,19 +32,19 @@ void Serializable::serialize(ostream &outStream) const {
 
 void Serializable::serializeClassName(ostream &outStream) const {
   serializeString(getName(), outStream);
-  LOG_TRACE(log_srlz_, "<<< class name: " << getName());
+  LOG_TRACE(loggerSerializable_, "<<< class name: " << getName());
 }
 
 void Serializable::serializeClassVersion(ostream &outStream) const {
   serializeString(getVersion(), outStream);
-  LOG_TRACE(log_srlz_, "<<< class version: " << getVersion());
+  LOG_TRACE(loggerSerializable_, "<<< class version: " << getVersion());
 }
 
 void Serializable::serializeString(const string &str, ostream &outStream) const {
   serializeInt(str.size(), outStream);
   std::string::size_type sizeofString = str.size();
   outStream.write(str.data(), sizeofString);
-  LOG_TRACE(log_srlz_, "<<< string size: " << sizeofString);
+  LOG_TRACE(loggerSerializable_, "<<< string size: " << sizeofString);
 }
 
 /************** Deserialization **************/
@@ -54,22 +52,22 @@ void Serializable::serializeString(const string &str, ostream &outStream) const 
 std::string Serializable::deserializeString(istream &inStream) {
   auto sizeofString = deserializeInt<std::string::size_type>(inStream);
   LOG_TRACE(concordlogger::Log::getLogger("serializable"), ">>> string size: " << sizeofString);
-  char* str =  new char[sizeofString];
+  char *str = new char[sizeofString];
   inStream.read(str, sizeofString);
   std::string result(str, sizeofString);
-  delete [] str;
+  delete[] str;
   return result;
 }
 
 std::string Serializable::deserializeClassName(istream &inStream) {
   std::string res = deserializeString(inStream);
-  LOG_TRACE(concordlogger::Log::getLogger("serialize"), ">>> class name: " << res);
+  LOG_TRACE(concordlogger::Log::getLogger("serializable"), ">>> class name: " << res);
   return res;
 }
 
 std::string Serializable::deserializeClassVersion(istream &inStream) {
   std::string res = deserializeString(inStream);
-  LOG_TRACE(concordlogger::Log::getLogger("serialize"), ">>> class version: " << res);
+  LOG_TRACE(concordlogger::Log::getLogger("serializable"), ">>> class version: " << res);
   return res;
 }
 
@@ -90,16 +88,11 @@ SerializablePtr Serializable::deserialize(const UniquePtrToChar &inBuf, int64_t 
   return deserialize(inStream);
 }
 
-void Serializable::verifyClassName(const string& expectedClassName, istream& inStream) {
-  std::string className = deserializeString(inStream);
-  if (className != expectedClassName)
-    throw runtime_error("Unsupported class name: " + className  + std::string(", expected class name: ") + expectedClassName);
-}
-
 void Serializable::verifyClassVersion(const string &expectedVersion, istream &inStream) {
   std::string version = deserializeClassVersion(inStream);
   if (version != expectedVersion)
-    throw runtime_error( "Unsupported class version: " +  version + std::string(", expected version: ") + expectedVersion);
+    throw runtime_error(
+        "Unsupported class version: " + version + std::string(", expected version: ") + expectedVersion);
 }
 
 }
