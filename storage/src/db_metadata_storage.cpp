@@ -24,43 +24,49 @@ using concordUtils::Status;
 namespace concord {
 namespace storage {
 
-void DBMetadataStorage::verifyOperation(uint32_t dataLen,
-                                        const char *buffer) const {
-  if (!dataLen || !buffer) {
-    LOG_ERROR(logger_, WRONG_PARAMETER);
+void DBMetadataStorage::verifyOperation(uint32_t objectId, uint32_t dataLen, const char *buffer,
+                                        bool writeOperation) const {
+  auto elem = objectIdToSizeMap_.find(objectId);
+  bool found = (elem != objectIdToSizeMap_.end());
+  if (!dataLen || !buffer || !found || !objectId) {
     throw runtime_error(WRONG_PARAMETER);
+  }
+  if (writeOperation && (dataLen > elem->second)) {
+    ostringstream error;
+    error << "Metadata object objectId " << objectId << " size is too big: given "
+          << dataLen << ", allowed " << elem->second << endl;
+    throw runtime_error(error.str());
   }
 }
 
 bool DBMetadataStorage::isNewStorage() {
   uint32_t outActualObjectSize;
-  read(objectsNumParameterId_, sizeof(objectsNum_), (char *)&objectsNum_,
-       outActualObjectSize);
+  read(objectsNumParameterId_, sizeof(objectsNum_), (char *) &objectsNum_, outActualObjectSize);
   return (outActualObjectSize == 0);
 }
 
 bool DBMetadataStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint32_t metadataObjectsArrayLength) {
-  // Metadata object with id=0 is used to indicate storage initialization state
+  for (uint32_t i = objectsNumParameterId_ + 1; i < metadataObjectsArrayLength; ++i) {
+    objectIdToSizeMap_[i] = metadataObjectsArray[i].maxSize;
+    LOG_DEBUG(logger_, "initMaxSizeOfObjects i=" << i << " object data: id=" << metadataObjectsArray[i].id
+                                                 << ", maxSize=" << metadataObjectsArray[i].maxSize);
+  }
+  // Metadata object with id=1 is used to indicate storage initialization state
   // (number of specified metadata objects).
   bool isNew = isNewStorage();
   if (isNew) {
     objectsNum_ = metadataObjectsArrayLength;
-    atomicWrite(objectsNumParameterId_, (char *)&objectsNum_,
-                sizeof(objectsNum_));
+    atomicWrite(objectsNumParameterId_, (char *) &objectsNum_, sizeof(objectsNum_));
   }
   LOG_DEBUG(logger_, "initMaxSizeOfObjects objectsNum_=" << objectsNum_);
   return isNew;
 }
 
-void DBMetadataStorage::read(uint32_t objectId,
-                             uint32_t bufferSize,
-                             char *outBufferForObject,
+void DBMetadataStorage::read(uint32_t objectId, uint32_t bufferSize, char *outBufferForObject,
                              uint32_t &outActualObjectSize) {
-  verifyOperation(bufferSize, outBufferForObject);
+  verifyOperation(objectId, bufferSize, outBufferForObject, false);
   lock_guard<mutex> lock(ioMutex_);
-  Status status =
-      dbClient_->get(genMetadataKey_(objectId),
-                     outBufferForObject, bufferSize, outActualObjectSize);
+  Status status = dbClient_->get(genMetadataKey_(objectId), outBufferForObject, bufferSize, outActualObjectSize);
   if (status.isNotFound()) {
     memset(outBufferForObject, 0, bufferSize);
     outActualObjectSize = 0;
@@ -71,15 +77,12 @@ void DBMetadataStorage::read(uint32_t objectId,
   }
 }
 
-void DBMetadataStorage::atomicWrite(uint32_t objectId,
-                                    char *data,
-                                    uint32_t dataLength) {
-  verifyOperation(dataLength, data);
+void DBMetadataStorage::atomicWrite(uint32_t objectId, char *data, uint32_t dataLength) {
+  verifyOperation(objectId, dataLength, data, true);
   auto *dataCopy = new uint8_t[dataLength];
   memcpy(dataCopy, data, dataLength);
   lock_guard<mutex> lock(ioMutex_);
-  Status status = dbClient_->put(genMetadataKey_(objectId),
-                                 Sliver(dataCopy, dataLength));
+  Status status = dbClient_->put(genMetadataKey_(objectId), Sliver(dataCopy, dataLength));
   if (!status.isOK()) {
     throw runtime_error("RocksDB put operation failed");
   }
@@ -95,12 +98,9 @@ void DBMetadataStorage::beginAtomicWriteOnlyTransaction() {
   transaction_ = new SetOfKeyValuePairs;
 }
 
-void DBMetadataStorage::writeInTransaction(uint32_t objectId,
-                                           char *data,
-                                           uint32_t dataLength) {
-  LOG_DEBUG(logger_,
-                  "objectId=" << objectId << ", dataLength=" << dataLength);
-  verifyOperation(dataLength, data);
+void DBMetadataStorage::writeInTransaction(uint32_t objectId, char *data, uint32_t dataLength) {
+  LOG_DEBUG(logger_, "objectId=" << objectId << ", dataLength=" << dataLength);
+  verifyOperation(objectId, dataLength, data, true);
   auto *dataCopy = new uint8_t[dataLength];
   memcpy(dataCopy, data, dataLength);
   lock_guard<mutex> lock(ioMutex_);
@@ -108,9 +108,7 @@ void DBMetadataStorage::writeInTransaction(uint32_t objectId,
     LOG_ERROR(logger_, WRONG_FLOW);
     throw runtime_error(WRONG_FLOW);
   }
-  transaction_->insert(
-      KeyValuePair(genMetadataKey_(objectId),
-                   Sliver(dataCopy, dataLength)));
+  transaction_->insert(KeyValuePair(genMetadataKey_(objectId), Sliver(dataCopy, dataLength)));
 }
 
 void DBMetadataStorage::commitAtomicWriteOnlyTransaction() {
@@ -136,8 +134,7 @@ Status DBMetadataStorage::multiDel(const ObjectIdsVector &objectIds) {
   for (size_t objectId = 0; objectId < objectsNumber; objectId++) {
     auto key = genMetadataKey_(objectId);
     keysVec.push_back(key);
-    LOG_INFO(logger_,
-                   "Deleted object id=" << objectId << ", key=" << key);
+    LOG_INFO(logger_, "Deleted object id=" << objectId << ", key=" << key);
   }
   return dbClient_->multiDel(keysVec);
 }
