@@ -871,7 +871,7 @@ bool PersistentStorageImp::getSlowStartedInSeqNumWindow(SeqNum seqNum) {
 void PersistentStorageImp::verifySetDescriptorOfLastExitFromView(const DescriptorOfLastExitFromView &desc) {
   Assert(setIsAllowed());
   Assert(desc.view >= 0);
-  // Here we assume that the first view is always (even if we load the initial state from the disk).
+  // Here we assume that the first view is always 0 (even if we load the initial state from the disk).
   Assert(hasDescriptorOfLastExecution() || desc.view == 0);
   Assert(desc.elements.size() <= kWorkWindowSize);
 }
