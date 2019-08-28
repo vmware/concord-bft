@@ -21,9 +21,7 @@ namespace memorydb {
  * Does nothing.
  * @return Status OK.
  */
-Status Client::init(bool readOnly) {
-  // TODO Can be used for constructor calls, etc.
-  return Status::OK();
+void Client::init(bool readOnly) {
 }
 
 /**

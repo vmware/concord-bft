@@ -63,7 +63,7 @@ class Client : public IDBClient {
  public:
   Client(KeyComparator comp) : comp_(comp), map_([this](const Sliver&a , const Sliver& b){ return comp_(a, b); }) {}
 
-  virtual Status init(bool readOnly) override;
+  virtual void init(bool readOnly) override;
   virtual Status get(Sliver _key, OUT Sliver &_outValue) const override;
   Status get(Sliver _key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &_size) const override;
   virtual IDBClientIterator *getIterator() const override;
@@ -75,7 +75,7 @@ class Client : public IDBClient {
   concordUtils::Status multiDel(const KeysVector &_keysVec) override;
   virtual void monitor() const override{};
   bool isNew() override { return true; }
-
+  ITransaction* beginTransaction() override {return nullptr;} // TODO [TK] implement in-memory transaction?
   TKVStore &getMap() { return map_; }
 
  private:

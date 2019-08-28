@@ -14,9 +14,10 @@
 #ifdef USE_ROCKSDB
 
 #include "rocksdb/client.h"
+#include "rocksdb/transaction.h"
 #include "Logger.hpp"
 #include "hash_defs.h"
-
+#include <atomic>
 
 using concordUtils::Sliver;
 using concordUtils::Status;
@@ -26,8 +27,8 @@ namespace storage {
 namespace rocksdb {
 
 // Counter for number of read requests
-static unsigned int g_rocksdb_called_read;
-static bool g_rocksdb_print_measurements;
+static unsigned int g_rocksdb_called_read = 0;
+static bool g_rocksdb_print_measurements = false;
 
 /**
  * @brief Converts a Sliver object to a RocksDB Slice object.
@@ -36,7 +37,7 @@ static bool g_rocksdb_print_measurements;
  * @return A RocksDB Slice object.
  */
 ::rocksdb::Slice toRocksdbSlice(Sliver _s) {
-  return ::rocksdb::Slice(reinterpret_cast<char *>(_s.data()), _s.length());
+  return ::rocksdb::Slice(reinterpret_cast<const char *>(_s.data()), _s.length());
 }
 
 /**
@@ -67,6 +68,16 @@ Sliver copyRocksdbSlice(::rocksdb::Slice _s) {
   return Sliver(copyData, _s.size());
 }
 
+ITransaction* Client::beginTransaction()
+{
+  static std::atomic_uint64_t current_transaction_id (0);
+  ::rocksdb::WriteOptions wo;
+  if (!txn_db_)
+    throw std::runtime_error("Failed to start transaction, reason: RO mode");
+  return new Transaction(txn_db_->BeginTransaction(wo), ++current_transaction_id);
+}
+
+
 bool Client::isNew() {
   ::rocksdb::DB *db;
   ::rocksdb::Options options;
@@ -81,35 +92,24 @@ bool Client::isNew() {
  * Uses the RocksDBClient object variables m_dbPath and m_dbInstance to
  * establish a connection with RocksDB by creating a RocksDB object.
  *
- *  @return GeneralError in case of error in connection, else OK.
+ *  @throw GeneralError in case of error in connection, else OK.
  */
-Status Client::init(bool readOnly) {
-  ::rocksdb::DB *db;
+void Client::init(bool readOnly) {
+  ::rocksdb::DB* db;
   ::rocksdb::Options options;
+  ::rocksdb::TransactionDBOptions txn_options;
   options.create_if_missing = true;
   options.comparator = m_comparator;
-
   ::rocksdb::Status s;
   if (readOnly) {
     s = ::rocksdb::DB::OpenForReadOnly(options, m_dbPath, &db);
+    m_dbInstance.reset(db);
   } else {
-    s = ::rocksdb::DB::Open(options, m_dbPath, &db);
+    s = ::rocksdb::TransactionDB::Open(options, txn_options, m_dbPath, &txn_db_);
+    m_dbInstance.reset(txn_db_->GetBaseDB());
   }
-  m_dbInstance.reset(db);
-
-  if (!s.ok()) {
-    LOG_ERROR(logger, "Failed to open rocksdb database at "
-                                << m_dbPath << " due to " << s.ToString());
-    return Status::GeneralError("Database open error");
-  }
-
-  g_rocksdb_called_read = 0;
-
-  // TODO(Shelly): Update for measurements. Remove when done as well as other
-  // g_rocksdb_* variables.
-  g_rocksdb_print_measurements = false;
-
-  return Status::OK();
+  if (!s.ok())
+    throw std::runtime_error("Failed to open rocksdb database at " + m_dbPath + std::string(" reason: ") + s.ToString());
 }
 
 Status Client::get(Sliver _key, OUT std::string &_value) const {

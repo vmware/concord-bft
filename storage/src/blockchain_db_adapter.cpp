@@ -39,11 +39,7 @@ DBAdapter::DBAdapter(IDBClient* db, bool readOnly):
     m_isEnd(false)
     {
 
-  Status status = db_->init(readOnly);
-  if (!status.isOK()) {
-    LOG_FATAL(logger_, "Failure in Database Initialization, status: " << status);
-    throw std::runtime_error("Failure in Database Initialization");
-  }
+  db_->init(readOnly);
 }
 
 /*

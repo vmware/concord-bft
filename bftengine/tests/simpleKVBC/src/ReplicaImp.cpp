@@ -68,12 +68,8 @@ Status ReplicaImp::start()
 
 	m_currentRepStatus = RepStatus::Starting;
 
-	Status s = m_bcDbAdapter->getDb()->init();
+	m_bcDbAdapter->getDb()->init();
 
-	if (!s.isOK())
-	{
-		return s;
-	}
 
 	m_currentRepStatus = RepStatus::Running;
 
