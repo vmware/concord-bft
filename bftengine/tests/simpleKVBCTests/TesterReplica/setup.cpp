@@ -113,10 +113,10 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
 
   uint16_t numOfReplicas = (uint16_t)(3 * replicaConfig.fVal + 2 * replicaConfig.cVal + 1);
 #ifdef USE_COMM_PLAIN_TCP
-  PlainTcpConfig conf = testCommConfig.GetTCPConfig(
+  bftEngine::PlainTcpConfig conf = testCommConfig.GetTCPConfig(
       true, rp.replicaId, replicaConfig.numOfClientProxies, numOfReplicas, rp.configFileName);
 #elif USE_COMM_TLS_TCP
-  TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(
+  bftEngine::TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(
       true, rp.replicaId, replicaConfig.numOfClientProxies, numOfReplicas, rp.configFileName);
 #else
   bftEngine::PlainUdpConfig conf = testCommConfig.GetUDPConfig(
