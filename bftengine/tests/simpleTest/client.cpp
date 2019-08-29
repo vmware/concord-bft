@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018, 2019 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -28,6 +28,7 @@
 // information about how to run the client.
 
 #include <cassert>
+#include <cstdlib>
 #include <thread>
 #include <iostream>
 #include <limits>
@@ -181,5 +182,5 @@ int main(int argc, char **argv) {
                                                                                 << ", clientPeriodicResetThresh: " << scp.clientPeriodicResetThresh);
 
   SimpleTestClient cl(cp, clientLogger);
-  return cl.run();
+  return cl.run() ? EXIT_SUCCESS : EXIT_FAILURE;
 }
