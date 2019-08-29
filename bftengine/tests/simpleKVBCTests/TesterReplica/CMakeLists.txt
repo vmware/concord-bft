@@ -4,6 +4,7 @@ project(skvbc_replica VERSION 0.1.0.0 LANGUAGES CXX)
 set(replica_sources
 	main.cpp
         internalCommandsHandler.cpp
+        setup.cpp
         ../simpleKVBTestsBuilder.cpp
 	${CONFIG_FOLDER_PATH_VALUE}/test_comm_config.cpp
 	${CONFIG_FOLDER_PATH_VALUE}/config_file_parser.cpp)

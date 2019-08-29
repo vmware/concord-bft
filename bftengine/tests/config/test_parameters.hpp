@@ -33,7 +33,8 @@ enum class PersistencyMode {
   Off, // no persistency at all
   InMemory, // use in memory module
   File, // use file as a storage
-  MAX_VALUE = File
+  RocksDB, // use RocksDB for storage
+  MAX_VALUE=RocksDB
 };
 
 enum class ReplicaBehavior {
