@@ -872,7 +872,7 @@ void PersistentStorageImp::verifySetDescriptorOfLastExitFromView(const Descripto
   Assert(setIsAllowed());
   Assert(desc.view >= 0);
   // Here we assume that the first view is always 0 (even if we load the initial state from the disk).
-  Assert(hasDescriptorOfLastExecution() || desc.view == 0);
+  Assert(hasDescriptorOfLastExitFromView() || desc.view == 0);
   Assert(desc.elements.size() <= kWorkWindowSize);
 }
 
