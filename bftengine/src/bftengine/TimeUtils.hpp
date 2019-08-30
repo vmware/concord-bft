@@ -22,14 +22,14 @@ namespace bftEngine
 		///////////////////////////////////////////////////////////////////////////////
 
 		typedef  uint64_t Time;
-		typedef  int64_t TimeDeltaMirco;
+		typedef  int64_t TimeDeltaMicro;
 
 		const Time MaxTime = UINT64_MAX;
 		const Time MinTime = 0;
 
 		Time getMonotonicTime();
 
-		inline TimeDeltaMirco subtract(Time t1, Time t2)  // TODO(GG): replace with absDifference (not sure that this method is really needed)
+		inline TimeDeltaMicro subtract(Time t1, Time t2)  // TODO(GG): replace with absDifference (not sure that this method is really needed)
 		{
 			return (t1 - t2);
 		}
@@ -39,7 +39,7 @@ namespace bftEngine
 			return (base + (milliseconds * 1000));
 		}
 
-		inline TimeDeltaMirco absDifference(Time t1, Time t2)
+		inline TimeDeltaMicro absDifference(Time t1, Time t2)
 		{
 			if (t2 < t1)
 				return (t1 - t2);
