@@ -210,12 +210,14 @@ void ReplicaImp::sendRaw(char *m, NodeIdType dest, uint16_t type, MsgSize size) 
 IncomingMsg ReplicaImp::recvMsg() {
   while (true) {
     auto msg = incomingMsgsStorage.pop(timersResolution);
-    if (msg.tag != IncomingMsg::INVALID) {
-      return msg;
-    }
+
     // TODO(GG): make sure that we don't check timers too often
     // (i.e. much faster than timersResolution)
     timersScheduler.evaluate();
+
+    if (msg.tag != IncomingMsg::INVALID) {
+      return msg;
+    }
   }
 }
 
