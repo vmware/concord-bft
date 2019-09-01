@@ -1,10 +1,14 @@
-/*
- * transaction.h
- *
- *  Created on: 20 Aug 2019
- *      Author: tkournik
- */
-
+// Concord
+//
+// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+//
+// This product is licensed to you under the Apache 2.0 license (the "License").
+// You may not use this product except in compliance with the Apache 2.0 License.
+//
+// This product may include a number of subcomponents with separate copyright
+// notices and license terms. Your use of these subcomponents is subject to the
+// terms and conditions of the sub-component's license, as noted in the
+// LICENSE file.
 #include <rocksdb/utilities/transaction.h>
 #include "storage/db_interface.h"
 #include "client.h"
@@ -22,10 +26,10 @@ class Transaction: public ITransaction {
  public:
   Transaction(::rocksdb::Transaction* txn, ID id): ITransaction(id), txn_(txn){}
 
-  void commit  () override {
+  void commit() override {
     ::rocksdb::Status s = txn_->Commit();
     if (!s.ok())
-      ROCKSDB_THROW("Commit     ", s);
+      ROCKSDB_THROW("Commit", s);
   }
   void rollback() override {
     ::rocksdb::Status s = txn_->Rollback();

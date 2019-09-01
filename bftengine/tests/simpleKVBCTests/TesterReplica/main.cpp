@@ -37,154 +37,154 @@ using ::TestCommConfig;
 IReplica* r = nullptr;
 ReplicaParams rp;
 concordlogger::Logger replicaLogger =
-    concordlogger::Log::getLogger("skvbctest.replica");
+		concordlogger::Log::getLogger("skvbctest.replica");
 
 int main(int argc, char **argv) {
-  try{
-    rp.replicaId = UINT16_MAX;
-          rp.viewChangeEnabled = false;
-          rp.viewChangeTimeout = 45*1000;
+#if defined(_WIN32)
+	initWinSock();
+#endif
 
-    // allows to attach debugger
-    if(rp.debug) {
-            std::this_thread::sleep_for(std::chrono::seconds(20));
-          }
+	rp.replicaId = UINT16_MAX;
+        rp.viewChangeEnabled = false;
+        rp.viewChangeTimeout = 45*1000;
 
-    char argTempBuffer[PATH_MAX+10];
-    string idStr;
+	// allows to attach debugger
+	if(rp.debug) {
+          std::this_thread::sleep_for(std::chrono::seconds(20));
+        }
 
-    int o = 0;
-    while ((o = getopt(argc, argv, "r:i:k:n:s:v:")) != EOF) {
-      switch (o) {
-      case 'i':
-      {
-        strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
-        argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
-        idStr = argTempBuffer;
-        int tempId = std::stoi(idStr);
-        if (tempId >= 0 && tempId < UINT16_MAX)
-          rp.replicaId = (uint16_t)tempId;
-        // TODO: check repId
-      }
-      break;
+	char argTempBuffer[PATH_MAX+10];
+	string idStr;
 
-      case 'k':
-      {
-        strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
-        argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
-        rp.keysFilePrefix = argTempBuffer;
-        // TODO: check keysFilePrefix
-      }
-      break;
+	int o = 0;
+	while ((o = getopt(argc, argv, "r:i:k:n:s:v:")) != EOF) {
+		switch (o) {
+		case 'i':
+		{
+			strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
+			argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
+			idStr = argTempBuffer;
+			int tempId = std::stoi(idStr);
+			if (tempId >= 0 && tempId < UINT16_MAX) 
+				rp.replicaId = (uint16_t)tempId;
+			// TODO: check repId
+		}
+		break;
 
-      case 'n':
-      {
-        strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
-        argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
-        rp.configFileName = argTempBuffer;
-      }
-      break;
-      case 's':
-      {
-        strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
-        argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
-        idStr = argTempBuffer;
-        int tempId = std::stoi(idStr);
-        if (tempId >= 0 && tempId < UINT16_MAX)
-          rp.statusReportTimerMillisec = (uint16_t)tempId;
-      }
-                  break;
-                  case 'v':
-                  {
-        strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
-        argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
-        idStr = argTempBuffer;
-        int tempId = std::stoi(idStr);
-        if (tempId >= 0 && (uint32_t)tempId < UINT32_MAX) {
-                            rp.viewChangeTimeout = (uint32_t)tempId;
-                            rp.viewChangeEnabled = true;
-                          }
-                  }
-                  break;
+		case 'k':
+		{
+			strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
+			argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
+			rp.keysFilePrefix = argTempBuffer;
+			// TODO: check keysFilePrefix
+		}
+		break;
 
-      default:
-        // nop
-        break;
-      }
-    }
+		case 'n':
+		{
+			strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
+			argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
+			rp.configFileName = argTempBuffer;
+		}
+		break;
+		case 's':
+		{
+			strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
+			argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
+			idStr = argTempBuffer;
+			int tempId = std::stoi(idStr);
+			if (tempId >= 0 && tempId < UINT16_MAX) 
+				rp.statusReportTimerMillisec = (uint16_t)tempId;
+		}
+                break;
+                case 'v':
+                {
+			strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
+			argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
+			idStr = argTempBuffer;
+			int tempId = std::stoi(idStr);
+			if (tempId >= 0 && (uint32_t)tempId < UINT32_MAX) {
+                          rp.viewChangeTimeout = (uint32_t)tempId;
+                          rp.viewChangeEnabled = true;
+                        }
+                }
+                break;
 
-    if(rp.replicaId == UINT16_MAX || rp.keysFilePrefix.empty())
-    {
-      fprintf(stderr, "%s -k KEYS_FILE_PREFIX -i ID -n COMM_CONFIG_FILE",
-          argv[0]);
-      exit(-1);
-    }
+		default:
+			// nop
+			break;
+		}
+	}
 
-    // TODO: check arguments
+	if(rp.replicaId == UINT16_MAX || rp.keysFilePrefix.empty())
+	{
+		fprintf(stderr, "%s -k KEYS_FILE_PREFIX -i ID -n COMM_CONFIG_FILE",
+				argv[0]);
+		exit(-1);
+	}
 
-      //used to get info from parsing the key file
-    bftEngine::ReplicaConfig replicaConfig;
+	// TODO: check arguments
 
-      TestCommConfig testCommConfig(replicaLogger);
-    testCommConfig.GetReplicaConfig(
-        rp.replicaId, rp.keysFilePrefix, &replicaConfig);
+    //used to get info from parsing the key file
+	bftEngine::ReplicaConfig replicaConfig;
 
-          // This allows more concurrency and only affects known ids in the
-          // communication classes.
-    replicaConfig.numOfClientProxies = 100;
-    replicaConfig.autoViewChangeEnabled = rp.viewChangeEnabled;
-    replicaConfig.viewChangeTimerMillisec = rp.viewChangeTimeout;
-    replicaConfig.statusReportTimerMillisec = rp.statusReportTimerMillisec;
-    replicaConfig.concurrencyLevel = 1;
-    replicaConfig.debugStatisticsEnabled = true;
+    TestCommConfig testCommConfig(replicaLogger);
+	testCommConfig.GetReplicaConfig(
+			rp.replicaId, rp.keysFilePrefix, &replicaConfig);
 
-    uint16_t numOfReplicas = (uint16_t)(3 * replicaConfig.fVal + 2 * replicaConfig.cVal + 1);
-  #ifdef USE_COMM_PLAIN_TCP
-    PlainTcpConfig conf = testCommConfig.GetTCPConfig(true, rp.replicaId,
-                                                        replicaConfig.numOfClientProxies,
-                                                        numOfReplicas,
-                                                        rp.configFileName);
-  #elif USE_COMM_TLS_TCP
-    TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(true, rp.replicaId,
-                                                         replicaConfig.numOfClientProxies,
-                                                         numOfReplicas,
-                                                         rp.configFileName);
-  #else
-          PlainUdpConfig conf = testCommConfig.GetUDPConfig(true,
-                                                            rp.replicaId,
-                                                            replicaConfig.numOfClientProxies,
-                                                            numOfReplicas,
-                                                            rp.configFileName);
-  #endif
-    //used to run tests. TODO(IG): use the standard config structs for all tests
-    SimpleKVBC::ReplicaConfig c;
+        // This allows more concurrency and only affects known ids in the
+        // communication classes.
+	replicaConfig.numOfClientProxies = 100;
+	replicaConfig.autoViewChangeEnabled = rp.viewChangeEnabled;
+	replicaConfig.viewChangeTimerMillisec = rp.viewChangeTimeout;
+	replicaConfig.statusReportTimerMillisec = rp.statusReportTimerMillisec;
+	replicaConfig.concurrencyLevel = 1;
+	replicaConfig.debugStatisticsEnabled = true;
 
-    ICommunication *comm = CommFactory::create(conf);
+	uint16_t numOfReplicas = (uint16_t)(3 * replicaConfig.fVal + 2 * replicaConfig.cVal + 1);
+#ifdef USE_COMM_PLAIN_TCP
+	PlainTcpConfig conf = testCommConfig.GetTCPConfig(true, rp.replicaId,
+                                                      replicaConfig.numOfClientProxies,
+                                                      numOfReplicas,
+                                                      rp.configFileName);
+#elif USE_COMM_TLS_TCP
+	TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(true, rp.replicaId,
+                                                       replicaConfig.numOfClientProxies,
+                                                       numOfReplicas,
+                                                       rp.configFileName);
+#else
+        PlainUdpConfig conf = testCommConfig.GetUDPConfig(true, 
+                                                          rp.replicaId,
+                                                          replicaConfig.numOfClientProxies,
+                                                          numOfReplicas,
+                                                          rp.configFileName);
+#endif
+	//used to run tests. TODO(IG): use the standard config structs for all tests
+	SimpleKVBC::ReplicaConfig c;
 
-    c.pathOfKeysfile = rp.keysFilePrefix + std::to_string(rp.replicaId);
-    c.replicaId = rp.replicaId;
-    c.fVal = replicaConfig.fVal;
-    c.cVal = replicaConfig.cVal;
-    c.numOfClientProxies = replicaConfig.numOfClientProxies;
-          // Allow triggering of things like state transfer to occur faster in
-          // tests.
-    c.statusReportTimerMillisec = rp.statusReportTimerMillisec;
-    c.concurrencyLevel = 1;
-    c.autoViewChangeEnabled = rp.viewChangeEnabled;
-    c.viewChangeTimerMillisec =  rp.viewChangeTimeout;
-    c.maxBlockSize = 2 * 1024 * 1024;  // 2MB
+	ICommunication *comm = CommFactory::create(conf);
+
+	c.pathOfKeysfile = rp.keysFilePrefix + std::to_string(rp.replicaId);
+	c.replicaId = rp.replicaId;
+	c.fVal = replicaConfig.fVal;
+	c.cVal = replicaConfig.cVal;
+	c.numOfClientProxies = replicaConfig.numOfClientProxies;
+        // Allow triggering of things like state transfer to occur faster in
+        // tests.
+	c.statusReportTimerMillisec = rp.statusReportTimerMillisec;
+	c.concurrencyLevel = 1;
+	c.autoViewChangeEnabled = rp.viewChangeEnabled;
+	c.viewChangeTimerMillisec =  rp.viewChangeTimeout;
+	c.maxBlockSize = 2 * 1024 * 1024;  // 2MB
 
 
-          // UDP MetricsServer only used in tests.
-          uint16_t metricsPort = conf.listenPort + 1000;
-          concordMetrics::Server server(metricsPort);
-          server.Start();
+        // UDP MetricsServer only used in tests.
+        uint16_t metricsPort = conf.listenPort + 1000;
+        concordMetrics::Server server(metricsPort);
+        server.Start();
 
-    r = createReplica(c, comm, BasicRandomTests::commandsHandler(), server.GetAggregator());
-    r->start();
-    while (r->isRunning())
-      std::this_thread::sleep_for(std::chrono::seconds(1));
-  }catch(std::exception& e){
-    LOG_FATAL(replicaLogger, "Fatal exception: " << e.what());
-  }
+	r = createReplica(c, comm, BasicRandomTests::commandsHandler(), server.GetAggregator());
+	r->start();
+	while (r->isRunning())
+		std::this_thread::sleep_for(std::chrono::seconds(1));
 }

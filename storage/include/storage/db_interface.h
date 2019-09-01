@@ -37,7 +37,7 @@ class ITransaction {
    public:
      Guard(ITransaction* t):txn(t){}
      ~Guard(){
-       if (std::uncaught_exceptions() == 0)
+       if (std::uncaught_exception() == 0)
          txn->commit();
        delete txn;
      }
