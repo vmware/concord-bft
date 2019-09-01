@@ -19,7 +19,7 @@
 
 #ifdef USE_ROCKSDB
 #include "Logger.hpp"
-#include <rocksdb/db.h>
+#include <rocksdb/utilities/transaction_db.h>
 #include "kv_types.hpp"
 #include "storage/db_interface.h"
 
@@ -64,50 +64,34 @@ class Client : public concord::storage::IDBClient {
         m_dbPath(_dbPath),
         m_comparator(_comparator) {}
 
-  concordUtils::Status init(bool readOnly = false) override;
-  concordUtils::Status get(
-      concordUtils::Sliver _key,
-      OUT concordUtils::Sliver &_outValue) const override;
-  concordUtils::Status get(concordUtils::Sliver _key,
-                                 OUT char *&buf, uint32_t bufSize,
-                                 OUT uint32_t &_realSize) const override;
-  IDBClientIterator *getIterator() const override;
-  concordUtils::Status freeIterator(
-      IDBClientIterator *_iter) const override;
-  concordUtils::Status put(concordUtils::Sliver _key,
-                                 concordUtils::Sliver _value) override;
+  void init(bool readOnly = false) override;
+  concordUtils::Status get(concordUtils::Sliver _key, concordUtils::Sliver &_outValue) const override;
+  concordUtils::Status get(concordUtils::Sliver _key, char *&buf, uint32_t bufSize, uint32_t &_realSize) const override;
+  IDBClientIterator*   getIterator() const override;
+  concordUtils::Status freeIterator(IDBClientIterator *_iter) const override;
+  concordUtils::Status put(concordUtils::Sliver _key, concordUtils::Sliver _value) override;
   concordUtils::Status del(concordUtils::Sliver _key) override;
-  concordUtils::Status multiGet(
-      const KeysVector &_keysVec,
-      OUT ValuesVector &_valuesVec) override;
-  concordUtils::Status multiPut(
-      const SetOfKeyValuePairs &_keyValueMap) override;
-  concordUtils::Status multiDel(
-      const KeysVector &_keysVec) override;
-  ::rocksdb::Iterator *getNewRocksDbIterator() const;
+  concordUtils::Status multiGet(const KeysVector &_keysVec, ValuesVector &_valuesVec) override;
+  concordUtils::Status multiPut(const SetOfKeyValuePairs &_keyValueMap) override;
+  concordUtils::Status multiDel(const KeysVector &_keysVec) override;
+  ::rocksdb::Iterator* getNewRocksDbIterator() const;
   void monitor() const override;
   bool isNew() override;
+  ITransaction* beginTransaction() override;
 
  private:
-  concordUtils::Status launchBatchJob(
-      ::rocksdb::WriteBatch &_batchJob,
-      const KeysVector &_keysVec);
-  std::ostringstream collectKeysForPrint(
-      const KeysVector &_keysVec);
-  concordUtils::Status get(concordUtils::Sliver _key,
-                                 OUT std::string &_value) const;
+  concordUtils::Status launchBatchJob(::rocksdb::WriteBatch &_batchJob, const KeysVector &_keysVec);
+  std::ostringstream   collectKeysForPrint( const KeysVector &_keysVec);
+  concordUtils::Status get(concordUtils::Sliver _key, std::string &_value) const;
 
  private:
   concordlogger::Logger logger;
-
   // Database path on directory (used for connection).
   std::string m_dbPath;
-
   // Database object (created on connection).
   std::unique_ptr<::rocksdb::DB> m_dbInstance;
-
-  // Comparator object.
-  ::rocksdb::Comparator *m_comparator;
+  ::rocksdb::TransactionDB*      txn_db_ = nullptr;;
+  ::rocksdb::Comparator*         m_comparator = nullptr;
 };
 
 ::rocksdb::Slice toRocksdbSlice(concordUtils::Sliver _s);

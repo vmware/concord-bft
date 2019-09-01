@@ -18,37 +18,65 @@ using concordUtils::ValuesVector;
 using concordUtils::KeyValuePair;
 using concordUtils::SetOfKeyValuePairs;
 
+
+class ITransaction {
+ public:
+  typedef uint64_t ID;
+  typedef std::shared_ptr<ITransaction> ptr;
+  ITransaction(ID id):id_(id){}
+  virtual ~ITransaction() = default;
+  virtual void commit() = 0;
+  virtual void rollback() = 0;
+  virtual void put(const Sliver& key, const Sliver& value) = 0;
+  virtual std::string get(const Sliver& key) = 0;
+  virtual void remove(const Sliver& key) = 0; // delete is a reserved keyword
+
+  ID getId() const {return id_;}
+  std::string getIdStr() const {return std::to_string(id_);}
+  class Guard{
+   public:
+     Guard(ITransaction* t):txn(t){}
+     ~Guard(){
+       if (std::uncaught_exception() == 0)
+         txn->commit();
+       delete txn;
+     }
+
+     ITransaction* txn;
+   };
+ private:
+  ID id_;
+};
+
 class IDBClient {
  public:
-
   virtual ~IDBClient() = default;
-  virtual Status init(bool readOnly = false) = 0;
+  virtual void   init(bool readOnly = false) = 0;
   virtual Status get(Sliver _key, OUT Sliver &_outValue) const = 0;
-  virtual Status get(Sliver _key, OUT char *&buf, uint32_t bufSize,
-                     OUT uint32_t &_size) const = 0;
+  virtual Status get(Sliver _key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &_size) const = 0;
   virtual Status put(Sliver _key, Sliver _value) = 0;
   virtual Status del(Sliver _key) = 0;
-  virtual Status multiGet(const KeysVector &_keysVec,
-                          OUT ValuesVector &_valuesVec) = 0;
+  virtual Status multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec) = 0;
   virtual Status multiPut(const SetOfKeyValuePairs &_keyValueMap) = 0;
   virtual Status multiDel(const KeysVector &_keysVec) = 0;
-  virtual void monitor() const = 0;
-  virtual bool isNew() = 0;
+  virtual void   monitor() const = 0;
+  virtual bool   isNew() = 0;
+
+  // the caller is responsible for transaction object lifetime
+  // possible options: ITransaction::Guard or std::shared_ptr
+  virtual ITransaction* beginTransaction() = 0;
 
   class IDBClientIterator {
    public:
     virtual KeyValuePair first() = 0;
-
     // Returns next keys if not found for this key
     virtual KeyValuePair seekAtLeast(Sliver _searchKey) = 0;
     virtual KeyValuePair previous() = 0;
     virtual KeyValuePair next() = 0;
     virtual KeyValuePair getCurrent() = 0;
     virtual bool isEnd() = 0;
-
     // Status of last operation
     virtual Status getStatus() = 0;
-
     virtual ~IDBClientIterator() = default;
   };
 

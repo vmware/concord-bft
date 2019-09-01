@@ -37,7 +37,9 @@ class Sliver {
   Sliver(uint8_t* data, const size_t length);
   Sliver(char* data, const size_t length);
   Sliver(const Sliver& base, const size_t offset, const size_t length);
-
+  Sliver(const uint8_t* data, const size_t length);
+  Sliver(const char* data, const size_t length);
+  Sliver(const std::string& s):Sliver(s.data(), s.length()){}
   static Sliver copy(uint8_t* data, const size_t length);
   static Sliver copy(char* data, const size_t length);
 

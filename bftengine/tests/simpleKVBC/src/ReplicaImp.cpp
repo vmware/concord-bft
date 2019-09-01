@@ -63,6 +63,7 @@ Status ReplicaImp::start() {
   m_currentRepStatus = RepStatus::Starting;
   m_metadataStorage = new DBMetadataStorage(m_bcDbAdapter->getDb().get(), KeyManipulator::generateMetadataKey);
 
+
   createReplicaAndSyncState();
   m_replicaPtr->SetAggregator(aggregator_);
   m_replicaPtr->start();

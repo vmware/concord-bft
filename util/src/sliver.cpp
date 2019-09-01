@@ -46,6 +46,26 @@ Sliver::Sliver(char* data, const size_t length)
   // Data must be non-null.
   assert(data);
 }
+/**
+ * not owning semantics - empty deleter
+ */
+Sliver::Sliver(const uint8_t* data, const size_t length)
+    : m_data(const_cast<uint8_t*>(data), [](uint8_t[]){}),
+      m_offset(0),
+      m_length(length) {
+  // Data must be non-null.
+  assert(data);
+}
+/**
+ * not owning semantics - empty deleter
+ */
+Sliver::Sliver(const char* data, const size_t length)
+    : m_data(reinterpret_cast<uint8_t*>(const_cast<char*>(data)),[](uint8_t []){}),
+      m_offset(0),
+      m_length(length) {
+  // Data must be non-null.
+  assert(data);
+}
 
 /**
  * Create a sub-sliver that references a region of a base sliver.
