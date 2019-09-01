@@ -90,7 +90,7 @@ class Client : public concord::storage::IDBClient {
   std::string m_dbPath;
   // Database object (created on connection).
   std::unique_ptr<::rocksdb::DB> m_dbInstance;
-  ::rocksdb::TransactionDB*      txn_db_ = nullptr;;
+  ::rocksdb::TransactionDB*      txn_db_ = nullptr;
   ::rocksdb::Comparator*         m_comparator = nullptr;
 };
 
