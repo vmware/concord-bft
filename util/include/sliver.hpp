@@ -52,6 +52,7 @@ class Sliver {
 
   std::ostream& operator<<(std::ostream& s) const;
   bool operator==(const Sliver& other) const;
+  bool operator!=(const Sliver& other) const;
   int compare(const Sliver& other) const;
 
  private:

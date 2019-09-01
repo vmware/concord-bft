@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -11,14 +11,16 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#pragma once 
+#ifndef COMMON_KVB_TESTS_HPP
+#define COMMON_KVB_TESTS_HPP
 
-#include <stdint.h>
 #include <string>
 
-const uint32_t maxMsgSize = 64 * 1024;
+namespace BasicRandomTests {
 
+const std::string DB_FILE_PREFIX = "./simpleKVBTests_DB_";
+const int FIRST_KVB_BLOCK = 1;
 
+}  // namespace BasicRandomTests
 
-
-
+#endif

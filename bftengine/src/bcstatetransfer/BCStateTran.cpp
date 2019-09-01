@@ -849,7 +849,7 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m,
   // if msg is not relevant
   if (!checkValidityAndSaveMsgSeqNum(replicaId, m->msgSeqNum) ||
       (m->minRelevantCheckpointNum > psd_->getLastStoredCheckpoint())) {
-    LOG_WARN(STLogger, "msg is irrelevant");
+      LOG_WARN(STLogger, "BCStateTran::onMessage - AskForCheckpointSummariesMsg - msg is irrelevant");
     return false;
   }
 
@@ -919,7 +919,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
   // if msg is not relevant
   if (m->requestMsgSeqNum != lastMsgSeqNum_ ||
       m->checkpointNum <= psd_->getLastStoredCheckpoint()) {
-    LOG_WARN(STLogger, "msg is irrelevant");
+      LOG_WARN(STLogger, "BCStateTran::onMessage - CheckpointSummaryMsg - msg is irrelevant");
     return false;
   }
 
@@ -1026,7 +1026,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
 
   // if msg is not relevant
   if (!checkValidityAndSaveMsgSeqNum(replicaId, m->msgSeqNum)) {
-    LOG_WARN(STLogger, "msg is irrelevant");
+    LOG_WARN(STLogger, "BCStateTran::onMessage - FetchBlocksMsg - msg is irrelevant");
     return false;
   }
 
@@ -1143,7 +1143,7 @@ bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t
 
   // if msg is not relevant
   if (!checkValidityAndSaveMsgSeqNum(replicaId, m->msgSeqNum)) {
-    LOG_WARN(STLogger, "msg is irrelevant");
+    LOG_WARN(STLogger, "BCStateTran::onMessage - FetchResPagessMsg - msg is irrelevant");
     return false;
   }
 
@@ -1264,7 +1264,7 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
 
   // if msg is not relevant
   if (currentSourceReplica_ != replicaId || lastMsgSeqNum_ != m->requestMsgSeqNum) {
-    LOG_WARN(STLogger, "msg is irrelevant");
+    LOG_WARN(STLogger, "BCStateTran::onMessage - RejectFetchingMsg - msg is irrelevant");
     return false;
   }
 
@@ -1328,7 +1328,7 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
         m->blockNumber < firstRequiredBlock ||
         (m->blockNumber + maxNumberOfChunksInBatch_ + 1 < lastRequiredBlock) ||
         m->dataSize + totalSizeOfPendingItemDataMsgs > maxPendingDataFromSourceReplica_) {
-      LOG_WARN(STLogger, "msg is irrelevant");  // TODO(GG)
+      LOG_WARN(STLogger, "BCStateTran::onMessage - ItemDataMsg - FetchingState::GettingMissingBlocks - msg is irrelevant");
       return false;
     }
   } else {
@@ -1340,7 +1340,14 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
         m->requestMsgSeqNum != lastMsgSeqNum_ ||
         m->blockNumber != ID_OF_VBLOCK_RES_PAGES ||
         m->dataSize + totalSizeOfPendingItemDataMsgs > maxPendingDataFromSourceReplica_) {
-      LOG_WARN(STLogger, "msg is irrelevant");
+        LOG_WARN(STLogger, "BCStateTran::onMessage(ItemDataMsg) - msg is irrelevant: state=" << stateName(fs)
+            << ", replicaId=" << replicaId << ", currentSourceReplica_=" << currentSourceReplica_
+            << ", m->requestMsgSeqNum=" << m->requestMsgSeqNum
+            << ", lastMsgSeqNum_=" << lastMsgSeqNum_
+            << ", blockNumMatches=" << (m->blockNumber == ID_OF_VBLOCK_RES_PAGES) 
+            << ", dataSize=" << m->dataSize 
+            << ", totalSizeOfPendingItemDataMsgs=" << totalSizeOfPendingItemDataMsgs
+            << ", maxPendingDataFromSourceReplica_=" << maxPendingDataFromSourceReplica_);
       return false;
     }
   }

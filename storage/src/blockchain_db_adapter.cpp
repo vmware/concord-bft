@@ -185,7 +185,7 @@ BlockId KeyManipulator::extractBlockIdFromKey(Key _key) {
   size_t offset = _key.length() - sizeof(BlockId);
   BlockId id = *(BlockId *)(_key.data() + offset);
 
-  LOG_DEBUG(logger_, "Got block ID " << id << " from key " << _key  << ", offset " << offset);
+  LOG_TRACE(logger_, "Got block ID " << id << " from key " << _key  << ", offset " << offset);
   return id;
 }
 
@@ -203,7 +203,7 @@ ObjectId KeyManipulator::extractObjectIdFromKey(Key _key) {
   size_t offset = _key.length() - sizeof(ObjectId);
   ObjectId id = *(ObjectId *)(_key.data() + offset);
 
-  LOG_DEBUG(logger_, "Got object ID " << id << " from key " << _key << ", offset " << offset);
+  LOG_TRACE(logger_, "Got object ID " << id << " from key " << _key << ", offset " << offset);
   return id;
 }
 
@@ -216,14 +216,14 @@ ObjectId KeyManipulator::extractObjectIdFromKey(Key _key) {
 Sliver KeyManipulator::extractKeyFromKeyComposedWithBlockId(Key _composedKey) {
   size_t sz = _composedKey.length() - sizeof(BlockId) - sizeof(EDBKeyType);
   Sliver out = Sliver(_composedKey, sizeof(EDBKeyType), sz);
-  LOG_DEBUG(logger_, "Got key " << out << " from composed key " << _composedKey);
+  LOG_TRACE(logger_, "Got key " << out << " from composed key " << _composedKey);
   return out;
 }
 
 Sliver KeyManipulator::extractKeyFromMetadataKey(Key _composedKey) {
   size_t sz = _composedKey.length() - sizeof(EDBKeyType);
   Sliver out = Sliver(_composedKey, sizeof(EDBKeyType), sz);
-  LOG_DEBUG(logger_, "Got metadata key " << out << " from composed key "
+  LOG_TRACE(logger_, "Got metadata key " << out << " from composed key "
                                               << _composedKey);
   return out;
 }
@@ -322,7 +322,7 @@ bool KeyManipulator::copyToAndAdvance(uint8_t *_buf, size_t *_offset, size_t _ma
 Status DBAdapter::updateKey(Key _key, BlockId _block, Value _value) {
   Sliver composedKey = key_manipulator_->genDataDbKey(_key, _block);
 
-  LOG_DEBUG(logger_, "Updating composed key " << composedKey
+  LOG_TRACE(logger_, "Updating composed key " << composedKey
                                                    << " with value " << _value
                                                    << " in block " << _block);
 
@@ -335,7 +335,7 @@ Status DBAdapter::addBlockAndUpdateMultiKey(
   SetOfKeyValuePairs updatedKVMap;
   for (auto &it : _kvMap) {
     Sliver composedKey = key_manipulator_->genDataDbKey(it.first, _block);
-    LOG_DEBUG(logger_, "Updating composed key "
+    LOG_TRACE(logger_, "Updating composed key "
                                 << composedKey << " with value " << it.second
                                 << " in block " << _block);
     updatedKVMap[composedKey] = it.second;
@@ -357,7 +357,7 @@ Status DBAdapter::addBlockAndUpdateMultiKey(
  */
 Status DBAdapter::delKey(Sliver _key, BlockId _blockId) {
   Sliver composedKey = key_manipulator_->genDataDbKey(_key, _blockId);
-  LOG_DEBUG(logger_, "Deleting key " << _key << " block id " << _blockId);
+  LOG_TRACE(logger_, "Deleting key " << _key << " block id " << _blockId);
   Status s = db_->del(composedKey);
   return s;
 }
@@ -423,7 +423,7 @@ Status DBAdapter::getKeyByReadVersion(BlockId readVersion,
                                                 Sliver key,
                                                 Sliver &outValue,
                                                 BlockId &outBlock) const {
-  LOG_DEBUG(logger_, "Getting value of key " << key << " for read version "  << readVersion);
+  LOG_TRACE(logger_, "Getting value of key " << key << " for read version "  << readVersion);
   IDBClient::IDBClientIterator *iter = db_->getIterator();
   Sliver foundKey, foundValue;
   Sliver searchKey = key_manipulator_->genDataDbKey(key, readVersion);
@@ -431,7 +431,7 @@ Status DBAdapter::getKeyByReadVersion(BlockId readVersion,
   foundKey = key_manipulator_->composedToSimple(p).first;
   foundValue = p.second;
 
-  LOG_DEBUG(logger_, "Found key " << foundKey << " and value " << foundValue);
+  LOG_TRACE(logger_, "Found key " << foundKey << " and value " << foundValue);
 
   if (!iter->isEnd()) {
     BlockId currentReadVersion = key_manipulator_->extractBlockIdFromKey(p.first);
@@ -610,28 +610,28 @@ Status DBAdapter::seekAtLeast(IDBClient::IDBClientIterator *iter,
     CopyKey(p.first, searchKey);
   }
 
-  LOG_DEBUG(
+  LOG_TRACE(
       logger_, "Searching " << _searchKey << " and currently iterator returned "
                            << searchKey << " for rocks key " << rocksKey);
 
   while (!iter->isEnd() && p.first == searchKey) {
     BlockId currentBlockId = key_manipulator_->extractBlockIdFromKey(iter->getCurrent().first);
 
-    LOG_DEBUG(logger_, "Considering key " << p.first << " with block ID "  << currentBlockId);
+    LOG_TRACE(logger_, "Considering key " << p.first << " with block ID "  << currentBlockId);
 
     if (currentBlockId <= _readVersion) {
-      LOG_DEBUG(logger_, "Found with Block Id " << currentBlockId << " and value " << p.second);
+      LOG_TRACE(logger_, "Found with Block Id " << currentBlockId << " and value " << p.second);
       value = p.second;
       actualBlock = currentBlockId;
       foundKey = true;
       break;
     } else {
-      LOG_DEBUG(
+      LOG_TRACE(
           logger_, "Read version " << currentBlockId << " > " << _readVersion);
       if (!foundKey) {
         // If not found a key with actual block version < readVersion, then
         // we consider the next key as the key candidate.
-        LOG_DEBUG(logger_, "Find next key");
+        LOG_TRACE(logger_, "Find next key");
 
         // Start by exhausting the current key with all the newer blocks
         // records:
@@ -645,7 +645,7 @@ Status DBAdapter::seekAtLeast(IDBClient::IDBClientIterator *iter,
 
         CopyKey(p.first, searchKey);
 
-        LOG_DEBUG(logger_, "Found new search key " << searchKey);
+        LOG_TRACE(logger_, "Found new search key " << searchKey);
       } else {
         // If we already found a suitable key, we break when we find the
         // maximal
@@ -655,7 +655,7 @@ Status DBAdapter::seekAtLeast(IDBClient::IDBClientIterator *iter,
   }
 
   if (iter->isEnd() && !foundKey) {
-    LOG_DEBUG(logger_,
+    LOG_TRACE(logger_,
                     "Reached end of map without finding lower bound "
                     "key with suitable read version");
     m_isEnd = true;
@@ -668,7 +668,7 @@ Status DBAdapter::seekAtLeast(IDBClient::IDBClientIterator *iter,
   _actualVersion = actualBlock;
   _key = searchKey;
   _value = value;
-  LOG_DEBUG(logger_, "Returnign key " << _key <<
+  LOG_TRACE(logger_, "Returnign key " << _key <<
                      " value " << _value <<
                      " in actual block " << _actualVersion <<
                      ", read version " << _readVersion);
@@ -789,7 +789,7 @@ Status DBAdapter::getCurrent(IDBClient::IDBClientIterator *iter,
 Status DBAdapter::isEnd(IDBClient::IDBClientIterator *iter, OUT bool &_isEnd) {
   // Not calling to underlying DB iterator, because it may have next()'d during
   // seekAtLeast
-  LOG_DEBUG(logger_, "Called is end, returning " << m_isEnd);
+  LOG_TRACE(logger_, "Called is end, returning " << m_isEnd);
   _isEnd = m_isEnd;
   return Status::OK();
 }
@@ -832,7 +832,7 @@ BlockId DBAdapter::getLatestBlock() {
     return 0;
   }
 
-  LOG_DEBUG( logger_, "Latest block ID " << key_manipulator_->extractBlockIdFromKey(x.first));
+  LOG_TRACE( logger_, "Latest block ID " << key_manipulator_->extractBlockIdFromKey(x.first));
 
   return key_manipulator_->extractBlockIdFromKey(x.first);
 }

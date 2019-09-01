@@ -872,6 +872,12 @@ void PersistentStorageImp::verifySetDescriptorOfLastExitFromView(const Descripto
   Assert(setIsAllowed());
   Assert(desc.view >= 0);
   // Here we assume that the first view is always 0 (even if we load the initial state from the disk).
+  // TODO: The following line is incorrect (see
+  // https://github.com/vmware/concord-bft/pull/195). However, changing it as in
+  // that PR broke other things. This is a temporary revert until we get the
+  // real fix. While we could comment this line out, I think it's better to
+  // leave it for now so that we don't appear to have a fix when the root
+  // problem isn't solved.
   Assert(hasDescriptorOfLastExecution() || desc.view == 0);
   Assert(desc.elements.size() <= kWorkWindowSize);
 }

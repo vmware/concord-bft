@@ -44,9 +44,10 @@ Status Client::get(Sliver _key, OUT Sliver &_outValue) const {
 }
 
 Status Client::get(Sliver _key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &_size) const {
-  Sliver outValue(buf, bufSize);
-  _size = static_cast<uint32_t>(outValue.length());
-  return get(_key, outValue);
+  auto copy = Sliver::copy(buf, bufSize);
+  auto status =  get(_key, copy);
+  memcpy(buf, copy.data(), bufSize);
+  return status;
 }
 
 /**

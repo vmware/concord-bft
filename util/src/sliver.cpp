@@ -143,6 +143,10 @@ bool Sliver::operator==(const Sliver& other) const {
          memcmp(data(), other.data(), length()) == 0;
 }
 
+bool Sliver::operator!=(const Sliver& other) const {
+  return !(*this == other);
+}
+
 /**
  * a.compare(b) is:
  *  - 0 if lengths are the same, and bytes are the same
