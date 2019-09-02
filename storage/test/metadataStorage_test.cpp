@@ -77,10 +77,8 @@ TEST(metadataStorage_test, multi_write) {
   uint8_t *inBuf[objectsNum];
   uint8_t *outBuf[objectsNum];
   uint32_t objectsDataSize[objectsNum];
-  for (ObjectId i = initialObjectId; i < objectsNum; ++i)
-    objectsDataSize[i] = initialObjDataSize;
   for (ObjectId i = initialObjectId; i < objectsNum; i++) {
-    objectsDataSize[i] += i;
+    objectsDataSize[i] = initialObjDataSize + i;
     inBuf[i] = writeInTransaction(i, objectsDataSize[i]);
     outBuf[i] = new uint8_t[objectsDataSize[i]];
   }
