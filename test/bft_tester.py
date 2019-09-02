@@ -212,6 +212,15 @@ class BftTester:
 
         del self.procs[replica]
 
+    async def send_indefinite_write_requests(self, client, msg):
+        while True:
+            try:
+                await client.write(msg)
+            except:
+                pass
+            await trio.sleep(.1)
+
+
     async def wait_for_state_transfer_to_start(self):
         """
         Retry checking every .5 seconds until state transfer starts at least one
