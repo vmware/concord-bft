@@ -1,19 +1,14 @@
 dist: bionic
 language: cpp
-
-jobs:
-  include:
-  - os: linux
-    compiler: gcc
-    dist: bionic
+os:
+  - linux
     before_install:
       - .travis/preinstall.sh
-    script:
-      - cd $TRAVIS_BUILD_DIR && mkdir build && cd build && cmake .. && make -j $(getconf _NPROCESSORS_ONLN) && ctest
-  - os: linux
-    compiler: clang
-    dist: bionic
-    before_install:
-      - .travis/preinstall.sh
-    script:
-      - cd $TRAVIS_BUILD_DIR && mkdir build && cd build && cmake .. && make -j $(getconf _NPROCESSORS_ONLN) && ctest
+compiler:
+  - gcc
+  - clang
+env:
+   CMAKE_OPTS=-DBUILD_ROCKSDB_STORAGE=FALSE -DCMAKE_BUILD_TYPE=DEBUG
+   CMAKE_OPTS=-DBUILD_ROCKSDB_STORAGE=FALSE -DCMAKE_BUILD_TYPE=RELEASE
+script:
+  - cd $TRAVIS_BUILD_DIR && mkdir build && cd build && cmake $CMAKE_OPTS .. && make -j $(getconf _NPROCESSORS_ONLN) && ctest
