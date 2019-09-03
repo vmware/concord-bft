@@ -1,9 +1,8 @@
 dist: bionic
 language: cpp
-os:
-  - linux
-    before_install:
-      - .travis/preinstall.sh
+os: linux
+before_install:
+  - .travis/preinstall.sh
 compiler:
   - gcc
   - clang
