@@ -114,3 +114,43 @@ class SkvbcPersistenceTest(unittest.TestCase):
                                 # success!
                                 nursery.cancel_scope.cancel()
 
+    def test_read_written_data_after_restart_of_all_nodes(self):
+        """
+        This test aims to validate the blockchain is persistent
+        (i.e. the data is still available after restarting all nodes)
+        1) Write a key-value entry to the blockchain
+        2) Restart all replicas (stop all, followed by start all)
+        3) Verify the same key-value can be read from the blockchain
+        """
+        trio.run(self._test_read_written_data_after_restart_of_all_nodes)
+
+    async def _test_read_written_data_after_restart_of_all_nodes(self):
+        config = bft_tester.TestConfig(n=4,
+                                       f=1,
+                                       c=0,
+                                       num_clients=1,
+                                       key_file_prefix=KEY_FILE_PREFIX,
+                                       start_replica_cmd=start_replica_cmd)
+
+        with bft_tester.BftTester(config) as tester:
+            await tester.init()
+            tester.start_all_replicas()
+
+            key = tester.random_key()
+            value = tester.random_value()
+
+            kv = (key, value)
+            write_kv_msg = self.protocol.write_req([], [kv], 0)
+
+            client = tester.random_client()
+            await client.write(write_kv_msg)
+
+            tester.stop_all_replicas()
+            tester.start_all_replicas()
+
+            read_key_msg = self.protocol.read_req([key])
+            reply = await client.read(read_key_msg)
+
+            kv_reply = self.protocol.parse_reply(reply)
+
+            self.assertEqual({key: value}, kv_reply)
