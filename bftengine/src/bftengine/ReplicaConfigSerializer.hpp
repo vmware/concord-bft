@@ -22,9 +22,10 @@ namespace impl {
 // class for its serialization/deserialization functionality.
 // Any ReplicaConfig changes require synchronization with this class and an
 // update of ReplicaConfigSerializer::classVersion_.
-class ReplicaConfigSerializer: public concord::serialize::Serializable {
+class ReplicaConfigSerializer: public concord::serialize::SerializableFactory<ReplicaConfigSerializer>  {
  public:
   explicit ReplicaConfigSerializer(ReplicaConfig *config);
+  ReplicaConfigSerializer();
   ~ReplicaConfigSerializer() override = default;
 
   ReplicaConfig *getConfig() const { return config_.get(); }
@@ -33,16 +34,12 @@ class ReplicaConfigSerializer: public concord::serialize::Serializable {
   bool operator==(const ReplicaConfigSerializer &other) const;
 
   // Serialization/deserialization
-  concord::serialize::SerializablePtr create(std::istream &inStream) override;
-
   static uint32_t maxSize(uint32_t numOfReplicas);
-
  protected:
-  ReplicaConfigSerializer();
+
   virtual void serializeDataMembers  (std::ostream&) const override;
   virtual void deserializeDataMembers(std::istream&)       override;
-  std::string getName() const override { return className_; };
-  std::string getVersion() const override { return classVersion_; };
+  const std::string getVersion() const override { return "1"; };
 
  private:
   void serializeKey(const std::string &key, std::ostream &outStream) const;
@@ -50,8 +47,6 @@ class ReplicaConfigSerializer: public concord::serialize::Serializable {
   void createSignersAndVerifiers(std::istream &inStream, ReplicaConfig &newObject);
   void serializePointer(concord::serialize::Serializable *ptrToClass, std::ostream &outStream) const;
   static concord::serialize::SerializablePtr deserializePointer(std::istream &inStream);
-
-  static void registerClass();
 
  private:
   std::unique_ptr<ReplicaConfig> config_;
@@ -66,8 +61,6 @@ class ReplicaConfigSerializer: public concord::serialize::Serializable {
   concord::serialize::SerializablePtr thresholdSignerForOptimisticCommit_;
   concord::serialize::SerializablePtr thresholdVerifierForOptimisticCommit_;
 
-  const std::string className_ = "ReplicaConfig";
-  const std::string classVersion_ = "1";
 };
 
 }

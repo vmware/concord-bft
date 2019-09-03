@@ -37,7 +37,6 @@ BlsPublicParameters::BlsPublicParameters(int securityLevel, int curveType)
   g2_get_gen(generator2_);
 
   LOG_TRACE(GL, "Created: " << this);
-  registerObject("BlsPublicParameters", SerializablePtr(new BlsPublicParameters));
 }
 
 BlsPublicParameters::BlsPublicParameters(const BlsPublicParameters &params)
@@ -75,15 +74,13 @@ void BlsPublicParameters::serializeDataMembers(ostream &outStream) const {
   // generated on the fly.
   IPublicParameters::serializeDataMembers(outStream);
   // Serialize curveType_
-  serializeInt(curveType_, outStream);
+  serialize(outStream, curveType_);
 }
 
 void BlsPublicParameters::deserializeDataMembers(istream &inStream)  {
   IPublicParameters::deserializeDataMembers(inStream);
-  curveType_ = deserializeInt<int>(inStream);
+  deserialize(inStream, curveType_);
 }
-
-
 
 bool BlsPublicParameters::operator==(const BlsPublicParameters &other) const {
   bool result = ((other.curveType_ == curveType_) &&
@@ -91,13 +88,6 @@ bool BlsPublicParameters::operator==(const BlsPublicParameters &other) const {
       (other.generator2_ == generator2_) &&
       (IPublicParameters::compare(other)));
   return result;
-}
-
-/************** Deserialization **************/
-
-SerializablePtr BlsPublicParameters::create(istream &inStream) {
-  verifyClassVersion(classVersion_, inStream);
-  return SerializablePtr(new BlsPublicParameters);
 }
 
 } // end of RELIC namespace

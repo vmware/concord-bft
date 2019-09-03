@@ -66,7 +66,8 @@ class IShareVerificationKeyDummy : public IShareVerificationKey {
   string toString() const override { return "IShareVerificationKeyDummy"; }
 };
 
-class IThresholdSignerDummy : public IThresholdSigner {
+class IThresholdSignerDummy : public IThresholdSigner,
+                              public concord::serialize::SerializableFactory<IThresholdSignerDummy>{
  public:
   int requiredLengthForSignedData() const override { return 2048; }
   void signData(const char *hash, int hashLen, char *outSig, int outSigLen) override {}
@@ -77,23 +78,12 @@ class IThresholdSignerDummy : public IThresholdSigner {
   const IShareVerificationKey &getShareVerificationKey() const override {
     return shareVerifyKey;
   }
-  string getName() const override { return "IThresholdSignerDummy"; }
-  std::string getVersion() const override { return "1"; }
-  SerializablePtr create(std::istream& inStream) override {
-    verifyClassVersion(getVersion(), inStream);
-    return SerializablePtr(new IThresholdSignerDummy);
-  }
+  const std::string getVersion() const override { return "1"; }
   void serializeDataMembers  (std::ostream &outStream) const override {}
   void deserializeDataMembers(std::istream &outStream)  override {}
   IShareSecretKeyDummy shareSecretKey;
   IShareVerificationKeyDummy shareVerifyKey;
-
-  static void registerClass();
 };
-
-void IThresholdSignerDummy::registerClass() {
-  registerObject("IThresholdSignerDummy", SerializablePtr(new IThresholdSignerDummy));
-}
 
 class IThresholdAccumulatorDummy : public IThresholdAccumulator {
  public:
@@ -105,7 +95,8 @@ class IThresholdAccumulatorDummy : public IThresholdAccumulator {
   IThresholdAccumulator *clone() override { return nullptr; }
 };
 
-class IThresholdVerifierDummy : public IThresholdVerifier {
+class IThresholdVerifierDummy : public IThresholdVerifier,
+                                public concord::serialize::SerializableFactory<IThresholdVerifierDummy>{
  public:
   IThresholdAccumulator *newAccumulator(
       bool withShareVerification) const override { return new IThresholdAccumulatorDummy; }
@@ -116,22 +107,13 @@ class IThresholdVerifierDummy : public IThresholdVerifier {
   const IShareVerificationKey &getShareVerificationKey(
       ShareID signer) const override { return shareVerifyKey; }
 
-  string getName() const override { return "IThresholdVerifierDummy"; }
-  std::string getVersion() const override { return "1"; }
-  SerializablePtr create(std::istream &inStream) override {
-    verifyClassVersion(getVersion(), inStream);
-    return SerializablePtr(new IThresholdVerifierDummy);
-  }
+  const std::string getVersion() const override { return "1"; }
   void serializeDataMembers(std::ostream &outStream) const override {}
   void deserializeDataMembers(std::istream &outStream)     override {}
   IShareVerificationKeyDummy shareVerifyKey;
 
-  static void registerClass();
 };
 
-void IThresholdVerifierDummy::registerClass() {
-  registerObject("IThresholdVerifierDummy", SerializablePtr(new IThresholdVerifierDummy));
-}
 
 void printRawBuf(const UniquePtrToChar &buf, int64_t bufSize) {
   for (int i = 0; i < bufSize; ++i) {
@@ -457,8 +439,6 @@ void fillReplicaConfig() {
   config.thresholdSignerForOptimisticCommit = new IThresholdSignerDummy;
   config.thresholdVerifierForOptimisticCommit = new IThresholdVerifierDummy;
 
-  IThresholdVerifierDummy::registerClass();
-  IThresholdSignerDummy::registerClass();
 }
 
 void testSetReplicaConfig(bool toSet) {
