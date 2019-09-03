@@ -1,6 +1,6 @@
 //Concord
 //
-//Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+//Copyright (c) 2018, 2019 VMware, Inc. All Rights Reserved.
 //
 //This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in compliance with the Apache 2.0 License. 
 //
@@ -32,6 +32,8 @@ namespace bftEngine
 
 			static void onRequestCompleted(bool isReadOnly);
 
+			static void onSendPrePrepareMessage(size_t batchRequests, size_t pendingRequests);
+
 			static void initDebugStatisticsData();
 
 			static void freeDebugStatisticsData();
@@ -54,6 +56,10 @@ namespace bftEngine
 				size_t   numberOfReceivedStatusMessages;
 				size_t   numberOfReceivedCommitMessages;
 				int64_t  lastExecutedSequenceNumber;
+
+				size_t   prePrepareMessages;
+				size_t   batchRequests;
+				size_t   pendingRequests;
 
 				DebugStatDesc() : initialized(false) {}
 			};

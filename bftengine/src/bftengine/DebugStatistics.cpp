@@ -1,6 +1,6 @@
 //Concord
 //
-//Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+//Copyright (c) 2018, 2019 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -50,6 +50,14 @@ void DebugStatistics::onCycleCheck() {
 			if (d.completedReadWriteRequests > 0)
 				writeThroughput = (d.completedReadWriteRequests / durationSec);
 
+			double avgBatchSize = 0;
+			double avgPendingRequests = 0;
+
+			if (d.prePrepareMessages > 0) {
+				avgBatchSize = (double)d.batchRequests / d.prePrepareMessages;
+				avgPendingRequests = (double)d.pendingRequests / d.prePrepareMessages;
+			}
+
   // We use INFO logging instead of DEBUG logging since there is already a
   // separate switch to turn DebugStatistics on and off. It's likely we want
   // this data to appear when we do not want full debug logging.
@@ -67,7 +75,13 @@ void DebugStatistics::onCycleCheck() {
       "    NumberOfReceivedCommitMessages = " << 
       d.numberOfReceivedCommitMessages << endl <<
       "    LastExecutedSeqNumber = " <<
-      d.lastExecutedSequenceNumber << endl);
+      d.lastExecutedSequenceNumber << endl <<
+      "    PrePrepareMessages = " <<
+      d.prePrepareMessages << endl <<
+      "    AvgBatchSize = " << fixed << setprecision(2)
+      << avgBatchSize << endl <<
+      "    AvgPendingRequest = " << fixed << setprecision(2)
+      << avgPendingRequests << endl);
 
 			d.lastCycleTime = currTime;
 			clearCounters(d);
@@ -109,6 +123,14 @@ void DebugStatistics::onRequestCompleted(bool isReadOnly) {
     d.completedReadWriteRequests++;
 		}
 
+void DebugStatistics::onSendPrePrepareMessage(size_t batchRequests, size_t pendingRequests) {
+			DebugStatDesc& d = getDebugStatDesc();
+
+			d.prePrepareMessages++;
+			d.batchRequests += batchRequests;
+			d.pendingRequests += pendingRequests;
+}
+
 void DebugStatistics::onLastExecutedSequenceNumberChanged(int64_t newNumber) {
 			DebugStatDesc& d = getDebugStatDesc();
 			d.lastExecutedSequenceNumber = newNumber;
@@ -123,6 +145,9 @@ void DebugStatistics::clearCounters(DebugStatDesc& d) {
 			d.numberOfReceivedStatusMessages = 0;
 			d.numberOfReceivedCommitMessages = 0;
 			d.lastExecutedSequenceNumber = 0;
+			d.prePrepareMessages = 0;
+			d.batchRequests = 0;
+			d.pendingRequests = 0;
 		}
 
 #ifdef USE_TLS

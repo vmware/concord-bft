@@ -1,6 +1,6 @@
 //Concord
 //
-//Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+//Copyright (c) 2018, 2019 VMware, Inc. All Rights Reserved.
 //
 //This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in compliance with the Apache 2.0 License. 
 //
@@ -210,12 +210,14 @@ void ReplicaImp::sendRaw(char *m, NodeIdType dest, uint16_t type, MsgSize size) 
 IncomingMsg ReplicaImp::recvMsg() {
   while (true) {
     auto msg = incomingMsgsStorage.pop(timersResolution);
-    if (msg.tag != IncomingMsg::INVALID) {
-      return msg;
-    }
+
     // TODO(GG): make sure that we don't check timers too often
     // (i.e. much faster than timersResolution)
     timersScheduler.evaluate();
+
+    if (msg.tag != IncomingMsg::INVALID) {
+      return msg;
+    }
   }
 }
 
@@ -412,6 +414,9 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
 
   Assert(pp->numberOfRequests() > 0);
 
+  if (debugStatisticsEnabled) {
+    DebugStatistics::onSendPrePrepareMessage(pp->numberOfRequests(), requestsQueueOfPrimary.size());
+  }
   LOG_DEBUG_F(GL, "Sending PrePrepareMsg (seqNumber=%"
       PRId64
       ", requests=%d, size=%d",
