@@ -344,7 +344,7 @@ void testSetDescriptors(bool toSet) {
   Bitmap requests(100);
   DescriptorOfLastExecution lastExecutionDesc(lastExecutionSeqNum, requests);
 
-  ViewNum viewNum = 2;
+  ViewNum viewNum = 0;
   SeqNum lastExitExecNum = 65;
   PrevViewInfoElements elements;
   ViewsManager::PrevViewInfo element;
@@ -358,12 +358,12 @@ void testSetDescriptors(bool toSet) {
   SeqNum lastExitStableNum = 60;
   SeqNum lastExitStableLowerBound = 50;
   SeqNum lastStable = 48;
-  auto *viewChangeMsg = new ViewChangeMsg(senderId, viewNum, lastStable);
+  auto *viewChangeMsg = new ViewChangeMsg(senderId, viewNum + 1, lastStable);
   DescriptorOfLastExitFromView lastExitFromViewDesc(viewNum, lastExitStableNum, lastExitExecNum, elements,
                                                     viewChangeMsg, lastExitStableLowerBound);
 
   ViewChangeMsgsVector msgs;
-  ViewNum newViewNum = 6;
+  ViewNum newViewNum = 1;
   for (auto i = 1; i <= msgsNum; i++)
     msgs.push_back(new ViewChangeMsg(i, newViewNum, lastExitStableNum));
   SeqNum maxSeqNum = 200;
