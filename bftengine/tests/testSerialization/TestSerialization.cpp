@@ -363,8 +363,7 @@ void testSetDescriptors(bool toSet) {
                                                     viewChangeMsg, lastExitStableLowerBound);
 
   ViewChangeMsgsVector msgs;
-  ViewNum newViewNum = 1
-  ;
+  ViewNum newViewNum = 1;
   for (auto i = 1; i <= msgsNum; i++)
     msgs.push_back(new ViewChangeMsg(i, newViewNum, lastExitStableNum));
   SeqNum maxSeqNum = 200;
