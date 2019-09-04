@@ -25,7 +25,7 @@ namespace impl {
 class ReplicaConfigSerializer: public concord::serialize::SerializableFactory<ReplicaConfigSerializer>  {
  public:
   explicit ReplicaConfigSerializer(ReplicaConfig *config);
-  ReplicaConfigSerializer();
+
   ~ReplicaConfigSerializer() override = default;
 
   ReplicaConfig *getConfig() const { return config_.get(); }
@@ -36,7 +36,8 @@ class ReplicaConfigSerializer: public concord::serialize::SerializableFactory<Re
   // Serialization/deserialization
   static uint32_t maxSize(uint32_t numOfReplicas);
  protected:
-
+  friend class concord::serialize::SerializableFactory<ReplicaConfigSerializer>;
+  ReplicaConfigSerializer();
   virtual void serializeDataMembers  (std::ostream&) const override;
   virtual void deserializeDataMembers(std::istream&)       override;
   const std::string getVersion() const override { return "1"; };
