@@ -19,6 +19,7 @@
 
 #include <functional>
 #include "type_traits.h"
+#include "demangle.hpp"
 #include "Logger.hpp"
 
 namespace concord {
@@ -73,7 +74,7 @@ protected:
    */
   virtual void deserializeDataMembers(std::istream&)       = 0;
 
-  virtual const std::string getName() const final {return typeid(*this).name();}
+  virtual const std::string getName() const final { return demangler::demangle(typeid(*this)); }
 
 protected:
   /** *****************************************************************************************************************
@@ -225,7 +226,7 @@ class SerializableFactory: public virtual Serializable {
 public:
   SerializableFactory(){(void)registered_;}
   static bool registerT() {
-    registry()[typeid(T).name()] = []() -> Serializable* { return new T;};
+    registry()[demangler::demangle<T>()] = []() -> Serializable* { return new T;};
     return true;
   }
   static bool registered_;
