@@ -64,7 +64,7 @@ void PersistentStorageImp::setDefaultsInMetadataStorage() {
   setStrictLowerBoundOfSeqNumsInternal(strictLowerBoundOfSeqNums_);
   setLastViewTransferredSeqNumbersInternal(lastViewTransferredSeqNum_);
 
-  metadataStorage_->writeInTransaction(LAST_STABLE_SEQ_NUM, (char *) &lastStableSeqNum_, sizeof(lastStableSeqNum_));
+  metadataStorage_->writeInBatch(LAST_STABLE_SEQ_NUM, (char *) &lastStableSeqNum_, sizeof(lastStableSeqNum_));
   setDefaultWindowsValues();
 
   initDescriptorOfLastExitFromView();
@@ -125,7 +125,7 @@ ObjectDescUniquePtr PersistentStorageImp::getDefaultMetadataObjectDescriptors(ui
 
 uint8_t PersistentStorageImp::beginWriteTran() {
   if (numOfNestedTransactions_ == 0) {
-    metadataStorage_->beginAtomicWriteOnlyTransaction();
+    metadataStorage_->beginAtomicWriteOnlyBatch();
   }
   return ++numOfNestedTransactions_;
 }
@@ -133,7 +133,7 @@ uint8_t PersistentStorageImp::beginWriteTran() {
 uint8_t PersistentStorageImp::endWriteTran() {
   Assert(numOfNestedTransactions_ != 0);
   if (--numOfNestedTransactions_ == 0) {
-    metadataStorage_->commitAtomicWriteOnlyTransaction();
+    metadataStorage_->commitAtomicWriteOnlyBatch();
   }
   return numOfNestedTransactions_;
 }
@@ -149,7 +149,7 @@ void PersistentStorageImp::setReplicaConfig(const ReplicaConfig &config) {
   std::ostringstream oss;
   configSerializer_->setConfig(config);
   configSerializer_->serialize(oss);
-  metadataStorage_->writeInTransaction(REPLICA_CONFIG, (char *) oss.rdbuf()->str().c_str(), oss.tellp());
+  metadataStorage_->writeInBatch(REPLICA_CONFIG, (char *) oss.rdbuf()->str().c_str(), oss.tellp());
 }
 
 void PersistentStorageImp::setVersion() const {
@@ -162,11 +162,11 @@ void PersistentStorageImp::setVersion() const {
   memcpy(outBufPtr, &sizeOfVersion, sizeOfSizeOfVersion);
   outBufPtr += sizeOfSizeOfVersion;
   memcpy(outBufPtr, version_.c_str(), sizeOfVersion);
-  metadataStorage_->writeInTransaction(VERSION_PARAMETER, outBuf.get(), outBufSize);
+  metadataStorage_->writeInBatch(VERSION_PARAMETER, outBuf.get(), outBufSize);
 }
 
 void PersistentStorageImp::setFetchingStateInternal(uint8_t state) {
-  metadataStorage_->writeInTransaction(FETCHING_STATE, (char *) &state, sizeof(uint8_t));
+  metadataStorage_->writeInBatch(FETCHING_STATE, (char *) &state, sizeof(uint8_t));
   fetchingState_ = state;
 }
 
@@ -177,7 +177,7 @@ void PersistentStorageImp::setFetchingState(bool state) {
 }
 
 void PersistentStorageImp::setLastExecutedSeqNumInternal(SeqNum seqNum) {
-  metadataStorage_->writeInTransaction(LAST_EXEC_SEQ_NUM, (char *) &seqNum, sizeof(seqNum));
+  metadataStorage_->writeInBatch(LAST_EXEC_SEQ_NUM, (char *) &seqNum, sizeof(seqNum));
   lastExecutedSeqNum_ = seqNum;
 }
 
@@ -188,7 +188,7 @@ void PersistentStorageImp::setLastExecutedSeqNum(SeqNum seqNum) {
 }
 
 void PersistentStorageImp::setPrimaryLastUsedSeqNumInternal(SeqNum seqNum) {
-  metadataStorage_->writeInTransaction(PRIMARY_LAST_USED_SEQ_NUM, (char *) &seqNum, sizeof(seqNum));
+  metadataStorage_->writeInBatch(PRIMARY_LAST_USED_SEQ_NUM, (char *) &seqNum, sizeof(seqNum));
   primaryLastUsedSeqNum_ = seqNum;
 }
 
@@ -198,7 +198,7 @@ void PersistentStorageImp::setPrimaryLastUsedSeqNum(SeqNum seqNum) {
 }
 
 void PersistentStorageImp::setStrictLowerBoundOfSeqNumsInternal(SeqNum seqNum) {
-  metadataStorage_->writeInTransaction(LOWER_BOUND_OF_SEQ_NUM, (char *) &seqNum, sizeof(seqNum));
+  metadataStorage_->writeInBatch(LOWER_BOUND_OF_SEQ_NUM, (char *) &seqNum, sizeof(seqNum));
   strictLowerBoundOfSeqNums_ = seqNum;
 }
 
@@ -208,7 +208,7 @@ void PersistentStorageImp::setStrictLowerBoundOfSeqNums(SeqNum seqNum) {
 }
 
 void PersistentStorageImp::setLastViewTransferredSeqNumbersInternal(ViewNum view) {
-  metadataStorage_->writeInTransaction(LAST_VIEW_TRANSFERRED_SEQ_NUM, (char *) &view, sizeof(view));
+  metadataStorage_->writeInBatch(LAST_VIEW_TRANSFERRED_SEQ_NUM, (char *) &view, sizeof(view));
   lastViewTransferredSeqNum_ = view;
 }
 
@@ -225,7 +225,7 @@ void PersistentStorageImp::saveDescriptorOfLastExitFromView(const DescriptorOfLa
   UniquePtrToChar simpleParamsBuf(new char[simpleParamsSize]);
   size_t actualSize = 0;
   newDesc.serializeSimpleParams(simpleParamsBuf.get(), simpleParamsSize, actualSize);
-  metadataStorage_->writeInTransaction(LAST_EXIT_FROM_VIEW_DESC, simpleParamsBuf.get(), simpleParamsSize);
+  metadataStorage_->writeInBatch(LAST_EXIT_FROM_VIEW_DESC, simpleParamsBuf.get(), simpleParamsSize);
 
   size_t actualElementSize = 0;
   uint32_t elementsNum = newDesc.elements.size();
@@ -236,7 +236,7 @@ void PersistentStorageImp::saveDescriptorOfLastExitFromView(const DescriptorOfLa
     Assert(actualElementSize != 0);
     uint32_t itemId = LAST_EXIT_FROM_VIEW_DESC + 1 + i;
     Assert(itemId < LAST_EXEC_DESC);
-    metadataStorage_->writeInTransaction(itemId, elementBuf.get(), actualElementSize);
+    metadataStorage_->writeInBatch(itemId, elementBuf.get(), actualElementSize);
   }
 }
 
@@ -263,7 +263,7 @@ void PersistentStorageImp::saveDescriptorOfLastNewView(const DescriptorOfLastNew
   UniquePtrToChar simpleParamsBuf(new char[simpleParamsSize]);
   size_t actualSize = 0;
   newDesc.serializeSimpleParams(simpleParamsBuf.get(), simpleParamsSize, actualSize);
-  metadataStorage_->writeInTransaction(LAST_NEW_VIEW_DESC, simpleParamsBuf.get(), actualSize);
+  metadataStorage_->writeInBatch(LAST_NEW_VIEW_DESC, simpleParamsBuf.get(), actualSize);
 
   size_t actualElementSize = 0;
   uint32_t numOfMessages = DescriptorOfLastNewView::getViewChangeMsgsNum();
@@ -272,7 +272,7 @@ void PersistentStorageImp::saveDescriptorOfLastNewView(const DescriptorOfLastNew
   for (uint32_t i = 0; i < numOfMessages; ++i) {
     newDesc.serializeElement(i, elementBuf.get(), maxElementSize, actualElementSize);
     Assert(actualElementSize != 0);
-    metadataStorage_->writeInTransaction(LAST_NEW_VIEW_DESC + 1 + i, elementBuf.get(), actualElementSize);
+    metadataStorage_->writeInBatch(LAST_NEW_VIEW_DESC + 1 + i, elementBuf.get(), actualElementSize);
   }
 }
 
@@ -301,7 +301,7 @@ void PersistentStorageImp::saveDescriptorOfLastExecution(const DescriptorOfLastE
   size_t actualSize = 0;
   newDesc.serialize(descBufPtr, bufLen, actualSize);
   Assert(actualSize != 0);
-  metadataStorage_->writeInTransaction(LAST_EXEC_DESC, descBuf.get(), actualSize);
+  metadataStorage_->writeInBatch(LAST_EXEC_DESC, descBuf.get(), actualSize);
 }
 
 void PersistentStorageImp::setDescriptorOfLastExecution(const DescriptorOfLastExecution &desc, bool init) {
@@ -339,41 +339,41 @@ void PersistentStorageImp::setSeqNumDataElement(SeqNum index, const SeqNumData &
   size_t actualSize = seqNumData.serializePrePrepareMsg(movablePtr);
   uint32_t itemId = BEGINNING_OF_SEQ_NUM_WINDOW + PRE_PREPARE_MSG + shift;
   Assert(itemId < BEGINNING_OF_CHECK_WINDOW);
-  metadataStorage_->writeInTransaction(itemId, buf.get(), actualSize);
+  metadataStorage_->writeInBatch(itemId, buf.get(), actualSize);
   Assert(actualSize != 0);
 
   movablePtr = buf.get();
   actualSize = seqNumData.serializeFullCommitProofMsg(movablePtr);
   itemId = BEGINNING_OF_SEQ_NUM_WINDOW + FULL_COMMIT_PROOF_MSG + shift;
   Assert(itemId < BEGINNING_OF_CHECK_WINDOW);
-  metadataStorage_->writeInTransaction(itemId, buf.get(), actualSize);
+  metadataStorage_->writeInBatch(itemId, buf.get(), actualSize);
   Assert(actualSize != 0);
 
   movablePtr = buf.get();
   actualSize = seqNumData.serializePrepareFullMsg(movablePtr);
   itemId = BEGINNING_OF_SEQ_NUM_WINDOW + PRE_PREPARE_FULL_MSG + shift;
   Assert(itemId < BEGINNING_OF_CHECK_WINDOW);
-  metadataStorage_->writeInTransaction(itemId, buf.get(), actualSize);
+  metadataStorage_->writeInBatch(itemId, buf.get(), actualSize);
   Assert(actualSize != 0);
 
   movablePtr = buf.get();
   actualSize = seqNumData.serializeCommitFullMsg(movablePtr);
   itemId = BEGINNING_OF_SEQ_NUM_WINDOW + COMMIT_FULL_MSG + shift;
   Assert(itemId < BEGINNING_OF_CHECK_WINDOW);
-  metadataStorage_->writeInTransaction(itemId, buf.get(), actualSize);
+  metadataStorage_->writeInBatch(itemId, buf.get(), actualSize);
   Assert(actualSize != 0);
 
   movablePtr = buf.get();
   actualSize = seqNumData.serializeForceCompleted(movablePtr);
   itemId = BEGINNING_OF_SEQ_NUM_WINDOW + FORCE_COMPLETED + shift;
   Assert(itemId < BEGINNING_OF_CHECK_WINDOW);
-  metadataStorage_->writeInTransaction(itemId, buf.get(), actualSize);
+  metadataStorage_->writeInBatch(itemId, buf.get(), actualSize);
 
   movablePtr = buf.get();
   actualSize = seqNumData.serializeSlowStarted(movablePtr);
   itemId = BEGINNING_OF_SEQ_NUM_WINDOW + SLOW_STARTED + shift;
   Assert(itemId < BEGINNING_OF_CHECK_WINDOW);
-  metadataStorage_->writeInTransaction(itemId, buf.get(), actualSize);
+  metadataStorage_->writeInBatch(itemId, buf.get(), actualSize);
 }
 
 void PersistentStorageImp::saveDefaultsInCheckWindow() {
@@ -391,13 +391,13 @@ void PersistentStorageImp::setCheckDataElement(SeqNum index, const CheckData &ch
 
   uint32_t itemId = BEGINNING_OF_CHECK_WINDOW + CHECK_DATA_FIRST_PARAM + shift;
   Assert(itemId < WIN_PARAMETERS_NUM);
-  metadataStorage_->writeInTransaction(itemId, buf.get(), actualSize);
+  metadataStorage_->writeInBatch(itemId, buf.get(), actualSize);
   Assert(actualSize != 0);
   movablePtr = buf.get();
   actualSize = checkData.serializeCompletedMark(movablePtr);
   itemId = BEGINNING_OF_CHECK_WINDOW + COMPLETED_MARK + shift;
   Assert(itemId < WIN_PARAMETERS_NUM);
-  metadataStorage_->writeInTransaction(itemId, buf.get(), actualSize);
+  metadataStorage_->writeInBatch(itemId, buf.get(), actualSize);
 }
 
 void PersistentStorageImp::setDefaultWindowsValues() {
@@ -409,7 +409,7 @@ void PersistentStorageImp::setDefaultWindowsValues() {
 
 void PersistentStorageImp::writeBeginningOfActiveWindow(uint32_t index, SeqNum beginning) const {
   LOG_DEBUG(GL, "PersistentStorageImp::writeBeginningOfActiveWindow index=" << index << "beginning=" << beginning);
-  metadataStorage_->writeInTransaction(index, (char *) &beginning, sizeof(beginning));
+  metadataStorage_->writeInBatch(index, (char *) &beginning, sizeof(beginning));
 }
 
 /***** Public functions *****/
@@ -422,7 +422,7 @@ void PersistentStorageImp::setLastStableSeqNum(SeqNum seqNum) {
   SharedPtrCheckWindow checkWindow(new CheckWindow(checkWindowBeginning_));
   SharedPtrSeqNumWindow seqNumWindow(new SeqNumWindow(seqNumWindowBeginning_));
 
-  metadataStorage_->writeInTransaction(LAST_STABLE_SEQ_NUM, (char *) &seqNum, sizeof(seqNum));
+  metadataStorage_->writeInBatch(LAST_STABLE_SEQ_NUM, (char *) &seqNum, sizeof(seqNum));
   list<SeqNum> cleanedCheckWindowItems = checkWindow.get()->advanceActiveWindow(seqNum);
   list<SeqNum> cleanedSeqNumWindowItems = seqNumWindow.get()->advanceActiveWindow(seqNum + 1);
   checkWindowBeginning_ = checkWindow.get()->getBeginningOfActiveWindow();
@@ -452,7 +452,7 @@ void PersistentStorageImp::setMsgInSeqNumWindow(SeqNum seqNum, SeqNum parameterI
   const SeqNum convertedIndex = BEGINNING_OF_SEQ_NUM_WINDOW + parameterId + convertSeqNumWindowIndex(seqNum);
   Assert(convertedIndex < BEGINNING_OF_CHECK_WINDOW);
   LOG_DEBUG(GL, "PersistentStorageImp::setMsgInSeqNumWindow convertedIndex=" << convertedIndex);
-  metadataStorage_->writeInTransaction(convertedIndex, buf.get(), actualSize);
+  metadataStorage_->writeInBatch(convertedIndex, buf.get(), actualSize);
 }
 
 void PersistentStorageImp::setPrePrepareMsgInSeqNumWindow(SeqNum seqNum, PrePrepareMsg *msg) {
@@ -473,7 +473,7 @@ void PersistentStorageImp::setCommitFullMsgInSeqNumWindow(SeqNum seqNum, CommitF
 
 void PersistentStorageImp::setOneByteInSeqNumWindow(SeqNum seqNum, SeqNum parameterId, uint8_t oneByte) const {
   const SeqNum convertedIndex = BEGINNING_OF_SEQ_NUM_WINDOW + parameterId + convertSeqNumWindowIndex(seqNum);
-  metadataStorage_->writeInTransaction(convertedIndex, (char *) &oneByte, sizeof(oneByte));
+  metadataStorage_->writeInBatch(convertedIndex, (char *) &oneByte, sizeof(oneByte));
 }
 
 void PersistentStorageImp::setForceCompletedInSeqNumWindow(SeqNum seqNum, bool forceCompleted) {
@@ -492,7 +492,7 @@ void PersistentStorageImp::setCompletedMarkInCheckWindow(SeqNum seqNum, bool com
   CheckData::serializeCompletedMark(movablePtr, completed);
   const SeqNum convertedIndex = BEGINNING_OF_CHECK_WINDOW + COMPLETED_MARK + convertCheckWindowIndex(seqNum);
   Assert(convertedIndex < WIN_PARAMETERS_NUM);
-  metadataStorage_->writeInTransaction(convertedIndex, buf, sizeOfCompleted);
+  metadataStorage_->writeInBatch(convertedIndex, buf, sizeOfCompleted);
 }
 
 void PersistentStorageImp::setCheckpointMsgInCheckWindow(SeqNum seqNum, CheckpointMsg *msg) {
@@ -504,7 +504,7 @@ void PersistentStorageImp::setCheckpointMsgInCheckWindow(SeqNum seqNum, Checkpoi
   const SeqNum convertedIndex = BEGINNING_OF_CHECK_WINDOW + CHECKPOINT_MSG + convertCheckWindowIndex(seqNum);
   Assert(convertedIndex < WIN_PARAMETERS_NUM);
   LOG_DEBUG(GL, "PersistentStorageImp::setCheckpointMsgInCheckWindow convertedIndex=" << convertedIndex);
-  metadataStorage_->writeInTransaction(convertedIndex, buf.get(), actualSize);
+  metadataStorage_->writeInBatch(convertedIndex, buf.get(), actualSize);
 }
 
 /***** Getters *****/

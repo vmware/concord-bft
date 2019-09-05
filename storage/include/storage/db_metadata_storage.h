@@ -39,9 +39,9 @@ class DBMetadataStorage : public bftEngine::MetadataStorage {
   void read(uint32_t objectId, uint32_t bufferSize, char *outBufferForObject,
             uint32_t &outActualObjectSize) override;
   void atomicWrite(uint32_t objectId, char *data, uint32_t dataLength) override;
-  void beginAtomicWriteOnlyTransaction() override;
-  void writeInTransaction(uint32_t objectId, char *data, uint32_t dataLength) override;
-  void commitAtomicWriteOnlyTransaction() override;
+  void beginAtomicWriteOnlyBatch() override;
+  void writeInBatch(uint32_t objectId, char *data, uint32_t dataLength) override;
+  void commitAtomicWriteOnlyBatch() override;
   concordUtils::Status multiDel(const ObjectIdsVector &objectIds);
   bool isNewStorage() override;
 
@@ -49,14 +49,14 @@ class DBMetadataStorage : public bftEngine::MetadataStorage {
   void verifyOperation(uint32_t objectId, uint32_t dataLen, const char *buffer, bool writeOperation) const;
 
  private:
-  const char *WRONG_FLOW = "beginAtomicWriteOnlyTransaction should be launched first";
+  const char *WRONG_FLOW = "beginAtomicWriteOnlyBatch should be launched first";
   const char *WRONG_PARAMETER = "Wrong parameter value specified";
 
   const uint8_t objectsNumParameterId_ = 1;
 
   concordlogger::Logger logger_;
   IDBClient *dbClient_ = nullptr;
-  SetOfKeyValuePairs *transaction_ = nullptr;
+  SetOfKeyValuePairs *batch_ = nullptr;
   std::mutex ioMutex_;
   ObjectIdToSizeMap objectIdToSizeMap_;
   uint32_t objectsNum_ = 0;

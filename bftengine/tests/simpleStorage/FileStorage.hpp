@@ -41,12 +41,12 @@ class FileStorage : public MetadataStorage {
 
   void atomicWrite(uint32_t objectId, char *data, uint32_t dataLength) override;
 
-  void beginAtomicWriteOnlyTransaction() override;
+  void beginAtomicWriteOnlyBatch() override;
 
-  void writeInTransaction(uint32_t objectId, char *data,
-                          uint32_t dataLength) override;
+  void writeInBatch(uint32_t objectId, char *data,
+                    uint32_t dataLength) override;
 
-  void commitAtomicWriteOnlyTransaction() override;
+  void commitAtomicWriteOnlyBatch() override;
 
  private:
   void read(void *dataPtr, size_t offset, size_t itemSize,
@@ -83,7 +83,7 @@ class FileStorage : public MetadataStorage {
   const char *WRONG_OBJ_INFO_READ =
       "Failed to read objects info or it is different from expected";
   const char *WRONG_FLOW =
-      "beginAtomicWriteOnlyTransaction should be launched first";
+      "beginAtomicWriteOnlyBatch should be launched first";
 
   const uint8_t initializedObjectId_ = 1;
 

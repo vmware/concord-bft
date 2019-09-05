@@ -48,11 +48,11 @@ class MetadataStorage {
                            uint32_t dataLength) = 0;
 
   // Atomic write-only transactions
-  virtual void beginAtomicWriteOnlyTransaction() = 0;
-  virtual void writeInTransaction(uint32_t objectId,
-                                  char *data,
-                                  uint32_t dataLength) = 0;
-  virtual void commitAtomicWriteOnlyTransaction() = 0;
+  virtual void beginAtomicWriteOnlyBatch() = 0;
+  virtual void writeInBatch(uint32_t objectId,
+                            char *data,
+                            uint32_t dataLength) = 0;
+  virtual void commitAtomicWriteOnlyBatch() = 0;
 };
 
 }
