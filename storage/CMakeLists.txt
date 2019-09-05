@@ -21,10 +21,11 @@ if (BUILD_ROCKSDB_STORAGE)
   target_include_directories(concordbft_storage PUBLIC ${ROCKSDB_INCLUDE_DIR})
   target_link_libraries(concordbft_storage ${ROCKSDB} ${LIBBZ2} ${LIBLZ4} ${LIBZSTD} ${LIBZ} ${LIBSNAPPY})
 
-  if (BUILD_TESTING)
-    add_subdirectory(test)
-  endif()
 endif(BUILD_ROCKSDB_STORAGE)
 
 target_sources(concordbft_storage PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/memorydb_client.cpp)
+
+if (BUILD_TESTING)
+    add_subdirectory(test)
+endif()
 

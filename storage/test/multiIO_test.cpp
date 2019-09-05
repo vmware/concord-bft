@@ -1,15 +1,19 @@
  // Copyright 2019 VMware, all rights reserved
 /**
- * Test multi* functions for RocksDBClient class.
+ * Test multi* functions and transactions for IDBClient implementations.
  */
-
-#define USE_ROCKSDB 1
 
 #include "Logger.hpp"
 #include "hash_defs.h"
 #include "gtest/gtest.h"
+
+#ifdef USE_ROCKSDB
 #include "rocksdb/key_comparator.h"
 #include "rocksdb/client.h"
+#else
+#include "memorydb/client.h"
+#endif
+
 #include "kv_types.hpp"
 #include "blockchain/db_adapter.h"
 
@@ -20,8 +24,15 @@ using concordUtils::Sliver;
 using concordUtils::KeysVector;
 using concordUtils::KeyValuePair;
 using concordUtils::SetOfKeyValuePairs;
+
+#ifdef USE_ROCKSDB
 using concord::storage::rocksdb::Client;
 using concord::storage::rocksdb::KeyComparator;
+#else
+using concord::storage::memorydb::Client;
+using concord::storage::memorydb::KeyComparator;
+#endif
+
 using concord::storage::ITransaction;
 using concord::storage::blockchain::KeyManipulator;
 namespace {
@@ -157,9 +168,16 @@ TEST(multiIO_test, no_commit_during_exception)
 
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
+
+#ifdef USE_ROCKSDB
   const string dbPath = "./rocksdb_test";
   dbClient = new Client(dbPath, new KeyComparator(new KeyManipulator()));
   dbClient->init();
+#else
+  // Using memorydb client
+  dbClient = new Client(KeyComparator(new KeyManipulator));
+#endif
+
   int res = RUN_ALL_TESTS();
   return res;
 }

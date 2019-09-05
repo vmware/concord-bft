@@ -17,6 +17,7 @@
 #include "key_comparator.h"
 #include "storage/db_interface.h"
 #include <functional>
+#include <mutex>
 
 
 namespace concord {
@@ -33,7 +34,7 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
 
  public:
   ClientIterator(Client *_parentClient)
-      : logger(concordlogger::Log::getLogger("concord.storage.memorydb")), m_parentClient(_parentClient) {}
+      : logger(concordlogger::Log::getLogger("concord.storage.memorydb")), client_(_parentClient) {}
   virtual ~ClientIterator() {}
 
   // Inherited via IDBClientIterator
@@ -49,16 +50,12 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
   concordlogger::Logger logger;
 
   // Pointer to the Client.
-  Client *m_parentClient;
+  Client *client_;
 
   // Current iterator inside the map.
   TKVStore::const_iterator m_current;
 };
 
-// In-memory IO operations below are not thread-safe.
-// get/put/del/multiGet/multiPut/multiDel operations are not synchronized and
-// not guarded by locks. The caller is expected to use those APIs via a
-// single thread.
 class Client : public IDBClient {
  public:
   Client(KeyComparator comp) : comp_(comp), map_([this](const Sliver&a , const Sliver& b){ return comp_(a, b); }) {}
@@ -75,7 +72,7 @@ class Client : public IDBClient {
   concordUtils::Status multiDel(const KeysVector &_keysVec) override;
   virtual void monitor() const override{};
   bool isNew() override { return true; }
-  ITransaction* beginTransaction() override {return nullptr;} // TODO [TK] implement in-memory transaction?
+  ITransaction* beginTransaction() override;
   TKVStore &getMap() { return map_; }
 
  private:
@@ -84,6 +81,11 @@ class Client : public IDBClient {
 
   // map that stores the in memory database.
   TKVStore map_;
+
+  // Mutex that protects the map
+  mutable std::recursive_mutex lock_;
+
+  friend class ClientIterator;
 };
 
 }  // namespace memorydb

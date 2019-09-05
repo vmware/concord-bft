@@ -1,15 +1,18 @@
 // Copyright 2018 VMware, all rights reserved
 
-#include "memorydb/client.h"
-
+#include <atomic>
 #include <chrono>
 #include <cstring>
 
+#include "memorydb/client.h"
+#include "memorydb/transaction.h"
 #include "hash_defs.h"
 #include "sliver.hpp"
 
 using concordUtils::Sliver;
 using concordUtils::Status;
+
+using namespace std;
 
 namespace concord {
 namespace storage {
@@ -35,6 +38,7 @@ void Client::init(bool readOnly) {
  */
 Status Client::get(Sliver _key, OUT Sliver &_outValue) const {
   try {
+    lock_guard<recursive_mutex> guard(lock_);
     _outValue = map_.at(_key);
   } catch (const std::out_of_range &oor) {
     return Status::NotFound(oor.what());
@@ -43,10 +47,11 @@ Status Client::get(Sliver _key, OUT Sliver &_outValue) const {
   return Status::OK();
 }
 
-Status Client::get(Sliver _key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &_size) const {
+Status Client::get(Sliver _key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &size) const {
   auto copy = Sliver::copy(buf, bufSize);
   auto status =  get(_key, copy);
-  memcpy(buf, copy.data(), bufSize);
+  memcpy(buf, copy.data(), copy.length());
+  size = copy.length();
   return status;
 }
 
@@ -87,7 +92,7 @@ Status Client::freeIterator(IDBClientIterator *_iter) const {
  * @return Status OK.
  */
 Status Client::put(Sliver _key, Sliver _value) {
-  // Copy the key and the value
+  lock_guard<recursive_mutex> guard(lock_);
   bool keyExists = false;
   if (map_.find(_key) != map_.end()) {
     keyExists = true;
@@ -121,6 +126,7 @@ Status Client::put(Sliver _key, Sliver _value) {
  * @return Status OK.
  */
 Status Client::del(Sliver _key) {
+  lock_guard<recursive_mutex> guard(lock_);
   bool keyExists = false;
   if (map_.find(_key) != map_.end()) {
     keyExists = true;
@@ -136,6 +142,7 @@ Status Client::del(Sliver _key) {
 }
 
 Status Client::multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec) {
+  lock_guard<recursive_mutex> guard(lock_);
   Status status = Status::OK();
   Sliver sliver;
   for (auto const &it : _keysVec) {
@@ -147,6 +154,7 @@ Status Client::multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec
 }
 
 Status Client::multiPut(const SetOfKeyValuePairs &_keyValueMap) {
+  lock_guard<recursive_mutex> guard(lock_);
   Status status = Status::OK();
   for (const auto &it : _keyValueMap) {
     status = put(it.first, it.second);
@@ -156,6 +164,7 @@ Status Client::multiPut(const SetOfKeyValuePairs &_keyValueMap) {
 }
 
 Status Client::multiDel(const KeysVector &_keysVec) {
+  lock_guard<recursive_mutex> guard(lock_);
   Status status = Status::OK();
   for (auto const &it : _keysVec) {
     status = del(it);
@@ -165,14 +174,25 @@ Status Client::multiDel(const KeysVector &_keysVec) {
 }
 
 /**
+ * @brief Creates a new transcaction
+ *
+ * @return the transaction holding a locked mutex of the client.
+ */
+ITransaction* Client::beginTransaction() {
+  static std::atomic_uint64_t transaction_id (0);
+  return new Transaction(this, ++transaction_id, std::unique_lock<recursive_mutex>(lock_));
+}
+
+/**
  * @brief Moves the iterator to the start of the map.
  *
  * @return Moves the iterator to the start of the map and returns the first key
  * value pair of the map.
  */
 KeyValuePair ClientIterator::first() {
-  m_current = m_parentClient->getMap().begin();
-  if (m_current == m_parentClient->getMap().end()) {
+  lock_guard<recursive_mutex> guard(client_->lock_);
+  m_current = client_->getMap().begin();
+  if (m_current == client_->getMap().end()) {
     return KeyValuePair();
   }
 
@@ -191,8 +211,9 @@ KeyValuePair ClientIterator::first() {
  *  _searchKey.
  */
 KeyValuePair ClientIterator::seekAtLeast(Sliver _searchKey) {
-  m_current = m_parentClient->getMap().lower_bound(_searchKey);
-  if (m_current == m_parentClient->getMap().end()) {
+  lock_guard<recursive_mutex> guard(client_->lock_);
+  m_current = client_->getMap().lower_bound(_searchKey);
+  if (m_current == client_->getMap().end()) {
     LOG_WARN(logger, "Key " << _searchKey << " not found");
     return KeyValuePair();
   }
@@ -208,7 +229,8 @@ KeyValuePair ClientIterator::seekAtLeast(Sliver _searchKey) {
  * @return The previous key value pair.
  */
 KeyValuePair ClientIterator::previous() {
-  if (m_current == m_parentClient->getMap().begin()) {
+  lock_guard<recursive_mutex> guard(client_->lock_);
+  if (m_current == client_->getMap().begin()) {
     LOG_WARN(logger, "Iterator already at first key");
     return KeyValuePair();
   }
@@ -224,8 +246,9 @@ KeyValuePair ClientIterator::previous() {
  * @return The next key value pair.
  */
 KeyValuePair ClientIterator::next() {
+  lock_guard<recursive_mutex> guard(client_->lock_);
   ++m_current;
-  if (m_current == m_parentClient->getMap().end()) {
+  if (m_current == client_->getMap().end()) {
     return KeyValuePair();
   }
 
@@ -238,7 +261,8 @@ KeyValuePair ClientIterator::next() {
  * @return Current key value pair.
  */
 KeyValuePair ClientIterator::getCurrent() {
-  if (m_current == m_parentClient->getMap().end()) {
+  lock_guard<recursive_mutex> guard(client_->lock_);
+  if (m_current == client_->getMap().end()) {
     return KeyValuePair();
   }
 
@@ -250,7 +274,10 @@ KeyValuePair ClientIterator::getCurrent() {
  *
  * @return True if iterator is at the end of the map, else False.
  */
-bool ClientIterator::isEnd() { return m_current == m_parentClient->getMap().end(); }
+bool ClientIterator::isEnd() {
+  lock_guard<recursive_mutex> guard(client_->lock_);
+  return m_current == client_->getMap().end();
+}
 
 /**
  * @brief Does nothing.

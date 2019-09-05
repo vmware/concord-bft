@@ -1,15 +1,19 @@
 // Copyright 2019 VMware, all rights reserved
 /**
- * Test public functions for RocksDBMetadataStorage class.
+ * Test public functions for DBMetadataStorage class.
  */
-
-#define USE_ROCKSDB 1
 
 #include "Logger.hpp"
 #include "hash_defs.h"
 #include "gtest/gtest.h"
+
+#ifdef USE_ROCKSDB
 #include "rocksdb/key_comparator.h"
 #include "rocksdb/client.h"
+#else
+#include "memorydb/client.h"
+#endif
+
 #include "storage/db_metadata_storage.h"
 #include "blockchain/db_types.h"
 #include "blockchain/db_adapter.h"
@@ -17,11 +21,15 @@
 
 using namespace std;
 
+using concord::storage::DBMetadataStorage;
 using concord::storage::blockchain::ObjectId;
 using concord::storage::blockchain::KeyManipulator;
+
+#ifdef USE_ROCKSDB
 using concord::storage::rocksdb::KeyComparator;
-using concord::storage::rocksdb::Client;
-using concord::storage::DBMetadataStorage;
+#else
+using concord::storage::memorydb::KeyComparator;
+#endif
 
 namespace {
 
@@ -100,8 +108,14 @@ int main(int argc, char **argv) {
   KeyComparator* kk = new KeyComparator(new KeyManipulator);
   const string dbPath = "./metadataStorage_test_db";
   remove(dbPath.c_str());
-  Client *dbClient = new Client(dbPath, kk);
+
+#ifdef USE_ROCKSDB
+  auto* dbClient = new concord::storage::rocksdb::Client(dbPath, kk);
   dbClient->init();
+#else
+  auto* dbClient = new concord::storage::memorydb::Client(*kk);
+#endif
+
   metadataStorage = new DBMetadataStorage(dbClient, KeyManipulator::generateMetadataKey);
   bftEngine::MetadataStorage::ObjectDesc objectDesc[objectsNum];
   for (uint32_t id = initialObjectId; id < objectsNum; ++id) {
