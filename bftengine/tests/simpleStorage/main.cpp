@@ -75,11 +75,11 @@ int main(int argc, char **argv) {
     const uint32_t objId2 = 3;
     const uint32_t objId3 = 4;
     const uint32_t objId4 = 5;
-    fileStorage->beginAtomicWriteOnlyTransaction();
-    fileStorage->writeInTransaction(objId2, objOutBuf, sizeof(objOut));
-    fileStorage->writeInTransaction(objId3, objOutBuf, sizeof(objOut));
-    fileStorage->writeInTransaction(objId4, objOutBuf, sizeof(objOut));
-    fileStorage->commitAtomicWriteOnlyTransaction();
+    fileStorage->beginAtomicWriteOnlyBatch();
+    fileStorage->writeInBatch(objId2, objOutBuf, sizeof(objOut));
+    fileStorage->writeInBatch(objId3, objOutBuf, sizeof(objOut));
+    fileStorage->writeInBatch(objId4, objOutBuf, sizeof(objOut));
+    fileStorage->commitAtomicWriteOnlyBatch();
     for (int i = 0; i < 2; i++) {
       verifyData(*fileStorage, objId2);
       verifyData(*fileStorage, objId3);

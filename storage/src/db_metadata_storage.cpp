@@ -88,42 +88,42 @@ void DBMetadataStorage::atomicWrite(uint32_t objectId, char *data, uint32_t data
   }
 }
 
-void DBMetadataStorage::beginAtomicWriteOnlyTransaction() {
+void DBMetadataStorage::beginAtomicWriteOnlyBatch() {
   LOG_DEBUG(logger_, "Begin atomic transaction");
   lock_guard<mutex> lock(ioMutex_);
-  if (transaction_) {
+  if (batch_) {
     LOG_INFO(logger_, "Transaction has been opened before; ignoring");
     return;
   }
-  transaction_ = new SetOfKeyValuePairs;
+  batch_ = new SetOfKeyValuePairs;
 }
 
-void DBMetadataStorage::writeInTransaction(uint32_t objectId, char *data, uint32_t dataLength) {
+void DBMetadataStorage::writeInBatch(uint32_t objectId, char *data, uint32_t dataLength) {
   LOG_DEBUG(logger_, "objectId=" << objectId << ", dataLength=" << dataLength);
   verifyOperation(objectId, dataLength, data, true);
   auto *dataCopy = new uint8_t[dataLength];
   memcpy(dataCopy, data, dataLength);
   lock_guard<mutex> lock(ioMutex_);
-  if (!transaction_) {
+  if (!batch_) {
     LOG_ERROR(logger_, WRONG_FLOW);
     throw runtime_error(WRONG_FLOW);
   }
-  transaction_->insert(KeyValuePair(genMetadataKey_(objectId), Sliver(dataCopy, dataLength)));
+  batch_->insert(KeyValuePair(genMetadataKey_(objectId), Sliver(dataCopy, dataLength)));
 }
 
-void DBMetadataStorage::commitAtomicWriteOnlyTransaction() {
+void DBMetadataStorage::commitAtomicWriteOnlyBatch() {
   LOG_DEBUG(logger_, "Commit atomic transaction");
   lock_guard<mutex> lock(ioMutex_);
-  if (!transaction_) {
+  if (!batch_) {
     LOG_ERROR(logger_, WRONG_FLOW);
     throw runtime_error(WRONG_FLOW);
   }
-  Status status = dbClient_->multiPut(*transaction_);
+  Status status = dbClient_->multiPut(*batch_);
   if (!status.isOK()) {
     throw runtime_error("DBClient multiPut operation failed");
   }
-  delete transaction_;
-  transaction_ = nullptr;
+  delete batch_;
+  batch_ = nullptr;
 }
 
 Status DBMetadataStorage::multiDel(const ObjectIdsVector &objectIds) {

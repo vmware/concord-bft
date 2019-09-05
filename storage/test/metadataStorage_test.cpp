@@ -48,7 +48,7 @@ uint8_t *writeRandomData(const ObjectId &objectId, const uint32_t &dataLen) {
 
 uint8_t *writeInTransaction(const ObjectId &objectId, const uint32_t &dataLen) {
   uint8_t *data = createAndFillBuf(dataLen);
-  metadataStorage->writeInTransaction(objectId, (char *)data, dataLen);
+  metadataStorage->writeInBatch(objectId, (char *)data, dataLen);
   return data;
 }
 
@@ -73,7 +73,7 @@ TEST(metadataStorage_test, single_read) {
 }
 
 TEST(metadataStorage_test, multi_write) {
-  metadataStorage->beginAtomicWriteOnlyTransaction();
+  metadataStorage->beginAtomicWriteOnlyBatch();
   uint8_t *inBuf[objectsNum];
   uint8_t *outBuf[objectsNum];
   uint32_t objectsDataSize[objectsNum];
@@ -82,7 +82,7 @@ TEST(metadataStorage_test, multi_write) {
     inBuf[i] = writeInTransaction(i, objectsDataSize[i]);
     outBuf[i] = new uint8_t[objectsDataSize[i]];
   }
-  metadataStorage->commitAtomicWriteOnlyTransaction();
+  metadataStorage->commitAtomicWriteOnlyBatch();
   uint32_t realSize = 0;
   for (ObjectId i = initialObjectId; i < objectsNum; i++) {
     metadataStorage->read(i, objectsDataSize[i], (char *)outBuf[i], realSize);

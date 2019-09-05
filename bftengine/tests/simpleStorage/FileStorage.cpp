@@ -204,23 +204,23 @@ void FileStorage::atomicWrite(uint32_t objectId, char *data, uint32_t dataLength
   handleObjectWrite(objectId, data, dataLength);
 }
 
-void FileStorage::beginAtomicWriteOnlyTransaction() {
-  LOG_DEBUG(logger_, "FileStorage::beginAtomicWriteOnlyTransaction");
+void FileStorage::beginAtomicWriteOnlyBatch() {
+  LOG_DEBUG(logger_, "FileStorage::beginAtomicWriteOnlyBatch");
   lock_guard<mutex> lock(ioMutex_);
   verifyFileMetadataSetup();
   if (transaction_) {
-    LOG_DEBUG(logger_, "FileStorage::beginAtomicWriteOnlyTransaction Transaction has been opened before; ignoring.");
+    LOG_DEBUG(logger_, "FileStorage::beginAtomicWriteOnlyBatch Transaction has been opened before; ignoring.");
     return;
   }
   transaction_ = new ObjectIdToRequestMap;
 }
 
-void FileStorage::writeInTransaction(uint32_t objectId, char *data, uint32_t dataLength) {
-  LOG_DEBUG(logger_, "FileStorage::writeInTransaction objectId=" << objectId << ", dataLength=" << dataLength);
+void FileStorage::writeInBatch(uint32_t objectId, char *data, uint32_t dataLength) {
+  LOG_DEBUG(logger_, "FileStorage::writeInBatch objectId=" << objectId << ", dataLength=" << dataLength);
   lock_guard<mutex> lock(ioMutex_);
   verifyOperation(objectId, dataLength, data);
   if (!transaction_) {
-    LOG_ERROR(logger_, "FileStorage::writeInTransaction " << WRONG_FLOW);
+    LOG_ERROR(logger_, "FileStorage::writeInBatch " << WRONG_FLOW);
     throw runtime_error(WRONG_FLOW);
   }
 
@@ -230,12 +230,12 @@ void FileStorage::writeInTransaction(uint32_t objectId, char *data, uint32_t dat
   transaction_->insert(pair<uint32_t, RequestInfo>(objectId, RequestInfo(data, dataLength)));
 }
 
-void FileStorage::commitAtomicWriteOnlyTransaction() {
-  LOG_DEBUG(logger_, "FileStorage::commitAtomicWriteOnlyTransaction");
+void FileStorage::commitAtomicWriteOnlyBatch() {
+  LOG_DEBUG(logger_, "FileStorage::commitAtomicWriteOnlyBatch");
   lock_guard<mutex> lock(ioMutex_);
   verifyFileMetadataSetup();
   if (!transaction_) {
-    LOG_ERROR(logger_, "FileStorage::commitAtomicWriteOnlyTransaction " << WRONG_FLOW);
+    LOG_ERROR(logger_, "FileStorage::commitAtomicWriteOnlyBatch " << WRONG_FLOW);
     throw runtime_error(WRONG_FLOW);
   }
   for (const auto &it : *transaction_) {

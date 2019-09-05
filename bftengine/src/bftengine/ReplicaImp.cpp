@@ -3501,14 +3501,10 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg *ppMsg, bool recov
                                                                                       currentPrimary(),
                                                                                       replyBuffer,
                                                                                       actualReplyLength);
-
       send(replyMsg, clientId);
-
       delete replyMsg;
-
       clientsManager->removePendingRequestOfClient(clientId);
     }
-
   }
 
   if ((lastExecutedSeqNum + 1) % checkpointWindowSize == 0) {
