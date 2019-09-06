@@ -99,6 +99,7 @@ bool BasicRandomTestsRunner::isReplyCorrect(RequestType requestType,
 
   LOG_ERROR(logger_, "*** Test failed: actual reply != expected; error: " << error.str());
   assert(0);
+  return false;
 }
 
 }  // namespace BasicRandomTests
