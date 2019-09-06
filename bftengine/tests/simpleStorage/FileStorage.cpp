@@ -133,7 +133,10 @@ bool FileStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint32_
   const size_t maxFileSize = fileMetadataSize + maxObjectsSize;
   LOG_INFO(logger_, "FileStorage::initMaxSizeOfObjects Maximum size of objects is "
       << maxObjectsSize << ", file size is " << maxFileSize);
-  ftruncate(fileno(dataStream_), maxFileSize);
+  if (ftruncate(fileno(dataStream_), maxFileSize)) {
+    LOG_ERROR(logger_, "Failed to truncate file: " << fileName_);
+    assert(true);
+  }
   writeFileMetadata();
   LOG_DEBUG(logger_, "" << *objectsMetadata_);
   return true;
