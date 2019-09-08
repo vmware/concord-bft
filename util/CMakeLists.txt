@@ -5,7 +5,6 @@ add_library(util STATIC
     src/Metrics.cpp
     src/MetricsServer.cpp
     src/SimpleThreadPool.cpp
-    src/Serializable.cpp
     src/histogram.cpp
     src/status.cpp
     src/sliver.cpp

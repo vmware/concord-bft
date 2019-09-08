@@ -25,7 +25,8 @@
 namespace BLS {
 namespace Relic {
 
-class BlsThresholdVerifier : public IThresholdVerifier {
+class BlsThresholdVerifier : public IThresholdVerifier,
+                             public concord::serialize::SerializableFactory<BlsThresholdVerifier> {
  protected:
   BlsPublicParameters params_;
   mutable BlsPublicKey publicKey_;
@@ -83,25 +84,16 @@ class BlsThresholdVerifier : public IThresholdVerifier {
   const override;
 
   // Serialization/deserialization
-  concord::serialize::SerializablePtr create(std::istream &inStream) override;
-
-  concord::serialize::SerializablePtr createDontVerify(std::istream &inStream);
-
  protected:
+  friend class concord::serialize::SerializableFactory<BlsThresholdVerifier>;
   BlsThresholdVerifier() = default;
   virtual void serializeDataMembers  (std::ostream&) const override;
   virtual void deserializeDataMembers(std::istream&)       override;
-  std::string getName() const override { return className_; };
-  std::string getVersion() const override { return classVersion_; };
+  const std::string getVersion() const override { return "1"; };
 
  private:
-  static void registerClass();
   void serializePublicKey(const BlsPublicKey&, std::ostream&) const;
   static G2T deserializePublicKey(std::istream &inStream);
-
- private:
-  std::string className_ = "BlsThresholdVerifier";
-  std::string classVersion_ = "1";
 };
 
 } /* namespace Relic */

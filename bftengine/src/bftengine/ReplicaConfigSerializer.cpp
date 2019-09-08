@@ -39,15 +39,10 @@ uint32_t ReplicaConfigSerializer::maxSize(uint32_t numOfReplicas) {
       sizeof(config_->debugPersistentStorageEnabled));
 }
 
-void ReplicaConfigSerializer::registerClass() {
-  registerObject("ReplicaConfig", SerializablePtr(new ReplicaConfigSerializer));
-}
-
 ReplicaConfigSerializer::ReplicaConfigSerializer(ReplicaConfig *config) {
   config_.reset(new ReplicaConfig);
   if (config)
     *config_ = *config;
-  registerClass();
 }
 
 ReplicaConfigSerializer::ReplicaConfigSerializer() {
@@ -122,7 +117,7 @@ void ReplicaConfigSerializer::serializeDataMembers(ostream &outStream) const {
 
 void ReplicaConfigSerializer::serializePointer(Serializable *ptrToClass, ostream &outStream) const {
   uint8_t ptrToClassSpecified = ptrToClass ? 1 : 0;
-  serializeInt(ptrToClassSpecified, outStream);
+  serialize(outStream, ptrToClassSpecified);
   if (ptrToClass)
     ptrToClass->serialize(outStream);
 }
@@ -155,14 +150,6 @@ const {
 }
 
 /************** Deserialization **************/
-
-SerializablePtr ReplicaConfigSerializer::create(istream &inStream) {
-  // Deserialize class version
-  verifyClassVersion(classVersion_, inStream);
-  return SerializablePtr(new ReplicaConfigSerializer);
-
-}
-
 void ReplicaConfigSerializer::deserializeDataMembers(istream &inStream) {
   ReplicaConfig &config = *config_.get();
 
@@ -215,9 +202,13 @@ void ReplicaConfigSerializer::deserializeDataMembers(istream &inStream) {
 }
 
 SerializablePtr ReplicaConfigSerializer::deserializePointer(std::istream &inStream) {
-  uint8_t ptrToClassSpecified = deserializeInt<uint8_t>(inStream);
-  if (ptrToClassSpecified)
-    return deserialize(inStream);
+  uint8_t ptrToClassSpecified;
+  deserialize(inStream, ptrToClassSpecified);
+  if (ptrToClassSpecified){
+    Serializable* s = nullptr;
+    deserialize(inStream, s);
+    return SerializablePtr(s);
+  }
   return SerializablePtr();
 }
 

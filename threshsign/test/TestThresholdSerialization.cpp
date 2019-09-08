@@ -29,6 +29,7 @@
 #include "Utils.h"
 #include "Timer.h"
 #include "XAssert.h"
+#include "Logger.hpp"
 
 using namespace std;
 using namespace BLS::Relic;
@@ -82,10 +83,11 @@ bool testBlsThresholdSigner(const BlsPublicParameters &params) {
   std::stringstream strstr;
 
   origSigner->serialize(strstr);
-  SerializablePtr resultSigner = BlsThresholdSigner::deserialize(strstr);
+  Serializable* resultSigner = nullptr;
+  BlsThresholdSigner::deserialize(strstr, resultSigner);
 
-  auto *inSigner = (BlsThresholdSigner *) origSigner.get();
-  auto *outSigner = (BlsThresholdSigner *) resultSigner.get();
+  auto *inSigner  = dynamic_cast<BlsThresholdSigner*>(origSigner.get());
+  auto *outSigner = dynamic_cast<BlsThresholdSigner*>(resultSigner);
   return (resultSigner && (*inSigner == *outSigner));
 }
 
@@ -119,10 +121,11 @@ bool testBlsThresholdVerifier(const BlsPublicParameters &params, const vector<Bl
                                                          numOfSigners, verificationKeys));
   std::stringstream strstr;
   origVerifier->serialize(strstr);
-  SerializablePtr resultVerifier = BlsThresholdVerifier::deserialize(strstr);
+  Serializable* resultVerifier(nullptr);
+  BlsThresholdVerifier::deserialize(strstr, resultVerifier);
 
-  auto *inVerifier = (BlsThresholdVerifier *) origVerifier.get();
-  auto *outVerifier = (BlsThresholdVerifier *) resultVerifier.get();
+  auto *inVerifier  = dynamic_cast<BlsThresholdVerifier*>(origVerifier.get());
+  auto *outVerifier = dynamic_cast<BlsThresholdVerifier*>(resultVerifier);
   return (resultVerifier && (*inVerifier == *outVerifier));
 }
 
@@ -132,17 +135,19 @@ bool testBlsMultisigVerifier(const BlsPublicParameters &params, const vector<Bls
   std::stringstream strstr;
   origVerifier->serialize(strstr);
 
-  SerializablePtr resultVerifier = BlsMultisigVerifier::deserialize(strstr);
+  Serializable* resultVerifier(nullptr);
+  BlsMultisigVerifier::deserialize(strstr, resultVerifier);
 
-  auto *inVerifier = (BlsMultisigVerifier *) origVerifier.get();
-  auto *outVerifier = (BlsMultisigVerifier *) resultVerifier.get();
+  auto *inVerifier  = dynamic_cast<BlsMultisigVerifier*>(origVerifier.get());
+  auto *outVerifier = dynamic_cast<BlsMultisigVerifier*>(resultVerifier);
   return (resultVerifier && (*inVerifier == *outVerifier));
 }
 
 int RelicAppMain(const Library &lib, const vector<string> &args) {
   (void) args;
   (void) lib;
-
+  //uncomment if needed
+  //log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("serializable")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
   BlsPublicParameters params(PublicParametersFactory::getWhatever());
 
   assertTrue(testBlsThresholdSigner(params));

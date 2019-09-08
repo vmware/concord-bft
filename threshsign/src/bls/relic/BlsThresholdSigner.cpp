@@ -22,10 +22,6 @@ using namespace concord::serialize;
 namespace BLS {
 namespace Relic {
 
-void BlsThresholdSigner::registerClass() {
-  registerObject("BlsThresholdSigner", SerializablePtr(new BlsThresholdSigner));
-}
-
 BlsThresholdSigner::BlsThresholdSigner(const BlsPublicParameters &params,
                                        ShareID id, const BNT &secretKey)
     : params_(params), secretKey_(secretKey), publicKey_(secretKey), id_(id),
@@ -33,7 +29,6 @@ BlsThresholdSigner::BlsThresholdSigner(const BlsPublicParameters &params,
   // Serialize signer's ID to a buffer
   BNT idNum(id);
   idNum.toBytes(serializedId_, sizeof(id));
-  registerClass();
 }
 
 void BlsThresholdSigner::signData(const char *hash, int hashLen, char *outSig,
@@ -61,9 +56,9 @@ void BlsThresholdSigner::serializeDataMembers(ostream &outStream) const {
   int32_t secretKeySize = secretKey_.x.getByteCount();
   UniquePtrToUChar secretKeyBuf(new unsigned char[secretKeySize]);
   secretKey_.x.toBytes(secretKeyBuf.get(), secretKeySize);
-  serializeInt(secretKeySize, outStream);
+  serialize(outStream, secretKeySize);
   outStream.write((char *) secretKeyBuf.get(), secretKeySize);
-  serializeInt(id_, outStream);
+  serialize(outStream, id_);
 }
 
 bool BlsThresholdSigner::operator==(const BlsThresholdSigner &other) const {
@@ -101,22 +96,19 @@ bool BlsThresholdSigner::operator==(const BlsThresholdSigner &other) const {
 }
 
 /************** Deserialization **************/
-
-SerializablePtr BlsThresholdSigner::create(istream &inStream) {
-  verifyClassVersion(classVersion_, inStream);
-  return SerializablePtr(new BlsThresholdSigner);
-}
 void BlsThresholdSigner::deserializeDataMembers(istream& inStream){
-
-  params_ = *static_cast<BlsPublicParameters*>(deserialize(inStream).get());
+  BlsPublicParameters* params = nullptr;
+  deserialize(inStream, params);
+  params_= BlsPublicParameters(*params);
   sigSize_ = params_.getSignatureSize();
-  auto sizeOfSecretKey = deserializeInt<std::int32_t>(inStream);
+  std::int32_t sizeOfSecretKey = 0;
+  deserialize(inStream, sizeOfSecretKey);
   UniquePtrToUChar secretKey(new unsigned char[sizeOfSecretKey]);
   inStream.read((char *) secretKey.get(), sizeOfSecretKey);
   BNT key(secretKey.get(), sizeOfSecretKey);
   secretKey_ = BlsSecretKey(BNT(secretKey.get(), sizeOfSecretKey));
   publicKey_ = BlsPublicKey(BNT(secretKey.get(), sizeOfSecretKey));
-  id_ = deserializeInt<ShareID>(inStream);
+  deserialize(inStream, id_);
   BNT idNum(id_);
   idNum.toBytes(serializedId_, sizeof(id_));
 }

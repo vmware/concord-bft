@@ -24,18 +24,18 @@ IPublicParameters::IPublicParameters(int securityLevel, string schemeName, strin
 /************** Serialization **************/
 
 void IPublicParameters::serializeDataMembers(ostream &outStream) const {
-  serializeInt(securityLevel_, outStream);
-  LOG_TRACE(loggerSerializable_, "<<< securityLevel_: " << securityLevel_);
-  serializeString(schemeName_, outStream);
-  LOG_TRACE(loggerSerializable_, "<<< schemeName_: " << schemeName_);
-  serializeString(library_, outStream);
-  LOG_TRACE(loggerSerializable_, "<<< library_: " << library_);
+  serialize(outStream, securityLevel_);
+  LOG_TRACE(logger(), "<<< securityLevel_: " << securityLevel_);
+  serialize(outStream, schemeName_);
+  LOG_TRACE(logger(), "<<< schemeName_: " << schemeName_);
+  serialize(outStream, library_);
+  LOG_TRACE(logger(), "<<< library_: " <<library_);
 }
 
 bool IPublicParameters::operator==(const IPublicParameters &other) const {
   bool result = ((other.securityLevel_ == securityLevel_) &&
-      (other.library_ == library_) &&
-      (other.schemeName_ == schemeName_));
+                 (other.library_ == library_) &&
+                 (other.schemeName_ == schemeName_));
 
   if (other.securityLevel_ != securityLevel_)
     std::cout << "securityLevel_" << std::endl;
@@ -48,16 +48,12 @@ bool IPublicParameters::operator==(const IPublicParameters &other) const {
 
 /************** Deserialization **************/
 
-void IPublicParameters::deserializeDataMembers(std::istream &inStream) {
-  securityLevel_ = deserializeInt<int>(inStream);
-  LOG_TRACE(loggerSerializable_, ">>> securityLevel_: " << securityLevel_);
-  schemeName_ = deserializeString(inStream);
-  LOG_TRACE(loggerSerializable_, ">>> schemeName_: " << schemeName_);
-  library_ = deserializeString(inStream);
-  LOG_TRACE(loggerSerializable_, "<<< library_: " << library_);
+void IPublicParameters::deserializeDataMembers(std::istream& inStream){
+  deserialize(inStream, securityLevel_);
+  LOG_TRACE(logger(), ">>> securityLevel_: " << securityLevel_);
+  deserialize(inStream, schemeName_);
+  LOG_TRACE(logger(), ">>> schemeName_: " << schemeName_);
+  deserialize(inStream, library_);
+  LOG_TRACE(logger(), "<<< library_: " << library_);
 }
 
-SerializablePtr IPublicParameters::create(istream &inStream) {
-  verifyClassVersion(classVersion_, inStream);
-  return SerializablePtr(new IPublicParameters);
-}

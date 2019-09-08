@@ -25,10 +25,6 @@ using namespace concord::serialize;
 namespace BLS {
 namespace Relic {
 
-void BlsMultisigVerifier::registerClass() {
-  registerObject("BlsMultisigVerifier", SerializablePtr(new BlsMultisigVerifier));
-}
-
 BlsMultisigVerifier::BlsMultisigVerifier(
     const BlsPublicParameters &params, NumSharesType reqSigners,
     NumSharesType numSigners, const vector<BlsPublicKey> &verificationKeys)
@@ -43,7 +39,6 @@ BlsMultisigVerifier::BlsMultisigVerifier(
   } else {
     // the PK is computed dynamically based on the signer IDs in the signature
   }
-  registerClass();
 }
 
 BlsMultisigVerifier::BlsMultisigVerifier(const BlsThresholdVerifier &base) :
@@ -112,13 +107,6 @@ bool BlsMultisigVerifier::verify(const char *msg, int msgLen,
 bool BlsMultisigVerifier::operator==(const BlsMultisigVerifier &other) const {
   bool result = BlsThresholdVerifier::compare(other);
   return result;
-}
-
-/************** Deserialization **************/
-
-SerializablePtr BlsMultisigVerifier::create(istream &inStream) {
-  verifyClassVersion(classVersion_, inStream);
-  return SerializablePtr(new BlsMultisigVerifier);
 }
 
 } /* namespace Relic */

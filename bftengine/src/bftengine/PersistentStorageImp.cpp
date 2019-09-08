@@ -533,10 +533,10 @@ ReplicaConfig PersistentStorageImp::getReplicaConfig() {
   UniquePtrToChar outBuf(new char[ReplicaConfigSerializer::maxSize(numOfReplicas_)]);
   metadataStorage_->read(REPLICA_CONFIG, ReplicaConfigSerializer::maxSize(numOfReplicas_),
                          outBuf.get(), outActualObjectSize);
-  configSerializer_ = std::static_pointer_cast<ReplicaConfigSerializer,
-                                               Serializable>(ReplicaConfigSerializer::deserialize(outBuf,
-                                                                                                  outActualObjectSize));
-
+  std::istringstream iss(std::string(outBuf.get(), outActualObjectSize));
+  ReplicaConfigSerializer* rc = nullptr;
+  ReplicaConfigSerializer::deserialize(iss, rc);
+  configSerializer_.reset(rc);
   return *configSerializer_->getConfig();
 }
 
