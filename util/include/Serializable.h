@@ -181,7 +181,7 @@ protected:
     char* str =  new char[sz];
     deserialize(inStream, str, sz);
     t.assign(str, sz);
-    LOG_TRACE(logger(), str);
+    LOG_TRACE(logger(), t);
     delete [] str;
   }
   /** *****************************************************************************************************************

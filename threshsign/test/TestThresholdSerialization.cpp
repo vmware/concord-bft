@@ -29,6 +29,7 @@
 #include "Utils.h"
 #include "Timer.h"
 #include "XAssert.h"
+#include "Logger.hpp"
 
 using namespace std;
 using namespace BLS::Relic;
@@ -145,7 +146,8 @@ bool testBlsMultisigVerifier(const BlsPublicParameters &params, const vector<Bls
 int RelicAppMain(const Library &lib, const vector<string> &args) {
   (void) args;
   (void) lib;
-
+  //uncomment if needed
+  //log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("serializable")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
   BlsPublicParameters params(PublicParametersFactory::getWhatever());
 
   assertTrue(testBlsThresholdSigner(params));

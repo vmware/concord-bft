@@ -19,8 +19,9 @@
 struct demangler {
   static std::string demangle(const char* name) {
       int status = -4;
-      std::unique_ptr<char, void(*)(void*)> res {abi::__cxa_demangle(name, NULL, NULL, &status), std::free};
-      return (status==0) ? res.get() : name;
+      std::unique_ptr<char[], std::default_delete<char[]>> res{abi::__cxa_demangle(name, NULL, NULL, &status)};
+      assert (status==0);
+      return res.get();
   }
 
   static std::string demangle(const std::type_info& ti) { return demangle(ti.name()); }

@@ -461,7 +461,8 @@ int main() {
 
   persistentStorageImp = new PersistentStorageImp(fVal, cVal);
   concordlogger::Logger logger = concordlogger::Log::getLogger("testSerialization.replica");
-
+  //uncomment if needed
+  //log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("serializable")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
   const string dbFile = "testPersistency.txt";
   remove(dbFile.c_str()); // Required for the init testing.
 
