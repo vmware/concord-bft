@@ -15,6 +15,7 @@
 
 #include <cxxabi.h>
 #include <memory>
+#include <assert.h>
 
 struct demangler {
   static std::string demangle(const char* name) {
