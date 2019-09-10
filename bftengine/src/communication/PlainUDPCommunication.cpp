@@ -329,7 +329,7 @@ class PlainUDPCommunication::PlainUdpImpl {
       return NodeAddressResolveResult({0, false, key});
     }
 
-    LOG_DEBUG(_logger, "Sender resolved, ID: " << res->second << "address: " << key);
+    LOG_DEBUG(_logger, "Sender resolved, ID: " << res->second << " address: " << key);
     return NodeAddressResolveResult({res->second, true, key});
   }
 
@@ -363,10 +363,10 @@ class PlainUDPCommunication::PlainUdpImpl {
                       (sockaddr *) &fromAdress,
                       &fromAdressLength);
 
-      LOG_DEBUG(_logger, "recvfrom returned " << mLen << " bytes");
+      LOG_DEBUG(_logger, "Node " << selfId << ": recvfrom returned " << mLen << " bytes");
 
       if (mLen < 0) {
-        LOG_DEBUG(_logger, "Error in recvfrom(): " << mLen);
+        LOG_DEBUG(_logger, "Node " << selfId << ": Error in recvfrom(): " << mLen);
         continue;
       }
 
@@ -378,12 +378,12 @@ class PlainUDPCommunication::PlainUdpImpl {
 
       auto sendingNode = resolveNode.nodeId;
       if (mLen > 0 && (receiverRef != NULL)) {
-        LOG_DEBUG(_logger, "Calling onNewMessage, msg from: " << sendingNode);
+        LOG_DEBUG(_logger, "Node " << selfId << ": Calling onNewMessage, msg from: " << sendingNode);
         receiverRef->onNewMessage(sendingNode,
                                   bufferForIncomingMessages,
                                   mLen);
       } else {
-        LOG_ERROR(_logger, "receiver is NULL");
+        LOG_ERROR(_logger, "Node " << selfId << ": receiver is NULL");
       }
 
       bool isReplica = check_replica(sendingNode);

@@ -296,10 +296,10 @@ Status DBAdapter::addBlock(BlockId _blockId, Sliver _blockRaw) {
 
 bool KeyManipulator::copyToAndAdvance(uint8_t *_buf, size_t *_offset, size_t _maxOffset, uint8_t *_src, size_t _srcSize) {
   if (!_buf && !_offset && !_src)
-    return false;
+    assert(false);
 
   if (*_offset >= _maxOffset && _srcSize > 0)
-    return false;
+    assert(false);
 
   memcpy(_buf + *_offset, _src, _srcSize);
   *_offset += _srcSize;

@@ -28,7 +28,7 @@ int KeyComparator::Compare(const ::rocksdb::Slice& _a,
   Sliver b = copyRocksdbSlice(_b);
   int ret = key_manipulator_->composedKeyComparison(a, b);
 
-  LOG_DEBUG(logger_, "Compared " << a << " with " << b << ", returning " << ret);
+  LOG_TRACE(logger_, "Compared " << a << " with " << b << ", returning " << ret);
 
   return ret;
 }

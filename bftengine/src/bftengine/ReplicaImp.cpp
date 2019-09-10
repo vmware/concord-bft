@@ -2,7 +2,7 @@
 //
 //Copyright (c) 2018, 2019 VMware, Inc. All Rights Reserved.
 //
-//This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in compliance with the Apache 2.0 License. 
+//This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in compliance with the Apache 2.0 License.
 //
 //This product may include a number of subcomponents with separate copyright notices and license terms. Your use of these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE file.
 
@@ -417,11 +417,6 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
   if (debugStatisticsEnabled) {
     DebugStatistics::onSendPrePrepareMessage(pp->numberOfRequests(), requestsQueueOfPrimary.size());
   }
-  LOG_DEBUG_F(GL, "Sending PrePrepareMsg (seqNumber=%"
-      PRId64
-      ", requests=%d, size=%d",
-             pp->seqNumber(), (int) pp->numberOfRequests(), (int) requestsQueueOfPrimary.size());
-
   primaryLastUsedSeqNum++;
 
   SeqNumInfo &seqNumInfo = mainLog->get(primaryLastUsedSeqNum);
@@ -434,6 +429,9 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
     if (firstPath == CommitPath::SLOW) ps_->setSlowStartedInSeqNumWindow(primaryLastUsedSeqNum, true);
     ps_->endWriteTran();
   }
+
+  LOG_DEBUG(GL, "Node " << myReplicaId << " Sending PrePrepareMsg (seqNumber=" << pp->seqNumber()
+      << ", requests=" << (int) pp->numberOfRequests() << ", queue size=" << (int) requestsQueueOfPrimary.size() << ")");
 
   for (ReplicaId x : repsInfo->idsOfPeerReplicas()) {
     sendRetransmittableMsgToReplica(pp, x, primaryLastUsedSeqNum);
