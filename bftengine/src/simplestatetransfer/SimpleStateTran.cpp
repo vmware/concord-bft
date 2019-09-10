@@ -310,11 +310,11 @@ ISimpleInMemoryStateTransfer* create(
 
 
 namespace impl {
-SimpleStateTran::SimpleStateTran(char* ptrToState,
-  uint32_t sizeOfState,
-  uint16_t myReplicaId,
-  uint16_t fVal,
-    uint16_t cVal,
+SimpleStateTran::SimpleStateTran( char* ptrToState,
+                                  uint32_t sizeOfState,
+                                  uint16_t myReplicaId,
+                                  uint16_t fVal,
+                                  uint16_t cVal,
     bool pedanticChecks)
   :
   ptrToState_{ ptrToState },
@@ -324,11 +324,10 @@ SimpleStateTran::SimpleStateTran(char* ptrToState,
 
   config.myReplicaId = myReplicaId;
   config.fVal = fVal;
-    config.cVal = cVal;
-    config.pedanticChecks = pedanticChecks;
+  config.cVal = cVal;
+  config.pedanticChecks = pedanticChecks;
 
-  internalST_ =
-    SimpleBlockchainStateTransfer::create(config, &dummyBDState_, false);
+  internalST_ =  SimpleBlockchainStateTransfer::create(config, &dummyBDState_);
 
   Assert(internalST_ != nullptr);
 

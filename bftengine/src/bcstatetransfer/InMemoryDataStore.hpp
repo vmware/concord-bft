@@ -126,6 +126,8 @@ class InMemoryDataStore : public DataStore {
   ResPagesDescriptor* getResPagesDescriptor(uint64_t inCheckpoint) override;
   void free(ResPagesDescriptor*) override;
 
+  DataStoreTransaction* beginTransaction() override {return nullptr;}
+
  protected:
   const uint32_t sizeOfReservedPage_;
 

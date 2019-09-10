@@ -51,12 +51,10 @@ void computeBlockDigest(const uint64_t blockId,
   return impl::BCStateTran::computeDigestOfBlock(blockId, block, blockSize, (impl::STDigest *) outDigest);
 }
 
-IStateTransfer *create(const Config &config, IAppState *const stateApi,
-                       const bool persistentDataStore) {
+IStateTransfer *create(const Config &config, IAppState *const stateApi, impl::DataStore* ds) {
   // TODO(GG): check configuration
-  impl::BCStateTran *p = new impl::BCStateTran(persistentDataStore, config, stateApi);
-  return p;
-}
+  return  new impl::BCStateTran(config, stateApi, ds);
+ }
 
 namespace impl {
 
@@ -80,13 +78,6 @@ static uint64_t getMonotonicTimeMilli() {
 //////////////////////////////////////////////////////////////////////////////
 // Ctor & Dtor
 //////////////////////////////////////////////////////////////////////////////
-
-static DataStore *createDataStore(bool persistentDataStore,
-                                  uint32_t sizeOfReservedPage) {
-  Assert(!persistentDataStore);  // TODO(GG): support PersistentDataStore
-  return new InMemoryDataStore(sizeOfReservedPage);
-}
-
 static uint32_t calcMaxVBlockSize(uint32_t maxNumberOfPages, uint32_t pageSize);
 
 static uint32_t calcMaxItemSize(uint32_t maxBlockSize,
@@ -123,14 +114,12 @@ static set<uint16_t> generateSetOfReplicas(const int16_t numberOfReplicas) {
   return retVal;
 }
 
-BCStateTran::BCStateTran(
-    const bool persistentDataStore,
-    const Config &config,
-    IAppState *const stateApi)
-    :
+BCStateTran::BCStateTran( const Config &config,
+                          IAppState *const stateApi,
+                          DataStore* ds ):
     pedanticChecks_{config.pedanticChecks},
     as_{stateApi},
-    psd_{createDataStore(persistentDataStore, config.sizeOfReservedPage)},
+    psd_{ds},
     replicas_{generateSetOfReplicas((3 * config.fVal) + (2 * config.cVal) + 1)},
     myId_{config.myReplicaId},
     fVal_{config.fVal},
@@ -160,6 +149,8 @@ BCStateTran::BCStateTran(
   Assert(replicas_.count(myId_) == 1);
   Assert(maxNumOfReservedPages_ >= 2);
 
+  if (!ds)
+    psd_.reset(new InMemoryDataStore(config.sizeOfReservedPage));
   // TODO(GG): more asserts
   buffer_ = reinterpret_cast<char *>(std::malloc(maxItemSize_));
   LOG_INFO(STLogger, "Creating BCStateTran object:"
@@ -185,7 +176,6 @@ BCStateTran::~BCStateTran() {
   Assert(cacheOfVirtualBlockForResPages.empty());
   Assert(pendingItemDataMsgs.empty());
 
-  delete psd_;
   std::free(buffer_);
 }
 
@@ -498,7 +488,7 @@ void BCStateTran::saveReservedPage(uint32_t reservedPageId,
     Assert(copyLength <= sizeOfReservedPage_);
 
     psd_->setPendingResPage(reservedPageId, inReservedPage, copyLength);
-  } catch (std::out_of_range e) {
+  } catch (std::out_of_range& e) {
     LOG_ERROR(STLogger, "BCStateTran::saveReservedPage - got out_of_range exception");
     throw;
   }

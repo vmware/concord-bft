@@ -197,6 +197,7 @@ protected:
     inStream.read((char*)&t, sizeof(T));
     LOG_TRACE(logger(), t);
   }
+public:
   /** ****************************************************************************************************************/
   static void serialize(std::ostream& outStream, const char* p, const std::size_t& size) {
     outStream.write(p, static_cast<std::streamsize>(size));
@@ -204,7 +205,7 @@ protected:
   static void deserialize(std::istream& inStream, char* p, const std::size_t& size) {
     inStream.read(p, static_cast<std::streamsize>(size));
   }
-
+protected:
   static concordlogger::Logger& logger(){
     static concordlogger::Logger logger_ = concordlogger::Log::getLogger("serializable");
     return logger_;

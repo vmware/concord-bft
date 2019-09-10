@@ -13,7 +13,6 @@
 
 #include "gtest/gtest.h"
 #include "SimpleBCStateTransfer.hpp"
-#include "InMemoryDataStore.hpp"
 #include "BCStateTran.hpp"
 #include "test_app_state.hpp"
 #include "test_replica.hpp"
@@ -39,7 +38,7 @@ class BcStTest : public ::testing::Test {
   protected:
     void SetUp() override {
       config_ = TestConfig();
-      st_ = new BCStateTran(false, config_, &app_state_);
+      st_ = new BCStateTran(config_, &app_state_);
       ASSERT_FALSE(st_->isRunning());
       st_->startRunning(&replica_);
       ASSERT_TRUE(st_->isRunning());
