@@ -205,7 +205,7 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   state_transfer_config.fVal = m_replicaConfig.fVal;
 
   m_appState = new BlockchainAppState(this);
-  m_stateTransfer = bftEngine::SimpleBlockchainStateTransfer::create(state_transfer_config, m_appState, false);
+  m_stateTransfer = bftEngine::SimpleBlockchainStateTransfer::create(state_transfer_config, m_appState);
 }
 
 ReplicaImp::~ReplicaImp() {

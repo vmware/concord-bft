@@ -50,6 +50,7 @@ class ITransaction {
 
 class IDBClient {
  public:
+  typedef std::shared_ptr<IDBClient> ptr;
   virtual ~IDBClient() = default;
   virtual void   init(bool readOnly = false) = 0;
   virtual Status get(const Sliver& _key, OUT Sliver &_outValue) const = 0;

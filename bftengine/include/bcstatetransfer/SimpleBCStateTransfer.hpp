@@ -113,8 +113,10 @@ struct Config {
 };
 
 // creates an instance of the state transfer module.
-IStateTransfer *create(const Config &config,
-                       IAppState *const stateApi, const bool persistentDataStore);
+namespace impl{
+class DataStore;
+}
+IStateTransfer *create(const Config &config, IAppState *const stateApi, impl::DataStore* ds = nullptr);
 
 }  // namespace SimpleBlockchainStateTransfer
 }  // namespace bftEngine

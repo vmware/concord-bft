@@ -59,10 +59,9 @@ class ClientIterator
 
 class Client : public concord::storage::IDBClient {
  public:
-  Client(std::string _dbPath, ::rocksdb::Comparator *_comparator)
-      : logger(concordlogger::Log::getLogger("rocksdb_client")),
-        m_dbPath(_dbPath),
-        m_comparator(_comparator) {}
+  Client(std::string _dbPath, const ::rocksdb::Comparator* comparator):
+      m_dbPath(_dbPath),
+      comparator_(comparator){}
 
   void init(bool readOnly = false) override;
   concordUtils::Status get(const concordUtils::Sliver& _key, concordUtils::Sliver &_outValue) const override;
@@ -84,16 +83,19 @@ class Client : public concord::storage::IDBClient {
   concordUtils::Status get(const concordUtils::Sliver& _key, std::string &_value) const;
 
  private:
-  concordlogger::Logger logger;
+  static concordlogger::Logger& logger() {
+    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.storage.rocksdb");
+    return logger_;
+  }
   // Database path on directory (used for connection).
   std::string m_dbPath;
   // Database object (created on connection).
-  std::unique_ptr<::rocksdb::DB> m_dbInstance;
-  ::rocksdb::TransactionDB*      txn_db_ = nullptr;
-  ::rocksdb::Comparator*         m_comparator = nullptr;
+  std::unique_ptr<::rocksdb::DB> dbInstance_;
+  ::rocksdb::TransactionDB*      txn_db_     = nullptr;
+  const ::rocksdb::Comparator*   comparator_ = nullptr; //TODO unique?
 };
 
-::rocksdb::Slice toRocksdbSlice(const concordUtils::Sliver& _s);
+::rocksdb::Slice     toRocksdbSlice  (const concordUtils::Sliver& _s);
 concordUtils::Sliver fromRocksdbSlice(::rocksdb::Slice _s);
 concordUtils::Sliver copyRocksdbSlice(::rocksdb::Slice _s);
 
