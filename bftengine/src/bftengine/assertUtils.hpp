@@ -50,21 +50,43 @@ inline void printCallStack() {
           char *ret = abi::__cxa_demangle(beginName, funcName, (size_t *) &MAX_FUNC_NAME_SIZE, &status);
           if (status == 0) {
             std::memcpy(funcName, ret, MAX_FUNC_NAME_SIZE);
-            os << "    " << funcName << "+" << beginOffset << std::endl;
+            os << " [bt] " << funcName << "+" << beginOffset << std::endl;
           }
         }
       }
-      LOG_ERROR(GL, "\n  Call stack:\n" << os.str());
+      LOG_ERROR(GL, "\n" << os.str());
       std::free(symbolsList);
     }
   }
 }
 
+#define PRINT_DATA_AND_ASSERT(expr1, expr2, assertMacro) { \
+  std::string result1 = (expr1) ? "true" : "false"; \
+  std::string result2 = (expr2) ? "true" : "false"; \
+  LOG_ERROR(GL, " " << assertMacro << ": expression '" << #expr1 << "' is " << result1.c_str() << ", expression '" \
+                    << #expr2 << "' is " << result2.c_str() << " in function " << __FUNCTION__ \
+                    << " (" << __FILE__ << " " << __LINE__ << ")"); \
+  printCallStack(); \
+  assert(false); \
+}
+
 #define Assert(expr) { \
   if((expr) != true) { \
+    LOG_ERROR(GL, " Assert: expression '" << #expr << "' is false in function " << __FUNCTION__ \
+                                          << " (" << __FILE__ << " " << __LINE__ << ")"); \
     printCallStack(); \
-    LOG_ERROR(GL, " Expression '" << #expr << "' is NOT true (in function " << __FUNCTION__ \
-                       << __FUNCTION__ << " " << __FILE__ << " " << __LINE__); \
     assert(false); \
   } \
+}
+
+// Assert(expr1 || expr2)
+#define AssertOR(expr1, expr2) { \
+  if((expr1) != true && (expr2) != true) \
+    PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertOR"); \
+}
+
+// Assert(expr1 && expr2)
+#define AssertAND(expr1, expr2) { \
+  if((expr1) != true || (expr2) != true) \
+    PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertAND"); \
 }
