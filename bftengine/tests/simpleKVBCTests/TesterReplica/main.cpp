@@ -30,10 +30,10 @@ int main(int argc, char** argv) {
 
   if (setup->UsePersistentStorage()) {
 #ifdef USE_ROCKSDB
-    auto comparator = concord::storage::rocksdb::KeyComparator(key_manipulator);
+    auto* comparator = new concord::storage::rocksdb::KeyComparator(key_manipulator);
     std::stringstream dbPath;
     dbPath << BasicRandomTests::DB_FILE_PREFIX << setup->GetReplicaConfig().replicaId;
-    db = new concord::storage::rocksdb::Client(dbPath.str(), &comparator);
+    db = new concord::storage::rocksdb::Client(dbPath.str(), comparator);
 #else
     // Abort if we haven't built rocksdb storage
     LOG_ERROR(logger, "Must build with -DBUILD_ROCKSDB_STORAGE=TRUE cmake option in order to test with persistent storage enabled");
