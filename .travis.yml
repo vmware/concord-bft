@@ -9,7 +9,7 @@ compiler:
 env:
   global:
     # We purposefully leave asserts on by excluding -NDEBUG
-    - CMAKE_CXX_FLAGS=-DCMAKE_CXX_FLAGS_RELEASE=-O3
+    - CMAKE_CXX_FLAGS="-DCMAKE_CXX_FLAGS_RELEASE=-O3 -g"
   matrix:
     - DEBUG=-DCMAKE_BUILD_TYPE=DEBUG
     - DEBUG=-DCMAKE_BUILD_TYPE=DEBUG USE_ROCKSDB=-DBUILD_ROCKSDB_STORAGE=TRUE
