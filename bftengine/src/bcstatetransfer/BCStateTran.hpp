@@ -41,8 +41,7 @@ namespace impl {
 
 class BCStateTran : public IStateTransfer {
  public:
-  BCStateTran(const bool persistentDataStore,
-              const Config& config, IAppState* const stateApi);
+  BCStateTran(const Config& config, IAppState* const stateApi, DataStore* ds = nullptr);
 
   ~BCStateTran() override;
 
@@ -102,7 +101,7 @@ class BCStateTran : public IStateTransfer {
   ///////////////////////////////////////////////////////////////////////////
 
   IAppState* const as_;
-  DataStore* const psd_;
+  std::unique_ptr<DataStore> psd_;
 
   ///////////////////////////////////////////////////////////////////////////
   // Management and general data

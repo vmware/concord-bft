@@ -53,6 +53,7 @@ set(corebft_source_files
     src/bcstatetransfer/BCStateTran.cpp
     src/bcstatetransfer/InMemoryDataStore.cpp
     src/bcstatetransfer/STDigest.cpp
+    src/bcstatetransfer/DBDataStore.cpp
     src/simplestatetransfer/SimpleStateTran.cpp
 )
 #
@@ -106,3 +107,4 @@ target_include_directories(corebft PUBLIC include/metadatastorage)
 target_link_libraries(corebft PUBLIC threshsign)
 target_link_libraries(corebft PUBLIC Threads::Threads)
 target_link_libraries(corebft PUBLIC util)
+target_link_libraries(corebft PUBLIC concordbft_storage)
