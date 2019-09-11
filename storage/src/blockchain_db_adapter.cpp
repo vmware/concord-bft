@@ -296,10 +296,10 @@ Status DBAdapter::addBlock(BlockId _blockId, Sliver _blockRaw) {
 
 bool KeyManipulator::copyToAndAdvance(uint8_t *_buf, size_t *_offset, size_t _maxOffset, uint8_t *_src, size_t _srcSize) {
   if (!_buf && !_offset && !_src)
-    return false;
+    assert(false);
 
   if (*_offset >= _maxOffset && _srcSize > 0)
-    return false;
+    assert(false);
 
   memcpy(_buf + *_offset, _src, _srcSize);
   *_offset += _srcSize;
@@ -525,7 +525,7 @@ Status DBAdapter::first(IDBClient::IDBClientIterator *iter,
 
   bool foundKey = false;
   Sliver value;
-  BlockId actualBlock;
+  BlockId actualBlock = 0;
   while (!iter->isEnd() && p.first == firstKey) {
     BlockId currentBlock = key_manipulator_->extractBlockIdFromKey(iter->getCurrent().first);
     if (currentBlock <= readVersion) {
@@ -599,7 +599,7 @@ Status DBAdapter::seekAtLeast(IDBClient::IDBClientIterator *iter,
                                         OUT Sliver &_key, OUT Sliver &_value,
                                         OUT bool &_isEnd) {
   Key searchKey = _searchKey;
-  BlockId actualBlock;
+  BlockId actualBlock = 0;
   Value value;
   bool foundKey = false;
   Sliver rocksKey = key_manipulator_->genDataDbKey(searchKey, _readVersion);
@@ -713,7 +713,7 @@ Status DBAdapter::next(IDBClient::IDBClientIterator *iter,
 
   // Find most updated value for next key (with block version < readVersion)
   Value value;
-  BlockId actualBlock;
+  BlockId actualBlock = 0;
   Key nextKey;
   CopyKey(p.first, nextKey);
   bool foundKey = false;

@@ -445,7 +445,7 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
   for (auto hash: kHashesToTest) {
     int hashLength = hash.length();
 
-    IThresholdAccumulator* accumulator;
+    IThresholdAccumulator* accumulator = nullptr;
 
     try {
       accumulator = verifier->newAccumulator(true);

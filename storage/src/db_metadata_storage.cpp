@@ -48,7 +48,7 @@ bool DBMetadataStorage::isNewStorage() {
 bool DBMetadataStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint32_t metadataObjectsArrayLength) {
   for (uint32_t i = objectsNumParameterId_ + 1; i < metadataObjectsArrayLength; ++i) {
     objectIdToSizeMap_[i] = metadataObjectsArray[i].maxSize;
-    LOG_DEBUG(logger_, "initMaxSizeOfObjects i=" << i << " object data: id=" << metadataObjectsArray[i].id
+    LOG_TRACE(logger_, "initMaxSizeOfObjects i=" << i << " object data: id=" << metadataObjectsArray[i].id
                                                  << ", maxSize=" << metadataObjectsArray[i].maxSize);
   }
   // Metadata object with id=1 is used to indicate storage initialization state
@@ -58,7 +58,7 @@ bool DBMetadataStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, u
     objectsNum_ = metadataObjectsArrayLength;
     atomicWrite(objectsNumParameterId_, (char *) &objectsNum_, sizeof(objectsNum_));
   }
-  LOG_DEBUG(logger_, "initMaxSizeOfObjects objectsNum_=" << objectsNum_);
+  LOG_TRACE(logger_, "initMaxSizeOfObjects objectsNum_=" << objectsNum_);
   return isNew;
 }
 
@@ -89,8 +89,8 @@ void DBMetadataStorage::atomicWrite(uint32_t objectId, char *data, uint32_t data
 }
 
 void DBMetadataStorage::beginAtomicWriteOnlyBatch() {
-  LOG_DEBUG(logger_, "Begin atomic transaction");
   lock_guard<mutex> lock(ioMutex_);
+  LOG_DEBUG(logger_, "Begin atomic transaction");
   if (batch_) {
     LOG_INFO(logger_, "Transaction has been opened before; ignoring");
     return;
@@ -99,7 +99,7 @@ void DBMetadataStorage::beginAtomicWriteOnlyBatch() {
 }
 
 void DBMetadataStorage::writeInBatch(uint32_t objectId, char *data, uint32_t dataLength) {
-  LOG_DEBUG(logger_, "objectId=" << objectId << ", dataLength=" << dataLength);
+  LOG_TRACE(logger_, "writeInBatch: objectId=" << objectId << ", dataLength=" << dataLength);
   verifyOperation(objectId, dataLength, data, true);
   auto *dataCopy = new uint8_t[dataLength];
   memcpy(dataCopy, data, dataLength);
@@ -112,14 +112,16 @@ void DBMetadataStorage::writeInBatch(uint32_t objectId, char *data, uint32_t dat
 }
 
 void DBMetadataStorage::commitAtomicWriteOnlyBatch() {
-  LOG_DEBUG(logger_, "Commit atomic transaction");
   lock_guard<mutex> lock(ioMutex_);
+  LOG_DEBUG(logger_, "Begin Commit atomic transaction");
   if (!batch_) {
     LOG_ERROR(logger_, WRONG_FLOW);
     throw runtime_error(WRONG_FLOW);
   }
   Status status = dbClient_->multiPut(*batch_);
+  LOG_DEBUG(logger_, "End Commit atomic transaction");
   if (!status.isOK()) {
+    LOG_ERROR(logger_, "DBClient multiPut operation failed");
     throw runtime_error("DBClient multiPut operation failed");
   }
   delete batch_;
@@ -129,7 +131,7 @@ void DBMetadataStorage::commitAtomicWriteOnlyBatch() {
 Status DBMetadataStorage::multiDel(const ObjectIdsVector &objectIds) {
   size_t objectsNumber = objectIds.size();
   assert(objectsNum_ >= objectsNumber);
-  LOG_DEBUG(logger_, "Going to perform multiple delete");
+  LOG_TRACE(logger_, "Going to perform multiple delete");
   KeysVector keysVec;
   for (size_t objectId = 0; objectId < objectsNumber; objectId++) {
     auto key = genMetadataKey_(objectId);

@@ -30,10 +30,10 @@ int main(int argc, char** argv) {
 
   if (setup->UsePersistentStorage()) {
 #ifdef USE_ROCKSDB
-    auto comparator = concord::storage::rocksdb::KeyComparator(key_manipulator);
+    auto* comparator = new concord::storage::rocksdb::KeyComparator(key_manipulator);
     std::stringstream dbPath;
     dbPath << BasicRandomTests::DB_FILE_PREFIX << setup->GetReplicaConfig().replicaId;
-    db = new concord::storage::rocksdb::Client(dbPath.str(), &comparator);
+    db = new concord::storage::rocksdb::Client(dbPath.str(), comparator);
 #else
     // Abort if we haven't built rocksdb storage
     LOG_ERROR(logger, "Must build with -DBUILD_ROCKSDB_STORAGE=TRUE cmake option in order to test with persistent storage enabled");
@@ -47,10 +47,17 @@ int main(int argc, char** argv) {
 
   auto* dbAdapter = new concord::storage::blockchain::DBAdapter(db);
   auto* replica = new SimpleKVBC::ReplicaImp(
-      setup->GetCommunication(), setup->GetReplicaConfig(), dbAdapter, setup->GetMetricsAggregator());
+      setup->GetCommunication(), setup->GetReplicaConfig(), dbAdapter, setup->GetMetricsServer().GetAggregator());
+
+  // Start metrics server after creation of the replica so that we ensure
+  // registration of metrics from the replica with the aggregator and don't
+  // return empty metrics from the metrics server.
+  setup->GetMetricsServer().Start();
 
   InternalCommandsHandler cmdHandler(replica, replica, logger);
   replica->set_command_handler(&cmdHandler);
   replica->start();
+
+
   while (replica->isRunning()) std::this_thread::sleep_for(std::chrono::seconds(1));
 }

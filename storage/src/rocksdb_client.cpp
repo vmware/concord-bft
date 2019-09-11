@@ -255,7 +255,7 @@ Status Client::put(Sliver _key, Sliver _value) {
   ::rocksdb::Status s =
       m_dbInstance->Put(woptions, toRocksdbSlice(_key), toRocksdbSlice(_value));
 
-  LOG_DEBUG(logger, "Rocksdb Put " << _key << " : " << _value);
+  LOG_TRACE(logger, "Rocksdb Put " << _key << " : " << _value);
 
   if (!s.ok()) {
     LOG_ERROR(logger,
@@ -279,7 +279,7 @@ Status Client::del(Sliver _key) {
   ::rocksdb::WriteOptions woptions = ::rocksdb::WriteOptions();
   ::rocksdb::Status s = m_dbInstance->Delete(woptions, toRocksdbSlice(_key));
 
-  LOG_DEBUG(logger, "Rocksdb delete " << _key);
+  LOG_TRACE(logger, "Rocksdb delete " << _key);
 
   if (!s.ok()) {
     LOG_ERROR(logger, "Failed to delete key " << _key);
@@ -314,38 +314,30 @@ Status Client::multiGet(const KeysVector &_keysVec,
   return Status::OK();
 }
 
-std::ostringstream Client::collectKeysForPrint(
-    const KeysVector &_keysVec) {
-  std::ostringstream keys;
-  for (auto const &it : _keysVec) keys << it << ", ";
-  return keys;
-}
-
-Status Client::launchBatchJob(::rocksdb::WriteBatch &_batchJob,
-                                     const KeysVector &_keysVec) {
+Status Client::launchBatchJob(::rocksdb::WriteBatch &batch) {
+  LOG_DEBUG(logger, "launcBatchJob: batch data size=" << batch.GetDataSize() << " num updates=" << batch.Count());
   ::rocksdb::WriteOptions wOptions = ::rocksdb::WriteOptions();
-  ::rocksdb::Status status = m_dbInstance->Write(wOptions, &_batchJob);
+  ::rocksdb::Status status = m_dbInstance->Write(wOptions, &batch);
   if (!status.ok()) {
-    LOG_ERROR(logger, "Execution of batch job failed; keys: "
-                                << collectKeysForPrint(_keysVec).str());
+    LOG_ERROR(logger, "Execution of batch job failed; batch data size=" << batch.GetDataSize() <<
+        " num updates=" << batch.Count());
     return Status::GeneralError("Execution of batch job failed");
   }
-  LOG_DEBUG(logger, "Successfully executed a batch job for keys: "
-                              << collectKeysForPrint(_keysVec).str());
+  LOG_DEBUG(logger, "Successfully executed a batch job: batch data size=" << batch.GetDataSize() <<
+      " num updates=" << batch.Count());
   return Status::OK();
 }
 
-Status Client::multiPut(const SetOfKeyValuePairs &_keyValueMap) {
+Status Client::multiPut(const SetOfKeyValuePairs &keyValueMap) {
   ::rocksdb::WriteBatch batch;
-  KeysVector keysVec;
-  for (const auto &it : _keyValueMap) {
+  LOG_DEBUG(logger, "multiPut: keyValueMap.size() = " << keyValueMap.size());
+  for (const auto &it : keyValueMap) {
     batch.Put(toRocksdbSlice(it.first), toRocksdbSlice(it.second));
-    keysVec.push_back(it.first);
-    LOG_DEBUG(logger, "RocksDB Added entry: key ="
+    LOG_TRACE(logger, "RocksDB Added entry: key ="
                                 << it.first << ", value= " << it.second
                                 << " to the batch job");
   }
-  Status status = launchBatchJob(batch, keysVec);
+  Status status = launchBatchJob(batch);
   if (status.isOK())
     LOG_DEBUG(logger, "Successfully put all entries to the database");
   return status;
@@ -357,7 +349,7 @@ Status Client::multiDel(const KeysVector &_keysVec) {
   for (auto const &it : _keysVec) {
     batch.Delete(toRocksdbSlice(it));
   }
-  Status status = launchBatchJob(batch, _keysVec);
+  Status status = launchBatchJob(batch);
   if (status.isOK()) LOG_DEBUG(logger, "Successfully deleted entries");
   return status;
 }
@@ -419,7 +411,6 @@ KeyValuePair ClientIterator::seekAtLeast(Sliver _searchKey) {
   Sliver key = copyRocksdbSlice(m_iter->key());
   Sliver value = copyRocksdbSlice(m_iter->value());
 
-  LOG_DEBUG(logger, "Key " << key << " value " << value);
   m_status = Status::OK();
   return KeyValuePair(key, value);
 }
@@ -442,7 +433,6 @@ KeyValuePair ClientIterator::previous() {
   Sliver key = copyRocksdbSlice(m_iter->key());
   Sliver value = copyRocksdbSlice(m_iter->value());
 
-  LOG_DEBUG(logger, "Key " << key << " value " << value);
   m_status = Status::OK();
 
   return KeyValuePair(key, value);
@@ -471,7 +461,6 @@ KeyValuePair ClientIterator::next() {
   Sliver key = copyRocksdbSlice(m_iter->key());
   Sliver value = copyRocksdbSlice(m_iter->value());
 
-  LOG_DEBUG(logger, "Key " << key << " value " << value);
   m_status = Status::OK();
   return KeyValuePair(key, value);
 }

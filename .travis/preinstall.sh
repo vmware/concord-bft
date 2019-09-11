@@ -32,5 +32,19 @@ cmake ..
 make
 sudo make install
 
+# build and install RocksDB and its dependencies
+if [ -n "$USE_ROCKSDB" ]; then
+    # Install RocksDB dependencies
+    sudo apt-get install -y libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev
+
+    # Install RocksDB
+    cd $TRAVIS_BUILD_DIR
+    wget https://github.com/facebook/rocksdb/archive/v5.7.3.tar.gz
+    tar -xzf v5.7.3.tar.gz
+    cd rocksdb-5.7.3
+    make shared_lib
+    sudo make install-shared
+fi
+
 # trio is need for tests
 python3 -m pip install --upgrade trio

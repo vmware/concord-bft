@@ -60,7 +60,7 @@ class ClientIterator
 class Client : public concord::storage::IDBClient {
  public:
   Client(std::string _dbPath, ::rocksdb::Comparator *_comparator)
-      : logger(concordlogger::Log::getLogger("com.concord.vmware.kvb")),
+      : logger(concordlogger::Log::getLogger("rocksdb_client")),
         m_dbPath(_dbPath),
         m_comparator(_comparator) {}
 
@@ -80,8 +80,7 @@ class Client : public concord::storage::IDBClient {
   ITransaction* beginTransaction() override;
 
  private:
-  concordUtils::Status launchBatchJob(::rocksdb::WriteBatch &_batchJob, const KeysVector &_keysVec);
-  std::ostringstream   collectKeysForPrint( const KeysVector &_keysVec);
+  concordUtils::Status launchBatchJob(::rocksdb::WriteBatch &_batchJob);
   concordUtils::Status get(concordUtils::Sliver _key, std::string &_value) const;
 
  private:

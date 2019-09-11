@@ -134,7 +134,7 @@ void DescriptorOfLastExitFromView::deserializeElement(uint32_t id, char *buf, si
   auto *prepareFullMsgPtr = MessageBase::deserializeMsg(buf, bufLen, msgSize2);
 
   bool hasAllRequests = false;
-  size_t hasAllRequestsSize = sizeof(hasAllRequestsSize);
+  size_t hasAllRequestsSize = sizeof(hasAllRequests);
   memcpy(&hasAllRequests, buf, hasAllRequestsSize);
 
   Assert(elements[id].prePrepare == nullptr);

@@ -28,7 +28,7 @@ class TestSetup {
 
   bftEngine::ReplicaConfig& GetReplicaConfig() { return replica_config_; }
   bftEngine::ICommunication* GetCommunication() const { return communication_.get(); }
-  std::shared_ptr<concordMetrics::Aggregator> GetMetricsAggregator() { return metrics_server_.GetAggregator(); }
+  concordMetrics::Server& GetMetricsServer() { return metrics_server_; }
   concordlogger::Logger GetLogger() { return logger_; }
   const bool UsePersistentStorage() const { return use_persistent_storage_; }
 
@@ -39,7 +39,6 @@ class TestSetup {
             uint16_t metrics_port,
             bool use_persistent_storage)
       : replica_config_(config), communication_(std::move(comm)), logger_(logger), metrics_server_(metrics_port), use_persistent_storage_(use_persistent_storage) {
-    metrics_server_.Start();
   }
   TestSetup() = delete;
 
