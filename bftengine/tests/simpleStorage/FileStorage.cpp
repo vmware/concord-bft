@@ -91,7 +91,7 @@ void FileStorage::read(void *dataPtr, size_t offset, size_t itemSize, size_t cou
   size_t read_ = fread(dataPtr, itemSize, count, dataStream_);
   int err = ferror(dataStream_);
   if (err)
-    throw runtime_error("FileStorage::read " +  std::string(strerror(err)));
+    throw runtime_error("FileStorage::read " +  std::string(strerror(errno)));
   if (feof(dataStream_))
     throw runtime_error("FileStorage::read EOF" );
   if (read_ != count)
