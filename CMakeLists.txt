@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.2)
 
 # Default to building with clang on Linux,OSX,BSD etc...
 # This must come before the project definition or it won't be picked up.
+if(NOT ENV{CXX} AND UNIX)
+    set(ENV{CXX} clang++)
+endif()
+
 project(concord-bft VERSION 0.1.0.0 LANGUAGES CXX)
 
 #
