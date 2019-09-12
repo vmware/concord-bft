@@ -1,5 +1,5 @@
 #include "config_file_parser.hpp"
-#include "../../src/bftengine/assertUtils.hpp"
+#include "assertUtils.hpp"
 
 #include <iostream>
 #include <string>

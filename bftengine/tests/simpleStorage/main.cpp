@@ -12,7 +12,7 @@
 // file.
 
 #include "FileStorage.hpp"
-#include "../../src/bftengine/assertUtils.hpp"
+#include "assertUtils.hpp"
 
 #include <string.h>
 #include <cassert>

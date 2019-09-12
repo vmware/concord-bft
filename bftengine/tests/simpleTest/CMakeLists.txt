@@ -31,6 +31,7 @@ add_executable(simpleTest_server $<TARGET_OBJECTS:logging_dev>
 
 add_executable(configTest
     ${config_source_files}
+    $<TARGET_OBJECTS:logging_dev>
 )
 
 add_executable(persistency_test
