@@ -19,6 +19,7 @@
 #include <chrono>
 #include <limits>
 #include "hash_defs.h"
+#include "hex_tools.h"
 #include "sliver.hpp"
 #include "status.hpp"
 #include <string.h>
@@ -27,10 +28,22 @@
 
 using concordlogger::Logger;
 using concordUtils::Status;
+using concordUtils::hexPrint;
 
 namespace concord {
 namespace storage {
 namespace blockchain {
+
+struct HexPrintBuffer {
+  const uint8_t* bytes;
+  const size_t size;
+};
+
+// Print a uint8_t* of bytes as its 0x<hex> representation.
+std::ostream& operator<<(std::ostream& s, const HexPrintBuffer p) {
+  hexPrint(s, p.bytes, p.size);
+  return s;
+}
 
 DBAdapter::DBAdapter(IDBClient* db, bool readOnly):
     logger_(concordlogger::Log::getLogger("concord.storage.BlockchainDBAdapter")),
@@ -50,63 +63,49 @@ DBAdapter::DBAdapter(IDBClient* db, bool readOnly):
  * the application key, and finally the block id. Types and keys are sorted in
  * ascending order, and block IDs are sorted in descending order.
  */
-int KeyManipulator::composedKeyComparison( const Sliver& _a,
-                                           const Sliver& _b) {
-  // TODO(BWF): see note about multiple bytes in extractTypeFromKey
-  char aType = extractTypeFromKey(_a);
-  char bType = extractTypeFromKey(_b);
+int KeyManipulator::composedKeyComparison(const uint8_t* _a_data, size_t _a_length,
+                                          const uint8_t* _b_data, size_t _b_length) {
+  char aType = KeyManipulator::extractTypeFromKey(_a_data);
+  char bType = KeyManipulator::extractTypeFromKey(_b_data);
   if (aType != bType) {
     int ret = aType - bType;
     return ret;
   }
 
   // In case it is E_DB_KEY_TYPE_METADATA_KEY, compare object IDs.
-  if (aType == (char)blockchain::EDBKeyType::E_DB_KEY_TYPE_BFT_METADATA_KEY) {
-    BlockId aObjId = extractObjectIdFromKey(_a);
-    BlockId bObjId = extractObjectIdFromKey(_b);
+  if (aType == (char)EDBKeyType::E_DB_KEY_TYPE_BFT_METADATA_KEY) {
+    ObjectId aObjId =
+        KeyManipulator::extractObjectIdFromKey(_a_data, _a_length);
+    ObjectId bObjId =
+        KeyManipulator::extractObjectIdFromKey(_b_data, _b_length);
 
     if (aObjId < bObjId) return -1;
     if (bObjId < aObjId) return 1;
     return 0;
   }
 
-  // if this is a block, we stop with key comparison - it doesn't have a block
-  // id component (that would be redundant)
-  if (aType == ((char)blockchain::EDBKeyType::E_DB_KEY_TYPE_BLOCK)) {
-    // Extract the block ids to compare so that endianness of environment
-    // does not matter.
-    BlockId aId = extractBlockIdFromKey(_a);
-    BlockId bId = extractBlockIdFromKey(_b);
-
-    if (aId < bId) {
-      return -1;
-    } else if (bId < aId) {
-      return 1;
-    } else {
-      return 0;
+  // Blocks don't have a separate key component.
+  if (aType != ((char)EDBKeyType::E_DB_KEY_TYPE_BLOCK)) {
+    int keyComp = KeyManipulator::compareKeyPartOfComposedKey(
+        _a_data, _a_length, _b_data, _b_length);
+    if (keyComp != 0) {
+      return keyComp;
     }
   }
 
-  Sliver aKey =  extractKeyFromKeyComposedWithBlockId(_a);
-  Sliver bKey =  extractKeyFromKeyComposedWithBlockId(_b);
+  // Extract the block ids to compare so that endianness of environment
+  // does not matter.
+  BlockId aId = KeyManipulator::extractBlockIdFromKey(_a_data, _a_length);
+  BlockId bId = KeyManipulator::extractBlockIdFromKey(_b_data, _b_length);
 
-  int keyComp = aKey.compare(bKey);
-
-  if (keyComp == 0) {
-    BlockId aId = extractBlockIdFromKey(_a);
-    BlockId bId = extractBlockIdFromKey(_b);
-
-    // within a type+key, block ids are sorted in reverse order
-    if (aId < bId) {
-      return 1;
-    } else if (bId < aId) {
-      return -1;
-    } else {
-      return 0;
-    }
+  // within a type+key, block ids are sorted in reverse order
+  if (aId < bId) {
+    return 1;
+  } else if (bId < aId) {
+    return -1;
+  } else {
+    return 0;
   }
-
-  return keyComp;
 }
 
 /**
@@ -168,8 +167,22 @@ Sliver KeyManipulator::genDataDbKey(const Key& _key, BlockId _blockId) {
  * @return The type of the composite database key.
  */
 char KeyManipulator::extractTypeFromKey(const Key& _key) {
+  return extractTypeFromKey(_key.data());
+}
+
+/**
+ * @brief Extracts the type of a composite database key.
+ *
+ * Returns the data part of the buffer passed as a parameter.
+ *
+ * @param _key_data The buffer containing the composite database key whose
+ *                  type gets returned.
+ * @param _key_length The number of bytes in the _key_data buffer.
+ * @return The type of the composite database key.
+ */
+char KeyManipulator::extractTypeFromKey(const uint8_t* _key_data) {
   static_assert(sizeof(EDBKeyType) == 1, "Let's avoid byte-order problems.");
-  return _key.data()[0];
+  return _key_data[0];
 }
 
 /**
@@ -182,10 +195,24 @@ char KeyManipulator::extractTypeFromKey(const Key& _key) {
  * @return The block id of the composite database key.
  */
 BlockId KeyManipulator::extractBlockIdFromKey(const Key& _key) {
-  size_t offset = _key.length() - sizeof(BlockId);
-  BlockId id = *(BlockId *)(_key.data() + offset);
+  return extractBlockIdFromKey(_key.data(), _key.length());
+}
 
-  LOG_TRACE(logger_, "Got block ID " << id << " from key " << _key  << ", offset " << offset);
+/**
+ * @brief Extracts the Block Id of a composite database key.
+ *
+ * Returns the block id part of the buffer passed as a parameter.
+ *
+ * @param _key_data The buffer containing the composite database key whose block id
+ *                  gets returned.
+ * @param _key_length The number of bytes in the _key_data buffer.
+ * @return The block id of the composite database key.
+ */
+BlockId KeyManipulator::extractBlockIdFromKey(const uint8_t* _key_data, size_t _key_length) {
+  size_t offset = _key_length - sizeof(BlockId);
+  BlockId id = *(BlockId *)(_key_data + offset);
+
+  LOG_TRACE(logger_, "Got block ID " << id << " from key " << (HexPrintBuffer{_key_data, _key_length})  << ", offset " << offset);
   return id;
 }
 
@@ -199,11 +226,25 @@ BlockId KeyManipulator::extractBlockIdFromKey(const Key& _key) {
  * @return The object id of the composite database key.
  */
 ObjectId KeyManipulator::extractObjectIdFromKey(const Key& _key) {
-  assert(_key.length() >= sizeof(ObjectId));
-  size_t offset = _key.length() - sizeof(ObjectId);
-  ObjectId id = *(ObjectId *)(_key.data() + offset);
+  return extractObjectIdFromKey(_key.data(), _key.length());
+}
 
-  LOG_TRACE(logger_, "Got object ID " << id << " from key " << _key << ", offset " << offset);
+/**
+ * @brief Extracts the Metadata Object Id of a composite database key.
+ *
+ * Returns the object id part of the buffer passed as a parameter.
+ *
+ * @param _key_data The buffer containing the composite database key whose object id
+ *                  gets returned.
+ * @param _key_length The number of bytes in the _key_data buffer.
+ * @return The object id of the composite database key.
+ */
+ObjectId KeyManipulator::extractObjectIdFromKey(const uint8_t* _key_data, size_t _key_length) {
+  assert(_key_length >= sizeof(ObjectId));
+  size_t offset = _key_length - sizeof(ObjectId);
+  ObjectId id = *(ObjectId *)(_key_data + offset);
+
+  LOG_TRACE(logger_, "Got object ID " << id << " from key " << (HexPrintBuffer{_key_data, _key_length}) << ", offset " << offset);
   return id;
 }
 
@@ -218,6 +259,46 @@ Sliver KeyManipulator::extractKeyFromKeyComposedWithBlockId(const Key& _composed
   Sliver out = Sliver(_composedKey, sizeof(EDBKeyType), sz);
   LOG_TRACE(logger_, "Got key " << out << " from composed key " << _composedKey);
   return out;
+}
+
+/**
+ * @brief Compare the part of the composed key that would have been returned
+ * from extractKeyFromKeyComposedWithBlockId.
+ *
+ * This is an optimization, to avoid creating sub-Slivers that will be destroyed
+ * immediately in the RocksKeyComparator.
+ *
+ * @param a_data Pointer to buffer containing a composed key.
+ * @param a_length Number of bytes in a_data.
+ * @param b_data Pointer to buffer containing a composed key.
+ * @param b_length Number of bytes in b_data.
+ */
+int KeyManipulator::compareKeyPartOfComposedKey(const uint8_t *a_data,
+                                                size_t a_length,
+                                                const uint8_t *b_data,
+                                                size_t b_length) {
+  assert(a_length >= sizeof(BlockId) + sizeof(EDBKeyType));
+  assert(b_length >= sizeof(BlockId) + sizeof(EDBKeyType));
+
+  const uint8_t *a_key = a_data + sizeof(EDBKeyType);
+  const size_t a_key_length = a_length - sizeof(BlockId) - sizeof(EDBKeyType);
+  const uint8_t *b_key = b_data + sizeof(EDBKeyType);
+  const size_t b_key_length = b_length - sizeof(BlockId) - sizeof(EDBKeyType);
+
+  int result = memcmp(a_key, b_key, std::min(a_key_length, b_key_length));
+  if (a_key_length == b_key_length) {
+    return result;
+  }
+
+  if (result == 0) {
+    if (a_key_length < b_key_length) {
+      return -1;
+    } else {
+      return 1;
+    }
+  }
+
+  return result;
 }
 
 Sliver KeyManipulator::extractKeyFromMetadataKey(const Key& _composedKey) {
