@@ -368,6 +368,12 @@ class PlainUDPCommunication::PlainUdpImpl {
       if (mLen < 0) {
         LOG_DEBUG(_logger, "Node " << selfId << ": Error in recvfrom(): " << mLen);
         continue;
+      } else if (!mLen) {
+        // Probably, Stop() set 'running' to false and shut down the
+        // socket.  (Or, maybe, we received an actual zero-length UDP
+        // datagram, but we never send those.)
+        LOG_DEBUG(_logger, "Node " << selfId << ": Received empty message (shutting down?)");
+        continue;
       }
 
       auto resolveNode = addrToNodeId(fromAdress);
@@ -377,7 +383,7 @@ class PlainUDPCommunication::PlainUdpImpl {
       }
 
       auto sendingNode = resolveNode.nodeId;
-      if (mLen > 0 && (receiverRef != NULL)) {
+      if (receiverRef != NULL) {
         LOG_DEBUG(_logger, "Node " << selfId << ": Calling onNewMessage, msg from: " << sendingNode);
         receiverRef->onNewMessage(sendingNode,
                                   bufferForIncomingMessages,
