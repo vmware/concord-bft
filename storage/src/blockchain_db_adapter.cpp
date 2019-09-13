@@ -123,7 +123,7 @@ int KeyManipulator::composedKeyComparison( const Sliver& _a,
  * @param _blockId BlockId object.
  * @return Sliver object of the generated composite database key.
  */
-Sliver KeyManipulator::genDbKey(EDBKeyType _type, Key _key, BlockId _blockId) {
+Sliver KeyManipulator::genDbKey(EDBKeyType _type, const Key& _key, BlockId _blockId) {
   size_t sz = sizeof(EDBKeyType) + sizeof(BlockId) + _key.length();
   uint8_t *out = new uint8_t[sz];
   size_t offset = 0;
@@ -154,7 +154,7 @@ Sliver KeyManipulator::genBlockDbKey(BlockId _blockId) {
  *                 into the composite database Key.
  * @return Sliver object of the generated composite database key.
  */
-Sliver KeyManipulator::genDataDbKey(Key _key, BlockId _blockId) {
+Sliver KeyManipulator::genDataDbKey(const Key& _key, BlockId _blockId) {
   return genDbKey(EDBKeyType::E_DB_KEY_TYPE_KEY, _key, _blockId);
 }
 
@@ -167,7 +167,7 @@ Sliver KeyManipulator::genDataDbKey(Key _key, BlockId _blockId) {
  *             returned.
  * @return The type of the composite database key.
  */
-char KeyManipulator::extractTypeFromKey(Key _key) {
+char KeyManipulator::extractTypeFromKey(const Key& _key) {
   static_assert(sizeof(EDBKeyType) == 1, "Let's avoid byte-order problems.");
   return _key.data()[0];
 }
@@ -181,7 +181,7 @@ char KeyManipulator::extractTypeFromKey(Key _key) {
  *             gets returned.
  * @return The block id of the composite database key.
  */
-BlockId KeyManipulator::extractBlockIdFromKey(Key _key) {
+BlockId KeyManipulator::extractBlockIdFromKey(const Key& _key) {
   size_t offset = _key.length() - sizeof(BlockId);
   BlockId id = *(BlockId *)(_key.data() + offset);
 
@@ -198,7 +198,7 @@ BlockId KeyManipulator::extractBlockIdFromKey(Key _key) {
  *             gets returned.
  * @return The object id of the composite database key.
  */
-ObjectId KeyManipulator::extractObjectIdFromKey(Key _key) {
+ObjectId KeyManipulator::extractObjectIdFromKey(const Key& _key) {
   assert(_key.length() >= sizeof(ObjectId));
   size_t offset = _key.length() - sizeof(ObjectId);
   ObjectId id = *(ObjectId *)(_key.data() + offset);
@@ -213,14 +213,14 @@ ObjectId KeyManipulator::extractObjectIdFromKey(Key _key) {
  * @param _composedKey Sliver object of the composite database key.
  * @return Sliver object of the key extracted from the composite database key.
  */
-Sliver KeyManipulator::extractKeyFromKeyComposedWithBlockId(Key _composedKey) {
+Sliver KeyManipulator::extractKeyFromKeyComposedWithBlockId(const Key& _composedKey) {
   size_t sz = _composedKey.length() - sizeof(BlockId) - sizeof(EDBKeyType);
   Sliver out = Sliver(_composedKey, sizeof(EDBKeyType), sz);
   LOG_TRACE(logger_, "Got key " << out << " from composed key " << _composedKey);
   return out;
 }
 
-Sliver KeyManipulator::extractKeyFromMetadataKey(Key _composedKey) {
+Sliver KeyManipulator::extractKeyFromMetadataKey(const Key& _composedKey) {
   size_t sz = _composedKey.length() - sizeof(EDBKeyType);
   Sliver out = Sliver(_composedKey, sizeof(EDBKeyType), sz);
   LOG_TRACE(logger_, "Got metadata key " << out << " from composed key "
@@ -228,7 +228,7 @@ Sliver KeyManipulator::extractKeyFromMetadataKey(Key _composedKey) {
   return out;
 }
 
-bool KeyManipulator::isKeyContainBlockId(Key _composedKey) {
+bool KeyManipulator::isKeyContainBlockId(const Key& _composedKey) {
   return (_composedKey.length() > sizeof(BlockId) + sizeof(EDBKeyType));
 }
 
@@ -319,7 +319,7 @@ bool KeyManipulator::copyToAndAdvance(uint8_t *_buf, size_t *_offset, size_t _ma
  * @param _value The value that needs to be added to the database.
  * @return Status of the put operation.
  */
-Status DBAdapter::updateKey(Key _key, BlockId _block, Value _value) {
+Status DBAdapter::updateKey(const Key& _key, BlockId _block, Value _value) {
   Sliver composedKey = key_manipulator_->genDataDbKey(_key, _block);
 
   LOG_TRACE(logger_, "Updating composed key " << composedKey
@@ -355,7 +355,7 @@ Status DBAdapter::addBlockAndUpdateMultiKey(
  * @param _blockId The block id (version) of the key to delete.
  * @return Status of the operation.
  */
-Status DBAdapter::delKey(Sliver _key, BlockId _blockId) {
+Status DBAdapter::delKey(const Sliver& _key, BlockId _blockId) {
   Sliver composedKey = key_manipulator_->genDataDbKey(_key, _blockId);
   LOG_TRACE(logger_, "Deleting key " << _key << " block id " << _blockId);
   Status s = db_->del(composedKey);
@@ -420,7 +420,7 @@ void DBAdapter::deleteBlockAndItsKeys(BlockId blockId) {
  * @return Status OK
  */
 Status DBAdapter::getKeyByReadVersion(BlockId readVersion,
-                                                Sliver key,
+                                                const Sliver& key,
                                                 Sliver &outValue,
                                                 BlockId &outBlock) const {
   LOG_TRACE(logger_, "Getting value of key " << key << " for read version "  << readVersion);
@@ -594,7 +594,7 @@ Status DBAdapter::first(IDBClient::IDBClientIterator *iter,
 // Only for data fields, i.e. E_DB_KEY_TYPE_KEY. It makes more sense to put data
 // second, and blocks first. Stupid optimization nevertheless
 Status DBAdapter::seekAtLeast(IDBClient::IDBClientIterator *iter,
-                                        Sliver _searchKey, BlockId _readVersion,
+                                        const Sliver& _searchKey, BlockId _readVersion,
                                         OUT BlockId &_actualVersion,
                                         OUT Sliver &_key, OUT Sliver &_value,
                                         OUT bool &_isEnd) {

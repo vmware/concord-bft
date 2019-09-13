@@ -22,15 +22,15 @@ class KeyManipulator: public IDBClient::IKeyManipulator{
   KeyManipulator():logger_(concordlogger::Log::getLogger("concord.storage.blockchain.KeyManipulator")){}
   virtual int   composedKeyComparison(const Sliver&, const Sliver& ) override;
 
-  Sliver        genDbKey(EDBKeyType _type, Key _key, BlockId _blockId);
+  Sliver        genDbKey(EDBKeyType _type, const Key& _key, BlockId _blockId);
   Sliver        genBlockDbKey(BlockId _blockId);
-  Sliver        genDataDbKey(Key _key, BlockId _blockId);
-  char          extractTypeFromKey(Key _key);
-  BlockId       extractBlockIdFromKey(Key _key);
-  ObjectId      extractObjectIdFromKey(Key _key);
-  Sliver        extractKeyFromKeyComposedWithBlockId(Key _composedKey);
-  Sliver        extractKeyFromMetadataKey(Key _composedKey);
-  bool          isKeyContainBlockId(Key _composedKey);
+  Sliver        genDataDbKey(const Key& _key, BlockId _blockId);
+  char          extractTypeFromKey(const Key& _key);
+  BlockId       extractBlockIdFromKey(const Key& _key);
+  ObjectId      extractObjectIdFromKey(const Key& _key);
+  Sliver        extractKeyFromKeyComposedWithBlockId(const Key& _composedKey);
+  Sliver        extractKeyFromMetadataKey(const Key& _composedKey);
+  bool          isKeyContainBlockId(const Key& _composedKey);
   KeyValuePair  composedToSimple(KeyValuePair _p);
   static Sliver generateMetadataKey(ObjectId objectId);
  protected:
@@ -48,9 +48,9 @@ class DBAdapter {
   std::shared_ptr<IDBClient> getDb() { return db_; }
 
   Status addBlock(BlockId _blockId, Sliver _blockRaw);
-  Status updateKey(Key _key, BlockId _block, Value _value);
+  Status updateKey(const Key& _key, BlockId _block, Value _value);
   Status addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &_kvMap, BlockId _block, Sliver _blockRaw);
-  Status getKeyByReadVersion(BlockId readVersion, Sliver key, Sliver &outValue, BlockId &outBlock) const;
+  Status getKeyByReadVersion(BlockId readVersion, const Sliver& key, Sliver &outValue, BlockId &outBlock) const;
   Status getBlockById(BlockId _blockId, Sliver &_blockRaw, bool &_found) const;
 
   IDBClient::IDBClientIterator* getIterator() { return db_->getIterator(); }
@@ -59,7 +59,7 @@ class DBAdapter {
 
   Status first(IDBClient::IDBClientIterator *iter, BlockId readVersion, OUT BlockId &actualVersion, OUT bool &isEnd,
                OUT Sliver &_key, OUT Sliver &_value);
-  Status seekAtLeast(IDBClient::IDBClientIterator *iter, Sliver _searchKey, BlockId _readVersion,
+  Status seekAtLeast(IDBClient::IDBClientIterator *iter, const Sliver& _searchKey, BlockId _readVersion,
                      OUT BlockId &_actualVersion, OUT Sliver &_key, OUT Sliver &_value, OUT bool &_isEnd);
   Status next(IDBClient::IDBClientIterator *iter, BlockId _readVersion, OUT Sliver &_key, OUT Sliver &_value,
               OUT BlockId &_actualVersion, OUT bool &_isEnd);
@@ -67,7 +67,7 @@ class DBAdapter {
   Status getCurrent(IDBClient::IDBClientIterator *iter, OUT Sliver &_key, OUT Sliver &_value);
   Status isEnd(IDBClient::IDBClientIterator *iter, OUT bool &_isEnd);
 
-  Status delKey(Sliver _key, BlockId _blockID);
+  Status delKey(const Sliver& _key, BlockId _blockID);
   Status delBlock(BlockId _blockId);
   void   deleteBlockAndItsKeys(BlockId blockId);
   void   monitor() const;

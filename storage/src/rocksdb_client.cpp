@@ -36,7 +36,7 @@ static bool g_rocksdb_print_measurements = false;
  * @param _s Sliver object.
  * @return A RocksDB Slice object.
  */
-::rocksdb::Slice toRocksdbSlice(Sliver _s) {
+::rocksdb::Slice toRocksdbSlice(const Sliver& _s) {
   return ::rocksdb::Slice(reinterpret_cast<const char *>(_s.data()), _s.length());
 }
 
@@ -112,7 +112,7 @@ void Client::init(bool readOnly) {
     throw std::runtime_error("Failed to open rocksdb database at " + m_dbPath + std::string(" reason: ") + s.ToString());
 }
 
-Status Client::get(Sliver _key, OUT std::string &_value) const {
+Status Client::get(const Sliver& _key, OUT std::string &_value) const {
   ++g_rocksdb_called_read;
   if (g_rocksdb_print_measurements) {
     LOG_DEBUG(logger, "Reading count = " << g_rocksdb_called_read
@@ -148,7 +148,7 @@ Status Client::get(Sliver _key, OUT std::string &_value) const {
  * @return Status NotFound if key is not present, Status GeneralError if error
  *         in Get, else Status OK.
  */
-Status Client::get(Sliver _key, OUT Sliver &_outValue) const {
+Status Client::get(const Sliver& _key, OUT Sliver &_outValue) const {
   std::string value;
   Status ret = get(_key, value);
   if (!ret.isOK()) return ret;
@@ -163,7 +163,7 @@ Status Client::get(Sliver _key, OUT Sliver &_outValue) const {
 }
 
 // A memory for the output buffer is expected to be allocated by a caller.
-Status Client::get(Sliver _key, OUT char *&buf, uint32_t bufSize,
+Status Client::get(const Sliver& _key, OUT char *&buf, uint32_t bufSize,
                           OUT uint32_t &_realSize) const {
   std::string value;
   Status ret = get(_key, value);
@@ -249,7 +249,7 @@ ClientIterator::ClientIterator(const Client *_parentClient)
  * @param _value The value that needs to be stored against the key.
  * @return Status GeneralError if error in Put, else Status OK.
  */
-Status Client::put(Sliver _key, Sliver _value) {
+Status Client::put(const Sliver& _key, const Sliver& _value) {
   ::rocksdb::WriteOptions woptions = ::rocksdb::WriteOptions();
 
   ::rocksdb::Status s =
@@ -275,7 +275,7 @@ Status Client::put(Sliver _key, Sliver _value) {
  *              deleted.
  *  @return Status GeneralError if error in delete, else Status OK.
  */
-Status Client::del(Sliver _key) {
+Status Client::del(const Sliver& _key) {
   ::rocksdb::WriteOptions woptions = ::rocksdb::WriteOptions();
   ::rocksdb::Status s = m_dbInstance->Delete(woptions, toRocksdbSlice(_key));
 
@@ -392,7 +392,7 @@ KeyValuePair ClientIterator::first() {
  * @return Key value pair of the key which is greater than or equal to
  *         _searchKey.
  */
-KeyValuePair ClientIterator::seekAtLeast(Sliver _searchKey) {
+KeyValuePair ClientIterator::seekAtLeast(const Sliver& _searchKey) {
   ++g_rocksdb_called_read;
   if (g_rocksdb_print_measurements) {
     LOG_DEBUG(logger, "Reading count = " << g_rocksdb_called_read

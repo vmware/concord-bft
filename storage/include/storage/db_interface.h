@@ -52,10 +52,10 @@ class IDBClient {
  public:
   virtual ~IDBClient() = default;
   virtual void   init(bool readOnly = false) = 0;
-  virtual Status get(Sliver _key, OUT Sliver &_outValue) const = 0;
-  virtual Status get(Sliver _key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &_size) const = 0;
-  virtual Status put(Sliver _key, Sliver _value) = 0;
-  virtual Status del(Sliver _key) = 0;
+  virtual Status get(const Sliver& _key, OUT Sliver &_outValue) const = 0;
+  virtual Status get(const Sliver& _key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &_size) const = 0;
+  virtual Status put(const Sliver& _key, const Sliver& _value) = 0;
+  virtual Status del(const Sliver& _key) = 0;
   virtual Status multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec) = 0;
   virtual Status multiPut(const SetOfKeyValuePairs &_keyValueMap) = 0;
   virtual Status multiDel(const KeysVector &_keysVec) = 0;
@@ -70,7 +70,7 @@ class IDBClient {
    public:
     virtual KeyValuePair first() = 0;
     // Returns next keys if not found for this key
-    virtual KeyValuePair seekAtLeast(Sliver _searchKey) = 0;
+    virtual KeyValuePair seekAtLeast(const Sliver& _searchKey) = 0;
     virtual KeyValuePair previous() = 0;
     virtual KeyValuePair next() = 0;
     virtual KeyValuePair getCurrent() = 0;
