@@ -837,11 +837,11 @@ int main(int argc, char** argv) {
     return 0;
   }
 
-  uint16_t numReplicas;
+  uint16_t numReplicas = 0;
   std::string outputPrefix;
 
-  bool hasNumReplicas;
-  bool hasOutputPrefix;
+  bool hasNumReplicas = false;
+  bool hasOutputPrefix = false;
 
   // Read input from the command line.
   // Note we ignore argv[0] because it contains the command that was used to run
