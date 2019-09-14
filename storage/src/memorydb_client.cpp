@@ -33,7 +33,7 @@ void Client::init(bool readOnly) {
  *                  successful.
  * @return Status NotFound if no mapping is found, else, Status OK.
  */
-Status Client::get(Sliver _key, OUT Sliver &_outValue) const {
+Status Client::get(const Sliver& _key, OUT Sliver &_outValue) const {
   try {
     _outValue = map_.at(_key);
   } catch (const std::out_of_range &oor) {
@@ -43,7 +43,7 @@ Status Client::get(Sliver _key, OUT Sliver &_outValue) const {
   return Status::OK();
 }
 
-Status Client::get(Sliver _key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &_size) const {
+Status Client::get(const Sliver& _key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &_size) const {
   auto copy = Sliver::copy(buf, bufSize);
   auto status =  get(_key, copy);
   memcpy(buf, copy.data(), bufSize);
@@ -86,7 +86,7 @@ Status Client::freeIterator(IDBClientIterator *_iter) const {
  * @param _value Value of the mapping.
  * @return Status OK.
  */
-Status Client::put(Sliver _key, Sliver _value) {
+Status Client::put(const Sliver& _key, const Sliver& _value) {
   // Copy the key and the value
   bool keyExists = false;
   if (map_.find(_key) != map_.end()) {
@@ -120,7 +120,7 @@ Status Client::put(Sliver _key, Sliver _value) {
  * @param _key Reference to the key of the mapping.
  * @return Status OK.
  */
-Status Client::del(Sliver _key) {
+Status Client::del(const Sliver& _key) {
   bool keyExists = false;
   if (map_.find(_key) != map_.end()) {
     keyExists = true;
@@ -190,7 +190,7 @@ KeyValuePair ClientIterator::first() {
  *  @return Key value pair of the key which is greater than or equal to
  *  _searchKey.
  */
-KeyValuePair ClientIterator::seekAtLeast(Sliver _searchKey) {
+KeyValuePair ClientIterator::seekAtLeast(const Sliver& _searchKey) {
   m_current = m_parentClient->getMap().lower_bound(_searchKey);
   if (m_current == m_parentClient->getMap().end()) {
     LOG_WARN(logger, "Key " << _searchKey << " not found");

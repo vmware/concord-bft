@@ -29,15 +29,15 @@ class ILocalKeyValueStorageReadOnlyIterator;
 class ILocalKeyValueStorageReadOnly {
  public:
   // convenience where readVersion==latest, and block is not needed?
-  virtual Status get(Key key, Value& outValue) const = 0;
-  virtual Status get(BlockId readVersion, Sliver key, Sliver& outValue,
+  virtual Status get(const Key& key, Value& outValue) const = 0;
+  virtual Status get(BlockId readVersion, const Sliver& key, Sliver& outValue,
                      BlockId& outBlock) const = 0;
 
   virtual BlockId getLastBlock() const = 0;
   virtual Status getBlockData(BlockId blockId,
                               SetOfKeyValuePairs& outBlockData) const = 0;
   // TODO(GG): explain motivation
-  virtual Status mayHaveConflictBetween(Sliver key, BlockId fromBlock,
+  virtual Status mayHaveConflictBetween(const Sliver& key, BlockId fromBlock,
                                         BlockId toBlock,
                                         bool& outRes) const = 0;
 
@@ -63,12 +63,12 @@ class ILocalKeyValueStorageReadOnlyIterator {
 
   // Assumes lexicographical ordering of the keys, seek the first element
   // k >= key
-  virtual KeyValuePair seekAtLeast(BlockId readVersion, Key key,
+  virtual KeyValuePair seekAtLeast(BlockId readVersion, const Key& key,
                                    BlockId& actualVersion, bool& isEnd) = 0;
-  virtual KeyValuePair seekAtLeast(Key key) = 0;
+  virtual KeyValuePair seekAtLeast(const Key& key) = 0;
 
   // Proceed to next element and return it
-  virtual KeyValuePair next(BlockId readVersion, Key key,
+  virtual KeyValuePair next(BlockId readVersion, const Key& key,
                             BlockId& actualVersion, bool& isEnd) = 0;
   virtual KeyValuePair next() = 0;
 

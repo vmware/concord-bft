@@ -38,7 +38,7 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
 
   // Inherited via IDBClientIterator
   virtual KeyValuePair first() override;
-  virtual KeyValuePair seekAtLeast(Sliver _searchKey) override;
+  virtual KeyValuePair seekAtLeast(const Sliver& _searchKey) override;
   virtual KeyValuePair previous() override;
   virtual KeyValuePair next() override;
   virtual KeyValuePair getCurrent() override;
@@ -64,12 +64,12 @@ class Client : public IDBClient {
   Client(KeyComparator comp) : comp_(comp), map_([this](const Sliver&a , const Sliver& b){ return comp_(a, b); }) {}
 
   virtual void init(bool readOnly) override;
-  virtual Status get(Sliver _key, OUT Sliver &_outValue) const override;
-  Status get(Sliver _key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &_size) const override;
+  virtual Status get(const Sliver& _key, OUT Sliver &_outValue) const override;
+  Status get(const Sliver& _key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &_size) const override;
   virtual IDBClientIterator *getIterator() const override;
   virtual concordUtils::Status freeIterator(IDBClientIterator *_iter) const override;
-  virtual concordUtils::Status put(Sliver _key, Sliver _value) override;
-  virtual concordUtils::Status del(Sliver _key) override;
+  virtual concordUtils::Status put(const Sliver& _key, const Sliver& _value) override;
+  virtual concordUtils::Status del(const Sliver& _key) override;
   concordUtils::Status multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec) override;
   concordUtils::Status multiPut(const SetOfKeyValuePairs &_keyValueMap) override;
   concordUtils::Status multiDel(const KeysVector &_keysVec) override;

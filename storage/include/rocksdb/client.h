@@ -39,7 +39,7 @@ class ClientIterator
 
   // Inherited via IDBClientIterator
   concordUtils::KeyValuePair first() override;
-  concordUtils::KeyValuePair seekAtLeast(concordUtils::Sliver _searchKey) override;
+  concordUtils::KeyValuePair seekAtLeast(const concordUtils::Sliver& _searchKey) override;
   concordUtils::KeyValuePair previous() override;
   KeyValuePair next() override;
   KeyValuePair getCurrent() override;
@@ -65,12 +65,12 @@ class Client : public concord::storage::IDBClient {
         m_comparator(_comparator) {}
 
   void init(bool readOnly = false) override;
-  concordUtils::Status get(concordUtils::Sliver _key, concordUtils::Sliver &_outValue) const override;
-  concordUtils::Status get(concordUtils::Sliver _key, char *&buf, uint32_t bufSize, uint32_t &_realSize) const override;
+  concordUtils::Status get(const concordUtils::Sliver& _key, concordUtils::Sliver &_outValue) const override;
+  concordUtils::Status get(const concordUtils::Sliver& _key, char *&buf, uint32_t bufSize, uint32_t &_realSize) const override;
   IDBClientIterator*   getIterator() const override;
   concordUtils::Status freeIterator(IDBClientIterator *_iter) const override;
-  concordUtils::Status put(concordUtils::Sliver _key, concordUtils::Sliver _value) override;
-  concordUtils::Status del(concordUtils::Sliver _key) override;
+  concordUtils::Status put(const concordUtils::Sliver& _key, const concordUtils::Sliver& _value) override;
+  concordUtils::Status del(const concordUtils::Sliver& _key) override;
   concordUtils::Status multiGet(const KeysVector &_keysVec, ValuesVector &_valuesVec) override;
   concordUtils::Status multiPut(const SetOfKeyValuePairs &_keyValueMap) override;
   concordUtils::Status multiDel(const KeysVector &_keysVec) override;
@@ -81,7 +81,7 @@ class Client : public concord::storage::IDBClient {
 
  private:
   concordUtils::Status launchBatchJob(::rocksdb::WriteBatch &_batchJob);
-  concordUtils::Status get(concordUtils::Sliver _key, std::string &_value) const;
+  concordUtils::Status get(const concordUtils::Sliver& _key, std::string &_value) const;
 
  private:
   concordlogger::Logger logger;
@@ -93,7 +93,7 @@ class Client : public concord::storage::IDBClient {
   ::rocksdb::Comparator*         m_comparator = nullptr;
 };
 
-::rocksdb::Slice toRocksdbSlice(concordUtils::Sliver _s);
+::rocksdb::Slice toRocksdbSlice(const concordUtils::Sliver& _s);
 concordUtils::Sliver fromRocksdbSlice(::rocksdb::Slice _s);
 concordUtils::Sliver copyRocksdbSlice(::rocksdb::Slice _s);
 
