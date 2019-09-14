@@ -34,11 +34,11 @@ const uint16_t valueLen = 500;
 
 std::unique_ptr<Client> dbClient;
 
-uint8_t *createAndFillBuf(size_t length) {
-  auto *buffer = new uint8_t[length];
+char *createAndFillBuf(size_t length) {
+  auto *buffer = new char[length];
   srand(static_cast<uint>(time(nullptr)));
   for (size_t i = 0; i < length; i++) {
-    buffer[i] = static_cast<uint8_t>(rand() % 256);
+    buffer[i] = static_cast<char>(rand() % 256);
   }
   return buffer;
 }
@@ -126,15 +126,12 @@ TEST_F(multiIO_test, multi_del) {
   ASSERT_TRUE(dbClient->multiDel(keys).isOK());
   verifyMultiDel(keys);
 }
-TEST_F(multiIO_test, basic_transaction) {
-  std::string key1_("basic_transaction::key1");
-  Sliver key1(key1_);
-  std::string key2_("basic_transaction::key2");
-  Sliver key2(key2_);
-  std::string val1_("basic_transaction::val1");
-  Sliver inValue1(val1_);
-  std::string val2_("basic_transaction::val2");
-  Sliver inValue2(val2_);
+TEST(multiIO_test, basic_transaction)
+{
+  Sliver key1("basic_transaction::key1");
+  Sliver key2("basic_transaction::key2");
+  Sliver inValue1("basic_transaction::val1");
+  Sliver inValue2("basic_transaction::val2");
 
   key1 = key_manipulator_->genDataDbKey(key1, 0);
   key2 = key_manipulator_->genDataDbKey(key2, 0);
@@ -146,9 +143,9 @@ TEST_F(multiIO_test, basic_transaction) {
     g.txn()->del(key1);
     std::string val1 = g.txn()->get(key1);
     ASSERT_TRUE(val1.empty());
-    g.txn()->put(key1, inValue1);
-    val1 = g.txn()->get(key1);
-    ASSERT_TRUE(inValue1 == Sliver(val1.data(), val1.size()));
+    g.txn->put(key1, inValue1);
+    val1 = g.txn->get(key1);
+    ASSERT_TRUE(inValue1 == Sliver(std::move(val1)));
   }
   Sliver outValue;
   Status status = dbClient->get(key1, outValue);
@@ -159,26 +156,24 @@ TEST_F(multiIO_test, basic_transaction) {
   ASSERT_TRUE(inValue2 == outValue);
 }
 
-TEST_F(multiIO_test, no_commit_during_exception) {
-  std::string key_("no_commit_during_exception::key");
-  Sliver key(key_);
-  std::string val_("no_commit_during_exception::val");
-  Sliver inValue(val_);
+TEST(multiIO_test, no_commit_during_exception)
+{
+  Sliver key("no_commit_during_exception::key");
+  Sliver inValue("no_commit_during_exception::val");
   key = key_manipulator_->genDataDbKey(key, 0);
   try {
-    {  // transaction scope
+    { // transaction scope
       ITransaction::Guard g(dbClient->beginTransaction());
       g.txn()->put(key, inValue);
       g.txn()->del(key);
       std::string val = g.txn()->get(key);
       ASSERT_TRUE(val.empty());
-      g.txn()->put(key, inValue);
-      val = g.txn()->get(key);
-      ASSERT_TRUE(inValue == Sliver(val.data(), val.size()));
+      g.txn->put(key, inValue);
+      val = g.txn->get(key);
+      ASSERT_TRUE(inValue == Sliver(std::move(val)));
       throw std::runtime_error("oops");
     }
-  } catch (std::exception &e) {
-  }
+  } catch(std::exception& e){}
   Sliver outValue;
   Status status = dbClient->get(key, outValue);
   ASSERT_FALSE(status.isOK());

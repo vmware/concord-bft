@@ -78,6 +78,8 @@ class Client : public IDBClient {
   TKVStore &getMap() { return map_; }
 
  private:
+  concordlogger::Logger logger;
+
   // Keep a copy of comp_ so that it lives as long as map_
   KeyComparator comp_;
 

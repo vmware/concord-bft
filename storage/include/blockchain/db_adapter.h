@@ -49,8 +49,7 @@ class KeyManipulator : public IDBClient::IKeyManipulator {
 
  protected:
   static Sliver generateReservedPageKey(EDBKeyType, uint32_t pageid, uint64_t chkpt);
-
-  static bool copyToAndAdvance(uint8_t *_buf, size_t *_offset, size_t _maxOffset, uint8_t *_src, size_t _srcSize);
+  static bool copyToAndAdvance(char *_buf, size_t *_offset, size_t _maxOffset, char *_src, size_t _srcSize);
 
   concordlogger::Logger &logger() {
     static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.storage.blockchain.KeyManipulator");

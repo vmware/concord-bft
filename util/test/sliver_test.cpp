@@ -22,8 +22,8 @@ namespace {
  *
  * Remember: the caller must deallocate this buffer.
  */
-uint8_t* new_test_memory(size_t length) {
-  uint8_t* buffer = new uint8_t[length];
+char* new_test_memory(size_t length) {
+  char* buffer = new char[length];
 
   for (size_t i = 0; i < length; i++) {
     buffer[i] = i % 256;
@@ -32,7 +32,8 @@ uint8_t* new_test_memory(size_t length) {
   return buffer;
 }
 
-bool is_match(const uint8_t* expected, const size_t expected_length, const Sliver& actual) {
+bool is_match(const char* expected, const size_t expected_length,
+              const Sliver& actual) {
   if (expected_length != actual.length()) {
     return false;
   }
@@ -49,7 +50,7 @@ bool is_match(const uint8_t* expected, const size_t expected_length, const Slive
  */
 TEST(sliver_test, simple_wrap) {
   const size_t test_size = 100;
-  uint8_t* expected = new_test_memory(test_size);
+  char* expected = new_test_memory(test_size);
 
   Sliver actual(expected, test_size);
   ASSERT_TRUE(is_match(expected, test_size, actual));
@@ -60,7 +61,7 @@ TEST(sliver_test, simple_wrap) {
  */
 TEST(sliver_test, simple_copy) {
   const size_t test_size = 100;
-  uint8_t* expected = new_test_memory(test_size);
+  char* expected = new_test_memory(test_size);
 
   auto actual = Sliver::copy(expected, test_size);
   ASSERT_TRUE(is_match(expected, test_size, actual));
@@ -72,7 +73,7 @@ TEST(sliver_test, simple_copy) {
  */
 TEST(sliver_test, simple_rewrap) {
   const size_t test_size = 101;
-  uint8_t* expected = new_test_memory(test_size);
+  char* expected = new_test_memory(test_size);
 
   Sliver first = Sliver(expected, test_size);
   Sliver actual1(first, 0, first.length());
@@ -87,7 +88,7 @@ TEST(sliver_test, simple_rewrap) {
  */
 TEST(sliver_test, offsets) {
   const size_t test_size = 102;
-  uint8_t* expected = new_test_memory(test_size);
+  char* expected = new_test_memory(test_size);
 
   Sliver base(expected, test_size);
   for (size_t offset = 1; offset < test_size; offset += 5) {
@@ -101,7 +102,7 @@ TEST(sliver_test, offsets) {
  */
 TEST(sliver_test, lengths) {
   const size_t test_size = 103;
-  uint8_t* expected = new_test_memory(test_size);
+  char* expected = new_test_memory(test_size);
 
   Sliver base(expected, test_size);
   const size_t step = 7;
@@ -116,7 +117,7 @@ TEST(sliver_test, lengths) {
  */
 TEST(sliver_test, nested) {
   const size_t test_size = 104;
-  uint8_t* expected = new_test_memory(test_size);
+  char* expected = new_test_memory(test_size);
 
   Sliver base(expected, test_size);
   const size_t offset_step = 3;
@@ -135,8 +136,9 @@ TEST(sliver_test, nested) {
  * Create a base sliver, and then return a subsliver. Used to test that the
  * shared pointer is handled properly.
  */
-Sliver copied_subsliver(size_t base_size, size_t sub_offset, size_t sub_length) {
-  uint8_t* data = new_test_memory(base_size);
+Sliver copied_subsliver(size_t base_size, size_t sub_offset,
+                        size_t sub_length) {
+  char* data = new_test_memory(base_size);
   Sliver base(data, base_size);
   Sliver sub(base, sub_offset, sub_length);
   return sub;
@@ -150,7 +152,7 @@ Sliver copied_subsliver(size_t base_size, size_t sub_offset, size_t sub_length) 
  */
 TEST(sliver_test, copying) {
   const size_t test_size = 105;
-  uint8_t* expected = new_test_memory(test_size);
+  char* expected = new_test_memory(test_size);
 
   const size_t test_offset1 = 20;
   const size_t test_length1 = 30;

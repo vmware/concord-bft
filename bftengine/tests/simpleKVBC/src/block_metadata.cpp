@@ -12,7 +12,7 @@ using concordUtils::Status;
 namespace SimpleKVBC {
 
 Sliver BlockMetadata::Serialize(uint64_t bft_sequence_num) {
-  return Sliver::copy((uint8_t*)&bft_sequence_num, sizeof(uint64_t));
+  return Sliver::copy((char*)&bft_sequence_num, sizeof(uint64_t));
 }
 
 uint64_t BlockMetadata::Get(Sliver& key) {

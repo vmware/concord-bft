@@ -35,11 +35,11 @@ namespace storage {
 namespace blockchain {
 
 struct HexPrintBuffer {
-  const uint8_t *bytes;
+  const char *bytes;
   const size_t size;
 };
 
-// Print a uint8_t* of bytes as its 0x<hex> representation.
+// Print a char* of bytes as its 0x<hex> representation.
 std::ostream &operator<<(std::ostream &s, const HexPrintBuffer p) {
   hexPrint(s, p.bytes, p.size);
   return s;
@@ -59,9 +59,9 @@ DBAdapter::DBAdapter(IDBClient *db, bool readOnly)
  *
  * Comparison is done by decomposed parts. Types are compared first, followed by
  * type specific comparison. */
-int KeyManipulator::composedKeyComparison(const uint8_t *_a_data,
+int KeyManipulator::composedKeyComparison(const char *_a_data,
                                           size_t _a_length,
-                                          const uint8_t *_b_data,
+                                          const char *_b_data,
                                           size_t _b_length) {
   EDBKeyType aType = KeyManipulator::extractTypeFromKey(_a_data);
   EDBKeyType bType = KeyManipulator::extractTypeFromKey(_b_data);
@@ -131,11 +131,11 @@ int KeyManipulator::composedKeyComparison(const uint8_t *_a_data,
  */
 Sliver KeyManipulator::genDbKey(EDBKeyType _type, const Key &_key, BlockId _blockId) {
   size_t sz = sizeof(EDBKeyType) + sizeof(BlockId) + _key.length();
-  uint8_t *out = new uint8_t[sz];
+  char *out = new char[sz];
   size_t offset = 0;
-  copyToAndAdvance(out, &offset, sz, (uint8_t *)&_type, sizeof(EDBKeyType));
-  copyToAndAdvance(out, &offset, sz, (uint8_t *)_key.data(), _key.length());
-  copyToAndAdvance(out, &offset, sz, (uint8_t *)&_blockId, sizeof(BlockId));
+  copyToAndAdvance(out, &offset, sz, (char *)&_type, sizeof(EDBKeyType));
+  copyToAndAdvance(out, &offset, sz, (char *)_key.data(), _key.length());
+  copyToAndAdvance(out, &offset, sz, (char *)&_blockId, sizeof(BlockId));
   return Sliver(out, sz);
 }
 
@@ -184,10 +184,10 @@ EDBKeyType KeyManipulator::extractTypeFromKey(const Key &_key) { return extractT
  *                  type gets returned.
  * @return The type of the composite database key.
  */
-EDBKeyType KeyManipulator::extractTypeFromKey(const uint8_t *_key_data) {
+EDBKeyType KeyManipulator::extractTypeFromKey(const char *_key_data) {
   static_assert(sizeof(EDBKeyType) == 1, "Let's avoid byte-order problems.");
-  assert((_key_data[0] < (uint8_t)EDBKeyType::E_DB_KEY_TYPE_LAST) &&
-         (_key_data[0] >= (uint8_t)EDBKeyType::E_DB_KEY_TYPE_FIRST));
+  assert((_key_data[0] < (char)EDBKeyType::E_DB_KEY_TYPE_LAST) &&
+         (_key_data[0] >= (char)EDBKeyType::E_DB_KEY_TYPE_FIRST));
   return (EDBKeyType)_key_data[0];
 }
 
@@ -214,7 +214,7 @@ BlockId KeyManipulator::extractBlockIdFromKey(const Key &_key) {
  * @param _key_length The number of bytes in the _key_data buffer.
  * @return The block id of the composite database key.
  */
-BlockId KeyManipulator::extractBlockIdFromKey(const uint8_t *_key_data, size_t _key_length) {
+BlockId KeyManipulator::extractBlockIdFromKey(const char *_key_data, size_t _key_length) {
   size_t offset = _key_length - sizeof(BlockId);
   BlockId id = *(BlockId *)(_key_data + offset);
 
@@ -246,7 +246,7 @@ ObjectId KeyManipulator::extractObjectIdFromKey(const Key &_key) {
  * @param _key_length The number of bytes in the _key_data buffer.
  * @return The object id of the composite database key.
  */
-ObjectId KeyManipulator::extractObjectIdFromKey(const uint8_t *_key_data, size_t _key_length) {
+ObjectId KeyManipulator::extractObjectIdFromKey(const char *_key_data, size_t _key_length) {
   assert(_key_length >= sizeof(ObjectId));
   size_t offset = _key_length - sizeof(ObjectId);
   ObjectId id = *(ObjectId *)(_key_data + offset);
@@ -282,16 +282,16 @@ Sliver KeyManipulator::extractKeyFromKeyComposedWithBlockId(const Key &_composed
  * @param b_data Pointer to buffer containing a composed key.
  * @param b_length Number of bytes in b_data.
  */
-int KeyManipulator::compareKeyPartOfComposedKey(const uint8_t *a_data,
+int KeyManipulator::compareKeyPartOfComposedKey(const char *a_data,
                                                 size_t a_length,
-                                                const uint8_t *b_data,
+                                                const char *b_data,
                                                 size_t b_length) {
   assert(a_length >= sizeof(BlockId) + sizeof(EDBKeyType));
   assert(b_length >= sizeof(BlockId) + sizeof(EDBKeyType));
 
-  const uint8_t *a_key = a_data + sizeof(EDBKeyType);
+  const char *a_key = a_data + sizeof(EDBKeyType);
   const size_t a_key_length = a_length - sizeof(BlockId) - sizeof(EDBKeyType);
-  const uint8_t *b_key = b_data + sizeof(EDBKeyType);
+  const char *b_key = b_data + sizeof(EDBKeyType);
   const size_t b_key_length = b_length - sizeof(BlockId) - sizeof(EDBKeyType);
 
   int result = memcmp(a_key, b_key, std::min(a_key_length, b_key_length));
@@ -355,11 +355,11 @@ KeyValuePair KeyManipulator::composedToSimple(KeyValuePair _p) {
 
 Sliver KeyManipulator::generateMetadataKey(ObjectId objectId) {
   size_t keySize = sizeof(EDBKeyType) + sizeof(objectId);
-  auto keyBuf = new uint8_t[keySize];
+  auto keyBuf = new char[keySize];
   size_t offset = 0;
   EDBKeyType keyType = EDBKeyType::E_DB_KEY_TYPE_BFT_METADATA_KEY;
-  copyToAndAdvance(keyBuf, &offset, keySize, (uint8_t *)&keyType, sizeof(EDBKeyType));
-  copyToAndAdvance(keyBuf, &offset, keySize, (uint8_t *)&objectId, sizeof(objectId));
+  copyToAndAdvance(keyBuf, &offset, keySize, (char *)&keyType, sizeof(EDBKeyType));
+  copyToAndAdvance(keyBuf, &offset, keySize, (char *)&objectId, sizeof(objectId));
   return Sliver(keyBuf, keySize);
 }
 /*
@@ -367,11 +367,11 @@ Sliver KeyManipulator::generateMetadataKey(ObjectId objectId) {
  */
 Sliver KeyManipulator::generateStateTransferKey(ObjectId objectId) {
   size_t keySize = sizeof(EDBKeyType) + sizeof(objectId);
-  auto keyBuf = new uint8_t[keySize];
+  auto keyBuf = new char[keySize];
   size_t offset = 0;
   EDBKeyType keyType = EDBKeyType::E_DB_KEY_TYPE_BFT_ST_KEY;
-  copyToAndAdvance(keyBuf, &offset, keySize, (uint8_t *)&keyType, sizeof(EDBKeyType));
-  copyToAndAdvance(keyBuf, &offset, keySize, (uint8_t *)&objectId, sizeof(objectId));
+  copyToAndAdvance(keyBuf, &offset, keySize, (char *)&keyType, sizeof(EDBKeyType));
+  copyToAndAdvance(keyBuf, &offset, keySize, (char *)&objectId, sizeof(objectId));
   return Sliver(keyBuf, keySize);
 }
 /**
@@ -379,11 +379,11 @@ Sliver KeyManipulator::generateStateTransferKey(ObjectId objectId) {
  */
 Sliver KeyManipulator::generateSTPendingPageKey(uint32_t pageid) {
   size_t keySize = sizeof(EDBKeyType) + sizeof(pageid);
-  auto keyBuf = new uint8_t[keySize];
+  auto keyBuf = new char[keySize];
   size_t offset = 0;
   auto keyType = EDBKeyType::E_DB_KEY_TYPE_BFT_ST_PENDING_PAGE_KEY;
-  copyToAndAdvance(keyBuf, &offset, keySize, (uint8_t *)&keyType, sizeof(EDBKeyType));
-  copyToAndAdvance(keyBuf, &offset, keySize, (uint8_t *)&pageid, sizeof(pageid));
+  copyToAndAdvance(keyBuf, &offset, keySize, (char *)&keyType, sizeof(EDBKeyType));
+  copyToAndAdvance(keyBuf, &offset, keySize, (char *)&pageid, sizeof(pageid));
   return Sliver(keyBuf, keySize);
 }
 /**
@@ -391,11 +391,11 @@ Sliver KeyManipulator::generateSTPendingPageKey(uint32_t pageid) {
  */
 Sliver KeyManipulator::generateSTCheckpointDescriptorKey(uint64_t chkpt) {
   size_t keySize = sizeof(EDBKeyType) + sizeof(chkpt);
-  auto keyBuf = new uint8_t[keySize];
+  auto keyBuf = new char[keySize];
   size_t offset = 0;
   auto keyType = EDBKeyType::E_DB_KEY_TYPE_BFT_ST_CHECKPOINT_DESCRIPTOR_KEY;
-  copyToAndAdvance(keyBuf, &offset, keySize, (uint8_t *)&keyType, sizeof(EDBKeyType));
-  copyToAndAdvance(keyBuf, &offset, keySize, (uint8_t *)&chkpt, sizeof(chkpt));
+  copyToAndAdvance(keyBuf, &offset, keySize, (char *)&keyType, sizeof(EDBKeyType));
+  copyToAndAdvance(keyBuf, &offset, keySize, (char *)&chkpt, sizeof(chkpt));
   return Sliver(keyBuf, keySize);
 }
 /**
@@ -415,11 +415,11 @@ Sliver KeyManipulator::generateSTReservedPageDynamicKey(uint32_t pageid, uint64_
  */
 Sliver KeyManipulator::generateReservedPageKey(EDBKeyType keyType, uint32_t pageid, uint64_t chkpt) {
   size_t keySize = sizeof(EDBKeyType) + sizeof(pageid) + sizeof(chkpt);
-  auto keyBuf = new uint8_t[keySize];
+  auto keyBuf = new char[keySize];
   size_t offset = 0;
-  copyToAndAdvance(keyBuf, &offset, keySize, (uint8_t *)&keyType, sizeof(EDBKeyType));
-  copyToAndAdvance(keyBuf, &offset, keySize, (uint8_t *)&pageid, sizeof(pageid));
-  copyToAndAdvance(keyBuf, &offset, keySize, (uint8_t *)&chkpt, sizeof(chkpt));
+  copyToAndAdvance(keyBuf, &offset, keySize, (char *)&keyType, sizeof(EDBKeyType));
+  copyToAndAdvance(keyBuf, &offset, keySize, (char *)&pageid, sizeof(pageid));
+  copyToAndAdvance(keyBuf, &offset, keySize, (char *)&chkpt, sizeof(chkpt));
   return Sliver(keyBuf, keySize);
 }
 
@@ -443,7 +443,7 @@ Status DBAdapter::addBlock(BlockId _blockId, Sliver _blockRaw) {
 }
 
 bool KeyManipulator::copyToAndAdvance(
-    uint8_t *_buf, size_t *_offset, size_t _maxOffset, uint8_t *_src, size_t _srcSize) {
+    char *_buf, size_t *_offset, size_t _maxOffset, char *_src, size_t _srcSize) {
   if (!_buf && !_offset && !_src) assert(false);
 
   if (*_offset >= _maxOffset && _srcSize > 0) assert(false);
@@ -454,7 +454,7 @@ bool KeyManipulator::copyToAndAdvance(
   return true;
 }
 
-uint64_t KeyManipulator::extractCheckPointFromKey(const uint8_t *_key_data, size_t _key_length) {
+uint64_t KeyManipulator::extractCheckPointFromKey(const char *_key_data, size_t _key_length) {
   assert(_key_length >= sizeof(uint64_t));
   uint64_t chkp = *(uint64_t *)(_key_data + 1);
 
@@ -462,7 +462,7 @@ uint64_t KeyManipulator::extractCheckPointFromKey(const uint8_t *_key_data, size
   return chkp;
 }
 
-std::pair<uint32_t, uint64_t> KeyManipulator::extractPageIdAndCheckpointFromKey(const uint8_t *_key_data,
+std::pair<uint32_t, uint64_t> KeyManipulator::extractPageIdAndCheckpointFromKey(const char *_key_data,
                                                                                 size_t _key_length) {
   assert(_key_length >= sizeof(uint32_t) + sizeof(uint64_t));
 
@@ -647,9 +647,7 @@ Status DBAdapter::getBlockById(BlockId _blockId, Sliver &_blockRaw, bool &_found
  * @param _trg Sliver object that contains the result.
  */
 inline void CopyKey(Sliver _src, Sliver &_trg) {
-  uint8_t *c = new uint8_t[_src.length()];
-  memcpy(c, _src.data(), _src.length());
-  _trg = Sliver(c, _src.length());
+  _trg = Sliver::copy(_src.data(), _src.length());
 }
 
 // TODO(SG): Add status checks with getStatus() on iterator.
