@@ -122,7 +122,11 @@ Sliver Sliver::subsliver(const size_t offset, const size_t length) const {
 
 size_t Sliver::length() const { return length_; }
 
-std::ostream& Sliver::operator<<(std::ostream& s) const { return hexPrint(s, data(), length()); }
+std::string_view Sliver::string_view() const { return std::string_view(data(), length_); }
+
+std::ostream& Sliver::operator<<(std::ostream& s) const {
+  return hexPrint(s, data(), length());
+}
 
 std::ostream& operator<<(std::ostream& s, const Sliver& sliver) { return sliver.operator<<(s); }
 

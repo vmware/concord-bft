@@ -9,10 +9,11 @@
  *
  * The memory is managed through a std::shared_ptr. If the `Sliver(char* data,
  * size_t length)` constructor is called, that sliver wraps the data pointer in
- * a shared pointer. Sub-slivers reference this same shared pointer, such that
- * the memory is kept around as long as the base sliver or any sub-sliver needs
- * it, and cleaned up once the base sliver and all sub-slivers have finished
- * using it.
+ * a shared pointer. If the `Sliver(const std::sring&&) constructor is called,
+ * the string is wrapped in a shared pointer. Sub-slivers reference this same
+ * shared pointer, such that the memory is kept around as long as the base
+ * sliver or any sub-sliver needs it, and cleaned up once the base sliver and
+ * all sub-slivers have finished using it.
  *
  * Intentionally copyable (via default copy constructor and assignment
  * operator). Copying the shared_ptr increases its reference count by one, so
@@ -29,7 +30,7 @@
 #include <ios>
 #include <variant>
 #include <memory>
-#include <cassert>
+#include <string_view>
 
 namespace concordUtils {
 
@@ -48,6 +49,7 @@ class Sliver {
 
   size_t length() const;
   const char* data() const;
+  std::string_view string_view() const;
 
   std::ostream& operator<<(std::ostream& s) const;
   bool operator==(const Sliver& other) const;

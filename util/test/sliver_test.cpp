@@ -10,6 +10,7 @@
 #include "sliver.hpp"
 #include "gtest/gtest.h"
 #include <iostream>
+#include <string.h>
 
 using namespace std;
 using concordUtils::Sliver;
@@ -105,9 +106,11 @@ TEST(sliver_test, lengths) {
   char* expected = new_test_memory(test_size);
 
   Sliver base(expected, test_size);
+  ASSERT_EQ(0, memcmp(expected, base.string_view().data(), test_size));
   const size_t step = 7;
   for (size_t length = test_size - 1; length > step; length -= step) {
     Sliver subsliver(base, 0, length);
+    ASSERT_EQ(0, memcmp(expected, subsliver.string_view().data(), length));
     ASSERT_TRUE(is_match(expected, length, subsliver));
   }
 }
