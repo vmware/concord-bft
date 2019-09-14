@@ -42,16 +42,14 @@ Status Client::get(const Sliver &_key, OUT Sliver &_outValue) const {
   return Status::OK();
 }
 
-Status Client::get(const Sliver& _key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &_size) const {
+Status Client::get(const Sliver &_key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &_size) const {
   Sliver value;
-  auto status =  get(_key, value);
+  auto status = get(_key, value);
   if (!status.isOK()) return status;
 
   _size = static_cast<uint32_t>(value.length());
   if (bufSize < _size) {
-    LOG_ERROR(logger,
-        "Object value is bigger than specified buffer bufSize="
-        << bufSize << ", _realSize=" << _size);
+    LOG_ERROR(logger, "Object value is bigger than specified buffer bufSize=" << bufSize << ", _realSize=" << _size);
     return Status::GeneralError("Object value is bigger than specified buffer");
   }
   memcpy(buf, value.data(), _size);
@@ -92,7 +90,7 @@ Status Client::freeIterator(IDBClientIterator *_iter) const {
  * @param _value Value of the mapping.
  * @return Status OK.
  */
-Status Client::put(const Sliver& _key, const Sliver& _value) {
+Status Client::put(const Sliver &_key, const Sliver &_value) {
   map_.insert_or_assign(_key, _value.clone());
   return Status::OK();
 }
@@ -105,7 +103,7 @@ Status Client::put(const Sliver& _key, const Sliver& _value) {
  * @param _key Reference to the key of the mapping.
  * @return Status OK.
  */
-Status Client::del(const Sliver& _key) {
+Status Client::del(const Sliver &_key) {
   map_.erase(_key);
   return Status::OK();
 }
