@@ -20,15 +20,19 @@ namespace blockchain {
 class KeyManipulator: public IDBClient::IKeyManipulator{
  public:
   KeyManipulator():logger_(concordlogger::Log::getLogger("concord.storage.blockchain.KeyManipulator")){}
-  virtual int   composedKeyComparison(const Sliver&, const Sliver& ) override;
+  virtual int   composedKeyComparison(const uint8_t* _a_data, size_t _a_length, const uint8_t* _b_data, size_t _b_length) override;
 
   Sliver        genDbKey(EDBKeyType _type, const Key& _key, BlockId _blockId);
   Sliver        genBlockDbKey(BlockId _blockId);
   Sliver        genDataDbKey(const Key& _key, BlockId _blockId);
   char          extractTypeFromKey(const Key& _key);
+  char          extractTypeFromKey(const uint8_t* _key_data);
   BlockId       extractBlockIdFromKey(const Key& _key);
+  BlockId       extractBlockIdFromKey(const uint8_t* _key_data, size_t _key_length);
   ObjectId      extractObjectIdFromKey(const Key& _key);
+  ObjectId      extractObjectIdFromKey(const uint8_t* _key_data, size_t _key_length);
   Sliver        extractKeyFromKeyComposedWithBlockId(const Key& _composedKey);
+  int           compareKeyPartOfComposedKey(const uint8_t *a_data, size_t a_length, const uint8_t *b_data, size_t b_length);
   Sliver        extractKeyFromMetadataKey(const Key& _composedKey);
   bool          isKeyContainBlockId(const Key& _composedKey);
   KeyValuePair  composedToSimple(KeyValuePair _p);

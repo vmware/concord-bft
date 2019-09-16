@@ -24,7 +24,7 @@ class KeyComparator {
         logger_(concordlogger::Log::getLogger("concord.storage.rocksdb.KeyComparator")) {}
 
   bool operator()(const Sliver &a, const Sliver &b) const {
-    int ret = key_manipulator_->composedKeyComparison(a, b);
+    int ret = key_manipulator_->composedKeyComparison(a.data(), a.length(), b.data(), b.length());
     return ret < 0;
   }
 
