@@ -287,14 +287,11 @@ class PlainUDPCommunication::PlainUdpImpl {
     if (error < 0) {
       /** -1 return value means underlying socket error. */
       string err = strerror(errno);
-      LOG_DEBUG(_logger, "Error while sending: " << strerror(errno));
-      Assert(false, "Failure occurred while sending!");
-      /** Fail-fast. */
+      LOG_INFO(_logger, "Error while sending: " << strerror(errno));
     } else if (error < (int) messageLength) {
       /** Mesage was partially sent. Unclear why this would happen, perhaps
         * due to oversized messages (?). */
-      LOG_DEBUG(_logger, "Sent %d out of %d bytes!");
-      Assert(false, "Send error occurred!");    /** Fail-fast. */
+      LOG_INFO(_logger, "Sent %d out of %d bytes!");
     }
 
     if (error == (ssize_t) messageLength) {
