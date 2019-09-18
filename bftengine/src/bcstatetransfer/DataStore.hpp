@@ -257,7 +257,7 @@ public:
   void rollback() override {txn_->rollback();};
   void put(const concordUtils::Sliver& key, const concordUtils::Sliver& value) override {txn_->put(key, value);}
   std::string get(const concordUtils::Sliver& key) override {return txn_->get(key);}
-  void remove(const concordUtils::Sliver& key) override {txn_->remove(key);}
+  void del(const concordUtils::Sliver& key) override {txn_->del(key);}
 
 protected:
   DataStoreTransaction* beginTransaction() override {assert(false); return nullptr;}
