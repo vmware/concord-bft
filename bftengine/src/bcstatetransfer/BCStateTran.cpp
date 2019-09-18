@@ -144,7 +144,6 @@ BCStateTran::BCStateTran( const Config &config,
     numberOfReservedPages_{0},
     randomGen_{randomDevice_()} {
   Assert(stateApi != nullptr);
-  Assert(psd_ != nullptr);
   Assert(replicas_.size() >= 3U * fVal_ + 1U);
   Assert(replicas_.count(myId_) == 1);
   Assert(maxNumOfReservedPages_ >= 2);

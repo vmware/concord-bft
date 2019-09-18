@@ -29,7 +29,7 @@ class ITransaction {
   virtual void rollback() = 0;
   virtual void put(const Sliver& key, const Sliver& value) = 0;
   virtual std::string get(const Sliver& key) = 0;
-  virtual void remove(const Sliver& key) = 0; // delete is a reserved keyword
+  virtual void del(const Sliver& key) = 0;
 
   ID getId() const {return id_;}
   std::string getIdStr() const {return std::to_string(id_);}

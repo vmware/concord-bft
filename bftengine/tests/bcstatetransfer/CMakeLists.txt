@@ -11,5 +11,5 @@ target_include_directories(bcstatetransfer_tests
     ${bftengine_SOURCE_DIR}/src/bftengine)
 
 target_link_libraries(bcstatetransfer_tests gtest_main)
-target_link_libraries(bcstatetransfer_tests corebft)
+target_link_libraries(bcstatetransfer_tests corebft $<TARGET_OBJECTS:logging_dev>)
 target_compile_options(bcstatetransfer_tests PUBLIC "-Wno-sign-compare") 
