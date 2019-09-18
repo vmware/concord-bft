@@ -111,7 +111,7 @@ TEST(multiIO_test, basic_transaction)
     ITransaction::Guard g(dbClient->beginTransaction());
     g.txn->put(key1, inValue1);
     g.txn->put(key2, inValue2);
-    g.txn->remove(key1);
+    g.txn->del(key1);
     std::string val1 = g.txn->get(key1);
     ASSERT_TRUE(val1.empty());
     g.txn->put(key1, inValue1);
@@ -137,7 +137,7 @@ TEST(multiIO_test, no_commit_during_exception)
     { // transaction scope
       ITransaction::Guard g(dbClient->beginTransaction());
       g.txn->put(key, inValue);
-      g.txn->remove(key);
+      g.txn->del(key);
       std::string val = g.txn->get(key);
       ASSERT_TRUE(val.empty());
       g.txn->put(key, inValue);

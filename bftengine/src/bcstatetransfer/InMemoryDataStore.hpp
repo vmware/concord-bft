@@ -176,6 +176,12 @@ class InMemoryDataStore : public DataStore {
   };
 
   map<ResPageKey, ResPageVal> pages;
+
+  friend class DBDataStore;
+  const uint32_t getSizeOfReservedPage() const { return sizeOfReservedPage_;}
+  void setInitialized(bool init) {wasInit_ = init;}
+  const map<uint64_t, CheckpointDesc>& getDescMap() const {return descMap;}
+  const map<ResPageKey, ResPageVal>& getPagesMap() const  {return pages;}
 };
 
 }  // namespace impl
