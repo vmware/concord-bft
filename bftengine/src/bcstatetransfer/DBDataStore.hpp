@@ -16,11 +16,11 @@
 #include <map>
 #include <set>
 
-#include "DataStore.hpp"
-#include "storage/db_metadata_storage.h"
 #include "string.hpp"
 #include "STDigest.hpp"
 #include "Logger.hpp"
+#include "InMemoryDataStore.hpp"
+#include "blockchain/db_types.h"
 
 namespace bftEngine {
 namespace SimpleBlockchainStateTransfer {
@@ -29,8 +29,8 @@ namespace impl  {
 using concord::storage::IDBClient;
 using concord::storage::ITransaction;
 using concordUtils::Status;
-using concord::storage::DBMetadataStorage;
-
+using concordUtils::Sliver;
+using concord::storage::blockchain::EDBKeyType;
 /** *******************************************************************************************************************
  *  This class is used in one of two modes:
  *  1. When ITransaction is not set - works directly through MetadataStorage instance;
@@ -41,104 +41,149 @@ public:
   /**
    * C-r for DBDataStore first time initialization
    */
-  DBDataStore(std::shared_ptr<DBMetadataStorage> mdts,
-              concord::storage::IDBClient::ptr dbc,
-              uint32_t sizeOfReservedPage):
-                  dbc_(dbc), sizeOfReservedPage_(sizeOfReservedPage){}
-protected:
+  DBDataStore( concord::storage::IDBClient::ptr dbc, uint32_t sizeOfReservedPage):
+                inmem_(new InMemoryDataStore(sizeOfReservedPage)), dbc_(dbc){
+    load();
+  }
+
+  DataStoreTransaction* beginTransaction() override {
+    concord::storage::ITransaction::ptr txn(dbc_->beginTransaction());
+    DBDataStore* tnxDataStore = new DBDataStore(*this);
+    tnxDataStore->txn_ = txn;
+    return new DataStoreTransaction(tnxDataStore, txn);
+  }
+
+  void setAsInitialized()                       override;
+  void setReplicas(const set<uint16_t>)         override;
+  void setMyReplicaId(uint16_t)                 override;
+  void setMaxNumOfStoredCheckpoints(uint64_t)   override;
+  void setNumberOfReservedPages(uint32_t)       override;
+  void setLastStoredCheckpoint(uint64_t)        override;
+  void setFirstStoredCheckpoint(uint64_t)       override;
+  void setIsFetchingState(bool)                 override;
+  void setFirstRequiredBlock(uint64_t)          override;
+  void setLastRequiredBlock(uint64_t)           override;
+  void setFVal(uint16_t)                        override;
+  void deleteAllPendingPages()                  override;
+  void deleteCheckpointBeingFetched()           override;
+  void deleteDescOfSmallerCheckpoints(uint64_t) override;
+  void deleteCoveredResPageInSmallerCheckpoints( uint64_t)          override;
+  void setCheckpointBeingFetched(const CheckpointDesc&)             override;
+  void setResPage(uint32_t, uint64_t, const STDigest&, const char*) override;
+  void setPendingResPage(uint32_t, const char*, uint32_t)           override;
+  void setCheckpointDesc(uint64_t, const CheckpointDesc&)           override;
+  void associatePendingResPageWithCheckpoint(uint32_t, uint64_t, const STDigest&) override;
+
+  void           free(ResPagesDescriptor*  desc) override {inmem_->free(desc);}
+  bool           initialized() override { return inmem_->initialized();}
+  bool           hasCheckpointDesc(uint64_t checkpoint) override { return inmem_->hasCheckpointDesc(checkpoint);}
+  bool           hasPendingResPage(uint32_t inPageId) override {return inmem_->hasPendingResPage(inPageId);}
+  bool           getIsFetchingState() override { return inmem_->getIsFetchingState(); }
+  bool           hasCheckpointBeingFetched() override { return inmem_->hasCheckpointBeingFetched();}
+  uint16_t       getMyReplicaId() override { return inmem_->getMyReplicaId();}
+  uint16_t       getFVal() override  { return inmem_->getFVal(); }
+  uint32_t       numOfAllPendingResPage() override { return inmem_->numOfAllPendingResPage();}
+  uint32_t       getNumberOfReservedPages() override {return inmem_->getNumberOfReservedPages();}
+  uint64_t       getMaxNumOfStoredCheckpoints() override  { return inmem_->getMaxNumOfStoredCheckpoints(); }
+  uint64_t       getLastStoredCheckpoint() override {return inmem_->getLastStoredCheckpoint();}
+  uint64_t       getFirstStoredCheckpoint() override {return inmem_->getFirstStoredCheckpoint();}
+  uint64_t       getFirstRequiredBlock() override  { return inmem_->getFirstRequiredBlock(); }
+  uint64_t       getLastRequiredBlock() override {return inmem_->getLastRequiredBlock();}
+  CheckpointDesc getCheckpointDesc(uint64_t checkpoint) override;
+  CheckpointDesc getCheckpointBeingFetched() override {return inmem_->getCheckpointBeingFetched();}
+  set<uint16_t>  getReplicas() override { return inmem_->getReplicas();}
+  set<uint32_t>  getNumbersOfPendingResPages() override { return inmem_->getNumbersOfPendingResPages(); }
+
+
+  void getPendingResPage( uint32_t inPageId, char* outPage, uint32_t pageLen) override {
+    inmem_->getPendingResPage(inPageId, outPage, pageLen);
+  }
+  ResPagesDescriptor* getResPagesDescriptor(uint64_t inCheckpoint) override {
+    return inmem_->getResPagesDescriptor(inCheckpoint);
+  }
+  void getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint) override {
+     inmem_->getResPage(inPageId, inCheckpoint, outActualCheckpoint);
+  }
+  void getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint,
+                  char* outPage, uint32_t copylength) override {
+     inmem_->getResPage(inPageId, inCheckpoint, outActualCheckpoint, outPage, copylength);
+  }
+  void getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint,
+                  STDigest* outPageDigest, char* outPage, uint32_t copylength) override {
+    inmem_->getResPage(inPageId, inCheckpoint, outActualCheckpoint, outPageDigest, outPage, copylength);
+  }
+ protected:
+  typedef std::uint64_t ObjectId;
+
+  enum class EDBKeySubType: std::uint8_t {
+    General = (int)EDBKeyType::E_DB_KEY_TYPE_LAST + 1,
+    ReservedPagesDynamicId,
+    CheckPointDesc
+  };
+  enum GeneralIds: ObjectId {
+    Initialized = 1,
+    MyReplicaId,
+    MaxNumOfStoredCheckpoints,
+    NumberOfReservedPages,
+    LastStoredCheckpoint,
+    FirstStoredCheckpoint,
+    IsFetchingState,
+    fVal,
+    FirstRequiredBlock,
+    LastRequiredBlock,
+    Replicas,
+    CheckpointBeingFetched,
+    PendingPages,
+    ReservedPagesStaticId = PendingPages + 1000,
+  };
   /**
    * C-r for use with beginTransaction
    */
-  DBDataStore(concord::storage::ITransaction::ptr txn, DBDataStore* parent):
-                 txn_(txn),
-                 sizeOfReservedPage_(parent->sizeOfReservedPage_){}
-public:
-  DataStoreTransaction* beginTransaction() override {
-    concord::storage::ITransaction::ptr txn(dbc_->beginTransaction());
-    return  new DataStoreTransaction(new DBDataStore(txn, this), txn);
-  }
+  DBDataStore(const DBDataStore& ) = default;
 
-  void setAsInitialized() override;
-  void setReplicas(const set<uint16_t> replicas)          override;
-  void setMyReplicaId(uint16_t id)                        override;
-  void setMaxNumOfStoredCheckpoints(uint64_t numChecks)   override;
-  void setNumberOfReservedPages(uint32_t numResPages)     override;
-  void setLastStoredCheckpoint(uint64_t c)                override;
-  void setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& desc)      override;
-  void setFirstStoredCheckpoint(uint64_t c)               override;
-  void setPendingResPage(uint32_t inPageId, const char* inPage, uint32_t pageLen) override;
-  void setResPage(uint32_t inPageId, uint64_t inCheckpoint, const STDigest& inPageDigest, const char* inPage) override;
-  void setIsFetchingState(bool b)                         override;
-  void setCheckpointBeingFetched(const CheckpointDesc& c) override;
-  void setFirstRequiredBlock(uint64_t i)                  override;
-  void setLastRequiredBlock(uint64_t i)                   override;
-  void setFVal(uint16_t fVal) override;
-  void associatePendingResPageWithCheckpoint(uint32_t inPageId,
-                                           uint64_t inCheckpoint,
-                                           const STDigest& inPageDigest) override;
-  void deleteAllPendingPages() override;
-  void deleteCheckpointBeingFetched() override;
-  void deleteDescOfSmallerCheckpoints(uint64_t checkpoint) override;
-  void deleteCoveredResPageInSmallerCheckpoints( uint64_t inCheckpoint) override;
-  void free(ResPagesDescriptor*) override;
-  bool initialized() override;
-  set<uint16_t>  getReplicas() override;
-  uint16_t       getMyReplicaId() override;
-  uint16_t       getFVal() override;
-  uint64_t       getMaxNumOfStoredCheckpoints() override;
-  uint32_t       getNumberOfReservedPages() override;
-  uint64_t       getLastStoredCheckpoint() override;
-  uint64_t       getFirstStoredCheckpoint() override;
-  CheckpointDesc getCheckpointDesc(uint64_t checkpoint) override;
-  CheckpointDesc getCheckpointBeingFetched() override;
-  bool           hasCheckpointDesc(uint64_t checkpoint) override;
-  bool           hasPendingResPage(uint32_t inPageId) override;
-  uint32_t       numOfAllPendingResPage() override;
-  set<uint32_t>  getNumbersOfPendingResPages() override;
-  void           getPendingResPage( uint32_t inPageId,char* outPage, uint32_t pageLen) override;
-  void           getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint) override;
-  void           getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint,
-                            char* outPage, uint32_t copylength) override;
-  void           getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint,
-                            STDigest* outPageDigest, char* outPage, uint32_t copylength) override;
-  ResPagesDescriptor* getResPagesDescriptor(uint64_t inCheckpoint) override;
-  bool           getIsFetchingState() override;
-  bool           hasCheckpointBeingFetched() override;
-  uint64_t       getFirstRequiredBlock() override;
-  uint64_t       getLastRequiredBlock() override;
+  void load();
+  void loadDynamicKeys();
+  void loadResPages();
+  void loadPendingPages();
 
- protected:
-  void serializeCheckpoint  (std::ostream& os, const CheckpointDesc& desc);
-  void deserializeCheckpoint(std::istream& is, CheckpointDesc& desc);
+  void serializeCheckpoint   (std::ostream& os, const CheckpointDesc& desc) const;
+  void deserializeCheckpoint (std::istream& is,       CheckpointDesc& desc) const;
+
+  void serializeResPage      (std::ostream&, uint32_t,  uint64_t, const STDigest&, const char*) const;
+  void deserializeResPage    (std::istream&, uint32_t&, uint64_t&,      STDigest&,       char*) const;
+
+  void deserializePendingPage(std::istream&, char*, uint32_t&) const;
+
   /**
-   * ResPage key layout: ResPage:inPageId:inChekpoint
+   * adds to existing transaction
    */
-  std::string resPageKeyPrefix(uint32_t pageId) const { return "ResPage" + KEY_DELIM + std::to_string(pageId);}
-  std::string resPageKey(uint64_t checkpoint, uint32_t pageId) const {
-    return resPageKeyPrefix(pageId) + KEY_DELIM + std::to_string(checkpoint);
+  void setResPageTxn( uint32_t ,uint64_t ,const STDigest&,const char*, ITransaction*);
+  /** *****************************************************************************************************************
+   * db layer access
+   */
+  void put(const GeneralIds& objId, const std::string& val){
+    put(genKey(objId), val);
   }
-  std::string pendingPageKey(uint32_t inPageId) const {
-    return "PendingResPage" + KEY_DELIM + std::to_string(inPageId);
-  }
-  // concord::storage::blockchain::EDBKeyType::E_DB_KEY_TYPE_BFT_METADATA_KEY = 3
-  const std::string KEY_PREFIX = "\3:STATE_TRANSFER:";
-  const std::string KEY_DELIM = ":";
   void put(const std::string& key, const std::string& val){
-    LOG_TRACE(logger(), "put key:" <<  KEY_PREFIX + key << " val:" << val << txn_? "txn: " + std::to_string(txn_->getId()):"");
-    if (txn_)
-       txn_->put(KEY_PREFIX + key, val);
-    else
-       dbc_->put(KEY_PREFIX + key, val);
+    if (txn_){
+       LOG_TRACE(logger(), "put objId:" << key << " val:" << val << " txn: " + std::to_string(txn_->getId()));
+       txn_->put(key, val);
+    }
+    else{
+      LOG_TRACE(logger(), "put objId:" << key << " val:" << val);
+      dbc_->put(key, val);
+    }
   }
   /**
    * @return true if key found, false if key not found
    * @throw  otherwise
    */
-  bool get(const std::string& key, concordUtils::Sliver& val){
-    LOG_TRACE(logger(), "get key:" <<  KEY_PREFIX + key );
-    Status s = dbc_->get(KEY_PREFIX + key, val);
+  bool get(GeneralIds objId, Sliver& val){ return get(genKey(objId), val);}
+  bool get(const std::string& key, Sliver& val){
+    LOG_TRACE(logger(), "get objId:" << key);
+    Status s = dbc_->get(key, val);
     if(!(s.isOK() || s.isNotFound()))
-        throw std::runtime_error("error get key: " + key + std::string(", reason: ") + s.toString());
+        throw std::runtime_error("error get objId: " + key + std::string(", reason: ") + s.toString());
     if(s.isNotFound()){
       LOG_ERROR(logger(), "not found: key: " + key);
       return false;
@@ -149,13 +194,14 @@ public:
    * @return true if key found, false if key not found
    * @throw  otherwise
    */
-  bool del(const std::string& key){
-    LOG_TRACE(logger(), "delete key:" <<  KEY_PREFIX + key );
-    Status s = dbc_->del(KEY_PREFIX + key);
+  bool del(GeneralIds objId){ return del(genKey(objId));}
+  bool del(const Sliver& key){
+    LOG_TRACE(logger(), "delete k.ey:" <<  key.toString());
+    Status s = dbc_->del(key);
     if(!(s.isOK() || s.isNotFound()))
-        throw std::runtime_error("error del key: " + key + std::string(", reason: ") + s.toString());
+        throw std::runtime_error("error del key: " + key.toString() + std::string(", reason: ") + s.toString());
     if(s.isNotFound()){
-      LOG_ERROR(logger(), "not found: key: " + key);
+      LOG_ERROR(logger(), "not found: key: " + key.toString());
       return false;
     }
     return true;
@@ -164,29 +210,54 @@ public:
    * convenience functions for integral types
    */
   template<typename T>
-  void putInt(const std::string& key, T val) { put(key, std::to_string(val)); }
+  void putInt(const GeneralIds& objId, T val) { put(genKey(objId), std::to_string(val)); }
   template<typename T>
-  T get(const std::string& key){
+  T get(const ObjectId& objId){
     concordUtils::Sliver val;
-    get(key, val);
+    if(!get(genKey(objId), val))
+      return 0;
     std::string s(reinterpret_cast<char*>(val.data()), val.length());
     return concord::util::to<T>(s);
   }
-
-  IDBClient::IDBClientIterator* getIterator(const std::string& key){
-    IDBClient::IDBClientIterator* it = dbc_->getIterator();
-    it->seekAtLeast(KEY_PREFIX + key);
-    return it;
+  /** *****************************************************************************************************************
+   * keys generation
+   */
+  std::string dynamicResPageKey (uint32_t pageid, uint64_t chkp) const {
+    return genKey(EDBKeySubType::ReservedPagesDynamicId, pageid, chkp);
   }
+  std::string staticResPageKey  (uint32_t pageid, uint64_t chkp) const {
+    static uint64_t maxStored = inmem_->getMaxNumOfStoredCheckpoints();
+    return genKey(ReservedPagesStaticId + pageid * (chkp % maxStored));
+  }
+  std::string pendingPageKey (uint32_t pageid) const { return genKey(PendingPages + pageid);}
+  std::string chkpDescKey    (uint64_t chkp)   const { return genKey(EDBKeySubType::CheckPointDesc, chkp); }
+  const std::string common_prefix  = std::string(1, (char)EDBKeyType::E_DB_KEY_TYPE_BFT_METADATA_KEY);
+  const std::string general_prefix = std::string(1, (char)EDBKeySubType::General);
 
-  static concordlogger::Logger& logger(){
+  std::string genKey(const ObjectId& objId) const {
+    static std::string prefix = common_prefix + general_prefix;
+    return prefix + std::to_string(objId);
+  }
+  std::string genKey(const EDBKeySubType& subtype, const uint32_t& pageid, const uint64_t& chkp) const {
+    return common_prefix + std::string(1, (char)subtype) + std::to_string(pageid) + std::to_string(chkp);
+  }
+  std::string genKey(const EDBKeySubType& subtype, const uint32_t& pageid) const {
+    return common_prefix + std::string(1, (char)subtype) + std::to_string(pageid);
+  }
+  std::string genKey(const EDBKeySubType& subtype, const uint64_t& chkp) const {
+    return common_prefix + std::string(1, (char)subtype) + std::to_string(chkp);
+  }
+  /** ****************************************************************************************************************/
+  concordlogger::Logger& logger(){
       static concordlogger::Logger logger_ = concordlogger::Log::getLogger("DBDataStore");
       return logger_;
-    }
+  }
 
+protected:
+  std::shared_ptr<InMemoryDataStore> inmem_; // one copy among instances
   ITransaction::ptr txn_;
   IDBClient::ptr    dbc_;
-  uint32_t          sizeOfReservedPage_;
+  std::shared_ptr<std::map<InMemoryDataStore::ResPageKey, std::string>> keysofkeys_; // one copy among instances
 };
 
 }  // namespace impl

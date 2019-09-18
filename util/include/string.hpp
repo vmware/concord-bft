@@ -25,12 +25,12 @@ namespace util {
 template<typename T>
 T to(const std::string& s){assert(false && "no suitable specialization"); return static_cast<T>(0);}
 
-template<> bool               to<> (const std::string& s) {return std::stoi(s);  }
-template<> std::uint16_t      to<> (const std::string& s) {return std::stoi(s);  }
-template<> int                to<> (const std::string& s) {return std::stoi(s);  }
-template<> long               to<> (const std::string& s) {return std::stol(s);  }
-template<> unsigned long      to<> (const std::string& s) {return std::stoul(s); }
-template<> long long          to<> (const std::string& s) {return std::stoll(s); }
-template<> unsigned long long to<> (const std::string& s) {return std::stoull(s);}
+template<> inline bool               to<> (const std::string& s) {return std::stoi(s);  }
+template<> inline std::uint16_t      to<> (const std::string& s) {return std::stoi(s);  }
+template<> inline int                to<> (const std::string& s) {return std::stoi(s);  }
+template<> inline long               to<> (const std::string& s) {return std::stol(s);  }
+template<> inline unsigned long      to<> (const std::string& s) {return std::stoul(s); }
+template<> inline long long          to<> (const std::string& s) {return std::stoll(s); }
+template<> inline unsigned long long to<> (const std::string& s) {return std::stoull(s);}
 }
 }
