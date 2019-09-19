@@ -243,6 +243,13 @@ class AsyncTlsConnection : public
     return it->second.isReplica;
   }
 
+  void set_no_delay() {
+    asio::ip::tcp::no_delay option;
+    get_socket().set_option(boost::asio::ip::tcp::no_delay(true));
+    get_socket().get_option(option);
+    assert(true == option.value());
+  }
+
   /**
    * returns message length - first 4 bytes of the buffer
    * @param buffer Data received from the stream
@@ -665,7 +672,7 @@ class AsyncTlsConnection : public
       LOG_DEBUG(_logger, "connected, node " << _selfId
                                             << ", dest: " << _expectedDestId
                                             << ", res: " << res);
-
+      set_no_delay();
       _socket->async_handshake(boost::asio::ssl::stream_base::client,
                                boost::bind(
                                    &AsyncTlsConnection::on_handshake_complete_outbound,
@@ -976,6 +983,7 @@ class AsyncTlsConnection : public
   }
 
   void start() {
+    set_no_delay();
     _socket->async_handshake(boost::asio::ssl::stream_base::server,
                              boost::bind(&AsyncTlsConnection::on_handshake_complete_inbound,
                                          shared_from_this(),
