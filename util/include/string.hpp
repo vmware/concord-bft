@@ -14,6 +14,7 @@
 #pragma once
 
 #include <string>
+#include <assert.h>
 
 namespace concord {
 namespace util {

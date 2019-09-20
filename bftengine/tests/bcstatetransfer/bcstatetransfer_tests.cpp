@@ -45,11 +45,6 @@ Config TestConfig() {
 class BcStTest : public ::testing::Test {
   protected:
     void SetUp() override {
-      //uncomment if needed
-      log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("serializable")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
-      log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("DBDataStore")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
-      log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("rocksdb")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
-
       config_ = TestConfig();
       concord::storage::IDBClient::ptr dbc(new concord::storage::rocksdb::Client("./bcst_db", new KeyComparator(new KeyManipulator())));
       dbc->init();
