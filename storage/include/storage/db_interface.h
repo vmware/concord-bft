@@ -22,7 +22,6 @@ using concordUtils::SetOfKeyValuePairs;
 class ITransaction {
  public:
   typedef uint64_t ID;
-  typedef std::shared_ptr<ITransaction> ptr;
   ITransaction(ID id):id_(id){}
   virtual ~ITransaction() = default;
   virtual void commit() = 0;
@@ -50,7 +49,6 @@ class ITransaction {
 
 class IDBClient {
  public:
-  typedef std::shared_ptr<IDBClient> ptr;
   virtual ~IDBClient() = default;
   virtual void   init(bool readOnly = false) = 0;
   virtual Status get(const Sliver& _key, OUT Sliver &_outValue) const = 0;

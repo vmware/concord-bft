@@ -14,7 +14,7 @@
 #pragma once
 
 #include <string>
-#include <assert.h>
+#include "assertUtils.hpp"
 
 namespace concord {
 namespace util {
@@ -24,7 +24,7 @@ namespace util {
  * TODO float, double
  */
 template<typename T>
-T to(const std::string& s){assert(false && "no suitable specialization"); return static_cast<T>(0);}
+T to(const std::string& s){Assert(false && "no suitable specialization"); return static_cast<T>(0);}
 
 template<> inline bool               to<> (const std::string& s) {return std::stoi(s);  }
 template<> inline std::uint16_t      to<> (const std::string& s) {return std::stoi(s);  }

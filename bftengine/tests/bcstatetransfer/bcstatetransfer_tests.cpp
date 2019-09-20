@@ -18,17 +18,28 @@
 #include "test_replica.hpp"
 #include "Logger.hpp"
 #include "DBDataStore.hpp"
-#include "rocksdb/client.h"
-#include "rocksdb/key_comparator.h"
 #include "blockchain/db_adapter.h"
 
-using concord::storage::rocksdb::KeyComparator;
+#ifdef USE_ROCKSDB
+#include "rocksdb/client.h"
+#include "rocksdb/key_comparator.h"
+#else
+#include "memorydb/client.h"
+#include "memorydb/key_comparator.h"
+#endif
+
+#include <iostream>
+using namespace std;
+
 using concord::storage::ITransaction;
 using concord::storage::blockchain::KeyManipulator;
+
 namespace bftEngine {
 namespace SimpleBlockchainStateTransfer {
 
 using namespace impl;
+
+const char* db_name = "./bcst_db";
 
 // Create a test config with small blocks and chunks for testing
 Config TestConfig() {
@@ -46,26 +57,37 @@ class BcStTest : public ::testing::Test {
   protected:
     void SetUp() override {
       config_ = TestConfig();
-      concord::storage::IDBClient::ptr dbc(new concord::storage::rocksdb::Client("./bcst_db", new KeyComparator(new KeyManipulator())));
+
+#ifdef USE_ROCKSDB
+      auto* key_manipulator = new concord::storage::blockchain::KeyManipulator();
+      auto* comparator = new concord::storage::rocksdb::KeyComparator(key_manipulator);
+      std::unique_ptr<concord::storage::IDBClient> dbc(new concord::storage::rocksdb::Client(db_name, comparator));
       dbc->init();
-      st_ = new BCStateTran(config_, &app_state_, new DBDataStore(dbc, config_.sizeOfReservedPage));
+      auto* datastore = new DBDataStore(std::move(dbc), config_.sizeOfReservedPage);
+#else
+      auto* datastore = new InMemoryDataStore(config_.sizeOfReservedPage);
+#endif
+
+      st_.reset(new BCStateTran(config_, &app_state_, datastore));
       ASSERT_FALSE(st_->isRunning());
       st_->startRunning(&replica_);
       ASSERT_TRUE(st_->isRunning());
       ASSERT_EQ(BCStateTran::FetchingState::NotFetching, st_->getFetchingState());
-
     }
 
     void TearDown() override {
       // Must stop running before destruction
       st_->stopRunning();
-      delete st_;
+      string cmd = string("rm -rf ") + db_name;
+      if (system(cmd.c_str())) {
+         ASSERT_TRUE(false);
+      }
     }
 
     Config config_;
     TestAppState app_state_;
     TestReplica replica_;
-    BCStateTran* st_;
+    std::unique_ptr<BCStateTran> st_;
 
 };
 
@@ -89,7 +111,6 @@ void assert_checkpoint_summary_requests_sent(
 // another replica.
 TEST_F(BcStTest, FetchMissingData) {
   st_->startCollectingState();
-
   ASSERT_EQ(BCStateTran::FetchingState::GettingCheckpointSummaries,
             st_->getFetchingState());
 

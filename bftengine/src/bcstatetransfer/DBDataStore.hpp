@@ -41,16 +41,9 @@ public:
   /**
    * C-r for DBDataStore first time initialization
    */
-  DBDataStore( concord::storage::IDBClient::ptr dbc, uint32_t sizeOfReservedPage):
-                inmem_(new InMemoryDataStore(sizeOfReservedPage)), dbc_(dbc){
+  DBDataStore( std::unique_ptr<concord::storage::IDBClient> dbc, uint32_t sizeOfReservedPage):
+                inmem_(InMemoryDataStore(sizeOfReservedPage)), dbc_(std::move(dbc)){
     load();
-  }
-
-  DataStoreTransaction* beginTransaction() override {
-    concord::storage::ITransaction::ptr txn(dbc_->beginTransaction());
-    DBDataStore* tnxDataStore = new DBDataStore(*this);
-    tnxDataStore->txn_ = txn;
-    return new DataStoreTransaction(tnxDataStore, txn);
   }
 
   void setAsInitialized()                       override;
@@ -74,43 +67,43 @@ public:
   void setCheckpointDesc(uint64_t, const CheckpointDesc&)           override;
   void associatePendingResPageWithCheckpoint(uint32_t, uint64_t, const STDigest&) override;
 
-  void           free(ResPagesDescriptor*  desc) override {inmem_->free(desc);}
-  bool           initialized() override { return inmem_->initialized();}
-  bool           hasCheckpointDesc(uint64_t checkpoint) override { return inmem_->hasCheckpointDesc(checkpoint);}
-  bool           hasPendingResPage(uint32_t inPageId) override {return inmem_->hasPendingResPage(inPageId);}
-  bool           getIsFetchingState() override { return inmem_->getIsFetchingState(); }
-  bool           hasCheckpointBeingFetched() override { return inmem_->hasCheckpointBeingFetched();}
-  uint16_t       getMyReplicaId() override { return inmem_->getMyReplicaId();}
-  uint16_t       getFVal() override  { return inmem_->getFVal(); }
-  uint32_t       numOfAllPendingResPage() override { return inmem_->numOfAllPendingResPage();}
-  uint32_t       getNumberOfReservedPages() override {return inmem_->getNumberOfReservedPages();}
-  uint64_t       getMaxNumOfStoredCheckpoints() override  { return inmem_->getMaxNumOfStoredCheckpoints(); }
-  uint64_t       getLastStoredCheckpoint() override {return inmem_->getLastStoredCheckpoint();}
-  uint64_t       getFirstStoredCheckpoint() override {return inmem_->getFirstStoredCheckpoint();}
-  uint64_t       getFirstRequiredBlock() override  { return inmem_->getFirstRequiredBlock(); }
-  uint64_t       getLastRequiredBlock() override {return inmem_->getLastRequiredBlock();}
+  void           free(ResPagesDescriptor*  desc) override {inmem_.free(desc);}
+  bool           initialized() override { return inmem_.initialized();}
+  bool           hasCheckpointDesc(uint64_t checkpoint) override { return inmem_.hasCheckpointDesc(checkpoint);}
+  bool           hasPendingResPage(uint32_t inPageId) override {return inmem_.hasPendingResPage(inPageId);}
+  bool           getIsFetchingState() const override { return inmem_.getIsFetchingState(); }
+  bool           hasCheckpointBeingFetched() override { return inmem_.hasCheckpointBeingFetched();}
+  uint16_t       getMyReplicaId() const override { return inmem_.getMyReplicaId();}
+  uint16_t       getFVal() const override  { return inmem_.getFVal(); }
+  uint32_t       numOfAllPendingResPage() override { return inmem_.numOfAllPendingResPage();}
+  uint32_t       getNumberOfReservedPages() const override {return inmem_.getNumberOfReservedPages();}
+  uint64_t       getMaxNumOfStoredCheckpoints() const override  { return inmem_.getMaxNumOfStoredCheckpoints(); }
+  uint64_t       getLastStoredCheckpoint() const override {return inmem_.getLastStoredCheckpoint();}
+  uint64_t       getFirstStoredCheckpoint() const override {return inmem_.getFirstStoredCheckpoint();}
+  uint64_t       getFirstRequiredBlock() const override  { return inmem_.getFirstRequiredBlock(); }
+  uint64_t       getLastRequiredBlock() const override {return inmem_.getLastRequiredBlock();}
   CheckpointDesc getCheckpointDesc(uint64_t checkpoint) override;
-  CheckpointDesc getCheckpointBeingFetched() override {return inmem_->getCheckpointBeingFetched();}
-  set<uint16_t>  getReplicas() override { return inmem_->getReplicas();}
-  set<uint32_t>  getNumbersOfPendingResPages() override { return inmem_->getNumbersOfPendingResPages(); }
+  CheckpointDesc getCheckpointBeingFetched() const override {return inmem_.getCheckpointBeingFetched();}
+  set<uint16_t>  getReplicas() const override { return inmem_.getReplicas();}
+  set<uint32_t>  getNumbersOfPendingResPages() const override { return inmem_.getNumbersOfPendingResPages(); }
 
 
-  void getPendingResPage( uint32_t inPageId, char* outPage, uint32_t pageLen) override {
-    inmem_->getPendingResPage(inPageId, outPage, pageLen);
+  void getPendingResPage( uint32_t inPageId, char* outPage, uint32_t pageLen) const override {
+    inmem_.getPendingResPage(inPageId, outPage, pageLen);
   }
-  ResPagesDescriptor* getResPagesDescriptor(uint64_t inCheckpoint) override {
-    return inmem_->getResPagesDescriptor(inCheckpoint);
+  ResPagesDescriptor* getResPagesDescriptor(uint64_t inCheckpoint) const override {
+    return inmem_.getResPagesDescriptor(inCheckpoint);
   }
-  void getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint) override {
-     inmem_->getResPage(inPageId, inCheckpoint, outActualCheckpoint);
-  }
-  void getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint,
-                  char* outPage, uint32_t copylength) override {
-     inmem_->getResPage(inPageId, inCheckpoint, outActualCheckpoint, outPage, copylength);
+  void getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint) const override {
+     inmem_.getResPage(inPageId, inCheckpoint, outActualCheckpoint);
   }
   void getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint,
-                  STDigest* outPageDigest, char* outPage, uint32_t copylength) override {
-    inmem_->getResPage(inPageId, inCheckpoint, outActualCheckpoint, outPageDigest, outPage, copylength);
+                  char* outPage, uint32_t copylength) const override {
+     inmem_.getResPage(inPageId, inCheckpoint, outActualCheckpoint, outPage, copylength);
+  }
+  void getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint,
+                  STDigest* outPageDigest, char* outPage, uint32_t copylength) const override {
+    inmem_.getResPage(inPageId, inCheckpoint, outActualCheckpoint, outPageDigest, outPage, copylength);
   }
  protected:
   typedef std::uint64_t ObjectId;
@@ -161,13 +154,21 @@ public:
   /** *****************************************************************************************************************
    * db layer access
    */
-  void put(const GeneralIds& objId, const std::string& val){
-    put(genKey(objId), val);
+  void put(const GeneralIds& objId, const std::string& val) {
+    put(objId, val, nullptr);
   }
-  void put(const std::string& key, const std::string& val){
-    if (txn_){
-       LOG_TRACE(logger(), "put objId:" << key << " val:" << val << " txn: " + std::to_string(txn_->getId()));
-       txn_->put(key, val);
+  void put(const GeneralIds& objId, const std::string& val, ITransaction* txn) {
+    put(genKey(objId), val, txn);
+  }
+
+
+  void put(const std::string& key, const std::string& val) {
+    put(key, val, nullptr);
+  }
+  void put(const std::string& key, const std::string& val, ITransaction* txn) {
+    if (txn){
+       LOG_TRACE(logger(), "put objId:" << key << " val:" << val << " txn: " + std::to_string(txn->getId()));
+       txn->put(key, val);
     }
     else{
       LOG_TRACE(logger(), "put objId:" << key << " val:" << val);
@@ -178,7 +179,10 @@ public:
    * @return true if key found, false if key not found
    * @throw  otherwise
    */
-  bool get(GeneralIds objId, Sliver& val){ return get(genKey(objId), val);}
+  bool get(GeneralIds objId, Sliver& val){
+    auto key = genKey(objId);
+    return get(key, val);
+  }
   bool get(const std::string& key, Sliver& val){
     LOG_TRACE(logger(), "get objId:" << key);
     Status s = dbc_->get(key, val);
@@ -190,6 +194,7 @@ public:
     }
     return true;
   }
+
   /**
    * @return true if key found, false if key not found
    * @throw  otherwise
@@ -206,16 +211,20 @@ public:
     }
     return true;
   }
+
   /**
    * convenience functions for integral types
    */
   template<typename T>
-  void putInt(const GeneralIds& objId, T val) { put(genKey(objId), std::to_string(val)); }
+  void putInt(const GeneralIds& objId, T val) { putInt(objId, val, nullptr); }
+
+  template<typename T>
+  void putInt(const GeneralIds& objId, T val, ITransaction* txn) { put(objId, std::to_string(val), txn); }
+
   template<typename T>
   T get(const ObjectId& objId){
     concordUtils::Sliver val;
-    if(!get(genKey(objId), val))
-      return 0;
+    if(!get(genKey(objId), val)) return 0;
     std::string s(reinterpret_cast<char*>(val.data()), val.length());
     return concord::util::to<T>(s);
   }
@@ -226,7 +235,7 @@ public:
     return genKey(EDBKeySubType::ReservedPagesDynamicId, pageid, chkp);
   }
   std::string staticResPageKey  (uint32_t pageid, uint64_t chkp) const {
-    static uint64_t maxStored = inmem_->getMaxNumOfStoredCheckpoints();
+    static uint64_t maxStored = inmem_.getMaxNumOfStoredCheckpoints();
     return genKey(ReservedPagesStaticId + pageid * (chkp % maxStored));
   }
   std::string pendingPageKey (uint32_t pageid) const { return genKey(PendingPages + pageid);}
@@ -254,10 +263,9 @@ public:
   }
 
 protected:
-  std::shared_ptr<InMemoryDataStore> inmem_; // one copy among instances
-  ITransaction::ptr txn_;
-  IDBClient::ptr    dbc_;
-  std::shared_ptr<std::map<InMemoryDataStore::ResPageKey, std::string>> keysofkeys_; // one copy among instances
+  InMemoryDataStore inmem_;
+  std::unique_ptr<concord::storage::IDBClient> dbc_;
+  std::map<InMemoryDataStore::ResPageKey, std::string> keysofkeys_;
 };
 
 }  // namespace impl

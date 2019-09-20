@@ -39,29 +39,29 @@ class InMemoryDataStore : public DataStore {
   void setAsInitialized() override;
 
   void setReplicas(const set<uint16_t> replicas) override;
-  set<uint16_t> getReplicas() override;
+  set<uint16_t> getReplicas() const override;
 
   void setMyReplicaId(uint16_t id) override;
-  uint16_t getMyReplicaId() override;
+  uint16_t getMyReplicaId() const override;
 
   void setFVal(uint16_t fVal) override;
-  uint16_t getFVal() override;
+  uint16_t getFVal() const override;
 
   void setMaxNumOfStoredCheckpoints(uint64_t numChecks) override;
-  uint64_t getMaxNumOfStoredCheckpoints() override;
+  uint64_t getMaxNumOfStoredCheckpoints() const override;
 
   void setNumberOfReservedPages(uint32_t numResPages) override;
-  uint32_t getNumberOfReservedPages() override;
+  uint32_t getNumberOfReservedPages() const override;
 
   //////////////////////////////////////////////////////////////////////////
   // first/last checkpoint number which are currently maintained
   //////////////////////////////////////////////////////////////////////////
 
   void setLastStoredCheckpoint(uint64_t c) override;
-  uint64_t getLastStoredCheckpoint() override;
+  uint64_t getLastStoredCheckpoint() const override;
 
   void setFirstStoredCheckpoint(uint64_t c) override;
-  uint64_t getFirstStoredCheckpoint() override;
+  uint64_t getFirstStoredCheckpoint() const override;
 
   //////////////////////////////////////////////////////////////////////////
   // Checkpoints
@@ -79,19 +79,19 @@ class InMemoryDataStore : public DataStore {
   //////////////////////////////////////////////////////////////////////////
 
   void setIsFetchingState(bool b) override;
-  bool getIsFetchingState() override;
+  bool getIsFetchingState() const override;
 
   void setCheckpointBeingFetched(const CheckpointDesc& c) override;
-  CheckpointDesc getCheckpointBeingFetched() override;
+  CheckpointDesc getCheckpointBeingFetched() const override;
   bool hasCheckpointBeingFetched() override;
   void deleteCheckpointBeingFetched() override;
 
 
   void setFirstRequiredBlock(uint64_t i) override;
-  uint64_t getFirstRequiredBlock() override;
+  uint64_t getFirstRequiredBlock() const override;
 
   void setLastRequiredBlock(uint64_t i) override;
-  uint64_t getLastRequiredBlock() override;
+  uint64_t getLastRequiredBlock() const override;
 
   //////////////////////////////////////////////////////////////////////////
   // reserved pages
@@ -101,9 +101,9 @@ class InMemoryDataStore : public DataStore {
                          const char* inPage, uint32_t inPageLen) override;
   bool hasPendingResPage(uint32_t inPageId) override;
   void getPendingResPage(uint32_t inPageId,
-                         char* outPage, uint32_t pageLen) override;
+                         char* outPage, uint32_t pageLen) const override;
   uint32_t numOfAllPendingResPage() override;
-  set<uint32_t> getNumbersOfPendingResPages() override;
+  set<uint32_t> getNumbersOfPendingResPages() const override;
   void deleteAllPendingPages() override;
 
   void associatePendingResPageWithCheckpoint(uint32_t inPageId,
@@ -113,20 +113,18 @@ class InMemoryDataStore : public DataStore {
   void setResPage(uint32_t inPageId, uint64_t inCheckpoint,
                   const STDigest& inPageDigest, const char* inPage) override;
   void getResPage(uint32_t inPageId, uint64_t inCheckpoint,
-                  uint64_t* outActualCheckpoint) override;
+                  uint64_t* outActualCheckpoint) const override;
   void getResPage(uint32_t inPageId, uint64_t inCheckpoint,
                   uint64_t* outActualCheckpoint, char* outPage,
-                  uint32_t copylength) override;
+                  uint32_t copylength) const override;
   void getResPage(uint32_t inPageId, uint64_t inCheckpoint,
                   uint64_t* outActualCheckpoint, STDigest* outPageDigest,
-                  char* outPage, uint32_t copylength) override;
+                  char* outPage, uint32_t copylength) const override;
 
   void deleteCoveredResPageInSmallerCheckpoints(uint64_t inCheckpoint) override;
 
-  ResPagesDescriptor* getResPagesDescriptor(uint64_t inCheckpoint) override;
+  ResPagesDescriptor* getResPagesDescriptor(uint64_t inCheckpoint) const override;
   void free(ResPagesDescriptor*) override;
-
-  DataStoreTransaction* beginTransaction() override {return nullptr;}
 
  protected:
   const uint32_t sizeOfReservedPage_;
