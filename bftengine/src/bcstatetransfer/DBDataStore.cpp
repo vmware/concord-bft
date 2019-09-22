@@ -134,7 +134,7 @@ void DBDataStore::deleteDescOfSmallerCheckpoints(uint64_t checkpoint) {
     deleteDescOfSmallerCheckpointsTxn(checkpoint, txn_.get());
   else{
     ITransaction::Guard g(dbc_->beginTransaction());
-    deleteDescOfSmallerCheckpointsTxn(checkpoint, g.txn);
+    deleteDescOfSmallerCheckpointsTxn(checkpoint, g.txn());
   }
   inmem_->deleteDescOfSmallerCheckpoints(checkpoint);
 }
@@ -251,7 +251,7 @@ void DBDataStore::setResPage( uint32_t        inPageId,
     setResPageTxn(inPageId, inCheckpoint, inPageDigest, inPage, txn_.get());
   else {
     ITransaction::Guard g(dbc_->beginTransaction());
-    setResPageTxn(inPageId, inCheckpoint, inPageDigest, inPage, g.txn);
+    setResPageTxn(inPageId, inCheckpoint, inPageDigest, inPage, g.txn());
   }
   inmem_->setResPage(inPageId, inCheckpoint, inPageDigest, inPage);
 }
@@ -296,7 +296,7 @@ void DBDataStore::associatePendingResPageWithCheckpoint(uint32_t inPageId,
     associatePendingResPageWithCheckpointTxn(inPageId, inCheckpoint, inPageDigest, txn_.get());
   else{
     ITransaction::Guard g(dbc_->beginTransaction());
-    associatePendingResPageWithCheckpointTxn(inPageId, inCheckpoint, inPageDigest, g.txn);
+    associatePendingResPageWithCheckpointTxn(inPageId, inCheckpoint, inPageDigest, g.txn());
   }
   inmem_->associatePendingResPageWithCheckpoint(inPageId, inCheckpoint, inPageDigest);
 }
@@ -329,7 +329,7 @@ void DBDataStore::deleteAllPendingPages() {
     deleteAllPendingPagesTxn(txn_.get());
   else{
     ITransaction::Guard g(dbc_->beginTransaction());
-    deleteAllPendingPagesTxn(g.txn);
+    deleteAllPendingPagesTxn(g.txn());
   }
   inmem_->deleteAllPendingPages();
 }
@@ -355,7 +355,7 @@ void DBDataStore::deleteCoveredResPageInSmallerCheckpoints( uint64_t minChkp) {
     deleteCoveredResPageInSmallerCheckpointsTxn(minChkp, txn_.get());
    else{
      ITransaction::Guard g(dbc_->beginTransaction());
-     deleteCoveredResPageInSmallerCheckpointsTxn(minChkp, g.txn);
+     deleteCoveredResPageInSmallerCheckpointsTxn(minChkp, g.txn());
    }
   inmem_->deleteCoveredResPageInSmallerCheckpoints(minChkp);
 }
