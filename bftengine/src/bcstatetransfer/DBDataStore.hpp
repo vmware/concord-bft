@@ -155,9 +155,13 @@ public:
   void deserializePendingPage(std::istream&, char*, uint32_t&) const;
 
   /**
-   * adds to existing transaction
+   * add to existing transaction
    */
   void setResPageTxn( uint32_t ,uint64_t ,const STDigest&,const char*, ITransaction*);
+  void associatePendingResPageWithCheckpointTxn(uint32_t, uint64_t,const STDigest&, ITransaction*);
+  void deleteAllPendingPagesTxn(ITransaction*);
+  void deleteCoveredResPageInSmallerCheckpointsTxn( uint64_t, ITransaction*);
+  void deleteDescOfSmallerCheckpointsTxn(uint64_t, ITransaction*);
   /** *****************************************************************************************************************
    * db layer access
    */
