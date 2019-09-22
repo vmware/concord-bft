@@ -274,22 +274,22 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
     Assert(maxNumOfRequiredStoredCheckpoints >= 2 && maxNumOfRequiredStoredCheckpoints <= kMaxNumOfStoredCheckpoints);
 
     Assert(numberOfRequiredReservedPages >= 2 && numberOfRequiredReservedPages <= maxNumOfReservedPages_);
-
-    psd_->setReplicas(replicas_);
-    psd_->setMyReplicaId(myId_);
-    psd_->setFVal(fVal_);
-    psd_->setMaxNumOfStoredCheckpoints(maxNumOfRequiredStoredCheckpoints);
-    psd_->setNumberOfReservedPages(numberOfRequiredReservedPages);
-    psd_->setLastStoredCheckpoint(0);
-    psd_->setFirstStoredCheckpoint(0);
-
+    DataStoreTransaction::Guard g(psd_->beginTransaction());
+    g.txn()->setReplicas(replicas_);
+    g.txn()->setMyReplicaId(myId_);
+    g.txn()->setFVal(fVal_);
+    g.txn()->setMaxNumOfStoredCheckpoints(maxNumOfRequiredStoredCheckpoints);
+    g.txn()->setNumberOfReservedPages(numberOfRequiredReservedPages);
+    g.txn()->setLastStoredCheckpoint(0);
+    g.txn()->setFirstStoredCheckpoint(0);
+    //TODO(TK) - check max transaction size
     for (uint32_t i = 0; i < numberOfReservedPages_; i++)  // reset all pages
-      psd_->setPendingResPage(i, buffer_, sizeOfReservedPage_);
+      g.txn()->setPendingResPage(i, buffer_, sizeOfReservedPage_);
 
-    psd_->setIsFetchingState(false);
-    psd_->setFirstRequiredBlock(0);
-    psd_->setLastRequiredBlock(0);
-    psd_->setAsInitialized();
+    g.txn()->setIsFetchingState(false);
+    g.txn()->setFirstRequiredBlock(0);
+    g.txn()->setLastRequiredBlock(0);
+    g.txn()->setAsInitialized();
 
     Assert(getFetchingState() == FetchingState::NotFetching);
   }
@@ -395,48 +395,48 @@ DataStore::CheckpointDesc BCStateTran::createCheckpointDesc(
 // Return the digest of all the reserved pages descriptor.
 //
 // This has the side effect of mutating buffer_.
-STDigest BCStateTran::checkpointReservedPages(uint64_t checkpointNumber) {
-  set<uint32_t> pages = psd_->getNumbersOfPendingResPages();
+STDigest BCStateTran::checkpointReservedPages(uint64_t checkpointNumber, DataStoreTransaction* txn) {
+  set<uint32_t> pages = txn->getNumbersOfPendingResPages();
   LOG_DEBUG(STLogger, "associating " << pages.size() << " pending pages with checkpoint " << checkpointNumber);
 
   for (uint32_t p : pages) {
     STDigest d;
-    psd_->getPendingResPage(p, buffer_, sizeOfReservedPage_);
+    txn->getPendingResPage(p, buffer_, sizeOfReservedPage_);
     computeDigestOfPage(p, checkpointNumber, buffer_, sizeOfReservedPage_, d);
-    psd_->associatePendingResPageWithCheckpoint(p, checkpointNumber, d);
+    txn->associatePendingResPageWithCheckpoint(p, checkpointNumber, d);
   }
 
   memset(buffer_, 0, sizeOfReservedPage_);
-  Assert(psd_->numOfAllPendingResPage() == 0);
-  DataStore::ResPagesDescriptor *allPagesDesc = psd_->getResPagesDescriptor(checkpointNumber);
+  Assert(txn->numOfAllPendingResPage() == 0);
+  DataStore::ResPagesDescriptor *allPagesDesc = txn->getResPagesDescriptor(checkpointNumber);
   Assert(allPagesDesc->numOfPages == numberOfReservedPages_);
 
   STDigest digestOfResPagesDescriptor;
   computeDigestOfPagesDescriptor(allPagesDesc, digestOfResPagesDescriptor);
 
-  psd_->free(allPagesDesc);
+  txn->free(allPagesDesc);
   return digestOfResPagesDescriptor;
 }
 
 // Remove old checkpoints from the data store
-void BCStateTran::deleteOldCheckpoints(uint64_t checkpointNumber) {
+void BCStateTran::deleteOldCheckpoints(uint64_t checkpointNumber, DataStoreTransaction* txn) {
   uint64_t minRelevantCheckpoint = 0;
   if (checkpointNumber > maxNumOfStoredCheckpoints_) {
     minRelevantCheckpoint = checkpointNumber - maxNumOfStoredCheckpoints_;
   }
 
   LOG_DEBUG(STLogger, "minRelevantCheckpoint is " << minRelevantCheckpoint);
-  const uint64_t oldFirstStoredCheckpoint = psd_->getFirstStoredCheckpoint();
+  const uint64_t oldFirstStoredCheckpoint = txn->getFirstStoredCheckpoint();
 
   if (minRelevantCheckpoint >= 2 && minRelevantCheckpoint > oldFirstStoredCheckpoint) {
-    psd_->deleteDescOfSmallerCheckpoints(minRelevantCheckpoint);
-    psd_->deleteCoveredResPageInSmallerCheckpoints(minRelevantCheckpoint);
+    txn->deleteDescOfSmallerCheckpoints(minRelevantCheckpoint);
+    txn->deleteCoveredResPageInSmallerCheckpoints(minRelevantCheckpoint);
   }
 
   if (minRelevantCheckpoint > oldFirstStoredCheckpoint)
-    psd_->setFirstStoredCheckpoint(minRelevantCheckpoint);
+    txn->setFirstStoredCheckpoint(minRelevantCheckpoint);
 
-  psd_->setLastStoredCheckpoint(checkpointNumber);
+  txn->setLastStoredCheckpoint(checkpointNumber);
 
   LOG_DEBUG(STLogger, "first stored checkpoint="
       << std::max(minRelevantCheckpoint, oldFirstStoredCheckpoint)
@@ -454,10 +454,13 @@ void BCStateTran::createCheckpointOfCurrentState(uint64_t checkpointNumber) {
   metrics_.current_checkpoint_.Get().Set(checkpointNumber);
   metrics_.create_checkpoint_.Get().Inc();
 
-  auto digestOfResPagesDescriptor = checkpointReservedPages(checkpointNumber);
-  auto checkDesc = createCheckpointDesc(checkpointNumber, digestOfResPagesDescriptor);
-  psd_->setCheckpointDesc(checkpointNumber, checkDesc);
-  deleteOldCheckpoints(checkpointNumber);
+  {// txn scope
+    DataStoreTransaction::Guard g(psd_->beginTransaction());
+    auto digestOfResPagesDescriptor = checkpointReservedPages(checkpointNumber, g.txn());
+    auto checkDesc = createCheckpointDesc(checkpointNumber, digestOfResPagesDescriptor);
+    g.txn()->setCheckpointDesc(checkpointNumber, checkDesc);
+    deleteOldCheckpoints(checkpointNumber, g.txn());
+  }
 }
 
 void BCStateTran::markCheckpointAsStable(uint64_t checkpointNumber) {
@@ -543,7 +546,7 @@ bool BCStateTran::loadReservedPage(uint32_t reservedPageId,
   }
   return true;
 }
-
+// TODO(TK) check if this function can have its own transaction(bftimpl)
 void BCStateTran::saveReservedPage(uint32_t reservedPageId,
                                    uint32_t copyLength,
                                    const char *inReservedPage) {
@@ -562,7 +565,7 @@ void BCStateTran::saveReservedPage(uint32_t reservedPageId,
     throw;
   }
 }
-
+// TODO(TK) check if this function can have its own transaction(bftimpl)
 void BCStateTran::zeroReservedPage(uint32_t reservedPageId) {
   LOG_DEBUG(STLogger, "BCStateTran::zeroReservedPage - reservedPageId=" << reservedPageId);
 
@@ -582,8 +585,11 @@ void BCStateTran::startCollectingState() {
   metrics_.start_collecting_state_.Get().Inc();
 
   verifyEmptyInfoAboutGettingCheckpointSummary();
-  psd_->deleteAllPendingPages();
-  psd_->setIsFetchingState(true);
+  {// txn scope
+    DataStoreTransaction::Guard g(psd_->beginTransaction());
+    g.txn()->deleteAllPendingPages();
+    g.txn()->setIsFetchingState(true);
+  }
   sendAskForCheckpointSummariesMsg();
 }
 
@@ -1063,37 +1069,40 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
   newCheckpoint.digestOfLastBlock = checkSummary->digestOfLastBlock;
   newCheckpoint.digestOfResPagesDescriptor = checkSummary->digestOfResPagesDescriptor;
 
-  Assert(!psd_->hasCheckpointBeingFetched());
-  psd_->setCheckpointBeingFetched(newCheckpoint);
-  metrics_.checkpoint_being_fetched_.Get().Set(newCheckpoint.checkpointNum);
+  {// txn scope
+    DataStoreTransaction::Guard g(psd_->beginTransaction());
+    Assert(!g.txn()->hasCheckpointBeingFetched());
+    g.txn()->setCheckpointBeingFetched(newCheckpoint);
+    metrics_.checkpoint_being_fetched_.Get().Set(newCheckpoint.checkpointNum);
 
-  LOG_DEBUG(STLogger, "Start fetching checkpoint: "
-      << " checkpointNum " << newCheckpoint.checkpointNum
-      << " lastBlock " << newCheckpoint.lastBlock
-      << " digestOfLastBlock " << newCheckpoint.digestOfLastBlock.toString()
-      << " digestOfResPagesDescriptor "
-      << newCheckpoint.digestOfResPagesDescriptor.toString());
+    LOG_DEBUG(STLogger, "Start fetching checkpoint: "
+        << " checkpointNum " << newCheckpoint.checkpointNum
+        << " lastBlock " << newCheckpoint.lastBlock
+        << " digestOfLastBlock " << newCheckpoint.digestOfLastBlock.toString()
+        << " digestOfResPagesDescriptor "
+        << newCheckpoint.digestOfResPagesDescriptor.toString());
 
-  // clean
-  clearInfoAboutGettingCheckpointSummary();
-  lastMsgSeqNum_ = 0;
-  metrics_.last_msg_seq_num_.Get().Set(0);
+    // clean
+    clearInfoAboutGettingCheckpointSummary();
+    lastMsgSeqNum_ = 0;
+    metrics_.last_msg_seq_num_.Get().Set(0);
 
-  // check if we need to fetch blocks, or reserved pages
-  const uint64_t lastReachableBlockNum = as_->getLastReachableBlockNum();
-  metrics_.last_reachable_block_.Get().Set(lastReachableBlockNum);
+    // check if we need to fetch blocks, or reserved pages
+    const uint64_t lastReachableBlockNum = as_->getLastReachableBlockNum();
+    metrics_.last_reachable_block_.Get().Set(lastReachableBlockNum);
 
-  if (newCheckpoint.lastBlock > lastReachableBlockNum) {
-    psd_->setFirstRequiredBlock(lastReachableBlockNum + 1);
-    psd_->setLastRequiredBlock(newCheckpoint.lastBlock);
-  } else {
-    Assert(newCheckpoint.lastBlock == lastReachableBlockNum);
-    Assert(psd_->getFirstRequiredBlock() == 0);
-    Assert(psd_->getLastRequiredBlock() == 0);
+    if (newCheckpoint.lastBlock > lastReachableBlockNum) {
+      g.txn()->setFirstRequiredBlock(lastReachableBlockNum + 1);
+      g.txn()->setLastRequiredBlock(newCheckpoint.lastBlock);
+    } else {
+      Assert(newCheckpoint.lastBlock == lastReachableBlockNum);
+      Assert(g.txn()->getFirstRequiredBlock() == 0);
+      Assert(g.txn()->getLastRequiredBlock() == 0);
+    }
   }
-
   metrics_.last_block_.Get().Set(newCheckpoint.lastBlock);
   metrics_.fetching_state_.Get().Set(stateName(getFetchingState()));
+
   LOG_DEBUG(STLogger, "New state is " << stateName(getFetchingState()));
   processData();
   return true;
@@ -1992,6 +2001,7 @@ void BCStateTran::processData() {
     // if we have a new block
     //////////////////////////////////////////////////////////////////////////
     if (newBlockIsValid && isGettingBlocks) {
+      DataStoreTransaction::Guard g(psd_->beginTransaction());
       timeMilliCurrentSourceReplica_ = currTime;
 
       Assert(lastChunkInRequiredBlock >= 1 && actualBlockSize > 0);
@@ -2002,17 +2012,17 @@ void BCStateTran::processData() {
       Assert(b);
 
       memset(buffer_, 0, actualBlockSize);
-      const uint64_t firstRequiredBlock = psd_->getFirstRequiredBlock();
+      const uint64_t firstRequiredBlock = g.txn()->getFirstRequiredBlock();
 
       if (firstRequiredBlock < nextRequiredBlock_) {
         as_->getPrevDigestFromBlock(nextRequiredBlock_,
                                     reinterpret_cast<StateTransferDigest *>(&digestOfNextRequiredBlock));
         nextRequiredBlock_--;
-        psd_->setLastRequiredBlock(nextRequiredBlock_);
+        g.txn()->setLastRequiredBlock(nextRequiredBlock_);
       } else {
         // this is the last block we need
-        psd_->setFirstRequiredBlock(0);
-        psd_->setLastRequiredBlock(0);
+        g.txn()->setFirstRequiredBlock(0);
+        g.txn()->setLastRequiredBlock(0);
         clearAllPendingItemsData();
         nextRequiredBlock_ = 0;
         digestOfNextRequiredBlock.makeZero();
@@ -2028,32 +2038,33 @@ void BCStateTran::processData() {
       // if we have a new vblock
       //////////////////////////////////////////////////////////////////////////
     else if (newBlockIsValid && !isGettingBlocks) {
+      DataStoreTransaction::Guard g(psd_->beginTransaction());
       timeMilliCurrentSourceReplica_ = currTime;
 
       // set the updated pages
       uint32_t numOfUpdates = getNumberOfElements(buffer_);
       for (uint32_t i = 0; i < numOfUpdates; i++) {
         ElementOfVirtualBlock *e = getVirtualElement(i, sizeOfReservedPage_, buffer_);
-        psd_->setResPage(e->pageId, e->checkpointNumber, e->pageDigest, e->page);
+        g.txn()->setResPage(e->pageId, e->checkpointNumber, e->pageDigest, e->page);
         LOG_DEBUG(STLogger, "update page " << e->pageId);
       }
       memset(buffer_, 0, actualBlockSize);
 
-      Assert(psd_->hasCheckpointBeingFetched());
+      Assert(g.txn()->hasCheckpointBeingFetched());
 
-      DataStore::CheckpointDesc cp = psd_->getCheckpointBeingFetched();
+      DataStore::CheckpointDesc cp = g.txn()->getCheckpointBeingFetched();
 
       // set stored data
 
-      Assert(psd_->getFirstRequiredBlock() == 0);
-      Assert(psd_->getLastRequiredBlock() == 0);
-      Assert(cp.checkpointNum > psd_->getLastStoredCheckpoint());
+      Assert(g.txn()->getFirstRequiredBlock() == 0);
+      Assert(g.txn()->getLastRequiredBlock() == 0);
+      Assert(cp.checkpointNum > g.txn()->getLastStoredCheckpoint());
 
-      psd_->setCheckpointDesc(cp.checkpointNum, cp);
-      psd_->setLastStoredCheckpoint(cp.checkpointNum);
+      g.txn()->setCheckpointDesc(cp.checkpointNum, cp);
+      g.txn()->setLastStoredCheckpoint(cp.checkpointNum);
 
-      psd_->deleteCheckpointBeingFetched();
-      psd_->setIsFetchingState(false);
+      g.txn()->deleteCheckpointBeingFetched();
+      g.txn()->setIsFetchingState(false);
 
       metrics_.checkpoint_being_fetched_.Get().Set(0);
 
@@ -2064,19 +2075,19 @@ void BCStateTran::processData() {
         minRelevantCheckpoint = cp.checkpointNum - maxNumOfStoredCheckpoints_ + 1;
 
       if (minRelevantCheckpoint > 0) {
-        while (minRelevantCheckpoint < cp.checkpointNum && !psd_->hasCheckpointDesc(minRelevantCheckpoint))
+        while (minRelevantCheckpoint < cp.checkpointNum && !g.txn()->hasCheckpointDesc(minRelevantCheckpoint))
           minRelevantCheckpoint++;
       }
 
-      const uint64_t oldFirstStoredCheckpoint = psd_->getFirstStoredCheckpoint();
+      const uint64_t oldFirstStoredCheckpoint = g.txn()->getFirstStoredCheckpoint();
 
       if (minRelevantCheckpoint >= 2 && minRelevantCheckpoint > oldFirstStoredCheckpoint) {
-        psd_->deleteDescOfSmallerCheckpoints(minRelevantCheckpoint);
-        psd_->deleteCoveredResPageInSmallerCheckpoints(minRelevantCheckpoint);
+        g.txn()->deleteDescOfSmallerCheckpoints(minRelevantCheckpoint);
+        g.txn()->deleteCoveredResPageInSmallerCheckpoints(minRelevantCheckpoint);
       }
 
       if (minRelevantCheckpoint > oldFirstStoredCheckpoint)
-        psd_->setFirstStoredCheckpoint(minRelevantCheckpoint);
+        g.txn()->setFirstStoredCheckpoint(minRelevantCheckpoint);
 
       LOG_DEBUG(STLogger, "minRelevantCheckpoint=" << minRelevantCheckpoint);
       preferredReplicas_.clear();

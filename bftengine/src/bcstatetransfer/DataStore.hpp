@@ -164,6 +164,11 @@ class DataStore {
 class DataStoreTransaction: public DataStore,
                             public ITransaction {
 public:
+  class Guard: public ITransaction::Guard {
+   public:
+     Guard(DataStoreTransaction* t): ITransaction::Guard(t){}
+     DataStoreTransaction* txn() {return static_cast<DataStoreTransaction*>(txn_);}
+  };
   typedef std::shared_ptr<DataStoreTransaction> ptr;
   DataStoreTransaction(DataStore* ds, ITransaction::ptr txn):
     ITransaction(txn->getId()),ds_(ds), txn_(txn){}
