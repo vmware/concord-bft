@@ -53,11 +53,17 @@ class BcStTest : public ::testing::Test {
       config_ = TestConfig();
       concord::storage::IDBClient::ptr dbc(new concord::storage::rocksdb::Client("./bcst_db", new KeyComparator(new KeyManipulator())));
       dbc->init();
-      st_ = new BCStateTran(config_, &app_state_, new DBDataStore(dbc, config_.sizeOfReservedPage));
+      DBDataStore* dbds = new DBDataStore(dbc, config_.sizeOfReservedPage);
+      st_ = new BCStateTran(config_, &app_state_, dbds);
       ASSERT_FALSE(st_->isRunning());
       st_->startRunning(&replica_);
       ASSERT_TRUE(st_->isRunning());
       ASSERT_EQ(BCStateTran::FetchingState::NotFetching, st_->getFetchingState());
+
+
+      bftEngine::SimpleBlockchainStateTransfer::impl::DataStoreTransaction::ptr txn(dbds->beginTransaction());
+      txn->setFVal(34);
+      txn->setMyReplicaId(34);
 
     }
 
