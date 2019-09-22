@@ -35,14 +35,15 @@ class ITransaction {
   std::string getIdStr() const {return std::to_string(id_);}
   class Guard{
    public:
-     Guard(ITransaction* t):txn(t){}
+     Guard(ITransaction* t):txn_(t){}
      ~Guard(){
        if (std::uncaught_exception() == 0)
-         txn->commit();
-       delete txn;
+         txn_->commit();
+       delete txn_;
      }
-
-     ITransaction* txn;
+     ITransaction* txn() const {return txn_;}
+   protected:
+     ITransaction* txn_;
    };
  private:
   ID id_;
