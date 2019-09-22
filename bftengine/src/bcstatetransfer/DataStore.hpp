@@ -164,6 +164,7 @@ class DataStore {
 class DataStoreTransaction: public DataStore,
                             public ITransaction {
 public:
+  typedef std::shared_ptr<DataStoreTransaction> ptr;
   DataStoreTransaction(DataStore* ds, ITransaction::ptr txn):
     ITransaction(txn->getId()),ds_(ds), txn_(txn){}
   ~DataStoreTransaction(){}

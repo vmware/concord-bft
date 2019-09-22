@@ -121,13 +121,22 @@ DataStore::CheckpointDesc DBDataStore::getCheckpointDesc(uint64_t checkpoint) {
   inmem_->setCheckpointDesc(checkpoint, cpd);
   return inmem_->getCheckpointDesc(checkpoint);
 }
-void DBDataStore::deleteDescOfSmallerCheckpoints(uint64_t checkpoint) {
-  ITransaction::Guard g(dbc_->beginTransaction());
+
+void DBDataStore::deleteDescOfSmallerCheckpointsTxn(uint64_t checkpoint, ITransaction* txn){
   for (auto & p: inmem_->getDescMap() ){
     if( p.first >=  checkpoint)
       break;
-    g.txn->del(chkpDescKey(checkpoint));
+    txn->del(chkpDescKey(checkpoint));
   }
+}
+void DBDataStore::deleteDescOfSmallerCheckpoints(uint64_t checkpoint) {
+  if(txn_)
+    deleteDescOfSmallerCheckpointsTxn(checkpoint, txn_.get());
+  else{
+    ITransaction::Guard g(dbc_->beginTransaction());
+    deleteDescOfSmallerCheckpointsTxn(checkpoint, g.txn);
+  }
+  inmem_->deleteDescOfSmallerCheckpoints(checkpoint);
 }
 void DBDataStore::setCheckpointBeingFetched(const CheckpointDesc& desc) {
   std::ostringstream oss;
@@ -238,8 +247,12 @@ void DBDataStore::setResPage( uint32_t        inPageId,
                               uint64_t        inCheckpoint,
                               const STDigest& inPageDigest,
                               const char*     inPage){
-  ITransaction::Guard g(dbc_->beginTransaction());
-  setResPageTxn(inPageId, inCheckpoint, inPageDigest, inPage, g.txn);
+  if(txn_)
+    setResPageTxn(inPageId, inCheckpoint, inPageDigest, inPage, txn_.get());
+  else {
+    ITransaction::Guard g(dbc_->beginTransaction());
+    setResPageTxn(inPageId, inCheckpoint, inPageDigest, inPage, g.txn);
+  }
   inmem_->setResPage(inPageId, inCheckpoint, inPageDigest, inPage);
 }
 /** ******************************************************************************************************************
@@ -278,49 +291,75 @@ void DBDataStore::setPendingResPage(uint32_t    inPageId,
 
 void DBDataStore::associatePendingResPageWithCheckpoint(uint32_t inPageId,
                                                         uint64_t inCheckpoint,
-                                                        const STDigest& inPageDigest) {
-  ITransaction::Guard g(dbc_->beginTransaction());
+                                                        const STDigest& inPageDigest){
+  if(txn_)
+    associatePendingResPageWithCheckpointTxn(inPageId, inCheckpoint, inPageDigest, txn_.get());
+  else{
+    ITransaction::Guard g(dbc_->beginTransaction());
+    associatePendingResPageWithCheckpointTxn(inPageId, inCheckpoint, inPageDigest, g.txn);
+  }
+  inmem_->associatePendingResPageWithCheckpoint(inPageId, inCheckpoint, inPageDigest);
+}
+
+void DBDataStore::associatePendingResPageWithCheckpointTxn(uint32_t inPageId,
+                                                           uint64_t inCheckpoint,
+                                                           const STDigest& inPageDigest,
+                                                           ITransaction* txn) {
   Sliver serializedPendingPage;
   if (get(pendingPageKey(inPageId), serializedPendingPage)){
-    g.txn->del(pendingPageKey(inPageId));
+    txn->del(pendingPageKey(inPageId));
     std::istringstream iss(reinterpret_cast<const char*>(serializedPendingPage.data()));
     std::uint32_t pageLen = 0;
     char* page = nullptr;
     deserializePendingPage(iss, page, pageLen);
-    setResPageTxn(inPageId, inCheckpoint, inPageDigest, page, g.txn);
+    setResPageTxn(inPageId, inCheckpoint, inPageDigest, page, txn);
     delete [] page;
-    g.txn->del(pendingPageKey(inPageId));
+    txn->del(pendingPageKey(inPageId));
   }else{
     LOG_WARN(logger(), "pending page: " << inPageId << " not found in db");
   }
-  inmem_->associatePendingResPageWithCheckpoint(inPageId, inCheckpoint, inPageDigest);
+}
+void DBDataStore::deleteAllPendingPagesTxn(ITransaction* txn) {
+  std::set<uint32_t> pageIds = getNumbersOfPendingResPages();
+  for(auto pid: pageIds)
+    txn->del(pendingPageKey(pid));
 }
 void DBDataStore::deleteAllPendingPages() {
-  std::set<uint32_t> pageIds = getNumbersOfPendingResPages();
-  ITransaction::Guard g(dbc_->beginTransaction());
-  for(auto pid: pageIds)
-    g.txn->del(pendingPageKey(pid));
-
+  if(txn_)
+    deleteAllPendingPagesTxn(txn_.get());
+  else{
+    ITransaction::Guard g(dbc_->beginTransaction());
+    deleteAllPendingPagesTxn(g.txn);
+  }
   inmem_->deleteAllPendingPages();
 }
-void DBDataStore::deleteCoveredResPageInSmallerCheckpoints( uint64_t minChkp) {
+
+void DBDataStore::deleteCoveredResPageInSmallerCheckpointsTxn( uint64_t minChkp, ITransaction* txn) {
 
   auto pages = inmem_->getPagesMap();
-  ITransaction::Guard g(dbc_->beginTransaction());
 
   for (auto it = std::find_if(pages.begin(),
                               pages.end(),
                               [minChkp](const std::pair<InMemoryDataStore::ResPageKey,
                                                         InMemoryDataStore::ResPageVal>& elt) {
                                                        return elt.first.checkpoint < minChkp;});
-      it != pages.end();
-      it++){
-    g.txn->del(staticResPageKey (it->first.pageId, it->first.checkpoint));
-    g.txn->del(dynamicResPageKey(it->first.pageId, it->first.checkpoint));
+        it != pages.end();
+        it++){
+    txn->del(staticResPageKey (it->first.pageId, it->first.checkpoint));
+    txn->del(dynamicResPageKey(it->first.pageId, it->first.checkpoint));
   }
-
   inmem_->deleteCoveredResPageInSmallerCheckpoints(minChkp);
 }
+void DBDataStore::deleteCoveredResPageInSmallerCheckpoints( uint64_t minChkp) {
+  if(txn_)
+    deleteCoveredResPageInSmallerCheckpointsTxn(minChkp, txn_.get());
+   else{
+     ITransaction::Guard g(dbc_->beginTransaction());
+     deleteCoveredResPageInSmallerCheckpointsTxn(minChkp, g.txn);
+   }
+  inmem_->deleteCoveredResPageInSmallerCheckpoints(minChkp);
+}
+
 /** ******************************************************************************************************************/
 }
 }
