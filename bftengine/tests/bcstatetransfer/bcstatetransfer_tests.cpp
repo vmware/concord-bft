@@ -70,12 +70,6 @@ class BcStTest : public ::testing::Test {
       st_->startRunning(&replica_);
       ASSERT_TRUE(st_->isRunning());
       ASSERT_EQ(BCStateTran::FetchingState::NotFetching, st_->getFetchingState());
-
-
-      bftEngine::SimpleBlockchainStateTransfer::impl::DataStoreTransaction::ptr txn(dbds->beginTransaction());
-      txn->setFVal(34);
-      txn->setMyReplicaId(34);
-
     }
 
     void TearDown() override {
@@ -87,8 +81,8 @@ class BcStTest : public ::testing::Test {
     Config config_;
     TestAppState app_state_;
     TestReplica replica_;
-    BCStateTran* st_;
-
+    BCStateTran* st_ = nullptr;
+    DataStore* ds_ = nullptr;
 };
 
 // Verify that AskForCheckpointSummariesMsg is sent to all other replicas
@@ -122,6 +116,15 @@ TEST_F(BcStTest, FetchMissingData) {
   // Make sure that it syncs correctly.
 
 }
+
+TEST(DBDataStore, API){
+
+}
+
+TEST(DBDataStore, Transactions){
+
+}
+
 
 } // namespace SimpleBlockchainStateTransfer
 } // namespace bftEngine

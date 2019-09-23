@@ -20,7 +20,7 @@
 #include "STDigest.hpp"
 #include "Logger.hpp"
 #include "InMemoryDataStore.hpp"
-#include "blockchain/db_types.h"
+#include "blockchain/db_adapter.h"
 
 namespace bftEngine {
 namespace SimpleBlockchainStateTransfer {
@@ -31,6 +31,8 @@ using concord::storage::ITransaction;
 using concordUtils::Status;
 using concordUtils::Sliver;
 using concord::storage::blockchain::EDBKeyType;
+using concord::storage::blockchain::ObjectId;
+using concord::storage::blockchain::KeyManipulator;
 /** *******************************************************************************************************************
  *  This class is used in one of two modes:
  *  1. When ITransaction is not set - works directly through MetadataStorage instance;
@@ -113,13 +115,7 @@ public:
     inmem_->getResPage(inPageId, inCheckpoint, outActualCheckpoint, outPageDigest, outPage, copylength);
   }
  protected:
-  typedef std::uint64_t ObjectId;
 
-  enum class EDBKeySubType: std::uint8_t {
-    General = (int)EDBKeyType::E_DB_KEY_TYPE_LAST + 1,
-    ReservedPagesDynamicId,
-    CheckPointDesc
-  };
   enum GeneralIds: ObjectId {
     Initialized = 1,
     MyReplicaId,
@@ -132,9 +128,7 @@ public:
     FirstRequiredBlock,
     LastRequiredBlock,
     Replicas,
-    CheckpointBeingFetched,
-    PendingPages,
-    ReservedPagesStaticId = PendingPages + 1000,
+    CheckpointBeingFetched
   };
   /**
    * C-r for use with beginTransaction
@@ -168,13 +162,13 @@ public:
   void put(const GeneralIds& objId, const std::string& val){
     put(genKey(objId), val);
   }
-  void put(const std::string& key, const std::string& val){
+  void put(const Sliver& key, const std::string& val){
     if (txn_){
-       LOG_TRACE(logger(), "put objId:" << key << " val:" << val << " txn: " + std::to_string(txn_->getId()));
+       LOG_TRACE(logger(), "put objId:" << key.toString() << " val:" << val << " txn: " + std::to_string(txn_->getId()));
        txn_->put(key, val);
     }
     else{
-      LOG_TRACE(logger(), "put objId:" << key << " val:" << val);
+      LOG_TRACE(logger(), "put objId:" << key.toString() << " val:" << val);
       dbc_->put(key, val);
     }
   }
@@ -183,13 +177,14 @@ public:
    * @throw  otherwise
    */
   bool get(GeneralIds objId, Sliver& val){ return get(genKey(objId), val);}
-  bool get(const std::string& key, Sliver& val){
+
+  bool get(const Sliver& key, Sliver& val){
     LOG_TRACE(logger(), "get objId:" << key);
     Status s = dbc_->get(key, val);
     if(!(s.isOK() || s.isNotFound()))
-        throw std::runtime_error("error get objId: " + key + std::string(", reason: ") + s.toString());
+        throw std::runtime_error("error get objId: " + key.toString() + std::string(", reason: ") + s.toString());
     if(s.isNotFound()){
-      LOG_ERROR(logger(), "not found: key: " + key);
+      LOG_ERROR(logger(), "not found: key: " + key.toString());
       return false;
     }
     return true;
@@ -226,30 +221,22 @@ public:
   /** *****************************************************************************************************************
    * keys generation
    */
-  std::string dynamicResPageKey (uint32_t pageid, uint64_t chkp) const {
-    return genKey(EDBKeySubType::ReservedPagesDynamicId, pageid, chkp);
+  Sliver dynamicResPageKey (uint32_t pageid, uint64_t chkp) const {
+    return KeyManipulator::generateStateTransferKey(EDBKeyType::E_DB_KEY_TYPE_BFT_ST_TRAN_RES_PAGE_DYN_KEY, pageid, chkp);
   }
-  std::string staticResPageKey  (uint32_t pageid, uint64_t chkp) const {
+  Sliver staticResPageKey  (uint32_t pageid, uint64_t chkp) const {
     static uint64_t maxStored = inmem_->getMaxNumOfStoredCheckpoints();
-    return genKey(ReservedPagesStaticId + pageid * (chkp % maxStored));
+    return KeyManipulator::generateStateTransferKey(EDBKeyType::E_DB_KEY_TYPE_BFT_ST_TRAN_RES_PAGE_STAT_KEY,
+                                                    pageid * (int)(chkp % maxStored));
   }
-  std::string pendingPageKey (uint32_t pageid) const { return genKey(PendingPages + pageid);}
-  std::string chkpDescKey    (uint64_t chkp)   const { return genKey(EDBKeySubType::CheckPointDesc, chkp); }
-  const std::string common_prefix  = std::string(1, (char)EDBKeyType::E_DB_KEY_TYPE_BFT_METADATA_KEY);
-  const std::string general_prefix = std::string(1, (char)EDBKeySubType::General);
-
-  std::string genKey(const ObjectId& objId) const {
-    static std::string prefix = common_prefix + general_prefix;
-    return prefix + std::to_string(objId);
+  Sliver pendingPageKey(uint32_t pageid) const {
+    return KeyManipulator::generateStateTransferKey(EDBKeyType::E_DB_KEY_TYPE_BFT_ST_TRAN_PEN_PAGE_KEY, pageid);
   }
-  std::string genKey(const EDBKeySubType& subtype, const uint32_t& pageid, const uint64_t& chkp) const {
-    return common_prefix + std::string(1, (char)subtype) + std::to_string(pageid) + std::to_string(chkp);
+  Sliver chkpDescKey (uint64_t chkp)  const {
+    return KeyManipulator::generateStateTransferKey(EDBKeyType::E_DB_KEY_TYPE_BFT_ST_TRAN_CHKP_DESC_KEY, chkp);
   }
-  std::string genKey(const EDBKeySubType& subtype, const uint32_t& pageid) const {
-    return common_prefix + std::string(1, (char)subtype) + std::to_string(pageid);
-  }
-  std::string genKey(const EDBKeySubType& subtype, const uint64_t& chkp) const {
-    return common_prefix + std::string(1, (char)subtype) + std::to_string(chkp);
+  Sliver genKey(const ObjectId& objId) const {
+    return KeyManipulator::generateStateTransferKey(objId);
   }
   /** ****************************************************************************************************************/
   concordlogger::Logger& logger(){
