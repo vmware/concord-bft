@@ -46,5 +46,17 @@ if [ -n "$USE_ROCKSDB" ]; then
     sudo make install-shared
 fi
 
+if [-n "$USE_LOG4CPP" ]; then
+  #Install log4cpp
+  sudo apt-get install autoconf automake
+  cd $TRAVIS_BUILD_DIR
+  git clone https://github.com/log4cplus/log4cplus.git
+  cd log4cplus
+  git checkout REL_1_2_1
+  ./configure CXXFLAGS="--std=c++11"
+  make
+  sudo make install
+fi
+
 # trio is need for tests
 python3 -m pip install --upgrade trio

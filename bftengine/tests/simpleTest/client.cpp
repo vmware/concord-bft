@@ -39,8 +39,6 @@
 #include "simple_test_client.hpp"
 #include "Logger.hpp"
 
-#include "log4cplus/configurator.h"
-
 #if USE_LOG4CPP
 #include "log4cplus/configurator.h"
 #endif
