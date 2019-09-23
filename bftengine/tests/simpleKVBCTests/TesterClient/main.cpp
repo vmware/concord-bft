@@ -24,6 +24,9 @@
 #include "test_comm_config.hpp"
 #include "test_parameters.hpp"
 #include "CommFactory.hpp"
+#if USE_LOG4CPP
+#include "log4cplus/configurator.h"
+#endif
 
 using namespace bftEngine;
 using namespace BasicRandomTests;
@@ -91,9 +94,8 @@ ClientParams setupClientParams(int argc, char **argv) {
   return clientParams;
 }
 
-auto logger = concordlogger::Log::getLogger("skvbtest.client");
-
-ICommunication *setupCommunicationParams(ClientParams &cp) {
+ICommunication *setupCommunicationParams(ClientParams &cp,
+    concordlogger::Logger logger) {
   TestCommConfig testCommConfig(logger);
   uint16_t numOfReplicas = cp.get_numOfReplicas();
 #ifdef USE_COMM_PLAIN_TCP
@@ -119,6 +121,11 @@ ClientConfig setupConsensusParams(ClientParams &clientParams) {
 }
 
 int main(int argc, char **argv) {
+#if USE_LOG4CPP
+  log4cplus::initialize();
+  log4cplus::PropertyConfigurator::doConfigure("log4cpp_simple_test.properties");
+#endif
+  auto logger = concordlogger::Log::getLogger("skvbtest.client");
   ClientParams clientParams = setupClientParams(argc, argv);
   if (clientParams.clientId == UINT16_MAX || clientParams.numOfFaulty == UINT16_MAX ||
       clientParams.numOfSlow == UINT16_MAX || clientParams.numOfOperations == UINT32_MAX) {
@@ -127,7 +134,7 @@ int main(int argc, char **argv) {
   }
 
   ClientConfig clientConfig = setupConsensusParams(clientParams);
-  auto *comm = setupCommunicationParams(clientParams);
+  auto *comm = setupCommunicationParams(clientParams, logger);
   IClient *client = createClient(clientConfig, comm);
   BasicRandomTestsRunner testsRunner(logger, *client, clientParams.numOfOperations);
   testsRunner.run();

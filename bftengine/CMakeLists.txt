@@ -106,3 +106,30 @@ target_include_directories(corebft PUBLIC include/metadatastorage)
 target_link_libraries(corebft PUBLIC threshsign)
 target_link_libraries(corebft PUBLIC Threads::Threads)
 target_link_libraries(corebft PUBLIC util)
+
+# copy certificate creation script to all tests
+add_custom_target(copy_tls_certificates ALL COMMENT "Copying TLS certificates")
+add_custom_command(TARGET copy_tls_certificates
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/test/certs
+        $<TARGET_FILE_DIR:simpleTest_client>/scripts/certs
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/test/certs
+        $<TARGET_FILE_DIR:skvbc_replica>/certs
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/test/certs
+        $<TARGET_FILE_DIR:skvbc_client>/certs)
+
+# copy log4cpp config file for tests to all tests
+add_custom_target(copy_log4cpp_config ALL COMMENT "Copying Log4cpp config
+file")
+add_custom_command(TARGET copy_log4cpp_config
+        COMMAND ${CMAKE_COMMAND} -E copy
+        ${CMAKE_SOURCE_DIR}/test/log4cpp_simple_test.properties
+        $<TARGET_FILE_DIR:simpleTest_client>/scripts
+        COMMAND ${CMAKE_COMMAND} -E copy
+        ${CMAKE_SOURCE_DIR}/test/log4cpp_simple_test.properties
+        $<TARGET_FILE_DIR:skvbc_replica>
+        COMMAND ${CMAKE_COMMAND} -E copy
+        ${CMAKE_SOURCE_DIR}/test/log4cpp_simple_test.properties
+        $<TARGET_FILE_DIR:skvbc_client>)

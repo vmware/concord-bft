@@ -123,9 +123,3 @@ configure_file (
         "${CMAKE_CURRENT_SOURCE_DIR}/scripts/histogram.py.in"
         "${CMAKE_CURRENT_BINARY_DIR}/scripts/histogram.py"
 )
-
-add_custom_target(copy_tls_script ALL COMMENT "Copying TLS script")
-add_custom_command(TARGET copy_tls_script
-        COMMAND ${CMAKE_COMMAND} -E copy
-        ${PROJECT_SOURCE_DIR}/scripts/linux/create_tls_certs.sh
-     $<TARGET_FILE_DIR:simpleTest_client>/scripts/create_tls_certs.sh)

@@ -22,6 +22,7 @@ import subprocess
 from collections import namedtuple
 import tempfile
 import trio
+import shutil
 
 sys.path.append(os.path.abspath("../util/pyclient"))
 
@@ -81,6 +82,9 @@ class BftTester:
         self.alphanum = [i for i in range(48, 58)]
         self.alphanum.extend(self.alpha)
         self.keys = self._create_keys()
+        shutil.copyfile(os.path.join(self.origdir,
+                                     "log4cpp_simple_test.properties"),
+                        os.path.join(self.testdir, "log4cpp_simple_test.properties"))
         os.chdir(self.testdir)
         self._generate_crypto_keys()
         self.clients = {}

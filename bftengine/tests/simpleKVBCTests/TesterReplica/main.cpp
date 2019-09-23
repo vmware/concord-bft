@@ -22,7 +22,15 @@
 #include "rocksdb/key_comparator.h"
 #endif
 
+#if USE_LOG4CPP
+#include "log4cplus/configurator.h"
+#endif
+
 int main(int argc, char** argv) {
+#if USE_LOG4CPP
+  log4cplus::initialize();
+  log4cplus::PropertyConfigurator::doConfigure("log4cpp_simple_test.properties");
+#endif
   auto setup = SimpleKVBC::TestSetup::ParseArgs(argc, argv);
   auto logger = setup->GetLogger();
   auto* key_manipulator = new concord::storage::blockchain::KeyManipulator();

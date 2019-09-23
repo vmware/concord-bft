@@ -39,6 +39,12 @@
 #include "simple_test_client.hpp"
 #include "Logger.hpp"
 
+#include "log4cplus/configurator.h"
+
+#if USE_LOG4CPP
+#include "log4cplus/configurator.h"
+#endif
+
 using bftEngine::ICommunication;
 using bftEngine::PlainUDPCommunication;
 using bftEngine::PlainUdpConfig;
@@ -48,8 +54,6 @@ using bftEngine::TlsTCPCommunication;
 using bftEngine::TlsTcpConfig;
 using bftEngine::SeqNumberGeneratorForClientRequests;
 using bftEngine::SimpleClient;
-
-concordlogger::Logger clientLogger = concordlogger::Log::getLogger("simpletest.client");
 
 void parse_params(int argc, char** argv, ClientParams &cp,
                   bftEngine::SimpleClientParams &scp) {
@@ -168,7 +172,12 @@ void parse_params(int argc, char** argv, ClientParams &cp,
 }
 
 int main(int argc, char **argv) {
-// TODO(IG:) configure Log4Cplus's output format, using default for now
+#if USE_LOG4CPP
+  log4cplus::initialize();
+  log4cplus::PropertyConfigurator::doConfigure("log4cpp_simple_test.properties");
+#endif
+
+  concordlogger::Logger clientLogger = concordlogger::Log::getLogger("simpletest.client");
 
   ClientParams cp;
   bftEngine::SimpleClientParams scp;

@@ -61,6 +61,10 @@
 #include "Logger.hpp"
 #include "simple_test_replica_behavior.hpp"
 
+#if USE_LOG4CPP
+#include "log4cplus/configurator.h"
+#endif
+
 using bftEngine::ICommunication;
 using bftEngine::PlainUDPCommunication;
 using bftEngine::PlainUdpConfig;
@@ -183,6 +187,12 @@ void signalHandler(int signum) {
 }
 
 int main(int argc, char **argv) {
+#if USE_LOG4CPP
+  log4cplus::initialize();
+  log4cplus::PropertyConfigurator::doConfigure("log4cpp_simple_test.properties");
+#endif
+
+
   ReplicaParams rp;
   parse_params(argc, argv, rp);
 
