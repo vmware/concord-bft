@@ -18,6 +18,7 @@
 
 #include "STDigest.hpp"
 #include "IStateTransfer.hpp"
+#include "Logger.hpp"
 
 namespace bftEngine {
 namespace SimpleBlockchainStateTransfer {
@@ -64,9 +65,26 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
   STDigest digestOfResPagesDescriptor;
   uint64_t requestMsgSeqNum;
 
-  static bool equivalent(const CheckpointSummaryMsg* a,
-                         const CheckpointSummaryMsg* b) {
+  static bool equivalent(const CheckpointSummaryMsg* a, const CheckpointSummaryMsg* b) {
     return (memcmp(a, b, sizeof(CheckpointSummaryMsg)) == 0);
+  }
+
+  static bool equivalent(const CheckpointSummaryMsg* a, uint16_t a_id,
+                         const CheckpointSummaryMsg* b, uint16_t b_id) {
+    if (memcmp(a, b, sizeof(CheckpointSummaryMsg)) != 0) {
+      auto logger = concordlogger::Log::getLogger("state-transfer");
+      LOG_WARN(logger, "Mismatched Checkpoints for checkpointNum=" << a->checkpointNum  << std::endl
+
+          << "    Replica=" << a_id << " lastBlock=" << a->lastBlock << " digestOfLastBlock="
+          << a->digestOfLastBlock.toString() << " digestOfResPagesDescriptor="
+          << a->digestOfResPagesDescriptor.toString() << " requestMsgSeqNum=" << a->requestMsgSeqNum << std::endl
+
+          << "    Replica=" << b_id << " lastBlock=" << b->lastBlock << " digestOfLastBlock="
+          << b->digestOfLastBlock.toString() << " digestOfResPagesDescriptor="
+          << b->digestOfResPagesDescriptor.toString() << " requestMsgSeqNum=" << b->requestMsgSeqNum << std::endl);
+      return false;
+    }
+    return true;
   }
 
   static void free(void* context, const CheckpointSummaryMsg* a) {
