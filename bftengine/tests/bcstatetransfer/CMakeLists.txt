@@ -1,5 +1,6 @@
 add_executable(bcstatetransfer_tests
-    bcstatetransfer_tests.cpp)
+    bcstatetransfer_tests.cpp
+    $<TARGET_OBJECTS:logging_dev>)
 
 add_test(bcstatetransfer_tests bcstatetransfer_tests)
 
@@ -12,4 +13,4 @@ target_include_directories(bcstatetransfer_tests
 
 target_link_libraries(bcstatetransfer_tests gtest_main)
 target_link_libraries(bcstatetransfer_tests corebft)
-target_compile_options(bcstatetransfer_tests PUBLIC "-Wno-sign-compare") 
+target_compile_options(bcstatetransfer_tests PUBLIC "-Wno-sign-compare")
