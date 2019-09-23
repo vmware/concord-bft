@@ -56,7 +56,7 @@ DBAdapter::DBAdapter(IDBClient* db, bool readOnly):
 }
 
 /*
- * If key a is earlier than key b, return a negative number; if larger, return a
+ * If key a is smaller than key b, return a negative number; if larger, return a
  * positive number; if equal, return zero.
  *
  * Comparison is done by decomposed parts. Types are compared first, followed by
@@ -65,47 +65,50 @@ DBAdapter::DBAdapter(IDBClient* db, bool readOnly):
  */
 int KeyManipulator::composedKeyComparison(const uint8_t* _a_data, size_t _a_length,
                                           const uint8_t* _b_data, size_t _b_length) {
-  char aType = KeyManipulator::extractTypeFromKey(_a_data);
-  char bType = KeyManipulator::extractTypeFromKey(_b_data);
-  if (aType != bType) {
-    int ret = aType - bType;
-    return ret;
-  }
+  EDBKeyType aType = KeyManipulator::extractTypeFromKey(_a_data);
+  EDBKeyType bType = KeyManipulator::extractTypeFromKey(_b_data);
+  if (aType != bType)
+    return (uint8_t)aType - (uint8_t)bType;
 
-  // In case it is E_DB_KEY_TYPE_METADATA_KEY, compare object IDs.
-  if (aType == (char)EDBKeyType::E_DB_KEY_TYPE_BFT_METADATA_KEY) {
-    ObjectId aObjId =
-        KeyManipulator::extractObjectIdFromKey(_a_data, _a_length);
-    ObjectId bObjId =
-        KeyManipulator::extractObjectIdFromKey(_b_data, _b_length);
-
-    if (aObjId < bObjId) return -1;
-    if (bObjId < aObjId) return 1;
-    return 0;
-  }
-
-  // Blocks don't have a separate key component.
-  if (aType != ((char)EDBKeyType::E_DB_KEY_TYPE_BLOCK)) {
-    int keyComp = KeyManipulator::compareKeyPartOfComposedKey(
-        _a_data, _a_length, _b_data, _b_length);
-    if (keyComp != 0) {
-      return keyComp;
+  switch(aType){
+    case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_TRAN_KEY:
+    case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_TRAN_PEN_PAGE_KEY:
+    case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_TRAN_RES_PAGE_STAT_KEY:
+    case EDBKeyType::E_DB_KEY_TYPE_BFT_METADATA_KEY:{
+      // Compare object IDs.
+      ObjectId aObjId = KeyManipulator::extractObjectIdFromKey(_a_data, _a_length);
+      ObjectId bObjId = KeyManipulator::extractObjectIdFromKey(_b_data, _b_length);
+      return (aObjId > bObjId) ? 1 : (bObjId > aObjId) ? -1 : 0;
     }
-  }
+    case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_TRAN_CHKP_DESC_KEY:{
+      uint64_t aChkpt, bChcpt;
+      aChkpt = extractCheckPointFromKey(_a_data, _a_length);
+      bChcpt = extractCheckPointFromKey(_b_data, _b_length);
+      return (aChkpt > bChcpt) ? 1 : (bChcpt > aChkpt) ? -1 : 0;
+    }
+    case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_TRAN_RES_PAGE_DYN_KEY:{
+      uint32_t aPageId, bPageId;
+      uint64_t aChkpt, bChcpt;
+      std::tie(aPageId, aChkpt) = extractPageIdAndChkpointFromKey(_a_data, _a_length);
+      std::tie(bPageId, bChcpt) = extractPageIdAndChkpointFromKey(_a_data, _a_length);
+      if(aPageId != bPageId)
+        return aPageId - bPageId;
+      return (bChcpt > aChkpt)? 1 : (aChkpt > bChcpt) ? -1 : 0;
+    }
+    default:
+    // Blocks don't have a separate key component.
+    //if (aType != EDBKeyType::E_DB_KEY_TYPE_BLOCK) EDBKeyType::E_DB_KEY_TYPE_KEY ???
+      int keyComp = KeyManipulator::compareKeyPartOfComposedKey(_a_data, _a_length, _b_data, _b_length);
+      if (keyComp != 0)
+        return keyComp;
 
-  // Extract the block ids to compare so that endianness of environment
-  // does not matter.
-  BlockId aId = KeyManipulator::extractBlockIdFromKey(_a_data, _a_length);
-  BlockId bId = KeyManipulator::extractBlockIdFromKey(_b_data, _b_length);
+      // Extract the block ids to compare so that endianness of environment does not matter.
+      BlockId aId = KeyManipulator::extractBlockIdFromKey(_a_data, _a_length);
+      BlockId bId = KeyManipulator::extractBlockIdFromKey(_b_data, _b_length);
+      // within a type+key, block ids are sorted in reverse order
+      return (bId > aId) ? 1 : (aId > bId) ? -1 : 0;
 
-  // within a type+key, block ids are sorted in reverse order
-  if (aId < bId) {
-    return 1;
-  } else if (bId < aId) {
-    return -1;
-  } else {
-    return 0;
-  }
+  }//switch
 }
 
 /**
@@ -166,7 +169,7 @@ Sliver KeyManipulator::genDataDbKey(const Key& _key, BlockId _blockId) {
  *             returned.
  * @return The type of the composite database key.
  */
-char KeyManipulator::extractTypeFromKey(const Key& _key) {
+EDBKeyType KeyManipulator::extractTypeFromKey(const Key& _key) {
   return extractTypeFromKey(_key.data());
 }
 
@@ -180,9 +183,10 @@ char KeyManipulator::extractTypeFromKey(const Key& _key) {
  * @param _key_length The number of bytes in the _key_data buffer.
  * @return The type of the composite database key.
  */
-char KeyManipulator::extractTypeFromKey(const uint8_t* _key_data) {
+EDBKeyType KeyManipulator::extractTypeFromKey(const uint8_t* _key_data) {
   static_assert(sizeof(EDBKeyType) == 1, "Let's avoid byte-order problems.");
-  return _key_data[0];
+  assert((_key_data[0] < (uint8_t)EDBKeyType::E_DB_KEY_TYPE_LAST) && (_key_data[0] >= (uint8_t)EDBKeyType::E_DB_KEY_TYPE_FIRST));
+  return (EDBKeyType)_key_data[0];
 }
 
 /**
@@ -212,7 +216,7 @@ BlockId KeyManipulator::extractBlockIdFromKey(const uint8_t* _key_data, size_t _
   size_t offset = _key_length - sizeof(BlockId);
   BlockId id = *(BlockId *)(_key_data + offset);
 
-  LOG_TRACE(logger_, "Got block ID " << id << " from key " << (HexPrintBuffer{_key_data, _key_length})  << ", offset " << offset);
+  LOG_TRACE(logger(), "Got block ID " << id << " from key " << (HexPrintBuffer{_key_data, _key_length})  << ", offset " << offset);
   return id;
 }
 
@@ -244,7 +248,7 @@ ObjectId KeyManipulator::extractObjectIdFromKey(const uint8_t* _key_data, size_t
   size_t offset = _key_length - sizeof(ObjectId);
   ObjectId id = *(ObjectId *)(_key_data + offset);
 
-  LOG_TRACE(logger_, "Got object ID " << id << " from key " << (HexPrintBuffer{_key_data, _key_length}) << ", offset " << offset);
+  LOG_TRACE(logger(), "Got object ID " << id << " from key " << (HexPrintBuffer{_key_data, _key_length}) << ", offset " << offset);
   return id;
 }
 
@@ -257,7 +261,7 @@ ObjectId KeyManipulator::extractObjectIdFromKey(const uint8_t* _key_data, size_t
 Sliver KeyManipulator::extractKeyFromKeyComposedWithBlockId(const Key& _composedKey) {
   size_t sz = _composedKey.length() - sizeof(BlockId) - sizeof(EDBKeyType);
   Sliver out = Sliver(_composedKey, sizeof(EDBKeyType), sz);
-  LOG_TRACE(logger_, "Got key " << out << " from composed key " << _composedKey);
+  LOG_TRACE(logger(), "Got key " << out << " from composed key " << _composedKey);
   return out;
 }
 
@@ -304,7 +308,7 @@ int KeyManipulator::compareKeyPartOfComposedKey(const uint8_t *a_data,
 Sliver KeyManipulator::extractKeyFromMetadataKey(const Key& _composedKey) {
   size_t sz = _composedKey.length() - sizeof(EDBKeyType);
   Sliver out = Sliver(_composedKey, sizeof(EDBKeyType), sz);
-  LOG_TRACE(logger_, "Got metadata key " << out << " from composed key "
+  LOG_TRACE(logger(), "Got metadata key " << out << " from composed key "
                                               << _composedKey);
   return out;
 }
@@ -356,6 +360,52 @@ Sliver KeyManipulator::generateMetadataKey(ObjectId objectId) {
                    sizeof(objectId));
   return Sliver(keyBuf, keySize);
 }
+/**
+ * Format : Key Type | Object Id
+ */
+Sliver KeyManipulator::generateStateTransferKey(ObjectId objectId){
+  size_t keySize = sizeof(EDBKeyType) + sizeof(objectId);
+  auto keyBuf = new uint8_t[keySize];
+  size_t offset = 0;
+  EDBKeyType keyType = EDBKeyType::E_DB_KEY_TYPE_BFT_ST_TRAN_KEY;
+  copyToAndAdvance(keyBuf, &offset, keySize, (uint8_t *)&keyType, sizeof(EDBKeyType));
+  copyToAndAdvance(keyBuf, &offset, keySize, (uint8_t *)&objectId,sizeof(objectId));
+  return Sliver(keyBuf, keySize);
+}
+/**
+ * Format : Key Type | Page Id
+ */
+Sliver KeyManipulator::generateStateTransferKey(EDBKeyType keyType, uint32_t pageid){
+  size_t keySize = sizeof(EDBKeyType) + sizeof(pageid);
+  auto keyBuf = new uint8_t[keySize];
+  size_t offset = 0;
+  copyToAndAdvance(keyBuf, &offset, keySize, (uint8_t *)&keyType, sizeof(EDBKeyType));
+  copyToAndAdvance(keyBuf, &offset, keySize, (uint8_t *)&pageid,  sizeof(pageid));
+  return Sliver(keyBuf, keySize);
+}
+/**
+ * Format : Key Type | Checkpoint
+ */
+Sliver KeyManipulator::generateStateTransferKey(EDBKeyType keyType, uint64_t chkpt){
+  size_t keySize = sizeof(EDBKeyType) + sizeof(chkpt);
+  auto keyBuf = new uint8_t[keySize];
+  size_t offset = 0;
+  copyToAndAdvance(keyBuf, &offset, keySize, (uint8_t *)&keyType, sizeof(EDBKeyType));
+  copyToAndAdvance(keyBuf, &offset, keySize, (uint8_t *)&chkpt,   sizeof(chkpt));
+  return Sliver(keyBuf, keySize);
+}
+/**
+ * Format : Key Type | Page Id | Checkpoint
+ */
+Sliver KeyManipulator::generateStateTransferKey(EDBKeyType keyType, uint32_t pageid, uint64_t chkpt){
+  size_t keySize = sizeof(EDBKeyType) + sizeof(pageid) + sizeof(chkpt);
+  auto keyBuf = new uint8_t[keySize];
+  size_t offset = 0;
+  copyToAndAdvance(keyBuf, &offset, keySize, (uint8_t *)&keyType, sizeof(EDBKeyType));
+  copyToAndAdvance(keyBuf, &offset, keySize, (uint8_t *)&pageid,  sizeof(pageid));
+  copyToAndAdvance(keyBuf, &offset, keySize, (uint8_t *)&chkpt,   sizeof(chkpt));
+  return Sliver(keyBuf, keySize);
+}
 
 /**
  * @brief Adds a block to the database.
@@ -386,6 +436,24 @@ bool KeyManipulator::copyToAndAdvance(uint8_t *_buf, size_t *_offset, size_t _ma
   *_offset += _srcSize;
 
   return true;
+}
+
+uint64_t KeyManipulator::extractCheckPointFromKey(const uint8_t* _key_data, size_t _key_length) {
+  assert(_key_length >= sizeof(uint64_t));
+  uint64_t chkp = *(uint64_t *)(_key_data + 1);
+
+  LOG_TRACE(logger(), "checkpoint " << chkp << " from key " << (HexPrintBuffer{_key_data, _key_length}));
+  return chkp;
+}
+
+std::pair<uint32_t, uint64_t>
+KeyManipulator::extractPageIdAndChkpointFromKey(const uint8_t* _key_data, size_t _key_length){
+  assert(_key_length >= sizeof(uint32_t) + sizeof(uint64_t));
+
+  uint32_t pageId = *(uint32_t *)(_key_data + 1);
+  uint64_t chkp = *(uint64_t *)(_key_data + sizeof(uint32_t) + 1);
+  LOG_TRACE(logger(), "pageId " << pageId << " checkpoint " << chkp << " from key " << (HexPrintBuffer{_key_data, _key_length}));
+  return std::make_pair(pageId, chkp);
 }
 
 /**
@@ -940,7 +1008,7 @@ BlockId DBAdapter::getLastReachableBlock() {
   }
 
   while (!iter->isEnd() &&
-        (key_manipulator_->extractTypeFromKey(kvp.first) == (char)EDBKeyType::E_DB_KEY_TYPE_BLOCK)) {
+        (key_manipulator_->extractTypeFromKey(kvp.first) == EDBKeyType::E_DB_KEY_TYPE_BLOCK)) {
     BlockId id = key_manipulator_->extractBlockIdFromKey(kvp.first);
     if (id == lastReachableId + 1) {
       lastReachableId++;
