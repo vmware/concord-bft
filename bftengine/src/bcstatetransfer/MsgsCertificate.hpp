@@ -191,7 +191,7 @@ addPeerMsg(T* msg, uint16_t replicaId) {
     // TODO(GG) Assert(pos is okay)
     T* representativeMsg = pos->second;
 
-    if (!ExternalFunc::equivalent(representativeMsg, msg))
+    if (!ExternalFunc::equivalent(representativeMsg, cls.representativeReplica, msg, replicaId))
       return;  // msg should be ignored
 
     relevantClass = 0;
@@ -205,7 +205,7 @@ addPeerMsg(T* msg, uint16_t replicaId) {
       // TODO(GG) Assert(pos is okay)
       T* representativeMsg = pos->second;
 
-      if (ExternalFunc::equivalent(representativeMsg, msg)) {
+      if (ExternalFunc::equivalent(representativeMsg, cls.representativeReplica, msg, replicaId)) {
         cls.size = cls.size + 1;
         relevantClass = i;
         break;
@@ -264,7 +264,7 @@ addSelfMsg(T* msg) {
     // TODO(GG) Assert(pos is okay)
     T* representativeMsg = pos->second;
 
-    if (ExternalFunc::equivalent(representativeMsg, msg)) {
+    if (ExternalFunc::equivalent(representativeMsg, cls.representativeReplica, msg, selfId)) {
       cls.size = cls.size + 1;
       relevantClass = i;
       break;
