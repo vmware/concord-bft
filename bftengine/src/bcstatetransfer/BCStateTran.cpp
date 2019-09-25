@@ -23,7 +23,10 @@
 #include "InMemoryDataStore.hpp"
 #include "assertUtils.hpp"
 
-// TODO(GG): for debugging - remove
+#include "DBDataStore.hpp"
+#include "storage/db_interface.h"
+#include "memorydb/client.h"
+  // TODO(GG): for debugging - remove
 // #define DEBUG_SEND_CHECKPOINTS_IN_REVERSE_ORDER (1)
 
 using std::tie;
@@ -42,9 +45,15 @@ void computeBlockDigest(const uint64_t blockId,
                         StateTransferDigest *outDigest) {
   return impl::BCStateTran::computeDigestOfBlock(blockId, block, blockSize, (impl::STDigest *) outDigest);
 }
-
-IStateTransfer *create(const Config &config, IAppState *const stateApi, impl::DataStore* ds) {
+IStateTransfer* create(const Config &config, IAppState *const stateApi, std::shared_ptr<concord::storage::IDBClient> dbc){
   // TODO(GG): check configuration
+
+  impl::DataStore* ds = nullptr;
+
+  if ( dynamic_cast<concord::storage::memorydb::Client*>(dbc.get()))
+    ds = new impl::InMemoryDataStore(config.sizeOfReservedPage);
+  else
+    ds = new impl::DBDataStore(dbc, config.sizeOfReservedPage);
   return  new impl::BCStateTran(config, stateApi, ds);
  }
 
@@ -111,7 +120,7 @@ BCStateTran::BCStateTran( const Config &config,
                           DataStore* ds ):
     pedanticChecks_{config.pedanticChecks},
     as_{stateApi},
-    psd_{ds},
+    psd_(ds),
     replicas_{generateSetOfReplicas((3 * config.fVal) + (2 * config.cVal) + 1)},
     myId_{config.myReplicaId},
     fVal_{config.fVal},
@@ -2140,7 +2149,7 @@ void BCStateTran::processData() {
 // Consistency
 //////////////////////////////////////////////////////////////////////////////
 
-#define CH(COND) {if(!(COND)) return false;}
+#define CH(COND) {if(!(COND)){ printf("%s\n", #COND); return false;}}
 
 bool BCStateTran::checkConsistency(bool checkAllBlocks) {
   CH(psd_->initialized());
