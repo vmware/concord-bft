@@ -18,6 +18,7 @@
 
 #include "IStateTransfer.hpp"
 
+namespace concord{ namespace storage{ class IDBClient; }}
 namespace bftEngine {
 
 // This file contains interfaces of a state transfer module which is designed
@@ -113,10 +114,8 @@ struct Config {
 };
 
 // creates an instance of the state transfer module.
-namespace impl{
-class DataStore;
-}
-IStateTransfer *create(const Config &config, IAppState *const stateApi, impl::DataStore* ds = nullptr);
+
+IStateTransfer* create(const Config &config, IAppState *const stateApi, std::shared_ptr<::concord::storage::IDBClient> dbc);
 
 }  // namespace SimpleBlockchainStateTransfer
 }  // namespace bftEngine

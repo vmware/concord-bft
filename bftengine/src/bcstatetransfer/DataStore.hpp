@@ -267,7 +267,7 @@ public:
 
 protected:
   DataStoreTransaction* beginTransaction() override {assert(false); return nullptr;}
-  std::unique_ptr<DataStore> ds_;
+  DataStore*  ds_; // TODO[TK] different behavior between DBDataStore and InMemoryDataStore
   ITransaction::ptr          txn_;
 
 };
