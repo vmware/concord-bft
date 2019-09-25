@@ -126,7 +126,18 @@ class InMemoryDataStore : public DataStore {
   ResPagesDescriptor* getResPagesDescriptor(uint64_t inCheckpoint) override;
   void free(ResPagesDescriptor*) override;
 
-  DataStoreTransaction* beginTransaction() override {return nullptr;}
+  class NullTransaction: public ITransaction {
+   public:
+    NullTransaction(): concord::storage::ITransaction(0){}
+    void commit() override {}
+    void rollback() override {}
+    void put(const concordUtils::Sliver& key, const concordUtils::Sliver& value) override {}
+    std::string get(const concordUtils::Sliver& key) override {return "";}
+    void del(const concordUtils::Sliver& key) override {}
+  };
+  DataStoreTransaction* beginTransaction() override {
+    ITransaction::ptr txn (new NullTransaction());
+    return new DataStoreTransaction(this, txn);}
 
  protected:
   const uint32_t sizeOfReservedPage_;

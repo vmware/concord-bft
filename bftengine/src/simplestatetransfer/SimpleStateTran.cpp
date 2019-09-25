@@ -20,6 +20,9 @@
 
 #include "SimpleStateTransfer.hpp"
 #include "SimpleBCStateTransfer.hpp"
+#include "memorydb/client.h"
+#include "memorydb/key_comparator.h"
+#include "blockchain/db_adapter.h"
 #include "Logger.hpp"
 
 #define Assert(expr) {                                             \
@@ -326,8 +329,9 @@ SimpleStateTran::SimpleStateTran( char* ptrToState,
   config.fVal = fVal;
   config.cVal = cVal;
   config.pedanticChecks = pedanticChecks;
-
-  internalST_ =  SimpleBlockchainStateTransfer::create(config, &dummyBDState_);
+  auto comparator = concord::storage::memorydb::KeyComparator(new concord::storage::blockchain::KeyManipulator());
+  concord::storage::IDBClient::ptr db (new concord::storage::memorydb::Client(comparator));
+  internalST_ =  SimpleBlockchainStateTransfer::create(config, &dummyBDState_, db);
 
   Assert(internalST_ != nullptr);
 

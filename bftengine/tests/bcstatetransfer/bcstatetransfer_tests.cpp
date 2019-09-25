@@ -18,13 +18,18 @@
 #include "test_replica.hpp"
 #include "Logger.hpp"
 #include "DBDataStore.hpp"
-#include "rocksdb/client.h"
-#include "rocksdb/key_comparator.h"
 #include "blockchain/db_adapter.h"
+#include "memorydb/client.h"
 
-using concord::storage::rocksdb::KeyComparator;
 using concord::storage::ITransaction;
 using concord::storage::blockchain::KeyManipulator;
+
+#ifdef USE_ROCKSDB
+#include "rocksdb/client.h"
+#include "rocksdb/key_comparator.h"
+using concord::storage::rocksdb::Client;
+using concord::storage::rocksdb::KeyComparator;
+#endif
 namespace bftEngine {
 namespace SimpleBlockchainStateTransfer {
 
@@ -46,12 +51,18 @@ class BcStTest : public ::testing::Test {
   protected:
     void SetUp() override {
       //uncomment if needed
-      log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("serializable")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
-      log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("DBDataStore")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
-      log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("rocksdb")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
+//      log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("serializable")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
+//      log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("DBDataStore")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
+//      log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("rocksdb")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
 
       config_ = TestConfig();
-      concord::storage::IDBClient::ptr dbc(new concord::storage::rocksdb::Client("./bcst_db", new KeyComparator(new KeyManipulator())));
+      auto* key_manipulator = new concord::storage::blockchain::KeyManipulator();
+#ifdef USE_ROCKSDB
+      concord::storage::IDBClient::ptr dbc(new concord::storage::rocksdb::Client("./bcst_db", new KeyComparator(key_manipulator)));
+#else
+      auto comparator = concord::storage::memorydb::KeyComparator(key_manipulator);
+      concord::storage::IDBClient::ptr dbc(new concord::storage::memorydb::Client(comparator));
+#endif
       dbc->init();
       DBDataStore* dbds = new DBDataStore(dbc, config_.sizeOfReservedPage);
       st_ = new BCStateTran(config_, &app_state_, dbds);
