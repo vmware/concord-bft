@@ -129,7 +129,7 @@ add_custom_command(TARGET copy_log4cpp_config
         $<TARGET_FILE_DIR:simpleTest_client>/scripts
         COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_SOURCE_DIR}/test/log4cpp_simple_test.properties
-        $<TARGET_FILE_DIR:skvbc_replica>
+        $<TARGET_FILE_DIR:skvbc_replica>/../scripts
         COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_SOURCE_DIR}/test/log4cpp_simple_test.properties
-        $<TARGET_FILE_DIR:skvbc_client>)
+        $<TARGET_FILE_DIR:skvbc_client>/../scripts)
