@@ -74,8 +74,9 @@ ClientParams setupClientParams(int argc, char **argv) {
         strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
         argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
         string numOfOpsStr = argTempBuffer;
-        int tempfVal = std::stoi(numOfOpsStr);
-        if (tempfVal >= 1 && tempfVal < (int)UINT32_MAX) clientParams.numOfOperations = (uint32_t)tempfVal;
+        uint32_t tempPVal = std::stoul(numOfOpsStr);
+        if (tempPVal >= 1 && tempPVal < UINT32_MAX)
+          clientParams.numOfOperations = tempPVal;
       } break;
 
       case 'n': {

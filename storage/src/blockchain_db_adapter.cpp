@@ -73,7 +73,6 @@ int KeyManipulator::composedKeyComparison(const uint8_t* _a_data, size_t _a_leng
   switch(aType){
     case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_TRAN_KEY:
     case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_TRAN_PEN_PAGE_KEY:
-    case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_TRAN_RES_PAGE_STAT_KEY:
     case EDBKeyType::E_DB_KEY_TYPE_BFT_METADATA_KEY:{
       // Compare object IDs.
       ObjectId aObjId = KeyManipulator::extractObjectIdFromKey(_a_data, _a_length);
@@ -86,11 +85,12 @@ int KeyManipulator::composedKeyComparison(const uint8_t* _a_data, size_t _a_leng
       bChcpt = extractCheckPointFromKey(_b_data, _b_length);
       return (aChkpt > bChcpt) ? 1 : (bChcpt > aChkpt) ? -1 : 0;
     }
+    case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_TRAN_RES_PAGE_STAT_KEY:
     case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_TRAN_RES_PAGE_DYN_KEY:{
       uint32_t aPageId, bPageId;
       uint64_t aChkpt, bChcpt;
       std::tie(aPageId, aChkpt) = extractPageIdAndChkpointFromKey(_a_data, _a_length);
-      std::tie(bPageId, bChcpt) = extractPageIdAndChkpointFromKey(_a_data, _a_length);
+      std::tie(bPageId, bChcpt) = extractPageIdAndChkpointFromKey(_b_data, _b_length);
       if(aPageId != bPageId)
         return aPageId - bPageId;
       return (bChcpt > aChkpt)? 1 : (aChkpt > bChcpt) ? -1 : 0;

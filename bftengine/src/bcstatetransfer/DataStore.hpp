@@ -170,7 +170,7 @@ public:
      DataStoreTransaction* txn() {return static_cast<DataStoreTransaction*>(txn_);}
   };
   typedef std::shared_ptr<DataStoreTransaction> ptr;
-  DataStoreTransaction(DataStore* ds, ITransaction::ptr txn):
+  DataStoreTransaction(DataStore* ds, ITransaction* txn):
     ITransaction(txn->getId()),ds_(ds), txn_(txn){}
   ~DataStoreTransaction(){}
   /**
@@ -268,7 +268,7 @@ public:
 protected:
   DataStoreTransaction* beginTransaction() override {assert(false); return nullptr;}
   DataStore*  ds_; // TODO[TK] different behavior between DBDataStore and InMemoryDataStore
-  ITransaction::ptr          txn_;
+  ITransaction::ptr  txn_;
 
 };
 
