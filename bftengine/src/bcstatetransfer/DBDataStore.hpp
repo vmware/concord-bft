@@ -44,7 +44,9 @@ public:
    * C-r for DBDataStore first time initialization
    */
   DBDataStore( concord::storage::IDBClient::ptr dbc, uint32_t sizeOfReservedPage):
-                inmem_(new InMemoryDataStore(sizeOfReservedPage)), dbc_(dbc){
+                inmem_(new InMemoryDataStore(sizeOfReservedPage)),
+                dbc_(dbc),
+                keysofkeys_(new std::map<InMemoryDataStore::ResPageKey, std::string>){
     load();
   }
 
@@ -78,7 +80,7 @@ public:
 
   void           free(ResPagesDescriptor*  desc) override {inmem_->free(desc);}
   bool           initialized() override { return inmem_->initialized();}
-  bool           hasCheckpointDesc(uint64_t checkpoint) override { return inmem_->hasCheckpointDesc(checkpoint);}
+  bool           hasCheckpointDesc(uint64_t checkpoint) override;
   bool           hasPendingResPage(uint32_t inPageId) override {return inmem_->hasPendingResPage(inPageId);}
   bool           getIsFetchingState() override { return inmem_->getIsFetchingState(); }
   bool           hasCheckpointBeingFetched() override { return inmem_->hasCheckpointBeingFetched();}
@@ -146,7 +148,7 @@ public:
   void serializeResPage      (std::ostream&, uint32_t,  uint64_t, const STDigest&, const char*) const;
   void deserializeResPage    (std::istream&, uint32_t&, uint64_t&,      STDigest&,       char*) const;
 
-  void deserializePendingPage(std::istream&, char*, uint32_t&) const;
+  void deserializePendingPage(std::istream&, char*&, uint32_t&) const;
 
   /**
    * add to existing transaction
@@ -159,16 +161,16 @@ public:
   /** *****************************************************************************************************************
    * db layer access
    */
-  void put(const GeneralIds& objId, const std::string& val){
+  void put(const GeneralIds& objId, const Sliver& val){
     put(genKey(objId), val);
   }
-  void put(const Sliver& key, const std::string& val){
+  void put(const Sliver& key, const Sliver& val){
     if (txn_){
-       LOG_TRACE(logger(), "put objId:" << key.toString() << " val:" << val << " txn: " + std::to_string(txn_->getId()));
+       LOG_TRACE(logger(), "put objId:" << key << " val: " << val << " txn: " + txn_->getIdStr());
        txn_->put(key, val);
     }
     else{
-      LOG_TRACE(logger(), "put objId:" << key.toString() << " val:" << val);
+      LOG_TRACE(logger(), "put objId:" << key << " val: " << val);
       dbc_->put(key, val);
     }
   }
@@ -179,14 +181,14 @@ public:
   bool get(GeneralIds objId, Sliver& val){ return get(genKey(objId), val);}
 
   bool get(const Sliver& key, Sliver& val){
-    LOG_TRACE(logger(), "get objId:" << key);
     Status s = dbc_->get(key, val);
     if(!(s.isOK() || s.isNotFound()))
         throw std::runtime_error("error get objId: " + key.toString() + std::string(", reason: ") + s.toString());
     if(s.isNotFound()){
-      LOG_ERROR(logger(), "not found: key: " + key.toString());
+      LOG_TRACE(logger(), "not found: key: " <<  key);
       return false;
     }
+    LOG_TRACE(logger(), "get objId:" << key << " val: " << val);
     return true;
   }
   /**
@@ -195,12 +197,12 @@ public:
    */
   bool del(GeneralIds objId){ return del(genKey(objId));}
   bool del(const Sliver& key){
-    LOG_TRACE(logger(), "delete k.ey:" <<  key.toString());
+    LOG_TRACE(logger(), "delete k.ey:" <<  key);
     Status s = dbc_->del(key);
     if(!(s.isOK() || s.isNotFound()))
         throw std::runtime_error("error del key: " + key.toString() + std::string(", reason: ") + s.toString());
     if(s.isNotFound()){
-      LOG_ERROR(logger(), "not found: key: " + key.toString());
+      LOG_ERROR(logger(), "not found: key: " <<  key);
       return false;
     }
     return true;

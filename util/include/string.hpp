@@ -28,6 +28,7 @@ T to(const std::string& s){assert(false && "no suitable specialization"); return
 template<> inline bool               to<> (const std::string& s) {return std::stoi(s);  }
 template<> inline std::uint16_t      to<> (const std::string& s) {return std::stoi(s);  }
 template<> inline int                to<> (const std::string& s) {return std::stoi(s);  }
+template<> inline unsigned int       to<> (const std::string& s) {return std::stoul(s); }
 template<> inline long               to<> (const std::string& s) {return std::stol(s);  }
 template<> inline unsigned long      to<> (const std::string& s) {return std::stoul(s); }
 template<> inline long long          to<> (const std::string& s) {return std::stoll(s); }
