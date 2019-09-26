@@ -36,7 +36,7 @@ class ITransaction {
   class Guard{
    public:
      Guard(ITransaction* t):txn_(t){}
-     ~Guard(){
+     virtual ~Guard(){
        if (std::uncaught_exception() == 0)
          txn_->commit();
        delete txn_;

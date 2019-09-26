@@ -45,13 +45,12 @@ public:
    */
   DBDataStore( concord::storage::IDBClient::ptr dbc, uint32_t sizeOfReservedPage):
                 inmem_(new InMemoryDataStore(sizeOfReservedPage)),
-                dbc_(dbc),
-                keysofkeys_(new std::map<InMemoryDataStore::ResPageKey, std::string>){
+                dbc_(dbc){
     load();
   }
 
   DataStoreTransaction* beginTransaction() override {
-    concord::storage::ITransaction::ptr txn(dbc_->beginTransaction());
+    concord::storage::ITransaction* txn(dbc_->beginTransaction());
     DBDataStore* tnxDataStore = new DBDataStore(*this);
     tnxDataStore->txn_ = txn;
     return new DataStoreTransaction(tnxDataStore, txn);
@@ -138,7 +137,6 @@ public:
   DBDataStore(const DBDataStore& ) = default;
 
   void load();
-  void loadDynamicKeys();
   void loadResPages();
   void loadPendingPages();
 
@@ -146,7 +144,7 @@ public:
   void deserializeCheckpoint (std::istream& is,       CheckpointDesc& desc) const;
 
   void serializeResPage      (std::ostream&, uint32_t,  uint64_t, const STDigest&, const char*) const;
-  void deserializeResPage    (std::istream&, uint32_t&, uint64_t&,      STDigest&,       char*) const;
+  void deserializeResPage    (std::istream&, uint32_t&, uint64_t&,      STDigest&,       char*&) const;
 
   void deserializePendingPage(std::istream&, char*&, uint32_t&) const;
 
@@ -229,7 +227,8 @@ public:
   Sliver staticResPageKey  (uint32_t pageid, uint64_t chkp) const {
     static uint64_t maxStored = inmem_->getMaxNumOfStoredCheckpoints();
     return KeyManipulator::generateStateTransferKey(EDBKeyType::E_DB_KEY_TYPE_BFT_ST_TRAN_RES_PAGE_STAT_KEY,
-                                                    pageid * (int)(chkp % maxStored));
+                                                    pageid ,
+                                                    (uint64_t)(chkp % maxStored));
   }
   Sliver pendingPageKey(uint32_t pageid) const {
     return KeyManipulator::generateStateTransferKey(EDBKeyType::E_DB_KEY_TYPE_BFT_ST_TRAN_PEN_PAGE_KEY, pageid);
@@ -248,9 +247,8 @@ public:
 
 protected:
   std::shared_ptr<InMemoryDataStore> inmem_; // one copy among instances
-  ITransaction::ptr txn_;
+  ITransaction*     txn_ = nullptr;
   IDBClient::ptr    dbc_;
-  std::shared_ptr<std::map<InMemoryDataStore::ResPageKey, std::string>> keysofkeys_; // one copy among instances
 };
 
 }  // namespace impl

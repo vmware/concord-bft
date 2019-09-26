@@ -143,7 +143,7 @@ bool DBDataStore::hasCheckpointDesc(uint64_t checkpoint){
   Sliver val;
   if(!get(chkpDescKey(checkpoint), val))
     return false;
-  std::istringstream iss(std::string(reinterpret_cast<const char*>(val.data())), val.length());
+  std::istringstream iss(std::string(reinterpret_cast<const char*>(val.data()), val.length()));
   DataStore::CheckpointDesc cpd;
   deserializeCheckpoint(iss, cpd);
   inmem_->setCheckpointDesc(checkpoint, cpd);
@@ -164,7 +164,7 @@ void DBDataStore::deleteDescOfSmallerCheckpointsTxn(uint64_t checkpoint, ITransa
 }
 void DBDataStore::deleteDescOfSmallerCheckpoints(uint64_t checkpoint) {
   if(txn_)
-    deleteDescOfSmallerCheckpointsTxn(checkpoint, txn_.get());
+    deleteDescOfSmallerCheckpointsTxn(checkpoint, txn_);
   else{
     ITransaction::Guard g(dbc_->beginTransaction());
     deleteDescOfSmallerCheckpointsTxn(checkpoint, g.txn());
@@ -225,7 +225,7 @@ void DBDataStore::deserializeResPage(std::istream&   is,
                                      uint32_t&       outPageId,
                                      uint64_t&       outCheckpoint,
                                      STDigest&       outPageDigest,
-                                     char*           outPage) const {
+                                     char*&          outPage) const {
   Serializable::deserialize(is, outPageId);
   Serializable::deserialize(is, outCheckpoint);
   char dgst[BLOCK_DIGEST_SIZE];
@@ -236,37 +236,28 @@ void DBDataStore::deserializeResPage(std::istream&   is,
   assert(sizeOfReseredPage == inmem_->getSizeOfReservedPage());
   Serializable::deserialize(is, outPage, sizeOfReseredPage);
 }
-void DBDataStore::loadDynamicKeys() {
-  LOG_DEBUG(logger(), "");
-  for(uint32_t pageid = 0; pageid < inmem_->getNumberOfReservedPages(); ++pageid)
-    for(uint64_t chkp = 0; chkp < inmem_->getMaxNumOfStoredCheckpoints(); ++chkp ) {
-      Sliver val;
-      if(get(staticResPageKey(pageid, chkp), val)){
-        keysofkeys_->operator[]({pageid,chkp}) = val.toString();
-        LOG_DEBUG(logger(), "[" << pageid << ", "<< chkp << "] => " << val);
-      }
-    }
-}
 void DBDataStore::loadResPages() {
   LOG_DEBUG(logger(), "");
-  loadDynamicKeys();
-  // populate pages map
-  for(auto& it: *(keysofkeys_.get())){
-    //retrieve page
-    Sliver serializedPage;
-    if(!get(it.second, serializedPage)){
-      LOG_DEBUG(logger(), "failed to load page for ["
-                          << staticResPageKey(it.first.pageId, it.first.checkpoint) << ":" << it.second << "]");
-      continue;
+  for(uint32_t pageid = 0; pageid < inmem_->getNumberOfReservedPages(); ++pageid) {
+    for(uint64_t chkp = 1; chkp <= inmem_->getMaxNumOfStoredCheckpoints(); ++chkp) {
+      Sliver dynKey;
+      if(!get(staticResPageKey(pageid, chkp), dynKey))
+        continue;
+      LOG_DEBUG(logger(), "[" << pageid << ", "<< chkp << "] => " << dynKey);
+      Sliver serializedPage;
+      if(!get(dynKey, serializedPage)){
+        LOG_DEBUG(logger(), "failed to load page for [" << staticResPageKey(pageid, chkp) << ":" << dynKey << "]");
+        continue;
+      }
+      std::istringstream iss(std::string(reinterpret_cast<const char*>(serializedPage.data()), serializedPage.length()));
+      uint32_t pageid;
+      uint64_t checkpoint;
+      STDigest digest;
+      char* page = new char[inmem_->getSizeOfReservedPage()];
+      deserializeResPage(iss, pageid, checkpoint, digest, page);
+      inmem_->setResPage(pageid, checkpoint, digest, page);
+      delete [] page;// is copied
     }
-    std::istringstream iss(std::string(reinterpret_cast<const char*>(serializedPage.data())), serializedPage.length());
-    uint32_t pageid;
-    uint64_t checkpoint;
-    STDigest digest;
-    char* page = new char[inmem_->getSizeOfReservedPage()];
-    deserializeResPage(iss, pageid, checkpoint, digest, page);
-    inmem_->setResPage(pageid, checkpoint, digest, page);
-    delete [] page;// is copied
   }
 }
 void DBDataStore::setResPageTxn( uint32_t        inPageId,
@@ -274,14 +265,17 @@ void DBDataStore::setResPageTxn( uint32_t        inPageId,
                                  const STDigest& inPageDigest,
                                  const char*     inPage,
                                  ITransaction*   txn){
-  LOG_DEBUG(logger(), "page: " << inPageId << " chkp: " << inCheckpoint << " digest: " << inPageDigest.toString()
-                      << " txn: " << txn->getId());
   std::ostringstream oss;
   serializeResPage(oss, inPageId, inCheckpoint, inPageDigest, inPage);
   Sliver dynamic_key = dynamicResPageKey(inPageId, inCheckpoint);
   txn->put(dynamic_key, oss.str());
   txn->put(staticResPageKey(inPageId, inCheckpoint), dynamic_key);
-  keysofkeys_->operator[]({inPageId, inCheckpoint}) = dynamic_key.toString();
+  LOG_DEBUG(logger(), "page: " << inPageId
+                      << " chkp: " << inCheckpoint
+                      << " digest: " << inPageDigest.toString()
+                      << " txn: " << txn->getId()
+                      << " static key: " << staticResPageKey(inPageId, inCheckpoint)
+                      << " dynamic key: " << dynamic_key);
 }
 
 void DBDataStore::setResPage( uint32_t        inPageId,
@@ -289,7 +283,7 @@ void DBDataStore::setResPage( uint32_t        inPageId,
                               const STDigest& inPageDigest,
                               const char*     inPage){
   if(txn_)
-    setResPageTxn(inPageId, inCheckpoint, inPageDigest, inPage, txn_.get());
+    setResPageTxn(inPageId, inCheckpoint, inPageDigest, inPage, txn_);
   else {
     ITransaction::Guard g(dbc_->beginTransaction());
     setResPageTxn(inPageId, inCheckpoint, inPageDigest, inPage, g.txn());
@@ -311,7 +305,7 @@ void DBDataStore::loadPendingPages() {
     Sliver serializedPendingPage;
     if(!get(pendingPageKey(pageid), serializedPendingPage))
       continue;
-    std::istringstream iss(std::string(reinterpret_cast<const char*>(serializedPendingPage.data())), serializedPendingPage.length());
+    std::istringstream iss(std::string(reinterpret_cast<const char*>(serializedPendingPage.data()), serializedPendingPage.length()));
     std::uint32_t pageLen = 0;
     char* page = nullptr;
     deserializePendingPage(iss, page, pageLen);
@@ -335,7 +329,7 @@ void DBDataStore::associatePendingResPageWithCheckpoint(uint32_t inPageId,
                                                         uint64_t inCheckpoint,
                                                         const STDigest& inPageDigest){
   if(txn_)
-    associatePendingResPageWithCheckpointTxn(inPageId, inCheckpoint, inPageDigest, txn_.get());
+    associatePendingResPageWithCheckpointTxn(inPageId, inCheckpoint, inPageDigest, txn_);
   else{
     ITransaction::Guard g(dbc_->beginTransaction());
     associatePendingResPageWithCheckpointTxn(inPageId, inCheckpoint, inPageDigest, g.txn());
@@ -363,7 +357,7 @@ void DBDataStore::deleteAllPendingPagesTxn(ITransaction* txn) {
 }
 void DBDataStore::deleteAllPendingPages() {
   if(txn_)
-    deleteAllPendingPagesTxn(txn_.get());
+    deleteAllPendingPagesTxn(txn_);
   else{
     ITransaction::Guard g(dbc_->beginTransaction());
     deleteAllPendingPagesTxn(g.txn());
@@ -389,7 +383,7 @@ void DBDataStore::deleteCoveredResPageInSmallerCheckpointsTxn( uint64_t minChkp,
 }
 void DBDataStore::deleteCoveredResPageInSmallerCheckpoints( uint64_t minChkp) {
   if(txn_)
-    deleteCoveredResPageInSmallerCheckpointsTxn(minChkp, txn_.get());
+    deleteCoveredResPageInSmallerCheckpointsTxn(minChkp, txn_);
    else{
      ITransaction::Guard g(dbc_->beginTransaction());
      deleteCoveredResPageInSmallerCheckpointsTxn(minChkp, g.txn());

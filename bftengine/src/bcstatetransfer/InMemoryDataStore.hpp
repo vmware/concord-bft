@@ -136,7 +136,7 @@ class InMemoryDataStore : public DataStore {
     void del(const concordUtils::Sliver& key) override {}
   };
   DataStoreTransaction* beginTransaction() override {
-    ITransaction::ptr txn (new NullTransaction());
+    ITransaction* txn (new NullTransaction());
     return new DataStoreTransaction(this, txn);}
 
  protected:
