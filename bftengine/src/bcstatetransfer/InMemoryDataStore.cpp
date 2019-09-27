@@ -73,7 +73,7 @@ void InMemoryDataStore::setMaxNumOfStoredCheckpoints(uint64_t numChecks) {
   maxNumOfStoredCheckpoints_ = numChecks;
 }
 
-uint64_t InMemoryDataStore::getMaxNumOfStoredCheckpoints() {
+uint64_t InMemoryDataStore::getMaxNumOfStoredCheckpoints() const {
   assert(maxNumOfStoredCheckpoints_ != UINT64_MAX);
   return maxNumOfStoredCheckpoints_;
 }

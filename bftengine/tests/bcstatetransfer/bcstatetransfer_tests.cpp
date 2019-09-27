@@ -59,13 +59,14 @@ class BcStTest : public ::testing::Test {
       auto* key_manipulator = new concord::storage::blockchain::KeyManipulator();
 #ifdef USE_ROCKSDB
       concord::storage::IDBClient::ptr dbc(new concord::storage::rocksdb::Client("./bcst_db", new KeyComparator(key_manipulator)));
+      dbc->init();
+      auto* datastore = new DBDataStore(dbc, config_.sizeOfReservedPage);
 #else
       auto comparator = concord::storage::memorydb::KeyComparator(key_manipulator);
       concord::storage::IDBClient::ptr dbc(new concord::storage::memorydb::Client(comparator));
+      auto * datastore = new InMemoryDataStore(config_.sizeOfReservedPage);
 #endif
-      dbc->init();
-      DBDataStore* dbds = new DBDataStore(dbc, config_.sizeOfReservedPage);
-      st_ = new BCStateTran(config_, &app_state_, dbds);
+      st_ = new BCStateTran(config_, &app_state_, datastore);
       ASSERT_FALSE(st_->isRunning());
       st_->startRunning(&replica_);
       ASSERT_TRUE(st_->isRunning());

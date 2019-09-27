@@ -48,7 +48,7 @@ class InMemoryDataStore : public DataStore {
   uint16_t getFVal() override;
 
   void setMaxNumOfStoredCheckpoints(uint64_t numChecks) override;
-  uint64_t getMaxNumOfStoredCheckpoints() override;
+  uint64_t getMaxNumOfStoredCheckpoints() const override;
 
   void setNumberOfReservedPages(uint32_t numResPages) override;
   uint32_t getNumberOfReservedPages() override;
@@ -135,11 +135,23 @@ class InMemoryDataStore : public DataStore {
     std::string get(const concordUtils::Sliver& key) override {return "";}
     void del(const concordUtils::Sliver& key) override {}
   };
+
   DataStoreTransaction* beginTransaction() override {
-    ITransaction* txn (new NullTransaction());
-    return new DataStoreTransaction(this, txn);}
+    // DBDataStore and IDBClient are not thread safe or reentrant. There can
+    // only be one transaction at a time.
+    assert(txn_ == nullptr);
+    txn_ = new NullTransaction();
+    return new DataStoreTransaction(*this, *txn_);
+  }
+
+  void endTransaction() override {
+    delete txn_;
+    txn_ = nullptr;
+  }
 
  protected:
+  ITransaction* txn_ = nullptr;
+
   const uint32_t sizeOfReservedPage_;
 
   bool wasInit_ = false;
