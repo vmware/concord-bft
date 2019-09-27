@@ -22,7 +22,6 @@ using concordUtils::SetOfKeyValuePairs;
 class ITransaction {
  public:
   typedef uint64_t ID;
-  typedef std::shared_ptr<ITransaction> ptr;
   ITransaction(ID id):id_(id){}
   virtual ~ITransaction() = default;
   virtual void commit() = 0;
@@ -37,7 +36,7 @@ class ITransaction {
    public:
      Guard(ITransaction* t):txn_(t){}
      virtual ~Guard(){
-       if (std::uncaught_exception() == 0)
+       if (!std::uncaught_exception())
          txn_->commit();
        delete txn_;
      }
