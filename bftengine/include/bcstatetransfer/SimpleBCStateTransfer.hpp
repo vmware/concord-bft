@@ -15,6 +15,7 @@
 #define BFTENGINE_SRC_BCSTATETRANSFER_SIMPLEBCSTATETRANSFER_HPP_
 
 #include <set>
+#include <memory>
 
 #include "IStateTransfer.hpp"
 
