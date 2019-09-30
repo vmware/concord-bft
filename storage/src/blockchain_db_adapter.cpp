@@ -60,9 +60,7 @@ DBAdapter::DBAdapter(IDBClient* db, bool readOnly):
  * positive number; if equal, return zero.
  *
  * Comparison is done by decomposed parts. Types are compared first, followed by
- * the application key, and finally the block id. Types and keys are sorted in
- * ascending order, and block IDs are sorted in descending order.
- */
+ * type specific comparison. */
 int KeyManipulator::composedKeyComparison(const uint8_t* _a_data, size_t _a_length,
                                           const uint8_t* _b_data, size_t _b_length) {
   EDBKeyType aType = KeyManipulator::extractTypeFromKey(_a_data);
@@ -99,16 +97,18 @@ int KeyManipulator::composedKeyComparison(const uint8_t* _a_data, size_t _a_leng
     case EDBKeyType::E_DB_KEY_TYPE_KEY: {
       int keyComp = KeyManipulator::compareKeyPartOfComposedKey(_a_data, _a_length, _b_data, _b_length);
       if (keyComp != 0) return keyComp;
-      // Fall through to E_DB_KEY_TYPE_BLOCK on purpose. The same comparison is
-      // done for blocks as for key + block, and the keys were equal here.
-    }
-    case EDBKeyType::E_DB_KEY_TYPE_BLOCK: {
-      // Blocks don't have a separate key component.
       // Extract the block ids to compare so that endianness of environment does not matter.
       BlockId aId = KeyManipulator::extractBlockIdFromKey(_a_data, _a_length);
       BlockId bId = KeyManipulator::extractBlockIdFromKey(_b_data, _b_length);
-      // Block ids are sorted in reverse order
+      // Block ids are sorted in reverse order when part of a composed key (key + blockId)
       return (bId > aId) ? 1 : (aId > bId) ? -1 : 0;
+    }
+    case EDBKeyType::E_DB_KEY_TYPE_BLOCK: {
+      // Extract the block ids to compare so that endianness of environment does not matter.
+      BlockId aId = KeyManipulator::extractBlockIdFromKey(_a_data, _a_length);
+      BlockId bId = KeyManipulator::extractBlockIdFromKey(_b_data, _b_length);
+      // Block ids are sorted in ascending order when part of a block key
+      return (aId > bId) ? 1 : (bId > aId) ? -1 : 0;
     }
     default:
       LOG_ERROR(logger(), "KeyManipulator::composedKeyComparison called with invalid key type: " << (char) aType);
@@ -975,11 +975,11 @@ void DBAdapter::monitor() const { db_->monitor(); }
  * @return Block ID of the latest block.
  */
 BlockId DBAdapter::getLatestBlock() {
-  // Note: RocksDB stores keys in a sorted fashion as per the logic
-  // provided in a custom comparator (for our case, refer to
-  // Comparators.cpp). In short, keys of type 'block' are stored
-  // first followed by keys of type 'key'. All keys of type 'block'
-  // are sorted in ascending order of block ids.
+  // Note: RocksDB stores keys in a sorted fashion as per the logic provided in
+  // a custom comparator (for our case, refer to the `composedKeyComparison`
+  // method above). In short, keys of type 'block' are stored first followed by
+  // keys of type 'key'. All keys of type 'block' are sorted in ascending order
+  // of block ids.
 
   // Generate maximal key for type 'block'
   Sliver maxKey = key_manipulator_->genDbKey(EDBKeyType::E_DB_KEY_TYPE_BLOCK,
