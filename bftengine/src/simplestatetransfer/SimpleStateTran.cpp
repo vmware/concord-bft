@@ -13,7 +13,7 @@
 
 
 #include <string.h>
-#include <cassert>
+#include "assertUtils.hpp"
 #include <map>
 #include <set>
 #include <utility>
@@ -25,19 +25,11 @@
 #include "blockchain/db_adapter.h"
 #include "Logger.hpp"
 
-#define Assert(expr) {                                             \
-    if((expr) != true) {                                                    \
-        LOG_ERROR_F(STLogger,"'%s' is NOT true (in function '%s' in %s:%d)\n", \
-            #expr, __FUNCTION__, __FILE__, __LINE__); assert(false);                \
-    }                                                                       \
-}
-
 namespace bftEngine {
 
 namespace SimpleInMemoryStateTransfer {
 
 namespace impl {
-
 
 concordlogger::Logger STLogger = concordlogger::Log::getLogger("state-transfer");
 

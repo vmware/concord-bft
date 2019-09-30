@@ -145,6 +145,7 @@ void DBDataStore::serializeCheckpoint(std::ostream& os, const CheckpointDesc& de
 }
 void DBDataStore::deserializeCheckpoint(std::istream& is, CheckpointDesc& desc) const {
   Serializable::deserialize(is, desc.checkpointNum);
+  Serializable::deserialize(is, desc.lastBlock);
   Serializable::deserialize(is, desc.digestOfLastBlock.getForUpdate()         , BLOCK_DIGEST_SIZE);
   Serializable::deserialize(is, desc.digestOfResPagesDescriptor.getForUpdate(), BLOCK_DIGEST_SIZE);
 }
