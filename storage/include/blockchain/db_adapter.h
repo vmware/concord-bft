@@ -38,16 +38,17 @@ class KeyManipulator: public IDBClient::IKeyManipulator{
   KeyValuePair  composedToSimple(KeyValuePair _p);
   static Sliver generateMetadataKey(ObjectId objectId);
   static Sliver generateStateTransferKey(ObjectId objectId);
-  static Sliver generateStateTransferKey(EDBKeyType type, uint32_t pageid);
-  static Sliver generateStateTransferKey(EDBKeyType type, uint64_t chkpt);
-  static Sliver generateStateTransferKey(EDBKeyType type, uint32_t pageid, uint64_t chkpt);
+  static Sliver generateSTPendingPageKey(uint32_t pageid);
+  static Sliver generateSTCheckpointDescriptorKey(uint64_t chkpt);
+  static Sliver generateSTReservedPageStaticKey(uint32_t pageid, uint64_t chkpt);
+  static Sliver generateSTReservedPageDynamicKey(uint32_t pageid, uint64_t chkpt);
   uint64_t      extractCheckPointFromKey(const uint8_t* _key_data, size_t _key_length);
-  std::pair<uint32_t, uint64_t> extractPageIdAndChkpointFromKey(const uint8_t* _key_data, size_t _key_length);
+  std::pair<uint32_t, uint64_t> extractPageIdAndCheckpointFromKey(const uint8_t* _key_data, size_t _key_length);
 
  protected:
+  static Sliver generateReservedPageKey(EDBKeyType, uint32_t pageid, uint64_t chkpt);
 
   static bool   copyToAndAdvance(uint8_t *_buf, size_t *_offset, size_t _maxOffset, uint8_t *_src, size_t _srcSize);
-
 
   concordlogger::Logger& logger(){
     static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.storage.blockchain.KeyManipulator");
