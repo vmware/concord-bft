@@ -214,20 +214,18 @@ public:
   /** *****************************************************************************************************************
    * keys generation
    */
-  Sliver dynamicResPageKey (uint32_t pageid, uint64_t chkp) const {
-    return KeyManipulator::generateStateTransferKey(EDBKeyType::E_DB_KEY_TYPE_BFT_ST_TRAN_RES_PAGE_DYN_KEY, pageid, chkp);
+  Sliver dynamicResPageKey (uint32_t pageid, uint64_t chkpt) const {
+    return KeyManipulator::generateSTReservedPageDynamicKey(pageid, chkpt);
   }
-  Sliver staticResPageKey  (uint32_t pageid, uint64_t chkp) const {
+  Sliver staticResPageKey  (uint32_t pageid, uint64_t chkpt) const {
     static uint64_t maxStored = inmem_.getMaxNumOfStoredCheckpoints();
-    return KeyManipulator::generateStateTransferKey(EDBKeyType::E_DB_KEY_TYPE_BFT_ST_TRAN_RES_PAGE_STAT_KEY,
-                                                    pageid ,
-                                                    (uint64_t)(chkp % maxStored));
+    return KeyManipulator::generateSTReservedPageStaticKey(pageid, chkpt % maxStored);
   }
   Sliver pendingPageKey(uint32_t pageid) const {
-    return KeyManipulator::generateStateTransferKey(EDBKeyType::E_DB_KEY_TYPE_BFT_ST_TRAN_PEN_PAGE_KEY, pageid);
+    return KeyManipulator::generateSTPendingPageKey(pageid);
   }
-  Sliver chkpDescKey (uint64_t chkp)  const {
-    return KeyManipulator::generateStateTransferKey(EDBKeyType::E_DB_KEY_TYPE_BFT_ST_TRAN_CHKP_DESC_KEY, chkp);
+  Sliver chkpDescKey (uint64_t chkpt)  const {
+    return KeyManipulator::generateSTCheckpointDescriptorKey(chkpt);
   }
   Sliver genKey(const ObjectId& objId) const {
     return KeyManipulator::generateStateTransferKey(objId);
