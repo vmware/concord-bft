@@ -1,6 +1,4 @@
-add_executable(bcstatetransfer_tests
-    bcstatetransfer_tests.cpp
-    $<TARGET_OBJECTS:logging_dev>)
+add_executable(bcstatetransfer_tests bcstatetransfer_tests.cpp)
 
 add_test(bcstatetransfer_tests bcstatetransfer_tests)
 
