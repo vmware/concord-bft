@@ -46,6 +46,7 @@ void computeBlockDigest(const uint64_t blockId,
                         StateTransferDigest *outDigest) {
   return impl::BCStateTran::computeDigestOfBlock(blockId, block, blockSize, (impl::STDigest *) outDigest);
 }
+
 IStateTransfer* create(const Config &config, IAppState *const stateApi, std::shared_ptr<concord::storage::IDBClient> dbc){
   // TODO(GG): check configuration
 
@@ -57,6 +58,16 @@ IStateTransfer* create(const Config &config, IAppState *const stateApi, std::sha
     ds = new impl::DBDataStore(dbc, config.sizeOfReservedPage);
   return  new impl::BCStateTran(config, stateApi, ds);
  }
+
+IStateTransfer* create(const Config &config,
+                       IAppState *const stateApi,
+                       std::shared_ptr<concord::storage::IDBClient> dbc,
+                       std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+
+  auto st = static_cast<impl::BCStateTran*>(create(config, stateApi, dbc));
+  st->SetAggregator(aggregator);
+  return st;
+}
 
 namespace impl {
 
