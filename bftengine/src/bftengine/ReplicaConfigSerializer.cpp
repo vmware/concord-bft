@@ -16,7 +16,7 @@
 #include "SysConsts.hpp"
 
 using namespace std;
-using namespace concordSerializable;
+using namespace concord::serialize;
 
 namespace bftEngine {
 namespace impl {
@@ -39,15 +39,10 @@ uint32_t ReplicaConfigSerializer::maxSize(uint32_t numOfReplicas) {
       sizeof(config_->debugPersistentStorageEnabled));
 }
 
-void ReplicaConfigSerializer::registerClass() {
-  SerializableObjectsDB::registerObject("ReplicaConfig", SharedPtrToClass(new ReplicaConfigSerializer));
-}
-
 ReplicaConfigSerializer::ReplicaConfigSerializer(ReplicaConfig *config) {
   config_.reset(new ReplicaConfig);
   if (config)
     *config_ = *config;
-  registerClass();
 }
 
 ReplicaConfigSerializer::ReplicaConfigSerializer() {
@@ -122,7 +117,7 @@ void ReplicaConfigSerializer::serializeDataMembers(ostream &outStream) const {
 
 void ReplicaConfigSerializer::serializePointer(Serializable *ptrToClass, ostream &outStream) const {
   uint8_t ptrToClassSpecified = ptrToClass ? 1 : 0;
-  outStream.write((char *) &ptrToClassSpecified, sizeof(ptrToClassSpecified));
+  serialize(outStream, ptrToClassSpecified);
   if (ptrToClass)
     ptrToClass->serialize(outStream);
 }
@@ -155,13 +150,8 @@ const {
 }
 
 /************** Deserialization **************/
-
-SharedPtrToClass ReplicaConfigSerializer::create(istream &inStream) {
-  SharedPtrToClass replicaConfigSerializer(new ReplicaConfigSerializer());
-  ReplicaConfig &config = *((ReplicaConfigSerializer *) replicaConfigSerializer.get())->config_;
-
-  // Deserialize class version
-  verifyClassVersion(((ReplicaConfigSerializer *) replicaConfigSerializer.get())->classVersion_, inStream);
+void ReplicaConfigSerializer::deserializeDataMembers(istream &inStream) {
+  ReplicaConfig &config = *config_.get();
 
   // Deserialize fVal
   inStream.read((char *) &config.fVal, sizeof(config.fVal));
@@ -209,15 +199,17 @@ SharedPtrToClass ReplicaConfigSerializer::create(istream &inStream) {
 
   inStream.read((char *) &config.debugPersistentStorageEnabled, sizeof(config.debugPersistentStorageEnabled));
 
-  return replicaConfigSerializer;
 }
 
-SharedPtrToClass ReplicaConfigSerializer::deserializePointer(std::istream &inStream) {
-  uint8_t ptrToClassSpecified = 0;
-  inStream.read((char *) &ptrToClassSpecified, sizeof(ptrToClassSpecified));
-  if (ptrToClassSpecified)
-    return deserialize(inStream);
-  return SharedPtrToClass();
+SerializablePtr ReplicaConfigSerializer::deserializePointer(std::istream &inStream) {
+  uint8_t ptrToClassSpecified;
+  deserialize(inStream, ptrToClassSpecified);
+  if (ptrToClassSpecified){
+    Serializable* s = nullptr;
+    deserialize(inStream, s);
+    return SerializablePtr(s);
+  }
+  return SerializablePtr();
 }
 
 void ReplicaConfigSerializer::createSignersAndVerifiers(istream &inStream, ReplicaConfig &newObject) {

@@ -26,9 +26,10 @@ namespace bftEngine {
 FileStorage::FileStorage(Logger &logger, const string &fileName) :
     logger_(logger), fileName_(fileName) {
 
-  dataStream_ = fopen(fileName.c_str(), "wxb+");
+  dataStream_ = fopen(fileName.c_str(), "w+x");
   if (!dataStream_) { // The file already exists
-    dataStream_ = fopen(fileName.c_str(), "rb+");
+    LOG_INFO(logger_, "FileStorage::ctor File " << fileName_ << " exists");
+    dataStream_ = fopen(fileName.c_str(), "r+");
     if (!dataStream_) {
       ostringstream err;
       err << "Failed to open file " << fileName_ << ", errno is " << errno;
@@ -87,19 +88,21 @@ void FileStorage::writeFileMetadata() {
 
 void FileStorage::read(void *dataPtr, size_t offset, size_t itemSize, size_t count, const char *errorMsg) {
   fseek(dataStream_, offset, SEEK_SET);
-  if (fread(dataPtr, itemSize, count, dataStream_) != count) {
-    LOG_WARN(logger_, "FileStorage::read " << errorMsg);
-    throw runtime_error(errorMsg);
-  }
+  size_t read_ = fread(dataPtr, itemSize, count, dataStream_);
+  int err = ferror(dataStream_);
+  if (err)
+    throw runtime_error("FileStorage::read " +  std::string(strerror(errno)));
+  if (feof(dataStream_))
+    throw runtime_error("FileStorage::read EOF" );
+  if (read_ != count)
+    throw runtime_error("FileStorage::read " + std::string(errorMsg));
 }
 
 void FileStorage::write(void *dataPtr, size_t offset, size_t itemSize,
                         size_t count, const char *errorMsg, bool toFlush) {
   fseek(dataStream_, offset, SEEK_SET);
-  if (fwrite(dataPtr, itemSize, count, dataStream_) != count) {
-    LOG_FATAL(logger_, "FileStorage::write " << errorMsg);
-    throw runtime_error(errorMsg);
-  }
+  if (fwrite(dataPtr, itemSize, count, dataStream_) != count)
+    throw runtime_error("FileStorage::write " + std::string(errorMsg));
   if (toFlush)
     fflush(dataStream_);
 }
@@ -130,7 +133,10 @@ bool FileStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint32_
   const size_t maxFileSize = fileMetadataSize + maxObjectsSize;
   LOG_INFO(logger_, "FileStorage::initMaxSizeOfObjects Maximum size of objects is "
       << maxObjectsSize << ", file size is " << maxFileSize);
-  ftruncate(fileno(dataStream_), maxFileSize);
+  if (ftruncate(fileno(dataStream_), maxFileSize)) {
+    LOG_ERROR(logger_, "Failed to truncate file: " << fileName_);
+    assert(false);
+  }
   writeFileMetadata();
   LOG_DEBUG(logger_, "" << *objectsMetadata_);
   return true;
@@ -201,23 +207,23 @@ void FileStorage::atomicWrite(uint32_t objectId, char *data, uint32_t dataLength
   handleObjectWrite(objectId, data, dataLength);
 }
 
-void FileStorage::beginAtomicWriteOnlyTransaction() {
-  LOG_DEBUG(logger_, "FileStorage::beginAtomicWriteOnlyTransaction");
+void FileStorage::beginAtomicWriteOnlyBatch() {
+  LOG_DEBUG(logger_, "FileStorage::beginAtomicWriteOnlyBatch");
   lock_guard<mutex> lock(ioMutex_);
   verifyFileMetadataSetup();
   if (transaction_) {
-    LOG_DEBUG(logger_, "FileStorage::beginAtomicWriteOnlyTransaction Transaction has been opened before; ignoring.");
+    LOG_DEBUG(logger_, "FileStorage::beginAtomicWriteOnlyBatch Transaction has been opened before; ignoring.");
     return;
   }
   transaction_ = new ObjectIdToRequestMap;
 }
 
-void FileStorage::writeInTransaction(uint32_t objectId, char *data, uint32_t dataLength) {
-  LOG_DEBUG(logger_, "FileStorage::writeInTransaction objectId=" << objectId << ", dataLength=" << dataLength);
+void FileStorage::writeInBatch(uint32_t objectId, char *data, uint32_t dataLength) {
+  LOG_DEBUG(logger_, "FileStorage::writeInBatch objectId=" << objectId << ", dataLength=" << dataLength);
   lock_guard<mutex> lock(ioMutex_);
   verifyOperation(objectId, dataLength, data);
   if (!transaction_) {
-    LOG_ERROR(logger_, "FileStorage::writeInTransaction " << WRONG_FLOW);
+    LOG_ERROR(logger_, "FileStorage::writeInBatch " << WRONG_FLOW);
     throw runtime_error(WRONG_FLOW);
   }
 
@@ -227,12 +233,12 @@ void FileStorage::writeInTransaction(uint32_t objectId, char *data, uint32_t dat
   transaction_->insert(pair<uint32_t, RequestInfo>(objectId, RequestInfo(data, dataLength)));
 }
 
-void FileStorage::commitAtomicWriteOnlyTransaction() {
-  LOG_DEBUG(logger_, "FileStorage::commitAtomicWriteOnlyTransaction");
+void FileStorage::commitAtomicWriteOnlyBatch() {
+  LOG_DEBUG(logger_, "FileStorage::commitAtomicWriteOnlyBatch");
   lock_guard<mutex> lock(ioMutex_);
   verifyFileMetadataSetup();
   if (!transaction_) {
-    LOG_ERROR(logger_, "FileStorage::commitAtomicWriteOnlyTransaction " << WRONG_FLOW);
+    LOG_ERROR(logger_, "FileStorage::commitAtomicWriteOnlyBatch " << WRONG_FLOW);
     throw runtime_error(WRONG_FLOW);
   }
   for (const auto &it : *transaction_) {

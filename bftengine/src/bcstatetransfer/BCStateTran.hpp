@@ -29,6 +29,7 @@
 #include "MsgsCertificate.hpp"
 #include "Messages.hpp"
 #include "STDigest.hpp"
+#include "Metrics.hpp"
 
 using std::set;
 using std::map;
@@ -282,6 +283,7 @@ class BCStateTran : public IStateTransfer {
   set<ItemDataMsg*, compareItemDataMsg> pendingItemDataMsgs;
   uint32_t totalSizeOfPendingItemDataMsgs = 0;
 
+  string preferredReplicasToString();
   void clearAllPendingItemsData();
   void clearPendingItemsData(uint64_t untilBlock);
   bool getNextFullBlock(uint64_t requiredBlock, bool& outBadDataDetected,
@@ -338,6 +340,79 @@ class BCStateTran : public IStateTransfer {
   static void computeDigestOfBlock(
              const uint64_t blockNum, const char* block,
              const uint32_t blockSize, STDigest* outDigest);
+
+  ///////////////////////////////////////////////////////////////////////////
+  // Metrics
+  ///////////////////////////////////////////////////////////////////////////
+ public:
+  void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a);
+
+ private:
+  concordMetrics::Component metrics_component_;
+
+  typedef concordMetrics::Component::Handle<concordMetrics::Gauge> GaugeHandle;
+  typedef concordMetrics::Component::Handle<concordMetrics::Status> StatusHandle;
+  typedef concordMetrics::Component::Handle<concordMetrics::Counter> CounterHandle;
+
+  struct Metrics {
+    StatusHandle fetching_state_;
+    StatusHandle pedantic_checks_enabled_;
+    StatusHandle preferred_replicas_;
+
+    GaugeHandle current_source_replica_;
+    GaugeHandle current_checkpoint_;
+    GaugeHandle checkpoint_being_fetched_;
+    GaugeHandle last_stored_checkpoint_;
+    GaugeHandle number_of_reserved_pages_;
+    GaugeHandle size_of_reserved_page_;
+    GaugeHandle last_msg_seq_num_;
+    GaugeHandle next_required_block_;
+    GaugeHandle num_pending_item_data_msgs_;
+    GaugeHandle total_size_of_pending_item_data_msgs_;
+    GaugeHandle last_block_;
+    GaugeHandle last_reachable_block_;
+
+    CounterHandle sent_ask_for_checkpoint_summaries_msg_;
+    CounterHandle sent_checkpoint_summary_msg_;
+
+    CounterHandle sent_fetch_blocks_msg_;
+    CounterHandle sent_fetch_res_pages_msg_;
+    CounterHandle sent_reject_fetch_msg_;
+    CounterHandle sent_item_data_msg_;
+
+    CounterHandle received_ask_for_checkpoint_summaries_msg_;
+    CounterHandle received_checkpoint_summary_msg_;
+    CounterHandle received_fetch_blocks_msg_;
+    CounterHandle received_fetch_res_pages_msg_;
+    CounterHandle received_reject_fetching_msg_;
+    CounterHandle received_item_data_msg_;
+    CounterHandle received_illegal_msg_;
+
+    CounterHandle invalid_ask_for_checkpoint_summaries_msg_;
+    CounterHandle irrelevant_ask_for_checkpoint_summaries_msg_;
+    CounterHandle invalid_checkpoint_summary_msg_;
+    CounterHandle irrelevant_checkpoint_summary_msg_;
+    CounterHandle invalid_fetch_blocks_msg_;
+    CounterHandle irrelevant_fetch_blocks_msg_;
+    CounterHandle invalid_fetch_res_pages_msg_;
+    CounterHandle irrelevant_fetch_res_pages_msg_;
+    CounterHandle invalid_reject_fetching_msg_;
+    CounterHandle irrelevant_reject_fetching_msg_;
+    CounterHandle invalid_item_data_msg_;
+    CounterHandle irrelevant_item_data_msg_;
+
+    CounterHandle create_checkpoint_;
+    CounterHandle mark_checkpoint_as_stable_;
+    CounterHandle load_reserved_page_;
+    CounterHandle load_reserved_page_from_pending_;
+    CounterHandle load_reserved_page_from_checkpoint_;
+    CounterHandle save_reserved_page_;
+    CounterHandle zero_reserved_page_;
+    CounterHandle start_collecting_state_;
+    CounterHandle on_timer_;
+  };
+
+  mutable Metrics metrics_;
 };
 
 }  // namespace impl

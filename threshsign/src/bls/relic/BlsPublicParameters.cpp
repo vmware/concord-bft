@@ -18,7 +18,7 @@
 #include "Logger.hpp"
 
 using namespace std;
-using namespace concordSerializable;
+using namespace concord::serialize;
 
 namespace BLS {
 namespace Relic {
@@ -45,6 +45,16 @@ BlsPublicParameters::BlsPublicParameters(const BlsPublicParameters &params)
   g1_copy(generator1_, params.generator1_);
   g2_copy(generator2_, const_cast<G2T &>(params.generator2_));
 }
+BlsPublicParameters& BlsPublicParameters::operator=(const BlsPublicParameters& params){
+  securityLevel_ = params.securityLevel_;
+  schemeName_    = params.schemeName_;
+  library_       = params.library_;
+  curveType_     = params.curveType_;
+  BLS::Relic::Library::Get();
+  g1_get_gen(generator1_);
+  g2_get_gen(generator2_);
+  return *this;
+}
 
 BlsPublicParameters::~BlsPublicParameters() {
   LOG_TRACE(GL, "Destroyed: " << this);
@@ -59,18 +69,17 @@ const BNT &BlsPublicParameters::getGroupOrder() const {
 }
 
 /************** Serialization **************/
-
-void BlsPublicParameters::serialize(ostream &outStream) const {
-  IPublicParameters::serializeDataMembers(outStream);
-  Serializable::serialize(outStream);
-}
-
 void BlsPublicParameters::serializeDataMembers(ostream &outStream) const {
   // generator1_ and generator2_ fields should not be serialized as they are
   // generated on the fly.
-
+  IPublicParameters::serializeDataMembers(outStream);
   // Serialize curveType_
-  outStream.write((char *) &curveType_, sizeof(curveType_));
+  serialize(outStream, curveType_);
+}
+
+void BlsPublicParameters::deserializeDataMembers(istream &inStream)  {
+  IPublicParameters::deserializeDataMembers(inStream);
+  deserialize(inStream, curveType_);
 }
 
 bool BlsPublicParameters::operator==(const BlsPublicParameters &other) const {
@@ -79,20 +88,6 @@ bool BlsPublicParameters::operator==(const BlsPublicParameters &other) const {
       (other.generator2_ == generator2_) &&
       (IPublicParameters::compare(other)));
   return result;
-}
-
-/************** Deserialization **************/
-
-SharedPtrToClass BlsPublicParameters::create(istream &inStream) {
-  // Retrieve the base class
-  SharedPtrToClass baseClass(IPublicParameters::createDontVerify(inStream));
-
-  verifyClassName(className_, inStream);
-  verifyClassVersion(classVersion_, inStream);
-  inStream.read((char *) &curveType_, sizeof(curveType_));
-
-  return SharedPtrToClass(new BlsPublicParameters(
-      ((IPublicParameters *) baseClass.get())->getSecurityLevel(), curveType_));
 }
 
 } // end of RELIC namespace

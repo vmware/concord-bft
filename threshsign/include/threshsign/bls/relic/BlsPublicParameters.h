@@ -18,17 +18,18 @@
 namespace BLS {
 namespace Relic {
 
-class BlsPublicParameters : public IPublicParameters {
- protected:
+class BlsPublicParameters : public IPublicParameters,
+                            public concord::serialize::SerializableFactory<BlsPublicParameters> {
+protected:
   G1T generator1_;
   G2T generator2_;
   int curveType_ = 0;
 
- public:
+public:
   BlsPublicParameters(int securityLevel, int curveType);
   BlsPublicParameters(const BlsPublicParameters &params);
   ~BlsPublicParameters() override;
-
+  BlsPublicParameters& operator=(const BlsPublicParameters& other);
   bool operator==(const BlsPublicParameters &other) const;
 
   /**
@@ -40,23 +41,17 @@ class BlsPublicParameters : public IPublicParameters {
   const BNT &getGroupOrder() const;
 
   // Serialization/deserialization
-  void serialize(std::ostream &outStream) const override;
-  concordSerializable::SharedPtrToClass create(std::istream &inStream) override;
-
-  std::string getName() const override { return className_; };
-  std::string getVersion() const override { return classVersion_; };
+  const std::string getVersion() const override { return "1" + IPublicParameters::getVersion();}
 
   // To be used ONLY during deserialization. Could not become private/protected,
   // as there is a composition relationship between IPublicParameters and
   // signer/verifier classes.
   BlsPublicParameters() = default; // To be used during deserialization.
 
- protected:
-  void serializeDataMembers(std::ostream &outStream) const override;
+protected:
+  virtual void serializeDataMembers(std::ostream &outStream) const override;
+  virtual void deserializeDataMembers(std::istream& inStream) override;
 
- private:
-  const std::string className_ = "BlsPublicParameters";
-  const std::string classVersion_ = "1" + IPublicParameters::getVersion();
 };
 
 } // end of BLS namespace

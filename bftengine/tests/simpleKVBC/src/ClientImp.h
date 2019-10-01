@@ -20,32 +20,33 @@ using namespace bftEngine;
 
 namespace SimpleKVBC {
 
-	class ClientImp : public IClient
-	{
-	public:
-		// IClient methods
-		virtual Status start() ;
-		virtual Status stop() ;
+class ClientImp : public IClient {
+ public:
+  // IClient methods
+  virtual Status start() override;
+  virtual Status stop() override;
 
-		virtual bool isRunning() ;
+  virtual bool isRunning() override;
 
-		virtual Status invokeCommandSynch(const Slice command, bool isReadOnly, Slice& outReply) ;
+  virtual Status invokeCommandSynch(const char* request,
+                                    uint32_t requestSize,
+                                    bool isReadOnly,
+                                    std::chrono::milliseconds timeout,
+                                    uint32_t replySize,
+                                    char* outReply,
+                                    uint32_t* outActualReplySize) override;
 
-		virtual Status release(Slice& slice) ; // release memory allocated by invokeCommandSynch  
+ protected:
+  ClientImp(){};
+  ~ClientImp(){};
 
+  ClientConfig config_;
+  char* replyBuf_ = nullptr;
+  SeqNumberGeneratorForClientRequests* seqGen_ = nullptr;
+  ICommunication* comm_ = nullptr;
 
-	protected:
-	
-		ClientImp() {};
-		~ClientImp() {};
+  SimpleClient* bftClient_ = nullptr;
 
-		ClientConfig config_;
-		char* replyBuf_ = nullptr;
-		SeqNumberGeneratorForClientRequests* seqGen_ = nullptr;
-		ICommunication* comm_ = nullptr;
-
-		SimpleClient* bftClient_ = nullptr;
-
-		friend IClient* createClient(const ClientConfig& conf, ICommunication* comm);
-	};
-}
+  friend IClient* createClient(const ClientConfig& conf, ICommunication* comm);
+};
+}  // namespace SimpleKVBC

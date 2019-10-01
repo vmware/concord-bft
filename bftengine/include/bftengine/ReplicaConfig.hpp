@@ -80,6 +80,10 @@ struct ReplicaConfig {
   // StateTransfer
   uint32_t maxNumOfReservedPages = 2048;
   uint32_t sizeOfReservedPage = 4096;
+
+  // If set to true, this replica will periodically log debug statistics such as
+  // throughput and number of messages sent.
+  bool debugStatisticsEnabled = false;
 };
 
 }

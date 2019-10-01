@@ -52,8 +52,8 @@ class PlainUDPCommunication::PlainUdpImpl {
   /* reversed map for getting node id by ip */
   unordered_map<std::string, NodeNum> addr2nodes;
 
-  /* pre defined adress map */
-  unordered_map<NodeNum, Addr> nodes2adresses;
+  /* pre defined address map */
+  unordered_map<NodeNum, Addr> nodes2addresses;
 
   size_t maxMsgSize;
 
@@ -149,11 +149,11 @@ class PlainUDPCommunication::PlainUdpImpl {
       ad.sin_family = AF_INET;
       ad.sin_addr.s_addr = inet_addr(next->second.ip.c_str());
       ad.sin_port = htons(next->second.port);
-      nodes2adresses.insert({next->first, ad});
+      nodes2addresses.insert({next->first, ad});
     }
 
     LOG_DEBUG(_logger, "Starting UDP communication. Port = %" << udpListenPort);
-    LOG_DEBUG(_logger, "#endpoints = " << nodes2adresses.size());
+    LOG_DEBUG(_logger, "#endpoints = " << nodes2addresses.size());
 
     udpSockFd = 0;
   }
@@ -270,7 +270,7 @@ class PlainUDPCommunication::PlainUdpImpl {
 
     Assert(running == true, "The communication layer is not running!");
 
-    const Addr *to = &nodes2adresses[destNode];
+    const Addr *to = &nodes2addresses[destNode];
 
     Assert(to != NULL, "The destination endpoint does not exist!");
     Assert(messageLength > 0, "The message length must be positive!");
@@ -287,14 +287,11 @@ class PlainUDPCommunication::PlainUdpImpl {
     if (error < 0) {
       /** -1 return value means underlying socket error. */
       string err = strerror(errno);
-      LOG_DEBUG(_logger, "Error while sending: " << strerror(errno));
-      Assert(false, "Failure occurred while sending!");
-      /** Fail-fast. */
+      LOG_INFO(_logger, "Error while sending: " << strerror(errno));
     } else if (error < (int) messageLength) {
       /** Mesage was partially sent. Unclear why this would happen, perhaps
         * due to oversized messages (?). */
-      LOG_DEBUG(_logger, "Sent %d out of %d bytes!");
-      Assert(false, "Send error occurred!");    /** Fail-fast. */
+      LOG_INFO(_logger, "Sent %d out of %d bytes!");
     }
 
     if (error == (ssize_t) messageLength) {
@@ -319,8 +316,8 @@ class PlainUDPCommunication::PlainUdpImpl {
   }
 
   NodeAddressResolveResult
-  addrToNodeId(Addr netAdress) {
-    auto key = create_key(netAdress);
+  addrToNodeId(Addr netAddress) {
+    auto key = create_key(netAddress);
     auto res = addr2nodes.find(key);
     if (res == addr2nodes.end()) {
       // IG: if we don't know the sender we just ignore this message and
@@ -329,7 +326,7 @@ class PlainUDPCommunication::PlainUdpImpl {
       return NodeAddressResolveResult({0, false, key});
     }
 
-    LOG_DEBUG(_logger, "Sender resolved, ID: " << res->second << "address: " << key);
+    LOG_DEBUG(_logger, "Sender resolved, ID: " << res->second << " address: " << key);
     return NodeAddressResolveResult({res->second, true, key});
   }
 
@@ -348,11 +345,11 @@ class PlainUDPCommunication::PlainUdpImpl {
            "Unable to start receiving: receiver not defined!");
 
     /** The main receive loop. */
-    Addr fromAdress;
+    Addr fromAddress;
 #ifdef _WIN32
-    int fromAdressLength = sizeof(fromAdress);
+    int fromAddressLength = sizeof(fromAddress);
 #else
-    socklen_t fromAdressLength = sizeof(fromAdress);
+    socklen_t fromAddressLength = sizeof(fromAddress);
 #endif
     int mLen = 0;
     do {
@@ -360,30 +357,36 @@ class PlainUDPCommunication::PlainUdpImpl {
                       bufferForIncomingMessages,
                       maxMsgSize,
                       0,
-                      (sockaddr *) &fromAdress,
-                      &fromAdressLength);
+                      (sockaddr *) &fromAddress,
+                      &fromAddressLength);
 
-      LOG_DEBUG(_logger, "recvfrom returned " << mLen << " bytes");
+      LOG_DEBUG(_logger, "Node " << selfId << ": recvfrom returned " << mLen << " bytes");
 
       if (mLen < 0) {
-        LOG_DEBUG(_logger, "Error in recvfrom(): " << mLen);
+        LOG_DEBUG(_logger, "Node " << selfId << ": Error in recvfrom(): " << mLen);
+        continue;
+      } else if (!mLen) {
+        // Probably, Stop() set 'running' to false and shut down the
+        // socket.  (Or, maybe, we received an actual zero-length UDP
+        // datagram, but we never send those.)
+        LOG_DEBUG(_logger, "Node " << selfId << ": Received empty message (shutting down?)");
         continue;
       }
 
-      auto resolveNode = addrToNodeId(fromAdress);
+      auto resolveNode = addrToNodeId(fromAddress);
       if(!resolveNode.wasFound) {
-        LOG_DEBUG(_logger, "Sender not found, adress: " << resolveNode.key);
+        LOG_DEBUG(_logger, "Sender not found, address: " << resolveNode.key);
         continue;
       }
 
       auto sendingNode = resolveNode.nodeId;
-      if (mLen > 0 && (receiverRef != NULL)) {
-        LOG_DEBUG(_logger, "Calling onNewMessage, msg from: " << sendingNode);
+      if (receiverRef != NULL) {
+        LOG_DEBUG(_logger, "Node " << selfId << ": Calling onNewMessage, msg from: " << sendingNode);
         receiverRef->onNewMessage(sendingNode,
                                   bufferForIncomingMessages,
                                   mLen);
       } else {
-        LOG_ERROR(_logger, "receiver is NULL");
+        LOG_ERROR(_logger, "Node " << selfId << ": receiver is NULL");
       }
 
       bool isReplica = check_replica(sendingNode);
@@ -392,10 +395,10 @@ class PlainUDPCommunication::PlainUdpImpl {
         pcs.peerId = sendingNode;
 
         char str[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &(fromAdress.sin_addr), str, INET_ADDRSTRLEN);
+        inet_ntop(AF_INET, &(fromAddress.sin_addr), str, INET_ADDRSTRLEN);
         pcs.peerIp = string(str);
 
-        pcs.peerPort = ntohs(fromAdress.sin_port);
+        pcs.peerPort = ntohs(fromAddress.sin_port);
         pcs.statusType = StatusType::MessageReceived;
 
         // pcs.statusTime = we dont set it since it is set by the aggregator

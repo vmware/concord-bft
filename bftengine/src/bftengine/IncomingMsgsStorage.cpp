@@ -50,7 +50,7 @@ void IncomingMsgsStorage::pushExternalMsg(std::unique_ptr<MessageBase> m) {
         maxNumberOfPendingExternalMsgs) {
       Time n = getMonotonicTime();
       if (subtract(n, lastOverflowWarning) >
-          ((TimeDeltaMirco)minTimeBetweenOverflowWarningsMilli * 1000)) {
+          ((TimeDeltaMicro)minTimeBetweenOverflowWarningsMilli * 1000)) {
         LOG_WARN_F(GL,
                    "More than %d pending messages in queue -  may ignore some "
                    "of the messages!",

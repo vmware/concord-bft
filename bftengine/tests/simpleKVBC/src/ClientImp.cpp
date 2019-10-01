@@ -12,81 +12,72 @@
 // file.
 
 #include "ClientImp.h"
+#include <cstring>
+#include <assert.h>
 
 using bftEngine::ICommunication;
 
 namespace SimpleKVBC {
 
-	IClient* createClient(const ClientConfig& conf, bftEngine::ICommunication* comm)
-	{
-		ClientImp* c = new ClientImp();
+IClient* createClient(const ClientConfig& conf, bftEngine::ICommunication* comm) {
+  ClientImp* c = new ClientImp();
 
-		c->config_ = conf;
-		c->replyBuf_ = (char*)std::malloc(conf.maxReplySize); 
-		c->seqGen_ = bftEngine::SeqNumberGeneratorForClientRequests::createSeqNumberGeneratorForClientRequests();
-		c->comm_ = comm;
-		c->bftClient_ = nullptr;
+  c->config_ = conf;
+  c->replyBuf_ = (char*)std::malloc(conf.maxReplySize);
+  c->seqGen_ = bftEngine::SeqNumberGeneratorForClientRequests::createSeqNumberGeneratorForClientRequests();
+  c->comm_ = comm;
+  c->bftClient_ = nullptr;
 
-		return c;
-	}
-
-
-	Status ClientImp::start()
-	{
-		if (isRunning()) return Status::IllegalOperation("todo");
-
-		comm_->Start();
-
-		uint16_t fVal = config_.fVal;
-		uint16_t cVal = config_.cVal;
-		uint16_t clientId = config_.clientId;
-		bftClient_ = bftEngine::SimpleClient::createSimpleClient(comm_, clientId, fVal, cVal);
- 
-		return Status::OK();
-	}
-
-	Status ClientImp::stop()
-	{
-		// TODO: implement
-		return Status::IllegalOperation("Not implemented");
-	}
-
-	bool ClientImp::isRunning()
-	{
-		return (bftClient_ != nullptr);
-	}
-
-	Status ClientImp::invokeCommandSynch(const Slice command, bool isReadOnly, Slice& outReply)
-	{
-		if (!isRunning()) return Status::IllegalOperation("todo");
-
-		uint32_t replySize = 0;
-
-		
-		bftClient_->sendRequest(isReadOnly, command.data, command.size, 
-			seqGen_->generateUniqueSequenceNumberForRequest(), 
-			bftEngine::SimpleClient::INFINITE_TIMEOUT, 
-			config_.maxReplySize, replyBuf_, replySize);
-
-		char* p = (char*)std::malloc(replySize);
-		memcpy(p, replyBuf_, replySize);
-		memset(replyBuf_, 0, replySize);
-
-		outReply = Slice(p, replySize);
-
-		return Status::OK();
-	}
-
-
-	Status ClientImp::release(Slice& slice)
-	{
-		if (slice.size > 0)
-		{
-			char* p = (char*)slice.data;
-			std::free(p);
-			slice = Slice();
-		}
-
-		return Status::OK();
-	}
+  return c;
 }
+
+Status ClientImp::start() {
+  if (isRunning()) return Status::IllegalOperation("todo");
+
+  comm_->Start();
+
+  uint16_t fVal = config_.fVal;
+  uint16_t cVal = config_.cVal;
+  uint16_t clientId = config_.clientId;
+  bftClient_ = bftEngine::SimpleClient::createSimpleClient(comm_, clientId, fVal, cVal);
+
+  return Status::OK();
+}
+
+Status ClientImp::stop() {
+  // TODO: implement
+  return Status::IllegalOperation("Not implemented");
+}
+
+bool ClientImp::isRunning() { return (bftClient_ != nullptr); }
+
+Status ClientImp::invokeCommandSynch(const char* request,
+                                     uint32_t requestSize,
+                                     bool isReadOnly,
+                                     std::chrono::milliseconds timeout,
+                                     uint32_t replySize,
+                                     char* outReply,
+                                     uint32_t* outActualReplySize) {
+  if (!isRunning()) return Status::IllegalOperation("todo");
+
+  uint64_t timeoutMs = timeout <= std::chrono::milliseconds::zero() ? SimpleClient::INFINITE_TIMEOUT : timeout.count();
+
+  auto res = bftClient_->sendRequest(isReadOnly,
+                                     request,
+                                     requestSize,
+                                     seqGen_->generateUniqueSequenceNumberForRequest(),
+                                     timeoutMs,
+                                     replySize,
+                                     outReply,
+                                     *outActualReplySize);
+
+  assert(res >= -2 && res < 1);
+
+  if (res == 0)
+    return Status::OK();
+  else if (res == -1)
+    return Status::GeneralError("timeout");
+  else
+    return Status::InvalidArgument("small buffer");
+}
+}  // namespace SimpleKVBC

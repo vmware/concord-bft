@@ -94,7 +94,7 @@ public:
         testAssertNotNull(verif);
         testAssertNotNull(verifier());
 
-        LOG_INFO(GL, "Testing " << params.getName() << " on " << reqSigners << " out of " << numSigners << " signers");
+        LOG_INFO(GL, "Testing " << typeid(params).name() << " on " << reqSigners << " out of " << numSigners << " signers");
         GroupType h = hashMessage(msg, msgSize);
 
         VectorOfShares signers;

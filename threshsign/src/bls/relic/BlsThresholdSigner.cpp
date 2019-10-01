@@ -17,14 +17,10 @@
 #include <iostream>
 
 using namespace std;
-using namespace concordSerializable;
+using namespace concord::serialize;
 
 namespace BLS {
 namespace Relic {
-
-void BlsThresholdSigner::registerClass() {
-  SerializableObjectsDB::registerObject("BlsThresholdSigner", SharedPtrToClass(new BlsThresholdSigner));
-}
 
 BlsThresholdSigner::BlsThresholdSigner(const BlsPublicParameters &params,
                                        ShareID id, const BNT &secretKey)
@@ -33,7 +29,6 @@ BlsThresholdSigner::BlsThresholdSigner(const BlsPublicParameters &params,
   // Serialize signer's ID to a buffer
   BNT idNum(id);
   idNum.toBytes(serializedId_, sizeof(id));
-  registerClass();
 }
 
 void BlsThresholdSigner::signData(const char *hash, int hashLen, char *outSig,
@@ -57,18 +52,13 @@ void BlsThresholdSigner::signData(const char *hash, int hashLen, char *outSig,
 /************** Serialization **************/
 
 void BlsThresholdSigner::serializeDataMembers(ostream &outStream) const {
-  // Serialize params
   params_.serialize(outStream);
-
-  // Serialize secretKey
   int32_t secretKeySize = secretKey_.x.getByteCount();
   UniquePtrToUChar secretKeyBuf(new unsigned char[secretKeySize]);
   secretKey_.x.toBytes(secretKeyBuf.get(), secretKeySize);
-  outStream.write((char *) &secretKeySize, sizeof(secretKeySize));
+  serialize(outStream, secretKeySize);
   outStream.write((char *) secretKeyBuf.get(), secretKeySize);
-
-  // Serialize id
-  outStream.write((char *) &id_, sizeof(id_));
+  serialize(outStream, id_);
 }
 
 bool BlsThresholdSigner::operator==(const BlsThresholdSigner &other) const {
@@ -81,6 +71,21 @@ bool BlsThresholdSigner::operator==(const BlsThresholdSigner &other) const {
       (other.secretKey_ == secretKey_) &&
       (other.publicKey_ == publicKey_)
   );
+
+
+  if (other.id_ != id_)
+    cout << "id_" << endl;
+  if (other.params_ == params_);
+  else
+    cout << "params_" << endl;
+  if (other.sigSize_ != sigSize_)
+    cout << "sigSize_" << endl;
+  if (memcmp(other.serializedId_, serializedId_, sizeof(ShareID)))
+    cout << "serializedId_" << endl;
+  if (other.hTmp_ != hTmp_)
+    cout << "hTmp_" << endl;
+  if (other.sigTmp_ != sigTmp_)
+    cout << "sigTmp_" << endl;
   if (other.secretKey_ == secretKey_);
   else
     cout << "secretKeys are not the same" << endl;
@@ -91,26 +96,21 @@ bool BlsThresholdSigner::operator==(const BlsThresholdSigner &other) const {
 }
 
 /************** Deserialization **************/
-
-SharedPtrToClass BlsThresholdSigner::create(istream &inStream) {
-  // Deserialize class version
-  verifyClassVersion(classVersion_, inStream);
-
-  // Deserialize params
-  SharedPtrToClass params(params_.create(inStream));
-
-  // Deserialize secretKey
-  int32_t sizeOfSecretKey = 0;
-  inStream.read((char *) &sizeOfSecretKey, sizeof(sizeOfSecretKey));
+void BlsThresholdSigner::deserializeDataMembers(istream& inStream){
+  BlsPublicParameters* params = nullptr;
+  deserialize(inStream, params);
+  params_= BlsPublicParameters(*params);
+  sigSize_ = params_.getSignatureSize();
+  std::int32_t sizeOfSecretKey = 0;
+  deserialize(inStream, sizeOfSecretKey);
   UniquePtrToUChar secretKey(new unsigned char[sizeOfSecretKey]);
   inStream.read((char *) secretKey.get(), sizeOfSecretKey);
   BNT key(secretKey.get(), sizeOfSecretKey);
-
-  // Deserialize id
-  inStream.read((char *) &id_, sizeof(id_));
-
-  return SharedPtrToClass(new BlsThresholdSigner(
-      *((BlsPublicParameters *) params.get()), id_, key));
+  secretKey_ = BlsSecretKey(BNT(secretKey.get(), sizeOfSecretKey));
+  publicKey_ = BlsPublicKey(BNT(secretKey.get(), sizeOfSecretKey));
+  deserialize(inStream, id_);
+  BNT idNum(id_);
+  idNum.toBytes(serializedId_, sizeof(id_));
 }
 
 } /* namespace Relic */

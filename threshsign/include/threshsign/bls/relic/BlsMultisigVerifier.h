@@ -24,7 +24,8 @@ namespace Relic {
 
 class BlsPublicParameters;
 
-class BlsMultisigVerifier : public BlsThresholdVerifier {
+class BlsMultisigVerifier : public BlsThresholdVerifier,
+                            public concord::serialize::SerializableFactory<BlsMultisigVerifier>{
  public:
   BlsMultisigVerifier(const BlsPublicParameters &params,
                       NumSharesType reqSigners,
@@ -56,22 +57,11 @@ class BlsMultisigVerifier : public BlsThresholdVerifier {
 
   int requiredLengthForSignedData() const override;
 
-  // Serialization/deserialization
-  void serialize(concordSerializable::UniquePtrToChar &outBuf, int64_t &outBufSize) const override;
-  concordSerializable::SharedPtrToClass create(std::istream &inStream) override;
-
  protected:
+  friend class concord::serialize::SerializableFactory<BlsMultisigVerifier>;
   BlsMultisigVerifier() = default;
-  void serializeDataMembers(std::ostream &outStream) const override;
-  std::string getName() const override { return className_; };
-  std::string getVersion() const override { return classVersion_; };
+  const std::string getVersion() const override { return "1" + BlsThresholdVerifier::getVersion(); };
 
- private:
-  static void registerClass();
-
- private:
-  const std::string className_ = "BlsMultisigVerifier";
-  const std::string classVersion_ = "1" + BlsThresholdVerifier::getVersion();
 };
 
 } /* namespace Relic */

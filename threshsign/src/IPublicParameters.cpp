@@ -11,10 +11,11 @@
 // LICENSE file.
 
 #include <sstream>
+#include <iostream>
 #include "threshsign/IPublicParameters.h"
 
 using namespace std;
-using namespace concordSerializable;
+using namespace concord::serialize;
 
 IPublicParameters::IPublicParameters(int securityLevel, string schemeName, string library) :
     securityLevel_(securityLevel), schemeName_(move(schemeName)),
@@ -23,52 +24,36 @@ IPublicParameters::IPublicParameters(int securityLevel, string schemeName, strin
 /************** Serialization **************/
 
 void IPublicParameters::serializeDataMembers(ostream &outStream) const {
-  // Serialize securityLevel_
-  outStream.write((char *) &securityLevel_, sizeof(securityLevel_));
-
-  // Serialize schemeName_
-  auto sizeOfSchemeName = (int64_t) schemeName_.size();
-  // Save a length of the string to the buffer to be able to deserialize it.
-  outStream.write((char *) &sizeOfSchemeName, sizeof(sizeOfSchemeName));
-  outStream.write(schemeName_.c_str(), sizeOfSchemeName);
-
-  // Serialize library_
-  auto sizeOfLibrary = (int64_t) library_.size();
-  // Save a length of the string to the buffer to be able to deserialize it.
-  outStream.write((char *) &sizeOfLibrary, sizeof(sizeOfLibrary));
-  outStream.write(library_.c_str(), sizeOfLibrary);
+  serialize(outStream, securityLevel_);
+  LOG_TRACE(logger(), "<<< securityLevel_: " << securityLevel_);
+  serialize(outStream, schemeName_);
+  LOG_TRACE(logger(), "<<< schemeName_: " << schemeName_);
+  serialize(outStream, library_);
+  LOG_TRACE(logger(), "<<< library_: " <<library_);
 }
 
 bool IPublicParameters::operator==(const IPublicParameters &other) const {
   bool result = ((other.securityLevel_ == securityLevel_) &&
-      (other.library_ == library_) && (other.schemeName_ == schemeName_));
+                 (other.library_ == library_) &&
+                 (other.schemeName_ == schemeName_));
+
+  if (other.securityLevel_ != securityLevel_)
+    std::cout << "securityLevel_" << std::endl;
+  if (other.library_ != library_)
+    std::cout << "library_" << std::endl;
+  if (other.schemeName_ != schemeName_)
+    std::cout << "schemeName_" << std::endl;
   return result;
 }
 
 /************** Deserialization **************/
 
-SharedPtrToClass IPublicParameters::createDontVerify(std::istream &inStream) {
-  // Deserialize securityLevel_
-  inStream.read((char *) &securityLevel_, sizeof(securityLevel_));
-
-  // Deserialize schemeName_
-  int64_t sizeOfSchemeName = 0;
-  inStream.read((char *) &sizeOfSchemeName, sizeof(sizeOfSchemeName));
-  UniquePtrToChar schemeName(new char[sizeOfSchemeName]);
-  inStream.read(schemeName.get(), sizeOfSchemeName);
-
-  // Deserialize library_
-  int64_t sizeOfLibrary = 0;
-  inStream.read((char *) &sizeOfLibrary, sizeof(sizeOfLibrary));
-  UniquePtrToChar library(new char[sizeOfLibrary]);
-  inStream.read(library.get(), sizeOfLibrary);
-
-  return SharedPtrToClass(
-      new IPublicParameters(securityLevel_, schemeName.get(), library.get()));
+void IPublicParameters::deserializeDataMembers(std::istream& inStream){
+  deserialize(inStream, securityLevel_);
+  LOG_TRACE(logger(), ">>> securityLevel_: " << securityLevel_);
+  deserialize(inStream, schemeName_);
+  LOG_TRACE(logger(), ">>> schemeName_: " << schemeName_);
+  deserialize(inStream, library_);
+  LOG_TRACE(logger(), "<<< library_: " << library_);
 }
 
-SharedPtrToClass IPublicParameters::create(istream &inStream) {
-  verifyClassName(className_, inStream);
-  verifyClassVersion(classVersion_, inStream);
-  return createDontVerify(inStream);
-}

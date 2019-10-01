@@ -201,11 +201,11 @@ bool MessageBase::equals(const MessageBase &other) const {
 
 size_t MessageBase::serializeMsg(char *&buf, MessageBase *msg) {
   // As messages could be empty (nullptr), an additional flag is required to
-  // distinguish between empty and full ones.
-  bool msgEmptyFlag = (msg == nullptr);
-  uint32_t msgEmptyFLagSize = sizeof(msgEmptyFlag);
-  std::memcpy(buf, &msgEmptyFlag, msgEmptyFLagSize);
-  buf += msgEmptyFLagSize;
+  // distinguish between empty and filled ones.
+  uint8_t msgFilledFlag = (msg != nullptr) ? 1 : 0;
+  uint32_t msgFilledFlagSize = sizeof(msgFilledFlag);
+  std::memcpy(buf, &msgFilledFlag, msgFilledFlagSize);
+  buf += msgFilledFlagSize;
 
   size_t actualMsgSize = 0;
   if (msg) {
@@ -214,23 +214,23 @@ size_t MessageBase::serializeMsg(char *&buf, MessageBase *msg) {
     Assert(actualMsgSize != 0);
     buf += actualMsgSize;
   }
-  return msgEmptyFLagSize + actualMsgSize;
+  return msgFilledFlagSize + actualMsgSize;
 }
 
 MessageBase *MessageBase::deserializeMsg(char *&buf, size_t bufLen, size_t &actualSize) {
-  bool msgEmptyFlag = false;
-  uint32_t msgEmptyFlagSize = sizeof(msgEmptyFlag);
-  std::memcpy(&msgEmptyFlag, buf, msgEmptyFlagSize);
-  buf += msgEmptyFlagSize;
+  uint8_t msgFilledFlag = 1;
+  uint32_t msgFilledFlagSize = sizeof(msgFilledFlag);
+  std::memcpy(&msgFilledFlag, buf, msgFilledFlagSize);
+  buf += msgFilledFlagSize;
 
   MessageBase *msg = nullptr;
   size_t msgSize = 0;
-  if (!msgEmptyFlag) {
+  if (msgFilledFlag) {
     msg = createObjAndMsgFromLocalBuffer(buf, bufLen, &msgSize);
     Assert(msgSize != 0);
     buf += msgSize;
   }
-  actualSize = msgEmptyFlagSize + msgSize;
+  actualSize = msgFilledFlagSize + msgSize;
   return msg;
 }
 

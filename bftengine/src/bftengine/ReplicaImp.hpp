@@ -72,6 +72,7 @@ namespace bftEngine
 			const uint16_t numOfClientProxies;
 			const bool viewChangeProtocolEnabled;
 			const bool supportDirectProofs; // TODO(GG): add support
+			const bool debugStatisticsEnabled;
 
 			// pointers to message handlers
 			const std::unordered_map<uint16_t, PtrToMetaMsgHandler> metaMsgHandlers;
@@ -347,9 +348,7 @@ namespace bftEngine
 			void tryToSendStatusReport();
 			void tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly = false, uint16_t destReplicaId = ALL_OTHER_REPLICAS);
 
-#ifdef DEBUG_STATISTICS
 			friend class DebugStatistics;
-#endif
 
 			void onMessage(ClientRequestMsg*);
 			void onMessage(PrePrepareMsg*);

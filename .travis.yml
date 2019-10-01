@@ -1,0 +1,20 @@
+dist: bionic
+language: cpp
+os: linux
+before_install:
+  - .travis/preinstall.sh
+compiler:
+  - gcc
+  - clang
+env:
+  global:
+    # We purposefully leave asserts on by excluding -NDEBUG
+    - CMAKE_CXX_FLAGS="-DCMAKE_CXX_FLAGS_RELEASE=-O3 -g"
+  matrix:
+    - DEBUG=-DCMAKE_BUILD_TYPE=DEBUG
+    - DEBUG=-DCMAKE_BUILD_TYPE=DEBUG USE_ROCKSDB=-DBUILD_ROCKSDB_STORAGE=TRUE
+    - RELEASE=-DCMAKE_BUILD_TYPE=RELEASE
+    - RELEASE=-DCMAKE_BUILD_TYPE=RELEASE USE_ROCKSDB=-DBUILD_ROCKSDB_STORAGE=TRUE
+script:
+  - cd $TRAVIS_BUILD_DIR && mkdir build && cd build && cmake $CMAKE_CXX_FLAGS $DEBUG $RELEASE $USE_ROCKSDB .. && make -j $(getconf _NPROCESSORS_ONLN) && ctest -R pyclient --verbose && ctest
+

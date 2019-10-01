@@ -160,7 +160,7 @@ namespace bftEngine
 
 			virtual void execute()
 			{
-				LOG_INFO_F(GL, "PartialExecProofsSet::AsynchProofCreationJob::execute - begin (for seqNumber %" PRId64 ")", seqNumber);
+				LOG_DEBUG_F(GL, "PartialExecProofsSet::AsynchProofCreationJob::execute - begin (for seqNumber %" PRId64 ")", seqNumber);
 
 				const uint16_t bufferSize = (uint16_t)verifier->requiredLengthForSignedData();
 				char* const bufferForSigComputations = (char*)alloca(bufferSize);
@@ -183,7 +183,7 @@ namespace bftEngine
 				if (!succ)
 				{
 					LOG_WARN_F(GL, "Failed to create execution proof for seqNumber %" PRId64 "", seqNumber);
-					LOG_INFO_F(GL, "PartialExecProofsSet::AsynchProofCreationJob::execute - end (for seqNumber %" PRId64 ")", seqNumber);
+					LOG_DEBUG_F(GL, "PartialExecProofsSet::AsynchProofCreationJob::execute - end (for seqNumber %" PRId64 ")", seqNumber);
 					return;
 				}
 				else
@@ -191,7 +191,7 @@ namespace bftEngine
                                         std::unique_ptr<InternalMessage> pInMsg(new MerkleExecSignatureInternalMsg(replicaApi, view, seqNumber, (uint16_t)sigLength, bufferForSigComputations));
 					replicaApi->getIncomingMsgsStorage().pushInternalMsg(std::move(pInMsg));
 				}
-				LOG_INFO_F(GL, "PartialExecProofsSet::AsynchProofCreationJob::execute - end (for seqNumber %" PRId64 ")", seqNumber);
+				LOG_DEBUG_F(GL, "PartialExecProofsSet::AsynchProofCreationJob::execute - end (for seqNumber %" PRId64 ")", seqNumber);
 			}
 
 			virtual void release() {}
@@ -219,7 +219,7 @@ namespace bftEngine
 
 				replicaApi->getInternalThreadPool().add(j);
 
-				LOG_INFO_F(GL, "PartialExecProofsSet - send to BK thread (for seqNumber %" PRId64 ")", seqNumber);
+				LOG_DEBUG_F(GL, "PartialExecProofsSet - send to BK thread (for seqNumber %" PRId64 ")", seqNumber);
 			}
 		}
 

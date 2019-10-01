@@ -29,10 +29,11 @@
 #include "Utils.h"
 #include "Timer.h"
 #include "XAssert.h"
+#include "Logger.hpp"
 
 using namespace std;
 using namespace BLS::Relic;
-using namespace concordSerializable;
+using namespace concord::serialize;
 
 const char secretKeyValue[] =
     "308204BA020100300D06092A864886F70D0101010500048204A4308204A00201000282010100C55B8F7979BF24B335017082BF33EE2960E3A"
@@ -78,15 +79,15 @@ const int numOfSigners = 3;
 bool testBlsThresholdSigner(const BlsPublicParameters &params) {
   ShareID id = 0x208419;
   BNT secretKey(secretKeyValue);
-  SharedPtrToClass origSigner(new BlsThresholdSigner(params, id, secretKey));
+  SerializablePtr origSigner(new BlsThresholdSigner(params, id, secretKey));
+  std::stringstream strstr;
 
-  UniquePtrToChar buf;
-  int64_t bufSize = 0;
-  ((BlsThresholdSigner *) origSigner.get())->serialize(buf, bufSize);
-  SharedPtrToClass resultSigner = BlsThresholdSigner::deserialize(buf, bufSize);
+  origSigner->serialize(strstr);
+  Serializable* resultSigner = nullptr;
+  BlsThresholdSigner::deserialize(strstr, resultSigner);
 
-  auto *inSigner = (BlsThresholdSigner *) origSigner.get();
-  auto *outSigner = (BlsThresholdSigner *) resultSigner.get();
+  auto *inSigner  = dynamic_cast<BlsThresholdSigner*>(origSigner.get());
+  auto *outSigner = dynamic_cast<BlsThresholdSigner*>(resultSigner);
   return (resultSigner && (*inSigner == *outSigner));
 }
 
@@ -116,38 +117,37 @@ void printRawBuf(const UniquePtrToChar &buf, int64_t bufSize) {
 bool testBlsThresholdVerifier(const BlsPublicParameters &params, const vector<BlsPublicKey> &verificationKeys) {
   G2T publicKey(publicKeyValue);
 
-  SharedPtrToClass origVerifier(new BlsThresholdVerifier(params, publicKey, numOfSigners,
+  SerializablePtr origVerifier(new BlsThresholdVerifier(params, publicKey, numOfSigners,
                                                          numOfSigners, verificationKeys));
+  std::stringstream strstr;
+  origVerifier->serialize(strstr);
+  Serializable* resultVerifier(nullptr);
+  BlsThresholdVerifier::deserialize(strstr, resultVerifier);
 
-  UniquePtrToChar buf;
-  int64_t bufSize = 0;
-  ((BlsThresholdVerifier *) origVerifier.get())->serialize(buf, bufSize);
-
-  SharedPtrToClass resultVerifier = BlsThresholdVerifier::deserialize(buf, bufSize);
-
-  auto *inVerifier = (BlsThresholdVerifier *) origVerifier.get();
-  auto *outVerifier = (BlsThresholdVerifier *) resultVerifier.get();
+  auto *inVerifier  = dynamic_cast<BlsThresholdVerifier*>(origVerifier.get());
+  auto *outVerifier = dynamic_cast<BlsThresholdVerifier*>(resultVerifier);
   return (resultVerifier && (*inVerifier == *outVerifier));
 }
 
 bool testBlsMultisigVerifier(const BlsPublicParameters &params, const vector<BlsPublicKey> &verificationKeys) {
-  SharedPtrToClass origVerifier(new BlsMultisigVerifier(params, numOfSigners, numOfSigners, verificationKeys));
+  SerializablePtr origVerifier(new BlsMultisigVerifier(params, numOfSigners, numOfSigners, verificationKeys));
 
-  UniquePtrToChar buf;
-  int64_t bufSize = 0;
-  ((BlsMultisigVerifier *) origVerifier.get())->serialize(buf, bufSize);
+  std::stringstream strstr;
+  origVerifier->serialize(strstr);
 
-  SharedPtrToClass resultVerifier = BlsMultisigVerifier::deserialize(buf, bufSize);
+  Serializable* resultVerifier(nullptr);
+  BlsMultisigVerifier::deserialize(strstr, resultVerifier);
 
-  auto *inVerifier = (BlsMultisigVerifier *) origVerifier.get();
-  auto *outVerifier = (BlsMultisigVerifier *) resultVerifier.get();
+  auto *inVerifier  = dynamic_cast<BlsMultisigVerifier*>(origVerifier.get());
+  auto *outVerifier = dynamic_cast<BlsMultisigVerifier*>(resultVerifier);
   return (resultVerifier && (*inVerifier == *outVerifier));
 }
 
 int RelicAppMain(const Library &lib, const vector<string> &args) {
   (void) args;
   (void) lib;
-
+  //uncomment if needed
+  //log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("serializable")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
   BlsPublicParameters params(PublicParametersFactory::getWhatever());
 
   assertTrue(testBlsThresholdSigner(params));

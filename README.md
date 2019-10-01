@@ -4,6 +4,7 @@
 # Concord-BFT: a Distributed Trust Infrastructure
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Build Status](https://travis-ci.com/vmware/concord-bft.svg?branch=master)](https://travis-ci.com/vmware/concord-bft)
 
 
 
@@ -33,11 +34,6 @@ at any time until we reach version 1.0. We will, however, bump the minor version
 when a backwards incompatible change is made.
 
  [v0.5](https://github.com/vmware/concord-bft/releases/tag/v0.5)
-
-Roadmap
-----
-We plan to release updates in a quarterly schedule. The next releases will include: optimized State transfer modules with rocksdb integration, configuration and key generation tools, generic key-value interface, and execution engine for EVM smart contracts. We also plan to support Windows, OS X, and additional Linux distributions.
-
 
 Contributing
 ----

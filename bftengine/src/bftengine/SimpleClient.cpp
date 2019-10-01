@@ -119,7 +119,7 @@ namespace bftEngine
 			Assert(replyMsg != nullptr);
 			Assert(replyMsg->type() == REPLY_MSG_TYPE);
 
- 			LOG_INFO_F(GL, "Client %d received ClientReplyMsg with seqNum=%"
+ 			LOG_DEBUG_F(GL, "Client %d received ClientReplyMsg with seqNum=%"
 			PRIu64
 			" sender=%d  size=%d  primaryId=%d hash=%" PRIu64 "",
 				_clientId, replyMsg->reqSeqNum(), replyMsg->senderId(), replyMsg->size(), (int)replyMsg->currentPrimaryId(), replyMsg->debugHash());
@@ -201,11 +201,11 @@ namespace bftEngine
 		int SimpleClientImp::sendRequest(bool isReadOnly, const char* request, uint32_t lengthOfRequest, uint64_t reqSeqNum, uint64_t timeoutMilli, uint32_t lengthOfReplyBuffer, char* replyBuffer, uint32_t& actualReplyLength)
 		{			
 			// TODO(GG): check params ...
-			LOG_INFO(GL, "Client " << _clientId
-			                       << " - sends request " << reqSeqNum
-			                       << " (isRO=" << isReadOnly
-			                       << " , request size=" << lengthOfRequest
-			                       << ", retransmissionMilli=" << limitOfExpectedOperationTime.upperLimit()  << " ) ");
+			LOG_DEBUG(GL, "Client " << _clientId
+			                        << " - sends request " << reqSeqNum
+			                        << " (isRO=" << isReadOnly
+			                        << " , request size=" << lengthOfRequest
+			                        << ", retransmissionMilli=" << limitOfExpectedOperationTime.upperLimit()  << " ) ");
 
 			if (!_communication->isRunning())
 			{
@@ -283,7 +283,7 @@ namespace bftEngine
 				uint64_t durationMilli = ((uint64_t)absDifference(getMonotonicTime(), beginTime)) / 1000;
 				limitOfExpectedOperationTime.add(durationMilli);
 
-				LOG_INFO_F(GL, "Client %d - request %" PRIu64 " has committed "
+				LOG_DEBUG_F(GL, "Client %d - request %" PRIu64 " has committed "
 										  "(isRO=%d, request size=%zu,  retransmissionMilli=%d) ",
 					_clientId, reqSeqNum, (int)isReadOnly, (size_t)lengthOfRequest,  (int)limitOfExpectedOperationTime.upperLimit());
 
@@ -407,7 +407,7 @@ namespace bftEngine
 								   (numberOfTransmissions > clientSendsRequestToAllReplicasFirstThresh && (numberOfTransmissions % clientSendsRequestToAllReplicasPeriodThresh == 0)) ||
 								   resetReplies;
 
-			LOG_INFO_F(GL,"Client %d - sends request %" PRIu64 " "
+			LOG_DEBUG_F(GL,"Client %d - sends request %" PRIu64 " "
 														   "(isRO=%d, "
 												   "request "
                                           "size=%zu, "

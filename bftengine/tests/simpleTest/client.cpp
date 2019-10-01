@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018, 2019 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -28,6 +28,7 @@
 // information about how to run the client.
 
 #include <cassert>
+#include <cstdlib>
 #include <thread>
 #include <iostream>
 #include <limits>
@@ -37,10 +38,6 @@
 #include "test_parameters.hpp"
 #include "simple_test_client.hpp"
 #include "Logger.hpp"
-
-#ifdef USE_LOG4CPP
-#include <log4cplus/configurator.h>
-#endif
 
 using bftEngine::ICommunication;
 using bftEngine::PlainUDPCommunication;
@@ -150,7 +147,7 @@ void parse_params(int argc, char** argv, ClientParams &cp,
       } else if (p == "-cf") {
         cp.configFileName = argv[i + 1];
       } else if (p == "-p") {
-        cp.measurePerfomance = true;
+        cp.measurePerformance = true;
         i += 1;
         continue; //skip i+=2
       } else {
@@ -172,12 +169,6 @@ void parse_params(int argc, char** argv, ClientParams &cp,
 
 int main(int argc, char **argv) {
 // TODO(IG:) configure Log4Cplus's output format, using default for now
-#ifdef USE_LOG4CPP
-  using namespace log4cplus;
-  initialize();
-  BasicConfigurator config;
-  config.configure();
-#endif
 
   ClientParams cp;
   bftEngine::SimpleClientParams scp;
@@ -191,5 +182,5 @@ int main(int argc, char **argv) {
                                                                                 << ", clientPeriodicResetThresh: " << scp.clientPeriodicResetThresh);
 
   SimpleTestClient cl(cp, clientLogger);
-  return cl.run();
+  return cl.run() ? EXIT_SUCCESS : EXIT_FAILURE;
 }

@@ -164,7 +164,7 @@ class PersistentStorageImp : public PersistentStorage {
   void setVersion() const;
 
   void setMsgInSeqNumWindow(SeqNum seqNum, SeqNum parameterId, MessageBase *msg, size_t msgSize) const;
-  void setBooleanInSeqNumWindow(SeqNum seqNum, SeqNum parameterId, bool boolean) const;
+  void setOneByteInSeqNumWindow(SeqNum seqNum, SeqNum parameterId, uint8_t oneByte) const;
   void saveDefaultsInSeqNumWindow();
   void setSeqNumDataElement(SeqNum index, const SeqNumData &elem) const;
 
@@ -177,17 +177,17 @@ class PersistentStorageImp : public PersistentStorage {
   FullCommitProofMsg *readFullCommitProofMsgFromDisk(SeqNum seqNum) const;
   PrepareFullMsg *readPrepareFullMsgFromDisk(SeqNum seqNum) const;
   CommitFullMsg *readCommitFullMsgFromDisk(SeqNum seqNum) const;
-  bool readBooleanFromDisk(SeqNum seqNum, SeqNum parameterId) const;
+  uint8_t readOneByteFromDisk(SeqNum index, SeqNum parameterId) const;
   void readSeqNumDataElementFromDisk(SeqNum index, const SharedPtrSeqNumWindow &seqNumWindow);
   const SeqNum convertSeqNumWindowIndex(SeqNum seqNum) const;
 
   void readCheckDataElementFromDisk(SeqNum index, const SharedPtrCheckWindow &checkWindow);
   const SeqNum convertCheckWindowIndex(SeqNum index) const;
   CheckpointMsg *readCheckpointMsgFromDisk(SeqNum seqNum) const;
-  bool readCompletedMarkFromDisk(SeqNum index) const;
+  uint8_t readCompletedMarkFromDisk(SeqNum index) const;
 
   void writeBeginningOfActiveWindow(uint32_t index, SeqNum beginning) const;
-  void setFetchingStateInternal(bool state);
+  void setFetchingStateInternal(uint8_t state);
   void setLastExecutedSeqNumInternal(SeqNum seqNum);
   void setPrimaryLastUsedSeqNumInternal(SeqNum seqNum);
   void setStrictLowerBoundOfSeqNumsInternal(SeqNum seqNum);
@@ -196,7 +196,7 @@ class PersistentStorageImp : public PersistentStorage {
 
  private:
   std::unique_ptr<MetadataStorage> metadataStorage_;
-  std::unique_ptr<ReplicaConfigSerializer> configSerializer_;
+  std::shared_ptr<ReplicaConfigSerializer> configSerializer_;
   const ReplicaConfigSerializer defaultReplicaConfig_;
 
   const uint32_t maxVersionSize_ = 80;

@@ -67,4 +67,6 @@ endwhile()
 #default logger initialization for tests
 
 add_library(logging_dev OBJECT src/Logger.cpp)
+#current version of log4cplus uses deprecated std::auto_ptr
+target_compile_options(logging_dev PUBLIC -Wno-deprecated-declarations)
 target_include_directories(logging_dev PUBLIC include/)

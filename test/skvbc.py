@@ -29,8 +29,8 @@ class SimpleKVBCProtocol:
     requests.
     """
     def __init__(self):
-        self.WRITE = 1
-        self.READ = 2
+        self.READ = 1
+        self.WRITE = 2
         self.GET_LAST_BLOCK = 3
         self.GET_BLOCK_DATA = 4
 

@@ -15,14 +15,17 @@
 #include "threshsign/IThresholdSigner.h"
 #include "threshsign/IThresholdVerifier.h"
 #include "../simpleStorage/FileStorage.hpp"
-
+#include "../../src/bftengine/PersistentStorage.hpp"
+#include "../../src/bftengine/PersistentStorageWindows.hpp"
+#include "Logger.hpp"
+#include "Serializable.h"
 #include <string>
 #include <cassert>
 
 using namespace std;
 using namespace bftEngine;
-using namespace concordSerializable;
-using concordlogger::Logger;
+using namespace bftEngine::impl;
+using namespace concord::serialize;
 
 const char replicaPrivateKey[] =
     "308204BA020100300D06092A864886F70D0101010500048204A4308204A00201000282010100C55B8F7979BF24B335017082BF33EE2960E3A068DCDB45CA301721"
@@ -63,7 +66,8 @@ class IShareVerificationKeyDummy : public IShareVerificationKey {
   string toString() const override { return "IShareVerificationKeyDummy"; }
 };
 
-class IThresholdSignerDummy : public IThresholdSigner {
+class IThresholdSignerDummy : public IThresholdSigner,
+                              public concord::serialize::SerializableFactory<IThresholdSignerDummy>{
  public:
   int requiredLengthForSignedData() const override { return 2048; }
   void signData(const char *hash, int hashLen, char *outSig, int outSigLen) override {}
@@ -74,23 +78,12 @@ class IThresholdSignerDummy : public IThresholdSigner {
   const IShareVerificationKey &getShareVerificationKey() const override {
     return shareVerifyKey;
   }
-  string getName() const override { return "IThresholdSignerDummy"; }
-  std::string getVersion() const override { return "1"; }
-  SharedPtrToClass create(std::istream &inStream) override {
-    verifyClassVersion(getVersion(), inStream);
-    return SharedPtrToClass(new IThresholdSignerDummy);
-  }
-  void serializeDataMembers(std::ostream &outStream) const override {}
-
+  const std::string getVersion() const override { return "1"; }
+  void serializeDataMembers  (std::ostream &outStream) const override {}
+  void deserializeDataMembers(std::istream &outStream)  override {}
   IShareSecretKeyDummy shareSecretKey;
   IShareVerificationKeyDummy shareVerifyKey;
-
-  static void registerClass();
 };
-
-void IThresholdSignerDummy::registerClass() {
-  SerializableObjectsDB::registerObject("IThresholdSignerDummy", SharedPtrToClass(new IThresholdSignerDummy));
-}
 
 class IThresholdAccumulatorDummy : public IThresholdAccumulator {
  public:
@@ -102,7 +95,8 @@ class IThresholdAccumulatorDummy : public IThresholdAccumulator {
   IThresholdAccumulator *clone() override { return nullptr; }
 };
 
-class IThresholdVerifierDummy : public IThresholdVerifier {
+class IThresholdVerifierDummy : public IThresholdVerifier,
+                                public concord::serialize::SerializableFactory<IThresholdVerifierDummy>{
  public:
   IThresholdAccumulator *newAccumulator(
       bool withShareVerification) const override { return new IThresholdAccumulatorDummy; }
@@ -113,22 +107,13 @@ class IThresholdVerifierDummy : public IThresholdVerifier {
   const IShareVerificationKey &getShareVerificationKey(
       ShareID signer) const override { return shareVerifyKey; }
 
-  string getName() const override { return "IThresholdVerifierDummy"; }
-  std::string getVersion() const override { return "1"; }
-  SharedPtrToClass create(std::istream &inStream) override {
-    verifyClassVersion(getVersion(), inStream);
-    return SharedPtrToClass(new IThresholdVerifierDummy);
-  }
+  const std::string getVersion() const override { return "1"; }
   void serializeDataMembers(std::ostream &outStream) const override {}
-
+  void deserializeDataMembers(std::istream &outStream)     override {}
   IShareVerificationKeyDummy shareVerifyKey;
 
-  static void registerClass();
 };
 
-void IThresholdVerifierDummy::registerClass() {
-  SerializableObjectsDB::registerObject("IThresholdVerifierDummy", SharedPtrToClass(new IThresholdVerifierDummy));
-}
 
 void printRawBuf(const UniquePtrToChar &buf, int64_t bufSize) {
   for (int i = 0; i < bufSize; ++i) {
@@ -148,7 +133,7 @@ const uint16_t msgsNum = 2 * fVal + 2 * cVal + 1;
 typedef pair<uint16_t, string> IdToKeyPair;
 
 ReplicaConfig config;
-PersistentStorageImp *persistentStorageImp = nullptr;
+bftEngine::impl::PersistentStorageImp *persistentStorageImp = nullptr;
 unique_ptr<MetadataStorage> metadataStorage;
 
 bool fetchingState = false;
@@ -341,7 +326,7 @@ void testSetDescriptors(bool toSet) {
   Bitmap requests(100);
   DescriptorOfLastExecution lastExecutionDesc(lastExecutionSeqNum, requests);
 
-  ViewNum viewNum = 2;
+  ViewNum viewNum = 0;
   SeqNum lastExitExecNum = 65;
   PrevViewInfoElements elements;
   ViewsManager::PrevViewInfo element;
@@ -355,12 +340,12 @@ void testSetDescriptors(bool toSet) {
   SeqNum lastExitStableNum = 60;
   SeqNum lastExitStableLowerBound = 50;
   SeqNum lastStable = 48;
-  auto *viewChangeMsg = new ViewChangeMsg(senderId, viewNum, lastStable);
+  auto *viewChangeMsg = new ViewChangeMsg(senderId, viewNum + 1, lastStable);
   DescriptorOfLastExitFromView lastExitFromViewDesc(viewNum, lastExitStableNum, lastExitExecNum, elements,
                                                     viewChangeMsg, lastExitStableLowerBound);
 
   ViewChangeMsgsVector msgs;
-  ViewNum newViewNum = 6;
+  ViewNum newViewNum = 1;
   for (auto i = 1; i <= msgsNum; i++)
     msgs.push_back(new ViewChangeMsg(i, newViewNum, lastExitStableNum));
   SeqNum maxSeqNum = 200;
@@ -437,6 +422,7 @@ void fillReplicaConfig() {
   config.maxNumOfReservedPages = 256;
   config.maxReplyMessageSize = 1024;
   config.sizeOfReservedPage = 2048;
+  config.debugStatisticsEnabled = true;
 
   config.replicaPrivateKey = replicaPrivateKey;
   config.publicKeysOfReplicas.insert(IdToKeyPair(0, publicKeyValue1));
@@ -453,8 +439,6 @@ void fillReplicaConfig() {
   config.thresholdSignerForOptimisticCommit = new IThresholdSignerDummy;
   config.thresholdVerifierForOptimisticCommit = new IThresholdVerifierDummy;
 
-  IThresholdVerifierDummy::registerClass();
-  IThresholdSignerDummy::registerClass();
 }
 
 void testSetReplicaConfig(bool toSet) {
@@ -476,8 +460,9 @@ int main() {
   descriptorOfLastExecution = new DescriptorOfLastExecution();
 
   persistentStorageImp = new PersistentStorageImp(fVal, cVal);
-  Logger logger = concordlogger::Log::getLogger("testSerialization.replica");
-
+  concordlogger::Logger logger = concordlogger::Log::getLogger("testSerialization.replica");
+  //uncomment if needed
+  //log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("serializable")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
   const string dbFile = "testPersistency.txt";
   remove(dbFile.c_str()); // Required for the init testing.
 
