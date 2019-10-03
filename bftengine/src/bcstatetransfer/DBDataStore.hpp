@@ -44,12 +44,22 @@ public:
    * C-r for DBDataStore first time initialization
    */
   DBDataStore( concord::storage::IDBClient::ptr dbc, uint32_t sizeOfReservedPage):
-                inmem_(sizeOfReservedPage),
+                inmem_(new InMemoryDataStore(sizeOfReservedPage)),
                 dbc_(dbc){
     load();
   }
 
-  DataStoreTransaction* beginTransaction() override;
+  DataStoreTransaction* beginTransaction() override {
+    concord::storage::ITransaction* txn(dbc_->beginTransaction());
+    std::shared_ptr<DBDataStore> tnxDataStore(new DBDataStore(*this));
+    tnxDataStore->txn_ = txn;
+    LOG_DEBUG(logger(), "txn: " << txn->getId());
+    return new DataStoreTransaction(tnxDataStore, txn);
+  }
+  ~DBDataStore(){
+    if(txn_)
+      LOG_DEBUG(logger(), "txn: " << txn_->getId());
+  }
 
   void setAsInitialized()                       override;
   void setReplicas(const set<uint16_t>)         override;
@@ -72,47 +82,46 @@ public:
   void setCheckpointDesc(uint64_t, const CheckpointDesc&)           override;
   void associatePendingResPageWithCheckpoint(uint32_t, uint64_t, const STDigest&) override;
 
-  void           free(ResPagesDescriptor*  desc) override {inmem_.free(desc);}
-  bool           initialized() override { return inmem_.initialized();}
+  void           free(ResPagesDescriptor*  desc) override {inmem_->free(desc);}
+  bool           initialized() override { return inmem_->initialized();}
   bool           hasCheckpointDesc(uint64_t checkpoint) override;
-  bool           hasPendingResPage(uint32_t inPageId) override {return inmem_.hasPendingResPage(inPageId);}
-  bool           getIsFetchingState() override { return inmem_.getIsFetchingState(); }
-  bool           hasCheckpointBeingFetched() override { return inmem_.hasCheckpointBeingFetched();}
-  uint16_t       getMyReplicaId() override { return inmem_.getMyReplicaId();}
-  uint16_t       getFVal() override  { return inmem_.getFVal(); }
-  uint32_t       numOfAllPendingResPage() override { return inmem_.numOfAllPendingResPage();}
-  uint32_t       getNumberOfReservedPages() override {return inmem_.getNumberOfReservedPages();}
-  uint64_t       getMaxNumOfStoredCheckpoints() const override { return inmem_.getMaxNumOfStoredCheckpoints(); }
-  uint64_t       getLastStoredCheckpoint() override {return inmem_.getLastStoredCheckpoint();}
-  uint64_t       getFirstStoredCheckpoint() override {return inmem_.getFirstStoredCheckpoint();}
-  uint64_t       getFirstRequiredBlock() override  { return inmem_.getFirstRequiredBlock(); }
-  uint64_t       getLastRequiredBlock() override {return inmem_.getLastRequiredBlock();}
+  bool           hasPendingResPage(uint32_t inPageId) override {return inmem_->hasPendingResPage(inPageId);}
+  bool           getIsFetchingState() override { return inmem_->getIsFetchingState(); }
+  bool           hasCheckpointBeingFetched() override { return inmem_->hasCheckpointBeingFetched();}
+  uint16_t       getMyReplicaId() override { return inmem_->getMyReplicaId();}
+  uint16_t       getFVal() override  { return inmem_->getFVal(); }
+  uint32_t       numOfAllPendingResPage() override { return inmem_->numOfAllPendingResPage();}
+  uint32_t       getNumberOfReservedPages() override {return inmem_->getNumberOfReservedPages();}
+  uint64_t       getMaxNumOfStoredCheckpoints() const override { return inmem_->getMaxNumOfStoredCheckpoints(); }
+  uint64_t       getLastStoredCheckpoint() override {return inmem_->getLastStoredCheckpoint();}
+  uint64_t       getFirstStoredCheckpoint() override {return inmem_->getFirstStoredCheckpoint();}
+  uint64_t       getFirstRequiredBlock() override  { return inmem_->getFirstRequiredBlock(); }
+  uint64_t       getLastRequiredBlock() override {return inmem_->getLastRequiredBlock();}
   CheckpointDesc getCheckpointDesc(uint64_t checkpoint) override;
-  CheckpointDesc getCheckpointBeingFetched() override {return inmem_.getCheckpointBeingFetched();}
-  set<uint16_t>  getReplicas() override { return inmem_.getReplicas();}
-  set<uint32_t>  getNumbersOfPendingResPages() override { return inmem_.getNumbersOfPendingResPages(); }
+  CheckpointDesc getCheckpointBeingFetched() override {return inmem_->getCheckpointBeingFetched();}
+  set<uint16_t>  getReplicas() override { return inmem_->getReplicas();}
+  set<uint32_t>  getNumbersOfPendingResPages() override { return inmem_->getNumbersOfPendingResPages(); }
 
 
   void getPendingResPage( uint32_t inPageId, char* outPage, uint32_t pageLen) override {
-    inmem_.getPendingResPage(inPageId, outPage, pageLen);
+    inmem_->getPendingResPage(inPageId, outPage, pageLen);
   }
   ResPagesDescriptor* getResPagesDescriptor(uint64_t inCheckpoint) override {
-    return inmem_.getResPagesDescriptor(inCheckpoint);
+    return inmem_->getResPagesDescriptor(inCheckpoint);
   }
   void getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint) override {
-     inmem_.getResPage(inPageId, inCheckpoint, outActualCheckpoint);
+     inmem_->getResPage(inPageId, inCheckpoint, outActualCheckpoint);
   }
   void getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint,
                   char* outPage, uint32_t copylength) override {
-     inmem_.getResPage(inPageId, inCheckpoint, outActualCheckpoint, outPage, copylength);
+     inmem_->getResPage(inPageId, inCheckpoint, outActualCheckpoint, outPage, copylength);
   }
   void getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint,
                   STDigest* outPageDigest, char* outPage, uint32_t copylength) override {
-    inmem_.getResPage(inPageId, inCheckpoint, outActualCheckpoint, outPageDigest, outPage, copylength);
+    inmem_->getResPage(inPageId, inCheckpoint, outActualCheckpoint, outPageDigest, outPage, copylength);
   }
  protected:
-
-  void endTransaction() override;
+  DBDataStore(const DBDataStore&) = default;
 
   enum GeneralIds: ObjectId {
     Initialized = 1,
@@ -218,7 +227,7 @@ public:
     return KeyManipulator::generateSTReservedPageDynamicKey(pageid, chkpt);
   }
   Sliver staticResPageKey  (uint32_t pageid, uint64_t chkpt) const {
-    static uint64_t maxStored = inmem_.getMaxNumOfStoredCheckpoints();
+    static uint64_t maxStored = inmem_->getMaxNumOfStoredCheckpoints();
     return KeyManipulator::generateSTReservedPageStaticKey(pageid, chkpt % maxStored);
   }
   Sliver pendingPageKey(uint32_t pageid) const {
@@ -237,7 +246,7 @@ public:
   }
 
 protected:
-  InMemoryDataStore inmem_;
+  std::shared_ptr<InMemoryDataStore> inmem_; // one copy among instances
   ITransaction*     txn_ = nullptr;
   IDBClient::ptr    dbc_;
 };
