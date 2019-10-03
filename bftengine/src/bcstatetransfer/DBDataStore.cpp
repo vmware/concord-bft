@@ -26,53 +26,36 @@ std::string toString(const DataStore::CheckpointDesc& desc){
 }
 
 /** ******************************************************************************************************************/
-
-// txn_ is owned by the DBDataStore.
-// txn_ gets freed when the DataStoreTransaction goes out of scope and calls
-// DBDataStore::endTransaction().
-DataStoreTransaction* DBDataStore::beginTransaction() {
-    // DBDataStore and IDBClient are not thread safe. There can only be one
-    // transaction at a time.
-    assert(txn_ == nullptr);
-    txn_ = dbc_->beginTransaction();
-    return new DataStoreTransaction(*this, *txn_);
-}
-
-void DBDataStore::endTransaction() {
-    delete txn_;
-    txn_ = nullptr;
-  }
-
 void DBDataStore::load() {
   LOG_DEBUG(logger(), "");
   if (!get<bool>(Initialized)) {
     LOG_INFO(logger(), "Not initialized");
     return;
   }
-  inmem_.setAsInitialized();
-  inmem_.setMyReplicaId(get<uint16_t>(MyReplicaId));
-  inmem_.setMaxNumOfStoredCheckpoints(get<uint64_t>(MaxNumOfStoredCheckpoints));
-  inmem_.setNumberOfReservedPages(get<uint32_t>(NumberOfReservedPages));
-  inmem_.setLastStoredCheckpoint(get<uint64_t>(LastStoredCheckpoint));
-  inmem_.setFirstStoredCheckpoint(get<uint64_t>(FirstStoredCheckpoint));
-  inmem_.setIsFetchingState(get<bool>(IsFetchingState));
-  inmem_.setFVal(get<uint16_t>(fVal));
-  inmem_.setFirstRequiredBlock(get<uint64_t>(FirstRequiredBlock));
-  inmem_.setLastRequiredBlock(get<uint64_t>(LastRequiredBlock));
+  inmem_->setAsInitialized();
+  inmem_->setMyReplicaId(get<uint16_t>(MyReplicaId));
+  inmem_->setMaxNumOfStoredCheckpoints(get<uint64_t>(MaxNumOfStoredCheckpoints));
+  inmem_->setNumberOfReservedPages(get<uint32_t>(NumberOfReservedPages));
+  inmem_->setLastStoredCheckpoint(get<uint64_t>(LastStoredCheckpoint));
+  inmem_->setFirstStoredCheckpoint(get<uint64_t>(FirstStoredCheckpoint));
+  inmem_->setIsFetchingState(get<bool>(IsFetchingState));
+  inmem_->setFVal(get<uint16_t>(fVal));
+  inmem_->setFirstRequiredBlock(get<uint64_t>(FirstRequiredBlock));
+  inmem_->setLastRequiredBlock(get<uint64_t>(LastRequiredBlock));
 
   Sliver rep;
   if (get(Replicas, rep)){
     std::istringstream iss(std::string(reinterpret_cast<const char*>(rep.data()), rep.length()));
     std::set<std::uint16_t> replicas;
     Serializable::deserialize(iss, replicas);
-    inmem_.setReplicas(replicas);
+    inmem_->setReplicas(replicas);
   }
   Sliver cpbf;
   if (get(CheckpointBeingFetched, cpbf)){
     std::istringstream iss(std::string(reinterpret_cast<const char*>(cpbf.data()), cpbf.length()));
     DataStore::CheckpointDesc cpd;
     deserializeCheckpoint(iss, cpd);
-    inmem_.setCheckpointBeingFetched(cpd);
+    inmem_->setCheckpointBeingFetched(cpd);
   }
   loadResPages();
   loadPendingPages();
@@ -81,58 +64,58 @@ void DBDataStore::load() {
 void DBDataStore::setAsInitialized() {
   LOG_DEBUG(logger(), "");
   putInt(Initialized, true);
-  inmem_.setAsInitialized();
+  inmem_->setAsInitialized();
 }
 void DBDataStore::setMyReplicaId(uint16_t id) {
   LOG_DEBUG(logger(), "MyReplicaId: " << id);
   putInt(MyReplicaId, id);
-  inmem_.setMyReplicaId(id);
+  inmem_->setMyReplicaId(id);
 }
 void DBDataStore::setMaxNumOfStoredCheckpoints(uint64_t num){
   LOG_DEBUG(logger(), "MaxNumOfStoredCheckpoints: " << num);
   putInt(MaxNumOfStoredCheckpoints, num);
-  inmem_.setMaxNumOfStoredCheckpoints(num);
+  inmem_->setMaxNumOfStoredCheckpoints(num);
 }
 void DBDataStore::setNumberOfReservedPages(uint32_t numResPages) {
   LOG_DEBUG(logger(), "NumberOfReservedPages: " << numResPages);
   putInt(NumberOfReservedPages, numResPages);
-  inmem_.setNumberOfReservedPages(numResPages);
+  inmem_->setNumberOfReservedPages(numResPages);
 }
 void DBDataStore::setLastStoredCheckpoint(uint64_t c) {
   LOG_DEBUG(logger(), "LastStoredCheckpoint: " << c);
   putInt(LastStoredCheckpoint, c);
-  inmem_.setLastStoredCheckpoint(c);
+  inmem_->setLastStoredCheckpoint(c);
 }
 void DBDataStore::setFirstStoredCheckpoint(uint64_t c) {
   LOG_DEBUG(logger(), "FirstStoredCheckpoint: " << c);
   putInt(FirstStoredCheckpoint, c);
-  inmem_.setFirstStoredCheckpoint(c);
+  inmem_->setFirstStoredCheckpoint(c);
 }
 void DBDataStore::setIsFetchingState(bool b) {
   LOG_DEBUG(logger(), "IsFetchingState: " << b);
   putInt(IsFetchingState, b);
-  inmem_.setIsFetchingState(b);
+  inmem_->setIsFetchingState(b);
 }
 void DBDataStore::setFVal(uint16_t fVal) {
   LOG_DEBUG(logger(), "FVal: " << fVal);
   putInt(GeneralIds::fVal, fVal);
-  inmem_.setFVal(fVal);
+  inmem_->setFVal(fVal);
 }
 void DBDataStore::setFirstRequiredBlock(uint64_t i) {
   LOG_DEBUG(logger(), "FirstRequiredBlock: " << i);
   putInt(FirstRequiredBlock, i);
-  inmem_.setFirstRequiredBlock(i);
+  inmem_->setFirstRequiredBlock(i);
 }
 void DBDataStore::setLastRequiredBlock(uint64_t i) {
   LOG_DEBUG(logger(), "LastRequiredBlock: " << i);
   putInt(LastRequiredBlock, i);
-  inmem_.setLastRequiredBlock(i);
+  inmem_->setLastRequiredBlock(i);
 }
 void DBDataStore::setReplicas(const std::set<std::uint16_t> replicas) {
   std::ostringstream oss;
   Serializable::serialize(oss, replicas);
   put(Replicas, oss.str());
-  inmem_.setReplicas(replicas);
+  inmem_->setReplicas(replicas);
 }
 /** ******************************************************************************************************************
  *  Checkpoint
@@ -154,10 +137,10 @@ void DBDataStore::setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& d
   std::ostringstream oss;
   serializeCheckpoint(oss, desc);
   put(chkpDescKey(checkpoint), oss.str());
-  inmem_.setCheckpointDesc(checkpoint, desc);
+  inmem_->setCheckpointDesc(checkpoint, desc);
 }
 bool DBDataStore::hasCheckpointDesc(uint64_t checkpoint){
-  if (inmem_.hasCheckpointDesc(checkpoint))
+  if (inmem_->hasCheckpointDesc(checkpoint))
     return true;
   Sliver val;
   if(!get(chkpDescKey(checkpoint), val))
@@ -165,16 +148,16 @@ bool DBDataStore::hasCheckpointDesc(uint64_t checkpoint){
   std::istringstream iss(std::string(reinterpret_cast<const char*>(val.data()), val.length()));
   DataStore::CheckpointDesc cpd;
   deserializeCheckpoint(iss, cpd);
-  inmem_.setCheckpointDesc(checkpoint, cpd);
+  inmem_->setCheckpointDesc(checkpoint, cpd);
   return true;
 }
 DataStore::CheckpointDesc DBDataStore::getCheckpointDesc(uint64_t checkpoint) {
   if (hasCheckpointDesc(checkpoint))
-    return inmem_.getCheckpointDesc(checkpoint);
+    return inmem_->getCheckpointDesc(checkpoint);
   throw std::runtime_error("no description for checkpoint " + std::to_string(checkpoint));
 }
 void DBDataStore::deleteDescOfSmallerCheckpointsTxn(uint64_t checkpoint, ITransaction* txn){
-  for (auto & p: inmem_.getDescMap() ){
+  for (auto & p: inmem_->getDescMap() ){
     if( p.first >=  checkpoint)
       break;
     txn->del(chkpDescKey(checkpoint));
@@ -188,19 +171,19 @@ void DBDataStore::deleteDescOfSmallerCheckpoints(uint64_t checkpoint) {
     ITransaction::Guard g(dbc_->beginTransaction());
     deleteDescOfSmallerCheckpointsTxn(checkpoint, g.txn());
   }
-  inmem_.deleteDescOfSmallerCheckpoints(checkpoint);
+  inmem_->deleteDescOfSmallerCheckpoints(checkpoint);
 }
 void DBDataStore::setCheckpointBeingFetched(const CheckpointDesc& desc) {
   LOG_DEBUG(logger(), toString(desc));
   std::ostringstream oss;
   serializeCheckpoint(oss, desc);
   put(CheckpointBeingFetched, oss.str());
-  inmem_.setCheckpointBeingFetched(desc);
+  inmem_->setCheckpointBeingFetched(desc);
 }
 void DBDataStore::deleteCheckpointBeingFetched() {
   LOG_DEBUG(logger(), "");
   del(CheckpointBeingFetched);
-  inmem_.deleteCheckpointBeingFetched();
+  inmem_->deleteCheckpointBeingFetched();
 }
 /** *******************************************************************************************************************
  *  Reserved Pages
@@ -237,8 +220,8 @@ void DBDataStore::serializeResPage(std::ostream&   os,
   Serializable::serialize(os, inPageId);
   Serializable::serialize(os, inCheckpoint);
   Serializable::serialize(os, inPageDigest.get(), BLOCK_DIGEST_SIZE);
-  Serializable::serialize(os, inmem_.getSizeOfReservedPage());
-  Serializable::serialize(os, inPage, inmem_.getSizeOfReservedPage());
+  Serializable::serialize(os, inmem_->getSizeOfReservedPage());
+  Serializable::serialize(os, inPage, inmem_->getSizeOfReservedPage());
 }
 void DBDataStore::deserializeResPage(std::istream&   is,
                                      uint32_t&       outPageId,
@@ -252,13 +235,13 @@ void DBDataStore::deserializeResPage(std::istream&   is,
   outPageDigest = STDigest(dgst);
   std::uint32_t sizeOfReseredPage;
   Serializable::deserialize(is, sizeOfReseredPage);
-  assert(sizeOfReseredPage == inmem_.getSizeOfReservedPage());
+  assert(sizeOfReseredPage == inmem_->getSizeOfReservedPage());
   Serializable::deserialize(is, outPage, sizeOfReseredPage);
 }
 void DBDataStore::loadResPages() {
   LOG_DEBUG(logger(), "");
-  for(uint32_t pageid = 0; pageid < inmem_.getNumberOfReservedPages(); ++pageid) {
-    for(uint64_t chkp = 1; chkp <= inmem_.getMaxNumOfStoredCheckpoints(); ++chkp) {
+  for(uint32_t pageid = 0; pageid < inmem_->getNumberOfReservedPages(); ++pageid) {
+    for(uint64_t chkp = 1; chkp <= inmem_->getMaxNumOfStoredCheckpoints(); ++chkp) {
       Sliver dynKey;
       if(!get(staticResPageKey(pageid, chkp), dynKey))
         continue;
@@ -272,9 +255,9 @@ void DBDataStore::loadResPages() {
       uint32_t pageid;
       uint64_t checkpoint;
       STDigest digest;
-      char* page = new char[inmem_.getSizeOfReservedPage()];
+      char* page = new char[inmem_->getSizeOfReservedPage()];
       deserializeResPage(iss, pageid, checkpoint, digest, page);
-      inmem_.setResPage(pageid, checkpoint, digest, page);
+      inmem_->setResPage(pageid, checkpoint, digest, page);
       delete [] page;// is copied
     }
   }
@@ -307,7 +290,7 @@ void DBDataStore::setResPage( uint32_t        inPageId,
     ITransaction::Guard g(dbc_->beginTransaction());
     setResPageTxn(inPageId, inCheckpoint, inPageDigest, inPage, g.txn());
   }
-  inmem_.setResPage(inPageId, inCheckpoint, inPageDigest, inPage);
+  inmem_->setResPage(inPageId, inCheckpoint, inPageDigest, inPage);
 }
 /** ******************************************************************************************************************
  *  Pending Reserved Pages
@@ -320,7 +303,7 @@ void DBDataStore::deserializePendingPage(std::istream& is, char*& page, uint32_t
 
 void DBDataStore::loadPendingPages() {
   LOG_DEBUG(logger(), "");
-  for(uint32_t pageid = 0; pageid < inmem_.getNumberOfReservedPages(); ++pageid) {
+  for(uint32_t pageid = 0; pageid < inmem_->getNumberOfReservedPages(); ++pageid) {
     Sliver serializedPendingPage;
     if(!get(pendingPageKey(pageid), serializedPendingPage))
       continue;
@@ -328,7 +311,7 @@ void DBDataStore::loadPendingPages() {
     std::uint32_t pageLen = 0;
     char* page = nullptr;
     deserializePendingPage(iss, page, pageLen);
-    inmem_.setPendingResPage(pageid, page, pageLen);
+    inmem_->setPendingResPage(pageid, page, pageLen);
     delete [] page;
   }
 }
@@ -341,7 +324,7 @@ void DBDataStore::setPendingResPage(uint32_t    inPageId,
   Serializable::serialize(oss, inPageLen);
   Serializable::serialize(oss, inPage, inPageLen);
   put(pendingPageKey(inPageId), oss.str());
-  inmem_.setPendingResPage(inPageId, inPage, inPageLen);
+  inmem_->setPendingResPage(inPageId, inPage, inPageLen);
 }
 
 void DBDataStore::associatePendingResPageWithCheckpoint(uint32_t inPageId,
@@ -353,7 +336,7 @@ void DBDataStore::associatePendingResPageWithCheckpoint(uint32_t inPageId,
     ITransaction::Guard g(dbc_->beginTransaction());
     associatePendingResPageWithCheckpointTxn(inPageId, inCheckpoint, inPageDigest, g.txn());
   }
-  inmem_.associatePendingResPageWithCheckpoint(inPageId, inCheckpoint, inPageDigest);
+  inmem_->associatePendingResPageWithCheckpoint(inPageId, inCheckpoint, inPageDigest);
 }
 
 void DBDataStore::associatePendingResPageWithCheckpointTxn(uint32_t inPageId,
@@ -362,7 +345,7 @@ void DBDataStore::associatePendingResPageWithCheckpointTxn(uint32_t inPageId,
                                                            ITransaction* txn) {
   LOG_DEBUG(logger(), "page: " << inPageId << " chkp: " << inCheckpoint << " digest: " << inPageDigest.toString()
                       << " txn: " << txn->getId());
-  auto pendingPages = inmem_.getPendingPagesMap();
+  auto pendingPages = inmem_->getPendingPagesMap();
   auto page = pendingPages.find(inPageId);
   assert (page != pendingPages.end());
 
@@ -381,12 +364,12 @@ void DBDataStore::deleteAllPendingPages() {
     ITransaction::Guard g(dbc_->beginTransaction());
     deleteAllPendingPagesTxn(g.txn());
   }
-  inmem_.deleteAllPendingPages();
+  inmem_->deleteAllPendingPages();
 }
 
 void DBDataStore::deleteCoveredResPageInSmallerCheckpointsTxn( uint64_t minChkp, ITransaction* txn) {
   LOG_DEBUG(logger()," min chkp: " << minChkp << " txn: " << txn->getId());
-  auto pages = inmem_.getPagesMap();
+  auto pages = inmem_->getPagesMap();
 
   for (auto it = std::find_if(pages.begin(),
                               pages.end(),
@@ -398,7 +381,7 @@ void DBDataStore::deleteCoveredResPageInSmallerCheckpointsTxn( uint64_t minChkp,
     txn->del(staticResPageKey (it->first.pageId, it->first.checkpoint));
     txn->del(dynamicResPageKey(it->first.pageId, it->first.checkpoint));
   }
-  inmem_.deleteCoveredResPageInSmallerCheckpoints(minChkp);
+  inmem_->deleteCoveredResPageInSmallerCheckpoints(minChkp);
 }
 void DBDataStore::deleteCoveredResPageInSmallerCheckpoints( uint64_t minChkp) {
   if(txn_)
@@ -407,7 +390,7 @@ void DBDataStore::deleteCoveredResPageInSmallerCheckpoints( uint64_t minChkp) {
      ITransaction::Guard g(dbc_->beginTransaction());
      deleteCoveredResPageInSmallerCheckpointsTxn(minChkp, g.txn());
    }
-  inmem_.deleteCoveredResPageInSmallerCheckpoints(minChkp);
+  inmem_->deleteCoveredResPageInSmallerCheckpoints(minChkp);
 }
 
 /** ******************************************************************************************************************/
