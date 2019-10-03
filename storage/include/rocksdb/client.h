@@ -63,7 +63,7 @@ class Client : public concord::storage::IDBClient {
       : logger(concordlogger::Log::getLogger("rocksdb_client")),
         m_dbPath(_dbPath),
         m_comparator(_comparator) {}
-
+  ~Client() override;
   void init(bool readOnly = false) override;
   concordUtils::Status get(const concordUtils::Sliver& _key, concordUtils::Sliver &_outValue) const override;
   concordUtils::Status get(const concordUtils::Sliver& _key, char *&buf, uint32_t bufSize, uint32_t &_realSize) const override;
