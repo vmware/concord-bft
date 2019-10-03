@@ -139,18 +139,10 @@ class InMemoryDataStore : public DataStore {
   DataStoreTransaction* beginTransaction() override {
     // DBDataStore and IDBClient are not thread safe or reentrant. There can
     // only be one transaction at a time.
-    assert(txn_ == nullptr);
-    txn_ = new NullTransaction();
-    return new DataStoreTransaction(*this, *txn_);
-  }
-
-  void endTransaction() override {
-    delete txn_;
-    txn_ = nullptr;
+    return new DataStoreTransaction(this->shared_from_this(), new NullTransaction());
   }
 
  protected:
-  ITransaction* txn_ = nullptr;
 
   const uint32_t sizeOfReservedPage_;
 
