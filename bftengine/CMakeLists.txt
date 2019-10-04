@@ -54,6 +54,7 @@ set(corebft_source_files
     src/bcstatetransfer/InMemoryDataStore.cpp
     src/bcstatetransfer/STDigest.cpp
     src/bcstatetransfer/DBDataStore.cpp
+    src/bcstatetransfer/SourceSelector.cpp
     src/simplestatetransfer/SimpleStateTran.cpp
 )
 #
