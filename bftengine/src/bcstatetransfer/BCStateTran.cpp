@@ -2121,6 +2121,7 @@ void BCStateTran::fetch() {
     } else if (!badDataFromCurrentSourceReplica && !isGettingBlocks) {
       if (newBlock) memset(buffer_, 0, actualBlockSize);
       if (newSourceReplica || sourceSelector_.retransmissionTimeoutExpired(currTime)) {
+        sourceSelector_.setSourceSelectionTime(currTime);
         sendFetchResPagesMsg(lastChunkInRequiredBlock);
       }
       break;

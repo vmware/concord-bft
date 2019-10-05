@@ -68,11 +68,7 @@ class SourceSelector {
 
  private:
   uint64_t timeSinceSourceSelectedMilli(uint64_t currTimeMilli) const;
-
-  bool shouldReplaceSource(uint64_t currTimeMilli,
-                           bool badDataFromCurrentSource,
-                           uint32_t sourceReplacementTimeoutMilli) const;
-
+  bool shouldReplaceSource(uint64_t currTimeMilli, bool badDataFromCurrentSource) const;
   void selectSource(uint64_t currTimeMilli);
 };
 }  // namespace impl

@@ -57,7 +57,7 @@ uint64_t SourceSelector::timeSinceSourceSelectedMilli(uint64_t currTimeMilli) co
 //
 // Return true if the source was updated, false otherwise.
 bool SourceSelector::updateSource(bool badDataFromCurrentSource, uint64_t currTimeMilli) {
-  if (shouldReplaceSource(currTimeMilli, badDataFromCurrentSource, sourceReplacementTimeoutMilli_)) {
+  if (shouldReplaceSource(currTimeMilli, badDataFromCurrentSource)) {
     if (currentReplica_ != NO_REPLICA) {
       preferredReplicas_.erase(currentReplica_);
     }
@@ -83,11 +83,9 @@ std::string SourceSelector::preferredReplicasToString() const {
   return oss.str();
 }
 
-bool SourceSelector::shouldReplaceSource(uint64_t currTimeMilli,
-                                         bool badDataFromCurrentSource,
-                                         uint32_t sourceReplacementTimeoutMilli) const {
+bool SourceSelector::shouldReplaceSource(uint64_t currTimeMilli, bool badDataFromCurrentSource) const {
   return currentReplica_ == NO_REPLICA || badDataFromCurrentSource ||
-         timeSinceSourceSelectedMilli(currTimeMilli) > sourceReplacementTimeoutMilli;
+         timeSinceSourceSelectedMilli(currTimeMilli) > sourceReplacementTimeoutMilli_;
 }
 
 void SourceSelector::selectSource(uint64_t currTimeMilli) {
