@@ -77,16 +77,13 @@ ITransaction* Client::beginTransaction()
   return new Transaction(txn_db_->BeginTransaction(wo), ++current_transaction_id);
 }
 
+
 bool Client::isNew() {
   ::rocksdb::DB *db;
   ::rocksdb::Options options;
   options.error_if_exists = true;
   ::rocksdb::Status s = ::rocksdb::DB::Open(options, m_dbPath, &db);
   return s.IsNotFound();
-}
-
-Client::~Client() {
-  delete txn_db_;
 }
 
 /**
