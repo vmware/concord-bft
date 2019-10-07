@@ -408,6 +408,8 @@ class BCStateTran : public IStateTransfer {
     CounterHandle zero_reserved_page_;
     CounterHandle start_collecting_state_;
     CounterHandle on_timer_;
+
+    CounterHandle on_transferring_complete_;
   };
 
   mutable Metrics metrics_;

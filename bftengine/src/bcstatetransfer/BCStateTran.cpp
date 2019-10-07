@@ -214,7 +214,8 @@ BCStateTran::BCStateTran( const Config &config,
       metrics_component_.RegisterCounter("save_reserved_page"),
       metrics_component_.RegisterCounter("zero_reserved_page"),
       metrics_component_.RegisterCounter("start_collecting_state"),
-      metrics_component_.RegisterCounter("on_timer")
+      metrics_component_.RegisterCounter("on_timer"),
+      metrics_component_.RegisterCounter("on_transferring_complete"),
   } {
   Assert(stateApi != nullptr);
   Assert(replicas_.size() >= 3U * fVal_ + 1U);
@@ -2138,6 +2139,7 @@ void BCStateTran::processData() {
 
       // Completion
       LOG_DEBUG(STLogger, "Calling onTransferringComplete for checkpoint " << cp.checkpointNum);
+      metrics_.on_transferring_complete_.Get().Inc();
       replicaForStateTransfer_->onTransferringComplete(cp.checkpointNum);
 
       break;
