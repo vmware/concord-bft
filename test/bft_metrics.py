@@ -10,13 +10,13 @@
 # terms and conditions of the subcomponent's license, as noted in the LICENSE
 # file.
 
-# Add the pyclient directory to $PYTHONPATH 
+# Add the pyclient directory to $PYTHONPATH
 
 class BftMetrics:
-    """ A wrapper class that helps to access individual metrics """ 
+    """ A wrapper class that helps to access individual metrics """
 
     def __init__(self, clients):
-        # clients is a dictionary of MetricsClient by replica_id 
+        # clients is a dictionary of MetricsClient by replica_id
         self.clients = clients
 
     def __enter__(self):
@@ -29,11 +29,19 @@ class BftMetrics:
             client.__exit__()
 
     async def get(self, replica_id, component_name, type_, key):
-        """ 
+        """
         Return the value of a key of given type for the given component at
-        the given replica. 
+        the given replica.
         """
         metrics = await self.clients[replica_id].get()
+        return self.get_local(metrics, component_name, type_, key)
+
+    async def get_all(self, replica_id):
+        """Return all the metrics from a given replica"""
+        return await self.clients[replica_id].get()
+
+    def get_local(self, metrics, component_name, type_, key):
+        """Extract a metric from a set of metrics"""
         for component in metrics['Components']:
             if component['Name'] == component_name:
                 return component[type_][key]
