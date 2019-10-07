@@ -2212,7 +2212,6 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
     return;
   }
   lastExecutedSeqNum = newStateCheckpoint;
-  metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
   if (ps_)
     ps_->setLastExecutedSeqNum(lastExecutedSeqNum);
   if (debugStatisticsEnabled) {
@@ -2252,6 +2251,7 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
     ps_->setCheckpointMsgInCheckWindow(newStateCheckpoint, checkpointMsg);
     ps_->endWriteTran();
   }
+  metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
 
   sendToAllOtherReplicas(checkpointMsg);
 
@@ -2772,12 +2772,16 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
 
   curView = ld.viewsManager->latestActiveView();
   lastAgreedView = curView;
+  metric_view_.Get().Set(curView);
+  metric_last_agreed_view_.Get().Set(lastAgreedView);
 
   const bool inView = ld.viewsManager->viewIsActive(curView);
 
   primaryLastUsedSeqNum = ld.primaryLastUsedSeqNum;
   lastStableSeqNum = ld.lastStableSeqNum;
+  metric_last_stable_seq_num__.Get().Set(lastStableSeqNum);
   lastExecutedSeqNum = ld.lastExecutedSeqNum;
+  metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
   strictLowerBoundOfSeqNums = ld.strictLowerBoundOfSeqNums;
   maxSeqNumTransferredFromPrevViews = ld.maxSeqNumTransferredFromPrevViews;
   lastViewThatTransferredSeqNumbersFullyExecuted = ld.lastViewThatTransferredSeqNumbersFullyExecuted;
