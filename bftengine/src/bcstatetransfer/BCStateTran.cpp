@@ -2146,6 +2146,7 @@ void BCStateTran::processData() {
 
       // TODO(GG): TBD - compute dynamically
       if (newSourceReplica || diffMilli > fetchRetransmissionTimeoutMilli_) {
+        timeMilliCurrentSourceReplica_ = currTime;
         sendFetchResPagesMsg(lastChunkInRequiredBlock);
       }
       break;
