@@ -123,13 +123,13 @@ class PlainUDPCommunication::PlainUdpImpl {
     Assert(config.nodes.size() > 0, "No communication endpoints specified!");
 
     LOG_DEBUG(_logger, "Node " << config.selfId <<
-        ", listen IP: " << config.listenIp <<
+        ", listen IP: " << config.listenHost <<
         ", listen port: " << config.listenPort);
 
     for (auto next = config.nodes.begin();
          next != config.nodes.end();
          next++) {
-      auto key = create_key(next->second.ip, next->second.port);
+      auto key = create_key(next->second.host, next->second.port);
       addr2nodes[key] = next->first;
 
       LOG_DEBUG(_logger, "Node " << config.selfId <<
@@ -138,7 +138,7 @@ class PlainUDPCommunication::PlainUdpImpl {
       if (statusCallback && next->second.isReplica) {
         PeerConnectivityStatus pcs{};
         pcs.peerId = next->first;
-        pcs.peerIp = next->second.ip;
+        pcs.peerHost = next->second.host;
         pcs.peerPort = next->second.port;
         pcs.statusType = StatusType::Started;
         statusCallback(pcs);
@@ -147,7 +147,7 @@ class PlainUDPCommunication::PlainUdpImpl {
       Addr ad;
       memset((char *) &ad, 0, sizeof(ad));
       ad.sin_family = AF_INET;
-      ad.sin_addr.s_addr = inet_addr(next->second.ip.c_str());
+      ad.sin_addr.s_addr = inet_addr(next->second.host.c_str());
       ad.sin_port = htons(next->second.port);
       nodes2addresses.insert({next->first, ad});
     }
@@ -396,7 +396,7 @@ class PlainUDPCommunication::PlainUdpImpl {
 
         char str[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &(fromAddress.sin_addr), str, INET_ADDRSTRLEN);
-        pcs.peerIp = string(str);
+        pcs.peerHost = string(str);
 
         pcs.peerPort = ntohs(fromAddress.sin_port);
         pcs.statusType = StatusType::MessageReceived;

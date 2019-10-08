@@ -18,6 +18,7 @@
 #include <ws2def.h>
 #else
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #endif
@@ -32,7 +33,7 @@
 typedef struct sockaddr_in Addr;
 
 struct NodeInfo {
-  std::string ip;
+  std::string host;
   std::uint16_t port;
   bool isReplica;
 };
@@ -50,7 +51,7 @@ enum CommType {
 
 struct BaseCommConfig {
   CommType commType;
-  std::string listenIp;
+  std::string listenHost;
   uint16_t listenPort;
   uint32_t bufferLength;
   NodeMap nodes;
@@ -58,14 +59,14 @@ struct BaseCommConfig {
   NodeNum selfId;
 
   BaseCommConfig(CommType type,
-                 std::string ip,
+                 std::string host,
                  uint16_t port,
                  uint32_t bufLength,
                  NodeMap _nodes,
                  NodeNum _selfId,
                  UPDATE_CONNECTIVITY_FN _statusCallback = nullptr) :
       commType{type},
-      listenIp{std::move(ip)},
+      listenHost{std::move(host)},
       listenPort{port},
       bufferLength{bufLength},
       nodes{std::move(_nodes)},
@@ -77,14 +78,14 @@ struct BaseCommConfig {
 };
 
 struct PlainUdpConfig : BaseCommConfig {
-  PlainUdpConfig(std::string ip,
+  PlainUdpConfig(std::string host,
                  uint16_t port,
                  uint32_t bufLength,
                  NodeMap _nodes,
                  NodeNum _selfId,
                  UPDATE_CONNECTIVITY_FN _statusCallback = nullptr) :
       BaseCommConfig(CommType::PlainUdp,
-                     std::move(ip),
+                     std::move(host),
                      port,
                      bufLength,
                      std::move(_nodes),
@@ -96,7 +97,7 @@ struct PlainUdpConfig : BaseCommConfig {
 struct PlainTcpConfig : BaseCommConfig {
   int32_t maxServerId;
 
-  PlainTcpConfig(std::string ip,
+  PlainTcpConfig(std::string host,
                  uint16_t port,
                  uint32_t bufLength,
                  NodeMap _nodes,
@@ -104,7 +105,7 @@ struct PlainTcpConfig : BaseCommConfig {
                  NodeNum _selfId,
                  UPDATE_CONNECTIVITY_FN _statusCallback = nullptr) :
       BaseCommConfig(CommType::PlainTcp,
-                     std::move(ip),
+                     std::move(host),
                      port,
                      bufLength,
                      std::move(_nodes),
@@ -121,7 +122,7 @@ struct TlsTcpConfig : PlainTcpConfig {
   // https://www.openssl.org/docs/man1.0.2/man1/ciphers.html
   std::string cipherSuite;
 
-  TlsTcpConfig(std::string ip,
+  TlsTcpConfig(std::string host,
                uint16_t port,
                uint32_t bufLength,
                NodeMap _nodes,
@@ -130,7 +131,7 @@ struct TlsTcpConfig : PlainTcpConfig {
                std::string certRootPath,
                std::string ciphSuite,
                UPDATE_CONNECTIVITY_FN _statusCallback = nullptr) :
-      PlainTcpConfig(move(ip),
+      PlainTcpConfig(move(host),
                      port,
                      bufLength,
                      std::move(_nodes),

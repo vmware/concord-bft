@@ -18,6 +18,7 @@
 #include <string.h>
 #include <chrono>
 #include <mutex>
+#include <cassert>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -93,7 +94,7 @@ class AsyncTcpConnection :
   function<void(NodeNum, ASYNC_CONN_PTR)> _fOnHellOMessage = nullptr;
   NodeNum _destId;
   NodeNum _selfId;
-  string _ip = "";
+  string _host = "";
   uint16_t _port = 0;
   deadline_timer _connectTimer;
   ConnType _connType;
@@ -247,7 +248,7 @@ class AsyncTcpConnection :
     socket = B_TCP_SOCKET(*_service);
 
     setTimeOut();
-    connect(_ip, _port, _destIsReplica);
+    connect(_host, _port, _destIsReplica);
 
     LOG_TRACE(_logger, "exit, node " << _selfId
               << ", dest: " << _destId
@@ -392,7 +393,7 @@ class AsyncTcpConnection :
     if (_statusCallback && _destIsReplica) {
       PeerConnectivityStatus pcs{};
       pcs.peerId = _destId;
-      pcs.peerIp = _ip;
+      pcs.peerHost = _host;
       pcs.peerPort = _port;
       pcs.statusType = StatusType::MessageReceived;
 
@@ -561,32 +562,46 @@ class AsyncTcpConnection :
   }
 
  public:
-  void connect(string ip, uint16_t port, bool destIsReplica) {
-    _ip = ip;
+  void connect(string host, uint16_t port, bool destIsReplica) {
+    _host = host;
     _port = port;
     _destIsReplica = destIsReplica;
 
     LOG_TRACE(_logger, "enter, from: " << _selfId
               << " ,to: " << _destId
-              << ", ip: " << ip
+              << ", host: " << host
               << ", port: " << port);
 
-    tcp::endpoint ep(address::from_string(ip), port);
-    LOG_DEBUG(_logger, "connecting from: " << _selfId
-              << " ,to: " << _destId
-              << ", timeout: " << _currentTimeout
-              << ", dest is replica: " << _destIsReplica);
+    tcp::resolver::query query(tcp::v4(), _host, std::to_string(_port));
+    tcp::resolver resolver(*_service);
+    boost::system::error_code ec;
+    tcp::resolver::iterator results = resolver.resolve(query, ec);
+    if (!ec && results != tcp::resolver::iterator()) {
+      tcp::endpoint ep = *results;
 
-    _connectTimer.expires_from_now(
+      LOG_DEBUG(_logger, "connecting from: " << _selfId
+                << " ,to: " << _destId
+                << ", timeout: " << _currentTimeout
+                << ", dest is replica: " << _destIsReplica);
+
+      _connectTimer.expires_from_now(
         boost::posix_time::millisec(_currentTimeout));
 
-    socket.async_connect(ep,
-                         boost::bind(&AsyncTcpConnection::connect_completed,
-                                     shared_from_this(),
-                                     boost::asio::placeholders::error));
+      socket.async_connect(ep,
+                           boost::bind(&AsyncTcpConnection::connect_completed,
+                                       shared_from_this(),
+                                       boost::asio::placeholders::error));
+    } else {
+      LOG_INFO(_logger, "Unable to resolve " << host << ":" << port);
+      if (!ec) {
+        ec = boost::system::errc::make_error_code(boost::system::errc::connection_aborted);
+      }
+      // Use the async completion handler directly to kick off a retry.
+      connect_completed(ec);
+    }
     LOG_TRACE(_logger, "exit, from: " << _selfId
              << " ,to: " << _destId
-             << ", ip: " << ip
+             << ", host: " << host
              << ", port: " << port);
   }
 
@@ -680,7 +695,7 @@ class PlainTCPCommunication::PlainTcpImpl {
 
   io_service _service;
   uint16_t _listenPort;
-  string _listenIp;
+  string _listenHost;
   uint32_t _bufferLength;
   uint32_t _maxServerId;
   UPDATE_CONNECTIVITY_FN _statusCallback = nullptr;
@@ -757,18 +772,26 @@ class PlainTCPCommunication::PlainTcpImpl {
                uint32_t bufferLength,
                uint16_t listenPort,
                uint32_t maxServerId,
-               string listenIp,
+               string listenHost,
                UPDATE_CONNECTIVITY_FN statusCallback) :
       _selfId{selfNodeId},
       _listenPort{listenPort},
-      _listenIp{listenIp},
+      _listenHost{listenHost},
       _bufferLength{bufferLength},
       _maxServerId{maxServerId},
       _statusCallback{statusCallback} {
     // all replicas are in listen mode
     if (_selfId <= _maxServerId) {
-      LOG_DEBUG(_logger, "node " << _selfId << " listening on " << _listenPort);
-      tcp::endpoint ep(address::from_string(_listenIp), _listenPort);
+      tcp::resolver::query query(tcp::v4(), _listenHost, std::to_string(_listenPort));
+      tcp::resolver resolver(_service);
+      // This throws an exception if it can't resolve, but since this is the
+      // *listen* port, we should expect to be able to resolve our own name, or
+      // shutdown otherwise.
+      tcp::resolver::iterator results = resolver.resolve(query);
+      assert(results != tcp::resolver::iterator());
+      // Use the first result
+      tcp::endpoint ep = *results;
+      LOG_INFO(_logger, "Resolved " << _listenHost << ":" << _listenPort << " to " << ep);
       _pAcceptor = boost::make_unique<tcp::acceptor>(_service, ep);
       start_accept(nodes);
     } else // clients dont need to listen
@@ -800,15 +823,15 @@ class PlainTCPCommunication::PlainTcpImpl {
                    nodes);
 
         _connections.insert(make_pair(it->first, conn));
-        string peerIp = it->second.ip;
+        string peerHost = it->second.host;
         uint16_t peerPort = it->second.port;
-        conn->connect(peerIp, peerPort, it->second.isReplica);
+        conn->connect(peerHost, peerPort, it->second.isReplica);
         LOG_TRACE(_logger, "connect called for node " << to_string(it->first));
       }
       if (it->second.isReplica && _statusCallback) {
         PeerConnectivityStatus pcs{};
         pcs.peerId = it->first;
-        pcs.peerIp = it->second.ip;
+        pcs.peerHost = it->second.host;
         pcs.peerPort = it->second.port;
         pcs.statusType = StatusType::Started;
 
@@ -823,19 +846,19 @@ class PlainTCPCommunication::PlainTcpImpl {
  public:
   static PlainTcpImpl *
   create(NodeNum selfNodeId,
-      // tuple of ip, listen port, bind port
+      // tuple of host, listen port, bind port
          NodeMap nodes,
          uint32_t bufferLength,
          uint16_t listenPort,
          uint32_t tempHighestNodeForConnecting,
-         string listenIp,
+         string listenHost,
          UPDATE_CONNECTIVITY_FN statusCallback) {
     return new PlainTcpImpl(selfNodeId,
                             nodes,
                             bufferLength,
                             listenPort,
                             tempHighestNodeForConnecting,
-                            listenIp,
+                            listenHost,
                             statusCallback);
   }
 
@@ -942,7 +965,7 @@ PlainTCPCommunication::PlainTCPCommunication(const PlainTcpConfig &config) {
                                   config.bufferLength,
                                   config.listenPort,
                                   config.maxServerId,
-                                  config.listenIp,
+                                  config.listenHost,
                                   config.statusCallback);
 }
 

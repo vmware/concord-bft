@@ -32,7 +32,7 @@ CommFactory::create(const BaseCommConfig &config) {
   ICommunication *res = nullptr;
   switch (config.commType) {
   case CommType::PlainUdp:
-    LOG_INFO(_logger, "Using PlainUDP: " << "IP=" << config.listenIp <<
+    LOG_INFO(_logger, "Using PlainUDP: " << "Host=" << config.listenHost <<
                       ", Port=" << config.listenPort);
     res = PlainUDPCommunication::create(
       dynamic_cast<const PlainUdpConfig&>(config));
@@ -41,7 +41,7 @@ CommFactory::create(const BaseCommConfig &config) {
     break;
   case CommType::PlainTcp:
 #ifdef USE_COMM_PLAIN_TCP
-    LOG_INFO(_logger, "Using PlainTCP: " << "IP=" << config.listenIp <<
+    LOG_INFO(_logger, "Using PlainTCP: " << "Host=" << config.listenHost <<
                       ", Port=" << config.listenPort);
     res = PlainTCPCommunication::create(
       dynamic_cast<const PlainTcpConfig&>(config));
@@ -51,7 +51,7 @@ CommFactory::create(const BaseCommConfig &config) {
     break;
   case CommType::TlsTcp:
 #ifdef USE_COMM_TLS_TCP
-    LOG_INFO(_logger, "Using TlsTCP: " << "IP=" << config.listenIp <<
+    LOG_INFO(_logger, "Using TlsTCP: " << "Host=" << config.listenHost <<
                       ", Port=" << config.listenPort);
     res = TlsTCPCommunication::create(
       dynamic_cast<const TlsTcpConfig&>(config));

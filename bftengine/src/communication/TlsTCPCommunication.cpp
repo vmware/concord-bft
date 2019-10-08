@@ -51,6 +51,8 @@ using namespace std;
 using namespace concordlogger;
 using namespace boost;
 
+using asio::ip::tcp;
+
 namespace bftEngine {
 
 class AsyncTlsConnection;
@@ -143,7 +145,7 @@ class AsyncTlsConnection : public
   uint32_t _bufferLength;
   NodeNum _destId = AsyncTlsConnection::UNKNOWN_NODE_ID;
   NodeNum _selfId;
-  string _ip = "";
+  string _host = "";
   uint16_t _port = 0;
   asio::deadline_timer _connectTimer;
   asio::deadline_timer _writeTimer;
@@ -636,7 +638,7 @@ class AsyncTlsConnection : public
     }
 
     // deadline reached, try to reconnect
-    connect(_ip, _port);
+    connect(_host, _port);
     LOG_DEBUG(_logger, "connect_timer_tick, node " << _selfId
                                                    << ", dest: " << _expectedDestId
                                                    << ", ec: " << ec.message());
@@ -965,24 +967,45 @@ class AsyncTlsConnection : public
 
   /**
    * start connection to the remote peer (Outgoing connection)
-   * @param ip remote IP
+   * @param host remote hostname or IP
    * @param port remote port
    * @param isReplica whether the peer is replica or client
    */
-  void connect(string ip, uint16_t port) {
-    _ip = ip;
+  void connect(string host, uint16_t port) {
+    _host = host;
     _port = port;
 
-    asio::ip::tcp::endpoint ep(asio::ip::address::from_string(ip), port);
+    // TODO: When upgrading to boost 1.66 or later, when query is deprecated,
+    // this should be changed to call the resolver.resolve overload that takes a
+    // protocol, host, and service directly, instead of a query object. That
+    // overload is not yet available in boost 1.64, which we're using today.
+    tcp::resolver::query query(tcp::v4(), _host, std::to_string(_port));
+    tcp::resolver resolver(*_service);
+    boost::system::error_code ec;
+    tcp::resolver::iterator results = resolver.resolve(query, ec);
+    if (!ec && results != tcp::resolver::iterator()) {
+      tcp::endpoint ep = *results;
 
-    get_socket().
+      LOG_INFO(_logger, "Resolved " << host << ":" << port << " to " << ep);
+
+      get_socket().
         async_connect(ep,
                       boost::bind(&AsyncTlsConnection::connect_completed,
                                   shared_from_this(),
                                   boost::asio::placeholders::error));
+    } else {
+      LOG_INFO(_logger, "Unable to resolve " << host << ":" << port);
+      if (!ec) {
+        ec = boost::system::errc::make_error_code(boost::system::errc::connection_aborted);
+      }
+      // Use the async completion handler directly to kick off a retry.
+      connect_completed(ec);
+    }
+
     LOG_TRACE(_logger, "exit, from: " << _selfId
-                                      << " ,to: " << _expectedDestId
-                                      << ", ip: " << ip
+                                      << ", ec: " << ec
+                                      << ", to: " << _expectedDestId
+                                      << ", host: " << host
                                       << ", port: " << port);
   }
 
@@ -1079,7 +1102,7 @@ class AsyncTlsConnection : public
 
     delete[] _inBuffer;
 
-    
+
   }
 
   void dispose() {
@@ -1108,11 +1131,11 @@ class TlsTCPCommunication::TlsTcpImpl :
   NodeNum _selfId;
   IReceiver *_pReceiver = nullptr;
 
-  // NodeNum mapped to tuple<ip, port> //
+  // NodeNum mapped to tuple<host, port> //
   NodeMap _nodes;
   asio::io_service _service;
   uint16_t _listenPort;
-  string _listenIp;
+  string _listenHost;
   uint32_t _bufferLength;
   uint32_t _maxServerId;
   string _certRootFolder;
@@ -1142,7 +1165,7 @@ class TlsTCPCommunication::TlsTcpImpl :
     if(iter != _nodes.end()) {
       if (iter->first < _selfId && iter->first <= _maxServerId) {
         create_outgoing_connection(peerId,
-                                   iter->second.ip,
+                                   iter->second.host,
                                    iter->second.port);
       }
     } else {
@@ -1234,13 +1257,13 @@ class TlsTCPCommunication::TlsTcpImpl :
              uint32_t bufferLength,
              uint16_t listenPort,
              uint32_t maxServerId,
-             string listenIp,
+             string listenHost,
              string certRootFolder,
              string cipherSuite,
              UPDATE_CONNECTIVITY_FN statusCallback = nullptr) :
       _selfId(selfNodeNum),
       _listenPort(listenPort),
-      _listenIp(listenIp),
+      _listenHost(listenHost),
       _bufferLength(bufferLength),
       _maxServerId(maxServerId),
       _certRootFolder(certRootFolder),
@@ -1254,7 +1277,7 @@ class TlsTCPCommunication::TlsTcpImpl :
   }
 
   void create_outgoing_connection(
-      NodeNum nodeId, string peerIp, uint16_t peerPort) {
+      NodeNum nodeId, string peerHost, uint16_t peerPort) {
     auto conn =
         AsyncTlsConnection::create(
             &_service,
@@ -1275,7 +1298,7 @@ class TlsTCPCommunication::TlsTcpImpl :
             _nodes,
             _cipherSuite);
 
-    conn->connect(peerIp, peerPort);
+    conn->connect(peerHost, peerPort);
     LOG_INFO(_logger, "connect called for node " << _selfId << ", dest: " << nodeId);
   }
 
@@ -1285,7 +1308,7 @@ class TlsTCPCommunication::TlsTcpImpl :
                             uint32_t bufferLength,
                             uint16_t listenPort,
                             uint32_t tempHighestNodeForConnecting,
-                            string listenIp,
+                            string listenHost,
                             string certRootFolder,
                             string cipherSuite,
                             UPDATE_CONNECTIVITY_FN statusCallback) {
@@ -1294,7 +1317,7 @@ class TlsTCPCommunication::TlsTcpImpl :
                           bufferLength,
                           listenPort,
                           tempHighestNodeForConnecting,
-                          listenIp,
+                          listenHost,
                           certRootFolder,
                           cipherSuite,
                           statusCallback));
@@ -1317,13 +1340,24 @@ class TlsTCPCommunication::TlsTcpImpl :
 
     // all replicas are in listen mode
     if (_selfId <= _maxServerId) {
-      // patch, we need to listen to all interfaces in order to support
-      // machines with internal/external IPs. Need to add "listen IP" to the BFT
-      // config file.
-      asio::ip::tcp::endpoint ep(
-          asio::ip::address::from_string(_listenIp), _listenPort);
-      _pAcceptor = boost::make_unique<asio::ip::tcp::acceptor>(_service, ep);
-      start_accept();
+      // TODO: When upgrading to boost 1.66 or later, when query is deprecated,
+      // this should be changed to call the resolver.resolve overload that takes
+      // a protocol, host, and service directly, instead of a query object. That
+      // overload is not yet available in boost 1.64, which we're using today.
+      tcp::resolver::query query(tcp::v4(), _listenHost, std::to_string(_listenPort));
+      tcp::resolver resolver(_service);
+      boost::system::error_code ec;
+      tcp::resolver::iterator results = resolver.resolve(query, ec);
+      if (!ec && results != tcp::resolver::iterator()) {
+        tcp::endpoint ep = *results;
+        LOG_INFO(_logger, "Resolved " << _listenHost << ":" << _listenPort << " to " << ep);
+        _pAcceptor = boost::make_unique<asio::ip::tcp::acceptor>(_service, ep);
+        start_accept();
+      } else {
+        LOG_WARN(_logger, "Unable to resolve listen host (" << _listenHost << ") for node " << _selfId << ": " << ec);
+        // This node is dead in the water if it can't resolve its own listen host/ip.
+        return -1; // failed
+      }
     } else // clients don't listen
     LOG_DEBUG(_logger, "skipping listen for node: " << _selfId);
 
@@ -1334,7 +1368,7 @@ class TlsTCPCommunication::TlsTcpImpl :
       if (_statusCallback && it->second.isReplica) {
         PeerConnectivityStatus pcs{};
         pcs.peerId = it->first;
-        pcs.peerIp = it->second.ip;
+        pcs.peerHost = it->second.host;
         pcs.peerPort = it->second.port;
         pcs.statusType = StatusType::Started;
         _statusCallback(pcs);
@@ -1343,7 +1377,7 @@ class TlsTCPCommunication::TlsTcpImpl :
       // connect only to nodes with ID higher than selfId
       // and all nodes with lower ID will connect to this node
       if (it->first < _selfId && it->first <= _maxServerId) {
-        create_outgoing_connection(it->first, it->second.ip, it->second.port);
+        create_outgoing_connection(it->first, it->second.host, it->second.port);
       }
     }
 
@@ -1445,7 +1479,7 @@ TlsTCPCommunication::TlsTCPCommunication(const TlsTcpConfig &config) {
                                 config.bufferLength,
                                 config.listenPort,
                                 config.maxServerId,
-                                config.listenIp,
+                                config.listenHost,
                                 config.certificatesRootPath,
                                 config.cipherSuite,
                                 config.statusCallback);

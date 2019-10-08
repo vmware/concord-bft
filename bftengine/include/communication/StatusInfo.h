@@ -15,7 +15,7 @@ enum class PeerInfoType {
 struct BasePeerStatus {
  public:
   int64_t peerId = 0;
-  std::string peerIp;
+  std::string peerHost;
   int16_t peerPort = 0;
   int64_t statusTime = 0;
 };
