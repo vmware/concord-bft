@@ -26,27 +26,28 @@ namespace rocksdb {
 class Transaction: public ITransaction {
  public:
   Transaction(::rocksdb::Transaction* txn, ID id): ITransaction(id), txn_(txn){}
+  ~Transaction(){LOG_TRACE(logger(), "txn: " << getId());}
   void commit() override {
-    LOG_TRACE(logger(), "commit txn: " << getId());
+    LOG_DEBUG(logger(), "commit txn: " << getId());
     ::rocksdb::Status s = txn_->Commit();
     if (!s.ok())
       ROCKSDB_THROW("Commit", s);
   }
   void rollback() override {
-    LOG_TRACE(logger(), "rollback txn: " << getId());
+    LOG_DEBUG(logger(), "rollback txn: " << getId());
     ::rocksdb::Status s = txn_->Rollback();
     if (!s.ok())
       ROCKSDB_THROW("Rollback", s);
 
   }
   void put(const Sliver& key, const Sliver& value)  override {
-    LOG_TRACE(logger(), "put txn: " << getId() << " key:" << key.toString() << " val: " << value.toString());
+    LOG_DEBUG(logger(), "put txn: " << getId() << " key:" << key << " val: " << value);
     ::rocksdb::Status s = txn_->Put(toRocksdbSlice(key), toRocksdbSlice(value));
     if (!s.ok() )
       ROCKSDB_THROW("Put", s);
   }
   std::string get(const Sliver& key) override {
-    LOG_TRACE(logger(), "get txn: " << getId() << " key:" << key.toString());
+    LOG_DEBUG(logger(), "get txn: " << getId() << " key:" << key);
     std::string val;
     ::rocksdb::Status s = txn_->Get(::rocksdb::ReadOptions(), toRocksdbSlice(key), &val);
     if (!s.ok() && !s.IsNotFound())
@@ -54,15 +55,15 @@ class Transaction: public ITransaction {
     return val;
   }
   void del(const Sliver& key) override {
-    LOG_TRACE(logger(), "del txn: " << getId() << " key:" << key.toString());
-    ::rocksdb::Status s =txn_->Delete(toRocksdbSlice(key));
+    LOG_DEBUG(logger(), "del txn: " << getId() << " key:" << key);
+    ::rocksdb::Status s = txn_->Delete(toRocksdbSlice(key));
     if (!s.ok())
       ROCKSDB_THROW("Delete", s);
   }
 
  protected:
   concordlogger::Logger& logger(){
-      static concordlogger::Logger logger_ = concordlogger::Log::getLogger("rocksdb");
+      static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.storage.rocksdb.transaction");
       return logger_;
   }
   std::unique_ptr<::rocksdb::Transaction> txn_;
