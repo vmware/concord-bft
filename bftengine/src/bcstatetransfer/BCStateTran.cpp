@@ -442,7 +442,7 @@ STDigest BCStateTran::checkpointReservedPages(uint64_t checkpointNumber, DataSto
 void BCStateTran::deleteOldCheckpoints(uint64_t checkpointNumber, DataStoreTransaction* txn) {
   uint64_t minRelevantCheckpoint = 0;
   if (checkpointNumber > maxNumOfStoredCheckpoints_) {
-    minRelevantCheckpoint = checkpointNumber - maxNumOfStoredCheckpoints_;
+    minRelevantCheckpoint = checkpointNumber - maxNumOfStoredCheckpoints_ + 1;
   }
 
   LOG_DEBUG(STLogger, "minRelevantCheckpoint is " << minRelevantCheckpoint);

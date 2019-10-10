@@ -56,10 +56,6 @@ public:
     LOG_DEBUG(logger(), "txn: " << txn->getId());
     return new DataStoreTransaction(tnxDataStore, txn);
   }
-  ~DBDataStore(){
-    if(txn_)
-      LOG_DEBUG(logger(), "txn: " << txn_->getId());
-  }
 
   void setAsInitialized()                       override;
   void setReplicas(const set<uint16_t>)         override;
@@ -228,7 +224,7 @@ public:
   }
   Sliver staticResPageKey  (uint32_t pageid, uint64_t chkpt) const {
     static uint64_t maxStored = inmem_->getMaxNumOfStoredCheckpoints();
-    return KeyManipulator::generateSTReservedPageStaticKey(pageid, chkpt % maxStored);
+    return KeyManipulator::generateSTReservedPageStaticKey(pageid, chkpt % maxStored +1);
   }
   Sliver pendingPageKey(uint32_t pageid) const {
     return KeyManipulator::generateSTPendingPageKey(pageid);

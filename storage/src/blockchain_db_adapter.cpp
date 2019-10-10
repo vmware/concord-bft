@@ -77,22 +77,21 @@ int KeyManipulator::composedKeyComparison(const uint8_t* _a_data, size_t _a_leng
       ObjectId bObjId = KeyManipulator::extractObjectIdFromKey(_b_data, _b_length);
       return (aObjId > bObjId) ? 1 : (bObjId > aObjId) ? -1 : 0;
     }
-    case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_CHECKPOINT_DESCRIPTOR_KEY:
-      {
-        uint64_t aChkpt, bChkpt;
-        aChkpt = extractCheckPointFromKey(_a_data, _a_length);
-        bChkpt = extractCheckPointFromKey(_b_data, _b_length);
-        return (aChkpt > bChkpt) ? 1 : (bChkpt > aChkpt) ? -1 : 0;
-      }
-    case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_STATIC_KEY:
-    case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_DYNAMIC_KEY: {
-      // Pages are sorted in ascending order, checkpoints in descending order
-      uint32_t aPageId, bPageId;
+    case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_CHECKPOINT_DESCRIPTOR_KEY:{
       uint64_t aChkpt, bChkpt;
-      std::tie(aPageId, aChkpt) = extractPageIdAndCheckpointFromKey(_a_data, _a_length);
-      std::tie(bPageId, bChkpt) = extractPageIdAndCheckpointFromKey(_b_data, _b_length);
-      if (aPageId != bPageId) return aPageId - bPageId;
-      return (bChkpt > aChkpt)? 1 : (aChkpt > bChkpt) ? -1 : 0;
+      aChkpt = extractCheckPointFromKey(_a_data, _a_length);
+      bChkpt = extractCheckPointFromKey(_b_data, _b_length);
+      return (aChkpt > bChkpt) ? 1 : (bChkpt > aChkpt) ? -1 : 0;
+    }
+    case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_STATIC_KEY:
+    case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_DYNAMIC_KEY:{
+      // Pages are sorted in ascending order, checkpoints in descending order
+       uint32_t aPageId, bPageId;
+       uint64_t aChkpt, bChkpt;
+       std::tie(aPageId, aChkpt) = extractPageIdAndCheckpointFromKey(_a_data, _a_length);
+       std::tie(bPageId, bChkpt) = extractPageIdAndCheckpointFromKey(_b_data, _b_length);
+       if (aPageId != bPageId) return (aPageId > bPageId)? 1: (bPageId > aPageId)? -1:0;
+       return (aChkpt < bChkpt)? 1 : (aChkpt > bChkpt) ? -1 : 0;
     }
     case EDBKeyType::E_DB_KEY_TYPE_KEY: {
       int keyComp = KeyManipulator::compareKeyPartOfComposedKey(_a_data, _a_length, _b_data, _b_length);
@@ -111,7 +110,7 @@ int KeyManipulator::composedKeyComparison(const uint8_t* _a_data, size_t _a_leng
       return (aId > bId) ? 1 : (bId > aId) ? -1 : 0;
     }
     default:
-      LOG_ERROR(logger(), "KeyManipulator::composedKeyComparison called with invalid key type: " << (char) aType);
+      LOG_ERROR(logger(), "invalid key type: " << (char) aType);
       assert(false);
 
   } //switch
