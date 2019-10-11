@@ -77,9 +77,9 @@ class SkvbcTest(unittest.TestCase):
             tester.start_replica(3)
             await tester.wait_for_state_transfer_to_start()
             await tester.wait_for_state_transfer_to_stop(0, 3)
-            await self.assert_successful_put_get(tester)
+            await tester.assert_successful_put_get(self, self.protocol)
             tester.stop_replica(2)
-            await self.assert_successful_put_get(tester)
+            await tester.assert_successful_put_get(self, self.protocol)
 
     def test_get_block_data(self):
         """
@@ -192,30 +192,6 @@ class SkvbcTest(unittest.TestCase):
             successful_write = write_result.success
 
             self.assertTrue(not successful_write)
-
-    async def assert_successful_put_get(self, tester):
-        p = self.protocol
-        client = tester.random_client()
-        last_block = p.parse_reply(await client.read(p.get_last_block_req()))
-
-        # Perform an unconditional KV put.
-        # Ensure that the block number increments.
-        key = tester.random_key()
-        val = tester.random_value()
-
-        reply = await client.write(p.write_req([], [(key, val)], 0))
-        reply = p.parse_reply(reply)
-        self.assertTrue(reply.success)
-        self.assertEqual(last_block + 1, reply.last_block_id)
-
-        # Retrieve the last block and ensure that it matches what's expected
-        newest_block = p.parse_reply(await client.read(p.get_last_block_req()))
-        self.assertEqual(last_block+1, newest_block)
-
-        # Get the previous put value, and ensure it's correct
-        read_req = p.read_req([key], newest_block)
-        kvpairs = p.parse_reply(await client.read(read_req))
-        self.assertDictEqual({key: val}, kvpairs)
 
 if __name__ == '__main__':
     unittest.main()

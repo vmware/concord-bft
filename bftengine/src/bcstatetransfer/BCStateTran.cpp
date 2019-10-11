@@ -167,7 +167,6 @@ BCStateTran::BCStateTran( const Config &config,
       metrics_component_.RegisterStatus("preferred_replicas", ""),
 
       metrics_component_.RegisterGauge("current_source_replica", NO_REPLICA),
-      metrics_component_.RegisterGauge("current_checkpoint", 0),
       metrics_component_.RegisterGauge("checkpoint_being_fetched", 0),
       metrics_component_.RegisterGauge("last_stored_checkpoint", 0),
       metrics_component_.RegisterGauge("number_of_reserved_pages", 0),
@@ -215,7 +214,8 @@ BCStateTran::BCStateTran( const Config &config,
       metrics_component_.RegisterCounter("save_reserved_page"),
       metrics_component_.RegisterCounter("zero_reserved_page"),
       metrics_component_.RegisterCounter("start_collecting_state"),
-      metrics_component_.RegisterCounter("on_timer")
+      metrics_component_.RegisterCounter("on_timer"),
+      metrics_component_.RegisterCounter("on_transferring_complete"),
   } {
   Assert(stateApi != nullptr);
   Assert(replicas_.size() >= 3U * fVal_ + 1U);
@@ -253,6 +253,18 @@ BCStateTran::~BCStateTran() {
   std::free(buffer_);
 }
 
+// Load metrics that are saved on persistent storage
+void BCStateTran::loadMetrics() {
+  FetchingState fs = getFetchingState();
+  metrics_.fetching_state_.Get().Set(stateName(fs));
+
+  metrics_.last_stored_checkpoint_.Get().Set(psd_->getLastStoredCheckpoint());
+  metrics_.number_of_reserved_pages_.Get().Set(psd_->getNumberOfReservedPages());
+  metrics_.last_block_.Get().Set(as_->getLastBlockNum());
+  metrics_.last_reachable_block_.Get().Set(as_->getLastReachableBlockNum());
+}
+
+
 //////////////////////////////////////////////////////////////////////////////
 // IStateTransfer methods
 //////////////////////////////////////////////////////////////////////////////
@@ -282,12 +294,12 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
     checkConsistency(pedanticChecks_);
 
     FetchingState fs = getFetchingState();
-    metrics_.fetching_state_.Get().Set(stateName(fs));
     LOG_INFO(STLogger, "starting state is " << stateName(fs));
 
     if (fs == FetchingState::GettingMissingBlocks || fs == FetchingState::GettingMissingResPages) {
       SetAllReplicasAsPreferred();
     }
+    loadMetrics();
   } else {
     LOG_INFO(STLogger, "BCStateTran::init - initializing a new object");
 
@@ -471,7 +483,6 @@ void BCStateTran::createCheckpointOfCurrentState(uint64_t checkpointNumber) {
   Assert(checkpointNumber > 0);
   Assert(checkpointNumber > psd_->getLastStoredCheckpoint());
 
-  metrics_.current_checkpoint_.Get().Set(checkpointNumber);
   metrics_.create_checkpoint_.Get().Inc();
 
   {// txn scope
@@ -480,7 +491,9 @@ void BCStateTran::createCheckpointOfCurrentState(uint64_t checkpointNumber) {
     auto checkDesc = createCheckpointDesc(checkpointNumber, digestOfResPagesDescriptor);
     g.txn()->setCheckpointDesc(checkpointNumber, checkDesc);
     deleteOldCheckpoints(checkpointNumber, g.txn());
+    metrics_.last_stored_checkpoint_.Get().Set(psd_->getLastStoredCheckpoint());
   }
+
 }
 
 void BCStateTran::markCheckpointAsStable(uint64_t checkpointNumber) {
@@ -2086,8 +2099,6 @@ void BCStateTran::processData() {
       g.txn()->deleteCheckpointBeingFetched();
       g.txn()->setIsFetchingState(false);
 
-      metrics_.checkpoint_being_fetched_.Get().Set(0);
-
       // delete old checkpoints
 
       uint64_t minRelevantCheckpoint = 0;
@@ -2111,19 +2122,26 @@ void BCStateTran::processData() {
 
       LOG_DEBUG(STLogger, "minRelevantCheckpoint=" << minRelevantCheckpoint);
       preferredReplicas_.clear();
-      metrics_.preferred_replicas_.Get().Set("");
       currentSourceReplica_ = NO_REPLICA;
-      metrics_.current_source_replica_.Get().Set(currentSourceReplica_);
       timeMilliCurrentSourceReplica_ = 0;
       nextRequiredBlock_ = 0;
       digestOfNextRequiredBlock.makeZero();
       clearAllPendingItemsData();
 
+      // Metrics set at the end of the block to prevent transaction abort from
+      // leaving inconsistencies.
+      metrics_.preferred_replicas_.Get().Set("");
+      metrics_.current_source_replica_.Get().Set(currentSourceReplica_);
+      metrics_.last_stored_checkpoint_.Get().Set(cp.checkpointNum);
+      metrics_.checkpoint_being_fetched_.Get().Set(0);
+
       checkConsistency(pedanticChecks_);
 
       // Completion
       LOG_DEBUG(STLogger, "Calling onTransferringComplete for checkpoint " << cp.checkpointNum);
+      metrics_.on_transferring_complete_.Get().Inc();
       replicaForStateTransfer_->onTransferringComplete(cp.checkpointNum);
+
       break;
     }
       //////////////////////////////////////////////////////////////////////////
@@ -2146,6 +2164,7 @@ void BCStateTran::processData() {
 
       // TODO(GG): TBD - compute dynamically
       if (newSourceReplica || diffMilli > fetchRetransmissionTimeoutMilli_) {
+        timeMilliCurrentSourceReplica_ = currTime;
         sendFetchResPagesMsg(lastChunkInRequiredBlock);
       }
       break;

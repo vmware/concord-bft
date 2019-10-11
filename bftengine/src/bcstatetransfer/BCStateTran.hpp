@@ -346,6 +346,7 @@ class BCStateTran : public IStateTransfer {
   void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a);
 
  private:
+  void loadMetrics();
   concordMetrics::Component metrics_component_;
 
   typedef concordMetrics::Component::Handle<concordMetrics::Gauge> GaugeHandle;
@@ -358,7 +359,6 @@ class BCStateTran : public IStateTransfer {
     StatusHandle preferred_replicas_;
 
     GaugeHandle current_source_replica_;
-    GaugeHandle current_checkpoint_;
     GaugeHandle checkpoint_being_fetched_;
     GaugeHandle last_stored_checkpoint_;
     GaugeHandle number_of_reserved_pages_;
@@ -408,6 +408,8 @@ class BCStateTran : public IStateTransfer {
     CounterHandle zero_reserved_page_;
     CounterHandle start_collecting_state_;
     CounterHandle on_timer_;
+
+    CounterHandle on_transferring_complete_;
   };
 
   mutable Metrics metrics_;

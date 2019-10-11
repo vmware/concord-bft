@@ -154,3 +154,87 @@ class SkvbcPersistenceTest(unittest.TestCase):
             kv_reply = self.protocol.parse_reply(reply)
 
             self.assertEqual({key: value}, kv_reply)
+
+    def test_checkpoints_saved_and_transferred(self):
+        """
+        Start a 3 nodes out of a 4 node cluster. Write a specific key, then
+        enough data to the cluster to trigger a checkpoint and log garbage
+        collection. Then stop all the nodes, restart the 3 nodes that should
+        have checkpoints as well as the 4th empty node. The 4th empty node
+        should catch up via state transfer.
+
+        Then take down one of the original nodes, and try to read the specific
+        key.
+
+        After that ensure that a newly put value can be retrieved.
+        """
+        trio.run(self._test_checkpoints_saved_and_transferred)
+
+    async def _test_checkpoints_saved_and_transferred(self):
+        config = bft_tester.TestConfig(n=4,
+                                       f=1,
+                                       c=0,
+                                       num_clients=1,
+                                       key_file_prefix=KEY_FILE_PREFIX,
+                                       start_replica_cmd=start_replica_cmd)
+        with bft_tester.BftTester(config) as tester:
+            await tester.init()
+            initial_nodes = [0, 1, 2]
+            [tester.start_replica(i) for i in initial_nodes]
+
+            p = self.protocol
+            client = tester.random_client()
+
+            # Write a KV pair with a known value
+            known_key = tester.max_key()
+            known_val = tester.random_value()
+            kv = [(known_key, known_val)]
+            reply = p.parse_reply(await client.write(p.write_req([], kv, 0)))
+            self.assertTrue(reply.success)
+
+            # Write enough data to checkpoint and create a need for state transfer
+            for i in range (301):
+                key = tester.random_key()
+                val = tester.random_value()
+                msg = self.protocol.write_req([], [(key, val)], 0)
+                reply = p.parse_reply(await client.write(msg))
+                self.assertTrue(reply.success)
+
+            await tester.assert_state_transfer_not_started_all_up_nodes(self)
+
+            # Wait for initial replicas to take 2 checkpoints (exhausting
+            # the full window)
+            checkpoint_num = 2;
+            await tester.wait_for_replicas_to_checkpoint(initial_nodes,
+                    checkpoint_num)
+            # Stop the initial replicas to ensure the checkpoints get persisted
+            [tester.stop_replica(i) for i in initial_nodes]
+
+            # Bring up the first 3 replicas and ensure that they have the
+            # checkpoint data.
+            [tester.start_replica(i) for i in initial_nodes]
+            await tester.wait_for_replicas_to_checkpoint(initial_nodes,
+                    checkpoint_num)
+
+            # Start the replica without any data, and wait for state transfer to
+            # complete.
+            tester.start_replica(3)
+            await tester.wait_for_state_transfer_to_start()
+            up_to_date_node = 0
+            stale_node = 3
+            await tester.wait_for_state_transfer_to_stop(up_to_date_node,
+                                                         stale_node)
+
+            # Stop another replica, so that a quorum of replies is forced to
+            # include data at the previously stale node
+            tester.stop_replica(2)
+
+            # Retrieve the value we put first to ensure state transfer worked
+            # when the log went away
+            read_req = self.protocol.read_req([known_key])
+            kvpairs = self.protocol.parse_reply(await client.read(read_req))
+            self.assertDictEqual(dict(kv), kvpairs)
+
+            # Perform a put/get transaction pair to ensure we can read newly
+            # written data after state transfer.
+            await tester.assert_successful_put_get(self, self.protocol)
