@@ -716,7 +716,7 @@ class AsyncTlsConnection : public
                            bool first) {
     // if first is true - we came from partial reading, no timer was started
     if(!first) {
-      auto res = _readTimer.expires_at(boost::posix_time::pos_infin);
+      __attribute__((unused)) auto res = _readTimer.expires_at(boost::posix_time::pos_infin);
       assert(res < 2); //can cancel at most 1 pending async_wait
     }
     if (_disposed) {
@@ -748,9 +748,10 @@ class AsyncTlsConnection : public
       read_msg_async(msgLength);
     }
 
-    auto res = _readTimer.expires_from_now(
+    __attribute__((unused)) auto res = _readTimer.expires_from_now(
         boost::posix_time::milliseconds(READ_TIME_OUT_MILLI));
     assert(res == 0); //can cancel at most 1 pending async_wait
+
     _readTimer.async_wait(
         boost::bind(&AsyncTlsConnection::on_read_timer_expired,
                     shared_from_this(),
@@ -792,7 +793,7 @@ class AsyncTlsConnection : public
    */
   void read_msg_async_completed(const boost::system::error_code &ec,
                                 size_t bytesRead) {
-    auto res = _readTimer.expires_at(boost::posix_time::pos_infin);
+    __attribute__((unused)) auto res = _readTimer.expires_at(boost::posix_time::pos_infin);
     assert(res < 2); //can cancel at most 1 pending async_wait
     if (_disposed) {
       return;
@@ -900,9 +901,11 @@ class AsyncTlsConnection : public
             boost::asio::placeholders::bytes_transferred));
 
     // start the timer to handle the write timeout
-    auto res = _writeTimer.expires_from_now(
+    __attribute__((unused)) auto res = _writeTimer.expires_from_now(
         boost::posix_time::milliseconds(WRITE_TIME_OUT_MILLI));
     assert(res == 0); //should not cancel any pending async wait
+    _writeTimer.expires_from_now(
+        boost::posix_time::milliseconds(WRITE_TIME_OUT_MILLI));
     _writeTimer.async_wait(
         boost::bind(&AsyncTlsConnection::on_write_timer_expired,
                     shared_from_this(),
@@ -913,8 +916,9 @@ class AsyncTlsConnection : public
    * completion callback for the async write operation
    */
   void async_write_complete(const B_ERROR_CODE &ec, size_t bytesWritten) {
-    auto res = _writeTimer.expires_at(boost::posix_time::pos_infin);
+    __attribute__((unused)) auto res = _writeTimer.expires_at(boost::posix_time::pos_infin);
     assert(res < 2); //can cancel at most 1 pending async_wait
+    _writeTimer.expires_at(boost::posix_time::pos_infin);
     if(_disposed) {
       return;
     }
