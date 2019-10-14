@@ -98,3 +98,19 @@ class SimpleKVBCProtocol:
 
     def parse_get_last_block_reply(self, data):
         return struct.unpack("<Q", data)[0]
+
+class Client:
+    """A wrapper around bft_client that uses the SimpleKVBCProtocol"""
+    def __init__(self, bft_client):
+        self.client = bft_client
+        self.protocol = SimpleKVBCProtocol()
+
+    async def write(self, readset, writeset, block_id=0):
+        """Create an skvbc write message and send it via the bft client."""
+        req = self.protocol.write_req(readset, writeset, block_id)
+        return self.protocol.parse_reply(await self.client.write(req))
+
+    async def read(self, readset, block_id=READ_LATEST):
+        """Create an skvbc read message and send it via the bft client."""
+        req = self.protocol.read_req(readset, block_id)
+        return self.protocol.parse_reply(await self.client.read(req))

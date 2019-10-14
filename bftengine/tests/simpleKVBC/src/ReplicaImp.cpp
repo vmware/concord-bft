@@ -80,7 +80,7 @@ void ReplicaImp::createReplicaAndSyncState() {
   LOG_INFO(logger, "createReplicaAndSyncState: isNewStorage= " << isNewStorage);
   m_replicaPtr = bftEngine::Replica::createNewReplica(
       &m_replicaConfig, m_cmdHandler, m_stateTransfer, m_ptrComm, m_metadataStorage);
-  if (!isNewStorage) {
+  if (!isNewStorage && !m_stateTransfer->isCollectingState()) {
     uint64_t removedBlocksNum = m_replicaStateSync.execute(
         logger, *m_bcDbAdapter, *this, m_appState->m_lastReachableBlock, m_replicaPtr->getLastExecutedSequenceNum());
     m_lastBlock -= removedBlocksNum;
