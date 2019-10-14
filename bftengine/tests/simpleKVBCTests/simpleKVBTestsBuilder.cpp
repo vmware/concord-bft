@@ -104,10 +104,11 @@ void TestsBuilder::retrieveExistingBlocksFromKVB() {
   assert(res.isOK());
 
   auto *replyObj = (SimpleReply_Read *)reply.data();
-  size_t numOfItems = replyObj->numOfItems;
+  __attribute__((unused)) size_t numOfItems = replyObj->numOfItems;
   assert(actualReplySize == expectedReplySize);
   assert(replyObj->header.type == READ);
   assert(numOfItems == NUMBER_OF_KEYS);
+  
   for (int key = 0; key < NUMBER_OF_KEYS; key++) {
     SimpleKeyBlockIdPair simpleKIDPair(replyObj->items[key].simpleKey, request->readVersion);
     allKeysToValueMap_[simpleKIDPair] = replyObj->items[key].simpleValue;
@@ -137,9 +138,9 @@ void TestsBuilder::create(size_t numOfRequests, size_t seed) {
       assert(0);
   }
 
-  for (auto elem : internalBlockchain_) {
-    BlockId blockId = elem.first;
-    SimpleBlock *block = elem.second;
+  for (__attribute__((unused)) auto elem : internalBlockchain_) {
+    __attribute__((unused)) BlockId blockId = elem.first;
+    __attribute__((unused)) SimpleBlock *block = elem.second;
     assert(blockId == block->id);
   }
 }
