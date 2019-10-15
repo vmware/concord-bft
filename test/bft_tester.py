@@ -227,6 +227,22 @@ class BftTester:
                 pass
             await trio.sleep(.1)
 
+    async def wait_for_fetching_state(self, replica_id):
+        """
+        Check metrics on fetching replic ato see if the replica is in a
+        fetching state
+        """
+        with trio.fail_after(10): # seconds
+            while True:
+                with trio.move_on_after(.2): # seconds
+                    if await self.is_fetching(replica_id):
+                        return
+
+    async def is_fetching(self, replica_id):
+        """Return whether the current replica is fetching state"""
+        key = ['bc_state_transfer', 'Statuses', 'fetching_state']
+        state = await self.metrics.get(replica_id, *key)
+        return state != "NotFetching"
 
     async def wait_for_state_transfer_to_start(self):
         """
@@ -282,6 +298,13 @@ class BftTester:
                     # Exit condition
                     if n >= last_exec_seq_num:
                        return
+
+    async def is_state_transfer_complete(self, up_to_date_node, stale_node):
+            # Get the lastExecutedSeqNumber from a reference node
+            key = ['replica', 'Gauges', 'lastExecutedSeqNum']
+            last_exec_seq_num = await self.metrics.get(up_to_date_node, *key)
+            n = await self.metrics.get(stale_node, *key)
+            return n == last_exec_seq_num
 
     async def wait_for_replicas_to_checkpoint(self, replica_ids, checkpoint_num):
         """
