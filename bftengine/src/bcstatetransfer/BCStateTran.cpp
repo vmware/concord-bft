@@ -2225,7 +2225,7 @@ void BCStateTran::checkConsistency(bool checkAllBlocks) {
   LOG_INFO(STLogger, "lastBlockNum = " << lastBlockNum << ", lastReachableBlockNum = " << lastReachableBlockNum);
   Assert(lastBlockNum >= lastReachableBlockNum);
   if (lastBlockNum > lastReachableBlockNum) {
-    Assert(getFetchingState() == FetchingState::GettingMissingResPages);
+    Assert(getFetchingState() == FetchingState::GettingMissingBlocks);
     uint64_t x = lastBlockNum - 1;
     while (as_->hasBlock(x))
       x--;
