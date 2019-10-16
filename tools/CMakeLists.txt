@@ -45,5 +45,11 @@ set_target_properties(TestGeneratedKeys
                       RUNTIME_OUTPUT_DIRECTORY
                       .)
 
+
+add_executable(skvb_db_editor DBEditor.cpp)
+target_include_directories(skvb_db_editor PUBLIC
+  ${PROJECT_SOURCE_DIR}/src include $<TARGET_PROPERTY:logging,INTERFACE_INCLUDE_DIRECTORIES>)
+target_link_libraries(skvb_db_editor concordbft_storage)
+
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/testKeyGeneration.sh
        DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
