@@ -33,9 +33,6 @@ using namespace std;
 
 using concord::storage::rocksdb::Client;
 using concord::storage::rocksdb::KeyComparator;
-//using concord::storage::blockchain::KeyManipulator;
-//using concord::storage::blockchain::EDBKeyType;
-//using concord::storage::blockchain::BlockHeader;
 using concord::storage::DBMetadataStorage;
 using namespace concord::storage;
 using namespace concord::storage::blockchain;
@@ -237,8 +234,8 @@ void parseAndPrint(const ::rocksdb::Slice& key, const ::rocksdb::Slice& val) {
   } //switch
 }
 
-void dumpAllValues(const Client &rocksDBClient) {
-  ::rocksdb::Iterator *it = rocksDBClient.getNewRocksDbIterator();
+void dumpAllValues() {
+  ::rocksdb::Iterator *it = dbClient->getNewRocksDbIterator();
   for (it->SeekToFirst(); it->Valid(); it->Next()) {
 //    printf("Key = 0x");
 //    for (size_t i = 0; i < it->key().size(); ++i) printf("%.2x", it->key()[i]);
@@ -272,7 +269,7 @@ int main(int argc, char **argv) {
         res = addStateMetadataObjects();
         break;
       case DUMP_ALL_VALUES:
-        dumpAllValues(*dbClient);
+        dumpAllValues();
         break;
       default:;
     }

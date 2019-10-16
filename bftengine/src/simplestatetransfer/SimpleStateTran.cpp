@@ -555,7 +555,6 @@ bool SimpleStateTran::loadReservedPage(uint32_t reservedPageId,
   uint32_t copyLength,
   char* outReservedPage) const {
   Assert(isInitialized());
-  Assert(internalST_->isRunning());
   Assert(reservedPageId < numberOfResPages_);
 
   return internalST_->loadReservedPage(reservedPageId,
