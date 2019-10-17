@@ -440,6 +440,7 @@ Sliver KeyManipulator::generateReservedPageKey(EDBKeyType keyType, uint32_t page
 Status DBAdapter::addBlock(BlockId _blockId, Sliver _blockRaw) {
   Sliver dbKey = key_manipulator_->genBlockDbKey(_blockId);
   Status s = db_->put(dbKey, _blockRaw);
+  LOG_TRACE(logger_, "block id: " << _blockId << " key:" <<  dbKey << " raw block: " << _blockRaw);
   return s;
 }
 
@@ -559,7 +560,7 @@ void DBAdapter::deleteBlockAndItsKeys(BlockId blockId) {
     auto *entries = (BlockEntry *)(blockRaw.data() + sizeof(BlockHeader));
     for (size_t i = 0; i < numOfElements; i++) {
       keysVec.push_back(
-          Key(blockRaw, entries[i].keyOffset, entries[i].keySize));
+          key_manipulator_->genDataDbKey(Key(blockRaw, entries[i].keyOffset, entries[i].keySize), blockId));
     }
   }
   if (found) {

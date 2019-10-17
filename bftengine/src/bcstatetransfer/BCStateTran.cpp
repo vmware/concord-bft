@@ -557,8 +557,6 @@ bool BCStateTran::loadReservedPage(uint32_t reservedPageId,
                                    char *outReservedPage) const {
   LOG_DEBUG(STLogger, "BCStateTran::loadReservedPage - reservedPageId=" << reservedPageId);
 
-  Assert(running_);
-  Assert(!isFetching());
   Assert(reservedPageId < numberOfReservedPages_);
   Assert(copyLength <= sizeOfReservedPage_);
 

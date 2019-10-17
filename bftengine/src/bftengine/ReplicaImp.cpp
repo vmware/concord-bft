@@ -3128,6 +3128,11 @@ ReplicaImp::ReplicaImp(bool firstTime,
 
   clientsManager->init(stateTransfer);
 
+  if (!firstTime || config.debugPersistentStorageEnabled)
+    clientsManager->loadInfoFromReservedPages();
+  else
+    clientsManager->clearReservedPages();
+
   int statusReportTimerMilli = (sendStatusPeriodMilli > 0) ? sendStatusPeriodMilli : config.statusReportTimerMillisec;
   Assert(statusReportTimerMilli > 0);
 
@@ -3319,19 +3324,11 @@ void ReplicaImp::StopWhenStateIsNotCollectedInternalMsg::handle() {
 }
 
 void ReplicaImp::processMessages() {
+  // TODO(GG): change this method to support "restart" ("start" after "stop")
 
   startSyncEvent.wait_one();
 
   stateTransfer->startRunning(this);
-
-  // We do this here because state transfer must be started to call
-  // loadInfoFromReservedPages
-  if (!stateTransfer->isCollectingState()) {
-    if (restarted_)
-      clientsManager->loadInfoFromReservedPages();
-    else
-      clientsManager->clearReservedPages();
-  }
 
   stateTranTimer->start();
   if (retransmissionsLogicEnabled) retranTimer->start();
