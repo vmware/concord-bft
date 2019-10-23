@@ -57,7 +57,10 @@ void DBDataStore::load() {
     deserializeCheckpoint(iss, cpd);
     inmem_->setCheckpointBeingFetched(cpd);
   }
-  loadResPages();
+  
+  if(inmem_->getLastStoredCheckpoint() > 0)
+    loadResPages();
+    
   loadPendingPages();
 
   LOG_DEBUG(logger(), "MyReplicaId: "               << inmem_->getMyReplicaId());

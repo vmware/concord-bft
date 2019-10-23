@@ -1384,12 +1384,6 @@ void ReplicaImp::onMessage(CheckpointMsg *msg) {
   if (askForStateTransfer) {
     LOG_INFO_F(GL, "call to startCollectingState()");
 
-    if (ps_) {
-      ps_->beginWriteTran();
-      ps_->setFetchingState(true);
-      ps_->endWriteTran();
-    }
-
     stateTransfer->startCollectingState();
   } else if (msgSeqNum > lastStableSeqNum + kWorkWindowSize) {
     onReportAboutAdvancedReplica(msgSenderId, msgSeqNum);
@@ -2202,9 +2196,8 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
 
   if (ps_) {
     ps_->beginWriteTran();
-    ps_->setFetchingState(false);
   }
-
+    
   if (newStateCheckpoint <= lastExecutedSeqNum) {
     LOG_DEBUG_F(GL,
                "Executing onTransferringCompleteImp(newStateCheckpoint) where newStateCheckpoint <= lastExecutedSeqNum");
@@ -2278,12 +2271,6 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
 
   if (askAnotherStateTransfer) {
     LOG_INFO_F(GL, "call to startCollectingState()");
-
-    if (ps_) {
-      ps_->beginWriteTran();
-      ps_->setFetchingState(true);
-      ps_->endWriteTran();
-    }
 
     stateTransfer->startCollectingState();
   }

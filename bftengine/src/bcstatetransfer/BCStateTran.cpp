@@ -568,6 +568,8 @@ bool BCStateTran::loadReservedPage(uint32_t reservedPageId,
     psd_->getPendingResPage(reservedPageId, outReservedPage, copyLength);
   } else {
     uint64_t lastCheckpoint = psd_->getLastStoredCheckpoint();
+    if (lastCheckpoint == 0) // case when the system is restarted before reaching the first checkpoint
+      return false;
     uint64_t t = UINT64_MAX;
     metrics_.load_reserved_page_from_checkpoint_.Get().Inc();
     psd_->getResPage(reservedPageId, lastCheckpoint,
