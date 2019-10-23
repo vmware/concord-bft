@@ -34,14 +34,13 @@
 #endif
 
 #if defined(_WIN32)
-#pragma warning(disable:4996) // TODO(GG+SG): should be removed!! (see also _CRT_SECURE_NO_WARNINGS)
+#pragma warning(disable : 4996)  // TODO(GG+SG): should be removed!! (see also _CRT_SECURE_NO_WARNINGS)
 #endif
 
 using namespace std;
 using namespace bftEngine;
 
-struct NodeAddressResolveResult
-{
+struct NodeAddressResolveResult {
   NodeNum nodeId;
   bool wasFound;
   string key;
@@ -86,8 +85,7 @@ class PlainUDPCommunication::PlainUdpImpl {
 
   concordlogger::Logger _logger = concordlogger::Log::getLogger("plain-udp");
 
-  bool check_replica(NodeNum node)
-  {
+  bool check_replica(NodeNum node) {
     auto it = endpoints.find(node);
     if (it == endpoints.end()) {
       return false;
@@ -96,22 +94,18 @@ class PlainUDPCommunication::PlainUdpImpl {
     return it->second.isReplica;
   }
 
-  string
-  create_key(string ip, uint16_t port) {
+  string create_key(string ip, uint16_t port) {
     auto key = ip + ":" + to_string(port);
     return key;
   }
 
-  string
-  create_key(Addr a) {
-    return create_key(inet_ntoa(a.sin_addr), ntohs(a.sin_port));
-  }
+  string create_key(Addr a) { return create_key(inet_ntoa(a.sin_addr), ntohs(a.sin_port)); }
 
  public:
   /**
-  * Initializes a new UDPCommunication layer that will listen on the given
-  * listenPort.
-  */
+   * Initializes a new UDPCommunication layer that will listen on the given
+   * listenPort.
+   */
   PlainUdpImpl(const PlainUdpConfig &config)
       : maxMsgSize{config.bufferLength},
         udpListenPort{config.listenPort},
@@ -122,32 +116,29 @@ class PlainUDPCommunication::PlainUdpImpl {
     Assert(config.listenPort > 0, "Port should not be negative!");
     Assert(config.nodes.size() > 0, "No communication endpoints specified!");
 
-    LOG_DEBUG(_logger, "Node " << config.selfId <<
-        ", listen IP: " << config.listenIp <<
-        ", listen port: " << config.listenPort);
+    LOG_DEBUG(
+        _logger,
+        "Node " << config.selfId << ", listen IP: " << config.listenHost << ", listen port: " << config.listenPort);
 
-    for (auto next = config.nodes.begin();
-         next != config.nodes.end();
-         next++) {
-      auto key = create_key(next->second.ip, next->second.port);
+    for (auto next = config.nodes.begin(); next != config.nodes.end(); next++) {
+      auto key = create_key(next->second.host, next->second.port);
       addr2nodes[key] = next->first;
 
-      LOG_DEBUG(_logger, "Node " << config.selfId <<
-          ", got peer: " << key);
+      LOG_DEBUG(_logger, "Node " << config.selfId << ", got peer: " << key);
 
       if (statusCallback && next->second.isReplica) {
         PeerConnectivityStatus pcs{};
         pcs.peerId = next->first;
-        pcs.peerIp = next->second.ip;
+        pcs.peerHost = next->second.host;
         pcs.peerPort = next->second.port;
         pcs.statusType = StatusType::Started;
         statusCallback(pcs);
       }
 
       Addr ad;
-      memset((char *) &ad, 0, sizeof(ad));
+      memset((char *)&ad, 0, sizeof(ad));
       ad.sin_family = AF_INET;
-      ad.sin_addr.s_addr = inet_addr(next->second.ip.c_str());
+      ad.sin_addr.s_addr = inet_addr(next->second.host.c_str());
       ad.sin_port = htons(next->second.port);
       nodes2addresses.insert({next->first, ad});
     }
@@ -158,13 +149,9 @@ class PlainUDPCommunication::PlainUdpImpl {
     udpSockFd = 0;
   }
 
-  int
-  getMaxMessageSize() {
-    return maxMsgSize;
-  }
+  int getMaxMessageSize() { return maxMsgSize; }
 
-  int
-  Start() {
+  int Start() {
     int error = 0;
     Addr sAddr;
 
@@ -180,7 +167,7 @@ class PlainUDPCommunication::PlainUdpImpl {
       return -1;
     }
 
-    bufferForIncomingMessages = (char *) std::malloc(maxMsgSize);
+    bufferForIncomingMessages = (char *)std::malloc(maxMsgSize);
 
     // Initialize socket.
     udpSockFd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -191,20 +178,20 @@ class PlainUDPCommunication::PlainUdpImpl {
     sAddr.sin_port = htons(udpListenPort);
 
     // Bind the socket.
-    error = ::bind(udpSockFd, (struct sockaddr *) &sAddr, sizeof(Addr));
+    error = ::bind(udpSockFd, (struct sockaddr *)&sAddr, sizeof(Addr));
     if (error < 0) {
-      LOG_FATAL(_logger, "Error while binding: IP=" << sAddr.sin_addr.s_addr <<
-                         ", Port=" << sAddr.sin_port <<
-                         ", errno="<< strerror(errno));
+      LOG_FATAL(_logger,
+                "Error while binding: IP=" << sAddr.sin_addr.s_addr << ", Port=" << sAddr.sin_port
+                                           << ", errno=" << strerror(errno));
       Assert(false, "Failure occurred while binding the socket!");
-      exit(1); // TODO(GG): not really ..... change this !
+      exit(1);  // TODO(GG): not really ..... change this !
     }
 
 #ifdef WIN32
     {
-       BOOL tmpBuf = FALSE;
-       DWORD bytesReturned = 0;
-       WSAIoctl(udpSockFd, _WSAIOW(IOC_VENDOR, 12), &tmpBuf, sizeof(tmpBuf), NULL, 0, &bytesReturned, NULL, NULL);
+      BOOL tmpBuf = FALSE;
+      DWORD bytesReturned = 0;
+      WSAIoctl(udpSockFd, _WSAIOW(IOC_VENDOR, 12), &tmpBuf, sizeof(tmpBuf), NULL, 0, &bytesReturned, NULL, NULL);
     }
 #endif
 
@@ -214,9 +201,8 @@ class PlainUDPCommunication::PlainUdpImpl {
     return 0;
   }
 
-  int
-  Stop() {
-	  std::lock_guard<std::mutex> guard(runningLock);
+  int Stop() {
+    std::lock_guard<std::mutex> guard(runningLock);
     if (running == false) {
       LOG_DEBUG(_logger, "Cannot Stop(): not running!");
       return -1;
@@ -238,7 +224,7 @@ class PlainUDPCommunication::PlainUdpImpl {
     running = false;
 
     /** Stopping the receiving thread happens as the last step because it
-      * relies on the 'running' flag. */
+     * relies on the 'running' flag. */
     stopRecvThread();
 
     std::free(bufferForIncomingMessages);
@@ -247,25 +233,13 @@ class PlainUDPCommunication::PlainUdpImpl {
     return 0;
   }
 
-  bool
-  isRunning() const {
-    return running;
-  }
+  bool isRunning() const { return running; }
 
-  void
-  setReceiver(NodeNum &receiverNum, IReceiver *pRcv) {
-    receiverRef = pRcv;
-  }
+  void setReceiver(NodeNum &receiverNum, IReceiver *pRcv) { receiverRef = pRcv; }
 
-  ConnectionStatus
-  getCurrentConnectionStatus(const NodeNum &node) const {
-    return ConnectionStatus::Unknown;
-  }
+  ConnectionStatus getCurrentConnectionStatus(const NodeNum &node) const { return ConnectionStatus::Unknown; }
 
-  int
-  sendAsyncMessage(const NodeNum &destNode,
-                   const char *const message,
-                   const size_t &messageLength) {
+  int sendAsyncMessage(const NodeNum &destNode, const char *const message, const size_t &messageLength) {
     int error = 0;
 
     Assert(running == true, "The communication layer is not running!");
@@ -276,25 +250,23 @@ class PlainUDPCommunication::PlainUdpImpl {
     Assert(messageLength > 0, "The message length must be positive!");
     Assert(message != NULL, "No message provided!");
 
-    LOG_DEBUG(_logger, " Sending " << messageLength
-                          << " bytes to "
-                          << destNode << " (" << inet_ntoa(to->sin_addr) << ":"
+    LOG_DEBUG(_logger,
+              " Sending " << messageLength << " bytes to " << destNode << " (" << inet_ntoa(to->sin_addr) << ":"
                           << ntohs(to->sin_port));
 
-    error = sendto(udpSockFd, message, messageLength, 0,
-                   (struct sockaddr *) to, sizeof(Addr));
+    error = sendto(udpSockFd, message, messageLength, 0, (struct sockaddr *)to, sizeof(Addr));
 
     if (error < 0) {
       /** -1 return value means underlying socket error. */
       string err = strerror(errno);
       LOG_INFO(_logger, "Error while sending: " << strerror(errno));
-    } else if (error < (int) messageLength) {
+    } else if (error < (int)messageLength) {
       /** Mesage was partially sent. Unclear why this would happen, perhaps
-        * due to oversized messages (?). */
+       * due to oversized messages (?). */
       LOG_INFO(_logger, "Sent %d out of %d bytes!");
     }
 
-    if (error == (ssize_t) messageLength) {
+    if (error == (ssize_t)messageLength) {
       if (statusCallback) {
         PeerConnectivityStatus pcs{};
         pcs.peerId = selfId;
@@ -309,14 +281,12 @@ class PlainUDPCommunication::PlainUdpImpl {
     return 0;
   }
 
-  void
-  startRecvThread() {
+  void startRecvThread() {
     LOG_DEBUG(_logger, "Starting the receiving thread..");
     recvThreadRef.reset(new std::thread(std::bind(&PlainUdpImpl::recvThreadRoutine, this)));
   }
 
-  NodeAddressResolveResult
-  addrToNodeId(Addr netAddress) {
+  NodeAddressResolveResult addrToNodeId(Addr netAddress) {
     auto key = create_key(netAddress);
     auto res = addr2nodes.find(key);
     if (res == addr2nodes.end()) {
@@ -330,19 +300,15 @@ class PlainUDPCommunication::PlainUdpImpl {
     return NodeAddressResolveResult({res->second, true, key});
   }
 
-  void
-  stopRecvThread() {
-//    LOG_ERROR(_logger,"Stopping the receiving thread..");
+  void stopRecvThread() {
+    //    LOG_ERROR(_logger,"Stopping the receiving thread..");
     recvThreadRef->join();
-//    LOG_ERROR(_logger,"Stopping the receiving thread..");
+    //    LOG_ERROR(_logger,"Stopping the receiving thread..");
   }
 
-  void
-  recvThreadRoutine() {
-    Assert(udpSockFd != 0,
-           "Unable to start receiving: socket not define!");
-    Assert(receiverRef != 0,
-           "Unable to start receiving: receiver not defined!");
+  void recvThreadRoutine() {
+    Assert(udpSockFd != 0, "Unable to start receiving: socket not define!");
+    Assert(receiverRef != 0, "Unable to start receiving: receiver not defined!");
 
     /** The main receive loop. */
     Addr fromAddress;
@@ -353,12 +319,8 @@ class PlainUDPCommunication::PlainUdpImpl {
 #endif
     int mLen = 0;
     do {
-      mLen = recvfrom(udpSockFd,
-                      bufferForIncomingMessages,
-                      maxMsgSize,
-                      0,
-                      (sockaddr *) &fromAddress,
-                      &fromAddressLength);
+      mLen =
+          recvfrom(udpSockFd, bufferForIncomingMessages, maxMsgSize, 0, (sockaddr *)&fromAddress, &fromAddressLength);
 
       LOG_DEBUG(_logger, "Node " << selfId << ": recvfrom returned " << mLen << " bytes");
 
@@ -374,7 +336,7 @@ class PlainUDPCommunication::PlainUdpImpl {
       }
 
       auto resolveNode = addrToNodeId(fromAddress);
-      if(!resolveNode.wasFound) {
+      if (!resolveNode.wasFound) {
         LOG_DEBUG(_logger, "Sender not found, address: " << resolveNode.key);
         continue;
       }
@@ -382,9 +344,7 @@ class PlainUDPCommunication::PlainUdpImpl {
       auto sendingNode = resolveNode.nodeId;
       if (receiverRef != NULL) {
         LOG_DEBUG(_logger, "Node " << selfId << ": Calling onNewMessage, msg from: " << sendingNode);
-        receiverRef->onNewMessage(sendingNode,
-                                  bufferForIncomingMessages,
-                                  mLen);
+        receiverRef->onNewMessage(sendingNode, bufferForIncomingMessages, mLen);
       } else {
         LOG_ERROR(_logger, "Node " << selfId << ": receiver is NULL");
       }
@@ -396,7 +356,7 @@ class PlainUDPCommunication::PlainUdpImpl {
 
         char str[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &(fromAddress.sin_addr), str, INET_ADDRSTRLEN);
-        pcs.peerIp = string(str);
+        pcs.peerHost = string(str);
 
         pcs.peerPort = ntohs(fromAddress.sin_port);
         pcs.statusType = StatusType::MessageReceived;
@@ -411,51 +371,38 @@ class PlainUDPCommunication::PlainUdpImpl {
 };
 
 PlainUDPCommunication::~PlainUDPCommunication() {
-  if(_ptrImpl)
-    delete _ptrImpl;
+  if (_ptrImpl) delete _ptrImpl;
 }
 
-PlainUDPCommunication::PlainUDPCommunication(const PlainUdpConfig &config) {
-  _ptrImpl = new PlainUdpImpl(config);
-}
+PlainUDPCommunication::PlainUDPCommunication(const PlainUdpConfig &config) { _ptrImpl = new PlainUdpImpl(config); }
 
 PlainUDPCommunication *PlainUDPCommunication::create(const PlainUdpConfig &config) {
   return new PlainUDPCommunication(config);
 }
 
-int PlainUDPCommunication::getMaxMessageSize() {
-  return _ptrImpl->getMaxMessageSize();
-}
+int PlainUDPCommunication::getMaxMessageSize() { return _ptrImpl->getMaxMessageSize(); }
 
-int PlainUDPCommunication::Start() {
-  return _ptrImpl->Start();
-}
+int PlainUDPCommunication::Start() { return _ptrImpl->Start(); }
 
 int PlainUDPCommunication::Stop() {
-  if (!_ptrImpl)
-    return 0;
+  if (!_ptrImpl) return 0;
 
   auto res = _ptrImpl->Stop();
   return res;
 }
 
-bool PlainUDPCommunication::isRunning() const {
-  return _ptrImpl->isRunning();
-}
+bool PlainUDPCommunication::isRunning() const { return _ptrImpl->isRunning(); }
 
-ConnectionStatus
-PlainUDPCommunication::getCurrentConnectionStatus(const NodeNum node) const {
+ConnectionStatus PlainUDPCommunication::getCurrentConnectionStatus(const NodeNum node) const {
   return _ptrImpl->getCurrentConnectionStatus(node);
 }
 
-int
-PlainUDPCommunication::sendAsyncMessage(const NodeNum destNode,
-                                        const char *const message,
-                                        const size_t messageLength) {
+int PlainUDPCommunication::sendAsyncMessage(const NodeNum destNode,
+                                            const char *const message,
+                                            const size_t messageLength) {
   return _ptrImpl->sendAsyncMessage(destNode, message, messageLength);
 }
 
-void
-PlainUDPCommunication::setReceiver(NodeNum receiverNum, IReceiver *receiver) {
+void PlainUDPCommunication::setReceiver(NodeNum receiverNum, IReceiver *receiver) {
   _ptrImpl->setReceiver(receiverNum, receiver);
 }

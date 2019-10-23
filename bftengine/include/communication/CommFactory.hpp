@@ -18,12 +18,12 @@
 #include "Logger.hpp"
 
 namespace bftEngine {
-class CommFactory {  
+class CommFactory {
  private:
   static concordlogger::Logger _logger;
+
  public:
-  static ICommunication*
-  create(const BaseCommConfig &config);
+  static ICommunication* create(const BaseCommConfig& config);
 };
 }  // namespace bftEngine
 

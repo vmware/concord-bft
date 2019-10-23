@@ -18,6 +18,7 @@
 #include <ws2def.h>
 #else
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #endif
@@ -32,7 +33,7 @@
 typedef struct sockaddr_in Addr;
 
 struct NodeInfo {
-  std::string ip;
+  std::string host;
   std::uint16_t port;
   bool isReplica;
 };
@@ -40,17 +41,11 @@ struct NodeInfo {
 typedef std::unordered_map<NodeNum, NodeInfo> NodeMap;
 
 namespace bftEngine {
-enum CommType {
-  PlainUdp,
-  SimpleAuthUdp,
-  PlainTcp,
-  SimpleAuthTcp,
-  TlsTcp
-};
+enum CommType { PlainUdp, SimpleAuthUdp, PlainTcp, SimpleAuthTcp, TlsTcp };
 
 struct BaseCommConfig {
   CommType commType;
-  std::string listenIp;
+  std::string listenHost;
   uint16_t listenPort;
   uint32_t bufferLength;
   NodeMap nodes;
@@ -58,60 +53,47 @@ struct BaseCommConfig {
   NodeNum selfId;
 
   BaseCommConfig(CommType type,
-                 std::string ip,
+                 std::string host,
                  uint16_t port,
                  uint32_t bufLength,
                  NodeMap _nodes,
                  NodeNum _selfId,
-                 UPDATE_CONNECTIVITY_FN _statusCallback = nullptr) :
-      commType{type},
-      listenIp{std::move(ip)},
-      listenPort{port},
-      bufferLength{bufLength},
-      nodes{std::move(_nodes)},
-      statusCallback{_statusCallback},
-      selfId {_selfId} {
-  }
+                 UPDATE_CONNECTIVITY_FN _statusCallback = nullptr)
+      : commType{type},
+        listenHost{std::move(host)},
+        listenPort{port},
+        bufferLength{bufLength},
+        nodes{std::move(_nodes)},
+        statusCallback{_statusCallback},
+        selfId{_selfId} {}
 
   virtual ~BaseCommConfig() {}
 };
 
 struct PlainUdpConfig : BaseCommConfig {
-  PlainUdpConfig(std::string ip,
+  PlainUdpConfig(std::string host,
                  uint16_t port,
                  uint32_t bufLength,
                  NodeMap _nodes,
                  NodeNum _selfId,
-                 UPDATE_CONNECTIVITY_FN _statusCallback = nullptr) :
-      BaseCommConfig(CommType::PlainUdp,
-                     std::move(ip),
-                     port,
-                     bufLength,
-                     std::move(_nodes),
-                     _selfId,
-                     _statusCallback) {
-  }
+                 UPDATE_CONNECTIVITY_FN _statusCallback = nullptr)
+      : BaseCommConfig(
+            CommType::PlainUdp, std::move(host), port, bufLength, std::move(_nodes), _selfId, _statusCallback) {}
 };
 
 struct PlainTcpConfig : BaseCommConfig {
   int32_t maxServerId;
 
-  PlainTcpConfig(std::string ip,
+  PlainTcpConfig(std::string host,
                  uint16_t port,
                  uint32_t bufLength,
                  NodeMap _nodes,
                  int32_t _maxServerId,
                  NodeNum _selfId,
-                 UPDATE_CONNECTIVITY_FN _statusCallback = nullptr) :
-      BaseCommConfig(CommType::PlainTcp,
-                     std::move(ip),
-                     port,
-                     bufLength,
-                     std::move(_nodes),
-                     _selfId,
-                     _statusCallback),
-      maxServerId{_maxServerId} {
-  }
+                 UPDATE_CONNECTIVITY_FN _statusCallback = nullptr)
+      : BaseCommConfig(
+            CommType::PlainTcp, std::move(host), port, bufLength, std::move(_nodes), _selfId, _statusCallback),
+        maxServerId{_maxServerId} {}
 };
 
 struct TlsTcpConfig : PlainTcpConfig {
@@ -121,7 +103,7 @@ struct TlsTcpConfig : PlainTcpConfig {
   // https://www.openssl.org/docs/man1.0.2/man1/ciphers.html
   std::string cipherSuite;
 
-  TlsTcpConfig(std::string ip,
+  TlsTcpConfig(std::string host,
                uint16_t port,
                uint32_t bufLength,
                NodeMap _nodes,
@@ -129,16 +111,10 @@ struct TlsTcpConfig : PlainTcpConfig {
                NodeNum _selfId,
                std::string certRootPath,
                std::string ciphSuite,
-               UPDATE_CONNECTIVITY_FN _statusCallback = nullptr) :
-      PlainTcpConfig(move(ip),
-                     port,
-                     bufLength,
-                     std::move(_nodes),
-                     _maxServerId,
-                     _selfId,
-                     _statusCallback),
-      certificatesRootPath{std::move(certRootPath)},
-      cipherSuite{std::move(ciphSuite)} {
+               UPDATE_CONNECTIVITY_FN _statusCallback = nullptr)
+      : PlainTcpConfig(move(host), port, bufLength, std::move(_nodes), _maxServerId, _selfId, _statusCallback),
+        certificatesRootPath{std::move(certRootPath)},
+        cipherSuite{std::move(ciphSuite)} {
     commType = CommType::TlsTcp;
   }
 };
@@ -151,21 +127,18 @@ class PlainUDPCommunication : public ICommunication {
   int Start() override;
   int Stop() override;
   bool isRunning() const override;
-  ConnectionStatus getCurrentConnectionStatus(
-      const NodeNum node) const override;
+  ConnectionStatus getCurrentConnectionStatus(const NodeNum node) const override;
 
-  int sendAsyncMessage(const NodeNum destNode,
-                       const char *const message,
-                       const size_t messageLength) override;
+  int sendAsyncMessage(const NodeNum destNode, const char *const message, const size_t messageLength) override;
 
-  void setReceiver(NodeNum receiverNum,
-                   IReceiver *receiver) override;
+  void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
 
   virtual ~PlainUDPCommunication();
+
  private:
   class PlainUdpImpl;
 
-  //TODO(IG): convert to smart ptr
+  // TODO(IG): convert to smart ptr
   PlainUdpImpl *_ptrImpl = nullptr;
 
   explicit PlainUDPCommunication(const PlainUdpConfig &config);
@@ -179,17 +152,14 @@ class PlainTCPCommunication : public ICommunication {
   int Start() override;
   int Stop() override;
   bool isRunning() const override;
-  ConnectionStatus getCurrentConnectionStatus(
-      const NodeNum node) const override;
+  ConnectionStatus getCurrentConnectionStatus(const NodeNum node) const override;
 
-  int sendAsyncMessage(const NodeNum destNode,
-                       const char *const message,
-                       const size_t messageLength) override;
+  int sendAsyncMessage(const NodeNum destNode, const char *const message, const size_t messageLength) override;
 
-  void setReceiver(NodeNum receiverNum,
-                   IReceiver *receiver) override;
+  void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
 
   virtual ~PlainTCPCommunication();
+
  private:
   class PlainTcpImpl;
   PlainTcpImpl *_ptrImpl = nullptr;
@@ -205,23 +175,20 @@ class TlsTCPCommunication : public ICommunication {
   int Start() override;
   int Stop() override;
   bool isRunning() const override;
-  ConnectionStatus getCurrentConnectionStatus(
-      const NodeNum node) const override;
+  ConnectionStatus getCurrentConnectionStatus(const NodeNum node) const override;
 
-  int sendAsyncMessage(const NodeNum destNode,
-                       const char *const message,
-                       const size_t messageLength) override;
+  int sendAsyncMessage(const NodeNum destNode, const char *const message, const size_t messageLength) override;
 
-  void setReceiver(NodeNum receiverNum,
-                   IReceiver *receiver) override;
+  void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
 
   virtual ~TlsTCPCommunication();
+
  private:
   class TlsTcpImpl;
   std::shared_ptr<TlsTcpImpl> _ptrImpl = nullptr;
 
   explicit TlsTCPCommunication(const TlsTcpConfig &config);
 };
-}
+}  // namespace bftEngine
 
-#endif //BYZ_COMMDEFS_HPP
+#endif  // BYZ_COMMDEFS_HPP
