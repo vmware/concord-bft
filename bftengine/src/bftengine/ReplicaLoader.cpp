@@ -337,7 +337,7 @@ ReplicaLoader::ErrorCode loadReplicaData(shared_ptr<PersistentStorage> p, Loaded
       Verify(d.executedSeqNum > ld.lastStableSeqNum, InconsistentErr);
       Verify(d.executedSeqNum <= ld.lastStableSeqNum + kWorkWindowSize, InconsistentErr);
 
-      uint64_t idx = d.executedSeqNum - ld.lastStableSeqNum;
+      uint64_t idx = d.executedSeqNum - ld.lastStableSeqNum - 1;
       Assert(idx < kWorkWindowSize);
 
       const SeqNumData &e = ld.seqNumWinArr[idx];
