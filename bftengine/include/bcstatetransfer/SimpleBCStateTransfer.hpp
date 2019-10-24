@@ -15,9 +15,12 @@
 #define BFTENGINE_SRC_BCSTATETRANSFER_SIMPLEBCSTATETRANSFER_HPP_
 
 #include <set>
+#include <memory>
 
 #include "IStateTransfer.hpp"
+#include "Metrics.hpp"
 
+namespace concord{ namespace storage{ class IDBClient; }}
 namespace bftEngine {
 
 // This file contains interfaces of a state transfer module which is designed
@@ -113,8 +116,15 @@ struct Config {
 };
 
 // creates an instance of the state transfer module.
-IStateTransfer *create(const Config &config,
-                       IAppState *const stateApi, const bool persistentDataStore);
+
+IStateTransfer* create(const Config &config,
+                       IAppState *const stateApi,
+                       std::shared_ptr<::concord::storage::IDBClient> dbc);
+
+IStateTransfer* create(const Config &config,
+                       IAppState *const stateApi,
+                       std::shared_ptr<::concord::storage::IDBClient> dbc,
+                       std::shared_ptr<concordMetrics::Aggregator> aggregator);
 
 }  // namespace SimpleBlockchainStateTransfer
 }  // namespace bftEngine

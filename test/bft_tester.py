@@ -118,6 +118,13 @@ class BftTester:
             keys.append(bytes(key))
         return keys
 
+    def max_key(self):
+        """
+        Return the maximum possible key according to the schema in _create_keys.
+
+        """
+        return b''.join([b'Z' for _ in range(0, KV_LEN)])
+
     def initial_state(self):
         """Return a dict with KV_LEN zero byte values for all keys"""
         all_zeros = b''.join([b'\x00' for _ in range(0, KV_LEN)])
@@ -220,6 +227,22 @@ class BftTester:
                 pass
             await trio.sleep(.1)
 
+    async def wait_for_fetching_state(self, replica_id):
+        """
+        Check metrics on fetching replic ato see if the replica is in a
+        fetching state
+        """
+        with trio.fail_after(10): # seconds
+            while True:
+                with trio.move_on_after(.2): # seconds
+                    if await self.is_fetching(replica_id):
+                        return
+
+    async def is_fetching(self, replica_id):
+        """Return whether the current replica is fetching state"""
+        key = ['bc_state_transfer', 'Statuses', 'fetching_state']
+        state = await self.metrics.get(replica_id, *key)
+        return state != "NotFetching"
 
     async def wait_for_state_transfer_to_start(self):
         """
@@ -252,11 +275,55 @@ class BftTester:
             # Get the lastExecutedSeqNumber from a started node
             key = ['replica', 'Gauges', 'lastExecutedSeqNum']
             last_exec_seq_num = await self.metrics.get(up_to_date_node, *key)
+            last_n = -1;
             while True:
                 with trio.move_on_after(.5): # seconds
-                    n = await self.metrics.get(stale_node, *key)
+                    metrics = await self.metrics.get_all(stale_node)
+                    n = self.metrics.get_local(metrics, *key)
+
+                    # Debugging
+                    if n != last_n:
+                        last_n = n
+                        checkpoint = ['bc_state_transfer',
+                                'Gauges', 'last_stored_checkpoint']
+                        on_transferring_complete = ['bc_state_transfer',
+                                'Counters', 'on_transferring_complete']
+                        print("wait_for_st_to_stop: last_exec_seq_num={} "
+                              "last_stored_checkpoint={} "
+                              "on_transferring_complete_count={}".format(
+                                    n,
+                                    self.metrics.get_local(metrics, *checkpoint),
+                                    self.metrics.get_local(metrics,
+                                        *on_transferring_complete)))
+                    # Exit condition
                     if n >= last_exec_seq_num:
                        return
+
+    async def is_state_transfer_complete(self, up_to_date_node, stale_node):
+            # Get the lastExecutedSeqNumber from a reference node
+            key = ['replica', 'Gauges', 'lastExecutedSeqNum']
+            last_exec_seq_num = await self.metrics.get(up_to_date_node, *key)
+            n = await self.metrics.get(stale_node, *key)
+            return n == last_exec_seq_num
+
+    async def wait_for_replicas_to_checkpoint(self, replica_ids, checkpoint_num):
+        """
+        Wait for every replica in `replicas` to take a checkpoint.
+        Check every .5 seconds and give fail after 30 seconds.
+        """
+        with trio.fail_after(30): # seconds
+            async with trio.open_nursery() as nursery:
+                for replica_id in replica_ids:
+                    nursery.start_soon(self.wait_for_checkpoint, replica_id,
+                            checkpoint_num)
+
+    async def wait_for_checkpoint(self, replica_id, checkpoint_num):
+        key = ['bc_state_transfer', 'Gauges', 'last_stored_checkpoint']
+        while True:
+            with trio.move_on_after(.5): # seconds
+                n = await self.metrics.get(replica_id, *key)
+                if n == checkpoint_num:
+                    return
 
     async def assert_state_transfer_not_started_all_up_nodes(self, testcase):
         with trio.fail_after(METRICS_TIMEOUT_SEC):
@@ -271,6 +338,32 @@ class BftTester:
         key = ['replica', 'Counters', 'receivedStateTransferMsgs']
         n = await self.metrics.get(replica.id, *key)
         testcase.assertEqual(0, n)
+
+    async def assert_successful_put_get(self, testcase, protocol):
+        """ Assert that we can get a valid put """
+        client = self.random_client()
+        read_reply = await client.read(protocol.get_last_block_req())
+        last_block = protocol.parse_reply(read_reply)
+
+        # Perform an unconditional KV put.
+        # Ensure that the block number increments.
+        key = self.random_key()
+        val = self.random_value()
+
+        reply = await client.write(protocol.write_req([], [(key, val)], 0))
+        reply = protocol.parse_reply(reply)
+        testcase.assertTrue(reply.success)
+        testcase.assertEqual(last_block + 1, reply.last_block_id)
+
+        # Retrieve the last block and ensure that it matches what's expected
+        read_reply = await client.read(protocol.get_last_block_req())
+        newest_block = protocol.parse_reply(read_reply)
+        testcase.assertEqual(last_block+1, newest_block)
+
+        # Get the previous put value, and ensure it's correct
+        read_req = protocol.read_req([key], newest_block)
+        kvpairs = protocol.parse_reply(await client.read(read_req))
+        testcase.assertDictEqual({key: val}, kvpairs)
 
     async def wait_for(self, predicate, timeout, interval):
         """

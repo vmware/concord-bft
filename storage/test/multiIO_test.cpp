@@ -20,16 +20,19 @@ using concordUtils::Sliver;
 using concordUtils::KeysVector;
 using concordUtils::KeyValuePair;
 using concordUtils::SetOfKeyValuePairs;
+using concordUtils::BlockId;
 using concord::storage::rocksdb::Client;
 using concord::storage::rocksdb::KeyComparator;
 using concord::storage::ITransaction;
 using concord::storage::blockchain::KeyManipulator;
+
 namespace {
 
-Client *dbClient = nullptr;
 const uint16_t blocksNum = 50;
 const uint16_t keyLen = 120;
 const uint16_t valueLen = 500;
+
+std::unique_ptr<Client> dbClient;
 
 uint8_t *createAndFillBuf(size_t length) {
   auto *buffer = new uint8_t[length];
@@ -59,16 +62,46 @@ void verifyMultiDel(KeysVector &keys) {
 
 void launchMultiPut(KeysVector &keys, Sliver inValues[blocksNum],
                     SetOfKeyValuePairs &keyValueMap) {
+  std::unique_ptr<KeyManipulator> key_manip_(new KeyManipulator);
   for (auto i = 0; i < blocksNum; i++) {
-    keys[i] = Sliver(createAndFillBuf(keyLen), keyLen);
+    keys[i] = key_manip_->genDataDbKey(Sliver(createAndFillBuf(keyLen), keyLen), i);
     inValues[i] = Sliver(createAndFillBuf(valueLen), valueLen);
     keyValueMap.insert(KeyValuePair(keys[i], inValues[i]));
   }
   ASSERT_TRUE(dbClient->multiPut(keyValueMap).isOK());
 }
 
-TEST(multiIO_test, single_put) {
-  Sliver key(createAndFillBuf(keyLen), keyLen);
+class multiIO_test: public ::testing::Test {
+  protected:
+    void SetUp() override {
+      key_manipulator_.reset(new KeyManipulator());
+      comparator_ = new KeyComparator(new KeyManipulator());
+      dbClient.reset(new Client(dbPath_, comparator_));
+      dbClient->init();
+    }
+
+    void TearDown() override {
+      dbClient.reset();
+      delete comparator_;
+      string cmd = string("rm -rf ") + dbPath_;
+      if (system(cmd.c_str())) {
+         ASSERT_TRUE(false);
+      }
+    }
+
+    const string dbPath_ = "./rocksdb_test";
+    KeyComparator* comparator_;
+
+    // comparator_ owns the manipulator passed to its constructor
+    // This is a useful copy for generating keys
+    std::unique_ptr<KeyManipulator> key_manipulator_;
+};
+
+
+TEST_F(multiIO_test, single_put) {
+  BlockId block_id = 0;
+  Sliver datakey(createAndFillBuf(keyLen), keyLen);
+  Sliver key = key_manipulator_->genDataDbKey(datakey, block_id);
   Sliver inValue(createAndFillBuf(valueLen), valueLen);
   Status status = dbClient->put(key, inValue);
   ASSERT_TRUE(status.isOK());
@@ -78,7 +111,7 @@ TEST(multiIO_test, single_put) {
   ASSERT_TRUE(inValue == outValue);
 }
 
-TEST(multiIO_test, multi_put) {
+TEST_F(multiIO_test, multi_put) {
   KeysVector keys(blocksNum);
   Sliver inValues[blocksNum];
   SetOfKeyValuePairs keyValueMap;
@@ -87,7 +120,7 @@ TEST(multiIO_test, multi_put) {
   verifyMultiGet(keys, inValues, outValues);
 }
 
-TEST(multiIO_test, multi_del) {
+TEST_F(multiIO_test, multi_del) {
   KeysVector keys(blocksNum);
   Sliver inValues[blocksNum];
   SetOfKeyValuePairs keyValueMap;
@@ -96,7 +129,7 @@ TEST(multiIO_test, multi_del) {
   ASSERT_TRUE(dbClient->multiDel(keys).isOK());
   verifyMultiDel(keys);
 }
-TEST(multiIO_test, basic_transaction)
+TEST_F(multiIO_test, basic_transaction)
 {
   std::string key1_("basic_transaction::key1");
   Sliver key1(key1_);
@@ -107,15 +140,18 @@ TEST(multiIO_test, basic_transaction)
   std::string val2_("basic_transaction::val2");
   Sliver inValue2(val2_);
 
+  key1 = key_manipulator_->genDataDbKey(key1, 0);
+  key2 = key_manipulator_->genDataDbKey(key2, 0);
+
   { // transaction scope
     ITransaction::Guard g(dbClient->beginTransaction());
-    g.txn->put(key1, inValue1);
-    g.txn->put(key2, inValue2);
-    g.txn->remove(key1);
-    std::string val1 = g.txn->get(key1);
+    g.txn()->put(key1, inValue1);
+    g.txn()->put(key2, inValue2);
+    g.txn()->del(key1);
+    std::string val1 = g.txn()->get(key1);
     ASSERT_TRUE(val1.empty());
-    g.txn->put(key1, inValue1);
-    val1 = g.txn->get(key1);
+    g.txn()->put(key1, inValue1);
+    val1 = g.txn()->get(key1);
     ASSERT_TRUE(inValue1 == Sliver(val1.data(), val1.size()));
   }
   Sliver outValue;
@@ -127,21 +163,22 @@ TEST(multiIO_test, basic_transaction)
   ASSERT_TRUE(inValue2 == outValue);
 }
 
-TEST(multiIO_test, no_commit_during_exception)
+TEST_F(multiIO_test, no_commit_during_exception)
 {
   std::string key_("no_commit_during_exception::key");
   Sliver key(key_);
   std::string val_("no_commit_during_exception::val");
   Sliver inValue(val_);
+  key = key_manipulator_->genDataDbKey(key, 0);
   try{
     { // transaction scope
       ITransaction::Guard g(dbClient->beginTransaction());
-      g.txn->put(key, inValue);
-      g.txn->remove(key);
-      std::string val = g.txn->get(key);
+      g.txn()->put(key, inValue);
+      g.txn()->del(key);
+      std::string val = g.txn()->get(key);
       ASSERT_TRUE(val.empty());
-      g.txn->put(key, inValue);
-      val = g.txn->get(key);
+      g.txn()->put(key, inValue);
+      val = g.txn()->get(key);
       ASSERT_TRUE(inValue == Sliver(val.data(), val.size()));
       throw std::runtime_error("oops");
     }
@@ -157,9 +194,7 @@ TEST(multiIO_test, no_commit_during_exception)
 
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
-  const string dbPath = "./rocksdb_test";
-  dbClient = new Client(dbPath, new KeyComparator(new KeyManipulator()));
-  dbClient->init();
+
   int res = RUN_ALL_TESTS();
   return res;
 }

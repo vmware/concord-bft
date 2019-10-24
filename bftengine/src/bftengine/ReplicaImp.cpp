@@ -1384,12 +1384,6 @@ void ReplicaImp::onMessage(CheckpointMsg *msg) {
   if (askForStateTransfer) {
     LOG_INFO_F(GL, "call to startCollectingState()");
 
-    if (ps_) {
-      ps_->beginWriteTran();
-      ps_->setFetchingState(true);
-      ps_->endWriteTran();
-    }
-
     stateTransfer->startCollectingState();
   } else if (msgSeqNum > lastStableSeqNum + kWorkWindowSize) {
     onReportAboutAdvancedReplica(msgSenderId, msgSeqNum);
@@ -2202,9 +2196,8 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
 
   if (ps_) {
     ps_->beginWriteTran();
-    ps_->setFetchingState(false);
   }
-
+    
   if (newStateCheckpoint <= lastExecutedSeqNum) {
     LOG_DEBUG_F(GL,
                "Executing onTransferringCompleteImp(newStateCheckpoint) where newStateCheckpoint <= lastExecutedSeqNum");
@@ -2212,7 +2205,6 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
     return;
   }
   lastExecutedSeqNum = newStateCheckpoint;
-  metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
   if (ps_)
     ps_->setLastExecutedSeqNum(lastExecutedSeqNum);
   if (debugStatisticsEnabled) {
@@ -2252,6 +2244,7 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
     ps_->setCheckpointMsgInCheckWindow(newStateCheckpoint, checkpointMsg);
     ps_->endWriteTran();
   }
+  metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
 
   sendToAllOtherReplicas(checkpointMsg);
 
@@ -2278,12 +2271,6 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
 
   if (askAnotherStateTransfer) {
     LOG_INFO_F(GL, "call to startCollectingState()");
-
-    if (ps_) {
-      ps_->beginWriteTran();
-      ps_->setFetchingState(true);
-      ps_->endWriteTran();
-    }
 
     stateTransfer->startCollectingState();
   }
@@ -2772,12 +2759,16 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
 
   curView = ld.viewsManager->latestActiveView();
   lastAgreedView = curView;
+  metric_view_.Get().Set(curView);
+  metric_last_agreed_view_.Get().Set(lastAgreedView);
 
   const bool inView = ld.viewsManager->viewIsActive(curView);
 
   primaryLastUsedSeqNum = ld.primaryLastUsedSeqNum;
   lastStableSeqNum = ld.lastStableSeqNum;
+  metric_last_stable_seq_num__.Get().Set(lastStableSeqNum);
   lastExecutedSeqNum = ld.lastExecutedSeqNum;
+  metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
   strictLowerBoundOfSeqNums = ld.strictLowerBoundOfSeqNums;
   maxSeqNumTransferredFromPrevViews = ld.maxSeqNumTransferredFromPrevViews;
   lastViewThatTransferredSeqNumbersFullyExecuted = ld.lastViewThatTransferredSeqNumbersFullyExecuted;
@@ -2992,6 +2983,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
     mainThreadStarted(false),
     mainThreadShouldStop(false),
     mainThreadShouldStopWhenStateIsNotCollected(false),
+    restarted_{!firstTime},
 //			internalThreadPool{ 8 }, // TODO(GG): use configuration
     retransmissionsManager{nullptr},
     controller{nullptr},
@@ -3123,8 +3115,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
 
   clientsManager->init(stateTransfer);
 
-  // TODO: Yulia Adapt this code after state transfer persistency implemented
-  if (!firstTime && config.debugPersistentStorageEnabled)
+  if (!firstTime || config.debugPersistentStorageEnabled)
     clientsManager->loadInfoFromReservedPages();
   else
     clientsManager->clearReservedPages();
@@ -3325,7 +3316,6 @@ void ReplicaImp::processMessages() {
   startSyncEvent.wait_one();
 
   stateTransfer->startRunning(this);
-  //clientsManager->clearReservedPages(); // TODO(GG): TBD ?????
 
   stateTranTimer->start();
   if (retransmissionsLogicEnabled) retranTimer->start();

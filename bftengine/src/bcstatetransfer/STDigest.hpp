@@ -28,7 +28,9 @@ class STDigest : StateTransferDigest {
   STDigest() {
     memset(content, 0, BLOCK_DIGEST_SIZE);
   }
-
+  STDigest(const char* other) {
+    memcpy(content, other, BLOCK_DIGEST_SIZE);
+  }
 
   STDigest(const STDigest& other) {
     memcpy(content, other.content, BLOCK_DIGEST_SIZE);
@@ -60,6 +62,9 @@ class STDigest : StateTransferDigest {
 
 
   std::string toString() const;
+  const char* const get() const {return content;}
+
+  char* getForUpdate() {return content;}
 };
 
 class DigestContext {

@@ -13,11 +13,23 @@
 
 #include "gtest/gtest.h"
 #include "SimpleBCStateTransfer.hpp"
-#include "InMemoryDataStore.hpp"
 #include "BCStateTran.hpp"
 #include "test_app_state.hpp"
 #include "test_replica.hpp"
+#include "Logger.hpp"
+#include "DBDataStore.hpp"
+#include "blockchain/db_adapter.h"
+#include "memorydb/client.h"
 
+using concord::storage::ITransaction;
+using concord::storage::blockchain::KeyManipulator;
+
+#ifdef USE_ROCKSDB
+#include "rocksdb/client.h"
+#include "rocksdb/key_comparator.h"
+using concord::storage::rocksdb::Client;
+using concord::storage::rocksdb::KeyComparator;
+#endif
 namespace bftEngine {
 namespace SimpleBlockchainStateTransfer {
 
@@ -38,8 +50,23 @@ Config TestConfig() {
 class BcStTest : public ::testing::Test {
   protected:
     void SetUp() override {
+      //uncomment if needed
+//      log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("serializable")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
+//      log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("DBDataStore")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
+//      log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("rocksdb")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
+
       config_ = TestConfig();
-      st_ = new BCStateTran(false, config_, &app_state_);
+      auto* key_manipulator = new concord::storage::blockchain::KeyManipulator();
+#ifdef USE_ROCKSDB
+      concord::storage::IDBClient::ptr dbc(new concord::storage::rocksdb::Client("./bcst_db", new KeyComparator(key_manipulator)));
+      dbc->init();
+      auto* datastore = new DBDataStore(dbc, config_.sizeOfReservedPage);
+#else
+      auto comparator = concord::storage::memorydb::KeyComparator(key_manipulator);
+      concord::storage::IDBClient::ptr dbc(new concord::storage::memorydb::Client(comparator));
+      auto * datastore = new InMemoryDataStore(config_.sizeOfReservedPage);
+#endif
+      st_ = new BCStateTran(config_, &app_state_, datastore);
       ASSERT_FALSE(st_->isRunning());
       st_->startRunning(&replica_);
       ASSERT_TRUE(st_->isRunning());
@@ -55,8 +82,8 @@ class BcStTest : public ::testing::Test {
     Config config_;
     TestAppState app_state_;
     TestReplica replica_;
-    BCStateTran* st_;
-
+    BCStateTran* st_ = nullptr;
+    DataStore* ds_ = nullptr;
 };
 
 // Verify that AskForCheckpointSummariesMsg is sent to all other replicas
@@ -90,6 +117,15 @@ TEST_F(BcStTest, FetchMissingData) {
   // Make sure that it syncs correctly.
 
 }
+
+TEST(DBDataStore, API){
+
+}
+
+TEST(DBDataStore, Transactions){
+
+}
+
 
 } // namespace SimpleBlockchainStateTransfer
 } // namespace bftEngine

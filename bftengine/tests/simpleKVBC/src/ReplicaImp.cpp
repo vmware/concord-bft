@@ -80,7 +80,7 @@ void ReplicaImp::createReplicaAndSyncState() {
   LOG_INFO(logger, "createReplicaAndSyncState: isNewStorage= " << isNewStorage);
   m_replicaPtr = bftEngine::Replica::createNewReplica(
       &m_replicaConfig, m_cmdHandler, m_stateTransfer, m_ptrComm, m_metadataStorage);
-  if (!isNewStorage) {
+  if (!isNewStorage && !m_stateTransfer->isCollectingState()) {
     uint64_t removedBlocksNum = m_replicaStateSync.execute(
         logger, *m_bcDbAdapter, *this, m_appState->m_lastReachableBlock, m_replicaPtr->getLastExecutedSequenceNum());
     m_lastBlock -= removedBlocksNum;
@@ -205,7 +205,10 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   state_transfer_config.fVal = m_replicaConfig.fVal;
 
   m_appState = new BlockchainAppState(this);
-  m_stateTransfer = bftEngine::SimpleBlockchainStateTransfer::create(state_transfer_config, m_appState, false);
+  m_stateTransfer = bftEngine::SimpleBlockchainStateTransfer::create(state_transfer_config,
+                                                                     m_appState,
+                                                                     m_bcDbAdapter->getDb(),
+                                                                     aggregator);
 }
 
 ReplicaImp::~ReplicaImp() {
@@ -313,36 +316,21 @@ void ReplicaImp::insertBlockInternal(BlockId blockId, Sliver block) {
       return;
     }
   } else {
+    SetOfKeyValuePairs keys;
     if (block.length() > 0) {
       uint16_t numOfElements = ((BlockHeader *)block.data())->numberOfElements;
       auto *entries = (BlockEntry *)(block.data() + sizeof(BlockHeader));
       for (size_t i = 0; i < numOfElements; i++) {
         const Sliver keySliver(block, entries[i].keyOffset, entries[i].keySize);
         const Sliver valSliver(block, entries[i].valOffset, entries[i].valSize);
-
-        const KeyIDPair pk(keySliver, blockId);
-
-        s = m_bcDbAdapter->updateKey(pk.key, pk.blockId, valSliver);
-        if (!s.isOK()) {
-          // TODO(SG): What to do?
-          LOG_FATAL(logger, "Failed to update key");
-          exit(1);
-        }
+        keys.insert(KeyValuePair(keySliver, valSliver));
       }
-
-      s = m_bcDbAdapter->addBlock(blockId, block);
-      if (!s.isOK()) {
-        // TODO(SG): What to do?
-        printf("Failed to add block");
-        exit(1);
-      }
-    } else {
-      s = m_bcDbAdapter->addBlock(blockId, block);
-      if (!s.isOK()) {
-        // TODO(SG): What to do?
-        printf("Failed to add block");
-        exit(1);
-      }
+    }
+    s = m_bcDbAdapter->addBlockAndUpdateMultiKey(keys, blockId, block);
+    if (!s.isOK()) {
+      // TODO(SG): What to do?
+      printf("Failed to add block");
+      exit(1);
     }
   }
 }
@@ -686,6 +674,7 @@ bool ReplicaImp::BlockchainAppState::getPrevDigestFromBlock(uint64_t blockId, St
 
 /*
  * This method cant return false by current insertBlockInternal impl.
+ * It is used only by State Transfer to synchronize state between replicas.
  */
 bool ReplicaImp::BlockchainAppState::putBlock(uint64_t blockId, char *block, uint32_t blockSize) {
   uint8_t *tmpBlockPtr = new uint8_t[blockSize];

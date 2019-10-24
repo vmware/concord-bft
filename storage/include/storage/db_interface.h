@@ -22,27 +22,27 @@ using concordUtils::SetOfKeyValuePairs;
 class ITransaction {
  public:
   typedef uint64_t ID;
-  typedef std::shared_ptr<ITransaction> ptr;
   ITransaction(ID id):id_(id){}
   virtual ~ITransaction() = default;
   virtual void commit() = 0;
   virtual void rollback() = 0;
   virtual void put(const Sliver& key, const Sliver& value) = 0;
   virtual std::string get(const Sliver& key) = 0;
-  virtual void remove(const Sliver& key) = 0; // delete is a reserved keyword
+  virtual void del(const Sliver& key) = 0;
 
   ID getId() const {return id_;}
   std::string getIdStr() const {return std::to_string(id_);}
   class Guard{
    public:
-     Guard(ITransaction* t):txn(t){}
-     ~Guard(){
-       if (std::uncaught_exception() == 0)
-         txn->commit();
-       delete txn;
+     Guard(ITransaction* t):txn_(t){}
+     virtual ~Guard(){
+       if (!std::uncaught_exception())
+         txn_->commit();
+       delete txn_;
      }
-
-     ITransaction* txn;
+     ITransaction* txn() const {return txn_;}
+   protected:
+     ITransaction* txn_;
    };
  private:
   ID id_;
@@ -50,6 +50,7 @@ class ITransaction {
 
 class IDBClient {
  public:
+  typedef std::shared_ptr<IDBClient> ptr;
   virtual ~IDBClient() = default;
   virtual void   init(bool readOnly = false) = 0;
   virtual Status get(const Sliver& _key, OUT Sliver &_outValue) const = 0;

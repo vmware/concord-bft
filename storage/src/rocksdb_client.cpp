@@ -13,8 +13,8 @@
 
 #ifdef USE_ROCKSDB
 
-#include "rocksdb/client.h"
-#include "rocksdb/transaction.h"
+#include <rocksdb/client.h>
+#include <rocksdb/transaction.h>
 #include "Logger.hpp"
 #include "hash_defs.h"
 #include <atomic>
@@ -99,35 +99,36 @@ void Client::init(bool readOnly) {
   ::rocksdb::Options options;
   ::rocksdb::TransactionDBOptions txn_options;
   options.create_if_missing = true;
-  options.comparator = m_comparator;
+  options.comparator = comparator_;
   ::rocksdb::Status s;
   if (readOnly) {
     s = ::rocksdb::DB::OpenForReadOnly(options, m_dbPath, &db);
-    m_dbInstance.reset(db);
+    if (!s.ok())
+        throw std::runtime_error("Failed to open rocksdb database at " + m_dbPath + std::string(" reason: ") + s.ToString());
+    dbInstance_.reset(db);
   } else {
     s = ::rocksdb::TransactionDB::Open(options, txn_options, m_dbPath, &txn_db_);
-    m_dbInstance.reset(txn_db_->GetBaseDB());
+    if (!s.ok())
+        throw std::runtime_error("Failed to open rocksdb database at " + m_dbPath + std::string(" reason: ") + s.ToString());
+    dbInstance_.reset(txn_db_->GetBaseDB());
   }
-  if (!s.ok())
-    throw std::runtime_error("Failed to open rocksdb database at " + m_dbPath + std::string(" reason: ") + s.ToString());
+
 }
 
 Status Client::get(const Sliver& _key, OUT std::string &_value) const {
   ++g_rocksdb_called_read;
   if (g_rocksdb_print_measurements) {
-    LOG_DEBUG(logger, "Reading count = " << g_rocksdb_called_read
-                                               << ", key " << _key);
+    LOG_DEBUG(logger(), "Reading count = " << g_rocksdb_called_read << ", key " << _key);
   }
   ::rocksdb::Status s =
-      m_dbInstance->Get(::rocksdb::ReadOptions(), toRocksdbSlice(_key), &_value);
+      dbInstance_->Get(::rocksdb::ReadOptions(), toRocksdbSlice(_key), &_value);
 
   if (s.IsNotFound()) {
     return Status::NotFound("Not found");
   }
 
   if (!s.ok()) {
-    LOG_DEBUG(logger,
-                    "Failed to get key " << _key << " due to " << s.ToString());
+    LOG_DEBUG(logger(), "Failed to get key " << _key << " due to " << s.ToString());
     return Status::GeneralError("Failed to read key");
   }
 
@@ -171,9 +172,7 @@ Status Client::get(const Sliver& _key, OUT char *&buf, uint32_t bufSize,
 
   _realSize = static_cast<uint32_t>(value.length());
   if (bufSize < _realSize) {
-    LOG_ERROR(logger,
-                    "Object value is bigger than specified buffer bufSize="
-                        << bufSize << ", _realSize=" << _realSize);
+    LOG_ERROR(logger(), "Object value is bigger than specified buffer bufSize=" << bufSize << ", _realSize=" << _realSize);
     return Status::GeneralError("Object value is bigger than specified buffer");
   }
   memcpy(buf, value.data(), _realSize);
@@ -214,7 +213,7 @@ Status Client::freeIterator(IDBClientIterator *_iter) const {
  * @return A pointer to RocksDbIterator object.
  */
 ::rocksdb::Iterator *Client::getNewRocksDbIterator() const {
-  return m_dbInstance->NewIterator(::rocksdb::ReadOptions());
+  return dbInstance_->NewIterator(::rocksdb::ReadOptions());
 }
 
 /**
@@ -224,7 +223,7 @@ void Client::monitor() const {
   // TODO Can be used for additional sanity checks and debugging.
 
   if (g_rocksdb_print_measurements) {
-    LOG_DEBUG(logger, "No. of times read: " << g_rocksdb_called_read);
+    LOG_DEBUG(logger(), "No. of times read: " << g_rocksdb_called_read);
   }
 }
 
@@ -253,13 +252,12 @@ Status Client::put(const Sliver& _key, const Sliver& _value) {
   ::rocksdb::WriteOptions woptions = ::rocksdb::WriteOptions();
 
   ::rocksdb::Status s =
-      m_dbInstance->Put(woptions, toRocksdbSlice(_key), toRocksdbSlice(_value));
+      dbInstance_->Put(woptions, toRocksdbSlice(_key), toRocksdbSlice(_value));
 
-  LOG_TRACE(logger, "Rocksdb Put " << _key << " : " << _value);
+  LOG_TRACE(logger(), "Rocksdb Put " << _key << " : " << _value);
 
   if (!s.ok()) {
-    LOG_ERROR(logger,
-                    "Failed to put key " << _key << ", value " << _value);
+    LOG_ERROR(logger(), "Failed to put key " << _key << ", value " << _value);
     return Status::GeneralError("Failed to put key");
   }
 
@@ -277,12 +275,12 @@ Status Client::put(const Sliver& _key, const Sliver& _value) {
  */
 Status Client::del(const Sliver& _key) {
   ::rocksdb::WriteOptions woptions = ::rocksdb::WriteOptions();
-  ::rocksdb::Status s = m_dbInstance->Delete(woptions, toRocksdbSlice(_key));
+  ::rocksdb::Status s = dbInstance_->Delete(woptions, toRocksdbSlice(_key));
 
-  LOG_TRACE(logger, "Rocksdb delete " << _key);
+  LOG_TRACE(logger(), "Rocksdb delete " << _key);
 
   if (!s.ok()) {
-    LOG_ERROR(logger, "Failed to delete key " << _key);
+    LOG_ERROR(logger(), "Failed to delete key " << _key);
     return Status::GeneralError("Failed to delete key");
   }
 
@@ -296,14 +294,13 @@ Status Client::multiGet(const KeysVector &_keysVec,
   for (auto const &it : _keysVec) keys.push_back(toRocksdbSlice(it));
 
   std::vector<::rocksdb::Status> statuses =
-      m_dbInstance->MultiGet(::rocksdb::ReadOptions(), keys, &values);
+      dbInstance_->MultiGet(::rocksdb::ReadOptions(), keys, &values);
 
   for (size_t i = 0; i < values.size(); i++) {
     if (statuses[i].IsNotFound()) return Status::NotFound("Not found");
 
     if (!statuses[i].ok()) {
-      LOG_WARN(logger, "Failed to get key " << _keysVec[i] << " due to "
-                                                  << statuses[i].ToString());
+      LOG_WARN(logger(), "Failed to get key " << _keysVec[i] << " due to " << statuses[i].ToString());
       return Status::GeneralError("Failed to read key");
     }
     size_t valueSize = values[i].size();
@@ -315,31 +312,31 @@ Status Client::multiGet(const KeysVector &_keysVec,
 }
 
 Status Client::launchBatchJob(::rocksdb::WriteBatch &batch) {
-  LOG_DEBUG(logger, "launcBatchJob: batch data size=" << batch.GetDataSize() << " num updates=" << batch.Count());
+  LOG_DEBUG(logger(), "launcBatchJob: batch data size=" << batch.GetDataSize() << " num updates=" << batch.Count());
   ::rocksdb::WriteOptions wOptions = ::rocksdb::WriteOptions();
-  ::rocksdb::Status status = m_dbInstance->Write(wOptions, &batch);
+  ::rocksdb::Status status = dbInstance_->Write(wOptions, &batch);
   if (!status.ok()) {
-    LOG_ERROR(logger, "Execution of batch job failed; batch data size=" << batch.GetDataSize() <<
+    LOG_ERROR(logger(), "Execution of batch job failed; batch data size=" << batch.GetDataSize() <<
         " num updates=" << batch.Count());
     return Status::GeneralError("Execution of batch job failed");
   }
-  LOG_DEBUG(logger, "Successfully executed a batch job: batch data size=" << batch.GetDataSize() <<
+  LOG_DEBUG(logger(), "Successfully executed a batch job: batch data size=" << batch.GetDataSize() <<
       " num updates=" << batch.Count());
   return Status::OK();
 }
 
 Status Client::multiPut(const SetOfKeyValuePairs &keyValueMap) {
   ::rocksdb::WriteBatch batch;
-  LOG_DEBUG(logger, "multiPut: keyValueMap.size() = " << keyValueMap.size());
+  LOG_DEBUG(logger(), "multiPut: keyValueMap.size() = " << keyValueMap.size());
   for (const auto &it : keyValueMap) {
     batch.Put(toRocksdbSlice(it.first), toRocksdbSlice(it.second));
-    LOG_TRACE(logger, "RocksDB Added entry: key ="
+    LOG_TRACE(logger(), "RocksDB Added entry: key ="
                                 << it.first << ", value= " << it.second
                                 << " to the batch job");
   }
   Status status = launchBatchJob(batch);
   if (status.isOK())
-    LOG_DEBUG(logger, "Successfully put all entries to the database");
+    LOG_DEBUG(logger(), "Successfully put all entries to the database");
   return status;
 }
 
@@ -350,7 +347,8 @@ Status Client::multiDel(const KeysVector &_keysVec) {
     batch.Delete(toRocksdbSlice(it));
   }
   Status status = launchBatchJob(batch);
-  if (status.isOK()) LOG_DEBUG(logger, "Successfully deleted entries");
+  if (status.isOK())
+    LOG_DEBUG(logger(), "Successfully deleted entries");
   return status;
 }
 

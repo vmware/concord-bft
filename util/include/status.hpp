@@ -31,11 +31,9 @@ class Status {
   bool isIllegalOperation() const { return type == illegalOperation; }
   bool isGeneralError() const { return type == generalError; }
 
+  std::string toString() const { return messagePrefix() + (!isOK()?message:std::string(""));}
   std::ostream& operator<<(std::ostream& s) const {
-    s << messagePrefix();
-    if (!isOK()) {
-      s << message;
-    }
+    s << toString();
     return s;
   };
 

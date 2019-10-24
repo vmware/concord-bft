@@ -55,6 +55,7 @@ class Sliver {
   bool operator!=(const Sliver& other) const;
   int compare(const Sliver& other) const;
 
+  std::string toString() const {return std::string(reinterpret_cast<char*>(data()), length());}
  private:
   // these are never modified, but need to be non-const to support copy
   // assignment

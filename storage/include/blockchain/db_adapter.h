@@ -19,14 +19,14 @@ namespace blockchain {
 
 class KeyManipulator: public IDBClient::IKeyManipulator{
  public:
-  KeyManipulator():logger_(concordlogger::Log::getLogger("concord.storage.blockchain.KeyManipulator")){}
-  virtual int   composedKeyComparison(const uint8_t* _a_data, size_t _a_length, const uint8_t* _b_data, size_t _b_length) override;
+  KeyManipulator() = default;
+ virtual int   composedKeyComparison(const uint8_t* _a_data, size_t _a_length, const uint8_t* _b_data, size_t _b_length) override;
 
   Sliver        genDbKey(EDBKeyType _type, const Key& _key, BlockId _blockId);
   Sliver        genBlockDbKey(BlockId _blockId);
   Sliver        genDataDbKey(const Key& _key, BlockId _blockId);
-  char          extractTypeFromKey(const Key& _key);
-  char          extractTypeFromKey(const uint8_t* _key_data);
+  EDBKeyType    extractTypeFromKey(const Key& _key);
+  EDBKeyType    extractTypeFromKey(const uint8_t* _key_data);
   BlockId       extractBlockIdFromKey(const Key& _key);
   BlockId       extractBlockIdFromKey(const uint8_t* _key_data, size_t _key_length);
   ObjectId      extractObjectIdFromKey(const Key& _key);
@@ -37,12 +37,23 @@ class KeyManipulator: public IDBClient::IKeyManipulator{
   bool          isKeyContainBlockId(const Key& _composedKey);
   KeyValuePair  composedToSimple(KeyValuePair _p);
   static Sliver generateMetadataKey(ObjectId objectId);
+  static Sliver generateStateTransferKey(ObjectId objectId);
+  static Sliver generateSTPendingPageKey(uint32_t pageid);
+  static Sliver generateSTCheckpointDescriptorKey(uint64_t chkpt);
+  static Sliver generateSTReservedPageStaticKey(uint32_t pageid, uint64_t chkpt);
+  static Sliver generateSTReservedPageDynamicKey(uint32_t pageid, uint64_t chkpt);
+  uint64_t      extractCheckPointFromKey(const uint8_t* _key_data, size_t _key_length);
+  std::pair<uint32_t, uint64_t> extractPageIdAndCheckpointFromKey(const uint8_t* _key_data, size_t _key_length);
+
  protected:
+  static Sliver generateReservedPageKey(EDBKeyType, uint32_t pageid, uint64_t chkpt);
 
   static bool   copyToAndAdvance(uint8_t *_buf, size_t *_offset, size_t _maxOffset, uint8_t *_src, size_t _srcSize);
 
-
-  concordlogger::Logger logger_;
+  concordlogger::Logger& logger(){
+    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.storage.blockchain.KeyManipulator");
+    return logger_;
+  }
 };
 
 class DBAdapter {

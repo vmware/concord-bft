@@ -82,8 +82,9 @@ namespace bftEngine
 			for (std::pair<NodeIdType, uint16_t> e : clientIdToIndex_)
 			{
 				const uint32_t firstPageId = e.second * reservedPagesPerClient_;
-
-				stateTransfer_->loadReservedPage(firstPageId, sizeOfReservedPage_, scratchPage_);
+				// to deal with a situation when restarting before state transfer first checkpoint reached
+				if (!stateTransfer_->loadReservedPage(firstPageId, sizeOfReservedPage_, scratchPage_))
+				  continue;
 
 				ClientReplyMsgHeader* replyHeader = (ClientReplyMsgHeader*)scratchPage_;
 				Assert(replyHeader->msgType == 0 || replyHeader->msgType == MsgCode::Reply);
@@ -134,7 +135,7 @@ namespace bftEngine
 
 			ClientInfo& c = indexToClientInfo_.at(clientIdx);
 
-			Assert(c.lastSeqNumberOfReply < requestSeqNum);
+			Assert(c.lastSeqNumberOfReply <= requestSeqNum);
 
 			c.lastSeqNumberOfReply = requestSeqNum;
 			c.latestReplyTime = getMonotonicTime();

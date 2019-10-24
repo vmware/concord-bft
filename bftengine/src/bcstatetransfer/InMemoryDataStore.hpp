@@ -48,7 +48,7 @@ class InMemoryDataStore : public DataStore {
   uint16_t getFVal() override;
 
   void setMaxNumOfStoredCheckpoints(uint64_t numChecks) override;
-  uint64_t getMaxNumOfStoredCheckpoints() override;
+  uint64_t getMaxNumOfStoredCheckpoints() const override;
 
   void setNumberOfReservedPages(uint32_t numResPages) override;
   uint32_t getNumberOfReservedPages() override;
@@ -126,7 +126,24 @@ class InMemoryDataStore : public DataStore {
   ResPagesDescriptor* getResPagesDescriptor(uint64_t inCheckpoint) override;
   void free(ResPagesDescriptor*) override;
 
+  class NullTransaction: public ITransaction {
+   public:
+    NullTransaction(): concord::storage::ITransaction(0){}
+    void commit() override {}
+    void rollback() override {}
+    void put(const concordUtils::Sliver& key, const concordUtils::Sliver& value) override {}
+    std::string get(const concordUtils::Sliver& key) override {return "";}
+    void del(const concordUtils::Sliver& key) override {}
+  };
+
+  DataStoreTransaction* beginTransaction() override {
+    // DBDataStore and IDBClient are not thread safe or reentrant. There can
+    // only be one transaction at a time.
+    return new DataStoreTransaction(this->shared_from_this(), new NullTransaction());
+  }
+
  protected:
+
   const uint32_t sizeOfReservedPage_;
 
   bool wasInit_ = false;
@@ -174,6 +191,14 @@ class InMemoryDataStore : public DataStore {
   };
 
   map<ResPageKey, ResPageVal> pages;
+
+  friend class DBDataStore;
+  const uint32_t                       getSizeOfReservedPage() const {return sizeOfReservedPage_;}
+  const map<uint64_t, CheckpointDesc>& getDescMap()            const {return descMap;}
+  const map<ResPageKey, ResPageVal>&   getPagesMap()           const {return pages;}
+  const map<uint32_t, char*>&          getPendingPagesMap()    const {return pendingPages;}
+
+  void setInitialized(bool init) {wasInit_ = init;}
 };
 
 }  // namespace impl

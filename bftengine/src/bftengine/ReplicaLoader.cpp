@@ -11,10 +11,6 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#if defined(_WIN32)         // TODO(GG): remove
-#include <windows.h>
-#endif
-
 #include "ReplicaLoader.hpp"
 #include "PersistentStorage.hpp"
 #include "ReplicaImp.hpp"
@@ -22,10 +18,24 @@
 #include "FullCommitProofMsg.hpp"
 #include "Logger.hpp"
 
-# define Verify(expr, errorCode) {                                          \
-    Assert(expr);                                                    \
-    if((expr) != true) {                                                    \
-        return errorCode;                                                   \
+#define Verify(expr, errorCode) {                                           \
+    Assert(expr);                                                           \
+    if ((expr) != true) {                                                   \
+      return errorCode;                                                     \
+    }                                                                       \
+}
+
+#define VerifyOR(expr1, expr2, errorCode) {                                 \
+    AssertOR(expr1, expr2);                                                 \
+    if ((expr1) != true && (expr2) != true) {                               \
+      return errorCode;                                                     \
+    }                                                                       \
+}
+
+#define VerifyAND(expr1, expr2, errorCode) {                                \
+    AssertAND(expr1, expr2);                                                \
+    if ((expr1) != true || (expr2) != true) {                               \
+      return errorCode;                                                     \
     }                                                                       \
 }
 
@@ -54,18 +64,18 @@ ReplicaLoader::ErrorCode checkReplicaConfig(const LoadedReplicaData &ld) {
 
   Verify(numOfReplicas <= MaxNumberOfReplicas, InconsistentErr);
 
-  Verify(c.replicaId >= 0 && c.replicaId < numOfReplicas, InconsistentErr);
+  VerifyAND(c.replicaId >= 0, c.replicaId < numOfReplicas, InconsistentErr);
 
   Verify(c.numOfClientProxies >= 1, InconsistentErr); // TODO(GG): TBD - do we want maximum number of client proxies?
 
   Verify(c.statusReportTimerMillisec > 0,
          InconsistentErr); // TODO(GG): TBD - do we want maximum for statusReportTimerMillisec?
 
-  Verify(c.concurrencyLevel >= 1 && c.concurrencyLevel <= (checkpointWindowSize / 5), InconsistentErr);
+  VerifyAND(c.concurrencyLevel >= 1, c.concurrencyLevel <= (checkpointWindowSize / 5), InconsistentErr);
 
   std::set<uint16_t> repIDs;
   for (std::pair<uint16_t, std::string> v : c.publicKeysOfReplicas) {
-    Verify(v.first >= 0 && v.first < numOfReplicas, InconsistentErr);
+    VerifyAND(v.first >= 0, v.first < numOfReplicas, InconsistentErr);
     Verify(!v.second.empty(), InconsistentErr); // TODO(GG): make sure that the key is valid
     repIDs.insert(v.first);
   }
@@ -73,15 +83,10 @@ ReplicaLoader::ErrorCode checkReplicaConfig(const LoadedReplicaData &ld) {
 
   Verify(!c.replicaPrivateKey.empty(), InconsistentErr); // TODO(GG): make sure that the key is valid
 
-//	Verify(c.thresholdSignerForExecution == nullptr, InconsistentErr);
-//	Verify(c.thresholdVerifierForExecution == nullptr, InconsistentErr);
-
   Verify(c.thresholdSignerForSlowPathCommit != nullptr, InconsistentErr);
   Verify(c.thresholdVerifierForSlowPathCommit != nullptr, InconsistentErr);
 
   if (c.cVal == 0) {
-//		Verify(c.thresholdSignerForCommit == nullptr, InconsistentErr);
-//		Verify(c.thresholdVerifierForCommit == nullptr, InconsistentErr);
   } else {
     Verify(c.thresholdSignerForCommit != nullptr, InconsistentErr);
     Verify(c.thresholdVerifierForCommit != nullptr, InconsistentErr);
@@ -127,7 +132,6 @@ ReplicaLoader::ErrorCode loadConfig(shared_ptr<PersistentStorage> &p, LoadedRepl
                                  ld.repConfig.cVal,
                                  dynamicCollectorForPartialProofs,
                                  dynamicCollectorForExecutionProofs);
-
   return Succ;
 }
 
@@ -318,7 +322,7 @@ ReplicaLoader::ErrorCode loadReplicaData(shared_ptr<PersistentStorage> p, Loaded
       Verify((e.isCheckpointMsgSet()), InconsistentErr);
       Verify((e.getCheckpointMsg()->seqNumber() == seqNum), InconsistentErr);
       Verify((e.getCheckpointMsg()->senderId() == ld.repConfig.replicaId), InconsistentErr);
-      Verify((seqNum > ld.lastStableSeqNum || e.getCheckpointMsg()->isStableState()), InconsistentErr);
+      VerifyOR(seqNum > ld.lastStableSeqNum, e.getCheckpointMsg()->isStableState(), InconsistentErr);
     } else {
       Verify((!e.isCheckpointMsgSet()), InconsistentErr);
     }
@@ -333,7 +337,7 @@ ReplicaLoader::ErrorCode loadReplicaData(shared_ptr<PersistentStorage> p, Loaded
       Verify(d.executedSeqNum > ld.lastStableSeqNum, InconsistentErr);
       Verify(d.executedSeqNum <= ld.lastStableSeqNum + kWorkWindowSize, InconsistentErr);
 
-      uint64_t idx = d.executedSeqNum - ld.lastStableSeqNum;
+      uint64_t idx = d.executedSeqNum - ld.lastStableSeqNum - 1;
       Assert(idx < kWorkWindowSize);
 
       const SeqNumData &e = ld.seqNumWinArr[idx];

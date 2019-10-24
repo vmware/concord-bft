@@ -13,28 +13,23 @@
 
 
 #include <string.h>
-#include <cassert>
+#include "assertUtils.hpp"
 #include <map>
 #include <set>
 #include <utility>
 
 #include "SimpleStateTransfer.hpp"
 #include "SimpleBCStateTransfer.hpp"
+#include "memorydb/client.h"
+#include "memorydb/key_comparator.h"
+#include "blockchain/db_adapter.h"
 #include "Logger.hpp"
-
-#define Assert(expr) {                                             \
-    if((expr) != true) {                                                    \
-        LOG_ERROR_F(STLogger,"'%s' is NOT true (in function '%s' in %s:%d)\n", \
-            #expr, __FUNCTION__, __FILE__, __LINE__); assert(false);                \
-    }                                                                       \
-}
 
 namespace bftEngine {
 
 namespace SimpleInMemoryStateTransfer {
 
 namespace impl {
-
 
 concordlogger::Logger STLogger = concordlogger::Log::getLogger("state-transfer");
 
@@ -310,11 +305,11 @@ ISimpleInMemoryStateTransfer* create(
 
 
 namespace impl {
-SimpleStateTran::SimpleStateTran(char* ptrToState,
-  uint32_t sizeOfState,
-  uint16_t myReplicaId,
-  uint16_t fVal,
-    uint16_t cVal,
+SimpleStateTran::SimpleStateTran( char* ptrToState,
+                                  uint32_t sizeOfState,
+                                  uint16_t myReplicaId,
+                                  uint16_t fVal,
+                                  uint16_t cVal,
     bool pedanticChecks)
   :
   ptrToState_{ ptrToState },
@@ -324,11 +319,11 @@ SimpleStateTran::SimpleStateTran(char* ptrToState,
 
   config.myReplicaId = myReplicaId;
   config.fVal = fVal;
-    config.cVal = cVal;
-    config.pedanticChecks = pedanticChecks;
-
-  internalST_ =
-    SimpleBlockchainStateTransfer::create(config, &dummyBDState_, false);
+  config.cVal = cVal;
+  config.pedanticChecks = pedanticChecks;
+  auto comparator = concord::storage::memorydb::KeyComparator(new concord::storage::blockchain::KeyManipulator());
+  concord::storage::IDBClient::ptr db (new concord::storage::memorydb::Client(comparator));
+  internalST_ =  SimpleBlockchainStateTransfer::create(config, &dummyBDState_, db);
 
   Assert(internalST_ != nullptr);
 
@@ -560,7 +555,6 @@ bool SimpleStateTran::loadReservedPage(uint32_t reservedPageId,
   uint32_t copyLength,
   char* outReservedPage) const {
   Assert(isInitialized());
-  Assert(internalST_->isRunning());
   Assert(reservedPageId < numberOfResPages_);
 
   return internalST_->loadReservedPage(reservedPageId,

@@ -25,8 +25,7 @@ namespace blockchain {
 struct BlockHeader {
   uint32_t numberOfElements;
   uint32_t parentDigestLength;
-  int8_t
-      parentDigest[bftEngine::SimpleBlockchainStateTransfer::BLOCK_DIGEST_SIZE];
+  int8_t   parentDigest[bftEngine::SimpleBlockchainStateTransfer::BLOCK_DIGEST_SIZE];
 };
 
 // BlockEntry structures are coming immediately after the header.
@@ -42,6 +41,11 @@ enum class EDBKeyType : std::uint8_t {
   E_DB_KEY_TYPE_BLOCK = E_DB_KEY_TYPE_FIRST,
   E_DB_KEY_TYPE_KEY,
   E_DB_KEY_TYPE_BFT_METADATA_KEY,
+  E_DB_KEY_TYPE_BFT_ST_KEY,
+  E_DB_KEY_TYPE_BFT_ST_PENDING_PAGE_KEY,
+  E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_STATIC_KEY,
+  E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_DYNAMIC_KEY,
+  E_DB_KEY_TYPE_BFT_ST_CHECKPOINT_DESCRIPTOR_KEY,
   E_DB_KEY_TYPE_LAST
 };
 

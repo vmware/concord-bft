@@ -400,16 +400,16 @@ namespace bftEngine
 
 			const bool sendToAll = pendingRequest->isReadOnly() || !_primaryReplicaIsKnown || 
 				                   (numberOfTransmissions == clientSendsRequestToAllReplicasFirstThresh) ||
-								   (numberOfTransmissions > clientSendsRequestToAllReplicasFirstThresh && (numberOfTransmissions % clientSendsRequestToAllReplicasPeriodThresh == 0)) ||
+								   (numberOfTransmissions > clientSendsRequestToAllReplicasFirstThresh &&
+								   (numberOfTransmissions % clientSendsRequestToAllReplicasPeriodThresh == 0)) ||
 								   resetReplies;
 
-			LOG_DEBUG_F(GL,"Client %d - sends request %" PRIu64 " "
-														   "(isRO=%d, "
-												   "request "
-                                          "size=%zu, "
-				" retransmissionMilli=%d, numberOfTransmissions=%d, resetReplies=%d, sendToAll=%d)",
-				_clientId, pendingRequest->requestSeqNum(), (int)pendingRequest->isReadOnly(), (size_t)pendingRequest->size(),
-				(int)limitOfExpectedOperationTime.upperLimit(), (int)numberOfTransmissions, (int)resetReplies, (int)sendToAll);
+			if (numberOfTransmissions && !(numberOfTransmissions % 10))
+			  LOG_DEBUG_F(GL,"Client %d - sends request %" PRIu64 " isRO=%d, request size=%zu, "
+				          "retransmissionMilli=%d, numberOfTransmissions=%d, resetReplies=%d, sendToAll=%d",
+				          _clientId, pendingRequest->requestSeqNum(), (int)pendingRequest->isReadOnly(),
+				          (size_t)pendingRequest->size(), (int)limitOfExpectedOperationTime.upperLimit(),
+				          (int)numberOfTransmissions, (int)resetReplies, (int)sendToAll);
 
 
 			if (resetReplies)

@@ -168,10 +168,9 @@ class ReplicaImp : public SimpleKVBC::IReplica,
    private:
     concordlogger::Logger logger;
     const ReplicaImp *rep;
-    concord::storage::blockchain::BlockId readVersion;
     concord::storage::KeyValuePair m_current;
     concord::storage::blockchain::BlockId m_currentBlock;
-    bool m_isEnd;
+    bool m_isEnd = false;
     concord::storage::IDBClient::IDBClientIterator *m_iter;
 
    public:
@@ -180,8 +179,6 @@ class ReplicaImp : public SimpleKVBC::IReplica,
       // allocated by calls to rep::...::getIterator
       delete m_iter;
     }
-
-    virtual void setReadVersion(concord::storage::blockchain::BlockId _readVersion) { readVersion = _readVersion; }
 
     virtual concord::storage::KeyValuePair first(concord::storage::blockchain::BlockId readVersion,
                                                  concord::storage::blockchain::BlockId &actualVersion,
