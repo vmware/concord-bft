@@ -30,6 +30,7 @@
 #include "Messages.hpp"
 #include "STDigest.hpp"
 #include "Metrics.hpp"
+#include "SourceSelector.hpp"
 
 using std::set;
 using std::map;
@@ -119,8 +120,6 @@ class BCStateTran : public IStateTransfer {
   const uint32_t refreshTimerMilli_;
   const uint32_t checkpointSummariesRetransmissionTimeoutMilli_;
   const uint32_t maxAcceptableMsgDelayMilli_;
-  const uint32_t sourceReplicaReplacementTimeoutMilli_;
-  const uint32_t fetchRetransmissionTimeoutMilli_;
 
   const uint32_t maxVBlockSize_;
   const uint32_t maxItemSize_;
@@ -259,13 +258,10 @@ class BCStateTran : public IStateTransfer {
   // or GettingMissingResPages
   ///////////////////////////////////////////////////////////////////////////
 
-  static const uint16_t NO_REPLICA = UINT16_MAX;
+  SourceSelector sourceSelector_;
+
   static const uint64_t ID_OF_VBLOCK_RES_PAGES = UINT64_MAX;
 
-  set<uint16_t> preferredReplicas_;
-  uint16_t currentSourceReplica_ = NO_REPLICA;
-
-  uint64_t timeMilliCurrentSourceReplica_ = 0;
   uint64_t nextRequiredBlock_ = 0;
   STDigest digestOfNextRequiredBlock;
 
@@ -295,15 +291,11 @@ class BCStateTran : public IStateTransfer {
                   const STDigest& expectedDigestOfResPagesDescriptor,
                   char* vblock, uint32_t vblockSize) const;
 
-  uint16_t selectSourceReplica();
-
   void processData();
 
   void EnterGettingCheckpointSummariesState();
+  set<uint16_t> allOtherReplicas();
   void SetAllReplicasAsPreferred();
-  bool ShouldReplaceSourceReplica(
-      bool badDataFromCurrentSourceReplica, uint64_t diffMilli);
-
 
   ///////////////////////////////////////////////////////////////////////////
   // Helper methods
