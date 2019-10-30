@@ -26,7 +26,7 @@ namespace Relic {
  */
 class BNT {
  public:
-  bn_t n; // the big number itself
+  bn_t n;  // the big number itself
 
  public:
   BNT() {
@@ -35,50 +35,30 @@ class BNT {
     bn_zero(n);
   }
 
-  BNT(const dig_t d) : BNT() {
-    bn_set_dig(n, d);
-  }
+  BNT(const dig_t d) : BNT() { bn_set_dig(n, d); }
 
   BNT(int d);
 
-  BNT(const bn_t &o) : BNT() {
-    bn_copy(n, o);
-  }
+  BNT(const bn_t &o) : BNT() { bn_copy(n, o); }
 
-  BNT(const unsigned char *buf, int len) : BNT() {
-    fromBytes(buf, len);
-  }
+  BNT(const unsigned char *buf, int len) : BNT() { fromBytes(buf, len); }
 
-  BNT(const std::string &str, int base = 10) : BNT() {
-    fromString(str, base);
-  }
+  BNT(const std::string &str, int base = 10) : BNT() { fromString(str, base); }
 
-  BNT(const BNT &c) : BNT() {
-    bn_copy(n, c.n);
-  }
+  BNT(const BNT &c) : BNT() { bn_copy(n, c.n); }
 
-  ~BNT() {
-    bn_free(n);
-  }
+  ~BNT() { bn_free(n); }
 
  public:
-  bool getBit(int i) const {
-    return bn_get_bit(n, i) == 1;
-  }
+  bool getBit(int i) const { return bn_get_bit(n, i) == 1; }
 
-  int getBits() const {
-    return bn_bits(n);
-  }
+  int getBits() const { return bn_bits(n); }
 
-  int getByteCount() const {
-    return bn_size_bin(n);
-  }
+  int getByteCount() const { return bn_size_bin(n); }
 
   void toBytes(unsigned char *buf, int capacity) const;
 
-  void fromBytes(const unsigned char *buf, int size) {
-    bn_read_bin(n, buf, size);
-  }
+  void fromBytes(const unsigned char *buf, int size) { bn_read_bin(n, buf, size); }
 
   std::string toString(int base = 10) const;
   void fromString(const std::string &str, int base = 10);
@@ -194,37 +174,21 @@ class BNT {
   operator bn_t &() { return n; }
   operator const bn_t &() const { return n; }
 
-  bool operator==(const BNT &rhs) const {
-    return bn_cmp(n, rhs.n) == CMP_EQ;
-  }
+  bool operator==(const BNT &rhs) const { return bn_cmp(n, rhs.n) == CMP_EQ; }
 
-  bool operator!=(const BNT &rhs) const {
-    return bn_cmp(n, rhs.n) != CMP_EQ;
-  }
+  bool operator!=(const BNT &rhs) const { return bn_cmp(n, rhs.n) != CMP_EQ; }
 
-  bool operator!=(const dig_t &rhs) const {
-    return bn_cmp_dig(n, rhs) != CMP_EQ;
-  }
+  bool operator!=(const dig_t &rhs) const { return bn_cmp_dig(n, rhs) != CMP_EQ; }
 
-  bool operator<(const BNT &rhs) const {
-    return bn_cmp(n, rhs.n) == CMP_LT;
-  }
+  bool operator<(const BNT &rhs) const { return bn_cmp(n, rhs.n) == CMP_LT; }
 
-  bool operator<(const dig_t d) const {
-    return bn_cmp_dig(n, d) == CMP_LT;
-  }
+  bool operator<(const dig_t d) const { return bn_cmp_dig(n, d) == CMP_LT; }
 
-  bool operator>(const BNT &rhs) const {
-    return bn_cmp(n, rhs.n) == CMP_GT;
-  }
+  bool operator>(const BNT &rhs) const { return bn_cmp(n, rhs.n) == CMP_GT; }
 
-  bool operator>=(const BNT &rhs) const {
-    return bn_cmp(n, rhs.n) != CMP_LT;
-  }
+  bool operator>=(const BNT &rhs) const { return bn_cmp(n, rhs.n) != CMP_LT; }
 
-  bool operator<=(const BNT &rhs) const {
-    return bn_cmp(n, rhs.n) != CMP_GT;
-  }
+  bool operator<=(const BNT &rhs) const { return bn_cmp(n, rhs.n) != CMP_GT; }
 
   BNT &operator=(const dig_t d) {
     bn_set_dig(n, d);
@@ -246,10 +210,10 @@ class BNT {
     return newN;
   }
 
-/**
- * We just use these for convenience when we have to. We don't want to sacrifice performance by copying bn_t
- * objects around too often!
- */
+  /**
+   * We just use these for convenience when we have to. We don't want to sacrifice performance by copying bn_t
+   * objects around too often!
+   */
  public:
   BNT operator*(const BNT &rhs) const {
     BNT mult;
@@ -295,26 +259,16 @@ class G1T {
     g1_set_infty(n);
   }
 
-  G1T(const unsigned char *buf, int len) : G1T() {
-    fromBytes(buf, len);
-  }
+  G1T(const unsigned char *buf, int len) : G1T() { fromBytes(buf, len); }
 
-  G1T(const G1T &c) : G1T() {
-    g1_copy(n, c.n);
-  }
+  G1T(const G1T &c) : G1T() { g1_copy(n, c.n); }
 
-  G1T(const std::string &str) : G1T() {
-    fromString(str);
-  }
+  G1T(const std::string &str) : G1T() { fromString(str); }
 
-  ~G1T() {
-    g1_free(n);
-  }
+  ~G1T() { g1_free(n); }
 
  public:
-  int getByteCount() const {
-    return g1_size_bin(n, 1);
-  }
+  int getByteCount() const { return g1_size_bin(n, 1); }
 
   void toBytes(unsigned char *buf, int size) const;
   void fromBytes(const unsigned char *buf, int size);
@@ -360,10 +314,7 @@ class G1T {
     return r;
   }
 
-  static G1T TimesTwice(const G1T &a1,
-                        const BNT &e1,
-                        const G1T &a2,
-                        const BNT &e2) {
+  static G1T TimesTwice(const G1T &a1, const BNT &e1, const G1T &a2, const BNT &e2) {
     G1T r;
     g1_mul_sim(r, a1, e1, a2, e2);
     return r;
@@ -379,13 +330,9 @@ class G1T {
   operator g1_t &() { return n; }
   operator const g1_t &() const { return n; }
 
-  bool operator==(const G1T &rhs) const {
-    return g1_cmp(n, rhs.n) == CMP_EQ;
-  }
+  bool operator==(const G1T &rhs) const { return g1_cmp(n, rhs.n) == CMP_EQ; }
 
-  bool operator!=(const G1T &rhs) const {
-    return g1_cmp(n, rhs.n) != CMP_EQ;
-  }
+  bool operator!=(const G1T &rhs) const { return g1_cmp(n, rhs.n) != CMP_EQ; }
 };
 
 /**
@@ -405,21 +352,16 @@ class G2T {
   }
 
   G2T(const G2T &c) : G2T() {
-    // WARNING: RELIC asks for non-const, even though it does not modify the args. Thus, we remove the const using a cast.
+    // WARNING: RELIC asks for non-const, even though it does not modify the args. Thus, we remove the const using a
+    // cast.
     g2_copy(n, const_cast<g2_t &>(c.n));
   }
 
-  G2T(const std::string &str) : G2T() {
-    fromString(str);
-  }
+  G2T(const std::string &str) : G2T() { fromString(str); }
 
-  G2T(const unsigned char *buf, int size) : G2T() {
-    fromBytes(buf, size);
-  }
+  G2T(const unsigned char *buf, int size) : G2T() { fromBytes(buf, size); }
 
-  ~G2T() {
-    g2_free(n);
-  }
+  ~G2T() { g2_free(n); }
 
  public:
   int getByteCount() const {
@@ -474,14 +416,10 @@ class G2T {
     return r;
   }
 
-  static G2T TimesTwice(const G2T &a1,
-                        const BNT &e1,
-                        const G2T &a2,
-                        const BNT &e2) {
+  static G2T TimesTwice(const G2T &a1, const BNT &e1, const G2T &a2, const BNT &e2) {
     G2T r;
     // FIXME: RELIC: should take const's
-    g2_mul_sim(r, const_cast<G2T &>(a1), const_cast<BNT &>(e1),
-               const_cast<G2T &>(a2), const_cast<BNT &>(e2));
+    g2_mul_sim(r, const_cast<G2T &>(a1), const_cast<BNT &>(e1), const_cast<G2T &>(a2), const_cast<BNT &>(e2));
     return r;
   }
 
@@ -496,12 +434,14 @@ class G2T {
   operator const g2_t &() const { return n; }
 
   bool operator==(const G2T &rhs) const {
-    // WARNING: RELIC asks for non-const, even though it does not modify the args. Thus, we remove the const using a cast.
+    // WARNING: RELIC asks for non-const, even though it does not modify the args. Thus, we remove the const using a
+    // cast.
     return g2_cmp(const_cast<g2_t &>(n), const_cast<g2_t &>(rhs.n)) == CMP_EQ;
   }
 
   bool operator!=(const G2T &rhs) const {
-    // WARNING: RELIC asks for non-const, even though it does not modify the args. Thus, we remove the const using a cast.
+    // WARNING: RELIC asks for non-const, even though it does not modify the args. Thus, we remove the const using a
+    // cast.
     return g2_cmp(const_cast<g2_t &>(n), const_cast<g2_t &>(rhs.n)) != CMP_EQ;
   }
 };
@@ -516,19 +456,19 @@ class GTT {
 
  public:
   GTT() {
-    gt_null(n);gt_new(n);
+    gt_null(n);
+    gt_new(n);
     // WARNING: Zero() relies on GTT()-created objects to be zero.
     gt_zero(n);
   }
 
   GTT(const GTT &c) : GTT() {
-    // WARNING: RELIC asks for non-const, even though it does not modify the args. Thus, we remove the const using a cast.
+    // WARNING: RELIC asks for non-const, even though it does not modify the args. Thus, we remove the const using a
+    // cast.
     gt_copy(n, const_cast<gt_t &>(c.n));
   }
 
-  ~GTT() {
-    gt_free(n);
-  }
+  ~GTT() { gt_free(n); }
 
  public:
   static const GTT &Zero();
@@ -549,12 +489,14 @@ class GTT {
   operator const gt_t &() const { return n; }
 
   bool operator==(const GTT &rhs) const {
-    // WARNING: RELIC asks for non-const, even though it does not modify the args. Thus, we remove the const using a cast.
+    // WARNING: RELIC asks for non-const, even though it does not modify the args. Thus, we remove the const using a
+    // cast.
     return gt_cmp(const_cast<gt_t &>(n), const_cast<gt_t &>(rhs.n)) == CMP_EQ;
   }
 
   bool operator!=(const GTT &rhs) const {
-    // WARNING: RELIC asks for non-const, even though it does not modify the args. Thus, we remove the const using a cast.
+    // WARNING: RELIC asks for non-const, even though it does not modify the args. Thus, we remove the const using a
+    // cast.
     return gt_cmp(const_cast<gt_t &>(n), const_cast<gt_t &>(rhs.n)) != CMP_EQ;
   }
 };
@@ -569,4 +511,3 @@ std::ostream &operator<<(std::ostream &o, const GTT &num);
 
 } /* namespace Relic */
 } /* namespace BLS */
-

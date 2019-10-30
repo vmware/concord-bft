@@ -34,8 +34,8 @@ namespace concordUtils {
 
 class Histogram {
  public:
-  Histogram() { }
-  ~Histogram() { }
+  Histogram() {}
+  ~Histogram() {}
 
   void Clear();
   void Add(double value);
@@ -62,4 +62,4 @@ class Histogram {
 
 }  // namespace concordUtils
 
-#endif // STORAGE_LEVELDB_UTIL_HISTOGRAM_H_
+#endif  // STORAGE_LEVELDB_UTIL_HISTOGRAM_H_

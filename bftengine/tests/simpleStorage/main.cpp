@@ -41,9 +41,13 @@ void verifyData(FileStorage &fileStorage, uint32_t objId) {
   uint32_t actualObjectSize = 0;
   fileStorage.read(objId, sizeof(objIn), objInBuf, actualObjectSize);
   memcpy(&objIn, objInBuf, sizeof(objIn));
-  printf("*** Read from the storage: objIn.elem1=0x%xd, objIn.elem2=%ld,"
-         " objIn.elem3=0x%xd, objIn.elem4=0x%xd\n", objIn.elem1, objIn.elem2,
-         objIn.elem3, objIn.elem4);
+  printf(
+      "*** Read from the storage: objIn.elem1=0x%xd, objIn.elem2=%ld,"
+      " objIn.elem3=0x%xd, objIn.elem4=0x%xd\n",
+      objIn.elem1,
+      objIn.elem2,
+      objIn.elem3,
+      objIn.elem4);
   assert(objIn.elem1 == ELEM1);
   assert(objIn.elem2 == ELEM2);
   assert(objIn.elem3 == ELEM3);
@@ -62,7 +66,7 @@ int main(int argc, char **argv) {
     // Metadata object with id=1 is used to indicate storage initialization state
     for (uint32_t i = 2; i < objNum; i++) {
       objects[i].id = i;
-      objects[i].maxSize = (uint32_t) i * 2 + 30;
+      objects[i].maxSize = (uint32_t)i * 2 + 30;
     }
     fileStorage->initMaxSizeOfObjects(objects, objNum);
     Object objOut = {ELEM1, ELEM2, ELEM3, ELEM4};
@@ -97,4 +101,3 @@ int main(int argc, char **argv) {
 
   return 0;
 }
-

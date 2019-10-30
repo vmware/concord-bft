@@ -24,17 +24,15 @@ struct ClientParams {
   std::string configFileName;
   bool measurePerformance = false;
 
-  uint16_t get_numOfReplicas() {
-    return (uint16_t) (3 * numOfFaulty + 2 * numOfSlow + 1);
-  }
+  uint16_t get_numOfReplicas() { return (uint16_t)(3 * numOfFaulty + 2 * numOfSlow + 1); }
 };
 
 enum class PersistencyMode {
-  Off, // no persistency at all
-  InMemory, // use in memory module
-  File, // use file as a storage
-  RocksDB, // use RocksDB for storage
-  MAX_VALUE=RocksDB
+  Off,       // no persistency at all
+  InMemory,  // use in memory module
+  File,      // use file as a storage
+  RocksDB,   // use RocksDB for storage
+  MAX_VALUE = RocksDB
 };
 
 enum class ReplicaBehavior {
@@ -52,12 +50,12 @@ struct ReplicaParams {
   uint16_t numOfClients = 1;
   bool debug = false;
   bool viewChangeEnabled = false;
-  uint32_t viewChangeTimeout = 60000; // ms
-  uint16_t statusReportTimerMillisec = 10 * 1000; // ms
+  uint32_t viewChangeTimeout = 60000;              // ms
+  uint16_t statusReportTimerMillisec = 10 * 1000;  // ms
   std::string configFileName;
   std::string keysFilePrefix;
   PersistencyMode persistencyMode = PersistencyMode::Off;
   ReplicaBehavior replicaBehavior = ReplicaBehavior::Default;
 };
 
-#endif //CONCORD_BFT_TEST_PARAMETERS_HPP
+#endif  // CONCORD_BFT_TEST_PARAMETERS_HPP

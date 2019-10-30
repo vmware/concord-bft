@@ -85,7 +85,7 @@ void parse_params(int argc, char **argv, ReplicaParams &rp) {
 
   rp.keysFilePrefix = "private_replica_";
 
-  if (argc < 3) { // backward compatibility, only ID is passed
+  if (argc < 3) {  // backward compatibility, only ID is passed
     auto replicaId = std::stoi(argv[1]);
     if (replicaId < min16_t_u || replicaId > max16_t_u) {
       printf("-id value is out of range (%hu - %hu)", min16_t_u, max16_t_u);
@@ -99,9 +99,7 @@ void parse_params(int argc, char **argv, ReplicaParams &rp) {
         if (p == "-r") {
           auto numRep = std::stoi(argv[i + 1]);
           if (numRep < min16_t_u || numRep > max16_t_u) {
-            printf("-r value is out of range (%hu - %hu)",
-                   min16_t_u,
-                   max16_t_u);
+            printf("-r value is out of range (%hu - %hu)", min16_t_u, max16_t_u);
             exit(-1);
           }
           rp.numOfReplicas = numRep;
@@ -109,9 +107,7 @@ void parse_params(int argc, char **argv, ReplicaParams &rp) {
         } else if (p == "-id") {
           auto repId = std::stoi(argv[i + 1]);
           if (repId < min16_t_u || repId > max16_t_u) {
-            printf("-id value is out of range (%hu - %hu)",
-                   min16_t_u,
-                   max16_t_u);
+            printf("-id value is out of range (%hu - %hu)", min16_t_u, max16_t_u);
             exit(-1);
           }
           rp.replicaId = repId;
@@ -119,9 +115,7 @@ void parse_params(int argc, char **argv, ReplicaParams &rp) {
         } else if (p == "-c") {
           auto numCl = std::stoi(argv[i + 1]);
           if (numCl < min16_t_u || numCl > max16_t_u) {
-            printf("-c value is out of range (%hu - %hu)",
-                   min16_t_u,
-                   max16_t_u);
+            printf("-c value is out of range (%hu - %hu)", min16_t_u, max16_t_u);
             exit(-1);
           }
           rp.numOfClients = numCl;
@@ -135,8 +129,7 @@ void parse_params(int argc, char **argv, ReplicaParams &rp) {
         } else if (p == "-vct") {
           uint32_t vct = std::stoi(argv[i + 1]);
           if (vct < min32_t_u || vct > max32_t_u) {
-            printf("-vct value is out of range (%u - %u)", min16_t_u,
-                   max16_t_u);
+            printf("-vct value is out of range (%u - %u)", min16_t_u, max16_t_u);
             exit(-1);
           }
           rp.viewChangeTimeout = vct;
@@ -146,19 +139,19 @@ void parse_params(int argc, char **argv, ReplicaParams &rp) {
           i += 2;
         } else if (p == "-pm") {
           uint16_t pm = std::stoi(argv[i + 1]);
-          if (pm > (uint16_t) PersistencyMode::MAX_VALUE) {
+          if (pm > (uint16_t)PersistencyMode::MAX_VALUE) {
             printf("-pm value is out of range");
             exit(-1);
           }
-          rp.persistencyMode = (PersistencyMode) pm;
+          rp.persistencyMode = (PersistencyMode)pm;
           i += 2;
         } else if (p == "-rb") {
           uint16_t rb = std::stoi(argv[i + 1]);
-          if (rb > (uint16_t) ReplicaBehavior::MAX_VALUE) {
+          if (rb > (uint16_t)ReplicaBehavior::MAX_VALUE) {
             printf("-rb value is out of range");
             exit(-1);
           }
-          rp.replicaBehavior = (ReplicaBehavior) rb;
+          rp.replicaBehavior = (ReplicaBehavior)rb;
           i += 2;
         } else {
           printf("Unknown parameter %s\n", p.c_str());
@@ -177,8 +170,7 @@ void parse_params(int argc, char **argv, ReplicaParams &rp) {
 
 SimpleTestReplica *replica = nullptr;
 void signalHandler(int signum) {
-  if (replica)
-    replica->stop();
+  if (replica) replica->stop();
   exit(0);
 }
 
@@ -187,8 +179,7 @@ int main(int argc, char **argv) {
   parse_params(argc, argv, rp);
 
   // allows to attach debugger
-  if (rp.debug)
-    std::this_thread::sleep_for(chrono::seconds(20));
+  if (rp.debug) std::this_thread::sleep_for(chrono::seconds(20));
 
   signal(SIGTERM, signalHandler);
 
@@ -206,14 +197,12 @@ int main(int argc, char **argv) {
     rp.viewChangeEnabled = true;
 
   LOG_INFO(replicaLogger,
-           "ReplicaParams: replicaId: " << rp.replicaId
-                                        << ", numOfReplicas: " << rp.numOfReplicas
-                                        << ", numOfClients: " << rp.numOfClients
-                                        << ", vcEnabled: " << rp.viewChangeEnabled
+           "ReplicaParams: replicaId: " << rp.replicaId << ", numOfReplicas: " << rp.numOfReplicas << ", numOfClients: "
+                                        << rp.numOfClients << ", vcEnabled: " << rp.viewChangeEnabled
                                         << ", vcTimeout: " << rp.viewChangeTimeout
                                         << ", statusReportTimerMillisec: " << rp.statusReportTimerMillisec
-                                        << ", behavior: " << (uint16_t) rp.replicaBehavior
-                                        << ", persistencyMode: " << (uint16_t) rp.persistencyMode);
+                                        << ", behavior: " << (uint16_t)rp.replicaBehavior
+                                        << ", persistencyMode: " << (uint16_t)rp.persistencyMode);
 
   replica = SimpleTestReplica::create_replica(replicaBehavior, rp, metaDataStorage);
   replica->start();

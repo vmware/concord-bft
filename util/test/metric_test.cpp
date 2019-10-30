@@ -48,14 +48,11 @@ TEST(MetricsTest, Aggregator) {
   c.Register();
 
   ASSERT_EQ(3, aggregator->GetGauge(c.Name(), "connected_peers").Get());
-  ASSERT_THROW(aggregator->GetGauge(c.Name(), "non-existent-gauge"),
-               invalid_argument);
+  ASSERT_THROW(aggregator->GetGauge(c.Name(), "non-existent-gauge"), invalid_argument);
   ASSERT_EQ("primary", aggregator->GetStatus(c.Name(), "state").Get());
-  ASSERT_THROW(aggregator->GetStatus(c.Name(), "no-such-status"),
-               invalid_argument);
+  ASSERT_THROW(aggregator->GetStatus(c.Name(), "no-such-status"), invalid_argument);
   ASSERT_EQ(0, aggregator->GetCounter(c.Name(), "messages_sent").Get());
-  ASSERT_THROW(aggregator->GetCounter(c.Name(), "no-such-counter"),
-               invalid_argument);
+  ASSERT_THROW(aggregator->GetCounter(c.Name(), "no-such-counter"), invalid_argument);
 
   h_gauge.Get().Set(5);
   h_status.Get().Set("backup");
@@ -96,7 +93,7 @@ TEST(MetricTest, ToJson) {
   // JSON is valid python. We evaluate the JSON string and see if we get a 0
   // return value. If so it parsed correctly.
   ostringstream oss;
-  oss << "python -c '" << aggregator->ToJson() << "'" <<  endl;
+  oss << "python -c '" << aggregator->ToJson() << "'" << endl;
 
   ASSERT_EQ(0, system(oss.str().c_str()));
 }

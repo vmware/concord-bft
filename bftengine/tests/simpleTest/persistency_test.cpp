@@ -23,20 +23,17 @@
 #include <time.h>
 #include <memory>
 
-namespace test
-{
-namespace persistency
-{
-class PersistencyTest: public testing::Test
-{
+namespace test {
+namespace persistency {
+class PersistencyTest : public testing::Test {
  protected:
   void TearDown() override {
-    for(auto it : replicas) {
+    for (auto it : replicas) {
       it->stop();
     }
 
-    for(auto it : replicaThreads) {
-      if(it->joinable()) {
+    for (auto it : replicaThreads) {
+      if (it->joinable()) {
         it->join();
       }
     }
@@ -53,45 +50,39 @@ class PersistencyTest: public testing::Test
     client = std::unique_ptr<SimpleTestClient>(new SimpleTestClient(cp, clientLogger));
   }
 
-  void create_and_run_replica(
-    ReplicaParams rp, ISimpleTestReplicaBehavior *behv) {
-      rp.keysFilePrefix = "private_replica_";
-      auto replica = std::shared_ptr<SimpleTestReplica>(SimpleTestReplica::create_replica(
-        behv, rp, nullptr));
-      replicas.push_back(replica);
-     auto t = std::shared_ptr<std::thread>(new std::thread(
-        std::bind(&PersistencyTest::run_replica, this ,replica)));
-      replicaThreads.push_back(t);
+  void create_and_run_replica(ReplicaParams rp, ISimpleTestReplicaBehavior *behv) {
+    rp.keysFilePrefix = "private_replica_";
+    auto replica = std::shared_ptr<SimpleTestReplica>(SimpleTestReplica::create_replica(behv, rp, nullptr));
+    replicas.push_back(replica);
+    auto t = std::shared_ptr<std::thread>(new std::thread(std::bind(&PersistencyTest::run_replica, this, replica)));
+    replicaThreads.push_back(t);
   }
 
   std::unique_ptr<SimpleTestClient> client;
   vector<std::shared_ptr<SimpleTestReplica>> replicas;
   vector<std::shared_ptr<std::thread>> replicaThreads;
-  concordlogger::Logger clientLogger = concordlogger::Log::getLogger
-      ("clientlogger");
-  concordlogger::Logger replicaLogger = concordlogger::Log::getLogger
-      ("replicalogger");
+  concordlogger::Logger clientLogger = concordlogger::Log::getLogger("clientlogger");
+  concordlogger::Logger replicaLogger = concordlogger::Log::getLogger("replicalogger");
 };
 
 TEST_F(PersistencyTest, RegressionNoPersistency) {
   create_client(1500);
-  for(int i = 0; i < 4;i++) {
+  for (int i = 0; i < 4; i++) {
     ReplicaParams rp;
     rp.persistencyMode = PersistencyMode::Off;
     rp.replicaId = i;
-    auto b = 
-      create_replica_behavior(ReplicaBehavior::Default, rp);
+    auto b = create_replica_behavior(ReplicaBehavior::Default, rp);
     create_and_run_replica(rp, b);
   }
 
   ASSERT_TRUE(client->run());
-} 
+}
 
 // this test make take a while to complete...
 TEST_F(PersistencyTest, PrimaryRestartVC) {
   create_client(1500);
-  
-  for(int i = 0; i < 4;i++) {
+
+  for (int i = 0; i < 4; i++) {
     ReplicaParams rp;
     rp.persistencyMode = PersistencyMode::InMemory;
     rp.viewChangeEnabled = true;
@@ -104,10 +95,10 @@ TEST_F(PersistencyTest, PrimaryRestartVC) {
 }
 
 GTEST_API_ int main(int argc, char **argv) {
-   printf("Running main() from gtest_main.cc\n");
-   testing::InitGoogleTest(&argc, argv);
-	 return RUN_ALL_TESTS();
+  printf("Running main() from gtest_main.cc\n");
+  testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
 }
 
-}
-}
+}  // namespace persistency
+}  // namespace test

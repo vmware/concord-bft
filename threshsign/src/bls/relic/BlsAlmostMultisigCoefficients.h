@@ -10,7 +10,6 @@
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 
-
 #pragma once
 
 #include <map>
@@ -28,36 +27,31 @@ namespace BLS {
 namespace Relic {
 
 class BlsCoefficientsMap : public AlmostMultisigCoefficientsMap<BNT> {
-private:
-    BNT fieldOrder;
+ private:
+  BNT fieldOrder;
 
-public:
-    /**
-     * When storing this object in a std::map, we need its default constructor defined.
-     */
-    BlsCoefficientsMap() : AlmostMultisigCoefficientsMap<BNT>() {
-        fieldOrder = Library::Get().getG2Order();
-    }
-    BlsCoefficientsMap(NumSharesType n) : AlmostMultisigCoefficientsMap<BNT>(n) {
-        fieldOrder = Library::Get().getG2Order();
-    }
+ public:
+  /**
+   * When storing this object in a std::map, we need its default constructor defined.
+   */
+  BlsCoefficientsMap() : AlmostMultisigCoefficientsMap<BNT>() { fieldOrder = Library::Get().getG2Order(); }
+  BlsCoefficientsMap(NumSharesType n) : AlmostMultisigCoefficientsMap<BNT>(n) {
+    fieldOrder = Library::Get().getG2Order();
+  }
 
-public:
-    virtual void calculateCoefficientsForAll(const VectorOfShares& vec, ShareID missing);
+ public:
+  virtual void calculateCoefficientsForAll(const VectorOfShares& vec, ShareID missing);
 };
 
-
 class BlsAlmostMultisigCoefficients : public AlmostMultisigCoefficients<BlsCoefficientsMap> {
-private:
-    static BlsAlmostMultisigCoefficients _instance;
+ private:
+  static BlsAlmostMultisigCoefficients _instance;
 
-public:
-    static BlsAlmostMultisigCoefficients& Get() {
-        return _instance;
-    }
+ public:
+  static BlsAlmostMultisigCoefficients& Get() { return _instance; }
 
-private:
-    BlsAlmostMultisigCoefficients() {}
+ private:
+  BlsAlmostMultisigCoefficients() {}
 };
 
 } /* namespace Relic */

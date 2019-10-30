@@ -24,14 +24,11 @@ namespace SimpleInMemoryStateTransfer {
 
 class ISimpleInMemoryStateTransfer : public IStateTransfer {
  public:
-    virtual void markUpdate(void* ptrToUpdatedRegion,
-                            uint32_t sizeOfUpdatedRegion) = 0;
+  virtual void markUpdate(void* ptrToUpdatedRegion, uint32_t sizeOfUpdatedRegion) = 0;
 };
 
 ISimpleInMemoryStateTransfer* create(
-                    void* ptrToState, uint32_t sizeOfState,
-                    uint16_t myReplicaId, uint16_t fVal,
-                    uint16_t cVal, bool pedanticChecks);
+    void* ptrToState, uint32_t sizeOfState, uint16_t myReplicaId, uint16_t fVal, uint16_t cVal, bool pedanticChecks);
 
 }  // namespace SimpleInMemoryStateTransfer
 }  // namespace bftEngine

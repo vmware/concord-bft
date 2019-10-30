@@ -23,7 +23,7 @@ namespace impl {
 
 #define TEMPLATE_PARAMS uint16_t WindowSize, uint16_t Resolution, typename ItemType
 
-template<TEMPLATE_PARAMS>
+template <TEMPLATE_PARAMS>
 class SerializableActiveWindow {
  public:
   static_assert(WindowSize >= 8, "");
@@ -35,9 +35,7 @@ class SerializableActiveWindow {
   explicit SerializableActiveWindow(const SeqNum &windowFirst);
   ~SerializableActiveWindow();
 
-  static uint32_t maxElementSize() {
-    return ItemType::maxSize();
-  }
+  static uint32_t maxElementSize() { return ItemType::maxSize(); }
 
   SeqNum getBeginningOfActiveWindow() const { return beginningOfActiveWindow_; }
 
@@ -59,7 +57,7 @@ class SerializableActiveWindow {
 
   std::list<SeqNum> advanceActiveWindow(const SeqNum &newFirstIndex);
 
-  static SeqNum convertIndex(const SeqNum &seqNum, const SeqNum& beginningOfActiveWindow);
+  static SeqNum convertIndex(const SeqNum &seqNum, const SeqNum &beginningOfActiveWindow);
 
  private:
   static const uint32_t numItems_ = WindowSize / Resolution;
@@ -69,5 +67,5 @@ class SerializableActiveWindow {
   ItemType activeWindow_[numItems_];
 };
 
-}
-}
+}  // namespace impl
+}  // namespace bftEngine

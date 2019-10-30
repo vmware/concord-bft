@@ -26,10 +26,15 @@ namespace Relic {
  * Computes r = \prod_{i \in s} { a[i]^e[i] } faster than naive method.
  * Thanks to "Fast Batch Verification for Modular Exponentiation and Digital Signatures"
  */
-template<class GT>
+template <class GT>
 GT fastMultExp(const VectorOfShares& s, const std::vector<GT>& a, const std::vector<BNT>& e, int maxBits);
-template<class GT>
-GT fastMultExp(const VectorOfShares& s, ShareID first, int count, const std::vector<GT>& a, const std::vector<BNT>& e, int maxBits);
+template <class GT>
+GT fastMultExp(const VectorOfShares& s,
+               ShareID first,
+               int count,
+               const std::vector<GT>& a,
+               const std::vector<BNT>& e,
+               int maxBits);
 
 /**
  * Computes r = \prod_{i \in s} { a[i]^e[i] } faster than naive method by recursing on
@@ -37,8 +42,8 @@ GT fastMultExp(const VectorOfShares& s, ShareID first, int count, const std::vec
  *
  * NOTE: Slower than fastMultExp above.
  */
-template<class GT>
+template <class GT>
 GT fastMultExpTwo(const VectorOfShares& s, const std::vector<GT>& a, const std::vector<BNT>& e);
 
-} // namespace Relic
-} // namespace BLS
+}  // namespace Relic
+}  // namespace BLS

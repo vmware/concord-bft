@@ -20,10 +20,8 @@ using namespace std;
 
 namespace bftEngine {
 
-ostream &operator<<(ostream &stream,
-                    const ObjectsMetadataHandler &objectsMetadataHandler) {
-  stream << "ObjectsMetadataHandler: objectsNumber="
-         << objectsMetadataHandler.getObjectsNum() << '\n';
+ostream &operator<<(ostream &stream, const ObjectsMetadataHandler &objectsMetadataHandler) {
+  stream << "ObjectsMetadataHandler: objectsNumber=" << objectsMetadataHandler.getObjectsNum() << '\n';
   for (auto it : objectsMetadataHandler.getObjectsMap()) {
     stream << it.second.toString() << '\n';
   }
@@ -34,10 +32,8 @@ size_t ObjectsMetadataHandler::getObjectsMetadataSize() {
   return (sizeof(objectsNum_) + sizeof(MetadataObjectInfo) * objectsNum_);
 }
 
-void ObjectsMetadataHandler::setObjectInfo(
-    const MetadataObjectInfo &objectInfo) {
-  objectsMap_.insert(pair<uint32_t, MetadataObjectInfo>(objectInfo.id,
-                                                        objectInfo));
+void ObjectsMetadataHandler::setObjectInfo(const MetadataObjectInfo &objectInfo) {
+  objectsMap_.insert(pair<uint32_t, MetadataObjectInfo>(objectInfo.id, objectInfo));
 }
 
 MetadataObjectInfo *ObjectsMetadataHandler::getObjectInfo(uint32_t objectId) {
@@ -48,5 +44,4 @@ MetadataObjectInfo *ObjectsMetadataHandler::getObjectInfo(uint32_t objectId) {
   return nullptr;
 }
 
-}
-
+}  // namespace bftEngine

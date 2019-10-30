@@ -26,28 +26,30 @@ namespace BLS {
 namespace Relic {
 
 class BlsMultisigAccumulator : public BlsAccumulatorBase {
-protected:
+ protected:
+ public:
+  BlsMultisigAccumulator(const std::vector<BlsPublicKey>& vks,
+                         NumSharesType reqSigners,
+                         NumSharesType totalSigners,
+                         bool withShareVerification);
+  virtual ~BlsMultisigAccumulator() {}
 
-public:
-    BlsMultisigAccumulator(const std::vector<BlsPublicKey>& vks, NumSharesType reqSigners, NumSharesType totalSigners, bool withShareVerification);
-    virtual ~BlsMultisigAccumulator() {}
+  // IThresholdAccumulator overloads.
+ public:
+  virtual void getFullSignedData(char* outThreshSig, int threshSigLen);
 
-// IThresholdAccumulator overloads.
-public:
-    virtual void getFullSignedData(char* outThreshSig, int threshSigLen);
+  virtual IThresholdAccumulator* clone() {
+    // Call copy constructor.
+    return new BlsMultisigAccumulator(*this);
+  }
 
-    virtual IThresholdAccumulator* clone() {
-        // Call copy constructor.
-        return new BlsMultisigAccumulator(*this);
-    }
+  virtual bool hasShareVerificationEnabled() const { return shareVerificationEnabled; }
 
-    virtual bool hasShareVerificationEnabled() const { return shareVerificationEnabled; }
+  // Used internally or for testing
+ public:
+  virtual void aggregateShares();
 
-// Used internally or for testing
-public:
-    virtual void aggregateShares();
-
-    virtual void sigToBytes(unsigned char * buf, int len) const;
+  virtual void sigToBytes(unsigned char* buf, int len) const;
 };
 
 } /* namespace Relic */

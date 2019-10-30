@@ -30,8 +30,7 @@ using concordUtils::Sliver;
 // forward declarations
 class ICommandsHandler;
 
-struct ClientConfig
-{
+struct ClientConfig {
   // F value - max number of faulty/malicious replicas. fVal >= 1
   uint16_t fVal;
 
@@ -61,10 +60,12 @@ class IClient {
 
   virtual bool isRunning() = 0;
 
-  virtual Status invokeCommandSynch(const char* request, uint32_t requestSize,
+  virtual Status invokeCommandSynch(const char* request,
+                                    uint32_t requestSize,
                                     bool isReadOnly,
                                     std::chrono::milliseconds timeout,
-                                    uint32_t replySize, char* outReply,
+                                    uint32_t replySize,
+                                    char* outReply,
                                     uint32_t* outActualReplySize) = 0;
 };
 
@@ -92,15 +93,14 @@ class IReplica {
     Starting,
     Running,
     Stopping,
-    Idle
-  };
+    Idle };
 
   // returns the current status of the replica
   virtual RepStatus getReplicaStatus() const = 0;
 
   virtual bool isRunning() const = 0;
 
-    /*
+  /*
    * TODO(GG): Implement:
    *  virtual Status setStatusNotifier(StatusNotifier statusNotifier);
    */
@@ -117,9 +117,7 @@ class IReplica {
   /// need to split interfaces implementations to differrent modules
   /// instead of being all implemented bt ReplicaImpl
   virtual void set_command_handler(ICommandsHandler* handler) = 0;
-
 };
-  
 
 /////////////////////////////////////////////////////////////////////////////
 // Replica's commands handle
@@ -127,10 +125,13 @@ class IReplica {
 
 class ICommandsHandler : public bftEngine::RequestsHandler {
  public:
-   virtual int execute(uint16_t clientId, uint64_t sequenceNum, bool readOnly,
-                      uint32_t requestSize, const char* request,
-                      uint32_t maxReplySize, char* outReply,
+  virtual int execute(uint16_t clientId,
+                      uint64_t sequenceNum,
+                      bool readOnly,
+                      uint32_t requestSize,
+                      const char* request,
+                      uint32_t maxReplySize,
+                      char* outReply,
                       uint32_t& outActualReplySize) = 0;
-
 };
 }  // namespace SimpleKVBC

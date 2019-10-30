@@ -36,7 +36,7 @@ static bool g_rocksdb_print_measurements = false;
  * @param _s Sliver object.
  * @return A RocksDB Slice object.
  */
-::rocksdb::Slice toRocksdbSlice(const Sliver& _s) {
+::rocksdb::Slice toRocksdbSlice(const Sliver &_s) {
   return ::rocksdb::Slice(reinterpret_cast<const char *>(_s.data()), _s.length());
 }
 
@@ -68,15 +68,12 @@ Sliver copyRocksdbSlice(::rocksdb::Slice _s) {
   return Sliver(copyData, _s.size());
 }
 
-ITransaction* Client::beginTransaction()
-{
-  static std::atomic_uint64_t current_transaction_id (0);
+ITransaction *Client::beginTransaction() {
+  static std::atomic_uint64_t current_transaction_id(0);
   ::rocksdb::WriteOptions wo;
-  if (!txn_db_)
-    throw std::runtime_error("Failed to start transaction, reason: RO mode");
+  if (!txn_db_) throw std::runtime_error("Failed to start transaction, reason: RO mode");
   return new Transaction(txn_db_->BeginTransaction(wo), ++current_transaction_id);
 }
-
 
 bool Client::isNew() {
   ::rocksdb::DB *db;
@@ -95,7 +92,7 @@ bool Client::isNew() {
  *  @throw GeneralError in case of error in connection, else OK.
  */
 void Client::init(bool readOnly) {
-  ::rocksdb::DB* db;
+  ::rocksdb::DB *db;
   ::rocksdb::Options options;
   ::rocksdb::TransactionDBOptions txn_options;
   options.create_if_missing = true;
@@ -104,24 +101,24 @@ void Client::init(bool readOnly) {
   if (readOnly) {
     s = ::rocksdb::DB::OpenForReadOnly(options, m_dbPath, &db);
     if (!s.ok())
-        throw std::runtime_error("Failed to open rocksdb database at " + m_dbPath + std::string(" reason: ") + s.ToString());
+      throw std::runtime_error("Failed to open rocksdb database at " + m_dbPath + std::string(" reason: ") +
+                               s.ToString());
     dbInstance_.reset(db);
   } else {
     s = ::rocksdb::TransactionDB::Open(options, txn_options, m_dbPath, &txn_db_);
     if (!s.ok())
-        throw std::runtime_error("Failed to open rocksdb database at " + m_dbPath + std::string(" reason: ") + s.ToString());
+      throw std::runtime_error("Failed to open rocksdb database at " + m_dbPath + std::string(" reason: ") +
+                               s.ToString());
     dbInstance_.reset(txn_db_->GetBaseDB());
   }
-
 }
 
-Status Client::get(const Sliver& _key, OUT std::string &_value) const {
+Status Client::get(const Sliver &_key, OUT std::string &_value) const {
   ++g_rocksdb_called_read;
   if (g_rocksdb_print_measurements) {
     LOG_DEBUG(logger(), "Reading count = " << g_rocksdb_called_read << ", key " << _key);
   }
-  ::rocksdb::Status s =
-      dbInstance_->Get(::rocksdb::ReadOptions(), toRocksdbSlice(_key), &_value);
+  ::rocksdb::Status s = dbInstance_->Get(::rocksdb::ReadOptions(), toRocksdbSlice(_key), &_value);
 
   if (s.IsNotFound()) {
     return Status::NotFound("Not found");
@@ -149,7 +146,7 @@ Status Client::get(const Sliver& _key, OUT std::string &_value) const {
  * @return Status NotFound if key is not present, Status GeneralError if error
  *         in Get, else Status OK.
  */
-Status Client::get(const Sliver& _key, OUT Sliver &_outValue) const {
+Status Client::get(const Sliver &_key, OUT Sliver &_outValue) const {
   std::string value;
   Status ret = get(_key, value);
   if (!ret.isOK()) return ret;
@@ -164,15 +161,15 @@ Status Client::get(const Sliver& _key, OUT Sliver &_outValue) const {
 }
 
 // A memory for the output buffer is expected to be allocated by a caller.
-Status Client::get(const Sliver& _key, OUT char *&buf, uint32_t bufSize,
-                          OUT uint32_t &_realSize) const {
+Status Client::get(const Sliver &_key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &_realSize) const {
   std::string value;
   Status ret = get(_key, value);
   if (!ret.isOK()) return ret;
 
   _realSize = static_cast<uint32_t>(value.length());
   if (bufSize < _realSize) {
-    LOG_ERROR(logger(), "Object value is bigger than specified buffer bufSize=" << bufSize << ", _realSize=" << _realSize);
+    LOG_ERROR(logger(),
+              "Object value is bigger than specified buffer bufSize=" << bufSize << ", _realSize=" << _realSize);
     return Status::GeneralError("Object value is bigger than specified buffer");
   }
   memcpy(buf, value.data(), _realSize);
@@ -184,9 +181,7 @@ Status Client::get(const Sliver& _key, OUT char *&buf, uint32_t bufSize,
  *
  * @return RocksDBClientIterator object.
  */
-IDBClient::IDBClientIterator *Client::getIterator() const {
-  return new ClientIterator(this);
-}
+IDBClient::IDBClientIterator *Client::getIterator() const { return new ClientIterator(this); }
 
 /**
  * @brief Frees the RocksDBClientIterator.
@@ -248,11 +243,10 @@ ClientIterator::ClientIterator(const Client *_parentClient)
  * @param _value The value that needs to be stored against the key.
  * @return Status GeneralError if error in Put, else Status OK.
  */
-Status Client::put(const Sliver& _key, const Sliver& _value) {
+Status Client::put(const Sliver &_key, const Sliver &_value) {
   ::rocksdb::WriteOptions woptions = ::rocksdb::WriteOptions();
 
-  ::rocksdb::Status s =
-      dbInstance_->Put(woptions, toRocksdbSlice(_key), toRocksdbSlice(_value));
+  ::rocksdb::Status s = dbInstance_->Put(woptions, toRocksdbSlice(_key), toRocksdbSlice(_value));
 
   LOG_TRACE(logger(), "Rocksdb Put " << _key << " : " << _value);
 
@@ -273,7 +267,7 @@ Status Client::put(const Sliver& _key, const Sliver& _value) {
  *              deleted.
  *  @return Status GeneralError if error in delete, else Status OK.
  */
-Status Client::del(const Sliver& _key) {
+Status Client::del(const Sliver &_key) {
   ::rocksdb::WriteOptions woptions = ::rocksdb::WriteOptions();
   ::rocksdb::Status s = dbInstance_->Delete(woptions, toRocksdbSlice(_key));
 
@@ -287,14 +281,12 @@ Status Client::del(const Sliver& _key) {
   return Status::OK();
 }
 
-Status Client::multiGet(const KeysVector &_keysVec,
-                               OUT ValuesVector &_valuesVec) {
+Status Client::multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec) {
   std::vector<std::string> values;
   std::vector<::rocksdb::Slice> keys;
   for (auto const &it : _keysVec) keys.push_back(toRocksdbSlice(it));
 
-  std::vector<::rocksdb::Status> statuses =
-      dbInstance_->MultiGet(::rocksdb::ReadOptions(), keys, &values);
+  std::vector<::rocksdb::Status> statuses = dbInstance_->MultiGet(::rocksdb::ReadOptions(), keys, &values);
 
   for (size_t i = 0; i < values.size(); i++) {
     if (statuses[i].IsNotFound()) return Status::NotFound("Not found");
@@ -316,12 +308,14 @@ Status Client::launchBatchJob(::rocksdb::WriteBatch &batch) {
   ::rocksdb::WriteOptions wOptions = ::rocksdb::WriteOptions();
   ::rocksdb::Status status = dbInstance_->Write(wOptions, &batch);
   if (!status.ok()) {
-    LOG_ERROR(logger(), "Execution of batch job failed; batch data size=" << batch.GetDataSize() <<
-        " num updates=" << batch.Count());
+    LOG_ERROR(
+        logger(),
+        "Execution of batch job failed; batch data size=" << batch.GetDataSize() << " num updates=" << batch.Count());
     return Status::GeneralError("Execution of batch job failed");
   }
-  LOG_DEBUG(logger(), "Successfully executed a batch job: batch data size=" << batch.GetDataSize() <<
-      " num updates=" << batch.Count());
+  LOG_DEBUG(
+      logger(),
+      "Successfully executed a batch job: batch data size=" << batch.GetDataSize() << " num updates=" << batch.Count());
   return Status::OK();
 }
 
@@ -330,13 +324,10 @@ Status Client::multiPut(const SetOfKeyValuePairs &keyValueMap) {
   LOG_DEBUG(logger(), "multiPut: keyValueMap.size() = " << keyValueMap.size());
   for (const auto &it : keyValueMap) {
     batch.Put(toRocksdbSlice(it.first), toRocksdbSlice(it.second));
-    LOG_TRACE(logger(), "RocksDB Added entry: key ="
-                                << it.first << ", value= " << it.second
-                                << " to the batch job");
+    LOG_TRACE(logger(), "RocksDB Added entry: key =" << it.first << ", value= " << it.second << " to the batch job");
   }
   Status status = launchBatchJob(batch);
-  if (status.isOK())
-    LOG_DEBUG(logger(), "Successfully put all entries to the database");
+  if (status.isOK()) LOG_DEBUG(logger(), "Successfully put all entries to the database");
   return status;
 }
 
@@ -347,8 +338,7 @@ Status Client::multiDel(const KeysVector &_keysVec) {
     batch.Delete(toRocksdbSlice(it));
   }
   Status status = launchBatchJob(batch);
-  if (status.isOK())
-    LOG_DEBUG(logger(), "Successfully deleted entries");
+  if (status.isOK()) LOG_DEBUG(logger(), "Successfully deleted entries");
   return status;
 }
 
@@ -390,11 +380,10 @@ KeyValuePair ClientIterator::first() {
  * @return Key value pair of the key which is greater than or equal to
  *         _searchKey.
  */
-KeyValuePair ClientIterator::seekAtLeast(const Sliver& _searchKey) {
+KeyValuePair ClientIterator::seekAtLeast(const Sliver &_searchKey) {
   ++g_rocksdb_called_read;
   if (g_rocksdb_print_measurements) {
-    LOG_DEBUG(logger, "Reading count = " << g_rocksdb_called_read
-                                               << ", key " << _searchKey);
+    LOG_DEBUG(logger, "Reading count = " << g_rocksdb_called_read << ", key " << _searchKey);
   }
 
   m_iter->Seek(toRocksdbSlice(_searchKey));
@@ -497,7 +486,7 @@ bool ClientIterator::isEnd() { return !m_iter->Valid(); }
  */
 Status ClientIterator::getStatus() { return m_status; }
 
-}
-}
-}
+}  // namespace rocksdb
+}  // namespace storage
+}  // namespace concord
 #endif

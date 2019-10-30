@@ -21,18 +21,16 @@ namespace concord {
 namespace storage {
 namespace rocksdb {
 
-
-int KeyComparator::Compare(const ::rocksdb::Slice& _a,
-                           const ::rocksdb::Slice& _b) const {
-  int ret = key_manipulator_->composedKeyComparison(reinterpret_cast<const uint8_t*>(_a.data()), _a.size(),
-                                                    reinterpret_cast<const uint8_t*>(_b.data()), _b.size());
+int KeyComparator::Compare(const ::rocksdb::Slice& _a, const ::rocksdb::Slice& _b) const {
+  int ret = key_manipulator_->composedKeyComparison(
+      reinterpret_cast<const uint8_t*>(_a.data()), _a.size(), reinterpret_cast<const uint8_t*>(_b.data()), _b.size());
 
   LOG_TRACE(logger_, "Compared " << _a.ToString(true) << " with " << _b.ToString(true) << ", returning " << ret);
 
   return ret;
 }
 
-}
-}
-}
+}  // namespace rocksdb
+}  // namespace storage
+}  // namespace concord
 #endif

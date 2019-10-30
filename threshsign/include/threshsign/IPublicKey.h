@@ -16,19 +16,19 @@
 #include <ostream>
 
 class IPublicKey {
-public:
-    virtual ~IPublicKey() {}
+ public:
+  virtual ~IPublicKey() {}
 
-public:
-    virtual std::string toString() const = 0;
+ public:
+  virtual std::string toString() const = 0;
 
-    friend std::ostream& operator<<(std::ostream& out, const IPublicKey& pk);
+  friend std::ostream& operator<<(std::ostream& out, const IPublicKey& pk);
 };
 
 /**
  * The public key corresponding to the IShareSecretKey class.
  */
 class IShareVerificationKey : public IPublicKey {
-public:
-    virtual ~IShareVerificationKey() {}
+ public:
+  virtual ~IShareVerificationKey() {}
 };

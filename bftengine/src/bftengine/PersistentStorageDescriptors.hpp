@@ -34,10 +34,18 @@ typedef std::vector<ViewsManager::PrevViewInfo> PrevViewInfoElements;
 /***** DescriptorOfLastExitFromView *****/
 
 struct DescriptorOfLastExitFromView {
-  DescriptorOfLastExitFromView(ViewNum viewNum, SeqNum stableNum, SeqNum execNum, PrevViewInfoElements elements,
-                               ViewChangeMsg *viewChangeMsg, SeqNum stableLowerBound) :
-      view(viewNum), lastStable(stableNum), lastExecuted(execNum), stableLowerBoundWhenEnteredToView(stableLowerBound),
-      myViewChangeMsg(viewChangeMsg), elements(move(elements)) {}
+  DescriptorOfLastExitFromView(ViewNum viewNum,
+                               SeqNum stableNum,
+                               SeqNum execNum,
+                               PrevViewInfoElements elements,
+                               ViewChangeMsg *viewChangeMsg,
+                               SeqNum stableLowerBound)
+      : view(viewNum),
+        lastStable(stableNum),
+        lastExecuted(execNum),
+        stableLowerBoundWhenEnteredToView(stableLowerBound),
+        myViewChangeMsg(viewChangeMsg),
+        elements(move(elements)) {}
 
   DescriptorOfLastExitFromView() = default;
 
@@ -54,7 +62,7 @@ struct DescriptorOfLastExitFromView {
     uint32_t elementsNum;
     uint8_t msgFilledFlag;
     return (sizeof(view) + sizeof(lastStable) + sizeof(lastExecuted) + sizeof(stableLowerBoundWhenEnteredToView) +
-        sizeof(msgFilledFlag) + ViewChangeMsg::maxSizeOfViewChangeMsgInLocalBuffer() + sizeof(elementsNum));
+            sizeof(msgFilledFlag) + ViewChangeMsg::maxSizeOfViewChangeMsgInLocalBuffer() + sizeof(elementsNum));
   }
 
   static uint32_t maxElementSize() {
@@ -62,9 +70,7 @@ struct DescriptorOfLastExitFromView {
     return 2 * sizeof(msgFilledFlag) + ViewsManager::PrevViewInfo::maxSize();
   }
 
-  static uint32_t maxSize() {
-    return simpleParamsSize() + maxElementSize() * kWorkWindowSize;
-  }
+  static uint32_t maxSize() { return simpleParamsSize() + maxElementSize() * kWorkWindowSize; }
 
   // Simple parameters - serialized together
 
@@ -94,11 +100,18 @@ struct DescriptorOfLastExitFromView {
 typedef std::vector<ViewChangeMsg *> ViewChangeMsgsVector;
 
 struct DescriptorOfLastNewView {
-  DescriptorOfLastNewView(ViewNum viewNum, NewViewMsg *newMsg, ViewChangeMsgsVector msgs,
-                          ViewChangeMsg *viewChangeMsg, SeqNum stableLowerBound, SeqNum maxSeqNum) :
-      view(viewNum), maxSeqNumTransferredFromPrevViews(maxSeqNum),
-      stableLowerBoundWhenEnteredToView(stableLowerBound),
-      newViewMsg(newMsg), myViewChangeMsg(viewChangeMsg), viewChangeMsgs(move(msgs)) {}
+  DescriptorOfLastNewView(ViewNum viewNum,
+                          NewViewMsg *newMsg,
+                          ViewChangeMsgsVector msgs,
+                          ViewChangeMsg *viewChangeMsg,
+                          SeqNum stableLowerBound,
+                          SeqNum maxSeqNum)
+      : view(viewNum),
+        maxSeqNumTransferredFromPrevViews(maxSeqNum),
+        stableLowerBoundWhenEnteredToView(stableLowerBound),
+        newViewMsg(newMsg),
+        myViewChangeMsg(viewChangeMsg),
+        viewChangeMsgs(move(msgs)) {}
 
   DescriptorOfLastNewView();
 
@@ -111,17 +124,15 @@ struct DescriptorOfLastNewView {
   void deserializeSimpleParams(char *buf, size_t bufLen, uint32_t &actualSize);
   void deserializeElement(uint32_t id, char *buf, size_t bufLen, size_t &actualSize);
 
-  static void setViewChangeMsgsNum(uint16_t fVal, uint16_t cVal) {
-    viewChangeMsgsNum = 2 * fVal + 2 * cVal + 1;
-  }
+  static void setViewChangeMsgsNum(uint16_t fVal, uint16_t cVal) { viewChangeMsgsNum = 2 * fVal + 2 * cVal + 1; }
 
   static uint32_t getViewChangeMsgsNum() { return viewChangeMsgsNum; }
 
   static uint32_t simpleParamsSize() {
     uint8_t msgFilledFlag;
     return (sizeof(view) + sizeof(maxSeqNumTransferredFromPrevViews) + 2 * sizeof(msgFilledFlag) +
-        sizeof(stableLowerBoundWhenEnteredToView) + NewViewMsg::maxSizeOfNewViewMsgInLocalBuffer() +
-        ViewChangeMsg::maxSizeOfViewChangeMsgInLocalBuffer());
+            sizeof(stableLowerBoundWhenEnteredToView) + NewViewMsg::maxSizeOfNewViewMsgInLocalBuffer() +
+            ViewChangeMsg::maxSizeOfViewChangeMsgInLocalBuffer());
   }
 
   static uint32_t maxElementSize() {
@@ -129,9 +140,7 @@ struct DescriptorOfLastNewView {
     return sizeof(msgFilledFlag) + ViewChangeMsg::maxSizeOfViewChangeMsgInLocalBuffer();
   }
 
-  static uint32_t maxSize(uint32_t numOfReplicas) {
-    return simpleParamsSize() + maxElementSize() * numOfReplicas;
-  }
+  static uint32_t maxSize(uint32_t numOfReplicas) { return simpleParamsSize() + maxElementSize() * numOfReplicas; }
 
   static uint32_t viewChangeMsgsNum;
 
@@ -163,9 +172,7 @@ struct DescriptorOfLastNewView {
 /***** DescriptorOfLastExecution *****/
 
 struct DescriptorOfLastExecution {
-  DescriptorOfLastExecution(SeqNum seqNum, const Bitmap &requests) :
-      executedSeqNum(seqNum), validRequests(requests) {
-  }
+  DescriptorOfLastExecution(SeqNum seqNum, const Bitmap &requests) : executedSeqNum(seqNum), validRequests(requests) {}
 
   DescriptorOfLastExecution() = default;
 
@@ -185,5 +192,5 @@ struct DescriptorOfLastExecution {
   Bitmap validRequests;
 };
 
-}
+}  // namespace impl
 }  // namespace bftEngine

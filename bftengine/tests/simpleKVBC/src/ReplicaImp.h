@@ -53,10 +53,10 @@ class ReplicaImp : public SimpleKVBC::IReplica,
   virtual void set_command_handler(SimpleKVBC::ICommandsHandler *handler) override;
 
   // concord::storage::ILocalKeyValueStorageReadOnly methods
-  virtual Status get(const Sliver& key, Sliver &outValue) const override;
+  virtual Status get(const Sliver &key, Sliver &outValue) const override;
 
   virtual Status get(concord::storage::blockchain::BlockId readVersion,
-                     const Sliver& key,
+                     const Sliver &key,
                      Sliver &outValue,
                      concord::storage::blockchain::BlockId &outBlock) const override;
 
@@ -65,7 +65,7 @@ class ReplicaImp : public SimpleKVBC::IReplica,
   virtual Status getBlockData(concord::storage::blockchain::BlockId blockId,
                               concord::storage::SetOfKeyValuePairs &outBlockData) const override;
 
-  virtual Status mayHaveConflictBetween(const Sliver& key,
+  virtual Status mayHaveConflictBetween(const Sliver &key,
                                         concord::storage::blockchain::BlockId fromBlock,
                                         concord::storage::blockchain::BlockId toBlock,
                                         bool &outRes) const override;
@@ -141,10 +141,10 @@ class ReplicaImp : public SimpleKVBC::IReplica,
    public:
     StorageWrapperForIdleMode(const ReplicaImp *r);
 
-    virtual Status get(const Sliver& key, Sliver &outValue) const override;
+    virtual Status get(const Sliver &key, Sliver &outValue) const override;
 
     virtual Status get(concord::storage::blockchain::BlockId readVersion,
-                       const Sliver& key,
+                       const Sliver &key,
                        Sliver &outValue,
                        concord::storage::blockchain::BlockId &outBlock) const override;
     virtual concord::storage::blockchain::BlockId getLastBlock() const override;
@@ -152,7 +152,7 @@ class ReplicaImp : public SimpleKVBC::IReplica,
     virtual Status getBlockData(concord::storage::blockchain::BlockId blockId,
                                 concord::storage::SetOfKeyValuePairs &outBlockData) const override;
 
-    virtual Status mayHaveConflictBetween(const Sliver& key,
+    virtual Status mayHaveConflictBetween(const Sliver &key,
                                           concord::storage::blockchain::BlockId fromBlock,
                                           concord::storage::blockchain::BlockId toBlock,
                                           bool &outRes) const override;
@@ -195,12 +195,12 @@ class ReplicaImp : public SimpleKVBC::IReplica,
     // Assumes lexicographical ordering of the keys, seek the first element
     // k >= key
     virtual concord::storage::KeyValuePair seekAtLeast(concord::storage::blockchain::BlockId readVersion,
-                                                       const concordUtils::Key& key,
+                                                       const concordUtils::Key &key,
                                                        concord::storage::blockchain::BlockId &actualVersion,
                                                        bool &isEnd) override;
 
     // TODO(SG): Not implemented originally!
-    virtual concord::storage::KeyValuePair seekAtLeast(const concordUtils::Key& key) override {
+    virtual concord::storage::KeyValuePair seekAtLeast(const concordUtils::Key &key) override {
       concord::storage::blockchain::BlockId block = m_currentBlock;
       concord::storage::blockchain::BlockId dummy;
       bool dummy2;
@@ -209,7 +209,7 @@ class ReplicaImp : public SimpleKVBC::IReplica,
 
     // Proceed to next element and return it
     virtual concord::storage::KeyValuePair next(concord::storage::blockchain::BlockId readVersion,
-                                                const concordUtils::Key& key,
+                                                const concordUtils::Key &key,
                                                 concord::storage::blockchain::BlockId &actualVersion,
                                                 bool &isEnd) override;
 

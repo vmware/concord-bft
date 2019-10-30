@@ -10,7 +10,6 @@
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 
-
 #pragma once
 
 #include <string>
@@ -28,8 +27,8 @@ typedef ShareID NumSharesType;
 
 #define MAX_NUM_OF_SHARES 2048
 
-#define MULTISIG_BLS_SCHEME         "multisig-bls"
-#define THRESHOLD_BLS_SCHEME        "threshold-bls"
+#define MULTISIG_BLS_SCHEME "multisig-bls"
+#define THRESHOLD_BLS_SCHEME "threshold-bls"
 
 class IThresholdFactory;
 class IThresholdSigner;
@@ -42,26 +41,23 @@ class IThresholdVerifier;
  * selection, invalid numbers of signers or thresholds, or threshold/number of
  * signers not supported by the selected type of cryptosystem.
  */
-class InvalidCryptosystemException: public std::exception {
-public:
-
+class InvalidCryptosystemException : public std::exception {
+ public:
   /**
    * Constructor for InvalidCryptosystemException.
    *
    * @param what Description of why this exception is being thrown.
    */
-  explicit InvalidCryptosystemException(const std::string& what):
-    msg(what) {};
+  explicit InvalidCryptosystemException(const std::string& what) : msg(what){};
 
   /**
    * Accessor for the description this exception was constructed with.
    *
    * @return The description this exception was constructed with.
    */
-  virtual const char* what() const noexcept override {
-    return msg.c_str();
-  }
-private:
+  virtual const char* what() const noexcept override { return msg.c_str(); }
+
+ private:
   std::string msg;
 };
 
@@ -71,26 +67,23 @@ private:
  * exception exists because the Cryptosystem class is designed with either
  * generating fresh keys or loading existing ones in mind.
  */
-class UninitializedCryptosystemException: public std::exception {
-public:
- 
+class UninitializedCryptosystemException : public std::exception {
+ public:
   /**
    * Constructor for UninitializedCryptosystemException.
    *
    * @param what Description of why this exception is being thrown.
    */
-  explicit UninitializedCryptosystemException(const std::string& what):
-    msg(what) {};
+  explicit UninitializedCryptosystemException(const std::string& what) : msg(what){};
 
   /**
    * Accessor for the description this exception was constructed with.
    *
    * @return The description this exception was constructed with.
    */
-  virtual const char* what() const noexcept override {
-    return msg.c_str();
-  }
-private:
+  virtual const char* what() const noexcept override { return msg.c_str(); }
+
+ private:
   std::string msg;
 };
 
@@ -99,13 +92,13 @@ private:
  * numbers of signers, and threshold levels.
  */
 class Cryptosystem {
-private:
+ private:
   std::string type;
   std::string subtype;
 
   uint16_t numSigners;
   uint16_t threshold;
-  bool     forceMultisig_;   // is true if  signers == threshold
+  bool forceMultisig_;  // is true if  signers == threshold
 
   // If only one signer's private key is known and stored in this cryptosystem,
   // this field records that signer's ID; otherwise (if no or all private keys
@@ -123,8 +116,7 @@ private:
   // Internally used helper functions.
   IThresholdFactory* createThresholdFactory();
 
-public:
-
+ public:
   /**
    * Constructor for the Cryptosystem class.
    *
@@ -173,28 +165,28 @@ public:
    *
    * @return A string representing the type of this cryptosystem.
    */
-  const std::string& getType() const { return type;}
+  const std::string& getType() const { return type; }
 
   /**
    * Get the type-dependent subtype of this crytposystem.
    *
    * @return A string representing the subtype of this cryptosystem.
    */
-  const std::string& getSubtype() const { return subtype;}
+  const std::string& getSubtype() const { return subtype; }
 
   /**
    * Get the number of signers in this cryptosystem.
    *
    * @return The number of signers in this cryptosystem.
    */
-  uint16_t getNumSigners() const { return numSigners;}
+  uint16_t getNumSigners() const { return numSigners; }
 
   /**
    * Get the threshold for this threshold cryptosystem.
    *
    * @return The threshold for this cryptosystem.
    */
-  uint16_t getThreshold() const { return threshold;}
+  uint16_t getThreshold() const { return threshold; }
 
   /**
    * Pseudorandomly generate a complete set of keys for this cryptosystem and
@@ -228,7 +220,7 @@ public:
    *         they correspond to. To comply with the convention of 1-indexing
    *         signer IDs, verification keys will begin at index 1 of the vector.
    *         The contents of index 0 of the vector is left undefined.
-   * 
+   *
    * @throws UninitializedCryptosystemException If this cryptosystem does not
    *                                            currently have verification
    *                                            keys because keys for it have
@@ -290,8 +282,7 @@ public:
    * @throws InvalidCryptosystemException If the set of keys given is not valid
    *                                      for this cryptosystem.
    */
-  void loadKeys(const std::string& publicKey,
-                const std::vector<std::string>& verificationKeys);
+  void loadKeys(const std::string& publicKey, const std::vector<std::string>& verificationKeys);
 
   /**
    * Load the private key for a specific signer using this cryptosystem. Any
@@ -306,8 +297,7 @@ public:
    * @throws std::out_of_range            If signerID is not in the range
    *                                      [1, numReplicas].
    */
-  void loadPrivateKey(uint16_t signerIndex,
-                      const std::string& key);
+  void loadPrivateKey(uint16_t signerIndex, const std::string& key);
 
   /**
    * Create a threshod verifier for this cryptosystem.
@@ -369,7 +359,7 @@ public:
    */
   bool isValidPrivateKey(const std::string& key) const;
 
-/**
+  /**
    * Check whether a given selection of cryptosystem type and subtype is
    * recognized and supported.
    *
@@ -379,8 +369,7 @@ public:
    * @return True if this combination of type and subtype is recognized and
    *         supported, false otherwise.
    */
-  static bool isValidCryptosystemSelection(const std::string& type,
-                                           const std::string& subtype);
+  static bool isValidCryptosystemSelection(const std::string& type, const std::string& subtype);
 
   /**
    * Check whether a given selection of cryptosystem type and subtype is
@@ -413,6 +402,5 @@ public:
    *            description of what the type-specific subtype parameter
    *            specifies for that cryptosytem type.
    */
-  static void getAvailableCryptosystemTypes(
-    std::vector<std::pair<std::string, std::string>>& ret);
+  static void getAvailableCryptosystemTypes(std::vector<std::pair<std::string, std::string>>& ret);
 };

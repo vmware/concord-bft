@@ -21,7 +21,7 @@
 namespace bftEngine {
 namespace impl {
 
-template<uint16_t WindowSize, uint16_t Resolution, typename NumbersType, typename ItemType, typename ItemFuncs>
+template <uint16_t WindowSize, uint16_t Resolution, typename NumbersType, typename ItemType, typename ItemFuncs>
 class SequenceWithActiveWindow {
   static_assert(WindowSize >= 8, "");
   static_assert(WindowSize < UINT16_MAX, "");
@@ -30,7 +30,6 @@ class SequenceWithActiveWindow {
   static_assert(WindowSize % Resolution == 0, "");
 
  protected:
-
   static const uint16_t numItems = WindowSize / Resolution;
 
   NumbersType beginningOfActiveWindow;
@@ -49,13 +48,11 @@ class SequenceWithActiveWindow {
   }
 
   ~SequenceWithActiveWindow() {
-    for (uint16_t i = 0; i < numItems; i++)
-      ItemFuncs::free(activeWindow[i]);
+    for (uint16_t i = 0; i < numItems; i++) ItemFuncs::free(activeWindow[i]);
   }
 
   bool insideActiveWindow(NumbersType n) const {
-    return ((n >= beginningOfActiveWindow)
-        && (n < (beginningOfActiveWindow + WindowSize)));
+    return ((n >= beginningOfActiveWindow) && (n < (beginningOfActiveWindow + WindowSize)));
   }
 
   ItemType &get(NumbersType n) {
@@ -76,8 +73,7 @@ class SequenceWithActiveWindow {
   void resetAll(NumbersType windowFirst) {
     Assert(windowFirst % Resolution == 0);
 
-    for (uint16_t i = 0; i < numItems; i++)
-      ItemFuncs::reset(activeWindow[i]);
+    for (uint16_t i = 0; i < numItems; i++) ItemFuncs::reset(activeWindow[i]);
 
     beginningOfActiveWindow = windowFirst;
   }
@@ -86,31 +82,25 @@ class SequenceWithActiveWindow {
     Assert(newFirstIndexOfActiveWindow % Resolution == 0);
     Assert(newFirstIndexOfActiveWindow >= beginningOfActiveWindow);
 
-    if (newFirstIndexOfActiveWindow == beginningOfActiveWindow)
-      return;
+    if (newFirstIndexOfActiveWindow == beginningOfActiveWindow) return;
 
     if (newFirstIndexOfActiveWindow - beginningOfActiveWindow >= WindowSize) {
       resetAll(newFirstIndexOfActiveWindow);
       return;
     }
 
-    const uint16_t inactiveBegin =
-        ((beginningOfActiveWindow / Resolution) % numItems);
+    const uint16_t inactiveBegin = ((beginningOfActiveWindow / Resolution) % numItems);
 
-    const uint16_t activeBegin =
-        ((newFirstIndexOfActiveWindow / Resolution) % numItems);
+    const uint16_t activeBegin = ((newFirstIndexOfActiveWindow / Resolution) % numItems);
 
-    const uint16_t inactiveEnd =
-        ((activeBegin > 0) ? (activeBegin - 1) : (numItems - 1));
+    const uint16_t inactiveEnd = ((activeBegin > 0) ? (activeBegin - 1) : (numItems - 1));
 
-    const uint16_t resetSize = (inactiveBegin <= inactiveEnd) ?
-                               (inactiveEnd - inactiveBegin + 1) :
-                               (inactiveEnd + 1 + numItems - inactiveBegin);
+    const uint16_t resetSize = (inactiveBegin <= inactiveEnd) ? (inactiveEnd - inactiveBegin + 1)
+                                                              : (inactiveEnd + 1 + numItems - inactiveBegin);
     Assert(resetSize > 0 && resetSize < numItems);
 
     uint16_t debugNumOfReset = 0;
-    for (uint16_t i = inactiveBegin; i != activeBegin;
-         (i = ((i + 1) % numItems))) {
+    for (uint16_t i = inactiveBegin; i != activeBegin; (i = ((i + 1) % numItems))) {
       ItemFuncs::reset(activeWindow[i]);
       debugNumOfReset++;
     }
@@ -122,5 +112,5 @@ class SequenceWithActiveWindow {
   // TODO(GG): add save & load
 };
 
-}
-}
+}  // namespace impl
+}  // namespace bftEngine

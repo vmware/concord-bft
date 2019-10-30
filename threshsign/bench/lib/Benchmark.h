@@ -15,6 +15,7 @@
 #include <vector>
 
 class Benchmark {
-public:
-    static std::vector<std::pair<int, int>> getThresholdTestCases(int maxf, bool oneF, bool twoF, bool threeF, int increment = 50);
+ public:
+  static std::vector<std::pair<int, int>> getThresholdTestCases(
+      int maxf, bool oneF, bool twoF, bool threeF, int increment = 50);
 };

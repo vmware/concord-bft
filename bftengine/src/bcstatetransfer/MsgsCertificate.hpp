@@ -24,16 +24,17 @@ namespace bftEngine {
 namespace SimpleBlockchainStateTransfer {
 namespace impl {
 template <typename T,
-  bool SelfTrust,         // = true,
-  bool SelfIsRequired,   // = false,
-  bool KeepAllMsgs,       // = true,
-  typename ExternalFunc
->
+          bool SelfTrust,       // = true,
+          bool SelfIsRequired,  // = false,
+          bool KeepAllMsgs,     // = true,
+          typename ExternalFunc>
 class MsgsCertificate {
  public:
-  MsgsCertificate(void* const context, const uint16_t
-                  numOfReplicas, const uint16_t maxFailures,
-    const uint16_t numOfRequired, const uint16_t selfReplicaId);
+  MsgsCertificate(void* const context,
+                  const uint16_t numOfReplicas,
+                  const uint16_t maxFailures,
+                  const uint16_t numOfRequired,
+                  const uint16_t selfReplicaId);
 
   ~MsgsCertificate();
 
@@ -92,19 +93,19 @@ class MsgsCertificate {
   bool hasTrustedSelfClass = false;
 };
 
-
-template <typename T, bool SelfTrust, bool SelfIsRequired,
-                    bool KeepAllMsgs, typename ExternalFunc>
-MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::
-MsgsCertificate(void* const context, const uint16_t numOfReplicas,
-                const uint16_t maxFailures, const uint16_t numOfRequired,
-                const uint16_t selfReplicaId)
-  : externalContext{ context }, numOfReps{ numOfReplicas },
-    maxFails{ maxFailures }, required{ numOfRequired },
-    selfId(selfReplicaId) {
+template <typename T, bool SelfTrust, bool SelfIsRequired, bool KeepAllMsgs, typename ExternalFunc>
+MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::MsgsCertificate(void* const context,
+                                                                                          const uint16_t numOfReplicas,
+                                                                                          const uint16_t maxFailures,
+                                                                                          const uint16_t numOfRequired,
+                                                                                          const uint16_t selfReplicaId)
+    : externalContext{context},
+      numOfReps{numOfReplicas},
+      maxFails{maxFailures},
+      required{numOfRequired},
+      selfId(selfReplicaId) {
   static_assert(KeepAllMsgs, "KeepAllMsgs==false is not supported yet");
-  static_assert(!SelfIsRequired || SelfTrust,
-                     "SelfIsRequired=true requires SelfTrust=true");
+  static_assert(!SelfIsRequired || SelfTrust, "SelfIsRequired=true requires SelfTrust=true");
 
   // TODO(GG): more asserts
 
@@ -112,37 +113,28 @@ MsgsCertificate(void* const context, const uint16_t numOfReplicas,
   memset(msgClasses, 0, numOfReps * sizeof(MsgClassInfo));
 }
 
-template <typename T, bool SelfTrust, bool SelfIsRequired,
-                    bool KeepAllMsgs, typename ExternalFunc>
-MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::
-~MsgsCertificate() {
+template <typename T, bool SelfTrust, bool SelfIsRequired, bool KeepAllMsgs, typename ExternalFunc>
+MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::~MsgsCertificate() {
   resetAndFree();
   delete[] msgClasses;
 }
 
-template <typename T, bool SelfTrust, bool SelfIsRequired,
-    bool KeepAllMsgs, typename ExternalFunc>
-bool MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::
-isEmpty() const {
+template <typename T, bool SelfTrust, bool SelfIsRequired, bool KeepAllMsgs, typename ExternalFunc>
+bool MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::isEmpty() const {
   return (msgsFromReplicas.empty());
 }
 
-template <typename T, bool SelfTrust, bool SelfIsRequired,
-    bool KeepAllMsgs, typename ExternalFunc>
-void MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::
-resetAndFree()  {
+template <typename T, bool SelfTrust, bool SelfIsRequired, bool KeepAllMsgs, typename ExternalFunc>
+void MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::resetAndFree() {
   complete = false;
 
-  if (msgsFromReplicas.empty())
-    return;  // nothing to do
+  if (msgsFromReplicas.empty()) return;  // nothing to do
 
-  for (auto&& m : msgsFromReplicas)
-    ExternalFunc::free(externalContext, m.second);
+  for (auto&& m : msgsFromReplicas) ExternalFunc::free(externalContext, m.second);
 
   msgsFromReplicas.clear();
 
-  if (numOfClasses > 0)
-    memset(msgClasses, 0, numOfClasses * sizeof(MsgClassInfo));
+  if (numOfClasses > 0) memset(msgClasses, 0, numOfClasses * sizeof(MsgClassInfo));
 
   numOfClasses = 0;
 
@@ -151,12 +143,8 @@ resetAndFree()  {
   hasTrustedSelfClass = false;
 }
 
-
-
-template <typename T, bool SelfTrust, bool SelfIsRequired,
-    bool KeepAllMsgs, typename ExternalFunc>
-bool MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::
-addMsg(T* msg, uint16_t replicaId) {
+template <typename T, bool SelfTrust, bool SelfIsRequired, bool KeepAllMsgs, typename ExternalFunc>
+bool MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::addMsg(T* msg, uint16_t replicaId) {
   if (msgsFromReplicas.count(replicaId) > 0) {
     ExternalFunc::free(externalContext, msg);
     return false;
@@ -178,10 +166,8 @@ addMsg(T* msg, uint16_t replicaId) {
   return true;
 }
 
-template <typename T, bool SelfTrust, bool SelfIsRequired,
-    bool KeepAllMsgs, typename ExternalFunc>
-void MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::
-addPeerMsg(T* msg, uint16_t replicaId) {
+template <typename T, bool SelfTrust, bool SelfIsRequired, bool KeepAllMsgs, typename ExternalFunc>
+void MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::addPeerMsg(T* msg, uint16_t replicaId) {
   uint16_t relevantClass = NULL_CLASS;
 
   if (hasTrustedSelfClass) {
@@ -247,11 +233,8 @@ addPeerMsg(T* msg, uint16_t replicaId) {
   }
 }
 
-
-template <typename T, bool SelfTrust, bool SelfIsRequired,
-    bool KeepAllMsgs, typename ExternalFunc>
-void MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::
-addSelfMsg(T* msg) {
+template <typename T, bool SelfTrust, bool SelfIsRequired, bool KeepAllMsgs, typename ExternalFunc>
+void MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::addSelfMsg(T* msg) {
   //  static_assert(SelfTrust == true, "Invalid invocation");  //TODO(GG)
 
   uint16_t relevantClass = NULL_CLASS;
@@ -294,38 +277,28 @@ addSelfMsg(T* msg) {
   }
 }
 
-template <typename T, bool SelfTrust, bool SelfIsRequired,
-    bool KeepAllMsgs, typename ExternalFunc>
-bool MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::
-isComplete() const {
+template <typename T, bool SelfTrust, bool SelfIsRequired, bool KeepAllMsgs, typename ExternalFunc>
+bool MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::isComplete() const {
   return complete;
 }
 
-template <typename T, bool SelfTrust, bool SelfIsRequired,
-    bool KeepAllMsgs, typename ExternalFunc>
-bool MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::
-isInconsistent() const {
+template <typename T, bool SelfTrust, bool SelfIsRequired, bool KeepAllMsgs, typename ExternalFunc>
+bool MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::isInconsistent() const {
   return (numOfClasses >= maxFails + 1);
 }
 
-
-template <typename T, bool SelfTrust, bool SelfIsRequired,
-    bool KeepAllMsgs, typename ExternalFunc>
-T* MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::
-selfMsg() const {
+template <typename T, bool SelfTrust, bool SelfIsRequired, bool KeepAllMsgs, typename ExternalFunc>
+T* MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::selfMsg() const {
   T* retVal = nullptr;
   auto pos = msgsFromReplicas.find(selfId);
 
-  if (pos != msgsFromReplicas.end())
-    retVal = pos->second;
+  if (pos != msgsFromReplicas.end()) retVal = pos->second;
 
   return retVal;
 }
 
-template <typename T, bool SelfTrust, bool SelfIsRequired,
-    bool KeepAllMsgs, typename ExternalFunc>
-T* MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::
-bestCorrectMsg() const {
+template <typename T, bool SelfTrust, bool SelfIsRequired, bool KeepAllMsgs, typename ExternalFunc>
+T* MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::bestCorrectMsg() const {
   T* retVal = nullptr;
   if (hasTrustedSelfClass || (sizeOfBestClass >= maxFails + 1)) {
     const MsgClassInfo& mci = msgClasses[bestClass];
@@ -340,27 +313,23 @@ bestCorrectMsg() const {
   return retVal;
 }
 
-template <typename T, bool SelfTrust, bool SelfIsRequired,
-    bool KeepAllMsgs, typename ExternalFunc>
-void MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::
-tryToMarkComplete() {
+template <typename T, bool SelfTrust, bool SelfIsRequired, bool KeepAllMsgs, typename ExternalFunc>
+void MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::tryToMarkComplete() {
   if (!SelfIsRequired || hasMsgFromReplica(selfId)) {
     complete = true;
   }
 }
 
-template <typename T, bool SelfTrust, bool SelfIsRequired,
-    bool KeepAllMsgs, typename ExternalFunc>
-bool MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::
-hasMsgFromReplica(uint16_t replicaId) const {
+template <typename T, bool SelfTrust, bool SelfIsRequired, bool KeepAllMsgs, typename ExternalFunc>
+bool MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::hasMsgFromReplica(
+    uint16_t replicaId) const {
   bool retVal = (msgsFromReplicas.count(replicaId) > 0);
   return retVal;
 }
 
-template <typename T, bool SelfTrust, bool SelfIsRequired,
-    bool KeepAllMsgs, typename ExternalFunc>
-T* MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::
-getMsgFromReplica(uint16_t replicaId) const {
+template <typename T, bool SelfTrust, bool SelfIsRequired, bool KeepAllMsgs, typename ExternalFunc>
+T* MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::getMsgFromReplica(
+    uint16_t replicaId) const {
   auto p = msgsFromReplicas.find(replicaId);
   if (p == msgsFromReplicas.end())
     return nullptr;
@@ -368,12 +337,9 @@ getMsgFromReplica(uint16_t replicaId) const {
     return p->second;
 }
 
-
-template <typename T, bool SelfTrust, bool SelfIsRequired,
-    bool KeepAllMsgs, typename ExternalFunc>
-std::forward_list<uint16_t>
-MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::
-includedReplicas() const {  // for debug
+template <typename T, bool SelfTrust, bool SelfIsRequired, bool KeepAllMsgs, typename ExternalFunc>
+std::forward_list<uint16_t> MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::includedReplicas()
+    const {  // for debug
   std::forward_list<uint16_t> r;
 
   auto lastPos = r.end();

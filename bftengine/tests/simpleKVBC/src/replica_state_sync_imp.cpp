@@ -36,7 +36,9 @@ uint64_t ReplicaStateSyncImp::execute(concordlogger::Logger &logger,
   Key key = metadata.Key();
   do {
     blockSeqNum = metadata.Get(key);
-    LOG_INFO(logger, "Block Metadata key = " << key << ", blockId = " << blockId << ", blockSeqNum = " << blockSeqNum << ", lastExecutedSeqNum = " << lastExecutedSeqNum );
+    LOG_INFO(logger,
+             "Block Metadata key = " << key << ", blockId = " << blockId << ", blockSeqNum = " << blockSeqNum
+                                     << ", lastExecutedSeqNum = " << lastExecutedSeqNum);
     if (blockSeqNum <= lastExecutedSeqNum) {
       LOG_INFO(logger, "Replica state is in sync; removedBlocksNum is " << removedBlocksNum);
       return removedBlocksNum;

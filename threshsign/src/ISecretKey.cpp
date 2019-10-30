@@ -18,6 +18,6 @@
 #include <string>
 
 std::ostream& operator<<(std::ostream& out, const ISecretKey& sk) {
-    out << sk.toString();
-    return out;
+  out << sk.toString();
+  return out;
 }

@@ -19,95 +19,72 @@
 #include <chrono>
 #include <array>
 
-namespace test
-{
-namespace mt
-{
+namespace test {
+namespace mt {
 
 /**
  * Fixture for testing SimpleThreadPool
  */
-class ThreadPoolFixture: public testing::Test
-{
-protected:
-
-  class TestJob: public util::SimpleThreadPool::Job
-  {
-  public:
-    TestJob(ThreadPoolFixture* f, uint32_t sleep_ms = 10): fixture_(f), sleep_ms_(sleep_ms){}
-    void execute()
-    {
+class ThreadPoolFixture : public testing::Test {
+ protected:
+  class TestJob : public util::SimpleThreadPool::Job {
+   public:
+    TestJob(ThreadPoolFixture* f, uint32_t sleep_ms = 10) : fixture_(f), sleep_ms_(sleep_ms) {}
+    void execute() {
       fixture_->result++;
-      std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms_));//don't exit immediately
+      std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms_));  // don't exit immediately
     }
-    void release(){delete this;}
-    virtual ~TestJob(){}
+    void release() { delete this; }
+    virtual ~TestJob() {}
 
     ThreadPoolFixture* fixture_;
     uint32_t sleep_ms_;
   };
 
-  ThreadPoolFixture():result(0){}
+  ThreadPoolFixture() : result(0) {}
 
   // Sets up the test fixture.
-  virtual void SetUp()
-  {
+  virtual void SetUp() {
     ASSERT_GT(std::thread::hardware_concurrency(), 1);
     pool_.start(std::thread::hardware_concurrency());
-    std::this_thread::sleep_for(std::chrono::milliseconds(100)); //let the pool actually start all its threads
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));  // let the pool actually start all its threads
     EXPECT_EQ(pool_.getNumOfThreads(), std::thread::hardware_concurrency());
   }
 
   // Tears down the test fixture.
-  virtual void TearDown()
-  {
+  virtual void TearDown() {
     ASSERT_EQ(pool_.getNumOfThreads(), 0);
-    ASSERT_EQ(pool_.getNumOfJobs()   , 0);
+    ASSERT_EQ(pool_.getNumOfJobs(), 0);
   }
 
   util::SimpleThreadPool pool_;
   std::atomic_int result;
 };
 
-TEST_F(ThreadPoolFixture, ThreadPoolStartStopNoJobs)
-{
-  pool_.stop();
-}
+TEST_F(ThreadPoolFixture, ThreadPoolStartStopNoJobs) { pool_.stop(); }
 
-TEST_F(ThreadPoolFixture, ThreadPoolStartStopWithJobsNoExecute)
-{
-  for (int i = 0; i < 100; ++i)
-    pool_.add(new TestJob(this));
+TEST_F(ThreadPoolFixture, ThreadPoolStartStopWithJobsNoExecute) {
+  for (int i = 0; i < 100; ++i) pool_.add(new TestJob(this));
   pool_.stop(false);
 }
 
-TEST_F(ThreadPoolFixture, ThreadPoolStartStopWithJobsExecute)
-{
-  for (int i = 0; i < 100; ++i)
-    pool_.add(new TestJob(this));
+TEST_F(ThreadPoolFixture, ThreadPoolStartStopWithJobsExecute) {
+  for (int i = 0; i < 100; ++i) pool_.add(new TestJob(this));
   pool_.stop(true);
   EXPECT_EQ(result, 100);
 }
 
-TEST_F(ThreadPoolFixture, ThreadPoolMultipleProducers)
-{
+TEST_F(ThreadPoolFixture, ThreadPoolMultipleProducers) {
   std::array<std::thread, 10> producers;
-  for (int i=0; i < 10; ++i)
-  {
-    producers[i] = std::thread([this]{
-     for (int i = 0; i < 100; ++i)
-      pool_.add(new TestJob(this, 1));
+  for (int i = 0; i < 10; ++i) {
+    producers[i] = std::thread([this] {
+      for (int i = 0; i < 100; ++i) pool_.add(new TestJob(this, 1));
     });
   }
-  for ( auto &t: producers)
-    t.join();
+  for (auto& t : producers) t.join();
   pool_.stop(true);
   EXPECT_EQ(result, 1000);
 }
 
-
-
-
-
-}
-}
+}  // namespace mt
+}  // namespace test

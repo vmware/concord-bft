@@ -24,7 +24,7 @@ using std::map;
 
 namespace bftEngine {
 namespace SimpleBlockchainStateTransfer {
-namespace impl  {
+namespace impl {
 
 class InMemoryDataStore : public DataStore {
  public:
@@ -67,9 +67,7 @@ class InMemoryDataStore : public DataStore {
   // Checkpoints
   //////////////////////////////////////////////////////////////////////////
 
-
-  void setCheckpointDesc(uint64_t checkpoint,
-                         const CheckpointDesc& desc) override;
+  void setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& desc) override;
   CheckpointDesc getCheckpointDesc(uint64_t checkpoint) override;
   bool hasCheckpointDesc(uint64_t checkpoint) override;
   void deleteDescOfSmallerCheckpoints(uint64_t checkpoint) override;
@@ -86,7 +84,6 @@ class InMemoryDataStore : public DataStore {
   bool hasCheckpointBeingFetched() override;
   void deleteCheckpointBeingFetched() override;
 
-
   void setFirstRequiredBlock(uint64_t i) override;
   uint64_t getFirstRequiredBlock() override;
 
@@ -97,42 +94,43 @@ class InMemoryDataStore : public DataStore {
   // reserved pages
   //////////////////////////////////////////////////////////////////////////
 
-  void setPendingResPage(uint32_t inPageId,
-                         const char* inPage, uint32_t inPageLen) override;
+  void setPendingResPage(uint32_t inPageId, const char* inPage, uint32_t inPageLen) override;
   bool hasPendingResPage(uint32_t inPageId) override;
-  void getPendingResPage(uint32_t inPageId,
-                         char* outPage, uint32_t pageLen) override;
+  void getPendingResPage(uint32_t inPageId, char* outPage, uint32_t pageLen) override;
   uint32_t numOfAllPendingResPage() override;
   set<uint32_t> getNumbersOfPendingResPages() override;
   void deleteAllPendingPages() override;
 
   void associatePendingResPageWithCheckpoint(uint32_t inPageId,
-               uint64_t inCheckpoint, const STDigest& inPageDigest) override;
+                                             uint64_t inCheckpoint,
+                                             const STDigest& inPageDigest) override;
 
-
-  void setResPage(uint32_t inPageId, uint64_t inCheckpoint,
-                  const STDigest& inPageDigest, const char* inPage) override;
-  void getResPage(uint32_t inPageId, uint64_t inCheckpoint,
-                  uint64_t* outActualCheckpoint) override;
-  void getResPage(uint32_t inPageId, uint64_t inCheckpoint,
-                  uint64_t* outActualCheckpoint, char* outPage,
+  void setResPage(uint32_t inPageId, uint64_t inCheckpoint, const STDigest& inPageDigest, const char* inPage) override;
+  void getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint) override;
+  void getResPage(uint32_t inPageId,
+                  uint64_t inCheckpoint,
+                  uint64_t* outActualCheckpoint,
+                  char* outPage,
                   uint32_t copylength) override;
-  void getResPage(uint32_t inPageId, uint64_t inCheckpoint,
-                  uint64_t* outActualCheckpoint, STDigest* outPageDigest,
-                  char* outPage, uint32_t copylength) override;
+  void getResPage(uint32_t inPageId,
+                  uint64_t inCheckpoint,
+                  uint64_t* outActualCheckpoint,
+                  STDigest* outPageDigest,
+                  char* outPage,
+                  uint32_t copylength) override;
 
   void deleteCoveredResPageInSmallerCheckpoints(uint64_t inCheckpoint) override;
 
   ResPagesDescriptor* getResPagesDescriptor(uint64_t inCheckpoint) override;
   void free(ResPagesDescriptor*) override;
 
-  class NullTransaction: public ITransaction {
+  class NullTransaction : public ITransaction {
    public:
-    NullTransaction(): concord::storage::ITransaction(0){}
+    NullTransaction() : concord::storage::ITransaction(0) {}
     void commit() override {}
     void rollback() override {}
     void put(const concordUtils::Sliver& key, const concordUtils::Sliver& value) override {}
-    std::string get(const concordUtils::Sliver& key) override {return "";}
+    std::string get(const concordUtils::Sliver& key) override { return ""; }
     void del(const concordUtils::Sliver& key) override {}
   };
 
@@ -143,7 +141,6 @@ class InMemoryDataStore : public DataStore {
   }
 
  protected:
-
   const uint32_t sizeOfReservedPage_;
 
   bool wasInit_ = false;
@@ -193,12 +190,12 @@ class InMemoryDataStore : public DataStore {
   map<ResPageKey, ResPageVal> pages;
 
   friend class DBDataStore;
-  const uint32_t                       getSizeOfReservedPage() const {return sizeOfReservedPage_;}
-  const map<uint64_t, CheckpointDesc>& getDescMap()            const {return descMap;}
-  const map<ResPageKey, ResPageVal>&   getPagesMap()           const {return pages;}
-  const map<uint32_t, char*>&          getPendingPagesMap()    const {return pendingPages;}
+  const uint32_t getSizeOfReservedPage() const { return sizeOfReservedPage_; }
+  const map<uint64_t, CheckpointDesc>& getDescMap() const { return descMap; }
+  const map<ResPageKey, ResPageVal>& getPagesMap() const { return pages; }
+  const map<uint32_t, char*>& getPendingPagesMap() const { return pendingPages; }
 
-  void setInitialized(bool init) {wasInit_ = init;}
+  void setInitialized(bool init) { wasInit_ = init; }
 };
 
 }  // namespace impl

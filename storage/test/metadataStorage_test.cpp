@@ -97,7 +97,7 @@ TEST(metadataStorage_test, multi_write) {
 
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
-  KeyComparator* kk = new KeyComparator(new KeyManipulator);
+  KeyComparator *kk = new KeyComparator(new KeyManipulator);
   const string dbPath = "./metadataStorage_test_db";
   remove(dbPath.c_str());
   Client *dbClient = new Client(dbPath, kk);

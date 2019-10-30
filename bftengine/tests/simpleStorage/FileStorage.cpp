@@ -23,11 +23,9 @@ using namespace concordlogger;
 
 namespace bftEngine {
 
-FileStorage::FileStorage(Logger &logger, const string &fileName) :
-    logger_(logger), fileName_(fileName) {
-
+FileStorage::FileStorage(Logger &logger, const string &fileName) : logger_(logger), fileName_(fileName) {
   dataStream_ = fopen(fileName.c_str(), "w+x");
-  if (!dataStream_) { // The file already exists
+  if (!dataStream_) {  // The file already exists
     LOG_INFO(logger_, "FileStorage::ctor File " << fileName_ << " exists");
     dataStream_ = fopen(fileName.c_str(), "r+");
     if (!dataStream_) {
@@ -63,7 +61,8 @@ void FileStorage::loadFileMetadata() {
       objectsMetadata_->setObjectInfo(objectInfo);
     }
     LOG_DEBUG(logger_, "" << *objectsMetadata_);
-  } else LOG_DEBUG(logger_, "FileStorage::readFileMetadata Metadata is empty");
+  } else
+    LOG_DEBUG(logger_, "FileStorage::readFileMetadata Metadata is empty");
 }
 
 void FileStorage::updateFileObjectMetadata(MetadataObjectInfo &objectInfo) {
@@ -90,26 +89,20 @@ void FileStorage::read(void *dataPtr, size_t offset, size_t itemSize, size_t cou
   fseek(dataStream_, offset, SEEK_SET);
   size_t read_ = fread(dataPtr, itemSize, count, dataStream_);
   int err = ferror(dataStream_);
-  if (err)
-    throw runtime_error("FileStorage::read " +  std::string(strerror(errno)));
-  if (feof(dataStream_))
-    throw runtime_error("FileStorage::read EOF" );
-  if (read_ != count)
-    throw runtime_error("FileStorage::read " + std::string(errorMsg));
+  if (err) throw runtime_error("FileStorage::read " + std::string(strerror(errno)));
+  if (feof(dataStream_)) throw runtime_error("FileStorage::read EOF");
+  if (read_ != count) throw runtime_error("FileStorage::read " + std::string(errorMsg));
 }
 
-void FileStorage::write(void *dataPtr, size_t offset, size_t itemSize,
-                        size_t count, const char *errorMsg, bool toFlush) {
+void FileStorage::write(
+    void *dataPtr, size_t offset, size_t itemSize, size_t count, const char *errorMsg, bool toFlush) {
   fseek(dataStream_, offset, SEEK_SET);
   if (fwrite(dataPtr, itemSize, count, dataStream_) != count)
     throw runtime_error("FileStorage::write " + std::string(errorMsg));
-  if (toFlush)
-    fflush(dataStream_);
+  if (toFlush) fflush(dataStream_);
 }
 
-bool FileStorage::isNewStorage() {
-  return (objectsMetadata_ == nullptr);
-}
+bool FileStorage::isNewStorage() { return (objectsMetadata_ == nullptr); }
 
 bool FileStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint32_t metadataObjectsArrayLength) {
   if (!isNewStorage()) {
@@ -123,16 +116,17 @@ bool FileStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint32_
   uint64_t objOffset = fileMetadataSize;
   // Metadata object with id=0 is used to indicate storage initialization state (not used by FileStorage).
   for (uint32_t i = initializedObjectId_ + 1; i < metadataObjectsArrayLength; i++) {
-    MetadataObjectInfo objectInfo(metadataObjectsArray[i].id, objMetaOffset,
-                                  objOffset, metadataObjectsArray[i].maxSize);
+    MetadataObjectInfo objectInfo(
+        metadataObjectsArray[i].id, objMetaOffset, objOffset, metadataObjectsArray[i].maxSize);
     objMetaOffset += sizeof(objectInfo);
     objOffset += metadataObjectsArray[i].maxSize;
     objectsMetadata_->setObjectInfo(objectInfo);
   }
   const uint64_t maxObjectsSize = objOffset - fileMetadataSize;
   const size_t maxFileSize = fileMetadataSize + maxObjectsSize;
-  LOG_INFO(logger_, "FileStorage::initMaxSizeOfObjects Maximum size of objects is "
-      << maxObjectsSize << ", file size is " << maxFileSize);
+  LOG_INFO(logger_,
+           "FileStorage::initMaxSizeOfObjects Maximum size of objects is " << maxObjectsSize << ", file size is "
+                                                                           << maxFileSize);
   if (ftruncate(fileno(dataStream_), maxFileSize)) {
     LOG_ERROR(logger_, "Failed to truncate file: " << fileName_);
     assert(false);
@@ -152,19 +146,21 @@ void FileStorage::verifyFileMetadataSetup() const {
 void FileStorage::verifyOperation(uint32_t objectId, uint32_t dataLen, const char *buffer) const {
   verifyFileMetadataSetup();
   MetadataObjectInfo *objectInfo = objectsMetadata_->getObjectInfo(objectId);
-  if (objectInfo && objectId <= (objectsMetadata_->getObjectsNum() - 1) &&
-      dataLen && (dataLen <= objectInfo->maxSize && buffer))
+  if (objectInfo && objectId <= (objectsMetadata_->getObjectsNum() - 1) && dataLen &&
+      (dataLen <= objectInfo->maxSize && buffer))
     return;
   if (!objectInfo) {
     LOG_FATAL(logger_, "FileStorage::verifyOperation objectInfo is NULL for objectId=" << objectId);
   } else if (objectId > objectsMetadata_->getObjectsNum() - 1) {
-    LOG_FATAL(logger_, "FileStorage::verifyOperation objectId=" << objectId << " is too big; maximum value is "
-                                                                << objectsMetadata_->getObjectsNum() - 2);
+    LOG_FATAL(logger_,
+              "FileStorage::verifyOperation objectId=" << objectId << " is too big; maximum value is "
+                                                       << objectsMetadata_->getObjectsNum() - 2);
   } else if (!dataLen) {
     LOG_FATAL(logger_, "FileStorage::verifyOperation dataLen is 0 for objectId=" << objectId);
   } else if (dataLen > objectInfo->maxSize) {
-    LOG_FATAL(logger_, "FileStorage::verifyOperation dataLen is too big for objectId="
-        << objectId << "; maximum value is " << objectInfo->maxSize);
+    LOG_FATAL(logger_,
+              "FileStorage::verifyOperation dataLen is too big for objectId=" << objectId << "; maximum value is "
+                                                                              << objectInfo->maxSize);
   } else if (!buffer) {
     LOG_FATAL(logger_, "FileStorage::verifyOperation buffer is NULL for objectId=" << objectId);
   }
@@ -192,7 +188,9 @@ void FileStorage::handleObjectRead(uint32_t objectId, char *outBufferForObject, 
   }
 }
 
-void FileStorage::read(uint32_t objectId, uint32_t bufferSize, char *outBufferForObject,
+void FileStorage::read(uint32_t objectId,
+                       uint32_t bufferSize,
+                       char *outBufferForObject,
                        uint32_t &outActualObjectSize) {
   LOG_DEBUG(logger_, "FileStorage::read objectId=" << objectId << ", bufferSize=" << bufferSize);
   lock_guard<mutex> lock(ioMutex_);
@@ -228,8 +226,7 @@ void FileStorage::writeInBatch(uint32_t objectId, char *data, uint32_t dataLengt
   }
 
   auto it = transaction_->find(objectId);
-  if (it != transaction_->end())
-    transaction_->erase(it);
+  if (it != transaction_->end()) transaction_->erase(it);
   transaction_->insert(pair<uint32_t, RequestInfo>(objectId, RequestInfo(data, dataLength)));
 }
 
@@ -249,4 +246,4 @@ void FileStorage::commitAtomicWriteOnlyBatch() {
   transaction_ = nullptr;
 }
 
-}
+}  // namespace bftEngine

@@ -35,25 +35,23 @@ class BlsThresholdVerifier : public IThresholdVerifier,
   NumSharesType reqSigners_ = 0, numSigners_ = 0;
 
  public:
-  BlsThresholdVerifier(const BlsPublicParameters &params, const G2T &pk,
-                       NumSharesType reqSigners, NumSharesType numSigners,
+  BlsThresholdVerifier(const BlsPublicParameters &params,
+                       const G2T &pk,
+                       NumSharesType reqSigners,
+                       NumSharesType numSigners,
                        const std::vector<BlsPublicKey> &verificationKeys);
 
   ~BlsThresholdVerifier() override = default;
 
   bool operator==(const BlsThresholdVerifier &other) const;
-  bool compare(const BlsThresholdVerifier &other) const {
-    return (*this == other);
-  }
+  bool compare(const BlsThresholdVerifier &other) const { return (*this == other); }
 
   /**
    * For testing and internal use.
    */
   NumSharesType getNumRequiredShares() const { return reqSigners_; }
   NumSharesType getNumTotalShares() const { return numSigners_; }
-  std::vector<BlsPublicKey> getPublicKeysVector() const {
-    return publicKeysVector_;
-  }
+  std::vector<BlsPublicKey> getPublicKeysVector() const { return publicKeysVector_; }
   const BlsPublicParameters &getParams() const { return params_; }
   const BlsPublicKey getKey() const { return publicKey_; }
   /**
@@ -64,35 +62,28 @@ class BlsThresholdVerifier : public IThresholdVerifier,
   /**
    * IThresholdVerifier overrides.
    */
-  IThresholdAccumulator *newAccumulator(bool withShareVerification)
-  const override;
+  IThresholdAccumulator *newAccumulator(bool withShareVerification) const override;
 
-  void release(IThresholdAccumulator *acc) override {
-    delete acc;
-  }
+  void release(IThresholdAccumulator *acc) override { delete acc; }
 
-  bool verify(const char *msg, int msgLen, const char *sig, int sigLen)
-  const override;
+  bool verify(const char *msg, int msgLen, const char *sig, int sigLen) const override;
 
-  int requiredLengthForSignedData() const override {
-    return params_.getSignatureSize();
-  }
+  int requiredLengthForSignedData() const override { return params_.getSignatureSize(); }
 
   const IPublicKey &getPublicKey() const override { return publicKey_; }
 
-  const IShareVerificationKey &getShareVerificationKey(ShareID signer)
-  const override;
+  const IShareVerificationKey &getShareVerificationKey(ShareID signer) const override;
 
   // Serialization/deserialization
  protected:
   friend class concord::serialize::SerializableFactory<BlsThresholdVerifier>;
   BlsThresholdVerifier() = default;
-  virtual void serializeDataMembers  (std::ostream&) const override;
-  virtual void deserializeDataMembers(std::istream&)       override;
+  virtual void serializeDataMembers(std::ostream &) const override;
+  virtual void deserializeDataMembers(std::istream &) override;
   const std::string getVersion() const override { return "1"; };
 
  private:
-  void serializePublicKey(const BlsPublicKey&, std::ostream&) const;
+  void serializePublicKey(const BlsPublicKey &, std::ostream &) const;
   static G2T deserializePublicKey(std::istream &inStream);
 };
 

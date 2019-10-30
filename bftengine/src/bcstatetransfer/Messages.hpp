@@ -24,7 +24,7 @@ namespace bftEngine {
 namespace SimpleBlockchainStateTransfer {
 namespace impl {
 
-#pragma pack(push,1)
+#pragma pack(push, 1)
 
 class MsgType {
  public:
@@ -69,30 +69,31 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
     return (memcmp(a, b, sizeof(CheckpointSummaryMsg)) == 0);
   }
 
-  static bool equivalent(const CheckpointSummaryMsg* a, uint16_t a_id,
-                         const CheckpointSummaryMsg* b, uint16_t b_id) {
+  static bool equivalent(const CheckpointSummaryMsg* a, uint16_t a_id, const CheckpointSummaryMsg* b, uint16_t b_id) {
     if (memcmp(a, b, sizeof(CheckpointSummaryMsg)) != 0) {
       auto logger = concordlogger::Log::getLogger("state-transfer");
-      LOG_WARN(logger, "Mismatched Checkpoints for checkpointNum=" << a->checkpointNum  << std::endl
+      LOG_WARN(logger,
+               "Mismatched Checkpoints for checkpointNum="
+                   << a->checkpointNum << std::endl
 
-          << "    Replica=" << a_id << " lastBlock=" << a->lastBlock << " digestOfLastBlock="
-          << a->digestOfLastBlock.toString() << " digestOfResPagesDescriptor="
-          << a->digestOfResPagesDescriptor.toString() << " requestMsgSeqNum=" << a->requestMsgSeqNum << std::endl
+                   << "    Replica=" << a_id << " lastBlock=" << a->lastBlock
+                   << " digestOfLastBlock=" << a->digestOfLastBlock.toString()
+                   << " digestOfResPagesDescriptor=" << a->digestOfResPagesDescriptor.toString()
+                   << " requestMsgSeqNum=" << a->requestMsgSeqNum << std::endl
 
-          << "    Replica=" << b_id << " lastBlock=" << b->lastBlock << " digestOfLastBlock="
-          << b->digestOfLastBlock.toString() << " digestOfResPagesDescriptor="
-          << b->digestOfResPagesDescriptor.toString() << " requestMsgSeqNum=" << b->requestMsgSeqNum << std::endl);
+                   << "    Replica=" << b_id << " lastBlock=" << b->lastBlock
+                   << " digestOfLastBlock=" << b->digestOfLastBlock.toString()
+                   << " digestOfResPagesDescriptor=" << b->digestOfResPagesDescriptor.toString()
+                   << " requestMsgSeqNum=" << b->requestMsgSeqNum << std::endl);
       return false;
     }
     return true;
   }
 
   static void free(void* context, const CheckpointSummaryMsg* a) {
-    IReplicaForStateTransfer* w =
-            reinterpret_cast<IReplicaForStateTransfer*>(context);
+    IReplicaForStateTransfer* w = reinterpret_cast<IReplicaForStateTransfer*>(context);
 
-    w->freeStateTransferMsg(
-            const_cast<char*>(reinterpret_cast<const char*>(a)));
+    w->freeStateTransferMsg(const_cast<char*>(reinterpret_cast<const char*>(a)));
   }
 };
 
@@ -120,9 +121,6 @@ struct FetchResPagesMsg : public BCStateTranBaseMsg {
   uint16_t lastKnownChunk;
 };
 
-
-
-
 struct RejectFetchingMsg : public BCStateTranBaseMsg {
   RejectFetchingMsg() {
     memset(this, 0, sizeof(RejectFetchingMsg));
@@ -131,7 +129,6 @@ struct RejectFetchingMsg : public BCStateTranBaseMsg {
 
   uint64_t requestMsgSeqNum;
 };
-
 
 struct ItemDataMsg : public BCStateTranBaseMsg {
   static ItemDataMsg* alloc(uint32_t dataSize) {
@@ -161,9 +158,7 @@ struct ItemDataMsg : public BCStateTranBaseMsg {
   uint32_t dataSize;
   char data[1];
 
-  uint32_t size() const {
-    return sizeof(ItemDataMsg) - 1 + dataSize;
-  }
+  uint32_t size() const { return sizeof(ItemDataMsg) - 1 + dataSize; }
 };
 
 #pragma pack(pop)

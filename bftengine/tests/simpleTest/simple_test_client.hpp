@@ -16,9 +16,13 @@
 using namespace bftEngine;
 using namespace std;
 
-#define test_assert(statement, message) \
-{ if (!(statement)) { \
-LOG_FATAL(clientLogger, "assert fail with message: " << message); assert(false);}}
+#define test_assert(statement, message)                                 \
+  {                                                                     \
+    if (!(statement)) {                                                 \
+      LOG_FATAL(clientLogger, "assert fail with message: " << message); \
+      assert(false);                                                    \
+    }                                                                   \
+  }
 
 class SimpleTestClient {
  private:
@@ -26,9 +30,8 @@ class SimpleTestClient {
   concordlogger::Logger clientLogger;
 
  public:
-  SimpleTestClient(ClientParams &clientParams, concordlogger::Logger &logger)
-      : cp{clientParams}, clientLogger{logger} {
-  }
+  SimpleTestClient(ClientParams& clientParams, concordlogger::Logger& logger)
+      : cp{clientParams}, clientLogger{logger} {}
 
   bool run() {
     // This client's index number. Must be larger than the largest replica index
@@ -41,34 +44,26 @@ class SimpleTestClient {
     // Concord clients must tag each request with a unique sequence number. This
     // generator handles that for us.
     SeqNumberGeneratorForClientRequests* pSeqGen =
-        SeqNumberGeneratorForClientRequests::
-        createSeqNumberGeneratorForClientRequests();
+        SeqNumberGeneratorForClientRequests::createSeqNumberGeneratorForClientRequests();
 
     TestCommConfig testCommConfig(clientLogger);
     // Configure, create, and start the Concord client to use.
 #ifdef USE_COMM_PLAIN_TCP
-    PlainTcpConfig conf = testCommConfig.GetTCPConfig(
-      false, id, cp.numOfClients, cp.numOfReplicas, cp.configFileName);
+    PlainTcpConfig conf = testCommConfig.GetTCPConfig(false, id, cp.numOfClients, cp.numOfReplicas, cp.configFileName);
 #elif USE_COMM_TLS_TCP
-    TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(
-      false, id, cp.numOfClients, cp.numOfReplicas, cp.configFileName);
+    TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(false, id, cp.numOfClients, cp.numOfReplicas, cp.configFileName);
 #else
-    PlainUdpConfig conf = testCommConfig.GetUDPConfig(
-        false, id, cp.numOfClients, cp.numOfReplicas, cp.configFileName);
+    PlainUdpConfig conf = testCommConfig.GetUDPConfig(false, id, cp.numOfClients, cp.numOfReplicas, cp.configFileName);
 #endif
 
-    LOG_INFO(clientLogger, "ClientParams: clientId: "
-        << cp.clientId
-        << ", numOfReplicas: " << cp.numOfReplicas
-        << ", numOfClients: " << cp.numOfClients
-        << ", numOfIterations: " << cp.numOfOperations
-        << ", fVal: " << cp.numOfFaulty
-        << ", cVal: " << cp.numOfSlow);
+    LOG_INFO(clientLogger,
+             "ClientParams: clientId: " << cp.clientId << ", numOfReplicas: " << cp.numOfReplicas << ", numOfClients: "
+                                        << cp.numOfClients << ", numOfIterations: " << cp.numOfOperations
+                                        << ", fVal: " << cp.numOfFaulty << ", cVal: " << cp.numOfSlow);
 
     ICommunication* comm = bftEngine::CommFactory::create(conf);
 
-    SimpleClient* client =
-        SimpleClient::createSimpleClient(comm, id, cp.numOfFaulty, cp.numOfSlow);
+    SimpleClient* client = SimpleClient::createSimpleClient(comm, id, cp.numOfFaulty, cp.numOfSlow);
     comm->Start();
 
     // The state number that the latest write operation returned.
@@ -89,18 +84,18 @@ class SimpleTestClient {
 
     // Perform this check once all parameters configured.
     if (3 * cp.numOfFaulty + 2 * cp.numOfSlow + 1 != cp.numOfReplicas) {
-      LOG_FATAL(clientLogger, "Number of replicas is not equal to 3f + 2c + 1 :"
-                              " f=" << cp.numOfFaulty << ", c=" << cp.numOfSlow <<
-                                    ", numOfReplicas=" << cp.numOfReplicas);
+      LOG_FATAL(clientLogger,
+                "Number of replicas is not equal to 3f + 2c + 1 :"
+                " f="
+                    << cp.numOfFaulty << ", c=" << cp.numOfSlow << ", numOfReplicas=" << cp.numOfReplicas);
       exit(-1);
     }
 
     for (uint32_t i = 1; i <= cp.numOfOperations; i++) {
-
       // the python script that runs the client needs to know how many
       // iterations has been done - that's the reason we use printf and not
       // logging module - to keep the output exactly as we expect.
-      if(i > 0 && i % 100 == 0) {
+      if (i > 0 && i % 100 == 0) {
         printf("Iterations count: 100\n");
         printf("Total iterations count: %i\n", i);
       }
@@ -113,12 +108,10 @@ class SimpleTestClient {
 
         const uint32_t kRequestLength = 1;
         const uint64_t requestBuffer[kRequestLength] = {READ_VAL_REQ};
-        const char* rawRequestBuffer =
-            reinterpret_cast<const char*>(requestBuffer);
+        const char* rawRequestBuffer = reinterpret_cast<const char*>(requestBuffer);
         const uint32_t rawRequestLength = sizeof(uint64_t) * kRequestLength;
 
-        const uint64_t requestSequenceNumber =
-            pSeqGen->generateUniqueSequenceNumberForRequest();
+        const uint64_t requestSequenceNumber = pSeqGen->generateUniqueSequenceNumberForRequest();
 
         const uint64_t timeout = SimpleClient::INFINITE_TIMEOUT;
 
@@ -127,38 +120,36 @@ class SimpleTestClient {
         uint32_t actualReplyLength = 0;
 
         client->sendRequest(readOnly,
-                            rawRequestBuffer, rawRequestLength,
+                            rawRequestBuffer,
+                            rawRequestLength,
                             requestSequenceNumber,
                             timeout,
-                            kReplyBufferLength, replyBuffer, actualReplyLength);
+                            kReplyBufferLength,
+                            replyBuffer,
+                            actualReplyLength);
 
         // Read should respond with eight bytes of data.
-        test_assert(actualReplyLength == sizeof(uint64_t),
-                    "actualReplyLength != " << sizeof(uint64_t));
+        test_assert(actualReplyLength == sizeof(uint64_t), "actualReplyLength != " << sizeof(uint64_t));
 
         // Only assert the last expected value if we have previous set a value.
         if (hasExpectedLastValue)
-          test_assert(
-              *reinterpret_cast<uint64_t*>(replyBuffer) == expectedLastValue,
-              "*reinterpret_cast<uint64_t*>(replyBuffer)!=" << expectedLastValue);
+          test_assert(*reinterpret_cast<uint64_t*>(replyBuffer) == expectedLastValue,
+                      "*reinterpret_cast<uint64_t*>(replyBuffer)!=" << expectedLastValue);
       } else {
         // Send a write, if we're not doing a read.
 
         // Generate a value to store.
-        expectedLastValue = (i + 1)*(i + 7)*(i + 18);
+        expectedLastValue = (i + 1) * (i + 7) * (i + 18);
 
         // Prepare request parameters.
         const bool readOnly = false;
 
         const uint32_t kRequestLength = 2;
-        const uint64_t requestBuffer[kRequestLength] =
-            {SET_VAL_REQ, expectedLastValue};
-        const char* rawRequestBuffer =
-            reinterpret_cast<const char*>(requestBuffer);
+        const uint64_t requestBuffer[kRequestLength] = {SET_VAL_REQ, expectedLastValue};
+        const char* rawRequestBuffer = reinterpret_cast<const char*>(requestBuffer);
         const uint32_t rawRequestLength = sizeof(uint64_t) * kRequestLength;
 
-        const uint64_t requestSequenceNumber =
-            pSeqGen->generateUniqueSequenceNumberForRequest();
+        const uint64_t requestSequenceNumber = pSeqGen->generateUniqueSequenceNumberForRequest();
 
         const uint64_t timeout = SimpleClient::INFINITE_TIMEOUT;
 
@@ -167,17 +158,19 @@ class SimpleTestClient {
         uint32_t actualReplyLength = 0;
 
         client->sendRequest(readOnly,
-                            rawRequestBuffer, rawRequestLength,
+                            rawRequestBuffer,
+                            rawRequestLength,
                             requestSequenceNumber,
                             timeout,
-                            kReplyBufferLength, replyBuffer, actualReplyLength);
+                            kReplyBufferLength,
+                            replyBuffer,
+                            actualReplyLength);
 
         // We can now check the expected value on the next read.
         hasExpectedLastValue = true;
 
         // Write should respond with eight bytes of data.
-        test_assert(actualReplyLength == sizeof(uint64_t),
-                    "actualReplyLength != " << sizeof(uint64_t));
+        test_assert(actualReplyLength == sizeof(uint64_t), "actualReplyLength != " << sizeof(uint64_t));
 
         uint64_t retVal = *reinterpret_cast<uint64_t*>(replyBuffer);
 
@@ -187,8 +180,7 @@ class SimpleTestClient {
           // If we had done a previous write, then this write should return the
           // state number right after the state number that that write returned.
           expectedStateNum++;
-          test_assert(retVal == expectedStateNum,
-                      "retVal != " << expectedLastValue);
+          test_assert(retVal == expectedStateNum, "retVal != " << expectedLastValue);
         } else {
           hasExpectedStateNum = true;
           expectedStateNum = retVal;
@@ -196,7 +188,7 @@ class SimpleTestClient {
       }
     }
 
-   // After all requests have been issued, stop communication and clean up.
+    // After all requests have been issued, stop communication and clean up.
     comm->Stop();
 
     delete pSeqGen;
@@ -208,4 +200,4 @@ class SimpleTestClient {
   }
 };
 
-#endif //CONCORD_BFT_SIMPLE_TEST_CLIENT_HPP
+#endif  // CONCORD_BFT_SIMPLE_TEST_CLIENT_HPP

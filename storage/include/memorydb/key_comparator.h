@@ -19,7 +19,7 @@ using concordUtils::Sliver;
 
 class KeyComparator {
  public:
-  KeyComparator(IDBClient::IKeyManipulator* key_manipulator)
+  KeyComparator(IDBClient::IKeyManipulator *key_manipulator)
       : key_manipulator_(key_manipulator),
         logger_(concordlogger::Log::getLogger("concord.storage.rocksdb.KeyComparator")) {}
 

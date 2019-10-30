@@ -25,10 +25,9 @@ typedef std::multimap<std::string, std::string> ParamsMultiMap;
 typedef ParamsMultiMap::iterator ParamsMultiMapIt;
 
 class ConfigFileParser {
-
  public:
-  ConfigFileParser(concordlogger::Logger& logger, std::string file_name):
-      file_name_(std::move(file_name)), logger_(logger) {}
+  ConfigFileParser(concordlogger::Logger& logger, std::string file_name)
+      : file_name_(std::move(file_name)), logger_(logger) {}
   virtual ~ConfigFileParser() = default;
 
   // Returns 0 if passed successfully and 1 otherwise.
@@ -40,8 +39,7 @@ class ConfigFileParser {
   // Returns a range of values that match specified key.
   std::vector<std::string> GetValues(std::string key);
 
-  std::vector<std::string> SplitValue(std::string value_to_split,
-                                      const char* delimiter);
+  std::vector<std::string> SplitValue(std::string value_to_split, const char* delimiter);
 
   void printAll();
 

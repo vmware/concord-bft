@@ -30,8 +30,7 @@ class MetadataStorage {
   // Initialize the storage before the first time used. In case storage is already initialized, do nothing.
   // Return 'true' in case DB was virgin (not initialized) before a call to this function
   // (the IDs and their maximal size are known in advance).
-  virtual bool initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray,
-                                    uint32_t metadataObjectsArrayLength) = 0;
+  virtual bool initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint32_t metadataObjectsArrayLength) = 0;
 
   // Return 'true' in case DB is virgin (not initialized).
   virtual bool isNewStorage() = 0;
@@ -43,16 +42,12 @@ class MetadataStorage {
                     uint32_t &outActualObjectSize) = 0;
 
   // Atomically write an object to storage
-  virtual void atomicWrite(uint32_t objectId,
-                           char *data,
-                           uint32_t dataLength) = 0;
+  virtual void atomicWrite(uint32_t objectId, char *data, uint32_t dataLength) = 0;
 
   // Atomic write-only transactions
   virtual void beginAtomicWriteOnlyBatch() = 0;
-  virtual void writeInBatch(uint32_t objectId,
-                            char *data,
-                            uint32_t dataLength) = 0;
+  virtual void writeInBatch(uint32_t objectId, char *data, uint32_t dataLength) = 0;
   virtual void commitAtomicWriteOnlyBatch() = 0;
 };
 
-}
+}  // namespace bftEngine
