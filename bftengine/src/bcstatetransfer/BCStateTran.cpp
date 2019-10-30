@@ -1340,6 +1340,9 @@ bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t
     numOfChunksInVBlock++;
   }
 
+  // TODO (AJS): This looks like a possible overflow, since numOfChunksInVBlock
+  // can be greater than nextChunk. Should we make numOfChunksInVBlock a
+  // uint16_t ?
   uint16_t nextChunk = m->lastKnownChunk + 1;
   // if msg is invalid (because lastKnownChunk+1 does not exist)
   if (nextChunk > numOfChunksInVBlock) {
@@ -1605,7 +1608,7 @@ char *BCStateTran::createVBlock(const DescOfVBlockForResPages &desc) {
 
   char *elements = rawVBlock + sizeof(HeaderOfVirtualBlock);
 
-  uint16_t idx = 0;
+  uint32_t idx = 0;
   for (uint32_t pageId : updatedPages) {
     Assert(idx < numberOfUpdatedPages);
 
