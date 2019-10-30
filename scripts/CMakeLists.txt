@@ -13,10 +13,10 @@ find_program(
 if(CLANG_FORMAT_EXE)
   if(FORMAT_CODE_SCRIPT)
     add_custom_target(format-check
-      COMMENT "Check code format via ${FORMAT_CODE_SCRIPT}"
+      COMMENT "Check code format via ${FORMAT_CODE_SCRIPT} ${CMAKE_CURRENT_SOURCE_DIR}/.."
       COMMAND ${FORMAT_CODE_SCRIPT} ${CMAKE_CURRENT_SOURCE_DIR}/.. --is-required)
     add_custom_target(format
-      COMMENT "Change code format via ${FORMAT_CODE_SCRIPT}"
+      COMMENT "Change code format via ${FORMAT_CODE_SCRIPT} ${CMAKE_CURRENT_SOURCE_DIR}/.."
       COMMAND ${FORMAT_CODE_SCRIPT} ${CMAKE_CURRENT_SOURCE_DIR}/..)
   else()
     message("Couldn't find format-code.sh")
