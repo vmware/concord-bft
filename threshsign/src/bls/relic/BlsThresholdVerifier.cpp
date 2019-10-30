@@ -10,7 +10,7 @@
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 
-#ifdef ERROR // TODO(GG): should be fixed by encapsulating relic (or windows) definitions in cpp files
+#ifdef ERROR  // TODO(GG): should be fixed by encapsulating relic (or windows) definitions in cpp files
 #undef ERROR
 #endif
 
@@ -35,18 +35,20 @@ using namespace concord::serialize;
 namespace BLS {
 namespace Relic {
 
-BlsThresholdVerifier::BlsThresholdVerifier(
-    const BlsPublicParameters &params, const G2T &pk, NumSharesType reqSigners,
-    NumSharesType numSigners, const vector<BlsPublicKey> &verificationKeys)
-    : params_(params), publicKey_(pk),
+BlsThresholdVerifier::BlsThresholdVerifier(const BlsPublicParameters &params,
+                                           const G2T &pk,
+                                           NumSharesType reqSigners,
+                                           NumSharesType numSigners,
+                                           const vector<BlsPublicKey> &verificationKeys)
+    : params_(params),
+      publicKey_(pk),
       publicKeysVector_(verificationKeys.begin(), verificationKeys.end()),
-      generator2_(params.getGenerator2()), reqSigners_(reqSigners),
+      generator2_(params.getGenerator2()),
+      reqSigners_(reqSigners),
       numSigners_(numSigners) {
-  assertEqual(verificationKeys.size(),
-              static_cast<vector<BlsPublicKey>::size_type>(numSigners + 1));
+  assertEqual(verificationKeys.size(), static_cast<vector<BlsPublicKey>::size_type>(numSigners + 1));
   // verifKeys[0] was copied as well, but it's set to a dummy PK so it does not matter
-  assertEqual(publicKeysVector_.size(),
-              static_cast<vector<BlsPublicKey>::size_type>(numSigners + 1));
+  assertEqual(publicKeysVector_.size(), static_cast<vector<BlsPublicKey>::size_type>(numSigners + 1));
 
 #ifdef TRACE
   LOG_TRACE(GL, "VKs (array has size " << vks.size() << ")");
@@ -54,25 +56,19 @@ BlsThresholdVerifier::BlsThresholdVerifier(
 #endif
 }
 
-const IShareVerificationKey &BlsThresholdVerifier::getShareVerificationKey(
-    ShareID signer) const {
+const IShareVerificationKey &BlsThresholdVerifier::getShareVerificationKey(ShareID signer) const {
   return publicKeysVector_.at(static_cast<size_t>(signer));
 }
 
-IThresholdAccumulator *BlsThresholdVerifier::newAccumulator(
-    bool withShareVerification) const {
+IThresholdAccumulator *BlsThresholdVerifier::newAccumulator(bool withShareVerification) const {
   if (reqSigners_ == numSigners_ - 1) {
     return new BlsAlmostMultisigAccumulator(publicKeysVector_, numSigners_);
   } else {
-    return new BlsThresholdAccumulator(publicKeysVector_, reqSigners_,
-                                       numSigners_, withShareVerification);
+    return new BlsThresholdAccumulator(publicKeysVector_, reqSigners_, numSigners_, withShareVerification);
   }
 }
 
-bool BlsThresholdVerifier::verify(const char *msg,
-                                  int msgLen,
-                                  const char *sigBuf,
-                                  int sigLen) const {
+bool BlsThresholdVerifier::verify(const char *msg, int msgLen, const char *sigBuf, int sigLen) const {
   G1T h, sig;
   // Convert hash to elliptic curve point
   g1_map(h, reinterpret_cast<const unsigned char *>(msg), msgLen);
@@ -82,12 +78,11 @@ bool BlsThresholdVerifier::verify(const char *msg,
   return verify(h, sig, publicKey_.y);
 }
 
-bool BlsThresholdVerifier::verify(const G1T &msgHash,
-                                  const G1T &sigShare,
-                                  const G2T &pk) const {
+bool BlsThresholdVerifier::verify(const G1T &msgHash, const G1T &sigShare, const G2T &pk) const {
   // FIXME: RELIC: Dealing with library peculiarities here by using a const cast
   // Pair hash with PK
-  GTT e1, e2;pc_map(e1, const_cast<G1T &>(msgHash), const_cast<G2T &>(pk));
+  GTT e1, e2;
+  pc_map(e1, const_cast<G1T &>(msgHash), const_cast<G2T &>(pk));
 
   // Pair signature with group's generator
   pc_map(e2, const_cast<G1T &>(sigShare), const_cast<G2T &>(generator2_));
@@ -104,7 +99,7 @@ void BlsThresholdVerifier::serializePublicKey(const BlsPublicKey &key, std::ostr
   serialize(outStream, publicKeySize);
   unsigned char *publicKeyBuf = new unsigned char[publicKeySize];
   key.y.toBytes(publicKeyBuf, publicKeySize);
-  outStream.write((char *) publicKeyBuf, publicKeySize);
+  outStream.write((char *)publicKeyBuf, publicKeySize);
   LOG_TRACE(logger(), "<<< public key buf: [" << key.y.toString() << "]");
   delete[] publicKeyBuf;
 }
@@ -114,20 +109,16 @@ void BlsThresholdVerifier::serializeDataMembers(ostream &outStream) const {
   serializePublicKey(publicKey_, outStream);
 
   serialize(outStream, publicKeysVector_.size());
-  for (const auto &elem : publicKeysVector_)
-    serializePublicKey(elem, outStream);
+  for (const auto &elem : publicKeysVector_) serializePublicKey(elem, outStream);
 
   serialize(outStream, reqSigners_);
   serialize(outStream, numSigners_);
 }
 
 bool BlsThresholdVerifier::operator==(const BlsThresholdVerifier &other) const {
-  bool result = ((other.params_ == params_) &&
-      (other.publicKey_ == publicKey_) &&
-      (other.publicKeysVector_ == publicKeysVector_) &&
-      (other.generator2_ == generator2_) &&
-      (other.reqSigners_ == reqSigners_) &&
-      (other.numSigners_ == numSigners_));
+  bool result = ((other.params_ == params_) && (other.publicKey_ == publicKey_) &&
+                 (other.publicKeysVector_ == publicKeysVector_) && (other.generator2_ == generator2_) &&
+                 (other.reqSigners_ == reqSigners_) && (other.numSigners_ == numSigners_));
   return result;
 }
 
@@ -138,7 +129,7 @@ G2T BlsThresholdVerifier::deserializePublicKey(istream &inStream) {
   deserialize(inStream, publicKeySize);
   LOG_TRACE(concordlogger::Log::getLogger("serialize"), ">>> public key size: " << publicKeySize);
   unsigned char *publicKeyBuf = new unsigned char[publicKeySize];
-  inStream.read((char *) publicKeyBuf, publicKeySize);
+  inStream.read((char *)publicKeyBuf, publicKeySize);
   G2T g2t_(publicKeyBuf, publicKeySize);
   LOG_TRACE(concordlogger::Log::getLogger("serialize"), ">>> public key buf: [" << g2t_.toString() << "]");
   delete[] publicKeyBuf;
@@ -146,9 +137,9 @@ G2T BlsThresholdVerifier::deserializePublicKey(istream &inStream) {
 }
 
 void BlsThresholdVerifier::deserializeDataMembers(istream &inStream) {
-  BlsPublicParameters* params = nullptr;
+  BlsPublicParameters *params = nullptr;
   deserialize(inStream, params);
-  params_= BlsPublicParameters(*params);
+  params_ = BlsPublicParameters(*params);
   generator2_ = G2T(params_.getGenerator2());
 
   publicKey_ = BlsPublicKey(deserializePublicKey(inStream));
@@ -160,7 +151,6 @@ void BlsThresholdVerifier::deserializeDataMembers(istream &inStream) {
 
   deserialize(inStream, reqSigners_);
   deserialize(inStream, numSigners_);
-
 }
 
 } /* namespace Relic */

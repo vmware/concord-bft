@@ -22,17 +22,14 @@ using namespace concord::serialize;
 namespace BLS {
 namespace Relic {
 
-BlsThresholdSigner::BlsThresholdSigner(const BlsPublicParameters &params,
-                                       ShareID id, const BNT &secretKey)
-    : params_(params), secretKey_(secretKey), publicKey_(secretKey), id_(id),
-      sigSize_(params.getSignatureSize()) {
+BlsThresholdSigner::BlsThresholdSigner(const BlsPublicParameters &params, ShareID id, const BNT &secretKey)
+    : params_(params), secretKey_(secretKey), publicKey_(secretKey), id_(id), sigSize_(params.getSignatureSize()) {
   // Serialize signer's ID to a buffer
   BNT idNum(id);
   idNum.toBytes(serializedId_, sizeof(id));
 }
 
-void BlsThresholdSigner::signData(const char *hash, int hashLen, char *outSig,
-                                  int outSigLen) {
+void BlsThresholdSigner::signData(const char *hash, int hashLen, char *outSig, int outSigLen) {
   // TODO: ALIN: If the signer has some time to waste before signing,
   //  we can precompute multiplication tables on H(m) to speed up signing.
 
@@ -45,8 +42,7 @@ void BlsThresholdSigner::signData(const char *hash, int hashLen, char *outSig,
   // Include the signer's ID in the sigshare
   memcpy(outSig, serializedId_, sizeof(id_));
   // Serialize the signature to a byte array
-  sigTmp_.toBytes(reinterpret_cast<unsigned char *>(outSig) + sizeof(id_),
-                  outSigLen - static_cast<int>(sizeof(id_)));
+  sigTmp_.toBytes(reinterpret_cast<unsigned char *>(outSig) + sizeof(id_), outSigLen - static_cast<int>(sizeof(id_)));
 }
 
 /************** Serialization **************/
@@ -57,54 +53,45 @@ void BlsThresholdSigner::serializeDataMembers(ostream &outStream) const {
   UniquePtrToUChar secretKeyBuf(new unsigned char[secretKeySize]);
   secretKey_.x.toBytes(secretKeyBuf.get(), secretKeySize);
   serialize(outStream, secretKeySize);
-  outStream.write((char *) secretKeyBuf.get(), secretKeySize);
+  outStream.write((char *)secretKeyBuf.get(), secretKeySize);
   serialize(outStream, id_);
 }
 
 bool BlsThresholdSigner::operator==(const BlsThresholdSigner &other) const {
-  bool result = ((other.id_ == id_) &&
-      (other.params_ == params_) &&
-      (other.sigSize_ == sigSize_) &&
-      !memcmp(other.serializedId_, serializedId_, sizeof(ShareID)) &&
-      (other.hTmp_ == hTmp_) &&
-      (other.sigTmp_ == sigTmp_) &&
-      (other.secretKey_ == secretKey_) &&
-      (other.publicKey_ == publicKey_)
-  );
+  bool result = ((other.id_ == id_) && (other.params_ == params_) && (other.sigSize_ == sigSize_) &&
+                 !memcmp(other.serializedId_, serializedId_, sizeof(ShareID)) && (other.hTmp_ == hTmp_) &&
+                 (other.sigTmp_ == sigTmp_) && (other.secretKey_ == secretKey_) && (other.publicKey_ == publicKey_));
 
-
-  if (other.id_ != id_)
-    cout << "id_" << endl;
-  if (other.params_ == params_);
+  if (other.id_ != id_) cout << "id_" << endl;
+  if (other.params_ == params_)
+    ;
   else
     cout << "params_" << endl;
-  if (other.sigSize_ != sigSize_)
-    cout << "sigSize_" << endl;
-  if (memcmp(other.serializedId_, serializedId_, sizeof(ShareID)))
-    cout << "serializedId_" << endl;
-  if (other.hTmp_ != hTmp_)
-    cout << "hTmp_" << endl;
-  if (other.sigTmp_ != sigTmp_)
-    cout << "sigTmp_" << endl;
-  if (other.secretKey_ == secretKey_);
+  if (other.sigSize_ != sigSize_) cout << "sigSize_" << endl;
+  if (memcmp(other.serializedId_, serializedId_, sizeof(ShareID))) cout << "serializedId_" << endl;
+  if (other.hTmp_ != hTmp_) cout << "hTmp_" << endl;
+  if (other.sigTmp_ != sigTmp_) cout << "sigTmp_" << endl;
+  if (other.secretKey_ == secretKey_)
+    ;
   else
     cout << "secretKeys are not the same" << endl;
-  if (other.publicKey_ == publicKey_);
+  if (other.publicKey_ == publicKey_)
+    ;
   else
     cout << "publicKeys are not the same" << endl;
   return result;
 }
 
 /************** Deserialization **************/
-void BlsThresholdSigner::deserializeDataMembers(istream& inStream){
-  BlsPublicParameters* params = nullptr;
+void BlsThresholdSigner::deserializeDataMembers(istream &inStream) {
+  BlsPublicParameters *params = nullptr;
   deserialize(inStream, params);
-  params_= BlsPublicParameters(*params);
+  params_ = BlsPublicParameters(*params);
   sigSize_ = params_.getSignatureSize();
   std::int32_t sizeOfSecretKey = 0;
   deserialize(inStream, sizeOfSecretKey);
   UniquePtrToUChar secretKey(new unsigned char[sizeOfSecretKey]);
-  inStream.read((char *) secretKey.get(), sizeOfSecretKey);
+  inStream.read((char *)secretKey.get(), sizeOfSecretKey);
   BNT key(secretKey.get(), sizeOfSecretKey);
   secretKey_ = BlsSecretKey(BNT(secretKey.get(), sizeOfSecretKey));
   publicKey_ = BlsPublicKey(BNT(secretKey.get(), sizeOfSecretKey));

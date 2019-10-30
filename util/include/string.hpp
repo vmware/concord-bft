@@ -23,16 +23,43 @@ namespace util {
  * conversion from string to integral types
  * TODO float, double
  */
-template<typename T>
-T to(const std::string& s){assert(false && "no suitable specialization"); return static_cast<T>(0);}
+template <typename T>
+T to(const std::string& s) {
+  assert(false && "no suitable specialization");
+  return static_cast<T>(0);
+}
 
-template<> inline bool               to<> (const std::string& s) {return std::stoi(s);  }
-template<> inline std::uint16_t      to<> (const std::string& s) {return std::stoi(s);  }
-template<> inline int                to<> (const std::string& s) {return std::stoi(s);  }
-template<> inline unsigned int       to<> (const std::string& s) {return std::stoul(s); }
-template<> inline long               to<> (const std::string& s) {return std::stol(s);  }
-template<> inline unsigned long      to<> (const std::string& s) {return std::stoul(s); }
-template<> inline long long          to<> (const std::string& s) {return std::stoll(s); }
-template<> inline unsigned long long to<> (const std::string& s) {return std::stoull(s);}
+template <>
+inline bool to<>(const std::string& s) {
+  return std::stoi(s);
 }
+template <>
+inline std::uint16_t to<>(const std::string& s) {
+  return std::stoi(s);
 }
+template <>
+inline int to<>(const std::string& s) {
+  return std::stoi(s);
+}
+template <>
+inline unsigned int to<>(const std::string& s) {
+  return std::stoul(s);
+}
+template <>
+inline long to<>(const std::string& s) {
+  return std::stol(s);
+}
+template <>
+inline unsigned long to<>(const std::string& s) {
+  return std::stoul(s);
+}
+template <>
+inline long long to<>(const std::string& s) {
+  return std::stoll(s);
+}
+template <>
+inline unsigned long long to<>(const std::string& s) {
+  return std::stoull(s);
+}
+}  // namespace util
+}  // namespace concord

@@ -10,6 +10,6 @@ namespace concordUtils {
 
 std::ostream &hexPrint(std::ostream &s, const uint8_t *data, size_t size);
 
-}  // namespace concordUtils 
+}  // namespace concordUtils
 
 #endif  // CONCORD_BFT_UTIL_HEX_TOOLS_H_

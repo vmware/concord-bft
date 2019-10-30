@@ -36,7 +36,9 @@ int main(int argc, char** argv) {
     db = new concord::storage::rocksdb::Client(dbPath.str(), comparator);
 #else
     // Abort if we haven't built rocksdb storage
-    LOG_ERROR(logger, "Must build with -DBUILD_ROCKSDB_STORAGE=TRUE cmake option in order to test with persistent storage enabled");
+    LOG_ERROR(
+        logger,
+        "Must build with -DBUILD_ROCKSDB_STORAGE=TRUE cmake option in order to test with persistent storage enabled");
     exit(-1);
 #endif
   } else {
@@ -57,7 +59,6 @@ int main(int argc, char** argv) {
   InternalCommandsHandler cmdHandler(replica, replica, logger);
   replica->set_command_handler(&cmdHandler);
   replica->start();
-
 
   while (replica->isRunning()) std::this_thread::sleep_for(std::chrono::seconds(1));
 }

@@ -25,14 +25,14 @@ namespace Relic {
 class BlsPublicParameters;
 
 class BlsThresholdKeygenBase : public IThresholdKeygen<BNT, G2T> {
-public:
-    BlsThresholdKeygenBase(NumSharesType numSigners);
+ public:
+  BlsThresholdKeygenBase(NumSharesType numSigners);
 };
 
 class BlsThresholdKeygen : public BlsThresholdKeygenBase {
-public:
-    BlsThresholdKeygen(const BlsPublicParameters& params, NumSharesType reqSigners, NumSharesType numSigners);
-    virtual ~BlsThresholdKeygen();
+ public:
+  BlsThresholdKeygen(const BlsPublicParameters& params, NumSharesType reqSigners, NumSharesType numSigners);
+  virtual ~BlsThresholdKeygen();
 };
 
 } /* namespace Relic */

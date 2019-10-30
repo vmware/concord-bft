@@ -19,56 +19,50 @@ namespace concord {
 namespace storage {
 namespace rocksdb {
 
+#define ROCKSDB_THROW(action, status)                                                                               \
+  throw std::runtime_error("rocksdb error: action: " action ", txn id[" + getIdStr() + std::string("], reason: ") + \
+                           status.ToString())
 
-#define ROCKSDB_THROW(action, status) \
-  throw std::runtime_error("rocksdb error: action: " action ", txn id[" + getIdStr() + std::string("], reason: ") + status.ToString())
-
-class Transaction: public ITransaction {
+class Transaction : public ITransaction {
  public:
-  Transaction(::rocksdb::Transaction* txn, ID id): ITransaction(id), txn_(txn){}
-  ~Transaction(){LOG_TRACE(logger(), "txn: " << getId());}
+  Transaction(::rocksdb::Transaction* txn, ID id) : ITransaction(id), txn_(txn) {}
+  ~Transaction() { LOG_TRACE(logger(), "txn: " << getId()); }
   void commit() override {
     LOG_DEBUG(logger(), "commit txn: " << getId());
     ::rocksdb::Status s = txn_->Commit();
-    if (!s.ok())
-      ROCKSDB_THROW("Commit", s);
+    if (!s.ok()) ROCKSDB_THROW("Commit", s);
   }
   void rollback() override {
     LOG_DEBUG(logger(), "rollback txn: " << getId());
     ::rocksdb::Status s = txn_->Rollback();
-    if (!s.ok())
-      ROCKSDB_THROW("Rollback", s);
-
+    if (!s.ok()) ROCKSDB_THROW("Rollback", s);
   }
-  void put(const Sliver& key, const Sliver& value)  override {
+  void put(const Sliver& key, const Sliver& value) override {
     LOG_DEBUG(logger(), "put txn: " << getId() << " key:" << key << " val: " << value);
     ::rocksdb::Status s = txn_->Put(toRocksdbSlice(key), toRocksdbSlice(value));
-    if (!s.ok() )
-      ROCKSDB_THROW("Put", s);
+    if (!s.ok()) ROCKSDB_THROW("Put", s);
   }
   std::string get(const Sliver& key) override {
     LOG_DEBUG(logger(), "get txn: " << getId() << " key:" << key);
     std::string val;
     ::rocksdb::Status s = txn_->Get(::rocksdb::ReadOptions(), toRocksdbSlice(key), &val);
-    if (!s.ok() && !s.IsNotFound())
-      ROCKSDB_THROW("Get", s);
+    if (!s.ok() && !s.IsNotFound()) ROCKSDB_THROW("Get", s);
     return val;
   }
   void del(const Sliver& key) override {
     LOG_DEBUG(logger(), "del txn: " << getId() << " key:" << key);
     ::rocksdb::Status s = txn_->Delete(toRocksdbSlice(key));
-    if (!s.ok())
-      ROCKSDB_THROW("Delete", s);
+    if (!s.ok()) ROCKSDB_THROW("Delete", s);
   }
 
  protected:
-  concordlogger::Logger& logger(){
-      static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.storage.rocksdb.transaction");
-      return logger_;
+  concordlogger::Logger& logger() {
+    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.storage.rocksdb.transaction");
+    return logger_;
   }
   std::unique_ptr<::rocksdb::Transaction> txn_;
 };
 
-}
-}
-}
+}  // namespace rocksdb
+}  // namespace storage
+}  // namespace concord

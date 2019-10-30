@@ -27,7 +27,7 @@ class BlsSecretKey : public IShareSecretKey {
   friend class BlsThresholdSigner;
 
  public:
-  explicit BlsSecretKey(const BNT &secretKey) : x(secretKey) {}
+  explicit BlsSecretKey(const BNT& secretKey) : x(secretKey) {}
   // To be used ONLY during deserialization. Could not become private/protected,
   // as there is a composition relationship between BlsSecretKey and
   // BlsThresholdSigner class.
@@ -35,9 +35,7 @@ class BlsSecretKey : public IShareSecretKey {
 
  public:
   std::string toString() const override { return x.toString(); }
-  bool operator==(const BlsSecretKey& other) const {
-    return (other.x == x);
-  }
+  bool operator==(const BlsSecretKey& other) const { return (other.x == x); }
 };
 
 } /* namespace Relic */

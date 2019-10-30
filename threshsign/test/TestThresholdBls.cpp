@@ -37,38 +37,51 @@ using namespace std;
 using namespace BLS::Relic;
 
 int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
-    (void)args;
-    (void)lib;
+  (void)args;
+  (void)lib;
 
-    std::vector<std::pair<int, int>> nk = {
-        { 1, 1}, {2, 1}, {3, 2}, {3, 3}, {5, 3}, {5, 4}, {10, 4}, {11, 7}, {11, 11},
-        {33, 17}, {33, 32}, {64, 33}, {128, 65}, {257, 129}, {260, 159}, {257, 257}, {276, 275}
-    };
+  std::vector<std::pair<int, int>> nk = {{1, 1},
+                                         {2, 1},
+                                         {3, 2},
+                                         {3, 3},
+                                         {5, 3},
+                                         {5, 4},
+                                         {10, 4},
+                                         {11, 7},
+                                         {11, 11},
+                                         {33, 17},
+                                         {33, 32},
+                                         {64, 33},
+                                         {128, 65},
+                                         {257, 129},
+                                         {260, 159},
+                                         {257, 257},
+                                         {276, 275}};
 
-//    std::vector<std::pair<int, int>> nk;
-//	for(size_t i = 1; i <= 301; i += 1) {
-//	    nk.push_back(std::pair<int, int>(i, i));
-//	}
+  //    std::vector<std::pair<int, int>> nk;
+  //	for(size_t i = 1; i <= 301; i += 1) {
+  //	    nk.push_back(std::pair<int, int>(i, i));
+  //	}
 
-    BLS::Relic::BlsPublicParameters params(BLS::Relic::PublicParametersFactory::getWhatever());
+  BLS::Relic::BlsPublicParameters params(BLS::Relic::PublicParametersFactory::getWhatever());
 
-    const char * msg = "blaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBla";
-    for(bool multisig : {true, false}) {
-        LOG_INFO(GL,"");
-        LOG_INFO(GL, "Testing threshold signatures (useMultisig = " << multisig << ")");
-        LOG_INFO(GL,"");
+  const char* msg = "blaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBla";
+  for (bool multisig : {true, false}) {
+    LOG_INFO(GL, "");
+    LOG_INFO(GL, "Testing threshold signatures (useMultisig = " << multisig << ")");
+    LOG_INFO(GL, "");
 
-        for(auto it = nk.begin(); it != nk.end(); it++) {
-            int n = it->first;
-            int k = it->second;
-            (void)n;
-            (void)k;
+    for (auto it = nk.begin(); it != nk.end(); it++) {
+      int n = it->first;
+      int k = it->second;
+      (void)n;
+      (void)k;
 
-            ThresholdBlsTest t(params, n, k, multisig);
-            t.generateKeys();
-            t.test(reinterpret_cast<const unsigned char*>(msg), static_cast<int>(strlen(msg)));
-        }
+      ThresholdBlsTest t(params, n, k, multisig);
+      t.generateKeys();
+      t.test(reinterpret_cast<const unsigned char*>(msg), static_cast<int>(strlen(msg)));
     }
+  }
 
-    return 0;
+  return 0;
 }

@@ -20,50 +20,47 @@
 /**
  * NOTE: This class is NOT the fastest implementation. We just use it when we generate keys.
  */
-template<class Integer>
+template <class Integer>
 class SecretSharingPolynomial {
-protected:
-    std::vector<Integer> coefs;
-    int degree;
-    const Integer& modBase;
+ protected:
+  std::vector<Integer> coefs;
+  int degree;
+  const Integer& modBase;
 
-public:
-    SecretSharingPolynomial(const Integer& secret, int degree, const Integer& modBase)
-        : degree(degree), modBase(modBase)
-    {
-        coefs.resize(static_cast<size_t>(degree + 1));
-        coefs[0] = secret % this->modBase;
+ public:
+  SecretSharingPolynomial(const Integer& secret, int degree, const Integer& modBase)
+      : degree(degree), modBase(modBase) {
+    coefs.resize(static_cast<size_t>(degree + 1));
+    coefs[0] = secret % this->modBase;
+  }
+
+  virtual ~SecretSharingPolynomial() {}
+
+ public:
+  // TODO: If you want to eliminate this method (can't right now because C++ does not let you call virtual methods in
+  // the constructor) then add a functor template parameter for randomCoeff instead of a pure virtual method
+  void generate() { generate(modBase); }
+
+  void generate(const Integer& coefLimit) {
+    for (int i = 1; i <= degree; i++) {
+      size_t idx = static_cast<size_t>(i);
+      coefs[idx] = randomCoeff(coefLimit);
+    }
+  }
+
+  virtual Integer randomCoeff(const Integer& coefLimit) const = 0;
+
+  Integer get(ShareID x) const {
+    Integer res = Integer::Zero();
+    Integer xVal(x);
+
+    // Computes f(i) as f(i)_{old} * x + a_k in reverse order k = { degree + 1, degree, ..., 2, 1, 0 }
+    for (int i = 0; i <= this->degree; i++) {
+      size_t k = static_cast<size_t>(this->degree - i);
+
+      res = (res * xVal + coefs[k]) % modBase;
     }
 
-    virtual ~SecretSharingPolynomial() {}
-
-public:
-    // TODO: If you want to eliminate this method (can't right now because C++ does not let you call virtual methods in the constructor)
-    // then add a functor template parameter for randomCoeff instead of a pure virtual method
-    void generate() {
-        generate(modBase);
-    }
-
-    void generate(const Integer& coefLimit) {
-        for (int i = 1; i <= degree; i++) {
-            size_t idx = static_cast<size_t>(i);
-            coefs[idx] = randomCoeff(coefLimit);
-        }
-    }
-
-    virtual Integer randomCoeff(const Integer& coefLimit) const = 0;
-
-    Integer get(ShareID x) const {
-        Integer res = Integer::Zero();
-        Integer xVal(x);
-
-        // Computes f(i) as f(i)_{old} * x + a_k in reverse order k = { degree + 1, degree, ..., 2, 1, 0 }
-        for (int i = 0; i <= this->degree; i++) {
-            size_t k = static_cast<size_t>(this->degree - i);
-
-            res = (res * xVal + coefs[k]) % modBase;
-        }
-
-        return res;
-    }
+    return res;
+  }
 };

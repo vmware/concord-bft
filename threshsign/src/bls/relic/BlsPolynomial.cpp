@@ -21,21 +21,17 @@ namespace BLS {
 namespace Relic {
 
 BlsPolynomial::BlsPolynomial(const BNT& secret, int degree, const BNT& fieldSize)
-    : SecretSharingPolynomial<BNT>(secret, degree, fieldSize)
-{
+    : SecretSharingPolynomial<BNT>(secret, degree, fieldSize) {}
 
-}
-
-BlsPolynomial::~BlsPolynomial() {
-}
+BlsPolynomial::~BlsPolynomial() {}
 
 BNT BlsPolynomial::randomCoeff(const BNT& coeffLimit) const {
-    BNT coeff;
+  BNT coeff;
 
-    BNT upperBound(std::min(coeffLimit, modBase));
-    bn_rand_mod(coeff, upperBound);
+  BNT upperBound(std::min(coeffLimit, modBase));
+  bn_rand_mod(coeff, upperBound);
 
-    return coeff;
+  return coeff;
 }
 
 } /* namespace Relic */

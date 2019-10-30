@@ -24,7 +24,9 @@ using concordUtils::Status;
 namespace concord {
 namespace storage {
 
-void DBMetadataStorage::verifyOperation(uint32_t objectId, uint32_t dataLen, const char *buffer,
+void DBMetadataStorage::verifyOperation(uint32_t objectId,
+                                        uint32_t dataLen,
+                                        const char *buffer,
                                         bool writeOperation) const {
   auto elem = objectIdToSizeMap_.find(objectId);
   bool found = (elem != objectIdToSizeMap_.end());
@@ -33,36 +35,39 @@ void DBMetadataStorage::verifyOperation(uint32_t objectId, uint32_t dataLen, con
   }
   if (writeOperation && (dataLen > elem->second)) {
     ostringstream error;
-    error << "Metadata object objectId " << objectId << " size is too big: given "
-          << dataLen << ", allowed " << elem->second << endl;
+    error << "Metadata object objectId " << objectId << " size is too big: given " << dataLen << ", allowed "
+          << elem->second << endl;
     throw runtime_error(error.str());
   }
 }
 
 bool DBMetadataStorage::isNewStorage() {
   uint32_t outActualObjectSize;
-  read(objectsNumParameterId_, sizeof(objectsNum_), (char *) &objectsNum_, outActualObjectSize);
+  read(objectsNumParameterId_, sizeof(objectsNum_), (char *)&objectsNum_, outActualObjectSize);
   return (outActualObjectSize == 0);
 }
 
 bool DBMetadataStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint32_t metadataObjectsArrayLength) {
   for (uint32_t i = objectsNumParameterId_ + 1; i < metadataObjectsArrayLength; ++i) {
     objectIdToSizeMap_[i] = metadataObjectsArray[i].maxSize;
-    LOG_TRACE(logger_, "initMaxSizeOfObjects i=" << i << " object data: id=" << metadataObjectsArray[i].id
-                                                 << ", maxSize=" << metadataObjectsArray[i].maxSize);
+    LOG_TRACE(logger_,
+              "initMaxSizeOfObjects i=" << i << " object data: id=" << metadataObjectsArray[i].id
+                                        << ", maxSize=" << metadataObjectsArray[i].maxSize);
   }
   // Metadata object with id=1 is used to indicate storage initialization state
   // (number of specified metadata objects).
   bool isNew = isNewStorage();
   if (isNew) {
     objectsNum_ = metadataObjectsArrayLength;
-    atomicWrite(objectsNumParameterId_, (char *) &objectsNum_, sizeof(objectsNum_));
+    atomicWrite(objectsNumParameterId_, (char *)&objectsNum_, sizeof(objectsNum_));
   }
   LOG_TRACE(logger_, "initMaxSizeOfObjects objectsNum_=" << objectsNum_);
   return isNew;
 }
 
-void DBMetadataStorage::read(uint32_t objectId, uint32_t bufferSize, char *outBufferForObject,
+void DBMetadataStorage::read(uint32_t objectId,
+                             uint32_t bufferSize,
+                             char *outBufferForObject,
                              uint32_t &outActualObjectSize) {
   verifyOperation(objectId, bufferSize, outBufferForObject, false);
   lock_guard<mutex> lock(ioMutex_);
@@ -141,5 +146,5 @@ Status DBMetadataStorage::multiDel(const ObjectIdsVector &objectIds) {
   return dbClient_->multiDel(keysVec);
 }
 
-}
-}
+}  // namespace storage
+}  // namespace concord

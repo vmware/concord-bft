@@ -45,9 +45,7 @@ class BlsPublicKey : public IShareVerificationKey {
 
  public:
   virtual std::string toString() const { return y.toString(); }
-  bool operator==(const BlsPublicKey &other) const {
-    return (other.y == y);
-  }
+  bool operator==(const BlsPublicKey &other) const { return (other.y == y); }
 
  public:
   const G2T &getPoint() const { return y; }

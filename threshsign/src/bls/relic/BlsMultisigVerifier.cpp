@@ -25,11 +25,11 @@ using namespace concord::serialize;
 namespace BLS {
 namespace Relic {
 
-BlsMultisigVerifier::BlsMultisigVerifier(
-    const BlsPublicParameters &params, NumSharesType reqSigners,
-    NumSharesType numSigners, const vector<BlsPublicKey> &verificationKeys)
-    : BlsThresholdVerifier(params, G2T::Identity(), reqSigners, numSigners,
-                           verificationKeys) {
+BlsMultisigVerifier::BlsMultisigVerifier(const BlsPublicParameters &params,
+                                         NumSharesType reqSigners,
+                                         NumSharesType numSigners,
+                                         const vector<BlsPublicKey> &verificationKeys)
+    : BlsThresholdVerifier(params, G2T::Identity(), reqSigners, numSigners, verificationKeys) {
   if (reqSigners == numSigners) {
     // the PK is the aggregate PK of all numSigners and is needed to verify
     // n-out-of-n threshold
@@ -41,41 +41,39 @@ BlsMultisigVerifier::BlsMultisigVerifier(
   }
 }
 
-BlsMultisigVerifier::BlsMultisigVerifier(const BlsThresholdVerifier &base) :
-    BlsThresholdVerifier(base.getParams(), base.getKey().y,
-                         base.getNumRequiredShares(),
-                         base.getNumTotalShares(),
-                         base.getPublicKeysVector()) {}
+BlsMultisigVerifier::BlsMultisigVerifier(const BlsThresholdVerifier &base)
+    : BlsThresholdVerifier(base.getParams(),
+                           base.getKey().y,
+                           base.getNumRequiredShares(),
+                           base.getNumTotalShares(),
+                           base.getPublicKeysVector()) {}
 
-IThresholdAccumulator *BlsMultisigVerifier::newAccumulator(
-    bool withShareVerification) const {
+IThresholdAccumulator *BlsMultisigVerifier::newAccumulator(bool withShareVerification) const {
   if (reqSigners_ == numSigners_ && withShareVerification) {
-    LOG_WARN(GL, "BLS n-out-of-n multisig typically has share verification "
-                 "disabled in Concord. Are you sure you need this?" );
+    LOG_WARN(GL,
+             "BLS n-out-of-n multisig typically has share verification "
+             "disabled in Concord. Are you sure you need this?");
   }
-  return new BlsMultisigAccumulator(publicKeysVector_, reqSigners_,
-                                    numSigners_, withShareVerification);
+  return new BlsMultisigAccumulator(publicKeysVector_, reqSigners_, numSigners_, withShareVerification);
 }
 
 /**
- * NOTE(Alin): There are many other ways of encoding the signer IDs along the signature. 
- * For simplicity, we just serialize the bit vector of signer IDs. 
- * However, if more efficient variable-length encodings are to be used, then the API must change. 
+ * NOTE(Alin): There are many other ways of encoding the signer IDs along the signature.
+ * For simplicity, we just serialize the bit vector of signer IDs.
+ * However, if more efficient variable-length encodings are to be used, then the API must change.
  * Right now, IThresholdVerifier::requiredLengthForSignedData() is used to fetch the
- * signature size, which is "too early": not enough info about the signer IDs to 
+ * signature size, which is "too early": not enough info about the signer IDs to
  * determine the variable size of the signature.
  */
 int BlsMultisigVerifier::requiredLengthForSignedData() const {
   int sigSize = params_.getSignatureSize();
 
-  if (reqSigners_ != numSigners_)
-    sigSize += VectorOfShares::getByteCount();
+  if (reqSigners_ != numSigners_) sigSize += VectorOfShares::getByteCount();
 
   return sigSize;
 }
 
-bool BlsMultisigVerifier::verify(const char *msg, int msgLen,
-                                 const char *sigBuf, int sigLen) const {
+bool BlsMultisigVerifier::verify(const char *msg, int msgLen, const char *sigBuf, int sigLen) const {
   // Parse the signer IDs from sigBuf and adjust the PK
   if (reqSigners_ != numSigners_) {
     if (sigLen != requiredLengthForSignedData()) {
@@ -88,8 +86,7 @@ bool BlsMultisigVerifier::verify(const char *msg, int msgLen,
     int idbufLen = VectorOfShares::getByteCount();
     signers.fromBytes(reinterpret_cast<const unsigned char *>(idbuf), idbufLen);
 
-    if(signers.count() < reqSigners_)
-      return false;
+    if (signers.count() < reqSigners_) return false;
     // for reqSigners != numSigners, need to derive PK from signer IDs
     publicKey_ = G2T::Identity();
     for (ShareID id = signers.first(); !signers.isEnd(id); id = signers.next(id)) {
@@ -99,8 +96,7 @@ bool BlsMultisigVerifier::verify(const char *msg, int msgLen,
   }
 
   // Once the PK is set in 'pk' can call parent BlsThresholdVerifier to verify the sig
-  return BlsThresholdVerifier::verify(msg, msgLen, sigBuf,
-                                      params_.getSignatureSize());
+  return BlsThresholdVerifier::verify(msg, msgLen, sigBuf, params_.getSignatureSize());
 }
 
 /************** Serialization **************/

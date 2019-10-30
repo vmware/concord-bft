@@ -17,6 +17,6 @@
 #include <ostream>
 
 std::ostream& operator<<(std::ostream& out, const IPublicKey& pk) {
-    out << pk.toString();
-    return out;
+  out << pk.toString();
+  return out;
 }

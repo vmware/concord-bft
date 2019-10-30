@@ -51,10 +51,8 @@ using bftEngine::SimpleClient;
 
 concordlogger::Logger clientLogger = concordlogger::Log::getLogger("simpletest.client");
 
-void parse_params(int argc, char** argv, ClientParams &cp,
-                  bftEngine::SimpleClientParams &scp) {
-  if(argc < 2)
-    return;
+void parse_params(int argc, char **argv, ClientParams &cp, bftEngine::SimpleClientParams &scp) {
+  if (argc < 2) return;
 
   uint16_t min16_t_u = std::numeric_limits<uint16_t>::min();
   uint16_t max16_t_u = std::numeric_limits<uint16_t>::max();
@@ -70,47 +68,42 @@ void parse_params(int argc, char** argv, ClientParams &cp,
           printf("-i value is out of range (%u - %u)\n", min32_t, max32_t);
           exit(-1);
         }
-        cp.numOfOperations = (uint32_t) numOp;
+        cp.numOfOperations = (uint32_t)numOp;
       } else if (p == "-id") {
         auto clId = std::stoi(argv[i + 1]);
         if (clId < min16_t_u || clId > max16_t_u) {
-          printf(
-              "-id value is out of range (%hu - %hu)\n", min16_t_u, max16_t_u);
+          printf("-id value is out of range (%hu - %hu)\n", min16_t_u, max16_t_u);
           exit(-1);
         }
-        cp.clientId = (uint16_t) clId;
+        cp.clientId = (uint16_t)clId;
       } else if (p == "-r") {
         auto numRep = std::stoi(argv[i + 1]);
         if (numRep < min16_t_u || numRep > max16_t_u) {
-          printf("-r value is out of range (%hu - %hu)\n", min16_t_u,
-                 max16_t_u);
+          printf("-r value is out of range (%hu - %hu)\n", min16_t_u, max16_t_u);
           exit(-1);
         }
-        cp.numOfReplicas = (uint16_t) numRep;
+        cp.numOfReplicas = (uint16_t)numRep;
       } else if (p == "-cl") {
         auto numCl = std::stoi(argv[i + 1]);
         if (numCl < min16_t_u || numCl > max16_t_u) {
-          printf("-cl value is out of range (%hu - %hu)\n", min16_t_u,
-                 max16_t_u);
+          printf("-cl value is out of range (%hu - %hu)\n", min16_t_u, max16_t_u);
           exit(-1);
         }
-        cp.numOfClients = (uint16_t) numCl;
+        cp.numOfClients = (uint16_t)numCl;
       } else if (p == "-c") {
         auto numSlow = std::stoi(argv[i + 1]);
         if (numSlow < min16_t_u || numSlow > max16_t_u) {
-          printf(
-              "-c value is out of range (%hu - %hu)\n", min16_t_u, max16_t_u);
+          printf("-c value is out of range (%hu - %hu)\n", min16_t_u, max16_t_u);
           exit(-1);
         }
-        cp.numOfSlow = (uint16_t) numSlow;
+        cp.numOfSlow = (uint16_t)numSlow;
       } else if (p == "-f") {
         auto numF = std::stoi(argv[i + 1]);
         if (numF < min16_t_u || numF > max16_t_u) {
-          printf(
-              "-f value is out of range (%hu - %hu)\n", min16_t_u, max16_t_u);
+          printf("-f value is out of range (%hu - %hu)\n", min16_t_u, max16_t_u);
           exit(-1);
         }
-        cp.numOfFaulty = (uint16_t) numF;
+        cp.numOfFaulty = (uint16_t)numF;
       } else if (p == "-irt") {
         scp.clientInitialRetryTimeoutMilli = std::stoull(argv[i + 1]);
       } else if (p == "-minrt") {
@@ -120,36 +113,30 @@ void parse_params(int argc, char** argv, ClientParams &cp,
       } else if (p == "-srft") {
         auto srft = std::stoi(argv[i + 1]);
         if (srft < min16_t_u || srft > max16_t_u) {
-          printf(
-              "-srft value is out of range (%hu - %hu)\n", min16_t_u,
-              max16_t_u);
+          printf("-srft value is out of range (%hu - %hu)\n", min16_t_u, max16_t_u);
           exit(-1);
         }
-        scp.clientSendsRequestToAllReplicasFirstThresh = (uint16_t) srft;
+        scp.clientSendsRequestToAllReplicasFirstThresh = (uint16_t)srft;
       } else if (p == "-srpt") {
         auto srpt = std::stoi(argv[i + 1]);
         if (srpt < min16_t_u || srpt > max16_t_u) {
-          printf(
-              "-srpt value is out of range (%hu - %hu)\n", min16_t_u,
-              max16_t_u);
+          printf("-srpt value is out of range (%hu - %hu)\n", min16_t_u, max16_t_u);
           exit(-1);
         }
-        scp.clientSendsRequestToAllReplicasPeriodThresh = (uint16_t) srpt;
+        scp.clientSendsRequestToAllReplicasPeriodThresh = (uint16_t)srpt;
       } else if (p == "-prt") {
         auto prt = std::stoi(argv[i + 1]);
         if (prt < min16_t_u || prt > max16_t_u) {
-          printf(
-              "-prt value is out of range (%hu - %hu)\n", min16_t_u,
-              max16_t_u);
+          printf("-prt value is out of range (%hu - %hu)\n", min16_t_u, max16_t_u);
           exit(-1);
         }
-        scp.clientPeriodicResetThresh = (uint16_t) prt;
+        scp.clientPeriodicResetThresh = (uint16_t)prt;
       } else if (p == "-cf") {
         cp.configFileName = argv[i + 1];
       } else if (p == "-p") {
         cp.measurePerformance = true;
         i += 1;
-        continue; //skip i+=2
+        continue;  // skip i+=2
       } else {
         printf("Unknown parameter %s\n", p.c_str());
         exit(-1);
@@ -164,22 +151,22 @@ void parse_params(int argc, char** argv, ClientParams &cp,
     printf("One of the parameters is out of range\n");
     exit(-1);
   }
-
 }
 
 int main(int argc, char **argv) {
-// TODO(IG:) configure Log4Cplus's output format, using default for now
+  // TODO(IG:) configure Log4Cplus's output format, using default for now
 
   ClientParams cp;
   bftEngine::SimpleClientParams scp;
   parse_params(argc, argv, cp, scp);
 
-  LOG_INFO(clientLogger, "SimpleClientParams: clientInitialRetryTimeoutMilli: " << scp.clientInitialRetryTimeoutMilli
-                                                                                << ", clientMinRetryTimeoutMilli: " << scp.clientMinRetryTimeoutMilli
-                                                                                << ", clientMaxRetryTimeoutMilli: " << scp.clientMaxRetryTimeoutMilli
-                                                                                << ", clientSendsRequestToAllReplicasFirstThresh: " << scp.clientSendsRequestToAllReplicasFirstThresh
-                                                                                << ", clientSendsRequestToAllReplicasPeriodThresh: " << scp.clientSendsRequestToAllReplicasPeriodThresh
-                                                                                << ", clientPeriodicResetThresh: " << scp.clientPeriodicResetThresh);
+  LOG_INFO(clientLogger,
+           "SimpleClientParams: clientInitialRetryTimeoutMilli: "
+               << scp.clientInitialRetryTimeoutMilli << ", clientMinRetryTimeoutMilli: "
+               << scp.clientMinRetryTimeoutMilli << ", clientMaxRetryTimeoutMilli: " << scp.clientMaxRetryTimeoutMilli
+               << ", clientSendsRequestToAllReplicasFirstThresh: " << scp.clientSendsRequestToAllReplicasFirstThresh
+               << ", clientSendsRequestToAllReplicasPeriodThresh: " << scp.clientSendsRequestToAllReplicasPeriodThresh
+               << ", clientPeriodicResetThresh: " << scp.clientPeriodicResetThresh);
 
   SimpleTestClient cl(cp, clientLogger);
   return cl.run() ? EXIT_SUCCESS : EXIT_FAILURE;

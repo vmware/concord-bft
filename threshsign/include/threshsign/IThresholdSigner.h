@@ -16,12 +16,10 @@
 #include "ISecretKey.h"
 #include "IPublicKey.h"
 
-class IThresholdSigner: public virtual concord::serialize::Serializable {
+class IThresholdSigner : public virtual concord::serialize::Serializable {
  public:
-
   virtual int requiredLengthForSignedData() const = 0;
-  virtual void signData(const char *hash, int hashLen,
-                        char *outSig, int outSigLen) = 0;
+  virtual void signData(const char *hash, int hashLen, char *outSig, int outSigLen) = 0;
 
   virtual const IShareSecretKey &getShareSecretKey() const = 0;
   virtual const IShareVerificationKey &getShareVerificationKey() const = 0;

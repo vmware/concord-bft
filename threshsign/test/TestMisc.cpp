@@ -31,32 +31,31 @@ using namespace std;
 void testUtils();
 
 int AppMain(const std::vector<std::string>& args) {
-    (void)args;
+  (void)args;
 
-    testUtils();
+  testUtils();
 
-    return 0;
+  return 0;
 }
 
 void testUtils() {
-    testAssertEqual(Utils::numBits(1), 1);
-    testAssertEqual(Utils::numBits(2), 2);
-    testAssertEqual(Utils::numBits(3), 2);
-    testAssertEqual(Utils::numBits(4), 3);
-    testAssertEqual(Utils::numBits(5), 3);
-    testAssertEqual(Utils::numBits(6), 3);
-    testAssertEqual(Utils::numBits(7), 3);
-    testAssertEqual(Utils::numBits(8), 4);
+  testAssertEqual(Utils::numBits(1), 1);
+  testAssertEqual(Utils::numBits(2), 2);
+  testAssertEqual(Utils::numBits(3), 2);
+  testAssertEqual(Utils::numBits(4), 3);
+  testAssertEqual(Utils::numBits(5), 3);
+  testAssertEqual(Utils::numBits(6), 3);
+  testAssertEqual(Utils::numBits(7), 3);
+  testAssertEqual(Utils::numBits(8), 4);
 
-    LOG_INFO(GL, "Utils::numBits passed!");
+  LOG_INFO(GL, "Utils::numBits passed!");
 
-    testAssertEqual(Utils::pow2(0), 1);
-    testAssertEqual(Utils::pow2(1), 2);
-    testAssertEqual(Utils::pow2(2), 4);
-    testAssertEqual(Utils::pow2(3), 8);
-    testAssertEqual(Utils::pow2(4), 16);
-    testAssertEqual(Utils::pow2(5), 32);
+  testAssertEqual(Utils::pow2(0), 1);
+  testAssertEqual(Utils::pow2(1), 2);
+  testAssertEqual(Utils::pow2(2), 4);
+  testAssertEqual(Utils::pow2(3), 8);
+  testAssertEqual(Utils::pow2(4), 16);
+  testAssertEqual(Utils::pow2(5), 32);
 
-    LOG_INFO(GL, "Utils::pow2 passed!");
-
+  LOG_INFO(GL, "Utils::pow2 passed!");
 }

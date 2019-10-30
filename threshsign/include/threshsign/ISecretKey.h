@@ -15,17 +15,17 @@
 #include <ostream>
 
 class ISecretKey {
-public:
-    virtual ~ISecretKey() {}
+ public:
+  virtual ~ISecretKey() {}
 
-public:
-    virtual std::string toString() const = 0;
+ public:
+  virtual std::string toString() const = 0;
 
-public:
-    friend std::ostream& operator<<(std::ostream& out, const ISecretKey& pk);
+ public:
+  friend std::ostream& operator<<(std::ostream& out, const ISecretKey& pk);
 };
 
 class IShareSecretKey : public ISecretKey {
-public:
-    virtual ~IShareSecretKey() {}
+ public:
+  virtual ~IShareSecretKey() {}
 };

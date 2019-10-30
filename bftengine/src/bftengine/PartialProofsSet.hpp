@@ -1,10 +1,13 @@
-//Concord
+// Concord
 //
-//Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
 //
-//This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in compliance with the Apache 2.0 License. 
+// This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
+// compliance with the Apache 2.0 License.
 //
-//This product may include a number of subcomponents with separate copyright notices and license terms. Your use of these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE file.
+// This product may include a number of subcomponents with separate copyright notices and license terms. Your use of
+// these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
+// file.
 
 #pragma once
 
@@ -19,67 +22,62 @@
 class IThresholdVerifier;
 class IThresholdAccumulator;
 
+namespace bftEngine {
+namespace impl {
 
-namespace bftEngine
-{
-	namespace impl
-	{
+class InternalReplicaApi;
 
-		class InternalReplicaApi;
+class PartialCommitProofMsg;
+class FullCommitProofMsg;
 
-		class PartialCommitProofMsg;
-		class FullCommitProofMsg;
+class PartialProofsSet {
+ public:
+  PartialProofsSet(InternalReplicaApi* const rep);
+  ~PartialProofsSet();
 
-		class PartialProofsSet
-		{
-		public:
-			PartialProofsSet(InternalReplicaApi* const rep);
-			~PartialProofsSet();
+  void addSelfMsgAndPPDigest(PartialCommitProofMsg* m, Digest& digest);
 
-			void addSelfMsgAndPPDigest(PartialCommitProofMsg* m, Digest& digest);
+  void setTimeOfSelfPartialProof(const Time& t);
 
-			void setTimeOfSelfPartialProof(const Time& t);
+  bool addMsg(PartialCommitProofMsg* m);
 
-			bool addMsg(PartialCommitProofMsg* m);
+  bool addMsg(FullCommitProofMsg* m);
 
-			bool addMsg(FullCommitProofMsg* m);
+  PartialCommitProofMsg* getSelfPartialCommitProof();
 
-			PartialCommitProofMsg* getSelfPartialCommitProof();
+  bool hasFullProof();
 
-			bool hasFullProof();
+  FullCommitProofMsg* getFullProof();
 
-			FullCommitProofMsg* getFullProof();
+  Time getTimeOfSelfPartialProof();
 
-			Time getTimeOfSelfPartialProof();
+  bool hasPartialProofFromReplica(ReplicaId repId) const;
 
-			bool hasPartialProofFromReplica(ReplicaId repId) const;
+  void resetAndFree();
 
-			void resetAndFree();
+ protected:
+  void addImp(PartialCommitProofMsg* m, CommitPath cPath);
 
-		protected:
+  IThresholdVerifier* thresholdVerifier(CommitPath cPath);
+  IThresholdAccumulator* thresholdAccumulator(CommitPath cPath);
 
-			void addImp(PartialCommitProofMsg* m, CommitPath cPath);
+  void tryToCreateFullProof();
 
-			IThresholdVerifier* thresholdVerifier(CommitPath cPath);
-			IThresholdAccumulator* thresholdAccumulator(CommitPath cPath);
+  InternalReplicaApi* const replica;
 
-			void tryToCreateFullProof();
+  const size_t numOfRequiredPartialProofsForFast;
+  const size_t numOfRequiredPartialProofsForOptimisticFast;
 
-			InternalReplicaApi* const replica;
+  SeqNum seqNumber;
+  FullCommitProofMsg* fullCommitProof;
+  PartialCommitProofMsg* selfPartialCommitProof;
+  std::set<ReplicaId> participatingReplicasInFast;            // not including the current replica
+  std::set<ReplicaId> participatingReplicasInOptimisticFast;  // not including the current replica
+  Digest expectedDigest;
+  Time timeOfSelfPartialProof;
+  IThresholdAccumulator* thresholdAccumulatorForFast;
+  IThresholdAccumulator* thresholdAccumulatorForOptimisticFast;
+};
 
-			const size_t numOfRquiredPartialProofsForFast;
-			const size_t numOfRquiredPartialProofsForOptimisticFast;
-
-			SeqNum seqNumber;
-			FullCommitProofMsg* fullCommitProof;
-			PartialCommitProofMsg* selfPartialCommitProof;
-			std::set<ReplicaId> participatingReplicasInFast; // not including the current replica
-			std::set<ReplicaId> participatingReplicasInOptimisticFast; // not including the current replica
-			Digest expectedDigest;
-			Time timeOfSelfPartialProof;
-			IThresholdAccumulator* thresholdAccumulatorForFast;
-			IThresholdAccumulator* thresholdAccumulatorForOptimisticFast;
-		};
-
-	}
-}
+}  // namespace impl
+}  // namespace bftEngine

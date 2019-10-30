@@ -5,7 +5,7 @@ namespace bftEngine {
 namespace impl {
 
 std::string CommitPathToStr(CommitPath path) {
-  switch(path) {
+  switch (path) {
     case CommitPath::NA:
       return "NA";
     case CommitPath::OPTIMISTIC_FAST:
@@ -19,5 +19,5 @@ std::string CommitPathToStr(CommitPath path) {
   }
 }
 
-} // namespace impl
-} // namespace bftEngine
+}  // namespace impl
+}  // namespace bftEngine

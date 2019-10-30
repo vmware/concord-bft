@@ -54,8 +54,8 @@
  *                       in the optimistic fast path for this deployment, with
  *                       all keys already generated.
  *
- * @return True if the keyfile was successfully output, false otherwise. Reasons *         this function could fail to successfully output the keyfile may
- *         include I/O issues or disagreement of numReplicas with f and c.
+ * @return True if the keyfile was successfully output, false otherwise. Reasons *         this function could fail to
+ * successfully output the keyfile may include I/O issues or disagreement of numReplicas with f and c.
  */
 bool outputReplicaKeyfile(uint16_t replicaID,
                           uint16_t numReplicas,
@@ -63,8 +63,7 @@ bool outputReplicaKeyfile(uint16_t replicaID,
                           uint16_t c,
                           std::ostream& output,
                           const std::string& outputFilename,
-                          const std::vector<std::pair<std::string,
-                            std::string>>& rsaKeys,
+                          const std::vector<std::pair<std::string, std::string>>& rsaKeys,
                           const Cryptosystem& execSys,
                           const Cryptosystem& slowSys,
                           const Cryptosystem& commitSys,
@@ -94,6 +93,4 @@ bool outputReplicaKeyfile(uint16_t replicaID,
  *         output to config, and false otherwise. Reasons for failure may
  *         include I/O issues or invalid formatting or contents of the keyfile.
  */
-bool inputReplicaKeyfile(std::istream& input,
-                         const std::string& inputFilename,
-                         bftEngine::ReplicaConfig& config);
+bool inputReplicaKeyfile(std::istream& input, const std::string& inputFilename, bftEngine::ReplicaConfig& config);

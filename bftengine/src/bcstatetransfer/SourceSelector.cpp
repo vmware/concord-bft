@@ -17,17 +17,11 @@ namespace bftEngine {
 namespace SimpleBlockchainStateTransfer {
 namespace impl {
 
-bool SourceSelector::hasSource() const {
-  return currentReplica_ != NO_REPLICA && sourceSelectionTimeMilli_ > 0;
-}
+bool SourceSelector::hasSource() const { return currentReplica_ != NO_REPLICA && sourceSelectionTimeMilli_ > 0; }
 
-void SourceSelector::setSourceSelectionTime(uint64_t currTimeMilli) {
-  sourceSelectionTimeMilli_ = currTimeMilli;
-}
+void SourceSelector::setSourceSelectionTime(uint64_t currTimeMilli) { sourceSelectionTimeMilli_ = currTimeMilli; }
 
-void SourceSelector::setSendTime(uint64_t currTimeMilli) {
-  sendTimeMilli_ = currTimeMilli;
-}
+void SourceSelector::setSendTime(uint64_t currTimeMilli) { sendTimeMilli_ = currTimeMilli; }
 
 void SourceSelector::removeCurrentReplica() {
   preferredReplicas_.erase(currentReplica_);
@@ -44,8 +38,8 @@ void SourceSelector::reset() {
 }
 
 bool SourceSelector::isReset() const {
-  return preferredReplicas_.empty() && currentReplica_ == NO_REPLICA &&
-    sourceSelectionTimeMilli_ == 0 && sendTimeMilli_ == 0;
+  return preferredReplicas_.empty() && currentReplica_ == NO_REPLICA && sourceSelectionTimeMilli_ == 0 &&
+         sendTimeMilli_ == 0;
 }
 
 bool SourceSelector::retransmissionTimeoutExpired(uint64_t currTimeMilli) const {
@@ -54,9 +48,7 @@ bool SourceSelector::retransmissionTimeoutExpired(uint64_t currTimeMilli) const 
 }
 
 uint64_t SourceSelector::timeSinceSendMilli(uint64_t currTimeMilli) const {
-  return ((currentReplica_ == NO_REPLICA) || (currTimeMilli < sendTimeMilli_))
-             ? 0
-             : (currTimeMilli - sendTimeMilli_);
+  return ((currentReplica_ == NO_REPLICA) || (currTimeMilli < sendTimeMilli_)) ? 0 : (currTimeMilli - sendTimeMilli_);
 }
 
 uint64_t SourceSelector::timeSinceSourceSelectedMilli(uint64_t currTimeMilli) const {

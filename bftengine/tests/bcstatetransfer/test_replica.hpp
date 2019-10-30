@@ -32,28 +32,21 @@ struct Msg {
   uint16_t to_;
 };
 
-
 class TestReplica : public IReplicaForStateTransfer {
-
  public:
-
   ///////////////////////////////////////////////////////////////////////////
   // IReplicaForStateTransfer methods
   ///////////////////////////////////////////////////////////////////////////
-  void onTransferringComplete(int64_t checkpointNumberOfNewState) override {};
+  void onTransferringComplete(int64_t checkpointNumberOfNewState) override{};
 
-  void freeStateTransferMsg(char *m) override {
+  void freeStateTransferMsg(char* m) override {
     char* p = (m - sizeof(bftEngine::impl::MessageBase::Header));
     std::free(p);
   }
 
-  void sendStateTransferMessage(char* m,
-                                uint32_t size,
-                                uint16_t replicaId) override {
-
+  void sendStateTransferMessage(char* m, uint32_t size, uint16_t replicaId) override {
     std::unique_ptr<char> msg{new char[size]};
     memcpy(msg.get(), m, size);
-
 
     sent_messages_.push_back(Msg{std::move(msg), size, replicaId});
   }
@@ -66,11 +59,10 @@ class TestReplica : public IReplicaForStateTransfer {
 
   // All messages sent by the state transfer module
   std::vector<Msg> sent_messages_;
-
 };
 
-} // namespace SimpleBlockChainStateTransfer
+}  // namespace SimpleBlockchainStateTransfer
 
-} //namespace bftEngine
+}  // namespace bftEngine
 
 #endif  // BFTENGINE_TESTS_BCSTATETRANSFER_TEST_REPLICA_HPP_

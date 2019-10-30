@@ -42,15 +42,14 @@ bool ConfigFileParser::Parse() {
     return false;
   }
   string key;
-  while (stream)
-  {
+  while (stream) {
     string value, tmp;
     getline(stream, tmp, end_of_line_);
-    if (tmp[0] == comment_delimiter_) // Ignore comments.
+    if (tmp[0] == comment_delimiter_)  // Ignore comments.
       continue;
     // Get rid of spaces.
     tmp.erase(remove_if(tmp.begin(), tmp.end(), isspace), tmp.end());
-    if (tmp.empty()) // Skip empty lines.
+    if (tmp.empty())  // Skip empty lines.
       continue;
     size_t valueDelimiterPos = tmp.find_first_of(value_delimiter_);
     if (valueDelimiterPos != string::npos) {
@@ -85,22 +84,19 @@ size_t ConfigFileParser::Count(const string key) {
 
 vector<string> ConfigFileParser::GetValues(const string key) {
   vector<string> values;
-  pair<ParamsMultiMapIt, ParamsMultiMapIt> range =
-      parameters_map_.equal_range(key);
+  pair<ParamsMultiMapIt, ParamsMultiMapIt> range = parameters_map_.equal_range(key);
   LOG_INFO(logger_, "getValues() for key: " << key);
   if (range.first != parameters_map_.end()) {
     for (auto it = range.first; it != range.second; ++it) {
-      values.push_back(it -> second);
-      LOG_INFO(logger_, "value: " << it -> second);
+      values.push_back(it->second);
+      LOG_INFO(logger_, "value: " << it->second);
     }
   }
   return values;
 }
 
-std::vector<std::string> ConfigFileParser::SplitValue(std::string value_to_split,
-                                                      const char* delimiter) {
-  LOG_DEBUG(logger_, "valueToSplit: " << value_to_split <<
-                     ", delimiter: " << delimiter);
+std::vector<std::string> ConfigFileParser::SplitValue(std::string value_to_split, const char* delimiter) {
+  LOG_DEBUG(logger_, "valueToSplit: " << value_to_split << ", delimiter: " << delimiter);
   char* rest = (char*)value_to_split.c_str();
   char* token;
   std::vector<std::string> values;
@@ -117,6 +113,3 @@ void ConfigFileParser::printAll() {
     LOG_DEBUG(logger_, it.first << ", " << it.second);
   }
 }
-
-
-

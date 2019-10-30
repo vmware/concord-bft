@@ -1,35 +1,33 @@
-//Concord
+// Concord
 //
-//Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
 //
-//This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in compliance with the Apache 2.0 License. 
+// This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
+// compliance with the Apache 2.0 License.
 //
-//This product may include a number of subcomponents with separate copyright notices and license terms. Your use of these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE file.
+// This product may include a number of subcomponents with separate copyright notices and license terms. Your use of
+// these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
+// file.
 
-//TODO(GG): clean and review this file
-
+// TODO(GG): clean and review this file
 
 #include <set>
 
 #include "Crypto.hpp"
 
-
-#  define VERIFY(exp) {                                           \
-    if (!(exp)) {                                                 \
-      std::ostringstream oss;                                     \
-      oss << "Assertion failed: " << (char*)(__FILE__) << "("     \
-          << (int)(__LINE__) << "): " << (char*)(__func__)        \
-          << std::endl;                                           \
-      std::cerr << oss.str();                                     \
-    }                                                             \
+#define VERIFY(exp)                                                                                            \
+  {                                                                                                            \
+    if (!(exp)) {                                                                                              \
+      std::ostringstream oss;                                                                                  \
+      oss << "Assertion failed: " << (char*)(__FILE__) << "(" << (int)(__LINE__) << "): " << (char*)(__func__) \
+          << std::endl;                                                                                        \
+      std::cerr << oss.str();                                                                                  \
+    }                                                                                                          \
   }
-
-
 
 #include "DigestType.h"
 #include <cryptopp/cryptlib.h>
 #include "cryptopp/ida.h"
-
 
 using namespace CryptoPP;
 using namespace std;
@@ -44,28 +42,22 @@ using namespace std;
 #endif
 
 // TODO(GG): TBD
-#  include <iostream>
-#  include <sstream>
-  
+#include <iostream>
+#include <sstream>
 
-namespace bftEngine
-{
-namespace impl
-{
+namespace bftEngine {
+namespace impl {
 
 #define RSA_STANDARD OAEP<SHA256>
 //#define RSA_STANDARD PKCS1v15
 //#define RSA_STANDARD OAEP<SHA>
 
+static RandomPool sGlobalRandGen;  // not thread-safe !!
 
-
-static RandomPool sGlobalRandGen; // not thread-safe !!
-
-void CryptographyWrapper::init(const char* randomSeed)
-{
+void CryptographyWrapper::init(const char* randomSeed) {
   string s(randomSeed);
   if (s.length() < 16) s.resize(16, ' ');
-  sGlobalRandGen.IncorporateEntropy((byte *)s.c_str(), s.length());
+  sGlobalRandGen.IncorporateEntropy((byte*)s.c_str(), s.length());
 
   VERIFY(DigestUtil::digestLength() == DIGEST_SIZE);
 
@@ -73,34 +65,29 @@ void CryptographyWrapper::init(const char* randomSeed)
   BLS::Relic::Library::Get();
 }
 
-void CryptographyWrapper::init()
-{
+void CryptographyWrapper::init() {
   std::string seed = IntToString(time(NULL));
   CryptographyWrapper::init(seed.c_str());
 }
 
-void convert(Integer in, string& out)
-{
+void convert(Integer in, string& out) {
   out.clear();
   HexEncoder encoder(new StringSink(out));
   in.DEREncode(encoder);
   encoder.MessageEnd();
 }
 
-void convert(string  in, Integer& out)
-{
+void convert(string in, Integer& out) {
   StringSource strSrc(in, true, new HexDecoder);
   out = Integer(strSrc);
 }
 
+size_t DigestUtil::digestLength() { return DigestType::DIGESTSIZE; }
 
-size_t DigestUtil::digestLength()
-{
-  return DigestType::DIGESTSIZE;
-}
-
-bool DigestUtil::compute(const char* input, size_t inputLength, char* outBufferForDigest, size_t lengthOfBufferForDigest)
-{
+bool DigestUtil::compute(const char* input,
+                         size_t inputLength,
+                         char* outBufferForDigest,
+                         size_t lengthOfBufferForDigest) {
   DigestType dig;
 
   size_t size = dig.DigestSize();
@@ -117,21 +104,18 @@ bool DigestUtil::compute(const char* input, size_t inputLength, char* outBufferF
   return true;
 }
 
-DigestUtil::Context::Context()
-{
+DigestUtil::Context::Context() {
   DigestType* p = new DigestType();
   internalState = p;
 }
 
-void DigestUtil::Context::update(const char* data, size_t len)
-{
+void DigestUtil::Context::update(const char* data, size_t len) {
   VERIFY(internalState != NULL);
   DigestType* p = (DigestType*)internalState;
   p->Update((byte*)data, len);
 }
 
-void DigestUtil::Context::writeDigest(char* outDigest)
-{
+void DigestUtil::Context::writeDigest(char* outDigest) {
   VERIFY(internalState != NULL);
   DigestType* p = (DigestType*)internalState;
   SecByteBlock digest(digestLength());
@@ -143,113 +127,97 @@ void DigestUtil::Context::writeDigest(char* outDigest)
   internalState = NULL;
 }
 
-DigestUtil::Context::~Context()
-{
-  if (internalState != NULL)
-  {
+DigestUtil::Context::~Context() {
+  if (internalState != NULL) {
     DigestType* p = (DigestType*)internalState;
     delete p;
     internalState = NULL;
   }
 }
 
-class RSASignerInternal
-{
-public:
-  RSASignerInternal(BufferedTransformation& privateKey) : rand(sGlobalRandGen), priv(privateKey)
-  {
-  }
+class RSASignerInternal {
+ public:
+  RSASignerInternal(BufferedTransformation& privateKey) : rand(sGlobalRandGen), priv(privateKey) {}
 
-  size_t signatureLength()
-  {
-    return priv.SignatureLength();
-  }
+  size_t signatureLength() { return priv.SignatureLength(); }
 
-  bool sign(const char* inBuffer, size_t lengthOfInBuffer, char* outBuffer, size_t lengthOfOutBuffer, size_t& lengthOfReturnedData)
-  {
+  bool sign(const char* inBuffer,
+            size_t lengthOfInBuffer,
+            char* outBuffer,
+            size_t lengthOfOutBuffer,
+            size_t& lengthOfReturnedData) {
     const size_t sigLen = priv.SignatureLength();
     if (lengthOfOutBuffer < sigLen) return false;
-    lengthOfReturnedData = priv.SignMessage(rand, (byte *)inBuffer, lengthOfInBuffer, (byte*)outBuffer);
+    lengthOfReturnedData = priv.SignMessage(rand, (byte*)inBuffer, lengthOfInBuffer, (byte*)outBuffer);
     VERIFY(lengthOfReturnedData == sigLen);
 
     return true;
   }
-private:
+
+ private:
   RandomPool& rand;
   RSASS<PKCS1v15, SHA256>::Signer priv;
-
 };
 
-class RSAVerifierInternal
-{
-public:
-  RSAVerifierInternal(BufferedTransformation&  publicKey) : pub(publicKey)
-  {
-  }
+class RSAVerifierInternal {
+ public:
+  RSAVerifierInternal(BufferedTransformation& publicKey) : pub(publicKey) {}
 
-  size_t signatureLength()
-  {
-    return pub.SignatureLength();
-  }
+  size_t signatureLength() { return pub.SignatureLength(); }
 
-  bool verify(const char* data, size_t lengthOfData, const char* signature, size_t lengthOfOSignature)
-  {
-    bool ok = pub.VerifyMessage((byte *)data, lengthOfData, (byte *)signature, lengthOfOSignature);
+  bool verify(const char* data, size_t lengthOfData, const char* signature, size_t lengthOfOSignature) {
+    bool ok = pub.VerifyMessage((byte*)data, lengthOfData, (byte*)signature, lengthOfOSignature);
     return ok;
   }
-private:
-  RSASS<PKCS1v15, SHA256>::Verifier pub; // TODO 77777
+
+ private:
+  RSASS<PKCS1v15, SHA256>::Verifier pub;  // TODO 77777
 };
 
-RSASigner::RSASigner(const char* privateKey)
-{
+RSASigner::RSASigner(const char* privateKey) {
   StringSource s(privateKey, true, new HexDecoder);
   d = new RSASignerInternal(s);
 }
 
-RSASigner::~RSASigner()
-{
+RSASigner::~RSASigner() {
   RSASignerInternal* p = (RSASignerInternal*)d;
   delete p;
 }
 
-size_t RSASigner::signatureLength()
-{
+size_t RSASigner::signatureLength() {
   RSASignerInternal* p = (RSASignerInternal*)d;
   return p->signatureLength();
 }
 
-bool RSASigner::sign(const char* inBuffer, size_t lengthOfInBuffer, char* outBuffer, size_t lengthOfOutBuffer, size_t& lengthOfReturnedData)
-{
+bool RSASigner::sign(const char* inBuffer,
+                     size_t lengthOfInBuffer,
+                     char* outBuffer,
+                     size_t lengthOfOutBuffer,
+                     size_t& lengthOfReturnedData) {
   RSASignerInternal* p = (RSASignerInternal*)d;
   bool succ = p->sign(inBuffer, lengthOfInBuffer, outBuffer, lengthOfOutBuffer, lengthOfReturnedData);
   return succ;
 }
 
-RSAVerifier::RSAVerifier(const char* publicKey)
-{
+RSAVerifier::RSAVerifier(const char* publicKey) {
   StringSource s(publicKey, true, new HexDecoder);
   d = new RSAVerifierInternal(s);
 }
 
-RSAVerifier::~RSAVerifier()
-{
+RSAVerifier::~RSAVerifier() {
   RSAVerifierInternal* p = (RSAVerifierInternal*)d;
   delete p;
 }
 
-size_t RSAVerifier::signatureLength()
-{
+size_t RSAVerifier::signatureLength() {
   RSAVerifierInternal* p = (RSAVerifierInternal*)d;
   return p->signatureLength();
 }
 
-bool RSAVerifier::verify(const char* data, size_t lengthOfData, const char* signature, size_t lengthOfOSignature)
-{
+bool RSAVerifier::verify(const char* data, size_t lengthOfData, const char* signature, size_t lengthOfOSignature) {
   RSAVerifierInternal* p = (RSAVerifierInternal*)d;
   return p->verify(data, lengthOfData, signature, lengthOfOSignature);
 }
 
-}
-}
-
+}  // namespace impl
+}  // namespace bftEngine

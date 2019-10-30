@@ -23,31 +23,27 @@ using std::endl;
 namespace BLS {
 namespace Relic {
 
-BlsMultisigKeygen::BlsMultisigKeygen(const BlsPublicParameters& params, NumSharesType n)
-    : BlsThresholdKeygenBase(n)
-{
-    const BNT& fieldOrder = params.getGroupOrder();
+BlsMultisigKeygen::BlsMultisigKeygen(const BlsPublicParameters& params, NumSharesType n) : BlsThresholdKeygenBase(n) {
+  const BNT& fieldOrder = params.getGroupOrder();
 
-    for (ShareID i = 1; i <= n; i++) {
-        size_t idx = static_cast<size_t>(i);    // thanks, C++!
-        BNT& skShare = skShares[idx];
-        G2T& pkShare = pkShares[idx];
+  for (ShareID i = 1; i <= n; i++) {
+    size_t idx = static_cast<size_t>(i);  // thanks, C++!
+    BNT& skShare = skShares[idx];
+    G2T& pkShare = pkShares[idx];
 
-        if(cp_bls_gen(skShare, pkShare) != STS_OK) {
-            throw std::runtime_error("RELIC's BLS key generation routine failed");
-        }
-
-        sk = (sk + skShare).SlowModulo(fieldOrder);
+    if (cp_bls_gen(skShare, pkShare) != STS_OK) {
+      throw std::runtime_error("RELIC's BLS key generation routine failed");
     }
 
-    g2_mul_gen(pk, sk);
+    sk = (sk + skShare).SlowModulo(fieldOrder);
+  }
 
-    LOG_TRACE(GL, "Created: " << this);
+  g2_mul_gen(pk, sk);
+
+  LOG_TRACE(GL, "Created: " << this);
 }
 
-BlsMultisigKeygen::~BlsMultisigKeygen() {
-    LOG_TRACE(GL, "Destroyed: " << this);
-}
+BlsMultisigKeygen::~BlsMultisigKeygen() { LOG_TRACE(GL, "Destroyed: " << this); }
 
 } /* namespace Relic */
 } /* namespace BLS */

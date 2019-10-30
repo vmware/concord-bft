@@ -19,16 +19,18 @@ using namespace std;
 
 concordlogger::Logger replicaLogger = concordlogger::Log::getLogger("simpletest.replica");
 
-#define test_assert_replica(statement, message) \
-{ if (!(statement)) { \
-LOG_FATAL(replicaLogger, "assert fail with message: " << message); assert(false);}}
+#define test_assert_replica(statement, message)                          \
+  {                                                                      \
+    if (!(statement)) {                                                  \
+      LOG_FATAL(replicaLogger, "assert fail with message: " << message); \
+      assert(false);                                                     \
+    }                                                                    \
+  }
 
 // The replica state machine.
 class SimpleAppState : public RequestsHandler {
  private:
-  uint64_t client_to_index(NodeNum clientId) {
-    return clientId - numOfReplicas;
-  }
+  uint64_t client_to_index(NodeNum clientId) { return clientId - numOfReplicas; }
 
   uint64_t get_last_state_value(NodeNum clientId) {
     auto index = client_to_index(clientId);
@@ -51,10 +53,8 @@ class SimpleAppState : public RequestsHandler {
   }
 
  public:
-  SimpleAppState(uint16_t numCl, uint16_t numRep) :
-      statePtr{new SimpleAppState::State[numCl]},
-      numOfClients{numCl},
-      numOfReplicas{numRep} {}
+  SimpleAppState(uint16_t numCl, uint16_t numRep)
+      : statePtr{new SimpleAppState::State[numCl]}, numOfClients{numCl}, numOfReplicas{numRep} {}
 
   // Handler for the upcall from Concord-BFT.
   int execute(uint16_t clientId,
@@ -67,16 +67,14 @@ class SimpleAppState : public RequestsHandler {
               uint32_t &outActualReplySize) override {
     if (readOnly) {
       // Our read-only request includes only a type, no argument.
-      test_assert_replica(requestSize == sizeof(uint64_t),
-                          "requestSize =! " << sizeof(uint64_t));
+      test_assert_replica(requestSize == sizeof(uint64_t), "requestSize =! " << sizeof(uint64_t));
 
       // We only support the READ operation in read-only mode.
       test_assert_replica(*reinterpret_cast<const uint64_t *>(request) == READ_VAL_REQ,
                           "request is NOT " << READ_VAL_REQ);
 
       // Copy the latest register value to the reply buffer.
-      test_assert_replica(maxReplySize >= sizeof(uint64_t),
-                          "maxReplySize < " << sizeof(uint64_t));
+      test_assert_replica(maxReplySize >= sizeof(uint64_t), "maxReplySize < " << sizeof(uint64_t));
       uint64_t *pRet = reinterpret_cast<uint64_t *>(outReply);
       auto lastValue = get_last_state_value(clientId);
       *pRet = lastValue;
@@ -133,14 +131,13 @@ class SimpleTestReplica {
   ISimpleTestReplicaBehavior *behaviorPtr;
 
  public:
-  SimpleTestReplica(
-      ICommunication *commObject,
-      RequestsHandler &state,
-      ReplicaConfig rc,
-      ISimpleTestReplicaBehavior *behvPtr,
-      bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer *inMemoryST,
-      MetadataStorage *metaDataStorage) :
-      comm{commObject}, replicaConfig{rc}, behaviorPtr{behvPtr} {
+  SimpleTestReplica(ICommunication *commObject,
+                    RequestsHandler &state,
+                    ReplicaConfig rc,
+                    ISimpleTestReplicaBehavior *behvPtr,
+                    bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer *inMemoryST,
+                    MetadataStorage *metaDataStorage)
+      : comm{commObject}, replicaConfig{rc}, behaviorPtr{behvPtr} {
     replica = Replica::createNewReplica(&rc, &state, inMemoryST, comm, metaDataStorage);
   }
 
@@ -150,13 +147,9 @@ class SimpleTestReplica {
     }
   }
 
-  uint16_t get_replica_id() {
-    return replicaConfig.replicaId;
-  }
+  uint16_t get_replica_id() { return replicaConfig.replicaId; }
 
-  void start() {
-    replica->start();
-  }
+  void start() { replica->start(); }
 
   void stop() {
     replica->stop();
@@ -166,9 +159,7 @@ class SimpleTestReplica {
     LOG_INFO(replicaLogger, "replica " << replicaConfig.replicaId << " stopped");
   }
 
-  bool isRunning() {
-    return replica->isRunning();
-  }
+  bool isRunning() { return replica->isRunning(); }
 
   void run() {
     if (replica->isRunning() && behaviorPtr->to_be_restarted()) {
@@ -192,14 +183,11 @@ class SimpleTestReplica {
     }
   }
 
-  void run_non_blocking() {
-    runnerThread = new std::thread(std::bind(&SimpleTestReplica::run, this));
-  }
+  void run_non_blocking() { runnerThread = new std::thread(std::bind(&SimpleTestReplica::run, this)); }
 
-  static SimpleTestReplica *create_replica(
-      ISimpleTestReplicaBehavior *behv,
-      ReplicaParams rp,
-      MetadataStorage *metaDataStorage) {
+  static SimpleTestReplica *create_replica(ISimpleTestReplicaBehavior *behv,
+                                           ReplicaParams rp,
+                                           MetadataStorage *metaDataStorage) {
     TestCommConfig testCommConfig(replicaLogger);
     ReplicaConfig replicaConfig;
     testCommConfig.GetReplicaConfig(rp.replicaId, rp.keysFilePrefix, &replicaConfig);
@@ -209,37 +197,31 @@ class SimpleTestReplica {
     replicaConfig.replicaId = rp.replicaId;
     replicaConfig.statusReportTimerMillisec = 10000;
     replicaConfig.concurrencyLevel = 1;
-    replicaConfig.debugPersistentStorageEnabled = rp.persistencyMode == PersistencyMode::InMemory ||
-        rp.persistencyMode == PersistencyMode::File;
+    replicaConfig.debugPersistentStorageEnabled =
+        rp.persistencyMode == PersistencyMode::InMemory || rp.persistencyMode == PersistencyMode::File;
 
     // This is the state machine that the replica will drive.
     SimpleAppState *simpleAppState = new SimpleAppState(rp.numOfClients, rp.numOfReplicas);
 
 #ifdef USE_COMM_PLAIN_TCP
-    PlainTcpConfig conf = testCommConfig.GetTCPConfig(true, rp.replicaId,
-                                                  rp.numOfClients,
-                                                  rp.numOfReplicas,
-                                                  rp.configFileName);
+    PlainTcpConfig conf =
+        testCommConfig.GetTCPConfig(true, rp.replicaId, rp.numOfClients, rp.numOfReplicas, rp.configFileName);
 #elif USE_COMM_TLS_TCP
-    TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(true, rp.replicaId,
-                                                       rp.numOfClients,
-                                                       rp.numOfReplicas,
-                                                       rp.configFileName);
+    TlsTcpConfig conf =
+        testCommConfig.GetTlsTCPConfig(true, rp.replicaId, rp.numOfClients, rp.numOfReplicas, rp.configFileName);
 #else
-    PlainUdpConfig conf = testCommConfig.GetUDPConfig(true, rp.replicaId,
-                                                      rp.numOfClients,
-                                                      rp.numOfReplicas,
-                                                      rp.configFileName);
+    PlainUdpConfig conf =
+        testCommConfig.GetUDPConfig(true, rp.replicaId, rp.numOfClients, rp.numOfReplicas, rp.configFileName);
 #endif
     auto comm = bftEngine::CommFactory::create(conf);
 
     bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer *st =
-        bftEngine::SimpleInMemoryStateTransfer::create(
-            simpleAppState->statePtr,
-            sizeof(SimpleAppState::State) * rp.numOfClients,
-            replicaConfig.replicaId,
-            replicaConfig.fVal,
-            replicaConfig.cVal, true);
+        bftEngine::SimpleInMemoryStateTransfer::create(simpleAppState->statePtr,
+                                                       sizeof(SimpleAppState::State) * rp.numOfClients,
+                                                       replicaConfig.replicaId,
+                                                       replicaConfig.fVal,
+                                                       replicaConfig.cVal,
+                                                       true);
 
     simpleAppState->st = st;
     SimpleTestReplica *replica = new SimpleTestReplica(comm, *simpleAppState, replicaConfig, behv, st, metaDataStorage);
@@ -247,4 +229,4 @@ class SimpleTestReplica {
   }
 };
 
-#endif //CONCORD_BFT_SIMPLE_TEST_REPLICA_HPP
+#endif  // CONCORD_BFT_SIMPLE_TEST_REPLICA_HPP

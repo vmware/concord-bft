@@ -39,7 +39,7 @@ class Sliver {
   Sliver(const Sliver& base, const size_t offset, const size_t length);
   Sliver(const uint8_t* data, const size_t length);
   Sliver(const char* data, const size_t length);
-  Sliver(const std::string& s):Sliver(s.data(), s.length()){}
+  Sliver(const std::string& s) : Sliver(s.data(), s.length()) {}
   static Sliver copy(uint8_t* data, const size_t length);
   static Sliver copy(char* data, const size_t length);
 
@@ -55,7 +55,8 @@ class Sliver {
   bool operator!=(const Sliver& other) const;
   int compare(const Sliver& other) const;
 
-  std::string toString() const {return std::string(reinterpret_cast<char*>(data()), length());}
+  std::string toString() const { return std::string(reinterpret_cast<char*>(data()), length()); }
+
  private:
   // these are never modified, but need to be non-const to support copy
   // assignment
@@ -73,9 +74,8 @@ class Sliver {
 
 std::ostream& operator<<(std::ostream& s, const Sliver& sliver);
 
-bool copyToAndAdvance(uint8_t* _buf, size_t* _offset, size_t _maxOffset,
-                      uint8_t* _src, size_t _srcSize);
+bool copyToAndAdvance(uint8_t* _buf, size_t* _offset, size_t _maxOffset, uint8_t* _src, size_t _srcSize);
 
-}  // namespace concordUtils 
+}  // namespace concordUtils
 
 #endif  // CONCORD_BFT_UTIL_SLIVER_HPP_

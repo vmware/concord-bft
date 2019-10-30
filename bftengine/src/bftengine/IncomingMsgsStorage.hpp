@@ -45,10 +45,8 @@ class IncomingMsg {
   enum { EXTERNAL, INTERNAL, INVALID } tag;
 
   IncomingMsg() : tag(IncomingMsg::INVALID) {}
-  IncomingMsg(std::unique_ptr<MessageBase> m)
-      : tag(IncomingMsg::EXTERNAL), external(std::move(m)) {}
-  IncomingMsg(std::unique_ptr<InternalMessage> m)
-      : tag(IncomingMsg::INTERNAL), internal(std::move(m)) {}
+  IncomingMsg(std::unique_ptr<MessageBase> m) : tag(IncomingMsg::EXTERNAL), external(std::move(m)) {}
+  IncomingMsg(std::unique_ptr<InternalMessage> m) : tag(IncomingMsg::INTERNAL), internal(std::move(m)) {}
 
   std::unique_ptr<MessageBase> external;
   std::unique_ptr<InternalMessage> internal;
@@ -91,8 +89,7 @@ class IncomingMsgsStorage {
   // messages are fetched from ptrThreadLocalQueue... ; should only be accessed
   // by the main thread
   queue<std::unique_ptr<MessageBase>>* ptrThreadLocalQueueForExternalMessages;
-  queue<std::unique_ptr<InternalMessage>>*
-      ptrThreadLocalQueueForInternalMessages;
+  queue<std::unique_ptr<InternalMessage>>* ptrThreadLocalQueueForInternalMessages;
 };
 
 }  // namespace impl

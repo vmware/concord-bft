@@ -24,7 +24,7 @@ namespace impl {
 const uint16_t reservedParamsNum = 50;
 
 enum ConstMetadataParameterIds : uint32_t {
-  INITIALIZED_FLAG = 1, // A flag saying whether DB is initialized or not; handled by storage class itself.
+  INITIALIZED_FLAG = 1,  // A flag saying whether DB is initialized or not; handled by storage class itself.
   FIRST_METADATA_PARAMETER,
   VERSION_PARAMETER = FIRST_METADATA_PARAMETER,
   FETCHING_STATE,

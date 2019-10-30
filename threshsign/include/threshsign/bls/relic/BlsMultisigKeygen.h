@@ -20,9 +20,9 @@ namespace Relic {
 class BlsPublicParameters;
 
 class BlsMultisigKeygen : public BlsThresholdKeygenBase {
-public:
-    BlsMultisigKeygen(const BlsPublicParameters& params, NumSharesType n);
-    virtual ~BlsMultisigKeygen();
+ public:
+  BlsMultisigKeygen(const BlsPublicParameters& params, NumSharesType n);
+  virtual ~BlsMultisigKeygen();
 };
 
 } /* namespace Relic */

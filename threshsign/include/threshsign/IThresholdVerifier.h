@@ -25,19 +25,14 @@ class IThresholdVerifier : public virtual concord::serialize::Serializable {
   ~IThresholdVerifier() override = default;
 
  public:
-  virtual IThresholdAccumulator *newAccumulator(
-      bool withShareVerification) const = 0;
+  virtual IThresholdAccumulator *newAccumulator(bool withShareVerification) const = 0;
   virtual void release(IThresholdAccumulator *acc) = 0;
 
-  virtual bool verify(const char *msg,
-                      int msgLen,
-                      const char *sig,
-                      int sigLen) const = 0;
+  virtual bool verify(const char *msg, int msgLen, const char *sig, int sigLen) const = 0;
   virtual int requiredLengthForSignedData() const = 0;
 
   virtual const IPublicKey &getPublicKey() const = 0;
-  virtual const IShareVerificationKey &getShareVerificationKey(
-      ShareID signer) const = 0;
+  virtual const IShareVerificationKey &getShareVerificationKey(ShareID signer) const = 0;
 
   static const uint32_t maxSize_ = 2048;
   static uint32_t maxSize() { return maxSize_; }

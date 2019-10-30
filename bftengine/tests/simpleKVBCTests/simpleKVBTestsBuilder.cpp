@@ -108,7 +108,7 @@ void TestsBuilder::retrieveExistingBlocksFromKVB() {
   assert(actualReplySize == expectedReplySize);
   assert(replyObj->header.type == READ);
   assert(numOfItems == NUMBER_OF_KEYS);
-  
+
   for (int key = 0; key < NUMBER_OF_KEYS; key++) {
     SimpleKeyBlockIdPair simpleKIDPair(replyObj->items[key].simpleKey, request->readVersion);
     allKeysToValueMap_[simpleKIDPair] = replyObj->items[key].simpleValue;

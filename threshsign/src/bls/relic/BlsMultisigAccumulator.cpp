@@ -25,46 +25,47 @@ using std::endl;
 namespace BLS {
 namespace Relic {
 
-BlsMultisigAccumulator::BlsMultisigAccumulator(const std::vector<BlsPublicKey>& verifKeys, NumSharesType reqSigners, NumSharesType totalSigners, bool withShareVerification)
-    : BlsAccumulatorBase(verifKeys, reqSigners, totalSigners, withShareVerification)
-{
-}
+BlsMultisigAccumulator::BlsMultisigAccumulator(const std::vector<BlsPublicKey>& verifKeys,
+                                               NumSharesType reqSigners,
+                                               NumSharesType totalSigners,
+                                               bool withShareVerification)
+    : BlsAccumulatorBase(verifKeys, reqSigners, totalSigners, withShareVerification) {}
 
 void BlsMultisigAccumulator::getFullSignedData(char* outThreshSig, int threshSigLen) {
-    aggregateShares();
+  aggregateShares();
 
-    return sigToBytes(reinterpret_cast<unsigned char*>(outThreshSig), threshSigLen);
+  return sigToBytes(reinterpret_cast<unsigned char*>(outThreshSig), threshSigLen);
 }
 
-void BlsMultisigAccumulator::sigToBytes(unsigned char * outThreshSig, int threshSigLen) const {
-    int sigSize = Library::Get().getG1PointSize();
-    int vectorSize = 0;
-    
-    if(reqSigners != totalSigners) {
-        vectorSize = VectorOfShares::getByteCount();
-    }
+void BlsMultisigAccumulator::sigToBytes(unsigned char* outThreshSig, int threshSigLen) const {
+  int sigSize = Library::Get().getG1PointSize();
+  int vectorSize = 0;
 
-    if(threshSigLen < sigSize + vectorSize) {
-        throw std::runtime_error("Not enough capacity to store multisignature");
-    }
+  if (reqSigners != totalSigners) {
+    vectorSize = VectorOfShares::getByteCount();
+  }
 
-    // include the signature itself
-    threshSig.toBytes(reinterpret_cast<unsigned char*>(outThreshSig), sigSize);
+  if (threshSigLen < sigSize + vectorSize) {
+    throw std::runtime_error("Not enough capacity to store multisignature");
+  }
 
-    if(reqSigners != totalSigners) {
-        // include the signer IDs
-        validSharesBits.toBytes(reinterpret_cast<unsigned char*>(outThreshSig + sigSize), vectorSize);
-    }
+  // include the signature itself
+  threshSig.toBytes(reinterpret_cast<unsigned char*>(outThreshSig), sigSize);
+
+  if (reqSigners != totalSigners) {
+    // include the signer IDs
+    validSharesBits.toBytes(reinterpret_cast<unsigned char*>(outThreshSig + sigSize), vectorSize);
+  }
 }
 
 void BlsMultisigAccumulator::aggregateShares() {
-    threshSig = G1T::Identity();
+  threshSig = G1T::Identity();
 
-    // multiply all the signature shares to obtain the multisig
-    for(ShareID id = validSharesBits.first(); validSharesBits.isEnd(id) == false; id = validSharesBits.next(id)) {
-        size_t i = static_cast<size_t>(id);
-        g1_add(threshSig, threshSig, validShares[i]);
-    }
+  // multiply all the signature shares to obtain the multisig
+  for (ShareID id = validSharesBits.first(); validSharesBits.isEnd(id) == false; id = validSharesBits.next(id)) {
+    size_t i = static_cast<size_t>(id);
+    g1_add(threshSig, threshSig, validShares[i]);
+  }
 }
 
 } /* namespace Relic */

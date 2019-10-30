@@ -26,36 +26,30 @@ namespace Relic {
 /**
  * Threshold signature signer and multisignature signer class.
  */
-class BlsThresholdSigner: public IThresholdSigner,
-                          public concord::serialize::SerializableFactory<BlsThresholdSigner>{
+class BlsThresholdSigner : public IThresholdSigner, public concord::serialize::SerializableFactory<BlsThresholdSigner> {
  protected:
   BlsPublicParameters params_;
 
   BlsSecretKey secretKey_;
   BlsPublicKey publicKey_;
 
-  ShareID id_ = 0; // ID of this signer
+  ShareID id_ = 0;  // ID of this signer
   int sigSize_ = 0;
-  unsigned char serializedId_[sizeof(ShareID)]; // Serialized ID of the signer
+  unsigned char serializedId_[sizeof(ShareID)];  // Serialized ID of the signer
 
   // Temporary storage for hashing message (avoids allocations)
   G1T hTmp_, sigTmp_;
 
  public:
   BlsThresholdSigner() = default;
-  BlsThresholdSigner(const BlsPublicParameters &params,
-                     ShareID id,
-                     const BNT &secretKey);
+  BlsThresholdSigner(const BlsPublicParameters &params, ShareID id, const BNT &secretKey);
   ~BlsThresholdSigner() override = default;
 
   bool operator==(const BlsThresholdSigner &other) const;
 
-  int requiredLengthForSignedData() const override {
-    return sigSize_ + static_cast<int>(sizeof(id_));
-  }
+  int requiredLengthForSignedData() const override { return sigSize_ + static_cast<int>(sizeof(id_)); }
 
-  void signData(const char *hash, int hashLen, char *outSig,
-                int outSigLen) override;
+  void signData(const char *hash, int hashLen, char *outSig, int outSigLen) override;
 
   /**
    * Used for testing and benchmarking.
@@ -71,24 +65,17 @@ class BlsThresholdSigner: public IThresholdSigner,
     return signData(hashPoint);
   }
 
-  const IShareSecretKey &getShareSecretKey() const override {
-    return secretKey_;
-  }
+  const IShareSecretKey &getShareSecretKey() const override { return secretKey_; }
 
-  const BlsPublicKey &getPublicKey() const {
-    return publicKey_;
-  }
+  const BlsPublicKey &getPublicKey() const { return publicKey_; }
 
-  const IShareVerificationKey &getShareVerificationKey() const override {
-    return publicKey_;
-  }
+  const IShareVerificationKey &getShareVerificationKey() const override { return publicKey_; }
 
   // Serialization/deserialization
  protected:
-  virtual void serializeDataMembers  (std::ostream&) const override;
-  virtual void deserializeDataMembers(std::istream&)       override;
+  virtual void serializeDataMembers(std::ostream &) const override;
+  virtual void deserializeDataMembers(std::istream &) override;
   const std::string getVersion() const override { return "1"; };
-
 };
 
 } /* namespace Relic */

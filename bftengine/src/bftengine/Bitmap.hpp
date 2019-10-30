@@ -48,13 +48,9 @@ class Bitmap {
     }
   }
 
-  bool isEmpty() const {
-    return (numBits_ == 0);
-  }
+  bool isEmpty() const { return (numBits_ == 0); }
 
-  bool equals(const Bitmap &other) const {
-    return (other.numBits_ == numBits_ && !memcmp(other.p_, p_, realSize()));
-  }
+  bool equals(const Bitmap& other) const { return (other.numBits_ == numBits_ && !memcmp(other.p_, p_, realSize())); }
 
   Bitmap& operator=(const Bitmap& other) {
     if (numBits_ > 0) {
@@ -103,9 +99,7 @@ class Bitmap {
     p_[byteIndex] = p_[byteIndex] & byteMask;
   }
 
-  void writeToBuffer(char* buffer,
-                     uint32_t bufferLength,
-                     uint32_t* actualSize) const {
+  void writeToBuffer(char* buffer, uint32_t bufferLength, uint32_t* actualSize) const {
     const uint32_t sizeNeeded = sizeNeededInBuffer();
     Assert(bufferLength >= sizeNeeded);
     uint32_t* pNumOfBits = (uint32_t*)buffer;
@@ -115,13 +109,9 @@ class Bitmap {
     if (actualSize) *actualSize = sizeNeeded;
   }
 
-  uint32_t sizeNeededInBuffer() const {
-    return (sizeof(numBits_) + realSize(numBits_));
-  }
+  uint32_t sizeNeededInBuffer() const { return (sizeof(numBits_) + realSize(numBits_)); }
 
-  static Bitmap* createBitmapFromBuffer(char* buffer,
-                                        uint32_t bufferLength,
-                                        uint32_t* actualSize) {
+  static Bitmap* createBitmapFromBuffer(char* buffer, uint32_t bufferLength, uint32_t* actualSize) {
     if (actualSize) *actualSize = 0;
     if (bufferLength < sizeof(uint32_t)) return nullptr;
     uint32_t* pNumOfBits = (uint32_t*)buffer;

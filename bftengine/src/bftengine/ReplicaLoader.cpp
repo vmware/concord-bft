@@ -18,26 +18,29 @@
 #include "FullCommitProofMsg.hpp"
 #include "Logger.hpp"
 
-#define Verify(expr, errorCode) {                                           \
-    Assert(expr);                                                           \
-    if ((expr) != true) {                                                   \
-      return errorCode;                                                     \
-    }                                                                       \
-}
+#define Verify(expr, errorCode) \
+  {                             \
+    Assert(expr);               \
+    if ((expr) != true) {       \
+      return errorCode;         \
+    }                           \
+  }
 
-#define VerifyOR(expr1, expr2, errorCode) {                                 \
-    AssertOR(expr1, expr2);                                                 \
-    if ((expr1) != true && (expr2) != true) {                               \
-      return errorCode;                                                     \
-    }                                                                       \
-}
+#define VerifyOR(expr1, expr2, errorCode)     \
+  {                                           \
+    AssertOR(expr1, expr2);                   \
+    if ((expr1) != true && (expr2) != true) { \
+      return errorCode;                       \
+    }                                         \
+  }
 
-#define VerifyAND(expr1, expr2, errorCode) {                                \
-    AssertAND(expr1, expr2);                                                \
-    if ((expr1) != true || (expr2) != true) {                               \
-      return errorCode;                                                     \
-    }                                                                       \
-}
+#define VerifyAND(expr1, expr2, errorCode)    \
+  {                                           \
+    AssertAND(expr1, expr2);                  \
+    if ((expr1) != true || (expr2) != true) { \
+      return errorCode;                       \
+    }                                         \
+  }
 
 #define Succ ReplicaLoader::ErrorCode::Success
 #define InconsistentErr ReplicaLoader::ErrorCode::InconsistentData
@@ -52,10 +55,11 @@ namespace {
 ReplicaLoader::ErrorCode checkReplicaConfig(const LoadedReplicaData &ld) {
   const ReplicaConfig &c = ld.repConfig;
 
-  LOG_INFO(GL, "checkReplicaConfig cVal=" << c.cVal << ", fVal=" << c.fVal << ", replicaId=" << c.replicaId
-                                          << ", concurrencyLevel=" << c.concurrencyLevel
-                                          << ", autoViewChangeEnabled=" << c.autoViewChangeEnabled
-                                          << ", viewChangeTimerMillisec=" << c.viewChangeTimerMillisec);
+  LOG_INFO(GL,
+           "checkReplicaConfig cVal=" << c.cVal << ", fVal=" << c.fVal << ", replicaId=" << c.replicaId
+                                      << ", concurrencyLevel=" << c.concurrencyLevel
+                                      << ", autoViewChangeEnabled=" << c.autoViewChangeEnabled
+                                      << ", viewChangeTimerMillisec=" << c.viewChangeTimerMillisec);
 
   Verify(c.fVal >= 1, InconsistentErr);
   Verify(c.cVal >= 0, InconsistentErr);
@@ -66,22 +70,22 @@ ReplicaLoader::ErrorCode checkReplicaConfig(const LoadedReplicaData &ld) {
 
   VerifyAND(c.replicaId >= 0, c.replicaId < numOfReplicas, InconsistentErr);
 
-  Verify(c.numOfClientProxies >= 1, InconsistentErr); // TODO(GG): TBD - do we want maximum number of client proxies?
+  Verify(c.numOfClientProxies >= 1, InconsistentErr);  // TODO(GG): TBD - do we want maximum number of client proxies?
 
   Verify(c.statusReportTimerMillisec > 0,
-         InconsistentErr); // TODO(GG): TBD - do we want maximum for statusReportTimerMillisec?
+         InconsistentErr);  // TODO(GG): TBD - do we want maximum for statusReportTimerMillisec?
 
   VerifyAND(c.concurrencyLevel >= 1, c.concurrencyLevel <= (checkpointWindowSize / 5), InconsistentErr);
 
   std::set<uint16_t> repIDs;
   for (std::pair<uint16_t, std::string> v : c.publicKeysOfReplicas) {
     VerifyAND(v.first >= 0, v.first < numOfReplicas, InconsistentErr);
-    Verify(!v.second.empty(), InconsistentErr); // TODO(GG): make sure that the key is valid
+    Verify(!v.second.empty(), InconsistentErr);  // TODO(GG): make sure that the key is valid
     repIDs.insert(v.first);
   }
   Verify(repIDs.size() == numOfReplicas, InconsistentErr);
 
-  Verify(!c.replicaPrivateKey.empty(), InconsistentErr); // TODO(GG): make sure that the key is valid
+  Verify(!c.replicaPrivateKey.empty(), InconsistentErr);  // TODO(GG): make sure that the key is valid
 
   Verify(c.thresholdSignerForSlowPathCommit != nullptr, InconsistentErr);
   Verify(c.thresholdVerifierForSlowPathCommit != nullptr, InconsistentErr);
@@ -118,7 +122,7 @@ ReplicaLoader::ErrorCode loadConfig(shared_ptr<PersistentStorage> &p, LoadedRepl
     replicasSigPublicKeys.insert(keyDesc);
   }
 
-  uint16_t numOfReplicas = (uint16_t) (3 * ld.repConfig.fVal + 2 * ld.repConfig.cVal + 1);
+  uint16_t numOfReplicas = (uint16_t)(3 * ld.repConfig.fVal + 2 * ld.repConfig.cVal + 1);
 
   ld.sigManager = new SigManager(ld.repConfig.replicaId,
                                  numOfReplicas + ld.repConfig.numOfClientProxies,
@@ -135,17 +139,15 @@ ReplicaLoader::ErrorCode loadConfig(shared_ptr<PersistentStorage> &p, LoadedRepl
   return Succ;
 }
 
-ReplicaLoader::ErrorCode checkViewDesc(
-    const DescriptorOfLastExitFromView *exitDesc,
-    const DescriptorOfLastNewView *newDesc) {
+ReplicaLoader::ErrorCode checkViewDesc(const DescriptorOfLastExitFromView *exitDesc,
+                                       const DescriptorOfLastNewView *newDesc) {
   // TODO: check consistency of descriptors
   return Succ;
 }
 
 ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedReplicaData &ld) {
   Assert(p != nullptr);
-  Assert(ld.repsInfo != nullptr)
-  Assert(ld.repConfig.thresholdVerifierForSlowPathCommit != nullptr);
+  Assert(ld.repsInfo != nullptr) Assert(ld.repConfig.thresholdVerifierForSlowPathCommit != nullptr);
   Assert(ld.viewsManager == nullptr);
 
   DescriptorOfLastExitFromView descriptorOfLastExitFromView;
@@ -154,80 +156,68 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
   const bool hasDescLastExitFromView = p->hasDescriptorOfLastExitFromView();
   const bool hasDescOfLastNewView = p->hasDescriptorOfLastNewView();
 
-  if (hasDescLastExitFromView)
-    descriptorOfLastExitFromView = p->getAndAllocateDescriptorOfLastExitFromView();
+  if (hasDescLastExitFromView) descriptorOfLastExitFromView = p->getAndAllocateDescriptorOfLastExitFromView();
 
-  if (hasDescOfLastNewView)
-    descriptorOfLastNewView = p->getAndAllocateDescriptorOfLastNewView();
+  if (hasDescOfLastNewView) descriptorOfLastNewView = p->getAndAllocateDescriptorOfLastNewView();
 
-  ReplicaLoader::ErrorCode stat = checkViewDesc(
-      hasDescLastExitFromView ? &descriptorOfLastExitFromView : nullptr,
-      hasDescOfLastNewView ? &descriptorOfLastNewView : nullptr);
+  ReplicaLoader::ErrorCode stat = checkViewDesc(hasDescLastExitFromView ? &descriptorOfLastExitFromView : nullptr,
+                                                hasDescOfLastNewView ? &descriptorOfLastNewView : nullptr);
 
   Verify((stat == Succ), stat);
 
   ViewsManager *viewsManager = nullptr;
   if (!hasDescLastExitFromView && !hasDescOfLastNewView) {
-
-    viewsManager = ViewsManager::createInsideViewZero(
-        ld.repsInfo,
-        ld.repConfig.thresholdVerifierForSlowPathCommit);
+    viewsManager = ViewsManager::createInsideViewZero(ld.repsInfo, ld.repConfig.thresholdVerifierForSlowPathCommit);
 
     Assert(viewsManager->latestActiveView() == 0);
     Assert(viewsManager->viewIsActive(0));
 
     ld.maxSeqNumTransferredFromPrevViews = 0;
   } else if (hasDescLastExitFromView && !hasDescOfLastNewView) {
-
     Verify((descriptorOfLastExitFromView.view == 0), InconsistentErr);
 
-    viewsManager = ViewsManager::createOutsideView(
-        ld.repsInfo,
-        ld.repConfig.thresholdVerifierForSlowPathCommit,
-        descriptorOfLastExitFromView.view,
-        descriptorOfLastExitFromView.lastStable,
-        descriptorOfLastExitFromView.lastExecuted,
-        descriptorOfLastExitFromView.stableLowerBoundWhenEnteredToView,
-        descriptorOfLastExitFromView.myViewChangeMsg,
-        descriptorOfLastExitFromView.elements);
+    viewsManager = ViewsManager::createOutsideView(ld.repsInfo,
+                                                   ld.repConfig.thresholdVerifierForSlowPathCommit,
+                                                   descriptorOfLastExitFromView.view,
+                                                   descriptorOfLastExitFromView.lastStable,
+                                                   descriptorOfLastExitFromView.lastExecuted,
+                                                   descriptorOfLastExitFromView.stableLowerBoundWhenEnteredToView,
+                                                   descriptorOfLastExitFromView.myViewChangeMsg,
+                                                   descriptorOfLastExitFromView.elements);
 
     Verify((viewsManager->latestActiveView() == 0), InconsistentErr);
     Verify((!viewsManager->viewIsActive(0)), InconsistentErr);
 
     ld.maxSeqNumTransferredFromPrevViews = 0;
   } else if (hasDescLastExitFromView && hasDescOfLastNewView &&
-      (descriptorOfLastExitFromView.view == descriptorOfLastNewView.view)) {
-
+             (descriptorOfLastExitFromView.view == descriptorOfLastNewView.view)) {
     Verify((descriptorOfLastExitFromView.view >= 1), InconsistentErr);
 
-    viewsManager = ViewsManager::createOutsideView(
-        ld.repsInfo,
-        ld.repConfig.thresholdVerifierForSlowPathCommit,
-        descriptorOfLastExitFromView.view,
-        descriptorOfLastExitFromView.lastStable,
-        descriptorOfLastExitFromView.lastExecuted,
-        descriptorOfLastExitFromView.stableLowerBoundWhenEnteredToView,
-        descriptorOfLastExitFromView.myViewChangeMsg,
-        descriptorOfLastExitFromView.elements);
+    viewsManager = ViewsManager::createOutsideView(ld.repsInfo,
+                                                   ld.repConfig.thresholdVerifierForSlowPathCommit,
+                                                   descriptorOfLastExitFromView.view,
+                                                   descriptorOfLastExitFromView.lastStable,
+                                                   descriptorOfLastExitFromView.lastExecuted,
+                                                   descriptorOfLastExitFromView.stableLowerBoundWhenEnteredToView,
+                                                   descriptorOfLastExitFromView.myViewChangeMsg,
+                                                   descriptorOfLastExitFromView.elements);
 
     Verify((viewsManager->latestActiveView() == descriptorOfLastExitFromView.view), InconsistentErr);
     Verify((!viewsManager->viewIsActive(descriptorOfLastExitFromView.view)), InconsistentErr);
 
     ld.maxSeqNumTransferredFromPrevViews = descriptorOfLastNewView.maxSeqNumTransferredFromPrevViews;
   } else if (hasDescLastExitFromView && hasDescOfLastNewView &&
-      (descriptorOfLastExitFromView.view < descriptorOfLastNewView.view)) {
-
+             (descriptorOfLastExitFromView.view < descriptorOfLastNewView.view)) {
     Verify((descriptorOfLastExitFromView.view >= 0), InconsistentErr);
     Verify((descriptorOfLastNewView.view >= 1), InconsistentErr);
 
-    viewsManager = ViewsManager::createInsideView(
-        ld.repsInfo,
-        ld.repConfig.thresholdVerifierForSlowPathCommit,
-        descriptorOfLastNewView.view,
-        descriptorOfLastNewView.stableLowerBoundWhenEnteredToView,
-        descriptorOfLastNewView.newViewMsg,
-        descriptorOfLastNewView.myViewChangeMsg,
-        descriptorOfLastNewView.viewChangeMsgs);
+    viewsManager = ViewsManager::createInsideView(ld.repsInfo,
+                                                  ld.repConfig.thresholdVerifierForSlowPathCommit,
+                                                  descriptorOfLastNewView.view,
+                                                  descriptorOfLastNewView.stableLowerBoundWhenEnteredToView,
+                                                  descriptorOfLastNewView.newViewMsg,
+                                                  descriptorOfLastNewView.myViewChangeMsg,
+                                                  descriptorOfLastNewView.viewChangeMsgs);
 
     ld.maxSeqNumTransferredFromPrevViews = descriptorOfLastNewView.maxSeqNumTransferredFromPrevViews;
   } else {
@@ -254,10 +244,11 @@ ReplicaLoader::ErrorCode loadReplicaData(shared_ptr<PersistentStorage> p, Loaded
   ld.lastExecutedSeqNum = p->getLastExecutedSeqNum();
   ld.strictLowerBoundOfSeqNums = p->getStrictLowerBoundOfSeqNums();
 
-  LOG_INFO(GL, "loadReplicaData primaryLastUsedSeqNum=" << ld.primaryLastUsedSeqNum << ", lastStableSeqNum="
-                                                        << ld.lastStableSeqNum << ", lastExecutedSeqNum="
-                                                        << ld.lastExecutedSeqNum << ", strictLowerBoundOfSeqNums="
-                                                        << ld.strictLowerBoundOfSeqNums);
+  LOG_INFO(GL,
+           "loadReplicaData primaryLastUsedSeqNum=" << ld.primaryLastUsedSeqNum
+                                                    << ", lastStableSeqNum=" << ld.lastStableSeqNum
+                                                    << ", lastExecutedSeqNum=" << ld.lastExecutedSeqNum
+                                                    << ", strictLowerBoundOfSeqNums=" << ld.strictLowerBoundOfSeqNums);
 
   Verify((ld.primaryLastUsedSeqNum >= 0), InconsistentErr);
   Verify((ld.primaryLastUsedSeqNum <= ld.lastStableSeqNum + kWorkWindowSize), InconsistentErr);
@@ -363,17 +354,15 @@ ReplicaLoader::ErrorCode loadReplicaData(shared_ptr<PersistentStorage> p, Loaded
 }
 
 void freeReplicaData(LoadedReplicaData &ld) {
-  for (size_t i = 0; i < sizeof(ld.checkWinArr) / sizeof(ld.checkWinArr[0]); i++)
-    ld.checkWinArr[i].reset();
+  for (size_t i = 0; i < sizeof(ld.checkWinArr) / sizeof(ld.checkWinArr[0]); i++) ld.checkWinArr[i].reset();
 
-  for (size_t i = 0; i < sizeof(ld.seqNumWinArr) / sizeof(ld.seqNumWinArr[0]); i++)
-    ld.seqNumWinArr[i].reset();
+  for (size_t i = 0; i < sizeof(ld.seqNumWinArr) / sizeof(ld.seqNumWinArr[0]); i++) ld.seqNumWinArr[i].reset();
 
   delete ld.viewsManager;
   delete ld.repsInfo;
   delete ld.sigManager;
 }
-}
+}  // namespace
 
 LoadedReplicaData ReplicaLoader::loadReplica(shared_ptr<PersistentStorage> &p, ReplicaLoader::ErrorCode &outErrCode) {
   Assert(p != nullptr);

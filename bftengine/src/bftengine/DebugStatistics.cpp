@@ -1,6 +1,6 @@
-//Concord
+// Concord
 //
-//Copyright (c) 2018, 2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018, 2019 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -23,150 +23,140 @@ namespace bftEngine {
 namespace impl {
 
 void DebugStatistics::onCycleCheck() {
-			DebugStatDesc& d = getDebugStatDesc();
+  DebugStatDesc& d = getDebugStatDesc();
 
-			if (!d.initialized) // if this is the first time
-			{
-				d.initialized = true;
-				d.lastCycleTime = getMonotonicTime();
-				clearCounters(d);
-				return;
-			}
+  if (!d.initialized)  // if this is the first time
+  {
+    d.initialized = true;
+    d.lastCycleTime = getMonotonicTime();
+    clearCounters(d);
+    return;
+  }
 
-			Time currTime = getMonotonicTime();
+  Time currTime = getMonotonicTime();
 
-			long long durationMicroSec = subtract(currTime, d.lastCycleTime);
+  long long durationMicroSec = subtract(currTime, d.lastCycleTime);
 
-			double durationSec = durationMicroSec / 1000000.0;
+  double durationSec = durationMicroSec / 1000000.0;
 
   if (durationSec < DEBUG_STAT_PERIOD_SECONDS) return;
 
-			double readThroughput = 0;
-			double writeThroughput = 0;
+  double readThroughput = 0;
+  double writeThroughput = 0;
 
-			if (d.completedReadOnlyRequests > 0)
-				readThroughput = (d.completedReadOnlyRequests / durationSec);
+  if (d.completedReadOnlyRequests > 0) readThroughput = (d.completedReadOnlyRequests / durationSec);
 
-			if (d.completedReadWriteRequests > 0)
-				writeThroughput = (d.completedReadWriteRequests / durationSec);
+  if (d.completedReadWriteRequests > 0) writeThroughput = (d.completedReadWriteRequests / durationSec);
 
-			double avgBatchSize = 0;
-			double avgPendingRequests = 0;
+  double avgBatchSize = 0;
+  double avgPendingRequests = 0;
 
-			if (d.prePrepareMessages > 0) {
-				avgBatchSize = (double)d.batchRequests / d.prePrepareMessages;
-				avgPendingRequests = (double)d.pendingRequests / d.prePrepareMessages;
-			}
+  if (d.prePrepareMessages > 0) {
+    avgBatchSize = (double)d.batchRequests / d.prePrepareMessages;
+    avgPendingRequests = (double)d.pendingRequests / d.prePrepareMessages;
+  }
 
   // We use INFO logging instead of DEBUG logging since there is already a
   // separate switch to turn DebugStatistics on and off. It's likely we want
   // this data to appear when we do not want full debug logging.
-  LOG_INFO(GL, " STAT:" << endl <<
-      "    ReadOnlyThroughput = " << fixed << setprecision(2) 
-      << readThroughput << endl <<
-      "    WriteThroughput = " << fixed << setprecision(2) 
-      << writeThroughput << endl <<
-      "    ReceivedMessages = " << d.receivedMessages << endl <<
-      "    SentMessages = " << d.sendMessages << endl << 
-      "    NumberOfReceivedSTMessages = " << 
-      d.numberOfReceivedSTMessages << endl << 
-      "    NumberOfReceivedStatusMessages = " << 
-      d.numberOfReceivedStatusMessages << endl <<
-      "    NumberOfReceivedCommitMessages = " << 
-      d.numberOfReceivedCommitMessages << endl <<
-      "    LastExecutedSeqNumber = " <<
-      d.lastExecutedSequenceNumber << endl <<
-      "    PrePrepareMessages = " <<
-      d.prePrepareMessages << endl <<
-      "    AvgBatchSize = " << fixed << setprecision(2)
-      << avgBatchSize << endl <<
-      "    AvgPendingRequest = " << fixed << setprecision(2)
-      << avgPendingRequests << endl);
+  LOG_INFO(GL,
+           " STAT:" << endl
+                    << "    ReadOnlyThroughput = " << fixed << setprecision(2) << readThroughput << endl
+                    << "    WriteThroughput = " << fixed << setprecision(2) << writeThroughput << endl
+                    << "    ReceivedMessages = " << d.receivedMessages << endl
+                    << "    SentMessages = " << d.sendMessages << endl
+                    << "    NumberOfReceivedSTMessages = " << d.numberOfReceivedSTMessages << endl
+                    << "    NumberOfReceivedStatusMessages = " << d.numberOfReceivedStatusMessages << endl
+                    << "    NumberOfReceivedCommitMessages = " << d.numberOfReceivedCommitMessages << endl
+                    << "    LastExecutedSeqNumber = " << d.lastExecutedSequenceNumber << endl
+                    << "    PrePrepareMessages = " << d.prePrepareMessages << endl
+                    << "    AvgBatchSize = " << fixed << setprecision(2) << avgBatchSize << endl
+                    << "    AvgPendingRequest = " << fixed << setprecision(2) << avgPendingRequests << endl);
 
-			d.lastCycleTime = currTime;
-			clearCounters(d);
-		}
+  d.lastCycleTime = currTime;
+  clearCounters(d);
+}
 
 void DebugStatistics::onReceivedExMessage(uint16_t type) {
-			DebugStatDesc& d = getDebugStatDesc();
+  DebugStatDesc& d = getDebugStatDesc();
 
-			d.receivedMessages++;
+  d.receivedMessages++;
 
   switch (type) {
-			case MsgCode::ReplicaStatus:
-				d.numberOfReceivedStatusMessages++;
-				break;
-			case MsgCode::StateTransfer: // TODO(GG): TBD?
-				d.numberOfReceivedSTMessages++;
-				break;
-			case MsgCode::CommitPartial:
-			case MsgCode::CommitFull:
-				d.numberOfReceivedCommitMessages++;
-				break;
-			default:
-				break;
-			}
-		}
+    case MsgCode::ReplicaStatus:
+      d.numberOfReceivedStatusMessages++;
+      break;
+    case MsgCode::StateTransfer:  // TODO(GG): TBD?
+      d.numberOfReceivedSTMessages++;
+      break;
+    case MsgCode::CommitPartial:
+    case MsgCode::CommitFull:
+      d.numberOfReceivedCommitMessages++;
+      break;
+    default:
+      break;
+  }
+}
 
 void DebugStatistics::onSendExMessage(uint16_t type) {
-			DebugStatDesc& d = getDebugStatDesc();
+  DebugStatDesc& d = getDebugStatDesc();
 
-			d.sendMessages++;
-		}
+  d.sendMessages++;
+}
 
 void DebugStatistics::onRequestCompleted(bool isReadOnly) {
-			DebugStatDesc& d = getDebugStatDesc();
+  DebugStatDesc& d = getDebugStatDesc();
 
   if (isReadOnly)
     d.completedReadOnlyRequests++;
   else
     d.completedReadWriteRequests++;
-		}
+}
 
 void DebugStatistics::onSendPrePrepareMessage(size_t batchRequests, size_t pendingRequests) {
-			DebugStatDesc& d = getDebugStatDesc();
+  DebugStatDesc& d = getDebugStatDesc();
 
-			d.prePrepareMessages++;
-			d.batchRequests += batchRequests;
-			d.pendingRequests += pendingRequests;
+  d.prePrepareMessages++;
+  d.batchRequests += batchRequests;
+  d.pendingRequests += pendingRequests;
 }
 
 void DebugStatistics::onLastExecutedSequenceNumberChanged(int64_t newNumber) {
-			DebugStatDesc& d = getDebugStatDesc();
-			d.lastExecutedSequenceNumber = newNumber;
-		}
+  DebugStatDesc& d = getDebugStatDesc();
+  d.lastExecutedSequenceNumber = newNumber;
+}
 
 void DebugStatistics::clearCounters(DebugStatDesc& d) {
-			d.receivedMessages = 0;
-			d.sendMessages = 0;
-			d.completedReadOnlyRequests = 0;
-			d.completedReadWriteRequests = 0;
-			d.numberOfReceivedSTMessages = 0;
-			d.numberOfReceivedStatusMessages = 0;
-			d.numberOfReceivedCommitMessages = 0;
-			d.lastExecutedSequenceNumber = 0;
-			d.prePrepareMessages = 0;
-			d.batchRequests = 0;
-			d.pendingRequests = 0;
-		}
+  d.receivedMessages = 0;
+  d.sendMessages = 0;
+  d.completedReadOnlyRequests = 0;
+  d.completedReadWriteRequests = 0;
+  d.numberOfReceivedSTMessages = 0;
+  d.numberOfReceivedStatusMessages = 0;
+  d.numberOfReceivedCommitMessages = 0;
+  d.lastExecutedSequenceNumber = 0;
+  d.prePrepareMessages = 0;
+  d.batchRequests = 0;
+  d.pendingRequests = 0;
+}
 
 #ifdef USE_TLS
 void DebugStatistics::initDebugStatisticsData() {
-			ThreadLocalData* l = ThreadLocalData::Get();
-			Assert(l->debugStatData == nullptr);
-			DebugStatDesc* dsd = new DebugStatDesc;
-			l->debugStatData = dsd;
-		}
+  ThreadLocalData* l = ThreadLocalData::Get();
+  Assert(l->debugStatData == nullptr);
+  DebugStatDesc* dsd = new DebugStatDesc;
+  l->debugStatData = dsd;
+}
 
 void DebugStatistics::freeDebugStatisticsData() {
-			ThreadLocalData* l = ThreadLocalData::Get();
-			DebugStatDesc* dsd = (DebugStatDesc*)l->debugStatData;
-			delete dsd;
-			l->debugStatData = nullptr;
-		}
+  ThreadLocalData* l = ThreadLocalData::Get();
+  DebugStatDesc* dsd = (DebugStatDesc*)l->debugStatData;
+  delete dsd;
+  l->debugStatData = nullptr;
+}
 #else
 
-		DebugStatistics::DebugStatDesc DebugStatistics::globalDebugStatDesc;
+DebugStatistics::DebugStatDesc DebugStatistics::globalDebugStatDesc;
 
 void DebugStatistics::initDebugStatisticsData() {}
 

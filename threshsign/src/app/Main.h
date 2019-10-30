@@ -14,4 +14,4 @@
 
 int AppMain(const std::vector<std::string>& args);
 
-int main(int argc, char *argv[]);
+int main(int argc, char* argv[]);

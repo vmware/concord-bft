@@ -16,41 +16,43 @@ namespace concord {
 namespace storage {
 namespace blockchain {
 
-
-class KeyManipulator: public IDBClient::IKeyManipulator{
+class KeyManipulator : public IDBClient::IKeyManipulator {
  public:
   KeyManipulator() = default;
- virtual int   composedKeyComparison(const uint8_t* _a_data, size_t _a_length, const uint8_t* _b_data, size_t _b_length) override;
+  virtual int composedKeyComparison(const uint8_t *_a_data,
+                                    size_t _a_length,
+                                    const uint8_t *_b_data,
+                                    size_t _b_length) override;
 
-  Sliver        genDbKey(EDBKeyType _type, const Key& _key, BlockId _blockId);
-  Sliver        genBlockDbKey(BlockId _blockId);
-  Sliver        genDataDbKey(const Key& _key, BlockId _blockId);
-  EDBKeyType    extractTypeFromKey(const Key& _key);
-  EDBKeyType    extractTypeFromKey(const uint8_t* _key_data);
-  BlockId       extractBlockIdFromKey(const Key& _key);
-  BlockId       extractBlockIdFromKey(const uint8_t* _key_data, size_t _key_length);
-  ObjectId      extractObjectIdFromKey(const Key& _key);
-  ObjectId      extractObjectIdFromKey(const uint8_t* _key_data, size_t _key_length);
-  Sliver        extractKeyFromKeyComposedWithBlockId(const Key& _composedKey);
-  int           compareKeyPartOfComposedKey(const uint8_t *a_data, size_t a_length, const uint8_t *b_data, size_t b_length);
-  Sliver        extractKeyFromMetadataKey(const Key& _composedKey);
-  bool          isKeyContainBlockId(const Key& _composedKey);
-  KeyValuePair  composedToSimple(KeyValuePair _p);
+  Sliver genDbKey(EDBKeyType _type, const Key &_key, BlockId _blockId);
+  Sliver genBlockDbKey(BlockId _blockId);
+  Sliver genDataDbKey(const Key &_key, BlockId _blockId);
+  EDBKeyType extractTypeFromKey(const Key &_key);
+  EDBKeyType extractTypeFromKey(const uint8_t *_key_data);
+  BlockId extractBlockIdFromKey(const Key &_key);
+  BlockId extractBlockIdFromKey(const uint8_t *_key_data, size_t _key_length);
+  ObjectId extractObjectIdFromKey(const Key &_key);
+  ObjectId extractObjectIdFromKey(const uint8_t *_key_data, size_t _key_length);
+  Sliver extractKeyFromKeyComposedWithBlockId(const Key &_composedKey);
+  int compareKeyPartOfComposedKey(const uint8_t *a_data, size_t a_length, const uint8_t *b_data, size_t b_length);
+  Sliver extractKeyFromMetadataKey(const Key &_composedKey);
+  bool isKeyContainBlockId(const Key &_composedKey);
+  KeyValuePair composedToSimple(KeyValuePair _p);
   static Sliver generateMetadataKey(ObjectId objectId);
   static Sliver generateStateTransferKey(ObjectId objectId);
   static Sliver generateSTPendingPageKey(uint32_t pageid);
   static Sliver generateSTCheckpointDescriptorKey(uint64_t chkpt);
   static Sliver generateSTReservedPageStaticKey(uint32_t pageid, uint64_t chkpt);
   static Sliver generateSTReservedPageDynamicKey(uint32_t pageid, uint64_t chkpt);
-  uint64_t      extractCheckPointFromKey(const uint8_t* _key_data, size_t _key_length);
-  std::pair<uint32_t, uint64_t> extractPageIdAndCheckpointFromKey(const uint8_t* _key_data, size_t _key_length);
+  uint64_t extractCheckPointFromKey(const uint8_t *_key_data, size_t _key_length);
+  std::pair<uint32_t, uint64_t> extractPageIdAndCheckpointFromKey(const uint8_t *_key_data, size_t _key_length);
 
  protected:
   static Sliver generateReservedPageKey(EDBKeyType, uint32_t pageid, uint64_t chkpt);
 
-  static bool   copyToAndAdvance(uint8_t *_buf, size_t *_offset, size_t _maxOffset, uint8_t *_src, size_t _srcSize);
+  static bool copyToAndAdvance(uint8_t *_buf, size_t *_offset, size_t _maxOffset, uint8_t *_src, size_t _srcSize);
 
-  concordlogger::Logger& logger(){
+  concordlogger::Logger &logger() {
     static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.storage.blockchain.KeyManipulator");
     return logger_;
   }
@@ -63,42 +65,54 @@ class DBAdapter {
   std::shared_ptr<IDBClient> getDb() { return db_; }
 
   Status addBlock(BlockId _blockId, Sliver _blockRaw);
-  Status updateKey(const Key& _key, BlockId _block, Value _value);
+  Status updateKey(const Key &_key, BlockId _block, Value _value);
   Status addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &_kvMap, BlockId _block, Sliver _blockRaw);
-  Status getKeyByReadVersion(BlockId readVersion, const Sliver& key, Sliver &outValue, BlockId &outBlock) const;
+  Status getKeyByReadVersion(BlockId readVersion, const Sliver &key, Sliver &outValue, BlockId &outBlock) const;
   Status getBlockById(BlockId _blockId, Sliver &_blockRaw, bool &_found) const;
 
-  IDBClient::IDBClientIterator* getIterator() { return db_->getIterator(); }
+  IDBClient::IDBClientIterator *getIterator() { return db_->getIterator(); }
 
   Status freeIterator(IDBClient::IDBClientIterator *_iter) { return db_->freeIterator(_iter); }
 
-  Status first(IDBClient::IDBClientIterator *iter, BlockId readVersion, OUT BlockId &actualVersion, OUT bool &isEnd,
-               OUT Sliver &_key, OUT Sliver &_value);
-  Status seekAtLeast(IDBClient::IDBClientIterator *iter, const Sliver& _searchKey, BlockId _readVersion,
-                     OUT BlockId &_actualVersion, OUT Sliver &_key, OUT Sliver &_value, OUT bool &_isEnd);
-  Status next(IDBClient::IDBClientIterator *iter, BlockId _readVersion, OUT Sliver &_key, OUT Sliver &_value,
-              OUT BlockId &_actualVersion, OUT bool &_isEnd);
+  Status first(IDBClient::IDBClientIterator *iter,
+               BlockId readVersion,
+               OUT BlockId &actualVersion,
+               OUT bool &isEnd,
+               OUT Sliver &_key,
+               OUT Sliver &_value);
+  Status seekAtLeast(IDBClient::IDBClientIterator *iter,
+                     const Sliver &_searchKey,
+                     BlockId _readVersion,
+                     OUT BlockId &_actualVersion,
+                     OUT Sliver &_key,
+                     OUT Sliver &_value,
+                     OUT bool &_isEnd);
+  Status next(IDBClient::IDBClientIterator *iter,
+              BlockId _readVersion,
+              OUT Sliver &_key,
+              OUT Sliver &_value,
+              OUT BlockId &_actualVersion,
+              OUT bool &_isEnd);
 
   Status getCurrent(IDBClient::IDBClientIterator *iter, OUT Sliver &_key, OUT Sliver &_value);
   Status isEnd(IDBClient::IDBClientIterator *iter, OUT bool &_isEnd);
 
-  Status delKey(const Sliver& _key, BlockId _blockID);
+  Status delKey(const Sliver &_key, BlockId _blockID);
   Status delBlock(BlockId _blockId);
-  void   deleteBlockAndItsKeys(BlockId blockId);
-  void   monitor() const;
+  void deleteBlockAndItsKeys(BlockId blockId);
+  void monitor() const;
 
   BlockId getLatestBlock();
   BlockId getLastReachableBlock();
 
  private:
-  concordlogger::Logger      logger_;
+  concordlogger::Logger logger_;
   std::shared_ptr<IDBClient> db_;
   std::shared_ptr<KeyManipulator> key_manipulator_;
   KeyValuePair m_current;
   bool m_isEnd;
 };
 
-
-}
-}
-}
+}  // namespace blockchain
+}  // namespace storage
+}  // namespace concord

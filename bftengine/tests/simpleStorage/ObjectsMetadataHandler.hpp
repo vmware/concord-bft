@@ -24,21 +24,20 @@ typedef std::map<uint32_t, MetadataObjectInfo> MetadataObjectIdToInfoMap;
 // in the beginning of the DB file.
 class ObjectsMetadataHandler {
  public:
-  explicit ObjectsMetadataHandler(uint32_t objectsNum)
-      : objectsNum_(objectsNum) {}
+  explicit ObjectsMetadataHandler(uint32_t objectsNum) : objectsNum_(objectsNum) {}
 
   size_t getObjectsMetadataSize();
   void setObjectInfo(const MetadataObjectInfo &objectInfo);
   MetadataObjectInfo *getObjectInfo(uint32_t objectId);
   uint32_t getObjectsNum() const { return objectsNum_; }
   MetadataObjectIdToInfoMap getObjectsMap() const { return objectsMap_; }
-  friend std::ostream &operator<<(std::ostream &stream,
-                                  const ObjectsMetadataHandler &fileMetadata);
+  friend std::ostream &operator<<(std::ostream &stream, const ObjectsMetadataHandler &fileMetadata);
+
  private:
   uint32_t objectsNum_;
   MetadataObjectIdToInfoMap objectsMap_;
 };
 
-}
+}  // namespace bftEngine
 
 #endif

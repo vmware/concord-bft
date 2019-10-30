@@ -15,15 +15,9 @@ class Status {
  public:
   static Status OK() { return Status(ok, ""); }
   static Status NotFound(std::string msg) { return Status(notFound, msg); }
-  static Status InvalidArgument(std::string msg) {
-    return Status(invalidArgument, msg);
-  }
-  static Status IllegalOperation(std::string msg) {
-    return Status(illegalOperation, msg);
-  }
-  static Status GeneralError(std::string msg) {
-    return Status(generalError, msg);
-  }
+  static Status InvalidArgument(std::string msg) { return Status(invalidArgument, msg); }
+  static Status IllegalOperation(std::string msg) { return Status(illegalOperation, msg); }
+  static Status GeneralError(std::string msg) { return Status(generalError, msg); }
 
   bool isOK() const { return type == ok; }
   bool isNotFound() const { return type == notFound; }
@@ -31,7 +25,7 @@ class Status {
   bool isIllegalOperation() const { return type == illegalOperation; }
   bool isGeneralError() const { return type == generalError; }
 
-  std::string toString() const { return messagePrefix() + (!isOK()?message:std::string(""));}
+  std::string toString() const { return messagePrefix() + (!isOK() ? message : std::string("")); }
   std::ostream& operator<<(std::ostream& s) const {
     s << toString();
     return s;
@@ -40,13 +34,7 @@ class Status {
   bool operator==(const Status& status) const { return type == status.type; };
 
  private:
-  enum statusType {
-    ok,
-    notFound,
-    invalidArgument,
-    illegalOperation,
-    generalError
-  };
+  enum statusType { ok, notFound, invalidArgument, illegalOperation, generalError };
 
   statusType type;
   std::string message;

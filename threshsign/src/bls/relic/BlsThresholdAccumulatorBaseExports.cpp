@@ -10,10 +10,9 @@
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 
-#ifdef ERROR // TODO(GG): should be fixed by encapsulating relic (or windows) definitions in cpp files
+#ifdef ERROR  // TODO(GG): should be fixed by encapsulating relic (or windows) definitions in cpp files
 #undef ERROR
 #endif
-
 
 /**
  * Template instantiations/exports.
@@ -27,7 +26,4 @@
 
 #include "threshsign/bls/relic/BlsThresholdScheme.h"
 
-template class ThresholdAccumulatorBase<
-    BLS::Relic::BlsPublicKey,
-    BLS::Relic::G1T,
-    BLS::Relic::BlsSigshareParser>;
+template class ThresholdAccumulatorBase<BLS::Relic::BlsPublicKey, BLS::Relic::G1T, BLS::Relic::BlsSigshareParser>;
