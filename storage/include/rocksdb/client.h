@@ -29,12 +29,11 @@ namespace rocksdb {
 
 class Client;
 
-class ClientIterator
-    : public concord::storage::IDBClient::IDBClientIterator {
+class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
   friend class Client;
 
  public:
-  ClientIterator(const Client *_parentClient);
+  ClientIterator(const Client* _parentClient);
   ~ClientIterator() { delete m_iter; }
 
   // Inherited via IDBClientIterator
@@ -49,38 +48,39 @@ class ClientIterator
  private:
   concordlogger::Logger logger;
 
-  ::rocksdb::Iterator *m_iter;
+  ::rocksdb::Iterator* m_iter;
 
   // Reference to the RocksDBClient
-  const Client *m_parentClient;
+  const Client* m_parentClient;
 
   concordUtils::Status m_status;
 };
 
 class Client : public concord::storage::IDBClient {
  public:
-  Client(std::string _dbPath, const ::rocksdb::Comparator* comparator):
-      m_dbPath(_dbPath),
-      comparator_(comparator){}
+  Client(std::string _dbPath, const ::rocksdb::Comparator* comparator) : m_dbPath(_dbPath), comparator_(comparator) {}
 
   void init(bool readOnly = false) override;
-  concordUtils::Status get(const concordUtils::Sliver& _key, concordUtils::Sliver &_outValue) const override;
-  concordUtils::Status get(const concordUtils::Sliver& _key, char *&buf, uint32_t bufSize, uint32_t &_realSize) const override;
-  IDBClientIterator*   getIterator() const override;
-  concordUtils::Status freeIterator(IDBClientIterator *_iter) const override;
+  concordUtils::Status get(const concordUtils::Sliver& _key, concordUtils::Sliver& _outValue) const override;
+  concordUtils::Status get(const concordUtils::Sliver& _key,
+                           char*& buf,
+                           uint32_t bufSize,
+                           uint32_t& _realSize) const override;
+  IDBClientIterator* getIterator() const override;
+  concordUtils::Status freeIterator(IDBClientIterator* _iter) const override;
   concordUtils::Status put(const concordUtils::Sliver& _key, const concordUtils::Sliver& _value) override;
   concordUtils::Status del(const concordUtils::Sliver& _key) override;
-  concordUtils::Status multiGet(const KeysVector &_keysVec, ValuesVector &_valuesVec) override;
-  concordUtils::Status multiPut(const SetOfKeyValuePairs &_keyValueMap) override;
-  concordUtils::Status multiDel(const KeysVector &_keysVec) override;
+  concordUtils::Status multiGet(const KeysVector& _keysVec, ValuesVector& _valuesVec) override;
+  concordUtils::Status multiPut(const SetOfKeyValuePairs& _keyValueMap) override;
+  concordUtils::Status multiDel(const KeysVector& _keysVec) override;
   ::rocksdb::Iterator* getNewRocksDbIterator() const;
   void monitor() const override;
   bool isNew() override;
   ITransaction* beginTransaction() override;
 
  private:
-  concordUtils::Status launchBatchJob(::rocksdb::WriteBatch &_batchJob);
-  concordUtils::Status get(const concordUtils::Sliver& _key, std::string &_value) const;
+  concordUtils::Status launchBatchJob(::rocksdb::WriteBatch& _batchJob);
+  concordUtils::Status get(const concordUtils::Sliver& _key, std::string& _value) const;
 
  private:
   static concordlogger::Logger& logger() {
@@ -91,15 +91,15 @@ class Client : public concord::storage::IDBClient {
   std::string m_dbPath;
   // Database object (created on connection).
   std::unique_ptr<::rocksdb::DB> dbInstance_;
-  ::rocksdb::TransactionDB*      txn_db_     = nullptr;
-  const ::rocksdb::Comparator*   comparator_ = nullptr; //TODO unique?
+  ::rocksdb::TransactionDB* txn_db_ = nullptr;
+  const ::rocksdb::Comparator* comparator_ = nullptr;  // TODO unique?
 };
 
-::rocksdb::Slice     toRocksdbSlice  (const concordUtils::Sliver& _s);
+::rocksdb::Slice toRocksdbSlice(const concordUtils::Sliver& _s);
 concordUtils::Sliver fromRocksdbSlice(::rocksdb::Slice _s);
 concordUtils::Sliver copyRocksdbSlice(::rocksdb::Slice _s);
 
-}
-}
-}
+}  // namespace rocksdb
+}  // namespace storage
+}  // namespace concord
 #endif  // USE_ROCKSDB

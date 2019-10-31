@@ -31,20 +31,16 @@ void DescriptorOfLastExitFromView::clean() {
 }
 
 bool DescriptorOfLastExitFromView::equals(const DescriptorOfLastExitFromView &other) const {
-  if (other.elements.size() != elements.size())
-    return false;
+  if (other.elements.size() != elements.size()) return false;
 
-  if ((other.myViewChangeMsg && !myViewChangeMsg) || (!other.myViewChangeMsg && myViewChangeMsg))
-    return false;
+  if ((other.myViewChangeMsg && !myViewChangeMsg) || (!other.myViewChangeMsg && myViewChangeMsg)) return false;
   bool res = myViewChangeMsg ? (other.myViewChangeMsg->equals(*myViewChangeMsg)) : true;
-  if (!res)
-    return false;
+  if (!res) return false;
 
   for (uint32_t i = 0; i < elements.size(); ++i)
-    if (!elements[i].equals(other.elements[i]))
-      return false;
+    if (!elements[i].equals(other.elements[i])) return false;
   return (other.view == view && other.lastStable == lastStable && other.lastExecuted == lastExecuted &&
-      other.stableLowerBoundWhenEnteredToView == stableLowerBoundWhenEnteredToView);
+          other.stableLowerBoundWhenEnteredToView == stableLowerBoundWhenEnteredToView);
 }
 
 void DescriptorOfLastExitFromView::serializeSimpleParams(char *buf, size_t bufLen, size_t &actualSize) const {
@@ -73,7 +69,7 @@ void DescriptorOfLastExitFromView::serializeSimpleParams(char *buf, size_t bufLe
   memcpy(buf, &elementsNum, elementsNumSize);
 
   actualSize = viewSize + lastStableSize + lastExecutedSize + stableLowerBoundWhenEnteredToViewSize +
-      myViewChangeMsgSize + elementsNumSize;
+               myViewChangeMsgSize + elementsNumSize;
 }
 
 void DescriptorOfLastExitFromView::serializeElement(uint32_t id, char *buf, size_t bufLen, size_t &actualSize) const {
@@ -113,17 +109,16 @@ void DescriptorOfLastExitFromView::deserializeSimpleParams(char *buf, size_t buf
   buf += stableLowerBoundWhenEnteredToViewSize;
 
   size_t actualMsgSize = 0;
-  myViewChangeMsg = (ViewChangeMsg *) MessageBase::deserializeMsg(buf, bufLen, actualMsgSize);
+  myViewChangeMsg = (ViewChangeMsg *)MessageBase::deserializeMsg(buf, bufLen, actualMsgSize);
 
   uint32_t elementsNum;
   size_t elementsNumSize = sizeof(elementsNum);
   memcpy(&elementsNum, buf, elementsNumSize);
 
-  if (elementsNum)
-    elements.resize(elementsNum);
+  if (elementsNum) elements.resize(elementsNum);
 
-  actualSize = viewSize + lastStableSize + lastExecutedSize + stableLowerBoundWhenEnteredToViewSize +
-      actualMsgSize + elementsNumSize;
+  actualSize = viewSize + lastStableSize + lastExecutedSize + stableLowerBoundWhenEnteredToViewSize + actualMsgSize +
+               elementsNumSize;
 }
 
 void DescriptorOfLastExitFromView::deserializeElement(uint32_t id, char *buf, size_t bufLen, uint32_t &actualSize) {
@@ -140,8 +135,8 @@ void DescriptorOfLastExitFromView::deserializeElement(uint32_t id, char *buf, si
   Assert(elements[id].prePrepare == nullptr);
   Assert(elements[id].prepareFull == nullptr);
 
-  elements[id] = ViewsManager::PrevViewInfo((PrePrepareMsg *) prePrepareMsgPtr,
-                                            (PrepareFullMsg *) prepareFullMsgPtr, hasAllRequests);
+  elements[id] = ViewsManager::PrevViewInfo(
+      (PrePrepareMsg *)prePrepareMsgPtr, (PrepareFullMsg *)prepareFullMsgPtr, hasAllRequests);
   actualSize = msgSize1 + msgSize2 + hasAllRequestsSize;
 }
 
@@ -151,8 +146,7 @@ void DescriptorOfLastExitFromView::deserializeElement(uint32_t id, char *buf, si
 uint32_t DescriptorOfLastNewView::viewChangeMsgsNum = 0;
 
 DescriptorOfLastNewView::DescriptorOfLastNewView() {
-  for (uint32_t i = 0; i < viewChangeMsgsNum; ++i)
-    viewChangeMsgs.push_back(nullptr);
+  for (uint32_t i = 0; i < viewChangeMsgsNum; ++i) viewChangeMsgs.push_back(nullptr);
 }
 
 void DescriptorOfLastNewView::clean() {
@@ -160,36 +154,29 @@ void DescriptorOfLastNewView::clean() {
   newViewMsg = nullptr;
   delete myViewChangeMsg;
   myViewChangeMsg = nullptr;
-  for (auto msg : viewChangeMsgs)
-    delete msg;
+  for (auto msg : viewChangeMsgs) delete msg;
   viewChangeMsgs.clear();
 }
 
 bool DescriptorOfLastNewView::equals(const DescriptorOfLastNewView &other) const {
-  if ((other.newViewMsg && !newViewMsg) || (!other.newViewMsg && newViewMsg))
-    return false;
+  if ((other.newViewMsg && !newViewMsg) || (!other.newViewMsg && newViewMsg)) return false;
   bool res = newViewMsg ? (other.newViewMsg->equals(*newViewMsg)) : true;
-  if (!res)
-    return false;
+  if (!res) return false;
 
-  if ((other.myViewChangeMsg && !myViewChangeMsg) || (!other.myViewChangeMsg && myViewChangeMsg))
-    return false;
+  if ((other.myViewChangeMsg && !myViewChangeMsg) || (!other.myViewChangeMsg && myViewChangeMsg)) return false;
   res = myViewChangeMsg ? (other.myViewChangeMsg->equals(*myViewChangeMsg)) : true;
-  if (!res)
-    return false;
+  if (!res) return false;
 
-  if (other.viewChangeMsgs.size() != viewChangeMsgs.size())
-    return false;
+  if (other.viewChangeMsgs.size() != viewChangeMsgs.size()) return false;
   for (uint32_t i = 0; i < viewChangeMsgs.size(); ++i) {
     if ((other.viewChangeMsgs[i] && !viewChangeMsgs[i]) || (!other.viewChangeMsgs[i] && viewChangeMsgs[i]))
       return false;
     res = viewChangeMsgs[i] ? (other.viewChangeMsgs[i]->equals(*viewChangeMsgs[i])) : true;
-    if (!res)
-      return false;
+    if (!res) return false;
   }
 
   return (other.view == view && other.maxSeqNumTransferredFromPrevViews == maxSeqNumTransferredFromPrevViews &&
-      other.stableLowerBoundWhenEnteredToView == stableLowerBoundWhenEnteredToView);
+          other.stableLowerBoundWhenEnteredToView == stableLowerBoundWhenEnteredToView);
 }
 
 void DescriptorOfLastNewView::serializeSimpleParams(char *buf, size_t bufLen, size_t &actualSize) const {
@@ -240,10 +227,10 @@ void DescriptorOfLastNewView::deserializeSimpleParams(char *buf, size_t bufLen, 
   buf += stableLowerBoundWhenEnteredToViewSize;
 
   size_t newViewMsgSize = 0;
-  newViewMsg = (NewViewMsg *) MessageBase::deserializeMsg(buf, bufLen, newViewMsgSize);
+  newViewMsg = (NewViewMsg *)MessageBase::deserializeMsg(buf, bufLen, newViewMsgSize);
 
   size_t myViewChangeMsgSize = 0;
-  myViewChangeMsg = (ViewChangeMsg *) MessageBase::deserializeMsg(buf, bufLen, myViewChangeMsgSize);
+  myViewChangeMsg = (ViewChangeMsg *)MessageBase::deserializeMsg(buf, bufLen, myViewChangeMsgSize);
   actualSize = viewSize + maxSeqNumSize + stableLowerBoundWhenEnteredToViewSize + newViewMsgSize + myViewChangeMsgSize;
 }
 
@@ -253,7 +240,7 @@ void DescriptorOfLastNewView::deserializeElement(uint32_t id, char *buf, size_t 
 
   auto *msg = MessageBase::deserializeMsg(buf, bufLen, actualSize);
   Assert(viewChangeMsgs[id] == nullptr);
-  viewChangeMsgs[id] = ((ViewChangeMsg *) msg);
+  viewChangeMsgs[id] = ((ViewChangeMsg *)msg);
 }
 
 /***** DescriptorOfLastExecution *****/
@@ -281,7 +268,7 @@ void DescriptorOfLastExecution::deserialize(char *buf, size_t bufLen, uint32_t &
 
   Assert(bufLen >= maxSize())
 
-  size_t seqNumSize = sizeof(executedSeqNum);
+      size_t seqNumSize = sizeof(executedSeqNum);
   memcpy(&executedSeqNum, buf, seqNumSize);
   buf += seqNumSize;
 
@@ -290,5 +277,5 @@ void DescriptorOfLastExecution::deserialize(char *buf, size_t bufLen, uint32_t &
   actualSize = seqNumSize + bitMapSize;
 }
 
-}
+}  // namespace impl
 }  // namespace bftEngine

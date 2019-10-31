@@ -16,10 +16,10 @@
 
 #include "threshsign/Configuration.h"
 
-class NotImplementedException: public std::exception {
-public:
-	NotImplementedException() {}
+class NotImplementedException : public std::exception {
+ public:
+  NotImplementedException() {}
 
-public:
-	virtual const char * what() const _NOEXCEPT { return "Not implemented exception!"; }
+ public:
+  virtual const char* what() const _NOEXCEPT { return "Not implemented exception!"; }
 };

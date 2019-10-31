@@ -32,8 +32,7 @@ uint8_t* new_test_memory(size_t length) {
   return buffer;
 }
 
-bool is_match(const uint8_t* expected, const size_t expected_length,
-              const Sliver& actual) {
+bool is_match(const uint8_t* expected, const size_t expected_length, const Sliver& actual) {
   if (expected_length != actual.length()) {
     return false;
   }
@@ -122,15 +121,12 @@ TEST(sliver_test, nested) {
   Sliver base(expected, test_size);
   const size_t offset_step = 3;
   const size_t length_step = 4;
-  for (size_t offset = offset_step,
-              length = test_size - (offset_step + length_step);
+  for (size_t offset = offset_step, length = test_size - (offset_step + length_step);
        length > (offset_step + length_step);
        offset += offset_step, length -= (length_step + offset_step)) {
-    Sliver subsliver(base, offset_step,
-                     base.length() - (offset_step + length_step));
-    ASSERT_TRUE(is_match(expected + offset, length, subsliver))
-        << " Expected length: " << length << std::endl
-        << "   Actual length: " << subsliver.length();
+    Sliver subsliver(base, offset_step, base.length() - (offset_step + length_step));
+    ASSERT_TRUE(is_match(expected + offset, length, subsliver)) << " Expected length: " << length << std::endl
+                                                                << "   Actual length: " << subsliver.length();
     base = subsliver;
   }
 }
@@ -139,8 +135,7 @@ TEST(sliver_test, nested) {
  * Create a base sliver, and then return a subsliver. Used to test that the
  * shared pointer is handled properly.
  */
-Sliver copied_subsliver(size_t base_size, size_t sub_offset,
-                        size_t sub_length) {
+Sliver copied_subsliver(size_t base_size, size_t sub_offset, size_t sub_length) {
   uint8_t* data = new_test_memory(base_size);
   Sliver base(data, base_size);
   Sliver sub(base, sub_offset, sub_length);

@@ -25,7 +25,7 @@ inline size_t simpleHash(const uint8_t *data, const size_t len) {
   return hash;
 }
 
-} // namespace concordUtils
+}  // namespace concordUtils
 
 namespace std {
 template <>
@@ -33,9 +33,7 @@ struct hash<concordUtils::Sliver> {
   typedef concordUtils::Sliver argument_type;
   typedef std::size_t result_type;
 
-  result_type operator()(const concordUtils::Sliver &t) const {
-    return concordUtils::simpleHash(t.data(), t.length());
-  }
+  result_type operator()(const concordUtils::Sliver &t) const { return concordUtils::simpleHash(t.data(), t.length()); }
 };
 
 template <>

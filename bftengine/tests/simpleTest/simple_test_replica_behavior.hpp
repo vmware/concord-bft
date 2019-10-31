@@ -34,22 +34,16 @@ class ISimpleTestReplicaBehavior {
     return dtn.count() * system_clock::period::num / system_clock::period::den;
   }
 
-  static void init_rand() {
-    srand(time(nullptr));
-  }
+  static void init_rand() { srand(time(nullptr)); }
 };
 
 class DefaultReplicaBehavior : public ISimpleTestReplicaBehavior {
  public:
-  bool to_be_restarted() override {
-    return false;
-  }
+  bool to_be_restarted() override { return false; }
 
-  uint32_t get_down_time_millis() override {
-    return 0;
-  }
+  uint32_t get_down_time_millis() override { return 0; }
 
-  void on_restarted() override {};
+  void on_restarted() override{};
 
   explicit DefaultReplicaBehavior(ReplicaParams &rp) : ISimpleTestReplicaBehavior{rp} {}
 
@@ -58,17 +52,11 @@ class DefaultReplicaBehavior : public ISimpleTestReplicaBehavior {
 
 class OneTimePrimaryDownVC : public ISimpleTestReplicaBehavior {
  public:
-  bool to_be_restarted() override {
-    return !restarted && replicaParams.replicaId == 0;
-  }
+  bool to_be_restarted() override { return !restarted && replicaParams.replicaId == 0; }
 
-  uint32_t get_down_time_millis() override {
-    return pti.downTimeMillis;
-  }
+  uint32_t get_down_time_millis() override { return pti.downTimeMillis; }
 
-  void on_restarted() override {
-    restarted = true;
-  }
+  void on_restarted() override { restarted = true; }
 
   explicit OneTimePrimaryDownVC(ReplicaParams &rp) : ISimpleTestReplicaBehavior{rp} {
     pti = PersistencyTestInfo();
@@ -85,17 +73,11 @@ class OneTimePrimaryDownVC : public ISimpleTestReplicaBehavior {
 
 class Replica2RestartNoVC : public ISimpleTestReplicaBehavior {
  public:
-  bool to_be_restarted() override {
-    return replicaParams.replicaId == 2 && get_epoch_seconds() >= nextDownTime;
-  }
+  bool to_be_restarted() override { return replicaParams.replicaId == 2 && get_epoch_seconds() >= nextDownTime; }
 
-  uint32_t get_down_time_millis() override {
-    return (rand() % 10) * 1000 + pti.downTimeMillis;
-  }
+  uint32_t get_down_time_millis() override { return (rand() % 10) * 1000 + pti.downTimeMillis; }
 
-  void on_restarted() override {
-    update_next_down_time();
-  }
+  void on_restarted() override { update_next_down_time(); }
 
   Replica2RestartNoVC(ReplicaParams &rp, PersistencyTestInfo &pti) : ISimpleTestReplicaBehavior{rp, pti} {
     init_rand();
@@ -119,16 +101,12 @@ class Replica2RestartNoVC : public ISimpleTestReplicaBehavior {
 
 class AllReplicasRestartNoVC : public ISimpleTestReplicaBehavior {
  public:
-  bool to_be_restarted() override {
-    return get_epoch_seconds() >= nextDownTime;
-  }
+  bool to_be_restarted() override { return get_epoch_seconds() >= nextDownTime; }
 
-  uint32_t get_down_time_millis() override {
-    return (rand() % 20 + 3) * 1000;
-  }
+  uint32_t get_down_time_millis() override { return (rand() % 20 + 3) * 1000; }
 
   void on_restarted() override {
-    pti.sleepBetweenRestartsMillis *= (uint32_t) pti.sleepBetweenRestartsMultiplier;
+    pti.sleepBetweenRestartsMillis *= (uint32_t)pti.sleepBetweenRestartsMultiplier;
     update_next_down_time();
   }
 
@@ -140,8 +118,7 @@ class AllReplicasRestartNoVC : public ISimpleTestReplicaBehavior {
   AllReplicasRestartNoVC(ReplicaParams &rp, PersistencyTestInfo &&pti) : AllReplicasRestartNoVC(rp, pti) {}
 
   explicit AllReplicasRestartNoVC(ReplicaParams &rp)
-      : AllReplicasRestartNoVC(rp, PersistencyTestInfo{9000, 5000, 1.4}) {
-  }
+      : AllReplicasRestartNoVC(rp, PersistencyTestInfo{9000, 5000, 1.4}) {}
 
   AllReplicasRestartNoVC() = delete;
 
@@ -149,24 +126,19 @@ class AllReplicasRestartNoVC : public ISimpleTestReplicaBehavior {
   double nextDownTime = 0;
 
   void update_next_down_time() {
-    nextDownTime = get_epoch_seconds() + (double) pti.sleepBetweenRestartsMillis / 1000 *
-        pti.sleepBetweenRestartsMultiplier + (replicaParams.replicaId * replicaParams.replicaId);
+    nextDownTime = get_epoch_seconds() +
+                   (double)pti.sleepBetweenRestartsMillis / 1000 * pti.sleepBetweenRestartsMultiplier +
+                   (replicaParams.replicaId * replicaParams.replicaId);
   }
 };
 
 class AllReplicasRestartVC : public AllReplicasRestartNoVC {
  public:
-  bool to_be_restarted() override {
-    return get_epoch_seconds() >= nextDownTime;
-  }
+  bool to_be_restarted() override { return get_epoch_seconds() >= nextDownTime; }
 
-  uint32_t get_down_time_millis() override {
-    return (rand() % 20 + 80) * 1000;
-  }
+  uint32_t get_down_time_millis() override { return (rand() % 20 + 80) * 1000; }
 
-  void on_restarted() override {
-    update_next_down_time();
-  }
+  void on_restarted() override { update_next_down_time(); }
 
   AllReplicasRestartVC(ReplicaParams &rp, PersistencyTestInfo &pti) : AllReplicasRestartNoVC(rp, pti) {
     init_rand();
@@ -184,24 +156,30 @@ class AllReplicasRestartVC : public AllReplicasRestartNoVC {
 
   void update_next_down_time() {
     if (nextDownTime == 0) {
-      nextDownTime = get_epoch_seconds() + (replicaParams.replicaId * replicaParams.viewChangeTimeout / 1000
-          + pti.sleepBetweenRestartsMillis / 1000 + replicaParams.replicaId);
+      nextDownTime = get_epoch_seconds() + (replicaParams.replicaId * replicaParams.viewChangeTimeout / 1000 +
+                                            pti.sleepBetweenRestartsMillis / 1000 + replicaParams.replicaId);
     } else {
-      nextDownTime = get_epoch_seconds() + 3 * (replicaParams.viewChangeTimeout / 1000
-          + pti.sleepBetweenRestartsMillis / 1000);
+      nextDownTime =
+          get_epoch_seconds() + 3 * (replicaParams.viewChangeTimeout / 1000 + pti.sleepBetweenRestartsMillis / 1000);
     }
   }
 };
 
 ISimpleTestReplicaBehavior *create_replica_behavior(ReplicaBehavior b, ReplicaParams rp) {
   switch (b) {
-    case ReplicaBehavior::Default: return new DefaultReplicaBehavior(rp);
-    case ReplicaBehavior::Replica0OneTimeRestartVC: return new OneTimePrimaryDownVC(rp);
-    case ReplicaBehavior::Replica2PeriodicRestartNoVC: return new Replica2RestartNoVC(rp);
-    case ReplicaBehavior::AllReplicasRandomRestartNoVC: return new AllReplicasRestartNoVC(rp);
-    case ReplicaBehavior::AllReplicasRandomRestartVC: return new AllReplicasRestartVC(rp);
-    default:throw std::logic_error("None supported behavior");
+    case ReplicaBehavior::Default:
+      return new DefaultReplicaBehavior(rp);
+    case ReplicaBehavior::Replica0OneTimeRestartVC:
+      return new OneTimePrimaryDownVC(rp);
+    case ReplicaBehavior::Replica2PeriodicRestartNoVC:
+      return new Replica2RestartNoVC(rp);
+    case ReplicaBehavior::AllReplicasRandomRestartNoVC:
+      return new AllReplicasRestartNoVC(rp);
+    case ReplicaBehavior::AllReplicasRandomRestartVC:
+      return new AllReplicasRestartVC(rp);
+    default:
+      throw std::logic_error("None supported behavior");
   }
 }
 
-#endif // CONCORD_BFT_SIMPLE_TEST_REPLICA_BEHAVIOR_HPP
+#endif  // CONCORD_BFT_SIMPLE_TEST_REPLICA_BEHAVIOR_HPP

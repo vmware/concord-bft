@@ -16,30 +16,22 @@
 #include <set>
 #include <algorithm>
 #include "Logger.hpp"
-namespace test
-{
-namespace serializable
-{
+namespace test {
+namespace serializable {
 
 using namespace concord::serialize;
 
-struct TestSerializable: public SerializableFactory<TestSerializable> {
+struct TestSerializable : public SerializableFactory<TestSerializable> {
   TestSerializable() = default;
-  TestSerializable(const std::string& s,
-                   std::uint8_t  ui8,
-                   std::uint16_t ui16,
-                   std::uint32_t ui32,
-                   std::uint64_t ui64):str(s), ui8_(ui8), ui16_(ui16), ui32_(ui32), ui64_(ui64){}
+  TestSerializable(const std::string& s, std::uint8_t ui8, std::uint16_t ui16, std::uint32_t ui32, std::uint64_t ui64)
+      : str(s), ui8_(ui8), ui16_(ui16), ui32_(ui32), ui64_(ui64) {}
   bool operator==(const TestSerializable& other) const {
-    return str   == other.str   &&
-           ui8_  == other.ui8_  &&
-           ui16_ == other.ui16_ &&
-           ui32_ == other.ui32_ &&
+    return str == other.str && ui8_ == other.ui8_ && ui16_ == other.ui16_ && ui32_ == other.ui32_ &&
            ui64_ == other.ui64_;
   }
-  bool operator < (const TestSerializable& other) const { return ui8_ < other.ui8_;}
-  virtual const std::string getVersion() const  { return "1"; };
-  virtual void serializeDataMembers  (std::ostream& os ) const {
+  bool operator<(const TestSerializable& other) const { return ui8_ < other.ui8_; }
+  virtual const std::string getVersion() const { return "1"; };
+  virtual void serializeDataMembers(std::ostream& os) const {
     serialize(os, str);
     serialize(os, ui8_);
     serialize(os, ui16_);
@@ -54,19 +46,16 @@ struct TestSerializable: public SerializableFactory<TestSerializable> {
     deserialize(is, ui64_);
   }
 
-  std::string   str;
-  std::uint8_t  ui8_  = 0;
+  std::string str;
+  std::uint8_t ui8_ = 0;
   std::uint16_t ui16_ = 0;
   std::uint32_t ui32_ = 0;
   std::uint64_t ui64_ = 0;
-
 };
 
-
-TEST(serializable, Serializable)
-{
-  TestSerializable t {"testSerializable",1,2,3,4};
-  TestSerializable *t1;
+TEST(serializable, Serializable) {
+  TestSerializable t{"testSerializable", 1, 2, 3, 4};
+  TestSerializable* t1;
   std::stringstream sstream;
   t.serialize(sstream);
   Serializable::deserialize(sstream, t1);
@@ -74,9 +63,8 @@ TEST(serializable, Serializable)
   ASSERT_TRUE(t == *t1);
 }
 
-TEST(serializable, SetInt)
-{
-  std::set<int> s_out, s {0,1,2,3,4,5,6,7,8,9};
+TEST(serializable, SetInt) {
+  std::set<int> s_out, s{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
   std::stringstream sstream;
   Serializable::serialize(sstream, s);
@@ -85,16 +73,14 @@ TEST(serializable, SetInt)
   ASSERT_TRUE(s == s_out);
 }
 
-TEST(serializable, SetSerializable)
-{
+TEST(serializable, SetSerializable) {
   std::set<TestSerializable> s, s_out;
-  for (int i = 0; i < 10; ++i)
-  {
-    s.insert(TestSerializable {"testSerializable" + std::to_string(i),
-                               (std::uint8_t )(i+1),
-                               (std::uint16_t)(i+2),
-                               (std::uint32_t)(i+3),
-                               (std::uint64_t)(i+4)});
+  for (int i = 0; i < 10; ++i) {
+    s.insert(TestSerializable{"testSerializable" + std::to_string(i),
+                              (std::uint8_t)(i + 1),
+                              (std::uint16_t)(i + 2),
+                              (std::uint32_t)(i + 3),
+                              (std::uint64_t)(i + 4)});
   }
   std::stringstream sstream;
   Serializable::serialize(sstream, s);
@@ -102,9 +88,8 @@ TEST(serializable, SetSerializable)
   ASSERT_TRUE(s == s_out);
 }
 
-TEST(serializable, VectorInt)
-{
-  std::vector<int> s_out, s {0,1,2,3,4,5,6,7,8,9};
+TEST(serializable, VectorInt) {
+  std::vector<int> s_out, s{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
   std::stringstream sstream;
   Serializable::serialize(sstream, s);
@@ -113,16 +98,14 @@ TEST(serializable, VectorInt)
   ASSERT_TRUE(s == s_out);
 }
 
-TEST(serializable, VectorSerializable)
-{
+TEST(serializable, VectorSerializable) {
   std::vector<TestSerializable> s, s_out;
-  for (int i = 0; i < 10; ++i)
-  {
-    s.push_back(TestSerializable {"testSerializable" + std::to_string(i),
-                                 (std::uint8_t )(i+1),
-                                 (std::uint16_t)(i+2),
-                                 (std::uint32_t)(i+3),
-                                 (std::uint64_t)(i+4)});
+  for (int i = 0; i < 10; ++i) {
+    s.push_back(TestSerializable{"testSerializable" + std::to_string(i),
+                                 (std::uint8_t)(i + 1),
+                                 (std::uint16_t)(i + 2),
+                                 (std::uint32_t)(i + 3),
+                                 (std::uint64_t)(i + 4)});
   }
   std::stringstream sstream;
   Serializable::serialize(sstream, s);
@@ -130,36 +113,34 @@ TEST(serializable, VectorSerializable)
   ASSERT_TRUE(s == s_out);
 }
 
-TEST(serializable, VectorSerializablePtr)
-{
+TEST(serializable, VectorSerializablePtr) {
   std::vector<TestSerializable*> s, s_out;
-  for (int i = 0; i < 2; ++i)
-  {
-    s.push_back(new TestSerializable {"testSerializable" + std::to_string(i),
-                                     (std::uint8_t )(i+1),
-                                     (std::uint16_t)(i+2),
-                                     (std::uint32_t)(i+3),
-                                     (std::uint64_t)(i+4)});
+  for (int i = 0; i < 2; ++i) {
+    s.push_back(new TestSerializable{"testSerializable" + std::to_string(i),
+                                     (std::uint8_t)(i + 1),
+                                     (std::uint16_t)(i + 2),
+                                     (std::uint32_t)(i + 3),
+                                     (std::uint64_t)(i + 4)});
   }
   std::stringstream sstream;
   Serializable::serialize(sstream, s);
   Serializable::deserialize(sstream, s_out);
-  ASSERT_TRUE(std::equal(s.begin(), s.end(), s_out.begin(),
-                         [](const TestSerializable* lhs, const TestSerializable* rhs){ return *lhs == *rhs; }));
+  ASSERT_TRUE(
+      std::equal(s.begin(), s.end(), s_out.begin(), [](const TestSerializable* lhs, const TestSerializable* rhs) {
+        return *lhs == *rhs;
+      }));
 }
 
-TEST(serializable, VectorSerializableVectors)
-{
+TEST(serializable, VectorSerializableVectors) {
   std::vector<std::vector<TestSerializable>> vec_of_vecs, vec_of_vecs_out;
-  for (int j = 0; j < 10; ++j)
-  {
+  for (int j = 0; j < 10; ++j) {
     std::vector<TestSerializable> v;
     for (int i = 0; i < 10; ++i)
-       v.push_back(TestSerializable {"testSerializable" + std::to_string(i),
-                                   (std::uint8_t )(i+1),
-                                   (std::uint16_t)(i+2),
-                                   (std::uint32_t)(i+3),
-                                   (std::uint64_t)(i+4)});
+      v.push_back(TestSerializable{"testSerializable" + std::to_string(i),
+                                   (std::uint8_t)(i + 1),
+                                   (std::uint16_t)(i + 2),
+                                   (std::uint32_t)(i + 3),
+                                   (std::uint64_t)(i + 4)});
     vec_of_vecs.push_back(v);
   }
   std::stringstream sstream;
@@ -168,37 +149,35 @@ TEST(serializable, VectorSerializableVectors)
   ASSERT_TRUE(vec_of_vecs == vec_of_vecs_out);
 }
 
-TEST(serializable, VectorSerializablePtrVectors)
-{
+TEST(serializable, VectorSerializablePtrVectors) {
   std::vector<std::vector<TestSerializable*>> vec_of_vecs, vec_of_vecs_out;
-  for (int j = 0; j < 10; ++j)
-  {
+  for (int j = 0; j < 10; ++j) {
     std::vector<TestSerializable*> v;
     for (int i = 0; i < 10; ++i)
-       v.push_back(new TestSerializable {"testSerializable" + std::to_string(i),
-                                     (std::uint8_t )(i+1),
-                                     (std::uint16_t)(i+2),
-                                     (std::uint32_t)(i+3),
-                                     (std::uint64_t)(i+4)});
+      v.push_back(new TestSerializable{"testSerializable" + std::to_string(i),
+                                       (std::uint8_t)(i + 1),
+                                       (std::uint16_t)(i + 2),
+                                       (std::uint32_t)(i + 3),
+                                       (std::uint64_t)(i + 4)});
     vec_of_vecs.push_back(v);
   }
   std::stringstream sstream;
   Serializable::serialize(sstream, vec_of_vecs);
   Serializable::deserialize(sstream, vec_of_vecs_out);
-  for (std::vector<int>::size_type i = 0; i < vec_of_vecs.size(); ++i)
-  {
-    ASSERT_TRUE(std::equal(vec_of_vecs[i].begin(), vec_of_vecs[i].end(), vec_of_vecs_out[i].begin(),
-                           [](const TestSerializable* lhs, const TestSerializable* rhs){ return *lhs == *rhs; }));
+  for (std::vector<int>::size_type i = 0; i < vec_of_vecs.size(); ++i) {
+    ASSERT_TRUE(std::equal(vec_of_vecs[i].begin(),
+                           vec_of_vecs[i].end(),
+                           vec_of_vecs_out[i].begin(),
+                           [](const TestSerializable* lhs, const TestSerializable* rhs) { return *lhs == *rhs; }));
   }
 }
-}
-}
+}  // namespace serializable
+}  // namespace test
 
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv) {
 #ifdef USE_LOG4CPP
-  //uncomment if needed
-  //log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("serializable")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
+  // uncomment if needed
+  // log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("serializable")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
 #endif
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

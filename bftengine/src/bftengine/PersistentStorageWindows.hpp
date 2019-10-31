@@ -37,11 +37,18 @@ enum SeqNumDataParameters {
 
 class SeqNumData {
  public:
-  SeqNumData(PrePrepareMsg *prePrepare, FullCommitProofMsg *fullCommitProof,
-             PrepareFullMsg *prepareFull, CommitFullMsg *commitFull, bool forceComplete, bool slowStart) :
-      prePrepareMsg_(prePrepare), fullCommitProofMsg_(fullCommitProof),
-      prepareFullMsg_(prepareFull), commitFullMsg_(commitFull),
-      forceCompleted_(forceComplete), slowStarted_(slowStart) {}
+  SeqNumData(PrePrepareMsg *prePrepare,
+             FullCommitProofMsg *fullCommitProof,
+             PrepareFullMsg *prepareFull,
+             CommitFullMsg *commitFull,
+             bool forceComplete,
+             bool slowStart)
+      : prePrepareMsg_(prePrepare),
+        fullCommitProofMsg_(fullCommitProof),
+        prepareFullMsg_(prepareFull),
+        commitFullMsg_(commitFull),
+        forceCompleted_(forceComplete),
+        slowStarted_(slowStart) {}
 
   SeqNumData() = default;
 
@@ -68,10 +75,10 @@ class SeqNumData {
   bool getSlowStarted() const { return slowStarted_; }
   bool getForceCompleted() const { return forceCompleted_; }
 
-  void setPrePrepareMsg(MessageBase *msg) { prePrepareMsg_ = (PrePrepareMsg *) msg; }
-  void setFullCommitProofMsg(MessageBase *msg) { fullCommitProofMsg_ = (FullCommitProofMsg *) msg; }
-  void setPrepareFullMsg(MessageBase *msg) { prepareFullMsg_ = (PrepareFullMsg *) msg; }
-  void setCommitFullMsg(MessageBase *msg) { commitFullMsg_ = (CommitFullMsg *) msg; }
+  void setPrePrepareMsg(MessageBase *msg) { prePrepareMsg_ = (PrePrepareMsg *)msg; }
+  void setFullCommitProofMsg(MessageBase *msg) { fullCommitProofMsg_ = (FullCommitProofMsg *)msg; }
+  void setPrepareFullMsg(MessageBase *msg) { prepareFullMsg_ = (PrepareFullMsg *)msg; }
+  void setCommitFullMsg(MessageBase *msg) { commitFullMsg_ = (CommitFullMsg *)msg; }
   void setSlowStarted(const bool &slowStarted) { slowStarted_ = slowStarted; }
   void setForceCompleted(const bool &forceCompleted) { forceCompleted_ = forceCompleted; }
 
@@ -125,7 +132,7 @@ class CheckData {
   bool getCompletedMark() const { return completedMark_; }
 
   void deleteCheckpointMsg() { delete checkpointMsg_; }
-  void setCheckpointMsg(MessageBase *msg) { checkpointMsg_ = (CheckpointMsg *) msg; }
+  void setCheckpointMsg(MessageBase *msg) { checkpointMsg_ = (CheckpointMsg *)msg; }
   void setCompletedMark(const bool &completedMark) { completedMark_ = completedMark; }
 
   static size_t serializeCheckpointMsg(char *&buf, CheckpointMsg *msg);
@@ -150,6 +157,6 @@ typedef SerializableActiveWindow<kWorkWindowSize + checkpointWindowSize, checkpo
 typedef std::shared_ptr<SeqNumWindow> SharedPtrSeqNumWindow;
 typedef std::shared_ptr<CheckWindow> SharedPtrCheckWindow;
 
-}
+}  // namespace impl
 
 }  // namespace bftEngine

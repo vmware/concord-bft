@@ -17,9 +17,8 @@
 using namespace std;
 using namespace concord::serialize;
 
-IPublicParameters::IPublicParameters(int securityLevel, string schemeName, string library) :
-    securityLevel_(securityLevel), schemeName_(move(schemeName)),
-    library_(move(library)) {}
+IPublicParameters::IPublicParameters(int securityLevel, string schemeName, string library)
+    : securityLevel_(securityLevel), schemeName_(move(schemeName)), library_(move(library)) {}
 
 /************** Serialization **************/
 
@@ -29,26 +28,22 @@ void IPublicParameters::serializeDataMembers(ostream &outStream) const {
   serialize(outStream, schemeName_);
   LOG_TRACE(logger(), "<<< schemeName_: " << schemeName_);
   serialize(outStream, library_);
-  LOG_TRACE(logger(), "<<< library_: " <<library_);
+  LOG_TRACE(logger(), "<<< library_: " << library_);
 }
 
 bool IPublicParameters::operator==(const IPublicParameters &other) const {
-  bool result = ((other.securityLevel_ == securityLevel_) &&
-                 (other.library_ == library_) &&
-                 (other.schemeName_ == schemeName_));
+  bool result =
+      ((other.securityLevel_ == securityLevel_) && (other.library_ == library_) && (other.schemeName_ == schemeName_));
 
-  if (other.securityLevel_ != securityLevel_)
-    std::cout << "securityLevel_" << std::endl;
-  if (other.library_ != library_)
-    std::cout << "library_" << std::endl;
-  if (other.schemeName_ != schemeName_)
-    std::cout << "schemeName_" << std::endl;
+  if (other.securityLevel_ != securityLevel_) std::cout << "securityLevel_" << std::endl;
+  if (other.library_ != library_) std::cout << "library_" << std::endl;
+  if (other.schemeName_ != schemeName_) std::cout << "schemeName_" << std::endl;
   return result;
 }
 
 /************** Deserialization **************/
 
-void IPublicParameters::deserializeDataMembers(std::istream& inStream){
+void IPublicParameters::deserializeDataMembers(std::istream &inStream) {
   deserialize(inStream, securityLevel_);
   LOG_TRACE(logger(), ">>> securityLevel_: " << securityLevel_);
   deserialize(inStream, schemeName_);
@@ -56,4 +51,3 @@ void IPublicParameters::deserializeDataMembers(std::istream& inStream){
   deserialize(inStream, library_);
   LOG_TRACE(logger(), "<<< library_: " << library_);
 }
-

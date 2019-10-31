@@ -20,16 +20,16 @@ namespace Relic {
 
 class BlsPublicParameters : public IPublicParameters,
                             public concord::serialize::SerializableFactory<BlsPublicParameters> {
-protected:
+ protected:
   G1T generator1_;
   G2T generator2_;
   int curveType_ = 0;
 
-public:
+ public:
   BlsPublicParameters(int securityLevel, int curveType);
   BlsPublicParameters(const BlsPublicParameters &params);
   ~BlsPublicParameters() override;
-  BlsPublicParameters& operator=(const BlsPublicParameters& other);
+  BlsPublicParameters &operator=(const BlsPublicParameters &other);
   bool operator==(const BlsPublicParameters &other) const;
 
   /**
@@ -41,18 +41,17 @@ public:
   const BNT &getGroupOrder() const;
 
   // Serialization/deserialization
-  const std::string getVersion() const override { return "1" + IPublicParameters::getVersion();}
+  const std::string getVersion() const override { return "1" + IPublicParameters::getVersion(); }
 
   // To be used ONLY during deserialization. Could not become private/protected,
   // as there is a composition relationship between IPublicParameters and
   // signer/verifier classes.
-  BlsPublicParameters() = default; // To be used during deserialization.
+  BlsPublicParameters() = default;  // To be used during deserialization.
 
-protected:
+ protected:
   virtual void serializeDataMembers(std::ostream &outStream) const override;
-  virtual void deserializeDataMembers(std::istream& inStream) override;
-
+  virtual void deserializeDataMembers(std::istream &inStream) override;
 };
 
-} // end of BLS namespace
-} // end of RELIC namespace
+}  // namespace Relic
+}  // namespace BLS

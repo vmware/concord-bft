@@ -31,18 +31,13 @@ Sliver::Sliver() : m_data(nullptr), m_offset(0), m_length(0) {}
  * `malloc`, because the shared pointer will use `delete` and not `free`.
  */
 Sliver::Sliver(uint8_t* data, const size_t length)
-    : m_data(data, std::default_delete<uint8_t[]>()),
-      m_offset(0),
-      m_length(length) {
+    : m_data(data, std::default_delete<uint8_t[]>()), m_offset(0), m_length(length) {
   // Data must be non-null.
   assert(data);
 }
 
 Sliver::Sliver(char* data, const size_t length)
-    : m_data(reinterpret_cast<uint8_t*>(data),
-             std::default_delete<uint8_t[]>()),
-      m_offset(0),
-      m_length(length) {
+    : m_data(reinterpret_cast<uint8_t*>(data), std::default_delete<uint8_t[]>()), m_offset(0), m_length(length) {
   // Data must be non-null.
   assert(data);
 }
@@ -50,9 +45,7 @@ Sliver::Sliver(char* data, const size_t length)
  * not owning semantics - empty deleter
  */
 Sliver::Sliver(const uint8_t* data, const size_t length)
-    : m_data(const_cast<uint8_t*>(data), [](uint8_t[]){}),
-      m_offset(0),
-      m_length(length) {
+    : m_data(const_cast<uint8_t*>(data), [](uint8_t[]) {}), m_offset(0), m_length(length) {
   // Data must be non-null.
   assert(data);
 }
@@ -60,9 +53,7 @@ Sliver::Sliver(const uint8_t* data, const size_t length)
  * not owning semantics - empty deleter
  */
 Sliver::Sliver(const char* data, const size_t length)
-    : m_data(reinterpret_cast<uint8_t*>(const_cast<char*>(data)),[](uint8_t []){}),
-      m_offset(0),
-      m_length(length) {
+    : m_data(reinterpret_cast<uint8_t*>(const_cast<char*>(data)), [](uint8_t[]) {}), m_offset(0), m_length(length) {
   // Data must be non-null.
   assert(data);
 }
@@ -86,14 +77,12 @@ Sliver::Sliver(const Sliver& base, const size_t offset, const size_t length)
  * `length` bytes in size.
  */
 Sliver Sliver::copy(uint8_t* data, const size_t length) {
-   auto* copy = new uint8_t[length];
-   memcpy(copy, data, length);
-   return Sliver(copy, length);
+  auto* copy = new uint8_t[length];
+  memcpy(copy, data, length);
+  return Sliver(copy, length);
 }
 
-Sliver Sliver::copy(char* data, const size_t length) {
-  return Sliver::copy(reinterpret_cast<uint8_t*>(data), length);
-}
+Sliver Sliver::copy(char* data, const size_t length) { return Sliver::copy(reinterpret_cast<uint8_t*>(data), length); }
 
 /**
  * Get the byte at `offset` in this sliver.
@@ -118,19 +107,13 @@ uint8_t* Sliver::data() const { return m_data.get() + m_offset; }
  * Create a subsliver. Syntactic sugar for cases where a function call is more
  * natural than using the sub-sliver constructor directly.
  */
-Sliver Sliver::subsliver(const size_t offset, const size_t length) const {
-  return Sliver(*this, offset, length);
-}
+Sliver Sliver::subsliver(const size_t offset, const size_t length) const { return Sliver(*this, offset, length); }
 
 size_t Sliver::length() const { return m_length; }
 
-std::ostream& Sliver::operator<<(std::ostream& s) const {
-  return hexPrint(s, data(), length());
-}
+std::ostream& Sliver::operator<<(std::ostream& s) const { return hexPrint(s, data(), length()); }
 
-std::ostream& operator<<(std::ostream& s, const Sliver& sliver) {
-  return sliver.operator<<(s);
-}
+std::ostream& operator<<(std::ostream& s, const Sliver& sliver) { return sliver.operator<<(s); }
 
 /**
  * Slivers are == if their lengths are the same, and each byte of their data is
@@ -139,13 +122,10 @@ std::ostream& operator<<(std::ostream& s, const Sliver& sliver) {
 bool Sliver::operator==(const Sliver& other) const {
   // This could be just "compare(other) == 0", but the short-circuit of checking
   // lengths first can save us many cycles in some cases.
-  return length() == other.length() &&
-         memcmp(data(), other.data(), length()) == 0;
+  return length() == other.length() && memcmp(data(), other.data(), length()) == 0;
 }
 
-bool Sliver::operator!=(const Sliver& other) const {
-  return !(*this == other);
-}
+bool Sliver::operator!=(const Sliver& other) const { return !(*this == other); }
 
 /**
  * a.compare(b) is:
@@ -165,4 +145,4 @@ int Sliver::compare(const Sliver& other) const {
   return comp;
 }
 
-}  // namespace concordUtils 
+}  // namespace concordUtils

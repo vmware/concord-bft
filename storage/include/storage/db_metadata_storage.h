@@ -31,13 +31,13 @@ class DBMetadataStorage : public bftEngine::MetadataStorage {
  public:
   explicit DBMetadataStorage(IDBClient *dbClient, std::function<concordUtils::Sliver(uint32_t)> genMetadataKey)
       : logger_(concordlogger::Log::getLogger("com.concord.vmware.metadatastorage")),
-        dbClient_(dbClient), genMetadataKey_(std::move(genMetadataKey)) {
+        dbClient_(dbClient),
+        genMetadataKey_(std::move(genMetadataKey)) {
     objectIdToSizeMap_[objectsNumParameterId_] = sizeof(objectsNum_);
   }
 
   bool initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint32_t metadataObjectsArrayLength) override;
-  void read(uint32_t objectId, uint32_t bufferSize, char *outBufferForObject,
-            uint32_t &outActualObjectSize) override;
+  void read(uint32_t objectId, uint32_t bufferSize, char *outBufferForObject, uint32_t &outActualObjectSize) override;
   void atomicWrite(uint32_t objectId, char *data, uint32_t dataLength) override;
   void beginAtomicWriteOnlyBatch() override;
   void writeInBatch(uint32_t objectId, char *data, uint32_t dataLength) override;
@@ -65,5 +65,5 @@ class DBMetadataStorage : public bftEngine::MetadataStorage {
   std::function<Sliver(uint32_t)> genMetadataKey_;
 };
 
-}
-}
+}  // namespace storage
+}  // namespace concord

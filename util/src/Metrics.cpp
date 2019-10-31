@@ -24,10 +24,7 @@ const char* const kStatusName = "status";
 const char* const kCounterName = "counter";
 
 template <typename T>
-T FindValue(const char* const val_type,
-            const string& val_name,
-            const vector<string>& names,
-            const vector<T>& values) {
+T FindValue(const char* const val_type, const string& val_name, const vector<string>& names, const vector<T>& values) {
   for (size_t i = 0; i < names.size(); i++) {
     if (names[i] == val_name) {
       return values[i];
@@ -38,27 +35,22 @@ T FindValue(const char* const val_type,
   throw invalid_argument(oss.str());
 }
 
-Component::Handle<Gauge> Component::RegisterGauge(const string& name,
-                                                  const uint64_t val) {
+Component::Handle<Gauge> Component::RegisterGauge(const string& name, const uint64_t val) {
   names_.gauge_names_.emplace_back(name);
   values_.gauges_.emplace_back(Gauge(val));
   return Component::Handle<Gauge>(values_.gauges_, values_.gauges_.size() - 1);
 }
 
-Component::Handle<Status> Component::RegisterStatus(const string& name,
-                                                    const string& val) {
+Component::Handle<Status> Component::RegisterStatus(const string& name, const string& val) {
   names_.status_names_.emplace_back(name);
   values_.statuses_.emplace_back(Status(val));
-  return Component::Handle<Status>(values_.statuses_,
-                                   values_.statuses_.size() - 1);
+  return Component::Handle<Status>(values_.statuses_, values_.statuses_.size() - 1);
 }
 
-Component::Handle<Counter> Component::RegisterCounter(const string& name,
-                                                      const uint64_t val) {
+Component::Handle<Counter> Component::RegisterCounter(const string& name, const uint64_t val) {
   names_.counter_names_.emplace_back(name);
   values_.counters_.emplace_back(Counter(val));
-  return Component::Handle<Counter>(values_.counters_,
-                                    values_.counters_.size() - 1);
+  return Component::Handle<Counter>(values_.counters_, values_.counters_.size() - 1);
 }
 
 void Aggregator::RegisterComponent(Component& component) {
@@ -74,34 +66,22 @@ void Aggregator::UpdateValues(const string& name, Values&& values) {
   components_.at(name).SetValues(std::move(values));
 }
 
-Gauge Aggregator::GetGauge(const string& component_name,
-                           const string& val_name) {
+Gauge Aggregator::GetGauge(const string& component_name, const string& val_name) {
   std::lock_guard<std::mutex> lock(lock_);
   auto& component = components_.at(component_name);
-  return FindValue(kGaugeName,
-                   val_name,
-                   component.names_.gauge_names_,
-                   component.values_.gauges_);
+  return FindValue(kGaugeName, val_name, component.names_.gauge_names_, component.values_.gauges_);
 }
 
-Status Aggregator::GetStatus(const string& component_name,
-                             const string& val_name) {
+Status Aggregator::GetStatus(const string& component_name, const string& val_name) {
   std::lock_guard<std::mutex> lock(lock_);
   auto& component = components_.at(component_name);
-  return FindValue(kStatusName,
-                   val_name,
-                   component.names_.status_names_,
-                   component.values_.statuses_);
+  return FindValue(kStatusName, val_name, component.names_.status_names_, component.values_.statuses_);
 }
 
-Counter Aggregator::GetCounter(const string& component_name,
-                               const string& val_name) {
+Counter Aggregator::GetCounter(const string& component_name, const string& val_name) {
   std::lock_guard<std::mutex> lock(lock_);
   auto& component = components_.at(component_name);
-  return FindValue(kCounterName,
-                   val_name,
-                   component.names_.counter_names_,
-                   component.values_.counters_);
+  return FindValue(kCounterName, val_name, component.names_.counter_names_, component.values_.counters_);
 }
 
 // Generate a JSON string of all aggregated components. To save space we don't
@@ -143,8 +123,7 @@ std::string Component::ToJson() {
     if (i != 0) {
       oss << ",";
     }
-    oss << "\"" << names_.gauge_names_[i] << "\":"
-      << values_.gauges_[i].Get() << "";
+    oss << "\"" << names_.gauge_names_[i] << "\":" << values_.gauges_[i].Get() << "";
   }
 
   // End gauges
@@ -158,7 +137,7 @@ std::string Component::ToJson() {
       oss << ",";
     }
     oss << "\"" << names_.status_names_[i] << "\":"
-      << "\"" << values_.statuses_[i].Get() << "\"";
+        << "\"" << values_.statuses_[i].Get() << "\"";
   }
 
   // End status
@@ -171,8 +150,7 @@ std::string Component::ToJson() {
     if (i != 0) {
       oss << ",";
     }
-    oss << "\"" << names_.counter_names_[i] << "\":"
-      << values_.counters_[i].Get() << "";
+    oss << "\"" << names_.counter_names_[i] << "\":" << values_.counters_[i].Get() << "";
   }
 
   // End counters

@@ -17,15 +17,12 @@
 #include <chrono>
 
 uint64_t get_monotonic_time() {
-  std::chrono::steady_clock::time_point curTimePoint =
-      std::chrono::steady_clock::now();
+  std::chrono::steady_clock::time_point curTimePoint = std::chrono::steady_clock::now();
 
   auto timeSinceEpoch = curTimePoint.time_since_epoch();
-  uint64_t micro =
-      std::chrono::duration_cast<std::chrono::microseconds>(
-          timeSinceEpoch).count();
+  uint64_t micro = std::chrono::duration_cast<std::chrono::microseconds>(timeSinceEpoch).count();
 
   return micro;
 }
 
-#endif //CONCORD_BFT_MISC_HPP
+#endif  // CONCORD_BFT_MISC_HPP

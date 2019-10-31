@@ -20,20 +20,23 @@ namespace concord {
  *  type traits
  *  may be extended with other container types to meet future needs
  */
-template<typename T> struct is_set                    : std::false_type {};
-template<typename T> struct is_set<std::set<T>>       : std::true_type  {};
-template<typename T> struct is_vector                 : std::false_type {};
-template<typename T> struct is_vector<std::vector<T>> : std::true_type  {};
+template <typename T>
+struct is_set : std::false_type {};
+template <typename T>
+struct is_set<std::set<T>> : std::true_type {};
+template <typename T>
+struct is_vector : std::false_type {};
+template <typename T>
+struct is_vector<std::vector<T>> : std::true_type {};
 template <class T, T v>
 struct std_container {
-  static constexpr const T  value = v;
-  constexpr T operator ()() const noexcept {return value;}
+  static constexpr const T value = v;
+  constexpr T operator()() const noexcept { return value; }
 };
-template< class T >
-struct is_std_container: std_container<bool, is_set<T>::value ||
-                                             is_vector<T>::value> {};
+template <class T>
+struct is_std_container : std_container<bool, is_set<T>::value || is_vector<T>::value> {};
 
 template <class T, T v>
-constexpr const T std_container<T,v>::value;
+constexpr const T std_container<T, v>::value;
 
-}
+}  // namespace concord

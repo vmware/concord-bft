@@ -34,7 +34,6 @@ using std::vector;
 
 class ViewsManager {
  public:
-
   struct PrevViewInfo {
     PrePrepareMsg *prePrepare = nullptr;
     PrepareFullMsg *prepareFull = nullptr;
@@ -42,8 +41,8 @@ class ViewsManager {
 
     PrevViewInfo() = default;
 
-    PrevViewInfo(PrePrepareMsg *prePrep, PrepareFullMsg *prepFull, bool allRequests) :
-        prePrepare(prePrep), prepareFull(prepFull), hasAllRequests(allRequests) {}
+    PrevViewInfo(PrePrepareMsg *prePrep, PrepareFullMsg *prepFull, bool allRequests)
+        : prePrepare(prePrep), prepareFull(prepFull), hasAllRequests(allRequests) {}
 
     bool equals(const PrevViewInfo &other) const;
 
@@ -51,22 +50,20 @@ class ViewsManager {
   };
 
   ViewsManager(const ReplicasInfo *const r,
-               IThresholdVerifier *const preparedCertificateVerifier); // TODO(GG): move to protected
+               IThresholdVerifier *const preparedCertificateVerifier);  // TODO(GG): move to protected
   ~ViewsManager();
 
-  static ViewsManager *createOutsideView(
-      const ReplicasInfo *const r,
-      IThresholdVerifier *const preparedCertificateVerifier,
-      ViewNum lastActiveView,
-      SeqNum lastStable,
-      SeqNum lastExecuted,
-      SeqNum stableLowerBound,
-      ViewChangeMsg *myLastViewChange,
-      std::vector<PrevViewInfo> &elementsOfPrevView);
+  static ViewsManager *createOutsideView(const ReplicasInfo *const r,
+                                         IThresholdVerifier *const preparedCertificateVerifier,
+                                         ViewNum lastActiveView,
+                                         SeqNum lastStable,
+                                         SeqNum lastExecuted,
+                                         SeqNum stableLowerBound,
+                                         ViewChangeMsg *myLastViewChange,
+                                         std::vector<PrevViewInfo> &elementsOfPrevView);
 
-  static ViewsManager *createInsideViewZero(
-      const ReplicasInfo *const r,
-      IThresholdVerifier *const preparedCertificateVerifier);
+  static ViewsManager *createInsideViewZero(const ReplicasInfo *const r,
+                                            IThresholdVerifier *const preparedCertificateVerifier);
 
   static ViewsManager *createInsideView(
       const ReplicasInfo *const r,
@@ -74,20 +71,16 @@ class ViewsManager {
       ViewNum view,
       SeqNum stableLowerBound,
       NewViewMsg *newViewMsg,
-      ViewChangeMsg *myLastViewChange,     // nullptr IFF the replica has a VC message in viewChangeMsgs
+      ViewChangeMsg *myLastViewChange,  // nullptr IFF the replica has a VC message in viewChangeMsgs
       std::vector<ViewChangeMsg *> viewChangeMsgs);
 
   ViewNum latestActiveView() const { return myLatestActiveView; }
-  bool viewIsActive(ViewNum v) const {
-    return (inView() && (myLatestActiveView == v));
-  }
+  bool viewIsActive(ViewNum v) const { return (inView() && (myLatestActiveView == v)); }
   bool viewIsPending(ViewNum v) const {
     return ((v == myLatestPendingView) && (v > myLatestActiveView));
     // TODO(GG): try to simply use the status
   }
-  bool waitingForMsgs() const {
-    return (stat == Stat::PENDING_WITH_RESTRICTIONS);
-  }
+  bool waitingForMsgs() const { return (stat == Stat::PENDING_WITH_RESTRICTIONS); }
 
   // should always return non-null (unless we are at the first view)
   ViewChangeMsg *getMyLatestViewChangeMsg() const;
@@ -95,8 +88,7 @@ class ViewsManager {
   bool add(NewViewMsg *m);
   bool add(ViewChangeMsg *m);
 
-  void computeCorrectRelevantViewNumbers(ViewNum *outMaxKnownCorrectView,
-                                         ViewNum *outMaxKnownAgreedView) const;
+  void computeCorrectRelevantViewNumbers(ViewNum *outMaxKnownCorrectView, ViewNum *outMaxKnownAgreedView) const;
 
   // should only be called when v >= myLatestPendingView
   bool hasNewViewMessage(ViewNum v);
@@ -113,10 +105,9 @@ class ViewsManager {
 
   SeqNum stableLowerBoundWhenEnteredToView() const;
 
-  ViewChangeMsg *exitFromCurrentView(
-      SeqNum currentLastStable,
-      SeqNum currentLastExecuted,
-      const std::vector<PrevViewInfo> &prevViewInfo);
+  ViewChangeMsg *exitFromCurrentView(SeqNum currentLastStable,
+                                     SeqNum currentLastExecuted,
+                                     const std::vector<PrevViewInfo> &prevViewInfo);
   // TODO(GG): prevViewInfo is defined and used in a confusing way (because it
   // contains both executed and non-executed items) - TODO: improve by using two
   // different arguments
@@ -134,11 +125,9 @@ class ViewsManager {
 
   PrePrepareMsg *getPrePrepare(SeqNum s);
 
-
   // TODO(GG): we should also handle large Requests
 
-  bool getNumbersOfMissingPP(SeqNum currentLastStable,
-                             std::vector<SeqNum> *outMissingPPNumbers);
+  bool getNumbersOfMissingPP(SeqNum currentLastStable, std::vector<SeqNum> *outMissingPPNumbers);
 
   bool hasViewChangeMessageForFutureView(uint16_t repId);
 
@@ -171,17 +160,11 @@ class ViewsManager {
   // Types
   ///////////////////////////////////////////////////////////////////////////
 
-  enum class Stat {
-    NO_VIEW,
-    PENDING,
-    PENDING_WITH_RESTRICTIONS,
-    IN_VIEW
-  };
+  enum class Stat { NO_VIEW, PENDING, PENDING_WITH_RESTRICTIONS, IN_VIEW };
 
   ///////////////////////////////////////////////////////////////////////////
   // Member variables
   ///////////////////////////////////////////////////////////////////////////
-
 
   Stat stat;
 
@@ -201,7 +184,6 @@ class ViewsManager {
   // not empty, only if inView==false
   std::map<SeqNum, PrePrepareMsg *> collectionOfPrePrepareMsgs;
 
-
   ///////////////////////////////////////////////////////////////////////////
   // If inView=false, these members refere to the current pending view
   // Otherwise, they refer to the current active view
@@ -216,7 +198,6 @@ class ViewsManager {
   PrePrepareMsg *prePrepareMsgsOfRestrictions[kWorkWindowSize];
 
   SeqNum lowerBoundStableForPendingView;  // monotone increasing
-
 
   ///////////////////////////////////////////////////////////////////////////
   // for debug

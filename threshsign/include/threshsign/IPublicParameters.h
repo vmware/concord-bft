@@ -36,15 +36,12 @@ class IPublicParameters : public virtual concord::serialize::Serializable {
   std::string schemeName_, library_ = "unknown";
 
  public:
-  IPublicParameters(int securityLevel, std::string schemeName,
-                    std::string library);
+  IPublicParameters(int securityLevel, std::string schemeName, std::string library);
   ~IPublicParameters() override = default;
 
   bool operator==(const IPublicParameters &other) const;
 
-  bool compare(const IPublicParameters &other) const {
-    return *this == other;
-  }
+  bool compare(const IPublicParameters &other) const { return *this == other; }
 
   /**
    * The security parameter of the cryptosystem. This should be 128,
@@ -68,7 +65,6 @@ class IPublicParameters : public virtual concord::serialize::Serializable {
 
  protected:
   void serializeDataMembers(std::ostream &outStream) const override;
-  void deserializeDataMembers(std::istream&) override;
+  void deserializeDataMembers(std::istream &) override;
   const std::string getVersion() const override { return "1"; }
-
 };

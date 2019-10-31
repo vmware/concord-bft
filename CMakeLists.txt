@@ -153,6 +153,7 @@ add_subdirectory(threshsign)
 add_subdirectory(bftengine)
 add_subdirectory(tools)
 add_subdirectory(storage)
+add_subdirectory(scripts)
 
 #
 # Setup testing

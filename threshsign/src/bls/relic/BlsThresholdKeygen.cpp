@@ -25,37 +25,33 @@ using std::endl;
 namespace BLS {
 namespace Relic {
 
-BlsThresholdKeygenBase::BlsThresholdKeygenBase(NumSharesType numSigners)
-    : IThresholdKeygen(numSigners)
-{
+BlsThresholdKeygenBase::BlsThresholdKeygenBase(NumSharesType numSigners) : IThresholdKeygen(numSigners) {}
+
+BlsThresholdKeygen::BlsThresholdKeygen(const BlsPublicParameters& params,
+                                       NumSharesType reqSigners,
+                                       NumSharesType numSigners)
+    : BlsThresholdKeygenBase(numSigners) {
+  assertLessThanOrEqual(reqSigners, numSigners);
+
+  if (cp_bls_gen(sk, pk) != STS_OK) {
+    throw std::runtime_error("RELIC failed generating BLS keypair");
+  }
+
+  BlsPolynomial poly(sk, reqSigners - 1, params.getGroupOrder());
+  poly.generate();
+
+  for (ShareID i = 1; i <= numSigners; i++) {
+    size_t idx = static_cast<size_t>(i);
+
+    skShares[idx] = poly.get(i);
+
+    g2_mul_gen(pkShares[idx], skShares[idx]);
+  }
+
+  LOG_TRACE(GL, "Created: " << this);
 }
 
-BlsThresholdKeygen::BlsThresholdKeygen(const BlsPublicParameters& params, NumSharesType reqSigners, NumSharesType numSigners)
-    : BlsThresholdKeygenBase(numSigners)
-{
-    assertLessThanOrEqual(reqSigners, numSigners);
-
-    if(cp_bls_gen(sk, pk) != STS_OK) {
-        throw std::runtime_error("RELIC failed generating BLS keypair");
-    }
-
-    BlsPolynomial poly(sk, reqSigners - 1, params.getGroupOrder());
-    poly.generate();
-
-    for(ShareID i = 1; i <= numSigners; i++) {
-        size_t idx = static_cast<size_t>(i);
-
-        skShares[idx] = poly.get(i);
-
-        g2_mul_gen(pkShares[idx], skShares[idx]);
-    }
-
-    LOG_TRACE(GL, "Created: " << this);
-}
-
-BlsThresholdKeygen::~BlsThresholdKeygen() {
-    LOG_TRACE(GL, "Destroyed: " << this);
-}
+BlsThresholdKeygen::~BlsThresholdKeygen() { LOG_TRACE(GL, "Destroyed: " << this); }
 
 } /* namespace Relic */
 } /* namespace BLS */

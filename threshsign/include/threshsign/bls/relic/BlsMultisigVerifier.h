@@ -25,7 +25,7 @@ namespace Relic {
 class BlsPublicParameters;
 
 class BlsMultisigVerifier : public BlsThresholdVerifier,
-                            public concord::serialize::SerializableFactory<BlsMultisigVerifier>{
+                            public concord::serialize::SerializableFactory<BlsMultisigVerifier> {
  public:
   BlsMultisigVerifier(const BlsPublicParameters &params,
                       NumSharesType reqSigners,
@@ -38,8 +38,7 @@ class BlsMultisigVerifier : public BlsThresholdVerifier,
 
   bool operator==(const BlsMultisigVerifier &other) const;
 
-  IThresholdAccumulator *newAccumulator(
-      bool withShareVerification) const override;
+  IThresholdAccumulator *newAccumulator(bool withShareVerification) const override;
 
   const IPublicKey &getPublicKey() const override {
     // TODO(Alin): Should return a BlsMultisigPK object which has all signers' VKs
@@ -50,10 +49,7 @@ class BlsMultisigVerifier : public BlsThresholdVerifier,
     return BlsThresholdVerifier::getPublicKey();
   }
 
-  bool verify(const char *msg,
-              int msgLen,
-              const char *sig,
-              int sigLen) const override;
+  bool verify(const char *msg, int msgLen, const char *sig, int sigLen) const override;
 
   int requiredLengthForSignedData() const override;
 
@@ -61,7 +57,6 @@ class BlsMultisigVerifier : public BlsThresholdVerifier,
   friend class concord::serialize::SerializableFactory<BlsMultisigVerifier>;
   BlsMultisigVerifier() = default;
   const std::string getVersion() const override { return "1" + BlsThresholdVerifier::getVersion(); };
-
 };
 
 } /* namespace Relic */

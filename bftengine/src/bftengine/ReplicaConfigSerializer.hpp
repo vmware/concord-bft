@@ -1,11 +1,11 @@
-//Concord
+// Concord
 //
-//Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
 //
-//This product is licensed to you under the Apache 2.0 license (the "License").
+// This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
 //
-//This product may include a number of subcomponents with separate copyright
+// This product may include a number of subcomponents with separate copyright
 // notices and license terms. Your use of these subcomponents is subject to the
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
@@ -22,7 +22,7 @@ namespace impl {
 // class for its serialization/deserialization functionality.
 // Any ReplicaConfig changes require synchronization with this class and an
 // update of ReplicaConfigSerializer::classVersion_.
-class ReplicaConfigSerializer: public concord::serialize::SerializableFactory<ReplicaConfigSerializer>  {
+class ReplicaConfigSerializer : public concord::serialize::SerializableFactory<ReplicaConfigSerializer> {
  public:
   explicit ReplicaConfigSerializer(ReplicaConfig *config);
 
@@ -35,11 +35,12 @@ class ReplicaConfigSerializer: public concord::serialize::SerializableFactory<Re
 
   // Serialization/deserialization
   static uint32_t maxSize(uint32_t numOfReplicas);
+
  protected:
   friend class concord::serialize::SerializableFactory<ReplicaConfigSerializer>;
   ReplicaConfigSerializer();
-  virtual void serializeDataMembers  (std::ostream&) const override;
-  virtual void deserializeDataMembers(std::istream&)       override;
+  virtual void serializeDataMembers(std::ostream &) const override;
+  virtual void deserializeDataMembers(std::istream &) override;
   const std::string getVersion() const override { return "1"; };
 
  private:
@@ -61,8 +62,7 @@ class ReplicaConfigSerializer: public concord::serialize::SerializableFactory<Re
   concord::serialize::SerializablePtr thresholdVerifierForCommit_;
   concord::serialize::SerializablePtr thresholdSignerForOptimisticCommit_;
   concord::serialize::SerializablePtr thresholdVerifierForOptimisticCommit_;
-
 };
 
-}
-}
+}  // namespace impl
+}  // namespace bftEngine

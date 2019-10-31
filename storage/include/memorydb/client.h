@@ -18,14 +18,13 @@
 #include "storage/db_interface.h"
 #include <functional>
 
-
 namespace concord {
 namespace storage {
 namespace memorydb {
 
 class Client;
 
-typedef std::function<bool(const Sliver&, const Sliver&)> Compare;
+typedef std::function<bool(const Sliver &, const Sliver &)> Compare;
 typedef std::map<Sliver, Sliver, Compare> TKVStore;
 
 class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
@@ -38,7 +37,7 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
 
   // Inherited via IDBClientIterator
   virtual KeyValuePair first() override;
-  virtual KeyValuePair seekAtLeast(const Sliver& _searchKey) override;
+  virtual KeyValuePair seekAtLeast(const Sliver &_searchKey) override;
   virtual KeyValuePair previous() override;
   virtual KeyValuePair next() override;
   virtual KeyValuePair getCurrent() override;
@@ -61,21 +60,21 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
 // single thread.
 class Client : public IDBClient {
  public:
-  Client(KeyComparator comp) : comp_(comp), map_([this](const Sliver&a , const Sliver& b){ return comp_(a, b); }) {}
+  Client(KeyComparator comp) : comp_(comp), map_([this](const Sliver &a, const Sliver &b) { return comp_(a, b); }) {}
 
   virtual void init(bool readOnly) override;
-  virtual Status get(const Sliver& _key, OUT Sliver &_outValue) const override;
-  Status get(const Sliver& _key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &_size) const override;
+  virtual Status get(const Sliver &_key, OUT Sliver &_outValue) const override;
+  Status get(const Sliver &_key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &_size) const override;
   virtual IDBClientIterator *getIterator() const override;
   virtual concordUtils::Status freeIterator(IDBClientIterator *_iter) const override;
-  virtual concordUtils::Status put(const Sliver& _key, const Sliver& _value) override;
-  virtual concordUtils::Status del(const Sliver& _key) override;
+  virtual concordUtils::Status put(const Sliver &_key, const Sliver &_value) override;
+  virtual concordUtils::Status del(const Sliver &_key) override;
   concordUtils::Status multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec) override;
   concordUtils::Status multiPut(const SetOfKeyValuePairs &_keyValueMap) override;
   concordUtils::Status multiDel(const KeysVector &_keysVec) override;
   virtual void monitor() const override{};
   bool isNew() override { return true; }
-  ITransaction* beginTransaction() override {return nullptr;} // TODO [TK] implement in-memory transaction?
+  ITransaction *beginTransaction() override { return nullptr; }  // TODO [TK] implement in-memory transaction?
   TKVStore &getMap() { return map_; }
 
  private:

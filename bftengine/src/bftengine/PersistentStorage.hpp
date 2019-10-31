@@ -31,20 +31,19 @@ class FullCommitProofMsg;
 class PrepareFullMsg;
 class CommitFullMsg;
 
-// The PersistentStorage interface is used to write/read the concord-bft state 
+// The PersistentStorage interface is used to write/read the concord-bft state
 // to/from a persistent storage. In case the replica's process is killed,
-// crashed or restarted, this interface is used to restore the concord-bft 
-// state from the persistent storage. 
-// PersistentStorage is designed to only store data elements that are essential 
+// crashed or restarted, this interface is used to restore the concord-bft
+// state from the persistent storage.
+// PersistentStorage is designed to only store data elements that are essential
 // to reconstruct the internal in-memory data structures of concord-bft.
-// For simplicity and efficiency, some of the internal data elements are not 
-// written to the persistent storage (for example, messages with partial 
-// threshold signatures are not stored in persistent storage; if needed such 
+// For simplicity and efficiency, some of the internal data elements are not
+// written to the persistent storage (for example, messages with partial
+// threshold signatures are not stored in persistent storage; if needed such
 // messages are re-created and retransmitted by the replicas).
 
 class PersistentStorage {
  public:
-
   virtual ~PersistentStorage() = default;
 
   //////////////////////////////////////////////////////////////////////////
@@ -76,8 +75,7 @@ class PersistentStorage {
 
   // DescriptorOfLastExitFromView contains pointers to messages (the content of
   // the messages should be copied, the caller is the owner of these messages).
-  virtual void setDescriptorOfLastExitFromView(
-      const DescriptorOfLastExitFromView &prevViewDesc) = 0;
+  virtual void setDescriptorOfLastExitFromView(const DescriptorOfLastExitFromView &prevViewDesc) = 0;
 
   // DescriptorOfLastNewView contains pointers to messages (the content of the
   // messages should be copied, the caller is the owner of these messages).
@@ -124,8 +122,7 @@ class PersistentStorage {
   virtual ViewNum getLastViewThatTransferredSeqNumbersFullyExecuted() = 0;
 
   virtual bool hasDescriptorOfLastExitFromView() = 0;
-  virtual DescriptorOfLastExitFromView
-  getAndAllocateDescriptorOfLastExitFromView() = 0;
+  virtual DescriptorOfLastExitFromView getAndAllocateDescriptorOfLastExitFromView() = 0;
 
   virtual bool hasDescriptorOfLastNewView() = 0;
   virtual DescriptorOfLastNewView getAndAllocateDescriptorOfLastNewView() = 0;

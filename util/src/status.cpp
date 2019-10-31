@@ -6,8 +6,6 @@
 
 namespace concordUtils {
 
-std::ostream& operator<<(std::ostream& s, Status const& status) {
-  return status.operator<<(s);
-}
+std::ostream& operator<<(std::ostream& s, Status const& status) { return status.operator<<(s); }
 
-} // namespace concordUtils
+}  // namespace concordUtils

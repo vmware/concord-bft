@@ -18,13 +18,13 @@
 namespace BLS {
 namespace Relic {
 
-class BlsPolynomial: public SecretSharingPolynomial<BNT> {
-public:
-    BlsPolynomial(const BNT& secret, int degree, const BNT& fieldSize);
-    virtual ~BlsPolynomial();
+class BlsPolynomial : public SecretSharingPolynomial<BNT> {
+ public:
+  BlsPolynomial(const BNT& secret, int degree, const BNT& fieldSize);
+  virtual ~BlsPolynomial();
 
-public:
-    virtual BNT randomCoeff(const BNT& coeffLimit) const;
+ public:
+  virtual BNT randomCoeff(const BNT& coeffLimit) const;
 };
 
 } /* namespace Relic */

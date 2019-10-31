@@ -38,8 +38,11 @@ class TestSetup {
             concordlogger::Logger logger,
             uint16_t metrics_port,
             bool use_persistent_storage)
-      : replica_config_(config), communication_(std::move(comm)), logger_(logger), metrics_server_(metrics_port), use_persistent_storage_(use_persistent_storage) {
-  }
+      : replica_config_(config),
+        communication_(std::move(comm)),
+        logger_(logger),
+        metrics_server_(metrics_port),
+        use_persistent_storage_(use_persistent_storage) {}
   TestSetup() = delete;
 
   bftEngine::ReplicaConfig replica_config_;

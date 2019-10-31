@@ -11,7 +11,7 @@
 // LICENSE file.
 
 // TODO: ALIN: Why are we including this here?
-#ifdef ERROR // TODO(GG): should be fixed by encapsulating relic (or windows) definitions in cpp files
+#ifdef ERROR  // TODO(GG): should be fixed by encapsulating relic (or windows) definitions in cpp files
 #undef ERROR
 #endif
 
@@ -27,24 +27,23 @@ using std::endl;
 namespace BLS {
 namespace Relic {
 
-BlsAlmostMultisigAccumulator::BlsAlmostMultisigAccumulator(const std::vector<BlsPublicKey>& vks, NumSharesType numSigners)
+BlsAlmostMultisigAccumulator::BlsAlmostMultisigAccumulator(const std::vector<BlsPublicKey>& vks,
+                                                           NumSharesType numSigners)
     : BlsThresholdAccumulator(vks, numSigners - 1, numSigners, false),
-	  almostMultisigCoeffs(BlsAlmostMultisigCoefficients::Get().computeMapAndGet(numSigners))
-{
-    LOG_DEBUG(GL, "Using 'almost multisig' optimization for reqSigners = " << reqSigners << " out of " << numSigners );
+      almostMultisigCoeffs(BlsAlmostMultisigCoefficients::Get().computeMapAndGet(numSigners)) {
+  LOG_DEBUG(GL, "Using 'almost multisig' optimization for reqSigners = " << reqSigners << " out of " << numSigners);
 }
 
-
 void BlsAlmostMultisigAccumulator::computeLagrangeCoeff() {
-    ShareID missingSigner = validSharesBits.findFirstGap();
-    assertInclusiveRange(1, missingSigner, totalSigners);
+  ShareID missingSigner = validSharesBits.findFirstGap();
+  assertInclusiveRange(1, missingSigner, totalSigners);
 
-    LOG_TRACE(GL, " * Almost multisig, missing signer " << missingSigner);
+  LOG_TRACE(GL, " * Almost multisig, missing signer " << missingSigner);
 
-    for (ShareID xVal = validSharesBits.first(); validSharesBits.isEnd(xVal) == false; xVal = validSharesBits.next(xVal))
-    {
-        coeffs[static_cast<size_t>(xVal)] = almostMultisigCoeffs.getCoeff(xVal, missingSigner);
-    }
+  for (ShareID xVal = validSharesBits.first(); validSharesBits.isEnd(xVal) == false;
+       xVal = validSharesBits.next(xVal)) {
+    coeffs[static_cast<size_t>(xVal)] = almostMultisigCoeffs.getCoeff(xVal, missingSigner);
+  }
 }
 
 } /* namespace Relic */

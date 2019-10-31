@@ -25,7 +25,7 @@ namespace blockchain {
 struct BlockHeader {
   uint32_t numberOfElements;
   uint32_t parentDigestLength;
-  int8_t   parentDigest[bftEngine::SimpleBlockchainStateTransfer::BLOCK_DIGEST_SIZE];
+  int8_t parentDigest[bftEngine::SimpleBlockchainStateTransfer::BLOCK_DIGEST_SIZE];
 };
 
 // BlockEntry structures are coming immediately after the header.
@@ -52,6 +52,6 @@ enum class EDBKeyType : std::uint8_t {
 typedef uint64_t BlockId;
 typedef uint32_t ObjectId;
 
-}
-}
-}
+}  // namespace blockchain
+}  // namespace storage
+}  // namespace concord

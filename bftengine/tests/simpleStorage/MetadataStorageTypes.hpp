@@ -24,18 +24,14 @@ namespace bftEngine {
 // Single metadata object structure stored in the beginning of the DB file
 // for each object.
 struct MetadataObjectInfo {
-  explicit MetadataObjectInfo() : id(0), metadataOffset(0),
-                                  offset(0), realSize(0), maxSize(0) {}
-  MetadataObjectInfo(uint16_t objId, uint64_t objMetadataOffset,
-                     uint64_t objOffset, uint32_t maxObjSize) :
-      id(objId), metadataOffset(objMetadataOffset),
-      offset(objOffset), realSize(0), maxSize(maxObjSize) {}
+  explicit MetadataObjectInfo() : id(0), metadataOffset(0), offset(0), realSize(0), maxSize(0) {}
+  MetadataObjectInfo(uint16_t objId, uint64_t objMetadataOffset, uint64_t objOffset, uint32_t maxObjSize)
+      : id(objId), metadataOffset(objMetadataOffset), offset(objOffset), realSize(0), maxSize(maxObjSize) {}
 
   std::string toString() {
     std::ostringstream stream;
-    stream << "MetadataObjectInfo: id=" << id << ", metadataOffset="
-           << metadataOffset << ", offset=" << offset << ", realSize="
-           << realSize << ", maxSize=" << maxSize << " ";
+    stream << "MetadataObjectInfo: id=" << id << ", metadataOffset=" << metadataOffset << ", offset=" << offset
+           << ", realSize=" << realSize << ", maxSize=" << maxSize << " ";
     return stream.str();
   }
 
@@ -59,6 +55,6 @@ struct RequestInfo {
 
 typedef std::map<uint16_t, RequestInfo> ObjectIdToRequestMap;
 
-}
+}  // namespace bftEngine
 
 #endif

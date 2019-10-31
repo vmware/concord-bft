@@ -20,7 +20,11 @@
 #include "IStateTransfer.hpp"
 #include "Metrics.hpp"
 
-namespace concord{ namespace storage{ class IDBClient; }}
+namespace concord {
+namespace storage {
+class IDBClient;
+}
+}  // namespace concord
 namespace bftEngine {
 
 // This file contains interfaces of a state transfer module which is designed
@@ -46,8 +50,10 @@ struct StateTransferDigest {
 #pragma pack(pop)
 
 // This method should be used to compute block digests
-void computeBlockDigest(const uint64_t blockId, const char *block,
-                        const uint32_t blockSize, StateTransferDigest *outDigest);
+void computeBlockDigest(const uint64_t blockId,
+                        const char *block,
+                        const uint32_t blockSize,
+                        StateTransferDigest *outDigest);
 
 // This interface should be implemented by the application/storage layer.
 // It is used by the state transfer module.
@@ -59,13 +65,11 @@ class IAppState {
 
   // If block blockId exists, then its content is returned via the arguments
   // outBlock and outBlockSize. Returns true IFF block blockId exists.
-  virtual bool getBlock(uint64_t blockId,
-                        char *outBlock, uint32_t *outBlockSize) = 0;
+  virtual bool getBlock(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) = 0;
 
   // If block blockId exists, then the digest of block blockId-1 is returned via
   // the argument outPrevBlockDigest. Returns true IFF block blockId exists.
-  virtual bool getPrevDigestFromBlock(uint64_t blockId,
-                                      StateTransferDigest *outPrevBlockDigest) = 0;
+  virtual bool getPrevDigestFromBlock(uint64_t blockId, StateTransferDigest *outPrevBlockDigest) = 0;
 
   // adds block
   // blockId   - the block number
@@ -103,25 +107,25 @@ struct Config {
   uint16_t maxNumberOfChunksInBatch = 32;
 #endif
 
-  uint32_t maxBlockSize = 10 * 1024 * 1024; // 10MB
-  uint32_t maxPendingDataFromSourceReplica = 256 * 1024 * 1024; // Maximal internal buffer size for all ST data
+  uint32_t maxBlockSize = 10 * 1024 * 1024;                      // 10MB
+  uint32_t maxPendingDataFromSourceReplica = 256 * 1024 * 1024;  // Maximal internal buffer size for all ST data
   uint32_t maxNumOfReservedPages = 2048;
   uint32_t sizeOfReservedPage = 4096;
 
-  uint32_t refreshTimerMilli = 300; // ms
-  uint32_t checkpointSummariesRetransmissionTimeoutMilli = 2500; // ms
-  uint32_t maxAcceptableMsgDelayMilli = 60000; // 1 minute
-  uint32_t sourceReplicaReplacementTimeoutMilli = 600000; // 10 minutes
-  uint32_t fetchRetransmissionTimeoutMilli = 250; // ms
+  uint32_t refreshTimerMilli = 300;                               // ms
+  uint32_t checkpointSummariesRetransmissionTimeoutMilli = 2500;  // ms
+  uint32_t maxAcceptableMsgDelayMilli = 60000;                    // 1 minute
+  uint32_t sourceReplicaReplacementTimeoutMilli = 600000;         // 10 minutes
+  uint32_t fetchRetransmissionTimeoutMilli = 250;                 // ms
 };
 
 // creates an instance of the state transfer module.
 
-IStateTransfer* create(const Config &config,
+IStateTransfer *create(const Config &config,
                        IAppState *const stateApi,
                        std::shared_ptr<::concord::storage::IDBClient> dbc);
 
-IStateTransfer* create(const Config &config,
+IStateTransfer *create(const Config &config,
                        IAppState *const stateApi,
                        std::shared_ptr<::concord::storage::IDBClient> dbc,
                        std::shared_ptr<concordMetrics::Aggregator> aggregator);

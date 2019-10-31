@@ -40,33 +40,27 @@ BlsPublicParameters::BlsPublicParameters(int securityLevel, int curveType)
 }
 
 BlsPublicParameters::BlsPublicParameters(const BlsPublicParameters &params)
-    : IPublicParameters(params.getSecurityLevel(), params.getSchemeName(),
-                        params.getLibrary()), curveType_(params.curveType_) {
+    : IPublicParameters(params.getSecurityLevel(), params.getSchemeName(), params.getLibrary()),
+      curveType_(params.curveType_) {
   g1_copy(generator1_, params.generator1_);
   g2_copy(generator2_, const_cast<G2T &>(params.generator2_));
 }
-BlsPublicParameters& BlsPublicParameters::operator=(const BlsPublicParameters& params){
+BlsPublicParameters &BlsPublicParameters::operator=(const BlsPublicParameters &params) {
   securityLevel_ = params.securityLevel_;
-  schemeName_    = params.schemeName_;
-  library_       = params.library_;
-  curveType_     = params.curveType_;
+  schemeName_ = params.schemeName_;
+  library_ = params.library_;
+  curveType_ = params.curveType_;
   BLS::Relic::Library::Get();
   g1_get_gen(generator1_);
   g2_get_gen(generator2_);
   return *this;
 }
 
-BlsPublicParameters::~BlsPublicParameters() {
-  LOG_TRACE(GL, "Destroyed: " << this);
-}
+BlsPublicParameters::~BlsPublicParameters() { LOG_TRACE(GL, "Destroyed: " << this); }
 
-int BlsPublicParameters::getSignatureSize() const {
-  return Library::Get().getG1PointSize();
-}
+int BlsPublicParameters::getSignatureSize() const { return Library::Get().getG1PointSize(); }
 
-const BNT &BlsPublicParameters::getGroupOrder() const {
-  return BLS::Relic::Library::Get().getG2Order();
-}
+const BNT &BlsPublicParameters::getGroupOrder() const { return BLS::Relic::Library::Get().getG2Order(); }
 
 /************** Serialization **************/
 void BlsPublicParameters::serializeDataMembers(ostream &outStream) const {
@@ -77,18 +71,16 @@ void BlsPublicParameters::serializeDataMembers(ostream &outStream) const {
   serialize(outStream, curveType_);
 }
 
-void BlsPublicParameters::deserializeDataMembers(istream &inStream)  {
+void BlsPublicParameters::deserializeDataMembers(istream &inStream) {
   IPublicParameters::deserializeDataMembers(inStream);
   deserialize(inStream, curveType_);
 }
 
 bool BlsPublicParameters::operator==(const BlsPublicParameters &other) const {
-  bool result = ((other.curveType_ == curveType_) &&
-      (other.generator1_ == generator1_) &&
-      (other.generator2_ == generator2_) &&
-      (IPublicParameters::compare(other)));
+  bool result = ((other.curveType_ == curveType_) && (other.generator1_ == generator1_) &&
+                 (other.generator2_ == generator2_) && (IPublicParameters::compare(other)));
   return result;
 }
 
-} // end of RELIC namespace
-} // end of BLS namespace
+}  // namespace Relic
+}  // namespace BLS

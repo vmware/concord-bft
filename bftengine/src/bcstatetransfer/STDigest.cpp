@@ -18,7 +18,6 @@
 #include <cassert>
 #include <string>
 
-
 namespace bftEngine {
 namespace SimpleBlockchainStateTransfer {
 namespace impl {

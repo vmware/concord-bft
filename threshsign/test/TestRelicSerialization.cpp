@@ -40,100 +40,100 @@ using namespace BLS::Relic;
  * This test suite makes sure g1_t, g2_t and bn_t don't have similar problems.
  */
 void testRandomSerialize() {
-    GTT tr, tz, tu;
-    gt_rand(tr);
-    gt_zero(tz);
-    gt_set_unity(tu);
+  GTT tr, tz, tu;
+  gt_rand(tr);
+  gt_zero(tz);
+  gt_set_unity(tu);
 
-    stringstream ss;
-    ss << "Random GTT: " << tr << endl;
-    ss << "Zero GTT: " << tz << endl;
-    ss << "Unity GTT: " << tu << endl;
+  stringstream ss;
+  ss << "Random GTT: " << tr << endl;
+  ss << "Zero GTT: " << tz << endl;
+  ss << "Unity GTT: " << tu << endl;
 
-    LOG_TRACE(GL, endl << ss.str());
-    ss.clear();
+  LOG_TRACE(GL, endl << ss.str());
+  ss.clear();
 
-    G1T g1r, g1i;
-    g1_rand(g1r);
-    g1_set_infty(g1i);
+  G1T g1r, g1i;
+  g1_rand(g1r);
+  g1_set_infty(g1i);
 
-    ss << "Random G1T: " << g1r << endl;
-    ss << "Infty G1T: " << g1i << endl;
-    LOG_TRACE(GL, endl << ss.str());
-    ss.clear();
+  ss << "Random G1T: " << g1r << endl;
+  ss << "Infty G1T: " << g1i << endl;
+  LOG_TRACE(GL, endl << ss.str());
+  ss.clear();
 
-    G2T g2r, g2i;
-    g2_rand(g2r);
-    g2_set_infty(g2i);
+  G2T g2r, g2i;
+  g2_rand(g2r);
+  g2_set_infty(g2i);
 
-    ss << "Random G2T: " << g2r << endl;
-    ss << "Infty G2T: " << g2i << endl;
-    LOG_TRACE(GL, endl << ss.str());
-    ss.clear();
+  ss << "Random G2T: " << g2r << endl;
+  ss << "Infty G2T: " << g2i << endl;
+  LOG_TRACE(GL, endl << ss.str());
+  ss.clear();
 
-    BNT b2r, b2z, b2u;
-    bn_rand(b2r, BN_POS, BN_PRECI);
-    bn_zero(b2z);
-    bn_set_dig(b2u, 1);
+  BNT b2r, b2z, b2u;
+  bn_rand(b2r, BN_POS, BN_PRECI);
+  bn_zero(b2z);
+  bn_set_dig(b2u, 1);
 
-    ss << "Random BNT: " << b2r << endl;
-    ss << "Zero BNT: " << b2z << endl;
-    ss << "One BNT: " << b2u << endl;
-    LOG_TRACE(GL, endl << ss.str());
-    ss.clear();
+  ss << "Random BNT: " << b2r << endl;
+  ss << "Zero BNT: " << b2z << endl;
+  ss << "One BNT: " << b2u << endl;
+  LOG_TRACE(GL, endl << ss.str());
+  ss.clear();
 }
 
-template<class T>
+template <class T>
 void assertDeserializesCorrectly(const T& orig) {
-    // Serialize to std::string
-    stringstream ss;
-    ss << orig;
-    std::string origStr(ss.str());
+  // Serialize to std::string
+  stringstream ss;
+  ss << orig;
+  std::string origStr(ss.str());
 
-    // Deserialize from std::string
-    T copy(origStr);
+  // Deserialize from std::string
+  T copy(origStr);
 
-    testAssertEqual(orig, copy);
+  testAssertEqual(orig, copy);
 }
 
 void testSerializeDeserialize() {
-    {
-        BNT orig;
-        bn_rand(orig, BN_POS, BN_PRECI);
+  {
+    BNT orig;
+    bn_rand(orig, BN_POS, BN_PRECI);
 
-        assertDeserializesCorrectly(orig);
-    }
+    assertDeserializesCorrectly(orig);
+  }
 
-    {
-        G1T orig;
-        g1_rand(orig);
+  {
+    G1T orig;
+    g1_rand(orig);
 
-        assertDeserializesCorrectly(orig);
-    }
+    assertDeserializesCorrectly(orig);
+  }
 
-    {
-        G2T orig;
-        g2_rand(orig);
+  {
+    G2T orig;
+    g2_rand(orig);
 
-        assertDeserializesCorrectly(orig);
-    }
+    assertDeserializesCorrectly(orig);
+  }
 }
 
 int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
-    (void)args;
-    (void)lib;
+  (void)args;
+  (void)lib;
 
-    LOG_TRACE(GL, "Serialization test...");
-    int n = 1000;
-    for(int i = 0; i < n; i++) {
-        if(i % 100 == 0) {
-            LOG_TRACE(GL, i + 1 << " out of " << n);
-        }
-
-        testRandomSerialize();
-
-        testSerializeDeserialize();
+  LOG_TRACE(GL, "Serialization test...");
+  int n = 1000;
+  for (int i = 0; i < n; i++) {
+    if (i % 100 == 0) {
+      LOG_TRACE(GL, i + 1 << " out of " << n);
     }
 
-    return 0;
+    testRandomSerialize();
+
+    testSerializeDeserialize();
+  }
+
+  return 0;
 }

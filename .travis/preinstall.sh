@@ -11,7 +11,7 @@ sudo apt-get install -y ccache cmake clang-format libgmp3-dev parallel python3-p
 fi
 
 # build and install relic
-cd $TRAVIS_BUILD_DIR
+cd /tmp
 git clone https://github.com/relic-toolkit/relic
 cd relic
 git checkout b984e901ba78c83ea4093ea96addd13628c8c2d0
@@ -22,7 +22,7 @@ CC=/usr/bin/gcc CXX=/usr/bin/g++ make
 sudo make install
 
 # build and install cryptopp
-cd $TRAVIS_BUILD_DIR
+cd /tmp
 git clone https://github.com/weidai11/cryptopp.git
 cd cryptopp
 git checkout CRYPTOPP_5_6_5
@@ -38,7 +38,7 @@ if [ -n "$USE_ROCKSDB" ]; then
     sudo apt-get install -y libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev
 
     # Install RocksDB
-    cd $TRAVIS_BUILD_DIR
+    cd /tmp
     wget https://github.com/facebook/rocksdb/archive/v5.7.3.tar.gz
     tar -xzf v5.7.3.tar.gz
     cd rocksdb-5.7.3

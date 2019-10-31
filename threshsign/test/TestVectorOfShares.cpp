@@ -28,78 +28,78 @@ using namespace std;
 using namespace BLS::Relic;
 
 void testIth() {
-    LOG_INFO(GL, "Testing ith() and skip()...");
-    VectorOfShares signers;
+  LOG_INFO(GL, "Testing ith() and skip()...");
+  VectorOfShares signers;
 
-    signers.add(3);
-    if(signers.ith(1) != 3) {
-        throw std::logic_error("3 is supposed to be first");
-    }
+  signers.add(3);
+  if (signers.ith(1) != 3) {
+    throw std::logic_error("3 is supposed to be first");
+  }
 
-    signers.add(5);
-    if(signers.ith(2) != 5) {
-        throw std::logic_error("5 is supposed to be second");
-    }
+  signers.add(5);
+  if (signers.ith(2) != 5) {
+    throw std::logic_error("5 is supposed to be second");
+  }
 
-    signers.add(7);
-    if(signers.skip(3, 1) != signers.next(3)) {
-        throw std::logic_error("skip and next disagree");
-    }
+  signers.add(7);
+  if (signers.skip(3, 1) != signers.next(3)) {
+    throw std::logic_error("skip and next disagree");
+  }
 
-    if(signers.skip(3, 1) != 5) {
-            throw std::logic_error("skip is wrong");
-        }
-    if(signers.skip(3, 2) != 7) {
-        throw std::logic_error("skip is wrong");
-    }
+  if (signers.skip(3, 1) != 5) {
+    throw std::logic_error("skip is wrong");
+  }
+  if (signers.skip(3, 2) != 7) {
+    throw std::logic_error("skip is wrong");
+  }
 }
 
 void assertCorrectSerialization(const VectorOfShares& vec) {
-    AutoBuf<unsigned char> buf(vec.getByteCount());
-    vec.toBytes(buf, buf.size());
+  AutoBuf<unsigned char> buf(vec.getByteCount());
+  vec.toBytes(buf, buf.size());
 
-    //LOG_DEBUG(GL, "Serialized vector " << vec << " to " << Utils::bin2hex(buf, buf.size()));
-    //logdbg << endl;
+  // LOG_DEBUG(GL, "Serialized vector " << vec << " to " << Utils::bin2hex(buf, buf.size()));
+  // logdbg << endl;
 
-    VectorOfShares vecin;
-    vecin.fromBytes(buf, buf.size());
-    testAssertEqual(vec, vecin);
+  VectorOfShares vecin;
+  vecin.fromBytes(buf, buf.size());
+  testAssertEqual(vec, vecin);
 }
 
 void testSerialization() {
-    LOG_INFO(GL, "Testing serialization...");
+  LOG_INFO(GL, "Testing serialization...");
 
-    VectorOfShares vec; 
-    assertCorrectSerialization(vec);
+  VectorOfShares vec;
+  assertCorrectSerialization(vec);
 
-    vec.add(1);
-    assertCorrectSerialization(vec);
+  vec.add(1);
+  assertCorrectSerialization(vec);
 
-    vec.add(2);
-    assertCorrectSerialization(vec);
+  vec.add(2);
+  assertCorrectSerialization(vec);
 
-    vec.add(MAX_NUM_OF_SHARES);
-    assertCorrectSerialization(vec);
+  vec.add(MAX_NUM_OF_SHARES);
+  assertCorrectSerialization(vec);
 
+  vec.clear();
+  for (int i = 1; i <= MAX_NUM_OF_SHARES; i++) {
+    vec.add(i);
+  }
+  assertCorrectSerialization(vec);
+
+  for (int i = 0; i < 128; i++) {
     vec.clear();
-    for(int i = 1; i <= MAX_NUM_OF_SHARES; i++) {
-        vec.add(i);
-    }
+    VectorOfShares::randomSubset(vec, MAX_NUM_OF_SHARES, MAX_NUM_OF_SHARES / 2);
     assertCorrectSerialization(vec);
-
-    for(int i = 0; i < 128; i++) {
-        vec.clear();
-        VectorOfShares::randomSubset(vec, MAX_NUM_OF_SHARES, MAX_NUM_OF_SHARES/2);
-        assertCorrectSerialization(vec);
-    }
+  }
 }
 
 int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
-    (void)lib;
-    (void)args;
+  (void)lib;
+  (void)args;
 
-    testSerialization();
-    testIth();
+  testSerialization();
+  testIth();
 
-    return 0;
+  return 0;
 }

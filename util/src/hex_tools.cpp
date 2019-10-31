@@ -22,4 +22,4 @@ std::ostream &hexPrint(std::ostream &s, const uint8_t *data, size_t size) {
   return s;
 }
 
-}  // namespace concordUtils 
+}  // namespace concordUtils

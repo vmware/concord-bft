@@ -27,6 +27,6 @@ typedef std::vector<Key> KeysVector;
 typedef KeysVector ValuesVector;
 typedef uint64_t BlockId;
 
-} // namespace concordUtils
+}  // namespace concordUtils
 
 #endif  // CONCORD_BFT_UTIL_KV_TYPES_H_

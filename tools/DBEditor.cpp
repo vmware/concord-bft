@@ -45,7 +45,7 @@ uint32_t numOfObjectsToAdd = MAX_OBJECT_ID;
 const uint32_t firstObjId = 2;
 DBMetadataStorage *metadataStorage = nullptr;
 ObjectIdsVector objectIdsVector;
-KeyManipulator*  key_manipulator = nullptr;
+KeyManipulator *key_manipulator = nullptr;
 
 enum DB_OPERATION {
   NO_OPERATION,
@@ -59,10 +59,10 @@ DB_OPERATION dbOperation = NO_OPERATION;
 concordlogger::Logger logger = concordlogger::Log::getLogger("skvbtest.db_editor");
 
 void printUsageAndExit(char **argv) {
-  LOG_ERROR(logger, "Wrong usage! \nRequired parameters: "
-                        << argv[0] << " -p FULL_PATH_TO_DB_DIR \n"
-                        << "One of those parameter parameters should also be "
-                           "specified: -s / -g / -d / -a");
+  LOG_ERROR(logger,
+            "Wrong usage! \nRequired parameters: " << argv[0] << " -p FULL_PATH_TO_DB_DIR \n"
+                                                   << "One of those parameter parameters should also be "
+                                                      "specified: -s / -g / -d / -a");
   exit(-1);
 }
 
@@ -92,8 +92,7 @@ void setupDBEditorParams(int argc, char **argv) {
         argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
         valStr = argTempBuffer;
         tempNum = stoi(valStr);
-        if (tempNum >= 0 && tempNum < MAX_OBJECT_ID)
-          numOfObjectsToAdd = tempNum;
+        if (tempNum >= 0 && tempNum < MAX_OBJECT_ID) numOfObjectsToAdd = tempNum;
         dbOperation = ADD_STATE_METADATA_OBJECTS;
         break;
       default:
@@ -125,8 +124,7 @@ bool addStateMetadataObjects() {
   char objectData[MAX_OBJECT_SIZE];
   memset(objectData, 0, MAX_OBJECT_SIZE);
   LOG_INFO(logger, "*** Going to add " << numOfObjectsToAdd << " objects");
-  for (uint32_t objectId = firstObjId; objectId < numOfObjectsToAdd;
-       objectId++) {
+  for (uint32_t objectId = firstObjId; objectId < numOfObjectsToAdd; objectId++) {
     memcpy(objectData, &objectId, sizeof(objectId));
     metadataStorage->atomicWrite(objectId, objectData, MAX_OBJECT_SIZE);
     dumpObjectBuf(objectId, objectData, MAX_OBJECT_SIZE);
@@ -139,8 +137,7 @@ bool getLastStateMetadata() {
   char outBufferForObject[MAX_OBJECT_SIZE];
   bool found = false;
   for (uint32_t i = firstObjId; i < MAX_OBJECT_ID; i++) {
-    metadataStorage->read(i, MAX_OBJECT_SIZE, outBufferForObject,
-                          outActualObjectSize);
+    metadataStorage->read(i, MAX_OBJECT_SIZE, outBufferForObject, outActualObjectSize);
     if (outActualObjectSize) {
       found = true;
       dumpObjectBuf(i, outBufferForObject, MAX_OBJECT_SIZE);
@@ -160,88 +157,86 @@ bool deleteLastStateMetadata() {
 }
 
 void verifyInputParams(char **argv) {
-  if (dbPath.str().empty() || (dbOperation == NO_OPERATION))
-    printUsageAndExit(argv);
+  if (dbPath.str().empty() || (dbOperation == NO_OPERATION)) printUsageAndExit(argv);
 
   ifstream ifile(dbPath.str());
   if (ifile.good()) {
     return;
   }
 
-  LOG_ERROR(logger,
-            "Specified DB directory " << dbPath.str() << " does not exist.");
+  LOG_ERROR(logger, "Specified DB directory " << dbPath.str() << " does not exist.");
   exit(-1);
 }
 
-void parseAndPrint(const ::rocksdb::Slice& key, const ::rocksdb::Slice& val) {
-  EDBKeyType aType = key_manipulator->extractTypeFromKey(reinterpret_cast<const uint8_t*>(key.data()));
+void parseAndPrint(const ::rocksdb::Slice &key, const ::rocksdb::Slice &val) {
+  EDBKeyType aType = key_manipulator->extractTypeFromKey(reinterpret_cast<const uint8_t *>(key.data()));
 
-  switch(aType){
+  switch (aType) {
     case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_KEY:
     case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_PENDING_PAGE_KEY:
     case EDBKeyType::E_DB_KEY_TYPE_BFT_METADATA_KEY: {
-//      // Compare object IDs.
-//      ObjectId aObjId = KeyManipulator::extractObjectIdFromKey(_a_data, _a_length);
-//      ObjectId bObjId = KeyManipulator::extractObjectIdFromKey(_b_data, _b_length);
-//      return (aObjId > bObjId) ? 1 : (bObjId > aObjId) ? -1 : 0;
+      //      // Compare object IDs.
+      //      ObjectId aObjId = KeyManipulator::extractObjectIdFromKey(_a_data, _a_length);
+      //      ObjectId bObjId = KeyManipulator::extractObjectIdFromKey(_b_data, _b_length);
+      //      return (aObjId > bObjId) ? 1 : (bObjId > aObjId) ? -1 : 0;
       break;
     }
-    case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_CHECKPOINT_DESCRIPTOR_KEY:{
-//      uint64_t aChkpt, bChkpt;
-//      aChkpt = extractCheckPointFromKey(_a_data, _a_length);
-//      bChkpt = extractCheckPointFromKey(_b_data, _b_length);
-//      return (aChkpt > bChkpt) ? 1 : (bChkpt > aChkpt) ? -1 : 0;
+    case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_CHECKPOINT_DESCRIPTOR_KEY: {
+      //      uint64_t aChkpt, bChkpt;
+      //      aChkpt = extractCheckPointFromKey(_a_data, _a_length);
+      //      bChkpt = extractCheckPointFromKey(_b_data, _b_length);
+      //      return (aChkpt > bChkpt) ? 1 : (bChkpt > aChkpt) ? -1 : 0;
       break;
     }
     case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_STATIC_KEY:
-    case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_DYNAMIC_KEY:{
-//      // Pages are sorted in ascending order, checkpoints in descending order
-//       uint32_t aPageId, bPageId;
-//       uint64_t aChkpt, bChkpt;
-//       std::tie(aPageId, aChkpt) = extractPageIdAndCheckpointFromKey(_a_data, _a_length);
-//       std::tie(bPageId, bChkpt) = extractPageIdAndCheckpointFromKey(_b_data, _b_length);
-//       if (aPageId != bPageId) return (aPageId > bPageId)? 1: (bPageId > aPageId)? -1:0;
-//       return (aChkpt < bChkpt)? 1 : (aChkpt > bChkpt) ? -1 : 0;
+    case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_DYNAMIC_KEY: {
+      //      // Pages are sorted in ascending order, checkpoints in descending order
+      //       uint32_t aPageId, bPageId;
+      //       uint64_t aChkpt, bChkpt;
+      //       std::tie(aPageId, aChkpt) = extractPageIdAndCheckpointFromKey(_a_data, _a_length);
+      //       std::tie(bPageId, bChkpt) = extractPageIdAndCheckpointFromKey(_b_data, _b_length);
+      //       if (aPageId != bPageId) return (aPageId > bPageId)? 1: (bPageId > aPageId)? -1:0;
+      //       return (aChkpt < bChkpt)? 1 : (aChkpt > bChkpt) ? -1 : 0;
       break;
     }
     case EDBKeyType::E_DB_KEY_TYPE_KEY: {
-//      int keyComp = KeyManipulator::compareKeyPartOfComposedKey(_a_data, _a_length, _b_data, _b_length);
-//      if (keyComp != 0) return keyComp;
-//      // Extract the block ids to compare so that endianness of environment does not matter.
-//      BlockId aId = KeyManipulator::extractBlockIdFromKey(_a_data, _a_length);
-//      BlockId bId = KeyManipulator::extractBlockIdFromKey(_b_data, _b_length);
-//      // Block ids are sorted in reverse order when part of a composed key (key + blockId)
-//      return (bId > aId) ? 1 : (aId > bId) ? -1 : 0;
+      //      int keyComp = KeyManipulator::compareKeyPartOfComposedKey(_a_data, _a_length, _b_data, _b_length);
+      //      if (keyComp != 0) return keyComp;
+      //      // Extract the block ids to compare so that endianness of environment does not matter.
+      //      BlockId aId = KeyManipulator::extractBlockIdFromKey(_a_data, _a_length);
+      //      BlockId bId = KeyManipulator::extractBlockIdFromKey(_b_data, _b_length);
+      //      // Block ids are sorted in reverse order when part of a composed key (key + blockId)
+      //      return (bId > aId) ? 1 : (aId > bId) ? -1 : 0;
       break;
     }
     case EDBKeyType::E_DB_KEY_TYPE_BLOCK: {
-//      // Extract the block ids to compare so that endianness of environment does not matter.
-      BlockId aId = key_manipulator->extractBlockIdFromKey(reinterpret_cast<const uint8_t*>(key.data()), key.size());
-      std::cout <<  "Block ID: " << aId << std::endl;
+      //      // Extract the block ids to compare so that endianness of environment does not matter.
+      BlockId aId = key_manipulator->extractBlockIdFromKey(reinterpret_cast<const uint8_t *>(key.data()), key.size());
+      std::cout << "Block ID: " << aId << std::endl;
       uint16_t numOfElements = ((BlockHeader *)val.data())->numberOfElements;
-       auto *entries = (BlockEntry *)(val.data() + sizeof(BlockHeader));
-       for (size_t i = 0; i < numOfElements; i++) {
-         std::string kv_key = std::string(val.ToString(), entries[i].keyOffset, entries[i].keySize);
-         for (size_t i = 0; i < kv_key.size(); ++i) printf("%.2x", kv_key[i]);
-         printf("\n");
-       }
+      auto *entries = (BlockEntry *)(val.data() + sizeof(BlockHeader));
+      for (size_t i = 0; i < numOfElements; i++) {
+        std::string kv_key = std::string(val.ToString(), entries[i].keyOffset, entries[i].keySize);
+        for (size_t i = 0; i < kv_key.size(); ++i) printf("%.2x", kv_key[i]);
+        printf("\n");
+      }
       break;
     }
     default:
-      LOG_ERROR(logger, "invalid key type: " << (char) aType);
+      LOG_ERROR(logger, "invalid key type: " << (char)aType);
       assert(false);
 
-  } //switch
+  }  // switch
 }
 
 void dumpAllValues() {
   ::rocksdb::Iterator *it = dbClient->getNewRocksDbIterator();
   for (it->SeekToFirst(); it->Valid(); it->Next()) {
-//    printf("Key = 0x");
-//    for (size_t i = 0; i < it->key().size(); ++i) printf("%.2x", it->key()[i]);
-//    printf("\nValue = 0x");
-//    for (size_t i = 0; i < it->value().size(); ++i) printf("%.2x", it->value()[i]);
-//    printf("\n");
+    //    printf("Key = 0x");
+    //    for (size_t i = 0; i < it->key().size(); ++i) printf("%.2x", it->key()[i]);
+    //    printf("\nValue = 0x");
+    //    for (size_t i = 0; i < it->value().size(); ++i) printf("%.2x", it->value()[i]);
+    //    printf("\n");
     parseAndPrint(it->key(), it->value());
   }
   assert(it->status().ok());
@@ -249,7 +244,7 @@ void dumpAllValues() {
 }
 
 int main(int argc, char **argv) {
-  try{
+  try {
     setupDBEditorParams(argc, argv);
     verifyInputParams(argv);
 
@@ -277,7 +272,7 @@ int main(int argc, char **argv) {
     string result = res ? "success" : "fail";
     LOG_INFO(logger, "*** Operation completed with result: " << result);
     return res;
-  }catch(std::exception& e){
+  } catch (std::exception &e) {
     std::cerr << "exception: " << e.what() << std::endl;
     return 1;
   }

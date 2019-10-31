@@ -1,10 +1,13 @@
-//Concord
+// Concord
 //
-//Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
 //
-//This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in compliance with the Apache 2.0 License. 
+// This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
+// compliance with the Apache 2.0 License.
 //
-//This product may include a number of subcomponents with separate copyright notices and license terms. Your use of these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE file.
+// This product may include a number of subcomponents with separate copyright notices and license terms. Your use of
+// these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
+// file.
 
 #pragma once
 
@@ -29,22 +32,18 @@ class MessageBase {
 
   MessageBase(NodeIdType sender, MsgType type, MsgSize size);
 
-  MessageBase(NodeIdType sender,
-              Header *body,
-              MsgSize size,
-              bool ownerOfStorage);
+  MessageBase(NodeIdType sender, Header *body, MsgSize size, bool ownerOfStorage);
 
   ~MessageBase();
 
   bool equals(const MessageBase &other) const;
 
   static size_t serializeMsg(char *&buf, MessageBase *msg);
-  static MessageBase *deserializeMsg(char *&buf, size_t bufLen,
-                                     size_t &actualSize);
+  static MessageBase *deserializeMsg(char *&buf, size_t bufLen, size_t &actualSize);
 
   MsgSize size() const { return msgSize_; }
 
-  char *body() const { return (char *) msgBody_; }
+  char *body() const { return (char *)msgBody_; }
 
   NodeIdType senderId() const { return sender_; }
 
@@ -52,20 +51,15 @@ class MessageBase {
 
   MessageBase *cloneObjAndMsg() const;
 
-  void writeObjAndMsgToLocalBuffer(char *buffer,
-                                   size_t bufferLength,
-                                   size_t *actualSize) const;
+  void writeObjAndMsgToLocalBuffer(char *buffer, size_t bufferLength, size_t *actualSize) const;
   size_t sizeNeededForObjAndMsgInLocalBuffer() const;
-  static MessageBase *createObjAndMsgFromLocalBuffer(char *buffer,
-                                                     size_t bufferLength,
-                                                     size_t *actualSize);
+  static MessageBase *createObjAndMsgFromLocalBuffer(char *buffer, size_t bufferLength, size_t *actualSize);
 
 #ifdef DEBUG_MEMORY_MSG
   static void printLiveMessages();
 #endif
 
  protected:
-
   void shrinkToFit();
 
   void setMsgSize(MsgSize size);
@@ -91,12 +85,12 @@ class MessageBase {
   static const uint32_t magicNumOfRawFormat = 0x5555897BU;
 };
 
-class InternalMessage // TODO(GG): move class to another file
+class InternalMessage  // TODO(GG): move class to another file
 {
  public:
   virtual ~InternalMessage() = default;
   virtual void handle() = 0;
 };
 
-}
-}
+}  // namespace impl
+}  // namespace bftEngine

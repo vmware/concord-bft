@@ -39,12 +39,9 @@ class Counter;
 // responsible for reporting system metrics should read it from the aggregator.
 class Aggregator {
  public:
-  Gauge GetGauge(const std::string& component_name,
-                 const std::string& val_name);
-  Status GetStatus(const std::string& component_name,
-                   const std::string& val_name);
-  Counter GetCounter(const std::string& component_name,
-                     const std::string& val_name);
+  Gauge GetGauge(const std::string& component_name, const std::string& val_name);
+  Status GetStatus(const std::string& component_name, const std::string& val_name);
+  Counter GetCounter(const std::string& component_name, const std::string& val_name);
 
   // Generate a JSON formatted string
   std::string ToJson();
@@ -140,8 +137,7 @@ class Component {
   template <typename T>
   class Handle {
    public:
-    Handle(std::vector<T>& values, size_t index)
-        : values_(values), index_(index) {}
+    Handle(std::vector<T>& values, size_t index) : values_(values), index_(index) {}
     T& Get() { return values_[index_]; }
 
    private:
@@ -149,19 +145,15 @@ class Component {
     size_t index_;
   };
 
-  Component(const std::string& name, std::shared_ptr<Aggregator> aggregator)
-      : aggregator_(aggregator), name_(name) {}
+  Component(const std::string& name, std::shared_ptr<Aggregator> aggregator) : aggregator_(aggregator), name_(name) {}
   std::string Name() { return name_; }
 
   // Create a Gauge, add it to the component and return a reference to the
   // gauge.
   Handle<Gauge> RegisterGauge(const std::string& name, const uint64_t val);
-  Handle<Status> RegisterStatus(const std::string& name,
-                                const std::string& val);
+  Handle<Status> RegisterStatus(const std::string& name, const std::string& val);
   Handle<Counter> RegisterCounter(const std::string& name, const uint64_t val);
-  Handle<Counter> RegisterCounter(const std::string& name) {
-    return RegisterCounter(name, 0);
-  }
+  Handle<Counter> RegisterCounter(const std::string& name) { return RegisterCounter(name, 0); }
 
   // Register the component with the aggregator.
   // This *must* be done after all values are registered in this component.

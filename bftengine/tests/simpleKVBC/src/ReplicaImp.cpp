@@ -63,7 +63,6 @@ Status ReplicaImp::start() {
   m_currentRepStatus = RepStatus::Starting;
   m_metadataStorage = new DBMetadataStorage(m_bcDbAdapter->getDb().get(), KeyManipulator::generateMetadataKey);
 
-
   createReplicaAndSyncState();
   m_replicaPtr->SetAggregator(aggregator_);
   m_replicaPtr->start();
@@ -115,7 +114,7 @@ Status ReplicaImp::addBlockToIdleReplica(const SetOfKeyValuePairs &updates) {
   return addBlockInternal(updates, d);
 }
 
-Status ReplicaImp::get(const Sliver& key, Sliver &outValue) const {
+Status ReplicaImp::get(const Sliver &key, Sliver &outValue) const {
   // TODO(GG): check legality of operation (the method should be invoked from
   // the replica's internal thread)
 
@@ -123,7 +122,7 @@ Status ReplicaImp::get(const Sliver& key, Sliver &outValue) const {
   return getInternal(m_lastBlock, key, outValue, dummy);
 }
 
-Status ReplicaImp::get(BlockId readVersion, const Sliver& key, Sliver &outValue, BlockId &outBlock) const {
+Status ReplicaImp::get(BlockId readVersion, const Sliver &key, Sliver &outValue, BlockId &outBlock) const {
   // TODO(GG): check legality of operation (the method should be invoked from
   // the replica's internal thread)
 
@@ -147,7 +146,7 @@ Status ReplicaImp::getBlockData(BlockId blockId, SetOfKeyValuePairs &outBlockDat
   return Status::OK();
 }
 
-Status ReplicaImp::mayHaveConflictBetween(const Sliver& key, BlockId fromBlock, BlockId toBlock, bool &outRes) const {
+Status ReplicaImp::mayHaveConflictBetween(const Sliver &key, BlockId fromBlock, BlockId toBlock, bool &outRes) const {
   // TODO(GG): add assert or print warning if fromBlock==0 (all keys have a
   // conflict in block 0)
 
@@ -205,10 +204,8 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   state_transfer_config.fVal = m_replicaConfig.fVal;
 
   m_appState = new BlockchainAppState(this);
-  m_stateTransfer = bftEngine::SimpleBlockchainStateTransfer::create(state_transfer_config,
-                                                                     m_appState,
-                                                                     m_bcDbAdapter->getDb(),
-                                                                     aggregator);
+  m_stateTransfer = bftEngine::SimpleBlockchainStateTransfer::create(
+      state_transfer_config, m_appState, m_bcDbAdapter->getDb(), aggregator);
 }
 
 ReplicaImp::~ReplicaImp() {
@@ -356,7 +353,7 @@ Sliver ReplicaImp::getBlockInternal(BlockId blockId) const {
 
 ReplicaImp::StorageWrapperForIdleMode::StorageWrapperForIdleMode(const ReplicaImp *r) : rep(r) {}
 
-Status ReplicaImp::StorageWrapperForIdleMode::get(const Sliver& key, Sliver &outValue) const {
+Status ReplicaImp::StorageWrapperForIdleMode::get(const Sliver &key, Sliver &outValue) const {
   if (rep->getReplicaStatus() != IReplica::RepStatus::Idle) {
     return Status::IllegalOperation("");
   }
@@ -365,7 +362,7 @@ Status ReplicaImp::StorageWrapperForIdleMode::get(const Sliver& key, Sliver &out
 }
 
 Status ReplicaImp::StorageWrapperForIdleMode::get(BlockId readVersion,
-                                                  const Sliver& key,
+                                                  const Sliver &key,
                                                   Sliver &outValue,
                                                   BlockId &outBlock) const {
   if (rep->getReplicaStatus() != IReplica::RepStatus::Idle) {
@@ -393,7 +390,7 @@ Status ReplicaImp::StorageWrapperForIdleMode::getBlockData(BlockId blockId, SetO
   return Status::OK();
 }
 
-Status ReplicaImp::StorageWrapperForIdleMode::mayHaveConflictBetween(const Sliver& key,
+Status ReplicaImp::StorageWrapperForIdleMode::mayHaveConflictBetween(const Sliver &key,
                                                                      BlockId fromBlock,
                                                                      BlockId toBlock,
                                                                      bool &outRes) const {
@@ -543,7 +540,7 @@ KeyValuePair ReplicaImp::StorageIterator::first(BlockId readVersion, BlockId &ac
 }
 
 KeyValuePair ReplicaImp::StorageIterator::seekAtLeast(BlockId readVersion,
-                                                      const Key& key,
+                                                      const Key &key,
                                                       BlockId &actualVersion,
                                                       bool &isEnd) {
   Key actualKey;
@@ -574,7 +571,10 @@ KeyValuePair ReplicaImp::StorageIterator::seekAtLeast(BlockId readVersion,
  * perfectly OK.
  */
 // Note: key,readVersion must exist in map already
-KeyValuePair ReplicaImp::StorageIterator::next(BlockId readVersion, const Key& key, BlockId &actualVersion, bool &isEnd) {
+KeyValuePair ReplicaImp::StorageIterator::next(BlockId readVersion,
+                                               const Key &key,
+                                               BlockId &actualVersion,
+                                               bool &isEnd) {
   Key nextKey;
   Value nextValue;
   Status s = rep->getBcDbAdapter()->next(m_iter, readVersion, nextKey, nextValue, actualVersion, isEnd);

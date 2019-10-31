@@ -28,7 +28,7 @@ class DebugPersistentStorage : public PersistentStorage {
   uint8_t beginWriteTran() override;
   uint8_t endWriteTran() override;
   bool isInWriteTran() const override;
-  void setReplicaConfig(const ReplicaConfig &config) override;
+  void setReplicaConfig(const ReplicaConfig& config) override;
   void setFetchingState(bool state) override;
   void setLastExecutedSeqNum(SeqNum seqNum) override;
   void setPrimaryLastUsedSeqNum(SeqNum seqNum) override;
@@ -39,13 +39,13 @@ class DebugPersistentStorage : public PersistentStorage {
   void setDescriptorOfLastExecution(const DescriptorOfLastExecution& prevViewDesc) override;
   void setLastStableSeqNum(SeqNum seqNum) override;
   void clearSeqNumWindow() override;
-  void setPrePrepareMsgInSeqNumWindow(SeqNum seqNum, PrePrepareMsg *msg) override;
+  void setPrePrepareMsgInSeqNumWindow(SeqNum seqNum, PrePrepareMsg* msg) override;
   void setSlowStartedInSeqNumWindow(SeqNum seqNum, bool slowStarted) override;
-  void setFullCommitProofMsgInSeqNumWindow(SeqNum s, FullCommitProofMsg *msg) override;
+  void setFullCommitProofMsgInSeqNumWindow(SeqNum s, FullCommitProofMsg* msg) override;
   void setForceCompletedInSeqNumWindow(SeqNum seqNum, bool forceCompleted) override;
-  void setPrepareFullMsgInSeqNumWindow(SeqNum seqNum, PrepareFullMsg *msg) override;
-  void setCommitFullMsgInSeqNumWindow(SeqNum seqNum, CommitFullMsg *msg) override;
-  void setCheckpointMsgInCheckWindow(SeqNum seqNum, CheckpointMsg *msg) override;
+  void setPrepareFullMsgInSeqNumWindow(SeqNum seqNum, PrepareFullMsg* msg) override;
+  void setCommitFullMsgInSeqNumWindow(SeqNum seqNum, CommitFullMsg* msg) override;
+  void setCheckpointMsgInCheckWindow(SeqNum seqNum, CheckpointMsg* msg) override;
   void setCompletedMarkInCheckWindow(SeqNum seqNum, bool mark) override;
   bool hasReplicaConfig() const override;
   ReplicaConfig getReplicaConfig() override;
