@@ -17,8 +17,8 @@ import random
 
 import bft_tester
 import skvbc
-import bft_client
-import bft_metrics_client
+
+from math import inf
 
 KEY_FILE_PREFIX = "replica_keys_"
 
@@ -179,23 +179,8 @@ class SkvbcPersistenceTest(unittest.TestCase):
                                        key_file_prefix=KEY_FILE_PREFIX,
                                        start_replica_cmd=start_replica_cmd)
         with bft_tester.BftTester(config) as tester:
-            await tester.init()
-            initial_nodes = [0, 1, 2]
-            [tester.start_replica(i) for i in initial_nodes]
-
-            client = skvbc.Client(tester.random_client())
-
-            # Write a KV pair with a known value
-            known_key = tester.max_key()
-            known_val = tester.random_value()
-            known_kv = [(known_key, known_val)]
-            reply = await client.write([], known_kv)
-            self.assertTrue(reply.success)
-
-            # Fill up the initial nodes with data, checkpoint them and stop
-            # them. Then bring them back up and ensure the checkpoint data is
-            # there.
-            await self._assert_fill_and_checkpoint(tester, initial_nodes)
+            client, known_key, known_kv = \
+                await self._prime_skvbc_for_state_transfer(tester)
 
             # Start the replica without any data, and wait for state transfer to
             # complete.
@@ -244,23 +229,8 @@ class SkvbcPersistenceTest(unittest.TestCase):
                                        key_file_prefix=KEY_FILE_PREFIX,
                                        start_replica_cmd=start_replica_cmd)
         with bft_tester.BftTester(config) as tester:
-            await tester.init()
-            initial_nodes = [0, 1, 2]
-            [tester.start_replica(i) for i in initial_nodes]
-
-            client = skvbc.Client(tester.random_client())
-
-            # Write a KV pair with a known value
-            known_key = tester.max_key()
-            known_val = tester.random_value()
-            known_kv = [(known_key, known_val)]
-            reply = await client.write([], known_kv)
-            self.assertTrue(reply.success)
-
-            # Fill up the initial nodes with data, checkpoint them and stop
-            # them. Then bring them back up and ensure the checkpoint data is
-            # there.
-            await self._assert_fill_and_checkpoint(tester, initial_nodes)
+            client, known_key, known_kv = \
+                await self._prime_skvbc_for_state_transfer(tester)
 
             # Start the empty replica, wait for it to start fetching, then stop
             # it.
@@ -281,6 +251,9 @@ class SkvbcPersistenceTest(unittest.TestCase):
             # include data at the previously stale node
             tester.stop_replica(2)
 
+            self.assertTrue(
+                len(tester.procs) == 2 * config.f + 2 * config.c + 1)
+
             # Retrieve the value we put first to ensure state transfer worked
             # when the log went away
             kvpairs = await client.read([known_key])
@@ -296,27 +269,24 @@ class SkvbcPersistenceTest(unittest.TestCase):
                                                              up_to_date_node,
                                                              stale_node):
        for _ in range(20):
-           print("Restarting replica 3")
-           tester.start_replica(3)
+           print(f'Restarting replica {stale_node}')
+           tester.start_replica(stale_node)
            try:
-               await tester.wait_for_fetching_state(3)
+               await tester.wait_for_fetching_state(stale_node)
                # Sleep a bit to give some time for the fetch to make progress
                await trio.sleep(random.uniform(0, 1))
 
            except trio.TooSlowError:
-               # We never made it to fetching state. Are we done?
-               # Try a few times since metrics are eventually consistent
-               for _ in range(3):
-                   if await tester.is_state_transfer_complete(0, 3):
-                       break
-                   await trio.sleep(.1) # seconds
-               self.assertTrue(false, "State transfer did not complete, " +
-                        "but we are not fetching")
+               await self._await_state_transfer_or_check_if_complete(
+                   tester=tester,
+                   up_to_date_node=up_to_date_node,
+                   stale_node=stale_node
+               )
            finally:
-               print("Stopping replica 3")
-               tester.stop_replica(3)
+               print(f'Stopping replica {stale_node}')
+               tester.stop_replica(stale_node)
 
-    async def _assert_fill_and_checkpoint(self, tester, initial_nodes):
+    async def _assert_fill_and_checkpoint(self, tester, initial_nodes, checkpoint_num=2):
         """
         A helper function used by tests to fill a window with data and then
         checkpoint it.
@@ -328,7 +298,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
         """
         client = skvbc.Client(tester.random_client())
         # Write enough data to checkpoint and create a need for state transfer
-        for i in range (301):
+        for i in range (1 + checkpoint_num * 150):
             key = tester.random_key()
             val = tester.random_value()
             reply = await client.write([], [(key, val)])
@@ -336,9 +306,8 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
         await tester.assert_state_transfer_not_started_all_up_nodes(self)
 
-        # Wait for initial replicas to take 2 checkpoints (exhausting
+        # Wait for initial replicas to take checkpoints (exhausting
         # the full window)
-        checkpoint_num = 2;
         await tester.wait_for_replicas_to_checkpoint(initial_nodes,
                 checkpoint_num)
 
@@ -351,4 +320,167 @@ class SkvbcPersistenceTest(unittest.TestCase):
         await tester.wait_for_replicas_to_checkpoint(initial_nodes,
                 checkpoint_num)
 
+    @unittest.skip("To be re-enabled once the intermittent failures are fixed")
+    def test_st_when_fetcher_and_sender_crash(self):
+        """
+        Start 3 nodes out of a 4 node cluster. Write a specific key, then
+        enough data to the cluster to trigger a checkpoint and log garbage
+        collection.
+
+        Restart the empty replica until it starts fetching from a non-primary
+        node.
+
+        Repeatedly stop and start the source, as well as the fetcher nodes.
+
+        Await for state transfer to complete.
+
+        Take down one of the backup replicas, to ensure the stale node is part
+        of a result quorum.
+
+        After that ensure that the key-value entry initially written
+        can be retrieved.
+        """
+        trio.run(self._test_st_when_fetcher_and_sender_crash)
+
+
+    async def _test_st_when_fetcher_and_sender_crash(self):
+        config = bft_tester.TestConfig(n=4,
+                                       f=1,
+                                       c=0,
+                                       num_clients=10,
+                                       key_file_prefix=KEY_FILE_PREFIX,
+                                       start_replica_cmd=start_replica_cmd)
+
+        with bft_tester.BftTester(config) as tester:
+            client, known_key, known_kv = \
+                await self._prime_skvbc_for_state_transfer(
+                    tester=tester,
+                    checkpoints_num=4
+                )
+
+            # exclude the primary and the stale node
+            unstable_replicas = set(range(0, config.n)) - {0} - {3}
+
+            await self._run_state_transfer_while_crashing_non_primary(
+                tester=tester,
+                primary=0, stale=3,
+                unstable_replicas=unstable_replicas
+            )
+
+            backup_replica_id = random.choice(tuple(unstable_replicas))
+            print(f'Stopping backup replica {backup_replica_id} in order '
+                  f'to force a quorum including the stale node...')
+            tester.stop_replica(backup_replica_id)
+
+            self.assertTrue(
+                len(tester.procs) == 2 * config.f + 2 * config.c + 1)
+
+            # Retrieve the value we put first to ensure state transfer worked
+            # when the log went away
+            kvpairs = await client.read([known_key])
+            self.assertDictEqual(dict(known_kv), kvpairs)
+
+
+    async def _run_state_transfer_while_crashing_non_primary(
+            self, tester,
+            primary, stale,
+            unstable_replicas):
+
+        source_replica_id = \
+            await self._restart_stale_until_fetches_from_non_primary(
+                tester, primary, stale, unstable_replicas
+            )
+
+        self.assertTrue(
+            expr=source_replica_id != primary,
+            msg="The source must NOT be the primary "
+                "(to avoid triggering a view change)"
+        )
+
+        if source_replica_id in unstable_replicas:
+            print(f'Stopping source replica {source_replica_id}')
+            tester.stop_replica(source_replica_id)
+
+            print(f'Re-starting stale replica {stale} to start state transfer')
+            tester.start_replica(stale)
+
+            await self._await_state_transfer_or_check_if_complete(
+                tester=tester,
+                up_to_date_node=primary,
+                stale_node=stale
+            )
+
+            print(f'State transfer completed, despite initial source '
+                  f'replica {source_replica_id} being down')
+
+            tester.start_replica(source_replica_id)
+        else:
+            print("No source replica set in stale node, checking "
+                  "if state transfer has already completed...")
+            await self._await_state_transfer_or_check_if_complete(
+                tester=tester,
+                up_to_date_node=primary,
+                stale_node=stale
+            )
+            print("State transfer completed before we had a chance "
+                  "to stop the source replica.")
+
+    async def _restart_stale_until_fetches_from_non_primary(
+            self, tester, primary, stale, unstable_replicas):
+
+        source_replica_id = inf
+
+        print("Restarting stale replica until "
+              "it fetches from non-primary...")
+        with trio.move_on_after(10):  # seconds
+            while True:
+                tester.start_replica(stale)
+                source_replica_id = await tester.wait_for_fetching_state(
+                    replica_id=stale,
+                    excluded_source_replica_id=primary
+                )
+                tester.stop_replica(stale)
+                if source_replica_id in unstable_replicas:
+                    # Nice! The source is a replica we can crash (without triggering view change).
+                    break
+        print("Stale replica now fetching from non-primary.")
+
+        return source_replica_id
+
+    async def _await_state_transfer_or_check_if_complete(
+            self, tester, up_to_date_node, stale_node):
+        # We never made it to fetching state. Are we done?
+        # Try a few times since metrics are eventually consistent
+        try:
+            await tester.wait_for_state_transfer_to_stop(
+                up_to_date_node, stale_node)
+        except trio.TooSlowError:
+            for _ in range(3):
+                if await tester.is_state_transfer_complete(
+                        up_to_date_node, stale_node):
+                    return
+                await trio.sleep(1)  # seconds
+            self.fail("State transfer did not complete, " +
+                      "but we are not fetching either!")
+
+
+    async def _prime_skvbc_for_state_transfer(
+            self, tester, initial_nodes=(0, 1, 2),
+            checkpoints_num=2):
+        await tester.init()
+        [tester.start_replica(i) for i in initial_nodes]
+        client = skvbc.Client(tester.random_client())
+        # Write a KV pair with a known value
+        known_key = tester.max_key()
+        known_val = tester.random_value()
+        known_kv = [(known_key, known_val)]
+        reply = await client.write([], known_kv)
+        self.assertTrue(reply.success)
+        # Fill up the initial nodes with data, checkpoint them and stop
+        # them. Then bring them back up and ensure the checkpoint data is
+        # there.
+        await self._assert_fill_and_checkpoint(
+            tester, initial_nodes, checkpoints_num)
+
+        return client, known_key, known_kv
 

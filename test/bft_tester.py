@@ -227,22 +227,38 @@ class BftTester:
                 pass
             await trio.sleep(.1)
 
-    async def wait_for_fetching_state(self, replica_id):
+    async def wait_for_fetching_state(self, replica_id, excluded_source_replica_id=None):
         """
-        Check metrics on fetching replic ato see if the replica is in a
+        Check metrics on fetching replica to see if the replica is in a
         fetching state
+
+        If excluded_source_replica_id is specified, returns the current
+        source replica for state transfer. Otherwise, returns None.
         """
         with trio.fail_after(10): # seconds
             while True:
                 with trio.move_on_after(.2): # seconds
-                    if await self.is_fetching(replica_id):
-                        return
+                    is_fetching = await self.is_fetching(replica_id)
+                    if excluded_source_replica_id is None:
+                        if is_fetching:
+                            return None
+                    else:
+                        source_replica_id = await self.source_replica(replica_id)
+                        if is_fetching and source_replica_id != excluded_source_replica_id:
+                            return source_replica_id
 
     async def is_fetching(self, replica_id):
         """Return whether the current replica is fetching state"""
         key = ['bc_state_transfer', 'Statuses', 'fetching_state']
         state = await self.metrics.get(replica_id, *key)
         return state != "NotFetching"
+
+    async def source_replica(self, replica_id):
+        """Return whether the current replica has a source replica already set"""
+        key = ['bc_state_transfer', 'Gauges', 'current_source_replica']
+        source_replica_id = await self.metrics.get(replica_id, *key)
+
+        return source_replica_id
 
     async def wait_for_state_transfer_to_start(self):
         """
