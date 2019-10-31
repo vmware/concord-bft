@@ -320,7 +320,6 @@ class SkvbcPersistenceTest(unittest.TestCase):
         await tester.wait_for_replicas_to_checkpoint(initial_nodes,
                 checkpoint_num)
 
-    @unittest.skip("To be re-enabled once the intermittent failures are fixed")
     def test_st_when_fetcher_and_sender_crash(self):
         """
         Start 3 nodes out of a 4 node cluster. Write a specific key, then
