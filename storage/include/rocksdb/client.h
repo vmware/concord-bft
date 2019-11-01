@@ -60,6 +60,15 @@ class Client : public concord::storage::IDBClient {
  public:
   Client(std::string _dbPath, const ::rocksdb::Comparator* comparator) : m_dbPath(_dbPath), comparator_(comparator) {}
 
+  ~Client() {
+    if (txn_db_) {
+      // If we're using a TransactionDB, it wraps the base DB, so release it
+      // instead of releasing the base DB.
+      dbInstance_.release();
+      delete txn_db_;
+    }
+  }
+
   void init(bool readOnly = false) override;
   concordUtils::Status get(const concordUtils::Sliver& _key, concordUtils::Sliver& _outValue) const override;
   concordUtils::Status get(const concordUtils::Sliver& _key,
