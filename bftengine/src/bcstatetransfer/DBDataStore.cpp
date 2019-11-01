@@ -348,7 +348,7 @@ void DBDataStore::associatePendingResPageWithCheckpointTxn(uint32_t inPageId,
   LOG_DEBUG(logger(),
             "page: " << inPageId << " chkp: " << inCheckpoint << " digest: " << inPageDigest.toString()
                      << " txn: " << txn->getId());
-  auto pendingPages = inmem_->getPendingPagesMap();
+  auto& pendingPages = inmem_->getPendingPagesMap();
   auto page = pendingPages.find(inPageId);
   assert(page != pendingPages.end());
 
