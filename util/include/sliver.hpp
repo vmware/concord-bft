@@ -56,10 +56,9 @@ class Sliver {
   bool operator!=(const Sliver& other) const;
   int compare(const Sliver& other) const;
 
-  std::string toString() const { return std::string(reinterpret_cast<char*>(data()), length()); }
+  std::string toString() const { return std::string(data(), length()); }
 
  private:
-
   // A wrapper around a std::string. We need to be able to allocate the wrapper
   // so that we have a pointer that can be stored in a shared_ptr. We don't want
   // allocate a copy of a string we already have.
@@ -78,7 +77,6 @@ class Sliver {
   static void* operator new[](size_t) = delete;
   static void operator delete(void*) = delete;
   static void operator delete[](void*) = delete;
-
 };
 
 std::ostream& operator<<(std::ostream& s, const Sliver& sliver);

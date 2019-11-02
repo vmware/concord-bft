@@ -51,9 +51,7 @@ static bool g_rocksdb_print_measurements = false;
  * @param _s A RocksDB Slice object.
  * @return A Sliver object.
  */
-Sliver fromRocksdbSlice(::rocksdb::Slice _s) {
-  return Sliver(_s.data(), _s.size());
-}
+Sliver fromRocksdbSlice(::rocksdb::Slice _s) { return Sliver(_s.data(), _s.size()); }
 
 /**
  * @brief Copies a RocksDB slice in a Sliver.
@@ -62,7 +60,7 @@ Sliver fromRocksdbSlice(::rocksdb::Slice _s) {
  * @return A Sliver object.
  */
 Sliver copyRocksdbSlice(::rocksdb::Slice _s) {
-  char* copyData = new char[_s.size()];
+  char *copyData = new char[_s.size()];
   std::copy(_s.data(), _s.data() + _s.size(), copyData);
   return Sliver(copyData, _s.size());
 }

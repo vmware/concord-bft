@@ -35,9 +35,7 @@ Sliver::Sliver() : data_(shared_ptr<const char[]>()), offset_(0), length_(0) {}
  * `malloc`, because the shared pointer will use `delete` and not `free`.
  */
 Sliver::Sliver(const char* data, const size_t length)
-    : data_(std::shared_ptr<const char[]>(data)),
-      offset_(0),
-      length_(length) {
+    : data_(std::shared_ptr<const char[]>(data)), offset_(0), length_(length) {
   // Data must be non-null.
   Assert(data != nullptr);
 }
@@ -59,27 +57,21 @@ Sliver::Sliver(const Sliver& base, const size_t offset, const size_t length)
 /**
  * Create a Sliver by moving a string into it.
  */
-Sliver::Sliver(const string&& s)
-  : data_(std::make_shared<StringBuf>(StringBuf {s})),
-    offset_(0),
-    length_(s.length()) {}
-
+Sliver::Sliver(const string&& s) : data_(std::make_shared<StringBuf>(StringBuf{s})), offset_(0), length_(s.length()) {}
 
 /**
  * Shorthand for the copy constructor.
  * */
-Sliver Sliver::clone() const {
-  return subsliver(0, length_);
-}
+Sliver Sliver::clone() const { return subsliver(0, length_); }
 
 /**
  * Create a sliver from a copy of the memory pointed to by `data`, which is
  * `length` bytes in size.
  */
 Sliver Sliver::copy(const char* data, const size_t length) {
-   auto* copy = new char[length];
-   memcpy(copy, data, length);
-   return Sliver(copy, length);
+  auto* copy = new char[length];
+  memcpy(copy, data, length);
+  return Sliver(copy, length);
 }
 
 /**
@@ -113,20 +105,16 @@ const char* Sliver::data() const {
 }
 
 /**
-* Create a subsliver. Syntactic sugar for cases where a function call is more
-* natural than using the sub-sliver constructor directly.
-*/
-Sliver Sliver::subsliver(const size_t offset, const size_t length) const {
-  return Sliver(*this, offset, length);
-}
+ * Create a subsliver. Syntactic sugar for cases where a function call is more
+ * natural than using the sub-sliver constructor directly.
+ */
+Sliver Sliver::subsliver(const size_t offset, const size_t length) const { return Sliver(*this, offset, length); }
 
 size_t Sliver::length() const { return length_; }
 
 std::string_view Sliver::string_view() const { return std::string_view(data(), length_); }
 
-std::ostream& Sliver::operator<<(std::ostream& s) const {
-  return hexPrint(s, data(), length());
-}
+std::ostream& Sliver::operator<<(std::ostream& s) const { return hexPrint(s, data(), length()); }
 
 std::ostream& operator<<(std::ostream& s, const Sliver& sliver) { return sliver.operator<<(s); }
 

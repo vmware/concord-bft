@@ -442,8 +442,7 @@ Status DBAdapter::addBlock(BlockId _blockId, Sliver _blockRaw) {
   return s;
 }
 
-bool KeyManipulator::copyToAndAdvance(
-    char *_buf, size_t *_offset, size_t _maxOffset, char *_src, size_t _srcSize) {
+bool KeyManipulator::copyToAndAdvance(char *_buf, size_t *_offset, size_t _maxOffset, char *_src, size_t _srcSize) {
   if (!_buf && !_offset && !_src) assert(false);
 
   if (*_offset >= _maxOffset && _srcSize > 0) assert(false);
@@ -646,9 +645,7 @@ Status DBAdapter::getBlockById(BlockId _blockId, Sliver &_blockRaw, bool &_found
  * @param _src Sliver object that needs to be copied.
  * @param _trg Sliver object that contains the result.
  */
-inline void CopyKey(Sliver _src, Sliver &_trg) {
-  _trg = Sliver::copy(_src.data(), _src.length());
-}
+inline void CopyKey(Sliver _src, Sliver &_trg) { _trg = Sliver::copy(_src.data(), _src.length()); }
 
 // TODO(SG): Add status checks with getStatus() on iterator.
 // TODO(JGC): unserstand difference between .second and .data()

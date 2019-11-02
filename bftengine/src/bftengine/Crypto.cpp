@@ -148,7 +148,8 @@ class RSASignerInternal {
             size_t& lengthOfReturnedData) {
     const size_t sigLen = priv.SignatureLength();
     if (lengthOfOutBuffer < sigLen) return false;
-    lengthOfReturnedData = priv.SignMessage(rand, (CryptoPP::byte*)inBuffer, lengthOfInBuffer, (CryptoPP::byte*)outBuffer);
+    lengthOfReturnedData =
+        priv.SignMessage(rand, (CryptoPP::byte*)inBuffer, lengthOfInBuffer, (CryptoPP::byte*)outBuffer);
     VERIFY(lengthOfReturnedData == sigLen);
 
     return true;
@@ -165,8 +166,7 @@ class RSAVerifierInternal {
 
   size_t signatureLength() { return pub.SignatureLength(); }
 
-  bool verify(const char* data, size_t lengthOfData, const char* signature, size_t lengthOfOSignature)
-  {
+  bool verify(const char* data, size_t lengthOfData, const char* signature, size_t lengthOfOSignature) {
     bool ok = pub.VerifyMessage((CryptoPP::byte*)data, lengthOfData, (CryptoPP::byte*)signature, lengthOfOSignature);
     return ok;
   }

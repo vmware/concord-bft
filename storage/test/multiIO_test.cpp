@@ -126,8 +126,7 @@ TEST_F(multiIO_test, multi_del) {
   ASSERT_TRUE(dbClient->multiDel(keys).isOK());
   verifyMultiDel(keys);
 }
-TEST(multiIO_test, basic_transaction)
-{
+TEST_F(multiIO_test, basic_transaction) {
   Sliver key1("basic_transaction::key1");
   Sliver key2("basic_transaction::key2");
   Sliver inValue1("basic_transaction::val1");
@@ -143,8 +142,8 @@ TEST(multiIO_test, basic_transaction)
     g.txn()->del(key1);
     std::string val1 = g.txn()->get(key1);
     ASSERT_TRUE(val1.empty());
-    g.txn->put(key1, inValue1);
-    val1 = g.txn->get(key1);
+    g.txn()->put(key1, inValue1);
+    val1 = g.txn()->get(key1);
     ASSERT_TRUE(inValue1 == Sliver(std::move(val1)));
   }
   Sliver outValue;
@@ -156,24 +155,24 @@ TEST(multiIO_test, basic_transaction)
   ASSERT_TRUE(inValue2 == outValue);
 }
 
-TEST(multiIO_test, no_commit_during_exception)
-{
+TEST_F(multiIO_test, no_commit_during_exception) {
   Sliver key("no_commit_during_exception::key");
   Sliver inValue("no_commit_during_exception::val");
   key = key_manipulator_->genDataDbKey(key, 0);
   try {
-    { // transaction scope
+    {  // transaction scope
       ITransaction::Guard g(dbClient->beginTransaction());
       g.txn()->put(key, inValue);
       g.txn()->del(key);
       std::string val = g.txn()->get(key);
       ASSERT_TRUE(val.empty());
-      g.txn->put(key, inValue);
-      val = g.txn->get(key);
+      g.txn()->put(key, inValue);
+      val = g.txn()->get(key);
       ASSERT_TRUE(inValue == Sliver(std::move(val)));
       throw std::runtime_error("oops");
     }
-  } catch(std::exception& e){}
+  } catch (std::exception &e) {
+  }
   Sliver outValue;
   Status status = dbClient->get(key, outValue);
   ASSERT_FALSE(status.isOK());
