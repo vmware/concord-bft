@@ -23,8 +23,10 @@
 namespace bftEngine {
 namespace impl {
 
+namespace {
 bool cryptoInitialized = false;
 std::mutex mutexForCryptoInitialization;
+}
 
 struct ReplicaInternal : public Replica {
   virtual ~ReplicaInternal() override;
