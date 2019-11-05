@@ -16,5 +16,5 @@ env:
     - RELEASE=-DCMAKE_BUILD_TYPE=RELEASE
     - RELEASE=-DCMAKE_BUILD_TYPE=RELEASE USE_ROCKSDB=-DBUILD_ROCKSDB_STORAGE=TRUE
 script:
-  - cd $TRAVIS_BUILD_DIR && mkdir build && cd build && cmake $CMAKE_CXX_FLAGS $DEBUG $RELEASE $USE_ROCKSDB .. && make format-check && make -j $(getconf _NPROCESSORS_ONLN) && ctest -R pyclient --verbose && ctest
+  - cd $TRAVIS_BUILD_DIR && mkdir build && cd build && cmake $CMAKE_CXX_FLAGS $DEBUG $RELEASE $USE_ROCKSDB .. && make format-check && make -j $(getconf _NPROCESSORS_ONLN) && ctest -R skvbc_persistence_tests --verbose && ctest -E skvbc_persistence_tests
 
