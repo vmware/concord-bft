@@ -80,13 +80,11 @@ class SkvbcPersistenceTest(unittest.TestCase):
                             tester.random_client(), msg)
                     # See if replica 1 has become the new primary
                     # Check every .5 seconds
-                    while True:
-                        with trio.move_on_after(.5): # seconds
-                            key = ['replica', 'Gauges', 'lastAgreedView']
-                            replica_id = 1
-                            view = await tester.metrics.get(replica_id, *key)
-                            if view == 1:
-                                break
+                    view = await self._get_view_number(
+                        tester=tester,
+                        replica_id=1,
+                        expected=lambda v: v == 1
+                    )
                     # At this point a view change has successfully completed
                     # with node 1 as the primary. The faulty assertion should
                     # have crashed old nodes.
@@ -180,7 +178,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
                                        start_replica_cmd=start_replica_cmd)
         with bft_tester.BftTester(config) as tester:
             client, known_key, known_kv = \
-                await self._prime_skvbc_for_state_transfer(tester)
+                await self._prime_skvbc_for_state_transfer(tester, stale_nodes={3})
 
             # Start the replica without any data, and wait for state transfer to
             # complete.
@@ -230,7 +228,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
                                        start_replica_cmd=start_replica_cmd)
         with bft_tester.BftTester(config) as tester:
             client, known_key, known_kv = \
-                await self._prime_skvbc_for_state_transfer(tester)
+                await self._prime_skvbc_for_state_transfer(tester, stale_nodes={3})
 
             # Start the empty replica, wait for it to start fetching, then stop
             # it.
@@ -251,8 +249,8 @@ class SkvbcPersistenceTest(unittest.TestCase):
             # include data at the previously stale node
             tester.stop_replica(2)
 
-            self.assertTrue(
-                len(tester.procs) == 2 * config.f + 2 * config.c + 1)
+            self.assertEqual(
+                len(tester.procs), 2 * config.f + 2 * config.c + 1)
 
             # Retrieve the value we put first to ensure state transfer worked
             # when the log went away
@@ -354,7 +352,8 @@ class SkvbcPersistenceTest(unittest.TestCase):
             client, known_key, known_kv = \
                 await self._prime_skvbc_for_state_transfer(
                     tester=tester,
-                    checkpoints_num=4
+                    checkpoints_num=4,
+                    stale_nodes={3}
                 )
 
             # exclude the primary and the stale node
@@ -371,8 +370,8 @@ class SkvbcPersistenceTest(unittest.TestCase):
                   f'to force a quorum including the stale node...')
             tester.stop_replica(backup_replica_id)
 
-            self.assertTrue(
-                len(tester.procs) == 2 * config.f + 2 * config.c + 1)
+            self.assertEqual(
+                len(tester.procs), 2 * config.f + 2 * config.c + 1)
 
             # Retrieve the value we put first to ensure state transfer worked
             # when the log went away
@@ -386,8 +385,8 @@ class SkvbcPersistenceTest(unittest.TestCase):
             unstable_replicas):
 
         source_replica_id = \
-            await self._restart_stale_until_fetches_from_non_primary(
-                tester, primary, stale, unstable_replicas
+            await self._restart_stale_until_fetches_from_unstable(
+                tester, stale, unstable_replicas
             )
 
         self.assertTrue(
@@ -424,25 +423,259 @@ class SkvbcPersistenceTest(unittest.TestCase):
             print("State transfer completed before we had a chance "
                   "to stop the source replica.")
 
-    async def _restart_stale_until_fetches_from_non_primary(
-            self, tester, primary, stale, unstable_replicas):
+    def test_st_when_primary_crashes(self):
+        """
+        Start 3 nodes out of a 4 node cluster. Write a specific key, then
+        enough data to the cluster to trigger several checkpoints.
+
+        Repeatedly stop and start the primary and
+        trigger view change during the state transfer process.
+
+        Await for state transfer to complete.
+
+        Take down one of the backup replicas, to ensure the stale node is part
+        of a result quorum.
+
+        After that ensure that the key-value entry initially written
+        can be retrieved.
+        """
+        trio.run(self._test_st_while_crashing_primary_with_vc)
+
+    async def _test_st_while_crashing_primary_with_vc(self):
+        await self._test_st_while_crashing_primary(
+            trigger_view_change=True,
+            crash_repeatedly=True
+        )
+
+    @unittest.skip("Enable when https://github.com/vmware/concord-bft/issues/269 "
+                   "gets fixed.")
+    def test_st_when_primary_crashes_issue_269(self):
+        """
+        Note: this test reproduces the following issue:
+        https://github.com/vmware/concord-bft/issues/269
+
+        Start 3 nodes out of a 4 node cluster. Write a specific key, then
+        enough data to the cluster to trigger several checkpoints.
+
+        Stop the primary (do NOT trigger view change)
+
+        Start the stale node, in order to trigger state transfer.
+
+        Await for state transfer to complete.
+
+        Take down one of the backup replicas, to ensure the stale node is part
+        of a result quorum.
+
+        After that ensure that the key-value entry initially written
+        can be retrieved.
+        """
+        trio.run(self._test_st_while_crashing_primary_no_vc)
+
+    async def _test_st_while_crashing_primary_no_vc(self):
+        await self._test_st_while_crashing_primary(
+            trigger_view_change=False,
+            crash_repeatedly=False
+        )
+
+    async def _test_st_while_crashing_primary(
+            self, trigger_view_change, crash_repeatedly):
+        # spinning up a cluster with 7 nodes, to allow us to have 2
+        # crashed replicas at the same time (the primary and the stale node)
+        config = bft_tester.TestConfig(n=7,
+                                       f=2,
+                                       c=0,
+                                       num_clients=10,
+                                       key_file_prefix=KEY_FILE_PREFIX,
+                                       start_replica_cmd=start_replica_cmd)
+        with bft_tester.BftTester(config) as tester:
+            stale_replica = 6
+
+            client, known_key, known_kv = \
+                await self._prime_skvbc_for_state_transfer(
+                    tester=tester,
+                    checkpoints_num=4,
+                    stale_nodes={stale_replica}
+                )
+
+            view = await self._get_view_number(
+                tester=tester,
+                replica_id=0,
+                expected=lambda v: v == 0
+            )
+
+            self.assertEqual(view, 0, "Make sure we are in the initial view.")
+
+            print(f'Initial view number is {view}, as expected.')
+
+            if crash_repeatedly:
+                await self._run_state_transfer_while_crashing_primary_repeatedly(
+                    tester=tester,
+                    n=config.n,
+                    primary=0,
+                    stale=stale_replica
+                )
+            else:
+                await self._run_state_transfer_while_crashing_primary_once(
+                    tester=tester,
+                    n=config.n,
+                    primary=0,
+                    stale=stale_replica,
+                    trigger_view_change=trigger_view_change
+                )
+
+            print(f'Stopping two backup replica nodes in order to force '
+                  f'a quorum including the {stale_replica} node...')
+
+            backup_replica_1 = \
+                random.choice(tuple(
+                    set(range(0, config.n)) - {0, stale_replica}))
+
+            backup_replica_2 = \
+                random.choice(tuple(
+                    set(range(0, config.n)) - {0, stale_replica, backup_replica_1}))
+
+            tester.stop_replica(backup_replica_1)
+            tester.stop_replica(backup_replica_2)
+
+            self.assertEqual(
+                len(tester.procs), 2 * config.f + 2 * config.c + 1)
+
+            kvpairs = await client.read([known_key])
+            self.assertDictEqual(dict(known_kv), kvpairs)
+
+    async def _run_state_transfer_while_crashing_primary_once(
+            self, tester, n, primary, stale, trigger_view_change=False):
+
+        print(f'Stopping primary replica {primary} to trigger view change')
+        tester.stop_replica(primary)
+
+        print(f'Re-starting stale replica {stale} to start state transfer')
+        tester.start_replica(stale)
+
+        if trigger_view_change:
+            await self._trigger_view_change(tester)
+
+        up_to_date_replicas = tuple(set(range(0, n)) - {primary, stale})
+        up_to_date_replica = random.choice(up_to_date_replicas)
+
+        await self._await_state_transfer_or_check_if_complete(
+            tester=tester,
+            up_to_date_node=up_to_date_replica,
+            stale_node=stale
+        )
+
+        view = await self._get_view_number(
+            tester=tester,
+            replica_id=up_to_date_replica,
+            expected=lambda v: v > 0
+        )
+
+        self.assertGreater(
+            view, 0,
+            "Make sure view change has been triggered during state transfer."
+        )
+
+        print(f'State transfer completed, despite the primary '
+              f'replica crashing.')
+
+        tester.start_replica(primary)
+
+    async def _run_state_transfer_while_crashing_primary_repeatedly(
+            self, tester, n, primary, stale):
+
+        current_primary = primary
+        stable_replicas = \
+            tuple(set(range(n)) - {primary, stale})
+
+        for _ in range(2):
+            print(f'Stopping current primary replica {current_primary} '
+                  f'to trigger view change')
+            tester.stop_replica(current_primary)
+
+            print(f'Repeatedly restarting stale replica {stale} '
+                  f'to with view change running in the background.')
+
+            for k in range(3):
+                tester.start_replica(stale)
+                await self._trigger_view_change(tester)
+                await trio.sleep(seconds=random.uniform(0, 1))
+                if k == 0:
+                    # ensure that we have interrupted state transfer at least once
+                    self.assertFalse(await tester.is_state_transfer_complete(
+                        up_to_date_node=random.choice(stable_replicas),
+                        stale_node=stale))
+                tester.stop_replica(stale)
+
+            tester.start_replica(current_primary)
+
+            current_primary = await self._get_view_number(
+                tester=tester,
+                replica_id=random.choice(stable_replicas),
+                expected=lambda v: v > current_primary
+            )
+
+            stable_replicas = \
+                tuple(set(range(n)) - {current_primary, stale})
+
+        tester.start_replica(stale)
+
+        await self._await_state_transfer_or_check_if_complete(
+            tester=tester,
+            up_to_date_node=random.choice(stable_replicas),
+            stale_node=stale
+        )
+
+        self.assertGreater(
+            current_primary, 0,
+            "Make sure view change has been triggered during state transfer."
+        )
+
+        print(f'State transfer completed, despite the primary '
+              f'replica crashing repeatedly in the process.')
+
+
+    async def _trigger_view_change(self, tester):
+        print("Sending random transactions to trigger view change...")
+        with trio.move_on_after(1):  # seconds
+            async with trio.open_nursery() as nursery:
+                msg = self.protocol.write_req([],
+                                              [(tester.random_key(), tester.random_value())],
+                                              0)
+                nursery.start_soon(tester.send_indefinite_write_requests,
+                                   tester.random_client(), msg)
+
+    async def _get_view_number(self, tester, replica_id, expected):
+        with trio.move_on_after(10):
+            while True:
+                with trio.move_on_after(.5):  # seconds
+                    key = ['replica', 'Gauges', 'lastAgreedView']
+                    view = await tester.metrics.get(replica_id, *key)
+                    if expected(view):
+                        break
+        return view
+
+    async def _restart_stale_until_fetches_from_unstable(
+            self, tester, stale, unstable_replicas):
 
         source_replica_id = inf
 
-        print("Restarting stale replica until "
-              "it fetches from non-primary...")
+        print(f'Restarting stale replica until '
+              f'it fetches from {unstable_replicas}...')
         with trio.move_on_after(10):  # seconds
             while True:
                 tester.start_replica(stale)
                 source_replica_id = await tester.wait_for_fetching_state(
-                    replica_id=stale,
-                    excluded_source_replica_id=primary
+                    replica_id=stale
                 )
                 tester.stop_replica(stale)
                 if source_replica_id in unstable_replicas:
-                    # Nice! The source is a replica we can crash (without triggering view change).
+                    # Nice! The source is a replica we can crash
                     break
-        print("Stale replica now fetching from non-primary.")
+
+        if source_replica_id < inf:
+            print(f'Stale replica now fetching from {source_replica_id}')
+        else:
+            print(f'Stale replica is not fetching right now.')
 
         return source_replica_id
 
@@ -464,9 +697,10 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
 
     async def _prime_skvbc_for_state_transfer(
-            self, tester, initial_nodes=(0, 1, 2),
+            self, tester, stale_nodes,
             checkpoints_num=2):
         await tester.init()
+        initial_nodes = set(range(tester.config.n)) - stale_nodes
         [tester.start_replica(i) for i in initial_nodes]
         client = skvbc.Client(tester.random_client())
         # Write a KV pair with a known value

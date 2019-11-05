@@ -227,25 +227,20 @@ class BftTester:
                 pass
             await trio.sleep(.1)
 
-    async def wait_for_fetching_state(self, replica_id, excluded_source_replica_id=None):
+    async def wait_for_fetching_state(self, replica_id):
         """
         Check metrics on fetching replica to see if the replica is in a
         fetching state
 
-        If excluded_source_replica_id is specified, returns the current
-        source replica for state transfer. Otherwise, returns None.
+        Returns the current source replica for state transfer.
         """
         with trio.fail_after(10): # seconds
             while True:
-                with trio.move_on_after(.2): # seconds
+                with trio.move_on_after(.5): # seconds
                     is_fetching = await self.is_fetching(replica_id)
-                    if excluded_source_replica_id is None:
-                        if is_fetching:
-                            return None
-                    else:
-                        source_replica_id = await self.source_replica(replica_id)
-                        if is_fetching and source_replica_id != excluded_source_replica_id:
-                            return source_replica_id
+                    source_replica_id = await self.source_replica(replica_id)
+                    if is_fetching:
+                        return source_replica_id
 
     async def is_fetching(self, replica_id):
         """Return whether the current replica is fetching state"""
@@ -291,29 +286,33 @@ class BftTester:
             # Get the lastExecutedSeqNumber from a started node
             key = ['replica', 'Gauges', 'lastExecutedSeqNum']
             last_exec_seq_num = await self.metrics.get(up_to_date_node, *key)
-            last_n = -1;
+            last_n = -1
             while True:
                 with trio.move_on_after(.5): # seconds
                     metrics = await self.metrics.get_all(stale_node)
-                    n = self.metrics.get_local(metrics, *key)
-
-                    # Debugging
-                    if n != last_n:
-                        last_n = n
-                        checkpoint = ['bc_state_transfer',
-                                'Gauges', 'last_stored_checkpoint']
-                        on_transferring_complete = ['bc_state_transfer',
-                                'Counters', 'on_transferring_complete']
-                        print("wait_for_st_to_stop: last_exec_seq_num={} "
-                              "last_stored_checkpoint={} "
-                              "on_transferring_complete_count={}".format(
-                                    n,
-                                    self.metrics.get_local(metrics, *checkpoint),
-                                    self.metrics.get_local(metrics,
-                                        *on_transferring_complete)))
-                    # Exit condition
-                    if n >= last_exec_seq_num:
-                       return
+                    try:
+                        n = self.metrics.get_local(metrics, *key)
+                    except KeyError:
+                        # ignore - the metric will eventually become available
+                        pass
+                    else:
+                        # Debugging
+                        if n != last_n:
+                            last_n = n
+                            checkpoint = ['bc_state_transfer',
+                                    'Gauges', 'last_stored_checkpoint']
+                            on_transferring_complete = ['bc_state_transfer',
+                                    'Counters', 'on_transferring_complete']
+                            print("wait_for_st_to_stop: last_exec_seq_num={} "
+                                  "last_stored_checkpoint={} "
+                                  "on_transferring_complete_count={}".format(
+                                        n,
+                                        self.metrics.get_local(metrics, *checkpoint),
+                                        self.metrics.get_local(metrics,
+                                            *on_transferring_complete)))
+                        # Exit condition
+                        if n >= last_exec_seq_num:
+                           return
 
     async def is_state_transfer_complete(self, up_to_date_node, stale_node):
             # Get the lastExecutedSeqNumber from a reference node
