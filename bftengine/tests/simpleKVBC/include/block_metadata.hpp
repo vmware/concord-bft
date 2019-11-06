@@ -13,7 +13,7 @@
 
 namespace SimpleKVBC {
 
-const uint8_t kBlockMetadataKey = 0x21;
+const char kBlockMetadataKey = 0x21;
 
 class BlockMetadata {
  private:
@@ -25,7 +25,7 @@ class BlockMetadata {
   BlockMetadata(const concord::storage::blockchain::ILocalKeyValueStorageReadOnly &storage)
       : logger_(concordlogger::Log::getLogger("skvbc.MetadataStorage")),
         storage_(storage),
-        key_(new uint8_t[1]{kBlockMetadataKey}, 1) {}
+        key_(new char[1]{kBlockMetadataKey}, 1) {}
 
   concordUtils::Sliver Key() const { return key_; }
 

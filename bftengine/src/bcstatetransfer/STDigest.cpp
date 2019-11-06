@@ -46,7 +46,7 @@ DigestContext::DigestContext() {
 void DigestContext::update(const char* data, size_t len) {
   assert(internalState != NULL);
   CryptoPP::SHA256* p = (CryptoPP::SHA256*)internalState;
-  p->Update(reinterpret_cast<byte*>(const_cast<char*>(data)), len);
+  p->Update(reinterpret_cast<CryptoPP::byte*>(const_cast<char*>(data)), len);
 }
 
 void DigestContext::writeDigest(char* outDigest) {
@@ -54,7 +54,7 @@ void DigestContext::writeDigest(char* outDigest) {
   CryptoPP::SHA256* p = (CryptoPP::SHA256*)internalState;
   CryptoPP::SecByteBlock digest(CryptoPP::SHA256::DIGESTSIZE);
   p->Final(digest);
-  const byte* h = digest;
+  const CryptoPP::byte* h = digest;
   memcpy(outDigest, h, CryptoPP::SHA256::DIGESTSIZE);
 
   delete p;

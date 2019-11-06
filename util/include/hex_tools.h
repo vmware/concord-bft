@@ -8,7 +8,7 @@
 
 namespace concordUtils {
 
-std::ostream &hexPrint(std::ostream &s, const uint8_t *data, size_t size);
+std::ostream &hexPrint(std::ostream &s, const char *data, size_t size);
 
 }  // namespace concordUtils
 

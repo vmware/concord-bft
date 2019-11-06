@@ -15,7 +15,7 @@ add_test(util_mt_tests mt_tests)
 target_link_libraries(mt_tests gtest_main util)
 target_compile_options(mt_tests PUBLIC -Wno-sign-compare)
 
-add_executable(sliver_test sliver_test.cpp)
+add_executable(sliver_test sliver_test.cpp $<TARGET_OBJECTS:logging_dev>)
 add_test(sliver_test sliver_test)
 target_link_libraries(sliver_test gtest util)
 target_compile_options(sliver_test PUBLIC -Wno-sign-compare)

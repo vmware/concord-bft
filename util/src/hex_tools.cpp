@@ -10,7 +10,7 @@
 namespace concordUtils {
 
 // Print <size> bytes from <data> to <s> as their 0x<hex> representation.
-std::ostream &hexPrint(std::ostream &s, const uint8_t *data, size_t size) {
+std::ostream &hexPrint(std::ostream &s, const char *data, size_t size) {
   // Store current state of ostream flags
   std::ios::fmtflags f(s.flags());
   s << "0x";

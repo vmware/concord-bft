@@ -43,9 +43,16 @@ Status Client::get(const Sliver &_key, OUT Sliver &_outValue) const {
 }
 
 Status Client::get(const Sliver &_key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &_size) const {
-  auto copy = Sliver::copy(buf, bufSize);
-  auto status = get(_key, copy);
-  memcpy(buf, copy.data(), bufSize);
+  Sliver value;
+  auto status = get(_key, value);
+  if (!status.isOK()) return status;
+
+  _size = static_cast<uint32_t>(value.length());
+  if (bufSize < _size) {
+    LOG_ERROR(logger, "Object value is bigger than specified buffer bufSize=" << bufSize << ", _realSize=" << _size);
+    return Status::GeneralError("Object value is bigger than specified buffer");
+  }
+  memcpy(buf, value.data(), _size);
   return status;
 }
 
@@ -84,28 +91,7 @@ Status Client::freeIterator(IDBClientIterator *_iter) const {
  * @return Status OK.
  */
 Status Client::put(const Sliver &_key, const Sliver &_value) {
-  // Copy the key and the value
-  bool keyExists = false;
-  if (map_.find(_key) != map_.end()) {
-    keyExists = true;
-  }
-
-  Sliver key;
-  if (!keyExists) {
-    uint8_t *keyBytes = new uint8_t[_key.length()];
-    memcpy(keyBytes, _key.data(), _key.length());
-    key = Sliver(keyBytes, _key.length());
-  } else {
-    key = _key;
-  }
-
-  Sliver value;
-  uint8_t *valueBytes = new uint8_t[_value.length()];
-  memcpy(valueBytes, _value.data(), _value.length());
-  value = Sliver(valueBytes, _value.length());
-
-  map_[key] = value;
-
+  map_.insert_or_assign(_key, _value.clone());
   return Status::OK();
 }
 
@@ -118,27 +104,17 @@ Status Client::put(const Sliver &_key, const Sliver &_value) {
  * @return Status OK.
  */
 Status Client::del(const Sliver &_key) {
-  bool keyExists = false;
-  if (map_.find(_key) != map_.end()) {
-    keyExists = true;
-  }
-
-  if (keyExists) {
-    Sliver value = map_[_key];
-    map_.erase(_key);
-  }
-  // Else: Error to delete non-existing key?
-
+  map_.erase(_key);
   return Status::OK();
 }
 
 Status Client::multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec) {
   Status status = Status::OK();
-  Sliver sliver;
   for (auto const &it : _keysVec) {
+    Sliver sliver;
     status = get(it, sliver);
     if (!status.isOK()) return status;
-    _valuesVec.push_back(sliver);
+    _valuesVec.push_back(std::move(sliver));
   }
   return status;
 }

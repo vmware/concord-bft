@@ -444,7 +444,7 @@ Sliver ReplicaImp::createBlockFromUpdates(const SetOfKeyValuePairs &updates,
   const uint32_t blockSize = metadataSize + blockBodySize;
 
   try {
-    uint8_t *blockBuffer = new uint8_t[blockSize];
+    char *blockBuffer = new char[blockSize];
     memset(blockBuffer, 0, blockSize);
     Sliver blockSliver(blockBuffer, blockSize);
 
@@ -488,7 +488,7 @@ Sliver ReplicaImp::createBlockFromUpdates(const SetOfKeyValuePairs &updates,
   } catch (std::bad_alloc &ba) {
     LOG_ERROR(concordlogger::Log::getLogger("skvbc.replicaImp"),
               "Failed to alloc size " << blockSize << ", error: " << ba.what());
-    uint8_t *emptyBlockBuffer = new uint8_t[1];
+    char *emptyBlockBuffer = new char[1];
     memset(emptyBlockBuffer, 0, 1);
     return Sliver(emptyBlockBuffer, 1);
   }
@@ -666,7 +666,7 @@ bool ReplicaImp::BlockchainAppState::getPrevDigestFromBlock(uint64_t blockId, St
     exit(1);
   }
 
-  BlockHeader *bh = reinterpret_cast<BlockHeader *>(result.data());
+  const BlockHeader *bh = reinterpret_cast<const BlockHeader *>(result.data());
   assert(outPrevBlockDigest);
   memcpy(outPrevBlockDigest, bh->parentDigest, bh->parentDigestLength);
   return true;
@@ -677,7 +677,7 @@ bool ReplicaImp::BlockchainAppState::getPrevDigestFromBlock(uint64_t blockId, St
  * It is used only by State Transfer to synchronize state between replicas.
  */
 bool ReplicaImp::BlockchainAppState::putBlock(uint64_t blockId, char *block, uint32_t blockSize) {
-  uint8_t *tmpBlockPtr = new uint8_t[blockSize];
+  char *tmpBlockPtr = new char[blockSize];
   memcpy(tmpBlockPtr, block, blockSize);
   Sliver s(tmpBlockPtr, blockSize);
 

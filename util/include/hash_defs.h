@@ -13,7 +13,7 @@ namespace concordUtils {
 
 // TODO(GG): do we want this hash function ? See also
 // http://www.cse.yorku.ca/~oz/hash.html
-inline size_t simpleHash(const uint8_t *data, const size_t len) {
+inline size_t simpleHash(const char *data, const size_t len) {
   size_t hash = 5381;
   size_t t;
 

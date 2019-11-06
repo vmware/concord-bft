@@ -1,4 +1,4 @@
-add_executable(multiIO_test multiIO_test.cpp)
+add_executable(multiIO_test multiIO_test.cpp $<TARGET_OBJECTS:logging_dev>)
 add_test(multiIO_test multiIO_test)
 target_link_libraries(multiIO_test PUBLIC
     gtest
@@ -6,7 +6,7 @@ target_link_libraries(multiIO_test PUBLIC
     concordbft_storage
 )
 
-add_executable(metadataStorage_test metadataStorage_test.cpp)
+add_executable(metadataStorage_test metadataStorage_test.cpp $<TARGET_OBJECTS:logging_dev>)
 add_test(metadataStorage_test metadataStorage_test)
 target_link_libraries(metadataStorage_test PUBLIC
     gtest

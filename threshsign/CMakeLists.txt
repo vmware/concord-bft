@@ -145,7 +145,6 @@ find_library(RELIC_STATIC_LIBRARY NAMES "librelic_s.a")
 
 find_library(GMP_STATIC_LIBRARY NAMES "libgmp.a")
 
-find_package(cryptopp REQUIRED)
 find_library(CRYPTOPP_STATIC_LIBRARY NAMES "libcryptopp.a")
 
 #

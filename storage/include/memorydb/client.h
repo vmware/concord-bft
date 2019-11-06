@@ -60,7 +60,10 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
 // single thread.
 class Client : public IDBClient {
  public:
-  Client(KeyComparator comp) : comp_(comp), map_([this](const Sliver &a, const Sliver &b) { return comp_(a, b); }) {}
+  Client(KeyComparator comp)
+      : logger(concordlogger::Log::getLogger("concord.storage.memorydb")),
+        comp_(comp),
+        map_([this](const Sliver &a, const Sliver &b) { return comp_(a, b); }) {}
 
   virtual void init(bool readOnly) override;
   virtual Status get(const Sliver &_key, OUT Sliver &_outValue) const override;
@@ -78,6 +81,8 @@ class Client : public IDBClient {
   TKVStore &getMap() { return map_; }
 
  private:
+  concordlogger::Logger logger;
+
   // Keep a copy of comp_ so that it lives as long as map_
   KeyComparator comp_;
 

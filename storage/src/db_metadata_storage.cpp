@@ -84,10 +84,9 @@ void DBMetadataStorage::read(uint32_t objectId,
 
 void DBMetadataStorage::atomicWrite(uint32_t objectId, char *data, uint32_t dataLength) {
   verifyOperation(objectId, dataLength, data, true);
-  auto *dataCopy = new uint8_t[dataLength];
-  memcpy(dataCopy, data, dataLength);
+  Sliver copy = Sliver::copy(data, dataLength);
   lock_guard<mutex> lock(ioMutex_);
-  Status status = dbClient_->put(genMetadataKey_(objectId), Sliver(dataCopy, dataLength));
+  Status status = dbClient_->put(genMetadataKey_(objectId), copy);
   if (!status.isOK()) {
     throw runtime_error("DBClient put operation failed");
   }
@@ -106,14 +105,13 @@ void DBMetadataStorage::beginAtomicWriteOnlyBatch() {
 void DBMetadataStorage::writeInBatch(uint32_t objectId, char *data, uint32_t dataLength) {
   LOG_TRACE(logger_, "writeInBatch: objectId=" << objectId << ", dataLength=" << dataLength);
   verifyOperation(objectId, dataLength, data, true);
-  auto *dataCopy = new uint8_t[dataLength];
-  memcpy(dataCopy, data, dataLength);
+  Sliver copy = Sliver::copy(data, dataLength);
   lock_guard<mutex> lock(ioMutex_);
   if (!batch_) {
     LOG_ERROR(logger_, WRONG_FLOW);
     throw runtime_error(WRONG_FLOW);
   }
-  batch_->insert(KeyValuePair(genMetadataKey_(objectId), Sliver(dataCopy, dataLength)));
+  batch_->insert(KeyValuePair(genMetadataKey_(objectId), copy));
 }
 
 void DBMetadataStorage::commitAtomicWriteOnlyBatch() {

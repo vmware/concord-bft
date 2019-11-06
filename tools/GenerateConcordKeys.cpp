@@ -41,12 +41,12 @@ static std::pair<std::string, std::string> generateRsaKey() {
 
   CryptoPP::RSAES<CryptoPP::OAEP<CryptoPP::SHA256>>::Decryptor priv(sGlobalRandGen, rsaKeyLength);
   CryptoPP::HexEncoder privEncoder(new CryptoPP::StringSink(keyPair.first));
-  priv.DEREncode(privEncoder);
+  priv.AccessMaterial().Save(privEncoder);
   privEncoder.MessageEnd();
 
   CryptoPP::RSAES<CryptoPP::OAEP<CryptoPP::SHA256>>::Encryptor pub(priv);
   CryptoPP::HexEncoder pubEncoder(new CryptoPP::StringSink(keyPair.second));
-  pub.DEREncode(pubEncoder);
+  pub.AccessMaterial().Save(pubEncoder);
   pubEncoder.MessageEnd();
 
   return keyPair;

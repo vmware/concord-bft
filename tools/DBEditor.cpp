@@ -169,7 +169,7 @@ void verifyInputParams(char **argv) {
 }
 
 void parseAndPrint(const ::rocksdb::Slice &key, const ::rocksdb::Slice &val) {
-  EDBKeyType aType = key_manipulator->extractTypeFromKey(reinterpret_cast<const uint8_t *>(key.data()));
+  EDBKeyType aType = key_manipulator->extractTypeFromKey(key.data());
 
   switch (aType) {
     case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_KEY:
@@ -211,7 +211,7 @@ void parseAndPrint(const ::rocksdb::Slice &key, const ::rocksdb::Slice &val) {
     }
     case EDBKeyType::E_DB_KEY_TYPE_BLOCK: {
       //      // Extract the block ids to compare so that endianness of environment does not matter.
-      BlockId aId = key_manipulator->extractBlockIdFromKey(reinterpret_cast<const uint8_t *>(key.data()), key.size());
+      BlockId aId = key_manipulator->extractBlockIdFromKey(key.data(), key.size());
       std::cout << "Block ID: " << aId << std::endl;
       uint16_t numOfElements = ((BlockHeader *)val.data())->numberOfElements;
       auto *entries = (BlockEntry *)(val.data() + sizeof(BlockHeader));

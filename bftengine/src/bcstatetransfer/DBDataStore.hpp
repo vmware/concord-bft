@@ -217,7 +217,7 @@ class DBDataStore : public DataStore {
   T get(const ObjectId& objId) {
     concordUtils::Sliver val;
     if (!get(genKey(objId), val)) return 0;
-    std::string s(reinterpret_cast<char*>(val.data()), val.length());
+    std::string s(val.data(), val.length());
     return concord::util::to<T>(s);
   }
   /** *****************************************************************************************************************

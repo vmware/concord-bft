@@ -102,10 +102,7 @@ Build and install [cryptopp](https://github.com/weidai11/cryptopp)
     cd
     git clone https://github.com/weidai11/cryptopp.git
     cd cryptopp/
-    git checkout CRYPTOPP_5_6_5;
-    mkdir build/
-    cd build/
-    cmake ..
+    git checkout CRYPTOPP_8_2_0;
     make
     sudo make install
 

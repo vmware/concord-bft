@@ -57,7 +57,7 @@ static RandomPool sGlobalRandGen;  // not thread-safe !!
 void CryptographyWrapper::init(const char* randomSeed) {
   string s(randomSeed);
   if (s.length() < 16) s.resize(16, ' ');
-  sGlobalRandGen.IncorporateEntropy((byte*)s.c_str(), s.length());
+  sGlobalRandGen.IncorporateEntropy((CryptoPP::byte*)s.c_str(), s.length());
 
   VERIFY(DigestUtil::digestLength() == DIGEST_SIZE);
 
@@ -96,9 +96,9 @@ bool DigestUtil::compute(const char* input,
 
   SecByteBlock digest(size);
 
-  dig.Update((byte*)input, inputLength);
+  dig.Update((CryptoPP::byte*)input, inputLength);
   dig.Final(digest);
-  const byte* h = digest;
+  const CryptoPP::byte* h = digest;
   memcpy(outBufferForDigest, h, size);
 
   return true;
@@ -112,7 +112,7 @@ DigestUtil::Context::Context() {
 void DigestUtil::Context::update(const char* data, size_t len) {
   VERIFY(internalState != NULL);
   DigestType* p = (DigestType*)internalState;
-  p->Update((byte*)data, len);
+  p->Update((CryptoPP::byte*)data, len);
 }
 
 void DigestUtil::Context::writeDigest(char* outDigest) {
@@ -120,7 +120,7 @@ void DigestUtil::Context::writeDigest(char* outDigest) {
   DigestType* p = (DigestType*)internalState;
   SecByteBlock digest(digestLength());
   p->Final(digest);
-  const byte* h = digest;
+  const CryptoPP::byte* h = digest;
   memcpy(outDigest, h, digestLength());
 
   delete p;
@@ -148,7 +148,8 @@ class RSASignerInternal {
             size_t& lengthOfReturnedData) {
     const size_t sigLen = priv.SignatureLength();
     if (lengthOfOutBuffer < sigLen) return false;
-    lengthOfReturnedData = priv.SignMessage(rand, (byte*)inBuffer, lengthOfInBuffer, (byte*)outBuffer);
+    lengthOfReturnedData =
+        priv.SignMessage(rand, (CryptoPP::byte*)inBuffer, lengthOfInBuffer, (CryptoPP::byte*)outBuffer);
     VERIFY(lengthOfReturnedData == sigLen);
 
     return true;
@@ -166,7 +167,7 @@ class RSAVerifierInternal {
   size_t signatureLength() { return pub.SignatureLength(); }
 
   bool verify(const char* data, size_t lengthOfData, const char* signature, size_t lengthOfOSignature) {
-    bool ok = pub.VerifyMessage((byte*)data, lengthOfData, (byte*)signature, lengthOfOSignature);
+    bool ok = pub.VerifyMessage((CryptoPP::byte*)data, lengthOfData, (CryptoPP::byte*)signature, lengthOfOSignature);
     return ok;
   }
 

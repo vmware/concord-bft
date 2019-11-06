@@ -21,7 +21,7 @@ set_target_properties(GenerateConcordKeys
                       PROPERTIES
                       RUNTIME_OUTPUT_DIRECTORY
                       .)
-                      
+
 target_compile_options(GenerateConcordKeys PUBLIC "-Wno-extra-semi" "-Wno-undefined-var-template") # TODO tmp cryptopp
 add_executable(TestGeneratedKeys
                TestGeneratedKeys.cpp
@@ -46,7 +46,7 @@ set_target_properties(TestGeneratedKeys
                       .)
 
 if (BUILD_ROCKSDB_STORAGE)
-add_executable(skvb_db_editor DBEditor.cpp)
+add_executable(skvb_db_editor DBEditor.cpp $<TARGET_OBJECTS:logging_dev>)
 target_include_directories(skvb_db_editor PUBLIC
   ${PROJECT_SOURCE_DIR}/src include $<TARGET_PROPERTY:logging,INTERFACE_INCLUDE_DIRECTORIES>)
 target_link_libraries(skvb_db_editor concordbft_storage)
