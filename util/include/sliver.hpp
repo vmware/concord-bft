@@ -47,6 +47,7 @@ class Sliver {
   Sliver subsliver(const size_t offset, const size_t length) const;
   Sliver clone() const;
 
+  bool empty() const;
   size_t length() const;
   const char* data() const;
   std::string_view string_view() const;

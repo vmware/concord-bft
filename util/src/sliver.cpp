@@ -110,6 +110,8 @@ const char* Sliver::data() const {
  */
 Sliver Sliver::subsliver(const size_t offset, const size_t length) const { return Sliver(*this, offset, length); }
 
+bool Sliver::empty() const { return (length_ == 0); }
+
 size_t Sliver::length() const { return length_; }
 
 std::string_view Sliver::string_view() const { return std::string_view(data(), length_); }
