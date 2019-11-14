@@ -29,7 +29,6 @@ class DebugPersistentStorage : public PersistentStorage {
   uint8_t endWriteTran() override;
   bool isInWriteTran() const override;
   void setReplicaConfig(const ReplicaConfig& config) override;
-  void setFetchingState(bool state) override;
   void setLastExecutedSeqNum(SeqNum seqNum) override;
   void setPrimaryLastUsedSeqNum(SeqNum seqNum) override;
   void setStrictLowerBoundOfSeqNums(SeqNum seqNum) override;
@@ -49,7 +48,6 @@ class DebugPersistentStorage : public PersistentStorage {
   void setCompletedMarkInCheckWindow(SeqNum seqNum, bool mark) override;
   bool hasReplicaConfig() const override;
   ReplicaConfig getReplicaConfig() override;
-  bool getFetchingState() override;
   SeqNum getLastExecutedSeqNum() override;
   SeqNum getPrimaryLastUsedSeqNum() override;
   SeqNum getStrictLowerBoundOfSeqNums() override;
@@ -83,7 +81,6 @@ class DebugPersistentStorage : public PersistentStorage {
   bool hasConfig_ = false;
   ReplicaConfig config_;
 
-  bool fetchingState_ = false;
   SeqNum lastExecutedSeqNum_ = 0;
   SeqNum primaryLastUsedSeqNum_ = 0;
   SeqNum strictLowerBoundOfSeqNums_ = 0;

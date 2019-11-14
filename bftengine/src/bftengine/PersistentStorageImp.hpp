@@ -57,13 +57,12 @@ enum ConstMetadataParameterIds : uint32_t {
   INITIALIZED_FLAG = 1,
   FIRST_METADATA_PARAMETER = 2,
   VERSION_PARAMETER = FIRST_METADATA_PARAMETER,
-  FETCHING_STATE = 3,
-  LAST_EXEC_SEQ_NUM = 4,
-  PRIMARY_LAST_USED_SEQ_NUM = 5,
-  LOWER_BOUND_OF_SEQ_NUM = 6,
-  LAST_VIEW_TRANSFERRED_SEQ_NUM = 7,
-  LAST_STABLE_SEQ_NUM = 8,
-  REPLICA_CONFIG = 9,
+  LAST_EXEC_SEQ_NUM = 3,
+  PRIMARY_LAST_USED_SEQ_NUM = 4,
+  LOWER_BOUND_OF_SEQ_NUM = 5,
+  LAST_VIEW_TRANSFERRED_SEQ_NUM = 6,
+  LAST_STABLE_SEQ_NUM = 7,
+  REPLICA_CONFIG = 8,
   CONST_METADATA_PARAMETERS_NUM
 };
 
@@ -108,7 +107,6 @@ class PersistentStorageImp : public PersistentStorage {
 
   // Setters
   void setReplicaConfig(const ReplicaConfig &config) override;
-  void setFetchingState(bool state) override;
   void setLastExecutedSeqNum(SeqNum seqNum) override;
   void setPrimaryLastUsedSeqNum(SeqNum seqNum) override;
   void setStrictLowerBoundOfSeqNums(SeqNum seqNum) override;
@@ -134,7 +132,6 @@ class PersistentStorageImp : public PersistentStorage {
   std::string getStoredVersion();
   std::string getCurrentVersion() const { return version_; }
   ReplicaConfig getReplicaConfig() override;
-  bool getFetchingState() override;
   SeqNum getLastExecutedSeqNum() override;
   SeqNum getPrimaryLastUsedSeqNum() override;
   SeqNum getStrictLowerBoundOfSeqNums() override;
@@ -217,7 +214,6 @@ class PersistentStorageImp : public PersistentStorage {
   uint8_t readCompletedMarkFromDisk(SeqNum index) const;
 
   void writeBeginningOfActiveWindow(uint32_t index, SeqNum beginning) const;
-  void setFetchingStateInternal(uint8_t state);
   void setLastExecutedSeqNumInternal(SeqNum seqNum);
   void setPrimaryLastUsedSeqNumInternal(SeqNum seqNum);
   void setStrictLowerBoundOfSeqNumsInternal(SeqNum seqNum);
@@ -250,7 +246,6 @@ class PersistentStorageImp : public PersistentStorage {
 
   // Parameters to be saved persistently
   std::string version_;
-  bool fetchingState_ = false;
   SeqNum lastExecutedSeqNum_ = 0;
   SeqNum primaryLastUsedSeqNum_ = 0;
   SeqNum strictLowerBoundOfSeqNums_ = 0;
