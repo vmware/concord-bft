@@ -447,13 +447,8 @@ class SkvbcPersistenceTest(unittest.TestCase):
             crash_repeatedly=True
         )
 
-    @unittest.skip("Enable when https://github.com/vmware/concord-bft/issues/269 "
-                   "gets fixed.")
-    def test_st_when_primary_crashes_issue_269(self):
+    def test_st_when_primary_crashes_once(self):
         """
-        Note: this test reproduces the following issue:
-        https://github.com/vmware/concord-bft/issues/269
-
         Start 3 nodes out of a 4 node cluster. Write a specific key, then
         enough data to the cluster to trigger several checkpoints.
 
@@ -561,7 +556,8 @@ class SkvbcPersistenceTest(unittest.TestCase):
         await self._await_state_transfer_or_check_if_complete(
             tester=tester,
             up_to_date_node=up_to_date_replica,
-            stale_node=stale
+            stale_node=stale,
+            only_wait_for_stable_seq_num=True
         )
 
         view = await self._get_view_number(
@@ -570,10 +566,16 @@ class SkvbcPersistenceTest(unittest.TestCase):
             expected=lambda v: v > 0
         )
 
-        self.assertGreater(
-            view, 0,
-            "Make sure view change has been triggered during state transfer."
-        )
+        if trigger_view_change:
+            self.assertGreater(
+                view, 0,
+                "Make sure view change has been triggered during state transfer."
+            )
+        else:
+            self.assertEqual(
+                view, 0,
+                "Make sure view change has NOT been triggered during state transfer."
+            )
 
         print(f'State transfer completed, despite the primary '
               f'replica crashing.')
@@ -680,12 +682,14 @@ class SkvbcPersistenceTest(unittest.TestCase):
         return source_replica_id
 
     async def _await_state_transfer_or_check_if_complete(
-            self, tester, up_to_date_node, stale_node):
+            self, tester, up_to_date_node, stale_node,
+            only_wait_for_stable_seq_num=False):
         # We never made it to fetching state. Are we done?
         # Try a few times since metrics are eventually consistent
         try:
             await tester.wait_for_state_transfer_to_stop(
-                up_to_date_node, stale_node)
+                up_to_date_node, stale_node,
+                only_wait_for_stable_seq_num)
         except trio.TooSlowError:
             for _ in range(3):
                 if await tester.is_state_transfer_complete(

@@ -279,13 +279,18 @@ class BftTester:
                 if n > 0:
                     cancel_scope.cancel()
 
-    async def wait_for_state_transfer_to_stop(self,
-                                              up_to_date_node,
-                                              stale_node):
+    async def wait_for_state_transfer_to_stop(
+            self,
+            up_to_date_node,
+            stale_node,
+            stop_on_stable_seq_num=False):
         with trio.fail_after(30): # seconds
             # Get the lastExecutedSeqNumber from a started node
-            key = ['replica', 'Gauges', 'lastExecutedSeqNum']
-            last_exec_seq_num = await self.metrics.get(up_to_date_node, *key)
+            if stop_on_stable_seq_num:
+                key = ['replica', 'Gauges', 'lastStableSeqNum']
+            else:
+                key = ['replica', 'Gauges', 'lastExecutedSeqNum']
+            expected_seq_num = await self.metrics.get(up_to_date_node, *key)
             last_n = -1
             while True:
                 with trio.move_on_after(.5): # seconds
@@ -303,7 +308,7 @@ class BftTester:
                                     'Gauges', 'last_stored_checkpoint']
                             on_transferring_complete = ['bc_state_transfer',
                                     'Counters', 'on_transferring_complete']
-                            print("wait_for_st_to_stop: last_exec_seq_num={} "
+                            print("wait_for_st_to_stop: expected_seq_num={} "
                                   "last_stored_checkpoint={} "
                                   "on_transferring_complete_count={}".format(
                                         n,
@@ -311,7 +316,7 @@ class BftTester:
                                         self.metrics.get_local(metrics,
                                             *on_transferring_complete)))
                         # Exit condition
-                        if n >= last_exec_seq_num:
+                        if n >= expected_seq_num:
                            return
 
     async def is_state_transfer_complete(self, up_to_date_node, stale_node):
