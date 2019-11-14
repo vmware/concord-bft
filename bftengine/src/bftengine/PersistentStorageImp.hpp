@@ -20,20 +20,50 @@
 namespace bftEngine {
 namespace impl {
 
+// BFT Metadata parameters storage scheme:
+//
+// [ConstMetadataParameterIds][reservedSimpleParamsNum][WinMetadataParameterIds][reservedWindowParamsNum]
+// [DescMetadataParameterIds][reservedOtherParamsNum]
+//
+// ConstMetadataParameterIds:
+// INITIALIZED_FLAG = 1
+//    A flag saying whether DB is initialized or not; handled by storage class itself.
+// VERSION_PARAMETER to REPLICA_CONFIG
+//    Simple parameters with enumerated number
+//
+// reservedSimpleParamsNum
+//    A range of simple parameters reserved for a future use
+//
+// WinMetadataParameterIds:
+// BEGINNING_OF_SEQ_NUM_WINDOW to WIN_PARAMETERS_NUM
+//    Contains calculated numOfSeqNumWinObjs + numOfCheckWinObjs parameters
+//
+// reservedWindowParamsNum
+//    A range of windows parameters with calculated numbers reserved for a future use
+//
+// DescMetadataParameterIds:
+// LAST_EXIT_FROM_VIEW_DESC to LAST_NEW_VIEW_DESC
+//    Contains kWorkWindowSize + 2 parameters
+//
+// reservedOtherParamsNum:
+// MAX_METADATA_PARAMS_NUM - LAST_NEW_VIEW_DESC
+//    Parameters reserved for a future use
+
 // Make a reservation for future params
-const uint16_t reservedParamsNum = 50;
+const uint16_t reservedSimpleParamsNum = 500;
+const uint16_t reservedWindowParamsNum = 3000;
 
 enum ConstMetadataParameterIds : uint32_t {
-  INITIALIZED_FLAG = 1,  // A flag saying whether DB is initialized or not; handled by storage class itself.
-  FIRST_METADATA_PARAMETER,
+  INITIALIZED_FLAG = 1,
+  FIRST_METADATA_PARAMETER = 2,
   VERSION_PARAMETER = FIRST_METADATA_PARAMETER,
-  FETCHING_STATE,
-  LAST_EXEC_SEQ_NUM,
-  PRIMARY_LAST_USED_SEQ_NUM,
-  LOWER_BOUND_OF_SEQ_NUM,
-  LAST_VIEW_TRANSFERRED_SEQ_NUM,
-  LAST_STABLE_SEQ_NUM,
-  REPLICA_CONFIG,
+  FETCHING_STATE = 3,
+  LAST_EXEC_SEQ_NUM = 4,
+  PRIMARY_LAST_USED_SEQ_NUM = 5,
+  LOWER_BOUND_OF_SEQ_NUM = 6,
+  LAST_VIEW_TRANSFERRED_SEQ_NUM = 7,
+  LAST_STABLE_SEQ_NUM = 8,
+  REPLICA_CONFIG = 9,
   CONST_METADATA_PARAMETERS_NUM
 };
 
@@ -48,7 +78,7 @@ constexpr uint16_t numOfCheckWinParameters = CheckData::getNumOfParams();
 const uint16_t numOfCheckWinObjs = checkWinSize * numOfCheckWinParameters + 1;
 
 enum WinMetadataParameterIds {
-  BEGINNING_OF_SEQ_NUM_WINDOW = CONST_METADATA_PARAMETERS_NUM + reservedParamsNum,
+  BEGINNING_OF_SEQ_NUM_WINDOW = CONST_METADATA_PARAMETERS_NUM + reservedSimpleParamsNum,
   BEGINNING_OF_CHECK_WINDOW = BEGINNING_OF_SEQ_NUM_WINDOW + numOfSeqNumWinObjs,
   WIN_PARAMETERS_NUM = BEGINNING_OF_CHECK_WINDOW + numOfCheckWinObjs
 };
@@ -60,7 +90,7 @@ const uint16_t numOfLastExitFromViewDescObjs = kWorkWindowSize + 1;
 // LAST_NEW_VIEW_DESC contains numOfReplicas_ (2 * f + 2 * c + 1) descriptor
 // objects plus one - for simple descriptor parameters.
 enum DescMetadataParameterIds {
-  LAST_EXIT_FROM_VIEW_DESC = WIN_PARAMETERS_NUM,
+  LAST_EXIT_FROM_VIEW_DESC = WIN_PARAMETERS_NUM + reservedWindowParamsNum,
   LAST_EXEC_DESC = LAST_EXIT_FROM_VIEW_DESC + numOfLastExitFromViewDescObjs,
   LAST_NEW_VIEW_DESC
 };
