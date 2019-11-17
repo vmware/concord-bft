@@ -152,7 +152,6 @@ ReplicaConfig config;
 bftEngine::impl::PersistentStorageImp *persistentStorageImp = nullptr;
 unique_ptr<MetadataStorage> metadataStorage;
 
-bool fetchingState = false;
 SeqNum lastExecutedSeqNum = 0;
 SeqNum primaryLastUsedSeqNum = 0;
 SeqNum strictLowerBoundOfSeqNums = 0;
@@ -168,7 +167,6 @@ CheckWindow checkWindow{0};
 
 void testInit() {
   assert(persistentStorageImp->getStoredVersion() == persistentStorageImp->getCurrentVersion());
-  assert(persistentStorageImp->getFetchingState() == fetchingState);
   assert(persistentStorageImp->getLastExecutedSeqNum() == lastExecutedSeqNum);
   assert(persistentStorageImp->getPrimaryLastUsedSeqNum() == primaryLastUsedSeqNum);
   assert(persistentStorageImp->getStrictLowerBoundOfSeqNums() == strictLowerBoundOfSeqNums);
@@ -406,7 +404,6 @@ void testSetDescriptors(bool toSet) {
 }
 
 void testSetSimpleParams(bool toSet) {
-  bool state = true;
   SeqNum lastExecSeqNum = 32;
   SeqNum lastUsedSeqNum = 212;
   SeqNum lowBoundSeqNum = 102;
@@ -414,7 +411,6 @@ void testSetSimpleParams(bool toSet) {
 
   if (toSet) {
     persistentStorageImp->beginWriteTran();
-    persistentStorageImp->setFetchingState(state);
     persistentStorageImp->setLastExecutedSeqNum(lastExecSeqNum);
     persistentStorageImp->setPrimaryLastUsedSeqNum(lastUsedSeqNum);
     persistentStorageImp->setStrictLowerBoundOfSeqNums(lowBoundSeqNum);
@@ -422,7 +418,6 @@ void testSetSimpleParams(bool toSet) {
     persistentStorageImp->endWriteTran();
   }
 
-  assert(persistentStorageImp->getFetchingState() == state);
   assert(persistentStorageImp->getLastExecutedSeqNum() == lastExecSeqNum);
   assert(persistentStorageImp->getPrimaryLastUsedSeqNum() == lastUsedSeqNum);
   assert(persistentStorageImp->getStrictLowerBoundOfSeqNums() == lowBoundSeqNum);

@@ -41,12 +41,6 @@ void DebugPersistentStorage::setReplicaConfig(const ReplicaConfig &config) {
   config_ = config;
 }
 
-void DebugPersistentStorage::setFetchingState(bool state) {
-  Assert(nonExecSetIsAllowed());
-  Assert(!state || !fetchingState_);  // f ==> !fetchingState_
-  fetchingState_ = state;
-}
-
 void DebugPersistentStorage::setLastExecutedSeqNum(SeqNum seqNum) {
   Assert(setIsAllowed());
   Assert(lastExecutedSeqNum_ <= seqNum);
@@ -284,11 +278,6 @@ ReplicaConfig DebugPersistentStorage::getReplicaConfig() {
   Assert(getIsAllowed());
   Assert(hasConfig_);
   return config_;
-}
-
-bool DebugPersistentStorage::getFetchingState() {
-  Assert(getIsAllowed());
-  return fetchingState_;
 }
 
 SeqNum DebugPersistentStorage::getLastExecutedSeqNum() {

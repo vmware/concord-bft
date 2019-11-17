@@ -62,7 +62,6 @@ void PersistentStorageImp::setDefaultsInMetadataStorage() {
   beginWriteTran();
 
   setVersion();
-  setFetchingStateInternal(fetchingState_);
   setLastExecutedSeqNumInternal(lastExecutedSeqNum_);
   setPrimaryLastUsedSeqNumInternal(primaryLastUsedSeqNum_);
   setStrictLowerBoundOfSeqNumsInternal(strictLowerBoundOfSeqNums_);
@@ -89,7 +88,6 @@ ObjectDescUniquePtr PersistentStorageImp::getDefaultMetadataObjectDescriptors(ui
   }
 
   metadataObjectsArray.get()[VERSION_PARAMETER].maxSize = maxVersionSize_;
-  metadataObjectsArray.get()[FETCHING_STATE].maxSize = sizeof(fetchingState_);
   metadataObjectsArray.get()[LAST_EXEC_SEQ_NUM].maxSize = sizeof(lastExecutedSeqNum_);
   metadataObjectsArray.get()[PRIMARY_LAST_USED_SEQ_NUM].maxSize = sizeof(primaryLastUsedSeqNum_);
   metadataObjectsArray.get()[LOWER_BOUND_OF_SEQ_NUM].maxSize = sizeof(strictLowerBoundOfSeqNums_);
@@ -165,17 +163,6 @@ void PersistentStorageImp::setVersion() const {
   outBufPtr += sizeOfSizeOfVersion;
   memcpy(outBufPtr, version_.c_str(), sizeOfVersion);
   metadataStorage_->writeInBatch(VERSION_PARAMETER, outBuf.get(), outBufSize);
-}
-
-void PersistentStorageImp::setFetchingStateInternal(uint8_t state) {
-  metadataStorage_->writeInBatch(FETCHING_STATE, (char *)&state, sizeof(uint8_t));
-  fetchingState_ = state;
-}
-
-void PersistentStorageImp::setFetchingState(bool state) {
-  Assert(nonExecSetIsAllowed());
-  Assert(!state || !fetchingState_);
-  setFetchingStateInternal(state);
 }
 
 void PersistentStorageImp::setLastExecutedSeqNumInternal(SeqNum seqNum) {
@@ -538,14 +525,6 @@ ReplicaConfig PersistentStorageImp::getReplicaConfig() {
   ReplicaConfigSerializer::deserialize(iss, rc);
   configSerializer_.reset(rc);
   return *configSerializer_->getConfig();
-}
-
-bool PersistentStorageImp::getFetchingState() {
-  Assert(getIsAllowed());
-  uint32_t outActualObjectSize = 0;
-  metadataStorage_->read(FETCHING_STATE, sizeof(uint8_t), (char *)&fetchingState_, outActualObjectSize);
-  Assert(outActualObjectSize == sizeof(fetchingState_));
-  return fetchingState_;
 }
 
 SeqNum PersistentStorageImp::getLastExecutedSeqNum() {
