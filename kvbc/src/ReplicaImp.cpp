@@ -40,14 +40,12 @@ using concord::storage::blockchain::ILocalKeyValueStorageReadOnly;
 using concord::storage::blockchain::ILocalKeyValueStorageReadOnlyIterator;
 using concord::storage::blockchain::KeyManipulator;
 
-using SimpleKVBC::IReplica;
-using SimpleKVBC::ICommandsHandler;
-
 using concordUtils::SetOfKeyValuePairs;
 using concordUtils::Value;
 using concordUtils::KeyValuePair;
 
-namespace SimpleKVBC {
+namespace concord {
+namespace kvbc {
 
 /**
  * Opens the database and creates the replica thread. Replica state moves to
@@ -692,4 +690,5 @@ uint64_t ReplicaImp::BlockchainAppState::getLastReachableBlockNum() {
 
 uint64_t ReplicaImp::BlockchainAppState::getLastBlockNum() { return m_ptrReplicaImpl->m_lastBlock; }
 
-}  // namespace SimpleKVBC
+}
+}

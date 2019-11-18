@@ -21,8 +21,8 @@
 
 #include "basicRandomTestsRunner.hpp"
 #include "KVBCInterfaces.h"
-#include "test_comm_config.hpp"
-#include "test_parameters.hpp"
+#include "config/test_comm_config.hpp"
+#include "config/test_parameters.hpp"
 #include "CommFactory.hpp"
 
 using namespace bftEngine;
@@ -32,9 +32,9 @@ using std::string;
 
 using concordUtils::BlockId;
 using bftEngine::BaseCommConfig;
-using SimpleKVBC::ClientConfig;
-using SimpleKVBC::createClient;
-using SimpleKVBC::IClient;
+using concord::kvbc::ClientConfig;
+using concord::kvbc::createClient;
+using concord::kvbc::IClient;
 
 ClientParams setupClientParams(int argc, char **argv) {
   ClientParams clientParams;

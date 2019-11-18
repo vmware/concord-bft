@@ -19,7 +19,8 @@
 #include "blockchain/db_adapter.h"
 #include "blockchain/db_types.h"
 
-namespace SimpleKVBC {
+namespace concord {
+namespace kvbc {
 
 class ReplicaStateSync {
  public:
@@ -33,4 +34,5 @@ class ReplicaStateSync {
                            uint64_t lastExecutedSeqNum) = 0;
 };
 
-}  // namespace SimpleKVBC
+}
+}

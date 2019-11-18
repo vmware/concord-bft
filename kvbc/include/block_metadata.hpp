@@ -11,7 +11,8 @@
 #include "Logger.hpp"
 #include "blockchain/db_interfaces.h"
 
-namespace SimpleKVBC {
+namespace concord {
+namespace kvbc {
 
 const char kBlockMetadataKey = 0x21;
 
@@ -34,4 +35,5 @@ class BlockMetadata {
   concordUtils::Sliver Serialize(uint64_t bft_sequence_num);
 };
 
-}  // namespace SimpleKVBC
+}
+}

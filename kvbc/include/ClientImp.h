@@ -18,7 +18,8 @@
 
 using namespace bftEngine;
 
-namespace SimpleKVBC {
+namespace concord {
+namespace kvbc {
 
 class ClientImp : public IClient {
  public:
@@ -49,4 +50,5 @@ class ClientImp : public IClient {
 
   friend IClient* createClient(const ClientConfig& conf, ICommunication* comm);
 };
-}  // namespace SimpleKVBC
+}
+}

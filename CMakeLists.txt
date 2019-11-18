@@ -154,6 +154,7 @@ add_subdirectory(bftengine)
 add_subdirectory(tools)
 add_subdirectory(storage)
 add_subdirectory(scripts)
+add_subdirectory(kvbc)
 
 #
 # Setup testing
@@ -163,4 +164,5 @@ if(BUILD_TESTING)
     add_subdirectory(deps/gtest)
     add_subdirectory(bftengine/tests)
     add_subdirectory(test)
+    add_subdirectory(tests)
 endif()

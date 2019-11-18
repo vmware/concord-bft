@@ -1,46 +1,69 @@
+# simple client
 set(simpleTest_client_source_files
-        client.cpp
-        ${CONFIG_FOLDER_PATH_VALUE}/test_comm_config.cpp
-        ${CONFIG_FOLDER_PATH_VALUE}/config_file_parser.cpp
-        ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
-        simple_test_client.hpp
-        )
+    client.cpp
+    ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
+    simple_test_client.hpp
+)
+        
+add_executable(	simpleTest_client 
+				$<TARGET_OBJECTS:logging_dev>
+    			${simpleTest_client_source_files}
+)
 
+target_include_directories(simpleTest_client
+                           PRIVATE
+                           ..
+                           ${concord_bft_tools_SOURCE_DIR}
+                           ${bftengine_SOURCE_DIR}/include                
+)
+                           
+target_link_libraries(simpleTest_client PUBLIC corebft test_config_lib)
+set_target_properties(simpleTest_client PROPERTIES OUTPUT_NAME client)
+
+# simple server
 set(simpleTest_replica_source_files
-        replica.cpp
-        ${CONFIG_FOLDER_PATH_VALUE}/test_comm_config.cpp
-        ${CONFIG_FOLDER_PATH_VALUE}/config_file_parser.cpp
-        ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
-        simple_test_replica.hpp
-        simple_test_replica_behavior.hpp
-        )
-
-# This target should be moved to UT infrastructure code when created.
-set(config_source_files
-    ${CONFIG_FOLDER_PATH_VALUE}/config_file_parser.cpp
-    ${CONFIG_FOLDER_PATH_VALUE}/config_file_parser_test.cpp
+    replica.cpp
+    ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
+    simple_test_replica.hpp
+    simple_test_replica_behavior.hpp
 )
 
-add_executable(simpleTest_client $<TARGET_OBJECTS:logging_dev>
-    ${simpleTest_client_source_files}
+add_executable(simpleTest_server 
+			   $<TARGET_OBJECTS:logging_dev>
+   			   ${simpleTest_replica_source_files}
 )
 
-add_executable(simpleTest_server $<TARGET_OBJECTS:logging_dev>
-    ${simpleTest_replica_source_files}
+target_include_directories(simpleTest_server
+                           PRIVATE
+                           ..
+                           ${bftengine_SOURCE_DIR}/tests/simpleStorage
+                           ${concord_bft_tools_SOURCE_DIR}
+                           ${bftengine_SOURCE_DIR}/src/bftengine
+                           ${bftengine_SOURCE_DIR}/include
+)
+                           
+target_link_libraries(simpleTest_server PUBLIC corebft simple_file_storage_lib test_config_lib)
+set_target_properties(simpleTest_server PROPERTIES OUTPUT_NAME server)
+
+# config test
+add_executable(configTest config_file_parser_test.cpp $<TARGET_OBJECTS:logging_dev>)
+target_link_libraries(configTest PUBLIC corebft test_config_lib)
+target_include_directories(configTest
+                           PRIVATE
+                           ..
+                           ${concord_bft_tools_SOURCE_DIR}
+                           ${bftengine_SOURCE_DIR}/include
 )
 
-add_executable(configTest
-    ${config_source_files}
-    $<TARGET_OBJECTS:logging_dev>
-)
+set_target_properties(configTest PROPERTIES OUTPUT_NAME config)
 
+# persistency test
 add_executable(persistency_test
         persistency_test.cpp
         ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp)
 
 target_include_directories(persistency_test PUBLIC
         ${bftengine_SOURCE_DIR}/tests/simpleStorage
-        ${CONFIG_FOLDER_PATH_VALUE}
         ${bftengine_SOURCE_DIR}/include/communication
         ${concord_bft_tools_SOURCE_DIR}
         ${SIMPLE_STORAGE_DIR})
@@ -72,34 +95,6 @@ if(${USE_COMM_TLS_TCP})
     target_compile_definitions(simpleTest_client PUBLIC USE_COMM_TLS_TCP)
     target_compile_definitions(simpleTest_server PUBLIC USE_COMM_TLS_TCP)
 endif()
-
-set_target_properties(simpleTest_client PROPERTIES OUTPUT_NAME client)
-set_target_properties(simpleTest_server PROPERTIES OUTPUT_NAME server)
-set_target_properties(configTest PROPERTIES OUTPUT_NAME config)
-
-target_link_libraries(simpleTest_client PUBLIC corebft)
-target_link_libraries(simpleTest_server PUBLIC corebft simple_file_storage_lib)
-target_link_libraries(configTest PUBLIC corebft)
-
-target_include_directories(simpleTest_client
-                           PRIVATE
-                           ${concord_bft_tools_SOURCE_DIR}
-                           ${bftengine_SOURCE_DIR}/include
-                           ${CONFIG_FOLDER_PATH_VALUE})
-
-target_include_directories(simpleTest_server
-                           PRIVATE
-                           ${bftengine_SOURCE_DIR}/tests/simpleStorage
-                           ${concord_bft_tools_SOURCE_DIR}
-                           ${bftengine_SOURCE_DIR}/src/bftengine
-                           ${bftengine_SOURCE_DIR}/include
-                           ${CONFIG_FOLDER_PATH_VALUE})
-
-target_include_directories(configTest
-                           PRIVATE
-                           ${concord_bft_tools_SOURCE_DIR}
-                           ${bftengine_SOURCE_DIR}/include
-                           ${CONFIG_FOLDER_PATH_VALUE})
 
 add_custom_target(copy_simple_test_scripts ALL COMMENT "Copying scripts of simpleTest")
 add_custom_command(TARGET copy_simple_test_scripts

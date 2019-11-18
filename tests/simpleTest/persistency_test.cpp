@@ -15,13 +15,13 @@
 
 #include "gtest/gtest.h"
 #include <vector>
-#include "simple_test_client.hpp"
-#include "simple_test_replica.hpp"
 #include "Logger.hpp"
 #include <thread>
 #include <chrono>
 #include <time.h>
 #include <memory>
+#include "../../../tests/simpleTest/simple_test_client.hpp"
+#include "../../../tests/simpleTest/simple_test_replica.hpp"
 
 namespace test {
 namespace persistency {

@@ -21,7 +21,7 @@
 
 using std::chrono::seconds;
 
-using SimpleKVBC::IClient;
+using concord::kvbc::IClient;
 
 namespace BasicRandomTests {
 
@@ -82,7 +82,7 @@ bool BasicRandomTestsRunner::isReplyCorrect(RequestType requestType,
     LOG_ERROR(logger_, "*** Test failed: actual reply size != expected");
     assert(0);
   }
-  std::stringstream error;
+  std::ostringstream error;
   switch (requestType) {
     case COND_WRITE:
       if (((SimpleReply_ConditionalWrite *)expectedReply)->isEquiv(*(SimpleReply_ConditionalWrite *)reply, error))

@@ -17,8 +17,10 @@
 #include <list>
 #include <map>
 #include <cstring>
+#include <sstream>
 #include "kv_types.hpp"
 #include "KVBCInterfaces.h"
+#include "Logger.hpp"
 
 namespace BasicRandomTests {
 
@@ -152,7 +154,7 @@ struct SimpleReply_ConditionalWrite {
     return (SimpleReply_ConditionalWrite*)buf;
   }
 
-  bool isEquiv(SimpleReply_ConditionalWrite& other, std::stringstream& error) {
+  bool isEquiv(SimpleReply_ConditionalWrite& other, std::ostringstream& error) {
     if (header.type != other.header.type) {
       error << "*** Write: Wrong message type: " << other.header.type;
     } else if (latestBlock != other.latestBlock) {
@@ -187,7 +189,7 @@ struct SimpleReply_Read {
     return (SimpleReply_Read*)buf;
   }
 
-  bool isEquiv(SimpleReply_Read& other, std::stringstream& error) {
+  bool isEquiv(SimpleReply_Read& other, std::ostringstream& error) {
     if (header.type != other.header.type) {
       error << "*** READ: Wrong message type: " << other.header.type;
       return false;
@@ -229,7 +231,7 @@ struct SimpleReply_GetLastBlock {
     return (SimpleReply_GetLastBlock*)buf;
   }
 
-  bool isEquiv(SimpleReply_GetLastBlock& other, std::stringstream& error) {
+  bool isEquiv(SimpleReply_GetLastBlock& other, std::ostringstream& error) {
     if (header.type != other.header.type) {
       error << "*** GetLastBlock: Wrong message type: " << other.header.type;
     } else if (latestBlock != other.latestBlock) {
@@ -277,7 +279,7 @@ typedef std::list<SimpleReply*> RepliesList;
 
 class TestsBuilder {
  public:
-  explicit TestsBuilder(concordlogger::Logger& logger, SimpleKVBC::IClient& client);
+  explicit TestsBuilder(concordlogger::Logger& logger, concord::kvbc::IClient& client);
   ~TestsBuilder();
 
   static size_t sizeOfRequest(SimpleRequest* req);
@@ -300,7 +302,7 @@ class TestsBuilder {
 
  private:
   concordlogger::Logger& logger_;
-  SimpleKVBC::IClient& client_;
+  concord::kvbc::IClient& client_;
   RequestsList requests_;
   RepliesList replies_;
   std::map<concordUtils::BlockId, SimpleBlock*> internalBlockchain_;

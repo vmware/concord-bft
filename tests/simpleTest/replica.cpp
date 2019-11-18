@@ -54,12 +54,12 @@
 #include <thread>
 #include <csignal>
 
+#include "../../../tests/config/test_comm_config.hpp"
+#include "../../../tests/config/test_parameters.hpp"
+#include "../../../tests/simpleTest/simple_test_replica.hpp"
+#include "../../../tests/simpleTest/simple_test_replica_behavior.hpp"
 // bftEngine includes
-#include "test_comm_config.hpp"
-#include "test_parameters.hpp"
-#include "simple_test_replica.hpp"
 #include "Logger.hpp"
-#include "simple_test_replica_behavior.hpp"
 
 using bftEngine::ICommunication;
 using bftEngine::PlainUDPCommunication;

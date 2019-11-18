@@ -31,7 +31,7 @@ using std::set;
 using std::chrono::seconds;
 
 using concordUtils::BlockId;
-using SimpleKVBC::IClient;
+using concord::kvbc::IClient;
 
 const int NUMBER_OF_KEYS = 200;
 const int CONFLICT_DISTANCE = 49;
@@ -218,7 +218,7 @@ void TestsBuilder::createAndInsertRandomConditionalWrite() {
     size_t key = 0;
     do {
       key = rand() % NUMBER_OF_KEYS;
-    } while (key == SimpleKVBC::kBlockMetadataKey);
+    } while (key == concord::kvbc::kBlockMetadataKey);
     memcpy(readKeysArray[i].key, &key, sizeof(key));
   }
 
@@ -227,7 +227,7 @@ void TestsBuilder::createAndInsertRandomConditionalWrite() {
     size_t key = 0;
     do {  // Avoid duplications
       key = rand() % NUMBER_OF_KEYS;
-    } while (usedKeys.count(key) > 0 || key == SimpleKVBC::kBlockMetadataKey);
+    } while (usedKeys.count(key) > 0 || key == concord::kvbc::kBlockMetadataKey);
     usedKeys.insert(key);
 
     size_t value = rand();
@@ -268,7 +268,7 @@ void TestsBuilder::createAndInsertRandomRead() {
     size_t key = 0;
     do {
       key = rand() % NUMBER_OF_KEYS;
-    } while (key == SimpleKVBC::kBlockMetadataKey);
+    } while (key == concord::kvbc::kBlockMetadataKey);
     memcpy(requestKeys[i].key, &key, sizeof(key));
   }
 

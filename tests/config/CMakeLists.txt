@@ -1,6 +1,5 @@
 add_library(test_config_lib
         config_file_parser.cpp
-        config_file_parser_test.cpp
         test_comm_config.cpp
         )
 target_include_directories(test_config_lib PUBLIC

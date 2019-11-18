@@ -18,7 +18,8 @@
 #include "blockchain/db_adapter.h"
 #include "blockchain/db_types.h"
 
-namespace SimpleKVBC {
+namespace concord {
+namespace kvbc {
 class ReplicaStateSyncImp : public ReplicaStateSync {
  public:
   ~ReplicaStateSyncImp() override = default;
@@ -30,4 +31,5 @@ class ReplicaStateSyncImp : public ReplicaStateSync {
                    uint64_t lastExecutedSeqNum) override;
 };
 
-}  // namespace SimpleKVBC
+}
+}

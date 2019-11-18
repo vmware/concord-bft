@@ -5,13 +5,12 @@
 #ifndef CONCORD_BFT_SIMPLE_TEST_CLIENT_HPP
 #define CONCORD_BFT_SIMPLE_TEST_CLIENT_HPP
 
-#include "test_parameters.hpp"
-#include "test_comm_config.hpp"
-// bftEngine includes
+#include "../../../tests/config/test_comm_config.hpp"
+#include "../../../tests/config/test_parameters.hpp"
+#include "../../../tests/simpleTest/commonDefs.h"
 #include "CommFactory.hpp"
 #include "SimpleClient.hpp"
 #include "CommDefs.hpp"
-#include "commonDefs.h"
 
 using namespace bftEngine;
 using namespace std;

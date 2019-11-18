@@ -20,7 +20,8 @@
 #include "Logger.hpp"
 #include "MetricsServer.hpp"
 
-namespace SimpleKVBC {
+namespace concord {
+namespace kvbc {
 
 class TestSetup {
  public:
@@ -52,4 +53,5 @@ class TestSetup {
   bool use_persistent_storage_;
 };
 
-}  // namespace SimpleKVBC
+}
+}

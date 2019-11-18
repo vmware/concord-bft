@@ -19,12 +19,13 @@
 
 #include "setup.hpp"
 #include "CommFactory.hpp"
-#include "test_comm_config.hpp"
-#include "test_parameters.hpp"
+#include "config/test_comm_config.hpp"
+#include "config/test_parameters.hpp"
 
 using namespace std;
 
-namespace SimpleKVBC {
+namespace concord {
+namespace kvbc {
 
 std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
   ReplicaParams rp;
@@ -131,4 +132,5 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
       replicaConfig, std::move(comm), logger, metrics_port, rp.persistencyMode == PersistencyMode::RocksDB});
 }
 
-}  // namespace SimpleKVBC
+}
+}

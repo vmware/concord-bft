@@ -20,7 +20,7 @@
 #include "blockchain/db_interfaces.h"
 #include "KVBCInterfaces.h"
 
-class InternalCommandsHandler : public SimpleKVBC::ICommandsHandler {
+class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
  public:
   InternalCommandsHandler(concord::storage::blockchain::ILocalKeyValueStorageReadOnly *storage,
                           concord::storage::blockchain::IBlocksAppender *blocksAppender,

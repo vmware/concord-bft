@@ -17,14 +17,14 @@
 #include "Logger.hpp"
 #include "KVBCInterfaces.h"
 #include "hash_defs.h"
-#include "test_comm_config.hpp"
 #include "replica_state_sync_imp.hpp"
 #include "blockchain/db_adapter.h"
 #include "blockchain/db_interfaces.h"
 #include "memorydb/client.h"
 #include "storage/db_metadata_storage.h"
 
-namespace SimpleKVBC {
+namespace concord {
+namespace kvbc {
 
 class ReplicaInitException : public std::exception {
  public:
@@ -36,7 +36,7 @@ class ReplicaInitException : public std::exception {
   std::string msg;
 };
 
-class ReplicaImp : public SimpleKVBC::IReplica,
+class ReplicaImp : public IReplica,
                    public concord::storage::blockchain::ILocalKeyValueStorageReadOnly,
                    public concord::storage::blockchain::IBlocksAppender {
  public:
@@ -50,7 +50,7 @@ class ReplicaImp : public SimpleKVBC::IReplica,
 
   virtual Status addBlockToIdleReplica(const concord::storage::SetOfKeyValuePairs &updates) override;
 
-  virtual void set_command_handler(SimpleKVBC::ICommandsHandler *handler) override;
+  virtual void set_command_handler(ICommandsHandler *handler) override;
 
   // concord::storage::ILocalKeyValueStorageReadOnly methods
   virtual Status get(const Sliver &key, Sliver &outValue) const override;
@@ -263,7 +263,7 @@ class ReplicaImp : public SimpleKVBC::IReplica,
   bftEngine::ICommunication *m_ptrComm = nullptr;
   bftEngine::ReplicaConfig m_replicaConfig;
   bftEngine::Replica *m_replicaPtr = nullptr;
-  SimpleKVBC::ICommandsHandler *m_cmdHandler = nullptr;
+  ICommandsHandler *m_cmdHandler = nullptr;
   bftEngine::IStateTransfer *m_stateTransfer = nullptr;
   BlockchainAppState *m_appState = nullptr;
   concord::storage::DBMetadataStorage *m_metadataStorage = nullptr;
@@ -277,4 +277,5 @@ class ReplicaImp : public SimpleKVBC::IReplica,
   static concord::storage::SetOfKeyValuePairs fetchBlockData(Sliver block);
 };
 
-}  // namespace SimpleKVBC
+}
+}

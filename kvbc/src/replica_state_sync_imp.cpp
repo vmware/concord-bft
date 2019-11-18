@@ -22,7 +22,8 @@ using concord::storage::DBMetadataStorage;
 using concord::storage::blockchain::ILocalKeyValueStorageReadOnly;
 using concordUtils::Key;
 
-namespace SimpleKVBC {
+namespace concord {
+namespace kvbc {
 
 uint64_t ReplicaStateSyncImp::execute(concordlogger::Logger &logger,
                                       DBAdapter &bcDBAdapter,
@@ -51,4 +52,5 @@ uint64_t ReplicaStateSyncImp::execute(concordlogger::Logger &logger,
   return removedBlocksNum;
 }
 
-}  // namespace SimpleKVBC
+}
+}

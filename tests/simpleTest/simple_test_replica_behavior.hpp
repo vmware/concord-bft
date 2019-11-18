@@ -2,9 +2,9 @@
 #define CONCORD_BFT_SIMPLE_TEST_REPLICA_BEHAVIOR_HPP
 
 #include <cstdint>
-#include "simple_test_replica.hpp"
-#include "test_parameters.hpp"
 #include <chrono>
+#include "../../../tests/config/test_parameters.hpp"
+#include "../../../tests/simpleTest/simple_test_replica.hpp"
 
 struct PersistencyTestInfo {
   uint32_t sleepBetweenRestartsMillis;

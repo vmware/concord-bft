@@ -5,14 +5,14 @@
 #ifndef CONCORD_BFT_SIMPLE_TEST_REPLICA_HPP
 #define CONCORD_BFT_SIMPLE_TEST_REPLICA_HPP
 
-#include "commonDefs.h"
 #include "CommFactory.hpp"
 #include "Replica.hpp"
 #include "ReplicaConfig.hpp"
 #include "SimpleStateTransfer.hpp"
 #include "FileStorage.hpp"
-#include "simple_test_replica_behavior.hpp"
 #include <thread>
+#include "../../../tests/simpleTest/commonDefs.h"
+#include "../../../tests/simpleTest/simple_test_replica_behavior.hpp"
 
 using namespace bftEngine;
 using namespace std;

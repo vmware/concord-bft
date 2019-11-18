@@ -17,7 +17,8 @@
 
 using bftEngine::ICommunication;
 
-namespace SimpleKVBC {
+namespace concord {
+namespace kvbc {
 
 IClient* createClient(const ClientConfig& conf, bftEngine::ICommunication* comm) {
   ClientImp* c = new ClientImp();
@@ -80,4 +81,5 @@ Status ClientImp::invokeCommandSynch(const char* request,
   else
     return Status::InvalidArgument("small buffer");
 }
-}  // namespace SimpleKVBC
+}
+}

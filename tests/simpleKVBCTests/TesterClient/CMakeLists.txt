@@ -6,10 +6,9 @@ set(client_sources
     ../basicRandomTestsRunner.cpp
     ../simpleKVBTestsBuilder.cpp
     ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
-    ${CONFIG_FOLDER_PATH_VALUE}/test_comm_config.cpp
-    ${CONFIG_FOLDER_PATH_VALUE}/config_file_parser.cpp)
+)
 
-add_executable(skvbc_client ${client_sources} $<TARGET_OBJECTS:logging_dev>)
+add_executable(skvbc_client ${client_sources})
 
 if(${USE_COMM_PLAIN_TCP})
 	target_compile_definitions(skvbc_client PUBLIC USE_COMM_PLAIN_TCP)
@@ -19,12 +18,10 @@ if(${USE_COMM_TLS_TCP})
 	target_compile_definitions(skvbc_client PUBLIC USE_COMM_TLS_TCP)
 endif()
 
-target_link_libraries(skvbc_client LINK_PUBLIC simpleKVBC threshsign corebft
-    concordbft_storage util)
+target_link_libraries(skvbc_client LINK_PUBLIC kvbc threshsign corebft concordbft_storage util test_config_lib logging_dev)
 
-target_include_directories(skvbc_client PUBLIC ../../SimpleKVBC/include
-    ../include)
 target_include_directories(skvbc_client PUBLIC ..)
-target_include_directories(skvbc_client PUBLIC ${CONFIG_FOLDER_PATH_VALUE})
+target_include_directories(skvbc_client PUBLIC ../..)
+target_include_directories(skvbc_client PUBLIC ${libkvbc_SOURCE_DIR}/include)
 
 
