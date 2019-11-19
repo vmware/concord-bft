@@ -277,5 +277,5 @@ class ReplicaImp : public IReplica,
   static concord::storage::SetOfKeyValuePairs fetchBlockData(Sliver block);
 };
 
-}
-}
+}  // namespace kvbc
+}  // namespace concord

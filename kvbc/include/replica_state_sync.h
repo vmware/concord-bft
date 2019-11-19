@@ -34,5 +34,5 @@ class ReplicaStateSync {
                            uint64_t lastExecutedSeqNum) = 0;
 };
 
-}
-}
+}  // namespace kvbc
+}  // namespace concord

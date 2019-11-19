@@ -52,5 +52,5 @@ uint64_t ReplicaStateSyncImp::execute(concordlogger::Logger &logger,
   return removedBlocksNum;
 }
 
-}
-}
+}  // namespace kvbc
+}  // namespace concord

@@ -81,5 +81,5 @@ Status ClientImp::invokeCommandSynch(const char* request,
   else
     return Status::InvalidArgument("small buffer");
 }
-}
-}
+}  // namespace kvbc
+}  // namespace concord

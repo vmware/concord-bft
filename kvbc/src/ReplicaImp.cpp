@@ -690,5 +690,5 @@ uint64_t ReplicaImp::BlockchainAppState::getLastReachableBlockNum() {
 
 uint64_t ReplicaImp::BlockchainAppState::getLastBlockNum() { return m_ptrReplicaImpl->m_lastBlock; }
 
-}
-}
+}  // namespace kvbc
+}  // namespace concord

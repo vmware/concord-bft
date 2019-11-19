@@ -35,5 +35,5 @@ class BlockMetadata {
   concordUtils::Sliver Serialize(uint64_t bft_sequence_num);
 };
 
-}
-}
+}  // namespace kvbc
+}  // namespace concord

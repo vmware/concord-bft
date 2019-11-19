@@ -31,5 +31,5 @@ uint64_t BlockMetadata::Get(Sliver& key) {
   return sequenceNum;
 }
 
-}
-}
+}  // namespace kvbc
+}  // namespace concord

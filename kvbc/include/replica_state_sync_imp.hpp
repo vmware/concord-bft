@@ -31,5 +31,5 @@ class ReplicaStateSyncImp : public ReplicaStateSync {
                    uint64_t lastExecutedSeqNum) override;
 };
 
-}
-}
+}  // namespace kvbc
+}  // namespace concord

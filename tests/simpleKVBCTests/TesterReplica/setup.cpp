@@ -132,5 +132,5 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
       replicaConfig, std::move(comm), logger, metrics_port, rp.persistencyMode == PersistencyMode::RocksDB});
 }
 
-}
-}
+}  // namespace kvbc
+}  // namespace concord

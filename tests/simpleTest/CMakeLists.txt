@@ -4,19 +4,16 @@ set(simpleTest_client_source_files
     ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
     simple_test_client.hpp
 )
-        
-add_executable(	simpleTest_client 
-				$<TARGET_OBJECTS:logging_dev>
-    			${simpleTest_client_source_files}
-)
+
+add_executable(simpleTest_client $<TARGET_OBJECTS:logging_dev> ${simpleTest_client_source_files} )
 
 target_include_directories(simpleTest_client
                            PRIVATE
                            ..
                            ${concord_bft_tools_SOURCE_DIR}
-                           ${bftengine_SOURCE_DIR}/include                
+                           ${bftengine_SOURCE_DIR}/include
 )
-                           
+
 target_link_libraries(simpleTest_client PUBLIC corebft test_config_lib)
 set_target_properties(simpleTest_client PROPERTIES OUTPUT_NAME client)
 
@@ -41,7 +38,7 @@ target_include_directories(simpleTest_server
                            ${bftengine_SOURCE_DIR}/src/bftengine
                            ${bftengine_SOURCE_DIR}/include
 )
-                           
+
 target_link_libraries(simpleTest_server PUBLIC corebft simple_file_storage_lib test_config_lib)
 set_target_properties(simpleTest_server PROPERTIES OUTPUT_NAME server)
 

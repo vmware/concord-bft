@@ -53,5 +53,5 @@ class TestSetup {
   bool use_persistent_storage_;
 };
 
-}
-}
+}  // namespace kvbc
+}  // namespace concord

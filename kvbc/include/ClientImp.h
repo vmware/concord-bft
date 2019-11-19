@@ -50,5 +50,5 @@ class ClientImp : public IClient {
 
   friend IClient* createClient(const ClientConfig& conf, ICommunication* comm);
 };
-}
-}
+}  // namespace kvbc
+}  // namespace concord

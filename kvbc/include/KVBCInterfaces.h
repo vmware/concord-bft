@@ -55,7 +55,7 @@ struct ClientConfig {
 
 // Represents a client of the blockchain database
 class IClient {
-public:
+ public:
   virtual ~IClient() = default;
   virtual Status start() = 0;
   virtual Status stop() = 0;
@@ -136,5 +136,5 @@ class ICommandsHandler : public bftEngine::RequestsHandler {
                       char* outReply,
                       uint32_t& outActualReplySize) = 0;
 };
-}
-}
+}  // namespace kvbc
+}  // namespace concord
