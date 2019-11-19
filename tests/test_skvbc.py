@@ -14,10 +14,7 @@ import unittest
 import trio
 import os.path
 
-import bft_tester
-import skvbc
-import bft_client
-import bft_metrics_client
+from util import bft, skvbc
 
 KEY_FILE_PREFIX = "replica_keys_"
 
@@ -30,7 +27,7 @@ def start_replica_cmd(builddir, replica_id):
     Note each arguments is an element in a list.
     """
     statusTimerMilli = "500"
-    path = os.path.join(builddir, "tests", "simpleKVBCTests", "TesterReplica", "skvbc_replica")
+    path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
@@ -54,31 +51,31 @@ class SkvbcTest(unittest.TestCase):
         trio.run(self._test_state_transfer)
 
     async def _test_state_transfer(self):
-        config = bft_tester.TestConfig(n=4,
-                                       f=1,
-                                       c=0,
-                                       num_clients=10,
-                                       key_file_prefix=KEY_FILE_PREFIX,
-                                       start_replica_cmd=start_replica_cmd)
-        with bft_tester.BftTester(config) as tester:
-            await tester.init()
-            [tester.start_replica(i) for i in range(3)]
+        config = bft.TestConfig(n=4,
+                                f=1,
+                                c=0,
+                                num_clients=10,
+                                key_file_prefix=KEY_FILE_PREFIX,
+                                start_replica_cmd=start_replica_cmd)
+        with bft.BftTestNetwork(config) as bft_network:
+            await bft_network.init()
+            [bft_network.start_replica(i) for i in range(3)]
             # Write enough data to create a need for state transfer
             # Run num_clients concurrent requests a bunch of times
             for i in range (100):
                 async with trio.open_nursery() as nursery:
-                    for client in tester.clients.values():
+                    for client in bft_network.clients.values():
                         msg = self.protocol.write_req([],
-                                [(tester.random_key(), tester.random_value())],
+                                [(bft_network.random_key(), bft_network.random_value())],
                                 0)
                         nursery.start_soon(client.sendSync, msg, False)
-            await tester.assert_state_transfer_not_started_all_up_nodes(self)
-            tester.start_replica(3)
-            await tester.wait_for_state_transfer_to_start()
-            await tester.wait_for_state_transfer_to_stop(0, 3)
-            await tester.assert_successful_put_get(self, self.protocol)
-            tester.stop_replica(2)
-            await tester.assert_successful_put_get(self, self.protocol)
+            await bft_network.assert_state_transfer_not_started_all_up_nodes(self)
+            bft_network.start_replica(3)
+            await bft_network.wait_for_state_transfer_to_start()
+            await bft_network.wait_for_state_transfer_to_stop(0, 3)
+            await bft_network.assert_successful_put_get(self, self.protocol)
+            bft_network.stop_replica(2)
+            await bft_network.assert_successful_put_get(self, self.protocol)
 
     def test_get_block_data(self):
         """
@@ -88,23 +85,23 @@ class SkvbcTest(unittest.TestCase):
         trio.run(self._test_get_block_data)
 
     async def _test_get_block_data(self):
-        config = bft_tester.TestConfig(n=4,
-                                       f=1,
-                                       c=0,
-                                       num_clients=10,
-                                       key_file_prefix=KEY_FILE_PREFIX,
-                                       start_replica_cmd=start_replica_cmd)
-        with bft_tester.BftTester(config) as tester:
-            await tester.init()
-            [tester.start_replica(i) for i in range(3)]
+        config = bft.TestConfig(n=4,
+                                f=1,
+                                c=0,
+                                num_clients=10,
+                                key_file_prefix=KEY_FILE_PREFIX,
+                                start_replica_cmd=start_replica_cmd)
+        with bft.BftTestNetwork(config) as bft_network:
+            await bft_network.init()
+            [bft_network.start_replica(i) for i in range(3)]
             p = self.protocol
-            client = tester.random_client()
+            client = bft_network.random_client()
             last_block = p.parse_reply(await client.read(p.get_last_block_req()))
 
             # Perform an unconditional KV put.
             # Ensure keys aren't identical
-            kv = [(tester.keys[0], tester.random_value()),
-                  (tester.keys[1], tester.random_value())]
+            kv = [(bft_network.keys[0], bft_network.random_value()),
+                  (bft_network.keys[1], bft_network.random_value())]
 
             reply = await client.write(p.write_req([], kv, 0))
             reply = p.parse_reply(reply)
@@ -120,8 +117,8 @@ class SkvbcTest(unittest.TestCase):
 
             # Write another block with the same keys but (probabilistically)
             # different data
-            kv3 = [(tester.keys[0], tester.random_value()),
-                   (tester.keys[1], tester.random_value())]
+            kv3 = [(bft_network.keys[0], bft_network.random_value()),
+                   (bft_network.keys[1], bft_network.random_value())]
             reply = await client.write(p.write_req([], kv3, 0))
             reply = p.parse_reply(reply)
             self.assertTrue(reply.success)
@@ -146,30 +143,30 @@ class SkvbcTest(unittest.TestCase):
         trio.run(self._test_conflicting_write)
 
     async def _test_conflicting_write(self):
-        config = bft_tester.TestConfig(n=4,
-                                       f=1,
-                                       c=0,
-                                       num_clients=1,
-                                       key_file_prefix=KEY_FILE_PREFIX,
-                                       start_replica_cmd=start_replica_cmd)
+        config = bft.TestConfig(n=4,
+                                f=1,
+                                c=0,
+                                num_clients=1,
+                                key_file_prefix=KEY_FILE_PREFIX,
+                                start_replica_cmd=start_replica_cmd)
 
-        with bft_tester.BftTester(config) as tester:
-            await tester.init()
-            tester.start_all_replicas()
+        with bft.BftTestNetwork(config) as bft_network:
+            await bft_network.init()
+            bft_network.start_all_replicas()
 
-            key = tester.random_key()
+            key = bft_network.random_key()
 
             write_1 = self.protocol.write_req(
                 readset=[],
-                writeset=[(key, tester.random_value())],
+                writeset=[(key, bft_network.random_value())],
                 block_id=0)
 
             write_2 = self.protocol.write_req(
                 readset=[],
-                writeset=[(key, tester.random_value())],
+                writeset=[(key, bft_network.random_value())],
                 block_id=0)
 
-            client = tester.random_client()
+            client = bft_network.random_client()
 
             await client.write(write_1)
             last_write_reply = \
@@ -177,13 +174,13 @@ class SkvbcTest(unittest.TestCase):
 
             last_block_id = last_write_reply.last_block_id
 
-            key_prime = tester.random_key()
+            key_prime = bft_network.random_key()
 
             # this write is conflicting because the writeset (key_prime) is
             # based on an outdated version of the readset (key)
             conflicting_write = self.protocol.write_req(
                 readset=[key],
-                writeset=[(key_prime, tester.random_value())],
+                writeset=[(key_prime, bft_network.random_value())],
                 block_id=last_block_id-1)
 
             write_result = \

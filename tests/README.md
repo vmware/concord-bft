@@ -5,8 +5,8 @@ test components.
 
 The design behind the system testing strategy is to provide a collection of
 reusable components to test any application built on concord-bft, as well as
-reusable components for specific application instances like SimpleKVBCTests
-TesterReplica. The application indpenendent component is responsible for
+reusable components for specific application instances like SimpleKVBC
+TesterReplica. The application independent component is responsible for
 infrastructure manipulation like starting and stopping replicas, and creating
 network partitions. It also provides reusable functions and methods applicable
 to all system tests, such as `wait_for_state_transfer_to_start`. The reusable
@@ -20,14 +20,14 @@ resulting in equivalent execution sequence numbers when a node is started after
 being offline when a lot of data was added to the other nodes in the system.
 
 Application indpendent components as well as the system tests themselves rely on
-the the `bft_client` and `bft_metrics_client` living in `../util/pyclient`.
+the the `bft_client` and `bft_metrics_client` living in `../pyclient`.
 
 ## Application Independent Components
 
- * `BftTester` - Infrastructure code (`bft_tester.py`)
+ * `BftTestNetwork` - Infrastructure code (`bft.py`)
  * `BftMetrics` - Metrics client wrapper code (`bft_metrics.py`)
 
- All exceptions for BftTester live in `bft_tester_exceptions.py`
+ All exceptions for BftTestNetwork live in `bft_tester_exceptions.py`
 
 ## SimpleKVBC specific Components
 
@@ -107,13 +107,13 @@ have one `test_XXX` method with a description and a single line that calls
 tests that use coroutines. An example is the `test_state_transfer` and
 `_test_state_transfer` methods.
 
-Each test must create a `bft_tester.TestConfig`, and then instantiate a
-`bft_tester.BftTester` with the config as a parameter. We specifically
+Each test must create a `bft.TestConfig`, and then instantiate a
+`bft.BftTestNetwork` with the config as a parameter. We specifically
 use the `with` keyword so that if the test (in the scope under the with) fails,
-all resources in the tester will be cleaned up automatically by the python
+all resources in the test network will be cleaned up automatically by the python
 runtime.
 
-From there, `await tester.init()` must be called within the with block. This
+From there, `await bft_network.init()` must be called within the with block. This
 performs initialization of async state such as creating sockets using trio. This
 separate method is required, since constructors cannot be async functions and
 therefore cannot call async functions. Also note the `await` keyword. This is
@@ -138,4 +138,3 @@ what is possible.
 
 Importantly, each test starts fresh replicas, and should be treated as an empty
 blockchain until the test writes data.
-

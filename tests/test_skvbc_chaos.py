@@ -16,9 +16,7 @@ import os.path
 import random
 import time
 
-import bft_tester
-import skvbc
-import skvbc_linearizability
+from util import bft, skvbc, skvbc_linearizability
 
 KEY_FILE_PREFIX = "replica_keys_"
 
@@ -36,7 +34,7 @@ def start_replica_cmd(builddir, replica_id):
     statusTimerMilli = "500"
     viewChangeTimeoutMilli = "3000"
 
-    path = os.path.join(builddir, "tests", "simpleKVBCTests", "TesterReplica", "skvbc_replica")
+    path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
@@ -96,20 +94,20 @@ class SkvbcChaosTest(unittest.TestCase):
     async def _test_healthy(self):
         num_ops = 500
         for c in interesting_configs():
-            config = bft_tester.TestConfig(c['n'],
-                                           c['f'],
-                                           c['c'],
-                                           c['num_clients'],
-                                           key_file_prefix=KEY_FILE_PREFIX,
-                                           start_replica_cmd=start_replica_cmd)
+            config = bft.TestConfig(c['n'],
+                                    c['f'],
+                                    c['c'],
+                                    c['num_clients'],
+                                    key_file_prefix=KEY_FILE_PREFIX,
+                                    start_replica_cmd=start_replica_cmd)
 
-            with bft_tester.BftTester(config) as tester:
-                init_state = tester.initial_state()
+            with bft.BftTestNetwork(config) as bft_network:
+                init_state = bft_network.initial_state()
                 self.tracker = skvbc_linearizability.SkvbcTracker(init_state)
-                self.tester = tester
+                self.bft_network = bft_network
                 self.status = Status(c)
-                await tester.init()
-                tester.start_all_replicas()
+                await bft_network.init()
+                bft_network.start_all_replicas()
                 async with trio.open_nursery() as nursery:
                     nursery.start_soon(self.run_concurrent_ops, num_ops)
 
@@ -127,20 +125,20 @@ class SkvbcChaosTest(unittest.TestCase):
         num_ops = 500
         for c in interesting_configs():
             print(f"\n\nStarting test with configuration={c}", flush=True)
-            config = bft_tester.TestConfig(c['n'],
-                                           c['f'],
-                                           c['c'],
-                                           c['num_clients'],
-                                           key_file_prefix=KEY_FILE_PREFIX,
-                                           start_replica_cmd=start_replica_cmd)
+            config = bft.TestConfig(c['n'],
+                                    c['f'],
+                                    c['c'],
+                                    c['num_clients'],
+                                    key_file_prefix=KEY_FILE_PREFIX,
+                                    start_replica_cmd=start_replica_cmd)
 
-            with bft_tester.BftTester(config) as tester:
-                init_state = tester.initial_state()
+            with bft.BftTestNetwork(config) as bft_network:
+                init_state = bft_network.initial_state()
                 self.tracker = skvbc_linearizability.SkvbcTracker(init_state)
-                self.tester = tester
+                self.bft_network = bft_network
                 self.status = Status(c)
-                await tester.init()
-                tester.start_all_replicas()
+                await bft_network.init()
+                bft_network.start_all_replicas()
                 async with trio.open_nursery() as nursery:
                     nursery.start_soon(self.run_concurrent_ops, num_ops)
                     nursery.start_soon(self.crash_primary)
@@ -153,7 +151,7 @@ class SkvbcChaosTest(unittest.TestCase):
         try:
             # Use a new client, since other clients may not be responsive due to
             # past failed responses.
-            client = await self.tester.new_client()
+            client = await self.bft_network.new_client()
             last_block_id = await self.get_last_block_id(client)
             print(f'Last Block ID = {last_block_id}')
             missing_block_ids = self.tracker.get_missing_blocks(last_block_id)
@@ -194,16 +192,16 @@ class SkvbcChaosTest(unittest.TestCase):
 
     async def crash_primary(self):
         await trio.sleep(.5)
-        self.tester.stop_replica(0)
+        self.bft_network.stop_replica(0)
 
     async def run_concurrent_ops(self, num_ops):
-        max_concurrency = len(self.tester.clients)//2
+        max_concurrency = len(self.bft_network.clients) // 2
         write_weight = .70
         self.protocol = skvbc.SimpleKVBCProtocol()
-        max_size = len(self.tester.keys)//2
+        max_size = len(self.bft_network.keys) // 2
         sent = 0
         while sent < num_ops:
-            clients = self.tester.random_clients(max_concurrency)
+            clients = self.bft_network.random_clients(max_concurrency)
             async with trio.open_nursery() as nursery:
                 for client in clients:
                     if random.random() < write_weight:
@@ -250,11 +248,11 @@ class SkvbcChaosTest(unittest.TestCase):
         return random.randint(start, self.tracker.last_known_block)
 
     def readset(self, min_size, max_size):
-        return self.tester.random_keys(random.randint(min_size, max_size))
+        return self.bft_network.random_keys(random.randint(min_size, max_size))
 
     def writeset(self, max_size):
-        writeset_keys = self.tester.random_keys(random.randint(0, max_size))
-        writeset_values = self.tester.random_values(len(writeset_keys))
+        writeset_keys = self.bft_network.random_keys(random.randint(0, max_size))
+        writeset_values = self.bft_network.random_values(len(writeset_keys))
         return list(zip(writeset_keys, writeset_values))
 
 if __name__ == '__main__':
