@@ -60,6 +60,7 @@ while(NOT current_dir STREQUAL "")
   set_property(DIRECTORY ${current_dir} APPEND PROPERTY COMPILE_DEFINITIONS DEFAULT_LOGGER_NAME="${CONCORD_LOGGER_NAME}")
   set_property(DIRECTORY ${current_dir} APPEND PROPERTY INCLUDE_DIRECTORIES "$<TARGET_PROPERTY:logging,INTERFACE_INCLUDE_DIRECTORIES>")
   set_property(DIRECTORY ${current_dir} APPEND PROPERTY COMPILE_OPTIONS "-Wformat=2")
+  set_property(DIRECTORY ${current_dir} APPEND PROPERTY COMPILE_OPTIONS "-Wno-deprecated") # TODO delete when upgrading to a newer version 
   get_property(current_dir DIRECTORY ${current_dir} PROPERTY PARENT_DIRECTORY)
 endwhile()
 
