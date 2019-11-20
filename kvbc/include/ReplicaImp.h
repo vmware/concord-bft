@@ -265,7 +265,7 @@ class ReplicaImp : public IReplica,
   bftEngine::Replica *m_replicaPtr = nullptr;
   ICommandsHandler *m_cmdHandler = nullptr;
   bftEngine::IStateTransfer *m_stateTransfer = nullptr;
-  BlockchainAppState *m_appState = nullptr;
+  std::unique_ptr<BlockchainAppState> m_appState;
   concord::storage::DBMetadataStorage *m_metadataStorage = nullptr;
   ReplicaStateSyncImp m_replicaStateSync;
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;

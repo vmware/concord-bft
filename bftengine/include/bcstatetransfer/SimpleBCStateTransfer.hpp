@@ -59,6 +59,8 @@ void computeBlockDigest(const uint64_t blockId,
 // It is used by the state transfer module.
 class IAppState {
  public:
+  virtual ~IAppState(){};
+
   // returns true IFF block blockId exists
   // (i.e. the block is stored in the application/storage layer).
   virtual bool hasBlock(uint64_t blockId) = 0;
