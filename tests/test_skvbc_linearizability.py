@@ -11,10 +11,9 @@
 # file.
 
 import unittest
-import skvbc
-import skvbc_linearizability
+from util import skvbc, skvbc_linearizability
 
-from skvbc_exceptions import(
+from util.skvbc_exceptions import(
     ConflictingBlockWriteError,
     StaleReadError,
     NoConflictError,

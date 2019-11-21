@@ -13,7 +13,7 @@
 import time
 from enum import Enum
 
-from skvbc_exceptions import(
+from util.skvbc_exceptions import(
     ConflictingBlockWriteError,
     StaleReadError,
     NoConflictError,
@@ -202,7 +202,7 @@ class SkvbcTracker:
     clusters, and then allow verification of the linearizability of responses.
 
     The SkvbcTracker is used by a test to record messages sent and replies
-    received to a cluster of SimpleKVBCTests TesterReplica nodes. Every request
+    received to a cluster of SimpleKVBC TesterReplica nodes. Every request
     sent and reply received is recorded in `self.history`, and indexes into this
     history for requesets are frequently referred to by other parts of this
     code.

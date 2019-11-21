@@ -28,9 +28,9 @@ sys.path.append(os.path.abspath("../util/pyclient"))
 import bft_config
 import bft_client
 import bft_metrics_client
-import bft_metrics
+from util import bft_metrics
 
-from bft_test_exceptions import AlreadyRunningError, AlreadyStoppedError
+from util.bft_test_exceptions import AlreadyRunningError, AlreadyStoppedError
 
 TestConfig = namedtuple('TestConfig', [
     'n',
@@ -52,7 +52,7 @@ METRICS_TIMEOUT_SEC = 5
 # than tester. For now, all keys and values must be 21 bytes.
 KV_LEN = 21
 
-class BftTester:
+class BftTestNetwork:
     """A library to help testing sbft with a SimpleKVBC state machine"""
 
     def __enter__(self):
