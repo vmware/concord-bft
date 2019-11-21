@@ -194,6 +194,7 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
       m_lastBlock(dbAdapter->getLatestBlock()),
       m_ptrComm(comm),
       m_replicaConfig(replicaConfig),
+      m_appState(new BlockchainAppState(this)),
       aggregator_(aggregator) {
   bftEngine::SimpleBlockchainStateTransfer::Config state_transfer_config;
 
@@ -201,9 +202,8 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   state_transfer_config.cVal = m_replicaConfig.cVal;
   state_transfer_config.fVal = m_replicaConfig.fVal;
 
-  m_appState = new BlockchainAppState(this);
   m_stateTransfer = bftEngine::SimpleBlockchainStateTransfer::create(
-      state_transfer_config, m_appState, m_bcDbAdapter->getDb(), aggregator);
+      state_transfer_config, m_appState.get(), m_bcDbAdapter->getDb(), aggregator);
 }
 
 ReplicaImp::~ReplicaImp() {
