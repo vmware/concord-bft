@@ -28,7 +28,7 @@ sys.path.append(os.path.abspath("../util/pyclient"))
 import bft_config
 import bft_client
 import bft_metrics_client
-from util import bft_metrics
+from util import bft_metrics, skvbc
 
 from util.bft_test_exceptions import AlreadyRunningError, AlreadyStoppedError
 
@@ -40,6 +40,26 @@ TestConfig = namedtuple('TestConfig', [
     'key_file_prefix',
     'start_replica_cmd'
 ])
+
+def interesting_configs(f_min=1, c_min=0):
+    bft_configs = [{'n': 4, 'f': 1, 'c': 0, 'num_clients': 4},
+                   {'n': 7, 'f': 2, 'c': 0, 'num_clients': 4},
+                   # {'n': 6, 'f': 1, 'c': 1, 'num_clients': 4},
+                   # {'n': 9, 'f': 2, 'c': 1, 'num_clients': 4},
+                   # {'n': 12, 'f': 3, 'c': 1, 'num_clients': 4}
+                   ]
+
+    selected_bft_configs = \
+        [conf for conf in bft_configs
+         if conf['f'] >= f_min and conf['c'] >= c_min]
+
+    assert len(selected_bft_configs) > 0, "No eligible BFT configs"
+
+    for config in selected_bft_configs:
+        assert config['n'] == 3 * config['f'] + 2 * config['c'] + 1, \
+            "Ivariant breached: n = 3f + 2c + 1"
+
+    return selected_bft_configs
 
 MAX_MSG_SIZE = 64*1024 # 64k
 REQ_TIMEOUT_MILLI = 5000
@@ -202,7 +222,7 @@ class BftTestNetwork:
         Otherwise raise an AlreadyStoppedError.
         """
         if replica_id in self.procs:
-            raise AlreadyRunningError
+            raise AlreadyRunningError(replica_id)
         cmd = self.config.start_replica_cmd(self.builddir, replica_id)
         self.procs[replica_id] = subprocess.Popen(cmd, close_fds=True)
 
@@ -212,12 +232,31 @@ class BftTestNetwork:
         Otherwise raise an AlreadyStoppedError.
         """
         if replica not in self.procs:
-            raise AlreadyStoppedError
+            raise AlreadyStoppedError(replica)
         p = self.procs[replica]
         p.kill()
         p.wait()
 
         del self.procs[replica]
+
+    def force_quorum_including_replica(self, replica_id, primary=0):
+        """
+        Bring down a sufficient number of replicas (excluding the primary),
+        so that the remaining replicas form a quorum that includes replica_id
+        """
+        unstable_replicas = list(
+            set(range(0, self.config.n)) - {primary, replica_id})
+
+        random.shuffle(unstable_replicas)
+
+        for backup_replica_id in unstable_replicas:
+            print(f'Stopping backup replica {backup_replica_id} in order '
+                  f'to force a quorum including replica {replica_id}...')
+            self.stop_replica(backup_replica_id)
+            if len(self.procs) == 2 * self.config.f + self.config.c + 1:
+                break
+
+        assert len(self.procs) == 2 * self.config.f + self.config.c + 1
 
     async def send_indefinite_write_requests(self, client, msg):
         while True:
@@ -345,19 +384,19 @@ class BftTestNetwork:
                 if n == checkpoint_num:
                     return
 
-    async def assert_state_transfer_not_started_all_up_nodes(self, testcase):
+    async def assert_state_transfer_not_started_all_up_nodes(self, up_replica_ids):
         with trio.fail_after(METRICS_TIMEOUT_SEC):
             # Check metrics for all started nodes in parallel
             async with trio.open_nursery() as nursery:
-                for r in self.replicas[0:3]:
+                up_replicas = [self.replicas[i] for i in up_replica_ids]
+                for r in up_replicas:
                     nursery.start_soon(self._assert_state_transfer_not_started,
-                                       testcase,
                                        r)
 
-    async def _assert_state_transfer_not_started(self, testcase, replica):
+    async def _assert_state_transfer_not_started(self, replica):
         key = ['replica', 'Counters', 'receivedStateTransferMsgs']
         n = await self.metrics.get(replica.id, *key)
-        testcase.assertEqual(0, n)
+        assert n == 0
 
     async def assert_successful_put_get(self, testcase, protocol):
         """ Assert that we can get a valid put """
@@ -403,4 +442,62 @@ class BftTestNetwork:
                     if await predicate():
                         return
 
+    async def prime_for_state_transfer(
+            self, stale_nodes,
+            checkpoints_num=2,
+            persistency_enabled=True):
+        await self.init()
+        initial_nodes = set(range(self.config.n)) - stale_nodes
+        [self.start_replica(i) for i in initial_nodes]
+        client = skvbc.Client(self.random_client())
+        # Write a KV pair with a known value
+        known_key = self.max_key()
+        known_val = self.random_value()
+        known_kv = [(known_key, known_val)]
+        reply = await client.write([], known_kv)
+        assert reply.success
+        # Fill up the initial nodes with data, checkpoint them and stop
+        # them. Then bring them back up and ensure the checkpoint data is
+        # there.
+        await self.fill_and_wait_for_checkpoint(
+            initial_nodes, checkpoints_num, persistency_enabled)
 
+        return client, known_key, known_kv
+
+    async def fill_and_wait_for_checkpoint(
+            self, initial_nodes,
+            checkpoint_num=2,
+            persistency_enabled=True):
+        """
+        A helper function used by tests to fill a window with data and then
+        checkpoint it.
+
+        The nodes are then stopped and restarted to ensure the checkpoint data
+        was persisted.
+
+        TODO: Make filling concurrent to speed up tests
+        """
+        client = skvbc.Client(self.random_client())
+        # Write enough data to checkpoint and create a need for state transfer
+        for i in range (1 + checkpoint_num * 150):
+            key = self.random_key()
+            val = self.random_value()
+            reply = await client.write([], [(key, val)])
+            assert reply.success
+
+        await self.assert_state_transfer_not_started_all_up_nodes(
+            up_replica_ids=initial_nodes)
+
+        # Wait for initial replicas to take checkpoints (exhausting
+        # the full window)
+        await self.wait_for_replicas_to_checkpoint(initial_nodes, checkpoint_num)
+
+        if persistency_enabled:
+            # Stop the initial replicas to ensure the checkpoints get persisted
+            [self.stop_replica(i) for i in initial_nodes]
+
+            # Bring up the first 3 replicas and ensure that they have the
+            # checkpoint data.
+            [self.start_replica(i) for i in initial_nodes]
+            await self.wait_for_replicas_to_checkpoint(initial_nodes,
+                                                              checkpoint_num)
