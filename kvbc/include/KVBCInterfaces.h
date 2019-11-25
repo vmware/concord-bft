@@ -135,6 +135,7 @@ class ICommandsHandler : public bftEngine::RequestsHandler {
                       uint32_t maxReplySize,
                       char* outReply,
                       uint32_t& outActualReplySize) = 0;
+  virtual ~ICommandsHandler() = default;
 };
 }  // namespace kvbc
 }  // namespace concord
