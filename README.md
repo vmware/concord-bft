@@ -64,7 +64,7 @@ Directory structure
 	- [src](./threshsign/src): internal implementation of threshsign
     - [tests](./threshsign/tests): tests and usage examples
 - [scripts](./scripts): build scripts
-
+- [tests](./tests): BFT engine system tests
 
 License
 ----
@@ -257,13 +257,16 @@ long as they aren't moved.
 
 Run the following from the top level concord-bft directory:
 
-   ./build/bftengine/tests/simpleTest/scripts/testReplicasAndClient.sh
-
-Alternatively you can run `runReplicas.sh` and `runClient.sh` from the same
-directory as `testReplicasAndClient.sh`.
+   ./build/tests/simpleTest/scripts/testReplicasAndClient.sh
 
 ### Using simple test application via Python script
 
 You can use the simpleTest.py script to run various configurations via a simple
 command line interface.
-Please find more information [here](bftengine/tests/simpleTest/README.md)
+Please find more information [here](./tests/simpleTest/README.md)
+
+### BFT engine system tests
+
+The BFT engine's correctness properties are validated by in-depth automated testing,
+also covering various failure scenarios.
+Please find more information [here](./tests/README.md)
