@@ -42,13 +42,6 @@ def start_replica_cmd(builddir, replica_id):
             "-v", viewChangeTimeoutMilli
             ]
 
-def interesting_configs():
-#    return [{'n': 4, 'f': 1, 'c': 0, 'num_clients': 4},
-#            {'n': 6, 'f': 1, 'c': 1, 'num_clients': 4},
-#            {'n': 11, 'f': 2, 'c': 2, 'num_clients': 6}
-#            ]
-    return [{'n': 11, 'f': 2, 'c': 2, 'num_clients': 6}]
-
 class Status:
     """
     Status about the running test.
@@ -93,7 +86,7 @@ class SkvbcChaosTest(unittest.TestCase):
 
     async def _test_healthy(self):
         num_ops = 500
-        for c in interesting_configs():
+        for c in bft.interesting_configs():
             config = bft.TestConfig(c['n'],
                                     c['f'],
                                     c['c'],
@@ -123,7 +116,7 @@ class SkvbcChaosTest(unittest.TestCase):
 
     async def _test_wreak_havoc(self):
         num_ops = 500
-        for c in interesting_configs():
+        for c in bft.interesting_configs():
             print(f"\n\nStarting test with configuration={c}", flush=True)
             config = bft.TestConfig(c['n'],
                                     c['f'],
