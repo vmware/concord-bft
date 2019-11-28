@@ -75,17 +75,21 @@ Status ReplicaImp::start() {
 void ReplicaImp::createReplicaAndSyncState() {
   bool isNewStorage = m_metadataStorage->isNewStorage();
   LOG_INFO(logger, "createReplicaAndSyncState: isNewStorage= " << isNewStorage);
-  m_replicaPtr = bftEngine::Replica::createNewReplica(
-      &m_replicaConfig, m_cmdHandler, m_stateTransfer, m_ptrComm, m_metadataStorage);
+  m_replicaPtr = bftEngine::Replica::createNewReplica( &m_replicaConfig,
+                                                       m_cmdHandler,
+                                                       m_stateTransfer,
+                                                       m_ptrComm,
+                                                       m_metadataStorage);
   if (!isNewStorage && !m_stateTransfer->isCollectingState()) {
-    uint64_t removedBlocksNum = m_replicaStateSync.execute(
-        logger, *m_bcDbAdapter, *this, m_appState->m_lastReachableBlock, m_replicaPtr->getLastExecutedSequenceNum());
+    uint64_t removedBlocksNum = replicaStateSync_->execute(logger,
+                                                           *m_bcDbAdapter,
+                                                           m_appState->m_lastReachableBlock,
+                                                           m_replicaPtr->getLastExecutedSequenceNum());
     m_lastBlock -= removedBlocksNum;
     m_appState->m_lastReachableBlock -= removedBlocksNum;
-    LOG_INFO(logger,
-             "createReplicaAndSyncState: removedBlocksNum = "
-                 << removedBlocksNum << ", new m_lastBlock = " << m_lastBlock
-                 << ", new m_lastReachableBlock = " << m_appState->m_lastReachableBlock);
+    LOG_INFO(logger, "createReplicaAndSyncState: removedBlocksNum = "
+                     << removedBlocksNum << ", new m_lastBlock = " << m_lastBlock
+                     << ", new m_lastReachableBlock = " << m_appState->m_lastReachableBlock);
   }
 }
 

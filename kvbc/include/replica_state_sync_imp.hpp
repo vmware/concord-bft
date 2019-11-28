@@ -20,15 +20,19 @@
 
 namespace concord {
 namespace kvbc {
-class ReplicaStateSyncImp : public ReplicaStateSync {
+
+class ReplicaStateSyncImp: public ReplicaStateSync {
  public:
+  ReplicaStateSyncImp(IBlockMetadata* blockMetadata);
   ~ReplicaStateSyncImp() override = default;
 
-  uint64_t execute(concordlogger::Logger &logger,
-                   concord::storage::blockchain::DBAdapter &bcDBAdapter,
-                   concord::storage::blockchain::ILocalKeyValueStorageReadOnly &kvs,
+  uint64_t execute(concordlogger::Logger& logger,
+                   concord::storage::blockchain::DBAdapter& bcDBAdapter,
                    concord::storage::blockchain::BlockId lastReachableBlockId,
                    uint64_t lastExecutedSeqNum) override;
+
+protected:
+  std::unique_ptr<IBlockMetadata> blockMetadata_;
 };
 
 }  // namespace kvbc

@@ -14,25 +14,44 @@
 namespace concord {
 namespace kvbc {
 
-const char kBlockMetadataKey = 0x21;
+using concordUtils::Sliver;
+using concord::storage::blockchain::ILocalKeyValueStorageReadOnly;
 
-class BlockMetadata {
- private:
+class IBlockMetadata {
+ public:
+  IBlockMetadata(const concord::storage::blockchain::ILocalKeyValueStorageReadOnly& storage):
+    logger_(concordlogger::Log::getLogger("default")),
+    storage_(storage),
+    key_(new char[1]{kBlockMetadataKey}, 1) {}
+
+  virtual ~IBlockMetadata() = default;
+
+  Sliver getKey() const { return key_; }
+
+  virtual uint64_t getSequenceNum(const Sliver& key) const = 0;
+
+  virtual Sliver serialize(uint64_t sequence_num) const = 0;
+
+  static const char kBlockMetadataKey = 0x21;
+
+ protected:
+
   concordlogger::Logger logger_;
-  const concord::storage::blockchain::ILocalKeyValueStorageReadOnly &storage_;
+  const concord::storage::blockchain::ILocalKeyValueStorageReadOnly& storage_;
   const concordUtils::Sliver key_;
 
+};
+
+
+class BlockMetadata: public IBlockMetadata {
  public:
-  BlockMetadata(const concord::storage::blockchain::ILocalKeyValueStorageReadOnly &storage)
-      : logger_(concordlogger::Log::getLogger("skvbc.MetadataStorage")),
-        storage_(storage),
-        key_(new char[1]{kBlockMetadataKey}, 1) {}
+  BlockMetadata(const ILocalKeyValueStorageReadOnly &storage)
+      : IBlockMetadata(storage){
+    logger_ = concordlogger::Log::getLogger("skvbc.MetadataStorage");
+  }
+  virtual uint64_t getSequenceNum(const Sliver& key) const override;
+  virtual Sliver serialize(uint64_t sequence_num) const override;
 
-  concordUtils::Sliver Key() const { return key_; }
-
-  uint64_t Get(concordUtils::Sliver &key);
-
-  concordUtils::Sliver Serialize(uint64_t bft_sequence_num);
 };
 
 }  // namespace kvbc

@@ -25,21 +25,20 @@ using concordUtils::Key;
 namespace concord {
 namespace kvbc {
 
-uint64_t ReplicaStateSyncImp::execute(concordlogger::Logger &logger,
+ReplicaStateSyncImp::ReplicaStateSyncImp(IBlockMetadata* blockMetadata): blockMetadata_(blockMetadata){}
+
+uint64_t ReplicaStateSyncImp::execute(concordlogger::Logger& logger,
                                       DBAdapter &bcDBAdapter,
-                                      ILocalKeyValueStorageReadOnly &kvs,
                                       BlockId lastReachableBlockId,
                                       uint64_t lastExecutedSeqNum) {
-  BlockMetadata metadata(kvs);
   BlockId blockId = lastReachableBlockId;
   uint64_t blockSeqNum = 0;
   uint64_t removedBlocksNum = 0;
-  Key key = metadata.Key();
+  Key key = blockMetadata_->getKey();
   do {
-    blockSeqNum = metadata.Get(key);
-    LOG_INFO(logger,
-             "Block Metadata key = " << key << ", blockId = " << blockId << ", blockSeqNum = " << blockSeqNum
-                                     << ", lastExecutedSeqNum = " << lastExecutedSeqNum);
+    blockSeqNum = blockMetadata_->getSequenceNum(key);
+    LOG_INFO(logger, "Block Metadata key = " << key << ", blockId = " << blockId << ", blockSeqNum = " << blockSeqNum
+                     << ", lastExecutedSeqNum = " << lastExecutedSeqNum);
     if (blockSeqNum <= lastExecutedSeqNum) {
       LOG_INFO(logger, "Replica state is in sync; removedBlocksNum is " << removedBlocksNum);
       return removedBlocksNum;

@@ -218,7 +218,7 @@ void TestsBuilder::createAndInsertRandomConditionalWrite() {
     size_t key = 0;
     do {
       key = rand() % NUMBER_OF_KEYS;
-    } while (key == concord::kvbc::kBlockMetadataKey);
+    } while (key == concord::kvbc::IBlockMetadata::kBlockMetadataKey);
     memcpy(readKeysArray[i].key, &key, sizeof(key));
   }
 
@@ -227,7 +227,7 @@ void TestsBuilder::createAndInsertRandomConditionalWrite() {
     size_t key = 0;
     do {  // Avoid duplications
       key = rand() % NUMBER_OF_KEYS;
-    } while (usedKeys.count(key) > 0 || key == concord::kvbc::kBlockMetadataKey);
+    } while (usedKeys.count(key) > 0 || key == concord::kvbc::IBlockMetadata::kBlockMetadataKey);
     usedKeys.insert(key);
 
     size_t value = rand();
@@ -268,7 +268,7 @@ void TestsBuilder::createAndInsertRandomRead() {
     size_t key = 0;
     do {
       key = rand() % NUMBER_OF_KEYS;
-    } while (key == concord::kvbc::kBlockMetadataKey);
+    } while (key == concord::kvbc::IBlockMetadata::kBlockMetadataKey);
     memcpy(requestKeys[i].key, &key, sizeof(key));
   }
 

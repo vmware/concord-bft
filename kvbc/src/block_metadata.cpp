@@ -6,17 +6,16 @@
 #include "block_metadata.hpp"
 #include "blockchain/db_types.h"
 
-using concordUtils::Sliver;
 using concordUtils::Status;
 
 namespace concord {
 namespace kvbc {
 
-Sliver BlockMetadata::Serialize(uint64_t bft_sequence_num) {
+Sliver BlockMetadata::serialize(uint64_t bft_sequence_num) const {
   return Sliver::copy((char*)&bft_sequence_num, sizeof(uint64_t));
 }
 
-uint64_t BlockMetadata::Get(Sliver& key) {
+uint64_t BlockMetadata::getSequenceNum(const Sliver& key) const {
   Sliver outValue;
   Status status = storage_.get(key, outValue);
   uint64_t sequenceNum = 0;

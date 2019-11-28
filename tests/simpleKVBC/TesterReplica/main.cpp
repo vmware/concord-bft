@@ -16,12 +16,13 @@
 #include "memorydb/client.h"
 #include "internalCommandsHandler.hpp"
 #include "commonKVBTests.hpp"
-
+#include "replica_state_sync_imp.hpp"
+#include "block_metadata.hpp"
 #ifdef USE_ROCKSDB
 #include "rocksdb/client.h"
 #include "rocksdb/key_comparator.h"
 #endif
-
+using namespace concord::kvbc;
 int main(int argc, char** argv) {
   auto setup = concord::kvbc::TestSetup::ParseArgs(argc, argv);
   auto logger = setup->GetLogger();
@@ -48,8 +49,11 @@ int main(int argc, char** argv) {
   }
 
   auto* dbAdapter = new concord::storage::blockchain::DBAdapter(db);
-  auto* replica = new concord::kvbc::ReplicaImp(
-      setup->GetCommunication(), setup->GetReplicaConfig(), dbAdapter, setup->GetMetricsServer().GetAggregator());
+  auto* replica = new ReplicaImp(setup->GetCommunication(),
+                                 setup->GetReplicaConfig(),
+                                 dbAdapter,
+                                 setup->GetMetricsServer().GetAggregator());
+  replica->setReplicaStateSync(new ReplicaStateSyncImp(new BlockMetadata(*replica)));
 
   // Start metrics server after creation of the replica so that we ensure
   // registration of metrics from the replica with the aggregator and don't
