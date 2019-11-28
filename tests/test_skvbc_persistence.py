@@ -71,11 +71,8 @@ class SkvbcPersistenceTest(unittest.TestCase):
                 [bft_network.start_replica(i) for i in range(1,config.n-1)]
                 with trio.fail_after(60): # seconds
                     async with trio.open_nursery() as nursery:
-                        msg = self.protocol.write_req([],
-                                [(bft_network.random_key(), bft_network.random_value())],
-                                0)
-                        nursery.start_soon(bft_network.send_indefinite_write_requests,
-                                bft_network.random_client(), msg)
+                        nursery.start_soon(
+                            bft_network.send_indefinite_write_requests, self.protocol)
                         # See if replica 1 has become the new primary
                         # Check every .5 seconds
                         view = await self._get_view_number(
@@ -576,11 +573,8 @@ class SkvbcPersistenceTest(unittest.TestCase):
         print("Sending random transactions to trigger view change...")
         with trio.move_on_after(1):  # seconds
             async with trio.open_nursery() as nursery:
-                msg = self.protocol.write_req([],
-                                              [(bft_network.random_key(), bft_network.random_value())],
-                                              0)
-                nursery.start_soon(bft_network.send_indefinite_write_requests,
-                                   bft_network.random_client(), msg)
+                nursery.start_soon(
+                    bft_network.send_indefinite_write_requests, self.protocol)
 
     async def _get_view_number(self, bft_network, replica_id, expected):
         with trio.move_on_after(10):
