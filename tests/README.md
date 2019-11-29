@@ -37,7 +37,7 @@ the the `bft_client` and `bft_metrics_client` living in `../pyclient`.
    SimpleKVBC (`test_skvbc.py`)
  * `SkvbcTracker` - Code that is used to track concurrent requests and respones
    and verify linearizability of operations matches the blockchain state
-   (`skvbc_linearizability.py`).
+   (`skvbc_history_tracker.py`).
 
 All exceptions for skvbc live in `skvbc_exceptions.py`
 
