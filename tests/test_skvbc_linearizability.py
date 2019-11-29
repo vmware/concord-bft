@@ -11,562 +11,242 @@
 # file.
 
 import unittest
-from util import skvbc, skvbc_linearizability
+import trio
+import os.path
+import random
+import time
 
-from util.skvbc_exceptions import(
-    ConflictingBlockWriteError,
-    StaleReadError,
-    NoConflictError,
-    InvalidReadError,
-    PhantomBlockError
-)
+from util import bft, skvbc, skvbc_history_tracker
 
-class TestCompleteHistories(unittest.TestCase):
-    """Test histories where no blocks are unknown"""
+KEY_FILE_PREFIX = "replica_keys_"
 
-    def setUp(self):
-        self.tracker = skvbc_linearizability.SkvbcTracker()
+# The max number of blocks to check for read intersection during conditional
+# writes
+MAX_LOOKBACK=10
 
-    def test_sucessful_write(self):
+def start_replica_cmd(builddir, replica_id):
+    """
+    Return a command that starts an skvbc replica when passed to
+    subprocess.Popen.
+
+    Note each arguments is an element in a list.
+    """
+    statusTimerMilli = "500"
+    viewChangeTimeoutMilli = "3000"
+
+    path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
+    return [path,
+            "-k", KEY_FILE_PREFIX,
+            "-i", str(replica_id),
+            "-s", statusTimerMilli,
+            "-v", viewChangeTimeoutMilli
+            ]
+
+class Status:
+    """
+    Status about the running test.
+    This is useful for debugging if the test fails.
+
+    TODO: Should this live in the tracker?
+    """
+    def __init__(self, config):
+        self.config = config
+        self.start_time = time.monotonic()
+        self.end_time = 0
+        self.last_client_reply = 0
+        self.client_timeouts = {}
+        self.client_replies = {}
+
+    def record_client_reply(self, client_id):
+        self.last_client_reply = time.monotonic()
+        count = self.client_replies.get(client_id, 0)
+        self.client_replies[client_id] = count + 1
+
+    def record_client_timeout(self, client_id):
+        count = self.client_timeouts.get(client_id, 0)
+        self.client_timeouts[client_id] = count + 1
+
+    def __str__(self):
+        return (f'{self.__class__.__name__}:\n'
+           f'  config={self.config}\n'
+           f'  test_duration={self.end_time - self.start_time} seconds\n'
+           f'  time_since_last_client_reply='
+           f'{self.end_time - self.last_client_reply} seconds\n'
+           f'  client_timeouts={self.client_timeouts}\n'
+           f'  client_replies={self.client_replies}\n')
+
+class SkvbcChaosTest(unittest.TestCase):
+    def test_healthy(self):
         """
-        A single request results in a single successful reply.
-        The checker finds no errors.
+        Run a bunch of concurrrent requests in batches and verify
+        linearizability. The system is healthy and stable and no faults are
+        intentionally generated.
         """
-        client_id = 0
-        seq_num = 0
-        readset = set()
-        read_block_id = 0
-        writeset = {'a': 'a'}
-        self.tracker.send_write(
-                client_id, seq_num, readset, writeset, read_block_id)
-        reply = skvbc.WriteReply(success=True, last_block_id=1)
-        self.tracker.handle_write_reply(client_id, seq_num, reply)
-        self.tracker.verify()
+        trio.run(self._test_healthy)
 
-    def test_failed_write(self):
-        """
-        A single request results in a single failed reply.
-        The checker finds a NoConflictError, because there were no concurrent
-        requests that would have caused the request to fail explicitly.
-        """
-        client_id = 0
-        seq_num = 0
-        readset = set()
-        read_block_id = 0
-        writeset = {'a': 'a'}
-        self.tracker.send_write(
-                client_id, seq_num, readset, writeset, read_block_id)
-        reply = skvbc.WriteReply(success=False, last_block_id=1)
-        self.tracker.handle_write_reply(client_id, seq_num, reply)
+    async def _test_healthy(self):
+        num_ops = 500
+        for c in bft.interesting_configs():
+            config = bft.TestConfig(c['n'],
+                                    c['f'],
+                                    c['c'],
+                                    c['num_clients'],
+                                    key_file_prefix=KEY_FILE_PREFIX,
+                                    start_replica_cmd=start_replica_cmd)
 
-        with self.assertRaises(NoConflictError) as err:
+            with bft.BftTestNetwork(config) as bft_network:
+                init_state = bft_network.initial_state()
+                self.tracker = skvbc_history_tracker.SkvbcTracker(init_state)
+                self.bft_network = bft_network
+                self.status = Status(c)
+                await bft_network.init()
+                bft_network.start_all_replicas()
+                async with trio.open_nursery() as nursery:
+                    nursery.start_soon(self.run_concurrent_ops, num_ops)
+
+                await self.verify()
+
+    def test_wreak_havoc(self):
+        """
+        Run a bunch of concurrrent requests in batches and verify
+        linearizability. In this test we generate faults periodically and verify
+        linearizability at the end of the run.
+        """
+        trio.run(self._test_wreak_havoc)
+
+    async def _test_wreak_havoc(self):
+        num_ops = 500
+        for c in bft.interesting_configs():
+            print(f"\n\nStarting test with configuration={c}", flush=True)
+            config = bft.TestConfig(c['n'],
+                                    c['f'],
+                                    c['c'],
+                                    c['num_clients'],
+                                    key_file_prefix=KEY_FILE_PREFIX,
+                                    start_replica_cmd=start_replica_cmd)
+
+            with bft.BftTestNetwork(config) as bft_network:
+                init_state = bft_network.initial_state()
+                self.tracker = skvbc_history_tracker.SkvbcTracker(init_state)
+                self.bft_network = bft_network
+                self.status = Status(c)
+                await bft_network.init()
+                bft_network.start_all_replicas()
+                async with trio.open_nursery() as nursery:
+                    nursery.start_soon(self.run_concurrent_ops, num_ops)
+                    nursery.start_soon(self.crash_primary)
+
+                await self.verify()
+
+            time.sleep(2)
+
+    async def verify(self):
+        try:
+            # Use a new client, since other clients may not be responsive due to
+            # past failed responses.
+            client = await self.bft_network.new_client()
+            last_block_id = await self.get_last_block_id(client)
+            print(f'Last Block ID = {last_block_id}')
+            missing_block_ids = self.tracker.get_missing_blocks(last_block_id)
+            print(f'Missing Block IDs = {missing_block_ids}')
+            blocks = await self.get_blocks(client, missing_block_ids)
+            self.tracker.fill_missing_blocks(blocks)
             self.tracker.verify()
+        except Exception as e:
+            print(f'retries = {client.retries}')
+            self.status.end_time = time.monotonic()
+            print("HISTORY...")
+            for i, entry in enumerate(self.tracker.history):
+                print(f'Index = {i}: {entry}\n')
+            print("BLOCKS...")
+            print(f'{self.tracker.blocks}\n')
+            print(str(self.status), flush=True)
+            print("FAILURE...")
+            raise(e)
 
-        self.assertEqual(0, err.exception.causal_state.req_index)
+    async def get_blocks(self, client, block_ids):
+        blocks = {}
+        for block_id in block_ids:
+            retries = 12 # 60 seconds
+            for i in range(0, retries):
+                try:
+                    msg = self.protocol.get_block_data_req(block_id)
+                    blocks[block_id] = self.protocol.parse_reply(await client.read(msg))
+                    break
+                except trio.TooSlowError:
+                    if i == retries - 1:
+                        raise
+            print(f'Retrieved block {block_id}')
+        return blocks
 
-    def test_contentious_writes_one_success_one_fail(self):
-        """
-        Two writes contend for the same key. Only one should succeed.
-        The checker should not see an error.
-        """
-        # First create an initial block so we can contend with it
-        self.test_sucessful_write()
-        # Send 2 concurrent writes with the same readset and writeset
-        readset = set("a")
-        writeset = {'a': 'a'}
-        self.tracker.send_write(0, 1, readset, writeset, 1)
-        self.tracker.send_write(1, 1, readset, writeset, 1)
-        self.tracker.handle_write_reply(0, 1, skvbc.WriteReply(False, 0))
-        self.tracker.handle_write_reply(1, 1, skvbc.WriteReply(True, 2))
-        self.tracker.verify()
+    async def get_last_block_id(self, client):
+        msg = self.protocol.get_last_block_req()
+        return self.protocol.parse_reply(await client.read(msg))
 
-    def test_contentious_writes_both_succeed(self):
-        """
-        Two writes contend for the same key. Both succeed.
-        The checker should raise a StaleReadError, since only one should have
-        succeeded.
-        """
-        # First create an initial block so we can contend with it
-        self.test_sucessful_write()
-        # Send 2 concurrent writes with the same readset and writeset
-        readset = set("a")
-        writeset = {'a': 'a'}
-        self.tracker.send_write(0, 1, readset, writeset, 1)
-        self.tracker.send_write(1, 1, readset, writeset, 1)
-        self.tracker.handle_write_reply(1, 1, skvbc.WriteReply(True, 2))
-        self.tracker.handle_write_reply(0, 1, skvbc.WriteReply(True, 3))
+    async def crash_primary(self):
+        await trio.sleep(.5)
+        self.bft_network.stop_replica(0)
 
-        with self.assertRaises(StaleReadError) as err:
-            self.tracker.verify()
-
-        # Check the exception detected the error correctly
-        self.assertEqual(err.exception.readset_block_id, 1)
-        self.assertEqual(err.exception.block_with_conflicting_writeset, 2)
-        self.assertEqual(err.exception.block_being_checked, 3)
-
-    def test_contentious_writes_both_succeed_same_block(self):
-        """
-        Two writes contend for the same key. Both succeed, apparently
-        creating the same block.
-
-        The checker should raise a ConflictingBlockWriteError, since two
-        requests cannot create the same block.
-        """
-        # First create an initial block so we can contend with it
-        self.test_sucessful_write()
-        # Send 2 concurrent writes with the same readset and writeset
-        readset = set("a")
-        writeset = {'a': 'a'}
-        self.tracker.send_write(0, 1, readset, writeset, 1)
-        self.tracker.send_write(1, 1, readset, writeset, 1)
-        self.tracker.handle_write_reply(1, 1, skvbc.WriteReply(True, 2))
-
-        with self.assertRaises(ConflictingBlockWriteError) as err:
-            self.tracker.handle_write_reply(0, 1, skvbc.WriteReply(True, 2))
-
-        # The conflicting block id was block 2
-        self.assertEqual(err.exception.block_id, 2)
-
-    def test_read_between_2_successful_writes(self):
-        """
-        Send 2 concurrent writes that don't conflict, but overwrite the same
-        value, along with a concurrent read. The read sees the first overwrite,
-        and should linearize after the first overwritten value correctly.
-        """
-        # A non-concurrent write
-        self.test_sucessful_write()
-        writeset_1 = {'a': 'b'}
-        writeset_2 = {'a': 'c'}
-        read_block_id = 1
-        client0 = 0
-        client1 = 1
-        client2 = 2
-
-        # 2 concurrent writes and a concurrent read
-        self.tracker.send_write(client0, 1, set(), writeset_1, read_block_id)
-        self.tracker.send_write(client1, 1, set(), writeset_2, read_block_id)
-        self.tracker.send_read(client2, 1, ["a"])
-
-        # block2/ writeset_2
-        self.tracker.handle_write_reply(client1, 1, skvbc.WriteReply(True, 2))
-        # block3/ writeset_1
-        self.tracker.handle_write_reply(client0, 1, skvbc.WriteReply(True, 3))
-        self.tracker.handle_read_reply(client2, 1, {"a":"b"})
-        self.tracker.verify()
-
-    def test_read_does_not_linearize_no_concurrent_writes(self):
-        """
-        Read a value that doesn't exist.
-        This should raise an exception.
-        """
-        # state = {'a':'a'}
-        self.test_sucessful_write()
-
-        self.tracker.send_read(1, 0, ["a"])
-        self.tracker.handle_read_reply(1, 0, {"a":"b"})
-        with self.assertRaises(InvalidReadError) as err:
-            self.tracker.verify()
-
-        self.assertEqual(0, len(err.exception.concurrent_requests))
-
-    def test_read_does_not_linearize_two_concurrent_writes(self):
-        """
-        Read a value that doesn't exist when concurrent with 2 reads.
-        This should raise an exception.
-        """
-        self.test_sucessful_write()
-        writeset_1 = {'a': 'b'}
-        writeset_2 = {'a': 'c'}
-        read_block_id = 1
-        client0 = 0
-        client1 = 1
-        client2 = 2
-
-        # 2 concurrent writes and a concurrent read
-        self.tracker.send_write(client0, 1, set(), writeset_1, read_block_id)
-        self.tracker.send_write(client1, 1, set(), writeset_2, read_block_id)
-        self.tracker.send_read(client2, 1, ["a"])
-
-        # block2/ writeset_2
-        self.tracker.handle_write_reply(client1, 1, skvbc.WriteReply(True, 2))
-        # block3/ writeset_1
-        self.tracker.handle_write_reply(client0, 1, skvbc.WriteReply(True, 3))
-
-        # Read a value that was never written
-        self.tracker.handle_read_reply(client2, 1, {"a":"d"})
-
-        with self.assertRaises(InvalidReadError) as err:
-            self.tracker.verify()
-
-        self.assertEqual(2, len(err.exception.concurrent_requests))
-
-    def test_read_is_stale_with_concurrent_writes(self):
-        """
-        Read a value that doesn't exist when concurrent with 2 reads.
-        This should raise an exception.
-        """
-        self.test_sucessful_write()
-        writeset_1 = {'a': 'b'}
-        writeset_2 = {'a': 'c'}
-        read_block_id = 1
-        client0 = 0
-        client1 = 1
-        client2 = 2
-
-        # Another successful write commits.
-        # All subsequent ops should see at least state {'a':'b'}
-        self.tracker.send_write(client0, 1, set(), writeset_1, read_block_id)
-        self.tracker.handle_write_reply(client0, 1, skvbc.WriteReply(True, 2))
-
-        # A concurrent write and a concurrent read
-        self.tracker.send_write(client1, 1, set(), writeset_2, read_block_id)
-        self.tracker.send_read(client2, 1, ["a"])
-
-        # block3/ writeset_2
-        self.tracker.handle_write_reply(client1, 1, skvbc.WriteReply(True, 3))
-
-        # Read a stale value. Key "a" was updated to "b" before the read was
-        # sent. "a" can only be "b" or "c".
-        self.tracker.handle_read_reply(client2, 1, {"a":"a"})
-
-        with self.assertRaises(InvalidReadError) as err:
-            self.tracker.verify()
-
-        self.assertEqual(1, len(err.exception.concurrent_requests))
-
-    def test_long_correct_history(self):
-        """
-        Launch a batch of unconditional writes along with reads concurrently
-        a few times. The responses should always be correct.
-        """
-        self.test_sucessful_write()
-        writeset_1 = {'a': 'b'}
-        writeset_2 = {'a': 'c'}
-        read_block_id = 1
-
-        written_block_id = 1;
-        for seq_num in range(0, 5):
-
-            # track requests
-            for client_id in range(0, 20):
-                if client_id % 3 == 0:
-                    self.tracker.send_read(client_id, seq_num, ["a"])
-                else:
-                    w = writeset_1
-                    if client_id % 2 == 0:
-                        w = writeset_2
-                    self.tracker.send_write(
-                        client_id, seq_num, set(), w, read_block_id)
-
-            # track replies
-            for client_id in range(0, 20):
-                if client_id % 3 == 0:
-                    # expected doesn't really matter for correctness
-                    # it just has to be one of the two written values because
-                    # all writes and reads in a batch are concurrent.
-                    expected = writeset_2
-                    if client_id % 2 == 0:
-                        expected = writeset_1
-                    self.tracker.handle_read_reply(client_id, seq_num, expected)
-                else:
-                     written_block_id += 1;
-                     reply = skvbc.WriteReply(True, written_block_id)
-                     self.tracker.handle_write_reply(client_id, seq_num, reply)
-
-        self.tracker.verify()
-
-    def test_long_failed_history(self):
-        """
-        Launch a batch of unconditional writes along with reads concurrently
-        a few times. Insert a single incorrect read reply.
-        """
-        self.test_sucessful_write()
-        writeset_1 = {'a': 'b'}
-        writeset_2 = {'a': 'c'}
-        read_block_id = 1
-        stale_read = {'a': 'a'}
-
-        written_block_id = 1;
-        for seq_num in range(0, 5):
-
-            # track requests
-            for client_id in range(0, 20):
-                if client_id % 3 == 0:
-                    self.tracker.send_read(client_id, seq_num, ["a"])
-                else:
-                    w = writeset_1
-                    if client_id % 2 == 0:
-                        w = writeset_2
-                    self.tracker.send_write(
-                        client_id, seq_num, set(), w, read_block_id)
-
-            # track replies
-            for client_id in range(0, 20):
-                if client_id % 3 == 0:
-                    # expected doesn't really matter for correctness
-                    # it just has to be one of the two written values because
-                    # all writes and reads in a batch are concurrent.
-                    expected = writeset_2
-                    if client_id % 2 == 0:
-                        expected = writeset_1
-                    if client_id == 6 and seq_num == 3:
-                        self.tracker.handle_read_reply(
-                                client_id, seq_num, stale_read)
+    async def run_concurrent_ops(self, num_ops):
+        max_concurrency = len(self.bft_network.clients) // 2
+        write_weight = .70
+        self.protocol = skvbc.SimpleKVBCProtocol()
+        max_size = len(self.bft_network.keys) // 2
+        sent = 0
+        while sent < num_ops:
+            clients = self.bft_network.random_clients(max_concurrency)
+            async with trio.open_nursery() as nursery:
+                for client in clients:
+                    if random.random() < write_weight:
+                        nursery.start_soon(self.send_write, client, max_size)
                     else:
-                        self.tracker.handle_read_reply(client_id, seq_num, expected)
-                else:
-                     written_block_id += 1;
-                     reply = skvbc.WriteReply(True, written_block_id)
-                     self.tracker.handle_write_reply(client_id, seq_num, reply)
+                        nursery.start_soon(self.send_read, client, max_size)
+            sent += len(clients)
 
-        with self.assertRaises(InvalidReadError) as err:
-            self.tracker.verify()
-
-        self.assertEqual(19, len(err.exception.concurrent_requests))
-        self.assertEqual(stale_read, err.exception.read.kvpairs)
-
-
-
-class TestPartialHistories(unittest.TestCase):
-    """
-    Test histories where some writes don't return replies.
-
-    In these cases, blocks may be generated from the write, but the tracker
-    doesn't know what the values are until after the test iteration, when the
-    tester informs it of the missing blocks values.
-    """
-    def setUp(self):
-        self.tracker = skvbc_linearizability.SkvbcTracker()
-
-    def test_sucessful_write(self):
-        """
-        A single request results in a single successful reply.
-        The checker finds no errors.
-        """
-        client_id = 0
-        seq_num = 0
-        readset = set()
-        read_block_id = 0
-        writeset = {'a': 'a'}
+    async def send_write(self, client, max_set_size):
+        readset = self.readset(0, max_set_size)
+        writeset = self.writeset(max_set_size)
+        read_version = self.read_block_id()
+        msg = self.protocol.write_req(readset, writeset, read_version)
+        seq_num = client.req_seq_num.next()
+        client_id = client.client_id
         self.tracker.send_write(
-                client_id, seq_num, readset, writeset, read_block_id)
-        reply = skvbc.WriteReply(success=True, last_block_id=1)
-        self.tracker.handle_write_reply(client_id, seq_num, reply)
-        self.tracker.verify()
+            client_id, seq_num, readset, dict(writeset), read_version)
+        try:
+            serialized_reply = await client.write(msg, seq_num)
+            self.status.record_client_reply(client_id)
+            reply = self.protocol.parse_reply(serialized_reply)
+            self.tracker.handle_write_reply(client_id, seq_num, reply)
+        except trio.TooSlowError:
+            self.status.record_client_timeout(client_id)
+            return
 
-    def test_2_concurrent_writes_one_missing_success_two_concurrent_reads(self):
-        """
-        Two concurrent writes are sent with two concurrent reads. One write does
-        not respond.
+    async def send_read(self, client, max_set_size):
+        readset = self.readset(1, max_set_size)
+        msg = self.protocol.read_req(readset)
+        seq_num = client.req_seq_num.next()
+        client_id = client.client_id
+        self.tracker.send_read(client_id, seq_num, readset)
+        try:
+            serialized_reply = await client.read(msg, seq_num)
+            self.status.record_client_reply(client_id)
+            reply = self.protocol.parse_reply(serialized_reply)
+            self.tracker.handle_read_reply(client_id, seq_num, reply)
+        except trio.TooSlowError:
+            self.status.record_client_timeout(client_id)
+            return
 
-        One read should linearize correctly based on the write that returned,
-        and the other based on the one that didn't return.
-        """
-        # A non-concurrent write
-        self.test_sucessful_write()
-        writeset_1 = {'a': 'b'}
-        writeset_2 = {'a': 'c'}
-        read_block_id = 1
-        client0 = 0
-        client1 = 1
-        client2 = 2
-        client3 = 3
+    def read_block_id(self):
+        start = max(0, self.tracker.last_known_block - MAX_LOOKBACK)
+        return random.randint(start, self.tracker.last_known_block)
 
-        # 2 concurrent unconditional writes and a concurrent read
-        self.tracker.send_write(client0, 1, set(), writeset_1, read_block_id)
-        self.tracker.send_write(client1, 1, set(), writeset_2, read_block_id)
-        self.tracker.send_read(client2, 1, ["a"])
-        self.tracker.send_read(client3, 1, ["a"])
+    def readset(self, min_size, max_size):
+        return self.bft_network.random_keys(random.randint(min_size, max_size))
 
-        # writeset_2 written at block 3
-        self.tracker.handle_write_reply(client1, 1, skvbc.WriteReply(True, 3))
-        self.tracker.handle_read_reply(client2, 1, writeset_1)
-        self.tracker.handle_read_reply(client3, 1, writeset_2)
-
-        self.assertEqual(3, self.tracker.last_known_block)
-
-        # The test should call these methods when it stops sending
-        # operations.
-        # The test must ask the tracker what blocks are missing
-        missing_block_id = 2
-        last_block = 3
-        missing_blocks = self.tracker.get_missing_blocks(last_block)
-        self.assertSetEqual(set([missing_block_id]), missing_blocks)
-
-        self.assertEqual(3, self.tracker.last_known_block)
-
-        # The test must retrieve the missing blocks from skvbc TesterReplicas
-        # using the clients and them inform the tracker. This is the call that
-        # informs the tracker.
-        self.tracker.fill_missing_blocks({missing_block_id: writeset_1})
-
-        # The tracker now has all the information it needs. Tell it to verify
-        # that it's read responses linearize.
-        self.tracker.verify()
-
-    def test_2_concurrent_writes_one_missing_failure_two_concurrent_reads(self):
-        """
-        Two concurrent writes are sent with two concurrent reads. One write does
-        not respond.
-
-        One read should linearize correctly based on the write that returned,
-        and the other based on the one that didn't return.
-        """
-        # A non-concurrent write
-        self.test_sucessful_write()
-        writeset_1 = {'a': 'b'}
-        writeset_2 = {'a': 'c'}
-        read_block_id = 1
-        client0 = 0
-        client1 = 1
-        client2 = 2
-        client3 = 3
-
-        # 2 concurrent unconditional writes and a concurrent read
-        self.tracker.send_write(client0, 1, set("a"), writeset_1, read_block_id)
-        self.tracker.send_write(client1, 1, set("a"), writeset_2, read_block_id)
-        self.tracker.send_read(client2, 1, ["a"])
-        self.tracker.send_read(client3, 1, ["a"])
-
-        # writeset_2 written at block 3
-        self.tracker.handle_write_reply(client1, 1, skvbc.WriteReply(True, 2))
-        self.tracker.handle_read_reply(client2, 1, writeset_1)
-        self.tracker.handle_read_reply(client3, 1, writeset_2)
-
-        self.assertEqual(2, self.tracker.last_known_block)
-
-        # the last block is 2 because one of the writes conflicted
-        last_block = 2
-        missing_blocks = self.tracker.get_missing_blocks(last_block)
-        self.assertSetEqual(set(), missing_blocks)
-
-        with self.assertRaises(InvalidReadError) as err:
-            self.tracker.verify()
-
-        self.assertEqual(3, len(err.exception.concurrent_requests))
-        # The read of writeset_1 fails, since that was the failed request that
-        # never returned.
-        self.assertEqual(writeset_1, err.exception.read.kvpairs)
-
-    def test_phantom_block_fill_hole(self):
-        """
-        Create a phantom block that fills in a missing block in the middle of
-        the block chain, and ensure a PhantomBlockError gets raised.
-        """
-        self.test_sucessful_write()
-        writeset_1 = {'a': 'b'}
-        writeset_2 = {'a': 'c'}
-        phantom_writeset = {'a': 'd'}
-        read_block_id = 1
-        client0 = 0
-        client1 = 1
-
-        self.tracker.send_write(client0, 1, set("a"), writeset_1, read_block_id)
-        self.tracker.send_write(client1, 1, set("a"), writeset_2, read_block_id)
-        self.tracker.handle_write_reply(client1, 1, skvbc.WriteReply(True, 3))
-
-        # We are missing block 2
-        last_block = 3
-        missing_block_id = 2
-        missing_blocks = self.tracker.get_missing_blocks(last_block)
-        self.assertSetEqual(set([missing_block_id]), missing_blocks)
-
-        # Fill in block 2 with a block that could never have been generated by a
-        # write request
-        self.tracker.fill_missing_blocks({missing_block_id: phantom_writeset})
-
-        with self.assertRaises(PhantomBlockError) as err:
-            self.tracker.verify()
-
-        self.assertEqual(missing_block_id, err.exception.block_id)
-        self.assertEqual(phantom_writeset, err.exception.kvpairs)
-        self.assertEqual(0, len(err.exception.matched_blocks))
-        self.assertEqual(1, len(err.exception.unmatched_requests))
-
-    def test_phantom_block_fill_extra_block(self):
-        """
-        Create a phantom block that fills in a block at the end of the block
-        chain with an already used request, and ensure a PhantomBlockError gets
-        raised. All write_requests matched in this case, but we ran out of them,
-        as there was 1 more block than write request.
-
-        """
-        self.test_sucessful_write()
-        writeset_1 = {'a': 'b'}
-        writeset_2 = {'a': 'c'}
-        read_block_id = 1
-        client0 = 0
-        client1 = 1
-
-        self.tracker.send_write(client0, 1, set("a"), writeset_1, read_block_id)
-        self.tracker.send_write(client1, 1, set("a"), writeset_2, read_block_id)
-        self.tracker.handle_write_reply(client1, 1, skvbc.WriteReply(True, 3))
-
-        # We are missing blocks 2 and 4
-        last_block = 4
-        missing_block_ids = [2, 4]
-        missing_blocks = self.tracker.get_missing_blocks(last_block)
-        self.assertSetEqual(set(missing_block_ids), missing_blocks)
-
-        # Fill in a block correctly matching writeset1, and then an extra block
-        # with no matching writeset, since we already matched the last request
-        # that used writeset_1.
-        blocks = {2: writeset_1, 4: writeset_1}
-        self.tracker.fill_missing_blocks(blocks)
-
-        with self.assertRaises(PhantomBlockError) as err:
-            self.tracker.verify()
-
-        self.assertEqual(4, err.exception.block_id)
-        self.assertEqual(writeset_1, err.exception.kvpairs)
-        self.assertEqual(1, len(err.exception.matched_blocks))
-        self.assertEqual(0, len(err.exception.unmatched_requests))
-
-class TestUnit(unittest.TestCase):
-
-    def test_num_blocks_to_linearize_over(self):
-        """
-        Create a tracker with enough information to allow running
-        _num_blocks_to_linearize_over. Verify that the correct number of blocks
-        is returned.
-        """
-        req_index = 14
-        last_known_block = 6
-        last_consecutive_block = 3
-        missing_intermediate_blocks = 2
-        kvpairs = {'a': 1, 'b': 2, 'c': 3}
-        cs = skvbc_linearizability.CausalState(req_index,
-                                               last_known_block,
-                                               last_consecutive_block,
-                                               missing_intermediate_blocks,
-                                               kvpairs)
-
-        is_read = False
-        write = skvbc_linearizability.ConcurrentValue(is_read)
-        tracker = skvbc_linearizability.SkvbcTracker()
-        tracker.concurrent[req_index] = \
-            {2: write, 4: write, 7: write, 11: write, 16: write}
-
-        tracker.last_known_block = 7
-        self.assertEqual(1,
-                        tracker._num_blocks_to_linearize_over(req_index, cs))
-
-        tracker.last_known_block = 8
-        self.assertEqual(2,
-                         tracker._num_blocks_to_linearize_over(req_index, cs))
-
-        tracker.last_known_block = 9
-        self.assertEqual(3,
-                         tracker._num_blocks_to_linearize_over(req_index, cs))
-
-        tracker.last_known_block = 10
-        self.assertEqual(3,
-                         tracker._num_blocks_to_linearize_over(req_index, cs))
-
-        tracker.last_known_block = 11
-        self.assertEqual(3,
-                         tracker._num_blocks_to_linearize_over(req_index, cs))
+    def writeset(self, max_size):
+        writeset_keys = self.bft_network.random_keys(random.randint(0, max_size))
+        writeset_values = self.bft_network.random_values(len(writeset_keys))
+        return list(zip(writeset_keys, writeset_values))
 
 if __name__ == '__main__':
     unittest.main()
-

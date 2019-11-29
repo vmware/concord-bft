@@ -6,11 +6,8 @@ add_test(NAME skvbc_basic_tests COMMAND python3 -m unittest
         test_skvbc
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_test(NAME skvbc_chaos_tests COMMAND python3 -m unittest
-        test_skvbc_chaos
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-
 add_test(NAME skvbc_linearizability_tests COMMAND python3 -m unittest
+        test_skvbc_history_tracker
         test_skvbc_linearizability
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
