@@ -16,11 +16,15 @@ namespace kvbc {
 
 using concordUtils::Sliver;
 using concord::storage::blockchain::ILocalKeyValueStorageReadOnly;
-
+/**
+ * Interface defining the way block is serialized
+ */
 class IBlockMetadata {
  public:
   IBlockMetadata(const concord::storage::blockchain::ILocalKeyValueStorageReadOnly& storage)
-      : logger_(concordlogger::Log::getLogger("default")), storage_(storage), key_(new char[1]{kBlockMetadataKey}, 1) {}
+      : logger_(concordlogger::Log::getLogger("block-metadata")),
+        storage_(storage),
+        key_(new char[1]{kBlockMetadataKey}, 1) {}
 
   virtual ~IBlockMetadata() = default;
 
@@ -38,6 +42,9 @@ class IBlockMetadata {
   const concordUtils::Sliver key_;
 };
 
+/**
+ * Default block serialization
+ */
 class BlockMetadata : public IBlockMetadata {
  public:
   BlockMetadata(const ILocalKeyValueStorageReadOnly& storage) : IBlockMetadata(storage) {
