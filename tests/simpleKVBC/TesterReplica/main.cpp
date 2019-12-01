@@ -49,10 +49,8 @@ int main(int argc, char** argv) {
   }
 
   auto* dbAdapter = new concord::storage::blockchain::DBAdapter(db);
-  auto* replica = new ReplicaImp(setup->GetCommunication(),
-                                 setup->GetReplicaConfig(),
-                                 dbAdapter,
-                                 setup->GetMetricsServer().GetAggregator());
+  auto* replica = new ReplicaImp(
+      setup->GetCommunication(), setup->GetReplicaConfig(), dbAdapter, setup->GetMetricsServer().GetAggregator());
   replica->setReplicaStateSync(new ReplicaStateSyncImp(new BlockMetadata(*replica)));
 
   // Start metrics server after creation of the replica so that we ensure

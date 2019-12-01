@@ -88,7 +88,7 @@ class ReplicaImp : public IReplica,
              concord::storage::blockchain::DBAdapter *dbAdapter,
              std::shared_ptr<concordMetrics::Aggregator> aggregator);
 
-  void setReplicaStateSync(ReplicaStateSync* rss) {replicaStateSync_.reset(rss);}
+  void setReplicaStateSync(ReplicaStateSync *rss) { replicaStateSync_.reset(rss); }
 
   ~ReplicaImp() override;
 
@@ -269,7 +269,7 @@ class ReplicaImp : public IReplica,
   bftEngine::IStateTransfer *m_stateTransfer = nullptr;
   std::unique_ptr<BlockchainAppState> m_appState;
   concord::storage::DBMetadataStorage *m_metadataStorage = nullptr;
-  std::unique_ptr<ReplicaStateSync>   replicaStateSync_;
+  std::unique_ptr<ReplicaStateSync> replicaStateSync_;
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;
 
   // static methods

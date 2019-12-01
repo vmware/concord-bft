@@ -21,7 +21,7 @@
 namespace concord {
 namespace kvbc {
 
-class ReplicaStateSyncImp: public ReplicaStateSync {
+class ReplicaStateSyncImp : public ReplicaStateSync {
  public:
   ReplicaStateSyncImp(IBlockMetadata* blockMetadata);
   ~ReplicaStateSyncImp() override = default;
@@ -31,7 +31,7 @@ class ReplicaStateSyncImp: public ReplicaStateSync {
                    concord::storage::blockchain::BlockId lastReachableBlockId,
                    uint64_t lastExecutedSeqNum) override;
 
-protected:
+ protected:
   std::unique_ptr<IBlockMetadata> blockMetadata_;
 };
 
