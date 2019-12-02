@@ -260,8 +260,9 @@ class SkvbcPersistenceTest(unittest.TestCase):
     async def _fetch_or_finish_state_transfer_while_crashing(self,
                                                              bft_network,
                                                              up_to_date_node,
-                                                             stale_node):
-       for _ in range(20):
+                                                             stale_node,
+                                                             nb_crashes=20):
+       for _ in range(nb_crashes):
            print(f'Restarting replica {stale_node}')
            bft_network.start_replica(stale_node)
            try:
@@ -270,11 +271,13 @@ class SkvbcPersistenceTest(unittest.TestCase):
                await trio.sleep(random.uniform(0, 1))
 
            except trio.TooSlowError:
-               await self._await_state_transfer_or_check_if_complete(
-                   bft_network=bft_network,
-                   up_to_date_node=up_to_date_node,
-                   stale_node=stale_node
-               )
+               # We never made it to fetching state. Are we done?
+               try:
+                   await bft_network.wait_for_state_transfer_to_stop(
+                       up_to_date_node, stale_node)
+               except trio.TooSlowError:
+                   self.fail("State transfer did not complete, " +
+                             "but we are not fetching either!")
            finally:
                print(f'Stopping replica {stale_node}')
                bft_network.stop_replica(stale_node)
@@ -358,8 +361,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
             print(f'Re-starting stale replica {stale} to start state transfer')
             bft_network.start_replica(stale)
 
-            await self._await_state_transfer_or_check_if_complete(
-                bft_network=bft_network,
+            await bft_network.wait_for_state_transfer_to_stop(
                 up_to_date_node=primary,
                 stale_node=stale
             )
@@ -371,15 +373,14 @@ class SkvbcPersistenceTest(unittest.TestCase):
         else:
             print("No source replica set in stale node, checking "
                   "if state transfer has already completed...")
-            await self._await_state_transfer_or_check_if_complete(
-                bft_network=bft_network,
+            await bft_network.wait_for_state_transfer_to_stop(
                 up_to_date_node=primary,
                 stale_node=stale
             )
             print("State transfer completed before we had a chance "
                   "to stop the source replica.")
 
-    def test_st_when_primary_crashes(self):
+    def test_st_while_primary_crashes(self):
         """
         Start N-1 nodes out of a N node cluster. Write a specific key, then
         enough data to the cluster to trigger a checkpoint.
@@ -494,11 +495,10 @@ class SkvbcPersistenceTest(unittest.TestCase):
         up_to_date_replicas = tuple(set(range(0, n)) - {primary, stale})
         up_to_date_replica = random.choice(up_to_date_replicas)
 
-        await self._await_state_transfer_or_check_if_complete(
-            bft_network=bft_network,
+        await bft_network.wait_for_state_transfer_to_stop(
             up_to_date_node=up_to_date_replica,
             stale_node=stale,
-            only_wait_for_stable_seq_num=True
+            stop_on_stable_seq_num=True
         )
 
         view = await self._get_view_number(
@@ -534,20 +534,16 @@ class SkvbcPersistenceTest(unittest.TestCase):
             print(f'Stopping current primary replica {current_primary} '
                   f'to trigger view change')
             bft_network.stop_replica(current_primary)
+            await self._trigger_view_change(bft_network)
 
             print(f'Repeatedly restarting stale replica {stale} '
                   f'to with view change running in the background.')
 
-            for k in range(3):
-                bft_network.start_replica(stale)
-                await self._trigger_view_change(bft_network)
-                await trio.sleep(seconds=random.uniform(0, 1))
-                if k == 0:
-                    # ensure that we have interrupted state transfer at least once
-                    self.assertFalse(await bft_network.is_state_transfer_complete(
-                        up_to_date_node=random.choice(stable_replicas),
-                        stale_node=stale))
-                bft_network.stop_replica(stale)
+            await self._fetch_or_finish_state_transfer_while_crashing(
+                bft_network=bft_network,
+                up_to_date_node=random.choice(stable_replicas),
+                stale_node=stale,
+                nb_crashes=3)
 
             bft_network.start_replica(current_primary)
 
@@ -562,8 +558,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
         bft_network.start_replica(stale)
 
-        await self._await_state_transfer_or_check_if_complete(
-            bft_network=bft_network,
+        await bft_network.wait_for_state_transfer_to_stop(
             up_to_date_node=random.choice(stable_replicas),
             stale_node=stale
         )
@@ -621,21 +616,3 @@ class SkvbcPersistenceTest(unittest.TestCase):
             print(f'Stale replica is not fetching right now.')
 
         return source_replica_id
-
-    async def _await_state_transfer_or_check_if_complete(
-            self, bft_network, up_to_date_node, stale_node,
-            only_wait_for_stable_seq_num=False):
-        # We never made it to fetching state. Are we done?
-        # Try a few times since metrics are eventually consistent
-        try:
-            await bft_network.wait_for_state_transfer_to_stop(
-                up_to_date_node, stale_node,
-                only_wait_for_stable_seq_num)
-        except trio.TooSlowError:
-            for _ in range(3):
-                if await bft_network.is_state_transfer_complete(
-                        up_to_date_node, stale_node):
-                    return
-                await trio.sleep(1)  # seconds
-            self.fail("State transfer did not complete, " +
-                      "but we are not fetching either!")
