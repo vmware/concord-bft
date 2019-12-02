@@ -41,6 +41,7 @@ class ILocalKeyValueStorageReadOnly {
   virtual Status freeSnapIterator(ILocalKeyValueStorageReadOnlyIterator* iter) const = 0;
 
   virtual void monitor() const = 0;
+  virtual ~ILocalKeyValueStorageReadOnly() = default;
 };
 
 /*

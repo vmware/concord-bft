@@ -54,8 +54,8 @@ int InternalCommandsHandler::execute(uint16_t clientId,
 
 void InternalCommandsHandler::addMetadataKeyValue(SetOfKeyValuePairs &updates, uint64_t sequenceNum) const {
   concord::kvbc::BlockMetadata metadata(*m_storage);
-  Sliver metadataKey = metadata.Key();
-  Sliver metadataValue = metadata.Serialize(sequenceNum);
+  Sliver metadataKey = metadata.getKey();
+  Sliver metadataValue = metadata.serialize(sequenceNum);
   updates.insert(KeyValuePair(metadataKey, metadataValue));
 }
 
@@ -179,7 +179,7 @@ bool InternalCommandsHandler::executeGetBlockDataCommand(
   pReply->numOfItems = numOfElements;
 
   concord::kvbc::BlockMetadata metadata(*m_storage);
-  const Sliver metadataKey = metadata.Key();
+  const Sliver metadataKey = metadata.getKey();
 
   auto i = 0;
   for (auto kv : outBlockData) {

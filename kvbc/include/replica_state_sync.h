@@ -11,7 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 //
-// Interface for replica state synchronisation.
+// Interface for replica state synchronization.
 
 #pragma once
 
@@ -22,14 +22,15 @@
 namespace concord {
 namespace kvbc {
 
+class IBlockMetadata;
+
 class ReplicaStateSync {
  public:
   virtual ~ReplicaStateSync() = default;
 
-  // Synchronises replica state and returns a number of deleted blocks.
-  virtual uint64_t execute(concordlogger::Logger &logger,
-                           concord::storage::blockchain::DBAdapter &bcDBAdapter,
-                           concord::storage::blockchain::ILocalKeyValueStorageReadOnly &kvs,
+  // Synchronizes replica state and returns a number of deleted blocks.
+  virtual uint64_t execute(concordlogger::Logger& logger,
+                           concord::storage::blockchain::DBAdapter& bcDBAdapter,
                            concord::storage::blockchain::BlockId lastReachableBlockId,
                            uint64_t lastExecutedSeqNum) = 0;
 };
