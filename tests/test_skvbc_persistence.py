@@ -379,7 +379,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
             print("State transfer completed before we had a chance "
                   "to stop the source replica.")
 
-    def test_st_when_primary_crashes(self):
+    def test_st_while_primary_crashes(self):
         """
         Start N-1 nodes out of a N node cluster. Write a specific key, then
         enough data to the cluster to trigger a checkpoint.
@@ -534,13 +534,13 @@ class SkvbcPersistenceTest(unittest.TestCase):
             print(f'Stopping current primary replica {current_primary} '
                   f'to trigger view change')
             bft_network.stop_replica(current_primary)
+            await self._trigger_view_change(bft_network)
 
             print(f'Repeatedly restarting stale replica {stale} '
                   f'to with view change running in the background.')
-
             for k in range(3):
                 bft_network.start_replica(stale)
-                await self._trigger_view_change(bft_network)
+
                 await trio.sleep(seconds=random.uniform(0, 1))
                 if k == 0:
                     # ensure that we have interrupted state transfer at least once

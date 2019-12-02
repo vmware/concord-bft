@@ -50,15 +50,14 @@ class MetricsClient:
         """
         Send a get metrics request, retrieve the JSON response, decode it and
         return a map of metrics.
-
-        There is no explicit timeout here. Users should call `with
-        trio.fail_after as necessary`.
         """
-        destination = (self.replica.ip,self.replica.port)
-        await self.sock.sendto(self._req(), destination)
-        while True:
-            reply, _ = await self.sock.recvfrom(MAX_MSG_SIZE)
-            assert 1 == reply[0]
-            _, seq_num = struct.unpack(HEADER_FMT, reply[0:HEADER_SIZE])
-            if seq_num == self.seq_num:
-                return json.loads(reply[HEADER_SIZE:])
+        with trio.fail_after(seconds=5):
+            while True:
+                destination = (self.replica.ip, self.replica.port)
+                await self.sock.sendto(self._req(), destination)
+                with trio.move_on_after(seconds=1):
+                    reply, _ = await self.sock.recvfrom(MAX_MSG_SIZE)
+                    assert 1 == reply[0]
+                    _, seq_num = struct.unpack(HEADER_FMT, reply[0:HEADER_SIZE])
+                    if seq_num == self.seq_num:
+                        return json.loads(reply[HEADER_SIZE:])

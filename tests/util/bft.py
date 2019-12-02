@@ -359,11 +359,14 @@ class BftTestNetwork:
                            return
 
     async def is_state_transfer_complete(self, up_to_date_node, stale_node):
-            # Get the lastExecutedSeqNumber from a reference node
-            key = ['replica', 'Gauges', 'lastExecutedSeqNum']
-            last_exec_seq_num = await self.metrics.get(up_to_date_node, *key)
-            n = await self.metrics.get(stale_node, *key)
-            return n == last_exec_seq_num
+            try:
+                key = ['replica', 'Gauges', 'lastExecutedSeqNum']
+                last_exec_seq_num = await self.metrics.get(up_to_date_node, *key)
+                n = await self.metrics.get(stale_node, *key)
+            except KeyError:
+                return False
+            else:
+                return n == last_exec_seq_num
 
     async def wait_for_replicas_to_checkpoint(self, replica_ids, checkpoint_num):
         """
