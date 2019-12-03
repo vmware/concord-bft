@@ -36,7 +36,7 @@ class SeqNumInfo {
   ~SeqNumInfo();
 
   void resetAndFree();  // TODO(GG): name
-  void getAndReset(PrePrepareMsg*& outPrePrepare, PrepareFullMsg*& outcombinedValidSignatureMsg);
+  void getAndReset(PrePrepareMsg*& outPrePrepare, PrepareFullMsg*& outCombinedValidSignatureMsg);
 
   bool addMsg(PrePrepareMsg* m, bool directAdd = false);
   bool addSelfMsg(PrePrepareMsg* m, bool directAdd = false);

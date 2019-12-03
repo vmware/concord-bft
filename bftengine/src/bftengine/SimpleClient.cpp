@@ -23,7 +23,7 @@
 #include "ClientRequestMsg.hpp"
 #include "ClientReplyMsg.hpp"
 #include "MsgsCertificate.hpp"
-#include "DynamicUpperLimitWithSimpleFilter2.hpp"
+#include "DynamicUpperLimitWithSimpleFilter.hpp"
 #include "Logger.hpp"
 
 namespace bftEngine {

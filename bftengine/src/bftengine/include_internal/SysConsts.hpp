@@ -48,9 +48,9 @@ constexpr uint16_t kWorkWindowSize = 300;
 constexpr uint16_t checkpointWindowSize = 150;
 static_assert(kWorkWindowSize == 2 * checkpointWindowSize, "kWorkWindowSize != 2 * checkpointWindowSize");
 
-constexpr uint16_t maxLegalConcurrentAgreementsByPrimary =
-    16;  // TODO(GG): check the value in config (maxConcurrentAgreementsByPrimary should be <=
-         // maxLegalConcurrentAgreementsByPrimary)
+// TODO(GG): check the value in config:
+// (maxConcurrentAgreementsByPrimary should be <= maxLegalConcurrentAgreementsByPrimary)
+constexpr uint16_t maxLegalConcurrentAgreementsByPrimary = 16;
 
 // Maximum number of fast paths that are simultaneously in progress.
 constexpr uint16_t MaxConcurrentFastPaths = 75;
@@ -76,7 +76,7 @@ constexpr double factorForMinTimeBetweenStatusRequestsMilli = 0.5;  // TODO(GG):
 constexpr int sendStatusPeriodMilli = 0;  // if 0, this value is taken from config
 
 ///////////////////////////////////////////////////////////////////////////////
-// Rretransmission Logic
+// Retransmission Logic
 ///////////////////////////////////////////////////////////////////////////////
 
 constexpr bool retransmissionsLogicEnabled = false;
@@ -134,7 +134,7 @@ constexpr bool ControllerWithSimpleHistory_debugUpgradeEnabled = true;
 // Persistency
 ///////////////////////////////////////////////////////////////////////////////
 
-constexpr uint32_t maxSizeOfCombinedsignature = 1024;  // TODO(GG): should be checked
+constexpr uint32_t maxSizeOfCombinedSignature = 1024;  // TODO(GG): should be checked
 
 constexpr uint32_t MaxSizeOfPrivateKey = 1024;  // TODO(GG): should be checked
 constexpr uint32_t MaxSizeOfPublicKey = 1024;   // TODO(GG): should be checked

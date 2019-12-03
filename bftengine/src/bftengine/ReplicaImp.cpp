@@ -390,15 +390,13 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
     maxNumberOfPendingRequestsInRecentHistory = 0;
   }
 
-  Assert((primaryLastUsedSeqNum + 1) <=
-         lastExecutedSeqNum +
-             MaxConcurrentFastPaths);  // because maxConcurrentAgreementsByPrimary <  MaxConcurrentFastPaths
+  // because maxConcurrentAgreementsByPrimary <  MaxConcurrentFastPaths
+  Assert((primaryLastUsedSeqNum + 1) <= lastExecutedSeqNum + MaxConcurrentFastPaths);
 
   CommitPath firstPath = controller->getCurrentFirstPath();
 
-  Assert((cVal != 0) ||
-         (firstPath !=
-          CommitPath::FAST_WITH_THRESHOLD));  // assert: (cVal==0) --> (firstPath != CommitPath::FAST_WITH_THRESHOLD)
+  // assert: (cVal==0) --> (firstPath != CommitPath::FAST_WITH_THRESHOLD)
+  Assert((cVal != 0) || (firstPath != CommitPath::FAST_WITH_THRESHOLD));
 
   controller->onSendingPrePrepare((primaryLastUsedSeqNum + 1), firstPath);
 

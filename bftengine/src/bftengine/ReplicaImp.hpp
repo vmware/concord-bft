@@ -25,7 +25,7 @@
 #include "ControllerBase.hpp"
 #include "CheckpointMsg.hpp"
 #include "RetransmissionsManager.hpp"
-#include "DynamicUpperLimitWithSimpleFilter2.hpp"
+#include "DynamicUpperLimitWithSimpleFilter.hpp"
 #include "ViewsManager.hpp"
 #include "ReplicasInfo.hpp"
 #include "MsgsCertificate.hpp"

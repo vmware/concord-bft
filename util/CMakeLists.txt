@@ -8,6 +8,7 @@ add_library(util STATIC
     src/histogram.cpp
     src/status.cpp
     src/sliver.cpp
+    src/TimeUtils.cpp
     src/hex_tools.cpp)
 
 target_link_libraries(util PUBLIC Threads::Threads)
