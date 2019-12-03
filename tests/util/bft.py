@@ -41,6 +41,8 @@ TestConfig = namedtuple('TestConfig', [
     'start_replica_cmd'
 ])
 
+UnstableSegment = namedtuple('UnstableSegment', ['src_replica', 'dest_replica', 'drop_rate'])
+
 def interesting_configs(f_min=1, c_min=0):
     bft_configs = [{'n': 4, 'f': 1, 'c': 0, 'num_clients': 4},
                    {'n': 7, 'f': 2, 'c': 0, 'num_clients': 4},
@@ -185,6 +187,21 @@ class BftTestNetwork:
         """
         await self._create_clients()
         await self._init_metrics()
+        self._init_network_rules()
+
+    def _init_network_rules(self):
+        subprocess.run(
+            ["iptables", "-F"],
+            check=True)
+        subprocess.run(
+            ["iptables", "-X"],
+            check=True)
+        subprocess.run(
+            ["iptables", "-N", "bft-network-partitioning"],
+            check=True)
+        subprocess.run(
+            ["iptables", "-A", "INPUT", "-s", "localhost", "-d", "localhost", "-j", "bft-network-partitioning"],
+            check=True)
 
     def random_value(self):
         return bytes(random.sample(self.alphanum, KV_LEN))
@@ -238,6 +255,17 @@ class BftTestNetwork:
         p.wait()
 
         del self.procs[replica]
+
+    def partition(self, unstable_segments=None):
+        subprocess.run(
+            ["iptables", "-A", "bft-network-partitioning", "-p", "udp", "--sport", "3710", "--dport", "3712", "-j", "DROP"],
+            check=True)
+        subprocess.run(
+            ["iptables", "-A", "bft-network-partitioning", "-p", "udp", "--sport", "3710", "--dport", "3714", "-j", "DROP"],
+            check=True)
+        subprocess.run(
+            ["iptables", "-A", "bft-network-partitioning", "-p", "udp", "--sport", "3710", "--dport", "3716", "-j", "DROP"],
+            check=True)
 
     def force_quorum_including_replica(self, replica_id, primary=0):
         """

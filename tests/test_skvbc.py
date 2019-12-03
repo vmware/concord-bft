@@ -91,6 +91,9 @@ class SkvbcTest(unittest.TestCase):
             with bft.BftTestNetwork(config) as bft_network:
                 await bft_network.init()
                 bft_network.start_all_replicas()
+
+                bft_network.partition()
+
                 p = self.protocol
                 client = bft_network.random_client()
                 last_block = p.parse_reply(await client.read(p.get_last_block_req()))
