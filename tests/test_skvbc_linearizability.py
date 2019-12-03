@@ -18,6 +18,7 @@ import time
 
 from util import bft, skvbc_history_tracker
 from util import skvbc as kvbc
+from util import bft_network_partitioning as net
 
 KEY_FILE_PREFIX = "replica_keys_"
 
@@ -103,6 +104,41 @@ class SkvbcChaosTest(unittest.TestCase):
                 self.status = Status(c)
                 await bft_network.init()
                 bft_network.start_all_replicas()
+                async with trio.open_nursery() as nursery:
+                    nursery.start_soon(self.run_concurrent_ops, num_ops)
+
+                await self.verify()
+
+    def test_while_dropping_packets(self):
+        """
+        Run a bunch of concurrrent requests in batches and verify
+        linearizability, while dropping a small amount of packets
+        between all replicas.
+        """
+        trio.run(self._test_while_dropping_packets)
+
+    async def _test_while_dropping_packets(self):
+        num_ops = 500
+        for c in bft.interesting_configs():
+            config = bft.TestConfig(c['n'],
+                                    c['f'],
+                                    c['c'],
+                                    c['num_clients'],
+                                    key_file_prefix=KEY_FILE_PREFIX,
+                                    start_replica_cmd=start_replica_cmd)
+            with bft.BftTestNetwork(config) as bft_network, \
+                    net.PacketDroppingAdversary(
+                        bft_network, drop_rate_percentage=5) as adversary:
+                self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+                init_state = self.skvbc.initial_state()
+                self.tracker = skvbc_history_tracker.SkvbcTracker(init_state)
+                self.bft_network = bft_network
+                self.status = Status(c)
+                await bft_network.init()
+                bft_network.start_all_replicas()
+
+                adversary.interfere()
+
                 async with trio.open_nursery() as nursery:
                     nursery.start_soon(self.run_concurrent_ops, num_ops)
 
