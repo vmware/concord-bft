@@ -24,3 +24,7 @@ add_executable(serializable_test serializable_test.cpp $<TARGET_OBJECTS:logging_
 add_test(serializable_test serializable_test)
 target_link_libraries(serializable_test gtest util)
 target_compile_options(serializable_test PUBLIC -Wno-sign-compare)
+
+add_executable(timers_tests timers_tests.cpp $<TARGET_OBJECTS:logging_dev>)
+add_test(timers_tests timers_tests)
+target_link_libraries(timers_tests gtest_main util)
