@@ -40,6 +40,8 @@
 #include "ReplicaLoader.hpp"
 #include "Metrics.hpp"
 
+#include "Timers.hpp"
+
 #include <thread>
 
 namespace bftEngine {
@@ -98,9 +100,6 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
 
   // retransmissions manager (can be disabled)
   RetransmissionsManager* retransmissionsManager = nullptr;
-
-  // scheduler
-  SimpleOperationsScheduler timersScheduler;
 
   // controller
   ControllerBase* controller;
@@ -198,15 +197,18 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
                               // view >= v
   Time timeOfLastAgreedView;  // last time we changed lastAgreedView
 
+  // Timer manager/container
+  concordUtil::Timers timers_;
+
   // timers
-  Timer* stateTranTimer;
-  Timer* retranTimer;
-  Timer* slowPathTimer;
-  Timer* infoReqTimer;
-  Timer* statusReportTimer;
-  Timer* viewChangeTimer;
-  Timer* debugStatTimer = nullptr;
-  Timer* metricsTimer_;
+  concordUtil::Timers::Handle stateTranTimer_;
+  concordUtil::Timers::Handle retranTimer_;
+  concordUtil::Timers::Handle slowPathTimer_;
+  concordUtil::Timers::Handle infoReqTimer_;
+  concordUtil::Timers::Handle statusReportTimer_;
+  concordUtil::Timers::Handle viewChangeTimer_;
+  concordUtil::Timers::Handle debugStatTimer_;
+  concordUtil::Timers::Handle metricsTimer_;
 
   int viewChangeTimerMilli;
 
@@ -457,30 +459,14 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
 
   virtual const ReplicasInfo& getReplicasInfo() override { return (*repsInfo); }
 
-  virtual Timer& getViewChangeTimer() override { return *viewChangeTimer; }
-
-  virtual Timer& getStateTranTimer() override { return *stateTranTimer; }
-
-  virtual Timer& getRetransmissionsTimer() override { return *retranTimer; }
-
-  virtual Timer& getStatusTimer() override { return *statusReportTimer; }
-
-  virtual Timer& getSlowPathTimer() override { return *slowPathTimer; }
-
-  virtual Timer& getInfoRequestTimer() override { return *infoReqTimer; }
-
-  virtual Timer& getDebugStatTimer() override { return *debugStatTimer; }
-
-  virtual Timer& getMetricsTimer() override { return *metricsTimer_; }
-
-  virtual void onViewsChangeTimer(Time cTime, Timer& timer) override;
-  virtual void onStateTranTimer(Time cTime, Timer& timer) override;
-  virtual void onRetransmissionsTimer(Time cTime, Timer& timer) override;
-  virtual void onStatusReportTimer(Time cTime, Timer& timer) override;
-  virtual void onSlowPathTimer(Time cTime, Timer& timer) override;
-  virtual void onInfoRequestTimer(Time cTime, Timer& timer) override;
-  virtual void onDebugStatTimer(Time cTime, Timer& timer) override;
-  virtual void onMetricsTimer(Time cTime, Timer& timer) override;
+  void onViewsChangeTimer(concordUtil::Timers::Handle);
+  void onStateTranTimer(concordUtil::Timers::Handle);
+  void onRetransmissionsTimer(concordUtil::Timers::Handle);
+  void onStatusReportTimer(concordUtil::Timers::Handle);
+  void onSlowPathTimer(concordUtil::Timers::Handle);
+  void onInfoRequestTimer(concordUtil::Timers::Handle);
+  void onDebugStatTimer(concordUtil::Timers::Handle);
+  void onMetricsTimer(concordUtil::Timers::Handle);
 
   // handlers for internal messages
 

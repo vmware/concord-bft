@@ -33,82 +33,11 @@
 #include "SysConsts.hpp"
 #include "ReplicaConfigSingleton.hpp"
 
+using concordUtil::Timers;
+using namespace std::chrono;
+
 namespace bftEngine {
 namespace impl {
-// Handler functions for replica's timers
-
-static void viewChangeTimerHandlerFunc(Time t, void *p) {
-  InternalReplicaApi *r = (InternalReplicaApi *)p;
-  Assert(r != nullptr);
-  Timer &timer = r->getViewChangeTimer();
-  r->onViewsChangeTimer(t, timer);
-  timer.start();  // restart timer
-}
-
-//
-static void stateTranTimerHandlerFunc(Time t, void *p) {
-  InternalReplicaApi *r = (InternalReplicaApi *)p;
-  Assert(r != nullptr);
-  Timer &timer = r->getStateTranTimer();
-  r->onStateTranTimer(t, timer);
-  timer.start();  // restart timer
-}
-
-static void retransmissionsTimerHandlerFunc(Time t, void *p) {
-  Assert(retransmissionsLogicEnabled);
-
-  InternalReplicaApi *r = (InternalReplicaApi *)p;
-  Assert(r != nullptr);
-  Timer &timer = r->getRetransmissionsTimer();
-  r->onRetransmissionsTimer(t, timer);
-
-  timer.start();  // restart timer
-}
-
-static void statusTimerHandlerFunc(Time t, void *p) {
-  InternalReplicaApi *r = (InternalReplicaApi *)p;
-  Assert(r != nullptr);
-  Timer &timer = r->getStatusTimer();
-  r->onStatusReportTimer(t, timer);
-
-  timer.start();  // restart timer
-}
-
-static void slowPathTimerHandlerFunc(Time t, void *p) {
-  InternalReplicaApi *r = (InternalReplicaApi *)p;
-  Assert(r != nullptr);
-  Timer &timer = r->getSlowPathTimer();
-  r->onSlowPathTimer(t, timer);
-
-  timer.start();  // restart timer
-}
-
-static void infoRequestHandlerFunc(Time t, void *p) {
-  InternalReplicaApi *r = (InternalReplicaApi *)p;
-  Assert(r != nullptr);
-  Timer &timer = r->getInfoRequestTimer();
-  r->onInfoRequestTimer(t, timer);
-
-  timer.start();  // restart timer
-}
-
-static void debugStatHandlerFunc(Time t, void *p) {
-  InternalReplicaApi *r = (InternalReplicaApi *)p;
-  Assert(r != nullptr);
-  Timer &timer = r->getDebugStatTimer();
-  r->onDebugStatTimer(t, timer);
-
-  timer.start();  // restart timer
-}
-
-static void metricsTimerHandlerFunc(Time t, void *p) {
-  InternalReplicaApi *r = (InternalReplicaApi *)p;
-  Assert(r != nullptr);
-  Timer &timer = r->getMetricsTimer();
-  r->onMetricsTimer(t, timer);
-
-  timer.start();  // restart timer
-}
 
 std::unordered_map<uint16_t, PtrToMetaMsgHandler> ReplicaImp::createMapOfMetaMsgHandlers() {
   std::unordered_map<uint16_t, PtrToMetaMsgHandler> r;
@@ -214,7 +143,7 @@ IncomingMsg ReplicaImp::recvMsg() {
 
     // TODO(GG): make sure that we don't check timers too often
     // (i.e. much faster than timersResolution)
-    timersScheduler.evaluate();
+    timers_.evaluate();
 
     if (msg.tag != IncomingMsg::INVALID) {
       return msg;
@@ -1421,7 +1350,7 @@ void ReplicaImp::sendRetransmittableMsgToReplica(MessageBase *msg,
     retransmissionsManager->onSend(destReplica, s, msg->type(), ignorePreviousAcks);
 }
 
-void ReplicaImp::onRetransmissionsTimer(Time cTime, Timer &timer) {
+void ReplicaImp::onRetransmissionsTimer(Timers::Handle timer) {
   Assert(retransmissionsLogicEnabled);
 
   retransmissionsManager->tryToStartProcessing();
@@ -2479,7 +2408,7 @@ void ReplicaImp::onMessage(ReqMissingDataMsg *msg) {
   delete msg;
 }
 
-void ReplicaImp::onViewsChangeTimer(Time cTime, Timer &timer)  // TODO(GG): review/update logic
+void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/update logic
 {
   Assert(viewChangeProtocolEnabled);
 
@@ -2568,9 +2497,9 @@ void ReplicaImp::onViewsChangeTimer(Time cTime, Timer &timer)  // TODO(GG): revi
   }
 }
 
-void ReplicaImp::onStateTranTimer(Time cTime, Timer &timer) { stateTransfer->onTimer(); }
+void ReplicaImp::onStateTranTimer(Timers::Handle timer) { stateTransfer->onTimer(); }
 
-void ReplicaImp::onStatusReportTimer(Time cTime, Timer &timer) {
+void ReplicaImp::onStatusReportTimer(Timers::Handle timer) {
   tryToSendStatusReport();
 
 #ifdef DEBUG_MEMORY_MSG
@@ -2578,29 +2507,25 @@ void ReplicaImp::onStatusReportTimer(Time cTime, Timer &timer) {
 #endif
 }
 
-void ReplicaImp::onSlowPathTimer(Time cTime, Timer &timer) {
+void ReplicaImp::onSlowPathTimer(Timers::Handle timer) {
   tryToStartSlowPaths();
-
-  uint16_t newPeriod = (uint16_t)(controller->slowPathsTimerMilli());
-
-  timer.changePeriodMilli(newPeriod);
+  auto newPeriod = milliseconds(controller->slowPathsTimerMilli());
+  timers_.reset(timer, newPeriod);
 }
 
-void ReplicaImp::onInfoRequestTimer(Time cTime, Timer &timer) {
+void ReplicaImp::onInfoRequestTimer(Timers::Handle timer) {
   tryToAskForMissingInfo();
-
-  uint16_t newPeriod = (uint16_t)(dynamicUpperLimitOfRounds->upperLimit() / 2);
-
-  timer.changePeriodMilli(newPeriod);
+  auto newPeriod = milliseconds(dynamicUpperLimitOfRounds->upperLimit() / 2);
+  timers_.reset(timer, newPeriod);
 }
 
-void ReplicaImp::onDebugStatTimer(Time cTime, Timer &timer) {
+void ReplicaImp::onDebugStatTimer(Timers::Handle timer) {
   if (debugStatisticsEnabled) {
     DebugStatistics::onCycleCheck();
   }
 }
 
-void ReplicaImp::onMetricsTimer(Time cTime, Timer &timer) { metrics_.UpdateAggregator(); }
+void ReplicaImp::onMetricsTimer(Timers::Handle timer) { metrics_.UpdateAggregator(); }
 
 void ReplicaImp::onMessage(SimpleAckMsg *msg) {
   metric_received_simple_acks_.Get().Inc();
@@ -2669,7 +2594,7 @@ void ReplicaImp::changeStateTransferTimerPeriod(uint32_t timerPeriodMilli) {
   // thread
 
   if (mainThread.get_id() == std::this_thread::get_id()) {
-    stateTranTimer->changePeriodMilli((uint16_t)timerPeriodMilli);  // TODO: check the casting here
+    timers_.reset(stateTranTimer_, milliseconds(timerPeriodMilli));
   } else {
     // TODO(GG): implement
     Assert(false);
@@ -2972,14 +2897,6 @@ ReplicaImp::ReplicaImp(bool firstTime,
       timeOfLastViewEntrance{getMonotonicTime()},  // TODO(GG): TBD
       lastAgreedView{0},
       timeOfLastAgreedView{getMonotonicTime()},  // TODO(GG): TBD
-      stateTranTimer{nullptr},
-      retranTimer{nullptr},
-      slowPathTimer{nullptr},
-      infoReqTimer{nullptr},
-      statusReportTimer{nullptr},
-      viewChangeTimer{nullptr},
-      debugStatTimer{nullptr},
-      metricsTimer_{nullptr},
       viewChangeTimerMilli{0},
       startSyncEvent{false},
       metrics_{concordMetrics::Component("replica", std::make_shared<concordMetrics::Aggregator>())},
@@ -3100,47 +3017,44 @@ ReplicaImp::ReplicaImp(bool firstTime,
   // create controller . TODO(GG): do we want to pass the controller as a parameter ?
   controller = new ControllerWithSimpleHistory(cVal, fVal, myReplicaId, curView, primaryLastUsedSeqNum);
 
-  statusReportTimer =
-      new Timer(timersScheduler, (uint16_t)statusReportTimerMilli, statusTimerHandlerFunc, (InternalReplicaApi *)this);
+  statusReportTimer_ = timers_.add(milliseconds(statusReportTimerMilli),
+                                   Timers::Timer::RECURRING,
+                                   [this](Timers::Handle h) { onStatusReportTimer(h); });
 
   if (viewChangeProtocolEnabled) {
     int t = viewChangeTimerMilli;
     if (autoPrimaryUpdateEnabled && t > autoPrimaryUpdateMilli) t = autoPrimaryUpdateMilli;
 
-    viewChangeTimer = new Timer(timersScheduler,
-                                (t / 2),
-                                viewChangeTimerHandlerFunc,
-                                (InternalReplicaApi *)this);  // TODO(GG): what should be the time period here? .
-                                                              // TODO(GG):Consider to split to 2 different timers
-  } else
-    viewChangeTimer = nullptr;
+    // TODO(GG): what should be the time period here? .
+    // TODO(GG):Consider to split to 2 different timers
+    viewChangeTimer_ =
+        timers_.add(milliseconds(t / 2), Timers::Timer::RECURRING, [this](Timers::Handle h) { onViewsChangeTimer(h); });
+  }
 
-  stateTranTimer = new Timer(timersScheduler, 5 * 1000, stateTranTimerHandlerFunc, (InternalReplicaApi *)this);
+  stateTranTimer_ = timers_.add(5s, Timers::Timer::RECURRING, [this](Timers::Handle h) { onStateTranTimer(h); });
 
-  if (retransmissionsLogicEnabled)
-    retranTimer = new Timer(
-        timersScheduler, retransmissionsTimerMilli, retransmissionsTimerHandlerFunc, (InternalReplicaApi *)this);
-  else
-    retranTimer = nullptr;
+  if (retransmissionsLogicEnabled) {
+    retranTimer_ = timers_.add(milliseconds(retransmissionsTimerMilli),
+                               Timers::Timer::RECURRING,
+                               [this](Timers::Handle h) { onRetransmissionsTimer(h); });
+  }
 
   const int slowPathsTimerPeriod = controller->timeToStartSlowPathMilli();
 
-  slowPathTimer =
-      new Timer(timersScheduler, (uint16_t)slowPathsTimerPeriod, slowPathTimerHandlerFunc, (InternalReplicaApi *)this);
+  slowPathTimer_ = timers_.add(
+      milliseconds(slowPathsTimerPeriod), Timers::Timer::RECURRING, [this](Timers::Handle h) { onSlowPathTimer(h); });
 
-  infoReqTimer = new Timer(timersScheduler,
-                           (uint16_t)(dynamicUpperLimitOfRounds->upperLimit() / 2),
-                           infoRequestHandlerFunc,
-                           (InternalReplicaApi *)this);
+  infoReqTimer_ = timers_.add(milliseconds(dynamicUpperLimitOfRounds->upperLimit() / 2),
+                              Timers::Timer::RECURRING,
+                              [this](Timers::Handle h) { onInfoRequestTimer(h); });
 
   if (debugStatisticsEnabled) {
-    debugStatTimer = new Timer(timersScheduler,
-                               (uint16_t)(DEBUG_STAT_PERIOD_SECONDS * 1000),
-                               debugStatHandlerFunc,
-                               (InternalReplicaApi *)this);
+    debugStatTimer_ = timers_.add(seconds(DEBUG_STAT_PERIOD_SECONDS),
+                                  Timers::Timer::RECURRING,
+                                  [this](Timers::Handle h) { onDebugStatTimer(h); });
   }
 
-  metricsTimer_ = new Timer(timersScheduler, 100, metricsTimerHandlerFunc, (InternalReplicaApi *)this);
+  metricsTimer_ = timers_.add(100ms, Timers::Timer::RECURRING, [this](Timers::Handle h) { onMetricsTimer(h); });
 
   if (retransmissionsLogicEnabled)
     retransmissionsManager =
@@ -3252,17 +3166,6 @@ void ReplicaImp::processMessages() {
   startSyncEvent.wait_one();
 
   stateTransfer->startRunning(this);
-
-  stateTranTimer->start();
-  if (retransmissionsLogicEnabled) retranTimer->start();
-  slowPathTimer->start();
-  infoReqTimer->start();
-  statusReportTimer->start();
-  if (viewChangeProtocolEnabled) viewChangeTimer->start();
-  if (debugStatisticsEnabled) {
-    debugStatTimer->start();
-  }
-  metricsTimer_->start();
 
   LOG_INFO_F(GL, "Running");
 

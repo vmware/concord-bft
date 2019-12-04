@@ -71,24 +71,6 @@ class InternalReplicaApi  // TODO(GG): rename + clean + split to several classes
   virtual IThresholdVerifier* getThresholdVerifierForSlowPathCommit() = 0;
   virtual IThresholdVerifier* getThresholdVerifierForCommit() = 0;
   virtual IThresholdVerifier* getThresholdVerifierForOptimisticCommit() = 0;
-
-  virtual Timer& getViewChangeTimer() = 0;
-  virtual Timer& getStateTranTimer() = 0;
-  virtual Timer& getRetransmissionsTimer() = 0;
-  virtual Timer& getStatusTimer() = 0;
-  virtual Timer& getSlowPathTimer() = 0;
-  virtual Timer& getInfoRequestTimer() = 0;
-  virtual Timer& getDebugStatTimer() = 0;
-  virtual Timer& getMetricsTimer() = 0;
-
-  virtual void onViewsChangeTimer(Time currTime, Timer& timer) = 0;
-  virtual void onStateTranTimer(Time currTime, Timer& timer) = 0;
-  virtual void onRetransmissionsTimer(Time cTime, Timer& timer) = 0;
-  virtual void onStatusReportTimer(Time cTime, Timer& timer) = 0;
-  virtual void onSlowPathTimer(Time cTime, Timer& timer) = 0;
-  virtual void onInfoRequestTimer(Time cTime, Timer& timer) = 0;
-  virtual void onDebugStatTimer(Time cTime, Timer& timer) = 0;
-  virtual void onMetricsTimer(Time cTime, Timer& timer) = 0;
 };
 
 }  // namespace impl
