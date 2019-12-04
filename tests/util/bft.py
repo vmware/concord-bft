@@ -358,13 +358,6 @@ class BftTestNetwork:
                         if n >= expected_seq_num:
                            return
 
-    async def is_state_transfer_complete(self, up_to_date_node, stale_node):
-            # Get the lastExecutedSeqNumber from a reference node
-            key = ['replica', 'Gauges', 'lastExecutedSeqNum']
-            last_exec_seq_num = await self.metrics.get(up_to_date_node, *key)
-            n = await self.metrics.get(stale_node, *key)
-            return n == last_exec_seq_num
-
     async def wait_for_replicas_to_checkpoint(self, replica_ids, checkpoint_num):
         """
         Wait for every replica in `replicas` to take a checkpoint.
