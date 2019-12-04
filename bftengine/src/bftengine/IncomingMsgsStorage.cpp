@@ -11,8 +11,8 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "IncomingMsgsStorage.hpp"
-#include "MessageBase.hpp"
+#include "messages/IncomingMsgsStorage.hpp"
+#include "messages/MessageBase.hpp"
 #include "Logger.hpp"
 
 using std::queue;

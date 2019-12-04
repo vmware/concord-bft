@@ -17,11 +17,11 @@
 #include "Bitmap.hpp"
 #include "ViewsManager.hpp"
 #include "ReplicaConfig.hpp"
-#include "PrePrepareMsg.hpp"
-#include "SignedShareMsgs.hpp"
-#include "NewViewMsg.hpp"
-#include "FullCommitProofMsg.hpp"
-#include "CheckpointMsg.hpp"
+#include "messages/PrePrepareMsg.hpp"
+#include "messages/SignedShareMsgs.hpp"
+#include "messages/NewViewMsg.hpp"
+#include "messages/FullCommitProofMsg.hpp"
+#include "messages/CheckpointMsg.hpp"
 #include "SysConsts.hpp"
 
 #include <vector>

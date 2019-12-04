@@ -11,8 +11,8 @@
 
 #include <string.h>
 #include "ClientsManager.hpp"
-#include "ClientReplyMsg.hpp"
-#include "ClientRequestMsg.hpp"
+#include "messages/ClientReplyMsg.hpp"
+#include "messages/ClientRequestMsg.hpp"
 #include "IStateTransfer.hpp"
 #include "assertUtils.hpp"
 #include "Logger.hpp"

@@ -13,11 +13,11 @@
 
 #include "DebugPersistentStorage.hpp"
 
-#include "PrePrepareMsg.hpp"
-#include "SignedShareMsgs.hpp"
-#include "NewViewMsg.hpp"
-#include "FullCommitProofMsg.hpp"
-#include "CheckpointMsg.hpp"
+#include "messages/PrePrepareMsg.hpp"
+#include "messages/SignedShareMsgs.hpp"
+#include "messages/NewViewMsg.hpp"
+#include "messages/FullCommitProofMsg.hpp"
+#include "messages/CheckpointMsg.hpp"
 
 namespace bftEngine {
 namespace impl {

@@ -13,7 +13,7 @@
 
 #include "PrimitiveTypes.hpp"
 #include "TimeUtils.hpp"
-#include "MsgsCertificate.hpp"
+#include "messages/MsgsCertificate.hpp"
 
 namespace bftEngine {
 namespace impl {

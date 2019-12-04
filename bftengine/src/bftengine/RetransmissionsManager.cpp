@@ -16,10 +16,10 @@
 #include <queue>
 #include <cmath>  // sqrt
 
-#include "MessageBase.hpp"
+#include "messages/MessageBase.hpp"
 #include "RetransmissionsManager.hpp"
 #include "SimpleThreadPool.hpp"
-#include "IncomingMsgsStorage.hpp"
+#include "messages/IncomingMsgsStorage.hpp"
 #include "InternalReplicaApi.hpp"
 #include "RollingAvgAndVar.hpp"
 #include "assertUtils.hpp"

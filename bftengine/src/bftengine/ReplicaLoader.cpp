@@ -15,7 +15,7 @@
 #include "PersistentStorage.hpp"
 #include "ReplicaImp.hpp"
 #include "ViewsManager.hpp"
-#include "FullCommitProofMsg.hpp"
+#include "messages/FullCommitProofMsg.hpp"
 #include "Logger.hpp"
 
 #define Verify(expr, errorCode) \

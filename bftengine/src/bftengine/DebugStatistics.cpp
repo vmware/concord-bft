@@ -14,7 +14,7 @@
 
 #include <iomanip>
 #include <inttypes.h>
-#include "MsgCode.hpp"
+#include "messages/MsgCode.hpp"
 #include "Logger.hpp"
 
 using namespace std;

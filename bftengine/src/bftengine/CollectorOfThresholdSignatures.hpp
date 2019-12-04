@@ -18,7 +18,7 @@
 #include "Digest.hpp"
 #include "Crypto.hpp"
 #include "SimpleThreadPool.hpp"
-#include "IncomingMsgsStorage.hpp"
+#include "messages/IncomingMsgsStorage.hpp"
 #include "assertUtils.hpp"
 
 namespace bftEngine {

@@ -15,7 +15,7 @@
 #include <forward_list>
 
 #include "PrimitiveTypes.hpp"
-#include "IncomingMsgsStorage.hpp"
+#include "messages/IncomingMsgsStorage.hpp"
 
 class IThresholdVerifier;
 class ReplicasInfo;

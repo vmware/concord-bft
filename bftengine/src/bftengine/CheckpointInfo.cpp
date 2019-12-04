@@ -10,7 +10,7 @@
 // file.
 
 #include "CheckpointInfo.hpp"
-#include "CheckpointMsg.hpp"
+#include "messages/CheckpointMsg.hpp"
 #include "InternalReplicaApi.hpp"
 #include "assertUtils.hpp"
 

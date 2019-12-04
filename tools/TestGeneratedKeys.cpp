@@ -16,7 +16,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "Crypto.hpp"
+#include "bftengine/Crypto.hpp"
 #include "threshsign/ThresholdSignaturesTypes.h"
 #include "KeyfileIOUtils.hpp"
 

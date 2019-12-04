@@ -95,8 +95,8 @@ if(${BUILD_COMM_TCP_PLAIN} OR ${BUILD_COMM_TCP_TLS})
         endif()
         target_compile_definitions(corebft PUBLIC USE_COMM_TLS_TCP)
     endif()
-
 endif()
+
 target_compile_options(corebft PUBLIC "-Wno-extra-semi" "-Wno-undefined-var-template") # TODO tmp cryptopp
 target_include_directories(corebft PUBLIC include/)
 target_include_directories(corebft PUBLIC include/bftengine)
@@ -104,8 +104,7 @@ target_include_directories(corebft PUBLIC include/communication)
 target_include_directories(corebft PUBLIC include/bcstatetransfer)
 target_include_directories(corebft PUBLIC include/simplestatetransfer)
 target_include_directories(corebft PUBLIC include/metadatastorage)
-target_include_directories(corebft PUBLIC utils/include)
-target_include_directories(corebft PUBLIC src/bftengine/include_internal)
+target_include_directories(corebft PRIVATE src/bftengine)
 
 target_link_libraries(corebft PUBLIC threshsign)
 target_link_libraries(corebft PUBLIC Threads::Threads)
