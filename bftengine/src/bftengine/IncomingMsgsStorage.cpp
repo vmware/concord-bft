@@ -12,7 +12,7 @@
 // file.
 
 #include "IncomingMsgsStorage.hpp"
-#include "MessageBase.hpp"
+#include "messages/MessageBase.hpp"
 #include "Logger.hpp"
 
 using std::queue;

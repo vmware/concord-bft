@@ -11,24 +11,24 @@
 
 #include "ReplicaImp.hpp"
 #include "assertUtils.hpp"
-#include "ClientRequestMsg.hpp"
-#include "PrePrepareMsg.hpp"
-#include "CheckpointMsg.hpp"
-#include "ClientReplyMsg.hpp"
+#include "messages/ClientRequestMsg.hpp"
+#include "messages/PrePrepareMsg.hpp"
+#include "messages/CheckpointMsg.hpp"
+#include "messages/ClientReplyMsg.hpp"
 #include "Logger.hpp"
-#include "PartialExecProofMsg.hpp"
-#include "FullExecProofMsg.hpp"
-#include "StartSlowCommitMsg.hpp"
+#include "messages/PartialExecProofMsg.hpp"
+#include "messages/FullExecProofMsg.hpp"
+#include "messages/StartSlowCommitMsg.hpp"
 #include "ControllerWithSimpleHistory.hpp"
-#include "ReqMissingDataMsg.hpp"
-#include "SimpleAckMsg.hpp"
-#include "ViewChangeMsg.hpp"
-#include "NewViewMsg.hpp"
-#include "PartialCommitProofMsg.hpp"
-#include "FullCommitProofMsg.hpp"
-#include "StateTransferMsg.hpp"
+#include "messages/ReqMissingDataMsg.hpp"
+#include "messages/SimpleAckMsg.hpp"
+#include "messages/ViewChangeMsg.hpp"
+#include "messages/NewViewMsg.hpp"
+#include "messages/PartialCommitProofMsg.hpp"
+#include "messages/FullCommitProofMsg.hpp"
+#include "messages/StateTransferMsg.hpp"
 #include "DebugStatistics.hpp"
-#include "ReplicaStatusMsg.hpp"
+#include "messages/ReplicaStatusMsg.hpp"
 #include "NullStateTransfer.hpp"
 #include "SysConsts.hpp"
 #include "ReplicaConfigSingleton.hpp"
@@ -390,15 +390,13 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
     maxNumberOfPendingRequestsInRecentHistory = 0;
   }
 
-  Assert((primaryLastUsedSeqNum + 1) <=
-         lastExecutedSeqNum +
-             MaxConcurrentFastPaths);  // because maxConcurrentAgreementsByPrimary <  MaxConcurrentFastPaths
+  // because maxConcurrentAgreementsByPrimary <  MaxConcurrentFastPaths
+  Assert((primaryLastUsedSeqNum + 1) <= lastExecutedSeqNum + MaxConcurrentFastPaths);
 
   CommitPath firstPath = controller->getCurrentFirstPath();
 
-  Assert((cVal != 0) ||
-         (firstPath !=
-          CommitPath::FAST_WITH_THRESHOLD));  // assert: (cVal==0) --> (firstPath != CommitPath::FAST_WITH_THRESHOLD)
+  // assert: (cVal==0) --> (firstPath != CommitPath::FAST_WITH_THRESHOLD)
+  Assert((cVal != 0) || (firstPath != CommitPath::FAST_WITH_THRESHOLD));
 
   controller->onSendingPrePrepare((primaryLastUsedSeqNum + 1), firstPath);
 

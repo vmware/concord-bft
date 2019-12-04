@@ -36,8 +36,6 @@ class ClientRequestMsg : public MessageBase {
 
   ClientRequestMsg(ClientRequestMsgHeader* body);
 
-  uint32_t maxRequestLength() const { return internalStorageSize() - sizeof(ClientRequestMsgHeader); }
-
   uint16_t clientProxyId() const { return b()->idOfClientProxy; }
 
   bool isReadOnly() const { return (b()->flags & 0x1) != 0; }

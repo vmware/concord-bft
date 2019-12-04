@@ -46,7 +46,7 @@ bool FullCommitProofMsg::ToActualMsgType(const ReplicasInfo& repInfo, MessageBas
 }
 
 MsgSize FullCommitProofMsg::maxSizeOfFullCommitProofMsg() {
-  return sizeof(FullCommitProofMsgHeader) + maxSizeOfCombinedsignature;
+  return sizeof(FullCommitProofMsgHeader) + maxSizeOfCombinedSignature;
 }
 
 MsgSize FullCommitProofMsg::maxSizeOfFullCommitProofMsgInLocalBuffer() {

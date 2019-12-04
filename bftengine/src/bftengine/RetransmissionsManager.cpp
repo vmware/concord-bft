@@ -16,7 +16,7 @@
 #include <queue>
 #include <cmath>  // sqrt
 
-#include "MessageBase.hpp"
+#include "messages/MessageBase.hpp"
 #include "RetransmissionsManager.hpp"
 #include "SimpleThreadPool.hpp"
 #include "IncomingMsgsStorage.hpp"

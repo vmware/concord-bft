@@ -59,11 +59,11 @@ void SeqNumInfo::resetAndFree() {
   commitUpdateTime = getMonotonicTime();  // TODO(GG): TBD
 }
 
-void SeqNumInfo::getAndReset(PrePrepareMsg*& outPrePrepare, PrepareFullMsg*& outcombinedValidSignatureMsg) {
+void SeqNumInfo::getAndReset(PrePrepareMsg*& outPrePrepare, PrepareFullMsg*& outCombinedValidSignatureMsg) {
   outPrePrepare = prePrepareMsg;
   prePrepareMsg = nullptr;
 
-  prepareSigCollector->getAndReset(outcombinedValidSignatureMsg);
+  prepareSigCollector->getAndReset(outCombinedValidSignatureMsg);
 
   resetAndFree();
 }

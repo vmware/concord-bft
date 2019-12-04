@@ -2,40 +2,20 @@ project (bftengine LANGUAGES CXX)
 
 set(corebft_source_files
     src/bftengine/PrimitiveTypes.cpp
-    src/bftengine/PrePrepareMsg.cpp
-    src/bftengine/CheckpointMsg.cpp
     src/bftengine/DebugStatistics.cpp
     src/bftengine/Digest.cpp
-    src/bftengine/FullCommitProofMsg.cpp
-    src/bftengine/FullExecProofMsg.cpp
-    src/bftengine/TimeUtils.cpp
-    src/bftengine/MessageBase.cpp
-    src/bftengine/PartialCommitProofMsg.cpp
-    src/bftengine/PartialExecProofMsg.cpp
-    src/bftengine/PartialExecProofsSet.cpp
-    src/bftengine/PartialProofsSet.cpp
     src/bftengine/SeqNumInfo.cpp
-    src/bftengine/SignedShareMsgs.cpp
     src/bftengine/ReplicaImp.cpp
     src/bftengine/ReplicaConfigSingleton.cpp
-    src/bftengine/ClientReplyMsg.cpp
-    src/bftengine/ReqMissingDataMsg.cpp
-    src/bftengine/ClientRequestMsg.cpp
-    src/bftengine/StartSlowCommitMsg.cpp
     src/bftengine/ControllerBase.cpp
     src/bftengine/ControllerWithSimpleHistory.cpp
     src/bftengine/IncomingMsgsStorage.cpp
-    src/bftengine/SimpleAckMsg.cpp
     src/bftengine/RetransmissionsManager.cpp
-    src/bftengine/NewViewMsg.cpp
     src/bftengine/SigManager.cpp
     src/bftengine/ReplicasInfo.cpp
-    src/bftengine/ViewChangeMsg.cpp
     src/bftengine/ViewChangeSafetyLogic.cpp
     src/bftengine/ViewsManager.cpp
     src/bftengine/CheckpointInfo.cpp
-    src/bftengine/ReplicaStatusMsg.cpp
-    src/bftengine/StateTransferMsg.cpp
     src/bftengine/ClientsManager.cpp
     src/bftengine/Crypto.cpp
     src/bftengine/NullStateTransfer.cpp
@@ -56,7 +36,27 @@ set(corebft_source_files
     src/bcstatetransfer/DBDataStore.cpp
     src/bcstatetransfer/SourceSelector.cpp
     src/simplestatetransfer/SimpleStateTran.cpp
+    src/bftengine/messages/PrePrepareMsg.cpp
+    src/bftengine/messages/CheckpointMsg.cpp
+    src/bftengine/messages/FullCommitProofMsg.cpp
+    src/bftengine/messages/FullExecProofMsg.cpp
+    src/bftengine/messages/MessageBase.cpp
+    src/bftengine/messages/PartialCommitProofMsg.cpp
+    src/bftengine/messages/PartialExecProofMsg.cpp
+    src/bftengine/messages/PartialExecProofsSet.cpp
+    src/bftengine/messages/PartialProofsSet.cpp
+    src/bftengine/messages/ClientReplyMsg.cpp
+    src/bftengine/messages/ReqMissingDataMsg.cpp
+    src/bftengine/messages/ClientRequestMsg.cpp
+    src/bftengine/messages/StartSlowCommitMsg.cpp
+    src/bftengine/messages/SignedShareMsgs.cpp
+    src/bftengine/messages/SimpleAckMsg.cpp
+    src/bftengine/messages/NewViewMsg.cpp
+    src/bftengine/messages/ViewChangeMsg.cpp
+    src/bftengine/messages/ReplicaStatusMsg.cpp
+    src/bftengine/messages/StateTransferMsg.cpp
 )
+
 #
 # pthread dependency
 find_package(Threads REQUIRED)
@@ -75,9 +75,9 @@ endif()
 add_library(corebft STATIC ${corebft_source_files})
 
 if(${BUILD_COMM_TCP_PLAIN} OR ${BUILD_COMM_TCP_TLS})
-    set(Boost_USE_STATIC_LIBS        ON) # only find static libs
-    set(Boost_USE_MULTITHREADED      ON)
-    set(Boost_USE_STATIC_RUNTIME    OFF)
+    set(Boost_USE_STATIC_LIBS ON) # only find static libs
+    set(Boost_USE_MULTITHREADED ON)
+    set(Boost_USE_STATIC_RUNTIME OFF)
     find_package(Boost 1.64.0 COMPONENTS system filesystem)
     if(Boost_FOUND)
         include_directories(${Boost_INCLUDE_DIRS})
@@ -95,8 +95,8 @@ if(${BUILD_COMM_TCP_PLAIN} OR ${BUILD_COMM_TCP_TLS})
         endif()
         target_compile_definitions(corebft PUBLIC USE_COMM_TLS_TCP)
     endif()
-
 endif()
+
 target_compile_options(corebft PUBLIC "-Wno-extra-semi" "-Wno-undefined-var-template") # TODO tmp cryptopp
 target_include_directories(corebft PUBLIC include/)
 target_include_directories(corebft PUBLIC include/bftengine)
@@ -104,6 +104,7 @@ target_include_directories(corebft PUBLIC include/communication)
 target_include_directories(corebft PUBLIC include/bcstatetransfer)
 target_include_directories(corebft PUBLIC include/simplestatetransfer)
 target_include_directories(corebft PUBLIC include/metadatastorage)
+target_include_directories(corebft PRIVATE src/bftengine)
 
 target_link_libraries(corebft PUBLIC threshsign)
 target_link_libraries(corebft PUBLIC Threads::Threads)

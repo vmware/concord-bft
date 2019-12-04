@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "ViewChangeMsg.hpp"
+#include "messages/ViewChangeMsg.hpp"
 #include <vector>
 
 using std::vector;

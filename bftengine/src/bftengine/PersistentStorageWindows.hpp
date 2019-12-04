@@ -15,10 +15,10 @@
 
 #include "SerializableActiveWindow.hpp"
 #include "SerializableActiveWindow.cpp"
-#include "PrePrepareMsg.hpp"
-#include "SignedShareMsgs.hpp"
-#include "FullCommitProofMsg.hpp"
-#include "CheckpointMsg.hpp"
+#include "messages/PrePrepareMsg.hpp"
+#include "messages/SignedShareMsgs.hpp"
+#include "messages/FullCommitProofMsg.hpp"
+#include "messages/CheckpointMsg.hpp"
 #include <memory>
 
 namespace bftEngine {

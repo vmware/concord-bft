@@ -19,7 +19,7 @@
 #include <vector>
 #include <memory>
 #include "IStateTransfer.hpp"
-#include "MessageBase.hpp"
+#include "messages/MessageBase.hpp"
 
 namespace bftEngine {
 

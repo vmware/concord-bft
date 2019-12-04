@@ -11,9 +11,9 @@
 
 #include <cmath>
 
-#include "FullCommitProofMsg.hpp"
+#include "messages/FullCommitProofMsg.hpp"
 #include "Logger.hpp"
-#include "SignedShareMsgs.hpp"
+#include "messages/SignedShareMsgs.hpp"
 #include "ControllerWithSimpleHistory.hpp"
 
 namespace bftEngine {

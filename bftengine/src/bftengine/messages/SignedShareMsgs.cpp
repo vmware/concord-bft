@@ -105,7 +105,7 @@ bool PreparePartialMsg::ToActualMsgType(const ReplicasInfo& repInfo, MessageBase
 // PrepareFullMsg
 ///////////////////////////////////////////////////////////////////////////////
 
-MsgSize PrepareFullMsg::maxSizeOfPrepareFull() { return sizeof(SignedShareBaseHeader) + maxSizeOfCombinedsignature; }
+MsgSize PrepareFullMsg::maxSizeOfPrepareFull() { return sizeof(SignedShareBaseHeader) + maxSizeOfCombinedSignature; }
 
 MsgSize PrepareFullMsg::maxSizeOfPrepareFullInLocalBuffer() {
   return maxSizeOfPrepareFull() + sizeof(RawHeaderOfObjAndMsg);
@@ -149,7 +149,7 @@ bool CommitPartialMsg::ToActualMsgType(const ReplicasInfo& repInfo, MessageBase*
 // CommitFullMsg
 ///////////////////////////////////////////////////////////////////////////////
 
-MsgSize CommitFullMsg::maxSizeOfCommitFull() { return sizeof(SignedShareBaseHeader) + maxSizeOfCombinedsignature; }
+MsgSize CommitFullMsg::maxSizeOfCommitFull() { return sizeof(SignedShareBaseHeader) + maxSizeOfCombinedSignature; }
 
 MsgSize CommitFullMsg::maxSizeOfCommitFullInLocalBuffer() {
   return maxSizeOfCommitFull() + sizeof(RawHeaderOfObjAndMsg);

@@ -16,10 +16,10 @@
 // TODO(GG): clean/move 'include' statements
 #include "PrimitiveTypes.hpp"
 #include "SysConsts.hpp"
-#include "PrePrepareMsg.hpp"
-#include "SignedShareMsgs.hpp"
-#include "PartialProofsSet.hpp"
-#include "PartialExecProofsSet.hpp"
+#include "messages/PrePrepareMsg.hpp"
+#include "messages/SignedShareMsgs.hpp"
+#include "messages/PartialProofsSet.hpp"
+#include "messages/PartialExecProofsSet.hpp"
 #include "Logger.hpp"
 #include "CollectorOfThresholdSignatures.hpp"
 #include "SequenceWithActiveWindow.hpp"
@@ -36,7 +36,7 @@ class SeqNumInfo {
   ~SeqNumInfo();
 
   void resetAndFree();  // TODO(GG): name
-  void getAndReset(PrePrepareMsg*& outPrePrepare, PrepareFullMsg*& outcombinedValidSignatureMsg);
+  void getAndReset(PrePrepareMsg*& outPrePrepare, PrepareFullMsg*& outCombinedValidSignatureMsg);
 
   bool addMsg(PrePrepareMsg* m, bool directAdd = false);
   bool addSelfMsg(PrePrepareMsg* m, bool directAdd = false);
