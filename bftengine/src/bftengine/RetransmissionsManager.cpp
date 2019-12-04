@@ -19,7 +19,7 @@
 #include "messages/MessageBase.hpp"
 #include "RetransmissionsManager.hpp"
 #include "SimpleThreadPool.hpp"
-#include "messages/IncomingMsgsStorage.hpp"
+#include "IncomingMsgsStorage.hpp"
 #include "InternalReplicaApi.hpp"
 #include "RollingAvgAndVar.hpp"
 #include "assertUtils.hpp"

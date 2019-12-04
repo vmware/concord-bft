@@ -11,7 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "messages/IncomingMsgsStorage.hpp"
+#include "IncomingMsgsStorage.hpp"
 #include "messages/MessageBase.hpp"
 #include "Logger.hpp"
 
