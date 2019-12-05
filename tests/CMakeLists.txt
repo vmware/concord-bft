@@ -14,6 +14,10 @@ add_test(NAME skvbc_fast_path_tests COMMAND sh -c
         "python3 -m unittest test_skvbc_fast_path 2>&1 > /dev/null"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+add_test(NAME skvbc_slow_path_tests COMMAND sh -c
+        "python3 -m unittest test_skvbc_slow_path 2>&1 > /dev/null"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 if (BUILD_ROCKSDB_STORAGE)
     add_test(NAME skvbc_persistence_tests COMMAND sh -c
             "python3 -m unittest test_skvbc_persistence 2>&1 > /dev/null"

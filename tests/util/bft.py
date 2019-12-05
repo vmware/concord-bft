@@ -258,8 +258,11 @@ class BftTestNetwork:
 
         assert len(self.procs) == 2 * self.config.f + self.config.c + 1
 
-    async def send_indefinite_write_requests(self, client, msg):
+    async def send_indefinite_write_requests(self, protocol):
+        msg = protocol.write_req(
+            [], [(self.random_key(), self.random_value())], 0)
         while True:
+            client = self.random_client()
             try:
                 await client.write(msg)
             except:
