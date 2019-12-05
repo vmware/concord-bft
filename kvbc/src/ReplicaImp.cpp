@@ -201,6 +201,10 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   state_transfer_config.myReplicaId = m_replicaConfig.replicaId;
   state_transfer_config.cVal = m_replicaConfig.cVal;
   state_transfer_config.fVal = m_replicaConfig.fVal;
+  if (replicaConfig.maxNumOfReservedPages > 0)
+    state_transfer_config.maxNumOfReservedPages = replicaConfig.maxNumOfReservedPages;
+  if (replicaConfig.sizeOfReservedPage > 0)
+    state_transfer_config.sizeOfReservedPage = replicaConfig.sizeOfReservedPage;
 
   m_stateTransfer = bftEngine::SimpleBlockchainStateTransfer::create(
       state_transfer_config, m_appState.get(), m_bcDbAdapter->getDb(), aggregator);
