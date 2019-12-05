@@ -169,11 +169,17 @@ class SkvbcSlowPathTest(unittest.TestCase):
 
                 bft_network.start_replica(0)
 
-                await self._check_slow_path_after_view_change(bft_network, as_of_seq_num=10)
+                await self._wait_for_slow_path_after_view_change(bft_network, as_of_seq_num=10)
 
-    async def _check_slow_path_after_view_change(self, bft_network, as_of_seq_num):
+    async def _wait_for_slow_path_after_view_change(self, bft_network, as_of_seq_num):
         with trio.fail_after(seconds=5):
             while True:
                 with trio.move_on_after(seconds=.5):
-                    await bft_network.assert_slow_path_prevalent(as_of_seq_num)
-                    break
+                    try:
+                        await bft_network.assert_slow_path_prevalent(as_of_seq_num)
+                    except KeyError:
+                        # metrics not yet available, continue looping
+                        continue
+                    else:
+                        # slow path prevalent - done.
+                        break
