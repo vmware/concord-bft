@@ -32,49 +32,45 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
  public:
   SimpleClientImp(
       ICommunication* communication, uint16_t clientId, uint16_t fVal, uint16_t cVal, SimpleClientParams& p);
+  ~SimpleClientImp() override;
 
-  // SimpleClient methods
+  int sendRequest(bool isReadOnly,
+                  const char* request,
+                  uint32_t lengthOfRequest,
+                  uint64_t reqSeqNum,
+                  uint64_t timeoutMilli,
+                  uint32_t lengthOfReplyBuffer,
+                  char* replyBuffer,
+                  uint32_t& actualReplyLength) override;
 
-  virtual ~SimpleClientImp() override;
-
-  virtual int sendRequest(bool isReadOnly,
-                          const char* request,
-                          uint32_t lengthOfRequest,
-                          uint64_t reqSeqNum,
-                          uint64_t timeoutMilli,
-                          uint32_t lengthOfReplyBuffer,
-                          char* replyBuffer,
-                          uint32_t& actualReplyLength) override;
-
-  virtual int sendRequestToResetSeqNum() override;
-
-  virtual int sendRequestToReadLatestSeqNum(uint64_t timeoutMilli, uint64_t& outLatestReqSeqNum) override;
+  int sendRequestToResetSeqNum() override;
+  int sendRequestToReadLatestSeqNum(uint64_t timeoutMilli, uint64_t& outLatestReqSeqNum) override;
 
   // IReceiver methods
-
-  virtual void onNewMessage(const NodeNum sourceNode, const char* const message, const size_t messageLength) override;
-
-  virtual void onConnectionStatusChanged(const NodeNum node, const ConnectionStatus newStatus) override;
+  void onNewMessage(const NodeNum sourceNode, const char* const message, const size_t messageLength) override;
+  void onConnectionStatusChanged(const NodeNum node, const ConnectionStatus newStatus) override;
 
   // used by  MsgsCertificate
   static bool equivalent(ClientReplyMsg* r1, ClientReplyMsg* r2) {
     if (r1->reqSeqNum() != r2->reqSeqNum()) return false;
-
     if (r1->currentPrimaryId() != r2->currentPrimaryId()) return false;
-
     if (r1->replyLength() != r2->replyLength()) return false;
 
     char* p1 = r1->replyBuf();
     char* p2 = r2->replyBuf();
 
-    if (memcmp(p1, p2, r1->replyLength()) != 0) return false;
-
-    return true;
+    return (memcmp(p1, p2, r1->replyLength()) == 0);
   }
 
  protected:
-  static const uint32_t maxLegalMsgSize = 64 * 1024;  // TODO(GG): ???
-  static const uint16_t timersResolutionMilli = 50;
+  void sendPendingRequest();
+  void onMessageFromReplica(MessageBase* msg);
+  void onRetransmission();
+  void reset();
+
+ protected:
+  static const uint32_t _maxLegalMsgSize = 64 * 1024;  // TODO(GG): ???
+  static const uint16_t _timersResolutionMilli = 50;
 
   const uint16_t _clientId;
   const uint16_t _fVal;
@@ -88,27 +84,20 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
   std::condition_variable _condVar;
 
   queue<MessageBase*> _msgQueue;
-  ClientRequestMsg* pendingRequest = nullptr;
+  ClientRequestMsg* _pendingRequest = nullptr;
 
-  Time timeOfLastTransmission = MinTime;
-  uint16_t numberOfTransmissions = 0;
+  Time _timeOfLastTransmission = MinTime;
+  uint16_t _numberOfTransmissions = 0;
 
   bool _primaryReplicaIsKnown = false;
   uint16_t _knownPrimaryReplica;
 
-  DynamicUpperLimitWithSimpleFilter<uint64_t> limitOfExpectedOperationTime;
+  DynamicUpperLimitWithSimpleFilter<uint64_t> _limitOfExpectedOperationTime;
 
   // configuration params
-  uint16_t clientSendsRequestToAllReplicasFirstThresh;
-  uint16_t clientSendsRequestToAllReplicasPeriodThresh;
-  uint16_t clientPeriodicResetThresh;
-
-  void sendPendingRequest();
-
-  void onMessageFromReplica(MessageBase* msg);
-  void onRetransmission();
-
-  void reset();
+  uint16_t _clientSendsRequestToAllReplicasFirstThresh;
+  uint16_t _clientSendsRequestToAllReplicasPeriodThresh;
+  uint16_t _clientPeriodicResetThresh;
 };
 
 void SimpleClientImp::onMessageFromReplica(MessageBase* msg) {
@@ -130,7 +119,7 @@ void SimpleClientImp::onMessageFromReplica(MessageBase* msg) {
               (int)replyMsg->currentPrimaryId(),
               replyMsg->debugHash());
 
-  if (replyMsg->reqSeqNum() != pendingRequest->requestSeqNum()) {
+  if (replyMsg->reqSeqNum() != _pendingRequest->requestSeqNum()) {
     delete msg;
     return;
   }
@@ -161,26 +150,16 @@ SimpleClientImp::SimpleClientImp(
       _replicas{generateSetOfReplicas_helpFunc(3 * fVal + 2 * cVal + 1)},
       _communication{communication},
       replysCertificate(3 * fVal + 2 * cVal + 1, fVal, 2 * fVal + cVal + 1, clientId),
-      limitOfExpectedOperationTime(p.clientInitialRetryTimeoutMilli,
-                                   2,
-                                   p.clientMaxRetryTimeoutMilli,
-                                   p.clientMinRetryTimeoutMilli,
-                                   32,
-                                   1000,
-                                   2,
-                                   2),
-      clientSendsRequestToAllReplicasFirstThresh{p.clientSendsRequestToAllReplicasFirstThresh},
-      clientSendsRequestToAllReplicasPeriodThresh{p.clientSendsRequestToAllReplicasPeriodThresh},
-      clientPeriodicResetThresh{p.clientPeriodicResetThresh} {
+      _limitOfExpectedOperationTime(p.clientInitialRetryTimeoutMilli, 2, p.clientMaxRetryTimeoutMilli,
+                                    p.clientMinRetryTimeoutMilli, 32, 1000, 2, 2),
+      _clientSendsRequestToAllReplicasFirstThresh{p.clientSendsRequestToAllReplicasFirstThresh},
+      _clientSendsRequestToAllReplicasPeriodThresh{p.clientSendsRequestToAllReplicasPeriodThresh},
+      _clientPeriodicResetThresh{p.clientPeriodicResetThresh} {
   Assert(_fVal >= 1);
-  // Assert(!_communication->isRunning());
 
-  pendingRequest = nullptr;
-
-  timeOfLastTransmission = MinTime;
-
-  numberOfTransmissions = 0;
-
+  _pendingRequest = nullptr;
+  _timeOfLastTransmission = MinTime;
+  _numberOfTransmissions = 0;
   _primaryReplicaIsKnown = false;
   _knownPrimaryReplica = 0;
 
@@ -190,9 +169,9 @@ SimpleClientImp::SimpleClientImp(
 SimpleClientImp::~SimpleClientImp() {
   Assert(replysCertificate.isEmpty());
   Assert(_msgQueue.empty());
-  Assert(pendingRequest == nullptr);
-  Assert(timeOfLastTransmission == MinTime);
-  Assert(numberOfTransmissions == 0);
+  Assert(_pendingRequest == nullptr);
+  Assert(_timeOfLastTransmission == MinTime);
+  Assert(_numberOfTransmissions == 0);
 }
 
 int SimpleClientImp::sendRequest(bool isReadOnly,
@@ -207,7 +186,7 @@ int SimpleClientImp::sendRequest(bool isReadOnly,
   LOG_DEBUG(GL,
             "Client " << _clientId << " - sends request " << reqSeqNum << " (isRO=" << isReadOnly
                       << " , request size=" << lengthOfRequest
-                      << ", retransmissionMilli=" << limitOfExpectedOperationTime.upperLimit() << " ) ");
+                      << ", retransmissionMilli=" << _limitOfExpectedOperationTime.upperLimit() << " ) ");
 
   if (!_communication->isRunning()) {
     _communication->Start();  // TODO(GG): patch ................ change
@@ -215,16 +194,16 @@ int SimpleClientImp::sendRequest(bool isReadOnly,
 
   Assert(replysCertificate.isEmpty());
   Assert(_msgQueue.empty());
-  Assert(pendingRequest == nullptr);
-  Assert(timeOfLastTransmission == MinTime);
-  Assert(numberOfTransmissions == 0);
+  Assert(_pendingRequest == nullptr);
+  Assert(_timeOfLastTransmission == MinTime);
+  Assert(_numberOfTransmissions == 0);
 
-  static const std::chrono::milliseconds timersRes(timersResolutionMilli);
+  static const std::chrono::milliseconds timersRes(_timersResolutionMilli);
 
   const Time beginTime = getMonotonicTime();
 
   ClientRequestMsg* reqMsg = new ClientRequestMsg(_clientId, isReadOnly, reqSeqNum, lengthOfRequest, request);
-  pendingRequest = reqMsg;
+  _pendingRequest = reqMsg;
 
   sendPendingRequest();
 
@@ -262,8 +241,8 @@ int SimpleClientImp::sendRequest(bool isReadOnly,
       break;
     }
 
-    if (((uint64_t)absDifference(timeOfLastTransmission, currTime)) / 1000 >
-        limitOfExpectedOperationTime.upperLimit()) {
+    if (((uint64_t)absDifference(_timeOfLastTransmission, currTime)) / 1000 >
+        _limitOfExpectedOperationTime.upperLimit()) {
       onRetransmission();
     }
   }
@@ -272,7 +251,7 @@ int SimpleClientImp::sendRequest(bool isReadOnly,
     Assert(replysCertificate.isComplete());
 
     uint64_t durationMilli = ((uint64_t)absDifference(getMonotonicTime(), beginTime)) / 1000;
-    limitOfExpectedOperationTime.add(durationMilli);
+    _limitOfExpectedOperationTime.add(durationMilli);
 
     LOG_DEBUG_F(GL,
                 "Client %d - request %" PRIu64
@@ -282,7 +261,7 @@ int SimpleClientImp::sendRequest(bool isReadOnly,
                 reqSeqNum,
                 (int)isReadOnly,
                 (size_t)lengthOfRequest,
-                (int)limitOfExpectedOperationTime.upperLimit());
+                (int)_limitOfExpectedOperationTime.upperLimit());
 
     ClientReplyMsg* correctReply = replysCertificate.bestCorrectMsg();
 
@@ -301,13 +280,12 @@ int SimpleClientImp::sendRequest(bool isReadOnly,
   } else if (requestTimeout) {
     // Logger::printInfo("Client %d - request %" PRIu64 " - timeout");
 
-    if (timeoutMilli >= limitOfExpectedOperationTime.upperLimit()) {
+    if (timeoutMilli >= _limitOfExpectedOperationTime.upperLimit()) {
       _primaryReplicaIsKnown = false;
-      limitOfExpectedOperationTime.add(timeoutMilli);
+      _limitOfExpectedOperationTime.add(timeoutMilli);
     }
 
     reset();
-
     return (-1);
   }
 
@@ -328,8 +306,8 @@ void SimpleClientImp::reset() {
     std::unique_lock<std::mutex> mlock(_lock);
     _msgQueue.swap(newMsgs);
 
-    delete pendingRequest;
-    pendingRequest = nullptr;
+    delete _pendingRequest;
+    _pendingRequest = nullptr;
   }
 
   while (!newMsgs.empty()) {
@@ -337,8 +315,8 @@ void SimpleClientImp::reset() {
     newMsgs.pop();
   }
 
-  timeOfLastTransmission = MinTime;
-  numberOfTransmissions = 0;
+  _timeOfLastTransmission = MinTime;
+  _numberOfTransmissions = 0;
 }
 
 int SimpleClientImp::sendRequestToReadLatestSeqNum(uint64_t timeoutMilli, uint64_t& outLatestReqSeqNum) {
@@ -352,7 +330,7 @@ void SimpleClientImp::onNewMessage(const NodeNum sourceNode, const char* const m
   if (_replicas.count(senderId) == 0) return;
 
   // check length
-  if (messageLength > maxLegalMsgSize) return;
+  if (messageLength > _maxLegalMsgSize) return;
   if (messageLength < sizeof(MessageBase::Header)) return;
 
   MessageBase::Header* msgHeader = (MessageBase::Header*)message;
@@ -362,7 +340,7 @@ void SimpleClientImp::onNewMessage(const NodeNum sourceNode, const char* const m
 
   std::unique_lock<std::mutex> mlock(_lock);
   {
-    if (pendingRequest == nullptr) return;
+    if (_pendingRequest == nullptr) return;
 
     // create msg object
     MessageBase::Header* msgBody = (MessageBase::Header*)std::malloc(messageLength);
@@ -377,30 +355,30 @@ void SimpleClientImp::onNewMessage(const NodeNum sourceNode, const char* const m
 void SimpleClientImp::onConnectionStatusChanged(const NodeNum node, const ConnectionStatus newStatus) {}
 
 void SimpleClientImp::sendPendingRequest() {
-  Assert(pendingRequest != nullptr)
+  Assert(_pendingRequest != nullptr);
 
-      timeOfLastTransmission = getMonotonicTime();
-  numberOfTransmissions++;
+  _timeOfLastTransmission = getMonotonicTime();
+  _numberOfTransmissions++;
 
-  const bool resetReplies = (numberOfTransmissions % clientPeriodicResetThresh == 0);
+  const bool resetReplies = (_numberOfTransmissions % _clientPeriodicResetThresh == 0);
 
-  const bool sendToAll = pendingRequest->isReadOnly() || !_primaryReplicaIsKnown ||
-                         (numberOfTransmissions == clientSendsRequestToAllReplicasFirstThresh) ||
-                         (numberOfTransmissions > clientSendsRequestToAllReplicasFirstThresh &&
-                          (numberOfTransmissions % clientSendsRequestToAllReplicasPeriodThresh == 0)) ||
+  const bool sendToAll = _pendingRequest->isReadOnly() || !_primaryReplicaIsKnown ||
+                         (_numberOfTransmissions == _clientSendsRequestToAllReplicasFirstThresh) ||
+                         (_numberOfTransmissions > _clientSendsRequestToAllReplicasFirstThresh &&
+                         (_numberOfTransmissions % _clientSendsRequestToAllReplicasPeriodThresh == 0)) ||
                          resetReplies;
 
-  if (numberOfTransmissions && !(numberOfTransmissions % 10))
+  if (_numberOfTransmissions && !(_numberOfTransmissions % 10))
     LOG_DEBUG_F(GL,
                 "Client %d - sends request %" PRIu64
                 " isRO=%d, request size=%zu, "
                 "retransmissionMilli=%d, numberOfTransmissions=%d, resetReplies=%d, sendToAll=%d",
                 _clientId,
-                pendingRequest->requestSeqNum(),
-                (int)pendingRequest->isReadOnly(),
-                (size_t)pendingRequest->size(),
-                (int)limitOfExpectedOperationTime.upperLimit(),
-                (int)numberOfTransmissions,
+                _pendingRequest->requestSeqNum(),
+                (int)_pendingRequest->isReadOnly(),
+                (size_t)_pendingRequest->size(),
+                (int)_limitOfExpectedOperationTime.upperLimit(),
+                (int)_numberOfTransmissions,
                 (int)resetReplies,
                 (int)sendToAll);
 
@@ -412,12 +390,12 @@ void SimpleClientImp::sendPendingRequest() {
   if (sendToAll) {
     for (uint16_t r : _replicas) {
       // int stat =
-      _communication->sendAsyncMessage(r, pendingRequest->body(), pendingRequest->size());
+      _communication->sendAsyncMessage(r, _pendingRequest->body(), _pendingRequest->size());
       // TODO(GG): handle errors (print and/or ....)
     }
   } else {
     // int stat =
-    _communication->sendAsyncMessage(_knownPrimaryReplica, pendingRequest->body(), pendingRequest->size());
+    _communication->sendAsyncMessage(_knownPrimaryReplica, _pendingRequest->body(), _pendingRequest->size());
     // TODO(GG): handle errors (print and/or ....)
   }
 }
@@ -426,8 +404,8 @@ class SeqNumberGeneratorForClientRequestsImp : public SeqNumberGeneratorForClien
   virtual uint64_t generateUniqueSequenceNumberForRequest() override;
 
  protected:
-  uint64_t lastMilliOfUniqueFetchID = 0;
-  uint32_t lastCountOfUniqueFetchID = 0;
+  uint64_t _lastMilliOfUniqueFetchID = 0;
+  uint32_t _lastCountOfUniqueFetchID = 0;
 };
 
 uint64_t SeqNumberGeneratorForClientRequestsImp::generateUniqueSequenceNumberForRequest() {
@@ -435,30 +413,28 @@ uint64_t SeqNumberGeneratorForClientRequestsImp::generateUniqueSequenceNumberFor
 
   uint64_t milli = std::chrono::duration_cast<std::chrono::milliseconds>(n.time_since_epoch()).count();
 
-  if (milli > lastMilliOfUniqueFetchID) {
-    lastMilliOfUniqueFetchID = milli;
-    lastCountOfUniqueFetchID = 0;
+  if (milli > _lastMilliOfUniqueFetchID) {
+    _lastMilliOfUniqueFetchID = milli;
+    _lastCountOfUniqueFetchID = 0;
   } else {
-    if (lastCountOfUniqueFetchID == 0x3FFFFF) {
+    if (_lastCountOfUniqueFetchID == 0x3FFFFF) {
       LOG_WARN(GL, "Client SeqNum Counter reached max value");
-      lastMilliOfUniqueFetchID++;
-      lastCountOfUniqueFetchID = 0;
+      _lastMilliOfUniqueFetchID++;
+      _lastCountOfUniqueFetchID = 0;
     } else {
-      lastCountOfUniqueFetchID++;
+      _lastCountOfUniqueFetchID++;
     }
   }
 
-  uint64_t r = (lastMilliOfUniqueFetchID << (64 - 42));
-  Assert(lastCountOfUniqueFetchID <= 0x3FFFFF);
-  r = r | ((uint64_t)lastCountOfUniqueFetchID);
+  uint64_t r = (_lastMilliOfUniqueFetchID << (64 - 42));
+  Assert(_lastCountOfUniqueFetchID <= 0x3FFFFF);
+  r = r | ((uint64_t)_lastCountOfUniqueFetchID);
 
   return r;
 }
 
 }  // namespace impl
-}  // namespace bftEngine
 
-namespace bftEngine {
 SimpleClient* SimpleClient::createSimpleClient(
     ICommunication* communication, uint16_t clientId, uint16_t fVal, uint16_t cVal, SimpleClientParams p) {
   return new impl::SimpleClientImp(communication, clientId, fVal, cVal, p);
@@ -472,7 +448,7 @@ SimpleClient* SimpleClient::createSimpleClient(ICommunication* communication,
   return SimpleClient::createSimpleClient(communication, clientId, fVal, cVal, p);
 }
 
-SimpleClient::~SimpleClient() {}
+SimpleClient::~SimpleClient() = default;
 
 SeqNumberGeneratorForClientRequests* SeqNumberGeneratorForClientRequests::createSeqNumberGeneratorForClientRequests() {
   return new impl::SeqNumberGeneratorForClientRequestsImp();
