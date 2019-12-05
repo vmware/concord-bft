@@ -24,10 +24,18 @@ namespace concordUtil {
 class Timers {
  public:
   class Handle {
-    Handle() {}
-    Handle(uint64_t id) : id_(id) {}
+   public:
+    // We can only create handles outside timers_.add that are in a default
+    // invalid state. Timers will never have id = 0.
+    //
+    // This is useful for initializing handles as class members when
+    // dynamically computing the actual timeout in the constructor of the
+    // class containing the handle.
+    Handle() : id_(0) {}
 
    private:
+    Handle(uint64_t id) : id_(id) {}
+
     uint64_t id_;
     friend class Timers;
   };
@@ -40,11 +48,14 @@ class Timers {
     };
 
    private:
-    Timer(std::chrono::milliseconds d, Type t, std::function<void()> cb) {
-      Timer(d, t, cb, std::chrono::steady_clock::now());
+    Timer(std::chrono::milliseconds duration, Type t, std::function<void(Handle)> callback) {
+      Timer(duration, t, callback, std::chrono::steady_clock::now());
     }
 
-    Timer(std::chrono::milliseconds d, Type t, std::function<void()> cb, std::chrono::steady_clock::time_point now)
+    Timer(std::chrono::milliseconds d,
+          Type t,
+          std::function<void(Handle)> cb,
+          std::chrono::steady_clock::time_point now)
         : duration_(d), expires_at_(now + d), type_(t), callback_(cb) {}
 
     bool expired() const { return expired(std::chrono::steady_clock::now()); }
@@ -53,7 +64,7 @@ class Timers {
 
     bool recurring() const { return type_ == Type::RECURRING; }
 
-    void run_callback() { callback_(); }
+    void run_callback(Handle h) { callback_(h); }
 
     void reset(std::chrono::steady_clock::time_point now) { expires_at_ = now + duration_; }
 
@@ -66,7 +77,7 @@ class Timers {
     std::chrono::steady_clock::time_point expires_at_;
     Type type_;
     uint64_t id_;
-    std::function<void()> callback_;
+    std::function<void(Handle)> callback_;
 
     friend class Timers;
   };
@@ -74,13 +85,13 @@ class Timers {
  public:
   Timers() : id_counter_(0) {}
 
-  Handle add(std::chrono::milliseconds d, Timer::Type t, std::function<void()> cb) {
+  Handle add(std::chrono::milliseconds d, Timer::Type t, std::function<void(Handle)> cb) {
     return add(d, t, cb, std::chrono::steady_clock::now());
   }
 
   Handle add(std::chrono::milliseconds d,
              Timer::Type t,
-             std::function<void()> cb,
+             std::function<void(Handle)> cb,
              std::chrono::steady_clock::time_point now) {
     timers_.emplace_back(Timer(d, t, cb, now));
     id_counter_ += 1;
@@ -122,7 +133,7 @@ class Timers {
 
     for (auto& timer : timers_) {
       if (timer.expired(now)) {
-        timer.run_callback();
+        timer.run_callback(Handle(timer.id_));
         if (timer.recurring()) {
           timer.reset(now);
         } else {

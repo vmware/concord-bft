@@ -18,7 +18,7 @@
 namespace bftEngine {
 namespace impl {
 
-const double DEBUG_STAT_PERIOD_SECONDS = 7;  // 2;
+const unsigned int DEBUG_STAT_PERIOD_SECONDS = 7;  // 2;
 
 class DebugStatistics {
  public:
