@@ -17,7 +17,8 @@ import trio
 
 import unittest
 
-from util import bft, skvbc
+from util import bft
+from util import skvbc as kvbc
 
 KEY_FILE_PREFIX = "replica_keys_"
 
@@ -40,7 +41,6 @@ def start_replica_cmd(builddir, replica_id):
 class SkvbcFastPathTest(unittest.TestCase):
 
     def setUp(self):
-        self.protocol = skvbc.SimpleKVBCProtocol()
         # Whenever a replica goes down, all messages initially go via the slow path.
         # However, when an "evaluation period" elapses (set at 64 sequence numbers),
         # the system should return to the fast path.
@@ -69,13 +69,14 @@ class SkvbcFastPathTest(unittest.TestCase):
             with bft.BftTestNetwork(config) as bft_network:
                 await bft_network.init()
                 bft_network.start_all_replicas()
+                skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
                 for _ in range(10):
-                    key, val = await bft_network.write_known_kv(self.protocol)
+                    key, val = await skvbc.write_known_kv()
 
                 await bft_network.assert_fast_path_prevalent()
 
-                await bft_network.assert_kv_write_executed(self.protocol, key, val)
+                await skvbc.assert_kv_write_executed(key, val)
 
     def test_fast_to_slow_path_transition(self):
         """
@@ -105,9 +106,10 @@ class SkvbcFastPathTest(unittest.TestCase):
             with bft.BftTestNetwork(config) as bft_network:
                 await bft_network.init()
                 bft_network.start_all_replicas()
+                skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
                 for _ in range(10):
-                    await bft_network.write_known_kv(self.protocol)
+                    await skvbc.write_known_kv()
 
                 await bft_network.assert_fast_path_prevalent()
 
@@ -116,11 +118,11 @@ class SkvbcFastPathTest(unittest.TestCase):
                     replica=random.choice(unstable_replicas))
 
                 for _ in range(10):
-                    key, val = await bft_network.write_known_kv(self.protocol)
+                    key, val = await skvbc.write_known_kv()
 
                 await bft_network.assert_slow_path_prevalent(as_of_seq_num=10)
 
-                await bft_network.assert_kv_write_executed(self.protocol, key, val)
+                await skvbc.assert_kv_write_executed(key, val)
 
     def test_fast_path_resilience_to_crashes(self):
         """
@@ -147,6 +149,7 @@ class SkvbcFastPathTest(unittest.TestCase):
             with bft.BftTestNetwork(config) as bft_network:
                 await bft_network.init()
                 bft_network.start_all_replicas()
+                skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
                 unstable_replicas = list(set(range(0, config.n)) - {0})
                 for _ in range(config.c):
@@ -155,15 +158,15 @@ class SkvbcFastPathTest(unittest.TestCase):
 
                 # make sure we first downgrade to the slow path...
                 for _ in range(self.evaluation_period_seq_num):
-                    await bft_network.write_known_kv(self.protocol)
+                    await skvbc.write_known_kv()
                 await bft_network.assert_slow_path_prevalent()
 
                 # ...but eventually (after the evaluation period), the fast path is restored!
                 for _ in range(self.evaluation_period_seq_num+1,
                                self.evaluation_period_seq_num*2):
-                    key, val = await bft_network.write_known_kv(self.protocol)
+                    key, val = await skvbc.write_known_kv()
                 await bft_network.assert_fast_path_prevalent(
                     as_of_seq_num=self.evaluation_period_seq_num+1,
                     nb_slow_paths_so_far=self.evaluation_period_seq_num)
 
-                await bft_network.assert_kv_write_executed(self.protocol, key, val)
+                await skvbc.assert_kv_write_executed(key, val)

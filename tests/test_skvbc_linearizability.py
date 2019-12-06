@@ -16,7 +16,8 @@ import os.path
 import random
 import time
 
-from util import bft, skvbc, skvbc_history_tracker
+from util import bft, skvbc_history_tracker
+from util import skvbc as kvbc
 
 KEY_FILE_PREFIX = "replica_keys_"
 
@@ -95,7 +96,8 @@ class SkvbcChaosTest(unittest.TestCase):
                                     start_replica_cmd=start_replica_cmd)
 
             with bft.BftTestNetwork(config) as bft_network:
-                init_state = bft_network.initial_state()
+                self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+                init_state = self.skvbc.initial_state()
                 self.tracker = skvbc_history_tracker.SkvbcTracker(init_state)
                 self.bft_network = bft_network
                 self.status = Status(c)
@@ -126,7 +128,8 @@ class SkvbcChaosTest(unittest.TestCase):
                                     start_replica_cmd=start_replica_cmd)
 
             with bft.BftTestNetwork(config) as bft_network:
-                init_state = bft_network.initial_state()
+                self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+                init_state = self.skvbc.initial_state()
                 self.tracker = skvbc_history_tracker.SkvbcTracker(init_state)
                 self.bft_network = bft_network
                 self.status = Status(c)
@@ -144,7 +147,7 @@ class SkvbcChaosTest(unittest.TestCase):
         try:
             # Use a new client, since other clients may not be responsive due to
             # past failed responses.
-            client = await self.bft_network.new_client()
+            client = await self.skvbc.bft_network.new_client()
             last_block_id = await self.get_last_block_id(client)
             print(f'Last Block ID = {last_block_id}')
             missing_block_ids = self.tracker.get_missing_blocks(last_block_id)
@@ -170,8 +173,8 @@ class SkvbcChaosTest(unittest.TestCase):
             retries = 12 # 60 seconds
             for i in range(0, retries):
                 try:
-                    msg = self.protocol.get_block_data_req(block_id)
-                    blocks[block_id] = self.protocol.parse_reply(await client.read(msg))
+                    msg = kvbc.SimpleKVBCProtocol.get_block_data_req(block_id)
+                    blocks[block_id] = kvbc.SimpleKVBCProtocol.parse_reply(await client.read(msg))
                     break
                 except trio.TooSlowError:
                     if i == retries - 1:
@@ -180,8 +183,8 @@ class SkvbcChaosTest(unittest.TestCase):
         return blocks
 
     async def get_last_block_id(self, client):
-        msg = self.protocol.get_last_block_req()
-        return self.protocol.parse_reply(await client.read(msg))
+        msg = kvbc.SimpleKVBCProtocol.get_last_block_req()
+        return kvbc.SimpleKVBCProtocol.parse_reply(await client.read(msg))
 
     async def crash_primary(self):
         await trio.sleep(.5)
@@ -190,8 +193,7 @@ class SkvbcChaosTest(unittest.TestCase):
     async def run_concurrent_ops(self, num_ops):
         max_concurrency = len(self.bft_network.clients) // 2
         write_weight = .70
-        self.protocol = skvbc.SimpleKVBCProtocol()
-        max_size = len(self.bft_network.keys) // 2
+        max_size = len(self.skvbc.keys) // 2
         sent = 0
         while sent < num_ops:
             clients = self.bft_network.random_clients(max_concurrency)
@@ -207,7 +209,7 @@ class SkvbcChaosTest(unittest.TestCase):
         readset = self.readset(0, max_set_size)
         writeset = self.writeset(max_set_size)
         read_version = self.read_block_id()
-        msg = self.protocol.write_req(readset, writeset, read_version)
+        msg = self.skvbc.write_req(readset, writeset, read_version)
         seq_num = client.req_seq_num.next()
         client_id = client.client_id
         self.tracker.send_write(
@@ -215,7 +217,7 @@ class SkvbcChaosTest(unittest.TestCase):
         try:
             serialized_reply = await client.write(msg, seq_num)
             self.status.record_client_reply(client_id)
-            reply = self.protocol.parse_reply(serialized_reply)
+            reply = self.skvbc.parse_reply(serialized_reply)
             self.tracker.handle_write_reply(client_id, seq_num, reply)
         except trio.TooSlowError:
             self.status.record_client_timeout(client_id)
@@ -223,14 +225,14 @@ class SkvbcChaosTest(unittest.TestCase):
 
     async def send_read(self, client, max_set_size):
         readset = self.readset(1, max_set_size)
-        msg = self.protocol.read_req(readset)
+        msg = self.skvbc.read_req(readset)
         seq_num = client.req_seq_num.next()
         client_id = client.client_id
         self.tracker.send_read(client_id, seq_num, readset)
         try:
             serialized_reply = await client.read(msg, seq_num)
             self.status.record_client_reply(client_id)
-            reply = self.protocol.parse_reply(serialized_reply)
+            reply = self.skvbc.parse_reply(serialized_reply)
             self.tracker.handle_read_reply(client_id, seq_num, reply)
         except trio.TooSlowError:
             self.status.record_client_timeout(client_id)
@@ -241,11 +243,11 @@ class SkvbcChaosTest(unittest.TestCase):
         return random.randint(start, self.tracker.last_known_block)
 
     def readset(self, min_size, max_size):
-        return self.bft_network.random_keys(random.randint(min_size, max_size))
+        return self.skvbc.random_keys(random.randint(min_size, max_size))
 
     def writeset(self, max_size):
-        writeset_keys = self.bft_network.random_keys(random.randint(0, max_size))
-        writeset_values = self.bft_network.random_values(len(writeset_keys))
+        writeset_keys = self.skvbc.random_keys(random.randint(0, max_size))
+        writeset_values = self.skvbc.random_values(len(writeset_keys))
         return list(zip(writeset_keys, writeset_values))
 
 if __name__ == '__main__':

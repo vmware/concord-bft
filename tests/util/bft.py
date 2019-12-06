@@ -15,7 +15,6 @@
 import sys
 
 import os
-import copy
 import os.path
 import random
 import subprocess
@@ -97,10 +96,7 @@ class BftTestNetwork:
         self.procs = {}
         self.replicas = [bft_config.Replica(i, "127.0.0.1", 3710 + 2*i)
                 for i in range(0, self.config.n)]
-        self.alpha = [i for i in range(65, 91)]
-        self.alphanum = [i for i in range(48, 58)]
-        self.alphanum.extend(self.alpha)
-        self.keys = self._create_keys()
+
         os.chdir(self.testdir)
         self._generate_crypto_keys()
         self.clients = {}
@@ -111,44 +107,6 @@ class BftTestNetwork:
         args = [keygen, "-n", str(self.config.n), "-f", str(self.config.f), "-o",
                self.config.key_file_prefix]
         subprocess.run(args, check=True)
-
-    def _create_keys(self):
-        """
-        Create a sequence of KV store keys with length = 2*num_clients.
-        The last character in each key becomes the previous value + 1. When the
-        value reaches 'Z', a new character is appended and the sequence starts
-        over again.
-
-        Since all keys must be KV_LEN bytes long, they are extended with '.'
-        characters.
-        """
-        if self.config.num_clients == 0:
-            return []
-        cur = bytearray("A", 'utf-8')
-        keys = [b"A...................."]
-        for i in range(1, 2*self.config.num_clients):
-            end = cur[-1]
-            if chr(end) == 'Z': # extend the key
-                cur.append(self.alpha[0])
-            else:
-                cur[-1] = end + 1
-            key = copy.deepcopy(cur)
-            # Extend the key to be KV_LEN bytes
-            key.extend([ord('.') for _ in range(KV_LEN - len(cur))])
-            keys.append(bytes(key))
-        return keys
-
-    def max_key(self):
-        """
-        Return the maximum possible key according to the schema in _create_keys.
-
-        """
-        return b''.join([b'Z' for _ in range(0, KV_LEN)])
-
-    def initial_state(self):
-        """Return a dict with KV_LEN zero byte values for all keys"""
-        all_zeros = b''.join([b'\x00' for _ in range(0, KV_LEN)])
-        return dict([(k, all_zeros) for k in self.keys])
 
     async def _create_clients(self):
         for client_id in range(self.config.n,
@@ -186,24 +144,11 @@ class BftTestNetwork:
         await self._create_clients()
         await self._init_metrics()
 
-    def random_value(self):
-        return bytes(random.sample(self.alphanum, KV_LEN))
-
-    def random_values(self, n):
-        return [self.random_value() for _ in range(0, n)]
-
     def random_client(self):
         return random.choice(list(self.clients.values()))
 
     def random_clients(self, max_clients):
         return set(random.choices(list(self.clients.values()), k=max_clients))
-
-    def random_key(self):
-        return random.choice(self.keys)
-
-    def random_keys(self, max_keys):
-        """Return a set of keys that is of size <= max_keys"""
-        return set(random.choices(self.keys, k=max_keys))
 
     def start_all_replicas(self):
         [self.start_replica(i) for i in range(0, self.config.n)]
@@ -257,17 +202,6 @@ class BftTestNetwork:
                 break
 
         assert len(self.procs) == 2 * self.config.f + self.config.c + 1
-
-    async def send_indefinite_write_requests(self, protocol):
-        msg = protocol.write_req(
-            [], [(self.random_key(), self.random_value())], 0)
-        while True:
-            client = self.random_client()
-            try:
-                await client.write(msg)
-            except:
-                pass
-            await trio.sleep(.1)
 
     async def wait_for_fetching_state(self, replica_id):
         """
@@ -421,59 +355,10 @@ class BftTestNetwork:
         assert total_nb_slow_paths - nb_slow_paths_so_far >= total_nb_executed_sequences - as_of_seq_num, \
             f'Slow path is not prevalent for n={self.config.n}, f={self.config.f}, c={self.config.c}.'
 
-    async def write_known_kv(self, protocol):
-        client = self.random_client()
-
-        key = self.random_key()
-        val = self.random_value()
-        reply = await client.write(
-            protocol.write_req([], [(key, val)], 0))
-        reply = protocol.parse_reply(reply)
-        assert reply.success
-
-        return key, val
-
-    async def assert_kv_write_executed(self, protocol, key, val):
-        config = self.config
-
-        client = self.random_client()
-        reply = await client.read(
-            protocol.read_req([key])
-        )
-        kv_reply = protocol.parse_reply(reply)
-        assert {key: val} == kv_reply, \
-            f'Could not read original key-value in the case of n={config.n}, f={config.f}, c={config.c}.'
-
     async def _assert_state_transfer_not_started(self, replica):
         key = ['replica', 'Counters', 'receivedStateTransferMsgs']
         n = await self.metrics.get(replica.id, *key)
         assert n == 0
-
-    async def assert_successful_put_get(self, testcase, protocol):
-        """ Assert that we can get a valid put """
-        client = self.random_client()
-        read_reply = await client.read(protocol.get_last_block_req())
-        last_block = protocol.parse_reply(read_reply)
-
-        # Perform an unconditional KV put.
-        # Ensure that the block number increments.
-        key = self.random_key()
-        val = self.random_value()
-
-        reply = await client.write(protocol.write_req([], [(key, val)], 0))
-        reply = protocol.parse_reply(reply)
-        testcase.assertTrue(reply.success)
-        testcase.assertEqual(last_block + 1, reply.last_block_id)
-
-        # Retrieve the last block and ensure that it matches what's expected
-        read_reply = await client.read(protocol.get_last_block_req())
-        newest_block = protocol.parse_reply(read_reply)
-        testcase.assertEqual(last_block+1, newest_block)
-
-        # Get the previous put value, and ensure it's correct
-        read_req = protocol.read_req([key], newest_block)
-        kvpairs = protocol.parse_reply(await client.read(read_req))
-        testcase.assertDictEqual({key: val}, kvpairs)
 
     async def wait_for(self, predicate, timeout, interval):
         """
@@ -492,63 +377,3 @@ class BftTestNetwork:
                 with trio.move_on_after(interval):
                     if await predicate():
                         return
-
-    async def prime_for_state_transfer(
-            self, stale_nodes,
-            checkpoints_num=2,
-            persistency_enabled=True):
-        await self.init()
-        initial_nodes = set(range(self.config.n)) - stale_nodes
-        [self.start_replica(i) for i in initial_nodes]
-        client = skvbc.Client(self.random_client())
-        # Write a KV pair with a known value
-        known_key = self.max_key()
-        known_val = self.random_value()
-        known_kv = [(known_key, known_val)]
-        reply = await client.write([], known_kv)
-        assert reply.success
-        # Fill up the initial nodes with data, checkpoint them and stop
-        # them. Then bring them back up and ensure the checkpoint data is
-        # there.
-        await self.fill_and_wait_for_checkpoint(
-            initial_nodes, checkpoints_num, persistency_enabled)
-
-        return client, known_key, known_kv
-
-    async def fill_and_wait_for_checkpoint(
-            self, initial_nodes,
-            checkpoint_num=2,
-            persistency_enabled=True):
-        """
-        A helper function used by tests to fill a window with data and then
-        checkpoint it.
-
-        The nodes are then stopped and restarted to ensure the checkpoint data
-        was persisted.
-
-        TODO: Make filling concurrent to speed up tests
-        """
-        client = skvbc.Client(self.random_client())
-        # Write enough data to checkpoint and create a need for state transfer
-        for i in range (1 + checkpoint_num * 150):
-            key = self.random_key()
-            val = self.random_value()
-            reply = await client.write([], [(key, val)])
-            assert reply.success
-
-        await self.assert_state_transfer_not_started_all_up_nodes(
-            up_replica_ids=initial_nodes)
-
-        # Wait for initial replicas to take checkpoints (exhausting
-        # the full window)
-        await self.wait_for_replicas_to_checkpoint(initial_nodes, checkpoint_num)
-
-        if persistency_enabled:
-            # Stop the initial replicas to ensure the checkpoints get persisted
-            [self.stop_replica(i) for i in initial_nodes]
-
-            # Bring up the first 3 replicas and ensure that they have the
-            # checkpoint data.
-            [self.start_replica(i) for i in initial_nodes]
-            await self.wait_for_replicas_to_checkpoint(initial_nodes,
-                                                              checkpoint_num)
