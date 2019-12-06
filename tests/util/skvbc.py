@@ -179,7 +179,7 @@ class SimpleKVBCProtocol:
             checkpoints_num=2,
             persistency_enabled=True):
         await self.bft_network.init()
-        initial_nodes = set(range(self.bft_network.config.n)) - stale_nodes
+        initial_nodes = self.bft_network.all_replicas(without=stale_nodes)
         [self.bft_network.start_replica(i) for i in initial_nodes]
         client = SkvbcClient(self.bft_network.random_client())
         # Write a KV pair with a known value
