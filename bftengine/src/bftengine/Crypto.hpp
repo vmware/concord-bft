@@ -36,12 +36,12 @@ class RSASigner {
   RSASigner(const char* privteKey, const char* randomSeed);
   RSASigner(const char* privateKey);
   ~RSASigner();
-  size_t signatureLength();
+  size_t signatureLength() const;
   bool sign(const char* inBuffer,
             size_t lengthOfInBuffer,
             char* outBuffer,
             size_t lengthOfOutBuffer,
-            size_t& lengthOfReturnedData);
+            size_t& lengthOfReturnedData) const;
 
  private:
   void* d;
@@ -52,8 +52,8 @@ class RSAVerifier {
   RSAVerifier(const char* publicKey, const char* randomSeed);
   RSAVerifier(const char* publicKey);
   ~RSAVerifier();
-  size_t signatureLength();
-  bool verify(const char* data, size_t lengthOfData, const char* signature, size_t lengthOfOSignature);
+  size_t signatureLength() const;
+  bool verify(const char* data, size_t lengthOfData, const char* signature, size_t lengthOfOSignature) const;
 
  private:
   void* d;

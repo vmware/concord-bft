@@ -139,13 +139,13 @@ class RSASignerInternal {
  public:
   RSASignerInternal(BufferedTransformation& privateKey) : rand(sGlobalRandGen), priv(privateKey) {}
 
-  size_t signatureLength() { return priv.SignatureLength(); }
+  size_t signatureLength() const { return priv.SignatureLength(); }
 
   bool sign(const char* inBuffer,
             size_t lengthOfInBuffer,
             char* outBuffer,
             size_t lengthOfOutBuffer,
-            size_t& lengthOfReturnedData) {
+            size_t& lengthOfReturnedData) const {
     const size_t sigLen = priv.SignatureLength();
     if (lengthOfOutBuffer < sigLen) return false;
     lengthOfReturnedData =
@@ -164,9 +164,9 @@ class RSAVerifierInternal {
  public:
   RSAVerifierInternal(BufferedTransformation& publicKey) : pub(publicKey) {}
 
-  size_t signatureLength() { return pub.SignatureLength(); }
+  size_t signatureLength() const { return pub.SignatureLength(); }
 
-  bool verify(const char* data, size_t lengthOfData, const char* signature, size_t lengthOfOSignature) {
+  bool verify(const char* data, size_t lengthOfData, const char* signature, size_t lengthOfOSignature) const {
     bool ok = pub.VerifyMessage((CryptoPP::byte*)data, lengthOfData, (CryptoPP::byte*)signature, lengthOfOSignature);
     return ok;
   }
@@ -185,7 +185,7 @@ RSASigner::~RSASigner() {
   delete p;
 }
 
-size_t RSASigner::signatureLength() {
+size_t RSASigner::signatureLength() const {
   RSASignerInternal* p = (RSASignerInternal*)d;
   return p->signatureLength();
 }
@@ -194,7 +194,7 @@ bool RSASigner::sign(const char* inBuffer,
                      size_t lengthOfInBuffer,
                      char* outBuffer,
                      size_t lengthOfOutBuffer,
-                     size_t& lengthOfReturnedData) {
+                     size_t& lengthOfReturnedData) const {
   RSASignerInternal* p = (RSASignerInternal*)d;
   bool succ = p->sign(inBuffer, lengthOfInBuffer, outBuffer, lengthOfOutBuffer, lengthOfReturnedData);
   return succ;
@@ -210,12 +210,15 @@ RSAVerifier::~RSAVerifier() {
   delete p;
 }
 
-size_t RSAVerifier::signatureLength() {
+size_t RSAVerifier::signatureLength() const {
   RSAVerifierInternal* p = (RSAVerifierInternal*)d;
   return p->signatureLength();
 }
 
-bool RSAVerifier::verify(const char* data, size_t lengthOfData, const char* signature, size_t lengthOfOSignature) {
+bool RSAVerifier::verify(const char* data,
+                         size_t lengthOfData,
+                         const char* signature,
+                         size_t lengthOfOSignature) const {
   RSAVerifierInternal* p = (RSAVerifierInternal*)d;
   return p->verify(data, lengthOfData, signature, lengthOfOSignature);
 }
