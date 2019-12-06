@@ -59,7 +59,9 @@ class SkvbcTest(unittest.TestCase):
             with bft.BftTestNetwork(config) as bft_network:
                 skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-                stale_node = random.choice(list(set(range(config.n)) - {0}))
+                stale_node = random.choice(
+                    bft_network.all_replicas(without={0}))
+
                 await skvbc.prime_for_state_transfer(
                     stale_nodes={stale_node},
                     persistency_enabled=False
@@ -69,7 +71,7 @@ class SkvbcTest(unittest.TestCase):
                 await bft_network.wait_for_state_transfer_to_stop(0, stale_node)
                 await skvbc.assert_successful_put_get(self)
                 random_replica = random.choice(
-                    list(set(range(config.n)) - {0, stale_node}))
+                    bft_network.all_replicas(without={0, stale_node}))
                 bft_network.stop_replica(random_replica)
                 await skvbc.assert_successful_put_get(self)
 

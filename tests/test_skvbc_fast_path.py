@@ -113,7 +113,7 @@ class SkvbcFastPathTest(unittest.TestCase):
 
                 await bft_network.assert_fast_path_prevalent()
 
-                unstable_replicas = list(set(range(0, config.n)) - {0})
+                unstable_replicas = bft_network.all_replicas(without={0})
                 bft_network.stop_replica(
                     replica=random.choice(unstable_replicas))
 
@@ -139,7 +139,7 @@ class SkvbcFastPathTest(unittest.TestCase):
         trio.run(self._test_fast_path_resilience_to_crashes)
 
     async def _test_fast_path_resilience_to_crashes(self):
-        for bft_config in bft.interesting_configs(c_min=1):
+        for bft_config in bft.interesting_configs(lambda n, f, c: c >= 1):
             config = bft.TestConfig(n=bft_config['n'],
                                     f=bft_config['f'],
                                     c=bft_config['c'],
@@ -151,7 +151,7 @@ class SkvbcFastPathTest(unittest.TestCase):
                 bft_network.start_all_replicas()
                 skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-                unstable_replicas = list(set(range(0, config.n)) - {0})
+                unstable_replicas = bft_network.all_replicas(without={0})
                 for _ in range(config.c):
                     replica_to_stop = random.choice(unstable_replicas)
                     bft_network.stop_replica(replica_to_stop)

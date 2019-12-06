@@ -41,18 +41,28 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcSlowPathTest(unittest.TestCase):
 
+    def setUp(self):
+        # Whenever a replica goes down, all messages initially go via the slow path.
+        # However, when an "evaluation period" elapses (set at 64 sequence numbers),
+        # the system should return to the fast path.
+        self.evaluation_period_seq_num = 64
+
     def test_slow_path_read_your_write(self):
         """
-        First we write a batch of known K/V entries.
+        Start a full BFT network (c=0) and bring one replica.
+
+        Write a batch of known K/V entries.
         
-        Then we check that they have been processed on the slow commit path.
+        Then we check that messages from now on are processed on the slow commit path.
+        (note that this is not the case for c>0 where the BFT network eventually
+        returns to the fast commit path)
         
         Finally we check if a known K/V has been executed and readable.
         """
         trio.run(self._test_slow_path_read_your_write)
 
     async def _test_slow_path_read_your_write(self):
-        for bft_config in bft.interesting_configs():
+        for bft_config in bft.interesting_configs(lambda n, f, c: c == 0):
             config = bft.TestConfig(n=bft_config['n'],
                                     f=bft_config['f'],
                                     c=bft_config['c'],
@@ -64,11 +74,11 @@ class SkvbcSlowPathTest(unittest.TestCase):
                 bft_network.start_all_replicas()
                 skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-                unstable_replicas = list(set(range(0, config.n)) - {0})
+                unstable_replicas = bft_network.all_replicas(without={0})
                 bft_network.stop_replica(
                     replica=random.choice(unstable_replicas))
 
-                for _ in range(10):
+                for _ in range(self.evaluation_period_seq_num*2):
                     key, val = await skvbc.write_known_kv()
 
                 await bft_network.assert_slow_path_prevalent(as_of_seq_num=1)
@@ -107,7 +117,7 @@ class SkvbcSlowPathTest(unittest.TestCase):
                 bft_network.start_all_replicas()
                 skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-                unstable_replicas = list(set(range(0, config.n)) - {0})
+                unstable_replicas = bft_network.all_replicas(without={0})
                 crashed_replica = random.choice(unstable_replicas)
                 bft_network.stop_replica(crashed_replica)
 

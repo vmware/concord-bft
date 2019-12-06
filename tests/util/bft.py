@@ -40,7 +40,9 @@ TestConfig = namedtuple('TestConfig', [
     'start_replica_cmd'
 ])
 
-def interesting_configs(f_min=1, c_min=0):
+def interesting_configs(
+        selected=lambda *_: True):
+
     bft_configs = [{'n': 4, 'f': 1, 'c': 0, 'num_clients': 4},
                    {'n': 7, 'f': 2, 'c': 0, 'num_clients': 4},
                    {'n': 6, 'f': 1, 'c': 1, 'num_clients': 4},
@@ -50,7 +52,7 @@ def interesting_configs(f_min=1, c_min=0):
 
     selected_bft_configs = \
         [conf for conf in bft_configs
-         if conf['f'] >= f_min and conf['c'] >= c_min]
+         if selected(conf['n'], conf['f'], conf['c'])]
 
     assert len(selected_bft_configs) > 0, "No eligible BFT configs"
 
@@ -184,13 +186,21 @@ class BftTestNetwork:
 
         del self.procs[replica]
 
+    def all_replicas(self, without=None):
+        """
+        Returns a list of all replicas excluding the except_those set
+        """
+        if without is None:
+            without = set()
+
+        return list(set(range(0, self.config.n)) - without)
+
     def force_quorum_including_replica(self, replica_id, primary=0):
         """
         Bring down a sufficient number of replicas (excluding the primary),
         so that the remaining replicas form a quorum that includes replica_id
         """
-        unstable_replicas = list(
-            set(range(0, self.config.n)) - {primary, replica_id})
+        unstable_replicas = self.all_replicas(without={primary, replica_id})
 
         random.shuffle(unstable_replicas)
 
