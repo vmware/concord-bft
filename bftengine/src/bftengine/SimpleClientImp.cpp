@@ -150,8 +150,14 @@ SimpleClientImp::SimpleClientImp(
       replicas_{generateSetOfReplicas_helpFunc(3 * fVal + 2 * cVal + 1)},
       communication_{communication},
       replysCertificate_(3 * fVal + 2 * cVal + 1, fVal, 2 * fVal + cVal + 1, clientId),
-      limitOfExpectedOperationTime_(p.clientInitialRetryTimeoutMilli, 2, p.clientMaxRetryTimeoutMilli,
-                                    p.clientMinRetryTimeoutMilli, 32, 1000, 2, 2),
+      limitOfExpectedOperationTime_(p.clientInitialRetryTimeoutMilli,
+                                    2,
+                                    p.clientMaxRetryTimeoutMilli,
+                                    p.clientMinRetryTimeoutMilli,
+                                    32,
+                                    1000,
+                                    2,
+                                    2),
       clientSendsRequestToAllReplicasFirstThresh_{p.clientSendsRequestToAllReplicasFirstThresh},
       clientSendsRequestToAllReplicasPeriodThresh_{p.clientSendsRequestToAllReplicasPeriodThresh},
       clientPeriodicResetThresh_{p.clientPeriodicResetThresh} {
@@ -365,7 +371,7 @@ void SimpleClientImp::sendPendingRequest() {
   const bool sendToAll = pendingRequest_->isReadOnly() || !primaryReplicaIsKnown_ ||
                          (numberOfTransmissions_ == clientSendsRequestToAllReplicasFirstThresh_) ||
                          (numberOfTransmissions_ > clientSendsRequestToAllReplicasFirstThresh_ &&
-                         (numberOfTransmissions_ % clientSendsRequestToAllReplicasPeriodThresh_ == 0)) ||
+                          (numberOfTransmissions_ % clientSendsRequestToAllReplicasPeriodThresh_ == 0)) ||
                          resetReplies;
 
   if (numberOfTransmissions_ && !(numberOfTransmissions_ % 10))
