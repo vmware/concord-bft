@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <set>
 
 #include "ControllerBase.hpp"
@@ -45,12 +46,12 @@ class ControllerWithSimpleHistory : public ControllerBase {
 
   class SeqNoInfo {
    public:
-    SeqNoInfo() : switchToSlowPath(false), prePrepareTime(0), durationMicro(0) {}
+    SeqNoInfo() : switchToSlowPath(false), prePrepareTime(MinTime), durationMicro_(std::chrono::milliseconds::zero()) {}
 
     void resetAndFree() {
       switchToSlowPath = false;
-      prePrepareTime = 0;
-      durationMicro = 0;
+      prePrepareTime = MinTime;
+      durationMicro_ = std::chrono::microseconds::zero();
       replicas.clear();
     }
 
@@ -58,7 +59,7 @@ class ControllerWithSimpleHistory : public ControllerBase {
     bool switchToSlowPath;
 
     Time prePrepareTime;
-    uint16_t durationMicro;
+    std::chrono::microseconds durationMicro_;
 
     // used when currentFirstPath == SLOW
     std::set<ReplicaId> replicas;  // replicas that have responded for this sequence number

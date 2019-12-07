@@ -26,6 +26,8 @@
 #include "DynamicUpperLimitWithSimpleFilter.hpp"
 #include "Logger.hpp"
 
+using namespace std::chrono;
+
 namespace bftEngine {
 namespace impl {
 class SimpleClientImp : public SimpleClient, public IReceiver {
@@ -241,13 +243,13 @@ int SimpleClientImp::sendRequest(bool isReadOnly,
 
     const Time currTime = getMonotonicTime();
 
-    // absDifference returns microseconds, so scale up timeoutMilli to match
-    if (timeoutMilli != INFINITE_TIMEOUT && (uint64_t)absDifference(beginTime, currTime) > timeoutMilli * 1000) {
+    if (timeoutMilli != INFINITE_TIMEOUT &&
+        (uint64_t)duration_cast<milliseconds>(currTime - beginTime).count() > timeoutMilli) {
       requestTimeout = true;
       break;
     }
 
-    if (((uint64_t)absDifference(timeOfLastTransmission_, currTime)) / 1000 >
+    if ((uint64_t)duration_cast<milliseconds>(currTime - timeOfLastTransmission_).count() >
         limitOfExpectedOperationTime_.upperLimit()) {
       onRetransmission();
     }
@@ -256,7 +258,7 @@ int SimpleClientImp::sendRequest(bool isReadOnly,
   if (requestCommitted) {
     Assert(replysCertificate_.isComplete());
 
-    uint64_t durationMilli = ((uint64_t)absDifference(getMonotonicTime(), beginTime)) / 1000;
+    uint64_t durationMilli = duration_cast<milliseconds>(getMonotonicTime() - beginTime).count();
     limitOfExpectedOperationTime_.add(durationMilli);
 
     LOG_DEBUG_F(GL,

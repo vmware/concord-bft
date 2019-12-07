@@ -14,8 +14,10 @@
 #include "IncomingMsgsStorage.hpp"
 #include "messages/MessageBase.hpp"
 #include "Logger.hpp"
+#include <chrono>
 
 using std::queue;
+using namespace std::chrono;
 
 namespace bftEngine {
 namespace impl {
@@ -43,14 +45,14 @@ void IncomingMsgsStorage::pushExternalMsg(std::unique_ptr<MessageBase> m) {
   std::unique_lock<std::mutex> mlock(lock);
   {
     if (ptrProtectedQueueForExternalMessages->size() >= maxNumberOfPendingExternalMsgs) {
-      Time n = getMonotonicTime();
-      if (subtract(n, lastOverflowWarning) > ((TimeDeltaMicro)minTimeBetweenOverflowWarningsMilli * 1000)) {
+      Time now = getMonotonicTime();
+      if ((now - lastOverflowWarning) > (milliseconds(minTimeBetweenOverflowWarningsMilli))) {
         LOG_WARN_F(GL,
                    "More than %d pending messages in queue -  may ignore some "
                    "of the messages!",
                    (int)maxNumberOfPendingExternalMsgs);
 
-        lastOverflowWarning = n;
+        lastOverflowWarning = now;
       }
     } else {
       ptrProtectedQueueForExternalMessages->push(std::move(m));

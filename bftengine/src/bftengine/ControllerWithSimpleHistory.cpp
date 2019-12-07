@@ -15,6 +15,9 @@
 #include "Logger.hpp"
 #include "messages/SignedShareMsgs.hpp"
 #include "ControllerWithSimpleHistory.hpp"
+#include <chrono>
+
+using namespace std::chrono;
 
 namespace bftEngine {
 namespace impl {
@@ -87,23 +90,20 @@ bool ControllerWithSimpleHistory::onNewSeqNumberExecution(SeqNum n) {
   SeqNoInfo& s = recentActivity.get(n);
 
   Time now = getMonotonicTime();
+  auto duration = now - s.prePrepareTime;
 
-  uint64_t duration = 0;
-  if (now > s.prePrepareTime) duration = subtract(now, s.prePrepareTime);
-
-  const uint64_t MAX_DURATION_MICRO = 2 * 1000 * 1000;  // 2 sec
-  const uint64_t MIN_DURATION_MICRO = 100;              // 100 micro
+  const auto MAX_DURATION_MICRO = microseconds(2 * 1000 * 1000);
+  const auto MIN_DURATION_MICRO = microseconds(100);
 
   if (duration > MAX_DURATION_MICRO)
-    duration = MAX_DURATION_MICRO;
+    s.durationMicro_ = MAX_DURATION_MICRO;
   else if (duration < MIN_DURATION_MICRO)
-    duration = MIN_DURATION_MICRO;
+    s.durationMicro_ = MIN_DURATION_MICRO;
 
-  s.durationMicro = (uint16_t)duration;
+  // reset every 1000 rounds . TODO(GG): in config ?
+  if (n % 1000 == 0) avgAndStdOfExecTime.reset();
 
-  if (n % 1000 == 0) avgAndStdOfExecTime.reset();  // reset every 1000 rounds . TODO(GG): in config ?
-
-  avgAndStdOfExecTime.add((double)duration);
+  avgAndStdOfExecTime.add((double)s.durationMicro_.count());
 
   if (n == recentActivity.currentActiveWindow().second) {
     return onEndOfEvaluationPeriod();
@@ -211,8 +211,10 @@ void ControllerWithSimpleHistory::onSendingPrePrepare(SeqNum n, CommitPath commi
 
   SeqNoInfo& s = recentActivity.get(n);
 
-  if (s.prePrepareTime == 0)  // if this is the time we send the preprepare
+  // if this is the time we send the preprepare
+  if (s.prePrepareTime == MinTime) {
     s.prePrepareTime = getMonotonicTime();
+  }
 }
 
 void ControllerWithSimpleHistory::onStartingSlowCommit(SeqNum n) {

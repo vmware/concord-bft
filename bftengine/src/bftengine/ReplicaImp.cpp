@@ -503,14 +503,13 @@ void ReplicaImp::tryToStartSlowPaths() {
 
     const Time timeOfPartProof = seqNumInfo.partialProofs().getTimeOfSelfPartialProof();
 
-    if (absDifference(currTime, timeOfPartProof) < controller->timeToStartSlowPathMilli() * 1000)
-      break;  // don't try the next seq numbers
+    if (currTime - timeOfPartProof < milliseconds(controller->timeToStartSlowPathMilli())) break;
 
     LOG_INFO_F(GL,
                "Primary initiates slow path for seqNum=%" PRId64 " (currTime=%" PRIu64 " timeOfPartProof=%" PRIu64,
                i,
-               currTime,
-               timeOfPartProof);
+               duration_cast<microseconds>(currTime.time_since_epoch()).count(),
+               duration_cast<microseconds>(timeOfPartProof.time_since_epoch()).count());
 
     controller->onStartingSlowCommit(i);
 
@@ -582,8 +581,8 @@ void ReplicaImp::tryToAskForMissingInfo() {
     if ((t < lastInfoRequest)) t = lastInfoRequest;
 
     if (t != MinTime && (t < curTime)) {
-      int64_t diffMilli = absDifference(curTime, t) / 1000;
-      if (diffMilli >= dynamicUpperLimitOfRounds->upperLimit()) lastRelatedSeqNum = i;
+      auto diffMilli = duration_cast<milliseconds>(curTime - t);
+      if (diffMilli.count() >= dynamicUpperLimitOfRounds->upperLimit()) lastRelatedSeqNum = i;
     }
   }
 
@@ -1277,9 +1276,10 @@ void ReplicaImp::onMessage(CheckpointMsg *msg) {
           if (mainLog->insideActiveWindow(lastExecutedSeqNum))
             timeOfLastCommit = mainLog->get(lastExecutedSeqNum).lastUpdateTimeOfCommitMsgs();
 
-          if (absDifference(getMonotonicTime(), timeOfLastCommit) >
-              (1000 * timeToWaitBeforeStartingStateTransferInMainWindowMilli))
+          if ((getMonotonicTime() - timeOfLastCommit) >
+              (milliseconds(timeToWaitBeforeStartingStateTransferInMainWindowMilli))) {
             askForStateTransfer = true;
+          }
         }
       }
     }
@@ -1630,18 +1630,18 @@ void ReplicaImp::tryToSendStatusReport() {
 
   const Time currentTime = getMonotonicTime();
 
-  const int64_t milliSinceLastTime =
-      (int64_t)(absDifference(currentTime, lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas) / 1000);
+  const milliseconds milliSinceLastTime =
+      duration_cast<milliseconds>(currentTime - lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas);
 
-  if (milliSinceLastTime < minTimeBetweenStatusRequestsMilli) return;
+  if (milliSinceLastTime < milliseconds(minTimeBetweenStatusRequestsMilli)) return;
 
   const int64_t dynamicMinTimeBetweenStatusRequestsMilli =
       (int64_t)((double)dynamicUpperLimitOfRounds->upperLimit() * factorForMinTimeBetweenStatusRequestsMilli);
 
-  if (milliSinceLastTime < dynamicMinTimeBetweenStatusRequestsMilli) return;
+  if (milliSinceLastTime < milliseconds(dynamicMinTimeBetweenStatusRequestsMilli)) return;
 
-  lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas =
-      currentTime;  // TODO(GG): handle restart/pause !! (restart/pause may affect time measurements...)
+  // TODO(GG): handle restart/pause !! (restart/pause may affect time measurements...)
+  lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas = currentTime;
 
   const bool viewIsActive = currentViewIsActive();
   const bool hasNewChangeMsg = viewsManager->hasNewViewMessage(curView);
@@ -2041,9 +2041,8 @@ void ReplicaImp::sendCheckpointIfNeeded() {
 
   // LOG_INFO_F(GL, "Debug - sendCheckpointIfNeeded - 2");
 
-  if (subtract(getMonotonicTime(), checkInfo.selfExecutionTime()) >=
-      3 * 1000 * 1000)  // TODO(GG): 3 seconds, should be in configuration
-  {
+  // TODO(GG): 3 seconds, should be in configuration
+  if ((getMonotonicTime() - checkInfo.selfExecutionTime()) >= 3s) {
     checkInfo.setCheckpointSentAllOrApproved();
     sendToAllOtherReplicas(checkpointMessage);
     return;
@@ -2258,8 +2257,8 @@ void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly,
     if ((t < lastInfoRequest)) t = lastInfoRequest;
 
     if (t == MinTime && (t < curTime)) {
-      int64_t diffMilli = subtract(curTime, t) / 1000;
-      if (diffMilli < dynamicUpperLimitOfRounds->upperLimit() / 4)  // TODO(GG): config
+      auto diffMilli = duration_cast<milliseconds>(curTime - t);
+      if (diffMilli.count() < dynamicUpperLimitOfRounds->upperLimit() / 4)  // TODO(GG): config
         return;
     }
   }
@@ -2424,7 +2423,7 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
     const uint64_t timeout =
         (isCurrentPrimary() ? (autoPrimaryUpdateMilli) : (autoPrimaryUpdateMilli + viewChangeTimeoutMilli));
 
-    const uint64_t diffMilli = absDifference(currTime, timeOfLastViewEntrance) / 1000;
+    const uint64_t diffMilli = duration_cast<milliseconds>(currTime - timeOfLastViewEntrance).count();
 
     if (diffMilli > timeout) {
       LOG_INFO_F(GL,
@@ -2458,9 +2457,9 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
 
     if (!hasPendingRequest) return;
 
-    const uint64_t diffMilli1 = absDifference(currTime, timeOfLastStateSynch) / 1000;
-    const uint64_t diffMilli2 = absDifference(currTime, timeOfLastViewEntrance) / 1000;
-    const uint64_t diffMilli3 = absDifference(currTime, timeOfEarliestPendingRequest) / 1000;
+    const uint64_t diffMilli1 = duration_cast<milliseconds>(currTime - timeOfLastStateSynch).count();
+    const uint64_t diffMilli2 = duration_cast<milliseconds>(currTime - timeOfLastViewEntrance).count();
+    const uint64_t diffMilli3 = duration_cast<milliseconds>(currTime - timeOfEarliestPendingRequest).count();
 
     if ((diffMilli1 > viewChangeTimeout) && (diffMilli2 > viewChangeTimeout) && (diffMilli3 > viewChangeTimeout)) {
       LOG_INFO_F(GL,
@@ -2480,8 +2479,8 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
     if (repsInfo->primaryOfView(lastAgreedView) == myReplicaId) return;
 
     const Time currTime = getMonotonicTime();
-    const uint64_t diffMilli1 = absDifference(currTime, timeOfLastStateSynch) / 1000;
-    const uint64_t diffMilli2 = absDifference(currTime, timeOfLastAgreedView) / 1000;
+    const uint64_t diffMilli1 = duration_cast<milliseconds>(currTime - timeOfLastStateSynch).count();
+    const uint64_t diffMilli2 = duration_cast<milliseconds>(currTime - timeOfLastAgreedView).count();
 
     if ((diffMilli1 > viewChangeTimeout) && (diffMilli2 > viewChangeTimeout)) {
       LOG_INFO_F(GL,
@@ -2891,7 +2890,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       thresholdSignerForOptimisticCommit{config.thresholdSignerForOptimisticCommit},
       thresholdVerifierForOptimisticCommit{config.thresholdVerifierForOptimisticCommit},
       dynamicUpperLimitOfRounds{nullptr},
-      lastViewThatTransferredSeqNumbersFullyExecuted{MinTime},
+      lastViewThatTransferredSeqNumbersFullyExecuted{0},
       lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas{MinTime},
       timeOfLastStateSynch{getMonotonicTime()},    // TODO(GG): TBD
       timeOfLastViewEntrance{getMonotonicTime()},  // TODO(GG): TBD
@@ -3405,7 +3404,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg *ppMsg, bool recov
     const Time firstInfo = seqNumInfo.getTimeOfFisrtRelevantInfoFromPrimary();
     const Time currTime = getMonotonicTime();
     if ((firstInfo < currTime)) {
-      const int64_t durationMilli = (subtract(currTime, firstInfo) / 1000);
+      const int64_t durationMilli = duration_cast<milliseconds>(currTime - firstInfo).count();
       dynamicUpperLimitOfRounds->add(durationMilli);
     }
   }

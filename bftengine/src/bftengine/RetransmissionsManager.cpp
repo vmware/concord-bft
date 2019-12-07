@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <queue>
 #include <cmath>  // sqrt
+#include <chrono>
 
 #include "messages/MessageBase.hpp"
 #include "RetransmissionsManager.hpp"
@@ -23,6 +24,8 @@
 #include "InternalReplicaApi.hpp"
 #include "RollingAvgAndVar.hpp"
 #include "assertUtils.hpp"
+
+using namespace std::chrono;
 
 namespace bftEngine {
 namespace impl {
@@ -84,7 +87,7 @@ class RetransmissionsLogic {
         Time tmp = trackedItem->timeOfTransmission;
 
         if ((tmp < time)) {
-          uint64_t responseTimeMilli = subtract(time, tmp) / 1000;
+          uint64_t responseTimeMilli = duration_cast<milliseconds>(time - tmp).count();
 
           ReplicaInfo* repInfo = getReplicaInfo(replicaId, msgType);
 
@@ -105,7 +108,7 @@ class RetransmissionsLogic {
       return;
     }
 
-    Time expTime = addMilliseconds(time, (uint16_t)waitTimeMilli);
+    Time expTime = time + milliseconds(waitTimeMilli);
 
     PendingRetran pr{expTime, trackedItem};
 
@@ -124,7 +127,7 @@ class RetransmissionsLogic {
     if ((trackedItem->seqNumber == msgSeqNum) && (trackedItem->ackOrAbort == false) && (!(time < tmp))) {
       trackedItem->ackOrAbort = true;
 
-      uint64_t responseTimeMilli = subtract(time, tmp) / 1000;
+      uint64_t responseTimeMilli = duration_cast<milliseconds>(time - tmp).count();
 
       ReplicaInfo* repInfo = getReplicaInfo(replicaId, msgType);
 
