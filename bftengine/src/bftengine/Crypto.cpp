@@ -135,9 +135,9 @@ DigestUtil::Context::~Context() {
   }
 }
 
-class RSASignerInternal {
+class RSASigner::Impl {
  public:
-  RSASignerInternal(BufferedTransformation& privateKey) : rand(sGlobalRandGen), priv(privateKey) {}
+  Impl(BufferedTransformation& privateKey) : rand(sGlobalRandGen), priv(privateKey) {}
 
   size_t signatureLength() const { return priv.SignatureLength(); }
 
@@ -160,9 +160,9 @@ class RSASignerInternal {
   RSASS<PKCS1v15, SHA256>::Signer priv;
 };
 
-class RSAVerifierInternal {
+class RSAVerifier::Impl {
  public:
-  RSAVerifierInternal(BufferedTransformation& publicKey) : pub(publicKey) {}
+  Impl(BufferedTransformation& publicKey) : pub(publicKey) {}
 
   size_t signatureLength() const { return pub.SignatureLength(); }
 
@@ -177,50 +177,43 @@ class RSAVerifierInternal {
 
 RSASigner::RSASigner(const char* privateKey) {
   StringSource s(privateKey, true, new HexDecoder);
-  d = new RSASignerInternal(s);
+  impl = std::make_unique<Impl>(s);
 }
 
-RSASigner::~RSASigner() {
-  RSASignerInternal* p = (RSASignerInternal*)d;
-  delete p;
-}
+RSASigner::RSASigner(RSASigner&&) = default;
 
-size_t RSASigner::signatureLength() const {
-  RSASignerInternal* p = (RSASignerInternal*)d;
-  return p->signatureLength();
-}
+RSASigner::~RSASigner() = default;
+
+RSASigner& RSASigner::operator=(RSASigner&&) = default;
+
+size_t RSASigner::signatureLength() const { return impl->signatureLength(); }
 
 bool RSASigner::sign(const char* inBuffer,
                      size_t lengthOfInBuffer,
                      char* outBuffer,
                      size_t lengthOfOutBuffer,
                      size_t& lengthOfReturnedData) const {
-  RSASignerInternal* p = (RSASignerInternal*)d;
-  bool succ = p->sign(inBuffer, lengthOfInBuffer, outBuffer, lengthOfOutBuffer, lengthOfReturnedData);
-  return succ;
+  return impl->sign(inBuffer, lengthOfInBuffer, outBuffer, lengthOfOutBuffer, lengthOfReturnedData);
 }
 
 RSAVerifier::RSAVerifier(const char* publicKey) {
   StringSource s(publicKey, true, new HexDecoder);
-  d = new RSAVerifierInternal(s);
+  impl = std::make_unique<Impl>(s);
 }
 
-RSAVerifier::~RSAVerifier() {
-  RSAVerifierInternal* p = (RSAVerifierInternal*)d;
-  delete p;
-}
+RSAVerifier::RSAVerifier(RSAVerifier&&) = default;
 
-size_t RSAVerifier::signatureLength() const {
-  RSAVerifierInternal* p = (RSAVerifierInternal*)d;
-  return p->signatureLength();
-}
+RSAVerifier::~RSAVerifier() = default;
+
+RSAVerifier& RSAVerifier::operator=(RSAVerifier&&) = default;
+
+size_t RSAVerifier::signatureLength() const { return impl->signatureLength(); }
 
 bool RSAVerifier::verify(const char* data,
                          size_t lengthOfData,
                          const char* signature,
                          size_t lengthOfOSignature) const {
-  RSAVerifierInternal* p = (RSAVerifierInternal*)d;
-  return p->verify(data, lengthOfData, signature, lengthOfOSignature);
+  return impl->verify(data, lengthOfData, signature, lengthOfOSignature);
 }
 
 }  // namespace impl

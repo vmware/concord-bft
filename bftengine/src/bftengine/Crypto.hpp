@@ -16,6 +16,7 @@
 #include <cryptopp/dll.h>
 #include <cryptopp/integer.h>
 
+#include <memory>
 #include <sstream>
 #include <string>
 
@@ -35,7 +36,11 @@ class RSASigner {
  public:
   RSASigner(const char* privteKey, const char* randomSeed);
   RSASigner(const char* privateKey);
+  RSASigner(const RSASigner&) = delete;
+  RSASigner(RSASigner&&);
   ~RSASigner();
+  RSASigner& operator=(const RSASigner&) = delete;
+  RSASigner& operator=(RSASigner&&);
   size_t signatureLength() const;
   bool sign(const char* inBuffer,
             size_t lengthOfInBuffer,
@@ -44,19 +49,25 @@ class RSASigner {
             size_t& lengthOfReturnedData) const;
 
  private:
-  void* d;
+  class Impl;
+  std::unique_ptr<Impl> impl;
 };
 
 class RSAVerifier {
  public:
   RSAVerifier(const char* publicKey, const char* randomSeed);
   RSAVerifier(const char* publicKey);
+  RSAVerifier(const RSAVerifier&) = delete;
+  RSAVerifier(RSAVerifier&&);
   ~RSAVerifier();
+  RSAVerifier& operator=(const RSAVerifier&) = delete;
+  RSAVerifier& operator=(RSAVerifier&&);
   size_t signatureLength() const;
   bool verify(const char* data, size_t lengthOfData, const char* signature, size_t lengthOfOSignature) const;
 
  private:
-  void* d;
+  class Impl;
+  std::unique_ptr<Impl> impl;
 };
 
 class DigestUtil {
