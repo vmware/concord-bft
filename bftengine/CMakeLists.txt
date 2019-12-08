@@ -20,7 +20,7 @@ set(corebft_source_files
     src/bftengine/Crypto.cpp
     src/bftengine/NullStateTransfer.cpp
     src/bftengine/BFTEngine.cpp
-    src/bftengine/SimpleClient.cpp
+    src/bftengine/SimpleClientImp.cpp
     src/bftengine/PersistentStorageImp.cpp
     src/bftengine/PersistentStorageDescriptors.cpp
     src/bftengine/PersistentStorageWindows.cpp
