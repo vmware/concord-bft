@@ -44,9 +44,9 @@ def interesting_configs(
         selected=lambda *config: True):
 
     bft_configs = [{'n': 4, 'f': 1, 'c': 0, 'num_clients': 4},
-                   {'n': 7, 'f': 2, 'c': 0, 'num_clients': 4},
                    {'n': 6, 'f': 1, 'c': 1, 'num_clients': 4},
-                   # {'n': 9, 'f': 2, 'c': 1, 'num_clients': 4},
+                   {'n': 7, 'f': 2, 'c': 0, 'num_clients': 4},
+                   # {'n': 9, 'f': 2, 'c': 1, 'num_clients': 4}
                    # {'n': 12, 'f': 3, 'c': 1, 'num_clients': 4}
                    ]
 
@@ -195,6 +195,16 @@ class BftTestNetwork:
 
         return list(set(range(0, self.config.n)) - without)
 
+    async def get_view_number(self, replica_id, expected):
+        with trio.move_on_after(10):
+            while True:
+                with trio.move_on_after(.5):  # seconds
+                    key = ['replica', 'Gauges', 'lastAgreedView']
+                    view = await self.metrics.get(replica_id, *key)
+                    if expected(view):
+                        break
+        return view
+
     def force_quorum_including_replica(self, replica_id, primary=0):
         """
         Bring down a sufficient number of replicas (excluding the primary),
@@ -324,6 +334,21 @@ class BftTestNetwork:
                 if n == checkpoint_num:
                     return
 
+    async def wait_for_slow_path_to_be_prevalent(
+            self, as_of_seq_num=1, nb_slow_paths_so_far=0, replica_id=0):
+        with trio.fail_after(seconds=5):
+            while True:
+                with trio.move_on_after(seconds=.5):
+                    try:
+                        await self.assert_slow_path_prevalent(
+                            as_of_seq_num, nb_slow_paths_so_far, replica_id)
+                    except KeyError:
+                        # metrics not yet available, continue looping
+                        continue
+                    else:
+                        # slow path prevalent - done.
+                        break
+
     async def assert_state_transfer_not_started_all_up_nodes(self, up_replica_ids):
         with trio.fail_after(METRICS_TIMEOUT_SEC):
             # Check metrics for all started nodes in parallel
@@ -333,29 +358,29 @@ class BftTestNetwork:
                     nursery.start_soon(self._assert_state_transfer_not_started,
                                        r)
 
-    async def assert_fast_path_prevalent(self, nb_slow_paths_so_far=0):
+    async def assert_fast_path_prevalent(self, nb_slow_paths_so_far=0, replica_id=0):
         """
         Asserts there is at most 1 sequence processed on the slow path,
         given the "nb_slow_paths_so_far".
         """
         metric_key = ['replica', 'Counters', 'slowPathCount']
-        total_nb_slow_paths = await self.metrics.get(0, *metric_key)
+        total_nb_slow_paths = await self.metrics.get(replica_id, *metric_key)
         assert total_nb_slow_paths >= nb_slow_paths_so_far
 
         assert total_nb_slow_paths - nb_slow_paths_so_far <= 1, \
             f'Fast path is not prevalent for n={self.config.n}, f={self.config.f}, c={self.config.c}.'
 
     async def assert_slow_path_prevalent(
-            self, as_of_seq_num=1, nb_slow_paths_so_far=0):
+            self, as_of_seq_num=1, nb_slow_paths_so_far=0, replica_id=0):
         """
         Asserts all executed sequences after "as_of_seq_num" have been processed on the slow path,
         given the "nb_slow_paths_so_far".
         """
         metric_key = ['replica', 'Gauges', 'lastExecutedSeqNum']
-        total_nb_executed_sequences = await self.metrics.get(0, *metric_key)
+        total_nb_executed_sequences = await self.metrics.get(replica_id, *metric_key)
 
         metric_key = ['replica', 'Counters', 'slowPathCount']
-        total_nb_slow_paths = await self.metrics.get(0, *metric_key)
+        total_nb_slow_paths = await self.metrics.get(replica_id, *metric_key)
         assert total_nb_slow_paths >= nb_slow_paths_so_far
 
         assert total_nb_slow_paths - nb_slow_paths_so_far >= total_nb_executed_sequences - as_of_seq_num, \
