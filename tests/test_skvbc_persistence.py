@@ -58,7 +58,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
         trio.run(self._test_view_change_transitions_safely_without_quorum)
 
     async def _test_view_change_transitions_safely_without_quorum(self):
-        for bft_config in bft.interesting_configs(f_min=2):
+        for bft_config in bft.interesting_configs(lambda n, f, c: f >= 2):
             config = bft.TestConfig(n=bft_config['n'],
                                     f=bft_config['f'],
                                     c=bft_config['c'],
@@ -175,7 +175,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
                                     start_replica_cmd=start_replica_cmd)
             with bft.BftTestNetwork(config) as bft_network:
                 skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-                stale_node = random.choice(list(set(range(config.n)) - {0}))
+                stale_node = random.choice(bft_network.all_replicas(without={0}))
 
                 client, known_key, known_kv = \
                     await skvbc.prime_for_state_transfer(stale_nodes={stale_node})
@@ -225,7 +225,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
                                     start_replica_cmd=start_replica_cmd)
             with bft.BftTestNetwork(config) as bft_network:
                 skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-                stale_node = random.choice(list(set(range(config.n)) - {0}))
+                stale_node = random.choice(bft_network.all_replicas(without={0}))
 
                 client, known_key, known_kv = \
                     await skvbc.prime_for_state_transfer(stale_nodes={stale_node})
@@ -304,7 +304,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
 
     async def _test_st_when_fetcher_and_sender_crash(self):
-        for bft_config in bft.interesting_configs(f_min=2):
+        for bft_config in bft.interesting_configs(lambda n, f, c: f >= 2):
             config = bft.TestConfig(n=bft_config['n'],
                                     f=bft_config['f'],
                                     c=bft_config['c'],
@@ -314,7 +314,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
             with bft.BftTestNetwork(config) as bft_network:
                 skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-                stale_node = random.choice(list(set(range(config.n)) - {0}))
+                stale_node = random.choice(bft_network.all_replicas(without={0}))
 
                 client, known_key, known_kv = \
                     await skvbc.prime_for_state_transfer(
@@ -323,7 +323,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
                     )
 
                 # exclude the primary and the stale node
-                unstable_replicas = list(set(range(0, config.n)) - {0} - {stale_node})
+                unstable_replicas = bft_network.all_replicas(without={0, stale_node})
 
                 await self._run_state_transfer_while_crashing_non_primary(
                     bft_network=bft_network,
@@ -434,7 +434,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
             self, trigger_view_change, crash_repeatedly):
         # we need a BFT network with f >= 2, allowing us to have 2
         # crashed replicas at the same time (the primary and the stale node)
-        for bft_config in bft.interesting_configs(f_min=2):
+        for bft_config in bft.interesting_configs(lambda n, f, c: f >= 2):
             config = bft.TestConfig(n=bft_config['n'],
                                     f=bft_config['f'],
                                     c=bft_config['c'],
@@ -496,8 +496,8 @@ class SkvbcPersistenceTest(unittest.TestCase):
         if trigger_view_change:
             await self._trigger_view_change(skvbc)
 
-        up_to_date_replicas = tuple(set(range(0, n)) - {primary, stale})
-        up_to_date_replica = random.choice(up_to_date_replicas)
+        up_to_date_replica = random.choice(
+            bft_network.all_replicas(without={primary, stale}))
 
         await bft_network.wait_for_state_transfer_to_stop(
             up_to_date_node=up_to_date_replica,
@@ -531,8 +531,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
             self, skvbc, bft_network, n, primary, stale):
 
         current_primary = primary
-        stable_replicas = \
-            tuple(set(range(n)) - {primary, stale})
+        stable_replicas = bft_network.all_replicas(without={primary, stale})
 
         for _ in range(2):
             print(f'Stopping current primary replica {current_primary} '
@@ -558,12 +557,12 @@ class SkvbcPersistenceTest(unittest.TestCase):
             )
 
             stable_replicas = \
-                tuple(set(range(n)) - {current_primary, stale})
+                bft_network.all_replicas(without={current_primary, stale})
 
         bft_network.start_replica(stale)
 
         await bft_network.wait_for_state_transfer_to_stop(
-            up_to_date_node=random.choice(stable_replicas),
+            up_to_date_node=current_primary,
             stale_node=stale
         )
 
