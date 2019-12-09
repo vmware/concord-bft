@@ -13,7 +13,7 @@
 
 #include "MessageBase.hpp"
 #include "assertUtils.hpp"
-#include "ReplicaConfigSingleton.hpp"
+#include "ReplicaConfig.hpp"
 
 #ifdef DEBUG_MEMORY_MSG
 #include <set>

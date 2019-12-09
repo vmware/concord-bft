@@ -12,11 +12,9 @@
 #pragma once
 
 #include "PrimitiveTypes.hpp"
-
+#include "bftEngine/ReplicaConfig.hpp"
 #include "CollectorOfThresholdSignatures.hpp"
-
 #include "SeqNumInfo.hpp"
-
 #include "Digest.hpp"
 #include "Crypto.hpp"
 #include "DebugStatistics.hpp"
@@ -62,34 +60,31 @@ class StateTransferMsg;
 class ReplicaStatusMsg;
 class ReplicaImp;
 
+using bftEngine::ReplicaConfig;
 using PtrToMetaMsgHandler = void (ReplicaImp::*)(MessageBase* msg);
 
 class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
  protected:
-  // system params
-  const ReplicaId myReplicaId;
-  const uint16_t fVal;
-  const uint16_t cVal;
+  ReplicaConfig config_;
+
   const uint16_t numOfReplicas;
-  const uint16_t numOfClientProxies;
   const bool viewChangeProtocolEnabled;
-  const bool supportDirectProofs;  // TODO(GG): add support
-  const bool debugStatisticsEnabled;
+  const bool supportDirectProofs = false;  // TODO(GG): add support
 
   // pointers to message handlers
   const std::unordered_map<uint16_t, PtrToMetaMsgHandler> metaMsgHandlers;
 
   // communication
-  class MsgReceiver;  // forward declaration
-  IncomingMsgsStorage incomingMsgsStorage;
-  MsgReceiver* msgReceiver;
+  class MsgReceiver;                                // forward declaration
+  IncomingMsgsStorage incomingMsgsStorage = 20000;  // TODO(GG): use configuration
+  MsgReceiver* msgReceiver = nullptr;
   ICommunication* communication;
 
   // main thread of the this replica
   std::thread mainThread;
-  bool mainThreadStarted;
-  bool mainThreadShouldStop;
-  bool mainThreadShouldStopWhenStateIsNotCollected;
+  bool mainThreadStarted = false;
+  bool mainThreadShouldStop = false;
+  bool mainThreadShouldStopWhenStateIsNotCollected = false;
 
   // If this replica was restarted and loaded data from
   // persistent storage.
@@ -102,44 +97,41 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   RetransmissionsManager* retransmissionsManager = nullptr;
 
   // controller
-  ControllerBase* controller;
+  ControllerBase* controller = nullptr;
 
   // general information about the replicas
-  ReplicasInfo* repsInfo;
+  ReplicasInfo* repsInfo = nullptr;
 
   // digital signatures
-  SigManager* sigManager;
+  SigManager* sigManager = nullptr;
 
   // view change logic
   ViewsManager* viewsManager = nullptr;
 
-  //
-  uint16_t maxConcurrentAgreementsByPrimary;
-
   // the current view of this replica
-  ViewNum curView;
+  ViewNum curView = 0;
 
   // the last SeqNum used to generate a new SeqNum (valid when this replica is the primary)
-  SeqNum primaryLastUsedSeqNum;
+  SeqNum primaryLastUsedSeqNum = 0;
 
   // the latest stable SeqNum known to this replica
-  SeqNum lastStableSeqNum;
+  SeqNum lastStableSeqNum = 0;
 
   // last SeqNum executed  by this replica (or its affect was transferred to this replica)
-  SeqNum lastExecutedSeqNum;
+  SeqNum lastExecutedSeqNum = 0;
 
   //
-  SeqNum strictLowerBoundOfSeqNums;
+  SeqNum strictLowerBoundOfSeqNums = 0;
 
   //
-  SeqNum maxSeqNumTransferredFromPrevViews;
+  SeqNum maxSeqNumTransferredFromPrevViews = 0;
 
   // requests queue (used by the primary)
   std::queue<ClientRequestMsg*> requestsQueueOfPrimary;  // only used by the primary
 
   // bounded log used to store information about SeqNums in the range (lastStableSeqNum,lastStableSeqNum +
   // kWorkWindowSize]
-  SequenceWithActiveWindow<kWorkWindowSize, 1, SeqNum, SeqNumInfo, SeqNumInfo>* mainLog;
+  SequenceWithActiveWindow<kWorkWindowSize, 1, SeqNum, SeqNumInfo, SeqNumInfo>* mainLog = nullptr;
 
   // bounded log used to store information about checkpoints in the range [lastStableSeqNum,lastStableSeqNum +
   // kWorkWindowSize]
@@ -147,7 +139,7 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
                            checkpointWindowSize,
                            SeqNum,
                            CheckpointInfo,
-                           CheckpointInfo>* checkpointsLog;
+                           CheckpointInfo>* checkpointsLog = nullptr;
 
   // last known stable checkpoint of each peer replica.
   // We sometimes delete checkpoints before lastExecutedSeqNum
@@ -163,39 +155,26 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   bftEngine::IStateTransfer* stateTransfer = nullptr;
 
   // variables that are used to heuristically compute the 'optimal' batch size
-  size_t maxNumberOfPendingRequestsInRecentHistory;
-  size_t batchingFactor;
+  size_t maxNumberOfPendingRequestsInRecentHistory = 0;
+  size_t batchingFactor = 1;
 
   RequestsHandler* const userRequestsHandler;
 
-  // Threshold signatures
-  IThresholdSigner* thresholdSignerForExecution;
-  IThresholdVerifier* thresholdVerifierForExecution;
-
-  IThresholdSigner* thresholdSignerForSlowPathCommit;
-  IThresholdVerifier* thresholdVerifierForSlowPathCommit;
-
-  IThresholdSigner* thresholdSignerForCommit;
-  IThresholdVerifier* thresholdVerifierForCommit;
-
-  IThresholdSigner* thresholdSignerForOptimisticCommit;
-  IThresholdVerifier* thresholdVerifierForOptimisticCommit;
-
   // used to dynamically estimate a upper bound for consensus rounds
-  DynamicUpperLimitWithSimpleFilter<int64_t>* dynamicUpperLimitOfRounds;
+  DynamicUpperLimitWithSimpleFilter<int64_t>* dynamicUpperLimitOfRounds = nullptr;
 
   //
-  ViewNum lastViewThatTransferredSeqNumbersFullyExecuted;
+  ViewNum lastViewThatTransferredSeqNumbersFullyExecuted = MinTime;
 
   //
-  Time lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas;
+  Time lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas = MinTime;
   Time timeOfLastStateSynch;    // last time the replica received a new state (via the state transfer mechanism)
   Time timeOfLastViewEntrance;  // last time the replica entered to a new view
 
   //
-  ViewNum lastAgreedView;     // latest view number v such that the replica received 2f+2c+1 ViewChangeMsg messages with
-                              // view >= v
-  Time timeOfLastAgreedView;  // last time we changed lastAgreedView
+  ViewNum lastAgreedView = 0;  // latest view number v such that the replica received 2f+2c+1 ViewChangeMsg messages
+                               // with view >= v
+  Time timeOfLastAgreedView;   // last time we changed lastAgreedView
 
   // Timer manager/container
   concordUtil::Timers timers_;
@@ -210,7 +189,7 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   concordUtil::Timers::Handle debugStatTimer_;
   concordUtil::Timers::Handle metricsTimer_;
 
-  int viewChangeTimerMilli;
+  int viewChangeTimerMilli = 0;
 
   std::shared_ptr<PersistentStorage> ps_;
 
@@ -353,7 +332,7 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   void metaMessageHandler_IgnoreWhenCollectingState(MessageBase* msg);  // TODO(GG): rename
 
   ReplicaId currentPrimary() const { return repsInfo->primaryOfView(curView); }
-  bool isCurrentPrimary() const { return (currentPrimary() == myReplicaId); }
+  bool isCurrentPrimary() const { return (currentPrimary() == config_.replicaId); }
 
   static const uint16_t ALL_OTHER_REPLICAS = UINT16_MAX;
   void send(MessageBase* m, NodeIdType dest);
@@ -445,16 +424,18 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
 
   virtual util::SimpleThreadPool& getInternalThreadPool() override { return internalThreadPool; }
 
-  virtual IThresholdVerifier* getThresholdVerifierForExecution() override { return thresholdVerifierForExecution; }
-
-  virtual IThresholdVerifier* getThresholdVerifierForSlowPathCommit() override {
-    return thresholdVerifierForSlowPathCommit;
+  virtual IThresholdVerifier* getThresholdVerifierForExecution() override {
+    return config_.thresholdVerifierForExecution;
   }
 
-  virtual IThresholdVerifier* getThresholdVerifierForCommit() override { return thresholdVerifierForCommit; }
+  virtual IThresholdVerifier* getThresholdVerifierForSlowPathCommit() override {
+    return config_.thresholdVerifierForSlowPathCommit;
+  }
+
+  virtual IThresholdVerifier* getThresholdVerifierForCommit() override { return config_.thresholdVerifierForCommit; }
 
   virtual IThresholdVerifier* getThresholdVerifierForOptimisticCommit() override {
-    return thresholdVerifierForOptimisticCommit;
+    return config_.thresholdVerifierForOptimisticCommit;
   }
 
   virtual const ReplicasInfo& getReplicasInfo() override { return (*repsInfo); }

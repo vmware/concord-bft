@@ -18,7 +18,7 @@
 
 #include <condition_variable>
 #include <mutex>
-#include "bftengine/ReplicaConfigSingleton.hpp"
+#include "bftengine/ReplicaConfig.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -138,7 +138,7 @@ Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
   bool isNewStorage = true;
 
   // Initialize the configuration singleton here to use correct values during persistent storage initialization.
-  ReplicaConfigSingleton::GetInstance(replicaConfig);
+  replicaConfig->singletonFromThis();
 
   if (replicaConfig->debugPersistentStorageEnabled)
     if (metadataStorage == nullptr)

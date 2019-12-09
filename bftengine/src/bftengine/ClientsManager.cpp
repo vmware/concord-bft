@@ -16,7 +16,7 @@
 #include "IStateTransfer.hpp"
 #include "assertUtils.hpp"
 #include "Logger.hpp"
-#include "ReplicaConfigSingleton.hpp"
+#include "ReplicaConfig.hpp"
 
 namespace bftEngine {
 namespace impl {

@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <set>
 #include <string>
+#include <mutex>
 
 class IThresholdSigner;
 class IThresholdVerifier;
@@ -51,28 +52,28 @@ struct ReplicaConfig {
   uint16_t viewChangeTimerMillisec = 0;
 
   // public keys of all replicas. map from replica identifier to a public key
-  std::set<std::pair<uint16_t, std::string>> publicKeysOfReplicas;
+  std::set<std::pair<uint16_t, const std::string>> publicKeysOfReplicas;
 
   // private key of the current replica
   std::string replicaPrivateKey;
 
   // signer and verifier of a threshold signature (for threshold fVal+1 out of N)
   // In the current version, both should be nullptr
-  IThresholdSigner *thresholdSignerForExecution = nullptr;
-  IThresholdVerifier *thresholdVerifierForExecution = nullptr;
+  IThresholdSigner* thresholdSignerForExecution = nullptr;
+  IThresholdVerifier* thresholdVerifierForExecution = nullptr;
 
   // signer and verifier of a threshold signature (for threshold N-fVal-cVal out of N)
-  IThresholdSigner *thresholdSignerForSlowPathCommit = nullptr;
-  IThresholdVerifier *thresholdVerifierForSlowPathCommit = nullptr;
+  IThresholdSigner* thresholdSignerForSlowPathCommit = nullptr;
+  IThresholdVerifier* thresholdVerifierForSlowPathCommit = nullptr;
 
   // signer and verifier of a threshold signature (for threshold N-cVal out of N)
   // If cVal==0, then both should be nullptr
-  IThresholdSigner *thresholdSignerForCommit = nullptr;
-  IThresholdVerifier *thresholdVerifierForCommit = nullptr;
+  IThresholdSigner* thresholdSignerForCommit = nullptr;
+  IThresholdVerifier* thresholdVerifierForCommit = nullptr;
 
   // signer and verifier of a threshold signature (for threshold N out of N)
-  IThresholdSigner *thresholdSignerForOptimisticCommit = nullptr;
-  IThresholdVerifier *thresholdVerifierForOptimisticCommit = nullptr;
+  IThresholdSigner* thresholdSignerForOptimisticCommit = nullptr;
+  IThresholdVerifier* thresholdVerifierForOptimisticCommit = nullptr;
 
   bool debugPersistentStorageEnabled = false;
 
@@ -87,6 +88,75 @@ struct ReplicaConfig {
   // If set to true, this replica will periodically log debug statistics such as
   // throughput and number of messages sent.
   bool debugStatisticsEnabled = false;
+
+  /**
+   * create a singleton instance from this object
+   * call to this function will have effect only for the first time
+   */
+  void singletonFromThis();
 };
+
+/** System-wide singleton class for accessing replica configuration
+ *
+ */
+class ReplicaConfigSingleton {
+ public:
+  static ReplicaConfigSingleton& GetInstance() {
+    static ReplicaConfigSingleton instance_;
+    return instance_;
+  }
+
+  uint16_t GetFVal() const { return config_->fVal; }
+  uint16_t GetCVal() const { return config_->cVal; }
+  uint16_t GetReplicaId() const { return config_->replicaId; }
+  uint16_t GetNumOfClientProxies() const { return config_->numOfClientProxies; }
+  uint16_t GetStatusReportTimerMillisec() const { return config_->statusReportTimerMillisec; }
+  uint16_t GetConcurrencyLevel() const { return config_->concurrencyLevel; }
+  bool GetAutoViewChangeEnabled() const { return config_->autoViewChangeEnabled; }
+  uint16_t GetViewChangeTimerMillisec() const { return config_->viewChangeTimerMillisec; }
+  std::set<std::pair<uint16_t, const std::string>> GetPublicKeysOfReplicas() const {
+    return config_->publicKeysOfReplicas;
+  }
+  std::string GetReplicaPrivateKey() const { return config_->replicaPrivateKey; }
+
+  IThresholdSigner const* GetThresholdSignerForExecution() const { return config_->thresholdSignerForExecution; }
+  IThresholdVerifier const* GetThresholdVerifierForExecution() const { return config_->thresholdVerifierForExecution; }
+  IThresholdSigner const* GetThresholdSignerForSlowPathCommit() const {
+    return config_->thresholdSignerForSlowPathCommit;
+  }
+  IThresholdVerifier const* GetThresholdVerifierForSlowPathCommit() const {
+    return config_->thresholdVerifierForSlowPathCommit;
+  }
+  IThresholdSigner const* GetThresholdSignerForCommit() const { return config_->thresholdSignerForCommit; }
+  IThresholdVerifier const* GetThresholdVerifierForCommit() const { return config_->thresholdVerifierForCommit; }
+
+  IThresholdSigner const* GetThresholdSignerForOptimisticCommit() const {
+    return config_->thresholdSignerForOptimisticCommit;
+  }
+
+  IThresholdVerifier const* GetThresholdVerifierForOptimisticCommit() const {
+    return config_->thresholdVerifierForOptimisticCommit;
+  }
+
+  uint32_t GetMaxExternalMessageSize() const { return config_->maxExternalMessageSize; }
+  uint32_t GetMaxReplyMessageSize() const { return config_->maxReplyMessageSize; }
+  uint32_t GetMaxNumOfReservedPages() const { return config_->maxNumOfReservedPages; }
+  uint32_t GetSizeOfReservedPage() const { return config_->sizeOfReservedPage; }
+
+ private:
+  friend class ReplicaConfig;
+  void init(ReplicaConfig* config) { config_ = config; }
+
+  ReplicaConfigSingleton() = default;
+  ReplicaConfigSingleton(const ReplicaConfigSingleton&) = delete;
+  ReplicaConfigSingleton& operator=(const ReplicaConfigSingleton&) = delete;
+
+  const ReplicaConfig* config_ = nullptr;
+};
+
+inline void ReplicaConfig::singletonFromThis() {
+  static std::once_flag initialized_;
+  std::call_once(initialized_, [this]() { ReplicaConfigSingleton::GetInstance().init(this); });
+}
 
 }  // namespace bftEngine

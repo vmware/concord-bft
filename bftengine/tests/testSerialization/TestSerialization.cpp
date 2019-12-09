@@ -148,7 +148,7 @@ const uint16_t msgsNum = 2 * fVal + 2 * cVal + 1;
 
 typedef pair<uint16_t, string> IdToKeyPair;
 
-ReplicaConfig config;
+ReplicaConfig *config;
 bftEngine::impl::PersistentStorageImp *persistentStorageImp = nullptr;
 unique_ptr<MetadataStorage> metadataStorage;
 
@@ -425,45 +425,49 @@ void testSetSimpleParams(bool toSet) {
 }
 
 void fillReplicaConfig() {
-  config.fVal = fVal;
-  config.cVal = cVal;
-  config.replicaId = 3;
-  config.numOfClientProxies = 8;
-  config.statusReportTimerMillisec = 15;
-  config.concurrencyLevel = 5;
-  config.autoViewChangeEnabled = true;
-  config.viewChangeTimerMillisec = 12;
-  config.maxExternalMessageSize = 2048;
-  config.maxNumOfReservedPages = 256;
-  config.maxReplyMessageSize = 1024;
-  config.sizeOfReservedPage = 2048;
-  config.debugStatisticsEnabled = true;
+  config = new ReplicaConfig;
+  config->fVal = fVal;
+  config->cVal = cVal;
+  config->replicaId = 3;
+  config->numOfClientProxies = 8;
+  config->statusReportTimerMillisec = 15;
+  config->concurrencyLevel = 5;
+  config->autoViewChangeEnabled = true;
+  config->viewChangeTimerMillisec = 12;
+  config->maxExternalMessageSize = 2048;
+  config->maxNumOfReservedPages = 256;
+  config->maxReplyMessageSize = 1024;
+  config->sizeOfReservedPage = 2048;
+  config->debugStatisticsEnabled = true;
 
-  config.replicaPrivateKey = replicaPrivateKey;
-  config.publicKeysOfReplicas.insert(IdToKeyPair(0, publicKeyValue1));
-  config.publicKeysOfReplicas.insert(IdToKeyPair(1, publicKeyValue2));
-  config.publicKeysOfReplicas.insert(IdToKeyPair(2, publicKeyValue3));
-  config.publicKeysOfReplicas.insert(IdToKeyPair(3, publicKeyValue4));
+  config->replicaPrivateKey = replicaPrivateKey;
+  config->publicKeysOfReplicas.insert(IdToKeyPair(0, publicKeyValue1));
+  config->publicKeysOfReplicas.insert(IdToKeyPair(1, publicKeyValue2));
+  config->publicKeysOfReplicas.insert(IdToKeyPair(2, publicKeyValue3));
+  config->publicKeysOfReplicas.insert(IdToKeyPair(3, publicKeyValue4));
 
-  config.thresholdSignerForExecution = nullptr;
-  config.thresholdVerifierForExecution = new IThresholdVerifierDummy;
-  config.thresholdSignerForSlowPathCommit = new IThresholdSignerDummy;
-  config.thresholdVerifierForSlowPathCommit = new IThresholdVerifierDummy;
-  config.thresholdSignerForCommit = new IThresholdSignerDummy;
-  config.thresholdVerifierForCommit = new IThresholdVerifierDummy;
-  config.thresholdSignerForOptimisticCommit = new IThresholdSignerDummy;
-  config.thresholdVerifierForOptimisticCommit = new IThresholdVerifierDummy;
+  config->thresholdSignerForExecution = nullptr;
+  config->thresholdVerifierForExecution = new IThresholdVerifierDummy;
+  config->thresholdSignerForSlowPathCommit = new IThresholdSignerDummy;
+  config->thresholdVerifierForSlowPathCommit = new IThresholdVerifierDummy;
+  config->thresholdSignerForCommit = new IThresholdSignerDummy;
+  config->thresholdVerifierForCommit = new IThresholdVerifierDummy;
+  config->thresholdSignerForOptimisticCommit = new IThresholdSignerDummy;
+  config->thresholdVerifierForOptimisticCommit = new IThresholdVerifierDummy;
+  config->singletonFromThis();
+  config->singletonFromThis();
+  bftEngine::ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize();
 }
 
 void testSetReplicaConfig(bool toSet) {
   if (toSet) {
     persistentStorageImp->beginWriteTran();
-    persistentStorageImp->setReplicaConfig(config);
+    persistentStorageImp->setReplicaConfig(*config);
     persistentStorageImp->endWriteTran();
   }
   ReplicaConfig storedConfig = persistentStorageImp->getReplicaConfig();
   ReplicaConfigSerializer storedConfigSerializer(&storedConfig);
-  ReplicaConfigSerializer replicaConfigSerializer(&config);
+  ReplicaConfigSerializer replicaConfigSerializer(config);
   Assert(storedConfigSerializer == replicaConfigSerializer);
 }
 
@@ -483,11 +487,11 @@ int main() {
   PersistentStorageImp persistentStorage(fVal, cVal);
   metadataStorage.reset(new FileStorage(logger, dbFile));
   uint16_t numOfObjects = 0;
+  fillReplicaConfig();
   ObjectDescUniquePtr objectDescArray = persistentStorage.getDefaultMetadataObjectDescriptors(numOfObjects);
   metadataStorage->initMaxSizeOfObjects(objectDescArray.get(), numOfObjects);
   persistentStorageImp->init(move(metadataStorage));
 
-  fillReplicaConfig();
   testInit();
 
   bool init = true;
