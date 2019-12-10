@@ -144,7 +144,7 @@ class ReplicaConfigSingleton {
   uint32_t GetSizeOfReservedPage() const { return config_->sizeOfReservedPage; }
 
  private:
-  friend class ReplicaConfig;
+  friend struct ReplicaConfig;
   void init(ReplicaConfig* config) { config_ = config; }
 
   ReplicaConfigSingleton() = default;
