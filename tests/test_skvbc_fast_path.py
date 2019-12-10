@@ -166,7 +166,6 @@ class SkvbcFastPathTest(unittest.TestCase):
                                self.evaluation_period_seq_num*2):
                     key, val = await skvbc.write_known_kv()
                 await bft_network.assert_fast_path_prevalent(
-                    as_of_seq_num=self.evaluation_period_seq_num+1,
                     nb_slow_paths_so_far=self.evaluation_period_seq_num)
 
                 await skvbc.assert_kv_write_executed(key, val)

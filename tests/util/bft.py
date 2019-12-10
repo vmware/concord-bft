@@ -333,20 +333,16 @@ class BftTestNetwork:
                     nursery.start_soon(self._assert_state_transfer_not_started,
                                        r)
 
-    async def assert_fast_path_prevalent(
-            self, as_of_seq_num=1, nb_slow_paths_so_far=0):
+    async def assert_fast_path_prevalent(self, nb_slow_paths_so_far=0):
         """
-        Asserts there is at most 1 sequence processed on the slow path after "as_of_seq_num",
+        Asserts there is at most 1 sequence processed on the slow path,
         given the "nb_slow_paths_so_far".
         """
-        metric_key = ['replica', 'Gauges', 'lastExecutedSeqNum']
-        total_nb_executed_sequences = await self.metrics.get(0, *metric_key)
-
         metric_key = ['replica', 'Counters', 'slowPathCount']
         total_nb_slow_paths = await self.metrics.get(0, *metric_key)
         assert total_nb_slow_paths >= nb_slow_paths_so_far
 
-        assert (total_nb_slow_paths - nb_slow_paths_so_far) - (total_nb_executed_sequences - as_of_seq_num) <= 1, \
+        assert total_nb_slow_paths - nb_slow_paths_so_far <= 1, \
             f'Fast path is not prevalent for n={self.config.n}, f={self.config.f}, c={self.config.c}.'
 
     async def assert_slow_path_prevalent(

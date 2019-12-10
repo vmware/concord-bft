@@ -131,8 +131,7 @@ class SkvbcSlowPathTest(unittest.TestCase):
                 for _ in range(10):
                     key, val = await skvbc.write_known_kv()
 
-                await bft_network.assert_fast_path_prevalent(
-                    as_of_seq_num=10, nb_slow_paths_so_far=10)
+                await bft_network.assert_fast_path_prevalent(nb_slow_paths_so_far=10)
 
                 await skvbc.assert_kv_write_executed(key, val)
 
