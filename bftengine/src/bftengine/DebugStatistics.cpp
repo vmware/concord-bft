@@ -14,10 +14,12 @@
 
 #include <iomanip>
 #include <inttypes.h>
+#include <chrono>
 #include "messages/MsgCode.hpp"
 #include "Logger.hpp"
 
 using namespace std;
+using namespace std::chrono;
 
 namespace bftEngine {
 namespace impl {
@@ -35,18 +37,16 @@ void DebugStatistics::onCycleCheck() {
 
   Time currTime = getMonotonicTime();
 
-  long long durationMicroSec = subtract(currTime, d.lastCycleTime);
+  auto durationSec = duration_cast<seconds>(currTime - d.lastCycleTime);
 
-  double durationSec = durationMicroSec / 1000000.0;
-
-  if (durationSec < DEBUG_STAT_PERIOD_SECONDS) return;
+  if (durationSec < seconds(DEBUG_STAT_PERIOD_SECONDS)) return;
 
   double readThroughput = 0;
   double writeThroughput = 0;
 
-  if (d.completedReadOnlyRequests > 0) readThroughput = (d.completedReadOnlyRequests / durationSec);
+  if (d.completedReadOnlyRequests > 0) readThroughput = (d.completedReadOnlyRequests / durationSec.count());
 
-  if (d.completedReadWriteRequests > 0) writeThroughput = (d.completedReadWriteRequests / durationSec);
+  if (d.completedReadWriteRequests > 0) writeThroughput = (d.completedReadWriteRequests / durationSec.count());
 
   double avgBatchSize = 0;
   double avgPendingRequests = 0;
