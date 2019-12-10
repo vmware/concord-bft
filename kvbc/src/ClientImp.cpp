@@ -24,7 +24,7 @@ IClient* createClient(const ClientConfig& conf, bftEngine::ICommunication* comm)
   ClientImp* c = new ClientImp();
 
   c->config_ = conf;
-  c->replyBuf_ = (char*)std::malloc(conf.maxReplySize);
+  c->replyBuf_ = (char*)std::calloc(conf.maxReplySize, sizeof(char));
   c->seqGen_ = bftEngine::SeqNumberGeneratorForClientRequests::createSeqNumberGeneratorForClientRequests();
   c->comm_ = comm;
   c->bftClient_ = nullptr;
