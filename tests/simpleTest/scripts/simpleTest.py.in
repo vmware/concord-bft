@@ -13,8 +13,8 @@ import multiprocessing
 import histogram
 
 generate_concord_keys = "@concord_bft_tools_BINARY_DIR@/GenerateConcordKeys"
-bin_dir = "@bftengine_BINARY_DIR@/tests/simpleTest"
-log_dir = "@bftengine_BINARY_DIR@/tests/simpleTest/scripts"
+bin_dir = "@CMAKE_BINARY_DIR@/tests/simpleTest"
+log_dir = "@CMAKE_BINARY_DIR@/tests/simpleTest/scripts"
 
 g_logger = logging.getLogger("simpletest")
 g_log_formatter = logging.Formatter(
@@ -249,7 +249,7 @@ class TestConfig:
         subprocess.check_call(cmd)
 
         # create TLS certificates
-        cmd = ["./create_tls_certs.sh", str(self.num_of_replicas +
+        cmd = [os.path.join(log_dir, "create_tls_certs.sh"), str(self.num_of_replicas +
                                             self.num_of_clients),
                os.path.join(self.log_dir, "certs")]
         subprocess.call(cmd)

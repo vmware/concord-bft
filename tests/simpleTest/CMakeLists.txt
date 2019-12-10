@@ -9,7 +9,8 @@ add_executable(simpleTest_client $<TARGET_OBJECTS:logging_dev> ${simpleTest_clie
 
 target_include_directories(simpleTest_client
                            PRIVATE
-                           ..
+                           ${CMAKE_SOURCE_DIR}/util/include
+                           ../config
                            ${concord_bft_tools_SOURCE_DIR}
                            ${bftengine_SOURCE_DIR}/include
 )
@@ -32,7 +33,7 @@ add_executable(simpleTest_server
 
 target_include_directories(simpleTest_server
                            PRIVATE
-                           ..
+                           ${CMAKE_SOURCE_DIR}/tests/config
                            ${bftengine_SOURCE_DIR}/tests/simpleStorage
                            ${concord_bft_tools_SOURCE_DIR}
                            ${bftengine_SOURCE_DIR}/src/bftengine
@@ -63,6 +64,7 @@ target_include_directories(persistency_test PUBLIC
         ${bftengine_SOURCE_DIR}/tests/simpleStorage
         ${bftengine_SOURCE_DIR}/include/communication
         ${concord_bft_tools_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/tests/config
         ${SIMPLE_STORAGE_DIR})
 
 target_link_libraries(persistency_test PUBLIC

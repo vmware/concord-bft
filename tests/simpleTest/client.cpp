@@ -33,10 +33,9 @@
 #include <iostream>
 #include <limits>
 
-#include "config/test_comm_config.hpp"
-#include "config/test_parameters.hpp"
+#include "test_comm_config.hpp"
+#include "test_parameters.hpp"
 #include "simple_test_client.hpp"
-// simpleTest includes
 #include "Logger.hpp"
 
 using bftEngine::ICommunication;

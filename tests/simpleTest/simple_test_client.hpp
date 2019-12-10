@@ -1,16 +1,27 @@
+// Concord
 //
-// Created by Igor Golikov on 2019-07-01.
+// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
 //
+// This product is licensed to you under the Apache 2.0 license (the "License").
+// You may not use this product except in compliance with the Apache 2.0
+// License.
+//
+// This product may include a number of subcomponents with separate copyright
+// notices and license terms. Your use of these subcomponents is subject to the
+// terms and conditions of the subcomponent's license, as noted in the LICENSE
+// file.
 
 #ifndef CONCORD_BFT_SIMPLE_TEST_CLIENT_HPP
 #define CONCORD_BFT_SIMPLE_TEST_CLIENT_HPP
 
-#include "../../../tests/config/test_comm_config.hpp"
-#include "../../../tests/config/test_parameters.hpp"
-#include "../../../tests/simpleTest/commonDefs.h"
+#include "test_comm_config.hpp"
+#include "test_parameters.hpp"
+#include "commonDefs.h"
 #include "CommFactory.hpp"
 #include "SimpleClient.hpp"
 #include "CommDefs.hpp"
+#include "histogram.hpp"
+#include "misc.hpp"
 
 using namespace bftEngine;
 using namespace std;
@@ -79,6 +90,9 @@ class SimpleTestClient {
     // operation.
     bool hasExpectedLastValue = false;
 
+    concordUtils::Histogram hist;
+    hist.Clear();
+
     LOG_INFO(clientLogger, "Starting " << cp.numOfOperations);
 
     // Perform this check once all parameters configured.
@@ -99,6 +113,7 @@ class SimpleTestClient {
         printf("Total iterations count: %i\n", i);
       }
 
+      uint64_t start = get_monotonic_time();
       if (i % readMod == 0) {
         // Read the latest value every readMod-th operation.
 
@@ -185,6 +200,15 @@ class SimpleTestClient {
           expectedStateNum = retVal;
         }
       }
+
+      uint64_t end = get_monotonic_time();
+      uint64_t elapsedMicro = end - start;
+
+      if(cp.measurePerformance) {
+        hist.Add(elapsedMicro);
+        LOG_INFO(clientLogger, "RAWLatencyMicro " << elapsedMicro
+          << " Time " << (uint64_t)(end / 1e3));
+      }
     }
 
     // After all requests have been issued, stop communication and clean up.
@@ -193,6 +217,11 @@ class SimpleTestClient {
     delete pSeqGen;
     delete client;
     delete comm;
+
+    if(cp.measurePerformance) {
+      LOG_INFO(clientLogger,
+       std::endl << "Performance info from client " << cp.clientId <<  std::endl << hist.ToString());
+    }
 
     LOG_INFO(clientLogger, "test done, iterations: " << cp.numOfOperations);
     return true;
