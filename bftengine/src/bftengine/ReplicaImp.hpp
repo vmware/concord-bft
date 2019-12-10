@@ -12,7 +12,7 @@
 #pragma once
 
 #include "PrimitiveTypes.hpp"
-#include "bftEngine/ReplicaConfig.hpp"
+#include "ReplicaConfig.hpp"
 #include "CollectorOfThresholdSignatures.hpp"
 #include "SeqNumInfo.hpp"
 #include "Digest.hpp"
