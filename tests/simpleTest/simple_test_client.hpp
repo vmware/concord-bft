@@ -204,10 +204,9 @@ class SimpleTestClient {
       uint64_t end = get_monotonic_time();
       uint64_t elapsedMicro = end - start;
 
-      if(cp.measurePerformance) {
+      if (cp.measurePerformance) {
         hist.Add(elapsedMicro);
-        LOG_INFO(clientLogger, "RAWLatencyMicro " << elapsedMicro
-          << " Time " << (uint64_t)(end / 1e3));
+        LOG_INFO(clientLogger, "RAWLatencyMicro " << elapsedMicro << " Time " << (uint64_t)(end / 1e3));
       }
     }
 
@@ -218,9 +217,11 @@ class SimpleTestClient {
     delete client;
     delete comm;
 
-    if(cp.measurePerformance) {
+    if (cp.measurePerformance) {
       LOG_INFO(clientLogger,
-       std::endl << "Performance info from client " << cp.clientId <<  std::endl << hist.ToString());
+               std::endl
+                   << "Performance info from client " << cp.clientId << std::endl
+                   << hist.ToString());
     }
 
     LOG_INFO(clientLogger, "test done, iterations: " << cp.numOfOperations);
