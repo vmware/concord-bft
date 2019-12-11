@@ -465,7 +465,7 @@ void testSetReplicaConfig(bool toSet) {
   }
   ReplicaConfig storedConfig = persistentStorageImp->getReplicaConfig();
   ReplicaConfigSerializer storedConfigSerializer(&storedConfig);
-  ReplicaConfigSerializer replicaConfigSerializer(config);
+  ReplicaConfigSerializer replicaConfigSerializer(&config);
   Assert(storedConfigSerializer == replicaConfigSerializer);
 }
 
