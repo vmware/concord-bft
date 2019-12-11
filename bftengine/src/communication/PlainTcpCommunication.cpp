@@ -776,12 +776,12 @@ class PlainTCPCommunication::PlainTcpImpl {
     lock_guard<recursive_mutex> lock(_connectionsGuard);
     auto temp = _connections.find(destNode);
     if (temp != _connections.end()) {
-      LOG_TRACE(_logger, "conncection found, from: " << _selfId << ", to: " << destNode);
+      LOG_TRACE(_logger, "Connection found, from: " << _selfId << ", to: " << destNode);
 
       if (temp->second->connected) {
         temp->second->send(message, messageLength);
       } else {
-        LOG_TRACE(_logger, "conncection found but disconnected, from: " << _selfId << ", to: " << destNode);
+        LOG_TRACE(_logger, "Connection found but disconnected, from: " << _selfId << ", to: " << destNode);
       }
     }
 
