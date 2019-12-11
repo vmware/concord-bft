@@ -2429,9 +2429,9 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
   //
   //////////////////////////////////////////////////////////////////////////////
 
-  if (autoPrimaryUpdateEnabled && currentViewIsActive()) {
-    const uint64_t timeout =
-        (isCurrentPrimary() ? (autoPrimaryUpdateMilli) : (autoPrimaryUpdateMilli + viewChangeTimeoutMilli));
+  if (autoPrimaryRotationEnabled && currentViewIsActive()) {
+    const uint64_t timeout = (isCurrentPrimary() ? (autoPrimaryRotationTimerMilli)
+                                                 : (autoPrimaryRotationTimerMilli + viewChangeTimeoutMilli));
 
     const uint64_t diffMilli = duration_cast<milliseconds>(currTime - timeOfLastViewEntrance).count();
 
@@ -2858,9 +2858,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
                        ViewsManager *viewsMgr)
     : config_(config),
       numOfReplicas{(uint16_t)(3 * config_.fVal + 2 * config_.cVal + 1)},
-      viewChangeProtocolEnabled{((!forceViewChangeProtocolEnabled && !forceViewChangeProtocolDisabled)
-                                     ? config_.autoViewChangeEnabled
-                                     : forceViewChangeProtocolEnabled)},
+      viewChangeProtocolEnabled{config.viewChangeProtocolEnabled},
+      autoPrimaryRotationEnabled{config.autoPrimaryRotationEnabled},
       metaMsgHandlers{createMapOfMetaMsgHandlers()},
       restarted_{!firstTime},
       replyBuffer{(char *)std::malloc(config_.maxReplyMessageSize - sizeof(ClientReplyMsgHeader))},
@@ -2956,8 +2955,18 @@ ReplicaImp::ReplicaImp(bool firstTime,
   int statusReportTimerMilli = (sendStatusPeriodMilli > 0) ? sendStatusPeriodMilli : config_.statusReportTimerMillisec;
   Assert(statusReportTimerMilli > 0);
 
-  viewChangeTimerMilli = (viewChangeTimeoutMilli > 0) ? viewChangeTimeoutMilli : config_.viewChangeTimerMillisec;
+  // autoPrimaryRotationEnabled implies viewChangeProtocolEnabled
+  // Note: "p=>q" is equivalent to "not p or q"
+  AssertOR(!autoPrimaryRotationEnabled, viewChangeProtocolEnabled);
+
+  viewChangeTimerMilli = (viewChangeTimeoutMilli > 0) ? viewChangeTimeoutMilli : config.viewChangeTimerMillisec;
   Assert(viewChangeTimerMilli > 0);
+
+  if (autoPrimaryRotationEnabled) {
+    autoPrimaryRotationTimerMilli =
+        (autoPrimaryRotationTimerMilli > 0) ? autoPrimaryRotationTimerMilli : config.autoPrimaryRotationTimerMillisec;
+    Assert(autoPrimaryRotationTimerMilli > 0);
+  }
 
   // TODO(GG): use config ...
   dynamicUpperLimitOfRounds = new DynamicUpperLimitWithSimpleFilter<int64_t>(400, 2, 2500, 70, 32, 1000, 2, 2);
@@ -2981,7 +2990,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
 
   if (viewChangeProtocolEnabled) {
     int t = viewChangeTimerMilli;
-    if (autoPrimaryUpdateEnabled && t > autoPrimaryUpdateMilli) t = autoPrimaryUpdateMilli;
+    if (autoPrimaryRotationEnabled && t > autoPrimaryRotationTimerMilli) t = autoPrimaryRotationTimerMilli;
 
     // TODO(GG): what should be the time period here? .
     // TODO(GG):Consider to split to 2 different timers

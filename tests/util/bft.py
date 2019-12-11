@@ -208,11 +208,15 @@ class BftTestNetwork:
         try:
             with trio.fail_after(seconds=30):
                 while True:
-                    with trio.move_on_after(seconds=1):
-                        key = ['replica', 'Gauges', 'lastAgreedView']
-                        view = await self.metrics.get(replica_id, *key)
-                        if expected(view):
-                            return view
+                    try:
+                        with trio.move_on_after(seconds=1):
+                            key = ['replica', 'Gauges', 'lastAgreedView']
+                            view = await self.metrics.get(replica_id, *key)
+                            if expected(view):
+                                return view
+                    except KeyError:
+                        # metrics not yet available, continue looping
+                        continue
         except trio.TooSlowError:
             assert False, err_msg
 

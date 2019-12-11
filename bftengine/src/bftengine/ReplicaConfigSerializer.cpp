@@ -24,8 +24,9 @@ namespace impl {
 uint32_t ReplicaConfigSerializer::maxSize(uint32_t numOfReplicas) {
   return (sizeof(config_->fVal) + sizeof(config_->cVal) + sizeof(config_->replicaId) +
           sizeof(config_->numOfClientProxies) + sizeof(config_->statusReportTimerMillisec) +
-          sizeof(config_->concurrencyLevel) + sizeof(config_->autoViewChangeEnabled) +
-          sizeof(config_->viewChangeTimerMillisec) + MaxSizeOfPrivateKey + numOfReplicas * MaxSizeOfPublicKey +
+          sizeof(config_->concurrencyLevel) + sizeof(config_->viewChangeProtocolEnabled) +
+          sizeof(config_->viewChangeTimerMillisec) + sizeof(config_->autoPrimaryRotationEnabled) +
+          sizeof(config_->autoPrimaryRotationTimerMillisec) + MaxSizeOfPrivateKey + numOfReplicas * MaxSizeOfPublicKey +
           IThresholdSigner::maxSize() * 3 + IThresholdVerifier::maxSize() * 3 +
           sizeof(config_->maxExternalMessageSize) + sizeof(config_->maxReplyMessageSize) +
           sizeof(config_->maxNumOfReservedPages) + sizeof(config_->sizeOfReservedPage) +
@@ -67,11 +68,18 @@ void ReplicaConfigSerializer::serializeDataMembers(ostream &outStream) const {
   // Serialize concurrencyLevel
   outStream.write((char *)&config_->concurrencyLevel, sizeof(config_->concurrencyLevel));
 
-  // Serialize autoViewChangeEnabled
-  outStream.write((char *)&config_->autoViewChangeEnabled, sizeof(config_->autoViewChangeEnabled));
+  // Serialize viewChangeProtocolEnabled
+  outStream.write((char *)&config_->viewChangeProtocolEnabled, sizeof(config_->viewChangeProtocolEnabled));
 
   // Serialize viewChangeTimerMillisec
   outStream.write((char *)&config_->viewChangeTimerMillisec, sizeof(config_->viewChangeTimerMillisec));
+
+  // Serialize autoPrimaryRotationEnabled
+  outStream.write((char *)&config_->autoPrimaryRotationEnabled, sizeof(config_->autoPrimaryRotationEnabled));
+
+  // Serialize autoPrimaryRotationTimerMillisec
+  outStream.write((char *)&config_->autoPrimaryRotationTimerMillisec,
+                  sizeof(config_->autoPrimaryRotationTimerMillisec));
 
   // Serialize public keys
   auto numOfPublicKeys = (int64_t)config_->publicKeysOfReplicas.size();
@@ -124,8 +132,10 @@ bool ReplicaConfigSerializer::operator==(const ReplicaConfigSerializer &other) c
                  (other.config_->numOfClientProxies == config_->numOfClientProxies) &&
                  (other.config_->statusReportTimerMillisec == config_->statusReportTimerMillisec) &&
                  (other.config_->concurrencyLevel == config_->concurrencyLevel) &&
-                 (other.config_->autoViewChangeEnabled == config_->autoViewChangeEnabled) &&
+                 (other.config_->viewChangeProtocolEnabled == config_->viewChangeProtocolEnabled) &&
                  (other.config_->viewChangeTimerMillisec == config_->viewChangeTimerMillisec) &&
+                 (other.config_->autoPrimaryRotationEnabled == config_->autoPrimaryRotationEnabled) &&
+                 (other.config_->autoPrimaryRotationTimerMillisec == config_->autoPrimaryRotationTimerMillisec) &&
                  (other.config_->replicaPrivateKey == config_->replicaPrivateKey) &&
                  (other.config_->publicKeysOfReplicas == config_->publicKeysOfReplicas) &&
                  (other.config_->debugPersistentStorageEnabled == config_->debugPersistentStorageEnabled) &&
@@ -158,11 +168,17 @@ void ReplicaConfigSerializer::deserializeDataMembers(istream &inStream) {
   // Deserialize concurrencyLevel
   inStream.read((char *)&config.concurrencyLevel, sizeof(config.concurrencyLevel));
 
-  // Deserialize autoViewChangeEnabled
-  inStream.read((char *)&config.autoViewChangeEnabled, sizeof(config.autoViewChangeEnabled));
+  // Deserialize viewChangeProtocolEnabled
+  inStream.read((char *)&config.viewChangeProtocolEnabled, sizeof(config.viewChangeProtocolEnabled));
 
   // Deserialize viewChangeTimerMillisec
   inStream.read((char *)&config.viewChangeTimerMillisec, sizeof(config.viewChangeTimerMillisec));
+
+  // Deserialize autoPrimaryRotationEnabled
+  inStream.read((char *)&config.autoPrimaryRotationEnabled, sizeof(config.autoPrimaryRotationEnabled));
+
+  // Deserialize autoPrimaryRotationTimerMillisec
+  inStream.read((char *)&config.autoPrimaryRotationTimerMillisec, sizeof(config.autoPrimaryRotationTimerMillisec));
 
   // Deserialize public keys
   int64_t numOfPublicKeys = 0;

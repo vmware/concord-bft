@@ -431,8 +431,10 @@ void fillReplicaConfig() {
   config.numOfClientProxies = 8;
   config.statusReportTimerMillisec = 15;
   config.concurrencyLevel = 5;
-  config.autoViewChangeEnabled = true;
+  config.viewChangeProtocolEnabled = true;
   config.viewChangeTimerMillisec = 12;
+  config.autoPrimaryRotationEnabled = false;
+  config.autoPrimaryRotationTimerMillisec = 42;
   config.maxExternalMessageSize = 2048;
   config.maxNumOfReservedPages = 256;
   config.maxReplyMessageSize = 1024;

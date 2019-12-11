@@ -45,11 +45,17 @@ struct ReplicaConfig {
   // 1 <= concurrencyLevel <= 30
   uint16_t concurrencyLevel = 0;
 
-  // autoViewChangeEnabled=true , if the automatic view change protocol is enabled
-  bool autoViewChangeEnabled = false;
+  // viewChangeProtocolEnabled=true , if the view change protocol is enabled at all
+  bool viewChangeProtocolEnabled = false;
 
   // a time interval in milliseconds. represents the timeout used by the  view change protocol (TODO: add more details)
   uint16_t viewChangeTimerMillisec = 0;
+
+  // autoPrimaryRotationEnabled=true , if the automatic primary rotation is enabled
+  bool autoPrimaryRotationEnabled = false;
+
+  // a time interval in milliseconds, represents the timeout for automatically replacing the primary
+  uint16_t autoPrimaryRotationTimerMillisec = 0;
 
   // public keys of all replicas. map from replica identifier to a public key
   std::set<std::pair<uint16_t, const std::string>> publicKeysOfReplicas;
@@ -113,8 +119,11 @@ class ReplicaConfigSingleton {
   uint16_t GetNumOfClientProxies() const { return config_->numOfClientProxies; }
   uint16_t GetStatusReportTimerMillisec() const { return config_->statusReportTimerMillisec; }
   uint16_t GetConcurrencyLevel() const { return config_->concurrencyLevel; }
-  bool GetAutoViewChangeEnabled() const { return config_->autoViewChangeEnabled; }
+  bool GetViewChangeProtocolEnabled() const { return config_->viewChangeProtocolEnabled; }
   uint16_t GetViewChangeTimerMillisec() const { return config_->viewChangeTimerMillisec; }
+  bool GetAutoPrimaryRotationEnabled() const { return config_->autoPrimaryRotationEnabled; }
+
+  uint16_t GetAutoPrimaryRotationTimerMillisec() const { return config_->autoPrimaryRotationTimerMillisec; }
   std::set<std::pair<uint16_t, const std::string>> GetPublicKeysOfReplicas() const {
     return config_->publicKeysOfReplicas;
   }
