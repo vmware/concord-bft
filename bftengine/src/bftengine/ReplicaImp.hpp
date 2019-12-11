@@ -164,7 +164,7 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   DynamicUpperLimitWithSimpleFilter<int64_t>* dynamicUpperLimitOfRounds = nullptr;
 
   //
-  ViewNum lastViewThatTransferredSeqNumbersFullyExecuted = MinTime;
+  ViewNum lastViewThatTransferredSeqNumbersFullyExecuted = 0;
 
   //
   Time lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas = MinTime;
