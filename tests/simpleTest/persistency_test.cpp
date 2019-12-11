@@ -20,8 +20,8 @@
 #include <chrono>
 #include <time.h>
 #include <memory>
-#include "../../../tests/simpleTest/simple_test_client.hpp"
-#include "../../../tests/simpleTest/simple_test_replica.hpp"
+#include "simple_test_client.hpp"
+#include "simple_test_replica.hpp"
 
 namespace test {
 namespace persistency {
