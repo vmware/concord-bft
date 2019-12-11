@@ -209,6 +209,8 @@ class SimpleTestReplica {
     replicaConfig.debugPersistentStorageEnabled =
         rp.persistencyMode == PersistencyMode::InMemory || rp.persistencyMode == PersistencyMode::File;
 
+    replicaConfig.singletonFromThis();
+
     // This is the state machine that the replica will drive.
     SimpleAppState *simpleAppState = new SimpleAppState(rp.numOfClients, rp.numOfReplicas);
 

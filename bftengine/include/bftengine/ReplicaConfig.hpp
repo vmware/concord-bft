@@ -97,7 +97,8 @@ struct ReplicaConfig {
 };
 
 /** System-wide singleton class for accessing replica configuration
- *
+ *  Note: ReplicaConfig held by ReplicaConfigSingleton is a COPY of the ReplicaConfig object it was initialized from
+ *  This is done to decouple between the life cycles of the two.
  */
 class ReplicaConfigSingleton {
  public:
@@ -145,7 +146,7 @@ class ReplicaConfigSingleton {
 
  private:
   friend struct ReplicaConfig;
-  void init(ReplicaConfig* config) { config_ = config; }
+  void init(ReplicaConfig* config) { config_ = new ReplicaConfig(*config); }
 
   ReplicaConfigSingleton() = default;
   ReplicaConfigSingleton(const ReplicaConfigSingleton&) = delete;
