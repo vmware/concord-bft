@@ -75,8 +75,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
                             skvbc.send_indefinite_write_requests)
                         # See if replica 1 has become the new primary
                         # Check every .5 seconds
-                        view = await self._get_view_number(
-                            bft_network=bft_network,
+                        view = await bft_network.get_view_number(
                             replica_id=1,
                             expected=lambda v: v == 1
                         )
@@ -451,8 +450,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
                         stale_nodes={stale_replica}
                     )
 
-                view = await self._get_view_number(
-                    bft_network=bft_network,
+                view = await bft_network.get_view_number(
                     replica_id=0,
                     expected=lambda v: v == 0
                 )
@@ -505,8 +503,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
             stop_on_stable_seq_num=True
         )
 
-        view = await self._get_view_number(
-            bft_network=bft_network,
+        view = await bft_network.get_view_number(
             replica_id=up_to_date_replica,
             expected=lambda v: v > 0
         )
@@ -550,8 +547,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
             bft_network.start_replica(current_primary)
 
-            current_primary = await self._get_view_number(
-                bft_network=bft_network,
+            current_primary = await bft_network.get_view_number(
                 replica_id=random.choice(stable_replicas),
                 expected=lambda v: v > current_primary
             )
@@ -580,16 +576,6 @@ class SkvbcPersistenceTest(unittest.TestCase):
         with trio.move_on_after(1):  # seconds
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(skvbc.send_indefinite_write_requests)
-
-    async def _get_view_number(self, bft_network, replica_id, expected):
-        with trio.move_on_after(10):
-            while True:
-                with trio.move_on_after(.5):  # seconds
-                    key = ['replica', 'Gauges', 'lastAgreedView']
-                    view = await bft_network.metrics.get(replica_id, *key)
-                    if expected(view):
-                        break
-        return view
 
     async def _restart_stale_until_fetches_from_unstable(
             self, bft_network, stale, unstable_replicas):
