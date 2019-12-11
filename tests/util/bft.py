@@ -16,6 +16,7 @@ import sys
 
 import os
 import os.path
+import shutil
 import random
 import subprocess
 from collections import namedtuple
@@ -87,6 +88,7 @@ class BftTestNetwork:
         self.metrics.__exit__()
         self.stop_all_replicas()
         os.chdir(self.origdir)
+        shutil.rmtree(self.testdir, ignore_errors=True)
 
     def __init__(self, config):
         self.origdir = os.getcwd()
