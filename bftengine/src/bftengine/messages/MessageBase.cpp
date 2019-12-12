@@ -134,7 +134,7 @@ void MessageBase::writeObjAndMsgToLocalBuffer(char *buffer, size_t bufferLength,
   Assert(sizeNeeded <= bufferLength);
 
   RawHeaderOfObjAndMsg *pHeader = (RawHeaderOfObjAndMsg *)buffer;
-  pHeader->magicNum = magicNumOfRawFormat;
+  pHeader->magicNum = magicNumOfRawFormat_;
   pHeader->msgSize = msgSize_;
   pHeader->sender = sender_;
 
@@ -159,7 +159,7 @@ MessageBase *MessageBase::createObjAndMsgFromLocalBuffer(char *buffer, size_t bu
   if (bufferLength <= sizeof(RawHeaderOfObjAndMsg)) return nullptr;
 
   RawHeaderOfObjAndMsg *pHeader = (RawHeaderOfObjAndMsg *)buffer;
-  if (pHeader->magicNum != magicNumOfRawFormat) return nullptr;
+  if (pHeader->magicNum != magicNumOfRawFormat_) return nullptr;
   if (pHeader->msgSize == 0) return nullptr;
   if (pHeader->msgSize > ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize()) return nullptr;
   if (pHeader->msgSize + sizeof(RawHeaderOfObjAndMsg) > bufferLength) return nullptr;

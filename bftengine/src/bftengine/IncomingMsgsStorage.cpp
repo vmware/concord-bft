@@ -12,122 +12,102 @@
 // file.
 
 #include "IncomingMsgsStorage.hpp"
-#include "messages/MessageBase.hpp"
 #include "Logger.hpp"
-#include <chrono>
 
 using std::queue;
 using namespace std::chrono;
 
-namespace bftEngine {
-namespace impl {
+namespace bftEngine::impl {
 
 IncomingMsgsStorage::IncomingMsgsStorage(uint16_t maxNumOfPendingExternalMsgs)
-    : maxNumberOfPendingExternalMsgs{maxNumOfPendingExternalMsgs} {
-  ptrProtectedQueueForExternalMessages = new queue<std::unique_ptr<MessageBase>>();
-  ptrProtectedQueueForInternalMessages = new queue<std::unique_ptr<InternalMessage>>();
+    : maxNumberOfPendingExternalMsgs_{maxNumOfPendingExternalMsgs} {
+  ptrProtectedQueueForExternalMessages_ = new queue<std::unique_ptr<MessageBase>>();
+  ptrProtectedQueueForInternalMessages_ = new queue<std::unique_ptr<InternalMessage>>();
 
-  lastOverflowWarning = MinTime;
+  lastOverflowWarning_ = MinTime;
 
-  ptrThreadLocalQueueForExternalMessages = new queue<std::unique_ptr<MessageBase>>();
-  ptrThreadLocalQueueForInternalMessages = new queue<std::unique_ptr<InternalMessage>>();
+  ptrThreadLocalQueueForExternalMessages_ = new queue<std::unique_ptr<MessageBase>>();
+  ptrThreadLocalQueueForInternalMessages_ = new queue<std::unique_ptr<InternalMessage>>();
 }
 
 IncomingMsgsStorage::~IncomingMsgsStorage() {
-  delete ptrProtectedQueueForExternalMessages;
-  delete ptrProtectedQueueForInternalMessages;
-  delete ptrThreadLocalQueueForExternalMessages;
-  delete ptrThreadLocalQueueForInternalMessages;
+  delete ptrProtectedQueueForExternalMessages_;
+  delete ptrProtectedQueueForInternalMessages_;
+  delete ptrThreadLocalQueueForExternalMessages_;
+  delete ptrThreadLocalQueueForInternalMessages_;
 }
 
 // can be called by any thread
 void IncomingMsgsStorage::pushExternalMsg(std::unique_ptr<MessageBase> m) {
-  std::unique_lock<std::mutex> mlock(lock);
+  std::unique_lock<std::mutex> mlock(lock_);
   {
-    if (ptrProtectedQueueForExternalMessages->size() >= maxNumberOfPendingExternalMsgs) {
+    if (ptrProtectedQueueForExternalMessages_->size() >= maxNumberOfPendingExternalMsgs_) {
       Time now = getMonotonicTime();
-      if ((now - lastOverflowWarning) > (milliseconds(minTimeBetweenOverflowWarningsMilli))) {
+      if ((now - lastOverflowWarning_) > (milliseconds(minTimeBetweenOverflowWarningsMilli_))) {
         LOG_WARN_F(GL,
                    "More than %d pending messages in queue -  may ignore some "
                    "of the messages!",
-                   (int)maxNumberOfPendingExternalMsgs);
-
-        lastOverflowWarning = now;
+                   (int)maxNumberOfPendingExternalMsgs_);
+        lastOverflowWarning_ = now;
       }
     } else {
-      ptrProtectedQueueForExternalMessages->push(std::move(m));
-      condVar.notify_one();
+      ptrProtectedQueueForExternalMessages_->push(std::move(m));
+      condVar_.notify_one();
     }
   }
 }
 
 // can be called by any thread
-void IncomingMsgsStorage::pushInternalMsg(std::unique_ptr<InternalMessage> m) {
-  std::unique_lock<std::mutex> mlock(lock);
+void IncomingMsgsStorage::pushInternalMsg(std::unique_ptr<InternalMessage> msg) {
+  std::unique_lock<std::mutex> mlock(lock_);
   {
-    ptrProtectedQueueForInternalMessages->push(std::move(m));
-    condVar.notify_one();
+    ptrProtectedQueueForInternalMessages_->push(std::move(msg));
+    condVar_.notify_one();
   }
 }
 
 // should only be called by the main thread
-IncomingMsg IncomingMsgsStorage::pop(std::chrono::milliseconds timeout) {
+IncomingMsg IncomingMsgsStorage::popInternalOrExternalMsg(std::chrono::milliseconds timeout) {
   auto msg = popThreadLocal();
-  if (msg.tag != IncomingMsg::INVALID) {
-    return msg;
-  }
+  if (msg.tag != IncomingMsg::INVALID) return msg;
 
   {
-    std::unique_lock<std::mutex> mlock(lock);
-
+    std::unique_lock<std::mutex> mlock(lock_);
     {
-      if (ptrProtectedQueueForExternalMessages->empty() && ptrProtectedQueueForInternalMessages->empty())
-        condVar.wait_for(mlock, timeout);
+      if (ptrProtectedQueueForExternalMessages_->empty() && ptrProtectedQueueForInternalMessages_->empty())
+        condVar_.wait_for(mlock, timeout);
 
       // no new message
-      if (ptrProtectedQueueForExternalMessages->empty() && ptrProtectedQueueForInternalMessages->empty()) {
+      if (ptrProtectedQueueForExternalMessages_->empty() && ptrProtectedQueueForInternalMessages_->empty()) {
         return IncomingMsg();
       }
 
       // swap queues
+      std::queue<std::unique_ptr<MessageBase>>* t1 = ptrThreadLocalQueueForExternalMessages_;
+      ptrThreadLocalQueueForExternalMessages_ = ptrProtectedQueueForExternalMessages_;
+      ptrProtectedQueueForExternalMessages_ = t1;
 
-      std::queue<std::unique_ptr<MessageBase>>* t1 = ptrThreadLocalQueueForExternalMessages;
-      ptrThreadLocalQueueForExternalMessages = ptrProtectedQueueForExternalMessages;
-      ptrProtectedQueueForExternalMessages = t1;
-
-      std::queue<std::unique_ptr<InternalMessage>>* t2 = ptrThreadLocalQueueForInternalMessages;
-      ptrThreadLocalQueueForInternalMessages = ptrProtectedQueueForInternalMessages;
-      ptrProtectedQueueForInternalMessages = t2;
+      std::queue<std::unique_ptr<InternalMessage>>* t2 = ptrThreadLocalQueueForInternalMessages_;
+      ptrThreadLocalQueueForInternalMessages_ = ptrProtectedQueueForInternalMessages_;
+      ptrProtectedQueueForInternalMessages_ = t2;
     }
   }
 
   return popThreadLocal();
 }
 
-// should only be called by the main thread.
-bool IncomingMsgsStorage::empty() {
-  if (!ptrThreadLocalQueueForExternalMessages->empty() || !ptrThreadLocalQueueForInternalMessages->empty())
-    return false;
-
-  {
-    std::unique_lock<std::mutex> mlock(lock);
-    { return (ptrProtectedQueueForExternalMessages->empty() && ptrProtectedQueueForInternalMessages->empty()); }
-  }
-}
-
 IncomingMsg IncomingMsgsStorage::popThreadLocal() {
-  if (!ptrThreadLocalQueueForInternalMessages->empty()) {
-    auto item = IncomingMsg(std::move(ptrThreadLocalQueueForInternalMessages->front()));
-    ptrThreadLocalQueueForInternalMessages->pop();
+  if (!ptrThreadLocalQueueForInternalMessages_->empty()) {
+    auto item = IncomingMsg(std::move(ptrThreadLocalQueueForInternalMessages_->front()));
+    ptrThreadLocalQueueForInternalMessages_->pop();
     return item;
-  } else if (!ptrThreadLocalQueueForExternalMessages->empty()) {
-    auto item = IncomingMsg(std::move(ptrThreadLocalQueueForExternalMessages->front()));
-    ptrThreadLocalQueueForExternalMessages->pop();
+  } else if (!ptrThreadLocalQueueForExternalMessages_->empty()) {
+    auto item = IncomingMsg(std::move(ptrThreadLocalQueueForExternalMessages_->front()));
+    ptrThreadLocalQueueForExternalMessages_->pop();
     return item;
   } else {
     return IncomingMsg();
   }
 }
 
-}  // namespace impl
-}  // namespace bftEngine
+}  // namespace bftEngine::impl

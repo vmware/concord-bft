@@ -14,11 +14,11 @@
 #include <unordered_map>
 #include <set>
 
+#include "MsgsCommunicator.hpp"
+#include "SimpleThreadPool.hpp"
 #include "PrimitiveTypes.hpp"
 #include "Digest.hpp"
 #include "Crypto.hpp"
-#include "SimpleThreadPool.hpp"
-#include "IncomingMsgsStorage.hpp"
 #include "assertUtils.hpp"
 
 namespace bftEngine {
@@ -31,7 +31,7 @@ template <typename PART, typename FULL, typename ExternalFunc>
 // TODO(GG): add Assert(ExternalFunc::numberOfRequiredSignatures(context) > 1);
 class CollectorOfThresholdSignatures {
  public:
-  CollectorOfThresholdSignatures(void* cnt) { this->context = cnt; }
+  explicit CollectorOfThresholdSignatures(void* cnt) { context = cnt; }
 
   ~CollectorOfThresholdSignatures() { resetAndFree(); }
 
@@ -81,8 +81,8 @@ class CollectorOfThresholdSignatures {
     resetContent();
   }
 
-  void getAndReset(FULL*& outcombinedValidSignatureMsg) {
-    outcombinedValidSignatureMsg = combinedValidSignatureMsg;
+  void getAndReset(FULL*& outCombinedValidSignatureMsg) {
+    outCombinedValidSignatureMsg = combinedValidSignatureMsg;
 
     if ((replicasInfo.size() == 0) && (combinedValidSignatureMsg == nullptr) &&
         (candidateCombinedSignatureMsg == nullptr) && (expectedSeqNumber == 0))
@@ -218,7 +218,6 @@ class CollectorOfThresholdSignatures {
     Assert(succ);  // we should verify this signature when it is loaded
 
     combinedValidSignatureMsg = combinedSigMsg;
-
     return true;
   }
 
@@ -234,26 +233,26 @@ class CollectorOfThresholdSignatures {
     if (candidateCombinedSignatureMsg != nullptr) {
       processingSignaturesInTheBackground = true;
 
-      CombinedSigVerificationJob* bkJob = new CombinedSigVerificationJob(ExternalFunc::thresholdVerifier(context),
-                                                                         &ExternalFunc::incomingMsgsStorage(context),
-                                                                         expectedSeqNumber,
-                                                                         expectedView,
-                                                                         expectedDigest,
-                                                                         candidateCombinedSignatureMsg->signatureBody(),
-                                                                         candidateCombinedSignatureMsg->signatureLen(),
-                                                                         context);
+      auto* bkJob = new CombinedSigVerificationJob(ExternalFunc::thresholdVerifier(context),
+                                                   ExternalFunc::msgsCommunicator(context),
+                                                   expectedSeqNumber,
+                                                   expectedView,
+                                                   expectedDigest,
+                                                   candidateCombinedSignatureMsg->signatureBody(),
+                                                   candidateCombinedSignatureMsg->signatureLen(),
+                                                   context);
 
       ExternalFunc::threadPool(context).add(bkJob);
     } else if (numberOfUnknownSignatures >= numOfRequiredSigs) {
       processingSignaturesInTheBackground = true;
 
-      SignaturesProcessingJob* bkJob = new SignaturesProcessingJob(ExternalFunc::thresholdVerifier(context),
-                                                                   &ExternalFunc::incomingMsgsStorage(context),
-                                                                   expectedSeqNumber,
-                                                                   expectedView,
-                                                                   expectedDigest,
-                                                                   numOfRequiredSigs,
-                                                                   context);
+      auto* bkJob = new SignaturesProcessingJob(ExternalFunc::thresholdVerifier(context),
+                                                ExternalFunc::msgsCommunicator(context),
+                                                expectedSeqNumber,
+                                                expectedView,
+                                                expectedDigest,
+                                                numOfRequiredSigs,
+                                                context);
 
       uint16_t numOfPartSigsInJob = 0;
       for (std::pair<uint16_t, RepInfo>&& info : replicasInfo) {
@@ -284,36 +283,34 @@ class CollectorOfThresholdSignatures {
     };
 
     IThresholdVerifier* const verifier;
-    IncomingMsgsStorage* const repMsgsStorage;
+    std::shared_ptr<MsgsCommunicator> msgsCommunicator_;
     const SeqNum expectedSeqNumber;
     const ViewNum expectedView;
     const Digest expectedDigest;
     const uint16_t reqDataItems;
     SigData* const sigDataItems;
-
     uint16_t numOfDataItems;
+    void* context = nullptr;
 
-    void* context;
-
-    virtual ~SignaturesProcessingJob() {}
+    virtual ~SignaturesProcessingJob() = default;
 
    public:
     SignaturesProcessingJob(IThresholdVerifier* const thresholdVerifier,
-                            IncomingMsgsStorage* const replicaMsgsStorage,
+                            std::shared_ptr<MsgsCommunicator>& msgsCommunicator,
                             SeqNum seqNum,
                             ViewNum view,
                             Digest& digest,
                             uint16_t numOfRequired,
                             void* cnt)
         : verifier{thresholdVerifier},
-          repMsgsStorage{replicaMsgsStorage},
+          msgsCommunicator_{msgsCommunicator},
           expectedSeqNumber{seqNum},
           expectedView{view},
           expectedDigest{digest},
           reqDataItems{numOfRequired},
           sigDataItems{new SigData[numOfRequired]},
           numOfDataItems(0) {
-      this->context = cnt;
+      context = cnt;
     }
 
     void add(ReplicaId srcRepId, const char* sigBody, uint16_t sigLength) {
@@ -329,23 +326,22 @@ class CollectorOfThresholdSignatures {
       numOfDataItems++;
     }
 
-    virtual void release() override {
+    void release() override {
       for (uint16_t i = 0; i < numOfDataItems; i++) {
         SigData& d = sigDataItems[i];
         std::free(d.sigBody);
       }
 
       delete[] sigDataItems;
-
       delete this;
     }
 
-    virtual void execute() override {
+    void execute() override {
       Assert(numOfDataItems == reqDataItems);
 
       // TODO(GG): can utilize several threads (discuss with Alin)
 
-      const uint16_t bufferSize = (uint16_t)verifier->requiredLengthForSignedData();
+      auto bufferSize = (uint16_t)verifier->requiredLengthForSignedData();
       char* const bufferForSigComputations = (char*)alloca(bufferSize);  // TODO(GG): check
 
       {
@@ -381,7 +377,7 @@ class CollectorOfThresholdSignatures {
           if (prevNumOfValidShares + 1 != currNumOfValidShares) replicasWithBadSigs.insert(sigDataItems[i].srcRepId);
         }
 
-        if (replicasWithBadSigs.size() == 0) {
+        if (replicasWithBadSigs.empty()) {
           // TODO(GG): print warning / error ??
         }
 
@@ -390,12 +386,12 @@ class CollectorOfThresholdSignatures {
         // send internal message with the results
         std::unique_ptr<InternalMessage> iMsg(
             ExternalFunc::createInterCombinedSigFailed(context, expectedSeqNumber, expectedView, replicasWithBadSigs));
-        repMsgsStorage->pushInternalMsg(std::move(iMsg));
+        msgsCommunicator_->pushInternalMsg(std::move(iMsg));
       } else {
         // send internal message with the results
         std::unique_ptr<InternalMessage> iMsg(ExternalFunc::createInterCombinedSigSucceeded(
             context, expectedSeqNumber, expectedView, bufferForSigComputations, bufferSize));
-        repMsgsStorage->pushInternalMsg(std::move(iMsg));
+        msgsCommunicator_->pushInternalMsg(std::move(iMsg));
       }
     }
   };
@@ -403,19 +399,19 @@ class CollectorOfThresholdSignatures {
   class CombinedSigVerificationJob : public util::SimpleThreadPool::Job {
    private:
     IThresholdVerifier* const verifier;
-    IncomingMsgsStorage* const repMsgsStorage;
+    std::shared_ptr<MsgsCommunicator> msgsCommunicator_;
     const SeqNum expectedSeqNumber;
     const ViewNum expectedView;
     const Digest expectedDigest;
     char* const combinedSig;
     uint16_t combinedSigLen;
-    void* context;
+    void* context = nullptr;
 
-    virtual ~CombinedSigVerificationJob() {}
+    virtual ~CombinedSigVerificationJob() = default;
 
    public:
     CombinedSigVerificationJob(IThresholdVerifier* const thresholdVerifier,
-                               IncomingMsgsStorage* const replicaMsgsStorage,
+                               std::shared_ptr<MsgsCommunicator>& msgsCommunicator,
                                SeqNum seqNum,
                                ViewNum view,
                                Digest& digest,
@@ -423,33 +419,33 @@ class CollectorOfThresholdSignatures {
                                uint16_t combinedSigLength,
                                void* cnt)
         : verifier{thresholdVerifier},
-          repMsgsStorage{replicaMsgsStorage},
+          msgsCommunicator_{msgsCommunicator},
           expectedSeqNumber{seqNum},
           expectedView{view},
           expectedDigest{digest},
           combinedSig{(char*)std::malloc(combinedSigLength)},
           combinedSigLen{combinedSigLength} {
       memcpy(combinedSig, combinedSigBody, combinedSigLen);
-      this->context = cnt;
+      context = cnt;
     }
 
-    virtual void release() override {
+    void release() override {
       std::free(combinedSig);
 
       delete this;
     }
 
-    virtual void execute() override {
+    void execute() override {
       bool succ = verifier->verify((char*)&expectedDigest, sizeof(Digest), combinedSig, combinedSigLen);
 
       std::unique_ptr<InternalMessage> iMsg(
           ExternalFunc::createInterVerifyCombinedSigResult(context, expectedSeqNumber, expectedView, succ));
-      repMsgsStorage->pushInternalMsg(std::move(iMsg));
+      msgsCommunicator_->pushInternalMsg(std::move(iMsg));
     }
   };
 
  protected:
-  void* context;
+  void* context = nullptr;
 
   uint16_t numOfRequiredSigs = 0;
 

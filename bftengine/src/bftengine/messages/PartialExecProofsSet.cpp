@@ -1,12 +1,12 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
 //
 // This product may include a number of subcomponents with separate copyright notices and license terms. Your use of
-// these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
+// these subcomponents is subject to the terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
 // TODO(GG): this class/file should be replaced by an instance of CollectorOfThresholdSignatures (or a similar module)
@@ -18,218 +18,96 @@
 #include "assertUtils.hpp"
 #include "Logger.hpp"
 #include "SimpleThreadPool.hpp"
+#include "MerkleExecSignatureInternalMsg.hpp"
+#include "AsynchExecProofCreationJob.hpp"
 
-namespace bftEngine {
-namespace impl {
+namespace bftEngine::impl {
 
 PartialExecProofsSet::PartialExecProofsSet(InternalReplicaApi* internalReplicaApi)
-    : replicaApi(internalReplicaApi),
-      replicasInfo(internalReplicaApi->getReplicasInfo()),
-      numOfRquiredPartialProofs(internalReplicaApi->getReplicasInfo().fVal() + 1),
-      seqNumber(0),
-      myPartialExecProof(nullptr),
-      accumulator(nullptr) {
-  expectedDigest.makeZero();
+    : replicaApi_(internalReplicaApi),
+      replicasInfo_(internalReplicaApi->getReplicasInfo()),
+      numOfRequiredPartialProofs_(internalReplicaApi->getReplicasInfo().fVal() + 1),
+      seqNumber_(0),
+      myPartialExecProof_(nullptr),
+      accumulator_(nullptr) {
+  expectedDigest_.makeZero();
 }
 
 PartialExecProofsSet::~PartialExecProofsSet() { resetAndFree(); }
 
 void PartialExecProofsSet::resetAndFree() {
-  if ((myPartialExecProof == nullptr) && (participatingReplicas.size() == 0))  // if already empty
+  if ((myPartialExecProof_ == nullptr) && participatingReplicas_.empty())  // if already empty
     return;
 
-  seqNumber = 0;
-  if (myPartialExecProof) delete myPartialExecProof;
-  myPartialExecProof = nullptr;
-  participatingReplicas.clear();
-  expectedDigest.makeZero();
-  if (accumulator) thresholdVerifier()->release(accumulator);
-  accumulator = nullptr;
-  if (setOfFullExecProofs.size() > 0) {
-    for (std::set<FullExecProofMsg*>::iterator it = setOfFullExecProofs.begin(); it != setOfFullExecProofs.end();
-         ++it) {
-      FullExecProofMsg* p = *it;
-      delete p;
-    }
-
-    setOfFullExecProofs.clear();
+  seqNumber_ = 0;
+  delete myPartialExecProof_;
+  myPartialExecProof_ = nullptr;
+  participatingReplicas_.clear();
+  expectedDigest_.makeZero();
+  if (accumulator_) thresholdVerifier()->release(accumulator_);
+  accumulator_ = nullptr;
+  if (!setOfFullExecProofs_.empty()) {
+    for (auto item : setOfFullExecProofs_) delete item;
+    setOfFullExecProofs_.clear();
   }
 }
 
-void PartialExecProofsSet::addSelf(PartialExecProofMsg* m,
-                                   Digest& merkleRoot,
-                                   std::set<FullExecProofMsg*> fullExecProofs) {
-  const ReplicaId repId = m->senderId();
+bool PartialExecProofsSet::addMsg(PartialExecProofMsg* msg) {
+  const ReplicaId repId = msg->senderId();
 
-  Assert(m != nullptr && repId == replicasInfo.myId());
-  Assert(seqNumber == 0);
-  Assert(myPartialExecProof == nullptr);
+  Assert(msg != nullptr && repId != replicasInfo_.myId());
+  Assert((seqNumber_ == 0) || (seqNumber_ == msg->seqNumber()));
+  Assert(replicasInfo_.isIdOfReplica(repId));
 
-  seqNumber = m->seqNumber();
-  expectedDigest = merkleRoot;
-  // NOTE: Accumulator might not be created yet, but the thresholdAccumulator() method creates it for us transparently
-  // if needed
-  thresholdAccumulator()->setExpectedDigest(reinterpret_cast<unsigned char*>(merkleRoot.content()), DIGEST_SIZE);
-  myPartialExecProof = m;
-  setOfFullExecProofs = fullExecProofs;
-
-  addImp(m);
-}
-
-bool PartialExecProofsSet::addMsg(PartialExecProofMsg* m) {
-  const ReplicaId repId = m->senderId();
-
-  Assert(m != nullptr && repId != replicasInfo.myId());
-  Assert((seqNumber == 0) || (seqNumber == m->seqNumber()));
-  Assert(replicasInfo.isIdOfReplica(repId));
-
-  if ((participatingReplicas.count(repId) == 0) &&
-      (participatingReplicas.size() < numOfRquiredPartialProofs - 1)  // we don't have enough partial proofs
-  ) {
-    participatingReplicas.insert(repId);
-    addImp(m);
-    delete m;
+  if ((participatingReplicas_.count(repId) == 0) && (participatingReplicas_.size() < numOfRequiredPartialProofs_ - 1)) {
+    // we don't have enough partial proofs
+    participatingReplicas_.insert(repId);
+    addImp(msg);
+    delete msg;
     return true;
-  } else {
+  } else
     return false;
-  }
 }
 
-void PartialExecProofsSet::addImp(PartialExecProofMsg* m) {
-  thresholdAccumulator()->add(m->thresholSignature(), m->thresholSignatureLength());
+void PartialExecProofsSet::addImp(PartialExecProofMsg* msg) {
+  thresholdAccumulator()->add(msg->thresholSignature(), msg->thresholSignatureLength());
 
-  if ((participatingReplicas.size() == (numOfRquiredPartialProofs - 1)) && (myPartialExecProof != nullptr)) {
+  if ((participatingReplicas_.size() == (numOfRequiredPartialProofs_ - 1)) && (myPartialExecProof_ != nullptr)) {
     tryToCreateFullProof();
   }
 }
 
-class MerkleExecSignatureInternalMsg : public InternalMessage {
- protected:
-  InternalReplicaApi* const replicaApi;
-  ViewNum viewNum;
-  SeqNum seqNum;
-  uint16_t signatureLength;
-  const char* signature;
-
- public:
-  MerkleExecSignatureInternalMsg(InternalReplicaApi* const internalReplicaApi,
-                                 ViewNum viewNumber,
-                                 SeqNum seqNumber,
-                                 uint16_t signatureLength,
-                                 const char* signature)
-      : replicaApi(internalReplicaApi) {
-    this->viewNum = viewNumber;
-    this->seqNum = seqNumber;
-    this->signatureLength = signatureLength;
-    char* p = (char*)std::malloc(signatureLength);
-    memcpy(p, signature, signatureLength);
-    this->signature = p;
-  }
-
-  virtual ~MerkleExecSignatureInternalMsg() override { std::free((void*)signature); }
-
-  virtual void handle() override { replicaApi->onMerkleExecSignature(viewNum, seqNum, signatureLength, signature); }
-};
-
-class AsynchExecProofCreationJob : public util::SimpleThreadPool::Job {
- public:
-  AsynchExecProofCreationJob(InternalReplicaApi* const internalReplicaApi,
-                             IThresholdVerifier* verifier,
-                             IThresholdAccumulator* acc,
-                             Digest& expectedDigest,
-                             SeqNum seqNumber,
-                             ViewNum view)
-      : replicaApi(internalReplicaApi) {
-    this->acc = acc;
-    this->expectedDigest = expectedDigest;
-    this->seqNumber = seqNumber;
-    this->view = view;
-    this->verifier = verifier;
-  }
-
-  virtual ~AsynchExecProofCreationJob(){};
-
-  virtual void execute() {
-    LOG_DEBUG_F(
-        GL, "PartialExecProofsSet::AsynchProofCreationJob::execute - begin (for seqNumber %" PRId64 ")", seqNumber);
-
-    const uint16_t bufferSize = (uint16_t)verifier->requiredLengthForSignedData();
-    char* const bufferForSigComputations = (char*)alloca(bufferSize);
-
-    //		char bufferForSigComputations[2048];
-
-    size_t sigLength = verifier->requiredLengthForSignedData();
-
-    //		if (sigLength > sizeof(bufferForSigComputations) || sigLength > UINT16_MAX || sigLength == 0)
-    if (sigLength > UINT16_MAX || sigLength == 0) {
-      LOG_WARN_F(GL, "Unable to create FullProof for seqNumber %" PRId64 "", seqNumber);
-      return;
-    }
-
-    acc->getFullSignedData(bufferForSigComputations, sigLength);
-
-    bool succ = verifier->verify((char*)&expectedDigest, sizeof(Digest), bufferForSigComputations, sigLength);
-
-    if (!succ) {
-      LOG_WARN_F(GL, "Failed to create execution proof for seqNumber %" PRId64 "", seqNumber);
-      LOG_DEBUG_F(
-          GL, "PartialExecProofsSet::AsynchProofCreationJob::execute - end (for seqNumber %" PRId64 ")", seqNumber);
-      return;
-    } else {
-      std::unique_ptr<InternalMessage> pInMsg(new MerkleExecSignatureInternalMsg(
-          replicaApi, view, seqNumber, (uint16_t)sigLength, bufferForSigComputations));
-      replicaApi->getIncomingMsgsStorage().pushInternalMsg(std::move(pInMsg));
-    }
-    LOG_DEBUG_F(
-        GL, "PartialExecProofsSet::AsynchProofCreationJob::execute - end (for seqNumber %" PRId64 ")", seqNumber);
-  }
-
-  virtual void release() {}
-
- private:
-  InternalReplicaApi* const replicaApi;
-  IThresholdAccumulator* acc;
-  Digest expectedDigest;
-  SeqNum seqNumber;
-  ViewNum view;
-  IThresholdVerifier* verifier;
-};
-
 void PartialExecProofsSet::tryToCreateFullProof() {
-  Assert(accumulator != nullptr);
+  Assert(accumulator_ != nullptr);
 
-  if ((participatingReplicas.size() == (numOfRquiredPartialProofs - 1)) && (myPartialExecProof != nullptr)) {
-    IThresholdAccumulator* acc = accumulator->clone();
+  if ((participatingReplicas_.size() == (numOfRequiredPartialProofs_ - 1)) && (myPartialExecProof_ != nullptr)) {
+    IThresholdAccumulator* acc = accumulator_->clone();
+    PartialExecProofMsg* myPEP = myPartialExecProof_;
 
-    PartialExecProofMsg* myPEP = myPartialExecProof;
+    auto* j = new AsynchExecProofCreationJob(
+        replicaApi_, thresholdVerifier(), acc, expectedDigest_, myPEP->seqNumber(), myPEP->viewNumber());
 
-    AsynchExecProofCreationJob* j = new AsynchExecProofCreationJob(
-        replicaApi, thresholdVerifier(), acc, expectedDigest, myPEP->seqNumber(), myPEP->viewNumber());
-
-    replicaApi->getInternalThreadPool().add(j);
-
-    LOG_DEBUG_F(GL, "PartialExecProofsSet - send to BK thread (for seqNumber %" PRId64 ")", seqNumber);
+    replicaApi_->getInternalThreadPool().add(j);
+    LOG_DEBUG_F(GL, "PartialExecProofsSet - send to BK thread (for seqNumber %" PRId64 ")", seqNumber_);
   }
 }
 
 void PartialExecProofsSet::setMerkleSignature(const char* sig, uint16_t sigLength) {
-  for (std::set<FullExecProofMsg*>::iterator it = setOfFullExecProofs.begin(); it != setOfFullExecProofs.end(); ++it) {
-    FullExecProofMsg* fep = *it;
+  for (auto item : setOfFullExecProofs_) {
+    FullExecProofMsg* fep = item;
     fep->setSignature(sig, sigLength);
   }
 }
 
 IThresholdVerifier* PartialExecProofsSet::thresholdVerifier() {
-  IThresholdVerifier* verifier = replicaApi->getThresholdVerifierForExecution();
+  IThresholdVerifier* verifier = replicaApi_->getThresholdVerifierForExecution();
   Assert(verifier != nullptr);
   return verifier;
 }
 
 IThresholdAccumulator* PartialExecProofsSet::thresholdAccumulator() {
-  if (accumulator == nullptr) accumulator = thresholdVerifier()->newAccumulator(false);
-
-  return accumulator;
+  if (accumulator_ == nullptr) accumulator_ = thresholdVerifier()->newAccumulator(false);
+  return accumulator_;
 }
 
-}  // namespace impl
-}  // namespace bftEngine
+}  // namespace bftEngine::impl

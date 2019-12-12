@@ -9,7 +9,6 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-// TODO(GG): clean/move 'include' statements
 #include "SeqNumInfo.hpp"
 #include "InternalReplicaApi.hpp"
 
@@ -441,9 +440,9 @@ util::SimpleThreadPool& SeqNumInfo::ExFuncForPrepareCollector::threadPool(void* 
   return r->getInternalThreadPool();
 }
 
-IncomingMsgsStorage& SeqNumInfo::ExFuncForPrepareCollector::incomingMsgsStorage(void* context) {
+std::shared_ptr<MsgsCommunicator>& SeqNumInfo::ExFuncForPrepareCollector::msgsCommunicator(void* context) {
   InternalReplicaApi* r = (InternalReplicaApi*)context;
-  return r->getIncomingMsgsStorage();
+  return r->getMsgsCommunicator();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -492,9 +491,9 @@ util::SimpleThreadPool& SeqNumInfo::ExFuncForCommitCollector::threadPool(void* c
   return r->getInternalThreadPool();
 }
 
-IncomingMsgsStorage& SeqNumInfo::ExFuncForCommitCollector::incomingMsgsStorage(void* context) {
+std::shared_ptr<MsgsCommunicator>& SeqNumInfo::ExFuncForCommitCollector::msgsCommunicator(void* context) {
   InternalReplicaApi* r = (InternalReplicaApi*)context;
-  return r->getIncomingMsgsStorage();
+  return r->getMsgsCommunicator();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

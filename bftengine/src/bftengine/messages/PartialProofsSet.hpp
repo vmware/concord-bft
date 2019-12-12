@@ -22,8 +22,7 @@
 class IThresholdVerifier;
 class IThresholdAccumulator;
 
-namespace bftEngine {
-namespace impl {
+namespace bftEngine::impl {
 
 class InternalReplicaApi;
 
@@ -32,7 +31,7 @@ class FullCommitProofMsg;
 
 class PartialProofsSet {
  public:
-  PartialProofsSet(InternalReplicaApi* const rep);
+  explicit PartialProofsSet(InternalReplicaApi* rep);
   ~PartialProofsSet();
 
   void addSelfMsgAndPPDigest(PartialCommitProofMsg* m, Digest& digest);
@@ -63,21 +62,21 @@ class PartialProofsSet {
 
   void tryToCreateFullProof();
 
-  InternalReplicaApi* const replica;
+ private:
+  InternalReplicaApi* const replica_;
 
-  const size_t numOfRequiredPartialProofsForFast;
-  const size_t numOfRequiredPartialProofsForOptimisticFast;
+  const size_t numOfRequiredPartialProofsForFast_;
+  const size_t numOfRequiredPartialProofsForOptimisticFast_;
 
-  SeqNum seqNumber;
-  FullCommitProofMsg* fullCommitProof;
-  PartialCommitProofMsg* selfPartialCommitProof;
-  std::set<ReplicaId> participatingReplicasInFast;            // not including the current replica
-  std::set<ReplicaId> participatingReplicasInOptimisticFast;  // not including the current replica
-  Digest expectedDigest;
-  Time timeOfSelfPartialProof;
-  IThresholdAccumulator* thresholdAccumulatorForFast;
-  IThresholdAccumulator* thresholdAccumulatorForOptimisticFast;
+  SeqNum seqNumber_;
+  FullCommitProofMsg* fullCommitProof_;
+  PartialCommitProofMsg* selfPartialCommitProof_;
+  std::set<ReplicaId> participatingReplicasInFast_;            // not including the current replica
+  std::set<ReplicaId> participatingReplicasInOptimisticFast_;  // not including the current replica
+  Digest expectedDigest_;
+  Time timeOfSelfPartialProof_;
+  IThresholdAccumulator* thresholdAccumulatorForFast_;
+  IThresholdAccumulator* thresholdAccumulatorForOptimisticFast_;
 };
 
-}  // namespace impl
-}  // namespace bftEngine
+}  // namespace bftEngine::impl

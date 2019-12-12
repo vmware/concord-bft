@@ -1,51 +1,44 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
 //
 // This product may include a number of subcomponents with separate copyright notices and license terms. Your use of
-// these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
+// these subcomponents is subject to the terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
 #pragma once
 
 #include "PrimitiveTypes.hpp"
-
 #include "CollectorOfThresholdSignatures.hpp"
-
 #include "SeqNumInfo.hpp"
-
 #include "Digest.hpp"
 #include "Crypto.hpp"
 #include "DebugStatistics.hpp"
 #include "SimpleThreadPool.hpp"
 #include "SimpleAutoResetEvent.hpp"
 #include "ControllerBase.hpp"
-#include "messages/CheckpointMsg.hpp"
 #include "RetransmissionsManager.hpp"
 #include "DynamicUpperLimitWithSimpleFilter.hpp"
 #include "ViewsManager.hpp"
 #include "ReplicasInfo.hpp"
-#include "messages/MsgsCertificate.hpp"
 #include "InternalReplicaApi.hpp"
 #include "IStateTransfer.hpp"
 #include "ClientsManager.hpp"
 #include "CheckpointInfo.hpp"
-#include "ICommunication.hpp"
+#include "MsgsCommunicator.hpp"
 #include "Replica.hpp"
 #include "SimpleThreadPool.hpp"
 #include "PersistentStorage.hpp"
 #include "ReplicaLoader.hpp"
 #include "Metrics.hpp"
-
 #include "Timers.hpp"
 
 #include <thread>
 
-namespace bftEngine {
-namespace impl {
+namespace bftEngine::impl {
 class ClientRequestMsg;
 class ClientReplyMsg;
 class PrePrepareMsg;
@@ -66,80 +59,81 @@ using PtrToMetaMsgHandler = void (ReplicaImp::*)(MessageBase* msg);
 
 class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
  protected:
+  friend class StopInternalMsg;
+  friend class StopWhenStateIsNotCollectedInternalMsg;
+
   // system params
-  const ReplicaId myReplicaId;
-  const uint16_t fVal;
-  const uint16_t cVal;
-  const uint16_t numOfReplicas;
-  const uint16_t numOfClientProxies;
-  const bool viewChangeProtocolEnabled;
-  const bool supportDirectProofs;  // TODO(GG): add support
-  const bool debugStatisticsEnabled;
+  const ReplicaId myReplicaId_;
+  const uint16_t fVal_;
+  const uint16_t cVal_;
+  const uint16_t numOfReplicas_;
+  const uint16_t numOfClientProxies_;
+  const bool viewChangeProtocolEnabled_;
+  const bool supportDirectProofs_;  // TODO(GG): add support
+  const bool debugStatisticsEnabled_;
 
   // pointers to message handlers
-  const std::unordered_map<uint16_t, PtrToMetaMsgHandler> metaMsgHandlers;
+  const std::unordered_map<uint16_t, PtrToMetaMsgHandler> metaMsgHandlers_;
 
   // communication
-  class MsgReceiver;  // forward declaration
-  IncomingMsgsStorage incomingMsgsStorage;
-  MsgReceiver* msgReceiver;
-  ICommunication* communication;
+  shared_ptr<MsgsCommunicator> msgsCommunicator_;
 
   // main thread of the this replica
-  std::thread mainThread;
-  bool mainThreadStarted;
-  bool mainThreadShouldStop;
-  bool mainThreadShouldStopWhenStateIsNotCollected;
+  std::thread mainThread_;
+  bool mainThreadStarted_;
+  bool mainThreadShouldStop_;
+  bool mainThreadShouldStopWhenStateIsNotCollected_;
 
   // If this replica was restarted and loaded data from
   // persistent storage.
   bool restarted_;
 
   // thread pool of this replica
-  util::SimpleThreadPool internalThreadPool;  // TODO(GG): !!!! rename
+  const uint8_t numOfThreads_ = 8;
+  util::SimpleThreadPool internalThreadPool_;  // TODO(GG): !!!! rename
 
   // retransmissions manager (can be disabled)
-  RetransmissionsManager* retransmissionsManager = nullptr;
+  RetransmissionsManager* retransmissionsManager_ = nullptr;
 
   // controller
-  ControllerBase* controller;
+  ControllerBase* controller_;
 
   // general information about the replicas
-  ReplicasInfo* repsInfo;
+  ReplicasInfo* replicasInfo_;
 
   // digital signatures
-  SigManager* sigManager;
+  SigManager* sigManager_;
 
   // view change logic
-  ViewsManager* viewsManager = nullptr;
+  ViewsManager* viewsManager_ = nullptr;
 
   //
-  uint16_t maxConcurrentAgreementsByPrimary;
+  uint16_t maxConcurrentAgreementsByPrimary_;
 
   // the current view of this replica
-  ViewNum curView;
+  ViewNum currentView_;
 
   // the last SeqNum used to generate a new SeqNum (valid when this replica is the primary)
-  SeqNum primaryLastUsedSeqNum;
+  SeqNum primaryLastUsedSeqNum_;
 
   // the latest stable SeqNum known to this replica
-  SeqNum lastStableSeqNum;
+  SeqNum lastStableSeqNum_;
 
   // last SeqNum executed  by this replica (or its affect was transferred to this replica)
-  SeqNum lastExecutedSeqNum;
+  SeqNum lastExecutedSeqNum_;
 
   //
-  SeqNum strictLowerBoundOfSeqNums;
+  SeqNum strictLowerBoundOfSeqNums_;
 
   //
-  SeqNum maxSeqNumTransferredFromPrevViews;
+  SeqNum maxSeqNumTransferredFromPrevViews_;
 
   // requests queue (used by the primary)
-  std::queue<ClientRequestMsg*> requestsQueueOfPrimary;  // only used by the primary
+  std::queue<ClientRequestMsg*> requestsQueueOfPrimary_;  // only used by the primary
 
   // bounded log used to store information about SeqNums in the range (lastStableSeqNum,lastStableSeqNum +
   // kWorkWindowSize]
-  SequenceWithActiveWindow<kWorkWindowSize, 1, SeqNum, SeqNumInfo, SeqNumInfo>* mainLog;
+  SequenceWithActiveWindow<kWorkWindowSize, 1, SeqNum, SeqNumInfo, SeqNumInfo>* mainLog_;
 
   // bounded log used to store information about checkpoints in the range [lastStableSeqNum,lastStableSeqNum +
   // kWorkWindowSize]
@@ -147,55 +141,55 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
                            checkpointWindowSize,
                            SeqNum,
                            CheckpointInfo,
-                           CheckpointInfo>* checkpointsLog;
+                           CheckpointInfo>* checkpointsLog_;
 
   // last known stable checkpoint of each peer replica.
   // We sometimes delete checkpoints before lastExecutedSeqNum
-  std::map<ReplicaId, CheckpointMsg*> tableOfStableCheckpoints;
+  std::map<ReplicaId, CheckpointMsg*> tableOfStableCheckpoints_;
 
   // managing information about the clients
-  ClientsManager* clientsManager = nullptr;
+  ClientsManager* clientsManager_ = nullptr;
 
   // buffer used to store replies
-  char* replyBuffer;
+  char* replyBuffer_;
 
   // pointer to a state transfer module
-  bftEngine::IStateTransfer* stateTransfer = nullptr;
+  bftEngine::IStateTransfer* stateTransfer_ = nullptr;
 
   // variables that are used to heuristically compute the 'optimal' batch size
-  size_t maxNumberOfPendingRequestsInRecentHistory;
-  size_t batchingFactor;
+  size_t maxNumberOfPendingRequestsInRecentHistory_;
+  size_t batchingFactor_;
 
-  RequestsHandler* const userRequestsHandler;
+  RequestsHandler* const userRequestsHandler_;
 
   // Threshold signatures
-  IThresholdSigner* thresholdSignerForExecution;
-  IThresholdVerifier* thresholdVerifierForExecution;
+  IThresholdSigner* thresholdSignerForExecution_;
+  IThresholdVerifier* thresholdVerifierForExecution_;
 
-  IThresholdSigner* thresholdSignerForSlowPathCommit;
-  IThresholdVerifier* thresholdVerifierForSlowPathCommit;
+  IThresholdSigner* thresholdSignerForSlowPathCommit_;
+  IThresholdVerifier* thresholdVerifierForSlowPathCommit_;
 
-  IThresholdSigner* thresholdSignerForCommit;
-  IThresholdVerifier* thresholdVerifierForCommit;
+  IThresholdSigner* thresholdSignerForCommit_;
+  IThresholdVerifier* thresholdVerifierForCommit_;
 
-  IThresholdSigner* thresholdSignerForOptimisticCommit;
-  IThresholdVerifier* thresholdVerifierForOptimisticCommit;
+  IThresholdSigner* thresholdSignerForOptimisticCommit_;
+  IThresholdVerifier* thresholdVerifierForOptimisticCommit_;
 
   // used to dynamically estimate a upper bound for consensus rounds
-  DynamicUpperLimitWithSimpleFilter<int64_t>* dynamicUpperLimitOfRounds;
+  DynamicUpperLimitWithSimpleFilter<int64_t>* dynamicUpperLimitOfRounds_;
 
   //
-  ViewNum lastViewThatTransferredSeqNumbersFullyExecuted;
+  ViewNum lastViewThatTransferredSeqNumbersFullyExecuted_;
 
   //
-  Time lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas;
-  Time timeOfLastStateSynch;    // last time the replica received a new state (via the state transfer mechanism)
-  Time timeOfLastViewEntrance;  // last time the replica entered to a new view
+  Time lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas_;
+  Time timeOfLastStateSynch_;    // last time the replica received a new state (via the state transfer mechanism)
+  Time timeOfLastViewEntrance_;  // last time the replica entered to a new view
 
   //
-  ViewNum lastAgreedView;     // latest view number v such that the replica received 2f+2c+1 ViewChangeMsg messages with
-                              // view >= v
-  Time timeOfLastAgreedView;  // last time we changed lastAgreedView
+  ViewNum lastAgreedView_;  // latest view number v such that the replica received 2f+2c+1 ViewChangeMsg messages with
+                            // view >= v
+  Time timeOfLastAgreedView_;  // last time we changed lastAgreedView
 
   // Timer manager/container
   concordUtil::Timers timers_;
@@ -210,52 +204,16 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   concordUtil::Timers::Handle debugStatTimer_;
   concordUtil::Timers::Handle metricsTimer_;
 
-  int viewChangeTimerMilli;
+  int viewChangeTimerMilli_;
 
   std::shared_ptr<PersistentStorage> ps_;
 
-  bool recoveringFromExecutionOfRequests = false;
-  Bitmap mapOfRequestsThatAreBeingRecovered;
-
-  class MsgReceiver : public IReceiver {
-   public:
-    MsgReceiver(IncomingMsgsStorage& queue);
-
-    virtual ~MsgReceiver(){};
-
-    virtual void onNewMessage(const NodeNum sourceNode, const char* const message, const size_t messageLength) override;
-
-    virtual void onConnectionStatusChanged(const NodeNum node, const ConnectionStatus newStatus) override;
-
-   private:
-    IncomingMsgsStorage& incomingMsgs;
-  };
-
-  class StopInternalMsg : public InternalMessage {
-   public:
-    StopInternalMsg(ReplicaImp* myReplica);
-    virtual void handle();
-
-   protected:
-    ReplicaImp* replica;
-  };
-
-  friend class StopInternalMsg;
-
-  class StopWhenStateIsNotCollectedInternalMsg : public InternalMessage {
-   public:
-    StopWhenStateIsNotCollectedInternalMsg(ReplicaImp* myReplica);
-    virtual void handle();
-
-   protected:
-    ReplicaImp* replica;
-  };
-
-  friend class StopWhenStateIsNotCollectedInternalMsg;
+  bool recoveringFromExecutionOfRequests_ = false;
+  Bitmap mapOfRequestsThatAreBeingRecovered_;
 
   // this event is signalled iff the start() method has completed
   // and the process_message() method has not start working yet
-  SimpleAutoResetEvent startSyncEvent;
+  SimpleAutoResetEvent startSyncEvent_;
 
   //******** METRICS ************************************
   concordMetrics::Component metrics_;
@@ -265,7 +223,7 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   typedef concordMetrics::Component::Handle<concordMetrics::Counter> CounterHandle;
 
   GaugeHandle metric_view_;
-  GaugeHandle metric_last_stable_seq_num__;
+  GaugeHandle metric_last_stable_seq_num_;
   GaugeHandle metric_last_executed_seq_num_;
   GaugeHandle metric_last_agreed_view_;
 
@@ -297,13 +255,13 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   ReplicaImp(const ReplicaConfig&,
              RequestsHandler* requestsHandler,
              IStateTransfer* stateTransfer,
-             ICommunication* communication,
+             shared_ptr<MsgsCommunicator>& msgsCommunicator,
              shared_ptr<PersistentStorage>& persistentStorage);
 
   ReplicaImp(const LoadedReplicaData&,
              RequestsHandler* requestsHandler,
              IStateTransfer* stateTransfer,
-             ICommunication* communication,
+             shared_ptr<MsgsCommunicator>& msgsCommunicator,
              shared_ptr<PersistentStorage>& persistentStorage);
 
   virtual ~ReplicaImp();
@@ -313,26 +271,25 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   void stopWhenStateIsNotCollected();
   bool isRunning() const;
   SeqNum getLastExecutedSequenceNum() const;
-  bool isRecoveringFromExecutionOfRequests() const { return recoveringFromExecutionOfRequests; }
+  bool isRecoveringFromExecutionOfRequests() const { return recoveringFromExecutionOfRequests_; }
 
   shared_ptr<PersistentStorage> getPersistentStorage() const { return ps_; }
-  RequestsHandler* getRequestsHandler() const { return userRequestsHandler; }
-  IStateTransfer* getStateTransfer() const { return stateTransfer; }
-  ICommunication* getCommunication() const { return communication; }
+  RequestsHandler* getRequestsHandler() const { return userRequestsHandler_; }
+  IStateTransfer* getStateTransfer() const { return stateTransfer_; }
+  std::shared_ptr<MsgsCommunicator>& getMsgsCommunicator() override { return msgsCommunicator_; }
 
   IncomingMsg recvMsg();
-
   void processMessages();
 
   // IReplicaForStateTransfer
-  virtual void freeStateTransferMsg(char* m) override;
-  virtual void sendStateTransferMessage(char* m, uint32_t size, uint16_t replicaId) override;
-  virtual void onTransferringComplete(int64_t checkpointNumberOfNewState) override;
-  virtual void changeStateTransferTimerPeriod(uint32_t timerPeriodMilli) override;
+  void freeStateTransferMsg(char* m) override;
+  void sendStateTransferMessage(char* m, uint32_t size, uint16_t replicaId) override;
+  void onTransferringComplete(int64_t checkpointNumberOfNewState) override;
+  void changeStateTransferTimerPeriod(uint32_t timerPeriodMilli) override;
 
   // InternalReplicaApi
-  virtual void onInternalMsg(FullCommitProofMsg* m) override;
-  virtual void onMerkleExecSignature(ViewNum v, SeqNum s, uint16_t signatureLength, const char* signature) override;
+  void onInternalMsg(FullCommitProofMsg* m) override;
+  void onMerkleExecSignature(ViewNum v, SeqNum s, uint16_t signatureLength, const char* signature) override;
 
   void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a);
 
@@ -352,8 +309,8 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   template <typename T>
   void metaMessageHandler_IgnoreWhenCollectingState(MessageBase* msg);  // TODO(GG): rename
 
-  ReplicaId currentPrimary() const { return repsInfo->primaryOfView(curView); }
-  bool isCurrentPrimary() const { return (currentPrimary() == myReplicaId); }
+  ReplicaId currentPrimary() const { return replicasInfo_->primaryOfView(currentView_); }
+  bool isCurrentPrimary() const { return (currentPrimary() == myReplicaId_); }
 
   static const uint16_t ALL_OTHER_REPLICAS = UINT16_MAX;
   void send(MessageBase* m, NodeIdType dest);
@@ -427,7 +384,7 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
 
   void onTransferringCompleteImp(SeqNum);
 
-  bool currentViewIsActive() const { return (viewsManager->viewIsActive(curView)); }
+  bool currentViewIsActive() const { return (viewsManager_->viewIsActive(currentView_)); }
 
   template <typename T>
   bool relevantMsgForActiveView(const T* msg);
@@ -441,23 +398,19 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
 
   void sendCheckpointIfNeeded();
 
-  virtual IncomingMsgsStorage& getIncomingMsgsStorage() override { return incomingMsgsStorage; }
+  util::SimpleThreadPool& getInternalThreadPool() override { return internalThreadPool_; }
 
-  virtual util::SimpleThreadPool& getInternalThreadPool() override { return internalThreadPool; }
+  IThresholdVerifier* getThresholdVerifierForExecution() override { return thresholdVerifierForExecution_; }
 
-  virtual IThresholdVerifier* getThresholdVerifierForExecution() override { return thresholdVerifierForExecution; }
+  IThresholdVerifier* getThresholdVerifierForSlowPathCommit() override { return thresholdVerifierForSlowPathCommit_; }
 
-  virtual IThresholdVerifier* getThresholdVerifierForSlowPathCommit() override {
-    return thresholdVerifierForSlowPathCommit;
+  IThresholdVerifier* getThresholdVerifierForCommit() override { return thresholdVerifierForCommit_; }
+
+  IThresholdVerifier* getThresholdVerifierForOptimisticCommit() override {
+    return thresholdVerifierForOptimisticCommit_;
   }
 
-  virtual IThresholdVerifier* getThresholdVerifierForCommit() override { return thresholdVerifierForCommit; }
-
-  virtual IThresholdVerifier* getThresholdVerifierForOptimisticCommit() override {
-    return thresholdVerifierForOptimisticCommit;
-  }
-
-  virtual const ReplicasInfo& getReplicasInfo() override { return (*repsInfo); }
+  const ReplicasInfo& getReplicasInfo() override { return (*replicasInfo_); }
 
   void onViewsChangeTimer(concordUtil::Timers::Handle);
   void onStateTranTimer(concordUtil::Timers::Handle);
@@ -470,29 +423,28 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
 
   // handlers for internal messages
 
-  virtual void onPrepareCombinedSigFailed(SeqNum seqNumber,
-                                          ViewNum view,
-                                          const std::set<uint16_t>& replicasWithBadSigs) override;
-  virtual void onPrepareCombinedSigSucceeded(SeqNum seqNumber,
-                                             ViewNum view,
-                                             const char* combinedSig,
-                                             uint16_t combinedSigLen) override;
-  virtual void onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) override;
+  void onPrepareCombinedSigFailed(SeqNum seqNumber,
+                                  ViewNum view,
+                                  const std::set<uint16_t>& replicasWithBadSigs) override;
+  void onPrepareCombinedSigSucceeded(SeqNum seqNumber,
+                                     ViewNum view,
+                                     const char* combinedSig,
+                                     uint16_t combinedSigLen) override;
+  void onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) override;
 
-  virtual void onCommitCombinedSigFailed(SeqNum seqNumber,
-                                         ViewNum view,
-                                         const std::set<uint16_t>& replicasWithBadSigs) override;
-  virtual void onCommitCombinedSigSucceeded(SeqNum seqNumber,
-                                            ViewNum view,
-                                            const char* combinedSig,
-                                            uint16_t combinedSigLen) override;
-  virtual void onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) override;
+  void onCommitCombinedSigFailed(SeqNum seqNumber,
+                                 ViewNum view,
+                                 const std::set<uint16_t>& replicasWithBadSigs) override;
+  void onCommitCombinedSigSucceeded(SeqNum seqNumber,
+                                    ViewNum view,
+                                    const char* combinedSig,
+                                    uint16_t combinedSigLen) override;
+  void onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) override;
 
-  virtual void onRetransmissionsProcessingResults(
-      SeqNum relatedLastStableSeqNum,
-      const ViewNum relatedViewNumber,
-      const std::forward_list<RetSuggestion>* const suggestedRetransmissions)
+  void onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqNum,
+                                          const ViewNum relatedViewNumber,
+                                          const std::forward_list<RetSuggestion>* const suggestedRetransmissions)
       override;  // TODO(GG): use generic iterators
 };
-}  // namespace impl
-}  // namespace bftEngine
+
+}  // namespace bftEngine::impl

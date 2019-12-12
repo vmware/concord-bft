@@ -24,26 +24,23 @@
 class IThresholdVerifier;
 class IThresholdAccumulator;
 
-namespace bftEngine {
-namespace impl {
+namespace bftEngine::impl {
 
 class PartialExecProofMsg;
 class FullExecProofMsg;
 
 class PartialExecProofsSet {
  public:
-  PartialExecProofsSet(InternalReplicaApi* internalReplicaApi);
+  explicit PartialExecProofsSet(InternalReplicaApi* internalReplicaApi);
   ~PartialExecProofsSet();
 
   void resetAndFree();
-
-  void addSelf(PartialExecProofMsg* m, Digest& merkleRoot, std::set<FullExecProofMsg*> fullExecProofs);
 
   bool addMsg(PartialExecProofMsg* m);
 
   void setMerkleSignature(const char* sig, uint16_t sigLength);
 
-  std::set<FullExecProofMsg*>& getExecProofs() { return setOfFullExecProofs; }
+  std::set<FullExecProofMsg*>& getExecProofs() { return setOfFullExecProofs_; }
 
  protected:
   IThresholdVerifier* thresholdVerifier();
@@ -54,17 +51,15 @@ class PartialExecProofsSet {
 
   void tryToCreateFullProof();
 
-  InternalReplicaApi* const replicaApi;
-  const ReplicasInfo& replicasInfo;
-  const size_t numOfRquiredPartialProofs;
-
-  SeqNum seqNumber;
-  PartialExecProofMsg* myPartialExecProof;
-  std::set<ReplicaId> participatingReplicas;  // not including the current replica
-  Digest expectedDigest;
-  IThresholdAccumulator* accumulator;
-  std::set<FullExecProofMsg*> setOfFullExecProofs;
+  InternalReplicaApi* const replicaApi_;
+  const ReplicasInfo& replicasInfo_;
+  const size_t numOfRequiredPartialProofs_;
+  SeqNum seqNumber_;
+  PartialExecProofMsg* myPartialExecProof_;
+  std::set<ReplicaId> participatingReplicas_;  // not including the current replica
+  Digest expectedDigest_;
+  IThresholdAccumulator* accumulator_;
+  std::set<FullExecProofMsg*> setOfFullExecProofs_;
 };
 
-}  // namespace impl
-}  // namespace bftEngine
+}  // namespace bftEngine::impl

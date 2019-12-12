@@ -130,7 +130,7 @@ class SeqNumInfo {
     static uint16_t numberOfRequiredSignatures(void* context);
     static IThresholdVerifier* thresholdVerifier(void* context);
     static util::SimpleThreadPool& threadPool(void* context);
-    static IncomingMsgsStorage& incomingMsgsStorage(void* context);
+    static std::shared_ptr<MsgsCommunicator>& msgsCommunicator(void* context);
   };
 
   class ExFuncForCommitCollector {
@@ -155,7 +155,7 @@ class SeqNumInfo {
     static uint16_t numberOfRequiredSignatures(void* context);
     static IThresholdVerifier* thresholdVerifier(void* context);
     static util::SimpleThreadPool& threadPool(void* context);
-    static IncomingMsgsStorage& incomingMsgsStorage(void* context);
+    static std::shared_ptr<MsgsCommunicator>& msgsCommunicator(void* context);
   };
 
   InternalReplicaApi* replica = nullptr;

@@ -10,6 +10,7 @@
 // file.
 
 #pragma once
+
 #include "PrimitiveTypes.hpp"
 #include "SigManager.hpp"
 

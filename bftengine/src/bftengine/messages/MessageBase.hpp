@@ -16,8 +16,7 @@
 #include "MsgCode.hpp"
 #include "ReplicasInfo.hpp"
 
-namespace bftEngine {
-namespace impl {
+namespace bftEngine::impl {
 
 class MessageBase {
  public:
@@ -73,6 +72,7 @@ class MessageBase {
   NodeIdType sender_;
   // true IFF this instance is not responsible for de-allocating the body:
   bool owner_ = true;
+  static const uint32_t magicNumOfRawFormat_ = 0x5555897BU;
 
 #pragma pack(push, 1)
   struct RawHeaderOfObjAndMsg {
@@ -82,15 +82,6 @@ class MessageBase {
     // TODO(GG): consider to add checksum
   };
 #pragma pack(pop)
-  static const uint32_t magicNumOfRawFormat = 0x5555897BU;
 };
 
-class InternalMessage  // TODO(GG): move class to another file
-{
- public:
-  virtual ~InternalMessage() = default;
-  virtual void handle() = 0;
-};
-
-}  // namespace impl
-}  // namespace bftEngine
+}  // namespace bftEngine::impl

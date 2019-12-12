@@ -15,10 +15,11 @@
 #include <forward_list>
 
 #include "PrimitiveTypes.hpp"
-#include "IncomingMsgsStorage.hpp"
+#include "MsgsCommunicator.hpp"
 
 class IThresholdVerifier;
-class ReplicasInfo;
+class IThresholdAccumulator;
+
 namespace util {
 class SimpleThreadPool;
 }
@@ -59,12 +60,11 @@ class InternalReplicaApi  // TODO(GG): rename + clean + split to several classes
 
   virtual void onRetransmissionsProcessingResults(
       SeqNum relatedLastStableSeqNum,
-      const ViewNum relatedViewNumber,
+      ViewNum relatedViewNumber,
       const std::forward_list<RetSuggestion>* const suggestedRetransmissions) = 0;  // TODO(GG): use generic iterators
 
   virtual const ReplicasInfo& getReplicasInfo() = 0;
-
-  virtual IncomingMsgsStorage& getIncomingMsgsStorage() = 0;
+  virtual std::shared_ptr<MsgsCommunicator>& getMsgsCommunicator() = 0;
   virtual util::SimpleThreadPool& getInternalThreadPool() = 0;
 
   virtual IThresholdVerifier* getThresholdVerifierForExecution() = 0;

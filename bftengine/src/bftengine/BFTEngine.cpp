@@ -15,10 +15,11 @@
 #include "ReplicaImp.hpp"
 #include "DebugPersistentStorage.hpp"
 #include "PersistentStorageImp.hpp"
+#include "MsgsCommunicator.hpp"
+#include "bftengine/ReplicaConfigSingleton.hpp"
 
 #include <condition_variable>
 #include <mutex>
-#include "bftengine/ReplicaConfigSingleton.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -29,68 +30,68 @@ std::mutex mutexForCryptoInitialization;
 }  // namespace
 
 struct ReplicaInternal : public Replica {
-  virtual ~ReplicaInternal() override;
+  ~ReplicaInternal() override;
 
-  virtual bool isRunning() const override;
+  bool isRunning() const override;
 
   uint64_t getLastExecutedSequenceNum() const override;
 
-  virtual bool requestsExecutionWasInterrupted() const override;
+  bool requestsExecutionWasInterrupted() const override;
 
-  virtual void start() override;
+  void start() override;
 
-  virtual void stop() override;
+  void stop() override;
 
-  virtual void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a) override;
+  void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a) override;
 
-  virtual void restartForDebug(uint32_t delayMillis) override;
+  void restartForDebug(uint32_t delayMillis) override;
 
-  virtual void stopWhenStateIsNotCollected() override;
+  void stopWhenStateIsNotCollected() override;
 
-  ReplicaImp *rep;
+  ReplicaImp *replica = nullptr;
 
  private:
   std::condition_variable debugWait;
   std::mutex debugWaitLock;
 };
 
-ReplicaInternal::~ReplicaInternal() { delete rep; }
+ReplicaInternal::~ReplicaInternal() { delete replica; }
 
-bool ReplicaInternal::isRunning() const { return rep->isRunning(); }
+bool ReplicaInternal::isRunning() const { return replica->isRunning(); }
 
 uint64_t ReplicaInternal::getLastExecutedSequenceNum() const {
-  return static_cast<uint64_t>(rep->getLastExecutedSequenceNum());
+  return static_cast<uint64_t>(replica->getLastExecutedSequenceNum());
 }
 
 bool ReplicaInternal::requestsExecutionWasInterrupted() const {
-  const bool run = rep->isRunning();
-  const bool isRecovering = rep->isRecoveringFromExecutionOfRequests();
+  const bool run = replica->isRunning();
+  const bool isRecovering = replica->isRecoveringFromExecutionOfRequests();
   return (!run && isRecovering);
 }
 
-void ReplicaInternal::start() { return rep->start(); }
+void ReplicaInternal::start() { return replica->start(); }
 
 void ReplicaInternal::stopWhenStateIsNotCollected() {
-  if (rep->isRunning()) {
-    rep->stopWhenStateIsNotCollected();
+  if (replica->isRunning()) {
+    replica->stopWhenStateIsNotCollected();
   }
 }
 
 void ReplicaInternal::stop() {
   unique_lock<std::mutex> lk(debugWaitLock);
-  if (rep->isRunning()) {
-    rep->stop();
+  if (replica->isRunning()) {
+    replica->stop();
   }
 
   debugWait.notify_all();
 }
 
-void ReplicaInternal::SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a) { return rep->SetAggregator(a); }
+void ReplicaInternal::SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a) { return replica->SetAggregator(a); }
 
 void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
   {
     unique_lock<std::mutex> lk(debugWaitLock);
-    rep->stopWhenStateIsNotCollected();
+    replica->stopWhenStateIsNotCollected();
     if (delayMillis > 0) {
       std::cv_status res = debugWait.wait_for(lk, std::chrono::milliseconds(delayMillis));
       if (std::cv_status::no_timeout == res)  // stop() was called
@@ -98,13 +99,13 @@ void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
     }
   }
 
-  shared_ptr<PersistentStorage> persistentStorage(rep->getPersistentStorage());
-  RequestsHandler *requestsHandler = rep->getRequestsHandler();
-  IStateTransfer *stateTransfer = rep->getStateTransfer();
-  ICommunication *comm = rep->getCommunication();
+  shared_ptr<PersistentStorage> persistentStorage(replica->getPersistentStorage());
+  RequestsHandler *requestsHandler = replica->getRequestsHandler();
+  IStateTransfer *stateTransfer = replica->getStateTransfer();
+  shared_ptr<MsgsCommunicator> msgsComm = replica->getMsgsCommunicator();
 
   // delete rep; TODO(GG): enable after debugging and update ~ReplicaImp
-  rep = nullptr;
+  replica = nullptr;
 
   ReplicaLoader::ErrorCode loadErrCode;
 
@@ -112,13 +113,12 @@ void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
 
   Assert(loadErrCode == ReplicaLoader::ErrorCode::Success);
 
-  rep = new ReplicaImp(ld, requestsHandler, stateTransfer, comm, persistentStorage);
-  rep->start();
+  replica = new ReplicaImp(ld, requestsHandler, stateTransfer, msgsComm, persistentStorage);
+  replica->start();
 }
-}  // namespace impl
-}  // namespace bftEngine
 
-namespace bftEngine {
+}  // namespace impl
+
 Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
                                    RequestsHandler *requestsHandler,
                                    IStateTransfer *stateTransfer,
@@ -155,9 +155,10 @@ Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
   }
 
   auto *replicaInternal = new ReplicaInternal();
+  shared_ptr<MsgsCommunicator> msgsCommunicatorPtr(new MsgsCommunicator(communication));
   if (isNewStorage) {
-    replicaInternal->rep =
-        new ReplicaImp(*replicaConfig, requestsHandler, stateTransfer, communication, persistentStoragePtr);
+    replicaInternal->replica =
+        new ReplicaImp(*replicaConfig, requestsHandler, stateTransfer, msgsCommunicatorPtr, persistentStoragePtr);
   } else {
     ReplicaLoader::ErrorCode loadErrCode;
     auto loadedReplicaData = ReplicaLoader::loadReplica(persistentStoragePtr, loadErrCode);
@@ -166,8 +167,8 @@ Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
       return nullptr;
     }
     // TODO(GG): compare ld.repConfig and replicaConfig
-    replicaInternal->rep =
-        new ReplicaImp(loadedReplicaData, requestsHandler, stateTransfer, communication, persistentStoragePtr);
+    replicaInternal->replica =
+        new ReplicaImp(loadedReplicaData, requestsHandler, stateTransfer, msgsCommunicatorPtr, persistentStoragePtr);
   }
 
   return replicaInternal;

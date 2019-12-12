@@ -28,6 +28,11 @@ set(corebft_source_files
     src/bftengine/ReplicaLoader.cpp
     src/bftengine/ReplicaConfigSerializer.cpp
     src/bftengine/SerializableActiveWindow.cpp
+    src/bftengine/MsgReceiver.cpp
+    src/bftengine/MsgsCommunicator.cpp
+    src/bftengine/RetransmissionLogic.cpp
+    src/bftengine/RetransmissionProcessingJob.cpp
+    src/bftengine/ReplicaRetransmissionInfo.cpp
     src/communication/PlainUDPCommunication.cpp
     src/communication/CommFactory.cpp
     src/bcstatetransfer/BCStateTran.cpp
@@ -55,6 +60,9 @@ set(corebft_source_files
     src/bftengine/messages/ViewChangeMsg.cpp
     src/bftengine/messages/ReplicaStatusMsg.cpp
     src/bftengine/messages/StateTransferMsg.cpp
+    src/bftengine/messages/RetransmissionProcResultInternalMsg.cpp
+    src/bftengine/messages/AsynchProofCreationJob.cpp
+    src/bftengine/messages/AsynchExecProofCreationJob.cpp
 )
 
 #

@@ -19,14 +19,11 @@
 #include <mutex>
 #include <condition_variable>
 #include "TimeUtils.hpp"
+#include "messages/MessageBase.hpp"
+#include "messages/InternalMessage.hpp"
+#include "messages/IncomingMsg.hpp"
 
-namespace bftEngine {
-namespace impl {
-
-class MessageBase;
-class InternalMessage;
-
-using std::queue;
+namespace bftEngine::impl {
 
 // This is needed because we can't safely cast unique_ptrs to void pointers
 // We also can't use a union because it would require custom deleters and
@@ -40,23 +37,9 @@ using std::queue;
 // This is probably a good use case for std::variant, but we are on c++11 and
 // variant is only available in c++17.
 
-class IncomingMsg {
- public:
-  enum { EXTERNAL, INTERNAL, INVALID } tag;
-
-  IncomingMsg() : tag(IncomingMsg::INVALID) {}
-  IncomingMsg(std::unique_ptr<MessageBase> m) : tag(IncomingMsg::EXTERNAL), external(std::move(m)) {}
-  IncomingMsg(std::unique_ptr<InternalMessage> m) : tag(IncomingMsg::INTERNAL), internal(std::move(m)) {}
-
-  std::unique_ptr<MessageBase> external;
-  std::unique_ptr<InternalMessage> internal;
-};
-
 class IncomingMsgsStorage {
  public:
-  const uint64_t minTimeBetweenOverflowWarningsMilli = 5 * 1000;  // 5 seconds
-
-  IncomingMsgsStorage(uint16_t maxNumOfPendingExternalMsgs);
+  explicit IncomingMsgsStorage(uint16_t maxNumOfPendingExternalMsgs);
   ~IncomingMsgsStorage();
 
   // can be called by any thread
@@ -66,31 +49,28 @@ class IncomingMsgsStorage {
   void pushInternalMsg(std::unique_ptr<InternalMessage> m);
 
   // should only be called by the main thread
-  IncomingMsg pop(std::chrono::milliseconds timeout);
-
-  // should only be called by the main thread.
-  bool empty();
+  IncomingMsg popInternalOrExternalMsg(std::chrono::milliseconds timeout);
 
  protected:
   IncomingMsg popThreadLocal();
 
-  const uint16_t maxNumberOfPendingExternalMsgs;
+ private:
+  const uint64_t minTimeBetweenOverflowWarningsMilli_ = 5 * 1000;  // 5 seconds
+  const uint16_t maxNumberOfPendingExternalMsgs_;
 
-  std::mutex lock;
-  std::condition_variable condVar;
+  std::mutex lock_;
+  std::condition_variable condVar_;
 
   // new messages are pushed to ptrProtectedQueue.... ; Protected by lock
-  queue<std::unique_ptr<MessageBase>>* ptrProtectedQueueForExternalMessages;
-  queue<std::unique_ptr<InternalMessage>>* ptrProtectedQueueForInternalMessages;
+  std::queue<std::unique_ptr<MessageBase>>* ptrProtectedQueueForExternalMessages_;
+  std::queue<std::unique_ptr<InternalMessage>>* ptrProtectedQueueForInternalMessages_;
 
   // time of last queue overflow  Protected by lock
-  Time lastOverflowWarning;
+  Time lastOverflowWarning_;
 
-  // messages are fetched from ptrThreadLocalQueue... ; should only be accessed
-  // by the main thread
-  queue<std::unique_ptr<MessageBase>>* ptrThreadLocalQueueForExternalMessages;
-  queue<std::unique_ptr<InternalMessage>>* ptrThreadLocalQueueForInternalMessages;
+  // messages are fetched from ptrThreadLocalQueue... ; should only be accessed by the main thread
+  std::queue<std::unique_ptr<MessageBase>>* ptrThreadLocalQueueForExternalMessages_;
+  std::queue<std::unique_ptr<InternalMessage>>* ptrThreadLocalQueueForInternalMessages_;
 };
 
-}  // namespace impl
-}  // namespace bftEngine
+}  // namespace bftEngine::impl
