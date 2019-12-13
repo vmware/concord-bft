@@ -28,3 +28,9 @@ target_compile_options(serializable_test PUBLIC -Wno-sign-compare)
 add_executable(timers_tests timers_tests.cpp $<TARGET_OBJECTS:logging_dev>)
 add_test(timers_tests timers_tests)
 target_link_libraries(timers_tests gtest_main util)
+
+find_package(OpenSSL REQUIRED)
+add_executable(sha3_256_tests sha3_256_tests.cpp)
+add_test(sha3_256_tests sha3_256_tests)
+target_link_libraries(sha3_256_tests gtest_main util ${OPENSSL_LIBRARIES}
+    $<TARGET_OBJECTS:logging_dev>)
