@@ -6,7 +6,6 @@ set(corebft_source_files
     src/bftengine/Digest.cpp
     src/bftengine/SeqNumInfo.cpp
     src/bftengine/ReplicaImp.cpp
-    src/bftengine/ReplicaConfigSingleton.cpp
     src/bftengine/ControllerBase.cpp
     src/bftengine/ControllerWithSimpleHistory.cpp
     src/bftengine/IncomingMsgsStorage.cpp

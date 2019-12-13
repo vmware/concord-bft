@@ -70,7 +70,7 @@ string(APPEND CXX_FLAGS " -Werror")
 #string(APPEND CXX_FLAGS
 #    " -fno-strict-overflow")
 # Prevents some buffer overflows: https://access.redhat.com/blogs/766093/posts/1976213
-string(APPEND CXX_FLAGS_DEBUG
+string(APPEND CXX_FLAGS_RELEASE
         " -D_FORTIFY_SOURCE=2 -O")
 
 # GCC and clang-specific options

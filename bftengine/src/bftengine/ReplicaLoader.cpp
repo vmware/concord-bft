@@ -75,7 +75,10 @@ ReplicaLoader::ErrorCode checkReplicaConfig(const LoadedReplicaData &ld) {
   Verify(c.statusReportTimerMillisec > 0,
          InconsistentErr);  // TODO(GG): TBD - do we want maximum for statusReportTimerMillisec?
 
-  VerifyAND(c.concurrencyLevel >= 1, c.concurrencyLevel <= (checkpointWindowSize / 5), InconsistentErr);
+  Verify(c.concurrencyLevel >= 1, InconsistentErr);
+  Verify(c.concurrencyLevel <= (checkpointWindowSize / 5), InconsistentErr);
+  Verify(c.concurrencyLevel < MaxConcurrentFastPaths, InconsistentErr);
+  Verify(c.concurrencyLevel <= maxLegalConcurrentAgreementsByPrimary, InconsistentErr);
 
   std::set<uint16_t> repIDs;
   for (std::pair<uint16_t, std::string> v : c.publicKeysOfReplicas) {

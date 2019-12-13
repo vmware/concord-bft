@@ -12,7 +12,7 @@
 #include <string.h>
 #include "ClientReplyMsg.hpp"
 #include "assertUtils.hpp"
-#include "ReplicaConfigSingleton.hpp"
+#include "ReplicaConfig.hpp"
 
 namespace bftEngine {
 namespace impl {

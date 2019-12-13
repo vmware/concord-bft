@@ -14,7 +14,7 @@
 #include "assertUtils.hpp"
 #include "ViewChangeMsg.hpp"
 #include "Crypto.hpp"
-#include "ReplicaConfigSingleton.hpp"
+#include "ReplicaConfig.hpp"
 
 namespace bftEngine {
 namespace impl {
