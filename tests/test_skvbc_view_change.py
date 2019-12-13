@@ -46,9 +46,8 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
         1) Given a BFT network, we trigger parallel writes.
         2) Make sure the initial view is preserved during those writes.
-        3) Stop the primary replica and send a single write.
-        4) Verify the BFT network has transitioned to the next view,
-        5) Make sure the written K/V entry can be read.
+        3) Stop the primary replica and send a batch of write requests.
+        4) Verify the BFT network eventually transitions to the next view.
         """
         trio.run(self._test_single_vc_only_primary_down)
 
@@ -68,30 +67,24 @@ class SkvbcViewChangeTest(unittest.TestCase):
                 initial_primary = 0
                 expected_next_primary = 1
 
-                with trio.move_on_after(seconds=.5):
-                    async with trio.open_nursery() as nursery:
-                        nursery.start_soon(skvbc.send_indefinite_write_requests)
+                await self._send_random_writes(skvbc)
 
-                view = await bft_network.get_view_number(
+                await bft_network.wait_for_view_change(
                     replica_id=initial_primary,
-                    expected=lambda v: v == initial_primary
+                    expected=lambda v: v == initial_primary,
+                    err_msg="Make sure we are in the initial view "
+                            "before crashing the primary."
                 )
-                self.assertEqual(view, initial_primary,
-                                 "Make sure we are in the initial view "
-                                 "before crashing the primary.")
 
                 bft_network.stop_replica(initial_primary)
 
-                key, val = await self._wait_for_known_kv_write(skvbc)
+                await self._send_random_writes(skvbc)
 
-                view = await bft_network.get_view_number(
+                await bft_network.wait_for_view_change(
                     replica_id=random.choice(bft_network.all_replicas(without={0})),
-                    expected=lambda v: v > initial_primary
+                    expected=lambda v: v == expected_next_primary,
+                    err_msg="Make sure view change has been triggered."
                 )
-                self.assertEqual(view, expected_next_primary,
-                                 "Make sure a single write triggers the view change.")
-
-                await skvbc.assert_kv_write_executed(key, val)
 
     def test_single_vc_with_f_replicas_down(self):
         """
@@ -101,8 +94,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         1) Given a BFT network, we make sure all nodes are up.
         2) crash f replicas, including the current primary.
         3) Trigger parallel requests to start the view change.
-        4) Verify the BFT network has transitioned to the next view,
-        5) Make sure the written K/V entry can be read.
+        4) Verify the BFT network eventually transitions to the next view.
         """
         trio.run(self._test_single_vc_with_f_replicas_down)
 
@@ -135,19 +127,13 @@ class SkvbcViewChangeTest(unittest.TestCase):
                     2 * config.f + 2 * config.c + 1,
                     "Make sure enough replicas are up to allow a successful view change")
 
-                with trio.move_on_after(seconds=.5):
-                    async with trio.open_nursery() as nursery:
-                        nursery.start_soon(skvbc.send_indefinite_write_requests)
+                await self._send_random_writes(skvbc)
 
-                view = await bft_network.get_view_number(
+                await bft_network.wait_for_view_change(
                     replica_id=random.choice(bft_network.all_replicas(without=crashed_replicas)),
-                    expected=lambda v: v > initial_primary
+                    expected=lambda v: v == expected_next_primary,
+                    err_msg="Make sure view change has been triggered."
                 )
-                self.assertEqual(view, expected_next_primary,
-                                 "Make sure view change has occurred.")
-
-                key, val = await self._wait_for_known_kv_write(skvbc)
-                await skvbc.assert_kv_write_executed(key, val)
 
     def test_multiple_vc_slow_path(self):
         """
@@ -157,9 +143,9 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
         1) Given a BFT network, we make sure all nodes are up.
         2) Repeat the following several times:
-            2.1) crash c+1 replicas (including the primary)
+            2.1) Crash c+1 replicas (including the primary)
             2.2) Send parallel requests to start the view change.
-            2.3) Make sure the BFT network transitions to the next view
+            2.3) Verify the BFT network eventually transitions to the next view.
         3) Make sure the slow path was prevalent during all view changes
         """
         trio.run(self._test_multiple_vc_slow_path)
@@ -197,32 +183,26 @@ class SkvbcViewChangeTest(unittest.TestCase):
                         2 * config.f + 2 * config.c + 1,
                         "Make sure enough replicas are up to allow a successful view change")
 
-                    with trio.move_on_after(seconds=.5):
-                        async with trio.open_nursery() as nursery:
-                            nursery.start_soon(skvbc.send_indefinite_write_requests)
+                    await self._send_random_writes(skvbc)
 
                     stable_replica = random.choice(
                         bft_network.all_replicas(without=crashed_replicas))
 
-                    view = await bft_network.get_view_number(
+                    view = await bft_network.wait_for_view_change(
                         replica_id=stable_replica,
-                        expected=lambda v: v > current_primary
+                        expected=lambda v: v > current_primary,
+                        err_msg="Make sure a view change has been triggered."
                     )
-                    self.assertEqual(view, current_primary + 1,
-                                     "Make sure view change has occurred.")
                     current_primary = view
                     [bft_network.start_replica(i) for i in crashed_replicas]
 
                 await bft_network.wait_for_slow_path_to_be_prevalent(
                     replica_id=current_primary)
 
-    async def _wait_for_known_kv_write(self, skvbc):
-        with trio.fail_after(seconds=10):
-            while True:
-                try:
-                    return await skvbc.write_known_kv()
-                except trio.TooSlowError:
-                    continue
+    async def _send_random_writes(self, skvbc):
+        with trio.move_on_after(seconds=1):
+            async with trio.open_nursery() as nursery:
+                nursery.start_soon(skvbc.send_indefinite_write_requests)
 
     async def _crash_replicas_including_primary(
             self, bft_network, nb_crashing, primary):

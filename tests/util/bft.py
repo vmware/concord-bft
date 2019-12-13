@@ -197,15 +197,24 @@ class BftTestNetwork:
 
         return list(set(range(0, self.config.n)) - without)
 
-    async def get_view_number(self, replica_id, expected):
-        with trio.move_on_after(10):
-            while True:
-                with trio.move_on_after(.5):  # seconds
-                    key = ['replica', 'Gauges', 'lastAgreedView']
-                    view = await self.metrics.get(replica_id, *key)
-                    if expected(view):
-                        break
-        return view
+    async def wait_for_view_change(self, replica_id, expected,
+                                   err_msg="Expected view not reached"):
+        """
+        Waits for a view that matches the "expected" predicate,
+        and returns the corresponding view number.
+
+        In case of a timeout, fails with the provided err_msg
+        """
+        try:
+            with trio.fail_after(seconds=30):
+                while True:
+                    with trio.move_on_after(seconds=1):
+                        key = ['replica', 'Gauges', 'lastAgreedView']
+                        view = await self.metrics.get(replica_id, *key)
+                        if expected(view):
+                            return view
+        except trio.TooSlowError:
+            assert False, err_msg
 
     def force_quorum_including_replica(self, replica_id, primary=0):
         """
