@@ -114,6 +114,13 @@ Get g++:
 
     sudo apt-get install g++
 
+Get OpenSSL:
+We use OpenSSL for TLS communication and SHA3. For SHA3, OpenSSL must be >=
+version 1.1.1. This is the latest update to Ubuntu 18.04.
+
+    sudo apt-get install openssl libssl-dev
+
+
 #### (Optional) Use log4cplus
 
 We have simple console logger but if you wish to use log4cplus - we have an
@@ -170,11 +177,6 @@ After the installation, please verify the version by running:
 It should be
 
     Python 3.x.x
-
-#### (Optional) Only if using TLS as communication module
-We use OpenSSL for TLS communication module. Please install it using
-
-    sudo apt-get install openssl libssl-dev
 
 #### (Optional) Only if using TLS or plain TCP as communication module
 We use Boost both for plain TCP and TLS communication. Please follow these

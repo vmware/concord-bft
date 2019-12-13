@@ -7,7 +7,8 @@ echo "macos homebrew packages handled in .travis.yml"
 else
 # If on Linux, install necessary packages using apt
 sudo apt-get update
-sudo apt-get install -y ccache cmake clang-format libgmp3-dev parallel python3-pip python3-setuptools
+sudo apt-get install -y ccache cmake clang-format libgmp3-dev parallel \
+python3-pip python3-setuptools openssl libssl-dev
 fi
 
 # build and install relic
