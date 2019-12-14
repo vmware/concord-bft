@@ -31,7 +31,7 @@ TEST(nibble_test, check_bit_operations) {
 
 TEST(nibble_DeathTest, bits_outside_range) { ASSERT_DEATH(Nibble bad(16), ""); }
 
-TEST(nibble_path_test, append_and_get) {
+TEST(nibble_path_test, append_and_get_and_pop_back) {
   NibblePath path;
   path.append(15);
   ASSERT_EQ(path.length(), 1);
@@ -43,6 +43,15 @@ TEST(nibble_path_test, append_and_get) {
   ASSERT_EQ(Nibble(15), path.get(0));
   ASSERT_EQ(Nibble(2), path.get(1));
   ASSERT_EQ(Nibble(0), path.get(2));
+  ASSERT_EQ(3, path.length());
+
+  ASSERT_EQ(Nibble(0), path.pop_back());
+  ASSERT_EQ(2, path.length());
+  ASSERT_EQ(Nibble(2), path.pop_back());
+  ASSERT_EQ(1, path.length());
+  ASSERT_EQ(Nibble(15), path.pop_back());
+
+  ASSERT_TRUE(path.empty());
 }
 
 TEST(nibble_path_DeathTest, range_errors) {
