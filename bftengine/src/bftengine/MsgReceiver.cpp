@@ -11,7 +11,7 @@
 
 #include "MsgReceiver.hpp"
 #include "messages/MessageBase.hpp"
-#include "ReplicaConfigSingleton.hpp"
+#include "ReplicaConfig.hpp"
 #include <cstring>
 
 namespace bftEngine::impl {
