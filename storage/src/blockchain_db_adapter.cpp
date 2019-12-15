@@ -111,7 +111,7 @@ int KeyManipulator::composedKeyComparison(const char *_a_data,
     default:
       LOG_ERROR(logger(), "invalid key type: " << (char)aType);
       assert(false);
-
+      throw std::runtime_error("KeyManipulator::composedKeyComparison: invalid key type");
   }  // switch
 }
 

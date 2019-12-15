@@ -176,7 +176,7 @@ void testInit() {
   DescriptorOfLastExitFromView lastExitFromView = persistentStorageImp->getAndAllocateDescriptorOfLastExitFromView();
   assert(lastExitFromView.equals(*descriptorOfLastExitFromView));
   bool descHasSet = persistentStorageImp->hasDescriptorOfLastExitFromView();
-  assert(!descHasSet);
+  Assert(!descHasSet);
 
   DescriptorOfLastNewView lastNewView = persistentStorageImp->getAndAllocateDescriptorOfLastNewView();
   assert(lastNewView.equals(*descriptorOfLastNewView));
@@ -384,7 +384,7 @@ void testSetDescriptors(bool toSet) {
   DescriptorOfLastExecution lastExecution = persistentStorageImp->getDescriptorOfLastExecution();
   assert(lastExecution.equals(lastExecutionDesc));
   bool descHasSet = persistentStorageImp->hasDescriptorOfLastExecution();
-  assert(descHasSet);
+  Assert(descHasSet);
 
   DescriptorOfLastNewView lastNewView = persistentStorageImp->getAndAllocateDescriptorOfLastNewView();
   assert(lastNewView.equals(lastNewViewDesc));
@@ -453,6 +453,8 @@ void fillReplicaConfig() {
   config.thresholdVerifierForCommit = new IThresholdVerifierDummy;
   config.thresholdSignerForOptimisticCommit = new IThresholdSignerDummy;
   config.thresholdVerifierForOptimisticCommit = new IThresholdVerifierDummy;
+  config.singletonFromThis();
+  config.singletonFromThis();
 }
 
 void testSetReplicaConfig(bool toSet) {
@@ -483,11 +485,11 @@ int main() {
   PersistentStorageImp persistentStorage(fVal, cVal);
   metadataStorage.reset(new FileStorage(logger, dbFile));
   uint16_t numOfObjects = 0;
+  fillReplicaConfig();
   ObjectDescUniquePtr objectDescArray = persistentStorage.getDefaultMetadataObjectDescriptors(numOfObjects);
   metadataStorage->initMaxSizeOfObjects(objectDescArray.get(), numOfObjects);
   persistentStorageImp->init(move(metadataStorage));
 
-  fillReplicaConfig();
   testInit();
 
   bool init = true;

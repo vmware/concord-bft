@@ -11,7 +11,7 @@
 
 #include "NewViewMsg.hpp"
 #include "assertUtils.hpp"
-#include "ReplicaConfigSingleton.hpp"
+#include "ReplicaConfig.hpp"
 
 namespace bftEngine {
 namespace impl {
