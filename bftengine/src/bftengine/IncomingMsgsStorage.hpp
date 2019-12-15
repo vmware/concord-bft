@@ -24,16 +24,11 @@ namespace bftEngine::impl {
 
 class IncomingMsgsStorage {
  public:
-  explicit IncomingMsgsStorage() {}
+  explicit IncomingMsgsStorage() = default;
   virtual ~IncomingMsgsStorage() = default;
 
-  // can be called by any thread
   virtual void pushExternalMsg(std::unique_ptr<MessageBase> msg) = 0;
-
-  // can be called by any thread
   virtual void pushInternalMsg(std::unique_ptr<InternalMessage> msg) = 0;
-
-  // should only be called by the main thread
   virtual IncomingMsg popMsgForProcessing(std::chrono::milliseconds timeout) = 0;
 };
 

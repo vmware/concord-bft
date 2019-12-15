@@ -10,7 +10,6 @@
 // file.
 
 #include "MsgsCommunicator.hpp"
-#include "IncomingMsgsStorage.hpp"
 #include "assertUtils.hpp"
 
 namespace bftEngine::impl {
@@ -19,7 +18,7 @@ using namespace std;
 
 MsgsCommunicator::MsgsCommunicator(ICommunication* comm,
                                    shared_ptr<IncomingMsgsStorage>& incomingMsgsStorage,
-                                   shared_ptr<MsgReceiver>& msgReceiver) {
+                                   shared_ptr<IReceiver>& msgReceiver) {
   communication_ = comm;
   incomingMsgsStorage_ = incomingMsgsStorage;
   msgReceiver_ = msgReceiver;

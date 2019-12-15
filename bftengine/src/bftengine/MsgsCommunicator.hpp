@@ -11,7 +11,9 @@
 
 #pragma once
 
-#include "MsgReceiver.hpp"
+#include "PrimitiveTypes.hpp"
+#include "ICommunication.hpp"
+#include "IncomingMsgsStorage.hpp"
 #include "messages/IncomingMsg.hpp"
 
 namespace bftEngine::impl {
@@ -20,7 +22,7 @@ class MsgsCommunicator {
  public:
   explicit MsgsCommunicator(ICommunication* comm,
                             std::shared_ptr<IncomingMsgsStorage>& incomingMsgsStorage,
-                            std::shared_ptr<MsgReceiver>& msgReceiver);
+                            std::shared_ptr<IReceiver>& msgReceiver);
   virtual ~MsgsCommunicator() = default;
 
   int start(ReplicaId myReplicaId);
@@ -31,7 +33,7 @@ class MsgsCommunicator {
 
  private:
   std::shared_ptr<IncomingMsgsStorage> incomingMsgsStorage_;
-  std::shared_ptr<MsgReceiver> msgReceiver_;
+  std::shared_ptr<IReceiver> msgReceiver_;
   ICommunication* communication_;
 };
 

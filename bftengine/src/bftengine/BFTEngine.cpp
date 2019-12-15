@@ -17,6 +17,7 @@
 #include "PersistentStorageImp.hpp"
 #include "IncomingMsgsStorageImp.hpp"
 #include "MsgsCommunicator.hpp"
+#include "MsgReceiver.hpp"
 #include "bftengine/ReplicaConfig.hpp"
 
 #include <condition_variable>
@@ -158,7 +159,7 @@ Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
 
   auto *replicaInternal = new ReplicaInternal();
   shared_ptr<IncomingMsgsStorage> incomingMsgsStoragePtr(new IncomingMsgsStorageImp());
-  shared_ptr<MsgReceiver> msgReceiverPtr(new MsgReceiver(incomingMsgsStoragePtr));
+  shared_ptr<IReceiver> msgReceiverPtr(new MsgReceiver(incomingMsgsStoragePtr));
   shared_ptr<MsgsCommunicator> msgsCommunicatorPtr(
       new MsgsCommunicator(communication, incomingMsgsStoragePtr, msgReceiverPtr));
   if (isNewStorage) {
