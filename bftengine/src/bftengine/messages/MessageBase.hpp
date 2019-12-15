@@ -1,12 +1,12 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
 //
 // This product may include a number of subcomponents with separate copyright notices and license terms. Your use of
-// these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
+// these subcomponents is subject to the terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
 #pragma once
@@ -26,6 +26,7 @@ class MessageBase {
     MsgType msgType;
   };
 #pragma pack(pop)
+
   static_assert(sizeof(Header) == 2, "MessageBase::Header is 2B");
 
   explicit MessageBase(NodeIdType sender);
@@ -73,6 +74,7 @@ class MessageBase {
   NodeIdType sender_;
   // true IFF this instance is not responsible for de-allocating the body:
   bool owner_ = true;
+  static const uint32_t magicNumOfRawFormat = 0x5555897BU;
 
 #pragma pack(push, 1)
   struct RawHeaderOfObjAndMsg {
@@ -82,14 +84,6 @@ class MessageBase {
     // TODO(GG): consider to add checksum
   };
 #pragma pack(pop)
-  static const uint32_t magicNumOfRawFormat = 0x5555897BU;
-};
-
-class InternalMessage  // TODO(GG): move class to another file
-{
- public:
-  virtual ~InternalMessage() = default;
-  virtual void handle() = 0;
 };
 
 }  // namespace impl

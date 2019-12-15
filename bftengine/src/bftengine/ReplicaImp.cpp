@@ -6,16 +6,18 @@
 // compliance with the Apache 2.0 License.
 //
 // This product may include a number of subcomponents with separate copyright notices and license terms. Your use of
-// these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
+// these subcomponents is subject to the terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
 #include "ReplicaImp.hpp"
 #include "assertUtils.hpp"
+#include "Logger.hpp"
 #include "messages/ClientRequestMsg.hpp"
 #include "messages/PrePrepareMsg.hpp"
 #include "messages/CheckpointMsg.hpp"
 #include "messages/ClientReplyMsg.hpp"
-#include "Logger.hpp"
+#include "messages/StopInternalMsg.hpp"
+#include "messages/StopWhenStateIsNotCollectedInternalMsg.hpp"
 #include "messages/PartialExecProofMsg.hpp"
 #include "messages/FullExecProofMsg.hpp"
 #include "messages/StartSlowCommitMsg.hpp"
@@ -127,7 +129,7 @@ void ReplicaImp::sendRaw(char *m, NodeIdType dest, uint16_t type, MsgSize size) 
     DebugStatistics::onSendExMessage(type);
   }
 
-  errorCode = communication->sendAsyncMessage(dest, m, size);
+  errorCode = msgsCommunicator_->sendAsyncMessage(dest, m, size);
 
   if (errorCode != 0) {
     LOG_ERROR_F(GL,
@@ -139,7 +141,7 @@ void ReplicaImp::sendRaw(char *m, NodeIdType dest, uint16_t type, MsgSize size) 
 
 IncomingMsg ReplicaImp::recvMsg() {
   while (true) {
-    auto msg = incomingMsgsStorage.pop(timersResolution);
+    auto msg = getIncomingMsgsStorage().popMsgForProcessing(timersResolution);
 
     // TODO(GG): make sure that we don't check timers too often
     // (i.e. much faster than timersResolution)
@@ -150,28 +152,6 @@ IncomingMsg ReplicaImp::recvMsg() {
     }
   }
 }
-
-ReplicaImp::MsgReceiver::MsgReceiver(IncomingMsgsStorage &queue) : incomingMsgs{queue} {}
-
-void ReplicaImp::MsgReceiver::onNewMessage(const NodeNum sourceNode,
-                                           const char *const message,
-                                           const size_t messageLength) {
-  if (messageLength > ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize()) return;
-  if (messageLength < sizeof(MessageBase::Header)) return;
-
-  MessageBase::Header *msgBody = (MessageBase::Header *)std::malloc(messageLength);
-  memcpy(msgBody, message, messageLength);
-
-  NodeIdType n = (uint16_t)sourceNode;  // TODO(GG): make sure that this casting is okay
-
-  std::unique_ptr<MessageBase> pMsg(new MessageBase(n, msgBody, messageLength, true));
-
-  // TODO(GG): TBD: do we want to verify messages in this thread (communication) ?
-
-  incomingMsgs.pushExternalMsg(std::move(pMsg));
-}
-
-void ReplicaImp::MsgReceiver::onConnectionStatusChanged(const NodeNum node, const ConnectionStatus newStatus) {}
 
 void ReplicaImp::onMessage(ClientRequestMsg *m) {
   metric_received_client_requests_.Get().Inc();
@@ -2643,7 +2623,7 @@ void ReplicaImp::onReportAboutLateReplica(ReplicaId reportedReplica, SeqNum seqN
 ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                        RequestsHandler *requestsHandler,
                        IStateTransfer *stateTrans,
-                       ICommunication *comm,
+                       shared_ptr<MsgsCommunicator> &msgsCommunicator,
                        shared_ptr<PersistentStorage> &persistentStorage)
     : ReplicaImp(false, ld.repConfig, requestsHandler, stateTrans, ld.sigManager, ld.repsInfo, ld.viewsManager) {
   Assert(persistentStorage != nullptr);
@@ -2817,10 +2797,8 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
     mapOfRequestsThatAreBeingRecovered = b;
   }
 
-  communication = comm;
-  communication->setReceiver(config_.replicaId, msgReceiver);
-  int comStatus = communication->Start();
-  Assert(comStatus == 0);
+  msgsCommunicator_ = msgsCommunicator;
+  msgsCommunicator_->start(config_.replicaId);
 
   internalThreadPool.start(8);  // TODO(GG): use configuration
 }
@@ -2828,7 +2806,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
 ReplicaImp::ReplicaImp(const ReplicaConfig &config,
                        RequestsHandler *requestsHandler,
                        IStateTransfer *stateTrans,
-                       ICommunication *comm,
+                       shared_ptr<MsgsCommunicator> &msgsCommunicator,
                        shared_ptr<PersistentStorage> &persistentStorage)
     : ReplicaImp(true, config, requestsHandler, stateTrans, nullptr, nullptr, nullptr) {
   if (persistentStorage != nullptr) {
@@ -2841,11 +2819,8 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
     ps_->endWriteTran();
   }
 
-  communication = comm;
-  communication->setReceiver(config_.replicaId, msgReceiver);
-  int comStatus = communication->Start();
-  Assert(comStatus == 0);
-
+  msgsCommunicator_ = msgsCommunicator;
+  msgsCommunicator_->start(config_.replicaId);
   internalThreadPool.start(8);  // TODO(GG): use configuration
 }
 
@@ -2928,8 +2903,6 @@ ReplicaImp::ReplicaImp(bool firstTime,
 
     // TODO(GG): consider to add relevant asserts
   }
-
-  msgReceiver = new MsgReceiver(incomingMsgsStorage);
 
   std::set<NodeIdType> clientsSet;
   for (uint16_t i = numOfReplicas; i < numOfReplicas + config_.numOfClientProxies; i++) clientsSet.insert(i);
@@ -3016,7 +2989,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
 
   if (retransmissionsLogicEnabled)
     retransmissionsManager =
-        new RetransmissionsManager(this, &internalThreadPool, &incomingMsgsStorage, kWorkWindowSize, 0);
+        new RetransmissionsManager(this, &internalThreadPool, &getIncomingMsgsStorage(), kWorkWindowSize, 0);
   else
     retransmissionsManager = nullptr;
 
@@ -3034,24 +3007,15 @@ ReplicaImp::~ReplicaImp() {
 
   internalThreadPool.stop();
 
-  // delete stateTransfer;
-
   delete viewsManager;
-
   delete controller;
-
   delete dynamicUpperLimitOfRounds;
-
   delete mainLog;
-
   delete checkpointsLog;
 
   if (config_.debugStatisticsEnabled) {
     DebugStatistics::freeDebugStatisticsData();
   }
-
-  delete msgReceiver;
-  delete communication;
 }
 
 void ReplicaImp::start() {
@@ -3067,11 +3031,11 @@ void ReplicaImp::start() {
 
 void ReplicaImp::stop() {
   std::unique_ptr<InternalMessage> stopMsg(new StopInternalMsg(this));
-  incomingMsgsStorage.pushInternalMsg(std::move(stopMsg));
+  getIncomingMsgsStorage().pushInternalMsg(std::move(stopMsg));
 
   mainThread.join();
 
-  communication->Stop();
+  msgsCommunicator_->stop();
 
   Assert(mainThreadShouldStop);
 
@@ -3082,11 +3046,11 @@ void ReplicaImp::stop() {
 
 void ReplicaImp::stopWhenStateIsNotCollected() {
   std::unique_ptr<InternalMessage> stopMsg(new StopWhenStateIsNotCollectedInternalMsg(this));
-  incomingMsgsStorage.pushInternalMsg(std::move(stopMsg));
+  getIncomingMsgsStorage().pushInternalMsg(std::move(stopMsg));
 
   mainThread.join();
 
-  communication->Stop();
+  msgsCommunicator_->stop();
 
   Assert(mainThreadShouldStop);
 
@@ -3098,21 +3062,6 @@ void ReplicaImp::stopWhenStateIsNotCollected() {
 bool ReplicaImp::isRunning() const { return mainThreadStarted; }
 
 SeqNum ReplicaImp::getLastExecutedSequenceNum() const { return lastExecutedSeqNum; }
-
-ReplicaImp::StopInternalMsg::StopInternalMsg(ReplicaImp *myReplica) { replica = myReplica; }
-
-void ReplicaImp::StopInternalMsg::handle() { replica->mainThreadShouldStop = true; }
-
-ReplicaImp::StopWhenStateIsNotCollectedInternalMsg::StopWhenStateIsNotCollectedInternalMsg(ReplicaImp *myReplica) {
-  replica = myReplica;
-}
-
-void ReplicaImp::StopWhenStateIsNotCollectedInternalMsg::handle() {
-  if (replica->stateTransfer->isCollectingState())
-    replica->mainThreadShouldStopWhenStateIsNotCollected = true;
-  else
-    replica->mainThreadShouldStop = true;
-}
 
 void ReplicaImp::processMessages() {
   // TODO(GG): change this method to support "restart" ("start" after "stop")

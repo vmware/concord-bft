@@ -8,7 +8,7 @@ set(corebft_source_files
     src/bftengine/ReplicaImp.cpp
     src/bftengine/ControllerBase.cpp
     src/bftengine/ControllerWithSimpleHistory.cpp
-    src/bftengine/IncomingMsgsStorage.cpp
+    src/bftengine/IncomingMsgsStorageImp.cpp
     src/bftengine/RetransmissionsManager.cpp
     src/bftengine/SigManager.cpp
     src/bftengine/ReplicasInfo.cpp
@@ -27,6 +27,8 @@ set(corebft_source_files
     src/bftengine/ReplicaLoader.cpp
     src/bftengine/ReplicaConfigSerializer.cpp
     src/bftengine/SerializableActiveWindow.cpp
+    src/bftengine/MsgsCommunicator.cpp
+    src/bftengine/MsgReceiver.cpp
     src/communication/PlainUDPCommunication.cpp
     src/communication/CommFactory.cpp
     src/bcstatetransfer/BCStateTran.cpp
