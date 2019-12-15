@@ -3092,9 +3092,8 @@ void ReplicaImp::processMessages() {
       continue;
     }
 
-    // TODO: (AJS) Don't turn this back into a raw
-    // pointer. Pass the smart pointer through the
-    // messsage handlers so they take ownership.
+    // TODO: (AJS) Don't turn this back into a raw pointer.
+    // Pass the smart pointer through the message handlers so they take ownership.
     auto m = msg.external.release();
 
     if (config_.debugStatisticsEnabled) {
