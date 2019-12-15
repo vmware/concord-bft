@@ -176,7 +176,7 @@ void testInit() {
   DescriptorOfLastExitFromView lastExitFromView = persistentStorageImp->getAndAllocateDescriptorOfLastExitFromView();
   assert(lastExitFromView.equals(*descriptorOfLastExitFromView));
   bool descHasSet = persistentStorageImp->hasDescriptorOfLastExitFromView();
-  assert(!descHasSet);
+  Assert(!descHasSet);
 
   DescriptorOfLastNewView lastNewView = persistentStorageImp->getAndAllocateDescriptorOfLastNewView();
   assert(lastNewView.equals(*descriptorOfLastNewView));
@@ -384,7 +384,7 @@ void testSetDescriptors(bool toSet) {
   DescriptorOfLastExecution lastExecution = persistentStorageImp->getDescriptorOfLastExecution();
   assert(lastExecution.equals(lastExecutionDesc));
   bool descHasSet = persistentStorageImp->hasDescriptorOfLastExecution();
-  assert(descHasSet);
+  Assert(descHasSet);
 
   DescriptorOfLastNewView lastNewView = persistentStorageImp->getAndAllocateDescriptorOfLastNewView();
   assert(lastNewView.equals(lastNewViewDesc));

@@ -58,68 +58,42 @@ endif()
 #
 #
 
-string(APPEND CXX_FLAGS " -Wall")
-string(APPEND CXX_FLAGS " -Wbuiltin-macro-redefined")
+string(APPEND CMAKE_CXX_FLAGS " -Wall")
+string(APPEND CMAKE_CXX_FLAGS " -Wbuiltin-macro-redefined")
+string(APPEND CMAKE_CXX_FLAGS " -pedantic")
+string(APPEND CMAKE_CXX_FLAGS " -Werror")
 if(IS_LEAKCHECK)
-    string(APPEND CXX_FLAGS " -fsanitize=leak")
+    string(APPEND CMAKE_CXX_FLAGS " -fsanitize=leak")
 endif()
-string(APPEND CXX_FLAGS " -Werror")
-#string(APPEND CXX_FLAGS " -Wextra")
 
 # TODO: Figure out right way to deal with -fstrict-overflow / -Wstrict-overflow related errors
-#string(APPEND CXX_FLAGS
-#    " -fno-strict-overflow")
+# string(APPEND CXX_FLAGS " -fno-strict-overflow")
 # Prevents some buffer overflows: https://access.redhat.com/blogs/766093/posts/1976213
-string(APPEND CXX_FLAGS_RELEASE
-        " -D_FORTIFY_SOURCE=2 -O")
+string(APPEND CMAKE_CXX_FLAGS_RELEASE " -D_FORTIFY_SOURCE=2")
 
-# GCC and clang-specific options
-string(APPEND CMAKE_CXX_FLAGS
-        " ${CXX_FLAGS}")
-string(APPEND CMAKE_CXX_FLAGS_DEBUG
-        " ${CXX_FLAGS_DEBUG}")
+string(APPEND CMAKE_CXX_FLAGS_DEBUG " -fstack-protector-all")
 
-# using Clang
+
+
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 
-    # Clang-specific options
-    string(APPEND CMAKE_CXX_FLAGS
-            " -pedantic")
-    string(APPEND CMAKE_CXX_FLAGS
-            " -ferror-limit=3")
+    string(APPEND CMAKE_CXX_FLAGS " -ferror-limit=3")
+    
     # Our RELIC library used in threshsign is in the habit of picking generic
     # macro names like HASH and ALIGNED, which conflicts with our own code or
     # other libraries. Even worse, compilers don't show 'macro redefined' warnings
     # for system header files such as our installed RELIC library. So we do this:
-    string(APPEND CMAKE_CXX_FLAGS
-            " --no-system-header-prefix relic")
-    string(APPEND CMAKE_CXX_FLAGS
-            " -Wmacro-redefined")
-    string(APPEND CMAKE_CXX_FLAGS
-            " -Wsign-compare")
-    string(APPEND CMAKE_CXX_FLAGS_DEBUG
-            " -fstack-protector-all")
+    # TODO: [TK] move to the threshsign module
+    string(APPEND CMAKE_CXX_FLAGS " --no-system-header-prefix relic")    
+    
+    string(APPEND CMAKE_CXX_FLAGS " -Wmacro-redefined")
+    string(APPEND CMAKE_CXX_FLAGS " -Wsign-compare")
 
     # Export a compile database for use by semantic analysis tools
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# using GCC
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-
-    # GCC-specific options
-    string(APPEND CMAKE_CXX_FLAGS
-            " -pedantic")
-    string(APPEND CMAKE_CXX_FLAGS
-            " -fmax-errors=3")
-    string(APPEND CMAKE_CXX_FLAGS_DEBUG
-            " -fstack-protector-all")
-
-    # TODO: using Intel C++
-elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
-
-    # TODO: using Visual Studio C++
-elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
-
+    string(APPEND CMAKE_CXX_FLAGS " -fmax-errors=3")
 endif()
 
 # Initialize submodules and update a specific one
