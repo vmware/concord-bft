@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2019 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -52,7 +52,7 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
   IncomingMsg popThreadLocal();
 
  private:
-  const uint64_t minTimeBetweenOverflowWarningsMilli_ = 5 * 1000;  // 5 seconds
+  const uint64_t minTimeBetweenOverflowWarningsMilli_ = 5 * 1000;
   const uint16_t maxNumberOfPendingExternalMsgs_ = 20000;
 
   std::mutex lock_;
