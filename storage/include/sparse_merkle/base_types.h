@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "assertUtils.hpp"
+#include "sha3_256.h"
 
 namespace concord {
 namespace storage {
@@ -68,24 +69,55 @@ class Hash {
   static constexpr const char* const HASH_ALGORITHM = "SHA3-256";
 
   static constexpr size_t SIZE_IN_BYTES = SIZE_IN_BITS / 8;
-  static constexpr size_t MAX_NIBBLES = SIZE_IN_BITS / 16;
+  static constexpr size_t MAX_NIBBLES = SIZE_IN_BYTES * 2;
 
   // This is the hash of the empty string ''. It's used as a placeholder value
   // for merkle tree hash calculations.
   //
   // Change this if the hash algorithm changes
-  static constexpr std::array<uint8_t, SIZE_IN_BYTES> EMPTY = {
+  static constexpr std::array<uint8_t, SIZE_IN_BYTES> EMPTY_BUF = {
       0xa7, 0xff, 0xc6, 0xf8, 0xbf, 0x1e, 0xd7, 0x66, 0x51, 0xc1, 0x47, 0x56, 0xa0, 0x61, 0xd6, 0x62,
       0xf5, 0x80, 0xff, 0x4d, 0xe4, 0x3b, 0x49, 0xfa, 0x82, 0xd8, 0x0a, 0x4b, 0x80, 0xf8, 0x43, 0x4a};
 
+  Hash() {}
+
+  Hash(std::array<uint8_t, SIZE_IN_BYTES> buf) : buf_(buf) {}
+
+  const uint8_t* data() const { return buf_.data(); }
+  size_t size() const { return buf_.size(); }
+
   Nibble get_nibble(const size_t n) const {
+    Assert(!buf_.empty());
     Assert(n < MAX_NIBBLES);
-    return ::concord::storage::sparse_merkle::get_nibble(n, buf);
+    return ::concord::storage::sparse_merkle::get_nibble(n, buf_);
   }
 
  private:
-  std::array<uint8_t, SIZE_IN_BYTES> buf;
+  std::array<uint8_t, SIZE_IN_BYTES> buf_;
 };
+
+// A Hasher computes hashes
+class Hasher {
+ public:
+  Hasher() {}
+
+  // Hash a buffer
+  Hash hash(const void* buf, size_t size) { return Hash(sha3_256.digest(buf, size)); }
+
+  // Compute the parent hash by concatenating the left and right hashes and
+  // hashing.
+  Hash parent(const Hash& left, const Hash& right) {
+    sha3_256.init();
+    sha3_256.update(left.data(), left.size());
+    sha3_256.update(right.data(), right.size());
+    return sha3_256.finish();
+  }
+
+ private:
+  util::SHA3_256 sha3_256;
+};
+
+static const Hash PLACEHOLDER_HASH = Hash(Hash::EMPTY_BUF);
 
 // This is a path used to find internal nodes in a merkle tree.
 //
@@ -98,6 +130,9 @@ class NibblePath {
   // Return the length of the path_ in nibbles
   size_t length() const { return num_nibbles_; }
 
+  // Return whether the path is empty
+  size_t empty() const { return num_nibbles_ == 0; }
+
   // Append a nibble to the path_
   void append(Nibble nibble) {
     // We don't want a NibblePath to ever be longer than a Hash
@@ -108,6 +143,25 @@ class NibblePath {
       path_.back() |= nibble.data();
     }
     num_nibbles_ += 1;
+  }
+
+  // Pop the last nibble off the path
+  Nibble pop_back() {
+    Assert(!empty());
+    uint8_t data = 0;
+    if (num_nibbles_ % 2 == 0) {
+      // We have a complete byte at the end of path_. Remove the lower nibble.
+      data = path_.back() & 0x0F;
+      // Clear the lower nibble.
+      path_.back() |= 0xF0;
+    } else {
+      // We have an incomplete byte at the end of path_. Remove the upper nibble.
+      data = path_.back() >> 4;
+      // Remove the last byte containing a single nibble.
+      path_.pop_back();
+    }
+    num_nibbles_ -= 1;
+    return Nibble(data);
   }
 
   // Get the nth nibble.

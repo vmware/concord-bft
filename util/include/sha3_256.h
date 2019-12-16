@@ -25,6 +25,7 @@ namespace util {
 class SHA3_256 {
  public:
   static constexpr size_t SIZE_IN_BYTES = 32;
+  typedef std::array<uint8_t, SIZE_IN_BYTES> Digest;
 
   SHA3_256() : ctx_(EVP_MD_CTX_new()) { Assert(ctx_ != nullptr); }
 
@@ -36,23 +37,51 @@ class SHA3_256 {
 
   // Compute a digest for an entire buffer and return an array containing the
   // digest.
-  std::array<uint8_t, SIZE_IN_BYTES> digest(const void* buf, size_t size) {
+  //
+  // This is the simplest way to hash something as all setup is done for you.
+  // Use the 3 method mechanism below if you need to hash multiple buffers.
+  Digest digest(const void* buf, size_t size) {
+    Assert(!updating_);
     Assert(EVP_MD_CTX_reset(ctx_) == 1);
     Assert(EVP_DigestInit_ex(ctx_, EVP_sha3_256(), NULL) == 1);
 
-    if (size != 0) {
-      Assert(EVP_DigestUpdate(ctx_, buf, size) == 1);
-    }
+    Assert(EVP_DigestUpdate(ctx_, buf, size) == 1);
 
-    std::array<uint8_t, SIZE_IN_BYTES> digest;
+    Digest digest;
     unsigned int _digest_len;
     Assert(EVP_DigestFinal_ex(ctx_, digest.data(), &_digest_len) == 1);
     Assert(_digest_len == SIZE_IN_BYTES);
     return digest;
   }
 
+  // The following 3 methods are used to compute digests piecemeal, by
+  // continuously appending new data to be hashed.
+
+  void init() {
+    Assert(!updating_);
+    Assert(EVP_MD_CTX_reset(ctx_) == 1);
+    Assert(EVP_DigestInit_ex(ctx_, EVP_sha3_256(), NULL) == 1);
+    updating_ = true;
+  }
+
+  // Add more data to a digest.
+  void update(const void* buf, size_t size) {
+    Assert(updating_);
+    Assert(EVP_DigestUpdate(ctx_, buf, size) == 1);
+  }
+
+  Digest finish() {
+    Digest digest;
+    unsigned int _digest_len;
+    Assert(EVP_DigestFinal_ex(ctx_, digest.data(), &_digest_len) == 1);
+    Assert(_digest_len == SIZE_IN_BYTES);
+    updating_ = false;
+    return digest;
+  }
+
  private:
   EVP_MD_CTX* ctx_;
+  bool updating_ = false;
 };
 
 }  // namespace util
