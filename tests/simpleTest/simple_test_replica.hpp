@@ -201,7 +201,7 @@ class SimpleTestReplica {
     ReplicaConfig replicaConfig;
     testCommConfig.GetReplicaConfig(rp.replicaId, rp.keysFilePrefix, &replicaConfig);
     replicaConfig.numOfClientProxies = rp.numOfClients;
-    replicaConfig.autoViewChangeEnabled = rp.viewChangeEnabled;
+    replicaConfig.viewChangeProtocolEnabled = rp.viewChangeEnabled;
     replicaConfig.viewChangeTimerMillisec = rp.viewChangeTimeout;
     replicaConfig.replicaId = rp.replicaId;
     replicaConfig.statusReportTimerMillisec = 10000;

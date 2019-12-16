@@ -69,6 +69,7 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
 
   const uint16_t numOfReplicas;
   const bool viewChangeProtocolEnabled;
+  const bool autoPrimaryRotationEnabled;
   const bool supportDirectProofs = false;  // TODO(GG): add support
 
   // pointers to message handlers
@@ -190,6 +191,7 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   concordUtil::Timers::Handle metricsTimer_;
 
   int viewChangeTimerMilli = 0;
+  int autoPrimaryRotationTimerMilli = 0;
 
   std::shared_ptr<PersistentStorage> ps_;
 

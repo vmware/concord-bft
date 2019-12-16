@@ -42,7 +42,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
   string idStr;
 
   int o = 0;
-  while ((o = getopt(argc, argv, "r:i:k:n:s:v:p")) != EOF) {
+  while ((o = getopt(argc, argv, "r:i:k:n:s:v:a:p")) != EOF) {
     switch (o) {
       case 'i': {
         strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
@@ -75,9 +75,19 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
         idStr = argTempBuffer;
         int tempId = std::stoi(idStr);
-        if (tempId >= 0 && (uint32_t)tempId < UINT32_MAX) {
-          rp.viewChangeTimeout = (uint32_t)tempId;
+        if (tempId >= 0 && (uint16_t)tempId < UINT16_MAX) {
+          rp.viewChangeTimeout = (uint16_t)tempId;
           rp.viewChangeEnabled = true;
+        }
+      } break;
+      case 'a': {
+        strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
+        argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
+        idStr = argTempBuffer;
+        int tempId = std::stoi(idStr);
+        if (tempId >= 0 && (uint16_t)tempId < UINT16_MAX) {
+          rp.autoPrimaryRotationTimeout = (uint16_t)tempId;
+          rp.autoPrimaryRotationEnabled = true;
         }
       } break;
       // We can only toggle persistence on or off. It defaults to InMemory
@@ -106,8 +116,10 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
   // This allows more concurrency and only affects known ids in the
   // communication classes.
   replicaConfig.numOfClientProxies = 100;
-  replicaConfig.autoViewChangeEnabled = rp.viewChangeEnabled;
+  replicaConfig.viewChangeProtocolEnabled = rp.viewChangeEnabled;
   replicaConfig.viewChangeTimerMillisec = rp.viewChangeTimeout;
+  replicaConfig.autoPrimaryRotationEnabled = rp.autoPrimaryRotationEnabled;
+  replicaConfig.autoPrimaryRotationTimerMillisec = rp.autoPrimaryRotationTimeout;
   replicaConfig.statusReportTimerMillisec = rp.statusReportTimerMillisec;
   replicaConfig.concurrencyLevel = 1;
   replicaConfig.debugStatisticsEnabled = true;

@@ -50,7 +50,9 @@ struct ReplicaParams {
   uint16_t numOfClients = 1;
   bool debug = false;
   bool viewChangeEnabled = false;
-  uint32_t viewChangeTimeout = 60000;              // ms
+  bool autoPrimaryRotationEnabled = false;
+  uint16_t viewChangeTimeout = 60000;              // ms
+  uint16_t autoPrimaryRotationTimeout = 40000;     // ms
   uint16_t statusReportTimerMillisec = 10 * 1000;  // ms
   std::string configFileName;
   std::string keysFilePrefix;

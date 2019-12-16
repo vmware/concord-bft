@@ -58,8 +58,10 @@ ReplicaLoader::ErrorCode checkReplicaConfig(const LoadedReplicaData &ld) {
   LOG_INFO(GL,
            "checkReplicaConfig cVal=" << c.cVal << ", fVal=" << c.fVal << ", replicaId=" << c.replicaId
                                       << ", concurrencyLevel=" << c.concurrencyLevel
-                                      << ", autoViewChangeEnabled=" << c.autoViewChangeEnabled
-                                      << ", viewChangeTimerMillisec=" << c.viewChangeTimerMillisec);
+                                      << ", viewChangeProtocolEnabled=" << c.viewChangeProtocolEnabled
+                                      << ", viewChangeTimerMillisec=" << c.viewChangeTimerMillisec
+                                      << ", autoPrimaryRotationEnabled=" << c.autoPrimaryRotationEnabled
+                                      << ", autoPrimaryRotationTimerMillisec=" << c.autoPrimaryRotationTimerMillisec);
 
   Verify(c.fVal >= 1, InconsistentErr);
   Verify(c.cVal >= 0, InconsistentErr);
