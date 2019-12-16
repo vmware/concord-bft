@@ -21,6 +21,13 @@ class IThresholdVerifier;
 
 namespace bftEngine {
 struct ReplicaConfig {
+
+  // Am I a read-only replica?
+  bool isReadOnly = false;
+
+  // number of read-only replicas in a cluster
+  uint16_t numRoReplicas = 0;
+
   // F value - max number of faulty/malicious replicas. fVal >= 1
   uint16_t fVal = 0;
 

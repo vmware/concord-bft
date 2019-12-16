@@ -62,7 +62,7 @@ static const std::string kHashesToTest[1] = {
 // cryptographic keys.
 
 static bool validateFundamentalFields(const std::vector<bftEngine::ReplicaConfig>& configs) {
-  uint16_t numReplicas = configs.size();
+  uint16_t numReplicas = configs.size() - configs.front().numRoReplicas;
   uint16_t fVal = configs.front().fVal;
   uint16_t cVal = configs.front().cVal;
 
@@ -74,7 +74,7 @@ static bool validateFundamentalFields(const std::vector<bftEngine::ReplicaConfig
   // numReplicas to give precedence to complaining about invalid F over
   // disagreement with numReplicas.
   if ((fVal >= 1) && (expectedNumReplicas != (uint32_t)numReplicas)) {
-    std::cout << "TestGeneratedKeys: FAILURE: fVal (" << fVal << ") and cVal (" << cVal
+    std::cout << "FAILURE: fVal (" << fVal << ") and cVal (" << cVal
               << ") (according to key file 0) do not agree with the number"
                  " of replicas ("
               << numReplicas
@@ -86,26 +86,26 @@ static bool validateFundamentalFields(const std::vector<bftEngine::ReplicaConfig
   for (uint16_t i = 0; i < numReplicas; ++i) {
     const bftEngine::ReplicaConfig& config = configs[i];
     if (config.replicaId != i) {
-      std::cout << "TestGeneratedKeys: FAILURE: Key file " << i
+      std::cout << "FAILURE: Key file " << i
                 << " specifies a replica ID disagreeing with its filename.\n";
       return false;
     }
     if (config.fVal < 1) {
-      std::cout << "TestGeneratedKeys: FAILURE: Replica " << i
+      std::cout << "FAILURE: Replica " << i
                 << " has an"
                    " invalid F value: "
                 << config.fVal << ".\n.";
       return false;
     }
     if (config.fVal != fVal) {
-      std::cout << "TestGeneratedKeys: FAILURE: Replica " << i
+      std::cout << "FAILURE: Replica " << i
                 << " has an F"
                    " value inconsistent with replica(s) 0 through "
                 << (i - 1) << ".\n";
       return false;
     }
     if (config.cVal != cVal) {
-      std::cout << "TestGeneratedKeys: FAILURE: Replica " << i
+      std::cout << "FAILURE: Replica " << i
                 << " has a C"
                    " value inconsistent with replica(s) 0 through "
                 << (i - 1) << ".\n";
@@ -122,81 +122,59 @@ static bool validateConfigStructIntegrity(const std::vector<bftEngine::ReplicaCo
   for (uint16_t i = 0; i < numReplicas; ++i) {
     const bftEngine::ReplicaConfig& config = configs[i];
     if (config.publicKeysOfReplicas.size() != numReplicas) {
-      std::cout << "TestGeneratedKeys: FAILURE: Size of the set of public keys"
-                   " of replicas in replica "
-                << i
-                << "'s key file does not match the"
-                   " number of replicas.\n";
+      std::cout << "FAILURE: Size of the set of public keys of replicas in replica "
+                << i << "'s key file does not match the number of replicas" << numReplicas << ".\n";
       return false;
     }
 
     std::set<uint16_t> foundIDs;
-    for (auto entry : config.publicKeysOfReplicas) {
+    for (auto & entry : config.publicKeysOfReplicas) {
       uint16_t id = entry.first;
       if (id >= numReplicas) {
-        std::cout << "TestGeneratedKeys: FAILURE: Entry with invalid replica"
-                     " ID ("
-                  << id << ") in set of public keys of replicas for replica " << i << ".\n";
+        std::cout << "FAILURE: Entry with invalid replica ID (" << id
+                  << ") in set of public keys of replicas for replica " << i << ".\n";
         return false;
       }
       if (foundIDs.count(id) > 0) {
-        std::cout << "TestGeneratedKeys: FAILURE: Set of public keys of"
-                     " replicas for replica "
-                  << i
-                  << " contains duplicate entries for"
-                     " replica "
-                  << id << ".\n";
+        std::cout << "FAILURE: Set of public keys of replicas for replica " << i
+                  << " contains duplicate entries for replica " << id << ".\n";
         return false;
       }
       foundIDs.insert(id);
     }
+    if(config.isReadOnly)
+      continue;
 
     if (!config.thresholdSignerForExecution) {
-      std::cout << "TestGeneratedKeys: FAILURE: No threshold signer for"
-                   " execution for replica "
-                << i << ".\n";
+      std::cout << "FAILURE: No threshold signer for execution for replica " << i << ".\n";
       return false;
     }
     if (!config.thresholdVerifierForExecution) {
-      std::cout << "TestGeneratedKeys: FAILURE: No threshold verifier for"
-                   " execution for replica "
-                << i << ".\n";
+      std::cout << "FAILURE: No threshold verifier for execution for replica " << i << ".\n";
       return false;
     }
     if (!config.thresholdSignerForSlowPathCommit) {
-      std::cout << "TestGeneratedKeys: FAILURE: No threshold signer for slow"
-                   " path commit for replica "
-                << i << ".\n";
+      std::cout << "FAILURE: No threshold signer for slow path commit for replica " << i << ".\n";
       return false;
     }
     if (!config.thresholdVerifierForSlowPathCommit) {
-      std::cout << "TestGeneratedKeys: FAILURE: No threshold verifier for slow"
-                   " path commit for replica "
-                << i << ".\n";
+      std::cout << "FAILURE: No threshold verifier for slow path commit for replica " << i << ".\n";
       return false;
     }
     if (!config.thresholdSignerForCommit) {
-      std::cout << "TestGeneratedKeys: FAILURE: No threshold signer for commit"
-                   " for replica "
-                << i << ".\n";
+      std::cout << "FAILURE: No threshold signer for commit for replica " << i << ".\n";
       return false;
     }
     if (!config.thresholdVerifierForCommit) {
-      std::cout << "TestGeneratedKeys: FAILURE: No threshold verifier for"
-                   " commit for replica "
-                << i << ".\n";
+      std::cout << "FAILURE: No threshold verifier for commit for replica " << i << ".\n";
       return false;
     }
     if (!config.thresholdSignerForOptimisticCommit) {
-      std::cout << "TestGeneratedKeys: FAILURE: No threshold signer for"
-                   " optimistic commit for replica "
-                << i << ".\n";
+      std::cout << "FAILURE: No threshold signer for optimistic commit for replica " << i << ".\n";
       return false;
     }
     if (!config.thresholdVerifierForOptimisticCommit) {
-      std::cout << "TestGeneratedKeys: FAILURE: No threshold verifier for"
-                   " optimistic commit for replica "
-                << i << ".\n";
+      std::cout << "FAILURE: No threshold verifier for optimistic commit for replica " << i << ".\n";
       return false;
     }
   }
@@ -215,24 +193,18 @@ static bool testRSAKeyPair(const std::string& privateKey, const std::string& pub
   std::unique_ptr<bftEngine::impl::RSASigner> signer;
   std::unique_ptr<bftEngine::impl::RSAVerifier> verifier;
 
-  std::string invalidPrivateKey =
-      "TestGeneratedKeys: FAILURE: Invalid RSA"
-      " private key for replica " +
-      std::to_string(replicaID) + ".\n";
-  std::string invalidPublicKey =
-      "TestGeneratedKeys: FAILURE: Invalid RSA"
-      " public key for replica " +
-      std::to_string(replicaID) + ".\n";
+  std::string invalidPrivateKey = "FAILURE: Invalid RSA private key for replica " + std::to_string(replicaID) + ".\n";
+  std::string invalidPublicKey  = "FAILURE: Invalid RSA public key for replica " +  std::to_string(replicaID) + ".\n";
 
   try {
     signer.reset(new bftEngine::impl::RSASigner(privateKey.c_str()));
-  } catch (std::exception e) {
+  } catch (std::exception& e) {
     std::cout << invalidPrivateKey;
     return false;
   }
   try {
     verifier.reset(new bftEngine::impl::RSAVerifier(publicKey.c_str()));
-  } catch (std::exception e) {
+  } catch (std::exception& e) {
     std::cout << invalidPublicKey;
     return false;
   }
@@ -243,7 +215,7 @@ static bool testRSAKeyPair(const std::string& privateKey, const std::string& pub
     size_t signatureLength;
     try {
       signatureLength = signer->signatureLength();
-    } catch (std::exception e) {
+    } catch (std::exception& e) {
       std::cout << invalidPrivateKey;
       return false;
     }
@@ -252,13 +224,13 @@ static bool testRSAKeyPair(const std::string& privateKey, const std::string& pub
 
     try {
       if (!signer->sign(hash.c_str(), hash.length(), signatureBuf, signatureLength, returnedSignatureLength)) {
-        std::cout << "TestGeneratedKeys: FAILURE: Failed to sign data with"
+        std::cout << "FAILURE: Failed to sign data with"
                      " replica "
                   << replicaID << "'s RSA private key.\n";
         delete[] signatureBuf;
         return false;
       }
-    } catch (std::exception e) {
+    } catch (std::exception& e) {
       std::cout << invalidPrivateKey;
       delete[] signatureBuf;
       return false;
@@ -266,14 +238,14 @@ static bool testRSAKeyPair(const std::string& privateKey, const std::string& pub
 
     try {
       if (!verifier->verify(hash.c_str(), hash.length(), signatureBuf, returnedSignatureLength)) {
-        std::cout << "TestGeneratedKeys: FAILURE: A signature with replica " << replicaID
+        std::cout << "FAILURE: A signature with replica " << replicaID
                   << "'s RSA private key could not be verified with"
                      " replica "
                   << replicaID << "'s RSA public key.\n";
         delete[] signatureBuf;
         return false;
       }
-    } catch (std::exception e) {
+    } catch (std::exception& e) {
       std::cout << invalidPublicKey;
       delete[] signatureBuf;
       return false;
@@ -317,7 +289,7 @@ static bool testRSAKeys(const std::vector<bftEngine::ReplicaConfig>& configs) {
           existingKeyholder = publicKeyEntry.first;
         }
       }
-      std::cout << "TestGeneratedKeys: FAILURE: Replicas " << existingKeyholder << " and " << i
+      std::cout << "FAILURE: Replicas " << existingKeyholder << " and " << i
                 << " share the same RSA public key.\n";
       return false;
     }
@@ -334,7 +306,7 @@ static bool testRSAKeys(const std::vector<bftEngine::ReplicaConfig>& configs) {
   for (uint16_t i = 0; i < numReplicas; ++i) {
     for (auto publicKeyEntry : configs[i].publicKeysOfReplicas) {
       if (publicKeyEntry.second != expectedPublicKeys[publicKeyEntry.first]) {
-        std::cout << "TestGeneratedKeys: FAILURE: Replica " << i
+        std::cout << "FAILURE: Replica " << i
                   << " has an"
                      " incorrect RSA public key for replica "
                   << publicKeyEntry.first << ".\n";
@@ -449,16 +421,9 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
                                    const std::vector<uint16_t>& signersToTest,
                                    uint16_t numSigners,
                                    uint16_t threshold) {
-  std::string invalidPublicConfig =
-      "TestGeneratedKeys: FAILURE: Invalid public"
-      " and verification keyset for " +
-      cryptosystemName +
-      " threshold"
-      " cryptosystem.\n";
-  std::string invalidKeyset =
-      "TestGeneratedKeys: FAILURE: Invalid keyset for"
-      " the " +
-      cryptosystemName + " threshold cryptosystem.\n";
+  std::string invalidPublicConfig = "FAILURE: Invalid public and verification keyset for " +  cryptosystemName +
+                                    " threshold cryptosystem.\n";
+  std::string invalidKeyset = "FAILURE: Invalid keyset for the " + cryptosystemName + " threshold cryptosystem.\n";
 
   uint16_t participatingSigners = signersToTest.size();
 
@@ -480,7 +445,7 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
       // whether the accumulators an implementation of it creates support
       // verification other than handling the exception that occurs if they do
       // not.
-    } catch (std::exception e) {
+    } catch (std::exception& e) {
       try {
         accumulator = verifier->newAccumulator(false);
       } catch (std::exception e) {
@@ -519,11 +484,8 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
         return false;
       }
       if (accumulatorSize != 0) {
-        std::cout << "TestGeneratedKeys: FAILURE: Newly created signature"
-                     " accumulator for "
-                  << cryptosystemName
-                  << " threshold cryptosystem"
-                     " reports already having valid signatures.\n";
+        std::cout << "FAILURE: Newly created signature accumulator for " << cryptosystemName
+                  << " threshold cryptosystem reports already having valid signatures.\n";
         releaseAccumulator(verifier, accumulator);
         return false;
       }
@@ -531,14 +493,12 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
 
     for (auto signerID : signersToTest) {
       IThresholdSigner* signer = signers[signerID];
-      std::string invalidPrivateKey =
-          "TestGeneratedKeys: FAILURE: Invalid"
-          " private key for signer " +
-          std::to_string(signerID) + " under the " + cryptosystemName + " threshold cryptosystem.\n";
+      std::string invalidPrivateKey = "FAILURE: Invalid private key for signer " + std::to_string(signerID) +
+                                      " under the " + cryptosystemName + " threshold cryptosystem.\n";
       int sigShareLen;
       try {
         sigShareLen = signer->requiredLengthForSignedData();
-      } catch (std::exception e) {
+      } catch (std::exception& e) {
         std::cout << invalidPrivateKey;
         releaseAccumulator(verifier, accumulator);
         return false;
@@ -546,7 +506,7 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
       char* sigShareBuf = new char[sigShareLen];
       try {
         signer->signData(hash.c_str(), hashLength, sigShareBuf, sigShareLen);
-      } catch (std::exception e) {
+      } catch (std::exception& e) {
         std::cout << invalidPrivateKey;
         releaseAccumulator(verifier, accumulator);
         delete[] sigShareBuf;
@@ -555,7 +515,7 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
       int addRes;
       try {
         addRes = accumulator->add(sigShareBuf, sigShareLen);
-      } catch (std::exception e) {
+      } catch (std::exception& e) {
         std::cout << invalidKeyset;
         releaseAccumulator(verifier, accumulator);
         delete[] sigShareBuf;
@@ -569,9 +529,8 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
         // threshold, as extra signatures are not actually helpful to it for
         // producing the composite signature it was created to produce.
         if (((accumulatorSize + 1) <= threshold) && (addRes != (accumulatorSize + 1))) {
-          std::cout << "TestGeneratedKeys: FAILURE: Signature accumulator"
-                       " could not validate replica "
-                    << signerID << "'s signature for " << cryptosystemName << " threshold cryptosystem.\n";
+          std::cout << "FAILURE: Signature accumulator could not validate replica " << signerID
+                    << "'s signature for " << cryptosystemName << " threshold cryptosystem.\n";
           releaseAccumulator(verifier, accumulator);
           return false;
         } else {
@@ -583,7 +542,7 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
     int signatureLength;
     try {
       signatureLength = verifier->requiredLengthForSignedData();
-    } catch (std::exception e) {
+    } catch (std::exception& e) {
       std::cout << invalidPublicConfig;
       releaseAccumulator(verifier, accumulator);
       return false;
@@ -601,7 +560,7 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
     bool signatureAccepted;
     try {
       signatureAccepted = verifier->verify(hash.c_str(), hashLength, sigBuf, signatureLength);
-    } catch (std::exception e) {
+    } catch (std::exception& e) {
       std::cout << invalidKeyset;
       releaseAccumulator(verifier, accumulator);
       delete[] sigBuf;
@@ -615,7 +574,7 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
     }
 
     if (signatureAccepted != (participatingSigners >= threshold)) {
-      std::cout << "TestGeneratedKeys: FAILURE: Threshold signer with " << participatingSigners
+      std::cout << "FAILURE: Threshold signer with " << participatingSigners
                 << " signatures unexpectedly " << (signatureAccepted ? "accepted" : "rejected") << " under the "
                 << cryptosystemName << " threshold cryptosystem, which has threshold " << threshold << " out of "
                 << numSigners << ".\n";
@@ -661,7 +620,7 @@ static bool testThresholdCryptosystem(const std::string& name,
   for (uint16_t i = 0; i < numSigners; ++i) {
     IThresholdVerifier* verifier = verifiers[i];
     if (verifier->getPublicKey().toString() != referenceVerifier->getPublicKey().toString()) {
-      std::cout << "TestGeneratedKeys: FAILURE: Replica " << i
+      std::cout << "FAILURE: Replica " << i
                 << "'s key file"
                    " has the wrong public key for the "
                 << name
@@ -671,7 +630,7 @@ static bool testThresholdCryptosystem(const std::string& name,
     }
     for (uint16_t j = 0; j < numSigners; ++j) {
       if (verifier->getShareVerificationKey(j).toString() != referenceVerifier->getShareVerificationKey(j).toString()) {
-        std::cout << "TestGeneratedKeys: FAILURE: Replica " << i
+        std::cout << "FAILURE: Replica " << i
                   << "'s key"
                      " file has the wrong share verification key for replica "
                   << j << " under the " << name << " threshold cryptosystem.\n";
@@ -691,7 +650,7 @@ static bool testThresholdCryptosystem(const std::string& name,
           existingKeyHolder = j;
         }
       }
-      std::cout << "TestGeneratedKeys: FAILURE: Replica " << i
+      std::cout << "FAILURE: Replica " << i
                 << " shares a"
                    " private key with replica "
                 << existingKeyHolder << " under the " << name << " threshold cryptosystem.\n";
@@ -708,7 +667,7 @@ static bool testThresholdCryptosystem(const std::string& name,
 // Tests all threshold cryptosystems given in the keyfiles by calling
 // testThresholdCryptosystem for each of them.
 static bool testThresholdKeys(const std::vector<bftEngine::ReplicaConfig>& configs) {
-  uint16_t numReplicas = configs.size();
+  uint16_t numReplicas = configs.size() - configs.front().numRoReplicas;
 
   // Compute thresholds.
   uint16_t f = configs.front().fVal;
@@ -829,153 +788,114 @@ static bool containsHelpOption(int argc, char** argv) {
  *         files fail the tests.
  */
 int main(int argc, char** argv) {
-  std::string usageMessage =
-      "Usage:\n"
-      "  TestGeneratedKeys -n TOTAL_NUMBER_OF_REPLICAS -o KEYFILE_PREFIX.\n"
-      "TestGeneratedKeys is intended to test the output of the\n"
-      "GenerateConcordKeys utility; TestGeneratedKeys expects that\n"
-      "GenerateConcordKeys has already been run and produced keyfiles for it to\n"
-      "test. TOTAL_NUMBER_OF_REPLICAS should specify how many replicas there\n"
-      "are in the deployment that TestGeneratedKeys has generated keys for, and\n"
-      "KEYFILE_PREFIX should be the prefix passed to GenerateConcordKeys via\n"
-      "its -o option that all. TestGeneratedKeys expects to find\n"
-      "TOTAL_NUMBER_OF_REPLICAS keyfiles each named KEYFILE_PREFIX<i>, where\n"
-      "<i> is an integer in the range [0, TOTAL_NUMBRER_OF_REPLICAS - 1],\n"
-      "inclusive.\n\n"
-      "TestGeneratedKeys can be run with no options or with the --help option\n"
-      "to view this usage text.\n";
+  try{
+    std::string usageMessage =
+        "Usage:\n"
+        "TestGeneratedKeys \n"
+        "  -n Number of regular replicas\n"
+        "  -r Number of read-only replicas\n"
+        "  -o Output file prefix\n"
+        "   --help - this help \n\n"
+        "TestGeneratedKeys is intended to test the output of the GenerateConcordKeys utility;\n"
+        "TestGeneratedKeys expects to find TOTAL_NUMBER_OF_REPLICAS keyfiles each named KEYFILE_PREFIX<i>,\n"
+        " where <i> is an integer in the range [0, TOTAL_NUMBRER_OF_REPLICAS - 1]\n\n";
 
-  // Output the usage message if no arguments were given. Note that argc should
-  // equal 1 in that case, as the first argument is the command used to run this
-  // executable by convention.
-  if ((argc <= 1) || (containsHelpOption(argc, argv))) {
-    std::cout << usageMessage;
-    return 0;
-  }
+    if ((argc <= 1) || (containsHelpOption(argc, argv))) {
+      std::cout << usageMessage;
+      return 0;
+    }
 
-  uint16_t numReplicas = 0;
-  std::string outputPrefix;
+    uint16_t numReplicas = 0;
+    uint16_t ro = 0;
+    std::string outputPrefix;
 
-  bool hasNumReplicas = false;
-  bool hasOutputPrefix = false;
+    for (int i = 1; i < argc; ++i) {
+      std::string option(argv[i]);
 
-  // Read input from the command line.
-  // Note we ignore argv[0] because it contains the command that was used to run
-  // this executable by convention.
-  for (int i = 1; i < argc; ++i) {
-    std::string option(argv[i]);
+      if (option == "-n") {
+        if (i >= argc - 1) {
+          std::cout << "Expected an argument to -n.\n";
+          return -1;
+        }
+        numReplicas = parse<std::uint16_t>(argv[i + 1], "-n");
+        ++i;
+      } else if (option == "-r") {
+        if (i >= argc - 1) {
+          std::cout << "Expected an argument to -r.\n";
+          return -1;
+        }
+        ro = parse<std::uint16_t>(argv[i + 1], "-r");
+        ++i;
+      } else if (option == "-o") {
+        if (i >= argc - 1) {
+          std::cout << "Expected an argument to -o.\n";
+          return -1;
+        }
+        outputPrefix = argv[i + 1];
+        ++i;
 
-    if (option == "-n") {
-      if (i >= argc - 1) {
-        std::cout << "Expected an argument to -n.\n";
+      } else {
+        std::cout << "Unrecognized command line option: " << option << ".\n";
         return -1;
       }
-      std::string arg = argv[i + 1];
-      long long unvalidatedNumReplicas;
+    }
 
-      std::string errorMessage =
-          "Invalid value for -n; -n must be a positive"
-          " integer not exceeding " +
-          std::to_string(UINT16_MAX) + ".\n";
+    if (numReplicas == 0) {
+      std::cout << "-n was not provided.\n";
+      return -1;
+    }
+    if (outputPrefix.empty()) {
+      std::cout << "No value given for required -o parameter.\n";
+      return -1;
+    }
 
-      try {
-        unvalidatedNumReplicas = std::stoll(arg);
-      } catch (std::invalid_argument e) {
-        std::cout << errorMessage;
-        return -1;
-      } catch (std::out_of_range e) {
-        std::cout << errorMessage;
-        return -1;
-      }
-      if ((unvalidatedNumReplicas < 1) || (unvalidatedNumReplicas > UINT16_MAX)) {
-        std::cout << errorMessage;
+    std::cout << "TestGeneratedKeys launched.\n";
+    std::cout << "Testing keyfiles for a " << numReplicas
+              << "-replica Concord"
+                 " deployment...\n";
+
+    std::vector<bftEngine::ReplicaConfig> configs(numReplicas+ro);
+
+    for (uint16_t i = 0; i < numReplicas + ro; ++i) {
+      std::string filename = outputPrefix + std::to_string(i);
+      if (!inputReplicaKeyfile(filename, configs[i])) {
+        std::cout << "FAILURE: Failed to input keyfile " << filename << "; this keyfile is invalid.\n";
+        freeConfigs(configs);
         return -1;
       } else {
-        numReplicas = (uint16_t)unvalidatedNumReplicas;
-        hasNumReplicas = true;
+        std::cout << "Succesfully input keyfile " << filename << ".\n";
       }
-      ++i;
-
-    } else if (option == "-o") {
-      if (i >= argc - 1) {
-        std::cout << "Expected an argument to -o.\n";
-        return -1;
-      }
-      outputPrefix = argv[i + 1];
-      hasOutputPrefix = true;
-      ++i;
-
-    } else {
-      std::cout << "Unrecognized command line option: " << option << ".\n";
-      return -1;
     }
-  }
 
-  if (!hasNumReplicas) {
-    std::cout << "No value given for required -n parameter.\n";
-    return -1;
-  }
-  if (!hasOutputPrefix) {
-    std::cout << "No value given for required -o parameter.\n";
-    return -1;
-  }
+    std::cout << "All keyfiles were input successfully.\n";
 
-  std::cout << "TestGeneratedKeys launched.\n";
-  std::cout << "Testing keyfiles for a " << numReplicas
-            << "-replica Concord"
-               " deployment...\n";
-
-  std::vector<bftEngine::ReplicaConfig> configs(numReplicas);
-
-  // Verify that all keyfiles exist before possibly wasting a significant
-  // ammount of time parsing an incomplete set of files.
-  std::vector<std::ifstream> inputFiles;
-  for (uint16_t i = 0; i < numReplicas; ++i) {
-    std::string filename = outputPrefix + std::to_string(i);
-    inputFiles.push_back(std::ifstream(filename));
-    if (!inputFiles.back().is_open()) {
-      std::cout << "TestGeneratedKeys: FAILURE: Could not open keyfile " << filename << ".\n";
-      return -1;
-    }
-  }
-
-  for (uint16_t i = 0; i < numReplicas; ++i) {
-    std::string filename = outputPrefix + std::to_string(i);
-    if (!inputReplicaKeyfile(inputFiles[i], filename, configs[i])) {
-      std::cout << "TestGeneratedKeys: FAILURE: Failed to input keyfile " << filename << "; this keyfile is invalid.\n";
+    std::cout << "Verifying sanity of the cryptographic configuratigurations read from the keyfiles...\n";
+    if (!validateFundamentalFields(configs)) {
       freeConfigs(configs);
       return -1;
-    } else {
-      std::cout << "Succesfully input keyfile " << filename << ".\n";
     }
-  }
+    if (!validateConfigStructIntegrity(configs)) {
+      freeConfigs(configs);
+      return -1;
+    }
+    std::cout << "Cryptographic configurations read appear to be sane.\n";
+    std::cout << "Testing key functionality and agreement...\n";
+    if (!testRSAKeys(configs)) {
+      freeConfigs(configs);
+      return -1;
+    }
+    if (!testThresholdKeys(configs)) {
+      freeConfigs(configs);
+      return -1;
+    }
+    std::cout << "Done testing all keys.\n";
+    std::cout << "TestGeneratedKeys: SUCCESS.\n";
 
-  std::cout << "All keyfiles were input successfully.\n";
+    freeConfigs(configs);
 
-  std::cout << "Verifying sanity of the cryptographic configuratigurations read"
-               " from the keyfiles...\n";
-  if (!validateFundamentalFields(configs)) {
-    freeConfigs(configs);
-    return -1;
+    return 0;
+  }catch (std::exception& e) {
+    std::cerr << "Exception: " << e.what() << std::endl;
+    return 1;
   }
-  if (!validateConfigStructIntegrity(configs)) {
-    freeConfigs(configs);
-    return -1;
-  }
-  std::cout << "Cryptographic configurations read appear to be sane.\n";
-  std::cout << "Testing key functionality and agreement...\n";
-  if (!testRSAKeys(configs)) {
-    freeConfigs(configs);
-    return -1;
-  }
-  if (!testThresholdKeys(configs)) {
-    freeConfigs(configs);
-    return -1;
-  }
-  std::cout << "Done testing all keys.\n";
-  std::cout << "TestGeneratedKeys: SUCCESS.\n";
-
-  freeConfigs(configs);
-
-  return 0;
 }

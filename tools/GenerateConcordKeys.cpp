@@ -14,9 +14,7 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
-
 #include <cryptopp/dll.h>
-
 #include "threshsign/ThresholdSignaturesTypes.h"
 #include "KeyfileIOUtils.hpp"
 
@@ -52,30 +50,6 @@ static std::pair<std::string, std::string> generateRsaKey() {
   return keyPair;
 }
 
-static bool parseUInt16(uint16_t& output, const std::string& str, uint16_t min, uint16_t max, const std::string& name) {
-  long long unverifiedNum;
-  std::string errorMessage = "Invalid value given for " + name + ": " + str + " (expected integer in range [" +
-                             std::to_string(min) + ", " + std::to_string(max) + "], inclusive.\n";
-
-  try {
-    unverifiedNum = std::stoll(str);
-  } catch (std::invalid_argument e) {
-    std::cout << errorMessage;
-    return false;
-  } catch (std::out_of_range e) {
-    std::cout << errorMessage;
-    return false;
-  }
-
-  if ((unverifiedNum < (long long)min) || (unverifiedNum > (long long)max)) {
-    std::cout << errorMessage;
-    return false;
-  } else {
-    output = (uint16_t)unverifiedNum;
-    return true;
-  }
-}
-
 /**
  * Main function for the GenerateConcordKeys executable. Pseudorandomly
  * generates a new set of keys for a Concord deployment with given F and C
@@ -102,21 +76,23 @@ int main(int argc, char** argv) {
   try {
     std::string usageMessage =
         "Usage:\n"
-        "GenerateConcordKeys -n TOTAL_NUMBER_OF_REPLICAS \\\n"
-        "  -f NUMBER_OF_FAULTY_REPLICAS_TO_TOLERATE -o OUTPUT_FILE_PREFIX\n"
-        "The generated keys will be output to a number of files, one per replica."
-        " The\nfiles will each be named OUTPUT_FILE_PREFIX<i>, where <i> is a"
-        " sequential ID for\nthe replica to which the file corresponds in the"
-        " range [0,\nTOTAL_NUMBER_OF_REPLICAS]. Each file contains all public"
-        " keys for the cluster,\nbut only the private keys for the replica with"
-        " the corresponding ID.\n"
-        "Optionally, you may also choose what types of cryptosystems to use:\n"
+        "GenerateConcordKeys:\n"
+        "  -n Number of regular replicas\n"
+        "  -f Number of faulty replicas to tolerate\n"
+        "  -r Number of read-only replicas\n"
+        "  -o Output file prefix\n"
+        "   --help - this help \n\n"
+        "The generated keys will be output to a number of files, one per replica.\n"
+        "The files will each be named OUTPUT_FILE_PREFIX<i>, where <i> is a sequential ID\n"
+        "for the replica to which the file corresponds in the range [0,TOTAL_NUMBER_OF_REPLICAS].\n"
+        "Each regular replica file contains all public keys for the cluster, private keys for itself.\n"
+        "Each read-only replica contains only RSA public keys for the cluster.\n"
+        "Optionally, for regular replica, types of cryptosystems to use can be chosen:\n"
         "  --execution_cryptosys SYSTEM_TYPE PARAMETER\n"
         "  --slow_commit_cryptosys SYSTEM_TYPE PARAMETER\n"
         "  --commit_cryptosys SYSTEM_TYPE PARAMETER\n"
         "  --opptimistic_commit_cryptosys SYSTEM_TYPE PARAMETER\n"
-        "Currently, the following cryptosystem types are supported\n"
-        "(and take the following as parameters):\n";
+        "Currently, the following cryptosystem types are supported (and take the following as parameters):\n";
 
     std::vector<std::pair<std::string, std::string>> cryptosystemTypes;
     Cryptosystem::getAvailableCryptosystemTypes(cryptosystemTypes);
@@ -135,19 +111,15 @@ int main(int argc, char** argv) {
       std::cout << usageMessage;
       return 0;
     }
-
-    uint16_t f;
-    uint16_t n;
+    bftEngine::ReplicaConfig config;
+    uint16_t n = 0;
+    uint16_t ro = 0;
 
     // Note we have declared this stream locally to main and by value, and that,
     // if the output file is successfully opened, we are relying on ofstream's
     // destructor being called implicitly when main returns and this goes out of
     // scope to close the stream.
     std::string outputPrefix;
-
-    bool hasF = false;
-    bool hasN = false;
-    bool hasOutput = false;
 
     //  std::string execType = MULTISIG_BLS_SCHEME;
     //  std::string execParam = "BN-P254";
@@ -178,12 +150,7 @@ int main(int argc, char** argv) {
           std::cout << "Expected an argument to -f.\n";
           return -1;
         }
-        std::string arg = argv[i + 1];
-        if (parseUInt16(f, arg, 1, UINT16_MAX, "-f")) {
-          hasF = true;
-        } else {
-          return -1;
-        }
+        config.fVal = parse<std::uint16_t>(argv[i + 1], "-f");
         ++i;
 
       } else if (option == "-n") {
@@ -191,25 +158,24 @@ int main(int argc, char** argv) {
           std::cout << "Expected an argument to -n.\n";
           return -1;
         }
-        std::string arg = argv[i + 1];
-
         // Note we do not enforce a minimum value for n here; since we require
         // n > 3f and f > 0, lower bounds for n will be handled when we
         // enforce the n > 3f constraint below.
-        if (parseUInt16(n, arg, 0, UINT16_MAX, "-n")) {
-          hasN = true;
-        } else {
+        n = parse<std::uint16_t>(argv[i + 1], "-n");
+        ++i;
+      } else if (option == "-r") {
+        if (i >= argc - 1) {
+          std::cout << "Expected an argument to -r.\n";
           return -1;
         }
+        ro = parse<std::uint16_t>(argv[i + 1], "-r");
         ++i;
-
       } else if (option == "-o") {
         if (i >= argc - 1) {
           std::cout << "Expected an argument to -o.\n";
           return -1;
         }
         outputPrefix = argv[i + 1];
-        hasOutput = true;
         ++i;
 
       } else if (option == "--execution_cryptosys") {
@@ -255,15 +221,15 @@ int main(int argc, char** argv) {
     }
 
     // Check that required parameters were actually given.
-    if (!hasF) {
+    if (config.fVal == 0) {
       std::cout << "No value given for required -f parameter.\n";
       return -1;
     }
-    if (!hasN) {
+    if (n == 0) {
       std::cout << "No value given for required -n parameter.\n";
       return -1;
     }
-    if (!hasOutput) {
+    if (outputPrefix.empty()) {
       std::cout << "No value given for required -o parameter.\n";
       return -1;
     }
@@ -272,7 +238,7 @@ int main(int argc, char** argv) {
 
     // Note we check that N >= 3F + 1 using uint32_ts even though F and N are
     // uint16_ts just in case 3F + 1 overflows a uint16_t.
-    uint32_t minN = 3 * (uint32_t)f + 1;
+    uint32_t minN = 3 * (uint32_t)config.fVal + 1;
     if ((uint32_t)n < minN) {
       std::cout << "Due to the design of Byzantine fault tolerance, number of"
                    " replicas (-n) must be\ngreater than or equal to (3 * F + 1), where F"
@@ -281,7 +247,7 @@ int main(int argc, char** argv) {
     }
 
     // We require N - 3F - 1 to be even so C can be an integer.
-    if (((n - (3 * f) - 1) % 2) != 0) {
+    if (((n - (3 * config.fVal) - 1) % 2) != 0) {
       std::cout << "For technical reasons stemming from our current"
                    " implementation of Byzantine\nfault tolerant consensus, we currently"
                    " require that (N - 3F - 1) be even, where\nN is the total number of"
@@ -289,11 +255,11 @@ int main(int argc, char** argv) {
       return -1;
     }
 
-    uint16_t c = (n - (3 * f) - 1) / 2;
+    config.cVal = (n - (3 * config.fVal) - 1) / 2;
 
-    uint16_t execThresh = f + 1;
-    uint16_t slowThresh = f * 2 + c + 1;
-    uint16_t commitThresh = f * 3 + c + 1;
+    uint16_t execThresh = config.fVal + 1;
+    uint16_t slowThresh = config.fVal * 2 + config.cVal + 1;
+    uint16_t commitThresh = config.fVal * 3 + config.cVal + 1;
     uint16_t optThresh = n;
 
     // Verify cryptosystem selections.
@@ -322,20 +288,10 @@ int main(int argc, char** argv) {
       return -1;
     }
 
-    // Validate that all output files are valid before possibly wasting a
-    // significant ammount of time generating keys that cannot be output.
-    std::vector<std::ofstream> outputFiles;
-    for (uint16_t i = 0; i < n; ++i) {
-      outputFiles.push_back(std::ofstream(outputPrefix + std::to_string(i)));
-      if (!outputFiles.back().is_open()) {
-        std::cout << "Could not open output file " << outputPrefix << i << ".\n";
-        return -1;
-      }
-    }
-
     std::vector<std::pair<std::string, std::string>> rsaKeys;
-    for (uint16_t i = 0; i < n; ++i) {
+    for (uint16_t i = 0; i < n+ro; ++i) {
       rsaKeys.push_back(generateRsaKey());
+      config.publicKeysOfReplicas.insert(std::pair<uint16_t, std::string>(i, rsaKeys[i].second));
     }
 
     Cryptosystem execSys(execType, execParam, n, execThresh);
@@ -348,22 +304,25 @@ int main(int argc, char** argv) {
     commitSys.generateNewPseudorandomKeys();
     optSys.generateNewPseudorandomKeys();
 
-    // Output the generated keys.
 
-    for (uint16_t i = 0; i < n; ++i) {
-      if (!outputReplicaKeyfile(i,
-                                n,
-                                f,
-                                c,
-                                outputFiles[i],
-                                outputPrefix + std::to_string(i),
-                                rsaKeys,
-                                execSys,
-                                slowSys,
-                                commitSys,
-                                optSys)) {
-        return -1;
-      }
+    // Output the generated keys.
+    for (uint16_t i = 0; i < n; ++i){
+      config.replicaId = i;
+      config.replicaPrivateKey = rsaKeys[i].first;
+      outputReplicaKeyfile( n,
+                            ro,
+                            config,
+                            outputPrefix + std::to_string(i),
+                            &execSys, &slowSys, &commitSys, &optSys);
+    }
+    for (uint16_t i = n; i < n+ro; ++i){
+      config.isReadOnly = true;
+      config.replicaId = i;
+      config.replicaPrivateKey = rsaKeys[i].first;
+      outputReplicaKeyfile( n,
+                            ro,
+                            config,
+                            outputPrefix + std::to_string(i));
     }
   } catch (std::exception& e) {
     std::cerr << "Exception: " << e.what() << std::endl;
