@@ -16,7 +16,8 @@
 #include <regex>
 #include <string>
 #include <unordered_map>
-
+#include <string.hpp>
+#include <exception>
 #include "KeyfileIOUtils.hpp"
 
 // Helper function to outputReplicaKeyfile.
@@ -43,115 +44,79 @@ static void serializeCryptosystemPublicConfiguration(std::ostream& output,
   }
 }
 
-bool outputReplicaKeyfile(uint16_t replicaID,
-                          uint16_t numReplicas,
-                          uint16_t f,
-                          uint16_t c,
-                          std::ostream& output,
+void outputReplicaKeyfile(uint16_t numReplicas,
+                          uint16_t numRoReplicas,
+                          bftEngine::ReplicaConfig& config,
                           const std::string& outputFilename,
-                          const std::vector<std::pair<std::string, std::string>>& rsaKeys,
-                          const Cryptosystem& execSys,
-                          const Cryptosystem& slowSys,
-                          const Cryptosystem& commitSys,
-                          const Cryptosystem& optSys) {
-  if ((3 * f + 2 * c + 1) != numReplicas) {
-    std::cout << "F, C, and number of replicas do not agree for requested"
-                 " output.\n";
-    return false;
+                          Cryptosystem* execSys,
+                          Cryptosystem* slowSys,
+                          Cryptosystem* commitSys,
+                          Cryptosystem* optSys) {
+  std::ofstream output(outputFilename);
+  if ((3 * config.fVal + 2 * config.cVal + 1) != numReplicas)
+    throw std::runtime_error("F, C, and number of replicas do not agree for requested output.");
+
+  output << "# Concord-BFT replica keyfile " << outputFilename << ".\n"
+         << "# For replica " << config.replicaId << " in a " << numReplicas << "-replica + " << numRoReplicas
+         << "-read-only-replica cluster.\n\n"
+         << "num_replicas: " << numReplicas << "\n"
+         << "num_ro_replicas: " << numRoReplicas << "\n"
+         << "f_val: " << config.fVal << "\n"
+         << "c_val: " << config.cVal << "\n"
+         << "replica_id: " << config.replicaId << "\n"
+         << "read-only: " << config.isReadOnly << "\n\n"
+         << "# RSA non-threshold replica public keys\n"
+         << "rsa_public_keys:\n";
+
+  for (auto& v : config.publicKeysOfReplicas) output << "  - " << v.second << "\n";
+
+  output << "\n# Private keys for this replica\n"
+         << "rsa_private_key: " << config.replicaPrivateKey << "\n";
+
+  if (execSys && slowSys && commitSys && optSys) {
+    serializeCryptosystemPublicConfiguration(output, *execSys, "Execution", "execution");
+    serializeCryptosystemPublicConfiguration(output, *slowSys, "Slow path commit", "slow_commit");
+    serializeCryptosystemPublicConfiguration(output, *commitSys, "Commit", "commit");
+    serializeCryptosystemPublicConfiguration(output, *optSys, "Optimistic fast path commit", "optimistic_commit");
+
+    output << "execution_cryptosystem_private_key: " << execSys->getPrivateKey(config.replicaId + 1) << "\n"
+           << "slow_commit_cryptosystem_private_key: " << slowSys->getPrivateKey(config.replicaId + 1) << "\n"
+           << "commit_cryptosystem_private_key: " << commitSys->getPrivateKey(config.replicaId + 1) << "\n"
+           << "optimistic_commit_cryptosystem_private_key: " << optSys->getPrivateKey(config.replicaId + 1) << "\n";
   }
-
-  output << "# Concord-BFT replica keyfile " << outputFilename << ".\n";
-  output << "# For replica " << replicaID << " in a " << numReplicas << "-replica cluster.\n\n";
-  output << "num_replicas: " << numReplicas << "\n";
-  output << "f_val: " << f << "\n";
-  output << "c_val: " << c << "\n";
-  output << "replica_id: " << replicaID << "\n\n";
-
-  output << "# RSA non-threshold replica public keys\n";
-  output << "rsa_public_keys:\n";
-  for (uint16_t i = 0; i < numReplicas; ++i) {
-    output << "  - " << rsaKeys[i].second << "\n";
-  }
-
-  serializeCryptosystemPublicConfiguration(output, execSys, "Execution", "execution");
-  serializeCryptosystemPublicConfiguration(output, slowSys, "Slow path commit", "slow_commit");
-  serializeCryptosystemPublicConfiguration(output, commitSys, "Commit", "commit");
-  serializeCryptosystemPublicConfiguration(output, optSys, "Optimistic fast path commit", "optimistic_commit");
-
-  output << "\n# Private keys for this replica\n";
-
-  output << "rsa_private_key: " << rsaKeys[replicaID].first << "\n";
-  output << "execution_cryptosystem_private_key: " << execSys.getPrivateKey(replicaID + 1) << "\n";
-  output << "slow_commit_cryptosystem_private_key: " << slowSys.getPrivateKey(replicaID + 1) << "\n";
-  output << "commit_cryptosystem_private_key: " << commitSys.getPrivateKey(replicaID + 1) << "\n";
-  output << "optimistic_commit_cryptosystem_private_key: " << optSys.getPrivateKey(replicaID + 1) << "\n";
-
-  return true;
-}
-
-// Helper functions to inputReplicaKeyfile
-
-// Trims any whitespace off of both ends of a string.
-static std::string trim(const std::string& str) {
-  std::string ret = str;
-  size_t trim = ret.find_first_not_of(" \t");
-  if (trim != std::string::npos) {
-    ret = ret.substr(trim, ret.length() - trim);
-  }
-  trim = ret.find_last_not_of(" \t");
-  if (trim != std::string::npos) {
-    ret = ret.substr(0, trim + 1);
-  }
-  return ret;
 }
 
 // Handles inputing unsigned 16-bit integers from the identifier->value map
 // created while parsing the keyfile. This function validates that the desired
 // integer is in the map, is a valid integer and not some other string value,
 // and is within range.
-static bool parseUint16(uint16_t& output,
-                        const std::string& identifier,
-                        std::unordered_map<std::string, std::string>& map,
-                        const std::string& filename,
-                        const std::unordered_map<std::string, size_t>& lineNumbers,
-                        uint16_t min,
-                        uint16_t max) {
+template <typename T>
+T parse(const std::string& identifier,
+        std::unordered_map<std::string, std::string>& map,
+        const std::string& filename,
+        const std::unordered_map<std::string, size_t>& lineNumbers,
+        bool optional = false) {
   if (map.count(identifier) < 1) {
-    if (lineNumbers.count(identifier) < 1) {
-      std::cout << filename << ": Missing assignment for required parameter: " << identifier << ".\n";
-    } else {
-      std::cout << filename << ": line " << lineNumbers.at(identifier) << ": expected integer value for " << identifier
-                << ", found list.\n";
-    }
-    return false;
+    if (optional) return 0;
+    if (lineNumbers.count(identifier) < 1)
+      throw std::runtime_error(filename + std::string(": Missing assignment for required parameter: ") + identifier);
+    else
+      throw std::runtime_error(filename + std::string(": line ") + std::to_string(lineNumbers.at(identifier)) +
+                               std::string(": expected integer value for ") + identifier);
   }
 
   std::string strVal = map[identifier];
-  long long unvalidatedVal;
-
-  std::string errorMessage = filename + ": line " + std::to_string(lineNumbers.at(identifier)) +
-                             ": Invalid value given for " + identifier + ": " + strVal +
-                             " ( expected integer in range [" + std::to_string(min) + ", " + std::to_string(max) +
-                             "], inclusive.\n";
-
-  try {
-    unvalidatedVal = std::stoll(strVal);
-  } catch (std::invalid_argument e) {
-    std::cout << errorMessage;
-    return false;
-  } catch (std::out_of_range e) {
-    std::cout << errorMessage;
-    return false;
-  }
-
-  if ((unvalidatedVal < (long long)min) || (unvalidatedVal > (long long)max)) {
-    std::cout << errorMessage;
-    return false;
-  }
-
   map.erase(identifier);
-  output = (uint16_t)unvalidatedVal;
-  return true;
+  try {
+    return concord::util::to<T>(strVal);
+  } catch (std::exception& e) {
+    std::ostringstream oss;
+    oss << "Exception: " << e.what() << " " << filename + ":" << lineNumbers.at(identifier) << ": invalid value for "
+        << identifier << ": " << strVal << " expected range [" << std::numeric_limits<T>::min() << ", "
+        << std::numeric_limits<T>::max();
+
+    throw std::runtime_error(oss.str());
+  }
 }
 
 // Simple validators for RSA keys to ensure they at least conform to the
@@ -210,14 +175,8 @@ static bool deserializeCryptosystemPublicConfiguration(
   std::string pubKeyVar = prefix + "_cryptosystem_public_key";
   std::string verifKeyVar = prefix + "_cryptosystem_verification_keys";
 
-  uint16_t numSigners, threshold;
-
-  if (!parseUint16(numSigners, numSignersVar, valueAssignments, filename, identifierLines, 1, UINT16_MAX)) {
-    return false;
-  }
-  if (!parseUint16(threshold, threshVar, valueAssignments, filename, identifierLines, 1, UINT16_MAX)) {
-    return false;
-  }
+  uint16_t numSigners = parse<std::uint16_t>(numSignersVar, valueAssignments, filename, identifierLines);
+  uint16_t threshold = parse<std::uint16_t>(threshVar, valueAssignments, filename, identifierLines);
 
   if (numSigners != numReplicas) {
     std::cout << filename << ": line " << identifierLines.at(numSignersVar)
@@ -304,28 +263,27 @@ static std::string getBadSyntaxMessage(const std::string& filename, size_t lineN
 // representations of maps from identifiers to their values. Also creates some
 // records of what line numbers everything it parses come from for use in
 // giving error messages referencing specific lines.
-bool parseReplicaKeyfile(std::istream& input,
-                         const std::string& filename,
+bool parseReplicaKeyfile(const std::string& filename,
                          std::unordered_map<std::string, std::string>& valueAssignments,
                          std::unordered_map<std::string, std::vector<std::string>>& listAssignments,
                          std::unordered_map<std::string, size_t>& identifierLines,
                          std::unordered_map<std::string, std::vector<size_t>>& listEntryLines) {
   std::vector<std::string>* currentList = nullptr;
   std::vector<size_t>* currentListLines = nullptr;
-
+  std::ifstream input(filename);
+  if (!input.is_open()) throw std::runtime_error(std::string("failed to open ") + filename);
   size_t lineNumber = 1;
-
-  while (input.peek() != EOF) {
-    std::string line;
-    std::getline(input, line);
-
+  //  while (input.peek() != EOF) {
+  //    std::string line;
+  //    std::getline(input, line);
+  for (std::string line; std::getline(input, line);) {
     // Ignore comments.
     size_t commentStart = line.find_first_of("#");
     if (commentStart != std::string::npos) {
       line = line.substr(0, commentStart);
     }
 
-    line = trim(line);
+    concord::util::trim_inplace(line);
 
     // Ignore this line if it contains only whitespace and/or comments.
     if (line.length() < 1) {
@@ -347,7 +305,7 @@ bool parseReplicaKeyfile(std::istream& input,
     // Case of a list entry. Format:
     // - LIST_ENTRY
     if ((line.length() > 2) && (line[0] == '-') && (line[1] == ' ')) {
-      std::string value = trim(line.substr(2, line.length() - 2));
+      std::string value = concord::util::trim(line.substr(2, line.length() - 2));
       if (value.find_first_of(" \t") != std::string::npos) {
         std::cout << filename << ": line " << lineNumber
                   << ": Whitespace is"
@@ -382,7 +340,7 @@ bool parseReplicaKeyfile(std::istream& input,
       // Case of assignment of a list to an identifier. Format:
       // IDENTIFIER:
     } else if ((line.length() > 1) && (line[line.length() - 1] == ':')) {
-      std::string identifier = trim(line.substr(0, line.length() - 1));
+      std::string identifier = concord::util::trim(line.substr(0, line.length() - 1));
       if (identifier.find_first_of(" \t") != std::string::npos) {
         std::cout << filename << ": line " << lineNumber
                   << ": Whitespace is"
@@ -415,8 +373,8 @@ bool parseReplicaKeyfile(std::istream& input,
       // IDENTIFIER: VALUE
     } else if ((line.length() >= 3) && (line.find_first_of(":") != std::string::npos)) {
       size_t colonLoc = line.find_first_of(":");
-      std::string identifier = trim(line.substr(0, colonLoc));
-      std::string value = trim(line.substr(colonLoc + 1, line.length() - (colonLoc + 1)));
+      std::string identifier = concord::util::trim(line.substr(0, colonLoc));
+      std::string value = concord::util::trim(line.substr(colonLoc + 1, line.length() - (colonLoc + 1)));
 
       if ((identifier.find_first_of(" \t") != std::string::npos) || (value.find_first_of(" \t") != std::string::npos)) {
         std::cout << filename << ": line " << lineNumber
@@ -465,43 +423,36 @@ bool parseReplicaKeyfile(std::istream& input,
   return true;
 }
 
-bool inputReplicaKeyfile(std::istream& input, const std::string& filename, bftEngine::ReplicaConfig& config) {
+bool inputReplicaKeyfile(const std::string& filename, bftEngine::ReplicaConfig& config) {
   std::unordered_map<std::string, std::string> valueAssignments;
   std::unordered_map<std::string, std::vector<std::string>> listAssignments;
   std::unordered_map<std::string, size_t> identifierLines;
   std::unordered_map<std::string, std::vector<size_t>> listEntryLines;
 
-  if (!parseReplicaKeyfile(input, filename, valueAssignments, listAssignments, identifierLines, listEntryLines)) {
+  if (!parseReplicaKeyfile(filename, valueAssignments, listAssignments, identifierLines, listEntryLines)) {
     return false;
   }
 
-  uint16_t numReplicas, f, c, replicaID;
-
-  if (!parseUint16(numReplicas, "num_replicas", valueAssignments, filename, identifierLines, 1, UINT16_MAX)) {
-    return false;
-  }
-  if (!parseUint16(f, "f_val", valueAssignments, filename, identifierLines, 1, UINT16_MAX)) {
-    return false;
-  }
-  if (!parseUint16(c, "c_val", valueAssignments, filename, identifierLines, 0, UINT16_MAX)) {
-    return false;
-  }
-  if (!parseUint16(replicaID, "replica_id", valueAssignments, filename, identifierLines, 0, UINT16_MAX)) {
-    return false;
-  }
+  std::uint16_t numReplicas = parse<std::uint16_t>("num_replicas", valueAssignments, filename, identifierLines);
+  config.fVal = parse<std::uint16_t>("f_val", valueAssignments, filename, identifierLines);
+  config.cVal = parse<std::uint16_t>("c_val", valueAssignments, filename, identifierLines);
+  config.replicaId = parse<std::uint16_t>("replica_id", valueAssignments, filename, identifierLines);
+  // optional for backward compatibility
+  config.isReadOnly = parse<bool>("read-only", valueAssignments, filename, identifierLines, true);
+  config.numRoReplicas = parse<std::uint16_t>("num_ro_replicas", valueAssignments, filename, identifierLines, true);
 
   // Note we validate the number of replicas using 32-bit integers in case
   // (3 * f + 2 * c + 1) overflows a 16-bit integer.
-  uint32_t predictedNumReplicas = 3 * (uint32_t)f + 2 * (uint32_t)c + 1;
+  uint32_t predictedNumReplicas = 3 * (uint32_t)config.fVal + 2 * (uint32_t)config.cVal + 1;
   if (predictedNumReplicas != (uint32_t)numReplicas) {
     std::cout << filename << ": line " << identifierLines["num_replicas"]
               << ": num_replicas must be equal to (3 * f_val + 2 * c_val + 1).\n";
     return false;
   }
-  if (replicaID >= numReplicas) {
+  if (config.replicaId >= numReplicas + config.numRoReplicas) {
     std::cout << filename << ": line " << identifierLines["replica_id"]
               << ": invalid replica_id; replica IDs must be in the range [0,"
-                 " num_replicas], inclusive.\n";
+                 " num_replicas + num_ro_replicas].\n";
   }
 
   // Load RSA public keys
@@ -520,18 +471,37 @@ bool inputReplicaKeyfile(std::istream& input, const std::string& filename, bftEn
   std::vector<std::string> rsaPublicKeys = std::move(listAssignments["rsa_public_keys"]);
   listAssignments.erase("rsa_public_keys");
 
-  if (rsaPublicKeys.size() != numReplicas) {
+  if (rsaPublicKeys.size() != numReplicas + config.numRoReplicas) {
     std::cout << filename << ": line " << identifierLines["rsa_public_keys"]
               << ": incorrect number of public RSA keys given; the number of RSA keys"
                  " must match num_replicas.\n";
     return false;
   }
-  for (size_t i = 0; i < numReplicas; ++i) {
+  for (size_t i = 0; i < numReplicas + config.numRoReplicas; ++i) {
     if (!validateRSAPublicKey(rsaPublicKeys[i])) {
       std::cout << filename << ": line " << listEntryLines["rsa_public_keys"][i] << ": Invalid RSA public key.\n";
       return false;
     }
   }
+
+  // Load private keys for this replica.
+  if (!expectEntries({"rsa_private_key"}, valueAssignments, filename, identifierLines)) {
+    return false;
+  }
+  std::string rsaPrivateKey = valueAssignments["rsa_private_key"];
+  valueAssignments.erase("rsa_private_key");
+
+  if (!validateRSAPrivateKey(rsaPrivateKey)) {
+    std::cout << filename << ": line " << identifierLines["rsa_private_key"] << ": Invalid RSA private key.\n";
+    return false;
+  }
+  config.publicKeysOfReplicas.clear();
+  for (uint16_t i = 0; i < numReplicas + config.numRoReplicas; ++i)
+    config.publicKeysOfReplicas.insert(std::pair<uint16_t, std::string>(i, rsaPublicKeys[i]));
+
+  config.replicaPrivateKey = rsaPrivateKey;
+
+  if (config.isReadOnly) return true;
 
   // Load cryptosystem public configurations.
   // Note we reference the Cryptosystems here via unique_ptrs rahter than
@@ -589,22 +559,13 @@ bool inputReplicaKeyfile(std::istream& input, const std::string& filename, bftEn
   }
 
   // Load private keys for this replica.
-  if (!expectEntries({"rsa_private_key",
-                      "execution_cryptosystem_private_key",
+  if (!expectEntries({"execution_cryptosystem_private_key",
                       "slow_commit_cryptosystem_private_key",
                       "commit_cryptosystem_private_key",
                       "optimistic_commit_cryptosystem_private_key"},
                      valueAssignments,
                      filename,
                      identifierLines)) {
-    return false;
-  }
-
-  std::string rsaPrivateKey = valueAssignments["rsa_private_key"];
-  valueAssignments.erase("rsa_private_key");
-
-  if (!validateRSAPrivateKey(rsaPrivateKey)) {
-    std::cout << filename << ": line " << identifierLines["rsa_private_key"] << ": Invalid RSA private key.\n";
     return false;
   }
 
@@ -639,10 +600,10 @@ bool inputReplicaKeyfile(std::istream& input, const std::string& filename, bftEn
     return false;
   }
 
-  execSys->loadPrivateKey(replicaID + 1, execPrivateKey);
-  slowSys->loadPrivateKey(replicaID + 1, slowPrivateKey);
-  commitSys->loadPrivateKey(replicaID + 1, commitPrivateKey);
-  optSys->loadPrivateKey(replicaID + 1, optPrivateKey);
+  execSys->loadPrivateKey(config.replicaId + 1, execPrivateKey);
+  slowSys->loadPrivateKey(config.replicaId + 1, slowPrivateKey);
+  commitSys->loadPrivateKey(config.replicaId + 1, commitPrivateKey);
+  optSys->loadPrivateKey(config.replicaId + 1, optPrivateKey);
 
   // Verify that there were not any unexpected parameters specified in the
   // keyfile.
@@ -662,14 +623,6 @@ bool inputReplicaKeyfile(std::istream& input, const std::string& filename, bftEn
   // Note we do not begin copying the information until we know it has been
   // loaded successfully, so the configuration struct will not be left in a
   // partially loaded state.
-  config.fVal = f;
-  config.cVal = c;
-  config.replicaId = replicaID;
-  config.publicKeysOfReplicas.clear();
-  for (uint16_t i = 0; i < numReplicas; ++i) {
-    config.publicKeysOfReplicas.insert(std::pair<uint16_t, std::string>(i, rsaPublicKeys[i]));
-  }
-  config.replicaPrivateKey = rsaPrivateKey;
 
   config.thresholdSignerForExecution = execSys->createThresholdSigner();
   config.thresholdSignerForSlowPathCommit = slowSys->createThresholdSigner();
