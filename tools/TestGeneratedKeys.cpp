@@ -86,8 +86,7 @@ static bool validateFundamentalFields(const std::vector<bftEngine::ReplicaConfig
   for (uint16_t i = 0; i < numReplicas; ++i) {
     const bftEngine::ReplicaConfig& config = configs[i];
     if (config.replicaId != i) {
-      std::cout << "FAILURE: Key file " << i
-                << " specifies a replica ID disagreeing with its filename.\n";
+      std::cout << "FAILURE: Key file " << i << " specifies a replica ID disagreeing with its filename.\n";
       return false;
     }
     if (config.fVal < 1) {
@@ -122,13 +121,13 @@ static bool validateConfigStructIntegrity(const std::vector<bftEngine::ReplicaCo
   for (uint16_t i = 0; i < numReplicas; ++i) {
     const bftEngine::ReplicaConfig& config = configs[i];
     if (config.publicKeysOfReplicas.size() != numReplicas) {
-      std::cout << "FAILURE: Size of the set of public keys of replicas in replica "
-                << i << "'s key file does not match the number of replicas" << numReplicas << ".\n";
+      std::cout << "FAILURE: Size of the set of public keys of replicas in replica " << i
+                << "'s key file does not match the number of replicas" << numReplicas << ".\n";
       return false;
     }
 
     std::set<uint16_t> foundIDs;
-    for (auto & entry : config.publicKeysOfReplicas) {
+    for (auto& entry : config.publicKeysOfReplicas) {
       uint16_t id = entry.first;
       if (id >= numReplicas) {
         std::cout << "FAILURE: Entry with invalid replica ID (" << id
@@ -142,8 +141,7 @@ static bool validateConfigStructIntegrity(const std::vector<bftEngine::ReplicaCo
       }
       foundIDs.insert(id);
     }
-    if(config.isReadOnly)
-      continue;
+    if (config.isReadOnly) continue;
 
     if (!config.thresholdSignerForExecution) {
       std::cout << "FAILURE: No threshold signer for execution for replica " << i << ".\n";
@@ -194,7 +192,7 @@ static bool testRSAKeyPair(const std::string& privateKey, const std::string& pub
   std::unique_ptr<bftEngine::impl::RSAVerifier> verifier;
 
   std::string invalidPrivateKey = "FAILURE: Invalid RSA private key for replica " + std::to_string(replicaID) + ".\n";
-  std::string invalidPublicKey  = "FAILURE: Invalid RSA public key for replica " +  std::to_string(replicaID) + ".\n";
+  std::string invalidPublicKey = "FAILURE: Invalid RSA public key for replica " + std::to_string(replicaID) + ".\n";
 
   try {
     signer.reset(new bftEngine::impl::RSASigner(privateKey.c_str()));
@@ -289,8 +287,7 @@ static bool testRSAKeys(const std::vector<bftEngine::ReplicaConfig>& configs) {
           existingKeyholder = publicKeyEntry.first;
         }
       }
-      std::cout << "FAILURE: Replicas " << existingKeyholder << " and " << i
-                << " share the same RSA public key.\n";
+      std::cout << "FAILURE: Replicas " << existingKeyholder << " and " << i << " share the same RSA public key.\n";
       return false;
     }
     expectedPublicKeys[i] = publicKey;
@@ -421,8 +418,8 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
                                    const std::vector<uint16_t>& signersToTest,
                                    uint16_t numSigners,
                                    uint16_t threshold) {
-  std::string invalidPublicConfig = "FAILURE: Invalid public and verification keyset for " +  cryptosystemName +
-                                    " threshold cryptosystem.\n";
+  std::string invalidPublicConfig =
+      "FAILURE: Invalid public and verification keyset for " + cryptosystemName + " threshold cryptosystem.\n";
   std::string invalidKeyset = "FAILURE: Invalid keyset for the " + cryptosystemName + " threshold cryptosystem.\n";
 
   uint16_t participatingSigners = signersToTest.size();
@@ -529,8 +526,8 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
         // threshold, as extra signatures are not actually helpful to it for
         // producing the composite signature it was created to produce.
         if (((accumulatorSize + 1) <= threshold) && (addRes != (accumulatorSize + 1))) {
-          std::cout << "FAILURE: Signature accumulator could not validate replica " << signerID
-                    << "'s signature for " << cryptosystemName << " threshold cryptosystem.\n";
+          std::cout << "FAILURE: Signature accumulator could not validate replica " << signerID << "'s signature for "
+                    << cryptosystemName << " threshold cryptosystem.\n";
           releaseAccumulator(verifier, accumulator);
           return false;
         } else {
@@ -574,10 +571,9 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
     }
 
     if (signatureAccepted != (participatingSigners >= threshold)) {
-      std::cout << "FAILURE: Threshold signer with " << participatingSigners
-                << " signatures unexpectedly " << (signatureAccepted ? "accepted" : "rejected") << " under the "
-                << cryptosystemName << " threshold cryptosystem, which has threshold " << threshold << " out of "
-                << numSigners << ".\n";
+      std::cout << "FAILURE: Threshold signer with " << participatingSigners << " signatures unexpectedly "
+                << (signatureAccepted ? "accepted" : "rejected") << " under the " << cryptosystemName
+                << " threshold cryptosystem, which has threshold " << threshold << " out of " << numSigners << ".\n";
       return false;
     }
   }
@@ -788,7 +784,7 @@ static bool containsHelpOption(int argc, char** argv) {
  *         files fail the tests.
  */
 int main(int argc, char** argv) {
-  try{
+  try {
     std::string usageMessage =
         "Usage:\n"
         "TestGeneratedKeys \n"
@@ -854,7 +850,7 @@ int main(int argc, char** argv) {
               << "-replica Concord"
                  " deployment...\n";
 
-    std::vector<bftEngine::ReplicaConfig> configs(numReplicas+ro);
+    std::vector<bftEngine::ReplicaConfig> configs(numReplicas + ro);
 
     for (uint16_t i = 0; i < numReplicas + ro; ++i) {
       std::string filename = outputPrefix + std::to_string(i);
@@ -894,7 +890,7 @@ int main(int argc, char** argv) {
     freeConfigs(configs);
 
     return 0;
-  }catch (std::exception& e) {
+  } catch (std::exception& e) {
     std::cerr << "Exception: " << e.what() << std::endl;
     return 1;
   }

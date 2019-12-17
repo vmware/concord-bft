@@ -21,7 +21,6 @@ class IThresholdVerifier;
 
 namespace bftEngine {
 struct ReplicaConfig {
-
   // Am I a read-only replica?
   bool isReadOnly = false;
 

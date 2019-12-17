@@ -55,8 +55,7 @@ void TestCommConfig::GetReplicaConfig(uint16_t replica_id,
                                       std::string keyFilePrefix,
                                       bftEngine::ReplicaConfig* out_config) {
   std::string key_file_name = keyFilePrefix + std::to_string(replica_id);
-  if(!inputReplicaKeyfile(key_file_name, *out_config))
-    throw std::runtime_error("Unable to parse replica keyfile.");
+  if (!inputReplicaKeyfile(key_file_name, *out_config)) throw std::runtime_error("Unable to parse replica keyfile.");
 }
 
 std::unordered_map<NodeNum, NodeInfo> TestCommConfig::SetUpConfiguredNodes(bool is_replica,

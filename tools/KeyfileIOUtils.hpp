@@ -45,14 +45,14 @@
  *                       in the optimistic fast path for this deployment, with
  *                       all keys already generated (regular replica).
  */
- void outputReplicaKeyfile(uint16_t numReplicas,
-                           uint16_t numRoReplicas,
-                           bftEngine::ReplicaConfig& config,
-                           const std::string& outputFilename,
-                           Cryptosystem* execSys   = nullptr,
-                           Cryptosystem* slowSys   = nullptr,
-                           Cryptosystem* commitSys = nullptr,
-                           Cryptosystem* optSys    = nullptr);
+void outputReplicaKeyfile(uint16_t numReplicas,
+                          uint16_t numRoReplicas,
+                          bftEngine::ReplicaConfig& config,
+                          const std::string& outputFilename,
+                          Cryptosystem* execSys = nullptr,
+                          Cryptosystem* slowSys = nullptr,
+                          Cryptosystem* commitSys = nullptr,
+                          Cryptosystem* optSys = nullptr);
 
 /**
  * Read in a keyfile for the current replica that was output with
@@ -79,16 +79,14 @@
  */
 bool inputReplicaKeyfile(const std::string& inputFilename, bftEngine::ReplicaConfig& config);
 
-template<typename T>
+template <typename T>
 T parse(const std::string& str, const std::string& name) {
-  try{
+  try {
     return concord::util::to<T>(str);
-  }catch(std::exception& e){
+  } catch (std::exception& e) {
     std::ostringstream oss;
-    oss << "Exception: " << e.what()
-        << " Invalid value  for " << name << ": " << str
-        << " expected range [" << std::numeric_limits<T>::min() << ", "
-        << std::numeric_limits<T>::max();
+    oss << "Exception: " << e.what() << " Invalid value  for " << name << ": " << str << " expected range ["
+        << std::numeric_limits<T>::min() << ", " << std::numeric_limits<T>::max();
 
     throw std::runtime_error(oss.str());
   }

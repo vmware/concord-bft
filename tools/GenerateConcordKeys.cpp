@@ -289,7 +289,7 @@ int main(int argc, char** argv) {
     }
 
     std::vector<std::pair<std::string, std::string>> rsaKeys;
-    for (uint16_t i = 0; i < n+ro; ++i) {
+    for (uint16_t i = 0; i < n + ro; ++i) {
       rsaKeys.push_back(generateRsaKey());
       config.publicKeysOfReplicas.insert(std::pair<uint16_t, std::string>(i, rsaKeys[i].second));
     }
@@ -304,25 +304,17 @@ int main(int argc, char** argv) {
     commitSys.generateNewPseudorandomKeys();
     optSys.generateNewPseudorandomKeys();
 
-
     // Output the generated keys.
-    for (uint16_t i = 0; i < n; ++i){
+    for (uint16_t i = 0; i < n; ++i) {
       config.replicaId = i;
       config.replicaPrivateKey = rsaKeys[i].first;
-      outputReplicaKeyfile( n,
-                            ro,
-                            config,
-                            outputPrefix + std::to_string(i),
-                            &execSys, &slowSys, &commitSys, &optSys);
+      outputReplicaKeyfile(n, ro, config, outputPrefix + std::to_string(i), &execSys, &slowSys, &commitSys, &optSys);
     }
-    for (uint16_t i = n; i < n+ro; ++i){
+    for (uint16_t i = n; i < n + ro; ++i) {
       config.isReadOnly = true;
       config.replicaId = i;
       config.replicaPrivateKey = rsaKeys[i].first;
-      outputReplicaKeyfile( n,
-                            ro,
-                            config,
-                            outputPrefix + std::to_string(i));
+      outputReplicaKeyfile(n, ro, config, outputPrefix + std::to_string(i));
     }
   } catch (std::exception& e) {
     std::cerr << "Exception: " << e.what() << std::endl;

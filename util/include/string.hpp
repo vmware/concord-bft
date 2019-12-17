@@ -63,26 +63,24 @@ inline unsigned long long to<>(const std::string& s) {
   return std::stoull(s);
 }
 
-inline std::string& ltrim_inplace(std::string& s){
-  s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](int ch) { return !std::isspace(ch);}));
+inline std::string& ltrim_inplace(std::string& s) {
+  s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](int ch) { return !std::isspace(ch); }));
   return s;
 }
-inline std::string& rtrim_inplace(std::string &s) {
-    s.erase(std::find_if(s.rbegin(), s.rend(), [](int ch) { return !std::isspace(ch);}).base(), s.end());
-    return s;
+inline std::string& rtrim_inplace(std::string& s) {
+  s.erase(std::find_if(s.rbegin(), s.rend(), [](int ch) { return !std::isspace(ch); }).base(), s.end());
+  return s;
 }
-inline std::string& trim_inplace(std::string& str){return ltrim_inplace(rtrim_inplace(str));}
-inline std::string ltrim(const std::string& s)
-{
-  auto it =  std::find_if( s.begin() , s.end() , [](char ch){ return !std::isspace(ch);});
+inline std::string& trim_inplace(std::string& str) { return ltrim_inplace(rtrim_inplace(str)); }
+inline std::string ltrim(const std::string& s) {
+  auto it = std::find_if(s.begin(), s.end(), [](char ch) { return !std::isspace(ch); });
   return std::string(it, s.end());
 }
-inline std::string rtrim(const std::string& s)
-{
-  auto it =  std::find_if( s.rbegin() , s.rend() , [](char ch){ return !std::isspace(ch);});
-  return std::string( s.begin(), it.base());
+inline std::string rtrim(const std::string& s) {
+  auto it = std::find_if(s.rbegin(), s.rend(), [](char ch) { return !std::isspace(ch); });
+  return std::string(s.begin(), it.base());
 }
-inline std::string trim(const std::string& s){return ltrim(rtrim(s));}
+inline std::string trim(const std::string& s) { return ltrim(rtrim(s)); }
 
 }  // namespace util
 }  // namespace concord

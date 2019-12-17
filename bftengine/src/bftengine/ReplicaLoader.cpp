@@ -83,7 +83,7 @@ ReplicaLoader::ErrorCode checkReplicaConfig(const LoadedReplicaData &ld) {
   Verify(c.concurrencyLevel <= maxLegalConcurrentAgreementsByPrimary, InconsistentErr);
 
   std::set<uint16_t> repIDs;
-  for (auto & v : c.publicKeysOfReplicas) {
+  for (auto &v : c.publicKeysOfReplicas) {
     VerifyAND(v.first >= 0, v.first < numOfReplicas, InconsistentErr);
     Verify(!v.second.empty(), InconsistentErr);  // TODO(GG): make sure that the key is valid
     repIDs.insert(v.first);
