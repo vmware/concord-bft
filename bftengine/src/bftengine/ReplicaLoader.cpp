@@ -318,7 +318,7 @@ ReplicaLoader::ErrorCode loadReplicaData(shared_ptr<PersistentStorage> p, Loaded
       Verify((e.isCheckpointMsgSet()), InconsistentErr);
       Verify((e.getCheckpointMsg()->seqNumber() == seqNum), InconsistentErr);
       Verify((e.getCheckpointMsg()->senderId() == ld.repConfig.replicaId), InconsistentErr);
-      VerifyOR(seqNum > ld.lastStableSeqNum, e.getCheckpointMsg()->isStableState(), InconsistentErr);
+      VerifyOR(seqNum >= ld.lastStableSeqNum, e.getCheckpointMsg()->isStableState(), InconsistentErr);
     } else {
       Verify((!e.isCheckpointMsgSet()), InconsistentErr);
     }

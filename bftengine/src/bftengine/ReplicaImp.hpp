@@ -1,12 +1,12 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2019 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
 //
 // This product may include a number of subcomponents with separate copyright notices and license terms. Your use of
-// these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
+// these subcomponents is subject to the terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
 #pragma once
@@ -21,23 +21,20 @@
 #include "SimpleThreadPool.hpp"
 #include "SimpleAutoResetEvent.hpp"
 #include "ControllerBase.hpp"
-#include "messages/CheckpointMsg.hpp"
 #include "RetransmissionsManager.hpp"
 #include "DynamicUpperLimitWithSimpleFilter.hpp"
 #include "ViewsManager.hpp"
 #include "ReplicasInfo.hpp"
-#include "messages/MsgsCertificate.hpp"
 #include "InternalReplicaApi.hpp"
 #include "IStateTransfer.hpp"
 #include "ClientsManager.hpp"
 #include "CheckpointInfo.hpp"
-#include "ICommunication.hpp"
+#include "MsgsCommunicator.hpp"
 #include "Replica.hpp"
 #include "SimpleThreadPool.hpp"
 #include "PersistentStorage.hpp"
 #include "ReplicaLoader.hpp"
 #include "Metrics.hpp"
-
 #include "Timers.hpp"
 
 #include <thread>
@@ -75,11 +72,7 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   // pointers to message handlers
   const std::unordered_map<uint16_t, PtrToMetaMsgHandler> metaMsgHandlers;
 
-  // communication
-  class MsgReceiver;                                // forward declaration
-  IncomingMsgsStorage incomingMsgsStorage = 20000;  // TODO(GG): use configuration
-  MsgReceiver* msgReceiver = nullptr;
-  ICommunication* communication;
+  shared_ptr<MsgsCommunicator> msgsCommunicator_;
 
   // main thread of the this replica
   std::thread mainThread;
@@ -198,40 +191,7 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   bool recoveringFromExecutionOfRequests = false;
   Bitmap mapOfRequestsThatAreBeingRecovered;
 
-  class MsgReceiver : public IReceiver {
-   public:
-    MsgReceiver(IncomingMsgsStorage& queue);
-
-    virtual ~MsgReceiver(){};
-
-    virtual void onNewMessage(const NodeNum sourceNode, const char* const message, const size_t messageLength) override;
-
-    virtual void onConnectionStatusChanged(const NodeNum node, const ConnectionStatus newStatus) override;
-
-   private:
-    IncomingMsgsStorage& incomingMsgs;
-  };
-
-  class StopInternalMsg : public InternalMessage {
-   public:
-    StopInternalMsg(ReplicaImp* myReplica);
-    virtual void handle();
-
-   protected:
-    ReplicaImp* replica;
-  };
-
   friend class StopInternalMsg;
-
-  class StopWhenStateIsNotCollectedInternalMsg : public InternalMessage {
-   public:
-    StopWhenStateIsNotCollectedInternalMsg(ReplicaImp* myReplica);
-    virtual void handle();
-
-   protected:
-    ReplicaImp* replica;
-  };
-
   friend class StopWhenStateIsNotCollectedInternalMsg;
 
   // this event is signalled iff the start() method has completed
@@ -278,13 +238,13 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   ReplicaImp(const ReplicaConfig&,
              RequestsHandler* requestsHandler,
              IStateTransfer* stateTransfer,
-             ICommunication* communication,
+             shared_ptr<MsgsCommunicator>& msgsCommunicator,
              shared_ptr<PersistentStorage>& persistentStorage);
 
   ReplicaImp(const LoadedReplicaData&,
              RequestsHandler* requestsHandler,
              IStateTransfer* stateTransfer,
-             ICommunication* communication,
+             shared_ptr<MsgsCommunicator>& msgsCommunicator,
              shared_ptr<PersistentStorage>& persistentStorage);
 
   virtual ~ReplicaImp();
@@ -299,10 +259,9 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   shared_ptr<PersistentStorage> getPersistentStorage() const { return ps_; }
   RequestsHandler* getRequestsHandler() const { return userRequestsHandler; }
   IStateTransfer* getStateTransfer() const { return stateTransfer; }
-  ICommunication* getCommunication() const { return communication; }
+  std::shared_ptr<MsgsCommunicator>& getMsgsCommunicator() { return msgsCommunicator_; }
 
   IncomingMsg recvMsg();
-
   void processMessages();
 
   // IReplicaForStateTransfer
@@ -422,7 +381,7 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
 
   void sendCheckpointIfNeeded();
 
-  virtual IncomingMsgsStorage& getIncomingMsgsStorage() override { return incomingMsgsStorage; }
+  IncomingMsgsStorage& getIncomingMsgsStorage() override { return *msgsCommunicator_->getIncomingMsgsStorage(); }
 
   virtual util::SimpleThreadPool& getInternalThreadPool() override { return internalThreadPool; }
 

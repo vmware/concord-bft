@@ -1,24 +1,27 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2019 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
 // License.
 //
 // This product may include a number of subcomponents with separate copyright
-// notices and license terms. Your use of these subcomponents is subject to the
-// terms and conditions of the subcomponent's license, as noted in the LICENSE
+// notices and license terms. Your use of these sub-components is subject to the
+// terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
 #include "Replica.hpp"
 #include "ReplicaImp.hpp"
 #include "DebugPersistentStorage.hpp"
 #include "PersistentStorageImp.hpp"
+#include "IncomingMsgsStorageImp.hpp"
+#include "MsgsCommunicator.hpp"
+#include "MsgReceiver.hpp"
+#include "bftengine/ReplicaConfig.hpp"
 
 #include <condition_variable>
 #include <mutex>
-#include "bftengine/ReplicaConfig.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -101,7 +104,7 @@ void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
   shared_ptr<PersistentStorage> persistentStorage(rep->getPersistentStorage());
   RequestsHandler *requestsHandler = rep->getRequestsHandler();
   IStateTransfer *stateTransfer = rep->getStateTransfer();
-  ICommunication *comm = rep->getCommunication();
+  shared_ptr<MsgsCommunicator> msgsComm = rep->getMsgsCommunicator();
 
   // delete rep; TODO(GG): enable after debugging and update ~ReplicaImp
   rep = nullptr;
@@ -112,7 +115,7 @@ void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
 
   Assert(loadErrCode == ReplicaLoader::ErrorCode::Success);
 
-  rep = new ReplicaImp(ld, requestsHandler, stateTransfer, comm, persistentStorage);
+  rep = new ReplicaImp(ld, requestsHandler, stateTransfer, msgsComm, persistentStorage);
   rep->start();
 }
 }  // namespace impl
@@ -155,9 +158,13 @@ Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
   }
 
   auto *replicaInternal = new ReplicaInternal();
+  shared_ptr<IncomingMsgsStorage> incomingMsgsStoragePtr(new IncomingMsgsStorageImp());
+  shared_ptr<IReceiver> msgReceiverPtr(new MsgReceiver(incomingMsgsStoragePtr));
+  shared_ptr<MsgsCommunicator> msgsCommunicatorPtr(
+      new MsgsCommunicator(communication, incomingMsgsStoragePtr, msgReceiverPtr));
   if (isNewStorage) {
     replicaInternal->rep =
-        new ReplicaImp(*replicaConfig, requestsHandler, stateTransfer, communication, persistentStoragePtr);
+        new ReplicaImp(*replicaConfig, requestsHandler, stateTransfer, msgsCommunicatorPtr, persistentStoragePtr);
   } else {
     ReplicaLoader::ErrorCode loadErrCode;
     auto loadedReplicaData = ReplicaLoader::loadReplica(persistentStoragePtr, loadErrCode);
@@ -167,12 +174,12 @@ Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
     }
     // TODO(GG): compare ld.repConfig and replicaConfig
     replicaInternal->rep =
-        new ReplicaImp(loadedReplicaData, requestsHandler, stateTransfer, communication, persistentStoragePtr);
+        new ReplicaImp(loadedReplicaData, requestsHandler, stateTransfer, msgsCommunicatorPtr, persistentStoragePtr);
   }
 
   return replicaInternal;
 }
 
-Replica::~Replica() {}
+Replica::~Replica() = default;
 
 }  // namespace bftEngine
