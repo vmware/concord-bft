@@ -44,7 +44,6 @@ struct ClientConfig {
   // N+numOfClientProxies-1 (N is the number replicas in the system.
   // numOfClientProxies is part of the replicas' configuration)
   uint16_t clientId;
-
 };
 
 /////////////////////////////////////////////////////////////////////////////
