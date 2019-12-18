@@ -15,7 +15,7 @@
 
 namespace bftEngine::impl {
 
-typedef std::function<void(MessageBase *)> MsgHandlerCallback;
+typedef std::function<void(MessageBase*)> MsgHandlerCallback;
 
 // The class contains message handling callback functions. One instance of this class should be created per instance
 // of the class that registers message callback functions.

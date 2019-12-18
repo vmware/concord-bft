@@ -44,57 +44,56 @@ namespace bftEngine {
 namespace impl {
 
 void ReplicaImp::registerMsgHandlers() {
-  msgHandlers_.registerMsgHandler(MsgCode::Checkpoint,
-                                  bind(&ReplicaImp::messageHandlerWithIgnoreLogic<CheckpointMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::Checkpoint,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<CheckpointMsg>, this, _1));
 
-  msgHandlers_.registerMsgHandler(MsgCode::CommitPartial,
-                                  bind(&ReplicaImp::messageHandlerWithIgnoreLogic<CommitPartialMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::CommitPartial,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<CommitPartialMsg>, this, _1));
 
-  msgHandlers_.registerMsgHandler(MsgCode::CommitFull,
-                                  bind(&ReplicaImp::messageHandlerWithIgnoreLogic<CommitFullMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::CommitFull,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<CommitFullMsg>, this, _1));
 
-  msgHandlers_.registerMsgHandler(MsgCode::FullCommitProof,
-                                  bind(&ReplicaImp::messageHandlerWithIgnoreLogic<FullCommitProofMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::FullCommitProof,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<FullCommitProofMsg>, this, _1));
 
-  msgHandlers_.registerMsgHandler(MsgCode::NewView,
-                                  bind(&ReplicaImp::messageHandlerWithIgnoreLogic<NewViewMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::NewView,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<NewViewMsg>, this, _1));
 
-  msgHandlers_.registerMsgHandler(MsgCode::PrePrepare,
-                                  bind(&ReplicaImp::messageHandlerWithIgnoreLogic<PrePrepareMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::PrePrepare,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<PrePrepareMsg>, this, _1));
 
-  msgHandlers_.registerMsgHandler(MsgCode::PartialCommitProof,
-                                  bind(&ReplicaImp::messageHandlerWithIgnoreLogic<PartialCommitProofMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::PartialCommitProof,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<PartialCommitProofMsg>, this, _1));
 
-  msgHandlers_.registerMsgHandler(MsgCode::PartialExecProof,
-                                  bind(&ReplicaImp::messageHandlerWithIgnoreLogic<PartialExecProofMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::PartialExecProof,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<PartialExecProofMsg>, this, _1));
 
-  msgHandlers_.registerMsgHandler(MsgCode::PreparePartial,
-                                  bind(&ReplicaImp::messageHandlerWithIgnoreLogic<PreparePartialMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::PreparePartial,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<PreparePartialMsg>, this, _1));
 
-  msgHandlers_.registerMsgHandler(MsgCode::PrepareFull,
-                                  bind(&ReplicaImp::messageHandlerWithIgnoreLogic<PrepareFullMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::PrepareFull,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<PrepareFullMsg>, this, _1));
 
-  msgHandlers_.registerMsgHandler(MsgCode::ReqMissingData,
-                                  bind(&ReplicaImp::messageHandlerWithIgnoreLogic<ReqMissingDataMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::ReqMissingData,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<ReqMissingDataMsg>, this, _1));
 
-  msgHandlers_.registerMsgHandler(MsgCode::SimpleAckMsg,
-                                  bind(&ReplicaImp::messageHandlerWithIgnoreLogic<SimpleAckMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::SimpleAckMsg,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<SimpleAckMsg>, this, _1));
 
-  msgHandlers_.registerMsgHandler(MsgCode::StartSlowCommit,
-                                  bind(&ReplicaImp::messageHandlerWithIgnoreLogic<StartSlowCommitMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::StartSlowCommit,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<StartSlowCommitMsg>, this, _1));
 
-  msgHandlers_.registerMsgHandler(MsgCode::ViewChange,
-                                  bind(&ReplicaImp::messageHandlerWithIgnoreLogic<ViewChangeMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::ViewChange,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<ViewChangeMsg>, this, _1));
 
-  msgHandlers_.registerMsgHandler(MsgCode::Request,
-                                  bind(&ReplicaImp::messageHandlerWithIgnoreLogic<ClientRequestMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::Request,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<ClientRequestMsg>, this, _1));
 
-  msgHandlers_.registerMsgHandler(MsgCode::ReplicaStatus,
-                                  bind(&ReplicaImp::messageHandlerWithIgnoreLogic<ReplicaStatusMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::ReplicaStatus,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<ReplicaStatusMsg>, this, _1));
 
-  msgHandlers_.registerMsgHandler(MsgCode::StateTransfer,
-                                  bind(&ReplicaImp::messageHandler<StateTransferMsg>, this, _1));
-  LOG_INFO_F(GL, "Message handlers have been registered");
+  msgHandlers_->registerMsgHandler(MsgCode::StateTransfer,
+                                   bind(&ReplicaImp::messageHandler<StateTransferMsg>, this, _1));
 }
 
 template <typename T>
@@ -779,7 +778,6 @@ void ReplicaImp::onInternalMsg(FullCommitProofMsg *msg) {
     delete msg;
     return;
   }
-
   onMessage(msg);
 }
 
@@ -2660,8 +2658,17 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                        RequestsHandler *requestsHandler,
                        IStateTransfer *stateTrans,
                        shared_ptr<MsgsCommunicator> &msgsCommunicator,
-                       shared_ptr<PersistentStorage> &persistentStorage)
-    : ReplicaImp(false, ld.repConfig, requestsHandler, stateTrans, ld.sigManager, ld.repsInfo, ld.viewsManager) {
+                       shared_ptr<PersistentStorage> &persistentStorage,
+                       shared_ptr<MsgHandlersRegistrator> &msgHandlers)
+    : ReplicaImp(false,
+                 ld.repConfig,
+                 requestsHandler,
+                 stateTrans,
+                 ld.sigManager,
+                 ld.repsInfo,
+                 ld.viewsManager,
+                 msgsCommunicator,
+                 msgHandlers) {
   Assert(persistentStorage != nullptr);
 
   ps_ = persistentStorage;
@@ -2832,7 +2839,6 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
     mapOfRequestsThatAreBeingRecovered = b;
   }
 
-  msgsCommunicator_ = msgsCommunicator;
   msgsCommunicator_->start(config_.replicaId);
   internalThreadPool.start(8);  // TODO(GG): use configuration
 }
@@ -2841,8 +2847,9 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
                        RequestsHandler *requestsHandler,
                        IStateTransfer *stateTrans,
                        shared_ptr<MsgsCommunicator> &msgsCommunicator,
-                       shared_ptr<PersistentStorage> &persistentStorage)
-    : ReplicaImp(true, config, requestsHandler, stateTrans, nullptr, nullptr, nullptr) {
+                       shared_ptr<PersistentStorage> &persistentStorage,
+                       shared_ptr<MsgHandlersRegistrator> &msgHandlers)
+    : ReplicaImp(true, config, requestsHandler, stateTrans, nullptr, nullptr, nullptr, msgsCommunicator, msgHandlers) {
   if (persistentStorage != nullptr) {
     ps_ = persistentStorage;
 
@@ -2853,7 +2860,6 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
     ps_->endWriteTran();
   }
 
-  msgsCommunicator_ = msgsCommunicator;
   msgsCommunicator_->start(config_.replicaId);
   internalThreadPool.start(8);  // TODO(GG): use configuration
 }
@@ -2864,7 +2870,9 @@ ReplicaImp::ReplicaImp(bool firstTime,
                        IStateTransfer *stateTrans,
                        SigManager *sigMgr,
                        ReplicasInfo *replicasInfo,
-                       ViewsManager *viewsMgr)
+                       ViewsManager *viewsMgr,
+                       shared_ptr<MsgsCommunicator> &msgsCommunicator,
+                       shared_ptr<MsgHandlersRegistrator> &msgHandlers)
     : config_(config),
       numOfReplicas{(uint16_t)(3 * config_.fVal + 2 * config_.cVal + 1)},
       viewChangeProtocolEnabled{config.viewChangeProtocolEnabled},
@@ -2908,6 +2916,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
   // !firstTime ==> ((sigMgr != nullptr) && (replicasInfo != nullptr) && (viewsMgr != nullptr))
   Assert(firstTime || ((sigMgr != nullptr) && (replicasInfo != nullptr) && (viewsMgr != nullptr)));
 
+  msgsCommunicator_ = msgsCommunicator;
+  msgHandlers_ = msgHandlers;
   registerMsgHandlers();
 
   if (config_.debugStatisticsEnabled) {
@@ -3144,7 +3154,7 @@ void ReplicaImp::processMessages() {
       DebugStatistics::onReceivedExMessage(m->type());
     }
 
-    auto msgHandlerCallback = msgHandlers_.getCallback(m->type());
+    auto msgHandlerCallback = msgHandlers_->getCallback(m->type());
     if (msgHandlerCallback != nullptr)
       msgHandlerCallback(m);
     else {

@@ -105,6 +105,7 @@ void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
   RequestsHandler *requestsHandler = rep->getRequestsHandler();
   IStateTransfer *stateTransfer = rep->getStateTransfer();
   shared_ptr<MsgsCommunicator> msgsComm = rep->getMsgsCommunicator();
+  shared_ptr<MsgHandlersRegistrator> msgHandlersRegistrator = rep->getMsgHandlersRegistrator();
 
   // delete rep; TODO(GG): enable after debugging and update ~ReplicaImp
   rep = nullptr;
@@ -115,7 +116,7 @@ void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
 
   Assert(loadErrCode == ReplicaLoader::ErrorCode::Success);
 
-  rep = new ReplicaImp(ld, requestsHandler, stateTransfer, msgsComm, persistentStorage);
+  rep = new ReplicaImp(ld, requestsHandler, stateTransfer, msgsComm, persistentStorage, msgHandlersRegistrator);
   rep->start();
 }
 }  // namespace impl
@@ -162,9 +163,10 @@ Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
   shared_ptr<IReceiver> msgReceiverPtr(new MsgReceiver(incomingMsgsStoragePtr));
   shared_ptr<MsgsCommunicator> msgsCommunicatorPtr(
       new MsgsCommunicator(communication, incomingMsgsStoragePtr, msgReceiverPtr));
+  shared_ptr<MsgHandlersRegistrator> msgHandlersPtr(new MsgHandlersRegistrator());
   if (isNewStorage) {
-    replicaInternal->rep =
-        new ReplicaImp(*replicaConfig, requestsHandler, stateTransfer, msgsCommunicatorPtr, persistentStoragePtr);
+    replicaInternal->rep = new ReplicaImp(
+        *replicaConfig, requestsHandler, stateTransfer, msgsCommunicatorPtr, persistentStoragePtr, msgHandlersPtr);
   } else {
     ReplicaLoader::ErrorCode loadErrCode;
     auto loadedReplicaData = ReplicaLoader::loadReplica(persistentStoragePtr, loadErrCode);
@@ -173,8 +175,8 @@ Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
       return nullptr;
     }
     // TODO(GG): compare ld.repConfig and replicaConfig
-    replicaInternal->rep =
-        new ReplicaImp(loadedReplicaData, requestsHandler, stateTransfer, msgsCommunicatorPtr, persistentStoragePtr);
+    replicaInternal->rep = new ReplicaImp(
+        loadedReplicaData, requestsHandler, stateTransfer, msgsCommunicatorPtr, persistentStoragePtr, msgHandlersPtr);
   }
 
   return replicaInternal;
