@@ -42,7 +42,6 @@ class ClientImp : public IClient {
   ~ClientImp(){};
 
   ClientConfig config_;
-  char* replyBuf_ = nullptr;
   SeqNumberGeneratorForClientRequests* seqGen_ = nullptr;
   ICommunication* comm_ = nullptr;
 

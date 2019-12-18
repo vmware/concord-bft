@@ -45,8 +45,6 @@ struct ClientConfig {
   // numOfClientProxies is part of the replicas' configuration)
   uint16_t clientId;
 
-  // maximum reply size supported by this client
-  uint32_t maxReplySize;
 };
 
 /////////////////////////////////////////////////////////////////////////////
