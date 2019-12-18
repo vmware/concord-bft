@@ -11,7 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 
-#include <cstdio>
+#include <cstdlib>
 #include <fstream>
 using namespace std;
 
@@ -77,7 +77,9 @@ TEST(sha3_256, update) {
 
   // Write the left and write hashes concatenated, so we can run a commandline
   // program on them.
-  std::string filename = std::tmpnam(nullptr);
+  char filename[] = "/tmp/sha3_256_test_XXXXXX";
+  ::close(::mkstemp(filename));
+
   std::fstream fs;
   fs.open(filename, std::fstream::out | std::fstream::binary);
   fs.write((char*)left.data(), left.size());
@@ -85,7 +87,7 @@ TEST(sha3_256, update) {
   fs.close();
 
   // Run an openssl command to generate the result hash
-  std::string command = "openssl sha3-256 -r " + filename;
+  std::string command = std::string("openssl sha3-256 -r ") + filename;
   char output[SHA3_256::SIZE_IN_BYTES * 2];
   FILE* cmdfile = popen(command.c_str(), "r");
   auto result = fread(output, 1, SHA3_256::SIZE_IN_BYTES * 2, cmdfile);
@@ -94,7 +96,7 @@ TEST(sha3_256, update) {
   auto expected = string_to_array(output);
 
   // Delete the tmpfile
-  ASSERT_EQ(0, remove(filename.c_str()));
+  ASSERT_EQ(0, remove(filename));
 
   sha3.init();
   sha3.update(left.data(), left.size());
