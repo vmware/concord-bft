@@ -36,6 +36,7 @@
 #include "ReplicaLoader.hpp"
 #include "Metrics.hpp"
 #include "Timers.hpp"
+#include "MsgHandlersRegistrator.hpp"
 
 #include <thread>
 
@@ -58,7 +59,6 @@ class ReplicaStatusMsg;
 class ReplicaImp;
 
 using bftEngine::ReplicaConfig;
-using PtrToMetaMsgHandler = void (ReplicaImp::*)(MessageBase* msg);
 
 class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
  protected:
@@ -69,9 +69,7 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   const bool autoPrimaryRotationEnabled;
   const bool supportDirectProofs = false;  // TODO(GG): add support
 
-  // pointers to message handlers
-  const std::unordered_map<uint16_t, PtrToMetaMsgHandler> metaMsgHandlers;
-
+  MsgHandlersRegistrator msgHandlers_;
   shared_ptr<MsgsCommunicator> msgsCommunicator_;
 
   // main thread of the this replica
@@ -206,7 +204,7 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   typedef concordMetrics::Component::Handle<concordMetrics::Counter> CounterHandle;
 
   GaugeHandle metric_view_;
-  GaugeHandle metric_last_stable_seq_num__;
+  GaugeHandle metric_last_stable_seq_num_;
   GaugeHandle metric_last_executed_seq_num_;
   GaugeHandle metric_last_agreed_view_;
 
@@ -285,12 +283,13 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
              ReplicasInfo* replicasInfo,
              ViewsManager* viewsMgr);
 
-  static std::unordered_map<uint16_t, PtrToMetaMsgHandler> createMapOfMetaMsgHandlers();
+  void registerMsgHandlers();
 
   template <typename T>
-  void metaMessageHandler(MessageBase* msg);
+  void messageHandler(MessageBase* msg);
+
   template <typename T>
-  void metaMessageHandler_IgnoreWhenCollectingState(MessageBase* msg);  // TODO(GG): rename
+  void messageHandlerWithIgnoreLogic(MessageBase* msg);
 
   ReplicaId currentPrimary() const { return repsInfo->primaryOfView(curView); }
   bool isCurrentPrimary() const { return (currentPrimary() == config_.replicaId); }
