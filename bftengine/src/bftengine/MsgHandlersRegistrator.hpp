@@ -17,14 +17,18 @@ namespace bftEngine::impl {
 
 typedef std::function<void(MessageBase*)> MsgHandlerCallback;
 
-// MsgHandlersRegistrator class contains message handling callback functions. One instance of this class should be
-// created per instance of the class that registers message callback functions.
+// MsgHandlersRegistrator class contains message handling callback functions.
+// Logically it's a singleton - only one message handler could be registered for every message type,
+// but practically we launch a number of replicas in the same process in the tests and each ReplicaImp instance
+// needs to have its own callbacks being called.
 // For each new message corresponding function of type MsgHandlerCallback should be registered via this class
 // otherwise the message could not be handled later.
 
 class MsgHandlersRegistrator {
  public:
-  void registerMsgHandler(uint16_t msgId, MsgHandlerCallback callbackFunc) { msgHandlers_[msgId] = std::move(callbackFunc); }
+  void registerMsgHandler(uint16_t msgId, const MsgHandlerCallback& callbackFunc) {
+    msgHandlers_[msgId] = callbackFunc;
+  }
 
   MsgHandlerCallback getCallback(uint16_t msgId) {
     auto iterator = msgHandlers_.find(msgId);
