@@ -19,6 +19,7 @@ import unittest
 
 from util import bft
 from util import skvbc as kvbc
+from util import bft_network_partitioning as net
 
 KEY_FILE_PREFIX = "replica_keys_"
 
@@ -77,6 +78,52 @@ class SkvbcViewChangeTest(unittest.TestCase):
                 )
 
                 bft_network.stop_replica(initial_primary)
+
+                await self._send_random_writes(skvbc)
+
+                await bft_network.wait_for_view_change(
+                    replica_id=random.choice(bft_network.all_replicas(without={0})),
+                    expected=lambda v: v == expected_next_primary,
+                    err_msg="Make sure view change has been triggered."
+                )
+
+    def test_single_vc_primary_isolated(self):
+        """
+        The goal of this test is to check the view change
+        workflow in case the primary is up, but its outgoing
+        communication is intercepted by an adversary.
+
+        1) Given a BFT network,
+        2) Insert an adversary that isolates the primary's outgoing communication
+        3) Send a batch of write requests.
+        4) Verify the BFT network eventually transitions to the next view.
+        """
+        trio.run(self._test_single_vc_primary_isolated)
+
+    async def _test_single_vc_primary_isolated(self):
+        for bft_config in bft.interesting_configs():
+            config = bft.TestConfig(n=bft_config['n'],
+                                    f=bft_config['f'],
+                                    c=bft_config['c'],
+                                    num_clients=bft_config['num_clients'],
+                                    key_file_prefix=KEY_FILE_PREFIX,
+                                    start_replica_cmd=start_replica_cmd)
+            with bft.BftTestNetwork(config) as bft_network, \
+                    net.PrimaryIsolatingAdversary(bft_network) as adversary:
+                await bft_network.init()
+                bft_network.start_all_replicas()
+                skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+                initial_primary = 0
+                await bft_network.wait_for_view_change(
+                    replica_id=initial_primary,
+                    expected=lambda v: v == initial_primary,
+                    err_msg="Make sure we are in the initial view "
+                            "before isolating the primary."
+                )
+
+                await adversary.interfere()
+                expected_next_primary = 1
 
                 await self._send_random_writes(skvbc)
 

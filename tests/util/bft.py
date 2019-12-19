@@ -75,7 +75,7 @@ METRICS_TIMEOUT_SEC = 5
 KV_LEN = 21
 
 class BftTestNetwork:
-    """A library to help testing sbft with a SimpleKVBC state machine"""
+    """Encapsulates a BFT network instance for testing purposes"""
 
     def __enter__(self):
         """context manager method for 'with' statements"""
@@ -197,14 +197,36 @@ class BftTestNetwork:
 
         return list(set(range(0, self.config.n)) - without)
 
-    async def wait_for_view_change(self, replica_id, expected,
+    def get_live_replicas(self):
+        """
+        Returns the id-s of all live replicas
+        """
+        return list(self.procs.keys())
+
+    async def get_current_primary(self):
+        """
+        Returns the current primary replica id
+        """
+        live_replica = random.choice(self.get_live_replicas())
+        current_primary = await self.wait_for_view_change(
+            replica_id=live_replica, expected=None)
+
+        return current_primary
+
+    async def wait_for_view_change(self, replica_id, expected=None,
                                    err_msg="Expected view not reached"):
         """
         Waits for a view that matches the "expected" predicate,
         and returns the corresponding view number.
 
+        If the "expected" predicate is not provided,
+        returns the current view number.
+
         In case of a timeout, fails with the provided err_msg
         """
+        if expected is None:
+            expected = lambda _: True
+
         try:
             with trio.fail_after(seconds=30):
                 while True:
