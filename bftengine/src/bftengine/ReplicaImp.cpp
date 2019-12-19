@@ -36,38 +36,68 @@
 #include "ReplicaConfig.hpp"
 
 using concordUtil::Timers;
+using namespace std;
 using namespace std::chrono;
+using namespace std::placeholders;
 
 namespace bftEngine {
 namespace impl {
 
-std::unordered_map<uint16_t, PtrToMetaMsgHandler> ReplicaImp::createMapOfMetaMsgHandlers() {
-  std::unordered_map<uint16_t, PtrToMetaMsgHandler> r;
+void ReplicaImp::registerMsgHandlers() {
+  msgHandlers_->registerMsgHandler(MsgCode::Checkpoint,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<CheckpointMsg>, this, _1));
 
-  r[MsgCode::Checkpoint] = &ReplicaImp::metaMessageHandler_IgnoreWhenCollectingState<CheckpointMsg>;
-  r[MsgCode::CommitPartial] = &ReplicaImp::metaMessageHandler_IgnoreWhenCollectingState<CommitPartialMsg>;
-  r[MsgCode::CommitFull] = &ReplicaImp::metaMessageHandler_IgnoreWhenCollectingState<CommitFullMsg>;
-  r[MsgCode::FullCommitProof] = &ReplicaImp::metaMessageHandler_IgnoreWhenCollectingState<FullCommitProofMsg>;
-  r[MsgCode::NewView] = &ReplicaImp::metaMessageHandler_IgnoreWhenCollectingState<NewViewMsg>;
-  r[MsgCode::PrePrepare] = &ReplicaImp::metaMessageHandler_IgnoreWhenCollectingState<PrePrepareMsg>;
-  r[MsgCode::PartialCommitProof] = &ReplicaImp::metaMessageHandler_IgnoreWhenCollectingState<PartialCommitProofMsg>;
-  r[MsgCode::PartialExecProof] = &ReplicaImp::metaMessageHandler_IgnoreWhenCollectingState<PartialExecProofMsg>;
-  r[MsgCode::PreparePartial] = &ReplicaImp::metaMessageHandler_IgnoreWhenCollectingState<PreparePartialMsg>;
-  r[MsgCode::PrepareFull] = &ReplicaImp::metaMessageHandler_IgnoreWhenCollectingState<PrepareFullMsg>;
-  r[MsgCode::ReqMissingData] = &ReplicaImp::metaMessageHandler_IgnoreWhenCollectingState<ReqMissingDataMsg>;
-  r[MsgCode::SimpleAckMsg] = &ReplicaImp::metaMessageHandler_IgnoreWhenCollectingState<SimpleAckMsg>;
-  r[MsgCode::StartSlowCommit] = &ReplicaImp::metaMessageHandler_IgnoreWhenCollectingState<StartSlowCommitMsg>;
-  r[MsgCode::ViewChange] = &ReplicaImp::metaMessageHandler_IgnoreWhenCollectingState<ViewChangeMsg>;
-  r[MsgCode::Request] = &ReplicaImp::metaMessageHandler_IgnoreWhenCollectingState<ClientRequestMsg>;
-  r[MsgCode::ReplicaStatus] = &ReplicaImp::metaMessageHandler_IgnoreWhenCollectingState<ReplicaStatusMsg>;
+  msgHandlers_->registerMsgHandler(MsgCode::CommitPartial,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<CommitPartialMsg>, this, _1));
 
-  r[MsgCode::StateTransfer] = &ReplicaImp::metaMessageHandler<StateTransferMsg>;
+  msgHandlers_->registerMsgHandler(MsgCode::CommitFull,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<CommitFullMsg>, this, _1));
 
-  return r;
+  msgHandlers_->registerMsgHandler(MsgCode::FullCommitProof,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<FullCommitProofMsg>, this, _1));
+
+  msgHandlers_->registerMsgHandler(MsgCode::NewView,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<NewViewMsg>, this, _1));
+
+  msgHandlers_->registerMsgHandler(MsgCode::PrePrepare,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<PrePrepareMsg>, this, _1));
+
+  msgHandlers_->registerMsgHandler(MsgCode::PartialCommitProof,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<PartialCommitProofMsg>, this, _1));
+
+  msgHandlers_->registerMsgHandler(MsgCode::PartialExecProof,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<PartialExecProofMsg>, this, _1));
+
+  msgHandlers_->registerMsgHandler(MsgCode::PreparePartial,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<PreparePartialMsg>, this, _1));
+
+  msgHandlers_->registerMsgHandler(MsgCode::PrepareFull,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<PrepareFullMsg>, this, _1));
+
+  msgHandlers_->registerMsgHandler(MsgCode::ReqMissingData,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<ReqMissingDataMsg>, this, _1));
+
+  msgHandlers_->registerMsgHandler(MsgCode::SimpleAckMsg,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<SimpleAckMsg>, this, _1));
+
+  msgHandlers_->registerMsgHandler(MsgCode::StartSlowCommit,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<StartSlowCommitMsg>, this, _1));
+
+  msgHandlers_->registerMsgHandler(MsgCode::ViewChange,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<ViewChangeMsg>, this, _1));
+
+  msgHandlers_->registerMsgHandler(MsgCode::Request,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<ClientRequestMsg>, this, _1));
+
+  msgHandlers_->registerMsgHandler(MsgCode::ReplicaStatus,
+                                   bind(&ReplicaImp::messageHandlerWithIgnoreLogic<ReplicaStatusMsg>, this, _1));
+
+  msgHandlers_->registerMsgHandler(MsgCode::StateTransfer,
+                                   bind(&ReplicaImp::messageHandler<StateTransferMsg>, this, _1));
 }
 
 template <typename T>
-void ReplicaImp::metaMessageHandler(MessageBase *msg) {
+void ReplicaImp::messageHandler(MessageBase *msg) {
   T *validMsg = nullptr;
   bool isValid = T::ToActualMsgType(*repsInfo, msg, validMsg);
 
@@ -81,11 +111,11 @@ void ReplicaImp::metaMessageHandler(MessageBase *msg) {
 }
 
 template <typename T>
-void ReplicaImp::metaMessageHandler_IgnoreWhenCollectingState(MessageBase *msg) {
+void ReplicaImp::messageHandlerWithIgnoreLogic(MessageBase *msg) {
   if (stateTransfer->isCollectingState()) {
     delete msg;
   } else {
-    metaMessageHandler<T>(msg);
+    messageHandler<T>(msg);
   }
 }
 
@@ -143,8 +173,7 @@ IncomingMsg ReplicaImp::recvMsg() {
   while (true) {
     auto msg = getIncomingMsgsStorage().popMsgForProcessing(timersResolution);
 
-    // TODO(GG): make sure that we don't check timers too often
-    // (i.e. much faster than timersResolution)
+    // TODO(GG): make sure that we don't check timers too often (i.e. much faster than timersResolution)
     timers_.evaluate();
 
     if (msg.tag != IncomingMsg::INVALID) {
@@ -169,8 +198,10 @@ void ReplicaImp::onMessage(ClientRequestMsg *m) {
              senderId);
 
   if (stateTransfer->isCollectingState()) {
-    LOG_INFO_F(GL,
-               "ClientRequestMsg is ignored because this replica is collecting missing state from the other replicas");
+    LOG_INFO(GL,
+             "ClientRequestMsg reqSeqNum="
+                 << reqSeqNum
+                 << " is ignored because this replica is collecting missing state from the other replicas");
     delete m;
     return;
   }
@@ -179,10 +210,11 @@ void ReplicaImp::onMessage(ClientRequestMsg *m) {
   const bool invalidClient = !clientsManager->isValidClient(clientId);
   const bool sentFromReplicaToNonPrimary = repsInfo->isIdOfReplica(senderId) && !isCurrentPrimary();
 
-  if (invalidClient || sentFromReplicaToNonPrimary)  // TODO(GG): more conditions (make sure that a request of client A
-                                                     // cannot be generated by client B!=A)
-  {
-    LOG_INFO_F(GL, "ClientRequestMsg is invalid");
+  // TODO(GG): more conditions (make sure that a request of client A cannot be generated by client B!=A)
+  if (invalidClient || sentFromReplicaToNonPrimary) {
+    LOG_INFO(GL,
+             "ClientRequestMsg is invalid: invalidClient=" << invalidClient << ", sentFromReplicaToNonPrimary="
+                                                           << sentFromReplicaToNonPrimary);
     onReportAboutInvalidMessage(m);
     delete m;
     return;
@@ -211,28 +243,31 @@ void ReplicaImp::onMessage(ClientRequestMsg *m) {
         tryToSendPrePrepareMsg(true);
         return;
       } else {
-        LOG_INFO_F(GL,
-                   "ClientRequestMsg is ignored because: request is old, OR primary is current working on a request "
-                   "from the same client, OR queue contains too many requests");
+        LOG_INFO(GL,
+                 "ClientRequestMsg reqSeqNum="
+                     << reqSeqNum
+                     << " is ignored because: request is old, OR primary is current working on a request "
+                        "from the same client, OR queue contains too many requests");
       }
-    } else  // not the current primary
-    {
+    } else {  // not the current primary
       if (clientsManager->noPendingAndRequestCanBecomePending(clientId, reqSeqNum)) {
         clientsManager->addPendingRequest(clientId, reqSeqNum);
 
-        send(m,
-             currentPrimary());  // TODO(GG): add a mechanism that retransmits (otherwise we may start unnecessary
-                                 // view-change )
+        // TODO(GG): add a mechanism that retransmits (otherwise we may start unnecessary view-change)
+        send(m, currentPrimary());
 
-        LOG_INFO_F(GL, "Sending ClientRequestMsg to current primary");
+        LOG_INFO(GL, "Sending ClientRequestMsg reqSeqNum=" << reqSeqNum << " to current primary");
       } else {
-        LOG_INFO_F(GL,
-                   "ClientRequestMsg is ignored because request is old or replica has another pending request from the "
-                   "same client");
+        LOG_INFO(GL,
+                 "ClientRequestMsg reqSeqNum="
+                     << reqSeqNum
+                     << " is ignored because request is old or replica has another pending request from the "
+                        "same client");
       }
     }
   } else if (seqNumberOfLastReply == reqSeqNum) {
-    LOG_DEBUG_F(GL, "ClientRequestMsg has already been executed - retransmit reply to client");
+    LOG_DEBUG(GL,
+              "ClientRequestMsg reqSeqNum=" << reqSeqNum << " has already been executed - retransmit reply to client");
 
     ClientReplyMsg *repMsg = clientsManager->allocateMsgWithLatestReply(clientId, currentPrimary());
 
@@ -240,7 +275,7 @@ void ReplicaImp::onMessage(ClientRequestMsg *m) {
 
     delete repMsg;
   } else {
-    LOG_INFO_F(GL, "ClientRequestMsg is ignored because request is old");
+    LOG_INFO(GL, "ClientRequestMsg reqSeqNum=" << reqSeqNum << " is ignored because request is old");
   }
 
   delete m;
@@ -743,7 +778,6 @@ void ReplicaImp::onInternalMsg(FullCommitProofMsg *msg) {
     delete msg;
     return;
   }
-
   onMessage(msg);
 }
 
@@ -2169,7 +2203,7 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
   if (ps_) ps_->beginWriteTran();
 
   lastStableSeqNum = newStableSeqNum;
-  metric_last_stable_seq_num__.Get().Set(lastStableSeqNum);
+  metric_last_stable_seq_num_.Get().Set(lastStableSeqNum);
 
   if (ps_) ps_->setLastStableSeqNum(lastStableSeqNum);
 
@@ -2624,8 +2658,17 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                        RequestsHandler *requestsHandler,
                        IStateTransfer *stateTrans,
                        shared_ptr<MsgsCommunicator> &msgsCommunicator,
-                       shared_ptr<PersistentStorage> &persistentStorage)
-    : ReplicaImp(false, ld.repConfig, requestsHandler, stateTrans, ld.sigManager, ld.repsInfo, ld.viewsManager) {
+                       shared_ptr<PersistentStorage> &persistentStorage,
+                       shared_ptr<MsgHandlersRegistrator> &msgHandlers)
+    : ReplicaImp(false,
+                 ld.repConfig,
+                 requestsHandler,
+                 stateTrans,
+                 ld.sigManager,
+                 ld.repsInfo,
+                 ld.viewsManager,
+                 msgsCommunicator,
+                 msgHandlers) {
   Assert(persistentStorage != nullptr);
 
   ps_ = persistentStorage;
@@ -2639,7 +2682,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
 
   primaryLastUsedSeqNum = ld.primaryLastUsedSeqNum;
   lastStableSeqNum = ld.lastStableSeqNum;
-  metric_last_stable_seq_num__.Get().Set(lastStableSeqNum);
+  metric_last_stable_seq_num_.Get().Set(lastStableSeqNum);
   lastExecutedSeqNum = ld.lastExecutedSeqNum;
   metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
   strictLowerBoundOfSeqNums = ld.strictLowerBoundOfSeqNums;
@@ -2759,7 +2802,6 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
     const CheckData &e = ld.checkWinArr[i];
 
     Assert(checkpointsLog->insideActiveWindow(s));
-    // e.checkpointMsg==nullptr ==> (s>ld.lastStableSeqNum || s == 0)
     Assert(e.isCheckpointMsgSet() || (s > ld.lastStableSeqNum || s == 0));
 
     if (!e.isCheckpointMsgSet()) continue;
@@ -2797,9 +2839,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
     mapOfRequestsThatAreBeingRecovered = b;
   }
 
-  msgsCommunicator_ = msgsCommunicator;
   msgsCommunicator_->start(config_.replicaId);
-
   internalThreadPool.start(8);  // TODO(GG): use configuration
 }
 
@@ -2807,8 +2847,9 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
                        RequestsHandler *requestsHandler,
                        IStateTransfer *stateTrans,
                        shared_ptr<MsgsCommunicator> &msgsCommunicator,
-                       shared_ptr<PersistentStorage> &persistentStorage)
-    : ReplicaImp(true, config, requestsHandler, stateTrans, nullptr, nullptr, nullptr) {
+                       shared_ptr<PersistentStorage> &persistentStorage,
+                       shared_ptr<MsgHandlersRegistrator> &msgHandlers)
+    : ReplicaImp(true, config, requestsHandler, stateTrans, nullptr, nullptr, nullptr, msgsCommunicator, msgHandlers) {
   if (persistentStorage != nullptr) {
     ps_ = persistentStorage;
 
@@ -2819,7 +2860,6 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
     ps_->endWriteTran();
   }
 
-  msgsCommunicator_ = msgsCommunicator;
   msgsCommunicator_->start(config_.replicaId);
   internalThreadPool.start(8);  // TODO(GG): use configuration
 }
@@ -2830,12 +2870,13 @@ ReplicaImp::ReplicaImp(bool firstTime,
                        IStateTransfer *stateTrans,
                        SigManager *sigMgr,
                        ReplicasInfo *replicasInfo,
-                       ViewsManager *viewsMgr)
+                       ViewsManager *viewsMgr,
+                       shared_ptr<MsgsCommunicator> &msgsCommunicator,
+                       shared_ptr<MsgHandlersRegistrator> &msgHandlers)
     : config_(config),
       numOfReplicas{(uint16_t)(3 * config_.fVal + 2 * config_.cVal + 1)},
       viewChangeProtocolEnabled{config.viewChangeProtocolEnabled},
       autoPrimaryRotationEnabled{config.autoPrimaryRotationEnabled},
-      metaMsgHandlers{createMapOfMetaMsgHandlers()},
       restarted_{!firstTime},
       replyBuffer{(char *)std::malloc(config_.maxReplyMessageSize - sizeof(ClientReplyMsgHeader))},
       stateTransfer{(stateTrans != nullptr ? stateTrans : new NullStateTransfer())},
@@ -2846,7 +2887,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       startSyncEvent{false},
       metrics_{concordMetrics::Component("replica", std::make_shared<concordMetrics::Aggregator>())},
       metric_view_{metrics_.RegisterGauge("view", curView)},
-      metric_last_stable_seq_num__{metrics_.RegisterGauge("lastStableSeqNum", lastStableSeqNum)},
+      metric_last_stable_seq_num_{metrics_.RegisterGauge("lastStableSeqNum", lastStableSeqNum)},
       metric_last_executed_seq_num_{metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)},
       metric_last_agreed_view_{metrics_.RegisterGauge("lastAgreedView", lastAgreedView)},
       metric_first_commit_path_{metrics_.RegisterStatus(
@@ -2874,6 +2915,10 @@ ReplicaImp::ReplicaImp(bool firstTime,
 
   // !firstTime ==> ((sigMgr != nullptr) && (replicasInfo != nullptr) && (viewsMgr != nullptr))
   Assert(firstTime || ((sigMgr != nullptr) && (replicasInfo != nullptr) && (viewsMgr != nullptr)));
+
+  msgsCommunicator_ = msgsCommunicator;
+  msgHandlers_ = msgHandlers;
+  registerMsgHandlers();
 
   if (config_.debugStatisticsEnabled) {
     DebugStatistics::initDebugStatisticsData();
@@ -3109,11 +3154,10 @@ void ReplicaImp::processMessages() {
       DebugStatistics::onReceivedExMessage(m->type());
     }
 
-    auto g = metaMsgHandlers.find(m->type());
-    if (g != metaMsgHandlers.end()) {
-      PtrToMetaMsgHandler ptrMetaHandler = g->second;
-      (this->*ptrMetaHandler)(m);
-    } else {
+    auto msgHandlerCallback = msgHandlers_->getCallback(m->type());
+    if (msgHandlerCallback != nullptr)
+      msgHandlerCallback(m);
+    else {
       LOG_WARN_F(GL, "Unknown message");
       delete m;
     }
