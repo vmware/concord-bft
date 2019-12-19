@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -9,6 +9,8 @@
 // notices and license terms. Your use of these subcomponents is subject to the
 // terms and conditions of the sub-component's license, as noted in the
 // LICENSE file.
+
+#pragma once
 
 #include <cstdint>
 #include <vector>
@@ -20,24 +22,33 @@ namespace concord {
 namespace storage {
 namespace sparse_merkle {
 
+constexpr size_t BYTE_SIZE_IN_BITS = 8;
+static_assert(BYTE_SIZE_IN_BITS == CHAR_BIT);
+
+// A type safe version wrapper
+struct Version {
+  Version() : value(0) {}
+  Version(uint64_t val) : value(val) {}
+  bool operator==(const Version& other) const { return value == other.value; }
+  uint64_t value;
+};
+
 // A nibble is 4 bits, stored in the lower bits of a byte.
 class Nibble {
  public:
+  static constexpr size_t SIZE_IN_BITS = 4;
+
   Nibble(uint8_t byte) {
     Assert((byte & 0xF0) == 0);
     data_ = byte;
   }
 
-  bool get_bit(const size_t bit) const {
-    Assert(bit < 4);
+  bool getBit(const size_t bit) const {
+    Assert(bit < SIZE_IN_BITS);
     return (data_ >> bit) & 1;
   }
 
   bool operator==(const Nibble& other) const { return data_ == other.data_; }
-
-  // Promote the underlying uint8_t to a size_t so that it can be used as an
-  // index into arrays and vectors.
-  size_t to_index() const { return data_; }
 
   // Return the underlying representation
   uint8_t data() const { return data_; }
@@ -48,12 +59,12 @@ class Nibble {
 };
 
 template <typename T>
-Nibble get_nibble(const size_t n, const T& buf) {
+Nibble getNibble(const size_t n, const T& buf) {
   size_t index = n / 2;
   uint8_t byte = buf[index];
   if (n % 2 == 0) {
     // Even value: Get the first nibble of the byte
-    byte = byte >> 4;
+    byte = byte >> Nibble::SIZE_IN_BITS;
   } else {
     // Odd value: Get the second nibble of the byte
     byte = byte & 0x0F;
@@ -68,7 +79,7 @@ class Hash {
   static constexpr size_t SIZE_IN_BITS = 256;
   static constexpr const char* const HASH_ALGORITHM = "SHA3-256";
 
-  static constexpr size_t SIZE_IN_BYTES = SIZE_IN_BITS / 8;
+  static constexpr size_t SIZE_IN_BYTES = SIZE_IN_BITS / BYTE_SIZE_IN_BITS;
   static constexpr size_t MAX_NIBBLES = SIZE_IN_BYTES * 2;
 
   // This is the hash of the empty string ''. It's used as a placeholder value
@@ -83,14 +94,51 @@ class Hash {
 
   Hash(std::array<uint8_t, SIZE_IN_BYTES> buf) : buf_(buf) {}
 
+  bool operator==(const Hash& other) const { return buf_ == other.buf_; }
+
   const uint8_t* data() const { return buf_.data(); }
   size_t size() const { return buf_.size(); }
 
-  Nibble get_nibble(const size_t n) const {
+  Nibble getNibble(const size_t n) const {
     Assert(!buf_.empty());
     Assert(n < MAX_NIBBLES);
-    return ::concord::storage::sparse_merkle::get_nibble(n, buf_);
+    return ::concord::storage::sparse_merkle::getNibble(n, buf_);
   }
+
+  // Count the number of contiguous bits in common these hashes have from the
+  // start (MSB) until a bit mismatch.
+  size_t prefix_bits_in_common(const Hash& other) const {
+    size_t count = 0;
+    for (size_t i = 0; i < SIZE_IN_BYTES; i++) {
+      if ((buf_[i] ^ other.buf_[i]) == 0) {
+        count += BYTE_SIZE_IN_BITS;
+      } else {
+        // Check bit by bit
+        for (size_t j = 7; j >= 0; j--) {
+          if (((buf_[i] >> j) & 1) == ((other.buf_[i] >> j) & 1)) {
+            ++count;
+          } else {
+            return count;
+          }
+        }
+      }
+    }
+    return count;
+  };
+
+  // Count the number of contiguous bits in common (starting from MSB) common
+  // these hashes have from depth*4 until a bit mismatch.
+  //
+  // TODO: This can be optimized to only start searching from depth
+  size_t prefix_bits_in_common(const Hash& other, size_t depth) const {
+    Assert(depth < Hash::MAX_NIBBLES);
+    auto total = prefix_bits_in_common(other);
+    auto bits_to_depth = depth * Nibble::SIZE_IN_BITS;
+    if (total > bits_to_depth) {
+      return total - bits_to_depth;
+    }
+    return 0;
+  };
 
  private:
   std::array<uint8_t, SIZE_IN_BYTES> buf_;
@@ -127,6 +175,8 @@ class NibblePath {
  public:
   NibblePath() : num_nibbles_(0) {}
 
+  bool operator==(const NibblePath& other) const { return num_nibbles_ == other.num_nibbles_ && path_ == other.path_; }
+
   // Return the length of the path_ in nibbles
   size_t length() const { return num_nibbles_; }
 
@@ -138,7 +188,7 @@ class NibblePath {
     // We don't want a NibblePath to ever be longer than a Hash
     Assert(num_nibbles_ < Hash::MAX_NIBBLES - 1);
     if (num_nibbles_ % 2 == 0) {
-      path_.push_back(nibble.data() << 4);
+      path_.push_back(nibble.data() << Nibble::SIZE_IN_BITS);
     } else {
       path_.back() |= nibble.data();
     }
@@ -146,7 +196,7 @@ class NibblePath {
   }
 
   // Pop the last nibble off the path
-  Nibble pop_back() {
+  Nibble popBack() {
     Assert(!empty());
     uint8_t data = 0;
     if (num_nibbles_ % 2 == 0) {
@@ -156,7 +206,7 @@ class NibblePath {
       path_.back() |= 0xF0;
     } else {
       // We have an incomplete byte at the end of path_. Remove the upper nibble.
-      data = path_.back() >> 4;
+      data = path_.back() >> Nibble::SIZE_IN_BITS;
       // Remove the last byte containing a single nibble.
       path_.pop_back();
     }
@@ -167,7 +217,7 @@ class NibblePath {
   // Get the nth nibble.
   Nibble get(size_t n) const {
     Assert(n < num_nibbles_);
-    return ::concord::storage::sparse_merkle::get_nibble(n, path_);
+    return ::concord::storage::sparse_merkle::getNibble(n, path_);
   }
 
  private:

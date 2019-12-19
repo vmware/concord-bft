@@ -26,5 +26,8 @@ if (BUILD_ROCKSDB_STORAGE)
   endif()
 endif(BUILD_ROCKSDB_STORAGE)
 
-target_sources(concordbft_storage PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/memorydb_client.cpp)
+target_sources(concordbft_storage PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/memorydb_client.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/sparse_merkle/internal_node.cpp
+)
 
