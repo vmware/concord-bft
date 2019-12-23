@@ -36,7 +36,7 @@ int MsgsCommunicator::start() {
 
 int MsgsCommunicator::stop() {
   incomingMsgsStorage_->stop();
-  int res =  communication_->Stop();
+  int res = communication_->Stop();
   LOG_INFO(GL, "MsgsCommunicator for replica " << ReplicaConfigSingleton::GetInstance().GetReplicaId() << " stopped");
   return res;
 }
