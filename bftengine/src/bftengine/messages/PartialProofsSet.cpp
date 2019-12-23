@@ -190,11 +190,14 @@ class PassFullCommitProofAsInternalMsg : public InternalMessage {
 
  public:
   PassFullCommitProofAsInternalMsg(InternalReplicaApi* replica, FullCommitProofMsg* selfFcpMsg)
-      : selfFcp(selfFcpMsg), r(replica) {}
+      : InternalMessage(replica), selfFcp(selfFcpMsg), r(replica) {}
 
   virtual ~PassFullCommitProofAsInternalMsg() override {}
 
-  virtual void handle() override { r->onInternalMsg(selfFcp); }
+  virtual void handle() override {
+    InternalMessage::handle();
+    r->onInternalMsg(selfFcp);
+  }
 };
 
 // NB: the following class is part of a patch

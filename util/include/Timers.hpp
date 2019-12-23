@@ -13,10 +13,11 @@
 #pragma once
 
 #include <functional>
-#include <stdint.h>
+#include <cstdint>
 #include <chrono>
 #include <vector>
 #include <algorithm>
+#include <mutex>
 
 namespace concordUtil {
 
@@ -34,7 +35,7 @@ class Timers {
     Handle() : id_(0) {}
 
    private:
-    Handle(uint64_t id) : id_(id) {}
+    explicit Handle(uint64_t id) : id_(id) {}
 
     uint64_t id_;
     friend class Timers;
@@ -48,17 +49,14 @@ class Timers {
     };
 
    private:
-    Timer(std::chrono::milliseconds duration, Type t, std::function<void(Handle)> callback) {
-      Timer(duration, t, callback, std::chrono::steady_clock::now());
-    }
+    Timer(std::chrono::milliseconds duration, Type t, const std::function<void(Handle)>& callback)
+        : Timer(duration, t, callback, std::chrono::steady_clock::now()) {}
 
     Timer(std::chrono::milliseconds d,
           Type t,
           std::function<void(Handle)> cb,
           std::chrono::steady_clock::time_point now)
-        : duration_(d), expires_at_(now + d), type_(t), callback_(cb) {}
-
-    bool expired() const { return expired(std::chrono::steady_clock::now()); }
+        : duration_(d), expires_at_(now + d), type_(t), callback_(std::move(cb)) {}
 
     bool expired(std::chrono::steady_clock::time_point now) const { return now >= expires_at_; }
 
@@ -76,7 +74,7 @@ class Timers {
     std::chrono::milliseconds duration_;
     std::chrono::steady_clock::time_point expires_at_;
     Type type_;
-    uint64_t id_;
+    uint64_t id_ = 0;
     std::function<void(Handle)> callback_;
 
     friend class Timers;
@@ -85,14 +83,15 @@ class Timers {
  public:
   Timers() : id_counter_(0) {}
 
-  Handle add(std::chrono::milliseconds d, Timer::Type t, std::function<void(Handle)> cb) {
+  Handle add(std::chrono::milliseconds d, Timer::Type t, const std::function<void(Handle)>& cb) {
     return add(d, t, cb, std::chrono::steady_clock::now());
   }
 
   Handle add(std::chrono::milliseconds d,
              Timer::Type t,
-             std::function<void(Handle)> cb,
+             const std::function<void(Handle)>& cb,
              std::chrono::steady_clock::time_point now) {
+    std::unique_lock<std::recursive_mutex> mlock(lock_);
     timers_.emplace_back(Timer(d, t, cb, now));
     id_counter_ += 1;
     Handle h{id_counter_};
@@ -101,36 +100,33 @@ class Timers {
   }
 
   std::vector<Timer>::iterator find(Handle handle) {
-    auto it = std::find_if(timers_.begin(), timers_.end(), [&handle](Timer t) { return t.id_ == handle.id_; });
-    if (it == timers_.end()) {
-      throw std::invalid_argument("invalid timer handle");
-    }
-    return it;
+    std::unique_lock<std::recursive_mutex> mlock(lock_);
+    return std::find_if(timers_.begin(), timers_.end(), [&handle](const Timer& t) { return t.id_ == handle.id_; });
   }
 
   void reset(Handle handle, std::chrono::milliseconds d) { reset(handle, d, std::chrono::steady_clock::now()); }
 
   void reset(Handle handle, std::chrono::milliseconds d, std::chrono::steady_clock::time_point now) {
+    std::unique_lock<std::recursive_mutex> mlock(lock_);
     auto it = find(handle);
-    it->reset(now, d);
+    if (it != timers_.end()) it->reset(now, d);
   }
 
   void cancel(Handle handle) {
+    std::unique_lock<std::recursive_mutex> mlock(lock_);
     auto it = find(handle);
-    timers_.erase(it);
+    if (it != timers_.end()) timers_.erase(it);
   }
 
-  // Run the callbacks for all expired timers, and reschedule them if they are
-  // recurring.
+  // Run the callbacks for all expired timers, and reschedule them if they are recurring.
   void evaluate() { evaluate(std::chrono::steady_clock::now()); }
 
   void evaluate(std::chrono::steady_clock::time_point now) {
+    std::unique_lock<std::recursive_mutex> mlock(lock_);
     if (timers_.empty()) return;
 
-    // Expired ids must be stored separately since erasing causes iterator
-    // invalidation.
+    // Expired ids must be stored separately since erasing causes iterator invalidation.
     std::vector<Handle> to_cancel;
-
     for (auto& timer : timers_) {
       if (timer.expired(now)) {
         timer.run_callback(Handle(timer.id_));
@@ -148,6 +144,7 @@ class Timers {
   }
 
  private:
+  std::recursive_mutex lock_;
   std::vector<Timer> timers_;
   uint64_t id_counter_;
 };

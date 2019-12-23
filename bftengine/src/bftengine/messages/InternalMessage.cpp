@@ -9,25 +9,11 @@
 // these subcomponents is subject to the terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
-#pragma once
-
+#include "InternalReplicaApi.hpp"
 #include "InternalMessage.hpp"
 
 namespace bftEngine::impl {
 
-class StopWhenStateIsNotCollectedInternalMsg : public InternalMessage {
- public:
-  explicit StopWhenStateIsNotCollectedInternalMsg(ReplicaImp* myReplica) { replica_ = myReplica; }
-
-  void handle() override {
-    if (replica_->stateTransfer->isCollectingState())
-      replica_->mainThreadShouldStopWhenStateIsNotCollected = true;
-    else
-      replica_->mainThreadShouldStop = true;
-  }
-
- protected:
-  ReplicaImp* replica_;
-};
+void InternalMessage::handle() { replica_->updateMetricsForInternalMessage(); }
 
 }  // namespace bftEngine::impl

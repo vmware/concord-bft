@@ -25,13 +25,18 @@ MsgsCommunicator::MsgsCommunicator(ICommunication* comm,
 }
 
 int MsgsCommunicator::start(ReplicaId myReplicaId) {
+  incomingMsgsStorage_->start();
   communication_->setReceiver(myReplicaId, msgReceiver_.get());
   int commStatus = communication_->Start();
   Assert(commStatus == 0);
   return commStatus;
 }
 
-int MsgsCommunicator::stop() { return communication_->Stop(); }
+int MsgsCommunicator::stop() {
+  int res = communication_->Stop();
+  incomingMsgsStorage_->stop();
+  return res;
+}
 
 int MsgsCommunicator::sendAsyncMessage(NodeNum destNode, char* message, size_t messageLength) {
   return communication_->sendAsyncMessage(destNode, message, messageLength);

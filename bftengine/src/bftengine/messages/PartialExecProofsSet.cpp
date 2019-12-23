@@ -117,7 +117,7 @@ class MerkleExecSignatureInternalMsg : public InternalMessage {
                                  SeqNum seqNumber,
                                  uint16_t signatureLength,
                                  const char* signature)
-      : replicaApi(internalReplicaApi) {
+      : InternalMessage(internalReplicaApi), replicaApi(internalReplicaApi) {
     this->viewNum = viewNumber;
     this->seqNum = seqNumber;
     this->signatureLength = signatureLength;
@@ -128,7 +128,10 @@ class MerkleExecSignatureInternalMsg : public InternalMessage {
 
   virtual ~MerkleExecSignatureInternalMsg() override { std::free((void*)signature); }
 
-  virtual void handle() override { replicaApi->onMerkleExecSignature(viewNum, seqNum, signatureLength, signature); }
+  virtual void handle() override {
+    InternalMessage::handle();
+    replicaApi->onMerkleExecSignature(viewNum, seqNum, signatureLength, signature);
+  }
 };
 
 class AsynchExecProofCreationJob : public util::SimpleThreadPool::Job {

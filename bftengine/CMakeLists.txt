@@ -29,6 +29,7 @@ set(corebft_source_files
     src/bftengine/SerializableActiveWindow.cpp
     src/bftengine/MsgsCommunicator.cpp
     src/bftengine/MsgReceiver.cpp
+    src/bftengine/TimersSingleton.cpp
     src/communication/PlainUDPCommunication.cpp
     src/communication/CommFactory.cpp
     src/bcstatetransfer/BCStateTran.cpp
@@ -56,6 +57,7 @@ set(corebft_source_files
     src/bftengine/messages/ViewChangeMsg.cpp
     src/bftengine/messages/ReplicaStatusMsg.cpp
     src/bftengine/messages/StateTransferMsg.cpp
+    src/bftengine/messages/InternalMessage.cpp
 )
 
 #
