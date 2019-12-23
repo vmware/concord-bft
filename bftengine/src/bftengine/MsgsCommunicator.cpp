@@ -25,10 +25,10 @@ MsgsCommunicator::MsgsCommunicator(ICommunication* comm,
 }
 
 int MsgsCommunicator::start(ReplicaId myReplicaId) {
-  incomingMsgsStorage_->start();
   communication_->setReceiver(myReplicaId, msgReceiver_.get());
   int commStatus = communication_->Start();
   Assert(commStatus == 0);
+  incomingMsgsStorage_->start();
   return commStatus;
 }
 
