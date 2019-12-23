@@ -130,12 +130,10 @@ void ReplicaImp::onReportAboutInvalidMessage(MessageBase *msg) {
 
 void ReplicaImp::send(MessageBase *m, NodeIdType dest) {
   // debug code begin
-
   if (m->type() == MsgCode::Checkpoint) {
     CheckpointMsg *c = (CheckpointMsg *)m;
     if (c->digestOfState().isZero()) LOG_WARN_F(GL, "Debug: checkpoint digest is zero");
   }
-
   // debug code end
 
   sendRaw(m->body(), dest, m->type(), m->size());
@@ -1128,8 +1126,7 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
               seqNumber,
               v);
 
-  if ((stateTransfer->isCollectingState()) || (!currentViewIsActive()) || (curView != v) ||
-      (!mainLog->insideActiveWindow(seqNumber))) {
+  if (isCollectingState() || (!currentViewIsActive()) || (curView != v) || (!mainLog->insideActiveWindow(seqNumber))) {
     LOG_DEBUG_F(GL,
                 "Node %d - onCommitCombinedSigSucceeded - seqNumber=%" PRId64 " view=%" PRId64 " are not relevant",
                 (int)config_.replicaId,
@@ -1172,8 +1169,7 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum v, bo
               seqNumber,
               v);
 
-  if ((isCollectingState()) || (!currentViewIsActive()) || (curView != v) ||
-      (!mainLog->insideActiveWindow(seqNumber))) {
+  if (isCollectingState() || (!currentViewIsActive()) || (curView != v) || (!mainLog->insideActiveWindow(seqNumber))) {
     LOG_DEBUG_F(GL,
                 "Node %d - onCommitVerifyCombinedSigResult - seqNumber=%" PRId64 " view=%" PRId64 " are not relevant",
                 (int)config_.replicaId,
@@ -2784,7 +2780,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
     mapOfRequestsThatAreBeingRecovered = b;
   }
 
-  msgsCommunicator_->start(config_.replicaId);
+  msgsCommunicator_->start();
   internalThreadPool.start(8);  // TODO(GG): use configuration
 }
 
@@ -2805,7 +2801,7 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
     ps_->endWriteTran();
   }
 
-  msgsCommunicator_->start(config_.replicaId);
+  msgsCommunicator_->start();
   internalThreadPool.start(8);  // TODO(GG): use configuration
 }
 

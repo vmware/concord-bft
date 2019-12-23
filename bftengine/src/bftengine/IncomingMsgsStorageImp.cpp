@@ -124,7 +124,6 @@ IncomingMsg IncomingMsgsStorageImp::popThreadLocal() {
 
 void IncomingMsgsStorageImp::dispatchMessages(std::promise<void>& signalStarted) {
   signalStarted.set_value();
-  LOG_INFO_F(GL, "Dispatching thread started");
   while (!stopped_) {
     auto msg = getMsgForProcessing();
     TimersSingleton::getInstance().evaluate();

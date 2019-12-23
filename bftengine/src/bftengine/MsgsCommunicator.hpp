@@ -25,7 +25,7 @@ class MsgsCommunicator {
                             std::shared_ptr<IReceiver>& msgReceiver);
   virtual ~MsgsCommunicator() = default;
 
-  int start(ReplicaId myReplicaId);
+  int start();
   int stop();
 
   [[nodiscard]] bool isMsgsProcessingRunning() const { return incomingMsgsStorage_->isRunning(); }

@@ -10,6 +10,7 @@
 // file.
 
 #include "MsgsCommunicator.hpp"
+#include "ReplicaConfig.hpp"
 #include "assertUtils.hpp"
 
 namespace bftEngine::impl {
@@ -24,17 +25,20 @@ MsgsCommunicator::MsgsCommunicator(ICommunication* comm,
   msgReceiver_ = msgReceiver;
 }
 
-int MsgsCommunicator::start(ReplicaId myReplicaId) {
-  communication_->setReceiver(myReplicaId, msgReceiver_.get());
+int MsgsCommunicator::start() {
+  incomingMsgsStorage_->start();
+  communication_->setReceiver(ReplicaConfigSingleton::GetInstance().GetReplicaId(), msgReceiver_.get());
   int commStatus = communication_->Start();
   Assert(commStatus == 0);
-  incomingMsgsStorage_->start();
+  LOG_INFO(GL, "MsgsCommunicator for replica " << ReplicaConfigSingleton::GetInstance().GetReplicaId() << " started");
   return commStatus;
 }
 
 int MsgsCommunicator::stop() {
   incomingMsgsStorage_->stop();
-  return communication_->Stop();
+  int res =  communication_->Stop();
+  LOG_INFO(GL, "MsgsCommunicator for replica " << ReplicaConfigSingleton::GetInstance().GetReplicaId() << " stopped");
+  return res;
 }
 
 int MsgsCommunicator::sendAsyncMessage(NodeNum destNode, char* message, size_t messageLength) {
