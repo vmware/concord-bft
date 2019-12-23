@@ -40,7 +40,7 @@ IncomingMsgsStorageImp::~IncomingMsgsStorageImp() {
 }
 
 void IncomingMsgsStorageImp::start() {
-  if (!running_) {
+  if (!dispatcherThread_.joinable()) {
     std::future<void> futureObj = signalStarted_.get_future();
     dispatcherThread_ = std::thread([=] { dispatchMessages(signalStarted_); });
     // Wait until thread starts
@@ -49,11 +49,10 @@ void IncomingMsgsStorageImp::start() {
 }
 
 void IncomingMsgsStorageImp::stop() {
-  if (running_) {
+  if (dispatcherThread_.joinable()) {
     stopped_ = true;
     dispatcherThread_.join();
     LOG_INFO_F(GL, "Dispatching thread stopped");
-    running_ = false;
   }
 }
 
@@ -124,12 +123,11 @@ IncomingMsg IncomingMsgsStorageImp::popThreadLocal() {
 }
 
 void IncomingMsgsStorageImp::dispatchMessages(std::promise<void>& signalStarted) {
-  running_ = true;
   signalStarted.set_value();
   LOG_INFO_F(GL, "Dispatching thread started");
   while (!stopped_) {
     auto msg = getMsgForProcessing();
-    TimersSingleton::getInstance()->evaluate();
+    TimersSingleton::getInstance().evaluate();
 
     MessageBase* message = nullptr;
     MsgHandlerCallback msgHandlerCallback = nullptr;

@@ -1785,7 +1785,6 @@ void ReplicaImp::onMessage(NewViewMsg *msg) {
 
 void ReplicaImp::MoveToHigherView(ViewNum nextView) {
   Assert(viewChangeProtocolEnabled);
-
   Assert(curView < nextView);
 
   const bool wasInPrevViewNumber = viewsManager->viewIsActive(curView);
@@ -1815,10 +1814,10 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
 
         Assert(x.prePrepare != nullptr);
         Assert(x.prePrepare->viewNumber() == curView);
-        Assert(x.prepareFull == nullptr || x.hasAllRequests);  // (x.prepareFull!=nullptr) ==> (x.hasAllRequests==true)
-        Assert(x.prepareFull == nullptr ||
-               x.prepareFull->viewNumber() ==
-                   curView);  // (x.prepareFull!=nullptr) ==> (x.prepareFull->viewNumber() == curView)
+        // (x.prepareFull!=nullptr) ==> (x.hasAllRequests==true)
+        Assert(x.prepareFull == nullptr || x.hasAllRequests);
+        // (x.prepareFull!=nullptr) ==> (x.prepareFull->viewNumber() == curView)
+        Assert(x.prepareFull == nullptr || x.prepareFull->viewNumber() == curView);
 
         prevViewInfo.push_back(x);
       } else {
@@ -1856,7 +1855,6 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
              lastStableSeqNum);
 
   pVC->finalizeMessage(*repsInfo);
-
   sendToAllOtherReplicas(pVC);
 }
 
@@ -1865,8 +1863,7 @@ void ReplicaImp::GotoNextView() {
 
   MoveToHigherView(curView + 1);
 
-  // at this point we don't have enough ViewChangeMsg messages (2f+2c+1) to enter to the new view (because 2f+2c+1 >
-  // f+1)
+  // at this point we don't have enough ViewChangeMsg messages (2f+2c+1) to enter the new view (because 2f+2c+1 > f+1)
 }
 
 bool ReplicaImp::tryToEnterView() {
@@ -2080,11 +2077,6 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
   Assert(newStateCheckpoint % checkpointWindowSize == 0);
 
   LOG_INFO_F(GL, "onTransferringCompleteImp with newStateCheckpoint==%" PRId64 "", newStateCheckpoint);
-
-  if (msgsProcessingThreadShouldStopWhenStateIsNotCollected_) {
-    msgsProcessingThreadShouldStopWhenStateIsNotCollected_ = false;
-    msgsProcessingThreadShouldStop_ = true;
-  }
 
   if (ps_) {
     ps_->beginWriteTran();
@@ -2503,13 +2495,13 @@ void ReplicaImp::onStatusReportTimer(Timers::Handle timer) {
 void ReplicaImp::onSlowPathTimer(Timers::Handle timer) {
   tryToStartSlowPaths();
   auto newPeriod = milliseconds(controller->slowPathsTimerMilli());
-  TimersSingleton::getInstance()->reset(timer, newPeriod);
+  TimersSingleton::getInstance().reset(timer, newPeriod);
 }
 
 void ReplicaImp::onInfoRequestTimer(Timers::Handle timer) {
   tryToAskForMissingInfo();
   auto newPeriod = milliseconds(dynamicUpperLimitOfRounds->upperLimit() / 2);
-  TimersSingleton::getInstance()->reset(timer, newPeriod);
+  TimersSingleton::getInstance().reset(timer, newPeriod);
 }
 
 void ReplicaImp::onDebugStatTimer(Timers::Handle timer) {
@@ -2574,7 +2566,7 @@ void ReplicaImp::changeStateTransferTimerPeriod(uint32_t timerPeriodMilli) {
   // TODO(GG): if this method is invoked by an external thread, then send an "internal message" to the commands
   // processing thread
 
-  TimersSingleton::getInstance()->reset(stateTranTimer_, milliseconds(timerPeriodMilli));
+  TimersSingleton::getInstance().reset(stateTranTimer_, milliseconds(timerPeriodMilli));
 }
 
 void ReplicaImp::onMerkleExecSignature(ViewNum v, SeqNum s, uint16_t signatureLength, const char *signature) {
@@ -2983,77 +2975,63 @@ ReplicaImp::~ReplicaImp() {
 }
 
 void ReplicaImp::stop() {
-  TimersSingleton::getInstance()->cancel(stateTranTimer_);
-  TimersSingleton::getInstance()->cancel(retranTimer_);
-  TimersSingleton::getInstance()->cancel(slowPathTimer_);
-  TimersSingleton::getInstance()->cancel(infoReqTimer_);
-  TimersSingleton::getInstance()->cancel(statusReportTimer_);
-  TimersSingleton::getInstance()->cancel(viewChangeTimer_);
-  TimersSingleton::getInstance()->cancel(debugStatTimer_);
-  TimersSingleton::getInstance()->cancel(metricsTimer_);
+  TimersSingleton::getInstance().cancel(stateTranTimer_);
+  TimersSingleton::getInstance().cancel(retranTimer_);
+  TimersSingleton::getInstance().cancel(slowPathTimer_);
+  TimersSingleton::getInstance().cancel(infoReqTimer_);
+  TimersSingleton::getInstance().cancel(statusReportTimer_);
+  TimersSingleton::getInstance().cancel(viewChangeTimer_);
+  TimersSingleton::getInstance().cancel(debugStatTimer_);
+  TimersSingleton::getInstance().cancel(metricsTimer_);
 
-  msgsProcessingThreadShouldStop_ = true;
   msgsCommunicator_->stop();
-
-  msgsProcessingThreadShouldStop_ = false;
-  msgsProcessingThreadShouldStopWhenStateIsNotCollected_ = false;
 }
 
 void ReplicaImp::addTimers() {
   int statusReportTimerMilli = (sendStatusPeriodMilli > 0) ? sendStatusPeriodMilli : config_.statusReportTimerMillisec;
   Assert(statusReportTimerMilli > 0);
-  statusReportTimer_ = TimersSingleton::getInstance()->add(milliseconds(statusReportTimerMilli),
-                                                           Timers::Timer::RECURRING,
-                                                           [this](Timers::Handle h) { onStatusReportTimer(h); });
+  statusReportTimer_ = TimersSingleton::getInstance().add(milliseconds(statusReportTimerMilli),
+                                                          Timers::Timer::RECURRING,
+                                                          [this](Timers::Handle h) { onStatusReportTimer(h); });
   if (viewChangeProtocolEnabled) {
     int t = viewChangeTimerMilli;
     if (autoPrimaryRotationEnabled && t > autoPrimaryRotationTimerMilli) t = autoPrimaryRotationTimerMilli;
 
-    // TODO(GG): what should be the time period here? .
-    // TODO(GG):Consider to split to 2 different timers
-    viewChangeTimer_ = TimersSingleton::getInstance()->add(
+    // TODO(GG): What should be the time period here?
+    // TODO(GG): Consider to split to 2 different timers
+    viewChangeTimer_ = TimersSingleton::getInstance().add(
         milliseconds(t / 2), Timers::Timer::RECURRING, [this](Timers::Handle h) { onViewsChangeTimer(h); });
   }
-  stateTranTimer_ = TimersSingleton::getInstance()->add(
+  stateTranTimer_ = TimersSingleton::getInstance().add(
       5s, Timers::Timer::RECURRING, [this](Timers::Handle h) { onStateTranTimer(h); });
 
   if (retransmissionsLogicEnabled) {
-    retranTimer_ = TimersSingleton::getInstance()->add(milliseconds(retransmissionsTimerMilli),
-                                                       Timers::Timer::RECURRING,
-                                                       [this](Timers::Handle h) { onRetransmissionsTimer(h); });
+    retranTimer_ = TimersSingleton::getInstance().add(milliseconds(retransmissionsTimerMilli),
+                                                      Timers::Timer::RECURRING,
+                                                      [this](Timers::Handle h) { onRetransmissionsTimer(h); });
   }
   const int slowPathsTimerPeriod = controller->timeToStartSlowPathMilli();
 
-  slowPathTimer_ = TimersSingleton::getInstance()->add(
+  slowPathTimer_ = TimersSingleton::getInstance().add(
       milliseconds(slowPathsTimerPeriod), Timers::Timer::RECURRING, [this](Timers::Handle h) { onSlowPathTimer(h); });
 
-  infoReqTimer_ = TimersSingleton::getInstance()->add(milliseconds(dynamicUpperLimitOfRounds->upperLimit() / 2),
-                                                      Timers::Timer::RECURRING,
-                                                      [this](Timers::Handle h) { onInfoRequestTimer(h); });
+  infoReqTimer_ = TimersSingleton::getInstance().add(milliseconds(dynamicUpperLimitOfRounds->upperLimit() / 2),
+                                                     Timers::Timer::RECURRING,
+                                                     [this](Timers::Handle h) { onInfoRequestTimer(h); });
 
   if (config_.debugStatisticsEnabled) {
-    debugStatTimer_ = TimersSingleton::getInstance()->add(seconds(DEBUG_STAT_PERIOD_SECONDS),
-                                                          Timers::Timer::RECURRING,
-                                                          [this](Timers::Handle h) { onDebugStatTimer(h); });
+    debugStatTimer_ = TimersSingleton::getInstance().add(seconds(DEBUG_STAT_PERIOD_SECONDS),
+                                                         Timers::Timer::RECURRING,
+                                                         [this](Timers::Handle h) { onDebugStatTimer(h); });
   }
 
-  metricsTimer_ = TimersSingleton::getInstance()->add(
+  metricsTimer_ = TimersSingleton::getInstance().add(
       100ms, Timers::Timer::RECURRING, [this](Timers::Handle h) { onMetricsTimer(h); });
 }
 
 void ReplicaImp::start() {
   addTimers();
   processMessages();
-}
-
-void ReplicaImp::stopWhenStateIsNotCollected() {
-  msgsProcessingThreadShouldStopWhenStateIsNotCollected_ = true;
-  msgsCommunicator_->stop();
-
-  Assert(msgsProcessingThreadShouldStop_);
-
-  msgsProcessingThreadShouldStop_ = false;
-  msgsProcessingThreadShouldStopWhenStateIsNotCollected_ = false;
 }
 
 void ReplicaImp::processMessages() {

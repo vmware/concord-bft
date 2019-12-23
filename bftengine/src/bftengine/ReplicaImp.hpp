@@ -72,9 +72,6 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   shared_ptr<MsgHandlersRegistrator> msgHandlers_;
   shared_ptr<MsgsCommunicator> msgsCommunicator_;
 
-  bool msgsProcessingThreadShouldStop_ = false;
-  bool msgsProcessingThreadShouldStopWhenStateIsNotCollected_ = false;
-
   // If this replica was restarted and loaded data from persistent storage.
   bool restarted_;
 
@@ -182,9 +179,6 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   bool recoveringFromExecutionOfRequests = false;
   Bitmap mapOfRequestsThatAreBeingRecovered;
 
-  friend class StopInternalMsg;
-  friend class StopWhenStateIsNotCollectedInternalMsg;
-
   //******** METRICS ************************************
   concordMetrics::Component metrics_;
 
@@ -197,8 +191,7 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   GaugeHandle metric_last_executed_seq_num_;
   GaugeHandle metric_last_agreed_view_;
 
-  // The first commit path being attempted for a new
-  // request.
+  // The first commit path being attempted for a new request.
   StatusHandle metric_first_commit_path_;
 
   CounterHandle metric_slow_path_count_;
@@ -240,7 +233,6 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
 
   void start();
   void stop();
-  void stopWhenStateIsNotCollected();
   bool isRunning() const { return msgsCommunicator_->isMsgsProcessingRunning(); }
   SeqNum getLastExecutedSequenceNum() const { return lastExecutedSeqNum; }
   bool isRecoveringFromExecutionOfRequests() const { return recoveringFromExecutionOfRequests; }

@@ -52,7 +52,7 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
   // Can be called by any thread
   void pushInternalMsg(std::unique_ptr<InternalMessage> msg) override;
 
-  [[nodiscard]] bool isRunning() const override { return running_; }
+  [[nodiscard]] bool isRunning() const override { return dispatcherThread_.joinable(); }
 
  private:
   void dispatchMessages(std::promise<void>& signalStarted);
@@ -82,7 +82,6 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
 
   std::thread dispatcherThread_;
   std::promise<void> signalStarted_;
-  std::atomic<bool> running_ = false;
   std::atomic<bool> stopped_ = false;
 };
 

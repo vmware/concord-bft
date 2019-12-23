@@ -48,8 +48,6 @@ struct ReplicaInternal : public Replica {
 
   virtual void restartForDebug(uint32_t delayMillis) override;
 
-  virtual void stopWhenStateIsNotCollected() override;
-
   ReplicaImp *rep;
 
  private:
@@ -73,12 +71,6 @@ bool ReplicaInternal::requestsExecutionWasInterrupted() const {
 
 void ReplicaInternal::start() { return rep->start(); }
 
-void ReplicaInternal::stopWhenStateIsNotCollected() {
-  if (rep->isRunning()) {
-    rep->stopWhenStateIsNotCollected();
-  }
-}
-
 void ReplicaInternal::stop() {
   unique_lock<std::mutex> lk(debugWaitLock);
   if (rep->isRunning()) {
@@ -93,7 +85,7 @@ void ReplicaInternal::SetAggregator(std::shared_ptr<concordMetrics::Aggregator> 
 void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
   {
     unique_lock<std::mutex> lk(debugWaitLock);
-    rep->stopWhenStateIsNotCollected();
+    rep->stop();
     if (delayMillis > 0) {
       std::cv_status res = debugWait.wait_for(lk, std::chrono::milliseconds(delayMillis));
       if (std::cv_status::no_timeout == res)  // stop() was called

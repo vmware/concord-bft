@@ -21,9 +21,8 @@ namespace bftEngine {
 // Singleton wrapper class for Timers.
 class TimersSingleton {
  public:
-  static std::unique_ptr<concordUtil::Timers>& getInstance() {
-    static std::once_flag created_;
-    std::call_once(created_, &TimersSingleton::create);
+  static concordUtil::Timers& getInstance() {
+    static concordUtil::Timers timers_;
     return timers_;
   }
 
@@ -33,11 +32,6 @@ class TimersSingleton {
  private:
   TimersSingleton() = default;
   ~TimersSingleton() = default;
-
-  static void create() { timers_ = std::make_unique<concordUtil::Timers>(); }
-
- private:
-  static std::unique_ptr<concordUtil::Timers> timers_;
 };
 
 }  // namespace bftEngine

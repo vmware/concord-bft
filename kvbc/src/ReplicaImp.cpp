@@ -94,7 +94,7 @@ void ReplicaImp::createReplicaAndSyncState() {
  */
 Status ReplicaImp::stop() {
   m_currentRepStatus = RepStatus::Stopping;
-  m_replicaPtr->stopWhenStateIsNotCollected();
+  m_replicaPtr->stop();
   m_currentRepStatus = RepStatus::Idle;
   return Status::OK();
 }
