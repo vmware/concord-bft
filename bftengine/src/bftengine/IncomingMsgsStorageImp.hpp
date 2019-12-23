@@ -21,6 +21,7 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <future>
 
 namespace bftEngine::impl {
 
@@ -54,7 +55,7 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
   [[nodiscard]] bool isRunning() const override { return running_; }
 
  private:
-  void dispatchMessages();
+  void dispatchMessages(std::promise<void>& signalStarted);
   IncomingMsg getMsgForProcessing();
   IncomingMsg popThreadLocal();
 
@@ -80,6 +81,7 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
   std::queue<std::unique_ptr<InternalMessage>>* ptrThreadLocalQueueForInternalMessages_;
 
   std::thread dispatcherThread_;
+  std::promise<void> signalStarted_;
   std::atomic<bool> running_ = false;
   std::atomic<bool> stopped_ = false;
 };

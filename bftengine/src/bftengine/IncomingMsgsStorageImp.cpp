@@ -15,6 +15,7 @@
 #include "messages/InternalMessage.hpp"
 #include "TimersSingleton.hpp"
 #include "Logger.hpp"
+#include <future>
 
 using std::queue;
 using namespace std::chrono;
@@ -39,7 +40,12 @@ IncomingMsgsStorageImp::~IncomingMsgsStorageImp() {
 }
 
 void IncomingMsgsStorageImp::start() {
-  if (!running_) dispatcherThread_ = std::thread([=] { dispatchMessages(); });
+  if (!running_) {
+    std::future<void> futureObj = signalStarted_.get_future();
+    dispatcherThread_ = std::thread([=] { dispatchMessages(signalStarted_); });
+    // Wait until thread starts
+    futureObj.get();
+  };
 }
 
 void IncomingMsgsStorageImp::stop() {
@@ -75,7 +81,7 @@ void IncomingMsgsStorageImp::pushInternalMsg(std::unique_ptr<InternalMessage> ms
   condVar_.notify_one();
 }
 
-// should only be called by the main thread
+// should only be called by the dispatching thread
 IncomingMsg IncomingMsgsStorageImp::getMsgForProcessing() {
   auto msg = popThreadLocal();
   if (msg.tag != IncomingMsg::INVALID) return msg;
@@ -117,8 +123,9 @@ IncomingMsg IncomingMsgsStorageImp::popThreadLocal() {
   }
 }
 
-void IncomingMsgsStorageImp::dispatchMessages() {
+void IncomingMsgsStorageImp::dispatchMessages(std::promise<void>& signalStarted) {
   running_ = true;
+  signalStarted.set_value();
   LOG_INFO_F(GL, "Dispatching thread started");
   while (!stopped_) {
     auto msg = getMsgForProcessing();
