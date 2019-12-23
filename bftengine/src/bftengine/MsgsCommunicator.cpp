@@ -33,9 +33,8 @@ int MsgsCommunicator::start(ReplicaId myReplicaId) {
 }
 
 int MsgsCommunicator::stop() {
-  int res = communication_->Stop();
   incomingMsgsStorage_->stop();
-  return res;
+  return communication_->Stop();
 }
 
 int MsgsCommunicator::sendAsyncMessage(NodeNum destNode, char* message, size_t messageLength) {
