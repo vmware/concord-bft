@@ -35,8 +35,8 @@
 #include "PersistentStorage.hpp"
 #include "ReplicaLoader.hpp"
 #include "Metrics.hpp"
-#include "Timers.hpp"
 #include "MsgHandlersRegistrator.hpp"
+#include "TimersSingleton.hpp"
 
 #include <thread>
 
@@ -72,14 +72,7 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   shared_ptr<MsgHandlersRegistrator> msgHandlers_;
   shared_ptr<MsgsCommunicator> msgsCommunicator_;
 
-  // main thread of the this replica
-  std::thread mainThread;
-  bool mainThreadStarted = false;
-  bool mainThreadShouldStop = false;
-  bool mainThreadShouldStopWhenStateIsNotCollected = false;
-
-  // If this replica was restarted and loaded data from
-  // persistent storage.
+  // If this replica was restarted and loaded data from persistent storage.
   bool restarted_;
 
   // thread pool of this replica
@@ -168,9 +161,6 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
                                // with view >= v
   Time timeOfLastAgreedView;   // last time we changed lastAgreedView
 
-  // Timer manager/container
-  concordUtil::Timers timers_;
-
   // timers
   concordUtil::Timers::Handle stateTranTimer_;
   concordUtil::Timers::Handle retranTimer_;
@@ -189,13 +179,6 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   bool recoveringFromExecutionOfRequests = false;
   Bitmap mapOfRequestsThatAreBeingRecovered;
 
-  friend class StopInternalMsg;
-  friend class StopWhenStateIsNotCollectedInternalMsg;
-
-  // this event is signalled iff the start() method has completed
-  // and the process_message() method has not start working yet
-  SimpleAutoResetEvent startSyncEvent;
-
   //******** METRICS ************************************
   concordMetrics::Component metrics_;
 
@@ -208,8 +191,7 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   GaugeHandle metric_last_executed_seq_num_;
   GaugeHandle metric_last_agreed_view_;
 
-  // The first commit path being attempted for a new
-  // request.
+  // The first commit path being attempted for a new request.
   StatusHandle metric_first_commit_path_;
 
   CounterHandle metric_slow_path_count_;
@@ -251,9 +233,8 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
 
   void start();
   void stop();
-  void stopWhenStateIsNotCollected();
-  bool isRunning() const;
-  SeqNum getLastExecutedSequenceNum() const;
+  bool isRunning() const { return msgsCommunicator_->isMsgsProcessingRunning(); }
+  SeqNum getLastExecutedSequenceNum() const { return lastExecutedSeqNum; }
   bool isRecoveringFromExecutionOfRequests() const { return recoveringFromExecutionOfRequests; }
 
   shared_ptr<PersistentStorage> getPersistentStorage() const { return ps_; }
@@ -262,7 +243,6 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   std::shared_ptr<MsgsCommunicator>& getMsgsCommunicator() { return msgsCommunicator_; }
   std::shared_ptr<MsgHandlersRegistrator>& getMsgHandlersRegistrator() { return msgHandlers_; }
 
-  IncomingMsg recvMsg();
   void processMessages();
 
   // IReplicaForStateTransfer
@@ -274,6 +254,8 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   // InternalReplicaApi
   virtual void onInternalMsg(FullCommitProofMsg* m) override;
   virtual void onMerkleExecSignature(ViewNum v, SeqNum s, uint16_t signatureLength, const char* signature) override;
+  void updateMetricsForInternalMessage() override { metric_received_internal_msgs_.Get().Inc(); }
+  bool isCollectingState() override { return stateTransfer->isCollectingState(); }
 
   void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a);
 
@@ -439,6 +421,9 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
       const ViewNum relatedViewNumber,
       const std::forward_list<RetSuggestion>* const suggestedRetransmissions)
       override;  // TODO(GG): use generic iterators
+
+ private:
+  void addTimers();
 };
 }  // namespace impl
 }  // namespace bftEngine

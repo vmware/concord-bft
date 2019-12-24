@@ -27,7 +27,7 @@ void MsgReceiver::onNewMessage(const NodeNum sourceNode, const char *const messa
   auto *msgBody = (MessageBase::Header *)std::malloc(messageLength);
   memcpy(msgBody, message, messageLength);
 
-  auto node = (uint16_t)sourceNode;  // TODO(GG): make sure that this casting is okay
+  auto node = sourceNode;
 
   std::unique_ptr<MessageBase> pMsg(new MessageBase(node, msgBody, messageLength, true));
 

@@ -67,6 +67,9 @@ class InternalReplicaApi  // TODO(GG): rename + clean + split to several classes
   virtual IncomingMsgsStorage& getIncomingMsgsStorage() = 0;
   virtual util::SimpleThreadPool& getInternalThreadPool() = 0;
 
+  virtual void updateMetricsForInternalMessage() = 0;
+  virtual bool isCollectingState() = 0;
+
   virtual IThresholdVerifier* getThresholdVerifierForExecution() = 0;
   virtual IThresholdVerifier* getThresholdVerifierForSlowPathCommit() = 0;
   virtual IThresholdVerifier* getThresholdVerifierForCommit() = 0;

@@ -16,8 +16,6 @@
 #include "messages/PrePrepareMsg.hpp"
 #include "messages/CheckpointMsg.hpp"
 #include "messages/ClientReplyMsg.hpp"
-#include "messages/StopInternalMsg.hpp"
-#include "messages/StopWhenStateIsNotCollectedInternalMsg.hpp"
 #include "messages/PartialExecProofMsg.hpp"
 #include "messages/FullExecProofMsg.hpp"
 #include "messages/StartSlowCommitMsg.hpp"
@@ -100,7 +98,7 @@ template <typename T>
 void ReplicaImp::messageHandler(MessageBase *msg) {
   T *validMsg = nullptr;
   bool isValid = T::ToActualMsgType(*repsInfo, msg, validMsg);
-
+  if (config_.debugStatisticsEnabled) DebugStatistics::onReceivedExMessage(msg->type());
   if (isValid) {
     onMessage(validMsg);
   } else {
@@ -112,7 +110,7 @@ void ReplicaImp::messageHandler(MessageBase *msg) {
 
 template <typename T>
 void ReplicaImp::messageHandlerWithIgnoreLogic(MessageBase *msg) {
-  if (stateTransfer->isCollectingState()) {
+  if (isCollectingState()) {
     delete msg;
   } else {
     messageHandler<T>(msg);
@@ -132,12 +130,10 @@ void ReplicaImp::onReportAboutInvalidMessage(MessageBase *msg) {
 
 void ReplicaImp::send(MessageBase *m, NodeIdType dest) {
   // debug code begin
-
   if (m->type() == MsgCode::Checkpoint) {
     CheckpointMsg *c = (CheckpointMsg *)m;
     if (c->digestOfState().isZero()) LOG_WARN_F(GL, "Debug: checkpoint digest is zero");
   }
-
   // debug code end
 
   sendRaw(m->body(), dest, m->type(), m->size());
@@ -169,19 +165,6 @@ void ReplicaImp::sendRaw(char *m, NodeIdType dest, uint16_t type, MsgSize size) 
   }
 }
 
-IncomingMsg ReplicaImp::recvMsg() {
-  while (true) {
-    auto msg = getIncomingMsgsStorage().popMsgForProcessing(timersResolution);
-
-    // TODO(GG): make sure that we don't check timers too often (i.e. much faster than timersResolution)
-    timers_.evaluate();
-
-    if (msg.tag != IncomingMsg::INVALID) {
-      return msg;
-    }
-  }
-}
-
 void ReplicaImp::onMessage(ClientRequestMsg *m) {
   metric_received_client_requests_.Get().Inc();
   const NodeIdType senderId = m->senderId();
@@ -197,7 +180,7 @@ void ReplicaImp::onMessage(ClientRequestMsg *m) {
              readOnly ? 1 : 0,
              senderId);
 
-  if (stateTransfer->isCollectingState()) {
+  if (isCollectingState()) {
     LOG_INFO(GL,
              "ClientRequestMsg reqSeqNum="
                  << reqSeqNum
@@ -487,7 +470,7 @@ void ReplicaImp::onMessage(PrePrepareMsg *msg) {
 }
 
 void ReplicaImp::tryToStartSlowPaths() {
-  if (!isCurrentPrimary() || stateTransfer->isCollectingState() || !currentViewIsActive())
+  if (!isCurrentPrimary() || isCollectingState() || !currentViewIsActive())
     return;  // TODO(GG): consider to stop the related timer when this method is not needed (to avoid useless
              // invocations)
 
@@ -554,7 +537,7 @@ void ReplicaImp::tryToStartSlowPaths() {
 }
 
 void ReplicaImp::tryToAskForMissingInfo() {
-  if (!currentViewIsActive() || stateTransfer->isCollectingState()) return;
+  if (!currentViewIsActive() || isCollectingState()) return;
 
   Assert(maxSeqNumTransferredFromPrevViews <= lastStableSeqNum + kWorkWindowSize);
 
@@ -773,7 +756,7 @@ void ReplicaImp::onMessage(PartialCommitProofMsg *msg) {
 }
 
 void ReplicaImp::onInternalMsg(FullCommitProofMsg *msg) {
-  if ((stateTransfer->isCollectingState()) || (!currentViewIsActive()) || (curView != msg->viewNumber()) ||
+  if ((isCollectingState()) || (!currentViewIsActive()) || (curView != msg->viewNumber()) ||
       (!mainLog->insideActiveWindow(msg->seqNumber()))) {
     delete msg;
     return;
@@ -1003,7 +986,7 @@ void ReplicaImp::onPrepareCombinedSigFailed(SeqNum seqNumber,
               seqNumber,
               v);
 
-  if ((stateTransfer->isCollectingState()) || (!currentViewIsActive()) || (curView != v) ||
+  if ((isCollectingState()) || (!currentViewIsActive()) || (curView != v) ||
       (!mainLog->insideActiveWindow(seqNumber))) {
     LOG_DEBUG_F(GL,
                 "Node %d - onPrepareCombinedSigFailed - seqNumber=%" PRId64 " view=%" PRId64 " are not relevant",
@@ -1031,7 +1014,7 @@ void ReplicaImp::onPrepareCombinedSigSucceeded(SeqNum seqNumber,
               seqNumber,
               v);
 
-  if ((stateTransfer->isCollectingState()) || (!currentViewIsActive()) || (curView != v) ||
+  if ((isCollectingState()) || (!currentViewIsActive()) || (curView != v) ||
       (!mainLog->insideActiveWindow(seqNumber))) {
     LOG_DEBUG_F(GL,
                 "Node %d - onPrepareCombinedSigSucceeded - seqNumber=%" PRId64 " view=%" PRId64 " are not relevant",
@@ -1074,7 +1057,7 @@ void ReplicaImp::onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum v, b
               seqNumber,
               v);
 
-  if ((stateTransfer->isCollectingState()) || (!currentViewIsActive()) || (curView != v) ||
+  if ((isCollectingState()) || (!currentViewIsActive()) || (curView != v) ||
       (!mainLog->insideActiveWindow(seqNumber))) {
     LOG_DEBUG_F(GL,
                 "Node %d - onPrepareVerifyCombinedSigResult - seqNumber=%" PRId64 " view=%" PRId64 " are not relevant",
@@ -1115,7 +1098,7 @@ void ReplicaImp::onCommitCombinedSigFailed(SeqNum seqNumber, ViewNum v, const st
               seqNumber,
               v);
 
-  if ((stateTransfer->isCollectingState()) || (!currentViewIsActive()) || (curView != v) ||
+  if ((isCollectingState()) || (!currentViewIsActive()) || (curView != v) ||
       (!mainLog->insideActiveWindow(seqNumber))) {
     LOG_DEBUG_F(GL,
                 "Node %d - onCommitCombinedSigFailed - seqNumber=%" PRId64 " view=%" PRId64 " are not relevant",
@@ -1143,8 +1126,7 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
               seqNumber,
               v);
 
-  if ((stateTransfer->isCollectingState()) || (!currentViewIsActive()) || (curView != v) ||
-      (!mainLog->insideActiveWindow(seqNumber))) {
+  if (isCollectingState() || (!currentViewIsActive()) || (curView != v) || (!mainLog->insideActiveWindow(seqNumber))) {
     LOG_DEBUG_F(GL,
                 "Node %d - onCommitCombinedSigSucceeded - seqNumber=%" PRId64 " view=%" PRId64 " are not relevant",
                 (int)config_.replicaId,
@@ -1187,8 +1169,7 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum v, bo
               seqNumber,
               v);
 
-  if ((stateTransfer->isCollectingState()) || (!currentViewIsActive()) || (curView != v) ||
-      (!mainLog->insideActiveWindow(seqNumber))) {
+  if (isCollectingState() || (!currentViewIsActive()) || (curView != v) || (!mainLog->insideActiveWindow(seqNumber))) {
     LOG_DEBUG_F(GL,
                 "Node %d - onCommitVerifyCombinedSigResult - seqNumber=%" PRId64 " view=%" PRId64 " are not relevant",
                 (int)config_.replicaId,
@@ -1384,7 +1365,7 @@ void ReplicaImp::onRetransmissionsProcessingResults(
     const std::forward_list<RetSuggestion> *const suggestedRetransmissions) {
   Assert(retransmissionsLogicEnabled);
 
-  if (stateTransfer->isCollectingState() || (relatedViewNumber != curView) || (!currentViewIsActive())) return;
+  if (isCollectingState() || (relatedViewNumber != curView) || (!currentViewIsActive())) return;
   if (relatedLastStableSeqNum + kWorkWindowSize <= lastStableSeqNum) return;
 
   const uint16_t myId = config_.replicaId;
@@ -1800,7 +1781,6 @@ void ReplicaImp::onMessage(NewViewMsg *msg) {
 
 void ReplicaImp::MoveToHigherView(ViewNum nextView) {
   Assert(viewChangeProtocolEnabled);
-
   Assert(curView < nextView);
 
   const bool wasInPrevViewNumber = viewsManager->viewIsActive(curView);
@@ -1830,10 +1810,10 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
 
         Assert(x.prePrepare != nullptr);
         Assert(x.prePrepare->viewNumber() == curView);
-        Assert(x.prepareFull == nullptr || x.hasAllRequests);  // (x.prepareFull!=nullptr) ==> (x.hasAllRequests==true)
-        Assert(x.prepareFull == nullptr ||
-               x.prepareFull->viewNumber() ==
-                   curView);  // (x.prepareFull!=nullptr) ==> (x.prepareFull->viewNumber() == curView)
+        // (x.prepareFull!=nullptr) ==> (x.hasAllRequests==true)
+        Assert(x.prepareFull == nullptr || x.hasAllRequests);
+        // (x.prepareFull!=nullptr) ==> (x.prepareFull->viewNumber() == curView)
+        Assert(x.prepareFull == nullptr || x.prepareFull->viewNumber() == curView);
 
         prevViewInfo.push_back(x);
       } else {
@@ -1871,7 +1851,6 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
              lastStableSeqNum);
 
   pVC->finalizeMessage(*repsInfo);
-
   sendToAllOtherReplicas(pVC);
 }
 
@@ -1880,8 +1859,7 @@ void ReplicaImp::GotoNextView() {
 
   MoveToHigherView(curView + 1);
 
-  // at this point we don't have enough ViewChangeMsg messages (2f+2c+1) to enter to the new view (because 2f+2c+1 >
-  // f+1)
+  // at this point we don't have enough ViewChangeMsg messages (2f+2c+1) to enter the new view (because 2f+2c+1 > f+1)
 }
 
 bool ReplicaImp::tryToEnterView() {
@@ -2041,7 +2019,7 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
 }
 
 void ReplicaImp::sendCheckpointIfNeeded() {
-  if (stateTransfer->isCollectingState() || !currentViewIsActive()) return;
+  if (isCollectingState() || !currentViewIsActive()) return;
 
   const SeqNum lastCheckpointNumber = (lastExecutedSeqNum / checkpointWindowSize) * checkpointWindowSize;
 
@@ -2057,11 +2035,7 @@ void ReplicaImp::sendCheckpointIfNeeded() {
     return;
   }
 
-  // LOG_INFO_F(GL, "Debug - sendCheckpointIfNeeded - 1");
-
   if (checkInfo.checkpointSentAllOrApproved()) return;
-
-  // LOG_INFO_F(GL, "Debug - sendCheckpointIfNeeded - 2");
 
   // TODO(GG): 3 seconds, should be in configuration
   if ((getMonotonicTime() - checkInfo.selfExecutionTime()) >= 3s) {
@@ -2070,23 +2044,15 @@ void ReplicaImp::sendCheckpointIfNeeded() {
     return;
   }
 
-  // LOG_INFO_F(GL, "Debug - sendCheckpointIfNeeded - 3");
-
   const SeqNum refSeqNumberForCheckpoint = lastCheckpointNumber + MaxConcurrentFastPaths;
 
   if (lastExecutedSeqNum < refSeqNumberForCheckpoint) return;
-
-  // LOG_INFO_F(GL, "Debug - sendCheckpointIfNeeded - 4");
 
   if (mainLog->insideActiveWindow(lastExecutedSeqNum))  // TODO(GG): condition is needed ?
   {
     SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum);
 
-    // LOG_INFO_F(GL, "Debug - sendCheckpointIfNeeded - 5");
-
     if (seqNumInfo.partialProofs().hasFullProof()) {
-      // LOG_INFO_F(GL, "Debug - sendCheckpointIfNeeded - 6");
-
       checkInfo.tryToMarkCheckpointCertificateCompleted();
 
       Assert(checkInfo.isCheckpointCertificateComplete());
@@ -2099,8 +2065,6 @@ void ReplicaImp::sendCheckpointIfNeeded() {
     }
   }
 
-  // LOG_INFO_F(GL, "Debug - sendCheckpointIfNeeded - 7");
-
   checkInfo.setCheckpointSentAllOrApproved();
   sendToAllOtherReplicas(checkpointMessage);
 }
@@ -2109,11 +2073,6 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
   Assert(newStateCheckpoint % checkpointWindowSize == 0);
 
   LOG_INFO_F(GL, "onTransferringCompleteImp with newStateCheckpoint==%" PRId64 "", newStateCheckpoint);
-
-  if (mainThreadShouldStopWhenStateIsNotCollected) {
-    mainThreadShouldStopWhenStateIsNotCollected = false;
-    mainThreadShouldStop = true;  // main thread will be stopped
-  }
 
   if (ps_) {
     ps_->beginWriteTran();
@@ -2256,8 +2215,7 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
 
   if (ps_) ps_->endWriteTran();
 
-  if (!oldSeqNum && currentViewIsActive() && (currentPrimary() == config_.replicaId) &&
-      !stateTransfer->isCollectingState()) {
+  if (!oldSeqNum && currentViewIsActive() && (currentPrimary() == config_.replicaId) && !isCollectingState()) {
     tryToSendPrePrepareMsg();
   }
 }
@@ -2435,7 +2393,7 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
 {
   Assert(viewChangeProtocolEnabled);
 
-  if (stateTransfer->isCollectingState()) return;
+  if (isCollectingState()) return;
 
   const Time currTime = getMonotonicTime();
 
@@ -2533,13 +2491,13 @@ void ReplicaImp::onStatusReportTimer(Timers::Handle timer) {
 void ReplicaImp::onSlowPathTimer(Timers::Handle timer) {
   tryToStartSlowPaths();
   auto newPeriod = milliseconds(controller->slowPathsTimerMilli());
-  timers_.reset(timer, newPeriod);
+  TimersSingleton::getInstance().reset(timer, newPeriod);
 }
 
 void ReplicaImp::onInfoRequestTimer(Timers::Handle timer) {
   tryToAskForMissingInfo();
   auto newPeriod = milliseconds(dynamicUpperLimitOfRounds->upperLimit() / 2);
-  timers_.reset(timer, newPeriod);
+  TimersSingleton::getInstance().reset(timer, newPeriod);
 }
 
 void ReplicaImp::onDebugStatTimer(Timers::Handle timer) {
@@ -2583,45 +2541,28 @@ void ReplicaImp::freeStateTransferMsg(char *m) {
 }
 
 void ReplicaImp::sendStateTransferMessage(char *m, uint32_t size, uint16_t replicaId) {
-  // This method may be called by external threads
-  // TODO(GG): if this method is invoked by an external thread, then send an "internal message" to the replica's main
-  // thread
+  // TODO(GG): if this method is invoked by an external thread, then send an "internal message" to the commands
+  // processing thread
 
-  if (mainThread.get_id() == std::this_thread::get_id()) {
-    MessageBase *p = new MessageBase(config_.replicaId, MsgCode::StateTransfer, size + sizeof(MessageBase::Header));
-    char *x = p->body() + sizeof(MessageBase::Header);
-    memcpy(x, m, size);
-    send(p, replicaId);
-    delete p;
-  } else {
-    // TODO(GG): implement
-    Assert(false);
-  }
+  MessageBase *p = new MessageBase(config_.replicaId, MsgCode::StateTransfer, size + sizeof(MessageBase::Header));
+  char *x = p->body() + sizeof(MessageBase::Header);
+  memcpy(x, m, size);
+  send(p, replicaId);
+  delete p;
 }
 
 void ReplicaImp::onTransferringComplete(int64_t checkpointNumberOfNewState) {
-  // This method may be called by external threads
-  // TODO(GG): if this method is invoked by an external thread, then send an "internal message" to the replica's main
-  // thread
-  if (mainThread.get_id() == std::this_thread::get_id()) {
-    onTransferringCompleteImp(checkpointNumberOfNewState * checkpointWindowSize);
-  } else {
-    // TODO(GG): implement
-    Assert(false);
-  }
+  // TODO(GG): if this method is invoked by an external thread, then send an "internal message" to the commands
+  // processing thread
+
+  onTransferringCompleteImp(checkpointNumberOfNewState * checkpointWindowSize);
 }
 
 void ReplicaImp::changeStateTransferTimerPeriod(uint32_t timerPeriodMilli) {
-  // This method may be called by external threads
-  // TODO(GG): if this method is invoked by an external thread, then send an "internal message" to the replica's main
-  // thread
+  // TODO(GG): if this method is invoked by an external thread, then send an "internal message" to the commands
+  // processing thread
 
-  if (mainThread.get_id() == std::this_thread::get_id()) {
-    timers_.reset(stateTranTimer_, milliseconds(timerPeriodMilli));
-  } else {
-    // TODO(GG): implement
-    Assert(false);
-  }
+  TimersSingleton::getInstance().reset(stateTranTimer_, milliseconds(timerPeriodMilli));
 }
 
 void ReplicaImp::onMerkleExecSignature(ViewNum v, SeqNum s, uint16_t signatureLength, const char *signature) {
@@ -2884,7 +2825,6 @@ ReplicaImp::ReplicaImp(bool firstTime,
       timeOfLastStateSynch{getMonotonicTime()},    // TODO(GG): TBD
       timeOfLastViewEntrance{getMonotonicTime()},  // TODO(GG): TBD
       timeOfLastAgreedView{getMonotonicTime()},    // TODO(GG): TBD
-      startSyncEvent{false},
       metrics_{concordMetrics::Component("replica", std::make_shared<concordMetrics::Aggregator>())},
       metric_view_{metrics_.RegisterGauge("view", curView)},
       metric_last_stable_seq_num_{metrics_.RegisterGauge("lastStableSeqNum", lastStableSeqNum)},
@@ -2970,9 +2910,6 @@ ReplicaImp::ReplicaImp(bool firstTime,
   else
     clientsManager->clearReservedPages();
 
-  int statusReportTimerMilli = (sendStatusPeriodMilli > 0) ? sendStatusPeriodMilli : config_.statusReportTimerMillisec;
-  Assert(statusReportTimerMilli > 0);
-
   // autoPrimaryRotationEnabled implies viewChangeProtocolEnabled
   // Note: "p=>q" is equivalent to "not p or q"
   AssertOR(!autoPrimaryRotationEnabled, viewChangeProtocolEnabled);
@@ -3001,45 +2938,6 @@ ReplicaImp::ReplicaImp(bool firstTime,
   // create controller . TODO(GG): do we want to pass the controller as a parameter ?
   controller =
       new ControllerWithSimpleHistory(config_.cVal, config_.fVal, config_.replicaId, curView, primaryLastUsedSeqNum);
-
-  statusReportTimer_ = timers_.add(milliseconds(statusReportTimerMilli),
-                                   Timers::Timer::RECURRING,
-                                   [this](Timers::Handle h) { onStatusReportTimer(h); });
-
-  if (viewChangeProtocolEnabled) {
-    int t = viewChangeTimerMilli;
-    if (autoPrimaryRotationEnabled && t > autoPrimaryRotationTimerMilli) t = autoPrimaryRotationTimerMilli;
-
-    // TODO(GG): what should be the time period here? .
-    // TODO(GG):Consider to split to 2 different timers
-    viewChangeTimer_ =
-        timers_.add(milliseconds(t / 2), Timers::Timer::RECURRING, [this](Timers::Handle h) { onViewsChangeTimer(h); });
-  }
-
-  stateTranTimer_ = timers_.add(5s, Timers::Timer::RECURRING, [this](Timers::Handle h) { onStateTranTimer(h); });
-
-  if (retransmissionsLogicEnabled) {
-    retranTimer_ = timers_.add(milliseconds(retransmissionsTimerMilli),
-                               Timers::Timer::RECURRING,
-                               [this](Timers::Handle h) { onRetransmissionsTimer(h); });
-  }
-
-  const int slowPathsTimerPeriod = controller->timeToStartSlowPathMilli();
-
-  slowPathTimer_ = timers_.add(
-      milliseconds(slowPathsTimerPeriod), Timers::Timer::RECURRING, [this](Timers::Handle h) { onSlowPathTimer(h); });
-
-  infoReqTimer_ = timers_.add(milliseconds(dynamicUpperLimitOfRounds->upperLimit() / 2),
-                              Timers::Timer::RECURRING,
-                              [this](Timers::Handle h) { onInfoRequestTimer(h); });
-
-  if (config_.debugStatisticsEnabled) {
-    debugStatTimer_ = timers_.add(seconds(DEBUG_STAT_PERIOD_SECONDS),
-                                  Timers::Timer::RECURRING,
-                                  [this](Timers::Handle h) { onDebugStatTimer(h); });
-  }
-
-  metricsTimer_ = timers_.add(100ms, Timers::Timer::RECURRING, [this](Timers::Handle h) { onMetricsTimer(h); });
 
   if (retransmissionsLogicEnabled)
     retransmissionsManager =
@@ -3072,58 +2970,68 @@ ReplicaImp::~ReplicaImp() {
   }
 }
 
-void ReplicaImp::start() {
-  Assert(!mainThreadStarted);
-  Assert(!mainThreadShouldStop);
-  Assert(!mainThreadShouldStopWhenStateIsNotCollected);
-  mainThreadStarted = true;
-
-  std::thread mThread([this] { processMessages(); });
-  mainThread.swap(mThread);
-  startSyncEvent.set();
-}
-
 void ReplicaImp::stop() {
-  std::unique_ptr<InternalMessage> stopMsg(new StopInternalMsg(this));
-  getIncomingMsgsStorage().pushInternalMsg(std::move(stopMsg));
-
-  mainThread.join();
-
-  msgsCommunicator_->stop();
-
-  Assert(mainThreadShouldStop);
-
-  mainThreadShouldStop = false;
-  mainThreadShouldStopWhenStateIsNotCollected = false;
-  mainThreadStarted = false;
-}
-
-void ReplicaImp::stopWhenStateIsNotCollected() {
-  std::unique_ptr<InternalMessage> stopMsg(new StopWhenStateIsNotCollectedInternalMsg(this));
-  getIncomingMsgsStorage().pushInternalMsg(std::move(stopMsg));
-
-  mainThread.join();
+  TimersSingleton::getInstance().cancel(stateTranTimer_);
+  TimersSingleton::getInstance().cancel(retranTimer_);
+  TimersSingleton::getInstance().cancel(slowPathTimer_);
+  TimersSingleton::getInstance().cancel(infoReqTimer_);
+  TimersSingleton::getInstance().cancel(statusReportTimer_);
+  TimersSingleton::getInstance().cancel(viewChangeTimer_);
+  TimersSingleton::getInstance().cancel(debugStatTimer_);
+  TimersSingleton::getInstance().cancel(metricsTimer_);
 
   msgsCommunicator_->stop();
-
-  Assert(mainThreadShouldStop);
-
-  mainThreadShouldStop = false;
-  mainThreadShouldStopWhenStateIsNotCollected = false;
-  mainThreadStarted = false;
 }
 
-bool ReplicaImp::isRunning() const { return mainThreadStarted; }
+void ReplicaImp::addTimers() {
+  int statusReportTimerMilli = (sendStatusPeriodMilli > 0) ? sendStatusPeriodMilli : config_.statusReportTimerMillisec;
+  Assert(statusReportTimerMilli > 0);
+  statusReportTimer_ = TimersSingleton::getInstance().add(milliseconds(statusReportTimerMilli),
+                                                          Timers::Timer::RECURRING,
+                                                          [this](Timers::Handle h) { onStatusReportTimer(h); });
+  if (viewChangeProtocolEnabled) {
+    int t = viewChangeTimerMilli;
+    if (autoPrimaryRotationEnabled && t > autoPrimaryRotationTimerMilli) t = autoPrimaryRotationTimerMilli;
 
-SeqNum ReplicaImp::getLastExecutedSequenceNum() const { return lastExecutedSeqNum; }
+    // TODO(GG): What should be the time period here?
+    // TODO(GG): Consider to split to 2 different timers
+    viewChangeTimer_ = TimersSingleton::getInstance().add(
+        milliseconds(t / 2), Timers::Timer::RECURRING, [this](Timers::Handle h) { onViewsChangeTimer(h); });
+  }
+  stateTranTimer_ = TimersSingleton::getInstance().add(
+      5s, Timers::Timer::RECURRING, [this](Timers::Handle h) { onStateTranTimer(h); });
+
+  if (retransmissionsLogicEnabled) {
+    retranTimer_ = TimersSingleton::getInstance().add(milliseconds(retransmissionsTimerMilli),
+                                                      Timers::Timer::RECURRING,
+                                                      [this](Timers::Handle h) { onRetransmissionsTimer(h); });
+  }
+  const int slowPathsTimerPeriod = controller->timeToStartSlowPathMilli();
+
+  slowPathTimer_ = TimersSingleton::getInstance().add(
+      milliseconds(slowPathsTimerPeriod), Timers::Timer::RECURRING, [this](Timers::Handle h) { onSlowPathTimer(h); });
+
+  infoReqTimer_ = TimersSingleton::getInstance().add(milliseconds(dynamicUpperLimitOfRounds->upperLimit() / 2),
+                                                     Timers::Timer::RECURRING,
+                                                     [this](Timers::Handle h) { onInfoRequestTimer(h); });
+
+  if (config_.debugStatisticsEnabled) {
+    debugStatTimer_ = TimersSingleton::getInstance().add(seconds(DEBUG_STAT_PERIOD_SECONDS),
+                                                         Timers::Timer::RECURRING,
+                                                         [this](Timers::Handle h) { onDebugStatTimer(h); });
+  }
+
+  metricsTimer_ = TimersSingleton::getInstance().add(
+      100ms, Timers::Timer::RECURRING, [this](Timers::Handle h) { onMetricsTimer(h); });
+}
+
+void ReplicaImp::start() {
+  addTimers();
+  processMessages();
+}
 
 void ReplicaImp::processMessages() {
-  // TODO(GG): change this method to support "restart" ("start" after "stop")
-
-  startSyncEvent.wait_one();
-
   stateTransfer->startRunning(this);
-
   LOG_INFO_F(GL, "Running");
 
   if (recoveringFromExecutionOfRequests) {
@@ -3135,45 +3043,17 @@ void ReplicaImp::processMessages() {
     recoveringFromExecutionOfRequests = false;
     mapOfRequestsThatAreBeingRecovered = Bitmap();
   }
-
-  while (!mainThreadShouldStop) {
-    Assert(ps_ == nullptr || !ps_->isInWriteTran());
-
-    auto msg = recvMsg();  // wait for a message
-    if (msg.tag == IncomingMsg::INTERNAL) {
-      metric_received_internal_msgs_.Get().Inc();
-      msg.internal->handle();
-      continue;
-    }
-
-    // TODO: (AJS) Don't turn this back into a raw pointer.
-    // Pass the smart pointer through the message handlers so they take ownership.
-    auto m = msg.external.release();
-
-    if (config_.debugStatisticsEnabled) {
-      DebugStatistics::onReceivedExMessage(m->type());
-    }
-
-    auto msgHandlerCallback = msgHandlers_->getCallback(m->type());
-    if (msgHandlerCallback != nullptr)
-      msgHandlerCallback(m);
-    else {
-      LOG_WARN_F(GL, "Unknown message");
-      delete m;
-    }
-  }
 }
 
 void ReplicaImp::executeReadOnlyRequest(ClientRequestMsg *request) {
   Assert(request->isReadOnly());
-  Assert(!stateTransfer->isCollectingState());
+  Assert(!isCollectingState());
 
   ClientReplyMsg reply(currentPrimary(), request->requestSeqNum(), config_.replicaId);
 
   uint16_t clientId = request->clientProxyId();
 
   int error = 0;
-
   uint32_t actualReplyLength = 0;
 
   if (!supportDirectProofs) {
@@ -3203,7 +3083,7 @@ void ReplicaImp::executeReadOnlyRequest(ClientRequestMsg *request) {
 }
 
 void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg *ppMsg, bool recoverFromErrorInRequestsExecution) {
-  Assert(!stateTransfer->isCollectingState() && currentViewIsActive());
+  Assert(!isCollectingState() && currentViewIsActive());
   Assert(ppMsg != nullptr);
   Assert(ppMsg->viewNumber() == curView);
   Assert(ppMsg->seqNumber() == lastExecutedSeqNum + 1);
@@ -3371,7 +3251,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg *ppMsg, bool recov
 }
 
 void ReplicaImp::executeNextCommittedRequests(const bool requestMissingInfo) {
-  Assert(!stateTransfer->isCollectingState() && currentViewIsActive());
+  Assert(!isCollectingState() && currentViewIsActive());
   Assert(lastExecutedSeqNum >= lastStableSeqNum);
 
   LOG_DEBUG_F(GL, "Calling to executeNextCommittedRequests(requestMissingInfo=%d)", (int)requestMissingInfo);

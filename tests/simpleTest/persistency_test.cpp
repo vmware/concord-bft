@@ -17,26 +17,23 @@
 #include <vector>
 #include "Logger.hpp"
 #include <thread>
-#include <chrono>
-#include <time.h>
 #include <memory>
 #include "simple_test_client.hpp"
 #include "simple_test_replica.hpp"
 
-namespace test {
-namespace persistency {
+namespace test::persistency {
 class PersistencyTest : public testing::Test {
  protected:
   void TearDown() override {
     for (auto it : replicas) {
       it->stop();
     }
-
     for (auto it : replicaThreads) {
       if (it->joinable()) {
         it->join();
       }
     }
+    replicas.clear();
   }
 
   void run_replica(shared_ptr<SimpleTestReplica> rep) {
@@ -47,41 +44,43 @@ class PersistencyTest : public testing::Test {
   void create_client(int numOfOperations) {
     ClientParams cp;
     cp.numOfOperations = numOfOperations;
-    client = std::unique_ptr<SimpleTestClient>(new SimpleTestClient(cp, clientLogger));
+    client = std::make_unique<SimpleTestClient>(SimpleTestClient(cp, clientLogger));
   }
 
   void create_and_run_replica(ReplicaParams rp, ISimpleTestReplicaBehavior *behv) {
     rp.keysFilePrefix = "private_replica_";
     auto replica = std::shared_ptr<SimpleTestReplica>(SimpleTestReplica::create_replica(behv, rp, nullptr));
     replicas.push_back(replica);
-    auto t = std::shared_ptr<std::thread>(new std::thread(std::bind(&PersistencyTest::run_replica, this, replica)));
+    auto t = std::make_shared<std::thread>(std::thread(std::bind(&PersistencyTest::run_replica, this, replica)));
     replicaThreads.push_back(t);
+  }
+
+  void regressionNoPersistency(uint16_t numOfReq) {
+    create_client(numOfReq);
+    for (int i = 0; i < 4; i++) {
+      ReplicaParams rp;
+      rp.persistencyMode = PersistencyMode::Off;
+      rp.replicaId = i;
+      auto b = create_replica_behavior(ReplicaBehavior::Default, rp);
+      create_and_run_replica(rp, b);
+    }
+    ASSERT_TRUE(client->run());
   }
 
   std::unique_ptr<SimpleTestClient> client;
   vector<std::shared_ptr<SimpleTestReplica>> replicas;
   vector<std::shared_ptr<std::thread>> replicaThreads;
   concordlogger::Logger clientLogger = concordlogger::Log::getLogger("clientlogger");
-  concordlogger::Logger replicaLogger = concordlogger::Log::getLogger("replicalogger");
+  uint16_t numOfRequests = 1500;
+  uint8_t numOfRestarts = 8;
+  uint16_t numOfRequestsInCycle = 50;
 };
 
-TEST_F(PersistencyTest, RegressionNoPersistency) {
-  create_client(1500);
-  for (int i = 0; i < 4; i++) {
-    ReplicaParams rp;
-    rp.persistencyMode = PersistencyMode::Off;
-    rp.replicaId = i;
-    auto b = create_replica_behavior(ReplicaBehavior::Default, rp);
-    create_and_run_replica(rp, b);
-  }
+TEST_F(PersistencyTest, RegressionNoPersistency) { regressionNoPersistency(numOfRequests); }
 
-  ASSERT_TRUE(client->run());
-}
-
-// this test make take a while to complete...
+// This test make take a while to complete...
 TEST_F(PersistencyTest, PrimaryRestartVC) {
-  create_client(1500);
-
+  create_client(numOfRequests);
   for (int i = 0; i < 4; i++) {
     ReplicaParams rp;
     rp.persistencyMode = PersistencyMode::InMemory;
@@ -90,8 +89,15 @@ TEST_F(PersistencyTest, PrimaryRestartVC) {
     ISimpleTestReplicaBehavior *b = new OneTimePrimaryDownVC(rp);
     create_and_run_replica(rp, b);
   }
-
   ASSERT_TRUE(client->run());
+}
+
+// This test make take a while to complete...
+TEST_F(PersistencyTest, RegressionNoPersistencyInCycle) {
+  for (auto k = 0; k < numOfRestarts; k++) {
+    regressionNoPersistency(numOfRequestsInCycle);
+    TearDown();
+  }
 }
 
 GTEST_API_ int main(int argc, char **argv) {
@@ -100,5 +106,4 @@ GTEST_API_ int main(int argc, char **argv) {
   return RUN_ALL_TESTS();
 }
 
-}  // namespace persistency
-}  // namespace test
+}  // namespace test::persistency

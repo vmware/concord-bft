@@ -24,14 +24,22 @@ MsgsCommunicator::MsgsCommunicator(ICommunication* comm,
   msgReceiver_ = msgReceiver;
 }
 
-int MsgsCommunicator::start(ReplicaId myReplicaId) {
-  communication_->setReceiver(myReplicaId, msgReceiver_.get());
+int MsgsCommunicator::start(uint16_t replicaId) {
+  replicaId_ = replicaId;
+  incomingMsgsStorage_->start();
+  communication_->setReceiver(replicaId_, msgReceiver_.get());
   int commStatus = communication_->Start();
   Assert(commStatus == 0);
+  LOG_INFO(GL, "MsgsCommunicator for replica " << replicaId_ << " started");
   return commStatus;
 }
 
-int MsgsCommunicator::stop() { return communication_->Stop(); }
+int MsgsCommunicator::stop() {
+  incomingMsgsStorage_->stop();
+  int res = communication_->Stop();
+  LOG_INFO(GL, "MsgsCommunicator for replica " << replicaId_ << " stopped");
+  return res;
+}
 
 int MsgsCommunicator::sendAsyncMessage(NodeNum destNode, char* message, size_t messageLength) {
   return communication_->sendAsyncMessage(destNode, message, messageLength);

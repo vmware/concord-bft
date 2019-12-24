@@ -302,9 +302,12 @@ class CombinedSigFailedInternalMsg : public InternalMessage {
 
  public:
   CombinedSigFailedInternalMsg(InternalReplicaApi* rep, SeqNum s, ViewNum v, std::set<uint16_t>& repsWithBadSigs)
-      : replica{rep}, seqNumber{s}, view{v}, replicasWithBadSigs{repsWithBadSigs} {}
+      : InternalMessage(rep), replica{rep}, seqNumber{s}, view{v}, replicasWithBadSigs{repsWithBadSigs} {}
 
-  virtual void handle() override { replica->onPrepareCombinedSigFailed(seqNumber, view, replicasWithBadSigs); }
+  virtual void handle() override {
+    InternalMessage::handle();
+    replica->onPrepareCombinedSigFailed(seqNumber, view, replicasWithBadSigs);
+  }
 };
 
 class CombinedSigSucceededInternalMsg : public InternalMessage {
@@ -317,7 +320,7 @@ class CombinedSigSucceededInternalMsg : public InternalMessage {
 
  public:
   CombinedSigSucceededInternalMsg(InternalReplicaApi* rep, SeqNum s, ViewNum v, const char* sig, uint16_t sigLen)
-      : replica{rep}, seqNumber{s}, view{v}, combinedSigLen{sigLen} {
+      : InternalMessage(rep), replica{rep}, seqNumber{s}, view{v}, combinedSigLen{sigLen} {
     char* p = (char*)std::malloc(sigLen);
     memcpy(p, sig, sigLen);
     combinedSig = p;
@@ -326,6 +329,7 @@ class CombinedSigSucceededInternalMsg : public InternalMessage {
   virtual ~CombinedSigSucceededInternalMsg() override { std::free((void*)combinedSig); }
 
   virtual void handle() override {
+    InternalMessage::handle();
     replica->onPrepareCombinedSigSucceeded(seqNumber, view, combinedSig, combinedSigLen);
   }
 };
@@ -339,9 +343,12 @@ class VerifyCombinedSigResultInternalMsg : public InternalMessage {
 
  public:
   VerifyCombinedSigResultInternalMsg(InternalReplicaApi* rep, SeqNum s, ViewNum v, bool result)
-      : replica{rep}, seqNumber{s}, view{v}, isValid{result} {}
+      : InternalMessage(rep), replica{rep}, seqNumber{s}, view{v}, isValid{result} {}
 
-  virtual void handle() override { replica->onPrepareVerifyCombinedSigResult(seqNumber, view, isValid); }
+  virtual void handle() override {
+    InternalMessage::handle();
+    replica->onPrepareVerifyCombinedSigResult(seqNumber, view, isValid);
+  }
 };
 
 class CombinedCommitSigSucceededInternalMsg : public InternalMessage {
@@ -354,7 +361,7 @@ class CombinedCommitSigSucceededInternalMsg : public InternalMessage {
 
  public:
   CombinedCommitSigSucceededInternalMsg(InternalReplicaApi* rep, SeqNum s, ViewNum v, const char* sig, uint16_t sigLen)
-      : replica{rep}, seqNumber{s}, view{v}, combinedSigLen{sigLen} {
+      : InternalMessage(rep), replica{rep}, seqNumber{s}, view{v}, combinedSigLen{sigLen} {
     char* p = (char*)std::malloc(sigLen);
     memcpy(p, sig, sigLen);
     combinedSig = p;
@@ -363,6 +370,7 @@ class CombinedCommitSigSucceededInternalMsg : public InternalMessage {
   virtual ~CombinedCommitSigSucceededInternalMsg() override { std::free((void*)combinedSig); }
 
   virtual void handle() override {
+    InternalMessage::handle();
     replica->onCommitCombinedSigSucceeded(seqNumber, view, combinedSig, combinedSigLen);
   }
 };
@@ -376,9 +384,12 @@ class CombinedCommitSigFailedInternalMsg : public InternalMessage {
 
  public:
   CombinedCommitSigFailedInternalMsg(InternalReplicaApi* rep, SeqNum s, ViewNum v, std::set<uint16_t>& repsWithBadSigs)
-      : replica{rep}, seqNumber{s}, view{v}, replicasWithBadSigs{repsWithBadSigs} {}
+      : InternalMessage(rep), replica{rep}, seqNumber{s}, view{v}, replicasWithBadSigs{repsWithBadSigs} {}
 
-  virtual void handle() override { replica->onCommitCombinedSigFailed(seqNumber, view, replicasWithBadSigs); }
+  virtual void handle() override {
+    InternalMessage::handle();
+    replica->onCommitCombinedSigFailed(seqNumber, view, replicasWithBadSigs);
+  }
 };
 
 class VerifyCombinedCommitSigResultInternalMsg : public InternalMessage {
@@ -390,9 +401,12 @@ class VerifyCombinedCommitSigResultInternalMsg : public InternalMessage {
 
  public:
   VerifyCombinedCommitSigResultInternalMsg(InternalReplicaApi* rep, SeqNum s, ViewNum v, bool result)
-      : replica{rep}, seqNumber{s}, view{v}, isValid{result} {}
+      : InternalMessage(rep), replica{rep}, seqNumber{s}, view{v}, isValid{result} {}
 
-  virtual void handle() override { replica->onCommitVerifyCombinedSigResult(seqNumber, view, isValid); }
+  virtual void handle() override {
+    InternalMessage::handle();
+    replica->onCommitVerifyCombinedSigResult(seqNumber, view, isValid);
+  }
 };
 
 ///////////////////////////////////////////////////////////////////////////////

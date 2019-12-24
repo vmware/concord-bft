@@ -14,11 +14,14 @@
 #pragma once
 
 #include "IncomingMsgsStorage.hpp"
+#include "MsgHandlersRegistrator.hpp"
 
 #include <queue>
+#include <atomic>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <future>
 
 namespace bftEngine::impl {
 
@@ -36,19 +39,24 @@ namespace bftEngine::impl {
 
 class IncomingMsgsStorageImp : public IncomingMsgsStorage {
  public:
-  explicit IncomingMsgsStorageImp();
+  explicit IncomingMsgsStorageImp(std::shared_ptr<MsgHandlersRegistrator>& msgHandlersPtr,
+                                  std::chrono::milliseconds msgWaitTimeout);
   ~IncomingMsgsStorageImp() override;
 
-  // can be called by any thread
+  void start() override;
+  void stop() override;
+
+  // Can be called by any thread
   void pushExternalMsg(std::unique_ptr<MessageBase> msg) override;
 
-  // can be called by any thread
+  // Can be called by any thread
   void pushInternalMsg(std::unique_ptr<InternalMessage> msg) override;
 
-  // should only be called by the main thread
-  IncomingMsg popMsgForProcessing(std::chrono::milliseconds timeout) override;
+  [[nodiscard]] bool isRunning() const override { return dispatcherThread_.joinable(); }
 
  private:
+  void dispatchMessages(std::promise<void>& signalStarted);
+  IncomingMsg getMsgForProcessing();
   IncomingMsg popThreadLocal();
 
  private:
@@ -58,16 +66,23 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
   std::mutex lock_;
   std::condition_variable condVar_;
 
-  // new messages are pushed to ptrProtectedQueue.... ; Protected by lock
+  std::shared_ptr<MsgHandlersRegistrator> msgHandlers_;
+  std::chrono::milliseconds msgWaitTimeout_;
+
+  // New messages are pushed to ptrProtectedQueue.... ; protected by lock
   std::queue<std::unique_ptr<MessageBase>>* ptrProtectedQueueForExternalMessages_;
   std::queue<std::unique_ptr<InternalMessage>>* ptrProtectedQueueForInternalMessages_;
 
-  // time of last queue overflow  Protected by lock
+  // Time of last queue overflow; protected by lock
   Time lastOverflowWarning_;
 
-  // messages are fetched from ptrThreadLocalQueue... ; should only be accessed by the main thread
+  // Messages are fetched from ptrThreadLocalQueue...; should be accessed only by the dispatching thread
   std::queue<std::unique_ptr<MessageBase>>* ptrThreadLocalQueueForExternalMessages_;
   std::queue<std::unique_ptr<InternalMessage>>* ptrThreadLocalQueueForInternalMessages_;
+
+  std::thread dispatcherThread_;
+  std::promise<void> signalStarted_;
+  std::atomic<bool> stopped_ = false;
 };
 
 }  // namespace bftEngine::impl

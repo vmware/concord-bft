@@ -11,13 +11,12 @@
 
 #pragma once
 
-#include "messages/MessageBase.hpp"
-#include "messages/InternalMessage.hpp"
-#include "messages/IncomingMsg.hpp"
-
 #include <memory>
 
 namespace bftEngine::impl {
+
+class InternalMessage;
+class MessageBase;
 
 class IncomingMsg {
  public:

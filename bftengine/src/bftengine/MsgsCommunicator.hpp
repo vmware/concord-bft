@@ -25,13 +25,16 @@ class MsgsCommunicator {
                             std::shared_ptr<IReceiver>& msgReceiver);
   virtual ~MsgsCommunicator() = default;
 
-  int start(ReplicaId myReplicaId);
+  int start(uint16_t replicaId);
   int stop();
+
+  [[nodiscard]] bool isMsgsProcessingRunning() const { return incomingMsgsStorage_->isRunning(); }
   int sendAsyncMessage(NodeNum destNode, char* message, size_t messageLength);
 
   std::shared_ptr<IncomingMsgsStorage>& getIncomingMsgsStorage() { return incomingMsgsStorage_; }
 
  private:
+  uint16_t replicaId_ = 0;
   std::shared_ptr<IncomingMsgsStorage> incomingMsgsStorage_;
   std::shared_ptr<IReceiver> msgReceiver_;
   ICommunication* communication_;

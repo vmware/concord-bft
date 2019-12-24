@@ -13,10 +13,16 @@
 
 namespace bftEngine::impl {
 
+class InternalReplicaApi;
+
 class InternalMessage {
  public:
+  explicit InternalMessage(InternalReplicaApi* replica) : replica_(replica) {}
   virtual ~InternalMessage() = default;
-  virtual void handle() = 0;
+  virtual void handle();
+
+ protected:
+  InternalReplicaApi* replica_;
 };
 
 }  // namespace bftEngine::impl

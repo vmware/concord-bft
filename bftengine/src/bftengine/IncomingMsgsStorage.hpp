@@ -27,9 +27,13 @@ class IncomingMsgsStorage {
   explicit IncomingMsgsStorage() = default;
   virtual ~IncomingMsgsStorage() = default;
 
+  virtual void start() = 0;
+  virtual void stop() = 0;
+
+  virtual bool isRunning() const = 0;
+
   virtual void pushExternalMsg(std::unique_ptr<MessageBase> msg) = 0;
   virtual void pushInternalMsg(std::unique_ptr<InternalMessage> msg) = 0;
-  virtual IncomingMsg popMsgForProcessing(std::chrono::milliseconds timeout) = 0;
 };
 
 }  // namespace bftEngine::impl

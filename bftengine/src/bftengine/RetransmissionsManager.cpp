@@ -9,7 +9,6 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include <assert.h>
 #include <forward_list>
 #include <unordered_map>
 #include <algorithm>
@@ -17,7 +16,6 @@
 #include <cmath>  // sqrt
 #include <chrono>
 
-#include "messages/MessageBase.hpp"
 #include "RetransmissionsManager.hpp"
 #include "SimpleThreadPool.hpp"
 #include "IncomingMsgsStorage.hpp"
@@ -318,7 +316,8 @@ class RetranProcResultInternalMsg : public InternalMessage {
                               ViewNum v,
                               std::forward_list<RetSuggestion>* suggestedRetran,
                               RetransmissionsManager* retransmissionsManager)
-      : replica{r},
+      : InternalMessage(r),
+        replica{r},
         lastStableSeqNum{s},
         view{v},
         suggestedRetransmissions{suggestedRetran},
@@ -331,8 +330,8 @@ class RetranProcResultInternalMsg : public InternalMessage {
   }
 
   virtual void handle() override {
+    InternalMessage::handle();
     replica->onRetransmissionsProcessingResults(lastStableSeqNum, view, suggestedRetransmissions);
-
     retransmissionsMgr->OnProcessingComplete();
   }
 };
