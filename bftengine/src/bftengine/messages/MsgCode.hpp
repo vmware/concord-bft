@@ -1,8 +1,8 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2019 VMware, Inc. All Rights Reserved.
 //
-// This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
+// This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
 //
 // This product may include a number of subcomponents with separate copyright notices and license terms. Your use of
@@ -11,39 +11,37 @@
 
 #pragma once
 
-#include <stdint.h>
+#include <cstdint>
 
-namespace bftEngine {
-namespace impl {
+namespace bftEngine::impl {
 
 class MsgCode {
  public:
   enum : uint16_t {
     None = 0,
 
-    Checkpoint = 100,
-    CommitPartial,
-    CommitFull,
-    FullCommitProof,
-    FullExecProof,
-    NewView,
-    PrePrepare,
-    PartialCommitProof,
-    PartialExecProof,
+    PrePrepare = 100,
     PreparePartial,
     PrepareFull,
-    ReqMissingData,
-    SimpleAckMsg,
+    CommitPartial,
+    CommitFull,
     StartSlowCommit,
+    PartialCommitProof,
+    FullCommitProof,
+    PartialExecProof,
+    FullExecProof,
+    SimpleAckMsg,
     ViewChange,
+    NewView,
+    Checkpoint,
     ReplicaStatus,
+    ReqMissingData,
     StateTransfer,
 
-    Request = 700,
-    Reply = 800,
+    ClientRequest = 700,
+    ClientReply = 800,
 
   };
 };
 
-}  // namespace impl
-}  // namespace bftEngine
+}  // namespace bftEngine::impl

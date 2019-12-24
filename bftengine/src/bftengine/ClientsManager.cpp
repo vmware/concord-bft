@@ -72,7 +72,7 @@ void ClientsManager::loadInfoFromReservedPages() {
     if (!stateTransfer_->loadReservedPage(firstPageId, sizeOfReservedPage_, scratchPage_)) continue;
 
     ClientReplyMsgHeader* replyHeader = (ClientReplyMsgHeader*)scratchPage_;
-    Assert(replyHeader->msgType == 0 || replyHeader->msgType == MsgCode::Reply);
+    Assert(replyHeader->msgType == 0 || replyHeader->msgType == MsgCode::ClientReply);
     Assert(replyHeader->currentPrimaryId == 0);
     Assert(replyHeader->replyLength >= 0);
     Assert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <=
@@ -169,7 +169,7 @@ ClientReplyMsg* ClientsManager::allocateMsgWithLatestReply(NodeIdType clientId, 
   stateTransfer_->loadReservedPage(firstPageId, sizeOfReservedPage_, scratchPage_);
 
   ClientReplyMsgHeader* replyHeader = (ClientReplyMsgHeader*)scratchPage_;
-  Assert(replyHeader->msgType == MsgCode::Reply);
+  Assert(replyHeader->msgType == MsgCode::ClientReply);
   Assert(replyHeader->currentPrimaryId == 0);
   Assert(replyHeader->replyLength > 0);
   Assert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <=
