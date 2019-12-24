@@ -2780,7 +2780,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
     mapOfRequestsThatAreBeingRecovered = b;
   }
 
-  msgsCommunicator_->start();
+  msgsCommunicator_->start(config_.replicaId);
   internalThreadPool.start(8);  // TODO(GG): use configuration
 }
 
@@ -2801,7 +2801,7 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
     ps_->endWriteTran();
   }
 
-  msgsCommunicator_->start();
+  msgsCommunicator_->start(config_.replicaId);
   internalThreadPool.start(8);  // TODO(GG): use configuration
 }
 
