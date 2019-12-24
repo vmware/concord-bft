@@ -35,7 +35,7 @@ uint32_t getRequestSizeTemp(const char* request)  // TODO(GG): change - TBD
 
 ClientRequestMsg::ClientRequestMsg(
     NodeIdType sender, bool isReadOnly, uint64_t reqSeqNum, uint32_t requestLength, const char* request)
-    : MessageBase(sender, MsgCode::Request, (sizeof(ClientRequestMsgHeader) + requestLength)) {
+    : MessageBase(sender, MsgCode::ClientRequest, (sizeof(ClientRequestMsgHeader) + requestLength)) {
   // TODO(GG): asserts
 
   b()->idOfClientProxy = sender;
@@ -48,7 +48,7 @@ ClientRequestMsg::ClientRequestMsg(
 }
 
 ClientRequestMsg::ClientRequestMsg(NodeIdType sender)
-    : MessageBase(sender, MsgCode::Request, ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize()) {
+    : MessageBase(sender, MsgCode::ClientRequest, ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize()) {
   b()->idOfClientProxy = sender;
   b()->reqSeqNum = 0;
   b()->requestLength = 0;
@@ -77,7 +77,7 @@ void ClientRequestMsg::setAsReadWrite() {
 }
 
 bool ClientRequestMsg::ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, ClientRequestMsg*& outMsg) {
-  Assert(inMsg->type() == MsgCode::Request);
+  Assert(inMsg->type() == MsgCode::ClientRequest);
   if (inMsg->size() < sizeof(ClientRequestMsgHeader)) return false;
 
   ClientRequestMsg* t = (ClientRequestMsg*)inMsg;

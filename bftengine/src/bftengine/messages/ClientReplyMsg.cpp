@@ -18,7 +18,7 @@ namespace bftEngine {
 namespace impl {
 
 ClientReplyMsg::ClientReplyMsg(ReplicaId primaryId, ReqId reqSeqNum, ReplicaId replicaId)
-    : MessageBase(replicaId, MsgCode::Reply, ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize()) {
+    : MessageBase(replicaId, MsgCode::ClientReply, ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize()) {
   b()->reqSeqNum = reqSeqNum;
   b()->currentPrimaryId = primaryId;
   b()->replyLength = 0;
@@ -26,7 +26,7 @@ ClientReplyMsg::ClientReplyMsg(ReplicaId primaryId, ReqId reqSeqNum, ReplicaId r
 }
 
 ClientReplyMsg::ClientReplyMsg(ReplicaId replicaId, ReqId reqSeqNum, char* reply, uint32_t replyLength)
-    : MessageBase(replicaId, MsgCode::Reply, sizeof(ClientReplyMsgHeader) + replyLength) {
+    : MessageBase(replicaId, MsgCode::ClientReply, sizeof(ClientReplyMsgHeader) + replyLength) {
   b()->reqSeqNum = reqSeqNum;
   b()->currentPrimaryId = 0;
   b()->replyLength = replyLength;
@@ -36,7 +36,7 @@ ClientReplyMsg::ClientReplyMsg(ReplicaId replicaId, ReqId reqSeqNum, char* reply
 }
 
 ClientReplyMsg::ClientReplyMsg(ReplicaId replicaId, uint32_t replyLength)
-    : MessageBase(replicaId, MsgCode::Reply, sizeof(ClientReplyMsgHeader) + replyLength) {
+    : MessageBase(replicaId, MsgCode::ClientReply, sizeof(ClientReplyMsgHeader) + replyLength) {
   b()->reqSeqNum = 0;
   b()->currentPrimaryId = 0;
   b()->replyLength = replyLength;
@@ -53,7 +53,7 @@ void ClientReplyMsg::setReplyLength(uint32_t replyLength) {
 void ClientReplyMsg::setPrimaryId(ReplicaId primaryId) { b()->currentPrimaryId = primaryId; }
 
 bool ClientReplyMsg::ToActualMsgType(NodeIdType myId, MessageBase* inMsg, ClientReplyMsg*& outMsg) {
-  Assert(inMsg->type() == MsgCode::Reply);
+  Assert(inMsg->type() == MsgCode::ClientReply);
   if (inMsg->size() < sizeof(ClientReplyMsgHeader)) return false;
 
   ClientReplyMsg* t = (ClientReplyMsg*)inMsg;

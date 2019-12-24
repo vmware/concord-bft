@@ -84,7 +84,7 @@ void ReplicaImp::registerMsgHandlers() {
   msgHandlers_->registerMsgHandler(MsgCode::ViewChange,
                                    bind(&ReplicaImp::messageHandlerWithIgnoreLogic<ViewChangeMsg>, this, _1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::Request,
+  msgHandlers_->registerMsgHandler(MsgCode::ClientRequest,
                                    bind(&ReplicaImp::messageHandlerWithIgnoreLogic<ClientRequestMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::ReplicaStatus,

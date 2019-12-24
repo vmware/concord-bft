@@ -21,7 +21,7 @@ namespace impl {
 class ClientRequestMsg : public MessageBase {
   // TODO(GG): requests should always be verified by the application layer !!!
 
-  static_assert((uint16_t)REQUEST_MSG_TYPE == (uint16_t)MsgCode::Request, "");
+  static_assert((uint16_t)REQUEST_MSG_TYPE == (uint16_t)MsgCode::ClientRequest, "");
   static_assert(sizeof(ClientRequestMsgHeader::msgType) == sizeof(MessageBase::Header), "");
   static_assert(sizeof(ClientRequestMsgHeader::idOfClientProxy) == sizeof(NodeIdType), "");
   static_assert(sizeof(ClientRequestMsgHeader::reqSeqNum) == sizeof(ReqId), "");
