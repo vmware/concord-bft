@@ -44,4 +44,4 @@ class MsgCode {
   };
 };
 
-}  // bftEngine::impl
+}  // namespace bftEngine::impl
