@@ -14,10 +14,8 @@
 #include "CommDefs.hpp"
 
 #include <iostream>
-#include <stddef.h>
-#include <stdio.h>
+#include <cstddef>
 #include <cassert>
-#include <sstream>
 #include <cstring>
 #include <unordered_map>
 #include <atomic>
@@ -242,7 +240,7 @@ class PlainUDPCommunication::PlainUdpImpl {
   int sendAsyncMessage(const NodeNum &destNode, const char *const message, const size_t &messageLength) {
     int error = 0;
 
-    Assert(running == true, "The communication layer is not running!");
+    if (!running) throw std::runtime_error("The communication layer is not running!");
 
     const Addr *to = &nodes2addresses[destNode];
 
