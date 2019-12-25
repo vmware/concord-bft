@@ -99,8 +99,7 @@ TEST(TimersTest, Basic) {
   // Add a third timer and ensure it fires.
   // This tests the monotonicity of counter ids as used by handles.
   bool third_timer_fired = false;
-  timers.add(
-      duration, Timers::Timer::ONESHOT, [&third_timer_fired](Handle h) { third_timer_fired = true; }, now);
+  timers.add(duration, Timers::Timer::ONESHOT, [&third_timer_fired](Handle h) { third_timer_fired = true; }, now);
   now += duration;
   timers.evaluate(now);
   ASSERT_TRUE(third_timer_fired);
