@@ -2780,7 +2780,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
     mapOfRequestsThatAreBeingRecovered = b;
   }
 
-  msgsCommunicator_->start(config_.replicaId);
+  msgsCommunicator_->startCommunication(config_.replicaId);
   internalThreadPool.start(8);  // TODO(GG): use configuration
 }
 
@@ -2801,7 +2801,7 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
     ps_->endWriteTran();
   }
 
-  msgsCommunicator_->start(config_.replicaId);
+  msgsCommunicator_->startCommunication(config_.replicaId);
   internalThreadPool.start(8);  // TODO(GG): use configuration
 }
 
@@ -2980,7 +2980,8 @@ void ReplicaImp::stop() {
   TimersSingleton::getInstance().cancel(debugStatTimer_);
   TimersSingleton::getInstance().cancel(metricsTimer_);
 
-  msgsCommunicator_->stop();
+  msgsCommunicator_->stopMsgsProcessing();
+  msgsCommunicator_->stopCommunication();
 }
 
 void ReplicaImp::addTimers() {
@@ -3027,22 +3028,17 @@ void ReplicaImp::addTimers() {
 
 void ReplicaImp::start() {
   addTimers();
-  processMessages();
-}
-
-void ReplicaImp::processMessages() {
   stateTransfer->startRunning(this);
   LOG_INFO_F(GL, "Running");
-
   if (recoveringFromExecutionOfRequests) {
     const SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum + 1);
     PrePrepareMsg *pp = seqNumInfo.getPrePrepareMsg();
     Assert(pp != nullptr);
     executeRequestsInPrePrepareMsg(pp, true);
-
     recoveringFromExecutionOfRequests = false;
     mapOfRequestsThatAreBeingRecovered = Bitmap();
   }
+  msgsCommunicator_->startMsgsProcessing(config_.replicaId);
 }
 
 void ReplicaImp::executeReadOnlyRequest(ClientRequestMsg *request) {
@@ -3059,7 +3055,7 @@ void ReplicaImp::executeReadOnlyRequest(ClientRequestMsg *request) {
   if (!supportDirectProofs) {
     error = userRequestsHandler->execute(clientId,
                                          lastExecutedSeqNum,
-                                         true,
+                                         READ_ONLY_FLAG,
                                          request->requestLength(),
                                          request->requestBuf(),
                                          reply.maxReplyLength(),
@@ -3158,7 +3154,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg *ppMsg, bool recov
       userRequestsHandler->execute(
           clientId,
           lastExecutedSeqNum + 1,
-          req.isReadOnly(),
+          req.isReadOnly() ? READ_ONLY_FLAG : EMPTY_FLAGS,
           req.requestLength(),
           req.requestBuf(),
           ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize() - sizeof(ClientReplyMsgHeader),

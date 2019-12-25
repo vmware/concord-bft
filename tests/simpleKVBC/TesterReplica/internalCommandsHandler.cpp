@@ -12,13 +12,12 @@
 // file.
 
 #include "internalCommandsHandler.hpp"
-#include <assert.h>
-#include <algorithm>
+#include "assertUtils.hpp"
 #include "hash_defs.h"
-#include "blockchain/db_types.h"
 #include "sliver.hpp"
 #include "kv_types.hpp"
 #include "block_metadata.hpp"
+#include <algorithm>
 
 using namespace BasicRandomTests;
 
@@ -30,7 +29,7 @@ using concord::storage::SetOfKeyValuePairs;
 
 int InternalCommandsHandler::execute(uint16_t clientId,
                                      uint64_t sequenceNum,
-                                     bool readOnly,
+                                     uint8_t flags,
                                      uint32_t requestSize,
                                      const char *request,
                                      uint32_t maxReplySize,
@@ -43,6 +42,7 @@ int InternalCommandsHandler::execute(uint16_t clientId,
         "The message is too small: requestSize is " << requestSize << ", required size is " << sizeof(SimpleRequest));
     return -1;
   }
+  bool readOnly = flags & bftEngine::MsgFlag::READ_ONLY_FLAG;
   if (readOnly) {
     res = executeReadOnlyCommand(requestSize, request, maxReplySize, outReply, outActualReplySize);
   } else {

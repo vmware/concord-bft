@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2019 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -12,9 +12,9 @@
 // file.
 
 #include "ClientImp.h"
-#include <cstring>
-#include <assert.h>
+#include "assertUtils.hpp"
 
+using namespace bftEngine;
 using bftEngine::ICommunication;
 
 namespace concord {
@@ -53,7 +53,7 @@ bool ClientImp::isRunning() { return (bftClient_ != nullptr); }
 
 Status ClientImp::invokeCommandSynch(const char* request,
                                      uint32_t requestSize,
-                                     bool isReadOnly,
+                                     uint8_t flags,
                                      std::chrono::milliseconds timeout,
                                      uint32_t replySize,
                                      char* outReply,
@@ -62,7 +62,7 @@ Status ClientImp::invokeCommandSynch(const char* request,
 
   uint64_t timeoutMs = timeout <= std::chrono::milliseconds::zero() ? SimpleClient::INFINITE_TIMEOUT : timeout.count();
 
-  auto res = bftClient_->sendRequest(isReadOnly,
+  auto res = bftClient_->sendRequest(flags,
                                      request,
                                      requestSize,
                                      seqGen_->generateUniqueSequenceNumberForRequest(),
@@ -70,7 +70,6 @@ Status ClientImp::invokeCommandSynch(const char* request,
                                      replySize,
                                      outReply,
                                      *outActualReplySize);
-
   assert(res >= -2 && res < 1);
 
   if (res == 0)

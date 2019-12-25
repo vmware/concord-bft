@@ -29,7 +29,7 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
 
   virtual int execute(uint16_t clientId,
                       uint64_t sequenceNum,
-                      bool readOnly,
+                      uint8_t flags,
                       uint32_t requestSize,
                       const char *request,
                       uint32_t maxReplySize,

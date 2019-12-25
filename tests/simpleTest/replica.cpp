@@ -42,22 +42,21 @@
 // Endianness is not specified. All replicas are assumed to use the same
 // native endianness.
 //
-// The read request must be specified as readOnly. (See
-// bftEngine::SimpleClient::sendRequest.)
+// The read request must be specified as readOnly - see bftEngine::SimpleClient::sendRequest.
 //
 // Values for request types (the `100` and `200` mentioned above) are defined in
 // commonDefs.h
 //
 // See the `scripts/` directory for information about how to run the replicas.
 
-#include <cassert>
 #include <thread>
 #include <csignal>
 
-#include "../../../tests/config/test_comm_config.hpp"
-#include "../../../tests/config/test_parameters.hpp"
-#include "../../../tests/simpleTest/simple_test_replica.hpp"
-#include "../../../tests/simpleTest/simple_test_replica_behavior.hpp"
+#include "test_comm_config.hpp"
+#include "test_parameters.hpp"
+#include "simple_test_replica.hpp"
+#include "simple_test_replica_behavior.hpp"
+
 // bftEngine includes
 #include "Logger.hpp"
 

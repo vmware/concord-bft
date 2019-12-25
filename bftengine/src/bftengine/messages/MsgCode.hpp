@@ -38,6 +38,10 @@ class MsgCode {
     ReqMissingData,
     StateTransfer,
 
+    ClientPreExecutionRequest,
+    PreExecutionRequest,
+    PreExecutionReply,
+
     ClientRequest = 700,
     ClientReply = 800,
 

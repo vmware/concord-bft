@@ -34,6 +34,7 @@ add_executable(simpleTest_server
 target_include_directories(simpleTest_server
                            PRIVATE
                            ../config
+                           ../simpleTest
                            ${bftengine_SOURCE_DIR}/tests/simpleStorage
                            ${concord_bft_tools_SOURCE_DIR}
                            ${bftengine_SOURCE_DIR}/src/bftengine

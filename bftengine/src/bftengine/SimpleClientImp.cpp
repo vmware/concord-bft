@@ -1,8 +1,8 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2019 VMware, Inc. All Rights Reserved.
 //
-// This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
+// This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
 //
 // This product may include a number of subcomponents with separate copyright notices and license terms. Your use of
@@ -36,7 +36,7 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
       ICommunication* communication, uint16_t clientId, uint16_t fVal, uint16_t cVal, SimpleClientParams& p);
   ~SimpleClientImp() override;
 
-  int sendRequest(bool isReadOnly,
+  int sendRequest(uint8_t flags,
                   const char* request,
                   uint32_t lengthOfRequest,
                   uint64_t reqSeqNum,
@@ -85,7 +85,7 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
   std::mutex lock_;  // protects _msgQueue and pendingRequest
   std::condition_variable condVar_;
 
-  queue<MessageBase*> msgQueue_;
+  std::queue<MessageBase*> msgQueue_;
   ClientRequestMsg* pendingRequest_ = nullptr;
 
   Time timeOfLastTransmission_ = MinTime;
@@ -182,7 +182,7 @@ SimpleClientImp::~SimpleClientImp() {
   Assert(numberOfTransmissions_ == 0);
 }
 
-int SimpleClientImp::sendRequest(bool isReadOnly,
+int SimpleClientImp::sendRequest(uint8_t flags,
                                  const char* request,
                                  uint32_t lengthOfRequest,
                                  uint64_t reqSeqNum,
@@ -190,6 +190,7 @@ int SimpleClientImp::sendRequest(bool isReadOnly,
                                  uint32_t lengthOfReplyBuffer,
                                  char* replyBuffer,
                                  uint32_t& actualReplyLength) {
+  bool isReadOnly = flags & READ_ONLY_REQ;
   // TODO(GG): check params ...
   LOG_DEBUG(GL,
             "Client " << clientId_ << " - sends request " << reqSeqNum << " (isRO=" << isReadOnly
@@ -219,7 +220,7 @@ int SimpleClientImp::sendRequest(bool isReadOnly,
   bool requestCommitted = false;
 
   while (true) {
-    queue<MessageBase*> newMsgs;
+    std::queue<MessageBase*> newMsgs;
     {
       std::unique_lock<std::mutex> mlock(lock_);
       condVar_.wait_for(mlock, timersRes);
@@ -309,7 +310,7 @@ int SimpleClientImp::sendRequestToResetSeqNum() {
 void SimpleClientImp::reset() {
   replysCertificate_.resetAndFree();
 
-  queue<MessageBase*> newMsgs;
+  std::queue<MessageBase*> newMsgs;
   {
     std::unique_lock<std::mutex> mlock(lock_);
     msgQueue_.swap(newMsgs);
