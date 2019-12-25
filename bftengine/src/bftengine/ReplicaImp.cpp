@@ -3026,14 +3026,8 @@ void ReplicaImp::addTimers() {
 }
 
 void ReplicaImp::start() {
-  addTimers();
-  processMessages();
-}
-
-void ReplicaImp::processMessages() {
   stateTransfer->startRunning(this);
   LOG_INFO_F(GL, "Running");
-
   if (recoveringFromExecutionOfRequests) {
     const SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum + 1);
     PrePrepareMsg *pp = seqNumInfo.getPrePrepareMsg();
@@ -3043,6 +3037,7 @@ void ReplicaImp::processMessages() {
     recoveringFromExecutionOfRequests = false;
     mapOfRequestsThatAreBeingRecovered = Bitmap();
   }
+  addTimers();
 }
 
 void ReplicaImp::executeReadOnlyRequest(ClientRequestMsg *request) {

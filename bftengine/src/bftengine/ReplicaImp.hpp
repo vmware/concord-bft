@@ -243,8 +243,6 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   std::shared_ptr<MsgsCommunicator>& getMsgsCommunicator() { return msgsCommunicator_; }
   std::shared_ptr<MsgHandlersRegistrator>& getMsgHandlersRegistrator() { return msgHandlers_; }
 
-  void processMessages();
-
   // IReplicaForStateTransfer
   virtual void freeStateTransferMsg(char* m) override;
   virtual void sendStateTransferMessage(char* m, uint32_t size, uint16_t replicaId) override;
