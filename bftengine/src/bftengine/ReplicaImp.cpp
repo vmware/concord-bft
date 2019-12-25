@@ -3027,17 +3027,16 @@ void ReplicaImp::addTimers() {
 
 void ReplicaImp::start() {
   stateTransfer->startRunning(this);
+  addTimers();
   LOG_INFO_F(GL, "Running");
   if (recoveringFromExecutionOfRequests) {
     const SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum + 1);
     PrePrepareMsg *pp = seqNumInfo.getPrePrepareMsg();
     Assert(pp != nullptr);
     executeRequestsInPrePrepareMsg(pp, true);
-
     recoveringFromExecutionOfRequests = false;
     mapOfRequestsThatAreBeingRecovered = Bitmap();
   }
-  addTimers();
 }
 
 void ReplicaImp::executeReadOnlyRequest(ClientRequestMsg *request) {
