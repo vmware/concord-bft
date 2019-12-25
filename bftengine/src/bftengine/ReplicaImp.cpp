@@ -2780,7 +2780,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
     mapOfRequestsThatAreBeingRecovered = b;
   }
 
-  msgsCommunicator_->start(config_.replicaId);
+  msgsCommunicator_->startCommunication(config_.replicaId);
   internalThreadPool.start(8);  // TODO(GG): use configuration
 }
 
@@ -2801,7 +2801,7 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
     ps_->endWriteTran();
   }
 
-  msgsCommunicator_->start(config_.replicaId);
+  msgsCommunicator_->startCommunication(config_.replicaId);
   internalThreadPool.start(8);  // TODO(GG): use configuration
 }
 
@@ -2980,7 +2980,8 @@ void ReplicaImp::stop() {
   TimersSingleton::getInstance().cancel(debugStatTimer_);
   TimersSingleton::getInstance().cancel(metricsTimer_);
 
-  msgsCommunicator_->stop();
+  msgsCommunicator_->stopMsgsProcessing();
+  msgsCommunicator_->stopCommunication();
 }
 
 void ReplicaImp::addTimers() {
@@ -3026,8 +3027,8 @@ void ReplicaImp::addTimers() {
 }
 
 void ReplicaImp::start() {
-  stateTransfer->startRunning(this);
   addTimers();
+  stateTransfer->startRunning(this);
   LOG_INFO_F(GL, "Running");
   if (recoveringFromExecutionOfRequests) {
     const SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum + 1);
@@ -3037,6 +3038,7 @@ void ReplicaImp::start() {
     recoveringFromExecutionOfRequests = false;
     mapOfRequestsThatAreBeingRecovered = Bitmap();
   }
+  msgsCommunicator_->startMsgsProcessing(config_.replicaId);
 }
 
 void ReplicaImp::executeReadOnlyRequest(ClientRequestMsg *request) {

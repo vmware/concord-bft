@@ -24,21 +24,30 @@ MsgsCommunicator::MsgsCommunicator(ICommunication* comm,
   msgReceiver_ = msgReceiver;
 }
 
-int MsgsCommunicator::start(uint16_t replicaId) {
+int MsgsCommunicator::startCommunication(uint16_t replicaId) {
   replicaId_ = replicaId;
-  incomingMsgsStorage_->start();
   communication_->setReceiver(replicaId_, msgReceiver_.get());
   int commStatus = communication_->Start();
   Assert(commStatus == 0);
-  LOG_INFO(GL, "MsgsCommunicator for replica " << replicaId_ << " started");
+  LOG_INFO(GL, "Communication for replica " << replicaId_ << " started");
   return commStatus;
 }
 
-int MsgsCommunicator::stop() {
-  incomingMsgsStorage_->stop();
+int MsgsCommunicator::stopCommunication() {
   int res = communication_->Stop();
-  LOG_INFO(GL, "MsgsCommunicator for replica " << replicaId_ << " stopped");
+  LOG_INFO(GL, "Communication for replica " << replicaId_ << " stopped");
   return res;
+}
+
+void MsgsCommunicator::startMsgsProcessing(uint16_t replicaId) {
+  replicaId_ = replicaId;
+  incomingMsgsStorage_->start();
+  LOG_INFO(GL, "Messages processing for replica " << replicaId_ << " started");
+}
+
+void MsgsCommunicator::stopMsgsProcessing() {
+  incomingMsgsStorage_->stop();
+  LOG_INFO(GL, "Messages processing for replica " << replicaId_ << " stopped");
 }
 
 int MsgsCommunicator::sendAsyncMessage(NodeNum destNode, char* message, size_t messageLength) {
