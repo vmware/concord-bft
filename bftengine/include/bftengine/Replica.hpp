@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2019 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -14,7 +14,7 @@
 
 #include <cstddef>
 #include <memory>
-#include <stdint.h>
+#include <cstdint>
 #include <string>
 #include "IStateTransfer.hpp"
 #include "ICommunication.hpp"
@@ -23,11 +23,15 @@
 #include "ReplicaConfig.hpp"
 
 namespace bftEngine {
+
+// Possible values for 'flags' parameter
+enum MsgFlag : uint8_t { EMPTY_FLAGS = 0x0, READ_ONLY_FLAG = 0x1, PRE_EXECUTE_FLAG = 0x2, PRE_EXECUTED_FLAG = 0x4 };
+
 class RequestsHandler {
  public:
   virtual int execute(uint16_t clientId,
                       uint64_t sequenceNum,
-                      bool readOnly,
+                      uint8_t flags,
                       uint32_t requestSize,
                       const char *request,
                       uint32_t maxReplySize,

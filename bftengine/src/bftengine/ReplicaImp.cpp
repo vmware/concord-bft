@@ -3059,7 +3059,7 @@ void ReplicaImp::executeReadOnlyRequest(ClientRequestMsg *request) {
   if (!supportDirectProofs) {
     error = userRequestsHandler->execute(clientId,
                                          lastExecutedSeqNum,
-                                         true,
+                                         READ_ONLY_FLAG,
                                          request->requestLength(),
                                          request->requestBuf(),
                                          reply.maxReplyLength(),
@@ -3158,7 +3158,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg *ppMsg, bool recov
       userRequestsHandler->execute(
           clientId,
           lastExecutedSeqNum + 1,
-          req.isReadOnly(),
+          req.isReadOnly() ? READ_ONLY_FLAG : EMPTY_FLAGS,
           req.requestLength(),
           req.requestBuf(),
           ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize() - sizeof(ClientReplyMsgHeader),

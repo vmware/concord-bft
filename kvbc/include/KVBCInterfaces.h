@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2019 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -61,7 +61,7 @@ class IClient {
 
   virtual Status invokeCommandSynch(const char* request,
                                     uint32_t requestSize,
-                                    bool isReadOnly,
+                                    uint8_t flags,
                                     std::chrono::milliseconds timeout,
                                     uint32_t replySize,
                                     char* outReply,
@@ -126,7 +126,7 @@ class ICommandsHandler : public bftEngine::RequestsHandler {
  public:
   virtual int execute(uint16_t clientId,
                       uint64_t sequenceNum,
-                      bool readOnly,
+                      uint8_t flags,
                       uint32_t requestSize,
                       const char* request,
                       uint32_t maxReplySize,

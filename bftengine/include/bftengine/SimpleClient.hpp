@@ -1,8 +1,8 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2019 VMware, Inc. All Rights Reserved.
 //
-// This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
+// This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
 //
 // This product may include a number of subcomponents with separate copyright notices and license terms. Your use of
@@ -12,15 +12,13 @@
 #pragma once
 
 #include <cstddef>
-#include <stdint.h>
+#include <cstdint>
 #include <string>
 #include <set>
 #include "ICommunication.hpp"
 
-using namespace std;
-
 namespace bftEngine {
-//	 parameters // TODO(GG): move to client configuration
+// Parameters // TODO(GG): move to client configuration
 struct SimpleClientParams {
   uint64_t clientInitialRetryTimeoutMilli = 150;
   uint64_t clientMinRetryTimeoutMilli = 50;
@@ -29,6 +27,9 @@ struct SimpleClientParams {
   uint16_t clientSendsRequestToAllReplicasPeriodThresh = 2;
   uint16_t clientPeriodicResetThresh = 30;
 };
+
+// Possible values for 'flags' parameter
+enum ClientMsgFlag : uint8_t { EMPTY_FLAGS_REQ = 0x0, READ_ONLY_REQ = 0x1, PRE_EXECUTE_REQ = 0x2 };
 
 class SimpleClient {
  public:
@@ -44,7 +45,7 @@ class SimpleClient {
 
   virtual ~SimpleClient();
 
-  virtual int sendRequest(bool isReadOnly,
+  virtual int sendRequest(uint8_t flags,
                           const char* request,
                           uint32_t lengthOfRequest,
                           uint64_t reqSeqNum,
@@ -72,6 +73,7 @@ class SeqNumberGeneratorForClientRequests {
 
   virtual uint64_t generateUniqueSequenceNumberForRequest() = 0;
 
-  virtual ~SeqNumberGeneratorForClientRequests(){};
+  virtual ~SeqNumberGeneratorForClientRequests() = default;
 };
+
 }  // namespace bftEngine

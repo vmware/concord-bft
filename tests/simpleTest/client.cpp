@@ -27,13 +27,10 @@
 // The program expects no arguments. See the `scripts/` directory for
 // information about how to run the client.
 
-#include <cassert>
 #include <cstdlib>
-#include <thread>
 #include <iostream>
 #include <limits>
 
-#include "test_comm_config.hpp"
 #include "test_parameters.hpp"
 #include "simple_test_client.hpp"
 #include "Logger.hpp"

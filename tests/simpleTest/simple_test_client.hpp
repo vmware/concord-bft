@@ -118,8 +118,6 @@ class SimpleTestClient {
         // Read the latest value every readMod-th operation.
 
         // Prepare request parameters.
-        const bool readOnly = true;
-
         const uint32_t kRequestLength = 1;
         const uint64_t requestBuffer[kRequestLength] = {READ_VAL_REQ};
         const char* rawRequestBuffer = reinterpret_cast<const char*>(requestBuffer);
@@ -133,7 +131,7 @@ class SimpleTestClient {
         char replyBuffer[kReplyBufferLength];
         uint32_t actualReplyLength = 0;
 
-        client->sendRequest(readOnly,
+        client->sendRequest(READ_ONLY_REQ,
                             rawRequestBuffer,
                             rawRequestLength,
                             requestSequenceNumber,
@@ -156,8 +154,6 @@ class SimpleTestClient {
         expectedLastValue = (i + 1) * (i + 7) * (i + 18);
 
         // Prepare request parameters.
-        const bool readOnly = false;
-
         const uint32_t kRequestLength = 2;
         const uint64_t requestBuffer[kRequestLength] = {SET_VAL_REQ, expectedLastValue};
         const char* rawRequestBuffer = reinterpret_cast<const char*>(requestBuffer);
@@ -171,7 +167,7 @@ class SimpleTestClient {
         char replyBuffer[kReplyBufferLength];
         uint32_t actualReplyLength = 0;
 
-        client->sendRequest(readOnly,
+        client->sendRequest(EMPTY_FLAGS_REQ,
                             rawRequestBuffer,
                             rawRequestLength,
                             requestSequenceNumber,

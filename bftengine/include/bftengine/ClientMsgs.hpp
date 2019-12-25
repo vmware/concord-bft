@@ -1,8 +1,8 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2019 VMware, Inc. All Rights Reserved.
 //
-// This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
+// This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
 //
 // This product may include a number of subcomponents with separate copyright notices and license terms. Your use of
@@ -11,17 +11,18 @@
 
 #pragma once
 
-#include <stdint.h>
+#include <cstdint>
 
 #define REQUEST_MSG_TYPE (700)
 #define REPLY_MSG_TYPE (800)
 
 namespace bftEngine {
+
 #pragma pack(push, 1)
 struct ClientRequestMsgHeader {
   uint16_t msgType;  // always == REQUEST_MSG_TYPE
   uint16_t idOfClientProxy;
-  uint8_t flags;  // bit 0 == isReadOnly ; bits 1-7 are reserved
+  uint8_t flags;  // bit 0 == isReadOnly, bit 1 = preExecute, bits 2-7 are reserved
   uint64_t reqSeqNum;
   uint32_t requestLength;
   // followed by the request (security information, such as signatures, should be part of the request)
@@ -37,4 +38,5 @@ struct ClientReplyMsgHeader {
   uint32_t replyLength;
 };
 #pragma pack(pop)
+
 }  // namespace bftEngine

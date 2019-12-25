@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2019 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -16,10 +16,7 @@
 #include "KVBCInterfaces.h"
 #include "SimpleClient.hpp"
 
-using namespace bftEngine;
-
-namespace concord {
-namespace kvbc {
+namespace concord::kvbc {
 
 class ClientImp : public IClient {
  public:
@@ -31,23 +28,23 @@ class ClientImp : public IClient {
 
   virtual Status invokeCommandSynch(const char* request,
                                     uint32_t requestSize,
-                                    bool isReadOnly,
+                                    uint8_t flags,
                                     std::chrono::milliseconds timeout,
                                     uint32_t replySize,
                                     char* outReply,
                                     uint32_t* outActualReplySize) override;
 
  protected:
-  ClientImp(){};
-  ~ClientImp(){};
+  ClientImp() = default;
+  ~ClientImp() override = default;
 
   ClientConfig config_;
-  SeqNumberGeneratorForClientRequests* seqGen_ = nullptr;
-  ICommunication* comm_ = nullptr;
+  bftEngine::SeqNumberGeneratorForClientRequests* seqGen_ = nullptr;
+  bftEngine::ICommunication* comm_ = nullptr;
 
-  SimpleClient* bftClient_ = nullptr;
+  bftEngine::SimpleClient* bftClient_ = nullptr;
 
-  friend IClient* createClient(const ClientConfig& conf, ICommunication* comm);
+  friend IClient* createClient(const ClientConfig& conf, bftEngine::ICommunication* comm);
 };
-}  // namespace kvbc
-}  // namespace concord
+
+}  // namespace concord::kvbc

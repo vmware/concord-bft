@@ -68,12 +68,13 @@ class SimpleAppState : public RequestsHandler {
   // Handler for the upcall from Concord-BFT.
   int execute(uint16_t clientId,
               uint64_t sequenceNum,
-              bool readOnly,
+              uint8_t flags,
               uint32_t requestSize,
               const char *request,
               uint32_t maxReplySize,
               char *outReply,
               uint32_t &outActualReplySize) override {
+    bool readOnly = flags & READ_ONLY_FLAG;
     if (readOnly) {
       // Our read-only request includes only a type, no argument.
       test_assert_replica(requestSize == sizeof(uint64_t), "requestSize =! " << sizeof(uint64_t));
