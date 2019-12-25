@@ -19,6 +19,9 @@
 #include <vector>
 #include <mutex>
 #include <memory>
+#include <thread>
+#include "ConcordbftMetricsCollector.hpp"
+#include "Timers.hpp"
 
 namespace concordMetrics {
 
@@ -39,9 +42,9 @@ class Counter;
 // responsible for reporting system metrics should read it from the aggregator.
 class Aggregator {
  public:
-  Gauge GetGauge(const std::string& component_name, const std::string& val_name);
-  Status GetStatus(const std::string& component_name, const std::string& val_name);
-  Counter GetCounter(const std::string& component_name, const std::string& val_name);
+  Gauge& GetGauge(const std::string& component_name, const std::string& val_name);
+  Status& GetStatus(const std::string& component_name, const std::string& val_name);
+  Counter& GetCounter(const std::string& component_name, const std::string& val_name);
 
   // Generate a JSON formatted string
   std::string ToJson();
@@ -178,6 +181,7 @@ class Component {
 
   // Generate a JSON formatted string
   std::string ToJson();
+  Component() = default;
 
  private:
   friend class Aggregator;
@@ -189,6 +193,34 @@ class Component {
 
   Names names_;
   Values values_;
+};
+
+class ConcordbftMetricsCollector : public IMetricsCollector {
+  static std::unique_ptr<IMetricsCollector> _instance;
+
+  typedef enum {
+    REP,
+    COMP,
+    NAME,
+  } pathOrder;
+  std::mutex lock_;
+  std::map<int, std::shared_ptr<Aggregator>> aggregators_;
+
+  std::vector<std::string> resolveMetricPath(const std::string& metricPath);
+  void addAggregatorForNewRegisteredReplica(int repID);
+
+ public:
+  ConcordbftMetricsCollector();
+
+  ~ConcordbftMetricsCollector() override {}
+  void increment(const std::string& counterPath) override;
+  void set(const std::string& gaugePath, uint64_t val) override;
+  void update(const std::string& statusPath, const std::string& val) override;
+
+  static IMetricsCollector& instance() { return *_instance; }
+  static void setInstance(IMetricsCollector* newInstance) { _instance.reset(newInstance); }
+
+  std::shared_ptr<Aggregator> getAggregator(int repID);
 };
 
 }  // namespace concordMetrics

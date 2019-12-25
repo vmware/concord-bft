@@ -58,6 +58,11 @@ class Server {
 
   std::shared_ptr<Aggregator> GetAggregator() { return aggregator_; }
 
+  void registerToDefaultCollector(int repID) {
+    aggregator_ = dynamic_cast<ConcordbftMetricsCollector&>(concordMetrics::ConcordbftMetricsCollector::instance())
+                      .getAggregator(repID);
+  }
+
  private:
   uint16_t listenPort_;
   concordlogger::Logger logger_;

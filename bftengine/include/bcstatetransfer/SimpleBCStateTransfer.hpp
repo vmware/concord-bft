@@ -127,11 +127,6 @@ IStateTransfer *create(const Config &config,
                        IAppState *const stateApi,
                        std::shared_ptr<::concord::storage::IDBClient> dbc);
 
-IStateTransfer *create(const Config &config,
-                       IAppState *const stateApi,
-                       std::shared_ptr<::concord::storage::IDBClient> dbc,
-                       std::shared_ptr<concordMetrics::Aggregator> aggregator);
-
 }  // namespace SimpleBlockchainStateTransfer
 }  // namespace bftEngine
 
