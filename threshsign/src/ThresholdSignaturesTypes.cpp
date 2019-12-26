@@ -256,14 +256,14 @@ bool Cryptosystem::isValidCryptosystemSelection(const std::string& type, const s
     try {
       BLS::Relic::BlsThresholdFactory factory(BLS::Relic::PublicParametersFactory::getByCurveType(subtype.c_str()));
       return true;
-    } catch (std::exception e) {
+    } catch (std::exception& e) {
       return false;
     }
   } else if (type == THRESHOLD_BLS_SCHEME) {
     try {
       BLS::Relic::BlsThresholdFactory factory(BLS::Relic::PublicParametersFactory::getByCurveType(subtype.c_str()));
       return true;
-    } catch (std::exception e) {
+    } catch (std::exception& e) {
       return false;
     }
   } else {
