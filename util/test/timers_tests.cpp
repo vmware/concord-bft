@@ -33,10 +33,9 @@ TEST(TimersTest, Basic) {
 
   // Create a oneshot and a recurring timer and add them to the heap. Each one
   // will fire a callback when it expires that increments a counter.
-  timers.add(
-      duration, Timers::Timer::ONESHOT, [&oneshot_counter](Handle h) { ++oneshot_counter; }, now);
-  auto recurring_handle = timers.add(
-      duration, Timers::Timer::RECURRING, [&recurring_counter](Handle h) { ++recurring_counter; }, now);
+  timers.add(duration, Timers::Timer::ONESHOT, [&oneshot_counter](Handle h) { ++oneshot_counter; }, now);
+  auto recurring_handle =
+      timers.add(duration, Timers::Timer::RECURRING, [&recurring_counter](Handle h) { ++recurring_counter; }, now);
 
   // Clock hasn't advanced so no timers should fire
   timers.evaluate(now);
