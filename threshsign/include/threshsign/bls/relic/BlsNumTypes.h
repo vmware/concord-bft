@@ -265,6 +265,11 @@ class G1T {
 
   G1T(const std::string &str) : G1T() { fromString(str); }
 
+  G1T &operator=(const G1T &c) {
+    g1_copy(n, c.n);
+    return *this;
+  }
+
   ~G1T() { g1_free(n); }
 
  public:
@@ -360,6 +365,11 @@ class G2T {
   G2T(const std::string &str) : G2T() { fromString(str); }
 
   G2T(const unsigned char *buf, int size) : G2T() { fromBytes(buf, size); }
+
+  G2T &operator=(const G2T &c) {
+    g2_copy(n, const_cast<g2_t &>(c.n));
+    return *this;
+  }
 
   ~G2T() { g2_free(n); }
 
