@@ -399,7 +399,7 @@ static bool releaseAccumulator(IThresholdVerifier* verifier, IThresholdAccumulat
   if (accumulator) {
     try {
       verifier->release(accumulator);
-    } catch (std::exception e) {
+    } catch (std::exception& e) {
       return false;
     }
   }
@@ -445,7 +445,7 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
     } catch (std::exception& e) {
       try {
         accumulator = verifier->newAccumulator(false);
-      } catch (std::exception e) {
+      } catch (std::exception& e) {
         std::cout << invalidPublicConfig;
         releaseAccumulator(verifier, accumulator);
         return false;
@@ -455,7 +455,7 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
     bool verificationEnabled;
     try {
       verificationEnabled = accumulator->hasShareVerificationEnabled();
-    } catch (std::exception e) {
+    } catch (std::exception& e) {
       std::cout << invalidPublicConfig;
       releaseAccumulator(verifier, accumulator);
       return false;
@@ -464,7 +464,7 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
     if (verificationEnabled) {
       try {
         accumulator->setExpectedDigest(reinterpret_cast<const unsigned char*>(hash.c_str()), hashLength);
-      } catch (std::exception e) {
+      } catch (std::exception& e) {
         std::cout << invalidPublicConfig;
         releaseAccumulator(verifier, accumulator);
         return false;
@@ -475,7 +475,7 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
     if (verificationEnabled) {
       try {
         accumulatorSize = accumulator->getNumValidShares();
-      } catch (std::exception e) {
+      } catch (std::exception& e) {
         std::cout << invalidPublicConfig;
         releaseAccumulator(verifier, accumulator);
         return false;
