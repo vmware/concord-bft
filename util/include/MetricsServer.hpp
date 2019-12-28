@@ -51,16 +51,16 @@ class Server {
       : listenPort_{listenPort},
         logger_{concordlogger::Log::getLogger("metrics-server")},
         running_{false},
-        aggregator_{std::make_shared<Aggregator>()} {}
+        aggregator_{std::make_shared<Aggregator>()}
+        {}
 
   void Start();
   void Stop();
 
   std::shared_ptr<Aggregator> GetAggregator() { return aggregator_; }
 
-  void registerToDefaultCollector(int repID) {
-    aggregator_ = dynamic_cast<ConcordbftMetricsCollector&>(concordMetrics::ConcordbftMetricsCollector::instance())
-                      .getAggregator(repID);
+  void registerMetricsHandlers(uint32_t id) {
+        collector = std::make_unique<ConcordbftMetricsCollector>(id, aggregator_);
   }
 
  private:
@@ -71,7 +71,7 @@ class Server {
 
   std::shared_ptr<Aggregator> aggregator_;
   std::thread thread_;
-
+  std::unique_ptr<ConcordbftMetricsCollector> collector;
   int sock_;
   uint8_t buf_[MAX_MSG_SIZE];
 

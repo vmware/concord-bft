@@ -20,7 +20,8 @@
 #include <mutex>
 #include <memory>
 #include <thread>
-#include "ConcordbftMetricsCollector.hpp"
+#include <chrono>
+#include "MetricsCollector.hpp"
 #include "Timers.hpp"
 
 namespace concordMetrics {
@@ -195,32 +196,27 @@ class Component {
   Values values_;
 };
 
-class ConcordbftMetricsCollector : public IMetricsCollector {
-  static std::unique_ptr<IMetricsCollector> _instance;
+class ConcordbftMetricsCollector {
+    typedef Component::Handle<Counter> counterHandler;
+    typedef Component::Handle<Gauge> gaugeHandler;
+    typedef Component::Handle<Status> statusHandler;
 
-  typedef enum {
-    REP,
-    COMP,
-    NAME,
-  } pathOrder;
-  std::mutex lock_;
-  std::map<int, std::shared_ptr<Aggregator>> aggregators_;
-
-  std::vector<std::string> resolveMetricPath(const std::string& metricPath);
-  void addAggregatorForNewRegisteredReplica(int repID);
-
+    std::unordered_map<MetricType, counterHandler> counters;
+    std::unordered_map<MetricType, gaugeHandler> gauges;
+    std::unordered_map<MetricType, statusHandler> statuses;
+    std::shared_ptr<Aggregator> aggregator_;
+    Component replicaMetrics_;
+    Component stateTransferMetrics_;
+    bool active;
+    std::thread updator;
+    uint32_t interval = 300;
+    void updateComponent();
+    void registerDefaultHandler(uint32_t id, MetricType t);
  public:
-  ConcordbftMetricsCollector();
+  ConcordbftMetricsCollector(uint32_t id, std::shared_ptr<Aggregator> aggregator = std::make_shared<Aggregator>());
 
-  ~ConcordbftMetricsCollector() override {}
-  void increment(const std::string& counterPath) override;
-  void set(const std::string& gaugePath, uint64_t val) override;
-  void update(const std::string& statusPath, const std::string& val) override;
+  ~ConcordbftMetricsCollector();
 
-  static IMetricsCollector& instance() { return *_instance; }
-  static void setInstance(IMetricsCollector* newInstance) { _instance.reset(newInstance); }
-
-  std::shared_ptr<Aggregator> getAggregator(int repID);
 };
 
 }  // namespace concordMetrics

@@ -217,8 +217,7 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   virtual void onInternalMsg(FullCommitProofMsg* m) override;
   virtual void onMerkleExecSignature(ViewNum v, SeqNum s, uint16_t signatureLength, const char* signature) override;
   void updateMetricsForInternalMessage() override {
-    concordMetrics::ConcordbftMetricsCollector::instance().increment(std::to_string(config_.replicaId) +
-                                                                     "/replica/receivedInternalMsgs");
+    concordMetrics::MetricsCollector::instance(config_.replicaId).takeMetric(concordMetrics::MetricType::REPLICA_RECEIVED_INTERNAL_MSGS);
   }
   bool isCollectingState() override { return stateTransfer->isCollectingState(); }
 

@@ -161,132 +161,151 @@ std::string Component::ToJson() {
   return oss.str();
 }
 
-std::vector<std::string> ConcordbftMetricsCollector::resolveMetricPath(const std::string& metricPath) {
-  std::stringstream path(metricPath);
-  std::string segment;
-  std::vector<std::string> seglist;
-  while (std::getline(path, segment, '/')) {
-    seglist.push_back(segment);
-  }
-  return seglist;
-}
+ConcordbftMetricsCollector::ConcordbftMetricsCollector(uint32_t id, std::shared_ptr<Aggregator> aggregator) :
+    aggregator_{aggregator},
+    replicaMetrics_{"replica", aggregator_},
+    stateTransferMetrics_{"bc_state_transfer", aggregator_}
+    {
+        gauges.insert(std::pair<MetricType, gaugeHandler>(MetricType::REPLICA_VIEW, replicaMetrics_.RegisterGauge("view", 0)));
+        gauges.insert(std::pair<MetricType, gaugeHandler>(MetricType::REPLICA_LAST_STABLE_SEQ_NUM, replicaMetrics_.RegisterGauge("lastStableSeqNum", 0)));
+        gauges.insert(std::pair<MetricType, gaugeHandler>(MetricType::REPLICA_LAST_EXECUTED_SEQ_NUM, replicaMetrics_.RegisterGauge("lastExecutedSeqNum", 0)));
+        gauges.insert(std::pair<MetricType, gaugeHandler>(MetricType::REPLICA_LAST_AGREED_VIEW, replicaMetrics_.RegisterGauge("lastAgreedView", 0)));
 
-ConcordbftMetricsCollector::ConcordbftMetricsCollector() {}
+        statuses.insert(std::pair<MetricType, statusHandler>(MetricType::REPLICA_FIRST_COMMIT_PATH, replicaMetrics_.RegisterStatus("firstCommitPath", "")));
 
-void ConcordbftMetricsCollector::increment(const std::string& counterPath) {
-  auto paths = resolveMetricPath(counterPath);
-  int repID = std::stoi(paths[pathOrder::REP]);
-  addAggregatorForNewRegisteredReplica(repID);
-  aggregators_.at(repID)->GetCounter(paths[pathOrder::COMP], paths[pathOrder::NAME]).Inc();
-}
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::REPLICA_SLOW_PATH_COUNT,replicaMetrics_.RegisterCounter("slowPathCount")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::REPLICA_RECEIVED_INTERNAL_MSGS,replicaMetrics_.RegisterCounter("receivedInternalMsgs")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::REPLICA_RECEIVED_CLIENT_REQUEST_MSGS,replicaMetrics_.RegisterCounter("receivedClientRequestMsgs")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::REPLICA_RECEIVED_PREPREPARE_MSGS,replicaMetrics_.RegisterCounter("receivedPrePrepareMsgs")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::REPLICA_RECEIVED_START_SLOW_COMMIT_MSGS,replicaMetrics_.RegisterCounter("receivedStartSlowCommitMsgs")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::REPLICA_RECEIVED_PARTIAL_COMMIT_PROOF_MSGS,replicaMetrics_.RegisterCounter("receivedPartialCommitProofMsgs")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::REPLICA_RECEIVED_FULL_COMMIT_PROOF_MSGS,replicaMetrics_.RegisterCounter("receivedFullCommitProofMsgs")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::REPLICA_RECEIVED_PREPARER_PARTIAL_MSGS,replicaMetrics_.RegisterCounter("receivedPreparePartialMsgs")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::REPLICA_RECEIVED_COMMIT_PARTIAL_MSGS,replicaMetrics_.RegisterCounter("receivedCommitPartialMsgs")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::REPLICA_RECEIVED_PREPARE_FULL_MSGS,replicaMetrics_.RegisterCounter("receivedPrepareFullMsgs")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::REPLICA_RECEIVED_COMMIT_FULL_MSGS,replicaMetrics_.RegisterCounter("receivedCommitFullMsgs")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::REPLICA_RECEIVED_CHECKPOINT_MSGS,replicaMetrics_.RegisterCounter("receivedCheckpointMsgs")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::REPLICA_RECEIVED_STATUS_MSGS,replicaMetrics_.RegisterCounter("receivedReplicaStatusMsgs")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::REPLICA_RECEIVED_VIEW_CHANGE_MSGS,replicaMetrics_.RegisterCounter("receivedViewChangeMsgs")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::REPLICA_RECEIVED_NEW_VIEW_MSGS,replicaMetrics_.RegisterCounter("receivedNewViewMsgs")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::REPLICA_RECEIVED_REQ_MISSING_DATA_MSGS,replicaMetrics_.RegisterCounter("receivedReqMissingDataMsgs")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::REPLICA_RECEIVED_SIMPLE_ACK_MAGS,replicaMetrics_.RegisterCounter("receivedSimpleAckMsgs")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::REPLICA_RECEIVED_STATE_TRANSFER_MSGS,replicaMetrics_.RegisterCounter("receivedStateTransferMsgs")));
+        replicaMetrics_.Register();
 
-void ConcordbftMetricsCollector::set(const std::string& gaugePath, uint64_t val) {
-  auto paths = resolveMetricPath(gaugePath);
-  int repID = std::stoi(paths[pathOrder::REP]);
-  addAggregatorForNewRegisteredReplica(repID);
-  aggregators_.at(repID)->GetGauge(paths[pathOrder::COMP], paths[pathOrder::NAME]).Set(val);
-}
+        statuses.insert(std::pair<MetricType, statusHandler>(MetricType::BCST_FETCHING_STATE, stateTransferMetrics_.RegisterStatus("fetching_state", "")));
+        statuses.insert(std::pair<MetricType, statusHandler>(MetricType::BCST_PEDANTIC_CHECKS_ENABLED, stateTransferMetrics_.RegisterStatus("pedantic_checks_enabled", "")));
+        statuses.insert(std::pair<MetricType, statusHandler>(MetricType::BCST_PREFERRED_REPLICAS, stateTransferMetrics_.RegisterStatus("preferred_replicas", "")));
 
-void ConcordbftMetricsCollector::update(const std::string& statusPath, const std::string& val) {
-  auto paths = resolveMetricPath(statusPath);
-  int repID = std::stoi(paths[pathOrder::REP]);
-  addAggregatorForNewRegisteredReplica(repID);
-  aggregators_.at(repID)->GetStatus(paths[pathOrder::COMP], paths[pathOrder::NAME]).Set(val);
-}
+        gauges.insert(std::pair<MetricType, gaugeHandler>(MetricType::BCST_CURRENT_SOURCE_REPLICA, stateTransferMetrics_.RegisterGauge("current_source_replica", 0)));
+        gauges.insert(std::pair<MetricType, gaugeHandler>(MetricType::BCST_CHECKPOINT_BEING_FETCHED, stateTransferMetrics_.RegisterGauge("checkpoint_being_fetched", 0)));
+        gauges.insert(std::pair<MetricType, gaugeHandler>(MetricType::BCST_LAST_STORED_CHECKPOINT, stateTransferMetrics_.RegisterGauge("last_stored_checkpoint", 0)));
+        gauges.insert(std::pair<MetricType, gaugeHandler>(MetricType::BCST_NUMBER_OF_RESERVED_PAGES, stateTransferMetrics_.RegisterGauge("number_of_reserved_pages", 0)));
+        gauges.insert(std::pair<MetricType, gaugeHandler>(MetricType::BCST_SIZE_OF_RESERVED_PAGES, stateTransferMetrics_.RegisterGauge("size_of_reserved_page", 0)));
+        gauges.insert(std::pair<MetricType, gaugeHandler>(MetricType::BCST_LAST_MSG_SEQ_NUM, stateTransferMetrics_.RegisterGauge("last_msg_seq_num", 0)));
+        gauges.insert(std::pair<MetricType, gaugeHandler>(MetricType::BCST_NEXT_REQUIRED_BLOCK, stateTransferMetrics_.RegisterGauge("next_required_block_", 0)));
+        gauges.insert(std::pair<MetricType, gaugeHandler>(MetricType::BCST_NUM_PENDING_ITEM_DATA_MSGS, stateTransferMetrics_.RegisterGauge("num_pending_item_data_msgs_", 0)));
+        gauges.insert(std::pair<MetricType, gaugeHandler>(MetricType::BCST_TOTAL_SIZE_OF_PENDING_ITEM_DATA_MSGS, stateTransferMetrics_.RegisterGauge("total_size_of_pending_item_data_msgs", 0)));
+        gauges.insert(std::pair<MetricType, gaugeHandler>(MetricType::BCST_LAST_BLOCK, stateTransferMetrics_.RegisterGauge("last_block_", 0)));
+        gauges.insert(std::pair<MetricType, gaugeHandler>(MetricType::BCST_LAST_REACHABLE_BLOCK, stateTransferMetrics_.RegisterGauge("last_reachable_block", 0)));
 
-void ConcordbftMetricsCollector::addAggregatorForNewRegisteredReplica(int repID) {
-  std::lock_guard<std::mutex> lock(lock_);
-  if (aggregators_.find(repID) != aggregators_.end()) return;
-  aggregators_[repID] = std::make_shared<Aggregator>();
-  Component replicaMetrics_("replica", aggregators_[repID]);
-  replicaMetrics_.RegisterGauge("view", 0);
-  replicaMetrics_.RegisterGauge("lastStableSeqNum", 0);
-  replicaMetrics_.RegisterGauge("lastExecutedSeqNum", 0);
-  replicaMetrics_.RegisterGauge("lastAgreedView", 0);
-  replicaMetrics_.RegisterStatus("firstCommitPath", "");
-  replicaMetrics_.RegisterCounter("slowPathCount");
-  replicaMetrics_.RegisterCounter("receivedInternalMsgs");
-  replicaMetrics_.RegisterCounter("receivedClientRequestMsgs");
-  replicaMetrics_.RegisterCounter("receivedPrePrepareMsgs");
-  replicaMetrics_.RegisterCounter("receivedStartSlowCommitMsgs");
-  replicaMetrics_.RegisterCounter("receivedPartialCommitProofMsgs");
-  replicaMetrics_.RegisterCounter("receivedFullCommitProofMsgs");
-  replicaMetrics_.RegisterCounter("receivedPreparePartialMsgs");
-  replicaMetrics_.RegisterCounter("receivedCommitPartialMsgs");
-  replicaMetrics_.RegisterCounter("receivedPrepareFullMsgs");
-  replicaMetrics_.RegisterCounter("receivedCommitFullMsgs");
-  replicaMetrics_.RegisterCounter("receivedCheckpointMsgs");
-  replicaMetrics_.RegisterCounter("receivedReplicaStatusMsgs");
-  replicaMetrics_.RegisterCounter("receivedViewChangeMsgs");
-  replicaMetrics_.RegisterCounter("receivedNewViewMsgs");
-  replicaMetrics_.RegisterCounter("receivedReqMissingDataMsgs");
-  replicaMetrics_.RegisterCounter("receivedSimpleAckMsgs");
-  replicaMetrics_.RegisterCounter("receivedStateTransferMsgs");
-  replicaMetrics_.Register();
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_SENT_ASK_FOR_CHECKPOINT_SUMMARIES_MSG, stateTransferMetrics_.RegisterCounter("sent_ask_for_checkpoint_summaries_msg")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_SENT_CHECKPOINT_SUMMARY_MSG, stateTransferMetrics_.RegisterCounter("sent_checkpoint_summary_msg")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_SENT_FETCH_BLOCKS_MSG, stateTransferMetrics_.RegisterCounter("sent_fetch_blocks_msg")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_SENT_FETCH_RES_PAGES_MSG, stateTransferMetrics_.RegisterCounter("sent_fetch_res_pages_msg")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_SENT_REJECT_FETCH_MSG, stateTransferMetrics_.RegisterCounter("sent_reject_fetch_msg")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_SENT_ITEM_DATA_MSG, stateTransferMetrics_.RegisterCounter("sent_item_data_msg")));
 
-  Component stateTransferMetrics_("bc_state_transfer", aggregators_[repID]);
-  stateTransferMetrics_.RegisterStatus("fetching_state", "");
-  stateTransferMetrics_.RegisterStatus("pedantic_checks_enabled", "");
-  stateTransferMetrics_.RegisterStatus("preferred_replicas", "");
-  stateTransferMetrics_.RegisterGauge("current_source_replica", 0);
-  stateTransferMetrics_.RegisterGauge("checkpoint_being_fetched", 0);
-  stateTransferMetrics_.RegisterGauge("last_stored_checkpoint", 0);
-  stateTransferMetrics_.RegisterGauge("number_of_reserved_pages", 0);
-  stateTransferMetrics_.RegisterGauge("size_of_reserved_page", 0);
-  stateTransferMetrics_.RegisterGauge("last_msg_seq_num", 0);
-  stateTransferMetrics_.RegisterGauge("next_required_block_", 0);
-  stateTransferMetrics_.RegisterGauge("num_pending_item_data_msgs_", 0);
-  stateTransferMetrics_.RegisterGauge("total_size_of_pending_item_data_msgs", 0);
-  stateTransferMetrics_.RegisterGauge("last_block_", 0);
-  stateTransferMetrics_.RegisterGauge("last_reachable_block", 0);
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_RECEIVED_ASK_FOR_CHECKPOINT_SUMMARIES_MSG, stateTransferMetrics_.RegisterCounter("received_ask_for_checkpoint_summaries_msg")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_RECEIVED_CHECKPOINT_SUMMARY_MSG, stateTransferMetrics_.RegisterCounter("received_checkpoint_summary_msg")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_RECEIVED_FETCH_BLOCKS_MSG, stateTransferMetrics_.RegisterCounter("received_fetch_blocks_msg")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_RECEIVED_FETCH_RES_PAGES_MSG, stateTransferMetrics_.RegisterCounter("received_fetch_res_pages_msg")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_RECEIVED_REJECT_FETCHING_MSG, stateTransferMetrics_.RegisterCounter("received_reject_fetching_msg")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_RECEIVED_ITEM_DATA_MSG, stateTransferMetrics_.RegisterCounter("received_item_data_msg")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_RECEIVED_ILLEGAL_MSG, stateTransferMetrics_.RegisterCounter("received_illegal_msg_")));
 
-  stateTransferMetrics_.RegisterCounter("sent_ask_for_checkpoint_summaries_msg");
-  stateTransferMetrics_.RegisterCounter("sent_checkpoint_summary_msg");
-  stateTransferMetrics_.RegisterCounter("sent_fetch_blocks_msg");
-  stateTransferMetrics_.RegisterCounter("sent_fetch_res_pages_msg");
-  stateTransferMetrics_.RegisterCounter("sent_reject_fetch_msg");
-  stateTransferMetrics_.RegisterCounter("sent_item_data_msg");
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_INVALID_ASK_FOR_CHECKPOINT_SUMMARIES_MSG, stateTransferMetrics_.RegisterCounter("invalid_ask_for_checkpoint_summaries_msg")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_IRRELEVANT_ASK_FOR_CHECKPOINT_SUMMARIES_MSG, stateTransferMetrics_.RegisterCounter("irrelevant_ask_for_checkpoint_summaries_msg")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_INVALID_CHECKPOINT_SUMMARY_MSG, stateTransferMetrics_.RegisterCounter("invalid_checkpoint_summary_msg")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_IRRELEVANT_CHECKPOINT_SUMMARY_MSG, stateTransferMetrics_.RegisterCounter("irrelevant_checkpoint_summary_msg")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_INVALID_FETCH_BLOCKS_MSG, stateTransferMetrics_.RegisterCounter("invalid_fetch_blocks_msg")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_IRRELEVANT_FETCH_BLOCKS_MSG, stateTransferMetrics_.RegisterCounter("irrelevant_fetch_blocks_msg")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_INVALID_FETCH_RES_PAGES_MSG, stateTransferMetrics_.RegisterCounter("invalid_fetch_res_pages_msg")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_IRRELEVANT_FETCH_RES_PAGES_MSG, stateTransferMetrics_.RegisterCounter("irrelevant_fetch_res_pages_msg")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_INVALID_REJECT_FETCHING_MSG, stateTransferMetrics_.RegisterCounter("invalid_reject_fetching_msg")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_IRRELEVANT_REJECT_FETCHING_MSG, stateTransferMetrics_.RegisterCounter("irrelevant_reject_fetching_msg")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_INVALID_ITEM_DATA_MSG, stateTransferMetrics_.RegisterCounter("invalid_item_data_msg")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_IRRELEVANT_ITEM_DATA_MSG, stateTransferMetrics_.RegisterCounter("irrelevant_item_data_msg")));
 
-  stateTransferMetrics_.RegisterCounter("received_ask_for_checkpoint_summaries_msg");
-  stateTransferMetrics_.RegisterCounter("received_checkpoint_summary_msg");
-  stateTransferMetrics_.RegisterCounter("received_fetch_blocks_msg");
-  stateTransferMetrics_.RegisterCounter("received_fetch_res_pages_msg");
-  stateTransferMetrics_.RegisterCounter("received_reject_fetching_msg");
-  stateTransferMetrics_.RegisterCounter("received_item_data_msg");
-  stateTransferMetrics_.RegisterCounter("received_illegal_msg_");
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_CREATE_CHECKPOINT, stateTransferMetrics_.RegisterCounter("create_checkpoint")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_MARK_CHECKPOINT_AS_STABLE, stateTransferMetrics_.RegisterCounter("mark_checkpoint_as_stable")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_LOAD_RESERVED_PAGE, stateTransferMetrics_.RegisterCounter("load_reserved_page")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_LOAD_RESERVED_PAGE_FROM_PENDING, stateTransferMetrics_.RegisterCounter("load_reserved_page_from_pending")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_LOAD_RESERVED_PAGE_FROM_CHECKPOINT, stateTransferMetrics_.RegisterCounter("load_reserved_page_from_checkpoint")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_SAVE_RESERVED_PAGE, stateTransferMetrics_.RegisterCounter("save_reserved_page")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_ZERO_RESERVED_PAGE, stateTransferMetrics_.RegisterCounter("zero_reserved_page")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_START_COLLECTION_STATE, stateTransferMetrics_.RegisterCounter("start_collecting_state")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_ON_TIMER, stateTransferMetrics_.RegisterCounter("on_timer")));
+        counters.insert(std::pair<MetricType, counterHandler>(MetricType::BCST_ON_TRANSFERRING_COMPLETE, stateTransferMetrics_.RegisterCounter("on_transferring_complete")));
+        stateTransferMetrics_.Register();
 
-  stateTransferMetrics_.RegisterCounter("invalid_ask_for_checkpoint_summaries_msg");
-  stateTransferMetrics_.RegisterCounter("irrelevant_ask_for_checkpoint_summaries_msg");
-  stateTransferMetrics_.RegisterCounter("invalid_checkpoint_summary_msg");
-  stateTransferMetrics_.RegisterCounter("irrelevant_checkpoint_summary_msg");
-  stateTransferMetrics_.RegisterCounter("invalid_fetch_blocks_msg");
-  stateTransferMetrics_.RegisterCounter("irrelevant_fetch_blocks_msg");
-  stateTransferMetrics_.RegisterCounter("invalid_fetch_res_pages_msg");
-  stateTransferMetrics_.RegisterCounter("irrelevant_fetch_res_pages_msg");
-  stateTransferMetrics_.RegisterCounter("invalid_reject_fetching_msg");
-  stateTransferMetrics_.RegisterCounter("irrelevant_reject_fetching_msg");
-  stateTransferMetrics_.RegisterCounter("invalid_item_data_msg");
-  stateTransferMetrics_.RegisterCounter("irrelevant_item_data_msg");
+        for (int t = MetricType::BEGIN + 1 ; t != MetricType::LAST ; t++) {
+            registerDefaultHandler(id, (MetricType) t);
+        }
 
-  stateTransferMetrics_.RegisterCounter("create_checkpoint");
-  stateTransferMetrics_.RegisterCounter("mark_checkpoint_as_stable");
-  stateTransferMetrics_.RegisterCounter("load_reserved_page");
-  stateTransferMetrics_.RegisterCounter("load_reserved_page_from_pending");
-  stateTransferMetrics_.RegisterCounter("load_reserved_page_from_checkpoint");
-  stateTransferMetrics_.RegisterCounter("save_reserved_page");
-  stateTransferMetrics_.RegisterCounter("zero_reserved_page");
-  stateTransferMetrics_.RegisterCounter("start_collecting_state");
-  stateTransferMetrics_.RegisterCounter("on_timer");
-  stateTransferMetrics_.RegisterCounter("on_transferring_complete");
-  stateTransferMetrics_.Register();
-}
+        updator = std::thread([this]() {
+            updateComponent();
+        });
+    }
 
-std::shared_ptr<Aggregator> ConcordbftMetricsCollector::getAggregator(int repID) {
-  std::lock_guard<std::mutex> lock(lock_);
-  if (aggregators_.find(repID) == aggregators_.end()) return std::make_shared<Aggregator>();
-  return aggregators_[repID];
-}
-std::unique_ptr<IMetricsCollector> ConcordbftMetricsCollector::_instance =
-    std::make_unique<ConcordbftMetricsCollector>();
+    void ConcordbftMetricsCollector::registerDefaultHandler(uint32_t id, MetricType t) {
+        switch (t) {
+            case REPLICA_VIEW:
+            case REPLICA_LAST_STABLE_SEQ_NUM:
+            case REPLICA_LAST_EXECUTED_SEQ_NUM:
+            case REPLICA_LAST_AGREED_VIEW:
+            case BCST_CURRENT_SOURCE_REPLICA:
+            case BCST_CHECKPOINT_BEING_FETCHED:
+            case BCST_LAST_STORED_CHECKPOINT:
+            case BCST_NUMBER_OF_RESERVED_PAGES:
+            case BCST_SIZE_OF_RESERVED_PAGES:
+            case BCST_LAST_MSG_SEQ_NUM:
+            case BCST_NEXT_REQUIRED_BLOCK:
+            case BCST_NUM_PENDING_ITEM_DATA_MSGS:
+            case BCST_TOTAL_SIZE_OF_PENDING_ITEM_DATA_MSGS:
+            case BCST_LAST_BLOCK:
+            case BCST_LAST_REACHABLE_BLOCK:
+                concordMetrics::MetricsCollector::instance(id).registerCallBack(t, [this, t](uint64_t val) {
+                    gauges.at(t).Get().Set(val);
+                });
+                break;
+            case REPLICA_FIRST_COMMIT_PATH:
+            case BCST_FETCHING_STATE:
+            case BCST_PEDANTIC_CHECKS_ENABLED:
+            case BCST_PREFERRED_REPLICAS:
+                concordMetrics::MetricsCollector::instance(id).registerCallBack(t, [this, t](const std::string &val) {
+                    statuses.at(t).Get().Set(val);
+                });
+                break;
+            default:
+                concordMetrics::MetricsCollector::instance(id).registerCallBack(t, [this, t]() {
+                    counters.at(t).Get().Inc();
+                });
+        }
+    }
+
+    void ConcordbftMetricsCollector::updateComponent() {
+        while (active) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(interval));
+            replicaMetrics_.UpdateAggregator();
+            stateTransferMetrics_.UpdateAggregator();
+        }
+
+    }
+
+    ConcordbftMetricsCollector::~ConcordbftMetricsCollector() {
+        active = false;
+        updator.join();
+    }
 
 }  // namespace concordMetrics

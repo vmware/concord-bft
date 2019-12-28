@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
   // registration of metrics from the replica with the aggregator and don't
   // return empty metrics from the metrics server.
   setup->GetMetricsServer().Start();
-  setup->GetMetricsServer().registerToDefaultCollector(setup->GetReplicaConfig().replicaId);
+  setup->GetMetricsServer().registerMetricsHandlers(setup->GetReplicaConfig().replicaId);
 
   InternalCommandsHandler cmdHandler(replica, replica, logger);
   replica->set_command_handler(&cmdHandler);
