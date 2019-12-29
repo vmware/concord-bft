@@ -65,19 +65,19 @@ void Aggregator::UpdateValues(const string& name, Values&& values) {
   components_.at(name).SetValues(std::move(values));
 }
 
-Gauge& Aggregator::GetGauge(const string& component_name, const string& val_name) {
+Gauge Aggregator::GetGauge(const string& component_name, const string& val_name) {
   std::lock_guard<std::mutex> lock(lock_);
   auto& component = components_.at(component_name);
   return FindValue(kGaugeName, val_name, component.names_.gauge_names_, component.values_.gauges_);
 }
 
-Status& Aggregator::GetStatus(const string& component_name, const string& val_name) {
+Status Aggregator::GetStatus(const string& component_name, const string& val_name) {
   std::lock_guard<std::mutex> lock(lock_);
   auto& component = components_.at(component_name);
   return FindValue(kStatusName, val_name, component.names_.status_names_, component.values_.statuses_);
 }
 
-Counter& Aggregator::GetCounter(const string& component_name, const string& val_name) {
+Counter Aggregator::GetCounter(const string& component_name, const string& val_name) {
   std::lock_guard<std::mutex> lock(lock_);
   auto& component = components_.at(component_name);
   return FindValue(kCounterName, val_name, component.names_.counter_names_, component.values_.counters_);

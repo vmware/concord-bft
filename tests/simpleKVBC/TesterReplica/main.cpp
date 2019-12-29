@@ -47,7 +47,7 @@ int main(int argc, char** argv) {
     auto comparator = concord::storage::memorydb::KeyComparator(key_manipulator);
     db = new concord::storage::memorydb::Client(comparator);
   }
-
+  setup->GetMetricsServer().registerMetricsHandlers(setup->GetReplicaConfig().replicaId);
   auto* dbAdapter = new concord::storage::blockchain::DBAdapter(db);
   auto* replica = new ReplicaImp(setup->GetCommunication(), setup->GetReplicaConfig(), dbAdapter);
   replica->setReplicaStateSync(new ReplicaStateSyncImp(new BlockMetadata(*replica)));
@@ -56,7 +56,6 @@ int main(int argc, char** argv) {
   // registration of metrics from the replica with the aggregator and don't
   // return empty metrics from the metrics server.
   setup->GetMetricsServer().Start();
-  setup->GetMetricsServer().registerMetricsHandlers(setup->GetReplicaConfig().replicaId);
 
   InternalCommandsHandler cmdHandler(replica, replica, logger);
   replica->set_command_handler(&cmdHandler);

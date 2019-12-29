@@ -43,9 +43,9 @@ class Counter;
 // responsible for reporting system metrics should read it from the aggregator.
 class Aggregator {
  public:
-  Gauge& GetGauge(const std::string& component_name, const std::string& val_name);
-  Status& GetStatus(const std::string& component_name, const std::string& val_name);
-  Counter& GetCounter(const std::string& component_name, const std::string& val_name);
+  Gauge GetGauge(const std::string& component_name, const std::string& val_name);
+  Status GetStatus(const std::string& component_name, const std::string& val_name);
+  Counter GetCounter(const std::string& component_name, const std::string& val_name);
 
   // Generate a JSON formatted string
   std::string ToJson();
