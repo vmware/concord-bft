@@ -356,7 +356,6 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   void onSlowPathTimer(concordUtil::Timers::Handle);
   void onInfoRequestTimer(concordUtil::Timers::Handle);
   void onDebugStatTimer(concordUtil::Timers::Handle);
-  //  void onMetricsTimer(concordUtil::Timers::Handle);
 
   // handlers for internal messages
 

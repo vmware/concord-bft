@@ -2123,7 +2123,7 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
     ps_->endWriteTran();
   }
 
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_LAST_EXECUTED_SEQ_NUM, lastStableSeqNum);
+    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_LAST_EXECUTED_SEQ_NUM, lastExecutedSeqNum);
 
   sendToAllOtherReplicas(checkpointMsg);
 
@@ -2511,8 +2511,6 @@ void ReplicaImp::onDebugStatTimer(Timers::Handle timer) {
   }
 }
 
-// void ReplicaImp::onMetricsTimer(Timers::Handle timer) { metrics_.UpdateAggregator(); }
-
 void ReplicaImp::onMessage(SimpleAckMsg *msg) {
 
     MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_SIMPLE_ACK_MAGS);
@@ -2856,9 +2854,6 @@ ReplicaImp::ReplicaImp(bool firstTime,
   if (config_.debugStatisticsEnabled) {
     DebugStatistics::initDebugStatisticsData();
   }
-
-  // Register metrics component with the default aggregator.
-  //  metrics_.Register();
 
   if (firstTime) {
     sigManager = new SigManager(config_.replicaId,

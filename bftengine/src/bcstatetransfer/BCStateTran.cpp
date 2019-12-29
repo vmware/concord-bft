@@ -150,7 +150,6 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
      MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_MSG_SEQ_NUM, lastMsgSeqNum_);
      MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_NEXT_REQUIRED_BLOCK, nextRequiredBlock_);
      MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_NUM_PENDING_ITEM_DATA_MSGS, pendingItemDataMsgs.size());
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_NUM_PENDING_ITEM_DATA_MSGS, pendingItemDataMsgs.size());
      MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_TOTAL_SIZE_OF_PENDING_ITEM_DATA_MSGS, totalSizeOfPendingItemDataMsgs);
 
   Assert(stateApi != nullptr);
