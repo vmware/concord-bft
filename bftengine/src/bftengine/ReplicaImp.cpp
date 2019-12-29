@@ -371,7 +371,7 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
 
   if (firstPath == CommitPath::SLOW) {
     seqNumInfo.startSlowPath();
-      MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_SLOW_PATH_COUNT);
+    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_SLOW_PATH_COUNT);
     sendPreparePartial(seqNumInfo);
   } else {
     sendPartialProof(seqNumInfo);
@@ -405,7 +405,7 @@ bool ReplicaImp::relevantMsgForActiveView(const T *msg) {
 }
 
 void ReplicaImp::onMessage(PrePrepareMsg *msg) {
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_PREPREPARE_MSGS);
+  MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_PREPREPARE_MSGS);
   const SeqNum msgSeqNum = msg->seqNumber();
 
   LOG_DEBUG_F(GL,
@@ -459,7 +459,7 @@ void ReplicaImp::onMessage(PrePrepareMsg *msg) {
         sendPartialProof(seqNumInfo);
       } else {
         seqNumInfo.startSlowPath();
-          MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_SLOW_PATH_COUNT);
+        MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_SLOW_PATH_COUNT);
         sendPreparePartial(seqNumInfo);
         ;
       }
@@ -514,7 +514,7 @@ void ReplicaImp::tryToStartSlowPaths() {
     controller->onStartingSlowCommit(i);
 
     seqNumInfo.startSlowPath();
-      MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_SLOW_PATH_COUNT);
+    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_SLOW_PATH_COUNT);
 
     if (ps_) {
       ps_->beginWriteTran();
@@ -595,7 +595,7 @@ void ReplicaImp::tryToAskForMissingInfo() {
 }
 
 void ReplicaImp::onMessage(StartSlowCommitMsg *msg) {
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_START_SLOW_COMMIT_MSGS);
+  MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_START_SLOW_COMMIT_MSGS);
 
   const SeqNum msgSeqNum = msg->seqNumber();
 
@@ -610,7 +610,7 @@ void ReplicaImp::onMessage(StartSlowCommitMsg *msg) {
       LOG_INFO_F(GL, "Node %d starts slow path for seqNumber %" PRId64 "", config_.replicaId, msgSeqNum);
 
       seqNumInfo.startSlowPath();
-        MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_SLOW_PATH_COUNT);
+      MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_SLOW_PATH_COUNT);
 
       if (ps_) {
         ps_->beginWriteTran();
@@ -724,7 +724,7 @@ void ReplicaImp::sendCommitPartial(const SeqNum s) {
 }
 
 void ReplicaImp::onMessage(PartialCommitProofMsg *msg) {
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_PARTIAL_COMMIT_PROOF_MSGS);
+  MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_PARTIAL_COMMIT_PROOF_MSGS);
   const SeqNum msgSeqNum = msg->seqNumber();
   const SeqNum msgView = msg->viewNumber();
   const NodeIdType msgSender = msg->senderId();
@@ -766,7 +766,7 @@ void ReplicaImp::onInternalMsg(FullCommitProofMsg *msg) {
 }
 
 void ReplicaImp::onMessage(FullCommitProofMsg *msg) {
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_FULL_COMMIT_PROOF_MSGS);
+  MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_FULL_COMMIT_PROOF_MSGS);
   LOG_DEBUG_F(GL,
               "Node %d received FullCommitProofMsg message for seqNumber %d",
               (int)config_.replicaId,
@@ -807,7 +807,7 @@ void ReplicaImp::onMessage(FullCommitProofMsg *msg) {
 }
 
 void ReplicaImp::onMessage(PreparePartialMsg *msg) {
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_PREPARER_PARTIAL_MSGS);
+  MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_PREPARER_PARTIAL_MSGS);
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
 
@@ -856,7 +856,7 @@ void ReplicaImp::onMessage(PreparePartialMsg *msg) {
 }
 
 void ReplicaImp::onMessage(CommitPartialMsg *msg) {
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_COMMIT_PARTIAL_MSGS);
+  MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_COMMIT_PARTIAL_MSGS);
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
 
@@ -899,7 +899,7 @@ void ReplicaImp::onMessage(CommitPartialMsg *msg) {
 }
 
 void ReplicaImp::onMessage(PrepareFullMsg *msg) {
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_PREPARE_FULL_MSGS);
+  MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_PREPARE_FULL_MSGS);
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
 
@@ -940,7 +940,7 @@ void ReplicaImp::onMessage(PrepareFullMsg *msg) {
 }
 
 void ReplicaImp::onMessage(CommitFullMsg *msg) {
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_COMMIT_FULL_MSGS);
+  MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_COMMIT_FULL_MSGS);
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
 
@@ -1201,7 +1201,7 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum v, bo
 }
 
 void ReplicaImp::onMessage(CheckpointMsg *msg) {
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_CHECKPOINT_MSGS);
+  MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_CHECKPOINT_MSGS);
   const ReplicaId msgSenderId = msg->senderId();
   const SeqNum msgSeqNum = msg->seqNumber();
   const Digest msgDigest = msg->digestOfState();
@@ -1468,7 +1468,7 @@ void ReplicaImp::onRetransmissionsProcessingResults(
 }
 
 void ReplicaImp::onMessage(ReplicaStatusMsg *msg) {
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_STATUS_MSGS);
+  MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_STATUS_MSGS);
   // TODO(GG): we need filter for msgs (to avoid denial of service attack) + avoid sending messages at a high rate.
   // TODO(GG): for some communication modules/protocols, we can also utilize information about connection/disconnection.
 
@@ -1693,7 +1693,7 @@ void ReplicaImp::onMessage(ViewChangeMsg *msg) {
     delete msg;
     return;
   }
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_VIEW_CHANGE_MSGS);
+  MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_VIEW_CHANGE_MSGS);
 
   const ReplicaId generatedReplicaId =
       msg->idOfGeneratedReplica();  // Notice that generatedReplicaId may be != msg->senderId()
@@ -1745,7 +1745,7 @@ void ReplicaImp::onMessage(ViewChangeMsg *msg) {
 
   if (lastAgreedView < curView) {
     lastAgreedView = curView;
-      MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_LAST_AGREED_VIEW, lastAgreedView);
+    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_LAST_AGREED_VIEW, lastAgreedView);
     timeOfLastAgreedView = getMonotonicTime();
   }
 
@@ -1757,7 +1757,7 @@ void ReplicaImp::onMessage(NewViewMsg *msg) {
     delete msg;
     return;
   }
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_NEW_VIEW_MSGS);
+  MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_NEW_VIEW_MSGS);
   const ReplicaId senderId = msg->senderId();
 
   Assert(senderId != config_.replicaId);  // should be verified in ViewChangeMsg
@@ -1839,7 +1839,7 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
   }
 
   curView = nextView;
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_VIEW, nextView);
+  MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_VIEW, nextView);
 
   LOG_INFO_F(GL,
              "Sending view change message: new view=%" PRId64
@@ -2123,7 +2123,8 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
     ps_->endWriteTran();
   }
 
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_LAST_EXECUTED_SEQ_NUM, lastExecutedSeqNum);
+  MetricsCollector::instance(config_.replicaId)
+      .takeMetric(MetricType::REPLICA_LAST_EXECUTED_SEQ_NUM, lastExecutedSeqNum);
 
   sendToAllOtherReplicas(checkpointMsg);
 
@@ -2164,8 +2165,7 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
 
   lastStableSeqNum = newStableSeqNum;
 
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_LAST_STABLE_SEQ_NUM, lastStableSeqNum);
-
+  MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_LAST_STABLE_SEQ_NUM, lastStableSeqNum);
 
   if (ps_) ps_->setLastStableSeqNum(lastStableSeqNum);
 
@@ -2188,7 +2188,8 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
       lastExecutedSeqNum = lastStableSeqNum;
       if (ps_) ps_->setLastExecutedSeqNum(lastExecutedSeqNum);
 
-        MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_LAST_EXECUTED_SEQ_NUM, lastExecutedSeqNum);
+      MetricsCollector::instance(config_.replicaId)
+          .takeMetric(MetricType::REPLICA_LAST_EXECUTED_SEQ_NUM, lastExecutedSeqNum);
       if (config_.debugStatisticsEnabled) {
         DebugStatistics::onLastExecutedSequenceNumberChanged(lastExecutedSeqNum);
       }
@@ -2324,8 +2325,7 @@ void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly,
 }
 
 void ReplicaImp::onMessage(ReqMissingDataMsg *msg) {
-
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_REQ_MISSING_DATA_MSGS);
+  MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_REQ_MISSING_DATA_MSGS);
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
 
@@ -2512,8 +2512,7 @@ void ReplicaImp::onDebugStatTimer(Timers::Handle timer) {
 }
 
 void ReplicaImp::onMessage(SimpleAckMsg *msg) {
-
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_SIMPLE_ACK_MAGS);
+  MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_SIMPLE_ACK_MAGS);
   if (retransmissionsLogicEnabled) {
     uint16_t relatedMsgType = (uint16_t)msg->ackData();  // TODO(GG): does this make sense ?
 
@@ -2533,8 +2532,7 @@ void ReplicaImp::onMessage(SimpleAckMsg *msg) {
 }
 
 void ReplicaImp::onMessage(StateTransferMsg *m) {
-
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_STATE_TRANSFER_MSGS);
+  MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_RECEIVED_STATE_TRANSFER_MSGS);
   size_t h = sizeof(MessageBase::Header);
   stateTransfer->handleStateTransferMessage(m->body() + h, m->size() - h, m->senderId());
 }
@@ -2622,17 +2620,18 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
   curView = ld.viewsManager->latestActiveView();
   lastAgreedView = curView;
 
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_VIEW, curView);
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_LAST_AGREED_VIEW, lastAgreedView);
+  MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_VIEW, curView);
+  MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_LAST_AGREED_VIEW, lastAgreedView);
 
   const bool inView = ld.viewsManager->viewIsActive(curView);
 
   primaryLastUsedSeqNum = ld.primaryLastUsedSeqNum;
   lastStableSeqNum = ld.lastStableSeqNum;
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_LAST_STABLE_SEQ_NUM, lastStableSeqNum);
+  MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_LAST_STABLE_SEQ_NUM, lastStableSeqNum);
 
   lastExecutedSeqNum = ld.lastExecutedSeqNum;
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_LAST_EXECUTED_SEQ_NUM, lastExecutedSeqNum);
+  MetricsCollector::instance(config_.replicaId)
+      .takeMetric(MetricType::REPLICA_LAST_EXECUTED_SEQ_NUM, lastExecutedSeqNum);
 
   strictLowerBoundOfSeqNums = ld.strictLowerBoundOfSeqNums;
   maxSeqNumTransferredFromPrevViews = ld.maxSeqNumTransferredFromPrevViews;
@@ -2834,12 +2833,15 @@ ReplicaImp::ReplicaImp(bool firstTime,
       timeOfLastViewEntrance{getMonotonicTime()},  // TODO(GG): TBD
       timeOfLastAgreedView{getMonotonicTime()}     // TODO(GG): TBD
 {
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_VIEW, curView);
+  MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_VIEW, curView);
 
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_LAST_STABLE_SEQ_NUM, lastStableSeqNum);
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_LAST_EXECUTED_SEQ_NUM, lastExecutedSeqNum);
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_LAST_AGREED_VIEW, lastAgreedView);
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_FIRST_COMMIT_PATH, CommitPathToStr(ControllerWithSimpleHistory_debugInitialFirstPath));
+  MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_LAST_STABLE_SEQ_NUM, lastStableSeqNum);
+  MetricsCollector::instance(config_.replicaId)
+      .takeMetric(MetricType::REPLICA_LAST_EXECUTED_SEQ_NUM, lastExecutedSeqNum);
+  MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_LAST_AGREED_VIEW, lastAgreedView);
+  MetricsCollector::instance(config_.replicaId)
+      .takeMetric(MetricType::REPLICA_FIRST_COMMIT_PATH,
+                  CommitPathToStr(ControllerWithSimpleHistory_debugInitialFirstPath));
 
   Assert(config_.replicaId < numOfReplicas);
   // TODO(GG): more asserts on params !!!!!!!!!!!
@@ -3174,7 +3176,8 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg *ppMsg, bool recov
   }
 
   lastExecutedSeqNum = lastExecutedSeqNum + 1;
-    MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_LAST_EXECUTED_SEQ_NUM, lastExecutedSeqNum);
+  MetricsCollector::instance(config_.replicaId)
+      .takeMetric(MetricType::REPLICA_LAST_EXECUTED_SEQ_NUM, lastExecutedSeqNum);
   if (config_.debugStatisticsEnabled) {
     DebugStatistics::onLastExecutedSequenceNumberChanged(lastExecutedSeqNum);
   }
@@ -3211,7 +3214,8 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg *ppMsg, bool recov
   bool firstCommitPathChanged = controller->onNewSeqNumberExecution(lastExecutedSeqNum);
 
   if (firstCommitPathChanged) {
-      MetricsCollector::instance(config_.replicaId).takeMetric(MetricType::REPLICA_FIRST_COMMIT_PATH, CommitPathToStr(controller->getCurrentFirstPath()));
+    MetricsCollector::instance(config_.replicaId)
+        .takeMetric(MetricType::REPLICA_FIRST_COMMIT_PATH, CommitPathToStr(controller->getCurrentFirstPath()));
   }
   // TODO(GG): clean the following logic
   if (mainLog->insideActiveWindow(lastExecutedSeqNum)) {  // update dynamicUpperLimitOfRounds

@@ -197,26 +197,26 @@ class Component {
 };
 
 class ConcordbftMetricsCollector {
-    typedef Component::Handle<Counter> counterHandler;
-    typedef Component::Handle<Gauge> gaugeHandler;
-    typedef Component::Handle<Status> statusHandler;
+  typedef Component::Handle<Counter> counterHandler;
+  typedef Component::Handle<Gauge> gaugeHandler;
+  typedef Component::Handle<Status> statusHandler;
 
-    std::unordered_map<MetricType, counterHandler> counters;
-    std::unordered_map<MetricType, gaugeHandler> gauges;
-    std::unordered_map<MetricType, statusHandler> statuses;
-    std::shared_ptr<Aggregator> aggregator_;
-    Component replicaMetrics_;
-    Component stateTransferMetrics_;
-    bool active;
-    std::thread updator;
-    uint32_t interval = 300;
-    void updateComponent();
-    void registerDefaultHandler(uint32_t id, MetricType t);
+  std::unordered_map<MetricType, counterHandler> counters;
+  std::unordered_map<MetricType, gaugeHandler> gauges;
+  std::unordered_map<MetricType, statusHandler> statuses;
+  std::shared_ptr<Aggregator> aggregator_;
+  Component replicaMetrics_;
+  Component stateTransferMetrics_;
+  bool active;
+  std::thread updator;
+  uint32_t interval = 300;
+  void updateComponent();
+  void registerDefaultHandler(uint32_t id, MetricType t);
+
  public:
   ConcordbftMetricsCollector(uint32_t id, std::shared_ptr<Aggregator> aggregator = std::make_shared<Aggregator>());
 
   ~ConcordbftMetricsCollector();
-
 };
 
 }  // namespace concordMetrics

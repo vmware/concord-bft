@@ -142,15 +142,17 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       randomGen_{randomDevice_()},
       sourceSelector_{SourceSelector(
           allOtherReplicas(), config.fetchRetransmissionTimeoutMilli, config.sourceReplicaReplacementTimeoutMilli)} {
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_FETCHING_STATE, stateName(FetchingState::NotFetching));
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_PEDANTIC_CHECKS_ENABLED,  pedanticChecks_ ? "true" : "false");
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_PREFERRED_REPLICAS,  "");
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_CURRENT_SOURCE_REPLICA, NO_REPLICA);
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SIZE_OF_RESERVED_PAGES, sizeOfReservedPage_);
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_MSG_SEQ_NUM, lastMsgSeqNum_);
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_NEXT_REQUIRED_BLOCK, nextRequiredBlock_);
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_NUM_PENDING_ITEM_DATA_MSGS, pendingItemDataMsgs.size());
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_TOTAL_SIZE_OF_PENDING_ITEM_DATA_MSGS, totalSizeOfPendingItemDataMsgs);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_FETCHING_STATE, stateName(FetchingState::NotFetching));
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_PEDANTIC_CHECKS_ENABLED,
+                                               pedanticChecks_ ? "true" : "false");
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_PREFERRED_REPLICAS, "");
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_CURRENT_SOURCE_REPLICA, NO_REPLICA);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SIZE_OF_RESERVED_PAGES, sizeOfReservedPage_);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_MSG_SEQ_NUM, lastMsgSeqNum_);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_NEXT_REQUIRED_BLOCK, nextRequiredBlock_);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_NUM_PENDING_ITEM_DATA_MSGS, pendingItemDataMsgs.size());
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_TOTAL_SIZE_OF_PENDING_ITEM_DATA_MSGS,
+                                               totalSizeOfPendingItemDataMsgs);
 
   Assert(stateApi != nullptr);
   Assert(replicas_.size() >= 3U * fVal_ + 1U);
@@ -185,12 +187,13 @@ BCStateTran::~BCStateTran() {
 // Load metrics that are saved on persistent storage
 void BCStateTran::loadMetrics() {
   FetchingState fs = getFetchingState();
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_FETCHING_STATE,  stateName(fs));
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_STORED_CHECKPOINT,  psd_->getLastStoredCheckpoint());
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_NUMBER_OF_RESERVED_PAGES,  psd_->getNumberOfReservedPages());
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_BLOCK,   as_->getLastBlockNum());
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_REACHABLE_BLOCK,   as_->getLastReachableBlockNum());
-
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_FETCHING_STATE, stateName(fs));
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_STORED_CHECKPOINT,
+                                               psd_->getLastStoredCheckpoint());
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_NUMBER_OF_RESERVED_PAGES,
+                                               psd_->getNumberOfReservedPages());
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_BLOCK, as_->getLastBlockNum());
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_REACHABLE_BLOCK, as_->getLastReachableBlockNum());
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -206,8 +209,8 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
 
   maxNumOfStoredCheckpoints_ = maxNumOfRequiredStoredCheckpoints;
   numberOfReservedPages_ = numberOfRequiredReservedPages;
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_NUMBER_OF_RESERVED_PAGES,   numberOfReservedPages_);
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SIZE_OF_RESERVED_PAGES,   sizeOfReservedPage_);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_NUMBER_OF_RESERVED_PAGES, numberOfReservedPages_);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SIZE_OF_RESERVED_PAGES, sizeOfReservedPage_);
 
   memset(buffer_, 0, maxItemSize_);
 
@@ -321,7 +324,7 @@ DataStore::CheckpointDesc BCStateTran::createCheckpointDesc(uint64_t checkpointN
                                                             STDigest digestOfResPagesDescriptor) {
   uint64_t lastBlock = as_->getLastReachableBlockNum();
   Assert(lastBlock == as_->getLastBlockNum());
-   MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_BLOCK,   lastBlock);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_BLOCK, lastBlock);
 
   LOG_DEBUG(STLogger, "last block = " << lastBlock);
   STDigest digestOfLastBlock;
@@ -403,14 +406,15 @@ void BCStateTran::createCheckpointOfCurrentState(uint64_t checkpointNumber) {
   Assert(!isFetching());
   Assert(checkpointNumber > 0);
   Assert(checkpointNumber > psd_->getLastStoredCheckpoint());
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_CREATE_CHECKPOINT);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_CREATE_CHECKPOINT);
   {  // txn scope
     DataStoreTransaction::Guard g(psd_->beginTransaction());
     auto digestOfResPagesDescriptor = checkpointReservedPages(checkpointNumber, g.txn());
     auto checkDesc = createCheckpointDesc(checkpointNumber, digestOfResPagesDescriptor);
     g.txn()->setCheckpointDesc(checkpointNumber, checkDesc);
     deleteOldCheckpoints(checkpointNumber, g.txn());
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_STORED_CHECKPOINT,  psd_->getLastStoredCheckpoint());
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_STORED_CHECKPOINT,
+                                                 psd_->getLastStoredCheckpoint());
   }
 }
 
@@ -420,10 +424,10 @@ void BCStateTran::markCheckpointAsStable(uint64_t checkpointNumber) {
   Assert(running_);
   Assert(!isFetching());
   Assert(checkpointNumber > 0);
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_MARK_CHECKPOINT_AS_STABLE);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_MARK_CHECKPOINT_AS_STABLE);
 
-    const uint64_t lastStoredCheckpoint = psd_->getLastStoredCheckpoint();
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_STORED_CHECKPOINT,  lastStoredCheckpoint);
+  const uint64_t lastStoredCheckpoint = psd_->getLastStoredCheckpoint();
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_STORED_CHECKPOINT, lastStoredCheckpoint);
 
   AssertOR((lastStoredCheckpoint < maxNumOfStoredCheckpoints_),
            (checkpointNumber >= lastStoredCheckpoint - maxNumOfStoredCheckpoints_ + 1));
@@ -465,18 +469,18 @@ bool BCStateTran::loadReservedPage(uint32_t reservedPageId, uint32_t copyLength,
 
   Assert(reservedPageId < numberOfReservedPages_);
   Assert(copyLength <= sizeOfReservedPage_);
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LOAD_RESERVED_PAGE);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LOAD_RESERVED_PAGE);
 
   if (psd_->hasPendingResPage(reservedPageId)) {
     LOG_DEBUG(STLogger, "loaded from pending page");
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LOAD_RESERVED_PAGE_FROM_PENDING);
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LOAD_RESERVED_PAGE_FROM_PENDING);
     psd_->getPendingResPage(reservedPageId, outReservedPage, copyLength);
   } else {
     uint64_t lastCheckpoint = psd_->getLastStoredCheckpoint();
     if (lastCheckpoint == 0)  // case when the system is restarted before reaching the first checkpoint
       return false;
     uint64_t t = UINT64_MAX;
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LOAD_RESERVED_PAGE_FROM_CHECKPOINT);
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LOAD_RESERVED_PAGE_FROM_CHECKPOINT);
     psd_->getResPage(reservedPageId, lastCheckpoint, &t, outReservedPage, copyLength);
     Assert(t <= lastCheckpoint);
     LOG_DEBUG(STLogger, "loaded from checkpoint" << t);
@@ -491,7 +495,7 @@ void BCStateTran::saveReservedPage(uint32_t reservedPageId, uint32_t copyLength,
     Assert(!isFetching());
     Assert(reservedPageId < numberOfReservedPages_);
     Assert(copyLength <= sizeOfReservedPage_);
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SAVE_RESERVED_PAGE);
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SAVE_RESERVED_PAGE);
 
     psd_->setPendingResPage(reservedPageId, inReservedPage, copyLength);
   } catch (std::out_of_range &e) {
@@ -505,8 +509,8 @@ void BCStateTran::zeroReservedPage(uint32_t reservedPageId) {
 
   Assert(!isFetching());
   Assert(reservedPageId < numberOfReservedPages_);
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_ZERO_RESERVED_PAGE);
-    memset(buffer_, 0, sizeOfReservedPage_);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_ZERO_RESERVED_PAGE);
+  memset(buffer_, 0, sizeOfReservedPage_);
   psd_->setPendingResPage(reservedPageId, buffer_, sizeOfReservedPage_);
 }
 
@@ -515,7 +519,7 @@ void BCStateTran::startCollectingState() {
 
   Assert(running_);
   Assert(!isFetching());
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_START_COLLECTION_STATE);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_START_COLLECTION_STATE);
   verifyEmptyInfoAboutGettingCheckpointSummary();
   {  // txn scope
     DataStoreTransaction::Guard g(psd_->beginTransaction());
@@ -527,7 +531,7 @@ void BCStateTran::startCollectingState() {
 
 void BCStateTran::onTimer() {
   if (!running_) return;
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_ON_TIMER);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_ON_TIMER);
   FetchingState fs = getFetchingState();
   if (fs == FetchingState::GettingCheckpointSummaries) {
     uint64_t currTime = getMonotonicTimeMilli();
@@ -547,7 +551,7 @@ void BCStateTran::handleStateTransferMessage(char *msg, uint32_t msgLen, uint16_
   Assert(running_);
   if (msgLen < sizeof(BCStateTranBaseMsg) || senderId == myId_ || replicas_.count(senderId) == 0) {
     // TODO(GG): report about illegal message
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_RECEIVED_ILLEGAL_MSG);
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_RECEIVED_ILLEGAL_MSG);
     LOG_WARN(STLogger, "BCStateTran::handleStateTransferMessage - illegal message");
     replicaForStateTransfer_->freeStateTransferMsg(msg);
     return;
@@ -768,12 +772,12 @@ void BCStateTran::sendToAllOtherReplicas(char *msg, uint32_t msgSize) {
 
 void BCStateTran::sendAskForCheckpointSummariesMsg() {
   Assert(getFetchingState() == FetchingState::GettingCheckpointSummaries);
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SENT_ASK_FOR_CHECKPOINT_SUMMARIES_MSG);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SENT_ASK_FOR_CHECKPOINT_SUMMARIES_MSG);
 
   AskForCheckpointSummariesMsg msg;
   lastTimeSentAskForCheckpointSummariesMsg = getMonotonicTimeMilli();
   lastMsgSeqNum_ = uniqueMsgSeqNum();
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_MSG_SEQ_NUM, lastMsgSeqNum_);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_MSG_SEQ_NUM, lastMsgSeqNum_);
 
   msg.msgSeqNum = lastMsgSeqNum_;
   msg.minRelevantCheckpointNum = psd_->getLastStoredCheckpoint() + 1;
@@ -789,11 +793,11 @@ void BCStateTran::sendFetchBlocksMsg(uint64_t firstRequiredBlock,
                                      uint64_t lastRequiredBlock,
                                      int16_t lastKnownChunkInLastRequiredBlock) {
   Assert(sourceSelector_.hasSource());
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SENT_FETCH_BLOCKS_MSG);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SENT_FETCH_BLOCKS_MSG);
 
   FetchBlocksMsg msg;
   lastMsgSeqNum_ = uniqueMsgSeqNum();
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_MSG_SEQ_NUM, lastMsgSeqNum_);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_MSG_SEQ_NUM, lastMsgSeqNum_);
 
   msg.msgSeqNum = lastMsgSeqNum_;
   msg.firstRequiredBlock = firstRequiredBlock;
@@ -814,12 +818,12 @@ void BCStateTran::sendFetchBlocksMsg(uint64_t firstRequiredBlock,
 void BCStateTran::sendFetchResPagesMsg(int16_t lastKnownChunkInLastRequiredBlock) {
   Assert(sourceSelector_.hasSource());
   Assert(psd_->hasCheckpointBeingFetched());
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SENT_FETCH_RES_PAGES_MSG);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SENT_FETCH_RES_PAGES_MSG);
 
   DataStore::CheckpointDesc cp = psd_->getCheckpointBeingFetched();
   uint64_t lastStoredCheckpoint = psd_->getLastStoredCheckpoint();
   lastMsgSeqNum_ = uniqueMsgSeqNum();
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_MSG_SEQ_NUM, lastMsgSeqNum_);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_MSG_SEQ_NUM, lastMsgSeqNum_);
 
   FetchResPagesMsg msg;
   msg.msgSeqNum = lastMsgSeqNum_;
@@ -846,12 +850,12 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
   LOG_DEBUG(STLogger, "BCStateTran::onMessage - AskForCheckpointSummariesMsg");
 
   Assert(!psd_->getIsFetchingState());
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SENT_ASK_FOR_CHECKPOINT_SUMMARIES_MSG);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SENT_ASK_FOR_CHECKPOINT_SUMMARIES_MSG);
 
   // if msg is invalid
   if (msgLen < sizeof(AskForCheckpointSummariesMsg) || m->minRelevantCheckpointNum == 0 || m->msgSeqNum == 0) {
     LOG_WARN(STLogger, "msg is invalid");
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_INVALID_ASK_FOR_CHECKPOINT_SUMMARIES_MSG);
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_INVALID_ASK_FOR_CHECKPOINT_SUMMARIES_MSG);
     return false;
   }
 
@@ -859,7 +863,7 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
   if (!checkValidityAndSaveMsgSeqNum(replicaId, m->msgSeqNum) ||
       (m->minRelevantCheckpointNum > psd_->getLastStoredCheckpoint())) {
     LOG_WARN(STLogger, "BCStateTran::onMessage - AskForCheckpointSummariesMsg - msg is irrelevant");
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_IRRELEVANT_ASK_FOR_CHECKPOINT_SUMMARIES_MSG);
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_IRRELEVANT_ASK_FOR_CHECKPOINT_SUMMARIES_MSG);
     return false;
   }
 
@@ -899,7 +903,7 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
 
     replicaForStateTransfer_->sendStateTransferMessage(
         reinterpret_cast<char *>(&checkpointSummary), sizeof(CheckpointSummaryMsg), replicaId);
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SENT_CHECKPOINT_SUMMARY_MSG);
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SENT_CHECKPOINT_SUMMARY_MSG);
 
     sent = true;
   }
@@ -915,20 +919,20 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
 
   FetchingState fs = getFetchingState();
   Assert(fs == FetchingState::GettingCheckpointSummaries);
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_RECEIVED_CHECKPOINT_SUMMARY_MSG);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_RECEIVED_CHECKPOINT_SUMMARY_MSG);
 
   // if msg is invalid
   if (msgLen < sizeof(CheckpointSummaryMsg) || m->checkpointNum == 0 || m->digestOfResPagesDescriptor.isZero() ||
       m->requestMsgSeqNum == 0) {
     LOG_WARN(STLogger, "msg is invalid");
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_INVALID_CHECKPOINT_SUMMARY_MSG);
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_INVALID_CHECKPOINT_SUMMARY_MSG);
     return false;
   }
 
   // if msg is not relevant
   if (m->requestMsgSeqNum != lastMsgSeqNum_ || m->checkpointNum <= psd_->getLastStoredCheckpoint()) {
     LOG_WARN(STLogger, "BCStateTran::onMessage - CheckpointSummaryMsg - msg is irrelevant");
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_IRRELEVANT_CHECKPOINT_SUMMARY_MSG);
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_IRRELEVANT_CHECKPOINT_SUMMARY_MSG);
     return false;
   }
 
@@ -975,7 +979,8 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
     CheckpointSummaryMsg *t = cert->getMsgFromReplica(r);
     if (t != nullptr && CheckpointSummaryMsg::equivalent(t, checkSummary)) sourceSelector_.addPreferredReplica(r);
   }
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_PREFERRED_REPLICAS, sourceSelector_.preferredReplicasToString());
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_PREFERRED_REPLICAS,
+                                               sourceSelector_.preferredReplicasToString());
 
   Assert(sourceSelector_.numberOfPreferredReplicas() >= fVal_ + 1);
 
@@ -991,8 +996,8 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
     DataStoreTransaction::Guard g(psd_->beginTransaction());
     Assert(!g.txn()->hasCheckpointBeingFetched());
     g.txn()->setCheckpointBeingFetched(newCheckpoint);
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_CHECKPOINT_BEING_FETCHED, newCheckpoint.checkpointNum);
-
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_CHECKPOINT_BEING_FETCHED,
+                                                 newCheckpoint.checkpointNum);
 
     LOG_DEBUG(STLogger,
               "Start fetching checkpoint: "
@@ -1003,12 +1008,11 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
     // clean
     clearInfoAboutGettingCheckpointSummary();
     lastMsgSeqNum_ = 0;
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_MSG_SEQ_NUM, 0);
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_MSG_SEQ_NUM, 0);
 
     // check if we need to fetch blocks, or reserved pages
     const uint64_t lastReachableBlockNum = as_->getLastReachableBlockNum();
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_REACHABLE_BLOCK, lastReachableBlockNum);
-
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_REACHABLE_BLOCK, lastReachableBlockNum);
 
     if (newCheckpoint.lastBlock > lastReachableBlockNum) {
       g.txn()->setFirstRequiredBlock(lastReachableBlockNum + 1);
@@ -1019,8 +1023,8 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
       Assert(g.txn()->getLastRequiredBlock() == 0);
     }
   }
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_BLOCK, newCheckpoint.lastBlock);
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_FETCHING_STATE, stateName(getFetchingState()));
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_BLOCK, newCheckpoint.lastBlock);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_FETCHING_STATE, stateName(getFetchingState()));
 
   LOG_DEBUG(STLogger, "New state is " << stateName(getFetchingState()));
   processData();
@@ -1029,13 +1033,13 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
 
 bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t replicaId) {
   LOG_DEBUG(STLogger, "BCStateTran::onMessage - FetchBlocksMsg");
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_RECEIVED_FETCH_BLOCKS_MSG);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_RECEIVED_FETCH_BLOCKS_MSG);
 
   // if msg is invalid
   if (msgLen < sizeof(FetchBlocksMsg) || m->msgSeqNum == 0 || m->firstRequiredBlock == 0 ||
       m->lastRequiredBlock < m->firstRequiredBlock) {
     LOG_WARN(STLogger, "msg is invalid");
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_INVALID_FETCH_BLOCKS_MSG);
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_INVALID_FETCH_BLOCKS_MSG);
 
     return false;
   }
@@ -1043,7 +1047,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
   // if msg is not relevant
   if (!checkValidityAndSaveMsgSeqNum(replicaId, m->msgSeqNum)) {
     LOG_WARN(STLogger, "BCStateTran::onMessage - FetchBlocksMsg - msg is irrelevant");
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_IRRELEVANT_FETCH_BLOCKS_MSG);
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_IRRELEVANT_FETCH_BLOCKS_MSG);
 
     return false;
   }
@@ -1058,7 +1062,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
     LOG_WARN(STLogger,
              "Rejecting msg. Sending RejectFetchingMsg to replica "
                  << replicaId << " with requestMsgSeqNum=" << outMsg.requestMsgSeqNum);
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SENT_REJECT_FETCH_MSG);
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SENT_REJECT_FETCH_MSG);
 
     replicaForStateTransfer_->sendStateTransferMessage(
         reinterpret_cast<char *>(&outMsg), sizeof(RejectFetchingMsg), replicaId);
@@ -1110,8 +1114,8 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
                   << outMsg->blockNumber << " totalNumberOfChunksInBlock" << outMsg->totalNumberOfChunksInBlock
                   << " chunkNumber" << outMsg->chunkNumber << " dataSize" << outMsg->dataSize << " )");
 
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SENT_ITEM_DATA_MSG);
-      replicaForStateTransfer_->sendStateTransferMessage(reinterpret_cast<char *>(outMsg), outMsg->size(), replicaId);
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SENT_ITEM_DATA_MSG);
+    replicaForStateTransfer_->sendStateTransferMessage(reinterpret_cast<char *>(outMsg), outMsg->size(), replicaId);
 
     ItemDataMsg::free(outMsg);
     numOfSentChunks++;
@@ -1150,19 +1154,19 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
 
 bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t replicaId) {
   LOG_DEBUG(STLogger, "BCStateTran::onMessage - FetchResPagesMsg");
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_RECEIVED_FETCH_RES_PAGES_MSG);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_RECEIVED_FETCH_RES_PAGES_MSG);
 
   // if msg is invalid
   if (msgLen < sizeof(FetchResPagesMsg) || m->msgSeqNum == 0 || m->requiredCheckpointNum == 0) {
     LOG_WARN(STLogger, "msg is invalid");
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_INVALID_FETCH_RES_PAGES_MSG);
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_INVALID_FETCH_RES_PAGES_MSG);
     return false;
   }
 
   // if msg is not relevant
   if (!checkValidityAndSaveMsgSeqNum(replicaId, m->msgSeqNum)) {
     LOG_WARN(STLogger, "BCStateTran::onMessage - FetchResPagessMsg - msg is irrelevant");
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_IRRELEVANT_FETCH_RES_PAGES_MSG);
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_IRRELEVANT_FETCH_RES_PAGES_MSG);
     return false;
   }
 
@@ -1175,7 +1179,7 @@ bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t
     LOG_WARN(STLogger,
              "Rejecting msg. Sending RejectFetchingMsg to replica "
                  << replicaId << " with requestMsgSeqNum=" << outMsg.requestMsgSeqNum);
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SENT_REJECT_FETCH_MSG);
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SENT_REJECT_FETCH_MSG);
 
     replicaForStateTransfer_->sendStateTransferMessage(
         reinterpret_cast<char *>(&outMsg), sizeof(RejectFetchingMsg), replicaId);
@@ -1249,7 +1253,7 @@ bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t
                   << " destination" << replicaId << " requestMsgSeqNum" << outMsg->requestMsgSeqNum << " blockNumber"
                   << outMsg->blockNumber << " totalNumberOfChunksInBlock" << outMsg->totalNumberOfChunksInBlock
                   << " chunkNumber" << outMsg->chunkNumber << " dataSize" << outMsg->dataSize << " )");
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SENT_ITEM_DATA_MSG);
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_SENT_ITEM_DATA_MSG);
     replicaForStateTransfer_->sendStateTransferMessage(reinterpret_cast<char *>(outMsg), outMsg->size(), replicaId);
 
     ItemDataMsg::free(outMsg);
@@ -1271,7 +1275,7 @@ bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t
 
 bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_t replicaId) {
   LOG_DEBUG(STLogger, "BCStateTran::onMessage - RejectFetchingMsg");
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_RECEIVED_REJECT_FETCHING_MSG);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_RECEIVED_REJECT_FETCHING_MSG);
 
   FetchingState fs = getFetchingState();
   AssertOR(fs == FetchingState::GettingMissingBlocks, fs == FetchingState::GettingMissingResPages);
@@ -1280,14 +1284,14 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
   // if msg is invalid
   if (msgLen < sizeof(RejectFetchingMsg)) {
     LOG_WARN(STLogger, "msg is invalid");
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_INVALID_REJECT_FETCHING_MSG);
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_INVALID_REJECT_FETCHING_MSG);
     return false;
   }
 
   // if msg is not relevant
   if (sourceSelector_.currentReplica() != replicaId || lastMsgSeqNum_ != m->requestMsgSeqNum) {
     LOG_WARN(STLogger, "BCStateTran::onMessage - RejectFetchingMsg - msg is irrelevant");
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_IRRELEVANT_REJECT_FETCHING_MSG);
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_IRRELEVANT_REJECT_FETCHING_MSG);
 
     return false;
   }
@@ -1296,8 +1300,9 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
 
   LOG_WARN(STLogger, "Removing replica " << replicaId << " from preferred replicasa");
   sourceSelector_.removeCurrentReplica();
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_CURRENT_SOURCE_REPLICA, NO_REPLICA);
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_PREFERRED_REPLICAS, sourceSelector_.preferredReplicasToString());
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_CURRENT_SOURCE_REPLICA, NO_REPLICA);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_PREFERRED_REPLICAS,
+                                               sourceSelector_.preferredReplicasToString());
 
   clearAllPendingItemsData();
 
@@ -1320,8 +1325,8 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
 // Retrieve either a chunk of a block or a reserved page when fetching
 bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t replicaId) {
   LOG_DEBUG(STLogger, "BCStateTran::onMessage - ItemDataMsg");
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_RECEIVED_ITEM_DATA_MSG);
-    FetchingState fs = getFetchingState();
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_RECEIVED_ITEM_DATA_MSG);
+  FetchingState fs = getFetchingState();
   AssertOR(fs == FetchingState::GettingMissingBlocks, fs == FetchingState::GettingMissingResPages);
 
   const uint16_t MaxNumOfChunksInBlock =
@@ -1334,7 +1339,7 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
   if (msgLen < m->size() || m->requestMsgSeqNum == 0 || m->blockNumber == 0 || m->totalNumberOfChunksInBlock == 0 ||
       m->totalNumberOfChunksInBlock > MaxNumOfChunksInBlock || m->chunkNumber == 0 || m->dataSize == 0) {
     LOG_WARN(STLogger, "msg is invalid");
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_INVALID_ITEM_DATA_MSG);
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_INVALID_ITEM_DATA_MSG);
 
     return false;
   }
@@ -1358,7 +1363,7 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
                    << ", maxNumberOfChunksInBatch_=" << maxNumberOfChunksInBatch_ << ", dataSize=" << m->dataSize
                    << ", totalSizeOfPendingItemDataMsgs=" << totalSizeOfPendingItemDataMsgs
                    << ", maxPendingDataFromSourceReplica_=" << maxPendingDataFromSourceReplica_);
-         MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_IRRELEVANT_ITEM_DATA_MSG);
+      MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_IRRELEVANT_ITEM_DATA_MSG);
 
       return false;
     }
@@ -1378,7 +1383,7 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
                    << ", blockNumMatches=" << (m->blockNumber == ID_OF_VBLOCK_RES_PAGES) << ", dataSize=" << m->dataSize
                    << ", totalSizeOfPendingItemDataMsgs=" << totalSizeOfPendingItemDataMsgs
                    << ", maxPendingDataFromSourceReplica_=" << maxPendingDataFromSourceReplica_);
-         MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_IRRELEVANT_ITEM_DATA_MSG);
+      MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_IRRELEVANT_ITEM_DATA_MSG);
 
       return false;
     }
@@ -1392,9 +1397,11 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
 
   if (added) {
     LOG_DEBUG(STLogger, "ItemDataMsg was added to pendingItemDataMsgs");
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_NUM_PENDING_ITEM_DATA_MSGS, pendingItemDataMsgs.size());
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_NUM_PENDING_ITEM_DATA_MSGS,
+                                                 pendingItemDataMsgs.size());
     totalSizeOfPendingItemDataMsgs += m->dataSize;
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_TOTAL_SIZE_OF_PENDING_ITEM_DATA_MSGS, totalSizeOfPendingItemDataMsgs);
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_TOTAL_SIZE_OF_PENDING_ITEM_DATA_MSGS,
+                                                 totalSizeOfPendingItemDataMsgs);
     processData();
     return true;
   } else {
@@ -1535,8 +1542,8 @@ void BCStateTran::clearAllPendingItemsData() {
 
   pendingItemDataMsgs.clear();
   totalSizeOfPendingItemDataMsgs = 0;
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_NUM_PENDING_ITEM_DATA_MSGS, 0);
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_TOTAL_SIZE_OF_PENDING_ITEM_DATA_MSGS, 0);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_NUM_PENDING_ITEM_DATA_MSGS, 0);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_TOTAL_SIZE_OF_PENDING_ITEM_DATA_MSGS, 0);
 }
 
 void BCStateTran::clearPendingItemsData(uint64_t untilBlock) {
@@ -1552,8 +1559,9 @@ void BCStateTran::clearPendingItemsData(uint64_t untilBlock) {
     replicaForStateTransfer_->freeStateTransferMsg(reinterpret_cast<char *>(*it));
     it = pendingItemDataMsgs.erase(it);
   }
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_NUM_PENDING_ITEM_DATA_MSGS, pendingItemDataMsgs.size());
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_TOTAL_SIZE_OF_PENDING_ITEM_DATA_MSGS, totalSizeOfPendingItemDataMsgs);
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_NUM_PENDING_ITEM_DATA_MSGS, pendingItemDataMsgs.size());
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_TOTAL_SIZE_OF_PENDING_ITEM_DATA_MSGS,
+                                               totalSizeOfPendingItemDataMsgs);
 }
 
 bool BCStateTran::getNextFullBlock(uint64_t requiredBlock,
@@ -1642,8 +1650,10 @@ bool BCStateTran::getNextFullBlock(uint64_t requiredBlock,
     currentPos += msg->dataSize;
     totalSizeOfPendingItemDataMsgs -= (*it)->dataSize;
     it = pendingItemDataMsgs.erase(it);
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_NUM_PENDING_ITEM_DATA_MSGS, pendingItemDataMsgs.size());
-       MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_TOTAL_SIZE_OF_PENDING_ITEM_DATA_MSGS, totalSizeOfPendingItemDataMsgs);
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_NUM_PENDING_ITEM_DATA_MSGS,
+                                                 pendingItemDataMsgs.size());
+    MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_TOTAL_SIZE_OF_PENDING_ITEM_DATA_MSGS,
+                                                 totalSizeOfPendingItemDataMsgs);
 
     if (currentChunk == totalNumberOfChunks) {
       outBlockSize = currentPos;
@@ -1762,15 +1772,16 @@ set<uint16_t> BCStateTran::allOtherReplicas() {
 
 void BCStateTran::SetAllReplicasAsPreferred() {
   sourceSelector_.setAllReplicasAsPreferred();
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_PREFERRED_REPLICAS, sourceSelector_.preferredReplicasToString());
-
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_PREFERRED_REPLICAS,
+                                               sourceSelector_.preferredReplicasToString());
 }
 
 void BCStateTran::EnterGettingCheckpointSummariesState() {
   Assert(sourceSelector_.noPreferredReplicas());
   LOG_DEBUG(STLogger, "BCStateTran::EnterGettingCheckpointSummariesState");
   sourceSelector_.reset();
-     MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_CURRENT_SOURCE_REPLICA, sourceSelector_.currentReplica());
+  MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_CURRENT_SOURCE_REPLICA,
+                                               sourceSelector_.currentReplica());
 
   nextRequiredBlock_ = 0;
   digestOfNextRequiredBlock.makeZero();
@@ -1814,8 +1825,10 @@ void BCStateTran::processData() {
       }
       sourceSelector_.updateSource(currTime);
       LOG_DEBUG(STLogger, "Selected new source replica: " << (sourceSelector_.currentReplica()));
-         MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_CURRENT_SOURCE_REPLICA, sourceSelector_.currentReplica());
-         MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_PREFERRED_REPLICAS, sourceSelector_.preferredReplicasToString());
+      MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_CURRENT_SOURCE_REPLICA,
+                                                   sourceSelector_.currentReplica());
+      MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_PREFERRED_REPLICAS,
+                                                   sourceSelector_.preferredReplicasToString());
 
       badDataFromCurrentSourceReplica = false;
       clearAllPendingItemsData();
@@ -1977,9 +1990,8 @@ void BCStateTran::processData() {
       LOG_DEBUG(STLogger, "minRelevantCheckpoint=" << minRelevantCheckpoint);
 
       sourceSelector_.reset();
-         MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_PREFERRED_REPLICAS, "");
-         MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_CURRENT_SOURCE_REPLICA, NO_REPLICA);
-
+      MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_PREFERRED_REPLICAS, "");
+      MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_CURRENT_SOURCE_REPLICA, NO_REPLICA);
 
       nextRequiredBlock_ = 0;
       digestOfNextRequiredBlock.makeZero();
@@ -1987,16 +1999,17 @@ void BCStateTran::processData() {
 
       // Metrics set at the end of the block to prevent transaction abort from
       // leaving inconsistencies.
-         MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_PREFERRED_REPLICAS, "");
-         MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_CURRENT_SOURCE_REPLICA, sourceSelector_.currentReplica());
-         MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_STORED_CHECKPOINT, cp.checkpointNum);
-         MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_CHECKPOINT_BEING_FETCHED, 0);
+      MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_PREFERRED_REPLICAS, "");
+      MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_CURRENT_SOURCE_REPLICA,
+                                                   sourceSelector_.currentReplica());
+      MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_LAST_STORED_CHECKPOINT, cp.checkpointNum);
+      MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_CHECKPOINT_BEING_FETCHED, 0);
 
       checkConsistency(pedanticChecks_);
 
       // Completion
       LOG_DEBUG(STLogger, "Calling onTransferringComplete for checkpoint " << cp.checkpointNum);
-         MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_ON_TRANSFERRING_COMPLETE);
+      MetricsCollector::instance(myId_).takeMetric(MetricType::BCST_ON_TRANSFERRING_COMPLETE);
 
       replicaForStateTransfer_->onTransferringComplete(cp.checkpointNum);
 

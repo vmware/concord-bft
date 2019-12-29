@@ -51,8 +51,7 @@ class Server {
       : listenPort_{listenPort},
         logger_{concordlogger::Log::getLogger("metrics-server")},
         running_{false},
-        aggregator_{std::make_shared<Aggregator>()}
-        {}
+        aggregator_{std::make_shared<Aggregator>()} {}
 
   void Start();
   void Stop();
@@ -60,7 +59,7 @@ class Server {
   std::shared_ptr<Aggregator> GetAggregator() { return aggregator_; }
 
   void registerMetricsHandlers(uint32_t id) {
-        collector = std::make_unique<ConcordbftMetricsCollector>(id, aggregator_);
+    collector = std::make_unique<ConcordbftMetricsCollector>(id, aggregator_);
   }
 
  private:
