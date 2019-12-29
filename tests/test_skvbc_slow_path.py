@@ -20,6 +20,7 @@ import unittest
 from util import bft
 from util import skvbc as kvbc
 
+
 KEY_FILE_PREFIX = "replica_keys_"
 
 
@@ -52,11 +53,11 @@ class SkvbcSlowPathTest(unittest.TestCase):
         Start a full BFT network with c=0 then bring one replica down.
 
         Write a batch of known K/V entries.
-        
+
         Then we check that messages from now on are processed on the slow commit path.
         (note that this is not the case for c>0 where the BFT network eventually
         returns to the fast commit path)
-        
+
         Finally we check if a known K/V has been executed and readable.
         """
         trio.run(self._test_persistent_slow_path)
@@ -90,7 +91,7 @@ class SkvbcSlowPathTest(unittest.TestCase):
         This test aims to check that the system correctly restores
         the fast path once all failed nodes are back online.
 
-        First we bring down a non-primary replica, and make sure 
+        First we bring down a non-primary replica, and make sure
         a batch of K/V entries is processed on the slow path.
 
         Once the first batch of K/V writes have been processed, we bring the

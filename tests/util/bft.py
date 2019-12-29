@@ -28,9 +28,9 @@ sys.path.append(os.path.abspath("../util/pyclient"))
 import bft_config
 import bft_client
 import bft_metrics_client
-from util import bft_metrics, skvbc
-
+from util import bft_metrics
 from util.bft_test_exceptions import AlreadyRunningError, AlreadyStoppedError
+
 
 TestConfig = namedtuple('TestConfig', [
     'n',
@@ -40,6 +40,7 @@ TestConfig = namedtuple('TestConfig', [
     'key_file_prefix',
     'start_replica_cmd'
 ])
+
 
 def interesting_configs(
         selected=lambda *config: True):
@@ -63,16 +64,19 @@ def interesting_configs(
 
     return selected_bft_configs
 
+
 MAX_MSG_SIZE = 64*1024 # 64k
 REQ_TIMEOUT_MILLI = 5000
 RETRY_TIMEOUT_MILLI = 250
 METRICS_TIMEOUT_SEC = 5
+
 
 # TODO: This is not generic, but is required for use by SimpleKVBC. In the
 # future we will likely want to change how we determine the lengths of keys and
 # values, make them parameterizable, or generate keys in the protocols rather
 # than tester. For now, all keys and values must be 21 bytes.
 KV_LEN = 21
+
 
 class BftTestNetwork:
     """Encapsulates a BFT network instance for testing purposes"""
@@ -154,6 +158,12 @@ class BftTestNetwork:
     def random_clients(self, max_clients):
         return set(random.choices(list(self.clients.values()), k=max_clients))
 
+    def start_replica_cmd(self, replica_id):
+        """
+        Returns command line to start replica with the given id
+        """
+        return self.config.start_replica_cmd(self.builddir, replica_id)
+
     def start_all_replicas(self):
         [self.start_replica(i) for i in range(0, self.config.n)]
 
@@ -165,6 +175,19 @@ class BftTestNetwork:
 
         self.procs = {}
 
+    def start_replicas(self, replicas):
+        """
+        Start from list "replicas"
+        """
+        [self.start_replica(r) for r in replicas]
+
+    def stop_replicas(self, replicas):
+        """
+        Start from list "replicas"
+        """
+        for r in replicas:
+            self.stop_replica(r)
+
     def start_replica(self, replica_id):
         """
         Start a replica if it isn't already started.
@@ -172,7 +195,7 @@ class BftTestNetwork:
         """
         if replica_id in self.procs:
             raise AlreadyRunningError(replica_id)
-        cmd = self.config.start_replica_cmd(self.builddir, replica_id)
+        cmd = self.start_replica_cmd(replica_id)
         self.procs[replica_id] = subprocess.Popen(cmd, close_fds=True)
 
     def stop_replica(self, replica):
