@@ -52,5 +52,5 @@ if [ -n "$2" ]; then
   >&2 echo "ERROR: Unknown parameter \"$2\""
   return 1
 else
-  clang-format-7 -verbose -style=file -fallback-style=none -i ${FILES_TO_FORMAT}
+  clang-format -verbose -style=file -fallback-style=none -i ${FILES_TO_FORMAT}
 fi
