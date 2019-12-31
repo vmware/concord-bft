@@ -9,17 +9,15 @@
 # notices and license terms. Your use of these subcomponents is subject to the
 # terms and conditions of the subcomponent's license, as noted in the LICENSE
 # file.
+import os.path
 import random
 import unittest
+
 import trio
-import os.path
 
-from util import bft
-from util import skvbc as kvbc
 from util import blinking_replica
-
-
-KEY_FILE_PREFIX = "replica_keys_"
+from util import skvbc as kvbc
+from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 
 
 def start_replica_cmd(builddir, replica_id):
@@ -39,7 +37,9 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcTest(unittest.TestCase):
 
-    def test_state_transfer(self):
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_state_transfer(self, bft_network):
         """
         Test that state transfer starts and completes.
 
@@ -48,119 +48,44 @@ class SkvbcTest(unittest.TestCase):
         cluster with f=1 we should be able to stop a different node after state
         transfer completes and still operate correctly.
         """
-        trio.run(self._test_state_transfer)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-    async def _test_state_transfer(self):
-        for bft_config in bft.interesting_configs():
-            config = bft.TestConfig(n=bft_config['n'],
-                                    f=bft_config['f'],
-                                    c=bft_config['c'],
-                                    num_clients=bft_config['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
-            with bft.BftTestNetwork(config) as bft_network:
-                skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        stale_node = random.choice(
+            bft_network.all_replicas(without={0}))
 
-                stale_node = random.choice(
-                    bft_network.all_replicas(without={0}))
+        await skvbc.prime_for_state_transfer(
+            stale_nodes={stale_node},
+            persistency_enabled=False
+        )
+        bft_network.start_replica(stale_node)
+        await bft_network.wait_for_state_transfer_to_start()
+        await bft_network.wait_for_state_transfer_to_stop(0, stale_node)
+        await skvbc.assert_successful_put_get(self)
+        random_replica = random.choice(
+            bft_network.all_replicas(without={0, stale_node}))
+        bft_network.stop_replica(random_replica)
+        await skvbc.assert_successful_put_get(self)
 
-                await skvbc.prime_for_state_transfer(
-                    stale_nodes={stale_node},
-                    persistency_enabled=False
-                )
-                bft_network.start_replica(stale_node)
-                await bft_network.wait_for_state_transfer_to_start()
-                await bft_network.wait_for_state_transfer_to_stop(0, stale_node)
-                await skvbc.assert_successful_put_get(self)
-                random_replica = random.choice(
-                    bft_network.all_replicas(without={0, stale_node}))
-                bft_network.stop_replica(random_replica)
-                await skvbc.assert_successful_put_get(self)
-
-    def test_get_block_data_with_blinking_replica(self):
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_get_block_data_with_blinking_replica(self, bft_network):
         """
         Test that the cluster continues working when one blinking replica
         By a blinking replic we mean a replica that goes up and down for random
         period of time
         """
-        trio.run(self._test_get_block_data_with_blinking_replica)
+        with blinking_replica.BlinkingReplica() as blinking:
+            br = random.choice(
+                bft_network.all_replicas(without={0}))
+            bft_network.start_replicas(replicas=bft_network.all_replicas(without={br}))
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            client = bft_network.random_client()
 
-    async def _test_get_block_data_with_blinking_replica(self):
-        for bft_config in bft.interesting_configs():
-            config = bft.TestConfig(n=bft_config['n'],
-                                    f=bft_config['f'],
-                                    c=bft_config['c'],
-                                    num_clients=bft_config['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
-            with bft.BftTestNetwork(config) as bft_network:
-                with blinking_replica.BlinkingReplica() as blinking:
-                    await bft_network.init()
-                    br = random.choice(
-                            bft_network.all_replicas(without={0}))
-                    bft_network.start_replicas(replicas=bft_network.all_replicas(without={br}))
-                    skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-                    client = bft_network.random_client()
+            blinking.start_blinking(bft_network.start_replica_cmd(br))
 
-                    blinking.start_blinking(bft_network.start_replica_cmd(br))
-
-                    for _ in range(300):
-                        last_block = skvbc.parse_reply(
-                                await client.read(skvbc.get_last_block_req()))
-                        # Perform an unconditional KV put.
-                        # Ensure keys aren't identical
-                        kv = [(skvbc.keys[0], skvbc.random_value()),
-                              (skvbc.keys[1], skvbc.random_value())]
-
-                        reply = await client.write(skvbc.write_req([], kv, 0))
-                        reply = skvbc.parse_reply(reply)
-                        self.assertTrue(reply.success)
-                        self.assertEqual(last_block + 1, reply.last_block_id)
-
-                        last_block = reply.last_block_id
-
-                        # Get the kvpairs in the last written block
-                        data = await client.read(skvbc.get_block_data_req(last_block))
-                        kv2 = skvbc.parse_reply(data)
-                        self.assertDictEqual(kv2, dict(kv))
-
-                        # Write another block with the same keys but (probabilistically)
-                        # different data
-                        kv3 = [(skvbc.keys[0], skvbc.random_value()),
-                               (skvbc.keys[1], skvbc.random_value())]
-                        reply = await client.write(skvbc.write_req([], kv3, 0))
-                        reply = skvbc.parse_reply(reply)
-                        self.assertTrue(reply.success)
-                        self.assertEqual(last_block + 1, reply.last_block_id)
-
-                        # Get the kvpairs in the previously written block
-                        data = await client.read(skvbc.get_block_data_req(last_block))
-                        kv2 = skvbc.parse_reply(data)
-
-                        self.assertDictEqual(kv2, dict(kv))
-
-    def test_get_block_data(self):
-        """
-        Ensure that we can put a block and use the GetBlockData API request to
-        retrieve its KV pairs.
-        """
-        trio.run(self._test_get_block_data)
-
-    async def _test_get_block_data(self):
-        for bft_config in bft.interesting_configs():
-            config = bft.TestConfig(n=bft_config['n'],
-                                    f=bft_config['f'],
-                                    c=bft_config['c'],
-                                    num_clients=bft_config['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
-            with bft.BftTestNetwork(config) as bft_network:
-                await bft_network.init()
-                bft_network.start_all_replicas()
-                skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-                client = bft_network.random_client()
-                last_block = skvbc.parse_reply(await client.read(skvbc.get_last_block_req()))
-
+            for _ in range(300):
+                last_block = skvbc.parse_reply(
+                    await client.read(skvbc.get_last_block_req()))
                 # Perform an unconditional KV put.
                 # Ensure keys aren't identical
                 kv = [(skvbc.keys[0], skvbc.random_value()),
@@ -190,9 +115,55 @@ class SkvbcTest(unittest.TestCase):
                 # Get the kvpairs in the previously written block
                 data = await client.read(skvbc.get_block_data_req(last_block))
                 kv2 = skvbc.parse_reply(data)
+
                 self.assertDictEqual(kv2, dict(kv))
 
-    def test_conflicting_write(self):
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_get_block_data(self, bft_network):
+        """
+        Ensure that we can put a block and use the GetBlockData API request to
+        retrieve its KV pairs.
+        """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        client = bft_network.random_client()
+        last_block = skvbc.parse_reply(await client.read(skvbc.get_last_block_req()))
+
+        # Perform an unconditional KV put.
+        # Ensure keys aren't identical
+        kv = [(skvbc.keys[0], skvbc.random_value()),
+              (skvbc.keys[1], skvbc.random_value())]
+
+        reply = await client.write(skvbc.write_req([], kv, 0))
+        reply = skvbc.parse_reply(reply)
+        self.assertTrue(reply.success)
+        self.assertEqual(last_block + 1, reply.last_block_id)
+
+        last_block = reply.last_block_id
+
+        # Get the kvpairs in the last written block
+        data = await client.read(skvbc.get_block_data_req(last_block))
+        kv2 = skvbc.parse_reply(data)
+        self.assertDictEqual(kv2, dict(kv))
+
+        # Write another block with the same keys but (probabilistically)
+        # different data
+        kv3 = [(skvbc.keys[0], skvbc.random_value()),
+               (skvbc.keys[1], skvbc.random_value())]
+        reply = await client.write(skvbc.write_req([], kv3, 0))
+        reply = skvbc.parse_reply(reply)
+        self.assertTrue(reply.success)
+        self.assertEqual(last_block + 1, reply.last_block_id)
+
+        # Get the kvpairs in the previously written block
+        data = await client.read(skvbc.get_block_data_req(last_block))
+        kv2 = skvbc.parse_reply(data)
+        self.assertDictEqual(kv2, dict(kv))
+
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_conflicting_write(self, bft_network):
         """
         The goal is to validate that a conflicting write request does not
         modify the blockchain state. Verifying this can be done as follows:
@@ -203,56 +174,44 @@ class SkvbcTest(unittest.TestCase):
         3) execute the conflicting write
         4) verify K' is not written to the blockchain
         """
-        trio.run(self._test_conflicting_write)
+        bft_network.start_all_replicas()
 
-    async def _test_conflicting_write(self):
-        for bft_config in bft.interesting_configs():
-            config = bft.TestConfig(n=bft_config['n'],
-                                    f=bft_config['f'],
-                                    c=bft_config['c'],
-                                    num_clients=bft_config['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
-            with bft.BftTestNetwork(config) as bft_network:
-                await bft_network.init()
-                bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-                skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        key = skvbc.random_key()
 
-                key = skvbc.random_key()
+        write_1 = skvbc.write_req(
+            readset=[],
+            writeset=[(key, skvbc.random_value())],
+            block_id=0)
 
-                write_1 = skvbc.write_req(
-                    readset=[],
-                    writeset=[(key, skvbc.random_value())],
-                    block_id=0)
+        write_2 = skvbc.write_req(
+            readset=[],
+            writeset=[(key, skvbc.random_value())],
+            block_id=0)
 
-                write_2 = skvbc.write_req(
-                    readset=[],
-                    writeset=[(key, skvbc.random_value())],
-                    block_id=0)
+        client = bft_network.random_client()
 
-                client = bft_network.random_client()
+        await client.write(write_1)
+        last_write_reply = \
+            skvbc.parse_reply(await client.write(write_2))
 
-                await client.write(write_1)
-                last_write_reply = \
-                    skvbc.parse_reply(await client.write(write_2))
+        last_block_id = last_write_reply.last_block_id
 
-                last_block_id = last_write_reply.last_block_id
+        key_prime = skvbc.random_key()
 
-                key_prime = skvbc.random_key()
+        # this write is conflicting because the writeset (key_prime) is
+        # based on an outdated version of the readset (key)
+        conflicting_write = skvbc.write_req(
+            readset=[key],
+            writeset=[(key_prime, skvbc.random_value())],
+            block_id=last_block_id - 1)
 
-                # this write is conflicting because the writeset (key_prime) is
-                # based on an outdated version of the readset (key)
-                conflicting_write = skvbc.write_req(
-                    readset=[key],
-                    writeset=[(key_prime, skvbc.random_value())],
-                    block_id=last_block_id-1)
+        write_result = \
+            skvbc.parse_reply(await client.write(conflicting_write))
+        successful_write = write_result.success
 
-                write_result = \
-                    skvbc.parse_reply(await client.write(conflicting_write))
-                successful_write = write_result.success
-
-                self.assertTrue(not successful_write)
+        self.assertTrue(not successful_write)
 
 if __name__ == '__main__':
     unittest.main()

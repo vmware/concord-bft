@@ -12,16 +12,12 @@
 
 import os.path
 import random
+import unittest
 
 import trio
 
-import unittest
-
-from util import bft
 from util import skvbc as kvbc
-
-
-KEY_FILE_PREFIX = "replica_keys_"
+from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 
 
 def start_replica_cmd(builddir, replica_id):
@@ -48,7 +44,10 @@ class SkvbcSlowPathTest(unittest.TestCase):
         # the system should return to the fast path.
         self.evaluation_period_seq_num = 64
 
-    def test_persistent_slow_path(self):
+    @with_trio
+    @with_bft_network(start_replica_cmd,
+                      selected_configs=lambda n, f, c: c == 0)
+    async def test_persistent_slow_path(self, bft_network):
         """
         Start a full BFT network with c=0 then bring one replica down.
 
@@ -60,33 +59,23 @@ class SkvbcSlowPathTest(unittest.TestCase):
 
         Finally we check if a known K/V has been executed and readable.
         """
-        trio.run(self._test_persistent_slow_path)
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-    async def _test_persistent_slow_path(self):
-        for bft_config in bft.interesting_configs(lambda n, f, c: c == 0):
-            config = bft.TestConfig(n=bft_config['n'],
-                                    f=bft_config['f'],
-                                    c=bft_config['c'],
-                                    num_clients=bft_config['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
-            with bft.BftTestNetwork(config) as bft_network:
-                await bft_network.init()
-                bft_network.start_all_replicas()
-                skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        unstable_replicas = bft_network.all_replicas(without={0})
+        bft_network.stop_replica(
+            replica=random.choice(unstable_replicas))
 
-                unstable_replicas = bft_network.all_replicas(without={0})
-                bft_network.stop_replica(
-                    replica=random.choice(unstable_replicas))
+        for _ in range(self.evaluation_period_seq_num * 2):
+            key, val = await skvbc.write_known_kv()
 
-                for _ in range(self.evaluation_period_seq_num*2):
-                    key, val = await skvbc.write_known_kv()
+        await bft_network.assert_slow_path_prevalent(as_of_seq_num=1)
 
-                await bft_network.assert_slow_path_prevalent(as_of_seq_num=1)
+        await skvbc.assert_kv_write_executed(key, val)
 
-                await skvbc.assert_kv_write_executed(key, val)
-
-    def test_slow_to_fast_path_transition(self):
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_slow_to_fast_path_transition(self, bft_network):
         """
         This test aims to check that the system correctly restores
         the fast path once all failed nodes are back online.
@@ -103,40 +92,30 @@ class SkvbcSlowPathTest(unittest.TestCase):
 
         Finally we check if a known K/V has been executed and readable.
         """
-        trio.run(self._test_slow_to_fast_path_transition)
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-    async def _test_slow_to_fast_path_transition(self):
-        for bft_config in bft.interesting_configs():
-            config = bft.TestConfig(n=bft_config['n'],
-                                    f=bft_config['f'],
-                                    c=bft_config['c'],
-                                    num_clients=bft_config['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
-            with bft.BftTestNetwork(config) as bft_network:
-                await bft_network.init()
-                bft_network.start_all_replicas()
-                skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        unstable_replicas = bft_network.all_replicas(without={0})
+        crashed_replica = random.choice(unstable_replicas)
+        bft_network.stop_replica(crashed_replica)
 
-                unstable_replicas = bft_network.all_replicas(without={0})
-                crashed_replica = random.choice(unstable_replicas)
-                bft_network.stop_replica(crashed_replica)
+        for _ in range(10):
+            await skvbc.write_known_kv()
 
-                for _ in range(10):
-                    await skvbc.write_known_kv()
+        await bft_network.assert_slow_path_prevalent(as_of_seq_num=1)
 
-                await bft_network.assert_slow_path_prevalent(as_of_seq_num=1)
+        bft_network.start_replica(crashed_replica)
 
-                bft_network.start_replica(crashed_replica)
+        for _ in range(10):
+            key, val = await skvbc.write_known_kv()
 
-                for _ in range(10):
-                    key, val = await skvbc.write_known_kv()
+        await bft_network.assert_fast_path_prevalent(nb_slow_paths_so_far=10)
 
-                await bft_network.assert_fast_path_prevalent(nb_slow_paths_so_far=10)
+        await skvbc.assert_kv_write_executed(key, val)
 
-                await skvbc.assert_kv_write_executed(key, val)
-
-    def test_slow_path_view_change(self):
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_slow_path_view_change(self, bft_network):
         """
         This test validates the BFT engine's transition to the slow path
         when the primary goes down. This effectively triggers a view change in the slow path.
@@ -151,32 +130,21 @@ class SkvbcSlowPathTest(unittest.TestCase):
 
         We make sure the second batch of requests have been processed via the slow path.
         """
-        trio.run(self._test_slow_path_view_change)
 
-    async def _test_slow_path_view_change(self):
-        for bft_config in bft.interesting_configs():
-            config = bft.TestConfig(n=bft_config['n'],
-                                    f=bft_config['f'],
-                                    c=bft_config['c'],
-                                    num_clients=bft_config['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
-            with bft.BftTestNetwork(config) as bft_network:
-                await bft_network.init()
-                bft_network.start_all_replicas()
-                skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-                for _ in range(10):
-                    await skvbc.write_known_kv()
+        for _ in range(10):
+            await skvbc.write_known_kv()
 
-                await bft_network.assert_fast_path_prevalent()
+        await bft_network.assert_fast_path_prevalent()
 
-                bft_network.stop_replica(0)
+        bft_network.stop_replica(0)
 
-                with trio.move_on_after(seconds=5):
-                    async with trio.open_nursery() as nursery:
-                        nursery.start_soon(skvbc.send_indefinite_write_requests)
+        with trio.move_on_after(seconds=5):
+            async with trio.open_nursery() as nursery:
+                nursery.start_soon(skvbc.send_indefinite_write_requests)
 
-                bft_network.start_replica(0)
+        bft_network.start_replica(0)
 
-                await bft_network.wait_for_slow_path_to_be_prevalent(as_of_seq_num=10)
+        await bft_network.wait_for_slow_path_to_be_prevalent(as_of_seq_num=10)

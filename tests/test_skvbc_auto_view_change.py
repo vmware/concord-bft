@@ -10,16 +10,14 @@
 # terms and conditions of the subcomponent's license, as noted in the LICENSE
 # file.
 
-import unittest
-
 import os.path
 import random
-import trio
+import unittest
 
-from util import bft
+from test_skvbc_linearizability import KEY_FILE_PREFIX
 from util import skvbc as kvbc
+from util.bft import with_trio, with_bft_network
 
-KEY_FILE_PREFIX = "replica_keys_"
 
 def start_replica_cmd(builddir, replica_id):
     """
@@ -38,9 +36,12 @@ def start_replica_cmd(builddir, replica_id):
             "-v", viewChangeTimeoutMilli,
             "-a", autoPrimaryRotationTimeoutMilli]
 
+
 class SkvbcAutoViewChangeTest(unittest.TestCase):
 
-    def test_auto_vc_all_nodes_up_no_requests(self):
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_auto_vc_all_nodes_up_no_requests(self, bft_network):
         """
         This test aims to validate automatic view change
         in the absence of any client messages:
@@ -48,31 +49,21 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         2) Do nothing (wait for automatic view change to kick-in)
         3) Check that view change has occurred (necessarily, automatic view change)
         """
-        trio.run(self._test_auto_vc_all_nodes_up_no_requests)
+        bft_network.start_all_replicas()
 
-    async def _test_auto_vc_all_nodes_up_no_requests(self):
-        for bft_config in bft.interesting_configs():
-            config = bft.TestConfig(n=bft_config['n'],
-                                    f=bft_config['f'],
-                                    c=bft_config['c'],
-                                    num_clients=bft_config['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
-            with bft.BftTestNetwork(config) as bft_network:
-                await bft_network.init()
-                bft_network.start_all_replicas()
+        initial_primary = 0
 
-                initial_primary = 0
+        # do nothing - just wait for an automatic view change
+        await bft_network.wait_for_view_change(
+            replica_id=random.choice(
+                bft_network.all_replicas(without={initial_primary})),
+            expected=lambda v: v > initial_primary,
+            err_msg="Make sure automatic view change has occurred."
+        )
 
-                # do nothing - just wait for an automatic view change
-                await bft_network.wait_for_view_change(
-                    replica_id=random.choice(
-                        bft_network.all_replicas(without={initial_primary})),
-                    expected=lambda v: v > initial_primary,
-                    err_msg="Make sure automatic view change has occurred."
-                )
-
-    def test_auto_vc_when_primary_down(self):
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_auto_vc_when_primary_down(self, bft_network):
         """
         This test aims to validate automatic view change
         when the primary is down
@@ -81,32 +72,22 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         3) Do nothing (wait for automatic view change to kick-in)
         4) Check that view change has occurred (necessarily, automatic view change)
         """
-        trio.run(self._test_auto_vc_when_primary_down)
+        bft_network.start_all_replicas()
 
-    async def _test_auto_vc_when_primary_down(self):
-        for bft_config in bft.interesting_configs():
-            config = bft.TestConfig(n=bft_config['n'],
-                                    f=bft_config['f'],
-                                    c=bft_config['c'],
-                                    num_clients=bft_config['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
-            with bft.BftTestNetwork(config) as bft_network:
-                await bft_network.init()
-                bft_network.start_all_replicas()
+        initial_primary = 0
+        bft_network.stop_replica(initial_primary)
 
-                initial_primary = 0
-                bft_network.stop_replica(initial_primary)
+        # do nothing - just wait for an automatic view change
+        await bft_network.wait_for_view_change(
+            replica_id=random.choice(
+                bft_network.all_replicas(without={initial_primary})),
+            expected=lambda v: v > initial_primary,
+            err_msg="Make sure automatic view change has occurred."
+        )
 
-                # do nothing - just wait for an automatic view change
-                await bft_network.wait_for_view_change(
-                    replica_id=random.choice(
-                        bft_network.all_replicas(without={initial_primary})),
-                    expected=lambda v: v > initial_primary,
-                    err_msg="Make sure automatic view change has occurred."
-                )
-
-    def test_auto_vc_all_nodes_up_fast_path(self):
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_auto_vc_all_nodes_up_fast_path(self, bft_network):
         """
         This test aims to validate automatic view change
         while messages are being processed on the fast path
@@ -115,32 +96,20 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         3) Make sure view change occurred at some point while processing the writes
         4) Check that all writes have been processed on the fast commit path
         """
-        trio.run(self._test_auto_vc_all_nodes_up_fast_path)
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-    async def _test_auto_vc_all_nodes_up_fast_path(self):
-        for bft_config in bft.interesting_configs():
-            config = bft.TestConfig(n=bft_config['n'],
-                                    f=bft_config['f'],
-                                    c=bft_config['c'],
-                                    num_clients=bft_config['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
-            with bft.BftTestNetwork(config) as bft_network:
-                await bft_network.init()
-                bft_network.start_all_replicas()
-                skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        initial_primary = 0
 
-                initial_primary = 0
+        for _ in range(150):
+            key, val = await skvbc.write_known_kv()
 
-                for _ in range(150):
-                    key, val = await skvbc.write_known_kv()
+        await bft_network.wait_for_view_change(
+            replica_id=random.choice(
+                bft_network.all_replicas(without={initial_primary})),
+            expected=lambda v: v > initial_primary,
+            err_msg="Make sure automatic view change has occurred."
+        )
 
-                await bft_network.wait_for_view_change(
-                    replica_id=random.choice(
-                        bft_network.all_replicas(without={initial_primary})),
-                    expected=lambda v: v > initial_primary,
-                    err_msg="Make sure automatic view change has occurred."
-                )
-
-                await skvbc.assert_kv_write_executed(key, val)
-                await bft_network.assert_fast_path_prevalent()
+        await skvbc.assert_kv_write_executed(key, val)
+        await bft_network.assert_fast_path_prevalent()

@@ -21,6 +21,8 @@ import random
 import subprocess
 from collections import namedtuple
 import tempfile
+from functools import wraps
+
 import trio
 
 sys.path.append(os.path.abspath("../util/pyclient"))
@@ -41,9 +43,12 @@ TestConfig = namedtuple('TestConfig', [
     'start_replica_cmd'
 ])
 
+KEY_FILE_PREFIX = "replica_keys_"
 
-def interesting_configs(
-        selected=lambda *config: True):
+
+def interesting_configs(selected=None):
+    if selected is None:
+        selected=lambda *config: True
 
     bft_configs = [{'n': 4, 'f': 1, 'c': 0, 'num_clients': 4},
                    {'n': 6, 'f': 1, 'c': 1, 'num_clients': 4},
@@ -60,9 +65,43 @@ def interesting_configs(
 
     for config in selected_bft_configs:
         assert config['n'] == 3 * config['f'] + 2 * config['c'] + 1, \
-            "Ivariant breached: n = 3f + 2c + 1"
+            "Invariant breached. Expected: n = 3f + 2c + 1"
 
     return selected_bft_configs
+
+
+def with_trio(async_fn):
+    """ Decorator for running a coroutine (async_fn) with trio. """
+    @wraps(async_fn)
+    def trio_wrapper(*args, **kwargs):
+        return trio.run(async_fn, *args, **kwargs)
+
+    return trio_wrapper
+
+
+def with_bft_network(start_replica_cmd, selected_configs=None):
+    """
+    Runs the decorated async function for all selected BFT configs
+    """
+    def decorator(async_fn):
+        @wraps(async_fn)
+        async def wrapper(*args, **kwargs):
+            for bft_config in interesting_configs(selected_configs):
+                config = TestConfig(n=bft_config['n'],
+                                    f=bft_config['f'],
+                                    c=bft_config['c'],
+                                    num_clients=bft_config['num_clients'],
+                                    key_file_prefix=KEY_FILE_PREFIX,
+                                    start_replica_cmd=start_replica_cmd)
+                with BftTestNetwork(config) as bft_network:
+                    print(f'Running {async_fn.__name__} '
+                          f'with n={config.n}, f={config.f}, c={config.c},'
+                          f'num_clients={config.num_clients}')
+                    await bft_network.init()
+                    await async_fn(*args, **kwargs, bft_network=bft_network)
+        return wrapper
+
+    return decorator
 
 
 MAX_MSG_SIZE = 64*1024 # 64k

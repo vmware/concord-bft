@@ -178,7 +178,6 @@ class SimpleKVBCProtocol:
             self, stale_nodes,
             checkpoints_num=2,
             persistency_enabled=True):
-        await self.bft_network.init()
         initial_nodes = self.bft_network.all_replicas(without=stale_nodes)
         [self.bft_network.start_replica(i) for i in initial_nodes]
         client = SkvbcClient(self.bft_network.random_client())
