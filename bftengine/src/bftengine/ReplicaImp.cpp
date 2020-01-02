@@ -2972,12 +2972,12 @@ ReplicaImp::~ReplicaImp() {
 
 void ReplicaImp::stop() {
   TimersSingleton::getInstance().cancel(stateTranTimer_);
-  TimersSingleton::getInstance().cancel(retranTimer_);
+  if (retransmissionsLogicEnabled) TimersSingleton::getInstance().cancel(retranTimer_);
   TimersSingleton::getInstance().cancel(slowPathTimer_);
   TimersSingleton::getInstance().cancel(infoReqTimer_);
   TimersSingleton::getInstance().cancel(statusReportTimer_);
-  TimersSingleton::getInstance().cancel(viewChangeTimer_);
-  TimersSingleton::getInstance().cancel(debugStatTimer_);
+  if (viewChangeProtocolEnabled) TimersSingleton::getInstance().cancel(viewChangeTimer_);
+  if (config_.debugStatisticsEnabled) TimersSingleton::getInstance().cancel(debugStatTimer_);
   TimersSingleton::getInstance().cancel(metricsTimer_);
 
   msgsCommunicator_->stopMsgsProcessing();

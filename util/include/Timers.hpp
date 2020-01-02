@@ -101,21 +101,23 @@ class Timers {
 
   std::vector<Timer>::iterator find(Handle handle) {
     std::unique_lock<std::recursive_mutex> mlock(lock_);
-    return std::find_if(timers_.begin(), timers_.end(), [&handle](const Timer& t) { return t.id_ == handle.id_; });
+    auto it = std::find_if(timers_.begin(), timers_.end(), [&handle](Timer t) { return t.id_ == handle.id_; });
+    if (it != timers_.end())
+      return it;
+    else
+      throw std::invalid_argument("Invalid timer handle");
   }
 
   void reset(Handle handle, std::chrono::milliseconds d) { reset(handle, d, std::chrono::steady_clock::now()); }
 
   void reset(Handle handle, std::chrono::milliseconds d, std::chrono::steady_clock::time_point now) {
     std::unique_lock<std::recursive_mutex> mlock(lock_);
-    auto it = find(handle);
-    if (it != timers_.end()) it->reset(now, d);
+    find(handle)->reset(now, d);
   }
 
   void cancel(Handle handle) {
     std::unique_lock<std::recursive_mutex> mlock(lock_);
-    auto it = find(handle);
-    if (it != timers_.end()) timers_.erase(it);
+    timers_.erase(find(handle));
   }
 
   // Run the callbacks for all expired timers, and reschedule them if they are recurring.
