@@ -111,6 +111,9 @@ void DBMetadataStorage::writeInBatch(uint32_t objectId, char *data, uint32_t dat
     LOG_ERROR(logger_, WRONG_FLOW);
     throw runtime_error(WRONG_FLOW);
   }
+  // Delete an older parameter with the same key (if exists) before inserting a new one.
+  auto elem = batch_->find(genMetadataKey_(objectId));
+  if (elem != batch_->end()) batch_->erase(elem);
   batch_->insert(KeyValuePair(genMetadataKey_(objectId), copy));
 }
 
