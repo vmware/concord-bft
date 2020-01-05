@@ -93,9 +93,12 @@ void Server::RecvLoop() {
       sendError(&cliaddr, addrlen);
       continue;
     }
-
+    if (registerMetrics_) {
+      replica.UpdateAggregator();
+      stbc.UpdateAggregator();
+    }
     std::string json = aggregator_->ToJson();
-
+    LOG_INFO(logger_, json);
     if (json.size() > MAX_MSG_SIZE - sizeof(Header)) {
       LOG_FATAL(logger_, "Aggregator data too large to be transmitted!");
       exit(1);

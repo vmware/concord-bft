@@ -16,6 +16,7 @@
 #include <map>
 #include <set>
 #include <utility>
+#include <memory>
 
 #include "SimpleStateTransfer.hpp"
 #include "SimpleBCStateTransfer.hpp"

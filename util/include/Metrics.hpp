@@ -19,6 +19,10 @@
 #include <vector>
 #include <mutex>
 #include <memory>
+#include <thread>
+#include <chrono>
+#include "MetricsCollector.hpp"
+#include "Timers.hpp"
 
 namespace concordMetrics {
 
@@ -189,6 +193,40 @@ class Component {
 
   Names names_;
   Values values_;
+};
+
+class ConcordBftMetricsComp {
+  typedef Component::Handle<Counter> cHandler;
+  typedef Component::Handle<Gauge> gHandler;
+  typedef Component::Handle<Status> sHandler;
+  class Counter_ : public CounterHandler {
+    cHandler h_;
+
+   public:
+    Counter_(const cHandler& h) : h_{h} {}
+    void inc() override { h_.Get().Inc(); }
+  };
+
+  class Gauge_ : public GaugeHandler {
+    gHandler h_;
+
+   public:
+    Gauge_(const gHandler& h) : h_{h} {}
+    void set(uint64_t val) override { h_.Get().Set(val); }
+  };
+
+  class Status_ : public StatusHandler {
+    sHandler h_;
+
+   public:
+    Status_(const sHandler& h) : h_{h} {}
+    void set(const std::string& val) override { h_.Get().Set(val); }
+  };
+
+ public:
+  static void createReplicaComponent(Component& component, ComponentCollector& collecto);
+
+  static void createStateTransferComponent(Component& component, ComponentCollector& collector);
 };
 
 }  // namespace concordMetrics

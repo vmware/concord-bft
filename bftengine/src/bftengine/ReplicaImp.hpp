@@ -169,7 +169,6 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   concordUtil::Timers::Handle statusReportTimer_;
   concordUtil::Timers::Handle viewChangeTimer_;
   concordUtil::Timers::Handle debugStatTimer_;
-  concordUtil::Timers::Handle metricsTimer_;
 
   int viewChangeTimerMilli = 0;
   int autoPrimaryRotationTimerMilli = 0;
@@ -179,41 +178,6 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   bool recoveringFromExecutionOfRequests = false;
   Bitmap mapOfRequestsThatAreBeingRecovered;
 
-  //******** METRICS ************************************
-  concordMetrics::Component metrics_;
-
-  typedef concordMetrics::Component::Handle<concordMetrics::Gauge> GaugeHandle;
-  typedef concordMetrics::Component::Handle<concordMetrics::Status> StatusHandle;
-  typedef concordMetrics::Component::Handle<concordMetrics::Counter> CounterHandle;
-
-  GaugeHandle metric_view_;
-  GaugeHandle metric_last_stable_seq_num_;
-  GaugeHandle metric_last_executed_seq_num_;
-  GaugeHandle metric_last_agreed_view_;
-
-  // The first commit path being attempted for a new request.
-  StatusHandle metric_first_commit_path_;
-
-  CounterHandle metric_slow_path_count_;
-  CounterHandle metric_received_internal_msgs_;
-  CounterHandle metric_received_client_requests_;
-  CounterHandle metric_received_pre_prepares_;
-  CounterHandle metric_received_start_slow_commits_;
-  CounterHandle metric_received_partial_commit_proofs_;
-  CounterHandle metric_received_full_commit_proofs_;
-  CounterHandle metric_received_prepare_partials_;
-  CounterHandle metric_received_commit_partials_;
-  CounterHandle metric_received_prepare_fulls_;
-  CounterHandle metric_received_commit_fulls_;
-  CounterHandle metric_received_checkpoints_;
-  CounterHandle metric_received_replica_statuses_;
-  CounterHandle metric_received_view_changes_;
-  CounterHandle metric_received_new_views_;
-  CounterHandle metric_received_req_missing_datas_;
-  CounterHandle metric_received_simple_acks_;
-  CounterHandle metric_received_state_transfers_;
-
-  //*****************************************************
  public:
   ReplicaImp(const ReplicaConfig&,
              RequestsHandler* requestsHandler,
@@ -230,7 +194,6 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
              shared_ptr<MsgHandlersRegistrator>& msgHandlers);
 
   virtual ~ReplicaImp();
-
   void start();
   void stop();
   bool isRunning() const { return msgsCommunicator_->isMsgsProcessingRunning(); }
@@ -252,10 +215,10 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   // InternalReplicaApi
   virtual void onInternalMsg(FullCommitProofMsg* m) override;
   virtual void onMerkleExecSignature(ViewNum v, SeqNum s, uint16_t signatureLength, const char* signature) override;
-  void updateMetricsForInternalMessage() override { metric_received_internal_msgs_.Get().Inc(); }
+  void updateMetricsForInternalMessage() override {
+    metricsCollector_.takeMetric(concordMetrics::ReplicaMetricsCode::REPLICA_RECEIVED_INTERNAL_MSGS);
+  }
   bool isCollectingState() override { return stateTransfer->isCollectingState(); }
-
-  void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a);
 
  protected:
   ReplicaImp(bool firstTime,
@@ -392,7 +355,6 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   void onSlowPathTimer(concordUtil::Timers::Handle);
   void onInfoRequestTimer(concordUtil::Timers::Handle);
   void onDebugStatTimer(concordUtil::Timers::Handle);
-  void onMetricsTimer(concordUtil::Timers::Handle);
 
   // handlers for internal messages
 
@@ -419,9 +381,9 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
       const ViewNum relatedViewNumber,
       const std::forward_list<RetSuggestion>* const suggestedRetransmissions)
       override;  // TODO(GG): use generic iterators
-
  private:
   void addTimers();
+  concordMetrics::ComponentCollector& metricsCollector_;
 };
 }  // namespace impl
 }  // namespace bftEngine

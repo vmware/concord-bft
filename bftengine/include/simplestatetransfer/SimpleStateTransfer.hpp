@@ -17,7 +17,7 @@
 #include <set>
 
 #include "IStateTransfer.hpp"
-
+#include "MetricsCollector.hpp"
 namespace bftEngine {
 
 namespace SimpleInMemoryStateTransfer {

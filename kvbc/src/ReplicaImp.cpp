@@ -14,6 +14,7 @@
 #include <cassert>
 #include <chrono>
 #include <cstdlib>
+#include <utility>
 #include "CommDefs.hpp"
 #include "kv_types.hpp"
 #include "hex_tools.h"
@@ -62,7 +63,6 @@ Status ReplicaImp::start() {
   m_metadataStorage = new DBMetadataStorage(m_bcDbAdapter->getDb().get(), KeyManipulator::generateMetadataKey);
 
   createReplicaAndSyncState();
-  m_replicaPtr->SetAggregator(aggregator_);
   m_replicaPtr->start();
   m_currentRepStatus = RepStatus::Running;
 
@@ -183,10 +183,7 @@ Status ReplicaImp::addBlock(const SetOfKeyValuePairs &updates, BlockId &outBlock
 
 void ReplicaImp::set_command_handler(ICommandsHandler *handler) { m_cmdHandler = handler; }
 
-ReplicaImp::ReplicaImp(ICommunication *comm,
-                       bftEngine::ReplicaConfig &replicaConfig,
-                       DBAdapter *dbAdapter,
-                       std::shared_ptr<concordMetrics::Aggregator> aggregator)
+ReplicaImp::ReplicaImp(ICommunication *comm, bftEngine::ReplicaConfig &replicaConfig, DBAdapter *dbAdapter)
     : logger(concordlogger::Log::getLogger("skvbc.replicaImp")),
       m_currentRepStatus(RepStatus::Idle),
       m_InternalStorageWrapperForIdleMode(this),
@@ -194,8 +191,7 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
       m_lastBlock(dbAdapter->getLatestBlock()),
       m_ptrComm(comm),
       m_replicaConfig(replicaConfig),
-      m_appState(new BlockchainAppState(this)),
-      aggregator_(aggregator) {
+      m_appState(new BlockchainAppState(this)) {
   bftEngine::SimpleBlockchainStateTransfer::Config state_transfer_config;
 
   state_transfer_config.myReplicaId = m_replicaConfig.replicaId;
@@ -205,8 +201,8 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
     state_transfer_config.maxNumOfReservedPages = replicaConfig.maxNumOfReservedPages;
   if (replicaConfig.sizeOfReservedPage > 0) state_transfer_config.sizeOfReservedPage = replicaConfig.sizeOfReservedPage;
 
-  m_stateTransfer = bftEngine::SimpleBlockchainStateTransfer::create(
-      state_transfer_config, m_appState.get(), m_bcDbAdapter->getDb(), aggregator);
+  m_stateTransfer =
+      bftEngine::SimpleBlockchainStateTransfer::create(state_transfer_config, m_appState.get(), m_bcDbAdapter->getDb());
 }
 
 ReplicaImp::~ReplicaImp() {

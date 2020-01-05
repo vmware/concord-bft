@@ -85,8 +85,7 @@ class ReplicaImp : public IReplica,
 
   ReplicaImp(bftEngine::ICommunication *comm,
              bftEngine::ReplicaConfig &config,
-             concord::storage::blockchain::DBAdapter *dbAdapter,
-             std::shared_ptr<concordMetrics::Aggregator> aggregator);
+             concord::storage::blockchain::DBAdapter *dbAdapter);
 
   void setReplicaStateSync(ReplicaStateSync *rss) { replicaStateSync_.reset(rss); }
 
@@ -270,7 +269,6 @@ class ReplicaImp : public IReplica,
   std::unique_ptr<BlockchainAppState> m_appState;
   concord::storage::DBMetadataStorage *m_metadataStorage = nullptr;
   std::unique_ptr<ReplicaStateSync> replicaStateSync_;
-  std::shared_ptr<concordMetrics::Aggregator> aggregator_;
 
   // static methods
   static Sliver createBlockFromUpdates(const concord::storage::SetOfKeyValuePairs &updates,

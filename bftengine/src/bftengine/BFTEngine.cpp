@@ -44,8 +44,6 @@ struct ReplicaInternal : public Replica {
 
   virtual void stop() override;
 
-  virtual void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a) override;
-
   virtual void restartForDebug(uint32_t delayMillis) override;
 
   ReplicaImp *rep;
@@ -79,8 +77,6 @@ void ReplicaInternal::stop() {
 
   debugWait.notify_all();
 }
-
-void ReplicaInternal::SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a) { return rep->SetAggregator(a); }
 
 void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
   {

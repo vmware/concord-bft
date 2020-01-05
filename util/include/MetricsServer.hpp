@@ -47,16 +47,26 @@ struct Header {
 // A UDP server that returns aggregated metrics
 class Server {
  public:
-  Server(uint16_t listenPort)
+  Server(uint16_t listenPort, bool registerMetrics = false)
       : listenPort_{listenPort},
         logger_{concordlogger::Log::getLogger("metrics-server")},
         running_{false},
-        aggregator_{std::make_shared<Aggregator>()} {}
+        aggregator_{std::make_shared<Aggregator>()},
+        replica{"replica", aggregator_},
+        stbc{"bc_state_transfer", aggregator_} {
+    if (!registerMetrics) {
+      aggregator_ = std::make_shared<Aggregator>();
+    }
+  }
+
+  void registerMetrics(uint32_t id) {
+    ConcordBftMetricsComp::createReplicaComponent(replica, MetricsCollector::getInstance(id).getReplicaComp());
+    ConcordBftMetricsComp::createStateTransferComponent(stbc, MetricsCollector::getInstance(id).getStateTransferComp());
+    registerMetrics_ = true;
+  }
 
   void Start();
   void Stop();
-
-  std::shared_ptr<Aggregator> GetAggregator() { return aggregator_; }
 
  private:
   uint16_t listenPort_;
@@ -65,11 +75,12 @@ class Server {
   std::mutex running_lock_;
 
   std::shared_ptr<Aggregator> aggregator_;
+  Component replica;
+  Component stbc;
   std::thread thread_;
-
+  bool registerMetrics_ = false;
   int sock_;
   uint8_t buf_[MAX_MSG_SIZE];
-
   void RecvLoop();
   void sendReply(std::string data, sockaddr_in* cliaddr, socklen_t addrlen);
   void sendError(sockaddr_in* cliaddr, socklen_t addrlen);

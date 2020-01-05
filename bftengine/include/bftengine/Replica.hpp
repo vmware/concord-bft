@@ -62,7 +62,6 @@ class Replica {
   virtual void stop() = 0;
 
   // TODO(GG) : move the following methods to an "advanced interface"
-  virtual void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a) = 0;
   virtual void restartForDebug(uint32_t delayMillis) = 0;  // for debug only.
 };
 

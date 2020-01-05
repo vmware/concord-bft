@@ -3,6 +3,11 @@ add_test(metric_tests metric_tests)
 target_link_libraries(metric_tests gtest_main util)
 target_compile_options(metric_tests PUBLIC -Wno-sign-compare)
 
+add_executable(metrics_collector_tests metrics_collector_test.cpp $<TARGET_OBJECTS:logging_dev>)
+add_test(metrics_collector_tests metrics_collector_tests)
+target_link_libraries(metrics_collector_tests gtest_main util)
+target_compile_options(metrics_collector_tests PUBLIC -Wno-sign-compare)
+
 add_executable(metric_server MetricServerTestMain.cpp $<TARGET_OBJECTS:logging_dev>)
 target_link_libraries(metric_server util)
 

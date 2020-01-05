@@ -226,7 +226,6 @@ class SimpleTestReplica {
         testCommConfig.GetUDPConfig(true, rp.replicaId, rp.numOfClients, rp.numOfReplicas, rp.configFileName);
 #endif
     auto comm = bftEngine::CommFactory::create(conf);
-
     bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer *st =
         bftEngine::SimpleInMemoryStateTransfer::create(simpleAppState->statePtr,
                                                        sizeof(SimpleAppState::State) * rp.numOfClients,

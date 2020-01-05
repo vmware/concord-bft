@@ -47,10 +47,9 @@ int main(int argc, char** argv) {
     auto comparator = concord::storage::memorydb::KeyComparator(key_manipulator);
     db = new concord::storage::memorydb::Client(comparator);
   }
-
   auto* dbAdapter = new concord::storage::blockchain::DBAdapter(db);
-  auto* replica = new ReplicaImp(
-      setup->GetCommunication(), setup->GetReplicaConfig(), dbAdapter, setup->GetMetricsServer().GetAggregator());
+  setup->GetMetricsServer().registerMetrics(setup->GetReplicaConfig().replicaId);
+  auto* replica = new ReplicaImp(setup->GetCommunication(), setup->GetReplicaConfig(), dbAdapter);
   replica->setReplicaStateSync(new ReplicaStateSyncImp(new BlockMetadata(*replica)));
 
   // Start metrics server after creation of the replica so that we ensure

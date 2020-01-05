@@ -42,7 +42,7 @@ class TestSetup {
       : replica_config_(config),
         communication_(std::move(comm)),
         logger_(logger),
-        metrics_server_(metrics_port),
+        metrics_server_(metrics_port, true),
         use_persistent_storage_(use_persistent_storage) {}
   TestSetup() = delete;
 
