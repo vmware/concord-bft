@@ -22,7 +22,7 @@ namespace bftEngine {
 struct ClientRequestMsgHeader {
   uint16_t msgType;  // always == REQUEST_MSG_TYPE
   uint16_t idOfClientProxy;
-  uint8_t flags;  // bit 0 == isReadOnly, bit 1 = preExecute, bits 2-7 are reserved
+  uint8_t flags;  // bit 0 == isReadOnly, bit 1 = preProcess, bits 2-7 are reserved
   uint64_t reqSeqNum;
   uint32_t requestLength;
   // followed by the request (security information, such as signatures, should be part of the request)
