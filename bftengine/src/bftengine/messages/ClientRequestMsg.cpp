@@ -10,12 +10,12 @@
 // file.
 
 #include <cstring>
+#include <bftengine/SimpleClient.hpp>
 #include "ClientRequestMsg.hpp"
 #include "assertUtils.hpp"
 #include "ReplicaConfig.hpp"
 
-namespace bftEngine {
-namespace impl {
+namespace bftEngine::impl {
 
 // local helper functions
 
@@ -36,23 +36,13 @@ uint32_t getRequestSizeTemp(const char* request)  // TODO(GG): change - TBD
 ClientRequestMsg::ClientRequestMsg(
     NodeIdType sender, bool isReadOnly, uint64_t reqSeqNum, uint32_t requestLength, const char* request)
     : MessageBase(sender, MsgCode::ClientRequest, (sizeof(ClientRequestMsgHeader) + requestLength)) {
-  // TODO(GG): asserts
-
-  b()->idOfClientProxy = sender;
-  b()->flags = 0;
-  if (isReadOnly) b()->flags |= 0x1;
-  b()->reqSeqNum = reqSeqNum;
-  b()->requestLength = requestLength;
-
+  setParams(sender, reqSeqNum, requestLength, isReadOnly);
   memcpy(body() + sizeof(ClientRequestMsgHeader), request, requestLength);
 }
 
 ClientRequestMsg::ClientRequestMsg(NodeIdType sender)
     : MessageBase(sender, MsgCode::ClientRequest, ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize()) {
-  b()->idOfClientProxy = sender;
-  b()->reqSeqNum = 0;
-  b()->requestLength = 0;
-  b()->flags = 0;
+  setParams(sender, 0, 0, false);
   setMsgSize(sizeof(ClientRequestMsgHeader));
 }
 
@@ -63,17 +53,8 @@ void ClientRequestMsg::set(ReqId reqSeqNum, uint32_t requestLength, bool isReadO
   Assert(requestLength > 0);
   Assert(requestLength <= (internalStorageSize() - sizeof(ClientRequestMsgHeader)));
 
-  b()->reqSeqNum = reqSeqNum;
-  b()->flags = 0;
-  if (isReadOnly) b()->flags |= 0x1;
-  b()->requestLength = requestLength;
-
+  setParams(reqSeqNum, requestLength, isReadOnly);
   setMsgSize(sizeof(ClientRequestMsgHeader) + requestLength);
-}
-
-void ClientRequestMsg::setAsReadWrite() {
-  const uint8_t m = ~((uint8_t)0x1);
-  b()->flags &= m;
 }
 
 bool ClientRequestMsg::ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, ClientRequestMsg*& outMsg) {
@@ -81,12 +62,23 @@ bool ClientRequestMsg::ToActualMsgType(const ReplicasInfo& repInfo, MessageBase*
   if (inMsg->size() < sizeof(ClientRequestMsgHeader)) return false;
 
   ClientRequestMsg* t = (ClientRequestMsg*)inMsg;
-
-  if (t->size() < (sizeof(ClientRequestMsgHeader) + t->b()->requestLength)) return false;
-
+  if (t->size() < (sizeof(ClientRequestMsgHeader) + t->msgBody()->requestLength)) return false;
   outMsg = t;
-
   return true;
 }
-}  // namespace impl
-}  // namespace bftEngine
+
+void ClientRequestMsg::setParams(ReqId reqSeqNum, uint32_t requestLength, bool isReadOnly) {
+  msgBody()->reqSeqNum = reqSeqNum;
+  msgBody()->requestLength = requestLength;
+  if (isReadOnly)
+    msgBody()->flags |= READ_ONLY_REQ;
+  else
+    msgBody()->flags = 0;
+}
+
+void ClientRequestMsg::setParams(NodeIdType sender, ReqId reqSeqNum, uint32_t requestLength, bool isReadOnly) {
+  msgBody()->idOfClientProxy = sender;
+  setParams(reqSeqNum, requestLength, isReadOnly);
+}
+
+}  // namespace bftEngine::impl

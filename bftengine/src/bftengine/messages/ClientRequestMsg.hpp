@@ -15,8 +15,7 @@
 #include "ReplicasInfo.hpp"
 #include "ClientMsgs.hpp"
 
-namespace bftEngine {
-namespace impl {
+namespace bftEngine::impl {
 
 class ClientRequestMsg : public MessageBase {
   // TODO(GG): requests should always be verified by the application layer !!!
@@ -36,24 +35,26 @@ class ClientRequestMsg : public MessageBase {
 
   ClientRequestMsg(ClientRequestMsgHeader* body);
 
-  uint16_t clientProxyId() const { return b()->idOfClientProxy; }
+  uint16_t clientProxyId() const { return msgBody()->idOfClientProxy; }
 
-  bool isReadOnly() const { return (b()->flags & 0x1) != 0; }
+  bool isReadOnly() const { return (msgBody()->flags & 0x1) != 0; }
 
-  ReqId requestSeqNum() const { return b()->reqSeqNum; }
+  ReqId requestSeqNum() const { return msgBody()->reqSeqNum; }
 
-  uint32_t requestLength() const { return b()->requestLength; }
+  uint32_t requestLength() const { return msgBody()->requestLength; }
 
   char* requestBuf() const { return body() + sizeof(ClientRequestMsgHeader); }
 
   void set(ReqId reqSeqNum, uint32_t requestLength, bool isReadOnly);
 
-  void setAsReadWrite();
-
   static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, ClientRequestMsg*& outMsg);
 
  protected:
-  ClientRequestMsgHeader* b() const { return ((ClientRequestMsgHeader*)msgBody_); }
+  ClientRequestMsgHeader* msgBody() const { return ((ClientRequestMsgHeader*)msgBody_); }
+
+ private:
+  void setParams(NodeIdType sender, ReqId reqSeqNum, uint32_t requestLength, bool isReadOnly);
+  void setParams(ReqId reqSeqNum, uint32_t requestLength, bool isReadOnly);
 };
-}  // namespace impl
-}  // namespace bftEngine
+
+}  // namespace bftEngine::impl
