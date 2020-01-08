@@ -25,7 +25,12 @@
 namespace bftEngine {
 
 // Possible values for 'flags' parameter
-enum MsgFlag : uint8_t { EMPTY_FLAGS = 0x0, READ_ONLY_FLAG = 0x1, PRE_PROCESS_FLAG = 0x2, PRE_PROCESSED_FLAG = 0x4 };
+enum MsgFlag : uint8_t {
+  EMPTY_FLAGS = 0x0,
+  READ_ONLY_FLAG = 0x1,
+  PRE_PROCESS_FLAG = 0x2,
+  HAS_PRE_PROCESSED_FLAG = 0x4
+};
 
 class RequestsHandler {
  public:
