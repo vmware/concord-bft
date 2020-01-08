@@ -10,17 +10,17 @@
 # terms and conditions of the subcomponent's license, as noted in the LICENSE
 # file.
 
-import unittest
-import trio
 import os.path
 import random
 import time
+import unittest
 
-from util import bft, skvbc_history_tracker
-from util import skvbc as kvbc
+import trio
+
 from util import bft_network_partitioning as net
-
-KEY_FILE_PREFIX = "replica_keys_"
+from util import skvbc as kvbc
+from util import skvbc_history_tracker
+from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 
 # The max number of blocks to check for read intersection during conditional
 # writes
@@ -77,107 +77,78 @@ class Status:
            f'  client_timeouts={self.client_timeouts}\n'
            f'  client_replies={self.client_replies}\n')
 
+
 class SkvbcChaosTest(unittest.TestCase):
-    def test_healthy(self):
+
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_healthy(self, bft_network):
         """
         Run a bunch of concurrrent requests in batches and verify
         linearizability. The system is healthy and stable and no faults are
         intentionally generated.
         """
-        trio.run(self._test_healthy)
-
-    async def _test_healthy(self):
         num_ops = 500
-        for c in bft.interesting_configs():
-            config = bft.TestConfig(c['n'],
-                                    c['f'],
-                                    c['c'],
-                                    c['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
 
-            with bft.BftTestNetwork(config) as bft_network:
-                self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-                init_state = self.skvbc.initial_state()
-                self.tracker = skvbc_history_tracker.SkvbcTracker(init_state)
-                self.bft_network = bft_network
-                self.status = Status(c)
-                await bft_network.init()
-                bft_network.start_all_replicas()
-                async with trio.open_nursery() as nursery:
-                    nursery.start_soon(self.run_concurrent_ops, num_ops)
+        self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        init_state = self.skvbc.initial_state()
+        self.tracker = skvbc_history_tracker.SkvbcTracker(init_state)
+        self.bft_network = bft_network
+        self.status = Status(bft_network.config)
+        bft_network.start_all_replicas()
+        async with trio.open_nursery() as nursery:
+            nursery.start_soon(self.run_concurrent_ops, num_ops)
 
-                await self.verify()
+        await self.verify()
 
-    def test_while_dropping_packets(self):
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_while_dropping_packets(self, bft_network):
         """
-        Run a bunch of concurrrent requests in batches and verify
-        linearizability, while dropping a small amount of packets
-        between all replicas.
-        """
-        trio.run(self._test_while_dropping_packets)
-
-    async def _test_while_dropping_packets(self):
+         Run a bunch of concurrrent requests in batches and verify
+         linearizability, while dropping a small amount of packets
+         between all replicas.
+         """
         num_ops = 500
-        for c in bft.interesting_configs():
-            config = bft.TestConfig(c['n'],
-                                    c['f'],
-                                    c['c'],
-                                    c['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
-            with bft.BftTestNetwork(config) as bft_network, \
-                    net.PacketDroppingAdversary(
-                        bft_network, drop_rate_percentage=5) as adversary:
-                self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-                init_state = self.skvbc.initial_state()
-                self.tracker = skvbc_history_tracker.SkvbcTracker(init_state)
-                self.bft_network = bft_network
-                self.status = Status(c)
-                await bft_network.init()
-                bft_network.start_all_replicas()
 
-                adversary.interfere()
+        with net.PacketDroppingAdversary(
+                bft_network, drop_rate_percentage=5) as adversary:
+            self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            init_state = self.skvbc.initial_state()
+            self.tracker = skvbc_history_tracker.SkvbcTracker(init_state)
+            self.bft_network = bft_network
+            self.status = Status(bft_network.config)
+            bft_network.start_all_replicas()
 
-                async with trio.open_nursery() as nursery:
-                    nursery.start_soon(self.run_concurrent_ops, num_ops)
+            adversary.interfere()
 
-                await self.verify()
+            async with trio.open_nursery() as nursery:
+                nursery.start_soon(self.run_concurrent_ops, num_ops)
 
-    def test_wreak_havoc(self):
+            await self.verify()
+
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_wreak_havoc(self, bft_network):
         """
         Run a bunch of concurrrent requests in batches and verify
         linearizability. In this test we generate faults periodically and verify
         linearizability at the end of the run.
         """
-        trio.run(self._test_wreak_havoc)
 
-    async def _test_wreak_havoc(self):
         num_ops = 500
-        for c in bft.interesting_configs():
-            print(f"\n\nStarting test with configuration={c}", flush=True)
-            config = bft.TestConfig(c['n'],
-                                    c['f'],
-                                    c['c'],
-                                    c['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
 
-            with bft.BftTestNetwork(config) as bft_network:
-                self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-                init_state = self.skvbc.initial_state()
-                self.tracker = skvbc_history_tracker.SkvbcTracker(init_state)
-                self.bft_network = bft_network
-                self.status = Status(c)
-                await bft_network.init()
-                bft_network.start_all_replicas()
-                async with trio.open_nursery() as nursery:
-                    nursery.start_soon(self.run_concurrent_ops, num_ops)
-                    nursery.start_soon(self.crash_primary)
+        self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        init_state = self.skvbc.initial_state()
+        self.tracker = skvbc_history_tracker.SkvbcTracker(init_state)
+        self.bft_network = bft_network
+        self.status = Status(bft_network.config)
+        bft_network.start_all_replicas()
+        async with trio.open_nursery() as nursery:
+            nursery.start_soon(self.run_concurrent_ops, num_ops)
+            nursery.start_soon(self.crash_primary)
 
-                await self.verify()
-
-            time.sleep(2)
+        await self.verify()
 
     async def verify(self):
         try:

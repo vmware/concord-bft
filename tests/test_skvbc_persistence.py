@@ -20,7 +20,8 @@ from util import skvbc as kvbc
 
 from math import inf
 
-KEY_FILE_PREFIX = "replica_keys_"
+from util.bft import KEY_FILE_PREFIX, with_trio, with_bft_network
+
 
 def start_replica_cmd(builddir, replica_id):
     """
@@ -46,7 +47,10 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcPersistenceTest(unittest.TestCase):
 
-    def test_view_change_transitions_safely_without_quorum(self):
+    @with_trio
+    @with_bft_network(start_replica_cmd,
+                      selected_configs=lambda n, f, c: f >= 2)
+    async def test_view_change_transitions_safely_without_quorum(self, bft_network):
         """
         Start up only N-2 out of N replicas and send client commands. This should
         trigger a succesful view change attempt and trigger the assert in issue
@@ -55,58 +59,48 @@ class SkvbcPersistenceTest(unittest.TestCase):
         This is a regression test for
         https://github.com/vmware/concord-bft/issues/194.
         """
-        trio.run(self._test_view_change_transitions_safely_without_quorum)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        [bft_network.start_replica(i) for i in range(1, bft_network.config.n - 1)]
+        with trio.fail_after(60):  # seconds
+            async with trio.open_nursery() as nursery:
+                nursery.start_soon(
+                    skvbc.send_indefinite_write_requests)
+                # See if replica 1 has become the new primary
+                await bft_network.wait_for_view_change(
+                    replica_id=1,
+                    expected=lambda v: v == 1
+                )
+                # At this point a view change has successfully completed
+                # with node 1 as the primary. The faulty assertion should
+                # have crashed old nodes.
+                #
+                # In case the nodes didn't crash, stop node 1 to trigger
+                # another view change. Starting node 0 should allow the view
+                # change to succeed. If there is a timeout then the other
+                # nodes have likely crashed due to the faulty assertion. The
+                # crash will show in the logs when running the test
+                # verbosely:
+                #
+                # 21: INFO 2019-08-30skvbc_replica:
+                # /home/andrewstone/concord-bft.py/bftengine/src/bftengine/PersistentStorageImp.cpp:881:
+                # void
+                # bftEngine::impl::PersistentStorageImp::verifySetDescriptorOfLastExitFromView(const
+                # bftEngine::impl::DescriptorOfLastExitFromView &):
+                # Assertion `false' failed.
+                bft_network.stop_replica(1)
+                bft_network.start_replica(0)
+                while True:
+                    with trio.move_on_after(.5):  # seconds
+                        key = ['replica', 'Gauges', 'lastAgreedView']
+                        replica_id = 2
+                        view = await bft_network.metrics.get(replica_id, *key)
+                        if view == 2:
+                            # success!
+                            nursery.cancel_scope.cancel()
 
-    async def _test_view_change_transitions_safely_without_quorum(self):
-        for bft_config in bft.interesting_configs(lambda n, f, c: f >= 2):
-            config = bft.TestConfig(n=bft_config['n'],
-                                    f=bft_config['f'],
-                                    c=bft_config['c'],
-                                    num_clients=bft_config['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
-            with bft.BftTestNetwork(config) as bft_network:
-                await bft_network.init()
-                skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-                [bft_network.start_replica(i) for i in range(1,config.n-1)]
-                with trio.fail_after(60): # seconds
-                    async with trio.open_nursery() as nursery:
-                        nursery.start_soon(
-                            skvbc.send_indefinite_write_requests)
-                        # See if replica 1 has become the new primary
-                        await bft_network.wait_for_view_change(
-                            replica_id=1,
-                            expected=lambda v: v == 1
-                        )
-                        # At this point a view change has successfully completed
-                        # with node 1 as the primary. The faulty assertion should
-                        # have crashed old nodes.
-                        #
-                        # In case the nodes didn't crash, stop node 1 to trigger
-                        # another view change. Starting node 0 should allow the view
-                        # change to succeed. If there is a timeout then the other
-                        # nodes have likely crashed due to the faulty assertion. The
-                        # crash will show in the logs when running the test
-                        # verbosely:
-                        #
-                        # 21: INFO 2019-08-30skvbc_replica:
-                        # /home/andrewstone/concord-bft.py/bftengine/src/bftengine/PersistentStorageImp.cpp:881:
-                        # void
-                        # bftEngine::impl::PersistentStorageImp::verifySetDescriptorOfLastExitFromView(const
-                        # bftEngine::impl::DescriptorOfLastExitFromView &):
-                        # Assertion `false' failed.
-                        bft_network.stop_replica(1)
-                        bft_network.start_replica(0)
-                        while True:
-                            with trio.move_on_after(.5): # seconds
-                                key = ['replica', 'Gauges', 'lastAgreedView']
-                                replica_id = 2
-                                view = await bft_network.metrics.get(replica_id, *key)
-                                if view == 2:
-                                    # success!
-                                    nursery.cancel_scope.cancel()
-
-    def test_read_written_data_after_restart_of_all_nodes(self):
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_read_written_data_after_restart_of_all_nodes(self, bft_network):
         """
         This test aims to validate the blockchain is persistent
         (i.e. the data is still available after restarting all nodes)
@@ -114,41 +108,31 @@ class SkvbcPersistenceTest(unittest.TestCase):
         2) Restart all replicas (stop all, followed by start all)
         3) Verify the same key-value can be read from the blockchain
         """
-        trio.run(self._test_read_written_data_after_restart_of_all_nodes)
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-    async def _test_read_written_data_after_restart_of_all_nodes(self):
-        for bft_config in bft.interesting_configs():
-            config = bft.TestConfig(n=bft_config['n'],
-                                    f=bft_config['f'],
-                                    c=bft_config['c'],
-                                    num_clients=bft_config['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
-            with bft.BftTestNetwork(config) as bft_network:
-                await bft_network.init()
-                bft_network.start_all_replicas()
-                skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        key = skvbc.random_key()
+        value = skvbc.random_value()
 
-                key = skvbc.random_key()
-                value = skvbc.random_value()
+        kv = (key, value)
+        write_kv_msg = skvbc.write_req([], [kv], 0)
 
-                kv = (key, value)
-                write_kv_msg = skvbc.write_req([], [kv], 0)
+        client = bft_network.random_client()
+        await client.write(write_kv_msg)
 
-                client = bft_network.random_client()
-                await client.write(write_kv_msg)
+        bft_network.stop_all_replicas()
+        bft_network.start_all_replicas()
 
-                bft_network.stop_all_replicas()
-                bft_network.start_all_replicas()
+        read_key_msg = skvbc.read_req([key])
+        reply = await client.read(read_key_msg)
 
-                read_key_msg = skvbc.read_req([key])
-                reply = await client.read(read_key_msg)
+        kv_reply = skvbc.parse_reply(reply)
 
-                kv_reply = skvbc.parse_reply(reply)
+        self.assertEqual({key: value}, kv_reply)
 
-                self.assertEqual({key: value}, kv_reply)
-
-    def test_checkpoints_saved_and_transferred(self):
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_checkpoints_saved_and_transferred(self, bft_network):
         """
         Start a 3 nodes out of a 4 node cluster. Write a specific key, then
         enough data to the cluster to trigger a checkpoint and log garbage
@@ -161,43 +145,34 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
         After that ensure that a newly put value can be retrieved.
         """
-        trio.run(self._test_checkpoints_saved_and_transferred)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        stale_node = random.choice(bft_network.all_replicas(without={0}))
 
-    async def _test_checkpoints_saved_and_transferred(self):
-        for bft_config in bft.interesting_configs():
-            config = bft.TestConfig(n=bft_config['n'],
-                                    f=bft_config['f'],
-                                    c=bft_config['c'],
-                                    num_clients=bft_config['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
-            with bft.BftTestNetwork(config) as bft_network:
-                skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-                stale_node = random.choice(bft_network.all_replicas(without={0}))
+        client, known_key, known_kv = \
+            await skvbc.prime_for_state_transfer(stale_nodes={stale_node})
 
-                client, known_key, known_kv = \
-                    await skvbc.prime_for_state_transfer(stale_nodes={stale_node})
+        # Start the replica without any data, and wait for state transfer to
+        # complete.
+        bft_network.start_replica(stale_node)
+        await bft_network.wait_for_state_transfer_to_start()
+        up_to_date_node = 0
+        await bft_network.wait_for_state_transfer_to_stop(up_to_date_node,
+                                                          stale_node)
 
-                # Start the replica without any data, and wait for state transfer to
-                # complete.
-                bft_network.start_replica(stale_node)
-                await bft_network.wait_for_state_transfer_to_start()
-                up_to_date_node = 0
-                await bft_network.wait_for_state_transfer_to_stop(up_to_date_node,
-                                                             stale_node)
+        bft_network.force_quorum_including_replica(stale_node)
 
-                bft_network.force_quorum_including_replica(stale_node)
+        # Retrieve the value we put first to ensure state transfer worked
+        # when the log went away
+        kvpairs = await client.read([known_key])
+        self.assertDictEqual(dict(known_kv), kvpairs)
 
-                # Retrieve the value we put first to ensure state transfer worked
-                # when the log went away
-                kvpairs = await client.read([known_key])
-                self.assertDictEqual(dict(known_kv), kvpairs)
+        # Perform a put/get transaction pair to ensure we can read newly
+        # written data after state transfer.
+        await skvbc.assert_successful_put_get(self)
 
-                # Perform a put/get transaction pair to ensure we can read newly
-                # written data after state transfer.
-                await skvbc.assert_successful_put_get(self)
-
-    def test_st_when_fetcher_crashes(self):
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_st_when_fetcher_crashes(self, bft_network):
         """
         Start N-1 nodes out of a N node cluster (hence 1 stale node). Write a specific key,
         then enough data to the cluster to trigger a checkpoint. Then stop all the nodes,
@@ -211,49 +186,37 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
         After that ensure that a newly put value can be retrieved.
         """
-        trio.run(self._test_st_when_fetcher_crashes)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        stale_node = random.choice(bft_network.all_replicas(without={0}))
 
-    async def _test_st_when_fetcher_crashes(self):
-        for bft_config in bft.interesting_configs():
-            config = bft.TestConfig(n=bft_config['n'],
-                                    f=bft_config['f'],
-                                    c=bft_config['c'],
-                                    num_clients=bft_config['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
-            with bft.BftTestNetwork(config) as bft_network:
-                skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-                stale_node = random.choice(bft_network.all_replicas(without={0}))
+        client, known_key, known_kv = \
+            await skvbc.prime_for_state_transfer(stale_nodes={stale_node})
 
-                client, known_key, known_kv = \
-                    await skvbc.prime_for_state_transfer(stale_nodes={stale_node})
+        # Start the empty replica, wait for it to start fetching, then stop
+        # it.
+        bft_network.start_replica(stale_node)
+        await bft_network.wait_for_fetching_state(stale_node)
+        bft_network.stop_replica(stale_node)
 
-                # Start the empty replica, wait for it to start fetching, then stop
-                # it.
-                bft_network.start_replica(stale_node)
-                await bft_network.wait_for_fetching_state(stale_node)
-                bft_network.stop_replica(stale_node)
+        # Loop repeatedly starting and killing the destination replica after
+        # state transfer has started. On each restart, ensure the node is
+        # still fetching or that it has received all the data.
+        await self._fetch_or_finish_state_transfer_while_crashing(bft_network, 0, stale_node)
 
-                # Loop repeatedly starting and killing the destination replica after
-                # state transfer has started. On each restart, ensure the node is
-                # still fetching or that it has received all the data.
-                await self._fetch_or_finish_state_transfer_while_crashing(bft_network, 0, stale_node)
+        # Restart the replica and wait for state transfer to stop
+        bft_network.start_replica(stale_node)
+        await bft_network.wait_for_state_transfer_to_stop(0, stale_node)
 
-                # Restart the replica and wait for state transfer to stop
-                bft_network.start_replica(stale_node)
-                await bft_network.wait_for_state_transfer_to_stop(0, stale_node)
+        bft_network.force_quorum_including_replica(stale_node)
 
-                bft_network.force_quorum_including_replica(stale_node)
+        # Retrieve the value we put first to ensure state transfer worked
+        # when the log went away
+        kvpairs = await client.read([known_key])
+        self.assertDictEqual(dict(known_kv), kvpairs)
 
-                # Retrieve the value we put first to ensure state transfer worked
-                # when the log went away
-                kvpairs = await client.read([known_key])
-                self.assertDictEqual(dict(known_kv), kvpairs)
-
-                # Perform a put/get transaction pair to ensure we can read newly
-                # written data after state transfer.
-                await skvbc.assert_successful_put_get(self)
-
+        # Perform a put/get transaction pair to ensure we can read newly
+        # written data after state transfer.
+        await skvbc.assert_successful_put_get(self)
 
     async def _fetch_or_finish_state_transfer_while_crashing(self,
                                                              bft_network,
@@ -280,7 +243,10 @@ class SkvbcPersistenceTest(unittest.TestCase):
                print(f'Stopping replica {stale_node}')
                bft_network.stop_replica(stale_node)
 
-    def test_st_when_fetcher_and_sender_crash(self):
+    @with_trio
+    @with_bft_network(start_replica_cmd,
+                      selected_configs=lambda n, f, c: f >= 2)
+    async def test_st_when_fetcher_and_sender_crash(self, bft_network):
         """
         Start N-1 nodes out of a N node cluster. Write a specific key, then
         enough data to the cluster to trigger a checkpoint.
@@ -298,44 +264,30 @@ class SkvbcPersistenceTest(unittest.TestCase):
         After that ensure that the key-value entry initially written
         can be retrieved.
         """
-        trio.run(self._test_st_when_fetcher_and_sender_crash)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        stale_node = random.choice(bft_network.all_replicas(without={0}))
 
+        client, known_key, known_kv = \
+            await skvbc.prime_for_state_transfer(
+                checkpoints_num=4,
+                stale_nodes={stale_node}
+            )
 
-    async def _test_st_when_fetcher_and_sender_crash(self):
-        for bft_config in bft.interesting_configs(lambda n, f, c: f >= 2):
-            config = bft.TestConfig(n=bft_config['n'],
-                                    f=bft_config['f'],
-                                    c=bft_config['c'],
-                                    num_clients=bft_config['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
+        # exclude the primary and the stale node
+        unstable_replicas = bft_network.all_replicas(without={0, stale_node})
 
-            with bft.BftTestNetwork(config) as bft_network:
-                skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-                stale_node = random.choice(bft_network.all_replicas(without={0}))
+        await self._run_state_transfer_while_crashing_non_primary(
+            bft_network=bft_network,
+            primary=0, stale=stale_node,
+            unstable_replicas=unstable_replicas
+        )
 
-                client, known_key, known_kv = \
-                    await skvbc.prime_for_state_transfer(
-                        checkpoints_num=4,
-                        stale_nodes={stale_node}
-                    )
+        bft_network.force_quorum_including_replica(stale_node)
 
-                # exclude the primary and the stale node
-                unstable_replicas = bft_network.all_replicas(without={0, stale_node})
-
-                await self._run_state_transfer_while_crashing_non_primary(
-                    bft_network=bft_network,
-                    primary=0, stale=stale_node,
-                    unstable_replicas=unstable_replicas
-                )
-
-                bft_network.force_quorum_including_replica(stale_node)
-
-                # Retrieve the value we put first to ensure state transfer worked
-                # when the log went away
-                kvpairs = await client.read([known_key])
-                self.assertDictEqual(dict(known_kv), kvpairs)
-
+        # Retrieve the value we put first to ensure state transfer worked
+        # when the log went away
+        kvpairs = await client.read([known_key])
+        self.assertDictEqual(dict(known_kv), kvpairs)
 
     async def _run_state_transfer_while_crashing_non_primary(
             self, bft_network,
@@ -379,7 +331,10 @@ class SkvbcPersistenceTest(unittest.TestCase):
             print("State transfer completed before we had a chance "
                   "to stop the source replica.")
 
-    def test_st_while_primary_crashes(self):
+    @with_trio
+    @with_bft_network(start_replica_cmd,
+                      selected_configs=lambda n, f, c: f >= 2)
+    async def test_st_while_crashing_primary_with_vc(self, bft_network):
         """
         Start N-1 nodes out of a N node cluster. Write a specific key, then
         enough data to the cluster to trigger a checkpoint.
@@ -395,15 +350,16 @@ class SkvbcPersistenceTest(unittest.TestCase):
         After that ensure that the key-value entry initially written
         can be retrieved.
         """
-        trio.run(self._test_st_while_crashing_primary_with_vc)
-
-    async def _test_st_while_crashing_primary_with_vc(self):
         await self._test_st_while_crashing_primary(
+            bft_network=bft_network,
             trigger_view_change=True,
             crash_repeatedly=True
         )
 
-    def test_st_when_primary_crashes_once(self):
+    @with_trio
+    @with_bft_network(start_replica_cmd,
+                      selected_configs=lambda n, f, c: f >= 2)
+    async def test_st_while_crashing_primary_no_vc(self, bft_network):
         """
         Start N-1 nodes out of a N node cluster. Write a specific key, then
         enough data to the cluster to trigger a checkpoint.
@@ -420,65 +376,58 @@ class SkvbcPersistenceTest(unittest.TestCase):
         After that ensure that the key-value entry initially written
         can be retrieved.
         """
-        trio.run(self._test_st_while_crashing_primary_no_vc)
-
-    async def _test_st_while_crashing_primary_no_vc(self):
         await self._test_st_while_crashing_primary(
+            bft_network,
             trigger_view_change=False,
             crash_repeatedly=False
         )
 
     async def _test_st_while_crashing_primary(
-            self, trigger_view_change, crash_repeatedly):
+            self, bft_network, trigger_view_change, crash_repeatedly):
         # we need a BFT network with f >= 2, allowing us to have 2
         # crashed replicas at the same time (the primary and the stale node)
-        for bft_config in bft.interesting_configs(lambda n, f, c: f >= 2):
-            config = bft.TestConfig(n=bft_config['n'],
-                                    f=bft_config['f'],
-                                    c=bft_config['c'],
-                                    num_clients=bft_config['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
-            with bft.BftTestNetwork(config) as bft_network:
-                skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-                stale_replica = config.n - 1
 
-                client, known_key, known_kv = \
-                    await skvbc.prime_for_state_transfer(
-                        checkpoints_num=4,
-                        stale_nodes={stale_replica}
-                    )
+        n = bft_network.config.n
 
-                view = await bft_network.wait_for_view_change(
-                    replica_id=0,
-                    expected=lambda v: v == 0,
-                    err_msg="Make sure we are in the initial view."
-                )
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        stale_replica = n - 1
 
-                print(f'Initial view number is {view}, as expected.')
+        client, known_key, known_kv = \
+            await skvbc.prime_for_state_transfer(
+                checkpoints_num=4,
+                stale_nodes={stale_replica}
+            )
 
-                if crash_repeatedly:
-                    await self._run_state_transfer_while_crashing_primary_repeatedly(
-                        skvbc=skvbc,
-                        bft_network=bft_network,
-                        n=config.n,
-                        primary=0,
-                        stale=stale_replica
-                    )
-                else:
-                    await self._run_state_transfer_while_crashing_primary_once(
-                        skvbc=skvbc,
-                        bft_network=bft_network,
-                        n=config.n,
-                        primary=0,
-                        stale=stale_replica,
-                        trigger_view_change=trigger_view_change
-                    )
+        view = await bft_network.wait_for_view_change(
+            replica_id=0,
+            expected=lambda v: v == 0,
+            err_msg="Make sure we are in the initial view."
+        )
 
-                bft_network.force_quorum_including_replica(stale_replica)
+        print(f'Initial view number is {view}, as expected.')
 
-                kvpairs = await client.read([known_key])
-                self.assertDictEqual(dict(known_kv), kvpairs)
+        if crash_repeatedly:
+            await self._run_state_transfer_while_crashing_primary_repeatedly(
+                skvbc=skvbc,
+                bft_network=bft_network,
+                n=n,
+                primary=0,
+                stale=stale_replica
+            )
+        else:
+            await self._run_state_transfer_while_crashing_primary_once(
+                skvbc=skvbc,
+                bft_network=bft_network,
+                n=n,
+                primary=0,
+                stale=stale_replica,
+                trigger_view_change=trigger_view_change
+            )
+
+        bft_network.force_quorum_including_replica(stale_replica)
+
+        kvpairs = await client.read([known_key])
+        self.assertDictEqual(dict(known_kv), kvpairs)
 
     async def _run_state_transfer_while_crashing_primary_once(
             self, skvbc, bft_network, n, primary, stale, trigger_view_change=False):

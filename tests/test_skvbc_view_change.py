@@ -12,16 +12,14 @@
 
 import os.path
 import random
+import unittest
 
 import trio
 
-import unittest
-
-from util import bft
-from util import skvbc as kvbc
 from util import bft_network_partitioning as net
+from util import skvbc as kvbc
+from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 
-KEY_FILE_PREFIX = "replica_keys_"
 
 def start_replica_cmd(builddir, replica_id):
     """
@@ -40,7 +38,9 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcViewChangeTest(unittest.TestCase):
 
-    def test_single_vc_only_primary_down(self):
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_single_vc_only_primary_down(self, bft_network):
         """
         The goal of this test is to validate the most basic view change
         scenario - a single view change when the primary replica is down.
@@ -50,44 +50,34 @@ class SkvbcViewChangeTest(unittest.TestCase):
         3) Stop the primary replica and send a batch of write requests.
         4) Verify the BFT network eventually transitions to the next view.
         """
-        trio.run(self._test_single_vc_only_primary_down)
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-    async def _test_single_vc_only_primary_down(self):
-        for bft_config in bft.interesting_configs():
-            config = bft.TestConfig(n=bft_config['n'],
-                                    f=bft_config['f'],
-                                    c=bft_config['c'],
-                                    num_clients=bft_config['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
-            with bft.BftTestNetwork(config) as bft_network:
-                await bft_network.init()
-                bft_network.start_all_replicas()
-                skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        initial_primary = 0
+        expected_next_primary = 1
 
-                initial_primary = 0
-                expected_next_primary = 1
+        await self._send_random_writes(skvbc)
 
-                await self._send_random_writes(skvbc)
+        await bft_network.wait_for_view_change(
+            replica_id=initial_primary,
+            expected=lambda v: v == initial_primary,
+            err_msg="Make sure we are in the initial view "
+                    "before crashing the primary."
+        )
 
-                await bft_network.wait_for_view_change(
-                    replica_id=initial_primary,
-                    expected=lambda v: v == initial_primary,
-                    err_msg="Make sure we are in the initial view "
-                            "before crashing the primary."
-                )
+        bft_network.stop_replica(initial_primary)
 
-                bft_network.stop_replica(initial_primary)
+        await self._send_random_writes(skvbc)
 
-                await self._send_random_writes(skvbc)
+        await bft_network.wait_for_view_change(
+            replica_id=random.choice(bft_network.all_replicas(without={0})),
+            expected=lambda v: v == expected_next_primary,
+            err_msg="Make sure view change has been triggered."
+        )
 
-                await bft_network.wait_for_view_change(
-                    replica_id=random.choice(bft_network.all_replicas(without={0})),
-                    expected=lambda v: v == expected_next_primary,
-                    err_msg="Make sure view change has been triggered."
-                )
-
-    def test_single_vc_primary_isolated(self):
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_single_vc_primary_isolated(self, bft_network):
         """
         The goal of this test is to check the view change
         workflow in case the primary is up, but its outgoing
@@ -98,42 +88,32 @@ class SkvbcViewChangeTest(unittest.TestCase):
         3) Send a batch of write requests.
         4) Verify the BFT network eventually transitions to the next view.
         """
-        trio.run(self._test_single_vc_primary_isolated)
+        with net.PrimaryIsolatingAdversary(bft_network) as adversary:
+            bft_network.start_all_replicas()
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-    async def _test_single_vc_primary_isolated(self):
-        for bft_config in bft.interesting_configs():
-            config = bft.TestConfig(n=bft_config['n'],
-                                    f=bft_config['f'],
-                                    c=bft_config['c'],
-                                    num_clients=bft_config['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
-            with bft.BftTestNetwork(config) as bft_network, \
-                    net.PrimaryIsolatingAdversary(bft_network) as adversary:
-                await bft_network.init()
-                bft_network.start_all_replicas()
-                skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            initial_primary = 0
+            await bft_network.wait_for_view_change(
+                replica_id=initial_primary,
+                expected=lambda v: v == initial_primary,
+                err_msg="Make sure we are in the initial view "
+                        "before isolating the primary."
+            )
 
-                initial_primary = 0
-                await bft_network.wait_for_view_change(
-                    replica_id=initial_primary,
-                    expected=lambda v: v == initial_primary,
-                    err_msg="Make sure we are in the initial view "
-                            "before isolating the primary."
-                )
+            await adversary.interfere()
+            expected_next_primary = 1
 
-                await adversary.interfere()
-                expected_next_primary = 1
+            await self._send_random_writes(skvbc)
 
-                await self._send_random_writes(skvbc)
+            await bft_network.wait_for_view_change(
+                replica_id=random.choice(bft_network.all_replicas(without={0})),
+                expected=lambda v: v == expected_next_primary,
+                err_msg="Make sure view change has been triggered."
+            )
 
-                await bft_network.wait_for_view_change(
-                    replica_id=random.choice(bft_network.all_replicas(without={0})),
-                    expected=lambda v: v == expected_next_primary,
-                    err_msg="Make sure view change has been triggered."
-                )
-
-    def test_single_vc_with_f_replicas_down(self):
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_single_vc_with_f_replicas_down(self, bft_network):
         """
         Here we "step it up" a little bit, bringing down a total of f replicas
         (including the primary), verifying a single view change in this scenario.
@@ -143,46 +123,40 @@ class SkvbcViewChangeTest(unittest.TestCase):
         3) Trigger parallel requests to start the view change.
         4) Verify the BFT network eventually transitions to the next view.
         """
-        trio.run(self._test_single_vc_with_f_replicas_down)
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-    async def _test_single_vc_with_f_replicas_down(self):
-        for bft_config in bft.interesting_configs():
-            config = bft.TestConfig(n=bft_config['n'],
-                                    f=bft_config['f'],
-                                    c=bft_config['c'],
-                                    num_clients=bft_config['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
-            with bft.BftTestNetwork(config) as bft_network:
-                await bft_network.init()
-                bft_network.start_all_replicas()
-                skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        n = bft_network.config.n
+        f = bft_network.config.f
+        c = bft_network.config.c
 
-                self.assertEqual(len(bft_network.procs), config.n,
-                                 "Make sure all replicas are up initially.")
-                initial_primary = 0
-                expected_next_primary = 1
+        self.assertEqual(len(bft_network.procs), n,
+                         "Make sure all replicas are up initially.")
+        initial_primary = 0
+        expected_next_primary = 1
 
-                crashed_replicas = await self._crash_replicas_including_primary(
-                    bft_network=bft_network,
-                    nb_crashing=config.f,
-                    primary=initial_primary
-                )
+        crashed_replicas = await self._crash_replicas_including_primary(
+            bft_network=bft_network,
+            nb_crashing=f,
+            primary=initial_primary
+        )
 
-                self.assertGreaterEqual(
-                    len(bft_network.procs),
-                    2 * config.f + 2 * config.c + 1,
-                    "Make sure enough replicas are up to allow a successful view change")
+        self.assertGreaterEqual(
+            len(bft_network.procs), 2 * f + 2 * c + 1,
+            "Make sure enough replicas are up to allow a successful view change")
 
-                await self._send_random_writes(skvbc)
+        await self._send_random_writes(skvbc)
 
-                await bft_network.wait_for_view_change(
-                    replica_id=random.choice(bft_network.all_replicas(without=crashed_replicas)),
-                    expected=lambda v: v == expected_next_primary,
-                    err_msg="Make sure view change has been triggered."
-                )
+        await bft_network.wait_for_view_change(
+            replica_id=random.choice(bft_network.all_replicas(without=crashed_replicas)),
+            expected=lambda v: v == expected_next_primary,
+            err_msg="Make sure view change has been triggered."
+        )
 
-    def test_multiple_vc_slow_path(self):
+    @with_trio
+    @with_bft_network(start_replica_cmd,
+                      selected_configs=lambda n, f, c: c < f)
+    async def test_multiple_vc_slow_path(self, bft_network):
         """
         In this test we aim to validate a sequence of view changes,
         maintaining the slow commit path. To do so, we need to crash
@@ -194,57 +168,49 @@ class SkvbcViewChangeTest(unittest.TestCase):
             2.2) Send parallel requests to start the view change.
             2.3) Verify the BFT network eventually transitions to the next view.
         3) Make sure the slow path was prevalent during all view changes
+
+        Note: we require that c < f because:
+        A) for view change we need at least n-f = 2f+2c+1 replicas
+        B) to ensure transition to the slow path, we need to crash at least c+1 replicas.
+        Combining A) and B) yields n-(c+1) >= 2f+2c+1, equivalent to c < f
         """
-        trio.run(self._test_multiple_vc_slow_path)
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-    async def _test_multiple_vc_slow_path(self):
-        # Here, we require that c < f because:
-        # A) for view change we need at least n-f = 2f+2c+1 replicas
-        # B) to ensure transition to the slow path, we need to crash at least c+1 replicas.
-        # Combining A) and B) yields n-(c+1) >= 2f+2c+1, equivalent to c < f
-        for bft_config in bft.interesting_configs(lambda n, f, c: c < f):
-            config = bft.TestConfig(n=bft_config['n'],
-                                    f=bft_config['f'],
-                                    c=bft_config['c'],
-                                    num_clients=bft_config['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
-            with bft.BftTestNetwork(config) as bft_network:
-                await bft_network.init()
-                bft_network.start_all_replicas()
-                skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        n = bft_network.config.n
+        f = bft_network.config.f
+        c = bft_network.config.c
 
-                current_primary = 0
-                for _ in range(3):
-                    self.assertEqual(len(bft_network.procs), config.n,
-                                     "Make sure all replicas are up initially.")
+        current_primary = 0
+        for _ in range(3):
+            self.assertEqual(len(bft_network.procs), n,
+                             "Make sure all replicas are up initially.")
 
-                    crashed_replicas = await self._crash_replicas_including_primary(
-                        bft_network=bft_network,
-                        nb_crashing=config.c+1,
-                        primary=current_primary
-                    )
+            crashed_replicas = await self._crash_replicas_including_primary(
+                bft_network=bft_network,
+                nb_crashing=c + 1,
+                primary=current_primary
+            )
 
-                    self.assertGreaterEqual(
-                        len(bft_network.procs),
-                        2 * config.f + 2 * config.c + 1,
-                        "Make sure enough replicas are up to allow a successful view change")
+            self.assertGreaterEqual(
+                len(bft_network.procs), 2 * f + 2 * c + 1,
+                "Make sure enough replicas are up to allow a successful view change")
 
-                    await self._send_random_writes(skvbc)
+            await self._send_random_writes(skvbc)
 
-                    stable_replica = random.choice(
-                        bft_network.all_replicas(without=crashed_replicas))
+            stable_replica = random.choice(
+                bft_network.all_replicas(without=crashed_replicas))
 
-                    view = await bft_network.wait_for_view_change(
-                        replica_id=stable_replica,
-                        expected=lambda v: v > current_primary,
-                        err_msg="Make sure a view change has been triggered."
-                    )
-                    current_primary = view
-                    [bft_network.start_replica(i) for i in crashed_replicas]
+            view = await bft_network.wait_for_view_change(
+                replica_id=stable_replica,
+                expected=lambda v: v > current_primary,
+                err_msg="Make sure a view change has been triggered."
+            )
+            current_primary = view
+            [bft_network.start_replica(i) for i in crashed_replicas]
 
-                await bft_network.wait_for_slow_path_to_be_prevalent(
-                    replica_id=current_primary)
+        await bft_network.wait_for_slow_path_to_be_prevalent(
+            replica_id=current_primary)
 
     async def _send_random_writes(self, skvbc):
         with trio.move_on_after(seconds=1):

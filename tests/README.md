@@ -27,14 +27,12 @@ the the `bft_client` and `bft_metrics_client` living in `../pyclient`.
  * `BftTestNetwork` - Infrastructure code (`bft.py`)
  * `BftMetrics` - Metrics client wrapper code (`bft_metrics.py`)
 
- All exceptions for BftTestNetwork live in `bft_tester_exceptions.py`
+ All exceptions for BftTestNetwork live in `bft_test_exceptions.py`
 
 ## SimpleKVBC specific Components
 
  * `SimpleKVBCProtocol` - Message constructors and parsers for SimpleKVBC
    messages (`skvbc.py`)
- * `SkvbcTest` - Unittest class containing individual system tests for
-   SimpleKVBC (`test_skvbc.py`)
  * `SkvbcTracker` - Code that is used to track concurrent requests and respones
    and verify linearizability of operations matches the blockchain state
    (`skvbc_history_tracker.py`).
@@ -72,13 +70,15 @@ cleanup is needed (i.e. the object is ready for destruction/garbage collection).
 
 Lastly, we use python's builtin [unit testing
 framework](https://docs.python.org/3/library/unittest.html) for writing and
-executing our tests. We currently only have a single test class for system tests
-in `test_skvbc.py`, although our clients each have their own tests in
-`../util/pyclient`.
+executing our tests. We currently have a number of system test suites focusing
+on various properties of the BFT engine and the SKVBC application, such as 
+fast/slow commit path, view change, linearizability, persistence among others.
+Those tests reside in `test_skvbc_*.py` modules. 
+The Python BFT client tests are located under `../util/pyclient`.
 
-The tests in `test_skvbc.py` can be run from the test directory via `python3
-test_skvbc.py`. They can also be run from the build directory along with every
-other automated test by running `make test`.
+The tests in `test_skvbc.py` (or any other test module) can be run from the `tests` directory via 
+`sudo python3 -m unittest test_skvbc`. They can also be run from the build directory along with every
+other automated test by running `sudo make test` or `sudo ctest`.
 
 We also follow [Pep 8](https://www.python.org/dev/peps/pep-0008/) guidelines for code style:
  * Class names are `CamelUpperCase`
@@ -97,39 +97,47 @@ change that and add `__str__` methods later.
 # Writing a test
 
 The most likely scenario is that you want to add a test for a specific
-functionality utilizing the SimpleKVBCTest TesterReplicas. For this you'll need
-to create at least two methods in the `SkvbcTest` class in `test_skvbc.py`.
+functionality utilizing the `SimpleKVBC/TesterReplica`. For this you'll need
+to create new methods in one of the `SkvbcTest*` classes in the
+respective `test_skvbc*.py` module (or create a new module for features not covered so far).
 Python's unit testing framework treats all methods for subclasses of
 `unittest.TestCase` that start with `test` as tests to be run. Each test should
-have one `test_XXX` method with a description and a single line that calls
-`trio.run(self._test_XXX)`, where `_test_XXX` is an async method, starting with
-`async def` that runs the actual test code. This pattern is necessary to write
-tests that use coroutines. An example is the `test_state_transfer` and
-`_test_state_transfer` methods.
+be implemented in a separate `test_XXX` **async** method with a description of the test scenario. 
+In order to run test coroutines using trio, the `@with_trio` decorator needs to be added to each test method.
 
-Each test must create a `bft.TestConfig`, and then instantiate a
-`bft.BftTestNetwork` with the config as a parameter. We specifically
-use the `with` keyword so that if the test (in the scope under the with) fails,
-all resources in the test network will be cleaned up automatically by the python
-runtime.
+Most tests will need a fresh `bft.BftTestNetwork`, which can be obtained easily by adding
+the `@with_bft_network` decorator. This decorator takes care of instantiating a `bft.BftTestNetwork` 
+object and passing it into a `bft_network` parameter of the decorated test method.
+The `@with_bft_network` decorator also initializes and cleans-up the `bft.BftTestNetwork` instance,
+after the decorated test method has completed.
+The decorator has two parameters:
+* (mandatory) `start_replica_cmd` - a function containing the command(s) for starting an individual replica 
+(usually a process, but we could also imagine replica containers at some point)
+* (optional) `selected configs` - a lambda used for filtering out relevant BFT network configurations
 
-From there, `await bft_network.init()` must be called within the with block. This
-performs initialization of async state such as creating sockets using trio. This
-separate method is required, since constructors cannot be async functions and
-therefore cannot call async functions. Also note the `await` keyword. This is
-required when calling async functions, and essentially switches out the current
-coroutine, returns control back to the event loop, and then picks up where it
-left off when the async function completes. It appears as a blocking call to the
-code and can be treated as such when viewing the code as operating linearly.
-Note however, that if you leave off the await keyword the code will **not run**.
-Instead a coroutine object will be returned, which is definitely not what you
-want. Unfortunately, python doesn't generate a compile error here, although it
-will warn you in your output if this happens, with a message like: `__main__:4:
-RuntimeWarning: coroutine 'sleep' was never awaited`. This is [documented
-well](https://trio.readthedocs.io/en/latest/tutorial.html#warning-don-t-forget-that-await)
-in the trio docs.
+Here is an example:
 
-From there you can create a protocol and start coroutines running in the
+```python
+@with_trio
+@with_bft_network(start_replica_cmd)
+async def test_get_block_data(self, bft_network):
+    # test logic
+    pass     
+``` 
+
+or 
+
+```python
+@with_trio
+@with_bft_network(start_replica_cmd,
+                  selected_configs=lambda n, f, c: c >= 1)
+async def test_fast_path_resilience_to_crashes(self, bft_network):
+    # test logic
+    pass
+``` 
+
+
+From there you can create a `SimpleKVBCProtocol` and start coroutines running in the
 background via
 [`trio.open_nursery()`](https://trio.readthedocs.io/en/latest/reference-core.html#nurseries-and-spawning).
 We aren't going to go into detail about this, as the trio documentation is
@@ -138,3 +146,18 @@ what is possible.
 
 Importantly, each test starts fresh replicas, and should be treated as an empty
 blockchain until the test writes data.
+
+# A note on invoking coroutines
+
+Successfully invoking a coroutine requires the `await` keyword. This is used as an execution 
+"checkpoint" for non-preemptive scheduling of coroutines. Essentially `await` switches out the current
+coroutine, returns control back to the event loop, and then picks up where it
+left off when the async function completes. It appears as a blocking call to the
+code and can be treated as such when viewing the code as operating linearly.
+Note however, that if you leave off the `await` keyword the code will **not run**.
+Instead a coroutine object will be returned, which is definitely not what you
+want. Unfortunately, python doesn't generate a compile error here, although it
+will warn you in your output if this happens, with a message like: `__main__:4:
+RuntimeWarning: coroutine 'sleep' was never awaited`. This is [documented
+well](https://trio.readthedocs.io/en/latest/tutorial.html#warning-don-t-forget-that-await)
+in the trio docs.
