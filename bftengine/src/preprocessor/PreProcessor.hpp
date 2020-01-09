@@ -25,6 +25,11 @@ class AsyncPreProcessJob;
 
 //**************** Class PreProcessor ****************//
 
+// This class is responsible for the coordination of pre-execution activities on both - primary and non-primary
+// replica types. It handles client pre-execution requests, pre-processing requests, and replies.
+// On primary replica - it collects pre-execution result hashes from other replicas and decides whether to continue
+// or to fail request processing.
+
 class PreProcessor {
  public:
   PreProcessor(std::shared_ptr<MsgsCommunicator> &msgsCommunicator,
@@ -77,6 +82,8 @@ class PreProcessor {
 };
 
 //**************** Class AsyncPreProcessJob ****************//
+
+// This class is used to send messages to other replicas in parallel
 
 class AsyncPreProcessJob : public util::SimpleThreadPool::Job {
  public:

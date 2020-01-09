@@ -26,6 +26,9 @@ struct ReplicaDataForRequest {
   std::unique_ptr<PreProcessReplyMsg> preProcessReplyMsg_;
 };
 
+// This class collects and stores information relevant to the processing of one specific client request
+// (for all replicas).
+
 class RequestProcessingInfo {
  public:
   RequestProcessingInfo(uint16_t numOfReplicas, ReqId reqSeqNum);

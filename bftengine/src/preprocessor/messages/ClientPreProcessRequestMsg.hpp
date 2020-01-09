@@ -16,6 +16,8 @@
 
 namespace preprocessor {
 
+// This message is created when a client sends a request that contains PRE_PROCESS_REQ flag turned on.
+
 class ClientPreProcessRequestMsg : public ClientRequestMsg {
  public:
   ClientPreProcessRequestMsg(
