@@ -37,6 +37,11 @@ set(corebft_source_files
     src/bcstatetransfer/DBDataStore.cpp
     src/bcstatetransfer/SourceSelector.cpp
     src/simplestatetransfer/SimpleStateTran.cpp
+    src/preprocessor/PreProcessor.cpp
+    src/preprocessor/RequestProcessingInfo.cpp
+    src/preprocessor/messages/ClientPreProcessRequestMsg.cpp
+    src/preprocessor/messages/PreProcessRequestMsg.cpp
+    src/preprocessor/messages/PreProcessReplyMsg.cpp
     src/bftengine/messages/PrePrepareMsg.cpp
     src/bftengine/messages/CheckpointMsg.cpp
     src/bftengine/messages/FullCommitProofMsg.cpp
@@ -77,6 +82,15 @@ endif()
 add_library(corebft STATIC ${corebft_source_files})
 add_library(bftclient STATIC src/bftengine/SimpleClientImp)
 
+find_package(OpenSSL REQUIRED)
+if(OPENSSL_FOUND)
+    message("OpenSSL include dir: ${OPENSSL_INCLUDE_DIR}")
+    message("OpenSSL libraries: ${OPENSSL_LIBRARIES}")
+    target_include_directories(corebft PUBLIC ${OPENSSL_INCLUDE_DIR})
+    target_link_libraries(corebft PUBLIC ${OPENSSL_LIBRARIES})
+    target_link_libraries(bftclient PUBLIC ${OPENSSL_LIBRARIES})
+endif()
+
 if(${BUILD_COMM_TCP_PLAIN} OR ${BUILD_COMM_TCP_TLS})
     set(Boost_USE_STATIC_LIBS ON) # only find static libs
     set(Boost_USE_MULTITHREADED ON)
@@ -91,14 +105,6 @@ if(${BUILD_COMM_TCP_PLAIN} OR ${BUILD_COMM_TCP_TLS})
         target_compile_definitions(corebft PUBLIC USE_COMM_PLAIN_TCP)
         target_compile_definitions(bftclient PUBLIC USE_COMM_PLAIN_TCP)
     elseif(${BUILD_COMM_TCP_TLS})
-        find_package(OpenSSL REQUIRED)
-        if(OPENSSL_FOUND)
-            message("OpenSSL include dir: ${OPENSSL_INCLUDE_DIR}")
-            message("OpenSSL libraries: ${OPENSSL_LIBRARIES}")
-            target_include_directories(corebft PUBLIC ${OPENSSL_INCLUDE_DIR})
-            target_link_libraries(corebft PUBLIC ${OPENSSL_LIBRARIES})
-            target_link_libraries(bftclient PUBLIC ${OPENSSL_LIBRARIES})
-        endif()
         target_compile_definitions(corebft PUBLIC USE_COMM_TLS_TCP)
         target_compile_definitions(bftclient PUBLIC USE_COMM_TLS_TCP)
     endif()
@@ -112,10 +118,13 @@ target_include_directories(corebft PUBLIC include/bcstatetransfer)
 target_include_directories(corebft PUBLIC include/simplestatetransfer)
 target_include_directories(corebft PUBLIC include/metadatastorage)
 target_include_directories(corebft PRIVATE src/bftengine)
+target_include_directories(corebft PRIVATE src/preprocessor)
+target_include_directories(corebft PRIVATE util/include)
 
 target_include_directories(bftclient PUBLIC include/bftengine)
 target_include_directories(bftclient PUBLIC include/communication)
 target_include_directories(bftclient PUBLIC src/bftengine)
+target_include_directories(bftclient PUBLIC src/preprocessor)
 
 target_link_libraries(corebft PUBLIC threshsign)
 target_link_libraries(corebft PUBLIC Threads::Threads)

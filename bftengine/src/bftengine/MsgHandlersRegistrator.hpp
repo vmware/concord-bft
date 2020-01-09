@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "messages/MessageBase.hpp"
 #include <functional>
 #include <unordered_map>
 

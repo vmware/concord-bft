@@ -11,14 +11,13 @@
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
-#include "Replica.hpp"
 #include "ReplicaImp.hpp"
 #include "DebugPersistentStorage.hpp"
 #include "PersistentStorageImp.hpp"
 #include "IncomingMsgsStorageImp.hpp"
 #include "MsgsCommunicator.hpp"
+#include "PreProcessor.hpp"
 #include "MsgReceiver.hpp"
-#include "bftengine/ReplicaConfig.hpp"
 
 #include <condition_variable>
 #include <mutex>
@@ -171,7 +170,8 @@ Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
     replicaInternal->replica_ = new ReplicaImp(
         loadedReplicaData, requestsHandler, stateTransfer, msgsCommunicatorPtr, persistentStoragePtr, msgHandlersPtr);
   }
-
+  preprocessor::PreProcessor::addNewPreProcessor(
+      msgsCommunicatorPtr, incomingMsgsStoragePtr, msgHandlersPtr, *requestsHandler, *replicaInternal->replica_);
   return replicaInternal;
 }
 
