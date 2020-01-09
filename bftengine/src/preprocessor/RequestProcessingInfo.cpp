@@ -24,6 +24,7 @@ RequestProcessingInfo::RequestProcessingInfo(uint16_t numOfReplicas, ReqId reqSe
   for (auto i = 0; i < numOfReplicas; i++)
     // Placeholders for all replicas
     replicasDataForRequest_.push_back(nullptr);
+  LOG_DEBUG(GL, "Created RequestProcessingInfo with reqSeqNum=" << reqSeqNum_ << ", numOfReplicas= " << numOfReplicas_);
 }
 
 void RequestProcessingInfo::saveClientPreProcessRequestMsg(const ClientPreProcessReqMsgSharedPtr& clientPreProcessReq) {
