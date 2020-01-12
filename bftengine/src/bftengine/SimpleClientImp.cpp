@@ -22,6 +22,7 @@
 #include "messages/MessageBase.hpp"
 #include "messages/ClientRequestMsg.hpp"
 #include "messages/ClientReplyMsg.hpp"
+#include "messages/ClientPreProcessRequestMsg.hpp"
 #include "messages/MsgsCertificate.hpp"
 #include "DynamicUpperLimitWithSimpleFilter.hpp"
 #include "Logger.hpp"
@@ -191,10 +192,12 @@ int SimpleClientImp::sendRequest(uint8_t flags,
                                  char* replyBuffer,
                                  uint32_t& actualReplyLength) {
   bool isReadOnly = flags & READ_ONLY_REQ;
+  bool isPreProcessRequired = flags & PRE_PROCESS_REQ;
+
   // TODO(GG): check params ...
   LOG_DEBUG(GL,
             "Client " << clientId_ << " - sends request " << reqSeqNum << " (isRO=" << isReadOnly
-                      << " , request size=" << lengthOfRequest
+                      << ", isPreProcess=" << isPreProcessRequired << " , request size=" << lengthOfRequest
                       << ", retransmissionMilli=" << limitOfExpectedOperationTime_.upperLimit() << " ) ");
 
   if (!communication_->isRunning()) {
@@ -211,7 +214,11 @@ int SimpleClientImp::sendRequest(uint8_t flags,
 
   const Time beginTime = getMonotonicTime();
 
-  ClientRequestMsg* reqMsg = new ClientRequestMsg(clientId_, isReadOnly, reqSeqNum, lengthOfRequest, request);
+  ClientRequestMsg* reqMsg;
+  if (isPreProcessRequired)
+    reqMsg = new preprocessor::ClientPreProcessRequestMsg(clientId_, isReadOnly, reqSeqNum, lengthOfRequest, request);
+  else
+    reqMsg = new ClientRequestMsg(clientId_, isReadOnly, reqSeqNum, lengthOfRequest, request);
   pendingRequest_ = reqMsg;
 
   sendPendingRequest();
@@ -265,10 +272,11 @@ int SimpleClientImp::sendRequest(uint8_t flags,
     LOG_DEBUG_F(GL,
                 "Client %d - request %" PRIu64
                 " has committed "
-                "(isRO=%d, request size=%zu,  retransmissionMilli=%d) ",
+                "(isRO=%d, isPreProcess=%d, request size=%zu,  retransmissionMilli=%d) ",
                 clientId_,
                 reqSeqNum,
                 (int)isReadOnly,
+                isPreProcessRequired,
                 (size_t)lengthOfRequest,
                 (int)limitOfExpectedOperationTime_.upperLimit());
 

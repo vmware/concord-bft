@@ -253,7 +253,17 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   virtual void onInternalMsg(FullCommitProofMsg* m) override;
   virtual void onMerkleExecSignature(ViewNum v, SeqNum s, uint16_t signatureLength, const char* signature) override;
   void updateMetricsForInternalMessage() override { metric_received_internal_msgs_.Get().Inc(); }
-  bool isCollectingState() override { return stateTransfer->isCollectingState(); }
+  bool isCollectingState() const override { return stateTransfer->isCollectingState(); }
+  bool isValidClient(NodeIdType clientId) const override { return clientsManager->isValidClient(clientId); }
+  bool isIdOfReplica(NodeIdType id) const override { return repsInfo->isIdOfReplica(id); }
+  const std::set<ReplicaId>& getIdsOfPeerReplicas() const override { return repsInfo->idsOfPeerReplicas(); }
+  ViewNum getCurrentView() const override { return curView; }
+  ReplicaId currentPrimary() const override { return repsInfo->primaryOfView(curView); }
+  bool isCurrentPrimary() const override { return (currentPrimary() == config_.replicaId); }
+  bool currentViewIsActive() const override { return (viewsManager->viewIsActive(curView)); }
+  ReqId seqNumberOfLastReplyToClient(NodeIdType clientId) const override {
+    return clientsManager->seqNumberOfLastReplyToClient(clientId);
+  }
 
   void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a);
 
@@ -276,9 +286,6 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   template <typename T>
   void messageHandlerWithIgnoreLogic(MessageBase* msg);
 
-  ReplicaId currentPrimary() const { return repsInfo->primaryOfView(curView); }
-  bool isCurrentPrimary() const { return (currentPrimary() == config_.replicaId); }
-
   static const uint16_t ALL_OTHER_REPLICAS = UINT16_MAX;
   void send(MessageBase* m, NodeIdType dest);
   void sendToAllOtherReplicas(MessageBase* m);
@@ -295,6 +302,7 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
                                   uint16_t destReplicaId = ALL_OTHER_REPLICAS);
 
   friend class DebugStatistics;
+  friend class PreProcessor;
 
   void onMessage(ClientRequestMsg*);
   void onMessage(PrePrepareMsg*);
@@ -350,8 +358,6 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   );
 
   void onTransferringCompleteImp(SeqNum);
-
-  bool currentViewIsActive() const { return (viewsManager->viewIsActive(curView)); }
 
   template <typename T>
   bool relevantMsgForActiveView(const T* msg);
