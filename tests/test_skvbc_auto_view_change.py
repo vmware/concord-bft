@@ -51,15 +51,19 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         """
         bft_network.start_all_replicas()
 
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
         initial_primary = 0
 
         # do nothing - just wait for an automatic view change
-        await bft_network.wait_for_view_change(
+        await bft_network.wait_for_view(
             replica_id=random.choice(
                 bft_network.all_replicas(without={initial_primary})),
             expected=lambda v: v > initial_primary,
             err_msg="Make sure automatic view change has occurred."
         )
+
+        skvbc._read_your_writes(bft_network, self)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -74,16 +78,20 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         """
         bft_network.start_all_replicas()
 
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
         initial_primary = 0
         bft_network.stop_replica(initial_primary)
 
         # do nothing - just wait for an automatic view change
-        await bft_network.wait_for_view_change(
+        await bft_network.wait_for_view(
             replica_id=random.choice(
                 bft_network.all_replicas(without={initial_primary})),
             expected=lambda v: v > initial_primary,
             err_msg="Make sure automatic view change has occurred."
         )
+
+        skvbc._read_your_writes(bft_network, self)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -104,7 +112,7 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         for _ in range(150):
             key, val = await skvbc.write_known_kv()
 
-        await bft_network.wait_for_view_change(
+        await bft_network.wait_for_view(
             replica_id=random.choice(
                 bft_network.all_replicas(without={initial_primary})),
             expected=lambda v: v > initial_primary,
@@ -113,3 +121,5 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
 
         await skvbc.assert_kv_write_executed(key, val)
         await bft_network.assert_fast_path_prevalent()
+
+        skvbc._read_your_writes(bft_network, self)
