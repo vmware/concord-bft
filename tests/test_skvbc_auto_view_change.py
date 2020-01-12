@@ -51,16 +51,15 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         """
         bft_network.start_all_replicas()
 
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-
         initial_primary = 0
 
         # do nothing - just wait for an automatic view change
-        await bft_network.wait_for_view(replica_id=random.choice(
-            bft_network.all_replicas(without={initial_primary})), expected=lambda v: v > initial_primary,
-            err_msg="Make sure automatic view change has occurred.")
-
-        self._read_your_writes(bft_network,skvbc)
+        await bft_network.wait_for_view_change(
+            replica_id=random.choice(
+                bft_network.all_replicas(without={initial_primary})),
+            expected=lambda v: v > initial_primary,
+            err_msg="Make sure automatic view change has occurred."
+        )
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -78,14 +77,13 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         initial_primary = 0
         bft_network.stop_replica(initial_primary)
 
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-
         # do nothing - just wait for an automatic view change
-        await bft_network.wait_for_view(replica_id=random.choice(
-            bft_network.all_replicas(without={initial_primary})), expected=lambda v: v > initial_primary,
-            err_msg="Make sure automatic view change has occurred.")
-
-        self._read_your_writes(bft_network, skvbc)
+        await bft_network.wait_for_view_change(
+            replica_id=random.choice(
+                bft_network.all_replicas(without={initial_primary})),
+            expected=lambda v: v > initial_primary,
+            err_msg="Make sure automatic view change has occurred."
+        )
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -106,35 +104,12 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         for _ in range(150):
             key, val = await skvbc.write_known_kv()
 
-        await bft_network.wait_for_view(replica_id=random.choice(
-            bft_network.all_replicas(without={initial_primary})), expected=lambda v: v > initial_primary,
-            err_msg="Make sure automatic view change has occurred.")
+        await bft_network.wait_for_view_change(
+            replica_id=random.choice(
+                bft_network.all_replicas(without={initial_primary})),
+            expected=lambda v: v > initial_primary,
+            err_msg="Make sure automatic view change has occurred."
+        )
 
         await skvbc.assert_kv_write_executed(key, val)
         await bft_network.assert_fast_path_prevalent()
-
-        self._read_your_writes(bft_network,skvbc)
-
-    async def _read_your_writes(self,bft_network, skvbc):
-        # Verify by "Read your write"
-        # Perform write with the new primary
-        client = bft_network.random_client()
-        last_block = skvbc.parse_reply(
-            await client.read(skvbc.get_last_block_req()))
-        # Perform an unconditional KV put.
-        # Ensure keys aren't identical
-        kv = [(skvbc.keys[0], skvbc.random_value()),
-              (skvbc.keys[1], skvbc.random_value())]
-
-        reply = await client.write(skvbc.write_req([], kv, 0))
-        reply = skvbc.parse_reply(reply)
-        self.assertTrue(reply.success)
-        self.assertEqual(last_block + 1, reply.last_block_id)
-
-        last_block = reply.last_block_id
-
-        # Read the last write and check if equal
-        # Get the kvpairs in the last written block
-        data = await client.read(skvbc.get_block_data_req(last_block))
-        kv2 = skvbc.parse_reply(data)
-        self.assertDictEqual(kv2, dict(kv))

@@ -58,19 +58,22 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
         await self._send_random_writes(skvbc)
 
-        await bft_network.wait_for_view(replica_id=initial_primary, expected=lambda v: v == initial_primary,
-                                        err_msg="Make sure we are in the initial view "
-                                                "before crashing the primary.")
+        await bft_network.wait_for_view_change(
+            replica_id=initial_primary,
+            expected=lambda v: v == initial_primary,
+            err_msg="Make sure we are in the initial view "
+                    "before crashing the primary."
+        )
 
         bft_network.stop_replica(initial_primary)
 
         await self._send_random_writes(skvbc)
 
-        await bft_network.wait_for_view(replica_id=random.choice(bft_network.all_replicas(without={0})),
-                                        expected=lambda v: v == expected_next_primary,
-                                        err_msg="Make sure view change has been triggered.")
-
-        await self._read_your_writes(bft_network, skvbc)
+        await bft_network.wait_for_view_change(
+            replica_id=random.choice(bft_network.all_replicas(without={0})),
+            expected=lambda v: v == expected_next_primary,
+            err_msg="Make sure view change has been triggered."
+        )
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -90,20 +93,23 @@ class SkvbcViewChangeTest(unittest.TestCase):
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
             initial_primary = 0
-            await bft_network.wait_for_view(replica_id=initial_primary, expected=lambda v: v == initial_primary,
-                                            err_msg="Make sure we are in the initial view "
-                                                    "before isolating the primary.")
+            await bft_network.wait_for_view_change(
+                replica_id=initial_primary,
+                expected=lambda v: v == initial_primary,
+                err_msg="Make sure we are in the initial view "
+                        "before isolating the primary."
+            )
 
             await adversary.interfere()
             expected_next_primary = 1
 
             await self._send_random_writes(skvbc)
 
-            await bft_network.wait_for_view(replica_id=random.choice(bft_network.all_replicas(without={0})),
-                                            expected=lambda v: v == expected_next_primary,
-                                            err_msg="Make sure view change has been triggered.")
-
-            await self._read_your_writes(bft_network, skvbc)
+            await bft_network.wait_for_view_change(
+                replica_id=random.choice(bft_network.all_replicas(without={0})),
+                expected=lambda v: v == expected_next_primary,
+                err_msg="Make sure view change has been triggered."
+            )
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -141,12 +147,11 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
         await self._send_random_writes(skvbc)
 
-        await bft_network.wait_for_view(replica_id=random.choice(bft_network.all_replicas(without=crashed_replicas)),
-                                        expected=lambda v: v == expected_next_primary,
-                                        err_msg="Make sure view change has been triggered.")
-
-        await self._read_your_writes(bft_network,skvbc)
-
+        await bft_network.wait_for_view_change(
+            replica_id=random.choice(bft_network.all_replicas(without=crashed_replicas)),
+            expected=lambda v: v == expected_next_primary,
+            err_msg="Make sure view change has been triggered."
+        )
 
     @with_trio
     @with_bft_network(start_replica_cmd,
@@ -196,17 +201,16 @@ class SkvbcViewChangeTest(unittest.TestCase):
             stable_replica = random.choice(
                 bft_network.all_replicas(without=crashed_replicas))
 
-            view = await bft_network.wait_for_view(replica_id=stable_replica, expected=lambda v: v > current_primary,
-                                                   err_msg="Make sure a view change has been triggered.")
+            view = await bft_network.wait_for_view_change(
+                replica_id=stable_replica,
+                expected=lambda v: v > current_primary,
+                err_msg="Make sure a view change has been triggered."
+            )
             current_primary = view
             [bft_network.start_replica(i) for i in crashed_replicas]
 
         await bft_network.wait_for_slow_path_to_be_prevalent(
             replica_id=current_primary)
-
-        await self._read_your_writes(bft_network, skvbc)
-
-
 
     async def _send_random_writes(self, skvbc):
         with trio.move_on_after(seconds=1):
@@ -227,27 +231,3 @@ class SkvbcViewChangeTest(unittest.TestCase):
             crashed_replicas.add(crash_candidates[i])
 
         return crashed_replicas
-
-    async def _read_your_writes(self,bft_network, skvbc):
-        # Verify by "Read your write"
-        # Perform write with the new primary
-        client = bft_network.random_client()
-        last_block = skvbc.parse_reply(
-            await client.read(skvbc.get_last_block_req()))
-        # Perform an unconditional KV put.
-        # Ensure keys aren't identical
-        kv = [(skvbc.keys[0], skvbc.random_value()),
-              (skvbc.keys[1], skvbc.random_value())]
-
-        reply = await client.write(skvbc.write_req([], kv, 0))
-        reply = skvbc.parse_reply(reply)
-        self.assertTrue(reply.success)
-        self.assertEqual(last_block + 1, reply.last_block_id)
-
-        last_block = reply.last_block_id
-
-        # Read the last write and check if equal
-        # Get the kvpairs in the last written block
-        data = await client.read(skvbc.get_block_data_req(last_block))
-        kv2 = skvbc.parse_reply(data)
-        self.assertDictEqual(kv2, dict(kv))

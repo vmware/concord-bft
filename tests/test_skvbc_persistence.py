@@ -66,7 +66,10 @@ class SkvbcPersistenceTest(unittest.TestCase):
                 nursery.start_soon(
                     skvbc.send_indefinite_write_requests)
                 # See if replica 1 has become the new primary
-                await bft_network.wait_for_view(replica_id=1, expected=lambda v: v == 1)
+                await bft_network.wait_for_view_change(
+                    replica_id=1,
+                    expected=lambda v: v == 1
+                )
                 # At this point a view change has successfully completed
                 # with node 1 as the primary. The faulty assertion should
                 # have crashed old nodes.
@@ -395,8 +398,11 @@ class SkvbcPersistenceTest(unittest.TestCase):
                 stale_nodes={stale_replica}
             )
 
-        view = await bft_network.wait_for_view(replica_id=0, expected=lambda v: v == 0,
-                                               err_msg="Make sure we are in the initial view.")
+        view = await bft_network.wait_for_view_change(
+            replica_id=0,
+            expected=lambda v: v == 0,
+            err_msg="Make sure we are in the initial view."
+        )
 
         print(f'Initial view number is {view}, as expected.')
 
@@ -445,11 +451,17 @@ class SkvbcPersistenceTest(unittest.TestCase):
         )
 
         if trigger_view_change:
-            await bft_network.wait_for_view(replica_id=up_to_date_replica, expected=lambda v: v > 0,
-                                            err_msg="Make sure view change has been triggered during state transfer.")
+            await bft_network.wait_for_view_change(
+                replica_id=up_to_date_replica,
+                expected=lambda v: v > 0,
+                err_msg="Make sure view change has been triggered during state transfer."
+            )
         else:
-            await bft_network.wait_for_view(replica_id=up_to_date_replica, expected=lambda v: v == 0,
-                                            err_msg="Make sure view change has NOT been triggered during state transfer.")
+            await bft_network.wait_for_view_change(
+                replica_id=up_to_date_replica,
+                expected=lambda v: v == 0,
+                err_msg="Make sure view change has NOT been triggered during state transfer."
+            )
 
         print(f'State transfer completed, despite the primary '
               f'replica crashing.')
@@ -479,8 +491,10 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
             bft_network.start_replica(current_primary)
 
-            current_primary = await bft_network.wait_for_view(replica_id=random.choice(stable_replicas),
-                                                              expected=lambda v: v > current_primary)
+            current_primary = await bft_network.wait_for_view_change(
+                replica_id=random.choice(stable_replicas),
+                expected=lambda v: v > current_primary
+            )
 
             stable_replicas = \
                 bft_network.all_replicas(without={current_primary, stale})

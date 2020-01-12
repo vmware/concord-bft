@@ -270,12 +270,13 @@ class BftTestNetwork:
         Returns the current primary replica id
         """
         live_replica = random.choice(self.get_live_replicas())
-        current_primary = await self.wait_for_view(replica_id=live_replica, expected=None)
+        current_primary = await self.wait_for_view_change(
+            replica_id=live_replica, expected=None)
 
         return current_primary
 
-    async def wait_for_view(self, replica_id, expected=None,
-                            err_msg="Expected view not reached"):
+    async def wait_for_view_change(self, replica_id, expected=None,
+                                   err_msg="Expected view not reached"):
         """
         Waits for a view that matches the "expected" predicate,
         and returns the corresponding view number.
