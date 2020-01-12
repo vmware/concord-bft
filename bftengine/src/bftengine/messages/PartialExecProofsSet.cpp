@@ -25,7 +25,7 @@ namespace impl {
 PartialExecProofsSet::PartialExecProofsSet(InternalReplicaApi* internalReplicaApi)
     : replicaApi(internalReplicaApi),
       replicasInfo(internalReplicaApi->getReplicasInfo()),
-      numOfRquiredPartialProofs(internalReplicaApi->getReplicasInfo().fVal() + 1),
+      numOfRequiredPartialProofs(internalReplicaApi->getReplicasInfo().fVal() + 1),
       seqNumber(0),
       myPartialExecProof(nullptr),
       accumulator(nullptr) {
@@ -84,7 +84,7 @@ bool PartialExecProofsSet::addMsg(PartialExecProofMsg* m) {
   Assert(replicasInfo.isIdOfReplica(repId));
 
   if ((participatingReplicas.count(repId) == 0) &&
-      (participatingReplicas.size() < numOfRquiredPartialProofs - 1)  // we don't have enough partial proofs
+      (participatingReplicas.size() < numOfRequiredPartialProofs - 1)  // we don't have enough partial proofs
   ) {
     participatingReplicas.insert(repId);
     addImp(m);
@@ -98,7 +98,7 @@ bool PartialExecProofsSet::addMsg(PartialExecProofMsg* m) {
 void PartialExecProofsSet::addImp(PartialExecProofMsg* m) {
   thresholdAccumulator()->add(m->thresholSignature(), m->thresholSignatureLength());
 
-  if ((participatingReplicas.size() == (numOfRquiredPartialProofs - 1)) && (myPartialExecProof != nullptr)) {
+  if ((participatingReplicas.size() == (numOfRequiredPartialProofs - 1)) && (myPartialExecProof != nullptr)) {
     tryToCreateFullProof();
   }
 }
@@ -201,7 +201,7 @@ class AsynchExecProofCreationJob : public util::SimpleThreadPool::Job {
 void PartialExecProofsSet::tryToCreateFullProof() {
   Assert(accumulator != nullptr);
 
-  if ((participatingReplicas.size() == (numOfRquiredPartialProofs - 1)) && (myPartialExecProof != nullptr)) {
+  if ((participatingReplicas.size() == (numOfRequiredPartialProofs - 1)) && (myPartialExecProof != nullptr)) {
     IThresholdAccumulator* acc = accumulator->clone();
 
     PartialExecProofMsg* myPEP = myPartialExecProof;

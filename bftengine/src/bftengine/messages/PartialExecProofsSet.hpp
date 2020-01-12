@@ -56,7 +56,7 @@ class PartialExecProofsSet {
 
   InternalReplicaApi* const replicaApi;
   const ReplicasInfo& replicasInfo;
-  const size_t numOfRquiredPartialProofs;
+  const size_t numOfRequiredPartialProofs;
 
   SeqNum seqNumber;
   PartialExecProofMsg* myPartialExecProof;
