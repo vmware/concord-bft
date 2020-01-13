@@ -57,7 +57,7 @@ class Nibble {
 
   // Get the bit of the Nibble starting from LSB.
   // Bits 0-3 are available.
-  bool getBit(const size_t bit) const {
+  bool getBit(size_t bit) const {
     Assert(bit < SIZE_IN_BITS);
     return (data_ >> bit) & 1;
   }

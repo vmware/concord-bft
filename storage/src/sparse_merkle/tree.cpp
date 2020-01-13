@@ -106,7 +106,7 @@ void descend(Nibble next_nibble, Version next_version, UpdateCache& cache, Inser
   InternalNodeKey next_internal_key{next_version, state.nibble_path};
   state.current_node = cache.getInternalNode(next_internal_key);
   cacheStaleInternalNode(cache, state);
-  state.depth += 1;
+  state.depth++;
 }
 
 // A node split has occurred, due to a collision, triggering the need to create more
@@ -117,12 +117,12 @@ void create_internal_nodes(const LeafChild& stored_child, const LeafChild& child
     // Add a bunch of empty intermediate nodes
     state.nibble_path.append(child_to_insert.key.getNibble(state.depth));
     state.stack.emplace(BatchedInternalNode());
-    state.depth += 1;
+    state.depth++;
   }
   // Create the bottom most node and make it the current node
   state.nibble_path.append(child_to_insert.key.getNibble(state.depth));
   state.current_node = BatchedInternalNode();
-  state.depth += 1;
+  state.depth++;
 }
 
 // A node split occurred due to a key collision.
@@ -132,7 +132,7 @@ void create_internal_nodes(const LeafChild& stored_child, const LeafChild& child
 //
 // On the next loop around the `child_to_insert` will be successfully inserted
 // inside `state.current_node`.
-void handleNodeSplit(BatchedInternalNode::CreateNewBatchedInternalNodes result,
+void handleNodeSplit(const BatchedInternalNode::CreateNewBatchedInternalNodes& result,
                      const LeafChild& child_to_insert,
                      InsertState& state) {
   create_internal_nodes(result.stored_child, child_to_insert, state);
@@ -142,7 +142,7 @@ void handleNodeSplit(BatchedInternalNode::CreateNewBatchedInternalNodes result,
 }
 
 // Insert a single leaf. This is called as part of `update`.
-void insert(UpdateCache& cache, const LeafChild& child, const Version version, Tree::NodeStack& stack) {
+void insert(UpdateCache& cache, const LeafChild& child, Version version, Tree::NodeStack& stack) {
   const auto& root = cache.internal_nodes_[NibblePath()];
   InsertState state(root, version, stack);
   cacheStaleInternalNode(cache, state);

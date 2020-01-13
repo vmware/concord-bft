@@ -182,7 +182,7 @@ class BatchedInternalNode {
 
   // Write an InternalChild of the BatchedInternalNode at level 0.
   //
-  // This occurs when this InternalChild poiints to another BatchedInternalNode
+  // This occurs when this InternalChild points to another BatchedInternalNode
   // down the tree, and that BatchedInternalNode was just updated.
   void write_internal_child_at_level_0(Nibble child_key, const InternalChild& child);
 

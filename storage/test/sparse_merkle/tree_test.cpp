@@ -40,6 +40,9 @@ void assert_version(uint64_t version, const T& keys) {
 template <class T>
 void assert_node_version(uint64_t version, const T& nodes) {
   for (auto& [key, _] : nodes) {
+    // Prevent unused variable warning. C++ doesn't allow ignoring in
+    // destructuring yet.
+    (void)_;
     ASSERT_EQ(Version(version), key.version());
   }
 }
