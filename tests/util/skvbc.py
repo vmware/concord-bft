@@ -287,7 +287,8 @@ class SimpleKVBCProtocol:
 
         return keys
 
-    async def read_your_writes(self, test_class,client):
+    async def read_your_writes(self, test_class):
+        client = self.bft_network.random_client()
         # Verify by "Read your write"
         # Perform write with the new primary
 

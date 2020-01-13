@@ -75,8 +75,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
             err_msg="Make sure view change has been triggered."
         )
 
-        client = bft_network.random_client()
-        skvbc.read_your_writes(self, client)
+        skvbc.read_your_writes(self)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -113,8 +112,8 @@ class SkvbcViewChangeTest(unittest.TestCase):
                 expected=lambda v: v == expected_next_primary,
                 err_msg="Make sure view change has been triggered."
             )
-            client = bft_network.random_client()
-            skvbc.read_your_writes(self, client)
+
+            skvbc.read_your_writes(self)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -158,8 +157,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
             err_msg="Make sure view change has been triggered."
         )
 
-        client = bft_network.random_client()
-        skvbc.read_your_writes(self, client)
+        skvbc.read_your_writes(self)
 
     @with_trio
     @with_bft_network(start_replica_cmd,
@@ -217,8 +215,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
             current_primary = view
             [bft_network.start_replica(i) for i in crashed_replicas]
 
-            client = bft_network.random_client()
-            skvbc.read_your_writes(self, client)
+            skvbc.read_your_writes(self)
 
         await bft_network.wait_for_slow_path_to_be_prevalent(
             replica_id=current_primary)
