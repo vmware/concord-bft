@@ -54,7 +54,8 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
 
   [[nodiscard]] bool isRunning() const override { return dispatcherThread_.joinable(); }
 
-  private : void dispatchMessages(std::promise<void>& signalStarted);
+ private:
+  void dispatchMessages(std::promise<void>& signalStarted);
   IncomingMsg getMsgForProcessing();
   IncomingMsg popThreadLocal();
 
