@@ -287,6 +287,31 @@ class SimpleKVBCProtocol:
 
         return keys
 
+    async def read_your_writes(self, test_class):
+        client = self.bft_network.random_client()
+        # Verify by "Read your write"
+        # Perform write with the new primary
+
+        last_block = self.parse_reply(
+            await client.read(self.get_last_block_req()))
+        # Perform an unconditional KV put.
+        # Ensure keys aren't identical
+        kv = [(self.keys[0], self.random_value()),
+              (self.keys[1], self.random_value())]
+
+        reply = await client.write(self.write_req([], kv, 0))
+        reply = self.parse_reply(reply)
+        test_class.assertTrue(reply.success)
+        test_class.assertEqual(last_block + 1, reply.last_block_id)
+
+        last_block = reply.last_block_id
+
+        # Read the last write and check if equal
+        # Get the kvpairs in the last written block
+        data = await client.read(self.get_block_data_req(last_block))
+        kv2 = self.parse_reply(data)
+        test_class.assertDictEqual(kv2, dict(kv))
+
 class SkvbcClient:
     """A wrapper around bft_client that uses the SimpleKVBCProtocol"""
     def __init__(self, bft_client):

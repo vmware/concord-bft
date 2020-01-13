@@ -79,44 +79,14 @@ class SkvbcTest(unittest.TestCase):
                 bft_network.all_replicas(without={0}))
             bft_network.start_replicas(replicas=bft_network.all_replicas(without={br}))
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-            client = bft_network.random_client()
 
             blinking.start_blinking(bft_network.start_replica_cmd(br))
 
             for _ in range(300):
-                last_block = skvbc.parse_reply(
-                    await client.read(skvbc.get_last_block_req()))
                 # Perform an unconditional KV put.
                 # Ensure keys aren't identical
-                kv = [(skvbc.keys[0], skvbc.random_value()),
-                      (skvbc.keys[1], skvbc.random_value())]
+                await skvbc.read_your_writes(self)
 
-                reply = await client.write(skvbc.write_req([], kv, 0))
-                reply = skvbc.parse_reply(reply)
-                self.assertTrue(reply.success)
-                self.assertEqual(last_block + 1, reply.last_block_id)
-
-                last_block = reply.last_block_id
-
-                # Get the kvpairs in the last written block
-                data = await client.read(skvbc.get_block_data_req(last_block))
-                kv2 = skvbc.parse_reply(data)
-                self.assertDictEqual(kv2, dict(kv))
-
-                # Write another block with the same keys but (probabilistically)
-                # different data
-                kv3 = [(skvbc.keys[0], skvbc.random_value()),
-                       (skvbc.keys[1], skvbc.random_value())]
-                reply = await client.write(skvbc.write_req([], kv3, 0))
-                reply = skvbc.parse_reply(reply)
-                self.assertTrue(reply.success)
-                self.assertEqual(last_block + 1, reply.last_block_id)
-
-                # Get the kvpairs in the previously written block
-                data = await client.read(skvbc.get_block_data_req(last_block))
-                kv2 = skvbc.parse_reply(data)
-
-                self.assertDictEqual(kv2, dict(kv))
 
     @with_trio
     @with_bft_network(start_replica_cmd)
