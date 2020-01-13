@@ -60,7 +60,7 @@ class PrePrepareMsg : public MessageBase {
 
   static const Digest& digestOfNullPrePrepareMsg();
 
-  static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, PrePrepareMsg*& outMsg);
+  void validate(const ReplicasInfo&) override;
 
   // ctor and other build methods
 

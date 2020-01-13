@@ -5,6 +5,8 @@ set(corebft_source_files
     src/bftengine/DebugStatistics.cpp
     src/bftengine/Digest.cpp
     src/bftengine/SeqNumInfo.cpp
+    src/bftengine/ReplicaBase.cpp
+    src/bftengine/ReplicaForStateTransfer.cpp
     src/bftengine/ReplicaImp.cpp
     src/bftengine/ControllerBase.cpp
     src/bftengine/ControllerWithSimpleHistory.cpp

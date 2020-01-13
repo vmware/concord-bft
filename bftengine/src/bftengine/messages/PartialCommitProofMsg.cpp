@@ -33,31 +33,16 @@ PartialCommitProofMsg::PartialCommitProofMsg(
       (const char*)(&(digest)), sizeof(Digest), body() + sizeof(PartialCommitProofMsgHeader), thresholSignatureLength);
 }
 
-bool PartialCommitProofMsg::ToActualMsgType(const ReplicasInfo& repInfo,
-                                            MessageBase* inMsg,
-                                            PartialCommitProofMsg*& outMsg) {
-  Assert(inMsg->type() == MsgCode::PartialCommitProof);
-  if (inMsg->size() < sizeof(PartialCommitProofMsgHeader)) return false;
+void PartialCommitProofMsg::validate(const ReplicasInfo& repInfo) {
 
-  PartialCommitProofMsg* t = (PartialCommitProofMsg*)inMsg;
-
-  if (t->senderId() == repInfo.myId())
-    return false;  // TODO(GG) - TBD: we should use Assert for this condition (also in other messages)
-
-  if (!repInfo.isIdOfReplica(t->senderId())) return false;
-
-  if ((t->commitPath() == CommitPath::FAST_WITH_THRESHOLD) && (repInfo.cVal() == 0)) return false;
-
-  if (t->commitPath() == CommitPath::SLOW) return false;
-
-  uint16_t thresholSignatureLength = t->thresholSignatureLength();
-  if (t->size() < (sizeof(PartialCommitProofMsgHeader) + thresholSignatureLength)) return false;
-
-  if (!repInfo.isCollectorForPartialProofs(t->viewNumber(), t->seqNumber())) return false;
-
-  outMsg = (PartialCommitProofMsg*)t;
-
-  return true;
+  if (size() < sizeof(PartialCommitProofMsgHeader) ||
+      senderId() == repInfo.myId() ||  // TODO(GG) - TBD: we should use Assert for this condition (also in other messages)
+      !repInfo.isIdOfReplica(senderId()) ||
+      ((commitPath() == CommitPath::FAST_WITH_THRESHOLD) && (repInfo.cVal() == 0)) ||
+      commitPath() == CommitPath::SLOW ||
+      size() < (sizeof(PartialCommitProofMsgHeader) + thresholSignatureLength()) ||
+      !repInfo.isCollectorForPartialProofs(viewNumber(), seqNumber()))
+    throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
 }  // namespace impl

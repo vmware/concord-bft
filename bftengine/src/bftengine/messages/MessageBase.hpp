@@ -35,7 +35,9 @@ class MessageBase {
 
   MessageBase(NodeIdType sender, Header *body, MsgSize size, bool ownerOfStorage);
 
-  ~MessageBase();
+  virtual ~MessageBase();
+
+  virtual void validate(const ReplicasInfo&){}
 
   bool equals(const MessageBase &other) const;
 

@@ -32,25 +32,13 @@ PartialExecProofMsg::PartialExecProofMsg(
       (const char*)(&(digest)), sizeof(Digest), body() + sizeof(PartialExecProofMsgHeader), thresholSignatureLength);
 }
 
-bool PartialExecProofMsg::ToActualMsgType(const ReplicasInfo& repInfo,
-                                          MessageBase* inMsg,
-                                          PartialExecProofMsg*& outMsg) {
-  Assert(inMsg->type() == MsgCode::PartialExecProof);
-  if (inMsg->size() < sizeof(PartialExecProofMsgHeader)) return false;
+void PartialExecProofMsg::validate(const ReplicasInfo& repInfo) {
 
-  PartialExecProofMsg* t = (PartialExecProofMsg*)inMsg;
-
-  uint16_t thresholSignatureLength = t->thresholSignatureLength();
-  if ((size_t)(t->size()) < (sizeof(PartialExecProofMsgHeader) + thresholSignatureLength)) return false;
-
-  if (t->senderId() == repInfo.myId())
-    return false;  // TODO(GG) - TBD: we should use Assert for this condition (also in other messages)
-
-  if (!repInfo.isIdOfReplica(t->senderId())) return false;
-
-  outMsg = (PartialExecProofMsg*)t;
-
-  return true;
+  if (size() < sizeof(PartialExecProofMsgHeader) ||
+      size() < (sizeof(PartialExecProofMsgHeader) + thresholSignatureLength()) ||
+      senderId() == repInfo.myId() ||// TODO(GG) - TBD: we should use Assert for this condition (also in other messages)
+      !repInfo.isIdOfReplica(senderId()))
+      throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
 }  // namespace impl

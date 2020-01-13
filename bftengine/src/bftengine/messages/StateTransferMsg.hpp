@@ -17,7 +17,7 @@ namespace bftEngine {
 namespace impl {
 class StateTransferMsg : public MessageBase {
  public:
-  static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, StateTransferMsg*& outMsg);
+  void validate(const ReplicasInfo&) override;
 };
 
 }  // namespace impl

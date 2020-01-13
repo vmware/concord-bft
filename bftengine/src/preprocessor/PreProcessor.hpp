@@ -35,7 +35,7 @@ class PreProcessor {
   PreProcessor(std::shared_ptr<MsgsCommunicator> &msgsCommunicator,
                std::shared_ptr<IncomingMsgsStorage> &incomingMsgsStorage,
                std::shared_ptr<MsgHandlersRegistrator> &msgHandlersRegistrator,
-               bftEngine::RequestsHandler &requestsHandler,
+               bftEngine::IRequestsHandler &requestsHandler,
                const InternalReplicaApi &replica);
 
   ~PreProcessor();
@@ -43,7 +43,7 @@ class PreProcessor {
   static void addNewPreProcessor(std::shared_ptr<MsgsCommunicator> &msgsCommunicator,
                                  std::shared_ptr<IncomingMsgsStorage> &incomingMsgsStorage,
                                  std::shared_ptr<MsgHandlersRegistrator> &msgHandlersRegistrator,
-                                 bftEngine::RequestsHandler &requestsHandler,
+                                 bftEngine::IRequestsHandler &requestsHandler,
                                  InternalReplicaApi &replica);
 
  private:
@@ -66,7 +66,7 @@ class PreProcessor {
   std::shared_ptr<MsgsCommunicator> msgsCommunicator_;
   std::shared_ptr<IncomingMsgsStorage> incomingMsgsStorage_;
   std::shared_ptr<MsgHandlersRegistrator> msgHandlersRegistrator_;
-  bftEngine::RequestsHandler &requestsHandler_;
+  bftEngine::IRequestsHandler &requestsHandler_;
   const InternalReplicaApi &replica_;
   const ReplicaId replicaId_;
   const uint32_t maxReplyMsgSize_;

@@ -46,11 +46,11 @@ ReplicaForStateTransfer::ReplicaForStateTransfer( const ReplicaConfig& config,
 }
 
 void ReplicaForStateTransfer::start() {
-  ReplicaBase::start();
-  stateTransfer->startRunning(this);
-  stateTranTimer_ = TimersSingleton::getInstance().add(1ms,
+  stateTranTimer_ = TimersSingleton::getInstance().add(5s,
                                                        Timers::Timer::RECURRING,
                                                        [this](Timers::Handle h){stateTransfer->onTimer();});
+  stateTransfer->startRunning(this);
+  ReplicaBase::start(); // msg communicator should be last in the starting chain
 }
 
 void ReplicaForStateTransfer::stop() {
