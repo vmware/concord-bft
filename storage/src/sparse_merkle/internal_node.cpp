@@ -12,6 +12,9 @@
 
 #include "sparse_merkle/internal_node.h"
 
+#include <iostream>
+using namespace std;
+
 namespace concord {
 namespace storage {
 namespace sparse_merkle {
@@ -165,7 +168,9 @@ BatchedInternalNode::InsertResult BatchedInternalNode::insertTwoLeafChildren(
     size_t index, Version version, Nibble child_key, size_t prefix_bits_in_common, LeafChild child1, LeafChild child2) {
   size_t child1_index = 0;
   size_t child2_index = 0;
-  if (child_key.getBit(prefix_bits_in_common)) {
+  // prefix_bits_in_common start from MSB. At most there can be 3 bits in common
+  // in a Nibble.
+  if (child_key.getBit(Nibble::SIZE_IN_BITS - prefix_bits_in_common - 1)) {
     child1_index = rightChildIndex(index);
     child2_index = leftChildIndex(index);
   } else {
@@ -176,6 +181,12 @@ BatchedInternalNode::InsertResult BatchedInternalNode::insertTwoLeafChildren(
   children_[child2_index] = child2;
   updateHashes(child1_index, version);
   return BatchedInternalNode::InsertComplete{};
+}
+
+void BatchedInternalNode::write_internal_child_at_level_0(Nibble child_key, const InternalChild& child) {
+  size_t index = nibble_to_index(child_key);
+  children_[index] = child;
+  updateHashes(index, child.version);
 }
 
 Version BatchedInternalNode::version() const {
@@ -204,6 +215,11 @@ size_t BatchedInternalNode::numLeafChildren() const {
     }
     return false;
   });
+}
+
+size_t BatchedInternalNode::nibble_to_index(Nibble nibble) {
+  constexpr size_t level_0_start = MAX_CHILDREN / 2;
+  return level_0_start + nibble.data();
 }
 
 size_t BatchedInternalNode::height(size_t index) const {

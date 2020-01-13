@@ -26,11 +26,23 @@ constexpr size_t BYTE_SIZE_IN_BITS = 8;
 static_assert(BYTE_SIZE_IN_BITS == CHAR_BIT);
 
 // A type safe version wrapper
-struct Version {
-  Version() : value(0) {}
-  Version(uint64_t val) : value(val) {}
-  bool operator==(const Version& other) const { return value == other.value; }
-  uint64_t value;
+class Version {
+ public:
+  Version() {}
+  Version(uint64_t val) : value_(val) {}
+  bool operator==(const Version& other) const { return value_ == other.value_; }
+  bool operator!=(const Version& other) const { return value_ != other.value_; }
+  bool operator<(const Version& other) const { return value_ < other.value_; }
+  Version operator+(const Version& other) { return Version(value_ + other.value_); }
+  Version operator+(const int other) {
+    Assert(other > 0);
+    return Version(value_ + 1);
+  }
+  uint64_t value() { return value_; }
+  std::string toString() const { return std::to_string(value_); };
+
+ private:
+  uint64_t value_ = 0;
 };
 
 // A nibble is 4 bits, stored in the lower bits of a byte.
@@ -43,15 +55,26 @@ class Nibble {
     data_ = byte;
   }
 
-  bool getBit(const size_t bit) const {
+  // Get the bit of the Nibble starting from LSB.
+  // Bits 0-3 are available.
+  bool getBit(size_t bit) const {
     Assert(bit < SIZE_IN_BITS);
     return (data_ >> bit) & 1;
   }
 
   bool operator==(const Nibble& other) const { return data_ == other.data_; }
+  bool operator<(const Nibble& other) const { return data_ < other.data_; }
 
   // Return the underlying representation
   uint8_t data() const { return data_; }
+
+  // Return the nibble as its lowercase hex character.
+  char hexChar() const {
+    if (data_ >= 0 && data_ <= 9) {
+      return '0' + data_;
+    }
+    return 'a' + (data_ - 10);
+  }
 
  private:
   // Only the lower 4 bits are used
@@ -95,9 +118,20 @@ class Hash {
   Hash(std::array<uint8_t, SIZE_IN_BYTES> buf) : buf_(buf) {}
 
   bool operator==(const Hash& other) const { return buf_ == other.buf_; }
+  bool operator!=(const Hash& other) const { return buf_ != other.buf_; }
+  bool operator<(const Hash& other) const { return buf_ < other.buf_; }
 
   const uint8_t* data() const { return buf_.data(); }
   size_t size() const { return buf_.size(); }
+
+  // Return buf_ as lowercase hex string
+  std::string toString() const {
+    std::string output;
+    for (size_t i = 0; i < MAX_NIBBLES; i++) {
+      output.push_back(getNibble(i).hexChar());
+    }
+    return output;
+  }
 
   Nibble getNibble(const size_t n) const {
     Assert(!buf_.empty());
@@ -176,6 +210,21 @@ class NibblePath {
   NibblePath() : num_nibbles_(0) {}
 
   bool operator==(const NibblePath& other) const { return num_nibbles_ == other.num_nibbles_ && path_ == other.path_; }
+  bool operator<(const NibblePath& other) const {
+    size_t count = std::min(num_nibbles_, other.num_nibbles_);
+    for (size_t i = 0; i < count; i++) {
+      if (get(i) < other.get(i)) {
+        return true;
+      } else if (other.get(i) < get(i)) {
+        return false;
+      }
+    }
+    // Both match up to count nibbles. Is this one shorter ?
+    if (num_nibbles_ < other.num_nibbles_) {
+      return true;
+    }
+    return false;
+  }
 
   // Return the length of the path_ in nibbles
   size_t length() const { return num_nibbles_; }
@@ -203,7 +252,7 @@ class NibblePath {
       // We have a complete byte at the end of path_. Remove the lower nibble.
       data = path_.back() & 0x0F;
       // Clear the lower nibble.
-      path_.back() |= 0xF0;
+      path_.back() &= 0xF0;
     } else {
       // We have an incomplete byte at the end of path_. Remove the upper nibble.
       data = path_.back() >> Nibble::SIZE_IN_BITS;
@@ -218,6 +267,15 @@ class NibblePath {
   Nibble get(size_t n) const {
     Assert(n < num_nibbles_);
     return ::concord::storage::sparse_merkle::getNibble(n, path_);
+  }
+
+  // Return path_ as lowercase hex string
+  std::string toString() const {
+    std::string output;
+    for (size_t i = 0; i < num_nibbles_; i++) {
+      output.push_back(get(i).hexChar());
+    }
+    return output;
   }
 
  private:

@@ -31,7 +31,19 @@ class InternalNodeKey {
 
   bool operator==(const InternalNodeKey& other) const { return version_ == other.version_ && path_ == other.path_; }
 
+  // Compare by version then by path
+  bool operator<(const InternalNodeKey& other) const {
+    if (version_ == other.version_) {
+      return path_ < other.path_;
+    }
+    return version_ < other.version_;
+  }
+
+  std::string toString() const { return path_.toString() + "-" + version_.toString(); }
+
   Version version() const { return version_; }
+
+  const NibblePath& path() const { return path_; }
 
  private:
   Version version_;
@@ -49,6 +61,16 @@ class LeafKey {
 
   bool operator==(const LeafKey& other) const { return key_ == other.key_ && version_ == other.version_; }
 
+  // Compare by key_ then version_
+  bool operator<(const LeafKey& other) const {
+    if (key_ < other.key_) {
+      return true;
+    }
+    return key_ == other.key_ && version_ < other.version_;
+  }
+
+  std::string toString() const { return key_.toString() + "-" + version_.toString(); }
+
   Nibble getNibble(const size_t n) const {
     Assert(n < Hash::MAX_NIBBLES);
     return key_.getNibble(n);
@@ -61,6 +83,11 @@ class LeafKey {
  private:
   Hash key_;
   Version version_;
+};
+
+// A binary blob value
+struct LeafNode {
+  concordUtils::Sliver value;
 };
 
 }  // namespace sparse_merkle

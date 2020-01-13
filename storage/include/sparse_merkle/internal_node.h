@@ -180,6 +180,12 @@ class BatchedInternalNode {
   // `depth` represents how many nibbles down the sparse merkle tree this BatchedInternalNode is.
   InsertResult insert(const LeafChild& child, size_t depth);
 
+  // Write an InternalChild of the BatchedInternalNode at level 0.
+  //
+  // This occurs when this InternalChild points to another BatchedInternalNode
+  // down the tree, and that BatchedInternalNode was just updated.
+  void write_internal_child_at_level_0(Nibble child_key, const InternalChild& child);
+
   // Return the root hash of this node.
   const Hash& hash() const { return getHash(0); }
 
@@ -252,6 +258,10 @@ class BatchedInternalNode {
   //
   // Update the hashes and versions of nodes along the way.
   void updateHashes(size_t index, Version version);
+
+  // Take a nibble representing the logical location a child at height 0 in a
+  // BatchedInternalNode and return the index of that child in `children_`.
+  size_t nibble_to_index(Nibble nibble);
 
   // Return the the height of the node at the given index.
   //
