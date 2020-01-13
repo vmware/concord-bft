@@ -62,7 +62,7 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
             expected=lambda v: v > initial_primary,
             err_msg="Make sure automatic view change has occurred."
         )
-        client = self.bft_network.random_client()
+        client = bft_network.random_client()
         skvbc.read_your_writes(self,client)
 
     @with_trio
@@ -91,7 +91,7 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
             err_msg="Make sure automatic view change has occurred."
         )
 
-        client = self.bft_network.random_client()
+        client = bft_network.random_client()
         skvbc.read_your_writes(self, client)
 
     @with_trio
@@ -123,5 +123,5 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         await skvbc.assert_kv_write_executed(key, val)
         await bft_network.assert_fast_path_prevalent()
 
-        client = self.bft_network.random_client()
+        client = bft_network.random_client()
         skvbc.read_your_writes(self, client)
