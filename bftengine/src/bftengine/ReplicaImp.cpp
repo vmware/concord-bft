@@ -37,7 +37,6 @@
 #include "messages/FullCommitProofMsg.hpp"
 #include "messages/ReplicaStatusMsg.hpp"
 
-
 using concordUtil::Timers;
 using namespace std;
 using namespace std::chrono;
@@ -46,23 +45,19 @@ using namespace std::placeholders;
 namespace bftEngine::impl {
 
 void ReplicaImp::registerMsgHandlers() {
-  msgHandlers_->registerMsgHandler(MsgCode::Checkpoint,
-                                   bind(&ReplicaImp::messageHandler<CheckpointMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::Checkpoint, bind(&ReplicaImp::messageHandler<CheckpointMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::CommitPartial,
                                    bind(&ReplicaImp::messageHandler<CommitPartialMsg>, this, _1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::CommitFull,
-                                   bind(&ReplicaImp::messageHandler<CommitFullMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::CommitFull, bind(&ReplicaImp::messageHandler<CommitFullMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::FullCommitProof,
                                    bind(&ReplicaImp::messageHandler<FullCommitProofMsg>, this, _1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::NewView,
-                                   bind(&ReplicaImp::messageHandler<NewViewMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::NewView, bind(&ReplicaImp::messageHandler<NewViewMsg>, this, _1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::PrePrepare,
-                                   bind(&ReplicaImp::messageHandler<PrePrepareMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::PrePrepare, bind(&ReplicaImp::messageHandler<PrePrepareMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::PartialCommitProof,
                                    bind(&ReplicaImp::messageHandler<PartialCommitProofMsg>, this, _1));
@@ -73,59 +68,54 @@ void ReplicaImp::registerMsgHandlers() {
   msgHandlers_->registerMsgHandler(MsgCode::PreparePartial,
                                    bind(&ReplicaImp::messageHandler<PreparePartialMsg>, this, _1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::PrepareFull,
-                                   bind(&ReplicaImp::messageHandler<PrepareFullMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::PrepareFull, bind(&ReplicaImp::messageHandler<PrepareFullMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::ReqMissingData,
                                    bind(&ReplicaImp::messageHandler<ReqMissingDataMsg>, this, _1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::SimpleAck,
-                                   bind(&ReplicaImp::messageHandler<SimpleAckMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::SimpleAck, bind(&ReplicaImp::messageHandler<SimpleAckMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::StartSlowCommit,
                                    bind(&ReplicaImp::messageHandler<StartSlowCommitMsg>, this, _1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::ViewChange,
-                                   bind(&ReplicaImp::messageHandler<ViewChangeMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::ViewChange, bind(&ReplicaImp::messageHandler<ViewChangeMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::ClientRequest,
                                    bind(&ReplicaImp::messageHandler<ClientRequestMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::ReplicaStatus,
                                    bind(&ReplicaImp::messageHandler<ReplicaStatusMsg>, this, _1));
-
 }
 
-
-template<typename T>
-void ReplicaImp::messageHandler(MessageBase* msg){
-  if ( validateMessage(msg) && !isCollectingState() )
-    onMessage<T>(static_cast<T*>(msg));
+template <typename T>
+void ReplicaImp::messageHandler(MessageBase *msg) {
+  if (validateMessage(msg) && !isCollectingState())
+    onMessage<T>(static_cast<T *>(msg));
   else
     delete msg;
 }
 
-template<class T> void onMessage(T*);
+template <class T>
+void onMessage(T *);
 
-
-void ReplicaImp::send(MessageBase* m, NodeIdType dest) {
+void ReplicaImp::send(MessageBase *m, NodeIdType dest) {
   // debug code begin
-  if (m->type() == MsgCode::Checkpoint &&
-      static_cast<CheckpointMsg*>(m)->digestOfState().isZero())
+  if (m->type() == MsgCode::Checkpoint && static_cast<CheckpointMsg *>(m)->digestOfState().isZero())
     LOG_WARN(GL, "Debug: checkpoint digest is zero");
   // debug code end
   ReplicaBase::send(m, dest);
 }
 
-void ReplicaImp::onReportAboutInvalidMessage(MessageBase* msg, const char* reason) {
-  LOG_WARN(GL, "Node " << config_.replicaId << " received invalid message from Node " << msg->senderId()
-               << " type=" << msg->type() << " reason: " << reason);
+void ReplicaImp::onReportAboutInvalidMessage(MessageBase *msg, const char *reason) {
+  LOG_WARN(GL,
+           "Node " << config_.replicaId << " received invalid message from Node " << msg->senderId()
+                   << " type=" << msg->type() << " reason: " << reason);
 
   // TODO(GG): logic that deals with invalid messages (e.g., a node that sends invalid messages may have a problem (old
   // version,bug,malicious,...)).
 }
 
-template<>
+template <>
 void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   metric_received_client_requests_.Get().Inc();
   const NodeIdType senderId = m->senderId();
@@ -156,7 +146,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 
   // TODO(GG): more conditions (make sure that a request of client A cannot be generated by client B!=A)
   if (invalidClient || sentFromReplicaToNonPrimary) {
-    std::ostringstream oss ("ClientRequestMsg is invalid: invalidClient=");
+    std::ostringstream oss("ClientRequestMsg is invalid: invalidClient=");
     oss << invalidClient << ", sentFromReplicaToNonPrimary=" << sentFromReplicaToNonPrimary;
     onReportAboutInvalidMessage(m, oss.str().c_str());
     delete m;
@@ -364,7 +354,7 @@ bool ReplicaImp::relevantMsgForActiveView(const T *msg) {
   }
 }
 
-template<>
+template <>
 void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
   metric_received_pre_prepares_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
@@ -555,7 +545,7 @@ void ReplicaImp::tryToAskForMissingInfo() {
   }
 }
 
-template<>
+template <>
 void ReplicaImp::onMessage<StartSlowCommitMsg>(StartSlowCommitMsg *msg) {
   metric_received_start_slow_commits_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
@@ -684,7 +674,7 @@ void ReplicaImp::sendCommitPartial(const SeqNum s) {
   if (!isCurrentPrimary()) sendRetransmittableMsgToReplica(c, currentPrimary(), s);
 }
 
-template<>
+template <>
 void ReplicaImp::onMessage<PartialCommitProofMsg>(PartialCommitProofMsg *msg) {
   metric_received_partial_commit_proofs_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
@@ -718,8 +708,7 @@ void ReplicaImp::onMessage<PartialCommitProofMsg>(PartialCommitProofMsg *msg) {
   return;
 }
 
-
-template<>
+template <>
 void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
   metric_received_full_commit_proofs_.Get().Inc();
   LOG_DEBUG_F(GL,
@@ -770,7 +759,7 @@ void ReplicaImp::onInternalMsg(FullCommitProofMsg *msg) {
   onMessage(msg);
 }
 
-template<>
+template <>
 void ReplicaImp::onMessage<PreparePartialMsg>(PreparePartialMsg *msg) {
   metric_received_prepare_partials_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
@@ -820,7 +809,7 @@ void ReplicaImp::onMessage<PreparePartialMsg>(PreparePartialMsg *msg) {
   }
 }
 
-template<>
+template <>
 void ReplicaImp::onMessage<CommitPartialMsg>(CommitPartialMsg *msg) {
   metric_received_commit_partials_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
@@ -864,7 +853,7 @@ void ReplicaImp::onMessage<CommitPartialMsg>(CommitPartialMsg *msg) {
   }
 }
 
-template<>
+template <>
 void ReplicaImp::onMessage<PrepareFullMsg>(PrepareFullMsg *msg) {
   metric_received_prepare_fulls_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
@@ -905,7 +894,7 @@ void ReplicaImp::onMessage<PrepareFullMsg>(PrepareFullMsg *msg) {
     delete msg;
   }
 }
-template<>
+template <>
 void ReplicaImp::onMessage<CommitFullMsg>(CommitFullMsg *msg) {
   metric_received_commit_fulls_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
@@ -1166,8 +1155,8 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum v, bo
   bool askForMissingInfoAboutCommittedItems = (seqNumber > lastExecutedSeqNum + config_.concurrencyLevel);
   executeNextCommittedRequests(askForMissingInfoAboutCommittedItems);
 }
-template<>
-void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg* msg) {
+template <>
+void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   metric_received_checkpoints_.Get().Inc();
   const ReplicaId msgSenderId = msg->senderId();
   const SeqNum msgSeqNum = msg->seqNumber();
@@ -1434,7 +1423,7 @@ void ReplicaImp::onRetransmissionsProcessingResults(
   }
 }
 
-template<>
+template <>
 void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
   metric_received_replica_statuses_.Get().Inc();
   // TODO(GG): we need filter for msgs (to avoid denial of service attack) + avoid sending messages at a high rate.
@@ -1656,7 +1645,7 @@ void ReplicaImp::tryToSendStatusReport() {
   sendToAllOtherReplicas(&msg);
 }
 
-template<>
+template <>
 void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
   if (!viewChangeProtocolEnabled) {
     delete msg;
@@ -1721,7 +1710,7 @@ void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
   tryToEnterView();
 }
 
-template<>
+template <>
 void ReplicaImp::onMessage<NewViewMsg>(NewViewMsg *msg) {
   if (!viewChangeProtocolEnabled) {
     delete msg;
@@ -2290,7 +2279,7 @@ void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly,
   }
 }
 
-template<>
+template <>
 void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
   metric_received_req_missing_datas_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
@@ -2450,7 +2439,6 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
   }
 }
 
-
 void ReplicaImp::onStatusReportTimer(Timers::Handle timer) {
   tryToSendStatusReport();
 
@@ -2471,8 +2459,7 @@ void ReplicaImp::onInfoRequestTimer(Timers::Handle timer) {
   TimersSingleton::getInstance().reset(timer, newPeriod);
 }
 
-
-template<>
+template <>
 void ReplicaImp::onMessage<SimpleAckMsg>(SimpleAckMsg *msg) {
   metric_received_simple_acks_.Get().Inc();
   if (retransmissionsLogicEnabled) {
@@ -2498,7 +2485,7 @@ void ReplicaImp::onMerkleExecSignature(ViewNum v, SeqNum s, uint16_t signatureLe
   // TODO(GG): use code from previous drafts
 }
 
-template<>
+template <>
 void ReplicaImp::onMessage<PartialExecProofMsg>(PartialExecProofMsg *m) {
   Assert(false);
   // TODO(GG): use code from previous drafts
@@ -2772,7 +2759,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_received_view_changes_{metrics_.RegisterCounter("receivedViewChangeMsgs")},
       metric_received_new_views_{metrics_.RegisterCounter("receivedNewViewMsgs")},
       metric_received_req_missing_datas_{metrics_.RegisterCounter("receivedReqMissingDataMsgs")},
-      metric_received_simple_acks_{metrics_.RegisterCounter("receivedSimpleAckMsgs")}{
+      metric_received_simple_acks_{metrics_.RegisterCounter("receivedSimpleAckMsgs")} {
   Assert(config_.replicaId < numOfReplicas);
   // TODO(GG): more asserts on params !!!!!!!!!!!
 
@@ -2882,7 +2869,7 @@ void ReplicaImp::stop() {
   TimersSingleton::getInstance().cancel(infoReqTimer_);
   TimersSingleton::getInstance().cancel(statusReportTimer_);
   if (viewChangeProtocolEnabled) TimersSingleton::getInstance().cancel(viewChangeTimer_);
-    
+
   ReplicaForStateTransfer::stop();
 }
 
@@ -3171,11 +3158,10 @@ void ReplicaImp::executeNextCommittedRequests(const bool requestMissingInfo) {
   if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
 }
 
-IncomingMsgsStorage& ReplicaImp::getIncomingMsgsStorage() { return *msgsCommunicator_->getIncomingMsgsStorage(); }
-
+IncomingMsgsStorage &ReplicaImp::getIncomingMsgsStorage() { return *msgsCommunicator_->getIncomingMsgsStorage(); }
 
 // TODO(GG): the timer for state transfer !!!!
 
 // TODO(GG): !!!! view changes and retransmissionsLogic --- check ....
 
-}
+}  // namespace bftEngine::impl

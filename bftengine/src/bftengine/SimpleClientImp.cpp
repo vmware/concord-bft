@@ -105,7 +105,7 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
 
 void SimpleClientImp::onMessageFromReplica(MessageBase* msg) {
   ClientReplyMsg* replyMsg = static_cast<ClientReplyMsg*>(msg);
-  ReplicasInfo dummy(0,4,1,0,false, false);
+  ReplicasInfo dummy(0, 4, 1, 0, false, false);
   replyMsg->validate(dummy);
   Assert(replyMsg != nullptr);
   Assert(replyMsg->type() == REPLY_MSG_TYPE);

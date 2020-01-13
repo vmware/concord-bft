@@ -39,48 +39,46 @@ using bftEngine::ReplicaConfig;
 class ReplicaBase {
   friend class MessageBase;
 
-public:
+ public:
+  ReplicaBase(const ReplicaConfig&, std::shared_ptr<MsgsCommunicator>, std::shared_ptr<MsgHandlersRegistrator>);
 
-  ReplicaBase( const ReplicaConfig&,
-               std::shared_ptr<MsgsCommunicator>,
-               std::shared_ptr<MsgHandlersRegistrator>);
-
-  virtual ~ReplicaBase(){}
+  virtual ~ReplicaBase() {}
 
   virtual bool isReadOnly() const = 0;
 
   std::shared_ptr<MsgsCommunicator> getMsgsCommunicator() const { return msgsCommunicator_; }
-  std::shared_ptr<MsgHandlersRegistrator>  getMsgHandlersRegistrator() const { return msgHandlers_; }
+  std::shared_ptr<MsgHandlersRegistrator> getMsgHandlersRegistrator() const { return msgHandlers_; }
 
-  void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a){metrics_.SetAggregator(a);}
+  void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a) { metrics_.SetAggregator(a); }
 
   virtual void start();
   virtual void stop();
   SeqNum getLastExecutedSequenceNum() const { return lastExecutedSeqNum; }
   virtual bool isRunning() const;
 
-protected:
+ protected:
   // Message handling
   virtual void onReportAboutInvalidMessage(MessageBase* msg, const char* reason) = 0;
 
-  virtual void send(MessageBase* m, NodeIdType dest) {sendRaw(m, dest);}
-  void sendToAllOtherReplicas(MessageBase* m){for(ReplicaId dest : repsInfo->idsOfPeerReplicas()) sendRaw(m, dest);}
+  virtual void send(MessageBase* m, NodeIdType dest) { sendRaw(m, dest); }
+  void sendToAllOtherReplicas(MessageBase* m) {
+    for (ReplicaId dest : repsInfo->idsOfPeerReplicas()) sendRaw(m, dest);
+  }
   void sendRaw(MessageBase* m, NodeIdType dest);
 
-  bool validateMessage(MessageBase* msg){
-    try{
-      if (config_.debugStatisticsEnabled)
-        DebugStatistics::onReceivedExMessage(msg->type());
+  bool validateMessage(MessageBase* msg) {
+    try {
+      if (config_.debugStatisticsEnabled) DebugStatistics::onReceivedExMessage(msg->type());
 
       msg->validate(*repsInfo);
       return true;
-    }catch(std::exception&e ){
+    } catch (std::exception& e) {
       onReportAboutInvalidMessage(msg, e.what());
       return false;
     }
   }
 
-protected:
+ protected:
   static const uint16_t ALL_OTHER_REPLICAS = UINT16_MAX;
 
   ReplicaConfig config_;
@@ -103,8 +101,6 @@ protected:
 
   Timers::Handle debugStatTimer_;
   Timers::Handle metricsTimer_;
-
 };
 
-
-}
+}  // namespace bftEngine::impl

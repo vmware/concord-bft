@@ -26,7 +26,7 @@
 namespace bftEngine {
 namespace impl {
 
-SigManager* ViewsManager::sigManager_= nullptr;
+SigManager* ViewsManager::sigManager_ = nullptr;
 
 bool ViewsManager::PrevViewInfo::equals(const PrevViewInfo& other) const {
   if (other.hasAllRequests != hasAllRequests) return false;
@@ -214,7 +214,7 @@ ViewsManager* ViewsManager::createInsideView(const ReplicasInfo* const r,
     Assert(newViewMsg->includesViewChangeFromReplica(r->myId(), msgDigest) == false);
   }
 
-  ViewsManager* v = new ViewsManager(r, sigMgr,preparedCertificateVerifier);
+  ViewsManager* v = new ViewsManager(r, sigMgr, preparedCertificateVerifier);
 
   Assert(v->stat == Stat::IN_VIEW);
   v->myLatestActiveView = view;

@@ -50,14 +50,11 @@ class PersistentStorage;
 using bftEngine::ReplicaConfig;
 using std::shared_ptr;
 
-class ReplicaImp: public InternalReplicaApi,
-                  public ReplicaForStateTransfer {
+class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
  protected:
   const bool viewChangeProtocolEnabled;
   const bool autoPrimaryRotationEnabled;
   const bool supportDirectProofs = false;  // TODO(GG): add support
-
-
 
   // If this replica was restarted and loaded data from persistent storage.
   bool restarted_ = false;
@@ -116,8 +113,6 @@ class ReplicaImp: public InternalReplicaApi,
 
   // buffer used to store replies
   char* replyBuffer = nullptr;
-
-
 
   // variables that are used to heuristically compute the 'optimal' batch size
   size_t maxNumberOfPendingRequestsInRecentHistory = 0;
@@ -194,17 +189,16 @@ class ReplicaImp: public InternalReplicaApi,
   ReplicaImp(const LoadedReplicaData&,
              IRequestsHandler* requestsHandler,
              IStateTransfer* stateTransfer,
-             shared_ptr<MsgsCommunicator>  msgsCommunicator,
+             shared_ptr<MsgsCommunicator> msgsCommunicator,
              shared_ptr<PersistentStorage> persistentStorage,
              shared_ptr<MsgHandlersRegistrator> msgHandlers);
 
   virtual ~ReplicaImp();
-    
-  void start() override;
-  void stop()  override;
 
-  virtual bool isReadOnly() const override {return false;}
-    
+  void start() override;
+  void stop() override;
+
+  virtual bool isReadOnly() const override { return false; }
 
   shared_ptr<PersistentStorage> getPersistentStorage() const { return ps_; }
   IRequestsHandler* getRequestsHandler() const { return userRequestsHandler; }
@@ -244,7 +238,7 @@ class ReplicaImp: public InternalReplicaApi,
   void messageHandler(MessageBase* msg);
 
   void send(MessageBase*, NodeIdType) override;
-    
+
   bool tryToEnterView();
   void onNewView(const std::vector<PrePrepareMsg*>& prePreparesForNewView);
   void MoveToHigherView(ViewNum nextView);  // also sends the ViewChangeMsg message
@@ -258,7 +252,8 @@ class ReplicaImp: public InternalReplicaApi,
   friend class DebugStatistics;
   friend class PreProcessor;
 
-  template<typename T> void onMessage(T* msg);
+  template <typename T>
+  void onMessage(T* msg);
 
   bool handledByRetransmissionsManager(const ReplicaId sourceReplica,
                                        const ReplicaId destReplica,
@@ -365,4 +360,4 @@ class ReplicaImp: public InternalReplicaApi,
   void addTimers();
 };
 
-}
+}  // namespace bftEngine::impl

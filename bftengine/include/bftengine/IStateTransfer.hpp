@@ -83,7 +83,7 @@ class IReplicaForStateTransfer {
   // (notice that the state transfer module can use its own timers and threads)
   virtual void changeStateTransferTimerPeriod(uint32_t timerPeriodMilli) = 0;
 
-  virtual ~IReplicaForStateTransfer(){}
+  virtual ~IReplicaForStateTransfer() {}
 };
 }  // namespace bftEngine
 

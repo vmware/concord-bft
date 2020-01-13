@@ -25,7 +25,7 @@ SimpleAckMsg::SimpleAckMsg(SeqNum s, ViewNum v, ReplicaId senderId, uint64_t ack
 
 void SimpleAckMsg::validate(const ReplicasInfo& repInfo) {
   if (size() < sizeof(SimpleAckMsgHeader) ||
-      senderId() == repInfo.myId() ||   // sent from another replica (otherwise, we don't need to convert)
+      senderId() == repInfo.myId() ||  // sent from another replica (otherwise, we don't need to convert)
       !repInfo.isIdOfReplica(senderId()))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }

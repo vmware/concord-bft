@@ -26,15 +26,11 @@ FullCommitProofMsg::FullCommitProofMsg(
 }
 
 void FullCommitProofMsg::validate(const ReplicasInfo& repInfo) {
-
-  if (size() < sizeof(FullCommitProofMsgHeader) ||
-      senderId() == repInfo.myId() ||
-      !repInfo.isIdOfReplica(senderId()) ||
+  if (size() < sizeof(FullCommitProofMsgHeader) || senderId() == repInfo.myId() || !repInfo.isIdOfReplica(senderId()) ||
       size() < (sizeof(FullCommitProofMsgHeader) + thresholSignatureLength()))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 
   // TODO(GG): TBD - check something about the collectors identity (and in other similar messages)
-
 }
 
 MsgSize FullCommitProofMsg::maxSizeOfFullCommitProofMsg() {

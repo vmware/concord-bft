@@ -30,8 +30,9 @@ class MsgsCommunicator {
   void startMsgsProcessing(uint16_t replicaId);
   void stopMsgsProcessing();
 
-  [[nodiscard]] bool isMsgsProcessingRunning() const { return incomingMsgsStorage_->isRunning(); }
-  int sendAsyncMessage(NodeNum destNode, char* message, size_t messageLength);
+  [[nodiscard]] bool isMsgsProcessingRunning() const {
+    return incomingMsgsStorage_->isRunning();
+  } int sendAsyncMessage(NodeNum destNode, char* message, size_t messageLength);
 
   std::shared_ptr<IncomingMsgsStorage>& getIncomingMsgsStorage() { return incomingMsgsStorage_; }
 

@@ -61,16 +61,14 @@ void NewViewMsg::validate(const ReplicasInfo& repInfo) {
   const uint16_t expectedElements = (2 * repInfo.fVal() + 2 * repInfo.cVal() + 1);
   const uint16_t contentSize = sizeof(NewViewMsgHeader) + expectedElements * sizeof(NewViewElement);
 
-  if ( size() < contentSize ||
-      !repInfo.isIdOfReplica(senderId()) || // source replica
-      repInfo.myId() == senderId() ||
-      repInfo.primaryOfView(newView() != senderId())||
-      b()->elementsCount != expectedElements)// num of elements
+  if (size() < contentSize || !repInfo.isIdOfReplica(senderId()) ||  // source replica
+      repInfo.myId() == senderId() || repInfo.primaryOfView(newView() != senderId()) ||
+      b()->elementsCount != expectedElements)  // num of elements
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic"));
 
   NewViewElement* elementsArray = (NewViewElement*)(body() + sizeof(NewViewMsgHeader));
   for (uint16_t i = 0; i < expectedElements; i++) {
-    if ((i > 0 && elementsArray[i - 1].replicaId >= elementsArray[i].replicaId ) ||
+    if ((i > 0 && elementsArray[i - 1].replicaId >= elementsArray[i].replicaId) ||
         elementsArray[i].viewChangeDigest.isZero())
       throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": IDs should be unique and sorted"));
   }

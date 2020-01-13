@@ -43,9 +43,9 @@ const Digest& PrePrepareMsg::digestOfNullPrePrepareMsg() { return nullDigest; }
 void PrePrepareMsg::validate(const ReplicasInfo& repInfo) {
   Assert(senderId() != repInfo.myId());
 
-  if (size() < sizeof(PrePrepareMsgHeader) || // header size
-      !repInfo.isIdOfReplica(senderId())) // sender
-      throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic"));
+  if (size() < sizeof(PrePrepareMsgHeader) ||  // header size
+      !repInfo.isIdOfReplica(senderId()))      // sender
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic"));
   // NB: the actual expected sender is verified outside this class (because in some cases, during view-change protocol,
   // this message may sent by a non-primary replica to the primary replica).
 
@@ -56,17 +56,13 @@ void PrePrepareMsg::validate(const ReplicasInfo& repInfo) {
   const uint16_t firstPath_ = ((flags >> 2) & 0x3);
   const uint16_t reservedBits = (flags >> 4);
 
-  if (b()->seqNum == 0 ||
-      isNull ||     // we don't send null requests
-      !isReady||        // not ready
-      firstPath_ >= 3 ||  // invalid first path
-      ((firstPath() == CommitPath::FAST_WITH_THRESHOLD) && (repInfo.cVal() == 0)) ||
-      reservedBits != 0 ||
-      b()->endLocationOfLastRequest > size() ||
-      b()->numberOfRequests == 0 ||
-      b()->numberOfRequests >= b()->endLocationOfLastRequest ||
-      !checkRequests())
-      throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": advanced"));
+  if (b()->seqNum == 0 || isNull ||  // we don't send null requests
+      !isReady ||                    // not ready
+      firstPath_ >= 3 ||             // invalid first path
+      ((firstPath() == CommitPath::FAST_WITH_THRESHOLD) && (repInfo.cVal() == 0)) || reservedBits != 0 ||
+      b()->endLocationOfLastRequest > size() || b()->numberOfRequests == 0 ||
+      b()->numberOfRequests >= b()->endLocationOfLastRequest || !checkRequests())
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": advanced"));
 
   // digest
   Digest d;

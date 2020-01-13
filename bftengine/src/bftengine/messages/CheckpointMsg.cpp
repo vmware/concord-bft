@@ -29,16 +29,13 @@ CheckpointMsg* CheckpointMsg::clone() {
   return c;
 }
 
-void CheckpointMsg::validate(const ReplicasInfo& repInfo){
+void CheckpointMsg::validate(const ReplicasInfo& repInfo) {
   Assert(type() == MsgCode::Checkpoint);
   Assert(senderId() != repInfo.myId());
 
-
-  if (size() < sizeof(CheckpointMsgHeader) ||
-      (!repInfo.isIdOfReplica(senderId())) ||
-      (seqNumber() % checkpointWindowSize != 0) ||
-      (digestOfState().isZero()))
-      throw std::runtime_error(__PRETTY_FUNCTION__);
+  if (size() < sizeof(CheckpointMsgHeader) || (!repInfo.isIdOfReplica(senderId())) ||
+      (seqNumber() % checkpointWindowSize != 0) || (digestOfState().isZero()))
+    throw std::runtime_error(__PRETTY_FUNCTION__);
 
   // TODO(GG): consider to protect against messages that are larger than needed (here and in other messages)
 }

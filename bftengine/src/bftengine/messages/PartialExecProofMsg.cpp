@@ -33,12 +33,12 @@ PartialExecProofMsg::PartialExecProofMsg(
 }
 
 void PartialExecProofMsg::validate(const ReplicasInfo& repInfo) {
-
   if (size() < sizeof(PartialExecProofMsgHeader) ||
       size() < (sizeof(PartialExecProofMsgHeader) + thresholSignatureLength()) ||
-      senderId() == repInfo.myId() ||// TODO(GG) - TBD: we should use Assert for this condition (also in other messages)
+      senderId() ==
+          repInfo.myId() ||  // TODO(GG) - TBD: we should use Assert for this condition (also in other messages)
       !repInfo.isIdOfReplica(senderId()))
-      throw std::runtime_error(__PRETTY_FUNCTION__);
+    throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
 }  // namespace impl

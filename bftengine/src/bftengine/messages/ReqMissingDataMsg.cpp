@@ -27,7 +27,8 @@ void ReqMissingDataMsg::resetFlags() { b()->flags = 0; }
 
 void ReqMissingDataMsg::validate(const ReplicasInfo& repInfo) {
   if (size() < sizeof(ReqMissingDataMsgHeader) ||
-      senderId() == repInfo.myId() ||// TODO(GG) - TBD: we should use Assert for this condition (also in other messages)
+      senderId() ==
+          repInfo.myId() ||  // TODO(GG) - TBD: we should use Assert for this condition (also in other messages)
       !repInfo.isIdOfReplica(senderId()))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }

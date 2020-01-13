@@ -57,11 +57,9 @@ void ClientRequestMsg::set(ReqId reqSeqNum, uint32_t requestLength, bool isReadO
   setMsgSize(sizeof(ClientRequestMsgHeader) + requestLength);
 }
 
-
 void ClientRequestMsg::validate(const ReplicasInfo& repInfo) {
   if (size() < (sizeof(ClientRequestMsgHeader) + msgBody()->requestLength))
     throw std::runtime_error(__PRETTY_FUNCTION__);
-
 }
 
 void ClientRequestMsg::setParams(ReqId reqSeqNum, uint32_t requestLength, bool isReadOnly) {

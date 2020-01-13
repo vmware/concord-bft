@@ -22,7 +22,7 @@ namespace impl {
 
 ViewChangeMsg::ViewChangeMsg(ReplicaId srcReplicaId, ViewNum newView, SeqNum lastStableSeq)
     : MessageBase(
-          srcReplicaId, MsgCode::ViewChange, ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize()){
+          srcReplicaId, MsgCode::ViewChange, ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize()) {
   b()->genReplicaId = srcReplicaId;
   b()->newView = newView;
   b()->lastStable = lastStableSeq;
@@ -104,25 +104,18 @@ void ViewChangeMsg::finalizeMessage() {
 }
 
 void ViewChangeMsg::validate(const ReplicasInfo& repInfo) {
-
-  if (size() < sizeof(ViewChangeMsgHeader) ||
-      !repInfo.isIdOfReplica(idOfGeneratedReplica()) ||
+  if (size() < sizeof(ViewChangeMsgHeader) || !repInfo.isIdOfReplica(idOfGeneratedReplica()) ||
       idOfGeneratedReplica() == repInfo.myId())
-      throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
 
   uint16_t dataLength = b()->locationAfterLast;
   if (dataLength < sizeof(ViewChangeMsgHeader)) dataLength = sizeof(ViewChangeMsgHeader);
   uint16_t sigLen = ViewsManager::sigManager_->getSigLength(idOfGeneratedReplica());
 
-  if (size() < (dataLength + sigLen))
-    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": size"));
-  if( !ViewsManager::sigManager_->verifySig( idOfGeneratedReplica(),
-                                             body(),
-                                             dataLength,
-                                             body() + dataLength,
-                                             sigLen))
+  if (size() < (dataLength + sigLen)) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": size"));
+  if (!ViewsManager::sigManager_->verifySig(idOfGeneratedReplica(), body(), dataLength, body() + dataLength, sigLen))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig"));
-  if( !checkElements(sigLen))// check elements in message
+  if (!checkElements(sigLen))  // check elements in message
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": check elements in message"));
 }
 

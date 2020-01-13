@@ -140,9 +140,9 @@ void IncomingMsgsStorageImp::dispatchMessages(std::promise<void>& signalStarted)
         message = msg.external.release();
         msgHandlerCallback = msgHandlers_->getCallback(message->type());
         if (msgHandlerCallback != nullptr) {
-          try{
+          try {
             msgHandlerCallback(message);
-          }catch(std::exception& e){
+          } catch (std::exception& e) {
             LOG_WARN(GL, e.what());
             delete message;
           }

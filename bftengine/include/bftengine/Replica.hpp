@@ -43,8 +43,8 @@ class IRequestsHandler {
                       char *outReply,
                       uint32_t &outActualReplySize) = 0;
 
-  virtual void onFinishExecutingReadWriteRequests(){}
-  virtual ~IRequestsHandler(){}
+  virtual void onFinishExecutingReadWriteRequests() {}
+  virtual ~IRequestsHandler() {}
 };
 
 class IReplica {

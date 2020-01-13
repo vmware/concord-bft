@@ -171,9 +171,8 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
 
   ViewsManager *viewsManager = nullptr;
   if (!hasDescLastExitFromView && !hasDescOfLastNewView) {
-    viewsManager = ViewsManager::createInsideViewZero(ld.repsInfo,
-                                                      ld.sigManager,
-                                                      ld.repConfig.thresholdVerifierForSlowPathCommit);
+    viewsManager =
+        ViewsManager::createInsideViewZero(ld.repsInfo, ld.sigManager, ld.repConfig.thresholdVerifierForSlowPathCommit);
 
     Assert(viewsManager->latestActiveView() == 0);
     Assert(viewsManager->viewIsActive(0));

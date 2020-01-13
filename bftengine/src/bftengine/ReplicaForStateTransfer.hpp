@@ -19,21 +19,18 @@ namespace bftEngine::impl {
 /**
  *
  */
-class ReplicaForStateTransfer: public IReplicaForStateTransfer,
-                               public ReplicaBase {
+class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaBase {
   friend class MessageBase;
 
-public:
-
+ public:
   ReplicaForStateTransfer(const ReplicaConfig&,
                           IStateTransfer*,
                           std::shared_ptr<MsgsCommunicator>,
                           std::shared_ptr<MsgHandlersRegistrator>,
-                          bool firstTime // TODO [TK] get rid of this
-                         );
+                          bool firstTime  // TODO [TK] get rid of this
+  );
 
-  virtual ~ReplicaForStateTransfer(){}
-
+  virtual ~ReplicaForStateTransfer() {}
 
   IStateTransfer* getStateTransfer() const { return stateTransfer; }
 
@@ -43,30 +40,29 @@ public:
   void onTransferringComplete(int64_t checkpointNumberOfNewState) override;
   void changeStateTransferTimerPeriod(uint32_t timerPeriodMilli) override;
 
-  bool isCollectingState() const {return stateTransfer->isCollectingState();}
+  bool isCollectingState() const { return stateTransfer->isCollectingState(); }
 
   virtual void start();
   virtual void stop();
 
-protected:
+ protected:
   virtual void onTransferringCompleteImp(int64_t checkpointNumberOfNewState) = 0;
 
-  template<typename T>
-  void messageHandler(MessageBase* msg){
+  template <typename T>
+  void messageHandler(MessageBase* msg) {
     if (validateMessage(msg))
-      onMessage<T>(static_cast<T*> (msg));
+      onMessage<T>(static_cast<T*>(msg));
     else
       delete msg;
   }
 
-  template<class T> void onMessage(T*);
+  template <class T>
+  void onMessage(T*);
 
-protected:
+ protected:
   bftEngine::IStateTransfer* stateTransfer = nullptr;
   Timers::Handle stateTranTimer_;
   CounterHandle metric_received_state_transfers_;
-
 };
 
-
-}
+}  // namespace bftEngine::impl

@@ -19,38 +19,33 @@
 #include "ReplicasInfo.hpp"
 #include "messages/StateTransferMsg.hpp"
 
-
 namespace bftEngine::impl {
 using namespace std::chrono_literals;
 
-ReplicaForStateTransfer::ReplicaForStateTransfer( const ReplicaConfig& config,
-                                                  IStateTransfer* stateTransfer,
-                                                  std::shared_ptr<MsgsCommunicator> msgComm,
-                                                  std::shared_ptr<MsgHandlersRegistrator> msgHandlerReg,
-                                                  bool firstTime):
-            ReplicaBase(config, msgComm, msgHandlerReg),
-            stateTransfer{(stateTransfer != nullptr ? stateTransfer : new NullStateTransfer())},
-            metric_received_state_transfers_{metrics_.RegisterCounter("receivedStateTransferMsgs")}{
-
-  msgHandlers_->registerMsgHandler(MsgCode::StateTransfer,
-                                   std::bind(&ReplicaForStateTransfer::messageHandler<StateTransferMsg>,
-                                             this,
-                                             std::placeholders::_1));
-  if (config_.debugStatisticsEnabled)
-    DebugStatistics::initDebugStatisticsData();
+ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
+                                                 IStateTransfer *stateTransfer,
+                                                 std::shared_ptr<MsgsCommunicator> msgComm,
+                                                 std::shared_ptr<MsgHandlersRegistrator> msgHandlerReg,
+                                                 bool firstTime)
+    : ReplicaBase(config, msgComm, msgHandlerReg),
+      stateTransfer{(stateTransfer != nullptr ? stateTransfer : new NullStateTransfer())},
+      metric_received_state_transfers_{metrics_.RegisterCounter("receivedStateTransferMsgs")} {
+  msgHandlers_->registerMsgHandler(
+      MsgCode::StateTransfer,
+      std::bind(&ReplicaForStateTransfer::messageHandler<StateTransferMsg>, this, std::placeholders::_1));
+  if (config_.debugStatisticsEnabled) DebugStatistics::initDebugStatisticsData();
 
   if (firstTime || !config_.debugPersistentStorageEnabled)
     stateTransfer->init(kWorkWindowSize / checkpointWindowSize + 1,
-                         config_.numOfClientProxies * config_.maxReplyMessageSize / config_.sizeOfReservedPage,
-                         ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage());
+                        config_.numOfClientProxies * config_.maxReplyMessageSize / config_.sizeOfReservedPage,
+                        ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage());
 }
 
 void ReplicaForStateTransfer::start() {
-  stateTranTimer_ = TimersSingleton::getInstance().add(5s,
-                                                       Timers::Timer::RECURRING,
-                                                       [this](Timers::Handle h){stateTransfer->onTimer();});
+  stateTranTimer_ = TimersSingleton::getInstance().add(
+      5s, Timers::Timer::RECURRING, [this](Timers::Handle h) { stateTransfer->onTimer(); });
   stateTransfer->startRunning(this);
-  ReplicaBase::start(); // msg communicator should be last in the starting chain
+  ReplicaBase::start();  // msg communicator should be last in the starting chain
 }
 
 void ReplicaForStateTransfer::stop() {
@@ -58,8 +53,8 @@ void ReplicaForStateTransfer::stop() {
   ReplicaBase::stop();
 }
 
-template<>
-void ReplicaForStateTransfer::onMessage(StateTransferMsg* m) {
+template <>
+void ReplicaForStateTransfer::onMessage(StateTransferMsg *m) {
   metric_received_state_transfers_.Get().Inc();
   size_t h = sizeof(MessageBase::Header);
   stateTransfer->handleStateTransferMessage(m->body() + h, m->size() - h, m->senderId());
@@ -97,4 +92,4 @@ void ReplicaForStateTransfer::changeStateTransferTimerPeriod(uint32_t timerPerio
   TimersSingleton::getInstance().reset(stateTranTimer_, std::chrono::milliseconds(timerPeriodMilli));
 }
 
-}
+}  // namespace bftEngine::impl
