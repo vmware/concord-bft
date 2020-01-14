@@ -33,10 +33,9 @@ TEST(TimersTest, Basic) {
 
   // Create a oneshot and a recurring timer and add them to the heap. Each one
   // will fire a callback when it expires that increments a counter.
-  timers.add(
-      duration, Timers::Timer::ONESHOT, [&oneshot_counter](Handle h) { ++oneshot_counter; }, now);
-  auto recurring_handle = timers.add(
-      duration, Timers::Timer::RECURRING, [&recurring_counter](Handle h) { ++recurring_counter; }, now);
+  timers.add(duration, Timers::Timer::ONESHOT, [&oneshot_counter](Handle h) { ++oneshot_counter; }, now);
+  auto recurring_handle =
+      timers.add(duration, Timers::Timer::RECURRING, [&recurring_counter](Handle h) { ++recurring_counter; }, now);
 
   // Clock hasn't advanced so no timers should fire
   timers.evaluate(now);
@@ -99,8 +98,8 @@ TEST(TimersTest, Basic) {
   // Add a third timer and ensure it fires.
   // This tests the monotonicity of counter ids as used by handles.
   bool third_timer_fired = false;
-  auto handle = timers.add(
-      duration, Timers::Timer::ONESHOT, [&third_timer_fired](Handle h) { third_timer_fired = true; }, now);
+  auto handle =
+      timers.add(duration, Timers::Timer::ONESHOT, [&third_timer_fired](Handle h) { third_timer_fired = true; }, now);
   now += duration;
   timers.evaluate(now);
   ASSERT_TRUE(third_timer_fired);
