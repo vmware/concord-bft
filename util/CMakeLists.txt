@@ -10,7 +10,7 @@ add_library(util STATIC
     src/sliver.cpp
     src/hex_tools.cpp)
 
-target_link_libraries(util PUBLIC Threads::Threads)
+target_link_libraries(util PUBLIC Threads::Threads hdr_histogram)
 target_include_directories(util PUBLIC include)
 
 if (BUILD_TESTING)

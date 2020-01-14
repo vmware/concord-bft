@@ -1,0 +1,5 @@
+[requires]
+hdr_histogram/0.9.12
+
+[generators]
+cmake

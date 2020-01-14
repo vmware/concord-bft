@@ -15,12 +15,18 @@
 #include <cstdlib>
 #include "gtest/gtest.h"
 #include "Metrics.hpp"
-
+#include <hdr_histogram.h>
 using namespace std;
 
 namespace concordMetrics {
 
 TEST(MetricsTest, UseValues) {
+  struct hdr_histogram* histogram;
+  hdr_init(
+        1,  // Minimum value
+        INT64_C(3600000000),  // Maximum value
+        3,  // Number of significant figures
+        &histogram);  // Pointer to initialise
   auto aggregator = std::make_shared<Aggregator>();
   Component c("replica", aggregator);
   auto h_gauge = c.RegisterGauge("connected_peers", 3);
