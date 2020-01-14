@@ -57,7 +57,7 @@ SignedShareBase* SignedShareBase::create(
   return m;
 }
 
-void SignedShareBase::validate(const ReplicasInfo& repInfo, int16_t type_) {
+void SignedShareBase::_validate(const ReplicasInfo& repInfo, int16_t type_) {
   Assert(type() == type_);
   if (size() < sizeof(SignedShareBaseHeader) || size() < sizeof(SignedShareBaseHeader) + signatureLen() ||  // size
       senderId() == repInfo.myId() ||  // sent from another replica
@@ -76,7 +76,7 @@ PreparePartialMsg* PreparePartialMsg::create(
 }
 
 void PreparePartialMsg::validate(const ReplicasInfo& repInfo) {
-  SignedShareBase::validate(repInfo, MsgCode::PreparePartial);
+  SignedShareBase::_validate(repInfo, MsgCode::PreparePartial);
 
   if (repInfo.myId() != repInfo.primaryOfView(viewNumber()))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": the primary is the collector of PreparePartialMsg"));
@@ -96,7 +96,9 @@ PrepareFullMsg* PrepareFullMsg::create(ViewNum v, SeqNum s, ReplicaId senderId, 
   return (PrepareFullMsg*)SignedShareBase::create(MsgCode::PrepareFull, v, s, senderId, sig, sigLen);
 }
 
-void PrepareFullMsg::validate(const ReplicasInfo& repInfo) { SignedShareBase::validate(repInfo, MsgCode::PrepareFull); }
+void PrepareFullMsg::validate(const ReplicasInfo& repInfo) {
+  SignedShareBase::_validate(repInfo, MsgCode::PrepareFull);
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // CommitPartialMsg
@@ -109,7 +111,7 @@ CommitPartialMsg* CommitPartialMsg::create(
 }
 
 void CommitPartialMsg::validate(const ReplicasInfo& repInfo) {
-  SignedShareBase::validate(repInfo, MsgCode::CommitPartial);
+  SignedShareBase::_validate(repInfo, MsgCode::CommitPartial);
 
   if (repInfo.myId() != repInfo.primaryOfView(viewNumber()))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": the primary is the collector of CommitPartialMsg"));
@@ -129,7 +131,7 @@ CommitFullMsg* CommitFullMsg::create(ViewNum v, SeqNum s, int16_t senderId, cons
   return (CommitFullMsg*)SignedShareBase::create(MsgCode::CommitFull, v, s, senderId, sig, sigLen);
 }
 
-void CommitFullMsg::validate(const ReplicasInfo& repInfo) { SignedShareBase::validate(repInfo, MsgCode::CommitFull); }
+void CommitFullMsg::validate(const ReplicasInfo& repInfo) { SignedShareBase::_validate(repInfo, MsgCode::CommitFull); }
 
 }  // namespace impl
 }  // namespace bftEngine

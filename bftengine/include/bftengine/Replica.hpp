@@ -55,7 +55,7 @@ class IReplica {
                                     ICommunication *communication,
                                     MetadataStorage *metadataStorage);
 
-  virtual ~IReplica(){};
+  virtual ~IReplica() = default;
 
   virtual bool isRunning() const = 0;
 

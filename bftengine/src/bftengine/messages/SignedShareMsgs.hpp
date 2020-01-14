@@ -49,7 +49,7 @@ class SignedShareBase : public MessageBase {
       int16_t type, ViewNum v, SeqNum s, ReplicaId senderId, Digest& digest, IThresholdSigner* thresholdSigner);
   static SignedShareBase* create(
       int16_t type, ViewNum v, SeqNum s, ReplicaId senderId, const char* sig, uint16_t sigLen);
-  void validate(const ReplicasInfo& repInfo, int16_t type);
+  void _validate(const ReplicasInfo& repInfo, int16_t type);
 
   SignedShareBase(ReplicaId sender, int16_t type, size_t msgSize);
 

@@ -35,8 +35,6 @@ class ReplicaInternal : public IReplica {
   friend class IReplica;
 
  public:
-  virtual ~ReplicaInternal() {}
-
   bool isRunning() const override;
 
   int64_t getLastExecutedSequenceNum() const override { return replica_->getLastExecutedSequenceNum(); }

@@ -36,7 +36,7 @@ void ReplicaBase::start() {
   if (config_.debugStatisticsEnabled)
     debugStatTimer_ = TimersSingleton::getInstance().add(std::chrono::seconds(DEBUG_STAT_PERIOD_SECONDS),
                                                          Timers::Timer::RECURRING,
-                                                         [this](Timers::Handle h) { DebugStatistics::onCycleCheck(); });
+                                                         [](Timers::Handle h) { DebugStatistics::onCycleCheck(); });
 
   metricsTimer_ = TimersSingleton::getInstance().add(
       100ms, Timers::Timer::RECURRING, [this](Timers::Handle h) { metrics_.UpdateAggregator(); });
