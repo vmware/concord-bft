@@ -97,9 +97,11 @@ class SkvbcChaosTest(unittest.TestCase):
         self.status = Status(bft_network.config)
         bft_network.start_all_replicas()
         async with trio.open_nursery() as nursery:
-            nursery.start_soon(self.run_concurrent_ops, num_ops)
+            nursery.start_soon(self.tracker.run_concurrent_ops, self, num_ops)
+            #nursery.start_soon(self.run_concurrent_ops, num_ops)
 
-        await self.verify()
+        #await self.verify()
+        await self.tracker.verify_linearizability(self)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -123,9 +125,10 @@ class SkvbcChaosTest(unittest.TestCase):
             adversary.interfere()
 
             async with trio.open_nursery() as nursery:
-                nursery.start_soon(self.run_concurrent_ops, num_ops)
+                nursery.start_soon(self.tracker.run_concurrent_ops, self, num_ops)
 
-            await self.verify()
+            # await self.verify()
+            await self.tracker.verify_linearizability(self)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -145,11 +148,13 @@ class SkvbcChaosTest(unittest.TestCase):
         self.status = Status(bft_network.config)
         bft_network.start_all_replicas()
         async with trio.open_nursery() as nursery:
-            nursery.start_soon(self.run_concurrent_ops, num_ops)
-            nursery.start_soon(self.crash_primary)
+            nursery.start_soon(self.tracker.run_concurrent_ops, self, num_ops)
+            nursery.start_soon(self.tracker.crash_primary, self.bft_network)
 
-        await self.verify()
+        # await self.verify()
+        await self.tracker.verify_linearizability(self)
 
+    '''
     async def verify(self):
         try:
             # Use a new client, since other clients may not be responsive due to
@@ -173,7 +178,7 @@ class SkvbcChaosTest(unittest.TestCase):
             print(str(self.status), flush=True)
             print("FAILURE...")
             raise(e)
-
+    
     async def get_blocks(self, client, block_ids):
         blocks = {}
         for block_id in block_ids:
@@ -188,15 +193,16 @@ class SkvbcChaosTest(unittest.TestCase):
                         raise
             print(f'Retrieved block {block_id}')
         return blocks
+    
 
     async def get_last_block_id(self, client):
         msg = kvbc.SimpleKVBCProtocol.get_last_block_req()
         return kvbc.SimpleKVBCProtocol.parse_reply(await client.read(msg))
-
+    
     async def crash_primary(self):
         await trio.sleep(.5)
         self.bft_network.stop_replica(0)
-
+    
     async def run_concurrent_ops(self, num_ops):
         max_concurrency = len(self.bft_network.clients) // 2
         write_weight = .70
@@ -256,6 +262,8 @@ class SkvbcChaosTest(unittest.TestCase):
         writeset_keys = self.skvbc.random_keys(random.randint(0, max_size))
         writeset_values = self.skvbc.random_values(len(writeset_keys))
         return list(zip(writeset_keys, writeset_values))
+        
+        '''
 
 if __name__ == '__main__':
     unittest.main()

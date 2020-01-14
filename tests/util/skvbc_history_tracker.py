@@ -12,6 +12,9 @@
 
 import time
 from enum import Enum
+from util import skvbc as kvbc
+import trio
+import random
 
 from util.skvbc_exceptions import(
     ConflictingBlockWriteError,
@@ -20,6 +23,8 @@ from util.skvbc_exceptions import(
     InvalidReadError,
     PhantomBlockError
 )
+
+MAX_LOOKBACK=10
 
 class SkvbcWriteRequest:
     """
@@ -724,3 +729,110 @@ class SkvbcTracker:
         causal_state = self.outstanding[(rpy.client_id, rpy.seq_num)]
         index = causal_state.req_index
         return (self.history[index], index)
+
+    async def verify_linearizability(self,test_case):
+         try:
+             # Use a new client, since other clients may not be responsive due to
+             # past failed responses.
+             client = await test_case.skvbc.bft_network.new_client()
+             last_block_id = await self.get_last_block_id(client)
+             print(f'Last Block ID = {last_block_id}')
+             missing_block_ids = self.get_missing_blocks(last_block_id)
+             print(f'Missing Block IDs = {missing_block_ids}')
+             blocks = await self.get_blocks(client, missing_block_ids)
+             self.fill_missing_blocks(blocks)
+             self.verify()
+         except Exception as e:
+             print(f'retries = {client.retries}')
+             test_case.status.end_time = time.monotonic()
+             print("HISTORY...")
+             for i, entry in enumerate(self.history):
+                 print(f'Index = {i}: {entry}\n')
+             print("BLOCKS...")
+             print(f'{self.blocks}\n')
+             print(str(test_case.status), flush=True)
+             print("FAILURE...")
+             raise(e)
+
+    async def get_blocks(self, client, block_ids):
+        blocks = {}
+        for block_id in block_ids:
+            retries = 12 # 60 seconds
+            for i in range(0, retries):
+                try:
+                    msg = kvbc.SimpleKVBCProtocol.get_block_data_req(block_id)
+                    blocks[block_id] = kvbc.SimpleKVBCProtocol.parse_reply(await client.read(msg))
+                    break
+                except trio.TooSlowError:
+                    if i == retries - 1:
+                        raise
+            print(f'Retrieved block {block_id}')
+        return blocks
+
+    async def get_last_block_id(self, client):
+        msg = kvbc.SimpleKVBCProtocol.get_last_block_req()
+        return kvbc.SimpleKVBCProtocol.parse_reply(await client.read(msg))
+
+    async def crash_primary(self, bft_network):
+        await trio.sleep(.5)
+        bft_network.stop_replica(0)
+
+    async def run_concurrent_ops(self, test_case, num_ops):
+        max_concurrency = len(test_case.bft_network.clients) // 2
+        write_weight = .70
+        max_size = len(test_case.skvbc.keys) // 2
+        sent = 0
+        while sent < num_ops:
+            clients = test_case.bft_network.random_clients(max_concurrency)
+            async with trio.open_nursery() as nursery:
+                for client in clients:
+                    if random.random() < write_weight:
+                        nursery.start_soon(self.send_linearizability_write, client, max_size, test_case)
+                    else:
+                        nursery.start_soon(self.send_linearizability_read, client, max_size, test_case)
+            sent += len(clients)
+
+    async def send_linearizability_write(self, client, max_set_size, test_case):
+        readset = self.readset(0, max_set_size, test_case)
+        writeset = self.writeset(max_set_size, test_case)
+        read_version = self.read_block_id()
+        msg = test_case.skvbc.write_req(readset, writeset, read_version)
+        seq_num = client.req_seq_num.next()
+        client_id = client.client_id
+        self.send_write(
+            client_id, seq_num, readset, dict(writeset), read_version)
+        try:
+            serialized_reply = await client.write(msg, seq_num)
+            test_case.status.record_client_reply(client_id)
+            reply = test_case.skvbc.parse_reply(serialized_reply)
+            self.handle_write_reply(client_id, seq_num, reply)
+        except trio.TooSlowError:
+            test_case.status.record_client_timeout(client_id)
+            return
+
+    async def send_linearizability_read(self, client, max_set_size, test_case):
+        readset = self.readset(1, max_set_size, test_case)
+        msg = test_case.skvbc.read_req(readset)
+        seq_num = client.req_seq_num.next()
+        client_id = client.client_id
+        self.send_read(client_id, seq_num, readset)
+        try:
+            serialized_reply = await client.read(msg, seq_num)
+            test_case.status.record_client_reply(client_id)
+            reply = test_case.skvbc.parse_reply(serialized_reply)
+            self.handle_read_reply(client_id, seq_num, reply)
+        except trio.TooSlowError:
+            test_case.status.record_client_timeout(client_id)
+            return
+
+    def read_block_id(self):
+        start = max(0, self.last_known_block - MAX_LOOKBACK)
+        return random.randint(start, self.last_known_block)
+
+    def readset(self, min_size, max_size, test_case):
+        return test_case.skvbc.random_keys(random.randint(min_size, max_size))
+
+    def writeset(self, max_size, test_case):
+        writeset_keys = test_case.skvbc.random_keys(random.randint(0, max_size))
+        writeset_values = test_case.skvbc.random_values(len(writeset_keys))
+        return list(zip(writeset_keys, writeset_values))
