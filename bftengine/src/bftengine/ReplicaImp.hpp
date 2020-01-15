@@ -44,7 +44,7 @@ class PrepareFullMsg;
 class SimpleAckMsg;
 class ReplicaStatusMsg;
 class ReplicaImp;
-class LoadedReplicaData;
+struct LoadedReplicaData;
 class PersistentStorage;
 
 using bftEngine::ReplicaConfig;

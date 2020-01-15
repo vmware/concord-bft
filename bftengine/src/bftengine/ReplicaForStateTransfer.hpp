@@ -30,8 +30,6 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
                           bool firstTime  // TODO [TK] get rid of this
   );
 
-  virtual ~ReplicaForStateTransfer() {}
-
   IStateTransfer* getStateTransfer() const { return stateTransfer; }
 
   // IReplicaForStateTransfer
@@ -42,8 +40,8 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
 
   bool isCollectingState() const { return stateTransfer->isCollectingState(); }
 
-  virtual void start();
-  virtual void stop();
+  void start() override;
+  void stop() override;
 
  protected:
   virtual void onTransferringCompleteImp(int64_t checkpointNumberOfNewState) = 0;

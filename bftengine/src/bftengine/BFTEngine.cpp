@@ -39,13 +39,13 @@ class ReplicaInternal : public IReplica {
 
   int64_t getLastExecutedSequenceNum() const override { return replica_->getLastExecutedSequenceNum(); }
 
-  virtual void start() override;
+  void start() override;
 
-  virtual void stop() override;
+  void stop() override;
 
-  virtual void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a) override;
+  void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a) override;
 
-  virtual void restartForDebug(uint32_t delayMillis) override;
+  void restartForDebug(uint32_t delayMillis) override;
 
  private:
   std::unique_ptr<ReplicaBase> replica_;
@@ -103,9 +103,7 @@ void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
 }  // namespace bftEngine::impl
 
 namespace bftEngine {
-/**
- *
- */
+
 IReplica *IReplica::createNewReplica(ReplicaConfig *replicaConfig,
                                      IRequestsHandler *requestsHandler,
                                      IStateTransfer *stateTransfer,
