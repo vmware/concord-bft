@@ -21,7 +21,6 @@ from util import bft_network_partitioning as net
 from util import skvbc as kvbc
 from util import skvbc_history_tracker
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
-from util.skvbc_history_tracker import SkvbcTracker as with_tracker
 
 # The max number of blocks to check for read intersection during conditional
 # writes
@@ -45,39 +44,6 @@ def start_replica_cmd(builddir, replica_id):
             "-v", viewChangeTimeoutMilli
             ]
 
-class Status:
-    """
-    Status about the running test.
-    This is useful for debugging if the test fails.
-
-    TODO: Should this live in the tracker?
-    """
-    def __init__(self, config):
-        self.config = config
-        self.start_time = time.monotonic()
-        self.end_time = 0
-        self.last_client_reply = 0
-        self.client_timeouts = {}
-        self.client_replies = {}
-
-    def record_client_reply(self, client_id):
-        self.last_client_reply = time.monotonic()
-        count = self.client_replies.get(client_id, 0)
-        self.client_replies[client_id] = count + 1
-
-    def record_client_timeout(self, client_id):
-        count = self.client_timeouts.get(client_id, 0)
-        self.client_timeouts[client_id] = count + 1
-
-    def __str__(self):
-        return (f'{self.__class__.__name__}:\n'
-           f'  config={self.config}\n'
-           f'  test_duration={self.end_time - self.start_time} seconds\n'
-           f'  time_since_last_client_reply='
-           f'{self.end_time - self.last_client_reply} seconds\n'
-           f'  client_timeouts={self.client_timeouts}\n'
-           f'  client_replies={self.client_replies}\n')
-
 
 class SkvbcChaosTest(unittest.TestCase):
 
@@ -94,9 +60,8 @@ class SkvbcChaosTest(unittest.TestCase):
         self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         init_state = self.skvbc.initial_state()
         self.bft_network = bft_network
-        self.status = Status(bft_network.config)
-        self.tracker = skvbc_history_tracker.SkvbcTracker(init_state, self.skvbc, self.bft_network, self.status)
-        bft_network.start_all_replicas()
+        self.tracker = skvbc_history_tracker.SkvbcTracker(init_state, self.skvbc, self.bft_network)
+        self.bft_network.start_all_replicas()
         async with trio.open_nursery() as nursery:
             nursery.start_soon(self.tracker.run_concurrent_ops, num_ops)
 
@@ -117,8 +82,7 @@ class SkvbcChaosTest(unittest.TestCase):
             self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             init_state = self.skvbc.initial_state()
             self.bft_network = bft_network
-            self.status = Status(bft_network.config)
-            self.tracker = skvbc_history_tracker.SkvbcTracker(init_state, self.skvbc, self.bft_network, self.status)
+            self.tracker = skvbc_history_tracker.SkvbcTracker(init_state, self.skvbc, self.bft_network)
             bft_network.start_all_replicas()
 
             adversary.interfere()
@@ -142,14 +106,17 @@ class SkvbcChaosTest(unittest.TestCase):
         self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         init_state = self.skvbc.initial_state()
         self.bft_network = bft_network
-        self.status = Status(bft_network.config)
-        self.tracker = skvbc_history_tracker.SkvbcTracker(init_state, self.skvbc, self.bft_network, self.status)
-        bft_network.start_all_replicas()
+        self.tracker = skvbc_history_tracker.SkvbcTracker(init_state, self.skvbc, self.bft_network)
+        self.bft_network.start_all_replicas()
         async with trio.open_nursery() as nursery:
             nursery.start_soon(self.tracker.run_concurrent_ops, num_ops)
-            nursery.start_soon(self.tracker.crash_primary)
+            nursery.start_soon(self.crash_primary)
 
         await self.tracker.verify_linearizability()
+
+    async def crash_primary(self):
+        await trio.sleep(.5)
+        self.bft_network.stop_replica(0)
 
 if __name__ == '__main__':
     unittest.main()

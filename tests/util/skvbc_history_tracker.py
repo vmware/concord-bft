@@ -201,6 +201,39 @@ class Block:
            f'  kvpairs={self.kvpairs}\n'
            f'  req_index={self.req_index}\n')
 
+class Status:
+    """
+    Status about the running test.
+    This is useful for debugging if the test fails.
+
+    TODO: Should this live in the tracker?
+    """
+    def __init__(self, config):
+        self.config = config
+        self.start_time = time.monotonic()
+        self.end_time = 0
+        self.last_client_reply = 0
+        self.client_timeouts = {}
+        self.client_replies = {}
+
+    def record_client_reply(self, client_id):
+        self.last_client_reply = time.monotonic()
+        count = self.client_replies.get(client_id, 0)
+        self.client_replies[client_id] = count + 1
+
+    def record_client_timeout(self, client_id):
+        count = self.client_timeouts.get(client_id, 0)
+        self.client_timeouts[client_id] = count + 1
+
+    def __str__(self):
+        return (f'{self.__class__.__name__}:\n'
+           f'  config={self.config}\n'
+           f'  test_duration={self.end_time - self.start_time} seconds\n'
+           f'  time_since_last_client_reply='
+           f'{self.end_time - self.last_client_reply} seconds\n'
+           f'  client_timeouts={self.client_timeouts}\n'
+           f'  client_replies={self.client_replies}\n')
+
 class SkvbcTracker:
     """
     Track requests, expected and actual responses from SimpleKVBC test
@@ -319,7 +352,7 @@ class SkvbcTracker:
     clusters with lots of blocks, but we may want to add it as an optional check
     in the future.
     """
-    def __init__(self, initial_kvpairs={}, skvbc=None, bft_network=None, status=None):
+    def __init__(self, initial_kvpairs={}, skvbc=None, bft_network=None):
         # A partial order of all requests (SkvbcWriteRequest | SkvbcReadRequest)
         # issued against SimpleKVBC.  History tracks requests and responses. A
         # happens-before relationship exists between responses and requests
@@ -360,7 +393,7 @@ class SkvbcTracker:
 
         self.bft_network = bft_network
 
-        self.status = status
+        self.status = Status(bft_network.config)
 
     def send_write(self, client_id, seq_num, readset, writeset, read_block_id):
         """Track the send of a write request"""
@@ -779,10 +812,6 @@ class SkvbcTracker:
         msg = kvbc.SimpleKVBCProtocol.get_last_block_req()
         return kvbc.SimpleKVBCProtocol.parse_reply(await client.read(msg))
 
-    async def crash_primary(self):
-        await trio.sleep(.5)
-        self.bft_network.stop_replica(0)
-
     async def run_concurrent_ops(self, num_ops):
         max_concurrency = len(self.bft_network.clients) // 2
         write_weight = .70
@@ -793,12 +822,12 @@ class SkvbcTracker:
             async with trio.open_nursery() as nursery:
                 for client in clients:
                     if random.random() < write_weight:
-                        nursery.start_soon(self.send_linearizability_write, client, max_size)
+                        nursery.start_soon(self.send_tracked_write, client, max_size)
                     else:
-                        nursery.start_soon(self.send_linearizability_read, client, max_size)
+                        nursery.start_soon(self.send_tracked_read, client, max_size)
             sent += len(clients)
 
-    async def send_linearizability_write(self, client, max_set_size):
+    async def send_tracked_write(self, client, max_set_size):
         readset = self.readset(0, max_set_size)
         writeset = self.writeset(max_set_size)
         read_version = self.read_block_id()
@@ -816,7 +845,7 @@ class SkvbcTracker:
             self.status.record_client_timeout(client_id)
             return
 
-    async def send_linearizability_read(self, client, max_set_size):
+    async def send_tracked_read(self, client, max_set_size):
         readset = self.readset(1, max_set_size)
         msg = self.skvbc.read_req(readset)
         seq_num = client.req_seq_num.next()
