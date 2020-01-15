@@ -203,10 +203,8 @@ class Block:
 
 class Status:
     """
-    Status about the running test.
-    This is useful for debugging if the test fails.
-
-    TODO: Should this live in the tracker?
+    Status about the order of writes and reads.
+    This is useful for debugging and checking linearizability.
     """
     def __init__(self, config):
         self.config = config
