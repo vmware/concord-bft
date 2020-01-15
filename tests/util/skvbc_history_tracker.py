@@ -319,7 +319,7 @@ class SkvbcTracker:
     clusters with lots of blocks, but we may want to add it as an optional check
     in the future.
     """
-    def __init__(self, initial_kvpairs={}):
+    def __init__(self, initial_kvpairs={}, skvbc=None, bft_network=None, status=None):
         # A partial order of all requests (SkvbcWriteRequest | SkvbcReadRequest)
         # issued against SimpleKVBC.  History tracks requests and responses. A
         # happens-before relationship exists between responses and requests
@@ -355,6 +355,12 @@ class SkvbcTracker:
         # Blocks that get filled in by the call to fill_missing_blocks
         # These blocks were created by write requests that never got replies.
         self.filled_blocks = {}
+
+        self.skvbc = skvbc
+
+        self.bft_network = bft_network
+
+        self.status = status
 
     def send_write(self, client_id, seq_num, readset, writeset, read_block_id):
         """Track the send of a write request"""
@@ -730,11 +736,11 @@ class SkvbcTracker:
         index = causal_state.req_index
         return (self.history[index], index)
 
-    async def verify_linearizability(self,test_case):
+    async def verify_linearizability(self):
          try:
              # Use a new client, since other clients may not be responsive due to
              # past failed responses.
-             client = await test_case.skvbc.bft_network.new_client()
+             client = await self.skvbc.bft_network.new_client()
              last_block_id = await self.get_last_block_id(client)
              print(f'Last Block ID = {last_block_id}')
              missing_block_ids = self.get_missing_blocks(last_block_id)
@@ -744,13 +750,13 @@ class SkvbcTracker:
              self.verify()
          except Exception as e:
              print(f'retries = {client.retries}')
-             test_case.status.end_time = time.monotonic()
+             self.status.end_time = time.monotonic()
              print("HISTORY...")
              for i, entry in enumerate(self.history):
                  print(f'Index = {i}: {entry}\n')
              print("BLOCKS...")
              print(f'{self.blocks}\n')
-             print(str(test_case.status), flush=True)
+             print(str(self.status), flush=True)
              print("FAILURE...")
              raise(e)
 
@@ -773,66 +779,66 @@ class SkvbcTracker:
         msg = kvbc.SimpleKVBCProtocol.get_last_block_req()
         return kvbc.SimpleKVBCProtocol.parse_reply(await client.read(msg))
 
-    async def crash_primary(self, bft_network):
+    async def crash_primary(self):
         await trio.sleep(.5)
-        bft_network.stop_replica(0)
+        self.bft_network.stop_replica(0)
 
-    async def run_concurrent_ops(self, test_case, num_ops):
-        max_concurrency = len(test_case.bft_network.clients) // 2
+    async def run_concurrent_ops(self, num_ops):
+        max_concurrency = len(self.bft_network.clients) // 2
         write_weight = .70
-        max_size = len(test_case.skvbc.keys) // 2
+        max_size = len(self.skvbc.keys) // 2
         sent = 0
         while sent < num_ops:
-            clients = test_case.bft_network.random_clients(max_concurrency)
+            clients = self.bft_network.random_clients(max_concurrency)
             async with trio.open_nursery() as nursery:
                 for client in clients:
                     if random.random() < write_weight:
-                        nursery.start_soon(self.send_linearizability_write, client, max_size, test_case)
+                        nursery.start_soon(self.send_linearizability_write, client, max_size)
                     else:
-                        nursery.start_soon(self.send_linearizability_read, client, max_size, test_case)
+                        nursery.start_soon(self.send_linearizability_read, client, max_size)
             sent += len(clients)
 
-    async def send_linearizability_write(self, client, max_set_size, test_case):
-        readset = self.readset(0, max_set_size, test_case)
-        writeset = self.writeset(max_set_size, test_case)
+    async def send_linearizability_write(self, client, max_set_size):
+        readset = self.readset(0, max_set_size)
+        writeset = self.writeset(max_set_size)
         read_version = self.read_block_id()
-        msg = test_case.skvbc.write_req(readset, writeset, read_version)
+        msg = self.skvbc.write_req(readset, writeset, read_version)
         seq_num = client.req_seq_num.next()
         client_id = client.client_id
         self.send_write(
             client_id, seq_num, readset, dict(writeset), read_version)
         try:
             serialized_reply = await client.write(msg, seq_num)
-            test_case.status.record_client_reply(client_id)
-            reply = test_case.skvbc.parse_reply(serialized_reply)
+            self.status.record_client_reply(client_id)
+            reply = self.skvbc.parse_reply(serialized_reply)
             self.handle_write_reply(client_id, seq_num, reply)
         except trio.TooSlowError:
-            test_case.status.record_client_timeout(client_id)
+            self.status.record_client_timeout(client_id)
             return
 
-    async def send_linearizability_read(self, client, max_set_size, test_case):
-        readset = self.readset(1, max_set_size, test_case)
-        msg = test_case.skvbc.read_req(readset)
+    async def send_linearizability_read(self, client, max_set_size):
+        readset = self.readset(1, max_set_size)
+        msg = self.skvbc.read_req(readset)
         seq_num = client.req_seq_num.next()
         client_id = client.client_id
         self.send_read(client_id, seq_num, readset)
         try:
             serialized_reply = await client.read(msg, seq_num)
-            test_case.status.record_client_reply(client_id)
-            reply = test_case.skvbc.parse_reply(serialized_reply)
+            self.status.record_client_reply(client_id)
+            reply = self.skvbc.parse_reply(serialized_reply)
             self.handle_read_reply(client_id, seq_num, reply)
         except trio.TooSlowError:
-            test_case.status.record_client_timeout(client_id)
+            self.status.record_client_timeout(client_id)
             return
 
     def read_block_id(self):
         start = max(0, self.last_known_block - MAX_LOOKBACK)
         return random.randint(start, self.last_known_block)
 
-    def readset(self, min_size, max_size, test_case):
-        return test_case.skvbc.random_keys(random.randint(min_size, max_size))
+    def readset(self, min_size, max_size):
+        return self.skvbc.random_keys(random.randint(min_size, max_size))
 
-    def writeset(self, max_size, test_case):
-        writeset_keys = test_case.skvbc.random_keys(random.randint(0, max_size))
-        writeset_values = test_case.skvbc.random_values(len(writeset_keys))
+    def writeset(self, max_size):
+        writeset_keys = self.skvbc.random_keys(random.randint(0, max_size))
+        writeset_values = self.skvbc.random_values(len(writeset_keys))
         return list(zip(writeset_keys, writeset_values))

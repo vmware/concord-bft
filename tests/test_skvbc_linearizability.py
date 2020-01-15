@@ -93,14 +93,14 @@ class SkvbcChaosTest(unittest.TestCase):
 
         self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         init_state = self.skvbc.initial_state()
-        self.tracker = skvbc_history_tracker.SkvbcTracker(init_state)
         self.bft_network = bft_network
         self.status = Status(bft_network.config)
+        self.tracker = skvbc_history_tracker.SkvbcTracker(init_state, self.skvbc, self.bft_network, self.status)
         bft_network.start_all_replicas()
         async with trio.open_nursery() as nursery:
-            nursery.start_soon(self.tracker.run_concurrent_ops, self, num_ops)
+            nursery.start_soon(self.tracker.run_concurrent_ops, num_ops)
 
-        await self.tracker.verify_linearizability(self)
+        await self.tracker.verify_linearizability()
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -116,17 +116,17 @@ class SkvbcChaosTest(unittest.TestCase):
                 bft_network, drop_rate_percentage=5) as adversary:
             self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             init_state = self.skvbc.initial_state()
-            self.tracker = skvbc_history_tracker.SkvbcTracker(init_state)
             self.bft_network = bft_network
             self.status = Status(bft_network.config)
+            self.tracker = skvbc_history_tracker.SkvbcTracker(init_state, self.skvbc, self.bft_network, self.status)
             bft_network.start_all_replicas()
 
             adversary.interfere()
 
             async with trio.open_nursery() as nursery:
-                nursery.start_soon(self.tracker.run_concurrent_ops, self, num_ops)
+                nursery.start_soon(self.tracker.run_concurrent_ops, num_ops)
 
-            await self.tracker.verify_linearizability(self)
+            await self.tracker.verify_linearizability()
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -141,15 +141,15 @@ class SkvbcChaosTest(unittest.TestCase):
 
         self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         init_state = self.skvbc.initial_state()
-        self.tracker = skvbc_history_tracker.SkvbcTracker(init_state)
         self.bft_network = bft_network
         self.status = Status(bft_network.config)
+        self.tracker = skvbc_history_tracker.SkvbcTracker(init_state, self.skvbc, self.bft_network, self.status)
         bft_network.start_all_replicas()
         async with trio.open_nursery() as nursery:
-            nursery.start_soon(self.tracker.run_concurrent_ops, self, num_ops)
-            nursery.start_soon(self.tracker.crash_primary, self.bft_network)
+            nursery.start_soon(self.tracker.run_concurrent_ops, num_ops)
+            nursery.start_soon(self.tracker.crash_primary)
 
-        await self.tracker.verify_linearizability(self)
+        await self.tracker.verify_linearizability()
 
 if __name__ == '__main__':
     unittest.main()
