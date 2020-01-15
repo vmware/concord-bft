@@ -33,12 +33,12 @@ class Version {
   bool operator==(const Version& other) const { return value_ == other.value_; }
   bool operator!=(const Version& other) const { return value_ != other.value_; }
   bool operator<(const Version& other) const { return value_ < other.value_; }
-  Version operator+(const Version& other) { return Version(value_ + other.value_); }
-  Version operator+(const int other) {
+  Version operator+(const Version& other) const { return Version(value_ + other.value_); }
+  Version operator+(const int other) const {
     Assert(other > 0);
-    return Version(value_ + 1);
+    return Version(value_ + other);
   }
-  uint64_t value() { return value_; }
+  uint64_t value() const { return value_; }
   std::string toString() const { return std::to_string(value_); };
 
  private:
