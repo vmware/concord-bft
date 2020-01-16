@@ -7,21 +7,9 @@ echo "macos homebrew packages handled in .travis.yml"
 else
 # If on Linux, install necessary packages using apt
 sudo apt-get update
-sudo apt-get install -y ccache cmake clang-format libgmp3-dev #parallel \
-#python3-pip python3-setuptools openssl libssl-dev
+sudo apt-get install -y ccache cmake clang-format libgmp3-dev parallel \
+python3-pip python3-setuptools openssl libssl-dev
 fi
-
-# Install Conan package manager
-pip install conan
-source ~/.profile
-conan profile new default --detect
-conan profile update settings.compiler.libcxx=libstdc++11 default
-
-cd
-mkdir -p concord-bft/build
-cd concord-bft/build
-conan install --build missing ..
-
 
 # build and install relic
 cd /tmp
@@ -34,17 +22,13 @@ CC=/usr/bin/gcc CXX=/usr/bin/g++ cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DALLOC
 CC=/usr/bin/gcc CXX=/usr/bin/g++ make
 sudo make install
 
-#
-
 # build and install cryptopp
-#cd /tmp
-#git clone https://github.com/weidai11/cryptopp.git
-#cd cryptopp
-#git checkout CRYPTOPP_8_2_0
-#make
-#sudo make install
-
-
+cd /tmp
+git clone https://github.com/weidai11/cryptopp.git
+cd cryptopp
+git checkout CRYPTOPP_8_2_0
+make
+sudo make install
 
 # build and install boost
 cd /tmp
@@ -71,4 +55,3 @@ fi
 
 # trio is need for tests
 python3 -m pip install --upgrade trio
-
