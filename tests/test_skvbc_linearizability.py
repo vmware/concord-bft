@@ -63,9 +63,9 @@ class SkvbcChaosTest(unittest.TestCase):
         self.tracker = skvbc_history_tracker.SkvbcTracker(init_state, self.skvbc, self.bft_network)
         self.bft_network.start_all_replicas()
         async with trio.open_nursery() as nursery:
-            nursery.start_soon(self.tracker.run_concurrent_ops, num_ops)
+            nursery.start_soon(self.run_concurrent_ops, num_ops)
 
-        await self.tracker.verify_linearizability()
+        await self.tracker.fill_missing_blocks_and_verify()
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -88,9 +88,9 @@ class SkvbcChaosTest(unittest.TestCase):
             adversary.interfere()
 
             async with trio.open_nursery() as nursery:
-                nursery.start_soon(self.tracker.run_concurrent_ops, num_ops)
+                nursery.start_soon(self.run_concurrent_ops, num_ops)
 
-            await self.tracker.verify_linearizability()
+            await self.tracker.fill_missing_blocks_and_verify()
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -109,10 +109,25 @@ class SkvbcChaosTest(unittest.TestCase):
         self.tracker = skvbc_history_tracker.SkvbcTracker(init_state, self.skvbc, self.bft_network)
         self.bft_network.start_all_replicas()
         async with trio.open_nursery() as nursery:
-            nursery.start_soon(self.tracker.run_concurrent_ops, num_ops)
+            nursery.start_soon(self.run_concurrent_ops, num_ops)
             nursery.start_soon(self.crash_primary)
 
-        await self.tracker.verify_linearizability()
+        await self.tracker.fill_missing_blocks_and_verify()
+
+    async def run_concurrent_ops(self, num_ops):
+        max_concurrency = len(self.bft_network.clients) // 2
+        write_weight = .70
+        max_size = len(self.skvbc.keys) // 2
+        sent = 0
+        while sent < num_ops:
+            clients = self.bft_network.random_clients(max_concurrency)
+            async with trio.open_nursery() as nursery:
+                for client in clients:
+                    if random.random() < write_weight:
+                        nursery.start_soon(self.tracker.send_tracked_write, client, max_size)
+                    else:
+                        nursery.start_soon(self.tracker.send_tracked_read, client, max_size)
+            sent += len(clients)
 
     async def crash_primary(self):
         await trio.sleep(.5)

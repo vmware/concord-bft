@@ -204,7 +204,7 @@ class Block:
 class Status:
     """
     Status about the order of writes and reads.
-    This is useful for debugging and checking linearizability.
+    This is useful for debugging when test is fall.
     """
     def __init__(self, config):
         self.config = config
@@ -391,7 +391,8 @@ class SkvbcTracker:
 
         self.bft_network = bft_network
 
-        self.status = Status(bft_network.config)
+        if self.bft_network is not None:
+            self.status = Status(bft_network.config)
 
     def send_write(self, client_id, seq_num, readset, writeset, read_block_id):
         """Track the send of a write request"""
@@ -767,7 +768,7 @@ class SkvbcTracker:
         index = causal_state.req_index
         return (self.history[index], index)
 
-    async def verify_linearizability(self):
+    async def fill_missing_blocks_and_verify(self):
          try:
              # Use a new client, since other clients may not be responsive due to
              # past failed responses.
@@ -809,21 +810,6 @@ class SkvbcTracker:
     async def get_last_block_id(self, client):
         msg = kvbc.SimpleKVBCProtocol.get_last_block_req()
         return kvbc.SimpleKVBCProtocol.parse_reply(await client.read(msg))
-
-    async def run_concurrent_ops(self, num_ops):
-        max_concurrency = len(self.bft_network.clients) // 2
-        write_weight = .70
-        max_size = len(self.skvbc.keys) // 2
-        sent = 0
-        while sent < num_ops:
-            clients = self.bft_network.random_clients(max_concurrency)
-            async with trio.open_nursery() as nursery:
-                for client in clients:
-                    if random.random() < write_weight:
-                        nursery.start_soon(self.send_tracked_write, client, max_size)
-                    else:
-                        nursery.start_soon(self.send_tracked_read, client, max_size)
-            sent += len(clients)
 
     async def send_tracked_write(self, client, max_set_size):
         readset = self.readset(0, max_set_size)
