@@ -32,5 +32,5 @@ target_sources(concordbft_storage PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/sparse_merkle/internal_node.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/sparse_merkle/tree.cpp
 )
-target_link_libraries(concordbft_storage PRIVATE ${OPENSSL_LIBRARIES})
+target_link_libraries(concordbft_storage PRIVATE CONAN_PKG::OpenSSL)
 

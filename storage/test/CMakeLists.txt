@@ -27,7 +27,7 @@ add_executable(sparse_merkle_internal_node_test sparse_merkle/internal_node_test
     $<TARGET_OBJECTS:logging_dev>)
 add_test(sparse_merkle_internal_node_test sparse_merkle_internal_node_test)
 target_link_libraries(sparse_merkle_internal_node_test PUBLIC
-    gtest
+        CONAN_PKG::gtest
     concordbft_storage
     ${OPENSSL_LIBRARIES}
 )
@@ -37,7 +37,7 @@ add_executable(sparse_merkle_tree_test sparse_merkle/tree_test.cpp
     $<TARGET_OBJECTS:logging_dev>)
 add_test(sparse_merkle_tree_test sparse_merkle_tree_test)
 target_link_libraries(sparse_merkle_tree_test PUBLIC
-    gtest
+        CONAN_PKG::gtest
     concordbft_storage
     ${OPENSSL_LIBRARIES}
 )
