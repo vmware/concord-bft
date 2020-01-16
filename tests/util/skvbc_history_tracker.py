@@ -204,7 +204,7 @@ class Block:
 class Status:
     """
     Status about the order of writes and reads.
-    This is useful for debugging when test is fall.
+    This is useful for debugging linearizability check failures.
     """
     def __init__(self, config):
         self.config = config
