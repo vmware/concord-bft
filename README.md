@@ -120,7 +120,6 @@ version 1.1.1. This is the latest update to Ubuntu 18.04.
 
     sudo apt-get install openssl libssl-dev
 
-
 #### (Optional) Use log4cplus
 
 We have simple console logger but if you wish to use log4cplus - we have an
@@ -178,9 +177,12 @@ It should be
 
     Python 3.x.x
 
-#### (Optional) Only if using TLS or plain TCP as communication module
-We use Boost both for plain TCP and TLS communication. Please follow these
-instructions to install this library
+#### (Optional) Boost
+We use Boost both for:
+ * optional plain TCP or TLS communication
+ * optional concord::kvbc::BlockchainView code residing in kvbc
+
+Please follow these instructions to install this library
 
 Download Boost version 1.64
 

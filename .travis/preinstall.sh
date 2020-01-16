@@ -30,6 +30,15 @@ git checkout CRYPTOPP_8_2_0
 make
 sudo make install
 
+# build and install boost
+cd /tmp
+wget --https-only https://dl.bintray.com/boostorg/release/1.64.0/source/boost_1_64_0.tar.gz
+tar -xf boost_1_64_0.tar.gz
+cd boost_1_64_0
+./bootstrap.sh --with-libraries=system,filesystem
+./b2
+sudo ./b2 install
+
 # build and install RocksDB and its dependencies
 if [ -n "$USE_ROCKSDB" ]; then
     # Install RocksDB dependencies
@@ -37,7 +46,7 @@ if [ -n "$USE_ROCKSDB" ]; then
 
     # Install RocksDB
     cd /tmp
-    wget https://github.com/facebook/rocksdb/archive/v5.7.3.tar.gz
+    wget --https-only https://github.com/facebook/rocksdb/archive/v5.7.3.tar.gz
     tar -xzf v5.7.3.tar.gz
     cd rocksdb-5.7.3
     make shared_lib

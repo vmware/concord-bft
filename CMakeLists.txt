@@ -14,6 +14,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(IS_LEAKCHECK FALSE)
 set(SLEEP_FOR_DBG FALSE)
 
+set(MIN_BOOST_VERSION 1.64)
+
 # Default to debug builds
 # Release builds can be enabled by running cmake with -DCMAKE_BUILD_TYPE=Release
 if(NOT CMAKE_BUILD_TYPE)
