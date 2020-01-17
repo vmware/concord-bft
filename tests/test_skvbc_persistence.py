@@ -35,7 +35,7 @@ def start_replica_cmd(builddir, replica_id):
     Note each arguments is an element in a list.
     """
     statusTimerMilli = "500"
-    viewChangeTimeoutMilli = "3000"
+    viewChangeTimeoutMilli = "10000"
 
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     return [path,
@@ -500,9 +500,10 @@ class SkvbcPersistenceTest(unittest.TestCase):
             stale_node=stale
         )
 
-        self.assertGreater(
-            current_primary, 0,
-            "Make sure view change has been triggered during state transfer."
+        await bft_network.wait_for_view(
+            replica_id=random.choice(stable_replicas),
+            expected=lambda v: v > 0,
+            err_msg="Make sure view change has been triggered during state transfer."
         )
 
         print(f'State transfer completed, despite the primary '
