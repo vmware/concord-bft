@@ -28,7 +28,7 @@ def start_replica_cmd(builddir, replica_id):
     Note each arguments is an element in a list.
     """
     statusTimerMilli = "500"
-    viewChangeTimeoutMilli = "3000"
+    viewChangeTimeoutMilli = "10000"
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     return [path,
             "-k", KEY_FILE_PREFIX,
@@ -49,6 +49,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         2) Make sure the initial view is preserved during those writes.
         3) Stop the primary replica and send a batch of write requests.
         4) Verify the BFT network eventually transitions to the next view.
+        5) Perform a "read-your-writes" check in the new view
         """
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
@@ -75,7 +76,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
             err_msg="Make sure view change has been triggered."
         )
 
-        skvbc.read_your_writes(self)
+        await skvbc.read_your_writes(self)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -89,6 +90,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         2) Insert an adversary that isolates the primary's outgoing communication
         3) Send a batch of write requests.
         4) Verify the BFT network eventually transitions to the next view.
+        5) Perform a "read-your-writes" check in the new view
         """
         with net.PrimaryIsolatingAdversary(bft_network) as adversary:
             bft_network.start_all_replicas()
@@ -113,7 +115,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
                 err_msg="Make sure view change has been triggered."
             )
 
-            skvbc.read_your_writes(self)
+            await skvbc.read_your_writes(self)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -126,6 +128,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         2) crash f replicas, including the current primary.
         3) Trigger parallel requests to start the view change.
         4) Verify the BFT network eventually transitions to the next view.
+        5) Perform a "read-your-writes" check in the new view
         """
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
@@ -142,8 +145,10 @@ class SkvbcViewChangeTest(unittest.TestCase):
         crashed_replicas = await self._crash_replicas_including_primary(
             bft_network=bft_network,
             nb_crashing=f,
-            primary=initial_primary
+            primary=initial_primary,
+            except_replicas={expected_next_primary}
         )
+        self.assertFalse(expected_next_primary in crashed_replicas)
 
         self.assertGreaterEqual(
             len(bft_network.procs), 2 * f + 2 * c + 1,
@@ -157,8 +162,9 @@ class SkvbcViewChangeTest(unittest.TestCase):
             err_msg="Make sure view change has been triggered."
         )
 
-        skvbc.read_your_writes(self)
+        await skvbc.read_your_writes(self)
 
+    @unittest.skip("unstable scenario")
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: c < f)
@@ -173,6 +179,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
             2.1) Crash c+1 replicas (including the primary)
             2.2) Send parallel requests to start the view change.
             2.3) Verify the BFT network eventually transitions to the next view.
+            2.4) Perform a "read-your-writes" check in the new view
         3) Make sure the slow path was prevalent during all view changes
 
         Note: we require that c < f because:
@@ -188,15 +195,18 @@ class SkvbcViewChangeTest(unittest.TestCase):
         c = bft_network.config.c
 
         current_primary = 0
-        for _ in range(3):
+        for _ in range(2):
             self.assertEqual(len(bft_network.procs), n,
                              "Make sure all replicas are up initially.")
 
+            expected_next_primary = current_primary + 1
             crashed_replicas = await self._crash_replicas_including_primary(
                 bft_network=bft_network,
-                nb_crashing=c + 1,
-                primary=current_primary
+                nb_crashing=c+1,
+                primary=current_primary,
+                except_replicas={expected_next_primary}
             )
+            self.assertFalse(expected_next_primary in crashed_replicas)
 
             self.assertGreaterEqual(
                 len(bft_network.procs), 2 * f + 2 * c + 1,
@@ -209,18 +219,21 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
             view = await bft_network.wait_for_view(
                 replica_id=stable_replica,
-                expected=lambda v: v > current_primary,
+                expected=lambda v: v >= expected_next_primary,
                 err_msg="Make sure a view change has been triggered."
             )
             current_primary = view
             [bft_network.start_replica(i) for i in crashed_replicas]
 
-            skvbc.read_your_writes(self)
+        await bft_network.wait_for_view(
+            replica_id=current_primary,
+            err_msg="Make sure all ongoing view changes have completed."
+        )
+
+        await skvbc.read_your_writes(self)
 
         await bft_network.wait_for_slow_path_to_be_prevalent(
             replica_id=current_primary)
-
-
 
     async def _send_random_writes(self, skvbc):
         with trio.move_on_after(seconds=1):
@@ -228,13 +241,17 @@ class SkvbcViewChangeTest(unittest.TestCase):
                 nursery.start_soon(skvbc.send_indefinite_write_requests)
 
     async def _crash_replicas_including_primary(
-            self, bft_network, nb_crashing, primary):
+            self, bft_network, nb_crashing, primary, except_replicas=None):
+        if except_replicas is None:
+            except_replicas = set()
+
         crashed_replicas = set()
 
         bft_network.stop_replica(primary)
         crashed_replicas.add(primary)
 
-        crash_candidates = bft_network.all_replicas(without={primary})
+        crash_candidates = bft_network.all_replicas(
+            without=except_replicas.union({primary}))
         random.shuffle(crash_candidates)
         for i in range(nb_crashing - 1):
             bft_network.stop_replica(crash_candidates[i])

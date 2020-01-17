@@ -48,6 +48,7 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         1) Start a full BFT network
         2) Do nothing (wait for automatic view change to kick-in)
         3) Check that view change has occurred (necessarily, automatic view change)
+        4) Perform a "read-your-writes" check in the new view
         """
         bft_network.start_all_replicas()
 
@@ -63,7 +64,7 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
             err_msg="Make sure automatic view change has occurred."
         )
 
-        skvbc.read_your_writes(self)
+        await skvbc.read_your_writes(self)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -75,6 +76,7 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         2) Stop the initial primary replica
         3) Do nothing (wait for automatic view change to kick-in)
         4) Check that view change has occurred (necessarily, automatic view change)
+        5) Perform a "read-your-writes" check in the new view
         """
         bft_network.start_all_replicas()
 
@@ -91,7 +93,7 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
             err_msg="Make sure automatic view change has occurred."
         )
 
-        skvbc.read_your_writes(self)
+        await skvbc.read_your_writes(self)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -103,6 +105,7 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         2) Send a batch of write commands
         3) Make sure view change occurred at some point while processing the writes
         4) Check that all writes have been processed on the fast commit path
+        5) Perform a "read-your-writes" check in the new view
         """
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
@@ -122,4 +125,4 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         await skvbc.assert_kv_write_executed(key, val)
         await bft_network.assert_fast_path_prevalent()
 
-        skvbc.read_your_writes(self)
+        await skvbc.read_your_writes(self)
