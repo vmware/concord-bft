@@ -334,7 +334,15 @@ void ReplicaImp::insertBlockInternal(BlockId blockId, Sliver block) {
 }
 
 Sliver ReplicaImp::getBlockInternal(BlockId blockId) const {
-  assert(blockId <= m_lastBlock);
+  if (blockId > m_lastBlock) {
+    LOG_ERROR(logger,
+              "Block " << blockId
+                       << " not processed yet. "
+                          "Last executed block is: "
+                       << m_lastBlock);
+    return Sliver();
+  }
+
   Sliver retVal;
 
   bool found;

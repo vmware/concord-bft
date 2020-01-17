@@ -28,7 +28,7 @@ def start_replica_cmd(builddir, replica_id):
     Note each arguments is an element in a list.
     """
     statusTimerMilli = "500"
-    viewChangeTimeoutMilli = "3000"
+    viewChangeTimeoutMilli = "7000"
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     return [path,
             "-k", KEY_FILE_PREFIX,
@@ -56,8 +56,10 @@ class SkvbcViewChangeTest(unittest.TestCase):
         initial_primary = 0
         expected_next_primary = 1
 
+        print("#### TESTING #### send random writes")
         await self._send_random_writes(skvbc)
 
+        print(f"#### TESTING ####: checking view {initial_primary} is preserved.")
         await bft_network.wait_for_view(
             replica_id=initial_primary,
             expected=lambda v: v == initial_primary,
@@ -65,18 +67,23 @@ class SkvbcViewChangeTest(unittest.TestCase):
                     "before crashing the primary."
         )
 
+        print("#### TESTING ####: stop the primary")
         bft_network.stop_replica(initial_primary)
 
+        print("#### TESTING ####: send random writes to trigger view change")
         await self._send_random_writes(skvbc)
 
+        print(f"#### TESTING ####: wait for view {expected_next_primary}")
         await bft_network.wait_for_view(
             replica_id=random.choice(bft_network.all_replicas(without={0})),
             expected=lambda v: v == expected_next_primary,
             err_msg="Make sure view change has been triggered."
         )
 
-        skvbc.read_your_writes(self)
+        print("#### TESTING ####: read-your-writes")
+        await skvbc.read_your_writes(self)
 
+    @unittest.skip
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_single_vc_primary_isolated(self, bft_network):
@@ -113,8 +120,9 @@ class SkvbcViewChangeTest(unittest.TestCase):
                 err_msg="Make sure view change has been triggered."
             )
 
-            skvbc.read_your_writes(self)
+            await skvbc.read_your_writes(self)
 
+    @unittest.skip
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_single_vc_with_f_replicas_down(self, bft_network):
@@ -157,8 +165,9 @@ class SkvbcViewChangeTest(unittest.TestCase):
             err_msg="Make sure view change has been triggered."
         )
 
-        skvbc.read_your_writes(self)
+        await skvbc.read_your_writes(self)
 
+    @unittest.skip
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: c < f)
@@ -215,12 +224,10 @@ class SkvbcViewChangeTest(unittest.TestCase):
             current_primary = view
             [bft_network.start_replica(i) for i in crashed_replicas]
 
-            skvbc.read_your_writes(self)
+            await skvbc.read_your_writes(self)
 
         await bft_network.wait_for_slow_path_to_be_prevalent(
             replica_id=current_primary)
-
-
 
     async def _send_random_writes(self, skvbc):
         with trio.move_on_after(seconds=1):

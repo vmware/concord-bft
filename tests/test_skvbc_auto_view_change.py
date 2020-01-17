@@ -63,7 +63,7 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
             err_msg="Make sure automatic view change has occurred."
         )
 
-        skvbc.read_your_writes(self)
+        await skvbc.read_your_writes(self)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -91,7 +91,7 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
             err_msg="Make sure automatic view change has occurred."
         )
 
-        skvbc.read_your_writes(self)
+        await skvbc.read_your_writes(self)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -122,4 +122,4 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         await skvbc.assert_kv_write_executed(key, val)
         await bft_network.assert_fast_path_prevalent()
 
-        skvbc.read_your_writes(self)
+        await skvbc.read_your_writes(self)
