@@ -49,6 +49,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         2) Make sure the initial view is preserved during those writes.
         3) Stop the primary replica and send a batch of write requests.
         4) Verify the BFT network eventually transitions to the next view.
+        5) Perform a "read-your-writes" check in the new view
         """
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
@@ -56,10 +57,8 @@ class SkvbcViewChangeTest(unittest.TestCase):
         initial_primary = 0
         expected_next_primary = 1
 
-        print("#### TESTING #### send random writes")
         await self._send_random_writes(skvbc)
 
-        print(f"#### TESTING ####: checking view {initial_primary} is preserved.")
         await bft_network.wait_for_view(
             replica_id=initial_primary,
             expected=lambda v: v == initial_primary,
@@ -67,23 +66,18 @@ class SkvbcViewChangeTest(unittest.TestCase):
                     "before crashing the primary."
         )
 
-        print("#### TESTING ####: stop the primary")
         bft_network.stop_replica(initial_primary)
 
-        print("#### TESTING ####: send random writes to trigger view change")
         await self._send_random_writes(skvbc)
 
-        print(f"#### TESTING ####: wait for view {expected_next_primary}")
         await bft_network.wait_for_view(
             replica_id=random.choice(bft_network.all_replicas(without={0})),
             expected=lambda v: v == expected_next_primary,
             err_msg="Make sure view change has been triggered."
         )
 
-        print("#### TESTING ####: read-your-writes")
         await skvbc.read_your_writes(self)
 
-    @unittest.skip
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_single_vc_primary_isolated(self, bft_network):
@@ -96,6 +90,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         2) Insert an adversary that isolates the primary's outgoing communication
         3) Send a batch of write requests.
         4) Verify the BFT network eventually transitions to the next view.
+        5) Perform a "read-your-writes" check in the new view
         """
         with net.PrimaryIsolatingAdversary(bft_network) as adversary:
             bft_network.start_all_replicas()
@@ -122,7 +117,6 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
             await skvbc.read_your_writes(self)
 
-    @unittest.skip
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_single_vc_with_f_replicas_down(self, bft_network):
@@ -134,6 +128,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         2) crash f replicas, including the current primary.
         3) Trigger parallel requests to start the view change.
         4) Verify the BFT network eventually transitions to the next view.
+        5) Perform a "read-your-writes" check in the new view
         """
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
@@ -167,7 +162,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
         await skvbc.read_your_writes(self)
 
-    @unittest.skip
+    @unittest.skip("Unstable")
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: c < f)
@@ -182,6 +177,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
             2.1) Crash c+1 replicas (including the primary)
             2.2) Send parallel requests to start the view change.
             2.3) Verify the BFT network eventually transitions to the next view.
+            2.4) Perform a "read-your-writes" check in the new view
         3) Make sure the slow path was prevalent during all view changes
 
         Note: we require that c < f because:

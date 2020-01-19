@@ -1908,8 +1908,6 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
              viewsManager->stableLowerBoundWhenEnteredToView());
 
   Assert(viewsManager->viewIsActive(curView));
-  metric_view_.Get().Set(curView);
-
   Assert(lastStableSeqNum >= viewsManager->stableLowerBoundWhenEnteredToView());
   Assert(lastExecutedSeqNum >= lastStableSeqNum);  // we moved to the new state, only after synchronizing the state
 

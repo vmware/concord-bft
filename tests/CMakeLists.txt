@@ -19,7 +19,7 @@ add_test(NAME skvbc_slow_path_tests COMMAND sh -c
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_test(NAME skvbc_view_change_tests COMMAND sudo sh -c
-        "python3 -m unittest test_skvbc_view_change"
+        "python3 -m unittest test_skvbc_view_change 2>&1 > /dev/null"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_test(NAME skvbc_auto_view_change_tests COMMAND sh -c

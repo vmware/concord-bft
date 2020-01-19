@@ -50,9 +50,9 @@ def interesting_configs(selected=None):
     if selected is None:
         selected=lambda *config: True
 
-    bft_configs = [# {'n': 4, 'f': 1, 'c': 0, 'num_clients': 4},
-                   # {'n': 6, 'f': 1, 'c': 1, 'num_clients': 4},
-                   {'n': 7, 'f': 2, 'c': 0, 'num_clients': 4}
+    bft_configs = [{'n': 4, 'f': 1, 'c': 0, 'num_clients': 4},
+                   {'n': 6, 'f': 1, 'c': 1, 'num_clients': 4},
+                   {'n': 7, 'f': 2, 'c': 0, 'num_clients': 4},
                    # {'n': 9, 'f': 2, 'c': 1, 'num_clients': 4}
                    # {'n': 12, 'f': 3, 'c': 1, 'num_clients': 4}
                    ]
@@ -275,7 +275,7 @@ class BftTestNetwork:
 
         return current_primary
 
-    async def wait_for_view(self, replica_id=None, expected=None,
+    async def wait_for_view(self, replica_id, expected=None,
                             err_msg="Expected view not reached"):
         """
         Waits for a view that matches the "expected" predicate,
@@ -292,32 +292,17 @@ class BftTestNetwork:
         try:
             with trio.fail_after(seconds=30):
                 while True:
-                    with trio.move_on_after(seconds=1):
-                        view = 0
-                        replicas_in_expected_view = 0
-
-                        async def count_view_participants(r, expected_view):
-                            nonlocal view
-                            nonlocal replicas_in_expected_view
-
-                            key = ['replica', 'Gauges', 'view']
-                            try:
-                                view = await self.metrics.get(r, *key)
-                                if expected_view(view):
-                                    replicas_in_expected_view += 1
-                            except KeyError:
-                                # metrics not yet available, continue looping
-                                return
-
-                        async with trio.open_nursery() as nursery:
-                            for r in self.get_live_replicas():
-                                nursery.start_soon(
-                                    count_view_participants, r, expected)
-                        if replicas_in_expected_view >= 2 * self.config.f + self.config.c + 1:
-                            return view
+                    try:
+                        with trio.move_on_after(seconds=1):
+                            key = ['replica', 'Gauges', 'lastAgreedView']
+                            view = await self.metrics.get(replica_id, *key)
+                            if expected(view):
+                                return view
+                    except KeyError:
+                        # metrics not yet available, continue looping
+                        continue
         except trio.TooSlowError:
             assert False, err_msg
-
 
     def force_quorum_including_replica(self, replica_id, primary=0):
         """
