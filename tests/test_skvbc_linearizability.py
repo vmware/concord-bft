@@ -12,14 +12,13 @@
 
 import os.path
 import random
-import time
 import unittest
-from functools import wraps
+
 import trio
 
 from util import bft_network_partitioning as net
 from util import skvbc as kvbc
-from util import skvbc_history_tracker
+from util.skvbc_history_tracker import verify_linearizability
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 
 # The max number of blocks to check for read intersection during conditional
@@ -45,29 +44,12 @@ def start_replica_cmd(builddir, replica_id):
             ]
 
 
-def tracker_decorator():
-    """
-    Runs the decorated async function for creating tracker
-    """
-    def decorator(async_fn):
-        @wraps(async_fn)
-        async def wrapper(*args, **kwargs):
-            bft_network = kwargs['bft_network']
-            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-            init_state = skvbc.initial_state()
-            tracker = skvbc_history_tracker.SkvbcTracker(init_state, skvbc, bft_network)
-            await async_fn(*args, **kwargs, tracker=tracker)
-            await tracker.fill_missing_blocks_and_verify()
-        return wrapper
-    return decorator
-
-
 class SkvbcChaosTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @tracker_decorator()
-    async def test_healthy(self, bft_network,tracker):
+    @verify_linearizability()
+    async def test_healthy(self, bft_network, tracker):
         """
         Run a bunch of concurrrent requests in batches and verify
         linearizability. The system is healthy and stable and no faults are
@@ -83,7 +65,7 @@ class SkvbcChaosTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @tracker_decorator()
+    @verify_linearizability()
     async def test_while_dropping_packets(self, bft_network, tracker):
         """
          Run a bunch of concurrrent requests in batches and verify
@@ -105,7 +87,7 @@ class SkvbcChaosTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @tracker_decorator()
+    @verify_linearizability()
     async def test_wreak_havoc(self, bft_network, tracker):
         """
         Run a bunch of concurrrent requests in batches and verify

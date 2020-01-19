@@ -15,7 +15,7 @@ from enum import Enum
 from util import skvbc as kvbc
 import trio
 import random
-
+from functools import wraps
 from util.skvbc_exceptions import(
     ConflictingBlockWriteError,
     StaleReadError,
@@ -25,6 +25,22 @@ from util.skvbc_exceptions import(
 )
 
 MAX_LOOKBACK=10
+
+def verify_linearizability():
+    """
+    Runs the decorated async function for creating tracker
+    """
+    def decorator(async_fn):
+        @wraps(async_fn)
+        async def wrapper(*args, **kwargs):
+            bft_network = kwargs['bft_network']
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            init_state = skvbc.initial_state()
+            tracker = SkvbcTracker(init_state, skvbc, bft_network)
+            await async_fn(*args, **kwargs, tracker=tracker)
+            await tracker.fill_missing_blocks_and_verify()
+        return wrapper
+    return decorator
 
 class SkvbcWriteRequest:
     """
