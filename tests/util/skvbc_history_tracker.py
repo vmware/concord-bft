@@ -26,21 +26,20 @@ from util.skvbc_exceptions import(
 
 MAX_LOOKBACK=10
 
-def verify_linearizability():
+def verify_linearizability(async_fn):
     """
-    Runs the decorated async function for creating tracker
+    Creates a tracker and provide him to the decorated method.
+    In the end of the method it checks the linearizability of the resulting history.
     """
-    def decorator(async_fn):
-        @wraps(async_fn)
-        async def wrapper(*args, **kwargs):
-            bft_network = kwargs['bft_network']
-            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-            init_state = skvbc.initial_state()
-            tracker = SkvbcTracker(init_state, skvbc, bft_network)
-            await async_fn(*args, **kwargs, tracker=tracker)
-            await tracker.fill_missing_blocks_and_verify()
-        return wrapper
-    return decorator
+    @wraps(async_fn)
+    async def wrapper(*args, **kwargs):
+        bft_network = kwargs['bft_network']
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        init_state = skvbc.initial_state()
+        tracker = SkvbcTracker(init_state, skvbc, bft_network)
+        await async_fn(*args, **kwargs, tracker=tracker)
+        await tracker.fill_missing_blocks_and_verify()
+    return wrapper
 
 class SkvbcWriteRequest:
     """
