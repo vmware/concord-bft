@@ -13,7 +13,7 @@
 import os.path
 import random
 import unittest
-
+from util.skvbc_history_tracker import verify_linearizability
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 
