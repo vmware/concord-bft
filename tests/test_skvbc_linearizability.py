@@ -12,14 +12,13 @@
 
 import os.path
 import random
-import time
 import unittest
 
 import trio
 
 from util import bft_network_partitioning as net
 from util import skvbc as kvbc
-from util import skvbc_history_tracker
+from util.skvbc_history_tracker import verify_linearizability
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 
 # The max number of blocks to check for read intersection during conditional
@@ -49,7 +48,8 @@ class SkvbcChaosTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_healthy(self, bft_network):
+    @verify_linearizability
+    async def test_healthy(self, bft_network, tracker):
         """
         Run a bunch of concurrrent requests in batches and verify
         linearizability. The system is healthy and stable and no faults are
@@ -58,18 +58,15 @@ class SkvbcChaosTest(unittest.TestCase):
         num_ops = 500
 
         self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        init_state = self.skvbc.initial_state()
         self.bft_network = bft_network
-        self.tracker = skvbc_history_tracker.SkvbcTracker(init_state, self.skvbc, self.bft_network)
         self.bft_network.start_all_replicas()
         async with trio.open_nursery() as nursery:
-            nursery.start_soon(self.run_concurrent_ops, num_ops)
-
-        await self.tracker.fill_missing_blocks_and_verify()
+            nursery.start_soon(self.run_concurrent_ops, num_ops, tracker)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_while_dropping_packets(self, bft_network):
+    @verify_linearizability
+    async def test_while_dropping_packets(self, bft_network, tracker):
         """
          Run a bunch of concurrrent requests in batches and verify
          linearizability, while dropping a small amount of packets
@@ -80,21 +77,18 @@ class SkvbcChaosTest(unittest.TestCase):
         with net.PacketDroppingAdversary(
                 bft_network, drop_rate_percentage=5) as adversary:
             self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-            init_state = self.skvbc.initial_state()
             self.bft_network = bft_network
-            self.tracker = skvbc_history_tracker.SkvbcTracker(init_state, self.skvbc, self.bft_network)
             bft_network.start_all_replicas()
 
             adversary.interfere()
 
             async with trio.open_nursery() as nursery:
-                nursery.start_soon(self.run_concurrent_ops, num_ops)
-
-            await self.tracker.fill_missing_blocks_and_verify()
+                nursery.start_soon(self.run_concurrent_ops, num_ops, tracker)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_wreak_havoc(self, bft_network):
+    @verify_linearizability
+    async def test_wreak_havoc(self, bft_network, tracker):
         """
         Run a bunch of concurrrent requests in batches and verify
         linearizability. In this test we generate faults periodically and verify
@@ -104,17 +98,13 @@ class SkvbcChaosTest(unittest.TestCase):
         num_ops = 500
 
         self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        init_state = self.skvbc.initial_state()
         self.bft_network = bft_network
-        self.tracker = skvbc_history_tracker.SkvbcTracker(init_state, self.skvbc, self.bft_network)
         self.bft_network.start_all_replicas()
         async with trio.open_nursery() as nursery:
-            nursery.start_soon(self.run_concurrent_ops, num_ops)
+            nursery.start_soon(self.run_concurrent_ops, num_ops, tracker)
             nursery.start_soon(self.crash_primary)
 
-        await self.tracker.fill_missing_blocks_and_verify()
-
-    async def run_concurrent_ops(self, num_ops):
+    async def run_concurrent_ops(self, num_ops, tracker):
         max_concurrency = len(self.bft_network.clients) // 2
         write_weight = .70
         max_size = len(self.skvbc.keys) // 2
@@ -124,9 +114,9 @@ class SkvbcChaosTest(unittest.TestCase):
             async with trio.open_nursery() as nursery:
                 for client in clients:
                     if random.random() < write_weight:
-                        nursery.start_soon(self.tracker.send_tracked_write, client, max_size)
+                        nursery.start_soon(tracker.send_tracked_write, client, max_size)
                     else:
-                        nursery.start_soon(self.tracker.send_tracked_read, client, max_size)
+                        nursery.start_soon(tracker.send_tracked_read, client, max_size)
             sent += len(clients)
 
     async def crash_primary(self):
