@@ -43,7 +43,8 @@ class SkvbcFastPathTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_fast_path_read_your_write(self, bft_network):
+    @verify_linearizability
+    async def test_fast_path_read_your_write(self, bft_network, tracker):
         """
         This test aims to check that the fast commit path is prevalent
         in the normal, synchronous case (no failed replicas, no network partitioning).
@@ -54,18 +55,17 @@ class SkvbcFastPathTest(unittest.TestCase):
         Finally we check if a known K/V has been executed.
         """
         bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-
+        max_size = 1
         for _ in range(10):
-            key, val = await skvbc.write_known_kv()
+            client=bft_network.random_client()
+            await tracker.send_tracked_write(client, max_size)
 
         await bft_network.assert_fast_path_prevalent()
 
-        await skvbc.assert_kv_write_executed(key, val)
-
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_fast_to_slow_path_transition(self, bft_network):
+    @verify_linearizability
+    async def test_fast_to_slow_path_transition(self, bft_network, tracker):
         """
         This test aims to check the correct transition from fast to slow commit path.
 
@@ -81,10 +81,10 @@ class SkvbcFastPathTest(unittest.TestCase):
         Finally we check if a known K/V has been executed.
         """
         bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-
+        max_size = 1
         for _ in range(10):
-            await skvbc.write_known_kv()
+            client = bft_network.random_client()
+            await tracker.send_tracked_write(client, max_size)
 
         await bft_network.assert_fast_path_prevalent()
 
@@ -93,16 +93,16 @@ class SkvbcFastPathTest(unittest.TestCase):
             replica=random.choice(unstable_replicas))
 
         for _ in range(10):
-            key, val = await skvbc.write_known_kv()
+            client = bft_network.random_client()
+            await tracker.send_tracked_write(client, max_size)
 
         await bft_network.assert_slow_path_prevalent(as_of_seq_num=10)
-
-        await skvbc.assert_kv_write_executed(key, val)
 
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: c >= 1)
-    async def test_fast_path_resilience_to_crashes(self, bft_network):
+    @verify_linearizability
+    async def test_fast_path_resilience_to_crashes(self, bft_network, tracker):
         """
         In this test we check the fast path's resilience when up to "c" nodes fail.
 
@@ -115,8 +115,7 @@ class SkvbcFastPathTest(unittest.TestCase):
         Finally we check if a known K/V write has been executed.
         """
         bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-
+        max_size = 1
         unstable_replicas = bft_network.all_replicas(without={0})
         for _ in range(bft_network.config.c):
             replica_to_stop = random.choice(unstable_replicas)
@@ -124,14 +123,14 @@ class SkvbcFastPathTest(unittest.TestCase):
 
         # make sure we first downgrade to the slow path...
         for _ in range(self.evaluation_period_seq_num):
-            await skvbc.write_known_kv()
+            client = bft_network.random_client()
+            await tracker.send_tracked_write(client, max_size)
         await bft_network.assert_slow_path_prevalent()
 
         # ...but eventually (after the evaluation period), the fast path is restored!
         for _ in range(self.evaluation_period_seq_num + 1,
                        self.evaluation_period_seq_num * 2):
-            key, val = await skvbc.write_known_kv()
+            client = bft_network.random_client()
+            await tracker.send_tracked_write(client, max_size)
         await bft_network.assert_fast_path_prevalent(
             nb_slow_paths_so_far=self.evaluation_period_seq_num)
-
-        await skvbc.assert_kv_write_executed(key, val)
