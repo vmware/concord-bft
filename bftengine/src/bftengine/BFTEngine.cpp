@@ -11,7 +11,9 @@
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
+#include "Replica.hpp"
 #include "ReplicaImp.hpp"
+#include "ReplicaLoader.hpp"
 #include "DebugPersistentStorage.hpp"
 #include "PersistentStorageImp.hpp"
 #include "IncomingMsgsStorageImp.hpp"
@@ -29,15 +31,13 @@ bool cryptoInitialized = false;
 std::mutex mutexForCryptoInitialization;
 }  // namespace
 
-class ReplicaInternal : public Replica {
- public:
-  ~ReplicaInternal() override;
+class ReplicaInternal : public IReplica {
+  friend class IReplica;
 
+ public:
   bool isRunning() const override;
 
-  uint64_t getLastExecutedSequenceNum() const override;
-
-  bool requestsExecutionWasInterrupted() const override;
+  int64_t getLastExecutedSequenceNum() const override { return replica_->getLastExecutedSequenceNum(); }
 
   void start() override;
 
@@ -47,26 +47,13 @@ class ReplicaInternal : public Replica {
 
   void restartForDebug(uint32_t delayMillis) override;
 
-  ReplicaImp *replica_ = nullptr;
-
  private:
+  std::unique_ptr<ReplicaBase> replica_;
   std::condition_variable debugWait_;
   std::mutex debugWaitLock_;
 };
 
-ReplicaInternal::~ReplicaInternal() { delete replica_; }
-
 bool ReplicaInternal::isRunning() const { return replica_->isRunning(); }
-
-uint64_t ReplicaInternal::getLastExecutedSequenceNum() const {
-  return static_cast<uint64_t>(replica_->getLastExecutedSequenceNum());
-}
-
-bool ReplicaInternal::requestsExecutionWasInterrupted() const {
-  const bool run = replica_->isRunning();
-  const bool isRecovering = replica_->isRecoveringFromExecutionOfRequests();
-  return (!run && isRecovering);
-}
 
 void ReplicaInternal::start() { return replica_->start(); }
 
@@ -94,33 +81,34 @@ void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
     }
   }
 
-  shared_ptr<PersistentStorage> persistentStorage(replica_->getPersistentStorage());
-  RequestsHandler *requestsHandler = replica_->getRequestsHandler();
-  IStateTransfer *stateTransfer = replica_->getStateTransfer();
-  shared_ptr<MsgsCommunicator> msgsComm = replica_->getMsgsCommunicator();
-  shared_ptr<MsgHandlersRegistrator> msgHandlersRegistrator = replica_->getMsgHandlersRegistrator();
+  if (!replica_->isReadOnly()) {
+    ReplicaImp *replicaImp = dynamic_cast<ReplicaImp *>(replica_.get());
 
-  // delete rep; TODO(GG): enable after debugging and update ~ReplicaImp
-  replica_ = nullptr;
-
-  ReplicaLoader::ErrorCode loadErrCode;
-
-  LoadedReplicaData ld = ReplicaLoader::loadReplica(persistentStorage, loadErrCode);
-
-  Assert(loadErrCode == ReplicaLoader::ErrorCode::Success);
-
-  replica_ = new ReplicaImp(ld, requestsHandler, stateTransfer, msgsComm, persistentStorage, msgHandlersRegistrator);
+    shared_ptr<PersistentStorage> persistentStorage(replicaImp->getPersistentStorage());
+    ReplicaLoader::ErrorCode loadErrCode;
+    LoadedReplicaData ld = ReplicaLoader::loadReplica(persistentStorage, loadErrCode);
+    Assert(loadErrCode == ReplicaLoader::ErrorCode::Success);
+    replica_.reset(new ReplicaImp(ld,
+                                  replicaImp->getRequestsHandler(),
+                                  replicaImp->getStateTransfer(),
+                                  replicaImp->getMsgsCommunicator(),
+                                  persistentStorage,
+                                  replicaImp->getMsgHandlersRegistrator()));
+  } else {
+    //  TODO [TK] rep.reset(new ReadOnlyReplicaImp());
+  }
   replica_->start();
 }
 
 }  // namespace bftEngine::impl
 
 namespace bftEngine {
-Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
-                                   RequestsHandler *requestsHandler,
-                                   IStateTransfer *stateTransfer,
-                                   ICommunication *communication,
-                                   MetadataStorage *metadataStorage) {
+
+IReplica *IReplica::createNewReplica(ReplicaConfig *replicaConfig,
+                                     IRequestsHandler *requestsHandler,
+                                     IStateTransfer *stateTransfer,
+                                     ICommunication *communication,
+                                     MetadataStorage *metadataStorage) {
   {
     std::lock_guard<std::mutex> lock(mutexForCryptoInitialization);
     if (!cryptoInitialized) {
@@ -157,8 +145,8 @@ Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
   shared_ptr<MsgsCommunicator> msgsCommunicatorPtr(
       new MsgsCommunicator(communication, incomingMsgsStoragePtr, msgReceiverPtr));
   if (isNewStorage) {
-    replicaInternal->replica_ = new ReplicaImp(
-        *replicaConfig, requestsHandler, stateTransfer, msgsCommunicatorPtr, persistentStoragePtr, msgHandlersPtr);
+    replicaInternal->replica_.reset(new ReplicaImp(
+        *replicaConfig, requestsHandler, stateTransfer, msgsCommunicatorPtr, persistentStoragePtr, msgHandlersPtr));
   } else {
     ReplicaLoader::ErrorCode loadErrCode;
     auto loadedReplicaData = ReplicaLoader::loadReplica(persistentStoragePtr, loadErrCode);
@@ -167,14 +155,15 @@ Replica *Replica::createNewReplica(ReplicaConfig *replicaConfig,
       return nullptr;
     }
     // TODO(GG): compare ld.repConfig and replicaConfig
-    replicaInternal->replica_ = new ReplicaImp(
-        loadedReplicaData, requestsHandler, stateTransfer, msgsCommunicatorPtr, persistentStoragePtr, msgHandlersPtr);
+    replicaInternal->replica_.reset(new ReplicaImp(
+        loadedReplicaData, requestsHandler, stateTransfer, msgsCommunicatorPtr, persistentStoragePtr, msgHandlersPtr));
   }
-  preprocessor::PreProcessor::addNewPreProcessor(
-      msgsCommunicatorPtr, incomingMsgsStoragePtr, msgHandlersPtr, *requestsHandler, *replicaInternal->replica_);
+  preprocessor::PreProcessor::addNewPreProcessor(msgsCommunicatorPtr,
+                                                 incomingMsgsStoragePtr,
+                                                 msgHandlersPtr,
+                                                 *requestsHandler,
+                                                 *dynamic_cast<InternalReplicaApi *>(replicaInternal->replica_.get()));
   return replicaInternal;
 }
-
-Replica::~Replica() = default;
 
 }  // namespace bftEngine

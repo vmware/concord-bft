@@ -40,55 +40,38 @@ PrePrepareMsg* PrePrepareMsg::createNullPrePrepareMsg(ReplicaId sender, ViewNum 
 
 const Digest& PrePrepareMsg::digestOfNullPrePrepareMsg() { return nullDigest; }
 
-bool PrePrepareMsg::ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, PrePrepareMsg*& outMsg) {
-  Assert(inMsg->type() == MsgCode::PrePrepare);
-  Assert(inMsg->senderId() != repInfo.myId());
+void PrePrepareMsg::validate(const ReplicasInfo& repInfo) {
+  Assert(senderId() != repInfo.myId());
 
-  // header size
-  if (inMsg->size() < sizeof(PrePrepareMsgHeader)) return false;
-
-  // sender
-  if (!repInfo.isIdOfReplica(inMsg->senderId())) return false;
+  if (size() < sizeof(PrePrepareMsgHeader) ||  // header size
+      !repInfo.isIdOfReplica(senderId()))      // sender
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic"));
   // NB: the actual expected sender is verified outside this class (because in some cases, during view-change protocol,
   // this message may sent by a non-primary replica to the primary replica).
 
-  PrePrepareMsg* tmp = (PrePrepareMsg*)inMsg;
-
-  // check seqNum
-  if (tmp->b()->seqNum == 0) return false;
-
   // check flags
-  const uint16_t flags = tmp->b()->flags;
+  const uint16_t flags = b()->flags;
   const bool isNull = ((flags & 0x1) == 0);
   const bool isReady = (((flags >> 1) & 0x1) == 1);
-  const uint16_t firstPath = ((flags >> 2) & 0x3);
+  const uint16_t firstPath_ = ((flags >> 2) & 0x3);
   const uint16_t reservedBits = (flags >> 4);
-  if (isNull) return false;          // we don't send null requests
-  if (!isReady) return false;        // not ready
-  if (firstPath >= 3) return false;  // invalid first path
-  if ((tmp->firstPath() == CommitPath::FAST_WITH_THRESHOLD) && (repInfo.cVal() == 0)) return false;
-  if (reservedBits != 0) return false;
 
-  // size
-  if (tmp->b()->endLocationOfLastRequest > tmp->size()) return false;
-
-  // requests
-  if (tmp->b()->numberOfRequests == 0) return false;
-  if (tmp->b()->numberOfRequests >= tmp->b()->endLocationOfLastRequest) return false;
-  if (!tmp->checkRequests()) return false;
+  if (b()->seqNum == 0 || isNull ||  // we don't send null requests
+      !isReady ||                    // not ready
+      firstPath_ >= 3 ||             // invalid first path
+      ((firstPath() == CommitPath::FAST_WITH_THRESHOLD) && (repInfo.cVal() == 0)) || reservedBits != 0 ||
+      b()->endLocationOfLastRequest > size() || b()->numberOfRequests == 0 ||
+      b()->numberOfRequests >= b()->endLocationOfLastRequest || !checkRequests())
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": advanced"));
 
   // digest
   Digest d;
-  const char* requestBuffer = (char*)&(tmp->b()->numberOfRequests);
-  const uint32_t requestSize = (tmp->b()->endLocationOfLastRequest - prePrepareHeaderPrefix);
+  const char* requestBuffer = (char*)&(b()->numberOfRequests);
+  const uint32_t requestSize = (b()->endLocationOfLastRequest - prePrepareHeaderPrefix);
 
   DigestUtil::compute(requestBuffer, requestSize, (char*)&d, sizeof(Digest));
 
-  if (d != tmp->b()->digestOfRequests) return false;
-
-  outMsg = (PrePrepareMsg*)inMsg;
-
-  return true;
+  if (d != b()->digestOfRequests) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": digest"));
 }
 
 PrePrepareMsg::PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, bool isNull)

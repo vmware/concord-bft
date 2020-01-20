@@ -34,7 +34,7 @@ class FullCommitProofMsg : public MessageBase {
 
   const char* thresholSignature() { return body() + sizeof(FullCommitProofMsgHeader); }
 
-  static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, FullCommitProofMsg*& outMsg);
+  void validate(const ReplicasInfo&) override;
 
  protected:
 #pragma pack(push, 1)

@@ -21,16 +21,9 @@ StartSlowCommitMsg::StartSlowCommitMsg(ReplicaId senderId, ViewNum v, SeqNum s)
   b()->seqNum = s;
 }
 
-bool StartSlowCommitMsg::ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, StartSlowCommitMsg*& outMsg) {
-  Assert(inMsg->type() == MsgCode::StartSlowCommit);
-  if (inMsg->size() < sizeof(StartSlowCommitMsgHeader)) return false;
-
-  StartSlowCommitMsg* t = (StartSlowCommitMsg*)inMsg;
-
-  if (repInfo.primaryOfView(t->viewNumber()) != t->senderId()) return false;
-
-  outMsg = t;
-  return true;
+void StartSlowCommitMsg::validate(const ReplicasInfo& repInfo) {
+  if (size() < sizeof(StartSlowCommitMsgHeader) || repInfo.primaryOfView(viewNumber()) != senderId())
+    throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
 }  // namespace impl

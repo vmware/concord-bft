@@ -57,45 +57,22 @@ void NewViewMsg::finalizeMessage(const ReplicasInfo& repInfo) {
   shrinkToFit();
 }
 
-bool NewViewMsg::ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, NewViewMsg*& outMsg) {
-  Assert(inMsg->type() == MsgCode::NewView);
-  if (inMsg->size() < sizeof(NewViewMsgHeader)) return false;
-
-  const uint16_t F = repInfo.fVal();
-  const uint16_t C = repInfo.cVal();
-  const uint16_t expectedElements = (2 * F + 2 * C + 1);
-
-  NewViewMsg* t = (NewViewMsg*)inMsg;
-
-  // size
+void NewViewMsg::validate(const ReplicasInfo& repInfo) {
+  const uint16_t expectedElements = (2 * repInfo.fVal() + 2 * repInfo.cVal() + 1);
   const uint16_t contentSize = sizeof(NewViewMsgHeader) + expectedElements * sizeof(NewViewElement);
-  if (t->size() < contentSize) return false;
 
-  // source replica
-  const ReplicaId senderId = t->senderId();
-  if (!repInfo.isIdOfReplica(senderId)) return false;
-  if (repInfo.myId() == senderId) return false;
+  if (size() < contentSize || !repInfo.isIdOfReplica(senderId()) ||  // source replica
+      repInfo.myId() == senderId() || repInfo.primaryOfView(newView() != senderId()) ||
+      b()->elementsCount != expectedElements)  // num of elements
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic"));
 
-  const ReplicaId primaryId = repInfo.primaryOfView(t->newView());
-  if (primaryId != senderId) return false;
-
-  // num of elements
-  if (t->b()->elementsCount != expectedElements) return false;
-
-  // check elements in message
-  NewViewElement* elementsArray = (NewViewElement*)(t->body() + sizeof(NewViewMsgHeader));
+  NewViewElement* elementsArray = (NewViewElement*)(body() + sizeof(NewViewMsgHeader));
   for (uint16_t i = 0; i < expectedElements; i++) {
-    // IDs should be unique and sorted
-    if (i > 0 && elementsArray[i - 1].replicaId >= elementsArray[i].replicaId) return false;
-
-    if (elementsArray[i].viewChangeDigest.isZero()) return false;
+    if ((i > 0 && elementsArray[i - 1].replicaId >= elementsArray[i].replicaId) ||
+        elementsArray[i].viewChangeDigest.isZero())
+      throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": IDs should be unique and sorted"));
   }
-
   // TODO(GG): more?
-
-  outMsg = (NewViewMsg*)t;
-
-  return true;
 }
 
 const uint16_t NewViewMsg::elementsCount() const { return b()->elementsCount; }

@@ -122,7 +122,7 @@ class IReplica {
 // Replica's commands handle
 /////////////////////////////////////////////////////////////////////////////
 
-class ICommandsHandler : public bftEngine::RequestsHandler {
+class ICommandsHandler : public bftEngine::IRequestsHandler {
  public:
   virtual int execute(uint16_t clientId,
                       uint64_t sequenceNum,

@@ -31,14 +31,12 @@ static std::set<ReplicaId> generateSetOfPeerReplicas_helpFunc(const ReplicaId my
 }
 
 ReplicasInfo::ReplicasInfo(ReplicaId myId,
-                           const SigManager& sigManager,
                            int16_t numberOfReplicas,
                            int16_t fVal,
                            int16_t cVal,
                            bool dynamicCollectorForPartialProofs,
                            bool dynamicCollectorForExecutionProofs)
     : _myId{myId},
-      _sigManager{sigManager},
       _numberOfReplicas{numberOfReplicas},
       _fVal{fVal},
       _cVal{cVal},

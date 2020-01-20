@@ -75,7 +75,7 @@ Status ReplicaImp::start() {
 void ReplicaImp::createReplicaAndSyncState() {
   bool isNewStorage = m_metadataStorage->isNewStorage();
   LOG_INFO(logger, "createReplicaAndSyncState: isNewStorage= " << isNewStorage);
-  m_replicaPtr = bftEngine::Replica::createNewReplica(
+  m_replicaPtr = bftEngine::IReplica::createNewReplica(
       &m_replicaConfig, m_cmdHandler, m_stateTransfer, m_ptrComm, m_metadataStorage);
   if (!isNewStorage && !m_stateTransfer->isCollectingState()) {
     uint64_t removedBlocksNum = replicaStateSync_->execute(

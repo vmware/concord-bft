@@ -264,7 +264,7 @@ class ReplicaImp : public IReplica,
   concord::storage::blockchain::BlockId m_lastBlock = 0;
   bftEngine::ICommunication *m_ptrComm = nullptr;
   bftEngine::ReplicaConfig m_replicaConfig;
-  bftEngine::Replica *m_replicaPtr = nullptr;
+  bftEngine::IReplica *m_replicaPtr = nullptr;
   ICommandsHandler *m_cmdHandler = nullptr;
   bftEngine::IStateTransfer *m_stateTransfer = nullptr;
   std::unique_ptr<BlockchainAppState> m_appState;

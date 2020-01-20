@@ -29,37 +29,15 @@ CheckpointMsg* CheckpointMsg::clone() {
   return c;
 }
 
-bool CheckpointMsg::ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, CheckpointMsg*& outMsg) {
-  // Logger::printInfo("CheckpointMsg::ToActualMsgType - 1");
+void CheckpointMsg::validate(const ReplicasInfo& repInfo) {
+  Assert(type() == MsgCode::Checkpoint);
+  Assert(senderId() != repInfo.myId());
 
-  Assert(inMsg->type() == MsgCode::Checkpoint);
-  if (inMsg->size() < sizeof(CheckpointMsgHeader)) return false;
-
-  CheckpointMsg* t = (CheckpointMsg*)inMsg;
-
-  // Logger::printInfo("CheckpointMsg::ToActualMsgType - 2");
-
-  if (t->senderId() == repInfo.myId()) return false;  // TODO(GG): TBD- use assert instead
-
-  // Logger::printInfo("CheckpointMsg::ToActualMsgType - 3");
-
-  if (!repInfo.isIdOfReplica(t->senderId())) return false;
-
-  // Logger::printInfo("CheckpointMsg::ToActualMsgType - 4");
-
-  if (t->seqNumber() % checkpointWindowSize != 0) return false;
-
-  // Logger::printInfo("CheckpointMsg::ToActualMsgType - 5");
-
-  if (t->digestOfState().isZero()) return false;
-
-  // Logger::printInfo("CheckpointMsg::ToActualMsgType - 6");
+  if (size() < sizeof(CheckpointMsgHeader) || (!repInfo.isIdOfReplica(senderId())) ||
+      (seqNumber() % checkpointWindowSize != 0) || (digestOfState().isZero()))
+    throw std::runtime_error(__PRETTY_FUNCTION__);
 
   // TODO(GG): consider to protect against messages that are larger than needed (here and in other messages)
-
-  outMsg = t;
-
-  return true;
 }
 
 MsgSize CheckpointMsg::maxSizeOfCheckpointMsg() { return sizeof(CheckpointMsgHeader); }

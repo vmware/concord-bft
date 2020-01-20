@@ -24,7 +24,7 @@ class StartSlowCommitMsg : public MessageBase {
 
   SeqNum seqNumber() const { return b()->seqNum; }
 
-  static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, StartSlowCommitMsg*& outMsg);
+  void validate(const ReplicasInfo&) override;
 
  protected:
 #pragma pack(push, 1)

@@ -69,15 +69,10 @@ void FullExecProofMsg::setSignature(const char* sig, uint16_t sigLength) {
   b()->isNotReady = 0;  // message is ready now
 }
 
-bool FullExecProofMsg::ToActualMsgType(NodeIdType myId, MessageBase* inMsg, FullExecProofMsg*& outMsg) {
-  Assert(inMsg->type() == MsgCode::FullExecProof);
-  if (inMsg->size() < sizeof(FullExecProofMsgHeader)) return false;
+void FullExecProofMsg::validate(const ReplicasInfo&) {
+  if (size() < sizeof(FullExecProofMsgHeader)) throw std::runtime_error(__PRETTY_FUNCTION__);
 
   // TODO(GG)
-
-  outMsg = (FullExecProofMsg*)inMsg;
-
-  return true;
 }
 
 }  // namespace impl

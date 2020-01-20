@@ -19,7 +19,6 @@ namespace impl {
 class ReplicasInfo {
  public:
   ReplicasInfo(ReplicaId myId,
-               const SigManager& sigManager,
                int16_t numberOfReplicas,
                int16_t fVal,
                int16_t cVal,
@@ -27,8 +26,6 @@ class ReplicasInfo {
                bool dynamicCollectorForExecutionProofs);
 
   ReplicaId myId() const { return _myId; }
-
-  const SigManager& mySigManager() const { return _sigManager; }
 
   int16_t numberOfReplicas() const { return _numberOfReplicas; }
   int16_t fVal() const { return _fVal; }
@@ -77,7 +74,6 @@ class ReplicasInfo {
 
  protected:
   const ReplicaId _myId;
-  const SigManager& _sigManager;
   const int16_t _numberOfReplicas;
   const int16_t _fVal;
   const int16_t _cVal;

@@ -11,37 +11,25 @@
 
 #pragma once
 
-#include "PrimitiveTypes.hpp"
-#include "ReplicaConfig.hpp"
+#include "Replica.hpp"
+#include "ReplicaForStateTransfer.hpp"
 #include "CollectorOfThresholdSignatures.hpp"
 #include "SeqNumInfo.hpp"
 #include "Digest.hpp"
 #include "Crypto.hpp"
-#include "DebugStatistics.hpp"
 #include "SimpleThreadPool.hpp"
-#include "SimpleAutoResetEvent.hpp"
 #include "ControllerBase.hpp"
 #include "RetransmissionsManager.hpp"
 #include "DynamicUpperLimitWithSimpleFilter.hpp"
 #include "ViewsManager.hpp"
-#include "ReplicasInfo.hpp"
 #include "InternalReplicaApi.hpp"
-#include "IStateTransfer.hpp"
 #include "ClientsManager.hpp"
 #include "CheckpointInfo.hpp"
-#include "MsgsCommunicator.hpp"
-#include "Replica.hpp"
 #include "SimpleThreadPool.hpp"
-#include "PersistentStorage.hpp"
-#include "ReplicaLoader.hpp"
-#include "Metrics.hpp"
-#include "MsgHandlersRegistrator.hpp"
-#include "TimersSingleton.hpp"
+#include "Bitmap.hpp"
 
-#include <thread>
+namespace bftEngine::impl {
 
-namespace bftEngine {
-namespace impl {
 class ClientRequestMsg;
 class ClientReplyMsg;
 class PrePrepareMsg;
@@ -54,26 +42,22 @@ class ReqMissingDataMsg;
 class PreparePartialMsg;
 class PrepareFullMsg;
 class SimpleAckMsg;
-class StateTransferMsg;
 class ReplicaStatusMsg;
 class ReplicaImp;
+struct LoadedReplicaData;
+class PersistentStorage;
 
 using bftEngine::ReplicaConfig;
+using std::shared_ptr;
 
-class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
+class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
  protected:
-  ReplicaConfig config_;
-
-  const uint16_t numOfReplicas;
   const bool viewChangeProtocolEnabled;
   const bool autoPrimaryRotationEnabled;
   const bool supportDirectProofs = false;  // TODO(GG): add support
 
-  shared_ptr<MsgHandlersRegistrator> msgHandlers_;
-  shared_ptr<MsgsCommunicator> msgsCommunicator_;
-
   // If this replica was restarted and loaded data from persistent storage.
-  bool restarted_;
+  bool restarted_ = false;
 
   // thread pool of this replica
   util::SimpleThreadPool internalThreadPool;  // TODO(GG): !!!! rename
@@ -83,9 +67,6 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
 
   // controller
   ControllerBase* controller = nullptr;
-
-  // general information about the replicas
-  ReplicasInfo* repsInfo = nullptr;
 
   // digital signatures
   SigManager* sigManager = nullptr;
@@ -101,9 +82,6 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
 
   // the latest stable SeqNum known to this replica
   SeqNum lastStableSeqNum = 0;
-
-  // last SeqNum executed  by this replica (or its affect was transferred to this replica)
-  SeqNum lastExecutedSeqNum = 0;
 
   //
   SeqNum strictLowerBoundOfSeqNums = 0;
@@ -134,16 +112,13 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   ClientsManager* clientsManager = nullptr;
 
   // buffer used to store replies
-  char* replyBuffer;
-
-  // pointer to a state transfer module
-  bftEngine::IStateTransfer* stateTransfer = nullptr;
+  char* replyBuffer = nullptr;
 
   // variables that are used to heuristically compute the 'optimal' batch size
   size_t maxNumberOfPendingRequestsInRecentHistory = 0;
   size_t batchingFactor = 1;
 
-  RequestsHandler* const userRequestsHandler;
+  IRequestsHandler* const userRequestsHandler = nullptr;
 
   // used to dynamically estimate a upper bound for consensus rounds
   DynamicUpperLimitWithSimpleFilter<int64_t>* dynamicUpperLimitOfRounds = nullptr;
@@ -162,30 +137,21 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   Time timeOfLastAgreedView;   // last time we changed lastAgreedView
 
   // timers
-  concordUtil::Timers::Handle stateTranTimer_;
   concordUtil::Timers::Handle retranTimer_;
   concordUtil::Timers::Handle slowPathTimer_;
   concordUtil::Timers::Handle infoReqTimer_;
   concordUtil::Timers::Handle statusReportTimer_;
   concordUtil::Timers::Handle viewChangeTimer_;
-  concordUtil::Timers::Handle debugStatTimer_;
-  concordUtil::Timers::Handle metricsTimer_;
 
   int viewChangeTimerMilli = 0;
   int autoPrimaryRotationTimerMilli = 0;
 
-  std::shared_ptr<PersistentStorage> ps_;
+  shared_ptr<PersistentStorage> ps_;
 
   bool recoveringFromExecutionOfRequests = false;
   Bitmap mapOfRequestsThatAreBeingRecovered;
 
   //******** METRICS ************************************
-  concordMetrics::Component metrics_;
-
-  typedef concordMetrics::Component::Handle<concordMetrics::Gauge> GaugeHandle;
-  typedef concordMetrics::Component::Handle<concordMetrics::Status> StatusHandle;
-  typedef concordMetrics::Component::Handle<concordMetrics::Counter> CounterHandle;
-
   GaugeHandle metric_view_;
   GaugeHandle metric_last_stable_seq_num_;
   GaugeHandle metric_last_executed_seq_num_;
@@ -211,43 +177,33 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   CounterHandle metric_received_new_views_;
   CounterHandle metric_received_req_missing_datas_;
   CounterHandle metric_received_simple_acks_;
-  CounterHandle metric_received_state_transfers_;
-
   //*****************************************************
  public:
   ReplicaImp(const ReplicaConfig&,
-             RequestsHandler* requestsHandler,
+             IRequestsHandler* requestsHandler,
              IStateTransfer* stateTransfer,
-             shared_ptr<MsgsCommunicator>& msgsCommunicator,
-             shared_ptr<PersistentStorage>& persistentStorage,
-             shared_ptr<MsgHandlersRegistrator>& msgHandlers);
+             shared_ptr<MsgsCommunicator> msgsCommunicator,
+             shared_ptr<PersistentStorage> persistentStorage,
+             shared_ptr<MsgHandlersRegistrator> msgHandlers);
 
   ReplicaImp(const LoadedReplicaData&,
-             RequestsHandler* requestsHandler,
+             IRequestsHandler* requestsHandler,
              IStateTransfer* stateTransfer,
-             shared_ptr<MsgsCommunicator>& msgsCommunicator,
-             shared_ptr<PersistentStorage>& persistentStorage,
-             shared_ptr<MsgHandlersRegistrator>& msgHandlers);
+             shared_ptr<MsgsCommunicator> msgsCommunicator,
+             shared_ptr<PersistentStorage> persistentStorage,
+             shared_ptr<MsgHandlersRegistrator> msgHandlers);
 
   virtual ~ReplicaImp();
 
-  void start();
-  void stop();
-  bool isRunning() const { return msgsCommunicator_->isMsgsProcessingRunning(); }
-  SeqNum getLastExecutedSequenceNum() const { return lastExecutedSeqNum; }
-  bool isRecoveringFromExecutionOfRequests() const { return recoveringFromExecutionOfRequests; }
+  void start() override;
+  void stop() override;
+
+  virtual bool isReadOnly() const override { return false; }
 
   shared_ptr<PersistentStorage> getPersistentStorage() const { return ps_; }
-  RequestsHandler* getRequestsHandler() const { return userRequestsHandler; }
-  IStateTransfer* getStateTransfer() const { return stateTransfer; }
-  std::shared_ptr<MsgsCommunicator>& getMsgsCommunicator() { return msgsCommunicator_; }
-  std::shared_ptr<MsgHandlersRegistrator>& getMsgHandlersRegistrator() { return msgHandlers_; }
+  IRequestsHandler* getRequestsHandler() const { return userRequestsHandler; }
 
-  // IReplicaForStateTransfer
-  virtual void freeStateTransferMsg(char* m) override;
-  virtual void sendStateTransferMessage(char* m, uint32_t size, uint16_t replicaId) override;
-  virtual void onTransferringComplete(int64_t checkpointNumberOfNewState) override;
-  virtual void changeStateTransferTimerPeriod(uint32_t timerPeriodMilli) override;
+  void processMessages();
 
   // InternalReplicaApi
   virtual void onInternalMsg(FullCommitProofMsg* m) override;
@@ -265,31 +221,23 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
     return clientsManager->seqNumberOfLastReplyToClient(clientId);
   }
 
-  void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a);
-
  protected:
   ReplicaImp(bool firstTime,
              const ReplicaConfig&,
-             RequestsHandler* requestsHandler,
-             IStateTransfer* stateTransfer,
-             SigManager* sigMgr,
-             ReplicasInfo* replicasInfo,
-             ViewsManager* viewsMgr,
-             shared_ptr<MsgsCommunicator>& msgsCommunicator,
-             shared_ptr<MsgHandlersRegistrator>& msgHandlers);
+             IRequestsHandler*,
+             IStateTransfer*,
+             SigManager*,
+             ReplicasInfo*,
+             ViewsManager*,
+             shared_ptr<MsgsCommunicator>,
+             shared_ptr<MsgHandlersRegistrator>);
 
   void registerMsgHandlers();
 
   template <typename T>
   void messageHandler(MessageBase* msg);
 
-  template <typename T>
-  void messageHandlerWithIgnoreLogic(MessageBase* msg);
-
-  static const uint16_t ALL_OTHER_REPLICAS = UINT16_MAX;
-  void send(MessageBase* m, NodeIdType dest);
-  void sendToAllOtherReplicas(MessageBase* m);
-  void sendRaw(char* m, NodeIdType dest, uint16_t type, MsgSize size);
+  void send(MessageBase*, NodeIdType) override;
 
   bool tryToEnterView();
   void onNewView(const std::vector<PrePrepareMsg*>& prePreparesForNewView);
@@ -304,23 +252,8 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   friend class DebugStatistics;
   friend class PreProcessor;
 
-  void onMessage(ClientRequestMsg*);
-  void onMessage(PrePrepareMsg*);
-  void onMessage(StartSlowCommitMsg*);
-  void onMessage(PartialCommitProofMsg*);
-  void onMessage(FullCommitProofMsg*);
-  void onMessage(PartialExecProofMsg*);
-  void onMessage(PreparePartialMsg*);
-  void onMessage(CommitPartialMsg*);
-  void onMessage(PrepareFullMsg*);
-  void onMessage(CommitFullMsg*);
-  void onMessage(CheckpointMsg*);
-  void onMessage(ViewChangeMsg*);
-  void onMessage(NewViewMsg*);
-  void onMessage(ReqMissingDataMsg*);
-  void onMessage(SimpleAckMsg*);
-  void onMessage(ReplicaStatusMsg*);
-  void onMessage(StateTransferMsg*);
+  template <typename T>
+  void onMessage(T* msg);
 
   bool handledByRetransmissionsManager(const ReplicaId sourceReplica,
                                        const ReplicaId destReplica,
@@ -357,7 +290,7 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
       bool oldSeqNum = false  // true IFF sequence number newStableSeqNum+kWorkWindowSize has already been executed
   );
 
-  void onTransferringCompleteImp(SeqNum);
+  void onTransferringCompleteImp(SeqNum) override;
 
   template <typename T>
   bool relevantMsgForActiveView(const T* msg);
@@ -367,11 +300,11 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   void onReportAboutAdvancedReplica(ReplicaId reportedReplica, SeqNum seqNum);
   void onReportAboutLateReplica(ReplicaId reportedReplica, SeqNum seqNum);
 
-  void onReportAboutInvalidMessage(MessageBase* msg);
+  void onReportAboutInvalidMessage(MessageBase* msg, const char* reason) override;
 
   void sendCheckpointIfNeeded();
 
-  IncomingMsgsStorage& getIncomingMsgsStorage() override { return *msgsCommunicator_->getIncomingMsgsStorage(); }
+  IncomingMsgsStorage& getIncomingMsgsStorage() override;
 
   virtual util::SimpleThreadPool& getInternalThreadPool() override { return internalThreadPool; }
 
@@ -392,13 +325,10 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
   virtual const ReplicasInfo& getReplicasInfo() override { return (*repsInfo); }
 
   void onViewsChangeTimer(concordUtil::Timers::Handle);
-  void onStateTranTimer(concordUtil::Timers::Handle);
   void onRetransmissionsTimer(concordUtil::Timers::Handle);
   void onStatusReportTimer(concordUtil::Timers::Handle);
   void onSlowPathTimer(concordUtil::Timers::Handle);
   void onInfoRequestTimer(concordUtil::Timers::Handle);
-  void onDebugStatTimer(concordUtil::Timers::Handle);
-  void onMetricsTimer(concordUtil::Timers::Handle);
 
   // handlers for internal messages
 
@@ -429,5 +359,5 @@ class ReplicaImp : public InternalReplicaApi, public IReplicaForStateTransfer {
  private:
   void addTimers();
 };
-}  // namespace impl
-}  // namespace bftEngine
+
+}  // namespace bftEngine::impl

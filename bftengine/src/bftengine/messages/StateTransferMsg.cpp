@@ -12,16 +12,11 @@
 #include "StateTransferMsg.hpp"
 #include "assertUtils.hpp"
 
-namespace bftEngine {
-namespace impl {
-bool StateTransferMsg::ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, StateTransferMsg*& outMsg) {
-  Assert(inMsg->type() == MsgCode::StateTransfer);
-  if (inMsg->size() < sizeof(MessageBase::Header)) return false;
+namespace bftEngine::impl {
 
-  outMsg = (StateTransferMsg*)inMsg;
-
-  return true;
+void StateTransferMsg::validate(const ReplicasInfo&) {
+  Assert(type() == MsgCode::StateTransfer);
+  if (size() < sizeof(MessageBase::Header)) throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
-}  // namespace impl
-}  // namespace bftEngine
+}  // namespace bftEngine::impl

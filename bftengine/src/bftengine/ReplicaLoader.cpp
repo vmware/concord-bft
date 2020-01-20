@@ -135,7 +135,6 @@ ReplicaLoader::ErrorCode loadConfig(shared_ptr<PersistentStorage> &p, LoadedRepl
                                  replicasSigPublicKeys);
 
   ld.repsInfo = new ReplicasInfo(ld.repConfig.replicaId,
-                                 *ld.sigManager,
                                  numOfReplicas,
                                  ld.repConfig.fVal,
                                  ld.repConfig.cVal,
@@ -172,7 +171,8 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
 
   ViewsManager *viewsManager = nullptr;
   if (!hasDescLastExitFromView && !hasDescOfLastNewView) {
-    viewsManager = ViewsManager::createInsideViewZero(ld.repsInfo, ld.repConfig.thresholdVerifierForSlowPathCommit);
+    viewsManager =
+        ViewsManager::createInsideViewZero(ld.repsInfo, ld.sigManager, ld.repConfig.thresholdVerifierForSlowPathCommit);
 
     Assert(viewsManager->latestActiveView() == 0);
     Assert(viewsManager->viewIsActive(0));
@@ -182,6 +182,7 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
     Verify((descriptorOfLastExitFromView.view == 0), InconsistentErr);
 
     viewsManager = ViewsManager::createOutsideView(ld.repsInfo,
+                                                   ld.sigManager,
                                                    ld.repConfig.thresholdVerifierForSlowPathCommit,
                                                    descriptorOfLastExitFromView.view,
                                                    descriptorOfLastExitFromView.lastStable,
@@ -199,6 +200,7 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
     Verify((descriptorOfLastExitFromView.view >= 1), InconsistentErr);
 
     viewsManager = ViewsManager::createOutsideView(ld.repsInfo,
+                                                   ld.sigManager,
                                                    ld.repConfig.thresholdVerifierForSlowPathCommit,
                                                    descriptorOfLastExitFromView.view,
                                                    descriptorOfLastExitFromView.lastStable,
@@ -217,6 +219,7 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
     Verify((descriptorOfLastNewView.view >= 1), InconsistentErr);
 
     viewsManager = ViewsManager::createInsideView(ld.repsInfo,
+                                                  ld.sigManager,
                                                   ld.repConfig.thresholdVerifierForSlowPathCommit,
                                                   descriptorOfLastNewView.view,
                                                   descriptorOfLastNewView.stableLowerBoundWhenEnteredToView,

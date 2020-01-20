@@ -12,7 +12,7 @@ add_test(NAME metric_server_tests COMMAND python3 -m unittest
 
 add_executable(mt_tests multithreading.cpp)
 add_test(util_mt_tests mt_tests)
-target_link_libraries(mt_tests gtest_main util)
+target_link_libraries(mt_tests gtest_main util $<TARGET_OBJECTS:logging_dev>)
 target_compile_options(mt_tests PUBLIC -Wno-sign-compare)
 
 add_executable(sliver_test sliver_test.cpp $<TARGET_OBJECTS:logging_dev>)

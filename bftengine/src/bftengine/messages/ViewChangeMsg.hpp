@@ -67,9 +67,9 @@ class ViewChangeMsg : public MessageBase {
                   uint16_t certificateSigLength,
                   const char* certificateSig);
 
-  void finalizeMessage(const ReplicasInfo& repInfo);
+  void finalizeMessage();
 
-  static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, ViewChangeMsg*& outMsg);
+  void validate(const ReplicasInfo&) override;
 
   class ElementsIterator {
    public:

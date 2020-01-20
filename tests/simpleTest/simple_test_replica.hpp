@@ -37,7 +37,7 @@ concordlogger::Logger replicaLogger = concordlogger::Log::getLogger("simpletest.
   }
 
 // The replica state machine.
-class SimpleAppState : public RequestsHandler {
+class SimpleAppState : public IRequestsHandler {
  private:
   uint64_t client_to_index(NodeNum clientId) { return clientId - numOfReplicas; }
 
@@ -135,20 +135,20 @@ class SimpleAppState : public RequestsHandler {
 class SimpleTestReplica {
  private:
   ICommunication *comm;
-  bftEngine::Replica *replica = nullptr;
+  bftEngine::IReplica *replica = nullptr;
   ReplicaConfig replicaConfig;
   std::thread *runnerThread = nullptr;
   ISimpleTestReplicaBehavior *behaviorPtr;
 
  public:
   SimpleTestReplica(ICommunication *commObject,
-                    RequestsHandler &state,
+                    IRequestsHandler &state,
                     ReplicaConfig rc,
                     ISimpleTestReplicaBehavior *behvPtr,
                     bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer *inMemoryST,
                     MetadataStorage *metaDataStorage)
       : comm{commObject}, replicaConfig{rc}, behaviorPtr{behvPtr} {
-    replica = Replica::createNewReplica(&rc, &state, inMemoryST, comm, metaDataStorage);
+    replica = IReplica::createNewReplica(&rc, &state, inMemoryST, comm, metaDataStorage);
   }
 
   ~SimpleTestReplica() {

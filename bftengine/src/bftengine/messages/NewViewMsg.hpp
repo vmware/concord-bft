@@ -30,7 +30,7 @@ class NewViewMsg : public MessageBase {
 
   void finalizeMessage(const ReplicasInfo& repInfo);
 
-  static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, NewViewMsg*& outMsg);
+  void validate(const ReplicasInfo&) override;
 
   bool includesViewChangeFromReplica(ReplicaId replicaId, const Digest& viewChangeReplica) const;
 

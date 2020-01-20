@@ -30,7 +30,7 @@ class SimpleAckMsg : public MessageBase {
 
   uint64_t ackData() const { return b()->ackData; }
 
-  static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, SimpleAckMsg*& outMsg);
+  void validate(const ReplicasInfo&) override;
 
  protected:
 #pragma pack(push, 1)

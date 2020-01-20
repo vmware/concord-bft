@@ -25,24 +25,12 @@ FullCommitProofMsg::FullCommitProofMsg(
   memcpy(body() + sizeof(FullCommitProofMsgHeader), commitProofSig, commitProofSigLength);
 }
 
-bool FullCommitProofMsg::ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, FullCommitProofMsg*& outMsg) {
-  Assert(inMsg->type() == MsgCode::FullCommitProof);
-  if (inMsg->size() < sizeof(FullCommitProofMsgHeader)) return false;
-
-  FullCommitProofMsg* t = (FullCommitProofMsg*)inMsg;
-
-  if (t->senderId() == repInfo.myId()) return false;
-
-  if (!repInfo.isIdOfReplica(t->senderId())) return false;
-
-  uint16_t thresholSignatureLength = t->thresholSignatureLength();
-  if (t->size() < (sizeof(FullCommitProofMsgHeader) + thresholSignatureLength)) return false;
+void FullCommitProofMsg::validate(const ReplicasInfo& repInfo) {
+  if (size() < sizeof(FullCommitProofMsgHeader) || senderId() == repInfo.myId() || !repInfo.isIdOfReplica(senderId()) ||
+      size() < (sizeof(FullCommitProofMsgHeader) + thresholSignatureLength()))
+    throw std::runtime_error(__PRETTY_FUNCTION__);
 
   // TODO(GG): TBD - check something about the collectors identity (and in other similar messages)
-
-  outMsg = (FullCommitProofMsg*)t;
-
-  return true;
 }
 
 MsgSize FullCommitProofMsg::maxSizeOfFullCommitProofMsg() {

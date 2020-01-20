@@ -39,7 +39,7 @@ void PreProcessor::registerMsgHandlers() {
 PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            shared_ptr<IncomingMsgsStorage> &incomingMsgsStorage,
                            shared_ptr<MsgHandlersRegistrator> &msgHandlersRegistrator,
-                           RequestsHandler &requestsHandler,
+                           IRequestsHandler &requestsHandler,
                            const InternalReplicaApi &replica)
     : requestsHandler_(requestsHandler),
       replica_(replica),
@@ -198,7 +198,7 @@ void PreProcessor::onPreProcessReplyMsg(MessageBase *msg) {}
 void PreProcessor::addNewPreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                                       shared_ptr<IncomingMsgsStorage> &incomingMsgsStorage,
                                       shared_ptr<MsgHandlersRegistrator> &msgHandlersRegistrator,
-                                      bftEngine::RequestsHandler &requestsHandler,
+                                      bftEngine::IRequestsHandler &requestsHandler,
                                       InternalReplicaApi &replica) {
   preProcessors_.push_back(make_unique<PreProcessor>(
       msgsCommunicator, incomingMsgsStorage, msgHandlersRegistrator, requestsHandler, replica));
