@@ -49,10 +49,10 @@ class SkvbcFastPathTest(unittest.TestCase):
         This test aims to check that the fast commit path is prevalent
         in the normal, synchronous case (no failed replicas, no network partitioning).
 
-        First we write a series of known K/V entries.
+        First we write a series of K/V entries and tracked them using the tracker from the decorator.
         Then we check that, in the process, we have stayed on the fast path.
 
-        Finally we check if a known K/V has been executed.
+        Finally the decorator verifies the KV execution.
         """
         bft_network.start_all_replicas()
         max_size = 1
@@ -69,7 +69,7 @@ class SkvbcFastPathTest(unittest.TestCase):
         """
         This test aims to check the correct transition from fast to slow commit path.
 
-        First we write a series of known K/V entries, making sure
+        First we write a series of K/V entries and tracked them using the tracker from the decorator, making sure
         we stay on the fast path.
 
         Once the first series of K/V writes have been processed, we bring down
@@ -78,7 +78,7 @@ class SkvbcFastPathTest(unittest.TestCase):
         We send a new series of K/V writes and make sure they
         have been processed using the slow commit path.
 
-        Finally we check if a known K/V has been executed.
+        Finally the decorator verifies the KV execution.
         """
         bft_network.start_all_replicas()
         max_size = 1
@@ -109,10 +109,10 @@ class SkvbcFastPathTest(unittest.TestCase):
         As a first step, we bring down no more than c replicas,
         triggering initially the slow path.
 
-        Then we write a series of known K/V entries, making sure
+        Then we write a series of K/V entries and tracked them using the tracker from the decorator, making sure
         the fast path is eventually restored and becomes prevalent.
 
-        Finally we check if a known K/V write has been executed.
+        Finally the decorator verifies the KV execution.
         """
         bft_network.start_all_replicas()
         max_size = 1
