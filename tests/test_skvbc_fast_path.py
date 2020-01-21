@@ -79,8 +79,11 @@ class SkvbcFastPathTest(unittest.TestCase):
         Finally the decorator verifies the KV execution.
         """
         bft_network.start_all_replicas()
-        for _ in range(10):
-            await tracker.run_concurrent_ops(num_ops=1, write_weight=0.5)
+
+        write_weight = 1
+        numops = 10
+
+        await tracker.run_concurrent_ops(num_ops=numops, write_weight=write_weight)
 
         await bft_network.assert_fast_path_prevalent()
 
@@ -88,10 +91,9 @@ class SkvbcFastPathTest(unittest.TestCase):
         bft_network.stop_replica(
             replica=random.choice(unstable_replicas))
 
-        for _ in range(10):
-            await tracker.run_concurrent_ops(num_ops=1, write_weight=0.5)
+        await tracker.run_concurrent_ops(num_ops=numops, write_weight=write_weight)
 
-        await bft_network.assert_slow_path_prevalent(as_of_seq_num=10)
+        await bft_network.assert_slow_path_prevalent(as_of_seq_num=numops+1)
 
     @with_trio
     @with_bft_network(start_replica_cmd,
@@ -114,15 +116,15 @@ class SkvbcFastPathTest(unittest.TestCase):
         for _ in range(bft_network.config.c):
             replica_to_stop = random.choice(unstable_replicas)
             bft_network.stop_replica(replica_to_stop)
-
+        write_weight = 0.5
         # make sure we first downgrade to the slow path...
-        for _ in range(self.evaluation_period_seq_num):
-            await tracker.run_concurrent_ops(num_ops=1, write_weight=0.5)
+
+        writings = await tracker.run_concurrent_ops(num_ops=self.evaluation_period_seq_num, write_weight=write_weight)
         await bft_network.assert_slow_path_prevalent()
 
         # ...but eventually (after the evaluation period), the fast path is restored!
-        for _ in range(self.evaluation_period_seq_num + 1,
-                       self.evaluation_period_seq_num * 2):
-            await tracker.run_concurrent_ops(num_ops=1, write_weight=0.5)
+        num_ops = self.evaluation_period_seq_num / write_weight
+        await tracker.run_concurrent_ops(num_ops=num_ops, write_weight=write_weight)
+
         await bft_network.assert_fast_path_prevalent(
             nb_slow_paths_so_far=self.evaluation_period_seq_num)

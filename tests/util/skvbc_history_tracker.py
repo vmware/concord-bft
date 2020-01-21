@@ -872,7 +872,7 @@ class SkvbcTracker:
         return list(zip(writeset_keys, writeset_values))
 
     async def run_concurrent_ops(self, num_ops, write_weight=.70):
-        max_concurrency = min(num_ops, len(self.bft_network.clients) // 2)
+        max_concurrency = len(self.bft_network.clients) // 2
         max_size = len(self.skvbc.keys) // 2
         sent = 0
         while sent < num_ops:
