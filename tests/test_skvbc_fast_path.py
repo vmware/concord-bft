@@ -13,6 +13,9 @@
 import os.path
 import random
 import unittest
+
+import trio
+
 from util.skvbc_history_tracker import verify_linearizability
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
@@ -55,8 +58,10 @@ class SkvbcFastPathTest(unittest.TestCase):
         Finally the decorator verifies the KV execution.
         """
         bft_network.start_all_replicas()
-        for _ in range(10):
-            await tracker.run_concurrent_ops(num_ops=1, write_weight=0.7)
+        write_weight = .50
+        numops = 20
+
+        await tracker.run_concurrent_ops(num_ops=numops, write_weight=write_weight)
 
         await bft_network.assert_fast_path_prevalent()
 
@@ -80,10 +85,10 @@ class SkvbcFastPathTest(unittest.TestCase):
         """
         bft_network.start_all_replicas()
 
-        write_weight = 1
-        numops = 10
+        write_weight = 0.5
+        numops = 20
 
-        await tracker.run_concurrent_ops(num_ops=numops, write_weight=write_weight)
+        read_count, write_count = await tracker.run_concurrent_ops(num_ops=numops, write_weight=write_weight)
 
         await bft_network.assert_fast_path_prevalent()
 
@@ -93,7 +98,7 @@ class SkvbcFastPathTest(unittest.TestCase):
 
         await tracker.run_concurrent_ops(num_ops=numops, write_weight=write_weight)
 
-        await bft_network.assert_slow_path_prevalent(as_of_seq_num=numops+1)
+        await bft_network.assert_slow_path_prevalent(as_of_seq_num=write_count+1)
 
     @with_trio
     @with_bft_network(start_replica_cmd,
@@ -119,12 +124,13 @@ class SkvbcFastPathTest(unittest.TestCase):
         write_weight = 0.5
         # make sure we first downgrade to the slow path...
 
-        writings = await tracker.run_concurrent_ops(num_ops=self.evaluation_period_seq_num, write_weight=write_weight)
+        _, write_count = await tracker.run_concurrent_ops(num_ops=self.evaluation_period_seq_num-1, write_weight=1)
         await bft_network.assert_slow_path_prevalent()
 
         # ...but eventually (after the evaluation period), the fast path is restored!
-        num_ops = self.evaluation_period_seq_num / write_weight
-        await tracker.run_concurrent_ops(num_ops=num_ops, write_weight=write_weight)
 
+        await tracker.run_concurrent_ops(num_ops=self.evaluation_period_seq_num*2/write_weight, write_weight=write_weight)
+
+        await trio.sleep(5)
         await bft_network.assert_fast_path_prevalent(
-            nb_slow_paths_so_far=self.evaluation_period_seq_num)
+            nb_slow_paths_so_far=write_count)
