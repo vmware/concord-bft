@@ -72,7 +72,7 @@ class SkvbcFastPathTest(unittest.TestCase):
         """
         This test aims to check the correct transition from fast to slow commit path.
 
-        First we write a series of K/V entries and tracked them using the tracker from the decorator, making sure
+        First we write a series of K/V entries and track them using the tracker from the decorator, making sure
         we stay on the fast path.
 
         Once the first series of K/V writes have been processed, we bring down
@@ -88,7 +88,8 @@ class SkvbcFastPathTest(unittest.TestCase):
         write_weight = 0.5
         numops = 20
 
-        read_count, write_count = await tracker.run_concurrent_ops(num_ops=numops, write_weight=write_weight)
+        _, fast_path_writes = await tracker.run_concurrent_ops(
+            num_ops=numops, write_weight=write_weight)
 
         await bft_network.assert_fast_path_prevalent()
 
@@ -98,7 +99,7 @@ class SkvbcFastPathTest(unittest.TestCase):
 
         await tracker.run_concurrent_ops(num_ops=numops, write_weight=write_weight)
 
-        await bft_network.assert_slow_path_prevalent(as_of_seq_num=write_count+1)
+        await bft_network.assert_slow_path_prevalent(as_of_seq_num=fast_path_writes+1)
 
     @with_trio
     @with_bft_network(start_replica_cmd,
@@ -111,7 +112,7 @@ class SkvbcFastPathTest(unittest.TestCase):
         As a first step, we bring down no more than c replicas,
         triggering initially the slow path.
 
-        Then we write a series of K/V entries and tracked them using the tracker from the decorator, making sure
+        Then we write a series of K/V entries and track them using the tracker from the decorator, making sure
         the fast path is eventually restored and becomes prevalent.
 
         Finally the decorator verifies the KV execution.
@@ -124,7 +125,8 @@ class SkvbcFastPathTest(unittest.TestCase):
         write_weight = 0.5
         # make sure we first downgrade to the slow path...
 
-        _, write_count = await tracker.run_concurrent_ops(num_ops=self.evaluation_period_seq_num-1, write_weight=1)
+        _, slow_path_writes = await tracker.run_concurrent_ops(
+            num_ops=self.evaluation_period_seq_num-1, write_weight=1)
         await bft_network.assert_slow_path_prevalent()
 
         # ...but eventually (after the evaluation period), the fast path is restored!
@@ -133,4 +135,4 @@ class SkvbcFastPathTest(unittest.TestCase):
 
         await trio.sleep(5)
         await bft_network.assert_fast_path_prevalent(
-            nb_slow_paths_so_far=write_count)
+            nb_slow_paths_so_far=slow_path_writes)
