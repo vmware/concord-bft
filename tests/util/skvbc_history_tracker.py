@@ -889,3 +889,16 @@ class SkvbcTracker:
                         read_count += 1
             sent += len(clients)
         return read_count, write_count
+
+    async def send_indefinite_tracked_ops(self, write_weight=.70):
+        max_size = len(self.skvbc.keys) // 2
+        while True:
+            client = self.bft_network.random_client()
+            try:
+                if random.random() < write_weight:
+                    await self.send_tracked_write(client, max_size)
+                else:
+                    await self.send_tracked_read(client, max_size)
+            except:
+                pass
+            await trio.sleep(.1)
