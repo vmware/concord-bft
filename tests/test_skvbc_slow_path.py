@@ -142,7 +142,7 @@ class SkvbcSlowPathTest(unittest.TestCase):
         write_weight = 0.5
         bft_network.start_all_replicas()
 
-        await tracker.run_concurrent_ops(
+        _, fast_path_writes = await tracker.run_concurrent_ops(
             num_ops=num_ops, write_weight=1)
 
         await bft_network.assert_fast_path_prevalent()
@@ -155,4 +155,4 @@ class SkvbcSlowPathTest(unittest.TestCase):
 
         bft_network.start_replica(0)
 
-        await bft_network.wait_for_slow_path_to_be_prevalent(as_of_seq_num=10)
+        await bft_network.wait_for_slow_path_to_be_prevalent(as_of_seq_num=fast_path_writes)
