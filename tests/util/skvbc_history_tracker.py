@@ -870,3 +870,22 @@ class SkvbcTracker:
         writeset_keys = self.skvbc.random_keys(random.randint(0, max_size))
         writeset_values = self.skvbc.random_values(len(writeset_keys))
         return list(zip(writeset_keys, writeset_values))
+
+    async def run_concurrent_ops(self, num_ops, write_weight=.70):
+        max_concurrency = len(self.bft_network.clients) // 2
+        max_size = len(self.skvbc.keys) // 2
+        sent = 0
+        write_count = 0
+        read_count = 0
+        while sent < num_ops:
+            clients = self.bft_network.random_clients(max_concurrency)
+            async with trio.open_nursery() as nursery:
+                for client in clients:
+                    if random.random() < write_weight:
+                        nursery.start_soon(self.send_tracked_write, client, max_size)
+                        write_count += 1
+                    else:
+                        nursery.start_soon(self.send_tracked_read, client, max_size)
+                        read_count += 1
+            sent += len(clients)
+        return read_count, write_count

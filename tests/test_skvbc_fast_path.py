@@ -14,6 +14,9 @@ import os.path
 import random
 import unittest
 
+import trio
+
+from util.skvbc_history_tracker import verify_linearizability
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 
@@ -43,33 +46,33 @@ class SkvbcFastPathTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_fast_path_read_your_write(self, bft_network):
+    @verify_linearizability
+    async def test_fast_path_read_your_write(self, bft_network, tracker):
         """
         This test aims to check that the fast commit path is prevalent
         in the normal, synchronous case (no failed replicas, no network partitioning).
 
-        First we write a series of known K/V entries.
+        First we write a series of K/V entries and tracked them using the tracker from the decorator.
         Then we check that, in the process, we have stayed on the fast path.
 
-        Finally we check if a known K/V has been executed.
+        Finally the decorator verifies the KV execution.
         """
         bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        write_weight = .50
+        numops = 20
 
-        for _ in range(10):
-            key, val = await skvbc.write_known_kv()
+        await tracker.run_concurrent_ops(num_ops=numops, write_weight=write_weight)
 
         await bft_network.assert_fast_path_prevalent()
 
-        await skvbc.assert_kv_write_executed(key, val)
-
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_fast_to_slow_path_transition(self, bft_network):
+    @verify_linearizability
+    async def test_fast_to_slow_path_transition(self, bft_network, tracker):
         """
         This test aims to check the correct transition from fast to slow commit path.
 
-        First we write a series of known K/V entries, making sure
+        First we write a series of K/V entries and track them using the tracker from the decorator, making sure
         we stay on the fast path.
 
         Once the first series of K/V writes have been processed, we bring down
@@ -78,13 +81,15 @@ class SkvbcFastPathTest(unittest.TestCase):
         We send a new series of K/V writes and make sure they
         have been processed using the slow commit path.
 
-        Finally we check if a known K/V has been executed.
+        Finally the decorator verifies the KV execution.
         """
         bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-        for _ in range(10):
-            await skvbc.write_known_kv()
+        write_weight = 0.5
+        numops = 20
+
+        _, fast_path_writes = await tracker.run_concurrent_ops(
+            num_ops=numops, write_weight=write_weight)
 
         await bft_network.assert_fast_path_prevalent()
 
@@ -92,46 +97,42 @@ class SkvbcFastPathTest(unittest.TestCase):
         bft_network.stop_replica(
             replica=random.choice(unstable_replicas))
 
-        for _ in range(10):
-            key, val = await skvbc.write_known_kv()
+        await tracker.run_concurrent_ops(num_ops=numops, write_weight=write_weight)
 
-        await bft_network.assert_slow_path_prevalent(as_of_seq_num=10)
-
-        await skvbc.assert_kv_write_executed(key, val)
+        await bft_network.assert_slow_path_prevalent(as_of_seq_num=fast_path_writes+1)
 
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: c >= 1)
-    async def test_fast_path_resilience_to_crashes(self, bft_network):
+    @verify_linearizability
+    async def test_fast_path_resilience_to_crashes(self, bft_network, tracker):
         """
         In this test we check the fast path's resilience when up to "c" nodes fail.
 
         As a first step, we bring down no more than c replicas,
         triggering initially the slow path.
 
-        Then we write a series of known K/V entries, making sure
+        Then we write a series of K/V entries and track them using the tracker from the decorator, making sure
         the fast path is eventually restored and becomes prevalent.
 
-        Finally we check if a known K/V write has been executed.
+        Finally the decorator verifies the KV execution.
         """
         bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-
         unstable_replicas = bft_network.all_replicas(without={0})
         for _ in range(bft_network.config.c):
             replica_to_stop = random.choice(unstable_replicas)
             bft_network.stop_replica(replica_to_stop)
-
+        write_weight = 0.5
         # make sure we first downgrade to the slow path...
-        for _ in range(self.evaluation_period_seq_num):
-            await skvbc.write_known_kv()
+
+        _, slow_path_writes = await tracker.run_concurrent_ops(
+            num_ops=self.evaluation_period_seq_num-1, write_weight=1)
         await bft_network.assert_slow_path_prevalent()
 
         # ...but eventually (after the evaluation period), the fast path is restored!
-        for _ in range(self.evaluation_period_seq_num + 1,
-                       self.evaluation_period_seq_num * 2):
-            key, val = await skvbc.write_known_kv()
-        await bft_network.assert_fast_path_prevalent(
-            nb_slow_paths_so_far=self.evaluation_period_seq_num)
 
-        await skvbc.assert_kv_write_executed(key, val)
+        await tracker.run_concurrent_ops(num_ops=self.evaluation_period_seq_num*2/write_weight, write_weight=write_weight)
+
+        await trio.sleep(5)
+        await bft_network.assert_fast_path_prevalent(
+            nb_slow_paths_so_far=slow_path_writes)
