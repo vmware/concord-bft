@@ -17,14 +17,20 @@
 #include "Logger.hpp"
 #include <future>
 
+#ifdef USE_LOG4CPP
+#include <log4cplus/mdc.h>
+#endif
+
 using std::queue;
 using namespace std::chrono;
 
 namespace bftEngine::impl {
 
 IncomingMsgsStorageImp::IncomingMsgsStorageImp(std::shared_ptr<MsgHandlersRegistrator>& msgHandlersPtr,
-                                               std::chrono::milliseconds msgWaitTimeout)
+                                               std::chrono::milliseconds msgWaitTimeout,
+                                               uint16_t replicaId)
     : IncomingMsgsStorage(), msgHandlers_(msgHandlersPtr), msgWaitTimeout_(msgWaitTimeout) {
+  replicaId_ = replicaId;
   ptrProtectedQueueForExternalMessages_ = new queue<std::unique_ptr<MessageBase>>();
   ptrProtectedQueueForInternalMessages_ = new queue<std::unique_ptr<InternalMessage>>();
   lastOverflowWarning_ = MinTime;
@@ -42,7 +48,14 @@ IncomingMsgsStorageImp::~IncomingMsgsStorageImp() {
 void IncomingMsgsStorageImp::start() {
   if (!dispatcherThread_.joinable()) {
     std::future<void> futureObj = signalStarted_.get_future();
-    dispatcherThread_ = std::thread([=] { dispatchMessages(signalStarted_); });
+    dispatcherThread_ = std::thread([=] {
+#ifdef USE_LOG4CPP
+      std::stringstream rid;
+      rid << replicaId_;
+      log4cplus::getMDC().put("rid", rid.str());
+#endif
+      dispatchMessages(signalStarted_);
+    });
     // Wait until thread starts
     futureObj.get();
   };

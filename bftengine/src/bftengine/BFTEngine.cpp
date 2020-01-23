@@ -140,7 +140,8 @@ IReplica *IReplica::createNewReplica(ReplicaConfig *replicaConfig,
 
   auto *replicaInternal = new ReplicaInternal();
   shared_ptr<MsgHandlersRegistrator> msgHandlersPtr(new MsgHandlersRegistrator());
-  shared_ptr<IncomingMsgsStorage> incomingMsgsStoragePtr(new IncomingMsgsStorageImp(msgHandlersPtr, timersResolution));
+  shared_ptr<IncomingMsgsStorage> incomingMsgsStoragePtr(
+      new IncomingMsgsStorageImp(msgHandlersPtr, timersResolution, replicaConfig->replicaId));
   shared_ptr<IReceiver> msgReceiverPtr(new MsgReceiver(incomingMsgsStoragePtr));
   shared_ptr<MsgsCommunicator> msgsCommunicatorPtr(
       new MsgsCommunicator(communication, incomingMsgsStoragePtr, msgReceiverPtr));
