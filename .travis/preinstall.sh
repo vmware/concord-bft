@@ -1,10 +1,10 @@
 #!/bin/bash
 
+CONCORD_HOME=${HOME}/vmware/concord-bft
 # Install needed packages
 if [[ "$OSTYPE" == "darwin"* ]]; then
 # Nothing needed for macos
 echo "macos homebrew packages handled in .travis.yml"
-CONCORD_HOME=$HOME/vmware/concord-bft
 else
 # If on Linux, install necessary packages using apt
 sudo apt-get update
