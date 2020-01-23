@@ -23,24 +23,14 @@ CC=/usr/bin/gcc CXX=/usr/bin/g++ make
 sudo make install
 
 # Install Conan package manager
-pip install conan
+python3 -m pip install --upgrade conan
 source ~/.profile
 conan profile new default --detect
 conan profile update settings.compiler.libcxx=libstdc++11 default
-
 cd
 mkdir -p concord-bft/build
 cd concord-bft/build
 conan install --build missing ..
-
-# build and install boost
-cd /tmp
-wget --https-only https://dl.bintray.com/boostorg/release/1.64.0/source/boost_1_64_0.tar.gz
-tar -xf boost_1_64_0.tar.gz
-cd boost_1_64_0
-./bootstrap.sh --with-libraries=system,filesystem
-./b2
-sudo ./b2 install
 
 # build and install RocksDB and its dependencies
 if [ -n "$USE_ROCKSDB" ]; then
