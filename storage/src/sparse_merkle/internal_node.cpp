@@ -80,7 +80,7 @@ BatchedInternalNode::InsertResult BatchedInternalNode::insert(const LeafChild& c
   // BatchedInternalNode. Return the Version so the caller can construct an
   // InternalNodeKey and retrieve the next batched node in the tree.
   auto& stored_child = children_[index];
-  return BatchedInternalNode::InsertIntoExistingNode{std::get<InternalChild>(stored_child.value()).version};
+  return InsertIntoExistingNode{std::get<InternalChild>(stored_child.value()).version};
 }
 
 std::optional<BatchedInternalNode::InsertResult> BatchedInternalNode::insertIntoEmptyChild(size_t index,
@@ -89,7 +89,7 @@ std::optional<BatchedInternalNode::InsertResult> BatchedInternalNode::insertInto
     auto version = child.key.version();
     children_[index] = child;
     updateHashes(index, version);
-    return BatchedInternalNode::InsertComplete{};
+    return InsertComplete{};
   }
   return std::nullopt;
 }
@@ -97,7 +97,7 @@ std::optional<BatchedInternalNode::InsertResult> BatchedInternalNode::insertInto
 std::optional<BatchedInternalNode::InsertResult> BatchedInternalNode::overwrite(size_t index, const LeafChild& child) {
   auto& stored_child = std::get<LeafChild>(children_.at(index).value());
   if (stored_child.key.hash() == child.key.hash()) {
-    auto result = BatchedInternalNode::InsertComplete{stored_child.key};
+    auto result = InsertComplete{stored_child.key};
     stored_child = child;
     updateHashes(index, child.key.version());
     return result;
@@ -120,7 +120,7 @@ BatchedInternalNode::InsertResult BatchedInternalNode::splitNode(size_t index, c
     // We purposefully don't call `update_hashes`, since we don't know the true
     // value of the hash of the child until it gets inserted. The caller will fix
     // this BatchedInternalNode appropriately when the hash is known.
-    return BatchedInternalNode::CreateNewBatchedInternalNodes{stored_leaf_child};
+    return CreateNewBatchedInternalNodes{stored_leaf_child};
   }
 
   // How many prefix bits do the two leaf key hashes have in common?
@@ -142,7 +142,7 @@ BatchedInternalNode::InsertResult BatchedInternalNode::splitNode(size_t index, c
   // We purposefully don't call `update_hashes`, since we don't know the true
   // value of the hash of the child until it gets inserted. The caller will fix
   // this BatchedInternalNode appropriately when the hash is known.
-  return BatchedInternalNode::CreateNewBatchedInternalNodes{stored_leaf_child};
+  return CreateNewBatchedInternalNodes{stored_leaf_child};
 }
 
 size_t BatchedInternalNode::insertInternalChildren(size_t index,
@@ -180,13 +180,87 @@ BatchedInternalNode::InsertResult BatchedInternalNode::insertTwoLeafChildren(
   children_[child1_index] = child1;
   children_[child2_index] = child2;
   updateHashes(child1_index, version);
-  return BatchedInternalNode::InsertComplete{};
+  return InsertComplete{};
 }
 
 void BatchedInternalNode::write_internal_child_at_level_0(Nibble child_key, const InternalChild& child) {
   size_t index = nibble_to_index(child_key);
   children_[index] = child;
   updateHashes(index, child.version);
+}
+
+BatchedInternalNode::RemoveResult BatchedInternalNode::remove(const Hash& key, size_t depth, Version new_version) {
+  // The index into the children_ array
+  size_t index = 0;
+
+  // The part of the key that corresponds to this BatchedInternalNode
+  Nibble child_key = key.getNibble(depth);
+
+  for (size_t i = Nibble::SIZE_IN_BITS - 1; i >= 0 && i != SIZE_MAX; i--) {
+    if (child_key.getBit(i)) {
+      index = rightChildIndex(index);
+    } else {
+      index = leftChildIndex(index);
+    }
+    if (isInternal(index)) {
+      continue;
+    }
+
+    if (isEmpty(index)) {
+      return NotFound{};
+    }
+
+    auto& leaf = std::get<LeafChild>(children_[index].value());
+    if (leaf.key.hash() == key) {
+      // We can remove the key at this index.
+      return removeLeafChild(index, new_version, leaf.key.version());
+    }
+    return NotFound{};
+  }
+
+  // We have reached level 0 of this BatchedInternalNode and it points to
+  // another BatchedInternalNode where the child may reside. Inform the caller.
+  return Descend{};
+}
+
+BatchedInternalNode::RemoveResult BatchedInternalNode::removeLeafChild(size_t index,
+                                                                       Version new_version,
+                                                                       Version removed_version) {
+  Assert(index != 0);
+  children_[index] = std::nullopt;
+  auto peer_index = peerIndex(index);
+  if (!peer_index) {
+    // Only the root remains.
+    Assert(1 == numChildren());
+    updateHashes(index, new_version);
+    return RemoveBatchedInternalNode();
+  }
+  // Only remove the peer if it's a LeafChild.
+  if (isInternal(peer_index.value())) {
+    updateHashes(index, new_version);
+    return RemoveComplete{removed_version};
+  }
+  auto peer = std::get<LeafChild>(children_[peer_index.value()].value());
+  children_[peer_index.value()] = std::nullopt;
+
+  // Keep trying to move the peer up toward the root of this
+  // BatchedInternalNode. If the moved up peer has peers then stop and return
+  // RemoveComplete. Otherwise, if we reach the root of this
+  // BatchedInternalNode, then return RemoveBatchedInternalNode, since there
+  // cannot be any more LeafChildren in this node.
+  while (auto parent_index = parentIndex(peer_index.value())) {
+    if (peerIndex(parent_index.value())) {
+      children_[parent_index.value()] = peer;
+      updateHashes(parent_index.value(), new_version);
+      return RemoveComplete{removed_version};
+    }
+    // Clear the parent, since we are walking up over it.
+    children_[parent_index.value()] = std::nullopt;
+    peer_index = parent_index;
+  }
+
+  // We've reached the root. This peer is the only remaining node left.
+  return RemoveBatchedInternalNode{peer};
 }
 
 Version BatchedInternalNode::version() const {
