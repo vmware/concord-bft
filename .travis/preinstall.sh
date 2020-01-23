@@ -23,6 +23,7 @@ CC=/usr/bin/gcc CXX=/usr/bin/g++ make
 sudo make install
 
 # Install Conan package manager
+python3 -m pip install --upgrade wheel
 python3 -m pip install --upgrade conan
 source ~/.profile
 conan profile new default --detect
