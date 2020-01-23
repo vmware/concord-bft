@@ -4,6 +4,7 @@
 if [[ "$OSTYPE" == "darwin"* ]]; then
 # Nothing needed for macos
 echo "macos homebrew packages handled in .travis.yml"
+CONCORD_HOME=$HOME/vmware/concord-bft
 else
 # If on Linux, install necessary packages using apt
 sudo apt-get update
@@ -29,8 +30,9 @@ source ~/.profile
 conan profile new default --detect
 conan profile update settings.compiler.libcxx=libstdc++11 default
 cd
-mkdir -p concord-bft/build
-cd concord-bft/build
+mkdir -p ${CONCORD_HOME}/build
+cd ${CONCORD_HOME}/build
+ls ..
 conan install --build missing ..
 
 # build and install RocksDB and its dependencies
