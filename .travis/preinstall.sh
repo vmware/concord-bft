@@ -29,11 +29,6 @@ python3 -m pip install --upgrade conan
 source ~/.profile
 conan profile new default --detect
 conan profile update settings.compiler.libcxx=libstdc++11 default
-#cd
-#mkdir -p ${CONCORD_HOME}/build
-#cd ${CONCORD_HOME}/build
-#ls ..
-conan install --build missing $TRAVIS_BUILD_DIR
 
 # build and install RocksDB and its dependencies
 if [ -n "$USE_ROCKSDB" ]; then
