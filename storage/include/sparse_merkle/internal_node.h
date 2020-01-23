@@ -1,4 +1,5 @@
-// Concord //
+// Concord
+//
 // Copyright (c) 2019-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
