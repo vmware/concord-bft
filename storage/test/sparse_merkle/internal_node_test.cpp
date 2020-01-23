@@ -925,6 +925,7 @@ TEST(remove_tests, descend_because_requested_node_is_internal) {
 
   auto result = node.remove(key1_hash, depth, Version(3));
   ASSERT_TRUE(std::holds_alternative<BatchedInternalNode::Descend>(result));
+  ASSERT_EQ(Version(2), std::get<BatchedInternalNode::Descend>(result).version);
 }
 
 int main(int argc, char** argv) {
