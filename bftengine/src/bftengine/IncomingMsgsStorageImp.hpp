@@ -40,7 +40,8 @@ namespace bftEngine::impl {
 class IncomingMsgsStorageImp : public IncomingMsgsStorage {
  public:
   explicit IncomingMsgsStorageImp(std::shared_ptr<MsgHandlersRegistrator>& msgHandlersPtr,
-                                  std::chrono::milliseconds msgWaitTimeout);
+                                  std::chrono::milliseconds msgWaitTimeout,
+                                  uint16_t replicaId);
   ~IncomingMsgsStorageImp() override;
 
   void start() override;
@@ -62,6 +63,8 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
  private:
   const uint64_t minTimeBetweenOverflowWarningsMilli_ = 5 * 1000;
   const uint16_t maxNumberOfPendingExternalMsgs_ = 20000;
+
+  uint16_t replicaId_;
 
   std::mutex lock_;
   std::condition_variable condVar_;
