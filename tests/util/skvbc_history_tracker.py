@@ -902,3 +902,63 @@ class SkvbcTracker:
             except:
                 pass
             await trio.sleep(.1)
+
+    async def write_and_track_known_kv(self, kv, client):
+        read_version = self.read_block_id()
+        readset = self.readset(0, 0)
+        msg = self.skvbc.write_req(readset, kv, read_version)
+        seq_num = client.req_seq_num.next()
+        client_id = client.client_id
+        self.send_write(
+            client_id, seq_num, readset, dict(kv), read_version)
+        try:
+            serialized_reply = await client.write(msg, seq_num)
+            self.status.record_client_reply(client_id)
+            reply = self.skvbc.parse_reply(serialized_reply)
+            self.handle_write_reply(client_id, seq_num, reply)
+        except trio.TooSlowError:
+            self.status.record_client_timeout(client_id)
+            return
+
+    async def read_and_track_known_kv(self, key, client):
+        msg = self.skvbc.read_req([key])
+        seq_num = client.req_seq_num.next()
+        client_id = client.client_id
+        self.send_read(client_id, seq_num, [key])
+        try:
+            serialized_reply = await client.read(msg, seq_num)
+            self.status.record_client_reply(client_id)
+            reply = self.skvbc.parse_reply(serialized_reply)
+            self.handle_read_reply(client_id, seq_num, reply)
+            return reply
+        except trio.TooSlowError:
+            self.status.record_client_timeout(client_id)
+            return
+
+    async def tracked_prime_for_state_transfer(
+            self, stale_nodes,
+            checkpoints_num=2,
+            persistency_enabled=True):
+        initial_nodes = self.bft_network.all_replicas(without=stale_nodes)
+        [self.bft_network.start_replica(i) for i in initial_nodes]
+        client = self.bft_network.random_client()
+        # Write a KV pair with a known value
+        known_key = self.skvbc.max_key()
+        known_val = self.skvbc.random_value()
+        known_kv = [(known_key, known_val)]
+        await self.write_and_track_known_kv(known_kv, client)
+        # Fill up the initial nodes with data, checkpoint them and stop
+        # them. Then bring them back up and ensure the checkpoint data is
+        # there.
+        client1 = self.bft_network.random_client()
+        # Write enough data to checkpoint and create a need for state transfer
+        for i in range(1 + checkpoints_num * 150):
+            key = self.skvbc.random_key()
+            val = self.skvbc.random_value()
+            kv = [(key, val)]
+            await self.write_and_track_known_kv(kv, client1)
+
+        await self.skvbc.network_wait_for_checkpoint(initial_nodes, checkpoints_num, persistency_enabled)
+
+        return client, known_key, known_val, known_kv
+

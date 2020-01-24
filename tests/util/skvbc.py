@@ -20,8 +20,9 @@ from util.skvbc_exceptions import BadReplyError
 
 WriteReply = namedtuple('WriteReply', ['success', 'last_block_id'])
 
+
 class SimpleKVBCProtocol:
-    KV_LEN = 21 ## SimpleKVBC requies fixed size keys and values right now
+    KV_LEN = 21  ## SimpleKVBC requies fixed size keys and values right now
     READ_LATEST = 0xFFFFFFFFFFFFFFFF
 
     READ = 1
@@ -34,6 +35,7 @@ class SimpleKVBCProtocol:
     SimpleKVBC requests are application data embedded inside sbft client
     requests.
     """
+
     def __init__(self, bft_network):
         self.bft_network = bft_network
 
@@ -49,7 +51,7 @@ class SimpleKVBCProtocol:
         data.append(cls.WRITE)
         # SimpleConditionalWriteHeader
         data.extend(
-                struct.pack("<QQQ", block_id, len(readset), len(writeset)))
+            struct.pack("<QQQ", block_id, len(readset), len(writeset)))
         # SimpleKey[numberOfKeysInReadSet]
         for r in readset:
             data.extend(r)
@@ -106,9 +108,9 @@ class SimpleKVBCProtocol:
         data = data[8:]
         kv_pairs = {}
         for i in range(num_kv_pairs):
-            kv_pairs[data[0:cls.KV_LEN]] = data[cls.KV_LEN:2*cls.KV_LEN]
-            if i+1 != num_kv_pairs:
-                data = data[2*cls.KV_LEN:]
+            kv_pairs[data[0:cls.KV_LEN]] = data[cls.KV_LEN:2 * cls.KV_LEN]
+            if i + 1 != num_kv_pairs:
+                data = data[2 * cls.KV_LEN:]
         return kv_pairs
 
     @staticmethod
@@ -210,12 +212,17 @@ class SimpleKVBCProtocol:
         """
         client = SkvbcClient(self.bft_network.random_client())
         # Write enough data to checkpoint and create a need for state transfer
-        for i in range (1 + checkpoint_num * 150):
+        for i in range(1 + checkpoint_num * 150):
             key = self.random_key()
             val = self.random_value()
             reply = await client.write([], [(key, val)])
             assert reply.success
+        await self.network_wait_for_checkpoint(initial_nodes, checkpoint_num, persistency_enabled)
 
+    async def network_wait_for_checkpoint(
+            self, initial_nodes,
+            checkpoint_num=2,
+            persistency_enabled=True):
         await self.bft_network.assert_state_transfer_not_started_all_up_nodes(
             up_replica_ids=initial_nodes)
 
@@ -231,7 +238,7 @@ class SimpleKVBCProtocol:
             # checkpoint data.
             [self.bft_network.start_replica(i) for i in initial_nodes]
             await self.bft_network.wait_for_replicas_to_checkpoint(initial_nodes,
-                                                              checkpoint_num)
+                                                                   checkpoint_num)
 
     async def assert_successful_put_get(self, testcase):
         """ Assert that we can get a valid put """
@@ -252,7 +259,7 @@ class SimpleKVBCProtocol:
         # Retrieve the last block and ensure that it matches what's expected
         read_reply = await client.read(self.get_last_block_req())
         newest_block = self.parse_reply(read_reply)
-        testcase.assertEqual(last_block+1, newest_block)
+        testcase.assertEqual(last_block + 1, newest_block)
 
         # Get the previous put value, and ensure it's correct
         read_req = self.read_req([key], newest_block)
@@ -276,7 +283,7 @@ class SimpleKVBCProtocol:
         keys = [b"A...................."]
         for i in range(1, 2 * num_clients):
             end = cur[-1]
-            if chr(end) == 'Z': # extend the key
+            if chr(end) == 'Z':  # extend the key
                 cur.append(self.alpha[0])
             else:
                 cur[-1] = end + 1
@@ -312,8 +319,10 @@ class SimpleKVBCProtocol:
         kv2 = self.parse_reply(data)
         test_class.assertDictEqual(kv2, dict(kv))
 
+
 class SkvbcClient:
     """A wrapper around bft_client that uses the SimpleKVBCProtocol"""
+
     def __init__(self, bft_client):
         self.client = bft_client
 
