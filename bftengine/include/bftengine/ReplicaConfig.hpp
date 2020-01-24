@@ -24,7 +24,10 @@ struct ReplicaConfig {
   // Am I a read-only replica?
   bool isReadOnly = false;
 
-  // number of read-only replicas in a cluster
+  // number of regular replicas
+  uint16_t numReplicas = 0;
+
+  // number of read-only replicas
   uint16_t numRoReplicas = 0;
 
   // F value - max number of faulty/malicious replicas. fVal >= 1

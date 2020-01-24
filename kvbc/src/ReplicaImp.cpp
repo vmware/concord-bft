@@ -61,7 +61,12 @@ Status ReplicaImp::start() {
   m_currentRepStatus = RepStatus::Starting;
   m_metadataStorage = new DBMetadataStorage(m_bcDbAdapter->getDb().get(), KeyManipulator::generateMetadataKey);
 
-  createReplicaAndSyncState();
+  if (m_replicaConfig.isReadOnly){
+    LOG_INFO(logger, "ReadOnly mode");
+    m_replicaPtr = bftEngine::IReplica::createNewRoReplica(&m_replicaConfig, m_stateTransfer, m_ptrComm, m_metadataStorage);
+  } else{
+    createReplicaAndSyncState();
+  }
   m_replicaPtr->SetAggregator(aggregator_);
   m_replicaPtr->start();
   m_currentRepStatus = RepStatus::Running;
@@ -201,6 +206,7 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   state_transfer_config.myReplicaId = m_replicaConfig.replicaId;
   state_transfer_config.cVal = m_replicaConfig.cVal;
   state_transfer_config.fVal = m_replicaConfig.fVal;
+  state_transfer_config.numReplicas = m_replicaConfig.numReplicas + m_replicaConfig.numRoReplicas;
   if (replicaConfig.maxNumOfReservedPages > 0)
     state_transfer_config.maxNumOfReservedPages = replicaConfig.maxNumOfReservedPages;
   if (replicaConfig.sizeOfReservedPage > 0) state_transfer_config.sizeOfReservedPage = replicaConfig.sizeOfReservedPage;
@@ -232,7 +238,7 @@ Status ReplicaImp::addBlockInternal(const SetOfKeyValuePairs &updates, BlockId &
   BlockId block = m_lastBlock;
   SetOfKeyValuePairs updatesInNewBlock;
 
-  LOG_DEBUG(logger, "addBlockInternal: Got " << updates.size() << " updates");
+  LOG_DEBUG(logger, "block:" << block << " updates: " << updates.size());
 
   StateTransferDigest stDigest;
   if (block > 1) {

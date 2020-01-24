@@ -45,7 +45,7 @@ void CheckpointInfo::tryToMarkCheckpointCertificateCompleted() { checkpointCerti
 
 bool CheckpointInfo::checkpointSentAllOrApproved() const { return sentToAllOrApproved; }
 
-Time CheckpointInfo::selfExecutionTime() { return executed; }
+Time CheckpointInfo::selfExecutionTime() const { return executed; }
 
 void CheckpointInfo::setSelfExecutionTime(Time t) {
   Assert(executed == MinTime);

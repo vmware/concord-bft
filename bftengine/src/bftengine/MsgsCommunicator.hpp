@@ -21,8 +21,8 @@ namespace bftEngine::impl {
 class MsgsCommunicator {
  public:
   explicit MsgsCommunicator(ICommunication* comm,
-                            std::shared_ptr<IncomingMsgsStorage>& incomingMsgsStorage,
-                            std::shared_ptr<IReceiver>& msgReceiver);
+                            std::shared_ptr<IncomingMsgsStorage> incomingMsgsStorage,
+                            std::shared_ptr<IReceiver> msgReceiver);
   virtual ~MsgsCommunicator() = default;
 
   int startCommunication(uint16_t replicaId);

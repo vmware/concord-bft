@@ -433,7 +433,7 @@ bool inputReplicaKeyfile(const std::string& filename, bftEngine::ReplicaConfig& 
     return false;
   }
 
-  std::uint16_t numReplicas = parse<std::uint16_t>("num_replicas", valueAssignments, filename, identifierLines);
+  config.numReplicas = parse<std::uint16_t>("num_replicas", valueAssignments, filename, identifierLines);
   config.fVal = parse<std::uint16_t>("f_val", valueAssignments, filename, identifierLines);
   config.cVal = parse<std::uint16_t>("c_val", valueAssignments, filename, identifierLines);
   config.replicaId = parse<std::uint16_t>("replica_id", valueAssignments, filename, identifierLines);
@@ -444,12 +444,12 @@ bool inputReplicaKeyfile(const std::string& filename, bftEngine::ReplicaConfig& 
   // Note we validate the number of replicas using 32-bit integers in case
   // (3 * f + 2 * c + 1) overflows a 16-bit integer.
   uint32_t predictedNumReplicas = 3 * (uint32_t)config.fVal + 2 * (uint32_t)config.cVal + 1;
-  if (predictedNumReplicas != (uint32_t)numReplicas) {
+  if (predictedNumReplicas != (uint32_t)config.numReplicas) {
     std::cout << filename << ": line " << identifierLines["num_replicas"]
               << ": num_replicas must be equal to (3 * f_val + 2 * c_val + 1).\n";
     return false;
   }
-  if (config.replicaId >= numReplicas + config.numRoReplicas) {
+  if (config.replicaId >= config.numReplicas + config.numRoReplicas) {
     std::cout << filename << ": line " << identifierLines["replica_id"]
               << ": invalid replica_id; replica IDs must be in the range [0,"
                  " num_replicas + num_ro_replicas].\n";
@@ -471,13 +471,13 @@ bool inputReplicaKeyfile(const std::string& filename, bftEngine::ReplicaConfig& 
   std::vector<std::string> rsaPublicKeys = std::move(listAssignments["rsa_public_keys"]);
   listAssignments.erase("rsa_public_keys");
 
-  if (rsaPublicKeys.size() != numReplicas + config.numRoReplicas) {
+  if (rsaPublicKeys.size() != config.numReplicas + config.numRoReplicas) {
     std::cout << filename << ": line " << identifierLines["rsa_public_keys"]
               << ": incorrect number of public RSA keys given; the number of RSA keys"
                  " must match num_replicas.\n";
     return false;
   }
-  for (size_t i = 0; i < numReplicas + config.numRoReplicas; ++i) {
+  for (size_t i = 0; i < config.numReplicas + config.numRoReplicas; ++i) {
     if (!validateRSAPublicKey(rsaPublicKeys[i])) {
       std::cout << filename << ": line " << listEntryLines["rsa_public_keys"][i] << ": Invalid RSA public key.\n";
       return false;
@@ -496,7 +496,7 @@ bool inputReplicaKeyfile(const std::string& filename, bftEngine::ReplicaConfig& 
     return false;
   }
   config.publicKeysOfReplicas.clear();
-  for (uint16_t i = 0; i < numReplicas + config.numRoReplicas; ++i)
+  for (uint16_t i = 0; i < config.numReplicas + config.numRoReplicas; ++i)
     config.publicKeysOfReplicas.insert(std::pair<uint16_t, std::string>(i, rsaPublicKeys[i]));
 
   config.replicaPrivateKey = rsaPrivateKey;
@@ -521,7 +521,7 @@ bool inputReplicaKeyfile(const std::string& filename, bftEngine::ReplicaConfig& 
                                                   filename,
                                                   identifierLines,
                                                   listEntryLines,
-                                                  numReplicas)) {
+                                                  config.numReplicas)) {
     return false;
   }
   if (!deserializeCryptosystemPublicConfiguration(slowSys,
@@ -532,7 +532,7 @@ bool inputReplicaKeyfile(const std::string& filename, bftEngine::ReplicaConfig& 
                                                   filename,
                                                   identifierLines,
                                                   listEntryLines,
-                                                  numReplicas)) {
+                                                  config.numReplicas)) {
     return false;
   }
   if (!deserializeCryptosystemPublicConfiguration(commitSys,
@@ -543,7 +543,7 @@ bool inputReplicaKeyfile(const std::string& filename, bftEngine::ReplicaConfig& 
                                                   filename,
                                                   identifierLines,
                                                   listEntryLines,
-                                                  numReplicas)) {
+                                                  config.numReplicas)) {
     return false;
   }
   if (!deserializeCryptosystemPublicConfiguration(optSys,
@@ -554,7 +554,7 @@ bool inputReplicaKeyfile(const std::string& filename, bftEngine::ReplicaConfig& 
                                                   filename,
                                                   identifierLines,
                                                   listEntryLines,
-                                                  numReplicas)) {
+                                                  config.numReplicas)) {
     return false;
   }
 

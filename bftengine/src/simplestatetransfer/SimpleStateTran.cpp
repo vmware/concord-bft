@@ -275,6 +275,7 @@ SimpleStateTran::SimpleStateTran(
   config.myReplicaId = myReplicaId;
   config.fVal = fVal;
   config.cVal = cVal;
+  config.numReplicas = 3*fVal + 2*cVal + 1;
   config.pedanticChecks = pedanticChecks;
   auto comparator = concord::storage::memorydb::KeyComparator(new concord::storage::blockchain::KeyManipulator());
   concord::storage::IDBClient::ptr db(new concord::storage::memorydb::Client(comparator));

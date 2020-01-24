@@ -49,11 +49,16 @@ class IRequestsHandler {
 
 class IReplica {
  public:
-  static IReplica *createNewReplica(ReplicaConfig *replicaConfig,
-                                    IRequestsHandler *requestsHandler,
-                                    IStateTransfer *stateTransfer,
-                                    ICommunication *communication,
-                                    MetadataStorage *metadataStorage);
+  static IReplica* createNewReplica(ReplicaConfig*,
+                                    IRequestsHandler*,
+                                    IStateTransfer*,
+                                    ICommunication*,
+                                    MetadataStorage*);
+
+  static IReplica* createNewRoReplica(ReplicaConfig*,
+                                      IStateTransfer*,
+                                      ICommunication*,
+                                      MetadataStorage*);
 
   virtual ~IReplica() = default;
 

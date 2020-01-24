@@ -14,17 +14,17 @@
 #include "SigManager.hpp"
 
 namespace bftEngine {
+
+class ReplicaConfig;
+
 namespace impl {
 
 class ReplicasInfo {
  public:
-  ReplicasInfo(ReplicaId myId,
-               int16_t numberOfReplicas,
-               int16_t fVal,
-               int16_t cVal,
+  ReplicasInfo(const ReplicaConfig&,
                bool dynamicCollectorForPartialProofs,
                bool dynamicCollectorForExecutionProofs);
-
+  ReplicasInfo(){}
   ReplicaId myId() const { return _myId; }
 
   int16_t numberOfReplicas() const { return _numberOfReplicas; }
@@ -32,17 +32,12 @@ class ReplicasInfo {
   int16_t cVal() const { return _cVal; }
 
   bool isIdOfReplica(NodeIdType id) const { return (id < _numberOfReplicas); }
-
   bool isIdOfPeerReplica(NodeIdType id) const { return (id < _numberOfReplicas) && (id != _myId); }
+  bool isIdOfPeerRoReplica(NodeIdType id) const { return _idsOfPeerROReplicas.find(id) !=  _idsOfPeerROReplicas.end();}
+  const std::set<ReplicaId>& idsOfPeerReplicas() const { return _idsOfPeerReplicas; }
+  const std::set<ReplicaId>& idsOfPeerROReplicas() const { return _idsOfPeerROReplicas; }
 
-  const std::set<ReplicaId>& idsOfReplicas() { return _idsOfReplicas; }
-
-  const std::set<ReplicaId>& idsOfPeerReplicas() { return _idsOfPeerReplicas; }
-
-  ReplicaId primaryOfView(ViewNum view) const {
-    ReplicaId p = (view % _numberOfReplicas);
-    return p;
-  }
+  ReplicaId primaryOfView(ViewNum view) const { return (view % _numberOfReplicas); }
 
   // TODO(GG): Improve the following methods (Don't use simple arrays. Use iterators or something similar)
 
@@ -73,16 +68,16 @@ class ReplicasInfo {
   }
 
  protected:
-  const ReplicaId _myId;
-  const int16_t _numberOfReplicas;
-  const int16_t _fVal;
-  const int16_t _cVal;
+  const ReplicaId _myId = 0;
+  const uint16_t _numberOfReplicas = 0;
+  const uint16_t _fVal = 0;
+  const uint16_t _cVal = 0;
 
-  const bool _dynamicCollectorForPartialProofs;
-  const bool _dynamicCollectorForExecutionProofs;
+  const bool _dynamicCollectorForPartialProofs = false;
+  const bool _dynamicCollectorForExecutionProofs = false;
 
-  const std::set<ReplicaId> _idsOfReplicas;
   const std::set<ReplicaId> _idsOfPeerReplicas;
+  const std::set<ReplicaId> _idsOfPeerROReplicas;
 };
 }  // namespace impl
 }  // namespace bftEngine

@@ -50,6 +50,15 @@ void ReplicaConfigSerializer::setConfig(const ReplicaConfig &config) {
 /************** Serialization **************/
 
 void ReplicaConfigSerializer::serializeDataMembers(ostream &outStream) const {
+  // Serialize isReadOnly
+  outStream.write((char *)&config_->isReadOnly, sizeof(config_->isReadOnly));
+
+  // Serialize numReplicas
+  outStream.write((char *)&config_->numReplicas, sizeof(config_->numReplicas));
+
+  // Serialize numRoReplicas
+  outStream.write((char *)&config_->numRoReplicas, sizeof(config_->numRoReplicas));
+
   // Serialize fVal
   outStream.write((char *)&config_->fVal, sizeof(config_->fVal));
 
@@ -127,7 +136,11 @@ void ReplicaConfigSerializer::serializeKey(const string &key, ostream &outStream
 }
 
 bool ReplicaConfigSerializer::operator==(const ReplicaConfigSerializer &other) const {
-  bool result = ((other.config_->fVal == config_->fVal) && (other.config_->cVal == config_->cVal) &&
+  bool result = ((other.config_->isReadOnly == config_->isReadOnly) &&
+                 (other.config_->numReplicas == config_->numReplicas) &&
+                 (other.config_->numRoReplicas == config_->numRoReplicas) &&
+                 (other.config_->fVal == config_->fVal) &&
+                 (other.config_->cVal == config_->cVal) &&
                  (other.config_->replicaId == config_->replicaId) &&
                  (other.config_->numOfClientProxies == config_->numOfClientProxies) &&
                  (other.config_->statusReportTimerMillisec == config_->statusReportTimerMillisec) &&
@@ -149,6 +162,15 @@ bool ReplicaConfigSerializer::operator==(const ReplicaConfigSerializer &other) c
 /************** Deserialization **************/
 void ReplicaConfigSerializer::deserializeDataMembers(istream &inStream) {
   ReplicaConfig &config = *config_.get();
+
+  // Deserialize isReadOnly
+  inStream.read((char *)&config.isReadOnly, sizeof(config.isReadOnly));
+
+  // Deserialize numReplicas
+  inStream.read((char *)&config.numReplicas, sizeof(config.numReplicas));
+
+  // Deserialize numRoReplicas
+  inStream.read((char *)&config.numRoReplicas, sizeof(config.numRoReplicas));
 
   // Deserialize fVal
   inStream.read((char *)&config.fVal, sizeof(config.fVal));

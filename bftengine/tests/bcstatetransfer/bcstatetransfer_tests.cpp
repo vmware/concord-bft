@@ -40,6 +40,7 @@ Config TestConfig() {
   Config config;
   config.myReplicaId = 1;
   config.fVal = 1;
+  config.numReplicas = 4;
   config.maxBlockSize = kMaxBlockSize;
   config.maxChunkSize = 128;
   config.maxNumberOfChunksInBatch = 128;

@@ -25,7 +25,6 @@ ReplicaBase::ReplicaBase(const ReplicaConfig& config,
                          std::shared_ptr<MsgsCommunicator> msgComm,
                          std::shared_ptr<MsgHandlersRegistrator> msgHandlerReg)
     : config_(config),
-      numOfReplicas{(uint16_t)(3 * config_.fVal + 2 * config_.cVal + 1)},  // TODO [TK] include ro-replicas
       msgsCommunicator_(msgComm),
       msgHandlers_(msgHandlerReg),
       metrics_{concordMetrics::Component("replica", std::make_shared<concordMetrics::Aggregator>())} {
@@ -59,6 +58,7 @@ bool ReplicaBase::isRunning() const { return msgsCommunicator_->isMsgsProcessing
 void ReplicaBase::sendRaw(MessageBase* m, NodeIdType dest) {
   if (config_.debugStatisticsEnabled) DebugStatistics::onSendExMessage(m->type());
 
+  LOG_TRACE(GL, "sending msg type: " << m->type() << " dest: " << dest);
   if (msgsCommunicator_->sendAsyncMessage(dest, m->body(), m->size()))
     LOG_ERROR(GL, "sendAsyncMessage failed for message type: " << m->type());
 }
