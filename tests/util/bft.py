@@ -289,60 +289,87 @@ class BftTestNetwork:
         if expected is None:
             expected = lambda _: True
 
+        matching_view = None
+        nb_replicas_in_matching_view = 0
         try:
-            # Step 1: Wait for an agreed view that matches the "expected" predicate
-            last_agreed_view = None
-            replicas_in_expected_view = 0
-            with trio.fail_after(seconds=30):
-                while True:
-                    try:
-                        with trio.move_on_after(seconds=1):
-                            key = ['replica', 'Gauges', 'lastAgreedView']
-                            view = await self.metrics.get(replica_id, *key)
-                            if expected(view):
-                                last_agreed_view = view
-                                break
-                    except KeyError:
-                        # metrics not yet available, continue looping
-                        continue
+            matching_view = await self._wait_for_matching_agreed_view(replica_id, expected)
+            print(f'Matching view #{matching_view} has been agreed among replicas.')
 
-            # Step 2: Wait for enough (n-f) replicas to activate the last agreed view
-            with trio.fail_after(seconds=30):
-                while True:
-                    view = 0
-                    replicas_in_expected_view = 0
+            nb_replicas_in_matching_view = await self._wait_for_active_view(matching_view)
+            print(f'View #{matching_view} has been activated by '
+                  f'{nb_replicas_in_matching_view} >= n-f = {self.config.n - self.config.f}')
 
-                    async def count_view_participants(r, expected_view):
-                        nonlocal view
-                        nonlocal replicas_in_expected_view
-
-                        key = ['replica', 'Gauges', 'currentActiveView']
-
-                        with trio.move_on_after(seconds=5):
-                            while True:
-                                with trio.move_on_after(seconds=1):
-                                    try:
-                                        view = await self.metrics.get(r, *key)
-                                        if view == expected_view:
-                                            replicas_in_expected_view += 1
-                                    except KeyError:
-                                        # metrics not yet available, continue looping
-                                        continue
-                                    else:
-                                        break
-
-                    async with trio.open_nursery() as nursery:
-                        for r in self.get_live_replicas():
-                            nursery.start_soon(
-                                count_view_participants, r, last_agreed_view)
-
-                    # wait for n-f = 2f+2c+1 replicas to be in the expected view
-                    if replicas_in_expected_view >= 2 * self.config.f + 2 * self.config.c + 1:
-                        return view
+            return matching_view
         except trio.TooSlowError:
             assert False, err_msg + \
-                          f'(lastAgreedView={last_agreed_view} ' \
-                          f'replicasInExpectedView={replicas_in_expected_view})'
+                          f'(matchingView={matching_view} ' \
+                          f'replicasInMatchingView={nb_replicas_in_matching_view})'
+
+    async def _wait_for_matching_agreed_view(self, replica_id, expected):
+        """
+        Wait for the last agreed view to match the "expected" predicate
+        """
+        last_agreed_view = None
+        with trio.fail_after(seconds=30):
+            while True:
+                try:
+                    with trio.move_on_after(seconds=1):
+                        key = ['replica', 'Gauges', 'lastAgreedView']
+                        view = await self.metrics.get(replica_id, *key)
+                        if expected(view):
+                            last_agreed_view = view
+                            break
+                except KeyError:
+                    # metrics not yet available, continue looping
+                    continue
+        return last_agreed_view
+
+    async def _wait_for_active_view(self, view):
+        """
+        Wait for a view to become active on enough (n-f) replicas
+        """
+        with trio.fail_after(seconds=30):
+            while True:
+                nb_replicas_in_view = await self._count_replicas_in_view(view)
+
+                # wait for n-f = 2f+2c+1 replicas to be in the expected view
+                if nb_replicas_in_view >= 2 * self.config.f + 2 * self.config.c + 1:
+                    break
+        return nb_replicas_in_view
+
+    async def _count_replicas_in_view(self, view):
+        """
+        Count the number of replicas that have activated a given view
+        """
+        nb_replicas_in_view = 0
+
+        async def count_if_replica_in_view(r, expected_view):
+            """
+            A closure that allows concurrent counting of replicas
+            that have activated a given view.
+            """
+            nonlocal nb_replicas_in_view
+
+            key = ['replica', 'Gauges', 'currentActiveView']
+
+            with trio.move_on_after(seconds=5):
+                while True:
+                    with trio.move_on_after(seconds=1):
+                        try:
+                            replica_view = await self.metrics.get(r, *key)
+                            if replica_view == expected_view:
+                                nb_replicas_in_view += 1
+                        except KeyError:
+                            # metrics not yet available, continue looping
+                            continue
+                        else:
+                            break
+
+        async with trio.open_nursery() as nursery:
+            for r in self.get_live_replicas():
+                nursery.start_soon(
+                    count_if_replica_in_view, r, view)
+        return nb_replicas_in_view
 
     def force_quorum_including_replica(self, replica_id, primary=0):
         """
