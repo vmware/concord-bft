@@ -163,7 +163,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
         # Perform a put/get transaction pair to ensure we can read newly
         # written data after state transfer.
 
-        # await skvbc.read_your_writes(self)
+        await tracker.tracked_read_your_writes(self)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -212,32 +212,32 @@ class SkvbcPersistenceTest(unittest.TestCase):
         # Perform a put/get transaction pair to ensure we can read newly
         # written data after state transfer.
 
-        # await skvbc.assert_successful_put_get(self)
+        await tracker.tracked_read_your_writes(self)
 
     async def _fetch_or_finish_state_transfer_while_crashing(self,
                                                              bft_network,
                                                              up_to_date_node,
                                                              stale_node,
                                                              nb_crashes=20):
-        for _ in range(nb_crashes):
-            print(f'Restarting replica {stale_node}')
-            bft_network.start_replica(stale_node)
-            try:
-                await bft_network.wait_for_fetching_state(stale_node)
-                # Sleep a bit to give some time for the fetch to make progress
-                await trio.sleep(random.uniform(0, 1))
+       for _ in range(nb_crashes):
+           print(f'Restarting replica {stale_node}')
+           bft_network.start_replica(stale_node)
+           try:
+               await bft_network.wait_for_fetching_state(stale_node)
+               # Sleep a bit to give some time for the fetch to make progress
+               await trio.sleep(random.uniform(0, 1))
 
-            except trio.TooSlowError:
-                # We never made it to fetching state. Are we done?
-                try:
-                    await bft_network.wait_for_state_transfer_to_stop(
-                        up_to_date_node, stale_node)
-                except trio.TooSlowError:
-                    self.fail("State transfer did not complete, " +
-                              "but we are not fetching either!")
-            finally:
-                print(f'Stopping replica {stale_node}')
-                bft_network.stop_replica(stale_node)
+           except trio.TooSlowError:
+               # We never made it to fetching state. Are we done?
+               try:
+                   await bft_network.wait_for_state_transfer_to_stop(
+                       up_to_date_node, stale_node)
+               except trio.TooSlowError:
+                   self.fail("State transfer did not complete, " +
+                             "but we are not fetching either!")
+           finally:
+               print(f'Stopping replica {stale_node}')
+               bft_network.stop_replica(stale_node)
 
     @with_trio
     @with_bft_network(start_replica_cmd,

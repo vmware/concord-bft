@@ -22,7 +22,7 @@ WriteReply = namedtuple('WriteReply', ['success', 'last_block_id'])
 
 
 class SimpleKVBCProtocol:
-    KV_LEN = 21  ## SimpleKVBC requies fixed size keys and values right now
+    KV_LEN = 21 ## SimpleKVBC requies fixed size keys and values right now
     READ_LATEST = 0xFFFFFFFFFFFFFFFF
 
     READ = 1
@@ -51,7 +51,7 @@ class SimpleKVBCProtocol:
         data.append(cls.WRITE)
         # SimpleConditionalWriteHeader
         data.extend(
-            struct.pack("<QQQ", block_id, len(readset), len(writeset)))
+                struct.pack("<QQQ", block_id, len(readset), len(writeset)))
         # SimpleKey[numberOfKeysInReadSet]
         for r in readset:
             data.extend(r)
@@ -108,9 +108,9 @@ class SimpleKVBCProtocol:
         data = data[8:]
         kv_pairs = {}
         for i in range(num_kv_pairs):
-            kv_pairs[data[0:cls.KV_LEN]] = data[cls.KV_LEN:2 * cls.KV_LEN]
-            if i + 1 != num_kv_pairs:
-                data = data[2 * cls.KV_LEN:]
+            kv_pairs[data[0:cls.KV_LEN]] = data[cls.KV_LEN:2*cls.KV_LEN]
+            if i+1 != num_kv_pairs:
+                data = data[2*cls.KV_LEN:]
         return kv_pairs
 
     @staticmethod
@@ -212,7 +212,7 @@ class SimpleKVBCProtocol:
         """
         client = SkvbcClient(self.bft_network.random_client())
         # Write enough data to checkpoint and create a need for state transfer
-        for i in range(1 + checkpoint_num * 150):
+        for i in range (1 + checkpoint_num * 150):
             key = self.random_key()
             val = self.random_value()
             reply = await client.write([], [(key, val)])
@@ -238,7 +238,7 @@ class SimpleKVBCProtocol:
             # checkpoint data.
             [self.bft_network.start_replica(i) for i in initial_nodes]
             await self.bft_network.wait_for_replicas_to_checkpoint(initial_nodes,
-                                                                   checkpoint_num)
+                                                              checkpoint_num)
 
     async def assert_successful_put_get(self, testcase):
         """ Assert that we can get a valid put """
@@ -259,7 +259,7 @@ class SimpleKVBCProtocol:
         # Retrieve the last block and ensure that it matches what's expected
         read_reply = await client.read(self.get_last_block_req())
         newest_block = self.parse_reply(read_reply)
-        testcase.assertEqual(last_block + 1, newest_block)
+        testcase.assertEqual(last_block+1, newest_block)
 
         # Get the previous put value, and ensure it's correct
         read_req = self.read_req([key], newest_block)
@@ -283,7 +283,7 @@ class SimpleKVBCProtocol:
         keys = [b"A...................."]
         for i in range(1, 2 * num_clients):
             end = cur[-1]
-            if chr(end) == 'Z':  # extend the key
+            if chr(end) == 'Z': # extend the key
                 cur.append(self.alpha[0])
             else:
                 cur[-1] = end + 1
