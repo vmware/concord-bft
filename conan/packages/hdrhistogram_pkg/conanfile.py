@@ -9,10 +9,8 @@ class HdrhistogramConan(ConanFile):
     url = "http://github.com/HdrHistogram/HdrHistogram_c"
     description = "A HDR histogram library"
     topics = ("HDR histogram")
-    # options = {"shared": [True, False]}
-    # default_options = {"shared": False}
-    options = {"HDR_HISTOGRAM_BUILD_PROGRAMS": [True, False]}
-    default_options = {"HDR_HISTOGRAM_BUILD_PROGRAMS": True}
+    options = {"build_programs": [True, False]}
+    default_options = {"build_programs": True}
     generators = "cmake"
 
     def source(self):
@@ -30,12 +28,8 @@ conan_basic_setup()''')
     def build(self):
         cmake = CMake(self)
         cmake.configure(source_folder="src")
-        cmake.build()
-
-        # Explicit way:
-        # self.run('cmake %s/hello %s'
-        #          % (self.source_folder, cmake.command_line))
-        # self.run("cmake --build . %s" % cmake.build_config)
+        build_args = "-DHDR_HISTOGRAM_BUILD_PROGRAMS=ON" if self.options.build_programs else ""
+        self.run("cmake . %s %s" % (cmake.command_line, build_args))
 
     def package(self):
         self.copy("*.h", dst="include", src="src")

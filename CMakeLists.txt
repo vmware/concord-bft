@@ -65,7 +65,7 @@ endif()
 
 string(APPEND CMAKE_CXX_FLAGS " -Wall")
 string(APPEND CMAKE_CXX_FLAGS " -Wbuiltin-macro-redefined")
-#string(APPEND CMAKE_CXX_FLAGS " -pedantic")
+string(APPEND CMAKE_CXX_FLAGS " -pedantic")
 string(APPEND CMAKE_CXX_FLAGS " -Werror")
 if(IS_LEAKCHECK)
     string(APPEND CMAKE_CXX_FLAGS " -fsanitize=leak")

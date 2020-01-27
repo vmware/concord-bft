@@ -3,7 +3,7 @@ import os
 from conans import ConanFile, CMake, tools
 
 
-class HdrhistogramTestConan(ConanFile):
+class RelicTestConan(ConanFile):
     # settings = "os", "compiler", "build_type", "arch"
     generators = "cmake"
 
