@@ -13,15 +13,13 @@
 
 #include "ReplicaForStateTransfer.hpp"
 
-
 namespace bftEngine::impl {
 
 class PersistentStorage;
 /**
  *
  */
-class ReadOnlyReplica: public ReplicaForStateTransfer {
-
+class ReadOnlyReplica : public ReplicaForStateTransfer {
  public:
   ReadOnlyReplica(const ReplicaConfig&,
                   IStateTransfer*,
@@ -32,8 +30,8 @@ class ReadOnlyReplica: public ReplicaForStateTransfer {
   void start() override;
   void stop() override;
   virtual bool isReadOnly() const override { return true; }
- protected:
 
+ protected:
   void sendAskForCheckpointMsg();
 
   void onTransferringCompleteImp(int64_t newStateCheckpoint) override;
@@ -42,15 +40,15 @@ class ReadOnlyReplica: public ReplicaForStateTransfer {
   template <typename T>
   void messageHandler(MessageBase* msg) {
     if (validateMessage(msg) && !isCollectingState())
-      onMessage<T>(static_cast<T *>(msg));
+      onMessage<T>(static_cast<T*>(msg));
     else
       delete msg;
   }
 
-  template <class T> void onMessage(T*);
+  template <class T>
+  void onMessage(T*);
 
  protected:
-
   std::shared_ptr<PersistentStorage> ps_;
   // last known stable checkpoint of each peer replica.
   // We sometimes delete checkpoints before lastExecutedSeqNum

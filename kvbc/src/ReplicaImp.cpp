@@ -61,10 +61,11 @@ Status ReplicaImp::start() {
   m_currentRepStatus = RepStatus::Starting;
   m_metadataStorage = new DBMetadataStorage(m_bcDbAdapter->getDb().get(), KeyManipulator::generateMetadataKey);
 
-  if (m_replicaConfig.isReadOnly){
+  if (m_replicaConfig.isReadOnly) {
     LOG_INFO(logger, "ReadOnly mode");
-    m_replicaPtr = bftEngine::IReplica::createNewRoReplica(&m_replicaConfig, m_stateTransfer, m_ptrComm, m_metadataStorage);
-  } else{
+    m_replicaPtr =
+        bftEngine::IReplica::createNewRoReplica(&m_replicaConfig, m_stateTransfer, m_ptrComm, m_metadataStorage);
+  } else {
     createReplicaAndSyncState();
   }
   m_replicaPtr->SetAggregator(aggregator_);

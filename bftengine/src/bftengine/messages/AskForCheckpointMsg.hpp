@@ -17,25 +17,24 @@
 namespace bftEngine {
 namespace impl {
 
-class AskForCheckpointMsg: public MessageBase {
+class AskForCheckpointMsg : public MessageBase {
  public:
   static MsgSize maxSizeOfAskForCheckpointMsg() { return sizeof(AskForCheckpointMsgHeader); }
 
-  static MsgSize maxSizeOfAskForCheckpointMsgInLocalBuffer(){return maxSizeOfAskForCheckpointMsg() +
-                                                                    sizeof(RawHeaderOfObjAndMsg);}
+  static MsgSize maxSizeOfAskForCheckpointMsgInLocalBuffer() {
+    return maxSizeOfAskForCheckpointMsg() + sizeof(RawHeaderOfObjAndMsg);
+  }
 
-  AskForCheckpointMsg(ReplicaId senderId):
-    MessageBase(senderId, MsgCode::AskForCheckpoint, sizeof(AskForCheckpointMsgHeader)) {}
+  AskForCheckpointMsg(ReplicaId senderId)
+      : MessageBase(senderId, MsgCode::AskForCheckpoint, sizeof(AskForCheckpointMsgHeader)) {}
 
-  AskForCheckpointMsg* clone() {return new AskForCheckpointMsg(*this);}
+  AskForCheckpointMsg* clone() { return new AskForCheckpointMsg(*this); }
 
   void validate(const ReplicasInfo& repInfo) override {
-
     Assert(type() == MsgCode::AskForCheckpoint);
     Assert(senderId() != repInfo.myId());
 
-    if (size() > sizeof(AskForCheckpointMsgHeader))
-      throw std::runtime_error(__PRETTY_FUNCTION__);
+    if (size() > sizeof(AskForCheckpointMsgHeader)) throw std::runtime_error(__PRETTY_FUNCTION__);
   }
 
  protected:

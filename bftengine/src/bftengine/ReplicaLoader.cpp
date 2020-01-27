@@ -134,9 +134,7 @@ ReplicaLoader::ErrorCode loadConfig(shared_ptr<PersistentStorage> &p, LoadedRepl
                                  ld.repConfig.replicaPrivateKey,
                                  replicasSigPublicKeys);
 
-  ld.repsInfo = new ReplicasInfo(ld.repConfig,
-                                 dynamicCollectorForPartialProofs,
-                                 dynamicCollectorForExecutionProofs);
+  ld.repsInfo = new ReplicasInfo(ld.repConfig, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
   return Succ;
 }
 

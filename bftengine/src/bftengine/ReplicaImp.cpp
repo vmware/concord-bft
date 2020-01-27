@@ -88,7 +88,7 @@ void ReplicaImp::registerMsgHandlers() {
                                    bind(&ReplicaImp::messageHandler<ReplicaStatusMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::AskForCheckpoint,
-                                    bind(&ReplicaImp::messageHandler<AskForCheckpointMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<AskForCheckpointMsg>, this, _1));
 }
 
 template <typename T>
@@ -1263,19 +1263,19 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
  * Is sent from a read-only replica
  */
 template <>
-void ReplicaImp::onMessage<AskForCheckpointMsg>(AskForCheckpointMsg* msg) {
-  //metric_received_checkpoints_.Get().Inc(); // TODO [TK]
+void ReplicaImp::onMessage<AskForCheckpointMsg>(AskForCheckpointMsg *msg) {
+  // metric_received_checkpoints_.Get().Inc(); // TODO [TK]
 
   LOG_INFO(GL, "Node " << config_.replicaId << " received AskForCheckpoint message from node " << msg->senderId());
 
-  const CheckpointInfo& checkpointInfo = checkpointsLog->get(lastStableSeqNum);
-  CheckpointMsg* checkpointMsg = checkpointInfo.selfCheckpointMsg();
+  const CheckpointInfo &checkpointInfo = checkpointsLog->get(lastStableSeqNum);
+  CheckpointMsg *checkpointMsg = checkpointInfo.selfCheckpointMsg();
 
   if (checkpointMsg == nullptr) {
-//    Digest digestOfState;
-//    const uint64_t checkpointNum = lastStableSeqNum / checkpointWindowSize;
-//    stateTransfer->getDigestOfCheckpoint(checkpointNum, sizeof(Digest), (char *)&digestOfState);
-//    checkpointMsg = new CheckpointMsg(config_.replicaId, lastStableSeqNum, digestOfState, true);
+    //    Digest digestOfState;
+    //    const uint64_t checkpointNum = lastStableSeqNum / checkpointWindowSize;
+    //    stateTransfer->getDigestOfCheckpoint(checkpointNum, sizeof(Digest), (char *)&digestOfState);
+    //    checkpointMsg = new CheckpointMsg(config_.replicaId, lastStableSeqNum, digestOfState, true);
 
   } else {
     // TODO [TK] check if already sent within a configurable time period
@@ -2803,9 +2803,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
                                 config_.numReplicas + config_.numOfClientProxies,
                                 config_.replicaPrivateKey,
                                 config_.publicKeysOfReplicas);
-    repsInfo = new ReplicasInfo(config_,
-                                dynamicCollectorForPartialProofs,
-                                dynamicCollectorForExecutionProofs);
+    repsInfo = new ReplicasInfo(config_, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
     viewsManager = new ViewsManager(repsInfo, sigManager, config_.thresholdVerifierForSlowPathCommit);
   } else {
     sigManager = sigMgr;
@@ -2816,7 +2814,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
   }
 
   std::set<NodeIdType> clientsSet;
-  for (uint16_t i = config_.numReplicas; i < config_.numReplicas + config_.numOfClientProxies; i++) clientsSet.insert(i);
+  for (uint16_t i = config_.numReplicas; i < config_.numReplicas + config_.numOfClientProxies; i++)
+    clientsSet.insert(i);
 
   clientsManager =
       new ClientsManager(config_.replicaId, clientsSet, ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage());

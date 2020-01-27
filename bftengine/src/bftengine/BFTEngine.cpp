@@ -168,10 +168,10 @@ IReplica *IReplica::createNewReplica(ReplicaConfig *replicaConfig,
   return replicaInternal;
 }
 
-IReplica* IReplica::createNewRoReplica(ReplicaConfig* replicaConfig,
-                                       IStateTransfer* stateTransfer,
-                                       ICommunication* communication,
-                                       MetadataStorage* metadataStorage) {
+IReplica *IReplica::createNewRoReplica(ReplicaConfig *replicaConfig,
+                                       IStateTransfer *stateTransfer,
+                                       ICommunication *communication,
+                                       MetadataStorage *metadataStorage) {
   {
     std::lock_guard<std::mutex> lock(mutexForCryptoInitialization);
     if (!cryptoInitialized) {
@@ -184,30 +184,27 @@ IReplica* IReplica::createNewRoReplica(ReplicaConfig* replicaConfig,
   replicaConfig->singletonFromThis();
   auto replicaInternal = new ReplicaInternal();
   auto msgHandlers = std::make_shared<MsgHandlersRegistrator>();
-  std::shared_ptr<IncomingMsgsStorage> incomingMsgsStorage = std::make_shared<IncomingMsgsStorageImp>(msgHandlers,
-                                                                                                      timersResolution);
+  std::shared_ptr<IncomingMsgsStorage> incomingMsgsStorage =
+      std::make_shared<IncomingMsgsStorageImp>(msgHandlers, timersResolution, replicaConfig->replicaId);
   auto msgReceiver = std::make_shared<MsgReceiver>(incomingMsgsStorage);
   auto msgsCommunicator = std::make_shared<MsgsCommunicator>(communication, incomingMsgsStorage, msgReceiver);
 
   std::shared_ptr<PersistentStorage> persistentStorage;
-  if (metadataStorage){
+  if (metadataStorage) {
     uint16_t numOfObjects = 0;
     persistentStorage.reset(new impl::PersistentStorageImp(replicaConfig->fVal, replicaConfig->cVal));
-    auto objectDescriptors = std::static_pointer_cast<impl::PersistentStorageImp>(persistentStorage)->getDefaultMetadataObjectDescriptors(numOfObjects);
+    auto objectDescriptors = std::static_pointer_cast<impl::PersistentStorageImp>(persistentStorage)
+                                 ->getDefaultMetadataObjectDescriptors(numOfObjects);
     metadataStorage->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);
-    std::static_pointer_cast<impl::PersistentStorageImp>(persistentStorage)->init(std::unique_ptr<MetadataStorage>(metadataStorage));
-  }
-  else if (replicaConfig->debugPersistentStorageEnabled){
+    std::static_pointer_cast<impl::PersistentStorageImp>(persistentStorage)
+        ->init(std::unique_ptr<MetadataStorage>(metadataStorage));
+  } else if (replicaConfig->debugPersistentStorageEnabled) {
     persistentStorage.reset(new impl::DebugPersistentStorage(replicaConfig->fVal, replicaConfig->cVal));
   }
 
-  replicaInternal->replica_ = std::make_unique<ReadOnlyReplica>(*replicaConfig,
-                                                                stateTransfer,
-                                                                msgsCommunicator,
-                                                                persistentStorage,
-                                                                msgHandlers);
+  replicaInternal->replica_ = std::make_unique<ReadOnlyReplica>(
+      *replicaConfig, stateTransfer, msgsCommunicator, persistentStorage, msgHandlers);
   return replicaInternal;
 }
-
 
 }  // namespace bftEngine

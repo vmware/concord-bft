@@ -21,10 +21,8 @@ namespace impl {
 
 class ReplicasInfo {
  public:
-  ReplicasInfo(const ReplicaConfig&,
-               bool dynamicCollectorForPartialProofs,
-               bool dynamicCollectorForExecutionProofs);
-  ReplicasInfo(){}
+  ReplicasInfo(const ReplicaConfig&, bool dynamicCollectorForPartialProofs, bool dynamicCollectorForExecutionProofs);
+  ReplicasInfo() {}
   ReplicaId myId() const { return _myId; }
 
   int16_t numberOfReplicas() const { return _numberOfReplicas; }
@@ -33,7 +31,7 @@ class ReplicasInfo {
 
   bool isIdOfReplica(NodeIdType id) const { return (id < _numberOfReplicas); }
   bool isIdOfPeerReplica(NodeIdType id) const { return (id < _numberOfReplicas) && (id != _myId); }
-  bool isIdOfPeerRoReplica(NodeIdType id) const { return _idsOfPeerROReplicas.find(id) !=  _idsOfPeerROReplicas.end();}
+  bool isIdOfPeerRoReplica(NodeIdType id) const { return _idsOfPeerROReplicas.find(id) != _idsOfPeerROReplicas.end(); }
   const std::set<ReplicaId>& idsOfPeerReplicas() const { return _idsOfPeerReplicas; }
   const std::set<ReplicaId>& idsOfPeerROReplicas() const { return _idsOfPeerROReplicas; }
 

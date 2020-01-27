@@ -121,7 +121,7 @@ static uint16_t calcMaxNumOfChunksInBlock(uint32_t maxItemSize,
 // TODO(GG): change to support full dynamic reconfiguration
 static set<uint16_t> generateSetOfReplicas(const int16_t numberOfReplicas) {
   std::set<uint16_t> retVal;
-  for (int16_t i = 0; i < numberOfReplicas ; i++) retVal.insert(i);
+  for (int16_t i = 0; i < numberOfReplicas; i++) retVal.insert(i);
   return retVal;
 }
 

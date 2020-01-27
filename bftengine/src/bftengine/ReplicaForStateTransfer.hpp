@@ -20,7 +20,6 @@ namespace bftEngine::impl {
  *
  */
 class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaBase {
-
  public:
   ReplicaForStateTransfer(const ReplicaConfig&,
                           IStateTransfer*,

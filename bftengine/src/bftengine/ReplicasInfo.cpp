@@ -28,18 +28,19 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
       _dynamicCollectorForPartialProofs{dynamicCollectorForPartialProofs},
       _dynamicCollectorForExecutionProofs{dynamicCollectorForExecutionProofs},
 
-      _idsOfPeerReplicas{ [config](){
-          std::set<ReplicaId> ret;
-          for (auto i = 0; i < config.numReplicas; ++i)
-            if (i != config.replicaId) ret.insert(i);
-          return ret;}()},
-
-      _idsOfPeerROReplicas{[config](){
+      _idsOfPeerReplicas{[config]() {
         std::set<ReplicaId> ret;
-        for(auto i = config.numReplicas; i < config.numReplicas + config.numRoReplicas; ++i)
-          if(i != config.replicaId) ret.insert(i);
-        return ret;}()}{
+        for (auto i = 0; i < config.numReplicas; ++i)
+          if (i != config.replicaId) ret.insert(i);
+        return ret;
+      }()},
 
+      _idsOfPeerROReplicas{[config]() {
+        std::set<ReplicaId> ret;
+        for (auto i = config.numReplicas; i < config.numReplicas + config.numRoReplicas; ++i)
+          if (i != config.replicaId) ret.insert(i);
+        return ret;
+      }()} {
   Assert(_numberOfReplicas == (3 * _fVal + 2 * _cVal + 1));
 }
 
