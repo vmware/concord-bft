@@ -102,7 +102,6 @@ Get g++:
 Install Conan:
 
     pip install conan
-    source ~/.profile
 
 Test your conan script, You should see the Conan commands help.
     
