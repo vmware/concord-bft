@@ -7,7 +7,7 @@ set(corebft_source_files
     src/bftengine/SeqNumInfo.cpp
     src/bftengine/ReplicaBase.cpp
     src/bftengine/ReplicaForStateTransfer.cpp
-    src/bftEngine/ReadOnlyReplica.cpp
+    src/bftengine/ReadOnlyReplica.cpp
     src/bftengine/ReplicaImp.cpp
     src/bftengine/ControllerBase.cpp
     src/bftengine/ControllerWithSimpleHistory.cpp
