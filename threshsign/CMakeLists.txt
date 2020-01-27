@@ -89,7 +89,7 @@ function(link_with_relic_library targetName)
         PUBLIC
         ${RELIC_STATIC_LIBRARY}
         ${GMP_STATIC_LIBRARY}
-        ${CRYPTOPP_STATIC_LIBRARY})
+        CONAN_PKG::cryptopp)
 endfunction()
 
 function(add_relic_executable appName appSrc appDir)
@@ -145,7 +145,7 @@ find_library(RELIC_STATIC_LIBRARY NAMES "librelic_s.a")
 
 find_library(GMP_STATIC_LIBRARY NAMES "libgmp.a")
 
-find_library(CRYPTOPP_STATIC_LIBRARY NAMES "libcryptopp.a")
+#find_library(CRYPTOPP_STATIC_LIBRARY NAMES "libcryptopp.a")
 
 #
 # Targets

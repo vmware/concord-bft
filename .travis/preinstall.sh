@@ -1,5 +1,6 @@
 #!/bin/bash
 
+CONCORD_HOME=${HOME}/vmware/concord-bft
 # Install needed packages
 if [[ "$OSTYPE" == "darwin"* ]]; then
 # Nothing needed for macos
@@ -7,8 +8,8 @@ echo "macos homebrew packages handled in .travis.yml"
 else
 # If on Linux, install necessary packages using apt
 sudo apt-get update
-sudo apt-get install -y ccache cmake clang-format libgmp3-dev parallel \
-python3-pip python3-setuptools openssl libssl-dev
+sudo apt-get install -y ccache cmake clang-format libgmp3-dev \
+python3-pip python3-setuptools
 fi
 
 # build and install relic
@@ -22,22 +23,12 @@ CC=/usr/bin/gcc CXX=/usr/bin/g++ cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DALLOC
 CC=/usr/bin/gcc CXX=/usr/bin/g++ make
 sudo make install
 
-# build and install cryptopp
-cd /tmp
-git clone https://github.com/weidai11/cryptopp.git
-cd cryptopp
-git checkout CRYPTOPP_8_2_0
-make
-sudo make install
-
-# build and install boost
-cd /tmp
-wget --https-only https://dl.bintray.com/boostorg/release/1.64.0/source/boost_1_64_0.tar.gz
-tar -xf boost_1_64_0.tar.gz
-cd boost_1_64_0
-./bootstrap.sh --with-libraries=system,filesystem
-./b2
-sudo ./b2 install
+# Install Conan package manager
+python3 -m pip install --upgrade wheel
+python3 -m pip install --upgrade conan
+source ~/.profile
+conan profile new default --detect
+conan profile update settings.compiler.libcxx=libstdc++11 default
 
 # build and install RocksDB and its dependencies
 if [ -n "$USE_ROCKSDB" ]; then

@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.2)
 
 project(concord-bft VERSION 0.1.0.0 LANGUAGES CXX)
 
+include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+conan_basic_setup(TARGETS NO_OUTPUT_DIRS)
+
 #
 # C++ options
 #   TODO: change to set_target_properties?
@@ -62,7 +65,7 @@ endif()
 
 string(APPEND CMAKE_CXX_FLAGS " -Wall")
 string(APPEND CMAKE_CXX_FLAGS " -Wbuiltin-macro-redefined")
-string(APPEND CMAKE_CXX_FLAGS " -pedantic")
+#string(APPEND CMAKE_CXX_FLAGS " -pedantic")
 string(APPEND CMAKE_CXX_FLAGS " -Werror")
 if(IS_LEAKCHECK)
     string(APPEND CMAKE_CXX_FLAGS " -fsanitize=leak")
@@ -136,8 +139,6 @@ add_subdirectory(kvbc)
 # Setup testing
 #
 if(BUILD_TESTING)
-    add_submodule("deps/gtest")
-    add_subdirectory(deps/gtest)
     add_subdirectory(bftengine/tests)
     add_subdirectory(tests)
 endif()
