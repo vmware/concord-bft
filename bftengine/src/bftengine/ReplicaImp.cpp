@@ -123,13 +123,13 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   const bool readOnly = m->isReadOnly();
   const ReqId reqSeqNum = m->requestSeqNum();
 
-  LOG_INFO_F(GL,
-             "Node %d received ClientRequestMsg (clientId=%d reqSeqNum=%" PRIu64 ", readOnly=%d) from Node %d",
-             config_.replicaId,
-             clientId,
-             reqSeqNum,
-             readOnly ? 1 : 0,
-             senderId);
+  LOG_DEBUG_F(GL,
+              "Node %d received ClientRequestMsg (clientId=%d reqSeqNum=%" PRIu64 ", readOnly=%d) from Node %d",
+              config_.replicaId,
+              clientId,
+              reqSeqNum,
+              readOnly ? 1 : 0,
+              senderId);
 
   if (isCollectingState()) {
     LOG_INFO(GL,
