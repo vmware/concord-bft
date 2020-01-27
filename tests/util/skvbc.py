@@ -20,6 +20,7 @@ from util.skvbc_exceptions import BadReplyError
 
 WriteReply = namedtuple('WriteReply', ['success', 'last_block_id'])
 
+
 class SimpleKVBCProtocol:
     KV_LEN = 21 ## SimpleKVBC requies fixed size keys and values right now
     READ_LATEST = 0xFFFFFFFFFFFFFFFF
@@ -34,6 +35,7 @@ class SimpleKVBCProtocol:
     SimpleKVBC requests are application data embedded inside sbft client
     requests.
     """
+
     def __init__(self, bft_network):
         self.bft_network = bft_network
 
@@ -215,7 +217,12 @@ class SimpleKVBCProtocol:
             val = self.random_value()
             reply = await client.write([], [(key, val)])
             assert reply.success
+        await self.network_wait_for_checkpoint(initial_nodes, checkpoint_num, persistency_enabled)
 
+    async def network_wait_for_checkpoint(
+            self, initial_nodes,
+            checkpoint_num=2,
+            persistency_enabled=True):
         await self.bft_network.assert_state_transfer_not_started_all_up_nodes(
             up_replica_ids=initial_nodes)
 
@@ -312,8 +319,10 @@ class SimpleKVBCProtocol:
         kv2 = self.parse_reply(data)
         test_class.assertDictEqual(kv2, dict(kv))
 
+
 class SkvbcClient:
     """A wrapper around bft_client that uses the SimpleKVBCProtocol"""
+
     def __init__(self, bft_client):
         self.client = bft_client
 
