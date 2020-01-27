@@ -19,7 +19,7 @@ import trio
 from util import bft_network_partitioning as net
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
-
+from util.skvbc_history_tracker import verify_linearizability
 
 def start_replica_cmd(builddir, replica_id):
     """
@@ -40,7 +40,8 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_single_vc_only_primary_down(self, bft_network):
+    @verify_linearizability
+    async def test_single_vc_only_primary_down(self, bft_network, tracker):
         """
         The goal of this test is to validate the most basic view change
         scenario - a single view change when the primary replica is down.
@@ -52,12 +53,11 @@ class SkvbcViewChangeTest(unittest.TestCase):
         5) Perform a "read-your-writes" check in the new view
         """
         bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         initial_primary = 0
         expected_next_primary = 1
 
-        await self._send_random_writes(skvbc)
+        await self._send_random_writes(tracker)
 
         await bft_network.wait_for_view(
             replica_id=initial_primary,
@@ -68,7 +68,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
         bft_network.stop_replica(initial_primary)
 
-        await self._send_random_writes(skvbc)
+        await self._send_random_writes(tracker)
 
         await bft_network.wait_for_view(
             replica_id=random.choice(bft_network.all_replicas(without={0})),
@@ -76,11 +76,12 @@ class SkvbcViewChangeTest(unittest.TestCase):
             err_msg="Make sure view change has been triggered."
         )
 
-        await skvbc.read_your_writes(self)
+        await tracker.tracked_read_your_writes()
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_single_vc_primary_isolated(self, bft_network):
+    @verify_linearizability
+    async def test_single_vc_primary_isolated(self, bft_network, tracker):
         """
         The goal of this test is to check the view change
         workflow in case the primary is up, but its outgoing
@@ -94,7 +95,6 @@ class SkvbcViewChangeTest(unittest.TestCase):
         """
         with net.PrimaryIsolatingAdversary(bft_network) as adversary:
             bft_network.start_all_replicas()
-            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
             initial_primary = 0
             await bft_network.wait_for_view(
@@ -107,7 +107,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
             await adversary.interfere()
             expected_next_primary = 1
 
-            await self._send_random_writes(skvbc)
+            await self._send_random_writes(tracker)
 
             await bft_network.wait_for_view(
                 replica_id=random.choice(bft_network.all_replicas(without={0})),
@@ -115,11 +115,12 @@ class SkvbcViewChangeTest(unittest.TestCase):
                 err_msg="Make sure view change has been triggered."
             )
 
-            await skvbc.read_your_writes(self)
+            await tracker.tracked_read_your_writes()
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_single_vc_with_f_replicas_down(self, bft_network):
+    @verify_linearizability
+    async def test_single_vc_with_f_replicas_down(self, bft_network, tracker):
         """
         Here we "step it up" a little bit, bringing down a total of f replicas
         (including the primary), verifying a single view change in this scenario.
@@ -131,7 +132,6 @@ class SkvbcViewChangeTest(unittest.TestCase):
         5) Perform a "read-your-writes" check in the new view
         """
         bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         n = bft_network.config.n
         f = bft_network.config.f
@@ -154,7 +154,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
             len(bft_network.procs), 2 * f + 2 * c + 1,
             "Make sure enough replicas are up to allow a successful view change")
 
-        await self._send_random_writes(skvbc)
+        await self._send_random_writes(tracker)
 
         await bft_network.wait_for_view(
             replica_id=random.choice(bft_network.all_replicas(without=crashed_replicas)),
@@ -162,13 +162,14 @@ class SkvbcViewChangeTest(unittest.TestCase):
             err_msg="Make sure view change has been triggered."
         )
 
-        await skvbc.read_your_writes(self)
+        await tracker.tracked_read_your_writes()
 
     @unittest.skip("unstable scenario")
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: c < f)
-    async def test_multiple_vc_slow_path(self, bft_network):
+    @verify_linearizability
+    async def test_multiple_vc_slow_path(self, bft_network, tracker):
         """
         In this test we aim to validate a sequence of view changes,
         maintaining the slow commit path. To do so, we need to crash
@@ -188,7 +189,6 @@ class SkvbcViewChangeTest(unittest.TestCase):
         Combining A) and B) yields n-(c+1) >= 2f+2c+1, equivalent to c < f
         """
         bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         n = bft_network.config.n
         f = bft_network.config.f
@@ -212,7 +212,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
                 len(bft_network.procs), 2 * f + 2 * c + 1,
                 "Make sure enough replicas are up to allow a successful view change")
 
-            await self._send_random_writes(skvbc)
+            await self._send_random_writes(tracker)
 
             stable_replica = random.choice(
                 bft_network.all_replicas(without=crashed_replicas))
@@ -225,20 +225,15 @@ class SkvbcViewChangeTest(unittest.TestCase):
             current_primary = view
             [bft_network.start_replica(i) for i in crashed_replicas]
 
-        await bft_network.wait_for_view(
-            replica_id=current_primary,
-            err_msg="Make sure all ongoing view changes have completed."
-        )
-
-        await skvbc.read_your_writes(self)
+        await tracker.tracked_read_your_writes()
 
         await bft_network.wait_for_slow_path_to_be_prevalent(
             replica_id=current_primary)
 
-    async def _send_random_writes(self, skvbc):
+    async def _send_random_writes(self, tracker):
         with trio.move_on_after(seconds=1):
             async with trio.open_nursery() as nursery:
-                nursery.start_soon(skvbc.send_indefinite_write_requests)
+                nursery.start_soon(tracker.send_indefinite_tracked_ops)
 
     async def _crash_replicas_including_primary(
             self, bft_network, nb_crashing, primary, except_replicas=None):
