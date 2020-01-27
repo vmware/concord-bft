@@ -94,6 +94,10 @@ It should be
 Install with pip
     
     sudo apt install python3-pip
+    
+Get g++:
+
+    sudo apt-get install g++
 
 Install Conan:
 
@@ -141,19 +145,12 @@ Build and install [RELIC](https://github.com/relic-toolkit/relic)
     make
     sudo make install
 
-Get g++:
-
-    sudo apt-get install g++
-
 #### (Optional) Use log4cplus
 
 We have simple console logger but if you wish to use log4cplus - we have an
 infra that supports it.
 
-4. Edit `configure` to change "am__api_version" from 1.14 to 1.15, the
-version that ubuntu 16.04 supports.
-
-5. Configure/make/install
+Configure/make/install
 
 ```
     ./configure CXXFLAGS="--std=c++11"
@@ -162,9 +159,6 @@ version that ubuntu 16.04 supports.
 ```
 
 Configuring with these flags is important. If log4cplus is build without `c++11` then athena will give linker errors while building.
-
-At this point all library files and header files should be installed into `/usr/local`. (You may need to add `/usr/local/lib` to your `LD_LIBRARY_PATH`).
-You may also need to export CPLUS_INCLUDE_PATH variable set to /usr/local/include for the header files.
 
 After installation, set USE_LOG4CPP flag to TRUE in the main CmakeLists.txt . The library doesn't initialize the log4cpp subsystem, including formats and appenders, it expects that the upper level application will do it and the log4cpp subsystem is already initialized.
 
