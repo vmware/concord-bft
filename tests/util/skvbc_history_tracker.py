@@ -963,7 +963,7 @@ class SkvbcTracker:
 
         return client, known_key, known_val, known_kv
 
-    async def tracked_read_your_writes(self, test_class):
+    async def tracked_read_your_writes(self):
         client = self.bft_network.random_client()
         keys = self.skvbc._create_keys()
         # Verify by "Read your write"
@@ -979,8 +979,8 @@ class SkvbcTracker:
         #reply = await client.write(self.write_req([], kv, 0))
         #reply = self.parse_reply(reply)
         reply = await self.write_and_track_known_kv(kv,client)
-        test_class.assertTrue(reply.success)
-        test_class.assertEqual(last_block + 1, reply.last_block_id)
+        assert reply.success
+        assert last_block + 1 == reply.last_block_id
 
         last_block = reply.last_block_id
 
@@ -988,4 +988,5 @@ class SkvbcTracker:
         # Get the kvpairs in the last written block
         data = await client.read(self.skvbc.get_block_data_req(last_block))
         kv2 = self.skvbc.parse_reply(data)
-        test_class.assertDictEqual(kv2, dict(kv))
+
+        assert kv2 == dict(kv)

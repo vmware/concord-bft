@@ -163,7 +163,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
         # Perform a put/get transaction pair to ensure we can read newly
         # written data after state transfer.
 
-        await tracker.tracked_read_your_writes(self)
+        await tracker.tracked_read_your_writes()
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -212,7 +212,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
         # Perform a put/get transaction pair to ensure we can read newly
         # written data after state transfer.
 
-        await tracker.tracked_read_your_writes(self)
+        await tracker.tracked_read_your_writes()
 
     async def _fetch_or_finish_state_transfer_while_crashing(self,
                                                              bft_network,
