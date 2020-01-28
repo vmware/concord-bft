@@ -226,6 +226,13 @@ class SkvbcViewChangeTest(unittest.TestCase):
             [bft_network.start_replica(i) for i in crashed_replicas]
 
         await tracker.tracked_read_your_writes()
+  
+        await bft_network.wait_for_view(
+            replica_id=current_primary,
+            err_msg="Make sure all ongoing view changes have completed."
+        )
+
+        await tracker.tracked_read_your_writes()
 
         await bft_network.wait_for_slow_path_to_be_prevalent(
             replica_id=current_primary)
