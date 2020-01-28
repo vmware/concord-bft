@@ -1872,6 +1872,7 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
   Assert(lastExecutedSeqNum >= lastStableSeqNum);  // we moved to the new state, only after synchronizing the state
 
   timeOfLastViewEntrance = getMonotonicTime();  // TODO(GG): handle restart/pause
+  metric_current_active_view_.Get().Set(curView);
 
   NewViewMsg *newNewViewMsgToSend = nullptr;
 
@@ -2741,6 +2742,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_last_stable_seq_num_{metrics_.RegisterGauge("lastStableSeqNum", lastStableSeqNum)},
       metric_last_executed_seq_num_{metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)},
       metric_last_agreed_view_{metrics_.RegisterGauge("lastAgreedView", lastAgreedView)},
+      metric_current_active_view_{metrics_.RegisterGauge("currentActiveView", 0)},
       metric_first_commit_path_{metrics_.RegisterStatus(
           "firstCommitPath", CommitPathToStr(ControllerWithSimpleHistory_debugInitialFirstPath))},
       metric_slow_path_count_{metrics_.RegisterCounter("slowPathCount", 0)},
