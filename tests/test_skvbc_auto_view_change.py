@@ -17,7 +17,7 @@ import unittest
 from test_skvbc_linearizability import KEY_FILE_PREFIX
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network
-
+from util.skvbc_history_tracker import verify_linearizability
 
 def start_replica_cmd(builddir, replica_id):
     """
@@ -41,7 +41,8 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_auto_vc_all_nodes_up_no_requests(self, bft_network):
+    @verify_linearizability
+    async def test_auto_vc_all_nodes_up_no_requests(self, bft_network, tracker):
         """
         This test aims to validate automatic view change
         in the absence of any client messages:
@@ -64,11 +65,12 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
             err_msg="Make sure automatic view change has occurred."
         )
 
-        await skvbc.read_your_writes(self)
+        await tracker.tracked_read_your_writes()
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_auto_vc_when_primary_down(self, bft_network):
+    @verify_linearizability
+    async def test_auto_vc_when_primary_down(self, bft_network, tracker):
         """
         This test aims to validate automatic view change
         when the primary is down
@@ -79,8 +81,6 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         5) Perform a "read-your-writes" check in the new view
         """
         bft_network.start_all_replicas()
-
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         initial_primary = 0
         bft_network.stop_replica(initial_primary)
@@ -93,11 +93,12 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
             err_msg="Make sure automatic view change has occurred."
         )
 
-        await skvbc.read_your_writes(self)
+        await tracker.tracked_read_your_writes()
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_auto_vc_all_nodes_up_fast_path(self, bft_network):
+    @verify_linearizability
+    async def test_auto_vc_all_nodes_up_fast_path(self, bft_network, tracker):
         """
         This test aims to validate automatic view change
         while messages are being processed on the fast path
@@ -109,11 +110,12 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         """
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-
         initial_primary = 0
 
         for _ in range(150):
-            key, val = await skvbc.write_known_kv()
+            key = skvbc.random_key()
+            val = skvbc.random_value()
+            await tracker.write_and_track_known_kv([(key, val)], bft_network.random_client())
 
         await bft_network.wait_for_view(
             replica_id=random.choice(
@@ -125,4 +127,4 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         await skvbc.assert_kv_write_executed(key, val)
         await bft_network.assert_fast_path_prevalent()
 
-        await skvbc.read_your_writes(self)
+        await tracker.tracked_read_your_writes()
