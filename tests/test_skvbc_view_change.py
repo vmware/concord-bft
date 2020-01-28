@@ -78,6 +78,9 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
         await tracker.tracked_read_your_writes()
 
+        async with trio.open_nursery() as nursery:
+            nursery.start_soon(tracker.run_concurrent_ops, 100)
+
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability
@@ -116,6 +119,9 @@ class SkvbcViewChangeTest(unittest.TestCase):
             )
 
             await tracker.tracked_read_your_writes()
+
+            async with trio.open_nursery() as nursery:
+                nursery.start_soon(tracker.run_concurrent_ops, 100)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -163,6 +169,9 @@ class SkvbcViewChangeTest(unittest.TestCase):
         )
 
         await tracker.tracked_read_your_writes()
+
+        async with trio.open_nursery() as nursery:
+            nursery.start_soon(tracker.run_concurrent_ops, 100)
 
     @unittest.skip("unstable scenario")
     @with_trio
