@@ -9,7 +9,10 @@
 
 #include "sliver.hpp"
 #include "gtest/gtest.h"
+
 #include <iostream>
+#include <string>
+
 #include <string.h>
 
 using namespace std;
@@ -66,6 +69,8 @@ TEST(sliver_test, simple_copy) {
   auto actual = Sliver::copy(expected, test_size);
   ASSERT_TRUE(is_match(expected, test_size, actual));
   ASSERT_NE(expected, actual.data());
+
+  delete[] expected;
 }
 
 /**
@@ -168,6 +173,30 @@ TEST(sliver_test, copying) {
 
   // we didn't wrap the expected buffer this time, so we need to free it
   // ourselves, instead of letting the Sliver do it
+  delete[] expected;
+}
+
+/**
+ * Test that moving a string into a sliver works.
+ */
+TEST(sliver_test, string_move) {
+  const auto test_size = 105;
+  auto expected = new_test_memory(test_size);
+
+  const auto sliver1 = Sliver::copy(expected, test_size);
+
+  auto str = std::string{expected, test_size};
+  const auto str_data_ptr = str.c_str();
+  const auto sliver2 = Sliver{std::move(str)};
+
+  // Make sure that both slivers contain the same data.
+  ASSERT_TRUE(is_match(expected, test_size, sliver1));
+  ASSERT_TRUE(is_match(expected, test_size, sliver2));
+  ASSERT_TRUE(sliver1 == sliver2);
+
+  // Make sure that the string has actually been moved without copying.
+  ASSERT_EQ(str_data_ptr, sliver2.data());
+
   delete[] expected;
 }
 

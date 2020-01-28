@@ -31,6 +31,7 @@
 #include <variant>
 #include <memory>
 #include <string_view>
+#include <utility>
 
 namespace concordUtils {
 
@@ -38,7 +39,7 @@ class Sliver {
  public:
   Sliver();
   Sliver(const char* data, const size_t length);
-  Sliver(const std::string&& s);
+  Sliver(std::string&& s);
   Sliver(const Sliver& base, const size_t offset, const size_t length);
   static Sliver copy(const char* data, const size_t length);
 
@@ -64,6 +65,7 @@ class Sliver {
   // so that we have a pointer that can be stored in a shared_ptr. We don't want
   // allocate a copy of a string we already have.
   struct StringBuf {
+    StringBuf(std::string&& p) : s{std::move(p)} {}
     std::string s;
   };
 

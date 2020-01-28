@@ -57,7 +57,7 @@ Sliver::Sliver(const Sliver& base, const size_t offset, const size_t length)
 /**
  * Create a Sliver by moving a string into it.
  */
-Sliver::Sliver(const string&& s) : data_(std::make_shared<StringBuf>(StringBuf{s})), offset_(0), length_(s.length()) {}
+Sliver::Sliver(string&& s) : offset_(0), length_(s.length()) { data_ = std::make_shared<StringBuf>(std::move(s)); }
 
 /**
  * Shorthand for the copy constructor.
