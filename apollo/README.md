@@ -1,5 +1,4 @@
-This directory contains system tests in python as well as a library of reusable
-test components.
+This directory contains Apollo - Concord BFT's system testing framework
 
 # Design
 
@@ -76,7 +75,7 @@ fast/slow commit path, view change, linearizability, persistence among others.
 Those tests reside in `test_skvbc_*.py` modules. 
 The Python BFT client tests are located under `../util/pyclient`.
 
-The tests in `test_skvbc.py` (or any other test module) can be run from the `tests` directory via 
+The tests in `test_skvbc.py` (or any other test module) can be run from the `apollo` directory via 
 `sudo python3 -m unittest test_skvbc`. They can also be run from the build directory along with every
 other automated test by running `sudo make test` or `sudo ctest`.
 

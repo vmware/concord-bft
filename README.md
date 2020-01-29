@@ -63,8 +63,9 @@ Directory structure
 	- [include](./threshsign/include): external interfaces of threshsign (to be used by client applications)
 	- [src](./threshsign/src): internal implementation of threshsign
     - [tests](./threshsign/tests): tests and usage examples
+- [apollo](apollo): BFT engine's system testing framework
 - [scripts](./scripts): build scripts
-- [tests](./tests): BFT engine system tests
+
 
 License
 ----
@@ -199,6 +200,25 @@ useful for building concord-bft:
 
  Note: You can't set both `BUILD_COMM_TCP_PLAIN` and `BUILD_COMM_TCP_TLS` to TRUE.
 
+Apollo testing framework
+----
+### BFT engine system tests
+
+The Apollo framework focuses on validating the correctness properties of the BFT consensus protocol, 
+regardless of the execution engine. For the purposes of system testing, we have implemented 
+a "Simple Key-Value Blockchain" (SKVBC) test application which runs on top of the Concord BFT
+consensus engine.
+<br>
+ 
+The BFT engine's correctness properties are validated by in-depth automated testing,
+including various crash or byzantine failure scenarios. All tests can be run against different
+BFT network configurations (in terms of <i>n</i>, <i>f</i>, <i>c</i> and other parameters).
+<br>
+
+The Apollo framework is a key component of Concord BFT's continuous integration pipeline.
+
+Please find more information about the Apollo framework [here](apollo/README.md)
+
 ### (Optional) Python client
 
 The python client is required for running tests. If you do not want to install
@@ -225,10 +245,4 @@ Run the following from the top level concord-bft directory:
 
 You can use the simpleTest.py script to run various configurations via a simple
 command line interface.
-Please find more information [here](./tests/simpleTest/README.md)
-
-### BFT engine system tests
-
-The BFT engine's correctness properties are validated by in-depth automated testing,
-also covering various failure scenarios.
-Please find more information [here](./tests/README.md)
+Please find more information [here](apollo/simpleTest/README.md)

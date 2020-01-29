@@ -140,5 +140,5 @@ add_subdirectory(kvbc)
 #
 if(BUILD_TESTING)
     add_subdirectory(bftengine/tests)
-    add_subdirectory(tests)
+    add_subdirectory(apollo)
 endif()

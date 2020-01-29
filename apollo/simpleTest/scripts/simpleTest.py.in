@@ -13,8 +13,8 @@ import multiprocessing
 import histogram
 
 generate_concord_keys = "@concord_bft_tools_BINARY_DIR@/GenerateConcordKeys"
-bin_dir = "@CMAKE_BINARY_DIR@/tests/simpleTest"
-log_dir = "@CMAKE_BINARY_DIR@/tests/simpleTest/scripts"
+bin_dir = "@CMAKE_BINARY_DIR@/apollo/simpleTest"
+log_dir = "@CMAKE_BINARY_DIR@/apollo/simpleTest/scripts"
 
 g_logger = logging.getLogger("simpletest")
 g_log_formatter = logging.Formatter(

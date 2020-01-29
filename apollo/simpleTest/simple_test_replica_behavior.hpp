@@ -3,8 +3,8 @@
 
 #include <cstdint>
 #include <chrono>
-#include "../../../tests/config/test_parameters.hpp"
-#include "../../../tests/simpleTest/simple_test_replica.hpp"
+#include "../../../apollo/config/test_parameters.hpp"
+#include "../../../apollo/simpleTest/simple_test_replica.hpp"
 
 struct PersistencyTestInfo {
   uint32_t sleepBetweenRestartsMillis;

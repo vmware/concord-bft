@@ -36,7 +36,7 @@ class SimpleTest(unittest.TestCase):
         cls.testdir = tempfile.mkdtemp()
         cls.builddir = os.path.abspath("../../build")
         cls.toolsdir = os.path.join(cls.builddir, "tools")
-        cls.serverbin = os.path.join(cls.builddir,"tests/simpleTest/server")
+        cls.serverbin = os.path.join(cls.builddir,"apollo/simpleTest/server")
         os.chdir(cls.testdir)
         cls.generateKeys()
         cls.config = bft_config.Config(4, 1, 0, 4096, 1000, 50)
