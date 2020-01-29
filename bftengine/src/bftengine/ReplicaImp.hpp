@@ -323,7 +323,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
     return config_.thresholdVerifierForOptimisticCommit;
   }
 
-  virtual const ReplicasInfo& getReplicasInfo() override { return (*repsInfo); }
+  virtual const ReplicasInfo& getReplicasInfo() const override { return (*repsInfo); }
 
   void onViewsChangeTimer(concordUtil::Timers::Handle);
   void onRetransmissionsTimer(concordUtil::Timers::Handle);

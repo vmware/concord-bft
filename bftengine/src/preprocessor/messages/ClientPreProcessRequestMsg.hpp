@@ -12,6 +12,7 @@
 #pragma once
 
 #include "messages/ClientRequestMsg.hpp"
+#include "ReplicasInfo.hpp"
 #include <memory>
 
 namespace preprocessor {
@@ -26,9 +27,9 @@ class ClientPreProcessRequestMsg : public ClientRequestMsg {
     msgBody_->msgType = MsgCode::ClientPreProcessRequest;
   }
 
-  std::unique_ptr<MessageBase> convertToClientRequestMsg();
+  void validate(const bftEngine::impl::ReplicasInfo&) const override;
 
-  static bool ToActualMsgType(MessageBase* inMsg, ClientPreProcessRequestMsg*& outMsg);
+  std::unique_ptr<MessageBase> convertToClientRequestMsg();
 };
 
 typedef std::shared_ptr<ClientPreProcessRequestMsg> ClientPreProcessReqMsgSharedPtr;

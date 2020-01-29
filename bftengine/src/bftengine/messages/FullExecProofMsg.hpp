@@ -58,7 +58,7 @@ class FullExecProofMsg : public MessageBase {
   uint16_t executionProofLength() { return b()->executionProofLength; }
   const char* executionProof() { return body() + sizeof(FullExecProofMsgHeader) + b()->merkleRootLength; }
 
-  void validate(const ReplicasInfo&) override;
+  void validate(const ReplicasInfo&) const override;
 
  protected:
 #pragma pack(push, 1)

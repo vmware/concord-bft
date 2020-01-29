@@ -37,7 +37,7 @@ class MessageBase {
 
   virtual ~MessageBase();
 
-  virtual void validate(const ReplicasInfo &) {}
+  virtual void validate(const ReplicasInfo &) const {}
 
   bool equals(const MessageBase &other) const;
 

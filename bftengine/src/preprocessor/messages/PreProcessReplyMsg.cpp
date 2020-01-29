@@ -22,15 +22,12 @@ PreProcessReplyMsg::PreProcessReplyMsg(
   memcpy(body() + sizeof(PreProcessReplyMsgHeader), reply, replyLength);
 }
 
-bool PreProcessReplyMsg::ToActualMsgType(MessageBase* inMsg, PreProcessReplyMsg*& outMsg) {
-  Assert(inMsg->type() == MsgCode::PreProcessReply);
-  if (inMsg->size() < sizeof(PreProcessReplyMsgHeader)) return false;
+void PreProcessReplyMsg::validate(const ReplicasInfo& repInfo) const {
+  Assert(type() == MsgCode::PreProcessReply);
+  Assert(senderId() != repInfo.myId());
 
-  auto* msg = (PreProcessReplyMsg*)inMsg;
-  if (msg->size() < (sizeof(PreProcessReplyMsgHeader) + msg->msgBody()->requestLength)) return false;
-
-  outMsg = msg;
-  return true;
+  if (size() < sizeof(PreProcessReplyMsgHeader) + msgBody()->requestLength)
+    throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
 void PreProcessReplyMsg::setParams(NodeIdType senderId, ReqId reqSeqNum, ViewNum view, uint32_t replyLength) {

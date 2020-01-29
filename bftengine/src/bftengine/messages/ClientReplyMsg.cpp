@@ -52,7 +52,7 @@ void ClientReplyMsg::setReplyLength(uint32_t replyLength) {
 
 void ClientReplyMsg::setPrimaryId(ReplicaId primaryId) { b()->currentPrimaryId = primaryId; }
 
-void ClientReplyMsg::validate(const ReplicasInfo&) {
+void ClientReplyMsg::validate(const ReplicasInfo&) const {
   if (size() < ((int)sizeof(ClientReplyMsgHeader) + replyLength())) throw std::runtime_error(__PRETTY_FUNCTION__);
 
   // TODO(GG): the client should make sure that the message was actually sent by a valid replica

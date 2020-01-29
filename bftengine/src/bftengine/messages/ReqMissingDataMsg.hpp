@@ -46,7 +46,7 @@ class ReqMissingDataMsg : public MessageBase {
   void setFullCommitIsMissing() { b()->flags |= 0x80; }
   void setSlowPathHasStarted() { b()->flags |= 0x100; }
 
-  void validate(const ReplicasInfo&) override;
+  void validate(const ReplicasInfo&) const override;
 
  protected:
 #pragma pack(push, 1)

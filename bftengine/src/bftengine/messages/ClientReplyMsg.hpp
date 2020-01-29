@@ -49,7 +49,7 @@ class ClientReplyMsg : public MessageBase {
 
   uint64_t debugHash() const;
 
-  void validate(const ReplicasInfo&) override;
+  void validate(const ReplicasInfo&) const override;
 
   void setMsgSize(MsgSize size) { MessageBase::setMsgSize(size); }
 

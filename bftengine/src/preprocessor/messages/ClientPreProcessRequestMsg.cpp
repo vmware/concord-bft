@@ -17,15 +17,12 @@ namespace preprocessor {
 using namespace std;
 using namespace bftEngine;
 
-bool ClientPreProcessRequestMsg::ToActualMsgType(MessageBase* inMsg, ClientPreProcessRequestMsg*& outMsg) {
-  Assert(inMsg->type() == MsgCode::ClientPreProcessRequest);
-  if (inMsg->size() < sizeof(ClientRequestMsgHeader)) return false;
+void ClientPreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
+  Assert(type() == MsgCode::ClientPreProcessRequest);
+  Assert(senderId() != repInfo.myId());
 
-  auto* msg = (ClientPreProcessRequestMsg*)inMsg;
-  if (msg->size() < (sizeof(ClientRequestMsgHeader) + msg->msgBody()->requestLength)) return false;
-
-  outMsg = msg;
-  return true;
+  if (size() < (sizeof(ClientRequestMsgHeader) + msgBody()->requestLength))
+    throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
 unique_ptr<MessageBase> ClientPreProcessRequestMsg::convertToClientRequestMsg() {

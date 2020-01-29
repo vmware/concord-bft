@@ -23,7 +23,7 @@ SimpleAckMsg::SimpleAckMsg(SeqNum s, ViewNum v, ReplicaId senderId, uint64_t ack
   b()->ackData = ackData;
 }
 
-void SimpleAckMsg::validate(const ReplicasInfo& repInfo) {
+void SimpleAckMsg::validate(const ReplicasInfo& repInfo) const {
   if (size() < sizeof(SimpleAckMsgHeader) ||
       senderId() == repInfo.myId() ||  // sent from another replica (otherwise, we don't need to convert)
       !repInfo.isIdOfReplica(senderId()))

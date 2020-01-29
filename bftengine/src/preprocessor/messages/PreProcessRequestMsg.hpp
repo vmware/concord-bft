@@ -29,15 +29,17 @@ struct PreProcessRequestMsgHeader {
 class PreProcessRequestMsg : public MessageBase {
  public:
   PreProcessRequestMsg(NodeIdType sender, uint64_t reqSeqNum, ViewNum view, uint32_t reqLength, const char* request);
-
   PreProcessRequestMsg(const ClientPreProcessReqMsgSharedPtr& msg, ViewNum currentView);
 
-  void setParams(NodeIdType senderId, ReqId reqSeqNum, ViewNum view, uint32_t requestLength);
+  void validate(const bftEngine::impl::ReplicasInfo&) const override;
 
-  static bool ToActualMsgType(MessageBase* inMsg, PreProcessRequestMsg*& outMsg);
+ private:
+  void setParams(NodeIdType senderId, ReqId reqSeqNum, ViewNum view, uint32_t requestLength);
 
  private:
   PreProcessRequestMsgHeader* msgBody() const { return ((PreProcessRequestMsgHeader*)msgBody_); }
 };
+
+typedef std::shared_ptr<PreProcessRequestMsg> PreProcessRequestMsgSharedPtr;
 
 }  // namespace preprocessor

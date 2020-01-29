@@ -57,7 +57,7 @@ void NewViewMsg::finalizeMessage(const ReplicasInfo& repInfo) {
   shrinkToFit();
 }
 
-void NewViewMsg::validate(const ReplicasInfo& repInfo) {
+void NewViewMsg::validate(const ReplicasInfo& repInfo) const {
   const uint16_t expectedElements = (2 * repInfo.fVal() + 2 * repInfo.cVal() + 1);
   const uint16_t contentSize = sizeof(NewViewMsgHeader) + expectedElements * sizeof(NewViewElement);
 

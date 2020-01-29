@@ -62,7 +62,7 @@ class InternalReplicaApi  // TODO(GG): rename + clean + split to several classes
       const ViewNum relatedViewNumber,
       const std::forward_list<RetSuggestion>* const suggestedRetransmissions) = 0;  // TODO(GG): use generic iterators
 
-  virtual const ReplicasInfo& getReplicasInfo() = 0;
+  virtual const ReplicasInfo& getReplicasInfo() const = 0;
   virtual bool isValidClient(NodeIdType clientId) const = 0;
   virtual bool isIdOfReplica(NodeIdType id) const = 0;
   virtual const std::set<ReplicaId>& getIdsOfPeerReplicas() const = 0;
