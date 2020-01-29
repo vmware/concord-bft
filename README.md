@@ -116,7 +116,7 @@ to the old ABI for backwards compatibility You can change this with the followin
 Install packages from the project directory
     
     cd concord-bft
-    mkdir -p build
+    mkdir build
     cd build    
     conan install --build missing ..
  
