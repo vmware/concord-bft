@@ -75,6 +75,53 @@ concord-bft is available under the [Apache 2 license](LICENSE).
 
 Build (Ubuntu Linux 18.04)
 ----
+
+### Install Conan Package Manager
+
+Install Python 3
+
+    sudo apt-get update
+    sudo apt-get install python3
+
+After the installation, please verify the version by running:
+
+    python3 --version
+
+It should be
+
+    Python 3.x.x
+    
+Install with pip
+    
+    sudo apt install python3-pip
+    
+Get g++:
+
+    sudo apt-get install g++
+
+Install Conan:
+
+    pip install conan
+
+Test your conan script, You should see the Conan commands help.
+    
+    conan
+
+If you are using GCC compiler >= 5.1, Conan will set the compiler.libcxx
+to the old ABI for backwards compatibility You can change this with the following commands:
+    
+    conan profile new default --detect
+    conan profile update settings.compiler.libcxx=libstdc++11 default
+
+Install packages
+    
+    cd
+    mkdir -p concord-bft/build
+    cd concord-bft/build    
+    conan install --build missing ..
+ 
+
+
 ### Dependencies
 
 CMake and clang:
@@ -97,58 +144,12 @@ Build and install [RELIC](https://github.com/relic-toolkit/relic)
     make
     sudo make install
 
-Build and install [cryptopp](https://github.com/weidai11/cryptopp)
-
-    cd
-    git clone https://github.com/weidai11/cryptopp.git
-    cd cryptopp/
-    git checkout CRYPTOPP_8_2_0;
-    make
-    sudo make install
-
-Get GNU Parallel
-
-    sudo apt-get install parallel
-
-Get g++:
-
-    sudo apt-get install g++
-
-Get OpenSSL:
-We use OpenSSL for TLS communication and SHA3. For SHA3, OpenSSL must be >=
-version 1.1.1. This is the latest update to Ubuntu 18.04.
-
-    sudo apt-get install openssl libssl-dev
-
 #### (Optional) Use log4cplus
 
 We have simple console logger but if you wish to use log4cplus - we have an
 infra that supports it.
 
-Follow below steps for installing this library:
-1. Install prerequisites:
-
-```
-    sudo apt-get install autoconf automake
-```
-
-2. Clone the repository:
-
-```
-    git clone https://github.com/log4cplus/log4cplus.git
-```
-
-3. Move to the extracted directory and checkout the appropriate branch:
-
-```
-    cd log4cplus
-    git checkout REL_1_2_1
-```
-
-4. Edit `configure` to change "am__api_version" from 1.14 to 1.15, the
-version that ubuntu 16.04 supports.
-
-5. Configure/make/install
+Configure/make/install
 
 ```
     ./configure CXXFLAGS="--std=c++11"
@@ -158,47 +159,7 @@ version that ubuntu 16.04 supports.
 
 Configuring with these flags is important. If log4cplus is build without `c++11` then athena will give linker errors while building.
 
-At this point all library files and header files should be installed into `/usr/local`. (You may need to add `/usr/local/lib` to your `LD_LIBRARY_PATH`).
-You may also need to export CPLUS_INCLUDE_PATH variable set to /usr/local/include for the header files.
-
 After installation, set USE_LOG4CPP flag to TRUE in the main CmakeLists.txt . The library doesn't initialize the log4cpp subsystem, including formats and appenders, it expects that the upper level application will do it and the log4cpp subsystem is already initialized.
-
-#### (Optional) If you want to use Python test script
-Install Python 3
-
-    sudo apt-get update
-    sudo apt-get install python3
-
-After the installation, please verify the version by running:
-
-    python3 --version
-
-It should be
-
-    Python 3.x.x
-
-#### (Optional) Boost
-We use Boost both for:
- * optional plain TCP or TLS communication
- * optional concord::kvbc::BlockchainView code residing in kvbc
-
-Please follow these instructions to install this library
-
-Download Boost version 1.64
-
-    wget https://dl.bintray.com/boostorg/release/1.64.0/source/boost_1_64_0.tar.gz
-
-Unpack the archive
-
-    tar -xf boost_1_64_0.tar.gz
-
-Build and install Boost (note that these commands will install only modules
-that are mandatory for building this project)
-
-    cd boost_1_64_0
-    ./bootstrap.sh --with-libraries=system,filesystem
-    ./b2
-    sudo ./b2 install
 
 ### Select comm module
 We support both UDP and TCP communication. UDP is the default. In order to
@@ -217,8 +178,6 @@ running simpleTest using the testReplicasAndClient.sh - there is no need to crea
 
 Create a build directory and enter it:
 
-    cd
-    mkdir -p concord-bft/build
     cd concord-bft/build
 
 To perform a default build execute the following:
@@ -248,7 +207,6 @@ python, you can configure the build of concord-bft by running `cmake
 
 The python client requires python3(>= 3.5) and trio, which is installed via pip.
 
-    sudo apt install python3 python3-pip
     python3 -m pip install --upgrade trio
 
 Run examples
