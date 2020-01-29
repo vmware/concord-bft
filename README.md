@@ -113,11 +113,11 @@ to the old ABI for backwards compatibility You can change this with the followin
     conan profile new default --detect
     conan profile update settings.compiler.libcxx=libstdc++11 default
 
-Install packages
+Install packages from the project directory
     
-    cd
-    mkdir -p concord-bft/build
-    cd concord-bft/build    
+    cd concord-bft
+    mkdir -p build
+    cd build    
     conan install --build missing ..
  
 
