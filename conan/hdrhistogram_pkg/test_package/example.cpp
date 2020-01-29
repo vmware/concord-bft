@@ -1,5 +1,5 @@
 #include <iostream>
-#include "hdr_histogram.h"
+#include <hdr_histogram/hdr_histogram.h>
 
 int main() {
     struct hdr_histogram* histogram;

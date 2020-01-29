@@ -36,7 +36,7 @@ conan_basic_setup()''')
         cmake.build()
 
     def package(self):
-        self.copy("*.h", dst="include", src="src")
+        self.copy("*.h", dst="hdr_histogram", src="src")
         self.copy("*hdr_histogram.lib", dst="lib", keep_path=False)
         self.copy("*.dll", dst="bin", keep_path=False)
         self.copy("*.so*", dst="lib", keep_path=False)
@@ -45,4 +45,6 @@ conan_basic_setup()''')
 
     def package_info(self):
         self.cpp_info.libs = ["hdr_histogram"]
+        self.cpp_info.includedirs = [self.package_folder]
+
 

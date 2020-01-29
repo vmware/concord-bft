@@ -89,7 +89,7 @@ function(link_with_relic_library targetName)
     target_link_libraries(${targetName}
         PUBLIC
         ${CONAN_LIB_DIRS_RELIC}/librelic_s.a
-        ${GMP_STATIC_LIBRARY}
+        ${CONAN_LIB_DIRS_GMPLIB}/libgmp.a
         CONAN_PKG::cryptopp)
 endfunction()
 
@@ -143,7 +143,7 @@ if(hasParent)
 endif()
 include_directories(${CONAN_INCLUDE_DIRS_RELIC})
 
-find_library(GMP_STATIC_LIBRARY NAMES "libgmp.a")
+#find_library(GMP_STATIC_LIBRARY NAMES "libgmp.a")
 
 #find_library(CRYPTOPP_STATIC_LIBRARY NAMES "libcryptopp.a")
 

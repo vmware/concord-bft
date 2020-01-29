@@ -5,6 +5,7 @@ gtest/1.8.1@bincrafters/stable
 log4cplus/1.2.1@bincrafters/stable
 OpenSSL/1.1.1@conan/stable
 relic/0.4.0
+gmplib/6.2.0
 
 [generators]
 cmake
