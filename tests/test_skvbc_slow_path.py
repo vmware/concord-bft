@@ -46,6 +46,10 @@ class SkvbcSlowPathTest(unittest.TestCase):
         self.evaluation_period_seq_num = 64
 
     @with_trio
+    async def test_Mock(self):
+        assert True is False
+
+    @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: c == 0)
     @verify_linearizability
