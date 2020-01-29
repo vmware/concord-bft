@@ -219,8 +219,12 @@ BatchedInternalNode::RemoveResult BatchedInternalNode::remove(const Hash& key, s
   }
 
   // We have reached level 0 of this BatchedInternalNode and it points to
-  // another BatchedInternalNode where the child may reside. Inform the caller.
-  return Descend{};
+  // another BatchedInternalNode where the child may reside.
+  //
+  // We must retrieve the version of the next BatchedInternalNode so that the
+  // caller can retrieve it and try to delete the Leaf inside that node.
+  auto version = std::get<InternalChild>(children_[index].value()).version;
+  return Descend{version};
 }
 
 BatchedInternalNode::RemoveResult BatchedInternalNode::removeLeafChild(size_t index,

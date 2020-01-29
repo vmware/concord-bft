@@ -18,9 +18,9 @@ using namespace concord::storage::sparse_merkle;
 
 // Return a new hash with the given bit flipped for the given hash.
 //
-// Flip the most significant bit. So bit 0 to be flipped would be the first bit,
-// bit 1, the second bit, etc...
-Hash flipMSBit(size_t bit, const Hash& hash) {
+// Flip a given bit starting from the most significant bit. So bit 0 to be
+// flipped would be the first bit, bit 1, the second bit, etc...
+Hash flipByte0Bit(size_t bit, const Hash& hash) {
   Assert(bit < 8);
   // Flip the first bit so that key1_hash becomes a sibling of key2_hash
   std::array<uint8_t, Hash::SIZE_IN_BYTES> flipped;
@@ -173,7 +173,7 @@ TEST(insert_tests, create_two_leaves_with_one_parent) {
   auto key1_hash = hasher.hash(key1, strlen(key1));
 
   // Flip the first bit so that key1_hash becomes a sibling of key2_hash
-  auto key2_hash = flipMSBit(0, key1_hash);
+  auto key2_hash = flipByte0Bit(0, key1_hash);
   ASSERT_EQ(0, key1_hash.prefix_bits_in_common(key2_hash));
 
   auto value1_hash = hasher.hash(value1, strlen(value1));
@@ -238,7 +238,7 @@ TEST(insert_tests, split_leaf) {
 
   // Flip the second bit so that key1_hash becomes a sibling of key2_hash at
   // height 2.
-  auto key2_hash = flipMSBit(1, key1_hash);
+  auto key2_hash = flipByte0Bit(1, key1_hash);
   ASSERT_EQ(1, key1_hash.prefix_bits_in_common(key2_hash));
 
   auto value1_hash = hasher.hash(value1, strlen(value1));
@@ -330,7 +330,7 @@ TEST(insert_tests, split_until_new_batch_node_needed) {
 
   // Flip the 5th bit so that key1_hash becomes a sibling of key2_hash at
   // height -1 (in a new node).
-  auto key2_hash = flipMSBit(4, key1_hash);
+  auto key2_hash = flipByte0Bit(4, key1_hash);
   ASSERT_EQ(4, key1_hash.prefix_bits_in_common(key2_hash));
 
   auto value1_hash = hasher.hash(value1, strlen(value1));
@@ -383,6 +383,8 @@ TEST(insert_tests, split_until_new_batch_node_needed) {
 //     |
 //    Leaf
 //
+// After removal of Leaf, this BatchedInternalNode will be removed by the caller.
+//
 TEST(remove_tests, remove_a_single_leaf) {
   BatchedInternalNode node;
 
@@ -414,7 +416,7 @@ TEST(remove_tests, remove_a_single_leaf) {
   // Leaf and this node below it if that were the case.
   //
   // Flip the 5th bit.
-  auto partially_matching_hash = flipMSBit(4, key1_hash);
+  auto partially_matching_hash = flipByte0Bit(4, key1_hash);
   remove_result = node.remove(partially_matching_hash, depth, version);
   ASSERT_TRUE(std::holds_alternative<BatchedInternalNode::NotFound>(remove_result));
 
@@ -435,6 +437,9 @@ TEST(remove_tests, remove_a_single_leaf) {
 //         /   \
 //      Leaf   Leaf
 //
+// After removal of a Leaf, the other will be promoted and this
+// BatchedInternalNode will be removed by the caller.
+//
 */
 TEST(remove_tests, remove_a_leaf_with_a_peer) {
   BatchedInternalNode node;
@@ -448,7 +453,7 @@ TEST(remove_tests, remove_a_leaf_with_a_peer) {
   auto key1_hash = hasher.hash(key1, strlen(key1));
 
   // Flip the first bit so that key1_hash becomes a sibling of key2_hash
-  auto key2_hash = flipMSBit(0, key1_hash);
+  auto key2_hash = flipByte0Bit(0, key1_hash);
 
   ASSERT_EQ(0, key1_hash.prefix_bits_in_common(key2_hash));
 
@@ -491,6 +496,16 @@ TEST(remove_tests, remove_a_leaf_with_a_peer) {
 //         |
 //        / \
 //   Leaf3   Leaf1
+//
+//
+// The logical tree looks like the following after Leaf1 is removed:
+//
+//                Root
+//                 |
+//         -----------------
+//         |               |
+//       Leaf3            Leaf2
+//
 */
 TEST(remove_tests, remove_a_leaf_with_a_leaf_peer_from__batched_internal_node_with_3_leaves) {
   BatchedInternalNode node;
@@ -505,11 +520,11 @@ TEST(remove_tests, remove_a_leaf_with_a_leaf_peer_from__batched_internal_node_wi
 
   // Flip the first bit so that key1_hash becomes a sibling of key2_hash at
   // depth 1.
-  auto key2_hash = flipMSBit(0, key1_hash);
+  auto key2_hash = flipByte0Bit(0, key1_hash);
 
   // Flip the second bit so that key1_hash becomes a sibling of key3_hash at
   // height depth 2.
-  auto key3_hash = flipMSBit(1, key1_hash);
+  auto key3_hash = flipByte0Bit(1, key1_hash);
 
   ASSERT_EQ(0, key1_hash.prefix_bits_in_common(key2_hash));
   ASSERT_EQ(1, key1_hash.prefix_bits_in_common(key3_hash));
@@ -563,6 +578,19 @@ TEST(remove_tests, remove_a_leaf_with_a_leaf_peer_from__batched_internal_node_wi
 //         |
 //        / \
 //   Leaf3   Leaf1
+//
+//
+// The logical tree looks like the following after Leaf2 is removed:
+//
+//                Root
+//                 |
+//         -----------------
+//         |               |
+//      Internal       PLACEHOLDER
+//         |
+//        / \
+//   Leaf3   Leaf1
+//
 */
 TEST(remove_tests, remove_a_leaf_with_internal_peer_from_batched_internal_node_with_3_leaves) {
   BatchedInternalNode node;
@@ -577,11 +605,11 @@ TEST(remove_tests, remove_a_leaf_with_internal_peer_from_batched_internal_node_w
 
   // Flip the first bit so that key1_hash becomes a sibling of key2_hash at
   // depth 1.
-  auto key2_hash = flipMSBit(0, key1_hash);
+  auto key2_hash = flipByte0Bit(0, key1_hash);
 
   // Flip the second bit so that key1_hash becomes a sibling of key3_hash at
   // height depth 2.
-  auto key3_hash = flipMSBit(1, key1_hash);
+  auto key3_hash = flipByte0Bit(1, key1_hash);
 
   ASSERT_EQ(0, key1_hash.prefix_bits_in_common(key2_hash));
   ASSERT_EQ(1, key1_hash.prefix_bits_in_common(key3_hash));
@@ -661,11 +689,11 @@ TEST(remove_tests, remove_a_leaf_at_depth_3_with_a_leaf_peer_and_another_peer_at
 
   // Flip the first bit so that key1_hash becomes a sibling of key2_hash at
   // depth 1.
-  auto key2_hash = flipMSBit(0, key1_hash);
+  auto key2_hash = flipByte0Bit(0, key1_hash);
 
   // Flip the third bit bit so that key1_hash becomes a sibling of key3_hash at
   // height depth 3.
-  auto key3_hash = flipMSBit(2, key1_hash);
+  auto key3_hash = flipByte0Bit(2, key1_hash);
 
   ASSERT_EQ(0, key1_hash.prefix_bits_in_common(key2_hash));
   ASSERT_EQ(2, key1_hash.prefix_bits_in_common(key3_hash));
@@ -722,6 +750,9 @@ TEST(remove_tests, remove_a_leaf_at_depth_3_with_a_leaf_peer_and_another_peer_at
 //     / \
 // Leaf3  Leaf1
 //
+//
+// After removal of Leaf1, Leaf3 will be promoted and this BatchedInternalNode
+// will be removed by the caller.
 */
 TEST(remove_tests, remove_a_leaf_at_depth_3_with_a_leaf_peer_and_no_other_leaves) {
   BatchedInternalNode node;
@@ -735,7 +766,7 @@ TEST(remove_tests, remove_a_leaf_at_depth_3_with_a_leaf_peer_and_no_other_leaves
 
   // Flip the third bit bit so that key1_hash becomes a sibling of key3_hash at
   // height depth 3.
-  auto key3_hash = flipMSBit(2, key1_hash);
+  auto key3_hash = flipByte0Bit(2, key1_hash);
 
   ASSERT_EQ(2, key1_hash.prefix_bits_in_common(key3_hash));
 
@@ -786,6 +817,9 @@ TEST(remove_tests, remove_a_leaf_at_depth_3_with_a_leaf_peer_and_no_other_leaves
 //     / \
 // Leaf3 Leaf1
 //
+//
+// After removal of Leaf1, Leaf3 will be promoted and this BatchedInternalNode
+// will be removed by the caller.
 */
 TEST(remove_tests, remove_a_mismatched_leaf_at_depth_4) {
   BatchedInternalNode node;
@@ -799,11 +833,11 @@ TEST(remove_tests, remove_a_mismatched_leaf_at_depth_4) {
 
   // Flip the 4th bit bit so that key1_hash becomes a sibling of key3_hash at
   // height depth 3.
-  auto key3_hash = flipMSBit(3, key1_hash);
+  auto key3_hash = flipByte0Bit(3, key1_hash);
 
   // Flip the fifth bit of key1_hash so that it will collide in the first
   // nibble.
-  auto partially_matching_hash = flipMSBit(4, key1_hash);
+  auto partially_matching_hash = flipByte0Bit(4, key1_hash);
 
   ASSERT_EQ(3, key1_hash.prefix_bits_in_common(key3_hash));
 
@@ -831,7 +865,7 @@ TEST(remove_tests, remove_a_mismatched_leaf_at_depth_4) {
 
 /*
 // The logical tree inside the BatchedInternalNode looks like the following
-// before the remove:
+// before and after the remove:
 //
 //                               Root
 //                                 |
@@ -872,7 +906,7 @@ TEST(remove_tests, descend_because_requested_node_is_internal) {
 
   // Flip the 5th bit so that key1_hash becomes a sibling of key2_hash at
   // height -1 (in a new node).
-  auto key2_hash = flipMSBit(4, key1_hash);
+  auto key2_hash = flipByte0Bit(4, key1_hash);
   ASSERT_EQ(4, key1_hash.prefix_bits_in_common(key2_hash));
 
   auto value1_hash = hasher.hash(value1, strlen(value1));
@@ -891,6 +925,7 @@ TEST(remove_tests, descend_because_requested_node_is_internal) {
 
   auto result = node.remove(key1_hash, depth, Version(3));
   ASSERT_TRUE(std::holds_alternative<BatchedInternalNode::Descend>(result));
+  ASSERT_EQ(Version(2), std::get<BatchedInternalNode::Descend>(result).version);
 }
 
 int main(int argc, char** argv) {

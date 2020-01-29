@@ -17,154 +17,53 @@ using namespace concordUtils;
 
 namespace concord::storage::sparse_merkle {
 
-// All data that is loaded from the DB, manipulated, and/or returned from a
-// call to `update`.
-//
-// A new instance of this structure is created during every update call.
-struct UpdateCache {
-  UpdateCache(const BatchedInternalNode& root, const std::shared_ptr<IDBReader>& db_reader) : db_reader_(db_reader) {
-    internal_nodes_[NibblePath()] = root;
-  }
-
-  // Get a node if it's in the cache, otherwise get it from the DB.
-  BatchedInternalNode getInternalNode(const InternalNodeKey& key) {
-    auto it = internal_nodes_.find(key.path());
-    if (it != internal_nodes_.end()) {
-      return it->second;
-    }
-    return db_reader_->get_internal(key);
-  }
-
-  std::shared_ptr<IDBReader> db_reader_;
-  Tree::StaleNodeIndexes stale_;
-
-  // All the internal nodes related to the current batch update.
-  //
-  // These nodes are mutable and are all being updated to a single version.
-  // Therefore we key them by their NibblePath alone, without a version.
-  std::map<NibblePath, BatchedInternalNode> internal_nodes_;
-};
-
-// The state of the insert loop.
-//
-// The data in here is only relevant to a single insert.
-//
-// This mainly exists to allow easily splitting up the insert code into separate
-// functions based upon the return value of the BatchedInternalNode insert.
-struct InsertState {
-  InsertState(const BatchedInternalNode& current, Version version, Tree::NodeStack& stack)
-      : current_node(current), version(version), stack(stack) {}
-
-  size_t depth = 0;
-  NibblePath nibble_path;
-  BatchedInternalNode current_node;
-  Version version;
-  std::stack<BatchedInternalNode, std::vector<BatchedInternalNode>>& stack;
-};
-
-// Insert to a BatchedInternalNode completed successfully. Finish processing the
-// call to insert.
-void handleInsertComplete(const BatchedInternalNode::InsertComplete* result, UpdateCache& cache, InsertState& state) {
-  // If there is a stale leaf key then save it.
-  if (result->stale_leaf) {
-    cache.stale_.leaf_keys.push_back(result->stale_leaf.value());
-  }
-
-  // This is bottom most internal node for the given leaf_key.
-  cache.internal_nodes_[state.nibble_path] = state.current_node;
+void insertComplete(Tree::Walker& walker, const BatchedInternalNode::InsertComplete& result) {
+  walker.putStale(result.stale_leaf);
+  // Save the bottom most internal node for the given leaf_key.
+  walker.cacheCurrentNode();
 
   // Walk the stack of internal nodes upwards toward the root, updating the
-  // hashes as we go along.
-  while (!state.stack.empty()) {
-    Hash hash = state.current_node.hash();
-    state.current_node = state.stack.top();
-    state.stack.pop();
-
-    // We want to just update the hash of leaf child pointing to the next
-    // BatchedInternalNode. This triggers the root hash of the
-    // BatchedInternalNode to be calculated.
-    Nibble child_key = state.nibble_path.popBack();
-    InternalChild update{hash, state.version};
-    state.current_node.write_internal_child_at_level_0(child_key, update);
-
-    // Write this node into our into our cache of internal nodes
-    cache.internal_nodes_[state.nibble_path] = state.current_node;
+  // hashes as we go along, and caching the updated nodes.
+  while (!walker.atRoot()) {
+    walker.ascend();
   }
 }
 
-// Save the current InternalNodeKey as stale when it is a valid version, and
-// hasn't already been cached.
-void cacheStaleInternalNode(UpdateCache& cache, const InsertState& state) {
-  if (state.current_node.version() != Version(0) && state.current_node.version() != state.version) {
-    cache.stale_.internal_keys.emplace_back(InternalNodeKey(state.current_node.version(), state.nibble_path));
-  }
-}
-
-// Modify the insert state to walk further down the tree
-void descend(Nibble next_nibble, Version next_version, UpdateCache& cache, InsertState& state) {
-  state.nibble_path.append(next_nibble);
-  InternalNodeKey next_internal_key{next_version, state.nibble_path};
-  state.current_node = cache.getInternalNode(next_internal_key);
-  cacheStaleInternalNode(cache, state);
-  state.depth++;
-}
-
-// A node split has occurred, due to a collision, triggering the need to create more
-// BatchedInternalNodes.
-void create_internal_nodes(const LeafChild& stored_child, const LeafChild& child_to_insert, InsertState& state) {
-  int nodes_to_create = child_to_insert.key.hash().prefix_bits_in_common(stored_child.key.hash(), state.depth) / 4;
-  for (int i = 0; i < nodes_to_create - 1; i++) {
-    // Add a bunch of empty intermediate nodes
-    state.nibble_path.append(child_to_insert.key.getNibble(state.depth));
-    state.stack.emplace(BatchedInternalNode());
-    state.depth++;
-  }
-  // Create the bottom most node and make it the current node
-  state.nibble_path.append(child_to_insert.key.getNibble(state.depth));
-  state.current_node = BatchedInternalNode();
-  state.depth++;
-}
-
-// A node split occurred due to a key collision.
+// We have a collision and need to create new internal nodes so that we reach
+// the appropriate depth of the tree to place the new child and stored child
+// that caused the collision.
 //
-// Create a bunch of new internal nodes and then insert the previously stored
-// child that collided with the child that was attempting to be inserted.
-//
-// On the next loop around the `child_to_insert` will be successfully inserted
-// inside `state.current_node`.
-void handleNodeSplit(const BatchedInternalNode::CreateNewBatchedInternalNodes& result,
-                     const LeafChild& child_to_insert,
-                     InsertState& state) {
-  create_internal_nodes(result.stored_child, child_to_insert, state);
-
-  // Ignore results. We already know this insert will succeed.
-  state.current_node.insert(result.stored_child, state.depth);
+// Once we have created the proper depth, we can be sure that the inserts will
+// succeed at the attempt, since this is precisely where they belong after
+// walking the prefix bits they have in common. Both successful inserts return
+// BatchedInternalNode::InsertComplete.
+void handleCollision(Tree::Walker& walker, const LeafChild& stored_child, const LeafChild& new_child) {
+  int nodes_to_create = new_child.key.hash().prefix_bits_in_common(stored_child.key.hash(), walker.depth()) / 4;
+  walker.appendEmptyNodes(new_child.key.hash(), nodes_to_create);
+  walker.currentNode().insert(stored_child, walker.depth());
+  auto result = walker.currentNode().insert(new_child, walker.depth());
+  return insertComplete(walker, std::get<BatchedInternalNode::InsertComplete>(result));
 }
 
-// Insert a single leaf. This is called as part of `update`.
-void insert(UpdateCache& cache, const LeafChild& child, Version version, Tree::NodeStack& stack) {
-  const auto& root = cache.internal_nodes_[NibblePath()];
-  InsertState state(root, version, stack);
-  cacheStaleInternalNode(cache, state);
-
+// Insert a LeafChild into the proper BatchedInternalNode. Handle all possible
+// responses and walk the tree as appropriate to get to the correct node, where
+// the insert will succeed.
+void insert(Tree::Walker& walker, const LeafChild& child) {
   while (true) {
-    Assert(state.depth < Hash::MAX_NIBBLES);
+    Assert(walker.depth() < Hash::MAX_NIBBLES);
 
-    auto result = state.current_node.insert(child, state.depth);
+    auto result = walker.currentNode().insert(child, walker.depth());
 
     if (auto rv = std::get_if<BatchedInternalNode::InsertComplete>(&result)) {
-      return handleInsertComplete(rv, cache, state);
+      return insertComplete(walker, *rv);
     }
 
-    // Push the current node onto the stack so that we can update the hash and
-    // version when we are done.
-    state.stack.push(state.current_node);
-
-    if (auto rv = std::get_if<BatchedInternalNode::InsertIntoExistingNode>(&result)) {
-      descend(child.key.getNibble(state.depth), rv->next_node_version, cache, state);
-    } else {
-      handleNodeSplit(std::get<BatchedInternalNode::CreateNewBatchedInternalNodes>(result), child, state);
+    if (auto rv = std::get_if<BatchedInternalNode::CreateNewBatchedInternalNodes>(&result)) {
+      return handleCollision(walker, rv->stored_child, child);
     }
+
+    auto next_node_version = std::get<BatchedInternalNode::InsertIntoExistingNode>(result).next_node_version;
+    walker.descend(child.key.hash(), next_node_version);
   }
 }
 
@@ -174,25 +73,102 @@ Tree::UpdateBatch Tree::update(const SetOfKeyValuePairs& updates, const KeysVect
 
   UpdateBatch batch;
   UpdateCache cache(root_, db_reader_);
-  auto version = get_version() + 1;
+  auto version = cache.version();
   Hasher hasher;
   for (auto&& [key, val] : updates) {
     auto leaf_hash = hasher.hash(val.data(), val.length());
     LeafNode leaf_node{val};
     LeafKey leaf_key{hasher.hash(key.data(), key.length()), version};
     LeafChild child{leaf_hash, leaf_key};
-    insert(cache, child, version, insert_stack_);
+    Walker walker(node_stack_, cache);
+    insert(walker, child);
     batch.leaf_nodes.push_back(std::make_pair(leaf_key, leaf_node));
   }
 
   // Create and return the UpdateBatch
-  batch.stale = std::move(cache.stale_);
+  batch.stale = std::move(cache.stale());
   batch.stale.stale_since_version = version;
-  for (auto& it : cache.internal_nodes_) {
+  for (auto& it : cache.internalNodes()) {
     batch.internal_nodes.emplace_back(InternalNodeKey(version, it.first), it.second);
   }
 
   return batch;
+}
+
+BatchedInternalNode Tree::UpdateCache::getInternalNode(const InternalNodeKey& key) {
+  auto it = internal_nodes_.find(key.path());
+  if (it != internal_nodes_.end()) {
+    return it->second;
+  }
+  return db_reader_->get_internal(key);
+}
+
+void Tree::UpdateCache::putStale(const std::optional<LeafKey>& key) {
+  if (key) {
+    stale_.leaf_keys.push_back(key.value());
+  }
+}
+
+void Tree::UpdateCache::put(const NibblePath& path, const BatchedInternalNode& node) { internal_nodes_[path] = node; }
+
+void Tree::UpdateCache::putStale(const InternalNodeKey& key) { stale_.internal_keys.emplace_back(key); }
+
+void Tree::UpdateCache::remove(const NibblePath& path) { internal_nodes_.erase(path); }
+
+void Tree::Walker::appendEmptyNodes(const Hash& key, int nodes_to_create) {
+  stack_.push(current_node_);
+  for (int i = 0; i < nodes_to_create - 1; i++) {
+    Nibble next_nibble = key.getNibble(depth());
+    nibble_path_.append(next_nibble);
+    stack_.emplace(BatchedInternalNode());
+  }
+  Nibble next_nibble = key.getNibble(depth());
+  nibble_path_.append(next_nibble);
+  current_node_ = BatchedInternalNode();
+}
+
+void Tree::Walker::descend(const Hash& key, Version next_version) {
+  stack_.push(current_node_);
+  Nibble next_nibble = key.getNibble(depth());
+  nibble_path_.append(next_nibble);
+  InternalNodeKey next_internal_key{next_version, nibble_path_};
+  current_node_ = cache_.getInternalNode(next_internal_key);
+  markCurrentNodeStale();
+}
+
+void Tree::Walker::cacheCurrentNode() { cache_.put(nibble_path_, current_node_); }
+
+void Tree::Walker::ascend() {
+  Assert(!stack_.empty());
+  // Get the hash of the updated node, and its location in the parent node
+  Hash hash = current_node_.hash();
+  Nibble child_key = nibble_path_.popBack();
+
+  current_node_ = stack_.top();
+  stack_.pop();
+
+  // We want to just update the hash of the leaf child pointing to the next
+  // BatchedInternalNode. This triggers the root hash of the BatchedInternalNode
+  // to be calculated.
+  InternalChild update{hash, version()};
+  current_node_.write_internal_child_at_level_0(child_key, update);
+  cache_.put(nibble_path_, current_node_);
+}
+
+void Tree::Walker::removeCurrentNode() {
+  markCurrentNodeStale();
+  cache_.remove(nibble_path_);
+  if (!stack_.empty()) {
+    // TODO: Ascend and delete if necessary
+  }
+}
+
+void Tree::Walker::markCurrentNodeStale() {
+  // Don't mark the initial root stale, and don't mark an already cached node
+  // stale.
+  if (current_node_.version() != Version(0) && current_node_.version() != version()) {
+    cache_.putStale(InternalNodeKey(current_node_.version(), nibble_path_));
+  }
 }
 
 }  // namespace concord::storage::sparse_merkle

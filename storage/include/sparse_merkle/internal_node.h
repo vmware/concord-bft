@@ -1,4 +1,5 @@
-// Concord //
+// Concord
+//
 // Copyright (c) 2019-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
@@ -202,7 +203,10 @@ class BatchedInternalNode {
 
   // A remove has failed, because the the leaf is further down the tree.
   // Instruct the caller to try the next node.
-  struct Descend {};
+  struct Descend {
+    // The version of the next BatchedInternalNode further down the tree.
+    Version version;
+  };
 
   typedef std::variant<RemoveComplete, NotFound, RemoveBatchedInternalNode, Descend> RemoveResult;
 
