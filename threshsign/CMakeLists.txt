@@ -1,5 +1,6 @@
 cmake_minimum_required (VERSION 3.2)
 # project(<name> VERSION <ver> LANGUAGES CXX)
+
 project(threshsign VERSION 0.1.0.0 LANGUAGES CXX)
 
 find_package(Threads REQUIRED)
@@ -87,7 +88,7 @@ string(APPEND CMAKE_CXX_FLAGS_TRACE
 function(link_with_relic_library targetName)
     target_link_libraries(${targetName}
         PUBLIC
-        ${RELIC_STATIC_LIBRARY}
+        ${CONAN_LIB_DIRS_RELIC}/librelic_s.a
         ${GMP_STATIC_LIBRARY}
         CONAN_PKG::cryptopp)
 endfunction()
@@ -135,13 +136,12 @@ endfunction()
 #  and
 # http://cmake.3232098.n2.nabble.com/Trying-to-set-up-a-quot-superbuild-quot-with-external-project-and-install-it-td6353184.html
 #
-find_package(relic REQUIRED)
-include_directories(${RELIC_INCLUDE_DIRS})
+#find_package(relic REQUIRED)
 get_directory_property(hasParent PARENT_DIRECTORY)
 if(hasParent)
-  set_property(DIRECTORY .. APPEND PROPERTY INCLUDE_DIRECTORIES ${RELIC_INCLUDE_DIRS})
+  set_property(DIRECTORY .. APPEND PROPERTY INCLUDE_DIRECTORIES ${CONAN_INCLUDE_DIRS_RELIC})
 endif()
-find_library(RELIC_STATIC_LIBRARY NAMES "librelic_s.a")
+include_directories(${CONAN_INCLUDE_DIRS_RELIC})
 
 find_library(GMP_STATIC_LIBRARY NAMES "libgmp.a")
 
