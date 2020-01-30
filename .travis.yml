@@ -2,7 +2,7 @@ dist: bionic
 language: cpp
 os: linux
 before_install:
-  - .travis/preinstall.sh
+  - .travis/preinstall.sh && .conan/install_conan_pkgs.sh
 compiler:
   - gcc
   - clang
