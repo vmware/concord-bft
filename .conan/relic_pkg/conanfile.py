@@ -33,16 +33,18 @@ conan_basic_setup()
 ''')
 
     def build(self):
-        cmake = CMake(self)
-        build_args = {"CMAKE_BUILD_TYPE": "RelWithDebInfo", 'ALLOC': 'AUTO', 'WSIZE': 64,
-                      'RAND': 'UDEV', 'SHLIB': 'on', 'STLIB': 'on', 'STBIN': 'off', 'TIMER': 'HREAL', 'CHECK': 'on',
-                      'VERBS': 'on', 'ARITH': 'x64-asm-254', 'FP_PRIME': 254,
-                      'FP_METHD': 'INTEG;INTEG;INTEG;MONTY;LOWER;SLIDE',
-                      'COMP': '-O3 -funroll-loops -fomit-frame-pointer -finline-small-functions -march=native -mtune=native',
-                      'FP_PMERS': 'off', 'FP_QNRES': 'on', 'FPX_METHD': 'INTEG;INTEG;LAZYR', 'PP_METHD': 'LAZYR;OATEP',
-                      'CMAKE_CXX_COMPILER': 'g++', 'CMAKE_C_COMPILER': 'gcc'}
-        cmake.configure(defs=build_args)
-        cmake.build()
+        # cmake = CMake(self)
+        # build_args = {"CMAKE_BUILD_TYPE": "RelWithDebInfo", 'ALLOC': 'AUTO', 'WSIZE': 64,
+        #               'RAND': 'UDEV', 'SHLIB': 'on', 'STLIB': 'on', 'STBIN': 'off', 'TIMER': 'HREAL', 'CHECK': 'on',
+        #               'VERBS': 'on', 'ARITH': 'x64-asm-254', 'FP_PRIME': 254,
+        #               'FP_METHD': 'INTEG;INTEG;INTEG;MONTY;LOWER;SLIDE',
+        #               'COMP': '-O3 -funroll-loops -fomit-frame-pointer -finline-small-functions -march=native -mtune=native',
+        #               'FP_PMERS': 'off', 'FP_QNRES': 'on', 'FPX_METHD': 'INTEG;INTEG;LAZYR', 'PP_METHD': 'LAZYR;OATEP',
+        #               'CMAKE_CXX_COMPILER': 'g++', 'CMAKE_C_COMPILER': 'gcc'}
+        # cmake.configure(defs=build_args)
+        # cmake.build()
+        self.run('CC=/usr/bin/gcc CXX=/usr/bin/g++ cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DALLOC=AUTO -DWSIZE=64 -DRAND=UDEV -DSHLIB=ON -DSTLIB=ON -DSTBIN=OFF -DTIMER=HREAL -DCHECK=on -DVERBS=on -DARITH=x64-asm-254 -DFP_PRIME=254 -DFP_METHD="INTEG;INTEG;INTEG;MONTY;LOWER;SLIDE" -DCOMP="-O3 -funroll-loops -fomit-frame-pointer -finline-small-functions -march=native -mtune=native" -DFP_PMERS=off -DFP_QNRES=on -DFPX_METHD="INTEG;INTEG;LAZYR" -DPP_METHD="LAZYR;OATEP"')
+        self.run('CC=/usr/bin/gcc CXX=/usr/bin/g++ make')
 
     def package(self):
         self.copy("*.h", dst="relic", src="include")
