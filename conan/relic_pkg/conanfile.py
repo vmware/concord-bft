@@ -18,10 +18,11 @@ class RelicConan(ConanFile):
     generators = "cmake"
 
     def requirements(self):
-        self.requires("gmplib/6.2.0")
+        self.requires("gmp/6.1.2@bincrafters/stable")
+
     #
-    # def configure(self):
-    #     self.options["zlib"].shared = True
+    def configure(self):
+        self.options["gmp"].shared = False
 
     def source(self):
         tools.replace_in_file("CMakeLists.txt", 'project(RELIC C CXX)',
@@ -29,21 +30,15 @@ class RelicConan(ConanFile):
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup()
 ''')
-        tools.replace_in_file("CMakeLists.txt", 'endif(BENCH GREATER 0)',
-                              '''endif(BENCH GREATER 0)
-if(ARITH STREQUAL "gmp")
-    include_directories(${CONAN_INCLUDE_DIRS_GMPLIB})
-    set(ARITH_LIBS ${CONAN_LIBS_GMPLIB})
-endif(ARITH STREQUAL "gmp")
-                              ''')
 
     def build(self):
         cmake = CMake(self)
-        build_args = {"CMAKE_BUILD_TYPE" : "RelWithDebInfo", 'ALLOC': 'AUTO', 'WSIZE': 64,
-                      'RAND' : 'UDEV', 'SHLIB': 'on', 'STLIB': 'on', 'STBIN': 'off', 'TIMER': 'HREAL', 'CHECK' :'on',
-                      'VERBS' :'on', 'ARITH': 'x64-asm-254', 'FP_PRIME': 254, 'FP_METHD' : 'INTEG;INTEG;INTEG;MONTY;LOWER;SLIDE',
+        build_args = {"CMAKE_BUILD_TYPE": "RelWithDebInfo", 'ALLOC': 'AUTO', 'WSIZE': 64,
+                      'RAND': 'UDEV', 'SHLIB': 'on', 'STLIB': 'on', 'STBIN': 'off', 'TIMER': 'HREAL', 'CHECK': 'on',
+                      'VERBS': 'on', 'ARITH': 'x64-asm-254', 'FP_PRIME': 254,
+                      'FP_METHD': 'INTEG;INTEG;INTEG;MONTY;LOWER;SLIDE',
                       'COMP': '-O3 -funroll-loops -fomit-frame-pointer -finline-small-functions -march=native -mtune=native',
-                      'FP_PMERS' :'off', 'FP_QNRES': 'on', 'FPX_METHD': 'INTEG;INTEG;LAZYR', 'PP_METHD': 'LAZYR;OATEP'}
+                      'FP_PMERS': 'off', 'FP_QNRES': 'on', 'FPX_METHD': 'INTEG;INTEG;LAZYR', 'PP_METHD': 'LAZYR;OATEP'}
         cmake.configure(defs=build_args)
         cmake.build()
 
@@ -63,4 +58,3 @@ endif(ARITH STREQUAL "gmp")
     def package_info(self):
         self.cpp_info.libs = ["relic"]
         self.cpp_info.includedirs = [self.package_folder]
-
