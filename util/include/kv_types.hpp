@@ -29,4 +29,10 @@ typedef uint64_t BlockId;
 
 }  // namespace concordUtils
 
+// Provide hashing for slivers without requiring the user to incldue the header
+// and get confused from a weird template error.
+//
+// Note that this must come after the typedefs above.
+#include "hash_defs.h"
+
 #endif  // CONCORD_BFT_UTIL_KV_TYPES_H_

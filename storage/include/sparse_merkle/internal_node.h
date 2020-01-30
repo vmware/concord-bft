@@ -205,7 +205,7 @@ class BatchedInternalNode {
   // Instruct the caller to try the next node.
   struct Descend {
     // The version of the next BatchedInternalNode further down the tree.
-    Version version;
+    Version next_node_version;
   };
 
   typedef std::variant<RemoveComplete, NotFound, RemoveBatchedInternalNode, Descend> RemoveResult;
@@ -270,7 +270,7 @@ class BatchedInternalNode {
 
   // Remove the LeafChild at the given index. Updates of children should be set
   // to new_version.
-  RemoveResult removeLeafChild(size_t index, Version new_version, Version stored_version);
+  RemoveResult removeLeafChild(size_t index, Version new_version, Version stored_version, size_t depth);
 
   // Return true if the index does not contain a child.
   bool isEmpty(size_t index) const { return !children_.at(index).has_value(); }
