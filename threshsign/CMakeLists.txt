@@ -88,8 +88,8 @@ string(APPEND CMAKE_CXX_FLAGS_TRACE
 function(link_with_relic_library targetName)
     target_link_libraries(${targetName}
         PUBLIC
-        ${CONAN_LIB_DIRS_RELIC}/librelic_s.a
-        ${CONAN_LIB_DIRS_GMPLIB}/libgmp.a
+        CONAN_PKG::relic
+        CONAN_PKG::gmp
         CONAN_PKG::cryptopp)
 endfunction()
 
