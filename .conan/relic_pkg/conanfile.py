@@ -42,11 +42,6 @@ conan_basic_setup()
         cmake.configure(defs=build_args)
         cmake.build()
 
-        # Explicit way:
-        # self.run('cmake %s/hello %s'
-        #          % (self.source_folder, cmake.command_line))
-        # self.run("cmake --build . %s" % cmake.build_config)
-
     def package(self):
         self.copy("*.h", dst="relic", src="include")
         self.copy("*.lib", dst="lib", keep_path=False)

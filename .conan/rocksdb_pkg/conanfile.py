@@ -44,11 +44,6 @@ class RocksdbConan(ConanFile):
         args = ['shared_lib']
         autotools.make(args=args)
 
-        # Explicit way:
-        # self.run('cmake %s/hello %s'
-        #          % (self.source_folder, cmake.command_line))
-        # self.run("cmake --build . %s" % cmake.build_config)
-
     def package(self):
         self.copy("*.h", dst="", src="include")
         self.copy("*.lib", dst="lib", keep_path=False)

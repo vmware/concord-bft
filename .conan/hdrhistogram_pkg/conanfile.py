@@ -30,9 +30,7 @@ conan_basic_setup()''')
 
     def build(self):
         cmake = CMake(self)
-        cmake.configure(source_folder="src")
-        # build_args = {"HDR_HISTOGRAM_BUILD_PROGRAMS": "ON"}
-        # cmake.configure()
+        cmake.configure()
         cmake.build()
 
     def package(self):
@@ -46,5 +44,3 @@ conan_basic_setup()''')
     def package_info(self):
         self.cpp_info.libs = ["hdr_histogram"]
         self.cpp_info.includedirs = [self.package_folder]
-
-
