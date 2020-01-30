@@ -8,6 +8,7 @@ class RelicConan(ConanFile):
         "url": "https://github.com/relic-toolkit/relic.git",
         "revision": "b984e901ba78c83ea4093ea96addd13628c8c2d0"
     }
+    settings = "os", "compiler", "build_type", "arch"
     name = "relic"
     version = "0.4.0"
     license = "Apache-2.0"
@@ -38,7 +39,8 @@ conan_basic_setup()
                       'VERBS': 'on', 'ARITH': 'x64-asm-254', 'FP_PRIME': 254,
                       'FP_METHD': 'INTEG;INTEG;INTEG;MONTY;LOWER;SLIDE',
                       'COMP': '-O3 -funroll-loops -fomit-frame-pointer -finline-small-functions -march=native -mtune=native',
-                      'FP_PMERS': 'off', 'FP_QNRES': 'on', 'FPX_METHD': 'INTEG;INTEG;LAZYR', 'PP_METHD': 'LAZYR;OATEP'}
+                      'FP_PMERS': 'off', 'FP_QNRES': 'on', 'FPX_METHD': 'INTEG;INTEG;LAZYR', 'PP_METHD': 'LAZYR;OATEP',
+                      'CMAKE_CXX_COMPILER': 'g++', 'CMAKE_C_COMPILER': 'gcc'}
         cmake.configure(defs=build_args)
         cmake.build()
 
