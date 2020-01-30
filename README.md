@@ -209,6 +209,27 @@ The python client requires python3(>= 3.5) and trio, which is installed via pip.
 
     python3 -m pip install --upgrade trio
 
+Apollo testing framework
+----
+
+The Apollo framework provides utilities and advanced testing scenarios for validating 
+Concord BFT's correctness properties, regardless of the running application/execution engine.
+For the purposes of system testing, we have implemented a "Simple Key-Value Blockchain" (SKVBC) 
+test application which runs on top of the Concord BFT consensus engine.
+<br>
+
+Apollo enables running all test suites (without modification) against any supported BFT network 
+configuration (in terms of <i>n</i>, <i>f</i>, <i>c</i> and other parameters).
+<br>
+
+Various crash or byzantine failure scenarios are also covered 
+(including faulty replicas and/or network partitioning).
+<br>
+
+Apollo test suites run regularly as part of Concord BFT's continuous integration pipeline.
+
+Please find more details about the Apollo framework [here](tests/apollo/README.md)
+
 Run examples
 ----
 
@@ -226,9 +247,3 @@ Run the following from the top level concord-bft directory:
 You can use the simpleTest.py script to run various configurations via a simple
 command line interface.
 Please find more information [here](./tests/simpleTest/README.md)
-
-### BFT engine system tests
-
-The BFT engine's correctness properties are validated by in-depth automated testing,
-also covering various failure scenarios.
-Please find more information [here](./tests/README.md)
