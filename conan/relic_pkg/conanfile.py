@@ -17,8 +17,8 @@ class RelicConan(ConanFile):
                   "security levels and algorithmic choices."
     generators = "cmake"
 
-    # def requirements(self):
-    #     self.requires("zlib/1.2.11@conan/stable")
+    def requirements(self):
+        self.requires("gmplib/6.2.0")
     #
     # def configure(self):
     #     self.options["zlib"].shared = True
@@ -27,7 +27,15 @@ class RelicConan(ConanFile):
         tools.replace_in_file("CMakeLists.txt", 'project(RELIC C CXX)',
                               '''project(RELIC C CXX)
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup()''')
+conan_basic_setup()
+''')
+        tools.replace_in_file("CMakeLists.txt", 'endif(BENCH GREATER 0)',
+                              '''endif(BENCH GREATER 0)
+if(ARITH STREQUAL "gmp")
+    include_directories(${CONAN_INCLUDE_DIRS_GMPLIB})
+    set(ARITH_LIBS ${CONAN_LIBS_GMPLIB})
+endif(ARITH STREQUAL "gmp")
+                              ''')
 
     def build(self):
         cmake = CMake(self)
