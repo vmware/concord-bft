@@ -75,91 +75,13 @@ concord-bft is available under the [Apache 2 license](LICENSE).
 
 Build (Ubuntu Linux 18.04)
 ----
+We use Conan Package Manager to install all concord-bft dependencies.
+Dependencies that currently are not supported by the conan center, have custom conan installer in concord-bft/.conan
 
-### Install Conan Package Manager
+### Install Dependencies
+Install all dependencies using
 
-Install Python 3
-
-    sudo apt-get update
-    sudo apt-get install python3
-
-After the installation, please verify the version by running:
-
-    python3 --version
-
-It should be
-
-    Python 3.x.x
-    
-Install with pip
-    
-    sudo apt install python3-pip
-    
-Get g++:
-
-    sudo apt-get install g++
-
-Install Conan:
-
-    pip install conan
-
-Test your conan script, You should see the Conan commands help.
-    
-    conan
-
-If you are using GCC compiler >= 5.1, Conan will set the compiler.libcxx
-to the old ABI for backwards compatibility You can change this with the following commands:
-    
-    conan profile new default --detect
-    conan profile update settings.compiler.libcxx=libstdc++11 default
-
-Install packages from the project directory
-    
-    cd concord-bft
-    mkdir build
-    cd build    
-    conan install --build missing ..
- 
-
-
-### Dependencies
-
-CMake and clang:
-
-    sudo apt-get install cmake clang clang-format
-
-Get GMP (dependency for [RELIC](https://github.com/relic-toolkit/relic)):
-
-    sudo apt-get install libgmp3-dev
-
-Build and install [RELIC](https://github.com/relic-toolkit/relic)
-
-    cd
-    git clone https://github.com/relic-toolkit/relic
-    cd relic/
-    git checkout b984e901ba78c83ea4093ea96addd13628c8c2d0
-    mkdir -p build/
-    cd build/
-    cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DALLOC=AUTO -DWSIZE=64 -DRAND=UDEV -DSHLIB=ON -DSTLIB=ON -DSTBIN=OFF -DTIMER=HREAL -DCHECK=on -DVERBS=on -DARITH=x64-asm-254 -DFP_PRIME=254 -DFP_METHD="INTEG;INTEG;INTEG;MONTY;LOWER;SLIDE" -DCOMP="-O3 -funroll-loops -fomit-frame-pointer -finline-small-functions -march=native -mtune=native" -DFP_PMERS=off -DFP_QNRES=on -DFPX_METHD="INTEG;INTEG;LAZYR" -DPP_METHD="LAZYR;OATEP" ..
-    make
-    sudo make install
-
-#### (Optional) Use log4cplus
-
-We have simple console logger but if you wish to use log4cplus - we have an
-infra that supports it.
-
-Configure/make/install
-
-```
-    ./configure CXXFLAGS="--std=c++11"
-    make
-    sudo make install
-```
-
-Configuring with these flags is important. If log4cplus is build without `c++11` then athena will give linker errors while building.
-
-After installation, set USE_LOG4CPP flag to TRUE in the main CmakeLists.txt . The library doesn't initialize the log4cpp subsystem, including formats and appenders, it expects that the upper level application will do it and the log4cpp subsystem is already initialized.
+    ./install.sh && mkdir -p build && cd build && conan install --build missing .. 
 
 ### Select comm module
 We support both UDP and TCP communication. UDP is the default. In order to
