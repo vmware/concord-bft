@@ -25,7 +25,7 @@ from functools import wraps
 
 import trio
 
-sys.path.append(os.path.abspath("../util/pyclient"))
+sys.path.append(os.path.abspath("../../util/pyclient"))
 
 import bft_config
 import bft_client
@@ -138,7 +138,7 @@ class BftTestNetwork:
         self.config = config
         self.testdir = tempfile.mkdtemp()
         print("Running test in {}".format(self.testdir))
-        self.builddir = os.path.abspath("../build")
+        self.builddir = os.path.abspath("../../build")
         self.toolsdir = os.path.join(self.builddir, "tools")
         self.procs = {}
         self.replicas = [bft_config.Replica(i, "127.0.0.1", 3710 + 2*i)
