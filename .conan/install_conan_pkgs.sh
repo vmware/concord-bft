@@ -2,7 +2,6 @@
 
 cd "$(dirname "$0")"
 
-for d in ./* ; do
+for d in ./*_pkg ; do
     conan create "${d}/conanfile.py"
-    rm -r -f "${d}/test_package/build"
 done
