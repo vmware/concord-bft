@@ -22,7 +22,7 @@ namespace storage {
 namespace rocksdb {
 
 int KeyComparator::Compare(const ::rocksdb::Slice& _a, const ::rocksdb::Slice& _b) const {
-  int ret = key_manipulator_->composedKeyComparison(_a.data(), _a.size(), _b.data(), _b.size());
+  int ret = key_comparator_->composedKeyComparison(_a.data(), _a.size(), _b.data(), _b.size());
 
   LOG_TRACE(logger_, "Compared " << _a.ToString(true) << " with " << _b.ToString(true) << ", returning " << ret);
 

@@ -1,4 +1,6 @@
-add_library(concordbft_storage STATIC src/db_metadata_storage.cpp src/blockchain_db_adapter.cpp)
+add_library(concordbft_storage STATIC src/db_metadata_storage.cpp
+                                      src/blockchain_db_adapter.cpp
+                                      src/block.cpp)
 
 target_include_directories(concordbft_storage PUBLIC include)
 target_link_libraries(concordbft_storage PUBLIC corebft)

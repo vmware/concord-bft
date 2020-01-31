@@ -81,10 +81,10 @@ class IDBClient {
     virtual ~IDBClientIterator() = default;
   };
 
-  class IKeyManipulator {
+  class IKeyComparator {
    public:
     virtual int composedKeyComparison(const char* _a_data, size_t _a_length, const char* _b_data, size_t _b_length) = 0;
-    virtual ~IKeyManipulator() = default;
+    virtual ~IKeyComparator() = default;
   };
 
   virtual IDBClientIterator* getIterator() const = 0;

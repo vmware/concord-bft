@@ -22,8 +22,8 @@ using concordUtils::Sliver;
 
 class KeyComparator : public ::rocksdb::Comparator {
  public:
-  KeyComparator(IDBClient::IKeyManipulator* key_manipulator)
-      : key_manipulator_(key_manipulator),
+  KeyComparator(IDBClient::IKeyComparator* key_comparator)
+      : key_comparator_(key_comparator),
         logger_(concordlogger::Log::getLogger("concord.storage.rocksdb.KeyComparator")) {}
   virtual int Compare(const ::rocksdb::Slice& _a, const ::rocksdb::Slice& _b) const override;
   virtual const char* Name() const override { return "RocksKeyComparator"; }
@@ -31,7 +31,7 @@ class KeyComparator : public ::rocksdb::Comparator {
   virtual void FindShortSuccessor(std::string*) const override {}
 
  private:
-  std::shared_ptr<IDBClient::IKeyManipulator> key_manipulator_;
+  std::shared_ptr<IDBClient::IKeyComparator> key_comparator_;
   concordlogger::Logger logger_;
 };
 

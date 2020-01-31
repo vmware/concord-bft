@@ -30,9 +30,8 @@ using concord::storage::IDBClient;
 using concord::storage::ITransaction;
 using concordUtils::Status;
 using concordUtils::Sliver;
-using concord::storage::blockchain::EDBKeyType;
 using concord::storage::blockchain::ObjectId;
-using concord::storage::blockchain::KeyManipulator;
+using concord::storage::blockchain::DBKeyManipulator;
 /** *******************************************************************************************************************
  *  This class is used in one of two modes:
  *  1. When ITransaction is not set - works directly through IDBClient instance;
@@ -224,15 +223,15 @@ class DBDataStore : public DataStore {
    * keys generation
    */
   Sliver dynamicResPageKey(uint32_t pageid, uint64_t chkpt) const {
-    return KeyManipulator::generateSTReservedPageDynamicKey(pageid, chkpt);
+    return DBKeyManipulator::generateSTReservedPageDynamicKey(pageid, chkpt);
   }
   Sliver staticResPageKey(uint32_t pageid, uint64_t chkpt) const {
     static uint64_t maxStored = inmem_->getMaxNumOfStoredCheckpoints();
-    return KeyManipulator::generateSTReservedPageStaticKey(pageid, chkpt % maxStored + 1);
+    return DBKeyManipulator::generateSTReservedPageStaticKey(pageid, chkpt % maxStored + 1);
   }
-  Sliver pendingPageKey(uint32_t pageid) const { return KeyManipulator::generateSTPendingPageKey(pageid); }
-  Sliver chkpDescKey(uint64_t chkpt) const { return KeyManipulator::generateSTCheckpointDescriptorKey(chkpt); }
-  Sliver genKey(const ObjectId& objId) const { return KeyManipulator::generateStateTransferKey(objId); }
+  Sliver pendingPageKey(uint32_t pageid) const { return DBKeyManipulator::generateSTPendingPageKey(pageid); }
+  Sliver chkpDescKey(uint64_t chkpt) const { return DBKeyManipulator::generateSTCheckpointDescriptorKey(chkpt); }
+  Sliver genKey(const ObjectId& objId) const { return DBKeyManipulator::generateStateTransferKey(objId); }
   /** ****************************************************************************************************************/
   concordlogger::Logger& logger() {
     static concordlogger::Logger logger_ = concordlogger::Log::getLogger("DBDataStore");
