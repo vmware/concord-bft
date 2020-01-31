@@ -61,9 +61,13 @@ class ReplicaBase {
   virtual void onReportAboutInvalidMessage(MessageBase* msg, const char* reason) = 0;
 
   virtual void send(MessageBase* m, NodeIdType dest) { sendRaw(m, dest); }
-  void sendToAllOtherReplicas(MessageBase* m) {
+
+  void sendToAllOtherReplicas(MessageBase* m, bool includeRo = false) {
     for (ReplicaId dest : repsInfo->idsOfPeerReplicas()) sendRaw(m, dest);
+    if (includeRo)
+      for (ReplicaId dest : repsInfo->idsOfPeerROReplicas()) sendRaw(m, dest);
   }
+
   void sendRaw(MessageBase* m, NodeIdType dest);
 
   bool validateMessage(MessageBase* msg) {
@@ -82,7 +86,6 @@ class ReplicaBase {
   static const uint16_t ALL_OTHER_REPLICAS = UINT16_MAX;
 
   ReplicaConfig config_;
-  const uint16_t numOfReplicas = 0;
   ReplicasInfo* repsInfo = nullptr;
   std::shared_ptr<MsgsCommunicator> msgsCommunicator_;
   std::shared_ptr<MsgHandlersRegistrator> msgHandlers_;
@@ -96,9 +99,7 @@ class ReplicaBase {
   concordMetrics::Component metrics_;
 
   ///////////////////////////////////////////////////
-  // Timer manager/container
-  Timers timers_;
-
+  // Timers
   Timers::Handle debugStatTimer_;
   Timers::Handle metricsTimer_;
 };

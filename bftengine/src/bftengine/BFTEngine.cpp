@@ -13,6 +13,7 @@
 
 #include "Replica.hpp"
 #include "ReplicaImp.hpp"
+#include "ReadOnlyReplica.hpp"
 #include "ReplicaLoader.hpp"
 #include "DebugPersistentStorage.hpp"
 #include "PersistentStorageImp.hpp"
@@ -138,7 +139,7 @@ IReplica *IReplica::createNewReplica(ReplicaConfig *replicaConfig,
     ((PersistentStorageImp *)persistentStoragePtr.get())->init(move(metadataStoragePtr));
   }
 
-  auto *replicaInternal = new ReplicaInternal();
+  auto replicaInternal = new ReplicaInternal();
   shared_ptr<MsgHandlersRegistrator> msgHandlersPtr(new MsgHandlersRegistrator());
   shared_ptr<IncomingMsgsStorage> incomingMsgsStoragePtr(
       new IncomingMsgsStorageImp(msgHandlersPtr, timersResolution, replicaConfig->replicaId));
@@ -164,6 +165,45 @@ IReplica *IReplica::createNewReplica(ReplicaConfig *replicaConfig,
                                                  msgHandlersPtr,
                                                  *requestsHandler,
                                                  *dynamic_cast<InternalReplicaApi *>(replicaInternal->replica_.get()));
+  return replicaInternal;
+}
+
+IReplica *IReplica::createNewRoReplica(ReplicaConfig *replicaConfig,
+                                       IStateTransfer *stateTransfer,
+                                       ICommunication *communication,
+                                       MetadataStorage *metadataStorage) {
+  {
+    std::lock_guard<std::mutex> lock(mutexForCryptoInitialization);
+    if (!cryptoInitialized) {
+      cryptoInitialized = true;
+      CryptographyWrapper::init();
+    }
+  }
+
+  // Initialize the configuration singleton here to use correct values during persistent storage initialization.
+  replicaConfig->singletonFromThis();
+  auto replicaInternal = new ReplicaInternal();
+  auto msgHandlers = std::make_shared<MsgHandlersRegistrator>();
+  std::shared_ptr<IncomingMsgsStorage> incomingMsgsStorage =
+      std::make_shared<IncomingMsgsStorageImp>(msgHandlers, timersResolution, replicaConfig->replicaId);
+  auto msgReceiver = std::make_shared<MsgReceiver>(incomingMsgsStorage);
+  auto msgsCommunicator = std::make_shared<MsgsCommunicator>(communication, incomingMsgsStorage, msgReceiver);
+
+  std::shared_ptr<PersistentStorage> persistentStorage;
+  if (metadataStorage) {
+    uint16_t numOfObjects = 0;
+    persistentStorage.reset(new impl::PersistentStorageImp(replicaConfig->fVal, replicaConfig->cVal));
+    auto objectDescriptors = std::static_pointer_cast<impl::PersistentStorageImp>(persistentStorage)
+                                 ->getDefaultMetadataObjectDescriptors(numOfObjects);
+    metadataStorage->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);
+    std::static_pointer_cast<impl::PersistentStorageImp>(persistentStorage)
+        ->init(std::unique_ptr<MetadataStorage>(metadataStorage));
+  } else if (replicaConfig->debugPersistentStorageEnabled) {
+    persistentStorage.reset(new impl::DebugPersistentStorage(replicaConfig->fVal, replicaConfig->cVal));
+  }
+
+  replicaInternal->replica_ = std::make_unique<ReadOnlyReplica>(
+      *replicaConfig, stateTransfer, msgsCommunicator, persistentStorage, msgHandlers);
   return replicaInternal;
 }
 

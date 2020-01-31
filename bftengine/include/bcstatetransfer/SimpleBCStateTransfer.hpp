@@ -97,7 +97,7 @@ struct Config {
   uint16_t myReplicaId;
   uint16_t fVal = 0;
   uint16_t cVal = 0;
-
+  uint16_t numReplicas = 0;
   bool pedanticChecks = false;
 
 #if defined USE_COMM_PLAIN_TCP || defined USE_COMM_TLS_TCP

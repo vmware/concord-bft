@@ -129,7 +129,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
     : pedanticChecks_{config.pedanticChecks},
       as_{stateApi},
       psd_(ds),
-      replicas_{generateSetOfReplicas((3 * config.fVal) + (2 * config.cVal) + 1)},
+      replicas_{generateSetOfReplicas(config.numReplicas)},
       myId_{config.myReplicaId},
       fVal_{config.fVal},
       maxBlockSize_{config.maxBlockSize},

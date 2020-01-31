@@ -36,6 +36,7 @@
 #include "messages/PartialCommitProofMsg.hpp"
 #include "messages/FullCommitProofMsg.hpp"
 #include "messages/ReplicaStatusMsg.hpp"
+#include "messages/AskForCheckpointMsg.hpp"
 
 using concordUtil::Timers;
 using namespace std;
@@ -85,6 +86,9 @@ void ReplicaImp::registerMsgHandlers() {
 
   msgHandlers_->registerMsgHandler(MsgCode::ReplicaStatus,
                                    bind(&ReplicaImp::messageHandler<ReplicaStatusMsg>, this, _1));
+
+  msgHandlers_->registerMsgHandler(MsgCode::AskForCheckpoint,
+                                   bind(&ReplicaImp::messageHandler<AskForCheckpointMsg>, this, _1));
 }
 
 template <typename T>
@@ -1255,6 +1259,30 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
     onReportAboutLateReplica(msgSenderId, msgSeqNum);
   }
 }
+/**
+ * Is sent from a read-only replica
+ */
+template <>
+void ReplicaImp::onMessage<AskForCheckpointMsg>(AskForCheckpointMsg *msg) {
+  // metric_received_checkpoints_.Get().Inc(); // TODO [TK]
+
+  LOG_INFO(GL, "Node " << config_.replicaId << " received AskForCheckpoint message from node " << msg->senderId());
+
+  const CheckpointInfo &checkpointInfo = checkpointsLog->get(lastStableSeqNum);
+  CheckpointMsg *checkpointMsg = checkpointInfo.selfCheckpointMsg();
+
+  if (checkpointMsg == nullptr) {
+    //    Digest digestOfState;
+    //    const uint64_t checkpointNum = lastStableSeqNum / checkpointWindowSize;
+    //    stateTransfer->getDigestOfCheckpoint(checkpointNum, sizeof(Digest), (char *)&digestOfState);
+    //    checkpointMsg = new CheckpointMsg(config_.replicaId, lastStableSeqNum, digestOfState, true);
+
+  } else {
+    // TODO [TK] check if already sent within a configurable time period
+    LOG_INFO(GL, "Sending CheckpointMsg to node " << msg->senderId());
+    send(checkpointMsg, msg->senderId());
+  }
+}
 
 bool ReplicaImp::handledByRetransmissionsManager(const ReplicaId sourceReplica,
                                                  const ReplicaId destReplica,
@@ -2001,7 +2029,7 @@ void ReplicaImp::sendCheckpointIfNeeded() {
   // TODO(GG): 3 seconds, should be in configuration
   if ((getMonotonicTime() - checkInfo.selfExecutionTime()) >= 3s) {
     checkInfo.setCheckpointSentAllOrApproved();
-    sendToAllOtherReplicas(checkpointMessage);
+    sendToAllOtherReplicas(checkpointMessage, true);
     return;
   }
 
@@ -2027,7 +2055,7 @@ void ReplicaImp::sendCheckpointIfNeeded() {
   }
 
   checkInfo.setCheckpointSentAllOrApproved();
-  sendToAllOtherReplicas(checkpointMessage);
+  sendToAllOtherReplicas(checkpointMessage, true);
 }
 
 void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
@@ -2221,7 +2249,7 @@ void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly,
   const bool missingBigRequests = (!missingPrePrepare) && (!seqNumInfo.hasPrePrepareMsg());
 
   ReplicaId firstRepId = 0;
-  ReplicaId lastRepId = numOfReplicas - 1;
+  ReplicaId lastRepId = config_.numReplicas - 1;
   if (destReplicaId != ALL_OTHER_REPLICAS) {
     firstRepId = destReplicaId;
     lastRepId = destReplicaId;
@@ -2762,7 +2790,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_received_new_views_{metrics_.RegisterCounter("receivedNewViewMsgs")},
       metric_received_req_missing_datas_{metrics_.RegisterCounter("receivedReqMissingDataMsgs")},
       metric_received_simple_acks_{metrics_.RegisterCounter("receivedSimpleAckMsgs")} {
-  Assert(config_.replicaId < numOfReplicas);
+  Assert(config_.replicaId < config_.numReplicas);
   // TODO(GG): more asserts on params !!!!!!!!!!!
 
   // !firstTime ==> ((sigMgr != nullptr) && (replicasInfo != nullptr) && (viewsMgr != nullptr))
@@ -2774,15 +2802,10 @@ ReplicaImp::ReplicaImp(bool firstTime,
 
   if (firstTime) {
     sigManager = new SigManager(config_.replicaId,
-                                numOfReplicas + config_.numOfClientProxies,
+                                config_.numReplicas + config_.numOfClientProxies,
                                 config_.replicaPrivateKey,
                                 config_.publicKeysOfReplicas);
-    repsInfo = new ReplicasInfo(config_.replicaId,
-                                numOfReplicas,
-                                config_.fVal,
-                                config_.cVal,
-                                dynamicCollectorForPartialProofs,
-                                dynamicCollectorForExecutionProofs);
+    repsInfo = new ReplicasInfo(config_, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
     viewsManager = new ViewsManager(repsInfo, sigManager, config_.thresholdVerifierForSlowPathCommit);
   } else {
     sigManager = sigMgr;
@@ -2793,7 +2816,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
   }
 
   std::set<NodeIdType> clientsSet;
-  for (uint16_t i = numOfReplicas; i < numOfReplicas + config_.numOfClientProxies; i++) clientsSet.insert(i);
+  for (uint16_t i = config_.numReplicas; i < config_.numReplicas + config_.numOfClientProxies; i++)
+    clientsSet.insert(i);
 
   clientsManager =
       new ClientsManager(config_.replicaId, clientsSet, ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage());

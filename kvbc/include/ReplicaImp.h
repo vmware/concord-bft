@@ -40,7 +40,7 @@ class ReplicaImp : public IReplica,
                    public concord::storage::blockchain::ILocalKeyValueStorageReadOnly,
                    public concord::storage::blockchain::IBlocksAppender {
  public:
-  // concord::storage::IReplica methods
+  // concord::kvbc::IReplica methods
   virtual Status start() override;
   virtual Status stop() override;
 

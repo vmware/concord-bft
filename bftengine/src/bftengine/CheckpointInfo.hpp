@@ -48,7 +48,7 @@ class CheckpointInfo {
 
   bool checkpointSentAllOrApproved() const;
 
-  Time selfExecutionTime();
+  Time selfExecutionTime() const;
 
   void setSelfExecutionTime(Time t);
 

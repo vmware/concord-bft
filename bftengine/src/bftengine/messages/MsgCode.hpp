@@ -34,6 +34,7 @@ class MsgCode {
     ViewChange,
     NewView,
     Checkpoint,
+    AskForCheckpoint,
     ReplicaStatus,
     ReqMissingData,
     StateTransfer,

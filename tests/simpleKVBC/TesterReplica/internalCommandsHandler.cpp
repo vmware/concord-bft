@@ -95,9 +95,10 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
                                                   uint32_t &outReplySize) {
   auto *writeReq = (SimpleCondWriteRequest *)request;
   LOG_INFO(m_logger,
-           "Execute WRITE command: type=" << writeReq->header.type << ", numOfWrites=" << writeReq->numOfWrites
-                                          << ", numOfKeysInReadSet=" << writeReq->numOfKeysInReadSet
-                                          << ", readVersion = " << writeReq->readVersion);
+           "Execute WRITE command:"
+               << " type: " << writeReq->header.type << " seqNum: " << sequenceNum
+               << " numOfWrites: " << writeReq->numOfWrites << " numOfKeysInReadSet: " << writeReq->numOfKeysInReadSet
+               << " readVersion: " << writeReq->readVersion);
   bool result = verifyWriteCommand(requestSize, *writeReq, maxReplySize, outReplySize);
   if (!result) assert(0);
 

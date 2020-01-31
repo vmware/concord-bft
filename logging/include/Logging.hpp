@@ -20,6 +20,7 @@
 #include <cassert>
 #include <iostream>
 
+#ifndef USE_LOG4CPP
 namespace concordlogger {
 
 // log levels as defined in log4cpp
@@ -100,3 +101,4 @@ class Log {
 
 #define LOG_FATAL(l, s) LOG_COMMON(l, concordlogger::LogLevel::fatal, s)
 #define LOG_FATAL_F(l, ...) LOG_COMMON_F(l, concordlogger::LogLevel::fatal, __VA_ARGS__)
+#endif
