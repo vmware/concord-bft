@@ -4,7 +4,6 @@ project(concord-bft VERSION 0.1.0.0 LANGUAGES CXX)
 
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup(TARGETS NO_OUTPUT_DIRS)
-
 #
 # C++ options
 #   TODO: change to set_target_properties?

@@ -94,7 +94,7 @@ if(OPENSSL_FOUND)
     target_link_libraries(bftclient PUBLIC ${OPENSSL_LIBRARIES})
 endif()
 
-if(${BUILD_COMM_TCP_PLAIN} OR ${BUILD_COMM_TCP_TLS} OR ON)
+if(${BUILD_COMM_TCP_PLAIN} OR ${BUILD_COMM_TCP_TLS})
     set(Boost_USE_STATIC_LIBS ON) # only find static libs
     set(Boost_USE_MULTITHREADED ON)
     set(Boost_USE_STATIC_RUNTIME OFF)
