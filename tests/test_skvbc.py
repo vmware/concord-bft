@@ -86,6 +86,7 @@ class SkvbcTest(unittest.TestCase):
                 # Perform an unconditional KV put.
                 # Ensure keys aren't identical
                 await skvbc.read_your_writes(self)
+        assert True is False
 
 
     @with_trio
