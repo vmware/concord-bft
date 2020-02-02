@@ -18,12 +18,12 @@ class RelicConan(ConanFile):
                   "security levels and algorithmic choices."
     generators = "cmake"
 
-    def requirements(self):
-        self.requires("gmp/6.1.2@bincrafters/stable")
-
+    # def requirements(self):
+    #     self.requires("gmp/6.1.2@bincrafters/stable")
     #
-    def configure(self):
-        self.options["gmp"].shared = False
+    # #
+    # def configure(self):
+    #     self.options["gmp"].shared = False
 
     def source(self):
         tools.replace_in_file("CMakeLists.txt", 'project(RELIC C CXX)',
