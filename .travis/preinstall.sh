@@ -44,5 +44,13 @@ if [ -n "$USE_ROCKSDB" ]; then
     sudo make install-shared
 fi
 
+if [ -n "$USE_LOG4CPP" ]; then
+    cd
+    cd log4cplus/
+    ./configure CXXFLAGS="--std=c++11"
+    make
+    sudo make install
+fi
+
 # trio is need for tests
 python3 -m pip install --upgrade trio
