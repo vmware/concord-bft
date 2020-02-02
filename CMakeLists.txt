@@ -122,7 +122,6 @@ function(add_submodule path)
 endfunction()
 
 include(CTest)
-
 #
 # Subdirectories
 #
