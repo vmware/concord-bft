@@ -43,7 +43,7 @@ void ViewChangeMsg::getMsgDigest(Digest& outDigest) const {
 
 void ViewChangeMsg::addElement(const ReplicasInfo& repInfo,
                                SeqNum seqNum,
-                               const Digest& prePrepreDigest,
+                               const Digest& prePrepareDigest,
                                ViewNum originView,
                                bool hasPreparedCertificate,
                                ViewNum certificateView,
@@ -69,7 +69,7 @@ void ViewChangeMsg::addElement(const ReplicasInfo& repInfo,
 
   Element* pElement = (Element*)(body() + b()->locationAfterLast);
   pElement->seqNum = seqNum;
-  pElement->prePrepreDigest = prePrepreDigest;
+  pElement->prePrepareDigest = prePrepareDigest;
   pElement->originView = originView;
   pElement->hasPreparedCertificate = hasPreparedCertificate;
 

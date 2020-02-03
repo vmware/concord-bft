@@ -486,7 +486,7 @@ ViewChangeMsg* ViewsManager::exitFromCurrentView(SeqNum currentLastStable,
       ViewChangeMsg::Element* elemInPrev = nullptr;
       iterPrevVC.goToAtLeast(s);
       if (iterPrevVC.getCurrent(elemInPrev) && (elemInPrev->hasPreparedCertificate) && (elemInPrev->seqNum == s) &&
-          (elemInPrev->prePrepreDigest == digest)) {
+          (elemInPrev->prePrepareDigest == digest)) {
         Assert(elemInPrev->originView <= myLatestActiveView);
 
         // convert to PreparedCertificate

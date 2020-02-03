@@ -40,7 +40,7 @@ class SignedShareBase : public MessageBase {
     ViewNum viewNumber;
     SeqNum seqNumber;
     uint16_t thresSigLength;
-    // Followed by threshold signature of <viewNumber, seqNumber, and the preprepre digest>
+    // Followed by threshold signature of <viewNumber, seqNumber, and the preprepare digest>
   };
 #pragma pack(pop)
   static_assert(sizeof(SignedShareBaseHeader) == (2 + 8 + 8 + 2), "SignedShareBaseHeader is 58B");
