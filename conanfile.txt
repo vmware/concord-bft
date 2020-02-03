@@ -4,7 +4,6 @@ boost/1.64.0@conan/stable
 gtest/1.8.1@bincrafters/stable
 log4cplus/2.0.4@bincrafters/stable
 OpenSSL/1.1.1@conan/stable
-gmp/6.1.2@bincrafters/stable
 relic/0.4.0
 zlib/1.2.11@conan/stable
 bzip2/1.0.8@conan/stable
