@@ -1,0 +1,14 @@
+FROM ubuntu:18.04
+
+
+RUN apt-get update && \
+    apt-get install -y ccache cmake clang-format python3-pip python3-setuptools git
+
+RUN python3 -m pip install --upgrade wheel conan trio
+
+RUN conan profile new default --detect
+RUN conan profile update settings.compiler.libcxx=libstdc++11 default
+
+#RUN source ~/.profile
+COPY .conan /build
+RUN sh /build/install_conan_pkgs.sh

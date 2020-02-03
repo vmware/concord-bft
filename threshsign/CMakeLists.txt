@@ -1,6 +1,5 @@
 cmake_minimum_required (VERSION 3.2)
 # project(<name> VERSION <ver> LANGUAGES CXX)
-
 project(threshsign VERSION 0.1.0.0 LANGUAGES CXX)
 
 find_package(Threads REQUIRED)
@@ -26,7 +25,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # just use signed types everywhere and cast your unsigned to signed when mixing unsigned
 # variables with signed ones. See: http://soundsoftware.ac.uk/c-pitfall-unsigned
 set(CXX_FLAGS_INTEGER_CORRECTNESS
-    "-Wconversion -Wsign-conversion")
+        "-Wconversion -Wsign-conversion")
 
 string(APPEND CXX_FLAGS " ${CXX_FLAGS_INTEGER_CORRECTNESS}")
 # TODO: use target_compile_features instead:
@@ -39,36 +38,36 @@ string(APPEND CXX_FLAGS " -Wextra")
 
 # TODO: Figure out right way to deal with -fstrict-overflow / -Wstrict-overflow related errors
 string(APPEND CXX_FLAGS
-    " -fno-strict-overflow")
+        " -fno-strict-overflow")
 string(APPEND CXX_FLAGS_DEBUG
-    " -D_FORTIFY_SOURCE=2")
+        " -D_FORTIFY_SOURCE=2")
 
 # GNU and Clang-specific flags
 string(APPEND CMAKE_CXX_FLAGS
-    " ${CXX_FLAGS}")
+        " ${CXX_FLAGS}")
 string(APPEND CMAKE_CXX_FLAGS_DEBUG
-    " ${CXX_FLAGS_DEBUG}")
+        " ${CXX_FLAGS_DEBUG}")
 
 # using Clang
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     # Clang-specific options
     string(APPEND CMAKE_CXX_FLAGS
-        " -ferror-limit=3")
+            " -ferror-limit=3")
     string(APPEND CMAKE_CXX_FLAGS_DEBUG
-        " -fstack-protector-all")
+            " -fstack-protector-all")
 
-# using GCC
+    # using GCC
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     # GCC-specific options
     string(APPEND CMAKE_CXX_FLAGS
-        " -fmax-errors=3")
+            " -fmax-errors=3")
     string(APPEND CMAKE_CXX_FLAGS_DEBUG
-        " -fstack-protector-all")
+            " -fstack-protector-all")
 
-# TODO: using Intel C++
+    # TODO: using Intel C++
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
 
-# TODO: using Visual Studio C++
+    # TODO: using Visual Studio C++
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 
 endif()
@@ -80,17 +79,17 @@ enable_testing()
 
 # When building with 'cmake -DCMAKE_BUILD_TYPE=Trace'
 string(APPEND CMAKE_CXX_FLAGS_TRACE
-    " -DTRACE")
+        " -DTRACE")
 
 #
 # Helper functions
 #
 function(link_with_relic_library targetName)
     target_link_libraries(${targetName}
-        PUBLIC
-        CONAN_PKG::relic
-        ${GMP_STATIC_LIBRARY}
-        CONAN_PKG::cryptopp)
+            PUBLIC
+            ${RELIC_STATIC_LIBRARY}
+            ${GMP_STATIC_LIBRARY}
+            ${CRYPTOPP_STATIC_LIBRARY})
 endfunction()
 
 function(add_relic_executable appName appSrc appDir)
@@ -98,11 +97,11 @@ function(add_relic_executable appName appSrc appDir)
     # Add compile target
     add_executable(${appName} ${appSrc} $<TARGET_OBJECTS:bench> $<TARGET_OBJECTS:bls_relic> $<TARGET_OBJECTS:common> $<TARGET_OBJECTS:logging_dev>)
     target_include_directories(${appName} PRIVATE
-        ${threshsign_SOURCE_DIR}/src
-        #${threshsign_SOURCE_DIR}/src/bls/relic
-        #${threshsign_SOURCE_DIR}/src/bls/relic/async
-        ${threshsign_SOURCE_DIR}/lib
-        ${threshsign_SOURCE_DIR}/include)
+            ${threshsign_SOURCE_DIR}/src
+            #${threshsign_SOURCE_DIR}/src/bls/relic
+            #${threshsign_SOURCE_DIR}/src/bls/relic/async
+            ${threshsign_SOURCE_DIR}/lib
+            ${threshsign_SOURCE_DIR}/include)
     target_link_libraries(${appName} PRIVATE mainapp)
     target_link_libraries(${appName} PRIVATE relic_mainapp)
     target_link_libraries(${appName} PRIVATE Threads::Threads)
@@ -136,30 +135,31 @@ endfunction()
 #  and
 # http://cmake.3232098.n2.nabble.com/Trying-to-set-up-a-quot-superbuild-quot-with-external-project-and-install-it-td6353184.html
 #
-#find_package(relic REQUIRED)
+find_package(relic REQUIRED)
+include_directories(${RELIC_INCLUDE_DIRS})
 get_directory_property(hasParent PARENT_DIRECTORY)
 if(hasParent)
-  set_property(DIRECTORY .. APPEND PROPERTY INCLUDE_DIRECTORIES ${CONAN_INCLUDE_DIRS_RELIC})
+    set_property(DIRECTORY .. APPEND PROPERTY INCLUDE_DIRECTORIES ${RELIC_INCLUDE_DIRS})
 endif()
-include_directories(${CONAN_INCLUDE_DIRS_RELIC})
+find_library(RELIC_STATIC_LIBRARY NAMES "librelic_s.a")
 
 find_library(GMP_STATIC_LIBRARY NAMES "libgmp.a")
 
-#find_library(CRYPTOPP_STATIC_LIBRARY NAMES "libcryptopp.a")
+find_library(CRYPTOPP_STATIC_LIBRARY NAMES "libcryptopp.a")
 
 #
 # Targets
 #
 
 add_library(threshsign
-    STATIC
-    $<TARGET_OBJECTS:common>
-    $<TARGET_OBJECTS:bls_relic>
-)
+        STATIC
+        $<TARGET_OBJECTS:common>
+        $<TARGET_OBJECTS:bls_relic>
+        )
 
 target_include_directories(threshsign PUBLIC
-    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-    "$<INSTALL_INTERFACE:${INSTALL_CMAKE_DIR}/include>")
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+        "$<INSTALL_INTERFACE:${INSTALL_CMAKE_DIR}/include>")
 
 set_property(GLOBAL PROPERTY thresh_include_folder
         "${CMAKE_CURRENT_SOURCE_DIR}/include/threshsign")
@@ -185,14 +185,14 @@ add_subdirectory(test)
 
 # This creates the <Package>Config.cmake file and installs it
 install(TARGETS threshsign EXPORT threshsignConfig
-   ARCHIVE DESTINATION lib)
+        ARCHIVE DESTINATION lib)
 install(EXPORT threshsignConfig DESTINATION lib/cmake/threshsign)
 
 # This installs the static or (/and?) dynamic library
 install(TARGETS threshsign
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
-)
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        )
 
 
 

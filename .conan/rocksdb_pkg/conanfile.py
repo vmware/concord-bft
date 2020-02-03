@@ -19,6 +19,7 @@ class RocksdbConan(ConanFile):
                   "and Jeff Dean (jeff@google.com)"
     generators = "cmake"
 
+
     def requirements(self):
         self.requires("zlib/1.2.11@conan/stable")
         self.requires("bzip2/1.0.8@conan/stable")
@@ -52,7 +53,8 @@ class RocksdbConan(ConanFile):
         self.copy("*.dylib", dst="lib", keep_path=False)
         self.copy("*.a", dst="lib", keep_path=False)
 
-    def package_info(self):
+
+def package_info(self):
         self.cpp_info.libs = ["rocksdb"]
         self.cpp_info.includedirs = [self.package_folder]
 
