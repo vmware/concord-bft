@@ -1,0 +1,10 @@
+find_path(ZLIB_INCLUDE_DIR zlib.h ${CONAN_INCLUDE_DIRS_ZLIB})
+find_library(ZLIB_LIBRARY NAMES ${CONAN_LIBS_ZLIB} PATHS ${CONAN_LIB_DIRS_ZLIB})
+
+include (FindPackageHandleStandardArgs)
+find_package_handle_standard_args(ZLIB DEFAULT_MSG ZLIB_INCLUDE_DIR ZLIB_LIBRARY)
+
+if(ZLIB_FOUND)
+    set(ZLIB_LIBRARIES ${ZLIB_LIBRARY})
+    set(ZLIB_INCLUDE_DIRS ${ZLIB_INCLUDE_DIR})
+endif()
