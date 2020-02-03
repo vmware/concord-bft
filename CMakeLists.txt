@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.2)
 
 project(concord-bft VERSION 0.1.0.0 LANGUAGES CXX)
-
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup(TARGETS NO_OUTPUT_DIRS)
 #
@@ -12,11 +11,10 @@ conan_basic_setup(TARGETS NO_OUTPUT_DIRS)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-
 set(IS_LEAKCHECK FALSE)
 set(SLEEP_FOR_DBG FALSE)
 
-set(MIN_BOOST_VERSION 1.64)
+set(MIN_BOOST_VERSION 1.64.0)
 
 # Default to debug builds
 # Release builds can be enabled by running cmake with -DCMAKE_BUILD_TYPE=Release
@@ -64,7 +62,7 @@ endif()
 
 string(APPEND CMAKE_CXX_FLAGS " -Wall")
 string(APPEND CMAKE_CXX_FLAGS " -Wbuiltin-macro-redefined")
-string(APPEND CMAKE_CXX_FLAGS " -pedantic")
+#string(APPEND CMAKE_CXX_FLAGS " -pedantic")
 string(APPEND CMAKE_CXX_FLAGS " -Werror")
 if(IS_LEAKCHECK)
     string(APPEND CMAKE_CXX_FLAGS " -fsanitize=leak")

@@ -16,7 +16,6 @@ class RelicConan(ConanFile):
     description = "RELIC is a modern cryptographic meta-toolkit with emphasis on efficiency and flexibility. " \
                   "RELIC can be used to build efficient and usable cryptographic toolkits tailored for specific " \
                   "security levels and algorithmic choices."
-    exports_sources = ["Findrelic.cmake"]
 
     generators = "cmake"
 
@@ -45,7 +44,6 @@ conan_basic_setup()
         self.copy("*.so*", dst="lib", keep_path=False)
         self.copy("*.dylib", dst="lib", keep_path=False)
         self.copy("*.a", dst="lib", keep_path=False)
-        self.copy("Findrelic.cmake", dst=".", src=".")
 
 
 

@@ -17,7 +17,6 @@ class RocksdbConan(ConanFile):
     description = "RocksDB is developed and maintained by Facebook Database Engineering Team." \
                   "It is built on earlier work on LevelDB by Sanjay Ghemawat (sanjay@google.com) " \
                   "and Jeff Dean (jeff@google.com)"
-    exports_sources = ["Findrocksdb.cmake"]
     generators = "cmake"
 
 
@@ -53,7 +52,6 @@ class RocksdbConan(ConanFile):
         self.copy("*.so*", dst="lib", keep_path=False)
         self.copy("*.dylib", dst="lib", keep_path=False)
         self.copy("*.a", dst="lib", keep_path=False)
-        self.copy("Findrocksdb.cmake", dst=".", src=".", keep_path=False)
 
 
 def package_info(self):

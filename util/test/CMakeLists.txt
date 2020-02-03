@@ -1,4 +1,6 @@
 find_package(GTest REQUIRED)
+find_package(OpenSSL REQUIRED)
+
 add_executable(metric_tests metric_test.cpp)
 add_test(metric_tests metric_tests)
 target_link_libraries(metric_tests GTest::Main util)
@@ -32,5 +34,5 @@ target_link_libraries(timers_tests GTest::Main util)
 
 add_executable(sha3_256_tests sha3_256_tests.cpp)
 add_test(sha3_256_tests sha3_256_tests)
-target_link_libraries(sha3_256_tests GTest::Main util CONAN_PKG::OpenSSL
+target_link_libraries(sha3_256_tests GTest::Main util ${OPENSSL_LIBRARIES}
         $<TARGET_OBJECTS:logging_dev>)
