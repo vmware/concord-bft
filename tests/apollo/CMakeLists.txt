@@ -1,5 +1,5 @@
 add_test(NAME skvbc_basic_tests COMMAND sh -c
-        "python3 -m unittest test_skvbc 2>&1 > /dev/null"
+        "python3 -m unittest test_skvbc"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_test(NAME skvbc_linearizability_tests COMMAND sudo sh -c
