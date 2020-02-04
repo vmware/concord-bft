@@ -77,15 +77,15 @@ class UdpClient:
         self.reply_quorum = 2*config.f + config.c + 1
         self.sock_bound = False
 
-    async def write(self, msg, seq_num=None):
+    async def write(self, msg, seq_num=None, pre_process=False):
         """ A wrapper around sendSync for requests that mutate state """
-        return await self.sendSync(msg, False, seq_num)
+        return await self.sendSync(msg, False, seq_num, pre_process)
 
     async def read(self, msg, seq_num=None):
         """ A wrapper around sendSync for requests that do not mutate state """
         return await self.sendSync(msg, True, seq_num)
 
-    async def sendSync(self, msg, read_only, seq_num=None):
+    async def sendSync(self, msg, read_only, seq_num=None, pre_process=False):
         """
         Send a client request and wait for a quorum (2F+C+1) of replies.
 
@@ -114,7 +114,7 @@ class UdpClient:
             seq_num = self.req_seq_num.next()
 
         data = bft_msgs.pack_request(
-                    self.client_id, seq_num, read_only, msg)
+                    self.client_id, seq_num, read_only, msg, pre_process)
 
         # Raise a trio.TooSlowError exception if a quorum of replies
         with trio.fail_after(self.config.req_timeout_milli/1000):
