@@ -10,12 +10,16 @@ endif()
 
 #######################################################################################################################
 #export all the way up to the top level directory
+if(USE_LOG4CPP)
+  find_package(log4cplus REQUIRED)
+endif()
 
 set(current_dir ${CMAKE_CURRENT_SOURCE_DIR})
 while(NOT current_dir STREQUAL "")
   message(STATUS "setting logger compile definitions for [${current_dir}]")
   if(USE_LOG4CPP)
-    set_property(DIRECTORY ${current_dir} APPEND PROPERTY LINK_LIBRARIES      CONAN_PKG::log4cplus)
+    set_property(DIRECTORY ${current_dir} APPEND PROPERTY LINK_LIBRARIES ${LOG4CPLUS_LIBRARY})
+    set_property(DIRECTORY ${current_dir} APPEND PROPERTY COMPILE_DEFINITIONS USE_LOG4CPP)
   endif()
   set_property(DIRECTORY ${current_dir} APPEND PROPERTY COMPILE_DEFINITIONS DEFAULT_LOGGER_NAME="${CONCORD_LOGGER_NAME}")
   set_property(DIRECTORY ${current_dir} APPEND PROPERTY INCLUDE_DIRECTORIES "$<TARGET_PROPERTY:logging,INTERFACE_INCLUDE_DIRECTORIES>")

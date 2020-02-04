@@ -4,6 +4,7 @@ set(simpleTest_client_source_files
     ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
     simple_test_client.hpp
 )
+find_package(GTest REQUIRED)
 
 add_executable(simpleTest_client $<TARGET_OBJECTS:logging_dev> ${simpleTest_client_source_files} )
 
@@ -70,7 +71,8 @@ target_include_directories(persistency_test PUBLIC
 
 target_link_libraries(persistency_test PUBLIC
         corebft
-        CONAN_PKG::gtest
+        GTest::GTest
+        GTest::Main
         test_config_lib
         $<TARGET_OBJECTS:logging_dev>
         simple_file_storage_lib)

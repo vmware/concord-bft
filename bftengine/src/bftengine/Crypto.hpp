@@ -13,8 +13,11 @@
 
 #include <threshsign/ThresholdSignaturesSchemes.h>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 #include <cryptopp/dll.h>
 #include <cryptopp/integer.h>
+#pragma GCC diagnostic pop
 
 #include <memory>
 #include <sstream>
