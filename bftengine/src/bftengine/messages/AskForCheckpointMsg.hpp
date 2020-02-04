@@ -30,7 +30,7 @@ class AskForCheckpointMsg : public MessageBase {
 
   AskForCheckpointMsg* clone() { return new AskForCheckpointMsg(*this); }
 
-  void validate(const ReplicasInfo& repInfo) override {
+  void validate(const ReplicasInfo& repInfo) const override {
     Assert(type() == MsgCode::AskForCheckpoint);
     Assert(senderId() != repInfo.myId());
 
