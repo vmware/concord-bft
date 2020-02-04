@@ -20,5 +20,6 @@ script:
 
 cache:
   ccache: true
+  pip: true
   directories:
     - $HOME/.conan
