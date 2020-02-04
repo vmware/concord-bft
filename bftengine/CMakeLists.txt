@@ -1,70 +1,70 @@
 project (bftengine LANGUAGES CXX)
 
 set(corebft_source_files
-        src/bftengine/PrimitiveTypes.cpp
-        src/bftengine/DebugStatistics.cpp
-        src/bftengine/Digest.cpp
-        src/bftengine/SeqNumInfo.cpp
-        src/bftengine/ReadOnlyReplica.cpp
-        src/bftengine/ReplicaBase.cpp
-        src/bftengine/ReplicaForStateTransfer.cpp
-        src/bftengine/ReplicaImp.cpp
-        src/bftengine/ControllerBase.cpp
-        src/bftengine/ControllerWithSimpleHistory.cpp
-        src/bftengine/IncomingMsgsStorageImp.cpp
-        src/bftengine/RetransmissionsManager.cpp
-        src/bftengine/SigManager.cpp
-        src/bftengine/ReplicasInfo.cpp
-        src/bftengine/ViewChangeSafetyLogic.cpp
-        src/bftengine/ViewsManager.cpp
-        src/bftengine/CheckpointInfo.cpp
-        src/bftengine/ClientsManager.cpp
-        src/bftengine/Crypto.cpp
-        src/bftengine/NullStateTransfer.cpp
-        src/bftengine/BFTEngine.cpp
-        src/bftengine/SimpleClientImp.cpp
-        src/bftengine/PersistentStorageImp.cpp
-        src/bftengine/PersistentStorageDescriptors.cpp
-        src/bftengine/PersistentStorageWindows.cpp
-        src/bftengine/DebugPersistentStorage.cpp
-        src/bftengine/ReplicaLoader.cpp
-        src/bftengine/ReplicaConfigSerializer.cpp
-        src/bftengine/SerializableActiveWindow.cpp
-        src/bftengine/MsgsCommunicator.cpp
-        src/bftengine/MsgReceiver.cpp
-        src/communication/PlainUDPCommunication.cpp
-        src/communication/CommFactory.cpp
-        src/bcstatetransfer/BCStateTran.cpp
-        src/bcstatetransfer/InMemoryDataStore.cpp
-        src/bcstatetransfer/STDigest.cpp
-        src/bcstatetransfer/DBDataStore.cpp
-        src/bcstatetransfer/SourceSelector.cpp
-        src/simplestatetransfer/SimpleStateTran.cpp
-        src/preprocessor/PreProcessor.cpp
-        src/preprocessor/RequestProcessingInfo.cpp
-        src/preprocessor/messages/ClientPreProcessRequestMsg.cpp
-        src/preprocessor/messages/PreProcessRequestMsg.cpp
-        src/preprocessor/messages/PreProcessReplyMsg.cpp
-        src/bftengine/messages/PrePrepareMsg.cpp
-        src/bftengine/messages/CheckpointMsg.cpp
-        src/bftengine/messages/FullCommitProofMsg.cpp
-        src/bftengine/messages/FullExecProofMsg.cpp
-        src/bftengine/messages/MessageBase.cpp
-        src/bftengine/messages/PartialCommitProofMsg.cpp
-        src/bftengine/messages/PartialExecProofMsg.cpp
-        src/bftengine/messages/PartialExecProofsSet.cpp
-        src/bftengine/messages/PartialProofsSet.cpp
-        src/bftengine/messages/ClientReplyMsg.cpp
-        src/bftengine/messages/ReqMissingDataMsg.cpp
-        src/bftengine/messages/ClientRequestMsg.cpp
-        src/bftengine/messages/StartSlowCommitMsg.cpp
-        src/bftengine/messages/SignedShareMsgs.cpp
-        src/bftengine/messages/SimpleAckMsg.cpp
-        src/bftengine/messages/NewViewMsg.cpp
-        src/bftengine/messages/ViewChangeMsg.cpp
-        src/bftengine/messages/ReplicaStatusMsg.cpp
-        src/bftengine/messages/StateTransferMsg.cpp
-        src/bftengine/messages/InternalMessage.cpp
+    src/bftengine/PrimitiveTypes.cpp
+    src/bftengine/DebugStatistics.cpp
+    src/bftengine/Digest.cpp
+    src/bftengine/SeqNumInfo.cpp
+    src/bftengine/ReadOnlyReplica.cpp
+    src/bftengine/ReplicaBase.cpp
+    src/bftengine/ReplicaForStateTransfer.cpp
+    src/bftengine/ReplicaImp.cpp
+    src/bftengine/ControllerBase.cpp
+    src/bftengine/ControllerWithSimpleHistory.cpp
+    src/bftengine/IncomingMsgsStorageImp.cpp
+    src/bftengine/RetransmissionsManager.cpp
+    src/bftengine/SigManager.cpp
+    src/bftengine/ReplicasInfo.cpp
+    src/bftengine/ViewChangeSafetyLogic.cpp
+    src/bftengine/ViewsManager.cpp
+    src/bftengine/CheckpointInfo.cpp
+    src/bftengine/ClientsManager.cpp
+    src/bftengine/Crypto.cpp
+    src/bftengine/NullStateTransfer.cpp
+    src/bftengine/BFTEngine.cpp
+    src/bftengine/SimpleClientImp.cpp
+    src/bftengine/PersistentStorageImp.cpp
+    src/bftengine/PersistentStorageDescriptors.cpp
+    src/bftengine/PersistentStorageWindows.cpp
+    src/bftengine/DebugPersistentStorage.cpp
+    src/bftengine/ReplicaLoader.cpp
+    src/bftengine/ReplicaConfigSerializer.cpp
+    src/bftengine/SerializableActiveWindow.cpp
+    src/bftengine/MsgsCommunicator.cpp
+    src/bftengine/MsgReceiver.cpp
+    src/communication/PlainUDPCommunication.cpp
+    src/communication/CommFactory.cpp
+    src/bcstatetransfer/BCStateTran.cpp
+    src/bcstatetransfer/InMemoryDataStore.cpp
+    src/bcstatetransfer/STDigest.cpp
+    src/bcstatetransfer/DBDataStore.cpp
+    src/bcstatetransfer/SourceSelector.cpp
+    src/simplestatetransfer/SimpleStateTran.cpp
+    src/preprocessor/PreProcessor.cpp
+    src/preprocessor/RequestProcessingInfo.cpp
+    src/preprocessor/messages/ClientPreProcessRequestMsg.cpp
+    src/preprocessor/messages/PreProcessRequestMsg.cpp
+    src/preprocessor/messages/PreProcessReplyMsg.cpp
+    src/bftengine/messages/PrePrepareMsg.cpp
+    src/bftengine/messages/CheckpointMsg.cpp
+    src/bftengine/messages/FullCommitProofMsg.cpp
+    src/bftengine/messages/FullExecProofMsg.cpp
+    src/bftengine/messages/MessageBase.cpp
+    src/bftengine/messages/PartialCommitProofMsg.cpp
+    src/bftengine/messages/PartialExecProofMsg.cpp
+    src/bftengine/messages/PartialExecProofsSet.cpp
+    src/bftengine/messages/PartialProofsSet.cpp
+    src/bftengine/messages/ClientReplyMsg.cpp
+    src/bftengine/messages/ReqMissingDataMsg.cpp
+    src/bftengine/messages/ClientRequestMsg.cpp
+    src/bftengine/messages/StartSlowCommitMsg.cpp
+    src/bftengine/messages/SignedShareMsgs.cpp
+    src/bftengine/messages/SimpleAckMsg.cpp
+    src/bftengine/messages/NewViewMsg.cpp
+    src/bftengine/messages/ViewChangeMsg.cpp
+    src/bftengine/messages/ReplicaStatusMsg.cpp
+    src/bftengine/messages/StateTransferMsg.cpp
+    src/bftengine/messages/InternalMessage.cpp
         )
 
 #
@@ -85,29 +85,22 @@ endif()
 add_library(corebft STATIC ${corebft_source_files})
 add_library(bftclient STATIC src/bftengine/SimpleClientImp)
 
-find_package(OpenSSL REQUIRED)
-if(OPENSSL_FOUND)
-    message("OpenSSL include dir: ${OPENSSL_INCLUDE_DIR}")
-    message("OpenSSL libraries: ${OPENSSL_LIBRARIES}")
-    target_include_directories(corebft PUBLIC ${OPENSSL_INCLUDE_DIR})
-    target_link_libraries(corebft PUBLIC ${OPENSSL_LIBRARIES})
-    target_link_libraries(bftclient PUBLIC ${OPENSSL_LIBRARIES})
-endif()
-
 if(${BUILD_COMM_TCP_PLAIN} OR ${BUILD_COMM_TCP_TLS})
     set(Boost_USE_STATIC_LIBS ON) # only find static libs
     set(Boost_USE_MULTITHREADED ON)
     set(Boost_USE_STATIC_RUNTIME OFF)
-    find_package(Boost ${MIN_BOOST_VERSION} COMPONENTS system filesystem)
-    if(Boost_FOUND)
-        include_directories(${Boost_INCLUDE_DIRS})
-        target_link_libraries(corebft PUBLIC ${Boost_LIBRARIES})
-        target_link_libraries(bftclient PUBLIC ${Boost_LIBRARIES})
-    endif()
+    find_package(Boost ${MIN_BOOST_VERSION} COMPONENTS system filesystem REQUIRED)
+    include_directories(${Boost_INCLUDE_DIRS})
+    target_link_libraries(corebft PUBLIC ${Boost_LIBRARIES})
+    target_link_libraries(bftclient PUBLIC ${Boost_LIBRARIES})
     if(${BUILD_COMM_TCP_PLAIN})
         target_compile_definitions(corebft PUBLIC USE_COMM_PLAIN_TCP)
         target_compile_definitions(bftclient PUBLIC USE_COMM_PLAIN_TCP)
     elseif(${BUILD_COMM_TCP_TLS})
+        find_package(OpenSSL REQUIRED)
+        target_include_directories(corebft PUBLIC ${OPENSSL_INCLUDE_DIR})
+        target_link_libraries(corebft PUBLIC ${OPENSSL_LIBRARIES})
+        target_link_libraries(bftclient PUBLIC ${OPENSSL_LIBRARIES})
         target_compile_definitions(corebft PUBLIC USE_COMM_TLS_TCP)
         target_compile_definitions(bftclient PUBLIC USE_COMM_TLS_TCP)
     endif()
@@ -125,7 +118,6 @@ target_include_directories(corebft PRIVATE src/bftengine)
 target_include_directories(corebft PRIVATE src/preprocessor)
 target_include_directories(corebft PRIVATE util/include)
 target_include_directories(corebft PUBLIC ${CRYPTOPP_INCLUDE_DIRS})
-
 
 target_include_directories(bftclient PUBLIC include/bftengine)
 target_include_directories(bftclient PUBLIC include/communication)

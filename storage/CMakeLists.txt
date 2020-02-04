@@ -1,5 +1,4 @@
-add_library(concordbft_storage STATIC src/db_metadata_storage.cpp
-        src/blockchain_db_adapter.cpp)
+add_library(concordbft_storage STATIC src/db_metadata_storage.cpp src/blockchain_db_adapter.cpp)
 
 target_include_directories(concordbft_storage PUBLIC include)
 target_link_libraries(concordbft_storage PUBLIC corebft)
@@ -28,9 +27,10 @@ endif(BUILD_ROCKSDB_STORAGE)
 
 find_package(OpenSSL REQUIRED)
 target_sources(concordbft_storage PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/memorydb_client.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/sparse_merkle/internal_node.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/sparse_merkle/tree.cpp
-        )
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/memorydb_client.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/sparse_merkle/internal_node.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/sparse_merkle/tree.cpp
+    )
+target_include_directories(corebft PUBLIC ${OPENSSL_INCLUDE_DIR})
 target_link_libraries(concordbft_storage PRIVATE ${OPENSSL_LIBRARIES})
 

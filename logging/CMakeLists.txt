@@ -10,7 +10,10 @@ endif()
 
 #######################################################################################################################
 #export all the way up to the top level directory
-find_package(log4cplus REQUIRED)
+if(USE_LOG4CPP)
+  find_package(log4cplus REQUIRED)
+endif()
+
 set(current_dir ${CMAKE_CURRENT_SOURCE_DIR})
 while(NOT current_dir STREQUAL "")
   message(STATUS "setting logger compile definitions for [${current_dir}]")

@@ -24,8 +24,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # WARNING: For the love of god, do not remove this flag or you will regret it. Instead,
 # just use signed types everywhere and cast your unsigned to signed when mixing unsigned
 # variables with signed ones. See: http://soundsoftware.ac.uk/c-pitfall-unsigned
-set(CXX_FLAGS_INTEGER_CORRECTNESS
-        "-Wconversion -Wsign-conversion")
+set(CXX_FLAGS_INTEGER_CORRECTNESS "-Wconversion -Wsign-conversion")
 
 string(APPEND CXX_FLAGS " ${CXX_FLAGS_INTEGER_CORRECTNESS}")
 # TODO: use target_compile_features instead:
@@ -37,37 +36,29 @@ string(APPEND CXX_FLAGS " -Wextra")
 
 
 # TODO: Figure out right way to deal with -fstrict-overflow / -Wstrict-overflow related errors
-string(APPEND CXX_FLAGS
-        " -fno-strict-overflow")
-string(APPEND CXX_FLAGS_DEBUG
-        " -D_FORTIFY_SOURCE=2")
+string(APPEND CXX_FLAGS " -fno-strict-overflow")
+string(APPEND CXX_FLAGS_DEBUG " -D_FORTIFY_SOURCE=2")
 
 # GNU and Clang-specific flags
-string(APPEND CMAKE_CXX_FLAGS
-        " ${CXX_FLAGS}")
-string(APPEND CMAKE_CXX_FLAGS_DEBUG
-        " ${CXX_FLAGS_DEBUG}")
+string(APPEND CMAKE_CXX_FLAGS " ${CXX_FLAGS}")
+string(APPEND CMAKE_CXX_FLAGS_DEBUG " ${CXX_FLAGS_DEBUG}")
 
 # using Clang
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     # Clang-specific options
-    string(APPEND CMAKE_CXX_FLAGS
-            " -ferror-limit=3")
-    string(APPEND CMAKE_CXX_FLAGS_DEBUG
-            " -fstack-protector-all")
+    string(APPEND CMAKE_CXX_FLAGS " -ferror-limit=3")
+    string(APPEND CMAKE_CXX_FLAGS_DEBUG " -fstack-protector-all")
 
     # using GCC
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     # GCC-specific options
-    string(APPEND CMAKE_CXX_FLAGS
-            " -fmax-errors=3")
-    string(APPEND CMAKE_CXX_FLAGS_DEBUG
-            " -fstack-protector-all")
+    string(APPEND CMAKE_CXX_FLAGS " -fmax-errors=3")
+    string(APPEND CMAKE_CXX_FLAGS_DEBUG " -fstack-protector-all")
 
-    # TODO: using Intel C++
+# TODO: using Intel C++
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
 
-    # TODO: using Visual Studio C++
+# TODO: using Visual Studio C++
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 
 endif()
@@ -78,18 +69,17 @@ endif()
 enable_testing()
 
 # When building with 'cmake -DCMAKE_BUILD_TYPE=Trace'
-string(APPEND CMAKE_CXX_FLAGS_TRACE
-        " -DTRACE")
+string(APPEND CMAKE_CXX_FLAGS_TRACE " -DTRACE")
 
 #
 # Helper functions
 #
 function(link_with_relic_library targetName)
     target_link_libraries(${targetName}
-            PUBLIC
-            ${RELIC_STATIC_LIBRARY}
-            ${GMP_STATIC_LIBRARY}
-            ${CRYPTOPP_STATIC_LIBRARY})
+        PUBLIC
+        ${RELIC_STATIC_LIBRARY}
+        ${GMP_STATIC_LIBRARY}
+        ${CRYPTOPP_STATIC_LIBRARY})
 endfunction()
 
 function(add_relic_executable appName appSrc appDir)
@@ -97,11 +87,11 @@ function(add_relic_executable appName appSrc appDir)
     # Add compile target
     add_executable(${appName} ${appSrc} $<TARGET_OBJECTS:bench> $<TARGET_OBJECTS:bls_relic> $<TARGET_OBJECTS:common> $<TARGET_OBJECTS:logging_dev>)
     target_include_directories(${appName} PRIVATE
-            ${threshsign_SOURCE_DIR}/src
-            #${threshsign_SOURCE_DIR}/src/bls/relic
-            #${threshsign_SOURCE_DIR}/src/bls/relic/async
-            ${threshsign_SOURCE_DIR}/lib
-            ${threshsign_SOURCE_DIR}/include)
+        ${threshsign_SOURCE_DIR}/src
+        #${threshsign_SOURCE_DIR}/src/bls/relic
+        #${threshsign_SOURCE_DIR}/src/bls/relic/async
+        ${threshsign_SOURCE_DIR}/lib
+        ${threshsign_SOURCE_DIR}/include)
     target_link_libraries(${appName} PRIVATE mainapp)
     target_link_libraries(${appName} PRIVATE relic_mainapp)
     target_link_libraries(${appName} PRIVATE Threads::Threads)
@@ -152,14 +142,14 @@ find_library(CRYPTOPP_STATIC_LIBRARY NAMES "libcryptopp.a")
 #
 
 add_library(threshsign
-        STATIC
-        $<TARGET_OBJECTS:common>
-        $<TARGET_OBJECTS:bls_relic>
-        )
+    STATIC
+    $<TARGET_OBJECTS:common>
+    $<TARGET_OBJECTS:bls_relic>
+)
 
 target_include_directories(threshsign PUBLIC
-        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-        "$<INSTALL_INTERFACE:${INSTALL_CMAKE_DIR}/include>")
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+    "$<INSTALL_INTERFACE:${INSTALL_CMAKE_DIR}/include>")
 
 set_property(GLOBAL PROPERTY thresh_include_folder
         "${CMAKE_CURRENT_SOURCE_DIR}/include/threshsign")
@@ -185,14 +175,14 @@ add_subdirectory(test)
 
 # This creates the <Package>Config.cmake file and installs it
 install(TARGETS threshsign EXPORT threshsignConfig
-        ARCHIVE DESTINATION lib)
+    ARCHIVE DESTINATION lib)
 install(EXPORT threshsignConfig DESTINATION lib/cmake/threshsign)
 
 # This installs the static or (/and?) dynamic library
 install(TARGETS threshsign
-        ARCHIVE DESTINATION lib
-        LIBRARY DESTINATION lib
-        )
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+)
 
 
 

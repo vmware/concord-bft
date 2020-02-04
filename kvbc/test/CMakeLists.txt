@@ -4,8 +4,8 @@ if(Boost_FOUND)
     add_test(blockchain_view_test blockchain_view_test)
     target_include_directories(blockchain_view_test PRIVATE ${Boost_INCLUDE_DIRS})
     target_link_libraries(blockchain_view_test PUBLIC
-            GTest::Main
-            util
-            kvbc
-            )
+        GTest::Main
+        util
+        kvbc
+    )
 endif()
