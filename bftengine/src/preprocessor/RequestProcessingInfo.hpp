@@ -12,38 +12,49 @@
 #pragma once
 
 #include "PrimitiveTypes.hpp"
-#include "sha3_256.h"
+#include "messages/PreProcessRequestMsg.hpp"
 #include "messages/PreProcessReplyMsg.hpp"
-#include "messages/ClientPreProcessRequestMsg.hpp"
-#include "sliver.hpp"
-
 #include <vector>
-#include <memory>
+#include <map>
 
 namespace preprocessor {
 
-struct ReplicaDataForRequest {
-  std::unique_ptr<PreProcessReplyMsg> preProcessReplyMsg_;
-};
+// This class collects and stores data relevant to the processing of one specific client request by all replicas.
 
-// This class collects and stores information relevant to the processing of one specific client request
-// (for all replicas).
+typedef enum { CONTINUE, COMPLETE, CANCEL, RETRY_PRIMARY } PreProcessingResult;
+typedef std::array<uint8_t, concord::util::SHA3_256::SIZE_IN_BYTES> HashArray;
 
 class RequestProcessingInfo {
  public:
-  RequestProcessingInfo(uint16_t numOfReplicas, ReqId reqSeqNum);
+  RequestProcessingInfo(uint16_t numOfReplicas, uint16_t numOfRequiredReplies, ReqId reqSeqNum);
   ~RequestProcessingInfo() = default;
 
-  void saveClientPreProcessRequestMsg(const ClientPreProcessReqMsgSharedPtr &clientPreProcessRequestMsg);
-  void savePreProcessResult(const concordUtils::Sliver &preProcessResult, uint32_t preProcessResultLen);
+  void handlePrimaryPreProcessed(PreProcessRequestMsgSharedPtr msg,
+                                 const char* preProcessResult,
+                                 uint32_t preProcessResultLen);
+  void handlePreProcessReplyMsg(PreProcessReplyMsgSharedPtr preProcessReplyMsg);
+  PreProcessRequestMsgSharedPtr getPreProcessRequest() const { return preProcessRequestMsg_; }
+  const SeqNum getReqSeqNum() const { return reqSeqNum_; }
+  PreProcessingResult getPreProcessingConsensusResult() const;
+  const char* getMyPreProcessedResult() const { return myPreProcessResult_; }
+  uint32_t getMyPreProcessedResultLen() const { return myPreProcessResultLen_; }
 
  private:
+  static HashArray convertToArray(const uint8_t resultsHash[concord::util::SHA3_256::SIZE_IN_BYTES]);
+
+ private:
+  static uint16_t numOfRequiredEqualReplies_;
+
   const uint16_t numOfReplicas_;
   const ReqId reqSeqNum_;
-  ClientPreProcessReqMsgSharedPtr clientPreProcessRequestMsg_;  // Original client message
-  concord::util::SHA3_256::Digest myPreProcessResultHash_ = {0};
-  concordUtils::Sliver myPreProcessResult_;
-  std::vector<std::unique_ptr<ReplicaDataForRequest>> replicasDataForRequest_;
+  PreProcessRequestMsgSharedPtr preProcessRequestMsg_;
+  uint16_t numOfReceivedReplies_ = 0;
+  const char* myPreProcessResult_ = nullptr;
+  uint32_t myPreProcessResultLen_ = 0;
+  HashArray myPreProcessResultHash_;
+  std::map<HashArray, int> preProcessingResultHashes_;  // Maps result hash to the number of equal hashes
 };
+
+typedef std::unique_ptr<RequestProcessingInfo> RequestProcessingInfoUniquePtr;
 
 }  // namespace preprocessor

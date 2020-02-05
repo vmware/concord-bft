@@ -10,31 +10,67 @@
 // file.
 
 #include "PreProcessReplyMsg.hpp"
+#include "ReplicaConfig.hpp"
 #include "assertUtils.hpp"
-#include <cstring>
 
 namespace preprocessor {
 
-PreProcessReplyMsg::PreProcessReplyMsg(
-    NodeIdType senderId, uint64_t reqSeqNum, ViewNum viewNum, uint32_t replyLength, const char* reply)
-    : MessageBase(senderId, MsgCode::PreProcessReply, (sizeof(PreProcessReplyMsgHeader) + replyLength)) {
-  setParams(senderId, reqSeqNum, viewNum, replyLength);
-  memcpy(body() + sizeof(PreProcessReplyMsgHeader), reply, replyLength);
+using namespace std;
+using namespace concord::util;
+using namespace bftEngine;
+
+unique_ptr<SigManager> PreProcessReplyMsg::sigManager_;
+uint16_t PreProcessReplyMsg::maxReplyMsgSize_ = 512;  // Actually, it is sizeof(PreProcessReplyMsgHeader) = 50 + 256
+
+PreProcessReplyMsg::PreProcessReplyMsg(NodeIdType senderId, uint16_t clientId, uint64_t reqSeqNum)
+    : MessageBase(senderId, MsgCode::PreProcessReply, maxReplyMsgSize_) {
+  sigManager_ = make_unique<SigManager>(ReplicaConfigSingleton::GetInstance().GetReplicaId(),
+                                        ReplicaConfigSingleton::GetInstance().GetNumOfReplicas() +
+                                            ReplicaConfigSingleton::GetInstance().GetNumOfClientProxies(),
+                                        ReplicaConfigSingleton::GetInstance().GetReplicaPrivateKey(),
+                                        ReplicaConfigSingleton::GetInstance().GetPublicKeysOfReplicas());
+  setParams(senderId, clientId, reqSeqNum);
 }
 
 void PreProcessReplyMsg::validate(const ReplicasInfo& repInfo) const {
   Assert(type() == MsgCode::PreProcessReply);
   Assert(senderId() != repInfo.myId());
 
-  if (size() < sizeof(PreProcessReplyMsgHeader) + msgBody()->requestLength)
+  const uint64_t headerSize = sizeof(PreProcessReplyMsgHeader);
+  if (size() < headerSize || size() < headerSize + msgBody()->replyLength)
     throw std::runtime_error(__PRETTY_FUNCTION__);
+
+  auto& msgHeader = *msgBody();
+  uint16_t sigLen = sigManager_->getSigLength(msgHeader.senderId);
+
+  if (size() < (sizeof(PreProcessReplyMsgHeader) + sigLen))
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": size"));
+
+  if (!sigManager_->verifySig(
+          msgHeader.senderId, (char*)msgBody()->resultsHash, SHA3_256::SIZE_IN_BYTES, body() + headerSize, sigLen))
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig"));
 }
 
-void PreProcessReplyMsg::setParams(NodeIdType senderId, ReqId reqSeqNum, ViewNum view, uint32_t replyLength) {
+void PreProcessReplyMsg::setParams(NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum) {
   msgBody()->senderId = senderId;
   msgBody()->reqSeqNum = reqSeqNum;
-  msgBody()->viewNum = view;
-  msgBody()->requestLength = replyLength;
+  msgBody()->clientId = clientId;
+  LOG_DEBUG(GL, "senderId=" << senderId << " clientId=" << clientId << " reqSeqNum=" << reqSeqNum);
+}
+
+void PreProcessReplyMsg::setupMsgBody(const char* buf, uint32_t bufLen) {
+  const uint16_t sigSize = sigManager_->getMySigLength();
+  const uint16_t headerSize = sizeof(PreProcessReplyMsgHeader);
+
+  // Calculate pre-process result hash
+  memset(msgBody()->resultsHash, 0, concord::util::SHA3_256::SIZE_IN_BYTES);
+  auto hash = SHA3_256().digest(buf, bufLen);
+  memcpy(msgBody()->resultsHash, hash.data(), hash.size());
+
+  // Sign hash
+  sigManager_->sign((char*)hash.data(), hash.size(), body() + headerSize, sigSize);
+  msgSize_ = headerSize + sigSize;
+  msgBody()->replyLength = sigSize;
 }
 
 }  // namespace preprocessor

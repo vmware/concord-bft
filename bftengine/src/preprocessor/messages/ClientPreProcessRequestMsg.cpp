@@ -10,6 +10,7 @@
 // file.
 
 #include "ClientPreProcessRequestMsg.hpp"
+#include "SimpleClient.hpp"
 #include "assertUtils.hpp"
 
 namespace preprocessor {
@@ -17,11 +18,19 @@ namespace preprocessor {
 using namespace std;
 using namespace bftEngine;
 
+ClientPreProcessRequestMsg::ClientPreProcessRequestMsg(NodeIdType sender,
+                                                       uint64_t reqSeqNum,
+                                                       uint32_t requestLength,
+                                                       const char* request)
+    : ClientRequestMsg(sender, PRE_PROCESS_REQ, reqSeqNum, requestLength, request) {
+  msgBody_->msgType = MsgCode::ClientPreProcessRequest;
+}
+
 void ClientPreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
   Assert(type() == MsgCode::ClientPreProcessRequest);
   Assert(senderId() != repInfo.myId());
 
-  if (size() < (sizeof(ClientRequestMsgHeader) + msgBody()->requestLength))
+  if (size() < sizeof(ClientRequestMsgHeader) || size() < (sizeof(ClientRequestMsgHeader) + msgBody()->requestLength))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 

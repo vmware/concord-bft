@@ -29,7 +29,7 @@ class ClientRequestMsg : public MessageBase {
   // TODO(GG): more asserts
 
  public:
-  ClientRequestMsg(NodeIdType sender, bool isReadOnly, uint64_t reqSeqNum, uint32_t requestLength, const char* request);
+  ClientRequestMsg(NodeIdType sender, uint8_t flags, uint64_t reqSeqNum, uint32_t requestLength, const char* request);
 
   ClientRequestMsg(NodeIdType sender);
 
@@ -37,7 +37,9 @@ class ClientRequestMsg : public MessageBase {
 
   uint16_t clientProxyId() const { return msgBody()->idOfClientProxy; }
 
-  bool isReadOnly() const { return (msgBody()->flags & 0x1) != 0; }
+  bool isReadOnly() const;
+
+  uint8_t flags() const { return msgBody()->flags; }
 
   ReqId requestSeqNum() const { return msgBody()->reqSeqNum; }
 
@@ -45,7 +47,7 @@ class ClientRequestMsg : public MessageBase {
 
   char* requestBuf() const { return body() + sizeof(ClientRequestMsgHeader); }
 
-  void set(ReqId reqSeqNum, uint32_t requestLength, bool isReadOnly);
+  void set(ReqId reqSeqNum, uint32_t requestLength, uint8_t flags);
 
   void validate(const ReplicasInfo&) const override;
 
@@ -53,8 +55,8 @@ class ClientRequestMsg : public MessageBase {
   ClientRequestMsgHeader* msgBody() const { return ((ClientRequestMsgHeader*)msgBody_); }
 
  private:
-  void setParams(NodeIdType sender, ReqId reqSeqNum, uint32_t requestLength, bool isReadOnly);
-  void setParams(ReqId reqSeqNum, uint32_t requestLength, bool isReadOnly);
+  void setParams(NodeIdType sender, ReqId reqSeqNum, uint32_t requestLength, uint8_t flags);
+  void setParams(ReqId reqSeqNum, uint32_t requestLength, uint8_t flags);
 };
 
 }  // namespace bftEngine::impl
