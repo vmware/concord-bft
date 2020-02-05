@@ -19,17 +19,17 @@ using concordUtils::Sliver;
 
 class KeyComparator {
  public:
-  KeyComparator(IDBClient::IKeyManipulator *key_manipulator)
-      : key_manipulator_(key_manipulator),
+  KeyComparator(IDBClient::IKeyComparator *key_comparator)
+      : key_comparator_(key_comparator),
         logger_(concordlogger::Log::getLogger("concord.storage.rocksdb.KeyComparator")) {}
 
   bool operator()(const Sliver &a, const Sliver &b) const {
-    int ret = key_manipulator_->composedKeyComparison(a.data(), a.length(), b.data(), b.length());
+    int ret = key_comparator_->composedKeyComparison(a.data(), a.length(), b.data(), b.length());
     return ret < 0;
   }
 
  private:
-  std::shared_ptr<IDBClient::IKeyManipulator> key_manipulator_;
+  std::shared_ptr<IDBClient::IKeyComparator> key_comparator_;
   concordlogger::Logger logger_;
 };
 

@@ -14,27 +14,14 @@
 #pragma once
 
 #include <cstdint>
-#include <unordered_map>
-#include <vector>
-#include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 
 namespace concord {
 namespace storage {
 namespace blockchain {
 
-struct BlockHeader {
-  uint32_t numberOfElements;
-  uint32_t parentDigestLength;
-  int8_t parentDigest[bftEngine::SimpleBlockchainStateTransfer::BLOCK_DIGEST_SIZE];
-};
-
-// BlockEntry structures are coming immediately after the header.
-struct BlockEntry {
-  uint32_t keyOffset;
-  uint32_t keySize;
-  uint32_t valOffset;
-  uint32_t valSize;
-};
+inline namespace v1DirectKeyValue {
+// DB key types are an implementation detail. External users should not rely on it.
+namespace detail {
 
 enum class EDBKeyType : std::uint8_t {
   E_DB_KEY_TYPE_FIRST = 1,
@@ -49,8 +36,47 @@ enum class EDBKeyType : std::uint8_t {
   E_DB_KEY_TYPE_LAST
 };
 
-typedef uint64_t BlockId;
-typedef uint32_t ObjectId;
+}  // namespace detail
+}  // namespace v1DirectKeyValue
+
+namespace v2MerkleTree {
+
+// DB key types are an implementation detail. External users should not rely on it.
+namespace detail {
+
+// Top-level DB key types used when saving the blockchain in the form of a merkle tree.
+// Key types might have subtypes so that the top-level enum is not quickly exhausted and keys are structured in
+// a clearer way. A note is that there is an overhead of 1 byte in the key length when using subtypes.
+enum class EDBKeyType : std::uint8_t {
+  Block,
+  Key,
+  BFT,
+};
+
+// Key subtypes. Internal and Stale are used internally by the merkle tree implementation. The Leaf type is the one
+// containing actual application data.
+enum class EKeyType : std::uint8_t {
+  Internal,
+  Stale,
+  Leaf,
+};
+
+// BFT subtypes.
+enum class EBFTType : std::uint8_t {
+  Metadata,
+  ST,
+  STPendingPage,
+  STReservedPageStatic,
+  STReserverdPageDynamic,
+  STCheckpointDescriptor,
+};
+
+}  // namespace detail
+
+}  // namespace v2MerkleTree
+
+typedef std::uint64_t BlockId;
+typedef std::uint32_t ObjectId;
 
 }  // namespace blockchain
 }  // namespace storage
