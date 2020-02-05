@@ -245,7 +245,7 @@ class NibblePath {
   }
 
   // Return the last nibble off the path
-  Nibble back() {
+  Nibble back() const {
     Assert(!empty());
     if (num_nibbles_ % 2 == 0) {
       // We have a complete byte at the end of path_. Remove the lower nibble.
