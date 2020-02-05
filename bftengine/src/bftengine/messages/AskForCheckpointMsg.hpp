@@ -14,8 +14,7 @@
 #include "MessageBase.hpp"
 #include "Digest.hpp"
 
-namespace bftEngine {
-namespace impl {
+namespace bftEngine::impl {
 
 class AskForCheckpointMsg : public MessageBase {
  public:
@@ -47,5 +46,4 @@ class AskForCheckpointMsg : public MessageBase {
 
   AskForCheckpointMsgHeader* b() const { return (AskForCheckpointMsgHeader*)msgBody_; }
 };
-}  // namespace impl
-}  // namespace bftEngine
+}  // namespace bftEngine::impl

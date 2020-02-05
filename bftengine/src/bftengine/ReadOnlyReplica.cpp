@@ -27,10 +27,16 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
                                  std::shared_ptr<MsgsCommunicator> msgComm,
                                  std::shared_ptr<PersistentStorage> persistentStorage,
                                  std::shared_ptr<MsgHandlersRegistrator> msgHandlerReg)
-    : ReplicaForStateTransfer(config, stateTransfer, msgComm, msgHandlerReg, true), ps_(persistentStorage) {
+    : ReplicaForStateTransfer(config, stateTransfer, msgComm, msgHandlerReg, true),
+      ps_(persistentStorage),
+      ro_metrics_{metrics_.RegisterCounter("received_checkpoint_msg"),
+                  metrics_.RegisterCounter("sent_ask_for_checkpoint_msg"),
+                  metrics_.RegisterCounter("received_invalid_msg"),
+                  metrics_.RegisterGauge("last_executed_seq_num", lastExecutedSeqNum)} {
   repsInfo = new ReplicasInfo(config, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
   msgHandlers_->registerMsgHandler(MsgCode::Checkpoint,
                                    bind(&ReadOnlyReplica::messageHandler<CheckpointMsg>, this, std::placeholders::_1));
+  metrics_.Register();
 }
 
 void ReadOnlyReplica::start() {
@@ -54,14 +60,17 @@ void ReadOnlyReplica::onTransferringCompleteImp(int64_t newStateCheckpoint) {
   ps_->beginWriteTran();
   ps_->setLastExecutedSeqNum(lastExecutedSeqNum);
   ps_->endWriteTran();
+  ro_metrics_.last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
 }
 
 void ReadOnlyReplica::onReportAboutInvalidMessage(MessageBase *msg, const char *reason) {
+  ro_metrics_.received_invalid_msg_.Get().Inc();
   LOG_WARN(GL,
            "Node " << config_.replicaId << " received invalid message from Node " << msg->senderId()
                    << " type=" << msg->type() << " reason: " << reason);
 }
 void ReadOnlyReplica::sendAskForCheckpointMsg() {
+  ro_metrics_.sent_ask_for_checkpoint_msg_.Get().Inc();
   LOG_INFO(GL, "sending AskForCheckpointMsg");
   auto msg = std::make_unique<AskForCheckpointMsg>(config_.replicaId);
   for (auto id : repsInfo->idsOfPeerReplicas()) send(msg.get(), id);
@@ -69,7 +78,7 @@ void ReadOnlyReplica::sendAskForCheckpointMsg() {
 
 template <>
 void ReadOnlyReplica::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
-  // metric_received_checkpoints_.Get().Inc();
+  ro_metrics_.received_checkpoint_msg_.Get().Inc();
   const ReplicaId msgSenderId = msg->senderId();
   const SeqNum msgSeqNum = msg->seqNumber();
   const Digest msgDigest = msg->digestOfState();
