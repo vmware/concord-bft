@@ -1,5 +1,7 @@
 project (bftengine LANGUAGES CXX)
 
+add_subdirectory(src/preprocessor)
+
 set(corebft_source_files
     src/bftengine/PrimitiveTypes.cpp
     src/bftengine/DebugStatistics.cpp
@@ -40,11 +42,6 @@ set(corebft_source_files
     src/bcstatetransfer/DBDataStore.cpp
     src/bcstatetransfer/SourceSelector.cpp
     src/simplestatetransfer/SimpleStateTran.cpp
-    src/preprocessor/PreProcessor.cpp
-    src/preprocessor/RequestProcessingInfo.cpp
-    src/preprocessor/messages/ClientPreProcessRequestMsg.cpp
-    src/preprocessor/messages/PreProcessRequestMsg.cpp
-    src/preprocessor/messages/PreProcessReplyMsg.cpp
     src/bftengine/messages/PrePrepareMsg.cpp
     src/bftengine/messages/CheckpointMsg.cpp
     src/bftengine/messages/FullCommitProofMsg.cpp
@@ -128,3 +125,4 @@ target_link_libraries(corebft PUBLIC threshsign)
 target_link_libraries(corebft PUBLIC Threads::Threads)
 target_link_libraries(corebft PUBLIC util)
 target_link_libraries(corebft PUBLIC concordbft_storage)
+target_link_libraries(corebft PUBLIC preprocessor)
