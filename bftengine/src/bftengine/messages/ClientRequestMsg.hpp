@@ -47,7 +47,7 @@ class ClientRequestMsg : public MessageBase {
 
   void set(ReqId reqSeqNum, uint32_t requestLength, bool isReadOnly);
 
-  void validate(const ReplicasInfo&) override;
+  void validate(const ReplicasInfo&) const override;
 
  protected:
   ClientRequestMsgHeader* msgBody() const { return ((ClientRequestMsgHeader*)msgBody_); }

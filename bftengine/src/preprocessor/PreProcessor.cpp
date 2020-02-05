@@ -28,12 +28,32 @@ using namespace std::placeholders;
 vector<unique_ptr<PreProcessor>> PreProcessor::preProcessors_;
 
 void PreProcessor::registerMsgHandlers() {
-  msgHandlersRegistrator_->registerMsgHandler(MsgCode::ClientPreProcessRequest,
-                                              bind(&PreProcessor::onClientPreProcessRequestMsg, this, _1));
+  msgHandlersRegistrator_->registerMsgHandler(
+      MsgCode::ClientPreProcessRequest, bind(&PreProcessor::messageHandler<ClientPreProcessRequestMsg>, this, _1));
   msgHandlersRegistrator_->registerMsgHandler(MsgCode::PreProcessRequest,
-                                              bind(&PreProcessor::onPreProcessRequestMsg, this, _1));
+                                              bind(&PreProcessor::messageHandler<PreProcessRequestMsg>, this, _1));
   msgHandlersRegistrator_->registerMsgHandler(MsgCode::PreProcessReply,
-                                              bind(&PreProcessor::onPreProcessReplyMsg, this, _1));
+                                              bind(&PreProcessor::messageHandler<PreProcessReplyMsg>, this, _1));
+}
+
+template <typename T>
+void PreProcessor::messageHandler(MessageBase *msg) {
+  if (validateMessage(msg))
+    onMessage<T>(static_cast<T *>(msg));
+  else
+    delete msg;
+}
+
+bool PreProcessor::validateMessage(MessageBase *msg) const {
+  try {
+    msg->validate(replica_.getReplicasInfo());
+    return true;
+  } catch (std::exception &e) {
+    LOG_WARN(GL,
+             "Node " << replicaId_ << " received invalid message from Node " << msg->senderId()
+                     << " type=" << msg->type() << " reason: " << e.what());
+    return false;
+  }
 }
 
 PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
@@ -60,18 +80,6 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
 }
 
 PreProcessor::~PreProcessor() { threadPool_.stop(); }
-
-ClientPreProcessReqMsgSharedPtr PreProcessor::convertMsgToCorrectType(MessageBase *&inMsg) {
-  ClientPreProcessRequestMsg *outMsg = nullptr;
-  if (!ClientPreProcessRequestMsg::ToActualMsgType(inMsg, outMsg)) {
-    LOG_WARN(GL,
-             "Replica " << replicaId_ << " received invalid message "
-                        << " type=" << inMsg->type() << " from Node=" << inMsg->senderId());
-    delete inMsg;
-  }
-  ClientPreProcessReqMsgSharedPtr resultMsg(outMsg);
-  return resultMsg;
-}
 
 bool PreProcessor::checkClientMsgCorrectness(const ClientPreProcessReqMsgSharedPtr &msg, ReqId reqSeqNum) const {
   if (replica_.isCollectingState()) {
@@ -101,8 +109,9 @@ bool PreProcessor::checkClientMsgCorrectness(const ClientPreProcessReqMsgSharedP
   return true;
 }
 
-void PreProcessor::onClientPreProcessRequestMsg(MessageBase *msg) {
-  auto clientPreProcessReqMsg = convertMsgToCorrectType(msg);
+template <>
+void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequestMsg *msg) {
+  ClientPreProcessReqMsgSharedPtr clientPreProcessReqMsg(msg);
   if (!clientPreProcessReqMsg) return;
 
   const NodeIdType &senderId = clientPreProcessReqMsg->senderId();
@@ -138,6 +147,16 @@ void PreProcessor::onClientPreProcessRequestMsg(MessageBase *msg) {
     return incomingMsgsStorage_->pushExternalMsg(clientPreProcessReqMsg->convertToClientRequestMsg());
   }
   LOG_INFO(GL, "ClientPreProcessRequestMsg reqSeqNum=" << reqSeqNum << " is ignored because request is old");
+}
+
+template <>
+void PreProcessor::onMessage<PreProcessRequestMsg>(PreProcessRequestMsg *msg) {
+  PreProcessRequestMsgSharedPtr preProcessRequestMsg(msg);
+}
+
+template <>
+void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *msg) {
+  PreProcessReplyMsgSharedPtr preProcessReplyMsg(msg);
 }
 
 void PreProcessor::sendMsg(char *msg, NodeIdType dest, uint16_t msgType, MsgSize msgSize) {
@@ -190,10 +209,6 @@ void PreProcessor::handleClientPreProcessRequest(const ClientPreProcessReqMsgSha
   ongoingRequests_[clientId]->savePreProcessResult(preProcessResultBuffers_[getClientReplyBufferId(clientId)],
                                                    actualResultBufLen);
 }
-
-void PreProcessor::onPreProcessRequestMsg(MessageBase *msg) {}
-
-void PreProcessor::onPreProcessReplyMsg(MessageBase *msg) {}
 
 void PreProcessor::addNewPreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                                       shared_ptr<IncomingMsgsStorage> &incomingMsgsStorage,

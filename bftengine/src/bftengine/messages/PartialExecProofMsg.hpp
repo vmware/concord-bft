@@ -32,7 +32,7 @@ class PartialExecProofMsg : public MessageBase {
 
   const char* thresholSignature() { return body() + sizeof(PartialExecProofMsgHeader); }
 
-  void validate(const ReplicasInfo&) override;
+  void validate(const ReplicasInfo&) const override;
 
  protected:
 #pragma pack(push, 1)

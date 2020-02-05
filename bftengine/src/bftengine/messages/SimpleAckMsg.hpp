@@ -30,7 +30,7 @@ class SimpleAckMsg : public MessageBase {
 
   uint64_t ackData() const { return b()->ackData; }
 
-  void validate(const ReplicasInfo&) override;
+  void validate(const ReplicasInfo&) const override;
 
  protected:
 #pragma pack(push, 1)

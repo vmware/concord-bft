@@ -57,7 +57,7 @@ SignedShareBase* SignedShareBase::create(
   return m;
 }
 
-void SignedShareBase::_validate(const ReplicasInfo& repInfo, int16_t type_) {
+void SignedShareBase::_validate(const ReplicasInfo& repInfo, int16_t type_) const {
   Assert(type() == type_);
   if (size() < sizeof(SignedShareBaseHeader) || size() < sizeof(SignedShareBaseHeader) + signatureLen() ||  // size
       senderId() == repInfo.myId() ||  // sent from another replica
@@ -75,7 +75,7 @@ PreparePartialMsg* PreparePartialMsg::create(
       MsgCode::PreparePartial, v, s, senderId, ppDigest, thresholdSigner);
 }
 
-void PreparePartialMsg::validate(const ReplicasInfo& repInfo) {
+void PreparePartialMsg::validate(const ReplicasInfo& repInfo) const {
   SignedShareBase::_validate(repInfo, MsgCode::PreparePartial);
 
   if (repInfo.myId() != repInfo.primaryOfView(viewNumber()))
@@ -96,7 +96,7 @@ PrepareFullMsg* PrepareFullMsg::create(ViewNum v, SeqNum s, ReplicaId senderId, 
   return (PrepareFullMsg*)SignedShareBase::create(MsgCode::PrepareFull, v, s, senderId, sig, sigLen);
 }
 
-void PrepareFullMsg::validate(const ReplicasInfo& repInfo) {
+void PrepareFullMsg::validate(const ReplicasInfo& repInfo) const {
   SignedShareBase::_validate(repInfo, MsgCode::PrepareFull);
 }
 
@@ -110,7 +110,7 @@ CommitPartialMsg* CommitPartialMsg::create(
       MsgCode::CommitPartial, v, s, senderId, ppDoubleDigest, thresholdSigner);
 }
 
-void CommitPartialMsg::validate(const ReplicasInfo& repInfo) {
+void CommitPartialMsg::validate(const ReplicasInfo& repInfo) const {
   SignedShareBase::_validate(repInfo, MsgCode::CommitPartial);
 
   if (repInfo.myId() != repInfo.primaryOfView(viewNumber()))
@@ -131,7 +131,9 @@ CommitFullMsg* CommitFullMsg::create(ViewNum v, SeqNum s, int16_t senderId, cons
   return (CommitFullMsg*)SignedShareBase::create(MsgCode::CommitFull, v, s, senderId, sig, sigLen);
 }
 
-void CommitFullMsg::validate(const ReplicasInfo& repInfo) { SignedShareBase::_validate(repInfo, MsgCode::CommitFull); }
+void CommitFullMsg::validate(const ReplicasInfo& repInfo) const {
+  SignedShareBase::_validate(repInfo, MsgCode::CommitFull);
+}
 
 }  // namespace impl
 }  // namespace bftEngine
