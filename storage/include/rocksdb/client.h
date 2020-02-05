@@ -11,7 +11,7 @@
  *
  *  Objects of RocksDBClient signify connections with RocksDB database. They
  *  contain variables for storing the database directory path, connection object
- *  and comparator.
+ *  and an optional comparator.
  *
  */
 
@@ -58,7 +58,8 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
 
 class Client : public concord::storage::IDBClient {
  public:
-  Client(std::string _dbPath, const ::rocksdb::Comparator* comparator) : m_dbPath(_dbPath), comparator_(comparator) {}
+  Client(std::string _dbPath, const ::rocksdb::Comparator* comparator = nullptr)
+      : m_dbPath(_dbPath), comparator_(comparator) {}
 
   ~Client() {
     if (txn_db_) {

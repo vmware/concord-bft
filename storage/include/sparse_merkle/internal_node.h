@@ -134,6 +134,7 @@ typedef std::variant<LeafChild, InternalChild> Child;
 class BatchedInternalNode {
  public:
   static constexpr size_t MAX_CHILDREN = 31;
+  using ChildrenContainer = std::array<std::optional<Child>, MAX_CHILDREN>;
 
   // The leaf was inserted into this node successfully.
   //
@@ -210,6 +211,12 @@ class BatchedInternalNode {
 
   typedef std::variant<RemoveComplete, NotFound, RemoveBatchedInternalNode, Descend> RemoveResult;
 
+  // Construct an empty node.
+  BatchedInternalNode() = default;
+
+  // Construct from the passed children container.
+  BatchedInternalNode(const ChildrenContainer& children) : children_{children} {}
+
   // Insert a LeafChild into this internal node. Return a type indicating success or
   // failure that contains the necessary data for the caller (the sparse merkle
   // tree implementation) to do the right thing.
@@ -246,6 +253,9 @@ class BatchedInternalNode {
 
   // Return the number of leaf children in this BatchedInternalNode
   size_t numLeafChildren() const;
+
+  // Return the internal children container.
+  const ChildrenContainer& children() const { return children_; }
 
  private:
   // A LeafChild collission has occurred. We need to create new InternalChild nodes so
@@ -353,7 +363,7 @@ class BatchedInternalNode {
 
   // All internal and leaf nodes are stored in this array, starting from the
   // root and proceeding level by level from left to right.
-  std::array<std::optional<Child>, MAX_CHILDREN> children_;
+  ChildrenContainer children_;
 };
 
 }  // namespace sparse_merkle

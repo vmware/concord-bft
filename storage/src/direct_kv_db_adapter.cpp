@@ -1,9 +1,6 @@
 // Copyright 2018 VMware, all rights reserved
 
-// @file blockchain_db_adapter.cpp
-//
-// @brief Contains helper functions for working with composite database keys and
-// using these keys to perform basic database operations.
+// @file direct_kv_db_adapter.cpp
 //
 // Data is stored in the form of key value pairs. However, the key used is a
 // composite database key. Its composition is : Key Type | Key | Block Id
@@ -16,45 +13,35 @@
 //       -> Descending order of Block Id
 
 #include "Logger.hpp"
-#include <chrono>
-#include <limits>
 #include "hash_defs.h"
-#include "hex_tools.h"
 #include "sliver.hpp"
 #include "status.hpp"
-#include <string.h>
 #include "blockchain/block.h"
 #include "blockchain/db_interfaces.h"
-#include "blockchain/db_adapter.h"
+#include "blockchain/direct_kv_db_adapter.h"
+#include "bcstatetransfer/SimpleBCStateTransfer.hpp"
+
+#include <string.h>
+
+#include <cstring>
+#include <exception>
+#include <limits>
+#include <string>
+#include <utility>
 
 using concordlogger::Logger;
 using concordUtils::Status;
-using concordUtils::hexPrint;
 using concordUtils::Sliver;
 using concordUtils::Key;
 using concordUtils::Value;
 using concordUtils::KeyValuePair;
-using concord::storage::blockchain::detail::EDBKeyType;
 
 namespace concord {
 namespace storage {
 namespace blockchain {
+
 inline namespace v1DirectKeyValue {
-struct HexPrintBuffer {
-  const char *bytes;
-  const size_t size;
-};
-
-// Print a char* of bytes as its 0x<hex> representation.
-std::ostream &operator<<(std::ostream &s, const HexPrintBuffer p) {
-  hexPrint(s, p.bytes, p.size);
-  return s;
-}
-
-DBAdapter::DBAdapter(IDBClient *db, bool readOnly)
-    : logger_(concordlogger::Log::getLogger("concord.storage.BlockchainDBAdapter")), db_(db), m_isEnd(false) {
-  db_->init(readOnly);
-}
+using detail::EDBKeyType;
 
 /*
  * If key a is smaller than key b, return a negative number; if larger, return a
@@ -168,6 +155,38 @@ Sliver DBKeyManipulator::genDataDbKey(const Key &_key, BlockId _blockId) {
 }
 
 /**
+ * @brief Extracts the Block Id of a composite database key.
+ *
+ * Returns the block id part of the Sliver object passed as a parameter.
+ *
+ * @param _key The Sliver object of the composite database key whose block id
+ *             gets returned.
+ * @return The block id of the composite database key.
+ */
+BlockId DBKeyManipulator::extractBlockIdFromKey(const Key &_key) {
+  return extractBlockIdFromKey(_key.data(), _key.length());
+}
+
+/**
+ * @brief Extracts the Block Id of a composite database key.
+ *
+ * Returns the block id part of the buffer passed as a parameter.
+ *
+ * @param _key_data The buffer containing the composite database key whose block id
+ *                  gets returned.
+ * @param _key_length The number of bytes in the _key_data buffer.
+ * @return The block id of the composite database key.
+ */
+BlockId DBKeyManipulator::extractBlockIdFromKey(const char *_key_data, size_t _key_length) {
+  const auto offset = _key_length - sizeof(BlockId);
+  const auto id = *reinterpret_cast<const BlockId *>(_key_data + offset);
+
+  LOG_TRACE(logger(),
+            "Got block ID " << id << " from key " << (HexPrintBuffer{_key_data, _key_length}) << ", offset " << offset);
+  return id;
+}
+
+/**
  * @brief Extracts the type of a composite database key.
  *
  * Returns the data part of the Sliver object passed as a parameter.
@@ -192,38 +211,6 @@ EDBKeyType DBKeyManipulator::extractTypeFromKey(const char *_key_data) {
   assert((_key_data[0] < (char)EDBKeyType::E_DB_KEY_TYPE_LAST) &&
          (_key_data[0] >= (char)EDBKeyType::E_DB_KEY_TYPE_FIRST));
   return (EDBKeyType)_key_data[0];
-}
-
-/**
- * @brief Extracts the Block Id of a composite database key.
- *
- * Returns the block id part of the Sliver object passed as a parameter.
- *
- * @param _key The Sliver object of the composite database key whose block id
- *             gets returned.
- * @return The block id of the composite database key.
- */
-BlockId DBKeyManipulator::extractBlockIdFromKey(const Key &_key) {
-  return extractBlockIdFromKey(_key.data(), _key.length());
-}
-
-/**
- * @brief Extracts the Block Id of a composite database key.
- *
- * Returns the block id part of the buffer passed as a parameter.
- *
- * @param _key_data The buffer containing the composite database key whose block id
- *                  gets returned.
- * @param _key_length The number of bytes in the _key_data buffer.
- * @return The block id of the composite database key.
- */
-BlockId DBKeyManipulator::extractBlockIdFromKey(const char *_key_data, size_t _key_length) {
-  size_t offset = _key_length - sizeof(BlockId);
-  BlockId id = *(BlockId *)(_key_data + offset);
-
-  LOG_TRACE(logger(),
-            "Got block ID " << id << " from key " << (HexPrintBuffer{_key_data, _key_length}) << ", offset " << offset);
-  return id;
 }
 
 /**
@@ -426,25 +413,6 @@ Sliver DBKeyManipulator::generateReservedPageKey(EDBKeyType keyType, uint32_t pa
   return Sliver(keyBuf, keySize);
 }
 
-/**
- * @brief Adds a block to the database.
- *
- * Generates a new composite database key of type Block and adds a block to the
- * database using it.
- *
- * @param _blockId The block id to be used for generating the composite database
- *                 key.
- * @param _blockRaw The value that needs to be added to the database along with
- *                  the composite database key.
- * @return Status of the put operation.
- */
-Status DBAdapter::addBlock(BlockId _blockId, const Sliver &_blockRaw) {
-  Sliver dbKey = DBKeyManipulator::genBlockDbKey(_blockId);
-  Status s = db_->put(dbKey, _blockRaw);
-  LOG_TRACE(logger_, "block id: " << _blockId << " key:" << dbKey << " raw block: " << _blockRaw);
-  return s;
-}
-
 bool DBKeyManipulator::copyToAndAdvance(char *_buf, size_t *_offset, size_t _maxOffset, char *_src, size_t _srcSize) {
   if (!_buf && !_offset && !_src) assert(false);
 
@@ -475,25 +443,37 @@ std::pair<uint32_t, uint64_t> DBKeyManipulator::extractPageIdAndCheckpointFromKe
   return std::make_pair(pageId, chkp);
 }
 
-/**
- * @brief Puts a key value pair to the database with a composite database key of
- * type Key.
- *
- * Generates a new composite database key of type Key and adds a block to the
- * database using it.
- *
- * @param _key The key used for generating the composite database key.
- * @param _block The block used for generating the composite database key.
- * @param _value The value that needs to be added to the database.
- * @return Status of the put operation.
- */
-Status DBAdapter::updateKey(const Key &_key, BlockId _block, Value _value) {
-  Sliver composedKey = DBKeyManipulator::genDataDbKey(_key, _block);
+DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db, bool readOnly) : DBAdapterBase{db, readOnly} {}
 
-  LOG_TRACE(logger_, "Updating composed key " << composedKey << " with value " << _value << " in block " << _block);
+Status DBAdapter::addBlock(const SetOfKeyValuePairs &kv, BlockId blockId) {
+  bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest stDigest;
+  if (blockId > 1) {
+    Sliver parentBlockData;
+    bool found;
+    getBlockById(blockId - 1, parentBlockData, found);
+    if (!found || parentBlockData.length() == 0) {
+      //(IG): panic, data corrupted
+      LOG_FATAL(logger_, "addBlock: no block or block data for id " << blockId - 1);
+      std::exit(1);
+    }
 
-  Status s = db_->put(composedKey, _value);
-  return s;
+    bftEngine::SimpleBlockchainStateTransfer::computeBlockDigest(
+        blockId - 1, reinterpret_cast<const char *>(parentBlockData.data()), parentBlockData.length(), &stDigest);
+  } else {
+    std::memset(stDigest.content, 0, bftEngine::SimpleBlockchainStateTransfer::BLOCK_DIGEST_SIZE);
+  }
+
+  SetOfKeyValuePairs outKv;
+  const auto block = block::create(kv, outKv, stDigest.content);
+  return addBlockAndUpdateMultiKey(outKv, blockId, block);
+}
+
+Status DBAdapter::addBlock(const concordUtils::Sliver &block, BlockId blockId) {
+  SetOfKeyValuePairs keys;
+  if (block.length() > 0) {
+    keys = block::getData(block);
+  }
+  return addBlockAndUpdateMultiKey(keys, blockId, block);
 }
 
 Status DBAdapter::addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &_kvMap, BlockId _block, const Sliver &_blockRaw) {
@@ -956,44 +936,22 @@ Status DBAdapter::isEnd(IDBClient::IDBClientIterator *iter, OUT bool &_isEnd) {
 }
 
 /**
- * @brief Used to monitor the database.
- */
-void DBAdapter::monitor() const { db_->monitor(); }
-
-/**
  * @brief Used to retrieve the latest block.
  *
  * Searches for the key with the largest block id component.
  *
  * @return Block ID of the latest block.
  */
-BlockId DBAdapter::getLatestBlock() {
-  // Note: RocksDB stores keys in a sorted fashion as per the logic provided in
-  // a custom comparator (for our case, refer to the `composedKeyComparison`
-  // method above). In short, keys of type 'block' are stored first followed by
-  // keys of type 'key'. All keys of type 'block' are sorted in ascending order
-  // of block ids.
-
+BlockId DBAdapter::getLatestBlock() const {
   // Generate maximal key for type 'block'
-  Sliver maxKey = DBKeyManipulator::genBlockDbKey(std::numeric_limits<BlockId>::max());
-  IDBClient::IDBClientIterator *iter = db_->getIterator();
-
-  // Since we use the maximal key, SeekAtLeast will take the iterator
-  // to one position beyond the key corresponding to the largest block id.
-  KeyValuePair x = iter->seekAtLeast(maxKey);
-
-  // Read the previous key
-  x = iter->previous();
-
-  db_->freeIterator(iter);
-
-  if ((x.first).length() == 0) {  // no blocks
+  const auto key = DBAdapterBase::getLatestBlock(DBKeyManipulator::genBlockDbKey(std::numeric_limits<BlockId>::max()));
+  if (key.empty()) {  // no blocks
     return 0;
   }
 
-  LOG_TRACE(logger_, "Latest block ID " << DBKeyManipulator::extractBlockIdFromKey(x.first));
-
-  return DBKeyManipulator::extractBlockIdFromKey(x.first);
+  const auto blockId = DBKeyManipulator::extractBlockIdFromKey(key);
+  LOG_TRACE(logger_, "Latest block ID " << blockId);
+  return blockId;
 }
 
 /**
@@ -1006,7 +964,7 @@ BlockId DBAdapter::getLatestBlock() {
  *
  * @return Block ID of the last reachable block.
  */
-BlockId DBAdapter::getLastReachableBlock() {
+BlockId DBAdapter::getLastReachableBlock() const {
   IDBClient::IDBClientIterator *iter = db_->getIterator();
 
   BlockId lastReachableId = 0;

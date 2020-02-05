@@ -289,6 +289,9 @@ class NibblePath {
     return output;
   }
 
+  // Return the internal representation of the path.
+  const std::vector<uint8_t>& data() const { return path_; }
+
  private:
   size_t num_nibbles_;
   std::vector<uint8_t> path_;

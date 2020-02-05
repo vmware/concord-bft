@@ -93,7 +93,10 @@ void Client::init(bool readOnly) {
   ::rocksdb::Options options;
   ::rocksdb::TransactionDBOptions txn_options;
   options.create_if_missing = true;
-  options.comparator = comparator_;
+  // If a comparator is passed, use it. If not, use the default one.
+  if (comparator_) {
+    options.comparator = comparator_;
+  }
   ::rocksdb::Status s;
   if (readOnly) {
     s = ::rocksdb::DB::OpenForReadOnly(options, m_dbPath, &db);
