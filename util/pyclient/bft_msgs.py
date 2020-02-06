@@ -18,7 +18,6 @@ class MsgError(Exception):
     def __init__(self, message):
         self.message = message
 
-PRE_PROCESS_MSG_TYPE = 117
 REQUEST_MSG_TYPE = 700
 REPLY_MSG_TYPE = 800
 
@@ -48,21 +47,18 @@ RequestHeader = namedtuple('RequestHeader', ['client_id', 'flags',
 ReplyHeader = namedtuple('ReplyHeader', ['primary_id',
     'req_seq_num', 'length'])
 
-def pack_request(client_id, req_seq_num, read_only, msg, pre_process=False):
+def pack_request(client_id, req_seq_num, read_only, msg):
     """Create and return a buffer with a header and message"""
     flags = 0
     if read_only:
         flags = 1
     header = RequestHeader(client_id, flags, req_seq_num, len(msg))
-    data = b''.join([pack_request_header(header, pre_process), msg])
+    data = b''.join([pack_request_header(header), msg])
     return data
 
-def pack_request_header(header, pre_process=False):
+def pack_request_header(header):
     """Take a RequestHeader and return a buffer"""
-    msg_type = REQUEST_MSG_TYPE
-    if pre_process:
-        msg_type = PRE_PROCESS_MSG_TYPE
-    return b''.join([struct.pack(MSG_TYPE_FMT, msg_type),
+    return b''.join([struct.pack(MSG_TYPE_FMT, REQUEST_MSG_TYPE),
                      struct.pack(REQUEST_HEADER_FMT, *header)])
 
 def unpack_request(data):
