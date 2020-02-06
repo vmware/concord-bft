@@ -241,6 +241,7 @@ class ReplicaImp : public IReplica,
     virtual bool putBlock(uint64_t blockId, char *block, uint32_t blockSize) override;
     virtual uint64_t getLastReachableBlockNum() override;
     virtual uint64_t getLastBlockNum() override;
+    virtual void wait() override;
 
    private:
     ReplicaImp *const m_ptrReplicaImpl = nullptr;

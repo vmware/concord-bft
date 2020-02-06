@@ -92,6 +92,8 @@ class IAppState {
   // and getLastBlockNum() should always return the same block number.
   // When that state transfer module is updating the state, then these methods
   // may return different block numbers.
+
+  virtual void wait() = 0;
 };
 
 struct Config {
