@@ -31,18 +31,21 @@ PreProcessReplyMsg::PreProcessReplyMsg(SigManagerSharedPtr sigManager,
 
 void PreProcessReplyMsg::validate(const ReplicasInfo& repInfo) const {
   Assert(type() == MsgCode::PreProcessReply);
-  Assert(senderId() != repInfo.myId());
 
   const uint64_t headerSize = sizeof(PreProcessReplyMsgHeader);
   if (size() < headerSize || size() < headerSize + msgBody()->replyLength) throw runtime_error(__PRETTY_FUNCTION__);
 
   auto& msgHeader = *msgBody();
-  uint16_t sigLen = sigManager_->getSigLength(msgHeader.senderId);
+  Assert(msgHeader.senderId != repInfo.myId());
 
+  uint16_t sigLen = sigManager_->getSigLength(msgHeader.senderId);
   if (size() < (sizeof(PreProcessReplyMsgHeader) + sigLen)) throw runtime_error(__PRETTY_FUNCTION__ + string(": size"));
 
-  if (!sigManager_->verifySig(
-          msgHeader.senderId, (char*)msgBody()->resultsHash, SHA3_256::SIZE_IN_BYTES, body() + headerSize, sigLen))
+  if (!sigManager_->verifySig(msgHeader.senderId,
+                              (char*)msgBody()->resultsHash,
+                              SHA3_256::SIZE_IN_BYTES,
+                              (char*)msgBody() + headerSize,
+                              sigLen))
     throw runtime_error(__PRETTY_FUNCTION__ + string(": verifySig"));
 }
 
