@@ -51,3 +51,14 @@ target_link_libraries(sparse_merkle_tree_test PUBLIC
     concordbft_storage
     ${OPENSSL_LIBRARIES}
 )
+
+if (BUILD_OBJECTSTORE_TEST)
+    add_executable(
+        ecs_s3_test
+        ecs_s3_test.cpp
+        $<TARGET_OBJECTS:logging_dev>)
+    add_test(ecs_s3_test ecs_s3_test)
+    target_link_libraries(ecs_s3_test PUBLIC
+        GTest::Main
+        object_store_lib)
+endif(BUILD_OBJECTSTORE_TEST)

@@ -9,3 +9,17 @@ if(Boost_FOUND)
         kvbc
     )
 endif()
+
+if(BUILD_ROCKSDB_STORAGE OR USE_OBJECTSTORE_FOR_ROR_TEST)
+    add_executable(
+        ror_app_state_test
+        ror_app_state_test.cpp
+        $<TARGET_OBJECTS:logging_dev>)
+    add_test(ror_app_state_test ror_app_state_test)
+    target_link_libraries(
+        ror_app_state_test PUBLIC
+        GTest::Main
+        object_store_lib
+        kvbc
+        util)
+endif()

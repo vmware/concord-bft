@@ -8,7 +8,6 @@
 #include <string.h>
 #include <sys/param.h>
 #include <unistd.h>
-
 #include "ReplicaImp.h"
 #include <inttypes.h>
 #include <cassert>
@@ -37,6 +36,7 @@ using concord::storage::blockchain::ILocalKeyValueStorageReadOnly;
 using concord::storage::blockchain::ILocalKeyValueStorageReadOnlyIterator;
 using concord::storage::blockchain::DBKeyManipulator;
 namespace block = concord::storage::blockchain::block;
+namespace st = bftEngine::SimpleBlockchainStateTransfer;
 
 using concordUtils::SetOfKeyValuePairs;
 using concordUtils::Value;
@@ -83,13 +83,15 @@ void ReplicaImp::createReplicaAndSyncState() {
       &m_replicaConfig, m_cmdHandler, m_stateTransfer, m_ptrComm, m_metadataStorage);
   if (!isNewStorage && !m_stateTransfer->isCollectingState()) {
     uint64_t removedBlocksNum = replicaStateSync_->execute(
-        logger, *m_bcDbAdapter, m_appState->m_lastReachableBlock, m_replicaPtr->getLastExecutedSequenceNum());
+        logger, *m_bcDbAdapter, m_appState->getLastReachableBlockNum(), m_replicaPtr->getLastExecutedSequenceNum());
     m_lastBlock -= removedBlocksNum;
-    m_appState->m_lastReachableBlock -= removedBlocksNum;
+    auto t = std::dynamic_pointer_cast<BlockchainAppState>(m_appState);
+    assert(t);
+    t->m_lastReachableBlock -= removedBlocksNum;
     LOG_INFO(logger,
              "createReplicaAndSyncState: removedBlocksNum = "
                  << removedBlocksNum << ", new m_lastBlock = " << m_lastBlock
-                 << ", new m_lastReachableBlock = " << m_appState->m_lastReachableBlock);
+                 << ", new m_lastReachableBlock = " << t->m_lastReachableBlock);
   }
 }
 
@@ -187,6 +189,16 @@ Status ReplicaImp::addBlock(const SetOfKeyValuePairs &updates, BlockId &outBlock
 
 void ReplicaImp::set_command_handler(ICommandsHandler *handler) { m_cmdHandler = handler; }
 
+void ReplicaImp::set_app_state(std::shared_ptr<bftEngine::SimpleBlockchainStateTransfer::IAppState> appState) {
+  if(!appState)
+    m_appState = std::make_shared<BlockchainAppState>(shared_from_this());
+  else
+    m_appState = appState;
+    
+  m_stateTransfer = bftEngine::SimpleBlockchainStateTransfer::create(
+      state_transfer_config_, m_appState.get(), m_bcDbAdapter->getDb(), aggregator_);
+}
+
 ReplicaImp::ReplicaImp(ICommunication *comm,
                        bftEngine::ReplicaConfig &replicaConfig,
                        DBAdapter *dbAdapter,
@@ -198,20 +210,14 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
       m_lastBlock(dbAdapter->getLatestBlock()),
       m_ptrComm(comm),
       m_replicaConfig(replicaConfig),
-      m_appState(new BlockchainAppState(this)),
       aggregator_(aggregator) {
-  bftEngine::SimpleBlockchainStateTransfer::Config state_transfer_config;
-
-  state_transfer_config.myReplicaId = m_replicaConfig.replicaId;
-  state_transfer_config.cVal = m_replicaConfig.cVal;
-  state_transfer_config.fVal = m_replicaConfig.fVal;
-  state_transfer_config.numReplicas = m_replicaConfig.numReplicas + m_replicaConfig.numRoReplicas;
+  state_transfer_config_.myReplicaId = m_replicaConfig.replicaId;
+  state_transfer_config_.cVal = m_replicaConfig.cVal;
+  state_transfer_config_.fVal = m_replicaConfig.fVal;
+  state_transfer_config_.numReplicas = m_replicaConfig.numReplicas + m_replicaConfig.numRoReplicas;
   if (replicaConfig.maxNumOfReservedPages > 0)
-    state_transfer_config.maxNumOfReservedPages = replicaConfig.maxNumOfReservedPages;
-  if (replicaConfig.sizeOfReservedPage > 0) state_transfer_config.sizeOfReservedPage = replicaConfig.sizeOfReservedPage;
-
-  m_stateTransfer = bftEngine::SimpleBlockchainStateTransfer::create(
-      state_transfer_config, m_appState.get(), m_bcDbAdapter->getDb(), aggregator);
+    state_transfer_config_.maxNumOfReservedPages = replicaConfig.maxNumOfReservedPages;
+  if (replicaConfig.sizeOfReservedPage > 0) state_transfer_config_.sizeOfReservedPage = replicaConfig.sizeOfReservedPage;
 }
 
 ReplicaImp::~ReplicaImp() {
@@ -232,7 +238,8 @@ ReplicaImp::~ReplicaImp() {
 
 Status ReplicaImp::addBlockInternal(const SetOfKeyValuePairs &updates, BlockId &outBlockId) {
   m_lastBlock++;
-  m_appState->m_lastReachableBlock++;
+  auto pt = downcast_appstate();
+  pt->m_lastReachableBlock++;
 
   BlockId block = m_lastBlock;
   SetOfKeyValuePairs updatesInNewBlock;
@@ -266,8 +273,9 @@ void ReplicaImp::insertBlockInternal(BlockId blockId, Sliver block) {
   // when ST runs, blocks arrive in batches in reverse order. we need to keep
   // track on the "Gap" and to close it. Only when it is closed, the last
   // reachable block becomes the same as the last block
-  if (blockId == m_appState->m_lastReachableBlock + 1) {
-    m_appState->m_lastReachableBlock = m_lastBlock;
+  auto pt = downcast_appstate();
+  if (blockId == pt->m_lastReachableBlock + 1) {
+    pt->m_lastReachableBlock = m_lastBlock;
   }
 
   bool found = false;
@@ -516,7 +524,7 @@ Status ReplicaImp::StorageIterator::freeInternalIterator() { return rep->getBcDb
 /*
  * These functions are used by the ST module to interact with the KVB
  */
-ReplicaImp::BlockchainAppState::BlockchainAppState(ReplicaImp *const parent)
+ReplicaImp::BlockchainAppState::BlockchainAppState(std::shared_ptr<ReplicaImp> parent)
     : m_ptrReplicaImpl{parent},
       m_logger{concordlogger::Log::getLogger("blockchainappstate")},
       m_lastReachableBlock{parent->getBcDbAdapter()->getLastReachableBlock()} {}

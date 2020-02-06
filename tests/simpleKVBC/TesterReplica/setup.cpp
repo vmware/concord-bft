@@ -20,7 +20,6 @@
 #include "setup.hpp"
 #include "CommFactory.hpp"
 #include "config/test_comm_config.hpp"
-#include "config/test_parameters.hpp"
 
 using namespace std;
 
@@ -42,7 +41,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
   string idStr;
 
   int o = 0;
-  while ((o = getopt(argc, argv, "r:i:k:n:s:v:a:p")) != EOF) {
+  while ((o = getopt(argc, argv, "r:i:k:n:s:v:a:po:")) != EOF) {
     switch (o) {
       case 'i': {
         strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
@@ -95,7 +94,15 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
       case 'p':
         rp.persistencyMode = PersistencyMode::RocksDB;
         break;
-
+      case 'o':{
+        int objectStoreMode = std::atoi(optarg);
+        if (objectStoreMode < (int)RoRAppStateMode::MIN_VALUE || objectStoreMode > (int)RoRAppStateMode::MAX_VALUE) {
+          fprintf(stderr, "-o option should be in range [%d,%d]", (int)RoRAppStateMode::MIN_VALUE, (int)RoRAppStateMode::MAX_VALUE);
+          exit(-1);
+        }
+        rp.rorsAppStateMode = (RoRAppStateMode)objectStoreMode;
+      } break;
+        
       default:
         break;
     }
@@ -141,7 +148,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
   uint16_t metrics_port = conf.listenPort + 1000;
 
   return std::unique_ptr<TestSetup>(new TestSetup{
-      replicaConfig, std::move(comm), logger, metrics_port, rp.persistencyMode == PersistencyMode::RocksDB});
+      replicaConfig, std::move(comm), logger, metrics_port, rp.persistencyMode == PersistencyMode::RocksDB, rp.rorsAppStateMode});
 }
 
 }  // namespace kvbc

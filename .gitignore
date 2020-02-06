@@ -19,3 +19,5 @@ compile_commands.json
 
 # clangd directory
 .clangd/
+
+b.sh

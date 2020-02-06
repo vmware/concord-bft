@@ -27,6 +27,15 @@ struct ClientParams {
   uint16_t get_numOfReplicas() { return (uint16_t)(3 * numOfFaulty + 2 * numOfSlow + 1); }
 };
 
+enum class RoRAppStateMode {
+  None, // used for non RO replica
+  S3,  // use real S3 storage = 1
+  RocksDB,   // use RocksDB for storage = 2
+  Default = None,
+  MAX_VALUE = RocksDB,
+  MIN_VALUE = S3
+};
+
 enum class PersistencyMode {
   Off,       // no persistency at all
   InMemory,  // use in memory module
@@ -58,6 +67,7 @@ struct ReplicaParams {
   std::string keysFilePrefix;
   PersistencyMode persistencyMode = PersistencyMode::Off;
   ReplicaBehavior replicaBehavior = ReplicaBehavior::Default;
+  RoRAppStateMode rorsAppStateMode = RoRAppStateMode::Default;
 };
 
 #endif  // CONCORD_BFT_TEST_PARAMETERS_HPP

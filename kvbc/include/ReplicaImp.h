@@ -8,7 +8,7 @@
 #include <map>
 #include <string>
 #include <atomic>
-
+#include <memory>
 #include "CommFactory.hpp"
 #include "ICommunication.hpp"
 #include "Replica.hpp"
@@ -38,7 +38,8 @@ class ReplicaInitException : public std::exception {
 
 class ReplicaImp : public IReplica,
                    public concord::storage::blockchain::ILocalKeyValueStorageReadOnly,
-                   public concord::storage::blockchain::IBlocksAppender {
+                   public concord::storage::blockchain::IBlocksAppender,
+                   public std::enable_shared_from_this<ReplicaImp> {
  public:
   // concord::kvbc::IReplica methods
   virtual Status start() override;
@@ -51,6 +52,8 @@ class ReplicaImp : public IReplica,
   virtual Status addBlockToIdleReplica(const concord::storage::SetOfKeyValuePairs &updates) override;
 
   virtual void set_command_handler(ICommandsHandler *handler) override;
+
+  virtual void set_app_state(std::shared_ptr<bftEngine::SimpleBlockchainStateTransfer::IAppState> appState) override;
 
   // concord::storage::ILocalKeyValueStorageReadOnly methods
   virtual Status get(const Sliver &key, Sliver &outValue) const override;
@@ -87,6 +90,12 @@ class ReplicaImp : public IReplica,
              bftEngine::ReplicaConfig &config,
              concord::storage::blockchain::DBAdapter *dbAdapter,
              std::shared_ptr<concordMetrics::Aggregator> aggregator);
+
+  ReplicaImp(bftEngine::ICommunication *comm,
+  bftEngine::ReplicaConfig &config,
+  concord::storage::blockchain::DBAdapter *dbAdapter,
+  std::shared_ptr<concordMetrics::Aggregator> aggregator,
+  std::shared_ptr<bftEngine::SimpleBlockchainStateTransfer::IAppState> appState);
 
   void setReplicaStateSync(ReplicaStateSync *rss) { replicaStateSync_.reset(rss); }
 
@@ -232,7 +241,7 @@ class ReplicaImp : public IReplica,
 
   class BlockchainAppState : public bftEngine::SimpleBlockchainStateTransfer::IAppState {
    public:
-    BlockchainAppState(ReplicaImp *const parent);
+    BlockchainAppState(std::shared_ptr<ReplicaImp> parent);
 
     virtual bool hasBlock(uint64_t blockId) override;
     virtual bool getBlock(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) override;
@@ -244,7 +253,7 @@ class ReplicaImp : public IReplica,
     virtual void wait() override;
 
    private:
-    ReplicaImp *const m_ptrReplicaImpl = nullptr;
+    std::shared_ptr<ReplicaImp> m_ptrReplicaImpl = nullptr;
     concordlogger::Logger m_logger;
 
     // from IAppState. represents maximal block number n such that all
@@ -253,6 +262,12 @@ class ReplicaImp : public IReplica,
 
     friend class ReplicaImp;
   };
+
+  inline std::shared_ptr<BlockchainAppState> downcast_appstate() {
+    auto res = std::dynamic_pointer_cast<BlockchainAppState>(m_appState);
+    assert(res);
+    return res;
+  }
 
   // DATA
  private:
@@ -267,10 +282,11 @@ class ReplicaImp : public IReplica,
   bftEngine::IReplica *m_replicaPtr = nullptr;
   ICommandsHandler *m_cmdHandler = nullptr;
   bftEngine::IStateTransfer *m_stateTransfer = nullptr;
-  std::unique_ptr<BlockchainAppState> m_appState;
+  std::shared_ptr<bftEngine::SimpleBlockchainStateTransfer::IAppState> m_appState = nullptr;
   concord::storage::DBMetadataStorage *m_metadataStorage = nullptr;
   std::unique_ptr<ReplicaStateSync> replicaStateSync_;
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;
+  bftEngine::SimpleBlockchainStateTransfer::Config state_transfer_config_;
 };
 
 }  // namespace kvbc

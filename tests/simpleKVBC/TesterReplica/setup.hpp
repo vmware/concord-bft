@@ -19,6 +19,7 @@
 #include "ICommunication.hpp"
 #include "Logger.hpp"
 #include "MetricsServer.hpp"
+#include "config/test_parameters.hpp"
 
 namespace concord {
 namespace kvbc {
@@ -32,13 +33,15 @@ class TestSetup {
   concordMetrics::Server& GetMetricsServer() { return metrics_server_; }
   concordlogger::Logger GetLogger() { return logger_; }
   const bool UsePersistentStorage() const { return use_persistent_storage_; }
+  const RoRAppStateMode GetRoRMode() const {return rorMode_;}
 
  private:
   TestSetup(bftEngine::ReplicaConfig config,
             std::unique_ptr<bftEngine::ICommunication> comm,
             concordlogger::Logger logger,
             uint16_t metrics_port,
-            bool use_persistent_storage)
+            bool use_persistent_storage,
+            RoRAppStateMode rorMode)
       : replica_config_(config),
         communication_(std::move(comm)),
         logger_(logger),
@@ -51,6 +54,7 @@ class TestSetup {
   concordlogger::Logger logger_;
   concordMetrics::Server metrics_server_;
   bool use_persistent_storage_;
+  RoRAppStateMode rorMode_;
 };
 
 }  // namespace kvbc

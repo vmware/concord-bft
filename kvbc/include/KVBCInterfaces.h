@@ -19,6 +19,7 @@
 #include "Metrics.hpp"
 #include "storage/db_interface.h"
 #include "blockchain/db_interfaces.h"
+#include "SimpleBCStateTransfer.hpp"
 #include "Replica.hpp"
 #include "kv_types.hpp"
 
@@ -116,6 +117,8 @@ class IReplica {
   /// need to split interfaces implementations to differrent modules
   /// instead of being all implemented bt ReplicaImpl
   virtual void set_command_handler(ICommandsHandler* handler) = 0;
+
+  virtual void set_app_state(std::shared_ptr<bftEngine::SimpleBlockchainStateTransfer::IAppState> appState) = 0;
 };
 
 /////////////////////////////////////////////////////////////////////////////

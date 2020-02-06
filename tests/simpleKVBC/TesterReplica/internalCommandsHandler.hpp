@@ -19,11 +19,12 @@
 #include "simpleKVBTestsBuilder.hpp"
 #include "blockchain/db_interfaces.h"
 #include "KVBCInterfaces.h"
+#include <memory>
 
 class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
  public:
-  InternalCommandsHandler(concord::storage::blockchain::ILocalKeyValueStorageReadOnly *storage,
-                          concord::storage::blockchain::IBlocksAppender *blocksAppender,
+  InternalCommandsHandler(std::shared_ptr<concord::storage::blockchain::ILocalKeyValueStorageReadOnly> storage,
+                          std::shared_ptr<concord::storage::blockchain::IBlocksAppender> blocksAppender,
                           concordlogger::Logger &logger)
       : m_storage(storage), m_blocksAppender(blocksAppender), m_logger(logger) {}
 
@@ -66,8 +67,8 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   static concordUtils::Sliver buildSliverFromStaticBuf(char *buf);
 
  private:
-  concord::storage::blockchain::ILocalKeyValueStorageReadOnly *m_storage;
-  concord::storage::blockchain::IBlocksAppender *m_blocksAppender;
+  std::shared_ptr<concord::storage::blockchain::ILocalKeyValueStorageReadOnly> m_storage;
+  std::shared_ptr<concord::storage::blockchain::IBlocksAppender> m_blocksAppender;
   concordlogger::Logger &m_logger;
   size_t m_readsCounter = 0;
   size_t m_writesCounter = 0;

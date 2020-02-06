@@ -7,6 +7,14 @@ add_library(concordbft_storage STATIC src/db_metadata_storage.cpp
 target_include_directories(concordbft_storage PUBLIC include)
 target_link_libraries(concordbft_storage PUBLIC corebft)
 
+add_library(
+  object_store_lib
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/object_store/object_store_client.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/object_store/ecs_s3_client.hpp)
+  target_include_directories(object_store_lib PUBLIC include)
+  target_link_libraries(object_store_lib PRIVATE s3 util)
+
+
 if (BUILD_ROCKSDB_STORAGE)
   #TODO [TK] find_package
   find_library(ROCKSDB rocksdb)
