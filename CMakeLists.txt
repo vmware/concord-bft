@@ -1,8 +1,14 @@
 cmake_minimum_required(VERSION 3.2)
 project(concord-bft VERSION 0.1.0.0 LANGUAGES CXX)
-include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup(TARGETS NO_OUTPUT_DIRS)
-set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/.conan/cmake_helpers ${CMAKE_MODULE_PATH})
+set(MIN_BOOST_VERSION 1.64)
+option(USE_CONAN "use conan package manager" ON)
+if (USE_CONAN)
+    message("Using conan package manager")
+    include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+    conan_basic_setup(TARGETS NO_OUTPUT_DIRS)
+    set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/.conan/cmake_helpers ${CMAKE_MODULE_PATH})
+    set(MIN_BOOST_VERSION 1.64.0)
+endif()
 #
 # C++ options
 #   TODO: change to set_target_properties?
@@ -13,7 +19,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(IS_LEAKCHECK FALSE)
 set(SLEEP_FOR_DBG FALSE)
-set(MIN_BOOST_VERSION 1.64.0)
+
 
 # Default to debug builds
 # Release builds can be enabled by running cmake with -DCMAKE_BUILD_TYPE=Release
