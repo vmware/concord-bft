@@ -70,6 +70,8 @@ class TestAppState : public IAppState {
 
   uint64_t getLastBlockNum() override { return last_block_; };
 
+  void wait() override {};
+
  private:
   uint64_t last_block_;
   std::unordered_map<uint64_t, Block> blocks_;

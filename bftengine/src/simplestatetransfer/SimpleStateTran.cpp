@@ -106,6 +106,8 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
     uint64_t getLastReachableBlockNum() override;
 
     uint64_t getLastBlockNum() override;
+
+    void wait() override;
   };
 
   ///////////////////////////////////////////////////////////////////////////
@@ -584,6 +586,8 @@ bool SimpleStateTran::DummyBDState::putBlock(uint64_t blockId, char* block, uint
 uint64_t SimpleStateTran::DummyBDState::getLastReachableBlockNum() { return 0; }
 
 uint64_t SimpleStateTran::DummyBDState::getLastBlockNum() { return 0; }
+
+void SimpleStateTran::DummyBDState::wait() {}
 
 }  // namespace impl
 }  // namespace SimpleInMemoryStateTransfer
