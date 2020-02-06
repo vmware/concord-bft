@@ -1,8 +1,13 @@
 add_library(concordbft_storage STATIC src/memorydb_client.cpp
-                                      src/key_manipulator.cpp
-)
+                                      src/key_manipulator.cpp)
 
 target_include_directories(concordbft_storage PUBLIC include)
+
+if (USE_S3_OBJECT_STORE)
+target_compile_definitions(concordbft_storage PUBLIC USE_S3_OBJECT_STORE=1)
+target_sources(concordbft_storage PRIVATE src/s3/client.cpp)
+target_link_libraries(concordbft_storage PRIVATE s3)
+endif(USE_S3_OBJECT_STORE)
 
 if (BUILD_ROCKSDB_STORAGE)
   #TODO [TK] find_package

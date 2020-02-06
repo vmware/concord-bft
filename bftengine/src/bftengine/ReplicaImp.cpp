@@ -2839,7 +2839,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
   clientsManager =
       new ClientsManager(config_.replicaId, clientsSet, ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage());
 
-  clientsManager->init(stateTransfer);
+  clientsManager->init(stateTransfer.get());
 
   if (!firstTime || config_.debugPersistentStorageEnabled)
     clientsManager->loadInfoFromReservedPages();

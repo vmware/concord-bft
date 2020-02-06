@@ -49,8 +49,10 @@ void ReplicaForStateTransfer::start() {
 }
 
 void ReplicaForStateTransfer::stop() {
-  TimersSingleton::getInstance().cancel(stateTranTimer_);
+  // stop in reverse order
   ReplicaBase::stop();
+  stateTransfer->stopRunning();
+  TimersSingleton::getInstance().cancel(stateTranTimer_);
 }
 
 template <>

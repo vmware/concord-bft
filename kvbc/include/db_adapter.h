@@ -38,6 +38,9 @@ class IDbAdapter {
   // Delete a block from the database
   virtual void deleteBlock(const BlockId& blockId) = 0;
 
+  // Checks whether block exists
+  virtual bool hasBlock(const BlockId& blockId) const = 0;
+
   // Used to retrieve the latest block.
   virtual BlockId getLatestBlockId() const = 0;
 

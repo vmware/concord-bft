@@ -77,6 +77,7 @@ class Client : public concord::storage::IDBClient {
                            char*& buf,
                            uint32_t bufSize,
                            uint32_t& _realSize) const override;
+  concordUtils::Status has(const Sliver& _key) const override;
   IDBClientIterator* getIterator() const override;
   concordUtils::Status freeIterator(IDBClientIterator* _iter) const override;
   concordUtils::Status put(const concordUtils::Sliver& _key, const concordUtils::Sliver& _value) override;

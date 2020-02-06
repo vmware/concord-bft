@@ -69,7 +69,7 @@ class IAppState {
 
   // returns true IFF block blockId exists
   // (i.e. the block is stored in the application/storage layer).
-  virtual bool hasBlock(uint64_t blockId) = 0;
+  virtual bool hasBlock(uint64_t blockId) const = 0;
 
   // If block blockId exists, then its content is returned via the arguments
   // outBlock and outBlockSize. Returns true IFF block blockId exists.
@@ -83,25 +83,19 @@ class IAppState {
   // blockId   - the block number
   // block     - pointer to a buffer that contains the new block
   // blockSize - the size of the new block
-  virtual bool putBlock(uint64_t blockId, char *block, uint32_t blockSize) = 0;
+  virtual bool putBlock(const uint64_t blockId, const char *block, const uint32_t blockSize) = 0;
 
   // returns the maximal block number n such that all blocks 1 <= i <= n exist.
   // if block 1 does not exist, returns 0.
-  virtual uint64_t getLastReachableBlockNum() = 0;
-
+  virtual uint64_t getLastReachableBlockNum() const = 0;
   // returns the maximum block number that is currently stored in
   // the application/storage layer.
-  virtual uint64_t getLastBlockNum() = 0;
+  virtual uint64_t getLastBlockNum() const = 0;
 
   // When the state is updated by the application, getLastReachableBlockNum()
   // and getLastBlockNum() should always return the same block number.
   // When that state transfer module is updating the state, then these methods
   // may return different block numbers.
-
-  // This method MAY be called by ST module when putBlock returns false. The call will block until the underlying
-  // storage becomes available (storage non availabilty is the reason for putBlock to fail). Mainly relevant for network
-  // storages. In regular replica which uses local DB this function should not be called.
-  virtual void wait() = 0;
 };
 
 struct Config {
@@ -110,6 +104,7 @@ struct Config {
   uint16_t cVal = 0;
   uint16_t numReplicas = 0;
   bool pedanticChecks = false;
+  bool isReadOnly = false;
 
 #if defined USE_COMM_PLAIN_TCP || defined USE_COMM_TLS_TCP
   uint32_t maxChunkSize = 16384;

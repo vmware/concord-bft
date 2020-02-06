@@ -11,8 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef BFTENGINE_SRC_BCSTATETRANSFER_BCSTATETRAN_HPP_
-#define BFTENGINE_SRC_BCSTATETRANSFER_BCSTATETRAN_HPP_
+#pragma once
 
 #include <set>
 #include <map>
@@ -37,10 +36,11 @@
 using std::set;
 using std::map;
 using std::string;
+using concordMetrics::StatusHandle;
+using concordMetrics::GaugeHandle;
+using concordMetrics::CounterHandle;
 
-namespace bftEngine {
-namespace SimpleBlockchainStateTransfer {
-namespace impl {
+namespace bftEngine::SimpleBlockchainStateTransfer::impl {
 
 class BCStateTran : public IStateTransfer {
  public:
@@ -82,7 +82,11 @@ class BCStateTran : public IStateTransfer {
   void handleStateTransferMessage(char* msg, uint32_t msgLen, uint16_t senderId) override;
 
  protected:
-  const bool pedanticChecks_;
+  std::function<void(char*, uint32_t, uint16_t)> messageHandler_;
+  // actual handling function. can be used in context of dedicated thread
+  void handleStateTransferMessageImp(char* msg, uint32_t msgLen, uint16_t senderId);
+  // handling from other context
+  void handoff(char* msg, uint32_t msgLen, uint16_t senderId);
 
   ///////////////////////////////////////////////////////////////////////////
   // Constants
@@ -103,21 +107,8 @@ class BCStateTran : public IStateTransfer {
   ///////////////////////////////////////////////////////////////////////////
   // Management and general data
   ///////////////////////////////////////////////////////////////////////////
-
+  const Config config_;
   const set<uint16_t> replicas_;
-  const uint16_t myId_;
-  const uint16_t fVal_;
-  const uint32_t maxBlockSize_;
-  const uint32_t maxChunkSize_;
-  const uint16_t maxNumberOfChunksInBatch_;
-  const uint32_t maxPendingDataFromSourceReplica_;
-
-  const uint32_t maxNumOfReservedPages_;
-  const uint32_t sizeOfReservedPage_;
-  const uint32_t refreshTimerMilli_;
-  const uint32_t checkpointSummariesRetransmissionTimeoutMilli_;
-  const uint32_t maxAcceptableMsgDelayMilli_;
-
   const uint32_t maxVBlockSize_;
   const uint32_t maxItemSize_;
   const uint32_t maxNumOfChunksInAppBlock_;
@@ -328,11 +319,6 @@ class BCStateTran : public IStateTransfer {
   std::chrono::seconds last_metrics_dump_time_;
   std::chrono::seconds metrics_dump_interval_in_sec_;
   concordMetrics::Component metrics_component_;
-
-  typedef concordMetrics::Component::Handle<concordMetrics::Gauge> GaugeHandle;
-  typedef concordMetrics::Component::Handle<concordMetrics::Status> StatusHandle;
-  typedef concordMetrics::Component::Handle<concordMetrics::Counter> CounterHandle;
-
   struct Metrics {
     StatusHandle fetching_state_;
     StatusHandle pedantic_checks_enabled_;
@@ -395,8 +381,4 @@ class BCStateTran : public IStateTransfer {
   mutable Metrics metrics_;
 };
 
-}  // namespace impl
-}  // namespace SimpleBlockchainStateTransfer
-}  // namespace bftEngine
-
-#endif  // BFTENGINE_SRC_BCSTATETRANSFER_BCSTATETRAN_HPP_
+}  // namespace bftEngine::SimpleBlockchainStateTransfer::impl

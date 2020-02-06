@@ -93,20 +93,17 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
     // IAppState methods
     ////////////////////////////////////////////////////////////////////////
 
-    bool hasBlock(uint64_t blockId) override;
+    bool hasBlock(uint64_t blockId) const override;
 
     bool getBlock(uint64_t blockId, char* outBlock, uint32_t* outBlockSize) override;
 
     bool getPrevDigestFromBlock(uint64_t blockId,
                                 SimpleBlockchainStateTransfer::StateTransferDigest* outPrevBlockDigest) override;
 
-    bool putBlock(uint64_t blockId, char* block, uint32_t blockSize) override;
+    bool putBlock(const uint64_t blockId, const char* block, const uint32_t blockSize) override;
 
-    uint64_t getLastReachableBlockNum() override;
-
-    uint64_t getLastBlockNum() override;
-
-    void wait() override;
+    uint64_t getLastReachableBlockNum() const override;
+    uint64_t getLastBlockNum() const override;
   };
 
   ///////////////////////////////////////////////////////////////////////////
@@ -564,7 +561,7 @@ void SimpleStateTran::onComplete(int64_t checkpointNumberOfNewState) {
   lastKnownCheckpoint = checkpointNumberOfNewState;
 }
 
-bool SimpleStateTran::DummyBDState::hasBlock(uint64_t blockId) { return false; }
+bool SimpleStateTran::DummyBDState::hasBlock(uint64_t blockId) const { return false; }
 
 bool SimpleStateTran::DummyBDState::getBlock(uint64_t blockId, char* outBlock, uint32_t* outBlockSize) {
   Assert(false);
@@ -577,16 +574,14 @@ bool SimpleStateTran::DummyBDState::getPrevDigestFromBlock(
   return false;
 }
 
-bool SimpleStateTran::DummyBDState::putBlock(uint64_t blockId, char* block, uint32_t blockSize) {
+bool SimpleStateTran::DummyBDState::putBlock(const uint64_t blockId, const char* block, const uint32_t blockSize) {
   Assert(false);
   return false;
 }
 
-uint64_t SimpleStateTran::DummyBDState::getLastReachableBlockNum() { return 0; }
+uint64_t SimpleStateTran::DummyBDState::getLastReachableBlockNum() const { return 0; }
 
-uint64_t SimpleStateTran::DummyBDState::getLastBlockNum() { return 0; }
-
-void SimpleStateTran::DummyBDState::wait() {}
+uint64_t SimpleStateTran::DummyBDState::getLastBlockNum() const { return 0; }
 
 }  // namespace impl
 }  // namespace SimpleInMemoryStateTransfer

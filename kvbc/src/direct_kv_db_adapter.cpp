@@ -17,11 +17,11 @@
 #include "status.hpp"
 #include "kv_types.hpp"
 #include "block.h"
-#include "db_interfaces.h"
 #include "db_adapter.h"
 #include "direct_kv_block.h"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 #include "hex_tools.h"
+#include "string.hpp"
 
 #include <string.h>
 
@@ -30,6 +30,8 @@
 #include <limits>
 #include <string>
 #include <utility>
+#include <sstream>
+#include <iomanip>
 
 using concordlogger::Logger;
 using concordUtils::Status;
@@ -48,7 +50,7 @@ inline namespace v1DirectKeyValue {
  *                 incorporated into the composite database key.
  * @return Sliver object of the generated composite database key.
  */
-Sliver KeyGenerator::blockKey(const BlockId &blockId) const {
+Key RocksKeyGenerator::blockKey(const BlockId &blockId) const {
   return genDbKey(EDBKeyType::E_DB_KEY_TYPE_BLOCK, Sliver(), blockId);
 }
 
@@ -60,8 +62,35 @@ Sliver KeyGenerator::blockKey(const BlockId &blockId) const {
  *                 into the composite database Key.
  * @return Sliver object of the generated composite database key.
  */
-Sliver KeyGenerator::dataKey(const Key &key, const BlockId &blockId) const {
+Key RocksKeyGenerator::dataKey(const Key &key, const BlockId &blockId) const {
   return genDbKey(EDBKeyType::E_DB_KEY_TYPE_KEY, key, blockId);
+}
+
+Key S3KeyGenerator::blockKey(const BlockId &blockId) const {
+  LOG_DEBUG(logger(), prefix_ + std::to_string(blockId) + std::string("/raw_block"));
+  return prefix_ + std::to_string(blockId) + std::string("/raw_block");
+}
+
+Key S3KeyGenerator::dataKey(const Key &key, const BlockId &blockId) const {
+  LOG_DEBUG(logger(), prefix_ + std::to_string(blockId) + std::string("/") + string2hex(key.toString()));
+  return prefix_ + std::to_string(blockId) + std::string("/") + string2hex(key.toString());
+}
+
+Key S3KeyGenerator::mdtKey(const Key &key) const {
+  LOG_DEBUG(logger(), prefix_ + std::string("metadata/") + key.toString());
+  return prefix_ + std::string("metadata/") + key.toString();
+}
+
+std::string S3KeyGenerator::string2hex(const std::string &s) {
+  std::ostringstream oss;
+  for (size_t i = 0; i < s.length(); i++) oss << std::hex << std::setw(2) << std::setfill('0') << (uint)s[i];
+  return oss.str();
+}
+std::string S3KeyGenerator::hex2string(const std::string &s) {
+  std::string result;
+  result.reserve(s.length() / 2);
+  for (size_t i = 0; i < s.length(); i += 2) result.push_back(std::stoi(s.substr(i, 2).c_str(), NULL, 16));
+  return result;
 }
 
 /*
@@ -140,7 +169,7 @@ int DBKeyComparator::composedKeyComparison(const char *_a_data,
  * @param _blockId BlockId object.
  * @return Sliver object of the generated composite database key.
  */
-Sliver DBKeyManipulatorBase::genDbKey(EDBKeyType _type, const Key &_key, BlockId _blockId) {
+Sliver RocksKeyGenerator::genDbKey(EDBKeyType _type, const Key &_key, BlockId _blockId) {
   size_t sz = sizeof(EDBKeyType) + sizeof(BlockId) + _key.length();
   char *out = new char[sz];
   size_t offset = 0;
@@ -296,7 +325,7 @@ int DBKeyManipulator::compareKeyPartOfComposedKey(const char *a_data,
   return result;
 }
 
-Sliver DBKeyManipulator::extractKeyFromMetadataKey(const Key &_composedKey) {
+Key DBKeyManipulator::extractKeyFromMetadataKey(const Key &_composedKey) {
   size_t sz = _composedKey.length() - sizeof(EDBKeyType);
   Sliver out = Sliver(_composedKey, sizeof(EDBKeyType), sz);
   LOG_TRACE(logger(), "Got metadata key " << out << " from composed key " << _composedKey);
@@ -328,12 +357,13 @@ KeyValuePair DBKeyManipulator::composedToSimple(KeyValuePair _p) {
   return KeyValuePair(key, _p.second);
 }
 
-DBAdapter::DBAdapter(std::shared_ptr<storage::IDBClient> db, std::unique_ptr<IDataKeyGenerator> keyGen)
+DBAdapter::DBAdapter(std::shared_ptr<storage::IDBClient> db, std::unique_ptr<IDataKeyGenerator> keyGen, bool use_mdt)
     : logger_{concordlogger::Log::getLogger("concord.kvbc.v1DirectKeyValue.DBAdapter")},
-      db_{db},
-      keyGen_{std::move(keyGen)} {
-  db_->init(false);
-}
+      db_(db),
+      keyGen_{std::move(keyGen)},
+      mdt_{use_mdt},
+      lastBlockId_{fetchLatestBlockId()},
+      lastReachableBlockId_{fetchLastReachableBlockId()} {}
 
 BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &kv) {
   BlockId blockId = getLastReachableBlockId() + 1;
@@ -349,6 +379,10 @@ BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &kv) {
   const auto block = block::detail::create(kv, outKv, blockDigest);
   if (Status s = addBlockAndUpdateMultiKey(outKv, blockId, block); !s.isOK())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": failed: ") + s.toString());
+
+  setLatestBlock(blockId);
+  setLastReachableBlockNum(blockId);
+
   return blockId;
 }
 
@@ -360,6 +394,14 @@ void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId) {
   if (Status s = addBlockAndUpdateMultiKey(keys, blockId, block); !s.isOK())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": failed: blockId: ") + std::to_string(blockId) +
                              std::string(" reason: ") + s.toString());
+
+  // when ST runs, blocks arrive in batches in reverse order. we need to keep
+  // track on the "Gap" and to close it. Only when it is closed, the last
+  // reachable block becomes the same as the last block
+  BlockId lastReachableBlock = getLastReachableBlockId();
+  if (blockId > getLatestBlockId()) setLatestBlock(blockId);
+
+  if (blockId == lastReachableBlock + 1) setLastReachableBlockNum(getLatestBlockId());
 }
 
 Status DBAdapter::addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &_kvMap,
@@ -396,10 +438,12 @@ void DBAdapter::deleteBlock(const BlockId &blockId) {
 
     keysVec.push_back(keyGen_->blockKey(blockId));
 
-    if (Status s = db_->multiDel(keysVec); !s.isOK()) {
-      LOG_FATAL(logger_, "Failed to delete block id: " << blockId);
-      exit(1);
-    }
+    if (Status s = db_->multiDel(keysVec); !s.isOK())
+      throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": failed: blockId: ") + std::to_string(blockId) +
+                               std::string(" reason: ") + s.toString());
+    Assert(hasBlock(blockId - 1));
+    setLatestBlock(blockId - 1);
+    setLastReachableBlockNum(blockId - 1);
   } catch (const NotFoundException &e) {
   }
 }
@@ -455,6 +499,10 @@ RawBlock DBAdapter::getRawBlock(const BlockId &blockId) const {
   return blockRaw;
 }
 
+bool DBAdapter::hasBlock(const BlockId &blockId) const {
+  if (Status s = db_->has(keyGen_->blockKey(blockId)); s.isNotFound()) return false;
+  return true;
+}
 // TODO(SG): Add status checks with getStatus() on iterator.
 // TODO(JGC): unserstand difference between .second and .data()
 
@@ -465,7 +513,8 @@ RawBlock DBAdapter::getRawBlock(const BlockId &blockId) const {
  *
  * @return Block ID of the latest block.
  */
-BlockId DBAdapter::getLatestBlockId() const {
+BlockId DBAdapter::fetchLatestBlockId() const {
+  if (mdt_) return mdtGetLatestBlockId();
   // Note: RocksDB stores keys in a sorted fashion as per the logic provided in
   // a custom comparator (for our case, refer to the `composedKeyComparison`
   // method above). In short, keys of type 'block' are stored first followed by
@@ -500,10 +549,12 @@ BlockId DBAdapter::getLatestBlockId() const {
  *
  * @return Block ID of the last reachable block.
  */
-BlockId DBAdapter::getLastReachableBlockId() const {
-  storage::IDBClient::IDBClientIterator *iter = db_->getIterator();
+BlockId DBAdapter::fetchLastReachableBlockId() const {
+  if (mdt_) return mdtGetLastReachableBlockId();
 
   BlockId lastReachableId = 0;
+  storage::IDBClient::IDBClientIterator *iter = db_->getIterator();
+
   Sliver blockKey = keyGen_->blockKey(1);
   KeyValuePair kvp = iter->seekAtLeast(blockKey);
   if (kvp.first.length() == 0) {
@@ -523,6 +574,53 @@ BlockId DBAdapter::getLastReachableBlockId() const {
 
   db_->freeIterator(iter);
   return lastReachableId;
+}
+
+BlockId DBAdapter::mdtGetLatestBlockId() const {
+  static Key lastBlockIdKey = keyGen_->mdtKey(std::string("last-block-id"));
+  Sliver val;
+  if (Status s = mdtGet(lastBlockIdKey, val); s.isOK())
+    return concord::util::to<BlockId>(val.toString());
+  else
+    return 0;
+}
+
+BlockId DBAdapter::mdtGetLastReachableBlockId() const {
+  static Key lastReachableBlockIdKey = keyGen_->mdtKey(std::string("last-reachable-block-id"));
+  Sliver val;
+  if (Status s = mdtGet(lastReachableBlockIdKey, val); s.isOK())
+    return concord::util::to<BlockId>(val.toString());
+  else
+    return 0;
+}
+
+void DBAdapter::setLastReachableBlockNum(const BlockId &blockId) {
+  lastReachableBlockId_ = blockId;
+  if (mdt_) {
+    static Key lastReachableBlockIdKey = keyGen_->mdtKey(std::string("last-reachable-block-id"));
+    mdtPut(lastReachableBlockIdKey, std::to_string(blockId));
+  }
+}
+
+void DBAdapter::setLatestBlock(const BlockId &blockId) {
+  lastBlockId_ = blockId;
+  if (mdt_) {
+    static Key lastBlockIdKey = keyGen_->mdtKey(std::string("last-block-id"));
+    mdtPut(lastBlockIdKey, std::to_string(blockId));
+  }
+}
+Status DBAdapter::mdtPut(const concordUtils::Sliver &key, const concordUtils::Sliver &val) {
+  if (Status s = db_->put(key, val); s.isOK())
+    return s;
+  else
+    throw std::runtime_error("failed to put key: " + key.toString() + std::string(" reason: ") + s.toString());
+}
+
+Status DBAdapter::mdtGet(const concordUtils::Sliver &key, concordUtils::Sliver &val) const {
+  if (Status s = db_->get(key, val); s.isOK() || s.isNotFound())
+    return s;
+  else
+    throw std::runtime_error("failed to get key: " + key.toString() + std::string(" reason: ") + s.toString());
 }
 
 SetOfKeyValuePairs DBAdapter::getBlockData(const RawBlock &rawBlock) const { return block::detail::getData(rawBlock); }

@@ -14,18 +14,25 @@
 #pragma once
 
 #include <memory>
-
+#include <utility>
 #include "ReplicaConfig.hpp"
 #include "ICommunication.hpp"
 #include "Logger.hpp"
 #include "MetricsServer.hpp"
+#include "config/test_parameters.hpp"
 
-namespace concord {
-namespace kvbc {
+namespace concord::storage {
+class IDBClient;
+}
+
+namespace concord::kvbc {
+class IDbAdapter;
 
 class TestSetup {
  public:
   static std::unique_ptr<TestSetup> ParseArgs(int argc, char** argv);
+
+  std::tuple<std::shared_ptr<concord::storage::IDBClient>, IDbAdapter*> get_db_configuration();
 
   bftEngine::ReplicaConfig& GetReplicaConfig() { return replica_config_; }
   bftEngine::ICommunication* GetCommunication() const { return communication_.get(); }
@@ -46,6 +53,7 @@ class TestSetup {
         use_persistent_storage_(use_persistent_storage) {}
   TestSetup() = delete;
 
+  std::tuple<std::shared_ptr<concord::storage::IDBClient>, IDbAdapter*> get_inmem_db_configuration();
   bftEngine::ReplicaConfig replica_config_;
   std::unique_ptr<bftEngine::ICommunication> communication_;
   concordlogger::Logger logger_;
@@ -53,5 +61,4 @@ class TestSetup {
   bool use_persistent_storage_;
 };
 
-}  // namespace kvbc
-}  // namespace concord
+}  // namespace concord::kvbc

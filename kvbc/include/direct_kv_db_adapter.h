@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include "db_interfaces.h"
 #include "kv_types.hpp"
 #include "Logger.hpp"
 #include "storage/db_interface.h"
@@ -17,6 +16,11 @@ namespace concord::kvbc {
 inline namespace v1DirectKeyValue {
 using concord::storage::detail::EDBKeyType;
 
+/** Key comparator for sorting keys in database.
+ *  Used with rocksdb when there's no natural lexicographical key comparison.
+ *
+ *  @deprecated should be removed after switching to merkle-style keys serialization.
+ */
 class DBKeyComparator : public concord::storage::IDBClient::IKeyComparator {
  public:
   int composedKeyComparison(const char *_a_data, size_t _a_length, const char *_b_data, size_t _b_length) override;
@@ -26,22 +30,75 @@ class DBKeyComparator : public concord::storage::IDBClient::IKeyComparator {
   }
 };
 
-class DBKeyManipulatorBase : public storage::DBKeyManipulatorBase {
+/** Defines interface for blockchain data keys generation.
+ *
+ */
+class IDataKeyGenerator {
+ public:
+  virtual Key blockKey(const BlockId &) const = 0;
+  virtual Key dataKey(const Key &, const BlockId &) const = 0;
+  virtual Key mdtKey(const Key &) const = 0;
+
+  virtual ~IDataKeyGenerator() = default;
+};
+
+/** Default Key Generator
+ *  Used with rocksdb
+ */
+class RocksKeyGenerator : public IDataKeyGenerator, storage::DBKeyGeneratorBase {
+ public:
+  Key blockKey(const BlockId &) const override;
+  Key dataKey(const Key &, const BlockId &) const override;
+  Key mdtKey(const Key &key) const override { return key; }
+
  protected:
   static concordUtils::Sliver genDbKey(EDBKeyType, const Key &, BlockId);
   static concordlogger::Logger &logger() {
-    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.kvbc.DBKeyManipulator");
+    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.kvbc.RocksKeyGenerator");
     return logger_;
   }
 };
 
-class KeyGenerator : public IDataKeyGenerator, public DBKeyManipulatorBase {
+/** Key generator for S3 storage
+ *  As S3 has textual hierarchical URI like structure the generated keys are as follows:
+ *  prefix/block_id/raw_block
+ *  prefix/block_id/key1
+ *  ......................
+ *  prefix/block_id/keyN
+ *
+ *  metadata have the following form:
+ *  prefix/metadata/key
+ *
+ *  keys are transformed to hexadecimal strings.
+ *
+ *  Where prefix is some arbitrary string.
+ *  Typically it should be a blockchain id.
+ *  For tests it is usually a timestamp.
+ */
+class S3KeyGenerator : public IDataKeyGenerator {
  public:
-  concordUtils::Sliver blockKey(const BlockId &) const override;
-  concordUtils::Sliver dataKey(const Key &, const BlockId &) const override;
+  S3KeyGenerator(const std::string &prefix = "") : prefix_(prefix + std::string("/")) {}
+  Key blockKey(const BlockId &) const override;
+  Key dataKey(const Key &, const BlockId &) const override;
+  Key mdtKey(const Key &key) const override;
+
+ protected:
+  static std::string string2hex(const std::string &s);
+  static std::string hex2string(const std::string &);
+  static concordlogger::Logger &logger() {
+    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.kvbc.S3KeyGenerator");
+    return logger_;
+  }
+
+  std::string prefix_;
 };
 
-class DBKeyManipulator : public DBKeyManipulatorBase {
+/** Key Manipulator for extracting info from database keys
+ *  Used for rocksdb when there's no natural lexicographical key comparison.
+ *
+ *  @deprecated should be removed after switching to merkle-style keys serialization.
+ */
+class DBKeyManipulator {
  public:
   static BlockId extractBlockIdFromKey(const Key &_key);
   static BlockId extractBlockIdFromKey(const char *_key_data, size_t _key_length);
@@ -49,17 +106,26 @@ class DBKeyManipulator : public DBKeyManipulatorBase {
   static EDBKeyType extractTypeFromKey(const char *_key_data);
   static storage::ObjectId extractObjectIdFromKey(const Key &_key);
   static storage::ObjectId extractObjectIdFromKey(const char *_key_data, size_t _key_length);
-  static concordUtils::Sliver extractKeyFromKeyComposedWithBlockId(const Key &_composedKey);
+  static Key extractKeyFromKeyComposedWithBlockId(const Key &_composedKey);
   static int compareKeyPartOfComposedKey(const char *a_data, size_t a_length, const char *b_data, size_t b_length);
-  static concordUtils::Sliver extractKeyFromMetadataKey(const Key &_composedKey);
+  static Key extractKeyFromMetadataKey(const Key &_composedKey);
   static bool isKeyContainBlockId(const Key &_composedKey);
   static KeyValuePair composedToSimple(KeyValuePair _p);
+  static std::string extractFreeKey(const char *_key_data, size_t _key_length);
+  static concordlogger::Logger &logger() {
+    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.kvbc.DBKeyManipulator");
+    return logger_;
+  }
 };
 
+/** DBadapter for managing key/value blockchain atop key/value store in form of simple blocks
+ *
+ */
 class DBAdapter : public IDbAdapter {
  public:
-  DBAdapter(std::shared_ptr<storage::IDBClient>,
-            std::unique_ptr<IDataKeyGenerator> keyGen = std::make_unique<KeyGenerator>());
+  DBAdapter(std::shared_ptr<storage::IDBClient> dataStore,
+            std::unique_ptr<IDataKeyGenerator> keyGen = std::make_unique<RocksKeyGenerator>(),
+            bool use_mdt = false);
 
   // Adds a block from a set of key/value pairs and a block ID. Includes:
   // - adding the key/value pairs in separate keys
@@ -79,8 +145,10 @@ class DBAdapter : public IDbAdapter {
 
   void deleteBlock(const BlockId &) override;
 
-  BlockId getLatestBlockId() const override;
-  BlockId getLastReachableBlockId() const override;
+  bool hasBlock(const BlockId &blockId) const override;
+
+  BlockId getLatestBlockId() const override { return lastBlockId_; }
+  BlockId getLastReachableBlockId() const override { return lastReachableBlockId_; }
 
   // Returns the block data in the form of a set of key/value pairs.
   SetOfKeyValuePairs getBlockData(const RawBlock &rawBlock) const override;
@@ -90,14 +158,28 @@ class DBAdapter : public IDbAdapter {
 
   std::shared_ptr<storage::IDBClient> getDb() const override { return db_; }
 
- private:
+ protected:
+  void setLastReachableBlockNum(const BlockId &blockId);
+  void setLatestBlock(const BlockId &blockId);
+
+  BlockId fetchLatestBlockId() const;
+  BlockId fetchLastReachableBlockId() const;
+
+  // The following methods are used to store metadata parameters
+  BlockId mdtGetLatestBlockId() const;
+  BlockId mdtGetLastReachableBlockId() const;
+  concordUtils::Status mdtGet(const concordUtils::Sliver &key, concordUtils::Sliver &val) const;
+  concordUtils::Status mdtPut(const concordUtils::Sliver &key, const concordUtils::Sliver &val);
+
   concordUtils::Status addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &_kvMap,
                                                  const BlockId &_block,
                                                  const concordUtils::Sliver &_blockRaw);
-
   concordlogger::Logger logger_;
   std::shared_ptr<storage::IDBClient> db_;
   std::unique_ptr<IDataKeyGenerator> keyGen_;
+  bool mdt_ = false;  // whether we explicitly store blockchain metadata
+  BlockId lastBlockId_ = 0;
+  BlockId lastReachableBlockId_ = 0;
 };
 
 }  // namespace v1DirectKeyValue

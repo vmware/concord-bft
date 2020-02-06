@@ -64,7 +64,7 @@ void verifyMultiDel(KeysVector &keys) {
 class multiIO_test : public ::testing::Test {
  protected:
   void SetUp() override {
-    keyGen_.reset(new concord::kvbc::KeyGenerator);
+    keyGen_.reset(new concord::kvbc::RocksKeyGenerator);
     comparator_ = new KeyComparator(new DBKeyComparator());
     dbClient.reset(new Client(dbPath_, comparator_));
     dbClient->init();

@@ -16,16 +16,31 @@
 #include <string>
 #include <cstring>
 #include <unistd.h>
+#include <tuple>
+#include <chrono>
 
 #include "setup.hpp"
 #include "CommFactory.hpp"
 #include "config/test_comm_config.hpp"
-#include "config/test_parameters.hpp"
+#include "commonKVBTests.hpp"
+#include "db_adapter.h"
 
-using namespace std;
+#include "memorydb/client.h"
 
-namespace concord {
-namespace kvbc {
+#ifdef USE_ROCKSDB
+#include "rocksdb/client.h"
+#include "rocksdb/key_comparator.h"
+#endif
+
+#ifdef USE_S3_OBJECT_STORE
+#include "object_store/object_store_client.hpp"
+#include "s3/client.hpp"
+using concord::storage::ObjectStoreClient;
+#endif
+
+using namespace concord::storage;
+
+namespace concord::kvbc {
 
 std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
   ReplicaParams rp;
@@ -39,10 +54,10 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
   }
 
   char argTempBuffer[PATH_MAX + 10];
-  string idStr;
+  std::string idStr;
 
   int o = 0;
-  while ((o = getopt(argc, argv, "r:i:k:n:s:v:a:p")) != EOF) {
+  while ((o = getopt(argc, argv, "r:i:k:n:s:v:a:po:")) != EOF) {
     switch (o) {
       case 'i': {
         strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
@@ -92,9 +107,10 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
       } break;
       // We can only toggle persistence on or off. It defaults to InMemory
       // unless -p flag is provided.
-      case 'p':
+      case 'p': {
         rp.persistencyMode = PersistencyMode::RocksDB;
-        break;
+
+      } break;
 
       default:
         break;
@@ -144,5 +160,51 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
       replicaConfig, std::move(comm), logger, metrics_port, rp.persistencyMode == PersistencyMode::RocksDB});
 }
 
-}  // namespace kvbc
-}  // namespace concord
+std::tuple<std::shared_ptr<concord::storage::IDBClient>, IDbAdapter*> TestSetup::get_inmem_db_configuration() {
+  auto comparator = concord::storage::memorydb::KeyComparator(new DBKeyComparator());
+  std::shared_ptr<concord::storage::IDBClient> db = std::make_shared<concord::storage::memorydb::Client>(comparator);
+  return std::make_tuple(db, new DBAdapter{db});
+}
+/** Get replica db configuration
+ * @return storage::IDBClient instance for metadata storage
+ * @return kvbc::IDBAdapter instance
+ */
+std::tuple<std::shared_ptr<concord::storage::IDBClient>, IDbAdapter*> TestSetup::get_db_configuration() {
+#ifndef USE_ROCKSDB
+  return get_inmem_db_configuration();
+#else
+  if (!UsePersistentStorage()) get_inmem_db_configuration();
+
+  auto* comparator = new concord::storage::rocksdb::KeyComparator(new DBKeyComparator());
+  std::stringstream dbPath;
+  dbPath << BasicRandomTests::DB_FILE_PREFIX << GetReplicaConfig().replicaId;
+  std::shared_ptr<concord::storage::IDBClient> db(new concord::storage::rocksdb::Client(dbPath.str(), comparator));
+  db->init();
+  IDbAdapter* dbAdapter = nullptr;
+
+#ifdef USE_S3_OBJECT_STORE  // TODO [TK] config
+  if (GetReplicaConfig().isReadOnly) {
+    concord::storage::s3::StoreConfig config;
+    config.bucketName = "blockchain-dev-asx";
+    config.accessKey = "blockchain-dev";
+    config.protocol = "HTTP";
+    config.url = "10.70.30.244:9020";
+    config.secretKey = "Rz0mdbUNGJBxqdzprn5XGSXPr2AfkgcQsYS4y698";
+    std::string prefix = std::to_string(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+
+    std::shared_ptr<concord::storage::IDBClient> s3client(new ObjectStoreClient(new s3::Client(config)));
+    s3client->init();
+    dbAdapter = new DBAdapter(s3client, std::unique_ptr<IDataKeyGenerator>(new S3KeyGenerator(prefix)), true);
+  } else {
+    dbAdapter = new DBAdapter(db);
+  }
+#else
+  dbAdapter = new DBAdapter(db);
+#endif
+
+  return std::make_tuple(db, dbAdapter);
+
+#endif
+}
+
+}  // namespace concord::kvbc

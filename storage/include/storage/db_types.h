@@ -22,7 +22,7 @@ inline namespace v1DirectKeyValue {
 namespace detail {
 
 enum class EDBKeyType : std::uint8_t {
-  E_DB_KEY_TYPE_FIRST = 1,
+  E_DB_KEY_TYPE_FIRST = 65,
   E_DB_KEY_TYPE_BLOCK = E_DB_KEY_TYPE_FIRST,
   E_DB_KEY_TYPE_KEY,
   E_DB_KEY_TYPE_BFT_METADATA_KEY,

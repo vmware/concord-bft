@@ -47,7 +47,10 @@ void ReadOnlyReplica::start() {
   lastExecutedSeqNum = ps_->getLastExecutedSeqNum();
   askForCheckpointMsgTimer_ = TimersSingleton::getInstance().add(std::chrono::seconds(5),  // TODO [TK] config
                                                                  Timers::Timer::RECURRING,
-                                                                 [this](Timers::Handle) { sendAskForCheckpointMsg(); });
+                                                                 [this](Timers::Handle) {
+                                                                   if (!this->isCollectingState())
+                                                                     sendAskForCheckpointMsg();
+                                                                 });
 }
 
 void ReadOnlyReplica::stop() {

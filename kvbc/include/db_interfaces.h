@@ -36,15 +36,4 @@ class IBlocksAppender {
   virtual ~IBlocksAppender() = default;
 };
 
-/** Defines interface for blockchain data keys generation
- *
- */
-class IDataKeyGenerator {
- public:
-  virtual concordUtils::Sliver blockKey(const BlockId&) const = 0;
-  virtual concordUtils::Sliver dataKey(const Key&, const BlockId&) const = 0;
-
-  virtual ~IDataKeyGenerator() = default;
-};
-
 }  // namespace concord::kvbc
