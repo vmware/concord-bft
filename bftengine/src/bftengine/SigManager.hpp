@@ -15,6 +15,7 @@
 #include <utility>
 #include <set>
 #include <map>
+#include <memory>
 
 namespace bftEngine {
 namespace impl {
@@ -41,10 +42,12 @@ class SigManager {
   uint16_t getMySigLength() const;
 
  protected:
-  const ReplicaId _myId;
-  RSASigner* _mySigner;
-  std::map<ReplicaId, RSAVerifier*> _replicasVerifiers;
+  const ReplicaId myId_;
+  RSASigner* mySigner_;
+  std::map<ReplicaId, RSAVerifier*> replicasVerifiers_;
 };
+
+typedef std::shared_ptr<SigManager> SigManagerSharedPtr;
 
 }  // namespace impl
 }  // namespace bftEngine
