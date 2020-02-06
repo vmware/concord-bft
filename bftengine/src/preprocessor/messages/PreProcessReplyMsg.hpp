@@ -31,7 +31,10 @@ struct PreProcessReplyMsgHeader {
 
 class PreProcessReplyMsg : public MessageBase {
  public:
-  PreProcessReplyMsg(NodeIdType senderId, uint16_t clientId, uint64_t reqSeqNum);
+  PreProcessReplyMsg(bftEngine::impl::SigManagerSharedPtr sigManager,
+                     NodeIdType senderId,
+                     uint16_t clientId,
+                     uint64_t reqSeqNum);
 
   void setupMsgBody(const char* buf, uint32_t bufLen);
 
@@ -46,9 +49,9 @@ class PreProcessReplyMsg : public MessageBase {
   PreProcessReplyMsgHeader* msgBody() const { return ((PreProcessReplyMsgHeader*)msgBody_); }
 
  private:
-  static std::unique_ptr<SigManager> sigManager_;
-
   static uint16_t maxReplyMsgSize_;
+
+  bftEngine::impl::SigManagerSharedPtr sigManager_;
 };
 
 typedef std::shared_ptr<PreProcessReplyMsg> PreProcessReplyMsgSharedPtr;

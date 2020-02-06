@@ -12,7 +12,6 @@
 #include "PreProcessor.hpp"
 #include "Logger.hpp"
 #include "MsgHandlersRegistrator.hpp"
-#include "ReplicaConfig.hpp"
 
 namespace preprocessor {
 
@@ -65,12 +64,16 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       msgHandlersRegistrator_(msgHandlersRegistrator),
       requestsHandler_(requestsHandler),
       myReplica_(myReplica),
-      myReplicaId_(ReplicaConfigSingleton::GetInstance().GetReplicaId()),
-      maxReplyMsgSize_(ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
+      myReplicaId_(myReplica.getReplicaConfig().replicaId),
+      maxReplyMsgSize_(myReplica.getReplicaConfig().maxReplyMessageSize - sizeof(ClientReplyMsgHeader)),
       idsOfPeerReplicas_(myReplica.getIdsOfPeerReplicas()),
-      numOfReplicas_(ReplicaConfigSingleton::GetInstance().GetNumOfReplicas()),
-      numOfClients_(ReplicaConfigSingleton::GetInstance().GetNumOfClientProxies()) {
+      numOfReplicas_(myReplica.getReplicaConfig().numReplicas),
+      numOfClients_(myReplica.getReplicaConfig().numOfClientProxies) {
   registerMsgHandlers();
+  sigManager_ = make_shared<SigManager>(myReplicaId_,
+                                        numOfReplicas_ + numOfClients_,
+                                        myReplica.getReplicaConfig().replicaPrivateKey,
+                                        myReplica.getReplicaConfig().publicKeysOfReplicas);
   const uint16_t firstClientId = numOfReplicas_;
   for (auto i = 0; i < numOfClients_; i++) {
     // Placeholders for all clients
@@ -234,7 +237,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, SeqNum reqSeqNum) 
   LOG_DEBUG(GL, "Pre-processing completed for clientId=" << clientId << " reqSeqNum=" << reqSeqNum);
 }
 
-uint16_t PreProcessor::numOfRequiredReplies() { return ReplicaConfigSingleton::GetInstance().GetFVal() + 1; }
+uint16_t PreProcessor::numOfRequiredReplies() { return myReplica_.getReplicaConfig().fVal + 1; }
 
 void PreProcessor::registerClientPreProcessRequest(uint16_t clientId, ReqId requestSeqNum) {
   {
@@ -341,7 +344,7 @@ void PreProcessor::handlePreProcessedReqByPrimary(PreProcessRequestMsgSharedPtr 
 }
 
 void PreProcessor::handlePreProcessedReqByNonPrimary(uint16_t clientId, ReqId reqSeqNum, uint32_t resBufLen) {
-  auto replyMsg = make_shared<PreProcessReplyMsg>(myReplicaId_, clientId, reqSeqNum);
+  auto replyMsg = make_shared<PreProcessReplyMsg>(sigManager_, myReplicaId_, clientId, reqSeqNum);
   replyMsg->setupMsgBody(getPreProcessResultBuffer(clientId), resBufLen);
   sendMsg(replyMsg->body(), myReplica_.currentPrimary(), replyMsg->type(), replyMsg->size());
   LOG_DEBUG(GL, "Sent reqSeqNum=" << reqSeqNum << " to the primary replica=" << myReplica_.currentPrimary());

@@ -20,6 +20,8 @@
 #include "Replica.hpp"
 #include "RequestProcessingInfo.hpp"
 #include "sliver.hpp"
+#include "SigManager.hpp"
+
 #include <mutex>
 
 namespace preprocessor {
@@ -55,7 +57,7 @@ class PreProcessor {
  private:
   friend class AsyncPreProcessJob;
 
-  static uint16_t numOfRequiredReplies();
+  uint16_t numOfRequiredReplies();
 
   template <typename T>
   void messageHandler(MessageBase *msg);
@@ -87,6 +89,7 @@ class PreProcessor {
  private:
   static std::vector<std::unique_ptr<PreProcessor>> preProcessors_;  // The place holder for PreProcessor objects
 
+  bftEngine::impl::SigManagerSharedPtr sigManager_;
   std::shared_ptr<MsgsCommunicator> msgsCommunicator_;
   std::shared_ptr<IncomingMsgsStorage> incomingMsgsStorage_;
   std::shared_ptr<MsgHandlersRegistrator> msgHandlersRegistrator_;

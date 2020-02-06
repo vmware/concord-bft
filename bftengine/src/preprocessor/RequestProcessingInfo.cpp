@@ -28,6 +28,7 @@ RequestProcessingInfo::RequestProcessingInfo(uint16_t numOfReplicas, uint16_t nu
 void RequestProcessingInfo::handlePrimaryPreProcessed(PreProcessRequestMsgSharedPtr msg,
                                                       const char *preProcessResult,
                                                       uint32_t preProcessResultLen) {
+  numOfReceivedReplies_++;
   preProcessRequestMsg_ = msg;
   myPreProcessResult_ = preProcessResult;
   myPreProcessResultLen_ = preProcessResultLen;
