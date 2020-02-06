@@ -429,6 +429,9 @@ TEST(remove_tests, remove_a_single_leaf) {
 /*
 // Add 2 LeafChildren to a BatchedInternalNode and then remove one of them.
 //
+// Since this is a remove from the second node, the BatchedInternalNode can be
+// removed when a peer moves up to the root BatchedInternalNode.
+//
 // The logical tree inside the BatchedInternalNode looks like the following
 // before remove is called:
 //
@@ -441,7 +444,69 @@ TEST(remove_tests, remove_a_single_leaf) {
 // BatchedInternalNode will be removed by the caller.
 //
 */
-TEST(remove_tests, remove_a_leaf_with_a_peer) {
+TEST(remove_tests, remove_a_leaf_with_a_peer_second_node) {
+  BatchedInternalNode node;
+
+  Hasher hasher;
+  const char* key1 = "artist";
+  const char* value1 = "REM";
+  const char* value2 = "Nas";
+  size_t depth = 1;
+
+  auto key1_hash = hasher.hash(key1, strlen(key1));
+
+  // Flip the 5th bit so that key1_hash becomes a sibling of key2_hash right
+  // below the root of the BatchedInternalNode at depth 1 in the sparse merkle
+  // tree.
+  auto key2_hash = flipByte0Bit(4, key1_hash);
+
+  ASSERT_EQ(4, key1_hash.prefix_bits_in_common(key2_hash));
+
+  auto value1_hash = hasher.hash(value1, strlen(value1));
+  auto value2_hash = hasher.hash(value2, strlen(value2));
+  auto leaf_key1 = LeafKey(key1_hash, Version(1));
+  auto leaf_key2 = LeafKey(key2_hash, Version(2));
+  auto child1 = LeafChild{value1_hash, leaf_key1};
+  auto child2 = LeafChild{value2_hash, leaf_key2};
+
+  node.insert(child1, depth);
+  node.insert(child2, depth);
+
+  // There should be one root and two leaves
+  ASSERT_EQ(3, node.numChildren());
+  ASSERT_EQ(1, node.numInternalChildren());
+  ASSERT_EQ(2, node.numLeafChildren());
+
+  // Deleting key1 should return RemoveBatchedInternalNode with a promoted
+  // child2.
+  auto result = node.remove(key1_hash, depth, Version(3));
+  ASSERT_TRUE(std::holds_alternative<BatchedInternalNode::RemoveBatchedInternalNode>(result));
+  auto promoted = std::get<BatchedInternalNode::RemoveBatchedInternalNode>(result).promoted.value();
+  ASSERT_EQ(child2, promoted);
+}
+
+/*
+// Add 2 LeafChildren to a BatchedInternalNode and then remove one of them.
+//
+// The logical tree inside the BatchedInternalNode looks like the following
+// before remove is called:
+//
+//          Root
+//           |
+//         /   \
+//      Leaf1   Leaf2
+//
+// Since this is the root BatchedInternalNode the peer will not be promoted.
+// The logical tree will look like the following after the remove is called:
+//
+//            Root
+//             |
+//     -----------------
+//     |               |
+// Placeholder       Leaf2
+//
+*/
+TEST(remove_tests, remove_a_leaf_with_a_peer_root_node) {
   BatchedInternalNode node;
 
   Hasher hasher;
@@ -472,12 +537,15 @@ TEST(remove_tests, remove_a_leaf_with_a_peer) {
   ASSERT_EQ(1, node.numInternalChildren());
   ASSERT_EQ(2, node.numLeafChildren());
 
-  // Deleting key1 should return RemoveBatchedInternalNode with a promoted
-  // child2.
+  // Deleting key1 should return RemoveComplete, since the peer cannot be promoted above the root node.
   auto result = node.remove(key1_hash, depth, Version(3));
-  ASSERT_TRUE(std::holds_alternative<BatchedInternalNode::RemoveBatchedInternalNode>(result));
-  auto promoted = std::get<BatchedInternalNode::RemoveBatchedInternalNode>(result).promoted.value();
-  ASSERT_EQ(child2, promoted);
+  ASSERT_TRUE(std::holds_alternative<BatchedInternalNode::RemoveComplete>(result));
+  ASSERT_EQ(node.hash(), hasher.parent(PLACEHOLDER_HASH, value2_hash));
+
+  // There should be one root and one leaf
+  ASSERT_EQ(2, node.numChildren());
+  ASSERT_EQ(1, node.numInternalChildren());
+  ASSERT_EQ(1, node.numLeafChildren());
 }
 
 /*
@@ -730,7 +798,8 @@ TEST(remove_tests, remove_a_leaf_at_depth_3_with_a_leaf_peer_and_another_peer_at
 }
 
 /*
-// Remove a leaf (Leaf1) at depth 3 with leaf node as a peer.
+// Remove a leaf (Leaf1) at depth 3 with leaf node as a peer, from a
+// BatchedInternalNode that is not the root of the sparse merkle tree.
 //
 // There are no other leaves in the tree, so RemoveBatchedInternalNode with a
 // promoted peer should be returned.
@@ -752,7 +821,8 @@ TEST(remove_tests, remove_a_leaf_at_depth_3_with_a_leaf_peer_and_another_peer_at
 //
 //
 // After removal of Leaf1, Leaf3 will be promoted and this BatchedInternalNode
-// will be removed by the caller.
+// will be removed by the caller, since this is not the root node of the sparse
+// merkle tree.
 */
 TEST(remove_tests, remove_a_leaf_at_depth_3_with_a_leaf_peer_and_no_other_leaves) {
   BatchedInternalNode node;
@@ -760,15 +830,15 @@ TEST(remove_tests, remove_a_leaf_at_depth_3_with_a_leaf_peer_and_no_other_leaves
   const char* key1 = "artist";
   const char* value1 = "REM";
   const char* value3 = "Rihanna";
-  size_t depth = 0;
+  size_t depth = 1;
 
   auto key1_hash = hasher.hash(key1, strlen(key1));
 
-  // Flip the third bit bit so that key1_hash becomes a sibling of key3_hash at
-  // height depth 3.
-  auto key3_hash = flipByte0Bit(2, key1_hash);
+  // Flip the seventh bit bit so that key1_hash becomes a sibling of key3_hash at
+  // depth 3 in the second BatchedInternalNode down the sparse merkle tree..
+  auto key3_hash = flipByte0Bit(6, key1_hash);
 
-  ASSERT_EQ(2, key1_hash.prefix_bits_in_common(key3_hash));
+  ASSERT_EQ(6, key1_hash.prefix_bits_in_common(key3_hash));
 
   auto value1_hash = hasher.hash(value1, strlen(value1));
   auto value3_hash = hasher.hash(value3, strlen(value3));
@@ -925,7 +995,7 @@ TEST(remove_tests, descend_because_requested_node_is_internal) {
 
   auto result = node.remove(key1_hash, depth, Version(3));
   ASSERT_TRUE(std::holds_alternative<BatchedInternalNode::Descend>(result));
-  ASSERT_EQ(Version(2), std::get<BatchedInternalNode::Descend>(result).version);
+  ASSERT_EQ(Version(2), std::get<BatchedInternalNode::Descend>(result).next_node_version);
 }
 
 int main(int argc, char** argv) {

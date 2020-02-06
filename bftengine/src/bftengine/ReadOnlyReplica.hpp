@@ -24,7 +24,7 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
   ReadOnlyReplica(const ReplicaConfig&,
                   IStateTransfer*,
                   std::shared_ptr<MsgsCommunicator>,
-                  std::shared_ptr<PersistentStorage> persistentStorage,
+                  std::shared_ptr<PersistentStorage>,
                   std::shared_ptr<MsgHandlersRegistrator>);
 
   void start() override;
@@ -55,6 +55,13 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
   std::map<ReplicaId, CheckpointMsg*> tableOfStableCheckpoints;
 
   concordUtil::Timers::Handle askForCheckpointMsgTimer_;
+
+  struct Metrics {
+    concordMetrics::CounterHandle received_checkpoint_msg_;
+    concordMetrics::CounterHandle sent_ask_for_checkpoint_msg_;
+    concordMetrics::CounterHandle received_invalid_msg_;
+    concordMetrics::GaugeHandle last_executed_seq_num_;
+  } ro_metrics_;
 };
 
 }  // namespace bftEngine::impl

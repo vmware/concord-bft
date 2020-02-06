@@ -43,7 +43,7 @@ void ViewChangeMsg::getMsgDigest(Digest& outDigest) const {
 
 void ViewChangeMsg::addElement(const ReplicasInfo& repInfo,
                                SeqNum seqNum,
-                               const Digest& prePrepreDigest,
+                               const Digest& prePrepareDigest,
                                ViewNum originView,
                                bool hasPreparedCertificate,
                                ViewNum certificateView,
@@ -69,7 +69,7 @@ void ViewChangeMsg::addElement(const ReplicasInfo& repInfo,
 
   Element* pElement = (Element*)(body() + b()->locationAfterLast);
   pElement->seqNum = seqNum;
-  pElement->prePrepreDigest = prePrepreDigest;
+  pElement->prePrepareDigest = prePrepareDigest;
   pElement->originView = originView;
   pElement->hasPreparedCertificate = hasPreparedCertificate;
 
@@ -103,7 +103,7 @@ void ViewChangeMsg::finalizeMessage() {
   Assert(b);
 }
 
-void ViewChangeMsg::validate(const ReplicasInfo& repInfo) {
+void ViewChangeMsg::validate(const ReplicasInfo& repInfo) const {
   if (size() < sizeof(ViewChangeMsgHeader) || !repInfo.isIdOfReplica(idOfGeneratedReplica()) ||
       idOfGeneratedReplica() == repInfo.myId())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));

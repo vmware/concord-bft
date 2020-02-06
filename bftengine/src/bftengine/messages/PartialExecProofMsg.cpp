@@ -32,7 +32,7 @@ PartialExecProofMsg::PartialExecProofMsg(
       (const char*)(&(digest)), sizeof(Digest), body() + sizeof(PartialExecProofMsgHeader), thresholSignatureLength);
 }
 
-void PartialExecProofMsg::validate(const ReplicasInfo& repInfo) {
+void PartialExecProofMsg::validate(const ReplicasInfo& repInfo) const {
   if (size() < sizeof(PartialExecProofMsgHeader) ||
       size() < (sizeof(PartialExecProofMsgHeader) + thresholSignatureLength()) ||
       senderId() ==

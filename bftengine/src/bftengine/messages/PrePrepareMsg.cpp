@@ -40,7 +40,7 @@ PrePrepareMsg* PrePrepareMsg::createNullPrePrepareMsg(ReplicaId sender, ViewNum 
 
 const Digest& PrePrepareMsg::digestOfNullPrePrepareMsg() { return nullDigest; }
 
-void PrePrepareMsg::validate(const ReplicasInfo& repInfo) {
+void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
   Assert(senderId() != repInfo.myId());
 
   if (size() < sizeof(PrePrepareMsgHeader) ||  // header size
@@ -168,7 +168,7 @@ int16_t PrePrepareMsg::computeFlagsForPrePrepareMsg(bool isNull, bool isReady, C
   return retVal;
 }
 
-bool PrePrepareMsg::checkRequests() {
+bool PrePrepareMsg::checkRequests() const {
   uint16_t remainReqs = b()->numberOfRequests;
 
   if (remainReqs == 0) return (b()->endLocationOfLastRequest == sizeof(PrePrepareMsgHeader));

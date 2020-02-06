@@ -24,7 +24,8 @@ using concordUtils::BlockId;
 using concord::storage::rocksdb::Client;
 using concord::storage::rocksdb::KeyComparator;
 using concord::storage::ITransaction;
-using concord::storage::blockchain::KeyManipulator;
+using concord::storage::blockchain::DBKeyManipulator;
+using concord::storage::blockchain::DBKeyComparator;
 
 namespace {
 
@@ -60,9 +61,8 @@ void verifyMultiDel(KeysVector &keys) {
 }
 
 void launchMultiPut(KeysVector &keys, Sliver inValues[blocksNum], SetOfKeyValuePairs &keyValueMap) {
-  std::unique_ptr<KeyManipulator> key_manip_(new KeyManipulator);
   for (auto i = 0; i < blocksNum; i++) {
-    keys[i] = key_manip_->genDataDbKey(Sliver(createAndFillBuf(keyLen), keyLen), i);
+    keys[i] = DBKeyManipulator::genDataDbKey(Sliver(createAndFillBuf(keyLen), keyLen), i);
     inValues[i] = Sliver(createAndFillBuf(valueLen), valueLen);
     keyValueMap.insert(KeyValuePair(keys[i], inValues[i]));
   }
@@ -72,8 +72,7 @@ void launchMultiPut(KeysVector &keys, Sliver inValues[blocksNum], SetOfKeyValueP
 class multiIO_test : public ::testing::Test {
  protected:
   void SetUp() override {
-    key_manipulator_.reset(new KeyManipulator());
-    comparator_ = new KeyComparator(new KeyManipulator());
+    comparator_ = new KeyComparator(new DBKeyComparator());
     dbClient.reset(new Client(dbPath_, comparator_));
     dbClient->init();
   }
@@ -89,16 +88,12 @@ class multiIO_test : public ::testing::Test {
 
   const string dbPath_ = "./rocksdb_test";
   KeyComparator *comparator_;
-
-  // comparator_ owns the manipulator passed to its constructor
-  // This is a useful copy for generating keys
-  std::unique_ptr<KeyManipulator> key_manipulator_;
 };
 
 TEST_F(multiIO_test, single_put) {
   BlockId block_id = 0;
   Sliver datakey(createAndFillBuf(keyLen), keyLen);
-  Sliver key = key_manipulator_->genDataDbKey(datakey, block_id);
+  Sliver key = DBKeyManipulator::genDataDbKey(datakey, block_id);
   Sliver inValue(createAndFillBuf(valueLen), valueLen);
   Status status = dbClient->put(key, inValue);
   ASSERT_TRUE(status.isOK());
@@ -132,8 +127,8 @@ TEST_F(multiIO_test, basic_transaction) {
   Sliver inValue1("basic_transaction::val1");
   Sliver inValue2("basic_transaction::val2");
 
-  key1 = key_manipulator_->genDataDbKey(key1, 0);
-  key2 = key_manipulator_->genDataDbKey(key2, 0);
+  key1 = DBKeyManipulator::genDataDbKey(key1, 0);
+  key2 = DBKeyManipulator::genDataDbKey(key2, 0);
 
   {  // transaction scope
     ITransaction::Guard g(dbClient->beginTransaction());
@@ -158,7 +153,7 @@ TEST_F(multiIO_test, basic_transaction) {
 TEST_F(multiIO_test, no_commit_during_exception) {
   Sliver key("no_commit_during_exception::key");
   Sliver inValue("no_commit_during_exception::val");
-  key = key_manipulator_->genDataDbKey(key, 0);
+  key = DBKeyManipulator::genDataDbKey(key, 0);
   try {
     {  // transaction scope
       ITransaction::Guard g(dbClient->beginTransaction());

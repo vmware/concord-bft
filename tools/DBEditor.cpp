@@ -27,7 +27,9 @@
 #include "rocksdb/key_comparator.h"
 #include "rocksdb/client.h"
 #include "storage/db_metadata_storage.h"
+#include "blockchain/block.h"
 #include "blockchain/db_adapter.h"
+
 using namespace bftEngine;
 using namespace std;
 
@@ -45,7 +47,6 @@ uint32_t numOfObjectsToAdd = MAX_OBJECT_ID;
 const uint32_t firstObjId = 2;
 DBMetadataStorage *metadataStorage = nullptr;
 ObjectIdsVector objectIdsVector;
-KeyManipulator *key_manipulator = nullptr;
 
 enum DB_OPERATION {
   NO_OPERATION,
@@ -109,7 +110,7 @@ void setupMetadataStorage() {
     objectsDesc[i] = objectDesc;
     objectIdsVector.push_back(i);
   }
-  metadataStorage = new DBMetadataStorage(dbClient, KeyManipulator::generateMetadataKey);
+  metadataStorage = new DBMetadataStorage(dbClient, DBKeyManipulator::generateMetadataKey);
   metadataStorage->initMaxSizeOfObjects(objectsDesc, MAX_OBJECT_ID);
 }
 
@@ -169,27 +170,27 @@ void verifyInputParams(char **argv) {
 }
 
 void parseAndPrint(const ::rocksdb::Slice &key, const ::rocksdb::Slice &val) {
-  EDBKeyType aType = key_manipulator->extractTypeFromKey(key.data());
+  detail::EDBKeyType aType = DBKeyManipulator::extractTypeFromKey(key.data());
 
   switch (aType) {
-    case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_KEY:
-    case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_PENDING_PAGE_KEY:
-    case EDBKeyType::E_DB_KEY_TYPE_BFT_METADATA_KEY: {
+    case detail::EDBKeyType::E_DB_KEY_TYPE_BFT_ST_KEY:
+    case detail::EDBKeyType::E_DB_KEY_TYPE_BFT_ST_PENDING_PAGE_KEY:
+    case detail::EDBKeyType::E_DB_KEY_TYPE_BFT_METADATA_KEY: {
       //      // Compare object IDs.
       //      ObjectId aObjId = KeyManipulator::extractObjectIdFromKey(_a_data, _a_length);
       //      ObjectId bObjId = KeyManipulator::extractObjectIdFromKey(_b_data, _b_length);
       //      return (aObjId > bObjId) ? 1 : (bObjId > aObjId) ? -1 : 0;
       break;
     }
-    case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_CHECKPOINT_DESCRIPTOR_KEY: {
+    case detail::EDBKeyType::E_DB_KEY_TYPE_BFT_ST_CHECKPOINT_DESCRIPTOR_KEY: {
       //      uint64_t aChkpt, bChkpt;
       //      aChkpt = extractCheckPointFromKey(_a_data, _a_length);
       //      bChkpt = extractCheckPointFromKey(_b_data, _b_length);
       //      return (aChkpt > bChkpt) ? 1 : (bChkpt > aChkpt) ? -1 : 0;
       break;
     }
-    case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_STATIC_KEY:
-    case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_DYNAMIC_KEY: {
+    case detail::EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_STATIC_KEY:
+    case detail::EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_DYNAMIC_KEY: {
       //      // Pages are sorted in ascending order, checkpoints in descending order
       //       uint32_t aPageId, bPageId;
       //       uint64_t aChkpt, bChkpt;
@@ -199,7 +200,7 @@ void parseAndPrint(const ::rocksdb::Slice &key, const ::rocksdb::Slice &val) {
       //       return (aChkpt < bChkpt)? 1 : (aChkpt > bChkpt) ? -1 : 0;
       break;
     }
-    case EDBKeyType::E_DB_KEY_TYPE_KEY: {
+    case detail::EDBKeyType::E_DB_KEY_TYPE_KEY: {
       //      int keyComp = KeyManipulator::compareKeyPartOfComposedKey(_a_data, _a_length, _b_data, _b_length);
       //      if (keyComp != 0) return keyComp;
       //      // Extract the block ids to compare so that endianness of environment does not matter.
@@ -209,13 +210,13 @@ void parseAndPrint(const ::rocksdb::Slice &key, const ::rocksdb::Slice &val) {
       //      return (bId > aId) ? 1 : (aId > bId) ? -1 : 0;
       break;
     }
-    case EDBKeyType::E_DB_KEY_TYPE_BLOCK: {
+    case detail::EDBKeyType::E_DB_KEY_TYPE_BLOCK: {
       //      // Extract the block ids to compare so that endianness of environment does not matter.
-      BlockId aId = key_manipulator->extractBlockIdFromKey(key.data(), key.size());
+      BlockId aId = DBKeyManipulator::extractBlockIdFromKey(key.data(), key.size());
       std::cout << "Block ID: " << aId << std::endl;
-      uint16_t numOfElements = ((BlockHeader *)val.data())->numberOfElements;
-      auto *entries = (BlockEntry *)(val.data() + sizeof(BlockHeader));
-      for (size_t i = 0; i < numOfElements; i++) {
+      const auto numOfElements = ((block::detail::Header *)val.data())->numberOfElements;
+      auto *entries = (block::detail::Entry *)(val.data() + sizeof(block::detail::Header));
+      for (size_t i = 0u; i < numOfElements; i++) {
         std::string kv_key = std::string(val.ToString(), entries[i].keyOffset, entries[i].keySize);
         for (size_t i = 0; i < kv_key.size(); ++i) printf("%.2x", kv_key[i]);
         printf("\n");
@@ -248,8 +249,7 @@ int main(int argc, char **argv) {
     setupDBEditorParams(argc, argv);
     verifyInputParams(argv);
 
-    key_manipulator = new KeyManipulator();
-    dbClient = new Client(dbPath.str(), new KeyComparator(key_manipulator));
+    dbClient = new Client(dbPath.str(), new KeyComparator(new DBKeyComparator()));
     dbClient->init(dbOperation == DUMP_ALL_VALUES);
     if (dbOperation != DUMP_ALL_VALUES) setupMetadataStorage();
     bool res = false;

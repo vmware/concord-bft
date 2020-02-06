@@ -17,7 +17,7 @@ namespace bftEngine {
 namespace impl {
 class StateTransferMsg : public MessageBase {
  public:
-  void validate(const ReplicasInfo&) override;
+  void validate(const ReplicasInfo&) const override;
 };
 
 }  // namespace impl

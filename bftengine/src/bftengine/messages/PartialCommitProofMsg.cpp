@@ -33,7 +33,7 @@ PartialCommitProofMsg::PartialCommitProofMsg(
       (const char*)(&(digest)), sizeof(Digest), body() + sizeof(PartialCommitProofMsgHeader), thresholSignatureLength);
 }
 
-void PartialCommitProofMsg::validate(const ReplicasInfo& repInfo) {
+void PartialCommitProofMsg::validate(const ReplicasInfo& repInfo) const {
   if (size() < sizeof(PartialCommitProofMsgHeader) ||
       senderId() ==
           repInfo.myId() ||  // TODO(GG) - TBD: we should use Assert for this condition (also in other messages)

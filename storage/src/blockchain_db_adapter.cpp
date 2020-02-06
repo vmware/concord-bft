@@ -23,17 +23,23 @@
 #include "sliver.hpp"
 #include "status.hpp"
 #include <string.h>
+#include "blockchain/block.h"
 #include "blockchain/db_interfaces.h"
 #include "blockchain/db_adapter.h"
 
 using concordlogger::Logger;
 using concordUtils::Status;
 using concordUtils::hexPrint;
+using concordUtils::Sliver;
+using concordUtils::Key;
+using concordUtils::Value;
+using concordUtils::KeyValuePair;
+using concord::storage::blockchain::detail::EDBKeyType;
 
 namespace concord {
 namespace storage {
 namespace blockchain {
-
+inline namespace v1DirectKeyValue {
 struct HexPrintBuffer {
   const char *bytes;
   const size_t size;
@@ -46,10 +52,7 @@ std::ostream &operator<<(std::ostream &s, const HexPrintBuffer p) {
 }
 
 DBAdapter::DBAdapter(IDBClient *db, bool readOnly)
-    : logger_(concordlogger::Log::getLogger("concord.storage.BlockchainDBAdapter")),
-      db_(db),
-      key_manipulator_(new KeyManipulator()),
-      m_isEnd(false) {
+    : logger_(concordlogger::Log::getLogger("concord.storage.BlockchainDBAdapter")), db_(db), m_isEnd(false) {
   db_->init(readOnly);
 }
 
@@ -59,12 +62,12 @@ DBAdapter::DBAdapter(IDBClient *db, bool readOnly)
  *
  * Comparison is done by decomposed parts. Types are compared first, followed by
  * type specific comparison. */
-int KeyManipulator::composedKeyComparison(const char *_a_data,
-                                          size_t _a_length,
-                                          const char *_b_data,
-                                          size_t _b_length) {
-  EDBKeyType aType = KeyManipulator::extractTypeFromKey(_a_data);
-  EDBKeyType bType = KeyManipulator::extractTypeFromKey(_b_data);
+int DBKeyComparator::composedKeyComparison(const char *_a_data,
+                                           size_t _a_length,
+                                           const char *_b_data,
+                                           size_t _b_length) {
+  EDBKeyType aType = DBKeyManipulator::extractTypeFromKey(_a_data);
+  EDBKeyType bType = DBKeyManipulator::extractTypeFromKey(_b_data);
   if (aType != bType) return (int)aType - (int)bType;
 
   switch (aType) {
@@ -72,14 +75,14 @@ int KeyManipulator::composedKeyComparison(const char *_a_data,
     case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_PENDING_PAGE_KEY:
     case EDBKeyType::E_DB_KEY_TYPE_BFT_METADATA_KEY: {
       // Compare object IDs.
-      ObjectId aObjId = KeyManipulator::extractObjectIdFromKey(_a_data, _a_length);
-      ObjectId bObjId = KeyManipulator::extractObjectIdFromKey(_b_data, _b_length);
+      ObjectId aObjId = DBKeyManipulator::extractObjectIdFromKey(_a_data, _a_length);
+      ObjectId bObjId = DBKeyManipulator::extractObjectIdFromKey(_b_data, _b_length);
       return (aObjId > bObjId) ? 1 : (bObjId > aObjId) ? -1 : 0;
     }
     case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_CHECKPOINT_DESCRIPTOR_KEY: {
       uint64_t aChkpt, bChkpt;
-      aChkpt = extractCheckPointFromKey(_a_data, _a_length);
-      bChkpt = extractCheckPointFromKey(_b_data, _b_length);
+      aChkpt = DBKeyManipulator::extractCheckPointFromKey(_a_data, _a_length);
+      bChkpt = DBKeyManipulator::extractCheckPointFromKey(_b_data, _b_length);
       return (aChkpt > bChkpt) ? 1 : (bChkpt > aChkpt) ? -1 : 0;
     }
     case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_STATIC_KEY:
@@ -87,31 +90,31 @@ int KeyManipulator::composedKeyComparison(const char *_a_data,
       // Pages are sorted in ascending order, checkpoints in descending order
       uint32_t aPageId, bPageId;
       uint64_t aChkpt, bChkpt;
-      std::tie(aPageId, aChkpt) = extractPageIdAndCheckpointFromKey(_a_data, _a_length);
-      std::tie(bPageId, bChkpt) = extractPageIdAndCheckpointFromKey(_b_data, _b_length);
+      std::tie(aPageId, aChkpt) = DBKeyManipulator::extractPageIdAndCheckpointFromKey(_a_data, _a_length);
+      std::tie(bPageId, bChkpt) = DBKeyManipulator::extractPageIdAndCheckpointFromKey(_b_data, _b_length);
       if (aPageId != bPageId) return (aPageId > bPageId) ? 1 : (bPageId > aPageId) ? -1 : 0;
       return (aChkpt < bChkpt) ? 1 : (aChkpt > bChkpt) ? -1 : 0;
     }
     case EDBKeyType::E_DB_KEY_TYPE_KEY: {
-      int keyComp = KeyManipulator::compareKeyPartOfComposedKey(_a_data, _a_length, _b_data, _b_length);
+      int keyComp = DBKeyManipulator::compareKeyPartOfComposedKey(_a_data, _a_length, _b_data, _b_length);
       if (keyComp != 0) return keyComp;
       // Extract the block ids to compare so that endianness of environment does not matter.
-      BlockId aId = KeyManipulator::extractBlockIdFromKey(_a_data, _a_length);
-      BlockId bId = KeyManipulator::extractBlockIdFromKey(_b_data, _b_length);
+      BlockId aId = DBKeyManipulator::extractBlockIdFromKey(_a_data, _a_length);
+      BlockId bId = DBKeyManipulator::extractBlockIdFromKey(_b_data, _b_length);
       // Block ids are sorted in reverse order when part of a composed key (key + blockId)
       return (bId > aId) ? 1 : (aId > bId) ? -1 : 0;
     }
     case EDBKeyType::E_DB_KEY_TYPE_BLOCK: {
       // Extract the block ids to compare so that endianness of environment does not matter.
-      BlockId aId = KeyManipulator::extractBlockIdFromKey(_a_data, _a_length);
-      BlockId bId = KeyManipulator::extractBlockIdFromKey(_b_data, _b_length);
+      BlockId aId = DBKeyManipulator::extractBlockIdFromKey(_a_data, _a_length);
+      BlockId bId = DBKeyManipulator::extractBlockIdFromKey(_b_data, _b_length);
       // Block ids are sorted in ascending order when part of a block key
       return (aId > bId) ? 1 : (bId > aId) ? -1 : 0;
     }
     default:
       LOG_ERROR(logger(), "invalid key type: " << (char)aType);
       assert(false);
-      throw std::runtime_error("KeyManipulator::composedKeyComparison: invalid key type");
+      throw std::runtime_error("DBKeyComparator::composedKeyComparison: invalid key type");
   }  // switch
 }
 
@@ -129,7 +132,7 @@ int KeyManipulator::composedKeyComparison(const char *_a_data,
  * @param _blockId BlockId object.
  * @return Sliver object of the generated composite database key.
  */
-Sliver KeyManipulator::genDbKey(EDBKeyType _type, const Key &_key, BlockId _blockId) {
+Sliver DBKeyManipulator::genDbKey(EDBKeyType _type, const Key &_key, BlockId _blockId) {
   size_t sz = sizeof(EDBKeyType) + sizeof(BlockId) + _key.length();
   char *out = new char[sz];
   size_t offset = 0;
@@ -148,7 +151,7 @@ Sliver KeyManipulator::genDbKey(EDBKeyType _type, const Key &_key, BlockId _bloc
  *                 incorporated into the composite database key.
  * @return Sliver object of the generated composite database key.
  */
-Sliver KeyManipulator::genBlockDbKey(BlockId _blockId) {
+Sliver DBKeyManipulator::genBlockDbKey(BlockId _blockId) {
   return genDbKey(EDBKeyType::E_DB_KEY_TYPE_BLOCK, Sliver(), _blockId);
 }
 
@@ -160,7 +163,7 @@ Sliver KeyManipulator::genBlockDbKey(BlockId _blockId) {
  *                 into the composite database Key.
  * @return Sliver object of the generated composite database key.
  */
-Sliver KeyManipulator::genDataDbKey(const Key &_key, BlockId _blockId) {
+Sliver DBKeyManipulator::genDataDbKey(const Key &_key, BlockId _blockId) {
   return genDbKey(EDBKeyType::E_DB_KEY_TYPE_KEY, _key, _blockId);
 }
 
@@ -173,7 +176,7 @@ Sliver KeyManipulator::genDataDbKey(const Key &_key, BlockId _blockId) {
  *             returned.
  * @return The type of the composite database key.
  */
-EDBKeyType KeyManipulator::extractTypeFromKey(const Key &_key) { return extractTypeFromKey(_key.data()); }
+EDBKeyType DBKeyManipulator::extractTypeFromKey(const Key &_key) { return extractTypeFromKey(_key.data()); }
 
 /**
  * @brief Extracts the type of a composite database key.
@@ -184,7 +187,7 @@ EDBKeyType KeyManipulator::extractTypeFromKey(const Key &_key) { return extractT
  *                  type gets returned.
  * @return The type of the composite database key.
  */
-EDBKeyType KeyManipulator::extractTypeFromKey(const char *_key_data) {
+EDBKeyType DBKeyManipulator::extractTypeFromKey(const char *_key_data) {
   static_assert(sizeof(EDBKeyType) == 1, "Let's avoid byte-order problems.");
   assert((_key_data[0] < (char)EDBKeyType::E_DB_KEY_TYPE_LAST) &&
          (_key_data[0] >= (char)EDBKeyType::E_DB_KEY_TYPE_FIRST));
@@ -200,7 +203,7 @@ EDBKeyType KeyManipulator::extractTypeFromKey(const char *_key_data) {
  *             gets returned.
  * @return The block id of the composite database key.
  */
-BlockId KeyManipulator::extractBlockIdFromKey(const Key &_key) {
+BlockId DBKeyManipulator::extractBlockIdFromKey(const Key &_key) {
   return extractBlockIdFromKey(_key.data(), _key.length());
 }
 
@@ -214,7 +217,7 @@ BlockId KeyManipulator::extractBlockIdFromKey(const Key &_key) {
  * @param _key_length The number of bytes in the _key_data buffer.
  * @return The block id of the composite database key.
  */
-BlockId KeyManipulator::extractBlockIdFromKey(const char *_key_data, size_t _key_length) {
+BlockId DBKeyManipulator::extractBlockIdFromKey(const char *_key_data, size_t _key_length) {
   size_t offset = _key_length - sizeof(BlockId);
   BlockId id = *(BlockId *)(_key_data + offset);
 
@@ -232,7 +235,7 @@ BlockId KeyManipulator::extractBlockIdFromKey(const char *_key_data, size_t _key
  *             gets returned.
  * @return The object id of the composite database key.
  */
-ObjectId KeyManipulator::extractObjectIdFromKey(const Key &_key) {
+ObjectId DBKeyManipulator::extractObjectIdFromKey(const Key &_key) {
   return extractObjectIdFromKey(_key.data(), _key.length());
 }
 
@@ -246,7 +249,7 @@ ObjectId KeyManipulator::extractObjectIdFromKey(const Key &_key) {
  * @param _key_length The number of bytes in the _key_data buffer.
  * @return The object id of the composite database key.
  */
-ObjectId KeyManipulator::extractObjectIdFromKey(const char *_key_data, size_t _key_length) {
+ObjectId DBKeyManipulator::extractObjectIdFromKey(const char *_key_data, size_t _key_length) {
   assert(_key_length >= sizeof(ObjectId));
   size_t offset = _key_length - sizeof(ObjectId);
   ObjectId id = *(ObjectId *)(_key_data + offset);
@@ -263,7 +266,7 @@ ObjectId KeyManipulator::extractObjectIdFromKey(const char *_key_data, size_t _k
  * @param _composedKey Sliver object of the composite database key.
  * @return Sliver object of the key extracted from the composite database key.
  */
-Sliver KeyManipulator::extractKeyFromKeyComposedWithBlockId(const Key &_composedKey) {
+Sliver DBKeyManipulator::extractKeyFromKeyComposedWithBlockId(const Key &_composedKey) {
   size_t sz = _composedKey.length() - sizeof(BlockId) - sizeof(EDBKeyType);
   Sliver out = Sliver(_composedKey, sizeof(EDBKeyType), sz);
   LOG_TRACE(logger(), "Got key " << out << " from composed key " << _composedKey);
@@ -282,10 +285,10 @@ Sliver KeyManipulator::extractKeyFromKeyComposedWithBlockId(const Key &_composed
  * @param b_data Pointer to buffer containing a composed key.
  * @param b_length Number of bytes in b_data.
  */
-int KeyManipulator::compareKeyPartOfComposedKey(const char *a_data,
-                                                size_t a_length,
-                                                const char *b_data,
-                                                size_t b_length) {
+int DBKeyManipulator::compareKeyPartOfComposedKey(const char *a_data,
+                                                  size_t a_length,
+                                                  const char *b_data,
+                                                  size_t b_length) {
   assert(a_length >= sizeof(BlockId) + sizeof(EDBKeyType));
   assert(b_length >= sizeof(BlockId) + sizeof(EDBKeyType));
 
@@ -310,14 +313,14 @@ int KeyManipulator::compareKeyPartOfComposedKey(const char *a_data,
   return result;
 }
 
-Sliver KeyManipulator::extractKeyFromMetadataKey(const Key &_composedKey) {
+Sliver DBKeyManipulator::extractKeyFromMetadataKey(const Key &_composedKey) {
   size_t sz = _composedKey.length() - sizeof(EDBKeyType);
   Sliver out = Sliver(_composedKey, sizeof(EDBKeyType), sz);
   LOG_TRACE(logger(), "Got metadata key " << out << " from composed key " << _composedKey);
   return out;
 }
 
-bool KeyManipulator::isKeyContainBlockId(const Key &_composedKey) {
+bool DBKeyManipulator::isKeyContainBlockId(const Key &_composedKey) {
   return (_composedKey.length() > sizeof(BlockId) + sizeof(EDBKeyType));
 }
 
@@ -329,7 +332,7 @@ bool KeyManipulator::isKeyContainBlockId(const Key &_composedKey) {
  * @param _p Key value pair consisting of a composite database key
  * @return Key value pair consisting of a simple key.
  */
-KeyValuePair KeyManipulator::composedToSimple(KeyValuePair _p) {
+KeyValuePair DBKeyManipulator::composedToSimple(KeyValuePair _p) {
   if (_p.first.length() == 0) {
     return _p;
   }
@@ -353,7 +356,7 @@ KeyValuePair KeyManipulator::composedToSimple(KeyValuePair _p) {
  * @return Sliver object of the generated composite database key.
  */
 
-Sliver KeyManipulator::generateMetadataKey(ObjectId objectId) {
+Sliver DBKeyManipulator::generateMetadataKey(ObjectId objectId) {
   size_t keySize = sizeof(EDBKeyType) + sizeof(objectId);
   auto keyBuf = new char[keySize];
   size_t offset = 0;
@@ -365,7 +368,7 @@ Sliver KeyManipulator::generateMetadataKey(ObjectId objectId) {
 /*
  * Format : Key Type | Object Id
  */
-Sliver KeyManipulator::generateStateTransferKey(ObjectId objectId) {
+Sliver DBKeyManipulator::generateStateTransferKey(ObjectId objectId) {
   size_t keySize = sizeof(EDBKeyType) + sizeof(objectId);
   auto keyBuf = new char[keySize];
   size_t offset = 0;
@@ -377,7 +380,7 @@ Sliver KeyManipulator::generateStateTransferKey(ObjectId objectId) {
 /**
  * Format : Key Type | Page Id
  */
-Sliver KeyManipulator::generateSTPendingPageKey(uint32_t pageid) {
+Sliver DBKeyManipulator::generateSTPendingPageKey(uint32_t pageid) {
   size_t keySize = sizeof(EDBKeyType) + sizeof(pageid);
   auto keyBuf = new char[keySize];
   size_t offset = 0;
@@ -389,7 +392,7 @@ Sliver KeyManipulator::generateSTPendingPageKey(uint32_t pageid) {
 /**
  * Format : Key Type | Checkpoint
  */
-Sliver KeyManipulator::generateSTCheckpointDescriptorKey(uint64_t chkpt) {
+Sliver DBKeyManipulator::generateSTCheckpointDescriptorKey(uint64_t chkpt) {
   size_t keySize = sizeof(EDBKeyType) + sizeof(chkpt);
   auto keyBuf = new char[keySize];
   size_t offset = 0;
@@ -401,19 +404,19 @@ Sliver KeyManipulator::generateSTCheckpointDescriptorKey(uint64_t chkpt) {
 /**
  * Format : Key Type | Page Id | Checkpoint
  */
-Sliver KeyManipulator::generateSTReservedPageStaticKey(uint32_t pageid, uint64_t chkpt) {
+Sliver DBKeyManipulator::generateSTReservedPageStaticKey(uint32_t pageid, uint64_t chkpt) {
   return generateReservedPageKey(EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_STATIC_KEY, pageid, chkpt);
 }
 /**
  * Format : Key Type | Page Id | Checkpoint
  */
-Sliver KeyManipulator::generateSTReservedPageDynamicKey(uint32_t pageid, uint64_t chkpt) {
+Sliver DBKeyManipulator::generateSTReservedPageDynamicKey(uint32_t pageid, uint64_t chkpt) {
   return generateReservedPageKey(EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_DYNAMIC_KEY, pageid, chkpt);
 }
 /**
  * Format : Key Type | Page Id | Checkpoint
  */
-Sliver KeyManipulator::generateReservedPageKey(EDBKeyType keyType, uint32_t pageid, uint64_t chkpt) {
+Sliver DBKeyManipulator::generateReservedPageKey(EDBKeyType keyType, uint32_t pageid, uint64_t chkpt) {
   size_t keySize = sizeof(EDBKeyType) + sizeof(pageid) + sizeof(chkpt);
   auto keyBuf = new char[keySize];
   size_t offset = 0;
@@ -435,14 +438,14 @@ Sliver KeyManipulator::generateReservedPageKey(EDBKeyType keyType, uint32_t page
  *                  the composite database key.
  * @return Status of the put operation.
  */
-Status DBAdapter::addBlock(BlockId _blockId, Sliver _blockRaw) {
-  Sliver dbKey = key_manipulator_->genBlockDbKey(_blockId);
+Status DBAdapter::addBlock(BlockId _blockId, const Sliver &_blockRaw) {
+  Sliver dbKey = DBKeyManipulator::genBlockDbKey(_blockId);
   Status s = db_->put(dbKey, _blockRaw);
   LOG_TRACE(logger_, "block id: " << _blockId << " key:" << dbKey << " raw block: " << _blockRaw);
   return s;
 }
 
-bool KeyManipulator::copyToAndAdvance(char *_buf, size_t *_offset, size_t _maxOffset, char *_src, size_t _srcSize) {
+bool DBKeyManipulator::copyToAndAdvance(char *_buf, size_t *_offset, size_t _maxOffset, char *_src, size_t _srcSize) {
   if (!_buf && !_offset && !_src) assert(false);
 
   if (*_offset >= _maxOffset && _srcSize > 0) assert(false);
@@ -453,7 +456,7 @@ bool KeyManipulator::copyToAndAdvance(char *_buf, size_t *_offset, size_t _maxOf
   return true;
 }
 
-uint64_t KeyManipulator::extractCheckPointFromKey(const char *_key_data, size_t _key_length) {
+uint64_t DBKeyManipulator::extractCheckPointFromKey(const char *_key_data, size_t _key_length) {
   assert(_key_length >= sizeof(uint64_t));
   uint64_t chkp = *(uint64_t *)(_key_data + 1);
 
@@ -461,8 +464,8 @@ uint64_t KeyManipulator::extractCheckPointFromKey(const char *_key_data, size_t 
   return chkp;
 }
 
-std::pair<uint32_t, uint64_t> KeyManipulator::extractPageIdAndCheckpointFromKey(const char *_key_data,
-                                                                                size_t _key_length) {
+std::pair<uint32_t, uint64_t> DBKeyManipulator::extractPageIdAndCheckpointFromKey(const char *_key_data,
+                                                                                  size_t _key_length) {
   assert(_key_length >= sizeof(uint32_t) + sizeof(uint64_t));
 
   uint32_t pageId = *(uint32_t *)(_key_data + 1);
@@ -485,7 +488,7 @@ std::pair<uint32_t, uint64_t> KeyManipulator::extractPageIdAndCheckpointFromKey(
  * @return Status of the put operation.
  */
 Status DBAdapter::updateKey(const Key &_key, BlockId _block, Value _value) {
-  Sliver composedKey = key_manipulator_->genDataDbKey(_key, _block);
+  Sliver composedKey = DBKeyManipulator::genDataDbKey(_key, _block);
 
   LOG_TRACE(logger_, "Updating composed key " << composedKey << " with value " << _value << " in block " << _block);
 
@@ -493,15 +496,15 @@ Status DBAdapter::updateKey(const Key &_key, BlockId _block, Value _value) {
   return s;
 }
 
-Status DBAdapter::addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &_kvMap, BlockId _block, Sliver _blockRaw) {
+Status DBAdapter::addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &_kvMap, BlockId _block, const Sliver &_blockRaw) {
   SetOfKeyValuePairs updatedKVMap;
   for (auto &it : _kvMap) {
-    Sliver composedKey = key_manipulator_->genDataDbKey(it.first, _block);
+    Sliver composedKey = DBKeyManipulator::genDataDbKey(it.first, _block);
     LOG_TRACE(logger_,
               "Updating composed key " << composedKey << " with value " << it.second << " in block " << _block);
     updatedKVMap[composedKey] = it.second;
   }
-  updatedKVMap[key_manipulator_->genBlockDbKey(_block)] = _blockRaw;
+  updatedKVMap[DBKeyManipulator::genBlockDbKey(_block)] = _blockRaw;
   return db_->multiPut(updatedKVMap);
 }
 
@@ -517,7 +520,7 @@ Status DBAdapter::addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &_kvMap, Bl
  * @return Status of the operation.
  */
 Status DBAdapter::delKey(const Sliver &_key, BlockId _blockId) {
-  Sliver composedKey = key_manipulator_->genDataDbKey(_key, _blockId);
+  Sliver composedKey = DBKeyManipulator::genDataDbKey(_key, _blockId);
   LOG_TRACE(logger_, "Deleting key " << _key << " block id " << _blockId);
   Status s = db_->del(composedKey);
   return s;
@@ -534,7 +537,7 @@ Status DBAdapter::delKey(const Sliver &_key, BlockId _blockId) {
  * @return Status of the operation.
  */
 Status DBAdapter::delBlock(BlockId _blockId) {
-  Sliver dbKey = key_manipulator_->genBlockDbKey(_blockId);
+  Sliver dbKey = DBKeyManipulator::genBlockDbKey(_blockId);
   Status s = db_->del(dbKey);
   return s;
 }
@@ -549,15 +552,15 @@ void DBAdapter::deleteBlockAndItsKeys(BlockId blockId) {
   }
   KeysVector keysVec;
   if (found && blockRaw.length() > 0) {
-    uint16_t numOfElements = ((BlockHeader *)blockRaw.data())->numberOfElements;
-    auto *entries = (BlockEntry *)(blockRaw.data() + sizeof(BlockHeader));
-    for (size_t i = 0; i < numOfElements; i++) {
+    const auto numOfElements = ((block::detail::Header *)blockRaw.data())->numberOfElements;
+    auto *entries = (block::detail::Entry *)(blockRaw.data() + sizeof(block::detail::Header));
+    for (size_t i = 0u; i < numOfElements; i++) {
       keysVec.push_back(
-          key_manipulator_->genDataDbKey(Key(blockRaw, entries[i].keyOffset, entries[i].keySize), blockId));
+          DBKeyManipulator::genDataDbKey(Key(blockRaw, entries[i].keyOffset, entries[i].keySize), blockId));
     }
   }
   if (found) {
-    keysVec.push_back(key_manipulator_->genBlockDbKey(blockId));
+    keysVec.push_back(DBKeyManipulator::genBlockDbKey(blockId));
   }
   s = db_->multiDel(keysVec);
   if (!s.isOK()) {
@@ -587,15 +590,15 @@ Status DBAdapter::getKeyByReadVersion(BlockId readVersion,
   LOG_TRACE(logger_, "Getting value of key " << key << " for read version " << readVersion);
   IDBClient::IDBClientIterator *iter = db_->getIterator();
   Sliver foundKey, foundValue;
-  Sliver searchKey = key_manipulator_->genDataDbKey(key, readVersion);
+  Sliver searchKey = DBKeyManipulator::genDataDbKey(key, readVersion);
   KeyValuePair p = iter->seekAtLeast(searchKey);
-  foundKey = key_manipulator_->composedToSimple(p).first;
+  foundKey = DBKeyManipulator::composedToSimple(p).first;
   foundValue = p.second;
 
   LOG_TRACE(logger_, "Found key " << foundKey << " and value " << foundValue);
 
   if (!iter->isEnd()) {
-    BlockId currentReadVersion = key_manipulator_->extractBlockIdFromKey(p.first);
+    BlockId currentReadVersion = DBKeyManipulator::extractBlockIdFromKey(p.first);
 
     // TODO(JGC): Ask about reason for version comparison logic
     if (currentReadVersion <= readVersion && foundKey == key) {
@@ -627,7 +630,7 @@ Status DBAdapter::getKeyByReadVersion(BlockId readVersion,
  * @return Status of the operation.
  */
 Status DBAdapter::getBlockById(BlockId _blockId, Sliver &_blockRaw, bool &_found) const {
-  Sliver key = key_manipulator_->genBlockDbKey(_blockId);
+  Sliver key = DBKeyManipulator::genBlockDbKey(_blockId);
   Status s = db_->get(key, _blockRaw);
   if (s.isNotFound()) {
     _found = false;
@@ -672,7 +675,7 @@ Status DBAdapter::first(IDBClient::IDBClientIterator *iter,
                         OUT Sliver &_key,
                         OUT Sliver &_value) {
   Key firstKey;
-  KeyValuePair p = key_manipulator_->composedToSimple(iter->first());
+  KeyValuePair p = DBKeyManipulator::composedToSimple(iter->first());
   if (iter->isEnd()) {
     m_isEnd = true;
     isEnd = true;
@@ -685,12 +688,12 @@ Status DBAdapter::first(IDBClient::IDBClientIterator *iter,
   Sliver value;
   BlockId actualBlock = 0;
   while (!iter->isEnd() && p.first == firstKey) {
-    BlockId currentBlock = key_manipulator_->extractBlockIdFromKey(iter->getCurrent().first);
+    BlockId currentBlock = DBKeyManipulator::extractBlockIdFromKey(iter->getCurrent().first);
     if (currentBlock <= readVersion) {
       value = p.second;
       actualBlock = currentBlock;
       foundKey = true;
-      p = key_manipulator_->composedToSimple(iter->next());
+      p = DBKeyManipulator::composedToSimple(iter->next());
     } else {
       if (!foundKey) {
         // If not found a key with actual block version < readVersion, then we
@@ -699,7 +702,7 @@ Status DBAdapter::first(IDBClient::IDBClientIterator *iter,
         // Start by exhausting the current key with all the newer blocks
         // records:
         while (!iter->isEnd() && p.first == firstKey) {
-          p = key_manipulator_->composedToSimple(iter->next());
+          p = DBKeyManipulator::composedToSimple(iter->next());
         }
 
         if (iter->isEnd()) {
@@ -762,8 +765,8 @@ Status DBAdapter::seekAtLeast(IDBClient::IDBClientIterator *iter,
   BlockId actualBlock = 0;
   Value value;
   bool foundKey = false;
-  Sliver rocksKey = key_manipulator_->genDataDbKey(searchKey, _readVersion);
-  KeyValuePair p = key_manipulator_->composedToSimple(iter->seekAtLeast(rocksKey));
+  Sliver rocksKey = DBKeyManipulator::genDataDbKey(searchKey, _readVersion);
+  KeyValuePair p = DBKeyManipulator::composedToSimple(iter->seekAtLeast(rocksKey));
 
   if (!iter->isEnd()) {
     // p.first is src, searchKey is target
@@ -775,7 +778,7 @@ Status DBAdapter::seekAtLeast(IDBClient::IDBClientIterator *iter,
       "Searching " << _searchKey << " and currently iterator returned " << searchKey << " for rocks key " << rocksKey);
 
   while (!iter->isEnd() && p.first == searchKey) {
-    BlockId currentBlockId = key_manipulator_->extractBlockIdFromKey(iter->getCurrent().first);
+    BlockId currentBlockId = DBKeyManipulator::extractBlockIdFromKey(iter->getCurrent().first);
 
     LOG_TRACE(logger_, "Considering key " << p.first << " with block ID " << currentBlockId);
 
@@ -795,7 +798,7 @@ Status DBAdapter::seekAtLeast(IDBClient::IDBClientIterator *iter,
         // Start by exhausting the current key with all the newer blocks
         // records:
         while (!iter->isEnd() && p.first == searchKey) {
-          p = key_manipulator_->composedToSimple(iter->next());
+          p = DBKeyManipulator::composedToSimple(iter->next());
         }
 
         if (iter->isEnd()) {
@@ -856,12 +859,12 @@ Status DBAdapter::next(IDBClient::IDBClientIterator *iter,
                        OUT Sliver &_value,
                        OUT BlockId &_actualVersion,
                        OUT bool &_isEnd) {
-  KeyValuePair p = key_manipulator_->composedToSimple(iter->getCurrent());
+  KeyValuePair p = DBKeyManipulator::composedToSimple(iter->getCurrent());
   Key currentKey = p.first;
 
   // Exhaust all entries for this key
   while (!iter->isEnd() && p.first == currentKey) {
-    p = key_manipulator_->composedToSimple(iter->next());
+    p = DBKeyManipulator::composedToSimple(iter->next());
   }
 
   if (iter->isEnd()) {
@@ -878,11 +881,11 @@ Status DBAdapter::next(IDBClient::IDBClientIterator *iter,
   bool foundKey = false;
   // Find max version
   while (!iter->isEnd() && p.first == nextKey) {
-    BlockId currentBlockId = key_manipulator_->extractBlockIdFromKey(iter->getCurrent().first);
+    BlockId currentBlockId = DBKeyManipulator::extractBlockIdFromKey(iter->getCurrent().first);
     if (currentBlockId <= _readVersion) {
       value = p.second;
       actualBlock = currentBlockId;
-      p = key_manipulator_->composedToSimple(iter->next());
+      p = DBKeyManipulator::composedToSimple(iter->next());
     } else {
       if (!foundKey) {
         // If not found a key with actual block version < readVersion, then
@@ -891,7 +894,7 @@ Status DBAdapter::next(IDBClient::IDBClientIterator *iter,
         // Start by exhausting the current key with all the newer blocks
         // records:
         while (!iter->isEnd() && p.first == nextKey) {
-          p = key_manipulator_->composedToSimple(iter->next());
+          p = DBKeyManipulator::composedToSimple(iter->next());
         }
 
         if (iter->isEnd()) {
@@ -972,8 +975,7 @@ BlockId DBAdapter::getLatestBlock() {
   // of block ids.
 
   // Generate maximal key for type 'block'
-  Sliver maxKey =
-      key_manipulator_->genDbKey(EDBKeyType::E_DB_KEY_TYPE_BLOCK, Sliver(), std::numeric_limits<uint64_t>::max());
+  Sliver maxKey = DBKeyManipulator::genBlockDbKey(std::numeric_limits<BlockId>::max());
   IDBClient::IDBClientIterator *iter = db_->getIterator();
 
   // Since we use the maximal key, SeekAtLeast will take the iterator
@@ -989,9 +991,9 @@ BlockId DBAdapter::getLatestBlock() {
     return 0;
   }
 
-  LOG_TRACE(logger_, "Latest block ID " << key_manipulator_->extractBlockIdFromKey(x.first));
+  LOG_TRACE(logger_, "Latest block ID " << DBKeyManipulator::extractBlockIdFromKey(x.first));
 
-  return key_manipulator_->extractBlockIdFromKey(x.first);
+  return DBKeyManipulator::extractBlockIdFromKey(x.first);
 }
 
 /**
@@ -1008,15 +1010,15 @@ BlockId DBAdapter::getLastReachableBlock() {
   IDBClient::IDBClientIterator *iter = db_->getIterator();
 
   BlockId lastReachableId = 0;
-  Sliver blockKey = key_manipulator_->genBlockDbKey(1);
+  Sliver blockKey = DBKeyManipulator::genBlockDbKey(1);
   KeyValuePair kvp = iter->seekAtLeast(blockKey);
   if (kvp.first.length() == 0) {
     db_->freeIterator(iter);
     return 0;
   }
 
-  while (!iter->isEnd() && (key_manipulator_->extractTypeFromKey(kvp.first) == EDBKeyType::E_DB_KEY_TYPE_BLOCK)) {
-    BlockId id = key_manipulator_->extractBlockIdFromKey(kvp.first);
+  while (!iter->isEnd() && (DBKeyManipulator::extractTypeFromKey(kvp.first) == EDBKeyType::E_DB_KEY_TYPE_BLOCK)) {
+    BlockId id = DBKeyManipulator::extractBlockIdFromKey(kvp.first);
     if (id == lastReachableId + 1) {
       lastReachableId++;
       kvp = iter->next();
@@ -1029,6 +1031,7 @@ BlockId DBAdapter::getLastReachableBlock() {
   return lastReachableId;
 }
 
+}  // namespace v1DirectKeyValue
 }  // namespace blockchain
 }  // namespace storage
 }  // namespace concord

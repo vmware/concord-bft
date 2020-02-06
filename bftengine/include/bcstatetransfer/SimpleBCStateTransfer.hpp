@@ -14,6 +14,7 @@
 #ifndef BFTENGINE_SRC_BCSTATETRANSFER_SIMPLEBCSTATETRANSFER_HPP_
 #define BFTENGINE_SRC_BCSTATETRANSFER_SIMPLEBCSTATETRANSFER_HPP_
 
+#include <cstdint>
 #include <set>
 #include <memory>
 
@@ -40,7 +41,7 @@ namespace SimpleBlockchainStateTransfer {
 // The application/storage layer is responsible to store the digests in the
 // blocks.
 // Blocks are numbered. The first block should be block number 1.
-constexpr static uint32_t BLOCK_DIGEST_SIZE = 32;
+inline constexpr std::uint32_t BLOCK_DIGEST_SIZE = 32;
 
 // represnts a digest
 #pragma pack(push, 1)

@@ -11,10 +11,11 @@
 
 #pragma once
 
+#include "messages/PreProcessRequestMsg.hpp"
+#include "messages/ClientPreProcessRequestMsg.hpp"
 #include "MsgsCommunicator.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "InternalReplicaApi.hpp"
-#include "messages/ClientPreProcessRequestMsg.hpp"
 #include "SimpleThreadPool.hpp"
 #include "Replica.hpp"
 #include "RequestProcessingInfo.hpp"
@@ -49,10 +50,13 @@ class PreProcessor {
  private:
   friend class AsyncPreProcessJob;
 
-  ClientPreProcessReqMsgSharedPtr convertMsgToCorrectType(MessageBase *&inMsg);
-  void onClientPreProcessRequestMsg(MessageBase *msg);
-  void onPreProcessRequestMsg(MessageBase *msg);
-  void onPreProcessReplyMsg(MessageBase *msg);
+  template <typename T>
+  void messageHandler(MessageBase *msg);
+
+  template <typename T>
+  void onMessage(T *msg);
+
+  bool validateMessage(MessageBase *msg) const;
   void registerMsgHandlers();
   bool checkClientMsgCorrectness(const ClientPreProcessReqMsgSharedPtr &msg, ReqId reqSeqNum) const;
   void handleClientPreProcessRequest(const ClientPreProcessReqMsgSharedPtr &clientReqMsg);

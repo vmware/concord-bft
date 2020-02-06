@@ -25,7 +25,7 @@ FullCommitProofMsg::FullCommitProofMsg(
   memcpy(body() + sizeof(FullCommitProofMsgHeader), commitProofSig, commitProofSigLength);
 }
 
-void FullCommitProofMsg::validate(const ReplicasInfo& repInfo) {
+void FullCommitProofMsg::validate(const ReplicasInfo& repInfo) const {
   if (size() < sizeof(FullCommitProofMsgHeader) || senderId() == repInfo.myId() || !repInfo.isIdOfReplica(senderId()) ||
       size() < (sizeof(FullCommitProofMsgHeader) + thresholSignatureLength()))
     throw std::runtime_error(__PRETTY_FUNCTION__);

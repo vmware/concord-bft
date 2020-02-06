@@ -30,7 +30,7 @@ class NewViewMsg : public MessageBase {
 
   void finalizeMessage(const ReplicasInfo& repInfo);
 
-  void validate(const ReplicasInfo&) override;
+  void validate(const ReplicasInfo&) const override;
 
   bool includesViewChangeFromReplica(ReplicaId replicaId, const Digest& viewChangeReplica) const;
 

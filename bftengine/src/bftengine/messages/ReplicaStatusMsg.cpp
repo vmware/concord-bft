@@ -85,7 +85,7 @@ ReplicaStatusMsg::ReplicaStatusMsg(ReplicaId senderId,
   }
 }
 
-void ReplicaStatusMsg::validate(const ReplicasInfo& repInfo) {
+void ReplicaStatusMsg::validate(const ReplicasInfo& repInfo) const {
   if (size() < sizeof(ReplicaStatusMsgHeader) || senderId() == repInfo.myId() || !repInfo.isIdOfReplica(senderId()) ||
       (getLastStableSeqNum() % checkpointWindowSize != 0) || getLastExecutedSeqNum() < getLastStableSeqNum())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic"));

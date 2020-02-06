@@ -213,7 +213,7 @@ BatchedInternalNode::RemoveResult BatchedInternalNode::remove(const Hash& key, s
     auto& leaf = std::get<LeafChild>(children_[index].value());
     if (leaf.key.hash() == key) {
       // We can remove the key at this index.
-      return removeLeafChild(index, new_version, leaf.key.version());
+      return removeLeafChild(index, new_version, leaf.key.version(), depth);
     }
     return NotFound{};
   }
@@ -229,7 +229,8 @@ BatchedInternalNode::RemoveResult BatchedInternalNode::remove(const Hash& key, s
 
 BatchedInternalNode::RemoveResult BatchedInternalNode::removeLeafChild(size_t index,
                                                                        Version new_version,
-                                                                       Version removed_version) {
+                                                                       Version removed_version,
+                                                                       size_t depth) {
   Assert(index != 0);
   children_[index] = std::nullopt;
   auto peer_index = peerIndex(index);
@@ -244,18 +245,24 @@ BatchedInternalNode::RemoveResult BatchedInternalNode::removeLeafChild(size_t in
     updateHashes(index, new_version);
     return RemoveComplete{removed_version};
   }
+
   auto peer = std::get<LeafChild>(children_[peer_index.value()].value());
   children_[peer_index.value()] = std::nullopt;
 
   // Keep trying to move the peer up toward the root of this
-  // BatchedInternalNode. If the moved up peer has peers then stop and return
-  // RemoveComplete. Otherwise, if we reach the root of this
-  // BatchedInternalNode, then return RemoveBatchedInternalNode, since there
-  // cannot be any more LeafChildren in this node.
+  // BatchedInternalNode.
   while (auto parent_index = parentIndex(peer_index.value())) {
+    // The parent has a peer. We can't move up any further.
     if (peerIndex(parent_index.value())) {
       children_[parent_index.value()] = peer;
       updateHashes(parent_index.value(), new_version);
+      return RemoveComplete{removed_version};
+    }
+
+    // The peer can't be moved up any higher in the root BatchedInternalNode (depth == 0)
+    if (parent_index == 0 && depth == 0) {
+      children_[peer_index.value()] = peer;
+      updateHashes(peer_index.value(), new_version);
       return RemoveComplete{removed_version};
     }
     // Clear the parent, since we are walking up over it.
@@ -263,7 +270,8 @@ BatchedInternalNode::RemoveResult BatchedInternalNode::removeLeafChild(size_t in
     peer_index = parent_index;
   }
 
-  // We've reached the root. This peer is the only remaining node left.
+  // We've reached the root. This peer is the only remaining node left, and we
+  // aren't in the root BatchedInternalNode.
   return RemoveBatchedInternalNode{peer};
 }
 
