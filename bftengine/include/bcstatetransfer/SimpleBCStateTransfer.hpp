@@ -93,6 +93,9 @@ class IAppState {
   // When that state transfer module is updating the state, then these methods
   // may return different block numbers.
 
+  // This method MAY be called by ST module when putBlock returns false. The call will block until the underlying storage
+  // becomes available (storage non availabilty is the reason for putBlock to fail). Mainly relevant for network storages.
+  // In regular replica which uses local DB this function should not be called.
   virtual void wait() = 0;
 };
 
