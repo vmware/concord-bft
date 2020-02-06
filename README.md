@@ -81,7 +81,7 @@ Dependencies that currently are not supported by the conan center, have custom c
 ### Install Dependencies
 Install all dependencies using
 
-    ./install.sh && mkdir -p build && cd build && conan install --build missing .. 
+    ./install.sh
 
 ### Select comm module
 We support both UDP and TCP communication. UDP is the default. In order to
@@ -100,10 +100,13 @@ running simpleTest using the testReplicasAndClient.sh - there is no need to crea
 
 Create a build directory and enter it:
 
-    cd concord-bft/build
+    cd concord-bft
+    mkdir -p build
+    cd build
 
 To perform a default build execute the following:
 
+    conan install --build missing ..
     cmake ..
     make
 
