@@ -65,7 +65,6 @@ class SkvbcTest(unittest.TestCase):
             bft_network.all_replicas(without={0, stale_node}))
         bft_network.stop_replica(random_replica)
         await skvbc.assert_successful_put_get(self)
-        assert True is False
 
     @with_trio
     @with_bft_network(start_replica_cmd)
