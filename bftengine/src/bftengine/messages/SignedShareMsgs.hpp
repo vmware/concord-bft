@@ -40,7 +40,7 @@ class SignedShareBase : public MessageBase {
     ViewNum viewNumber;
     SeqNum seqNumber;
     uint16_t thresSigLength;
-    // Followed by threshold signature of <viewNumber, seqNumber, and the preprepre digest>
+    // Followed by threshold signature of <viewNumber, seqNumber, and the preprepare digest>
   };
 #pragma pack(pop)
   static_assert(sizeof(SignedShareBaseHeader) == (2 + 8 + 8 + 2), "SignedShareBaseHeader is 58B");
@@ -49,7 +49,7 @@ class SignedShareBase : public MessageBase {
       int16_t type, ViewNum v, SeqNum s, ReplicaId senderId, Digest& digest, IThresholdSigner* thresholdSigner);
   static SignedShareBase* create(
       int16_t type, ViewNum v, SeqNum s, ReplicaId senderId, const char* sig, uint16_t sigLen);
-  void _validate(const ReplicasInfo& repInfo, int16_t type);
+  void _validate(const ReplicasInfo& repInfo, int16_t type) const;
 
   SignedShareBase(ReplicaId sender, int16_t type, size_t msgSize);
 
@@ -64,7 +64,7 @@ class PreparePartialMsg : public SignedShareBase {
  public:
   static PreparePartialMsg* create(
       ViewNum v, SeqNum s, ReplicaId senderId, Digest& ppDigest, IThresholdSigner* thresholdSigner);
-  void validate(const ReplicasInfo&) override;
+  void validate(const ReplicasInfo&) const override;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -76,7 +76,7 @@ class PrepareFullMsg : public SignedShareBase {
   static MsgSize maxSizeOfPrepareFull();
   static MsgSize maxSizeOfPrepareFullInLocalBuffer();
   static PrepareFullMsg* create(ViewNum v, SeqNum s, ReplicaId senderId, const char* sig, uint16_t sigLen);
-  void validate(const ReplicasInfo&) override;
+  void validate(const ReplicasInfo&) const override;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -87,7 +87,7 @@ class CommitPartialMsg : public SignedShareBase {
  public:
   static CommitPartialMsg* create(
       ViewNum v, SeqNum s, ReplicaId senderId, Digest& ppDoubleDigest, IThresholdSigner* thresholdSigner);
-  void validate(const ReplicasInfo&) override;
+  void validate(const ReplicasInfo&) const override;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -99,7 +99,7 @@ class CommitFullMsg : public SignedShareBase {
   static MsgSize maxSizeOfCommitFull();
   static MsgSize maxSizeOfCommitFullInLocalBuffer();
   static CommitFullMsg* create(ViewNum v, SeqNum s, int16_t senderId, const char* sig, uint16_t sigLen);
-  void validate(const ReplicasInfo&) override;
+  void validate(const ReplicasInfo&) const override;
 };
 
 }  // namespace impl

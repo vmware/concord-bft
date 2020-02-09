@@ -12,6 +12,7 @@
 #pragma once
 
 #include "messages/MessageBase.hpp"
+#include <memory>
 
 namespace preprocessor {
 
@@ -31,11 +32,12 @@ class PreProcessReplyMsg : public MessageBase {
   PreProcessReplyMsg(NodeIdType senderId, uint64_t reqSeqNum, ViewNum viewNum, uint32_t replyLength, const char* reply);
 
   void setParams(NodeIdType senderId, ReqId reqSeqNum, ViewNum view, uint32_t replyLength);
-
-  static bool ToActualMsgType(MessageBase* inMsg, PreProcessReplyMsg*& outMsg);
+  void validate(const bftEngine::impl::ReplicasInfo&) const override;
 
  private:
   PreProcessReplyMsgHeader* msgBody() const { return ((PreProcessReplyMsgHeader*)msgBody_); }
 };
+
+typedef std::shared_ptr<PreProcessReplyMsg> PreProcessReplyMsgSharedPtr;
 
 }  // namespace preprocessor

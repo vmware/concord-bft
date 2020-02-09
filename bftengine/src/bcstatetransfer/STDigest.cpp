@@ -13,7 +13,10 @@
 
 #include "STDigest.hpp"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 #include <cryptopp/dll.h>
+#pragma GCC diagnostic pop
 
 #include <cassert>
 #include <string>

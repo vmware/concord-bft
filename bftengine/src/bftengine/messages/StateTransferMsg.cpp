@@ -14,7 +14,7 @@
 
 namespace bftEngine::impl {
 
-void StateTransferMsg::validate(const ReplicasInfo&) {
+void StateTransferMsg::validate(const ReplicasInfo&) const {
   Assert(type() == MsgCode::StateTransfer);
   if (size() < sizeof(MessageBase::Header)) throw std::runtime_error(__PRETTY_FUNCTION__);
 }

@@ -29,7 +29,7 @@ CheckpointMsg* CheckpointMsg::clone() {
   return c;
 }
 
-void CheckpointMsg::validate(const ReplicasInfo& repInfo) {
+void CheckpointMsg::validate(const ReplicasInfo& repInfo) const {
   Assert(type() == MsgCode::Checkpoint);
   Assert(senderId() != repInfo.myId());
 

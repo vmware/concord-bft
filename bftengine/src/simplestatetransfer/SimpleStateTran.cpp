@@ -106,6 +106,8 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
     uint64_t getLastReachableBlockNum() override;
 
     uint64_t getLastBlockNum() override;
+
+    void wait() override;
   };
 
   ///////////////////////////////////////////////////////////////////////////
@@ -277,7 +279,7 @@ SimpleStateTran::SimpleStateTran(
   config.cVal = cVal;
   config.numReplicas = 3 * fVal + 2 * cVal + 1;
   config.pedanticChecks = pedanticChecks;
-  auto comparator = concord::storage::memorydb::KeyComparator(new concord::storage::blockchain::KeyManipulator());
+  auto comparator = concord::storage::memorydb::KeyComparator(new concord::storage::blockchain::DBKeyComparator());
   concord::storage::IDBClient::ptr db(new concord::storage::memorydb::Client(comparator));
   internalST_ = SimpleBlockchainStateTransfer::create(config, &dummyBDState_, db);
 
@@ -584,6 +586,8 @@ bool SimpleStateTran::DummyBDState::putBlock(uint64_t blockId, char* block, uint
 uint64_t SimpleStateTran::DummyBDState::getLastReachableBlockNum() { return 0; }
 
 uint64_t SimpleStateTran::DummyBDState::getLastBlockNum() { return 0; }
+
+void SimpleStateTran::DummyBDState::wait() {}
 
 }  // namespace impl
 }  // namespace SimpleInMemoryStateTransfer

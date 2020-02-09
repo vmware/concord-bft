@@ -69,7 +69,7 @@ void FullExecProofMsg::setSignature(const char* sig, uint16_t sigLength) {
   b()->isNotReady = 0;  // message is ready now
 }
 
-void FullExecProofMsg::validate(const ReplicasInfo&) {
+void FullExecProofMsg::validate(const ReplicasInfo&) const {
   if (size() < sizeof(FullExecProofMsgHeader)) throw std::runtime_error(__PRETTY_FUNCTION__);
 
   // TODO(GG)

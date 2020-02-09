@@ -1,5 +1,5 @@
 project(concord_bft_tools LANGUAGES CXX)
-
+find_package(cryptopp REQUIRED)
 add_executable(GenerateConcordKeys
                GenerateConcordKeys.cpp
                KeyfileIOUtils.hpp
@@ -12,7 +12,8 @@ target_include_directories(GenerateConcordKeys
                            ${threshsign_SOURCE_DIR}/lib
                            ${threshsign_SOURCE_DIR}/include
                            ${bftengine_SOURCE_DIR}/src
-                           ${bftengine_SOURCE_DIR}/include)
+                           ${bftengine_SOURCE_DIR}/include
+                            ${CRYPTOPP_INCLUDE_DIRS})
 
 target_link_libraries(GenerateConcordKeys
                       PUBLIC

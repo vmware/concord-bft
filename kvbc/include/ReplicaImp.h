@@ -13,10 +13,10 @@
 #include "ICommunication.hpp"
 #include "Replica.hpp"
 #include "ReplicaConfig.hpp"
+#include "SimpleBCStateTransfer.hpp"
 #include "StatusInfo.h"
 #include "Logger.hpp"
 #include "KVBCInterfaces.h"
-#include "hash_defs.h"
 #include "replica_state_sync_imp.hpp"
 #include "blockchain/db_adapter.h"
 #include "blockchain/db_interfaces.h"
@@ -241,6 +241,7 @@ class ReplicaImp : public IReplica,
     virtual bool putBlock(uint64_t blockId, char *block, uint32_t blockSize) override;
     virtual uint64_t getLastReachableBlockNum() override;
     virtual uint64_t getLastBlockNum() override;
+    virtual void wait() override;
 
    private:
     ReplicaImp *const m_ptrReplicaImpl = nullptr;
@@ -254,7 +255,6 @@ class ReplicaImp : public IReplica,
   };
 
   // DATA
-
  private:
   concordlogger::Logger logger;
   RepStatus m_currentRepStatus;
@@ -271,12 +271,6 @@ class ReplicaImp : public IReplica,
   concord::storage::DBMetadataStorage *m_metadataStorage = nullptr;
   std::unique_ptr<ReplicaStateSync> replicaStateSync_;
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;
-
-  // static methods
-  static Sliver createBlockFromUpdates(const concord::storage::SetOfKeyValuePairs &updates,
-                                       concord::storage::SetOfKeyValuePairs &outUpdatesInNewBlock,
-                                       bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest &parentDigest);
-  static concord::storage::SetOfKeyValuePairs fetchBlockData(Sliver block);
 };
 
 }  // namespace kvbc

@@ -35,7 +35,7 @@ class CheckpointMsg : public MessageBase {
 
   CheckpointMsg* clone();
 
-  void validate(const ReplicasInfo& repInfo) override;
+  void validate(const ReplicasInfo& repInfo) const override;
 
  protected:
 #pragma pack(push, 1)

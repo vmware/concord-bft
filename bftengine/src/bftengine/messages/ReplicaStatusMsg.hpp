@@ -54,7 +54,7 @@ class ReplicaStatusMsg : public MessageBase {
 
   void setMissingPrePrepareMsgForViewChange(SeqNum seqNum);
 
-  void validate(const ReplicasInfo&) override;
+  void validate(const ReplicasInfo&) const override;
 
  protected:
 #pragma pack(push, 1)

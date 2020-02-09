@@ -60,7 +60,7 @@ class PrePrepareMsg : public MessageBase {
 
   static const Digest& digestOfNullPrePrepareMsg();
 
-  void validate(const ReplicasInfo&) override;
+  void validate(const ReplicasInfo&) const override;
 
   // ctor and other build methods
 
@@ -95,7 +95,7 @@ class PrePrepareMsg : public MessageBase {
 
   bool isReady() const { return (((b()->flags >> 1) & 0x1) == 1); }
 
-  bool checkRequests();
+  bool checkRequests() const;
 
   PrePrepareMsgHeader* b() const { return (PrePrepareMsgHeader*)msgBody_; }
 

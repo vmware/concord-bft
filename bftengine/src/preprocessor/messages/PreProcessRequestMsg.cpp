@@ -28,15 +28,12 @@ PreProcessRequestMsg::PreProcessRequestMsg(const ClientPreProcessReqMsgSharedPtr
   setParams(msg->senderId(), msg->requestSeqNum(), currentView, msg->size());
 }
 
-bool PreProcessRequestMsg::ToActualMsgType(MessageBase* inMsg, PreProcessRequestMsg*& outMsg) {
-  Assert(inMsg->type() == MsgCode::PreProcessRequest);
-  if (inMsg->size() < sizeof(PreProcessRequestMsgHeader)) return false;
+void PreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
+  Assert(type() == MsgCode::PreProcessRequest);
+  Assert(senderId() != repInfo.myId());
 
-  auto* msg = (PreProcessRequestMsg*)inMsg;
-  if (msg->size() < (sizeof(PreProcessRequestMsgHeader) + msg->msgBody()->requestLength)) return false;
-
-  outMsg = msg;
-  return true;
+  if (size() < (sizeof(PreProcessRequestMsgHeader) + msgBody()->requestLength))
+    throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
 void PreProcessRequestMsg::setParams(NodeIdType senderId, ReqId reqSeqNum, ViewNum view, uint32_t requestLength) {
