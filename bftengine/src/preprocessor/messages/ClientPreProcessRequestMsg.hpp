@@ -21,14 +21,9 @@ namespace preprocessor {
 
 class ClientPreProcessRequestMsg : public ClientRequestMsg {
  public:
-  ClientPreProcessRequestMsg(
-      NodeIdType sender, bool isReadOnly, uint64_t reqSeqNum, uint32_t requestLength, const char* request)
-      : ClientRequestMsg(sender, isReadOnly, reqSeqNum, reqSeqNum, request) {
-    msgBody_->msgType = MsgCode::ClientPreProcessRequest;
-  }
+  ClientPreProcessRequestMsg(NodeIdType sender, uint64_t reqSeqNum, uint32_t requestLength, const char* request);
 
   void validate(const bftEngine::impl::ReplicasInfo&) const override;
-
   std::unique_ptr<MessageBase> convertToClientRequestMsg();
 };
 

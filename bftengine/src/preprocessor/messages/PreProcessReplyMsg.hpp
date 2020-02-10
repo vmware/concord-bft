@@ -12,6 +12,7 @@
 #pragma once
 
 #include "messages/MessageBase.hpp"
+#include "sha3_256.h"
 #include <memory>
 
 namespace preprocessor {
@@ -19,23 +20,38 @@ namespace preprocessor {
 #pragma pack(push, 1)
 struct PreProcessReplyMsgHeader {
   MessageBase::Header header;
-  ViewNum viewNum;
   SeqNum reqSeqNum;
   NodeIdType senderId;
-  uint32_t requestLength;
+  uint16_t clientId;
+  uint8_t resultsHash[concord::util::SHA3_256::SIZE_IN_BYTES];
+  uint32_t replyLength;
 };
-// The hash of pre-execution result is a part of the message body
+// The pre-executed results' hash signature resides in the message body
 #pragma pack(pop)
 
 class PreProcessReplyMsg : public MessageBase {
  public:
-  PreProcessReplyMsg(NodeIdType senderId, uint64_t reqSeqNum, ViewNum viewNum, uint32_t replyLength, const char* reply);
+  PreProcessReplyMsg(bftEngine::impl::SigManagerSharedPtr sigManager,
+                     NodeIdType senderId,
+                     uint16_t clientId,
+                     uint64_t reqSeqNum);
 
-  void setParams(NodeIdType senderId, ReqId reqSeqNum, ViewNum view, uint32_t replyLength);
+  void setupMsgBody(const char* buf, uint32_t bufLen);
+
   void validate(const bftEngine::impl::ReplicasInfo&) const override;
+  const uint16_t clientId() const { return msgBody()->clientId; }
+  const SeqNum reqSeqNum() const { return msgBody()->reqSeqNum; }
+  const uint32_t replyLength() const { return msgBody()->replyLength; }
+  const uint8_t* resultsHash() const { return msgBody()->resultsHash; }
 
  private:
+  void setParams(NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum);
   PreProcessReplyMsgHeader* msgBody() const { return ((PreProcessReplyMsgHeader*)msgBody_); }
+
+ private:
+  static uint16_t maxReplyMsgSize_;
+
+  bftEngine::impl::SigManagerSharedPtr sigManager_;
 };
 
 typedef std::shared_ptr<PreProcessReplyMsg> PreProcessReplyMsgSharedPtr;

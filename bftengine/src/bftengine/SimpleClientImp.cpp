@@ -213,9 +213,9 @@ int SimpleClientImp::sendRequest(uint8_t flags,
 
   ClientRequestMsg* reqMsg;
   if (isPreProcessRequired)
-    reqMsg = new preprocessor::ClientPreProcessRequestMsg(clientId_, isReadOnly, reqSeqNum, lengthOfRequest, request);
+    reqMsg = new preprocessor::ClientPreProcessRequestMsg(clientId_, reqSeqNum, lengthOfRequest, request);
   else
-    reqMsg = new ClientRequestMsg(clientId_, isReadOnly, reqSeqNum, lengthOfRequest, request);
+    reqMsg = new ClientRequestMsg(clientId_, flags, reqSeqNum, lengthOfRequest, request);
   pendingRequest_ = reqMsg;
 
   sendPendingRequest();

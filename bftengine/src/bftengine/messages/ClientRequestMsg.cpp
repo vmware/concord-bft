@@ -34,9 +34,9 @@ uint32_t getRequestSizeTemp(const char* request)  // TODO(GG): change - TBD
 // class ClientRequestMsg
 
 ClientRequestMsg::ClientRequestMsg(
-    NodeIdType sender, bool isReadOnly, uint64_t reqSeqNum, uint32_t requestLength, const char* request)
+    NodeIdType sender, uint8_t flags, uint64_t reqSeqNum, uint32_t requestLength, const char* request)
     : MessageBase(sender, MsgCode::ClientRequest, (sizeof(ClientRequestMsgHeader) + requestLength)) {
-  setParams(sender, reqSeqNum, requestLength, isReadOnly);
+  setParams(sender, reqSeqNum, requestLength, flags);
   memcpy(body() + sizeof(ClientRequestMsgHeader), request, requestLength);
 }
 
@@ -49,31 +49,30 @@ ClientRequestMsg::ClientRequestMsg(NodeIdType sender)
 ClientRequestMsg::ClientRequestMsg(ClientRequestMsgHeader* body)
     : MessageBase(getSender(body), (MessageBase::Header*)body, compRequestMsgSize(body), false) {}
 
-void ClientRequestMsg::set(ReqId reqSeqNum, uint32_t requestLength, bool isReadOnly) {
+void ClientRequestMsg::set(ReqId reqSeqNum, uint32_t requestLength, uint8_t flags) {
   Assert(requestLength > 0);
   Assert(requestLength <= (internalStorageSize() - sizeof(ClientRequestMsgHeader)));
 
-  setParams(reqSeqNum, requestLength, isReadOnly);
+  setParams(reqSeqNum, requestLength, flags);
   setMsgSize(sizeof(ClientRequestMsgHeader) + requestLength);
 }
+
+bool ClientRequestMsg::isReadOnly() const { return (msgBody()->flags & READ_ONLY_REQ) != 0; }
 
 void ClientRequestMsg::validate(const ReplicasInfo& repInfo) const {
   if (size() < (sizeof(ClientRequestMsgHeader) + msgBody()->requestLength))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
-void ClientRequestMsg::setParams(ReqId reqSeqNum, uint32_t requestLength, bool isReadOnly) {
+void ClientRequestMsg::setParams(ReqId reqSeqNum, uint32_t requestLength, uint8_t flags) {
   msgBody()->reqSeqNum = reqSeqNum;
   msgBody()->requestLength = requestLength;
-  if (isReadOnly)
-    msgBody()->flags |= READ_ONLY_REQ;
-  else
-    msgBody()->flags = 0;
+  msgBody()->flags = flags;
 }
 
-void ClientRequestMsg::setParams(NodeIdType sender, ReqId reqSeqNum, uint32_t requestLength, bool isReadOnly) {
+void ClientRequestMsg::setParams(NodeIdType sender, ReqId reqSeqNum, uint32_t requestLength, uint8_t flags) {
   msgBody()->idOfClientProxy = sender;
-  setParams(reqSeqNum, requestLength, isReadOnly);
+  setParams(reqSeqNum, requestLength, flags);
 }
 
 }  // namespace bftEngine::impl

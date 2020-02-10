@@ -309,6 +309,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   virtual util::SimpleThreadPool& getInternalThreadPool() override { return internalThreadPool; }
 
+  const ReplicaConfig& getReplicaConfig() const override { return config_; }
+
   virtual IThresholdVerifier* getThresholdVerifierForExecution() override {
     return config_.thresholdVerifierForExecution;
   }

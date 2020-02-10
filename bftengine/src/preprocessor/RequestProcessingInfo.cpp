@@ -10,30 +10,72 @@
 // file.
 
 #include "RequestProcessingInfo.hpp"
-#include "ReplicaConfig.hpp"
 #include "Logger.hpp"
 
 namespace preprocessor {
 
 using namespace std;
 using namespace concord::util;
-using namespace concordUtils;
 
-RequestProcessingInfo::RequestProcessingInfo(uint16_t numOfReplicas, ReqId reqSeqNum)
+uint16_t RequestProcessingInfo::numOfRequiredEqualReplies_ = 0;
+
+RequestProcessingInfo::RequestProcessingInfo(uint16_t numOfReplicas, uint16_t numOfRequiredReplies, ReqId reqSeqNum)
     : numOfReplicas_(numOfReplicas), reqSeqNum_(reqSeqNum) {
-  for (auto i = 0; i < numOfReplicas; i++)
-    // Placeholders for all replicas
-    replicasDataForRequest_.push_back(nullptr);
+  numOfRequiredEqualReplies_ = numOfRequiredReplies;
   LOG_DEBUG(GL, "Created RequestProcessingInfo with reqSeqNum=" << reqSeqNum_ << ", numOfReplicas= " << numOfReplicas_);
 }
 
-void RequestProcessingInfo::saveClientPreProcessRequestMsg(const ClientPreProcessReqMsgSharedPtr& clientPreProcessReq) {
-  clientPreProcessRequestMsg_ = clientPreProcessReq;
+void RequestProcessingInfo::handlePrimaryPreProcessed(PreProcessRequestMsgSharedPtr msg,
+                                                      const char *preProcessResult,
+                                                      uint32_t preProcessResultLen) {
+  numOfReceivedReplies_++;
+  preProcessRequestMsg_ = msg;
+  myPreProcessResult_ = preProcessResult;
+  myPreProcessResultLen_ = preProcessResultLen;
+  myPreProcessResultHash_ = convertToArray(SHA3_256().digest(myPreProcessResult_, myPreProcessResultLen_).data());
+  preProcessingResultHashes_[myPreProcessResultHash_]++;
 }
 
-void RequestProcessingInfo::savePreProcessResult(const Sliver& preProcessResult, uint32_t preProcessResultLen) {
-  myPreProcessResult_ = preProcessResult.subsliver(0, preProcessResultLen);
-  myPreProcessResultHash_ = SHA3_256().digest(myPreProcessResult_.data(), myPreProcessResult_.length());
+void RequestProcessingInfo::handlePreProcessReplyMsg(PreProcessReplyMsgSharedPtr preProcessReplyMsg) {
+  numOfReceivedReplies_++;
+  preProcessingResultHashes_[convertToArray(preProcessReplyMsg->resultsHash())]++;  // Count equal hashes
+}
+
+HashArray RequestProcessingInfo::convertToArray(const uint8_t resultsHash[SHA3_256::SIZE_IN_BYTES]) {
+  HashArray hashArray;
+  for (uint64_t i = 0; i < SHA3_256::SIZE_IN_BYTES; i++) hashArray[i] = resultsHash[i];
+  return hashArray;
+}
+
+PreProcessingResult RequestProcessingInfo::getPreProcessingConsensusResult() const {
+  if (numOfReceivedReplies_ < numOfRequiredEqualReplies_) return CONTINUE;
+
+  uint16_t maxNumOfEqualHashes = 0;
+  auto itOfChosenHash = preProcessingResultHashes_.begin();
+  for (auto it = preProcessingResultHashes_.begin(); it != preProcessingResultHashes_.end(); it++) {
+    if (it->second > maxNumOfEqualHashes) {
+      maxNumOfEqualHashes = it->second;
+      itOfChosenHash = it;
+    }
+  }
+
+  if (maxNumOfEqualHashes >= numOfRequiredEqualReplies_) {
+    if (itOfChosenHash->first == myPreProcessResultHash_)
+      return COMPLETE;  // Pre-execution consensus reached
+    else {
+      // Primary replica calculated hash is different from hash that passed consensus => we don't have correct
+      // pre-processed results. The request could be cancelled, retried or executed without pre-processing.
+      LOG_WARN(GL,
+               "Primary replica pre-processing result hash is different from one passed the consensus for reqSeqNum="
+                   << reqSeqNum_ << "; retry pre-processing on primary replica");
+      return RETRY_PRIMARY;
+    }
+  }
+
+  if (numOfReceivedReplies_ == numOfReplicas_ - 1)
+    // Replies from all replicas received, but not enough equal hashes collected => cancel request
+    LOG_WARN(GL, "Not enough equal hashes collected for reqSeqNum=" << reqSeqNum_ << ", cancel request");
+  return CANCEL;
 }
 
 }  // namespace preprocessor

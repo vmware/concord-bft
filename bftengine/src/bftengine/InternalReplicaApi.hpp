@@ -78,6 +78,8 @@ class InternalReplicaApi  // TODO(GG): rename + clean + split to several classes
   virtual void updateMetricsForInternalMessage() = 0;
   virtual bool isCollectingState() const = 0;
 
+  virtual const ReplicaConfig& getReplicaConfig() const = 0;
+
   virtual IThresholdVerifier* getThresholdVerifierForExecution() = 0;
   virtual IThresholdVerifier* getThresholdVerifierForSlowPathCommit() = 0;
   virtual IThresholdVerifier* getThresholdVerifierForCommit() = 0;
