@@ -27,7 +27,7 @@
 namespace preprocessor {
 
 struct ClientRequestInfo {
-  std::recursive_mutex mutex_;  // Define a mutex per client to avoid contentions between clients
+  std::recursive_mutex mutex;  // Define a mutex per client to avoid contentions between clients
   RequestProcessingInfoUniquePtr clientReqInfoPtr;
 };
 

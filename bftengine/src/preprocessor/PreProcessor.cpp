@@ -132,7 +132,7 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
   if (!checkClientMsgCorrectness(clientPreProcessReqMsg, reqSeqNum)) return;
   {
     auto &clientEntry = ongoingRequests_[clientId];
-    lock_guard<recursive_mutex> lock(clientEntry->mutex_);
+    lock_guard<recursive_mutex> lock(clientEntry->mutex);
     if (clientEntry->clientReqInfoPtr != nullptr) {
       LOG_WARN(GL,
                " reqSeqNum=" << reqSeqNum << " for clientId=" << clientId << " is ignored: previous client request="
@@ -182,7 +182,7 @@ void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *msg) {
   PreProcessingResult result = CANCEL;
   LOG_DEBUG(GL, "reqSeqNum=" << preProcessReplyMsg->reqSeqNum() << " received from replica=" << senderId);
   {
-    lock_guard<recursive_mutex> lock(clientEntry->mutex_);
+    lock_guard<recursive_mutex> lock(clientEntry->mutex);
     if (!clientEntry->clientReqInfoPtr || clientEntry->clientReqInfoPtr->getReqSeqNum() != reqSeqNum) {
       LOG_DEBUG(GL,
                 "reqSeqNum=" << reqSeqNum << " received from replica=" << preProcessReplyMsg->senderId() << " clientId="
@@ -205,7 +205,7 @@ void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *msg) {
       LOG_INFO(GL, "Retry primary replica pre-processing for clientId=" << clientId << " reqSeqNum=" << reqSeqNum);
       PreProcessRequestMsgSharedPtr preProcessRequestMsg;
       {
-        lock_guard<recursive_mutex> lock(clientEntry->mutex_);
+        lock_guard<recursive_mutex> lock(clientEntry->mutex);
         preProcessRequestMsg = clientEntry->clientReqInfoPtr->getPreProcessRequest();
       }
       launchAsyncReqPreProcessingJob(preProcessRequestMsg, true, true);
@@ -223,7 +223,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, SeqNum reqSeqNum) 
   unique_ptr<ClientRequestMsg> clientRequestMsg;
   auto &clientEntry = ongoingRequests_[clientId];
   {
-    lock_guard<recursive_mutex> lock(clientEntry->mutex_);
+    lock_guard<recursive_mutex> lock(clientEntry->mutex);
     // Copy of the message body is unavoidable here, as we need to create a new message type which lifetime is
     // controlled by the replica while all PreProcessReply messages get released here.
     clientRequestMsg = make_unique<ClientRequestMsg>(clientId,
@@ -243,7 +243,7 @@ void PreProcessor::registerClientPreProcessRequest(uint16_t clientId, ReqId requ
   {
     // Only one request is supported per client for now
     auto &clientEntry = ongoingRequests_[clientId];
-    lock_guard<recursive_mutex> lock(clientEntry->mutex_);
+    lock_guard<recursive_mutex> lock(clientEntry->mutex);
     clientEntry->clientReqInfoPtr =
         make_unique<RequestProcessingInfo>(numOfReplicas_, numOfRequiredReplies(), requestSeqNum);
   }
@@ -253,7 +253,7 @@ void PreProcessor::registerClientPreProcessRequest(uint16_t clientId, ReqId requ
 void PreProcessor::releaseClientPreProcessRequest(uint16_t clientId, ReqId requestSeqNum) {
   {
     auto &clientEntry = ongoingRequests_[clientId];
-    lock_guard<recursive_mutex> lock(clientEntry->mutex_);
+    lock_guard<recursive_mutex> lock(clientEntry->mutex);
     clientEntry->clientReqInfoPtr.reset();
   }
   LOG_DEBUG(GL, "clientId=" << clientId << " requestSeqNum=" << requestSeqNum << " released");
@@ -324,7 +324,7 @@ void PreProcessor::handlePreProcessedReqPrimaryRetry(NodeIdType clientId, SeqNum
   PreProcessingResult preProcessingResult = CANCEL;
   {
     auto &clientEntry = ongoingRequests_[clientId];
-    lock_guard<recursive_mutex> lock(clientEntry->mutex_);
+    lock_guard<recursive_mutex> lock(clientEntry->mutex);
     preProcessingResult = clientEntry->clientReqInfoPtr->getPreProcessingConsensusResult();
   }
   if (preProcessingResult == COMPLETE)
@@ -337,7 +337,7 @@ void PreProcessor::handlePreProcessedReqByPrimary(PreProcessRequestMsgSharedPtr 
                                                   uint16_t clientId,
                                                   uint32_t resultBufLen) {
   auto &clientEntry = ongoingRequests_[clientId];
-  lock_guard<recursive_mutex> lock(clientEntry->mutex_);
+  lock_guard<recursive_mutex> lock(clientEntry->mutex);
   if (clientEntry->clientReqInfoPtr)
     clientEntry->clientReqInfoPtr->handlePrimaryPreProcessed(
         preProcessReqMsg, getPreProcessResultBuffer(clientId), resultBufLen);
