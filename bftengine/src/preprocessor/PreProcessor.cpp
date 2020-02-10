@@ -128,16 +128,18 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
   LOG_INFO(GL,
            "Received ClientPreProcessRequestMsg reqSeqNum=" << reqSeqNum << " from clientId=" << clientId
                                                             << ", senderId=" << senderId);
-
   if (!checkClientMsgCorrectness(clientPreProcessReqMsg, reqSeqNum)) return;
   {
     auto &clientEntry = ongoingRequests_[clientId];
     lock_guard<recursive_mutex> lock(clientEntry->mutex);
     if (clientEntry->clientReqInfoPtr != nullptr) {
-      LOG_WARN(GL,
-               " reqSeqNum=" << reqSeqNum << " for clientId=" << clientId << " is ignored: previous client request="
-                             << clientEntry->clientReqInfoPtr->getReqSeqNum() << " is in process");
-      return;
+      const ReqId &ongoingReqSeqNum = clientEntry->clientReqInfoPtr->getReqSeqNum();
+      if (ongoingReqSeqNum != reqSeqNum) {
+        LOG_WARN(GL,
+                 " reqSeqNum=" << reqSeqNum << " from clientId=" << clientId
+                               << " is ignored: previous client request=" << ongoingReqSeqNum << " is in process");
+        return;
+      }
     }
   }
   const ReqId &seqNumberOfLastReply = myReplica_.seqNumberOfLastReplyToClient(clientId);
@@ -153,7 +155,7 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
   if (seqNumberOfLastReply == reqSeqNum) {
     LOG_INFO(GL,
              "ClientPreProcessRequestMsg reqSeqNum="
-                 << reqSeqNum << " has already been executed - let replica do decide how to proceed");
+                 << reqSeqNum << " has already been executed - let replica to decide how to proceed further");
     return incomingMsgsStorage_->pushExternalMsg(clientPreProcessReqMsg->convertToClientRequestMsg());
   }
   LOG_INFO(GL, "ClientPreProcessRequestMsg reqSeqNum=" << reqSeqNum << " is ignored because request is old");
