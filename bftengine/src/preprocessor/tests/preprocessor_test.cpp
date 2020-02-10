@@ -223,6 +223,22 @@ TEST(requestPreprocessingInfo_test, enoughSameRepliesReceived) {
   Assert(reqInfo.getPreProcessingConsensusResult() == COMPLETE);
 }
 
+TEST(requestPreprocessingInfo_test, primaryReplicaPreProcessingRetry) {
+  RequestProcessingInfo reqInfo(numOfReplicas, numOfRequiredReplies, reqSeqNum);
+  ReplicasInfo repInfo(replicaConfig, true, true);
+  memset(buf, '5', bufLen);
+  reqInfo.handlePrimaryPreProcessed(PreProcessRequestMsgSharedPtr(), buf, bufLen);
+  for (auto i = 1; i <= numOfRequiredReplies; i++) {
+    if (i != numOfReplicas - 1) Assert(reqInfo.getPreProcessingConsensusResult() == CONTINUE);
+    memset(buf, '4', bufLen);
+    reqInfo.handlePreProcessReplyMsg(preProcessNonPrimary(reqInfo, i, repInfo));
+  }
+  Assert(reqInfo.getPreProcessingConsensusResult() == RETRY_PRIMARY);
+  memset(buf, '4', bufLen);
+  reqInfo.handlePrimaryPreProcessed(PreProcessRequestMsgSharedPtr(), buf, bufLen);
+  Assert(reqInfo.getPreProcessingConsensusResult() == COMPLETE);
+}
+
 }  // end namespace
 
 int main(int argc, char **argv) {
