@@ -58,9 +58,12 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
 // get/put/del/multiGet/multiPut/multiDel operations are not synchronized and
 // not guarded by locks. The caller is expected to use those APIs via a
 // single thread.
+//
+// The default KeyComparator provides lexicographical ordering. If 'a' is shorter than 'b' and they match up to the
+// length of 'a', then 'a' is considered to precede 'b'.
 class Client : public IDBClient {
  public:
-  Client(KeyComparator comp)
+  Client(KeyComparator comp = KeyComparator{})
       : logger(concordlogger::Log::getLogger("concord.storage.memorydb")),
         comp_(comp),
         map_([this](const Sliver &a, const Sliver &b) { return comp_(a, b); }) {}

@@ -49,27 +49,42 @@ namespace detail {
 // a clearer way. A note is that there is an overhead of 1 byte in the key length when using subtypes.
 enum class EDBKeyType : std::uint8_t {
   Block,
-  Key,
   BFT,
+  Key,
 };
 
 // Key subtypes. Internal and Stale are used internally by the merkle tree implementation. The Leaf type is the one
 // containing actual application data.
-enum class EKeyType : std::uint8_t {
+enum class EKeySubtype : std::uint8_t {
   Internal,
   Stale,
   Leaf,
 };
 
 // BFT subtypes.
-enum class EBFTType : std::uint8_t {
+enum class EBFTSubtype : std::uint8_t {
   Metadata,
   ST,
   STPendingPage,
   STReservedPageStatic,
-  STReserverdPageDynamic,
+  STReservedPageDynamic,
   STCheckpointDescriptor,
 };
+
+// Ordering of the enum values is important, because we want our keyspace to look like the following:
+//
+// -------------------------------------------------------------------
+// |    Block    |    BFT    |    Key [ Internal | Stale | Leaf ]    |
+// -------------------------------------------------------------------
+//
+// Reasons are:
+//  - When searching for blocks, we search for a specific one or we search for the latest one based on a
+// maximum allowed block number.
+//  - State transfer and BFT metadata is based on direct key lookups.
+//  - When searching for versioned Leaf (data) keys, we would like to return the requested one or the most recent
+//  earlier one. Putting Leaf keys at the end allows us support that functionality by expoiting the fact that there are
+//  no keys after Leaf. Getting the previous key from an end() DB iterator ensures that if the type is Leaf, this is the
+//  key we are looking for.
 
 }  // namespace detail
 

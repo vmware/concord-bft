@@ -239,29 +239,10 @@ Status ReplicaImp::addBlockInternal(const SetOfKeyValuePairs &updates, BlockId &
 
   LOG_DEBUG(logger, "block:" << block << " updates: " << updates.size());
 
-  StateTransferDigest stDigest;
-  if (block > 1) {
-    Sliver parentBlockData;
-    bool found;
-    m_bcDbAdapter->getBlockById(block - 1, parentBlockData, found);
-    if (!found || parentBlockData.length() == 0) {
-      //(IG): panic, data corrupted
-      LOG_FATAL(logger, "addBlockInternal: no block or block data for id " << block - 1);
-      exit(1);
-    }
-
-    bftEngine::SimpleBlockchainStateTransfer::computeBlockDigest(
-        block - 1, reinterpret_cast<const char *>(parentBlockData.data()), parentBlockData.length(), &stDigest);
-  } else {
-    memset(stDigest.content, 0, BLOCK_DIGEST_SIZE);
-  }
-
-  Sliver blockRaw = block::create(updates, updatesInNewBlock, stDigest.content);
-
-  Status s = m_bcDbAdapter->addBlockAndUpdateMultiKey(updatesInNewBlock, block, blockRaw);
-  if (!s.isOK()) {
+  const auto status = m_bcDbAdapter->addBlock(updates, block);
+  if (!status.isOK()) {
     LOG_ERROR(logger, "Failed to add block or update keys for block " << block);
-    return s;
+    return status;
   }
 
   outBlockId = block;
@@ -319,11 +300,7 @@ void ReplicaImp::insertBlockInternal(BlockId blockId, Sliver block) {
       return;
     }
   } else {
-    SetOfKeyValuePairs keys;
-    if (block.length() > 0) {
-      keys = block::getData(block);
-    }
-    s = m_bcDbAdapter->addBlockAndUpdateMultiKey(keys, blockId, block);
+    s = m_bcDbAdapter->addBlock(block, blockId);
     if (!s.isOK()) {
       // TODO(SG): What to do?
       printf("Failed to add block");
@@ -605,7 +582,7 @@ uint64_t ReplicaImp::BlockchainAppState::getLastReachableBlockNum() {
 
 uint64_t ReplicaImp::BlockchainAppState::getLastBlockNum() { return m_ptrReplicaImpl->m_lastBlock; }
 
-void ReplicaImp::BlockchainAppState::wait() {return;}
+void ReplicaImp::BlockchainAppState::wait() { return; }
 
 }  // namespace kvbc
 }  // namespace concord

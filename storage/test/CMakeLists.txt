@@ -16,6 +16,14 @@ target_link_libraries(metadataStorage_test PUBLIC
     concordbft_storage
 )
 
+add_executable(merkleTreeAdapter_test merkleTreeAdapter_test.cpp $<TARGET_OBJECTS:logging_dev>)
+add_test(merkleTreeAdapter_test merkleTreeAdapter_test)
+target_link_libraries(merkleTreeAdapter_test PUBLIC
+    GTest::Main
+    util
+    concordbft_storage
+)
+
 add_executable(sparse_merkle_base_types_test sparse_merkle/base_types_test.cpp
     $<TARGET_OBJECTS:logging_dev>)
 add_test(sparse_merkle_base_types_test sparse_merkle_base_types_test)
