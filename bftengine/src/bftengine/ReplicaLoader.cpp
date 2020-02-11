@@ -84,11 +84,11 @@ ReplicaLoader::ErrorCode checkReplicaConfig(const LoadedReplicaData &ld) {
 
   std::set<uint16_t> repIDs;
   for (auto &v : c.publicKeysOfReplicas) {
-    VerifyAND(v.first >= 0, v.first < numOfReplicas, InconsistentErr);
+    VerifyAND(v.first >= 0, v.first < (numOfReplicas + c.numRoReplicas), InconsistentErr);
     Verify(!v.second.empty(), InconsistentErr);  // TODO(GG): make sure that the key is valid
     repIDs.insert(v.first);
   }
-  Verify(repIDs.size() == numOfReplicas, InconsistentErr);
+  Verify(repIDs.size() == numOfReplicas + c.numRoReplicas, InconsistentErr);
 
   Verify(!c.replicaPrivateKey.empty(), InconsistentErr);  // TODO(GG): make sure that the key is valid
 

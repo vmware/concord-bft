@@ -40,13 +40,16 @@ TestConfig = namedtuple('TestConfig', [
     'c',
     'num_clients',
     'key_file_prefix',
-    'start_replica_cmd'
+    'start_replica_cmd',
+    'num_ro_replicas'
 ])
 
 KEY_FILE_PREFIX = "replica_keys_"
 
 
-def interesting_configs(selected=None):
+def interesting_configs(selected=None, explicit_config=None):
+    if explicit_config is not None:
+        return explicit_config
     if selected is None:
         selected=lambda *config: True
 
@@ -79,24 +82,30 @@ def with_trio(async_fn):
     return trio_wrapper
 
 
-def with_bft_network(start_replica_cmd, selected_configs=None):
+def with_bft_network(start_replica_cmd, selected_configs=None, explicit_config=None):
     """
     Runs the decorated async function for all selected BFT configs
     """
     def decorator(async_fn):
         @wraps(async_fn)
         async def wrapper(*args, **kwargs):
-            for bft_config in interesting_configs(selected_configs):
+            for bft_config in interesting_configs(selected_configs, explicit_config):
+                num_ro_replicas = 0  
+                if 'num_ro_replicas' in bft_config:
+                    num_ro_replicas = bft_config['num_ro_replicas']
+                       
                 config = TestConfig(n=bft_config['n'],
                                     f=bft_config['f'],
                                     c=bft_config['c'],
                                     num_clients=bft_config['num_clients'],
                                     key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
+                                    start_replica_cmd=start_replica_cmd,
+                                    num_ro_replicas=num_ro_replicas)
                 with BftTestNetwork(config) as bft_network:
                     print(f'Running {async_fn.__name__} '
-                          f'with n={config.n}, f={config.f}, c={config.c},'
-                          f'num_clients={config.num_clients}')
+                          f'with n={config.n}, f={config.f}, c={config.c}, '
+                          f'num_clients={config.num_clients}, '
+                          f'num_ro_replicas={config.num_ro_replicas}')
                     await bft_network.init()
                     await async_fn(*args, **kwargs, bft_network=bft_network)
         return wrapper
@@ -142,7 +151,7 @@ class BftTestNetwork:
         self.toolsdir = os.path.join(self.builddir, "tools")
         self.procs = {}
         self.replicas = [bft_config.Replica(i, "127.0.0.1", 3710 + 2*i)
-                for i in range(0, self.config.n)]
+                for i in range(0, self.config.n + self.config.num_ro_replicas)]
 
         os.chdir(self.testdir)
         self._generate_crypto_keys()
@@ -151,13 +160,15 @@ class BftTestNetwork:
 
     def _generate_crypto_keys(self):
         keygen = os.path.join(self.toolsdir, "GenerateConcordKeys")
-        args = [keygen, "-n", str(self.config.n), "-f", str(self.config.f), "-o",
-               self.config.key_file_prefix]
+        args = [keygen, "-n", str(self.config.n), "-f", str(self.config.f)]
+        if self.config.num_ro_replicas > 0:
+            args.extend(["-r", str(self.config.num_ro_replicas)])
+        args.extend(["-o", self.config.key_file_prefix])
         subprocess.run(args, check=True)
 
     async def _create_clients(self):
-        for client_id in range(self.config.n,
-                               self.config.num_clients+self.config.n):
+        for client_id in range(self.config.n + self.config.num_ro_replicas,
+                               self.config.num_clients+self.config.n + self.config.num_ro_replicas):
             config = self._bft_config(client_id)
             self.clients[client_id] = bft_client.UdpClient(config, self.replicas)
 
