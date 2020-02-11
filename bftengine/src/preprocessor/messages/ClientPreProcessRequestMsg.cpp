@@ -26,14 +26,6 @@ ClientPreProcessRequestMsg::ClientPreProcessRequestMsg(NodeIdType sender,
   msgBody_->msgType = MsgCode::ClientPreProcessRequest;
 }
 
-void ClientPreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
-  Assert(type() == MsgCode::ClientPreProcessRequest);
-  Assert(senderId() != repInfo.myId());
-
-  if (size() < sizeof(ClientRequestMsgHeader) || size() < (sizeof(ClientRequestMsgHeader) + msgBody()->requestLength))
-    throw std::runtime_error(__PRETTY_FUNCTION__);
-}
-
 unique_ptr<MessageBase> ClientPreProcessRequestMsg::convertToClientRequestMsg() {
   msgBody_->msgType = MsgCode::ClientRequest;
   return unique_ptr<MessageBase>((MessageBase*)this);

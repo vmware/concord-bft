@@ -41,8 +41,8 @@ void RequestProcessingInfo::handlePreProcessReplyMsg(PreProcessReplyMsgSharedPtr
   preProcessingResultHashes_[convertToArray(preProcessReplyMsg->resultsHash())]++;  // Count equal hashes
 }
 
-HashArray RequestProcessingInfo::convertToArray(const uint8_t resultsHash[SHA3_256::SIZE_IN_BYTES]) {
-  HashArray hashArray;
+SHA3_256::Digest RequestProcessingInfo::convertToArray(const uint8_t resultsHash[SHA3_256::SIZE_IN_BYTES]) {
+  SHA3_256::Digest hashArray;
   for (uint64_t i = 0; i < SHA3_256::SIZE_IN_BYTES; i++) hashArray[i] = resultsHash[i];
   return hashArray;
 }
