@@ -22,7 +22,6 @@ namespace preprocessor {
 // This class collects and stores data relevant to the processing of one specific client request by all replicas.
 
 typedef enum { CONTINUE, COMPLETE, CANCEL, RETRY_PRIMARY } PreProcessingResult;
-typedef std::array<uint8_t, concord::util::SHA3_256::SIZE_IN_BYTES> HashArray;
 
 class RequestProcessingInfo {
  public:
@@ -40,7 +39,7 @@ class RequestProcessingInfo {
   uint32_t getMyPreProcessedResultLen() const { return myPreProcessResultLen_; }
 
  private:
-  static HashArray convertToArray(const uint8_t resultsHash[concord::util::SHA3_256::SIZE_IN_BYTES]);
+  static concord::util::SHA3_256::Digest convertToArray(const uint8_t resultsHash[concord::util::SHA3_256::SIZE_IN_BYTES]);
 
  private:
   static uint16_t numOfRequiredEqualReplies_;
@@ -51,8 +50,8 @@ class RequestProcessingInfo {
   uint16_t numOfReceivedReplies_ = 0;
   const char* myPreProcessResult_ = nullptr;
   uint32_t myPreProcessResultLen_ = 0;
-  HashArray myPreProcessResultHash_;
-  std::map<HashArray, int> preProcessingResultHashes_;  // Maps result hash to the number of equal hashes
+  concord::util::SHA3_256::Digest myPreProcessResultHash_;
+  std::map<concord::util::SHA3_256::Digest, int> preProcessingResultHashes_;  // Maps result hash to the number of equal hashes
 };
 
 typedef std::unique_ptr<RequestProcessingInfo> RequestProcessingInfoUniquePtr;

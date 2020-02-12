@@ -23,7 +23,6 @@ class ClientPreProcessRequestMsg : public ClientRequestMsg {
  public:
   ClientPreProcessRequestMsg(NodeIdType sender, uint64_t reqSeqNum, uint32_t requestLength, const char* request);
 
-  void validate(const bftEngine::impl::ReplicasInfo&) const override;
   std::unique_ptr<MessageBase> convertToClientRequestMsg();
 };
 

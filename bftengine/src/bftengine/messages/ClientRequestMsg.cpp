@@ -60,7 +60,8 @@ void ClientRequestMsg::set(ReqId reqSeqNum, uint32_t requestLength, uint8_t flag
 bool ClientRequestMsg::isReadOnly() const { return (msgBody()->flags & READ_ONLY_REQ) != 0; }
 
 void ClientRequestMsg::validate(const ReplicasInfo& repInfo) const {
-  if (size() < (sizeof(ClientRequestMsgHeader) + msgBody()->requestLength))
+  Assert(senderId() != repInfo.myId());
+  if (size() < sizeof(ClientRequestMsgHeader) || size() < (sizeof(ClientRequestMsgHeader) + msgBody()->requestLength))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
