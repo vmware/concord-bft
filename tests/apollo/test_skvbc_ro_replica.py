@@ -49,8 +49,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
 
 ####################################################################################################################### 
     @with_trio
-    @with_bft_network(start_replica_cmd=start_replica_cmd,
-                      explicit_config=[{'n': 4, 'f': 1, 'c': 0, 'num_clients': 1, 'num_ro_replicas': 1}])
+    @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1)
     @verify_linearizability
     async def test_ro_replica_start_with_delay(self, bft_network, tracker):
         """
@@ -60,7 +59,6 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         Wait for State Transfer in ReadOnlyReplica to complete.
         """
         [bft_network.start_replica(i) for i in range(0, bft_network.config.n)]
-        
         with trio.fail_after(60):  # seconds
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(tracker.send_indefinite_tracked_ops)
@@ -76,21 +74,20 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                             nursery.cancel_scope.cancel()
         
         # start the read-only replica
-        bft_network.start_replica(4)
+        ro_replica_id = bft_network.config.n
+        bft_network.start_replica(ro_replica_id)
         with trio.fail_after(60):  # seconds
                 while True:
                     with trio.move_on_after(.5):  # seconds
                         key = ['replica', 'Gauges', 'lastExecutedSeqNum']
-                        replica_id = 4
-                        lastExecutedSeqNum = await bft_network.metrics.get(replica_id, *key)
+                        lastExecutedSeqNum = await bft_network.metrics.get(ro_replica_id, *key)
                         # success!
                         if lastExecutedSeqNum >= 150:
-                            print("Replica 4: lastExecutedSeqNum:" + str(lastExecutedSeqNum))
+                            print("Replica " + str(ro_replica_id) + ": lastExecutedSeqNum:" + str(lastExecutedSeqNum))
                             break
 ####################################################################################################################### 
     @with_trio
-    @with_bft_network(start_replica_cmd=start_replica_cmd,
-                      explicit_config=[{'n': 4, 'f': 1, 'c': 0, 'num_clients': 1, 'num_ro_replicas': 1}])
+    @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1)
     @verify_linearizability
     async def test_ro_replica_start_simultaneously (self, bft_network, tracker):
         """
@@ -101,7 +98,8 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         """
         [bft_network.start_replica(i) for i in range(0, bft_network.config.n)]
         # start the read-only replica
-        bft_network.start_replica(4)
+        ro_replica_id = bft_network.config.n
+        bft_network.start_replica(ro_replica_id)
              
         with trio.fail_after(60):  # seconds
             async with trio.open_nursery() as nursery:
@@ -110,10 +108,9 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                 while True:
                     with trio.move_on_after(.5):  # seconds
                         key = ['replica', 'Gauges', 'lastExecutedSeqNum']
-                        replica_id = 4
-                        lastExecutedSeqNum = await bft_network.metrics.get(replica_id, *key)
+                        lastExecutedSeqNum = await bft_network.metrics.get(ro_replica_id, *key)
                         # success!
                         if lastExecutedSeqNum >= 150:
-                            print("Replica 4: lastExecutedSeqNum:" + str(lastExecutedSeqNum))
+                            print("Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
                             nursery.cancel_scope.cancel()          
                 

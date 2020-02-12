@@ -47,9 +47,7 @@ TestConfig = namedtuple('TestConfig', [
 KEY_FILE_PREFIX = "replica_keys_"
 
 
-def interesting_configs(selected=None, explicit_config=None):
-    if explicit_config is not None:
-        return explicit_config
+def interesting_configs(selected=None):
     if selected is None:
         selected=lambda *config: True
 
@@ -82,17 +80,14 @@ def with_trio(async_fn):
     return trio_wrapper
 
 
-def with_bft_network(start_replica_cmd, selected_configs=None, explicit_config=None):
+def with_bft_network(start_replica_cmd, selected_configs=None, num_ro_replicas=0):
     """
     Runs the decorated async function for all selected BFT configs
     """
     def decorator(async_fn):
         @wraps(async_fn)
         async def wrapper(*args, **kwargs):
-            for bft_config in interesting_configs(selected_configs, explicit_config):
-                num_ro_replicas = 0  
-                if 'num_ro_replicas' in bft_config:
-                    num_ro_replicas = bft_config['num_ro_replicas']
+            for bft_config in interesting_configs(selected_configs):
                        
                 config = TestConfig(n=bft_config['n'],
                                     f=bft_config['f'],
