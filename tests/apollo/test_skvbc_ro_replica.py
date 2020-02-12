@@ -58,7 +58,9 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         Start read-only replica.
         Wait for State Transfer in ReadOnlyReplica to complete.
         """
-        [bft_network.start_replica(i) for i in range(0, bft_network.config.n)]
+        bft_network.start_all_replicas()
+        # TODO replace the below function with the library function:
+        # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), checkpoint_num=1)
         with trio.fail_after(60):  # seconds
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(tracker.send_indefinite_tracked_ops)
@@ -67,24 +69,23 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                         key = ['replica', 'Gauges', 'lastStableSeqNum']
                         replica_id = 0
                         lastStableSeqNum = await bft_network.metrics.get(replica_id, *key)
-                        
+
                         if lastStableSeqNum >= 150:
                             #enough requests
                             print("Consensus: lastStableSeqNum:" + str(lastStableSeqNum))  
                             nursery.cancel_scope.cancel()
-        
         # start the read-only replica
         ro_replica_id = bft_network.config.n
         bft_network.start_replica(ro_replica_id)
         with trio.fail_after(60):  # seconds
-                while True:
-                    with trio.move_on_after(.5):  # seconds
-                        key = ['replica', 'Gauges', 'lastExecutedSeqNum']
-                        lastExecutedSeqNum = await bft_network.metrics.get(ro_replica_id, *key)
-                        # success!
-                        if lastExecutedSeqNum >= 150:
-                            print("Replica " + str(ro_replica_id) + ": lastExecutedSeqNum:" + str(lastExecutedSeqNum))
-                            break
+            while True:
+                with trio.move_on_after(.5):  # seconds
+                    key = ['replica', 'Gauges', 'lastExecutedSeqNum']
+                    lastExecutedSeqNum = await bft_network.metrics.get(ro_replica_id, *key)
+                    # success!
+                    if lastExecutedSeqNum >= 150:
+                        print("Replica " + str(ro_replica_id) + ": lastExecutedSeqNum:" + str(lastExecutedSeqNum))
+                        break
 ####################################################################################################################### 
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1)
@@ -96,14 +97,14 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         Send client commands.
         Wait for State Transfer in ReadOnlyReplica to complete.
         """
-        [bft_network.start_replica(i) for i in range(0, bft_network.config.n)]
+        bft_network.start_all_replicas()
         # start the read-only replica
         ro_replica_id = bft_network.config.n
         bft_network.start_replica(ro_replica_id)
-             
+        # TODO replace the below function with the library function:
+        # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), checkpoint_num=1)     
         with trio.fail_after(60):  # seconds
             async with trio.open_nursery() as nursery:
-                #nursery.start_soon(self._wait_for_state_transfer_to_complete, bft_network, 150)
                 nursery.start_soon(tracker.send_indefinite_tracked_ops)
                 while True:
                     with trio.move_on_after(.5):  # seconds
