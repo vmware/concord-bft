@@ -1500,7 +1500,7 @@ void BCStateTran::setVBlockInCache(const DescOfVBlockForResPages &desc, char *vB
 
   Assert(p == cacheOfVirtualBlockForResPages.end());
 
-  if (cacheOfVirtualBlockForResPages.size() > kMaxVBlocksInCache) {
+  if (cacheOfVirtualBlockForResPages.size() == kMaxVBlocksInCache) {
     auto minItem = cacheOfVirtualBlockForResPages.begin();
     std::free(minItem->second);
     cacheOfVirtualBlockForResPages.erase(minItem);
