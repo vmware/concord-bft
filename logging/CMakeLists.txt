@@ -49,9 +49,6 @@ else()
   #  LOG4CPLUS_DEFINITIONS  - Compiler switches required for using log4cplus
 
   if(USE_LOG4CPP)
-    set_property(DIRECTORY ${current_dir} APPEND PROPERTY LINK_LIBRARIES      CONAN_PKG::log4cplus)
-    set_property(DIRECTORY ${current_dir} APPEND PROPERTY COMPILE_DEFINITIONS USE_LOG4CPP)
-
     message(STATUS "USE_LOG4CPP")
     # First try pkg-config piggybacking
     find_package(PkgConfig)
