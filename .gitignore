@@ -19,3 +19,6 @@ compile_commands.json
 
 # clangd directory
 .clangd/
+
+# Apollo test output
+*/apollo/Testing/*

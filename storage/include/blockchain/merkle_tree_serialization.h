@@ -269,7 +269,7 @@ inline sparse_merkle::BatchedInternalNode deserialize<sparse_merkle::BatchedInte
   }
 
   Assert(buf.length() >= sizeof(BatchedInternalMaskType));
-  sparse_merkle::BatchedInternalNode::ChildrenContainer children;
+  sparse_merkle::BatchedInternalNode::Children children;
   const auto mask = concordUtils::fromBigEndianBuffer<BatchedInternalMaskType>(buf.data());
   auto childrenBuf =
       concordUtils::Sliver{buf, sizeof(BatchedInternalMaskType), buf.length() - sizeof(BatchedInternalMaskType)};

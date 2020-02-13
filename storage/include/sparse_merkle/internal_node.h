@@ -50,6 +50,9 @@ BatchedInternalNode and their corresponding header comments.
 // in a BatchedInternalNode, although there will not be any children below it.
 struct LeafChild {
   static constexpr auto SIZE_IN_BYTES = Hash::SIZE_IN_BYTES + LeafKey::SIZE_IN_BYTES;
+  std::string toString() const {
+    return std::string("LeafChild {hash=") + hash.toString() + ", key = " + key.toString() + "}";
+  }
   bool operator==(const LeafChild& other) const { return hash == other.hash && key == other.key; }
   // The hash of the value blob stored at `key`
   Hash hash;
@@ -60,6 +63,9 @@ struct LeafChild {
 // will refer to another BatchedInternalNode if it resides at height 0.
 struct InternalChild {
   static constexpr auto SIZE_IN_BYTES = Hash::SIZE_IN_BYTES + Version::SIZE_IN_BYTES;
+  std::string toString() const {
+    return std::string("InternalChild {hash=") + hash.toString() + ", version= " + version.toString() + "}";
+  }
   bool operator==(const InternalChild& other) const { return hash == other.hash && version == other.version; }
   Hash hash;
   Version version;
@@ -136,7 +142,7 @@ typedef std::variant<LeafChild, InternalChild> Child;
 class BatchedInternalNode {
  public:
   static constexpr size_t MAX_CHILDREN = 31;
-  using ChildrenContainer = std::array<std::optional<Child>, MAX_CHILDREN>;
+  using Children = std::array<std::optional<Child>, MAX_CHILDREN>;
 
   // The leaf was inserted into this node successfully.
   //
@@ -196,12 +202,14 @@ class BatchedInternalNode {
   // In some cases where this value is returned there was one remaining child
   // that was a peer of the removed LeafChild and is able to be promoted to live
   // in the parent BatchedInternalNode. Return it so that the caller can move it
-  // to that node. Note that if this is the root most BatchedInternalNode, the caller will
-  // have to create a new node with this LeafChild. This does not have any
-  // overhead, as the caller must write updates to disk regardless of whether
-  // the node is a new node or a modified node.
+  // to that node.
   struct RemoveBatchedInternalNode {
+    RemoveBatchedInternalNode(Version removed_version) : removed_version(removed_version) {}
+    RemoveBatchedInternalNode(std::optional<LeafChild> promoted, Version removed_version)
+        : promoted(promoted), removed_version(removed_version) {}
+
     std::optional<LeafChild> promoted;
+    Version removed_version;
   };
 
   // A remove has failed, because the the leaf is further down the tree.
@@ -217,14 +225,20 @@ class BatchedInternalNode {
   BatchedInternalNode() = default;
 
   // Construct from the passed children container.
-  BatchedInternalNode(const ChildrenContainer& children) : children_{children} {}
+  BatchedInternalNode(const Children& children) : children_{children} {}
 
   // Insert a LeafChild into this internal node. Return a type indicating success or
   // failure that contains the necessary data for the caller (the sparse merkle
   // tree implementation) to do the right thing.
   //
   // `depth` represents how many nibbles down the sparse merkle tree this BatchedInternalNode is.
-  InsertResult insert(const LeafChild& child, size_t depth);
+  //
+  // We pass `current_version`, because we may want to insert an existing LeafChild
+  // that was promoted as a result of removal of BatchedInternalNodes below this
+  // one in the tree. The version of the LeafChild in this case is going to be
+  // an older version than the current version. However, we want the internal
+  // nodes, and the new root to have the current version.
+  InsertResult insert(const LeafChild& child, size_t depth, Version current_version);
 
   // Remove a LeafChild from this internal node. Return a type indicating to the
   // caller whether the key was successfully removed, and whether the caller
@@ -239,7 +253,12 @@ class BatchedInternalNode {
   //
   // This occurs when this InternalChild points to another BatchedInternalNode
   // down the tree, and that BatchedInternalNode was just updated.
-  void write_internal_child_at_level_0(Nibble child_key, const InternalChild& child);
+  void linkChild(Nibble child_key, const InternalChild& child);
+
+  // Remove a pointer to another BatchedInternalNode.
+  //
+  // This is called when the BatchedInternalNode further down the tree was removed.
+  std::optional<LeafChild> unlinkChild(Nibble child_key, Version version, const std::optional<LeafChild>& promoted);
 
   // Return the root hash of this node.
   const Hash& hash() const { return getHash(0); }
@@ -257,10 +276,22 @@ class BatchedInternalNode {
   size_t numLeafChildren() const;
 
   // Return the internal children container.
-  const ChildrenContainer& children() const { return children_; }
+  const Children& children() const { return children_; }
 
   // Return true if this node is identical to the other one and false otherwise.
   bool operator==(const BatchedInternalNode& other) const { return children_ == other.children_; }
+
+  // Take a nibble representing the logical location a child at height 0 in a
+  // BatchedInternalNode and return the index of that child in `children_`.
+  //
+  // This should only be used outside of this class during testing.
+  size_t nibbleToIndex(Nibble nibble) const;
+
+  // Return true if there are no linked children (InternalChild at level 0) and no leaf children.
+  bool safeToRemove() const;
+
+  // Return a string representation useful for debugging
+  std::string toString() const;
 
  private:
   // A LeafChild collission has occurred. We need to create new InternalChild nodes so
@@ -297,7 +328,13 @@ class BatchedInternalNode {
   //
   // Return InsertComplete if the node was empty.
   // Otherwise return std::nullopt.
-  std::optional<InsertResult> insertIntoEmptyChild(size_t index, const LeafChild& child);
+  //
+  // We pass the version because we may want to insert an existing LeafChild
+  // that was promoted as a result of removal of BatchedInternalNodes below this
+  // one in the tree. The version of the LeafChild in this case is going to be
+  // an older version than the current version. However, we want the internal
+  // nodes, and the new root to have the current version.
+  std::optional<InsertResult> insertIntoEmptyChild(size_t index, const LeafChild& child, Version current_version);
 
   // Attempt to overwrite a matching key at index.
   //
@@ -323,10 +360,6 @@ class BatchedInternalNode {
   //
   // Update the hashes and versions of nodes along the way.
   void updateHashes(size_t index, Version version);
-
-  // Take a nibble representing the logical location a child at height 0 in a
-  // BatchedInternalNode and return the index of that child in `children_`.
-  size_t nibble_to_index(Nibble nibble);
 
   // Return the the height of the node at the given index.
   //
@@ -366,9 +399,12 @@ class BatchedInternalNode {
   // Is this node a left child?
   bool isLeftChild(size_t index) const { return index % 2 != 0; }
 
+  // The number of children at level 0 of the 4 level tree in this BatchedInternalNode
+  size_t numLevel0Children() const;
+
   // All internal and leaf nodes are stored in this array, starting from the
   // root and proceeding level by level from left to right.
-  ChildrenContainer children_;
+  Children children_;
 };
 
 }  // namespace sparse_merkle

@@ -58,10 +58,11 @@ TEST(insert_tests, insert_single_leaf_node) {
   const char* key1 = "artist";
   const char* value1 = "REM";
   size_t depth = 0;
+  auto version = Version(1);
 
   auto key1_hash = hasher.hash(key1, strlen(key1));
   auto value1_hash = hasher.hash(value1, strlen(value1));
-  auto leaf_key1 = LeafKey(key1_hash, Version(1));
+  auto leaf_key1 = LeafKey(key1_hash, version);
   auto child = LeafChild{value1_hash, leaf_key1};
 
   // The key of this child in the 4-level BatchedInternalNode tree.
@@ -69,7 +70,7 @@ TEST(insert_tests, insert_single_leaf_node) {
 
   // A node was successfully inserted. Since it didn't overwrite another node
   // there is not a stale leaf.
-  auto result = node.insert(child, depth);
+  auto result = node.insert(child, depth, version);
   ASSERT_TRUE(std::holds_alternative<BatchedInternalNode::InsertComplete>(result));
   auto successful_insert = std::get<BatchedInternalNode::InsertComplete>(result);
   ASSERT_FALSE(successful_insert.stale_leaf.has_value());
@@ -80,7 +81,7 @@ TEST(insert_tests, insert_single_leaf_node) {
   ASSERT_EQ(1, node.numLeafChildren());
 
   // The version should be 1.
-  ASSERT_EQ(Version(1), node.version());
+  ASSERT_EQ(version, node.version());
 
   Hash parent_hash;
   if (child_key.getBit(3)) {
@@ -121,8 +122,8 @@ TEST(insert_tests, overwrite_single_leaf_node) {
   // The key of this child in the 4-level BatchedInternalNode tree.
   Nibble child_key = key1_hash.getNibble(depth);
 
-  auto result = node.insert(child1, depth);
-  result = node.insert(child2, depth);
+  auto result = node.insert(child1, depth, Version(1));
+  result = node.insert(child2, depth, Version(2));
 
   // The second child overwrote the first, thus returning the key of the first
   // in stale_leaf. No new nodes were generated, since there was no partial
@@ -186,8 +187,8 @@ TEST(insert_tests, create_two_leaves_with_one_parent) {
   // The key of the first child in the 4-level BatchedInternalNode tree.
   Nibble child1_key = key1_hash.getNibble(depth);
 
-  auto result = node.insert(child1, depth);
-  result = node.insert(child2, depth);
+  auto result = node.insert(child1, depth, Version(1));
+  result = node.insert(child2, depth, Version(2));
 
   // No nodes were overwritten and no new BatchedInternalNodes created
   ASSERT_TRUE(std::holds_alternative<BatchedInternalNode::InsertComplete>(result));
@@ -251,8 +252,8 @@ TEST(insert_tests, split_leaf) {
   // The key of the first child in the 4-level BatchedInternalNode tree.
   Nibble child1_key = key1_hash.getNibble(depth);
 
-  auto result = node.insert(child1, depth);
-  result = node.insert(child2, depth);
+  auto result = node.insert(child1, depth, Version(1));
+  result = node.insert(child2, depth, Version(2));
 
   // No nodes were overwritten and no new BatchedInternalNodes created
   ASSERT_TRUE(std::holds_alternative<BatchedInternalNode::InsertComplete>(result));
@@ -340,8 +341,8 @@ TEST(insert_tests, split_until_new_batch_node_needed) {
   auto child1 = LeafChild{value1_hash, leaf_key1};
   auto child2 = LeafChild{value2_hash, leaf_key2};
 
-  auto result = node.insert(child1, depth);
-  result = node.insert(child2, depth);
+  auto result = node.insert(child1, depth, Version(1));
+  result = node.insert(child2, depth, Version(2));
 
   // A new BatchedInternalNode must be created.
   // The first 4 bits of the key of child1 and child2 matched, thus creating new
@@ -367,7 +368,7 @@ TEST(insert_tests, split_until_new_batch_node_needed) {
   // insert function, when the entire path is made up of InternalLeafs.
   //
   // We can test this by just re-inserting the same key.
-  result = node.insert(child2, depth);
+  result = node.insert(child2, depth, Version(2));
   ASSERT_TRUE(std::holds_alternative<BatchedInternalNode::InsertIntoExistingNode>(result));
   auto insert_result = std::get<BatchedInternalNode::InsertIntoExistingNode>(result);
   ASSERT_EQ(insert_result.next_node_version, Version(2));
@@ -403,7 +404,7 @@ TEST(remove_tests, remove_a_single_leaf) {
 
   // A node was successfully inserted. Since it didn't overwrite another node
   // there is not a stale leaf.
-  auto result = node.insert(child, depth);
+  auto result = node.insert(child, depth, version);
   ASSERT_TRUE(std::holds_alternative<BatchedInternalNode::InsertComplete>(result));
 
   // Attempting to remove a key that doesn't exist should return NotFound
@@ -469,8 +470,8 @@ TEST(remove_tests, remove_a_leaf_with_a_peer_second_node) {
   auto child1 = LeafChild{value1_hash, leaf_key1};
   auto child2 = LeafChild{value2_hash, leaf_key2};
 
-  node.insert(child1, depth);
-  node.insert(child2, depth);
+  node.insert(child1, depth, Version(1));
+  node.insert(child2, depth, Version(2));
 
   // There should be one root and two leaves
   ASSERT_EQ(3, node.numChildren());
@@ -529,8 +530,8 @@ TEST(remove_tests, remove_a_leaf_with_a_peer_root_node) {
   auto child1 = LeafChild{value1_hash, leaf_key1};
   auto child2 = LeafChild{value2_hash, leaf_key2};
 
-  node.insert(child1, depth);
-  node.insert(child2, depth);
+  node.insert(child1, depth, Version(1));
+  node.insert(child2, depth, Version(2));
 
   // There should be one root and two leaves
   ASSERT_EQ(3, node.numChildren());
@@ -607,9 +608,9 @@ TEST(remove_tests, remove_a_leaf_with_a_leaf_peer_from__batched_internal_node_wi
   auto child2 = LeafChild{value2_hash, leaf_key2};
   auto child3 = LeafChild{value3_hash, leaf_key3};
 
-  node.insert(child1, depth);
-  node.insert(child2, depth);
-  node.insert(child3, depth);
+  node.insert(child1, depth, Version(1));
+  node.insert(child2, depth, Version(2));
+  node.insert(child3, depth, Version(3));
 
   ASSERT_EQ(5, node.numChildren());
   ASSERT_EQ(2, node.numInternalChildren());
@@ -692,9 +693,9 @@ TEST(remove_tests, remove_a_leaf_with_internal_peer_from_batched_internal_node_w
   auto child2 = LeafChild{value2_hash, leaf_key2};
   auto child3 = LeafChild{value3_hash, leaf_key3};
 
-  node.insert(child1, depth);
-  node.insert(child2, depth);
-  node.insert(child3, depth);
+  node.insert(child1, depth, Version(1));
+  node.insert(child2, depth, Version(2));
+  node.insert(child3, depth, Version(3));
 
   ASSERT_EQ(5, node.numChildren());
   ASSERT_EQ(2, node.numInternalChildren());
@@ -776,9 +777,9 @@ TEST(remove_tests, remove_a_leaf_at_depth_3_with_a_leaf_peer_and_another_peer_at
   auto child2 = LeafChild{value2_hash, leaf_key2};
   auto child3 = LeafChild{value3_hash, leaf_key3};
 
-  node.insert(child1, depth);
-  node.insert(child2, depth);
-  node.insert(child3, depth);
+  node.insert(child1, depth, Version(1));
+  node.insert(child2, depth, Version(2));
+  node.insert(child3, depth, Version(3));
 
   ASSERT_EQ(6, node.numChildren());
   ASSERT_EQ(3, node.numInternalChildren());
@@ -847,8 +848,8 @@ TEST(remove_tests, remove_a_leaf_at_depth_3_with_a_leaf_peer_and_no_other_leaves
   auto child1 = LeafChild{value1_hash, leaf_key1};
   auto child3 = LeafChild{value3_hash, leaf_key3};
 
-  node.insert(child1, depth);
-  node.insert(child3, depth);
+  node.insert(child1, depth, Version(1));
+  node.insert(child3, depth, Version(3));
 
   ASSERT_EQ(5, node.numChildren());
   ASSERT_EQ(3, node.numInternalChildren());
@@ -918,8 +919,8 @@ TEST(remove_tests, remove_a_mismatched_leaf_at_depth_4) {
   auto child1 = LeafChild{value1_hash, leaf_key1};
   auto child3 = LeafChild{value3_hash, leaf_key3};
 
-  node.insert(child1, depth);
-  node.insert(child3, depth);
+  node.insert(child1, depth, Version(1));
+  node.insert(child3, depth, Version(3));
 
   ASSERT_EQ(6, node.numChildren());
   ASSERT_EQ(4, node.numInternalChildren());
@@ -986,8 +987,8 @@ TEST(remove_tests, descend_because_requested_node_is_internal) {
   auto child1 = LeafChild{value1_hash, leaf_key1};
   auto child2 = LeafChild{value2_hash, leaf_key2};
 
-  node.insert(child1, depth);
-  node.insert(child2, depth);
+  node.insert(child1, depth, Version(1));
+  node.insert(child2, depth, Version(2));
 
   ASSERT_EQ(5, node.numChildren());
   ASSERT_EQ(5, node.numInternalChildren());

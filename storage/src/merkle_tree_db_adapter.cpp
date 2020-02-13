@@ -8,6 +8,7 @@
 #include "blockchain/merkle_tree_serialization.h"
 #include "endianness.hpp"
 #include "Logger.hpp"
+#include "sparse_merkle/update_batch.h"
 #include "sparse_merkle/base_types.h"
 #include "sparse_merkle/keys.h"
 #include "sliver.hpp"
@@ -51,7 +52,7 @@ using namespace detail;
 constexpr auto MAX_BLOCK_ID = std::numeric_limits<BlockId>::max();
 
 // Converts the updates as returned by the merkle tree to key/value pairs suitable for the DB.
-SetOfKeyValuePairs batchToDbUpdates(const Tree::UpdateBatch &batch) {
+SetOfKeyValuePairs batchToDbUpdates(const sparse_merkle::UpdateBatch &batch) {
   SetOfKeyValuePairs updates;
   const Sliver emptySliver;
 
