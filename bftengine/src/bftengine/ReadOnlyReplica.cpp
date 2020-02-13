@@ -29,10 +29,10 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
                                  std::shared_ptr<MsgHandlersRegistrator> msgHandlerReg)
     : ReplicaForStateTransfer(config, stateTransfer, msgComm, msgHandlerReg, true),
       ps_(persistentStorage),
-      ro_metrics_{metrics_.RegisterCounter("received_checkpoint_msg"),
-                  metrics_.RegisterCounter("sent_ask_for_checkpoint_msg"),
-                  metrics_.RegisterCounter("received_invalid_msg"),
-                  metrics_.RegisterGauge("last_executed_seq_num", lastExecutedSeqNum)} {
+      ro_metrics_{metrics_.RegisterCounter("receivedCheckpointMsgs"),
+                  metrics_.RegisterCounter("sentAskForCheckpointMsgs"),
+                  metrics_.RegisterCounter("receivedInvalidMsgs"),
+                  metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)} {
   repsInfo = new ReplicasInfo(config, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
   msgHandlers_->registerMsgHandler(MsgCode::Checkpoint,
                                    bind(&ReadOnlyReplica::messageHandler<CheckpointMsg>, this, std::placeholders::_1));

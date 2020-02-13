@@ -26,4 +26,8 @@ if (BUILD_ROCKSDB_STORAGE)
     add_test(NAME skvbc_persistence_tests COMMAND sh -c
             "python3 -m unittest test_skvbc_persistence 2>&1 > /dev/null"
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-endif()
+            
+add_test(NAME skvbc_ro_replica_tests COMMAND sh -c
+        "python3 -m unittest test_skvbc_ro_replica 2>&1 > /dev/null"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+endif()   
