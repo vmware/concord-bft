@@ -1,40 +1,22 @@
 // Copyright 2020 VMware, all rights reserved
 
 #include <assertUtils.hpp>
+#include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 #include "blockchain/db_types.h"
+#include "blockchain/merkle_tree_block.h"
 #include "blockchain/merkle_tree_db_adapter.h"
+#include "blockchain/merkle_tree_serialization.h"
+#include "endianness.hpp"
 #include "Logger.hpp"
 #include "sparse_merkle/base_types.h"
+#include "sparse_merkle/keys.h"
 #include "sliver.hpp"
 #include "status.hpp"
-#include "endianness.hpp"
 
 #include <exception>
-#include <iterator>
 #include <limits>
-#include <string>
-#include <type_traits>
-#include <vector>
+#include <memory>
 #include <utility>
-
-using concordUtils::Sliver;
-using concordUtils::Status;
-
-using concord::storage::blockchain::v2MerkleTree::detail::EDBKeyType;
-using concord::storage::blockchain::v2MerkleTree::detail::EKeySubtype;
-using concord::storage::blockchain::v2MerkleTree::detail::EBFTSubtype;
-
-using concord::storage::sparse_merkle::BatchedInternalNode;
-using concord::storage::sparse_merkle::Hash;
-using concord::storage::sparse_merkle::Hasher;
-using concord::storage::sparse_merkle::IDBReader;
-using concord::storage::sparse_merkle::InternalChild;
-using concord::storage::sparse_merkle::InternalNodeKey;
-using concord::storage::sparse_merkle::LeafNode;
-using concord::storage::sparse_merkle::LeafKey;
-using concord::storage::sparse_merkle::LeafChild;
-using concord::storage::sparse_merkle::NibblePath;
-using concord::storage::sparse_merkle::Tree;
 
 namespace concord {
 namespace storage {
@@ -44,115 +26,30 @@ namespace v2MerkleTree {
 
 namespace {
 
-// Specifies the key type. Used when serializing the stale node index.
-enum class StaleKeyType : std::uint8_t {
-  Internal,
-  Leaf,
-};
+using BlockNode = block::detail::Node;
+using BlockKeyData = block::detail::KeyData;
 
-// Specifies the child type. Used when serializing BatchedInternalNode objects.
-enum class BatchedInternalNodeChildType : std::uint8_t { Internal, Leaf };
+using ::concordUtils::Key;
+using ::concordUtils::netToHost;
+using ::concordUtils::Sliver;
+using ::concordUtils::Status;
 
-template <typename E>
-constexpr auto toChar(E e) {
-  static_assert(std::is_enum_v<E>);
-  return static_cast<char>(e);
-}
+using ::bftEngine::SimpleBlockchainStateTransfer::computeBlockDigest;
+using ::bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest;
 
-// Serialize integral types in big-endian (network) byte order so that lexicographical comparison works and we can get
-// away without a custom key comparator. Do not allow bools.
-template <typename T>
-std::string serializeImp(T v) {
-  static_assert(std::is_integral_v<T> && !std::is_same_v<T, bool>);
+using sparse_merkle::BatchedInternalNode;
+using sparse_merkle::Hash;
+using sparse_merkle::Hasher;
+using sparse_merkle::InternalNodeKey;
+using sparse_merkle::LeafNode;
+using sparse_merkle::LeafKey;
+using sparse_merkle::Tree;
+using sparse_merkle::Version;
 
-  v = concordUtils::hostToNet(v);
-
-  const auto data = reinterpret_cast<const char *>(&v);
-  return std::string{data, sizeof(v)};
-}
-
-std::string serializeImp(EDBKeyType type) { return std::string{toChar(type)}; }
-
-std::string serializeImp(EKeySubtype type) { return std::string{toChar(EDBKeyType::Key), toChar(type)}; }
-
-std::string serializeImp(EBFTSubtype type) { return std::string{toChar(EDBKeyType::BFT), toChar(type)}; }
-
-std::string serializeImp(StaleKeyType type) { return std::string{toChar(type)}; }
-
-std::string serializeImp(const std::vector<std::uint8_t> &v) { return std::string{std::cbegin(v), std::cend(v)}; }
-
-std::string serializeImp(const NibblePath &path) {
-  return serializeImp(static_cast<std::uint8_t>(path.length())) + serializeImp(path.data());
-}
-
-std::string serializeImp(const Hash &hash) {
-  return std::string{reinterpret_cast<const char *>(hash.data()), hash.size()};
-}
-
-std::string serializeImp(const InternalNodeKey &key) {
-  return serializeImp(key.version().value()) + serializeImp(key.path());
-}
-
-std::string serializeImp(const LeafKey &key) { return serializeImp(key.hash()) + serializeImp(key.version().value()); }
-
-std::string serializeImp(const LeafChild &child) { return serializeImp(child.hash) + serializeImp(child.key); }
-
-std::string serializeImp(const InternalChild &child) {
-  return serializeImp(child.hash) + serializeImp(child.version.value());
-}
-
-std::string serializeImp(const BatchedInternalNode &intNode) {
-  static_assert(BatchedInternalNode::MAX_CHILDREN < 32);
-
-  struct Visitor {
-    Visitor(std::string &buf) : buf_{buf} {}
-
-    void operator()(const LeafChild &leaf) { buf_ += toChar(BatchedInternalNodeChildType::Leaf) + serializeImp(leaf); }
-
-    void operator()(const InternalChild &internal) {
-      buf_ += toChar(BatchedInternalNodeChildType::Internal) + serializeImp(internal);
-    }
-
-    std::string &buf_;
-  };
-
-  const auto &children = intNode.children();
-  std::string serializedChildren;
-  auto mask = std::uint32_t{0};
-  for (auto i = 0u; i < children.size(); ++i) {
-    const auto &child = children[i];
-    if (child) {
-      mask |= (1 << i);
-      std::visit(Visitor{serializedChildren}, *child);
-    }
-  }
-
-  // Serialize by putting a 32 bit bitmask specifying which indexes are set in the children array. Then, put a type
-  // before each child and then the child itself.
-  return serializeImp(mask) + serializedChildren;
-}
-
-std::string serializeImp(const LeafNode &leafNode) { return leafNode.value.toString(); }
-
-std::string serialize() { return std::string{}; }
-
-template <typename T1, typename... T>
-std::string serialize(const T1 &v1, const T &... v) {
-  return serializeImp(v1) + serialize(v...);
-}
-
-template <typename T>
-T deserialize(const Sliver &buf);
-
-template <>
-BatchedInternalNode deserialize<BatchedInternalNode>(const Sliver &buf) {
-  BatchedInternalNode::ChildrenContainer children;
-  // TODO: deserialize
-  return BatchedInternalNode{children};
-}
+using namespace detail;
 
 // Converts the updates as returned by the merkle tree to key/value pairs suitable for the DB.
-SetOfKeyValuePairs batchToDBUpdates(const Tree::UpdateBatch &batch) {
+SetOfKeyValuePairs batchToDbUpdates(const Tree::UpdateBatch &batch) {
   SetOfKeyValuePairs updates;
   const Sliver emptySliver;
 
@@ -171,13 +68,13 @@ SetOfKeyValuePairs batchToDBUpdates(const Tree::UpdateBatch &batch) {
   // Internal nodes.
   for (const auto &[intKey, intNode] : batch.internal_nodes) {
     const auto key = DBKeyManipulator::genInternalDbKey(intKey);
-    updates[key] = serializeImp(intNode);
+    updates[key] = serialize(intNode);
   }
 
   // Leaf nodes.
   for (const auto &[leafKey, leafNode] : batch.leaf_nodes) {
     const auto key = DBKeyManipulator::genDataDbKey(leafKey);
-    updates[key] = serializeImp(leafNode);
+    updates[key] = leafNode.value;
   }
 
   return updates;
@@ -262,11 +159,11 @@ Sliver DBKeyManipulator::generateSTReservedPageDynamicKey(uint32_t pageId, uint6
   return serialize(EBFTSubtype::STReservedPageDynamic, pageId, chkpt);
 }
 
-BlockId DBKeyManipulator::extractBlockIdFromKey(const concordUtils::Key &key) {
+BlockId DBKeyManipulator::extractBlockIdFromKey(const Key &key) {
   Assert(key.length() > sizeof(BlockId));
 
   const auto offset = key.length() - sizeof(BlockId);
-  const auto id = concordUtils::netToHost(*reinterpret_cast<const BlockId *>(key.data() + offset));
+  const auto id = netToHost(*reinterpret_cast<const BlockId *>(key.data() + offset));
 
   LOG_TRACE(
       logger(),
@@ -278,8 +175,8 @@ DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db, bool readOnly)
     : DBAdapterBase{db, readOnly}, smTree_{std::make_shared<Reader>(*this)} {}
 
 Status DBAdapter::getKeyByReadVersion(BlockId version,
-                                      const concordUtils::Sliver &key,
-                                      concordUtils::Sliver &outValue,
+                                      const Sliver &key,
+                                      Sliver &outValue,
                                       BlockId &actualVersion) const {
   outValue = Sliver{};
   actualVersion = 0;
@@ -289,7 +186,7 @@ Status DBAdapter::getKeyByReadVersion(BlockId version,
   // Seek for a key that is greater than or equal to the requested one.
   const auto &[foundKey, foundValue] = iter->seekAtLeast(dbKey);
   if (iter->isEnd()) {
-    const auto &[prevKey, prevValue] = iter->previous();
+    const auto &[prevKey, prevValue] = iter->last();
     // Make sure we get Leaf keys only if there wasn't an exact match.
     if (!prevKey.empty() && getDBKeyType(prevKey) == EDBKeyType::Key && getKeySubtype(prevKey) == EKeySubtype::Leaf) {
       outValue = prevValue;
@@ -305,22 +202,113 @@ Status DBAdapter::getKeyByReadVersion(BlockId version,
 
 BlockId DBAdapter::getLatestBlock() const {
   // Generate maximal key for type 'BlockId'.
-  const auto key = DBAdapterBase::getLatestBlock(DBKeyManipulator::genBlockDbKey(std::numeric_limits<BlockId>::max()));
-  if (key.empty()) {  // no blocks
-    return 0;
+  const auto maxBlockKey = DBKeyManipulator::genBlockDbKey(std::numeric_limits<BlockId>::max());
+  auto iter = db_->getIteratorGuard();
+  auto foundKey = iter->seekAtLeast(maxBlockKey).first;
+  if (iter->isEnd()) {
+    // If there are no keys bigger than or equal to the maximal block key, use the last key in the whole range as it may
+    // be the actual latest block key. That will allow us to find the latest block even if there are no other bigger
+    // keys in the system. Please see db_types.h for key ordering.
+    foundKey = iter->last().first;
+  } else if (foundKey != maxBlockKey) {
+    // We have found a key that is greater - go back.
+    foundKey = iter->previous().first;
   }
 
-  const auto blockId = DBKeyManipulator::extractBlockIdFromKey(key);
-  LOG_TRACE(logger_, "Latest block ID " << blockId);
-  return blockId;
+  // Consider block keys only.
+  if (!foundKey.empty() && getDBKeyType(foundKey) == EDBKeyType::Block) {
+    const auto blockId = DBKeyManipulator::extractBlockIdFromKey(foundKey);
+    LOG_TRACE(logger_, "Latest block ID " << blockId);
+    return blockId;
+  }
+
+  // No blocks in the system.
+  return 0;
 }
 
-BatchedInternalNode DBAdapter::Reader::get_latest_root() const {
-  const auto latestVersion = adapter_.getLatestBlock();
-  if (latestVersion == 0) {
-    return BatchedInternalNode{};
+Sliver DBAdapter::createBlockNode(const SetOfKeyValuePairs &updates, BlockId blockId) const {
+  // Make sure the digest is zero-initialized by using {} initialization.
+  auto parentBlockDigest = StateTransferDigest{};
+  if (blockId > 1) {
+    auto found = false;
+    Sliver parentBlock;
+    const auto status = getBlockById(blockId - 1, parentBlock, found);
+    if (!status.isOK() || !found || parentBlock.empty()) {
+      LOG_FATAL(logger_, "createBlockNode: no block or block data for parent block ID " << blockId - 1);
+      std::exit(1);
+    }
+    computeBlockDigest(blockId - 1, parentBlock.data(), parentBlock.length(), &parentBlockDigest);
   }
-  return get_internal(InternalNodeKey::root(latestVersion));
+
+  auto node = BlockNode{blockId, parentBlockDigest.content, smTree_.get_root_hash()};
+  for (const auto &[k, v] : updates) {
+    // Treat empty values as deleted keys.
+    node.keys.emplace(k, BlockKeyData{v.empty()});
+  }
+  return block::detail::createNode(node);
+}
+
+Status DBAdapter::getBlockById(BlockId blockId, Sliver &block, bool &found) const {
+  const auto blockKey = DBKeyManipulator::genBlockDbKey(blockId);
+
+  Sliver blockNodeSliver;
+  if (const auto status = db_->get(blockKey, blockNodeSliver); status.isNotFound()) {
+    found = false;
+    return Status::OK();
+  } else if (!status.isOK()) {
+    return status;
+  }
+
+  const auto blockNode = block::detail::parseNode(blockNodeSliver);
+  Assert(blockId == blockNode.blockId);
+
+  SetOfKeyValuePairs keyValues;
+  for (const auto &[key, keyData] : blockNode.keys) {
+    if (!keyData.deleted) {
+      Sliver value;
+      if (const auto status = db_->get(DBKeyManipulator::genDataDbKey(key, blockId), value); !status.isOK()) {
+        // If the key is not found, treat as corrupted storage and abort.
+        Assert(!status.isNotFound());
+        return status;
+      }
+      keyValues[key] = value;
+    }
+  }
+
+  block = block::create(blockId, keyValues, blockNode.parentDigest.data(), blockNode.stateHash);
+  found = true;
+  return Status::OK();
+}
+
+// Reference: Key ordering is defined in db_types.h .
+BatchedInternalNode DBAdapter::Reader::get_latest_root() const {
+  // Generate a root key with the maximal possible version.
+  const auto maxRootKey = DBKeyManipulator::genInternalDbKey(InternalNodeKey::root(Version::max()));
+  auto iter = adapter_.getDb()->getIteratorGuard();
+
+  // Look for a key that is greater or equal to the maximal internal root key.
+  //
+  // Note: code below relies on the fact that root keys have empty nibble paths and, therefore, are always preceding
+  // other internal keys (as root keys will be shorter). Additionally, root keys will be orderd by their version.
+  auto foundKey = iter->seekAtLeast(maxRootKey).first;
+  if (iter->isEnd()) {
+    // If there are no keys bigger than or equal to the maximal internal root key, use the last key in the whole range
+    // as it may be the actual maximal internal root key. That will allow us to find the latest root even if there are
+    // no other bigger keys in the system. Please see db_types.h for key ordering.
+    foundKey = iter->last().first;
+  } else if (foundKey != maxRootKey) {
+    // We have found a key that is greater - go back.
+    foundKey = iter->previous().first;
+  }
+
+  // Consider internal keys only. If it is an internal key, it must be a root one as roots precede non-root ones.
+  if (!foundKey.empty() && getDBKeyType(foundKey) == EDBKeyType::Key &&
+      getKeySubtype(foundKey) == EKeySubtype::Internal) {
+    constexpr auto keyOffset = sizeof(EDBKeyType) + sizeof(EKeySubtype);
+    return get_internal(deserialize<InternalNodeKey>(Sliver{foundKey, keyOffset, foundKey.length() - keyOffset}));
+  }
+
+  return BatchedInternalNode{};
 }
 
 BatchedInternalNode DBAdapter::Reader::get_internal(const InternalNodeKey &key) const {
@@ -329,7 +317,6 @@ BatchedInternalNode DBAdapter::Reader::get_internal(const InternalNodeKey &key) 
   if (!status.isOK()) {
     throw std::runtime_error{"Failed to get the requested merkle tree internal node"};
   }
-
   return deserialize<BatchedInternalNode>(res);
 }
 
@@ -346,12 +333,12 @@ LeafNode DBAdapter::Reader::get_leaf(const LeafKey &key) const {
 
 Status DBAdapter::addBlock(const SetOfKeyValuePairs &updates, BlockId blockId) {
   const auto updateBatch = smTree_.update(updates);
-  auto dbUpdates = batchToDBUpdates(updateBatch);
 
-  // TODO: add a block with (at least) the following data:
-  //  - a list of keys (without values)
-  //  - parent block hash
-  //  - merkle tree root after applying the updates
+  // Key updates.
+  auto dbUpdates = batchToDbUpdates(updateBatch);
+
+  // Block key.
+  dbUpdates[DBKeyManipulator::genBlockDbKey(blockId)] = createBlockNode(updates, blockId);
 
   return db_->multiPut(dbUpdates);
 }

@@ -19,27 +19,6 @@ DBAdapterBase::DBAdapterBase(const std::shared_ptr<IDBClient> &db, bool readOnly
   db_->init(readOnly);
 }
 
-Key DBAdapterBase::getLatestBlock(const Sliver &maxKey) const {
-  // Note: RocksDB stores keys in a sorted fashion as per the logic provided in
-  // a custom comparator (for our case, refer to the `composedKeyComparison`
-  // method above). In short, keys of type 'block' are stored first followed by
-  // keys of type 'key'. All keys of type 'block' are sorted in ascending order
-  // of block ids.
-
-  auto iter = db_->getIterator();
-
-  // Since we use the maximal key, SeekAtLeast will take the iterator
-  // to one position beyond the key corresponding to the largest block id.
-  iter->seekAtLeast(maxKey);
-
-  // Read the previous key
-  const auto kv = iter->previous();
-
-  db_->freeIterator(iter);
-
-  return kv.first;
-}
-
 }  // namespace blockchain
 }  // namespace storage
 }  // namespace concord

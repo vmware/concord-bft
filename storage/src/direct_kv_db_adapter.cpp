@@ -943,8 +943,21 @@ Status DBAdapter::isEnd(IDBClient::IDBClientIterator *iter, OUT bool &_isEnd) {
  * @return Block ID of the latest block.
  */
 BlockId DBAdapter::getLatestBlock() const {
-  // Generate maximal key for type 'block'
-  const auto key = DBAdapterBase::getLatestBlock(DBKeyManipulator::genBlockDbKey(std::numeric_limits<BlockId>::max()));
+  // Note: RocksDB stores keys in a sorted fashion as per the logic provided in
+  // a custom comparator (for our case, refer to the `composedKeyComparison`
+  // method above). In short, keys of type 'block' are stored first followed by
+  // keys of type 'key'. All keys of type 'block' are sorted in ascending order
+  // of block ids.
+
+  // Generate maximal key for type 'block'.
+  const auto maxKey = DBKeyManipulator::genBlockDbKey(std::numeric_limits<BlockId>::max());
+  auto iter = db_->getIteratorGuard();
+  // Since we use the maximal key, SeekAtLeast will take the iterator
+  // to one position beyond the key corresponding to the largest block id.
+  iter->seekAtLeast(maxKey);
+
+  // Read the previous key.
+  const auto key = iter->previous().first;
   if (key.empty()) {  // no blocks
     return 0;
   }

@@ -58,10 +58,21 @@ class DBAdapter : public DBAdapterBase {
                              concordUtils::Sliver &outValue,
                              BlockId &actualVersion) const;
 
-  // Returns the latest block ID, i.e. the key with the biggest version (block ID).
+  // Returns the latest block ID, i.e. the key with the biggest version (block ID). Returns 0 if there are no blocks in
+  // the system.
   BlockId getLatestBlock() const;
 
+  // Gets a block by its ID. The returned block buffer can be inspected with functions from the block::v2MerkleTree
+  // namespace. Returns the status of the operation. If the block is not found, Status::OK() is returned and the found
+  // output variable is set to false.
+  Status getBlockById(BlockId blockId, concordUtils::Sliver &block, bool &found) const;
+
+  // Returns the current state hash from the internal merkle tree implementation.
+  const sparse_merkle::Hash &getStateHash() const { return smTree_.get_root_hash(); }
+
  private:
+  concordUtils::Sliver createBlockNode(const concordUtils::SetOfKeyValuePairs &updates, BlockId blockId) const;
+
   class Reader : public sparse_merkle::IDBReader {
    public:
     Reader(const DBAdapter &adapter) : adapter_{adapter} {}

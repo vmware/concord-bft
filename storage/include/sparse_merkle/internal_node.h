@@ -49,6 +49,7 @@ BatchedInternalNode and their corresponding header comments.
 // A child that is a leaf of the overall tree. It isn't necessarily at height 0
 // in a BatchedInternalNode, although there will not be any children below it.
 struct LeafChild {
+  static constexpr auto SIZE_IN_BYTES = Hash::SIZE_IN_BYTES + LeafKey::SIZE_IN_BYTES;
   bool operator==(const LeafChild& other) const { return hash == other.hash && key == other.key; }
   // The hash of the value blob stored at `key`
   Hash hash;
@@ -58,6 +59,7 @@ struct LeafChild {
 // A child that represents an internal node of the sparse binary merkle tree. It
 // will refer to another BatchedInternalNode if it resides at height 0.
 struct InternalChild {
+  static constexpr auto SIZE_IN_BYTES = Hash::SIZE_IN_BYTES + Version::SIZE_IN_BYTES;
   bool operator==(const InternalChild& other) const { return hash == other.hash && version == other.version; }
   Hash hash;
   Version version;
@@ -256,6 +258,9 @@ class BatchedInternalNode {
 
   // Return the internal children container.
   const ChildrenContainer& children() const { return children_; }
+
+  // Return true if this node is identical to the other one and false otherwise.
+  bool operator==(const BatchedInternalNode& other) const { return children_ == other.children_; }
 
  private:
   // A LeafChild collission has occurred. We need to create new InternalChild nodes so

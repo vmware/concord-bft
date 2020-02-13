@@ -12,11 +12,13 @@ using concordUtils::KeyValuePair;
 namespace concord {
 namespace storage {
 namespace blockchain {
-namespace block {
 inline namespace v1DirectKeyValue {
-concordUtils::Sliver create(const concordUtils::SetOfKeyValuePairs &updates,
-                            concordUtils::SetOfKeyValuePairs &outUpdatesInNewBlock,
-                            const void *parentDigest) {
+namespace block {
+Sliver create(const SetOfKeyValuePairs &updates,
+              SetOfKeyValuePairs &outUpdatesInNewBlock,
+              const void *parentDigest,
+              const void *userData,
+              std::size_t userDataSize) {
   // TODO(GG): overflow handling ....
   // TODO(SG): How? Right now - will put empty block instead
 
@@ -31,7 +33,7 @@ concordUtils::Sliver create(const concordUtils::SetOfKeyValuePairs &updates,
 
   const std::uint32_t metadataSize = sizeof(detail::Header) + sizeof(detail::Entry) * numOfElements;
 
-  const std::uint32_t blockSize = metadataSize + blockBodySize;
+  const std::uint32_t blockSize = metadataSize + blockBodySize + userDataSize;
 
   try {
     char *blockBuffer = new char[blockSize];
@@ -72,6 +74,12 @@ concordUtils::Sliver create(const concordUtils::SetOfKeyValuePairs &updates,
       idx++;
     }
     assert(idx == numOfElements);
+
+    if (userDataSize) {
+      std::memcpy(blockBuffer + currentOffset, userData, userDataSize);
+      currentOffset += userDataSize;
+    }
+
     assert((std::uint32_t)currentOffset == blockSize);
 
     return blockSliver;
@@ -82,6 +90,10 @@ concordUtils::Sliver create(const concordUtils::SetOfKeyValuePairs &updates,
     std::memset(emptyBlockBuffer, 0, 1);
     return Sliver(emptyBlockBuffer, 1);
   }
+}
+
+Sliver create(const SetOfKeyValuePairs &updates, SetOfKeyValuePairs &outUpdatesInNewBlock, const void *parentDigest) {
+  return create(updates, outUpdatesInNewBlock, parentDigest, nullptr, 0);
 }
 
 SetOfKeyValuePairs getData(const Sliver &block) {
@@ -105,8 +117,8 @@ const void *getParentDigest(const concordUtils::Sliver &block) {
   return bh->parentDigest;
 }
 
-}  // namespace v1DirectKeyValue
 }  // namespace block
+}  // namespace v1DirectKeyValue
 }  // namespace blockchain
 }  // namespace storage
 }  // namespace concord
