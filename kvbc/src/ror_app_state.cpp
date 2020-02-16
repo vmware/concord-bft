@@ -8,7 +8,6 @@
 using namespace concordUtils;
 using namespace bftEngine::SimpleBlockchainStateTransfer;
 using namespace concord::storage;
-namespace block = concord::storage::blockchain::block;
 
 class RoRAppStateImpl : public IAppState {
  public:
@@ -76,7 +75,7 @@ class RoRAppStateImpl : public IAppState {
     LOG_DEBUG(logger_, "getPrevDigestFromBlock, blockId: " << blockId);
 
     assert(outPrevBlockDigest);
-    auto parentDigest = block::getParentDigest(blockData);
+    auto parentDigest = concord::storage::blockchain::block::getParentDigest(blockData);
     assert(outPrevBlockDigest);
     memcpy(outPrevBlockDigest, parentDigest, BLOCK_DIGEST_SIZE);
     return true;
