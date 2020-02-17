@@ -76,7 +76,8 @@ class SimpleIntegerKeyComparator : public IDBClient::IKeyComparator {
   return std::static_pointer_cast<IDBClient>(std::make_shared< concord::storage::rocksdb::Client>(
         "unit_test_db_object_store", ::rocksdb::BytewiseComparator()));
 #else
-    assert(false); // we dont support RoRAppState test with in memory, its meaningless
+   return std::static_pointer_cast<IDBClient>(
+      std::make_shared<memorydb::Client>(KeyComparator(new SimpleIntegerKeyComparator())));
 #endif
 }
 

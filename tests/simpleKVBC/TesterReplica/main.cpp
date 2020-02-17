@@ -58,11 +58,10 @@ int main(int argc, char** argv) {
   auto* dbAdapter = new concord::storage::blockchain::DBAdapter(db);
   std::shared_ptr<ReplicaImp> replica = nullptr;
 
-  // auto rorMode = setup->GetRoRMode();
-  auto rorMode = setup->GetReplicaConfig().replicaId == 4 ? RoRAppStateMode::S3 : RoRAppStateMode::None;
+  auto rorMode = setup->GetRoRMode();
   replica = std::make_shared<ReplicaImp>(
         setup->GetCommunication(), setup->GetReplicaConfig(), dbAdapter, setup->GetMetricsServer().GetAggregator());
-  if(rorMode == RoRAppStateMode::Default) {
+  if(rorMode == RoRAppStateMode::None) {
     replica->setReplicaStateSync(new ReplicaStateSyncImp(new BlockMetadata(*replica)));
     replica->set_app_state(nullptr); //set BlockChainAppState by default
   } else {
