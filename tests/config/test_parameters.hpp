@@ -66,7 +66,7 @@ struct ReplicaParams {
   std::string keysFilePrefix;
   PersistencyMode persistencyMode = PersistencyMode::Off;
   ReplicaBehavior replicaBehavior = ReplicaBehavior::Default;
-  RoRAppStateMode rorsAppStateMode = RoRAppStateMode::Default;
+  RoRAppStateMode rorsAppStateMode = RoRAppStateMode::None;
 };
 
 #endif  // CONCORD_BFT_TEST_PARAMETERS_HPP
