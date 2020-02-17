@@ -7,7 +7,7 @@ echo "macos homebrew packages handled in .travis.yml"
 else
 # If on Linux, install necessary packages using apt
 sudo apt-get update
-sudo apt-get install -y ccache cmake clang-format libgmp3-dev \
+sudo apt-get install -y ccache cmake clang-format clang-format-7 libgmp3-dev \
 python3-pip python3-setuptools
 fi
 
