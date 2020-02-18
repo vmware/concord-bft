@@ -31,9 +31,11 @@ class RoRAppStateTest : public ::testing::Test {
   void SetUp() override {
 #ifdef USE_ROCKSDB
     std::string a = "sudo rm -rf unit_test_db_meta";
-    std::system(a.c_str());
+    int r = std::system(a.c_str());
+    ASSERT_EQ(r, 0);
     a = "sudo rm -rf unit_test_db_object_store";
-    std::system(a.c_str());
+    r = std::system(a.c_str());
+    ASSERT_EQ(r, 0);
 #endif
 
     for (int i = 0; i < numOfBlocks * 2; i++) {

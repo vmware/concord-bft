@@ -194,8 +194,9 @@ EDBKeyType getDBKeyType(const Sliver &s) {
     case toChar(EDBKeyType::BFT):
       return EDBKeyType::BFT;
   }
-
+  
   Assert(false);
+  return EDBKeyType::Block;
 }
 
 EKeySubtype getKeySubtype(const Sliver &s) {
@@ -211,6 +212,7 @@ EKeySubtype getKeySubtype(const Sliver &s) {
   }
 
   Assert(false);
+  return EKeySubtype::Internal;
 }
 
 }  // namespace
