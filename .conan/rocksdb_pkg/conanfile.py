@@ -35,10 +35,11 @@ class RocksdbConan(ConanFile):
         self.options["zstd"].shared = True
 
     def source(self):
-        download("https://github.com/facebook/rocksdb/archive/v5.7.3.tar.gz", "v5.7.3.tar.gz")
-        self.run("tar -xzf v5.7.3.tar.gz")
-        shutil.move("rocksdb-5.7.3", self.name)
-        os.unlink("v5.7.3.tar.gz")
+        tools.replace_in_file("CMakeLists.txt", 'project(rocksdb)',
+          '''project(rocksdb)
+          include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+          conan_basic_setup()
+            ''')
 
     def build(self):
         autotools = AutoToolsBuildEnvironment(self)

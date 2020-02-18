@@ -21,7 +21,8 @@ namespace preprocessor {
 
 class ClientPreProcessRequestMsg : public ClientRequestMsg {
  public:
-  ClientPreProcessRequestMsg(NodeIdType sender, uint64_t reqSeqNum, uint32_t requestLength, const char* request);
+  ClientPreProcessRequestMsg(
+      NodeIdType sender, uint64_t reqSeqNum, uint32_t requestLength, const char* request, const std::string& cid);
 
   std::unique_ptr<MessageBase> convertToClientRequestMsg();
 };

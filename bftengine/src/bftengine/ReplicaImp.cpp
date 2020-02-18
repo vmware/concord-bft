@@ -128,6 +128,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   const ReqId reqSeqNum = m->requestSeqNum();
   const uint8_t flags = m->flags();
 
+  MDC_CID_PUT(GL, m->getCid());
   LOG_DEBUG_F(GL,
               "Node %d received ClientRequestMsg (clientId=%d reqSeqNum=%" PRIu64 ", flags=%d) from Node %d",
               config_.replicaId,
@@ -233,6 +234,7 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
   ClientRequestMsg *first = requestsQueueOfPrimary.front();
   while (first != nullptr &&
          !clientsManager->noPendingAndRequestCanBecomePending(first->clientProxyId(), first->requestSeqNum())) {
+    MDC_CID_PUT(GL, first->getCid());
     delete first;
     requestsQueueOfPrimary.pop();
     first = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
@@ -286,6 +288,7 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
 
   ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
   while (nextRequest != nullptr && nextRequest->size() <= pp->remainingSizeForRequests()) {
+    MDC_CID_PUT(GL, nextRequest->getCid());
     if (clientsManager->noPendingAndRequestCanBecomePending(nextRequest->clientProxyId(),
                                                             nextRequest->requestSeqNum())) {
       pp->addRequest(nextRequest->body(), nextRequest->size());
@@ -3010,6 +3013,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg *ppMsg, bool recov
     if (!recoverFromErrorInRequestsExecution) {
       while (reqIter.getAndGoToNext(requestBody)) {
         ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
+        MDC_CID_PUT(GL, req.getCid());
         NodeIdType clientId = req.clientProxyId();
 
         const bool validClient = isValidClient(clientId);
@@ -3052,9 +3056,12 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg *ppMsg, bool recov
     while (reqIter.getAndGoToNext(requestBody)) {
       size_t tmp = reqIdx;
       reqIdx++;
-      if (!requestSet.get(tmp)) continue;
+      if (!requestSet.get(tmp)) {
+        continue;
+      }
 
       ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
+      MDC_CID_PUT(GL, req.getCid());
       NodeIdType clientId = req.clientProxyId();
 
       uint32_t actualReplyLength = 0;

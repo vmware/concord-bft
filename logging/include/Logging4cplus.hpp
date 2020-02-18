@@ -41,4 +41,5 @@ class Log {
 
 #define LOG_FATAL(l, s) LOG4CPLUS_FATAL(l, s)
 #define LOG_FATAL_F(l, ...) LOG4CPLUS_FATAL_FMT(l, __VA_ARGS__)
+
 #endif

@@ -57,7 +57,8 @@ Status ClientImp::invokeCommandSynch(const char* request,
                                      std::chrono::milliseconds timeout,
                                      uint32_t replySize,
                                      char* outReply,
-                                     uint32_t* outActualReplySize) {
+                                     uint32_t* outActualReplySize,
+                                     const std::string& cid) {
   if (!isRunning()) return Status::IllegalOperation("todo");
 
   uint64_t timeoutMs = timeout <= std::chrono::milliseconds::zero() ? SimpleClient::INFINITE_TIMEOUT : timeout.count();
@@ -69,7 +70,8 @@ Status ClientImp::invokeCommandSynch(const char* request,
                                      timeoutMs,
                                      replySize,
                                      outReply,
-                                     *outActualReplySize);
+                                     *outActualReplySize,
+                                     cid);
   assert(res >= -2 && res < 1);
 
   if (res == 0)
