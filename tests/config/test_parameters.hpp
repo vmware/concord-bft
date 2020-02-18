@@ -28,9 +28,9 @@ struct ClientParams {
 };
 
 enum class RoRAppStateMode {
-  None, // used for non RO replica
-  S3,  // use real S3 storage = 1
-  RocksDB,   // use RocksDB for storage = 2
+  None,     // used for non RO replica
+  S3,       // use real S3 storage = 1
+  RocksDB,  // use RocksDB for storage = 2
   MAX_VALUE = RocksDB,
   MIN_VALUE = S3
 };

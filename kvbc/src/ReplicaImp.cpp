@@ -88,10 +88,10 @@ void ReplicaImp::createReplicaAndSyncState() {
     auto t = std::dynamic_pointer_cast<BlockchainAppState>(m_appState);
     assert(t);
     t->m_lastReachableBlock -= removedBlocksNum;
-    LOG_INFO(logger,
-             "createReplicaAndSyncState: removedBlocksNum = "
-                 << removedBlocksNum << ", new m_lastBlock = " << m_lastBlock
-                 << ", new m_lastReachableBlock = " << t->m_lastReachableBlock);
+    LOG_INFO(
+        logger,
+        "createReplicaAndSyncState: removedBlocksNum = " << removedBlocksNum << ", new m_lastBlock = " << m_lastBlock
+                                                         << ", new m_lastReachableBlock = " << t->m_lastReachableBlock);
   }
 }
 
@@ -190,11 +190,11 @@ Status ReplicaImp::addBlock(const SetOfKeyValuePairs &updates, BlockId &outBlock
 void ReplicaImp::set_command_handler(ICommandsHandler *handler) { m_cmdHandler = handler; }
 
 void ReplicaImp::set_app_state(std::shared_ptr<bftEngine::SimpleBlockchainStateTransfer::IAppState> appState) {
-  if(!appState)
+  if (!appState)
     m_appState = std::make_shared<BlockchainAppState>(shared_from_this());
   else
     m_appState = appState;
-    
+
   m_stateTransfer = bftEngine::SimpleBlockchainStateTransfer::create(
       state_transfer_config_, m_appState.get(), m_bcDbAdapter->getDb(), aggregator_);
 }
@@ -217,7 +217,8 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   state_transfer_config_.numReplicas = m_replicaConfig.numReplicas + m_replicaConfig.numRoReplicas;
   if (replicaConfig.maxNumOfReservedPages > 0)
     state_transfer_config_.maxNumOfReservedPages = replicaConfig.maxNumOfReservedPages;
-  if (replicaConfig.sizeOfReservedPage > 0) state_transfer_config_.sizeOfReservedPage = replicaConfig.sizeOfReservedPage;
+  if (replicaConfig.sizeOfReservedPage > 0)
+    state_transfer_config_.sizeOfReservedPage = replicaConfig.sizeOfReservedPage;
 }
 
 ReplicaImp::~ReplicaImp() {

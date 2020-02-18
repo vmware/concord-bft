@@ -40,45 +40,42 @@ using namespace concord::storage::blockchain::v1DirectKeyValue;
 using namespace concord::storage;
 
 class SimpleIntegerKeyComparator : public IDBClient::IKeyComparator {
- int composedKeyComparison(const char* _a_data, size_t _a_length, const char* _b_data, size_t _b_length) override {
-   assert(_a_data);
-   assert(_b_data);
-   assert(_a_length == sizeof(char));
-   assert(_b_length == sizeof(char));
-   char keyA = *reinterpret_cast<const char*>(_a_data);
-   char keyB = *reinterpret_cast<const char*>(_b_data);
-   return keyA - keyB;
- }
+  int composedKeyComparison(const char* _a_data, size_t _a_length, const char* _b_data, size_t _b_length) override {
+    assert(_a_data);
+    assert(_b_data);
+    assert(_a_length == sizeof(char));
+    assert(_b_length == sizeof(char));
+    char keyA = *reinterpret_cast<const char*>(_a_data);
+    char keyB = *reinterpret_cast<const char*>(_b_data);
+    return keyA - keyB;
+  }
 };
 
- std::shared_ptr<IDBClient> set_local_client() {
+std::shared_ptr<IDBClient> set_local_client() {
 #ifdef USE_ROCKSDB
-    return std::static_pointer_cast<IDBClient>(std::make_shared< concord::storage::rocksdb::Client>(
-        "unit_test_db_meta", ::rocksdb::BytewiseComparator()));
+  return std::static_pointer_cast<IDBClient>(
+      std::make_shared<concord::storage::rocksdb::Client>("unit_test_db_meta", ::rocksdb::BytewiseComparator()));
 #else
-    return std::static_pointer_cast<IDBClient>(
+  return std::static_pointer_cast<IDBClient>(
       std::make_shared<memorydb::Client>(KeyComparator(new SimpleIntegerKeyComparator())));
 #endif
 }
 
-  std::shared_ptr<IDBClient> set_object_store_client() {
+std::shared_ptr<IDBClient> set_object_store_client() {
 #ifdef TEST_ROR_APPSTATE_OBJECTSTORE
-   S3_StoreConfig config;
-    ObjectStoreBehavior b{true, true};
-    config.bucketName = "blockchain-dev-asx";
-    config.accessKey = "blockchain-dev";
-    config.protocol = "HTTP";
-    config.url = "10.70.30.244:9020";
-    config.secretKey = "Rz0mdbUNGJBxqdzprn5XGSXPr2AfkgcQsYS4y698";
-    return std::static_pointer_cast<IDBClient>(
-      std::make_shared<ObjectStoreClient>(config, b));
+  S3_StoreConfig config;
+  ObjectStoreBehavior b{true, true};
+  config.bucketName = "blockchain-dev-asx";
+  config.accessKey = "blockchain-dev";
+  config.protocol = "HTTP";
+  config.url = "10.70.30.244:9020";
+  config.secretKey = "Rz0mdbUNGJBxqdzprn5XGSXPr2AfkgcQsYS4y698";
+  return std::static_pointer_cast<IDBClient>(std::make_shared<ObjectStoreClient>(config, b));
 #elif USE_ROCKSDB
-  return std::static_pointer_cast<IDBClient>(std::make_shared< concord::storage::rocksdb::Client>(
-        "unit_test_db_object_store", ::rocksdb::BytewiseComparator()));
+  return std::static_pointer_cast<IDBClient>(std::make_shared<concord::storage::rocksdb::Client>(
+      "unit_test_db_object_store", ::rocksdb::BytewiseComparator()));
 #else
-   return std::static_pointer_cast<IDBClient>(
+  return std::static_pointer_cast<IDBClient>(
       std::make_shared<memorydb::Client>(KeyComparator(new SimpleIntegerKeyComparator())));
 #endif
 }
-
-

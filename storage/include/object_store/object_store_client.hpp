@@ -10,12 +10,12 @@ namespace concord {
 namespace storage {
 
 struct S3_StoreConfig {
-  std::string bucketName;  // assuminh pre configured, no need to create
-  std::string url;         // from the customer
-  std::string protocol;    // currently tested with HTTP
-  std::string secretKey;   // from the customer
-  std::string accessKey;   // from the customer
-  std::uint32_t maxWaitTime; // in milliseconds
+  std::string bucketName;     // assuminh pre configured, no need to create
+  std::string url;            // from the customer
+  std::string protocol;       // currently tested with HTTP
+  std::string secretKey;      // from the customer
+  std::string accessKey;      // from the customer
+  std::uint32_t maxWaitTime;  // in milliseconds
   virtual ~S3_StoreConfig() {}
 };
 
@@ -28,7 +28,7 @@ class ObjectStoreBehavior {
   std::chrono::time_point<std::chrono::steady_clock> startTimeForNetworkFailure_;
   bool doNetworkFailure_ = false;
   uint64_t doNetworkFailureDurMilli_ = 0;
- 
+
  public:
   ObjectStoreBehavior(bool canDelete, bool canSimulateNetFailure);
   // set network failure flag and duration
@@ -56,12 +56,10 @@ class ObjectStoreClient : public IDBClient {
   virtual ~ObjectStoreClient() = default;
   virtual void init(bool readOnly = false) override;
   virtual Status get(const Sliver& _key, OUT Sliver& _outValue) const override;
-  virtual Status get(const Sliver& _key, OUT char*& buf, uint32_t bufSize,
-                     OUT uint32_t& _size) const override;
+  virtual Status get(const Sliver& _key, OUT char*& buf, uint32_t bufSize, OUT uint32_t& _size) const override;
   virtual Status put(const Sliver& _key, const Sliver& _value) override;
   virtual Status del(const Sliver& _key) override;
-  virtual Status multiGet(const KeysVector& _keysVec,
-                          OUT ValuesVector& _valuesVec) override;
+  virtual Status multiGet(const KeysVector& _keysVec, OUT ValuesVector& _valuesVec) override;
   virtual Status multiPut(const SetOfKeyValuePairs& _keyValueMap) override;
   virtual Status multiDel(const KeysVector& _keysVec) override;
   virtual void monitor() const override;

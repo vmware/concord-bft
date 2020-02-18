@@ -27,7 +27,7 @@ using namespace concord::storage::blockchain::block::detail;
 namespace {
 
 class RoRAppStateTest : public ::testing::Test {
-protected:
+ protected:
   void SetUp() override {
 #ifdef USE_ROCKSDB
     std::string a = "sudo rm -rf unit_test_db_meta";
@@ -40,14 +40,13 @@ protected:
       char *block = new char[kBlockSize];
       Header *bh = (Header *)block;
       bh->numberOfElements = 1;
-      bh->parentDigestLength =
-          bftEngine::SimpleBlockchainStateTransfer::BLOCK_DIGEST_SIZE;
+      bh->parentDigestLength = bftEngine::SimpleBlockchainStateTransfer::BLOCK_DIGEST_SIZE;
       if (i == 0)
-        memset(bh->parentDigest, 0,
-               bftEngine::SimpleBlockchainStateTransfer::BLOCK_DIGEST_SIZE);
+        memset(bh->parentDigest, 0, bftEngine::SimpleBlockchainStateTransfer::BLOCK_DIGEST_SIZE);
       else
         bftEngine::SimpleBlockchainStateTransfer::computeBlockDigest(
-            i, reinterpret_cast<const char *>(blocks[i - 1] + sizeof(Header)),
+            i,
+            reinterpret_cast<const char *>(blocks[i - 1] + sizeof(Header)),
             kBlockSize - sizeof(Header),
             (StateTransferDigest *)bh->parentDigest);
 
@@ -65,8 +64,7 @@ protected:
     objectStoreClient->init();
     localClient = set_local_client();
     localClient->init();
-    appState = std::make_shared<RoRAppState>(
-        std::make_shared<DBKeyManipulator>(), localClient, objectStoreClient);
+    appState = std::make_shared<RoRAppState>(std::make_shared<DBKeyManipulator>(), localClient, objectStoreClient);
 
     for (size_t i = 0; i < blocks.size(); i++) {
       Sliver key = km.genBlockDbKey(i + 1);
@@ -74,8 +72,7 @@ protected:
     }
   }
 
-  void check_metadata(uint64_t expectedLastBlockNum,
-                      int64_t expectedLastReachableBlockNum) {
+  void check_metadata(uint64_t expectedLastBlockNum, int64_t expectedLastReachableBlockNum) {
     Sliver value;
     Status s = localClient->get(lastBlockIdKey, value);
     ASSERT_TRUE(s.isOK());
@@ -98,15 +95,13 @@ protected:
   const int numOfBlocks = 10;
   const int kBlockSize = 1000;
   std::vector<char *> blocks;
-  
+
   DBKeyManipulator km;
   std::shared_ptr<IDBClient> objectStoreClient = nullptr;
   std::shared_ptr<IDBClient> localClient = nullptr;
   std::shared_ptr<RoRAppState> appState = nullptr;
-  Sliver lastBlockIdKey =
-      Sliver::copy(kLastBlockIdKey.c_str(), kLastBlockIdKey.size());
-  Sliver lastReachableBlockIdKey = Sliver::copy(
-      kLastReachableBlockIdKey.c_str(), kLastReachableBlockIdKey.size());
+  Sliver lastBlockIdKey = Sliver::copy(kLastBlockIdKey.c_str(), kLastBlockIdKey.size());
+  Sliver lastReachableBlockIdKey = Sliver::copy(kLastReachableBlockIdKey.c_str(), kLastReachableBlockIdKey.size());
 };
 }  // namespace
 

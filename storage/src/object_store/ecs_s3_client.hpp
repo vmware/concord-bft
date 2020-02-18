@@ -22,9 +22,7 @@ using namespace std;
  */
 class EcsS3ClientImpl : public IDBClient {
  public:
-  EcsS3ClientImpl(const S3_StoreConfig& config, const ObjectStoreBehavior& b)
-      : config_{config}, bh_{b} {
-    
+  EcsS3ClientImpl(const S3_StoreConfig& config, const ObjectStoreBehavior& b) : config_{config}, bh_{b} {
     LOG_INFO(logger_, "ECS S3 client created");
   }
 
@@ -53,8 +51,7 @@ class EcsS3ClientImpl : public IDBClient {
     assert(!init_);  // we may return here instead of firing assert failure, but
                      // probably we want to catch bugs?
     context_.hostName = config_.url.c_str();
-    context_.protocol =
-        (config_.protocol == "HTTP" ? S3ProtocolHTTP : S3ProtocolHTTPS);
+    context_.protocol = (config_.protocol == "HTTP" ? S3ProtocolHTTP : S3ProtocolHTTPS);
     context_.uriStyle = S3UriStylePath;
     /* In ECS terms, this is your object user */
     context_.accessKeyId = config_.accessKey.c_str();
@@ -86,8 +83,7 @@ class EcsS3ClientImpl : public IDBClient {
     return res;
   }
 
-  virtual Status get(const Sliver& _key, OUT char*& buf, uint32_t bufSize,
-                     OUT uint32_t& _size) const override {
+  virtual Status get(const Sliver& _key, OUT char*& buf, uint32_t bufSize, OUT uint32_t& _size) const override {
     throw std::logic_error("Not implemented for ECS S3 object store");
   }
 
@@ -132,40 +128,31 @@ class EcsS3ClientImpl : public IDBClient {
   }
 
   virtual Status del(const Sliver& key) override {
-    if (!bh_.can_delete())
-      throw std::logic_error("Not implemented for ECS S3 object store");
+    if (!bh_.can_delete()) throw std::logic_error("Not implemented for ECS S3 object store");
     assert(init_);
-    if (should_net_fail())
-      return Status::GeneralError("Network failure simulated");
+    if (should_net_fail()) return Status::GeneralError("Network failure simulated");
 
     ResponseData rData;
     S3ResponseHandler rHandler;
     rHandler.completeCallback = responseCompleteCallback;
     rHandler.propertiesCallback = propertiesCallback;
-    S3_delete_object(&context_, string(key.data()).c_str(), NULL, &rHandler,
-                     &rData);
-    LOG_DEBUG(logger_, "del key: " << string(key.data())
-                                   << ", status: " << rData.status
-                                   << ", msg: " << rData.errorMessage);
+    S3_delete_object(&context_, string(key.data()).c_str(), NULL, &rHandler, &rData);
+    LOG_DEBUG(logger_,
+              "del key: " << string(key.data()) << ", status: " << rData.status << ", msg: " << rData.errorMessage);
     if (rData.status == S3Status::S3StatusOK)
       return Status::OK();
     else {
-      LOG_ERROR(logger_, "del key: " << string(key.data())
-                                     << ", status: " << rData.status
-                                     << ", msg: " << rData.errorMessage);
-      if (rData.status == S3Status::S3StatusHttpErrorNotFound ||
-          rData.status == S3Status::S3StatusErrorNoSuchBucket ||
+      LOG_ERROR(logger_,
+                "del key: " << string(key.data()) << ", status: " << rData.status << ", msg: " << rData.errorMessage);
+      if (rData.status == S3Status::S3StatusHttpErrorNotFound || rData.status == S3Status::S3StatusErrorNoSuchBucket ||
           rData.status == S3Status::S3StatusErrorNoSuchKey)
-        return Status::NotFound("Status: " + to_string(rData.status) +
-                                "msg: " + rData.errorMessage);
+        return Status::NotFound("Status: " + to_string(rData.status) + "msg: " + rData.errorMessage);
 
-      return Status::GeneralError("Status: " + to_string(rData.status) +
-                                  "msg: " + rData.errorMessage);
+      return Status::GeneralError("Status: " + to_string(rData.status) + "msg: " + rData.errorMessage);
     }
   }
 
-  virtual Status multiGet(const KeysVector& _keysVec,
-                          OUT ValuesVector& _valuesVec) override {
+  virtual Status multiGet(const KeysVector& _keysVec, OUT ValuesVector& _valuesVec) override {
     throw std::logic_error("Not implemented for ECS S3 object store");
   }
 
@@ -177,13 +164,9 @@ class EcsS3ClientImpl : public IDBClient {
     throw std::logic_error("Not implemented for ECS S3 object store");
   }
 
-  virtual void monitor() const override {
-    throw std::logic_error("Not implemented for ECS S3 object store");
-  }
+  virtual void monitor() const override { throw std::logic_error("Not implemented for ECS S3 object store"); }
 
-  virtual bool isNew() override {
-    throw std::logic_error("Not implemented for ECS S3 object store");
-  }
+  virtual bool isNew() override { throw std::logic_error("Not implemented for ECS S3 object store"); }
 
   virtual IDBClient::IDBClientIterator* getIterator() const override {
     throw std::logic_error("Not implemented for ECS S3 object store");
@@ -198,8 +181,8 @@ class EcsS3ClientImpl : public IDBClient {
   }
 
   ///////////////////////// private /////////////////////////////
-private:
-  template<typename F, typename... Args>
+ private:
+  template <typename F, typename... Args>
   void do_with_retry(Status& r, F&& f, Args&&... args) const {
     uint16_t delay = initialDelay_;
     auto start = std::chrono::steady_clock::now();
@@ -207,19 +190,16 @@ private:
     do {
       r = std::forward<F>(f)(std::forward<Args>(args)...);
       LOG_DEBUG(logger_, "do_with_retry, delay: " << delay);
-      if(!r.isGeneralError())
-        break;
-      if(delay < config_.maxWaitTime)
-        delay *= delayFactor_;
+      if (!r.isGeneralError()) break;
+      if (delay < config_.maxWaitTime) delay *= delayFactor_;
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
       now = std::chrono::steady_clock::now();
-    } while(std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count() < (int32_t)config_.maxWaitTime);
+    } while (std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count() < (int32_t)config_.maxWaitTime);
   }
 
-  Status get_internal(const Sliver& _key, OUT Sliver& _outValue) const  {
+  Status get_internal(const Sliver& _key, OUT Sliver& _outValue) const {
     assert(init_);
-    if (should_net_fail())
-      return Status::GeneralError("Network failure simulated");
+    if (should_net_fail()) return Status::GeneralError("Network failure simulated");
     GetObjectResponseData cbData(kInitialGetBufferSize_);
     S3GetObjectHandler getObjectHandler;
     getObjectHandler.responseHandler = responseHandler;
@@ -233,29 +213,23 @@ private:
       return S3Status::S3StatusOK;
     };
     getObjectHandler.getObjectDataCallback = f;
-    S3_get_object(&context_, _key.data(), NULL, 0, 0, NULL, &getObjectHandler,
-                  &cbData);
+    S3_get_object(&context_, _key.data(), NULL, 0, 0, NULL, &getObjectHandler, &cbData);
     if (cbData.status == S3Status::S3StatusOK) {
-      _outValue = Sliver::copy(reinterpret_cast<const char*>(cbData.data),
-                               cbData.readLength);
+      _outValue = Sliver::copy(reinterpret_cast<const char*>(cbData.data), cbData.readLength);
       return Status::OK();
     } else {
       LOG_ERROR(logger_, "get status: " << cbData.status);
       if (cbData.status == S3Status::S3StatusHttpErrorNotFound ||
-          cbData.status == S3Status::S3StatusErrorNoSuchBucket ||
-          cbData.status == S3Status::S3StatusErrorNoSuchKey)
-        return Status::NotFound("Status: " + to_string(cbData.status) +
-                                "msg: " + cbData.errorMessage);
+          cbData.status == S3Status::S3StatusErrorNoSuchBucket || cbData.status == S3Status::S3StatusErrorNoSuchKey)
+        return Status::NotFound("Status: " + to_string(cbData.status) + "msg: " + cbData.errorMessage);
 
-      return Status::GeneralError("Status: " + to_string(cbData.status) +
-                                  "msg: " + cbData.errorMessage);
+      return Status::GeneralError("Status: " + to_string(cbData.status) + "msg: " + cbData.errorMessage);
     }
   }
 
   Status put_internal(const Sliver& _key, const Sliver& _value) {
     assert(init_);
-    if (this->should_net_fail())
-      return Status::GeneralError("Network failure simulated");
+    if (this->should_net_fail()) return Status::GeneralError("Network failure simulated");
     PutObjectResponseData cbData(_value.data(), _value.length());
     S3PutObjectHandler putObjectHandler;
     putObjectHandler.responseHandler = responseHandler;
@@ -275,84 +249,77 @@ private:
     };
     putObjectHandler.putObjectDataCallback = f;
     string s = string(_key.data());
-    S3_put_object(&context_, string(_key.data()).c_str(), _value.length(), NULL,
-                  NULL, &putObjectHandler, &cbData);
+    S3_put_object(&context_, string(_key.data()).c_str(), _value.length(), NULL, NULL, &putObjectHandler, &cbData);
     if (cbData.status == S3Status::S3StatusOK)
       return Status::OK();
     else {
       LOG_ERROR(logger_, "put status: " << cbData.status);
-      if (cbData.status == S3Status::S3StatusHttpErrorNotFound ||
-          cbData.status == S3Status::S3StatusErrorNoSuchBucket)
-        return Status::NotFound("Status: " + to_string(cbData.status) +
-                                "msg: " + cbData.errorMessage);
+      if (cbData.status == S3Status::S3StatusHttpErrorNotFound || cbData.status == S3Status::S3StatusErrorNoSuchBucket)
+        return Status::NotFound("Status: " + to_string(cbData.status) + "msg: " + cbData.errorMessage);
 
-      return Status::GeneralError("Status: " + to_string(cbData.status) +
-                                  "msg: " + cbData.errorMessage);
+      return Status::GeneralError("Status: " + to_string(cbData.status) + "msg: " + cbData.errorMessage);
     }
   }
 
-   Status object_exists_internal(const Sliver& key) {
+  Status object_exists_internal(const Sliver& key) {
     assert(init_);
-    if (should_net_fail())
-      return Status::GeneralError("Network failure simulated");
+    if (should_net_fail()) return Status::GeneralError("Network failure simulated");
     ResponseData rData;
     S3ResponseHandler rHandler;
     rHandler.completeCallback = responseCompleteCallback;
     rHandler.propertiesCallback = propertiesCallback;
 
-    S3_head_object(&context_, string(key.data()).c_str(), NULL, &rHandler,
-                   &rData);
-    LOG_DEBUG(logger_, "object_exist key: " << string(key.data())
-                                            << ", status: " << rData.status
-                                            << ", msg: " << rData.errorMessage);
+    S3_head_object(&context_, string(key.data()).c_str(), NULL, &rHandler, &rData);
+    LOG_DEBUG(
+        logger_,
+        "object_exist key: " << string(key.data()) << ", status: " << rData.status << ", msg: " << rData.errorMessage);
     if (rData.status == S3Status::S3StatusOK)
       return Status::OK();
     else {
       LOG_ERROR(logger_,
-                "object_exist key: " << string(key.data())
-                                     << ", status: " << rData.status
+                "object_exist key: " << string(key.data()) << ", status: " << rData.status
                                      << ", msg: " << rData.errorMessage);
-      if (rData.status == S3Status::S3StatusHttpErrorNotFound ||
-          rData.status == S3Status::S3StatusErrorNoSuchBucket ||
+      if (rData.status == S3Status::S3StatusHttpErrorNotFound || rData.status == S3Status::S3StatusErrorNoSuchBucket ||
           rData.status == S3Status::S3StatusErrorNoSuchKey)
-        return Status::NotFound("Status: " + to_string(rData.status) +
-                                "msg: " + rData.errorMessage);
+        return Status::NotFound("Status: " + to_string(rData.status) + "msg: " + rData.errorMessage);
 
-      return Status::GeneralError("Status: " + to_string(rData.status) +
-                                  "msg: " + rData.errorMessage);
+      return Status::GeneralError("Status: " + to_string(rData.status) + "msg: " + rData.errorMessage);
     }
   }
 
   Status test_bucket_internal() {
     assert(init_);
-    if (should_net_fail())
-      return Status::GeneralError("Network failure simulated");
+    if (should_net_fail()) return Status::GeneralError("Network failure simulated");
     ResponseData rData;
     S3ResponseHandler rHandler;
     rHandler.completeCallback = responseCompleteCallback;
     rHandler.propertiesCallback = propertiesCallback;
     char location[100];
 
-    S3_test_bucket(context_.protocol, context_.uriStyle, context_.accessKeyId,
-                   context_.secretAccessKey, context_.hostName,
-                   context_.bucketName, 100, location, NULL, &rHandler, &rData);
-    LOG_DEBUG(logger_, "test_bucket bucket: "
-                           << context_.bucketName << ", status: "
-                           << rData.status << ", msg: " << rData.errorMessage);
+    S3_test_bucket(context_.protocol,
+                   context_.uriStyle,
+                   context_.accessKeyId,
+                   context_.secretAccessKey,
+                   context_.hostName,
+                   context_.bucketName,
+                   100,
+                   location,
+                   NULL,
+                   &rHandler,
+                   &rData);
+    LOG_DEBUG(logger_,
+              "test_bucket bucket: " << context_.bucketName << ", status: " << rData.status
+                                     << ", msg: " << rData.errorMessage);
     if (rData.status == S3Status::S3StatusOK)
       return Status::OK();
     else {
       LOG_ERROR(logger_,
-                "test_bucket bucket: " << context_.bucketName
-                                       << ", status: " << rData.status
+                "test_bucket bucket: " << context_.bucketName << ", status: " << rData.status
                                        << ", msg: " << rData.errorMessage);
-      if (rData.status == S3Status::S3StatusHttpErrorNotFound ||
-          rData.status == S3Status::S3StatusErrorNoSuchBucket)
-        return Status::NotFound("Status: " + to_string(rData.status) +
-                                "msg: " + rData.errorMessage);
+      if (rData.status == S3Status::S3StatusHttpErrorNotFound || rData.status == S3Status::S3StatusErrorNoSuchBucket)
+        return Status::NotFound("Status: " + to_string(rData.status) + "msg: " + rData.errorMessage);
 
-      return Status::GeneralError("Status: " + to_string(rData.status) +
-                                  "msg: " + rData.errorMessage);
+      return Status::GeneralError("Status: " + to_string(rData.status) + "msg: " + rData.errorMessage);
     }
   }
 
@@ -367,8 +334,7 @@ private:
    *
    */
   struct GetObjectResponseData : public ResponseData {
-    GetObjectResponseData(size_t linitialLength)
-        : data(new char[linitialLength]), dataLength(linitialLength) {}
+    GetObjectResponseData(size_t linitialLength) : data(new char[linitialLength]), dataLength(linitialLength) {}
 
     void CheckAndResize(int& nextReadLength) {
       if (readLength + nextReadLength <= dataLength) return;
@@ -399,17 +365,14 @@ private:
    *
    */
   struct PutObjectResponseData : public ResponseData {
-    PutObjectResponseData(const char* _data, size_t&& _dataLength)
-        : data(_data), dataLength(_dataLength) {}
+    PutObjectResponseData(const char* _data, size_t&& _dataLength) : data(_data), dataLength(_dataLength) {}
 
     const char* data;
     size_t dataLength;
     size_t putCount = 0;
   };
 
-  static void responseCompleteCallback(S3Status status,
-                                       const S3ErrorDetails* error,
-                                       void* callbackData) {
+  static void responseCompleteCallback(S3Status status, const S3ErrorDetails* error, void* callbackData) {
     ResponseData* cb = nullptr;
     if (callbackData) {
       cb = static_cast<ResponseData*>(callbackData);
@@ -422,18 +385,17 @@ private:
     }
   }
 
-  static S3Status propertiesCallback(const S3ResponseProperties* properties,
-                                     void* callbackData) {
+  static S3Status propertiesCallback(const S3ResponseProperties* properties, void* callbackData) {
     return S3Status::S3StatusOK;
   }
 
   bool should_net_fail() const {
     bool b1 = bh_.can_simulate_net_failure();
-    if(!b1) return false;
+    if (!b1) return false;
     bool b3 = bh_.get_do_net_failure();
-    if(!b3) return false;
+    if (!b3) return false;
     bool b2 = bh_.has_finished();
-    if(b2) return false;
+    if (b2) return false;
     return true;
   }
 
@@ -443,8 +405,7 @@ private:
   bool init_ = false;
   const uint32_t kInitialGetBufferSize_ = 25000;
   std::mutex initLock_;
-  concordlogger::Logger logger_ =
-      concordlogger::Log::getLogger("concord::storage::EcsS3ClientImpl");
+  concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord::storage::EcsS3ClientImpl");
   ObjectStoreBehavior bh_;
   uint16_t initialDelay_ = 100;
   const double delayFactor_ = 1.5;

@@ -31,7 +31,7 @@ using namespace concord::storage;
 
 int main(int argc, char** argv) {
   auto setup = concord::kvbc::TestSetup::ParseArgs(argc, argv);
-  
+
   auto logger = setup->GetLogger();
   auto* db_key_comparator = new concord::storage::blockchain::DBKeyComparator();
   std::shared_ptr<concord::storage::IDBClient> db;
@@ -60,19 +60,18 @@ int main(int argc, char** argv) {
 
   auto rorMode = setup->GetRoRMode();
   replica = std::make_shared<ReplicaImp>(
-        setup->GetCommunication(), setup->GetReplicaConfig(), dbAdapter, setup->GetMetricsServer().GetAggregator());
-  if(rorMode == RoRAppStateMode::None) {
+      setup->GetCommunication(), setup->GetReplicaConfig(), dbAdapter, setup->GetMetricsServer().GetAggregator());
+  if (rorMode == RoRAppStateMode::None) {
     replica->setReplicaStateSync(new ReplicaStateSyncImp(new BlockMetadata(*replica)));
-    replica->set_app_state(nullptr); //set BlockChainAppState by default
+    replica->set_app_state(nullptr);  // set BlockChainAppState by default
   } else {
     using namespace bftEngine::SimpleBlockchainStateTransfer;
     std::shared_ptr<IDBClient> local_client = set_local_client();
     local_client->init();
     std::shared_ptr<IDBClient> os_client = set_object_store_client();
     os_client->init();
-    std::shared_ptr<IAppState> appState = 
-    std::make_shared<concord::consensus::RoRAppState>(
-      std::make_shared<concord::storage::blockchain::DBKeyManipulator>(), local_client, os_client);
+    std::shared_ptr<IAppState> appState = std::make_shared<concord::consensus::RoRAppState>(
+        std::make_shared<concord::storage::blockchain::DBKeyManipulator>(), local_client, os_client);
     replica->set_app_state(appState);
   }
 

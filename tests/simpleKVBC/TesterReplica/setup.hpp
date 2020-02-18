@@ -33,7 +33,7 @@ class TestSetup {
   concordMetrics::Server& GetMetricsServer() { return metrics_server_; }
   concordlogger::Logger GetLogger() { return logger_; }
   const bool UsePersistentStorage() const { return use_persistent_storage_; }
-  const RoRAppStateMode GetRoRMode() const {return rorMode_;}
+  const RoRAppStateMode GetRoRMode() const { return rorMode_; }
 
  private:
   TestSetup(bftEngine::ReplicaConfig config,

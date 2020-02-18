@@ -92,10 +92,10 @@ class ReplicaImp : public IReplica,
              std::shared_ptr<concordMetrics::Aggregator> aggregator);
 
   ReplicaImp(bftEngine::ICommunication *comm,
-  bftEngine::ReplicaConfig &config,
-  concord::storage::blockchain::DBAdapter *dbAdapter,
-  std::shared_ptr<concordMetrics::Aggregator> aggregator,
-  std::shared_ptr<bftEngine::SimpleBlockchainStateTransfer::IAppState> appState);
+             bftEngine::ReplicaConfig &config,
+             concord::storage::blockchain::DBAdapter *dbAdapter,
+             std::shared_ptr<concordMetrics::Aggregator> aggregator,
+             std::shared_ptr<bftEngine::SimpleBlockchainStateTransfer::IAppState> appState);
 
   void setReplicaStateSync(ReplicaStateSync *rss) { replicaStateSync_.reset(rss); }
 
