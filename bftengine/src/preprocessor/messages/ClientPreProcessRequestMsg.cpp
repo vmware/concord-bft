@@ -18,11 +18,9 @@ namespace preprocessor {
 using namespace std;
 using namespace bftEngine;
 
-ClientPreProcessRequestMsg::ClientPreProcessRequestMsg(NodeIdType sender,
-                                                       uint64_t reqSeqNum,
-                                                       uint32_t requestLength,
-                                                       const char* request)
-    : ClientRequestMsg(sender, PRE_PROCESS_REQ, reqSeqNum, requestLength, request) {
+ClientPreProcessRequestMsg::ClientPreProcessRequestMsg(
+    NodeIdType sender, uint64_t reqSeqNum, uint32_t requestLength, const char* request, const std::string& cid)
+    : ClientRequestMsg(sender, PRE_PROCESS_REQ, reqSeqNum, requestLength, request, cid) {
   msgBody_->msgType = MsgCode::ClientPreProcessRequest;
 }
 

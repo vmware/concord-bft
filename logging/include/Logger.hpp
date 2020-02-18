@@ -25,5 +25,28 @@
  * For development purposes anyone can link with $<TARGET_OBJECTS:logging_dev>
  * and get a default initializations for both loggers.
  */
+
 extern concordlogger::Logger GL;
 extern concordlogger::Logger initLogger();
+
+namespace concordlogger {
+class MDC {
+  concordlogger::Logger& logger_;
+  std::string key_;
+
+ public:
+  MDC(concordlogger::Logger& logger, const std::string& key, const std::string& value);
+  ~MDC();
+};
+}  // namespace concordlogger
+
+/*
+ * These macros meant to append a temporary key-value pairs to the log messages.
+ * The duration of this adding is the scope where MDC_PUT was called - when reaching to the end of this scope,
+ * the key-value will be automatically removed.
+ * When using the internal logger of concord-bft, the temporary key-value will be added to the given logger.
+ * When using log4cpp, the key-value pair will be added to the current thread logger.
+ */
+#define MDC_PUT(l, k, v) concordlogger::MDC mdc_((l), (k), (v))
+#define CID_KEY "cid"
+#define MDC_CID_PUT(l, v) MDC_PUT(l, CID_KEY, v)
