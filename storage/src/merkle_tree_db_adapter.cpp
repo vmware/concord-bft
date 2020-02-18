@@ -194,7 +194,7 @@ EDBKeyType getDBKeyType(const Sliver &s) {
     case toChar(EDBKeyType::BFT):
       return EDBKeyType::BFT;
   }
-  
+
   Assert(false);
   return EDBKeyType::Block;
 }
