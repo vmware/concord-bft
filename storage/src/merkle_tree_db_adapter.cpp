@@ -183,6 +183,7 @@ SetOfKeyValuePairs batchToDBUpdates(const Tree::UpdateBatch &batch) {
   return updates;
 }
 
+// Undefined behavior if an incorrect type is read from the buffer.
 EDBKeyType getDBKeyType(const Sliver &s) {
   Assert(!s.empty());
 
@@ -194,10 +195,13 @@ EDBKeyType getDBKeyType(const Sliver &s) {
     case toChar(EDBKeyType::BFT):
       return EDBKeyType::BFT;
   }
-
   Assert(false);
+
+  // Dummy return to silence the compiler.
+  return EDBKeyType::Block;
 }
 
+// Undefined behavior if an incorrect type is read from the buffer.
 EKeySubtype getKeySubtype(const Sliver &s) {
   Assert(s.length() > 1);
 
@@ -209,8 +213,10 @@ EKeySubtype getKeySubtype(const Sliver &s) {
     case toChar(EKeySubtype::Leaf):
       return EKeySubtype::Leaf;
   }
-
   Assert(false);
+
+  // Dummy return to silence the compiler.
+  return EKeySubtype::Internal;
 }
 
 }  // namespace
