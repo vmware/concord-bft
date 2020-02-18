@@ -39,7 +39,8 @@ class RequestProcessingInfo {
   uint32_t getMyPreProcessedResultLen() const { return myPreProcessResultLen_; }
 
  private:
-  static concord::util::SHA3_256::Digest convertToArray(const uint8_t resultsHash[concord::util::SHA3_256::SIZE_IN_BYTES]);
+  static concord::util::SHA3_256::Digest convertToArray(
+      const uint8_t resultsHash[concord::util::SHA3_256::SIZE_IN_BYTES]);
 
  private:
   static uint16_t numOfRequiredEqualReplies_;
@@ -51,7 +52,8 @@ class RequestProcessingInfo {
   const char* myPreProcessResult_ = nullptr;
   uint32_t myPreProcessResultLen_ = 0;
   concord::util::SHA3_256::Digest myPreProcessResultHash_;
-  std::map<concord::util::SHA3_256::Digest, int> preProcessingResultHashes_;  // Maps result hash to the number of equal hashes
+  std::map<concord::util::SHA3_256::Digest, int>
+      preProcessingResultHashes_;  // Maps result hash to the number of equal hashes
 };
 
 typedef std::unique_ptr<RequestProcessingInfo> RequestProcessingInfoUniquePtr;
