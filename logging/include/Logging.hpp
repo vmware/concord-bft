@@ -19,6 +19,7 @@
 #include <stdarg.h>
 #include <cassert>
 #include <iostream>
+#include <unordered_map>
 
 #ifndef USE_LOG4CPP
 namespace concordlogger {
@@ -31,6 +32,7 @@ constexpr LogLevel CURRENT_LEVEL = LogLevel::info;
 class Logger {
   std::string _name;
   std::string LEVELS_STRINGS[6] = {"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"};
+  std::unordered_map<std::string, std::string> mdc_;
 
   inline void get_time(std::stringstream& ss) const {
     using namespace std::chrono;
@@ -40,6 +42,16 @@ class Logger {
     std::tm bt = *std::localtime(&timer);
     ss << std::put_time(&bt, "%F %T") << "." << std::setfill('0') << std::setw(3) << ms.count();
   }
+  inline const std::string mdcToStr() const {
+    if (mdc_.empty()) return "";
+    std::stringstream s;
+    s << "%";
+    for (auto& p : mdc_) {
+      s << "{" << p.first << "," << p.second << "}";
+    }
+    s << "%";
+    return s.str();
+  }
 
  public:
   explicit Logger(std::string name) : _name{std::move(name)} {}
@@ -48,7 +60,8 @@ class Logger {
     std::stringstream time;
     get_time(time);
     std::cout << Logger::LEVELS_STRINGS[l].c_str() << " " << time.str() << " "
-              << "(" << _name << ")" << s << std::endl;
+              << "(" << _name << ")"
+              << " " << mdcToStr() << " " << s << std::endl;
   }
 
   void print(concordlogger::LogLevel l, const char* format, ...) __attribute__((format(__printf__, 3, 4))) {
@@ -61,8 +74,16 @@ class Logger {
     std::vsnprintf(const_cast<char*>(output.c_str()), size, format, args);
     va_end(args);
 
-    printf("%s %s (%s) %s\n", Logger::LEVELS_STRINGS[l].c_str(), time.str().c_str(), _name.c_str(), output.c_str());
+    printf("%s %s (%s) %s %s\n",
+           Logger::LEVELS_STRINGS[l].c_str(),
+           time.str().c_str(),
+           _name.c_str(),
+           mdcToStr().c_str(),
+           output.c_str());
   }
+
+  void putMdc(const std::string& key, const std::string& val) { mdc_.emplace(key, val); }
+  void removeMdc(const std::string& key) { mdc_.erase(key); }
 };
 
 class Log {
@@ -101,4 +122,5 @@ class Log {
 
 #define LOG_FATAL(l, s) LOG_COMMON(l, concordlogger::LogLevel::fatal, s)
 #define LOG_FATAL_F(l, ...) LOG_COMMON_F(l, concordlogger::LogLevel::fatal, __VA_ARGS__)
+
 #endif

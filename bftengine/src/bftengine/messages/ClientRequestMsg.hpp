@@ -24,12 +24,17 @@ class ClientRequestMsg : public MessageBase {
   static_assert(sizeof(ClientRequestMsgHeader::msgType) == sizeof(MessageBase::Header), "");
   static_assert(sizeof(ClientRequestMsgHeader::idOfClientProxy) == sizeof(NodeIdType), "");
   static_assert(sizeof(ClientRequestMsgHeader::reqSeqNum) == sizeof(ReqId), "");
-  static_assert(sizeof(ClientRequestMsgHeader) == 17, "ClientRequestMsgHeader is 17B");
+  static_assert(sizeof(ClientRequestMsgHeader) == 21, "ClientRequestMsgHeader size is 21B");
 
   // TODO(GG): more asserts
 
  public:
-  ClientRequestMsg(NodeIdType sender, uint8_t flags, uint64_t reqSeqNum, uint32_t requestLength, const char* request);
+  ClientRequestMsg(NodeIdType sender,
+                   uint8_t flags,
+                   uint64_t reqSeqNum,
+                   uint32_t requestLength,
+                   const char* request,
+                   const std::string& cid = "");
 
   ClientRequestMsg(NodeIdType sender);
 
@@ -48,7 +53,7 @@ class ClientRequestMsg : public MessageBase {
   char* requestBuf() const { return body() + sizeof(ClientRequestMsgHeader); }
 
   void set(ReqId reqSeqNum, uint32_t requestLength, uint8_t flags);
-
+  std::string getCid();
   void validate(const ReplicasInfo&) const override;
 
  protected:

@@ -44,7 +44,8 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
                   uint64_t timeoutMilli,
                   uint32_t lengthOfReplyBuffer,
                   char* replyBuffer,
-                  uint32_t& actualReplyLength) override;
+                  uint32_t& actualReplyLength,
+                  std::string cid = "") override;
 
   int sendRequestToResetSeqNum() override;
   int sendRequestToReadLatestSeqNum(uint64_t timeoutMilli, uint64_t& outLatestReqSeqNum) override;
@@ -187,10 +188,11 @@ int SimpleClientImp::sendRequest(uint8_t flags,
                                  uint64_t timeoutMilli,
                                  uint32_t lengthOfReplyBuffer,
                                  char* replyBuffer,
-                                 uint32_t& actualReplyLength) {
+                                 uint32_t& actualReplyLength,
+                                 std::string cid) {
   bool isReadOnly = flags & READ_ONLY_REQ;
   bool isPreProcessRequired = flags & PRE_PROCESS_REQ;
-
+  std::string msgCid = cid.empty() ? std::to_string(reqSeqNum) : cid;
   // TODO(GG): check params ...
   LOG_DEBUG(GL,
             "Client " << clientId_ << " - sends request " << reqSeqNum << " (isRO=" << isReadOnly
@@ -213,9 +215,9 @@ int SimpleClientImp::sendRequest(uint8_t flags,
 
   ClientRequestMsg* reqMsg;
   if (isPreProcessRequired)
-    reqMsg = new preprocessor::ClientPreProcessRequestMsg(clientId_, reqSeqNum, lengthOfRequest, request);
+    reqMsg = new preprocessor::ClientPreProcessRequestMsg(clientId_, reqSeqNum, lengthOfRequest, request, msgCid);
   else
-    reqMsg = new ClientRequestMsg(clientId_, flags, reqSeqNum, lengthOfRequest, request);
+    reqMsg = new ClientRequestMsg(clientId_, flags, reqSeqNum, lengthOfRequest, request, msgCid);
   pendingRequest_ = reqMsg;
 
   sendPendingRequest();

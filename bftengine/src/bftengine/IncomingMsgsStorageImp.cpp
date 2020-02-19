@@ -17,10 +17,6 @@
 #include "Logger.hpp"
 #include <future>
 
-#ifdef USE_LOG4CPP
-#include <log4cplus/mdc.h>
-#endif
-
 using std::queue;
 using namespace std::chrono;
 
@@ -48,14 +44,7 @@ IncomingMsgsStorageImp::~IncomingMsgsStorageImp() {
 void IncomingMsgsStorageImp::start() {
   if (!dispatcherThread_.joinable()) {
     std::future<void> futureObj = signalStarted_.get_future();
-    dispatcherThread_ = std::thread([=] {
-#ifdef USE_LOG4CPP
-      std::stringstream rid;
-      rid << replicaId_;
-      log4cplus::getMDC().put("rid", rid.str());
-#endif
-      dispatchMessages(signalStarted_);
-    });
+    dispatcherThread_ = std::thread([=] { dispatchMessages(signalStarted_); });
     // Wait until thread starts
     futureObj.get();
   };
@@ -137,6 +126,9 @@ IncomingMsg IncomingMsgsStorageImp::popThreadLocal() {
 
 void IncomingMsgsStorageImp::dispatchMessages(std::promise<void>& signalStarted) {
   signalStarted.set_value();
+  std::stringstream rid;
+  rid << replicaId_;
+  MDC_PUT(GL, "rid", rid.str());
   while (!stopped_) {
     auto msg = getMsgForProcessing();
     TimersSingleton::getInstance().evaluate();
