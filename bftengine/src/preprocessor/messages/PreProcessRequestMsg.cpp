@@ -26,8 +26,8 @@ PreProcessRequestMsg::PreProcessRequestMsg(NodeIdType senderId,
                                            uint16_t clientId,
                                            uint64_t reqSeqNum,
                                            uint32_t reqLength,
-                                           const char *request,
-                                           const std::string &cid)
+                                           const char* request,
+                                           const std::string& cid)
     : MessageBase(senderId, MsgCode::PreProcessRequest, (sizeof(PreProcessRequestMsgHeader) + reqLength + cid.size())) {
   setParams(senderId, clientId, reqSeqNum, reqLength);
   msgBody()->cidLength = cid.size();

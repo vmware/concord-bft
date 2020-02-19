@@ -66,7 +66,8 @@ bool ClientRequestMsg::isReadOnly() const { return (msgBody()->flags & READ_ONLY
 
 void ClientRequestMsg::validate(const ReplicasInfo& repInfo) const {
   Assert(senderId() != repInfo.myId());
-  if (size() < sizeof(ClientRequestMsgHeader) || size() < (sizeof(ClientRequestMsgHeader) + msgBody()->requestLength + msgBody()->cid_length))
+  if (size() < sizeof(ClientRequestMsgHeader) ||
+      size() < (sizeof(ClientRequestMsgHeader) + msgBody()->requestLength + msgBody()->cid_length))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
