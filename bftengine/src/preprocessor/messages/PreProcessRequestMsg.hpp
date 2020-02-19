@@ -31,8 +31,12 @@ class PreProcessRequestMsg : public MessageBase {
  public:
   PreProcessRequestMsg(
       NodeIdType senderId, uint16_t clientId, uint64_t reqSeqNum, uint32_t reqLength, const char* request);
-  PreProcessRequestMsg(
-      NodeIdType senderId, uint16_t clientId, uint64_t reqSeqNum, uint32_t reqLength, const char* request, const std::string& cid);
+  PreProcessRequestMsg(NodeIdType senderId,
+                       uint16_t clientId,
+                       uint64_t reqSeqNum,
+                       uint32_t reqLength,
+                       const char* request,
+                       const std::string& cid);
 
   void validate(const bftEngine::impl::ReplicasInfo&) const override;
   char* requestBuf() const { return body() + sizeof(PreProcessRequestMsgHeader); }
@@ -41,6 +45,7 @@ class PreProcessRequestMsg : public MessageBase {
   const SeqNum reqSeqNum() const { return msgBody()->reqSeqNum; }
 
   std::string getCid();
+
  private:
   void setParams(NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum, uint32_t reqLength);
 
