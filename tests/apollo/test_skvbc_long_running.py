@@ -1,6 +1,6 @@
 # Concord
 #
-# Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+# Copyright (c) 2020 VMware, Inc. All Rights Reserved.
 #
 # This product is licensed to you under the Apache 2.0 license (the "License").
 # You may not use this product except in compliance with the Apache 2.0 License.
@@ -23,8 +23,8 @@ from util.skvbc_history_tracker import verify_linearizability
 from test_skvbc import SkvbcTest
 
 # Time consts
-EIGHTHOURS = 28800
-ONEHOUR = 3600
+EIGHT_HOURS_IN_SECONDS = 8 * 60 * 60
+ONE_HOUR_IN_SECONDS = 1 * 60 * 60
 
 
 def start_replica_cmd(builddir, replica_id):
@@ -46,4 +46,6 @@ def start_replica_cmd(builddir, replica_id):
 class SkvbcLongRunningTest(unittest.TestCase):
 
     async def test_stability(self):
-        assert (True, True)
+        with trio.move_on_after(seconds=ONE_HOUR_IN_SECONDS):
+            while True:
+                assert True
