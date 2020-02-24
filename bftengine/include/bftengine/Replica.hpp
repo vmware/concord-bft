@@ -32,7 +32,7 @@ enum MsgFlag : uint8_t {
   HAS_PRE_PROCESSED_FLAG = 0x4
 };
 
-class RequestsHandler {
+class IRequestsHandler {
  public:
   virtual int execute(uint16_t clientId,
                       uint64_t sequenceNum,
@@ -43,24 +43,22 @@ class RequestsHandler {
                       char *outReply,
                       uint32_t &outActualReplySize) = 0;
 
-  virtual void onFinishExecutingReadWriteRequests(){};
+  virtual void onFinishExecutingReadWriteRequests() {}
+  virtual ~IRequestsHandler() {}
 };
 
-class Replica {
+class IReplica {
  public:
-  static Replica *createNewReplica(ReplicaConfig *replicaConfig,
-                                   RequestsHandler *requestsHandler,
-                                   IStateTransfer *stateTransfer,
-                                   ICommunication *communication,
-                                   MetadataStorage *metadataStorage);
+  static IReplica *createNewReplica(
+      ReplicaConfig *, IRequestsHandler *, IStateTransfer *, ICommunication *, MetadataStorage *);
 
-  virtual ~Replica() = 0;
+  static IReplica *createNewRoReplica(ReplicaConfig *, IStateTransfer *, ICommunication *, MetadataStorage *);
+
+  virtual ~IReplica() = default;
 
   virtual bool isRunning() const = 0;
 
-  virtual uint64_t getLastExecutedSequenceNum() const = 0;
-
-  virtual bool requestsExecutionWasInterrupted() const = 0;
+  virtual int64_t getLastExecutedSequenceNum() const = 0;
 
   virtual void start() = 0;
 

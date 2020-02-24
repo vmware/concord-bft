@@ -57,25 +57,12 @@ SignedShareBase* SignedShareBase::create(
   return m;
 }
 
-bool SignedShareBase::ToActualMsgType(const ReplicasInfo& repInfo,
-                                      int16_t type,
-                                      MessageBase* inMsg,
-                                      SignedShareBase*& outMsg) {
-  Assert(inMsg->type() == type);
-  if (inMsg->size() < sizeof(SignedShareBaseHeader)) return false;
-
-  SignedShareBase* t = (SignedShareBase*)inMsg;
-
-  // size
-  if (t->size() < sizeof(SignedShareBaseHeader) + t->signatureLen()) return false;
-
-  // sent from another replica
-  if (t->senderId() == repInfo.myId()) return false;
-
-  if (!repInfo.isIdOfReplica(t->senderId())) return false;
-
-  outMsg = t;
-  return true;
+void SignedShareBase::_validate(const ReplicasInfo& repInfo, int16_t type_) const {
+  Assert(type() == type_);
+  if (size() < sizeof(SignedShareBaseHeader) || size() < sizeof(SignedShareBaseHeader) + signatureLen() ||  // size
+      senderId() == repInfo.myId() ||  // sent from another replica
+      !repInfo.isIdOfReplica(senderId()))
+    throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -88,17 +75,11 @@ PreparePartialMsg* PreparePartialMsg::create(
       MsgCode::PreparePartial, v, s, senderId, ppDigest, thresholdSigner);
 }
 
-bool PreparePartialMsg::ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, PreparePartialMsg*& outMsg) {
-  SignedShareBase* pOutMsg = nullptr;
-  bool r = SignedShareBase::ToActualMsgType(repInfo, MsgCode::PreparePartial, inMsg, pOutMsg);
-  if (!r) return false;
+void PreparePartialMsg::validate(const ReplicasInfo& repInfo) const {
+  SignedShareBase::_validate(repInfo, MsgCode::PreparePartial);
 
-  if (repInfo.myId() != repInfo.primaryOfView(pOutMsg->viewNumber()))
-    return false;  // (the primary is the collector of PreparePartialMsg)
-
-  outMsg = (PreparePartialMsg*)pOutMsg;
-
-  return true;
+  if (repInfo.myId() != repInfo.primaryOfView(viewNumber()))
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": the primary is the collector of PreparePartialMsg"));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -115,11 +96,8 @@ PrepareFullMsg* PrepareFullMsg::create(ViewNum v, SeqNum s, ReplicaId senderId, 
   return (PrepareFullMsg*)SignedShareBase::create(MsgCode::PrepareFull, v, s, senderId, sig, sigLen);
 }
 
-bool PrepareFullMsg::ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, PrepareFullMsg*& outMsg) {
-  SignedShareBase* pOutMsg = nullptr;
-  bool r = SignedShareBase::ToActualMsgType(repInfo, MsgCode::PrepareFull, inMsg, pOutMsg);
-  if (r) outMsg = (PrepareFullMsg*)pOutMsg;
-  return r;
+void PrepareFullMsg::validate(const ReplicasInfo& repInfo) const {
+  SignedShareBase::_validate(repInfo, MsgCode::PrepareFull);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -132,17 +110,11 @@ CommitPartialMsg* CommitPartialMsg::create(
       MsgCode::CommitPartial, v, s, senderId, ppDoubleDigest, thresholdSigner);
 }
 
-bool CommitPartialMsg::ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, CommitPartialMsg*& outMsg) {
-  SignedShareBase* pOutMsg = nullptr;
-  bool r = SignedShareBase::ToActualMsgType(repInfo, MsgCode::CommitPartial, inMsg, pOutMsg);
-  if (!r) return false;
+void CommitPartialMsg::validate(const ReplicasInfo& repInfo) const {
+  SignedShareBase::_validate(repInfo, MsgCode::CommitPartial);
 
-  if (repInfo.myId() != repInfo.primaryOfView(pOutMsg->viewNumber()))
-    return false;  // (the primary is the collector of CommitPartialMsg)
-
-  outMsg = (CommitPartialMsg*)pOutMsg;
-
-  return true;
+  if (repInfo.myId() != repInfo.primaryOfView(viewNumber()))
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": the primary is the collector of CommitPartialMsg"));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -159,11 +131,8 @@ CommitFullMsg* CommitFullMsg::create(ViewNum v, SeqNum s, int16_t senderId, cons
   return (CommitFullMsg*)SignedShareBase::create(MsgCode::CommitFull, v, s, senderId, sig, sigLen);
 }
 
-bool CommitFullMsg::ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, CommitFullMsg*& outMsg) {
-  SignedShareBase* pOutMsg = nullptr;
-  bool r = SignedShareBase::ToActualMsgType(repInfo, MsgCode::CommitFull, inMsg, pOutMsg);
-  if (r) outMsg = (CommitFullMsg*)pOutMsg;
-  return r;
+void CommitFullMsg::validate(const ReplicasInfo& repInfo) const {
+  SignedShareBase::_validate(repInfo, MsgCode::CommitFull);
 }
 
 }  // namespace impl

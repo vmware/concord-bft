@@ -10,43 +10,38 @@
 // file.
 
 #include "ReplicasInfo.hpp"
+#include "ReplicaConfig.hpp"
 #include "assertUtils.hpp"
 
 namespace bftEngine {
 namespace impl {
 
-// we assume that the set of replicas is 0,1,2,...,numberOfReplicas (TODO(GG): should be changed to support full dynamic
-// reconfiguration)
-static std::set<ReplicaId> generateSetOfReplicas_helpFunc(const int16_t numberOfReplicas) {
-  std::set<ReplicaId> retVal;
-  for (int16_t i = 0; i < numberOfReplicas; i++) retVal.insert(i);
-  return retVal;
-}
+// we assume that the set of replicas is 0,1,2,...,numberOfReplicas=n, n+1, n+2, ... , n+numberReadOnlyReplicas
 
-static std::set<ReplicaId> generateSetOfPeerReplicas_helpFunc(const ReplicaId myId, const int16_t numberOfReplicas) {
-  std::set<ReplicaId> retVal;
-  for (int16_t i = 0; i < numberOfReplicas; i++)
-    if (i != myId) retVal.insert(i);
-  return retVal;
-}
-
-ReplicasInfo::ReplicasInfo(ReplicaId myId,
-                           const SigManager& sigManager,
-                           int16_t numberOfReplicas,
-                           int16_t fVal,
-                           int16_t cVal,
+ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
                            bool dynamicCollectorForPartialProofs,
                            bool dynamicCollectorForExecutionProofs)
-    : _myId{myId},
-      _sigManager{sigManager},
-      _numberOfReplicas{numberOfReplicas},
-      _fVal{fVal},
-      _cVal{cVal},
+    : _myId{config.replicaId},
+      _numberOfReplicas{config.numReplicas},
+      _fVal{config.fVal},
+      _cVal{config.cVal},
       _dynamicCollectorForPartialProofs{dynamicCollectorForPartialProofs},
       _dynamicCollectorForExecutionProofs{dynamicCollectorForExecutionProofs},
-      _idsOfReplicas{generateSetOfReplicas_helpFunc(numberOfReplicas)},
-      _idsOfPeerReplicas{generateSetOfPeerReplicas_helpFunc(myId, numberOfReplicas)} {
-  Assert(numberOfReplicas == (3 * fVal + 2 * cVal + 1));
+
+      _idsOfPeerReplicas{[config]() {
+        std::set<ReplicaId> ret;
+        for (auto i = 0; i < config.numReplicas; ++i)
+          if (i != config.replicaId) ret.insert(i);
+        return ret;
+      }()},
+
+      _idsOfPeerROReplicas{[config]() {
+        std::set<ReplicaId> ret;
+        for (auto i = config.numReplicas; i < config.numReplicas + config.numRoReplicas; ++i)
+          if (i != config.replicaId) ret.insert(i);
+        return ret;
+      }()} {
+  Assert(_numberOfReplicas == (3 * _fVal + 2 * _cVal + 1));
 }
 
 bool ReplicasInfo::getCollectorsForPartialProofs(const ReplicaId refReplica,

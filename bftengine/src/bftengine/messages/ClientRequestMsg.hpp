@@ -24,12 +24,17 @@ class ClientRequestMsg : public MessageBase {
   static_assert(sizeof(ClientRequestMsgHeader::msgType) == sizeof(MessageBase::Header), "");
   static_assert(sizeof(ClientRequestMsgHeader::idOfClientProxy) == sizeof(NodeIdType), "");
   static_assert(sizeof(ClientRequestMsgHeader::reqSeqNum) == sizeof(ReqId), "");
-  static_assert(sizeof(ClientRequestMsgHeader) == 17, "ClientRequestMsgHeader is 17B");
+  static_assert(sizeof(ClientRequestMsgHeader) == 21, "ClientRequestMsgHeader size is 21B");
 
   // TODO(GG): more asserts
 
  public:
-  ClientRequestMsg(NodeIdType sender, bool isReadOnly, uint64_t reqSeqNum, uint32_t requestLength, const char* request);
+  ClientRequestMsg(NodeIdType sender,
+                   uint8_t flags,
+                   uint64_t reqSeqNum,
+                   uint32_t requestLength,
+                   const char* request,
+                   const std::string& cid = "");
 
   ClientRequestMsg(NodeIdType sender);
 
@@ -37,7 +42,9 @@ class ClientRequestMsg : public MessageBase {
 
   uint16_t clientProxyId() const { return msgBody()->idOfClientProxy; }
 
-  bool isReadOnly() const { return (msgBody()->flags & 0x1) != 0; }
+  bool isReadOnly() const;
+
+  uint8_t flags() const { return msgBody()->flags; }
 
   ReqId requestSeqNum() const { return msgBody()->reqSeqNum; }
 
@@ -45,16 +52,16 @@ class ClientRequestMsg : public MessageBase {
 
   char* requestBuf() const { return body() + sizeof(ClientRequestMsgHeader); }
 
-  void set(ReqId reqSeqNum, uint32_t requestLength, bool isReadOnly);
-
-  static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, ClientRequestMsg*& outMsg);
+  void set(ReqId reqSeqNum, uint32_t requestLength, uint8_t flags);
+  std::string getCid();
+  void validate(const ReplicasInfo&) const override;
 
  protected:
   ClientRequestMsgHeader* msgBody() const { return ((ClientRequestMsgHeader*)msgBody_); }
 
  private:
-  void setParams(NodeIdType sender, ReqId reqSeqNum, uint32_t requestLength, bool isReadOnly);
-  void setParams(ReqId reqSeqNum, uint32_t requestLength, bool isReadOnly);
+  void setParams(NodeIdType sender, ReqId reqSeqNum, uint32_t requestLength, uint8_t flags);
+  void setParams(ReqId reqSeqNum, uint32_t requestLength, uint8_t flags);
 };
 
 }  // namespace bftEngine::impl

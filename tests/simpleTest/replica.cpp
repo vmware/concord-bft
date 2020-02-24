@@ -66,9 +66,9 @@ using bftEngine::PlainUdpConfig;
 using bftEngine::PlainTCPCommunication;
 using bftEngine::PlainTcpConfig;
 using bftEngine::TlsTcpConfig;
-using bftEngine::Replica;
+using bftEngine::IReplica;
 using bftEngine::ReplicaConfig;
-using bftEngine::RequestsHandler;
+using bftEngine::IRequestsHandler;
 using namespace std;
 using namespace bftEngine;
 

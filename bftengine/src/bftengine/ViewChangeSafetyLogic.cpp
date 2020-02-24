@@ -42,7 +42,7 @@ struct FastElem {
 
   bool isNull() const { return (e == nullptr); }
 
-  Digest& prePrepreDigest() const { return e->prePrepreDigest; }
+  Digest& prePrepreDigest() const { return e->prePrepareDigest; }
 };
 
 bool operator==(const FastElem& lhs, const FastElem& rhs)  // TODO(GG): make sure that this method is used correctly
@@ -52,7 +52,7 @@ bool operator==(const FastElem& lhs, const FastElem& rhs)  // TODO(GG): make sur
 }
 
 struct FastElemHash {
-  size_t operator()(FastElem const& s) const noexcept { return s.e->prePrepreDigest.hash(); }
+  size_t operator()(FastElem const& s) const noexcept { return s.e->prePrepareDigest.hash(); }
 };
 
 struct SlowElem {
@@ -68,7 +68,7 @@ struct SlowElem {
   }
 
   SeqNum seqNum() const { return e->seqNum; }
-  Digest& prePrepreDigest() const { return e->prePrepreDigest; }
+  Digest& prePrepreDigest() const { return e->prePrepareDigest; }
 
   ViewNum certificateView() const { return c()->certificateView; }
   uint16_t certificateSigLength() const { return c()->certificateSigLength; }

@@ -41,16 +41,19 @@ using BlockIdDifferenceType = std::make_signed<concordUtils::BlockId>::type;
 // The maximum possible number of blocks this view is able to hold.
 inline constexpr auto MAX_BLOCKCHAIN_VIEW_SIZE = std::numeric_limits<detail::BlockIdDifferenceType>::max();
 
+// Represents lack of block info initialization data.
+struct NoBlockInfoInit {};
+
 // A random access blockchain iterator that supports caching block info.
-template <typename BlockInfo, bool loadDataOnAccess>
-class BlockchainIterator : public boost::iterator_facade<BlockchainIterator<BlockInfo, loadDataOnAccess>,
+template <typename BlockInfo, typename BlockInfoInit, bool loadDataOnAccess>
+class BlockchainIterator : public boost::iterator_facade<BlockchainIterator<BlockInfo, BlockInfoInit, loadDataOnAccess>,
                                                          const BlockInfo,  // The value type this iterator points to.
                                                          boost::random_access_traversal_tag,
                                                          const BlockInfo&,  // Reference to the value type.
                                                          detail::BlockIdDifferenceType> {
  private:
   friend class boost::iterator_core_access;
-  template <typename, bool>
+  template <typename, typename, bool>
   friend class BlockchainView;
 
   using Cache = detail::BlockInfoCache<BlockInfo>;
@@ -58,9 +61,19 @@ class BlockchainIterator : public boost::iterator_facade<BlockchainIterator<Bloc
   BlockchainIterator(concordUtils::BlockId id,
                      concordUtils::BlockId genesisId,
                      concordUtils::BlockId endId,
+                     BlockInfoInit blockInfoInit,
                      Cache& cache)
-      : blockId_{id}, genesisId_{genesisId}, endId_{endId}, cache_{&cache} {
+      : blockId_{id}, genesisId_{genesisId}, endId_{endId}, blockInfoInit_{blockInfoInit}, cache_{&cache} {
     cacheBlock(blockId_);
+  }
+
+  void loadAndCacheInfo(BlockInfo& blockInfo) const {
+    const auto id = blockInfo.id();
+    blockInfo.loadIndices();
+    if constexpr (loadDataOnAccess) {
+      blockInfo.loadData();
+    }
+    cache_->emplace(id, std::move(blockInfo));
   }
 
   void cacheBlock(concordUtils::BlockId id) const {
@@ -74,12 +87,13 @@ class BlockchainIterator : public boost::iterator_facade<BlockchainIterator<Bloc
     }
 
     // load data from storage and, if successful, add to cache
-    auto blockInfo = BlockInfo{id};
-    blockInfo.loadIndices();
-    if constexpr (loadDataOnAccess) {
-      blockInfo.loadData();
+    if constexpr (std::is_same_v<BlockInfoInit, NoBlockInfoInit>) {
+      auto blockInfo = BlockInfo{id};
+      loadAndCacheInfo(blockInfo);
+    } else {
+      auto blockInfo = BlockInfo{id, blockInfoInit_};
+      loadAndCacheInfo(blockInfo);
     }
-    cache_->emplace(id, std::move(blockInfo));
   }
 
   bool isOutsideRange(concordUtils::BlockId id) const noexcept { return id < genesisId_ || id >= endId_; }
@@ -115,6 +129,7 @@ class BlockchainIterator : public boost::iterator_facade<BlockchainIterator<Bloc
   concordUtils::BlockId blockId_{0};
   concordUtils::BlockId genesisId_{0};
   concordUtils::BlockId endId_{0};
+  BlockInfoInit blockInfoInit_;
   Cache* cache_{nullptr};
 };
 
@@ -130,7 +145,7 @@ class BaseBlockInfo {
   void loadIndices() {}
 
  private:
-  template <typename, bool>
+  template <typename, typename, bool>
   friend class BlockchainIterator;
 
   concordUtils::BlockId id_{0};
@@ -150,9 +165,12 @@ inline bool operator==(const BaseBlockInfo& lhs, const BaseBlockInfo& rhs) { ret
 //  * data - any data fetched for a block from storage (block key-values, for example). Users can select whether to
 //    automatically load it on access (via the loadDataOnAccess parameter) or they can load it at their own discretion.
 //
-// Users are required to pass a BlockInfo type that represents the block information as fetched from storage.
-// Requirements on BlockInfo are:
-//  * BlockInfo(concordUtils::BlockId) - a constructor that takes the block ID
+// Users are required to pass a BlockInfo type that represents the block information as fetched from storage. The
+// BlockInfoInit type specifies an optional initialization passed to the BlockInfo constructor. Requirements on
+// BlockInfo are:
+//  * BlockInfo(concordUtils::BlockId) or BlockInfo(concordUtils::BlockId, BlockInfoInit) - a constructor that takes the
+//  block ID if BlockInfoInit == NoBlockInfoInit or a constructor that takes both an ID and an initialization value if
+//  BlockInfoInit != NoBlockInfoInit
 //  * [ingored return] loadIndices() - a method that is called when accessing the block through iterators and is
 //  expected to populate any indices needed by the user. Indices will be cached inside the BlockchainView.
 //  * [ignored return] loadData() - an optional method that can be either called by users themselves on demand or by
@@ -164,7 +182,7 @@ inline bool operator==(const BaseBlockInfo& lhs, const BaseBlockInfo& rhs) { ret
 //
 // Non-standard members are named in a camelCase convention. Standard member types and methods are named based on:
 // https://en.cppreference.com/w/cpp/named_req/Container
-template <typename BlockInfo, bool loadDataOnAccess = false>
+template <typename BlockInfo, typename BlockInfoInit = NoBlockInfoInit, bool loadDataOnAccess = false>
 class BlockchainView {
  private:
   using CacheType = detail::BlockInfoCache<BlockInfo>;
@@ -175,7 +193,7 @@ class BlockchainView {
   using difference_type = detail::BlockIdDifferenceType;
   using const_reference = const BlockInfo&;
   using reference = const_reference;
-  using const_iterator = BlockchainIterator<BlockInfo, loadDataOnAccess>;
+  using const_iterator = BlockchainIterator<BlockInfo, BlockInfoInit, loadDataOnAccess>;
   using iterator = const_iterator;
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
   using reverse_iterator = const_reverse_iterator;
@@ -183,14 +201,16 @@ class BlockchainView {
   // Constructs an empty view.
   BlockchainView() = default;
 
-  // Constructs a view with count elements and the first element pointing to the block at genesisId.
+  // Constructs a view with count elements and the first element pointing to the block at genesisId. Additionally, an
+  // optional initialization value can be provided.
+  //
   // Note: genesisId + count must be <= MAX_BLOCKCHAIN_VIEW_SIZE to properly support end() and cend() iterators.
+  //
   // If count > MAX_BLOCKCHAIN_VIEW_SIZE, an exception is thrown.
   // If genesisId + count would overflow the concordUtils::BlockId type, behavior is undefined.
-  // If genesisId + count > MAX_BLOCKCHAIN_VIEW_SIZE, an exception is thrown.
-  // Constant complexity.
-  BlockchainView(concordUtils::BlockId genesisId, size_type count)
-      : genesisId_{genesisId}, endId_{genesisId + count}, size_{count} {
+  // If genesisId + count > MAX_BLOCKCHAIN_VIEW_SIZE, an exception is thrown. Constant complexity.
+  BlockchainView(concordUtils::BlockId genesisId, size_type count, BlockInfoInit blockInfoInit_ = BlockInfoInit{})
+      : genesisId_{genesisId}, endId_{genesisId + count}, size_{count}, blockInfoInit_{blockInfoInit_} {
     if (count > MAX_BLOCKCHAIN_VIEW_SIZE) {
       throw std::length_error{"BlockchainView: exceeded MAX_BLOCKCHAIN_VIEW_SIZE"};
     } else if (genesisId + count > MAX_BLOCKCHAIN_VIEW_SIZE) {
@@ -201,12 +221,12 @@ class BlockchainView {
   // Return iterators to the first block. If the view is empty, iterators will be equal to end() and cend() .
   // Attempting to access on an empty view results in undefined behavior.
   // Decrementing results in undefined behavior.
-  const_iterator begin() const { return const_iterator{genesisId_, genesisId_, endId_, cache_}; }
+  const_iterator begin() const { return const_iterator{genesisId_, genesisId_, endId_, blockInfoInit_, cache_}; }
   const_iterator cbegin() const { return begin(); }
 
   // Return iterators to the block following the last block.
   // Incrementing or attempting to access results in undefined behavior.
-  const_iterator end() const noexcept { return const_iterator{endId_, genesisId_, endId_, cache_}; }
+  const_iterator end() const noexcept { return const_iterator{endId_, genesisId_, endId_, blockInfoInit_, cache_}; }
   const_iterator cend() const noexcept { return end(); }
 
   // Return reverse iterators to the first block of the reversed view.
@@ -243,17 +263,18 @@ class BlockchainView {
 
   // Returns a const reference to the block at location pos. Calling with an invalid pos results in undefined behavior.
   const_reference operator[](size_type pos) const {
-    auto it = const_iterator{genesisId_ + pos, genesisId_, endId_, cache_};
+    auto it = const_iterator{genesisId_ + pos, genesisId_, endId_, blockInfoInit_, cache_};
     return *it;
   }
 
   // Returns an iterator to the block with the passed ID. No bounds checking. Calling with an ID that is outside the
   // range results in undefined behavior. Constant complexity.
-  const_iterator get(concordUtils::BlockId id) const { return const_iterator{id, genesisId_, endId_, cache_}; }
+  const_iterator get(concordUtils::BlockId id) const {
+    return const_iterator{id, genesisId_, endId_, blockInfoInit_, cache_};
+  }
 
-  // Finds a block with the passed ID.
-  // Returns a const iterator to the block with the passed ID. If no such block is found, cend() is returned.
-  // Constant complexity.
+  // Finds a block with the passed ID. Returns a const iterator to the block with the passed ID. If no such block is
+  // found, cend() is returned. Constant complexity.
   const_iterator find(concordUtils::BlockId id) const {
     if (empty() || id < genesisId_ || id > endId_ - 1) {
       return cend();
@@ -273,6 +294,7 @@ class BlockchainView {
   concordUtils::BlockId genesisId_{0};
   concordUtils::BlockId endId_{0};
   size_type size_{0};
+  BlockInfoInit blockInfoInit_;
   mutable CacheType cache_;
 };
 

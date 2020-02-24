@@ -25,6 +25,7 @@ struct ClientRequestMsgHeader {
   uint8_t flags;  // bit 0 == isReadOnly, bit 1 = preProcess, bits 2-7 are reserved
   uint64_t reqSeqNum;
   uint32_t requestLength;
+  uint32_t cid_length = 0;
   // followed by the request (security information, such as signatures, should be part of the request)
 
   // TODO(GG): idOfClientProxy is not needed here

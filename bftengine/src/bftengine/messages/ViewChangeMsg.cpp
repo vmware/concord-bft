@@ -15,6 +15,7 @@
 #include "ViewChangeMsg.hpp"
 #include "Crypto.hpp"
 #include "ReplicaConfig.hpp"
+#include "ViewsManager.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -42,7 +43,7 @@ void ViewChangeMsg::getMsgDigest(Digest& outDigest) const {
 
 void ViewChangeMsg::addElement(const ReplicasInfo& repInfo,
                                SeqNum seqNum,
-                               const Digest& prePrepreDigest,
+                               const Digest& prePrepareDigest,
                                ViewNum originView,
                                bool hasPreparedCertificate,
                                ViewNum certificateView,
@@ -64,11 +65,11 @@ void ViewChangeMsg::addElement(const ReplicasInfo& repInfo,
 
   // TODO(GG): we should make sure that this assert will never be violated (by calculating the maximum  size of a
   // ViewChangeMsg message required for the actual configuration)
-  Assert((size_t)(requiredSpace + repInfo.mySigManager().getMySigLength()) <= (size_t)internalStorageSize());
+  Assert((size_t)(requiredSpace + ViewsManager::sigManager_->getMySigLength()) <= (size_t)internalStorageSize());
 
   Element* pElement = (Element*)(body() + b()->locationAfterLast);
   pElement->seqNum = seqNum;
-  pElement->prePrepreDigest = prePrepreDigest;
+  pElement->prePrepareDigest = prePrepareDigest;
   pElement->originView = originView;
   pElement->hasPreparedCertificate = hasPreparedCertificate;
 
@@ -86,53 +87,36 @@ void ViewChangeMsg::addElement(const ReplicasInfo& repInfo,
   b()->numberOfElements++;
 }
 
-void ViewChangeMsg::finalizeMessage(const ReplicasInfo& repInfo) {
+void ViewChangeMsg::finalizeMessage() {
   size_t bodySize = b()->locationAfterLast;
   if (bodySize == 0) bodySize = sizeof(ViewChangeMsgHeader);
 
-  uint16_t sigSize = repInfo.mySigManager().getMySigLength();
+  uint16_t sigSize = ViewsManager::sigManager_->getMySigLength();
 
   setMsgSize(bodySize + sigSize);
   shrinkToFit();
 
-  repInfo.mySigManager().sign(body(), bodySize, body() + bodySize, sigSize);
+  ViewsManager::sigManager_->sign(body(), bodySize, body() + bodySize, sigSize);
 
   bool b = checkElements((uint16_t)sigSize);
 
   Assert(b);
 }
 
-bool ViewChangeMsg::ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, ViewChangeMsg*& outMsg) {
-  Assert(inMsg->type() == MsgCode::ViewChange);
-  if (inMsg->size() < sizeof(ViewChangeMsgHeader)) return false;
+void ViewChangeMsg::validate(const ReplicasInfo& repInfo) const {
+  if (size() < sizeof(ViewChangeMsgHeader) || !repInfo.isIdOfReplica(idOfGeneratedReplica()) ||
+      idOfGeneratedReplica() == repInfo.myId())
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
 
-  ViewChangeMsg* t = (ViewChangeMsg*)inMsg;
-
-  // simple validations
-  if (!repInfo.isIdOfReplica(t->idOfGeneratedReplica())) return false;
-
-  // size
-  uint16_t dataLength = t->b()->locationAfterLast;
-  uint16_t sigLen = repInfo.mySigManager().getSigLength(t->idOfGeneratedReplica());
+  uint16_t dataLength = b()->locationAfterLast;
   if (dataLength < sizeof(ViewChangeMsgHeader)) dataLength = sizeof(ViewChangeMsgHeader);
-  if (((uint16_t)t->size()) < (uint16_t)(dataLength + sigLen)) return false;
+  uint16_t sigLen = ViewsManager::sigManager_->getSigLength(idOfGeneratedReplica());
 
-  // id
-  if (t->idOfGeneratedReplica() == repInfo.myId()) return false;
-
-  // check signature
-  bool sigOkay = repInfo.mySigManager().verifySig(
-      t->idOfGeneratedReplica(), t->body(), dataLength, t->body() + dataLength, sigLen);
-  if (!sigOkay) return false;
-
-  // check elements in message
-  bool elementsOkay = t->checkElements(sigLen);
-  if (!elementsOkay) return false;
-
-  // TODO(GG): TBD -  more?
-
-  outMsg = (ViewChangeMsg*)inMsg;
-  return true;
+  if (size() < (dataLength + sigLen)) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": size"));
+  if (!ViewsManager::sigManager_->verifySig(idOfGeneratedReplica(), body(), dataLength, body() + dataLength, sigLen))
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig"));
+  if (!checkElements(sigLen))  // check elements in message
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": check elements in message"));
 }
 
 bool ViewChangeMsg::checkElements(uint16_t sigSize) const {

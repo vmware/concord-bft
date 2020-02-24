@@ -54,7 +54,7 @@ class ReplicaStatusMsg : public MessageBase {
 
   void setMissingPrePrepareMsgForViewChange(SeqNum seqNum);
 
-  static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, ReplicaStatusMsg*& outMsg);
+  void validate(const ReplicasInfo&) const override;
 
  protected:
 #pragma pack(push, 1)

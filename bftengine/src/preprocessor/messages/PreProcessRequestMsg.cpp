@@ -16,34 +16,29 @@
 namespace preprocessor {
 
 PreProcessRequestMsg::PreProcessRequestMsg(
-    NodeIdType senderId, uint64_t reqSeqNum, ViewNum currentView, uint32_t requestLength, const char* request)
-    : MessageBase(senderId, MsgCode::PreProcessRequest, (sizeof(PreProcessRequestMsgHeader) + requestLength)) {
-  setParams(senderId, reqSeqNum, currentView, requestLength);
-  memcpy(body() + sizeof(PreProcessRequestMsgHeader), request, requestLength);
+    NodeIdType senderId, uint16_t clientId, uint64_t reqSeqNum, uint32_t reqLength, const char* request)
+    : MessageBase(senderId, MsgCode::PreProcessRequest, (sizeof(PreProcessRequestMsgHeader) + reqLength)) {
+  setParams(senderId, clientId, reqSeqNum, reqLength);
+  memcpy(body() + sizeof(PreProcessRequestMsgHeader), request, reqLength);
 }
 
-PreProcessRequestMsg::PreProcessRequestMsg(const ClientPreProcessReqMsgSharedPtr& msg, ViewNum currentView)
-    : MessageBase(msg->senderId(), (Header*)msg->body(), msg->size(), false) {
-  msgBody()->header.msgType = bftEngine::impl::MsgCode::PreProcessRequest;
-  setParams(msg->senderId(), msg->requestSeqNum(), currentView, msg->size());
+void PreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
+  Assert(type() == MsgCode::PreProcessRequest);
+  Assert(senderId() != repInfo.myId());
+
+  if (size() < (sizeof(PreProcessRequestMsgHeader)) ||
+      size() < (sizeof(PreProcessRequestMsgHeader) + msgBody()->requestLength))
+    throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
-bool PreProcessRequestMsg::ToActualMsgType(MessageBase* inMsg, PreProcessRequestMsg*& outMsg) {
-  Assert(inMsg->type() == MsgCode::PreProcessRequest);
-  if (inMsg->size() < sizeof(PreProcessRequestMsgHeader)) return false;
-
-  auto* msg = (PreProcessRequestMsg*)inMsg;
-  if (msg->size() < (sizeof(PreProcessRequestMsgHeader) + msg->msgBody()->requestLength)) return false;
-
-  outMsg = msg;
-  return true;
-}
-
-void PreProcessRequestMsg::setParams(NodeIdType senderId, ReqId reqSeqNum, ViewNum view, uint32_t requestLength) {
+void PreProcessRequestMsg::setParams(NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum, uint32_t reqLength) {
   msgBody()->senderId = senderId;
+  msgBody()->clientId = clientId;
   msgBody()->reqSeqNum = reqSeqNum;
-  msgBody()->viewNum = view;
-  msgBody()->requestLength = requestLength;
+  msgBody()->requestLength = reqLength;
+  LOG_DEBUG(
+      GL,
+      "senderId=" << senderId << " clientId=" << clientId << " reqSeqNum=" << reqSeqNum << " reqLength=" << reqLength);
 }
 
 }  // namespace preprocessor

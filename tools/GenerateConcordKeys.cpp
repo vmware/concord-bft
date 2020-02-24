@@ -14,7 +14,12 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 #include <cryptopp/dll.h>
+#pragma GCC diagnostic pop
+
 #include "threshsign/ThresholdSignaturesTypes.h"
 #include "KeyfileIOUtils.hpp"
 

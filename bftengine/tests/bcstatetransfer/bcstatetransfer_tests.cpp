@@ -22,7 +22,7 @@
 #include "memorydb/client.h"
 
 using concord::storage::ITransaction;
-using concord::storage::blockchain::KeyManipulator;
+using concord::storage::blockchain::DBKeyComparator;
 
 #ifdef USE_ROCKSDB
 #include "rocksdb/client.h"
@@ -40,6 +40,7 @@ Config TestConfig() {
   Config config;
   config.myReplicaId = 1;
   config.fVal = 1;
+  config.numReplicas = 4;
   config.maxBlockSize = kMaxBlockSize;
   config.maxChunkSize = 128;
   config.maxNumberOfChunksInBatch = 128;
@@ -56,14 +57,14 @@ class BcStTest : public ::testing::Test {
     //      log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("rocksdb")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
 
     config_ = TestConfig();
-    auto* key_manipulator = new concord::storage::blockchain::KeyManipulator();
+    auto* db_key_comparator = new concord::storage::blockchain::DBKeyComparator();
 #ifdef USE_ROCKSDB
     concord::storage::IDBClient::ptr dbc(
-        new concord::storage::rocksdb::Client("./bcst_db", new KeyComparator(key_manipulator)));
+        new concord::storage::rocksdb::Client("./bcst_db", new KeyComparator(db_key_comparator)));
     dbc->init();
     auto* datastore = new DBDataStore(dbc, config_.sizeOfReservedPage);
 #else
-    auto comparator = concord::storage::memorydb::KeyComparator(key_manipulator);
+    auto comparator = concord::storage::memorydb::KeyComparator(db_key_comparator);
     concord::storage::IDBClient::ptr dbc(new concord::storage::memorydb::Client(comparator));
     auto* datastore = new InMemoryDataStore(config_.sizeOfReservedPage);
 #endif

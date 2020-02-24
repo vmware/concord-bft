@@ -191,6 +191,10 @@ class Component {
   Values values_;
 };
 
+typedef concordMetrics::Component::Handle<concordMetrics::Gauge> GaugeHandle;
+typedef concordMetrics::Component::Handle<concordMetrics::Status> StatusHandle;
+typedef concordMetrics::Component::Handle<concordMetrics::Counter> CounterHandle;
+
 }  // namespace concordMetrics
 
 #endif  // CONCORD_BFT_METRICS_HPP

@@ -85,47 +85,24 @@ ReplicaStatusMsg::ReplicaStatusMsg(ReplicaId senderId,
   }
 }
 
-bool ReplicaStatusMsg::ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, ReplicaStatusMsg*& outMsg) {
-  Assert(inMsg->type() == MsgCode::ReplicaStatus);
-  if (inMsg->size() < sizeof(ReplicaStatusMsgHeader)) return false;
+void ReplicaStatusMsg::validate(const ReplicasInfo& repInfo) const {
+  if (size() < sizeof(ReplicaStatusMsgHeader) || senderId() == repInfo.myId() || !repInfo.isIdOfReplica(senderId()) ||
+      (getLastStableSeqNum() % checkpointWindowSize != 0) || getLastExecutedSeqNum() < getLastStableSeqNum())
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic"));
 
-  ReplicaStatusMsg* t = (ReplicaStatusMsg*)inMsg;
+  const bool viewIsActive = currentViewIsActive();
+  const bool hasNewChangeMsg = currentViewHasNewViewMessage();
+  const bool listOfPPInActiveWindow = hasListOfPrePrepareMsgsInActiveWindow();
+  const bool listOfMissingVCForVC = hasListOfMissingViewChangeMsgForViewChange();
+  const bool listOfMissingPPForVC = hasListOfMissingPrePrepareMsgForViewChange();
 
-  if (t->senderId() == repInfo.myId()) return false;
-
-  if (!repInfo.isIdOfReplica(t->senderId())) return false;
-
-  if (t->getLastStableSeqNum() % checkpointWindowSize != 0) return false;
-
-  if (t->getLastExecutedSeqNum() < t->getLastStableSeqNum()) return false;
-
-  const bool viewIsActive = t->currentViewIsActive();
-  const bool hasNewChangeMsg = t->currentViewHasNewViewMessage();
-  const bool listOfPPInActiveWindow = t->hasListOfPrePrepareMsgsInActiveWindow();
-  const bool listOfMissingVCForVC = t->hasListOfMissingViewChangeMsgForViewChange();
-  const bool listOfMissingPPForVC = t->hasListOfMissingPrePrepareMsgForViewChange();
-
-  if (!(!viewIsActive || hasNewChangeMsg))  // if NOT (viewIsActive --> hasNewChangeMsg)
-    return false;
-
-  if (!(!viewIsActive || !listOfMissingVCForVC))  // if NOT (viewIsActive --> !listOfMissingVCForVC)
-    return false;
-
-  if (!(!viewIsActive || !listOfMissingPPForVC))  // if NOT (viewIsActive --> !listOfMissingPPForVC)
-    return false;
-
-  if (!((viewIsActive || !listOfPPInActiveWindow)))  // if NOT (!viewIsActive --> !listOfPPInActiveWindow)
-    return false;
-
-  if (((listOfPPInActiveWindow ? 1 : 0) + (listOfMissingVCForVC ? 1 : 0) + (listOfMissingPPForVC ? 1 : 0)) >= 2)
-    return false;
-
-  if (t->size() != calcSizeOfReplicaStatusMsg(listOfPPInActiveWindow, listOfMissingVCForVC, listOfMissingPPForVC))
-    return false;
-
-  outMsg = t;
-
-  return true;
+  if (!(!viewIsActive || hasNewChangeMsg) ||         // if NOT (viewIsActive --> hasNewChangeMsg)
+      !(!viewIsActive || !listOfMissingVCForVC) ||   // if NOT (viewIsActive --> !listOfMissingVCForVC)
+      !(!viewIsActive || !listOfMissingPPForVC) ||   // if NOT (viewIsActive --> !listOfMissingPPForVC)
+      !(viewIsActive || !listOfPPInActiveWindow) ||  // if NOT (!viewIsActive --> !listOfPPInActiveWindow)
+      (((listOfPPInActiveWindow ? 1 : 0) + (listOfMissingVCForVC ? 1 : 0) + (listOfMissingPPForVC ? 1 : 0)) >= 2) ||
+      size() != calcSizeOfReplicaStatusMsg(listOfPPInActiveWindow, listOfMissingVCForVC, listOfMissingPPForVC))
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": advanced"));
 }
 
 ViewNum ReplicaStatusMsg::getViewNumber() const { return b()->viewNumber; }

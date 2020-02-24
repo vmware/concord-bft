@@ -19,9 +19,8 @@
 #include "hex_tools.h"
 #include "replica_state_sync.h"
 #include "sliver.hpp"
-#include "SimpleBCStateTransfer.hpp"
-#include "blockchain/db_types.h"
 #include "blockchain/db_interfaces.h"
+#include "blockchain/block.h"
 #include "storage/db_metadata_storage.h"
 
 using bftEngine::ICommunication;
@@ -33,12 +32,11 @@ using concord::storage::IDBClient;
 using concord::storage::DBMetadataStorage;
 
 using concord::storage::blockchain::DBAdapter;
-using concord::storage::blockchain::BlockEntry;
-using concord::storage::blockchain::BlockHeader;
 using concord::storage::blockchain::BlockId;
 using concord::storage::blockchain::ILocalKeyValueStorageReadOnly;
 using concord::storage::blockchain::ILocalKeyValueStorageReadOnlyIterator;
-using concord::storage::blockchain::KeyManipulator;
+using concord::storage::blockchain::DBKeyManipulator;
+namespace block = concord::storage::blockchain::block;
 
 using concordUtils::SetOfKeyValuePairs;
 using concordUtils::Value;
@@ -59,9 +57,15 @@ Status ReplicaImp::start() {
   }
 
   m_currentRepStatus = RepStatus::Starting;
-  m_metadataStorage = new DBMetadataStorage(m_bcDbAdapter->getDb().get(), KeyManipulator::generateMetadataKey);
+  m_metadataStorage = new DBMetadataStorage(m_bcDbAdapter->getDb().get(), DBKeyManipulator::generateMetadataKey);
 
-  createReplicaAndSyncState();
+  if (m_replicaConfig.isReadOnly) {
+    LOG_INFO(logger, "ReadOnly mode");
+    m_replicaPtr =
+        bftEngine::IReplica::createNewRoReplica(&m_replicaConfig, m_stateTransfer, m_ptrComm, m_metadataStorage);
+  } else {
+    createReplicaAndSyncState();
+  }
   m_replicaPtr->SetAggregator(aggregator_);
   m_replicaPtr->start();
   m_currentRepStatus = RepStatus::Running;
@@ -75,7 +79,7 @@ Status ReplicaImp::start() {
 void ReplicaImp::createReplicaAndSyncState() {
   bool isNewStorage = m_metadataStorage->isNewStorage();
   LOG_INFO(logger, "createReplicaAndSyncState: isNewStorage= " << isNewStorage);
-  m_replicaPtr = bftEngine::Replica::createNewReplica(
+  m_replicaPtr = bftEngine::IReplica::createNewReplica(
       &m_replicaConfig, m_cmdHandler, m_stateTransfer, m_ptrComm, m_metadataStorage);
   if (!isNewStorage && !m_stateTransfer->isCollectingState()) {
     uint64_t removedBlocksNum = replicaStateSync_->execute(
@@ -139,7 +143,7 @@ Status ReplicaImp::getBlockData(BlockId blockId, SetOfKeyValuePairs &outBlockDat
     return Status::NotFound("todo");
   }
 
-  outBlockData = fetchBlockData(block);
+  outBlockData = block::getData(block);
 
   return Status::OK();
 }
@@ -201,6 +205,7 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   state_transfer_config.myReplicaId = m_replicaConfig.replicaId;
   state_transfer_config.cVal = m_replicaConfig.cVal;
   state_transfer_config.fVal = m_replicaConfig.fVal;
+  state_transfer_config.numReplicas = m_replicaConfig.numReplicas + m_replicaConfig.numRoReplicas;
   if (replicaConfig.maxNumOfReservedPages > 0)
     state_transfer_config.maxNumOfReservedPages = replicaConfig.maxNumOfReservedPages;
   if (replicaConfig.sizeOfReservedPage > 0) state_transfer_config.sizeOfReservedPage = replicaConfig.sizeOfReservedPage;
@@ -232,31 +237,12 @@ Status ReplicaImp::addBlockInternal(const SetOfKeyValuePairs &updates, BlockId &
   BlockId block = m_lastBlock;
   SetOfKeyValuePairs updatesInNewBlock;
 
-  LOG_DEBUG(logger, "addBlockInternal: Got " << updates.size() << " updates");
+  LOG_DEBUG(logger, "block:" << block << " updates: " << updates.size());
 
-  StateTransferDigest stDigest;
-  if (block > 1) {
-    Sliver parentBlockData;
-    bool found;
-    m_bcDbAdapter->getBlockById(block - 1, parentBlockData, found);
-    if (!found || parentBlockData.length() == 0) {
-      //(IG): panic, data corrupted
-      LOG_FATAL(logger, "addBlockInternal: no block or block data for id " << block - 1);
-      exit(1);
-    }
-
-    bftEngine::SimpleBlockchainStateTransfer::computeBlockDigest(
-        block - 1, reinterpret_cast<const char *>(parentBlockData.data()), parentBlockData.length(), &stDigest);
-  } else {
-    memset(stDigest.content, 0, BLOCK_DIGEST_SIZE);
-  }
-
-  Sliver blockRaw = createBlockFromUpdates(updates, updatesInNewBlock, stDigest);
-
-  Status s = m_bcDbAdapter->addBlockAndUpdateMultiKey(updatesInNewBlock, block, blockRaw);
-  if (!s.isOK()) {
+  const auto status = m_bcDbAdapter->addBlock(updates, block);
+  if (!status.isOK()) {
     LOG_ERROR(logger, "Failed to add block or update keys for block " << block);
-    return s;
+    return status;
   }
 
   outBlockId = block;
@@ -314,17 +300,7 @@ void ReplicaImp::insertBlockInternal(BlockId blockId, Sliver block) {
       return;
     }
   } else {
-    SetOfKeyValuePairs keys;
-    if (block.length() > 0) {
-      uint16_t numOfElements = ((BlockHeader *)block.data())->numberOfElements;
-      auto *entries = (BlockEntry *)(block.data() + sizeof(BlockHeader));
-      for (size_t i = 0; i < numOfElements; i++) {
-        const Sliver keySliver(block, entries[i].keyOffset, entries[i].keySize);
-        const Sliver valSliver(block, entries[i].valOffset, entries[i].valSize);
-        keys.insert(KeyValuePair(keySliver, valSliver));
-      }
-    }
-    s = m_bcDbAdapter->addBlockAndUpdateMultiKey(keys, blockId, block);
+    s = m_bcDbAdapter->addBlock(block, blockId);
     if (!s.isOK()) {
       // TODO(SG): What to do?
       printf("Failed to add block");
@@ -386,7 +362,7 @@ Status ReplicaImp::StorageWrapperForIdleMode::getBlockData(BlockId blockId, SetO
     return Status::NotFound("todo");
   }
 
-  outBlockData = ReplicaImp::fetchBlockData(block);
+  outBlockData = block::getData(block);
 
   return Status::OK();
 }
@@ -424,93 +400,6 @@ Status ReplicaImp::StorageWrapperForIdleMode::freeSnapIterator(ILocalKeyValueSto
 }
 
 void ReplicaImp::StorageWrapperForIdleMode::monitor() const { this->rep->m_bcDbAdapter->monitor(); }
-
-Sliver ReplicaImp::createBlockFromUpdates(const SetOfKeyValuePairs &updates,
-                                          SetOfKeyValuePairs &outUpdatesInNewBlock,
-                                          StateTransferDigest &parentDigest) {
-  // TODO(GG): overflow handling ....
-  // TODO(SG): How? Right now - will put empty block instead
-
-  assert(outUpdatesInNewBlock.size() == 0);
-
-  uint32_t blockBodySize = 0;
-  uint16_t numOfElements = updates.size();
-  for (const auto &elem : updates) {
-    // body is all of the keys and values strung together
-    blockBodySize += (elem.first.length() + elem.second.length());
-  }
-
-  const uint32_t metadataSize = sizeof(BlockHeader) + sizeof(BlockEntry) * numOfElements;
-
-  const uint32_t blockSize = metadataSize + blockBodySize;
-
-  try {
-    char *blockBuffer = new char[blockSize];
-    memset(blockBuffer, 0, blockSize);
-    Sliver blockSliver(blockBuffer, blockSize);
-
-    BlockHeader *header = (BlockHeader *)blockBuffer;
-    memcpy(header->parentDigest, parentDigest.content, BLOCK_DIGEST_SIZE);
-    header->parentDigestLength = BLOCK_DIGEST_SIZE;
-
-    int16_t idx = 0;
-    header->numberOfElements = numOfElements;
-    int32_t currentOffset = metadataSize;
-    auto *entries = (BlockEntry *)(blockBuffer + sizeof(BlockHeader));
-    for (const auto &elem : updates) {
-      const KeyValuePair &kvPair = elem;
-
-      // key
-      entries[idx].keyOffset = currentOffset;
-      entries[idx].keySize = kvPair.first.length();
-      memcpy(blockBuffer + currentOffset, kvPair.first.data(), kvPair.first.length());
-      Sliver newKey(blockSliver, currentOffset, kvPair.first.length());
-
-      currentOffset += kvPair.first.length();
-
-      // value
-      entries[idx].valOffset = currentOffset;
-      entries[idx].valSize = kvPair.second.length();
-      memcpy(blockBuffer + currentOffset, kvPair.second.data(), kvPair.second.length());
-      Sliver newVal(blockSliver, currentOffset, kvPair.second.length());
-
-      currentOffset += kvPair.second.length();
-
-      // add to outUpdatesInNewBlock
-      KeyValuePair newKVPair(newKey, newVal);
-      outUpdatesInNewBlock.insert(newKVPair);
-
-      idx++;
-    }
-    assert(idx == numOfElements);
-    assert((uint32_t)currentOffset == blockSize);
-
-    return blockSliver;
-  } catch (std::bad_alloc &ba) {
-    LOG_ERROR(concordlogger::Log::getLogger("skvbc.replicaImp"),
-              "Failed to alloc size " << blockSize << ", error: " << ba.what());
-    char *emptyBlockBuffer = new char[1];
-    memset(emptyBlockBuffer, 0, 1);
-    return Sliver(emptyBlockBuffer, 1);
-  }
-}
-
-SetOfKeyValuePairs ReplicaImp::fetchBlockData(Sliver block) {
-  SetOfKeyValuePairs retVal;
-
-  if (block.length() > 0) {
-    uint16_t numOfElements = ((BlockHeader *)block.data())->numberOfElements;
-    auto *entries = (BlockEntry *)(block.data() + sizeof(BlockHeader));
-    for (size_t i = 0; i < numOfElements; i++) {
-      Sliver keySliver(block, entries[i].keyOffset, entries[i].keySize);
-      Sliver valSliver(block, entries[i].valOffset, entries[i].valSize);
-
-      KeyValuePair kv(keySliver, valSliver);
-      retVal.insert(kv);
-    }
-  }
-  return retVal;
-}
 
 ReplicaImp::StorageIterator::StorageIterator(const ReplicaImp *r)
     : logger(concordlogger::Log::getLogger("skvbc.ReplicaImp")), rep(r) {
@@ -667,9 +556,9 @@ bool ReplicaImp::BlockchainAppState::getPrevDigestFromBlock(uint64_t blockId, St
     exit(1);
   }
 
-  const BlockHeader *bh = reinterpret_cast<const BlockHeader *>(result.data());
+  auto parentDigest = block::getParentDigest(result);
   assert(outPrevBlockDigest);
-  memcpy(outPrevBlockDigest, bh->parentDigest, bh->parentDigestLength);
+  memcpy(outPrevBlockDigest, parentDigest, BLOCK_DIGEST_SIZE);
   return true;
 }
 
@@ -692,6 +581,8 @@ uint64_t ReplicaImp::BlockchainAppState::getLastReachableBlockNum() {
 }
 
 uint64_t ReplicaImp::BlockchainAppState::getLastBlockNum() { return m_ptrReplicaImpl->m_lastBlock; }
+
+void ReplicaImp::BlockchainAppState::wait() { return; }
 
 }  // namespace kvbc
 }  // namespace concord

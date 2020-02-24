@@ -24,8 +24,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # WARNING: For the love of god, do not remove this flag or you will regret it. Instead,
 # just use signed types everywhere and cast your unsigned to signed when mixing unsigned
 # variables with signed ones. See: http://soundsoftware.ac.uk/c-pitfall-unsigned
-set(CXX_FLAGS_INTEGER_CORRECTNESS
-    "-Wconversion -Wsign-conversion")
+set(CXX_FLAGS_INTEGER_CORRECTNESS "-Wconversion -Wsign-conversion")
 
 string(APPEND CXX_FLAGS " ${CXX_FLAGS_INTEGER_CORRECTNESS}")
 # TODO: use target_compile_features instead:
@@ -37,32 +36,24 @@ string(APPEND CXX_FLAGS " -Wextra")
 
 
 # TODO: Figure out right way to deal with -fstrict-overflow / -Wstrict-overflow related errors
-string(APPEND CXX_FLAGS
-    " -fno-strict-overflow")
-string(APPEND CXX_FLAGS_DEBUG
-    " -D_FORTIFY_SOURCE=2")
+string(APPEND CXX_FLAGS " -fno-strict-overflow")
+string(APPEND CXX_FLAGS_DEBUG " -D_FORTIFY_SOURCE=2")
 
 # GNU and Clang-specific flags
-string(APPEND CMAKE_CXX_FLAGS
-    " ${CXX_FLAGS}")
-string(APPEND CMAKE_CXX_FLAGS_DEBUG
-    " ${CXX_FLAGS_DEBUG}")
+string(APPEND CMAKE_CXX_FLAGS " ${CXX_FLAGS}")
+string(APPEND CMAKE_CXX_FLAGS_DEBUG " ${CXX_FLAGS_DEBUG}")
 
 # using Clang
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     # Clang-specific options
-    string(APPEND CMAKE_CXX_FLAGS
-        " -ferror-limit=3")
-    string(APPEND CMAKE_CXX_FLAGS_DEBUG
-        " -fstack-protector-all")
+    string(APPEND CMAKE_CXX_FLAGS " -ferror-limit=3")
+    string(APPEND CMAKE_CXX_FLAGS_DEBUG " -fstack-protector-all")
 
-# using GCC
+    # using GCC
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     # GCC-specific options
-    string(APPEND CMAKE_CXX_FLAGS
-        " -fmax-errors=3")
-    string(APPEND CMAKE_CXX_FLAGS_DEBUG
-        " -fstack-protector-all")
+    string(APPEND CMAKE_CXX_FLAGS " -fmax-errors=3")
+    string(APPEND CMAKE_CXX_FLAGS_DEBUG " -fstack-protector-all")
 
 # TODO: using Intel C++
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
@@ -78,8 +69,7 @@ endif()
 enable_testing()
 
 # When building with 'cmake -DCMAKE_BUILD_TYPE=Trace'
-string(APPEND CMAKE_CXX_FLAGS_TRACE
-    " -DTRACE")
+string(APPEND CMAKE_CXX_FLAGS_TRACE " -DTRACE")
 
 #
 # Helper functions
@@ -139,7 +129,7 @@ find_package(relic REQUIRED)
 include_directories(${RELIC_INCLUDE_DIRS})
 get_directory_property(hasParent PARENT_DIRECTORY)
 if(hasParent)
-  set_property(DIRECTORY .. APPEND PROPERTY INCLUDE_DIRECTORIES ${RELIC_INCLUDE_DIRS})
+    set_property(DIRECTORY .. APPEND PROPERTY INCLUDE_DIRECTORIES ${RELIC_INCLUDE_DIRS})
 endif()
 find_library(RELIC_STATIC_LIBRARY NAMES "librelic_s.a")
 
@@ -185,7 +175,7 @@ add_subdirectory(test)
 
 # This creates the <Package>Config.cmake file and installs it
 install(TARGETS threshsign EXPORT threshsignConfig
-   ARCHIVE DESTINATION lib)
+    ARCHIVE DESTINATION lib)
 install(EXPORT threshsignConfig DESTINATION lib/cmake/threshsign)
 
 # This installs the static or (/and?) dynamic library

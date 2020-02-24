@@ -2,7 +2,7 @@ dist: bionic
 language: cpp
 os: linux
 before_install:
-  - .travis/preinstall.sh
+  - .travis/preinstall.sh && .conan/install_conan_pkgs.sh
 compiler:
   - gcc
   - clang
@@ -10,11 +10,17 @@ env:
   global:
     # We purposefully leave asserts on by excluding -NDEBUG
     - CMAKE_CXX_FLAGS="-DCMAKE_CXX_FLAGS_RELEASE=-O3 -g"
+    - USE_LOG4CPP=-DUSE_LOG4CPP=TRUE
   matrix:
     - DEBUG=-DCMAKE_BUILD_TYPE=DEBUG
     - DEBUG=-DCMAKE_BUILD_TYPE=DEBUG USE_ROCKSDB=-DBUILD_ROCKSDB_STORAGE=TRUE
     - RELEASE=-DCMAKE_BUILD_TYPE=RELEASE
     - RELEASE=-DCMAKE_BUILD_TYPE=RELEASE USE_ROCKSDB=-DBUILD_ROCKSDB_STORAGE=TRUE
 script:
-  - cd $TRAVIS_BUILD_DIR && mkdir build && cd build && cmake $CMAKE_CXX_FLAGS $DEBUG $RELEASE $USE_ROCKSDB .. && make format-check && make -j $(getconf _NPROCESSORS_ONLN) && ctest --output-on-failure
+  - cd $TRAVIS_BUILD_DIR && mkdir build && cd build && conan install --build missing .. && cmake $CMAKE_CXX_FLAGS $DEBUG $RELEASE $USE_LOG4CPP $USE_ROCKSDB .. && make format-check && make -j $(getconf _NPROCESSORS_ONLN) && ctest --output-on-failure
 
+cache:
+  ccache: true
+  pip: true
+  directories:
+    - $HOME/.conan

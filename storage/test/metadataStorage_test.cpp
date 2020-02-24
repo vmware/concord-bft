@@ -18,7 +18,8 @@
 using namespace std;
 
 using concord::storage::blockchain::ObjectId;
-using concord::storage::blockchain::KeyManipulator;
+using concord::storage::blockchain::DBKeyComparator;
+using concord::storage::blockchain::DBKeyManipulator;
 using concord::storage::rocksdb::KeyComparator;
 using concord::storage::rocksdb::Client;
 using concord::storage::DBMetadataStorage;
@@ -97,12 +98,12 @@ TEST(metadataStorage_test, multi_write) {
 
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
-  KeyComparator *kk = new KeyComparator(new KeyManipulator);
+  KeyComparator *kk = new KeyComparator(new DBKeyComparator);
   const string dbPath = "./metadataStorage_test_db";
   remove(dbPath.c_str());
   Client *dbClient = new Client(dbPath, kk);
   dbClient->init();
-  metadataStorage = new DBMetadataStorage(dbClient, KeyManipulator::generateMetadataKey);
+  metadataStorage = new DBMetadataStorage(dbClient, DBKeyManipulator::generateMetadataKey);
   bftEngine::MetadataStorage::ObjectDesc objectDesc[objectsNum];
   for (uint32_t id = initialObjectId; id < objectsNum; ++id) {
     objectDesc[id].id = id;

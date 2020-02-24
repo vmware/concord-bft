@@ -25,19 +25,12 @@ ReqMissingDataMsg::ReqMissingDataMsg(ReplicaId senderId, ViewNum v, SeqNum s)
 
 void ReqMissingDataMsg::resetFlags() { b()->flags = 0; }
 
-bool ReqMissingDataMsg::ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, ReqMissingDataMsg*& outMsg) {
-  Assert(inMsg->type() == MsgCode::ReqMissingData);
-  if (inMsg->size() < sizeof(ReqMissingDataMsgHeader)) return false;
-
-  ReqMissingDataMsg* t = (ReqMissingDataMsg*)inMsg;
-
-  if (t->senderId() == repInfo.myId())
-    return false;  // TODO(GG) - TBD: we should use Assert for this condition (also in other messages)
-
-  if (!repInfo.isIdOfReplica(t->senderId())) return false;
-
-  outMsg = (ReqMissingDataMsg*)t;
-  return true;
+void ReqMissingDataMsg::validate(const ReplicasInfo& repInfo) const {
+  if (size() < sizeof(ReqMissingDataMsgHeader) ||
+      senderId() ==
+          repInfo.myId() ||  // TODO(GG) - TBD: we should use Assert for this condition (also in other messages)
+      !repInfo.isIdOfReplica(senderId()))
+    throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
 }  // namespace impl

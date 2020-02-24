@@ -22,7 +22,7 @@ namespace bftEngine::impl {
 static uint16_t getSender(const ClientRequestMsgHeader* r) { return r->idOfClientProxy; }
 
 static int32_t compRequestMsgSize(const ClientRequestMsgHeader* r) {
-  return (sizeof(ClientRequestMsgHeader) + r->requestLength);
+  return (sizeof(ClientRequestMsgHeader) + r->requestLength + r->cid_length);
 }
 
 uint32_t getRequestSizeTemp(const char* request)  // TODO(GG): change - TBD
@@ -32,12 +32,17 @@ uint32_t getRequestSizeTemp(const char* request)  // TODO(GG): change - TBD
 }
 
 // class ClientRequestMsg
-
-ClientRequestMsg::ClientRequestMsg(
-    NodeIdType sender, bool isReadOnly, uint64_t reqSeqNum, uint32_t requestLength, const char* request)
-    : MessageBase(sender, MsgCode::ClientRequest, (sizeof(ClientRequestMsgHeader) + requestLength)) {
-  setParams(sender, reqSeqNum, requestLength, isReadOnly);
+ClientRequestMsg::ClientRequestMsg(NodeIdType sender,
+                                   uint8_t flags,
+                                   uint64_t reqSeqNum,
+                                   uint32_t requestLength,
+                                   const char* request,
+                                   const std::string& cid)
+    : MessageBase(sender, MsgCode::ClientRequest, (sizeof(ClientRequestMsgHeader) + requestLength + cid.size())) {
+  setParams(sender, reqSeqNum, requestLength, flags);
+  msgBody()->cid_length = cid.size();
   memcpy(body() + sizeof(ClientRequestMsgHeader), request, requestLength);
+  memcpy(body() + sizeof(ClientRequestMsgHeader) + requestLength, cid.c_str(), cid.size());
 }
 
 ClientRequestMsg::ClientRequestMsg(NodeIdType sender)
@@ -49,36 +54,35 @@ ClientRequestMsg::ClientRequestMsg(NodeIdType sender)
 ClientRequestMsg::ClientRequestMsg(ClientRequestMsgHeader* body)
     : MessageBase(getSender(body), (MessageBase::Header*)body, compRequestMsgSize(body), false) {}
 
-void ClientRequestMsg::set(ReqId reqSeqNum, uint32_t requestLength, bool isReadOnly) {
+void ClientRequestMsg::set(ReqId reqSeqNum, uint32_t requestLength, uint8_t flags) {
   Assert(requestLength > 0);
   Assert(requestLength <= (internalStorageSize() - sizeof(ClientRequestMsgHeader)));
 
-  setParams(reqSeqNum, requestLength, isReadOnly);
+  setParams(reqSeqNum, requestLength, flags);
   setMsgSize(sizeof(ClientRequestMsgHeader) + requestLength);
 }
 
-bool ClientRequestMsg::ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, ClientRequestMsg*& outMsg) {
-  Assert(inMsg->type() == MsgCode::ClientRequest);
-  if (inMsg->size() < sizeof(ClientRequestMsgHeader)) return false;
+bool ClientRequestMsg::isReadOnly() const { return (msgBody()->flags & READ_ONLY_REQ) != 0; }
 
-  ClientRequestMsg* t = (ClientRequestMsg*)inMsg;
-  if (t->size() < (sizeof(ClientRequestMsgHeader) + t->msgBody()->requestLength)) return false;
-  outMsg = t;
-  return true;
+void ClientRequestMsg::validate(const ReplicasInfo& repInfo) const {
+  Assert(senderId() != repInfo.myId());
+  if (size() < sizeof(ClientRequestMsgHeader) || size() < (sizeof(ClientRequestMsgHeader) + msgBody()->requestLength))
+    throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
-void ClientRequestMsg::setParams(ReqId reqSeqNum, uint32_t requestLength, bool isReadOnly) {
+void ClientRequestMsg::setParams(ReqId reqSeqNum, uint32_t requestLength, uint8_t flags) {
   msgBody()->reqSeqNum = reqSeqNum;
   msgBody()->requestLength = requestLength;
-  if (isReadOnly)
-    msgBody()->flags |= READ_ONLY_REQ;
-  else
-    msgBody()->flags = 0;
+  msgBody()->flags = flags;
 }
 
-void ClientRequestMsg::setParams(NodeIdType sender, ReqId reqSeqNum, uint32_t requestLength, bool isReadOnly) {
+void ClientRequestMsg::setParams(NodeIdType sender, ReqId reqSeqNum, uint32_t requestLength, uint8_t flags) {
   msgBody()->idOfClientProxy = sender;
-  setParams(reqSeqNum, requestLength, isReadOnly);
+  setParams(reqSeqNum, requestLength, flags);
+}
+
+std::string ClientRequestMsg::getCid() {
+  return std::string(body() + sizeof(ClientRequestMsgHeader) + msgBody()->requestLength, msgBody()->cid_length);
 }
 
 }  // namespace bftEngine::impl

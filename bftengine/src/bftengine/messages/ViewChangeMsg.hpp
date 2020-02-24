@@ -23,16 +23,15 @@ class ViewChangeMsg : public MessageBase {
 #pragma pack(push, 1)
   struct Element {
     SeqNum seqNum;
-    Digest prePrepreDigest;
+    Digest prePrepareDigest;
     ViewNum originView;
-    bool hasPreparedCertificate;  // TODO(SG): I think sizeof(bool) is implementation dependent
-                                  // if (hasPreparedCertificate) then followed by PreparedCertificate
+    uint8_t hasPreparedCertificate;  // if (hasPreparedCertificate) then followed by PreparedCertificate
   };
 
   struct PreparedCertificate {
     ViewNum certificateView;
     uint16_t certificateSigLength;
-    // Followed by signature of <certificateView, seqNum, pre-prepre digest>
+    // Followed by signature of <certificateView, seqNum, pre-prepare digest>
   };
 #pragma pack(pop)
   static_assert(sizeof(Element) == (8 + DIGEST_SIZE + 8 + 1), "Element (View Change) is 49B");
@@ -60,16 +59,16 @@ class ViewChangeMsg : public MessageBase {
 
   void addElement(const ReplicasInfo& repInfo,
                   SeqNum seqNum,
-                  const Digest& prePrepreDigest,
+                  const Digest& prePrepareDigest,
                   ViewNum originView,
                   bool hasPreparedCertificate,
                   ViewNum certificateView,
                   uint16_t certificateSigLength,
                   const char* certificateSig);
 
-  void finalizeMessage(const ReplicasInfo& repInfo);
+  void finalizeMessage();
 
-  static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, ViewChangeMsg*& outMsg);
+  void validate(const ReplicasInfo&) const override;
 
   class ElementsIterator {
    public:
@@ -102,7 +101,7 @@ class ViewChangeMsg : public MessageBase {
     SeqNum lastStable;
     uint16_t numberOfElements;
     uint16_t locationAfterLast;  // if(numberOfElements > 0) then it holds the location after the last element
-                                 // followed by a sequnce of Element
+                                 // followed by a sequence of Element
                                  // followed by a signature (by genReplicaId)
   };
 #pragma pack(pop)

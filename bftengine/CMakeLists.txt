@@ -1,10 +1,15 @@
 project (bftengine LANGUAGES CXX)
 
+add_subdirectory(src/preprocessor)
+
 set(corebft_source_files
     src/bftengine/PrimitiveTypes.cpp
     src/bftengine/DebugStatistics.cpp
     src/bftengine/Digest.cpp
     src/bftengine/SeqNumInfo.cpp
+    src/bftengine/ReadOnlyReplica.cpp
+    src/bftengine/ReplicaBase.cpp
+    src/bftengine/ReplicaForStateTransfer.cpp
     src/bftengine/ReplicaImp.cpp
     src/bftengine/ControllerBase.cpp
     src/bftengine/ControllerWithSimpleHistory.cpp
@@ -37,11 +42,6 @@ set(corebft_source_files
     src/bcstatetransfer/DBDataStore.cpp
     src/bcstatetransfer/SourceSelector.cpp
     src/simplestatetransfer/SimpleStateTran.cpp
-    src/preprocessor/PreProcessor.cpp
-    src/preprocessor/RequestProcessingInfo.cpp
-    src/preprocessor/messages/ClientPreProcessRequestMsg.cpp
-    src/preprocessor/messages/PreProcessRequestMsg.cpp
-    src/preprocessor/messages/PreProcessReplyMsg.cpp
     src/bftengine/messages/PrePrepareMsg.cpp
     src/bftengine/messages/CheckpointMsg.cpp
     src/bftengine/messages/FullCommitProofMsg.cpp
@@ -62,7 +62,7 @@ set(corebft_source_files
     src/bftengine/messages/ReplicaStatusMsg.cpp
     src/bftengine/messages/StateTransferMsg.cpp
     src/bftengine/messages/InternalMessage.cpp
-)
+        )
 
 #
 # pthread dependency
@@ -82,33 +82,27 @@ endif()
 add_library(corebft STATIC ${corebft_source_files})
 add_library(bftclient STATIC src/bftengine/SimpleClientImp)
 
-find_package(OpenSSL REQUIRED)
-if(OPENSSL_FOUND)
-    message("OpenSSL include dir: ${OPENSSL_INCLUDE_DIR}")
-    message("OpenSSL libraries: ${OPENSSL_LIBRARIES}")
-    target_include_directories(corebft PUBLIC ${OPENSSL_INCLUDE_DIR})
-    target_link_libraries(corebft PUBLIC ${OPENSSL_LIBRARIES})
-    target_link_libraries(bftclient PUBLIC ${OPENSSL_LIBRARIES})
-endif()
-
 if(${BUILD_COMM_TCP_PLAIN} OR ${BUILD_COMM_TCP_TLS})
     set(Boost_USE_STATIC_LIBS ON) # only find static libs
     set(Boost_USE_MULTITHREADED ON)
     set(Boost_USE_STATIC_RUNTIME OFF)
-    find_package(Boost ${MIN_BOOST_VERSION} COMPONENTS system filesystem)
-    if(Boost_FOUND)
-        include_directories(${Boost_INCLUDE_DIRS})
-        target_link_libraries(corebft PUBLIC ${Boost_LIBRARIES})
-        target_link_libraries(bftclient PUBLIC ${Boost_LIBRARIES})
-    endif()
+    find_package(Boost ${MIN_BOOST_VERSION} COMPONENTS system filesystem REQUIRED)
+    include_directories(${Boost_INCLUDE_DIRS})
+    target_link_libraries(corebft PUBLIC ${Boost_LIBRARIES})
+    target_link_libraries(bftclient PUBLIC ${Boost_LIBRARIES})
     if(${BUILD_COMM_TCP_PLAIN})
         target_compile_definitions(corebft PUBLIC USE_COMM_PLAIN_TCP)
         target_compile_definitions(bftclient PUBLIC USE_COMM_PLAIN_TCP)
     elseif(${BUILD_COMM_TCP_TLS})
+        find_package(OpenSSL REQUIRED)
+        target_include_directories(corebft PUBLIC ${OPENSSL_INCLUDE_DIR})
+        target_link_libraries(corebft PUBLIC ${OPENSSL_LIBRARIES})
+        target_link_libraries(bftclient PUBLIC ${OPENSSL_LIBRARIES})
         target_compile_definitions(corebft PUBLIC USE_COMM_TLS_TCP)
         target_compile_definitions(bftclient PUBLIC USE_COMM_TLS_TCP)
     endif()
 endif()
+find_package(cryptopp REQUIRED)
 
 target_compile_options(corebft PUBLIC "-Wno-extra-semi" "-Wno-undefined-var-template") # TODO tmp cryptopp
 target_include_directories(corebft PUBLIC include/)
@@ -120,6 +114,7 @@ target_include_directories(corebft PUBLIC include/metadatastorage)
 target_include_directories(corebft PRIVATE src/bftengine)
 target_include_directories(corebft PRIVATE src/preprocessor)
 target_include_directories(corebft PRIVATE util/include)
+target_include_directories(corebft PUBLIC ${CRYPTOPP_INCLUDE_DIRS})
 
 target_include_directories(bftclient PUBLIC include/bftengine)
 target_include_directories(bftclient PUBLIC include/communication)
@@ -130,3 +125,4 @@ target_link_libraries(corebft PUBLIC threshsign)
 target_link_libraries(corebft PUBLIC Threads::Threads)
 target_link_libraries(corebft PUBLIC util)
 target_link_libraries(corebft PUBLIC concordbft_storage)
+target_link_libraries(corebft PUBLIC preprocessor)

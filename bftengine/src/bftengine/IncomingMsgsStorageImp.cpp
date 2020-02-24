@@ -23,8 +23,10 @@ using namespace std::chrono;
 namespace bftEngine::impl {
 
 IncomingMsgsStorageImp::IncomingMsgsStorageImp(std::shared_ptr<MsgHandlersRegistrator>& msgHandlersPtr,
-                                               std::chrono::milliseconds msgWaitTimeout)
+                                               std::chrono::milliseconds msgWaitTimeout,
+                                               uint16_t replicaId)
     : IncomingMsgsStorage(), msgHandlers_(msgHandlersPtr), msgWaitTimeout_(msgWaitTimeout) {
+  replicaId_ = replicaId;
   ptrProtectedQueueForExternalMessages_ = new queue<std::unique_ptr<MessageBase>>();
   ptrProtectedQueueForInternalMessages_ = new queue<std::unique_ptr<InternalMessage>>();
   lastOverflowWarning_ = MinTime;
@@ -124,6 +126,9 @@ IncomingMsg IncomingMsgsStorageImp::popThreadLocal() {
 
 void IncomingMsgsStorageImp::dispatchMessages(std::promise<void>& signalStarted) {
   signalStarted.set_value();
+  std::stringstream rid;
+  rid << replicaId_;
+  MDC_PUT(GL, "rid", rid.str());
   while (!stopped_) {
     auto msg = getMsgForProcessing();
     TimersSingleton::getInstance().evaluate();
@@ -140,7 +145,12 @@ void IncomingMsgsStorageImp::dispatchMessages(std::promise<void>& signalStarted)
         message = msg.external.release();
         msgHandlerCallback = msgHandlers_->getCallback(message->type());
         if (msgHandlerCallback != nullptr) {
-          msgHandlerCallback(message);
+          try {
+            msgHandlerCallback(message);
+          } catch (std::exception& e) {
+            LOG_WARN(GL, e.what());
+            delete message;
+          }
         } else {
           LOG_WARN_F(GL, "Unknown message - delete");
           delete message;

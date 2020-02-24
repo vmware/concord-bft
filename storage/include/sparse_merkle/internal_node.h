@@ -30,7 +30,7 @@ A partially full BatchedInternalNode may look like the following:
 ```
 Level 4               ---------root-------
                       |                  |
-                  LeafChild       InternalChild
+Level 3           LeafChild       InternalChild
                                   /            \
 Level 2                     LeafChild    InternalChild
                                                   \
@@ -134,6 +134,7 @@ typedef std::variant<LeafChild, InternalChild> Child;
 class BatchedInternalNode {
  public:
   static constexpr size_t MAX_CHILDREN = 31;
+  using ChildrenContainer = std::array<std::optional<Child>, MAX_CHILDREN>;
 
   // The leaf was inserted into this node successfully.
   //
@@ -173,12 +174,64 @@ class BatchedInternalNode {
   // tree manipulating the BatchedInternalNode.
   typedef std::variant<InsertComplete, CreateNewBatchedInternalNodes, InsertIntoExistingNode> InsertResult;
 
+  // A remove has completed successfully.
+  //
+  // The version of the found key is returned so that it can be marked stale.
+  //
+  // There are still other valid children in this BatchedInternalNode, so it
+  // cannot be deleted.
+  struct RemoveComplete {
+    Version version;
+  };
+
+  // The key was not found in this node, and there are no references to it
+  // further down the tree.
+  struct NotFound {};
+
+  // A remove has completed successfully, and this BatchedInternalNode is now
+  // empty. The caller should remove it.
+  //
+  // In some cases where this value is returned there was one remaining child
+  // that was a peer of the removed LeafChild and is able to be promoted to live
+  // in the parent BatchedInternalNode. Return it so that the caller can move it
+  // to that node. Note that if this is the root most BatchedInternalNode, the caller will
+  // have to create a new node with this LeafChild. This does not have any
+  // overhead, as the caller must write updates to disk regardless of whether
+  // the node is a new node or a modified node.
+  struct RemoveBatchedInternalNode {
+    std::optional<LeafChild> promoted;
+  };
+
+  // A remove has failed, because the the leaf is further down the tree.
+  // Instruct the caller to try the next node.
+  struct Descend {
+    // The version of the next BatchedInternalNode further down the tree.
+    Version next_node_version;
+  };
+
+  typedef std::variant<RemoveComplete, NotFound, RemoveBatchedInternalNode, Descend> RemoveResult;
+
+  // Construct an empty node.
+  BatchedInternalNode() = default;
+
+  // Construct from the passed children container.
+  BatchedInternalNode(const ChildrenContainer& children) : children_{children} {}
+
   // Insert a LeafChild into this internal node. Return a type indicating success or
   // failure that contains the necessary data for the caller (the sparse merkle
   // tree implementation) to do the right thing.
   //
   // `depth` represents how many nibbles down the sparse merkle tree this BatchedInternalNode is.
   InsertResult insert(const LeafChild& child, size_t depth);
+
+  // Remove a LeafChild from this internal node. Return a type indicating to the
+  // caller whether the key was successfully removed, and whether the caller
+  // needs to take any further action, such as deleting this BatchedInternalNode
+  // if it becomes empty.
+  //
+  // `depth` represents how many nibbles down the sparse merkle tree this BatchedInternalNode is.
+  // `new_version` is the version of the updated BatchedInternalNode
+  RemoveResult remove(const Hash& key, size_t depth, Version new_version);
 
   // Write an InternalChild of the BatchedInternalNode at level 0.
   //
@@ -201,6 +254,9 @@ class BatchedInternalNode {
   // Return the number of leaf children in this BatchedInternalNode
   size_t numLeafChildren() const;
 
+  // Return the internal children container.
+  const ChildrenContainer& children() const { return children_; }
+
  private:
   // A LeafChild collission has occurred. We need to create new InternalChild nodes so
   // that the stored LeafChild that collided with the new LeafChild attempting
@@ -221,6 +277,10 @@ class BatchedInternalNode {
                                      size_t prefix_bits_in_common,
                                      LeafChild child1,
                                      LeafChild child2);
+
+  // Remove the LeafChild at the given index. Updates of children should be set
+  // to new_version.
+  RemoveResult removeLeafChild(size_t index, Version new_version, Version stored_version, size_t depth);
 
   // Return true if the index does not contain a child.
   bool isEmpty(size_t index) const { return !children_.at(index).has_value(); }
@@ -278,6 +338,20 @@ class BatchedInternalNode {
     return (index - 1) / 2;
   }
 
+  // Return the peer index.
+  //
+  // If this node is the root, return std::nullopt;
+  // If the node does not have a peer, then return std::nullopt;
+  std::optional<size_t> peerIndex(size_t index) {
+    if (index == 0) return std::nullopt;
+
+    auto peer_index = isLeftChild(index) ? index + 1 : index - 1;
+    if (isEmpty(peer_index)) {
+      return std::nullopt;
+    }
+    return peer_index;
+  }
+
   // Return the index of the left child of a node at a given index.
   size_t leftChildIndex(size_t index) const { return 2 * index + 1; }
 
@@ -289,7 +363,7 @@ class BatchedInternalNode {
 
   // All internal and leaf nodes are stored in this array, starting from the
   // root and proceeding level by level from left to right.
-  std::array<std::optional<Child>, MAX_CHILDREN> children_;
+  ChildrenContainer children_;
 };
 
 }  // namespace sparse_merkle

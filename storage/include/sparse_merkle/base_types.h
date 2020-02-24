@@ -244,6 +244,17 @@ class NibblePath {
     num_nibbles_ += 1;
   }
 
+  // Return the last nibble off the path
+  Nibble back() const {
+    Assert(!empty());
+    if (num_nibbles_ % 2 == 0) {
+      // We have a complete byte at the end of path_. Remove the lower nibble.
+      return path_.back() & 0x0F;
+    }
+    // We have an incomplete byte at the end of path_. Remove the upper nibble.
+    return path_.back() >> Nibble::SIZE_IN_BITS;
+  }
+
   // Pop the last nibble off the path
   Nibble popBack() {
     Assert(!empty());
@@ -277,6 +288,9 @@ class NibblePath {
     }
     return output;
   }
+
+  // Return the internal representation of the path.
+  const std::vector<uint8_t>& data() const { return path_; }
 
  private:
   size_t num_nibbles_;

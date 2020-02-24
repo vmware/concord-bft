@@ -95,9 +95,10 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
                                                   uint32_t &outReplySize) {
   auto *writeReq = (SimpleCondWriteRequest *)request;
   LOG_INFO(m_logger,
-           "Execute WRITE command: type=" << writeReq->header.type << ", numOfWrites=" << writeReq->numOfWrites
-                                          << ", numOfKeysInReadSet=" << writeReq->numOfKeysInReadSet
-                                          << ", readVersion = " << writeReq->readVersion);
+           "Execute WRITE command:"
+               << " type: " << writeReq->header.type << " seqNum: " << sequenceNum
+               << " numOfWrites: " << writeReq->numOfWrites << " numOfKeysInReadSet: " << writeReq->numOfKeysInReadSet
+               << " readVersion: " << writeReq->readVersion);
   bool result = verifyWriteCommand(requestSize, *writeReq, maxReplySize, outReplySize);
   if (!result) assert(0);
 
@@ -166,7 +167,7 @@ bool InternalCommandsHandler::executeGetBlockDataCommand(
   const int numMetadataKeys = 1;
   auto numOfElements = outBlockData.size() - numMetadataKeys;
   size_t replySize = SimpleReply_Read::getSize(numOfElements);
-  LOG_ERROR(m_logger, "NUM OF ELEMENTS IN BLOCK = " << numOfElements);
+  LOG_INFO(m_logger, "NUM OF ELEMENTS IN BLOCK = " << numOfElements);
   if (maxReplySize < replySize) {
     LOG_ERROR(m_logger, "replySize is too big: replySize=" << replySize << ", maxReplySize=" << maxReplySize);
     return false;

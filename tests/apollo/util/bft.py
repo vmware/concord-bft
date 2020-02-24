@@ -25,7 +25,7 @@ from functools import wraps
 
 import trio
 
-sys.path.append(os.path.abspath("../util/pyclient"))
+sys.path.append(os.path.abspath("../../util/pyclient"))
 
 import bft_config
 import bft_client
@@ -40,7 +40,8 @@ TestConfig = namedtuple('TestConfig', [
     'c',
     'num_clients',
     'key_file_prefix',
-    'start_replica_cmd'
+    'start_replica_cmd',
+    'num_ro_replicas'
 ])
 
 KEY_FILE_PREFIX = "replica_keys_"
@@ -79,7 +80,7 @@ def with_trio(async_fn):
     return trio_wrapper
 
 
-def with_bft_network(start_replica_cmd, selected_configs=None):
+def with_bft_network(start_replica_cmd, selected_configs=None, num_ro_replicas=0):
     """
     Runs the decorated async function for all selected BFT configs
     """
@@ -87,16 +88,19 @@ def with_bft_network(start_replica_cmd, selected_configs=None):
         @wraps(async_fn)
         async def wrapper(*args, **kwargs):
             for bft_config in interesting_configs(selected_configs):
+                       
                 config = TestConfig(n=bft_config['n'],
                                     f=bft_config['f'],
                                     c=bft_config['c'],
                                     num_clients=bft_config['num_clients'],
                                     key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd)
+                                    start_replica_cmd=start_replica_cmd,
+                                    num_ro_replicas=num_ro_replicas)
                 with BftTestNetwork(config) as bft_network:
                     print(f'Running {async_fn.__name__} '
-                          f'with n={config.n}, f={config.f}, c={config.c},'
-                          f'num_clients={config.num_clients}')
+                          f'with n={config.n}, f={config.f}, c={config.c}, '
+                          f'num_clients={config.num_clients}, '
+                          f'num_ro_replicas={config.num_ro_replicas}')
                     await bft_network.init()
                     await async_fn(*args, **kwargs, bft_network=bft_network)
         return wrapper
@@ -138,11 +142,11 @@ class BftTestNetwork:
         self.config = config
         self.testdir = tempfile.mkdtemp()
         print("Running test in {}".format(self.testdir))
-        self.builddir = os.path.abspath("../build")
+        self.builddir = os.path.abspath("../../build")
         self.toolsdir = os.path.join(self.builddir, "tools")
         self.procs = {}
         self.replicas = [bft_config.Replica(i, "127.0.0.1", 3710 + 2*i)
-                for i in range(0, self.config.n)]
+                for i in range(0, self.config.n + self.config.num_ro_replicas)]
 
         os.chdir(self.testdir)
         self._generate_crypto_keys()
@@ -151,13 +155,15 @@ class BftTestNetwork:
 
     def _generate_crypto_keys(self):
         keygen = os.path.join(self.toolsdir, "GenerateConcordKeys")
-        args = [keygen, "-n", str(self.config.n), "-f", str(self.config.f), "-o",
-               self.config.key_file_prefix]
+        args = [keygen, "-n", str(self.config.n), "-f", str(self.config.f)]
+        if self.config.num_ro_replicas > 0:
+            args.extend(["-r", str(self.config.num_ro_replicas)])
+        args.extend(["-o", self.config.key_file_prefix])
         subprocess.run(args, check=True)
 
     async def _create_clients(self):
-        for client_id in range(self.config.n,
-                               self.config.num_clients+self.config.n):
+        for client_id in range(self.config.n + self.config.num_ro_replicas,
+                               self.config.num_clients+self.config.n + self.config.num_ro_replicas):
             config = self._bft_config(client_id)
             self.clients[client_id] = bft_client.UdpClient(config, self.replicas)
 
@@ -289,20 +295,87 @@ class BftTestNetwork:
         if expected is None:
             expected = lambda _: True
 
+        matching_view = None
+        nb_replicas_in_matching_view = 0
         try:
-            with trio.fail_after(seconds=30):
-                while True:
-                    try:
-                        with trio.move_on_after(seconds=1):
-                            key = ['replica', 'Gauges', 'lastAgreedView']
-                            view = await self.metrics.get(replica_id, *key)
-                            if expected(view):
-                                return view
-                    except KeyError:
-                        # metrics not yet available, continue looping
-                        continue
+            matching_view = await self._wait_for_matching_agreed_view(replica_id, expected)
+            print(f'Matching view #{matching_view} has been agreed among replicas.')
+
+            nb_replicas_in_matching_view = await self._wait_for_active_view(matching_view)
+            print(f'View #{matching_view} has been activated by '
+                  f'{nb_replicas_in_matching_view} >= n-f = {self.config.n - self.config.f}')
+
+            return matching_view
         except trio.TooSlowError:
-            assert False, err_msg
+            assert False, err_msg + \
+                          f'(matchingView={matching_view} ' \
+                          f'replicasInMatchingView={nb_replicas_in_matching_view})'
+
+    async def _wait_for_matching_agreed_view(self, replica_id, expected):
+        """
+        Wait for the last agreed view to match the "expected" predicate
+        """
+        last_agreed_view = None
+        with trio.fail_after(seconds=30):
+            while True:
+                try:
+                    with trio.move_on_after(seconds=1):
+                        key = ['replica', 'Gauges', 'lastAgreedView']
+                        view = await self.metrics.get(replica_id, *key)
+                        if expected(view):
+                            last_agreed_view = view
+                            break
+                except KeyError:
+                    # metrics not yet available, continue looping
+                    continue
+        return last_agreed_view
+
+    async def _wait_for_active_view(self, view):
+        """
+        Wait for a view to become active on enough (n-f) replicas
+        """
+        with trio.fail_after(seconds=30):
+            while True:
+                nb_replicas_in_view = await self._count_replicas_in_view(view)
+
+                # wait for n-f = 2f+2c+1 replicas to be in the expected view
+                if nb_replicas_in_view >= 2 * self.config.f + 2 * self.config.c + 1:
+                    break
+        return nb_replicas_in_view
+
+    async def _count_replicas_in_view(self, view):
+        """
+        Count the number of replicas that have activated a given view
+        """
+        nb_replicas_in_view = 0
+
+        async def count_if_replica_in_view(r, expected_view):
+            """
+            A closure that allows concurrent counting of replicas
+            that have activated a given view.
+            """
+            nonlocal nb_replicas_in_view
+
+            key = ['replica', 'Gauges', 'currentActiveView']
+
+            with trio.move_on_after(seconds=5):
+                while True:
+                    with trio.move_on_after(seconds=1):
+                        try:
+                            replica_view = await self.metrics.get(r, *key)
+                            if replica_view == expected_view:
+                                nb_replicas_in_view += 1
+                        except KeyError:
+                            # metrics not yet available, continue looping
+                            continue
+                        else:
+                            break
+
+        async with trio.open_nursery() as nursery:
+            for r in self.get_live_replicas():
+                nursery.start_soon(
+                    count_if_replica_in_view, r, view)
+        return nb_replicas_in_view
 
     def force_quorum_including_replica(self, replica_id, primary=0):
         """

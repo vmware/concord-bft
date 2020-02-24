@@ -70,6 +70,44 @@ class SucceedOnceBlockInfo : public BaseBlockInfo {
   static inline auto fail_ = false;
 };
 
+class InitIntBlockInfo : public BaseBlockInfo {
+ public:
+  InitIntBlockInfo(concordUtils::BlockId id, int init) : BaseBlockInfo{id}, init_{init} {}
+
+  void loadIndices() {}
+  void loadData() {}
+
+  int init() const { return init_; };
+
+ private:
+  int init_{0};
+};
+
+class InitPtrBlockInfo : public BaseBlockInfo {
+ public:
+  InitPtrBlockInfo(concordUtils::BlockId id, const int* init) : BaseBlockInfo{id}, init_{init} {}
+
+  void loadIndices() {}
+  void loadData() {}
+
+  const int* init() const { return init_; };
+
+ private:
+  const int* init_{nullptr};
+};
+
+class MovableBlockInfo : public BaseBlockInfo {
+ public:
+  MovableBlockInfo(concordUtils::BlockId id) : BaseBlockInfo{id} {}
+  MovableBlockInfo(MovableBlockInfo&&) = default;
+  MovableBlockInfo& operator=(MovableBlockInfo&&) = default;
+  MovableBlockInfo(const MovableBlockInfo&) = delete;
+  MovableBlockInfo& operator=(const MovableBlockInfo&) = delete;
+
+  void loadIndices() {}
+  void loadData() {}
+};
+
 TEST(blockchain_view_tests, construction) {
   ASSERT_NO_THROW({
     auto view1 = BlockchainView<BaseBlockInfo>(0, 1);
@@ -242,6 +280,33 @@ TEST(blockchain_view_tests, distance) {
 
   ASSERT_EQ(std::distance(std::end(view), std::begin(view)), -size);
   ASSERT_EQ(std::distance(view.find(id), std::begin(view)), id - size);
+}
+
+TEST(blockchain_view_tests, init) {
+  constexpr auto genesisBlockId = 1ul;
+  constexpr auto size = 5;
+  constexpr auto init1 = 42;
+  const int* init2{nullptr};
+  auto view1 = BlockchainView<InitIntBlockInfo, decltype(init1)>{genesisBlockId, size, init1};
+  auto view2 = BlockchainView<InitPtrBlockInfo, decltype(init2)>{genesisBlockId, size, init2};
+
+  for (const auto& b : view1) {
+    ASSERT_EQ(b.init(), init1);
+  }
+
+  for (const auto& b : view2) {
+    ASSERT_EQ(b.init(), init2);
+  }
+}
+
+TEST(blockchain_view_tests, movable_block_info) {
+  constexpr auto genesisBlockId = 1ul;
+  constexpr auto size = 5;
+  auto view = BlockchainView<MovableBlockInfo>{genesisBlockId, size};
+
+  for (auto i = 0u; i < view.size(); ++i) {
+    ASSERT_EQ(view[i].id(), i + 1);
+  }
 }
 
 }  // anonymous namespace

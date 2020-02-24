@@ -79,16 +79,39 @@ class IDBClient {
     // Status of last operation
     virtual Status getStatus() = 0;
     virtual ~IDBClientIterator() = default;
+
+    class Guard {
+     public:
+      Guard(const IDBClient& db) : db_{db}, iter_{*(db.getIterator())} {}
+      Guard(const IDBClient* db) : db_{*db}, iter_{*(db->getIterator())} {}
+      Guard(const Guard&) = delete;
+      Guard& operator=(const Guard&) = delete;
+      Guard(Guard&&) = default;
+      Guard& operator=(Guard&&) = default;
+      ~Guard() noexcept {
+        try {
+          db_.freeIterator(&iter_);
+        } catch (...) {
+        }
+      }
+
+      IDBClientIterator* operator->() const noexcept { return &iter_; }
+
+     private:
+      const IDBClient& db_;
+      IDBClientIterator& iter_;
+    };
   };
 
-  class IKeyManipulator {
+  class IKeyComparator {
    public:
     virtual int composedKeyComparison(const char* _a_data, size_t _a_length, const char* _b_data, size_t _b_length) = 0;
-    virtual ~IKeyManipulator() = default;
+    virtual ~IKeyComparator() = default;
   };
 
   virtual IDBClientIterator* getIterator() const = 0;
   virtual Status freeIterator(IDBClientIterator* _iter) const = 0;
+  IDBClientIterator::Guard getIteratorGuard() const { return IDBClientIterator::Guard{this}; }
 };
 
 }  // namespace storage

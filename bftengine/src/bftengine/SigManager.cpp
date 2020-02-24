@@ -15,39 +15,38 @@
 
 namespace bftEngine {
 namespace impl {
-// typedef uint16_t ReplicaId;
 
 SigManager::SigManager(ReplicaId myId,
                        int16_t numberOfReplicasAndClients,
                        PrivateKeyDesc mySigPrivateKey,
                        std::set<PublicKeyDesc> replicasSigPublicKeys)
-    : _myId{myId} {
+    : myId_{myId} {
   // Assert(replicasSigPublicKeys.size() == numberOfReplicasAndClients); TODO(GG): change - here we don't care about
   // client signatures
 
-  _mySigner = new RSASigner(mySigPrivateKey.c_str());
+  mySigner_ = new RSASigner(mySigPrivateKey.c_str());
 
   for (const PublicKeyDesc& p : replicasSigPublicKeys) {
-    Assert(_replicasVerifiers.count(p.first) == 0);
+    Assert(replicasVerifiers_.count(p.first) == 0);
 
     RSAVerifier* verifier = new RSAVerifier(p.second.c_str());
-    _replicasVerifiers[p.first] = verifier;
+    replicasVerifiers_[p.first] = verifier;
 
-    Assert(p.first != myId || _mySigner->signatureLength() == verifier->signatureLength());
+    Assert(p.first != myId || mySigner_->signatureLength() == verifier->signatureLength());
   }
 }
 
 SigManager::~SigManager() {
-  delete _mySigner;
-  for (std::pair<ReplicaId, RSAVerifier*> v : _replicasVerifiers) delete v.second;
+  delete mySigner_;
+  for (std::pair<ReplicaId, RSAVerifier*> v : replicasVerifiers_) delete v.second;
 }
 
 uint16_t SigManager::getSigLength(ReplicaId replicaId) const {
-  if (replicaId == _myId) {
-    return (uint16_t)_mySigner->signatureLength();
+  if (replicaId == myId_) {
+    return (uint16_t)mySigner_->signatureLength();
   } else {
-    auto pos = _replicasVerifiers.find(replicaId);
-    Assert(pos != _replicasVerifiers.end());
+    auto pos = replicasVerifiers_.find(replicaId);
+    Assert(pos != replicasVerifiers_.end());
 
     RSAVerifier* verifier = pos->second;
 
@@ -57,8 +56,8 @@ uint16_t SigManager::getSigLength(ReplicaId replicaId) const {
 
 bool SigManager::verifySig(
     ReplicaId replicaId, const char* data, size_t dataLength, const char* sig, uint16_t sigLength) const {
-  auto pos = _replicasVerifiers.find(replicaId);
-  Assert(pos != _replicasVerifiers.end());
+  auto pos = replicasVerifiers_.find(replicaId);
+  Assert(pos != replicasVerifiers_.end());
 
   RSAVerifier* verifier = pos->second;
 
@@ -69,11 +68,11 @@ bool SigManager::verifySig(
 
 void SigManager::sign(const char* data, size_t dataLength, char* outSig, uint16_t outSigLength) const {
   size_t actualSigSize = 0;
-  _mySigner->sign(data, dataLength, outSig, outSigLength, actualSigSize);
+  mySigner_->sign(data, dataLength, outSig, outSigLength, actualSigSize);
   Assert(outSigLength == actualSigSize);
 }
 
-uint16_t SigManager::getMySigLength() const { return (uint16_t)_mySigner->signatureLength(); }
+uint16_t SigManager::getMySigLength() const { return (uint16_t)mySigner_->signatureLength(); }
 
 }  // namespace impl
 }  // namespace bftEngine

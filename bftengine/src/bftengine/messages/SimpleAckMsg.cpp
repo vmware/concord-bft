@@ -17,25 +17,17 @@ namespace bftEngine {
 namespace impl {
 
 SimpleAckMsg::SimpleAckMsg(SeqNum s, ViewNum v, ReplicaId senderId, uint64_t ackData)
-    : MessageBase(senderId, MsgCode::SimpleAckMsg, sizeof(SimpleAckMsgHeader)) {
+    : MessageBase(senderId, MsgCode::SimpleAck, sizeof(SimpleAckMsgHeader)) {
   b()->seqNum = s;
   b()->viewNum = v;
   b()->ackData = ackData;
 }
 
-bool SimpleAckMsg::ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, SimpleAckMsg*& outMsg) {
-  Assert(inMsg->type() == MsgCode::SimpleAckMsg);
-  if (inMsg->size() < sizeof(SimpleAckMsgHeader)) return false;
-
-  SimpleAckMsg* t = (SimpleAckMsg*)inMsg;
-
-  // sent from another replica (otherwise, we don't need to convert)
-  if (t->senderId() == repInfo.myId()) return false;
-
-  if (!repInfo.isIdOfReplica(t->senderId())) return false;
-
-  outMsg = t;
-  return true;
+void SimpleAckMsg::validate(const ReplicasInfo& repInfo) const {
+  if (size() < sizeof(SimpleAckMsgHeader) ||
+      senderId() == repInfo.myId() ||  // sent from another replica (otherwise, we don't need to convert)
+      !repInfo.isIdOfReplica(senderId()))
+    throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 }  // namespace impl
 }  // namespace bftEngine

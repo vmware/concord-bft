@@ -12,6 +12,7 @@
 #pragma once
 
 #include "messages/ClientRequestMsg.hpp"
+#include "ReplicasInfo.hpp"
 #include <memory>
 
 namespace preprocessor {
@@ -21,14 +22,9 @@ namespace preprocessor {
 class ClientPreProcessRequestMsg : public ClientRequestMsg {
  public:
   ClientPreProcessRequestMsg(
-      NodeIdType sender, bool isReadOnly, uint64_t reqSeqNum, uint32_t requestLength, const char* request)
-      : ClientRequestMsg(sender, isReadOnly, reqSeqNum, reqSeqNum, request) {
-    msgBody_->msgType = MsgCode::ClientPreProcessRequest;
-  }
+      NodeIdType sender, uint64_t reqSeqNum, uint32_t requestLength, const char* request, const std::string& cid);
 
   std::unique_ptr<MessageBase> convertToClientRequestMsg();
-
-  static bool ToActualMsgType(MessageBase* inMsg, ClientPreProcessRequestMsg*& outMsg);
 };
 
 typedef std::shared_ptr<ClientPreProcessRequestMsg> ClientPreProcessReqMsgSharedPtr;

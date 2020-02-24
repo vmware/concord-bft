@@ -10,6 +10,7 @@
 // file.
 
 #include "ClientPreProcessRequestMsg.hpp"
+#include "SimpleClient.hpp"
 #include "assertUtils.hpp"
 
 namespace preprocessor {
@@ -17,15 +18,10 @@ namespace preprocessor {
 using namespace std;
 using namespace bftEngine;
 
-bool ClientPreProcessRequestMsg::ToActualMsgType(MessageBase* inMsg, ClientPreProcessRequestMsg*& outMsg) {
-  Assert(inMsg->type() == MsgCode::ClientPreProcessRequest);
-  if (inMsg->size() < sizeof(ClientRequestMsgHeader)) return false;
-
-  auto* msg = (ClientPreProcessRequestMsg*)inMsg;
-  if (msg->size() < (sizeof(ClientRequestMsgHeader) + msg->msgBody()->requestLength)) return false;
-
-  outMsg = msg;
-  return true;
+ClientPreProcessRequestMsg::ClientPreProcessRequestMsg(
+    NodeIdType sender, uint64_t reqSeqNum, uint32_t requestLength, const char* request, const std::string& cid)
+    : ClientRequestMsg(sender, PRE_PROCESS_REQ, reqSeqNum, requestLength, request, cid) {
+  msgBody_->msgType = MsgCode::ClientPreProcessRequest;
 }
 
 unique_ptr<MessageBase> ClientPreProcessRequestMsg::convertToClientRequestMsg() {

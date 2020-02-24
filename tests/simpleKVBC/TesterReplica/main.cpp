@@ -22,19 +22,22 @@
 #include "rocksdb/client.h"
 #include "rocksdb/key_comparator.h"
 #endif
+#include <memory>
+
 using namespace concord::kvbc;
+
 int main(int argc, char** argv) {
   auto setup = concord::kvbc::TestSetup::ParseArgs(argc, argv);
   auto logger = setup->GetLogger();
-  auto* key_manipulator = new concord::storage::blockchain::KeyManipulator();
-  concord::storage::IDBClient* db;
+  auto* db_key_comparator = new concord::storage::blockchain::DBKeyComparator();
+  std::shared_ptr<concord::storage::IDBClient> db;
 
   if (setup->UsePersistentStorage()) {
 #ifdef USE_ROCKSDB
-    auto* comparator = new concord::storage::rocksdb::KeyComparator(key_manipulator);
+    auto* comparator = new concord::storage::rocksdb::KeyComparator(db_key_comparator);
     std::stringstream dbPath;
     dbPath << BasicRandomTests::DB_FILE_PREFIX << setup->GetReplicaConfig().replicaId;
-    db = new concord::storage::rocksdb::Client(dbPath.str(), comparator);
+    db.reset(new concord::storage::rocksdb::Client(dbPath.str(), comparator));
 #else
     // Abort if we haven't built rocksdb storage
     LOG_ERROR(
@@ -44,8 +47,8 @@ int main(int argc, char** argv) {
 #endif
   } else {
     // Use in-memory storage
-    auto comparator = concord::storage::memorydb::KeyComparator(key_manipulator);
-    db = new concord::storage::memorydb::Client(comparator);
+    auto comparator = concord::storage::memorydb::KeyComparator(db_key_comparator);
+    db.reset(new concord::storage::memorydb::Client(comparator));
   }
 
   auto* dbAdapter = new concord::storage::blockchain::DBAdapter(db);

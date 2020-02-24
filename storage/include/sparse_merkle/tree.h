@@ -58,10 +58,10 @@ class Tree {
 
   explicit Tree(std::shared_ptr<IDBReader> db_reader) : db_reader_(db_reader) {
     // Perform a single allocation of the maximum depth of the tree for the
-    // insert_stack_.
+    // node_stack_.
     auto vec = std::vector<BatchedInternalNode>();
     vec.reserve(Hash::MAX_NIBBLES);
-    insert_stack_ = NodeStack(std::move(vec));
+    node_stack_ = NodeStack(std::move(vec));
     reset();
   }
 
@@ -78,6 +78,71 @@ class Tree {
     return update(updates, no_deletes);
   }
 
+  // All data that is loaded from the DB, manipulated, and/or returned from a
+  // call to `update`.
+  //
+  // A new instance of this structure is created during every update call.
+  class UpdateCache {
+   public:
+    UpdateCache(const BatchedInternalNode& root, const std::shared_ptr<IDBReader>& db_reader)
+        : version_(root.version() + 1), db_reader_(db_reader) {
+      internal_nodes_[NibblePath()] = root;
+    }
+
+    const BatchedInternalNode& getRoot() { return internal_nodes_[NibblePath()]; }
+    const Tree::StaleNodeIndexes& stale() const { return stale_; }
+    const auto& internalNodes() const { return internal_nodes_; }
+    Version version() const { return version_; }
+
+    // Get a node if it's in the cache, otherwise get it from the DB.
+    BatchedInternalNode getInternalNode(const InternalNodeKey& key);
+
+    void putStale(const std::optional<LeafKey>& key);
+    void putStale(const InternalNodeKey& key);
+    void put(const NibblePath& path, const BatchedInternalNode& node);
+    void remove(const NibblePath& path);
+
+   private:
+    // The version of the tree after this update is complete.
+    Version version_;
+    std::shared_ptr<IDBReader> db_reader_;
+    Tree::StaleNodeIndexes stale_;
+
+    // All the internal nodes related to the current batch update.
+    //
+    // These nodes are mutable and are all being updated to a single version.
+    // Therefore we key them by their NibblePath alone, without a version.
+    std::map<NibblePath, BatchedInternalNode> internal_nodes_;
+  };
+
+  // A class for ascending and descending the tree. This is used for updates.
+  class Walker {
+   public:
+    Walker(NodeStack& stack, UpdateCache& cache) : stack_(stack), cache_(cache), current_node_(cache.getRoot()) {
+      // Mark the root node stale
+      markCurrentNodeStale();
+    }
+
+    size_t depth() const { return nibble_path_.length(); }
+    BatchedInternalNode& currentNode() { return current_node_; }
+    Version version() { return cache_.version(); }
+    bool atRoot() { return nibble_path_.empty(); }
+    void cacheCurrentNode();
+    void putStale(const std::optional<LeafKey>& key) { cache_.putStale(key); }
+    void appendEmptyNodes(const Hash& key, int nodes_to_create);
+    void descend(const Hash& key, Version next_version);
+    void ascend();
+    void removeCurrentNode();
+
+   private:
+    void markCurrentNodeStale();
+
+    NodeStack& stack_;
+    UpdateCache& cache_;
+    BatchedInternalNode current_node_;
+    NibblePath nibble_path_;
+  };
+
  private:
   // Reset the tree to the latest version.
   //
@@ -90,7 +155,7 @@ class Tree {
 
   // Store internal nodes needed when updating a tree. This is a member variable
   // so that we can allocate only once.
-  NodeStack insert_stack_;
+  NodeStack node_stack_;
 };
 
 }  // namespace sparse_merkle

@@ -65,7 +65,8 @@ class IClient {
                                     std::chrono::milliseconds timeout,
                                     uint32_t replySize,
                                     char* outReply,
-                                    uint32_t* outActualReplySize) = 0;
+                                    uint32_t* outActualReplySize,
+                                    const std::string& cid = "") = 0;
 };
 
 // creates a new Client object
@@ -122,7 +123,7 @@ class IReplica {
 // Replica's commands handle
 /////////////////////////////////////////////////////////////////////////////
 
-class ICommandsHandler : public bftEngine::RequestsHandler {
+class ICommandsHandler : public bftEngine::IRequestsHandler {
  public:
   virtual int execute(uint16_t clientId,
                       uint64_t sequenceNum,

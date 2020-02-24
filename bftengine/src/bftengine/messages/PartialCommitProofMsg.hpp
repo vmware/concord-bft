@@ -39,7 +39,7 @@ class PartialCommitProofMsg : public MessageBase {
 
   const char* thresholSignature() { return body() + sizeof(PartialCommitProofMsgHeader); }
 
-  static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, PartialCommitProofMsg*& outMsg);
+  void validate(const ReplicasInfo&) const override;
 
  protected:
 #pragma pack(push, 1)

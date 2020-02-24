@@ -32,7 +32,8 @@ class ClientImp : public IClient {
                                     std::chrono::milliseconds timeout,
                                     uint32_t replySize,
                                     char* outReply,
-                                    uint32_t* outActualReplySize) override;
+                                    uint32_t* outActualReplySize,
+                                    const std::string& = "") override;
 
  protected:
   ClientImp() = default;
