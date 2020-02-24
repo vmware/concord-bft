@@ -45,7 +45,11 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcLongRunningTest(unittest.TestCase):
 
-    async def test_stability(self):
+    @with_trio
+    @with_bft_network(start_replica_cmd,
+                      selected_configs=lambda n, f, c: n == 7)
+    async def test_stability(self, bft_network):
+        bft_network.start_all_replicas()
         with trio.move_on_after(seconds=ONE_HOUR_IN_SECONDS):
             while True:
                 assert True
