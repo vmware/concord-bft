@@ -171,6 +171,14 @@ BlockId DBKeyManipulator::extractBlockIdFromKey(const Key &key) {
   return id;
 }
 
+Hash DBKeyManipulator::extractHashFromLeafKey(const Key &key) {
+  constexpr auto keyTypeOffset = sizeof(EDBKeyType) + sizeof(EKeySubtype);
+  Assert(key.length() > keyTypeOffset + Hash::SIZE_IN_BYTES);
+  Assert(getDBKeyType(key) == EDBKeyType::Key);
+  Assert(getKeySubtype(key) == EKeySubtype::Leaf);
+  return Hash{reinterpret_cast<const uint8_t *>(key.data() + keyTypeOffset)};
+}
+
 DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db, bool readOnly)
     : DBAdapterBase{db, readOnly}, smTree_{std::make_shared<Reader>(*this)} {}
 
@@ -183,18 +191,34 @@ Status DBAdapter::getKeyByReadVersion(BlockId version,
 
   auto iter = db_->getIteratorGuard();
   const auto dbKey = DBKeyManipulator::genDataDbKey(key, version);
+  const auto handleKey = [&outValue, &actualVersion, &key](const auto &foundKey, const auto &foundValue) {
+    auto hasher = Hasher{};
+    const auto keyHash = hasher.hash(key.data(), key.length());
+    // Make sure we process leaf keys only that have the same hash as the hash of the passed key (i.e. are the same key
+    // the user has requested).
+    if (!foundKey.empty() && getDBKeyType(foundKey) == EDBKeyType::Key &&
+        getKeySubtype(foundKey) == EKeySubtype::Leaf && DBKeyManipulator::extractHashFromLeafKey(foundKey) == keyHash) {
+      outValue = foundValue;
+      actualVersion = DBKeyManipulator::extractBlockIdFromKey(foundKey);
+    }
+  };
+
   // Seek for a key that is greater than or equal to the requested one.
   const auto &[foundKey, foundValue] = iter->seekAtLeast(dbKey);
   if (iter->isEnd()) {
-    const auto &[prevKey, prevValue] = iter->last();
-    // Make sure we get Leaf keys only if there wasn't an exact match.
-    if (!prevKey.empty() && getDBKeyType(prevKey) == EDBKeyType::Key && getKeySubtype(prevKey) == EKeySubtype::Leaf) {
-      outValue = prevValue;
-      actualVersion = DBKeyManipulator::extractBlockIdFromKey(prevKey);
-    }
+    // If no keys are greater than or equal to the requested one, try with the last element.
+    const auto &[lastKey, lastValue] = iter->last();
+    handleKey(lastKey, lastValue);
   } else if (foundKey == dbKey) {
+    // We have an exact match.
     outValue = foundValue;
     actualVersion = DBKeyManipulator::extractBlockIdFromKey(foundKey);
+  } else {
+    // We have found a key that is bigger than the requested one. Since leaf keys are ordered lexicographically, first
+    // by hash and then by version, then if there is a key having the same hash and a lower version, it should directly
+    // precede the found one. Therefore, try the previous element.
+    const auto &[prevKey, prevValue] = iter->previous();
+    handleKey(prevKey, prevValue);
   }
 
   return Status::OK();

@@ -82,6 +82,11 @@ auto getHash(const std::string &str) {
   return hasher.hash(str.data(), str.size());
 }
 
+auto getHash(const Sliver &sliver) {
+  auto hasher = Hasher{};
+  return hasher.hash(sliver.data(), sliver.length());
+}
+
 auto getBlockDigest(const std::string &data) { return getHash(data).dataArray(); }
 
 StateTransferDigest blockDigest(BlockId blockId, const Sliver &block) {
@@ -114,7 +119,7 @@ SetOfKeyValuePairs getDeterministicBlockUpdates(std::uint32_t count) {
   return updates;
 }
 
-const auto defaultData = std::string{"this is a test string"};
+const auto defaultData = std::string{"defaultData"};
 const auto defaultSliver = Sliver::copy(defaultData.c_str(), defaultData.size());
 const auto defaultHash = getHash(defaultData);
 const auto defaultHashStrBuf = std::string{reinterpret_cast<const char *>(defaultHash.data()), defaultHash.size()};
@@ -572,23 +577,51 @@ TEST_P(db_adapter, get_latest_block) {
   ASSERT_EQ(adapter.getLatestBlock(), 3);
 }
 
-TEST_P(db_adapter, get_key_by_ver) {
+TEST_P(db_adapter, get_key_by_ver_1_key) {
+  const auto key = defaultSliver;
+  const auto keyData = defaultData;
   auto adapter = DBAdapter{GetParam()->db()};
   const auto data1 = Sliver{"data1"};
   const auto data2 = Sliver{"data2"};
   const auto data3 = Sliver{"data3"};
-  const auto updates1 = SetOfKeyValuePairs{std::make_pair(defaultSliver, data1)};
-  const auto updates2 = SetOfKeyValuePairs{std::make_pair(defaultSliver, data2)};
-  const auto updates3 = SetOfKeyValuePairs{std::make_pair(defaultSliver, data3)};
+  const auto updates1 = SetOfKeyValuePairs{std::make_pair(key, data1)};
+  const auto updates2 = SetOfKeyValuePairs{std::make_pair(key, data2)};
+  const auto updates3 = SetOfKeyValuePairs{std::make_pair(key, data3)};
   ASSERT_TRUE(adapter.addBlock(updates1, 1).isOK());
   ASSERT_TRUE(adapter.addBlock(updates2, 2).isOK());
   ASSERT_TRUE(adapter.addBlock(updates3, 3).isOK());
 
-  // Get a key before the first one and expect an empty response.
+  // Get a non-existent key with a hash that is after the existent key.
+  {
+    const auto after = Sliver{"dummy"};
+    ASSERT_TRUE(getHash(keyData) < getHash(after));
+
+    Sliver out;
+    BlockId actualVersion;
+    const auto status = adapter.getKeyByReadVersion(1, after, out, actualVersion);
+    ASSERT_TRUE(status == Status::OK());
+    ASSERT_TRUE(out.empty());
+    ASSERT_EQ(actualVersion, 0);
+  }
+
+  // Get a non-existent key with a hash that is before the existent key.
+  {
+    const auto before = Sliver{"aa"};
+    ASSERT_TRUE(getHash(before) < getHash(keyData));
+
+    Sliver out;
+    BlockId actualVersion;
+    const auto status = adapter.getKeyByReadVersion(1, before, out, actualVersion);
+    ASSERT_TRUE(status == Status::OK());
+    ASSERT_TRUE(out.empty());
+    ASSERT_EQ(actualVersion, 0);
+  }
+
+  // Get a key with a version smaller than the first version and expect an empty response.
   {
     Sliver out;
     BlockId actualVersion;
-    const auto status = adapter.getKeyByReadVersion(0, defaultSliver, out, actualVersion);
+    const auto status = adapter.getKeyByReadVersion(0, key, out, actualVersion);
     ASSERT_TRUE(status == Status::OK());
     ASSERT_TRUE(out.empty());
     ASSERT_EQ(actualVersion, 0);
@@ -598,7 +631,7 @@ TEST_P(db_adapter, get_key_by_ver) {
   {
     Sliver out;
     BlockId actualVersion;
-    const auto status = adapter.getKeyByReadVersion(1, defaultSliver, out, actualVersion);
+    const auto status = adapter.getKeyByReadVersion(1, key, out, actualVersion);
     ASSERT_TRUE(status.isOK());
     ASSERT_TRUE(out == data1);
     ASSERT_EQ(actualVersion, 1);
@@ -608,7 +641,7 @@ TEST_P(db_adapter, get_key_by_ver) {
   {
     Sliver out;
     BlockId actualVersion;
-    const auto status = adapter.getKeyByReadVersion(2, defaultSliver, out, actualVersion);
+    const auto status = adapter.getKeyByReadVersion(2, key, out, actualVersion);
     ASSERT_TRUE(status.isOK());
     ASSERT_TRUE(out == data2);
     ASSERT_EQ(actualVersion, 2);
@@ -618,20 +651,163 @@ TEST_P(db_adapter, get_key_by_ver) {
   {
     Sliver out;
     BlockId actualVersion;
-    const auto status = adapter.getKeyByReadVersion(3, defaultSliver, out, actualVersion);
+    const auto status = adapter.getKeyByReadVersion(3, key, out, actualVersion);
     ASSERT_TRUE(status.isOK());
     ASSERT_TRUE(out == data3);
     ASSERT_EQ(actualVersion, 3);
   }
 
-  // Get a key past the last one and expect the last one.
+  // Get a key with a version bigger than the last one and expect the last one.
   {
     Sliver out;
     BlockId actualVersion;
-    const auto status = adapter.getKeyByReadVersion(42, defaultSliver, out, actualVersion);
+    const auto status = adapter.getKeyByReadVersion(42, key, out, actualVersion);
     ASSERT_TRUE(status.isOK());
     ASSERT_TRUE(out == data3);
     ASSERT_EQ(actualVersion, 3);
+  }
+}
+
+// Test the getKeyByReadVersion() method with multiple keys, including ones that are ordered before and after the keys
+// in the system.
+// Note: Leaf keys are ordered first on the key hash and then on the version. See db_types.h and
+// merkle_tree_serialization.h for more information.
+TEST_P(db_adapter, get_key_by_ver_multiple_keys) {
+  const auto key = defaultSliver;
+  const auto keyData = defaultData;
+  const auto before = Sliver{"aa"};
+  const auto after = Sliver{"dummy"};
+  const auto random = Sliver{"random"};
+  ASSERT_TRUE(getHash(keyData) < getHash(after));
+  ASSERT_TRUE(getHash(before) < getHash(keyData));
+
+  auto adapter = DBAdapter{GetParam()->db()};
+  const auto data1 = Sliver{"data1"};
+  const auto data2 = Sliver{"data2"};
+  const auto data3 = Sliver{"data3"};
+  const auto updates1 = SetOfKeyValuePairs{std::make_pair(key, data1), std::make_pair(before, data2)};
+  const auto updates2 =
+      SetOfKeyValuePairs{std::make_pair(key, data2), std::make_pair(before, data1), std::make_pair(after, data3)};
+  const auto updates3 = SetOfKeyValuePairs{std::make_pair(key, data3), std::make_pair(before, data2)};
+  ASSERT_TRUE(adapter.addBlock(updates1, 1).isOK());
+  ASSERT_TRUE(adapter.addBlock(updates2, 2).isOK());
+  ASSERT_TRUE(adapter.addBlock(updates3, 3).isOK());
+
+  // Get keys with a version that is smaller than the first version and expect an empty response.
+  {
+    const auto version = 0;
+    auto outValue = Sliver{};
+    auto actualVersion = BlockId{119};
+
+    ASSERT_TRUE(adapter.getKeyByReadVersion(version, key, outValue, actualVersion).isOK());
+    ASSERT_TRUE(outValue.empty());
+    ASSERT_EQ(actualVersion, 0);
+
+    ASSERT_TRUE(adapter.getKeyByReadVersion(version, before, outValue, actualVersion).isOK());
+    ASSERT_TRUE(outValue.empty());
+    ASSERT_EQ(actualVersion, 0);
+
+    ASSERT_TRUE(adapter.getKeyByReadVersion(version, after, outValue, actualVersion).isOK());
+    ASSERT_TRUE(outValue.empty());
+    ASSERT_EQ(actualVersion, 0);
+
+    ASSERT_TRUE(adapter.getKeyByReadVersion(version, random, outValue, actualVersion).isOK());
+    ASSERT_TRUE(outValue.empty());
+    ASSERT_EQ(actualVersion, 0);
+  }
+
+  // Get keys with a version that is bigger than the last version and expect the last one.
+  {
+    const auto version = 42;
+    auto outValue = Sliver{};
+    auto actualVersion = BlockId{119};
+
+    ASSERT_TRUE(adapter.getKeyByReadVersion(version, key, outValue, actualVersion).isOK());
+    ASSERT_TRUE(outValue == data3);
+    ASSERT_EQ(actualVersion, 3);
+
+    ASSERT_TRUE(adapter.getKeyByReadVersion(version, before, outValue, actualVersion).isOK());
+    ASSERT_TRUE(outValue == data2);
+    ASSERT_EQ(actualVersion, 3);
+
+    ASSERT_TRUE(adapter.getKeyByReadVersion(version, after, outValue, actualVersion).isOK());
+    ASSERT_TRUE(outValue == data3);
+    ASSERT_EQ(actualVersion, 2);
+
+    ASSERT_TRUE(adapter.getKeyByReadVersion(version, random, outValue, actualVersion).isOK());
+    ASSERT_TRUE(outValue.empty());
+    ASSERT_EQ(actualVersion, 0);
+  }
+
+  // Get keys at version 1.
+  {
+    const auto version = 1;
+    auto outValue = Sliver{};
+    auto actualVersion = BlockId{119};
+
+    ASSERT_TRUE(adapter.getKeyByReadVersion(version, key, outValue, actualVersion).isOK());
+    ASSERT_TRUE(outValue == data1);
+    ASSERT_EQ(actualVersion, 1);
+
+    ASSERT_TRUE(adapter.getKeyByReadVersion(version, before, outValue, actualVersion).isOK());
+    ASSERT_TRUE(outValue == data2);
+    ASSERT_EQ(actualVersion, 1);
+
+    // The after key is not present at version 1.
+    ASSERT_TRUE(adapter.getKeyByReadVersion(version, after, outValue, actualVersion).isOK());
+    ASSERT_TRUE(outValue.empty());
+    ASSERT_EQ(actualVersion, 0);
+
+    // The random key is not present at version 1.
+    ASSERT_TRUE(adapter.getKeyByReadVersion(version, random, outValue, actualVersion).isOK());
+    ASSERT_TRUE(outValue.empty());
+    ASSERT_EQ(actualVersion, 0);
+  }
+
+  // Get keys at version 2.
+  {
+    const auto version = 2;
+    auto outValue = Sliver{};
+    auto actualVersion = BlockId{119};
+
+    ASSERT_TRUE(adapter.getKeyByReadVersion(version, key, outValue, actualVersion).isOK());
+    ASSERT_TRUE(outValue == data2);
+    ASSERT_EQ(actualVersion, 2);
+
+    ASSERT_TRUE(adapter.getKeyByReadVersion(version, before, outValue, actualVersion).isOK());
+    ASSERT_TRUE(outValue == data1);
+    ASSERT_EQ(actualVersion, 2);
+
+    ASSERT_TRUE(adapter.getKeyByReadVersion(version, after, outValue, actualVersion).isOK());
+    ASSERT_TRUE(outValue == data3);
+    ASSERT_EQ(actualVersion, 2);
+
+    ASSERT_TRUE(adapter.getKeyByReadVersion(version, random, outValue, actualVersion).isOK());
+    ASSERT_TRUE(outValue.empty());
+    ASSERT_EQ(actualVersion, 0);
+  }
+
+  // Get keys at version 3.
+  {
+    const auto version = 3;
+    auto outValue = Sliver{};
+    auto actualVersion = BlockId{119};
+
+    ASSERT_TRUE(adapter.getKeyByReadVersion(version, key, outValue, actualVersion).isOK());
+    ASSERT_TRUE(outValue == data3);
+    ASSERT_EQ(actualVersion, 3);
+
+    ASSERT_TRUE(adapter.getKeyByReadVersion(version, before, outValue, actualVersion).isOK());
+    ASSERT_TRUE(outValue == data2);
+    ASSERT_EQ(actualVersion, 3);
+
+    ASSERT_TRUE(adapter.getKeyByReadVersion(version, after, outValue, actualVersion).isOK());
+    ASSERT_TRUE(outValue == data3);
+    ASSERT_EQ(actualVersion, 2);
+
+    ASSERT_TRUE(adapter.getKeyByReadVersion(version, random, outValue, actualVersion).isOK());
+    ASSERT_TRUE(outValue.empty());
+    ASSERT_EQ(actualVersion, 0);
   }
 }
 

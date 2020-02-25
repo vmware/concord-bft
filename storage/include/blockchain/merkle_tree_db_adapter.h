@@ -36,6 +36,9 @@ class DBKeyManipulator : public DBKeyManipulatorBase {
 
   // Extract the block ID from a EDBKeyType::Block key or from a EKeySubtype::Leaf key.
   static BlockId extractBlockIdFromKey(const concordUtils::Key &key);
+
+  // Extract the hash from a leaf key.
+  static sparse_merkle::Hash extractHashFromLeafKey(const concordUtils::Key &key);
 };
 
 class DBAdapter : public DBAdapterBase {
