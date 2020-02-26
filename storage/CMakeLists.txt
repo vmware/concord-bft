@@ -2,7 +2,8 @@ add_library(concordbft_storage STATIC src/db_metadata_storage.cpp
                                       src/base_db_adapter.cpp
                                       src/direct_kv_db_adapter.cpp
                                       src/merkle_tree_db_adapter.cpp
-                                      src/block.cpp)
+                                      src/direct_kv_block.cpp
+                                      src/merkle_tree_block.cpp)
 
 target_include_directories(concordbft_storage PUBLIC include)
 target_link_libraries(concordbft_storage PUBLIC corebft)

@@ -57,6 +57,9 @@ class InternalNodeKey {
 // merkle tree.
 class LeafKey {
  public:
+  static constexpr auto SIZE_IN_BYTES = Hash::SIZE_IN_BYTES + Version::SIZE_IN_BYTES;
+
+ public:
   LeafKey(Hash key, Version version) : key_(key), version_(version) {}
 
   bool operator==(const LeafKey& other) const { return key_ == other.key_ && version_ == other.version_; }

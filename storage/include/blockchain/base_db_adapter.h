@@ -42,8 +42,6 @@ class DBAdapterBase {
  protected:
   DBAdapterBase(const std::shared_ptr<IDBClient> &db, bool readOnly);
 
-  concordUtils::Key getLatestBlock(const concordUtils::Sliver &maxKey) const;
-
  public:
   std::shared_ptr<IDBClient> getDb() const { return db_; }
 
