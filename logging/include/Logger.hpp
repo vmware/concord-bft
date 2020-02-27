@@ -36,6 +36,7 @@ class MDC {
 
  public:
   MDC(concordlogger::Logger& logger, const std::string& key, const std::string& value);
+  MDC(concordlogger::Logger& logger, const std::string& key, int value) : MDC(logger, key, std::to_string(value)) {}
   ~MDC();
 };
 }  // namespace concordlogger
@@ -50,3 +51,4 @@ class MDC {
 #define MDC_PUT(l, k, v) concordlogger::MDC mdc_((l), (k), (v))
 #define CID_KEY "cid"
 #define MDC_CID_PUT(l, v) MDC_PUT(l, CID_KEY, v)
+#define SEQ_NUM_KEY "sn"
