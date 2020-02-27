@@ -18,7 +18,6 @@ class MsgError(Exception):
     def __init__(self, message):
         self.message = message
 
-PRE_PROCESS_MSG_TYPE = 117
 REQUEST_MSG_TYPE = 700
 REPLY_MSG_TYPE = 800
 
