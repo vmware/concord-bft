@@ -37,12 +37,6 @@ when a backwards incompatible change is made.
 We use Conan Package Manager to install all concord-bft dependencies.
 Dependencies that currently are not supported by the conan center, have custom conan installer in concord-bft/.conan
 
-### Install Dependencies
-
-
-    
-
-
 
 ### Build concord-bft
 
@@ -69,12 +63,14 @@ done by passing arguments to cmake with a `-D` prefix: e.g. `cmake -DBUILD_TESTI
 make must be run afterwards to build according to the configuration. The following options are
 useful for building concord-bft:
 
- * `CMAKE_BUILD_TYPE`     - Debug | Release | RelWithDebInfo | MinSizeRel (DEFAULT Debug)
- * `BUILD_TESTING`        - OFF | ON  (DEFAULT ON)
- * `BUILD_COMM_TCP_PLAIN` - TRUE | FALSE (DEFAULT FALSE - UDP is used)
- * `BUILD_COMM_TCP_TLS`   - TRUE | FALSE (DEFAULT FALSE - UDP is used)
- * `USE_LOG4CPP`          - TRUE | FALSE (DEFAULT FALSE)
- * `CONCORD_LOGGER_NAME`  - STRING (DEFAULT "concord")
+| Option | Possible Values | Default |
+| - | - | - |
+| `CMAKE_BUILD_TYPE`     | Debug \| Release \| RelWithDebInfo \| MinSizeRel | Debug |
+| `BUILD_TESTING`        | OFF \| ON  | ON |
+| `BUILD_COMM_TCP_PLAIN` | TRUE \| FALSE | FALSE - UDP is used |
+| `BUILD_COMM_TCP_TLS`   | TRUE \| FALSE | FALSE - UDP is used |
+| `USE_LOG4CPP`          | TRUE \| FALSE | FALSE |
+| `CONCORD_LOGGER_NAME`  | STRING |"concord" |
 
  Note: You can't set both `BUILD_COMM_TCP_PLAIN` and `BUILD_COMM_TCP_TLS` to TRUE.
  
@@ -82,7 +78,7 @@ useful for building concord-bft:
 #### Select comm module
 We support both UDP and TCP communication. UDP is the default. In order to
 enable TCP communication, build with `-DBUILD_COMM_TCP_PLAIN=TRUE` in the cmake
-instructions shown below.  If set, the test client will run using TCP. If you
+instructions shown above.  If set, the test client will run using TCP. If you
 wish to use TCP in your application, you need to build the TCP module as
 mentioned above and then create the communication object using CommFactory and
 passing PlainTcpConfig object to it.
