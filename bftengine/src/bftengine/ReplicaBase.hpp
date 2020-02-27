@@ -49,7 +49,14 @@ class ReplicaBase {
   std::shared_ptr<MsgsCommunicator> getMsgsCommunicator() const { return msgsCommunicator_; }
   std::shared_ptr<MsgHandlersRegistrator> getMsgHandlersRegistrator() const { return msgHandlers_; }
 
-  void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a) { metrics_.SetAggregator(a); }
+  void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+    if (aggregator) {
+      aggregator_ = aggregator;
+      metrics_.SetAggregator(aggregator);
+    }
+  }
+
+  std::shared_ptr<concordMetrics::Aggregator> getAggregator() const { return aggregator_; }
 
   virtual void start();
   virtual void stop();
@@ -97,6 +104,7 @@ class ReplicaBase {
   //////////////////////////////////////////////////
   // METRICS
   concordMetrics::Component metrics_;
+  std::shared_ptr<concordMetrics::Aggregator> aggregator_;
 
   ///////////////////////////////////////////////////
   // Timers
