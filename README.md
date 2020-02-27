@@ -36,7 +36,7 @@ when a backwards incompatible change is made.
 ## Build (Ubuntu Linux 18.04)
 
 We use Conan Package Manager to install all concord-bft dependencies.
-Dependencies that currently are not supported by the conan center, have custom conan installer in concord-bft/.conan
+Dependencies that are currently not supported by the conan center, have a custom conan installer within concord-bft/.conan.
 
 
 ### Build concord-bft
@@ -62,7 +62,7 @@ make
 In order to turn on or off various options, you need to change your cmake configuration. This is
 done by passing arguments to cmake with a `-D` prefix: e.g. `cmake -DBUILD_TESTING=OFF`. Note that
 make must be run afterwards to build according to the configuration. The following options are
-useful for building concord-bft:
+available:
 
 | Option | Possible Values | Default |
 | - | - | - |
@@ -164,7 +164,7 @@ refer to [CONTRIBUTING.md](CONTRIBUTING.md).
 
 [Concord-BFT Slack](https://concordbft.slack.com/).
 
-Get Slack invitation via this [link](https://join.slack.com/t/concordbft/shared_invite/enQtNTAyMzg0MTk0NzU0LWViMjA4ODQ4OTcxYmVkMWU4NGYyNTZmZDQ0ZTIzZTNiZmIyZmI5Mjg0NDZjNjBkYmI2Yjg1Mzg1NGUyNjQ0OWQ) or send request to <concordbft@gmail.com>.
+Request a Slack invitation via <concordbft@gmail.com>.
 
 ## License
 
