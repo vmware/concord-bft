@@ -75,7 +75,8 @@ def with_trio(async_fn):
     """ Decorator for running a coroutine (async_fn) with trio. """
     @wraps(async_fn)
     def trio_wrapper(*args, **kwargs):
-        if "bft_network" in kwargs:
+        if "already_in_trio" in kwargs:
+            kwargs.pop("already_in_trio")
             return async_fn(*args, **kwargs)
         else:
             return trio.run(async_fn, *args, **kwargs)
