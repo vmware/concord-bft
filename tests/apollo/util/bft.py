@@ -75,7 +75,10 @@ def with_trio(async_fn):
     """ Decorator for running a coroutine (async_fn) with trio. """
     @wraps(async_fn)
     def trio_wrapper(*args, **kwargs):
-        return trio.run(async_fn, *args, **kwargs)
+        if "bft_network" in kwargs:
+            return async_fn(*args, **kwargs)
+        else:
+            return trio.run(async_fn, *args, **kwargs)
 
     return trio_wrapper
 
@@ -87,22 +90,26 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_ro_replicas=0
     def decorator(async_fn):
         @wraps(async_fn)
         async def wrapper(*args, **kwargs):
-            for bft_config in interesting_configs(selected_configs):
-                       
-                config = TestConfig(n=bft_config['n'],
-                                    f=bft_config['f'],
-                                    c=bft_config['c'],
-                                    num_clients=bft_config['num_clients'],
-                                    key_file_prefix=KEY_FILE_PREFIX,
-                                    start_replica_cmd=start_replica_cmd,
-                                    num_ro_replicas=num_ro_replicas)
-                with BftTestNetwork(config) as bft_network:
-                    print(f'Running {async_fn.__name__} '
-                          f'with n={config.n}, f={config.f}, c={config.c}, '
-                          f'num_clients={config.num_clients}, '
-                          f'num_ro_replicas={config.num_ro_replicas}')
-                    await bft_network.init()
-                    await async_fn(*args, **kwargs, bft_network=bft_network)
+            if "bft_network" in kwargs:
+                bft_network = kwargs.pop("bft_network")
+                await async_fn(*args, **kwargs, bft_network=bft_network)
+            else:
+                for bft_config in interesting_configs(selected_configs):
+
+                    config = TestConfig(n=bft_config['n'],
+                                        f=bft_config['f'],
+                                        c=bft_config['c'],
+                                        num_clients=bft_config['num_clients'],
+                                        key_file_prefix=KEY_FILE_PREFIX,
+                                        start_replica_cmd=start_replica_cmd,
+                                        num_ro_replicas=num_ro_replicas)
+                    with BftTestNetwork(config) as bft_network:
+                        print(f'Running {async_fn.__name__} '
+                              f'with n={config.n}, f={config.f}, c={config.c}, '
+                              f'num_clients={config.num_clients}, '
+                              f'num_ro_replicas={config.num_ro_replicas}')
+                        await bft_network.init()
+                        await async_fn(*args, **kwargs, bft_network=bft_network)
         return wrapper
 
     return decorator
