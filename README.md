@@ -24,8 +24,7 @@ This library is designed to be used as a core building block for replicated dist
 Its implementation is based on the algorithm described in the paper [SBFT: a Scalable Decentralized Trust Infrastructure for
 Blockchains](https://arxiv.org/pdf/1804.01626.pdf).
 
-Releases
-----
+## Releases
 
 We abide by [semantic versioning](https://semver.org/). Public APIs can change
 at any time until we reach version 1.0. We will, however, bump the minor version
@@ -33,52 +32,37 @@ when a backwards incompatible change is made.
 
  [v0.5](https://github.com/vmware/concord-bft/releases/tag/v0.5)
 
-
-
-
-
-## Directory Structure
-
-
-- [bftengine](./bftengine): concord-bft codebase
-	- [include](./bftengine/include): external interfaces of concord-bft (to be used by client applications)
-	- [src](./bftengine/src): internal implementation of concord-bft
-    - [tests](./bftengine/tests): tests and usage examples
-- [threshsign](./threshsign): crypto library that supports digital threshold signatures
-	- [include](./threshsign/include): external interfaces of threshsign (to be used by client applications)
-	- [src](./threshsign/src): internal implementation of threshsign
-    - [tests](./threshsign/tests): tests and usage examples
-- [scripts](./scripts): build scripts
-- [tests](./tests): BFT engine system tests
-
-
-
-
 ## Build (Ubuntu Linux 18.04)
 
 We use Conan Package Manager to install all concord-bft dependencies.
 Dependencies that currently are not supported by the conan center, have custom conan installer in concord-bft/.conan
 
 ### Install Dependencies
-Install all dependencies using
 
-    ./install.sh
+
+    
 
 
 
 ### Build concord-bft
 
-Create a build directory and enter it:
+```sh
+git clone https://github.com/vmware/concord-bft
+cd concord-bft
+./install.sh 	# Install all dependencies 
 
-    cd concord-bft
-    mkdir -p build
-    cd build
+mkdir -p build
+cd build
 
-To perform a default build execute the following:
+conan install --build missing ..
+cmake ..
+make
 
-    conan install --build missing ..
-    cmake ..
-    make
+# run a very basic test
+./tests/simpleTest/scripts/testReplicasAndClient.sh
+```
+
+### Build Options
 
 In order to turn on or off various options, you need to change your cmake configuration. This is
 done by passing arguments to cmake with a `-D` prefix: e.g. `cmake -DBUILD_TESTING=OFF`. Note that
@@ -95,7 +79,7 @@ useful for building concord-bft:
  Note: You can't set both `BUILD_COMM_TCP_PLAIN` and `BUILD_COMM_TCP_TLS` to TRUE.
  
  
-### Select comm module
+#### Select comm module
 We support both UDP and TCP communication. UDP is the default. In order to
 enable TCP communication, build with `-DBUILD_COMM_TCP_PLAIN=TRUE` in the cmake
 instructions shown below.  If set, the test client will run using TCP. If you
@@ -107,7 +91,7 @@ We also support TCP over TLS communication. To enable it, change the
 `BUILD_COMM_TCP_TLS` flag to `TRUE` in the main CMakeLists.txt file. When
 running simpleTest using the testReplicasAndClient.sh - there is no need to create TLS certificates manually. The script will use the `create_tls_certs.sh` (located under the scripts/linux folder) to create certificates. The latter can be used to create TLS files for any number of replicas, e.g. when extending existing tests.
 
-### (Optional) Python client
+#### (Optional) Python client
 
 The python client is required for running tests. If you do not want to install
 python, you can configure the build of concord-bft by running `cmake
@@ -155,6 +139,20 @@ Run the following from the top level concord-bft directory:
 You can use the simpleTest.py script to run various configurations via a simple
 command line interface.
 Please find more information [here](./tests/simpleTest/README.md)
+
+## Directory Structure
+
+
+- [bftengine](./bftengine): concord-bft codebase
+	- [include](./bftengine/include): external interfaces of concord-bft (to be used by client applications)
+	- [src](./bftengine/src): internal implementation of concord-bft
+    - [tests](./bftengine/tests): tests and usage examples
+- [threshsign](./threshsign): crypto library that supports digital threshold signatures
+	- [include](./threshsign/include): external interfaces of threshsign (to be used by client applications)
+	- [src](./threshsign/src): internal implementation of threshsign
+    - [tests](./threshsign/tests): tests and usage examples
+- [scripts](./scripts): build scripts
+- [tests](./tests): BFT engine system tests
 
 ## Contributing
 
