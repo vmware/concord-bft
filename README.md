@@ -15,14 +15,15 @@
 
 ## Overview
 
-Project Concord is a highly scalable and energy-efficient distributed trust infrastructure for consensus and smart contract execution.
+**Concord-bft** is a generic state machine replication library that can handle malicious (byzantine) replicas.
 
-## concord-bft
-
-The core engine of project Concord is concord-bft, a generic state machine replication library that can handle malicious (byzantine) replicas.
-This library is designed to be used as a core building block for replicated distributed data stores, and is especially suited to serve as the basis of permissioned Blockchain systems.
 Its implementation is based on the algorithm described in the paper [SBFT: a Scalable Decentralized Trust Infrastructure for
 Blockchains](https://arxiv.org/pdf/1804.01626.pdf).
+
+It is designed to be used as a core building block for replicated distributed data stores, and is especially suited to serve as the basis of permissioned Blockchain systems.
+
+For a real-life integration example, please take a look at [Project Concord](https://github.com/vmware/concord), a highly scalable and energy-efficient distributed trust infrastructure for consensus and smart contract execution.
+
 
 ## Releases
 
