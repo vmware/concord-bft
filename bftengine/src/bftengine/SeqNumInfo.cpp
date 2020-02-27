@@ -527,6 +527,24 @@ void SeqNumInfo::init(SeqNumInfo& i, void* d) {
   i.partialProofsSet = new PartialProofsSet((InternalReplicaApi*)r);
   i.partialExecProofsSet = new PartialExecProofsSet((InternalReplicaApi*)r);
 }
+std::string& SeqNumInfo::getRepresentativeCid() {
+  if (!cachedPrePrepareMsgFirstRequestCid.empty()) return cachedPrePrepareMsgFirstRequestCid;
+  if (prePrepareMsg == nullptr) {
+    cachedPrePrepareMsgFirstRequestCid = string();
+  } else {
+    cachedPrePrepareMsgFirstRequestCid = prePrepareMsg->getMessageClientCorrelationId(0);
+  }
+  return cachedPrePrepareMsgFirstRequestCid;
+}
+std::string& SeqNumInfo::getAllPrePrepareCids() {
+  if (!cachedPrePrepareMsgAllCids.empty()) return cachedPrePrepareMsgAllCids;
+  if (prePrepareMsg == nullptr) {
+    cachedPrePrepareMsgAllCids = string();
+  } else {
+    cachedPrePrepareMsgAllCids = prePrepareMsg->getAllRequestsCorrelationIdAsString();
+  }
+  return cachedPrePrepareMsgAllCids;
+}
 
 }  // namespace impl
 }  // namespace bftEngine
