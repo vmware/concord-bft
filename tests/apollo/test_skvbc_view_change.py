@@ -13,6 +13,7 @@
 import os.path
 import random
 import unittest
+
 import trio
 
 from util import bft_network_partitioning as net
@@ -90,6 +91,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
             new_last_block = skvbc.parse_reply(await client.read(skvbc.get_last_block_req()))
             self.assertEqual(new_last_block, last_block)
+
 
 
     @with_trio
