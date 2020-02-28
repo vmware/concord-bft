@@ -161,8 +161,6 @@ class SeqNumInfo {
   InternalReplicaApi* replica = nullptr;
 
   PrePrepareMsg* prePrepareMsg;
-  std::string cachedPrePrepareMsgFirstRequestCid;
-  std::string cachedPrePrepareMsgAllCids;
   CollectorOfThresholdSignatures<PreparePartialMsg, PrepareFullMsg, ExFuncForPrepareCollector>* prepareSigCollector;
   CollectorOfThresholdSignatures<CommitPartialMsg, CommitFullMsg, ExFuncForCommitCollector>* commitMsgsCollector;
 

@@ -1755,6 +1755,7 @@ void ReplicaImp::onMessage<NewViewMsg>(NewViewMsg *msg) {
     return;
   }
   metric_received_new_views_.Get().Inc();
+
   const ReplicaId senderId = msg->senderId();
 
   Assert(senderId != config_.replicaId);  // should be verified in ViewChangeMsg
