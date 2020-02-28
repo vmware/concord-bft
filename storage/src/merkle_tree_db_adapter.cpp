@@ -48,6 +48,8 @@ using sparse_merkle::Version;
 
 using namespace detail;
 
+constexpr auto MAX_BLOCK_ID = std::numeric_limits<BlockId>::max();
+
 // Converts the updates as returned by the merkle tree to key/value pairs suitable for the DB.
 SetOfKeyValuePairs batchToDbUpdates(const Tree::UpdateBatch &batch) {
   SetOfKeyValuePairs updates;
@@ -114,6 +116,11 @@ EKeySubtype getKeySubtype(const Sliver &s) {
 
   // Dummy return to silence the compiler.
   return EKeySubtype::Internal;
+}
+
+auto hash(const Sliver &buf) {
+  auto hasher = Hasher{};
+  return hasher.hash(buf.data(), buf.length());
 }
 
 }  // namespace
@@ -191,61 +198,41 @@ Status DBAdapter::getKeyByReadVersion(BlockId version,
 
   auto iter = db_->getIteratorGuard();
   const auto dbKey = DBKeyManipulator::genDataDbKey(key, version);
-  const auto handleKey = [&outValue, &actualVersion, &key](const auto &foundKey, const auto &foundValue) {
-    auto hasher = Hasher{};
-    const auto keyHash = hasher.hash(key.data(), key.length());
-    // Make sure we process leaf keys only that have the same hash as the hash of the passed key (i.e. are the same key
-    // the user has requested).
-    if (!foundKey.empty() && getDBKeyType(foundKey) == EDBKeyType::Key &&
-        getKeySubtype(foundKey) == EKeySubtype::Leaf && DBKeyManipulator::extractHashFromLeafKey(foundKey) == keyHash) {
-      outValue = foundValue;
-      actualVersion = DBKeyManipulator::extractBlockIdFromKey(foundKey);
-    }
-  };
 
-  // Seek for a key that is greater than or equal to the requested one.
-  const auto &[foundKey, foundValue] = iter->seekAtLeast(dbKey);
-  if (iter->isEnd()) {
-    // If no keys are greater than or equal to the requested one, try with the last element.
-    const auto &[lastKey, lastValue] = iter->last();
-    handleKey(lastKey, lastValue);
-  } else if (foundKey == dbKey) {
+  // Seek for a key that is less than or equal to the requested one.
+  //
+  // Since leaf keys are ordered lexicographically, first by hash and then by version, then if there is a key having
+  // the same hash and a lower version, it should directly precede the found one.
+  const auto &[foundKey, foundValue] = iter->seekAtMost(dbKey);
+  if (foundKey == dbKey) {
     // We have an exact match.
     outValue = foundValue;
-    actualVersion = DBKeyManipulator::extractBlockIdFromKey(foundKey);
-  } else {
-    // We have found a key that is bigger than the requested one. Since leaf keys are ordered lexicographically, first
-    // by hash and then by version, then if there is a key having the same hash and a lower version, it should directly
-    // precede the found one. Therefore, try the previous element.
-    const auto &[prevKey, prevValue] = iter->previous();
-    handleKey(prevKey, prevValue);
+    actualVersion = version;
   }
-
+  // Make sure we process leaf keys only that have the same hash as the hash of the passed key (i.e. is the same key
+  // the user has requested).
+  else if (!foundKey.empty() && getDBKeyType(foundKey) == EDBKeyType::Key &&
+           getKeySubtype(foundKey) == EKeySubtype::Leaf &&
+           DBKeyManipulator::extractHashFromLeafKey(foundKey) == hash(key)) {
+    outValue = foundValue;
+    actualVersion = DBKeyManipulator::extractBlockIdFromKey(foundKey);
+  }
   return Status::OK();
 }
 
 BlockId DBAdapter::getLatestBlock() const {
   // Generate maximal key for type 'BlockId'.
-  const auto maxBlockKey = DBKeyManipulator::genBlockDbKey(std::numeric_limits<BlockId>::max());
+  const auto maxBlockKey = DBKeyManipulator::genBlockDbKey(MAX_BLOCK_ID);
   auto iter = db_->getIteratorGuard();
-  auto foundKey = iter->seekAtLeast(maxBlockKey).first;
-  if (iter->isEnd()) {
-    // If there are no keys bigger than or equal to the maximal block key, use the last key in the whole range as it may
-    // be the actual latest block key. That will allow us to find the latest block even if there are no other bigger
-    // keys in the system. Please see db_types.h for key ordering.
-    foundKey = iter->last().first;
-  } else if (foundKey != maxBlockKey) {
-    // We have found a key that is greater - go back.
-    foundKey = iter->previous().first;
-  }
-
+  // As blocks are ordered by block ID, seek for a block key with an ID that is less than or equal to the maximal
+  // allowed block ID.
+  const auto foundKey = iter->seekAtMost(maxBlockKey).first;
   // Consider block keys only.
   if (!foundKey.empty() && getDBKeyType(foundKey) == EDBKeyType::Block) {
     const auto blockId = DBKeyManipulator::extractBlockIdFromKey(foundKey);
     LOG_TRACE(logger_, "Latest block ID " << blockId);
     return blockId;
   }
-
   // No blocks in the system.
   return 0;
 }
@@ -310,28 +297,17 @@ BatchedInternalNode DBAdapter::Reader::get_latest_root() const {
   const auto maxRootKey = DBKeyManipulator::genInternalDbKey(InternalNodeKey::root(Version::max()));
   auto iter = adapter_.getDb()->getIteratorGuard();
 
-  // Look for a key that is greater or equal to the maximal internal root key.
+  // Seek for a key that is less than or equal to the maximal internal root key.
   //
   // Note: code below relies on the fact that root keys have empty nibble paths and, therefore, are always preceding
   // other internal keys (as root keys will be shorter). Additionally, root keys will be orderd by their version.
-  auto foundKey = iter->seekAtLeast(maxRootKey).first;
-  if (iter->isEnd()) {
-    // If there are no keys bigger than or equal to the maximal internal root key, use the last key in the whole range
-    // as it may be the actual maximal internal root key. That will allow us to find the latest root even if there are
-    // no other bigger keys in the system. Please see db_types.h for key ordering.
-    foundKey = iter->last().first;
-  } else if (foundKey != maxRootKey) {
-    // We have found a key that is greater - go back.
-    foundKey = iter->previous().first;
-  }
-
+  const auto foundKey = iter->seekAtMost(maxRootKey).first;
   // Consider internal keys only. If it is an internal key, it must be a root one as roots precede non-root ones.
   if (!foundKey.empty() && getDBKeyType(foundKey) == EDBKeyType::Key &&
       getKeySubtype(foundKey) == EKeySubtype::Internal) {
     constexpr auto keyOffset = sizeof(EDBKeyType) + sizeof(EKeySubtype);
     return get_internal(deserialize<InternalNodeKey>(Sliver{foundKey, keyOffset, foundKey.length() - keyOffset}));
   }
-
   return BatchedInternalNode{};
 }
 

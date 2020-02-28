@@ -418,6 +418,29 @@ KeyValuePair ClientIterator::seekAtLeast(const Sliver &_searchKey) {
 }
 
 /**
+ * @brief Returns the key value pair of the last key which is less than or equal
+ * to _searchKey.
+ *
+ * @param _searchKey Key to search for.
+ * @return Key value pair of the last key which is less than or equal to
+ *         _searchKey.
+ */
+KeyValuePair ClientIterator::seekAtMost(const Sliver &_searchKey) {
+  ++g_rocksdb_called_read;
+  if (g_rocksdb_print_measurements) {
+    LOG_DEBUG(logger, "Reading count = " << g_rocksdb_called_read << ", key " << _searchKey);
+  }
+
+  m_iter->SeekForPrev(toRocksdbSlice(_searchKey));
+  if (!m_iter->Valid()) {
+    return KeyValuePair();
+  }
+
+  m_status = Status::OK();
+  return KeyValuePair(copyRocksdbSlice(m_iter->key()), copyRocksdbSlice(m_iter->value()));
+}
+
+/**
  * @brief Decrements the iterator.
  *
  * Decrements the iterator and returns the previous key value pair.

@@ -40,6 +40,7 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
   concordUtils::KeyValuePair first() override;
   concordUtils::KeyValuePair last() override;
   concordUtils::KeyValuePair seekAtLeast(const concordUtils::Sliver& _searchKey) override;
+  concordUtils::KeyValuePair seekAtMost(const concordUtils::Sliver& _searchKey) override;
   concordUtils::KeyValuePair previous() override;
   KeyValuePair next() override;
   KeyValuePair getCurrent() override;
