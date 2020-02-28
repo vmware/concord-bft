@@ -39,6 +39,8 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcSlowPathTest(unittest.TestCase):
 
+    __test__ = False  # so that PyTest ignores this test scenario
+
     def setUp(self):
         # Whenever a replica goes down, all messages initially go via the slow path.
         # However, when an "evaluation period" elapses (set at 64 sequence numbers),
@@ -68,7 +70,7 @@ class SkvbcSlowPathTest(unittest.TestCase):
 
         unstable_replicas = bft_network.all_replicas(without={0})
         bft_network.stop_replica(
-            replica=random.choice(unstable_replicas))
+            replica_id=random.choice(unstable_replicas))
 
         await tracker.run_concurrent_ops(
             num_ops=num_ops, write_weight=write_weight)

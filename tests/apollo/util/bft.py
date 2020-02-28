@@ -41,6 +41,7 @@ TestConfig = namedtuple('TestConfig', [
     'num_clients',
     'key_file_prefix',
     'start_replica_cmd',
+    'stop_replica_cmd',
     'num_ro_replicas'
 ])
 
@@ -104,18 +105,17 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_ro_replicas=0
                                         num_clients=bft_config['num_clients'],
                                         key_file_prefix=KEY_FILE_PREFIX,
                                         start_replica_cmd=start_replica_cmd,
+                                        stop_replica_cmd=None,
                                         num_ro_replicas=num_ro_replicas)
-                    with BftTestNetwork(config) as bft_network:
+                    with BftTestNetwork.new(config) as bft_network:
                         print(f'Running {async_fn.__name__} '
                               f'with n={config.n}, f={config.f}, c={config.c}, '
                               f'num_clients={config.num_clients}, '
                               f'num_ro_replicas={config.num_ro_replicas}')
-                        await bft_network.init()
                         await async_fn(*args, **kwargs, bft_network=bft_network)
         return wrapper
 
     return decorator
-
 
 MAX_MSG_SIZE = 64*1024 # 64k
 REQ_TIMEOUT_MILLI = 5000
@@ -139,29 +139,73 @@ class BftTestNetwork:
 
     def __exit__(self, *args):
         """context manager method for 'with' statements"""
-        for client in self.clients.values():
-            client.__exit__()
-        self.metrics.__exit__()
-        self.stop_all_replicas()
-        os.chdir(self.origdir)
-        shutil.rmtree(self.testdir, ignore_errors=True)
+        if not self.is_existing:
+            for client in self.clients.values():
+                client.__exit__()
+            self.metrics.__exit__()
+            self.stop_all_replicas()
+            os.chdir(self.origdir)
+            shutil.rmtree(self.testdir, ignore_errors=True)
 
-    def __init__(self, config):
-        self.origdir = os.getcwd()
+    def __init__(self, is_existing, origdir,
+                 config, testdir, builddir, toolsdir,
+                 procs, replicas, clients, metrics):
+        self.is_existing = is_existing
+        self.origdir = origdir
         self.config = config
-        self.testdir = tempfile.mkdtemp()
-        print("Running test in {}".format(self.testdir))
-        self.builddir = os.path.abspath("../../build")
-        self.toolsdir = os.path.join(self.builddir, "tools")
-        self.procs = {}
-        self.replicas = [bft_config.Replica(i, "127.0.0.1", 3710 + 2*i)
-                for i in range(0, self.config.n + self.config.num_ro_replicas)]
+        self.testdir = testdir
+        self.builddir = builddir
+        self.toolsdir = toolsdir
+        self.procs = procs
+        self.replicas = replicas
+        self.clients = clients
+        self.metrics = metrics
 
-        os.chdir(self.testdir)
-        self._generate_crypto_keys()
-        self.clients = {}
-        self.metrics = None
-        self.is_existing = False
+    @classmethod
+    def new(cls, config):
+        builddir = os.path.abspath("../../build")
+        toolsdir = os.path.join(builddir, "tools")
+        testdir = tempfile.mkdtemp()
+        bft_network = cls(
+            is_existing=False,
+            origdir=os.getcwd(),
+            config=config,
+            testdir=testdir,
+            builddir=builddir,
+            toolsdir=toolsdir,
+            procs={},
+            replicas=[bft_config.Replica(i, "127.0.0.1", 3710 + 2*i)
+                for i in range(0, config.n + config.num_ro_replicas)],
+            clients = {},
+            metrics = None
+        )
+        print("Running test in {}".format(bft_network.testdir))
+
+        os.chdir(bft_network.testdir)
+        bft_network._generate_crypto_keys()
+
+        bft_network._init_metrics()
+        bft_network._create_clients()
+
+        return bft_network
+
+    @classmethod
+    def existing(cls, config, replicas, clients):
+        bft_network = cls(
+            is_existing=True,
+            origdir=None,
+            config=config,
+            testdir=None,
+            builddir=None,
+            toolsdir=None,
+            procs={r.id: r for r in replicas},
+            replicas=replicas,
+            clients={i: clients[i] for i in range(len(clients))},
+            metrics=None
+        )
+
+        bft_network._init_metrics()
+        return bft_network
 
     def _generate_crypto_keys(self):
         keygen = os.path.join(self.toolsdir, "GenerateConcordKeys")
@@ -171,7 +215,7 @@ class BftTestNetwork:
         args.extend(["-o", self.config.key_file_prefix])
         subprocess.run(args, check=True)
 
-    async def _create_clients(self):
+    def _create_clients(self):
         for client_id in range(self.config.n + self.config.num_ro_replicas,
                                self.config.num_clients+self.config.n + self.config.num_ro_replicas):
             config = self._bft_config(client_id)
@@ -192,20 +236,12 @@ class BftTestNetwork:
                                  REQ_TIMEOUT_MILLI,
                                  RETRY_TIMEOUT_MILLI)
 
-    async def _init_metrics(self):
+    def _init_metrics(self):
         metric_clients = {}
         for r in self.replicas:
             mr = bft_config.Replica(r.id, r.ip, r.port + 1000)
             metric_clients[r.id] = bft_metrics_client.MetricsClient(mr)
         self.metrics = bft_metrics.BftMetrics(metric_clients)
-
-    async def init(self):
-        """
-        Perform all necessary async initialization.
-        This must be called before using a KvbTester instance.
-        """
-        await self._create_clients()
-        await self._init_metrics()
 
     def random_client(self):
         return random.choice(list(self.clients.values()))
@@ -219,22 +255,25 @@ class BftTestNetwork:
         """
         return self.config.start_replica_cmd(self.builddir, replica_id)
 
+    def stop_replica_cmd(self, replica_id):
+        """
+        Returns command line to stop a replica with the given id
+        """
+        return self.config.stop_replica_cmd(replica_id)
+
     def start_all_replicas(self):
         try:
             [self.start_replica(i) for i in range(0, self.config.n)]
         except AlreadyRunningError:
-            if self.is_existing:
-                pass
-            else:
+            if not self.is_existing:
                 raise
+        finally:
+            assert len(self.procs) == self.config.n
 
     def stop_all_replicas(self):
         """ Stop all running replicas"""
-        for p in self.procs.values():
-            p.kill()
-            p.wait()
-
-        self.procs = {}
+        [self.stop_replica(i) for i in self.get_live_replicas()]
+        assert len(self.procs) == 0
 
     def start_replicas(self, replicas):
         """
@@ -256,21 +295,45 @@ class BftTestNetwork:
         """
         if replica_id in self.procs:
             raise AlreadyRunningError(replica_id)
-        cmd = self.start_replica_cmd(replica_id)
-        self.procs[replica_id] = subprocess.Popen(cmd, close_fds=True)
 
-    def stop_replica(self, replica):
+        if self.is_existing:
+            self.procs[replica_id] = self._start_external_replica(replica_id)
+        else:
+            self.procs[replica_id] = subprocess.Popen(
+                                        self.start_replica_cmd(replica_id),
+                                        close_fds=True)
+
+    def _start_external_replica(self, replica_id):
+        subprocess.run(
+            self.start_replica_cmd(replica_id),
+            check=True
+        )
+
+        return self.replicas[replica_id]
+
+
+    def stop_replica(self, replica_id):
         """
         Stop a replica if it is running.
         Otherwise raise an AlreadyStoppedError.
         """
-        if replica not in self.procs:
-            raise AlreadyStoppedError(replica)
-        p = self.procs[replica]
-        p.kill()
-        p.wait()
+        if replica_id not in self.procs.keys():
+            raise AlreadyStoppedError(replica_id)
 
-        del self.procs[replica]
+        if self.is_existing:
+            self._stop_external_replica(replica_id)
+        else:
+            p = self.procs[replica_id]
+            p.kill()
+            p.wait()
+
+        del self.procs[replica_id]
+
+    def _stop_external_replica(self, replica_id):
+        subprocess.run(
+            self.stop_replica_cmd(replica_id),
+            check=True
+        )
 
     def all_replicas(self, without=None):
         """

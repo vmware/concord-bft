@@ -49,4 +49,4 @@ class SkvbcLongRunningTest(unittest.TestCase):
         with trio.move_on_after(seconds=ONE_HOUR_IN_SECONDS):
             while True:
                 await SkvbcTest().test_get_block_data(bft_network=bft_network, already_in_trio=True)
-                trio.sleep(seconds=10)
+                await trio.sleep(seconds=10)
