@@ -108,9 +108,11 @@ class SkvbcViewChangeTest(unittest.TestCase):
         4) Verify the BFT network eventually transitions to the next view.
         5) Perform a "read-your-writes" check in the new view
         """
-        await self._single_vc_with_consequtive_failed_replicas(bft_network,
-                                                               tracker,
-                                                               1)
+        await self._single_vc_with_consecutive_failed_replicas(
+            bft_network,
+            tracker,
+            num_consecutive_replicas = 1
+        )
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -283,34 +285,39 @@ class SkvbcViewChangeTest(unittest.TestCase):
     @verify_linearizability
     async def test_single_vc_current_and_next_primaries_down(self, bft_network, tracker):
         """
-        The goal of this test is to validate the most basic view change
-        scenario - a single view change when the primary and the next 
-        expected primary are down.
+        The goal of this test is to validate the skip view scenario, where 
+        both the primary and the expected next primary have failed. In this 
+        case the first view change does not happen, causing timers in the 
+        replicas to expire and a view change to v+2 is initiated.
 
         1) Given a BFT network, we trigger parallel writes.
         2) Make sure the initial view is preserved during those writes.
         3) Stop the primary and next primary replica and send a batch of write requests.
-        4) Verify the BFT network eventually transitions to the expected view.
+        4) Verify the BFT network eventually transitions to the expected view (v+2).
         5) Perform a "read-your-writes" check in the new view.
         6) We have to filter only configurations which support more than 2 faulty replicas.
         """
         
-        await self._single_vc_with_consequtive_failed_replicas(bft_network,
-                                                               tracker,
-                                                               2)
+        await self._single_vc_with_consecutive_failed_replicas(
+            bft_network,
+            tracker,
+            num_consecutive_replicas = 2
+        )
 
-    async def _single_vc_with_consequtive_failed_replicas(self, bft_network
-                                                              , tracker
-                                                              , num_consequtive_replicas):
+    async def _single_vc_with_consecutive_failed_replicas(
+            self,
+            bft_network,
+            tracker,
+            num_consecutive_replicas):
 
         bft_network.start_all_replicas()
 
         initial_primary = 0
         
         replcas_to_stop = [ v for v in range(initial_primary,
-                                             initial_primary + num_consequtive_replicas) ]
+                                             initial_primary + num_consecutive_replicas) ]
         
-        expected_final_primary = initial_primary + num_consequtive_replicas
+        expected_final_primary = initial_primary + num_consecutive_replicas
         
         await self._send_random_writes(tracker)
 
