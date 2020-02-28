@@ -107,9 +107,6 @@ class SeqNumInfo {
     commitMsgsCollector->onCompletionOfCombinedSigVerification(seqNumber, viewNumber, isValid);
   }
 
-  std::string& getRepresentativeCid();
-  std::string& getAllPrePrepareCids();
-
  protected:
   class ExFuncForPrepareCollector {
    public:
