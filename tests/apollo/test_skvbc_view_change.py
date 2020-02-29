@@ -13,8 +13,6 @@
 import os.path
 import random
 import unittest
-import time
-import asyncio
 import trio
 
 from util import bft_network_partitioning as net
