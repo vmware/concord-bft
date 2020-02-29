@@ -13,8 +13,6 @@
 import os.path
 import random
 import unittest
-import time
-import asyncio
 import trio
 
 from util import bft_network_partitioning as net
@@ -36,6 +34,7 @@ def start_replica_cmd(builddir, replica_id):
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli]
+
 
 class SkvbcViewChangeTest(unittest.TestCase):
 
