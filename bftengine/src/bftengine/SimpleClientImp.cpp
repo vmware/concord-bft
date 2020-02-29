@@ -198,6 +198,7 @@ int SimpleClientImp::sendRequest(uint8_t flags,
             "Client " << clientId_ << " - sends request " << reqSeqNum << " (isRO=" << isReadOnly
                       << ", isPreProcess=" << isPreProcessRequired << " , request size=" << lengthOfRequest
                       << ", retransmissionMilli=" << limitOfExpectedOperationTime_.upperLimit() << " ) ");
+  Assert(!(isReadOnly && isPreProcessRequired));
 
   if (!communication_->isRunning()) {
     communication_->Start();  // TODO(GG): patch ................ change
@@ -250,6 +251,7 @@ int SimpleClientImp::sendRequest(uint8_t flags,
 
     const Time currTime = getMonotonicTime();
 
+    // If client defined timeout for the request expired?
     if (timeoutMilli != INFINITE_TIMEOUT &&
         (uint64_t)duration_cast<milliseconds>(currTime - beginTime).count() > timeoutMilli) {
       requestTimeout = true;

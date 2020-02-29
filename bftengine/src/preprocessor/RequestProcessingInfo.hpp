@@ -52,8 +52,8 @@ class RequestProcessingInfo {
   const char* myPreProcessResult_ = nullptr;
   uint32_t myPreProcessResultLen_ = 0;
   concord::util::SHA3_256::Digest myPreProcessResultHash_;
-  std::map<concord::util::SHA3_256::Digest, int>
-      preProcessingResultHashes_;  // Maps result hash to the number of equal hashes
+  // Maps result hash to the number of equal hashes
+  std::map<concord::util::SHA3_256::Digest, int> preProcessingResultHashes_;
 };
 
 typedef std::unique_ptr<RequestProcessingInfo> RequestProcessingInfoUniquePtr;

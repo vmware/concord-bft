@@ -56,7 +56,10 @@ class ReplicaInternal : public IReplica {
 
 bool ReplicaInternal::isRunning() const { return replica_->isRunning(); }
 
-void ReplicaInternal::start() { return replica_->start(); }
+void ReplicaInternal::start() {
+  replica_->start();
+  preprocessor::PreProcessor::setAggregator(replica_->getAggregator());
+}
 
 void ReplicaInternal::stop() {
   unique_lock<std::mutex> lk(debugWaitLock_);
@@ -67,9 +70,7 @@ void ReplicaInternal::stop() {
   debugWait_.notify_all();
 }
 
-void ReplicaInternal::SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a) {
-  return replica_->SetAggregator(a);
-}
+void ReplicaInternal::SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a) { replica_->SetAggregator(a); }
 
 void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
   {

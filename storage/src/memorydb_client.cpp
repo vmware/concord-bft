@@ -153,6 +153,22 @@ KeyValuePair ClientIterator::first() {
 }
 
 /**
+ * @brief Moves the iterator to the last element of the map.
+ *
+ * @return The last element of the map if it is not empty and an empty pair otherwise.
+ */
+KeyValuePair ClientIterator::last() {
+  if (m_parentClient->getMap().empty()) {
+    m_current = m_parentClient->getMap().end();
+    return KeyValuePair();
+  }
+
+  m_current = --m_parentClient->getMap().end();
+
+  return KeyValuePair(m_current->first, m_current->second);
+}
+
+/**
  * @brief Returns the key value pair of the key which is greater than or equal
  * to _searchKey.
  *

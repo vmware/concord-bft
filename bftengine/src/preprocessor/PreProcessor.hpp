@@ -21,6 +21,7 @@
 #include "RequestProcessingInfo.hpp"
 #include "sliver.hpp"
 #include "SigManager.hpp"
+#include "Metrics.hpp"
 
 #include <mutex>
 
@@ -54,6 +55,8 @@ class PreProcessor {
                                  bftEngine::IRequestsHandler &requestsHandler,
                                  InternalReplicaApi &myReplica);
 
+  static void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator);
+
  private:
   friend class AsyncPreProcessJob;
 
@@ -69,8 +72,8 @@ class PreProcessor {
   void releaseClientPreProcessRequest(uint16_t clientId, ReqId requestSeqNum);
   bool validateMessage(MessageBase *msg) const;
   void registerMsgHandlers();
-  bool checkClientMsgCorrectness(ClientPreProcessReqMsgSharedPtr clientReqMsg, ReqId reqSeqNum) const;
-  void handleClientPreProcessRequest(ClientPreProcessReqMsgSharedPtr clientReqMsg);
+  bool checkClientMsgCorrectness(const ClientPreProcessReqMsgUniquePtr &clientReqMsg, ReqId reqSeqNum) const;
+  void handleClientPreProcessRequest(const ClientPreProcessReqMsgUniquePtr &clientReqMsg);
   void sendMsg(char *msg, NodeIdType dest, uint16_t msgType, MsgSize msgSize);
   void sendPreProcessRequestToAllReplicas(PreProcessRequestMsgSharedPtr preProcessReqMsg);
   uint16_t getClientReplyBufferId(uint16_t clientId) const { return clientId - numOfReplicas_; }
@@ -87,7 +90,7 @@ class PreProcessor {
   void cancelPreProcessing(NodeIdType clientId, SeqNum reqSeqNum);
 
  private:
-  static std::vector<std::unique_ptr<PreProcessor>> preProcessors_;  // The place holder for PreProcessor objects
+  static std::vector<std::shared_ptr<PreProcessor>> preProcessors_;  // The place holder for PreProcessor objects
 
   bftEngine::impl::SigManagerSharedPtr sigManager_;
   std::shared_ptr<MsgsCommunicator> msgsCommunicator_;
@@ -105,6 +108,14 @@ class PreProcessor {
   std::vector<concordUtils::Sliver> preProcessResultBuffers_;
   // clientId -> *RequestProcessingInfo
   std::unordered_map<uint16_t, std::unique_ptr<ClientRequestInfo>> ongoingRequests_;
+  concordMetrics::Component metricsComponent_;
+  struct PreProcessingMetrics {
+    concordMetrics::CounterHandle requestReceived;
+    concordMetrics::CounterHandle requestInvalid;
+    concordMetrics::CounterHandle requestIgnored;
+    concordMetrics::CounterHandle consensusNotReached;
+    concordMetrics::CounterHandle requestSentForFurtherProcessing;
+  } preProcessorMetrics_;
 };
 
 //**************** Class AsyncPreProcessJob ****************//

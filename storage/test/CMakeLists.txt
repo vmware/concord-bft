@@ -22,6 +22,7 @@ target_link_libraries(merkleTreeAdapter_test PUBLIC
     GTest::Main
     util
     concordbft_storage
+    stdc++fs
 )
 
 add_executable(sparse_merkle_base_types_test sparse_merkle/base_types_test.cpp

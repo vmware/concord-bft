@@ -361,6 +361,30 @@ KeyValuePair ClientIterator::first() {
 }
 
 /**
+ * @brief Returns the KeyValuePair object of the last key in the database.
+ *
+ * @return The KeyValuePair object of the last key.
+ */
+KeyValuePair ClientIterator::last() {
+  ++g_rocksdb_called_read;
+  if (g_rocksdb_print_measurements) {
+    LOG_DEBUG(logger, "Reading count = " << g_rocksdb_called_read);
+  }
+
+  // Position at the last key in the database
+  m_iter->SeekToLast();
+
+  if (!m_iter->Valid()) {
+    LOG_ERROR(logger, "Did not find a last key");
+    m_status = Status::NotFound("Empty database");
+    return KeyValuePair();
+  }
+
+  m_status = Status::OK();
+  return KeyValuePair(copyRocksdbSlice(m_iter->key()), copyRocksdbSlice(m_iter->value()));
+}
+
+/**
  * @brief Returns the key value pair of the key which is greater than or equal
  * to _searchKey.
  *
@@ -401,10 +425,15 @@ KeyValuePair ClientIterator::seekAtLeast(const Sliver &_searchKey) {
  * @return The previous key value pair.
  */
 KeyValuePair ClientIterator::previous() {
-  m_iter->Prev();
-
   if (!m_iter->Valid()) {
-    LOG_ERROR(logger, "Iterator out of bounds");
+    LOG_ERROR(logger, "Iterator is not valid");
+    m_status = Status::GeneralError("Iterator is not valid");
+    return KeyValuePair();
+  }
+  m_iter->Prev();
+  if (!m_iter->Valid()) {
+    LOG_WARN(logger, "No previous key");
+    m_status = Status::GeneralError("No previous key");
     return KeyValuePair();
   }
 
@@ -429,9 +458,14 @@ KeyValuePair ClientIterator::next() {
     LOG_DEBUG(logger, "Reading count = " << g_rocksdb_called_read);
   }
 
+  if (!m_iter->Valid()) {
+    LOG_ERROR(logger, "Iterator is not valid");
+    m_status = Status::GeneralError("Iterator is not valid");
+    return KeyValuePair();
+  }
   m_iter->Next();
   if (!m_iter->Valid()) {
-    LOG_ERROR(logger, "No next key");
+    LOG_WARN(logger, "No next key");
     m_status = Status::GeneralError("No next key");
     return KeyValuePair();
   }

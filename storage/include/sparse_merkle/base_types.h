@@ -12,7 +12,10 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
+#include <iterator>
+#include <limits>
 #include <vector>
 
 #include "assertUtils.hpp"
@@ -28,8 +31,12 @@ static_assert(BYTE_SIZE_IN_BITS == CHAR_BIT);
 // A type safe version wrapper
 class Version {
  public:
+  using Type = uint64_t;
+  static constexpr auto SIZE_IN_BYTES = sizeof(Type);
+
+ public:
   Version() {}
-  Version(uint64_t val) : value_(val) {}
+  Version(Type val) : value_(val) {}
   bool operator==(const Version& other) const { return value_ == other.value_; }
   bool operator!=(const Version& other) const { return value_ != other.value_; }
   bool operator<(const Version& other) const { return value_ < other.value_; }
@@ -38,11 +45,12 @@ class Version {
     Assert(other > 0);
     return Version(value_ + other);
   }
-  uint64_t value() const { return value_; }
+  Type value() const { return value_; }
   std::string toString() const { return std::to_string(value_); };
+  static Version max() { return std::numeric_limits<Type>::max(); }
 
  private:
-  uint64_t value_ = 0;
+  Type value_ = 0;
 };
 
 // A nibble is 4 bits, stored in the lower bits of a byte.
@@ -117,12 +125,17 @@ class Hash {
 
   Hash(std::array<uint8_t, SIZE_IN_BYTES> buf) : buf_(buf) {}
 
+  // Construct from a user-provided buffer.
+  // Precondition: buf points to a buffer that is at least SIZE_IN_BYTES bytes long.
+  Hash(const uint8_t* buf) { std::copy(buf, buf + SIZE_IN_BYTES, std::begin(buf_)); }
+
   bool operator==(const Hash& other) const { return buf_ == other.buf_; }
   bool operator!=(const Hash& other) const { return buf_ != other.buf_; }
   bool operator<(const Hash& other) const { return buf_ < other.buf_; }
 
   const uint8_t* data() const { return buf_.data(); }
   size_t size() const { return buf_.size(); }
+  const std::array<uint8_t, SIZE_IN_BYTES>& dataArray() const { return buf_; }
 
   // Return buf_ as lowercase hex string
   std::string toString() const {
@@ -208,6 +221,10 @@ static const Hash PLACEHOLDER_HASH = Hash(Hash::EMPTY_BUF);
 class NibblePath {
  public:
   NibblePath() : num_nibbles_(0) {}
+  NibblePath(size_t num_nibbles, const std::vector<uint8_t>& path) : num_nibbles_(num_nibbles), path_(path) {
+    Assert(num_nibbles < Hash::MAX_NIBBLES);
+    Assert(path.size() == (num_nibbles % 2 ? (num_nibbles + 1) / 2 : num_nibbles / 2));
+  }
 
   bool operator==(const NibblePath& other) const { return num_nibbles_ == other.num_nibbles_ && path_ == other.path_; }
   bool operator<(const NibblePath& other) const {
