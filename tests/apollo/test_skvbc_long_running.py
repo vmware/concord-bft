@@ -50,7 +50,7 @@ class SkvbcLongRunningTest(unittest.TestCase):
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: n == 7)
     async def test_stability(self, bft_network):
-        with trio.move_on_after(seconds=ONE_HOUR_IN_SECONDS):
+        bft_network.start_all_replicas()
+        with trio.move_on_after(seconds=ONE_HOUR_IN_SECONDS/30):
             while True:
-                await SkvbcTest().test_conflicting_write(bft_network=bft_network, already_in_trio=True)
-                bft_network.stop_all_replicas()
+                await SkvbcTest().test_get_block_data(bft_network=bft_network, already_in_trio=True)

@@ -93,6 +93,7 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_ro_replicas=0
         async def wrapper(*args, **kwargs):
             if "bft_network" in kwargs:
                 bft_network = kwargs.pop("bft_network")
+                bft_network.pre_built_network = True
                 await async_fn(*args, **kwargs, bft_network=bft_network)
             else:
                 for bft_config in interesting_configs(selected_configs):
@@ -160,6 +161,7 @@ class BftTestNetwork:
         self._generate_crypto_keys()
         self.clients = {}
         self.metrics = None
+        self.pre_built_network = False
 
     def _generate_crypto_keys(self):
         keygen = os.path.join(self.toolsdir, "GenerateConcordKeys")
