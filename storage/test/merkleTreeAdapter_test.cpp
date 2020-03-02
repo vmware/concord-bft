@@ -103,7 +103,7 @@ bool operator==(const StateTransferDigest &lhs, const void *rhs) {
   return std::memcmp(lhs.content, rhs, block::BLOCK_DIGEST_SIZE) == 0;
 }
 
-StateTransferDigest emptyDigest() {
+StateTransferDigest zeroDigest() {
   StateTransferDigest digest;
   std::memset(digest.content, 0, block::BLOCK_DIGEST_SIZE);
   return digest;
@@ -567,14 +567,14 @@ class db_adapter : public ::testing::TestWithParam<std::shared_ptr<IDbClientFact
   void TearDown() override { fs::remove_all(rocksDbPath()); }
 };
 
-// Test the latest block functionality that relies on key ordering.
-TEST_P(db_adapter, get_latest_block) {
+// Test the last reachable block functionality that relies on key ordering.
+TEST_P(db_adapter, get_last_reachable_block) {
   auto adapter = DBAdapter{GetParam()->db()};
   const auto updates = SetOfKeyValuePairs{std::make_pair(defaultSliver, defaultSliver)};
-  ASSERT_TRUE(adapter.addBlock(updates, 1).isOK());
-  ASSERT_TRUE(adapter.addBlock(updates, 2).isOK());
-  ASSERT_TRUE(adapter.addBlock(updates, 3).isOK());
-  ASSERT_EQ(adapter.getLatestBlock(), 3);
+  ASSERT_TRUE(adapter.addBlock(updates).isOK());
+  ASSERT_TRUE(adapter.addBlock(updates).isOK());
+  ASSERT_TRUE(adapter.addBlock(updates).isOK());
+  ASSERT_EQ(adapter.getLastReachableBlock(), 3);
 }
 
 TEST_P(db_adapter, get_key_by_ver_1_key) {
@@ -587,9 +587,9 @@ TEST_P(db_adapter, get_key_by_ver_1_key) {
   const auto updates1 = SetOfKeyValuePairs{std::make_pair(key, data1)};
   const auto updates2 = SetOfKeyValuePairs{std::make_pair(key, data2)};
   const auto updates3 = SetOfKeyValuePairs{std::make_pair(key, data3)};
-  ASSERT_TRUE(adapter.addBlock(updates1, 1).isOK());
-  ASSERT_TRUE(adapter.addBlock(updates2, 2).isOK());
-  ASSERT_TRUE(adapter.addBlock(updates3, 3).isOK());
+  ASSERT_TRUE(adapter.addBlock(updates1).isOK());
+  ASSERT_TRUE(adapter.addBlock(updates2).isOK());
+  ASSERT_TRUE(adapter.addBlock(updates3).isOK());
 
   // Get a non-existent key with a hash that is after the existent key.
   {
@@ -689,9 +689,9 @@ TEST_P(db_adapter, get_key_by_ver_multiple_keys) {
   const auto updates2 =
       SetOfKeyValuePairs{std::make_pair(key, data2), std::make_pair(before, data1), std::make_pair(after, data3)};
   const auto updates3 = SetOfKeyValuePairs{std::make_pair(key, data3), std::make_pair(before, data2)};
-  ASSERT_TRUE(adapter.addBlock(updates1, 1).isOK());
-  ASSERT_TRUE(adapter.addBlock(updates2, 2).isOK());
-  ASSERT_TRUE(adapter.addBlock(updates3, 3).isOK());
+  ASSERT_TRUE(adapter.addBlock(updates1).isOK());
+  ASSERT_TRUE(adapter.addBlock(updates2).isOK());
+  ASSERT_TRUE(adapter.addBlock(updates3).isOK());
 
   // Get keys with a version that is smaller than the first version and expect an empty response.
   {
@@ -824,10 +824,10 @@ TEST_P(db_adapter, add_and_get_block) {
 
     // Add 2 blocks.
     {
-      const auto status1 = adapter.addBlock(updates1, 1);
+      const auto status1 = adapter.addBlock(updates1);
       ASSERT_TRUE(status1.isOK());
 
-      const auto status2 = adapter.addBlock(updates2, 2);
+      const auto status2 = adapter.addBlock(updates2);
       ASSERT_TRUE(status2.isOK());
     }
 
@@ -870,8 +870,8 @@ TEST_P(db_adapter, add_multiple_deterministic_blocks) {
   const auto numBlocks = 250;
   auto count = std::uint16_t{0};
   for (auto i = 1u; i <= numBlocks; ++i) {
-    ASSERT_TRUE(adapter.addBlock(getDeterministicBlockUpdates(count + 1), i).isOK());
-    ASSERT_EQ(adapter.getLatestBlock(), i);
+    ASSERT_TRUE(adapter.addBlock(getDeterministicBlockUpdates(count + 1)).isOK());
+    ASSERT_EQ(adapter.getLastReachableBlock(), i);
     ++count;
   }
 
@@ -883,9 +883,9 @@ TEST_P(db_adapter, add_multiple_deterministic_blocks) {
     ASSERT_FALSE(block.empty());
     ASSERT_TRUE(found);
 
-    // Expect an empty parent digest for block 1.
+    // Expect a zero parent digest for block 1.
     if (i == 1) {
-      ASSERT_TRUE(block::getParentDigest(block) == emptyDigest());
+      ASSERT_TRUE(block::getParentDigest(block) == zeroDigest());
     } else {
       auto parentBlock = Sliver{};
       auto found = false;
@@ -909,8 +909,8 @@ TEST_P(db_adapter, add_empty_blocks) {
   const auto numBlocks = 5;
 
   for (auto i = 1u; i <= numBlocks; ++i) {
-    ASSERT_TRUE(adapter.addBlock(emptyUpdates, i).isOK());
-    ASSERT_EQ(adapter.getLatestBlock(), i);
+    ASSERT_TRUE(adapter.addBlock(emptyUpdates).isOK());
+    ASSERT_EQ(adapter.getLastReachableBlock(), i);
   }
 
   for (auto i = 1u; i <= numBlocks; ++i) {
@@ -925,6 +925,7 @@ TEST_P(db_adapter, add_empty_blocks) {
 TEST_P(db_adapter, no_blocks) {
   const auto adapter = DBAdapter{GetParam()->db()};
 
+  ASSERT_EQ(adapter.getLastReachableBlock(), 0);
   ASSERT_EQ(adapter.getLatestBlock(), 0);
 
   auto block = Sliver{};
@@ -942,6 +943,129 @@ TEST_P(db_adapter, no_blocks) {
           .isOK());
   ASSERT_EQ(actualVersion, 0);
   ASSERT_TRUE(value.empty());
+}
+
+TEST_P(db_adapter, state_transfer_reverse_order) {
+  auto adapter = DBAdapter{GetParam()->db()};
+
+  const auto initialBlocks = 5;
+  const auto stBlocks = 7;
+  const auto totalBlocks = initialBlocks + stBlocks;
+
+  // Add blocks to the blockchain and verify both block pointers.
+  for (auto i = 1; i <= initialBlocks; ++i) {
+    ASSERT_TRUE(adapter.addBlock(getDeterministicBlockUpdates(i * 10)).isOK());
+    ASSERT_EQ(adapter.getLatestBlock(), i);
+    ASSERT_EQ(adapter.getLastReachableBlock(), i);
+  }
+
+  // Receive more blocks from state transfer and add them to the blockchain.
+  for (auto i = totalBlocks; i > initialBlocks; --i) {
+    ASSERT_TRUE(adapter
+                    .addBlock(block::create(i,
+                                            getDeterministicBlockUpdates(i * 10),
+                                            zeroDigest().content,
+                                            getHash("dummy" + std::to_string(i))),
+                              i)
+                    .isOK());
+
+    ASSERT_EQ(adapter.getLatestBlock(), totalBlocks);
+
+    if (i == initialBlocks + 1) {
+      ASSERT_EQ(adapter.getLastReachableBlock(), totalBlocks);
+    } else {
+      ASSERT_EQ(adapter.getLastReachableBlock(), initialBlocks);
+    }
+
+    // Verify that initial blocks are accessible at all steps.
+    for (auto j = 1; j <= initialBlocks; ++j) {
+      auto block = Sliver{};
+      auto found = false;
+      ASSERT_TRUE(adapter.getBlockById(j, block, found).isOK());
+      ASSERT_TRUE(found);
+      ASSERT_TRUE(block::getData(block) == getDeterministicBlockUpdates(j * 10));
+    }
+  }
+
+  // Verify that all blocks are accessible at the end.
+  for (auto i = 1; i <= totalBlocks; ++i) {
+    auto block = Sliver{};
+    auto found = false;
+    ASSERT_TRUE(adapter.getBlockById(i, block, found).isOK());
+    ASSERT_TRUE(found);
+    ASSERT_TRUE(block::getData(block) == getDeterministicBlockUpdates(i * 10));
+  }
+}
+
+TEST_P(db_adapter, state_transfer_unordered) {
+  auto adapter = DBAdapter{GetParam()->db()};
+
+  const auto initialBlocks = 5;
+  const auto stBlocks = 3;
+  const auto totalBlocks = initialBlocks + stBlocks;
+
+  // Add blocks to the blockchain and verify both block pointers.
+  for (auto i = 1; i <= initialBlocks; ++i) {
+    ASSERT_TRUE(adapter.addBlock(getDeterministicBlockUpdates(i * 10)).isOK());
+    ASSERT_EQ(adapter.getLatestBlock(), i);
+    ASSERT_EQ(adapter.getLastReachableBlock(), i);
+  }
+
+  // Add block 7.
+  {
+    ASSERT_TRUE(
+        adapter
+            .addBlock(block::create(7, getDeterministicBlockUpdates(7 * 10), zeroDigest().content, getHash("dummy7")),
+                      7)
+            .isOK());
+    ASSERT_EQ(adapter.getLastReachableBlock(), initialBlocks);
+    ASSERT_EQ(adapter.getLatestBlock(), 7);
+    for (auto i = 1; i <= initialBlocks; ++i) {
+      auto block = Sliver{};
+      auto found = false;
+      ASSERT_TRUE(adapter.getBlockById(i, block, found).isOK());
+      ASSERT_TRUE(found);
+      ASSERT_TRUE(block::getData(block) == getDeterministicBlockUpdates(i * 10));
+    }
+  }
+
+  // Add block 6.
+  {
+    ASSERT_TRUE(
+        adapter
+            .addBlock(block::create(6, getDeterministicBlockUpdates(6 * 10), zeroDigest().content, getHash("dummy6")),
+                      6)
+            .isOK());
+    ASSERT_EQ(adapter.getLastReachableBlock(), 7);
+    ASSERT_EQ(adapter.getLatestBlock(), 7);
+    for (auto i = 1; i <= 7; ++i) {
+      auto block = Sliver{};
+      auto found = false;
+      ASSERT_TRUE(adapter.getBlockById(i, block, found).isOK());
+      ASSERT_TRUE(found);
+      ASSERT_TRUE(block::getData(block) == getDeterministicBlockUpdates(i * 10));
+    }
+  }
+
+  // Add block 8.
+  {
+    ASSERT_TRUE(
+        adapter
+            .addBlock(block::create(8, getDeterministicBlockUpdates(8 * 10), zeroDigest().content, getHash("dummy8")),
+                      8)
+            .isOK());
+    ASSERT_EQ(adapter.getLastReachableBlock(), 8);
+    ASSERT_EQ(adapter.getLatestBlock(), 8);
+  }
+
+  // Verify that all blocks are accessible at the end.
+  for (auto i = 1; i <= totalBlocks; ++i) {
+    auto block = Sliver{};
+    auto found = false;
+    ASSERT_TRUE(adapter.getBlockById(i, block, found).isOK());
+    ASSERT_TRUE(found);
+    ASSERT_TRUE(block::getData(block) == getDeterministicBlockUpdates(i * 10));
+  }
 }
 
 // Generate test name suffixes based on the DB client type.
