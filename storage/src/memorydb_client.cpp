@@ -190,6 +190,41 @@ KeyValuePair ClientIterator::seekAtLeast(const Sliver &_searchKey) {
 }
 
 /**
+ * @brief Returns the key value pair of the last key which is less than or equal
+ * to _searchKey.
+ *
+ *  @param _searchKey Key to search for.
+ *  @return Key value pair of the last key which is less or equal to
+ *  _searchKey.
+ */
+KeyValuePair ClientIterator::seekAtMost(const Sliver &_searchKey) {
+  const auto &map = m_parentClient->getMap();
+  if (map.empty()) {
+    m_current = map.end();
+    LOG_WARN(logger, "Key " << _searchKey << " not found");
+    return KeyValuePair();
+  }
+
+  // Find keys that are greater than or equal to the search key.
+  m_current = map.lower_bound(_searchKey);
+  if (m_current == map.end()) {
+    // If there are no keys that are greater than or equal to the search key, then it means the last one is less than
+    // the search key. Therefore, go back from the end iterator.
+    --m_current;
+  } else if (_searchKey != m_current->first) {
+    // We have found a key that is greater than the search key. If it is not the first element, it means that the
+    // previous one will be less than the search key. If it is the first element, it means there are no keys that are
+    // less than the search key and we return an empty key/value pair.
+    if (m_current != map.begin()) {
+      --m_current;
+    } else {
+      return KeyValuePair();
+    }
+  }
+  return KeyValuePair(m_current->first, m_current->second);
+}
+
+/**
  * @brief Decrements the iterator.
  *
  * Decrements the iterator and returns the previous key value pair.
