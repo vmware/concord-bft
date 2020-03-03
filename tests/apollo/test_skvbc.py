@@ -95,8 +95,7 @@ class SkvbcTest(unittest.TestCase):
         Ensure that we can put a block and use the GetBlockData API request to
         retrieve its KV pairs.
         """
-        if bft_network.pre_built_network is False:
-            bft_network.start_all_replicas()
+        bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
         last_block = skvbc.parse_reply(await client.read(skvbc.get_last_block_req()))
