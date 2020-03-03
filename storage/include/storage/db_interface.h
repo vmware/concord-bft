@@ -73,6 +73,8 @@ class IDBClient {
     virtual KeyValuePair last() = 0;
     // Returns next keys if not found for this key
     virtual KeyValuePair seekAtLeast(const Sliver& _searchKey) = 0;
+    // Returns the key value pair of the last key which is less than or equal to _searchKey
+    virtual KeyValuePair seekAtMost(const Sliver& _searchKey) = 0;
     virtual KeyValuePair previous() = 0;
     virtual KeyValuePair next() = 0;
     virtual KeyValuePair getCurrent() = 0;
