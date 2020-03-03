@@ -185,8 +185,8 @@ PreProcessReplyMsgSharedPtr preProcessNonPrimary(RequestProcessingInfo &reqInfo,
 }
 
 TEST(requestPreprocessingInfo_test, notEnoughRepliesReceived) {
-  ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg;
-  RequestProcessingInfo reqInfo(numOfReplicas, numOfRequiredReplies, reqSeqNum, move(clientPreProcessReqMsg));
+  ClientPreProcessRequestMsg *clientPreProcessReqMsg = nullptr;
+  RequestProcessingInfo reqInfo(numOfReplicas, numOfRequiredReplies, reqSeqNum, clientPreProcessReqMsg);
   ReplicasInfo repInfo(replicaConfig, true, true);
   reqInfo.handlePrimaryPreProcessed(PreProcessRequestMsgSharedPtr(), buf, bufLen);
   for (auto i = 1; i < numOfRequiredReplies - 1; i++) {
@@ -197,8 +197,8 @@ TEST(requestPreprocessingInfo_test, notEnoughRepliesReceived) {
 }
 
 TEST(requestPreprocessingInfo_test, notEnoughSameRepliesReceived) {
-  ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg;
-  RequestProcessingInfo reqInfo(numOfReplicas, numOfRequiredReplies, reqSeqNum, move(clientPreProcessReqMsg));
+  ClientPreProcessRequestMsg *clientPreProcessReqMsg = nullptr;
+  RequestProcessingInfo reqInfo(numOfReplicas, numOfRequiredReplies, reqSeqNum, clientPreProcessReqMsg);
   ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   reqInfo.handlePrimaryPreProcessed(PreProcessRequestMsgSharedPtr(), buf, bufLen);
@@ -214,8 +214,8 @@ TEST(requestPreprocessingInfo_test, notEnoughSameRepliesReceived) {
 }
 
 TEST(requestPreprocessingInfo_test, enoughSameRepliesReceived) {
-  ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg;
-  RequestProcessingInfo reqInfo(numOfReplicas, numOfRequiredReplies, reqSeqNum, move(clientPreProcessReqMsg));
+  ClientPreProcessRequestMsg *clientPreProcessReqMsg = nullptr;
+  RequestProcessingInfo reqInfo(numOfReplicas, numOfRequiredReplies, reqSeqNum, clientPreProcessReqMsg);
   ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   reqInfo.handlePrimaryPreProcessed(PreProcessRequestMsgSharedPtr(), buf, bufLen);
@@ -227,8 +227,8 @@ TEST(requestPreprocessingInfo_test, enoughSameRepliesReceived) {
 }
 
 TEST(requestPreprocessingInfo_test, primaryReplicaPreProcessingRetry) {
-  ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg;
-  RequestProcessingInfo reqInfo(numOfReplicas, numOfRequiredReplies, reqSeqNum, move(clientPreProcessReqMsg));
+  ClientPreProcessRequestMsg *clientPreProcessReqMsg = nullptr;
+  RequestProcessingInfo reqInfo(numOfReplicas, numOfRequiredReplies, reqSeqNum, clientPreProcessReqMsg);
   ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   reqInfo.handlePrimaryPreProcessed(PreProcessRequestMsgSharedPtr(), buf, bufLen);

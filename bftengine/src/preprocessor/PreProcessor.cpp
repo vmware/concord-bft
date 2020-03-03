@@ -103,8 +103,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
 
 PreProcessor::~PreProcessor() { threadPool_.stop(); }
 
-bool PreProcessor::checkClientMsgCorrectness(const ClientPreProcessReqMsgUniquePtr &clientReqMsg,
-                                             ReqId reqSeqNum) const {
+bool PreProcessor::checkClientMsgCorrectness(const ClientPreProcessRequestMsg *clientReqMsg, ReqId reqSeqNum) const {
   if (myReplica_.isCollectingState()) {
     LOG_INFO(GL,
              "ClientPreProcessRequestMsg reqSeqNum="
@@ -137,18 +136,19 @@ template <>
 void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequestMsg *msg) {
   if (preProcessorMetrics_.requestReceived.Get().Get() % 10 == 0) metricsComponent_.UpdateAggregator();
   preProcessorMetrics_.requestReceived.Get().Inc();
-  ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg(msg);
-  if (!clientPreProcessReqMsg) return;
-  MDC_CID_PUT(GL, clientPreProcessReqMsg->getCid());
-  const NodeIdType &senderId = clientPreProcessReqMsg->senderId();
-  const NodeIdType &clientId = clientPreProcessReqMsg->clientProxyId();
-  const ReqId &reqSeqNum = clientPreProcessReqMsg->requestSeqNum();
+  MDC_CID_PUT(GL, msg->getCid());
+
+  // Cannot wrap ClientPreProcessRequestMsg into a smart pointer, like other messages as its life cycle depends
+  // on pre-processing success.
+  const NodeIdType &senderId = msg->senderId();
+  const NodeIdType &clientId = msg->clientProxyId();
+  const ReqId &reqSeqNum = msg->requestSeqNum();
   LOG_INFO(GL,
            "Received ClientPreProcessRequestMsg reqSeqNum=" << reqSeqNum << " from clientId=" << clientId
                                                             << ", senderId=" << senderId);
-  if (!checkClientMsgCorrectness(clientPreProcessReqMsg, reqSeqNum)) {
+  if (!checkClientMsgCorrectness(msg, reqSeqNum)) {
     preProcessorMetrics_.requestIgnored.Get().Inc();
-    return;
+    return delete msg;
   }
   {
     auto &clientEntry = ongoingRequests_[clientId];
@@ -160,28 +160,30 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
                  " reqSeqNum=" << reqSeqNum << " from clientId=" << clientId
                                << " is ignored: previous client request=" << ongoingReqSeqNum << " is in process");
         preProcessorMetrics_.requestIgnored.Get().Inc();
-        return;
+        return delete msg;
       }
     }
   }
   const ReqId &seqNumberOfLastReply = myReplica_.seqNumberOfLastReplyToClient(clientId);
   if (seqNumberOfLastReply < reqSeqNum) {
     if (myReplica_.isCurrentPrimary()) {
-      return handleClientPreProcessRequest(move(clientPreProcessReqMsg));
+      return handleClientPreProcessRequest(msg);
     } else {  // Not the current primary => pass it to the primary
       sendMsg(msg->body(), myReplica_.currentPrimary(), msg->type(), msg->size());
       LOG_INFO(GL, "Sending ClientPreProcessRequestMsg reqSeqNum=" << reqSeqNum << " to current primary");
-      return;
+      return delete msg;
     }
   }
   if (seqNumberOfLastReply == reqSeqNum) {
     LOG_INFO(GL,
              "ClientPreProcessRequestMsg reqSeqNum="
                  << reqSeqNum << " has already been executed - let replica to decide how to proceed further");
-    return incomingMsgsStorage_->pushExternalMsg(clientPreProcessReqMsg->convertToClientRequestMsg(false));
+    // Responsibility for the ClientRequestMsg pointer passes to the replica
+    return incomingMsgsStorage_->pushExternalMsg(msg->convertToClientRequestMsg(false));
   }
   LOG_INFO(GL, "ClientPreProcessRequestMsg reqSeqNum=" << reqSeqNum << " is ignored because request is old");
   preProcessorMetrics_.requestIgnored.Get().Inc();
+  delete msg;
 }
 
 // Non-primary replica request handling
@@ -251,7 +253,7 @@ void PreProcessor::cancelPreProcessing(NodeIdType clientId, SeqNum reqSeqNum) {
            "Pre-processing consensus not reached for clientId="
                << clientId << " reqSeqNum=" << reqSeqNum
                << "; abort pre-processing step and pass the request to the replica for a regular processing");
-  releaseClientPreProcessRequest(clientId, reqSeqNum);
+  releaseClientPreProcessRequest(clientId, reqSeqNum, false);
 }
 
 void PreProcessor::finalizePreProcessing(NodeIdType clientId, SeqNum reqSeqNum) {
@@ -269,13 +271,13 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, SeqNum reqSeqNum) 
   }
   incomingMsgsStorage_->pushExternalMsg(move(clientRequestMsg));
   preProcessorMetrics_.requestSentForFurtherProcessing.Get().Inc();
-  releaseClientPreProcessRequest(clientId, reqSeqNum);
+  releaseClientPreProcessRequest(clientId, reqSeqNum, true);
   LOG_DEBUG(GL, "Pre-processing completed for clientId=" << clientId << " reqSeqNum=" << reqSeqNum);
 }
 
 uint16_t PreProcessor::numOfRequiredReplies() { return myReplica_.getReplicaConfig().fVal + 1; }
 
-void PreProcessor::registerClientPreProcessRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg) {
+void PreProcessor::registerClientPreProcessRequest(const ClientPreProcessRequestMsg *clientReqMsg) {
   const uint16_t &clientId = clientReqMsg->clientProxyId();
   const ReqId &requestSeqNum = clientReqMsg->requestSeqNum();
   {
@@ -283,15 +285,16 @@ void PreProcessor::registerClientPreProcessRequest(ClientPreProcessReqMsgUniqueP
     auto &clientEntry = ongoingRequests_[clientId];
     lock_guard<mutex> lock(clientEntry->mutex);
     clientEntry->clientReqInfoPtr =
-        make_unique<RequestProcessingInfo>(numOfReplicas_, numOfRequiredReplies(), requestSeqNum, move(clientReqMsg));
+        make_unique<RequestProcessingInfo>(numOfReplicas_, numOfRequiredReplies(), requestSeqNum, clientReqMsg);
   }
   LOG_DEBUG(GL, "clientId=" << clientId << " requestSeqNum=" << requestSeqNum << " registered");
 }
 
-void PreProcessor::releaseClientPreProcessRequest(uint16_t clientId, ReqId requestSeqNum) {
+void PreProcessor::releaseClientPreProcessRequest(uint16_t clientId, ReqId requestSeqNum, bool preProcessingCompleted) {
   {
     auto &clientEntry = ongoingRequests_[clientId];
     lock_guard<mutex> lock(clientEntry->mutex);
+    if (preProcessingCompleted) clientEntry->clientReqInfoPtr->freeClientMsg();
     clientEntry->clientReqInfoPtr.reset();
   }
   LOG_DEBUG(GL, "clientId=" << clientId << " requestSeqNum=" << requestSeqNum << " released");
@@ -305,14 +308,14 @@ void PreProcessor::sendMsg(char *msg, NodeIdType dest, uint16_t msgType, MsgSize
 }
 
 // Primary replica: start client request handling
-void PreProcessor::handleClientPreProcessRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg) {
+void PreProcessor::handleClientPreProcessRequest(const ClientPreProcessRequestMsg *clientReqMsg) {
   PreProcessRequestMsgSharedPtr preProcessRequestMsg = make_shared<PreProcessRequestMsg>(myReplicaId_,
                                                                                          clientReqMsg->clientProxyId(),
                                                                                          clientReqMsg->requestSeqNum(),
                                                                                          clientReqMsg->requestLength(),
                                                                                          clientReqMsg->requestBuf(),
                                                                                          clientReqMsg->getCid());
-  registerClientPreProcessRequest(move(clientReqMsg));
+  registerClientPreProcessRequest(clientReqMsg);
   sendPreProcessRequestToAllReplicas(preProcessRequestMsg);
 
   // Pre-process the request and calculate a hash of the result

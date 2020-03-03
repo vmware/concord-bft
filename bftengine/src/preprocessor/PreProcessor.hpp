@@ -68,12 +68,12 @@ class PreProcessor {
   template <typename T>
   void onMessage(T *msg);
 
-  void registerClientPreProcessRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg);
-  void releaseClientPreProcessRequest(uint16_t clientId, ReqId requestSeqNum);
+  void registerClientPreProcessRequest(const ClientPreProcessRequestMsg *clientReqMsg);
+  void releaseClientPreProcessRequest(uint16_t clientId, ReqId requestSeqNum, bool preProcessingCompleted);
   bool validateMessage(MessageBase *msg) const;
   void registerMsgHandlers();
-  bool checkClientMsgCorrectness(const ClientPreProcessReqMsgUniquePtr &clientReqMsg, ReqId reqSeqNum) const;
-  void handleClientPreProcessRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg);
+  bool checkClientMsgCorrectness(const ClientPreProcessRequestMsg *clientReqMsg, ReqId reqSeqNum) const;
+  void handleClientPreProcessRequest(const ClientPreProcessRequestMsg *clientReqMsg);
   void sendMsg(char *msg, NodeIdType dest, uint16_t msgType, MsgSize msgSize);
   void sendPreProcessRequestToAllReplicas(PreProcessRequestMsgSharedPtr preProcessReqMsg);
   uint16_t getClientReplyBufferId(uint16_t clientId) const { return clientId - numOfReplicas_; }
