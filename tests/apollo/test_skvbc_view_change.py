@@ -40,7 +40,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_request_block_written_primary_down(self, bft_network):
+    async def test_request_block_not_written_primary_down(self, bft_network):
         """
         The goal of this test is to validate that a block wasn't written,
         if the primary fell down.
