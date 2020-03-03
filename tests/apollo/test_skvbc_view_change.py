@@ -13,7 +13,6 @@
 import os.path
 import random
 import unittest
-
 import trio
 
 from util import bft_network_partitioning as net
@@ -36,7 +35,62 @@ def start_replica_cmd(builddir, replica_id):
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli]
 
+
 class SkvbcViewChangeTest(unittest.TestCase):
+
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_request_block_not_written_primary_down(self, bft_network):
+        """
+        The goal of this test is to validate that a block wasn't written,
+        if the primary fell down.
+
+        1) Given a BFT network, we trigger one write.
+        2) Make sure the initial view is preserved during this write.
+        3) Stop the primary replica and send a batch of write requests.
+        4) Verify the BFT network eventually transitions to the next view.
+        5) Validate that there is no new block written.
+        """
+        bft_network.start_all_replicas()
+
+        client = bft_network.random_client()
+
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        initial_primary = 0
+        expected_next_primary = 1
+
+        key_before_vc, value_before_vc = await skvbc.write_known_kv()
+
+        await skvbc.assert_kv_write_executed(key_before_vc, value_before_vc)
+
+        await bft_network.wait_for_view(
+            replica_id=initial_primary,
+            expected=lambda v: v == initial_primary,
+            err_msg="Make sure we are in the initial view "
+                    "before crashing the primary."
+        )
+
+        last_block = skvbc.parse_reply(await client.read(skvbc.get_last_block_req()))
+
+        bft_network.stop_replica(initial_primary)
+        try:
+            with trio.move_on_after(seconds=1):  # seconds
+                await skvbc.send_indefinite_write_requests()
+
+        except trio.TooSlowError:
+            pass
+        finally:
+
+            await bft_network.wait_for_view(
+                replica_id=random.choice(bft_network.all_replicas(without={0})),
+                expected=lambda v: v == expected_next_primary,
+                err_msg="Make sure view change has been triggered."
+            )
+
+            new_last_block = skvbc.parse_reply(await client.read(skvbc.get_last_block_req()))
+            self.assertEqual(new_last_block, last_block)
+
 
     @with_trio
     @with_bft_network(start_replica_cmd)
