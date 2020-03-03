@@ -12,6 +12,7 @@
 #pragma once
 
 #include "PrimitiveTypes.hpp"
+#include "messages/ClientPreProcessRequestMsg.hpp"
 #include "messages/PreProcessRequestMsg.hpp"
 #include "messages/PreProcessReplyMsg.hpp"
 #include <vector>
@@ -25,13 +26,17 @@ typedef enum { CONTINUE, COMPLETE, CANCEL, RETRY_PRIMARY } PreProcessingResult;
 
 class RequestProcessingInfo {
  public:
-  RequestProcessingInfo(uint16_t numOfReplicas, uint16_t numOfRequiredReplies, ReqId reqSeqNum);
+  RequestProcessingInfo(uint16_t numOfReplicas,
+                        uint16_t numOfRequiredReplies,
+                        ReqId reqSeqNum,
+                        ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg);
   ~RequestProcessingInfo() = default;
 
   void handlePrimaryPreProcessed(PreProcessRequestMsgSharedPtr msg,
                                  const char* preProcessResult,
                                  uint32_t preProcessResultLen);
   void handlePreProcessReplyMsg(PreProcessReplyMsgSharedPtr preProcessReplyMsg);
+  std::unique_ptr<MessageBase> convertClientPreProcessToClientMsg(bool resetPreProcessFlag) const;
   PreProcessRequestMsgSharedPtr getPreProcessRequest() const { return preProcessRequestMsg_; }
   const SeqNum getReqSeqNum() const { return reqSeqNum_; }
   PreProcessingResult getPreProcessingConsensusResult() const;
@@ -47,6 +52,7 @@ class RequestProcessingInfo {
 
   const uint16_t numOfReplicas_;
   const ReqId reqSeqNum_;
+  ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg_;
   PreProcessRequestMsgSharedPtr preProcessRequestMsg_;
   uint16_t numOfReceivedReplies_ = 0;
   const char* myPreProcessResult_ = nullptr;
