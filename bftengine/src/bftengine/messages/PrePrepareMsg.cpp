@@ -203,8 +203,7 @@ const std::string PrePrepareMsg::getClientCorrelationIdForMsg(int index) const {
     it.gotoNext();
     req_num++;
   }
-  if (it.end())
-    return std::string();
+  if (it.end()) return std::string();
   char* requestBody = nullptr;
   it.getCurrent(requestBody);
   return ClientRequestMsg((ClientRequestMsgHeader*)requestBody).getCid();
