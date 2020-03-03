@@ -90,8 +90,8 @@ class PrePrepareMsg : public MessageBase {
 
   void updateView(ViewNum v, CommitPath firstPath = CommitPath::SLOW);
 
-  std::string getMessageClientCorrelationId(int index);
-  std::string getAllRequestsCorrelationIdAsString();
+  const std::string getClientCorrelationIdForMsg(int index) const;
+  const std::string getBatchCorrelationIdAsString() const;
 
  protected:
   static int16_t computeFlagsForPrePrepareMsg(bool isNull, bool isReady, CommitPath firstPath);

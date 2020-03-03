@@ -192,7 +192,7 @@ int SimpleClientImp::sendRequest(uint8_t flags,
                                  std::string cid) {
   bool isReadOnly = flags & READ_ONLY_REQ;
   bool isPreProcessRequired = flags & PRE_PROCESS_REQ;
-  std::string msgCid = cid.empty() ? std::to_string(reqSeqNum) + "-" + std::to_string(clientId_) : cid;
+  const std::string msgCid = cid.empty() ? std::to_string(reqSeqNum) + "-" + std::to_string(clientId_) : cid;
   // TODO(GG): check params ...
   LOG_DEBUG(GL,
             "Client " << clientId_ << " - sends request " << reqSeqNum << " (isRO=" << isReadOnly

@@ -196,28 +196,29 @@ bool PrePrepareMsg::checkRequests() const {
   Assert(false);
   return false;
 }
-std::string PrePrepareMsg::getMessageClientCorrelationId(int index) {
+const std::string PrePrepareMsg::getClientCorrelationIdForMsg(int index) const {
   auto it = RequestsIterator(this);
   int req_num = 0;
   while (!it.end() && req_num < index) {
     it.gotoNext();
     req_num++;
   }
+  if (it.end())
+    return std::string();
   char* requestBody = nullptr;
   it.getCurrent(requestBody);
-  ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
-  return req.getCid();
+  return ClientRequestMsg((ClientRequestMsgHeader*)requestBody).getCid();
 }
-std::string PrePrepareMsg::getAllRequestsCorrelationIdAsString() {
-  std::stringstream ret;
-  ;
+
+const std::string PrePrepareMsg::getBatchCorrelationIdAsString() const {
+  std::string ret;
   auto it = RequestsIterator(this);
   char* requestBody = nullptr;
   while (it.getAndGoToNext(requestBody)) {
     ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
-    ret << req.getCid() << ";";
+    ret += req.getCid() + ";";
   }
-  return ret.str();
+  return ret;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
