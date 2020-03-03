@@ -11,15 +11,10 @@
 # file.
 
 import os.path
-import random
 import unittest
-import logging
 import trio
 
-from util import bft_network_partitioning as net
-from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
-from util.skvbc_history_tracker import verify_linearizability
 from test_skvbc import SkvbcTest
 
 # Time consts
@@ -51,6 +46,7 @@ class SkvbcLongRunningTest(unittest.TestCase):
                       selected_configs=lambda n, f, c: n == 7)
     async def test_stability(self, bft_network):
         bft_network.start_all_replicas()
-        with trio.move_on_after(seconds=ONE_HOUR_IN_SECONDS/30):
+        with trio.move_on_after(seconds=ONE_HOUR_IN_SECONDS):
             while True:
                 await SkvbcTest().test_get_block_data(bft_network=bft_network, already_in_trio=True)
+                trio.sleep(seconds=10)
