@@ -103,6 +103,8 @@ class ReplicaBase {
 
   //////////////////////////////////////////////////
   // METRICS
+  uint64_t last_dump_time_ = 0;
+  uint64_t dump_interval_in_sec_ = 600;
   concordMetrics::Component metrics_;
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;
 

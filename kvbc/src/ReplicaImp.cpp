@@ -206,6 +206,7 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   state_transfer_config.cVal = m_replicaConfig.cVal;
   state_transfer_config.fVal = m_replicaConfig.fVal;
   state_transfer_config.numReplicas = m_replicaConfig.numReplicas + m_replicaConfig.numRoReplicas;
+  state_transfer_config.metricsDumpIntervalSeconds = m_replicaConfig.metricsDumpIntervalSeconds;
   if (replicaConfig.maxNumOfReservedPages > 0)
     state_transfer_config.maxNumOfReservedPages = replicaConfig.maxNumOfReservedPages;
   if (replicaConfig.sizeOfReservedPage > 0) state_transfer_config.sizeOfReservedPage = replicaConfig.sizeOfReservedPage;
