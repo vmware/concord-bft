@@ -93,6 +93,7 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_ro_replicas=0
         async def wrapper(*args, **kwargs):
             if "bft_network" in kwargs:
                 bft_network = kwargs.pop("bft_network")
+                bft_network.is_existing = True
                 await async_fn(*args, **kwargs, bft_network=bft_network)
             else:
                 for bft_config in interesting_configs(selected_configs):
@@ -160,6 +161,7 @@ class BftTestNetwork:
         self._generate_crypto_keys()
         self.clients = {}
         self.metrics = None
+        self.is_existing = False
 
     def _generate_crypto_keys(self):
         keygen = os.path.join(self.toolsdir, "GenerateConcordKeys")
@@ -218,7 +220,13 @@ class BftTestNetwork:
         return self.config.start_replica_cmd(self.builddir, replica_id)
 
     def start_all_replicas(self):
-        [self.start_replica(i) for i in range(0, self.config.n)]
+        try:
+            [self.start_replica(i) for i in range(0, self.config.n)]
+        except AlreadyRunningError:
+            if self.is_existing:
+                pass
+            else:
+                raise
 
     def stop_all_replicas(self):
         """ Stop all running replicas"""
