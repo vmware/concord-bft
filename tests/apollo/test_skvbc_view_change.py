@@ -13,6 +13,7 @@
 import os.path
 import random
 import unittest
+
 import trio
 
 from util import bft_network_partitioning as net
@@ -92,6 +93,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
             self.assertEqual(new_last_block, last_block)
 
 
+
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability
@@ -106,34 +108,11 @@ class SkvbcViewChangeTest(unittest.TestCase):
         4) Verify the BFT network eventually transitions to the next view.
         5) Perform a "read-your-writes" check in the new view
         """
-        bft_network.start_all_replicas()
-
-        initial_primary = 0
-        expected_next_primary = 1
-
-        await self._send_random_writes(tracker)
-
-        await bft_network.wait_for_view(
-            replica_id=initial_primary,
-            expected=lambda v: v == initial_primary,
-            err_msg="Make sure we are in the initial view "
-                    "before crashing the primary."
+        await self._single_vc_with_consecutive_failed_replicas(
+            bft_network,
+            tracker,
+            num_consecutive_failing_primaries = 1
         )
-
-        bft_network.stop_replica(initial_primary)
-
-        await self._send_random_writes(tracker)
-
-        await bft_network.wait_for_view(
-            replica_id=random.choice(bft_network.all_replicas(without={0})),
-            expected=lambda v: v == expected_next_primary,
-            err_msg="Make sure view change has been triggered."
-        )
-
-        await tracker.tracked_read_your_writes()
-
-        async with trio.open_nursery() as nursery:
-            nursery.start_soon(tracker.run_concurrent_ops, 100)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -299,6 +278,70 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
         await bft_network.wait_for_slow_path_to_be_prevalent(
             replica_id=current_primary)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd,
+                      selected_configs = lambda n,f,c : f >= 2)
+    @verify_linearizability
+    async def test_single_vc_current_and_next_primaries_down(self, bft_network, tracker):
+        """
+        The goal of this test is to validate the skip view scenario, where 
+        both the primary and the expected next primary have failed. In this 
+        case the first view change does not happen, causing timers in the 
+        replicas to expire and a view change to v+2 is initiated.
+
+        1) Given a BFT network, we trigger parallel writes.
+        2) Make sure the initial view is preserved during those writes.
+        3) Stop the primary and next primary replica and send a batch of write requests.
+        4) Verify the BFT network eventually transitions to the expected view (v+2).
+        5) Perform a "read-your-writes" check in the new view.
+        6) We have to filter only configurations which support more than 2 faulty replicas.
+        """
+        
+        await self._single_vc_with_consecutive_failed_replicas(
+            bft_network,
+            tracker,
+            num_consecutive_failing_primaries = 2
+        )
+
+    async def _single_vc_with_consecutive_failed_replicas(
+            self,
+            bft_network,
+            tracker,
+            num_consecutive_failing_primaries):
+
+        bft_network.start_all_replicas()
+
+        initial_primary = 0
+        
+        replcas_to_stop = [ v for v in range(initial_primary,
+                                             initial_primary + num_consecutive_failing_primaries) ]
+        
+        expected_final_primary = initial_primary + num_consecutive_failing_primaries
+        
+        await self._send_random_writes(tracker)
+
+        await bft_network.wait_for_view(
+            replica_id=initial_primary,
+            expected=lambda v: v == initial_primary,
+            err_msg="Make sure we are in the initial view "
+                    "before crashing the primary."
+        )
+
+        for replica in replcas_to_stop:
+            bft_network.stop_replica(replica)
+
+        await self._send_random_writes(tracker)
+
+        await bft_network.wait_for_view(
+            replica_id=random.choice(bft_network.all_replicas(without=set(replcas_to_stop))),
+            expected=lambda v: v == expected_final_primary,
+            err_msg="Make sure view change has been triggered."
+        )
+
+        await tracker.tracked_read_your_writes()
+
+        await tracker.run_concurrent_ops(100)
 
     async def _send_random_writes(self, tracker):
         with trio.move_on_after(seconds=1):
