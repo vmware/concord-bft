@@ -33,12 +33,17 @@ def verify_linearizability(async_fn):
     """
     @wraps(async_fn)
     async def wrapper(*args, **kwargs):
-        bft_network = kwargs['bft_network']
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        init_state = skvbc.initial_state()
-        tracker = SkvbcTracker(init_state, skvbc, bft_network)
-        await async_fn(*args, **kwargs, tracker=tracker)
-        await tracker.fill_missing_blocks_and_verify()
+        if 'tracker' in kwargs:
+            tracker = kwargs.pop('tracker')
+            await async_fn(*args, **kwargs, tracker=tracker)
+            await tracker.fill_missing_blocks_and_verify()
+        else:
+            bft_network = kwargs['bft_network']
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            init_state = skvbc.initial_state()
+            tracker = SkvbcTracker(init_state, skvbc, bft_network)
+            await async_fn(*args, **kwargs, tracker=tracker)
+            await tracker.fill_missing_blocks_and_verify()
     return wrapper
 
 class SkvbcWriteRequest:

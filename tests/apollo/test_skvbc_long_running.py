@@ -13,9 +13,15 @@
 import os.path
 import unittest
 import trio
+import subprocess
 
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
+from util.skvbc_history_tracker import verify_linearizability
+
 from test_skvbc import SkvbcTest
+from test_skvbc_fast_path import SkvbcFastPathTest
+from test_skvbc_linearizability import SkvbcChaosTest
+from test_skvbc_view_change import SkvbcViewChangeTest
 
 # Time consts
 EIGHT_HOURS_IN_SECONDS = 8 * 60 * 60
@@ -44,9 +50,39 @@ class SkvbcLongRunningTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: n == 7)
-    async def test_stability(self, bft_network):
+    @verify_linearizability
+    async def test_stability(self, bft_network, tracker):
         bft_network.start_all_replicas()
-        with trio.move_on_after(seconds=ONE_HOUR_IN_SECONDS):
+        with trio.move_on_after(seconds=4*ONE_HOUR_IN_SECONDS):
             while True:
-                await SkvbcTest().test_get_block_data(bft_network=bft_network, already_in_trio=True)
-                trio.sleep(seconds=10)
+                await SkvbcTest().test_get_block_data\
+                    (bft_network=bft_network, already_in_trio=True, tracker=tracker)
+                self.start_all_replicas(bft_network)
+                await trio.sleep(seconds=10)
+                await SkvbcFastPathTest().test_fast_path_read_your_write\
+                    (bft_network=bft_network, already_in_trio=True, tracker=tracker)
+                self.start_all_replicas(bft_network)
+                await trio.sleep(seconds=10)
+                await SkvbcChaosTest().test_healthy\
+                    (bft_network=bft_network, already_in_trio=True, tracker=tracker)
+                self.start_all_replicas(bft_network)
+                await trio.sleep(seconds=10)
+                await SkvbcChaosTest().test_wreak_havoc\
+                    (bft_network=bft_network, already_in_trio=True, tracker=tracker)
+                self.start_all_replicas(bft_network)
+                await trio.sleep(seconds=10)
+
+
+
+    def start_replica(self, bft_network, replica_id):
+        """
+        Start a replica if it isn't already started.
+        Otherwise raise an AlreadyStoppedError.
+        """
+        if replica_id in bft_network.procs:
+            return
+        cmd = bft_network.start_replica_cmd(replica_id)
+        bft_network.procs[replica_id] = subprocess.Popen(cmd, close_fds=True)
+
+    def start_all_replicas(self, bft_network):
+        [self.start_replica(bft_network, i) for i in range(0, bft_network.config.n)]
