@@ -9,10 +9,12 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+#include <bftengine/ClientMsgs.hpp>
 #include "PrePrepareMsg.hpp"
 #include "SysConsts.hpp"
 #include "Crypto.hpp"
 #include "ReplicaConfig.hpp"
+#include "ClientRequestMsg.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -193,6 +195,29 @@ bool PrePrepareMsg::checkRequests() const {
 
   Assert(false);
   return false;
+}
+const std::string PrePrepareMsg::getClientCorrelationIdForMsg(int index) const {
+  auto it = RequestsIterator(this);
+  int req_num = 0;
+  while (!it.end() && req_num < index) {
+    it.gotoNext();
+    req_num++;
+  }
+  if (it.end()) return std::string();
+  char* requestBody = nullptr;
+  it.getCurrent(requestBody);
+  return ClientRequestMsg((ClientRequestMsgHeader*)requestBody).getCid();
+}
+
+const std::string PrePrepareMsg::getBatchCorrelationIdAsString() const {
+  std::string ret;
+  auto it = RequestsIterator(this);
+  char* requestBody = nullptr;
+  while (it.getAndGoToNext(requestBody)) {
+    ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
+    ret += req.getCid() + ";";
+  }
+  return ret;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

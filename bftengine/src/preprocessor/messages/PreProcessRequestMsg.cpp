@@ -22,12 +22,25 @@ PreProcessRequestMsg::PreProcessRequestMsg(
   memcpy(body() + sizeof(PreProcessRequestMsgHeader), request, reqLength);
 }
 
+PreProcessRequestMsg::PreProcessRequestMsg(NodeIdType senderId,
+                                           uint16_t clientId,
+                                           uint64_t reqSeqNum,
+                                           uint32_t reqLength,
+                                           const char* request,
+                                           const std::string& cid)
+    : MessageBase(senderId, MsgCode::PreProcessRequest, (sizeof(PreProcessRequestMsgHeader) + reqLength + cid.size())) {
+  setParams(senderId, clientId, reqSeqNum, reqLength);
+  msgBody()->cidLength = cid.size();
+  memcpy(body() + sizeof(PreProcessRequestMsgHeader), request, reqLength);
+  memcpy(body() + sizeof(PreProcessRequestMsgHeader) + reqLength, cid.c_str(), cid.size());
+}
+
 void PreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
   Assert(type() == MsgCode::PreProcessRequest);
   Assert(senderId() != repInfo.myId());
 
   if (size() < (sizeof(PreProcessRequestMsgHeader)) ||
-      size() < (sizeof(PreProcessRequestMsgHeader) + msgBody()->requestLength))
+      size() < (sizeof(PreProcessRequestMsgHeader) + msgBody()->requestLength + msgBody()->cidLength))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
@@ -39,6 +52,10 @@ void PreProcessRequestMsg::setParams(NodeIdType senderId, uint16_t clientId, Req
   LOG_DEBUG(
       GL,
       "senderId=" << senderId << " clientId=" << clientId << " reqSeqNum=" << reqSeqNum << " reqLength=" << reqLength);
+}
+
+std::string PreProcessRequestMsg::getCid() {
+  return std::string(body() + sizeof(PreProcessRequestMsgHeader) + msgBody()->requestLength, msgBody()->cidLength);
 }
 
 }  // namespace preprocessor
