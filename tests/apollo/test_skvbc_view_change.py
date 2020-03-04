@@ -111,7 +111,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         await self._single_vc_with_consecutive_failed_replicas(
             bft_network,
             tracker,
-            num_consecutive_replicas = 1
+            num_consecutive_failing_primaries = 1
         )
 
     @with_trio
@@ -301,23 +301,23 @@ class SkvbcViewChangeTest(unittest.TestCase):
         await self._single_vc_with_consecutive_failed_replicas(
             bft_network,
             tracker,
-            num_consecutive_replicas = 2
+            num_consecutive_failing_primaries = 2
         )
 
     async def _single_vc_with_consecutive_failed_replicas(
             self,
             bft_network,
             tracker,
-            num_consecutive_replicas):
+            num_consecutive_failing_primaries):
 
         bft_network.start_all_replicas()
 
         initial_primary = 0
         
         replcas_to_stop = [ v for v in range(initial_primary,
-                                             initial_primary + num_consecutive_replicas) ]
+                                             initial_primary + num_consecutive_failing_primaries) ]
         
-        expected_final_primary = initial_primary + num_consecutive_replicas
+        expected_final_primary = initial_primary + num_consecutive_failing_primaries
         
         await self._send_random_writes(tracker)
 
@@ -341,8 +341,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
         await tracker.tracked_read_your_writes()
 
-        async with trio.open_nursery() as nursery:
-            nursery.start_soon(tracker.run_concurrent_ops, 100)
+        await tracker.run_concurrent_ops(100)
 
     async def _send_random_writes(self, tracker):
         with trio.move_on_after(seconds=1):
