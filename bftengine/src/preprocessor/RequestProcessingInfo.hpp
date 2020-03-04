@@ -29,15 +29,14 @@ class RequestProcessingInfo {
   RequestProcessingInfo(uint16_t numOfReplicas,
                         uint16_t numOfRequiredReplies,
                         ReqId reqSeqNum,
-                        const ClientPreProcessRequestMsg* clientPreProcessReqMsg);
+                        ClientPreProcessReqMsgUniquePtr clientReqMsg);
   ~RequestProcessingInfo() = default;
 
   void handlePrimaryPreProcessed(PreProcessRequestMsgSharedPtr msg,
                                  const char* preProcessResult,
                                  uint32_t preProcessResultLen);
   void handlePreProcessReplyMsg(PreProcessReplyMsgSharedPtr preProcessReplyMsg);
-  std::unique_ptr<MessageBase> convertClientPreProcessToClientMsg(bool resetPreProcessFlag) const;
-  void freeClientMsg();
+  std::unique_ptr<MessageBase> convertClientPreProcessToClientMsg(bool resetPreProcessFlag);
   PreProcessRequestMsgSharedPtr getPreProcessRequest() const { return preProcessRequestMsg_; }
   const SeqNum getReqSeqNum() const { return reqSeqNum_; }
   PreProcessingResult getPreProcessingConsensusResult() const;
@@ -53,7 +52,7 @@ class RequestProcessingInfo {
 
   const uint16_t numOfReplicas_;
   const ReqId reqSeqNum_;
-  const ClientPreProcessRequestMsg* clientPreProcessReqMsg_ = nullptr;
+  ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg_;
   PreProcessRequestMsgSharedPtr preProcessRequestMsg_;
   uint16_t numOfReceivedReplies_ = 0;
   const char* myPreProcessResult_ = nullptr;

@@ -22,8 +22,8 @@ uint16_t RequestProcessingInfo::numOfRequiredEqualReplies_ = 0;
 RequestProcessingInfo::RequestProcessingInfo(uint16_t numOfReplicas,
                                              uint16_t numOfRequiredReplies,
                                              ReqId reqSeqNum,
-                                             const ClientPreProcessRequestMsg *clientPreProcessReqMsg)
-    : numOfReplicas_(numOfReplicas), reqSeqNum_(reqSeqNum), clientPreProcessReqMsg_(clientPreProcessReqMsg) {
+                                             ClientPreProcessReqMsgUniquePtr clientReqMsg)
+    : numOfReplicas_(numOfReplicas), reqSeqNum_(reqSeqNum), clientPreProcessReqMsg_(move(clientReqMsg)) {
   numOfRequiredEqualReplies_ = numOfRequiredReplies;
   LOG_DEBUG(GL, "Created RequestProcessingInfo with reqSeqNum=" << reqSeqNum_ << ", numOfReplicas= " << numOfReplicas_);
 }
@@ -81,13 +81,10 @@ PreProcessingResult RequestProcessingInfo::getPreProcessingConsensusResult() con
   return CANCEL;
 }
 
-unique_ptr<MessageBase> RequestProcessingInfo::convertClientPreProcessToClientMsg(bool resetPreProcessFlag) const {
-  return clientPreProcessReqMsg_->convertToClientRequestMsg(resetPreProcessFlag);
-}
-
-void RequestProcessingInfo::freeClientMsg() {
-  delete clientPreProcessReqMsg_;
-  clientPreProcessReqMsg_ = nullptr;
+unique_ptr<MessageBase> RequestProcessingInfo::convertClientPreProcessToClientMsg(bool resetPreProcessFlag) {
+  unique_ptr<MessageBase> retMsg = clientPreProcessReqMsg_->convertToClientRequestMsg(resetPreProcessFlag);
+  clientPreProcessReqMsg_.release();
+  return retMsg;
 }
 
 }  // namespace preprocessor

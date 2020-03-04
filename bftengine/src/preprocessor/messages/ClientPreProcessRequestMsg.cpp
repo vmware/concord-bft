@@ -24,10 +24,13 @@ ClientPreProcessRequestMsg::ClientPreProcessRequestMsg(
   msgBody_->msgType = MsgCode::ClientPreProcessRequest;
 }
 
-unique_ptr<MessageBase> ClientPreProcessRequestMsg::convertToClientRequestMsg(bool resetPreProcessFlag) const {
+unique_ptr<MessageBase> ClientPreProcessRequestMsg::convertToClientRequestMsg(bool resetPreProcessFlag) {
   msgBody_->msgType = MsgCode::ClientRequest;
   if (resetPreProcessFlag) msgBody()->flags &= ~(1 << 1);
-  return unique_ptr<ClientRequestMsg>((ClientRequestMsg*)this);
+  auto msg = unique_ptr<ClientRequestMsg>((ClientRequestMsg*)this);
+  releaseOwnership();
+  msg->acquireOwnership();
+  return msg;
 }
 
 }  // namespace preprocessor
