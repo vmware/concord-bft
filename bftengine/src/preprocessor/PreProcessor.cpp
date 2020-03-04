@@ -139,7 +139,7 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
   preProcessorMetrics_.requestReceived.Get().Inc();
   ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg(msg);
   if (!clientPreProcessReqMsg) return;
-
+  MDC_CID_PUT(GL, clientPreProcessReqMsg->getCid());
   const NodeIdType &senderId = clientPreProcessReqMsg->senderId();
   const NodeIdType &clientId = clientPreProcessReqMsg->clientProxyId();
   const ReqId &reqSeqNum = clientPreProcessReqMsg->requestSeqNum();
@@ -187,6 +187,7 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
 // Non-primary replica request handling
 template <>
 void PreProcessor::onMessage<PreProcessRequestMsg>(PreProcessRequestMsg *msg) {
+  MDC_CID_PUT(GL, msg->getCid());
   PreProcessRequestMsgSharedPtr preProcessReqMsg(msg);
   LOG_DEBUG(
       GL, "Received reqSeqNum=" << preProcessReqMsg->reqSeqNum() << " from senderId=" << preProcessReqMsg->senderId());
@@ -217,6 +218,7 @@ void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *msg) {
     clientEntry->clientReqInfoPtr->handlePreProcessReplyMsg(preProcessReplyMsg);
     result = clientEntry->clientReqInfoPtr->getPreProcessingConsensusResult();
   }
+  MDC_CID_PUT(GL, clientEntry->clientReqInfoPtr->getPreProcessRequest()->getCid());
   switch (result) {
     case CONTINUE:  // Not enough equal hashes collected
       return;
@@ -303,7 +305,8 @@ void PreProcessor::handleClientPreProcessRequest(const ClientPreProcessReqMsgUni
                                                                                          clientReqMsg->clientProxyId(),
                                                                                          clientReqMsg->requestSeqNum(),
                                                                                          clientReqMsg->requestLength(),
-                                                                                         clientReqMsg->requestBuf());
+                                                                                         clientReqMsg->requestBuf(),
+                                                                                         clientReqMsg->getCid());
   sendPreProcessRequestToAllReplicas(preProcessRequestMsg);
 
   // Pre-process the request and calculate a hash of the result

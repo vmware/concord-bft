@@ -53,7 +53,7 @@ class ClientRequestMsg : public MessageBase {
   char* requestBuf() const { return body() + sizeof(ClientRequestMsgHeader); }
 
   void set(ReqId reqSeqNum, uint32_t requestLength, uint8_t flags);
-  std::string getCid();
+  const std::string getCid() const;
   void validate(const ReplicasInfo&) const override;
 
  protected:
