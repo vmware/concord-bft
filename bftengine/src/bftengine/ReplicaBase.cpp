@@ -27,6 +27,7 @@ ReplicaBase::ReplicaBase(const ReplicaConfig& config,
     : config_(config),
       msgsCommunicator_(msgComm),
       msgHandlers_(msgHandlerReg),
+      last_dump_time_(0),
       dump_interval_in_sec_(config_.metricsDumpIntervalSeconds),
       metrics_{concordMetrics::Component("replica", std::make_shared<concordMetrics::Aggregator>())} {
   if (config_.debugStatisticsEnabled) DebugStatistics::initDebugStatisticsData();
@@ -40,11 +41,11 @@ void ReplicaBase::start() {
 
   metricsTimer_ = TimersSingleton::getInstance().add(100ms, Timers::Timer::RECURRING, [this](Timers::Handle h) {
     metrics_.UpdateAggregator();
-    auto timeSinceEpoch = std::chrono::steady_clock::now().time_since_epoch();
-    uint64_t currTime = std::chrono::duration_cast<std::chrono::milliseconds>(timeSinceEpoch).count();
-    if (currTime - last_dump_time_ >= dump_interval_in_sec_ * 1000) {
+    auto currTime =
+        std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
+    if (currTime - last_dump_time_ >= dump_interval_in_sec_) {
       last_dump_time_ = currTime;
-      LOG_INFO(GL, "-- ReplicaBase metrics dump--\n" + metrics_.ToJson());
+      LOG_INFO(GL, "-- ReplicaBase metrics dump--" + metrics_.ToJson());
     }
   });
   msgsCommunicator_->startCommunication(config_.replicaId);
