@@ -28,7 +28,9 @@ uint16_t numOfRequiredReplies = 3;
 const uint32_t bufLen = 1024;
 char buf[bufLen];
 ReqId reqSeqNum = 123456789;
+NodeIdType senderId = 2;
 uint16_t clientId = 5;
+string cid = "abcd";
 NodeIdType replica_0 = 0;
 NodeIdType replica_1 = 1;
 NodeIdType replica_2 = 2;
@@ -185,7 +187,7 @@ PreProcessReplyMsgSharedPtr preProcessNonPrimary(RequestProcessingInfo &reqInfo,
 }
 
 TEST(requestPreprocessingInfo_test, notEnoughRepliesReceived) {
-  RequestProcessingInfo reqInfo(numOfReplicas, numOfRequiredReplies, reqSeqNum);
+  RequestProcessingInfo reqInfo(numOfReplicas, numOfRequiredReplies, reqSeqNum, ClientPreProcessReqMsgUniquePtr());
   ReplicasInfo repInfo(replicaConfig, true, true);
   reqInfo.handlePrimaryPreProcessed(PreProcessRequestMsgSharedPtr(), buf, bufLen);
   for (auto i = 1; i < numOfRequiredReplies - 1; i++) {
@@ -196,7 +198,7 @@ TEST(requestPreprocessingInfo_test, notEnoughRepliesReceived) {
 }
 
 TEST(requestPreprocessingInfo_test, notEnoughSameRepliesReceived) {
-  RequestProcessingInfo reqInfo(numOfReplicas, numOfRequiredReplies, reqSeqNum);
+  RequestProcessingInfo reqInfo(numOfReplicas, numOfRequiredReplies, reqSeqNum, ClientPreProcessReqMsgUniquePtr());
   ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   reqInfo.handlePrimaryPreProcessed(PreProcessRequestMsgSharedPtr(), buf, bufLen);
@@ -212,7 +214,7 @@ TEST(requestPreprocessingInfo_test, notEnoughSameRepliesReceived) {
 }
 
 TEST(requestPreprocessingInfo_test, enoughSameRepliesReceived) {
-  RequestProcessingInfo reqInfo(numOfReplicas, numOfRequiredReplies, reqSeqNum);
+  RequestProcessingInfo reqInfo(numOfReplicas, numOfRequiredReplies, reqSeqNum, ClientPreProcessReqMsgUniquePtr());
   ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   reqInfo.handlePrimaryPreProcessed(PreProcessRequestMsgSharedPtr(), buf, bufLen);
@@ -224,7 +226,7 @@ TEST(requestPreprocessingInfo_test, enoughSameRepliesReceived) {
 }
 
 TEST(requestPreprocessingInfo_test, primaryReplicaPreProcessingRetry) {
-  RequestProcessingInfo reqInfo(numOfReplicas, numOfRequiredReplies, reqSeqNum);
+  RequestProcessingInfo reqInfo(numOfReplicas, numOfRequiredReplies, reqSeqNum, ClientPreProcessReqMsgUniquePtr());
   ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   reqInfo.handlePrimaryPreProcessed(PreProcessRequestMsgSharedPtr(), buf, bufLen);
@@ -237,6 +239,24 @@ TEST(requestPreprocessingInfo_test, primaryReplicaPreProcessingRetry) {
   memset(buf, '4', bufLen);
   reqInfo.handlePrimaryPreProcessed(PreProcessRequestMsgSharedPtr(), buf, bufLen);
   Assert(reqInfo.getPreProcessingConsensusResult() == COMPLETE);
+}
+
+TEST(requestPreprocessingInfo_test, clientPreProcessMessageConversion) {
+  memset(buf, '8', bufLen);
+  ClientPreProcessRequestMsg clientPreProcReqMsg(senderId, reqSeqNum, bufLen, buf, cid);
+  unique_ptr<MessageBase> messageBase;
+  {
+    ClientPreProcessReqMsgUniquePtr clientPreProcReqUniq = make_unique<ClientPreProcessRequestMsg>(clientPreProcReqMsg);
+    messageBase = clientPreProcReqUniq->convertToClientRequestMsg(true);
+    clientPreProcReqUniq->releaseOwnership();
+    clientPreProcReqUniq.release();
+  }
+  auto *clientRequestMsg = (ClientRequestMsg *)messageBase.release();
+  unique_ptr<ClientRequestMsg> clientReqMsg(clientRequestMsg);
+  Assert(clientReqMsg->senderId() == senderId);
+  Assert(clientReqMsg->requestSeqNum() == reqSeqNum);
+  Assert(clientReqMsg->requestLength() == bufLen);
+  Assert(memcmp(clientReqMsg->requestBuf(), buf, bufLen) == 0);
 }
 
 }  // end namespace

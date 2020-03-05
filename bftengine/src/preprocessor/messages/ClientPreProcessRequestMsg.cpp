@@ -24,9 +24,13 @@ ClientPreProcessRequestMsg::ClientPreProcessRequestMsg(
   msgBody_->msgType = MsgCode::ClientPreProcessRequest;
 }
 
-unique_ptr<MessageBase> ClientPreProcessRequestMsg::convertToClientRequestMsg() {
+unique_ptr<MessageBase> ClientPreProcessRequestMsg::convertToClientRequestMsg(bool resetPreProcessFlag) {
   msgBody_->msgType = MsgCode::ClientRequest;
-  return unique_ptr<MessageBase>((MessageBase*)this);
+  if (resetPreProcessFlag) msgBody()->flags &= ~(1 << 1);
+  auto msg = unique_ptr<ClientRequestMsg>((ClientRequestMsg*)this);
+  releaseOwnership();
+  msg->acquireOwnership();
+  return msg;
 }
 
 }  // namespace preprocessor
