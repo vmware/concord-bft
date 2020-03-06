@@ -53,8 +53,8 @@ def interesting_configs(selected=None):
         selected=lambda *config: True
 
     bft_configs = [#{'n': 4, 'f': 1, 'c': 0, 'num_clients': 4},
-                   {'n': 6, 'f': 1, 'c': 1, 'num_clients': 4},
-                   {'n': 7, 'f': 2, 'c': 0, 'num_clients': 4},
+                   {'n': 6, 'f': 1, 'c': 1, 'num_clients': 30},
+                   {'n': 7, 'f': 2, 'c': 0, 'num_clients': 30},
                    # {'n': 9, 'f': 2, 'c': 1, 'num_clients': 4}
                    # {'n': 12, 'f': 3, 'c': 1, 'num_clients': 4}
                    ]
