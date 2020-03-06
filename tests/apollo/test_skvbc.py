@@ -37,6 +37,8 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcTest(unittest.TestCase):
 
+    __test__ = False  # so that PyTest ignores this test scenario
+
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_state_transfer(self, bft_network):

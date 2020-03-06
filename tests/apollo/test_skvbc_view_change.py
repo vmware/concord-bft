@@ -39,6 +39,8 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcViewChangeTest(unittest.TestCase):
 
+    __test__ = False  # so that PyTest ignores this test scenario
+
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_request_block_not_written_primary_down(self, bft_network):
