@@ -84,6 +84,8 @@ class Sliver {
 
 std::ostream& operator<<(std::ostream& s, const Sliver& sliver);
 
+inline bool operator<(const Sliver& lhs, const Sliver& rhs) { return (lhs.compare(rhs) < 0); }
+
 }  // namespace concordUtils
 
 #endif  // CONCORD_BFT_UTIL_SLIVER_HPP_
