@@ -29,8 +29,8 @@ namespace {
 using BlockNode = block::detail::Node;
 using BlockKeyData = block::detail::KeyData;
 
+using ::concordUtils::fromBigEndianBuffer;
 using ::concordUtils::Key;
-using ::concordUtils::netToHost;
 using ::concordUtils::Sliver;
 using ::concordUtils::Status;
 
@@ -170,7 +170,7 @@ BlockId DBKeyManipulator::extractBlockIdFromKey(const Key &key) {
   Assert(key.length() > sizeof(BlockId));
 
   const auto offset = key.length() - sizeof(BlockId);
-  const auto id = netToHost(*reinterpret_cast<const BlockId *>(key.data() + offset));
+  const auto id = fromBigEndianBuffer<BlockId>(key.data() + offset);
 
   LOG_TRACE(
       logger(),
