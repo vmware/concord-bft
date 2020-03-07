@@ -14,6 +14,7 @@
 #define CONCORD_BFT_UTIL_KV_TYPES_H_
 
 #include <unordered_map>
+#include <map>
 #include <vector>
 #include "sliver.hpp"
 
@@ -23,10 +24,12 @@ typedef Sliver Key;
 typedef Sliver Value;
 typedef std::pair<Key, Value> KeyValuePair;
 typedef std::unordered_map<Key, Value> SetOfKeyValuePairs;
+typedef std::map<Key, Value> OrderedSetOfKeyValuePairs;
 typedef std::vector<Key> KeysVector;
 typedef KeysVector ValuesVector;
 typedef uint64_t BlockId;
 
+OrderedSetOfKeyValuePairs order(const SetOfKeyValuePairs &unordered);
 }  // namespace concordUtils
 
 // Provide hashing for slivers without requiring the user to incldue the header
