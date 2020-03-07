@@ -92,6 +92,9 @@ Tree::UpdateBatch Tree::update(const SetOfKeyValuePairs& updates, const KeysVect
     batch.internal_nodes.emplace_back(InternalNodeKey(version, it.first), it.second);
   }
 
+  // Make the root hash available through get_root_hash() after the updates have been made.
+  reset();
+
   return batch;
 }
 

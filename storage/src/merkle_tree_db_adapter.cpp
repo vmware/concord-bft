@@ -82,6 +82,16 @@ SetOfKeyValuePairs batchToDbUpdates(const Tree::UpdateBatch &batch) {
   return updates;
 }
 
+Version stateRootVersion(const Tree::UpdateBatch &batch) {
+  auto ver = Version{};
+  for (const auto &kv : batch.internal_nodes) {
+    if (kv.first.path().empty() && ver < kv.first.version()) {
+      ver = kv.first.version();
+    }
+  }
+  return ver;
+}
+
 // Undefined behavior if an incorrect type is read from the buffer.
 EDBKeyType getDBKeyType(const Sliver &s) {
   Assert(!s.empty());
@@ -278,7 +288,9 @@ BlockId DBAdapter::getLatestBlock() const {
   return getLastReachableBlock();
 }
 
-Sliver DBAdapter::createBlockNode(const SetOfKeyValuePairs &updates, BlockId blockId) const {
+Sliver DBAdapter::createBlockNode(const SetOfKeyValuePairs &updates,
+                                  BlockId blockId,
+                                  const sparse_merkle::Version &stateRootVersion) const {
   // Make sure the digest is zero-initialized by using {} initialization.
   auto parentBlockDigest = StateTransferDigest{};
   if (blockId > 1) {
@@ -292,7 +304,7 @@ Sliver DBAdapter::createBlockNode(const SetOfKeyValuePairs &updates, BlockId blo
     computeBlockDigest(blockId - 1, parentBlock.data(), parentBlock.length(), &parentBlockDigest);
   }
 
-  auto node = BlockNode{blockId, parentBlockDigest.content, smTree_.get_root_hash()};
+  auto node = BlockNode{blockId, parentBlockDigest.content, smTree_.get_root_hash(), stateRootVersion};
   for (const auto &[k, v] : updates) {
     // Treat empty values as deleted keys.
     node.keys.emplace(k, BlockKeyData{v.empty()});
@@ -339,36 +351,30 @@ Status DBAdapter::getBlockById(BlockId blockId, Sliver &block, bool &found) cons
   return Status::OK();
 }
 
-concordUtils::SetOfKeyValuePairs DBAdapter::addBlockDbUpdates(const SetOfKeyValuePairs &updates, BlockId blockId) {
+concordUtils::SetOfKeyValuePairs DBAdapter::lastReachableBlockkDbUpdates(const SetOfKeyValuePairs &updates,
+                                                                         BlockId blockId) {
   const auto updateBatch = smTree_.update(updates);
 
   // Key updates.
   auto dbUpdates = batchToDbUpdates(updateBatch);
 
   // Block key.
-  dbUpdates[DBKeyManipulator::genBlockDbKey(blockId)] = createBlockNode(updates, blockId);
+  dbUpdates[DBKeyManipulator::genBlockDbKey(blockId)] =
+      createBlockNode(updates, blockId, stateRootVersion(updateBatch));
 
   return dbUpdates;
 }
 
-// Reference: Key ordering is defined in db_types.h .
 BatchedInternalNode DBAdapter::Reader::get_latest_root() const {
-  // Generate a root key with the maximal possible version.
-  const auto maxRootKey = DBKeyManipulator::genInternalDbKey(InternalNodeKey::root(Version::max()));
-  auto iter = adapter_.getDb()->getIteratorGuard();
-
-  // Seek for a key that is less than or equal to the maximal internal root key.
-  //
-  // Note: code below relies on the fact that root keys have empty nibble paths and, therefore, are always preceding
-  // other internal keys (as root keys will be shorter). Additionally, root keys will be orderd by their version.
-  const auto foundKey = iter->seekAtMost(maxRootKey).first;
-  // Consider internal keys only. If it is an internal key, it must be a root one as roots precede non-root ones.
-  if (!foundKey.empty() && getDBKeyType(foundKey) == EDBKeyType::Key &&
-      getKeySubtype(foundKey) == EKeySubtype::Internal) {
-    constexpr auto keyOffset = sizeof(EDBKeyType) + sizeof(EKeySubtype);
-    return get_internal(deserialize<InternalNodeKey>(Sliver{foundKey, keyOffset, foundKey.length() - keyOffset}));
+  const auto lastBlock = adapter_.getLastReachableBlock();
+  if (lastBlock == 0) {
+    return BatchedInternalNode{};
   }
-  return BatchedInternalNode{};
+
+  auto blockNodeSliver = Sliver{};
+  Assert(adapter_.getDb()->get(DBKeyManipulator::genBlockDbKey(lastBlock), blockNodeSliver).isOK());
+  const auto blockNode = block::detail::parseNode(blockNodeSliver);
+  return get_internal(InternalNodeKey::root(blockNode.stateRootVersion));
 }
 
 BatchedInternalNode DBAdapter::Reader::get_internal(const InternalNodeKey &key) const {
@@ -391,9 +397,9 @@ LeafNode DBAdapter::Reader::get_leaf(const LeafKey &key) const {
   return leaf;
 }
 
-Status DBAdapter::addBlock(const SetOfKeyValuePairs &updates) {
+Status DBAdapter::addLastReachableBlock(const SetOfKeyValuePairs &updates) {
   const auto blockId = getLastReachableBlock() + 1;
-  return db_->multiPut(addBlockDbUpdates(updates, blockId));
+  return db_->multiPut(lastReachableBlockkDbUpdates(updates, blockId));
 }
 
 Status DBAdapter::linkSTChainFrom(BlockId blockId) {
@@ -410,31 +416,40 @@ Status DBAdapter::linkSTChainFrom(BlockId blockId) {
       return status;
     }
 
-    // Deleting the ST block and adding the block to the blockchain via the merkle tree should be done atomically. We
-    // implement that by using a transaction.
-    auto txn = std::unique_ptr<ITransaction>{db_->beginTransaction()};
-
-    // Delete the ST block key in the transaction.
-    txn->del(sTBlockKey);
-
-    // Put the block DB updates in the transaction.
-    const auto addDbUpdates = addBlockDbUpdates(block::getData(block), i);
-    for (const auto &[key, value] : addDbUpdates) {
-      txn->put(key, value);
-    }
-
-    try {
-      txn->commit();
-    } catch (const std::exception &e) {
-      const auto msg = std::string{"Failed to commit an addBlock() DB transaction, reason: "} + e.what();
-      LOG_ERROR(logger_, msg);
-      return Status::GeneralError(msg);
-    } catch (...) {
-      const auto msg = "Failed to commit an addBlock() DB transaction";
-      LOG_ERROR(logger_, msg);
-      return Status::GeneralError(msg);
+    const auto txnStatus = writeSTLinkTransaction(sTBlockKey, block, i);
+    if (!status.isOK()) {
+      return status;
     }
   }
+  return Status::OK();
+}
+
+Status DBAdapter::writeSTLinkTransaction(const Key &sTBlockKey, const Sliver &block, BlockId blockId) {
+  // Deleting the ST block and adding the block to the blockchain via the merkle tree should be done atomically. We
+  // implement that by using a transaction.
+  auto txn = std::unique_ptr<ITransaction>{db_->beginTransaction()};
+
+  // Delete the ST block key in the transaction.
+  txn->del(sTBlockKey);
+
+  // Put the block DB updates in the transaction.
+  const auto addDbUpdates = lastReachableBlockkDbUpdates(block::getData(block), blockId);
+  for (const auto &[key, value] : addDbUpdates) {
+    txn->put(key, value);
+  }
+
+  try {
+    txn->commit();
+  } catch (const std::exception &e) {
+    const auto msg = std::string{"Failed to commit an addBlock() DB transaction, reason: "} + e.what();
+    LOG_ERROR(logger_, msg);
+    return Status::GeneralError(msg);
+  } catch (...) {
+    const auto msg = "Failed to commit an addBlock() DB transaction";
+    LOG_ERROR(logger_, msg);
+    return Status::GeneralError(msg);
+  }
+
   return Status::OK();
 }
 
@@ -447,7 +462,7 @@ Status DBAdapter::addBlock(const Sliver &block, BlockId blockId) {
   } else if (lastReachableBlock + 1 == blockId) {
     // If adding the next block, append to the blockchain via the merkle tree and try to link with the ST temporary
     // chain.
-    const auto status = addBlock(block::getData(block));
+    const auto status = addLastReachableBlock(block::getData(block));
     if (!status.isOK()) {
       LOG_ERROR(logger_, "Failed to add a block to the end of the blockchain on state transfer, block ID " << blockId);
       return status;

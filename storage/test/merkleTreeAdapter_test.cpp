@@ -4,6 +4,7 @@
 
 #include "gtest/gtest.h"
 
+#include "assertUtils.hpp"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 #include "blockchain/merkle_tree_block.h"
 #include "blockchain/merkle_tree_db_adapter.h"
@@ -59,6 +60,7 @@ using ::concord::storage::sparse_merkle::Version;
 using ::concordUtils::SetOfKeyValuePairs;
 using ::concordUtils::Sliver;
 using ::concordUtils::Status;
+using ::concordUtils::ValuesVector;
 
 template <typename E>
 std::string serializeEnum(E e) {
@@ -75,7 +77,7 @@ std::string serializeIntegral(T v) {
 
 Sliver toSliver(std::string b) { return Sliver{std::move(b)}; }
 
-Sliver getSliverOfSize(std::size_t size, char content = char{42}) { return std::string(size, content); }
+Sliver getSliverOfSize(std::size_t size, char content = 'a') { return std::string(size, content); }
 
 auto getHash(const std::string &str) {
   auto hasher = Hasher{};
@@ -117,6 +119,22 @@ SetOfKeyValuePairs getDeterministicBlockUpdates(std::uint32_t count) {
     ++size;
   }
   return updates;
+}
+
+ValuesVector createBlockchain(const std::shared_ptr<IDBClient> &db, std::size_t length) {
+  auto adapter = DBAdapter{db};
+  ValuesVector blockchain;
+
+  for (auto i = 1u; i <= length; ++i) {
+    Assert(adapter.addLastReachableBlock(getDeterministicBlockUpdates(i * 2)).isOK());
+    auto block = Sliver{};
+    auto found = false;
+    Assert(adapter.getBlockById(i, block, found).isOK());
+    Assert(found);
+    blockchain.push_back(block);
+  }
+
+  return blockchain;
 }
 
 const auto defaultData = std::string{"defaultData"};
@@ -282,11 +300,14 @@ TEST(block, key_data_equality) {
 TEST(block, block_node_equality) {
   // Non-key differences.
   {
-    const auto node1 = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash};
-    const auto node2 = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash};
-    const auto node3 = block::detail::Node{defaultBlockId + 1, defaultDigest.data(), defaultHash};
-    const auto node4 = block::detail::Node{defaultBlockId, getBlockDigest("random data").data(), defaultHash};
-    const auto node5 = block::detail::Node{defaultBlockId, defaultDigest.data(), getHash("random data2")};
+    const auto node1 = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash, defaultVersion};
+    const auto node2 = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash, defaultVersion};
+    const auto node3 = block::detail::Node{defaultBlockId + 1, defaultDigest.data(), defaultHash, defaultVersion};
+    const auto node4 =
+        block::detail::Node{defaultBlockId, getBlockDigest("random data").data(), defaultHash, defaultVersion};
+    const auto node5 =
+        block::detail::Node{defaultBlockId, defaultDigest.data(), getHash("random data2"), defaultVersion};
+    const auto node6 = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash, defaultVersion + 1};
 
     ASSERT_EQ(node1.blockId, node2.blockId);
     ASSERT_TRUE(node1.parentDigest == node2.parentDigest);
@@ -308,20 +329,26 @@ TEST(block, block_node_equality) {
     ASSERT_FALSE(node1.stateHash == node5.stateHash);
     ASSERT_TRUE(node1.keys == node5.keys);
 
+    ASSERT_EQ(node1.blockId, node6.blockId);
+    ASSERT_TRUE(node1.parentDigest == node6.parentDigest);
+    ASSERT_TRUE(node1.stateHash == node6.stateHash);
+    ASSERT_TRUE(node1.keys == node6.keys);
+
     ASSERT_TRUE(node1 == node2);
     ASSERT_FALSE(node1 == node3);
     ASSERT_FALSE(node1 == node4);
     ASSERT_FALSE(node1 == node5);
+    ASSERT_FALSE(node1 == node6);
   }
 
   // Differences in keys only.
   {
-    auto node1 = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash};
-    auto node2 = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash};
+    auto node1 = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash, defaultVersion};
+    auto node2 = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash, defaultVersion};
     node2.keys.emplace(defaultSliver, block::detail::KeyData{false});
-    auto node3 = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash};
+    auto node3 = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash, defaultVersion};
     node3.keys.emplace(defaultSliver, block::detail::KeyData{true});
-    auto node4 = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash};
+    auto node4 = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash, defaultVersion};
     node3.keys.emplace(getSliverOfSize(42), block::detail::KeyData{true});
 
     ASSERT_FALSE(node1 == node2);
@@ -335,7 +362,7 @@ TEST(block, block_node_equality) {
 TEST(block, block_node_serialization) {
   // No keys.
   {
-    auto node = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash};
+    auto node = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash, defaultVersion};
     const auto nodeSliver = block::detail::createNode(node);
     const auto parsedNode = block::detail::parseNode(nodeSliver);
 
@@ -344,7 +371,7 @@ TEST(block, block_node_serialization) {
 
   // 1 non-deleted key.
   {
-    auto node = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash};
+    auto node = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash, defaultVersion};
     node.keys.emplace(defaultSliver, block::detail::KeyData{false});
 
     const auto nodeSliver = block::detail::createNode(node);
@@ -355,7 +382,7 @@ TEST(block, block_node_serialization) {
 
   // 1 deleted key.
   {
-    auto node = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash};
+    auto node = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash, defaultVersion};
     node.keys.emplace(defaultSliver, block::detail::KeyData{true});
 
     const auto nodeSliver = block::detail::createNode(node);
@@ -366,7 +393,7 @@ TEST(block, block_node_serialization) {
 
   // Empty key.
   {
-    auto node = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash};
+    auto node = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash, defaultVersion};
     node.keys.emplace(getSliverOfSize(0), block::detail::KeyData{true});
     node.keys.emplace(getSliverOfSize(1), block::detail::KeyData{true});
 
@@ -378,7 +405,7 @@ TEST(block, block_node_serialization) {
 
   // Multiple keys with different sizes and deleted flags.
   {
-    auto node = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash};
+    auto node = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash, defaultVersion};
     auto deleted = false;
     for (auto i = 1u; i <= maxNumKeys; ++i) {
       node.keys.emplace(getSliverOfSize(i), block::detail::KeyData{deleted});
@@ -571,9 +598,9 @@ class db_adapter : public ::testing::TestWithParam<std::shared_ptr<IDbClientFact
 TEST_P(db_adapter, get_last_reachable_block) {
   auto adapter = DBAdapter{GetParam()->db()};
   const auto updates = SetOfKeyValuePairs{std::make_pair(defaultSliver, defaultSliver)};
-  ASSERT_TRUE(adapter.addBlock(updates).isOK());
-  ASSERT_TRUE(adapter.addBlock(updates).isOK());
-  ASSERT_TRUE(adapter.addBlock(updates).isOK());
+  ASSERT_TRUE(adapter.addLastReachableBlock(updates).isOK());
+  ASSERT_TRUE(adapter.addLastReachableBlock(updates).isOK());
+  ASSERT_TRUE(adapter.addLastReachableBlock(updates).isOK());
   ASSERT_EQ(adapter.getLastReachableBlock(), 3);
 }
 
@@ -587,9 +614,9 @@ TEST_P(db_adapter, get_key_by_ver_1_key) {
   const auto updates1 = SetOfKeyValuePairs{std::make_pair(key, data1)};
   const auto updates2 = SetOfKeyValuePairs{std::make_pair(key, data2)};
   const auto updates3 = SetOfKeyValuePairs{std::make_pair(key, data3)};
-  ASSERT_TRUE(adapter.addBlock(updates1).isOK());
-  ASSERT_TRUE(adapter.addBlock(updates2).isOK());
-  ASSERT_TRUE(adapter.addBlock(updates3).isOK());
+  ASSERT_TRUE(adapter.addLastReachableBlock(updates1).isOK());
+  ASSERT_TRUE(adapter.addLastReachableBlock(updates2).isOK());
+  ASSERT_TRUE(adapter.addLastReachableBlock(updates3).isOK());
 
   // Get a non-existent key with a hash that is after the existent key.
   {
@@ -689,9 +716,9 @@ TEST_P(db_adapter, get_key_by_ver_multiple_keys) {
   const auto updates2 =
       SetOfKeyValuePairs{std::make_pair(key, data2), std::make_pair(before, data1), std::make_pair(after, data3)};
   const auto updates3 = SetOfKeyValuePairs{std::make_pair(key, data3), std::make_pair(before, data2)};
-  ASSERT_TRUE(adapter.addBlock(updates1).isOK());
-  ASSERT_TRUE(adapter.addBlock(updates2).isOK());
-  ASSERT_TRUE(adapter.addBlock(updates3).isOK());
+  ASSERT_TRUE(adapter.addLastReachableBlock(updates1).isOK());
+  ASSERT_TRUE(adapter.addLastReachableBlock(updates2).isOK());
+  ASSERT_TRUE(adapter.addLastReachableBlock(updates3).isOK());
 
   // Get keys with a version that is smaller than the first version and expect an empty response.
   {
@@ -824,10 +851,10 @@ TEST_P(db_adapter, add_and_get_block) {
 
     // Add 2 blocks.
     {
-      const auto status1 = adapter.addBlock(updates1);
+      const auto status1 = adapter.addLastReachableBlock(updates1);
       ASSERT_TRUE(status1.isOK());
 
-      const auto status2 = adapter.addBlock(updates2);
+      const auto status2 = adapter.addLastReachableBlock(updates2);
       ASSERT_TRUE(status2.isOK());
     }
 
@@ -870,7 +897,7 @@ TEST_P(db_adapter, add_multiple_deterministic_blocks) {
   const auto numBlocks = 250;
   auto count = std::uint16_t{0};
   for (auto i = 1u; i <= numBlocks; ++i) {
-    ASSERT_TRUE(adapter.addBlock(getDeterministicBlockUpdates(count + 1)).isOK());
+    ASSERT_TRUE(adapter.addLastReachableBlock(getDeterministicBlockUpdates(count + 1)).isOK());
     ASSERT_EQ(adapter.getLastReachableBlock(), i);
     ++count;
   }
@@ -909,7 +936,7 @@ TEST_P(db_adapter, add_empty_blocks) {
   const auto numBlocks = 5;
 
   for (auto i = 1u; i <= numBlocks; ++i) {
-    ASSERT_TRUE(adapter.addBlock(emptyUpdates).isOK());
+    ASSERT_TRUE(adapter.addLastReachableBlock(emptyUpdates).isOK());
     ASSERT_EQ(adapter.getLastReachableBlock(), i);
   }
 
@@ -945,97 +972,123 @@ TEST_P(db_adapter, no_blocks) {
   ASSERT_TRUE(value.empty());
 }
 
-TEST_P(db_adapter, state_transfer_reverse_order) {
+TEST_P(db_adapter, state_transfer_reverse_order_with_blockchain_blocks) {
+  const auto numBlockchainBlocks = 5;
+  const auto numStBlocks = 7;
+  const auto numTotalBlocks = numBlockchainBlocks + numStBlocks;
+  const auto referenceBlockchain = createBlockchain(GetParam()->db(), numTotalBlocks);
+
   auto adapter = DBAdapter{GetParam()->db()};
 
-  const auto initialBlocks = 5;
-  const auto stBlocks = 7;
-  const auto totalBlocks = initialBlocks + stBlocks;
-
   // Add blocks to the blockchain and verify both block pointers.
-  for (auto i = 1; i <= initialBlocks; ++i) {
-    ASSERT_TRUE(adapter.addBlock(getDeterministicBlockUpdates(i * 10)).isOK());
+  for (auto i = 1; i <= numBlockchainBlocks; ++i) {
+    ASSERT_TRUE(adapter.addLastReachableBlock(block::getData(referenceBlockchain[i - 1])).isOK());
     ASSERT_EQ(adapter.getLatestBlock(), i);
     ASSERT_EQ(adapter.getLastReachableBlock(), i);
   }
 
   // Receive more blocks from state transfer and add them to the blockchain.
-  for (auto i = totalBlocks; i > initialBlocks; --i) {
-    ASSERT_TRUE(adapter
-                    .addBlock(block::create(i,
-                                            getDeterministicBlockUpdates(i * 10),
-                                            zeroDigest().content,
-                                            getHash("dummy" + std::to_string(i))),
-                              i)
-                    .isOK());
-
-    ASSERT_EQ(adapter.getLatestBlock(), totalBlocks);
-
-    if (i == initialBlocks + 1) {
-      ASSERT_EQ(adapter.getLastReachableBlock(), totalBlocks);
+  for (auto i = numTotalBlocks; i > numBlockchainBlocks; --i) {
+    ASSERT_TRUE(adapter.addBlock(referenceBlockchain[i - 1], i).isOK());
+    ASSERT_EQ(adapter.getLatestBlock(), numTotalBlocks);
+    if (i == numBlockchainBlocks + 1) {
+      // We link the blockchain and state transfer chains at that point.
+      ASSERT_EQ(adapter.getLastReachableBlock(), numTotalBlocks);
     } else {
-      ASSERT_EQ(adapter.getLastReachableBlock(), initialBlocks);
+      ASSERT_EQ(adapter.getLastReachableBlock(), numBlockchainBlocks);
     }
 
     // Verify that initial blocks are accessible at all steps.
-    for (auto j = 1; j <= initialBlocks; ++j) {
+    for (auto j = 1; j <= numBlockchainBlocks; ++j) {
       auto block = Sliver{};
       auto found = false;
       ASSERT_TRUE(adapter.getBlockById(j, block, found).isOK());
       ASSERT_TRUE(found);
-      ASSERT_TRUE(block::getData(block) == getDeterministicBlockUpdates(j * 10));
+      const auto &referenceBlock = referenceBlockchain[j - 1];
+      ASSERT_TRUE(block == referenceBlock);
+      ASSERT_TRUE(block::getData(block) == block::getData(referenceBlock));
+      ASSERT_TRUE(block::getStateHash(block) == block::getStateHash(referenceBlock));
     }
   }
 
   // Verify that all blocks are accessible at the end.
-  for (auto i = 1; i <= totalBlocks; ++i) {
+  for (auto i = 1; i <= numTotalBlocks; ++i) {
     auto block = Sliver{};
     auto found = false;
     ASSERT_TRUE(adapter.getBlockById(i, block, found).isOK());
     ASSERT_TRUE(found);
-    ASSERT_TRUE(block::getData(block) == getDeterministicBlockUpdates(i * 10));
+    const auto &referenceBlock = referenceBlockchain[i - 1];
+    ASSERT_TRUE(block == referenceBlock);
+    ASSERT_TRUE(block::getData(block) == block::getData(referenceBlock));
+    ASSERT_TRUE(block::getStateHash(block) == block::getStateHash(referenceBlock));
   }
 }
 
-TEST_P(db_adapter, state_transfer_unordered) {
+TEST_P(db_adapter, state_transfer_fetch_whole_blockchain_in_reverse_order) {
+  const auto numBlocks = 7;
+  const auto referenceBlockchain = createBlockchain(GetParam()->db(), numBlocks);
+
   auto adapter = DBAdapter{GetParam()->db()};
 
-  const auto initialBlocks = 5;
-  const auto stBlocks = 3;
-  const auto totalBlocks = initialBlocks + stBlocks;
+  for (auto i = numBlocks; i > 0; --i) {
+    ASSERT_TRUE(adapter.addBlock(referenceBlockchain[i - 1], i).isOK());
+    ASSERT_EQ(adapter.getLatestBlock(), numBlocks);
+    if (i == 1) {
+      // We link the blockchain and state transfer chains at that point.
+      ASSERT_EQ(adapter.getLastReachableBlock(), numBlocks);
+    } else {
+      ASSERT_EQ(adapter.getLastReachableBlock(), 0);
+    }
+  }
+
+  // Verify that all blocks are accessible at the end.
+  for (auto i = 1; i <= numBlocks; ++i) {
+    auto block = Sliver{};
+    auto found = false;
+    ASSERT_TRUE(adapter.getBlockById(i, block, found).isOK());
+    ASSERT_TRUE(found);
+    const auto &referenceBlock = referenceBlockchain[i - 1];
+    ASSERT_TRUE(block == referenceBlock);
+    ASSERT_TRUE(block::getData(block) == block::getData(referenceBlock));
+    ASSERT_TRUE(block::getStateHash(block) == block::getStateHash(referenceBlock));
+  }
+}
+
+TEST_P(db_adapter, state_transfer_unordered_with_blockchain_blocks) {
+  const auto numBlockchainBlocks = 5;
+  const auto numStBlocks = 3;
+  const auto numTotalBlocks = numBlockchainBlocks + numStBlocks;
+  const auto referenceBlockchain = createBlockchain(GetParam()->db(), numTotalBlocks);
+
+  auto adapter = DBAdapter{GetParam()->db()};
 
   // Add blocks to the blockchain and verify both block pointers.
-  for (auto i = 1; i <= initialBlocks; ++i) {
-    ASSERT_TRUE(adapter.addBlock(getDeterministicBlockUpdates(i * 10)).isOK());
+  for (auto i = 1; i <= numBlockchainBlocks; ++i) {
+    ASSERT_TRUE(adapter.addLastReachableBlock(block::getData(referenceBlockchain[i - 1])).isOK());
     ASSERT_EQ(adapter.getLatestBlock(), i);
     ASSERT_EQ(adapter.getLastReachableBlock(), i);
   }
 
   // Add block 7.
   {
-    ASSERT_TRUE(
-        adapter
-            .addBlock(block::create(7, getDeterministicBlockUpdates(7 * 10), zeroDigest().content, getHash("dummy7")),
-                      7)
-            .isOK());
-    ASSERT_EQ(adapter.getLastReachableBlock(), initialBlocks);
+    ASSERT_TRUE(adapter.addBlock(referenceBlockchain[6], 7).isOK());
+    ASSERT_EQ(adapter.getLastReachableBlock(), numBlockchainBlocks);
     ASSERT_EQ(adapter.getLatestBlock(), 7);
-    for (auto i = 1; i <= initialBlocks; ++i) {
+    for (auto i = 1; i <= numBlockchainBlocks; ++i) {
       auto block = Sliver{};
       auto found = false;
       ASSERT_TRUE(adapter.getBlockById(i, block, found).isOK());
       ASSERT_TRUE(found);
-      ASSERT_TRUE(block::getData(block) == getDeterministicBlockUpdates(i * 10));
+      const auto &referenceBlock = referenceBlockchain[i - 1];
+      ASSERT_TRUE(block == referenceBlock);
+      ASSERT_TRUE(block::getData(block) == block::getData(referenceBlock));
+      ASSERT_TRUE(block::getStateHash(block) == block::getStateHash(referenceBlock));
     }
   }
 
   // Add block 6.
   {
-    ASSERT_TRUE(
-        adapter
-            .addBlock(block::create(6, getDeterministicBlockUpdates(6 * 10), zeroDigest().content, getHash("dummy6")),
-                      6)
-            .isOK());
+    ASSERT_TRUE(adapter.addBlock(referenceBlockchain[5], 6).isOK());
     ASSERT_EQ(adapter.getLastReachableBlock(), 7);
     ASSERT_EQ(adapter.getLatestBlock(), 7);
     for (auto i = 1; i <= 7; ++i) {
@@ -1043,28 +1096,30 @@ TEST_P(db_adapter, state_transfer_unordered) {
       auto found = false;
       ASSERT_TRUE(adapter.getBlockById(i, block, found).isOK());
       ASSERT_TRUE(found);
-      ASSERT_TRUE(block::getData(block) == getDeterministicBlockUpdates(i * 10));
+      const auto &referenceBlock = referenceBlockchain[i - 1];
+      ASSERT_TRUE(block == referenceBlock);
+      ASSERT_TRUE(block::getData(block) == block::getData(referenceBlock));
+      ASSERT_TRUE(block::getStateHash(block) == block::getStateHash(referenceBlock));
     }
   }
 
   // Add block 8.
   {
-    ASSERT_TRUE(
-        adapter
-            .addBlock(block::create(8, getDeterministicBlockUpdates(8 * 10), zeroDigest().content, getHash("dummy8")),
-                      8)
-            .isOK());
+    ASSERT_TRUE(adapter.addBlock(referenceBlockchain[7], 8).isOK());
     ASSERT_EQ(adapter.getLastReachableBlock(), 8);
     ASSERT_EQ(adapter.getLatestBlock(), 8);
   }
 
   // Verify that all blocks are accessible at the end.
-  for (auto i = 1; i <= totalBlocks; ++i) {
+  for (auto i = 1; i <= numTotalBlocks; ++i) {
     auto block = Sliver{};
     auto found = false;
     ASSERT_TRUE(adapter.getBlockById(i, block, found).isOK());
     ASSERT_TRUE(found);
-    ASSERT_TRUE(block::getData(block) == getDeterministicBlockUpdates(i * 10));
+    const auto &referenceBlock = referenceBlockchain[i - 1];
+    ASSERT_TRUE(block == referenceBlock);
+    ASSERT_TRUE(block::getData(block) == block::getData(referenceBlock));
+    ASSERT_TRUE(block::getStateHash(block) == block::getStateHash(referenceBlock));
   }
 }
 

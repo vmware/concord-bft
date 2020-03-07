@@ -3,14 +3,8 @@
 #include "assertUtils.hpp"
 #include "blockchain/direct_kv_block.h"
 #include "blockchain/merkle_tree_serialization.h"
-#include "endianness.hpp"
 
-#include <algorithm>
-#include <cstddef>
 #include <cstdint>
-#include <iterator>
-#include <limits>
-#include <string>
 
 namespace concord {
 namespace storage {
@@ -24,19 +18,13 @@ using sparse_merkle::Hash;
 using ::concordUtils::BlockId;
 using ::concordUtils::Sliver;
 using ::concordUtils::SetOfKeyValuePairs;
-using ::concordUtils::toBigEndianArrayBuffer;
 
-// Use the v1DirectKeyValue implementation and just add the the block ID and the state hash at the back. We want that so
-// that they are included in the block digest. We can do that, because users are not expected to interpret the returned
-// buffer themselves.
+// Use the v1DirectKeyValue implementation and just add the state hash at the back. We want that so it is included in
+// the block digest. We can do that, because users are not expected to interpret the returned buffer themselves.
 Sliver create(BlockId blockId, const SetOfKeyValuePairs &updates, const void *parentDigest, const Hash &stateHash) {
-  std::array<std::uint8_t, sizeof(blockId) + Hash::SIZE_IN_BYTES> userData;
-  const auto blockIdBuf = toBigEndianArrayBuffer(blockId);
-  std::copy(std::cbegin(blockIdBuf), std::cend(blockIdBuf), std::begin(userData));
-  std::copy(stateHash.data(), stateHash.data() + Hash::SIZE_IN_BYTES, std::begin(userData) + blockIdBuf.size());
-
   SetOfKeyValuePairs out;
-  return v1DirectKeyValue::block::create(updates, out, parentDigest, userData.data(), userData.size());
+  return v1DirectKeyValue::block::create(
+      updates, out, parentDigest, stateHash.dataArray().data(), stateHash.dataArray().size());
 }
 
 SetOfKeyValuePairs getData(const Sliver &block) { return v1DirectKeyValue::block::getData(block); }

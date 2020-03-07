@@ -53,22 +53,25 @@ using Keys = std::unordered_map<concordUtils::Key, const KeyData>;
 // Represents a block node. The parentDigest pointer must point to a buffer that is at least BLOCK_DIGEST_SIZE bytes
 // long.
 struct Node {
-  static constexpr auto MIN_SIZE =
-      sizeof(concordUtils::BlockId) + BLOCK_DIGEST_SIZE + sparse_merkle::Hash::SIZE_IN_BYTES;
-
   static constexpr auto PARENT_DIGEST_SIZE = BLOCK_DIGEST_SIZE;
 
   static constexpr auto STATE_HASH_SIZE = sparse_merkle::Hash::SIZE_IN_BYTES;
 
+  static constexpr auto STATE_ROOT_VERSION_SIZE = sparse_merkle::Version::SIZE_IN_BYTES;
+
   static constexpr auto MIN_KEY_SIZE = 1 + sizeof(KeyLengthType);  // Add a byte of key data.
+
+  static constexpr auto MIN_SIZE =
+      sizeof(concordUtils::BlockId) + PARENT_DIGEST_SIZE + STATE_HASH_SIZE + STATE_ROOT_VERSION_SIZE;
 
   Node() = default;
 
   Node(concordUtils::BlockId pBlockId,
        const void *pParentDigest,
        const sparse_merkle::Hash &pStateHash,
+       const sparse_merkle::Version &pStateRootVersion,
        Keys pKeys = Keys{})
-      : blockId{pBlockId}, stateHash{pStateHash}, keys{pKeys} {
+      : blockId{pBlockId}, stateHash{pStateHash}, stateRootVersion{pStateRootVersion}, keys{pKeys} {
     setParentDigest(pParentDigest);
   }
 
@@ -80,12 +83,13 @@ struct Node {
   concordUtils::BlockId blockId{0};
   std::array<std::uint8_t, BLOCK_DIGEST_SIZE> parentDigest;
   sparse_merkle::Hash stateHash;
+  sparse_merkle::Version stateRootVersion;
   Keys keys;
 };
 
 inline bool operator==(const Node &lhs, const Node &rhs) {
   return lhs.blockId == rhs.blockId && lhs.parentDigest == rhs.parentDigest && lhs.stateHash == rhs.stateHash &&
-         lhs.keys == rhs.keys;
+         lhs.stateRootVersion == rhs.stateRootVersion && lhs.keys == rhs.keys;
 }
 
 // Creates a block node that is saved to the DB. It only includes the keys in the block, excluding the values as they
