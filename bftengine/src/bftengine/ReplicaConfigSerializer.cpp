@@ -90,9 +90,6 @@ void ReplicaConfigSerializer::serializeDataMembers(ostream &outStream) const {
   outStream.write((char *)&config_->autoPrimaryRotationTimerMillisec,
                   sizeof(config_->autoPrimaryRotationTimerMillisec));
 
-  // Serialize metricsDumpIntervalSeconds
-  outStream.write((char *)&config_->metricsDumpIntervalSeconds, sizeof(config_->metricsDumpIntervalSeconds));
-
   // Serialize public keys
   auto numOfPublicKeys = (int64_t)config_->publicKeysOfReplicas.size();
   outStream.write((char *)&numOfPublicKeys, sizeof(numOfPublicKeys));
@@ -123,6 +120,9 @@ void ReplicaConfigSerializer::serializeDataMembers(ostream &outStream) const {
 
   // Serialize debugPersistentStorageEnabled
   outStream.write((char *)&config_->debugPersistentStorageEnabled, sizeof(config_->debugPersistentStorageEnabled));
+
+  // Serialize metricsDumpIntervalSeconds
+  outStream.write((char *)&config_->metricsDumpIntervalSeconds, sizeof(config_->metricsDumpIntervalSeconds));
 }
 
 void ReplicaConfigSerializer::serializePointer(Serializable *ptrToClass, ostream &outStream) const {
@@ -204,8 +204,6 @@ void ReplicaConfigSerializer::deserializeDataMembers(istream &inStream) {
   // Deserialize autoPrimaryRotationTimerMillisec
   inStream.read((char *)&config.autoPrimaryRotationTimerMillisec, sizeof(config.autoPrimaryRotationTimerMillisec));
 
-  // Deserialize metricsDumpIntervalSeconds
-  inStream.read((char *)&config.metricsDumpIntervalSeconds, sizeof(config.metricsDumpIntervalSeconds));
   // Deserialize public keys
   int64_t numOfPublicKeys = 0;
   inStream.read((char *)&numOfPublicKeys, sizeof(numOfPublicKeys));
@@ -227,6 +225,9 @@ void ReplicaConfigSerializer::deserializeDataMembers(istream &inStream) {
   inStream.read((char *)&config.sizeOfReservedPage, sizeof(config.sizeOfReservedPage));
 
   inStream.read((char *)&config.debugPersistentStorageEnabled, sizeof(config.debugPersistentStorageEnabled));
+
+  // Deserialize metricsDumpIntervalSeconds
+  inStream.read((char *)&config.metricsDumpIntervalSeconds, sizeof(config.metricsDumpIntervalSeconds));
 }
 
 SerializablePtr ReplicaConfigSerializer::deserializePointer(std::istream &inStream) {
