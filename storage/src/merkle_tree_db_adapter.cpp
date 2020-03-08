@@ -82,16 +82,6 @@ SetOfKeyValuePairs batchToDbUpdates(const Tree::UpdateBatch &batch) {
   return updates;
 }
 
-Version stateRootVersion(const Tree::UpdateBatch &batch) {
-  auto ver = Version{};
-  for (const auto &kv : batch.internal_nodes) {
-    if (kv.first.path().empty() && ver < kv.first.version()) {
-      ver = kv.first.version();
-    }
-  }
-  return ver;
-}
-
 // Undefined behavior if an incorrect type is read from the buffer.
 EDBKeyType getDBKeyType(const Sliver &s) {
   Assert(!s.empty());
@@ -290,7 +280,7 @@ BlockId DBAdapter::getLatestBlock() const {
 
 Sliver DBAdapter::createBlockNode(const SetOfKeyValuePairs &updates,
                                   BlockId blockId,
-                                  const sparse_merkle::Version &stateRootVersion) const {
+                                  const Version &stateRootVersion) const {
   // Make sure the digest is zero-initialized by using {} initialization.
   auto parentBlockDigest = StateTransferDigest{};
   if (blockId > 1) {
@@ -359,8 +349,7 @@ concordUtils::SetOfKeyValuePairs DBAdapter::lastReachableBlockkDbUpdates(const S
   auto dbUpdates = batchToDbUpdates(updateBatch);
 
   // Block key.
-  dbUpdates[DBKeyManipulator::genBlockDbKey(blockId)] =
-      createBlockNode(updates, blockId, stateRootVersion(updateBatch));
+  dbUpdates[DBKeyManipulator::genBlockDbKey(blockId)] = createBlockNode(updates, blockId, smTree_.get_version());
 
   return dbUpdates;
 }
@@ -398,6 +387,10 @@ LeafNode DBAdapter::Reader::get_leaf(const LeafKey &key) const {
 }
 
 Status DBAdapter::addLastReachableBlock(const SetOfKeyValuePairs &updates) {
+  if (updates.empty()) {
+    return Status::IllegalOperation("Adding empty blocks is not allowed");
+  }
+
   const auto blockId = getLastReachableBlock() + 1;
   return db_->multiPut(lastReachableBlockkDbUpdates(updates, blockId));
 }

@@ -929,24 +929,9 @@ TEST_P(db_adapter, add_multiple_deterministic_blocks) {
   }
 }
 
-TEST_P(db_adapter, add_empty_blocks) {
+TEST_P(db_adapter, add_empty_block) {
   auto adapter = DBAdapter{GetParam()->db()};
-
-  const auto emptyUpdates = SetOfKeyValuePairs{};
-  const auto numBlocks = 5;
-
-  for (auto i = 1u; i <= numBlocks; ++i) {
-    ASSERT_TRUE(adapter.addLastReachableBlock(emptyUpdates).isOK());
-    ASSERT_EQ(adapter.getLastReachableBlock(), i);
-  }
-
-  for (auto i = 1u; i <= numBlocks; ++i) {
-    auto block = Sliver{};
-    auto found = false;
-    ASSERT_TRUE(adapter.getBlockById(i, block, found).isOK());
-    ASSERT_TRUE(found);
-    ASSERT_TRUE(emptyUpdates == block::getData(block));
-  }
+  ASSERT_TRUE(adapter.addLastReachableBlock(SetOfKeyValuePairs{}).isIllegalOperation());
 }
 
 TEST_P(db_adapter, no_blocks) {
