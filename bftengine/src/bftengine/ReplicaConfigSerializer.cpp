@@ -30,7 +30,7 @@ uint32_t ReplicaConfigSerializer::maxSize(uint32_t numOfReplicas) {
           IThresholdSigner::maxSize() * 3 + IThresholdVerifier::maxSize() * 3 +
           sizeof(config_->maxExternalMessageSize) + sizeof(config_->maxReplyMessageSize) +
           sizeof(config_->maxNumOfReservedPages) + sizeof(config_->sizeOfReservedPage) +
-          sizeof(config_->debugPersistentStorageEnabled));
+          sizeof(config_->debugPersistentStorageEnabled) + sizeof(config_->metricsDumpIntervalSeconds));
 }
 
 ReplicaConfigSerializer::ReplicaConfigSerializer(ReplicaConfig *config) {
@@ -120,6 +120,9 @@ void ReplicaConfigSerializer::serializeDataMembers(ostream &outStream) const {
 
   // Serialize debugPersistentStorageEnabled
   outStream.write((char *)&config_->debugPersistentStorageEnabled, sizeof(config_->debugPersistentStorageEnabled));
+
+  // Serialize metricsDumpIntervalSeconds
+  outStream.write((char *)&config_->metricsDumpIntervalSeconds, sizeof(config_->metricsDumpIntervalSeconds));
 }
 
 void ReplicaConfigSerializer::serializePointer(Serializable *ptrToClass, ostream &outStream) const {
@@ -153,7 +156,8 @@ bool ReplicaConfigSerializer::operator==(const ReplicaConfigSerializer &other) c
        (other.config_->maxExternalMessageSize == config_->maxExternalMessageSize) &&
        (other.config_->maxReplyMessageSize == config_->maxReplyMessageSize) &&
        (other.config_->maxNumOfReservedPages == config_->maxNumOfReservedPages) &&
-       (other.config_->sizeOfReservedPage == config_->sizeOfReservedPage));
+       (other.config_->sizeOfReservedPage == config_->sizeOfReservedPage) &&
+       (other.config_->metricsDumpIntervalSeconds == config_->metricsDumpIntervalSeconds));
   return result;
 }
 
@@ -221,6 +225,9 @@ void ReplicaConfigSerializer::deserializeDataMembers(istream &inStream) {
   inStream.read((char *)&config.sizeOfReservedPage, sizeof(config.sizeOfReservedPage));
 
   inStream.read((char *)&config.debugPersistentStorageEnabled, sizeof(config.debugPersistentStorageEnabled));
+
+  // Deserialize metricsDumpIntervalSeconds
+  inStream.read((char *)&config.metricsDumpIntervalSeconds, sizeof(config.metricsDumpIntervalSeconds));
 }
 
 SerializablePtr ReplicaConfigSerializer::deserializePointer(std::istream &inStream) {
