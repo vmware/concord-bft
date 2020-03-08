@@ -30,7 +30,7 @@ uint32_t ReplicaConfigSerializer::maxSize(uint32_t numOfReplicas) {
           IThresholdSigner::maxSize() * 3 + IThresholdVerifier::maxSize() * 3 +
           sizeof(config_->maxExternalMessageSize) + sizeof(config_->maxReplyMessageSize) +
           sizeof(config_->maxNumOfReservedPages) + sizeof(config_->sizeOfReservedPage) +
-          sizeof(config_->debugPersistentStorageEnabled));
+          sizeof(config_->debugPersistentStorageEnabled) + sizeof(config_->metricsDumpIntervalSeconds));
 }
 
 ReplicaConfigSerializer::ReplicaConfigSerializer(ReplicaConfig *config) {
@@ -89,6 +89,9 @@ void ReplicaConfigSerializer::serializeDataMembers(ostream &outStream) const {
   // Serialize autoPrimaryRotationTimerMillisec
   outStream.write((char *)&config_->autoPrimaryRotationTimerMillisec,
                   sizeof(config_->autoPrimaryRotationTimerMillisec));
+
+  // Serialize metricsDumpIntervalSeconds
+  outStream.write((char*) &config_->metricsDumpIntervalSeconds, sizeof(config_->metricsDumpIntervalSeconds));
 
   // Serialize public keys
   auto numOfPublicKeys = (int64_t)config_->publicKeysOfReplicas.size();
@@ -153,7 +156,8 @@ bool ReplicaConfigSerializer::operator==(const ReplicaConfigSerializer &other) c
        (other.config_->maxExternalMessageSize == config_->maxExternalMessageSize) &&
        (other.config_->maxReplyMessageSize == config_->maxReplyMessageSize) &&
        (other.config_->maxNumOfReservedPages == config_->maxNumOfReservedPages) &&
-       (other.config_->sizeOfReservedPage == config_->sizeOfReservedPage));
+       (other.config_->sizeOfReservedPage == config_->sizeOfReservedPage) &&
+      (other.config_->metricsDumpIntervalSeconds == config_->metricsDumpIntervalSeconds));
   return result;
 }
 
@@ -200,6 +204,8 @@ void ReplicaConfigSerializer::deserializeDataMembers(istream &inStream) {
   // Deserialize autoPrimaryRotationTimerMillisec
   inStream.read((char *)&config.autoPrimaryRotationTimerMillisec, sizeof(config.autoPrimaryRotationTimerMillisec));
 
+  // Deserialize metricsDumpIntervalSeconds
+  inStream.read((char *)&config.metricsDumpIntervalSeconds, sizeof(config.metricsDumpIntervalSeconds));
   // Deserialize public keys
   int64_t numOfPublicKeys = 0;
   inStream.read((char *)&numOfPublicKeys, sizeof(numOfPublicKeys));
