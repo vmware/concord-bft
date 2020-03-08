@@ -31,7 +31,9 @@ class SignedShareBase : public MessageBase {
 
   uint16_t signatureLen() const { return b()->thresSigLength; }
 
-  char* signatureBody() const { return body() + sizeof(SignedShareBaseHeader); }
+  char* signatureBody() const { return body() + sizeof(SignedShareBaseHeader) + msgBody_->span_context_size; }
+
+  virtual std::string spanContext() const;
 
  protected:
 #pragma pack(push, 1)
@@ -43,15 +45,25 @@ class SignedShareBase : public MessageBase {
     // Followed by threshold signature of <viewNumber, seqNumber, and the preprepare digest>
   };
 #pragma pack(pop)
-  static_assert(sizeof(SignedShareBaseHeader) == (2 + 8 + 8 + 2), "SignedShareBaseHeader is 58B");
+  static_assert(sizeof(SignedShareBaseHeader) == (6 + 8 + 8 + 2), "SignedShareBaseHeader is 62B");
 
-  static SignedShareBase* create(
-      int16_t type, ViewNum v, SeqNum s, ReplicaId senderId, Digest& digest, IThresholdSigner* thresholdSigner);
-  static SignedShareBase* create(
-      int16_t type, ViewNum v, SeqNum s, ReplicaId senderId, const char* sig, uint16_t sigLen);
+  static SignedShareBase* create(int16_t type,
+                                 ViewNum v,
+                                 SeqNum s,
+                                 ReplicaId senderId,
+                                 Digest& digest,
+                                 IThresholdSigner* thresholdSigner,
+                                 const std::string& spanContext = "");
+  static SignedShareBase* create(int16_t type,
+                                 ViewNum v,
+                                 SeqNum s,
+                                 ReplicaId senderId,
+                                 const char* sig,
+                                 uint16_t sigLen,
+                                 const std::string& spanContext = "");
   void _validate(const ReplicasInfo& repInfo, int16_t type) const;
 
-  SignedShareBase(ReplicaId sender, int16_t type, size_t msgSize);
+  SignedShareBase(ReplicaId sender, int16_t type, const std::string& spanContext, size_t msgSize);
 
   SignedShareBaseHeader* b() const { return (SignedShareBaseHeader*)msgBody_; }
 };
@@ -62,8 +74,12 @@ class SignedShareBase : public MessageBase {
 
 class PreparePartialMsg : public SignedShareBase {
  public:
-  static PreparePartialMsg* create(
-      ViewNum v, SeqNum s, ReplicaId senderId, Digest& ppDigest, IThresholdSigner* thresholdSigner);
+  static PreparePartialMsg* create(ViewNum v,
+                                   SeqNum s,
+                                   ReplicaId senderId,
+                                   Digest& ppDigest,
+                                   IThresholdSigner* thresholdSigner,
+                                   const std::string& spanContext = "");
   void validate(const ReplicasInfo&) const override;
 };
 
@@ -75,7 +91,8 @@ class PrepareFullMsg : public SignedShareBase {
  public:
   static MsgSize maxSizeOfPrepareFull();
   static MsgSize maxSizeOfPrepareFullInLocalBuffer();
-  static PrepareFullMsg* create(ViewNum v, SeqNum s, ReplicaId senderId, const char* sig, uint16_t sigLen);
+  static PrepareFullMsg* create(
+      ViewNum v, SeqNum s, ReplicaId senderId, const char* sig, uint16_t sigLen, const std::string& spanContext = "");
   void validate(const ReplicasInfo&) const override;
 };
 
@@ -85,8 +102,12 @@ class PrepareFullMsg : public SignedShareBase {
 
 class CommitPartialMsg : public SignedShareBase {
  public:
-  static CommitPartialMsg* create(
-      ViewNum v, SeqNum s, ReplicaId senderId, Digest& ppDoubleDigest, IThresholdSigner* thresholdSigner);
+  static CommitPartialMsg* create(ViewNum v,
+                                  SeqNum s,
+                                  ReplicaId senderId,
+                                  Digest& ppDoubleDigest,
+                                  IThresholdSigner* thresholdSigner,
+                                  const std::string& spanContext = "");
   void validate(const ReplicasInfo&) const override;
 };
 
@@ -98,7 +119,8 @@ class CommitFullMsg : public SignedShareBase {
  public:
   static MsgSize maxSizeOfCommitFull();
   static MsgSize maxSizeOfCommitFullInLocalBuffer();
-  static CommitFullMsg* create(ViewNum v, SeqNum s, int16_t senderId, const char* sig, uint16_t sigLen);
+  static CommitFullMsg* create(
+      ViewNum v, SeqNum s, ReplicaId senderId, const char* sig, uint16_t sigLen, const std::string& spanContext = "");
   void validate(const ReplicasInfo&) const override;
 };
 

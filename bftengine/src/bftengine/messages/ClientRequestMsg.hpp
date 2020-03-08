@@ -24,7 +24,7 @@ class ClientRequestMsg : public MessageBase {
   static_assert(sizeof(ClientRequestMsgHeader::msgType) == sizeof(MessageBase::Header), "");
   static_assert(sizeof(ClientRequestMsgHeader::idOfClientProxy) == sizeof(NodeIdType), "");
   static_assert(sizeof(ClientRequestMsgHeader::reqSeqNum) == sizeof(ReqId), "");
-  static_assert(sizeof(ClientRequestMsgHeader) == 29, "ClientRequestMsgHeader size is 29B");
+  static_assert(sizeof(ClientRequestMsgHeader) == 33, "ClientRequestMsgHeader size is 21B");
 
   // TODO(GG): more asserts
 
@@ -35,7 +35,8 @@ class ClientRequestMsg : public MessageBase {
                    uint32_t requestLength,
                    const char* request,
                    uint64_t reqTimeoutMilli,
-                   const std::string& cid = "");
+                   const std::string& cid = "",
+                   const std::string& span_context = "");
 
   ClientRequestMsg(ClientRequestMsgHeader* body);
 

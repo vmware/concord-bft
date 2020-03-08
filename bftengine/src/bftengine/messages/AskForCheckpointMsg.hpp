@@ -13,6 +13,7 @@
 
 #include "MessageBase.hpp"
 #include "Digest.hpp"
+#include "assertUtils.hpp"
 
 namespace bftEngine::impl {
 

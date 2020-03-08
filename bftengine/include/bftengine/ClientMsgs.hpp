@@ -21,6 +21,7 @@ namespace bftEngine {
 #pragma pack(push, 1)
 struct ClientRequestMsgHeader {
   uint16_t msgType;  // always == REQUEST_MSG_TYPE
+  uint32_t span_context_size = 0u;
   uint16_t idOfClientProxy;
   uint8_t flags;  // bit 0 == isReadOnly, bit 1 = preProcess, bits 2-7 are reserved
   uint64_t reqSeqNum;

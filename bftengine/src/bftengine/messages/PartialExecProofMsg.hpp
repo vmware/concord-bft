@@ -44,7 +44,7 @@ class PartialExecProofMsg : public MessageBase {
     // followed by a signature
   };
 #pragma pack(pop)
-  static_assert(sizeof(PartialExecProofMsgHeader) == (2 + 8 + 8 + 2), "PartialExecProofMsgHeader is 20B");
+  static_assert(sizeof(PartialExecProofMsgHeader) == (6 + 8 + 8 + 2), "PartialExecProofMsgHeader is 24B");
 
   PartialExecProofMsgHeader* b() const { return (PartialExecProofMsgHeader*)msgBody_; }
 };

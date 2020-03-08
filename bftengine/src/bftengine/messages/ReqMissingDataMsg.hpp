@@ -66,7 +66,7 @@ class ReqMissingDataMsg : public MessageBase {
     // bit 8 : slowPathHasStarted
   };
 #pragma pack(pop)
-  static_assert(sizeof(ReqMissingDataMsgHeader) == (2 + 8 + 8 + 2), "ReqMissingDataMsgHeader is 58B");
+  static_assert(sizeof(ReqMissingDataMsgHeader) == (6 + 8 + 8 + 2), "ReqMissingDataMsgHeader is 62B");
 
   ReqMissingDataMsgHeader* b() const { return (ReqMissingDataMsgHeader*)msgBody_; }
 };

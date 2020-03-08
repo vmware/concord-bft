@@ -76,7 +76,7 @@ class FullExecProofMsg : public MessageBase {
     // 3. signature (signatureLength bytes)
   };
 #pragma pack(pop)
-  static_assert(sizeof(FullExecProofMsgHeader) == (2 + 2 + 8 + 2 + 2 + 2 + 2), "FullExecProofMsgHeader is 20B");
+  static_assert(sizeof(FullExecProofMsgHeader) == (6 + 2 + 8 + 2 + 2 + 2 + 2), "FullExecProofMsgHeader is 24B");
 
   FullExecProofMsgHeader* b() const { return (FullExecProofMsgHeader*)msgBody_; }
 };

@@ -35,6 +35,7 @@ typedef uint16_t NodeIdType;  // TODO(GG): change name
 
 typedef uint32_t MsgSize;
 typedef uint16_t MsgType;
+typedef uint32_t SpanContextSize;
 
 enum class CommitPath { NA = -1, OPTIMISTIC_FAST = 0, FAST_WITH_THRESHOLD = 1, SLOW = 2 };
 

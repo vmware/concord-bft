@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include <stdint.h>
+#include <cstdint>
 
 #include "PrimitiveTypes.hpp"
 #include "assertUtils.hpp"
@@ -42,7 +42,7 @@ class PrePrepareMsg : public MessageBase {
     // 10 = SLOW) bits 4-15: zero
   };
 #pragma pack(pop)
-  static_assert(sizeof(PrePrepareMsgHeader) == (2 + 8 + 8 + 2 + DIGEST_SIZE + 2 + 4), "PrePrepareMsgHeader is 58B");
+  static_assert(sizeof(PrePrepareMsgHeader) == (6 + 8 + 8 + 2 + DIGEST_SIZE + 2 + 4), "PrePrepareMsgHeader is 62B");
 
   static const size_t prePrepareHeaderPrefix = sizeof(PrePrepareMsgHeader) -
                                                sizeof(PrePrepareMsgHeader::numberOfRequests) -
@@ -55,8 +55,11 @@ class PrePrepareMsg : public MessageBase {
 
   static MsgSize maxSizeOfPrePrepareMsgInLocalBuffer();
 
-  static PrePrepareMsg* createNullPrePrepareMsg(
-      ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath = CommitPath::SLOW);  // TODO(GG): why static method ?
+  static PrePrepareMsg* createNullPrePrepareMsg(ReplicaId sender,
+                                                ViewNum v,
+                                                SeqNum s,
+                                                CommitPath firstPath = CommitPath::SLOW,
+                                                const std::string& span_context = "");  // TODO(GG): why static method ?
 
   static const Digest& digestOfNullPrePrepareMsg();
 
@@ -66,9 +69,12 @@ class PrePrepareMsg : public MessageBase {
 
   PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, bool isNull = false, size_t size = 0);
 
+  PrePrepareMsg(
+      ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, const std::string& span_context, bool isNull, size_t size = 0);
+
   uint32_t remainingSizeForRequests() const;
 
-  void addRequest(char* pRequest, uint32_t requestSize);
+  void addRequest(const char* pRequest, uint32_t requestSize);
 
   void finishAddingRequests();
 
@@ -89,7 +95,7 @@ class PrePrepareMsg : public MessageBase {
   // update view and first path
 
   void updateView(ViewNum v, CommitPath firstPath = CommitPath::SLOW);
-
+  std::string spanContext() const override;
   const std::string getClientCorrelationIdForMsg(int index) const;
   const std::string getBatchCorrelationIdAsString() const;
 
@@ -102,6 +108,7 @@ class PrePrepareMsg : public MessageBase {
 
   PrePrepareMsgHeader* b() const { return (PrePrepareMsgHeader*)msgBody_; }
 
+  uint32_t payloadShift() const;
   friend class RequestsIterator;
 };
 

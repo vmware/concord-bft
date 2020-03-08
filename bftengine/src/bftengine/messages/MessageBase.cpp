@@ -76,8 +76,11 @@ MessageBase::MessageBase(NodeIdType sender) {
 #endif
 }
 
-MessageBase::MessageBase(NodeIdType sender, MsgType type, MsgSize size) {
+MessageBase::MessageBase(NodeIdType sender, MsgType type, MsgSize size) : MessageBase(sender, type, 0u, size) {}
+
+MessageBase::MessageBase(NodeIdType sender, MsgType type, SpanContextSize spanContextSize, MsgSize size) {
   Assert(size > 0);
+  size = size + spanContextSize;
   msgBody_ = (MessageBase::Header *)std::malloc(size);
   memset(msgBody_, 0, size);
   storageSize_ = size;
@@ -85,6 +88,7 @@ MessageBase::MessageBase(NodeIdType sender, MsgType type, MsgSize size) {
   owner_ = true;
   sender_ = sender;
   msgBody_->msgType = type;
+  msgBody_->span_context_size = spanContextSize;
 
 #ifdef DEBUG_MEMORY_MSG
   liveMessagesDebug.insert(this);
@@ -183,7 +187,7 @@ bool MessageBase::equals(const MessageBase &other) const {
   return (memcmp(other.msgBody_, msgBody_, msgSize_) == 0);
 }
 
-size_t MessageBase::serializeMsg(char *&buf, MessageBase *msg) {
+size_t MessageBase::serializeMsg(char *&buf, const MessageBase *msg) {
   // As messages could be empty (nullptr), an additional flag is required to
   // distinguish between empty and filled ones.
   uint8_t msgFilledFlag = (msg != nullptr) ? 1 : 0;

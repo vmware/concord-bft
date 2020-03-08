@@ -25,7 +25,7 @@ PreProcessReplyMsg::PreProcessReplyMsg(SigManagerSharedPtr sigManager,
                                        NodeIdType senderId,
                                        uint16_t clientId,
                                        uint64_t reqSeqNum)
-    : MessageBase(senderId, MsgCode::PreProcessReply, maxReplyMsgSize_), sigManager_(sigManager) {
+    : MessageBase(senderId, MsgCode::PreProcessReply, 0, maxReplyMsgSize_), sigManager_(sigManager) {
   setParams(senderId, clientId, reqSeqNum);
 }
 

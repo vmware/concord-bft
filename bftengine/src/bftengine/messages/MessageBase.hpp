@@ -24,14 +24,16 @@ class MessageBase {
 #pragma pack(push, 1)
   struct Header {
     MsgType msgType;
+    SpanContextSize span_context_size = 0u;
   };
 #pragma pack(pop)
 
-  static_assert(sizeof(Header) == 2, "MessageBase::Header is 2B");
+  static_assert(sizeof(Header) == 6, "MessageBase::Header is 2B");
 
   explicit MessageBase(NodeIdType sender);
 
   MessageBase(NodeIdType sender, MsgType type, MsgSize size);
+  MessageBase(NodeIdType sender, MsgType type, SpanContextSize span_context_size, MsgSize size);
 
   MessageBase(NodeIdType sender, Header *body, MsgSize size, bool ownerOfStorage);
 
@@ -45,7 +47,7 @@ class MessageBase {
 
   bool equals(const MessageBase &other) const;
 
-  static size_t serializeMsg(char *&buf, MessageBase *msg);
+  static size_t serializeMsg(char *&buf, const MessageBase *msg);
   static MessageBase *deserializeMsg(char *&buf, size_t bufLen, size_t &actualSize);
 
   MsgSize size() const { return msgSize_; }
@@ -56,17 +58,19 @@ class MessageBase {
 
   MsgType type() const { return msgBody_->msgType; }
 
+  SpanContextSize spanContextSize() const { return msgBody_->span_context_size; }
+  virtual std::string spanContext() const { return ""; };
+
   MessageBase *cloneObjAndMsg() const;
 
-  void writeObjAndMsgToLocalBuffer(char *buffer, size_t bufferLength, size_t *actualSize) const;
   size_t sizeNeededForObjAndMsgInLocalBuffer() const;
-  static MessageBase *createObjAndMsgFromLocalBuffer(char *buffer, size_t bufferLength, size_t *actualSize);
-
 #ifdef DEBUG_MEMORY_MSG
   static void printLiveMessages();
 #endif
 
  protected:
+  void writeObjAndMsgToLocalBuffer(char *buffer, size_t bufferLength, size_t *actualSize) const;
+  static MessageBase *createObjAndMsgFromLocalBuffer(char *buffer, size_t bufferLength, size_t *actualSize);
   void shrinkToFit();
 
   void setMsgSize(MsgSize size);

@@ -53,7 +53,7 @@ class NewViewMsg : public MessageBase {
   };
 #pragma pack(pop)
 
-  static_assert(sizeof(NewViewMsgHeader) == (2 + 8 + 2), "NewViewMsgHeader is 12B");
+  static_assert(sizeof(NewViewMsgHeader) == (6 + 8 + 2), "NewViewMsgHeader is 16B");
   static_assert(sizeof(NewViewElement) == (2 + DIGEST_SIZE), "NewViewElement is 34B");
 
   NewViewMsgHeader* b() const { return (NewViewMsgHeader*)msgBody_; }

@@ -17,10 +17,16 @@
 namespace bftEngine {
 namespace impl {
 
-PartialCommitProofMsg::PartialCommitProofMsg(
-    ReplicaId senderId, ViewNum v, SeqNum s, CommitPath commitPath, Digest& digest, IThresholdSigner* thresholdSigner)
+PartialCommitProofMsg::PartialCommitProofMsg(ReplicaId senderId,
+                                             ViewNum v,
+                                             SeqNum s,
+                                             CommitPath commitPath,
+                                             Digest& digest,
+                                             IThresholdSigner* thresholdSigner,
+                                             const std::string& span_context)
     : MessageBase(senderId,
                   MsgCode::PartialCommitProof,
+                  span_context.size(),
                   sizeof(PartialCommitProofMsgHeader) + thresholdSigner->requiredLengthForSignedData()) {
   uint16_t thresholSignatureLength = (uint16_t)thresholdSigner->requiredLengthForSignedData();
 
@@ -29,8 +35,11 @@ PartialCommitProofMsg::PartialCommitProofMsg(
   b()->commitPath = commitPath;
   b()->thresholSignatureLength = thresholSignatureLength;
 
-  thresholdSigner->signData(
-      (const char*)(&(digest)), sizeof(Digest), body() + sizeof(PartialCommitProofMsgHeader), thresholSignatureLength);
+  char* position = body() + sizeof(PartialCommitProofMsgHeader);
+  memcpy(position, span_context.data(), span_context.size());
+
+  position = position + span_context.size();
+  thresholdSigner->signData((const char*)(&(digest)), sizeof(Digest), position, thresholSignatureLength);
 }
 
 void PartialCommitProofMsg::validate(const ReplicasInfo& repInfo) const {

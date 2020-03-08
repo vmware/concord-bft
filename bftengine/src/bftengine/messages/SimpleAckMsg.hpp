@@ -41,7 +41,7 @@ class SimpleAckMsg : public MessageBase {
     uint64_t ackData;
   };
 #pragma pack(pop)
-  static_assert(sizeof(SimpleAckMsgHeader) == (2 + 8 + 8 + 8), "SimpleAckMsgHeader is 26B");
+  static_assert(sizeof(SimpleAckMsgHeader) == (6 + 8 + 8 + 8), "SimpleAckMsgHeader is 30B");
 
   SimpleAckMsgHeader* b() const { return (SimpleAckMsgHeader*)msgBody_; }
 };

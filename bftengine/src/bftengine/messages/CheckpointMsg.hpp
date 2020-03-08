@@ -46,7 +46,7 @@ class CheckpointMsg : public MessageBase {
     uint8_t flags;
   };
 #pragma pack(pop)
-  static_assert(sizeof(CheckpointMsgHeader) == (2 + 8 + DIGEST_SIZE + 1), "CheckpointMsgHeader is 43B");
+  static_assert(sizeof(CheckpointMsgHeader) == (6 + 8 + DIGEST_SIZE + 1), "CheckpointMsgHeader is 49B");
 
   CheckpointMsgHeader* b() const { return (CheckpointMsgHeader*)msgBody_; }
 };
