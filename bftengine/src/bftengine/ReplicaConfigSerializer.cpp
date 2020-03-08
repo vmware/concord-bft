@@ -91,7 +91,7 @@ void ReplicaConfigSerializer::serializeDataMembers(ostream &outStream) const {
                   sizeof(config_->autoPrimaryRotationTimerMillisec));
 
   // Serialize metricsDumpIntervalSeconds
-  outStream.write((char*) &config_->metricsDumpIntervalSeconds, sizeof(config_->metricsDumpIntervalSeconds));
+  outStream.write((char *)&config_->metricsDumpIntervalSeconds, sizeof(config_->metricsDumpIntervalSeconds));
 
   // Serialize public keys
   auto numOfPublicKeys = (int64_t)config_->publicKeysOfReplicas.size();
@@ -157,7 +157,7 @@ bool ReplicaConfigSerializer::operator==(const ReplicaConfigSerializer &other) c
        (other.config_->maxReplyMessageSize == config_->maxReplyMessageSize) &&
        (other.config_->maxNumOfReservedPages == config_->maxNumOfReservedPages) &&
        (other.config_->sizeOfReservedPage == config_->sizeOfReservedPage) &&
-      (other.config_->metricsDumpIntervalSeconds == config_->metricsDumpIntervalSeconds));
+       (other.config_->metricsDumpIntervalSeconds == config_->metricsDumpIntervalSeconds));
   return result;
 }
 

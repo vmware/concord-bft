@@ -78,8 +78,8 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       numOfReplicas_(myReplica.getReplicaConfig().numReplicas),
       numOfClients_(myReplica.getReplicaConfig().numOfClientProxies),
       metricsComponent_{concordMetrics::Component("preProcessor", std::make_shared<concordMetrics::Aggregator>())},
-      last_dump_time_(0),
-      dump_interval_in_sec_{myReplica_.getReplicaConfig().metricsDumpIntervalSeconds},
+      metricsLastDumpTime_(0),
+      metricsDumpIntervalInSec_{myReplica_.getReplicaConfig().metricsDumpIntervalSeconds},
       preProcessorMetrics_{metricsComponent_.RegisterCounter("preProcReqReceived"),
                            metricsComponent_.RegisterCounter("preProcReqInvalid"),
                            metricsComponent_.RegisterCounter("preProcReqIgnored"),
@@ -137,11 +137,14 @@ bool PreProcessor::checkClientMsgCorrectness(const ClientPreProcessReqMsgUniqueP
 
 template <>
 void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequestMsg *msg) {
-  if (preProcessorMetrics_.requestReceived.Get().Get() % 10 == 0) metricsComponent_.UpdateAggregator();
-  auto currTime = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
-  if (currTime - last_dump_time_ >= dump_interval_in_sec_) {
-    last_dump_time_ = currTime;
-    LOG_INFO(GL, "--preProcessor metrics dump--" + metricsComponent_.ToJson());
+  if (preProcessorMetrics_.requestReceived.Get().Get() % 10 == 0) {
+    metricsComponent_.UpdateAggregator();
+    auto currTime =
+        std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
+    if (currTime - metricsLastDumpTime_ >= metricsDumpIntervalInSec_) {
+      metricsLastDumpTime_ = currTime;
+      LOG_INFO(GL, "--preProcessor metrics dump--" + metricsComponent_.ToJson());
+    }
   }
   preProcessorMetrics_.requestReceived.Get().Inc();
   ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg(msg);

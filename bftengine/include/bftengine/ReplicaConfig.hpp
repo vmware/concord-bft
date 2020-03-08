@@ -164,7 +164,7 @@ class ReplicaConfigSingleton {
   uint32_t GetMaxNumOfReservedPages() const { return config_->maxNumOfReservedPages; }
   uint32_t GetSizeOfReservedPage() const { return config_->sizeOfReservedPage; }
   uint32_t GetNumOfReplicas() const { return 3 * config_->fVal + 2 * config_->cVal + 1; }
-  uint64_t getMetricsDumpInterval() const { return config_->metricsDumpIntervalSeconds; }
+  uint64_t GetMetricsDumpInterval() const { return config_->metricsDumpIntervalSeconds; }
 
  private:
   friend struct ReplicaConfig;

@@ -319,8 +319,8 @@ class BCStateTran : public IStateTransfer {
 
  private:
   void loadMetrics();
-  std::chrono::seconds last_dump_time_;
-  std::chrono::seconds dump_interval_in_sec_;
+  std::chrono::seconds last_metrics_dump_time_;
+  std::chrono::seconds metrics_dump_interval_in_sec_;
   concordMetrics::Component metrics_component_;
 
   typedef concordMetrics::Component::Handle<concordMetrics::Gauge> GaugeHandle;

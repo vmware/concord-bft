@@ -27,8 +27,8 @@ ReplicaBase::ReplicaBase(const ReplicaConfig& config,
     : config_(config),
       msgsCommunicator_(msgComm),
       msgHandlers_(msgHandlerReg),
-      last_dump_time_(0),
-      dump_interval_in_sec_(config_.metricsDumpIntervalSeconds),
+      last_metrics_dump_time_(0),
+      metrics_dump_interval_in_sec_(config_.metricsDumpIntervalSeconds),
       metrics_{concordMetrics::Component("replica", std::make_shared<concordMetrics::Aggregator>())} {
   if (config_.debugStatisticsEnabled) DebugStatistics::initDebugStatisticsData();
 }
@@ -43,8 +43,8 @@ void ReplicaBase::start() {
     metrics_.UpdateAggregator();
     auto currTime =
         std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
-    if (currTime - last_dump_time_ >= dump_interval_in_sec_) {
-      last_dump_time_ = currTime;
+    if (currTime - last_metrics_dump_time_ >= metrics_dump_interval_in_sec_) {
+      last_metrics_dump_time_ = currTime;
       LOG_INFO(GL, "-- ReplicaBase metrics dump--" + metrics_.ToJson());
     }
   });
