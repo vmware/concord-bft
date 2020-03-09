@@ -37,8 +37,7 @@ def verify_linearizability(async_fn):
         if 'disable_linearizability_checks' in kwargs:
             bft_network = kwargs['bft_network']
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-            init_state = skvbc.initial_state()
-            tracker = PassThroughSkvbcTracker(init_state, skvbc, bft_network)
+            tracker = PassThroughSkvbcTracker(skvbc, bft_network)
             await async_fn(*args, **kwargs, tracker=tracker)
         else:
             bft_network = kwargs['bft_network']
@@ -1003,7 +1002,7 @@ class SkvbcTracker:
 
 class PassThroughSkvbcTracker:
 
-    def __init__(self, initial_kvpairs={}, skvbc=None, bft_network=None):
+    def __init__(self, skvbc=None, bft_network=None):
         self.skvbc = skvbc
 
         self.bft_network = bft_network
