@@ -35,6 +35,7 @@ def verify_linearizability(async_fn):
     @wraps(async_fn)
     async def wrapper(*args, **kwargs):
         if 'disable_linearizability_checks' in kwargs:
+            kwargs.pop('disable_linearizability_checks')
             bft_network = kwargs['bft_network']
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             tracker = PassThroughSkvbcTracker(skvbc, bft_network)
@@ -1010,8 +1011,7 @@ class PassThroughSkvbcTracker:
     async def send_tracked_write(self, client, max_set_size):
         readset = self.readset(0, max_set_size)
         writeset = self.writeset(max_set_size)
-        read_version = self.read_block_id()
-        msg = self.skvbc.write_req(readset, writeset, read_version)
+        msg = self.skvbc.write_req(readset, writeset, 0)
         seq_num = client.req_seq_num.next()
         try:
             serialized_reply = await client.write(msg, seq_num)
