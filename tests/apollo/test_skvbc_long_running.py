@@ -52,9 +52,6 @@ class SkvbcLongRunningTest(unittest.TestCase):
                 await SkvbcTest().test_get_block_data\
                     (bft_network=bft_network, already_in_trio=True)
                 await trio.sleep(seconds=10)
-                await SkvbcTest().test_get_block_data_with_blinking_replica\
-                    (bft_network=bft_network, already_in_trio=True)
-                await trio.sleep(seconds=10)
                 await SkvbcTest().test_conflicting_write\
                     (bft_network=bft_network, already_in_trio=True)
                 await trio.sleep(seconds=10)
