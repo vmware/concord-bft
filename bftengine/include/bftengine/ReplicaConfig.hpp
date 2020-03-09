@@ -166,6 +166,8 @@ class ReplicaConfigSingleton {
   uint32_t GetNumOfReplicas() const { return 3 * config_->fVal + 2 * config_->cVal + 1; }
   uint64_t GetMetricsDumpInterval() const { return config_->metricsDumpIntervalSeconds; }
 
+  bool GetDebugStatisticsEnabled() const { return config_->debugStatisticsEnabled; }
+
  private:
   friend struct ReplicaConfig;
   void init(ReplicaConfig* config) { config_ = new ReplicaConfig(*config); }

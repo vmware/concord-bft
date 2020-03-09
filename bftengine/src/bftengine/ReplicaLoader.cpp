@@ -55,13 +55,19 @@ namespace {
 ReplicaLoader::ErrorCode checkReplicaConfig(const LoadedReplicaData &ld) {
   const ReplicaConfig &c = ld.repConfig;
 
-  LOG_INFO(GL,
-           "checkReplicaConfig cVal=" << c.cVal << ", fVal=" << c.fVal << ", replicaId=" << c.replicaId
-                                      << ", concurrencyLevel=" << c.concurrencyLevel
-                                      << ", viewChangeProtocolEnabled=" << c.viewChangeProtocolEnabled
-                                      << ", viewChangeTimerMillisec=" << c.viewChangeTimerMillisec
-                                      << ", autoPrimaryRotationEnabled=" << c.autoPrimaryRotationEnabled
-                                      << ", autoPrimaryRotationTimerMillisec=" << c.autoPrimaryRotationTimerMillisec);
+  LOG_INFO(
+      GL,
+      "ReplicaConfig parameters isReadOnly="
+          << c.isReadOnly << ", numReplicas=" << c.numReplicas << ", numRoReplicas=" << c.numRoReplicas
+          << ", fVal=" << c.fVal << ", cVal=" << c.cVal << ", replicaId=" << c.replicaId << ", numOfClientProxies="
+          << c.numOfClientProxies << ", statusReportTimerMillisec=" << c.statusReportTimerMillisec
+          << ", concurrencyLevel=" << c.concurrencyLevel << ", viewChangeProtocolEnabled="
+          << c.viewChangeProtocolEnabled << ", viewChangeTimerMillisec=" << c.viewChangeTimerMillisec
+          << ", autoPrimaryRotationEnabled=" << c.autoPrimaryRotationEnabled << ", autoPrimaryRotationTimerMillisec="
+          << c.autoPrimaryRotationTimerMillisec << ", maxExternalMessageSize=" << c.maxExternalMessageSize
+          << ", maxReplyMessageSize=" << c.maxReplyMessageSize << ", maxNumOfReservedPages=" << c.maxNumOfReservedPages
+          << ", sizeOfReservedPage=" << c.sizeOfReservedPage << ", debugStatisticsEnabled=" << c.debugStatisticsEnabled
+          << ", metricsDumpIntervalSeconds=" << c.metricsDumpIntervalSeconds);
 
   Verify(c.fVal >= 1, InconsistentErr);
   Verify(c.cVal >= 0, InconsistentErr);
@@ -109,12 +115,30 @@ ReplicaLoader::ErrorCode checkReplicaConfig(const LoadedReplicaData &ld) {
   return Succ;
 }
 
+void setDynamicallyConfigurableParameters(ReplicaConfig &config) {
+  config.numOfClientProxies = ReplicaConfigSingleton::GetInstance().GetNumOfClientProxies();
+  config.statusReportTimerMillisec = ReplicaConfigSingleton::GetInstance().GetStatusReportTimerMillisec();
+  config.concurrencyLevel = ReplicaConfigSingleton::GetInstance().GetConcurrencyLevel();
+  config.viewChangeProtocolEnabled = ReplicaConfigSingleton::GetInstance().GetViewChangeProtocolEnabled();
+  config.viewChangeTimerMillisec = ReplicaConfigSingleton::GetInstance().GetViewChangeTimerMillisec();
+  config.autoPrimaryRotationEnabled = ReplicaConfigSingleton::GetInstance().GetAutoPrimaryRotationEnabled();
+  config.autoPrimaryRotationTimerMillisec = ReplicaConfigSingleton::GetInstance().GetAutoPrimaryRotationTimerMillisec();
+  config.maxExternalMessageSize = ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize();
+  config.maxReplyMessageSize = ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize();
+  config.maxNumOfReservedPages = ReplicaConfigSingleton::GetInstance().GetMaxNumOfReservedPages();
+  config.sizeOfReservedPage = ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage();
+  config.debugStatisticsEnabled = ReplicaConfigSingleton::GetInstance().GetDebugStatisticsEnabled();
+  config.metricsDumpIntervalSeconds = ReplicaConfigSingleton::GetInstance().GetMetricsDumpInterval();
+}
+
 ReplicaLoader::ErrorCode loadConfig(shared_ptr<PersistentStorage> &p, LoadedReplicaData &ld) {
   Assert(p != nullptr);
 
   Verify(p->hasReplicaConfig(), NoDataErr);
 
   ld.repConfig = p->getReplicaConfig();
+  // Allow changing some parameters dynamically using configuration file
+  setDynamicallyConfigurableParameters(ld.repConfig);
 
   ReplicaLoader::ErrorCode stat = checkReplicaConfig(ld);
 
