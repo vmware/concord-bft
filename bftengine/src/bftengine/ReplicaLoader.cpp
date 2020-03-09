@@ -55,20 +55,6 @@ namespace {
 ReplicaLoader::ErrorCode checkReplicaConfig(const LoadedReplicaData &ld) {
   const ReplicaConfig &c = ld.repConfig;
 
-  LOG_INFO(
-      GL,
-      "ReplicaConfig parameters isReadOnly="
-          << c.isReadOnly << ", numReplicas=" << c.numReplicas << ", numRoReplicas=" << c.numRoReplicas
-          << ", fVal=" << c.fVal << ", cVal=" << c.cVal << ", replicaId=" << c.replicaId << ", numOfClientProxies="
-          << c.numOfClientProxies << ", statusReportTimerMillisec=" << c.statusReportTimerMillisec
-          << ", concurrencyLevel=" << c.concurrencyLevel << ", viewChangeProtocolEnabled="
-          << c.viewChangeProtocolEnabled << ", viewChangeTimerMillisec=" << c.viewChangeTimerMillisec
-          << ", autoPrimaryRotationEnabled=" << c.autoPrimaryRotationEnabled << ", autoPrimaryRotationTimerMillisec="
-          << c.autoPrimaryRotationTimerMillisec << ", maxExternalMessageSize=" << c.maxExternalMessageSize
-          << ", maxReplyMessageSize=" << c.maxReplyMessageSize << ", maxNumOfReservedPages=" << c.maxNumOfReservedPages
-          << ", sizeOfReservedPage=" << c.sizeOfReservedPage << ", debugStatisticsEnabled=" << c.debugStatisticsEnabled
-          << ", metricsDumpIntervalSeconds=" << c.metricsDumpIntervalSeconds);
-
   Verify(c.fVal >= 1, InconsistentErr);
   Verify(c.cVal >= 0, InconsistentErr);
 
