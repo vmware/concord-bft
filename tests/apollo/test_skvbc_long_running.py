@@ -16,6 +16,7 @@ import trio
 
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from test_skvbc import SkvbcTest
+from test_skvbc_auto_view_change import SkvbcAutoViewChangeTest
 
 # Time consts
 EIGHT_HOURS_IN_SECONDS = 8 * 60 * 60
@@ -46,7 +47,14 @@ class SkvbcLongRunningTest(unittest.TestCase):
                       selected_configs=lambda n, f, c: n == 7)
     async def test_stability(self, bft_network):
         bft_network.start_all_replicas()
-        with trio.move_on_after(seconds=ONE_HOUR_IN_SECONDS):
+        with trio.move_on_after(seconds=EIGHT_HOURS_IN_SECONDS/2):
             while True:
-                await SkvbcTest().test_get_block_data(bft_network=bft_network, already_in_trio=True)
+                await SkvbcTest().test_get_block_data\
+                    (bft_network=bft_network, already_in_trio=True)
+                await trio.sleep(seconds=10)
+                await SkvbcTest().test_get_block_data_with_blinking_replica\
+                    (bft_network=bft_network, already_in_trio=True)
+                await trio.sleep(seconds=10)
+                await SkvbcTest().test_conflicting_write\
+                    (bft_network=bft_network, already_in_trio=True)
                 await trio.sleep(seconds=10)
