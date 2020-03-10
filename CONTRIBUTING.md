@@ -10,9 +10,11 @@ questions about the CLA process, please refer to our [FAQ](https://cla.vmware.co
 
 Concord-bft is used in multiple commercial projects which are naturally prioritized by the concord team.
 
-Sometimes there are delays until code and documentation is merged into this repository, mainly because of the need to strip proprietary information from the customers systems.
+Sometimes there are delays until code and documentation is moved from those projects into this repository, mainly because of the need to strip proprietary information from the customers systems.
 
-There is no separate commercial version - everything related to concord-bft is mergend back into this repo.
+There is no separate commercial concord-bft version - everything related to concord-bft is mergend back into this repo.
+
+It is always a good idea to file an issue (or ask) before working on bigger contributions, simply because it could be already in the making.
 
 ## Contribution Flow
 
