@@ -22,17 +22,18 @@ uint16_t RequestProcessingInfo::numOfRequiredEqualReplies_ = 0;
 RequestProcessingInfo::RequestProcessingInfo(uint16_t numOfReplicas,
                                              uint16_t numOfRequiredReplies,
                                              ReqId reqSeqNum,
-                                             ClientPreProcessReqMsgUniquePtr clientReqMsg)
-    : numOfReplicas_(numOfReplicas), reqSeqNum_(reqSeqNum), clientPreProcessReqMsg_(move(clientReqMsg)) {
+                                             ClientPreProcessReqMsgUniquePtr clientReqMsg,
+                                             PreProcessRequestMsgSharedPtr preProcessRequestMsg)
+    : numOfReplicas_(numOfReplicas),
+      reqSeqNum_(reqSeqNum),
+      clientPreProcessReqMsg_(move(clientReqMsg)),
+      preProcessRequestMsg_(preProcessRequestMsg) {
   numOfRequiredEqualReplies_ = numOfRequiredReplies;
   LOG_DEBUG(GL, "Created RequestProcessingInfo with reqSeqNum=" << reqSeqNum_ << ", numOfReplicas= " << numOfReplicas_);
 }
 
-void RequestProcessingInfo::handlePrimaryPreProcessed(PreProcessRequestMsgSharedPtr msg,
-                                                      const char *preProcessResult,
-                                                      uint32_t preProcessResultLen) {
+void RequestProcessingInfo::handlePrimaryPreProcessed(const char *preProcessResult, uint32_t preProcessResultLen) {
   numOfReceivedReplies_++;
-  preProcessRequestMsg_ = msg;
   myPreProcessResult_ = preProcessResult;
   myPreProcessResultLen_ = preProcessResultLen;
   myPreProcessResultHash_ = convertToArray(SHA3_256().digest(myPreProcessResult_, myPreProcessResultLen_).data());

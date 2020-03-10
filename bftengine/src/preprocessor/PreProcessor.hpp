@@ -68,7 +68,8 @@ class PreProcessor {
   template <typename T>
   void onMessage(T *msg);
 
-  void registerClientPreProcessRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg);
+  void registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
+                       PreProcessRequestMsgSharedPtr preProcessRequestMsg);
   void releaseClientPreProcessRequest(uint16_t clientId, ReqId requestSeqNum);
   bool validateMessage(MessageBase *msg) const;
   void registerMsgHandlers();
