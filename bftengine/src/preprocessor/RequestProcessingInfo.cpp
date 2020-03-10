@@ -33,11 +33,9 @@ RequestProcessingInfo::RequestProcessingInfo(uint16_t numOfReplicas,
 }
 
 void RequestProcessingInfo::handlePrimaryPreProcessed(const char *preProcessResult, uint32_t preProcessResultLen) {
-  numOfReceivedReplies_++;
   myPreProcessResult_ = preProcessResult;
   myPreProcessResultLen_ = preProcessResultLen;
   myPreProcessResultHash_ = convertToArray(SHA3_256().digest(myPreProcessResult_, myPreProcessResultLen_).data());
-  preProcessingResultHashes_[myPreProcessResultHash_]++;
 }
 
 void RequestProcessingInfo::handlePreProcessReplyMsg(PreProcessReplyMsgSharedPtr preProcessReplyMsg) {
@@ -56,6 +54,7 @@ PreProcessingResult RequestProcessingInfo::getPreProcessingConsensusResult() con
 
   uint16_t maxNumOfEqualHashes = 0;
   auto itOfChosenHash = preProcessingResultHashes_.begin();
+  // Calculate a maximum number of the same hashes calculated by non-primary replicas
   for (auto it = preProcessingResultHashes_.begin(); it != preProcessingResultHashes_.end(); it++) {
     if (it->second > maxNumOfEqualHashes) {
       maxNumOfEqualHashes = it->second;
@@ -66,20 +65,26 @@ PreProcessingResult RequestProcessingInfo::getPreProcessingConsensusResult() con
   if (maxNumOfEqualHashes >= numOfRequiredEqualReplies_) {
     if (itOfChosenHash->first == myPreProcessResultHash_)
       return COMPLETE;  // Pre-execution consensus reached
-    else {
-      // Primary replica calculated hash is different from hash that passed consensus => we don't have correct
-      // pre-processed results. The request could be cancelled, retried or executed without pre-processing.
+    else if (myPreProcessResultLen_ != 0) {
+      // Primary replica calculated hash is different from a hash that passed pre-execution consensus => we don't have
+      // correct pre-processed results. Let's launch a pre-processing retry.
       LOG_WARN(GL,
                "Primary replica pre-processing result hash is different from one passed the consensus for reqSeqNum="
                    << reqSeqNum_ << "; retry pre-processing on primary replica");
       return RETRY_PRIMARY;
+    } else {
+      LOG_DEBUG(GL, "Primary replica did not complete pre-processing yet for reqSeqNum=" << reqSeqNum_ << "; continue");
+      return CONTINUE;
     }
   }
 
-  if (numOfReceivedReplies_ == numOfReplicas_ - 1)
-    // Replies from all replicas received, but not enough equal hashes collected => cancel request
+  if (numOfReceivedReplies_ == numOfReplicas_ - 1) {
+    // Replies from all replicas received, but not enough equal hashes collected => pre-execution consensus not
+    // reached => cancel request.
     LOG_WARN(GL, "Not enough equal hashes collected for reqSeqNum=" << reqSeqNum_ << ", cancel request");
-  return CANCEL;
+    return CANCEL;
+  }
+  return CONTINUE;
 }
 
 unique_ptr<MessageBase> RequestProcessingInfo::convertClientPreProcessToClientMsg(bool resetPreProcessFlag) {

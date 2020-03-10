@@ -24,7 +24,8 @@ namespace {
 ReplicaConfig replicaConfig;
 const uint16_t numOfReplicas = 4;
 const uint16_t numOfClients = 4;
-uint16_t numOfRequiredReplies = 3;
+const uint16_t fval = 1;
+const uint16_t numOfRequiredReplies = fval + 1;
 const uint32_t bufLen = 1024;
 char buf[bufLen];
 ReqId reqSeqNum = 123456789;
@@ -191,15 +192,15 @@ TEST(requestPreprocessingInfo_test, notEnoughRepliesReceived) {
                                 ClientPreProcessReqMsgUniquePtr(),
                                 PreProcessRequestMsgSharedPtr());
   ReplicasInfo repInfo(replicaConfig, true, true);
-  reqInfo.handlePrimaryPreProcessed(buf, bufLen);
-  for (auto i = 1; i < numOfRequiredReplies - 1; i++) {
+  for (auto i = 1; i < numOfRequiredReplies; i++) {
     reqInfo.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
     Assert(reqInfo.getPreProcessingConsensusResult() == CONTINUE);
   }
+  reqInfo.handlePrimaryPreProcessed(buf, bufLen);
   Assert(reqInfo.getPreProcessingConsensusResult() == CONTINUE);
 }
 
-TEST(requestPreprocessingInfo_test, notEnoughSameRepliesReceived) {
+TEST(requestPreprocessingInfo_test, allRepliesReceivedButNotEnoughSameHashesCollected) {
   RequestProcessingInfo reqInfo(numOfReplicas,
                                 numOfRequiredReplies,
                                 reqSeqNum,
@@ -208,12 +209,9 @@ TEST(requestPreprocessingInfo_test, notEnoughSameRepliesReceived) {
   ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   reqInfo.handlePrimaryPreProcessed(buf, bufLen);
-  for (auto i = 1; i <= numOfRequiredReplies; i++) {
+  for (auto i = 1; i < numOfReplicas; i++) {
     if (i != numOfReplicas - 1) Assert(reqInfo.getPreProcessingConsensusResult() == CONTINUE);
-    if (i == 1)
-      memset(buf, '6', bufLen);
-    else
-      memset(buf, '4', bufLen);
+    memset(buf, i, bufLen);
     reqInfo.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
   }
   Assert(reqInfo.getPreProcessingConsensusResult() == CANCEL);
@@ -227,15 +225,15 @@ TEST(requestPreprocessingInfo_test, enoughSameRepliesReceived) {
                                 PreProcessRequestMsgSharedPtr());
   ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
-  reqInfo.handlePrimaryPreProcessed(buf, bufLen);
-  for (auto i = 1; i <= numOfRequiredReplies - 1; i++) {
+  for (auto i = 1; i <= numOfRequiredReplies; i++) {
     if (i != numOfRequiredReplies - 1) Assert(reqInfo.getPreProcessingConsensusResult() == CONTINUE);
     reqInfo.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
   }
+  reqInfo.handlePrimaryPreProcessed(buf, bufLen);
   Assert(reqInfo.getPreProcessingConsensusResult() == COMPLETE);
 }
 
-TEST(requestPreprocessingInfo_test, primaryReplicaPreProcessingRetry) {
+TEST(requestPreprocessingInfo_test, primaryReplicaPreProcessingRetrySucceeds) {
   RequestProcessingInfo reqInfo(numOfReplicas,
                                 numOfRequiredReplies,
                                 reqSeqNum,
@@ -250,6 +248,25 @@ TEST(requestPreprocessingInfo_test, primaryReplicaPreProcessingRetry) {
     reqInfo.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
   }
   Assert(reqInfo.getPreProcessingConsensusResult() == RETRY_PRIMARY);
+  memset(buf, '4', bufLen);
+  reqInfo.handlePrimaryPreProcessed(buf, bufLen);
+  Assert(reqInfo.getPreProcessingConsensusResult() == COMPLETE);
+}
+
+TEST(requestPreprocessingInfo_test, primaryReplicaDidNotCompletePreProcessingWhileNonPrimariesDid) {
+  RequestProcessingInfo reqInfo(numOfReplicas,
+                                numOfRequiredReplies,
+                                reqSeqNum,
+                                ClientPreProcessReqMsgUniquePtr(),
+                                PreProcessRequestMsgSharedPtr());
+  ReplicasInfo repInfo(replicaConfig, true, true);
+  memset(buf, '5', bufLen);
+  for (auto i = 1; i <= numOfRequiredReplies; i++) {
+    if (i != numOfReplicas - 1) Assert(reqInfo.getPreProcessingConsensusResult() == CONTINUE);
+    memset(buf, '4', bufLen);
+    reqInfo.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
+  }
+  Assert(reqInfo.getPreProcessingConsensusResult() == CONTINUE);
   memset(buf, '4', bufLen);
   reqInfo.handlePrimaryPreProcessed(buf, bufLen);
   Assert(reqInfo.getPreProcessingConsensusResult() == COMPLETE);

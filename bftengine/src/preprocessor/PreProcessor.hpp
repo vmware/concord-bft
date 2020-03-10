@@ -89,6 +89,11 @@ class PreProcessor {
   void handlePreProcessedReqPrimaryRetry(NodeIdType clientId, SeqNum reqSeqNum);
   void finalizePreProcessing(NodeIdType clientId, SeqNum reqSeqNum);
   void cancelPreProcessing(NodeIdType clientId, SeqNum reqSeqNum);
+  PreProcessingResult getPreProcessingConsensusResult(uint16_t clientId);
+  void handleReqPreProcessedByOneReplica(const std::string &cid,
+                                         PreProcessingResult result,
+                                         NodeIdType clientId,
+                                         SeqNum reqSeqNum);
 
  private:
   static std::vector<std::shared_ptr<PreProcessor>> preProcessors_;  // The place holder for PreProcessor objects
