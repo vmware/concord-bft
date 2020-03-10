@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cstring>
 
+using concordUtils::order;
 using concordUtils::Sliver;
 using concordUtils::SetOfKeyValuePairs;
 using concordUtils::KeyValuePair;
@@ -48,9 +49,9 @@ Sliver create(const SetOfKeyValuePairs &updates,
     header->numberOfElements = numOfElements;
     std::int32_t currentOffset = metadataSize;
     auto *entries = (detail::Entry *)(blockBuffer + sizeof(detail::Header));
-    for (const auto &elem : updates) {
-      const KeyValuePair &kvPair = elem;
-
+    // Serialize key/values in a deterministic order.
+    const auto orderedUpdates = order(updates);
+    for (const auto &kvPair : orderedUpdates) {
       // key
       entries[idx].keyOffset = currentOffset;
       entries[idx].keySize = kvPair.first.length();
