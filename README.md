@@ -137,19 +137,10 @@ You can use the simpleTest.py script to run various configurations via a simple
 command line interface.
 Please find more information [here](./tests/simpleTest/README.md)
 
-## Directory Structure
+## Documentation
 
+The [docs](./docs) folder is in early stages. You'll find additional documentation right within the different code-units (folders) and files.
 
-- [bftengine](./bftengine): concord-bft codebase
-	- [include](./bftengine/include): external interfaces of concord-bft (to be used by client applications)
-	- [src](./bftengine/src): internal implementation of concord-bft
-    - [tests](./bftengine/tests): tests and usage examples
-- [threshsign](./threshsign): crypto library that supports digital threshold signatures
-	- [include](./threshsign/include): external interfaces of threshsign (to be used by client applications)
-	- [src](./threshsign/src): internal implementation of threshsign
-    - [tests](./threshsign/tests): tests and usage examples
-- [scripts](./scripts): build scripts
-- [tests](./tests): BFT engine system tests
 
 ## Contributing
 
