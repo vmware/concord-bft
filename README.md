@@ -142,6 +142,8 @@ Please find more information [here](./tests/simpleTest/README.md)
 The [docs](./docs) folder is in early stages. You'll find additional documentation right within the different code-units (folders) and files.
 
 
+
+
 ## Contributing
 
 
@@ -161,3 +163,7 @@ Request a Slack invitation via <concordbft@gmail.com>.
 
 concord-bft is available under the [Apache 2 license](LICENSE).
 
+## vmware Product & Research
+
+* [VMware Blockchain Product Website](https://www.vmware.com/products/blockchain.html)
+* [VMware Blockchain Research Website](https://research.vmware.com/projects/vmware-blockchain)
