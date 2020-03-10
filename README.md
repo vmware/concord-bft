@@ -163,7 +163,7 @@ Request a Slack invitation via <concordbft@gmail.com>.
 
 concord-bft is available under the [Apache 2 license](LICENSE).
 
-## vmware Product & Research
+## VMware Product & Research
 
 * [VMware Blockchain Product Website](https://www.vmware.com/products/blockchain.html)
 * [VMware Blockchain Research Website](https://research.vmware.com/projects/vmware-blockchain)
