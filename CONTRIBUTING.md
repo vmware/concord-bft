@@ -6,6 +6,14 @@ The concord-bft project team welcomes contributions from the community. If you w
 signed our contributor license agreement (CLA), our bot will update the issue when you open a Pull Request. For any
 questions about the CLA process, please refer to our [FAQ](https://cla.vmware.com/faq).
 
+## Important
+
+Concord-bft is used in multiple commercial projects which are naturally prioritized by the concord team.
+
+Sometimes there are delays until code and documentation is merged into this repository, mainly because of the need to strip proprietary information from the customers systems.
+
+There is no separate commercial version - everything related to concord-bft is mergend back into this repo.
+
 ## Contribution Flow
 
 This is a rough outline of what a contributor's workflow looks like:
