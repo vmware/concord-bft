@@ -5,9 +5,9 @@
 
 #include <arpa/inet.h>
 
-#include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstring>
 #include <iterator>
 #include <string>
 #include <type_traits>
@@ -57,15 +57,16 @@ std::array<std::uint8_t, sizeof(T)> toBigEndianArrayBuffer(T v) {
   v = concordUtils::hostToNet(v);
 
   std::array<std::uint8_t, sizeof(T)> ret;
-  const auto data = reinterpret_cast<const std::uint8_t *>(&v);
-  std::copy(data, data + sizeof(T), std::begin(ret));
+  std::memcpy(ret.data(), &v, sizeof(T));
   return ret;
 }
 
 // Buffer must be at least sizeof(T) bytes long.
 template <typename T>
 T fromBigEndianBuffer(const void *buf) {
-  return netToHost(*reinterpret_cast<const T *>(buf));
+  T v;
+  std::memcpy(&v, buf, sizeof(T));
+  return netToHost(v);
 }
 
 }  // namespace concordUtils
