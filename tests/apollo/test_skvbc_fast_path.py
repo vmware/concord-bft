@@ -105,6 +105,7 @@ class SkvbcFastPathTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd,
+                      num_clients = 4,
                       selected_configs=lambda n, f, c: c >= 1)
     @verify_linearizability
     async def test_fast_path_resilience_to_crashes(self, bft_network, tracker):

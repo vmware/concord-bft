@@ -53,8 +53,8 @@ def interesting_configs(selected=None):
         selected=lambda *config: True
 
     bft_configs = [#{'n': 4, 'f': 1, 'c': 0, 'num_clients': 4},
-                   {'n': 6, 'f': 1, 'c': 1, 'num_clients': 4},
-                   {'n': 7, 'f': 2, 'c': 0, 'num_clients': 4},
+                   {'n': 6, 'f': 1, 'c': 1, 'num_clients': 30},
+                   {'n': 7, 'f': 2, 'c': 0, 'num_clients': 30},
                    # {'n': 9, 'f': 2, 'c': 1, 'num_clients': 4}
                    # {'n': 12, 'f': 3, 'c': 1, 'num_clients': 4}
                    ]
@@ -85,7 +85,7 @@ def with_trio(async_fn):
     return trio_wrapper
 
 
-def with_bft_network(start_replica_cmd, selected_configs=None, num_ro_replicas=0):
+def with_bft_network(start_replica_cmd, num_clients=None, selected_configs=None, num_ro_replicas=0):
     """
     Runs the decorated async function for all selected BFT configs
     """
@@ -102,7 +102,9 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_ro_replicas=0
                     config = TestConfig(n=bft_config['n'],
                                         f=bft_config['f'],
                                         c=bft_config['c'],
-                                        num_clients=bft_config['num_clients'],
+                                        num_clients=bft_config['num_clients'] \
+                                            if num_clients is None \
+                                            else num_clients,
                                         key_file_prefix=KEY_FILE_PREFIX,
                                         start_replica_cmd=start_replica_cmd,
                                         stop_replica_cmd=None,
