@@ -109,6 +109,8 @@ class PreProcessor {
   // clientId -> *RequestProcessingInfo
   std::unordered_map<uint16_t, std::unique_ptr<ClientRequestInfo>> ongoingRequests_;
   concordMetrics::Component metricsComponent_;
+  std::chrono::seconds metricsLastDumpTime_;
+  std::chrono::seconds metricsDumpIntervalInSec_;
   struct PreProcessingMetrics {
     concordMetrics::CounterHandle requestReceived;
     concordMetrics::CounterHandle requestInvalid;

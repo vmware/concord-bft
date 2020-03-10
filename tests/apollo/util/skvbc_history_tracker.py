@@ -26,6 +26,7 @@ from util.skvbc_exceptions import(
 
 MAX_LOOKBACK=10
 
+
 def verify_linearizability(async_fn):
     """
     Creates a tracker and provide him to the decorated method.
@@ -33,13 +34,22 @@ def verify_linearizability(async_fn):
     """
     @wraps(async_fn)
     async def wrapper(*args, **kwargs):
-        bft_network = kwargs['bft_network']
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        init_state = skvbc.initial_state()
-        tracker = SkvbcTracker(init_state, skvbc, bft_network)
-        await async_fn(*args, **kwargs, tracker=tracker)
-        await tracker.fill_missing_blocks_and_verify()
+        if 'disable_linearizability_checks' in kwargs:
+            kwargs.pop('disable_linearizability_checks')
+            bft_network = kwargs['bft_network']
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            tracker = PassThroughSkvbcTracker(skvbc, bft_network)
+            await async_fn(*args, **kwargs, tracker=tracker)
+        else:
+            bft_network = kwargs['bft_network']
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            init_state = skvbc.initial_state()
+            tracker = SkvbcTracker(init_state, skvbc, bft_network)
+            await async_fn(*args, **kwargs, tracker=tracker)
+            await tracker.fill_missing_blocks_and_verify()
+
     return wrapper
+
 
 class SkvbcWriteRequest:
     """
@@ -978,6 +988,141 @@ class SkvbcTracker:
 
         #reply = await client.write(self.write_req([], kv, 0))
         #reply = self.parse_reply(reply)
+        reply = await self.write_and_track_known_kv(kv, client)
+        assert reply.success
+        assert last_block + 1 == reply.last_block_id
+
+        last_block = reply.last_block_id
+
+        # Read the last write and check if equal
+        # Get the kvpairs in the last written block
+        data = await client.read(self.skvbc.get_block_data_req(last_block))
+        kv2 = self.skvbc.parse_reply(data)
+
+        assert kv2 == dict(kv)
+
+class PassThroughSkvbcTracker:
+
+    def __init__(self, skvbc=None, bft_network=None):
+        self.skvbc = skvbc
+
+        self.bft_network = bft_network
+
+    async def send_tracked_write(self, client, max_set_size):
+        readset = self.readset(0, max_set_size)
+        writeset = self.writeset(max_set_size)
+        msg = self.skvbc.write_req(readset, writeset, 0)
+        seq_num = client.req_seq_num.next()
+        try:
+            serialized_reply = await client.write(msg, seq_num)
+            reply = self.skvbc.parse_reply(serialized_reply)
+            return reply
+        except trio.TooSlowError:
+            return
+
+    async def send_tracked_read(self, client, max_set_size):
+        readset = self.readset(1, max_set_size)
+        msg = self.skvbc.read_req(readset)
+        seq_num = client.req_seq_num.next()
+        try:
+            serialized_reply = await client.read(msg, seq_num)
+            reply = self.skvbc.parse_reply(serialized_reply)
+            return reply
+        except trio.TooSlowError:
+            return
+
+    def readset(self, min_size, max_size):
+        return self.skvbc.random_keys(random.randint(min_size, max_size))
+
+    def writeset(self, max_size):
+        writeset_keys = self.skvbc.random_keys(random.randint(0, max_size))
+        writeset_values = self.skvbc.random_values(len(writeset_keys))
+        return list(zip(writeset_keys, writeset_values))
+
+    async def run_concurrent_ops(self, num_ops, write_weight=.70):
+        max_concurrency = len(self.bft_network.clients) // 2
+        max_size = len(self.skvbc.keys) // 2
+        sent = 0
+        write_count = 0
+        read_count = 0
+        while sent < num_ops:
+            clients = self.bft_network.random_clients(max_concurrency)
+            async with trio.open_nursery() as nursery:
+                for client in clients:
+                    if random.random() < write_weight:
+                        nursery.start_soon(self.send_tracked_write, client, max_size)
+                        write_count += 1
+                    else:
+                        nursery.start_soon(self.send_tracked_read, client, max_size)
+                        read_count += 1
+            sent += len(clients)
+        return read_count, write_count
+
+    async def send_indefinite_tracked_ops(self, write_weight=.70):
+        max_size = len(self.skvbc.keys) // 2
+        while True:
+            client = self.bft_network.random_client()
+            try:
+                if random.random() < write_weight:
+                    await self.send_tracked_write(client, max_size)
+                else:
+                    await self.send_tracked_read(client, max_size)
+            except:
+                pass
+            await trio.sleep(.1)
+
+    async def write_and_track_known_kv(self, kv, client):
+        return self.skvbc.parse_reply(await client.write(
+            self.skvbc.write_req([], kv, 0)))
+
+    async def read_and_track_known_kv(self, key, client):
+        msg = self.skvbc.read_req([key])
+        seq_num = client.req_seq_num.next()
+        try:
+            return self.skvbc.parse_reply(await client.read(msg, seq_num))
+        except trio.TooSlowError:
+            return
+
+    async def tracked_prime_for_state_transfer(
+            self, stale_nodes,
+            checkpoints_num=2,
+            persistency_enabled=True):
+        initial_nodes = self.bft_network.all_replicas(without=stale_nodes)
+        [self.bft_network.start_replica(i) for i in initial_nodes]
+        client = self.bft_network.random_client()
+        # Write a KV pair with a known value
+        known_key = self.skvbc.max_key()
+        known_val = self.skvbc.random_value()
+        known_kv = [(known_key, known_val)]
+        await self.write_and_track_known_kv(known_kv, client)
+        # Fill up the initial nodes with data, checkpoint them and stop
+        # them. Then bring them back up and ensure the checkpoint data is
+        # there.
+        client1 = self.bft_network.random_client()
+        # Write enough data to checkpoint and create a need for state transfer
+        for i in range(1 + checkpoints_num * 150):
+            key = self.skvbc.random_key()
+            val = self.skvbc.random_value()
+            kv = [(key, val)]
+            await self.write_and_track_known_kv(kv, client1)
+
+        await self.skvbc.network_wait_for_checkpoint(initial_nodes, checkpoints_num, persistency_enabled)
+
+        return client, known_key, known_val, known_kv
+
+    async def tracked_read_your_writes(self):
+        client = self.bft_network.random_client()
+        keys = self.skvbc._create_keys()
+        # Verify by "Read your write"
+        # Perform write with the new primary
+
+        last_block = self.skvbc.parse_reply(
+            await client.read(self.skvbc.get_last_block_req()))
+        # Perform an unconditional KV put.
+        # Ensure keys aren't identical
+        kv = [(keys[0], self.skvbc.random_value()),
+              (keys[1], self.skvbc.random_value())]
+
         reply = await self.write_and_track_known_kv(kv, client)
         assert reply.success
         assert last_block + 1 == reply.last_block_id
