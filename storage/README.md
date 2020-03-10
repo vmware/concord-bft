@@ -16,7 +16,13 @@ in `storage/src/db_metadata_strorage` that also uses the database interfaces.
 Both libraries rely on the util library in the `util` directory for types such as `Status`
 and `Sliver`.
 
-# Building and testing
+## Documentation
+
+Note that you can find detailed documentation right within the sources, for example:
+
+[include/sparse_merkle/internal_node.h](./include/sparse_merkle/internal_node.h)
+
+## Building and Testing
 
 The storage library may optionally use RocksDB. The tests currently require
 RocksDB.
@@ -47,6 +53,4 @@ cmake -DBUILD_ROCKSDB_STORAGE=TRUE -DBUILD_TESTING=TRUE ..
 make
 ```
 
-If testing is enabled, cmake will add automated test targets for the storage
-library. These can be run individually with with `ctest -R <TEST>` or via `make
-test` to run all tests in concord-bft.
+If testing is enabled, cmake will add automated test targets for the storage library. These can be run individually with with `ctest -R <TEST>` or via `make test` to run all tests in concord-bft.
