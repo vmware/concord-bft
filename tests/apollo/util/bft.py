@@ -52,11 +52,11 @@ def interesting_configs(selected=None):
     if selected is None:
         selected=lambda *config: True
 
-    bft_configs = [#{'n': 4, 'f': 1, 'c': 0, 'num_clients': 4},
+    bft_configs = [#{'n': 4, 'f': 1, 'c': 0, 'num_clients': 30},
                    {'n': 6, 'f': 1, 'c': 1, 'num_clients': 30},
                    {'n': 7, 'f': 2, 'c': 0, 'num_clients': 30},
-                   # {'n': 9, 'f': 2, 'c': 1, 'num_clients': 4}
-                   # {'n': 12, 'f': 3, 'c': 1, 'num_clients': 4}
+                   # {'n': 9, 'f': 2, 'c': 1, 'num_clients': 30}
+                   # {'n': 12, 'f': 3, 'c': 1, 'num_clients': 30}
                    ]
 
     selected_bft_configs = \
@@ -85,7 +85,7 @@ def with_trio(async_fn):
     return trio_wrapper
 
 
-def with_bft_network(start_replica_cmd, num_clients=None, selected_configs=None, num_ro_replicas=0):
+def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None, num_ro_replicas=0):
     """
     Runs the decorated async function for all selected BFT configs
     """
