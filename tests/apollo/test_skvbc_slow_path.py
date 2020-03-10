@@ -77,7 +77,8 @@ class SkvbcSlowPathTest(unittest.TestCase):
         await bft_network.assert_slow_path_prevalent(as_of_seq_num=1)
 
     @with_trio
-    @with_bft_network(start_replica_cmd)
+    @with_bft_network(start_replica_cmd,
+                      num_clients=4)
     @verify_linearizability
     async def test_slow_to_fast_path_transition(self, bft_network, tracker):
         """
