@@ -118,11 +118,12 @@ class PreProcessor {
   std::chrono::seconds metricsLastDumpTime_;
   std::chrono::seconds metricsDumpIntervalInSec_;
   struct PreProcessingMetrics {
-    concordMetrics::CounterHandle requestReceived;
-    concordMetrics::CounterHandle requestInvalid;
-    concordMetrics::CounterHandle requestIgnored;
-    concordMetrics::CounterHandle consensusNotReached;
-    concordMetrics::CounterHandle requestSentForFurtherProcessing;
+    concordMetrics::CounterHandle preProcReqReceived;
+    concordMetrics::CounterHandle preProcReqInvalid;
+    concordMetrics::CounterHandle preProcReqIgnored;
+    concordMetrics::CounterHandle preProcConsensusNotReached;
+    concordMetrics::CounterHandle preProcessRequestTimedout;
+    concordMetrics::CounterHandle preProcReqSentForFurtherProcessing;
   } preProcessorMetrics_;
 };
 

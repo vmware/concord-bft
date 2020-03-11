@@ -45,7 +45,7 @@ void PreProcessor::messageHandler(MessageBase *msg) {
   if (validateMessage(msg))
     onMessage<T>(static_cast<T *>(msg));
   else {
-    preProcessorMetrics_.requestInvalid.Get().Inc();
+    preProcessorMetrics_.preProcReqInvalid.Get().Inc();
     delete msg;
   }
 }
@@ -84,6 +84,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            metricsComponent_.RegisterCounter("preProcReqInvalid"),
                            metricsComponent_.RegisterCounter("preProcReqIgnored"),
                            metricsComponent_.RegisterCounter("preProcConsensusNotReached"),
+                           metricsComponent_.RegisterCounter("preProcessRequestTimedout"),
                            metricsComponent_.RegisterCounter("preProcReqSentForFurtherProcessing")} {
   registerMsgHandlers();
   metricsComponent_.Register();
@@ -137,7 +138,7 @@ bool PreProcessor::checkClientMsgCorrectness(const ClientPreProcessReqMsgUniqueP
 
 template <>
 void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequestMsg *msg) {
-  if (preProcessorMetrics_.requestReceived.Get().Get() % 10 == 0) {
+  if (preProcessorMetrics_.preProcReqReceived.Get().Get() % 10 == 0) {
     metricsComponent_.UpdateAggregator();
     auto currTime =
         std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
@@ -146,10 +147,10 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
       LOG_INFO(GL, "--preProcessor metrics dump--" + metricsComponent_.ToJson());
     }
   }
-  preProcessorMetrics_.requestReceived.Get().Inc();
+  preProcessorMetrics_.preProcReqReceived.Get().Inc();
   ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg(msg);
 
-  preProcessorMetrics_.requestReceived.Get().Inc();
+  preProcessorMetrics_.preProcReqReceived.Get().Inc();
   MDC_CID_PUT(GL, clientPreProcessReqMsg->getCid());
   const NodeIdType &senderId = clientPreProcessReqMsg->senderId();
   const NodeIdType &clientId = clientPreProcessReqMsg->clientProxyId();
@@ -158,7 +159,7 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
            "Received ClientPreProcessRequestMsg reqSeqNum=" << reqSeqNum << " from clientId=" << clientId
                                                             << ", senderId=" << senderId);
   if (!checkClientMsgCorrectness(clientPreProcessReqMsg, reqSeqNum)) {
-    preProcessorMetrics_.requestIgnored.Get().Inc();
+    preProcessorMetrics_.preProcReqIgnored.Get().Inc();
     return;
   }
   {
@@ -170,7 +171,7 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
         LOG_WARN(GL,
                  " reqSeqNum=" << reqSeqNum << " from clientId=" << clientId
                                << " is ignored: previous client request=" << ongoingReqSeqNum << " is in process");
-        preProcessorMetrics_.requestIgnored.Get().Inc();
+        preProcessorMetrics_.preProcReqIgnored.Get().Inc();
         return;
       }
     }
@@ -192,7 +193,7 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
     return incomingMsgsStorage_->pushExternalMsg(clientPreProcessReqMsg->convertToClientRequestMsg(false));
   }
   LOG_INFO(GL, "ClientPreProcessRequestMsg reqSeqNum=" << reqSeqNum << " is ignored because request is old");
-  preProcessorMetrics_.requestIgnored.Get().Inc();
+  preProcessorMetrics_.preProcReqIgnored.Get().Inc();
 }
 
 // Non-primary replica request handling
@@ -266,7 +267,7 @@ void PreProcessor::handleReqPreProcessedByOneReplica(const string &cid,
 }
 
 void PreProcessor::cancelPreProcessing(NodeIdType clientId, SeqNum reqSeqNum) {
-  preProcessorMetrics_.consensusNotReached.Get().Inc();
+  preProcessorMetrics_.preProcConsensusNotReached.Get().Inc();
   auto &clientEntry = ongoingRequests_[clientId];
   {
     lock_guard<mutex> lock(clientEntry->mutex);
@@ -292,10 +293,11 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, SeqNum reqSeqNum, 
                                                      reqSeqNum,
                                                      clientEntry->clientReqInfoPtr->getMyPreProcessedResultLen(),
                                                      clientEntry->clientReqInfoPtr->getMyPreProcessedResult(),
+                                                     clientRequestMsg->requestTimeoutMilli(),
                                                      cid);
   }
   incomingMsgsStorage_->pushExternalMsg(move(clientRequestMsg));
-  preProcessorMetrics_.requestSentForFurtherProcessing.Get().Inc();
+  preProcessorMetrics_.preProcReqSentForFurtherProcessing.Get().Inc();
   releaseClientPreProcessRequest(clientId, reqSeqNum);
   LOG_DEBUG(GL, "Pre-processing completed for clientId=" << clientId << " reqSeqNum=" << reqSeqNum);
 }
