@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -24,9 +24,10 @@ namespace {
 ReplicaConfig replicaConfig;
 const uint16_t numOfReplicas = 4;
 const uint16_t numOfClients = 4;
-const uint16_t fval = 1;
-const uint16_t numOfRequiredReplies = fval + 1;
+const uint16_t fVal = 1;
+const uint16_t numOfRequiredReplies = fVal + 1;
 const uint32_t bufLen = 1024;
+const uint64_t reqTimeoutMilli = 1000;
 char buf[bufLen];
 ReqId reqSeqNum = 123456789;
 NodeIdType senderId = 2;
@@ -274,7 +275,7 @@ TEST(requestPreprocessingInfo_test, primaryReplicaDidNotCompletePreProcessingWhi
 
 TEST(requestPreprocessingInfo_test, clientPreProcessMessageConversion) {
   memset(buf, '8', bufLen);
-  ClientPreProcessRequestMsg clientPreProcReqMsg(senderId, reqSeqNum, bufLen, buf, cid);
+  ClientPreProcessRequestMsg clientPreProcReqMsg(senderId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
   unique_ptr<MessageBase> messageBase;
   {
     ClientPreProcessReqMsgUniquePtr clientPreProcReqUniq = make_unique<ClientPreProcessRequestMsg>(clientPreProcReqMsg);

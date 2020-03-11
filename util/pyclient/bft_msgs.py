@@ -32,7 +32,7 @@ MSG_TYPE_SIZE = struct.calcsize(MSG_TYPE_FMT)
 # Little Endian format with no padding
 # We don't include the msg type here, since we have to read it first to
 # understand what message is incoming.
-REQUEST_HEADER_FMT = "<HBQLL"
+REQUEST_HEADER_FMT = "<HBQLQL"
 REQUEST_HEADER_SIZE = struct.calcsize(REQUEST_HEADER_FMT)
 
 # The struct definition of the client reply msg header
@@ -43,23 +43,23 @@ REPLY_HEADER_FMT = "<HQL"
 REPLY_HEADER_SIZE = struct.calcsize(REPLY_HEADER_FMT)
 
 RequestHeader = namedtuple('RequestHeader', ['client_id', 'flags',
-    'req_seq_num', 'length', 'cid'])
+    'req_seq_num', 'length', 'timeout_milli', 'cid'])
 
 ReplyHeader = namedtuple('ReplyHeader', ['primary_id',
     'req_seq_num', 'length'])
 
-def pack_request(client_id, req_seq_num, read_only, cid, msg, pre_process=False):
+def pack_request(client_id, req_seq_num, read_only, timeout_milli, cid, msg, pre_process=False):
     """Create and return a buffer with a header and message"""
     flags = 0x0
     if read_only:
         flags = 0x1
     elif pre_process:
         flags = 0x2
-    header = RequestHeader(client_id, flags, req_seq_num, len(msg), len(cid))
+    header = RequestHeader(client_id, flags, req_seq_num, len(msg), timeout_milli, len(cid))
     data = b''.join([pack_request_header(header), msg, cid.encode()])
     return data
 
-def pack_request_header(header,  pre_process=False):
+def pack_request_header(header, pre_process=False):
     """Take a RequestHeader and return a buffer"""
     msg_type = PRE_PROCESS_TYPE if pre_process else REQUEST_MSG_TYPE
     return b''.join([struct.pack(MSG_TYPE_FMT, msg_type),
@@ -69,7 +69,7 @@ def unpack_request(data, cid_size = 0):
     """Take a buffer and return a pair of the RequestHeader and app data"""
     start = MSG_TYPE_SIZE + REQUEST_HEADER_SIZE
     end = len(data) - cid_size
-    return (unpack_request_header(data), data[start:end], data[end:].decode())
+    return unpack_request_header(data), data[start:end], data[end:].decode()
 
 def unpack_request_header(data):
     """
