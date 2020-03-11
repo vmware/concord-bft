@@ -54,17 +54,20 @@ struct ReplicaConfig {
   // 1 <= concurrencyLevel <= 30
   uint16_t concurrencyLevel = 0;
 
-  // viewChangeProtocolEnabled=true , if the view change protocol is enabled at all
+  // viewChangeProtocolEnabled=true, if the view change protocol is enabled at all
   bool viewChangeProtocolEnabled = false;
 
   // a time interval in milliseconds. represents the timeout used by the  view change protocol (TODO: add more details)
   uint16_t viewChangeTimerMillisec = 0;
 
-  // autoPrimaryRotationEnabled=true , if the automatic primary rotation is enabled
+  // autoPrimaryRotationEnabled=true, if the automatic primary rotation is enabled
   bool autoPrimaryRotationEnabled = false;
 
   // a time interval in milliseconds, represents the timeout for automatically replacing the primary
   uint16_t autoPrimaryRotationTimerMillisec = 0;
+
+  // a time interval in milliseconds represents the timeout for the detection of timed out pre-execution requests
+  uint64_t preexecReqStatusCheckTimerMillisec = 5000;
 
   // public keys of all replicas. map from replica identifier to a public key
   std::set<std::pair<uint16_t, const std::string>> publicKeysOfReplicas;
@@ -138,6 +141,7 @@ class ReplicaConfigSingleton {
   std::set<std::pair<uint16_t, const std::string>> GetPublicKeysOfReplicas() const {
     return config_->publicKeysOfReplicas;
   }
+  uint64_t GetPreexecReqStatusCheckTimerMillisec() const { return config_->preexecReqStatusCheckTimerMillisec; }
   std::string GetReplicaPrivateKey() const { return config_->replicaPrivateKey; }
 
   IThresholdSigner const* GetThresholdSignerForExecution() const { return config_->thresholdSignerForExecution; }

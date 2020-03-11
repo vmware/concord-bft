@@ -109,6 +109,8 @@ void setDynamicallyConfigurableParameters(ReplicaConfig &config) {
   config.viewChangeTimerMillisec = ReplicaConfigSingleton::GetInstance().GetViewChangeTimerMillisec();
   config.autoPrimaryRotationEnabled = ReplicaConfigSingleton::GetInstance().GetAutoPrimaryRotationEnabled();
   config.autoPrimaryRotationTimerMillisec = ReplicaConfigSingleton::GetInstance().GetAutoPrimaryRotationTimerMillisec();
+  config.preexecReqStatusCheckTimerMillisec =
+      ReplicaConfigSingleton::GetInstance().GetPreexecReqStatusCheckTimerMillisec();
   config.maxExternalMessageSize = ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize();
   config.maxReplyMessageSize = ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize();
   config.maxNumOfReservedPages = ReplicaConfigSingleton::GetInstance().GetMaxNumOfReservedPages();
