@@ -87,7 +87,7 @@ class PreProcessor {
                                       uint16_t clientId,
                                       uint32_t resultBufLen);
   void handlePreProcessedReqPrimaryRetry(NodeIdType clientId, SeqNum reqSeqNum);
-  void finalizePreProcessing(NodeIdType clientId, SeqNum reqSeqNum, const std::string& cid);
+  void finalizePreProcessing(NodeIdType clientId, SeqNum reqSeqNum, const std::string &cid);
   void cancelPreProcessing(NodeIdType clientId, SeqNum reqSeqNum);
   PreProcessingResult getPreProcessingConsensusResult(uint16_t clientId);
   void handleReqPreProcessedByOneReplica(const std::string &cid,
