@@ -39,9 +39,6 @@ ClientRequestMsg::ClientRequestMsg(NodeIdType sender,
                                    const char* request,
                                    const std::string& cid)
     : MessageBase(sender, MsgCode::ClientRequest, (sizeof(ClientRequestMsgHeader) + requestLength + cid.size())) {
-  if (flags == 0x4) {
-    LOG_INFO(GL, "seqNum: " << reqSeqNum);
-  }
   setParams(sender, reqSeqNum, requestLength, flags);
   msgBody()->cid_length = cid.size();
   memcpy(body() + sizeof(ClientRequestMsgHeader), request, requestLength);

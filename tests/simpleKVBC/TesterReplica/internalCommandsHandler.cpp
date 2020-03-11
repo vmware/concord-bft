@@ -101,22 +101,14 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
                  << " type: " << writeReq->header.type << " seqNum: " << sequenceNum
                  << " numOfWrites: " << writeReq->numOfWrites << " numOfKeysInReadSet: " << writeReq->numOfKeysInReadSet
                  << " readVersion: " << writeReq->readVersion
-                 << " pre-execution: " << ((flags & bftEngine::MsgFlag::PRE_PROCESS_FLAG) != 0));
+                 << " pre-execution: " << ((flags & bftEngine::MsgFlag::PRE_PROCESS_FLAG) != 0 ? "true" : "false"));
     bool result = verifyWriteCommand(requestSize, *writeReq, maxReplySize, outReplySize);
     if (!result) assert(0);
     if (flags & bftEngine::MsgFlag::PRE_PROCESS_FLAG) {
-      LOG_INFO(m_logger, "bug(4)");
       outReplySize = requestSize;
       memcpy(outReply, request, requestSize);
-      LOG_INFO(m_logger, "bug(5)");
       return result;
     }
-  }
-  if ((flags & bftEngine::MsgFlag::HAS_PRE_PROCESSED_FLAG)) {
-    LOG_INFO(m_logger, "Execute HAS_PRE_PROCESSED_FLAG command:"
-        << " type: " << writeReq->header.type << " seqNum: " << sequenceNum
-        << " numOfWrites: " << writeReq->numOfWrites << " numOfKeysInReadSet: " << writeReq->numOfKeysInReadSet
-        << " readVersion: " << writeReq->readVersion);
   }
   SimpleKey *readSetArray = writeReq->readSetArray();
   BlockId currBlock = m_storage->getLastBlock();
@@ -141,12 +133,7 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
     Status addSuccess = m_blocksAppender->addBlock(updates, newBlockId);
     assert(addSuccess.isOK());
     assert(newBlockId == currBlock + 1);
-  } else {
-    LOG_INFO(
-        m_logger,
-        "<<<<<<<<<<<<<<<<<<< HAS CONFLICTS!!!");
   }
-
   assert(sizeof(SimpleReply_ConditionalWrite) <= maxReplySize);
   auto *reply = (SimpleReply_ConditionalWrite *)outReply;
   reply->header.type = COND_WRITE;

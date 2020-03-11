@@ -191,9 +191,6 @@ int SimpleClientImp::sendRequest(uint8_t flags,
                                  uint32_t& actualReplyLength,
                                  std::string cid) {
   bool isReadOnly = flags & READ_ONLY_REQ;
-  if (!isReadOnly) {
-    flags = PRE_PROCESS_REQ;
-  }
   bool isPreProcessRequired = flags & PRE_PROCESS_REQ;
   const std::string msgCid = cid.empty() ? std::to_string(reqSeqNum) + "-" + std::to_string(clientId_) : cid;
   // TODO(GG): check params ...

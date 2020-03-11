@@ -178,7 +178,6 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
   const ReqId &seqNumberOfLastReply = myReplica_.seqNumberOfLastReplyToClient(clientId);
   if (seqNumberOfLastReply < reqSeqNum) {
     if (myReplica_.isCurrentPrimary()) {
-      LOG_INFO(GL, "handleClientPreProcessRequest reqSeqNum=" << reqSeqNum << " repID= " << myReplicaId_);
       return handleClientPreProcessRequest(move(clientPreProcessReqMsg));
     } else {  // Not the current primary => pass it to the primary
       sendMsg(msg->body(), myReplica_.currentPrimary(), msg->type(), msg->size());
@@ -249,7 +248,6 @@ void PreProcessor::handleReqPreProcessedByOneReplica(const string &cid,
     case CONTINUE:  // Not enough equal hashes collected
       return;
     case COMPLETE:  // Pre-processing consensus reached
-      LOG_INFO(GL, "COMPLETE primary replica pre-processing for clientId=" << clientId << " reqSeqNum=" << reqSeqNum);
       finalizePreProcessing(clientId, reqSeqNum, "" /* cid will be added later */);
       break;
     case CANCEL:  // Pre-processing consensus not reached
