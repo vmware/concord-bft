@@ -53,4 +53,6 @@ cmake -DBUILD_ROCKSDB_STORAGE=TRUE -DBUILD_TESTING=TRUE ..
 make
 ```
 
-If testing is enabled, cmake will add automated test targets for the storage library. These can be run individually with with `ctest -R <TEST>` or via `make test` to run all tests in concord-bft.
+If testing is enabled, cmake will add automated test targets for the storage
+library. These can be run individually with with `ctest -R <TEST>` or via `make
+test` to run all tests in concord-bft.
