@@ -68,7 +68,8 @@ class PreProcessor {
   template <typename T>
   void onMessage(T *msg);
 
-  void registerClientPreProcessRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg);
+  void registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
+                       PreProcessRequestMsgSharedPtr preProcessRequestMsg);
   void releaseClientPreProcessRequest(uint16_t clientId, ReqId requestSeqNum);
   bool validateMessage(MessageBase *msg) const;
   void registerMsgHandlers();
@@ -88,6 +89,11 @@ class PreProcessor {
   void handlePreProcessedReqPrimaryRetry(NodeIdType clientId, SeqNum reqSeqNum);
   void finalizePreProcessing(NodeIdType clientId, SeqNum reqSeqNum);
   void cancelPreProcessing(NodeIdType clientId, SeqNum reqSeqNum);
+  PreProcessingResult getPreProcessingConsensusResult(uint16_t clientId);
+  void handleReqPreProcessedByOneReplica(const std::string &cid,
+                                         PreProcessingResult result,
+                                         NodeIdType clientId,
+                                         SeqNum reqSeqNum);
 
  private:
   static std::vector<std::shared_ptr<PreProcessor>> preProcessors_;  // The place holder for PreProcessor objects

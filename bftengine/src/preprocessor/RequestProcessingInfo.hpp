@@ -29,12 +29,11 @@ class RequestProcessingInfo {
   RequestProcessingInfo(uint16_t numOfReplicas,
                         uint16_t numOfRequiredReplies,
                         ReqId reqSeqNum,
-                        ClientPreProcessReqMsgUniquePtr clientReqMsg);
+                        ClientPreProcessReqMsgUniquePtr clientReqMsg,
+                        PreProcessRequestMsgSharedPtr preProcessRequestMsg);
   ~RequestProcessingInfo() = default;
 
-  void handlePrimaryPreProcessed(PreProcessRequestMsgSharedPtr msg,
-                                 const char* preProcessResult,
-                                 uint32_t preProcessResultLen);
+  void handlePrimaryPreProcessed(const char* preProcessResult, uint32_t preProcessResultLen);
   void handlePreProcessReplyMsg(PreProcessReplyMsgSharedPtr preProcessReplyMsg);
   std::unique_ptr<MessageBase> convertClientPreProcessToClientMsg(bool resetPreProcessFlag);
   PreProcessRequestMsgSharedPtr getPreProcessRequest() const { return preProcessRequestMsg_; }
