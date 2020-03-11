@@ -377,11 +377,9 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId, ReqId reqSeqNum
                            maxReplyMsgSize_,
                            (char *)getPreProcessResultBuffer(clientId),
                            resultLen);
-  LOG_INFO(GL, "bug(6)");
   if (!resultLen)
     throw std::runtime_error("actualResultLength is 0 for clientId=" + to_string(clientId) +
                              ", requestSeqNum=" + to_string(reqSeqNum));
-  LOG_INFO(GL, "bug(7)");
   return resultLen;
 }
 

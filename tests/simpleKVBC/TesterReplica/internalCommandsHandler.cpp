@@ -134,6 +134,7 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
     assert(addSuccess.isOK());
     assert(newBlockId == currBlock + 1);
   }
+
   assert(sizeof(SimpleReply_ConditionalWrite) <= maxReplySize);
   auto *reply = (SimpleReply_ConditionalWrite *)outReply;
   reply->header.type = COND_WRITE;
