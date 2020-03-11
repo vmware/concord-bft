@@ -3082,7 +3082,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg *ppMsg, bool recov
       uint32_t actualReplyLength = 0;
       userRequestsHandler->execute(
           clientId,
-          lastExecutedSeqNum + 1,
+          req.requestSeqNum(),
           req.flags(),
           req.requestLength(),
           req.requestBuf(),

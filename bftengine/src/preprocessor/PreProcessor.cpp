@@ -178,6 +178,7 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
   const ReqId &seqNumberOfLastReply = myReplica_.seqNumberOfLastReplyToClient(clientId);
   if (seqNumberOfLastReply < reqSeqNum) {
     if (myReplica_.isCurrentPrimary()) {
+      LOG_INFO(GL, "handleClientPreProcessRequest reqSeqNum=" << reqSeqNum << " repID= " << myReplicaId_);
       return handleClientPreProcessRequest(move(clientPreProcessReqMsg));
     } else {  // Not the current primary => pass it to the primary
       sendMsg(msg->body(), myReplica_.currentPrimary(), msg->type(), msg->size());
@@ -248,7 +249,8 @@ void PreProcessor::handleReqPreProcessedByOneReplica(const string &cid,
     case CONTINUE:  // Not enough equal hashes collected
       return;
     case COMPLETE:  // Pre-processing consensus reached
-      finalizePreProcessing(clientId, reqSeqNum);
+      LOG_INFO(GL, "COMPLETE primary replica pre-processing for clientId=" << clientId << " reqSeqNum=" << reqSeqNum);
+      finalizePreProcessing(clientId, reqSeqNum, "" /* cid will be added later */);
       break;
     case CANCEL:  // Pre-processing consensus not reached
       cancelPreProcessing(clientId, reqSeqNum);
@@ -280,7 +282,7 @@ void PreProcessor::cancelPreProcessing(NodeIdType clientId, SeqNum reqSeqNum) {
   releaseClientPreProcessRequest(clientId, reqSeqNum);
 }
 
-void PreProcessor::finalizePreProcessing(NodeIdType clientId, SeqNum reqSeqNum) {
+void PreProcessor::finalizePreProcessing(NodeIdType clientId, SeqNum reqSeqNum, const std::string& cid) {
   unique_ptr<ClientRequestMsg> clientRequestMsg;
   auto &clientEntry = ongoingRequests_[clientId];
   {
@@ -291,12 +293,13 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, SeqNum reqSeqNum) 
                                                      HAS_PRE_PROCESSED_FLAG,
                                                      reqSeqNum,
                                                      clientEntry->clientReqInfoPtr->getMyPreProcessedResultLen(),
-                                                     clientEntry->clientReqInfoPtr->getMyPreProcessedResult());
+                                                     clientEntry->clientReqInfoPtr->getMyPreProcessedResult(),
+                                                     cid);
   }
   incomingMsgsStorage_->pushExternalMsg(move(clientRequestMsg));
   preProcessorMetrics_.requestSentForFurtherProcessing.Get().Inc();
   releaseClientPreProcessRequest(clientId, reqSeqNum);
-  LOG_DEBUG(GL, "Pre-processing completed for clientId=" << clientId << " reqSeqNum=" << reqSeqNum);
+  LOG_INFO(GL, "Pre-processing completed for clientId=" << clientId << " reqSeqNum=" << reqSeqNum);
 }
 
 uint16_t PreProcessor::numOfRequiredReplies() { return myReplica_.getReplicaConfig().fVal + 1; }
@@ -308,6 +311,7 @@ void PreProcessor::registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
   {
     // Only one request is supported per client for now
     auto &clientEntry = ongoingRequests_[clientId];
+    LOG_INFO(GL, "bug(1)");
     lock_guard<mutex> lock(clientEntry->mutex);
     clientEntry->clientReqInfoPtr = make_unique<RequestProcessingInfo>(
         numOfReplicas_, numOfRequiredReplies(), requestSeqNum, move(clientReqMsg), preProcessRequestMsg);
@@ -341,7 +345,7 @@ void PreProcessor::handleClientPreProcessRequest(ClientPreProcessReqMsgUniquePtr
                                                                                          clientReqMsg->getCid());
   registerRequest(move(clientReqMsg), preProcessRequestMsg);
   sendPreProcessRequestToAllReplicas(preProcessRequestMsg);
-
+  LOG_INFO(GL, "bug(2)");
   // Pre-process the request and calculate a hash of the result
   launchAsyncReqPreProcessingJob(preProcessRequestMsg, true, false);
 }
@@ -377,9 +381,11 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId, ReqId reqSeqNum
                            maxReplyMsgSize_,
                            (char *)getPreProcessResultBuffer(clientId),
                            resultLen);
+  LOG_INFO(GL, "bug(6)");
   if (!resultLen)
     throw std::runtime_error("actualResultLength is 0 for clientId=" + to_string(clientId) +
                              ", requestSeqNum=" + to_string(reqSeqNum));
+  LOG_INFO(GL, "bug(7)");
   return resultLen;
 }
 
@@ -391,7 +397,7 @@ PreProcessingResult PreProcessor::getPreProcessingConsensusResult(uint16_t clien
 
 void PreProcessor::handlePreProcessedReqPrimaryRetry(NodeIdType clientId, SeqNum reqSeqNum) {
   if (getPreProcessingConsensusResult(clientId) == COMPLETE)
-    finalizePreProcessing(clientId, reqSeqNum);
+    finalizePreProcessing(clientId, reqSeqNum, "");
   else
     cancelPreProcessing(clientId, reqSeqNum);
 }
@@ -423,6 +429,8 @@ void PreProcessor::handlePreProcessedReqByNonPrimary(uint16_t clientId, ReqId re
 void PreProcessor::handleReqPreProcessingJob(PreProcessRequestMsgSharedPtr preProcessReqMsg,
                                              bool isPrimary,
                                              bool isRetry) {
+  MDC_CID_PUT(GL, preProcessReqMsg->getCid());
+  LOG_INFO(GL, "bug(3)");
   const uint16_t &clientId = preProcessReqMsg->clientId();
   const SeqNum &reqSeqNum = preProcessReqMsg->reqSeqNum();
   uint32_t actualResultBufLen =
@@ -454,7 +462,10 @@ AsyncPreProcessJob::AsyncPreProcessJob(PreProcessor &preProcessor,
                                        bool isRetry)
     : preProcessor_(preProcessor), preProcessReqMsg_(preProcessReqMsg), isPrimary_(isPrimary), isRetry_(isRetry) {}
 
-void AsyncPreProcessJob::execute() { preProcessor_.handleReqPreProcessingJob(preProcessReqMsg_, isPrimary_, isRetry_); }
+void AsyncPreProcessJob::execute() {
+  MDC_PUT(GL, "rid", preProcessor_.myReplicaId_);
+  preProcessor_.handleReqPreProcessingJob(preProcessReqMsg_, isPrimary_, isRetry_);
+}
 
 void AsyncPreProcessJob::release() { delete this; }
 

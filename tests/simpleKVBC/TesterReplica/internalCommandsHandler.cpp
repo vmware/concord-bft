@@ -46,7 +46,7 @@ int InternalCommandsHandler::execute(uint16_t clientId,
   if (readOnly) {
     res = executeReadOnlyCommand(requestSize, request, maxReplySize, outReply, outActualReplySize);
   } else {
-    res = executeWriteCommand(requestSize, request, sequenceNum, maxReplySize, outReply, outActualReplySize);
+    res = executeWriteCommand(requestSize, request, sequenceNum, flags, maxReplySize, outReply, outActualReplySize);
   }
   if (!res) LOG_ERROR(m_logger, "Command execution failed!");
   return res ? 0 : -1;
@@ -90,18 +90,34 @@ bool InternalCommandsHandler::verifyWriteCommand(uint32_t requestSize,
 bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
                                                   const char *request,
                                                   uint64_t sequenceNum,
+                                                  uint8_t flags,
                                                   size_t maxReplySize,
                                                   char *outReply,
                                                   uint32_t &outReplySize) {
   auto *writeReq = (SimpleCondWriteRequest *)request;
-  LOG_INFO(m_logger,
-           "Execute WRITE command:"
-               << " type: " << writeReq->header.type << " seqNum: " << sequenceNum
-               << " numOfWrites: " << writeReq->numOfWrites << " numOfKeysInReadSet: " << writeReq->numOfKeysInReadSet
-               << " readVersion: " << writeReq->readVersion);
-  bool result = verifyWriteCommand(requestSize, *writeReq, maxReplySize, outReplySize);
-  if (!result) assert(0);
-
+  if (!(flags & bftEngine::MsgFlag::HAS_PRE_PROCESSED_FLAG)) {
+    LOG_INFO(m_logger,
+             "Execute WRITE command:"
+                 << " type: " << writeReq->header.type << " seqNum: " << sequenceNum
+                 << " numOfWrites: " << writeReq->numOfWrites << " numOfKeysInReadSet: " << writeReq->numOfKeysInReadSet
+                 << " readVersion: " << writeReq->readVersion
+                 << " pre-execution: " << ((flags & bftEngine::MsgFlag::PRE_PROCESS_FLAG) != 0));
+    bool result = verifyWriteCommand(requestSize, *writeReq, maxReplySize, outReplySize);
+    if (!result) assert(0);
+    if (flags & bftEngine::MsgFlag::PRE_PROCESS_FLAG) {
+      LOG_INFO(m_logger, "bug(4)");
+      outReplySize = requestSize;
+      memcpy(outReply, request, requestSize);
+      LOG_INFO(m_logger, "bug(5)");
+      return result;
+    }
+  }
+  if ((flags & bftEngine::MsgFlag::HAS_PRE_PROCESSED_FLAG)) {
+    LOG_INFO(m_logger, "Execute HAS_PRE_PROCESSED_FLAG command:"
+        << " type: " << writeReq->header.type << " seqNum: " << sequenceNum
+        << " numOfWrites: " << writeReq->numOfWrites << " numOfKeysInReadSet: " << writeReq->numOfKeysInReadSet
+        << " readVersion: " << writeReq->readVersion);
+  }
   SimpleKey *readSetArray = writeReq->readSetArray();
   BlockId currBlock = m_storage->getLastBlock();
 
@@ -125,6 +141,10 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
     Status addSuccess = m_blocksAppender->addBlock(updates, newBlockId);
     assert(addSuccess.isOK());
     assert(newBlockId == currBlock + 1);
+  } else {
+    LOG_INFO(
+        m_logger,
+        "<<<<<<<<<<<<<<<<<<< HAS CONFLICTS!!!");
   }
 
   assert(sizeof(SimpleReply_ConditionalWrite) <= maxReplySize);
