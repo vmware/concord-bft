@@ -105,7 +105,7 @@ bool operator==(const StateTransferDigest &lhs, const void *rhs) {
   return std::memcmp(lhs.content, rhs, block::BLOCK_DIGEST_SIZE) == 0;
 }
 
-StateTransferDigest zeroDigest() {
+StateTransferDigest getZeroDigest() {
   StateTransferDigest digest;
   std::memset(digest.content, 0, block::BLOCK_DIGEST_SIZE);
   return digest;
@@ -149,6 +149,7 @@ const auto defaultChkpt = uint64_t{42};
 const auto defaultDigest = getBlockDigest(defaultData + defaultData);
 const auto maxNumKeys = 100u;
 const auto rocksDbPathPrefix = std::string{"/tmp/merkleTreeAdapter_test_rocksdb.db"};
+const auto zeroDigest = getZeroDigest();
 
 static_assert(sizeof(EDBKeyType) == 1);
 static_assert(sizeof(EKeySubtype) == 1);
@@ -912,7 +913,7 @@ TEST_P(db_adapter, add_multiple_deterministic_blocks) {
 
     // Expect a zero parent digest for block 1.
     if (i == 1) {
-      ASSERT_TRUE(block::getParentDigest(block) == zeroDigest());
+      ASSERT_TRUE(block::getParentDigest(block) == zeroDigest);
     } else {
       auto parentBlock = Sliver{};
       auto found = false;
@@ -993,6 +994,12 @@ TEST_P(db_adapter, state_transfer_reverse_order_with_blockchain_blocks) {
       ASSERT_TRUE(block == referenceBlock);
       ASSERT_TRUE(block::getData(block) == block::getData(referenceBlock));
       ASSERT_TRUE(block::getStateHash(block) == block::getStateHash(referenceBlock));
+      if (j > 1) {
+        const auto &prevReferenceBlock = referenceBlockchain[j - 2];
+        ASSERT_TRUE(block::getParentDigest(block) == blockDigest(j - 1, prevReferenceBlock));
+      } else {
+        ASSERT_TRUE(block::getParentDigest(block) == zeroDigest);
+      }
     }
   }
 
@@ -1006,6 +1013,12 @@ TEST_P(db_adapter, state_transfer_reverse_order_with_blockchain_blocks) {
     ASSERT_TRUE(block == referenceBlock);
     ASSERT_TRUE(block::getData(block) == block::getData(referenceBlock));
     ASSERT_TRUE(block::getStateHash(block) == block::getStateHash(referenceBlock));
+    if (i > 1) {
+      const auto &prevReferenceBlock = referenceBlockchain[i - 2];
+      ASSERT_TRUE(block::getParentDigest(block) == blockDigest(i - 1, prevReferenceBlock));
+    } else {
+      ASSERT_TRUE(block::getParentDigest(block) == zeroDigest);
+    }
   }
 }
 
@@ -1036,6 +1049,12 @@ TEST_P(db_adapter, state_transfer_fetch_whole_blockchain_in_reverse_order) {
     ASSERT_TRUE(block == referenceBlock);
     ASSERT_TRUE(block::getData(block) == block::getData(referenceBlock));
     ASSERT_TRUE(block::getStateHash(block) == block::getStateHash(referenceBlock));
+    if (i > 1) {
+      const auto &prevReferenceBlock = referenceBlockchain[i - 2];
+      ASSERT_TRUE(block::getParentDigest(block) == blockDigest(i - 1, prevReferenceBlock));
+    } else {
+      ASSERT_TRUE(block::getParentDigest(block) == zeroDigest);
+    }
   }
 }
 

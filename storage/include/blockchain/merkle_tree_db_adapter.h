@@ -48,15 +48,16 @@ class DBKeyManipulator : public DBKeyManipulatorBase {
 // DBAdapter supports the notion of a blockchain with blocks linked to each other by a parent hash. The blockchain spans
 // from block ID = 1 to block ID = getLastReachableBlock(). Block outside of this range are considered temporary state
 // transfer (ST) blocks that are transferred until blocks in the range [getLastReachableBlock() + 1, getLatestBlock()]
-// are available. At that point, the blocks in this range are added to the blockchain and getLastReachableBlock()
-// becomes equal to getLastBlock(), meaning that the two chains are linked. Temporary blocks are deleted once added to
-// the blockchain. It can be represented visually as:
+// are available. At the end of state transfer, getLastReachableBlock() becomes equal to getLastBlock(), meaning that
+// the two chains are linked. Temporary blocks are deleted once added to the blockchain. It can be represented visually
+// as:
 // ---------------------------------------------------------------------
 // | 1 ... getLastReachableBlock(), ST temp blocks ..., getLastBlock() |
 // ---------------------------------------------------------------------
-// NOTE: ST blocks don't need to be added in reverse order - they can be added in any order. Once the
+// NOTE: ST blocks don't need to be added in reverse order - they can be added in any order. When the
 // getLastReachableBlock() + 1 block is added, DBAdapter will link the chain in the range
-// [getLastReachableBlock() + 1, getLatestBlock()], thus making it part of the blockchain.
+// [getLastReachableBlock() + 1, ReachableSTBlock], where ReachableSTBlock is a block that is reachable from block
+// getLastReachableBlock() + 1. Additionally, ReachableSTBlock <= getLastBlock().
 class DBAdapter : public DBAdapterBase {
  public:
   DBAdapter(const std::shared_ptr<IDBClient> &db, bool readOnly = false);
