@@ -39,7 +39,12 @@ class InternalNodeKey {
     return version_ < other.version_;
   }
 
-  std::string toString() const { return path_.toString() + "-" + version_.toString(); }
+  std::string toString() const {
+    if (path_.empty()) {
+      return std::string("<ROOT>") + "-" + version_.toString();
+    }
+    return path_.toString() + "-" + version_.toString();
+  }
 
   Version version() const { return version_; }
 
@@ -63,6 +68,7 @@ class LeafKey {
   LeafKey(Hash key, Version version) : key_(key), version_(version) {}
 
   bool operator==(const LeafKey& other) const { return key_ == other.key_ && version_ == other.version_; }
+  bool operator!=(const LeafKey& other) const { return !(*this == other); }
 
   // Compare by key_ then version_
   bool operator<(const LeafKey& other) const {

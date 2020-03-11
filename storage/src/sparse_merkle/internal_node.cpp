@@ -50,7 +50,9 @@ void BatchedInternalNode::updateHashes(size_t index, Version version) {
   }
 }
 
-BatchedInternalNode::InsertResult BatchedInternalNode::insert(const LeafChild& child, size_t depth) {
+BatchedInternalNode::InsertResult BatchedInternalNode::insert(const LeafChild& child,
+                                                              size_t depth,
+                                                              Version current_version) {
   // The index into the children_ array
   size_t index = 0;
   Nibble child_key = child.key.hash().getNibble(depth);
@@ -67,7 +69,7 @@ BatchedInternalNode::InsertResult BatchedInternalNode::insert(const LeafChild& c
 
     // First try to insert into an empty child, then try to overwrite the child,
     // and lastly split the node.
-    if (auto rv = insertIntoEmptyChild(index, child)) {
+    if (auto rv = insertIntoEmptyChild(index, child, current_version)) {
       return rv.value();
     }
     if (auto rv = overwrite(index, child)) {
@@ -84,9 +86,9 @@ BatchedInternalNode::InsertResult BatchedInternalNode::insert(const LeafChild& c
 }
 
 std::optional<BatchedInternalNode::InsertResult> BatchedInternalNode::insertIntoEmptyChild(size_t index,
-                                                                                           const LeafChild& child) {
+                                                                                           const LeafChild& child,
+                                                                                           Version version) {
   if (isEmpty(index)) {
-    auto version = child.key.version();
     children_[index] = child;
     updateHashes(index, version);
     return InsertComplete{};
@@ -183,12 +185,6 @@ BatchedInternalNode::InsertResult BatchedInternalNode::insertTwoLeafChildren(
   return InsertComplete{};
 }
 
-void BatchedInternalNode::write_internal_child_at_level_0(Nibble child_key, const InternalChild& child) {
-  size_t index = nibble_to_index(child_key);
-  children_[index] = child;
-  updateHashes(index, child.version);
-}
-
 BatchedInternalNode::RemoveResult BatchedInternalNode::remove(const Hash& key, size_t depth, Version new_version) {
   // The index into the children_ array
   size_t index = 0;
@@ -238,7 +234,7 @@ BatchedInternalNode::RemoveResult BatchedInternalNode::removeLeafChild(size_t in
     // Only the root remains.
     Assert(1 == numChildren());
     updateHashes(index, new_version);
-    return RemoveBatchedInternalNode();
+    return RemoveBatchedInternalNode(removed_version);
   }
   // Only remove the peer if it's a LeafChild.
   if (isInternal(peer_index.value())) {
@@ -272,7 +268,77 @@ BatchedInternalNode::RemoveResult BatchedInternalNode::removeLeafChild(size_t in
 
   // We've reached the root. This peer is the only remaining node left, and we
   // aren't in the root BatchedInternalNode.
-  return RemoveBatchedInternalNode{peer};
+  return RemoveBatchedInternalNode(peer, removed_version);
+}
+
+bool BatchedInternalNode::safeToRemove() const { return (numLeafChildren() == 0) && (numLevel0Children() == 0); }
+
+std::string BatchedInternalNode::toString() const {
+  std::string s("BatchedInternalNode children_:\n");
+  for (auto i = 0u; i < BatchedInternalNode::MAX_CHILDREN; i++) {
+    if (children_[i]) {
+      std::visit(
+          [&](auto&& child) {
+            s += "  index=" + std::to_string(i) + ", depth=" + std::to_string(4 - height(i)) + ": " + child.toString() +
+                 "\n";
+          },
+          children_[i].value());
+    }
+  }
+  return s;
+}
+
+void BatchedInternalNode::linkChild(Nibble child_key, const InternalChild& child) {
+  size_t index = nibbleToIndex(child_key);
+  children_[index] = child;
+  updateHashes(index, child.version);
+}
+
+// An invariant maintained is that removing a child is the same as having never
+// inserted that child. Therefore, other children may be removed, or shifted up
+// the tree when a child is removed.
+std::optional<LeafChild> BatchedInternalNode::unlinkChild(Nibble child_key,
+                                                          Version version,
+                                                          const std::optional<LeafChild>& promoted) {
+  size_t index = nibbleToIndex(child_key);
+  children_[index] = promoted;
+  auto peer_index = peerIndex(index);
+  if (peer_index && promoted) {
+    updateHashes(index, version);
+    return std::nullopt;
+  }
+
+  while (true) {
+    auto parent_index = parentIndex(index);
+    if (!parent_index) {
+      // We reached the root, so this BatchedInternalNode is going to be deleted.
+      if (!children_[index]) {
+        Assert(numChildren() == 0);
+        return std::nullopt;
+      }
+      auto rv = std::get<LeafChild>(children_[index].value());
+      children_[index] = std::nullopt;
+      Assert(numChildren() == 0);
+      return rv;
+    }
+    if (peer_index) {
+      if (children_[index] || isInternal(peer_index.value())) {
+        updateHashes(index, version);
+        return std::nullopt;
+      }
+      // Move the LeafChild peer upwards
+      children_[parent_index.value()] = children_[peer_index.value()];
+      children_[peer_index.value()] = std::nullopt;
+      index = parent_index.value();
+      peer_index = peerIndex(index);
+    } else {
+      // Move current child up to the parent node
+      children_[parent_index.value()] = children_[index];
+      children_[index] = std::nullopt;
+      index = parent_index.value();
+      peer_index = peerIndex(index);
+    }
+  }
 }
 
 Version BatchedInternalNode::version() const {
@@ -303,7 +369,12 @@ size_t BatchedInternalNode::numLeafChildren() const {
   });
 }
 
-size_t BatchedInternalNode::nibble_to_index(Nibble nibble) {
+size_t BatchedInternalNode::numLevel0Children() const {
+  constexpr size_t start_offset = (MAX_CHILDREN / 2);
+  return std::count_if(children_.begin() + start_offset, children_.end(), [](const auto& c) { return c.has_value(); });
+}
+
+size_t BatchedInternalNode::nibbleToIndex(Nibble nibble) const {
   constexpr size_t level_0_start = MAX_CHILDREN / 2;
   return level_0_start + nibble.data();
 }

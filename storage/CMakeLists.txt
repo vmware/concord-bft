@@ -32,10 +32,12 @@ endif(BUILD_ROCKSDB_STORAGE)
 
 find_package(OpenSSL REQUIRED)
 target_sources(concordbft_storage PRIVATE
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/memorydb_client.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/sparse_merkle/internal_node.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/sparse_merkle/tree.cpp
-    )
-target_include_directories(corebft PUBLIC ${OPENSSL_INCLUDE_DIR})
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/memorydb_client.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/sparse_merkle/base_types.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/sparse_merkle/internal_node.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/sparse_merkle/tree.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/sparse_merkle/update_cache.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/sparse_merkle/walker.cpp
+)
 target_link_libraries(concordbft_storage PRIVATE ${OPENSSL_LIBRARIES})
 

@@ -449,7 +449,7 @@ TEST(batched_internal, serialization) {
 
   // Full container with LeafChild children.
   {
-    auto children = BatchedInternalNode::ChildrenContainer{};
+    auto children = BatchedInternalNode::Children{};
     for (auto &child : children) {
       child = LeafChild{getHash("LeafChild"), LeafKey{getHash("LeafKey"), defaultBlockId}};
     }
@@ -460,7 +460,7 @@ TEST(batched_internal, serialization) {
 
   // Full container with InternalChild children.
   {
-    auto children = BatchedInternalNode::ChildrenContainer{};
+    auto children = BatchedInternalNode::Children{};
     auto count = 0;
     for (auto &child : children) {
       child = InternalChild{getHash("InternalChild"), defaultBlockId + count};
@@ -473,7 +473,7 @@ TEST(batched_internal, serialization) {
 
   // Full container with alternating children.
   {
-    auto children = BatchedInternalNode::ChildrenContainer{};
+    auto children = BatchedInternalNode::Children{};
     auto internal = false;
     auto count = 0;
     for (auto &child : children) {
@@ -492,7 +492,7 @@ TEST(batched_internal, serialization) {
 
   // 1 LeafChild at the beginning.
   {
-    auto children = BatchedInternalNode::ChildrenContainer{};
+    auto children = BatchedInternalNode::Children{};
     children[0] = LeafChild{getHash("LeafChild"), LeafKey{getHash("LeafKey"), defaultBlockId}};
     const auto node = BatchedInternalNode{};
     ASSERT_TRUE(deserialize<BatchedInternalNode>(serialize(node)) == node);
@@ -500,7 +500,7 @@ TEST(batched_internal, serialization) {
 
   // 1 LeafChild at the end.
   {
-    auto children = BatchedInternalNode::ChildrenContainer{};
+    auto children = BatchedInternalNode::Children{};
     children[children.size() - 1] = LeafChild{getHash("LeafChild"), LeafKey{getHash("LeafKey"), defaultBlockId}};
     const auto node = BatchedInternalNode{};
     ASSERT_TRUE(deserialize<BatchedInternalNode>(serialize(node)) == node);
@@ -508,7 +508,7 @@ TEST(batched_internal, serialization) {
 
   // 1 InternalChild at the beginning.
   {
-    auto children = BatchedInternalNode::ChildrenContainer{};
+    auto children = BatchedInternalNode::Children{};
     children[0] = InternalChild{getHash("InternalChild"), defaultBlockId};
     const auto node = BatchedInternalNode{};
     ASSERT_TRUE(deserialize<BatchedInternalNode>(serialize(node)) == node);
@@ -516,7 +516,7 @@ TEST(batched_internal, serialization) {
 
   // 1 InternalChild at the end.
   {
-    auto children = BatchedInternalNode::ChildrenContainer{};
+    auto children = BatchedInternalNode::Children{};
     children[children.size() - 1] = InternalChild{getHash("InternalChild"), defaultBlockId};
     const auto node = BatchedInternalNode{};
     ASSERT_TRUE(deserialize<BatchedInternalNode>(serialize(node)) == node);
@@ -524,7 +524,7 @@ TEST(batched_internal, serialization) {
 
   // 1 LeafChild at the beginning and one InternalChild at the end.
   {
-    auto children = BatchedInternalNode::ChildrenContainer{};
+    auto children = BatchedInternalNode::Children{};
     children[0] = LeafChild{getHash("LeafChild"), LeafKey{getHash("LeafKey"), defaultBlockId}};
     children[children.size() - 1] = InternalChild{getHash("InternalChild"), defaultBlockId};
     const auto node = BatchedInternalNode{};
@@ -533,7 +533,7 @@ TEST(batched_internal, serialization) {
 
   // 1 InternalChild at the beginning and one LeafChild at the end.
   {
-    auto children = BatchedInternalNode::ChildrenContainer{};
+    auto children = BatchedInternalNode::Children{};
     children[0] = InternalChild{getHash("InternalChild"), defaultBlockId};
     children[children.size() - 1] = LeafChild{getHash("LeafChild"), LeafKey{getHash("LeafKey"), defaultBlockId}};
     const auto node = BatchedInternalNode{};
@@ -542,7 +542,7 @@ TEST(batched_internal, serialization) {
 
   // Children in the middle.
   {
-    auto children = BatchedInternalNode::ChildrenContainer{};
+    auto children = BatchedInternalNode::Children{};
     children[15] = InternalChild{getHash("InternalChild1"), defaultBlockId};
     children[16] = LeafChild{getHash("LeafChild1"), LeafKey{getHash("LeafKey1"), defaultBlockId}};
     children[17] = InternalChild{getHash("InternalChild2"), defaultBlockId};
@@ -553,7 +553,7 @@ TEST(batched_internal, serialization) {
 
   // Children at the beginning and end.
   {
-    auto children = BatchedInternalNode::ChildrenContainer{};
+    auto children = BatchedInternalNode::Children{};
     children[0] = InternalChild{getHash("InternalChild1"), defaultBlockId + 1};
     children[1] = LeafChild{getHash("LeafChild1"), LeafKey{getHash("LeafKey1"), defaultBlockId + 2}};
     children[2] = InternalChild{getHash("InternalChild2"), defaultBlockId + 3};
