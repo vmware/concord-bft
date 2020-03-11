@@ -69,6 +69,7 @@ enum class EBFTSubtype : std::uint8_t {
   STReservedPageStatic,
   STReservedPageDynamic,
   STCheckpointDescriptor,
+  STTempBlock,
 };
 
 // Ordering of the enum values is important, because we want our keyspace to look like the following:

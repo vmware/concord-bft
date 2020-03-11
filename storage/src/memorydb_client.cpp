@@ -1,7 +1,9 @@
 // Copyright 2018 VMware, all rights reserved
 
 #include "memorydb/client.h"
+#include "memorydb/transaction.h"
 
+#include <cstdint>
 #include <chrono>
 #include <cstring>
 
@@ -135,6 +137,12 @@ Status Client::multiDel(const KeysVector &_keysVec) {
     if (!status.isOK()) return status;
   }
   return status;
+}
+
+ITransaction *Client::beginTransaction() {
+  // The transaction ID counter is intentionally not thread-safe as memorydb only supports single-thread operations.
+  static std::uint64_t current_transaction_id = 0;
+  return new Transaction{*this, ++current_transaction_id};
 }
 
 /**

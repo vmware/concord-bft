@@ -73,7 +73,7 @@ Tree::UpdateBatch Tree::update(const SetOfKeyValuePairs& updates, const KeysVect
 
   UpdateBatch batch;
   UpdateCache cache(root_, db_reader_);
-  auto version = cache.version();
+  const auto version = cache.version();
   Hasher hasher;
   for (auto&& [key, val] : updates) {
     auto leaf_hash = hasher.hash(val.data(), val.length());
@@ -91,6 +91,9 @@ Tree::UpdateBatch Tree::update(const SetOfKeyValuePairs& updates, const KeysVect
   for (auto& it : cache.internalNodes()) {
     batch.internal_nodes.emplace_back(InternalNodeKey(version, it.first), it.second);
   }
+
+  // Set the root after updates so that it is reflected to users in get_root_hash() and get_version() .
+  root_ = cache.getRoot();
 
   return batch;
 }
