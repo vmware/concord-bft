@@ -40,6 +40,7 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   bool executeWriteCommand(uint32_t requestSize,
                            const char *request,
                            uint64_t sequenceNum,
+                           uint8_t flags,
                            size_t maxReplySize,
                            char *outReply,
                            uint32_t &outReplySize);
