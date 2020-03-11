@@ -34,7 +34,8 @@ def start_replica_cmd(builddir, replica_id):
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
             "-s", statusTimerMilli,
-            "-v", viewChangeTimeoutMilli]
+            "-v", viewChangeTimeoutMilli,
+            "-p"]
 
 
 class SkvbcViewChangeTest(unittest.TestCase):

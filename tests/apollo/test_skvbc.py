@@ -32,7 +32,8 @@ def start_replica_cmd(builddir, replica_id):
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
-            "-s", statusTimerMilli]
+            "-s", statusTimerMilli,
+            "-p"]
 
 
 class SkvbcTest(unittest.TestCase):

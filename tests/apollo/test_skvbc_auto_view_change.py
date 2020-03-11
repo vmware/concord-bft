@@ -34,7 +34,8 @@ def start_replica_cmd(builddir, replica_id):
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
-            "-a", autoPrimaryRotationTimeoutMilli]
+            "-a", autoPrimaryRotationTimeoutMilli,
+            "-p"]
 
 
 class SkvbcAutoViewChangeTest(unittest.TestCase):
