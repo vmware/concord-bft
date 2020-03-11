@@ -8,13 +8,11 @@ questions about the CLA process, please refer to our [FAQ](https://cla.vmware.co
 
 ## Important
 
-Concord-bft is used in multiple commercial projects which are naturally prioritized by the concord team.
+The open-source Concord-bft code is used (as a library, without modifications) within the [VMware Blockchain Product](https://www.vmware.com/products/blockchain.html). Please be aware that this use-case is prioritized by the team.
 
-Sometimes there are delays until code and documentation is moved from those projects into this repository, mainly because of the need to strip proprietary information from the customers systems.
+There is no separate commercial concord-bft version - everything related to concord-bft is mergend back into this repo. Just sometimes there are delays until code and documentation is moved from those projects into this repository, mainly because of the need to strip proprietary information from the commercial code.
 
-There is no separate commercial concord-bft version - everything related to concord-bft is mergend back into this repo.
-
-It is always a good idea to file an issue (or ask) before working on bigger contributions, simply because it could be already in the making.
+It is always a good idea to file an issue (or ask) before working on bigger contributions to avoid redundant efforts.
 
 ## Contribution Flow
 
