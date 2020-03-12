@@ -72,7 +72,6 @@ class DBAdapter : public DBAdapterBase {
   // - adding the whole block (raw block) in its own key
   // - calculating and filling in the parent digest.
   // Typically called by the application when adding a new block.
-  // Empty blocks are not allowed - this method will return IllegalOperation if an empty set is passed.
   concordUtils::Status addLastReachableBlock(const concordUtils::SetOfKeyValuePairs &updates);
 
   // Adds a block from its raw representation and a block ID.
@@ -81,16 +80,15 @@ class DBAdapter : public DBAdapterBase {
   // the next block, a temporary state transfer block is added instead.
   concordUtils::Status addBlock(const concordUtils::Sliver &block, BlockId blockId);
 
-  // Gets the value of a key by its version. The actual version is written to the actualVersion output variable.
-  // If the requested version is not found, the most recent earlier one will be returned. If no such one, an empty
-  // outValue and an actualVersion of 0 will be returned.
-  // Returns Status::OK() .
+  // Gets the value of a key by its block version. The actual block version is written to the actualBlockVersion output
+  // variable. If the requested version is not found, the most recent earlier one will be returned. If no such one, an
+  // empty outValue and an actualBlockVersion of 0 will be returned.
   // Note: This method operates on the blockchain only, meaning that it will not take blocks with ID >
   // getLastReachableBlock() into account.
-  concordUtils::Status getKeyByReadVersion(BlockId version,
+  concordUtils::Status getKeyByReadVersion(BlockId blockVersion,
                                            const concordUtils::Key &key,
                                            concordUtils::Sliver &outValue,
-                                           BlockId &actualVersion) const;
+                                           BlockId &actualBlockVersion) const;
 
   // Returns the ID of the latest block that is part of the blockchain. Returns 0 if there are no blocks in the system.
   BlockId getLastReachableBlock() const;
@@ -131,7 +129,7 @@ class DBAdapter : public DBAdapterBase {
    public:
     Reader(const DBAdapter &adapter) : adapter_{adapter} {}
 
-    // Return the latest root node in the system
+    // Return the latest root node in the system.
     sparse_merkle::BatchedInternalNode get_latest_root() const override;
 
     // Retrieve a BatchedInternalNode given an InternalNodeKey.
@@ -139,17 +137,28 @@ class DBAdapter : public DBAdapterBase {
     // Throws a std::out_of_range exception if the internal node does not exist.
     sparse_merkle::BatchedInternalNode get_internal(const sparse_merkle::InternalNodeKey &) const override;
 
-    // Retrieve a LeafNode given a LeafKey.
-    //
-    // Throws a std::out_of_range exception if the leaf does not exist.
-    sparse_merkle::LeafNode get_leaf(const sparse_merkle::LeafKey &) const override;
-
    private:
     const DBAdapter &adapter_;
   };
 
   sparse_merkle::Tree smTree_;
 };
+
+namespace detail {
+
+// Serialize leafs in the DB as the block ID the value was saved at and the value itself.
+struct DatabaseLeafValue {
+  using BlockIdType = BlockId;
+
+  BlockIdType blockId;
+  sparse_merkle::LeafNode leafNode;
+};
+
+inline bool operator==(const DatabaseLeafValue &lhs, const DatabaseLeafValue &rhs) {
+  return (lhs.blockId == rhs.blockId && lhs.leafNode == rhs.leafNode);
+}
+
+}  // namespace detail
 
 }  // namespace v2MerkleTree
 }  // namespace blockchain

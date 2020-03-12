@@ -54,6 +54,7 @@ using ::concord::storage::sparse_merkle::InternalChild;
 using ::concord::storage::sparse_merkle::InternalNodeKey;
 using ::concord::storage::sparse_merkle::LeafChild;
 using ::concord::storage::sparse_merkle::LeafKey;
+using ::concord::storage::sparse_merkle::LeafNode;
 using ::concord::storage::sparse_merkle::NibblePath;
 using ::concord::storage::sparse_merkle::Version;
 
@@ -121,12 +122,19 @@ SetOfKeyValuePairs getDeterministicBlockUpdates(std::uint32_t count) {
   return updates;
 }
 
-ValuesVector createBlockchain(const std::shared_ptr<IDBClient> &db, std::size_t length) {
+ValuesVector createBlockchain(const std::shared_ptr<IDBClient> &db, std::size_t length, bool includeEmpty = false) {
   auto adapter = DBAdapter{db};
   ValuesVector blockchain;
 
+  auto emptyToggle = true;
   for (auto i = 1u; i <= length; ++i) {
-    Assert(adapter.addLastReachableBlock(getDeterministicBlockUpdates(i * 2)).isOK());
+    if (includeEmpty && emptyToggle) {
+      Assert(adapter.addLastReachableBlock(SetOfKeyValuePairs{}).isOK());
+    } else {
+      Assert(adapter.addLastReachableBlock(getDeterministicBlockUpdates(i * 2)).isOK());
+    }
+    emptyToggle = !emptyToggle;
+
     auto block = Sliver{};
     Assert(adapter.getBlockById(i, block).isOK());
     blockchain.push_back(block);
@@ -418,6 +426,27 @@ TEST(block, block_node_serialization) {
   }
 }
 
+TEST(block, state_root_deserialization) {
+  // No keys.
+  {
+    const auto node = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash, defaultVersion};
+    const auto nodeSliver = block::detail::createNode(node);
+    ASSERT_EQ(deserializeStateRootVersion(nodeSliver), defaultVersion);
+  }
+
+  // Multiple keys with different sizes and deleted flags.
+  {
+    auto node = block::detail::Node{defaultBlockId, defaultDigest.data(), defaultHash, defaultVersion};
+    auto deleted = false;
+    for (auto i = 1u; i <= maxNumKeys; ++i) {
+      node.keys.emplace(getSliverOfSize(i), block::detail::KeyData{deleted});
+      deleted = !deleted;
+    }
+    const auto nodeSliver = block::detail::createNode(node);
+    ASSERT_EQ(deserializeStateRootVersion(nodeSliver), defaultVersion);
+  }
+}
+
 TEST(block, block_serialization) {
   SetOfKeyValuePairs updates;
   for (auto i = 1u; i <= maxNumKeys; ++i) {
@@ -566,35 +595,69 @@ TEST(batched_internal, serialization) {
   }
 }
 
-struct IDbClientFactory {
+TEST(database_leaf_value, serialization) {
+  // Non-empty value.
+  {
+    const auto dbLeafVal = detail::DatabaseLeafValue{defaultBlockId, LeafNode{defaultSliver}};
+    ASSERT_TRUE(deserialize<detail::DatabaseLeafValue>(serialize(dbLeafVal)) == dbLeafVal);
+  }
+
+  // Empty value.
+  {
+    const auto dbLeafVal = detail::DatabaseLeafValue{defaultBlockId, LeafNode{Sliver{}}};
+    ASSERT_TRUE(deserialize<detail::DatabaseLeafValue>(serialize(dbLeafVal)) == dbLeafVal);
+  }
+}
+
+struct IDbAdapterTest {
   virtual std::shared_ptr<IDBClient> db() const = 0;
   virtual std::string type() const = 0;
-  virtual ~IDbClientFactory() noexcept = default;
+  virtual ValuesVector referenceBlockchain(const std::shared_ptr<IDBClient> &db, std::size_t length) const = 0;
+  virtual ~IDbAdapterTest() noexcept = default;
 };
 
-struct MemoryDbClientFactory : public IDbClientFactory {
+template <bool emptyBlocks = false>
+struct MemoryDbTestFactory : public IDbAdapterTest {
   std::shared_ptr<IDBClient> db() const override { return std::make_shared<::concord::storage::memorydb::Client>(); }
 
-  std::string type() const override { return "memorydb"; }
+  std::string type() const override {
+    const auto blocksType = emptyBlocks ? std::string{"hasEmptyInRef"} : std::string{"noEmptyInRef"};
+    return "memorydb_" + blocksType;
+  }
+
+  ValuesVector referenceBlockchain(const std::shared_ptr<IDBClient> &db, std::size_t length) const override {
+    return createBlockchain(db, length, emptyBlocks);
+  }
 };
 
-struct RocksDbClientFactory : public IDbClientFactory {
+template <bool emptyBlocks = false>
+struct RocksDbTestFactory : public IDbAdapterTest {
   std::shared_ptr<IDBClient> db() const override {
     fs::remove_all(rocksDbPath());
     // Create the RocksDB client with the default lexicographical comparator.
     return std::make_shared<::concord::storage::rocksdb::Client>(rocksDbPath());
   }
 
-  std::string type() const override { return "RocksDB"; }
+  std::string type() const override {
+    const auto blocksType = emptyBlocks ? std::string{"hasEmptyInRef"} : std::string{"noEmptyInRef"};
+    return "RocksDB_" + blocksType;
+  }
+
+  ValuesVector referenceBlockchain(const std::shared_ptr<IDBClient> &db, std::size_t length) const override {
+    return createBlockchain(db, length, emptyBlocks);
+  }
 };
 
-class db_adapter : public ::testing::TestWithParam<std::shared_ptr<IDbClientFactory>> {
+class db_adapter_base : public ::testing::TestWithParam<std::shared_ptr<IDbAdapterTest>> {
   void SetUp() override { fs::remove_all(rocksDbPath()); }
   void TearDown() override { fs::remove_all(rocksDbPath()); }
 };
 
-// Test the last reachable block functionality that relies on key ordering.
-TEST_P(db_adapter, get_last_reachable_block) {
+class db_adapter_custom_blockchain : public db_adapter_base {};
+class db_adapter_ref_blockchain : public db_adapter_base {};
+
+// Test the last reachable block functionality.
+TEST_P(db_adapter_custom_blockchain, get_last_reachable_block) {
   auto adapter = DBAdapter{GetParam()->db()};
   const auto updates = SetOfKeyValuePairs{std::make_pair(defaultSliver, defaultSliver)};
   ASSERT_TRUE(adapter.addLastReachableBlock(updates).isOK());
@@ -603,7 +666,20 @@ TEST_P(db_adapter, get_last_reachable_block) {
   ASSERT_EQ(adapter.getLastReachableBlock(), 3);
 }
 
-TEST_P(db_adapter, get_key_by_ver_1_key) {
+// Test the last reachable block functionality with empty blocks.
+TEST_P(db_adapter_custom_blockchain, get_last_reachable_block_empty_blocks) {
+  auto adapter = DBAdapter{GetParam()->db()};
+  const auto updates = SetOfKeyValuePairs{std::make_pair(defaultSliver, defaultSliver)};
+  ASSERT_TRUE(adapter.addLastReachableBlock(SetOfKeyValuePairs{}).isOK());
+  ASSERT_TRUE(adapter.addLastReachableBlock(updates).isOK());
+  ASSERT_TRUE(adapter.addLastReachableBlock(updates).isOK());
+  ASSERT_TRUE(adapter.addLastReachableBlock(SetOfKeyValuePairs{}).isOK());
+  ASSERT_TRUE(adapter.addLastReachableBlock(updates).isOK());
+  ASSERT_TRUE(adapter.addLastReachableBlock(SetOfKeyValuePairs{}).isOK());
+  ASSERT_EQ(adapter.getLastReachableBlock(), 6);
+}
+
+TEST_P(db_adapter_custom_blockchain, get_key_by_ver_1_key) {
   const auto key = defaultSliver;
   const auto keyData = defaultData;
   auto adapter = DBAdapter{GetParam()->db()};
@@ -683,7 +759,7 @@ TEST_P(db_adapter, get_key_by_ver_1_key) {
     ASSERT_EQ(actualVersion, 3);
   }
 
-  // Get a key with a version bigger than the last one and expect the last one.
+  // Get the key at a version bigger than the last one and expect the last one.
   {
     Sliver out;
     BlockId actualVersion;
@@ -694,11 +770,134 @@ TEST_P(db_adapter, get_key_by_ver_1_key) {
   }
 }
 
+TEST_P(db_adapter_custom_blockchain, get_key_by_ver_1_key_empty_blocks) {
+  const auto key = defaultSliver;
+  const auto keyData = defaultData;
+  auto adapter = DBAdapter{GetParam()->db()};
+  const auto data2 = Sliver{"data2"};
+  const auto updates2 = SetOfKeyValuePairs{std::make_pair(key, data2)};
+  const auto data5 = Sliver{"data5"};
+  const auto updates5 = SetOfKeyValuePairs{std::make_pair(key, data5)};
+
+  ASSERT_TRUE(adapter.addLastReachableBlock(SetOfKeyValuePairs{}).isOK());
+  ASSERT_TRUE(adapter.addLastReachableBlock(updates2).isOK());
+  ASSERT_TRUE(adapter.addLastReachableBlock(SetOfKeyValuePairs{}).isOK());
+  ASSERT_TRUE(adapter.addLastReachableBlock(SetOfKeyValuePairs{}).isOK());
+  ASSERT_TRUE(adapter.addLastReachableBlock(updates5).isOK());
+  ASSERT_TRUE(adapter.addLastReachableBlock(SetOfKeyValuePairs{}).isOK());
+
+  // Get a non-existent key with a hash that is after the existent key.
+  {
+    const auto after = Sliver{"dummy"};
+    ASSERT_TRUE(getHash(keyData) < getHash(after));
+
+    Sliver out;
+    BlockId actualVersion;
+    const auto status = adapter.getKeyByReadVersion(1, after, out, actualVersion);
+    ASSERT_TRUE(status == Status::OK());
+    ASSERT_TRUE(out.empty());
+    ASSERT_EQ(actualVersion, 0);
+  }
+
+  // Get a non-existent key with a hash that is before the existent key.
+  {
+    const auto before = Sliver{"aa"};
+    ASSERT_TRUE(getHash(before) < getHash(keyData));
+
+    Sliver out;
+    BlockId actualVersion;
+    const auto status = adapter.getKeyByReadVersion(1, before, out, actualVersion);
+    ASSERT_TRUE(status == Status::OK());
+    ASSERT_TRUE(out.empty());
+    ASSERT_EQ(actualVersion, 0);
+  }
+
+  // Get a key with a version smaller than the first version and expect an empty response.
+  {
+    Sliver out;
+    BlockId actualVersion;
+    const auto status = adapter.getKeyByReadVersion(0, key, out, actualVersion);
+    ASSERT_TRUE(status == Status::OK());
+    ASSERT_TRUE(out.empty());
+    ASSERT_EQ(actualVersion, 0);
+  }
+
+  // Get the key at the first empty block and expect an empty response.
+  {
+    Sliver out;
+    BlockId actualVersion;
+    const auto status = adapter.getKeyByReadVersion(1, key, out, actualVersion);
+    ASSERT_TRUE(status.isOK());
+    ASSERT_TRUE(out.empty());
+    ASSERT_EQ(actualVersion, 0);
+  }
+
+  // Get the key at the second block.
+  {
+    Sliver out;
+    BlockId actualVersion;
+    const auto status = adapter.getKeyByReadVersion(2, key, out, actualVersion);
+    ASSERT_TRUE(status.isOK());
+    ASSERT_TRUE(out == data2);
+    ASSERT_EQ(actualVersion, 2);
+  }
+
+  // Get the key at the third empty block and expect at the second.
+  {
+    Sliver out;
+    BlockId actualVersion;
+    const auto status = adapter.getKeyByReadVersion(3, key, out, actualVersion);
+    ASSERT_TRUE(status.isOK());
+    ASSERT_TRUE(out == data2);
+    ASSERT_EQ(actualVersion, 2);
+  }
+
+  // Get the key at the fourth empty block and expect at the second.
+  {
+    Sliver out;
+    BlockId actualVersion;
+    const auto status = adapter.getKeyByReadVersion(4, key, out, actualVersion);
+    ASSERT_TRUE(status.isOK());
+    ASSERT_TRUE(out == data2);
+    ASSERT_EQ(actualVersion, 2);
+  }
+
+  // Get the key at the fifth block.
+  {
+    Sliver out;
+    BlockId actualVersion;
+    const auto status = adapter.getKeyByReadVersion(5, key, out, actualVersion);
+    ASSERT_TRUE(status.isOK());
+    ASSERT_TRUE(out == data5);
+    ASSERT_EQ(actualVersion, 5);
+  }
+
+  // Get the key at the sixth empty block and expect at the fifth.
+  {
+    Sliver out;
+    BlockId actualVersion;
+    const auto status = adapter.getKeyByReadVersion(6, key, out, actualVersion);
+    ASSERT_TRUE(status.isOK());
+    ASSERT_TRUE(out == data5);
+    ASSERT_EQ(actualVersion, 5);
+  }
+
+  // Get the key at a version bigger than the last one and expect at the last one.
+  {
+    Sliver out;
+    BlockId actualVersion;
+    const auto status = adapter.getKeyByReadVersion(42, key, out, actualVersion);
+    ASSERT_TRUE(status.isOK());
+    ASSERT_TRUE(out == data5);
+    ASSERT_EQ(actualVersion, 5);
+  }
+}
+
 // Test the getKeyByReadVersion() method with multiple keys, including ones that are ordered before and after the keys
 // in the system.
 // Note: Leaf keys are ordered first on the key hash and then on the version. See db_types.h and
 // merkle_tree_serialization.h for more information.
-TEST_P(db_adapter, get_key_by_ver_multiple_keys) {
+TEST_P(db_adapter_custom_blockchain, get_key_by_ver_multiple_keys) {
   const auto key = defaultSliver;
   const auto keyData = defaultData;
   const auto before = Sliver{"aa"};
@@ -837,7 +1036,7 @@ TEST_P(db_adapter, get_key_by_ver_multiple_keys) {
   }
 }
 
-TEST_P(db_adapter, add_and_get_block) {
+TEST_P(db_adapter_custom_blockchain, add_and_get_block) {
   for (auto numKeys = 1u; numKeys <= maxNumKeys; ++numKeys) {
     auto adapter = DBAdapter{GetParam()->db()};
 
@@ -884,22 +1083,22 @@ TEST_P(db_adapter, add_and_get_block) {
   }
 }
 
-TEST_P(db_adapter, add_multiple_deterministic_blocks) {
-  auto adapter = DBAdapter{GetParam()->db()};
-
+TEST_P(db_adapter_ref_blockchain, add_multiple_deterministic_blocks) {
   const auto numBlocks = 16;
-  auto count = std::uint16_t{0};
+  const auto referenceBlockchain = GetParam()->referenceBlockchain(GetParam()->db(), numBlocks);
+  auto adapter = DBAdapter{GetParam()->db()};
   for (auto i = 1u; i <= numBlocks; ++i) {
-    ASSERT_TRUE(adapter.addLastReachableBlock(getDeterministicBlockUpdates(count + 1)).isOK());
+    ASSERT_TRUE(adapter.addLastReachableBlock(block::getData(referenceBlockchain[i - 1])).isOK());
     ASSERT_EQ(adapter.getLastReachableBlock(), i);
-    ++count;
   }
 
-  count = 0;
   for (auto i = 1u; i <= numBlocks; ++i) {
     auto block = Sliver{};
     ASSERT_TRUE(adapter.getBlockById(i, block).isOK());
     ASSERT_FALSE(block.empty());
+
+    const auto &referenceBlock = referenceBlockchain[i - 1];
+    ASSERT_TRUE(block == referenceBlock);
 
     // Expect a zero parent digest for block 1.
     if (i == 1) {
@@ -911,19 +1110,11 @@ TEST_P(db_adapter, add_multiple_deterministic_blocks) {
       ASSERT_TRUE(blockDigest(i - 1, parentBlock) == block::getParentDigest(block));
     }
 
-    const auto updates = getDeterministicBlockUpdates(count + 1);
-    ASSERT_TRUE(block::getData(block) == updates);
-
-    ++count;
+    ASSERT_TRUE(block::getData(block) == block::getData(referenceBlock));
   }
 }
 
-TEST_P(db_adapter, add_empty_block) {
-  auto adapter = DBAdapter{GetParam()->db()};
-  ASSERT_TRUE(adapter.addLastReachableBlock(SetOfKeyValuePairs{}).isIllegalOperation());
-}
-
-TEST_P(db_adapter, no_blocks) {
+TEST_P(db_adapter_custom_blockchain, no_blocks) {
   const auto adapter = DBAdapter{GetParam()->db()};
 
   ASSERT_EQ(adapter.getLastReachableBlock(), 0);
@@ -935,20 +1126,16 @@ TEST_P(db_adapter, no_blocks) {
 
   auto value = Sliver{};
   auto actualVersion = BlockId{};
-  ASSERT_TRUE(
-      adapter
-          .getKeyByReadVersion(
-              defaultBlockId, DBKeyManipulator::genDataDbKey(defaultSliver, defaultBlockId), value, actualVersion)
-          .isOK());
+  ASSERT_TRUE(adapter.getKeyByReadVersion(defaultBlockId, defaultSliver, value, actualVersion).isOK());
   ASSERT_EQ(actualVersion, 0);
   ASSERT_TRUE(value.empty());
 }
 
-TEST_P(db_adapter, state_transfer_reverse_order_with_blockchain_blocks) {
+TEST_P(db_adapter_ref_blockchain, state_transfer_reverse_order_with_blockchain_blocks) {
   const auto numBlockchainBlocks = 5;
   const auto numStBlocks = 7;
   const auto numTotalBlocks = numBlockchainBlocks + numStBlocks;
-  const auto referenceBlockchain = createBlockchain(GetParam()->db(), numTotalBlocks);
+  const auto referenceBlockchain = GetParam()->referenceBlockchain(GetParam()->db(), numTotalBlocks);
 
   auto adapter = DBAdapter{GetParam()->db()};
 
@@ -1004,9 +1191,9 @@ TEST_P(db_adapter, state_transfer_reverse_order_with_blockchain_blocks) {
   }
 }
 
-TEST_P(db_adapter, state_transfer_fetch_whole_blockchain_in_reverse_order) {
+TEST_P(db_adapter_ref_blockchain, state_transfer_fetch_whole_blockchain_in_reverse_order) {
   const auto numBlocks = 7;
-  const auto referenceBlockchain = createBlockchain(GetParam()->db(), numBlocks);
+  const auto referenceBlockchain = GetParam()->referenceBlockchain(GetParam()->db(), numBlocks);
 
   auto adapter = DBAdapter{GetParam()->db()};
 
@@ -1038,11 +1225,11 @@ TEST_P(db_adapter, state_transfer_fetch_whole_blockchain_in_reverse_order) {
   }
 }
 
-TEST_P(db_adapter, state_transfer_unordered_with_blockchain_blocks) {
+TEST_P(db_adapter_ref_blockchain, state_transfer_unordered_with_blockchain_blocks) {
   const auto numBlockchainBlocks = 5;
   const auto numStBlocks = 3;
   const auto numTotalBlocks = numBlockchainBlocks + numStBlocks;
-  const auto referenceBlockchain = createBlockchain(GetParam()->db(), numTotalBlocks);
+  const auto referenceBlockchain = GetParam()->referenceBlockchain(GetParam()->db(), numTotalBlocks);
 
   auto adapter = DBAdapter{GetParam()->db()};
 
@@ -1109,11 +1296,20 @@ struct TypePrinter {
   }
 };
 
-// Test DBAdapter with both memory and RocksDB clients.
-INSTANTIATE_TEST_CASE_P(db_adapter_tests,
-                        db_adapter,
-                        ::testing::Values(std::make_shared<MemoryDbClientFactory>(),
-                                          std::make_shared<RocksDbClientFactory>()),
+// Instantiate tests with memorydb and RocksDB clients and with custom (test-specific) blockchains.
+INSTANTIATE_TEST_CASE_P(db_adapter_tests_custom_blockchain,
+                        db_adapter_custom_blockchain,
+                        ::testing::Values(std::make_shared<MemoryDbTestFactory<>>(),
+                                          std::make_shared<RocksDbTestFactory<>>()),
+                        TypePrinter{});
+
+// Instantiate tests with memorydb and RocksDB clients and with reference blockchains (with and without empty blocks).
+INSTANTIATE_TEST_CASE_P(db_adapter_tests_ref_blockchain,
+                        db_adapter_ref_blockchain,
+                        ::testing::Values(std::make_shared<MemoryDbTestFactory<false>>(),
+                                          std::make_shared<RocksDbTestFactory<false>>(),
+                                          std::make_shared<MemoryDbTestFactory<true>>(),
+                                          std::make_shared<RocksDbTestFactory<true>>()),
                         TypePrinter{});
 
 }  // namespace

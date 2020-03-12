@@ -34,11 +34,6 @@ class IDBReader {
   //
   // Throws a std::out_of_range exception if the internal node does not exist.
   virtual BatchedInternalNode get_internal(const InternalNodeKey&) const = 0;
-
-  // Retrieve a LeafNode given a LeafKey.
-  //
-  // Throws a std::out_of_range exception if the leaf does not exist.
-  virtual LeafNode get_leaf(const LeafKey&) const = 0;
 };
 
 }  // namespace sparse_merkle

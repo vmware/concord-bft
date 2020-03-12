@@ -42,6 +42,7 @@ class Tree {
 
   const Hash& get_root_hash() const { return root_.hash(); }
   Version get_version() const { return root_.version(); }
+  const BatchedInternalNode& get_root() const { return root_; }
 
   // Add or update key-value pairs given in `updates`, and remove keys in
   // `deleted_keys`.
