@@ -33,6 +33,9 @@ struct ClientRequestInfo {
   RequestProcessingInfoUniquePtr clientReqInfoPtr;
 };
 
+typedef std::unique_ptr<ClientRequestInfo> ClientRequestInfoUniquePtr;
+typedef std::unordered_map<uint16_t, ClientRequestInfoUniquePtr> OngoingReqMap;
+
 //**************** Class PreProcessor ****************//
 
 // This class is responsible for the coordination of pre-execution activities on both - primary and non-primary
@@ -71,7 +74,8 @@ class PreProcessor {
 
   void registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
                        PreProcessRequestMsgSharedPtr preProcessRequestMsg);
-  void releaseClientPreProcessRequest(uint16_t clientId, ReqId requestSeqNum);
+  void releaseClientPreProcessRequestSafe(uint16_t clientId);
+  void releaseClientPreProcessRequest(ClientRequestInfoUniquePtr clientEntry, uint16_t clientId);
   bool validateMessage(MessageBase *msg) const;
   void registerMsgHandlers();
   bool checkClientMsgCorrectness(const ClientPreProcessReqMsgUniquePtr &clientReqMsg, ReqId reqSeqNum) const;
@@ -88,8 +92,8 @@ class PreProcessor {
                                       uint16_t clientId,
                                       uint32_t resultBufLen);
   void handlePreProcessedReqPrimaryRetry(NodeIdType clientId, SeqNum reqSeqNum);
-  void finalizePreProcessing(NodeIdType clientId, SeqNum reqSeqNum, const std::string &cid);
-  void cancelPreProcessing(NodeIdType clientId, SeqNum reqSeqNum);
+  void finalizePreProcessing(NodeIdType clientId, const std::string &cid);
+  void cancelPreProcessing(NodeIdType clientId);
   PreProcessingResult getPreProcessingConsensusResult(uint16_t clientId);
   void handleReqPreProcessedByOneReplica(const std::string &cid,
                                          PreProcessingResult result,
@@ -115,7 +119,7 @@ class PreProcessor {
   // One-time allocated buffers (one per client) for the pre-execution results storage
   std::vector<concordUtils::Sliver> preProcessResultBuffers_;
   // clientId -> *RequestProcessingInfo
-  std::unordered_map<uint16_t, std::unique_ptr<ClientRequestInfo>> ongoingRequests_;
+  OngoingReqMap ongoingRequests_;
   concordMetrics::Component metricsComponent_;
   std::chrono::seconds metricsLastDumpTime_;
   std::chrono::seconds metricsDumpIntervalInSec_;
