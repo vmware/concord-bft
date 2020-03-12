@@ -23,7 +23,11 @@ class CheckpointMsg : public MessageBase {
 
   static MsgSize maxSizeOfCheckpointMsgInLocalBuffer();
 
-  CheckpointMsg(ReplicaId senderId, SeqNum seqNum, const Digest& stateDigest, bool stateIsStable);
+  CheckpointMsg(ReplicaId senderId,
+                SeqNum seqNum,
+                const Digest& stateDigest,
+                bool stateIsStable,
+                const std::string& spanContext = "");
 
   SeqNum seqNumber() const { return b()->seqNum; }
 
@@ -33,9 +37,11 @@ class CheckpointMsg : public MessageBase {
 
   void setStateAsStable() { b()->flags |= 0x1; }
 
-  CheckpointMsg* clone();
-
   void validate(const ReplicasInfo& repInfo) const override;
+
+  std::string spanContext() const override {
+    return std::string(body() + sizeof(CheckpointMsgHeader), b()->header.span_context_size);
+  }
 
  protected:
 #pragma pack(push, 1)

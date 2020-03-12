@@ -12,21 +12,20 @@
 #include "CheckpointMsg.hpp"
 #include "assertUtils.hpp"
 
+namespace {
+const uint64_t SPAN_CONTEXT_MAX_SIZE{1024};
+}
 namespace bftEngine {
 namespace impl {
 
-CheckpointMsg::CheckpointMsg(ReplicaId senderId, SeqNum seqNum, const Digest& stateDigest, bool stateIsStable)
-    : MessageBase(senderId, MsgCode::Checkpoint, sizeof(CheckpointMsgHeader)) {
+CheckpointMsg::CheckpointMsg(
+    ReplicaId senderId, SeqNum seqNum, const Digest& stateDigest, bool stateIsStable, const std::string& spanContext)
+    : MessageBase(senderId, MsgCode::Checkpoint, spanContext.size(), sizeof(CheckpointMsgHeader)) {
   b()->seqNum = seqNum;
   b()->stateDigest = stateDigest;
   b()->flags = 0;
   if (stateIsStable) b()->flags |= 0x1;
-}
-
-CheckpointMsg* CheckpointMsg::clone() {
-  CheckpointMsg* c = new CheckpointMsg(senderId(), seqNumber(), digestOfState(), isStableState());
-
-  return c;
+  std::memcpy(body() + sizeof(CheckpointMsgHeader), spanContext.data(), spanContext.size());
 }
 
 void CheckpointMsg::validate(const ReplicasInfo& repInfo) const {
@@ -40,7 +39,7 @@ void CheckpointMsg::validate(const ReplicasInfo& repInfo) const {
   // TODO(GG): consider to protect against messages that are larger than needed (here and in other messages)
 }
 
-MsgSize CheckpointMsg::maxSizeOfCheckpointMsg() { return sizeof(CheckpointMsgHeader); }
+MsgSize CheckpointMsg::maxSizeOfCheckpointMsg() { return sizeof(CheckpointMsgHeader) + SPAN_CONTEXT_MAX_SIZE; }
 
 MsgSize CheckpointMsg::maxSizeOfCheckpointMsgInLocalBuffer() {
   return maxSizeOfCheckpointMsg() + sizeof(RawHeaderOfObjAndMsg);

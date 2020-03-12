@@ -39,3 +39,12 @@ target_link_libraries(SignedShareBase_test GTest::Main)
 target_link_libraries(SignedShareBase_test corebft $<TARGET_OBJECTS:logging_dev>)
 target_compile_options(SignedShareBase_test PUBLIC "-Wno-sign-compare")
 
+add_executable(CheckpointMsg_test CheckpointMsg_test.cpp)
+add_test(CheckpointMsg_test CheckpointMsg_test)
+find_package(GTest REQUIRED)
+target_include_directories(CheckpointMsg_test
+      PRIVATE
+      ${bftengine_SOURCE_DIR}/src/bftengine)
+target_link_libraries(CheckpointMsg_test GTest::Main)
+target_link_libraries(CheckpointMsg_test corebft $<TARGET_OBJECTS:logging_dev>)
+target_compile_options(CheckpointMsg_test PUBLIC "-Wno-sign-compare")
