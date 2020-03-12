@@ -902,16 +902,19 @@ class SkvbcTracker:
 
     async def send_indefinite_tracked_ops(self, write_weight=.70):
         max_size = len(self.skvbc.keys) // 2
+        max_concurrency = len(self.bft_network.clients) // 2
+        clients = self.bft_network.random_clients(max_concurrency)
+
         while True:
-            client = self.bft_network.random_client()
-            try:
-                if random.random() < write_weight:
-                    await self.send_tracked_write(client, max_size)
-                else:
-                    await self.send_tracked_read(client, max_size)
-            except:
-                pass
-            await trio.sleep(.1)
+            for client in clients:
+                try:
+                    if random.random() < write_weight:
+                        await self.send_tracked_write(client, max_size)
+                    else:
+                        await self.send_tracked_read(client, max_size)
+                except:
+                    pass
+                await trio.sleep(.01)
 
     async def write_and_track_known_kv(self, kv, client):
         read_version = self.read_block_id()
@@ -961,13 +964,23 @@ class SkvbcTracker:
         # Fill up the initial nodes with data, checkpoint them and stop
         # them. Then bring them back up and ensure the checkpoint data is
         # there.
-        client1 = self.bft_network.random_client()
+
         # Write enough data to checkpoint and create a need for state transfer
-        for i in range(1 + checkpoints_num * 150):
-            key = self.skvbc.random_key()
-            val = self.skvbc.random_value()
-            kv = [(key, val)]
-            await self.write_and_track_known_kv(kv, client1)
+        max_concurrency = len(self.bft_network.clients) // 2
+        clients = self.bft_network.random_clients(max_concurrency)
+        iterations = checkpoints_num * 150
+        replica_id = 0
+        last_executed_seq_num = 0
+        keys = ['replica', 'Gauges', 'lastExecutedSeqNum']
+
+        while last_executed_seq_num < iterations:
+            async with trio.open_nursery() as nursery:
+                for client in clients:
+                    key = self.skvbc.random_key()
+                    val = self.skvbc.random_value()
+                    kv = [(key, val)]
+                    nursery.start_soon(self.write_and_track_known_kv, kv, client)
+            last_executed_seq_num = await self.bft_network.metrics.get(replica_id, *keys)
 
         await self.skvbc.network_wait_for_checkpoint(initial_nodes, checkpoints_num, persistency_enabled)
 

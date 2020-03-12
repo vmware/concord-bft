@@ -60,13 +60,12 @@ class SkvbcChaosTest(unittest.TestCase):
         linearizability. The system is healthy and stable and no faults are
         intentionally generated.
         """
-        num_ops = 500
+        num_ops = 100
 
         self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         self.bft_network = bft_network
         self.bft_network.start_all_replicas()
-        async with trio.open_nursery() as nursery:
-            nursery.start_soon(tracker.run_concurrent_ops, num_ops)
+        tracker.run_concurrent_ops(num_ops)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -77,7 +76,7 @@ class SkvbcChaosTest(unittest.TestCase):
          linearizability, while dropping a small amount of packets
          between all replicas.
          """
-        num_ops = 500
+        num_ops = 100
 
         with net.PacketDroppingAdversary(
                 bft_network, drop_rate_percentage=5) as adversary:
@@ -86,9 +85,7 @@ class SkvbcChaosTest(unittest.TestCase):
             bft_network.start_all_replicas()
 
             adversary.interfere()
-
-            async with trio.open_nursery() as nursery:
-                nursery.start_soon(tracker.run_concurrent_ops, num_ops)
+            tracker.run_concurrent_ops(num_ops)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -100,7 +97,7 @@ class SkvbcChaosTest(unittest.TestCase):
         linearizability at the end of the run.
         """
 
-        num_ops = 500
+        num_ops = 100
 
         self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         self.bft_network = bft_network
