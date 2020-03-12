@@ -28,10 +28,8 @@ def start_replica_cmd(builddir, replica_id):
     """
     Return a command that starts an skvbc replica when passed to
     subprocess.Popen.
-
     The replica is started with a short view change timeout and with RocksDB
     persistence enabled (-p).
-
     Note each arguments is an element in a list.
     """
     statusTimerMilli = "500"
@@ -47,7 +45,7 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcReadOnlyReplicaTest(unittest.TestCase):
 
-####################################################################################################################### 
+#######################################################################################################################
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1)
     @verify_linearizability
@@ -72,7 +70,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
 
                         if lastStableSeqNum >= 150:
                             #enough requests
-                            print("Consensus: lastStableSeqNum:" + str(lastStableSeqNum))  
+                            print("Consensus: lastStableSeqNum:" + str(lastStableSeqNum))
                             nursery.cancel_scope.cancel()
         # start the read-only replica
         ro_replica_id = bft_network.config.n
@@ -86,7 +84,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                     if lastExecutedSeqNum >= 150:
                         print("Replica " + str(ro_replica_id) + ": lastExecutedSeqNum:" + str(lastExecutedSeqNum))
                         break
-####################################################################################################################### 
+#######################################################################################################################
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1)
     @verify_linearizability
@@ -102,10 +100,11 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         ro_replica_id = bft_network.config.n
         bft_network.start_replica(ro_replica_id)
         # TODO replace the below function with the library function:
-        # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), checkpoint_num=1)     
+        # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), checkpoint_num=1)
+
         with trio.fail_after(60):  # seconds
             async with trio.open_nursery() as nursery:
-                nursery.start_soon(tracker.send_indefinite_tracked_ops)
+                nursery.start_soon(tracker.send_indefinite_tracked_ops, 1)
                 while True:
                     with trio.move_on_after(.5):  # seconds
                         key = ['replica', 'Gauges', 'lastExecutedSeqNum']
@@ -113,5 +112,4 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                         # success!
                         if lastExecutedSeqNum >= 150:
                             print("Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
-                            nursery.cancel_scope.cancel()          
-                
+                            nursery.cancel_scope.cancel()

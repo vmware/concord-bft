@@ -52,11 +52,11 @@ def interesting_configs(selected=None):
     if selected is None:
         selected=lambda *config: True
 
-    bft_configs = [#{'n': 4, 'f': 1, 'c': 0, 'num_clients': 30},
+    bft_configs = [#{'n': 4, 'f': 1, 'c': 0, 'num_clients': 4},
                    {'n': 6, 'f': 1, 'c': 1, 'num_clients': 30},
                    {'n': 7, 'f': 2, 'c': 0, 'num_clients': 30},
-                   # {'n': 9, 'f': 2, 'c': 1, 'num_clients': 30}
-                   # {'n': 12, 'f': 3, 'c': 1, 'num_clients': 30}
+                   # {'n': 9, 'f': 2, 'c': 1, 'num_clients': 4}
+                   # {'n': 12, 'f': 3, 'c': 1, 'num_clients': 4}
                    ]
 
     selected_bft_configs = \
@@ -585,6 +585,7 @@ class BftTestNetwork:
             with trio.move_on_after(.5): # seconds
                 n = await self.metrics.get(replica_id, *key)
                 if n == checkpoint_num:
+                    print("actual: ", n, "expected: ", checkpoint_num)
                     return
 
     async def wait_for_slow_path_to_be_prevalent(
