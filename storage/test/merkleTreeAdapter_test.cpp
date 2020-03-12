@@ -128,9 +128,7 @@ ValuesVector createBlockchain(const std::shared_ptr<IDBClient> &db, std::size_t 
   for (auto i = 1u; i <= length; ++i) {
     Assert(adapter.addLastReachableBlock(getDeterministicBlockUpdates(i * 2)).isOK());
     auto block = Sliver{};
-    auto found = false;
-    Assert(adapter.getBlockById(i, block, found).isOK());
-    Assert(found);
+    Assert(adapter.getBlockById(i, block).isOK());
     blockchain.push_back(block);
   }
 
@@ -862,29 +860,23 @@ TEST_P(db_adapter, add_and_get_block) {
     // Try to get a non-existent block.
     {
       Sliver block;
-      auto found = true;
-      const auto status = adapter.getBlockById(3, block, found);
-      ASSERT_TRUE(status.isOK());
-      ASSERT_FALSE(found);
+      const auto status = adapter.getBlockById(3, block);
+      ASSERT_TRUE(status.isNotFound());
     }
 
     // Get the first block.
     Sliver block1;
     {
-      auto found = false;
-      const auto status = adapter.getBlockById(1, block1, found);
+      const auto status = adapter.getBlockById(1, block1);
       ASSERT_TRUE(status.isOK());
-      ASSERT_TRUE(found);
       ASSERT_TRUE(updates1 == block::getData(block1));
     }
 
     // Get the second block.
     {
       Sliver block2;
-      auto found = false;
-      const auto status = adapter.getBlockById(2, block2, found);
+      const auto status = adapter.getBlockById(2, block2);
       ASSERT_TRUE(status.isOK());
-      ASSERT_TRUE(found);
       ASSERT_TRUE(updates2 == block::getData(block2));
       ASSERT_TRUE(adapter.getStateHash() == block::getStateHash(block2));
       ASSERT_TRUE(block::getParentDigest(block2) == blockDigest(1, block1));
@@ -906,20 +898,16 @@ TEST_P(db_adapter, add_multiple_deterministic_blocks) {
   count = 0;
   for (auto i = 1u; i <= numBlocks; ++i) {
     auto block = Sliver{};
-    auto found = false;
-    ASSERT_TRUE(adapter.getBlockById(i, block, found).isOK());
+    ASSERT_TRUE(adapter.getBlockById(i, block).isOK());
     ASSERT_FALSE(block.empty());
-    ASSERT_TRUE(found);
 
     // Expect a zero parent digest for block 1.
     if (i == 1) {
       ASSERT_TRUE(block::getParentDigest(block) == zeroDigest);
     } else {
       auto parentBlock = Sliver{};
-      auto found = false;
-      ASSERT_TRUE(adapter.getBlockById(i - 1, parentBlock, found).isOK());
+      ASSERT_TRUE(adapter.getBlockById(i - 1, parentBlock).isOK());
       ASSERT_FALSE(parentBlock.empty());
-      ASSERT_TRUE(found);
       ASSERT_TRUE(blockDigest(i - 1, parentBlock) == block::getParentDigest(block));
     }
 
@@ -942,9 +930,7 @@ TEST_P(db_adapter, no_blocks) {
   ASSERT_EQ(adapter.getLatestBlock(), 0);
 
   auto block = Sliver{};
-  auto found = true;
-  ASSERT_TRUE(adapter.getBlockById(defaultBlockId, block, found).isOK());
-  ASSERT_FALSE(found);
+  ASSERT_TRUE(adapter.getBlockById(defaultBlockId, block).isNotFound());
   ASSERT_TRUE(block.empty());
 
   auto value = Sliver{};
@@ -987,9 +973,7 @@ TEST_P(db_adapter, state_transfer_reverse_order_with_blockchain_blocks) {
     // Verify that initial blocks are accessible at all steps.
     for (auto j = 1; j <= numBlockchainBlocks; ++j) {
       auto block = Sliver{};
-      auto found = false;
-      ASSERT_TRUE(adapter.getBlockById(j, block, found).isOK());
-      ASSERT_TRUE(found);
+      ASSERT_TRUE(adapter.getBlockById(j, block).isOK());
       const auto &referenceBlock = referenceBlockchain[j - 1];
       ASSERT_TRUE(block == referenceBlock);
       ASSERT_TRUE(block::getData(block) == block::getData(referenceBlock));
@@ -1006,9 +990,7 @@ TEST_P(db_adapter, state_transfer_reverse_order_with_blockchain_blocks) {
   // Verify that all blocks are accessible at the end.
   for (auto i = 1; i <= numTotalBlocks; ++i) {
     auto block = Sliver{};
-    auto found = false;
-    ASSERT_TRUE(adapter.getBlockById(i, block, found).isOK());
-    ASSERT_TRUE(found);
+    ASSERT_TRUE(adapter.getBlockById(i, block).isOK());
     const auto &referenceBlock = referenceBlockchain[i - 1];
     ASSERT_TRUE(block == referenceBlock);
     ASSERT_TRUE(block::getData(block) == block::getData(referenceBlock));
@@ -1042,9 +1024,7 @@ TEST_P(db_adapter, state_transfer_fetch_whole_blockchain_in_reverse_order) {
   // Verify that all blocks are accessible at the end.
   for (auto i = 1; i <= numBlocks; ++i) {
     auto block = Sliver{};
-    auto found = false;
-    ASSERT_TRUE(adapter.getBlockById(i, block, found).isOK());
-    ASSERT_TRUE(found);
+    ASSERT_TRUE(adapter.getBlockById(i, block).isOK());
     const auto &referenceBlock = referenceBlockchain[i - 1];
     ASSERT_TRUE(block == referenceBlock);
     ASSERT_TRUE(block::getData(block) == block::getData(referenceBlock));
@@ -1080,9 +1060,7 @@ TEST_P(db_adapter, state_transfer_unordered_with_blockchain_blocks) {
     ASSERT_EQ(adapter.getLatestBlock(), 7);
     for (auto i = 1; i <= numBlockchainBlocks; ++i) {
       auto block = Sliver{};
-      auto found = false;
-      ASSERT_TRUE(adapter.getBlockById(i, block, found).isOK());
-      ASSERT_TRUE(found);
+      ASSERT_TRUE(adapter.getBlockById(i, block).isOK());
       const auto &referenceBlock = referenceBlockchain[i - 1];
       ASSERT_TRUE(block == referenceBlock);
       ASSERT_TRUE(block::getData(block) == block::getData(referenceBlock));
@@ -1097,9 +1075,7 @@ TEST_P(db_adapter, state_transfer_unordered_with_blockchain_blocks) {
     ASSERT_EQ(adapter.getLatestBlock(), 7);
     for (auto i = 1; i <= 7; ++i) {
       auto block = Sliver{};
-      auto found = false;
-      ASSERT_TRUE(adapter.getBlockById(i, block, found).isOK());
-      ASSERT_TRUE(found);
+      ASSERT_TRUE(adapter.getBlockById(i, block).isOK());
       const auto &referenceBlock = referenceBlockchain[i - 1];
       ASSERT_TRUE(block == referenceBlock);
       ASSERT_TRUE(block::getData(block) == block::getData(referenceBlock));
@@ -1117,9 +1093,7 @@ TEST_P(db_adapter, state_transfer_unordered_with_blockchain_blocks) {
   // Verify that all blocks are accessible at the end.
   for (auto i = 1; i <= numTotalBlocks; ++i) {
     auto block = Sliver{};
-    auto found = false;
-    ASSERT_TRUE(adapter.getBlockById(i, block, found).isOK());
-    ASSERT_TRUE(found);
+    ASSERT_TRUE(adapter.getBlockById(i, block).isOK());
     const auto &referenceBlock = referenceBlockchain[i - 1];
     ASSERT_TRUE(block == referenceBlock);
     ASSERT_TRUE(block::getData(block) == block::getData(referenceBlock));
