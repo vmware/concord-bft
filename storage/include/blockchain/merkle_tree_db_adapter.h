@@ -97,10 +97,11 @@ class DBAdapter : public DBAdapterBase {
   BlockId getLatestBlock() const;
 
   // Gets a block by its ID. The returned block buffer can be inspected with functions from the block::v2MerkleTree
-  // namespace. Returns the status of the operation. If the block is not found, Status::OK() is returned and the found
-  // output variable is set to false.
+  // namespace.
+  // If successful, Status::OK() is returned. If the block is not found, Status::NotFound() is returned. Else, a status
+  // describing the error is returned.
   // Note: Takes both blocks from the blockchain and temporary ST blocks into account.
-  concordUtils::Status getBlockById(BlockId blockId, concordUtils::Sliver &block, bool &found) const;
+  concordUtils::Status getBlockById(BlockId blockId, concordUtils::Sliver &block) const;
 
   // Returns the current state hash from the internal merkle tree implementation.
   const sparse_merkle::Hash &getStateHash() const { return smTree_.get_root_hash(); }

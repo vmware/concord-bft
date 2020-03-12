@@ -285,10 +285,9 @@ Sliver DBAdapter::createBlockNode(const SetOfKeyValuePairs &updates,
   // Make sure the digest is zero-initialized by using {} initialization.
   auto parentBlockDigest = StateTransferDigest{};
   if (blockId > 1) {
-    auto found = false;
     Sliver parentBlock;
-    const auto status = getBlockById(blockId - 1, parentBlock, found);
-    if (!status.isOK() || !found || parentBlock.empty()) {
+    const auto status = getBlockById(blockId - 1, parentBlock);
+    if (!status.isOK() || parentBlock.empty()) {
       LOG_FATAL(logger_, "createBlockNode: no block or block data for parent block ID " << blockId - 1);
       std::exit(1);
     }
@@ -303,20 +302,12 @@ Sliver DBAdapter::createBlockNode(const SetOfKeyValuePairs &updates,
   return block::detail::createNode(node);
 }
 
-Status DBAdapter::getBlockById(BlockId blockId, Sliver &block, bool &found) const {
-  found = false;
+Status DBAdapter::getBlockById(BlockId blockId, Sliver &block) const {
   const auto blockKey = DBKeyManipulator::genBlockDbKey(blockId);
   Sliver blockNodeSliver;
   if (auto status = db_->get(blockKey, blockNodeSliver); status.isNotFound()) {
     // If a block node is not found, look for a state transfer block.
-    status = db_->get(DBKeyManipulator::generateSTTempBlockKey(blockId), block);
-    if (status.isNotFound()) {
-      return Status::OK();
-    } else if (!status.isOK()) {
-      return status;
-    }
-    found = true;
-    return Status::OK();
+    return db_->get(DBKeyManipulator::generateSTTempBlockKey(blockId), block);
   } else if (!status.isOK()) {
     return status;
   }
@@ -338,7 +329,6 @@ Status DBAdapter::getBlockById(BlockId blockId, Sliver &block, bool &found) cons
   }
 
   block = block::create(blockId, keyValues, blockNode.parentDigest.data(), blockNode.stateHash);
-  found = true;
   return Status::OK();
 }
 
