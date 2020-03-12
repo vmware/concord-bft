@@ -111,7 +111,10 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
 }
 
 PreProcessor::~PreProcessor() {
-  TimersSingleton::getInstance().cancel(requestsStatusCheckTimer_);
+  try {
+    TimersSingleton::getInstance().cancel(requestsStatusCheckTimer_);
+  } catch (std::invalid_argument &e) {
+  }
   threadPool_.stop();
 }
 
