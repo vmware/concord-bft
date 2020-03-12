@@ -68,12 +68,13 @@ class PreProcessor {
   template <typename T>
   void onMessage(T *msg);
 
-  void registerClientPreProcessRequest(uint16_t clientId, ReqId requestSeqNum);
+  void registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
+                       PreProcessRequestMsgSharedPtr preProcessRequestMsg);
   void releaseClientPreProcessRequest(uint16_t clientId, ReqId requestSeqNum);
   bool validateMessage(MessageBase *msg) const;
   void registerMsgHandlers();
   bool checkClientMsgCorrectness(const ClientPreProcessReqMsgUniquePtr &clientReqMsg, ReqId reqSeqNum) const;
-  void handleClientPreProcessRequest(const ClientPreProcessReqMsgUniquePtr &clientReqMsg);
+  void handleClientPreProcessRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg);
   void sendMsg(char *msg, NodeIdType dest, uint16_t msgType, MsgSize msgSize);
   void sendPreProcessRequestToAllReplicas(PreProcessRequestMsgSharedPtr preProcessReqMsg);
   uint16_t getClientReplyBufferId(uint16_t clientId) const { return clientId - numOfReplicas_; }
@@ -86,8 +87,13 @@ class PreProcessor {
                                       uint16_t clientId,
                                       uint32_t resultBufLen);
   void handlePreProcessedReqPrimaryRetry(NodeIdType clientId, SeqNum reqSeqNum);
-  void finalizePreProcessing(NodeIdType clientId, SeqNum reqSeqNum);
+  void finalizePreProcessing(NodeIdType clientId, SeqNum reqSeqNum, const std::string &cid);
   void cancelPreProcessing(NodeIdType clientId, SeqNum reqSeqNum);
+  PreProcessingResult getPreProcessingConsensusResult(uint16_t clientId);
+  void handleReqPreProcessedByOneReplica(const std::string &cid,
+                                         PreProcessingResult result,
+                                         NodeIdType clientId,
+                                         SeqNum reqSeqNum);
 
  private:
   static std::vector<std::shared_ptr<PreProcessor>> preProcessors_;  // The place holder for PreProcessor objects
@@ -109,6 +115,8 @@ class PreProcessor {
   // clientId -> *RequestProcessingInfo
   std::unordered_map<uint16_t, std::unique_ptr<ClientRequestInfo>> ongoingRequests_;
   concordMetrics::Component metricsComponent_;
+  std::chrono::seconds metricsLastDumpTime_;
+  std::chrono::seconds metricsDumpIntervalInSec_;
   struct PreProcessingMetrics {
     concordMetrics::CounterHandle requestReceived;
     concordMetrics::CounterHandle requestInvalid;

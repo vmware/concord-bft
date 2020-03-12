@@ -46,6 +46,8 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcChaosTest(unittest.TestCase):
 
+    __test__ = False  # so that PyTest ignores this test scenario
+
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability

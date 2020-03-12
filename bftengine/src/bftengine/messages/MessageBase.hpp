@@ -35,6 +35,10 @@ class MessageBase {
 
   MessageBase(NodeIdType sender, Header *body, MsgSize size, bool ownerOfStorage);
 
+  void acquireOwnership() { owner_ = true; }
+
+  void releaseOwnership() { owner_ = false; }
+
   virtual ~MessageBase();
 
   virtual void validate(const ReplicasInfo &) const {}

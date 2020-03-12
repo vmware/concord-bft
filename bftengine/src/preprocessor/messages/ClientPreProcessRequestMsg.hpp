@@ -24,7 +24,7 @@ class ClientPreProcessRequestMsg : public ClientRequestMsg {
   ClientPreProcessRequestMsg(
       NodeIdType sender, uint64_t reqSeqNum, uint32_t requestLength, const char* request, const std::string& cid);
 
-  std::unique_ptr<MessageBase> convertToClientRequestMsg();
+  std::unique_ptr<MessageBase> convertToClientRequestMsg(bool resetPreProcessFlag);
 };
 
 typedef std::unique_ptr<ClientPreProcessRequestMsg> ClientPreProcessReqMsgUniquePtr;

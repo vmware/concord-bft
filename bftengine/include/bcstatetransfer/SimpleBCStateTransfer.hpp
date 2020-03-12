@@ -125,6 +125,7 @@ struct Config {
   uint32_t maxAcceptableMsgDelayMilli = 60000;                    // 1 minute
   uint32_t sourceReplicaReplacementTimeoutMilli = 5000;           // 5 seconds
   uint32_t fetchRetransmissionTimeoutMilli = 250;                 // ms
+  std::chrono::seconds metricsDumpIntervalSeconds;                // sec
 };
 
 // creates an instance of the state transfer module.

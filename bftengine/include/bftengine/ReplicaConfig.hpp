@@ -104,6 +104,8 @@ struct ReplicaConfig {
   // throughput and number of messages sent.
   bool debugStatisticsEnabled = false;
 
+  // Metrics dump interval
+  uint64_t metricsDumpIntervalSeconds = 600;
   /**
    * create a singleton instance from this object
    * call to this function will have effect only for the first time
@@ -162,6 +164,9 @@ class ReplicaConfigSingleton {
   uint32_t GetMaxNumOfReservedPages() const { return config_->maxNumOfReservedPages; }
   uint32_t GetSizeOfReservedPage() const { return config_->sizeOfReservedPage; }
   uint32_t GetNumOfReplicas() const { return 3 * config_->fVal + 2 * config_->cVal + 1; }
+  uint64_t GetMetricsDumpInterval() const { return config_->metricsDumpIntervalSeconds; }
+
+  bool GetDebugStatisticsEnabled() const { return config_->debugStatisticsEnabled; }
 
  private:
   friend struct ReplicaConfig;

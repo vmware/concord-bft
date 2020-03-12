@@ -151,6 +151,8 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       randomGen_{randomDevice_()},
       sourceSelector_{SourceSelector(
           allOtherReplicas(), config.fetchRetransmissionTimeoutMilli, config.sourceReplicaReplacementTimeoutMilli)},
+      last_metrics_dump_time_(0),
+      metrics_dump_interval_in_sec_{config.metricsDumpIntervalSeconds},
       metrics_component_{
           concordMetrics::Component("bc_state_transfer", std::make_shared<concordMetrics::Aggregator>())},
 
@@ -602,10 +604,16 @@ void BCStateTran::onTimer() {
   // Send all metrics to the aggregator
   metrics_component_.UpdateAggregator();
 
+  // Dump metrics to log
+  auto currTimeForDumping =
+      std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
+  if (currTimeForDumping - last_metrics_dump_time_ >= metrics_dump_interval_in_sec_) {
+    last_metrics_dump_time_ = currTimeForDumping;
+    LOG_INFO(STLogger, "--BCStateTransfer metrics dump--" + metrics_component_.ToJson());
+  }
+  auto currTime = getMonotonicTimeMilli();
   FetchingState fs = getFetchingState();
   if (fs == FetchingState::GettingCheckpointSummaries) {
-    uint64_t currTime = getMonotonicTimeMilli();
-
     if ((currTime - lastTimeSentAskForCheckpointSummariesMsg) > checkpointSummariesRetransmissionTimeoutMilli_) {
       if (++retransmissionNumberOfAskForCheckpointSummariesMsg > kResetCount_AskForCheckpointSummaries)
         clearInfoAboutGettingCheckpointSummary();

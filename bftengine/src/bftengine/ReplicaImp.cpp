@@ -2875,11 +2875,20 @@ ReplicaImp::ReplicaImp(bool firstTime,
     retransmissionsManager = nullptr;
 
   LOG_INFO(GL,
-           "numOfClientProxies=" << config_.numOfClientProxies
-                                 << " maxExternalMessageSize=" << config_.maxExternalMessageSize
-                                 << " maxReplyMessageSize=" << config_.maxReplyMessageSize
-                                 << " maxNumOfReservedPages=" << config_.maxNumOfReservedPages << " sizeOfReservedPage="
-                                 << config_.sizeOfReservedPage << " viewChangeTimerMilli=" << viewChangeTimerMilli);
+           "ReplicaConfig parameters isReadOnly="
+               << config_.isReadOnly << ", numReplicas=" << config_.numReplicas
+               << ", numRoReplicas=" << config_.numRoReplicas << ", fVal=" << config_.fVal << ", cVal=" << config_.cVal
+               << ", replicaId=" << config_.replicaId << ", numOfClientProxies=" << config_.numOfClientProxies
+               << ", statusReportTimerMillisec=" << config_.statusReportTimerMillisec << ", concurrencyLevel="
+               << config_.concurrencyLevel << ", viewChangeProtocolEnabled=" << config_.viewChangeProtocolEnabled
+               << ", viewChangeTimerMillisec=" << config_.viewChangeTimerMillisec
+               << ", autoPrimaryRotationEnabled=" << config_.autoPrimaryRotationEnabled
+               << ", autoPrimaryRotationTimerMillisec=" << config_.autoPrimaryRotationTimerMillisec
+               << ", maxExternalMessageSize=" << config_.maxExternalMessageSize << ", maxReplyMessageSize="
+               << config_.maxReplyMessageSize << ", maxNumOfReservedPages=" << config_.maxNumOfReservedPages
+               << ", sizeOfReservedPage=" << config_.sizeOfReservedPage
+               << ", debugStatisticsEnabled=" << config_.debugStatisticsEnabled
+               << ", metricsDumpIntervalSeconds=" << config_.metricsDumpIntervalSeconds);
 }
 
 ReplicaImp::~ReplicaImp() {

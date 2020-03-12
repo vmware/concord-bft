@@ -38,6 +38,8 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcFastPathTest(unittest.TestCase):
 
+    __test__ = False  # so that PyTest ignores this test scenario
+
     def setUp(self):
         # Whenever a replica goes down, all messages initially go via the slow path.
         # However, when an "evaluation period" elapses (set at 64 sequence numbers),
@@ -95,7 +97,7 @@ class SkvbcFastPathTest(unittest.TestCase):
 
         unstable_replicas = bft_network.all_replicas(without={0})
         bft_network.stop_replica(
-            replica=random.choice(unstable_replicas))
+            replica_id=random.choice(unstable_replicas))
 
         await tracker.run_concurrent_ops(num_ops=numops, write_weight=write_weight)
 
@@ -103,6 +105,7 @@ class SkvbcFastPathTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd,
+                      num_clients=4,
                       selected_configs=lambda n, f, c: c >= 1)
     @verify_linearizability
     async def test_fast_path_resilience_to_crashes(self, bft_network, tracker):

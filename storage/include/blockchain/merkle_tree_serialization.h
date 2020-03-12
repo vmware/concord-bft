@@ -173,6 +173,9 @@ inline std::string serializeImp(const block::detail::Node &node) {
   // State hash.
   buf.append(reinterpret_cast<const char *>(node.stateHash.data()), node.stateHash.size());
 
+  // State root version.
+  buf.append(concordUtils::toBigEndianStringBuffer(node.stateRootVersion.value()));
+
   // Keys in [key data, length, key] encoding.
   for (const auto &keyData : node.keys) {
     // At the moment, only the delete flag is supported. Additional data can be packed in this single byte in the
@@ -266,7 +269,7 @@ inline sparse_merkle::BatchedInternalNode deserialize<sparse_merkle::BatchedInte
   }
 
   Assert(buf.length() >= sizeof(BatchedInternalMaskType));
-  sparse_merkle::BatchedInternalNode::ChildrenContainer children;
+  sparse_merkle::BatchedInternalNode::Children children;
   const auto mask = concordUtils::fromBigEndianBuffer<BatchedInternalMaskType>(buf.data());
   auto childrenBuf =
       concordUtils::Sliver{buf, sizeof(BatchedInternalMaskType), buf.length() - sizeof(BatchedInternalMaskType)};
@@ -312,6 +315,10 @@ inline block::detail::Node deserialize<block::detail::Node>(const concordUtils::
   // State hash.
   node.stateHash = sparse_merkle::Hash{reinterpret_cast<const std::uint8_t *>(buf.data()) + offset};
   offset += block::detail::Node::STATE_HASH_SIZE;
+
+  // State root version.
+  node.stateRootVersion = concordUtils::fromBigEndianBuffer<sparse_merkle::Version::Type>(buf.data() + offset);
+  offset += block::detail::Node::STATE_ROOT_VERSION_SIZE;
 
   // Keys follow the static length of Node::MIN_SIZE bytes.
   auto keyBuffer =

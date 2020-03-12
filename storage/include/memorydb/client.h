@@ -82,7 +82,7 @@ class Client : public IDBClient {
   concordUtils::Status multiDel(const KeysVector &_keysVec) override;
   virtual void monitor() const override{};
   bool isNew() override { return true; }
-  ITransaction *beginTransaction() override { return nullptr; }  // TODO [TK] implement in-memory transaction?
+  ITransaction *beginTransaction() override;
   TKVStore &getMap() { return map_; }
 
  private:
