@@ -12,6 +12,7 @@
 import os.path
 import random
 import unittest
+from os import environ
 
 import trio
 
@@ -27,13 +28,14 @@ def start_replica_cmd(builddir, replica_id):
 
     Note each arguments is an element in a list.
     """
+    argsToAdd = os.environ.get('TESTS_ARGS', "")
     statusTimerMilli = "500"
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
             "-s", statusTimerMilli,
-            "-p"]
+            argsToAdd]
 
 
 class SkvbcTest(unittest.TestCase):

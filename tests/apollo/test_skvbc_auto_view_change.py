@@ -13,6 +13,7 @@
 import os.path
 import random
 import unittest
+from os import environ
 
 from test_skvbc_linearizability import KEY_FILE_PREFIX
 from util import skvbc as kvbc
@@ -25,6 +26,7 @@ def start_replica_cmd(builddir, replica_id):
     subprocess.Popen.
     Note each arguments is an element in a list.
     """
+    argsToAdd = os.environ.get('TESTS_ARGS', "")
     statusTimerMilli = "500"
     viewChangeTimeoutMilli = "1000"
     autoPrimaryRotationTimeoutMilli = "5000"
@@ -35,7 +37,7 @@ def start_replica_cmd(builddir, replica_id):
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
             "-a", autoPrimaryRotationTimeoutMilli,
-            "-p"]
+            argsToAdd]
 
 
 class SkvbcAutoViewChangeTest(unittest.TestCase):
