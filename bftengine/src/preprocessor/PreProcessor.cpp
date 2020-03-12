@@ -12,6 +12,7 @@
 #include "PreProcessor.hpp"
 #include "Logger.hpp"
 #include "MsgHandlersRegistrator.hpp"
+#include "TimersSingleton.hpp"
 
 namespace preprocessor {
 
@@ -20,6 +21,7 @@ using namespace concord::util;
 using namespace concordUtils;
 using namespace std;
 using namespace std::placeholders;
+using namespace concordUtil;
 
 //**************** Class PreProcessor ****************//
 
@@ -102,9 +104,27 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
     preProcessResultBuffers_.push_back(Sliver(new char[maxReplyMsgSize_], maxReplyMsgSize_));
   }
   threadPool_.start(numOfClients_);
+  requestsStatusCheckTimer_ = TimersSingleton::getInstance().add(
+      chrono::milliseconds(myReplica_.getReplicaConfig().preexecReqStatusCheckTimerMillisec),
+      Timers::Timer::RECURRING,
+      [this](Timers::Handle h) { onRequestsStatusCheckTimer(h); });
 }
 
-PreProcessor::~PreProcessor() { threadPool_.stop(); }
+PreProcessor::~PreProcessor() {
+  TimersSingleton::getInstance().cancel(requestsStatusCheckTimer_);
+  threadPool_.stop();
+}
+
+void PreProcessor::onRequestsStatusCheckTimer(Timers::Handle timer) {
+  // Pass through all ongoing requests and abort those that are timed out.
+  for (auto &clientEntry : ongoingRequests_) {
+    lock_guard<mutex> lock(clientEntry.second->mutex);
+    if (clientEntry.second->clientReqInfoPtr && clientEntry.second->clientReqInfoPtr->isReqTimedOut()) {
+      preProcessorMetrics_.preProcessRequestTimedout.Get().Inc();
+      clientEntry.second->clientReqInfoPtr.reset();
+    }
+  }
+}
 
 bool PreProcessor::checkClientMsgCorrectness(const ClientPreProcessReqMsgUniquePtr &clientReqMsg,
                                              ReqId reqSeqNum) const {

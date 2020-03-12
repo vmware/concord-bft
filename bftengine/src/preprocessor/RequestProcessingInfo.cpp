@@ -15,9 +15,15 @@
 namespace preprocessor {
 
 using namespace std;
+using namespace chrono;
 using namespace concord::util;
 
 uint16_t RequestProcessingInfo::numOfRequiredEqualReplies_ = 0;
+
+uint64_t RequestProcessingInfo::getMonotonicTimeMilli() {
+  steady_clock::time_point curTimePoint = steady_clock::now();
+  return duration_cast<milliseconds>(curTimePoint.time_since_epoch()).count();
+}
 
 RequestProcessingInfo::RequestProcessingInfo(uint16_t numOfReplicas,
                                              uint16_t numOfRequiredReplies,
@@ -26,6 +32,7 @@ RequestProcessingInfo::RequestProcessingInfo(uint16_t numOfReplicas,
                                              PreProcessRequestMsgSharedPtr preProcessRequestMsg)
     : numOfReplicas_(numOfReplicas),
       reqSeqNum_(reqSeqNum),
+      entryTime_(getMonotonicTimeMilli()),
       clientPreProcessReqMsg_(move(clientReqMsg)),
       preProcessRequestMsg_(preProcessRequestMsg) {
   numOfRequiredEqualReplies_ = numOfRequiredReplies;
@@ -49,33 +56,51 @@ SHA3_256::Digest RequestProcessingInfo::convertToArray(const uint8_t resultsHash
   return hashArray;
 }
 
-PreProcessingResult RequestProcessingInfo::getPreProcessingConsensusResult() const {
-  if (numOfReceivedReplies_ < numOfRequiredEqualReplies_) return CONTINUE;
-
-  uint16_t maxNumOfEqualHashes = 0;
+auto RequestProcessingInfo::calculateMaxNbrOfEqualHashes(uint16_t &maxNumOfEqualHashes) const {
   auto itOfChosenHash = preProcessingResultHashes_.begin();
-  // Calculate a maximum number of the same hashes calculated by non-primary replicas
+  // Calculate a maximum number of the same hashes received from non-primary replicas
   for (auto it = preProcessingResultHashes_.begin(); it != preProcessingResultHashes_.end(); it++) {
     if (it->second > maxNumOfEqualHashes) {
       maxNumOfEqualHashes = it->second;
       itOfChosenHash = it;
     }
   }
+  return itOfChosenHash;
+}
 
+bool RequestProcessingInfo::isReqTimedOut() const {
+  // Check request timeout once asynchronous primary pre-execution completed (to not abort the execution thread)
+  if (myPreProcessResultLen_ != 0) {
+    auto reqProcessingTime = getMonotonicTimeMilli() - entryTime_;
+    if (reqProcessingTime > clientPreProcessReqMsg_->requestTimeoutMilli()) {
+      LOG_WARN(GL,
+               "Request timeout of " << clientPreProcessReqMsg_->requestTimeoutMilli() << "ms expired for reqSeqNum="
+                                     << reqSeqNum_ << "; reqProcessingTime=" << reqProcessingTime << "; abort request");
+      return true;
+    }
+  }
+  return false;
+}
+
+PreProcessingResult RequestProcessingInfo::getPreProcessingConsensusResult() const {
+  if (numOfReceivedReplies_ < numOfRequiredEqualReplies_) return CONTINUE;
+
+  uint16_t maxNumOfEqualHashes = 0;
+  auto itOfChosenHash = calculateMaxNbrOfEqualHashes(maxNumOfEqualHashes);
   if (maxNumOfEqualHashes >= numOfRequiredEqualReplies_) {
-    if (itOfChosenHash->first == myPreProcessResultHash_)
-      return COMPLETE;  // Pre-execution consensus reached
-    else if (myPreProcessResultLen_ != 0) {
+    if (itOfChosenHash->first == myPreProcessResultHash_) return COMPLETE;  // Pre-execution consensus reached
+
+    if (myPreProcessResultLen_ != 0) {
       // Primary replica calculated hash is different from a hash that passed pre-execution consensus => we don't have
       // correct pre-processed results. Let's launch a pre-processing retry.
       LOG_WARN(GL,
                "Primary replica pre-processing result hash is different from one passed the consensus for reqSeqNum="
                    << reqSeqNum_ << "; retry pre-processing on primary replica");
       return RETRY_PRIMARY;
-    } else {
-      LOG_DEBUG(GL, "Primary replica did not complete pre-processing yet for reqSeqNum=" << reqSeqNum_ << "; continue");
-      return CONTINUE;
     }
+
+    LOG_DEBUG(GL, "Primary replica did not complete pre-processing yet for reqSeqNum=" << reqSeqNum_ << "; continue");
+    return CONTINUE;
   }
 
   if (numOfReceivedReplies_ == numOfReplicas_ - 1) {

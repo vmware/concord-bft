@@ -41,16 +41,21 @@ class RequestProcessingInfo {
   PreProcessingResult getPreProcessingConsensusResult() const;
   const char* getMyPreProcessedResult() const { return myPreProcessResult_; }
   uint32_t getMyPreProcessedResultLen() const { return myPreProcessResultLen_; }
+  bool isReqTimedOut() const;
 
  private:
   static concord::util::SHA3_256::Digest convertToArray(
       const uint8_t resultsHash[concord::util::SHA3_256::SIZE_IN_BYTES]);
+
+  static uint64_t getMonotonicTimeMilli();
+  auto calculateMaxNbrOfEqualHashes(uint16_t& maxNumOfEqualHashes) const;
 
  private:
   static uint16_t numOfRequiredEqualReplies_;
 
   const uint16_t numOfReplicas_;
   const ReqId reqSeqNum_;
+  const uint64_t entryTime_;
   ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg_;
   PreProcessRequestMsgSharedPtr preProcessRequestMsg_;
   uint16_t numOfReceivedReplies_ = 0;

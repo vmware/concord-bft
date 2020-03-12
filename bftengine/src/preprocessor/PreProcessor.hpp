@@ -22,6 +22,7 @@
 #include "sliver.hpp"
 #include "SigManager.hpp"
 #include "Metrics.hpp"
+#include "Timers.hpp"
 
 #include <mutex>
 
@@ -94,6 +95,7 @@ class PreProcessor {
                                          PreProcessingResult result,
                                          NodeIdType clientId,
                                          SeqNum reqSeqNum);
+  void onRequestsStatusCheckTimer(concordUtil::Timers::Handle timer);
 
  private:
   static std::vector<std::shared_ptr<PreProcessor>> preProcessors_;  // The place holder for PreProcessor objects
@@ -125,6 +127,7 @@ class PreProcessor {
     concordMetrics::CounterHandle preProcessRequestTimedout;
     concordMetrics::CounterHandle preProcReqSentForFurtherProcessing;
   } preProcessorMetrics_;
+  concordUtil::Timers::Handle requestsStatusCheckTimer_;  // Check for timed out requests
 };
 
 //**************** Class AsyncPreProcessJob ****************//
