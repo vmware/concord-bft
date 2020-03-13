@@ -34,8 +34,8 @@ def start_replica_cmd(builddir, replica_id):
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
             "-s", statusTimerMilli,
-            "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower() == "true" \
-                 or os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower() == "on" \
+            "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower()
+                    in set(["true", "on"])
                  else ""]
 
 
