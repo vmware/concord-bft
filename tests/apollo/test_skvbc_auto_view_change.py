@@ -13,6 +13,7 @@
 import os.path
 import random
 import unittest
+from os import environ
 
 from test_skvbc_linearizability import KEY_FILE_PREFIX
 from util import skvbc as kvbc
@@ -34,7 +35,10 @@ def start_replica_cmd(builddir, replica_id):
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
-            "-a", autoPrimaryRotationTimeoutMilli]
+            "-a", autoPrimaryRotationTimeoutMilli,
+            "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower()
+                    in set(["true", "on"])
+                 else ""]
 
 
 class SkvbcAutoViewChangeTest(unittest.TestCase):

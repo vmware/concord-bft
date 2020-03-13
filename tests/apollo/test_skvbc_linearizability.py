@@ -13,6 +13,7 @@
 import os.path
 import random
 import unittest
+from os import environ
 
 import trio
 
@@ -40,8 +41,10 @@ def start_replica_cmd(builddir, replica_id):
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
             "-s", statusTimerMilli,
-            "-v", viewChangeTimeoutMilli
-            ]
+            "-v", viewChangeTimeoutMilli,
+            "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower()
+                    in set(["true", "on"])
+                 else ""]
 
 
 class SkvbcChaosTest(unittest.TestCase):
