@@ -33,7 +33,6 @@ def start_replica_cmd(builddir, replica_id):
 
     Note each arguments is an element in a list.
     """
-    argsToAdd = os.environ.get('TESTS_ARGS', "")
     statusTimerMilli = "500"
     viewChangeTimeoutMilli = "3000"
 
@@ -43,7 +42,7 @@ def start_replica_cmd(builddir, replica_id):
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
-            argsToAdd]
+            "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE') == "true" else ""]
 
 
 class SkvbcChaosTest(unittest.TestCase):
