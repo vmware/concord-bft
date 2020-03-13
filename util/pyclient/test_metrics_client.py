@@ -20,8 +20,8 @@ import trio
 from bft_config import Replica
 from bft_metrics_client import MetricsClient
 
-TIMEOUT_MILLI = 5000;
-CHECK_MILLI = 100;
+TIMEOUT_MILLI = 5000
+CHECK_MILLI = 100
 
 class MetricsClientTest(unittest.TestCase):
     """
@@ -32,7 +32,7 @@ class MetricsClientTest(unittest.TestCase):
     def setUp(self):
         self.server_path = os.path.abspath("../../build/util/test/metric_server")
         self.server = subprocess.Popen([self.server_path], close_fds=True)
-        self.replica = Replica(0, "127.0.0.1", 6161)
+        self.replica = Replica(id=0, ip="127.0.0.1", port=5161, metrics_port=6161)
 
     def tearDown(self):
         self.server.kill()
