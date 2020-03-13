@@ -36,7 +36,9 @@ def start_replica_cmd(builddir, replica_id):
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
-            "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE') == "true" else ""]
+            "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower() == "true" \
+                 or os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower() == "on" \
+                 else ""]
 
 
 class SkvbcViewChangeTest(unittest.TestCase):
