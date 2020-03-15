@@ -26,11 +26,12 @@ uint32_t ReplicaConfigSerializer::maxSize(uint32_t numOfReplicas) {
           sizeof(config_->numOfClientProxies) + sizeof(config_->statusReportTimerMillisec) +
           sizeof(config_->concurrencyLevel) + sizeof(config_->viewChangeProtocolEnabled) +
           sizeof(config_->viewChangeTimerMillisec) + sizeof(config_->autoPrimaryRotationEnabled) +
-          sizeof(config_->autoPrimaryRotationTimerMillisec) + MaxSizeOfPrivateKey + numOfReplicas * MaxSizeOfPublicKey +
-          IThresholdSigner::maxSize() * 3 + IThresholdVerifier::maxSize() * 3 +
-          sizeof(config_->maxExternalMessageSize) + sizeof(config_->maxReplyMessageSize) +
-          sizeof(config_->maxNumOfReservedPages) + sizeof(config_->sizeOfReservedPage) +
-          sizeof(config_->debugPersistentStorageEnabled) + sizeof(config_->metricsDumpIntervalSeconds));
+          sizeof(config_->autoPrimaryRotationTimerMillisec) + sizeof(config_->preExecReqStatusCheckTimerMillisec) +
+          MaxSizeOfPrivateKey + numOfReplicas * MaxSizeOfPublicKey + IThresholdSigner::maxSize() * 3 +
+          IThresholdVerifier::maxSize() * 3 + sizeof(config_->maxExternalMessageSize) +
+          sizeof(config_->maxReplyMessageSize) + sizeof(config_->maxNumOfReservedPages) +
+          sizeof(config_->sizeOfReservedPage) + sizeof(config_->debugPersistentStorageEnabled) +
+          sizeof(config_->metricsDumpIntervalSeconds));
 }
 
 ReplicaConfigSerializer::ReplicaConfigSerializer(ReplicaConfig *config) {
@@ -89,6 +90,10 @@ void ReplicaConfigSerializer::serializeDataMembers(ostream &outStream) const {
   // Serialize autoPrimaryRotationTimerMillisec
   outStream.write((char *)&config_->autoPrimaryRotationTimerMillisec,
                   sizeof(config_->autoPrimaryRotationTimerMillisec));
+
+  // Serialize preExecReqStatusCheckTimerMillisec
+  outStream.write((char *)&config_->preExecReqStatusCheckTimerMillisec,
+                  sizeof(config_->preExecReqStatusCheckTimerMillisec));
 
   // Serialize public keys
   auto numOfPublicKeys = (int64_t)config_->publicKeysOfReplicas.size();
@@ -150,6 +155,7 @@ bool ReplicaConfigSerializer::operator==(const ReplicaConfigSerializer &other) c
        (other.config_->viewChangeTimerMillisec == config_->viewChangeTimerMillisec) &&
        (other.config_->autoPrimaryRotationEnabled == config_->autoPrimaryRotationEnabled) &&
        (other.config_->autoPrimaryRotationTimerMillisec == config_->autoPrimaryRotationTimerMillisec) &&
+       (other.config_->preExecReqStatusCheckTimerMillisec == config_->preExecReqStatusCheckTimerMillisec) &&
        (other.config_->replicaPrivateKey == config_->replicaPrivateKey) &&
        (other.config_->publicKeysOfReplicas == config_->publicKeysOfReplicas) &&
        (other.config_->debugPersistentStorageEnabled == config_->debugPersistentStorageEnabled) &&
@@ -203,6 +209,9 @@ void ReplicaConfigSerializer::deserializeDataMembers(istream &inStream) {
 
   // Deserialize autoPrimaryRotationTimerMillisec
   inStream.read((char *)&config.autoPrimaryRotationTimerMillisec, sizeof(config.autoPrimaryRotationTimerMillisec));
+
+  // Deserialize preExecReqStatusCheckTimerMillisec
+  inStream.read((char *)&config.preExecReqStatusCheckTimerMillisec, sizeof(config.preExecReqStatusCheckTimerMillisec));
 
   // Deserialize public keys
   int64_t numOfPublicKeys = 0;

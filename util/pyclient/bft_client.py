@@ -116,7 +116,7 @@ class UdpClient:
         if cid is None:
             cid = str(seq_num)
         data = bft_msgs.pack_request(
-                    self.client_id, seq_num, read_only, cid, msg, pre_process)
+                    self.client_id, seq_num, read_only, self.config.req_timeout_milli, cid, msg, pre_process)
 
         # Raise a trio.TooSlowError exception if a quorum of replies
         with trio.fail_after(self.config.req_timeout_milli/1000):

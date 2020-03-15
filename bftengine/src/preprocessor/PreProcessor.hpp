@@ -15,13 +15,13 @@
 #include "messages/ClientPreProcessRequestMsg.hpp"
 #include "MsgsCommunicator.hpp"
 #include "MsgHandlersRegistrator.hpp"
-#include "InternalReplicaApi.hpp"
 #include "SimpleThreadPool.hpp"
 #include "Replica.hpp"
 #include "RequestProcessingInfo.hpp"
 #include "sliver.hpp"
 #include "SigManager.hpp"
 #include "Metrics.hpp"
+#include "Timers.hpp"
 
 #include <mutex>
 
@@ -31,6 +31,9 @@ struct ClientRequestInfo {
   std::mutex mutex;  // Define a mutex per client to avoid contentions between clients
   RequestProcessingInfoUniquePtr clientReqInfoPtr;
 };
+
+typedef std::shared_ptr<ClientRequestInfo> ClientRequestInfoSharedPtr;
+typedef std::unordered_map<uint16_t, ClientRequestInfoSharedPtr> OngoingReqMap;
 
 //**************** Class PreProcessor ****************//
 
@@ -56,6 +59,7 @@ class PreProcessor {
                                  InternalReplicaApi &myReplica);
 
   static void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator);
+  ReqId getOngoingReqIdForClient(uint16_t clientId);
 
  private:
   friend class AsyncPreProcessJob;
@@ -70,7 +74,8 @@ class PreProcessor {
 
   void registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
                        PreProcessRequestMsgSharedPtr preProcessRequestMsg);
-  void releaseClientPreProcessRequest(uint16_t clientId, ReqId requestSeqNum);
+  void releaseClientPreProcessRequestSafe(uint16_t clientId);
+  void releaseClientPreProcessRequest(ClientRequestInfoSharedPtr clientEntry, uint16_t clientId);
   bool validateMessage(MessageBase *msg) const;
   void registerMsgHandlers();
   bool checkClientMsgCorrectness(const ClientPreProcessReqMsgUniquePtr &clientReqMsg, ReqId reqSeqNum) const;
@@ -87,13 +92,14 @@ class PreProcessor {
                                       uint16_t clientId,
                                       uint32_t resultBufLen);
   void handlePreProcessedReqPrimaryRetry(NodeIdType clientId, SeqNum reqSeqNum);
-  void finalizePreProcessing(NodeIdType clientId, SeqNum reqSeqNum, const std::string &cid);
-  void cancelPreProcessing(NodeIdType clientId, SeqNum reqSeqNum);
+  void finalizePreProcessing(NodeIdType clientId, const std::string &cid);
+  void cancelPreProcessing(NodeIdType clientId);
   PreProcessingResult getPreProcessingConsensusResult(uint16_t clientId);
   void handleReqPreProcessedByOneReplica(const std::string &cid,
                                          PreProcessingResult result,
                                          NodeIdType clientId,
                                          SeqNum reqSeqNum);
+  void onRequestsStatusCheckTimer(concordUtil::Timers::Handle timer);
 
  private:
   static std::vector<std::shared_ptr<PreProcessor>> preProcessors_;  // The place holder for PreProcessor objects
@@ -113,17 +119,19 @@ class PreProcessor {
   // One-time allocated buffers (one per client) for the pre-execution results storage
   std::vector<concordUtils::Sliver> preProcessResultBuffers_;
   // clientId -> *RequestProcessingInfo
-  std::unordered_map<uint16_t, std::unique_ptr<ClientRequestInfo>> ongoingRequests_;
+  OngoingReqMap ongoingRequests_;
   concordMetrics::Component metricsComponent_;
   std::chrono::seconds metricsLastDumpTime_;
   std::chrono::seconds metricsDumpIntervalInSec_;
   struct PreProcessingMetrics {
-    concordMetrics::CounterHandle requestReceived;
-    concordMetrics::CounterHandle requestInvalid;
-    concordMetrics::CounterHandle requestIgnored;
-    concordMetrics::CounterHandle consensusNotReached;
-    concordMetrics::CounterHandle requestSentForFurtherProcessing;
+    concordMetrics::CounterHandle preProcReqReceived;
+    concordMetrics::CounterHandle preProcReqInvalid;
+    concordMetrics::CounterHandle preProcReqIgnored;
+    concordMetrics::CounterHandle preProcConsensusNotReached;
+    concordMetrics::CounterHandle preProcessRequestTimedout;
+    concordMetrics::CounterHandle preProcReqSentForFurtherProcessing;
   } preProcessorMetrics_;
+  concordUtil::Timers::Handle requestsStatusCheckTimer_;  // Check for timed out requests
 };
 
 //**************** Class AsyncPreProcessJob ****************//

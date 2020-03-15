@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -216,9 +216,10 @@ int SimpleClientImp::sendRequest(uint8_t flags,
 
   ClientRequestMsg* reqMsg;
   if (isPreProcessRequired)
-    reqMsg = new preprocessor::ClientPreProcessRequestMsg(clientId_, reqSeqNum, lengthOfRequest, request, msgCid);
+    reqMsg = new preprocessor::ClientPreProcessRequestMsg(
+        clientId_, reqSeqNum, lengthOfRequest, request, timeoutMilli, msgCid);
   else
-    reqMsg = new ClientRequestMsg(clientId_, flags, reqSeqNum, lengthOfRequest, request, msgCid);
+    reqMsg = new ClientRequestMsg(clientId_, flags, reqSeqNum, lengthOfRequest, request, timeoutMilli, msgCid);
   pendingRequest_ = reqMsg;
 
   sendPendingRequest();

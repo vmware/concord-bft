@@ -1,8 +1,8 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
-// This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
+// This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
 //
 // This product may include a number of subcomponents with separate copyright notices and license terms. Your use of
@@ -37,30 +37,15 @@ ClientRequestMsg::ClientRequestMsg(NodeIdType sender,
                                    uint64_t reqSeqNum,
                                    uint32_t requestLength,
                                    const char* request,
+                                   uint64_t reqTimeoutMilli,
                                    const std::string& cid)
     : MessageBase(sender, MsgCode::ClientRequest, (sizeof(ClientRequestMsgHeader) + requestLength + cid.size())) {
-  setParams(sender, reqSeqNum, requestLength, flags);
-  msgBody()->cid_length = cid.size();
+  setParams(sender, reqSeqNum, requestLength, flags, cid, reqTimeoutMilli);
   memcpy(body() + sizeof(ClientRequestMsgHeader), request, requestLength);
-  memcpy(body() + sizeof(ClientRequestMsgHeader) + requestLength, cid.c_str(), cid.size());
-}
-
-ClientRequestMsg::ClientRequestMsg(NodeIdType sender)
-    : MessageBase(sender, MsgCode::ClientRequest, ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize()) {
-  setParams(sender, 0, 0, false);
-  setMsgSize(sizeof(ClientRequestMsgHeader));
 }
 
 ClientRequestMsg::ClientRequestMsg(ClientRequestMsgHeader* body)
     : MessageBase(getSender(body), (MessageBase::Header*)body, compRequestMsgSize(body), false) {}
-
-void ClientRequestMsg::set(ReqId reqSeqNum, uint32_t requestLength, uint8_t flags) {
-  Assert(requestLength > 0);
-  Assert(requestLength <= (internalStorageSize() - sizeof(ClientRequestMsgHeader)));
-
-  setParams(reqSeqNum, requestLength, flags);
-  setMsgSize(sizeof(ClientRequestMsgHeader) + requestLength);
-}
 
 bool ClientRequestMsg::isReadOnly() const { return (msgBody()->flags & READ_ONLY_REQ) != 0; }
 
@@ -71,18 +56,22 @@ void ClientRequestMsg::validate(const ReplicasInfo& repInfo) const {
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
-void ClientRequestMsg::setParams(ReqId reqSeqNum, uint32_t requestLength, uint8_t flags) {
+void ClientRequestMsg::setParams(NodeIdType sender,
+                                 ReqId reqSeqNum,
+                                 uint32_t requestLength,
+                                 uint8_t flags,
+                                 const std::string& cid,
+                                 uint64_t reqTimeoutMilli) {
+  msgBody()->idOfClientProxy = sender;
+  msgBody()->timeoutMilli = reqTimeoutMilli;
   msgBody()->reqSeqNum = reqSeqNum;
   msgBody()->requestLength = requestLength;
   msgBody()->flags = flags;
+  msgBody()->cid_length = cid.size();
+  memcpy(body() + sizeof(ClientRequestMsgHeader) + requestLength, cid.c_str(), cid.size());
 }
 
-void ClientRequestMsg::setParams(NodeIdType sender, ReqId reqSeqNum, uint32_t requestLength, uint8_t flags) {
-  msgBody()->idOfClientProxy = sender;
-  setParams(reqSeqNum, requestLength, flags);
-}
-
-const std::string ClientRequestMsg::getCid() const {
+std::string ClientRequestMsg::getCid() const {
   return std::string(body() + sizeof(ClientRequestMsgHeader) + msgBody()->requestLength, msgBody()->cid_length);
 }
 

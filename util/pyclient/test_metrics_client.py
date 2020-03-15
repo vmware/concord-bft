@@ -20,8 +20,8 @@ import trio
 from bft_config import Replica
 from bft_metrics_client import MetricsClient
 
-TIMEOUT_MILLI = 5000;
-CHECK_MILLI = 100;
+TIMEOUT_MILLI = 5000
+CHECK_MILLI = 100
 
 class MetricsClientTest(unittest.TestCase):
     """

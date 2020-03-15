@@ -1,8 +1,8 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
-// This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
+// This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
 //
 // This product may include a number of subcomponents with separate copyright notices and license terms. Your use of
@@ -24,7 +24,7 @@ class ClientRequestMsg : public MessageBase {
   static_assert(sizeof(ClientRequestMsgHeader::msgType) == sizeof(MessageBase::Header), "");
   static_assert(sizeof(ClientRequestMsgHeader::idOfClientProxy) == sizeof(NodeIdType), "");
   static_assert(sizeof(ClientRequestMsgHeader::reqSeqNum) == sizeof(ReqId), "");
-  static_assert(sizeof(ClientRequestMsgHeader) == 21, "ClientRequestMsgHeader size is 21B");
+  static_assert(sizeof(ClientRequestMsgHeader) == 29, "ClientRequestMsgHeader size is 29B");
 
   // TODO(GG): more asserts
 
@@ -34,9 +34,8 @@ class ClientRequestMsg : public MessageBase {
                    uint64_t reqSeqNum,
                    uint32_t requestLength,
                    const char* request,
+                   uint64_t reqTimeoutMilli,
                    const std::string& cid = "");
-
-  ClientRequestMsg(NodeIdType sender);
 
   ClientRequestMsg(ClientRequestMsgHeader* body);
 
@@ -52,16 +51,21 @@ class ClientRequestMsg : public MessageBase {
 
   char* requestBuf() const { return body() + sizeof(ClientRequestMsgHeader); }
 
-  void set(ReqId reqSeqNum, uint32_t requestLength, uint8_t flags);
-  const std::string getCid() const;
+  uint64_t requestTimeoutMilli() const { return msgBody()->timeoutMilli; }
+
+  std::string getCid() const;
   void validate(const ReplicasInfo&) const override;
 
  protected:
   ClientRequestMsgHeader* msgBody() const { return ((ClientRequestMsgHeader*)msgBody_); }
 
  private:
-  void setParams(NodeIdType sender, ReqId reqSeqNum, uint32_t requestLength, uint8_t flags);
-  void setParams(ReqId reqSeqNum, uint32_t requestLength, uint8_t flags);
+  void setParams(NodeIdType sender,
+                 ReqId reqSeqNum,
+                 uint32_t requestLength,
+                 uint8_t flags,
+                 const std::string& cid,
+                 uint64_t reqTimeoutMilli);
 };
 
 }  // namespace bftEngine::impl

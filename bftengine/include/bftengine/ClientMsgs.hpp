@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -25,6 +25,7 @@ struct ClientRequestMsgHeader {
   uint8_t flags;  // bit 0 == isReadOnly, bit 1 = preProcess, bits 2-7 are reserved
   uint64_t reqSeqNum;
   uint32_t requestLength;
+  uint64_t timeoutMilli;
   uint32_t cid_length = 0;
   // followed by the request (security information, such as signatures, should be part of the request)
 
