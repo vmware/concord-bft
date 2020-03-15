@@ -125,7 +125,7 @@ void PreProcessor::onRequestsStatusCheckTimer(Timers::Handle timer) {
     lock_guard<mutex> lock(clientEntry.second->mutex);
     if (clientEntry.second->clientReqInfoPtr && clientEntry.second->clientReqInfoPtr->isReqTimedOut()) {
       preProcessorMetrics_.preProcessRequestTimedout.Get().Inc();
-      releaseClientPreProcessRequest(move(clientEntry.second), clientEntry.first);
+      releaseClientPreProcessRequest(clientEntry.second, clientEntry.first);
     }
   }
 }
@@ -299,7 +299,7 @@ void PreProcessor::cancelPreProcessing(NodeIdType clientId) {
     reqSeqNum = clientEntry->clientReqInfoPtr->getReqSeqNum();
     if (!clientEntry->clientReqInfoPtr)
       incomingMsgsStorage_->pushExternalMsg(clientEntry->clientReqInfoPtr->convertClientPreProcessToClientMsg(true));
-    releaseClientPreProcessRequest(move(clientEntry), clientId);
+    releaseClientPreProcessRequest(clientEntry, clientId);
   }
   LOG_INFO(GL,
            "Pre-processing consensus not reached for clientId="
@@ -349,10 +349,10 @@ void PreProcessor::registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
 void PreProcessor::releaseClientPreProcessRequestSafe(uint16_t clientId) {
   auto &clientEntry = ongoingRequests_[clientId];
   lock_guard<mutex> lock(clientEntry->mutex);
-  releaseClientPreProcessRequest(move(clientEntry), clientId);
+  releaseClientPreProcessRequest(clientEntry, clientId);
 }
 
-void PreProcessor::releaseClientPreProcessRequest(ClientRequestInfoUniquePtr clientEntry, uint16_t clientId) {
+void PreProcessor::releaseClientPreProcessRequest(ClientRequestInfoSharedPtr clientEntry, uint16_t clientId) {
   LOG_DEBUG(
       GL, "clientId=" << clientId << " requestSeqNum=" << clientEntry->clientReqInfoPtr->getReqSeqNum() << " released");
   clientEntry->clientReqInfoPtr.reset();
@@ -420,6 +420,13 @@ PreProcessingResult PreProcessor::getPreProcessingConsensusResult(uint16_t clien
   auto &clientEntry = ongoingRequests_[clientId];
   lock_guard<mutex> lock(clientEntry->mutex);
   return clientEntry->clientReqInfoPtr->getPreProcessingConsensusResult();
+}
+
+ReqId PreProcessor::getOngoingReqIdForClient(uint16_t clientId) {
+  auto &clientEntry = ongoingRequests_[clientId];
+  lock_guard<mutex> lock(clientEntry->mutex);
+  if (clientEntry->clientReqInfoPtr) return clientEntry->clientReqInfoPtr->getReqSeqNum();
+  return 0;
 }
 
 void PreProcessor::handlePreProcessedReqPrimaryRetry(NodeIdType clientId, SeqNum reqSeqNum) {

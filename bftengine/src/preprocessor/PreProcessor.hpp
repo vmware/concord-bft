@@ -32,8 +32,8 @@ struct ClientRequestInfo {
   RequestProcessingInfoUniquePtr clientReqInfoPtr;
 };
 
-typedef std::unique_ptr<ClientRequestInfo> ClientRequestInfoUniquePtr;
-typedef std::unordered_map<uint16_t, ClientRequestInfoUniquePtr> OngoingReqMap;
+typedef std::shared_ptr<ClientRequestInfo> ClientRequestInfoSharedPtr;
+typedef std::unordered_map<uint16_t, ClientRequestInfoSharedPtr> OngoingReqMap;
 
 //**************** Class PreProcessor ****************//
 
@@ -59,6 +59,7 @@ class PreProcessor {
                                  InternalReplicaApi &myReplica);
 
   static void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator);
+  ReqId getOngoingReqIdForClient(uint16_t clientId);
 
  private:
   friend class AsyncPreProcessJob;
@@ -74,7 +75,7 @@ class PreProcessor {
   void registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
                        PreProcessRequestMsgSharedPtr preProcessRequestMsg);
   void releaseClientPreProcessRequestSafe(uint16_t clientId);
-  void releaseClientPreProcessRequest(ClientRequestInfoUniquePtr clientEntry, uint16_t clientId);
+  void releaseClientPreProcessRequest(ClientRequestInfoSharedPtr clientEntry, uint16_t clientId);
   bool validateMessage(MessageBase *msg) const;
   void registerMsgHandlers();
   bool checkClientMsgCorrectness(const ClientPreProcessReqMsgUniquePtr &clientReqMsg, ReqId reqSeqNum) const;

@@ -75,7 +75,7 @@ bool RequestProcessingInfo::isReqTimedOut() const {
     auto reqProcessingTime = getMonotonicTimeMilli() - entryTime_;
     if (reqProcessingTime > clientPreProcessReqMsg_->requestTimeoutMilli()) {
       LOG_WARN(GL,
-               "Request timeout of " << clientPreProcessReqMsg_->requestTimeoutMilli() << "ms expired for reqSeqNum="
+               "Request timeout of " << clientPreProcessReqMsg_->requestTimeoutMilli() << " ms expired for reqSeqNum="
                                      << reqSeqNum_ << "; reqProcessingTime=" << reqProcessingTime << "; abort request");
       return true;
     }

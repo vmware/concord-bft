@@ -9,36 +9,45 @@
 // these subcomponents is subject to the terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
+#include "PreProcessor.hpp"
+#include "messages/FullCommitProofMsg.hpp"
+#include "InternalReplicaApi.hpp"
+#include "communication/CommFactory.hpp"
 #include "Logger.hpp"
 #include "RequestProcessingInfo.hpp"
 #include "ReplicaConfig.hpp"
+#include "TimersSingleton.hpp"
 #include "gtest/gtest.h"
 
 using namespace std;
 using namespace bftEngine;
-using namespace bftEngine::impl;
 using namespace preprocessor;
 
 namespace {
 
 ReplicaConfig replicaConfig;
-const uint16_t numOfReplicas = 4;
+const uint16_t numOfReplicas_4 = 4;
+const uint16_t numOfReplicas_7 = 7;
 const uint16_t numOfClients = 4;
-const uint16_t fVal = 1;
-const uint16_t numOfRequiredReplies = fVal + 1;
+const uint16_t fVal_4 = 1;
+const uint16_t fVal_7 = 2;
+const uint16_t cVal = 0;
+const uint16_t numOfRequiredReplies = fVal_4 + 1;
 const uint32_t bufLen = 1024;
-const uint64_t reqTimeoutMilli = 1000;
+const uint64_t reqTimeoutMilli = 100;
+const uint64_t preExecReqStatusCheckTimerMillisec = 200;
 char buf[bufLen];
 ReqId reqSeqNum = 123456789;
 NodeIdType senderId = 2;
-uint16_t clientId = 5;
+uint16_t clientId = 9;
 string cid = "abcd";
 NodeIdType replica_0 = 0;
 NodeIdType replica_1 = 1;
 NodeIdType replica_2 = 2;
 NodeIdType replica_3 = 3;
+NodeIdType replica_4 = 4;
 
-SigManagerSharedPtr sigManager_[numOfReplicas];
+SigManagerSharedPtr sigManager_[numOfReplicas_4];
 
 string privateKey_0 =
     "308204BA020100300D06092A864886F70D0101010500048204A4308204A00201000282010100C55B8F7979BF24B335017082BF33EE2960E3A0"
@@ -132,6 +141,29 @@ string privateKey_3 =
     "410281806625E51F70BB9E00D0260941C56B22CDCECC7EA6DBC2C28A1CDA0E1AFAACD39C5E962E40FCFC0F5BBA57A7291A1BDC5D3D29495B45"
     "CE2B3BEC7748E6C351FF934537BCA246CA36B840CF68BE6D473F7EE079B0EFDFF6B1BB554B06093E18B269FC3BD3F9876376CA7C673A93F142"
     "7088BF0990AB8E232F269B5DBCD446385A66";
+string privateKey_4 =
+    "308204BB020100300D06092A864886F70D0101010500048204A5308204A10201000282010100B4D984129ECC2F4350596DD602EB5337B78E33"
+    "C4D945C70C2CACFF6237037BEF897D6893079D1067F07FF023D66C77BB41F6D41215C9912D995215C6F7651F1728AAB65CF20CBE81E5E7F202"
+    "E474AF535E92BBC386A7A496263BC4189FD9DD5E801C3023038EFE5B5DE35AA3F70C10F87259D586C36D3DF524E9DA2140C481365985AD185E"
+    "1CF3E78B6B82FDD274CCD1267838A0B91F9B48544AFB2C71B158A26E6154CECB43ECEE13FFBD6CA91D8D115B6B91C55F3A88E3F389E9A2AF4B"
+    "C381D21F9ABF2EA16F58773514249B03A4775C6A10561AFC8CF54B551A43FD014F3C5FE12D96AC5F117645E26D125DC7430114FA60577BF7C9"
+    "AA1224D190B2D8A83B020111028201004FC95FEA18E19C6176459256E32B95A7A3CDCB8B8D08322B04A6ACE790BDC5BC806C087D19F2782DDB"
+    "0B444C0BC6710ED9564E8073061A66F0D163F5E59D8DB764C3C8ECC523BD758B13815BA1064D597C8C078AF7A450241FED30DDAFEF2CF4FC48"
+    "ABD336469D648B4DB70C1A2AF86D9BDC56AC6546C882BD763A963329844BF0E8C79E5E7A5C227A1CDB8473965090084BEAC728E4F86670BAE0"
+    "5DA589FAE1EBC98A26BF207261EECE5A92759DE516306B0B2F715370586EF45447F82CC37206F70D762AAB75215482A67FE6742E9D644AB765"
+    "4F02476EAE15A742FCB2266DAE437DC76FB17E1698D4987945C779A4B89F5FB3F5E1B194EFA4024BA3797F2502818100E2BDA6F0031EAA027B"
+    "1E8099D9D2CF408B8C9D83A22BFBAAD3BCFA952469A001C25E5E2E89DAF28636633E8D7C5E1E5FD8384767DB5B384DAB38147EA46871D5E31E"
+    "DC110026E42E90C44F02110A369ACF0445C617CC25CD1207F116B9AF2FA78A89E6C6345EAFD0607CB145410DD6619AC0C034B54283A0065B93"
+    "3550B8DACF02818100CC2FDB49EB3E45DB2EB644048C3C35E3BB50980453DB8EB54DD5595CA2DBC43A2F2912D0F696E6126AFBF5D7777BABB2"
+    "6AC931030B8896343BC19EA30B8EEBFECE2617A2564B3D66E29DF66708254877CC33E699501A2BA4D0D7D02F068B1DCF6C7A0794F24BEE83BE"
+    "2E8453D3E436C3B59D2D9BEEB5B38541EF170544EA46D502818100AD63DA02D5359110F4BCF8EE1F0A9E7CA6F30F0A4ED6570A29726544DF9C"
+    "10F2495738F6696B31EE29972FD59B57082B2CDFBE223E54D0B3DD49009D144FDE94808102A396B454239BE169982B25ED85712162886C8D0D"
+    "D90DC9D67ACA3AABF8971E28F1EBCFEFDB95140F16D764EF3B947547AFD5E791D4B9915274108D5C07028180300B42A7FB1DB61574671F1020"
+    "FF1BBD1D03E7888C33A91B99D7D8CA80AC2E2BCEDC7CE5DFAB08F546596705858682C09198C03CF3A7AADF1D1E7FADE49A196921725FE9F62F"
+    "D236537076365C4501FE11EE182412D8FB35D6C95E292EB7524EEC58F2B9A26C381EFF92797D22CC491EFD8E6515A1942A3D78ECF65B97BEA7"
+    "410281806625E51F70BB9E00D0260941C56B22CDCECC7EA6DBC2C28A1CDA0E1AFAACD39C5E962E40FCFC0F5BBA57A7291A1BDC5D3D29495B45"
+    "CE2B3BEC7748E6C351FF934537BCA246CA36B840CF68BE6D473F7EE079B0EFDFF6B1BB554B06093E18B269FC3BD3F9876376CA7C673A93F142"
+    "7088BF0990AB8E232F269B5DBCD446385A66";
 string publicKey_0 =
     "30820120300D06092A864886F70D01010105000382010D00308201080282010100C55B8F7979BF24B335017082BF33EE2960E3A068DCDB45CA"
     "3017214BFB3F32649400A2484E2108C7CD07AA7616290667AF7C7A1922C82B51CA01867EED9B60A57F5B6EE33783EC258B2347488B0FA3F99B"
@@ -160,26 +192,46 @@ string publicKey_3 =
     "82FDD274CCD1267838A0B91F9B48544AFB2C71B158A26E6154CECB43ECEE13FFBD6CA91D8D115B6B91C55F3A88E3F389E9A2AF4BC381D21F9A"
     "BF2EA16F58773514249B03A4775C6A10561AFC8CF54B551A43FD014F3C5FE12D96AC5F117645E26D125DC7430114FA60577BF7C9AA1224D190"
     "B2D8A83B020111";
+string publicKey_4 =
+    "30820120300D06092A864886F70D01010105000382010D00308201080282010100B4D984129ECC2F4350596DD602EB5337B78E33C4D945C70C"
+    "2CACFF6237037BEF897D6893079D1067F07FF023D66C77BB41F6D41215C9912D995215C6F7651F1728AAB65CF20CBE81E5E7F202E474AF535E"
+    "92BBC386A7A496263BC4189FD9DD5E801C3023038EFE5B5DE35AA3F70C10F87259D586C36D3DF524E9DA2140C481365985AD185E1CF3E78B6B"
+    "82FDD274CCD1267838A0B91F9B48544AFB2C71B158A26E6154CECB43ECEE13FFBD6CA91D8D115B6B91C55F3A88E3F389E9A2AF4BC381D21F9A"
+    "BF2EA16F58773514249B03A4775C6A10561AFC8CF54B551A43FD014F3C5FE12D96AC5F117645E26D125DC7430114FA60577BF7C9AA1224D190"
+    "B2D8A83B020111";
 
-void setUpConfiguration() {
-  replicaConfig.replicaId = 0;
-  replicaConfig.numReplicas = numOfReplicas;
-  replicaConfig.fVal = 1;
-  replicaConfig.cVal = 0;
+void setUpConfiguration_4() {
+  replicaConfig.replicaId = replica_0;
+  replicaConfig.numReplicas = numOfReplicas_4;
+  replicaConfig.fVal = fVal_4;
+  replicaConfig.cVal = cVal;
   replicaConfig.numOfClientProxies = numOfClients;
+  replicaConfig.preExecReqStatusCheckTimerMillisec = preExecReqStatusCheckTimerMillisec;
+
+  replicaConfig.publicKeysOfReplicas.insert(pair<uint16_t, const string>(replica_0, publicKey_0));
+  replicaConfig.publicKeysOfReplicas.insert(pair<uint16_t, const string>(replica_1, publicKey_1));
+  replicaConfig.publicKeysOfReplicas.insert(pair<uint16_t, const string>(replica_2, publicKey_2));
+  replicaConfig.publicKeysOfReplicas.insert(pair<uint16_t, const string>(replica_3, publicKey_3));
+  replicaConfig.replicaPrivateKey = privateKey_0;
+  string privateKeys[numOfReplicas_4] = {privateKey_0, privateKey_1, privateKey_2, privateKey_3};
+
   replicaConfig.singletonFromThis();
 
-  set<pair<uint16_t, const string>> publicKeysOfReplicas;
-  publicKeysOfReplicas.insert(pair<uint16_t, const string>(replica_0, publicKey_0));
-  publicKeysOfReplicas.insert(pair<uint16_t, const string>(replica_1, publicKey_1));
-  publicKeysOfReplicas.insert(pair<uint16_t, const string>(replica_2, publicKey_2));
-  publicKeysOfReplicas.insert(pair<uint16_t, const string>(replica_3, publicKey_3));
-  string privateKeys[numOfReplicas] = {privateKey_0, privateKey_1, privateKey_2, privateKey_3};
-  for (auto i = 0; i < numOfReplicas; i++)
-    sigManager_[i] = make_shared<SigManager>(i, numOfReplicas + numOfClients, privateKeys[i], publicKeysOfReplicas);
+  for (auto i = 0; i < replicaConfig.numReplicas; i++)
+    sigManager_[i] = make_shared<SigManager>(
+        i, replicaConfig.numReplicas + numOfClients, privateKeys[i], replicaConfig.publicKeysOfReplicas);
 }
 
-PreProcessReplyMsgSharedPtr preProcessNonPrimary(NodeIdType replicaId, const ReplicasInfo &repInfo) {
+void setUpConfiguration_7() {
+  replicaConfig.replicaId = replica_4;
+  replicaConfig.numReplicas = numOfReplicas_7;
+  replicaConfig.fVal = fVal_7;
+
+  replicaConfig.publicKeysOfReplicas.insert(pair<uint16_t, const string>(replica_4, publicKey_4));
+  replicaConfig.replicaPrivateKey = privateKey_4;
+}
+
+PreProcessReplyMsgSharedPtr preProcessNonPrimary(NodeIdType replicaId, const bftEngine::impl::ReplicasInfo& repInfo) {
   auto preProcessReplyMsg = make_shared<PreProcessReplyMsg>(sigManager_[replicaId], replicaId, clientId, reqSeqNum);
   preProcessReplyMsg->setupMsgBody(buf, bufLen);
   preProcessReplyMsg->validate(repInfo);
@@ -187,12 +239,12 @@ PreProcessReplyMsgSharedPtr preProcessNonPrimary(NodeIdType replicaId, const Rep
 }
 
 TEST(requestPreprocessingInfo_test, notEnoughRepliesReceived) {
-  RequestProcessingInfo reqInfo(numOfReplicas,
+  RequestProcessingInfo reqInfo(replicaConfig.numReplicas,
                                 numOfRequiredReplies,
                                 reqSeqNum,
                                 ClientPreProcessReqMsgUniquePtr(),
                                 PreProcessRequestMsgSharedPtr());
-  ReplicasInfo repInfo(replicaConfig, true, true);
+  bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   for (auto i = 1; i < numOfRequiredReplies; i++) {
     reqInfo.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
     Assert(reqInfo.getPreProcessingConsensusResult() == CONTINUE);
@@ -202,16 +254,16 @@ TEST(requestPreprocessingInfo_test, notEnoughRepliesReceived) {
 }
 
 TEST(requestPreprocessingInfo_test, allRepliesReceivedButNotEnoughSameHashesCollected) {
-  RequestProcessingInfo reqInfo(numOfReplicas,
+  RequestProcessingInfo reqInfo(replicaConfig.numReplicas,
                                 numOfRequiredReplies,
                                 reqSeqNum,
                                 ClientPreProcessReqMsgUniquePtr(),
                                 PreProcessRequestMsgSharedPtr());
-  ReplicasInfo repInfo(replicaConfig, true, true);
+  bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   reqInfo.handlePrimaryPreProcessed(buf, bufLen);
-  for (auto i = 1; i < numOfReplicas; i++) {
-    if (i != numOfReplicas - 1) Assert(reqInfo.getPreProcessingConsensusResult() == CONTINUE);
+  for (auto i = 1; i < replicaConfig.numReplicas; i++) {
+    if (i != replicaConfig.numReplicas - 1) Assert(reqInfo.getPreProcessingConsensusResult() == CONTINUE);
     memset(buf, i, bufLen);
     reqInfo.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
   }
@@ -219,12 +271,12 @@ TEST(requestPreprocessingInfo_test, allRepliesReceivedButNotEnoughSameHashesColl
 }
 
 TEST(requestPreprocessingInfo_test, enoughSameRepliesReceived) {
-  RequestProcessingInfo reqInfo(numOfReplicas,
+  RequestProcessingInfo reqInfo(replicaConfig.numReplicas,
                                 numOfRequiredReplies,
                                 reqSeqNum,
                                 ClientPreProcessReqMsgUniquePtr(),
                                 PreProcessRequestMsgSharedPtr());
-  ReplicasInfo repInfo(replicaConfig, true, true);
+  bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   for (auto i = 1; i <= numOfRequiredReplies; i++) {
     if (i != numOfRequiredReplies - 1) Assert(reqInfo.getPreProcessingConsensusResult() == CONTINUE);
@@ -235,16 +287,16 @@ TEST(requestPreprocessingInfo_test, enoughSameRepliesReceived) {
 }
 
 TEST(requestPreprocessingInfo_test, primaryReplicaPreProcessingRetrySucceeds) {
-  RequestProcessingInfo reqInfo(numOfReplicas,
+  RequestProcessingInfo reqInfo(replicaConfig.numReplicas,
                                 numOfRequiredReplies,
                                 reqSeqNum,
                                 ClientPreProcessReqMsgUniquePtr(),
                                 PreProcessRequestMsgSharedPtr());
-  ReplicasInfo repInfo(replicaConfig, true, true);
+  bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   reqInfo.handlePrimaryPreProcessed(buf, bufLen);
   for (auto i = 1; i <= numOfRequiredReplies; i++) {
-    if (i != numOfReplicas - 1) Assert(reqInfo.getPreProcessingConsensusResult() == CONTINUE);
+    if (i != replicaConfig.numReplicas - 1) Assert(reqInfo.getPreProcessingConsensusResult() == CONTINUE);
     memset(buf, '4', bufLen);
     reqInfo.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
   }
@@ -255,15 +307,15 @@ TEST(requestPreprocessingInfo_test, primaryReplicaPreProcessingRetrySucceeds) {
 }
 
 TEST(requestPreprocessingInfo_test, primaryReplicaDidNotCompletePreProcessingWhileNonPrimariesDid) {
-  RequestProcessingInfo reqInfo(numOfReplicas,
+  RequestProcessingInfo reqInfo(replicaConfig.numReplicas,
                                 numOfRequiredReplies,
                                 reqSeqNum,
                                 ClientPreProcessReqMsgUniquePtr(),
                                 PreProcessRequestMsgSharedPtr());
-  ReplicasInfo repInfo(replicaConfig, true, true);
+  bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   for (auto i = 1; i <= numOfRequiredReplies; i++) {
-    if (i != numOfReplicas - 1) Assert(reqInfo.getPreProcessingConsensusResult() == CONTINUE);
+    if (i != replicaConfig.numReplicas - 1) Assert(reqInfo.getPreProcessingConsensusResult() == CONTINUE);
     memset(buf, '4', bufLen);
     reqInfo.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
   }
@@ -283,19 +335,109 @@ TEST(requestPreprocessingInfo_test, clientPreProcessMessageConversion) {
     clientPreProcReqUniq->releaseOwnership();
     clientPreProcReqUniq.release();
   }
-  auto *clientRequestMsg = (ClientRequestMsg *)messageBase.release();
+  auto* clientRequestMsg = (ClientRequestMsg*)messageBase.release();
   unique_ptr<ClientRequestMsg> clientReqMsg(clientRequestMsg);
   Assert(clientReqMsg->senderId() == senderId);
   Assert(clientReqMsg->requestSeqNum() == reqSeqNum);
   Assert(clientReqMsg->requestLength() == bufLen);
+  Assert(clientReqMsg->requestTimeoutMilli() == reqTimeoutMilli);
   Assert(memcmp(clientReqMsg->requestBuf(), buf, bufLen) == 0);
+}
+
+class DummyRequestsHandler : public IRequestsHandler {
+  int execute(uint16_t client,
+              uint64_t sequenceNum,
+              uint8_t flags,
+              uint32_t requestSize,
+              const char* request,
+              uint32_t maxReplySize,
+              char* outReply,
+              uint32_t& outActualReplySize) {
+    outActualReplySize = 256;
+    return 0;
+  }
+};
+
+class DummyReplica : public InternalReplicaApi {
+ public:
+  DummyReplica(const bftEngine::impl::ReplicasInfo& replicasInfo) : replicasInfo_(replicasInfo) {}
+
+  void onPrepareCombinedSigFailed(SeqNum seqNumber, ViewNum view, const set<uint16_t>& replicasWithBadSigs) {}
+  void onPrepareCombinedSigSucceeded(SeqNum seqNumber, ViewNum view, const char* combinedSig, uint16_t combinedSigLen) {
+  }
+  void onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) {}
+
+  void onCommitCombinedSigFailed(SeqNum seqNumber, ViewNum view, const set<uint16_t>& replicasWithBadSigs) {}
+  void onCommitCombinedSigSucceeded(SeqNum seqNumber, ViewNum view, const char* combinedSig, uint16_t combinedSigLen) {}
+  void onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) {}
+
+  void onInternalMsg(FullCommitProofMsg* m) {}
+  void onMerkleExecSignature(ViewNum view, SeqNum seqNum, uint16_t signatureLength, const char* signature) {}
+
+  void onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqNum,
+                                          const ViewNum relatedViewNumber,
+                                          const forward_list<RetSuggestion>* const suggestedRetransmissions) {}
+
+  const bftEngine::impl::ReplicasInfo& getReplicasInfo() const { return replicasInfo_; }
+  bool isValidClient(NodeIdType client) const { return true; }
+  bool isIdOfReplica(NodeIdType id) const { return true; }
+  const set<ReplicaId>& getIdsOfPeerReplicas() const { return replicaIds_; }
+  ViewNum getCurrentView() const { return 0; }
+  ReplicaId currentPrimary() const { return 0; }
+  bool isCurrentPrimary() const { return true; }
+  bool currentViewIsActive() const { return true; }
+  ReqId seqNumberOfLastReplyToClient(NodeIdType client) const { return 1; }
+
+  IncomingMsgsStorage& getIncomingMsgsStorage() { return *incomingMsgsStorage_; }
+  util::SimpleThreadPool& getInternalThreadPool() { return pool_; }
+
+  void updateMetricsForInternalMessage() {}
+  bool isCollectingState() const { return false; }
+
+  const ReplicaConfig& getReplicaConfig() const { return replicaConfig; }
+
+  IThresholdVerifier* getThresholdVerifierForExecution() { return nullptr; }
+  IThresholdVerifier* getThresholdVerifierForSlowPathCommit() { return nullptr; }
+  IThresholdVerifier* getThresholdVerifierForCommit() { return nullptr; }
+  IThresholdVerifier* getThresholdVerifierForOptimisticCommit() { return nullptr; }
+
+ private:
+  IncomingMsgsStorage* incomingMsgsStorage_;
+  util::SimpleThreadPool pool_;
+  bftEngine::impl::ReplicasInfo replicasInfo_;
+  set<ReplicaId> replicaIds_;
+};
+
+TEST(requestPreprocessingInfo_test, requestTimedOut) {
+  setUpConfiguration_7();
+
+  unordered_map<NodeNum, NodeInfo> nodes;
+  TlsTcpConfig configuration("128.0.0.1", 1234, 4096, nodes, 7, 4, "", "", nullptr);
+  shared_ptr<IncomingMsgsStorage> msgsStorage;
+  shared_ptr<IReceiver> msgReceiver;
+  auto msgsCommunicator = make_shared<MsgsCommunicator>(CommFactory::create(configuration), msgsStorage, msgReceiver);
+
+  DummyRequestsHandler requestsHandler;
+  auto* msgHandlersReg = new MsgHandlersRegistrator;
+  shared_ptr<MsgHandlersRegistrator> msgHandlersRegPtr(msgHandlersReg);
+  bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig, false, false);
+  DummyReplica replica(replicasInfo);
+  PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica);
+
+  auto msgHandlerCallback = msgHandlersReg->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
+  auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
+  msgHandlerCallback(clientReqMsg);
+  Assert(preProcessor.getOngoingReqIdForClient(clientId) == reqSeqNum);
+  usleep(replicaConfig.preExecReqStatusCheckTimerMillisec * 1000);
+  TimersSingleton::getInstance().evaluate();
+  Assert(preProcessor.getOngoingReqIdForClient(clientId) == 0);
 }
 
 }  // end namespace
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
-  setUpConfiguration();
+  setUpConfiguration_4();
   int res = RUN_ALL_TESTS();
   return res;
 }
