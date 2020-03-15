@@ -98,11 +98,6 @@ endif()
 
 if (USE_CONAN)
     message("Using conan package manager")
-    if(NOT EXISTS "${CMAKE_SOURCE_DIR}/.conan/cmake_helpers/conan.cmake")
-        message(STATUS "Downloading conan.cmake from https://github.com/conan-io/cmake-conan")
-        file(DOWNLOAD "https://raw.githubusercontent.com/conan-io/cmake-conan/master/conan.cmake"
-                "${CMAKE_SOURCE_DIR}/.conan/cmake_helpers/conan.cmake")
-    endif()
     include(${CMAKE_SOURCE_DIR}/.conan/cmake_helpers//conan.cmake)
     execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/.conan/install_conan_pkgs.sh)
     conan_cmake_run(CONANFILE
