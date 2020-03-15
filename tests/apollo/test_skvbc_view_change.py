@@ -159,7 +159,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
             await tracker.tracked_read_your_writes()
 
-            tracker.run_concurrent_ops(100)
+            await tracker.run_concurrent_ops(100)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -208,7 +208,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
         await tracker.tracked_read_your_writes()
 
-        tracker.run_concurrent_ops(100)
+        await tracker.run_concurrent_ops(100)
 
     @unittest.skip("unstable scenario")
     @with_trio
