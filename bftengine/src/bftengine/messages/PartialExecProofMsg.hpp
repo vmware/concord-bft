@@ -22,7 +22,12 @@ namespace impl {
 // TODO(GG): use SignedShareBase
 class PartialExecProofMsg : public MessageBase {
  public:
-  PartialExecProofMsg(ReplicaId senderId, ViewNum v, SeqNum s, Digest& digest, IThresholdSigner* thresholdSigner);
+  PartialExecProofMsg(ReplicaId senderId,
+                      ViewNum v,
+                      SeqNum s,
+                      Digest& digest,
+                      IThresholdSigner* thresholdSigner,
+                      const std::string& spanContext = "");
 
   ViewNum viewNumber() const { return b()->viewNum; }
 
@@ -30,9 +35,13 @@ class PartialExecProofMsg : public MessageBase {
 
   uint16_t thresholSignatureLength() const { return b()->thresholSignatureLength; }
 
-  const char* thresholSignature() { return body() + sizeof(PartialExecProofMsgHeader); }
+  const char* thresholSignature() { return body() + sizeof(PartialExecProofMsgHeader) + msgBody_->span_context_size; }
 
   void validate(const ReplicasInfo&) const override;
+
+  std::string spanContext() const override {
+    return std::string(body() + sizeof(PartialExecProofMsgHeader), msgBody_->span_context_size);
+  }
 
  protected:
 #pragma pack(push, 1)

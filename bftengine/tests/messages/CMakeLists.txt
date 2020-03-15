@@ -48,3 +48,15 @@ target_include_directories(CheckpointMsg_test
 target_link_libraries(CheckpointMsg_test GTest::Main)
 target_link_libraries(CheckpointMsg_test corebft $<TARGET_OBJECTS:logging_dev>)
 target_compile_options(CheckpointMsg_test PUBLIC "-Wno-sign-compare")
+
+
+
+add_executable(PartialExecProofMsg_test PartialExecProofMsg_test.cpp)
+add_test(PartialExecProofMsg_test PartialExecProofMsg_test)
+find_package(GTest REQUIRED)
+target_include_directories(PartialExecProofMsg_test
+      PRIVATE
+      ${bftengine_SOURCE_DIR}/src/bftengine)
+target_link_libraries(PartialExecProofMsg_test GTest::Main)
+target_link_libraries(PartialExecProofMsg_test corebft $<TARGET_OBJECTS:logging_dev>)
+target_compile_options(PartialExecProofMsg_test PUBLIC "-Wno-sign-compare")

@@ -17,10 +17,15 @@
 namespace bftEngine {
 namespace impl {
 
-PartialExecProofMsg::PartialExecProofMsg(
-    ReplicaId senderId, ViewNum v, SeqNum s, Digest& digest, IThresholdSigner* thresholdSigner)
+PartialExecProofMsg::PartialExecProofMsg(ReplicaId senderId,
+                                         ViewNum v,
+                                         SeqNum s,
+                                         Digest& digest,
+                                         IThresholdSigner* thresholdSigner,
+                                         const std::string& spanContext)
     : MessageBase(senderId,
                   MsgCode::PartialExecProof,
+                  spanContext.size(),
                   sizeof(PartialExecProofMsgHeader) + thresholdSigner->requiredLengthForSignedData()) {
   uint16_t thresholSignatureLength = (uint16_t)thresholdSigner->requiredLengthForSignedData();
 
@@ -28,18 +33,20 @@ PartialExecProofMsg::PartialExecProofMsg(
   b()->seqNum = s;
   b()->thresholSignatureLength = thresholSignatureLength;
 
-  thresholdSigner->signData(
-      (const char*)(&(digest)), sizeof(Digest), body() + sizeof(PartialExecProofMsgHeader), thresholSignatureLength);
+  auto position = body() + sizeof(PartialExecProofMsgHeader);
+  std::memcpy(position, spanContext.data(), spanContext.size());
+
+  position += spanContext.size();
+  thresholdSigner->signData((const char*)(&(digest)), sizeof(Digest), position, thresholSignatureLength);
 }
 
 void PartialExecProofMsg::validate(const ReplicasInfo& repInfo) const {
   if (size() < sizeof(PartialExecProofMsgHeader) ||
-      size() < (sizeof(PartialExecProofMsgHeader) + thresholSignatureLength()) ||
+      size() < (sizeof(PartialExecProofMsgHeader) + thresholSignatureLength() + msgBody_->span_context_size) ||
       senderId() ==
           repInfo.myId() ||  // TODO(GG) - TBD: we should use Assert for this condition (also in other messages)
       !repInfo.isIdOfReplica(senderId()))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }
-
 }  // namespace impl
 }  // namespace bftEngine
