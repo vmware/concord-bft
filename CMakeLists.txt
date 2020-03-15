@@ -2,13 +2,7 @@ cmake_minimum_required(VERSION 3.2)
 project(concord-bft VERSION 0.1.0.0 LANGUAGES CXX)
 set(MIN_BOOST_VERSION 1.64)
 option(USE_CONAN "use conan package manager" ON)
-if (USE_CONAN)
-    message("Using conan package manager")
-    include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-    conan_basic_setup(TARGETS NO_OUTPUT_DIRS)
-    set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/.conan/cmake_helpers ${CMAKE_MODULE_PATH})
-    set(MIN_BOOST_VERSION 1.64.0)
-endif()
+
 #
 # C++ options
 #   TODO: change to set_target_properties?
@@ -81,7 +75,6 @@ string(APPEND CMAKE_CXX_FLAGS_RELEASE " -D_FORTIFY_SOURCE=2")
 string(APPEND CMAKE_CXX_FLAGS_DEBUG " -fstack-protector-all")
 
 
-
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 
     string(APPEND CMAKE_CXX_FLAGS " -ferror-limit=3")
@@ -101,6 +94,20 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     string(APPEND CMAKE_CXX_FLAGS " -fmax-errors=3")
+endif()
+
+if (USE_CONAN)
+    message("Using conan package manager")
+    include(${CMAKE_SOURCE_DIR}/.conan/cmake_helpers//conan.cmake)
+    execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/.conan/install_conan_pkgs.sh)
+    conan_cmake_run(CONANFILE
+            conanfile.txt
+            BUILD_TYPE "Release"
+            BUILD missing)
+    include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+    conan_basic_setup(TARGETS NO_OUTPUT_DIRS)
+    set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/.conan/cmake_helpers ${CMAKE_MODULE_PATH})
+    set(MIN_BOOST_VERSION 1.64.0)
 endif()
 
 # Initialize submodules and update a specific one

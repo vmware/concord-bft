@@ -71,8 +71,8 @@ target_include_directories(persistency_test PUBLIC
 
 target_link_libraries(persistency_test PUBLIC
         corebft
-        GTest::GTest
         GTest::Main
+        GTest::GTest
         test_config_lib
         $<TARGET_OBJECTS:logging_dev>
         simple_file_storage_lib)
