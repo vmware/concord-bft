@@ -18,7 +18,7 @@ namespace impl {
 
 class ReqMissingDataMsg : public MessageBase {
  public:
-  ReqMissingDataMsg(ReplicaId senderId, ViewNum v, SeqNum s);
+  ReqMissingDataMsg(ReplicaId senderId, ViewNum v, SeqNum s, const std::string spanContext = "");
 
   ViewNum viewNumber() const { return b()->viewNum; }
 
@@ -46,6 +46,9 @@ class ReqMissingDataMsg : public MessageBase {
   void setFullCommitIsMissing() { b()->flags |= 0x80; }
   void setSlowPathHasStarted() { b()->flags |= 0x100; }
 
+  std::string spanContext() const override {
+    return std::string(body() + sizeof(ReqMissingDataMsgHeader), msgBody_->span_context_size);
+  }
   void validate(const ReplicasInfo&) const override;
 
  protected:

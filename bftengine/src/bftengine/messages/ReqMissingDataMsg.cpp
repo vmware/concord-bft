@@ -10,17 +10,19 @@
 // file.
 
 #include "ReqMissingDataMsg.hpp"
+#include <cstring>
 #include "assertUtils.hpp"
 #include "Crypto.hpp"
 
 namespace bftEngine {
 namespace impl {
 
-ReqMissingDataMsg::ReqMissingDataMsg(ReplicaId senderId, ViewNum v, SeqNum s)
-    : MessageBase(senderId, MsgCode::ReqMissingData, sizeof(ReqMissingDataMsgHeader)) {
+ReqMissingDataMsg::ReqMissingDataMsg(ReplicaId senderId, ViewNum v, SeqNum s, const std::string spanContext)
+    : MessageBase(senderId, MsgCode::ReqMissingData, spanContext.size(), sizeof(ReqMissingDataMsgHeader)) {
   b()->viewNum = v;
   b()->seqNum = s;
   resetFlags();
+  std::memcpy(body() + sizeof(ReqMissingDataMsgHeader), spanContext.data(), spanContext.size());
 }
 
 void ReqMissingDataMsg::resetFlags() { b()->flags = 0; }
