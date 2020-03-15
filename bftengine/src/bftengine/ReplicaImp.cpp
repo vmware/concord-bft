@@ -2884,7 +2884,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
                << ", viewChangeTimerMillisec=" << config_.viewChangeTimerMillisec
                << ", autoPrimaryRotationEnabled=" << config_.autoPrimaryRotationEnabled
                << ", autoPrimaryRotationTimerMillisec=" << config_.autoPrimaryRotationTimerMillisec
-               << ", preexecReqStatusCheckTimerMillisec=" << config_.preexecReqStatusCheckTimerMillisec
+               << ", preExecReqStatusCheckTimerMillisec=" << config_.preExecReqStatusCheckTimerMillisec
                << ", maxExternalMessageSize=" << config_.maxExternalMessageSize << ", maxReplyMessageSize="
                << config_.maxReplyMessageSize << ", maxNumOfReservedPages=" << config_.maxNumOfReservedPages
                << ", sizeOfReservedPage=" << config_.sizeOfReservedPage

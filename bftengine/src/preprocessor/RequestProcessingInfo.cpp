@@ -40,9 +40,10 @@ RequestProcessingInfo::RequestProcessingInfo(uint16_t numOfReplicas,
 }
 
 void RequestProcessingInfo::handlePrimaryPreProcessed(const char *preProcessResult, uint32_t preProcessResultLen) {
-  myPreProcessResult_ = preProcessResult;
-  myPreProcessResultLen_ = preProcessResultLen;
-  myPreProcessResultHash_ = convertToArray(SHA3_256().digest(myPreProcessResult_, myPreProcessResultLen_).data());
+  primaryPreProcessResult_ = preProcessResult;
+  primaryPreProcessResultLen_ = preProcessResultLen;
+  primaryPreProcessResultHash_ =
+      convertToArray(SHA3_256().digest(primaryPreProcessResult_, primaryPreProcessResultLen_).data());
 }
 
 void RequestProcessingInfo::handlePreProcessReplyMsg(PreProcessReplyMsgSharedPtr preProcessReplyMsg) {
@@ -70,7 +71,7 @@ auto RequestProcessingInfo::calculateMaxNbrOfEqualHashes(uint16_t &maxNumOfEqual
 
 bool RequestProcessingInfo::isReqTimedOut() const {
   // Check request timeout once asynchronous primary pre-execution completed (to not abort the execution thread)
-  if (myPreProcessResultLen_ != 0) {
+  if (primaryPreProcessResultLen_ != 0) {
     auto reqProcessingTime = getMonotonicTimeMilli() - entryTime_;
     if (reqProcessingTime > clientPreProcessReqMsg_->requestTimeoutMilli()) {
       LOG_WARN(GL,
@@ -88,9 +89,9 @@ PreProcessingResult RequestProcessingInfo::getPreProcessingConsensusResult() con
   uint16_t maxNumOfEqualHashes = 0;
   auto itOfChosenHash = calculateMaxNbrOfEqualHashes(maxNumOfEqualHashes);
   if (maxNumOfEqualHashes >= numOfRequiredEqualReplies_) {
-    if (itOfChosenHash->first == myPreProcessResultHash_) return COMPLETE;  // Pre-execution consensus reached
+    if (itOfChosenHash->first == primaryPreProcessResultHash_) return COMPLETE;  // Pre-execution consensus reached
 
-    if (myPreProcessResultLen_ != 0) {
+    if (primaryPreProcessResultLen_ != 0) {
       // Primary replica calculated hash is different from a hash that passed pre-execution consensus => we don't have
       // correct pre-processed results. Let's launch a pre-processing retry.
       LOG_WARN(GL,

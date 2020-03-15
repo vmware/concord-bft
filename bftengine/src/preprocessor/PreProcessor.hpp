@@ -15,7 +15,6 @@
 #include "messages/ClientPreProcessRequestMsg.hpp"
 #include "MsgsCommunicator.hpp"
 #include "MsgHandlersRegistrator.hpp"
-#include "InternalReplicaApi.hpp"
 #include "SimpleThreadPool.hpp"
 #include "Replica.hpp"
 #include "RequestProcessingInfo.hpp"

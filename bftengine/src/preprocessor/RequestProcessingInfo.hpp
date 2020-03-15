@@ -39,8 +39,8 @@ class RequestProcessingInfo {
   PreProcessRequestMsgSharedPtr getPreProcessRequest() const { return preProcessRequestMsg_; }
   const SeqNum getReqSeqNum() const { return reqSeqNum_; }
   PreProcessingResult getPreProcessingConsensusResult() const;
-  const char* getMyPreProcessedResult() const { return myPreProcessResult_; }
-  uint32_t getMyPreProcessedResultLen() const { return myPreProcessResultLen_; }
+  const char* getPrimaryPreProcessedResult() const { return primaryPreProcessResult_; }
+  uint32_t getPrimaryPreProcessedResultLen() const { return primaryPreProcessResultLen_; }
   bool isReqTimedOut() const;
 
  private:
@@ -59,9 +59,9 @@ class RequestProcessingInfo {
   ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg_;
   PreProcessRequestMsgSharedPtr preProcessRequestMsg_;
   uint16_t numOfReceivedReplies_ = 0;
-  const char* myPreProcessResult_ = nullptr;
-  uint32_t myPreProcessResultLen_ = 0;
-  concord::util::SHA3_256::Digest myPreProcessResultHash_;
+  const char* primaryPreProcessResult_ = nullptr;
+  uint32_t primaryPreProcessResultLen_ = 0;
+  concord::util::SHA3_256::Digest primaryPreProcessResultHash_;
   // Maps result hash to the number of equal hashes
   std::map<concord::util::SHA3_256::Digest, int> preProcessingResultHashes_;
 };

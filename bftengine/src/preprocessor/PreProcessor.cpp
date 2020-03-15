@@ -10,6 +10,7 @@
 // file.
 
 #include "PreProcessor.hpp"
+#include "InternalReplicaApi.hpp"
 #include "Logger.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "TimersSingleton.hpp"
@@ -105,7 +106,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   }
   threadPool_.start(numOfClients_);
   requestsStatusCheckTimer_ = TimersSingleton::getInstance().add(
-      chrono::milliseconds(myReplica_.getReplicaConfig().preexecReqStatusCheckTimerMillisec),
+      chrono::milliseconds(myReplica_.getReplicaConfig().preExecReqStatusCheckTimerMillisec),
       Timers::Timer::RECURRING,
       [this](Timers::Handle h) { onRequestsStatusCheckTimer(h); });
 }
@@ -318,8 +319,8 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, const std::string 
     clientRequestMsg = make_unique<ClientRequestMsg>(clientId,
                                                      HAS_PRE_PROCESSED_FLAG,
                                                      reqSeqNum,
-                                                     clientEntry->clientReqInfoPtr->getMyPreProcessedResultLen(),
-                                                     clientEntry->clientReqInfoPtr->getMyPreProcessedResult(),
+                                                     clientEntry->clientReqInfoPtr->getPrimaryPreProcessedResultLen(),
+                                                     clientEntry->clientReqInfoPtr->getPrimaryPreProcessedResult(),
                                                      clientRequestMsg->requestTimeoutMilli(),
                                                      cid);
   }
