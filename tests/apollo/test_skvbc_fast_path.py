@@ -67,9 +67,11 @@ class SkvbcFastPathTest(unittest.TestCase):
         write_weight = .50
         numops = 20
 
+        nb_slow_path = await bft_network.num_of_slow_path()
+
         await tracker.run_concurrent_ops(num_ops=numops, write_weight=write_weight)
 
-        await bft_network.assert_fast_path_prevalent()
+        await bft_network.assert_fast_path_prevalent(nb_slow_paths_so_far=nb_slow_path)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -143,3 +145,4 @@ class SkvbcFastPathTest(unittest.TestCase):
         await trio.sleep(5)
         await bft_network.assert_fast_path_prevalent(
             nb_slow_paths_so_far=slow_path_writes)
+

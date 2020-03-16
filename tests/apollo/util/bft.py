@@ -264,13 +264,14 @@ class BftTestNetwork:
         return self.config.stop_replica_cmd(replica_id)
 
     def start_all_replicas(self):
-        try:
-            [self.start_replica(i) for i in range(0, self.config.n)]
-        except AlreadyRunningError:
-            if not self.is_existing:
-                raise
-        finally:
-            assert len(self.procs) == self.config.n
+        for i in range(0, self.config.n):
+            try:
+                self.start_replica(i)
+            except AlreadyRunningError:
+                if not self.is_existing:
+                    raise
+
+        assert len(self.procs) == self.config.n
 
     def stop_all_replicas(self):
         """ Stop all running replicas"""
@@ -298,7 +299,7 @@ class BftTestNetwork:
         if replica_id in self.procs:
             raise AlreadyRunningError(replica_id)
 
-        if self.is_existing:
+        if self.is_existing and self.config.stop_replica_cmd is not None:
             self.procs[replica_id] = self._start_external_replica(replica_id)
         else:
             self.procs[replica_id] = subprocess.Popen(
@@ -322,7 +323,7 @@ class BftTestNetwork:
         if replica_id not in self.procs.keys():
             raise AlreadyStoppedError(replica_id)
 
-        if self.is_existing:
+        if self.is_existing and self.config.stop_replica_cmd is not None:
             self._stop_external_replica(replica_id)
         else:
             p = self.procs[replica_id]
@@ -661,3 +662,15 @@ class BftTestNetwork:
                 with trio.move_on_after(interval):
                     if await predicate():
                         return
+
+
+    async def num_of_slow_path(self):
+        nb_slow_path = 0
+        with trio.move_on_after(seconds=.5):
+            try:
+                metric_key = ['replica', 'Counters', 'slowPathCount']
+                nb_slow_path = await self.metrics.get(0, *metric_key)
+            except KeyError:
+                # metrics not yet available, continue looping
+                pass
+        return nb_slow_path

@@ -13,10 +13,10 @@
 import os.path
 import unittest
 import trio
-
+from os import environ
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from test_skvbc import SkvbcTest
-from test_skvbc_auto_view_change import SkvbcAutoViewChangeTest
+from test_skvbc_fast_path import SkvbcFastPathTest
 
 # Time consts
 EIGHT_HOURS_IN_SECONDS = 8 * 60 * 60
@@ -37,7 +37,9 @@ def start_replica_cmd(builddir, replica_id):
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
-            "-p"]
+            "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower()
+                    in set(["true", "on"])
+                 else ""]
 
 
 class SkvbcLongRunningTest(unittest.TestCase):
@@ -55,4 +57,7 @@ class SkvbcLongRunningTest(unittest.TestCase):
                 await trio.sleep(seconds=10)
                 await SkvbcTest().test_conflicting_write\
                     (bft_network=bft_network, already_in_trio=True)
+                await trio.sleep(seconds=10)
+                await SkvbcFastPathTest().test_fast_path_read_your_write \
+                    (bft_network=bft_network, already_in_trio=True, disable_linearizability_checks=True)
                 await trio.sleep(seconds=10)
