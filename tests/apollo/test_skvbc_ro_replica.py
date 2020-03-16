@@ -28,8 +28,10 @@ def start_replica_cmd(builddir, replica_id):
     """
     Return a command that starts an skvbc replica when passed to
     subprocess.Popen.
+
     The replica is started with a short view change timeout and with RocksDB
     persistence enabled (-p).
+
     Note each arguments is an element in a list.
     """
     statusTimerMilli = "500"
@@ -44,7 +46,6 @@ def start_replica_cmd(builddir, replica_id):
             ]
 
 class SkvbcReadOnlyReplicaTest(unittest.TestCase):
-
 #######################################################################################################################
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1)
@@ -104,7 +105,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
 
         with trio.fail_after(60):  # seconds
             async with trio.open_nursery() as nursery:
-                nursery.start_soon(tracker.send_indefinite_tracked_ops, 1)
+                nursery.start_soon(tracker.send_indefinite_tracked_ops)
                 while True:
                     with trio.move_on_after(.5):  # seconds
                         key = ['replica', 'Gauges', 'lastExecutedSeqNum']
@@ -113,3 +114,4 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                         if lastExecutedSeqNum >= 150:
                             print("Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
                             nursery.cancel_scope.cancel()
+

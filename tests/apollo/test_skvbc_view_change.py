@@ -21,7 +21,6 @@ from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from util.skvbc_history_tracker import verify_linearizability
 
-
 def start_replica_cmd(builddir, replica_id):
     """
     Return a command that starts an skvbc replica when passed to
@@ -350,7 +349,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
     async def _send_random_writes(self, tracker):
         with trio.move_on_after(seconds=1):
             async with trio.open_nursery() as nursery:
-                nursery.start_soon(tracker.send_indefinite_tracked_ops, 1)
+                nursery.start_soon(tracker.send_indefinite_tracked_ops)
 
     async def _crash_replicas_including_primary(
             self, bft_network, nb_crashing, primary, except_replicas=None):
