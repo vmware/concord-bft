@@ -39,24 +39,29 @@ class RequestProcessingInfo {
   PreProcessRequestMsgSharedPtr getPreProcessRequest() const { return preProcessRequestMsg_; }
   const SeqNum getReqSeqNum() const { return reqSeqNum_; }
   PreProcessingResult getPreProcessingConsensusResult() const;
-  const char* getMyPreProcessedResult() const { return myPreProcessResult_; }
-  uint32_t getMyPreProcessedResultLen() const { return myPreProcessResultLen_; }
+  const char* getPrimaryPreProcessedResult() const { return primaryPreProcessResult_; }
+  uint32_t getPrimaryPreProcessedResultLen() const { return primaryPreProcessResultLen_; }
+  bool isReqTimedOut() const;
 
  private:
   static concord::util::SHA3_256::Digest convertToArray(
       const uint8_t resultsHash[concord::util::SHA3_256::SIZE_IN_BYTES]);
+
+  static uint64_t getMonotonicTimeMilli();
+  auto calculateMaxNbrOfEqualHashes(uint16_t& maxNumOfEqualHashes) const;
 
  private:
   static uint16_t numOfRequiredEqualReplies_;
 
   const uint16_t numOfReplicas_;
   const ReqId reqSeqNum_;
+  const uint64_t entryTime_;
   ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg_;
   PreProcessRequestMsgSharedPtr preProcessRequestMsg_;
   uint16_t numOfReceivedReplies_ = 0;
-  const char* myPreProcessResult_ = nullptr;
-  uint32_t myPreProcessResultLen_ = 0;
-  concord::util::SHA3_256::Digest myPreProcessResultHash_;
+  const char* primaryPreProcessResult_ = nullptr;
+  uint32_t primaryPreProcessResultLen_ = 0;
+  concord::util::SHA3_256::Digest primaryPreProcessResultHash_;
   // Maps result hash to the number of equal hashes
   std::map<concord::util::SHA3_256::Digest, int> preProcessingResultHashes_;
 };

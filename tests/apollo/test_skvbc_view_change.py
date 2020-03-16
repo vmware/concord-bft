@@ -14,6 +14,7 @@ import os.path
 import random
 import unittest
 from os import environ
+
 import trio
 
 from util import bft_network_partitioning as net

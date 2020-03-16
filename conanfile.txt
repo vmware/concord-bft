@@ -49,4 +49,3 @@ boost:without_context=True
 bin, *.dll -> ./lib # Copies all dll files from packages bin folder to my "lib" folder
 lib, *.dylib* -> ./lib # Copies all dylib files from packages lib folder to my "lib" folder
 lib, *.so* -> ./lib # Copies all dylib files from packages lib folder to my "lib" folder
-lib, *.a* -> ./lib

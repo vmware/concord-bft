@@ -32,13 +32,15 @@ class TestPackUnpack(unittest.TestCase):
         client_id = 4
         req_seq_num = 1
         read_only = True
+        timeout_milli = 5000
         cid = str(req_seq_num)
-        packed = bft_msgs.pack_request(client_id, req_seq_num, read_only, cid, msg)
-        (header, unpacked_msg , cid_) = bft_msgs.unpack_request(packed, len(cid))
+        packed = bft_msgs.pack_request(client_id, req_seq_num, read_only, timeout_milli, cid, msg)
+        (header, unpacked_msg, cid_) = bft_msgs.unpack_request(packed, len(cid))
         self.assertEqual(cid, cid_)
         self.assertEqual(client_id, header.client_id)
         self.assertEqual(1, header.flags) # read_only = True
         self.assertEqual(req_seq_num, header.req_seq_num)
+        self.assertEqual(timeout_milli, header.timeout_milli)
         self.assertEqual(msg, unpacked_msg)
 
     def test_expect_msg_error(self):

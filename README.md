@@ -44,12 +44,10 @@ Dependencies that are currently not supported by the conan center, have a custom
 ```sh
 git clone https://github.com/vmware/concord-bft
 cd concord-bft
-./install.sh 	# Install all dependencies 
-
+./install.sh # Install all dependencies 
 mkdir -p build
 cd build
 
-conan install --build missing ..
 cmake ..
 make
 
@@ -72,9 +70,10 @@ available:
 | `BUILD_COMM_TCP_TLS`   | TRUE \| FALSE | FALSE - UDP is used |
 | `USE_LOG4CPP`          | TRUE \| FALSE | FALSE |
 | `CONCORD_LOGGER_NAME`  | STRING |"concord" |
+| `USE_CONAN`            | OFF\| ON | ON |
 
- Note: You can't set both `BUILD_COMM_TCP_PLAIN` and `BUILD_COMM_TCP_TLS` to TRUE.
- 
+ Note(1): You can't set both `BUILD_COMM_TCP_PLAIN` and `BUILD_COMM_TCP_TLS` to TRUE.
+ Note(2): In case of setting `USE_CONAN=OFF` cmake will search for packages in their native location.
  
 #### Select comm module
 We support both UDP and TCP communication. UDP is the default. In order to
