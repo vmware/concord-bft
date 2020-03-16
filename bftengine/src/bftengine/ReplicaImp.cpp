@@ -285,9 +285,8 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
   controller->onSendingPrePrepare((primaryLastUsedSeqNum + 1), firstPath);
 
   PrePrepareMsg *pp = new PrePrepareMsg(config_.replicaId, curView, (primaryLastUsedSeqNum + 1), firstPath, false);
-  
+
   ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
-  
   while (nextRequest != nullptr && nextRequest->size() <= pp->remainingSizeForRequests()) {
     MDC_CID_PUT(GL, nextRequest->getCid());
     if (clientsManager->noPendingAndRequestCanBecomePending(nextRequest->clientProxyId(),

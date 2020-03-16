@@ -14,6 +14,7 @@ import os.path
 import random
 import unittest
 from os import environ
+
 import trio
 
 from util import bft_network_partitioning as net
@@ -349,7 +350,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
     async def _send_random_writes(self, tracker):
         with trio.move_on_after(seconds=1):
             async with trio.open_nursery() as nursery:
-                nursery.start_soon(tracker.send_indefinite_tracked_ops)
+                nursery.start_soon(tracker.send_indefinite_tracked_ops, 1)
 
     async def _crash_replicas_including_primary(
             self, bft_network, nb_crashing, primary, except_replicas=None):
