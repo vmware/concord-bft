@@ -226,7 +226,7 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
   if (primaryLastUsedSeqNum + 1 > lastStableSeqNum + kWorkWindowSize) return;
 
   if (primaryLastUsedSeqNum + 1 > lastExecutedSeqNum + config_.concurrencyLevel)
-      return;  // TODO(GG): should also be checked by the non-primary replicas
+    return;  // TODO(GG): should also be checked by the non-primary replicas
 
   if (requestsQueueOfPrimary.empty()) return;
 
@@ -287,6 +287,7 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
   PrePrepareMsg *pp = new PrePrepareMsg(config_.replicaId, curView, (primaryLastUsedSeqNum + 1), firstPath, false);
   
   ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
+  
   while (nextRequest != nullptr && nextRequest->size() <= pp->remainingSizeForRequests()) {
     MDC_CID_PUT(GL, nextRequest->getCid());
     if (clientsManager->noPendingAndRequestCanBecomePending(nextRequest->clientProxyId(),
