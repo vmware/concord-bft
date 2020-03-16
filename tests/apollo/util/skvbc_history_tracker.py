@@ -902,16 +902,14 @@ class SkvbcTracker:
 
     async def send_indefinite_tracked_ops(self, write_weight=.70):
         max_size = len(self.skvbc.keys) // 2
-        max_concurrency = len(self.bft_network.clients) // 2
-        clients = self.bft_network.random_clients(max_concurrency)
-
         while True:
-            for client in clients:
+            client = self.bft_network.random_client()
+            async with trio.open_nursery() as nursery:
                 try:
                     if random.random() < write_weight:
-                        await self.send_tracked_write(client, max_size)
+                        nursery.start_soon(self.send_tracked_write, client, max_size)
                     else:
-                        await self.send_tracked_read(client, max_size)
+                        nursery.start_soon(self.send_tracked_write, client, max_size)
                 except:
                     pass
                 await trio.sleep(.01)
