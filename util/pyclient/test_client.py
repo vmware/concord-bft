@@ -41,7 +41,11 @@ class SimpleTest(unittest.TestCase):
         cls.generateKeys()
         cls.config = bft_config.Config(4, 1, 0, 4096, 1000, 50)
         cls.replicas = [
-                bft_config.Replica(i, "127.0.0.1", bft_client.BASE_PORT + 2*i) 
+                bft_config.Replica(
+                    id=i,
+                    ip="127.0.0.1",
+                    port=bft_client.BASE_PORT + 2*i,
+                    metrics_port=1000 + bft_client.BASE_PORT + 2*i)
                 for i in range(0,4)]
 
         print("Running tests in {}".format(cls.testdir))

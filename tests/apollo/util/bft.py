@@ -176,7 +176,7 @@ class BftTestNetwork:
             builddir=builddir,
             toolsdir=toolsdir,
             procs={},
-            replicas=[bft_config.Replica(i, "127.0.0.1", 3710 + 2*i)
+            replicas=[bft_config.Replica(i, "127.0.0.1", 3710 + 2*i, 4710 + 2*i)
                 for i in range(0, config.n + config.num_ro_replicas)],
             clients = {},
             metrics = None
@@ -241,8 +241,7 @@ class BftTestNetwork:
     def _init_metrics(self):
         metric_clients = {}
         for r in self.replicas:
-            mr = bft_config.Replica(r.id, r.ip, r.port + 1000)
-            metric_clients[r.id] = bft_metrics_client.MetricsClient(mr)
+            metric_clients[r.id] = bft_metrics_client.MetricsClient(r)
         self.metrics = bft_metrics.BftMetrics(metric_clients)
 
     def random_client(self):

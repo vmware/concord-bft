@@ -16,4 +16,4 @@ from collections import namedtuple
 Config = namedtuple('Config', ['id', 'f', 'c', 'max_msg_size', 'req_timeout_milli',
     'retry_timeout_milli'])
 
-Replica = namedtuple('Replica', ['id', 'ip', 'port'])
+Replica = namedtuple('Replica', ['id', 'ip', 'port', 'metrics_port'])

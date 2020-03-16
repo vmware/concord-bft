@@ -54,7 +54,7 @@ class MetricsClient:
         There is no explicit timeout here. Users should call `with
         trio.fail_after as necessary`.
         """
-        destination = (self.replica.ip,self.replica.port)
+        destination = (self.replica.ip, self.replica.metrics_port)
         await self.sock.sendto(self._req(), destination)
         while True:
             reply, _ = await self.sock.recvfrom(MAX_MSG_SIZE)
