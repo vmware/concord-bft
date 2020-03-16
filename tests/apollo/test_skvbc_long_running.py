@@ -16,10 +16,7 @@ import trio
 from os import environ
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from test_skvbc import SkvbcTest
-from test_skvbc_auto_view_change import SkvbcAutoViewChangeTest
 from test_skvbc_fast_path import SkvbcFastPathTest
-from test_skvbc_slow_path import SkvbcSlowPathTest
-from test_skvbc_view_change import SkvbcViewChangeTest
 
 # Time consts
 EIGHT_HOURS_IN_SECONDS = 8 * 60 * 60
@@ -34,14 +31,12 @@ def start_replica_cmd(builddir, replica_id):
     """
     statusTimerMilli = "500"
     viewChangeTimeoutMilli = "10000"
-    autoPrimaryRotationTimeoutMilli = "10000"
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
-            "-a", autoPrimaryRotationTimeoutMilli,
             "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower()
                     in set(["true", "on"])
                  else ""]

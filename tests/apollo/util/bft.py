@@ -666,7 +666,7 @@ class BftTestNetwork:
 
     async def num_of_slow_path(self):
         nb_slow_path = 0
-        with trio.move_on_after(seconds=.1):
+        with trio.move_on_after(seconds=.5):
             try:
                 metric_key = ['replica', 'Counters', 'slowPathCount']
                 nb_slow_path = await self.metrics.get(0, *metric_key)
