@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <locale>
+#include <string>
 #include "MessageBase.hpp"
 
 namespace bftEngine {
@@ -18,11 +20,15 @@ namespace impl {
 
 class StartSlowCommitMsg : public MessageBase {
  public:
-  StartSlowCommitMsg(ReplicaId senderId, ViewNum v, SeqNum s);
+  StartSlowCommitMsg(ReplicaId senderId, ViewNum v, SeqNum s, const std::string& spanContext = "");
 
   ViewNum viewNumber() const { return b()->viewNum; }
 
   SeqNum seqNumber() const { return b()->seqNum; }
+
+  std::string spanContext() const override {
+    return std::string(body() + sizeof(StartSlowCommitMsgHeader), msgBody_->span_context_size);
+  }
 
   void validate(const ReplicasInfo&) const override;
 

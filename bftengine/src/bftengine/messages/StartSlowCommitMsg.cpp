@@ -10,15 +10,17 @@
 // file.
 
 #include "StartSlowCommitMsg.hpp"
+#include <cstring>
 #include "assertUtils.hpp"
 
 namespace bftEngine {
 namespace impl {
 
-StartSlowCommitMsg::StartSlowCommitMsg(ReplicaId senderId, ViewNum v, SeqNum s)
-    : MessageBase(senderId, MsgCode::StartSlowCommit, sizeof(StartSlowCommitMsgHeader)) {
+StartSlowCommitMsg::StartSlowCommitMsg(ReplicaId senderId, ViewNum v, SeqNum s, const std::string& spanContext)
+    : MessageBase(senderId, MsgCode::StartSlowCommit, spanContext.size(), sizeof(StartSlowCommitMsgHeader)) {
   b()->viewNum = v;
   b()->seqNum = s;
+  std::memcpy(body() + sizeof(StartSlowCommitMsgHeader), spanContext.data(), spanContext.size());
 }
 
 void StartSlowCommitMsg::validate(const ReplicasInfo& repInfo) const {

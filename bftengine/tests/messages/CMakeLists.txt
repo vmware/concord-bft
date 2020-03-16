@@ -68,3 +68,13 @@ target_include_directories(ReqMissingDataMsg_test
 target_link_libraries(ReqMissingDataMsg_test GTest::Main)
 target_link_libraries(ReqMissingDataMsg_test corebft $<TARGET_OBJECTS:logging_dev>)
 target_compile_options(ReqMissingDataMsg_test PUBLIC "-Wno-sign-compare")
+
+add_executable(StartSlowCommitMsg_test StartSlowCommitMsg_test.cpp)
+add_test(StartSlowCommitMsg_test StartSlowCommitMsg_test)
+find_package(GTest REQUIRED)
+target_include_directories(StartSlowCommitMsg_test
+      PRIVATE
+      ${bftengine_SOURCE_DIR}/src/bftengine)
+target_link_libraries(StartSlowCommitMsg_test GTest::Main)
+target_link_libraries(StartSlowCommitMsg_test corebft $<TARGET_OBJECTS:logging_dev>)
+target_compile_options(StartSlowCommitMsg_test PUBLIC "-Wno-sign-compare")
