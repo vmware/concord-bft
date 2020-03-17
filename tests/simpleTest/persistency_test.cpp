@@ -90,6 +90,7 @@ TEST_F(PersistencyTest, PrimaryRestartVC) {
     create_and_run_replica(rp, b);
   }
   ASSERT_TRUE(client->run());
+  ASSERT_TRUE(false); 
 }
 
 // This test make take a while to complete...
