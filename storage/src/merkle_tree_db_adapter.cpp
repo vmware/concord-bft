@@ -217,8 +217,17 @@ Hash DBKeyManipulator::extractHashFromLeafKey(const Key &key) {
   return Hash{reinterpret_cast<const uint8_t *>(key.data() + keyTypeOffset)};
 }
 
-DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db, bool readOnly)
-    : DBAdapterBase{db, readOnly}, smTree_{std::make_shared<Reader>(*this)} {}
+DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db)
+    : DBAdapterBase{db, false}, smTree_{std::make_shared<Reader>(*this)} {
+  // Make sure that if linkSTChainFrom() has been interrupted (e.g. a crash or an abnormal shutdown), all DBAdapter
+  // methods will return the correct values. For example, if state transfer had completed and linkSTChainFrom() was
+  // interrupted, getLatestBlock() should be equal to getLastReachableBlock() on the next startup. Another example is
+  // getKeyByReadVersion() that returns keys from the blockchain only and ignores keys in the temporary state
+  // transfer chain.
+  if (!linkSTChainFrom(getLatestBlock() + 1).isOK()) {
+    throw std::runtime_error{"Failed to link chains on DBAdapter construction"};
+  }
+}
 
 Status DBAdapter::getKeyByReadVersion(BlockId version, const Key &key, Sliver &outValue, BlockId &actualVersion) const {
   outValue = Sliver{};
