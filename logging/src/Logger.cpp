@@ -22,13 +22,26 @@ concordlogger::MDC::~MDC() { logger_.removeMdc(key_); }
 #include <log4cplus/logger.h>
 #include <log4cplus/configurator.h>
 #include <log4cplus/consoleappender.h>
+#include <log4cplus/fileappender.h>
 #include <log4cplus/mdc.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <chrono>
+#include <ctime>
+#include <sstream>
+#include <iomanip>
+#include <string>
 
 concordlogger::Logger initLogger() {
   log4cplus::SharedAppenderPtr ca_ptr = log4cplus::SharedAppenderPtr(new log4cplus::ConsoleAppender(false, true));
   ca_ptr->setLayout(
       std::auto_ptr<log4cplus::Layout>(new log4cplus::PatternLayout("[Node %X{rid}] [%t] %%%X%% %-5p|%c||%M|%m|%n ")));
   log4cplus::Logger::getRoot().addAppender(ca_ptr);
+  log4cplus::SharedAppenderPtr fa_ptr =
+      log4cplus::SharedAppenderPtr(new log4cplus::FileAppender("/tmp/concord.log", std::ios_base::app, true, true));
+  fa_ptr->setLayout(
+      std::auto_ptr<log4cplus::Layout>(new log4cplus::PatternLayout("[Node %X{rid}] [%t] %%%X%% %-5p|%c||%M|%m|%n ")));
+  log4cplus::Logger::getRoot().addAppender(fa_ptr);
   log4cplus::Logger::getRoot().setLogLevel(log4cplus::INFO_LOG_LEVEL);
   return log4cplus::Logger::getInstance(LOG4CPLUS_TEXT(DEFAULT_LOGGER_NAME));
 }

@@ -19,7 +19,8 @@ env:
 script:
   - cd $TRAVIS_BUILD_DIR && mkdir build && cd build && cmake $CMAKE_CXX_FLAGS $DEBUG $RELEASE $USE_LOG4CPP $USE_ROCKSDB $USE_CONAN .. && make format-check && make -j $(getconf _NPROCESSORS_ONLN) && ctest --output-on-failure
 
-
+after_failure:
+  - cat /tmp/concord.log
 cache:
   ccache: true
   pip: true
