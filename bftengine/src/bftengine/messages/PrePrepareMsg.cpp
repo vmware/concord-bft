@@ -85,8 +85,8 @@ PrePrepareMsg::PrePrepareMsg(
     : MessageBase(sender,
                   MsgCode::PrePrepare,
                   span_context.size(),
-                  (((size + sizeof(PrePrepareMsgHeader) + spanContextSize()) < maxSizeOfPrePrepareMsg()) ? (size + sizeof(PrePrepareMsgHeader) + SpanContextSize())
-                                                                             : maxSizeOfPrePrepareMsg() - spanContextSize()))
+                  (((size + sizeof(PrePrepareMsgHeader) + spanContext.size()) < maxSizeOfPrePrepareMsg()) ? (size + sizeof(PrePrepareMsgHeader) + spanContext.size())
+                                                                             : maxSizeOfPrePrepareMsg() - spanContext.size()))
 
 {
   b()->viewNum = v;
