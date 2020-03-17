@@ -909,7 +909,7 @@ class SkvbcTracker:
                     if random.random() < write_weight:
                         nursery.start_soon(self.send_tracked_write, client, max_size)
                     else:
-                        nursery.start_soon(self.send_tracked_write, client, max_size)
+                        nursery.start_soon(self.send_tracked_read, client, max_size)
                 except:
                     pass
                 await trio.sleep(.01)
