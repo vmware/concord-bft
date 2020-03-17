@@ -33,26 +33,39 @@ when a backwards incompatible change is made.
 
  [v0.5](https://github.com/vmware/concord-bft/releases/tag/v0.5)
 
-## Build (Ubuntu Linux 18.04)
+## Install and Build (Ubuntu Linux 18.04)
 
-We use Conan Package Manager to install all concord-bft dependencies.
-Dependencies that are currently not supported by the conan center, have a custom conan installer within concord-bft/.conan.
+We use the [Conan](https://docs.conan.io/en/latest) package manager to install all concord-bft
+dependencies. Dependencies that are currently not supported by conan's central repository, conan
+center, have a custom package within concord-bft/.conan.
 
+### Download and Install
+Clone the repo and install all dependencies. Note that the install script
+will install conan if it does not exist and upgrade it otherwise.
 
-### Build concord-bft
+If you do not already have a default profile, one will be created for you in
+`~/.conan/profiles/default`. In this case your compiler will be detected and it will default to
+building with C++11.
+
+If you already have a default profile, we do not want to edit it for you and break other projects
+you may have. Note that in this case you may have to modify your default profile such that it
+has the following setting: `compiler.libcxx=libstdc++11`. Please See the conan documentation for
+more information on
+[profiles](https://docs.conan.io/en/latest/using_packages/using_profiles.html#).
 
 ```sh
 git clone https://github.com/vmware/concord-bft
 cd concord-bft
-./install.sh # Install all dependencies 
+./install.sh
+```
+
+### Build concord-bft
+
+```sh
 mkdir -p build
 cd build
-
 cmake ..
 make
-
-# run a very basic test
-./tests/simpleTest/scripts/testReplicasAndClient.sh
 ```
 
 ### Build Options
@@ -74,7 +87,7 @@ available:
 
  Note(1): You can't set both `BUILD_COMM_TCP_PLAIN` and `BUILD_COMM_TCP_TLS` to TRUE.
  Note(2): In case of setting `USE_CONAN=OFF` cmake will search for packages in their native location.
- 
+
 #### Select comm module
 We support both UDP and TCP communication. UDP is the default. In order to
 enable TCP communication, build with `-DBUILD_COMM_TCP_PLAIN=TRUE` in the cmake
@@ -97,20 +110,62 @@ The python client requires python3(>= 3.5) and trio, which is installed via pip.
 
     python3 -m pip install --upgrade trio
 
+### Adding a new source dependency with conan
+
+We use conan for dependencies. If a binary dependency exists on conan-center you may wish to use
+it. You can check for this with the following command:
+
+```
+conan search -r conan-center <LIBRARY NAME>
+```
+
+If the package is present, you can add it to
+[conanfile.txt](https://github.com/vmware/concord-bft/blob/master/conanfile.txt) under the
+`[requires]` table.
+
+If the package is not present, you will need to create a package. The simplest way is to add a
+recipe for downloading from source control and building the source. This is the mechanism
+described here. More advanced conan usage is possible, but out of scope of this documentation. We
+also do not cover creating a package, just the guidelines for including a new dependency in
+concord-bft.
+
+First, create a folder for your package with the suffix `_pkg` in the [`.conan`
+directory](https://github.com/vmware/concord-bft/tree/master/.conan)
+
+```
+cd .conan
+mkdir <SOME_DEPENDENCY>_pkg
+```
+
+Second, create your `conanfile.py`. The simplest way to do this is to just copy an existing one
+from another package and modify it. For specifics, please see the [conan
+documentation](https://docs.conan.io/en/latest/creating_packages.html)
+
+Third, Add the dependency and its version to
+[conanfile.txt](https://github.com/vmware/concord-bft/blob/master/conanfile.txt) under the
+`requires` table.
+
+Fourth, create a corresponding cmake find file. The easiest thing is to just copy one of the
+[existing files](https://github.com/vmware/concord-bft/tree/master/.conan/cmake_helpers) and
+modify it for your new package.
+
+After this, you should be able to rerun `cmake` and `make`, and your package should get built and
+installed.
+
 ## Apollo testing framework
 
 
-The Apollo framework provides utilities and advanced testing scenarios for validating 
+The Apollo framework provides utilities and advanced testing scenarios for validating
 Concord BFT's correctness properties, regardless of the running application/execution engine.
-For the purposes of system testing, we have implemented a "Simple Key-Value Blockchain" (SKVBC) 
+For the purposes of system testing, we have implemented a "Simple Key-Value Blockchain" (SKVBC)
 test application which runs on top of the Concord BFT consensus engine.
 <br>
 
-Apollo enables running all test suites (without modification) against any supported BFT network 
+Apollo enables running all test suites (without modification) against any supported BFT network
 configuration (in terms of <i>n</i>, <i>f</i>, <i>c</i> and other parameters).
 <br>
 
-Various crash or byzantine failure scenarios are also covered 
+Various crash or byzantine failure scenarios are also covered
 (including faulty replicas and/or network partitioning).
 <br>
 
