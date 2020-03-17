@@ -15,13 +15,6 @@
 
 namespace preprocessor {
 
-PreProcessRequestMsg::PreProcessRequestMsg(
-    NodeIdType senderId, uint16_t clientId, uint64_t reqSeqNum, uint32_t reqLength, const char* request)
-    : MessageBase(senderId, MsgCode::PreProcessRequest, (sizeof(PreProcessRequestMsgHeader) + reqLength)) {
-  setParams(senderId, clientId, reqSeqNum, reqLength);
-  memcpy(body() + sizeof(PreProcessRequestMsgHeader), request, reqLength);
-}
-
 PreProcessRequestMsg::PreProcessRequestMsg(NodeIdType senderId,
                                            uint16_t clientId,
                                            uint64_t reqSeqNum,
