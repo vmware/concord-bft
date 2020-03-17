@@ -272,7 +272,7 @@ void PreProcessor::handleReqPreProcessedByOneReplica(const string &cid,
     case CONTINUE:  // Not enough equal hashes collected
       break;
     case COMPLETE:  // Pre-processing consensus reached
-      finalizePreProcessing(clientId, cid);
+      finalizePreProcessing(clientId);
       break;
     case CANCEL:  // Pre-processing consensus not reached
       cancelPreProcessing(clientId);
@@ -306,7 +306,7 @@ void PreProcessor::cancelPreProcessing(NodeIdType clientId) {
                << "; abort pre-processing step and pass the request to the replica for a regular processing");
 }
 
-void PreProcessor::finalizePreProcessing(NodeIdType clientId, const std::string &cid) {
+void PreProcessor::finalizePreProcessing(NodeIdType clientId) {
   SeqNum reqSeqNum = 0;
   unique_ptr<ClientRequestMsg> clientRequestMsg;
   auto &clientEntry = ongoingRequests_[clientId];
@@ -321,7 +321,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, const std::string 
                                                      clientEntry->clientReqInfoPtr->getPrimaryPreProcessedResultLen(),
                                                      clientEntry->clientReqInfoPtr->getPrimaryPreProcessedResult(),
                                                      clientEntry->clientReqInfoPtr->getReqTimeoutMilli(),
-                                                     cid);
+                                                     clientEntry->clientReqInfoPtr->getReqCid());
   }
   incomingMsgsStorage_->pushExternalMsg(move(clientRequestMsg));
   preProcessorMetrics_.preProcReqSentForFurtherProcessing.Get().Inc();
@@ -428,9 +428,9 @@ ReqId PreProcessor::getOngoingReqIdForClient(uint16_t clientId) {
   return 0;
 }
 
-void PreProcessor::handlePreProcessedReqPrimaryRetry(NodeIdType clientId, SeqNum reqSeqNum, const std::string &cid) {
+void PreProcessor::handlePreProcessedReqPrimaryRetry(NodeIdType clientId, SeqNum reqSeqNum) {
   if (getPreProcessingConsensusResult(clientId) == COMPLETE)
-    finalizePreProcessing(clientId, cid);
+    finalizePreProcessing(clientId);
   else
     cancelPreProcessing(clientId);
 }
@@ -471,7 +471,7 @@ void PreProcessor::handleReqPreProcessingJob(PreProcessRequestMsgSharedPtr prePr
   uint32_t actualResultBufLen =
       launchReqPreProcessing(clientId, reqSeqNum, preProcessReqMsg->requestLength(), preProcessReqMsg->requestBuf());
   if (isPrimary && isRetry) {
-    handlePreProcessedReqPrimaryRetry(clientId, reqSeqNum, preProcessReqMsg->getCid());
+    handlePreProcessedReqPrimaryRetry(clientId, reqSeqNum);
     return;
   }
   if (isPrimary)

@@ -42,7 +42,8 @@ class RequestProcessingInfo {
   const char* getPrimaryPreProcessedResult() const { return primaryPreProcessResult_; }
   uint32_t getPrimaryPreProcessedResultLen() const { return primaryPreProcessResultLen_; }
   bool isReqTimedOut() const;
-  uint64_t getReqTimeoutMilli() { return clientPreProcessReqMsg_->requestTimeoutMilli(); }
+  uint64_t getReqTimeoutMilli() const { return clientPreProcessReqMsg_->requestTimeoutMilli(); }
+  std::string getReqCid() const { return clientPreProcessReqMsg_->getCid(); }
  private:
   static concord::util::SHA3_256::Digest convertToArray(
       const uint8_t resultsHash[concord::util::SHA3_256::SIZE_IN_BYTES]);
