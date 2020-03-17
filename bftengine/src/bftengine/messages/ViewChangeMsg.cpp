@@ -10,6 +10,7 @@
 // file.
 
 #include <string.h>
+#include <cstring>
 
 #include "assertUtils.hpp"
 #include "ViewChangeMsg.hpp"
@@ -20,14 +21,20 @@
 namespace bftEngine {
 namespace impl {
 
-ViewChangeMsg::ViewChangeMsg(ReplicaId srcReplicaId, ViewNum newView, SeqNum lastStableSeq)
-    : MessageBase(
-          srcReplicaId, MsgCode::ViewChange, ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize()) {
+ViewChangeMsg::ViewChangeMsg(ReplicaId srcReplicaId,
+                             ViewNum newView,
+                             SeqNum lastStableSeq,
+                             const std::string& spanContext)
+    : MessageBase(srcReplicaId,
+                  MsgCode::ViewChange,
+                  spanContext.size(),
+                  ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize() - spanContext.size()) {
   b()->genReplicaId = srcReplicaId;
   b()->newView = newView;
   b()->lastStable = lastStableSeq;
   b()->numberOfElements = 0;
   b()->locationAfterLast = 0;
+  std::memcpy(body() + sizeof(ViewChangeMsgHeader), spanContext.data(), spanContext.size());
 }
 
 void ViewChangeMsg::setNewViewNumber(ViewNum newView) {
@@ -37,12 +44,11 @@ void ViewChangeMsg::setNewViewNumber(ViewNum newView) {
 
 void ViewChangeMsg::getMsgDigest(Digest& outDigest) const {
   size_t bodySize = b()->locationAfterLast;
-  if (bodySize == 0) bodySize = sizeof(ViewChangeMsgHeader);
+  if (bodySize == 0) bodySize = sizeof(ViewChangeMsgHeader) + msgBody_->span_context_size;
   DigestUtil::compute(body(), bodySize, (char*)outDigest.content(), sizeof(Digest));
 }
 
-void ViewChangeMsg::addElement(const ReplicasInfo& repInfo,
-                               SeqNum seqNum,
+void ViewChangeMsg::addElement(SeqNum seqNum,
                                const Digest& prePrepareDigest,
                                ViewNum originView,
                                bool hasPreparedCertificate,
@@ -57,7 +63,7 @@ void ViewChangeMsg::addElement(const ReplicasInfo& repInfo,
   if (b()->locationAfterLast == 0)  // if this is the first element
   {
     Assert(b()->numberOfElements == 0);
-    b()->locationAfterLast = sizeof(ViewChangeMsgHeader);
+    b()->locationAfterLast = sizeof(ViewChangeMsgHeader) + msgBody_->span_context_size;
   }
 
   uint16_t requiredSpace = b()->locationAfterLast + sizeof(Element);
@@ -89,7 +95,7 @@ void ViewChangeMsg::addElement(const ReplicasInfo& repInfo,
 
 void ViewChangeMsg::finalizeMessage() {
   size_t bodySize = b()->locationAfterLast;
-  if (bodySize == 0) bodySize = sizeof(ViewChangeMsgHeader);
+  if (bodySize == 0) bodySize = sizeof(ViewChangeMsgHeader) + msgBody_->span_context_size;
 
   uint16_t sigSize = ViewsManager::sigManager_->getMySigLength();
 
@@ -122,8 +128,8 @@ void ViewChangeMsg::validate(const ReplicasInfo& repInfo) const {
 bool ViewChangeMsg::checkElements(uint16_t sigSize) const {
   SeqNum lastSeqNumInMsg = lastStable();
   uint16_t numOfActualElements = 0;
-  uint16_t remainingBytes = size() - sigSize - sizeof(ViewChangeMsgHeader);
-  char* currLoc = body() + sizeof(ViewChangeMsgHeader);
+  uint16_t remainingBytes = size() - sigSize - sizeof(ViewChangeMsgHeader) - msgBody_->span_context_size;
+  char* currLoc = body() + sizeof(ViewChangeMsgHeader) + msgBody_->span_context_size;
 
   while ((remainingBytes >= sizeof(Element)) && (numOfActualElements < numberOfElements())) {
     numOfActualElements++;
@@ -177,7 +183,7 @@ ViewChangeMsg::ElementsIterator::ElementsIterator(const ViewChangeMsg* const m) 
     nextElementNum = 1;
   } else {
     endLoc = m->b()->locationAfterLast;
-    currLoc = sizeof(ViewChangeMsgHeader);
+    currLoc = sizeof(ViewChangeMsgHeader) + m->msgBody_->span_context_size;
     Assert(endLoc > currLoc);
     nextElementNum = 1;
   }

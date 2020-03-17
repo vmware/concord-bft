@@ -37,7 +37,7 @@ class ViewChangeMsg : public MessageBase {
   static_assert(sizeof(Element) == (8 + DIGEST_SIZE + 8 + 1), "Element (View Change) is 49B");
   static_assert(sizeof(PreparedCertificate) == (8 + 2), "PreparedCertificate is 10B");
 
-  ViewChangeMsg(ReplicaId srcReplicaId, ViewNum newView, SeqNum lastStableSeq);
+  ViewChangeMsg(ReplicaId srcReplicaId, ViewNum newView, SeqNum lastStableSeq, const std::string& spanContext = "");
 
   static MsgSize maxSizeOfViewChangeMsg();
   static MsgSize maxSizeOfViewChangeMsgInLocalBuffer();
@@ -57,8 +57,10 @@ class ViewChangeMsg : public MessageBase {
 
   void getMsgDigest(Digest& outDigest) const;
 
-  void addElement(const ReplicasInfo& repInfo,
-                  SeqNum seqNum,
+  std::string spanContext() const override {
+    return std::string(body() + sizeof(ViewChangeMsgHeader), msgBody_->span_context_size);
+  }
+  void addElement(SeqNum seqNum,
                   const Digest& prePrepareDigest,
                   ViewNum originView,
                   bool hasPreparedCertificate,

@@ -86,6 +86,7 @@ class MessageBase {
   bool owner_ = true;
   static const uint32_t magicNumOfRawFormat = 0x5555897BU;
 
+  static const uint64_t SPAN_CONTEXT_MAX_SIZE{1024};
 #pragma pack(push, 1)
   struct RawHeaderOfObjAndMsg {
     uint32_t magicNum;

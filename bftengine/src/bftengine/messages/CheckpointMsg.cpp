@@ -12,9 +12,6 @@
 #include "CheckpointMsg.hpp"
 #include "assertUtils.hpp"
 
-namespace {
-const uint64_t SPAN_CONTEXT_MAX_SIZE{1024};
-}
 namespace bftEngine {
 namespace impl {
 
@@ -39,7 +36,9 @@ void CheckpointMsg::validate(const ReplicasInfo& repInfo) const {
   // TODO(GG): consider to protect against messages that are larger than needed (here and in other messages)
 }
 
-MsgSize CheckpointMsg::maxSizeOfCheckpointMsg() { return sizeof(CheckpointMsgHeader) + SPAN_CONTEXT_MAX_SIZE; }
+MsgSize CheckpointMsg::maxSizeOfCheckpointMsg() {
+  return sizeof(CheckpointMsgHeader) + MessageBase::SPAN_CONTEXT_MAX_SIZE;
+}
 
 MsgSize CheckpointMsg::maxSizeOfCheckpointMsgInLocalBuffer() {
   return maxSizeOfCheckpointMsg() + sizeof(RawHeaderOfObjAndMsg);

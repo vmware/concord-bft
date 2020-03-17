@@ -13,10 +13,6 @@
 #include "Crypto.hpp"
 #include "assertUtils.hpp"
 
-namespace {
-const uint64_t SPAN_CONTEXT_MAX_SIZE{1024};
-}
-
 namespace bftEngine {
 namespace impl {
 
@@ -116,7 +112,7 @@ void PreparePartialMsg::validate(const ReplicasInfo& repInfo) const {
 ///////////////////////////////////////////////////////////////////////////////
 
 MsgSize PrepareFullMsg::maxSizeOfPrepareFull() {
-  return sizeof(SignedShareBaseHeader) + maxSizeOfCombinedSignature + SPAN_CONTEXT_MAX_SIZE;
+  return sizeof(SignedShareBaseHeader) + maxSizeOfCombinedSignature + MessageBase::SPAN_CONTEXT_MAX_SIZE;
 }
 
 MsgSize PrepareFullMsg::maxSizeOfPrepareFullInLocalBuffer() {

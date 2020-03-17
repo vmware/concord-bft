@@ -65,42 +65,7 @@ class IThresholdVerifierDummy : public IThresholdVerifier,
   IShareVerificationKeyDummy shareVerifyKey;
 };
 
-inline bftEngine::ReplicaConfig createReplicaConfig() {
-  bftEngine::ReplicaConfig config;
-  config.numReplicas = 4;
-  config.fVal = 1;
-  config.cVal = 0;
-  config.replicaId = 3;
-  config.numOfClientProxies = 8;
-  config.statusReportTimerMillisec = 15;
-  config.concurrencyLevel = 5;
-  config.viewChangeProtocolEnabled = true;
-  config.viewChangeTimerMillisec = 12;
-  config.autoPrimaryRotationEnabled = false;
-  config.autoPrimaryRotationTimerMillisec = 42;
-  config.maxExternalMessageSize = 1024 * 4;
-  config.maxNumOfReservedPages = 256;
-  config.maxReplyMessageSize = 1024;
-  config.sizeOfReservedPage = 2048;
-  config.debugStatisticsEnabled = true;
-
-  // config.replicaPrivateKey = replicaPrivateKey;
-  // config.publicKeysOfReplicas.insert(IdToKeyPair(0, publicKeyValue1));
-  // config.publicKeysOfReplicas.insert(IdToKeyPair(1, publicKeyValue2));
-  // config.publicKeysOfReplicas.insert(IdToKeyPair(2, publicKeyValue3));
-  // config.publicKeysOfReplicas.insert(IdToKeyPair(3, publicKeyValue4));
-
-  config.thresholdSignerForExecution = nullptr;
-  config.thresholdVerifierForExecution = new IThresholdVerifierDummy;
-  config.thresholdSignerForSlowPathCommit = new IThresholdSignerDummy;
-  config.thresholdVerifierForSlowPathCommit = new IThresholdVerifierDummy;
-  config.thresholdSignerForCommit = new IThresholdSignerDummy;
-  config.thresholdVerifierForCommit = new IThresholdVerifierDummy;
-  config.thresholdSignerForOptimisticCommit = new IThresholdSignerDummy;
-  config.thresholdVerifierForOptimisticCommit = new IThresholdVerifierDummy;
-  config.singletonFromThis();
-  return config;
-}
+bftEngine::ReplicaConfig createReplicaConfig();
 
 inline void printBody(const char *body, size_t size) {
   for (size_t i = 0; i < size; ++i) {
@@ -109,27 +74,7 @@ inline void printBody(const char *body, size_t size) {
   std::cout << "|end" << std::endl;
 }
 
-inline void testMessageBaseMethods(const MessageBase &tested,
-                                   MsgType type,
-                                   NodeIdType senderId,
-                                   const std::string &spanContext) {
-  EXPECT_EQ(tested.senderId(), senderId);
-  EXPECT_EQ(tested.type(), type);
-  EXPECT_EQ(tested.spanContext(), spanContext);
-  EXPECT_EQ(tested.spanContextSize(), spanContext.size());
-
-  std::unique_ptr<MessageBase> other{tested.cloneObjAndMsg()};
-  EXPECT_TRUE(tested.equals(*other));
-  EXPECT_NE(tested.body(), other->body());
-
-  std::vector<char> buffer(tested.sizeNeededForObjAndMsgInLocalBuffer() + /*null flag*/ 1);
-  auto ptr = buffer.data();
-  auto shifted_ptr = ptr;
-  MessageBase::serializeMsg(shifted_ptr, &tested);
-  EXPECT_EQ(memcmp(tested.body(), ptr + 1 + 10, tested.size()), 0);
-  size_t actualSize = 0u;
-  std::unique_ptr<MessageBase> deserialized{MessageBase::deserializeMsg(ptr, buffer.size(), actualSize)};
-  EXPECT_EQ(tested.size(), deserialized->size());
-  EXPECT_EQ(memcmp(tested.body(), deserialized->body(), deserialized->size()), 0);
-  EXPECT_TRUE(other->equals(*deserialized));
-}
+void testMessageBaseMethods(const MessageBase &tested,
+                            MsgType type,
+                            NodeIdType senderId,
+                            const std::string &spanContext);
