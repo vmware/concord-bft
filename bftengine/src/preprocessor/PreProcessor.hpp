@@ -87,12 +87,15 @@ class PreProcessor {
   void launchAsyncReqPreProcessingJob(PreProcessRequestMsgSharedPtr preProcessReqMsg, bool isPrimary, bool isRetry);
   uint32_t launchReqPreProcessing(uint16_t clientId, ReqId reqSeqNum, uint32_t reqLength, char *reqBuf);
   void handleReqPreProcessingJob(PreProcessRequestMsgSharedPtr preProcessReqMsg, bool isPrimary, bool isRetry);
-  void handlePreProcessedReqByNonPrimary(uint16_t clientId, ReqId reqSeqNum, uint32_t resBufLen);
+  void handlePreProcessedReqByNonPrimary(uint16_t clientId,
+                                         ReqId reqSeqNum,
+                                         uint32_t resBufLen,
+                                         const std::string &cid);
   void handlePreProcessedReqByPrimary(PreProcessRequestMsgSharedPtr preProcessReqMsg,
                                       uint16_t clientId,
                                       uint32_t resultBufLen);
   void handlePreProcessedReqPrimaryRetry(NodeIdType clientId, SeqNum reqSeqNum);
-  void finalizePreProcessing(NodeIdType clientId, const std::string &cid);
+  void finalizePreProcessing(NodeIdType clientId);
   void cancelPreProcessing(NodeIdType clientId);
   PreProcessingResult getPreProcessingConsensusResult(uint16_t clientId);
   void handleReqPreProcessedByOneReplica(const std::string &cid,

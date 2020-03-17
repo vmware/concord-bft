@@ -56,7 +56,7 @@ void PreProcessReplyMsg::setParams(NodeIdType senderId, uint16_t clientId, ReqId
   LOG_DEBUG(GL, "senderId=" << senderId << " clientId=" << clientId << " reqSeqNum=" << reqSeqNum);
 }
 
-void PreProcessReplyMsg::setupMsgBody(const char* buf, uint32_t bufLen) {
+void PreProcessReplyMsg::setupMsgBody(const char* buf, uint32_t bufLen, const std::string& cid) {
   const uint16_t sigSize = sigManager_->getMySigLength();
   const uint16_t headerSize = sizeof(PreProcessReplyMsgHeader);
 
@@ -66,8 +66,13 @@ void PreProcessReplyMsg::setupMsgBody(const char* buf, uint32_t bufLen) {
 
   // Sign hash
   sigManager_->sign((char*)hash.data(), SHA3_256::SIZE_IN_BYTES, body() + headerSize, sigSize);
-  msgSize_ = headerSize + sigSize;
+  memcpy(body() + headerSize + sigSize, cid.c_str(), cid.size());
+  msgBody()->cidLength = cid.size();
+  msgSize_ = headerSize + sigSize + msgBody()->cidLength;
   msgBody()->replyLength = sigSize;
+}
+std::string PreProcessReplyMsg::getCid() const {
+  return std::string(body() + msgSize_ - msgBody()->cidLength, msgBody()->cidLength);
 }
 
 }  // namespace preprocessor
