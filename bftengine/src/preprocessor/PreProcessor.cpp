@@ -244,10 +244,10 @@ void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *msg) {
   const NodeIdType &senderId = preProcessReplyMsg->senderId();
   const NodeIdType &clientId = preProcessReplyMsg->clientId();
   const SeqNum &reqSeqNum = preProcessReplyMsg->reqSeqNum();
-  MDC_CID_PUT(GL, preProcessReplyMsg->getCid());
+  string cid = preProcessReplyMsg->getCid();
+  MDC_CID_PUT(GL, cid);
   auto &clientEntry = ongoingRequests_[clientId];
   PreProcessingResult result = CANCEL;
-  string cid;
   LOG_DEBUG(GL, "reqSeqNum=" << preProcessReplyMsg->reqSeqNum() << " received from replica=" << senderId);
   {
     lock_guard<mutex> lock(clientEntry->mutex);
@@ -259,7 +259,6 @@ void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *msg) {
     }
     clientEntry->clientReqInfoPtr->handlePreProcessReplyMsg(preProcessReplyMsg);
     result = clientEntry->clientReqInfoPtr->getPreProcessingConsensusResult();
-    cid = clientEntry->clientReqInfoPtr->getPreProcessRequest()->getCid();
   }
   handleReqPreProcessedByOneReplica(cid, result, clientId, reqSeqNum);
 }
