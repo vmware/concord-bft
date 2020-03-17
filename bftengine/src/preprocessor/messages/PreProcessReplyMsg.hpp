@@ -45,6 +45,7 @@ class PreProcessReplyMsg : public MessageBase {
   const uint32_t replyLength() const { return msgBody()->replyLength; }
   const uint8_t* resultsHash() const { return msgBody()->resultsHash; }
   std::string getCid() const;
+
  private:
   void setParams(NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum);
   PreProcessReplyMsgHeader* msgBody() const { return ((PreProcessReplyMsgHeader*)msgBody_); }

@@ -428,7 +428,7 @@ ReqId PreProcessor::getOngoingReqIdForClient(uint16_t clientId) {
   return 0;
 }
 
-void PreProcessor::handlePreProcessedReqPrimaryRetry(NodeIdType clientId, SeqNum reqSeqNum, const std::string& cid) {
+void PreProcessor::handlePreProcessedReqPrimaryRetry(NodeIdType clientId, SeqNum reqSeqNum, const std::string &cid) {
   if (getPreProcessingConsensusResult(clientId) == COMPLETE)
     finalizePreProcessing(clientId, cid);
   else
@@ -452,7 +452,10 @@ void PreProcessor::handlePreProcessedReqByPrimary(PreProcessRequestMsgSharedPtr 
   handleReqPreProcessedByOneReplica(cid, result, clientId, preProcessReqMsg->reqSeqNum());
 }
 
-void PreProcessor::handlePreProcessedReqByNonPrimary(uint16_t clientId, ReqId reqSeqNum, uint32_t resBufLen, const std::string& cid) {
+void PreProcessor::handlePreProcessedReqByNonPrimary(uint16_t clientId,
+                                                     ReqId reqSeqNum,
+                                                     uint32_t resBufLen,
+                                                     const std::string &cid) {
   auto replyMsg = make_shared<PreProcessReplyMsg>(sigManager_, myReplicaId_, clientId, reqSeqNum);
   replyMsg->setupMsgBody(getPreProcessResultBuffer(clientId), resBufLen, cid);
   sendMsg(replyMsg->body(), myReplica_.currentPrimary(), replyMsg->type(), replyMsg->size());
