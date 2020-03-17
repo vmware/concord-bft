@@ -60,7 +60,12 @@ class DBKeyManipulator : public DBKeyManipulatorBase {
 // getLastReachableBlock() + 1. Additionally, ReachableSTBlock <= getLastBlock().
 class DBAdapter : public DBAdapterBase {
  public:
-  DBAdapter(const std::shared_ptr<IDBClient> &db, bool readOnly = false);
+  // The constructor will try to link the blockchain with any blocks in the temporary state transfer chain. This is done
+  // so that the DBAdapter will operate correctly in case a crash or an abnormal shutdown has occurred prior to startup
+  // (construction). Note that only a single DBAdapter instance should operate on a database and access to all methods
+  // should be either done from a single thread or serialized via a mutex or another mechanism. The constructor throws
+  // on errors.
+  DBAdapter(const std::shared_ptr<IDBClient> &db);
 
   // Adds a block to the end of the blockchain from a set of key/value pairs. Includes:
   // - adding the key/value pairs in separate keys
