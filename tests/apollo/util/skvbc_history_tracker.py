@@ -1012,9 +1012,8 @@ class PassThroughSkvbcTracker:
         readset = self.readset(0, max_set_size)
         writeset = self.writeset(max_set_size)
         msg = self.skvbc.write_req(readset, writeset, 0)
-        seq_num = client.req_seq_num.next()
         try:
-            serialized_reply = await client.write(msg, seq_num)
+            serialized_reply = await client.write(msg)
             reply = self.skvbc.parse_reply(serialized_reply)
             return reply
         except trio.TooSlowError:
@@ -1023,9 +1022,8 @@ class PassThroughSkvbcTracker:
     async def send_tracked_read(self, client, max_set_size):
         readset = self.readset(1, max_set_size)
         msg = self.skvbc.read_req(readset)
-        seq_num = client.req_seq_num.next()
         try:
-            serialized_reply = await client.read(msg, seq_num)
+            serialized_reply = await client.read(msg)
             reply = self.skvbc.parse_reply(serialized_reply)
             return reply
         except trio.TooSlowError:
@@ -1077,9 +1075,8 @@ class PassThroughSkvbcTracker:
 
     async def read_and_track_known_kv(self, key, client):
         msg = self.skvbc.read_req([key])
-        seq_num = client.req_seq_num.next()
         try:
-            return self.skvbc.parse_reply(await client.read(msg, seq_num))
+            return self.skvbc.parse_reply(await client.read(msg))
         except trio.TooSlowError:
             return
 
