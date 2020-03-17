@@ -72,7 +72,7 @@ void PreProcessReplyMsg::setupMsgBody(const char* buf, uint32_t bufLen, const st
   msgBody()->replyLength = sigSize;
 }
 std::string PreProcessReplyMsg::getCid() const {
-  return std::string(body() + sizeof(PreProcessReplyMsg) + replyLength(), msgBody()->cidLength);
+  return std::string(body() + msgSize_ - msgBody()->cidLength, msgBody()->cidLength);
 }
 
 }  // namespace preprocessor

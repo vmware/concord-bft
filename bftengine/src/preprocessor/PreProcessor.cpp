@@ -320,7 +320,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, const std::string 
                                                      reqSeqNum,
                                                      clientEntry->clientReqInfoPtr->getPrimaryPreProcessedResultLen(),
                                                      clientEntry->clientReqInfoPtr->getPrimaryPreProcessedResult(),
-                                                     1000,
+                                                     clientEntry->clientReqInfoPtr->getReqTimeoutMilli(),
                                                      cid);
   }
   incomingMsgsStorage_->pushExternalMsg(move(clientRequestMsg));
