@@ -961,22 +961,14 @@ class SkvbcTracker:
         # Fill up the initial nodes with data, checkpoint them and stop
         # them. Then bring them back up and ensure the checkpoint data is
         # there.
-
+        client1 = self.bft_network.random_client()
         # Write enough data to checkpoint and create a need for state transfer
-        max_concurrency = len(self.bft_network.clients) // 2
-        clients = self.bft_network.random_clients(max_concurrency)
-        replica_id = 0
-        last_executed_seq_num = 0
-        keys = ['replica', 'Gauges', 'lastExecutedSeqNum']
+        for i in range(1 + checkpoints_num * 150):
+            key = self.skvbc.random_key()
+            val = self.skvbc.random_value()
+            kv = [(key, val)]
+            await self.write_and_track_known_kv(kv, client1)
 
-        while last_executed_seq_num < checkpoints_num * 150:
-            async with trio.open_nursery() as nursery:
-                for client in clients:
-                    key = self.skvbc.random_key()
-                    val = self.skvbc.random_value()
-                    kv = [(key, val)]
-                    nursery.start_soon(self.write_and_track_known_kv, kv, client)
-            last_executed_seq_num = await self.bft_network.metrics.get(replica_id, *keys)
         await self.skvbc.network_wait_for_checkpoint(initial_nodes, checkpoints_num, persistency_enabled)
 
         return client, known_key, known_val, known_kv
