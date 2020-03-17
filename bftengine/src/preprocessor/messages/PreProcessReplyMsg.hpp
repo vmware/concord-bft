@@ -25,6 +25,7 @@ struct PreProcessReplyMsgHeader {
   uint16_t clientId;
   uint8_t resultsHash[concord::util::SHA3_256::SIZE_IN_BYTES];
   uint32_t replyLength;
+  uint32_t cidLength;
 };
 // The pre-executed results' hash signature resides in the message body
 #pragma pack(pop)
@@ -36,14 +37,14 @@ class PreProcessReplyMsg : public MessageBase {
                      uint16_t clientId,
                      uint64_t reqSeqNum);
 
-  void setupMsgBody(const char* buf, uint32_t bufLen);
+  void setupMsgBody(const char* buf, uint32_t bufLen, const std::string& cid);
 
   void validate(const bftEngine::impl::ReplicasInfo&) const override;
   const uint16_t clientId() const { return msgBody()->clientId; }
   const SeqNum reqSeqNum() const { return msgBody()->reqSeqNum; }
   const uint32_t replyLength() const { return msgBody()->replyLength; }
   const uint8_t* resultsHash() const { return msgBody()->resultsHash; }
-
+  std::string getCid() const;
  private:
   void setParams(NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum);
   PreProcessReplyMsgHeader* msgBody() const { return ((PreProcessReplyMsgHeader*)msgBody_); }

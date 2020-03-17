@@ -233,7 +233,7 @@ void setUpConfiguration_7() {
 
 PreProcessReplyMsgSharedPtr preProcessNonPrimary(NodeIdType replicaId, const bftEngine::impl::ReplicasInfo& repInfo) {
   auto preProcessReplyMsg = make_shared<PreProcessReplyMsg>(sigManager_[replicaId], replicaId, clientId, reqSeqNum);
-  preProcessReplyMsg->setupMsgBody(buf, bufLen);
+  preProcessReplyMsg->setupMsgBody(buf, bufLen, "");
   preProcessReplyMsg->validate(repInfo);
   return preProcessReplyMsg;
 }
