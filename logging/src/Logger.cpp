@@ -24,13 +24,6 @@ concordlogger::MDC::~MDC() { logger_.removeMdc(key_); }
 #include <log4cplus/consoleappender.h>
 #include <log4cplus/fileappender.h>
 #include <log4cplus/mdc.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <chrono>
-#include <ctime>
-#include <sstream>
-#include <iomanip>
-#include <string>
 
 concordlogger::Logger initLogger() {
   log4cplus::SharedAppenderPtr ca_ptr = log4cplus::SharedAppenderPtr(new log4cplus::ConsoleAppender(false, true));
