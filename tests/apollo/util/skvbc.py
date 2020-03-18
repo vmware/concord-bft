@@ -265,7 +265,7 @@ class SimpleKVBCProtocol:
         read_req = self.read_req([key], newest_block)
         kvpairs = self.parse_reply(await client.read(read_req))
         testcase.assertDictEqual({key: val}, kvpairs)
-        testcase.assertTrue(False)
+
     def _create_keys(self):
         """
         Create a sequence of KV store keys with length = 2*num_clients.
