@@ -121,7 +121,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
   replicaConfig.autoPrimaryRotationEnabled = rp.autoPrimaryRotationEnabled;
   replicaConfig.autoPrimaryRotationTimerMillisec = rp.autoPrimaryRotationTimeout;
   replicaConfig.statusReportTimerMillisec = rp.statusReportTimerMillisec;
-  replicaConfig.concurrencyLevel = 16;
+  replicaConfig.concurrencyLevel = 1;
   replicaConfig.debugStatisticsEnabled = true;
 
   uint16_t numOfReplicas = (uint16_t)(3 * replicaConfig.fVal + 2 * replicaConfig.cVal + 1);
