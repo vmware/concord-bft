@@ -602,6 +602,21 @@ class BftTestNetwork:
                         # slow path prevalent - done.
                         break
 
+    async def wait_for_fast_path_to_be_prevalent(
+            self, nb_slow_paths_so_far=0, replica_id=0):
+        with trio.fail_after(seconds=5):
+            while True:
+                with trio.move_on_after(seconds=.5):
+                    try:
+                        await self.assert_fast_path_prevalent(
+                            nb_slow_paths_so_far, replica_id)
+                    except KeyError:
+                        # metrics not yet available, continue looping
+                        continue
+                    else:
+                        # fast path prevalent - done.
+                        break
+
     async def assert_state_transfer_not_started_all_up_nodes(self, up_replica_ids):
         with trio.fail_after(METRICS_TIMEOUT_SEC):
             # Check metrics for all started nodes in parallel
