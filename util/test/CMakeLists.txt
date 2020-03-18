@@ -34,6 +34,5 @@ target_link_libraries(timers_tests GTest::Main util)
 
 add_executable(sha3_256_tests sha3_256_tests.cpp)
 add_test(sha3_256_tests sha3_256_tests)
-target_include_directories(sha3_256_tests PRIVATE ${OPENSSL_INCLUDE_DIR})
 target_link_libraries(sha3_256_tests GTest::Main util OpenSSL::Crypto
         $<TARGET_OBJECTS:logging_dev>)

@@ -17,8 +17,6 @@ class RocksdbConan(ConanFile):
     description = "RocksDB is developed and maintained by Facebook Database Engineering Team." \
                   "It is built on earlier work on LevelDB by Sanjay Ghemawat (sanjay@google.com) " \
                   "and Jeff Dean (jeff@google.com)"
-    generators = "cmake"
-
 
     def requirements(self):
         self.requires("zlib/1.2.11@conan/stable")
@@ -33,13 +31,6 @@ class RocksdbConan(ConanFile):
         self.options["lz4"].shared = True
         self.options["snappy"].shared = True
         self.options["zstd"].shared = True
-
-    def source(self):
-        tools.replace_in_file("CMakeLists.txt", 'project(rocksdb)',
-          '''project(rocksdb)
-          include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-          conan_basic_setup()
-            ''')
 
     def build(self):
         autotools = AutoToolsBuildEnvironment(self)

@@ -14,19 +14,12 @@ class HdrhistogramConan(ConanFile):
     url = "http://github.com/HdrHistogram/HdrHistogram_c"
     description = "A HDR histogram library"
     topics = ("HDR histogram")
-    generators = "cmake"
 
     def requirements(self):
         self.requires("zlib/1.2.11@conan/stable")
 
     def configure(self):
         self.options["zlib"].shared = True
-
-    def source(self):
-        tools.replace_in_file("CMakeLists.txt", 'project("hdr_histogram")',
-                              '''project("hdr_histogram")
-include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup()''')
 
     def build(self):
         cmake = CMake(self)
