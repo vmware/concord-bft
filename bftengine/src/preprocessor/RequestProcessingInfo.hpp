@@ -44,6 +44,7 @@ class RequestProcessingInfo {
   bool isReqTimedOut() const;
   uint64_t getReqTimeoutMilli() const { return clientPreProcessReqMsg_->requestTimeoutMilli(); }
   std::string getReqCid() const { return clientPreProcessReqMsg_->getCid(); }
+  bool isPreProcessReqMsgReceivedInTime(const uint16_t preProcessReqWaitTimeMilli) const;
 
  private:
   static concord::util::SHA3_256::Digest convertToArray(

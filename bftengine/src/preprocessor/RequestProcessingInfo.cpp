@@ -69,6 +69,7 @@ auto RequestProcessingInfo::calculateMaxNbrOfEqualHashes(uint16_t &maxNumOfEqual
   return itOfChosenHash;
 }
 
+// Primary replica logic
 bool RequestProcessingInfo::isReqTimedOut() const {
   // Check request timeout once asynchronous primary pre-execution completed (to not abort the execution thread)
   if (primaryPreProcessResultLen_ != 0) {
@@ -76,9 +77,23 @@ bool RequestProcessingInfo::isReqTimedOut() const {
     if (reqProcessingTime > clientPreProcessReqMsg_->requestTimeoutMilli()) {
       LOG_WARN(GL,
                "Request timeout of " << clientPreProcessReqMsg_->requestTimeoutMilli() << " ms expired for reqSeqNum="
-                                     << reqSeqNum_ << "; reqProcessingTime=" << reqProcessingTime << "; abort request");
+                                     << reqSeqNum_ << "; reqProcessingTime=" << reqProcessingTime);
       return true;
     }
+  }
+  return false;
+}
+
+// Non-primary replica logic
+bool RequestProcessingInfo::isPreProcessReqMsgReceivedInTime(const uint16_t preProcessReqWaitTimeMilli) const {
+  // Check if request was registered for too long after been received from the client
+  auto clientRequestWaitingTime = getMonotonicTimeMilli() - entryTime_;
+  if (clientRequestWaitingTime > preProcessReqWaitTimeMilli) {
+    LOG_WARN(GL,
+             "PreProcessRequestMsg did not arrive in time: preProcessReqWaitTimeMilli="
+                 << preProcessReqWaitTimeMilli << " ms expired for reqSeqNum=" << reqSeqNum_
+                 << "; clientRequestWaitingTime=" << clientRequestWaitingTime);
+    return true;
   }
   return false;
 }
