@@ -71,7 +71,7 @@ class SkvbcFastPathTest(unittest.TestCase):
 
         await tracker.run_concurrent_ops(num_ops=numops, write_weight=write_weight)
 
-        await bft_network.assert_fast_path_prevalent(nb_slow_paths_so_far=nb_slow_path)
+        await bft_network.wait_for_fast_path_to_be_prevalent(nb_slow_paths_so_far=nb_slow_path)
 
     @with_trio
     @with_bft_network(start_replica_cmd)

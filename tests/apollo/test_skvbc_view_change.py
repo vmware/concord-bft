@@ -117,7 +117,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         await self._single_vc_with_consecutive_failed_replicas(
             bft_network,
             tracker,
-            num_consecutive_failing_primaries = 1
+            num_consecutive_failing_primaries=1
         )
 
     @with_trio
@@ -316,18 +316,18 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
         bft_network.start_all_replicas()
 
-        initial_primary = 0
-        
+        initial_primary = await bft_network.get_current_primary()
+        initial_view = await bft_network.get_current_view()
         replcas_to_stop = [ v for v in range(initial_primary,
                                              initial_primary + num_consecutive_failing_primaries) ]
         
-        expected_final_primary = initial_primary + num_consecutive_failing_primaries
-        
+        expected_final_view = initial_view + num_consecutive_failing_primaries
+
         await self._send_random_writes(tracker)
 
         await bft_network.wait_for_view(
             replica_id=initial_primary,
-            expected=lambda v: v == initial_primary,
+            expected=lambda v: v == initial_view,
             err_msg="Make sure we are in the initial view "
                     "before crashing the primary."
         )
@@ -339,7 +339,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
         await bft_network.wait_for_view(
             replica_id=random.choice(bft_network.all_replicas(without=set(replcas_to_stop))),
-            expected=lambda v: v == expected_final_primary,
+            expected=lambda v: v == expected_final_view,
             err_msg="Make sure view change has been triggered."
         )
 

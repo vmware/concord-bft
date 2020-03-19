@@ -9,14 +9,16 @@
 # notices and license terms. Your use of these subcomponents is subject to the
 # terms and conditions of the subcomponent's license, as noted in the LICENSE
 # file.
-
+import itertools
 import os.path
 import unittest
 import trio
+import time
 from os import environ
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from test_skvbc import SkvbcTest
 from test_skvbc_fast_path import SkvbcFastPathTest
+from test_skvbc_view_change import SkvbcViewChangeTest
 
 # Time consts
 EIGHT_HOURS_IN_SECONDS = 8 * 60 * 60
@@ -50,8 +52,9 @@ class SkvbcLongRunningTest(unittest.TestCase):
                       selected_configs=lambda n, f, c: n == 7)
     async def test_stability(self, bft_network):
         bft_network.start_all_replicas()
-        with trio.move_on_after(seconds=EIGHT_HOURS_IN_SECONDS/2):
-            while True:
+        start = time.time()
+        with trio.move_on_after(seconds=ONE_HOUR_IN_SECONDS*4):
+            for i in itertools.count():
                 await SkvbcTest().test_get_block_data\
                     (bft_network=bft_network, already_in_trio=True)
                 await trio.sleep(seconds=10)
@@ -61,3 +64,9 @@ class SkvbcLongRunningTest(unittest.TestCase):
                 await SkvbcFastPathTest().test_fast_path_read_your_write \
                     (bft_network=bft_network, already_in_trio=True, disable_linearizability_checks=True)
                 await trio.sleep(seconds=10)
+                end = time.time()
+                if end - start >= ONE_HOUR_IN_SECONDS*2:
+                    await SkvbcViewChangeTest().test_single_vc_only_primary_down \
+                      (bft_network=bft_network, already_in_trio=True, disable_linearizability_checks=True)
+                    await trio.sleep(seconds=10)
+                    start = time.time()
