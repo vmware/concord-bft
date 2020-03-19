@@ -356,10 +356,7 @@ class BftTestNetwork:
         """
         Returns the current primary replica id
         """
-        live_replica = random.choice(self.get_live_replicas())
-        current_primary = await self.wait_for_view(
-            replica_id=live_replica, expected=None)
-
+        current_primary = await self.get_current_view()
         return current_primary % self.config.n
 
     async def get_current_view(self):
