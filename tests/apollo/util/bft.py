@@ -360,7 +360,17 @@ class BftTestNetwork:
         current_primary = await self.wait_for_view(
             replica_id=live_replica, expected=None)
 
-        return current_primary
+        return current_primary % self.config.n
+
+    async def get_current_view(self):
+        """
+        Returns the current view number
+        """
+        live_replica = random.choice(self.get_live_replicas())
+        current_view = await self.wait_for_view(
+            replica_id=live_replica, expected=None)
+
+        return current_view
 
     async def wait_for_view(self, replica_id, expected=None,
                             err_msg="Expected view not reached"):
@@ -614,7 +624,7 @@ class BftTestNetwork:
                         # metrics not yet available, continue looping
                         continue
                     else:
-                        # fast path prevalent - done.
+                        # fastf path prevalent - done.
                         break
 
     async def assert_state_transfer_not_started_all_up_nodes(self, up_replica_ids):
