@@ -145,7 +145,7 @@ const auto defaultObjectId = ObjectId{42};
 const auto defaultPageId = uint32_t{42};
 const auto defaultChkpt = uint64_t{42};
 const auto defaultDigest = getBlockDigest(defaultData + defaultData);
-const auto maxNumKeys = 100u;
+const auto maxNumKeys = 16u;
 const auto rocksDbPathPrefix = std::string{"/tmp/merkleTreeAdapter_test_rocksdb.db"};
 const auto zeroDigest = getZeroDigest();
 
@@ -887,7 +887,7 @@ TEST_P(db_adapter, add_and_get_block) {
 TEST_P(db_adapter, add_multiple_deterministic_blocks) {
   auto adapter = DBAdapter{GetParam()->db()};
 
-  const auto numBlocks = 250;
+  const auto numBlocks = 16;
   auto count = std::uint16_t{0};
   for (auto i = 1u; i <= numBlocks; ++i) {
     ASSERT_TRUE(adapter.addLastReachableBlock(getDeterministicBlockUpdates(count + 1)).isOK());
