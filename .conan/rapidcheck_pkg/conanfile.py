@@ -1,5 +1,5 @@
 from conans import ConanFile, CMake, tools
-
+from os import path
 
 class RapidCheckConan(ConanFile):
     scm = {
@@ -18,11 +18,18 @@ class RapidCheckConan(ConanFile):
 
     def build(self):
         cmake = CMake(self)
+        cmake.definitions["RC_ENABLE_GTEST"] = "ON"
+        cmake.definitions["RC_ENABLE_GMOCK"] = "ON"
         cmake.configure()
         cmake.build()
 
     def package(self):
         self.copy("*.h", dst="rapidcheck", src="include")
+        self.copy("*.hpp", dst="rapidcheck", src="include")
+        self.copy("*.h", dst="rapidcheck/extras", src="extras/gtest/include/rapidcheck")
+        self.copy("*.hpp", dst="rapidcheck/extras", src="extras/gtest/include/rapidcheck")
+        self.copy("*.h", dst="rapidcheck/extras", src="extras/gmock/include/rapidcheck")
+        self.copy("*.hpp", dst="rapidcheck/extras", src="extras/gmock/include/rapidcheck")
         self.copy("*.lib", dst="lib", keep_path=False)
         self.copy("*.dll", dst="bin", keep_path=False)
         self.copy("*.so*", dst="lib", keep_path=False)
@@ -31,4 +38,4 @@ class RapidCheckConan(ConanFile):
 
     def package_info(self):
         self.cpp_info.libs = ["rapidcheck"]
-        self.cpp_info.includedirs = [self.package_folder]
+        self.cpp_info.includedirs = [path.join(self.package_folder, "rapidcheck")]
