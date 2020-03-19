@@ -42,6 +42,7 @@ class RequestProcessingInfo {
   const char* getPrimaryPreProcessedResult() const { return primaryPreProcessResult_; }
   uint32_t getPrimaryPreProcessedResultLen() const { return primaryPreProcessResultLen_; }
   bool isReqTimedOut() const;
+  bool isPreProcessReqMsgReceivedInTime(const uint16_t preProcessReqWaitTimeMilli) const;
 
  private:
   static concord::util::SHA3_256::Digest convertToArray(
