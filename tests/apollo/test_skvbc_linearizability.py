@@ -65,8 +65,7 @@ class SkvbcChaosTest(unittest.TestCase):
         self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         self.bft_network = bft_network
         self.bft_network.start_all_replicas()
-        async with trio.open_nursery() as nursery:
-            nursery.start_soon(tracker.run_concurrent_ops, num_ops)
+        await tracker.run_concurrent_ops(num_ops)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -87,8 +86,7 @@ class SkvbcChaosTest(unittest.TestCase):
 
             adversary.interfere()
 
-            async with trio.open_nursery() as nursery:
-                nursery.start_soon(tracker.run_concurrent_ops, num_ops)
+            await tracker.run_concurrent_ops(num_ops)
 
     @with_trio
     @with_bft_network(start_replica_cmd)

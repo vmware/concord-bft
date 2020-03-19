@@ -904,14 +904,15 @@ class SkvbcTracker:
         max_size = len(self.skvbc.keys) // 2
         while True:
             client = self.bft_network.random_client()
-            try:
-                if random.random() < write_weight:
-                    await self.send_tracked_write(client, max_size)
-                else:
-                    await self.send_tracked_read(client, max_size)
-            except:
-                pass
-            await trio.sleep(.1)
+            async with trio.open_nursery() as nursery:
+                try:
+                    if random.random() < write_weight:
+                        nursery.start_soon(self.send_tracked_write, client, max_size)
+                    else:
+                        nursery.start_soon(self.send_tracked_write, client, max_size)
+                except:
+                    pass
+                await trio.sleep(.01)
 
     async def write_and_track_known_kv(self, kv, client):
         read_version = self.read_block_id()
