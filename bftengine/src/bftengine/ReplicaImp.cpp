@@ -2395,7 +2395,7 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
 
   if (isCollectingState()) return;
 
-  const Time currTime = getMonotonicTime();
+  Time currTime = getMonotonicTime();
 
   //////////////////////////////////////////////////////////////////////////////
   //
@@ -2460,7 +2460,7 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
     if (lastAgreedView != curView) return;
     if (repsInfo->primaryOfView(lastAgreedView) == config_.replicaId) return;
 
-    const Time currTime = getMonotonicTime();
+    currTime = getMonotonicTime();
     const uint64_t diffMilli1 = duration_cast<milliseconds>(currTime - timeOfLastStateSynch).count();
     const uint64_t diffMilli2 = duration_cast<milliseconds>(currTime - timeOfLastAgreedView).count();
 
