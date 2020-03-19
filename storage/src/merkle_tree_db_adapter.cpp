@@ -224,7 +224,7 @@ DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db)
   // interrupted, getLatestBlock() should be equal to getLastReachableBlock() on the next startup. Another example is
   // getKeyByReadVersion() that returns keys from the blockchain only and ignores keys in the temporary state
   // transfer chain.
-  if (!linkSTChainFrom(getLatestBlock() + 1).isOK()) {
+  if (!linkSTChainFrom(getLastReachableBlock() + 1).isOK()) {
     throw std::runtime_error{"Failed to link chains on DBAdapter construction"};
   }
 }
