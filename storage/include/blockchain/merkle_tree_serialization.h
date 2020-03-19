@@ -360,9 +360,9 @@ inline sparse_merkle::Version deserializeStateRootVersion(const concordUtils::Sl
 
 template <>
 inline DatabaseLeafValue deserialize<DatabaseLeafValue>(const concordUtils::Sliver &buf) {
-  constexpr auto blockIdSize = sizeof(DatabaseLeafValue::BlockIdType);
+  constexpr auto blockIdSize = sizeof(DatabaseLeafValue::blockId);
   Assert(buf.length() >= blockIdSize);
-  return DatabaseLeafValue{concordUtils::fromBigEndianBuffer<DatabaseLeafValue::BlockIdType>(buf.data()),
+  return DatabaseLeafValue{concordUtils::fromBigEndianBuffer<decltype(DatabaseLeafValue::blockId)>(buf.data()),
                            sparse_merkle::LeafNode{concordUtils::Sliver{buf, blockIdSize, buf.length() - blockIdSize}}};
 }
 

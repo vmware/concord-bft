@@ -110,13 +110,11 @@ class DBAdapter : public DBAdapterBase {
   const sparse_merkle::Hash &getStateHash() const { return smTree_.get_root_hash(); }
 
  private:
-  concordUtils::Sliver createBlockNode(const concordUtils::SetOfKeyValuePairs &updates,
-                                       BlockId blockId,
-                                       const sparse_merkle::Version &stateRootVersion) const;
+  concordUtils::Sliver createBlockNode(const concordUtils::SetOfKeyValuePairs &updates, BlockId blockId) const;
 
   // Returns a set of key/value pairs that represent the needed DB updates for adding a block as part of the blockchain.
-  concordUtils::SetOfKeyValuePairs lastReachableBlockkDbUpdates(const concordUtils::SetOfKeyValuePairs &updates,
-                                                                BlockId blockId);
+  concordUtils::SetOfKeyValuePairs lastReachableBlockDbUpdates(const concordUtils::SetOfKeyValuePairs &updates,
+                                                               BlockId blockId);
 
   // Try to link the ST temporary chain to the blockchain from the passed blockId up to getLatestBlock().
   concordUtils::Status linkSTChainFrom(BlockId blockId);
@@ -148,9 +146,7 @@ namespace detail {
 
 // Serialize leafs in the DB as the block ID the value was saved at and the value itself.
 struct DatabaseLeafValue {
-  using BlockIdType = BlockId;
-
-  BlockIdType blockId;
+  BlockId blockId;
   sparse_merkle::LeafNode leafNode;
 };
 

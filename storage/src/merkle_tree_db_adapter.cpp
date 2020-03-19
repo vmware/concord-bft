@@ -302,9 +302,7 @@ BlockId DBAdapter::getLatestBlock() const {
   return getLastReachableBlock();
 }
 
-Sliver DBAdapter::createBlockNode(const SetOfKeyValuePairs &updates,
-                                  BlockId blockId,
-                                  const Version &stateRootVersion) const {
+Sliver DBAdapter::createBlockNode(const SetOfKeyValuePairs &updates, BlockId blockId) const {
   // Make sure the digest is zero-initialized by using {} initialization.
   auto parentBlockDigest = StateTransferDigest{};
   if (blockId > 1) {
@@ -317,7 +315,7 @@ Sliver DBAdapter::createBlockNode(const SetOfKeyValuePairs &updates,
     computeBlockDigest(blockId - 1, parentBlock.data(), parentBlock.length(), &parentBlockDigest);
   }
 
-  auto node = BlockNode{blockId, parentBlockDigest.content, smTree_.get_root_hash(), stateRootVersion};
+  auto node = BlockNode{blockId, parentBlockDigest.content, smTree_.get_root_hash(), smTree_.get_version()};
   for (const auto &[k, v] : updates) {
     // Treat empty values as deleted keys.
     node.keys.emplace(k, BlockKeyData{v.empty()});
@@ -358,7 +356,7 @@ Status DBAdapter::getBlockById(BlockId blockId, Sliver &block) const {
   return Status::OK();
 }
 
-SetOfKeyValuePairs DBAdapter::lastReachableBlockkDbUpdates(const SetOfKeyValuePairs &updates, BlockId blockId) {
+SetOfKeyValuePairs DBAdapter::lastReachableBlockDbUpdates(const SetOfKeyValuePairs &updates, BlockId blockId) {
   auto dbUpdates = SetOfKeyValuePairs{};
   // Create a block with the same state root as the previous one if there are no updates.
   if (!updates.empty()) {
@@ -368,7 +366,7 @@ SetOfKeyValuePairs DBAdapter::lastReachableBlockkDbUpdates(const SetOfKeyValuePa
   }
 
   // Block key.
-  dbUpdates[DBKeyManipulator::genBlockDbKey(blockId)] = createBlockNode(updates, blockId, smTree_.get_version());
+  dbUpdates[DBKeyManipulator::genBlockDbKey(blockId)] = createBlockNode(updates, blockId);
 
   return dbUpdates;
 }
@@ -401,7 +399,7 @@ BatchedInternalNode DBAdapter::Reader::get_internal(const InternalNodeKey &key) 
 
 Status DBAdapter::addLastReachableBlock(const SetOfKeyValuePairs &updates) {
   const auto blockId = getLastReachableBlock() + 1;
-  return db_->multiPut(lastReachableBlockkDbUpdates(updates, blockId));
+  return db_->multiPut(lastReachableBlockDbUpdates(updates, blockId));
 }
 
 Status DBAdapter::linkSTChainFrom(BlockId blockId) {
@@ -435,7 +433,7 @@ Status DBAdapter::writeSTLinkTransaction(const Key &sTBlockKey, const Sliver &bl
   txn->del(sTBlockKey);
 
   // Put the block DB updates in the transaction.
-  const auto addDbUpdates = lastReachableBlockkDbUpdates(block::getData(block), blockId);
+  const auto addDbUpdates = lastReachableBlockDbUpdates(block::getData(block), blockId);
   for (const auto &[key, value] : addDbUpdates) {
     txn->put(key, value);
   }

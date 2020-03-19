@@ -170,17 +170,13 @@ TEST(tree_tests, empty_db) {
   ASSERT_EQ(PLACEHOLDER_HASH, root.hash());
 }
 
-// Ensure that getting the latest root from an empty db through the tree returns an empty
-// BatchedInternalNode
+// Ensure that the tree is in an empty state when used with an empty db
 TEST(tree_tests, empty_db_from_tree) {
   std::shared_ptr<TestDB> db(new TestDB);
   Tree tree(db);
-  const auto& root = tree.get_root();
-  ASSERT_EQ(Version(0), root.version());
-  ASSERT_EQ(0, root.numChildren());
-  ASSERT_EQ(PLACEHOLDER_HASH, root.hash());
   ASSERT_EQ(Version(0), tree.get_version());
   ASSERT_EQ(PLACEHOLDER_HASH, tree.get_root_hash());
+  ASSERT_TRUE(tree.empty());
 }
 
 // Ensure that we can insert a single leaf to an empty tree
