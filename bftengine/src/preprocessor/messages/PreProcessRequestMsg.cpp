@@ -47,7 +47,7 @@ void PreProcessRequestMsg::setParams(NodeIdType senderId, uint16_t clientId, Req
       "senderId=" << senderId << " clientId=" << clientId << " reqSeqNum=" << reqSeqNum << " reqLength=" << reqLength);
 }
 
-std::string PreProcessRequestMsg::getCid() {
+std::string PreProcessRequestMsg::getCid() const {
   return std::string(body() + sizeof(PreProcessRequestMsgHeader) + msgBody()->requestLength, msgBody()->cidLength);
 }
 
