@@ -209,8 +209,8 @@ class BlockchainView {
   // If count > MAX_BLOCKCHAIN_VIEW_SIZE, an exception is thrown.
   // If genesisId + count would overflow the concordUtils::BlockId type, behavior is undefined.
   // If genesisId + count > MAX_BLOCKCHAIN_VIEW_SIZE, an exception is thrown. Constant complexity.
-  BlockchainView(concordUtils::BlockId genesisId, size_type count, BlockInfoInit blockInfoInit_ = BlockInfoInit{})
-      : genesisId_{genesisId}, endId_{genesisId + count}, size_{count}, blockInfoInit_{blockInfoInit_} {
+  BlockchainView(concordUtils::BlockId genesisId, size_type count, BlockInfoInit blockInfoInit = BlockInfoInit{})
+      : genesisId_{genesisId}, endId_{genesisId + count}, size_{count}, blockInfoInit_{blockInfoInit} {
     if (count > MAX_BLOCKCHAIN_VIEW_SIZE) {
       throw std::length_error{"BlockchainView: exceeded MAX_BLOCKCHAIN_VIEW_SIZE"};
     } else if (genesisId + count > MAX_BLOCKCHAIN_VIEW_SIZE) {
