@@ -55,3 +55,11 @@ class ParametrizedTest : public ::testing::TestWithParam<ParamType> {
   void SetUp() override { fs::remove_all(rocksDbPath()); }
   void TearDown() override { fs::remove_all(rocksDbPath()); }
 };
+
+// Generate test name suffixes based on the DB client type.
+struct TypePrinter {
+  template <typename ParamType>
+  std::string operator()(const ::testing::TestParamInfo<ParamType> &info) const {
+    return info.param->type();
+  }
+};

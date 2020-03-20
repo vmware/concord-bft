@@ -1256,14 +1256,6 @@ TEST_P(db_adapter_ref_blockchain, state_transfer_unordered_with_blockchain_block
   }
 }
 
-// Generate test name suffixes based on the DB client type.
-struct TypePrinter {
-  template <typename T>
-  std::string operator()(const testing::TestParamInfo<T> &info) const {
-    return info.param->type();
-  }
-};
-
 // Instantiate tests with memorydb and RocksDB clients and with custom (test-specific) blockchains.
 INSTANTIATE_TEST_CASE_P(db_adapter_tests_custom_blockchain,
                         db_adapter_custom_blockchain,
