@@ -54,14 +54,15 @@ int main(int argc, char** argv) {
   auto* dbAdapter = new concord::storage::blockchain::DBAdapter(db);
   auto* replica = new ReplicaImp(
       setup->GetCommunication(), setup->GetReplicaConfig(), dbAdapter, setup->GetMetricsServer().GetAggregator());
-  replica->setReplicaStateSync(new ReplicaStateSyncImp(new BlockMetadata(*replica)));
+  auto* blockMetadata = new concord::kvbc::BlockMetadata(*replica);
+  replica->setReplicaStateSync(new ReplicaStateSyncImp(blockMetadata));
 
   // Start metrics server after creation of the replica so that we ensure
   // registration of metrics from the replica with the aggregator and don't
   // return empty metrics from the metrics server.
   setup->GetMetricsServer().Start();
 
-  InternalCommandsHandler cmdHandler(replica, replica, logger);
+  InternalCommandsHandler cmdHandler(replica, replica, blockMetadata, logger);
   replica->set_command_handler(&cmdHandler);
   replica->start();
 

@@ -19,13 +19,15 @@
 #include "simpleKVBTestsBuilder.hpp"
 #include "blockchain/db_interfaces.h"
 #include "KVBCInterfaces.h"
+#include "block_metadata.hpp"
 
 class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
  public:
   InternalCommandsHandler(concord::storage::blockchain::ILocalKeyValueStorageReadOnly *storage,
                           concord::storage::blockchain::IBlocksAppender *blocksAppender,
+                          concord::kvbc::IBlockMetadata *blockMetadata,
                           concordlogger::Logger &logger)
-      : m_storage(storage), m_blocksAppender(blocksAppender), m_logger(logger) {}
+      : m_storage(storage), m_blocksAppender(blocksAppender), m_blockMetadata(blockMetadata), m_logger(logger) {}
 
   virtual int execute(uint16_t clientId,
                       uint64_t sequenceNum,
@@ -69,6 +71,7 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
  private:
   concord::storage::blockchain::ILocalKeyValueStorageReadOnly *m_storage;
   concord::storage::blockchain::IBlocksAppender *m_blocksAppender;
+  concord::kvbc::IBlockMetadata *m_blockMetadata;
   concordlogger::Logger &m_logger;
   size_t m_readsCounter = 0;
   size_t m_writesCounter = 0;
