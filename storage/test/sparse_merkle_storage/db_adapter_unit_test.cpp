@@ -4,6 +4,8 @@
 
 #include "gtest/gtest.h"
 
+#include "storage_test_common.h"
+
 #include "assertUtils.hpp"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 #include "blockchain/merkle_tree_block.h"
@@ -20,21 +22,9 @@
 #include <cstring>
 #include <iterator>
 #include <memory>
-#include <sstream>
 #include <string>
-#include <thread>
 #include <type_traits>
 #include <utility>
-
-#if __has_include(<filesystem>)
-#include <filesystem>
-namespace fs = std::filesystem;
-#elif __has_include(<experimental/filesystem>)
-#include <experimental/filesystem>
-namespace fs = std::experimental::filesystem;
-#else
-#error "Missing filesystem support"
-#endif
 
 namespace {
 
@@ -123,7 +113,7 @@ SetOfKeyValuePairs getDeterministicBlockUpdates(std::uint32_t count) {
 }
 
 enum class ReferenceBlockchainType {
-  HasEmptyBlocks,
+  WithEmptyBlocks,
   NoEmptyBlocks,
 };
 
@@ -135,7 +125,7 @@ ValuesVector createReferenceBlockchain(const std::shared_ptr<IDBClient> &db,
 
   auto emptyToggle = true;
   for (auto i = 1u; i <= length; ++i) {
-    if (type == ReferenceBlockchainType::HasEmptyBlocks && emptyToggle) {
+    if (type == ReferenceBlockchainType::WithEmptyBlocks && emptyToggle) {
       Assert(adapter.addLastReachableBlock(SetOfKeyValuePairs{}).isOK());
     } else {
       Assert(adapter.addLastReachableBlock(getDeterministicBlockUpdates(i * 2)).isOK());
@@ -161,7 +151,6 @@ const auto defaultPageId = uint32_t{42};
 const auto defaultChkpt = uint64_t{42};
 const auto defaultDigest = getBlockDigest(defaultData + defaultData);
 const auto maxNumKeys = 16u;
-const auto rocksDbPathPrefix = std::string{"/tmp/merkleTreeAdapter_test_rocksdb.db"};
 const auto zeroDigest = getZeroDigest();
 
 static_assert(sizeof(EDBKeyType) == 1);
@@ -169,13 +158,6 @@ static_assert(sizeof(EKeySubtype) == 1);
 static_assert(sizeof(EBFTSubtype) == 1);
 static_assert(sizeof(BlockId) == 8);
 static_assert(sizeof(ObjectId) == 4);
-
-// Support multithreaded runs by appending the thread ID to the RocksDB path.
-std::string rocksDbPath() {
-  std::stringstream ss;
-  ss << std::this_thread::get_id();
-  return rocksDbPathPrefix + ss.str();
-}
 
 // Expected key structure with respective bit sizes:
 // [EDBKeyType::Block: 8, blockId: 64]
@@ -623,14 +605,15 @@ struct IDbAdapterTest {
   virtual ~IDbAdapterTest() noexcept = default;
 };
 
-template <ReferenceBlockchainType refBlockchainType = ReferenceBlockchainType::NoEmptyBlocks>
-struct MemoryDbTestFactory : public IDbAdapterTest {
-  std::shared_ptr<IDBClient> db() const override { return std::make_shared<::concord::storage::memorydb::Client>(); }
+template <typename Database, ReferenceBlockchainType refBlockchainType = ReferenceBlockchainType::NoEmptyBlocks>
+struct DbAdapterTest : public IDbAdapterTest {
+  std::shared_ptr<IDBClient> db() const override { return Database::create(); }
 
   std::string type() const override {
-    const auto blocksType = refBlockchainType == ReferenceBlockchainType::HasEmptyBlocks ? std::string{"hasEmptyInRef"}
-                                                                                         : std::string{"noEmptyInRef"};
-    return "memorydb_" + blocksType;
+    const auto blocksType = refBlockchainType == ReferenceBlockchainType::WithEmptyBlocks
+                                ? std::string{"withEmptyBlocks"}
+                                : std::string{"noEmptyBlocks"};
+    return Database::type() + '_' + blocksType;
   }
 
   ValuesVector referenceBlockchain(const std::shared_ptr<IDBClient> &db, std::size_t length) const override {
@@ -638,32 +621,8 @@ struct MemoryDbTestFactory : public IDbAdapterTest {
   }
 };
 
-template <ReferenceBlockchainType refBlockchainType = ReferenceBlockchainType::NoEmptyBlocks>
-struct RocksDbTestFactory : public IDbAdapterTest {
-  std::shared_ptr<IDBClient> db() const override {
-    fs::remove_all(rocksDbPath());
-    // Create the RocksDB client with the default lexicographical comparator.
-    return std::make_shared<::concord::storage::rocksdb::Client>(rocksDbPath());
-  }
-
-  std::string type() const override {
-    const auto blocksType = refBlockchainType == ReferenceBlockchainType::HasEmptyBlocks ? std::string{"hasEmptyInRef"}
-                                                                                         : std::string{"noEmptyInRef"};
-    return "RocksDB_" + blocksType;
-  }
-
-  ValuesVector referenceBlockchain(const std::shared_ptr<IDBClient> &db, std::size_t length) const override {
-    return createReferenceBlockchain(db, length, refBlockchainType);
-  }
-};
-
-class db_adapter_base : public ::testing::TestWithParam<std::shared_ptr<IDbAdapterTest>> {
-  void SetUp() override { fs::remove_all(rocksDbPath()); }
-  void TearDown() override { fs::remove_all(rocksDbPath()); }
-};
-
-class db_adapter_custom_blockchain : public db_adapter_base {};
-class db_adapter_ref_blockchain : public db_adapter_base {};
+using db_adapter_custom_blockchain = ParametrizedTest<std::shared_ptr<IDbAdapterTest>>;
+using db_adapter_ref_blockchain = ParametrizedTest<std::shared_ptr<IDbAdapterTest>>;
 
 // Test the last reachable block functionality.
 TEST_P(db_adapter_custom_blockchain, get_last_reachable_block) {
@@ -1308,18 +1267,18 @@ struct TypePrinter {
 // Instantiate tests with memorydb and RocksDB clients and with custom (test-specific) blockchains.
 INSTANTIATE_TEST_CASE_P(db_adapter_tests_custom_blockchain,
                         db_adapter_custom_blockchain,
-                        ::testing::Values(std::make_shared<MemoryDbTestFactory<>>(),
-                                          std::make_shared<RocksDbTestFactory<>>()),
+                        ::testing::Values(std::make_shared<DbAdapterTest<TestMemoryDb>>(),
+                                          std::make_shared<DbAdapterTest<TestRocksDb>>()),
                         TypePrinter{});
 
 // Instantiate tests with memorydb and RocksDB clients and with reference blockchains (with and without empty blocks).
 INSTANTIATE_TEST_CASE_P(
     db_adapter_tests_ref_blockchain,
     db_adapter_ref_blockchain,
-    ::testing::Values(std::make_shared<MemoryDbTestFactory<ReferenceBlockchainType::NoEmptyBlocks>>(),
-                      std::make_shared<RocksDbTestFactory<ReferenceBlockchainType::NoEmptyBlocks>>(),
-                      std::make_shared<MemoryDbTestFactory<ReferenceBlockchainType::HasEmptyBlocks>>(),
-                      std::make_shared<RocksDbTestFactory<ReferenceBlockchainType::HasEmptyBlocks>>()),
+    ::testing::Values(std::make_shared<DbAdapterTest<TestMemoryDb, ReferenceBlockchainType::NoEmptyBlocks>>(),
+                      std::make_shared<DbAdapterTest<TestRocksDb, ReferenceBlockchainType::NoEmptyBlocks>>(),
+                      std::make_shared<DbAdapterTest<TestMemoryDb, ReferenceBlockchainType::WithEmptyBlocks>>(),
+                      std::make_shared<DbAdapterTest<TestRocksDb, ReferenceBlockchainType::WithEmptyBlocks>>()),
     TypePrinter{});
 
 }  // namespace
