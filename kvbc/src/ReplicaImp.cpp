@@ -34,7 +34,6 @@ using concord::storage::DBMetadataStorage;
 using concord::storage::blockchain::DBAdapter;
 using concord::storage::blockchain::BlockId;
 using concord::storage::blockchain::ILocalKeyValueStorageReadOnly;
-using concord::storage::blockchain::ILocalKeyValueStorageReadOnlyIterator;
 using concord::storage::blockchain::DBKeyManipulator;
 namespace block = concord::storage::blockchain::block;
 
@@ -163,14 +162,6 @@ Status ReplicaImp::mayHaveConflictBetween(const Sliver &key, BlockId fromBlock, 
   }
 
   return s;
-}
-
-ILocalKeyValueStorageReadOnlyIterator *ReplicaImp::getSnapIterator() const {
-  return m_InternalStorageWrapperForIdleMode.getSnapIterator();
-}
-
-Status ReplicaImp::freeSnapIterator(ILocalKeyValueStorageReadOnlyIterator *iter) const {
-  return m_InternalStorageWrapperForIdleMode.freeSnapIterator(iter);
 }
 
 void ReplicaImp::monitor() const { m_InternalStorageWrapperForIdleMode.monitor(); }
@@ -385,134 +376,7 @@ Status ReplicaImp::StorageWrapperForIdleMode::mayHaveConflictBetween(const Slive
   return s;
 }
 
-ILocalKeyValueStorageReadOnlyIterator *ReplicaImp::StorageWrapperForIdleMode::getSnapIterator() const {
-  return new StorageIterator(this->rep);
-}
-
-Status ReplicaImp::StorageWrapperForIdleMode::freeSnapIterator(ILocalKeyValueStorageReadOnlyIterator *iter) const {
-  if (iter == NULL) {
-    return Status::InvalidArgument("Invalid iterator");
-  }
-
-  StorageIterator *storageIter = (StorageIterator *)iter;
-  Status s = storageIter->freeInternalIterator();
-  delete storageIter;
-  return s;
-}
-
 void ReplicaImp::StorageWrapperForIdleMode::monitor() const { this->rep->m_bcDbAdapter->monitor(); }
-
-ReplicaImp::StorageIterator::StorageIterator(const ReplicaImp *r)
-    : logger(concordlogger::Log::getLogger("skvbc.ReplicaImp")), rep(r) {
-  m_iter = r->getBcDbAdapter()->getIterator();
-  m_currentBlock = r->getLastBlock();
-}
-
-KeyValuePair ReplicaImp::StorageIterator::first(BlockId readVersion, BlockId &actualVersion, bool &isEnd) {
-  Key key;
-  Value value;
-  Status s = rep->getBcDbAdapter()->first(m_iter, readVersion, actualVersion, isEnd, key, value);
-
-  if (s.isNotFound()) {
-    isEnd = true;
-    m_current = KeyValuePair();
-    return m_current;
-  }
-
-  if (!s.isOK()) {
-    LOG_ERROR(logger, "Failed to get first");
-    exit(1);
-  }
-
-  m_isEnd = isEnd;
-  m_current = KeyValuePair(key, value);
-
-  return m_current;
-}
-
-KeyValuePair ReplicaImp::StorageIterator::seekAtLeast(BlockId readVersion,
-                                                      const Key &key,
-                                                      BlockId &actualVersion,
-                                                      bool &isEnd) {
-  Key actualKey;
-  Value value;
-  Status s = rep->getBcDbAdapter()->seekAtLeast(m_iter, key, readVersion, actualVersion, actualKey, value, isEnd);
-
-  if (s.isNotFound()) {
-    isEnd = true;
-    m_current = KeyValuePair();
-    return m_current;
-  }
-
-  if (!s.isOK()) {
-    LOG_FATAL(logger, "Failed to seek at least");
-    exit(1);
-  }
-
-  m_isEnd = isEnd;
-  m_current = KeyValuePair(actualKey, value);
-  return m_current;
-}
-
-/**
- * TODO(SG): There is a question mark regarding on these APIs. Suppose I have
- * (k0,2), (k1,7), (k2,4) and I request next(k0,5). Do we return end() (because
- * k1 cannot be returned), or do we return k2?  I implemented the second choice,
- * as it makes better sense. The world in Block 5 did not include k1, that's
- * perfectly OK.
- */
-// Note: key,readVersion must exist in map already
-KeyValuePair ReplicaImp::StorageIterator::next(BlockId readVersion,
-                                               const Key &key,
-                                               BlockId &actualVersion,
-                                               bool &isEnd) {
-  Key nextKey;
-  Value nextValue;
-  Status s = rep->getBcDbAdapter()->next(m_iter, readVersion, nextKey, nextValue, actualVersion, isEnd);
-
-  if (s.isNotFound()) {
-    isEnd = true;
-    m_current = KeyValuePair();
-    return m_current;
-  }
-
-  if (!s.isOK()) {
-    LOG_FATAL(logger, "Failed to get next");
-    exit(1);
-  }
-
-  m_isEnd = isEnd;
-  m_current = KeyValuePair(nextKey, nextValue);
-  return m_current;
-}
-
-KeyValuePair ReplicaImp::StorageIterator::getCurrent() {
-  Key key;
-  Value value;
-  Status s = rep->getBcDbAdapter()->getCurrent(m_iter, key, value);
-
-  if (!s.isOK()) {
-    LOG_FATAL(logger, "Failed to get current");
-    exit(1);
-  }
-
-  m_current = KeyValuePair(key, value);
-  return m_current;
-}
-
-bool ReplicaImp::StorageIterator::isEnd() {
-  bool isEnd;
-  Status s = rep->getBcDbAdapter()->isEnd(m_iter, isEnd);
-
-  if (!s.isOK()) {
-    LOG_FATAL(logger, "Failed to get current");
-    exit(1);
-  }
-
-  return isEnd;
-}
-
-Status ReplicaImp::StorageIterator::freeInternalIterator() { return rep->getBcDbAdapter()->freeIterator(m_iter); }
 
 /*
  * These functions are used by the ST module to interact with the KVB

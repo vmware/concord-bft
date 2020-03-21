@@ -70,11 +70,6 @@ class ReplicaImp : public IReplica,
                                         concord::storage::blockchain::BlockId toBlock,
                                         bool &outRes) const override;
 
-  virtual concord::storage::blockchain::ILocalKeyValueStorageReadOnlyIterator *getSnapIterator() const override;
-
-  virtual Status freeSnapIterator(
-      concord::storage::blockchain::ILocalKeyValueStorageReadOnlyIterator *iter) const override;
-
   virtual void monitor() const override;
 
   // concord::storage::IBlocksAppender
@@ -159,75 +154,7 @@ class ReplicaImp : public IReplica,
                                           concord::storage::blockchain::BlockId toBlock,
                                           bool &outRes) const override;
 
-    virtual concord::storage::blockchain::ILocalKeyValueStorageReadOnlyIterator *getSnapIterator() const override;
-
-    virtual Status freeSnapIterator(
-        concord::storage::blockchain::ILocalKeyValueStorageReadOnlyIterator *iter) const override;
     virtual void monitor() const override;
-  };
-
-  class StorageIterator : public concord::storage::blockchain::ILocalKeyValueStorageReadOnlyIterator {
-   private:
-    concordlogger::Logger logger;
-    const ReplicaImp *rep;
-    concord::storage::KeyValuePair m_current;
-    concord::storage::blockchain::BlockId m_currentBlock;
-    bool m_isEnd = false;
-    concord::storage::IDBClient::IDBClientIterator *m_iter;
-
-   public:
-    StorageIterator(const ReplicaImp *r);
-    virtual ~StorageIterator() {
-      // allocated by calls to rep::...::getIterator
-      delete m_iter;
-    }
-
-    virtual concord::storage::KeyValuePair first(concord::storage::blockchain::BlockId readVersion,
-                                                 concord::storage::blockchain::BlockId &actualVersion,
-                                                 bool &isEnd) override;
-
-    // TODO(SG): Not implemented originally!
-    virtual concord::storage::KeyValuePair first() override {
-      concord::storage::blockchain::BlockId block = m_currentBlock;
-      concord::storage::blockchain::BlockId dummy;
-      bool dummy2;
-      return first(block, dummy, dummy2);
-    }
-
-    // Assumes lexicographical ordering of the keys, seek the first element
-    // k >= key
-    virtual concord::storage::KeyValuePair seekAtLeast(concord::storage::blockchain::BlockId readVersion,
-                                                       const concordUtils::Key &key,
-                                                       concord::storage::blockchain::BlockId &actualVersion,
-                                                       bool &isEnd) override;
-
-    // TODO(SG): Not implemented originally!
-    virtual concord::storage::KeyValuePair seekAtLeast(const concordUtils::Key &key) override {
-      concord::storage::blockchain::BlockId block = m_currentBlock;
-      concord::storage::blockchain::BlockId dummy;
-      bool dummy2;
-      return seekAtLeast(block, key, dummy, dummy2);
-    }
-
-    // Proceed to next element and return it
-    virtual concord::storage::KeyValuePair next(concord::storage::blockchain::BlockId readVersion,
-                                                const concordUtils::Key &key,
-                                                concord::storage::blockchain::BlockId &actualVersion,
-                                                bool &isEnd) override;
-
-    // TODO(SG): Not implemented originally!
-    virtual concord::storage::KeyValuePair next() override {
-      concord::storage::blockchain::BlockId block = m_currentBlock;
-      concord::storage::blockchain::BlockId dummy;
-      bool dummy2;
-      return next(block, getCurrent().first, dummy, dummy2);
-    }
-
-    // Return current element without moving
-    virtual concord::storage::KeyValuePair getCurrent() override;
-
-    virtual bool isEnd() override;
-    virtual Status freeInternalIterator();
   };
 
   class BlockchainAppState : public bftEngine::SimpleBlockchainStateTransfer::IAppState {
