@@ -9,3 +9,9 @@ if(Boost_FOUND)
         kvbc
     )
 endif()
+
+add_executable(order_test order_test.cpp $<TARGET_OBJECTS:logging_dev>)
+add_test(order_test order_test)
+target_include_directories(order_test PUBLIC ${libkvbc_SOURCE_DIR}/include)
+target_link_libraries(order_test GTest::Main util)
+target_compile_options(order_test PUBLIC -Wno-sign-compare)
