@@ -13,7 +13,6 @@ using concord::kvbc::KeyValuePair;
 namespace concord::storage::blockchain {
 inline namespace v1DirectKeyValue {
 namespace block {
-
 Sliver create(const SetOfKeyValuePairs &updates,
               SetOfKeyValuePairs &outUpdatesInNewBlock,
               const void *parentDigest,
