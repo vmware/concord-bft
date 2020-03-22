@@ -586,13 +586,19 @@ class BftTestNetwork:
                     nursery.start_soon(self.wait_for_checkpoint, replica_id,
                             checkpoint_num)
 
-    async def wait_for_checkpoint(self, replica_id, checkpoint_num):
+    async def wait_for_checkpoint(self, replica_id, expected_checkpoint_num=None):
+        """
+        Wait for a single replica to reach the expected_checkpoint_num.
+        If none is provided, return the last stored checkpoint.
+        """
         key = ['bc_state_transfer', 'Gauges', 'last_stored_checkpoint']
-        while True:
-            with trio.move_on_after(.5): # seconds
-                n = await self.metrics.get(replica_id, *key)
-                if n == checkpoint_num:
-                    return
+        with trio.fail_after(30):
+            while True:
+                with trio.move_on_after(.5): # seconds
+                    last_stored_checkpoint = await self.metrics.get(replica_id, *key)
+                    if expected_checkpoint_num is None \
+                            or last_stored_checkpoint == expected_checkpoint_num:
+                        return last_stored_checkpoint
 
     async def wait_for_slow_path_to_be_prevalent(
             self, as_of_seq_num=1, nb_slow_paths_so_far=0, replica_id=0):
