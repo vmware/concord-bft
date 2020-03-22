@@ -16,7 +16,6 @@
 #include <rocksdb/client.h>
 #include <rocksdb/transaction.h>
 #include "Logger.hpp"
-#include "hash_defs.h"
 #include <atomic>
 
 using concordUtils::Sliver;

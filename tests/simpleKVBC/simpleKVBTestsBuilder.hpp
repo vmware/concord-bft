@@ -42,7 +42,7 @@ struct SimpleKV {
 };
 
 struct SimpleBlock {
-  concordUtils::BlockId id = 0;
+  concord::kvbc::BlockId id = 0;
   size_t numOfItems = 0;
   SimpleKV items[1];
 
@@ -88,7 +88,7 @@ struct SimpleGetBlockDataRequest {
   static size_t size() { return sizeof(SimpleGetBlockDataRequest); }
 
   SimpleRequest h;
-  concordUtils::BlockId block_id;
+  concord::kvbc::BlockId block_id;
 };
 
 struct SimpleCondWriteRequest {
@@ -114,7 +114,7 @@ struct SimpleCondWriteRequest {
   }
 
   SimpleRequest header;
-  concordUtils::BlockId readVersion = 0;
+  concord::kvbc::BlockId readVersion = 0;
   size_t numOfKeysInReadSet = 0;
   size_t numOfWrites = 0;
 };
@@ -137,7 +137,7 @@ struct SimpleReadRequest {
   SimpleKey* keysArray() { return ((SimpleKey*)keys); }
 
   SimpleRequest header;
-  concordUtils::BlockId readVersion = 0;  // If 0, read from the latest version
+  concord::kvbc::BlockId readVersion = 0;  // If 0, read from the latest version
   size_t numberOfKeysToRead = 0;
   SimpleKey keys[1];
 };
@@ -171,7 +171,7 @@ struct SimpleReply_ConditionalWrite {
 
   SimpleReply header;
   bool success = false;
-  concordUtils::BlockId latestBlock = 0;
+  concord::kvbc::BlockId latestBlock = 0;
 };
 
 struct SimpleReply_Read {
@@ -245,7 +245,7 @@ struct SimpleReply_GetLastBlock {
   static void free(SimpleReply_GetLastBlock* buf) { delete[] buf; }
 
   SimpleReply header;
-  concordUtils::BlockId latestBlock = 0;
+  concord::kvbc::BlockId latestBlock = 0;
 };
 
 #pragma pack(pop)
@@ -254,9 +254,9 @@ class SimpleKeyBlockIdPair  // Represents <key, blockId>
 {
  public:
   const SimpleKey key;
-  const concordUtils::BlockId blockId;
+  const concord::kvbc::BlockId blockId;
 
-  SimpleKeyBlockIdPair(const SimpleKey& simpleKey, concordUtils::BlockId bId) : key(simpleKey), blockId(bId) {}
+  SimpleKeyBlockIdPair(const SimpleKey& simpleKey, concord::kvbc::BlockId bId) : key(simpleKey), blockId(bId) {}
 
   bool operator<(const SimpleKeyBlockIdPair& other) const {
     int c = memcmp((char*)&this->key, (char*)&other.key, sizeof(SimpleKey));
@@ -295,20 +295,20 @@ class TestsBuilder {
   void createAndInsertRandomRead();
   void createAndInsertGetLastBlock();
   void addExpectedWriteReply(bool foundConflict);
-  bool lookForConflicts(concordUtils::BlockId readVersion, size_t numOfKeysInReadSet, SimpleKey* readKeysArray);
+  bool lookForConflicts(concord::kvbc::BlockId readVersion, size_t numOfKeysInReadSet, SimpleKey* readKeysArray);
   void addNewBlock(size_t numOfWrites, SimpleKV* writesKVArray);
   void retrieveExistingBlocksFromKVB();
-  concordUtils::BlockId getInitialLastBlockId();
+  concord::kvbc::BlockId getInitialLastBlockId();
 
  private:
   concordlogger::Logger& logger_;
   concord::kvbc::IClient& client_;
   RequestsList requests_;
   RepliesList replies_;
-  std::map<concordUtils::BlockId, SimpleBlock*> internalBlockchain_;
+  std::map<concord::kvbc::BlockId, SimpleBlock*> internalBlockchain_;
   KeyBlockIdToValueMap allKeysToValueMap_;
-  concordUtils::BlockId prevLastBlockId_ = 0;
-  concordUtils::BlockId lastBlockId_ = 0;
+  concord::kvbc::BlockId prevLastBlockId_ = 0;
+  concord::kvbc::BlockId lastBlockId_ = 0;
 };
 
 }  // namespace BasicRandomTests

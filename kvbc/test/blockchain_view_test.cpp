@@ -30,8 +30,8 @@ class TimestampedBlockInfo : public BaseBlockInfo {
  public:
   static constexpr auto timestampOffset = 100;
 
-  TimestampedBlockInfo(concordUtils::BlockId id) : BaseBlockInfo{id} {}
-  TimestampedBlockInfo(concordUtils::BlockId id, BlockTimestamp ts) : BaseBlockInfo{id}, timestamp_{ts} {}
+  TimestampedBlockInfo(concord::kvbc::BlockId id) : BaseBlockInfo{id} {}
+  TimestampedBlockInfo(concord::kvbc::BlockId id, BlockTimestamp ts) : BaseBlockInfo{id}, timestamp_{ts} {}
 
   BlockTimestamp timestamp() const { return timestamp_; }
   void loadIndices() { timestamp_ = id() + timestampOffset; }
@@ -56,7 +56,7 @@ class LoadException : public std::exception {
 
 class SucceedOnceBlockInfo : public BaseBlockInfo {
  public:
-  SucceedOnceBlockInfo(concordUtils::BlockId id) : BaseBlockInfo{id} {}
+  SucceedOnceBlockInfo(concord::kvbc::BlockId id) : BaseBlockInfo{id} {}
 
   void loadIndices() {
     if (fail_) {
@@ -72,7 +72,7 @@ class SucceedOnceBlockInfo : public BaseBlockInfo {
 
 class InitIntBlockInfo : public BaseBlockInfo {
  public:
-  InitIntBlockInfo(concordUtils::BlockId id, int init) : BaseBlockInfo{id}, init_{init} {}
+  InitIntBlockInfo(concord::kvbc::BlockId id, int init) : BaseBlockInfo{id}, init_{init} {}
 
   void loadIndices() {}
   void loadData() {}
@@ -85,7 +85,7 @@ class InitIntBlockInfo : public BaseBlockInfo {
 
 class InitPtrBlockInfo : public BaseBlockInfo {
  public:
-  InitPtrBlockInfo(concordUtils::BlockId id, const int* init) : BaseBlockInfo{id}, init_{init} {}
+  InitPtrBlockInfo(concord::kvbc::BlockId id, const int* init) : BaseBlockInfo{id}, init_{init} {}
 
   void loadIndices() {}
   void loadData() {}
@@ -98,7 +98,7 @@ class InitPtrBlockInfo : public BaseBlockInfo {
 
 class MovableBlockInfo : public BaseBlockInfo {
  public:
-  MovableBlockInfo(concordUtils::BlockId id) : BaseBlockInfo{id} {}
+  MovableBlockInfo(concord::kvbc::BlockId id) : BaseBlockInfo{id} {}
   MovableBlockInfo(MovableBlockInfo&&) = default;
   MovableBlockInfo& operator=(MovableBlockInfo&&) = default;
   MovableBlockInfo(const MovableBlockInfo&) = delete;

@@ -20,6 +20,7 @@ target_compile_options(mt_tests PUBLIC -Wno-sign-compare)
 
 add_executable(sliver_test sliver_test.cpp $<TARGET_OBJECTS:logging_dev>)
 add_test(sliver_test sliver_test)
+target_include_directories(sliver_test PUBLIC ${libkvbc_SOURCE_DIR}/include)
 target_link_libraries(sliver_test GTest::Main util)
 target_compile_options(sliver_test PUBLIC -Wno-sign-compare)
 

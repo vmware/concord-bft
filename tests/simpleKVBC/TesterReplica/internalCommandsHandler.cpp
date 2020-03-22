@@ -13,7 +13,6 @@
 
 #include "internalCommandsHandler.hpp"
 #include "assertUtils.hpp"
-#include "hash_defs.h"
 #include "sliver.hpp"
 #include "kv_types.hpp"
 #include "block_metadata.hpp"
@@ -23,8 +22,8 @@ using namespace BasicRandomTests;
 
 using concordUtils::Status;
 using concordUtils::Sliver;
-using concordUtils::BlockId;
-using concordUtils::KeyValuePair;
+using concord::kvbc::BlockId;
+using concord::kvbc::KeyValuePair;
 using concord::storage::SetOfKeyValuePairs;
 
 int InternalCommandsHandler::execute(uint16_t clientId,

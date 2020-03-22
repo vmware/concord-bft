@@ -19,10 +19,9 @@ namespace storage {
 namespace blockchain {
 
 using concordUtils::Status;
-using concordUtils::Key;
-using concordUtils::Value;
-using concordUtils::BlockId;
-
+using concord::kvbc::Key;
+using concord::kvbc::Value;
+using concord::kvbc::BlockId;
 
 class ILocalKeyValueStorageReadOnly {
  public:
@@ -38,7 +37,6 @@ class ILocalKeyValueStorageReadOnly {
   virtual void monitor() const = 0;
   virtual ~ILocalKeyValueStorageReadOnly() = default;
 };
-
 
 class IBlocksAppender {
  public:

@@ -7,7 +7,6 @@
 #include <chrono>
 #include <cstring>
 
-#include "hash_defs.h"
 #include "sliver.hpp"
 
 using concordUtils::Sliver;

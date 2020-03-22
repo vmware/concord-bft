@@ -15,9 +15,9 @@ namespace block {
 
 using sparse_merkle::Hash;
 
-using ::concordUtils::BlockId;
+using ::concord::kvbc::BlockId;
 using ::concordUtils::Sliver;
-using ::concordUtils::SetOfKeyValuePairs;
+using ::concord::kvbc::SetOfKeyValuePairs;
 
 // Use the v1DirectKeyValue implementation and just add the state hash at the back. We want that so it is included in
 // the block digest. We can do that, because users are not expected to interpret the returned buffer themselves.

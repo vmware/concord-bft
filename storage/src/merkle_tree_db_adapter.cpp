@@ -31,8 +31,7 @@ using BlockNode = block::detail::Node;
 using BlockKeyData = block::detail::KeyData;
 
 using ::concordUtils::fromBigEndianBuffer;
-using ::concordUtils::Key;
-using ::concordUtils::SetOfKeyValuePairs;
+using ::concord::kvbc::Key;
 using ::concordUtils::Sliver;
 using ::concordUtils::Status;
 
@@ -360,7 +359,7 @@ SetOfKeyValuePairs DBAdapter::lastReachableBlockDbUpdates(const SetOfKeyValuePai
   auto dbUpdates = SetOfKeyValuePairs{};
   // Create a block with the same state root as the previous one if there are no updates.
   if (!updates.empty()) {
-    // Key updates.
+  // Key updates.
     const auto updateBatch = smTree_.update(updates);
     dbUpdates = batchToDbUpdates(updateBatch, blockId);
   }

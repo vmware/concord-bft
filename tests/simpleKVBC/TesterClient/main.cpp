@@ -30,7 +30,7 @@ using namespace BasicRandomTests;
 
 using std::string;
 
-using concordUtils::BlockId;
+using concord::kvbc::BlockId;
 using bftEngine::BaseCommConfig;
 using concord::kvbc::ClientConfig;
 using concord::kvbc::createClient;

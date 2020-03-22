@@ -30,7 +30,7 @@ using std::map;
 using std::set;
 using std::chrono::seconds;
 
-using concordUtils::BlockId;
+using concord::kvbc::BlockId;
 using concord::kvbc::IClient;
 
 const int NUMBER_OF_KEYS = 200;

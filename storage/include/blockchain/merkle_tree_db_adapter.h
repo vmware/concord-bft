@@ -37,10 +37,10 @@ class DBKeyManipulator : public DBKeyManipulatorBase {
   static concordUtils::Sliver generateSTTempBlockKey(BlockId blockId);
 
   // Extract the block ID from a EDBKeyType::Block key or from a EKeySubtype::Leaf key.
-  static BlockId extractBlockIdFromKey(const concordUtils::Key &key);
+  static BlockId extractBlockIdFromKey(const concord::kvbc::Key &key);
 
   // Extract the hash from a leaf key.
-  static sparse_merkle::Hash extractHashFromLeafKey(const concordUtils::Key &key);
+  static sparse_merkle::Hash extractHashFromLeafKey(const concord::kvbc::Key &key);
 };
 
 // The DBAdapter class provides facilities for managing a key/value blockchain on top of a key/value store.
@@ -72,7 +72,7 @@ class DBAdapter : public DBAdapterBase {
   // - adding the whole block (raw block) in its own key
   // - calculating and filling in the parent digest.
   // Typically called by the application when adding a new block.
-  concordUtils::Status addLastReachableBlock(const concordUtils::SetOfKeyValuePairs &updates);
+  concordUtils::Status addLastReachableBlock(const concord::kvbc::SetOfKeyValuePairs &updates);
 
   // Adds a block from its raw representation and a block ID.
   // Typically called by state transfer when a block is received.
@@ -86,7 +86,7 @@ class DBAdapter : public DBAdapterBase {
   // Note: This method operates on the blockchain only, meaning that it will not take blocks with ID >
   // getLastReachableBlock() into account.
   concordUtils::Status getKeyByReadVersion(BlockId blockVersion,
-                                           const concordUtils::Key &key,
+                                           const concord::kvbc::Key &key,
                                            concordUtils::Sliver &outValue,
                                            BlockId &actualBlockVersion) const;
 
@@ -110,16 +110,16 @@ class DBAdapter : public DBAdapterBase {
   const sparse_merkle::Hash &getStateHash() const { return smTree_.get_root_hash(); }
 
  private:
-  concordUtils::Sliver createBlockNode(const concordUtils::SetOfKeyValuePairs &updates, BlockId blockId) const;
+    concordUtils::Sliver createBlockNode(const concord::kvbc::SetOfKeyValuePairs &updates, BlockId blockId) const;
 
   // Returns a set of key/value pairs that represent the needed DB updates for adding a block as part of the blockchain.
-  concordUtils::SetOfKeyValuePairs lastReachableBlockDbUpdates(const concordUtils::SetOfKeyValuePairs &updates,
-                                                               BlockId blockId);
+    concordUtils::SetOfKeyValuePairs lastReachableBlockDbUpdates(const concord::kvbc::SetOfKeyValuePairs &updates,
+                                                                 BlockId blockId);
 
   // Try to link the ST temporary chain to the blockchain from the passed blockId up to getLatestBlock().
   concordUtils::Status linkSTChainFrom(BlockId blockId);
 
-  concordUtils::Status writeSTLinkTransaction(const concordUtils::Key &sTBlockKey,
+  concordUtils::Status writeSTLinkTransaction(const concord::kvbc::Key &sTBlockKey,
                                               const concordUtils::Sliver &block,
                                               BlockId blockId);
 

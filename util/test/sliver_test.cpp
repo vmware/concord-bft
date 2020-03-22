@@ -18,9 +18,9 @@
 #include <string.h>
 
 using namespace std;
-using concordUtils::order;
-using concordUtils::OrderedSetOfKeyValuePairs;
-using concordUtils::SetOfKeyValuePairs;
+using concord::kvbc::order;
+using concord::kvbc::OrderedSetOfKeyValuePairs;
+using concord::kvbc::SetOfKeyValuePairs;
 using concordUtils::Sliver;
 
 namespace {
@@ -282,7 +282,7 @@ TEST(sliver_test, unordered_to_ordered_set_of_kv_pairs) {
   const auto unordered = SetOfKeyValuePairs{{bbcd, value}, {abcd, value}, {adc, value}, {abc, value}, {empty, value}};
 
   // Order.
-  const auto ordered = order(unordered);
+  const auto ordered = order<SetOfKeyValuePairs, OrderedSetOfKeyValuePairs>(unordered);
 
   ASSERT_EQ(reference.size(), ordered.size());
   auto i = 0u;

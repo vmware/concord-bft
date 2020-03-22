@@ -7,7 +7,7 @@
 
 #include <memory>
 
-using concordUtils::Key;
+using concord::kvbc::Key;
 using concordUtils::Sliver;
 
 namespace concord {

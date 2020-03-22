@@ -37,9 +37,9 @@ using concord::storage::blockchain::ILocalKeyValueStorageReadOnly;
 using concord::storage::blockchain::DBKeyManipulator;
 namespace block = concord::storage::blockchain::block;
 
-using concordUtils::SetOfKeyValuePairs;
-using concordUtils::Value;
-using concordUtils::KeyValuePair;
+using concord::kvbc::SetOfKeyValuePairs;
+using concord::kvbc::Value;
+using concord::kvbc::KeyValuePair;
 
 namespace concord {
 namespace kvbc {

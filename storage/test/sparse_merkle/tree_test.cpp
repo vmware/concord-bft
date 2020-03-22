@@ -16,12 +16,12 @@
 #include "gtest/gtest.h"
 #include "sparse_merkle/tree.h"
 #include "test_db.h"
-#include "hash_defs.h"
 
 #include <iostream>
 using namespace std;
 
 using namespace concordUtils;
+using namespace concord::kvbc;
 using namespace concord::storage::sparse_merkle;
 
 void db_put(const shared_ptr<TestDB>& db, const UpdateBatch& batch) {

@@ -13,9 +13,9 @@
 //       -> Descending order of Block Id
 
 #include "Logger.hpp"
-#include "hash_defs.h"
 #include "sliver.hpp"
 #include "status.hpp"
+#include "kv_types.hpp"
 #include "blockchain/block.h"
 #include "blockchain/db_interfaces.h"
 #include "blockchain/direct_kv_db_adapter.h"
@@ -32,9 +32,9 @@
 using concordlogger::Logger;
 using concordUtils::Status;
 using concordUtils::Sliver;
-using concordUtils::Key;
-using concordUtils::Value;
-using concordUtils::KeyValuePair;
+using concord::kvbc::Key;
+using concord::kvbc::Value;
+using concord::kvbc::KeyValuePair;
 
 namespace concord {
 namespace storage {

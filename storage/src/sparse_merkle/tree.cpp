@@ -111,7 +111,8 @@ void remove(Walker& walker, const Hash& key_hash) {
   }
 }
 
-UpdateBatch Tree::update(const SetOfKeyValuePairs& updates, const KeysVector& deleted_keys) {
+UpdateBatch Tree::update(const concord::kvbc::SetOfKeyValuePairs& updates,
+                         const concord::kvbc::KeysVector& deleted_keys) {
   reset();
 
   UpdateBatch batch;
