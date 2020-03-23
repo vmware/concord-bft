@@ -1,18 +1,16 @@
 #include "blockchain/block.h"
-
+#include "kv_types.hpp"
 #include "Logger.hpp"
 
 #include <cassert>
 #include <cstring>
 
-using concordUtils::order;
 using concordUtils::Sliver;
-using concordUtils::SetOfKeyValuePairs;
-using concordUtils::KeyValuePair;
+using concord::kvbc::SetOfKeyValuePairs;
+using concord::kvbc::OrderedSetOfKeyValuePairs;
+using concord::kvbc::KeyValuePair;
 
-namespace concord {
-namespace storage {
-namespace blockchain {
+namespace concord::storage::blockchain {
 inline namespace v1DirectKeyValue {
 namespace block {
 Sliver create(const SetOfKeyValuePairs &updates,
@@ -50,7 +48,7 @@ Sliver create(const SetOfKeyValuePairs &updates,
     std::int32_t currentOffset = metadataSize;
     auto *entries = (detail::Entry *)(blockBuffer + sizeof(detail::Header));
     // Serialize key/values in a deterministic order.
-    const auto orderedUpdates = order(updates);
+    const auto orderedUpdates = concord::kvbc::order<SetOfKeyValuePairs>(updates);
     for (const auto &kvPair : orderedUpdates) {
       // key
       entries[idx].keyOffset = currentOffset;
@@ -120,6 +118,4 @@ const void *getParentDigest(const concordUtils::Sliver &block) {
 
 }  // namespace block
 }  // namespace v1DirectKeyValue
-}  // namespace blockchain
-}  // namespace storage
-}  // namespace concord
+}  // namespace concord::storage::blockchain

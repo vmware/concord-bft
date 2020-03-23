@@ -111,7 +111,7 @@ class IReplica {
 
   // Used to append blocks to storage, only when a replica is Idle. Useful
   // for initialization and maintenance.
-  virtual Status addBlockToIdleReplica(const concordUtils::SetOfKeyValuePairs& updates) = 0;
+  virtual Status addBlockToIdleReplica(const concord::kvbc::SetOfKeyValuePairs& updates) = 0;
 
   /// TODO(IG) the following methods are probably temp solution,
   /// need to split interfaces implementations to differrent modules

@@ -3,7 +3,6 @@
 #pragma once
 
 #include "client.h"
-#include "hash_defs.h"
 #include "kv_types.hpp"
 #include "sliver.hpp"
 #include "storage/db_interface.h"

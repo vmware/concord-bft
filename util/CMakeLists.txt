@@ -8,8 +8,7 @@ add_library(util STATIC
     src/histogram.cpp
     src/status.cpp
     src/sliver.cpp
-    src/hex_tools.cpp
-    src/kv_types.cpp)
+    src/hex_tools.cpp)
 
 target_link_libraries(util PUBLIC Threads::Threads)
 target_include_directories(util PUBLIC include)

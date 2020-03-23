@@ -6,7 +6,6 @@
 #define USE_ROCKSDB 1
 
 #include "Logger.hpp"
-#include "hash_defs.h"
 #include "gtest/gtest.h"
 #include "rocksdb/key_comparator.h"
 #include "rocksdb/client.h"
@@ -17,10 +16,10 @@ using namespace std;
 
 using concordUtils::Status;
 using concordUtils::Sliver;
-using concordUtils::KeysVector;
-using concordUtils::KeyValuePair;
-using concordUtils::SetOfKeyValuePairs;
-using concordUtils::BlockId;
+using concord::kvbc::KeysVector;
+using concord::kvbc::KeyValuePair;
+using concord::kvbc::SetOfKeyValuePairs;
+using concord::kvbc::BlockId;
 using concord::storage::rocksdb::Client;
 using concord::storage::rocksdb::KeyComparator;
 using concord::storage::ITransaction;

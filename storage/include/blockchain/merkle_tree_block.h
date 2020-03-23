@@ -22,13 +22,13 @@ inline constexpr auto BLOCK_DIGEST_SIZE = bftEngine::SimpleBlockchainStateTransf
 
 // Creates a block that includes a set of key/values. The passed parentDigest buffer must be of size BLOCK_DIGEST_SIZE
 // bytes.
-concordUtils::Sliver create(concordUtils::BlockId blockId,
-                            const concordUtils::SetOfKeyValuePairs &updates,
+concordUtils::Sliver create(concord::kvbc::BlockId blockId,
+                            const concord::kvbc::SetOfKeyValuePairs &updates,
                             const void *parentDigest,
                             const sparse_merkle::Hash &stateHash);
 
 // Returns the block data in the form of a set of key/value pairs.
-concordUtils::SetOfKeyValuePairs getData(const concordUtils::Sliver &block);
+concord::kvbc::SetOfKeyValuePairs getData(const concordUtils::Sliver &block);
 
 // Returns the parent digest of size BLOCK_DIGEST_SIZE bytes.
 const void *getParentDigest(const concordUtils::Sliver &block);
@@ -48,12 +48,12 @@ struct KeyData {
 
 inline bool operator==(const KeyData &lhs, const KeyData &rhs) { return lhs.deleted == rhs.deleted; }
 
-using Keys = std::unordered_map<concordUtils::Key, const KeyData>;
+using Keys = std::unordered_map<concord::kvbc::Key, const KeyData>;
 
 // Represents a block node. The parentDigest pointer must point to a buffer that is at least BLOCK_DIGEST_SIZE bytes
 // long.
 struct Node {
-  using BlockIdType = concordUtils::BlockId;
+  using BlockIdType = concord::kvbc::BlockId;
 
   static constexpr auto PARENT_DIGEST_SIZE = BLOCK_DIGEST_SIZE;
 

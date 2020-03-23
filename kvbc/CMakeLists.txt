@@ -6,7 +6,7 @@ add_library(kvbc  src/ClientImp.cpp
                   src/replica_state_sync_imp.cpp
                   src/block_metadata.cpp
 )
-target_link_libraries(kvbc PUBLIC corebft threshsign util concordbft_storage)
+target_link_libraries(kvbc PUBLIC corebft threshsign util)
 
 target_include_directories(kvbc PUBLIC include)
 

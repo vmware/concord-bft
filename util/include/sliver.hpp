@@ -24,13 +24,13 @@
  * requires an atomic operation that might be considered expensive.
  */
 
-#ifndef CONCORD_BFT_UTIL_SLIVER_HPP_
-#define CONCORD_BFT_UTIL_SLIVER_HPP_
+#pragma once
 
 #include <ios>
 #include <variant>
 #include <memory>
 #include <string_view>
+#include <functional>
 #include <utility>
 
 namespace concordUtils {
@@ -88,4 +88,11 @@ inline bool operator<(const Sliver& lhs, const Sliver& rhs) { return (lhs.compar
 
 }  // namespace concordUtils
 
-#endif  // CONCORD_BFT_UTIL_SLIVER_HPP_
+namespace std {
+template <>
+struct hash<concordUtils::Sliver> {
+  std::size_t operator()(concordUtils::Sliver const& s) const noexcept {
+    return std::hash<std::string_view>{}(std::string_view(s.data(), s.length()));
+  }
+};
+}  // namespace std

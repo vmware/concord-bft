@@ -48,15 +48,15 @@ class Tree {
   // `deleted_keys`.
   //
   // Return an UpdateBatch to be written to the DB.
-  UpdateBatch update(const concordUtils::SetOfKeyValuePairs& updates, const concordUtils::KeysVector& deleted_keys);
-  UpdateBatch update(const concordUtils::SetOfKeyValuePairs& updates) {
-    concordUtils::KeysVector no_deletes;
+  UpdateBatch update(const concord::kvbc::SetOfKeyValuePairs& updates, const concord::kvbc::KeysVector& deleted_keys);
+  UpdateBatch update(const concord::kvbc::SetOfKeyValuePairs& updates) {
+    concord::kvbc::KeysVector no_deletes;
     return update(updates, no_deletes);
   }
 
   // Perform an update with only delete operations
-  UpdateBatch remove(const concordUtils::KeysVector& deletes) {
-    concordUtils::SetOfKeyValuePairs no_updates;
+  UpdateBatch remove(const concord::kvbc::KeysVector& deletes) {
+    concord::kvbc::SetOfKeyValuePairs no_updates;
     return update(no_updates, deletes);
   }
 

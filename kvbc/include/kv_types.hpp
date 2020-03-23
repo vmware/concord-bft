@@ -10,32 +10,44 @@
 // file.
 //
 
-#ifndef CONCORD_BFT_UTIL_KV_TYPES_H_
-#define CONCORD_BFT_UTIL_KV_TYPES_H_
+#pragma once
 
+#include <string_view>
 #include <unordered_map>
 #include <map>
 #include <vector>
+#include <functional>
+#include <cstdint>
+
 #include "sliver.hpp"
 
-namespace concordUtils {
+namespace concord::kvbc {
 
-typedef Sliver Key;
-typedef Sliver Value;
+typedef concordUtils::Sliver Key;
+typedef concordUtils::Sliver Value;
 typedef std::pair<Key, Value> KeyValuePair;
 typedef std::unordered_map<Key, Value> SetOfKeyValuePairs;
 typedef std::map<Key, Value> OrderedSetOfKeyValuePairs;
 typedef std::vector<Key> KeysVector;
 typedef KeysVector ValuesVector;
-typedef uint64_t BlockId;
+typedef std::uint64_t BlockId;
 
-OrderedSetOfKeyValuePairs order(const SetOfKeyValuePairs &unordered);
-}  // namespace concordUtils
+template <typename ContainerIn>
+OrderedSetOfKeyValuePairs order(const ContainerIn& unordered) {
+  OrderedSetOfKeyValuePairs out;
+  for (auto&& kv : unordered) out.insert(kv);
+  return out;
+}
 
-// Provide hashing for slivers without requiring the user to incldue the header
-// and get confused from a weird template error.
-//
-// Note that this must come after the typedefs above.
-#include "hash_defs.h"
+}  // namespace concord::kvbc
 
-#endif  // CONCORD_BFT_UTIL_KV_TYPES_H_
+namespace std {
+
+template <>
+struct hash<concord::kvbc::KeyValuePair> {
+  std::size_t operator()(const concord::kvbc::KeyValuePair& kv) const noexcept {
+    return std::hash<std::string_view>{}(std::string_view(kv.first.data(), kv.first.length()));
+  }
+};
+
+}  // namespace std

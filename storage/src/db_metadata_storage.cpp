@@ -15,7 +15,6 @@
 
 #include <cstring>
 #include <exception>
-#include "hash_defs.h"
 
 using namespace std;
 

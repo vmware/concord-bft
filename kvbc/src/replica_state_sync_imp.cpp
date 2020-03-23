@@ -20,7 +20,7 @@ using concord::storage::blockchain::DBAdapter;
 using concord::storage::blockchain::BlockId;
 using concord::storage::DBMetadataStorage;
 using concord::storage::blockchain::ILocalKeyValueStorageReadOnly;
-using concordUtils::Key;
+using concord::kvbc::Key;
 
 namespace concord {
 namespace kvbc {

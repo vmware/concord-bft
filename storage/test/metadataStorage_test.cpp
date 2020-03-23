@@ -6,7 +6,6 @@
 #define USE_ROCKSDB 1
 
 #include "Logger.hpp"
-#include "hash_defs.h"
 #include "gtest/gtest.h"
 #include "rocksdb/key_comparator.h"
 #include "rocksdb/client.h"

@@ -48,10 +48,10 @@ using ::concord::storage::sparse_merkle::LeafNode;
 using ::concord::storage::sparse_merkle::NibblePath;
 using ::concord::storage::sparse_merkle::Version;
 
-using ::concordUtils::SetOfKeyValuePairs;
+using ::concord::kvbc::SetOfKeyValuePairs;
 using ::concordUtils::Sliver;
 using ::concordUtils::Status;
-using ::concordUtils::ValuesVector;
+using ::concord::kvbc::ValuesVector;
 
 template <typename E>
 std::string serializeEnum(E e) {

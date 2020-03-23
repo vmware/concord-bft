@@ -8,7 +8,6 @@
  */
 
 #include "gtest/gtest.h"
-#include "kv_types.hpp"
 #include "sliver.hpp"
 
 #include <iostream>
@@ -18,9 +17,6 @@
 #include <string.h>
 
 using namespace std;
-using concordUtils::order;
-using concordUtils::OrderedSetOfKeyValuePairs;
-using concordUtils::SetOfKeyValuePairs;
 using concordUtils::Sliver;
 
 namespace {
@@ -246,50 +242,6 @@ TEST(sliver_test, comparison) {
     ASSERT_TRUE(abc < bbcd);
     ASSERT_FALSE(bbcd < abc);
     ASSERT_FALSE(bbcd < abcd);
-  }
-}
-
-/**
- * Test that Sliver's comparison operator maintains unique keys in OrderedSetOfKeyValuePairs .
- */
-TEST(sliver_test, unique_keys_in_ordered_set_of_kv_pairs) {
-  const auto abc1 = Sliver{"abc"};
-  const auto abc2 = Sliver{"abc"};
-  const auto value = Sliver{"value"};
-
-  const auto ordered = OrderedSetOfKeyValuePairs{{abc1, value}, {abc2, value}, {abc1, value}};
-  ASSERT_EQ(ordered.size(), 1);
-  ASSERT_TRUE(ordered.begin()->first == abc1);
-  ASSERT_TRUE(ordered.begin()->second == value);
-}
-
-/**
- * Test that slivers are correctly ordered from SetOfKeyValuePairs (unordered) to OrderedSetOfKeyValuePairs .
- */
-TEST(sliver_test, unordered_to_ordered_set_of_kv_pairs) {
-  const auto empty = Sliver{};
-  const auto abc = Sliver{"abc"};
-  const auto abcd = Sliver{"abcd"};
-  const auto adc = Sliver{"adc"};
-  const auto bbcd = Sliver{"bbcd"};
-
-  const auto value = Sliver{"value"};
-
-  // Ordered reference.
-  const auto reference = std::vector<Sliver>{{empty, abc, abcd, adc, bbcd}};
-
-  // Insert in an arbitrary order.
-  const auto unordered = SetOfKeyValuePairs{{bbcd, value}, {abcd, value}, {adc, value}, {abc, value}, {empty, value}};
-
-  // Order.
-  const auto ordered = order(unordered);
-
-  ASSERT_EQ(reference.size(), ordered.size());
-  auto i = 0u;
-  for (const auto& [k, v] : ordered) {
-    ASSERT_TRUE(reference[i] == k);
-    ASSERT_TRUE(value == v);
-    ++i;
   }
 }
 

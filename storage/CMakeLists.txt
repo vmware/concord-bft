@@ -6,6 +6,7 @@ add_library(concordbft_storage STATIC src/db_metadata_storage.cpp
                                       src/merkle_tree_block.cpp)
 
 target_include_directories(concordbft_storage PUBLIC include)
+target_include_directories(concordbft_storage PUBLIC ${libkvbc_SOURCE_DIR}/include)
 target_link_libraries(concordbft_storage PUBLIC corebft)
 
 if (BUILD_ROCKSDB_STORAGE)

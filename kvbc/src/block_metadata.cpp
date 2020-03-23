@@ -4,7 +4,6 @@
 // metadata (sequence number).
 
 #include "block_metadata.hpp"
-#include "blockchain/db_types.h"
 
 using concordUtils::Status;
 

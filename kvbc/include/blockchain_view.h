@@ -32,9 +32,9 @@ namespace kvbc {
 namespace detail {
 
 template <typename BlockInfo>
-using BlockInfoCache = std::unordered_map<concordUtils::BlockId, BlockInfo>;
+using BlockInfoCache = std::unordered_map<concord::kvbc::BlockId, BlockInfo>;
 
-using BlockIdDifferenceType = std::make_signed<concordUtils::BlockId>::type;
+using BlockIdDifferenceType = std::make_signed<concord::kvbc::BlockId>::type;
 
 }  // namespace detail
 
@@ -58,9 +58,9 @@ class BlockchainIterator : public boost::iterator_facade<BlockchainIterator<Bloc
 
   using Cache = detail::BlockInfoCache<BlockInfo>;
 
-  BlockchainIterator(concordUtils::BlockId id,
-                     concordUtils::BlockId genesisId,
-                     concordUtils::BlockId endId,
+  BlockchainIterator(concord::kvbc::BlockId id,
+                     concord::kvbc::BlockId genesisId,
+                     concord::kvbc::BlockId endId,
                      BlockInfoInit blockInfoInit,
                      Cache& cache)
       : blockId_{id}, genesisId_{genesisId}, endId_{endId}, blockInfoInit_{blockInfoInit}, cache_{&cache} {
@@ -76,7 +76,7 @@ class BlockchainIterator : public boost::iterator_facade<BlockchainIterator<Bloc
     cache_->emplace(id, std::move(blockInfo));
   }
 
-  void cacheBlock(concordUtils::BlockId id) const {
+  void cacheBlock(concord::kvbc::BlockId id) const {
     if (isOutsideRange(id)) {
       return;
     }
@@ -96,7 +96,7 @@ class BlockchainIterator : public boost::iterator_facade<BlockchainIterator<Bloc
     }
   }
 
-  bool isOutsideRange(concordUtils::BlockId id) const noexcept { return id < genesisId_ || id >= endId_; }
+  bool isOutsideRange(concord::kvbc::BlockId id) const noexcept { return id < genesisId_ || id >= endId_; }
 
   // The following methods are required by boost::iterator_facade as defined by:
   // https://www.boost.org/doc/libs/1_64_0/libs/iterator/doc/iterator_facade.html#iterator-facade-requirements
@@ -126,9 +126,9 @@ class BlockchainIterator : public boost::iterator_facade<BlockchainIterator<Bloc
     return other.blockId_ - blockId_;
   }
 
-  concordUtils::BlockId blockId_{0};
-  concordUtils::BlockId genesisId_{0};
-  concordUtils::BlockId endId_{0};
+  concord::kvbc::BlockId blockId_{0};
+  concord::kvbc::BlockId genesisId_{0};
+  concord::kvbc::BlockId endId_{0};
   BlockInfoInit blockInfoInit_;
   Cache* cache_{nullptr};
 };
@@ -139,16 +139,16 @@ class BlockchainIterator : public boost::iterator_facade<BlockchainIterator<Bloc
 class BaseBlockInfo {
  public:
   BaseBlockInfo() = default;
-  BaseBlockInfo(concordUtils::BlockId id) : id_{id} {}
+  BaseBlockInfo(concord::kvbc::BlockId id) : id_{id} {}
 
-  concordUtils::BlockId id() const { return id_; }
+  concord::kvbc::BlockId id() const { return id_; }
   void loadIndices() {}
 
  private:
   template <typename, typename, bool>
   friend class BlockchainIterator;
 
-  concordUtils::BlockId id_{0};
+  concord::kvbc::BlockId id_{0};
 };
 
 // Any block info object is equal to another one (from the same blockchain) if their IDs match.
@@ -168,9 +168,9 @@ inline bool operator==(const BaseBlockInfo& lhs, const BaseBlockInfo& rhs) { ret
 // Users are required to pass a BlockInfo type that represents the block information as fetched from storage. The
 // BlockInfoInit type specifies an optional initialization passed to the BlockInfo constructor. Requirements on
 // BlockInfo are:
-//  * BlockInfo(concordUtils::BlockId) or BlockInfo(concordUtils::BlockId, BlockInfoInit) - a constructor that takes the
-//  block ID if BlockInfoInit == NoBlockInfoInit or a constructor that takes both an ID and an initialization value if
-//  BlockInfoInit != NoBlockInfoInit
+//  * BlockInfo(concord::kvbc::BlockId) or BlockInfo(concord::kvbc::BlockId, BlockInfoInit) - a constructor that takes
+//  the block ID if BlockInfoInit == NoBlockInfoInit or a constructor that takes both an ID and an initialization value
+//  if BlockInfoInit != NoBlockInfoInit
 //  * [ingored return] loadIndices() - a method that is called when accessing the block through iterators and is
 //  expected to populate any indices needed by the user. Indices will be cached inside the BlockchainView.
 //  * [ignored return] loadData() - an optional method that can be either called by users themselves on demand or by
@@ -189,7 +189,7 @@ class BlockchainView {
 
  public:
   using value_type = BlockInfo;
-  using size_type = concordUtils::BlockId;
+  using size_type = concord::kvbc::BlockId;
   using difference_type = detail::BlockIdDifferenceType;
   using const_reference = const BlockInfo&;
   using reference = const_reference;
@@ -207,9 +207,9 @@ class BlockchainView {
   // Note: genesisId + count must be <= MAX_BLOCKCHAIN_VIEW_SIZE to properly support end() and cend() iterators.
   //
   // If count > MAX_BLOCKCHAIN_VIEW_SIZE, an exception is thrown.
-  // If genesisId + count would overflow the concordUtils::BlockId type, behavior is undefined.
+  // If genesisId + count would overflow the concord::kvbc::BlockId type, behavior is undefined.
   // If genesisId + count > MAX_BLOCKCHAIN_VIEW_SIZE, an exception is thrown. Constant complexity.
-  BlockchainView(concordUtils::BlockId genesisId, size_type count, BlockInfoInit blockInfoInit = BlockInfoInit{})
+  BlockchainView(concord::kvbc::BlockId genesisId, size_type count, BlockInfoInit blockInfoInit = BlockInfoInit{})
       : genesisId_{genesisId}, endId_{genesisId + count}, size_{count}, blockInfoInit_{blockInfoInit} {
     if (count > MAX_BLOCKCHAIN_VIEW_SIZE) {
       throw std::length_error{"BlockchainView: exceeded MAX_BLOCKCHAIN_VIEW_SIZE"};
@@ -269,13 +269,13 @@ class BlockchainView {
 
   // Returns an iterator to the block with the passed ID. No bounds checking. Calling with an ID that is outside the
   // range results in undefined behavior. Constant complexity.
-  const_iterator get(concordUtils::BlockId id) const {
+  const_iterator get(concord::kvbc::BlockId id) const {
     return const_iterator{id, genesisId_, endId_, blockInfoInit_, cache_};
   }
 
   // Finds a block with the passed ID. Returns a const iterator to the block with the passed ID. If no such block is
   // found, cend() is returned. Constant complexity.
-  const_iterator find(concordUtils::BlockId id) const {
+  const_iterator find(concord::kvbc::BlockId id) const {
     if (empty() || id < genesisId_ || id > endId_ - 1) {
       return cend();
     }
@@ -291,8 +291,8 @@ class BlockchainView {
  private:
   friend iterator;
 
-  concordUtils::BlockId genesisId_{0};
-  concordUtils::BlockId endId_{0};
+  concord::kvbc::BlockId genesisId_{0};
+  concord::kvbc::BlockId endId_{0};
   size_type size_{0};
   BlockInfoInit blockInfoInit_;
   mutable CacheType cache_;

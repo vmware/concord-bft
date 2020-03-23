@@ -13,10 +13,10 @@ namespace storage {
 
 using concordUtils::Sliver;
 using concordUtils::Status;
-using concordUtils::KeysVector;
-using concordUtils::ValuesVector;
-using concordUtils::KeyValuePair;
-using concordUtils::SetOfKeyValuePairs;
+using concord::kvbc::KeysVector;
+using concord::kvbc::ValuesVector;
+using concord::kvbc::KeyValuePair;
+using concord::kvbc::SetOfKeyValuePairs;
 
 class ITransaction {
  public:

@@ -31,8 +31,7 @@ using BlockNode = block::detail::Node;
 using BlockKeyData = block::detail::KeyData;
 
 using ::concordUtils::fromBigEndianBuffer;
-using ::concordUtils::Key;
-using ::concordUtils::SetOfKeyValuePairs;
+using ::concord::kvbc::Key;
 using ::concordUtils::Sliver;
 using ::concordUtils::Status;
 

@@ -14,7 +14,6 @@
 #pragma once
 
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
-#include "hash_defs.h"
 #include "kv_types.hpp"
 #include "sliver.hpp"
 
@@ -31,19 +30,19 @@ inline constexpr auto BLOCK_DIGEST_SIZE = bftEngine::SimpleBlockchainStateTransf
 
 // Creates a block with the user data appended at the end of the returned Sliver. The passed parentDigest buffer must be
 // of size BLOCK_DIGEST_SIZE bytes.
-concordUtils::Sliver create(const concordUtils::SetOfKeyValuePairs &updates,
-                            concordUtils::SetOfKeyValuePairs &outUpdatesInNewBlock,
+concordUtils::Sliver create(const concord::kvbc::SetOfKeyValuePairs &updates,
+                            concord::kvbc::SetOfKeyValuePairs &outUpdatesInNewBlock,
                             const void *parentDigest,
                             const void *userData,
                             std::size_t userDataSize);
 
 // Creates a block. The passed parentDigest buffer must be of size BLOCK_DIGEST_SIZE bytes.
-concordUtils::Sliver create(const concordUtils::SetOfKeyValuePairs &updates,
-                            concordUtils::SetOfKeyValuePairs &outUpdatesInNewBlock,
+concordUtils::Sliver create(const concord::kvbc::SetOfKeyValuePairs &updates,
+                            concord::kvbc::SetOfKeyValuePairs &outUpdatesInNewBlock,
                             const void *parentDigest);
 
 // Returns the block data in the form of a set of key/value pairs.
-concordUtils::SetOfKeyValuePairs getData(const concordUtils::Sliver &block);
+concord::kvbc::SetOfKeyValuePairs getData(const concordUtils::Sliver &block);
 
 // Returns the parent digest of size BLOCK_DIGEST_SIZE bytes.
 const void *getParentDigest(const concordUtils::Sliver &block);
