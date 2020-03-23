@@ -110,11 +110,11 @@ class DBAdapter : public DBAdapterBase {
   const sparse_merkle::Hash &getStateHash() const { return smTree_.get_root_hash(); }
 
  private:
-    concordUtils::Sliver createBlockNode(const concord::kvbc::SetOfKeyValuePairs &updates, BlockId blockId) const;
+  concordUtils::Sliver createBlockNode(const concord::kvbc::SetOfKeyValuePairs &updates, BlockId blockId) const;
 
   // Returns a set of key/value pairs that represent the needed DB updates for adding a block as part of the blockchain.
-    concordUtils::SetOfKeyValuePairs lastReachableBlockDbUpdates(const concord::kvbc::SetOfKeyValuePairs &updates,
-                                                                 BlockId blockId);
+  concord::kvbc::SetOfKeyValuePairs lastReachableBlockDbUpdates(const concord::kvbc::SetOfKeyValuePairs &updates,
+                                                                BlockId blockId);
 
   // Try to link the ST temporary chain to the blockchain from the passed blockId up to getLatestBlock().
   concordUtils::Status linkSTChainFrom(BlockId blockId);

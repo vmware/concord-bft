@@ -1,10 +1,6 @@
 // Copyright 2018 VMware, all rights reserved
 /**
- * Test the Sliver class.
- *
- * While these tests check that Sliver "works", the most interesting test is to
- * run this under valgrind, and make sure that it doesn't find any
- * leaks/double-frees/etc. `valgrind --leak-check=full test/SliverTests`
+ * The following test suite tests ordering of KeyValuePairs
  */
 
 #include "gtest/gtest.h"
@@ -58,7 +54,7 @@ TEST(sliver_test, unordered_to_ordered_set_of_kv_pairs) {
   const auto unordered = SetOfKeyValuePairs{{bbcd, value}, {abcd, value}, {adc, value}, {abc, value}, {empty, value}};
 
   // Order.
-  const auto ordered = order<SetOfKeyValuePairs, OrderedSetOfKeyValuePairs>(unordered);
+  const auto ordered = order<SetOfKeyValuePairs>(unordered);
 
   ASSERT_EQ(reference.size(), ordered.size());
   auto i = 0u;

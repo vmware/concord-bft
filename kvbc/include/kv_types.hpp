@@ -17,6 +17,8 @@
 #include <map>
 #include <vector>
 #include <functional>
+#include <cstdint>
+
 #include "sliver.hpp"
 
 namespace concord::kvbc {
@@ -30,9 +32,9 @@ typedef std::vector<Key> KeysVector;
 typedef KeysVector ValuesVector;
 typedef std::uint64_t BlockId;
 
-template <typename ContainerIn, typename ContainerOut>
-ContainerOut order(const ContainerIn& unordered) {
-  ContainerOut out;
+template <typename ContainerIn>
+OrderedSetOfKeyValuePairs order(const ContainerIn& unordered) {
+  OrderedSetOfKeyValuePairs out;
   for (auto&& kv : unordered) out.insert(kv);
   return out;
 }

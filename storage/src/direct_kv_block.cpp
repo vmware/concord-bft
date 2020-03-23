@@ -48,7 +48,7 @@ Sliver create(const SetOfKeyValuePairs &updates,
     std::int32_t currentOffset = metadataSize;
     auto *entries = (detail::Entry *)(blockBuffer + sizeof(detail::Header));
     // Serialize key/values in a deterministic order.
-    const auto orderedUpdates = concord::kvbc::order<SetOfKeyValuePairs, OrderedSetOfKeyValuePairs>(updates);
+    const auto orderedUpdates = concord::kvbc::order<SetOfKeyValuePairs>(updates);
     for (const auto &kvPair : orderedUpdates) {
       // key
       entries[idx].keyOffset = currentOffset;

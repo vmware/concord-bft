@@ -53,7 +53,7 @@ using Keys = std::unordered_map<concord::kvbc::Key, const KeyData>;
 // Represents a block node. The parentDigest pointer must point to a buffer that is at least BLOCK_DIGEST_SIZE bytes
 // long.
 struct Node {
-    using BlockIdType = concord::kvbc::BlockId;
+  using BlockIdType = concord::kvbc::BlockId;
 
   static constexpr auto PARENT_DIGEST_SIZE = BLOCK_DIGEST_SIZE;
 
