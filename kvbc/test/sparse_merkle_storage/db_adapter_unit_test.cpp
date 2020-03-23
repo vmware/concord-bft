@@ -28,7 +28,6 @@
 
 namespace {
 
-using ::bftEngine::SimpleBlockchainStateTransfer::computeBlockDigest;
 using ::bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest;
 
 using namespace ::concord::storage::blockchain::v2MerkleTree;
@@ -81,12 +80,6 @@ auto getHash(const Sliver &sliver) {
 }
 
 auto getBlockDigest(const std::string &data) { return getHash(data).dataArray(); }
-
-StateTransferDigest blockDigest(BlockId blockId, const Sliver &block) {
-  auto digest = StateTransferDigest{};
-  computeBlockDigest(blockId, block.data(), block.length(), &digest);
-  return digest;
-}
 
 bool operator==(const void *lhs, const StateTransferDigest &rhs) {
   return std::memcmp(lhs, rhs.content, block::BLOCK_DIGEST_SIZE) == 0;
@@ -442,7 +435,7 @@ TEST(block, block_serialization) {
     updates.emplace(getSliverOfSize(i), getSliverOfSize(i * 10));
   }
 
-  const auto block = block::create(defaultBlockId, updates, defaultDigest.data(), defaultHash);
+  const auto block = block::create(updates, defaultDigest.data(), defaultHash);
   const auto parsedUpdates = block::getData(block);
   const auto parsedDigest = static_cast<const std::uint8_t *>(block::getParentDigest(block));
   const auto parsedStateHash = block::getStateHash(block);

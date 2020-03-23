@@ -28,6 +28,19 @@ target_link_libraries(sparse_merkle_storage_db_adapter_unit_test PUBLIC
     stdc++fs
 )
 
+add_executable(sparse_merkle_storage_db_adapter_property_test
+    sparse_merkle_storage/db_adapter_property_test.cpp $<TARGET_OBJECTS:logging_dev>)
+add_test(sparse_merkle_storage_db_adapter_property_test sparse_merkle_storage_db_adapter_property_test)
+target_include_directories(sparse_merkle_storage_db_adapter_property_test PRIVATE ${RAPIDCHECK_INCLUDE_DIRS})
+target_link_libraries(sparse_merkle_storage_db_adapter_property_test PUBLIC
+    GTest::Main
+    GTest::GTest
+    ${RAPIDCHECK_LIBRARIES}
+    util
+    concordbft_storage
+    stdc++fs
+)
+
 add_executable(sparse_merkle_base_types_test sparse_merkle/base_types_test.cpp
     $<TARGET_OBJECTS:logging_dev>)
 add_test(sparse_merkle_base_types_test sparse_merkle_base_types_test)
