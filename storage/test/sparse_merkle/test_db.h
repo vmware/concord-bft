@@ -39,8 +39,6 @@ class TestDB : public concord::storage::sparse_merkle::IDBReader {
 
   BatchedInternalNode get_internal(const InternalNodeKey& key) const override { return internal_nodes_.at(key); }
 
-  LeafNode get_leaf(const LeafKey& key) const override { return leaf_nodes_.at(key); }
-
  private:
   Version latest_version_ = 0;
   map<LeafKey, LeafNode> leaf_nodes_;

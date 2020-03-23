@@ -32,6 +32,7 @@ using BlockKeyData = block::detail::KeyData;
 
 using ::concordUtils::fromBigEndianBuffer;
 using ::concordUtils::Key;
+using ::concordUtils::SetOfKeyValuePairs;
 using ::concordUtils::Sliver;
 using ::concordUtils::Status;
 
@@ -52,7 +53,7 @@ using namespace detail;
 constexpr auto MAX_BLOCK_ID = std::numeric_limits<BlockId>::max();
 
 // Converts the updates as returned by the merkle tree to key/value pairs suitable for the DB.
-SetOfKeyValuePairs batchToDbUpdates(const sparse_merkle::UpdateBatch &batch) {
+SetOfKeyValuePairs batchToDbUpdates(const sparse_merkle::UpdateBatch &batch, BlockId blockId) {
   SetOfKeyValuePairs updates;
   const Sliver emptySliver;
 
@@ -77,7 +78,7 @@ SetOfKeyValuePairs batchToDbUpdates(const sparse_merkle::UpdateBatch &batch) {
   // Leaf nodes.
   for (const auto &[leafKey, leafNode] : batch.leaf_nodes) {
     const auto key = DBKeyManipulator::genDataDbKey(leafKey);
-    updates[key] = leafNode.value;
+    updates[key] = detail::serialize(detail::DatabaseLeafValue{blockId, leafNode});
   }
 
   return updates;
@@ -229,31 +230,44 @@ DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db)
   }
 }
 
-Status DBAdapter::getKeyByReadVersion(BlockId version, const Key &key, Sliver &outValue, BlockId &actualVersion) const {
+Status DBAdapter::getKeyByReadVersion(BlockId blockVersion,
+                                      const Key &key,
+                                      Sliver &outValue,
+                                      BlockId &actualBlockVersion) const {
   outValue = Sliver{};
-  actualVersion = 0;
+  actualBlockVersion = 0;
+
+  auto stateRootVersion = sparse_merkle::Version{};
+  // Find a block with an ID that is less than or equal to the requested block version and extract the state root
+  // version from it.
+  {
+    const auto blockKey = DBKeyManipulator::genBlockDbKey(blockVersion);
+    auto iter = db_->getIteratorGuard();
+    const auto [foundBlockKey, foundBlockValue] = iter->seekAtMost(blockKey);
+    if (!foundBlockKey.empty() && getDBKeyType(foundBlockKey) == EDBKeyType::Block) {
+      stateRootVersion = detail::deserializeStateRootVersion(foundBlockValue);
+    } else {
+      return Status::OK();
+    }
+  }
 
   auto iter = db_->getIteratorGuard();
-  const auto dbKey = DBKeyManipulator::genDataDbKey(key, version);
+  const auto leafKey = DBKeyManipulator::genDataDbKey(key, stateRootVersion.value());
 
-  // Seek for a key that is less than or equal to the requested one.
-  //
-  // Since leaf keys are ordered lexicographically, first by hash and then by version, then if there is a key having
-  // the same hash and a lower version, it should directly precede the found one.
-  const auto &[foundKey, foundValue] = iter->seekAtMost(dbKey);
-  if (foundKey == dbKey) {
-    // We have an exact match.
-    outValue = foundValue;
-    actualVersion = version;
+  // Seek for a leaf key with a version that is less than or equal to the state root version from the found block.
+  // Since leaf keys are ordered lexicographically, first by hash and then by state root version, then if there is a key
+  // having the same hash and a lower version, it should directly precede the found one.
+  const auto [foundKey, foundValue] = iter->seekAtMost(leafKey);
+  // Make sure we only process leaf keys that have the same hash as the hash of the key the user has passed. The state
+  // root version can be less than the one we seek for.
+  const auto isLeafKey =
+      !foundKey.empty() && getDBKeyType(foundKey) == EDBKeyType::Key && getKeySubtype(foundKey) == EKeySubtype::Leaf;
+  if (isLeafKey && DBKeyManipulator::extractHashFromLeafKey(foundKey) == hash(key)) {
+    const auto dbLeafVal = detail::deserialize<detail::DatabaseLeafValue>(foundValue);
+    outValue = dbLeafVal.leafNode.value;
+    actualBlockVersion = dbLeafVal.blockId;
   }
-  // Make sure we process leaf keys only that have the same hash as the hash of the passed key (i.e. is the same key
-  // the user has requested).
-  else if (!foundKey.empty() && getDBKeyType(foundKey) == EDBKeyType::Key &&
-           getKeySubtype(foundKey) == EKeySubtype::Leaf &&
-           DBKeyManipulator::extractHashFromLeafKey(foundKey) == hash(key)) {
-    outValue = foundValue;
-    actualVersion = DBKeyManipulator::extractBlockIdFromKey(foundKey);
-  }
+
   return Status::OK();
 }
 
@@ -288,9 +302,7 @@ BlockId DBAdapter::getLatestBlock() const {
   return getLastReachableBlock();
 }
 
-Sliver DBAdapter::createBlockNode(const SetOfKeyValuePairs &updates,
-                                  BlockId blockId,
-                                  const Version &stateRootVersion) const {
+Sliver DBAdapter::createBlockNode(const SetOfKeyValuePairs &updates, BlockId blockId) const {
   // Make sure the digest is zero-initialized by using {} initialization.
   auto parentBlockDigest = StateTransferDigest{};
   if (blockId > 1) {
@@ -303,7 +315,7 @@ Sliver DBAdapter::createBlockNode(const SetOfKeyValuePairs &updates,
     computeBlockDigest(blockId - 1, parentBlock.data(), parentBlock.length(), &parentBlockDigest);
   }
 
-  auto node = BlockNode{blockId, parentBlockDigest.content, smTree_.get_root_hash(), stateRootVersion};
+  auto node = BlockNode{blockId, parentBlockDigest.content, smTree_.get_root_hash(), smTree_.get_version()};
   for (const auto &[k, v] : updates) {
     // Treat empty values as deleted keys.
     node.keys.emplace(k, BlockKeyData{v.empty()});
@@ -328,12 +340,15 @@ Status DBAdapter::getBlockById(BlockId blockId, Sliver &block) const {
   for (const auto &[key, keyData] : blockNode.keys) {
     if (!keyData.deleted) {
       Sliver value;
-      if (const auto status = db_->get(DBKeyManipulator::genDataDbKey(key, blockId), value); !status.isOK()) {
+      if (const auto status = db_->get(DBKeyManipulator::genDataDbKey(key, blockNode.stateRootVersion.value()), value);
+          !status.isOK()) {
         // If the key is not found, treat as corrupted storage and abort.
         Assert(!status.isNotFound());
         return status;
       }
-      keyValues[key] = value;
+      const auto dbLeafVal = detail::deserialize<detail::DatabaseLeafValue>(value);
+      Assert(dbLeafVal.blockId == blockId);
+      keyValues[key] = dbLeafVal.leafNode.value;
     }
   }
 
@@ -341,15 +356,17 @@ Status DBAdapter::getBlockById(BlockId blockId, Sliver &block) const {
   return Status::OK();
 }
 
-concordUtils::SetOfKeyValuePairs DBAdapter::lastReachableBlockkDbUpdates(const SetOfKeyValuePairs &updates,
-                                                                         BlockId blockId) {
-  const auto updateBatch = smTree_.update(updates);
-
-  // Key updates.
-  auto dbUpdates = batchToDbUpdates(updateBatch);
+SetOfKeyValuePairs DBAdapter::lastReachableBlockDbUpdates(const SetOfKeyValuePairs &updates, BlockId blockId) {
+  auto dbUpdates = SetOfKeyValuePairs{};
+  // Create a block with the same state root as the previous one if there are no updates.
+  if (!updates.empty()) {
+    // Key updates.
+    const auto updateBatch = smTree_.update(updates);
+    dbUpdates = batchToDbUpdates(updateBatch, blockId);
+  }
 
   // Block key.
-  dbUpdates[DBKeyManipulator::genBlockDbKey(blockId)] = createBlockNode(updates, blockId, smTree_.get_version());
+  dbUpdates[DBKeyManipulator::genBlockDbKey(blockId)] = createBlockNode(updates, blockId);
 
   return dbUpdates;
 }
@@ -362,8 +379,13 @@ BatchedInternalNode DBAdapter::Reader::get_latest_root() const {
 
   auto blockNodeSliver = Sliver{};
   Assert(adapter_.getDb()->get(DBKeyManipulator::genBlockDbKey(lastBlock), blockNodeSliver).isOK());
-  const auto blockNode = block::detail::parseNode(blockNodeSliver);
-  return get_internal(InternalNodeKey::root(blockNode.stateRootVersion));
+  const auto stateRootVersion = detail::deserializeStateRootVersion(blockNodeSliver);
+  if (stateRootVersion == 0) {
+    // A version of 0 means that the tree is empty and we return an empty BatchedInternalNode in that case.
+    return BatchedInternalNode{};
+  }
+
+  return get_internal(InternalNodeKey::root(stateRootVersion));
 }
 
 BatchedInternalNode DBAdapter::Reader::get_internal(const InternalNodeKey &key) const {
@@ -375,24 +397,9 @@ BatchedInternalNode DBAdapter::Reader::get_internal(const InternalNodeKey &key) 
   return deserialize<BatchedInternalNode>(res);
 }
 
-LeafNode DBAdapter::Reader::get_leaf(const LeafKey &key) const {
-  LeafNode leaf;
-  const auto status = adapter_.getDb()->get(DBKeyManipulator::genDataDbKey(key), leaf.value);
-  if (status.isNotFound()) {
-    throw std::out_of_range{"Could not find the requested merkle tree leaf"};
-  } else if (!status.isOK()) {
-    throw std::runtime_error{"Failed to get the requested merkle tree leaf"};
-  }
-  return leaf;
-}
-
 Status DBAdapter::addLastReachableBlock(const SetOfKeyValuePairs &updates) {
-  if (updates.empty()) {
-    return Status::IllegalOperation("Adding empty blocks is not allowed");
-  }
-
   const auto blockId = getLastReachableBlock() + 1;
-  return db_->multiPut(lastReachableBlockkDbUpdates(updates, blockId));
+  return db_->multiPut(lastReachableBlockDbUpdates(updates, blockId));
 }
 
 Status DBAdapter::linkSTChainFrom(BlockId blockId) {
@@ -426,7 +433,7 @@ Status DBAdapter::writeSTLinkTransaction(const Key &sTBlockKey, const Sliver &bl
   txn->del(sTBlockKey);
 
   // Put the block DB updates in the transaction.
-  const auto addDbUpdates = lastReachableBlockkDbUpdates(block::getData(block), blockId);
+  const auto addDbUpdates = lastReachableBlockDbUpdates(block::getData(block), blockId);
   for (const auto &[key, value] : addDbUpdates) {
     txn->put(key, value);
   }

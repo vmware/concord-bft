@@ -15,6 +15,7 @@
 
 #include <assertUtils.hpp>
 #include "blockchain/db_types.h"
+#include "blockchain/merkle_tree_db_adapter.h"
 #include "blockchain/merkle_tree_block.h"
 #include "endianness.hpp"
 #include "sliver.hpp"
@@ -188,6 +189,10 @@ inline std::string serializeImp(const block::detail::Node &node) {
   return buf;
 }
 
+inline std::string serializeImp(const DatabaseLeafValue &val) {
+  return serializeImp(val.blockId) + val.leafNode.value.toString();
+}
+
 inline std::string serialize() { return std::string{}; }
 
 template <typename T1, typename... T>
@@ -305,8 +310,8 @@ inline block::detail::Node deserialize<block::detail::Node>(const concordUtils::
   auto node = block::detail::Node{};
 
   // Block ID.
-  node.blockId = concordUtils::fromBigEndianBuffer<concordUtils::BlockId>(buf.data() + offset);
-  offset += sizeof(concordUtils::BlockId);
+  node.blockId = concordUtils::fromBigEndianBuffer<block::detail::Node::BlockIdType>(buf.data() + offset);
+  offset += sizeof(block::detail::Node::BlockIdType);
 
   // Parent digest.
   node.setParentDigest(buf.data() + offset);
@@ -343,6 +348,22 @@ inline block::detail::Node deserialize<block::detail::Node>(const concordUtils::
   }
 
   return node;
+}
+
+// Deserializes the state root version from a serialized block::detail::Node .
+inline sparse_merkle::Version deserializeStateRootVersion(const concordUtils::Sliver &buf) {
+  Assert(buf.length() >= block::detail::Node::MIN_SIZE);
+  constexpr auto offset = sizeof(block::detail::Node::BlockIdType) + block::detail::Node::PARENT_DIGEST_SIZE +
+                          block::detail::Node::STATE_HASH_SIZE;
+  return concordUtils::fromBigEndianBuffer<sparse_merkle::Version::Type>(buf.data() + offset);
+}
+
+template <>
+inline DatabaseLeafValue deserialize<DatabaseLeafValue>(const concordUtils::Sliver &buf) {
+  constexpr auto blockIdSize = sizeof(DatabaseLeafValue::blockId);
+  Assert(buf.length() >= blockIdSize);
+  return DatabaseLeafValue{concordUtils::fromBigEndianBuffer<decltype(DatabaseLeafValue::blockId)>(buf.data()),
+                           sparse_merkle::LeafNode{concordUtils::Sliver{buf, blockIdSize, buf.length() - blockIdSize}}};
 }
 
 }  // namespace detail

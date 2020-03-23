@@ -99,6 +99,8 @@ struct LeafNode {
   concordUtils::Sliver value;
 };
 
+inline bool operator==(const LeafNode& lhs, const LeafNode& rhs) { return (lhs.value == rhs.value); }
+
 }  // namespace sparse_merkle
 }  // namespace storage
 }  // namespace concord
