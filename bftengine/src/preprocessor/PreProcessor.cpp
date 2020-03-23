@@ -174,7 +174,6 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
   preProcessorMetrics_.preProcReqReceived.Get().Inc();
   ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg(msg);
 
-  preProcessorMetrics_.preProcReqReceived.Get().Inc();
   MDC_CID_PUT(GL, clientPreProcessReqMsg->getCid());
   const NodeIdType &senderId = clientPreProcessReqMsg->senderId();
   const NodeIdType &clientId = clientPreProcessReqMsg->clientProxyId();

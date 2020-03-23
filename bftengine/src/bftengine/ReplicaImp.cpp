@@ -307,9 +307,10 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
     DebugStatistics::onSendPrePrepareMessage(pp->numberOfRequests(), requestsQueueOfPrimary.size());
   }
   primaryLastUsedSeqNum++;
+  concordlogger::MDC sn(GL, SEQ_NUM_KEY, primaryLastUsedSeqNum);
   {
     concordlogger::MDC content(GL, "cid", "content: " + pp->getBatchCorrelationIdAsString());
-    LOG_INFO(GL, "");
+    LOG_TRACE(GL, "map batch sequence number to correlation ids");
   }
   SeqNumInfo &seqNumInfo = mainLog->get(primaryLastUsedSeqNum);
   seqNumInfo.addSelfMsg(pp);
@@ -405,7 +406,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     if (seqNumInfo.addMsg(msg)) {
       {
         concordlogger::MDC content(GL, "cid", "content: " + msg->getBatchCorrelationIdAsString());
-        LOG_INFO(GL, "");
+        LOG_TRACE(GL, "map batch sequence number to correlation ids");
       }
       msgAdded = true;
 
