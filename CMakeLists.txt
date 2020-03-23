@@ -98,15 +98,12 @@ endif()
 
 if (USE_CONAN)
     message("Using conan package manager")
-    include(${CMAKE_SOURCE_DIR}/.conan/cmake_helpers//conan.cmake)
-    execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/.conan/install_conan_pkgs.sh)
-    conan_cmake_run(CONANFILE
-            conanfile.txt
-            BUILD_TYPE "Release"
-            BUILD missing)
-    include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-    conan_basic_setup(TARGETS NO_OUTPUT_DIRS)
     set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/.conan/cmake_helpers ${CMAKE_MODULE_PATH})
+    include(${CMAKE_SOURCE_DIR}/.conan/cmake_helpers/conan.cmake)
+    execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/.conan/install_conan_pkgs.sh)
+    conan_cmake_run(CONANFILE conanfile.txt
+            BASIC_SETUP CMAKE_TARGETS NO_OUTPUT_DIRS
+            BUILD missing)
 endif()
 
 include(CTest)
