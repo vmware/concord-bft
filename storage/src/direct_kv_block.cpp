@@ -23,16 +23,16 @@ Sliver create(const SetOfKeyValuePairs &updates,
 
   assert(outUpdatesInNewBlock.size() == 0);
 
-  std::uint32_t blockBodySize = 0;
-  const std::uint16_t numOfElements = updates.size();
+  std::size_t blockBodySize = 0;
+  const std::size_t numOfElements = updates.size();
   for (const auto &elem : updates) {
     // body is all of the keys and values strung together
     blockBodySize += (elem.first.length() + elem.second.length());
   }
 
-  const std::uint32_t metadataSize = sizeof(detail::Header) + sizeof(detail::Entry) * numOfElements;
+  const std::size_t metadataSize = sizeof(detail::Header) + sizeof(detail::Entry) * numOfElements;
 
-  const std::uint32_t blockSize = metadataSize + blockBodySize + userDataSize;
+  const std::size_t blockSize = metadataSize + blockBodySize + userDataSize;
 
   try {
     char *blockBuffer = new char[blockSize];
@@ -43,9 +43,9 @@ Sliver create(const SetOfKeyValuePairs &updates,
     std::memcpy(header->parentDigest, parentDigest, BLOCK_DIGEST_SIZE);
     header->parentDigestLength = BLOCK_DIGEST_SIZE;
 
-    std::int16_t idx = 0;
+    std::size_t idx = 0;
     header->numberOfElements = numOfElements;
-    std::int32_t currentOffset = metadataSize;
+    std::size_t currentOffset = metadataSize;
     auto *entries = (detail::Entry *)(blockBuffer + sizeof(detail::Header));
     // Serialize key/values in a deterministic order.
     const auto orderedUpdates = concord::kvbc::order<SetOfKeyValuePairs>(updates);
@@ -79,7 +79,7 @@ Sliver create(const SetOfKeyValuePairs &updates,
       currentOffset += userDataSize;
     }
 
-    assert((std::uint32_t)currentOffset == blockSize);
+    assert(currentOffset == blockSize);
 
     return blockSliver;
   } catch (const std::bad_alloc &ba) {  // TODO: do we really want to mask this failure?

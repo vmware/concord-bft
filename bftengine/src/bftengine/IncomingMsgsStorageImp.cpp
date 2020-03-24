@@ -137,7 +137,7 @@ void IncomingMsgsStorageImp::dispatchMessages(std::promise<void>& signalStarted)
     MsgHandlerCallback msgHandlerCallback = nullptr;
     switch (msg.tag) {
       case IncomingMsg::INVALID:
-        LOG_DEBUG_F(GL, "Invalid message - ignore");
+        LOG_TRACE_F(GL, "Invalid message - ignore");
         break;
       case IncomingMsg::EXTERNAL:
         // TODO: (AJS) Don't turn this back into a raw pointer.
