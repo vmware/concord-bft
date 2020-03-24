@@ -15,16 +15,10 @@ if(${USE_COMM_PLAIN_TCP})
 endif()
 
 if(${USE_COMM_TLS_TCP})
-	target_compile_definitions(skvbc_client PUBLIC USE_COMM_TLS_TCP)
+    target_compile_definitions(skvbc_client PUBLIC USE_COMM_TLS_TCP)
 endif()
 
-target_link_libraries(skvbc_client LINK_PUBLIC threshsign 
-                                               kvbc
-                                               corebft
-                                               concordbft_storage 
-                                               util 
-                                               test_config_lib 
-                                               $<TARGET_OBJECTS:logging_dev>)
+target_link_libraries(skvbc_client PUBLIC kvbc corebft threshsign util test_config_lib $<TARGET_OBJECTS:logging_dev>)
 
 target_include_directories(skvbc_client PUBLIC ..)
 target_include_directories(skvbc_client PUBLIC ../..)
