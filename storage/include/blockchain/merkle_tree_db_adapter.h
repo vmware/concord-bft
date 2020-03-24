@@ -72,6 +72,8 @@ class DBAdapter : public DBAdapterBase {
   // - adding the whole block (raw block) in its own key
   // - calculating and filling in the parent digest.
   // Typically called by the application when adding a new block.
+  // Empty values are not supported and an error status will be returned if one is passed.
+  // Empty blocks (i.e. an empty 'updates' set) are supported.
   concordUtils::Status addLastReachableBlock(const concord::kvbc::SetOfKeyValuePairs &updates);
 
   // Adds a block from its raw representation and a block ID.

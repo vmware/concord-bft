@@ -397,6 +397,14 @@ BatchedInternalNode DBAdapter::Reader::get_internal(const InternalNodeKey &key) 
 }
 
 Status DBAdapter::addLastReachableBlock(const SetOfKeyValuePairs &updates) {
+  for (const auto &kv : updates) {
+    if (kv.second.empty()) {
+      const auto msg = "Adding empty values in a block is not supported";
+      LOG_ERROR(logger_, msg);
+      return Status::IllegalOperation(msg);
+    }
+  }
+
   const auto blockId = getLastReachableBlock() + 1;
   return db_->multiPut(lastReachableBlockDbUpdates(updates, blockId));
 }
