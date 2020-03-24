@@ -624,6 +624,14 @@ struct DbAdapterTest : public IDbAdapterTest {
 using db_adapter_custom_blockchain = ParametrizedTest<std::shared_ptr<IDbAdapterTest>>;
 using db_adapter_ref_blockchain = ParametrizedTest<std::shared_ptr<IDbAdapterTest>>;
 
+// Test that empty values in blocks are not allowed.
+TEST_P(db_adapter_custom_blockchain, reject_empty_values) {
+  auto adapter = DBAdapter{GetParam()->db()};
+  const auto updates =
+      SetOfKeyValuePairs{std::make_pair(Sliver{"k1"}, defaultSliver), std::make_pair(Sliver{"k2"}, Sliver{})};
+  ASSERT_TRUE(adapter.addLastReachableBlock(updates).isIllegalOperation());
+}
+
 // Test the last reachable block functionality.
 TEST_P(db_adapter_custom_blockchain, get_last_reachable_block) {
   auto adapter = DBAdapter{GetParam()->db()};
