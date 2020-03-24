@@ -58,6 +58,7 @@ target_link_libraries(sparse_merkle_tree_test PUBLIC
     GTest::Main
     GTest::GTest
     kvbc
+    corebft
     ${OPENSSL_LIBRARIES}
 )
 
