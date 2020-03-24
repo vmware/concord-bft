@@ -66,6 +66,9 @@ struct ReplicaConfig {
   // a time interval in milliseconds, represents the timeout for automatically replacing the primary
   uint16_t autoPrimaryRotationTimerMillisec = 0;
 
+  // preExecutionFeatureEnabled=true enables the pre-execution feature
+  bool preExecutionFeatureEnabled = false;
+
   // a time interval in milliseconds represents the timeout for the detection of timed out pre-execution requests
   uint64_t preExecReqStatusCheckTimerMillisec = 5000;
 
@@ -141,6 +144,7 @@ class ReplicaConfigSingleton {
   std::set<std::pair<uint16_t, const std::string>> GetPublicKeysOfReplicas() const {
     return config_->publicKeysOfReplicas;
   }
+  bool GetPreExecutionFeatureEnabled() const { return config_->preExecutionFeatureEnabled; }
   uint64_t GetPreExecReqStatusCheckTimerMillisec() const { return config_->preExecReqStatusCheckTimerMillisec; }
   std::string GetReplicaPrivateKey() const { return config_->replicaPrivateKey; }
 
