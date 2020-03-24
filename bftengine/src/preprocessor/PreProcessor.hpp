@@ -59,6 +59,7 @@ class PreProcessor {
                                  InternalReplicaApi &myReplica);
 
   static void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator);
+
   ReqId getOngoingReqIdForClient(uint16_t clientId);
 
  private:
@@ -75,11 +76,13 @@ class PreProcessor {
   void registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
                        PreProcessRequestMsgSharedPtr preProcessRequestMsg);
   void releaseClientPreProcessRequestSafe(uint16_t clientId);
-  void releaseClientPreProcessRequest(ClientRequestInfoSharedPtr clientEntry, uint16_t clientId);
+  void releaseClientPreProcessRequest(const ClientRequestInfoSharedPtr &clientEntry, uint16_t clientId);
   bool validateMessage(MessageBase *msg) const;
   void registerMsgHandlers();
   bool checkClientMsgCorrectness(const ClientPreProcessReqMsgUniquePtr &clientReqMsg, ReqId reqSeqNum) const;
   void handleClientPreProcessRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg);
+  void handleClientPreProcessRequestByPrimary(ClientPreProcessReqMsgUniquePtr clientReqMsg);
+  void handleClientPreProcessRequestByNonPrimary(ClientPreProcessReqMsgUniquePtr msg);
   void sendMsg(char *msg, NodeIdType dest, uint16_t msgType, MsgSize msgSize);
   void sendPreProcessRequestToAllReplicas(PreProcessRequestMsgSharedPtr preProcessReqMsg);
   uint16_t getClientReplyBufferId(uint16_t clientId) const { return clientId - numOfReplicas_; }
@@ -102,7 +105,11 @@ class PreProcessor {
                                          PreProcessingResult result,
                                          NodeIdType clientId,
                                          SeqNum reqSeqNum);
+  void updateAggregatorAndDumpMetrics();
+  void addTimers();
+  void cancelTimers();
   void onRequestsStatusCheckTimer(concordUtil::Timers::Handle timer);
+  void onPreProcessRequestMsgWaitTimer(concordUtil::Timers::Handle timer);
 
  private:
   static std::vector<std::shared_ptr<PreProcessor>> preProcessors_;  // The place holder for PreProcessor objects
@@ -133,8 +140,12 @@ class PreProcessor {
     concordMetrics::CounterHandle preProcConsensusNotReached;
     concordMetrics::CounterHandle preProcessRequestTimedout;
     concordMetrics::CounterHandle preProcReqSentForFurtherProcessing;
+    concordMetrics::CounterHandle preProcPossiblePrimaryFaultDetected;
   } preProcessorMetrics_;
   concordUtil::Timers::Handle requestsStatusCheckTimer_;  // Check for timed out requests
+  concordUtil::Timers::Handle preProcessReqMsgWaitTimer_;
+  const uint64_t preExecReqStatusCheckTimeMilli_;
+  const uint16_t preProcessReqWaitTimeMilli_;
 };
 
 //**************** Class AsyncPreProcessJob ****************//

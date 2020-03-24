@@ -19,14 +19,19 @@ using namespace chrono;
 using namespace concord::util;
 
 uint16_t RequestProcessingInfo::numOfRequiredEqualReplies_ = 0;
+uint16_t RequestProcessingInfo::preProcessReqWaitTimeMilli_ = 0;
 
 uint64_t RequestProcessingInfo::getMonotonicTimeMilli() {
   steady_clock::time_point curTimePoint = steady_clock::now();
   return duration_cast<milliseconds>(curTimePoint.time_since_epoch()).count();
 }
 
+void RequestProcessingInfo::init(uint16_t numOfRequiredReplies, uint16_t preProcessReqWaitTimeMilli) {
+  numOfRequiredEqualReplies_ = numOfRequiredReplies;
+  preProcessReqWaitTimeMilli_ = preProcessReqWaitTimeMilli;
+}
+
 RequestProcessingInfo::RequestProcessingInfo(uint16_t numOfReplicas,
-                                             uint16_t numOfRequiredReplies,
                                              ReqId reqSeqNum,
                                              ClientPreProcessReqMsgUniquePtr clientReqMsg,
                                              PreProcessRequestMsgSharedPtr preProcessRequestMsg)
@@ -35,8 +40,17 @@ RequestProcessingInfo::RequestProcessingInfo(uint16_t numOfReplicas,
       entryTime_(getMonotonicTimeMilli()),
       clientPreProcessReqMsg_(move(clientReqMsg)),
       preProcessRequestMsg_(preProcessRequestMsg) {
-  numOfRequiredEqualReplies_ = numOfRequiredReplies;
   LOG_DEBUG(GL, "Created RequestProcessingInfo with reqSeqNum=" << reqSeqNum_ << ", numOfReplicas= " << numOfReplicas_);
+}
+
+void RequestProcessingInfo::setPreProcessRequest(PreProcessRequestMsgSharedPtr preProcessReqMsg) {
+  if (preProcessRequestMsg_ != nullptr) {
+    LOG_ERROR(GL,
+              "preProcessRequestMsg_ is already set; clientId=" << preProcessRequestMsg_->clientId() << ", reqSeqNum="
+                                                                << preProcessRequestMsg_->reqSeqNum());
+    return;
+  }
+  preProcessRequestMsg_ = preProcessReqMsg;
 }
 
 void RequestProcessingInfo::handlePrimaryPreProcessed(const char *preProcessResult, uint32_t preProcessResultLen) {
@@ -85,17 +99,17 @@ bool RequestProcessingInfo::isReqTimedOut() const {
 }
 
 // Non-primary replica logic
-bool RequestProcessingInfo::isPreProcessReqMsgReceivedInTime(const uint16_t preProcessReqWaitTimeMilli) const {
-  // Check if request was registered for too long after been received from the client
+bool RequestProcessingInfo::isPreProcessReqMsgReceivedInTime() const {
+  // Check if the request was registered for too long after been received from the client
   auto clientRequestWaitingTime = getMonotonicTimeMilli() - entryTime_;
-  if (clientRequestWaitingTime > preProcessReqWaitTimeMilli) {
+  if (clientRequestWaitingTime > preProcessReqWaitTimeMilli_) {
     LOG_WARN(GL,
-             "PreProcessRequestMsg did not arrive in time: preProcessReqWaitTimeMilli="
-                 << preProcessReqWaitTimeMilli << " ms expired for reqSeqNum=" << reqSeqNum_
+             "PreProcessRequestMsg did not arrive in time: preProcessReqWaitTimeMilli_="
+                 << preProcessReqWaitTimeMilli_ << " ms expired for reqSeqNum=" << reqSeqNum_
                  << "; clientRequestWaitingTime=" << clientRequestWaitingTime);
-    return true;
+    return false;
   }
-  return false;
+  return true;
 }
 
 PreProcessingResult RequestProcessingInfo::getPreProcessingConsensusResult() const {

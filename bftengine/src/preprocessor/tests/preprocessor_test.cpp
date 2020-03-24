@@ -17,6 +17,7 @@
 #include "RequestProcessingInfo.hpp"
 #include "ReplicaConfig.hpp"
 #include "TimersSingleton.hpp"
+#include "IncomingMsgsStorageImp.hpp"
 #include "gtest/gtest.h"
 
 using namespace std;
@@ -34,8 +35,10 @@ const uint16_t fVal_7 = 2;
 const uint16_t cVal = 0;
 const uint16_t numOfRequiredReplies = fVal_4 + 1;
 const uint32_t bufLen = 1024;
-const uint64_t reqTimeoutMilli = 100;
-const uint64_t preExecReqStatusCheckTimerMillisec = 200;
+const uint64_t reqTimeoutMilli = 10;
+const uint64_t preExecReqStatusCheckTimerMillisec = 20;
+const uint64_t viewChangeTimerMillisec = 80;
+const uint16_t preProcessReqWaitTimeMilli = viewChangeTimerMillisec / 4 + 10;
 char buf[bufLen];
 ReqId reqSeqNum = 123456789;
 NodeIdType senderId = 2;
@@ -46,8 +49,88 @@ NodeIdType replica_1 = 1;
 NodeIdType replica_2 = 2;
 NodeIdType replica_3 = 3;
 NodeIdType replica_4 = 4;
-
 SigManagerSharedPtr sigManager_[numOfReplicas_4];
+
+class DummyRequestsHandler : public IRequestsHandler {
+  int execute(uint16_t client,
+              uint64_t sequenceNum,
+              uint8_t flags,
+              uint32_t requestSize,
+              const char* request,
+              uint32_t maxReplySize,
+              char* outReply,
+              uint32_t& outActualReplySize) {
+    outActualReplySize = 256;
+    return 0;
+  }
+};
+
+class DummyReceiver : public IReceiver {
+ public:
+  virtual ~DummyReceiver() = default;
+
+  void onNewMessage(const NodeNum sourceNode, const char* const message, const size_t messageLength) {}
+  void onConnectionStatusChanged(const NodeNum node, const ConnectionStatus newStatus) {}
+};
+
+shared_ptr<IncomingMsgsStorage> msgsStorage;
+shared_ptr<DummyReceiver> msgReceiver = make_shared<DummyReceiver>();
+shared_ptr<MsgHandlersRegistrator> msgHandlersRegPtr = make_shared<MsgHandlersRegistrator>();
+shared_ptr<MsgsCommunicator> msgsCommunicator;
+DummyRequestsHandler requestsHandler;
+
+class DummyReplica : public InternalReplicaApi {
+ public:
+  DummyReplica(const bftEngine::impl::ReplicasInfo& replicasInfo) : replicasInfo_(replicasInfo) {}
+
+  void onPrepareCombinedSigFailed(SeqNum seqNumber, ViewNum view, const set<uint16_t>& replicasWithBadSigs) {}
+  void onPrepareCombinedSigSucceeded(SeqNum seqNumber, ViewNum view, const char* combinedSig, uint16_t combinedSigLen) {
+  }
+  void onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) {}
+
+  void onCommitCombinedSigFailed(SeqNum seqNumber, ViewNum view, const set<uint16_t>& replicasWithBadSigs) {}
+  void onCommitCombinedSigSucceeded(SeqNum seqNumber, ViewNum view, const char* combinedSig, uint16_t combinedSigLen) {}
+  void onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) {}
+
+  void onInternalMsg(FullCommitProofMsg* m) {}
+  void onMerkleExecSignature(ViewNum view, SeqNum seqNum, uint16_t signatureLength, const char* signature) {}
+
+  void onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqNum,
+                                          const ViewNum relatedViewNumber,
+                                          const forward_list<RetSuggestion>* const suggestedRetransmissions) {}
+
+  const bftEngine::impl::ReplicasInfo& getReplicasInfo() const { return replicasInfo_; }
+  bool isValidClient(NodeIdType client) const { return true; }
+  bool isIdOfReplica(NodeIdType id) const { return false; }
+  const set<ReplicaId>& getIdsOfPeerReplicas() const { return replicaIds_; }
+  ViewNum getCurrentView() const { return 0; }
+  ReplicaId currentPrimary() const { return replicaConfig.replicaId; }
+  bool isCurrentPrimary() const { return primary_; }
+  bool currentViewIsActive() const { return true; }
+  ReqId seqNumberOfLastReplyToClient(NodeIdType client) const { return 1; }
+
+  IncomingMsgsStorage& getIncomingMsgsStorage() { return *incomingMsgsStorage_; }
+  util::SimpleThreadPool& getInternalThreadPool() { return pool_; }
+
+  void updateMetricsForInternalMessage() {}
+  bool isCollectingState() const { return false; }
+
+  const ReplicaConfig& getReplicaConfig() const { return replicaConfig; }
+
+  IThresholdVerifier* getThresholdVerifierForExecution() { return nullptr; }
+  IThresholdVerifier* getThresholdVerifierForSlowPathCommit() { return nullptr; }
+  IThresholdVerifier* getThresholdVerifierForCommit() { return nullptr; }
+  IThresholdVerifier* getThresholdVerifierForOptimisticCommit() { return nullptr; }
+
+  void setPrimary(bool primary) { primary_ = primary; };
+
+ private:
+  bool primary_ = true;
+  IncomingMsgsStorage* incomingMsgsStorage_;
+  util::SimpleThreadPool pool_;
+  bftEngine::impl::ReplicasInfo replicasInfo_;
+  set<ReplicaId> replicaIds_;
+};
 
 string privateKey_0 =
     "308204BA020100300D06092A864886F70D0101010500048204A4308204A00201000282010100C55B8F7979BF24B335017082BF33EE2960E3A0"
@@ -206,6 +289,7 @@ void setUpConfiguration_4() {
   replicaConfig.fVal = fVal_4;
   replicaConfig.cVal = cVal;
   replicaConfig.numOfClientProxies = numOfClients;
+  replicaConfig.viewChangeTimerMillisec = viewChangeTimerMillisec;
   replicaConfig.preExecReqStatusCheckTimerMillisec = preExecReqStatusCheckTimerMillisec;
 
   replicaConfig.publicKeysOfReplicas.insert(pair<uint16_t, const string>(replica_0, publicKey_0));
@@ -231,6 +315,17 @@ void setUpConfiguration_7() {
   replicaConfig.replicaPrivateKey = privateKey_4;
 }
 
+void setUpCommunication() {
+  unordered_map<NodeNum, NodeInfo> nodes;
+
+  NodeInfo nodeInfo{"128.0.0.1", 4321, true};
+  nodes[1] = nodeInfo;
+
+  PlainUdpConfig configuration("128.0.0.1", 1234, 4096, nodes, replicaConfig.replicaId);
+  msgsCommunicator.reset(new MsgsCommunicator(CommFactory::create(configuration), msgsStorage, msgReceiver));
+  msgsCommunicator->startCommunication(replicaConfig.replicaId);
+}
+
 PreProcessReplyMsgSharedPtr preProcessNonPrimary(NodeIdType replicaId, const bftEngine::impl::ReplicasInfo& repInfo) {
   auto preProcessReplyMsg = make_shared<PreProcessReplyMsg>(sigManager_[replicaId], replicaId, clientId, reqSeqNum);
   preProcessReplyMsg->setupMsgBody(buf, bufLen, "");
@@ -239,11 +334,8 @@ PreProcessReplyMsgSharedPtr preProcessNonPrimary(NodeIdType replicaId, const bft
 }
 
 TEST(requestPreprocessingInfo_test, notEnoughRepliesReceived) {
-  RequestProcessingInfo reqInfo(replicaConfig.numReplicas,
-                                numOfRequiredReplies,
-                                reqSeqNum,
-                                ClientPreProcessReqMsgUniquePtr(),
-                                PreProcessRequestMsgSharedPtr());
+  RequestProcessingInfo reqInfo(
+      replicaConfig.numReplicas, reqSeqNum, ClientPreProcessReqMsgUniquePtr(), PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   for (auto i = 1; i < numOfRequiredReplies; i++) {
     reqInfo.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
@@ -254,11 +346,8 @@ TEST(requestPreprocessingInfo_test, notEnoughRepliesReceived) {
 }
 
 TEST(requestPreprocessingInfo_test, allRepliesReceivedButNotEnoughSameHashesCollected) {
-  RequestProcessingInfo reqInfo(replicaConfig.numReplicas,
-                                numOfRequiredReplies,
-                                reqSeqNum,
-                                ClientPreProcessReqMsgUniquePtr(),
-                                PreProcessRequestMsgSharedPtr());
+  RequestProcessingInfo reqInfo(
+      replicaConfig.numReplicas, reqSeqNum, ClientPreProcessReqMsgUniquePtr(), PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   reqInfo.handlePrimaryPreProcessed(buf, bufLen);
@@ -271,11 +360,8 @@ TEST(requestPreprocessingInfo_test, allRepliesReceivedButNotEnoughSameHashesColl
 }
 
 TEST(requestPreprocessingInfo_test, enoughSameRepliesReceived) {
-  RequestProcessingInfo reqInfo(replicaConfig.numReplicas,
-                                numOfRequiredReplies,
-                                reqSeqNum,
-                                ClientPreProcessReqMsgUniquePtr(),
-                                PreProcessRequestMsgSharedPtr());
+  RequestProcessingInfo reqInfo(
+      replicaConfig.numReplicas, reqSeqNum, ClientPreProcessReqMsgUniquePtr(), PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   for (auto i = 1; i <= numOfRequiredReplies; i++) {
@@ -287,11 +373,8 @@ TEST(requestPreprocessingInfo_test, enoughSameRepliesReceived) {
 }
 
 TEST(requestPreprocessingInfo_test, primaryReplicaPreProcessingRetrySucceeds) {
-  RequestProcessingInfo reqInfo(replicaConfig.numReplicas,
-                                numOfRequiredReplies,
-                                reqSeqNum,
-                                ClientPreProcessReqMsgUniquePtr(),
-                                PreProcessRequestMsgSharedPtr());
+  RequestProcessingInfo reqInfo(
+      replicaConfig.numReplicas, reqSeqNum, ClientPreProcessReqMsgUniquePtr(), PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   reqInfo.handlePrimaryPreProcessed(buf, bufLen);
@@ -307,11 +390,8 @@ TEST(requestPreprocessingInfo_test, primaryReplicaPreProcessingRetrySucceeds) {
 }
 
 TEST(requestPreprocessingInfo_test, primaryReplicaDidNotCompletePreProcessingWhileNonPrimariesDid) {
-  RequestProcessingInfo reqInfo(replicaConfig.numReplicas,
-                                numOfRequiredReplies,
-                                reqSeqNum,
-                                ClientPreProcessReqMsgUniquePtr(),
-                                PreProcessRequestMsgSharedPtr());
+  RequestProcessingInfo reqInfo(
+      replicaConfig.numReplicas, reqSeqNum, ClientPreProcessReqMsgUniquePtr(), PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   for (auto i = 1; i <= numOfRequiredReplies; i++) {
@@ -344,87 +424,14 @@ TEST(requestPreprocessingInfo_test, clientPreProcessMessageConversion) {
   Assert(memcmp(clientReqMsg->requestBuf(), buf, bufLen) == 0);
 }
 
-class DummyRequestsHandler : public IRequestsHandler {
-  int execute(uint16_t client,
-              uint64_t sequenceNum,
-              uint8_t flags,
-              uint32_t requestSize,
-              const char* request,
-              uint32_t maxReplySize,
-              char* outReply,
-              uint32_t& outActualReplySize) {
-    outActualReplySize = 256;
-    return 0;
-  }
-};
-
-class DummyReplica : public InternalReplicaApi {
- public:
-  DummyReplica(const bftEngine::impl::ReplicasInfo& replicasInfo) : replicasInfo_(replicasInfo) {}
-
-  void onPrepareCombinedSigFailed(SeqNum seqNumber, ViewNum view, const set<uint16_t>& replicasWithBadSigs) {}
-  void onPrepareCombinedSigSucceeded(SeqNum seqNumber, ViewNum view, const char* combinedSig, uint16_t combinedSigLen) {
-  }
-  void onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) {}
-
-  void onCommitCombinedSigFailed(SeqNum seqNumber, ViewNum view, const set<uint16_t>& replicasWithBadSigs) {}
-  void onCommitCombinedSigSucceeded(SeqNum seqNumber, ViewNum view, const char* combinedSig, uint16_t combinedSigLen) {}
-  void onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) {}
-
-  void onInternalMsg(FullCommitProofMsg* m) {}
-  void onMerkleExecSignature(ViewNum view, SeqNum seqNum, uint16_t signatureLength, const char* signature) {}
-
-  void onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqNum,
-                                          const ViewNum relatedViewNumber,
-                                          const forward_list<RetSuggestion>* const suggestedRetransmissions) {}
-
-  const bftEngine::impl::ReplicasInfo& getReplicasInfo() const { return replicasInfo_; }
-  bool isValidClient(NodeIdType client) const { return true; }
-  bool isIdOfReplica(NodeIdType id) const { return true; }
-  const set<ReplicaId>& getIdsOfPeerReplicas() const { return replicaIds_; }
-  ViewNum getCurrentView() const { return 0; }
-  ReplicaId currentPrimary() const { return 0; }
-  bool isCurrentPrimary() const { return true; }
-  bool currentViewIsActive() const { return true; }
-  ReqId seqNumberOfLastReplyToClient(NodeIdType client) const { return 1; }
-
-  IncomingMsgsStorage& getIncomingMsgsStorage() { return *incomingMsgsStorage_; }
-  util::SimpleThreadPool& getInternalThreadPool() { return pool_; }
-
-  void updateMetricsForInternalMessage() {}
-  bool isCollectingState() const { return false; }
-
-  const ReplicaConfig& getReplicaConfig() const { return replicaConfig; }
-
-  IThresholdVerifier* getThresholdVerifierForExecution() { return nullptr; }
-  IThresholdVerifier* getThresholdVerifierForSlowPathCommit() { return nullptr; }
-  IThresholdVerifier* getThresholdVerifierForCommit() { return nullptr; }
-  IThresholdVerifier* getThresholdVerifierForOptimisticCommit() { return nullptr; }
-
- private:
-  IncomingMsgsStorage* incomingMsgsStorage_;
-  util::SimpleThreadPool pool_;
-  bftEngine::impl::ReplicasInfo replicasInfo_;
-  set<ReplicaId> replicaIds_;
-};
-
 TEST(requestPreprocessingInfo_test, requestTimedOut) {
   setUpConfiguration_7();
 
-  unordered_map<NodeNum, NodeInfo> nodes;
-  TlsTcpConfig configuration("128.0.0.1", 1234, 4096, nodes, 7, 4, "", "", nullptr);
-  shared_ptr<IncomingMsgsStorage> msgsStorage;
-  shared_ptr<IReceiver> msgReceiver;
-  auto msgsCommunicator = make_shared<MsgsCommunicator>(CommFactory::create(configuration), msgsStorage, msgReceiver);
-
-  DummyRequestsHandler requestsHandler;
-  auto* msgHandlersReg = new MsgHandlersRegistrator;
-  shared_ptr<MsgHandlersRegistrator> msgHandlersRegPtr(msgHandlersReg);
   bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig, false, false);
   DummyReplica replica(replicasInfo);
   PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica);
 
-  auto msgHandlerCallback = msgHandlersReg->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
+  auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
   auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
   msgHandlerCallback(clientReqMsg);
   Assert(preProcessor.getOngoingReqIdForClient(clientId) == reqSeqNum);
@@ -433,11 +440,56 @@ TEST(requestPreprocessingInfo_test, requestTimedOut) {
   Assert(preProcessor.getOngoingReqIdForClient(clientId) == 0);
 }
 
+TEST(requestPreprocessingInfo_test, primaryCrashDetected) {
+  setUpConfiguration_7();
+
+  bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig, false, false);
+  DummyReplica replica(replicasInfo);
+  replica.setPrimary(false);
+  replicaConfig.preExecReqStatusCheckTimerMillisec = 0;  // Disable
+  PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica);
+
+  auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
+  auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, 0, cid);
+  msgHandlerCallback(clientReqMsg);
+  Assert(preProcessor.getOngoingReqIdForClient(clientId) == reqSeqNum);
+
+  usleep(preProcessReqWaitTimeMilli * 1000);
+  TimersSingleton::getInstance().evaluate();
+  Assert(preProcessor.getOngoingReqIdForClient(clientId) == 0);
+}
+
+TEST(requestPreprocessingInfo_test, primaryCrashNotDetected) {
+  setUpConfiguration_7();
+
+  bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig, false, false);
+  DummyReplica replica(replicasInfo);
+  replica.setPrimary(false);
+  replicaConfig.preExecReqStatusCheckTimerMillisec = 0;  // Disable
+  replicaConfig.replicaId = replica_1;
+  PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica);
+
+  auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
+  auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, 0, cid);
+  msgHandlerCallback(clientReqMsg);
+  Assert(preProcessor.getOngoingReqIdForClient(clientId) == reqSeqNum);
+
+  auto* preProcessReqMsg = new PreProcessRequestMsg(replica.currentPrimary(), clientId, reqSeqNum, bufLen, buf, cid);
+  msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::PreProcessRequest);
+  msgHandlerCallback(preProcessReqMsg);
+  usleep(preProcessReqWaitTimeMilli * 1000 / 2);  // Wait for the pre-execution completion
+  Assert(preProcessor.getOngoingReqIdForClient(clientId) == 0);
+}
+
 }  // end namespace
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   setUpConfiguration_4();
+  RequestProcessingInfo::init(numOfRequiredReplies, preProcessReqWaitTimeMilli);
+  const chrono::milliseconds msgTimeOut(20000);
+  msgsStorage = make_shared<IncomingMsgsStorageImp>(msgHandlersRegPtr, msgTimeOut, replicaConfig.replicaId);
+  setUpCommunication();
   int res = RUN_ALL_TESTS();
   return res;
 }
