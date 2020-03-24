@@ -34,6 +34,7 @@ add_test(sparse_merkle_base_types_test sparse_merkle_base_types_test)
 target_link_libraries(sparse_merkle_base_types_test PUBLIC
     GTest::Main
     GTest::GTest
+    corebft
     kvbc
 )
 
@@ -44,6 +45,7 @@ add_test(sparse_merkle_internal_node_test sparse_merkle_internal_node_test)
 target_link_libraries(sparse_merkle_internal_node_test PUBLIC
     GTest::Main
     GTest::GTest
+    corebft
     kvbc
     ${OPENSSL_LIBRARIES}
 )
@@ -67,4 +69,5 @@ target_link_libraries(multiIO_test PUBLIC
     GTest::GTest
     util
     kvbc
+    corebft
 )

@@ -26,7 +26,7 @@
 #include "Logger.hpp"
 #include "rocksdb/key_comparator.h"
 #include "rocksdb/client.h"
-#include "DbMetadataStorage.hpp"
+#include "bftengine/DbMetadataStorage.hpp"
 #include "block.h"
 #include "db_adapter.h"
 

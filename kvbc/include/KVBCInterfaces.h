@@ -15,11 +15,11 @@
 
 #include "status.hpp"
 #include "sliver.hpp"
-#include "ICommunication.hpp"
+#include "bftengine/ICommunication.hpp"
 #include "Metrics.hpp"
 #include "storage/db_interface.h"
 #include "db_interfaces.h"
-#include "Replica.hpp"
+#include "bftengine/Replica.hpp"
 #include "kv_types.hpp"
 
 namespace concord {

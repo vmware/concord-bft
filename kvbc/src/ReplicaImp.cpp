@@ -14,14 +14,14 @@
 #include <cassert>
 #include <chrono>
 #include <cstdlib>
-#include "CommDefs.hpp"
+#include "communication/CommDefs.hpp"
 #include "kv_types.hpp"
 #include "hex_tools.h"
 #include "replica_state_sync.h"
 #include "sliver.hpp"
 #include "db_interfaces.h"
 #include "block.h"
-#include "DbMetadataStorage.hpp"
+#include "bftengine/DbMetadataStorage.hpp"
 
 using bftEngine::ICommunication;
 using bftEngine::SimpleBlockchainStateTransfer::BLOCK_DIGEST_SIZE;

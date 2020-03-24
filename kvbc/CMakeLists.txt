@@ -17,9 +17,10 @@ add_library(kvbc  src/ClientImp.cpp
                   src/sparse_merkle/walker.cpp
 )
 
-target_link_libraries(kvbc PUBLIC corebft threshsign util )
+target_link_libraries(kvbc PUBLIC threshsign util concordbft_storage)
 
 target_include_directories(kvbc PUBLIC include)
+target_include_directories(kvbc PUBLIC ${bftengine_SOURCE_DIR}/include)
 
 find_package(OpenSSL REQUIRED)
 target_link_libraries(kvbc PRIVATE ${OPENSSL_LIBRARIES})

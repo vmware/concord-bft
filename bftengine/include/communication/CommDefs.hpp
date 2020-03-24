@@ -27,7 +27,7 @@
 #include <stdint.h>
 #include <memory>
 #include <unordered_map>
-#include "ICommunication.hpp"
+#include "bftengine/ICommunication.hpp"
 #include "StatusInfo.h"
 
 typedef struct sockaddr_in Addr;

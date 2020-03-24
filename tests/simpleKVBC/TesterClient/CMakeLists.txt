@@ -19,8 +19,8 @@ if(${USE_COMM_TLS_TCP})
 endif()
 
 target_link_libraries(skvbc_client LINK_PUBLIC threshsign 
+                                               kvbc
                                                corebft
-                                               kvbc               # TODO [TK] TMP
                                                concordbft_storage 
                                                util 
                                                test_config_lib 

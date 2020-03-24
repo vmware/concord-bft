@@ -9,19 +9,19 @@
 #include <string>
 #include <atomic>
 
-#include "CommFactory.hpp"
-#include "ICommunication.hpp"
-#include "Replica.hpp"
-#include "ReplicaConfig.hpp"
-#include "SimpleBCStateTransfer.hpp"
-#include "StatusInfo.h"
+#include "bftengine/ICommunication.hpp"
+#include "communication/CommFactory.hpp"
+#include "bftengine/Replica.hpp"
+#include "bftengine/ReplicaConfig.hpp"
+#include "bcstatetransfer/SimpleBCStateTransfer.hpp"
+#include "communication/StatusInfo.h"
 #include "Logger.hpp"
 #include "KVBCInterfaces.h"
 #include "replica_state_sync_imp.hpp"
 #include "db_adapter.h"
 #include "db_interfaces.h"
 #include "memorydb/client.h"
-#include "DbMetadataStorage.hpp"
+#include "bftengine/DbMetadataStorage.hpp"
 
 namespace concord {
 namespace kvbc {
