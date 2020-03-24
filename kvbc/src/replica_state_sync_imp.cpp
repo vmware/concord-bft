@@ -13,7 +13,7 @@
 //
 
 #include "replica_state_sync_imp.hpp"
-#include "storage/db_metadata_storage.h"
+#include "DbMetadataStorage.hpp"
 #include "block_metadata.hpp"
 
 using concord::storage::blockchain::DBAdapter;

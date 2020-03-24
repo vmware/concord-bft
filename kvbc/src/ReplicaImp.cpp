@@ -19,9 +19,9 @@
 #include "hex_tools.h"
 #include "replica_state_sync.h"
 #include "sliver.hpp"
-#include "blockchain/db_interfaces.h"
-#include "blockchain/block.h"
-#include "storage/db_metadata_storage.h"
+#include "db_interfaces.h"
+#include "block.h"
+#include "DbMetadataStorage.hpp"
 
 using bftEngine::ICommunication;
 using bftEngine::SimpleBlockchainStateTransfer::BLOCK_DIGEST_SIZE;

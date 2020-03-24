@@ -18,10 +18,10 @@
 #include "Logger.hpp"
 #include "KVBCInterfaces.h"
 #include "replica_state_sync_imp.hpp"
-#include "blockchain/db_adapter.h"
-#include "blockchain/db_interfaces.h"
+#include "db_adapter.h"
+#include "db_interfaces.h"
 #include "memorydb/client.h"
-#include "storage/db_metadata_storage.h"
+#include "DbMetadataStorage.hpp"
 
 namespace concord {
 namespace kvbc {

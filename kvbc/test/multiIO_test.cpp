@@ -10,7 +10,7 @@
 #include "rocksdb/key_comparator.h"
 #include "rocksdb/client.h"
 #include "kv_types.hpp"
-#include "blockchain/db_adapter.h"
+#include "db_adapter.h"
 
 using namespace std;
 

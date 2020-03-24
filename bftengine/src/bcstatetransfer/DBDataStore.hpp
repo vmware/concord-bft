@@ -20,7 +20,7 @@
 #include "STDigest.hpp"
 #include "Logger.hpp"
 #include "InMemoryDataStore.hpp"
-#include "blockchain/db_adapter.h"
+#include "db_adapter.h"
 
 namespace bftEngine {
 namespace SimpleBlockchainStateTransfer {

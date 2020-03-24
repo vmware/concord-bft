@@ -1,8 +1,8 @@
-#include "blockchain/merkle_tree_block.h"
+#include "merkle_tree_block.h"
 
 #include "assertUtils.hpp"
-#include "blockchain/direct_kv_block.h"
-#include "blockchain/merkle_tree_serialization.h"
+#include "direct_kv_block.h"
+#include "merkle_tree_serialization.h"
 
 #include <cstdint>
 

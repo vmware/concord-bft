@@ -18,7 +18,7 @@
 #include "ICommunication.hpp"
 #include "Metrics.hpp"
 #include "storage/db_interface.h"
-#include "blockchain/db_interfaces.h"
+#include "db_interfaces.h"
 #include "Replica.hpp"
 #include "kv_types.hpp"
 

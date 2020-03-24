@@ -26,9 +26,9 @@
 #include "Logger.hpp"
 #include "rocksdb/key_comparator.h"
 #include "rocksdb/client.h"
-#include "storage/db_metadata_storage.h"
-#include "blockchain/block.h"
-#include "blockchain/db_adapter.h"
+#include "DbMetadataStorage.hpp"
+#include "block.h"
+#include "db_adapter.h"
 
 using namespace bftEngine;
 using namespace std;

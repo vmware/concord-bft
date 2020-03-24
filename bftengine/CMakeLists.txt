@@ -34,6 +34,7 @@ set(corebft_source_files
     src/bftengine/SerializableActiveWindow.cpp
     src/bftengine/MsgsCommunicator.cpp
     src/bftengine/MsgReceiver.cpp
+    src/bftengine/DbMetadataStorage.cpp
     src/communication/PlainUDPCommunication.cpp
     src/communication/CommFactory.cpp
     src/bcstatetransfer/BCStateTran.cpp
@@ -120,6 +121,9 @@ target_include_directories(bftclient PUBLIC include/bftengine)
 target_include_directories(bftclient PUBLIC include/communication)
 target_include_directories(bftclient PUBLIC src/bftengine)
 target_include_directories(bftclient PUBLIC src/preprocessor)
+
+# TODO [TK] TEMPORARY - WILL BE REMOVED AFTER DBADAPTER REFACTORING !!!
+target_include_directories(corebft PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../kvbc/include)
 
 target_link_libraries(corebft PUBLIC threshsign)
 target_link_libraries(corebft PUBLIC Threads::Threads)

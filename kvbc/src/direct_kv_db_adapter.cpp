@@ -16,9 +16,9 @@
 #include "sliver.hpp"
 #include "status.hpp"
 #include "kv_types.hpp"
-#include "blockchain/block.h"
-#include "blockchain/db_interfaces.h"
-#include "blockchain/direct_kv_db_adapter.h"
+#include "block.h"
+#include "db_interfaces.h"
+#include "direct_kv_db_adapter.h"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 
 #include <string.h>

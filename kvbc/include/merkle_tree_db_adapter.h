@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include "blockchain/base_db_adapter.h"
-#include "blockchain/db_types.h"
+#include "base_db_adapter.h"
+#include "db_types.h"
 #include "kv_types.hpp"
 #include "sliver.hpp"
 #include "sparse_merkle/base_types.h"

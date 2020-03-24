@@ -18,7 +18,7 @@
 #include "test_replica.hpp"
 #include "Logger.hpp"
 #include "DBDataStore.hpp"
-#include "blockchain/db_adapter.h"
+#include "db_adapter.h"
 #include "memorydb/client.h"
 
 using concord::storage::ITransaction;

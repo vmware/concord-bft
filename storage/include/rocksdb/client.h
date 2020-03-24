@@ -20,7 +20,6 @@
 #ifdef USE_ROCKSDB
 #include "Logger.hpp"
 #include <rocksdb/utilities/transaction_db.h>
-#include "kv_types.hpp"
 #include "storage/db_interface.h"
 
 namespace concord {
@@ -37,11 +36,11 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
   ~ClientIterator() { delete m_iter; }
 
   // Inherited via IDBClientIterator
-  concord::kvbc::KeyValuePair first() override;
-  concord::kvbc::KeyValuePair last() override;
-  concord::kvbc::KeyValuePair seekAtLeast(const concordUtils::Sliver& _searchKey) override;
-  concord::kvbc::KeyValuePair seekAtMost(const concordUtils::Sliver& _searchKey) override;
-  concord::kvbc::KeyValuePair previous() override;
+  KeyValuePair first() override;
+  KeyValuePair last() override;
+  KeyValuePair seekAtLeast(const concordUtils::Sliver& _searchKey) override;
+  KeyValuePair seekAtMost(const concordUtils::Sliver& _searchKey) override;
+  KeyValuePair previous() override;
   KeyValuePair next() override;
   KeyValuePair getCurrent() override;
   bool isEnd() override;

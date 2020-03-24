@@ -1,4 +1,4 @@
-#include "blockchain/block.h"
+#include "block.h"
 #include "kv_types.hpp"
 #include "Logger.hpp"
 

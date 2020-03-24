@@ -11,7 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "storage/db_metadata_storage.h"
+#include "DbMetadataStorage.hpp"
 
 #include <cstring>
 #include <exception>

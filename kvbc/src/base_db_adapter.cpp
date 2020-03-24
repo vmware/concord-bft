@@ -1,7 +1,7 @@
 // Copyright 2020 VMware, all rights reserved
 
-#include "blockchain/base_db_adapter.h"
-#include "blockchain/db_types.h"
+#include "base_db_adapter.h"
+#include "db_types.h"
 #include "kv_types.hpp"
 #include "Logger.hpp"
 

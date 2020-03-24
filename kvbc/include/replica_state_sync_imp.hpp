@@ -15,8 +15,8 @@
 #pragma once
 
 #include "replica_state_sync.h"
-#include "blockchain/db_adapter.h"
-#include "blockchain/db_types.h"
+#include "db_adapter.h"
+#include "db_types.h"
 
 namespace concord {
 namespace kvbc {

@@ -9,7 +9,7 @@
 
 #include "sliver.hpp"
 #include "Logger.hpp"
-#include "blockchain/db_interfaces.h"
+#include "db_interfaces.h"
 
 namespace concord {
 namespace kvbc {

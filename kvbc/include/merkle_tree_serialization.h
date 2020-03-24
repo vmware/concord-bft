@@ -14,9 +14,9 @@
 #pragma once
 
 #include <assertUtils.hpp>
-#include "blockchain/db_types.h"
-#include "blockchain/merkle_tree_db_adapter.h"
-#include "blockchain/merkle_tree_block.h"
+#include "db_types.h"
+#include "merkle_tree_db_adapter.h"
+#include "merkle_tree_block.h"
 #include "endianness.hpp"
 #include "sliver.hpp"
 #include "sparse_merkle/base_types.h"

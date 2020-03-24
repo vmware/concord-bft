@@ -1,3 +1,4 @@
 add_subdirectory(simpleStorage)
 add_subdirectory(bcstatetransfer)
 add_subdirectory(testSerialization)
+add_subdirectory(metadataStorage)

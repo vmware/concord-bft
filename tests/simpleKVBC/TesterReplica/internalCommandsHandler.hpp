@@ -17,7 +17,7 @@
 #include "Logger.hpp"
 #include "sliver.hpp"
 #include "simpleKVBTestsBuilder.hpp"
-#include "blockchain/db_interfaces.h"
+#include "db_interfaces.h"
 #include "KVBCInterfaces.h"
 #include "block_metadata.hpp"
 

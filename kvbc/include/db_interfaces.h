@@ -9,6 +9,7 @@
 #include "sliver.hpp"
 #include "status.hpp"
 #include "storage/db_interface.h"
+#include "kv_types.hpp"
 
 using std::pair;
 using std::string;

@@ -9,7 +9,7 @@
 #include "Logger.hpp"
 #include "sliver.hpp"
 #include "storage/db_interface.h"
-#include "blockchain/db_types.h"
+#include "db_types.h"
 
 #include <iostream>
 #include <utility>

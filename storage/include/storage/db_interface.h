@@ -4,7 +4,8 @@
 
 #include "sliver.hpp"
 #include "status.hpp"
-#include "kv_types.hpp"
+#include <unordered_map>
+#include <vector>
 
 #define OUT
 
@@ -13,10 +14,11 @@ namespace storage {
 
 using concordUtils::Sliver;
 using concordUtils::Status;
-using concord::kvbc::KeysVector;
-using concord::kvbc::ValuesVector;
-using concord::kvbc::KeyValuePair;
-using concord::kvbc::SetOfKeyValuePairs;
+
+typedef std::pair<Sliver, Sliver> KeyValuePair;
+typedef std::unordered_map<Sliver, Sliver> SetOfKeyValuePairs;
+typedef std::vector<Sliver> KeysVector;
+typedef std::vector<Sliver> ValuesVector;
 
 class ITransaction {
  public:

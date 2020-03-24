@@ -9,10 +9,8 @@
 #include "gtest/gtest.h"
 #include "rocksdb/key_comparator.h"
 #include "rocksdb/client.h"
-#include "storage/db_metadata_storage.h"
-#include "blockchain/db_types.h"
-#include "blockchain/db_adapter.h"
-#include "bftengine/MetadataStorage.hpp"
+#include "DbMetadataStorage.hpp"
+#include "db_adapter.h"
 
 using namespace std;
 
