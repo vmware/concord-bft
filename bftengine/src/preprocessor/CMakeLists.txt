@@ -12,7 +12,7 @@ set(preprocessor_source_files
     ${bftengine_SOURCE_DIR}/src/bftengine/messages/ClientRequestMsg.cpp
     ${bftengine_SOURCE_DIR}/src/bftengine/messages/MessageBase.cpp
     PreProcessor.cpp
-    RequestProcessingInfo.cpp
+    RequestProcessingState.cpp
     messages/ClientPreProcessRequestMsg.cpp
     messages/PreProcessRequestMsg.cpp
     messages/PreProcessReplyMsg.cpp)

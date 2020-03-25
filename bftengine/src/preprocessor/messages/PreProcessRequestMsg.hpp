@@ -29,8 +29,6 @@ struct PreProcessRequestMsgHeader {
 
 class PreProcessRequestMsg : public MessageBase {
  public:
-  PreProcessRequestMsg(
-      NodeIdType senderId, uint16_t clientId, uint64_t reqSeqNum, uint32_t reqLength, const char* request);
   PreProcessRequestMsg(NodeIdType senderId,
                        uint16_t clientId,
                        uint64_t reqSeqNum,
@@ -43,8 +41,7 @@ class PreProcessRequestMsg : public MessageBase {
   const uint32_t requestLength() const { return msgBody()->requestLength; }
   const uint16_t clientId() const { return msgBody()->clientId; }
   const SeqNum reqSeqNum() const { return msgBody()->reqSeqNum; }
-
-  std::string getCid();
+  std::string getCid() const;
 
  private:
   void setParams(NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum, uint32_t reqLength);
