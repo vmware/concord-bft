@@ -2,10 +2,10 @@
 
 #include <assertUtils.hpp>
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
-#include "blockchain/db_types.h"
-#include "blockchain/merkle_tree_block.h"
-#include "blockchain/merkle_tree_db_adapter.h"
-#include "blockchain/merkle_tree_serialization.h"
+#include "storage/db_types.h"
+#include "merkle_tree_block.h"
+#include "merkle_tree_db_adapter.h"
+#include "merkle_tree_serialization.h"
 #include "endianness.hpp"
 #include "Logger.hpp"
 #include "sparse_merkle/update_batch.h"
@@ -13,6 +13,7 @@
 #include "sparse_merkle/keys.h"
 #include "sliver.hpp"
 #include "status.hpp"
+#include "hex_tools.h"
 
 #include <exception>
 #include <limits>
@@ -29,11 +30,13 @@ namespace {
 
 using BlockNode = block::detail::Node;
 using BlockKeyData = block::detail::KeyData;
+using BlockId = concord::kvbc::BlockId;
 
 using ::concordUtils::fromBigEndianBuffer;
 using ::concord::kvbc::Key;
 using ::concordUtils::Sliver;
 using ::concordUtils::Status;
+using ::concordUtils::HexPrintBuffer;
 
 using ::bftEngine::SimpleBlockchainStateTransfer::computeBlockDigest;
 using ::bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest;

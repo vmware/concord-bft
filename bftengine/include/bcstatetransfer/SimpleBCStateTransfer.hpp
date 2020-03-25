@@ -18,7 +18,7 @@
 #include <set>
 #include <memory>
 
-#include "IStateTransfer.hpp"
+#include "bftengine/IStateTransfer.hpp"
 #include "Metrics.hpp"
 
 namespace concord {

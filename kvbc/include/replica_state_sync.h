@@ -15,12 +15,11 @@
 
 #pragma once
 
+#include "storage/db_types.h"
 #include "Logger.hpp"
-#include "blockchain/db_adapter.h"
-#include "blockchain/db_types.h"
+#include "db_adapter.h"
 
-namespace concord {
-namespace kvbc {
+namespace concord::kvbc {
 
 class IBlockMetadata;
 
@@ -30,10 +29,9 @@ class ReplicaStateSync {
 
   // Synchronizes replica state and returns a number of deleted blocks.
   virtual uint64_t execute(concordlogger::Logger& logger,
-                           concord::storage::blockchain::DBAdapter& bcDBAdapter,
-                           concord::storage::blockchain::BlockId lastReachableBlockId,
+                           DBAdapter& bcDBAdapter,
+                           BlockId lastReachableBlockId,
                            uint64_t lastExecutedSeqNum) = 0;
 };
 
-}  // namespace kvbc
-}  // namespace concord
+}  // namespace concord::kvbc

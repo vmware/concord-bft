@@ -15,8 +15,7 @@
 #pragma once
 
 #include "replica_state_sync.h"
-#include "blockchain/db_adapter.h"
-#include "blockchain/db_types.h"
+#include "db_adapter.h"
 
 namespace concord {
 namespace kvbc {
@@ -27,8 +26,8 @@ class ReplicaStateSyncImp : public ReplicaStateSync {
   ~ReplicaStateSyncImp() override = default;
 
   uint64_t execute(concordlogger::Logger& logger,
-                   concord::storage::blockchain::DBAdapter& bcDBAdapter,
-                   concord::storage::blockchain::BlockId lastReachableBlockId,
+                   DBAdapter& bcDBAdapter,
+                   BlockId lastReachableBlockId,
                    uint64_t lastExecutedSeqNum) override;
 
  protected:

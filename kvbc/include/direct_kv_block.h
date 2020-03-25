@@ -22,8 +22,7 @@
 #include <utility>
 
 namespace concord {
-namespace storage {
-namespace blockchain {
+namespace kvbc {
 inline namespace v1DirectKeyValue {
 namespace block {
 inline constexpr auto BLOCK_DIGEST_SIZE = bftEngine::SimpleBlockchainStateTransfer::BLOCK_DIGEST_SIZE;
@@ -69,6 +68,5 @@ struct Entry {
 }  // namespace block
 
 }  // namespace v1DirectKeyValue
-}  // namespace blockchain
-}  // namespace storage
+}  // namespace kvbc
 }  // namespace concord

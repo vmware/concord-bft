@@ -18,11 +18,10 @@
 #include "test_replica.hpp"
 #include "Logger.hpp"
 #include "DBDataStore.hpp"
-#include "blockchain/db_adapter.h"
+#include "db_adapter.h"
 #include "memorydb/client.h"
 
 using concord::storage::ITransaction;
-using concord::storage::blockchain::DBKeyComparator;
 
 #ifdef USE_ROCKSDB
 #include "rocksdb/client.h"
@@ -57,7 +56,7 @@ class BcStTest : public ::testing::Test {
     //      log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("rocksdb")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
 
     config_ = TestConfig();
-    auto* db_key_comparator = new concord::storage::blockchain::DBKeyComparator();
+    auto* db_key_comparator = new concord::kvbc::DBKeyComparator();
 #ifdef USE_ROCKSDB
     concord::storage::IDBClient::ptr dbc(
         new concord::storage::rocksdb::Client("./bcst_db", new KeyComparator(db_key_comparator)));

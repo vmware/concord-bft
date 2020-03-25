@@ -21,7 +21,6 @@
 #include "SimpleBCStateTransfer.hpp"
 #include "memorydb/client.h"
 #include "memorydb/key_comparator.h"
-#include "blockchain/db_adapter.h"
 #include "Logger.hpp"
 
 namespace bftEngine {
@@ -279,7 +278,7 @@ SimpleStateTran::SimpleStateTran(
   config.cVal = cVal;
   config.numReplicas = 3 * fVal + 2 * cVal + 1;
   config.pedanticChecks = pedanticChecks;
-  auto comparator = concord::storage::memorydb::KeyComparator(new concord::storage::blockchain::DBKeyComparator());
+  auto comparator = concord::storage::memorydb::KeyComparator();
   concord::storage::IDBClient::ptr db(new concord::storage::memorydb::Client(comparator));
   internalST_ = SimpleBlockchainStateTransfer::create(config, &dummyBDState_, db);
 

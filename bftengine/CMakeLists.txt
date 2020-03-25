@@ -34,6 +34,7 @@ set(corebft_source_files
     src/bftengine/SerializableActiveWindow.cpp
     src/bftengine/MsgsCommunicator.cpp
     src/bftengine/MsgReceiver.cpp
+    src/bftengine/DbMetadataStorage.cpp
     src/communication/PlainUDPCommunication.cpp
     src/communication/CommFactory.cpp
     src/bcstatetransfer/BCStateTran.cpp

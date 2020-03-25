@@ -28,8 +28,8 @@ set(simpleTest_replica_source_files
 )
 
 add_executable(simpleTest_server 
-			   $<TARGET_OBJECTS:logging_dev>
-   			   ${simpleTest_replica_source_files}
+               $<TARGET_OBJECTS:logging_dev>
+               ${simpleTest_replica_source_files}
 )
 
 target_include_directories(simpleTest_server
@@ -42,7 +42,8 @@ target_include_directories(simpleTest_server
                            ${bftengine_SOURCE_DIR}/include
 )
 
-target_link_libraries(simpleTest_server PUBLIC corebft simple_file_storage_lib test_config_lib)
+target_link_libraries(simpleTest_server PUBLIC corebft 
+ simple_file_storage_lib test_config_lib)
 set_target_properties(simpleTest_server PROPERTIES OUTPUT_NAME server)
 
 # config test

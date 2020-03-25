@@ -16,10 +16,11 @@
 #include "sliver.hpp"
 #include "status.hpp"
 #include "kv_types.hpp"
-#include "blockchain/block.h"
-#include "blockchain/db_interfaces.h"
-#include "blockchain/direct_kv_db_adapter.h"
+#include "block.h"
+#include "db_interfaces.h"
+#include "direct_kv_db_adapter.h"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
+#include "hex_tools.h"
 
 #include <string.h>
 
@@ -32,16 +33,35 @@
 using concordlogger::Logger;
 using concordUtils::Status;
 using concordUtils::Sliver;
-using concord::kvbc::Key;
-using concord::kvbc::Value;
-using concord::kvbc::KeyValuePair;
+using concord::storage::ObjectId;
+using concordUtils::HexPrintBuffer;
 
-namespace concord {
-namespace storage {
-namespace blockchain {
-
+namespace concord::kvbc {
 inline namespace v1DirectKeyValue {
-using detail::EDBKeyType;
+/**
+ * @brief Helper function that generates a composite database Key of type Block.
+ *
+ * For such Database keys, the "key" component is an empty sliver.
+ *
+ * @param _blockid BlockId object of the block id that needs to be
+ *                 incorporated into the composite database key.
+ * @return Sliver object of the generated composite database key.
+ */
+Sliver KeyGenerator::blockKey(const BlockId &blockId) const {
+  return genDbKey(EDBKeyType::E_DB_KEY_TYPE_BLOCK, Sliver(), blockId);
+}
+
+/**
+ * @brief Helper function that generates a composite database Key of type Key.
+ *
+ * @param _key Sliver object of the "key" component.
+ * @param _blockid BlockId object of the block id that needs to be incorporated
+ *                 into the composite database Key.
+ * @return Sliver object of the generated composite database key.
+ */
+Sliver KeyGenerator::dataKey(const Key &key, const BlockId &blockId) const {
+  return genDbKey(EDBKeyType::E_DB_KEY_TYPE_KEY, key, blockId);
+}
 
 /*
  * If key a is smaller than key b, return a negative number; if larger, return a
@@ -119,7 +139,7 @@ int DBKeyComparator::composedKeyComparison(const char *_a_data,
  * @param _blockId BlockId object.
  * @return Sliver object of the generated composite database key.
  */
-Sliver DBKeyManipulator::genDbKey(EDBKeyType _type, const Key &_key, BlockId _blockId) {
+Sliver DBKeyManipulatorBase::genDbKey(EDBKeyType _type, const Key &_key, BlockId _blockId) {
   size_t sz = sizeof(EDBKeyType) + sizeof(BlockId) + _key.length();
   char *out = new char[sz];
   size_t offset = 0;
@@ -127,31 +147,6 @@ Sliver DBKeyManipulator::genDbKey(EDBKeyType _type, const Key &_key, BlockId _bl
   copyToAndAdvance(out, &offset, sz, (char *)_key.data(), _key.length());
   copyToAndAdvance(out, &offset, sz, (char *)&_blockId, sizeof(BlockId));
   return Sliver(out, sz);
-}
-
-/**
- * @brief Helper function that generates a composite database Key of type Block.
- *
- * For such Database keys, the "key" component is an empty sliver.
- *
- * @param _blockid BlockId object of the block id that needs to be
- *                 incorporated into the composite database key.
- * @return Sliver object of the generated composite database key.
- */
-Sliver DBKeyManipulator::genBlockDbKey(BlockId _blockId) {
-  return genDbKey(EDBKeyType::E_DB_KEY_TYPE_BLOCK, Sliver(), _blockId);
-}
-
-/**
- * @brief Helper function that generates a composite database Key of type Key.
- *
- * @param _key Sliver object of the "key" component.
- * @param _blockid BlockId object of the block id that needs to be incorporated
- *                 into the composite database Key.
- * @return Sliver object of the generated composite database key.
- */
-Sliver DBKeyManipulator::genDataDbKey(const Key &_key, BlockId _blockId) {
-  return genDbKey(EDBKeyType::E_DB_KEY_TYPE_KEY, _key, _blockId);
 }
 
 /**
@@ -443,7 +438,8 @@ std::pair<uint32_t, uint64_t> DBKeyManipulator::extractPageIdAndCheckpointFromKe
   return std::make_pair(pageId, chkp);
 }
 
-DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db, bool readOnly) : DBAdapterBase{db, readOnly} {}
+DBAdapter::DBAdapter(std::shared_ptr<storage::IDBClient> db, IDataKeyGenerator *keyGen, bool readOnly)
+    : DBAdapterBase{db, readOnly}, keyGen_(keyGen) {}
 
 Status DBAdapter::addBlock(const SetOfKeyValuePairs &kv, BlockId blockId) {
   bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest stDigest;
@@ -479,12 +475,12 @@ Status DBAdapter::addBlock(const concordUtils::Sliver &block, BlockId blockId) {
 Status DBAdapter::addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &_kvMap, BlockId _block, const Sliver &_blockRaw) {
   SetOfKeyValuePairs updatedKVMap;
   for (auto &it : _kvMap) {
-    Sliver composedKey = DBKeyManipulator::genDataDbKey(it.first, _block);
+    Sliver composedKey = keyGen_->dataKey(it.first, _block);
     LOG_TRACE(logger_,
               "Updating composed key " << composedKey << " with value " << it.second << " in block " << _block);
     updatedKVMap[composedKey] = it.second;
   }
-  updatedKVMap[DBKeyManipulator::genBlockDbKey(_block)] = _blockRaw;
+  updatedKVMap[keyGen_->blockKey(_block)] = _blockRaw;
   return db_->multiPut(updatedKVMap);
 }
 
@@ -500,7 +496,7 @@ Status DBAdapter::addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &_kvMap, Bl
  * @return Status of the operation.
  */
 Status DBAdapter::delKey(const Sliver &_key, BlockId _blockId) {
-  Sliver composedKey = DBKeyManipulator::genDataDbKey(_key, _blockId);
+  Sliver composedKey = keyGen_->dataKey(_key, _blockId);
   LOG_TRACE(logger_, "Deleting key " << _key << " block id " << _blockId);
   Status s = db_->del(composedKey);
   return s;
@@ -517,7 +513,7 @@ Status DBAdapter::delKey(const Sliver &_key, BlockId _blockId) {
  * @return Status of the operation.
  */
 Status DBAdapter::delBlock(BlockId _blockId) {
-  Sliver dbKey = DBKeyManipulator::genBlockDbKey(_blockId);
+  Sliver dbKey = keyGen_->blockKey(_blockId);
   Status s = db_->del(dbKey);
   return s;
 }
@@ -535,12 +531,11 @@ void DBAdapter::deleteBlockAndItsKeys(BlockId blockId) {
     const auto numOfElements = ((block::detail::Header *)blockRaw.data())->numberOfElements;
     auto *entries = (block::detail::Entry *)(blockRaw.data() + sizeof(block::detail::Header));
     for (size_t i = 0u; i < numOfElements; i++) {
-      keysVec.push_back(
-          DBKeyManipulator::genDataDbKey(Key(blockRaw, entries[i].keyOffset, entries[i].keySize), blockId));
+      keysVec.push_back(keyGen_->dataKey(Key(blockRaw, entries[i].keyOffset, entries[i].keySize), blockId));
     }
   }
   if (found) {
-    keysVec.push_back(DBKeyManipulator::genBlockDbKey(blockId));
+    keysVec.push_back(keyGen_->blockKey(blockId));
   }
   s = db_->multiDel(keysVec);
   if (!s.isOK()) {
@@ -568,9 +563,9 @@ Status DBAdapter::getKeyByReadVersion(BlockId readVersion,
                                       Sliver &outValue,
                                       BlockId &outBlock) const {
   LOG_TRACE(logger_, "Getting value of key " << key << " for read version " << readVersion);
-  IDBClient::IDBClientIterator *iter = db_->getIterator();
+  storage::IDBClient::IDBClientIterator *iter = db_->getIterator();
   Sliver foundKey, foundValue;
-  Sliver searchKey = DBKeyManipulator::genDataDbKey(key, readVersion);
+  Sliver searchKey = keyGen_->dataKey(key, readVersion);
   KeyValuePair p = iter->seekAtLeast(searchKey);
   foundKey = DBKeyManipulator::composedToSimple(p).first;
   foundValue = p.second;
@@ -610,7 +605,7 @@ Status DBAdapter::getKeyByReadVersion(BlockId readVersion,
  * @return Status of the operation.
  */
 Status DBAdapter::getBlockById(BlockId _blockId, Sliver &_blockRaw, bool &_found) const {
-  Sliver key = DBKeyManipulator::genBlockDbKey(_blockId);
+  Sliver key = keyGen_->blockKey(_blockId);
   Status s = db_->get(key, _blockRaw);
   if (s.isNotFound()) {
     _found = false;
@@ -621,319 +616,8 @@ Status DBAdapter::getBlockById(BlockId _blockId, Sliver &_blockRaw, bool &_found
   return s;
 }
 
-// TODO(BWF): is this still needed?
-/**
- * @brief Makes a copy of a Sliver object.
- *
- * @param _src Sliver object that needs to be copied.
- * @param _trg Sliver object that contains the result.
- */
-inline void CopyKey(Sliver _src, Sliver &_trg) { _trg = Sliver::copy(_src.data(), _src.length()); }
-
 // TODO(SG): Add status checks with getStatus() on iterator.
 // TODO(JGC): unserstand difference between .second and .data()
-/**
- * @brief Finds the first key with block version lesser than or equal to
- * readVersion.
- *
- * Iterates from the first key to find the key with block version lesser than or
- * equal to the readVersion.
- *
- * @param iter Iterator object.
- * @param readVersion The read version used for searching.
- * @param actualVersion The read version of the result.
- * @param isEnd True if end of the database is reached while iterating, else
- *              false.
- * @param _key The result's key.
- * @param _value The result's value.
- * @return Status NotFound if database is empty, OK otherwise.
- */
-Status DBAdapter::first(IDBClient::IDBClientIterator *iter,
-                        BlockId readVersion,
-                        OUT BlockId &actualVersion,
-                        OUT bool &isEnd,
-                        OUT Sliver &_key,
-                        OUT Sliver &_value) {
-  Key firstKey;
-  KeyValuePair p = DBKeyManipulator::composedToSimple(iter->first());
-  if (iter->isEnd()) {
-    m_isEnd = true;
-    isEnd = true;
-    return Status::NotFound("No keys");
-  } else {
-    CopyKey(p.first, firstKey);
-  }
-
-  bool foundKey = false;
-  Sliver value;
-  BlockId actualBlock = 0;
-  while (!iter->isEnd() && p.first == firstKey) {
-    BlockId currentBlock = DBKeyManipulator::extractBlockIdFromKey(iter->getCurrent().first);
-    if (currentBlock <= readVersion) {
-      value = p.second;
-      actualBlock = currentBlock;
-      foundKey = true;
-      p = DBKeyManipulator::composedToSimple(iter->next());
-    } else {
-      if (!foundKey) {
-        // If not found a key with actual block version < readVersion, then we
-        // consider the next key as the first key candidate.
-
-        // Start by exhausting the current key with all the newer blocks
-        // records:
-        while (!iter->isEnd() && p.first == firstKey) {
-          p = DBKeyManipulator::composedToSimple(iter->next());
-        }
-
-        if (iter->isEnd()) {
-          break;
-        }
-
-        CopyKey(p.first, firstKey);
-      } else {
-        // If we already found a suitable first key, we break when we find
-        // the maximal
-        break;
-      }
-    }
-  }
-
-  // It is possible all keys have actualBlock > readVersion (Actually, this
-  // sounds like data is corrupted in this case - unless we allow empty blocks)
-  if (iter->isEnd() && !foundKey) {
-    m_isEnd = true;
-    isEnd = true;
-    return Status::OK();
-  }
-
-  m_isEnd = false;
-  isEnd = false;
-  actualVersion = actualBlock;
-  _key = firstKey;
-  _value = value;
-  m_current = KeyValuePair(_key, _value);
-  return Status::OK();
-}
-
-/**
- * @brief Finds the first key greater than or equal to the search key with block
- * version lesser than or equal to readVersion.
- *
- * Iterates from the first key greater than or equal to the search key to find
- * the key with block version lesser than or equal to the readVersion.
- *
- * @param iter Iterator object.
- * @param _searchKey Sliver object of the search key.
- * @param _readVersion BlockId of the read version used for searching.
- * @param _actualVersion BlockId in which the version of the result is stored.
- * @param _key The result's key.
- * @param _value The result's value.
- * @param _isEnd True if end of the database is reached while iterating, else
- *               false.
- *  @return Status NotFound if search unsuccessful, OK otherwise.
- */
-// Only for data fields, i.e. E_DB_KEY_TYPE_KEY. It makes more sense to put data
-// second, and blocks first. Stupid optimization nevertheless
-Status DBAdapter::seekAtLeast(IDBClient::IDBClientIterator *iter,
-                              const Sliver &_searchKey,
-                              BlockId _readVersion,
-                              OUT BlockId &_actualVersion,
-                              OUT Sliver &_key,
-                              OUT Sliver &_value,
-                              OUT bool &_isEnd) {
-  Key searchKey = _searchKey;
-  BlockId actualBlock = 0;
-  Value value;
-  bool foundKey = false;
-  Sliver rocksKey = DBKeyManipulator::genDataDbKey(searchKey, _readVersion);
-  KeyValuePair p = DBKeyManipulator::composedToSimple(iter->seekAtLeast(rocksKey));
-
-  if (!iter->isEnd()) {
-    // p.first is src, searchKey is target
-    CopyKey(p.first, searchKey);
-  }
-
-  LOG_TRACE(
-      logger_,
-      "Searching " << _searchKey << " and currently iterator returned " << searchKey << " for rocks key " << rocksKey);
-
-  while (!iter->isEnd() && p.first == searchKey) {
-    BlockId currentBlockId = DBKeyManipulator::extractBlockIdFromKey(iter->getCurrent().first);
-
-    LOG_TRACE(logger_, "Considering key " << p.first << " with block ID " << currentBlockId);
-
-    if (currentBlockId <= _readVersion) {
-      LOG_TRACE(logger_, "Found with Block Id " << currentBlockId << " and value " << p.second);
-      value = p.second;
-      actualBlock = currentBlockId;
-      foundKey = true;
-      break;
-    } else {
-      LOG_TRACE(logger_, "Read version " << currentBlockId << " > " << _readVersion);
-      if (!foundKey) {
-        // If not found a key with actual block version < readVersion, then
-        // we consider the next key as the key candidate.
-        LOG_TRACE(logger_, "Find next key");
-
-        // Start by exhausting the current key with all the newer blocks
-        // records:
-        while (!iter->isEnd() && p.first == searchKey) {
-          p = DBKeyManipulator::composedToSimple(iter->next());
-        }
-
-        if (iter->isEnd()) {
-          break;
-        }
-
-        CopyKey(p.first, searchKey);
-
-        LOG_TRACE(logger_, "Found new search key " << searchKey);
-      } else {
-        // If we already found a suitable key, we break when we find the
-        // maximal
-        break;
-      }
-    }
-  }
-
-  if (iter->isEnd() && !foundKey) {
-    LOG_TRACE(logger_,
-              "Reached end of map without finding lower bound "
-              "key with suitable read version");
-    m_isEnd = true;
-    _isEnd = true;
-    return Status::NotFound("Did not find key with suitable read version");
-  }
-
-  m_isEnd = false;
-  _isEnd = false;
-  _actualVersion = actualBlock;
-  _key = searchKey;
-  _value = value;
-  LOG_TRACE(logger_,
-            "Returnign key " << _key << " value " << _value << " in actual block " << _actualVersion
-                             << ", read version " << _readVersion);
-  m_current = KeyValuePair(_key, _value);
-  return Status::OK();
-}
-
-/**
- * @brief Finds the next key with the most recently updated value.
- *
- * Finds the most updated value for the next key (with block version <
- * readVersion).
- *
- * @param iter Iterator.
- * @param _readVersion BlockId object of the read version used for searching.
- * @param _key Sliver object of the result's key. Contains only the reference.
- * @param _value Sliver object of the result's value.
- * @param _actualVersion BlockId object in which the version of the result is
- *                       stored.
- * @param _isEnd True if end of the database is reached while iterating, else
- *               false.
- * @return Status OK.
- */
-Status DBAdapter::next(IDBClient::IDBClientIterator *iter,
-                       BlockId _readVersion,
-                       OUT Sliver &_key,
-                       OUT Sliver &_value,
-                       OUT BlockId &_actualVersion,
-                       OUT bool &_isEnd) {
-  KeyValuePair p = DBKeyManipulator::composedToSimple(iter->getCurrent());
-  Key currentKey = p.first;
-
-  // Exhaust all entries for this key
-  while (!iter->isEnd() && p.first == currentKey) {
-    p = DBKeyManipulator::composedToSimple(iter->next());
-  }
-
-  if (iter->isEnd()) {
-    m_isEnd = true;
-    _isEnd = true;
-    return Status::OK();
-  }
-
-  // Find most updated value for next key (with block version < readVersion)
-  Value value;
-  BlockId actualBlock = 0;
-  Key nextKey;
-  CopyKey(p.first, nextKey);
-  bool foundKey = false;
-  // Find max version
-  while (!iter->isEnd() && p.first == nextKey) {
-    BlockId currentBlockId = DBKeyManipulator::extractBlockIdFromKey(iter->getCurrent().first);
-    if (currentBlockId <= _readVersion) {
-      value = p.second;
-      actualBlock = currentBlockId;
-      p = DBKeyManipulator::composedToSimple(iter->next());
-    } else {
-      if (!foundKey) {
-        // If not found a key with actual block version < readVersion, then
-        // we consider the next key as the key candidate.
-
-        // Start by exhausting the current key with all the newer blocks
-        // records:
-        while (!iter->isEnd() && p.first == nextKey) {
-          p = DBKeyManipulator::composedToSimple(iter->next());
-        }
-
-        if (iter->isEnd()) {
-          break;
-        }
-
-        CopyKey(p.first, nextKey);
-      } else {
-        // If we already found a suitable key, we break when we find the
-        // maximal
-        break;
-      }
-    }
-  }
-
-  m_isEnd = false;
-  _isEnd = false;
-  _actualVersion = actualBlock;
-  _key = nextKey;
-  _value = value;
-  m_current = KeyValuePair(_key, _value);
-
-  // TODO return appropriate status?
-  return Status::OK();
-}
-
-/**
- * @brief Finds the key and value at the current position.
- *
- * Does not use the iterator for this.
- *
- * @param iter Iterator.
- * @param _key Sliver object where the key of the result is stored.
- * @param _value Sliver object where the value of the result is stored.
- * @return Status OK.
- */
-Status DBAdapter::getCurrent(IDBClient::IDBClientIterator *iter, OUT Sliver &_key, OUT Sliver &_value) {
-  // Not calling to underlying DB iterator, because it may have next()'d during
-  // seekAtLeast
-  _key = m_current.first;
-  _value = m_current.second;
-
-  return Status::OK();
-}
-
-/**
- * @brief Used to find if the iterator is at the end of the database.
- *
- * @param iter Iterator.
- * @param _isEnd True if iterator is at the end of the database, else false.
- * @return Status OK.
- */
-Status DBAdapter::isEnd(IDBClient::IDBClientIterator *iter, OUT bool &_isEnd) {
-  // Not calling to underlying DB iterator, because it may have next()'d during
-  // seekAtLeast
-  LOG_TRACE(logger_, "Called is end, returning " << m_isEnd);
-  _isEnd = m_isEnd;
-  return Status::OK();
-}
 
 /**
  * @brief Used to retrieve the latest block.
@@ -950,7 +634,7 @@ BlockId DBAdapter::getLatestBlock() const {
   // of block ids.
 
   // Generate maximal key for type 'block'.
-  const auto maxKey = DBKeyManipulator::genBlockDbKey(std::numeric_limits<BlockId>::max());
+  const auto maxKey = keyGen_->blockKey(std::numeric_limits<BlockId>::max());
   auto iter = db_->getIteratorGuard();
   // Since we use the maximal key, SeekAtLeast will take the iterator
   // to one position beyond the key corresponding to the largest block id.
@@ -978,10 +662,10 @@ BlockId DBAdapter::getLatestBlock() const {
  * @return Block ID of the last reachable block.
  */
 BlockId DBAdapter::getLastReachableBlock() const {
-  IDBClient::IDBClientIterator *iter = db_->getIterator();
+  storage::IDBClient::IDBClientIterator *iter = db_->getIterator();
 
   BlockId lastReachableId = 0;
-  Sliver blockKey = DBKeyManipulator::genBlockDbKey(1);
+  Sliver blockKey = keyGen_->blockKey(1);
   KeyValuePair kvp = iter->seekAtLeast(blockKey);
   if (kvp.first.length() == 0) {
     db_->freeIterator(iter);
@@ -1003,6 +687,4 @@ BlockId DBAdapter::getLastReachableBlock() const {
 }
 
 }  // namespace v1DirectKeyValue
-}  // namespace blockchain
-}  // namespace storage
-}  // namespace concord
+}  // namespace concord::kvbc

@@ -17,8 +17,8 @@
 #include <set>
 #include "basicRandomTestsRunner.hpp"
 #include "commonKVBTests.hpp"
-#include "storage/db_metadata_storage.h"
-#include "blockchain/db_types.h"
+#include "DbMetadataStorage.cpp"
+#include "storage/db_types.h"
 #include "block_metadata.hpp"
 
 #ifndef _WIN32

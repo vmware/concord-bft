@@ -1,4 +1,4 @@
-#include "blockchain/block.h"
+#include "block.h"
 #include "kv_types.hpp"
 #include "Logger.hpp"
 
@@ -10,7 +10,7 @@ using concord::kvbc::SetOfKeyValuePairs;
 using concord::kvbc::OrderedSetOfKeyValuePairs;
 using concord::kvbc::KeyValuePair;
 
-namespace concord::storage::blockchain {
+namespace concord::kvbc {
 inline namespace v1DirectKeyValue {
 namespace block {
 Sliver create(const SetOfKeyValuePairs &updates,
@@ -118,4 +118,4 @@ const void *getParentDigest(const concordUtils::Sliver &block) {
 
 }  // namespace block
 }  // namespace v1DirectKeyValue
-}  // namespace concord::storage::blockchain
+}  // namespace concord::kvbc

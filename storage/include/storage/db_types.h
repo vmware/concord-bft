@@ -15,9 +15,7 @@
 
 #include <cstdint>
 
-namespace concord {
-namespace storage {
-namespace blockchain {
+namespace concord::storage {
 
 inline namespace v1DirectKeyValue {
 // DB key types are an implementation detail. External users should not rely on it.
@@ -91,9 +89,6 @@ enum class EBFTSubtype : std::uint8_t {
 
 }  // namespace v2MerkleTree
 
-typedef std::uint64_t BlockId;
 typedef std::uint32_t ObjectId;
 
-}  // namespace blockchain
-}  // namespace storage
-}  // namespace concord
+}  // namespace concord::storage

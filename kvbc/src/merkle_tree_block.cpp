@@ -1,8 +1,8 @@
-#include "blockchain/merkle_tree_block.h"
+#include "merkle_tree_block.h"
 
 #include "assertUtils.hpp"
-#include "blockchain/direct_kv_block.h"
-#include "blockchain/merkle_tree_serialization.h"
+#include "direct_kv_block.h"
+#include "merkle_tree_serialization.h"
 
 #include <cstdint>
 
@@ -18,6 +18,8 @@ using sparse_merkle::Hash;
 using ::concord::kvbc::BlockId;
 using ::concordUtils::Sliver;
 using ::concord::kvbc::SetOfKeyValuePairs;
+
+namespace v1DirectKeyValue = concord::kvbc::v1DirectKeyValue;  // TODO [TK] TMP
 
 // Use the v1DirectKeyValue implementation and just add the state hash at the back. We want that so it is included in
 // the block digest. We can do that, because users are not expected to interpret the returned buffer themselves.

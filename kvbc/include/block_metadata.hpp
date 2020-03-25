@@ -9,19 +9,18 @@
 
 #include "sliver.hpp"
 #include "Logger.hpp"
-#include "blockchain/db_interfaces.h"
+#include "db_interfaces.h"
 
 namespace concord {
 namespace kvbc {
 
 using concordUtils::Sliver;
-using concord::storage::blockchain::ILocalKeyValueStorageReadOnly;
 /**
  * Interface defining the way block is serialized
  */
 class IBlockMetadata {
  public:
-  IBlockMetadata(const concord::storage::blockchain::ILocalKeyValueStorageReadOnly& storage)
+  IBlockMetadata(const ILocalKeyValueStorageReadOnly& storage)
       : logger_(concordlogger::Log::getLogger("block-metadata")),
         storage_(storage),
         key_(new char[1]{kBlockMetadataKey}, 1) {}
@@ -38,7 +37,7 @@ class IBlockMetadata {
 
  protected:
   concordlogger::Logger logger_;
-  const concord::storage::blockchain::ILocalKeyValueStorageReadOnly& storage_;
+  const ILocalKeyValueStorageReadOnly& storage_;
   const concordUtils::Sliver key_;
 };
 

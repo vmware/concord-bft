@@ -14,7 +14,7 @@
 #pragma once
 
 #include "KVBCInterfaces.h"
-#include "SimpleClient.hpp"
+#include "bftengine/SimpleClient.hpp"
 
 namespace concord::kvbc {
 

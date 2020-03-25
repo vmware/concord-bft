@@ -15,5 +15,5 @@
 
 #pragma once
 
-#include "blockchain/direct_kv_block.h"
-#include "blockchain/merkle_tree_block.h"
+#include "direct_kv_block.h"
+#include "merkle_tree_block.h"

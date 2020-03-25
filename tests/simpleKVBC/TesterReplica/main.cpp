@@ -29,7 +29,7 @@ using namespace concord::kvbc;
 int main(int argc, char** argv) {
   auto setup = concord::kvbc::TestSetup::ParseArgs(argc, argv);
   auto logger = setup->GetLogger();
-  auto* db_key_comparator = new concord::storage::blockchain::DBKeyComparator();
+  auto* db_key_comparator = new concord::kvbc::DBKeyComparator();
   std::shared_ptr<concord::storage::IDBClient> db;
 
   if (setup->UsePersistentStorage()) {
@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
     db.reset(new concord::storage::memorydb::Client(comparator));
   }
 
-  auto* dbAdapter = new concord::storage::blockchain::DBAdapter(db);
+  auto* dbAdapter = new concord::kvbc::DBAdapter(db);
   auto* replica = new ReplicaImp(
       setup->GetCommunication(), setup->GetReplicaConfig(), dbAdapter, setup->GetMetricsServer().GetAggregator());
   auto* blockMetadata = new concord::kvbc::BlockMetadata(*replica);

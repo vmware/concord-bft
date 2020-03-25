@@ -4,5 +4,5 @@
 
 #pragma once
 
-#include "blockchain/direct_kv_db_adapter.h"
-#include "blockchain/merkle_tree_db_adapter.h"
+#include "direct_kv_db_adapter.h"
+#include "merkle_tree_db_adapter.h"

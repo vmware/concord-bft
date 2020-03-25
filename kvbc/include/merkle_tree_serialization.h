@@ -14,9 +14,8 @@
 #pragma once
 
 #include <assertUtils.hpp>
-#include "blockchain/db_types.h"
-#include "blockchain/merkle_tree_db_adapter.h"
-#include "blockchain/merkle_tree_block.h"
+#include "merkle_tree_db_adapter.h"
+#include "merkle_tree_block.h"
 #include "endianness.hpp"
 #include "sliver.hpp"
 #include "sparse_merkle/base_types.h"
@@ -32,6 +31,7 @@
 #include <utility>
 #include <variant>
 #include <vector>
+#include "storage/db_types.h"
 
 namespace concord {
 namespace storage {
@@ -52,7 +52,9 @@ enum class StaleKeyType : std::uint8_t {
   Internal,
   Leaf,
 };
-
+using concord::storage::v2MerkleTree::detail::EDBKeyType;   // TODO [TK] TMP
+using concord::storage::v2MerkleTree::detail::EKeySubtype;  // TODO [TK] TMP
+using concord::storage::v2MerkleTree::detail::EBFTSubtype;  // TODO [TK] TMP
 // Specifies the child type. Used when serializing BatchedInternalNode objects.
 enum class BatchedInternalNodeChildType : std::uint8_t { Internal, Leaf };
 
