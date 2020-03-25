@@ -59,7 +59,7 @@ class SkvbcLongRunningTest(unittest.TestCase):
                 await SkvbcTest().test_conflicting_write\
                     (bft_network=bft_network, already_in_trio=True)
                 await trio.sleep(seconds=10)
-                await SkvbcFastPathTest().test_fast_path_read_your_write \
+                await SkvbcFastPathTest().test_fast_path_only \
                     (bft_network=bft_network, already_in_trio=True, disable_linearizability_checks=True)
                 await trio.sleep(seconds=10)
                 end = time.time()
