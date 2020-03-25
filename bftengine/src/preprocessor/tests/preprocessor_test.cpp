@@ -14,7 +14,7 @@
 #include "InternalReplicaApi.hpp"
 #include "communication/CommFactory.hpp"
 #include "Logger.hpp"
-#include "RequestProcessingInfo.hpp"
+#include "RequestProcessingState.hpp"
 #include "ReplicaConfig.hpp"
 #include "TimersSingleton.hpp"
 #include "IncomingMsgsStorageImp.hpp"
@@ -333,79 +333,79 @@ PreProcessReplyMsgSharedPtr preProcessNonPrimary(NodeIdType replicaId, const bft
   return preProcessReplyMsg;
 }
 
-TEST(requestPreprocessingInfo_test, notEnoughRepliesReceived) {
-  RequestProcessingInfo reqInfo(
+TEST(requestPreprocessingState_test, notEnoughRepliesReceived) {
+  RequestProcessingState reqState(
       replicaConfig.numReplicas, reqSeqNum, ClientPreProcessReqMsgUniquePtr(), PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   for (auto i = 1; i < numOfRequiredReplies; i++) {
-    reqInfo.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
-    Assert(reqInfo.getPreProcessingConsensusResult() == CONTINUE);
+    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
+    Assert(reqState.getPreProcessingConsensusResult() == CONTINUE);
   }
-  reqInfo.handlePrimaryPreProcessed(buf, bufLen);
-  Assert(reqInfo.getPreProcessingConsensusResult() == CONTINUE);
+  reqState.handlePrimaryPreProcessed(buf, bufLen);
+  Assert(reqState.getPreProcessingConsensusResult() == CONTINUE);
 }
 
-TEST(requestPreprocessingInfo_test, allRepliesReceivedButNotEnoughSameHashesCollected) {
-  RequestProcessingInfo reqInfo(
+TEST(requestPreprocessingState_test, allRepliesReceivedButNotEnoughSameHashesCollected) {
+  RequestProcessingState reqState(
       replicaConfig.numReplicas, reqSeqNum, ClientPreProcessReqMsgUniquePtr(), PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
-  reqInfo.handlePrimaryPreProcessed(buf, bufLen);
+  reqState.handlePrimaryPreProcessed(buf, bufLen);
   for (auto i = 1; i < replicaConfig.numReplicas; i++) {
-    if (i != replicaConfig.numReplicas - 1) Assert(reqInfo.getPreProcessingConsensusResult() == CONTINUE);
+    if (i != replicaConfig.numReplicas - 1) Assert(reqState.getPreProcessingConsensusResult() == CONTINUE);
     memset(buf, i, bufLen);
-    reqInfo.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
+    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
   }
-  Assert(reqInfo.getPreProcessingConsensusResult() == CANCEL);
+  Assert(reqState.getPreProcessingConsensusResult() == CANCEL);
 }
 
-TEST(requestPreprocessingInfo_test, enoughSameRepliesReceived) {
-  RequestProcessingInfo reqInfo(
+TEST(requestPreprocessingState_test, enoughSameRepliesReceived) {
+  RequestProcessingState reqState(
       replicaConfig.numReplicas, reqSeqNum, ClientPreProcessReqMsgUniquePtr(), PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   for (auto i = 1; i <= numOfRequiredReplies; i++) {
-    if (i != numOfRequiredReplies - 1) Assert(reqInfo.getPreProcessingConsensusResult() == CONTINUE);
-    reqInfo.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
+    if (i != numOfRequiredReplies - 1) Assert(reqState.getPreProcessingConsensusResult() == CONTINUE);
+    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
   }
-  reqInfo.handlePrimaryPreProcessed(buf, bufLen);
-  Assert(reqInfo.getPreProcessingConsensusResult() == COMPLETE);
+  reqState.handlePrimaryPreProcessed(buf, bufLen);
+  Assert(reqState.getPreProcessingConsensusResult() == COMPLETE);
 }
 
-TEST(requestPreprocessingInfo_test, primaryReplicaPreProcessingRetrySucceeds) {
-  RequestProcessingInfo reqInfo(
+TEST(requestPreprocessingState_test, primaryReplicaPreProcessingRetrySucceeds) {
+  RequestProcessingState reqState(
       replicaConfig.numReplicas, reqSeqNum, ClientPreProcessReqMsgUniquePtr(), PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
-  reqInfo.handlePrimaryPreProcessed(buf, bufLen);
+  reqState.handlePrimaryPreProcessed(buf, bufLen);
   for (auto i = 1; i <= numOfRequiredReplies; i++) {
-    if (i != replicaConfig.numReplicas - 1) Assert(reqInfo.getPreProcessingConsensusResult() == CONTINUE);
+    if (i != replicaConfig.numReplicas - 1) Assert(reqState.getPreProcessingConsensusResult() == CONTINUE);
     memset(buf, '4', bufLen);
-    reqInfo.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
+    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
   }
-  Assert(reqInfo.getPreProcessingConsensusResult() == RETRY_PRIMARY);
+  Assert(reqState.getPreProcessingConsensusResult() == RETRY_PRIMARY);
   memset(buf, '4', bufLen);
-  reqInfo.handlePrimaryPreProcessed(buf, bufLen);
-  Assert(reqInfo.getPreProcessingConsensusResult() == COMPLETE);
+  reqState.handlePrimaryPreProcessed(buf, bufLen);
+  Assert(reqState.getPreProcessingConsensusResult() == COMPLETE);
 }
 
-TEST(requestPreprocessingInfo_test, primaryReplicaDidNotCompletePreProcessingWhileNonPrimariesDid) {
-  RequestProcessingInfo reqInfo(
+TEST(requestPreprocessingState_test, primaryReplicaDidNotCompletePreProcessingWhileNonPrimariesDid) {
+  RequestProcessingState reqState(
       replicaConfig.numReplicas, reqSeqNum, ClientPreProcessReqMsgUniquePtr(), PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   for (auto i = 1; i <= numOfRequiredReplies; i++) {
-    if (i != replicaConfig.numReplicas - 1) Assert(reqInfo.getPreProcessingConsensusResult() == CONTINUE);
+    if (i != replicaConfig.numReplicas - 1) Assert(reqState.getPreProcessingConsensusResult() == CONTINUE);
     memset(buf, '4', bufLen);
-    reqInfo.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
+    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
   }
-  Assert(reqInfo.getPreProcessingConsensusResult() == CONTINUE);
+  Assert(reqState.getPreProcessingConsensusResult() == CONTINUE);
   memset(buf, '4', bufLen);
-  reqInfo.handlePrimaryPreProcessed(buf, bufLen);
-  Assert(reqInfo.getPreProcessingConsensusResult() == COMPLETE);
+  reqState.handlePrimaryPreProcessed(buf, bufLen);
+  Assert(reqState.getPreProcessingConsensusResult() == COMPLETE);
 }
 
-TEST(requestPreprocessingInfo_test, clientPreProcessMessageConversion) {
+TEST(requestPreprocessingState_test, clientPreProcessMessageConversion) {
   memset(buf, '8', bufLen);
   ClientPreProcessRequestMsg clientPreProcReqMsg(senderId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
   unique_ptr<MessageBase> messageBase;
@@ -424,7 +424,7 @@ TEST(requestPreprocessingInfo_test, clientPreProcessMessageConversion) {
   Assert(memcmp(clientReqMsg->requestBuf(), buf, bufLen) == 0);
 }
 
-TEST(requestPreprocessingInfo_test, requestTimedOut) {
+TEST(requestPreprocessingState_test, requestTimedOut) {
   setUpConfiguration_7();
 
   bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig, false, false);
@@ -440,7 +440,7 @@ TEST(requestPreprocessingInfo_test, requestTimedOut) {
   Assert(preProcessor.getOngoingReqIdForClient(clientId) == 0);
 }
 
-TEST(requestPreprocessingInfo_test, primaryCrashDetected) {
+TEST(requestPreprocessingState_test, primaryCrashDetected) {
   setUpConfiguration_7();
 
   bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig, false, false);
@@ -459,7 +459,7 @@ TEST(requestPreprocessingInfo_test, primaryCrashDetected) {
   Assert(preProcessor.getOngoingReqIdForClient(clientId) == 0);
 }
 
-TEST(requestPreprocessingInfo_test, primaryCrashNotDetected) {
+TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
   setUpConfiguration_7();
 
   bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig, false, false);
@@ -486,7 +486,7 @@ TEST(requestPreprocessingInfo_test, primaryCrashNotDetected) {
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   setUpConfiguration_4();
-  RequestProcessingInfo::init(numOfRequiredReplies, preProcessReqWaitTimeMilli);
+  RequestProcessingState::init(numOfRequiredReplies, preProcessReqWaitTimeMilli);
   const chrono::milliseconds msgTimeOut(20000);
   msgsStorage = make_shared<IncomingMsgsStorageImp>(msgHandlersRegPtr, msgTimeOut, replicaConfig.replicaId);
   setUpCommunication();

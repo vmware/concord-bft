@@ -17,7 +17,7 @@
 #include "MsgHandlersRegistrator.hpp"
 #include "SimpleThreadPool.hpp"
 #include "Replica.hpp"
-#include "RequestProcessingInfo.hpp"
+#include "RequestProcessingState.hpp"
 #include "sliver.hpp"
 #include "SigManager.hpp"
 #include "Metrics.hpp"
@@ -27,13 +27,13 @@
 
 namespace preprocessor {
 
-struct ClientRequestInfo {
+struct ClientRequestState {
   std::mutex mutex;  // Define a mutex per client to avoid contentions between clients
-  RequestProcessingInfoUniquePtr clientReqInfoPtr;
+  RequestProcessingStateUniquePtr reqProcessingStatePtr;
 };
 
-typedef std::shared_ptr<ClientRequestInfo> ClientRequestInfoSharedPtr;
-typedef std::unordered_map<uint16_t, ClientRequestInfoSharedPtr> OngoingReqMap;
+typedef std::shared_ptr<ClientRequestState> ClientRequestStateSharedPtr;
+typedef std::unordered_map<uint16_t, ClientRequestStateSharedPtr> OngoingReqMap;
 
 //**************** Class PreProcessor ****************//
 
@@ -76,7 +76,7 @@ class PreProcessor {
   void registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
                        PreProcessRequestMsgSharedPtr preProcessRequestMsg);
   void releaseClientPreProcessRequestSafe(uint16_t clientId);
-  void releaseClientPreProcessRequest(const ClientRequestInfoSharedPtr &clientEntry, uint16_t clientId);
+  void releaseClientPreProcessRequest(const ClientRequestStateSharedPtr &clientEntry, uint16_t clientId);
   bool validateMessage(MessageBase *msg) const;
   void registerMsgHandlers();
   bool checkClientMsgCorrectness(const ClientPreProcessReqMsgUniquePtr &clientReqMsg, ReqId reqSeqNum) const;
@@ -128,8 +128,7 @@ class PreProcessor {
   util::SimpleThreadPool threadPool_;
   // One-time allocated buffers (one per client) for the pre-execution results storage
   std::vector<concordUtils::Sliver> preProcessResultBuffers_;
-  // clientId -> *RequestProcessingInfo
-  OngoingReqMap ongoingRequests_;
+  OngoingReqMap ongoingRequests_;  // clientId -> ClientRequestStateSharedPtr
   concordMetrics::Component metricsComponent_;
   std::chrono::seconds metricsLastDumpTime_;
   std::chrono::seconds metricsDumpIntervalInSec_;
@@ -142,7 +141,7 @@ class PreProcessor {
     concordMetrics::CounterHandle preProcReqSentForFurtherProcessing;
     concordMetrics::CounterHandle preProcPossiblePrimaryFaultDetected;
   } preProcessorMetrics_;
-  concordUtil::Timers::Handle requestsStatusCheckTimer_;  // Check for timed out requests
+  concordUtil::Timers::Handle requestsStatusCheckTimer_;
   concordUtil::Timers::Handle preProcessReqMsgWaitTimer_;
   const uint64_t preExecReqStatusCheckTimeMilli_;
   const uint16_t preProcessReqWaitTimeMilli_;

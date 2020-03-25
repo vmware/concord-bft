@@ -24,13 +24,13 @@ namespace preprocessor {
 
 typedef enum { CONTINUE, COMPLETE, CANCEL, RETRY_PRIMARY } PreProcessingResult;
 
-class RequestProcessingInfo {
+class RequestProcessingState {
  public:
-  RequestProcessingInfo(uint16_t numOfReplicas,
-                        ReqId reqSeqNum,
-                        ClientPreProcessReqMsgUniquePtr clientReqMsg,
-                        PreProcessRequestMsgSharedPtr preProcessRequestMsg);
-  ~RequestProcessingInfo() = default;
+  RequestProcessingState(uint16_t numOfReplicas,
+                         ReqId reqSeqNum,
+                         ClientPreProcessReqMsgUniquePtr clientReqMsg,
+                         PreProcessRequestMsgSharedPtr preProcessRequestMsg);
+  ~RequestProcessingState() = default;
 
   void handlePrimaryPreProcessed(const char* preProcessResult, uint32_t preProcessResultLen);
   void handlePreProcessReplyMsg(PreProcessReplyMsgSharedPtr preProcessReplyMsg);
@@ -72,6 +72,6 @@ class RequestProcessingInfo {
   std::map<concord::util::SHA3_256::Digest, int> preProcessingResultHashes_;
 };
 
-typedef std::unique_ptr<RequestProcessingInfo> RequestProcessingInfoUniquePtr;
+typedef std::unique_ptr<RequestProcessingState> RequestProcessingStateUniquePtr;
 
 }  // namespace preprocessor
