@@ -6,28 +6,30 @@
 
 #include "storage_test_common.h"
 
-#include "blockchain/merkle_tree_block.h"
-#include "blockchain/merkle_tree_db_adapter.h"
 #include "kv_types.hpp"
+#include "merkle_tree_block.h"
+#include "merkle_tree_db_adapter.h"
 #include "sliver.hpp"
 #include "sparse_merkle/base_types.h"
 #include "storage/db_interface.h"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 #include <memory>
-#include <set>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
 using ::bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest;
+using ::concord::kvbc::BlockId;
 using ::concord::kvbc::Key;
 using ::concord::kvbc::SetOfKeyValuePairs;
 using ::concord::kvbc::Value;
 using ::concord::storage::IDBClient;
-using ::concord::storage::blockchain::BlockId;
 using ::concord::storage::blockchain::v2MerkleTree::block::create;
 using ::concord::storage::blockchain::v2MerkleTree::block::getData;
 using ::concord::storage::blockchain::v2MerkleTree::block::getParentDigest;
@@ -83,50 +85,23 @@ bool equal(const void *lhs, const StateTransferDigest &rhs) {
   return ::testing::AssertionSuccess();
 }
 
-bool hasEmptyValue(const SetOfKeyValuePairs &updates) {
-  for (const auto &kv : updates) {
-    if (kv.second.empty()) {
-      return true;
-    }
-  }
-  return false;
-}
+struct BlockUpdatesInfo {
+  std::unordered_set<Key> uniqueKeys;
+  std::size_t totalKeys{0};
+};
 
-bool hasEmptyValue(const std::vector<SetOfKeyValuePairs> &blockUpdates) {
-  for (const auto &updates : blockUpdates) {
-    if (hasEmptyValue(updates)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool hasMultiVersionedKey(const std::vector<SetOfKeyValuePairs> &blockUpdates) {
-  std::set<Key> keys;
+BlockUpdatesInfo getBlockUpdatesInfo(const std::vector<SetOfKeyValuePairs> &blockUpdates) {
+  auto info = BlockUpdatesInfo{};
   for (const auto &updates : blockUpdates) {
     for (const auto &kv : updates) {
-      if (keys.insert(kv.first).second) {
-        return true;
-      }
+      info.uniqueKeys.insert(kv.first);
+      ++info.totalKeys;
     }
   }
-  return false;
+  return info;
 }
 
-// Looks for the key up to readVersion, i.e. up to index readVersion - 1 .
-std::pair<BlockId, Value> getValueByKeyAndVersion(const std::vector<SetOfKeyValuePairs> &blockUpdates,
-                                                  const Key &key,
-                                                  BlockId readVersion) {
-  auto ret = std::make_pair(BlockId{0}, Value{});
-  for (auto i = 1ul; i <= readVersion; ++i) {
-    const auto &updates = blockUpdates[i - 1];
-    auto it = updates.find(key);
-    if (it != std::cend(updates)) {
-      ret = std::make_pair(BlockId{i}, it->second);
-    }
-  }
-  return ret;
-}
+bool hasMultiVersionedKey(const BlockUpdatesInfo &info) { return info.totalKeys != info.uniqueKeys.size(); }
 
 struct IDbAdapterTest {
   virtual std::shared_ptr<IDBClient> db() const = 0;
@@ -161,11 +136,9 @@ RC_GTEST_PROP(block,
 //  * [getData(block) == blockUpdate] - the passed updates are the same as the fetched ones after adding the block
 //  * [getParentDigest(block) == blockDigest(prevBlock)] - blockchain property
 //  * [getLastReachableBlock() == getLatestBlock() == blockUpdates.size()] - last reachable block is equal to the latest
-//  know block ID
+//    known block ID after adding the blocks
 TEST_P(db_adapter_block_tests, blockchain_property) {
   const auto test = [this](const std::vector<SetOfKeyValuePairs> &blockUpdates) {
-    RC_PRE(!hasEmptyValue(blockUpdates));
-
     auto adapter = DBAdapter{GetParam()->db()};
     RC_ASSERT(addBlocks(blockUpdates, adapter));
 
@@ -189,8 +162,8 @@ TEST_P(db_adapter_block_tests, blockchain_property) {
   ASSERT_TRUE(rc::check(test));
 }
 
-// Test that when adapter.addBlock(block, getLastReachableBlock() + 1) is called and there is a hole between the
-// blockchain and the state transfer chain, the block is added at the back of the blockchain.
+// Test that when adapter.addBlock(block, getLastReachableBlock() + 1) is called and there is a gap between the
+// blockchain and the state transfer chain, the block is added as the last reachable one (in the gap).
 // Note: This test uses arbitrary values for parent digest and state hash as they don't have a relation to the tested
 // property.
 TEST_P(db_adapter_block_tests, add_block_at_back_equivalent_to_last_reachable) {
@@ -199,36 +172,36 @@ TEST_P(db_adapter_block_tests, add_block_at_back_equivalent_to_last_reachable) {
                            const SetOfKeyValuePairs &lastReachableUpdates,
                            const ParentDigest &parentDigest,
                            const Hash &stateHash) {
-    RC_PRE(!hasEmptyValue(blockchainUpdates));
-    RC_PRE(!hasEmptyValue(stateTransferUpdates));
-    RC_PRE(!hasEmptyValue(lastReachableUpdates));
+    RC_PRE(!stateTransferUpdates.empty());
 
-    // Ensure there is a hole between blockchain and state transfer blocks.
-    const auto stateTransferOffset = *rc::gen::inRange(2, 10000);
+    // Ensure there is a gap of a at least 2 blocks (by setting an offset of at least 3) between blockchain and state
+    // transfer blocks. We want that as we would like to make sure chains will not be linked after the test.
+    const auto stateTransferOffset = *rc::gen::inRange(3, 10000);
 
     auto adapter = DBAdapter{GetParam()->db()};
 
     // First, add blockchain updates.
     RC_ASSERT(addBlocks(blockchainUpdates, adapter));
 
-    // Then, add state transfer blocks at an offset, ensuring a hole.
+    const auto lastReachableBefore = adapter.getLastReachableBlock();
+
+    // Then, add state transfer blocks at an offset, ensuring a gap.
     for (auto i = 0ul; i < stateTransferUpdates.size(); ++i) {
-      const auto blockId = adapter.getLatestBlock() + stateTransferOffset + i;
-      RC_ASSERT(adapter.addBlock(create(stateTransferUpdates[i], parentDigest.data(), stateHash), blockId).isOK());
-      RC_ASSERT(adapter.getLatestBlock() == blockId);
+      const auto stBlockId = lastReachableBefore + stateTransferOffset + i;
+      RC_ASSERT(adapter.addBlock(create(stateTransferUpdates[i], parentDigest.data(), stateHash), stBlockId).isOK());
+      RC_ASSERT(adapter.getLatestBlock() == stBlockId);
     }
 
-    // Ensure there is a hole.
-    RC_ASSERT(adapter.getLastReachableBlock() == blockchainUpdates.size());
+    // Ensure the last reachable block ID hasn't changed as we are adding at an offset.
+    RC_ASSERT(adapter.getLastReachableBlock() == lastReachableBefore);
 
     // Lastly, add a single block at the back.
     RC_ASSERT(
-        adapter.addBlock(create(lastReachableUpdates, parentDigest.data(), stateHash), blockchainUpdates.size() + 1)
-            .isOK());
+        adapter.addBlock(create(lastReachableUpdates, parentDigest.data(), stateHash), lastReachableBefore + 1).isOK());
 
-    // Verify that the block was added at the back.
-    RC_ASSERT(adapter.getLastReachableBlock() >= blockchainUpdates.size() + 1);
-    RC_ASSERT(adapter.getLastReachableBlock() <= adapter.getLatestBlock());
+    // Verify that the block was added as the last reachable and a gap still exists.
+    RC_ASSERT(adapter.getLastReachableBlock() == lastReachableBefore + 1);
+    RC_ASSERT(adapter.getLastReachableBlock() < adapter.getLatestBlock());
   };
 
   ASSERT_TRUE(rc::check(test));
@@ -242,9 +215,6 @@ TEST_P(db_adapter_block_tests, reachable_during_state_transfer_property) {
                            const std::vector<SetOfKeyValuePairs> &stateTransferUpdates,
                            const ParentDigest &parentDigest,
                            const Hash &stateHash) {
-    RC_PRE(!hasEmptyValue(blockchainUpdates));
-    RC_PRE(!hasEmptyValue(stateTransferUpdates));
-
     auto adapter = DBAdapter{GetParam()->db()};
 
     // First, add blockchain updates.
@@ -266,13 +236,13 @@ TEST_P(db_adapter_block_tests, reachable_during_state_transfer_property) {
   ASSERT_TRUE(rc::check(test));
 }
 
-// Test that getting the value of a key by version V returns the value of the key at version Y such that Y <= V .
-TEST_P(db_adapter_kv_tests, versioned_kv_blockchain_property) {
+// Test that getting the value of an existing key at block version V returns the original written value at version V and
+// the returned actual block version A == V.
+TEST_P(db_adapter_kv_tests, get_key_at_version_it_was_written_at) {
   const auto test = [this](const std::vector<SetOfKeyValuePairs> &blockUpdates) {
-    RC_PRE(!hasEmptyValue(blockUpdates));
-
+    const auto blockUpdateInfo = getBlockUpdatesInfo(blockUpdates);
     if (GetParam()->enforceMultiVersionedKeys()) {
-      RC_PRE(hasMultiVersionedKey(blockUpdates));
+      RC_PRE(hasMultiVersionedKey(blockUpdateInfo));
     }
 
     auto adapter = DBAdapter{GetParam()->db()};
@@ -281,12 +251,41 @@ TEST_P(db_adapter_kv_tests, versioned_kv_blockchain_property) {
     for (auto i = 0ul; i < blockUpdates.size(); ++i) {
       for (const auto &kv : blockUpdates[i]) {
         auto value = Value{};
-        auto actualBlockId = BlockId{0};
-        RC_ASSERT(adapter.getKeyByReadVersion(i + 1, kv.first, value, actualBlockId).isOK());
-        const auto [referenceBlockId, referenceValue] = getValueByKeyAndVersion(blockUpdates, kv.first, i + 1);
-        RC_ASSERT(actualBlockId == referenceBlockId);
-        RC_ASSERT(value == referenceValue);
+        auto actualVersion = BlockId{0};
+        RC_ASSERT(adapter.getKeyByReadVersion(i + 1, kv.first, value, actualVersion).isOK());
+        RC_ASSERT(actualVersion == i + 1);
+        RC_ASSERT(value == kv.second);
       }
+    }
+  };
+
+  ASSERT_TRUE(rc::check(test));
+}
+
+// Test that A <= V where version A is the returned actual version and version V = getLastReachableBlock() is the
+// requested version. Additionally, verify that the returned value is the original value written at version A. This
+// property should hold for all keys.
+TEST_P(db_adapter_kv_tests, get_all_keys_at_last_version) {
+  const auto test = [this](const std::vector<SetOfKeyValuePairs> &blockUpdates) {
+    const auto blockUpdateInfo = getBlockUpdatesInfo(blockUpdates);
+    if (GetParam()->enforceMultiVersionedKeys()) {
+      RC_PRE(hasMultiVersionedKey(blockUpdateInfo));
+    }
+
+    auto adapter = DBAdapter{GetParam()->db()};
+    RC_ASSERT(addBlocks(blockUpdates, adapter));
+
+    const auto latestVersion = adapter.getLastReachableBlock();
+    for (const auto &key : blockUpdateInfo.uniqueKeys) {
+      auto value = Value{};
+      auto actualVersion = BlockId{0};
+      RC_ASSERT(adapter.getKeyByReadVersion(latestVersion, key, value, actualVersion).isOK());
+      RC_ASSERT(actualVersion > 0ul);
+      RC_ASSERT(actualVersion <= latestVersion);
+      const auto &updates = blockUpdates[actualVersion - 1];
+      auto it = updates.find(key);
+      RC_ASSERT(it != std::cend(updates));
+      RC_ASSERT(it->second == value);
     }
   };
 

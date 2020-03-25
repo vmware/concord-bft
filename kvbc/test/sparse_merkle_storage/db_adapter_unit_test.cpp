@@ -15,6 +15,7 @@
 #include "memorydb/client.h"
 #include "rocksdb/client.h"
 #include "sparse_merkle/base_types.h"
+#include "storage/db_types.h"
 
 #include <array>
 #include <cstddef>
