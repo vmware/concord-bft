@@ -38,6 +38,8 @@ using concord::storage::rocksdb::KeyComparator;
 using concord::storage::DBMetadataStorage;
 using namespace concord::storage;
 using namespace concord::storage::blockchain;
+using concord::kvbc::BlockId;
+namespace block = concord::kvbc::block;
 
 stringstream dbPath;
 Client *dbClient = nullptr;
@@ -110,7 +112,7 @@ void setupMetadataStorage() {
     objectsDesc[i] = objectDesc;
     objectIdsVector.push_back(i);
   }
-  metadataStorage = new DBMetadataStorage(dbClient, DBKeyManipulator::generateMetadataKey);
+  metadataStorage = new DBMetadataStorage(dbClient, MetadataKeyManipulator::generateMetadataKey);
   metadataStorage->initMaxSizeOfObjects(objectsDesc, MAX_OBJECT_ID);
 }
 
@@ -170,7 +172,7 @@ void verifyInputParams(char **argv) {
 }
 
 void parseAndPrint(const ::rocksdb::Slice &key, const ::rocksdb::Slice &val) {
-  detail::EDBKeyType aType = DBKeyManipulator::extractTypeFromKey(key.data());
+  detail::EDBKeyType aType = concord::kvbc::DBKeyManipulator::extractTypeFromKey(key.data());
 
   switch (aType) {
     case detail::EDBKeyType::E_DB_KEY_TYPE_BFT_ST_KEY:
@@ -212,7 +214,7 @@ void parseAndPrint(const ::rocksdb::Slice &key, const ::rocksdb::Slice &val) {
     }
     case detail::EDBKeyType::E_DB_KEY_TYPE_BLOCK: {
       //      // Extract the block ids to compare so that endianness of environment does not matter.
-      BlockId aId = DBKeyManipulator::extractBlockIdFromKey(key.data(), key.size());
+      BlockId aId = concord::kvbc::DBKeyManipulator::extractBlockIdFromKey(key.data(), key.size());
       std::cout << "Block ID: " << aId << std::endl;
       const auto numOfElements = ((block::detail::Header *)val.data())->numberOfElements;
       auto *entries = (block::detail::Entry *)(val.data() + sizeof(block::detail::Header));
@@ -249,7 +251,7 @@ int main(int argc, char **argv) {
     setupDBEditorParams(argc, argv);
     verifyInputParams(argv);
 
-    dbClient = new Client(dbPath.str(), new KeyComparator(new DBKeyComparator()));
+    dbClient = new Client(dbPath.str(), new KeyComparator(new concord::kvbc::DBKeyComparator()));
     dbClient->init(dbOperation == DUMP_ALL_VALUES);
     if (dbOperation != DUMP_ALL_VALUES) setupMetadataStorage();
     bool res = false;

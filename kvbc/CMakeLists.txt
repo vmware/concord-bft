@@ -5,7 +5,6 @@ add_library(kvbc  src/ClientImp.cpp
                   src/ReplicaImp.cpp
                   src/replica_state_sync_imp.cpp
                   src/block_metadata.cpp
-                  src/base_db_adapter.cpp
                   src/direct_kv_db_adapter.cpp
                   src/merkle_tree_db_adapter.cpp
                   src/direct_kv_block.cpp

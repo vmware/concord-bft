@@ -9,56 +9,35 @@
 #include "Logger.hpp"
 #include "sliver.hpp"
 #include "storage/db_interface.h"
-#include "db_types.h"
-
 #include <iostream>
 #include <utility>
 #include <memory>
+#include "storage/db_types.h"
 
-namespace concord {
-namespace storage {
-namespace blockchain {
-
-struct HexPrintBuffer {
-  const char *bytes;
-  const size_t size;
-};
-
-// Print a char* of bytes as its 0x<hex> representation.
-inline std::ostream &operator<<(std::ostream &s, const HexPrintBuffer p) {
-  concordUtils::hexPrint(s, p.bytes, p.size);
-  return s;
-}
-
-class DBKeyManipulatorBase {
- protected:
-  static concordlogger::Logger &logger() {
-    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.storage.blockchain.DBKeyManipulator");
-    return logger_;
-  }
-};
+namespace concord::kvbc {
 
 class DBAdapterBase {
  protected:
-  DBAdapterBase(const std::shared_ptr<IDBClient> &db, bool readOnly);
+  DBAdapterBase(const std::shared_ptr<storage::IDBClient> db, bool readOnly)
+      : logger_(concordlogger::Log::getLogger("concord.kvbc.dbadapter")), db_(db) {
+    db_->init(readOnly);
+  }
 
  public:
-  std::shared_ptr<IDBClient> getDb() const { return db_; }
+  std::shared_ptr<storage::IDBClient> getDb() const { return db_; }
 
-  IDBClient::IDBClientIterator *getIterator() { return db_->getIterator(); }
+  storage::IDBClient::IDBClientIterator *getIterator() { return db_->getIterator(); }
 
-  Status freeIterator(IDBClient::IDBClientIterator *_iter) { return db_->freeIterator(_iter); }
+  concordUtils::Status freeIterator(storage::IDBClient::IDBClientIterator *_iter) { return db_->freeIterator(_iter); }
 
   // Used to monitor the DB.
   void monitor() const { db_->monitor(); }
 
  protected:
   concordlogger::Logger logger_;
-  std::shared_ptr<IDBClient> db_;
+  std::shared_ptr<storage::IDBClient> db_;
   KeyValuePair m_current;
   bool m_isEnd{false};
 };
 
-}  // namespace blockchain
-}  // namespace storage
-}  // namespace concord
+}  // namespace concord::kvbc

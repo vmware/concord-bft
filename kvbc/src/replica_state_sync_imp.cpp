@@ -16,10 +16,7 @@
 #include "bftengine/DbMetadataStorage.hpp"
 #include "block_metadata.hpp"
 
-using concord::storage::blockchain::DBAdapter;
-using concord::storage::blockchain::BlockId;
 using concord::storage::DBMetadataStorage;
-using concord::storage::blockchain::ILocalKeyValueStorageReadOnly;
 using concord::kvbc::Key;
 
 namespace concord {

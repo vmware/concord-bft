@@ -43,7 +43,6 @@ target_include_directories(simpleTest_server
 )
 
 target_link_libraries(simpleTest_server PUBLIC corebft 
-kvbc # TODO [TK] TMP
  simple_file_storage_lib test_config_lib)
 set_target_properties(simpleTest_server PROPERTIES OUTPUT_NAME server)
 
@@ -73,7 +72,6 @@ target_include_directories(persistency_test PUBLIC
 
 target_link_libraries(persistency_test PUBLIC
         corebft
-        kvbc # TODO [TK] TMP
         GTest::Main
         GTest::GTest
         test_config_lib

@@ -122,9 +122,6 @@ target_include_directories(bftclient PUBLIC include/communication)
 target_include_directories(bftclient PUBLIC src/bftengine)
 target_include_directories(bftclient PUBLIC src/preprocessor)
 
-# TODO [TK] TEMPORARY - WILL BE REMOVED AFTER DBADAPTER REFACTORING !!!
-target_include_directories(corebft PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../kvbc/include)
-
 target_link_libraries(corebft PUBLIC threshsign)
 target_link_libraries(corebft PUBLIC Threads::Threads)
 target_link_libraries(corebft PUBLIC util)

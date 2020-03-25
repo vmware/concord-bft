@@ -107,7 +107,7 @@ class IReplica {
 
   // Used to read from storage, only when a replica is Idle. Useful for
   // initialization and maintenance.
-  virtual const concord::storage::blockchain::ILocalKeyValueStorageReadOnly& getReadOnlyStorage() = 0;
+  virtual const concord::kvbc::ILocalKeyValueStorageReadOnly& getReadOnlyStorage() = 0;
 
   // Used to append blocks to storage, only when a replica is Idle. Useful
   // for initialization and maintenance.

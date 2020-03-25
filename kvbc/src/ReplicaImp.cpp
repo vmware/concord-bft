@@ -27,19 +27,11 @@ using bftEngine::ICommunication;
 using bftEngine::SimpleBlockchainStateTransfer::BLOCK_DIGEST_SIZE;
 using bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest;
 
-using concord::storage::blockchain::Key;
 using concord::storage::IDBClient;
 using concord::storage::DBMetadataStorage;
 
-using concord::storage::blockchain::DBAdapter;
-using concord::storage::blockchain::BlockId;
-using concord::storage::blockchain::ILocalKeyValueStorageReadOnly;
-using concord::storage::blockchain::DBKeyManipulator;
-namespace block = concord::storage::blockchain::block;
-
-using concord::kvbc::SetOfKeyValuePairs;
-using concord::kvbc::Value;
-using concord::kvbc::KeyValuePair;
+using concord::storage::MetadataKeyManipulator;
+namespace block = concord::kvbc::block;
 
 namespace concord {
 namespace kvbc {
@@ -56,7 +48,7 @@ Status ReplicaImp::start() {
   }
 
   m_currentRepStatus = RepStatus::Starting;
-  m_metadataStorage = new DBMetadataStorage(m_bcDbAdapter->getDb().get(), DBKeyManipulator::generateMetadataKey);
+  m_metadataStorage = new DBMetadataStorage(m_bcDbAdapter->getDb().get(), MetadataKeyManipulator::generateMetadataKey);
 
   if (m_replicaConfig.isReadOnly) {
     LOG_INFO(logger, "ReadOnly mode");

@@ -23,8 +23,7 @@
 #include "memorydb/client.h"
 #include "bftengine/DbMetadataStorage.hpp"
 
-namespace concord {
-namespace kvbc {
+namespace concord::kvbc {
 
 class ReplicaInitException : public std::exception {
  public:
@@ -36,9 +35,7 @@ class ReplicaInitException : public std::exception {
   std::string msg;
 };
 
-class ReplicaImp : public IReplica,
-                   public concord::storage::blockchain::ILocalKeyValueStorageReadOnly,
-                   public concord::storage::blockchain::IBlocksAppender {
+class ReplicaImp : public IReplica, public ILocalKeyValueStorageReadOnly, public IBlocksAppender {
  public:
   // concord::kvbc::IReplica methods
   virtual Status start() override;
@@ -46,7 +43,7 @@ class ReplicaImp : public IReplica,
 
   virtual RepStatus getReplicaStatus() const override;
 
-  virtual const concord::storage::blockchain::ILocalKeyValueStorageReadOnly &getReadOnlyStorage() override;
+  virtual const ILocalKeyValueStorageReadOnly &getReadOnlyStorage() override;
 
   virtual Status addBlockToIdleReplica(const concord::storage::SetOfKeyValuePairs &updates) override;
 
@@ -55,32 +52,27 @@ class ReplicaImp : public IReplica,
   // concord::storage::ILocalKeyValueStorageReadOnly methods
   virtual Status get(const Sliver &key, Sliver &outValue) const override;
 
-  virtual Status get(concord::storage::blockchain::BlockId readVersion,
-                     const Sliver &key,
-                     Sliver &outValue,
-                     concord::storage::blockchain::BlockId &outBlock) const override;
+  virtual Status get(BlockId readVersion, const Sliver &key, Sliver &outValue, BlockId &outBlock) const override;
 
-  virtual concord::storage::blockchain::BlockId getLastBlock() const override;
+  virtual BlockId getLastBlock() const override;
 
-  virtual Status getBlockData(concord::storage::blockchain::BlockId blockId,
-                              concord::storage::SetOfKeyValuePairs &outBlockData) const override;
+  virtual Status getBlockData(BlockId blockId, concord::storage::SetOfKeyValuePairs &outBlockData) const override;
 
   virtual Status mayHaveConflictBetween(const Sliver &key,
-                                        concord::storage::blockchain::BlockId fromBlock,
-                                        concord::storage::blockchain::BlockId toBlock,
+                                        BlockId fromBlock,
+                                        BlockId toBlock,
                                         bool &outRes) const override;
 
   virtual void monitor() const override;
 
   // concord::storage::IBlocksAppender
-  virtual Status addBlock(const concord::storage::SetOfKeyValuePairs &updates,
-                          concord::storage::blockchain::BlockId &outBlockId) override;
+  virtual Status addBlock(const concord::storage::SetOfKeyValuePairs &updates, BlockId &outBlockId) override;
 
   bool isRunning() const override { return (m_currentRepStatus == RepStatus::Running); }
 
   ReplicaImp(bftEngine::ICommunication *comm,
              bftEngine::ReplicaConfig &config,
-             concord::storage::blockchain::DBAdapter *dbAdapter,
+             DBAdapter *dbAdapter,
              std::shared_ptr<concordMetrics::Aggregator> aggregator);
 
   void setReplicaStateSync(ReplicaStateSync *rss) { replicaStateSync_.reset(rss); }
@@ -90,15 +82,11 @@ class ReplicaImp : public IReplica,
  protected:
   // METHODS
 
-  Status addBlockInternal(const concord::storage::SetOfKeyValuePairs &updates,
-                          concord::storage::blockchain::BlockId &outBlockId);
-  Status getInternal(concord::storage::blockchain::BlockId readVersion,
-                     Sliver key,
-                     Sliver &outValue,
-                     concord::storage::blockchain::BlockId &outBlock) const;
-  void insertBlockInternal(concord::storage::blockchain::BlockId blockId, Sliver block);
-  Sliver getBlockInternal(concord::storage::blockchain::BlockId blockId) const;
-  concord::storage::blockchain::DBAdapter *getBcDbAdapter() const { return m_bcDbAdapter; }
+  Status addBlockInternal(const concord::storage::SetOfKeyValuePairs &updates, BlockId &outBlockId);
+  Status getInternal(BlockId readVersion, Sliver key, Sliver &outValue, BlockId &outBlock) const;
+  void insertBlockInternal(BlockId blockId, Sliver block);
+  Sliver getBlockInternal(BlockId blockId) const;
+  DBAdapter *getBcDbAdapter() const { return m_bcDbAdapter; }
 
  private:
   void createReplicaAndSyncState();
@@ -109,9 +97,9 @@ class ReplicaImp : public IReplica,
   class KeyIDPair {
    public:
     const Sliver key;
-    const concord::storage::blockchain::BlockId blockId;
+    const BlockId blockId;
 
-    KeyIDPair(Sliver s, concord::storage::blockchain::BlockId i) : key(s), blockId(i) {}
+    KeyIDPair(Sliver s, BlockId i) : key(s), blockId(i) {}
 
     bool operator<(const KeyIDPair &k) const {
       int c = this->key.compare(k.key);
@@ -131,7 +119,7 @@ class ReplicaImp : public IReplica,
   };
 
   // TODO(GG): do we want synchronization here ?
-  class StorageWrapperForIdleMode : public concord::storage::blockchain::ILocalKeyValueStorageReadOnly {
+  class StorageWrapperForIdleMode : public ILocalKeyValueStorageReadOnly {
    private:
     const ReplicaImp *rep;
 
@@ -140,18 +128,14 @@ class ReplicaImp : public IReplica,
 
     virtual Status get(const Sliver &key, Sliver &outValue) const override;
 
-    virtual Status get(concord::storage::blockchain::BlockId readVersion,
-                       const Sliver &key,
-                       Sliver &outValue,
-                       concord::storage::blockchain::BlockId &outBlock) const override;
-    virtual concord::storage::blockchain::BlockId getLastBlock() const override;
+    virtual Status get(BlockId readVersion, const Sliver &key, Sliver &outValue, BlockId &outBlock) const override;
+    virtual BlockId getLastBlock() const override;
 
-    virtual Status getBlockData(concord::storage::blockchain::BlockId blockId,
-                                concord::storage::SetOfKeyValuePairs &outBlockData) const override;
+    virtual Status getBlockData(BlockId blockId, concord::storage::SetOfKeyValuePairs &outBlockData) const override;
 
     virtual Status mayHaveConflictBetween(const Sliver &key,
-                                          concord::storage::blockchain::BlockId fromBlock,
-                                          concord::storage::blockchain::BlockId toBlock,
+                                          BlockId fromBlock,
+                                          BlockId toBlock,
                                           bool &outRes) const override;
 
     virtual void monitor() const override;
@@ -176,7 +160,7 @@ class ReplicaImp : public IReplica,
 
     // from IAppState. represents maximal block number n such that all
     // blocks 1 <= i <= n exist
-    std::atomic<concord::storage::blockchain::BlockId> m_lastReachableBlock{0};
+    std::atomic<BlockId> m_lastReachableBlock{0};
 
     friend class ReplicaImp;
   };
@@ -187,8 +171,8 @@ class ReplicaImp : public IReplica,
   RepStatus m_currentRepStatus;
   StorageWrapperForIdleMode m_InternalStorageWrapperForIdleMode;
 
-  concord::storage::blockchain::DBAdapter *m_bcDbAdapter = nullptr;
-  concord::storage::blockchain::BlockId m_lastBlock = 0;
+  DBAdapter *m_bcDbAdapter = nullptr;
+  BlockId m_lastBlock = 0;
   bftEngine::ICommunication *m_ptrComm = nullptr;
   bftEngine::ReplicaConfig m_replicaConfig;
   bftEngine::IReplica *m_replicaPtr = nullptr;
@@ -200,5 +184,4 @@ class ReplicaImp : public IReplica,
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;
 };
 
-}  // namespace kvbc
-}  // namespace concord
+}  // namespace concord::kvbc

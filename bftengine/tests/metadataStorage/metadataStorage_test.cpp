@@ -14,9 +14,9 @@
 
 using namespace std;
 
-using concord::storage::blockchain::ObjectId;
-using concord::storage::blockchain::DBKeyComparator;
-using concord::storage::blockchain::DBKeyManipulator;
+using concord::storage::ObjectId;
+using concord::kvbc::DBKeyComparator;
+using concord::storage::MetadataKeyManipulator;
 using concord::storage::rocksdb::KeyComparator;
 using concord::storage::rocksdb::Client;
 using concord::storage::DBMetadataStorage;
@@ -100,7 +100,7 @@ int main(int argc, char **argv) {
   remove(dbPath.c_str());
   Client *dbClient = new Client(dbPath, kk);
   dbClient->init();
-  metadataStorage = new DBMetadataStorage(dbClient, DBKeyManipulator::generateMetadataKey);
+  metadataStorage = new DBMetadataStorage(dbClient, MetadataKeyManipulator::generateMetadataKey);
   bftEngine::MetadataStorage::ObjectDesc objectDesc[objectsNum];
   for (uint32_t id = initialObjectId; id < objectsNum; ++id) {
     objectDesc[id].id = id;

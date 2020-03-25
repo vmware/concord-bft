@@ -27,6 +27,8 @@ namespace storage {
 typedef std::vector<uint32_t> ObjectIdsVector;
 typedef std::map<uint32_t, size_t> ObjectIdToSizeMap;
 
+using ObjectId = std::uint32_t;
+
 class DBMetadataStorage : public bftEngine::MetadataStorage {
  public:
   explicit DBMetadataStorage(IDBClient *dbClient, std::function<concordUtils::Sliver(uint32_t)> genMetadataKey)

@@ -35,8 +35,7 @@ using namespace ::concord::storage::blockchain::v2MerkleTree;
 using namespace ::concord::storage::blockchain::v2MerkleTree::detail;
 
 using ::concord::storage::IDBClient;
-using ::concord::storage::blockchain::BlockId;
-using ::concord::storage::blockchain::ObjectId;
+using ::concord::storage::ObjectId;
 using ::concord::storage::sparse_merkle::BatchedInternalNode;
 using ::concord::storage::sparse_merkle::Hash;
 using ::concord::storage::sparse_merkle::Hasher;
@@ -49,6 +48,7 @@ using ::concord::storage::sparse_merkle::NibblePath;
 using ::concord::storage::sparse_merkle::Version;
 
 using ::concord::kvbc::SetOfKeyValuePairs;
+using ::concord::kvbc::BlockId;
 using ::concordUtils::Sliver;
 using ::concordUtils::Status;
 using ::concord::kvbc::ValuesVector;
