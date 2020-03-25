@@ -13,11 +13,9 @@
 import os.path
 import random
 import unittest
-from os import environ
 
 import trio
 
-from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from util.skvbc_history_tracker import verify_linearizability
 
@@ -78,7 +76,7 @@ class SkvbcSlowPathTest(unittest.TestCase):
 
         await tracker.run_concurrent_ops(
             num_ops=num_ops, write_weight=write_weight)
-        await bft_network.assert_slow_path_prevalent(as_of_seq_num=1)
+        await bft_network.wait_for_slow_path_to_be_prevalent(as_of_seq_num=1)
 
     @with_trio
     @with_bft_network(start_replica_cmd,
@@ -102,7 +100,7 @@ class SkvbcSlowPathTest(unittest.TestCase):
 
         Finally we check if a known K/V has been executed and readable.
         """
-        num_ops = 10
+        num_ops = 20
         write_weight = 0.5
 
         bft_network.start_all_replicas()
@@ -111,18 +109,21 @@ class SkvbcSlowPathTest(unittest.TestCase):
         crashed_replica = random.choice(unstable_replicas)
         bft_network.stop_replica(crashed_replica)
 
-        _, slow_path_writes = await tracker.run_concurrent_ops(
-            num_ops=num_ops, write_weight=1)
+        seq_num_before = await bft_network.wait_for_last_executed_seq_num()
+        nb_slow_paths_before = await bft_network.num_of_slow_path()
 
-        await bft_network.assert_slow_path_prevalent(as_of_seq_num=1)
+        await tracker.run_concurrent_ops(num_ops=num_ops, write_weight=1)
+
+        await bft_network.wait_for_slow_path_to_be_prevalent(
+            as_of_seq_num=seq_num_before + 1, nb_slow_paths_so_far=nb_slow_paths_before)
 
         bft_network.start_replica(crashed_replica)
 
         await tracker.run_concurrent_ops(
             num_ops=num_ops, write_weight=write_weight)
 
-        await trio.sleep(5)
-        await bft_network.assert_fast_path_prevalent(nb_slow_paths_so_far=slow_path_writes)
+        await bft_network.wait_for_fast_path_to_be_prevalent(
+            nb_slow_paths_so_far=await bft_network.num_of_slow_path())
 
 
     @with_trio
@@ -152,7 +153,7 @@ class SkvbcSlowPathTest(unittest.TestCase):
         _, fast_path_writes = await tracker.run_concurrent_ops(
             num_ops=num_ops, write_weight=1)
 
-        await bft_network.assert_fast_path_prevalent()
+        await bft_network.wait_for_fast_path_to_be_prevalent()
 
         bft_network.stop_replica(0)
 

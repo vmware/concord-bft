@@ -13,13 +13,9 @@
 import os.path
 import random
 import unittest
-from os import environ
 
-import trio
-
-from util.skvbc_history_tracker import verify_linearizability
-from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
+from util.skvbc_history_tracker import verify_linearizability
 
 
 def start_replica_cmd(builddir, replica_id):
@@ -53,7 +49,7 @@ class SkvbcFastPathTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability
-    async def test_fast_path_read_your_write(self, bft_network, tracker):
+    async def test_fast_path_only(self, bft_network, tracker):
         """
         This test aims to check that the fast commit path is prevalent
         in the normal, synchronous case (no failed replicas, no network partitioning).
@@ -65,7 +61,7 @@ class SkvbcFastPathTest(unittest.TestCase):
         """
         bft_network.start_all_replicas()
         write_weight = .50
-        numops = 20
+        numops = 100
 
         nb_slow_path = await bft_network.num_of_slow_path()
 
@@ -94,12 +90,12 @@ class SkvbcFastPathTest(unittest.TestCase):
         bft_network.start_all_replicas()
 
         write_weight = 0.5
-        numops = 20
+        numops = 100
 
         _, fast_path_writes = await tracker.run_concurrent_ops(
             num_ops=numops, write_weight=write_weight)
 
-        await bft_network.assert_fast_path_prevalent()
+        await bft_network.wait_for_fast_path_to_be_prevalent()
 
         unstable_replicas = bft_network.all_replicas(without={0})
         bft_network.stop_replica(
@@ -107,7 +103,7 @@ class SkvbcFastPathTest(unittest.TestCase):
 
         await tracker.run_concurrent_ops(num_ops=numops, write_weight=write_weight)
 
-        await bft_network.assert_slow_path_prevalent(as_of_seq_num=fast_path_writes+1)
+        await bft_network.wait_for_slow_path_to_be_prevalent(as_of_seq_num=fast_path_writes+1)
 
     @with_trio
     @with_bft_network(start_replica_cmd,
@@ -136,13 +132,12 @@ class SkvbcFastPathTest(unittest.TestCase):
 
         _, slow_path_writes = await tracker.run_concurrent_ops(
             num_ops=self.evaluation_period_seq_num-1, write_weight=1)
-        await bft_network.assert_slow_path_prevalent()
+        await bft_network.wait_for_slow_path_to_be_prevalent()
 
         # ...but eventually (after the evaluation period), the fast path is restored!
 
         await tracker.run_concurrent_ops(num_ops=self.evaluation_period_seq_num*2/write_weight, write_weight=write_weight)
 
-        await trio.sleep(5)
-        await bft_network.assert_fast_path_prevalent(
+        await bft_network.wait_for_fast_path_to_be_prevalent(
             nb_slow_paths_so_far=slow_path_writes)
 

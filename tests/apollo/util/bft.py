@@ -608,8 +608,8 @@ class BftTestNetwork:
                     try:
                         await self.assert_slow_path_prevalent(
                             as_of_seq_num, nb_slow_paths_so_far, replica_id)
-                    except KeyError:
-                        # metrics not yet available, continue looping
+                    except (KeyError, AssertionError):
+                        # continue polling
                         continue
                     else:
                         # slow path prevalent - done.
@@ -623,12 +623,26 @@ class BftTestNetwork:
                     try:
                         await self.assert_fast_path_prevalent(
                             nb_slow_paths_so_far, replica_id)
-                    except KeyError:
-                        # metrics not yet available, continue looping
+                    except (KeyError, AssertionError):
+                        # continue polling
                         continue
                     else:
-                        # fastf path prevalent - done.
+                        # fast path prevalent - done.
                         break
+
+    async def wait_for_last_executed_seq_num(self, replica_id=0, expected=0):
+        with trio.fail_after(seconds=30):
+            while True:
+                with trio.move_on_after(seconds=.5):
+                    try:
+                        key = ['replica', 'Gauges', 'lastExecutedSeqNum']
+                        last_executed_seq_num = await self.metrics.get(replica_id, *key)
+                    except KeyError:
+                        continue
+                    else:
+                        # success!
+                        if last_executed_seq_num >= expected:
+                            return last_executed_seq_num
 
     async def assert_state_transfer_not_started_all_up_nodes(self, up_replica_ids):
         with trio.fail_after(METRICS_TIMEOUT_SEC):
@@ -692,12 +706,16 @@ class BftTestNetwork:
 
 
     async def num_of_slow_path(self):
-        nb_slow_path = 0
-        with trio.move_on_after(seconds=.5):
-            try:
-                metric_key = ['replica', 'Counters', 'slowPathCount']
-                nb_slow_path = await self.metrics.get(0, *metric_key)
-            except KeyError:
-                # metrics not yet available, continue looping
-                pass
-        return nb_slow_path
+        """
+        Returns the total number of requests processed on the slow commit path
+        """
+        with trio.fail_after(seconds=5):
+            while True:
+                with trio.move_on_after(seconds=.5):
+                    try:
+                        metric_key = ['replica', 'Counters', 'slowPathCount']
+                        nb_slow_path = await self.metrics.get(0, *metric_key)
+                        return nb_slow_path
+                    except KeyError:
+                        # metrics not yet available, continue looping
+                        pass
