@@ -3,7 +3,6 @@ add_library(concordbft_storage STATIC src/memorydb_client.cpp
 )
 
 target_include_directories(concordbft_storage PUBLIC include)
-#target_link_libraries(concordbft_storage PUBLIC corebft)
 
 if (BUILD_ROCKSDB_STORAGE)
   #TODO [TK] find_package
