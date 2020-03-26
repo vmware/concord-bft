@@ -4,9 +4,11 @@
 
 #include "gtest/gtest.h"
 
+#include "bcstatetransfer/SimpleBCStateTransfer.hpp"
+#include "kv_types.hpp"
 #include "memorydb/client.h"
-#include "storage/db_interface.h"
 #include "rocksdb/client.h"
+#include "storage/db_interface.h"
 
 #include <memory>
 #include <sstream>
@@ -30,6 +32,14 @@ inline std::string rocksDbPath() {
   std::stringstream ss;
   ss << std::this_thread::get_id();
   return rocksDbPathPrefix + ss.str();
+}
+
+inline ::bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest blockDigest(concord::kvbc::BlockId blockId,
+                                                                                   const concordUtils::Sliver &block) {
+  namespace st = ::bftEngine::SimpleBlockchainStateTransfer;
+  auto digest = st::StateTransferDigest{};
+  st::computeBlockDigest(blockId, block.data(), block.length(), &digest);
+  return digest;
 }
 
 struct TestMemoryDb {

@@ -22,8 +22,8 @@ inline constexpr auto BLOCK_DIGEST_SIZE = bftEngine::SimpleBlockchainStateTransf
 
 // Creates a block that includes a set of key/values. The passed parentDigest buffer must be of size BLOCK_DIGEST_SIZE
 // bytes.
-concordUtils::Sliver create(concord::kvbc::BlockId blockId,
-                            const concord::kvbc::SetOfKeyValuePairs &updates,
+
+concordUtils::Sliver create(const concord::kvbc::SetOfKeyValuePairs &updates,
                             const void *parentDigest,
                             const sparse_merkle::Hash &stateHash);
 

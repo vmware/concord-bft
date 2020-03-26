@@ -354,7 +354,7 @@ Status DBAdapter::getBlockById(BlockId blockId, Sliver &block) const {
     }
   }
 
-  block = block::create(blockId, keyValues, blockNode.parentDigest.data(), blockNode.stateHash);
+  block = block::create(keyValues, blockNode.parentDigest.data(), blockNode.stateHash);
   return Status::OK();
 }
 

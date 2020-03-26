@@ -1,4 +1,6 @@
 find_package(GTest REQUIRED)
+find_package(rapidcheck REQUIRED)
+
 if(Boost_FOUND)
     add_executable(blockchain_view_test blockchain_view_test.cpp $<TARGET_OBJECTS:logging_dev>)
     add_test(blockchain_view_test blockchain_view_test)
@@ -16,12 +18,26 @@ target_include_directories(order_test PUBLIC ${libkvbc_SOURCE_DIR}/include)
 target_link_libraries(order_test GTest::Main util)
 target_compile_options(order_test PUBLIC -Wno-sign-compare)
 
-add_executable(sparse_merkle_storage_db_adapter_unit_test sparse_merkle_storage/db_adapter_unit_test.cpp 
-                                                          $<TARGET_OBJECTS:logging_dev>)
+add_executable(sparse_merkle_storage_db_adapter_unit_test
+    sparse_merkle_storage/db_adapter_unit_test.cpp $<TARGET_OBJECTS:logging_dev>)
 add_test(sparse_merkle_storage_db_adapter_unit_test sparse_merkle_storage_db_adapter_unit_test)
 target_link_libraries(sparse_merkle_storage_db_adapter_unit_test PUBLIC
     GTest::Main
     GTest::GTest
+    util
+    corebft
+    kvbc
+    stdc++fs
+)
+
+add_executable(sparse_merkle_storage_db_adapter_property_test
+    sparse_merkle_storage/db_adapter_property_test.cpp $<TARGET_OBJECTS:logging_dev>)
+add_test(sparse_merkle_storage_db_adapter_property_test sparse_merkle_storage_db_adapter_property_test)
+target_include_directories(sparse_merkle_storage_db_adapter_property_test PRIVATE ${RAPIDCHECK_INCLUDE_DIRS})
+target_link_libraries(sparse_merkle_storage_db_adapter_property_test PUBLIC
+    GTest::Main
+    GTest::GTest
+    ${RAPIDCHECK_LIBRARIES}
     util
     corebft
     kvbc
