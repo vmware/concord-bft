@@ -530,10 +530,13 @@ class BftTestNetwork:
         """
         while True:
             with trio.move_on_after(.5): # seconds
-                key = ['replica', 'Counters', 'receivedStateTransferMsgs']
-                n = await self.metrics.get(replica.id, *key)
-                if n > 0:
-                    cancel_scope.cancel()
+                try:
+                    key = ['replica', 'Counters', 'receivedStateTransferMsgs']
+                    n = await self.metrics.get(replica.id, *key)
+                    if n > 0:
+                        cancel_scope.cancel()
+                except KeyError:
+                    continue # metrics not yet available, continue looping
 
     async def wait_for_state_transfer_to_stop(
             self,

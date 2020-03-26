@@ -440,7 +440,7 @@ STDigest BCStateTran::checkpointReservedPages(uint64_t checkpointNumber, DataSto
 // Remove old checkpoints from the data store
 void BCStateTran::deleteOldCheckpoints(uint64_t checkpointNumber, DataStoreTransaction *txn) {
   uint64_t minRelevantCheckpoint = 0;
-  if (checkpointNumber > maxNumOfStoredCheckpoints_) {
+  if (checkpointNumber >= maxNumOfStoredCheckpoints_) {
     minRelevantCheckpoint = checkpointNumber - maxNumOfStoredCheckpoints_ + 1;
   }
 
