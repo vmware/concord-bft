@@ -18,9 +18,9 @@ namespace concord::kvbc {
 
 class DBAdapterBase {
  protected:
-  DBAdapterBase(const std::shared_ptr<storage::IDBClient> db, bool readOnly)
-      : logger_(concordlogger::Log::getLogger("concord.kvbc.dbadapter")), db_(db) {
-    db_->init(readOnly);
+  DBAdapterBase(const std::shared_ptr<storage::IDBClient> db)
+      : logger_(concordlogger::Log::getLogger("concord.kvbc.dbadapter")), db_{db} {
+    db_->init(false);
   }
 
  public:
