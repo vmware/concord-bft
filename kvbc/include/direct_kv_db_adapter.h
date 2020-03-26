@@ -70,7 +70,8 @@ class DBKeyManipulator : public DBKeyManipulatorBase {
 
 class DBAdapter : public DBAdapterBase {
  public:
-  DBAdapter(std::shared_ptr<storage::IDBClient>, IDataKeyGenerator *keyGen = new KeyGenerator, bool readOnly = false);
+  DBAdapter(std::shared_ptr<storage::IDBClient>,
+            std::unique_ptr<IDataKeyGenerator> keyGen = std::make_unique<KeyGenerator>());
 
   // Adds a block from a set of key/value pairs and a block ID. Includes:
   // - adding the key/value pairs in separate keys

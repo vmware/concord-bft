@@ -438,8 +438,8 @@ std::pair<uint32_t, uint64_t> DBKeyManipulator::extractPageIdAndCheckpointFromKe
   return std::make_pair(pageId, chkp);
 }
 
-DBAdapter::DBAdapter(std::shared_ptr<storage::IDBClient> db, IDataKeyGenerator *keyGen, bool readOnly)
-    : DBAdapterBase{db, readOnly}, keyGen_(keyGen) {}
+DBAdapter::DBAdapter(std::shared_ptr<storage::IDBClient> db, std::unique_ptr<IDataKeyGenerator> keyGen)
+    : DBAdapterBase{db}, keyGen_{std::move(keyGen)} {}
 
 Status DBAdapter::addBlock(const SetOfKeyValuePairs &kv, BlockId blockId) {
   bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest stDigest;

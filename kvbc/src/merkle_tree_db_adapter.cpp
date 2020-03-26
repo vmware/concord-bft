@@ -221,7 +221,7 @@ Hash DBKeyManipulator::extractHashFromLeafKey(const Key &key) {
 }
 
 DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db)
-    : DBAdapterBase{db, false}, smTree_{std::make_shared<Reader>(*this)} {
+    : DBAdapterBase{db}, smTree_{std::make_shared<Reader>(*this)} {
   // Make sure that if linkSTChainFrom() has been interrupted (e.g. a crash or an abnormal shutdown), all DBAdapter
   // methods will return the correct values. For example, if state transfer had completed and linkSTChainFrom() was
   // interrupted, getLatestBlock() should be equal to getLastReachableBlock() on the next startup. Another example is
