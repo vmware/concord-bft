@@ -103,7 +103,7 @@ TEST(testViewchangeSafetyLogic_test, different_new_views_in_VC_msgs) {
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
-  system("../../../tools/GenerateConcordKeys -n 4 -f 1 -o replica_keys_");
+  assert(system("../../../tools/GenerateConcordKeys -n 4 -f 1 -o replica_keys_") != -1);
   setUpConfiguration_4();
   int res = RUN_ALL_TESTS();
   // TODO cleanup the generated certificates
