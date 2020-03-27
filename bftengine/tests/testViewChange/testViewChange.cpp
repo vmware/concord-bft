@@ -125,33 +125,33 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
   const uint64_t requestBuffer[kRequestLength] = {(uint64_t)200, expectedLastValue};
   ViewNum curView = 0;
 
-  auto CO = ClientRequestMsg((uint16_t)1,
-                             bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
-                             (uint64_t)1234567,
-                             kRequestLength,
-                             (const char*)requestBuffer,
-                             (uint64_t)1000000);
-  auto pp = PrePrepareMsg(0, curView, 1, bftEngine::impl::CommitPath::SLOW, false);
-  pp.addRequest(CO.body(), CO.size());
-  pp.finishAddingRequests();
+  auto* CO = new ClientRequestMsg((uint16_t)1,
+                                  bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
+                                  (uint64_t)1234567,
+                                  kRequestLength,
+                                  (const char*)requestBuffer,
+                                  (uint64_t)1000000);
+  auto* pp = new PrePrepareMsg(0, curView, 1, bftEngine::impl::CommitPath::SLOW, false);
+  pp->addRequest(CO->body(), CO->size());
+  pp->finishAddingRequests();
 
   PreparePartialMsg* p1 = PreparePartialMsg::create(curView,
-                                                    pp.seqNumber(),
+                                                    pp->seqNumber(),
                                                     replicaConfig[1].replicaId,
-                                                    pp.digestOfRequests(),
+                                                    pp->digestOfRequests(),
                                                     replicaConfig[1].thresholdSignerForSlowPathCommit);
   PreparePartialMsg* p2 = PreparePartialMsg::create(curView,
-                                                    pp.seqNumber(),
+                                                    pp->seqNumber(),
                                                     replicaConfig[2].replicaId,
-                                                    pp.digestOfRequests(),
+                                                    pp->digestOfRequests(),
                                                     replicaConfig[2].thresholdSignerForSlowPathCommit);
   PreparePartialMsg* p3 = PreparePartialMsg::create(curView,
-                                                    pp.seqNumber(),
+                                                    pp->seqNumber(),
                                                     replicaConfig[3].replicaId,
-                                                    pp.digestOfRequests(),
+                                                    pp->digestOfRequests(),
                                                     replicaConfig[3].thresholdSignerForSlowPathCommit);
 
-  seqNumInfo_.addSelfMsg(&pp);
+  seqNumInfo_.addSelfMsg(pp);
   seqNumInfo_.addMsg(p1);
   seqNumInfo_.addMsg(p2);
   seqNumInfo_.addMsg(p3);
@@ -169,7 +169,7 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
 
   // viewChangeMsgs[2]->addElement(*pRepInfo,
   //                   1,
-  //                   pp.digestOfRequests(),
+  //                   pp->digestOfRequests(),
   //                   0,
   //                   true,
   //                   0,
@@ -182,6 +182,8 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
 
   SeqNum min{}, max{};
   VCS.computeRestrictions(viewChangeMsgs, 0, min, max, restrictions);
+
+  replica.getInternalThreadPool().stop(true);
 
   for (int i = 0; i < N; i++) {
     delete viewChangeMsgs[i];
