@@ -94,6 +94,8 @@ class LeafKey {
   Version version_;
 };
 
+std::ostream& operator<<(std::ostream& os, const LeafKey&);
+
 // A binary blob value
 struct LeafNode {
   concordUtils::Sliver value;

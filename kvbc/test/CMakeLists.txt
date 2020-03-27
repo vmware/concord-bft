@@ -44,6 +44,19 @@ if(RAPIDCHECK_FOUND)
         kvbc
         stdc++fs
     )
+
+    add_executable(sparse_merkle_internal_node_property_test sparse_merkle/internal_node_property_tests.cpp
+    $<TARGET_OBJECTS:logging_dev>)
+    add_test(sparse_merkle_internal_node_property_test sparse_merkle_internal_node_property_test)
+    target_include_directories(sparse_merkle_internal_node_property_test PRIVATE ${RAPIDCHECK_INCLUDE_DIRS})
+    target_link_libraries(sparse_merkle_internal_node_property_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        ${RAPIDCHECK_LIBRARIES}
+        util
+        kvbc
+        OpenSSL::Crypto
+    )
 endif ()
 
 add_executable(sparse_merkle_base_types_test sparse_merkle/base_types_test.cpp

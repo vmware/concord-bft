@@ -127,6 +127,7 @@ BatchedInternalNode::InsertResult BatchedInternalNode::splitNode(size_t index, c
 
   // How many prefix bits do the two leaf key hashes have in common?
   auto prefix_bits_in_common = stored_leaf_child.key.hash().prefix_bits_in_common(child.key.hash(), depth);
+  Assert(prefix_bits_in_common > 0);
 
   // Fill in this node with any necessary internal children.
   Nibble child_key = child.key.hash().getNibble(depth);
@@ -400,6 +401,11 @@ bool BatchedInternalNode::isInternal(size_t index) const {
     return std::holds_alternative<InternalChild>(child.value());
   }
   return false;
+}
+
+std::ostream& operator<<(std::ostream& os, const LeafChild& child) {
+  os << "LeafChild {hash=" << child.hash << ", key=" << child.key << "}";
+  return os;
 }
 
 }  // namespace sparse_merkle

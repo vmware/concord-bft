@@ -49,15 +49,19 @@ BatchedInternalNode and their corresponding header comments.
 // A child that is a leaf of the overall tree. It isn't necessarily at height 0
 // in a BatchedInternalNode, although there will not be any children below it.
 struct LeafChild {
+  LeafChild(Hash _hash, LeafKey _key) : hash(_hash), key(_key) {}
   static constexpr auto SIZE_IN_BYTES = Hash::SIZE_IN_BYTES + LeafKey::SIZE_IN_BYTES;
   std::string toString() const {
     return std::string("LeafChild {hash=") + hash.toString() + ", key = " + key.toString() + "}";
   }
   bool operator==(const LeafChild& other) const { return hash == other.hash && key == other.key; }
+  bool operator<(const LeafChild& other) const { return hash < other.hash && key < other.key; }
   // The hash of the value blob stored at `key`
   Hash hash;
   LeafKey key;
 };
+
+std::ostream& operator<<(std::ostream& os, const LeafChild&);
 
 // A child that represents an internal node of the sparse binary merkle tree. It
 // will refer to another BatchedInternalNode if it resides at height 0.
@@ -281,17 +285,69 @@ class BatchedInternalNode {
   // Return true if this node is identical to the other one and false otherwise.
   bool operator==(const BatchedInternalNode& other) const { return children_ == other.children_; }
 
-  // Take a nibble representing the logical location a child at height 0 in a
-  // BatchedInternalNode and return the index of that child in `children_`.
-  //
-  // This should only be used outside of this class during testing.
-  size_t nibbleToIndex(Nibble nibble) const;
-
   // Return true if there are no linked children (InternalChild at level 0) and no leaf children.
   bool safeToRemove() const;
 
   // Return a string representation useful for debugging
   std::string toString() const;
+
+  // **************************************************************************
+  // The following const methods are really only useful publicly for testing purposes.
+  // **************************************************************************
+
+  // Take a nibble representing the logical location a child at height 0 in a
+  // BatchedInternalNode and return the index of that child in `children_`.
+  size_t nibbleToIndex(Nibble nibble) const;
+
+  // Return true if the index does not contain a child.
+  bool isEmpty(size_t index) const { return !children_.at(index).has_value(); }
+
+  // Return true if the index has a child that contains an internal node.
+  bool isInternal(size_t index) const;
+
+  // Return the the height of the node at the given index.
+  //
+  // The height depends upon MAX_CHILDREN, which dictates the maximum depth of a
+  // binary tree.
+  size_t height(size_t index) const;
+
+  // Return the index of the parent node, given the index of the child node.
+  //
+  // Return std::nullopt if the index points to the root of this
+  // BatchedInternalNode.
+  std::optional<size_t> parentIndex(size_t index) const {
+    if (index == 0) return std::nullopt;
+    return (index - 1) / 2;
+  }
+
+  // Return the peer index.
+  //
+  // If this node is the root, return std::nullopt;
+  // If the node does not have a peer, then return std::nullopt;
+  std::optional<size_t> peerIndex(size_t index) const {
+    if (index == 0) return std::nullopt;
+
+    auto peer_index = isLeftChild(index) ? index + 1 : index - 1;
+    if (isEmpty(peer_index)) {
+      return std::nullopt;
+    }
+    return peer_index;
+  }
+
+  // Return the index of the left child of a node at a given index.
+  size_t leftChildIndex(size_t index) const { return 2 * index + 1; }
+
+  // Return the index of the right child of a node at a given index.
+  size_t rightChildIndex(size_t index) const { return 2 * index + 2; }
+
+  // Is this node a left child?
+  bool isLeftChild(size_t index) const { return index % 2 != 0; }
+
+  // The number of children at level 0 of the 4 level tree in this BatchedInternalNode
+  size_t numLevel0Children() const;
+
+  // Return the hash of a given index.
+  const Hash& getHash(size_t index) const;
 
  private:
   // A LeafChild collission has occurred. We need to create new InternalChild nodes so
@@ -317,12 +373,6 @@ class BatchedInternalNode {
   // Remove the LeafChild at the given index. Updates of children should be set
   // to new_version.
   RemoveResult removeLeafChild(size_t index, Version new_version, Version stored_version, size_t depth);
-
-  // Return true if the index does not contain a child.
-  bool isEmpty(size_t index) const { return !children_.at(index).has_value(); }
-
-  // Return true if the index has a child that contains an internal node.
-  bool isInternal(size_t index) const;
 
   // Attempt to insert into an empty child.
   //
@@ -352,55 +402,11 @@ class BatchedInternalNode {
   // Return either CreateNewBatchedInternalNodes or InsertComplete.
   InsertResult splitNode(size_t index, const LeafChild& child, size_t depth);
 
-  // Return the hash of a given index.
-  const Hash& getHash(size_t index) const;
-
   // Walk the tree from `index` up to the root of this BatchedInternalNode to
   // compute the root hash.
   //
   // Update the hashes and versions of nodes along the way.
   void updateHashes(size_t index, Version version);
-
-  // Return the the height of the node at the given index.
-  //
-  // The height depends upon MAX_CHILDREN, which dictates the maximum depth of a
-  // binary tree.
-  size_t height(size_t index) const;
-
-  // Return the index of the parent node, given the index of the child node.
-  //
-  // Return std::nullopt if the index points to the root of this
-  // BatchedInternalNode.
-  std::optional<size_t> parentIndex(size_t index) {
-    if (index == 0) return std::nullopt;
-    return (index - 1) / 2;
-  }
-
-  // Return the peer index.
-  //
-  // If this node is the root, return std::nullopt;
-  // If the node does not have a peer, then return std::nullopt;
-  std::optional<size_t> peerIndex(size_t index) {
-    if (index == 0) return std::nullopt;
-
-    auto peer_index = isLeftChild(index) ? index + 1 : index - 1;
-    if (isEmpty(peer_index)) {
-      return std::nullopt;
-    }
-    return peer_index;
-  }
-
-  // Return the index of the left child of a node at a given index.
-  size_t leftChildIndex(size_t index) const { return 2 * index + 1; }
-
-  // Return the index of the right child of a node at a given index.
-  size_t rightChildIndex(size_t index) const { return 2 * index + 2; }
-
-  // Is this node a left child?
-  bool isLeftChild(size_t index) const { return index % 2 != 0; }
-
-  // The number of children at level 0 of the 4 level tree in this BatchedInternalNode
-  size_t numLevel0Children() const;
 
   // All internal and leaf nodes are stored in this array, starting from the
   // root and proceeding level by level from left to right.
