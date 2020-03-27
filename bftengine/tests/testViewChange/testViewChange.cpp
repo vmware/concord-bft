@@ -42,6 +42,66 @@ static const int C = 0;
 ViewChangeSafetyLogic::Restriction restrictions[kWorkWindowSize];
 std::unique_ptr<bftEngine::impl::ReplicasInfo> pRepInfo;
 
+class DummyReplica : public InternalReplicaApi {
+ public:
+  DummyReplica(const bftEngine::impl::ReplicasInfo& replicasInfo, const ReplicaConfig& replicaConfig)
+      : replicasInfo_(replicasInfo),
+        replicaConfig_(replicaConfig),
+        msgHandlersPtr_(new MsgHandlersRegistrator()),
+        incomingMsgsStorage_(new IncomingMsgsStorageImp(msgHandlersPtr_, timersResolution, replicaConfig_.replicaId)) {}
+  DummyReplica() { delete incomingMsgsStorage_; }
+
+  void onPrepareCombinedSigFailed(SeqNum seqNumber, ViewNum view, const set<uint16_t>& replicasWithBadSigs) {}
+  void onPrepareCombinedSigSucceeded(SeqNum seqNumber, ViewNum view, const char* combinedSig, uint16_t combinedSigLen) {
+
+  }
+  void onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) {}
+
+  void onCommitCombinedSigFailed(SeqNum seqNumber, ViewNum view, const set<uint16_t>& replicasWithBadSigs) {}
+  void onCommitCombinedSigSucceeded(SeqNum seqNumber, ViewNum view, const char* combinedSig, uint16_t combinedSigLen) {}
+  void onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) {}
+
+  void onInternalMsg(FullCommitProofMsg* m) {}
+  void onMerkleExecSignature(ViewNum view, SeqNum seqNum, uint16_t signatureLength, const char* signature) {}
+
+  void onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqNum,
+                                          const ViewNum relatedViewNumber,
+                                          const forward_list<RetSuggestion>* const suggestedRetransmissions) {}
+
+  const bftEngine::impl::ReplicasInfo& getReplicasInfo() const { return replicasInfo_; }
+  bool isValidClient(NodeIdType client) const { return true; }
+  bool isIdOfReplica(NodeIdType id) const { return true; }
+  const set<ReplicaId>& getIdsOfPeerReplicas() const { return replicaIds_; }
+  ViewNum getCurrentView() const { return 0; }
+  ReplicaId currentPrimary() const { return 0; }
+  bool isCurrentPrimary() const { return true; }
+  bool currentViewIsActive() const { return true; }
+  ReqId seqNumberOfLastReplyToClient(NodeIdType client) const { return 1; }
+
+  IncomingMsgsStorage& getIncomingMsgsStorage() { return *incomingMsgsStorage_; }
+  util::SimpleThreadPool& getInternalThreadPool() { return pool_; }
+
+  void updateMetricsForInternalMessage() {}
+  bool isCollectingState() const { return false; }
+
+  const ReplicaConfig& getReplicaConfig() const { return replicaConfig_; }
+
+  IThresholdVerifier* getThresholdVerifierForExecution() { return nullptr; }
+  IThresholdVerifier* getThresholdVerifierForSlowPathCommit() {
+    return replicaConfig_.thresholdVerifierForSlowPathCommit;
+  }
+  IThresholdVerifier* getThresholdVerifierForCommit() { return nullptr; }
+  IThresholdVerifier* getThresholdVerifierForOptimisticCommit() { return nullptr; }
+
+ private:
+  bftEngine::impl::ReplicasInfo replicasInfo_;
+  ReplicaConfig replicaConfig_;
+  shared_ptr<MsgHandlersRegistrator> msgHandlersPtr_;
+  IncomingMsgsStorage* incomingMsgsStorage_;
+  util::SimpleThreadPool pool_;
+  set<ReplicaId> replicaIds_;
+};
+
 void setUpConfiguration_4() {
   inputReplicaKeyfile("replica_keys_0", replicaConfig[0]);
   inputReplicaKeyfile("replica_keys_1", replicaConfig[1]);
@@ -51,6 +111,83 @@ void setUpConfiguration_4() {
   pRepInfo = std::make_unique<bftEngine::impl::ReplicasInfo>(replicaConfig[0], true, true);
 
   replicaConfig[0].singletonFromThis();
+}
+
+TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
+  bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig[0], false, false);
+  DummyReplica replica(replicasInfo, replicaConfig[0]);
+  replica.getInternalThreadPool().start(1);
+  SeqNumInfo seqNumInfo_;
+  SeqNumInfo::init(seqNumInfo_, static_cast<void*>(&replica));
+
+  uint64_t expectedLastValue = 12345;
+  const uint32_t kRequestLength = 2;
+  const uint64_t requestBuffer[kRequestLength] = {(uint64_t)200, expectedLastValue};
+  ViewNum curView = 0;
+
+  auto CO = ClientRequestMsg((uint16_t)1,
+                             bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
+                             (uint64_t)1234567,
+                             kRequestLength,
+                             (const char*)requestBuffer,
+                             (uint64_t)1000000);
+  auto pp = PrePrepareMsg(0, curView, 1, bftEngine::impl::CommitPath::SLOW, false);
+  pp.addRequest(CO.body(), CO.size());
+  pp.finishAddingRequests();
+
+  PreparePartialMsg* p1 = PreparePartialMsg::create(curView,
+                                                    pp.seqNumber(),
+                                                    replicaConfig[1].replicaId,
+                                                    pp.digestOfRequests(),
+                                                    replicaConfig[1].thresholdSignerForSlowPathCommit);
+  PreparePartialMsg* p2 = PreparePartialMsg::create(curView,
+                                                    pp.seqNumber(),
+                                                    replicaConfig[2].replicaId,
+                                                    pp.digestOfRequests(),
+                                                    replicaConfig[2].thresholdSignerForSlowPathCommit);
+  PreparePartialMsg* p3 = PreparePartialMsg::create(curView,
+                                                    pp.seqNumber(),
+                                                    replicaConfig[3].replicaId,
+                                                    pp.digestOfRequests(),
+                                                    replicaConfig[3].thresholdSignerForSlowPathCommit);
+
+  seqNumInfo_.addSelfMsg(&pp);
+  seqNumInfo_.addMsg(p1);
+  seqNumInfo_.addMsg(p2);
+  seqNumInfo_.addMsg(p3);
+
+  PrepareFullMsg pfMsg();
+
+  ViewChangeMsg** viewChangeMsgs = new ViewChangeMsg*[N];
+  for (int i = 0; i < N; i++) {
+    if (i == 1) {
+      viewChangeMsgs[i] = nullptr;
+    } else {
+      viewChangeMsgs[i] = new ViewChangeMsg(i, 1, 0);
+    }
+  }
+
+  // viewChangeMsgs[2]->addElement(*pRepInfo,
+  //                   1,
+  //                   pp.digestOfRequests(),
+  //                   0,
+  //                   true,
+  //                   0,
+  //                   pfMsg.signatureLen(),
+  //                   pfMsg.signatureBody()
+  //                   );
+
+  auto VCS = ViewChangeSafetyLogic(
+      N, F, C, replicaConfig[0].thresholdVerifierForSlowPathCommit, PrePrepareMsg::digestOfNullPrePrepareMsg());
+
+  SeqNum min{}, max{};
+  VCS.computeRestrictions(viewChangeMsgs, 0, min, max, restrictions);
+
+  for (int i = 0; i < N; i++) {
+    delete viewChangeMsgs[i];
+    viewChangeMsgs[i] = nullptr;
+  }
+  delete[] viewChangeMsgs;
 }
 
 TEST(testViewchangeSafetyLogic_test, one_different_new_view_in_VC_msgs) {
