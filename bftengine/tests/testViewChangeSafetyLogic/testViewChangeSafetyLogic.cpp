@@ -43,24 +43,21 @@ ViewChangeSafetyLogic::Restriction restrictions[kWorkWindowSize];
 std::unique_ptr<bftEngine::impl::ReplicasInfo> pRepInfo;
 
 void setUpConfiguration_4() {
-
-	inputReplicaKeyfile("replica_keys_0",replicaConfig[0]);
-	inputReplicaKeyfile("replica_keys_1",replicaConfig[1]);
-	inputReplicaKeyfile("replica_keys_2",replicaConfig[2]);
-	inputReplicaKeyfile("replica_keys_3",replicaConfig[3]);
+  inputReplicaKeyfile("replica_keys_0", replicaConfig[0]);
+  inputReplicaKeyfile("replica_keys_1", replicaConfig[1]);
+  inputReplicaKeyfile("replica_keys_2", replicaConfig[2]);
+  inputReplicaKeyfile("replica_keys_3", replicaConfig[3]);
 
   pRepInfo = std::make_unique<bftEngine::impl::ReplicasInfo>(replicaConfig[0], true, true);
 
   replicaConfig[0].singletonFromThis();
-
 }
 
 TEST(testViewchangeSafetyLogic_test, one_different_new_view_in_VC_msgs) {
-
   ViewChangeMsg** viewChangeMsgs = new ViewChangeMsg*[N];
 
-  for(int i = 0; i < N; i++) {
-      viewChangeMsgs[i] = nullptr;
+  for (int i = 0; i < N; i++) {
+    viewChangeMsgs[i] = nullptr;
   }
 
   viewChangeMsgs[0] = new ViewChangeMsg(0, 10, 0);
@@ -68,28 +65,22 @@ TEST(testViewchangeSafetyLogic_test, one_different_new_view_in_VC_msgs) {
   viewChangeMsgs[3] = new ViewChangeMsg(3, 11, 0);
 
   auto VCS = ViewChangeSafetyLogic(
-    N, 
-    F, 
-    C, 
-    replicaConfig[0].thresholdVerifierForSlowPathCommit,
-    PrePrepareMsg::digestOfNullPrePrepareMsg()
-  );
+      N, F, C, replicaConfig[0].thresholdVerifierForSlowPathCommit, PrePrepareMsg::digestOfNullPrePrepareMsg());
 
   ASSERT_DEATH(VCS.calcLBStableForView(viewChangeMsgs), "");
 
-  for(int i = 0; i < N; i++){
+  for (int i = 0; i < N; i++) {
     delete viewChangeMsgs[i];
     viewChangeMsgs[i] = nullptr;
   }
-  delete [] viewChangeMsgs;
+  delete[] viewChangeMsgs;
 }
 
 TEST(testViewchangeSafetyLogic_test, different_new_views_in_VC_msgs) {
-
   ViewChangeMsg** viewChangeMsgs = new ViewChangeMsg*[N];
 
-  for(int i = 0; i < N; i++) {
-    if(i == 1) {
+  for (int i = 0; i < N; i++) {
+    if (i == 1) {
       viewChangeMsgs[i] = nullptr;
     } else {
       viewChangeMsgs[i] = new ViewChangeMsg(i, i, 0);
@@ -97,20 +88,15 @@ TEST(testViewchangeSafetyLogic_test, different_new_views_in_VC_msgs) {
   }
 
   auto VCS = ViewChangeSafetyLogic(
-    N, 
-    F, 
-    C, 
-    replicaConfig[0].thresholdVerifierForSlowPathCommit,
-    PrePrepareMsg::digestOfNullPrePrepareMsg()
-  );
+      N, F, C, replicaConfig[0].thresholdVerifierForSlowPathCommit, PrePrepareMsg::digestOfNullPrePrepareMsg());
 
   ASSERT_DEATH(VCS.calcLBStableForView(viewChangeMsgs), "");
 
-  for(int i = 0; i < N; i++){
+  for (int i = 0; i < N; i++) {
     delete viewChangeMsgs[i];
     viewChangeMsgs[i] = nullptr;
   }
-  delete [] viewChangeMsgs;
+  delete[] viewChangeMsgs;
 }
 
 }  // end namespace
@@ -120,6 +106,6 @@ int main(int argc, char** argv) {
   system("../../../tools/GenerateConcordKeys -n 4 -f 1 -o replica_keys_");
   setUpConfiguration_4();
   int res = RUN_ALL_TESTS();
-  //TODO cleanup the generated certificates
+  // TODO cleanup the generated certificates
   return res;
 }
