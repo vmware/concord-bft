@@ -77,10 +77,11 @@ void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
 }
 
 PrePrepareMsg::PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, bool isNull, size_t size)
-    : MessageBase(sender, MsgCode::PrePrepare,
-                  (((size + sizeof(PrePrepareMsgHeader)) < maxSizeOfPrePrepareMsg())
-                   ? (size + sizeof(PrePrepareMsgHeader))
-                   : maxSizeOfPrePrepareMsg()))
+    : MessageBase(
+          sender,
+          MsgCode::PrePrepare,
+          (((size + sizeof(PrePrepareMsgHeader)) < maxSizeOfPrePrepareMsg()) ? (size + sizeof(PrePrepareMsgHeader))
+                                                                             : maxSizeOfPrePrepareMsg()))
 
 {
   b()->viewNum = v;
