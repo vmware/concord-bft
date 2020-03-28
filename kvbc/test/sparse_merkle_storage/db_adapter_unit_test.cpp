@@ -1258,22 +1258,34 @@ TEST_P(db_adapter_ref_blockchain, state_transfer_unordered_with_blockchain_block
   }
 }
 
-// Instantiate tests with memorydb and RocksDB clients and with custom (test-specific) blockchains.
-INSTANTIATE_TEST_CASE_P(db_adapter_tests_custom_blockchain,
-                        db_adapter_custom_blockchain,
-                        ::testing::Values(std::make_shared<DbAdapterTest<TestMemoryDb>>(),
-                                          std::make_shared<DbAdapterTest<TestRocksDb>>()),
-                        TypePrinter{});
+#ifdef USE_ROCKSDB
+const auto customBlockchainTestsParams =
+    ::testing::Values(std::make_shared<DbAdapterTest<TestMemoryDb>>(), std::make_shared<DbAdapterTest<TestRocksDb>>());
 
-// Instantiate tests with memorydb and RocksDB clients and with reference blockchains (with and without empty blocks).
-INSTANTIATE_TEST_CASE_P(
-    db_adapter_tests_ref_blockchain,
-    db_adapter_ref_blockchain,
+const auto refBlockchainTestParams =
     ::testing::Values(std::make_shared<DbAdapterTest<TestMemoryDb, ReferenceBlockchainType::NoEmptyBlocks>>(),
                       std::make_shared<DbAdapterTest<TestRocksDb, ReferenceBlockchainType::NoEmptyBlocks>>(),
                       std::make_shared<DbAdapterTest<TestMemoryDb, ReferenceBlockchainType::WithEmptyBlocks>>(),
-                      std::make_shared<DbAdapterTest<TestRocksDb, ReferenceBlockchainType::WithEmptyBlocks>>()),
-    TypePrinter{});
+                      std::make_shared<DbAdapterTest<TestRocksDb, ReferenceBlockchainType::WithEmptyBlocks>>());
+#else
+const auto customBlockchainTestsParams = ::testing::Values(std::make_shared<DbAdapterTest<TestMemoryDb>>());
+
+const auto refBlockchainTestParams =
+    ::testing::Values(std::make_shared<DbAdapterTest<TestMemoryDb, ReferenceBlockchainType::NoEmptyBlocks>>(),
+                      std::make_shared<DbAdapterTest<TestMemoryDb, ReferenceBlockchainType::WithEmptyBlocks>>());
+#endif
+
+// Instantiate tests with memorydb and RocksDB clients and with custom (test-specific) blockchains.
+INSTANTIATE_TEST_CASE_P(db_adapter_tests_custom_blockchain,
+                        db_adapter_custom_blockchain,
+                        customBlockchainTestsParams,
+                        TypePrinter{});
+
+// Instantiate tests with memorydb and RocksDB clients and with reference blockchains (with and without empty blocks).
+INSTANTIATE_TEST_CASE_P(db_adapter_tests_ref_blockchain,
+                        db_adapter_ref_blockchain,
+                        refBlockchainTestParams,
+                        TypePrinter{});
 
 }  // namespace
 

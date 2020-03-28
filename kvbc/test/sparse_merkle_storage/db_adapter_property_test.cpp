@@ -292,16 +292,22 @@ TEST_P(db_adapter_kv_tests, get_all_keys_at_last_version) {
   ASSERT_TRUE(rc::check(test));
 }
 
+#ifdef USE_ROCKSDB
+using TestDbType = TestRocksDb;
+#else
+using TestDbType = TestMemoryDb;
+#endif
+
 INSTANTIATE_TEST_CASE_P(db_adapter_block_tests_case,
                         db_adapter_block_tests,
-                        ::testing::Values(std::make_shared<DbAdapterTest<TestRocksDb>>()),
+                        ::testing::Values(std::make_shared<DbAdapterTest<TestDbType>>()),
                         TypePrinter{});
 
 // Test with and without multiple-versioned keys.
 INSTANTIATE_TEST_CASE_P(db_adapter_kv_tests_case,
                         db_adapter_kv_tests,
-                        ::testing::Values(std::make_shared<DbAdapterTest<TestRocksDb, false>>(),
-                                          std::make_shared<DbAdapterTest<TestRocksDb, true>>()),
+                        ::testing::Values(std::make_shared<DbAdapterTest<TestDbType, false>>(),
+                                          std::make_shared<DbAdapterTest<TestDbType, true>>()),
                         TypePrinter{});
 
 }  // namespace
