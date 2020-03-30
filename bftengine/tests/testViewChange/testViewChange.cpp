@@ -43,7 +43,6 @@ static const int C = 0;
 ViewChangeSafetyLogic::Restriction restrictions[kWorkWindowSize];
 std::unique_ptr<bftEngine::impl::ReplicasInfo> pRepInfo;
 SigManager* sigManager_;
-SeqNumInfo seqNumInfo_;
 
 class myViewsManager : public ViewsManager {
  public:
@@ -58,6 +57,7 @@ class DummyReplica : public InternalReplicaApi {
         msgHandlersPtr_(new MsgHandlersRegistrator()),
         incomingMsgsStorage_(new IncomingMsgsStorageImp(msgHandlersPtr_, timersResolution, replicaConfig_.replicaId)) {
     combine_operation_future = combine_operation_promise.get_future();
+    SeqNumInfo::init(seqNumInfo_, static_cast<void*>(this));
   }
   ~DummyReplica() { delete incomingMsgsStorage_; }
 
@@ -113,6 +113,8 @@ class DummyReplica : public InternalReplicaApi {
   IThresholdVerifier* getThresholdVerifierForCommit() { return nullptr; }
   IThresholdVerifier* getThresholdVerifierForOptimisticCommit() { return nullptr; }
 
+  SeqNumInfo& GetSeqNumInfo() { return seqNumInfo_; }
+
   enum class PrepareCombinedSigOperationStatus : uint8_t { OPERATION_SUCCEEDED, OPERATION_FAILED };
   std::future<PrepareCombinedSigOperationStatus> combine_operation_future;
 
@@ -124,6 +126,7 @@ class DummyReplica : public InternalReplicaApi {
   IncomingMsgsStorage* incomingMsgsStorage_;
   util::SimpleThreadPool pool_;
   set<ReplicaId> replicaIds_;
+  SeqNumInfo seqNumInfo_;
 };
 
 void setUpConfiguration_4() {
@@ -146,8 +149,6 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
   bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig[0], false, false);
   DummyReplica replica(replicasInfo, replicaConfig[0]);
   replica.getInternalThreadPool().start(1);
-
-  SeqNumInfo::init(seqNumInfo_, static_cast<void*>(&replica));
 
   uint64_t expectedLastValue = 12345;
   const uint32_t kRequestLength = 2;
@@ -181,16 +182,16 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
                                                     pp->digestOfRequests(),
                                                     replicaConfig[3].thresholdSignerForSlowPathCommit);
 
-  seqNumInfo_.addSelfMsg(pp, true);
-  seqNumInfo_.addMsg(p1);
-  seqNumInfo_.addMsg(p2);
-  seqNumInfo_.addMsg(p3);
+  replica.GetSeqNumInfo().addSelfMsg(pp, true);
+  replica.GetSeqNumInfo().addMsg(p1);
+  replica.GetSeqNumInfo().addMsg(p2);
+  replica.GetSeqNumInfo().addMsg(p3);
 
   auto* theMsgStore = dynamic_cast<IncomingMsgsStorageImp*>(&(replica.getIncomingMsgsStorage()));
   theMsgStore->start();
   auto operation_status = replica.combine_operation_future.get();
   assert(operation_status == DummyReplica::PrepareCombinedSigOperationStatus::OPERATION_SUCCEEDED);
-  auto pfMsg = seqNumInfo_.getValidPrepareFullMsg();
+  auto pfMsg = replica.GetSeqNumInfo().getValidPrepareFullMsg();
 
   ViewChangeMsg** viewChangeMsgs = new ViewChangeMsg*[N];
   for (int i = 0; i < N; i++) {
