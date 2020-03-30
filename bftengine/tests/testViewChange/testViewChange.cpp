@@ -27,6 +27,7 @@
 #include "SysConsts.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "IncomingMsgsStorageImp.hpp"
+#include "ViewsManager.hpp"
 
 #include "gtest/gtest.h"
 
@@ -41,6 +42,13 @@ static const int F = 1;
 static const int C = 0;
 ViewChangeSafetyLogic::Restriction restrictions[kWorkWindowSize];
 std::unique_ptr<bftEngine::impl::ReplicasInfo> pRepInfo;
+SigManager* sigManager_;
+SeqNumInfo seqNumInfo_;
+
+class myViewsManager : public ViewsManager {
+ public:
+  static void setSigMgr(SigManager* ptr) { ViewsManager::sigManager_ = ptr; }
+};
 
 class DummyReplica : public InternalReplicaApi {
  public:
@@ -48,12 +56,24 @@ class DummyReplica : public InternalReplicaApi {
       : replicasInfo_(replicasInfo),
         replicaConfig_(replicaConfig),
         msgHandlersPtr_(new MsgHandlersRegistrator()),
-        incomingMsgsStorage_(new IncomingMsgsStorageImp(msgHandlersPtr_, timersResolution, replicaConfig_.replicaId)) {}
-  DummyReplica() { delete incomingMsgsStorage_; }
+        incomingMsgsStorage_(new IncomingMsgsStorageImp(msgHandlersPtr_, timersResolution, replicaConfig_.replicaId)) {
+    combine_operation_future = combine_operation_promise.get_future();
+  }
+  ~DummyReplica() { delete incomingMsgsStorage_; }
 
-  void onPrepareCombinedSigFailed(SeqNum seqNumber, ViewNum view, const set<uint16_t>& replicasWithBadSigs) {}
+  void onPrepareCombinedSigFailed(SeqNum seqNumber, ViewNum view, const set<uint16_t>& replicasWithBadSigs) {
+    combine_operation_promise.set_value(PrepareCombinedSigOperationStatus::OPERATION_FAILED);
+  }
   void onPrepareCombinedSigSucceeded(SeqNum seqNumber, ViewNum view, const char* combinedSig, uint16_t combinedSigLen) {
+    seqNumInfo_.onCompletionOfPrepareSignaturesProcessing(seqNumber, view, combinedSig, combinedSigLen);
 
+    PrepareFullMsg* preFull = seqNumInfo_.getValidPrepareFullMsg();
+
+    if (preFull) {
+      combine_operation_promise.set_value(PrepareCombinedSigOperationStatus::OPERATION_SUCCEEDED);
+    } else {
+      combine_operation_promise.set_value(PrepareCombinedSigOperationStatus::OPERATION_FAILED);
+    }
   }
   void onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) {}
 
@@ -93,7 +113,11 @@ class DummyReplica : public InternalReplicaApi {
   IThresholdVerifier* getThresholdVerifierForCommit() { return nullptr; }
   IThresholdVerifier* getThresholdVerifierForOptimisticCommit() { return nullptr; }
 
+  enum class PrepareCombinedSigOperationStatus : uint8_t { OPERATION_SUCCEEDED, OPERATION_FAILED };
+  std::future<PrepareCombinedSigOperationStatus> combine_operation_future;
+
  private:
+  std::promise<PrepareCombinedSigOperationStatus> combine_operation_promise;
   bftEngine::impl::ReplicasInfo replicasInfo_;
   ReplicaConfig replicaConfig_;
   shared_ptr<MsgHandlersRegistrator> msgHandlersPtr_;
@@ -111,19 +135,25 @@ void setUpConfiguration_4() {
   pRepInfo = std::make_unique<bftEngine::impl::ReplicasInfo>(replicaConfig[0], true, true);
 
   replicaConfig[0].singletonFromThis();
+
+  sigManager_ = new SigManager(
+      0, replicaConfig[0].numReplicas, replicaConfig[0].replicaPrivateKey, replicaConfig[0].publicKeysOfReplicas);
+
+  myViewsManager::setSigMgr(sigManager_);
 }
 
 TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
   bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig[0], false, false);
   DummyReplica replica(replicasInfo, replicaConfig[0]);
   replica.getInternalThreadPool().start(1);
-  SeqNumInfo seqNumInfo_;
+
   SeqNumInfo::init(seqNumInfo_, static_cast<void*>(&replica));
 
   uint64_t expectedLastValue = 12345;
   const uint32_t kRequestLength = 2;
   const uint64_t requestBuffer[kRequestLength] = {(uint64_t)200, expectedLastValue};
   ViewNum curView = 0;
+  bftEngine::impl::SeqNum AssignedSeqNum = 1;
 
   auto* CO = new ClientRequestMsg((uint16_t)1,
                                   bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
@@ -131,7 +161,7 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
                                   kRequestLength,
                                   (const char*)requestBuffer,
                                   (uint64_t)1000000);
-  auto* pp = new PrePrepareMsg(0, curView, 1, bftEngine::impl::CommitPath::SLOW, false);
+  auto* pp = new PrePrepareMsg(0, curView, AssignedSeqNum, bftEngine::impl::CommitPath::SLOW, false);
   pp->addRequest(CO->body(), CO->size());
   pp->finishAddingRequests();
 
@@ -151,12 +181,16 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
                                                     pp->digestOfRequests(),
                                                     replicaConfig[3].thresholdSignerForSlowPathCommit);
 
-  seqNumInfo_.addSelfMsg(pp);
+  seqNumInfo_.addSelfMsg(pp, true);
   seqNumInfo_.addMsg(p1);
   seqNumInfo_.addMsg(p2);
   seqNumInfo_.addMsg(p3);
 
-  PrepareFullMsg pfMsg();
+  auto* theMsgStore = dynamic_cast<IncomingMsgsStorageImp*>(&(replica.getIncomingMsgsStorage()));
+  theMsgStore->start();
+  auto operation_status = replica.combine_operation_future.get();
+  assert(operation_status == DummyReplica::PrepareCombinedSigOperationStatus::OPERATION_SUCCEEDED);
+  auto pfMsg = seqNumInfo_.getValidPrepareFullMsg();
 
   ViewChangeMsg** viewChangeMsgs = new ViewChangeMsg*[N];
   for (int i = 0; i < N; i++) {
@@ -167,15 +201,8 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
     }
   }
 
-  // viewChangeMsgs[2]->addElement(*pRepInfo,
-  //                   1,
-  //                   pp->digestOfRequests(),
-  //                   0,
-  //                   true,
-  //                   0,
-  //                   pfMsg.signatureLen(),
-  //                   pfMsg.signatureBody()
-  //                   );
+  viewChangeMsgs[2]->addElement(
+      *pRepInfo, 1, pp->digestOfRequests(), 0, true, 0, pfMsg->signatureLen(), pfMsg->signatureBody());
 
   auto VCS = ViewChangeSafetyLogic(
       N, F, C, replicaConfig[0].thresholdVerifierForSlowPathCommit, PrePrepareMsg::digestOfNullPrePrepareMsg());
@@ -183,13 +210,24 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
   SeqNum min{}, max{};
   VCS.computeRestrictions(viewChangeMsgs, 0, min, max, restrictions);
 
-  replica.getInternalThreadPool().stop(true);
+  for (int i = 0; i < kWorkWindowSize; i++) {
+    if (i == AssignedSeqNum - 1) {
+      Assert(restrictions[i].isNull == false);
+      Assert(pp->digestOfRequests().toString() == restrictions[i].digest.toString())
+    } else {
+      Assert(restrictions[i].isNull == true);
+    }
+  }
 
+  replica.getInternalThreadPool().stop(true);
+  theMsgStore->stop();
   for (int i = 0; i < N; i++) {
     delete viewChangeMsgs[i];
     viewChangeMsgs[i] = nullptr;
   }
   delete[] viewChangeMsgs;
+  delete sigManager_;
+  delete CO;
 }
 
 TEST(testViewchangeSafetyLogic_test, one_different_new_view_in_VC_msgs) {
