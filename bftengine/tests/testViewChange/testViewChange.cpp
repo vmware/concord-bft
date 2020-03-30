@@ -150,20 +150,21 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
   DummyReplica replica(replicasInfo, replicaConfig[0]);
   replica.getInternalThreadPool().start(1);
 
+  bftEngine::impl::SeqNum lastStableSeqNum = 150;
   uint64_t expectedLastValue = 12345;
   const uint32_t kRequestLength = 2;
   const uint64_t requestBuffer[kRequestLength] = {(uint64_t)200, expectedLastValue};
   ViewNum curView = 0;
-  bftEngine::impl::SeqNum AssignedSeqNum = 1;
+  bftEngine::impl::SeqNum assignedSeqNum = lastStableSeqNum + 1;
 
-  auto* CO = new ClientRequestMsg((uint16_t)1,
-                                  bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
-                                  (uint64_t)1234567,
-                                  kRequestLength,
-                                  (const char*)requestBuffer,
-                                  (uint64_t)1000000);
-  auto* pp = new PrePrepareMsg(0, curView, AssignedSeqNum, bftEngine::impl::CommitPath::SLOW, false);
-  pp->addRequest(CO->body(), CO->size());
+  auto* clientRequest = new ClientRequestMsg((uint16_t)1,
+                                             bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
+                                             (uint64_t)1234567,
+                                             kRequestLength,
+                                             (const char*)requestBuffer,
+                                             (uint64_t)1000000);
+  auto* pp = new PrePrepareMsg(0, curView, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, false);
+  pp->addRequest(clientRequest->body(), clientRequest->size());
   pp->finishAddingRequests();
 
   PreparePartialMsg* p1 = PreparePartialMsg::create(curView,
@@ -198,12 +199,12 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
     if (i == 1) {
       viewChangeMsgs[i] = nullptr;
     } else {
-      viewChangeMsgs[i] = new ViewChangeMsg(i, 1, 0);
+      viewChangeMsgs[i] = new ViewChangeMsg(i, 1, lastStableSeqNum);
     }
   }
 
   viewChangeMsgs[2]->addElement(
-      *pRepInfo, 1, pp->digestOfRequests(), 0, true, 0, pfMsg->signatureLen(), pfMsg->signatureBody());
+      *pRepInfo, assignedSeqNum, pp->digestOfRequests(), 0, true, 0, pfMsg->signatureLen(), pfMsg->signatureBody());
 
   auto VCS = ViewChangeSafetyLogic(
       N, F, C, replicaConfig[0].thresholdVerifierForSlowPathCommit, PrePrepareMsg::digestOfNullPrePrepareMsg());
@@ -212,11 +213,11 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
   VCS.computeRestrictions(viewChangeMsgs, 0, min, max, restrictions);
 
   for (int i = 0; i < kWorkWindowSize; i++) {
-    if (i == AssignedSeqNum - 1) {
-      Assert(restrictions[i].isNull == false);
+    if (i == assignedSeqNum - 1) {
+      Assert(!restrictions[i].isNull);
       Assert(pp->digestOfRequests().toString() == restrictions[i].digest.toString())
     } else {
-      Assert(restrictions[i].isNull == true);
+      Assert(restrictions[i].isNull);
     }
   }
 
@@ -228,7 +229,7 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
   }
   delete[] viewChangeMsgs;
   delete sigManager_;
-  delete CO;
+  delete clientRequest;
 }
 
 TEST(testViewchangeSafetyLogic_test, one_different_new_view_in_VC_msgs) {
@@ -279,12 +280,13 @@ TEST(testViewchangeSafetyLogic_test, different_new_views_in_VC_msgs) {
 
 TEST(testViewchangeSafetyLogic_test, empty_correct_VC_msgs) {
   ViewChangeMsg** viewChangeMsgs = new ViewChangeMsg*[N];
+  bftEngine::impl::SeqNum lastStableSeqNum = 150;
 
   for (int i = 0; i < N; i++) {
     if (i == 2) {
       viewChangeMsgs[i] = nullptr;
     } else {
-      viewChangeMsgs[i] = new ViewChangeMsg(i, 1, 0);
+      viewChangeMsgs[i] = new ViewChangeMsg(i, 1, lastStableSeqNum);
     }
   }
 
@@ -292,7 +294,7 @@ TEST(testViewchangeSafetyLogic_test, empty_correct_VC_msgs) {
       N, F, C, replicaConfig[0].thresholdVerifierForSlowPathCommit, PrePrepareMsg::digestOfNullPrePrepareMsg());
 
   auto seqNum = VCS.calcLBStableForView(viewChangeMsgs);
-  Assert(seqNum == 0);
+  Assert(seqNum == lastStableSeqNum);
 
   for (int i = 0; i < N; i++) {
     delete viewChangeMsgs[i];
