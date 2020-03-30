@@ -145,9 +145,7 @@ void setUpConfiguration_4() {
   myViewsManager::setSigMgr(sigManager_);
 }
 
-void cleanupConfiguration_4() {
-  delete sigManager_;
-}
+void cleanupConfiguration_4() { delete sigManager_; }
 
 TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
   bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig[0], false, false);
