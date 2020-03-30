@@ -145,6 +145,10 @@ void setUpConfiguration_4() {
   myViewsManager::setSigMgr(sigManager_);
 }
 
+void cleanupConfiguration_4() {
+  delete sigManager_;
+}
+
 TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
   bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig[0], false, false);
   DummyReplica replica(replicasInfo, replicaConfig[0]);
@@ -228,7 +232,6 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
     viewChangeMsgs[i] = nullptr;
   }
   delete[] viewChangeMsgs;
-  delete sigManager_;
   delete clientRequest;
 }
 
@@ -310,6 +313,7 @@ int main(int argc, char** argv) {
   assert(system("../../../tools/GenerateConcordKeys -n 4 -f 1 -o replica_keys_") != -1);
   setUpConfiguration_4();
   int res = RUN_ALL_TESTS();
+  cleanupConfiguration_4();
   // TODO cleanup the generated certificates
   return res;
 }
