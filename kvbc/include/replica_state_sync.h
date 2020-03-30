@@ -29,7 +29,7 @@ class ReplicaStateSync {
 
   // Synchronizes replica state and returns a number of deleted blocks.
   virtual uint64_t execute(concordlogger::Logger& logger,
-                           DBAdapter& bcDBAdapter,
+                           IDbAdapter& bcDBAdapter,
                            BlockId lastReachableBlockId,
                            uint64_t lastExecutedSeqNum) = 0;
 };

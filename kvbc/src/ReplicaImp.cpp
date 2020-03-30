@@ -155,8 +155,6 @@ Status ReplicaImp::mayHaveConflictBetween(const Sliver &key, BlockId fromBlock, 
   return s;
 }
 
-void ReplicaImp::monitor() const { m_InternalStorageWrapperForIdleMode.monitor(); }
-
 Status ReplicaImp::addBlock(const SetOfKeyValuePairs &updates, BlockId &outBlockId) {
   // TODO(GG): check legality of operation (the method should be invoked from
   // the replica's internal thread)
@@ -330,15 +328,13 @@ Status ReplicaImp::StorageWrapperForIdleMode::mayHaveConflictBetween(const Slive
   return s;
 }
 
-void ReplicaImp::StorageWrapperForIdleMode::monitor() const { this->rep->m_bcDbAdapter->monitor(); }
-
 /*
  * These functions are used by the ST module to interact with the KVB
  */
 ReplicaImp::BlockchainAppState::BlockchainAppState(ReplicaImp *const parent)
     : m_ptrReplicaImpl{parent},
       m_logger{concordlogger::Log::getLogger("blockchainappstate")},
-      m_lastReachableBlock{parent->getBcDbAdapter()->getLastRechableBlockId()} {}
+      m_lastReachableBlock{parent->getBcDbAdapter()->getLastReachableBlockId()} {}
 
 /*
  * This method assumes that *outBlock is big enough to hold block content

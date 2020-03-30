@@ -205,17 +205,6 @@ Status Client::freeIterator(IDBClientIterator *_iter) const {
 }
 
 /**
- * @brief Currently used to check the number of read requests received.
- */
-void Client::monitor() const {
-  // TODO Can be used for additional sanity checks and debugging.
-
-  if (g_rocksdb_print_measurements) {
-    LOG_DEBUG(logger(), "No. of times read: " << g_rocksdb_called_read);
-  }
-}
-
-/**
  * @brief Constructor for the RocksDBClientIterator class.
  *
  * Calls the getNewRocksDbIterator function.

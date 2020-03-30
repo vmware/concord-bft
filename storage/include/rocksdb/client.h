@@ -85,7 +85,6 @@ class Client : public concord::storage::IDBClient {
   concordUtils::Status multiPut(const SetOfKeyValuePairs& _keyValueMap) override;
   concordUtils::Status multiDel(const KeysVector& _keysVec) override;
   ::rocksdb::Iterator* getNewRocksDbIterator() const;
-  void monitor() const override;
   bool isNew() override;
   ITransaction* beginTransaction() override;
 

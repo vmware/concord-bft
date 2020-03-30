@@ -26,7 +26,7 @@ class ReplicaStateSyncImp : public ReplicaStateSync {
   ~ReplicaStateSyncImp() override = default;
 
   uint64_t execute(concordlogger::Logger& logger,
-                   DBAdapter& bcDBAdapter,
+                   IDbAdapter& bcDBAdapter,
                    BlockId lastReachableBlockId,
                    uint64_t lastExecutedSeqNum) override;
 

@@ -23,8 +23,6 @@ class ILocalKeyValueStorageReadOnly {
                                                       BlockId toBlock,
                                                       bool& outRes) const = 0;
 
-  virtual void monitor() const = 0;
-
   virtual ~ILocalKeyValueStorageReadOnly() = default;
 };
 

@@ -331,7 +331,7 @@ DBAdapter::DBAdapter(std::shared_ptr<storage::IDBClient> db, std::unique_ptr<IDa
     : DBAdapterBase{db}, keyGen_{std::move(keyGen)} {}
 
 BlockId DBAdapter::addBlockToBlockchain(const SetOfKeyValuePairs &kv) {
-  BlockId blockId = getLastRechableBlockId() + 1;
+  BlockId blockId = getLastReachableBlockId() + 1;
   bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest stDigest;
   if (blockId > 1) {
     Sliver parentBlockData = getRawBlock(blockId - 1);
@@ -497,7 +497,7 @@ BlockId DBAdapter::getLastBlockchainBlockId() const {
  *
  * @return Block ID of the last reachable block.
  */
-BlockId DBAdapter::getLastRechableBlockId() const {
+BlockId DBAdapter::getLastReachableBlockId() const {
   storage::IDBClient::IDBClientIterator *iter = db_->getIterator();
 
   BlockId lastReachableId = 0;

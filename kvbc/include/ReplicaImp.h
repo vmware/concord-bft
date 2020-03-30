@@ -63,8 +63,6 @@ class ReplicaImp : public IReplica, public ILocalKeyValueStorageReadOnly, public
                                         BlockId toBlock,
                                         bool &outRes) const override;
 
-  virtual void monitor() const override;
-
   // concord::storage::IBlocksAppender
   virtual Status addBlock(const concord::storage::SetOfKeyValuePairs &updates, BlockId &outBlockId) override;
 
@@ -86,7 +84,7 @@ class ReplicaImp : public IReplica, public ILocalKeyValueStorageReadOnly, public
   Status getInternal(BlockId readVersion, Key key, Sliver &outValue, BlockId &outBlock) const;
   void insertBlockInternal(BlockId blockId, Sliver block);
   RawBlock getBlockInternal(BlockId blockId) const;
-  DBAdapter *getBcDbAdapter() const { return m_bcDbAdapter; }
+  IDbAdapter *getBcDbAdapter() const { return m_bcDbAdapter; }
 
  private:
   void createReplicaAndSyncState();
@@ -137,8 +135,6 @@ class ReplicaImp : public IReplica, public ILocalKeyValueStorageReadOnly, public
                                           BlockId fromBlock,
                                           BlockId toBlock,
                                           bool &outRes) const override;
-
-    virtual void monitor() const override;
   };
 
   class BlockchainAppState : public bftEngine::SimpleBlockchainStateTransfer::IAppState {
@@ -171,7 +167,7 @@ class ReplicaImp : public IReplica, public ILocalKeyValueStorageReadOnly, public
   RepStatus m_currentRepStatus;
   StorageWrapperForIdleMode m_InternalStorageWrapperForIdleMode;
 
-  DBAdapter *m_bcDbAdapter = nullptr;
+  IDbAdapter *m_bcDbAdapter = nullptr;
   BlockId m_lastBlock = 0;
   bftEngine::ICommunication *m_ptrComm = nullptr;
   bftEngine::ReplicaConfig m_replicaConfig;

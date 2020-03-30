@@ -8,6 +8,10 @@
 #include <optional>
 #include <utility>
 
+namespace concord::storage {
+class IDBClient;
+}
+
 namespace concord::kvbc {
 
 class NotFoundException : public std::runtime_error {
@@ -38,13 +42,16 @@ class IDbAdapter {
   virtual BlockId getLastBlockchainBlockId() const = 0;
 
   /**
-   * Used to retrieve the last reachable block
-   * Searches for the last reachable block.
-   * From ST perspective, this is maximal block number N
-   * such that all blocks 1 <= i <= N exist.
+   * Used to retrieve the last reachable block.
+   * From ST perspective, this is maximal block number N such that all blocks
+   * START <= i <= N exist, where START is usually 1, if pruning is not enabled.
+   *
    * In the normal state, it should be equal to last block ID.
    */
-  virtual BlockId getLastRechableBlockId() const = 0;
+  virtual BlockId getLastReachableBlockId() const = 0;
+
+  // TODO [TK] not sure it's needed for long term
+  virtual std::shared_ptr<storage::IDBClient> getDb() const = 0;
 
   virtual ~IDbAdapter() = default;
 };

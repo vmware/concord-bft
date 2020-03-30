@@ -81,7 +81,9 @@ class DBAdapter : public IDbAdapter, public DBAdapterBase {
   void deleteBlock(const BlockId &) override;
 
   BlockId getLastBlockchainBlockId() const override;
-  BlockId getLastRechableBlockId() const override;
+  BlockId getLastReachableBlockId() const override;
+
+  std::shared_ptr<storage::IDBClient> getDb() const override { return DBAdapterBase::getDb(); }
 
  private:
   concordUtils::Status addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &_kvMap,

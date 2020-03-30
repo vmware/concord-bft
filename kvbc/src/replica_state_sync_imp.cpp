@@ -25,7 +25,7 @@ namespace kvbc {
 ReplicaStateSyncImp::ReplicaStateSyncImp(IBlockMetadata* blockMetadata) : blockMetadata_(blockMetadata) {}
 
 uint64_t ReplicaStateSyncImp::execute(concordlogger::Logger& logger,
-                                      DBAdapter& bcDBAdapter,
+                                      IDbAdapter& bcDBAdapter,
                                       BlockId lastReachableBlockId,
                                       uint64_t lastExecutedSeqNum) {
   BlockId blockId = lastReachableBlockId;
