@@ -25,6 +25,7 @@ namespace fs = std::experimental::filesystem;
 #error "Missing filesystem support"
 #endif
 
+#ifdef USE_ROCKSDB
 inline const auto rocksDbPathPrefix = std::string{"/tmp/sparse_merkle_storage_test_rocksdb"};
 
 // Support multithreaded runs by appending the thread ID to the RocksDB path.
@@ -33,6 +34,11 @@ inline std::string rocksDbPath() {
   ss << std::this_thread::get_id();
   return rocksDbPathPrefix + ss.str();
 }
+
+inline void cleanup() { fs::remove_all(rocksDbPath()); }
+#else
+inline void cleanup() {}
+#endif
 
 inline ::bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest blockDigest(concord::kvbc::BlockId blockId,
                                                                                    const concordUtils::Sliver &block) {
@@ -44,26 +50,29 @@ inline ::bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest blockDige
 
 struct TestMemoryDb {
   static std::shared_ptr<concord::storage::IDBClient> create() {
+    cleanup();
     return std::make_shared<concord::storage::memorydb::Client>();
   }
 
   static std::string type() { return "memorydb"; }
 };
 
+#ifdef USE_ROCKSDB
 struct TestRocksDb {
   static std::shared_ptr<::concord::storage::IDBClient> create() {
-    fs::remove_all(rocksDbPath());
+    cleanup();
     // Create the RocksDB client with the default lexicographical comparator.
     return std::make_shared<::concord::storage::rocksdb::Client>(rocksDbPath());
   }
 
   static std::string type() { return "RocksDB"; }
 };
+#endif
 
 template <typename ParamType>
 class ParametrizedTest : public ::testing::TestWithParam<ParamType> {
-  void SetUp() override { fs::remove_all(rocksDbPath()); }
-  void TearDown() override { fs::remove_all(rocksDbPath()); }
+  void SetUp() override { cleanup(); }
+  void TearDown() override { cleanup(); }
 };
 
 // Generate test name suffixes based on the DB client type.

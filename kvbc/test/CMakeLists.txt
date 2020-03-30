@@ -80,13 +80,15 @@ target_link_libraries(sparse_merkle_tree_test PUBLIC
     ${OPENSSL_LIBRARIES}
 )
 
-add_executable(multiIO_test multiIO_test.cpp $<TARGET_OBJECTS:logging_dev>)
-add_test(multiIO_test multiIO_test)
+if (BUILD_ROCKSDB_STORAGE)
+    add_executable(multiIO_test multiIO_test.cpp $<TARGET_OBJECTS:logging_dev>)
+    add_test(multiIO_test multiIO_test)
 
-target_link_libraries(multiIO_test PUBLIC
-    GTest::Main
-    GTest::GTest
-    util
-    kvbc
-    corebft
-)
+    target_link_libraries(multiIO_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        kvbc
+        corebft
+    )
+endif(BUILD_ROCKSDB_STORAGE)
