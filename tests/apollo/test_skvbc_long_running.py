@@ -51,20 +51,17 @@ class SkvbcLongRunningTest(unittest.TestCase):
     async def test_stability(self, bft_network):
         bft_network.start_all_replicas()
         start = time.time()
-        with trio.move_on_after(seconds=ONE_HOUR_IN_SECONDS*4):
+        with trio.move_on_after(seconds=ONE_HOUR_IN_SECONDS*72):
             for i in itertools.count():
                 await SkvbcTest().test_get_block_data\
                     (bft_network=bft_network, already_in_trio=True)
-                await trio.sleep(seconds=10)
+                await trio.sleep(seconds=120)
                 await SkvbcTest().test_conflicting_write\
                     (bft_network=bft_network, already_in_trio=True)
-                await trio.sleep(seconds=10)
-                await SkvbcFastPathTest().test_fast_path_only \
-                    (bft_network=bft_network, already_in_trio=True, disable_linearizability_checks=True)
-                await trio.sleep(seconds=10)
+                await trio.sleep(seconds=120)
                 end = time.time()
                 if end - start >= ONE_HOUR_IN_SECONDS*2:
                     await SkvbcViewChangeTest().test_single_vc_only_primary_down \
                       (bft_network=bft_network, already_in_trio=True, disable_linearizability_checks=True)
-                    await trio.sleep(seconds=10)
+                    await trio.sleep(seconds=180)
                     start = time.time()
