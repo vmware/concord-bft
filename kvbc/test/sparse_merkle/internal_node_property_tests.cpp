@@ -124,7 +124,7 @@ RC_GTEST_PROP(batched_internal_node_properties,
   auto result = node.insert(child, 0, child.key.version());
   RC_ASSERT(std::holds_alternative<BatchedInternalNode::InsertComplete>(result));
 
-  // There is no stale leaf overwritte, since we insert a new value to an empty node
+  // There is no stale leaf overwritten, since we insert a new value to an empty node
   // RC_ASSERT_FALSE does compile with GCC :(
   RC_ASSERT(std::get<BatchedInternalNode::InsertComplete>(result).stale_leaf.has_value() == false);
 
@@ -135,7 +135,10 @@ RC_GTEST_PROP(batched_internal_node_properties,
   RC_ASSERT(1u == node.numInternalChildren());
 
   // The LeafChild is directly under the root
-  RC_ASSERT(!node.isInternal(node.leftChildIndex(ROOT_INDEX)) || !node.isInternal(node.rightChildIndex(ROOT_INDEX)));
+  auto left_index = node.leftChildIndex(ROOT_INDEX);
+  auto right_index = node.rightChildIndex(ROOT_INDEX);
+  RC_ASSERT(!node.isInternal(left_index) && !node.isInternal(right_index));
+  RC_ASSERT(!node.isEmpty(left_index) != !node.isEmpty(right_index));
 }
 
 RC_GTEST_PROP(batched_internal_node_properties, removing_sole_inserted_child_removes_node, (const LeafChild& child)) {
@@ -268,9 +271,18 @@ RC_GTEST_PROP(batched_internal_node_properties, inserts_are_deterministic, ()) {
   for (const auto& child : children) {
     RC_LOG() << child << std::endl;
     auto version = *rc::gen::arbitrary<Version>();
-    node1.insert(child, depth, version);
-    node2.insert(child, depth, version);
+    RC_LOG() << "version1: " << version << std::endl;
+    auto result1 = node1.insert(child, depth, version);
+    RC_LOG() << "version2: " << version << std::endl;
+    auto result2 = node2.insert(child, depth, version);
+    RC_LOG() << "result1 index: " << result1.index() << ", result2 index: " << result2.index() << std::endl;
   }
+  for (auto i = 0u; i < node1.children().size(); i++) {
+    RC_LOG() << i << std::endl;
+    RC_LOG() << node1.children()[i] << std::endl;
+    RC_LOG() << node2.children()[i] << std::endl;
+  }
+
   RC_ASSERT(node1 == node2);
 }
 

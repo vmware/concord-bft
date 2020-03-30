@@ -121,7 +121,7 @@ BatchedInternalNode::InsertResult BatchedInternalNode::splitNode(size_t index, c
     //
     // We purposefully don't call `update_hashes`, since we don't know the true
     // value of the hash of the child until it gets inserted. The caller will fix
-    // this BatchedInternalNode appropriately when the hash is known.
+    // this BatchedInternalNode appropriately when the hash is known, by calling `linkChild`.
     return CreateNewBatchedInternalNodes{stored_leaf_child};
   }
 
@@ -144,7 +144,7 @@ BatchedInternalNode::InsertResult BatchedInternalNode::splitNode(size_t index, c
   //
   // We purposefully don't call `update_hashes`, since we don't know the true
   // value of the hash of the child until it gets inserted. The caller will fix
-  // this BatchedInternalNode appropriately when the hash is known.
+  // this BatchedInternalNode appropriately when the hash is known, by calling `linkChild`.
   return CreateNewBatchedInternalNodes{stored_leaf_child};
 }
 
@@ -405,6 +405,11 @@ bool BatchedInternalNode::isInternal(size_t index) const {
 
 std::ostream& operator<<(std::ostream& os, const LeafChild& child) {
   os << "LeafChild {hash=" << child.hash << ", key=" << child.key << "}";
+  return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const InternalChild& child) {
+  os << "InternalChild {hash=" << child.hash << ", version=" << child.version << "}";
   return os;
 }
 

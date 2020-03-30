@@ -75,7 +75,27 @@ struct InternalChild {
   Version version;
 };
 
+std::ostream& operator<<(std::ostream& os, const InternalChild&);
+
 typedef std::variant<LeafChild, InternalChild> Child;
+
+// Allow streaming of all variants in this namespace
+template <typename T0, typename... Ts>
+std::ostream& operator<<(std::ostream& s, std::variant<T0, Ts...> const& v) {
+  std::visit([&](auto&& arg) { s << arg; }, v);
+  return s;
+}
+
+// Allow streaming of all options in this namespace
+template <typename T>
+std::ostream& operator<<(std::ostream& s, std::optional<T> const& v) {
+  if (v) {
+    s << v.value();
+  } else {
+    s << "<<nullopt>>";
+  }
+  return s;
+}
 
 /*
 // A batched internal node. The node is a representation of a 4-level tree, such

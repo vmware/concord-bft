@@ -10,8 +10,6 @@
 // terms and conditions of the sub-component's license, as noted in the
 // LICENSE file.
 
-// All freestanding functions must be in a source file
-
 #include "sparse_merkle/keys.h"
 
 namespace concord::storage::sparse_merkle {
