@@ -25,6 +25,7 @@ namespace concord::kvbc {
 
 typedef concordUtils::Sliver Key;
 typedef concordUtils::Sliver Value;
+typedef concordUtils::Sliver RawBlock;
 typedef std::pair<Key, Value> KeyValuePair;
 typedef std::unordered_map<Key, Value> SetOfKeyValuePairs;
 typedef std::map<Key, Value> OrderedSetOfKeyValuePairs;

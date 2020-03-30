@@ -265,58 +265,64 @@ void BCStateTran::loadMetrics() {
 void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
                        uint32_t numberOfRequiredReservedPages,
                        uint32_t sizeOfReservedPage) {
-  Assert(!running_);
-  Assert(replicaForStateTransfer_ == nullptr);
-  Assert(sizeOfReservedPage == sizeOfReservedPage_);
+  try {
+    Assert(!running_);
+    Assert(replicaForStateTransfer_ == nullptr);
+    Assert(sizeOfReservedPage == sizeOfReservedPage_);
 
-  maxNumOfStoredCheckpoints_ = maxNumOfRequiredStoredCheckpoints;
-  numberOfReservedPages_ = numberOfRequiredReservedPages;
-  metrics_.number_of_reserved_pages_.Get().Set(numberOfReservedPages_);
-  metrics_.size_of_reserved_page_.Get().Set(sizeOfReservedPage_);
+    maxNumOfStoredCheckpoints_ = maxNumOfRequiredStoredCheckpoints;
+    numberOfReservedPages_ = numberOfRequiredReservedPages;
+    metrics_.number_of_reserved_pages_.Get().Set(numberOfReservedPages_);
+    metrics_.size_of_reserved_page_.Get().Set(sizeOfReservedPage_);
 
-  memset(buffer_, 0, maxItemSize_);
+    memset(buffer_, 0, maxItemSize_);
 
-  LOG_INFO(STLogger,
-           "Init BCStateTran object:"
-               << " maxNumOfStoredCheckpoints_=" << maxNumOfStoredCheckpoints_ << " numberOfReservedPages_="
-               << numberOfReservedPages_ << " sizeOfReservedPage_=" << sizeOfReservedPage_);
+    LOG_INFO(STLogger,
+             "Init BCStateTran object:"
+                 << " maxNumOfStoredCheckpoints_=" << maxNumOfStoredCheckpoints_ << " numberOfReservedPages_="
+                 << numberOfReservedPages_ << " sizeOfReservedPage_=" << sizeOfReservedPage_);
 
-  if (psd_->initialized()) {
-    LOG_INFO(STLogger, "BCStateTran::init - loading existing data from storage");
+    if (psd_->initialized()) {
+      LOG_INFO(STLogger, "BCStateTran::init - loading existing data from storage");
 
-    checkConsistency(pedanticChecks_);
+      checkConsistency(pedanticChecks_);
 
-    FetchingState fs = getFetchingState();
-    LOG_INFO(STLogger, "starting state is " << stateName(fs));
+      FetchingState fs = getFetchingState();
+      LOG_INFO(STLogger, "starting state is " << stateName(fs));
 
-    if (fs == FetchingState::GettingMissingBlocks || fs == FetchingState::GettingMissingResPages) {
-      SetAllReplicasAsPreferred();
+      if (fs == FetchingState::GettingMissingBlocks || fs == FetchingState::GettingMissingResPages) {
+        SetAllReplicasAsPreferred();
+      }
+      loadMetrics();
+    } else {
+      LOG_INFO(STLogger, "BCStateTran::init - initializing a new object");
+
+      AssertAND(maxNumOfRequiredStoredCheckpoints >= 2,
+                maxNumOfRequiredStoredCheckpoints <= kMaxNumOfStoredCheckpoints);
+
+      AssertAND(numberOfRequiredReservedPages >= 2, numberOfRequiredReservedPages <= maxNumOfReservedPages_);
+      DataStoreTransaction::Guard g(psd_->beginTransaction());
+      g.txn()->setReplicas(replicas_);
+      g.txn()->setMyReplicaId(myId_);
+      g.txn()->setFVal(fVal_);
+      g.txn()->setMaxNumOfStoredCheckpoints(maxNumOfRequiredStoredCheckpoints);
+      g.txn()->setNumberOfReservedPages(numberOfRequiredReservedPages);
+      g.txn()->setLastStoredCheckpoint(0);
+      g.txn()->setFirstStoredCheckpoint(0);
+      // TODO(TK) - check max transaction size
+      for (uint32_t i = 0; i < numberOfReservedPages_; i++)  // reset all pages
+        g.txn()->setPendingResPage(i, buffer_, sizeOfReservedPage_);
+
+      g.txn()->setIsFetchingState(false);
+      g.txn()->setFirstRequiredBlock(0);
+      g.txn()->setLastRequiredBlock(0);
+      g.txn()->setAsInitialized();
+
+      Assert(getFetchingState() == FetchingState::NotFetching);
     }
-    loadMetrics();
-  } else {
-    LOG_INFO(STLogger, "BCStateTran::init - initializing a new object");
-
-    AssertAND(maxNumOfRequiredStoredCheckpoints >= 2, maxNumOfRequiredStoredCheckpoints <= kMaxNumOfStoredCheckpoints);
-
-    AssertAND(numberOfRequiredReservedPages >= 2, numberOfRequiredReservedPages <= maxNumOfReservedPages_);
-    DataStoreTransaction::Guard g(psd_->beginTransaction());
-    g.txn()->setReplicas(replicas_);
-    g.txn()->setMyReplicaId(myId_);
-    g.txn()->setFVal(fVal_);
-    g.txn()->setMaxNumOfStoredCheckpoints(maxNumOfRequiredStoredCheckpoints);
-    g.txn()->setNumberOfReservedPages(numberOfRequiredReservedPages);
-    g.txn()->setLastStoredCheckpoint(0);
-    g.txn()->setFirstStoredCheckpoint(0);
-    // TODO(TK) - check max transaction size
-    for (uint32_t i = 0; i < numberOfReservedPages_; i++)  // reset all pages
-      g.txn()->setPendingResPage(i, buffer_, sizeOfReservedPage_);
-
-    g.txn()->setIsFetchingState(false);
-    g.txn()->setFirstRequiredBlock(0);
-    g.txn()->setLastRequiredBlock(0);
-    g.txn()->setAsInitialized();
-
-    Assert(getFetchingState() == FetchingState::NotFetching);
+  } catch (const std::exception &e) {
+    LOG_FATAL(STLogger, e.what());
+    exit(1);
   }
 }
 

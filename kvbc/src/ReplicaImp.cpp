@@ -128,13 +128,12 @@ Status ReplicaImp::getBlockData(BlockId blockId, SetOfKeyValuePairs &outBlockDat
   // TODO(GG): check legality of operation (the method should be invoked from
   // the replica's internal thread)
 
-  Sliver block = getBlockInternal(blockId);
-
-  if (block.length() == 0) {
+  try {
+    Sliver block = getBlockInternal(blockId);
+    outBlockData = block::getData(block);
+  } catch (const NotFoundException &e) {
     return Status::NotFound("todo");
   }
-
-  outBlockData = block::getData(block);
 
   return Status::OK();
 }
@@ -178,7 +177,7 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
       m_currentRepStatus(RepStatus::Idle),
       m_InternalStorageWrapperForIdleMode(this),
       m_bcDbAdapter(dbAdapter),
-      m_lastBlock(dbAdapter->getLatestBlock()),
+      m_lastBlock(dbAdapter->getLastBlockchainBlockId()),
       m_ptrComm(comm),
       m_replicaConfig(replicaConfig),
       m_appState(new BlockchainAppState(this)),
@@ -223,24 +222,18 @@ Status ReplicaImp::addBlockInternal(const SetOfKeyValuePairs &updates, BlockId &
 
   LOG_DEBUG(logger, "block:" << block << " updates: " << updates.size());
 
-  const auto status = m_bcDbAdapter->addBlock(updates, block);
-  if (!status.isOK()) {
-    LOG_ERROR(logger, "Failed to add block or update keys for block " << block);
-    return status;
-  }
-
-  outBlockId = block;
+  outBlockId = m_bcDbAdapter->addBlockToBlockchain(updates);
   return Status::OK();
 }
 
-Status ReplicaImp::getInternal(BlockId readVersion, Sliver key, Sliver &outValue, BlockId &outBlock) const {
-  Status s = m_bcDbAdapter->getKeyByReadVersion(readVersion, key, outValue, outBlock);
-  if (!s.isOK()) {
-    LOG_ERROR(logger, "Failed to get key " << key << " by read version " << readVersion);
-    return s;
+Status ReplicaImp::getInternal(BlockId readVersion, Key key, Sliver &outValue, BlockId &outBlock) const {
+  if (auto val = m_bcDbAdapter->getValue(key, readVersion)) {
+    outValue = val->first;
+    outBlock = val->second;
+    return Status::OK();
   }
-
-  return Status::OK();
+  LOG_ERROR(logger, "Failed to get key " << key << " by read version " << readVersion);
+  return Status::NotFound(key.toString());
 }
 
 void ReplicaImp::insertBlockInternal(BlockId blockId, Sliver block) {
@@ -253,20 +246,9 @@ void ReplicaImp::insertBlockInternal(BlockId blockId, Sliver block) {
   if (blockId == m_appState->m_lastReachableBlock + 1) {
     m_appState->m_lastReachableBlock = m_lastBlock;
   }
-
-  bool found = false;
-  Sliver existingBlock;
-  Status s = m_bcDbAdapter->getBlockById(blockId, existingBlock, found);
-  if (!s.isOK()) {
-    // the replica is corrupted!
-    // TODO(GG): what do we want to do now?
-    LOG_FATAL(logger, "replica may be corrupted\n\n");
-    // TODO(GG): how do we want to handle this - restart replica?
-    exit(1);
-  }
-
-  // if we already have a block with the same ID
-  if (found && existingBlock.length() > 0) {
+  try {
+    RawBlock existingBlock = m_bcDbAdapter->getRawBlock(blockId);
+    // if we already have a block with the same ID
     if (existingBlock.length() != block.length() || memcmp(existingBlock.data(), block.data(), block.length())) {
       // the replica is corrupted !
       // TODO(GG): what do we want to do now ?
@@ -277,39 +259,20 @@ void ReplicaImp::insertBlockInternal(BlockId blockId, Sliver block) {
                 "Block size test " << (existingBlock.length() != block.length()) << ", block data test "
                                    << (memcmp(existingBlock.data(), block.data(), block.length())));
 
-      m_bcDbAdapter->deleteBlockAndItsKeys(blockId);
+      m_bcDbAdapter->deleteBlock(blockId);
 
       // TODO(GG): how do we want to handle this - restart replica?
       // exit(1);
       return;
     }
-  } else {
-    s = m_bcDbAdapter->addBlock(block, blockId);
-    if (!s.isOK()) {
-      // TODO(SG): What to do?
-      printf("Failed to add block");
-      exit(1);
-    }
+  } catch (const NotFoundException &e) {
+    m_bcDbAdapter->addRawBlock(block, blockId);  // TODO [TK] will be replaced after integration of hasBlock
   }
 }
 
-Sliver ReplicaImp::getBlockInternal(BlockId blockId) const {
+RawBlock ReplicaImp::getBlockInternal(BlockId blockId) const {
   assert(blockId <= m_lastBlock);
-  Sliver retVal;
-
-  bool found;
-  Status s = m_bcDbAdapter->getBlockById(blockId, retVal, found);
-  if (!s.isOK()) {
-    // TODO(SG): To do something smarter
-    LOG_ERROR(logger, "An error occurred in get block");
-    return Sliver();
-  }
-
-  if (!found) {
-    return Sliver();
-  } else {
-    return retVal;
-  }
+  return m_bcDbAdapter->getRawBlock(blockId);
 }
 
 ReplicaImp::StorageWrapperForIdleMode::StorageWrapperForIdleMode(const ReplicaImp *r) : rep(r) {}
@@ -340,13 +303,12 @@ Status ReplicaImp::StorageWrapperForIdleMode::getBlockData(BlockId blockId, SetO
     return Status::IllegalOperation("");
   }
 
-  Sliver block = rep->getBlockInternal(blockId);
-
-  if (block.length() == 0) {
+  try {
+    Sliver block = rep->getBlockInternal(blockId);
+    outBlockData = block::getData(block);
+  } catch (const NotFoundException &e) {
     return Status::NotFound("todo");
   }
-
-  outBlockData = block::getData(block);
 
   return Status::OK();
 }
@@ -376,7 +338,7 @@ void ReplicaImp::StorageWrapperForIdleMode::monitor() const { this->rep->m_bcDbA
 ReplicaImp::BlockchainAppState::BlockchainAppState(ReplicaImp *const parent)
     : m_ptrReplicaImpl{parent},
       m_logger{concordlogger::Log::getLogger("blockchainappstate")},
-      m_lastReachableBlock{parent->getBcDbAdapter()->getLastReachableBlock()} {}
+      m_lastReachableBlock{parent->getBcDbAdapter()->getLastRechableBlockId()} {}
 
 /*
  * This method assumes that *outBlock is big enough to hold block content
@@ -397,26 +359,26 @@ bool ReplicaImp::BlockchainAppState::getBlock(uint64_t blockId, char *outBlock, 
 }
 
 bool ReplicaImp::BlockchainAppState::hasBlock(uint64_t blockId) {
-  Sliver res = m_ptrReplicaImpl->getBlockInternal(blockId);
-  return res.length() > 0;
+  try {
+    RawBlock block = m_ptrReplicaImpl->getBlockInternal(blockId);
+    return true;
+  } catch (const NotFoundException &e) {
+    return false;  // TODO [TK] use dbadapter::has after implemented
+  }
 }
 
 bool ReplicaImp::BlockchainAppState::getPrevDigestFromBlock(uint64_t blockId, StateTransferDigest *outPrevBlockDigest) {
   assert(blockId > 0);
-  Sliver result;
-  bool found;
-  m_ptrReplicaImpl->m_bcDbAdapter->getBlockById(blockId, result, found);
-  if (!found) {
-    // in normal state it should not happen. If it happened - the data is
-    // corrupted
+  try {
+    RawBlock result = m_ptrReplicaImpl->m_bcDbAdapter->getRawBlock(blockId);
+    auto parentDigest = block::getParentDigest(result);
+    assert(outPrevBlockDigest);
+    memcpy(outPrevBlockDigest, parentDigest, BLOCK_DIGEST_SIZE);
+    return true;
+  } catch (const NotFoundException &e) {
     LOG_FATAL(m_logger, "Block not found for parent digest, ID: " << blockId);
-    exit(1);
+    throw;
   }
-
-  auto parentDigest = block::getParentDigest(result);
-  assert(outPrevBlockDigest);
-  memcpy(outPrevBlockDigest, parentDigest, BLOCK_DIGEST_SIZE);
-  return true;
 }
 
 /*

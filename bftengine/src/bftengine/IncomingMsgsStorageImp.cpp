@@ -126,39 +126,37 @@ IncomingMsg IncomingMsgsStorageImp::popThreadLocal() {
 
 void IncomingMsgsStorageImp::dispatchMessages(std::promise<void>& signalStarted) {
   signalStarted.set_value();
-  std::stringstream rid;
-  rid << replicaId_;
-  MDC_PUT(GL, "rid", rid.str());
-  while (!stopped_) {
-    auto msg = getMsgForProcessing();
-    TimersSingleton::getInstance().evaluate();
+  MDC_PUT(GL, "rid", std::to_string(replicaId_));
+  try {
+    while (!stopped_) {
+      auto msg = getMsgForProcessing();
+      TimersSingleton::getInstance().evaluate();
 
-    MessageBase* message = nullptr;
-    MsgHandlerCallback msgHandlerCallback = nullptr;
-    switch (msg.tag) {
-      case IncomingMsg::INVALID:
-        LOG_DEBUG_F(GL, "Invalid message - ignore");
-        break;
-      case IncomingMsg::EXTERNAL:
-        // TODO: (AJS) Don't turn this back into a raw pointer.
-        // Pass the smart pointer through the message handlers so they take ownership.
-        message = msg.external.release();
-        msgHandlerCallback = msgHandlers_->getCallback(message->type());
-        if (msgHandlerCallback != nullptr) {
-          try {
+      MessageBase* message = nullptr;
+      MsgHandlerCallback msgHandlerCallback = nullptr;
+      switch (msg.tag) {
+        case IncomingMsg::INVALID:
+          LOG_TRACE(GL, "Invalid message - ignore");
+          break;
+        case IncomingMsg::EXTERNAL:
+          // TODO: (AJS) Don't turn this back into a raw pointer.
+          // Pass the smart pointer through the message handlers so they take ownership.
+          message = msg.external.release();
+          msgHandlerCallback = msgHandlers_->getCallback(message->type());
+          if (msgHandlerCallback) {
             msgHandlerCallback(message);
-          } catch (std::exception& e) {
-            LOG_WARN(GL, e.what());
+          } else {
+            LOG_WARN(GL, "Unknown message - delete");
             delete message;
           }
-        } else {
-          LOG_WARN_F(GL, "Unknown message - delete");
-          delete message;
-        }
-        break;
-      case IncomingMsg::INTERNAL:
-        msg.internal->handle();
-    };
+          break;
+        case IncomingMsg::INTERNAL:
+          msg.internal->handle();
+      };
+    }
+  } catch (const std::exception& e) {
+    LOG_FATAL(GL, "Exception: " << e.what() << "exiting ...");
+    exit(1);
   }
 }
 

@@ -29,6 +29,7 @@ using namespace concord::kvbc;
 int main(int argc, char** argv) {
   auto setup = concord::kvbc::TestSetup::ParseArgs(argc, argv);
   auto logger = setup->GetLogger();
+  MDC_PUT(GL, "rid", std::to_string(setup->GetReplicaConfig().replicaId));
   auto* db_key_comparator = new concord::kvbc::DBKeyComparator();
   std::shared_ptr<concord::storage::IDBClient> db;
 
@@ -62,6 +63,7 @@ int main(int argc, char** argv) {
   // return empty metrics from the metrics server.
   setup->GetMetricsServer().Start();
 
+  // TODO [TK] to we need it for ROR?
   InternalCommandsHandler cmdHandler(replica, replica, blockMetadata, logger);
   replica->set_command_handler(&cmdHandler);
   replica->start();

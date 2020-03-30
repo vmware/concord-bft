@@ -83,9 +83,9 @@ class ReplicaImp : public IReplica, public ILocalKeyValueStorageReadOnly, public
   // METHODS
 
   Status addBlockInternal(const concord::storage::SetOfKeyValuePairs &updates, BlockId &outBlockId);
-  Status getInternal(BlockId readVersion, Sliver key, Sliver &outValue, BlockId &outBlock) const;
+  Status getInternal(BlockId readVersion, Key key, Sliver &outValue, BlockId &outBlock) const;
   void insertBlockInternal(BlockId blockId, Sliver block);
-  Sliver getBlockInternal(BlockId blockId) const;
+  RawBlock getBlockInternal(BlockId blockId) const;
   DBAdapter *getBcDbAdapter() const { return m_bcDbAdapter; }
 
  private:
