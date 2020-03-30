@@ -276,6 +276,30 @@ TEST(testViewchangeSafetyLogic_test, different_new_views_in_VC_msgs) {
   delete[] viewChangeMsgs;
 }
 
+TEST(testViewchangeSafetyLogic_test, empty_correct_VC_msgs) {
+  ViewChangeMsg** viewChangeMsgs = new ViewChangeMsg*[N];
+
+  for (int i = 0; i < N; i++) {
+    if (i == 2) {
+      viewChangeMsgs[i] = nullptr;
+    } else {
+      viewChangeMsgs[i] = new ViewChangeMsg(i, 1, 0);
+    }
+  }
+
+  auto VCS = ViewChangeSafetyLogic(
+      N, F, C, replicaConfig[0].thresholdVerifierForSlowPathCommit, PrePrepareMsg::digestOfNullPrePrepareMsg());
+
+  auto seqNum = VCS.calcLBStableForView(viewChangeMsgs);
+  Assert(seqNum == 0);
+
+  for (int i = 0; i < N; i++) {
+    delete viewChangeMsgs[i];
+    viewChangeMsgs[i] = nullptr;
+  }
+  delete[] viewChangeMsgs;
+}
+
 }  // end namespace
 
 int main(int argc, char** argv) {
