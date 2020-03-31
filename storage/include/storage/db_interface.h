@@ -62,7 +62,6 @@ class IDBClient {
   virtual Status multiGet(const KeysVector& _keysVec, OUT ValuesVector& _valuesVec) = 0;
   virtual Status multiPut(const SetOfKeyValuePairs& _keyValueMap) = 0;
   virtual Status multiDel(const KeysVector& _keysVec) = 0;
-  virtual void monitor() const = 0;
   virtual bool isNew() = 0;
 
   // the caller is responsible for transaction object lifetime

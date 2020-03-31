@@ -54,21 +54,9 @@ class DBKeyManipulator : public DBKeyManipulatorBase {
   static concordUtils::Sliver extractKeyFromMetadataKey(const Key &_composedKey);
   static bool isKeyContainBlockId(const Key &_composedKey);
   static KeyValuePair composedToSimple(KeyValuePair _p);
-  static concordUtils::Sliver generateMetadataKey(storage::ObjectId objectId);
-  static concordUtils::Sliver generateStateTransferKey(storage::ObjectId objectId);
-  static concordUtils::Sliver generateSTPendingPageKey(uint32_t pageid);
-  static concordUtils::Sliver generateSTCheckpointDescriptorKey(uint64_t chkpt);
-  static concordUtils::Sliver generateSTReservedPageStaticKey(uint32_t pageid, uint64_t chkpt);
-  static concordUtils::Sliver generateSTReservedPageDynamicKey(uint32_t pageid, uint64_t chkpt);
-  static uint64_t extractCheckPointFromKey(const char *_key_data, size_t _key_length);
-  static std::pair<uint32_t, uint64_t> extractPageIdAndCheckpointFromKey(const char *_key_data, size_t _key_length);
-
- private:
-  static concordUtils::Sliver generateReservedPageKey(EDBKeyType, uint32_t pageid, uint64_t chkpt);
-  static bool copyToAndAdvance(char *_buf, size_t *_offset, size_t _maxOffset, char *_src, size_t _srcSize);
 };
 
-class DBAdapter : public DBAdapterBase {
+class DBAdapter : public IDbAdapter, public DBAdapterBase {
  public:
   DBAdapter(std::shared_ptr<storage::IDBClient>,
             std::unique_ptr<IDataKeyGenerator> keyGen = std::make_unique<KeyGenerator>());
@@ -78,31 +66,27 @@ class DBAdapter : public DBAdapterBase {
   // - adding the whole block (raw block) in its own key
   // - calculating and filling in the parent digest.
   // Typically called by the application when adding a new block.
-  concordUtils::Status addBlock(const SetOfKeyValuePairs &kv, BlockId blockId);
-
+  BlockId addBlock(const SetOfKeyValuePairs &updates) override;
   // Adds a block from its raw representation and a block ID. Includes:
   // - adding the key/value pairs in separate keys
   // - adding the whole block (raw block) in its own key.
   // Typically called by state transfer when a block is received and needs to be added.
-  concordUtils::Status addBlock(const concordUtils::Sliver &block, BlockId blockId);
+  void addRawBlock(const RawBlock &, const BlockId &) override;
 
-  concordUtils::Status getKeyByReadVersion(BlockId readVersion,
-                                           const concordUtils::Sliver &key,
-                                           concordUtils::Sliver &outValue,
-                                           BlockId &outBlock) const;
+  std::pair<Value, BlockId> getValue(const Key &, const BlockId &blockVersion) const override;
 
-  concordUtils::Status getBlockById(BlockId _blockId, concordUtils::Sliver &_blockRaw, bool &_found) const;
+  RawBlock getRawBlock(const BlockId &blockId) const override;
 
-  concordUtils::Status delKey(const concordUtils::Sliver &_key, BlockId _blockID);
-  concordUtils::Status delBlock(BlockId _blockId);
-  void deleteBlockAndItsKeys(BlockId blockId);
+  void deleteBlock(const BlockId &) override;
 
-  BlockId getLatestBlock() const;
-  BlockId getLastReachableBlock() const;
+  BlockId getLastestBlockId() const override;
+  BlockId getLastReachableBlockId() const override;
+
+  std::shared_ptr<storage::IDBClient> getDb() const override { return DBAdapterBase::getDb(); }
 
  private:
   concordUtils::Status addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &_kvMap,
-                                                 BlockId _block,
+                                                 const BlockId &_block,
                                                  const concordUtils::Sliver &_blockRaw);
 
   std::unique_ptr<IDataKeyGenerator> keyGen_;

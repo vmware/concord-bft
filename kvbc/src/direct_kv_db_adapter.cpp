@@ -18,7 +18,7 @@
 #include "kv_types.hpp"
 #include "block.h"
 #include "db_interfaces.h"
-#include "direct_kv_db_adapter.h"
+#include "db_adapter.h"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 #include "hex_tools.h"
 
@@ -88,8 +88,8 @@ int DBKeyComparator::composedKeyComparison(const char *_a_data,
     }
     case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_CHECKPOINT_DESCRIPTOR_KEY: {
       uint64_t aChkpt, bChkpt;
-      aChkpt = DBKeyManipulator::extractCheckPointFromKey(_a_data, _a_length);
-      bChkpt = DBKeyManipulator::extractCheckPointFromKey(_b_data, _b_length);
+      aChkpt = storage::STKeyManipulator::extractCheckPointFromKey(_a_data, _a_length);
+      bChkpt = storage::STKeyManipulator::extractCheckPointFromKey(_b_data, _b_length);
       return (aChkpt > bChkpt) ? 1 : (bChkpt > aChkpt) ? -1 : 0;
     }
     case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_STATIC_KEY:
@@ -97,8 +97,8 @@ int DBKeyComparator::composedKeyComparison(const char *_a_data,
       // Pages are sorted in ascending order, checkpoints in descending order
       uint32_t aPageId, bPageId;
       uint64_t aChkpt, bChkpt;
-      std::tie(aPageId, aChkpt) = DBKeyManipulator::extractPageIdAndCheckpointFromKey(_a_data, _a_length);
-      std::tie(bPageId, bChkpt) = DBKeyManipulator::extractPageIdAndCheckpointFromKey(_b_data, _b_length);
+      std::tie(aPageId, aChkpt) = storage::STKeyManipulator::extractPageIdAndCheckpointFromKey(_a_data, _a_length);
+      std::tie(bPageId, bChkpt) = storage::STKeyManipulator::extractPageIdAndCheckpointFromKey(_b_data, _b_length);
       if (aPageId != bPageId) return (aPageId > bPageId) ? 1 : (bPageId > aPageId) ? -1 : 0;
       return (aChkpt < bChkpt) ? 1 : (aChkpt > bChkpt) ? -1 : 0;
     }
@@ -327,132 +327,14 @@ KeyValuePair DBKeyManipulator::composedToSimple(KeyValuePair _p) {
   return KeyValuePair(key, _p.second);
 }
 
-/**
- * @brief Generates a Composite Database Key from objectId.
- *
- * Merges the key type and the block id to generate a composite
- * database key for E_DB_KEY_TYPE_METADATA_KEY.
- *
- * Format : Key Type | Object Id
- *
- * @return Sliver object of the generated composite database key.
- */
-
-Sliver DBKeyManipulator::generateMetadataKey(ObjectId objectId) {
-  size_t keySize = sizeof(EDBKeyType) + sizeof(objectId);
-  auto keyBuf = new char[keySize];
-  size_t offset = 0;
-  EDBKeyType keyType = EDBKeyType::E_DB_KEY_TYPE_BFT_METADATA_KEY;
-  copyToAndAdvance(keyBuf, &offset, keySize, (char *)&keyType, sizeof(EDBKeyType));
-  copyToAndAdvance(keyBuf, &offset, keySize, (char *)&objectId, sizeof(objectId));
-  return Sliver(keyBuf, keySize);
-}
-/*
- * Format : Key Type | Object Id
- */
-Sliver DBKeyManipulator::generateStateTransferKey(ObjectId objectId) {
-  size_t keySize = sizeof(EDBKeyType) + sizeof(objectId);
-  auto keyBuf = new char[keySize];
-  size_t offset = 0;
-  EDBKeyType keyType = EDBKeyType::E_DB_KEY_TYPE_BFT_ST_KEY;
-  copyToAndAdvance(keyBuf, &offset, keySize, (char *)&keyType, sizeof(EDBKeyType));
-  copyToAndAdvance(keyBuf, &offset, keySize, (char *)&objectId, sizeof(objectId));
-  return Sliver(keyBuf, keySize);
-}
-/**
- * Format : Key Type | Page Id
- */
-Sliver DBKeyManipulator::generateSTPendingPageKey(uint32_t pageid) {
-  size_t keySize = sizeof(EDBKeyType) + sizeof(pageid);
-  auto keyBuf = new char[keySize];
-  size_t offset = 0;
-  auto keyType = EDBKeyType::E_DB_KEY_TYPE_BFT_ST_PENDING_PAGE_KEY;
-  copyToAndAdvance(keyBuf, &offset, keySize, (char *)&keyType, sizeof(EDBKeyType));
-  copyToAndAdvance(keyBuf, &offset, keySize, (char *)&pageid, sizeof(pageid));
-  return Sliver(keyBuf, keySize);
-}
-/**
- * Format : Key Type | Checkpoint
- */
-Sliver DBKeyManipulator::generateSTCheckpointDescriptorKey(uint64_t chkpt) {
-  size_t keySize = sizeof(EDBKeyType) + sizeof(chkpt);
-  auto keyBuf = new char[keySize];
-  size_t offset = 0;
-  auto keyType = EDBKeyType::E_DB_KEY_TYPE_BFT_ST_CHECKPOINT_DESCRIPTOR_KEY;
-  copyToAndAdvance(keyBuf, &offset, keySize, (char *)&keyType, sizeof(EDBKeyType));
-  copyToAndAdvance(keyBuf, &offset, keySize, (char *)&chkpt, sizeof(chkpt));
-  return Sliver(keyBuf, keySize);
-}
-/**
- * Format : Key Type | Page Id | Checkpoint
- */
-Sliver DBKeyManipulator::generateSTReservedPageStaticKey(uint32_t pageid, uint64_t chkpt) {
-  return generateReservedPageKey(EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_STATIC_KEY, pageid, chkpt);
-}
-/**
- * Format : Key Type | Page Id | Checkpoint
- */
-Sliver DBKeyManipulator::generateSTReservedPageDynamicKey(uint32_t pageid, uint64_t chkpt) {
-  return generateReservedPageKey(EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_DYNAMIC_KEY, pageid, chkpt);
-}
-/**
- * Format : Key Type | Page Id | Checkpoint
- */
-Sliver DBKeyManipulator::generateReservedPageKey(EDBKeyType keyType, uint32_t pageid, uint64_t chkpt) {
-  size_t keySize = sizeof(EDBKeyType) + sizeof(pageid) + sizeof(chkpt);
-  auto keyBuf = new char[keySize];
-  size_t offset = 0;
-  copyToAndAdvance(keyBuf, &offset, keySize, (char *)&keyType, sizeof(EDBKeyType));
-  copyToAndAdvance(keyBuf, &offset, keySize, (char *)&pageid, sizeof(pageid));
-  copyToAndAdvance(keyBuf, &offset, keySize, (char *)&chkpt, sizeof(chkpt));
-  return Sliver(keyBuf, keySize);
-}
-
-bool DBKeyManipulator::copyToAndAdvance(char *_buf, size_t *_offset, size_t _maxOffset, char *_src, size_t _srcSize) {
-  if (!_buf && !_offset && !_src) assert(false);
-
-  if (*_offset >= _maxOffset && _srcSize > 0) assert(false);
-
-  memcpy(_buf + *_offset, _src, _srcSize);
-  *_offset += _srcSize;
-
-  return true;
-}
-
-uint64_t DBKeyManipulator::extractCheckPointFromKey(const char *_key_data, size_t _key_length) {
-  assert(_key_length >= sizeof(uint64_t));
-  uint64_t chkp = *(uint64_t *)(_key_data + 1);
-
-  LOG_TRACE(logger(), "checkpoint " << chkp << " from key " << (HexPrintBuffer{_key_data, _key_length}));
-  return chkp;
-}
-
-std::pair<uint32_t, uint64_t> DBKeyManipulator::extractPageIdAndCheckpointFromKey(const char *_key_data,
-                                                                                  size_t _key_length) {
-  assert(_key_length >= sizeof(uint32_t) + sizeof(uint64_t));
-
-  uint32_t pageId = *(uint32_t *)(_key_data + 1);
-  uint64_t chkp = *(uint64_t *)(_key_data + sizeof(uint32_t) + 1);
-  LOG_TRACE(logger(),
-            "pageId " << pageId << " checkpoint " << chkp << " from key " << (HexPrintBuffer{_key_data, _key_length}));
-  return std::make_pair(pageId, chkp);
-}
-
 DBAdapter::DBAdapter(std::shared_ptr<storage::IDBClient> db, std::unique_ptr<IDataKeyGenerator> keyGen)
     : DBAdapterBase{db}, keyGen_{std::move(keyGen)} {}
 
-Status DBAdapter::addBlock(const SetOfKeyValuePairs &kv, BlockId blockId) {
+BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &kv) {
+  BlockId blockId = getLastReachableBlockId() + 1;
   bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest stDigest;
   if (blockId > 1) {
-    Sliver parentBlockData;
-    bool found;
-    getBlockById(blockId - 1, parentBlockData, found);
-    if (!found || parentBlockData.length() == 0) {
-      //(IG): panic, data corrupted
-      LOG_FATAL(logger_, "addBlock: no block or block data for id " << blockId - 1);
-      std::exit(1);
-    }
-
+    Sliver parentBlockData = getRawBlock(blockId - 1);
     bftEngine::SimpleBlockchainStateTransfer::computeBlockDigest(
         blockId - 1, reinterpret_cast<const char *>(parentBlockData.data()), parentBlockData.length(), &stDigest);
   } else {
@@ -461,18 +343,24 @@ Status DBAdapter::addBlock(const SetOfKeyValuePairs &kv, BlockId blockId) {
 
   SetOfKeyValuePairs outKv;
   const auto block = block::create(kv, outKv, stDigest.content);
-  return addBlockAndUpdateMultiKey(outKv, blockId, block);
+  if (Status s = addBlockAndUpdateMultiKey(outKv, blockId, block); !s.isOK())
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": failed: ") + s.toString());
+  return blockId;
 }
 
-Status DBAdapter::addBlock(const concordUtils::Sliver &block, BlockId blockId) {
+void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId) {
   SetOfKeyValuePairs keys;
   if (block.length() > 0) {
     keys = block::getData(block);
   }
-  return addBlockAndUpdateMultiKey(keys, blockId, block);
+  if (Status s = addBlockAndUpdateMultiKey(keys, blockId, block); !s.isOK())
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": failed: blockId: ") + std::to_string(blockId) +
+                             std::string(" reason: ") + s.toString());
 }
 
-Status DBAdapter::addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &_kvMap, BlockId _block, const Sliver &_blockRaw) {
+Status DBAdapter::addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &_kvMap,
+                                            const BlockId &_block,
+                                            const Sliver &_blockRaw) {
   SetOfKeyValuePairs updatedKVMap;
   for (auto &it : _kvMap) {
     Sliver composedKey = keyGen_->dataKey(it.first, _block);
@@ -485,62 +373,30 @@ Status DBAdapter::addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &_kvMap, Bl
 }
 
 /**
- * @brief Deletes a key value pair from the database.
+ * @brief Deletes a block from the database.
  *
- * Deletes the key value pair corresponding to the composite database key of
- * type "Key" generated from the key and block id provided as parameters to this
- * function.
- *
- * @param _key The key whose composite version needs to be deleted.
- * @param _blockId The block id (version) of the key to delete.
- * @return Status of the operation.
- */
-Status DBAdapter::delKey(const Sliver &_key, BlockId _blockId) {
-  Sliver composedKey = keyGen_->dataKey(_key, _blockId);
-  LOG_TRACE(logger_, "Deleting key " << _key << " block id " << _blockId);
-  Status s = db_->del(composedKey);
-  return s;
-}
-
-/**
- * @brief Deletes a key value pair from the database.
- *
- * Deletes the key value pair corresponding to the composite database key of
- * type "Block" generated from the block id provided as a parameter to this
- * function.
+ * Deletes:
+ *    - the key value pair corresponding to the composite database key of type "Block" generated from the block id
+ *    - all keys composing this block
  *
  * @param _blockId The ID of the block to be deleted.
- * @return Status of the operation.
  */
-Status DBAdapter::delBlock(BlockId _blockId) {
-  Sliver dbKey = keyGen_->blockKey(_blockId);
-  Status s = db_->del(dbKey);
-  return s;
-}
-
-void DBAdapter::deleteBlockAndItsKeys(BlockId blockId) {
-  Sliver blockRaw;
-  bool found = false;
-  Status s = getBlockById(blockId, blockRaw, found);
-  if (!s.isOK()) {
-    LOG_FATAL(logger_, "Failed to read block id: " << blockId);
-    exit(1);
-  }
-  KeysVector keysVec;
-  if (found && blockRaw.length() > 0) {
+void DBAdapter::deleteBlock(const BlockId &blockId) {
+  try {
+    RawBlock blockRaw = getRawBlock(blockId);
+    KeysVector keysVec;
     const auto numOfElements = ((block::detail::Header *)blockRaw.data())->numberOfElements;
     auto *entries = (block::detail::Entry *)(blockRaw.data() + sizeof(block::detail::Header));
-    for (size_t i = 0u; i < numOfElements; i++) {
+    for (size_t i = 0u; i < numOfElements; i++)
       keysVec.push_back(keyGen_->dataKey(Key(blockRaw, entries[i].keyOffset, entries[i].keySize), blockId));
-    }
-  }
-  if (found) {
+
     keysVec.push_back(keyGen_->blockKey(blockId));
-  }
-  s = db_->multiDel(keysVec);
-  if (!s.isOK()) {
-    LOG_FATAL(logger_, "Failed to delete block id: " << blockId);
-    exit(1);
+
+    if (Status s = db_->multiDel(keysVec); !s.isOK()) {
+      LOG_FATAL(logger_, "Failed to delete block id: " << blockId);
+      exit(1);
+    }
+  } catch (const NotFoundException &e) {
   }
 }
 
@@ -553,45 +409,25 @@ void DBAdapter::deleteBlockAndItsKeys(BlockId blockId) {
  * @param readVersion BlockId object signifying the read version with which a
  *                    lookup needs to be done.
  * @param key Sliver object of the key.
- * @param outValue Sliver object where the value of the lookup result is stored.
- * @param outBlock BlockId object where the read version of the result is
- *                         stored.
- * @return Status OK
+ * @return outValue Sliver object where the value of the lookup result is stored.
+ * @return  outBlock BlockId object where the read version of the result is stored.
  */
-Status DBAdapter::getKeyByReadVersion(BlockId readVersion,
-                                      const Sliver &key,
-                                      Sliver &outValue,
-                                      BlockId &outBlock) const {
-  LOG_TRACE(logger_, "Getting value of key " << key << " for read version " << readVersion);
-  storage::IDBClient::IDBClientIterator *iter = db_->getIterator();
-  Sliver foundKey, foundValue;
-  Sliver searchKey = keyGen_->dataKey(key, readVersion);
+std::pair<Value, BlockId> DBAdapter::getValue(const Key &key, const BlockId &blockVersion) const {
+  LOG_TRACE(logger_, "Getting value of key " << key << " for read version " << blockVersion);
+  auto iter = db_->getIteratorGuard();
+  Key searchKey = keyGen_->dataKey(key, blockVersion);
   KeyValuePair p = iter->seekAtLeast(searchKey);
-  foundKey = DBKeyManipulator::composedToSimple(p).first;
-  foundValue = p.second;
-
-  LOG_TRACE(logger_, "Found key " << foundKey << " and value " << foundValue);
-
   if (!iter->isEnd()) {
+    Key foundKey = DBKeyManipulator::composedToSimple(p).first;
     BlockId currentReadVersion = DBKeyManipulator::extractBlockIdFromKey(p.first);
-
     // TODO(JGC): Ask about reason for version comparison logic
-    if (currentReadVersion <= readVersion && foundKey == key) {
-      outValue = foundValue;
-      outBlock = currentReadVersion;
-    } else {
-      outValue = Sliver();
-      outBlock = 0;
-    }
-  } else {
-    outValue = Sliver();
-    outBlock = 0;
+    if (currentReadVersion <= blockVersion && foundKey == key) return std::make_pair(p.second, currentReadVersion);
   }
-
-  db_->freeIterator(iter);
-
-  // TODO(GG): maybe return status of the operation?
-  return Status::OK();
+  // TODO [TK] this mimics the existing behavior but it should throw NotFoundException
+  // Right now the caller (ReplicaImp::getInternal) is not ready for this yet
+  // throw NotFoundException(__PRETTY_FUNCTION__ + std::string(": key: ") + key.toString() +
+  //                          std::string(" blockVersion: ") + std::to_string(blockVersion));
+  return std::make_pair(Key(), 0);
 }
 
 /**
@@ -604,16 +440,15 @@ Status DBAdapter::getKeyByReadVersion(BlockId readVersion,
  * @param _found true if lookup successful, else false.
  * @return Status of the operation.
  */
-Status DBAdapter::getBlockById(BlockId _blockId, Sliver &_blockRaw, bool &_found) const {
-  Sliver key = keyGen_->blockKey(_blockId);
-  Status s = db_->get(key, _blockRaw);
-  if (s.isNotFound()) {
-    _found = false;
-    return Status::OK();
+RawBlock DBAdapter::getRawBlock(const BlockId &blockId) const {
+  RawBlock blockRaw;
+  if (Status s = db_->get(keyGen_->blockKey(blockId), blockRaw); !s.isOK()) {
+    if (s.isNotFound())
+      throw NotFoundException(__PRETTY_FUNCTION__ + std::string(": blockId: ") + std::to_string(blockId));
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": failed for blockId: ") + std::to_string(blockId) +
+                             std::string(" reason: ") + s.toString());
   }
-
-  _found = true;
-  return s;
+  return blockRaw;
 }
 
 // TODO(SG): Add status checks with getStatus() on iterator.
@@ -626,7 +461,7 @@ Status DBAdapter::getBlockById(BlockId _blockId, Sliver &_blockRaw, bool &_found
  *
  * @return Block ID of the latest block.
  */
-BlockId DBAdapter::getLatestBlock() const {
+BlockId DBAdapter::getLastestBlockId() const {
   // Note: RocksDB stores keys in a sorted fashion as per the logic provided in
   // a custom comparator (for our case, refer to the `composedKeyComparison`
   // method above). In short, keys of type 'block' are stored first followed by
@@ -661,7 +496,7 @@ BlockId DBAdapter::getLatestBlock() const {
  *
  * @return Block ID of the last reachable block.
  */
-BlockId DBAdapter::getLastReachableBlock() const {
+BlockId DBAdapter::getLastReachableBlockId() const {
   storage::IDBClient::IDBClientIterator *iter = db_->getIterator();
 
   BlockId lastReachableId = 0;

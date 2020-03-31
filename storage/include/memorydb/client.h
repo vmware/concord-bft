@@ -80,7 +80,6 @@ class Client : public IDBClient {
   concordUtils::Status multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec) override;
   concordUtils::Status multiPut(const SetOfKeyValuePairs &_keyValueMap) override;
   concordUtils::Status multiDel(const KeysVector &_keysVec) override;
-  virtual void monitor() const override{};
   bool isNew() override { return true; }
   ITransaction *beginTransaction() override;
   TKVStore &getMap() { return map_; }

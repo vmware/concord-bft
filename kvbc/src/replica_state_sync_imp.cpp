@@ -25,7 +25,7 @@ namespace kvbc {
 ReplicaStateSyncImp::ReplicaStateSyncImp(IBlockMetadata* blockMetadata) : blockMetadata_(blockMetadata) {}
 
 uint64_t ReplicaStateSyncImp::execute(concordlogger::Logger& logger,
-                                      DBAdapter& bcDBAdapter,
+                                      IDbAdapter& bcDBAdapter,
                                       BlockId lastReachableBlockId,
                                       uint64_t lastExecutedSeqNum) {
   BlockId blockId = lastReachableBlockId;
@@ -43,7 +43,7 @@ uint64_t ReplicaStateSyncImp::execute(concordlogger::Logger& logger,
     }
     // SBFT State Metadata is not in sync with SBFT State.
     // Remove blocks which sequence number is greater than lastExecutedSeqNum.
-    bcDBAdapter.deleteBlockAndItsKeys(blockId--);
+    bcDBAdapter.deleteBlock(blockId--);
     ++removedBlocksNum;
   } while (blockId);
   return removedBlocksNum;

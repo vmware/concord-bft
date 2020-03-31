@@ -30,9 +30,6 @@ class DBAdapterBase {
 
   concordUtils::Status freeIterator(storage::IDBClient::IDBClientIterator *_iter) { return db_->freeIterator(_iter); }
 
-  // Used to monitor the DB.
-  void monitor() const { db_->monitor(); }
-
  protected:
   concordlogger::Logger logger_;
   std::shared_ptr<storage::IDBClient> db_;
