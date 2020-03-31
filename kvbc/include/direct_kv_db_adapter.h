@@ -66,21 +66,20 @@ class DBAdapter : public IDbAdapter, public DBAdapterBase {
   // - adding the whole block (raw block) in its own key
   // - calculating and filling in the parent digest.
   // Typically called by the application when adding a new block.
-  BlockId addBlockToBlockchain(const SetOfKeyValuePairs &updates) override;
+  BlockId addBlock(const SetOfKeyValuePairs &updates) override;
   // Adds a block from its raw representation and a block ID. Includes:
   // - adding the key/value pairs in separate keys
   // - adding the whole block (raw block) in its own key.
   // Typically called by state transfer when a block is received and needs to be added.
   void addRawBlock(const RawBlock &, const BlockId &) override;
 
-  // If found, return the actual version and the value.
-  std::optional<std::pair<Value, BlockId>> getValue(const Key &, const BlockId &blockVersion) const override;
+  std::pair<Value, BlockId> getValue(const Key &, const BlockId &blockVersion) const override;
 
   RawBlock getRawBlock(const BlockId &blockId) const override;
 
   void deleteBlock(const BlockId &) override;
 
-  BlockId getLastBlockchainBlockId() const override;
+  BlockId getLastestBlockId() const override;
   BlockId getLastReachableBlockId() const override;
 
   std::shared_ptr<storage::IDBClient> getDb() const override { return DBAdapterBase::getDb(); }

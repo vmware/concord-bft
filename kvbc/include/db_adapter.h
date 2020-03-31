@@ -5,7 +5,6 @@
 #pragma once
 
 #include "kv_types.hpp"
-#include <optional>
 #include <utility>
 
 namespace concord::storage {
@@ -23,7 +22,7 @@ class NotFoundException : public std::runtime_error {
 class IDbAdapter {
  public:
   // Returns the added block ID.
-  virtual BlockId addBlockToBlockchain(const SetOfKeyValuePairs& updates) = 0;
+  virtual BlockId addBlock(const SetOfKeyValuePairs& updates) = 0;
 
   // Adds a block from its raw representation and a block ID.
   // Typically called by state transfer when a block is received and needs to be added.
@@ -32,22 +31,20 @@ class IDbAdapter {
   // Get block in its raw form
   virtual RawBlock getRawBlock(const BlockId& blockId) const = 0;
 
-  // If found, return the actual version and the value.
-  virtual std::optional<std::pair<Value, BlockId>> getValue(const Key&, const BlockId& blockVersion) const = 0;
+  // Return the actual version and the value for a key
+  virtual std::pair<Value, BlockId> getValue(const Key& key, const BlockId& blockVersion) const = 0;
 
   // Delete a block from the database
   virtual void deleteBlock(const BlockId& blockId) = 0;
 
   // Used to retrieve the latest block.
-  virtual BlockId getLastBlockchainBlockId() const = 0;
+  virtual BlockId getLastestBlockId() const = 0;
 
-  /**
-   * Used to retrieve the last reachable block.
-   * From ST perspective, this is maximal block number N such that all blocks
-   * START <= i <= N exist, where START is usually 1, if pruning is not enabled.
-   *
-   * In the normal state, it should be equal to last block ID.
-   */
+  // Used to retrieve the last reachable block.
+  // From ST perspective, this is maximal block number N such that all blocks
+  // START <= i <= N exist, where START is usually 1, if pruning is not enabled.
+  // In the normal state, it should be equal to last block ID.
+
   virtual BlockId getLastReachableBlockId() const = 0;
 
   // TODO [TK] not sure it's needed for long term

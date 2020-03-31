@@ -175,7 +175,7 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
       m_currentRepStatus(RepStatus::Idle),
       m_InternalStorageWrapperForIdleMode(this),
       m_bcDbAdapter(dbAdapter),
-      m_lastBlock(dbAdapter->getLastBlockchainBlockId()),
+      m_lastBlock(dbAdapter->getLastestBlockId()),
       m_ptrComm(comm),
       m_replicaConfig(replicaConfig),
       m_appState(new BlockchainAppState(this)),
@@ -220,18 +220,20 @@ Status ReplicaImp::addBlockInternal(const SetOfKeyValuePairs &updates, BlockId &
 
   LOG_DEBUG(logger, "block:" << block << " updates: " << updates.size());
 
-  outBlockId = m_bcDbAdapter->addBlockToBlockchain(updates);
+  outBlockId = m_bcDbAdapter->addBlock(updates);
   return Status::OK();
 }
 
 Status ReplicaImp::getInternal(BlockId readVersion, Key key, Sliver &outValue, BlockId &outBlock) const {
-  if (auto val = m_bcDbAdapter->getValue(key, readVersion)) {
-    outValue = val->first;
-    outBlock = val->second;
+  try {
+    auto val = m_bcDbAdapter->getValue(key, readVersion);
+    outValue = val.first;
+    outBlock = val.second;
     return Status::OK();
+  } catch (const NotFoundException &e) {
+    LOG_ERROR(logger, e.what());
+    return Status::NotFound(key.toString());
   }
-  LOG_ERROR(logger, "Failed to get key " << key << " by read version " << readVersion);
-  return Status::NotFound(key.toString());
 }
 
 void ReplicaImp::insertBlockInternal(BlockId blockId, Sliver block) {

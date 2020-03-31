@@ -330,7 +330,7 @@ KeyValuePair DBKeyManipulator::composedToSimple(KeyValuePair _p) {
 DBAdapter::DBAdapter(std::shared_ptr<storage::IDBClient> db, std::unique_ptr<IDataKeyGenerator> keyGen)
     : DBAdapterBase{db}, keyGen_{std::move(keyGen)} {}
 
-BlockId DBAdapter::addBlockToBlockchain(const SetOfKeyValuePairs &kv) {
+BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &kv) {
   BlockId blockId = getLastReachableBlockId() + 1;
   bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest stDigest;
   if (blockId > 1) {
@@ -409,12 +409,10 @@ void DBAdapter::deleteBlock(const BlockId &blockId) {
  * @param readVersion BlockId object signifying the read version with which a
  *                    lookup needs to be done.
  * @param key Sliver object of the key.
- * @param outValue Sliver object where the value of the lookup result is stored.
- * @param outBlock BlockId object where the read version of the result is
- *                         stored.
- * @return Status OK
+ * @return outValue Sliver object where the value of the lookup result is stored.
+ * @return  outBlock BlockId object where the read version of the result is stored.
  */
-std::optional<std::pair<Value, BlockId>> DBAdapter::getValue(const Key &key, const BlockId &blockVersion) const {
+std::pair<Value, BlockId> DBAdapter::getValue(const Key &key, const BlockId &blockVersion) const {
   LOG_TRACE(logger_, "Getting value of key " << key << " for read version " << blockVersion);
   auto iter = db_->getIteratorGuard();
   Key searchKey = keyGen_->dataKey(key, blockVersion);
@@ -423,12 +421,13 @@ std::optional<std::pair<Value, BlockId>> DBAdapter::getValue(const Key &key, con
     Key foundKey = DBKeyManipulator::composedToSimple(p).first;
     BlockId currentReadVersion = DBKeyManipulator::extractBlockIdFromKey(p.first);
     // TODO(JGC): Ask about reason for version comparison logic
-    if (currentReadVersion <= blockVersion && foundKey == key)
-      return std::optional<std::pair<Value, BlockId>>{std::make_pair(p.second, currentReadVersion)};
+    if (currentReadVersion <= blockVersion && foundKey == key) return std::make_pair(p.second, currentReadVersion);
   }
-  // TODO [TK] this mimics the existing behavior but it should return std::nullopt
+  // TODO [TK] this mimics the existing behavior but it should throw NotFoundException
   // Right now the caller (ReplicaImp::getInternal) is not ready for this yet
-  return std::optional<std::pair<Value, BlockId>>{std::make_pair(Key(), 0)};
+  // throw NotFoundException(__PRETTY_FUNCTION__ + std::string(": key: ") + key.toString() +
+  //                          std::string(" blockVersion: ") + std::to_string(blockVersion));
+  return std::make_pair(Key(), 0);
 }
 
 /**
@@ -445,7 +444,7 @@ RawBlock DBAdapter::getRawBlock(const BlockId &blockId) const {
   RawBlock blockRaw;
   if (Status s = db_->get(keyGen_->blockKey(blockId), blockRaw); !s.isOK()) {
     if (s.isNotFound())
-      throw NotFoundException(__PRETTY_FUNCTION__ + std::string(": not found blockId: ") + std::to_string(blockId));
+      throw NotFoundException(__PRETTY_FUNCTION__ + std::string(": blockId: ") + std::to_string(blockId));
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": failed for blockId: ") + std::to_string(blockId) +
                              std::string(" reason: ") + s.toString());
   }
@@ -462,7 +461,7 @@ RawBlock DBAdapter::getRawBlock(const BlockId &blockId) const {
  *
  * @return Block ID of the latest block.
  */
-BlockId DBAdapter::getLastBlockchainBlockId() const {
+BlockId DBAdapter::getLastestBlockId() const {
   // Note: RocksDB stores keys in a sorted fashion as per the logic provided in
   // a custom comparator (for our case, refer to the `composedKeyComparison`
   // method above). In short, keys of type 'block' are stored first followed by
