@@ -1,4 +1,4 @@
-add_library(concordbft_storage STATIC src/memorydb_client.cpp 
+add_library(concordbft_storage STATIC src/memorydb_client.cpp
                                       src/key_manipulator.cpp
 )
 
@@ -20,4 +20,3 @@ if (BUILD_ROCKSDB_STORAGE)
   target_include_directories(concordbft_storage PUBLIC ${ROCKSDB_INCLUDE_DIR})
   target_link_libraries(concordbft_storage PRIVATE ${ROCKSDB} ${LIBBZ2} ${LIBLZ4} ${LIBZSTD} ${LIBZ} ${LIBSNAPPY})
 endif(BUILD_ROCKSDB_STORAGE)
-

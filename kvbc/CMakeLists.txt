@@ -10,6 +10,7 @@ add_library(kvbc  src/ClientImp.cpp
                   src/direct_kv_block.cpp
                   src/merkle_tree_block.cpp
                   src/sparse_merkle/base_types.cpp
+                  src/sparse_merkle/keys.cpp
                   src/sparse_merkle/internal_node.cpp
                   src/sparse_merkle/tree.cpp
                   src/sparse_merkle/update_cache.cpp

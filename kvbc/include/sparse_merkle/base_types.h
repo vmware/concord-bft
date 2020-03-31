@@ -103,6 +103,21 @@ Nibble getNibble(const size_t n, const T& buf) {
   return Nibble(byte);
 }
 
+template <typename T>
+void setNibble(const size_t n, T& buf, Nibble nibble) {
+  size_t index = n / 2;
+  uint8_t& byte = buf[index];
+  if (n % 2 == 0) {
+    // Even value: Set the first nibble of the byte
+    byte &= 0x0F;
+    byte |= (nibble.data() << Nibble::SIZE_IN_BITS);
+  } else {
+    // Odd value: Get the second nibble of the byte
+    byte &= 0xF0;
+    byte |= nibble.data();
+  }
+}
+
 // A Hash is a wrapper around a byte buffer containing a hash
 class Hash {
  public:
@@ -121,7 +136,7 @@ class Hash {
       0xa7, 0xff, 0xc6, 0xf8, 0xbf, 0x1e, 0xd7, 0x66, 0x51, 0xc1, 0x47, 0x56, 0xa0, 0x61, 0xd6, 0x62,
       0xf5, 0x80, 0xff, 0x4d, 0xe4, 0x3b, 0x49, 0xfa, 0x82, 0xd8, 0x0a, 0x4b, 0x80, 0xf8, 0x43, 0x4a};
 
-  Hash() {}
+  Hash() : buf_(EMPTY_BUF) {}
 
   Hash(std::array<uint8_t, SIZE_IN_BYTES> buf) : buf_(buf) {}
 
@@ -145,6 +160,9 @@ class Hash {
     }
     return output;
   }
+
+  // This is only to facilitate testing. It really should not be used anywhere else.
+  void setNibble(const size_t n, Nibble nibble) { ::concord::storage::sparse_merkle::setNibble(n, buf_, nibble); }
 
   Nibble getNibble(const size_t n) const {
     Assert(!buf_.empty());
@@ -313,6 +331,11 @@ class NibblePath {
   size_t num_nibbles_;
   std::vector<uint8_t> path_;
 };
+
+std::ostream& operator<<(std::ostream& os, const Version& version);
+std::ostream& operator<<(std::ostream& os, const Nibble& nibble);
+std::ostream& operator<<(std::ostream& os, const Hash& hash);
+std::ostream& operator<<(std::ostream& os, const NibblePath& path);
 
 }  // namespace sparse_merkle
 }  // namespace storage

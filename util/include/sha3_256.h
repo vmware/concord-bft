@@ -11,6 +11,8 @@
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 
+#pragma once
+
 #include <array>
 
 #include <openssl/evp.h>
