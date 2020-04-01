@@ -22,7 +22,7 @@
 
 using concordUtils::Sliver;
 using concord::util::SHA3_256;
-using namespace concord::storage::sparse_merkle;
+using namespace concord::kvbc::sparse_merkle;
 
 static constexpr size_t ROOT_INDEX = 0;
 

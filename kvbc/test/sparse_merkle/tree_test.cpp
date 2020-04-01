@@ -22,7 +22,7 @@ using namespace std;
 
 using namespace concordUtils;
 using namespace concord::kvbc;
-using namespace concord::storage::sparse_merkle;
+using namespace concord::kvbc::sparse_merkle;
 
 void db_put(const shared_ptr<TestDB>& db, const UpdateBatch& batch) {
   for (const auto& [key, val] : batch.internal_nodes) {

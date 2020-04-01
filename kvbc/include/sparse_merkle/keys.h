@@ -16,7 +16,7 @@
 #include "sparse_merkle/base_types.h"
 
 namespace concord {
-namespace storage {
+namespace kvbc {
 namespace sparse_merkle {
 
 // An InternalNodeKey points to a BatchedInternalNode. It's always on a
@@ -104,5 +104,5 @@ struct LeafNode {
 inline bool operator==(const LeafNode& lhs, const LeafNode& rhs) { return (lhs.value == rhs.value); }
 
 }  // namespace sparse_merkle
-}  // namespace storage
+}  // namespace kvbc
 }  // namespace concord

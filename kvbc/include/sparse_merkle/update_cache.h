@@ -22,7 +22,7 @@
 #include "sparse_merkle/update_batch.h"
 
 namespace concord {
-namespace storage {
+namespace kvbc {
 namespace sparse_merkle {
 
 // This is an implementation detail of the Tree::update mechanism.
@@ -76,5 +76,5 @@ class UpdateCache {
 }  // namespace detail
 
 }  // namespace sparse_merkle
-}  // namespace storage
+}  // namespace kvbc
 }  // namespace concord

@@ -14,7 +14,7 @@
 
 using namespace concordUtils;
 
-namespace concord::storage::sparse_merkle::detail {
+namespace concord::kvbc::sparse_merkle::detail {
 
 void Walker::appendEmptyNodes(const Hash& key, int nodes_to_create) {
   stack_.push(current_node_);
@@ -93,4 +93,4 @@ void Walker::markCurrentNodeStale() {
 
 void Walker::cacheCurrentNode() { cache_.put(nibble_path_, current_node_); }
 
-}  // namespace concord::storage::sparse_merkle::detail
+}  // namespace concord::kvbc::sparse_merkle::detail

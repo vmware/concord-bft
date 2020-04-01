@@ -14,7 +14,7 @@
 #include "sparse_merkle/base_types.h"
 #include "sparse_merkle/internal_node.h"
 
-using namespace concord::storage::sparse_merkle;
+using namespace concord::kvbc::sparse_merkle;
 
 // Return a new hash with the given bit flipped for the given hash.
 //

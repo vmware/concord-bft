@@ -56,7 +56,7 @@ class DBKeyManipulator : public DBKeyManipulatorBase {
   static KeyValuePair composedToSimple(KeyValuePair _p);
 };
 
-class DBAdapter : public IDbAdapter, public DBAdapterBase {
+class DBAdapter : public IDbAdapter, private DBAdapterBase {
  public:
   DBAdapter(std::shared_ptr<storage::IDBClient>,
             std::unique_ptr<IDataKeyGenerator> keyGen = std::make_unique<KeyGenerator>());
@@ -79,10 +79,10 @@ class DBAdapter : public IDbAdapter, public DBAdapterBase {
 
   void deleteBlock(const BlockId &) override;
 
-  BlockId getLastestBlockId() const override;
+  BlockId getLatestBlockId() const override;
   BlockId getLastReachableBlockId() const override;
 
-  std::shared_ptr<storage::IDBClient> getDb() const override { return DBAdapterBase::getDb(); }
+  std::shared_ptr<storage::IDBClient> getDb() const override { return db_; }
 
  private:
   concordUtils::Status addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &_kvMap,

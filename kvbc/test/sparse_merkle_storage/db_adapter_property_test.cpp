@@ -30,13 +30,13 @@ using ::concord::kvbc::Key;
 using ::concord::kvbc::SetOfKeyValuePairs;
 using ::concord::kvbc::Value;
 using ::concord::storage::IDBClient;
-using ::concord::storage::blockchain::v2MerkleTree::block::create;
-using ::concord::storage::blockchain::v2MerkleTree::block::getData;
-using ::concord::storage::blockchain::v2MerkleTree::block::getParentDigest;
-using ::concord::storage::blockchain::v2MerkleTree::block::getStateHash;
-using ::concord::storage::blockchain::v2MerkleTree::block::BLOCK_DIGEST_SIZE;
-using ::concord::storage::blockchain::v2MerkleTree::DBAdapter;
-using ::concord::storage::sparse_merkle::Hash;
+using ::concord::kvbc::v2MerkleTree::block::create;
+using ::concord::kvbc::v2MerkleTree::block::getData;
+using ::concord::kvbc::v2MerkleTree::block::getParentDigest;
+using ::concord::kvbc::v2MerkleTree::block::getStateHash;
+using ::concord::kvbc::v2MerkleTree::block::BLOCK_DIGEST_SIZE;
+using ::concord::kvbc::v2MerkleTree::DBAdapter;
+using ::concord::kvbc::sparse_merkle::Hash;
 using ::concordUtils::Sliver;
 
 using ParentDigest = std::array<std::uint8_t, BLOCK_DIGEST_SIZE>;
@@ -75,14 +75,10 @@ bool equal(const void *lhs, const StateTransferDigest &rhs) {
   return std::memcmp(lhs, rhs.content, BLOCK_DIGEST_SIZE) == 0;
 }
 
-::testing::AssertionResult addBlocks(const std::vector<SetOfKeyValuePairs> &blockUpdates, DBAdapter &adapter) {
+void addBlocks(const std::vector<SetOfKeyValuePairs> &blockUpdates, DBAdapter &adapter) {
   for (const auto &updates : blockUpdates) {
-    const auto status = adapter.addLastReachableBlock(updates);
-    if (!status.isOK()) {
-      return ::testing::AssertionFailure() << status;
-    }
+    adapter.addBlock(updates);
   }
-  return ::testing::AssertionSuccess();
 }
 
 struct BlockUpdatesInfo {
@@ -140,21 +136,19 @@ RC_GTEST_PROP(block,
 TEST_P(db_adapter_block_tests, blockchain_property) {
   const auto test = [this](const std::vector<SetOfKeyValuePairs> &blockUpdates) {
     auto adapter = DBAdapter{GetParam()->db()};
-    RC_ASSERT(addBlocks(blockUpdates, adapter));
+    addBlocks(blockUpdates, adapter);
 
-    RC_ASSERT(adapter.getLastReachableBlock() == blockUpdates.size());
-    RC_ASSERT(adapter.getLatestBlock() == blockUpdates.size());
+    RC_ASSERT(adapter.getLastReachableBlockId() == blockUpdates.size());
+    RC_ASSERT(adapter.getLatestBlockId() == blockUpdates.size());
 
     for (auto i = 0ul; i < blockUpdates.size(); ++i) {
-      auto block = Sliver{};
-      RC_ASSERT(adapter.getBlockById(i + 1, block).isOK());
-      RC_ASSERT(getData(block) == blockUpdates[i]);
+      const auto rawBlock = adapter.getRawBlock(i + 1);
+      RC_ASSERT(getData(rawBlock) == blockUpdates[i]);
       if (i == 0) {
-        RC_ASSERT(equal(getParentDigest(block), zeroDigest));
+        RC_ASSERT(equal(getParentDigest(rawBlock), zeroDigest));
       } else {
-        auto prevBlock = Sliver{};
-        RC_ASSERT(adapter.getBlockById(i, prevBlock).isOK());
-        RC_ASSERT(equal(getParentDigest(block), blockDigest(i, prevBlock)));
+        const auto rawPrevBlock = adapter.getRawBlock(i);
+        RC_ASSERT(equal(getParentDigest(rawBlock), blockDigest(i, rawPrevBlock)));
       }
     }
   };
@@ -181,27 +175,26 @@ TEST_P(db_adapter_block_tests, add_block_at_back_equivalent_to_last_reachable) {
     auto adapter = DBAdapter{GetParam()->db()};
 
     // First, add blockchain updates.
-    RC_ASSERT(addBlocks(blockchainUpdates, adapter));
+    addBlocks(blockchainUpdates, adapter);
 
-    const auto lastReachableBefore = adapter.getLastReachableBlock();
+    const auto lastReachableBefore = adapter.getLastReachableBlockId();
 
     // Then, add state transfer blocks at an offset, ensuring a gap.
     for (auto i = 0ul; i < stateTransferUpdates.size(); ++i) {
       const auto stBlockId = lastReachableBefore + stateTransferOffset + i;
-      RC_ASSERT(adapter.addBlock(create(stateTransferUpdates[i], parentDigest.data(), stateHash), stBlockId).isOK());
-      RC_ASSERT(adapter.getLatestBlock() == stBlockId);
+      adapter.addRawBlock(create(stateTransferUpdates[i], parentDigest.data(), stateHash), stBlockId);
+      RC_ASSERT(adapter.getLatestBlockId() == stBlockId);
     }
 
     // Ensure the last reachable block ID hasn't changed as we are adding at an offset.
-    RC_ASSERT(adapter.getLastReachableBlock() == lastReachableBefore);
+    RC_ASSERT(adapter.getLastReachableBlockId() == lastReachableBefore);
 
     // Lastly, add a single block at the back.
-    RC_ASSERT(
-        adapter.addBlock(create(lastReachableUpdates, parentDigest.data(), stateHash), lastReachableBefore + 1).isOK());
+    adapter.addRawBlock(create(lastReachableUpdates, parentDigest.data(), stateHash), lastReachableBefore + 1);
 
     // Verify that the block was added as the last reachable and a gap still exists.
-    RC_ASSERT(adapter.getLastReachableBlock() == lastReachableBefore + 1);
-    RC_ASSERT(adapter.getLastReachableBlock() < adapter.getLatestBlock());
+    RC_ASSERT(adapter.getLastReachableBlockId() == lastReachableBefore + 1);
+    RC_ASSERT(adapter.getLastReachableBlockId() < adapter.getLatestBlockId());
   };
 
   ASSERT_TRUE(rc::check(test));
@@ -218,19 +211,19 @@ TEST_P(db_adapter_block_tests, reachable_during_state_transfer_property) {
     auto adapter = DBAdapter{GetParam()->db()};
 
     // First, add blockchain updates.
-    RC_ASSERT(addBlocks(blockchainUpdates, adapter));
+    addBlocks(blockchainUpdates, adapter);
 
     // Then, start adding state transfer blocks in reverse order.
     const auto latestBlockId = blockchainUpdates.size() + stateTransferUpdates.size();
     for (auto i = 0ul; i < stateTransferUpdates.size(); ++i) {
       const auto blockId = latestBlockId - i;
-      RC_ASSERT(adapter.addBlock(create(stateTransferUpdates[i], parentDigest.data(), stateHash), blockId).isOK());
+      adapter.addRawBlock(create(stateTransferUpdates[i], parentDigest.data(), stateHash), blockId);
       if (blockId > blockchainUpdates.size() + 1) {
-        RC_ASSERT(adapter.getLastReachableBlock() == blockchainUpdates.size());
+        RC_ASSERT(adapter.getLastReachableBlockId() == blockchainUpdates.size());
       }
     }
-    RC_ASSERT(adapter.getLastReachableBlock() == adapter.getLatestBlock());
-    RC_ASSERT(adapter.getLatestBlock() == latestBlockId);
+    RC_ASSERT(adapter.getLastReachableBlockId() == adapter.getLatestBlockId());
+    RC_ASSERT(adapter.getLatestBlockId() == latestBlockId);
   };
 
   ASSERT_TRUE(rc::check(test));
@@ -246,13 +239,11 @@ TEST_P(db_adapter_kv_tests, get_key_at_version_it_was_written_at) {
     }
 
     auto adapter = DBAdapter{GetParam()->db()};
-    RC_ASSERT(addBlocks(blockUpdates, adapter));
+    addBlocks(blockUpdates, adapter);
 
     for (auto i = 0ul; i < blockUpdates.size(); ++i) {
       for (const auto &kv : blockUpdates[i]) {
-        auto value = Value{};
-        auto actualVersion = BlockId{0};
-        RC_ASSERT(adapter.getKeyByReadVersion(i + 1, kv.first, value, actualVersion).isOK());
+        const auto [value, actualVersion] = adapter.getValue(kv.first, i + 1);
         RC_ASSERT(actualVersion == i + 1);
         RC_ASSERT(value == kv.second);
       }
@@ -273,13 +264,11 @@ TEST_P(db_adapter_kv_tests, get_all_keys_at_last_version) {
     }
 
     auto adapter = DBAdapter{GetParam()->db()};
-    RC_ASSERT(addBlocks(blockUpdates, adapter));
+    addBlocks(blockUpdates, adapter);
 
-    const auto latestVersion = adapter.getLastReachableBlock();
+    const auto latestVersion = adapter.getLastReachableBlockId();
     for (const auto &key : blockUpdateInfo.uniqueKeys) {
-      auto value = Value{};
-      auto actualVersion = BlockId{0};
-      RC_ASSERT(adapter.getKeyByReadVersion(latestVersion, key, value, actualVersion).isOK());
+      const auto [value, actualVersion] = adapter.getValue(key, latestVersion);
       RC_ASSERT(actualVersion > 0ul);
       RC_ASSERT(actualVersion <= latestVersion);
       const auto &updates = blockUpdates[actualVersion - 1];

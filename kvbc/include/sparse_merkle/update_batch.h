@@ -20,7 +20,7 @@
 #include "sparse_merkle/internal_node.h"
 
 namespace concord {
-namespace storage {
+namespace kvbc {
 namespace sparse_merkle {
 
 // A set of old tree nodes that are no longer reachable from the new root of
@@ -41,5 +41,5 @@ struct UpdateBatch {
 };
 
 }  // namespace sparse_merkle
-}  // namespace storage
+}  // namespace kvbc
 }  // namespace concord

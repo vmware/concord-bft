@@ -14,7 +14,7 @@
 
 #include "sparse_merkle/base_types.h"
 
-namespace concord::storage::sparse_merkle {
+namespace concord::kvbc::sparse_merkle {
 
 std::ostream& operator<<(std::ostream& os, const Version& version) {
   os << version.value();
@@ -40,4 +40,4 @@ std::ostream& operator<<(std::ostream& os, const NibblePath& path) {
   return os;
 }
 
-}  // namespace concord::storage::sparse_merkle
+}  // namespace concord::kvbc::sparse_merkle

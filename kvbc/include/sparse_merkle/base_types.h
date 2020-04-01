@@ -22,7 +22,7 @@
 #include "sha3_256.h"
 
 namespace concord {
-namespace storage {
+namespace kvbc {
 namespace sparse_merkle {
 
 constexpr size_t BYTE_SIZE_IN_BITS = 8;
@@ -162,12 +162,12 @@ class Hash {
   }
 
   // This is only to facilitate testing. It really should not be used anywhere else.
-  void setNibble(const size_t n, Nibble nibble) { ::concord::storage::sparse_merkle::setNibble(n, buf_, nibble); }
+  void setNibble(const size_t n, Nibble nibble) { ::concord::kvbc::sparse_merkle::setNibble(n, buf_, nibble); }
 
   Nibble getNibble(const size_t n) const {
     Assert(!buf_.empty());
     Assert(n < MAX_NIBBLES);
-    return ::concord::storage::sparse_merkle::getNibble(n, buf_);
+    return ::concord::kvbc::sparse_merkle::getNibble(n, buf_);
   }
 
   // Count the number of contiguous bits in common these hashes have from the
@@ -312,7 +312,7 @@ class NibblePath {
   // Get the nth nibble.
   Nibble get(size_t n) const {
     Assert(n < num_nibbles_);
-    return ::concord::storage::sparse_merkle::getNibble(n, path_);
+    return ::concord::kvbc::sparse_merkle::getNibble(n, path_);
   }
 
   // Return path_ as lowercase hex string
@@ -338,5 +338,5 @@ std::ostream& operator<<(std::ostream& os, const Hash& hash);
 std::ostream& operator<<(std::ostream& os, const NibblePath& path);
 
 }  // namespace sparse_merkle
-}  // namespace storage
+}  // namespace kvbc
 }  // namespace concord

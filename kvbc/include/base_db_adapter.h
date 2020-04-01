@@ -23,18 +23,9 @@ class DBAdapterBase {
     db_->init(false);
   }
 
- public:
-  std::shared_ptr<storage::IDBClient> getDb() const { return db_; }
-
-  storage::IDBClient::IDBClientIterator *getIterator() { return db_->getIterator(); }
-
-  concordUtils::Status freeIterator(storage::IDBClient::IDBClientIterator *_iter) { return db_->freeIterator(_iter); }
-
  protected:
   concordlogger::Logger logger_;
   std::shared_ptr<storage::IDBClient> db_;
-  KeyValuePair m_current;
-  bool m_isEnd{false};
 };
 
 }  // namespace concord::kvbc
