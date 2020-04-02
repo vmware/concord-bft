@@ -14,7 +14,7 @@ using ::concordUtils::Sliver;
 
 // Use the v1DirectKeyValue implementation and just add the state hash at the back. We want that so it is included in
 // the block digest. We can do that, because users are not expected to interpret the returned buffer themselves.
-Sliver create(const SetOfKeyValuePairs &updates, const void *parentDigest, const Hash &stateHash) {
+RawBlock create(const SetOfKeyValuePairs &updates, const void *parentDigest, const Hash &stateHash) {
   SetOfKeyValuePairs out;
   return v1DirectKeyValue::block::create(
       updates, out, parentDigest, stateHash.dataArray().data(), stateHash.dataArray().size());

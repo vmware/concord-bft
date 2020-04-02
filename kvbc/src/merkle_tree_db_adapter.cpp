@@ -154,50 +154,48 @@ auto hash(const Sliver &buf) {
 
 }  // namespace
 
-Sliver DBKeyManipulator::genBlockDbKey(BlockId version) { return serialize(EDBKeyType::Block, version); }
+Key DBKeyManipulator::genBlockDbKey(BlockId version) { return serialize(EDBKeyType::Block, version); }
 
-Sliver DBKeyManipulator::genDataDbKey(const LeafKey &key) { return serialize(EKeySubtype::Leaf, key); }
+Key DBKeyManipulator::genDataDbKey(const LeafKey &key) { return serialize(EKeySubtype::Leaf, key); }
 
-Sliver DBKeyManipulator::genDataDbKey(const Sliver &key, BlockId version) {
+Key DBKeyManipulator::genDataDbKey(const Key &key, BlockId version) {
   auto hasher = Hasher{};
   return genDataDbKey(LeafKey{hasher.hash(key.data(), key.length()), version});
 }
 
-Sliver DBKeyManipulator::genInternalDbKey(const InternalNodeKey &key) { return serialize(EKeySubtype::Internal, key); }
+Key DBKeyManipulator::genInternalDbKey(const InternalNodeKey &key) { return serialize(EKeySubtype::Internal, key); }
 
-Sliver DBKeyManipulator::genStaleDbKey(const InternalNodeKey &key, BlockId staleSinceVersion) {
+Key DBKeyManipulator::genStaleDbKey(const InternalNodeKey &key, BlockId staleSinceVersion) {
   // Use a serialization type to discriminate between internal and leaf keys.
   return serialize(EKeySubtype::Stale, staleSinceVersion, StaleKeyType::Internal, key);
 }
 
-Sliver DBKeyManipulator::genStaleDbKey(const LeafKey &key, BlockId staleSinceVersion) {
+Key DBKeyManipulator::genStaleDbKey(const LeafKey &key, BlockId staleSinceVersion) {
   // Use a serialization type to discriminate between internal and leaf keys.
   return serialize(EKeySubtype::Stale, staleSinceVersion, StaleKeyType::Leaf, key);
 }
 
-Sliver DBKeyManipulator::generateMetadataKey(ObjectId objectId) { return serialize(EBFTSubtype::Metadata, objectId); }
+Key DBKeyManipulator::generateMetadataKey(ObjectId objectId) { return serialize(EBFTSubtype::Metadata, objectId); }
 
-Sliver DBKeyManipulator::generateStateTransferKey(ObjectId objectId) { return serialize(EBFTSubtype::ST, objectId); }
+Key DBKeyManipulator::generateStateTransferKey(ObjectId objectId) { return serialize(EBFTSubtype::ST, objectId); }
 
-Sliver DBKeyManipulator::generateSTPendingPageKey(uint32_t pageId) {
+Key DBKeyManipulator::generateSTPendingPageKey(uint32_t pageId) {
   return serialize(EBFTSubtype::STPendingPage, pageId);
 }
 
-Sliver DBKeyManipulator::generateSTCheckpointDescriptorKey(uint64_t chkpt) {
+Key DBKeyManipulator::generateSTCheckpointDescriptorKey(uint64_t chkpt) {
   return serialize(EBFTSubtype::STCheckpointDescriptor, chkpt);
 }
 
-Sliver DBKeyManipulator::generateSTReservedPageStaticKey(uint32_t pageId, uint64_t chkpt) {
+Key DBKeyManipulator::generateSTReservedPageStaticKey(uint32_t pageId, uint64_t chkpt) {
   return serialize(EBFTSubtype::STReservedPageStatic, pageId, chkpt);
 }
 
-Sliver DBKeyManipulator::generateSTReservedPageDynamicKey(uint32_t pageId, uint64_t chkpt) {
+Key DBKeyManipulator::generateSTReservedPageDynamicKey(uint32_t pageId, uint64_t chkpt) {
   return serialize(EBFTSubtype::STReservedPageDynamic, pageId, chkpt);
 }
 
-Sliver DBKeyManipulator::generateSTTempBlockKey(BlockId blockId) {
-  return serialize(EBFTSubtype::STTempBlock, blockId);
-}
+Key DBKeyManipulator::generateSTTempBlockKey(BlockId blockId) { return serialize(EBFTSubtype::STTempBlock, blockId); }
 
 BlockId DBKeyManipulator::extractBlockIdFromKey(const Key &key) {
   Assert(key.length() > sizeof(BlockId));
@@ -220,7 +218,14 @@ Hash DBKeyManipulator::extractHashFromLeafKey(const Key &key) {
 }
 
 DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db)
-    : DBAdapterBase{db}, smTree_{std::make_shared<Reader>(*this)} {
+    : logger_{concordlogger::Log::getLogger("concord.kvbc.v2MerkleTree.DBAdapter")},
+      // The smTree_ member needs an initialized DB. Therefore, do that in the initializer list before constructing
+      // smTree_ .
+      db_{[&db]() {
+        db->init(false);
+        return db;
+      }()},
+      smTree_{std::make_shared<Reader>(*this)} {
   // Make sure that if linkSTChainFrom() has been interrupted (e.g. a crash or an abnormal shutdown), all DBAdapter
   // methods will return the correct values. For example, if state transfer had completed and linkSTChainFrom() was
   // interrupted, getLatestBlockId() should be equal to getLastReachableBlockId() on the next startup. Another example
@@ -298,16 +303,8 @@ Sliver DBAdapter::createBlockNode(const SetOfKeyValuePairs &updates, BlockId blo
   // Make sure the digest is zero-initialized by using {} initialization.
   auto parentBlockDigest = StateTransferDigest{};
   if (blockId > 1) {
-    try {
-      const auto parentBlock = getRawBlock(blockId - 1);
-      computeBlockDigest(blockId - 1, parentBlock.data(), parentBlock.length(), &parentBlockDigest);
-    } catch (const std::exception &e) {
-      LOG_FATAL(logger_, "Failed to get parent block ID = " + std::to_string(blockId - 1) + ", reason: " + e.what());
-      std::exit(1);
-    } catch (...) {
-      LOG_FATAL(logger_, "Failed to get parent block ID = " + std::to_string(blockId - 1));
-      std::exit(1);
-    }
+    const auto parentBlock = getRawBlock(blockId - 1);
+    computeBlockDigest(blockId - 1, parentBlock.data(), parentBlock.length(), &parentBlockDigest);
   }
 
   auto node = BlockNode{blockId, parentBlockDigest.content, smTree_.get_root_hash(), smTree_.get_version()};

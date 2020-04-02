@@ -328,7 +328,11 @@ KeyValuePair DBKeyManipulator::composedToSimple(KeyValuePair _p) {
 }
 
 DBAdapter::DBAdapter(std::shared_ptr<storage::IDBClient> db, std::unique_ptr<IDataKeyGenerator> keyGen)
-    : DBAdapterBase{db}, keyGen_{std::move(keyGen)} {}
+    : logger_{concordlogger::Log::getLogger("concord.kvbc.v1DirectKeyValue.DBAdapter")},
+      db_{db},
+      keyGen_{std::move(keyGen)} {
+  db_->init(false);
+}
 
 BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &kv) {
   BlockId blockId = getLastReachableBlockId() + 1;

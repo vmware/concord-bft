@@ -5,34 +5,34 @@
 
 #pragma once
 
-#include "base_db_adapter.h"
 #include "db_adapter.h"
 #include "kv_types.hpp"
+#include "Logger.hpp"
 #include "sliver.hpp"
 #include "sparse_merkle/base_types.h"
 #include "sparse_merkle/tree.h"
 #include "storage/db_interface.h"
+#include "storage/db_types.h"
 
 #include <memory>
-#include "storage/db_types.h"
 
 namespace concord::kvbc::v2MerkleTree {
 
 class DBKeyManipulator {
  public:
-  static concordUtils::Sliver genBlockDbKey(BlockId version);
-  static concordUtils::Sliver genDataDbKey(const sparse_merkle::LeafKey &key);
-  static concordUtils::Sliver genDataDbKey(const concordUtils::Sliver &key, kvbc::BlockId version);
-  static concordUtils::Sliver genInternalDbKey(const sparse_merkle::InternalNodeKey &key);
-  static concordUtils::Sliver genStaleDbKey(const sparse_merkle::InternalNodeKey &key, kvbc::BlockId staleSinceVersion);
-  static concordUtils::Sliver genStaleDbKey(const sparse_merkle::LeafKey &key, kvbc::BlockId staleSinceVersion);
-  static concordUtils::Sliver generateMetadataKey(storage::ObjectId objectId);
-  static concordUtils::Sliver generateStateTransferKey(storage::ObjectId objectId);
-  static concordUtils::Sliver generateSTPendingPageKey(uint32_t pageId);
-  static concordUtils::Sliver generateSTCheckpointDescriptorKey(uint64_t chkpt);
-  static concordUtils::Sliver generateSTReservedPageStaticKey(uint32_t pageId, uint64_t chkpt);
-  static concordUtils::Sliver generateSTReservedPageDynamicKey(uint32_t pageId, uint64_t chkpt);
-  static concordUtils::Sliver generateSTTempBlockKey(BlockId blockId);
+  static Key genBlockDbKey(BlockId version);
+  static Key genDataDbKey(const sparse_merkle::LeafKey &key);
+  static Key genDataDbKey(const Key &key, kvbc::BlockId version);
+  static Key genInternalDbKey(const sparse_merkle::InternalNodeKey &key);
+  static Key genStaleDbKey(const sparse_merkle::InternalNodeKey &key, kvbc::BlockId staleSinceVersion);
+  static Key genStaleDbKey(const sparse_merkle::LeafKey &key, kvbc::BlockId staleSinceVersion);
+  static Key generateMetadataKey(storage::ObjectId objectId);
+  static Key generateStateTransferKey(storage::ObjectId objectId);
+  static Key generateSTPendingPageKey(uint32_t pageId);
+  static Key generateSTCheckpointDescriptorKey(uint64_t chkpt);
+  static Key generateSTReservedPageStaticKey(uint32_t pageId, uint64_t chkpt);
+  static Key generateSTReservedPageDynamicKey(uint32_t pageId, uint64_t chkpt);
+  static Key generateSTTempBlockKey(BlockId blockId);
 
   // Extract the block ID from a EDBKeyType::Block key or from a EKeySubtype::Leaf key.
   static BlockId extractBlockIdFromKey(const Key &key);
@@ -63,7 +63,7 @@ class DBKeyManipulator {
 // getLastReachableBlockId() + 1 block is added, DBAdapter will link the chain in the range
 // [getLastReachableBlockId() + 1, ReachableSTBlock], where ReachableSTBlock is a block that is reachable from block
 // getLastReachableBlockId() + 1. Additionally, ReachableSTBlock <= getLatestBlockId().
-class DBAdapter : public IDbAdapter, private DBAdapterBase {
+class DBAdapter : public IDbAdapter {
  public:
   // The constructor will try to link the blockchain with any blocks in the temporary state transfer chain. This is done
   // so that the DBAdapter will operate correctly in case a crash or an abnormal shutdown has occurred prior to startup
@@ -144,6 +144,8 @@ class DBAdapter : public IDbAdapter, private DBAdapterBase {
     const DBAdapter &adapter_;
   };
 
+  concordlogger::Logger logger_;
+  std::shared_ptr<storage::IDBClient> db_;
   sparse_merkle::Tree smTree_;
 };
 
