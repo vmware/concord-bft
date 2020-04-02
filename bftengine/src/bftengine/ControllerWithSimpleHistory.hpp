@@ -23,6 +23,10 @@
 namespace bftEngine {
 namespace impl {
 
+// Used by the Primary replica for commit path management -
+// Determines current commit path.
+// Evaluates whether to upgrade/downgrade current path.
+// learns the average duration(with some fine tuning) of block execution.
 class ControllerWithSimpleHistory : public ControllerBase {
  public:
   static const size_t EvaluationPeriod = 64;
@@ -33,17 +37,35 @@ class ControllerWithSimpleHistory : public ControllerBase {
 
   virtual CommitPath getCurrentFirstPath() override;
   virtual uint32_t timeToStartSlowPathMilli() override;
+  // Timer that determines the frequency of checking whether to downgrade active requests to slow path
   virtual uint32_t slowPathsTimerMilli() override;
 
   // events
 
+  // Initialize controller, in case replica is Primary in new view
   virtual void onNewView(ViewNum v, SeqNum s) override;
+
+  // Called after executing all transactions in a block:
+  //  1)Measures duration of execution where start time is PrePrepare.
+  //  2)Calculates the mean and variance of block executions.
+  //  3)in case its the end of EvaluationPeriod(water mark), calls onEndOfEvaluationPeriod.
+  // Returns true if path was changed (can be true only at the end of EvaluationPeriod).
   virtual bool onNewSeqNumberExecution(SeqNum n) override;
 
+  // Sets PrePrepare sending timepoint
   virtual void onSendingPrePrepare(SeqNum n, CommitPath commitPath) override;
+
+  // Marks request that was downgraded to slow path
   virtual void onStartingSlowCommit(SeqNum n) override;
+
+  // Adds replica to a set of replicas, that have replied to a PrePrepare msg with a corresponding PreparePartialMsg.
   virtual void onMessage(const PreparePartialMsg* m) override;
 
+  // Holds essential data about a request -
+  //  - Timepoint of PrePrepare sending.
+  //  - Request execution duration.
+  //  - Whether request was downgraded to slow path.
+  //  - Set of replicas, that participated in the slow path execution.
   class SeqNoInfo {
    public:
     SeqNoInfo() : switchToSlowPath(false), prePrepareTime(MinTime), durationMicro_(std::chrono::milliseconds::zero()) {}
@@ -82,6 +104,7 @@ class ControllerWithSimpleHistory : public ControllerBase {
   const size_t numOfReplicas;
   const ReplicaId myId;
 
+  // Holds a range of requests, starting from SeqNum to SeqNum+EvaluationPeriod
   SequenceWithActiveWindow<EvaluationPeriod, 1, SeqNum, SeqNoInfo, SeqNoInfo> recentActivity;
 
   CommitPath currentFirstPath;
@@ -92,7 +115,15 @@ class ControllerWithSimpleHistory : public ControllerBase {
 
   uint32_t currentTimeToStartSlowPathMilli;
 
+  // Initializes this controller when replica becomes primary
+  // Resets to default the threshold duration (currentTimeToStartSlowPathMilli).
+  // When this threshold exceeds, request gets downgraded to slow path.
   void onBecomePrimary(ViewNum v, SeqNum s);
+
+  // Changes primary execution path (e.g. SLOW_PATH, FAST_PATH), based on
+  // current execution path and the success rate ratio of previous requests.
+  // Also tunes the threshold duration for downgrading to slow path,
+  // Returns true if path was changed
   bool onEndOfEvaluationPeriod();
 };
 
