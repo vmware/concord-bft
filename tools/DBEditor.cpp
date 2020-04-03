@@ -37,9 +37,7 @@ using concord::storage::rocksdb::Client;
 using concord::storage::rocksdb::KeyComparator;
 using concord::storage::DBMetadataStorage;
 using namespace concord::storage;
-using namespace concord::storage::blockchain;
-using concord::kvbc::BlockId;
-namespace block = concord::kvbc::block;
+using namespace concord::kvbc;
 
 stringstream dbPath;
 Client *dbClient = nullptr;

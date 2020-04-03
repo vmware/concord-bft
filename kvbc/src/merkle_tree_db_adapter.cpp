@@ -20,23 +20,22 @@
 #include <memory>
 #include <utility>
 
-namespace concord {
-namespace storage {
-namespace blockchain {
-
-namespace v2MerkleTree {
+namespace concord::kvbc::v2MerkleTree {
 
 namespace {
 
+using namespace ::std::string_literals;
+
 using BlockNode = block::detail::Node;
 using BlockKeyData = block::detail::KeyData;
-using BlockId = concord::kvbc::BlockId;
 
 using ::concordUtils::fromBigEndianBuffer;
-using ::concord::kvbc::Key;
 using ::concordUtils::Sliver;
 using ::concordUtils::Status;
 using ::concordUtils::HexPrintBuffer;
+
+using ::concord::storage::IDBClient;
+using ::concord::storage::ObjectId;
 
 using ::bftEngine::SimpleBlockchainStateTransfer::computeBlockDigest;
 using ::bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest;
@@ -155,50 +154,48 @@ auto hash(const Sliver &buf) {
 
 }  // namespace
 
-Sliver DBKeyManipulator::genBlockDbKey(BlockId version) { return serialize(EDBKeyType::Block, version); }
+Key DBKeyManipulator::genBlockDbKey(BlockId version) { return serialize(EDBKeyType::Block, version); }
 
-Sliver DBKeyManipulator::genDataDbKey(const LeafKey &key) { return serialize(EKeySubtype::Leaf, key); }
+Key DBKeyManipulator::genDataDbKey(const LeafKey &key) { return serialize(EKeySubtype::Leaf, key); }
 
-Sliver DBKeyManipulator::genDataDbKey(const Sliver &key, BlockId version) {
+Key DBKeyManipulator::genDataDbKey(const Key &key, BlockId version) {
   auto hasher = Hasher{};
   return genDataDbKey(LeafKey{hasher.hash(key.data(), key.length()), version});
 }
 
-Sliver DBKeyManipulator::genInternalDbKey(const InternalNodeKey &key) { return serialize(EKeySubtype::Internal, key); }
+Key DBKeyManipulator::genInternalDbKey(const InternalNodeKey &key) { return serialize(EKeySubtype::Internal, key); }
 
-Sliver DBKeyManipulator::genStaleDbKey(const InternalNodeKey &key, BlockId staleSinceVersion) {
+Key DBKeyManipulator::genStaleDbKey(const InternalNodeKey &key, BlockId staleSinceVersion) {
   // Use a serialization type to discriminate between internal and leaf keys.
   return serialize(EKeySubtype::Stale, staleSinceVersion, StaleKeyType::Internal, key);
 }
 
-Sliver DBKeyManipulator::genStaleDbKey(const LeafKey &key, BlockId staleSinceVersion) {
+Key DBKeyManipulator::genStaleDbKey(const LeafKey &key, BlockId staleSinceVersion) {
   // Use a serialization type to discriminate between internal and leaf keys.
   return serialize(EKeySubtype::Stale, staleSinceVersion, StaleKeyType::Leaf, key);
 }
 
-Sliver DBKeyManipulator::generateMetadataKey(ObjectId objectId) { return serialize(EBFTSubtype::Metadata, objectId); }
+Key DBKeyManipulator::generateMetadataKey(ObjectId objectId) { return serialize(EBFTSubtype::Metadata, objectId); }
 
-Sliver DBKeyManipulator::generateStateTransferKey(ObjectId objectId) { return serialize(EBFTSubtype::ST, objectId); }
+Key DBKeyManipulator::generateStateTransferKey(ObjectId objectId) { return serialize(EBFTSubtype::ST, objectId); }
 
-Sliver DBKeyManipulator::generateSTPendingPageKey(uint32_t pageId) {
+Key DBKeyManipulator::generateSTPendingPageKey(uint32_t pageId) {
   return serialize(EBFTSubtype::STPendingPage, pageId);
 }
 
-Sliver DBKeyManipulator::generateSTCheckpointDescriptorKey(uint64_t chkpt) {
+Key DBKeyManipulator::generateSTCheckpointDescriptorKey(uint64_t chkpt) {
   return serialize(EBFTSubtype::STCheckpointDescriptor, chkpt);
 }
 
-Sliver DBKeyManipulator::generateSTReservedPageStaticKey(uint32_t pageId, uint64_t chkpt) {
+Key DBKeyManipulator::generateSTReservedPageStaticKey(uint32_t pageId, uint64_t chkpt) {
   return serialize(EBFTSubtype::STReservedPageStatic, pageId, chkpt);
 }
 
-Sliver DBKeyManipulator::generateSTReservedPageDynamicKey(uint32_t pageId, uint64_t chkpt) {
+Key DBKeyManipulator::generateSTReservedPageDynamicKey(uint32_t pageId, uint64_t chkpt) {
   return serialize(EBFTSubtype::STReservedPageDynamic, pageId, chkpt);
 }
 
-Sliver DBKeyManipulator::generateSTTempBlockKey(BlockId blockId) {
-  return serialize(EBFTSubtype::STTempBlock, blockId);
-}
+Key DBKeyManipulator::generateSTTempBlockKey(BlockId blockId) { return serialize(EBFTSubtype::STTempBlock, blockId); }
 
 BlockId DBKeyManipulator::extractBlockIdFromKey(const Key &key) {
   Assert(key.length() > sizeof(BlockId));
@@ -221,24 +218,23 @@ Hash DBKeyManipulator::extractHashFromLeafKey(const Key &key) {
 }
 
 DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db)
-    : DBAdapterBase{db}, smTree_{std::make_shared<Reader>(*this)} {
+    : logger_{concordlogger::Log::getLogger("concord.kvbc.v2MerkleTree.DBAdapter")},
+      // The smTree_ member needs an initialized DB. Therefore, do that in the initializer list before constructing
+      // smTree_ .
+      db_{[&db]() {
+        db->init(false);
+        return db;
+      }()},
+      smTree_{std::make_shared<Reader>(*this)} {
   // Make sure that if linkSTChainFrom() has been interrupted (e.g. a crash or an abnormal shutdown), all DBAdapter
   // methods will return the correct values. For example, if state transfer had completed and linkSTChainFrom() was
-  // interrupted, getLatestBlock() should be equal to getLastReachableBlock() on the next startup. Another example is
-  // getKeyByReadVersion() that returns keys from the blockchain only and ignores keys in the temporary state
+  // interrupted, getLatestBlockId() should be equal to getLastReachableBlockId() on the next startup. Another example
+  // is getKeyByReadVersion() that returns keys from the blockchain only and ignores keys in the temporary state
   // transfer chain.
-  if (!linkSTChainFrom(getLastReachableBlock() + 1).isOK()) {
-    throw std::runtime_error{"Failed to link chains on DBAdapter construction"};
-  }
+  linkSTChainFrom(getLastReachableBlockId() + 1);
 }
 
-Status DBAdapter::getKeyByReadVersion(BlockId blockVersion,
-                                      const Key &key,
-                                      Sliver &outValue,
-                                      BlockId &actualBlockVersion) const {
-  outValue = Sliver{};
-  actualBlockVersion = 0;
-
+std::pair<Value, BlockId> DBAdapter::getValue(const Key &key, const BlockId &blockVersion) const {
   auto stateRootVersion = sparse_merkle::Version{};
   // Find a block with an ID that is less than or equal to the requested block version and extract the state root
   // version from it.
@@ -249,7 +245,7 @@ Status DBAdapter::getKeyByReadVersion(BlockId blockVersion,
     if (!foundBlockKey.empty() && getDBKeyType(foundBlockKey) == EDBKeyType::Block) {
       stateRootVersion = detail::deserializeStateRootVersion(foundBlockValue);
     } else {
-      return Status::OK();
+      throw NotFoundException{"Couldn't find a value by key and block version = " + std::to_string(blockVersion)};
     }
   }
 
@@ -266,14 +262,13 @@ Status DBAdapter::getKeyByReadVersion(BlockId blockVersion,
       !foundKey.empty() && getDBKeyType(foundKey) == EDBKeyType::Key && getKeySubtype(foundKey) == EKeySubtype::Leaf;
   if (isLeafKey && DBKeyManipulator::extractHashFromLeafKey(foundKey) == hash(key)) {
     const auto dbLeafVal = detail::deserialize<detail::DatabaseLeafValue>(foundValue);
-    outValue = dbLeafVal.leafNode.value;
-    actualBlockVersion = dbLeafVal.blockId;
+    return std::make_pair(dbLeafVal.leafNode.value, dbLeafVal.blockId);
   }
 
-  return Status::OK();
+  throw NotFoundException{"Couldn't find a value by key and block version = " + std::to_string(blockVersion)};
 }
 
-BlockId DBAdapter::getLastReachableBlock() const {
+BlockId DBAdapter::getLastReachableBlockId() const {
   // Generate maximal key for type 'BlockId'.
   const auto maxBlockKey = DBKeyManipulator::genBlockDbKey(MAX_BLOCK_ID);
   auto iter = db_->getIteratorGuard();
@@ -290,7 +285,7 @@ BlockId DBAdapter::getLastReachableBlock() const {
   return 0;
 }
 
-BlockId DBAdapter::getLatestBlock() const {
+BlockId DBAdapter::getLatestBlockId() const {
   const auto latestBlockKey = DBKeyManipulator::generateSTTempBlockKey(MAX_BLOCK_ID);
   auto iter = db_->getIteratorGuard();
   const auto foundKey = iter->seekAtMost(latestBlockKey).first;
@@ -300,20 +295,15 @@ BlockId DBAdapter::getLatestBlock() const {
     LOG_TRACE(logger_, "Latest block ID " << blockId);
     return blockId;
   }
-  // No state transfer blocks in the system. Fallback to getLastReachableBlock() .
-  return getLastReachableBlock();
+  // No state transfer blocks in the system. Fallback to getLastReachableBlockId() .
+  return getLastReachableBlockId();
 }
 
 Sliver DBAdapter::createBlockNode(const SetOfKeyValuePairs &updates, BlockId blockId) const {
   // Make sure the digest is zero-initialized by using {} initialization.
   auto parentBlockDigest = StateTransferDigest{};
   if (blockId > 1) {
-    Sliver parentBlock;
-    const auto status = getBlockById(blockId - 1, parentBlock);
-    if (!status.isOK() || parentBlock.empty()) {
-      LOG_FATAL(logger_, "createBlockNode: no block or block data for parent block ID " << blockId - 1);
-      std::exit(1);
-    }
+    const auto parentBlock = getRawBlock(blockId - 1);
     computeBlockDigest(blockId - 1, parentBlock.data(), parentBlock.length(), &parentBlockDigest);
   }
 
@@ -325,14 +315,22 @@ Sliver DBAdapter::createBlockNode(const SetOfKeyValuePairs &updates, BlockId blo
   return block::detail::createNode(node);
 }
 
-Status DBAdapter::getBlockById(BlockId blockId, Sliver &block) const {
+RawBlock DBAdapter::getRawBlock(const BlockId &blockId) const {
   const auto blockKey = DBKeyManipulator::genBlockDbKey(blockId);
   Sliver blockNodeSliver;
-  if (auto status = db_->get(blockKey, blockNodeSliver); status.isNotFound()) {
+  if (auto statusNode = db_->get(blockKey, blockNodeSliver); statusNode.isNotFound()) {
     // If a block node is not found, look for a state transfer block.
-    return db_->get(DBKeyManipulator::generateSTTempBlockKey(blockId), block);
-  } else if (!status.isOK()) {
-    return status;
+    Sliver block;
+    if (auto statusSt = db_->get(DBKeyManipulator::generateSTTempBlockKey(blockId), block); statusSt.isNotFound()) {
+      throw NotFoundException{"Couldn't find a block by ID = " + std::to_string(blockId)};
+    } else if (!statusSt.isOK()) {
+      throw std::runtime_error{"Failed to get State Transfer block ID = " + std::to_string(blockId) +
+                               " from DB, reason: " + statusSt.toString()};
+    }
+    return block;
+  } else if (!statusNode.isOK()) {
+    throw std::runtime_error{"Failed to get block node ID = " + std::to_string(blockId) +
+                             " from DB, reason: " + statusNode.toString()};
   }
 
   const auto blockNode = block::detail::parseNode(blockNodeSliver);
@@ -346,7 +344,7 @@ Status DBAdapter::getBlockById(BlockId blockId, Sliver &block) const {
           !status.isOK()) {
         // If the key is not found, treat as corrupted storage and abort.
         Assert(!status.isNotFound());
-        return status;
+        throw std::runtime_error{"Failed to get value by key from DB, block node ID = " + std::to_string(blockId)};
       }
       const auto dbLeafVal = detail::deserialize<detail::DatabaseLeafValue>(value);
       Assert(dbLeafVal.blockId == blockId);
@@ -354,8 +352,7 @@ Status DBAdapter::getBlockById(BlockId blockId, Sliver &block) const {
     }
   }
 
-  block = block::create(keyValues, blockNode.parentDigest.data(), blockNode.stateHash);
-  return Status::OK();
+  return block::create(keyValues, blockNode.parentDigest.data(), blockNode.stateHash);
 }
 
 SetOfKeyValuePairs DBAdapter::lastReachableBlockDbUpdates(const SetOfKeyValuePairs &updates, BlockId blockId) {
@@ -374,7 +371,7 @@ SetOfKeyValuePairs DBAdapter::lastReachableBlockDbUpdates(const SetOfKeyValuePai
 }
 
 BatchedInternalNode DBAdapter::Reader::get_latest_root() const {
-  const auto lastBlock = adapter_.getLastReachableBlock();
+  const auto lastBlock = adapter_.getLastReachableBlockId();
   if (lastBlock == 0) {
     return BatchedInternalNode{};
   }
@@ -399,45 +396,47 @@ BatchedInternalNode DBAdapter::Reader::get_internal(const InternalNodeKey &key) 
   return deserialize<BatchedInternalNode>(res);
 }
 
-Status DBAdapter::addLastReachableBlock(const SetOfKeyValuePairs &updates) {
+BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &updates) {
   for (const auto &kv : updates) {
     if (kv.second.empty()) {
       const auto msg = "Adding empty values in a block is not supported";
       LOG_ERROR(logger_, msg);
-      return Status::IllegalOperation(msg);
+      throw std::invalid_argument{msg};
     }
   }
 
-  const auto blockId = getLastReachableBlock() + 1;
-  return db_->multiPut(lastReachableBlockDbUpdates(updates, blockId));
+  const auto blockId = getLastReachableBlockId() + 1;
+  const auto status = db_->multiPut(lastReachableBlockDbUpdates(updates, blockId));
+  if (!status.isOK()) {
+    throw std::runtime_error{"Failed to add block, reason: " + status.toString()};
+  }
+  return blockId;
 }
 
-Status DBAdapter::linkSTChainFrom(BlockId blockId) {
-  for (auto i = blockId; i <= getLatestBlock(); ++i) {
+void DBAdapter::linkSTChainFrom(BlockId blockId) {
+  for (auto i = blockId; i <= getLatestBlockId(); ++i) {
     auto block = Sliver{};
     const auto sTBlockKey = DBKeyManipulator::generateSTTempBlockKey(i);
     const auto status = db_->get(sTBlockKey, block);
     if (status.isNotFound()) {
-      // We don't have a chain from blockId to getLatestBlock() at that stage. Return success and wait for the
-      // missing blocks - they will be added on subsequent calls to addBlock().
-      return Status::OK();
+      // We don't have a chain from blockId to getLatestBlockId() at that stage. Return success and wait for the
+      // missing blocks - they will be added on subsequent calls to addRawBlock().
+      return;
     } else if (!status.isOK()) {
-      LOG_ERROR(logger_, "Failed to get next block data on state transfer, block ID " << i);
-      return status;
+      const auto msg = "Failed to get next block data on state transfer, block ID = " + std::to_string(i) +
+                       ", reason: " + status.toString();
+      LOG_ERROR(logger_, msg);
+      throw std::runtime_error{msg};
     }
 
-    const auto txnStatus = writeSTLinkTransaction(sTBlockKey, block, i);
-    if (!status.isOK()) {
-      return status;
-    }
+    writeSTLinkTransaction(sTBlockKey, block, i);
   }
-  return Status::OK();
 }
 
-Status DBAdapter::writeSTLinkTransaction(const Key &sTBlockKey, const Sliver &block, BlockId blockId) {
+void DBAdapter::writeSTLinkTransaction(const Key &sTBlockKey, const Sliver &block, BlockId blockId) {
   // Deleting the ST block and adding the block to the blockchain via the merkle tree should be done atomically. We
   // implement that by using a transaction.
-  auto txn = std::unique_ptr<ITransaction>{db_->beginTransaction()};
+  auto txn = std::unique_ptr<concord::storage::ITransaction>{db_->beginTransaction()};
 
   // Delete the ST block key in the transaction.
   txn->del(sTBlockKey);
@@ -448,48 +447,44 @@ Status DBAdapter::writeSTLinkTransaction(const Key &sTBlockKey, const Sliver &bl
     txn->put(key, value);
   }
 
-  try {
-    txn->commit();
-  } catch (const std::exception &e) {
-    const auto msg = std::string{"Failed to commit an addBlock() DB transaction, reason: "} + e.what();
-    LOG_ERROR(logger_, msg);
-    return Status::GeneralError(msg);
-  } catch (...) {
-    const auto msg = "Failed to commit an addBlock() DB transaction";
-    LOG_ERROR(logger_, msg);
-    return Status::GeneralError(msg);
-  }
-
-  return Status::OK();
+  // Commit the transaction.
+  txn->commit();
 }
 
-Status DBAdapter::addBlock(const Sliver &block, BlockId blockId) {
-  const auto lastReachableBlock = getLastReachableBlock();
+void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId) {
+  const auto lastReachableBlock = getLastReachableBlockId();
   if (blockId <= lastReachableBlock) {
     const auto msg = "Cannot add an existing block ID " + std::to_string(blockId);
     LOG_ERROR(logger_, msg);
-    return Status::IllegalOperation(msg);
+    throw std::invalid_argument{msg};
   } else if (lastReachableBlock + 1 == blockId) {
     // If adding the next block, append to the blockchain via the merkle tree and try to link with the ST temporary
     // chain.
-    const auto status = addLastReachableBlock(block::getData(block));
-    if (!status.isOK()) {
-      LOG_ERROR(logger_, "Failed to add a block to the end of the blockchain on state transfer, block ID " << blockId);
-      return status;
+    addBlock(block::getData(block));
+
+    try {
+      linkSTChainFrom(blockId + 1);
+    } catch (const std::exception &e) {
+      LOG_FATAL(logger_, "Aborting due to failure to link chains after block has been added, reason: "s + e.what());
+      std::exit(1);
+    } catch (...) {
+      LOG_FATAL(logger_, "Aborting due to failure to link chains after block has been added");
+      std::exit(1);
     }
-    return linkSTChainFrom(blockId + 1);
+
+    return;
   }
 
   // If not adding the next block, treat as a temporary state transfer block.
   const auto status = db_->put(DBKeyManipulator::generateSTTempBlockKey(blockId), block);
   if (!status.isOK()) {
-    LOG_ERROR(logger_, "Failed to add temporary block on state transfer, block ID " << blockId);
-    return status;
+    const auto msg = "Failed to add temporary block on state transfer, block ID = " + std::to_string(blockId) +
+                     ", reason: " + status.toString();
+    LOG_ERROR(logger_, msg);
+    throw std::runtime_error{msg};
   }
-  return Status::OK();
 }
 
-}  // namespace v2MerkleTree
-}  // namespace blockchain
-}  // namespace storage
-}  // namespace concord
+void DBAdapter::deleteBlock(const BlockId &blockId) { throw std::runtime_error{"Not implemented"}; }
+
+}  // namespace concord::kvbc::v2MerkleTree

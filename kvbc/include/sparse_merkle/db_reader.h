@@ -13,7 +13,7 @@
 #pragma once
 
 namespace concord {
-namespace storage {
+namespace kvbc {
 namespace sparse_merkle {
 
 // Forward declarations
@@ -37,5 +37,5 @@ class IDBReader {
 };
 
 }  // namespace sparse_merkle
-}  // namespace storage
+}  // namespace kvbc
 }  // namespace concord

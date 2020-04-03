@@ -328,7 +328,11 @@ KeyValuePair DBKeyManipulator::composedToSimple(KeyValuePair _p) {
 }
 
 DBAdapter::DBAdapter(std::shared_ptr<storage::IDBClient> db, std::unique_ptr<IDataKeyGenerator> keyGen)
-    : DBAdapterBase{db}, keyGen_{std::move(keyGen)} {}
+    : logger_{concordlogger::Log::getLogger("concord.kvbc.v1DirectKeyValue.DBAdapter")},
+      db_{db},
+      keyGen_{std::move(keyGen)} {
+  db_->init(false);
+}
 
 BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &kv) {
   BlockId blockId = getLastReachableBlockId() + 1;
@@ -461,7 +465,7 @@ RawBlock DBAdapter::getRawBlock(const BlockId &blockId) const {
  *
  * @return Block ID of the latest block.
  */
-BlockId DBAdapter::getLastestBlockId() const {
+BlockId DBAdapter::getLatestBlockId() const {
   // Note: RocksDB stores keys in a sorted fashion as per the logic provided in
   // a custom comparator (for our case, refer to the `composedKeyComparison`
   // method above). In short, keys of type 'block' are stored first followed by

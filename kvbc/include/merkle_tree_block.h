@@ -12,29 +12,23 @@
 #include <iterator>
 #include <unordered_map>
 
-namespace concord {
-namespace storage {
-namespace blockchain {
-namespace v2MerkleTree {
-namespace block {
+namespace concord::kvbc::v2MerkleTree::block {
 
 inline constexpr auto BLOCK_DIGEST_SIZE = bftEngine::SimpleBlockchainStateTransfer::BLOCK_DIGEST_SIZE;
 
 // Creates a block that includes a set of key/values. The passed parentDigest buffer must be of size BLOCK_DIGEST_SIZE
 // bytes.
 
-concordUtils::Sliver create(const concord::kvbc::SetOfKeyValuePairs &updates,
-                            const void *parentDigest,
-                            const sparse_merkle::Hash &stateHash);
+RawBlock create(const SetOfKeyValuePairs &updates, const void *parentDigest, const sparse_merkle::Hash &stateHash);
 
 // Returns the block data in the form of a set of key/value pairs.
-concord::kvbc::SetOfKeyValuePairs getData(const concordUtils::Sliver &block);
+SetOfKeyValuePairs getData(const RawBlock &block);
 
 // Returns the parent digest of size BLOCK_DIGEST_SIZE bytes.
-const void *getParentDigest(const concordUtils::Sliver &block);
+const void *getParentDigest(const RawBlock &block);
 
 // Returns the state hash of the passed block.
-sparse_merkle::Hash getStateHash(const concordUtils::Sliver &block);
+sparse_merkle::Hash getStateHash(const RawBlock &block);
 
 namespace detail {
 
@@ -48,12 +42,12 @@ struct KeyData {
 
 inline bool operator==(const KeyData &lhs, const KeyData &rhs) { return lhs.deleted == rhs.deleted; }
 
-using Keys = std::unordered_map<concord::kvbc::Key, const KeyData>;
+using Keys = std::unordered_map<Key, const KeyData>;
 
 // Represents a block node. The parentDigest pointer must point to a buffer that is at least BLOCK_DIGEST_SIZE bytes
 // long.
 struct Node {
-  using BlockIdType = concord::kvbc::BlockId;
+  using BlockIdType = BlockId;
 
   static constexpr auto PARENT_DIGEST_SIZE = BLOCK_DIGEST_SIZE;
 
@@ -103,8 +97,4 @@ Node parseNode(const concordUtils::Sliver &buffer);
 
 }  // namespace detail
 
-}  // namespace block
-}  // namespace v2MerkleTree
-}  // namespace blockchain
-}  // namespace storage
-}  // namespace concord
+}  // namespace concord::kvbc::v2MerkleTree::block

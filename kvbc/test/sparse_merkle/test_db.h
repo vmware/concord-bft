@@ -17,9 +17,9 @@
 #include "sparse_merkle/internal_node.h"
 
 using namespace std;
-using namespace concord::storage::sparse_merkle;
+using namespace concord::kvbc::sparse_merkle;
 
-class TestDB : public concord::storage::sparse_merkle::IDBReader {
+class TestDB : public concord::kvbc::sparse_merkle::IDBReader {
  public:
   void put(const LeafKey& key, const LeafNode& val) { leaf_nodes_[key] = val; }
   void put(const InternalNodeKey& key, const BatchedInternalNode& val) {

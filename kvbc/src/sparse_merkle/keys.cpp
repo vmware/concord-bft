@@ -12,11 +12,11 @@
 
 #include "sparse_merkle/keys.h"
 
-namespace concord::storage::sparse_merkle {
+namespace concord::kvbc::sparse_merkle {
 
 std::ostream& operator<<(std::ostream& os, const LeafKey& key) {
   os << key.hash() << "-" << key.version();
   return os;
 }
 
-}  // namespace concord::storage::sparse_merkle
+}  // namespace concord::kvbc::sparse_merkle

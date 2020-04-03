@@ -26,7 +26,7 @@
 #include "sparse_merkle/update_batch.h"
 
 namespace concord {
-namespace storage {
+namespace kvbc {
 namespace sparse_merkle {
 
 // An in-memory representation of a sparse merkle tree.
@@ -72,5 +72,5 @@ class Tree {
 };
 
 }  // namespace sparse_merkle
-}  // namespace storage
+}  // namespace kvbc
 }  // namespace concord

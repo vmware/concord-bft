@@ -13,7 +13,7 @@
 #include "gtest/gtest.h"
 #include "sparse_merkle/base_types.h"
 
-using namespace concord::storage::sparse_merkle;
+using namespace concord::kvbc::sparse_merkle;
 
 TEST(nibble_test, check_bit_operations) {
   Nibble full(15);

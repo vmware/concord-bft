@@ -18,7 +18,7 @@ using namespace std;
 
 using namespace concordUtils;
 
-namespace concord::storage::sparse_merkle {
+namespace concord::kvbc::sparse_merkle {
 using namespace detail;
 
 void insertComplete(Walker& walker, const BatchedInternalNode::InsertComplete& result) {
@@ -151,4 +151,4 @@ UpdateBatch Tree::update(const concord::kvbc::SetOfKeyValuePairs& updates,
   return batch;
 }
 
-}  // namespace concord::storage::sparse_merkle
+}  // namespace concord::kvbc::sparse_merkle

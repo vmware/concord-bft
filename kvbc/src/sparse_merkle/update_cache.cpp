@@ -12,7 +12,7 @@
 
 #include "sparse_merkle/update_cache.h"
 
-namespace concord::storage::sparse_merkle::detail {
+namespace concord::kvbc::sparse_merkle::detail {
 
 BatchedInternalNode UpdateCache::getInternalNode(const InternalNodeKey& key) {
   auto it = internal_nodes_.find(key.path());
@@ -42,4 +42,4 @@ void UpdateCache::putStale(const InternalNodeKey& key) { stale_.internal_keys.in
 
 void UpdateCache::remove(const NibblePath& path) { internal_nodes_.erase(path); }
 
-}  // namespace concord::storage::sparse_merkle::detail
+}  // namespace concord::kvbc::sparse_merkle::detail

@@ -33,10 +33,7 @@
 #include <vector>
 #include "storage/db_types.h"
 
-namespace concord {
-namespace storage {
-namespace blockchain {
-namespace v2MerkleTree {
+namespace concord::kvbc::v2MerkleTree {
 
 template <typename E>
 constexpr auto toChar(E e) {
@@ -369,7 +366,5 @@ inline DatabaseLeafValue deserialize<DatabaseLeafValue>(const concordUtils::Sliv
 }
 
 }  // namespace detail
-}  // namespace v2MerkleTree
-}  // namespace blockchain
-}  // namespace storage
-}  // namespace concord
+
+}  // namespace concord::kvbc::v2MerkleTree

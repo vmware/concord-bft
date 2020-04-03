@@ -6,7 +6,6 @@
 
 #include "storage_test_common.h"
 
-#include "assertUtils.hpp"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 #include "merkle_tree_block.h"
 #include "merkle_tree_db_adapter.h"
@@ -31,27 +30,28 @@ namespace {
 
 using ::bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest;
 
-using namespace ::concord::storage::blockchain::v2MerkleTree;
-using namespace ::concord::storage::blockchain::v2MerkleTree::detail;
+using namespace ::concord::kvbc::v2MerkleTree;
+using namespace ::concord::kvbc::v2MerkleTree::detail;
 
 using ::concord::storage::IDBClient;
 using ::concord::storage::ObjectId;
-using ::concord::storage::sparse_merkle::BatchedInternalNode;
-using ::concord::storage::sparse_merkle::Hash;
-using ::concord::storage::sparse_merkle::Hasher;
-using ::concord::storage::sparse_merkle::InternalChild;
-using ::concord::storage::sparse_merkle::InternalNodeKey;
-using ::concord::storage::sparse_merkle::LeafChild;
-using ::concord::storage::sparse_merkle::LeafKey;
-using ::concord::storage::sparse_merkle::LeafNode;
-using ::concord::storage::sparse_merkle::NibblePath;
-using ::concord::storage::sparse_merkle::Version;
+using ::concord::kvbc::NotFoundException;
+using ::concord::kvbc::sparse_merkle::BatchedInternalNode;
+using ::concord::kvbc::sparse_merkle::Hash;
+using ::concord::kvbc::sparse_merkle::Hasher;
+using ::concord::kvbc::sparse_merkle::InternalChild;
+using ::concord::kvbc::sparse_merkle::InternalNodeKey;
+using ::concord::kvbc::sparse_merkle::LeafChild;
+using ::concord::kvbc::sparse_merkle::LeafKey;
+using ::concord::kvbc::sparse_merkle::LeafNode;
+using ::concord::kvbc::sparse_merkle::NibblePath;
+using ::concord::kvbc::sparse_merkle::Version;
 
-using ::concord::kvbc::SetOfKeyValuePairs;
 using ::concord::kvbc::BlockId;
+using ::concord::kvbc::SetOfKeyValuePairs;
+using ::concord::kvbc::ValuesVector;
 using ::concordUtils::Sliver;
 using ::concordUtils::Status;
-using ::concord::kvbc::ValuesVector;
 
 template <typename E>
 std::string serializeEnum(E e) {
@@ -120,15 +120,14 @@ ValuesVector createReferenceBlockchain(const std::shared_ptr<IDBClient> &db,
   auto emptyToggle = true;
   for (auto i = 1u; i <= length; ++i) {
     if (type == ReferenceBlockchainType::WithEmptyBlocks && emptyToggle) {
-      Assert(adapter.addLastReachableBlock(SetOfKeyValuePairs{}).isOK());
+      adapter.addBlock(SetOfKeyValuePairs{});
     } else {
-      Assert(adapter.addLastReachableBlock(getDeterministicBlockUpdates(i * 2)).isOK());
+      adapter.addBlock(getDeterministicBlockUpdates(i * 2));
     }
     emptyToggle = !emptyToggle;
 
-    auto block = Sliver{};
-    Assert(adapter.getBlockById(i, block).isOK());
-    blockchain.push_back(block);
+    const auto rawBlock = adapter.getRawBlock(i);
+    blockchain.push_back(rawBlock);
   }
 
   return blockchain;
@@ -623,30 +622,40 @@ TEST_P(db_adapter_custom_blockchain, reject_empty_values) {
   auto adapter = DBAdapter{GetParam()->db()};
   const auto updates =
       SetOfKeyValuePairs{std::make_pair(Sliver{"k1"}, defaultSliver), std::make_pair(Sliver{"k2"}, Sliver{})};
-  ASSERT_TRUE(adapter.addLastReachableBlock(updates).isIllegalOperation());
+  ASSERT_THROW(adapter.addBlock(updates), std::invalid_argument);
 }
 
 // Test the last reachable block functionality.
 TEST_P(db_adapter_custom_blockchain, get_last_reachable_block) {
   auto adapter = DBAdapter{GetParam()->db()};
   const auto updates = SetOfKeyValuePairs{std::make_pair(defaultSliver, defaultSliver)};
-  ASSERT_TRUE(adapter.addLastReachableBlock(updates).isOK());
-  ASSERT_TRUE(adapter.addLastReachableBlock(updates).isOK());
-  ASSERT_TRUE(adapter.addLastReachableBlock(updates).isOK());
-  ASSERT_EQ(adapter.getLastReachableBlock(), 3);
+  ASSERT_NO_THROW(adapter.addBlock(updates));
+  ASSERT_NO_THROW(adapter.addBlock(updates));
+  ASSERT_NO_THROW(adapter.addBlock(updates));
+  ASSERT_EQ(adapter.getLastReachableBlockId(), 3);
+}
+
+// Test the return value from the addBlock() method.
+TEST_P(db_adapter_custom_blockchain, add_block_return) {
+  auto adapter = DBAdapter{GetParam()->db()};
+  const auto updates = SetOfKeyValuePairs{std::make_pair(defaultSliver, defaultSliver)};
+  const auto numBlocks = 4u;
+  for (auto i = 0u; i < numBlocks; ++i) {
+    ASSERT_EQ(adapter.addBlock(updates), i + 1);
+  }
 }
 
 // Test the last reachable block functionality with empty blocks.
 TEST_P(db_adapter_custom_blockchain, get_last_reachable_block_empty_blocks) {
   auto adapter = DBAdapter{GetParam()->db()};
   const auto updates = SetOfKeyValuePairs{std::make_pair(defaultSliver, defaultSliver)};
-  ASSERT_TRUE(adapter.addLastReachableBlock(SetOfKeyValuePairs{}).isOK());
-  ASSERT_TRUE(adapter.addLastReachableBlock(updates).isOK());
-  ASSERT_TRUE(adapter.addLastReachableBlock(updates).isOK());
-  ASSERT_TRUE(adapter.addLastReachableBlock(SetOfKeyValuePairs{}).isOK());
-  ASSERT_TRUE(adapter.addLastReachableBlock(updates).isOK());
-  ASSERT_TRUE(adapter.addLastReachableBlock(SetOfKeyValuePairs{}).isOK());
-  ASSERT_EQ(adapter.getLastReachableBlock(), 6);
+  ASSERT_NO_THROW(adapter.addBlock(SetOfKeyValuePairs{}));
+  ASSERT_NO_THROW(adapter.addBlock(updates));
+  ASSERT_NO_THROW(adapter.addBlock(updates));
+  ASSERT_NO_THROW(adapter.addBlock(SetOfKeyValuePairs{}));
+  ASSERT_NO_THROW(adapter.addBlock(updates));
+  ASSERT_NO_THROW(adapter.addBlock(SetOfKeyValuePairs{}));
+  ASSERT_EQ(adapter.getLastReachableBlockId(), 6);
 }
 
 TEST_P(db_adapter_custom_blockchain, get_key_by_ver_1_key) {
@@ -659,21 +668,16 @@ TEST_P(db_adapter_custom_blockchain, get_key_by_ver_1_key) {
   const auto updates1 = SetOfKeyValuePairs{std::make_pair(key, data1)};
   const auto updates2 = SetOfKeyValuePairs{std::make_pair(key, data2)};
   const auto updates3 = SetOfKeyValuePairs{std::make_pair(key, data3)};
-  ASSERT_TRUE(adapter.addLastReachableBlock(updates1).isOK());
-  ASSERT_TRUE(adapter.addLastReachableBlock(updates2).isOK());
-  ASSERT_TRUE(adapter.addLastReachableBlock(updates3).isOK());
+  ASSERT_NO_THROW(adapter.addBlock(updates1));
+  ASSERT_NO_THROW(adapter.addBlock(updates2));
+  ASSERT_NO_THROW(adapter.addBlock(updates3));
 
   // Get a non-existent key with a hash that is after the existent key.
   {
     const auto after = Sliver{"dummy"};
     ASSERT_TRUE(getHash(keyData) < getHash(after));
 
-    Sliver out;
-    BlockId actualVersion;
-    const auto status = adapter.getKeyByReadVersion(1, after, out, actualVersion);
-    ASSERT_TRUE(status == Status::OK());
-    ASSERT_TRUE(out.empty());
-    ASSERT_EQ(actualVersion, 0);
+    ASSERT_THROW(adapter.getValue(after, 1), NotFoundException);
   }
 
   // Get a non-existent key with a hash that is before the existent key.
@@ -681,61 +685,37 @@ TEST_P(db_adapter_custom_blockchain, get_key_by_ver_1_key) {
     const auto before = Sliver{"aa"};
     ASSERT_TRUE(getHash(before) < getHash(keyData));
 
-    Sliver out;
-    BlockId actualVersion;
-    const auto status = adapter.getKeyByReadVersion(1, before, out, actualVersion);
-    ASSERT_TRUE(status == Status::OK());
-    ASSERT_TRUE(out.empty());
-    ASSERT_EQ(actualVersion, 0);
+    ASSERT_THROW(adapter.getValue(before, 1), NotFoundException);
   }
 
   // Get a key with a version smaller than the first version and expect an empty response.
-  {
-    Sliver out;
-    BlockId actualVersion;
-    const auto status = adapter.getKeyByReadVersion(0, key, out, actualVersion);
-    ASSERT_TRUE(status == Status::OK());
-    ASSERT_TRUE(out.empty());
-    ASSERT_EQ(actualVersion, 0);
-  }
+  ASSERT_THROW(adapter.getValue(key, 0), NotFoundException);
 
   // Get the first one.
   {
-    Sliver out;
-    BlockId actualVersion;
-    const auto status = adapter.getKeyByReadVersion(1, key, out, actualVersion);
-    ASSERT_TRUE(status.isOK());
-    ASSERT_TRUE(out == data1);
+    const auto [value, actualVersion] = adapter.getValue(key, 1);
+    ASSERT_TRUE(value == data1);
     ASSERT_EQ(actualVersion, 1);
   }
 
   // Get the second one.
   {
-    Sliver out;
-    BlockId actualVersion;
-    const auto status = adapter.getKeyByReadVersion(2, key, out, actualVersion);
-    ASSERT_TRUE(status.isOK());
-    ASSERT_TRUE(out == data2);
+    const auto [value, actualVersion] = adapter.getValue(key, 2);
+    ASSERT_TRUE(value == data2);
     ASSERT_EQ(actualVersion, 2);
   }
 
   // Get the last one.
   {
-    Sliver out;
-    BlockId actualVersion;
-    const auto status = adapter.getKeyByReadVersion(3, key, out, actualVersion);
-    ASSERT_TRUE(status.isOK());
-    ASSERT_TRUE(out == data3);
+    const auto [value, actualVersion] = adapter.getValue(key, 3);
+    ASSERT_TRUE(value == data3);
     ASSERT_EQ(actualVersion, 3);
   }
 
   // Get the key at a version bigger than the last one and expect the last one.
   {
-    Sliver out;
-    BlockId actualVersion;
-    const auto status = adapter.getKeyByReadVersion(42, key, out, actualVersion);
-    ASSERT_TRUE(status.isOK());
-    ASSERT_TRUE(out == data3);
+    const auto [value, actualVersion] = adapter.getValue(key, 42);
+    ASSERT_TRUE(value == data3);
     ASSERT_EQ(actualVersion, 3);
   }
 }
@@ -749,24 +729,19 @@ TEST_P(db_adapter_custom_blockchain, get_key_by_ver_1_key_empty_blocks) {
   const auto data5 = Sliver{"data5"};
   const auto updates5 = SetOfKeyValuePairs{std::make_pair(key, data5)};
 
-  ASSERT_TRUE(adapter.addLastReachableBlock(SetOfKeyValuePairs{}).isOK());
-  ASSERT_TRUE(adapter.addLastReachableBlock(updates2).isOK());
-  ASSERT_TRUE(adapter.addLastReachableBlock(SetOfKeyValuePairs{}).isOK());
-  ASSERT_TRUE(adapter.addLastReachableBlock(SetOfKeyValuePairs{}).isOK());
-  ASSERT_TRUE(adapter.addLastReachableBlock(updates5).isOK());
-  ASSERT_TRUE(adapter.addLastReachableBlock(SetOfKeyValuePairs{}).isOK());
+  ASSERT_NO_THROW(adapter.addBlock(SetOfKeyValuePairs{}));
+  ASSERT_NO_THROW(adapter.addBlock(updates2));
+  ASSERT_NO_THROW(adapter.addBlock(SetOfKeyValuePairs{}));
+  ASSERT_NO_THROW(adapter.addBlock(SetOfKeyValuePairs{}));
+  ASSERT_NO_THROW(adapter.addBlock(updates5));
+  ASSERT_NO_THROW(adapter.addBlock(SetOfKeyValuePairs{}));
 
   // Get a non-existent key with a hash that is after the existent key.
   {
     const auto after = Sliver{"dummy"};
     ASSERT_TRUE(getHash(keyData) < getHash(after));
 
-    Sliver out;
-    BlockId actualVersion;
-    const auto status = adapter.getKeyByReadVersion(1, after, out, actualVersion);
-    ASSERT_TRUE(status == Status::OK());
-    ASSERT_TRUE(out.empty());
-    ASSERT_EQ(actualVersion, 0);
+    ASSERT_THROW(adapter.getValue(after, 1), NotFoundException);
   }
 
   // Get a non-existent key with a hash that is before the existent key.
@@ -774,91 +749,54 @@ TEST_P(db_adapter_custom_blockchain, get_key_by_ver_1_key_empty_blocks) {
     const auto before = Sliver{"aa"};
     ASSERT_TRUE(getHash(before) < getHash(keyData));
 
-    Sliver out;
-    BlockId actualVersion;
-    const auto status = adapter.getKeyByReadVersion(1, before, out, actualVersion);
-    ASSERT_TRUE(status == Status::OK());
-    ASSERT_TRUE(out.empty());
-    ASSERT_EQ(actualVersion, 0);
+    ASSERT_THROW(adapter.getValue(before, 1), NotFoundException);
   }
 
   // Get a key with a version smaller than the first version and expect an empty response.
-  {
-    Sliver out;
-    BlockId actualVersion;
-    const auto status = adapter.getKeyByReadVersion(0, key, out, actualVersion);
-    ASSERT_TRUE(status == Status::OK());
-    ASSERT_TRUE(out.empty());
-    ASSERT_EQ(actualVersion, 0);
-  }
+  ASSERT_THROW(adapter.getValue(key, 0), NotFoundException);
 
   // Get the key at the first empty block and expect an empty response.
-  {
-    Sliver out;
-    BlockId actualVersion;
-    const auto status = adapter.getKeyByReadVersion(1, key, out, actualVersion);
-    ASSERT_TRUE(status.isOK());
-    ASSERT_TRUE(out.empty());
-    ASSERT_EQ(actualVersion, 0);
-  }
+  ASSERT_THROW(adapter.getValue(key, 1), NotFoundException);
 
   // Get the key at the second block.
   {
-    Sliver out;
-    BlockId actualVersion;
-    const auto status = adapter.getKeyByReadVersion(2, key, out, actualVersion);
-    ASSERT_TRUE(status.isOK());
-    ASSERT_TRUE(out == data2);
+    const auto [value, actualVersion] = adapter.getValue(key, 2);
+    ASSERT_TRUE(value == data2);
     ASSERT_EQ(actualVersion, 2);
   }
 
   // Get the key at the third empty block and expect at the second.
   {
-    Sliver out;
-    BlockId actualVersion;
-    const auto status = adapter.getKeyByReadVersion(3, key, out, actualVersion);
-    ASSERT_TRUE(status.isOK());
-    ASSERT_TRUE(out == data2);
+    const auto [value, actualVersion] = adapter.getValue(key, 3);
+    ASSERT_TRUE(value == data2);
     ASSERT_EQ(actualVersion, 2);
   }
 
   // Get the key at the fourth empty block and expect at the second.
   {
-    Sliver out;
-    BlockId actualVersion;
-    const auto status = adapter.getKeyByReadVersion(4, key, out, actualVersion);
-    ASSERT_TRUE(status.isOK());
-    ASSERT_TRUE(out == data2);
+    const auto [value, actualVersion] = adapter.getValue(key, 4);
+    ASSERT_TRUE(value == data2);
     ASSERT_EQ(actualVersion, 2);
   }
 
   // Get the key at the fifth block.
   {
-    Sliver out;
-    BlockId actualVersion;
-    const auto status = adapter.getKeyByReadVersion(5, key, out, actualVersion);
-    ASSERT_TRUE(status.isOK());
-    ASSERT_TRUE(out == data5);
+    const auto [value, actualVersion] = adapter.getValue(key, 5);
+    ASSERT_TRUE(value == data5);
     ASSERT_EQ(actualVersion, 5);
   }
 
   // Get the key at the sixth empty block and expect at the fifth.
   {
-    Sliver out;
-    BlockId actualVersion;
-    const auto status = adapter.getKeyByReadVersion(6, key, out, actualVersion);
-    ASSERT_TRUE(status.isOK());
-    ASSERT_TRUE(out == data5);
+    const auto [value, actualVersion] = adapter.getValue(key, 6);
+    ASSERT_TRUE(value == data5);
     ASSERT_EQ(actualVersion, 5);
   }
 
   // Get the key at a version bigger than the last one and expect at the last one.
   {
-    Sliver out;
-    BlockId actualVersion;
-    const auto status = adapter.getKeyByReadVersion(42, key, out, actualVersion);
-    ASSERT_TRUE(status.isOK());
-    ASSERT_TRUE(out == data5);
+    const auto [value, actualVersion] = adapter.getValue(key, 42);
+    ASSERT_TRUE(value == data5);
     ASSERT_EQ(actualVersion, 5);
   }
 }
@@ -884,125 +822,119 @@ TEST_P(db_adapter_custom_blockchain, get_key_by_ver_multiple_keys) {
   const auto updates2 =
       SetOfKeyValuePairs{std::make_pair(key, data2), std::make_pair(before, data1), std::make_pair(after, data3)};
   const auto updates3 = SetOfKeyValuePairs{std::make_pair(key, data3), std::make_pair(before, data2)};
-  ASSERT_TRUE(adapter.addLastReachableBlock(updates1).isOK());
-  ASSERT_TRUE(adapter.addLastReachableBlock(updates2).isOK());
-  ASSERT_TRUE(adapter.addLastReachableBlock(updates3).isOK());
+  ASSERT_NO_THROW(adapter.addBlock(updates1));
+  ASSERT_NO_THROW(adapter.addBlock(updates2));
+  ASSERT_NO_THROW(adapter.addBlock(updates3));
 
   // Get keys with a version that is smaller than the first version and expect an empty response.
   {
     const auto version = 0;
-    auto outValue = Sliver{};
-    auto actualVersion = BlockId{119};
 
-    ASSERT_TRUE(adapter.getKeyByReadVersion(version, key, outValue, actualVersion).isOK());
-    ASSERT_TRUE(outValue.empty());
-    ASSERT_EQ(actualVersion, 0);
+    ASSERT_THROW(adapter.getValue(key, version), NotFoundException);
 
-    ASSERT_TRUE(adapter.getKeyByReadVersion(version, before, outValue, actualVersion).isOK());
-    ASSERT_TRUE(outValue.empty());
-    ASSERT_EQ(actualVersion, 0);
+    ASSERT_THROW(adapter.getValue(before, version), NotFoundException);
 
-    ASSERT_TRUE(adapter.getKeyByReadVersion(version, after, outValue, actualVersion).isOK());
-    ASSERT_TRUE(outValue.empty());
-    ASSERT_EQ(actualVersion, 0);
+    ASSERT_THROW(adapter.getValue(after, version), NotFoundException);
 
-    ASSERT_TRUE(adapter.getKeyByReadVersion(version, random, outValue, actualVersion).isOK());
-    ASSERT_TRUE(outValue.empty());
-    ASSERT_EQ(actualVersion, 0);
+    ASSERT_THROW(adapter.getValue(random, version), NotFoundException);
   }
 
   // Get keys with a version that is bigger than the last version and expect the last one.
   {
     const auto version = 42;
-    auto outValue = Sliver{};
-    auto actualVersion = BlockId{119};
 
-    ASSERT_TRUE(adapter.getKeyByReadVersion(version, key, outValue, actualVersion).isOK());
-    ASSERT_TRUE(outValue == data3);
-    ASSERT_EQ(actualVersion, 3);
+    {
+      const auto [value, actualVersion] = adapter.getValue(key, version);
+      ASSERT_TRUE(value == data3);
+      ASSERT_EQ(actualVersion, 3);
+    }
 
-    ASSERT_TRUE(adapter.getKeyByReadVersion(version, before, outValue, actualVersion).isOK());
-    ASSERT_TRUE(outValue == data2);
-    ASSERT_EQ(actualVersion, 3);
+    {
+      const auto [value, actualVersion] = adapter.getValue(before, version);
+      ASSERT_TRUE(value == data2);
+      ASSERT_EQ(actualVersion, 3);
+    }
 
-    ASSERT_TRUE(adapter.getKeyByReadVersion(version, after, outValue, actualVersion).isOK());
-    ASSERT_TRUE(outValue == data3);
-    ASSERT_EQ(actualVersion, 2);
+    {
+      const auto [value, actualVersion] = adapter.getValue(after, version);
+      ASSERT_TRUE(value == data3);
+      ASSERT_EQ(actualVersion, 2);
+    }
 
-    ASSERT_TRUE(adapter.getKeyByReadVersion(version, random, outValue, actualVersion).isOK());
-    ASSERT_TRUE(outValue.empty());
-    ASSERT_EQ(actualVersion, 0);
+    ASSERT_THROW(adapter.getValue(random, version), NotFoundException);
   }
 
   // Get keys at version 1.
   {
     const auto version = 1;
-    auto outValue = Sliver{};
-    auto actualVersion = BlockId{119};
 
-    ASSERT_TRUE(adapter.getKeyByReadVersion(version, key, outValue, actualVersion).isOK());
-    ASSERT_TRUE(outValue == data1);
-    ASSERT_EQ(actualVersion, 1);
+    {
+      const auto [value, actualVersion] = adapter.getValue(key, version);
+      ASSERT_TRUE(value == data1);
+      ASSERT_EQ(actualVersion, 1);
+    }
 
-    ASSERT_TRUE(adapter.getKeyByReadVersion(version, before, outValue, actualVersion).isOK());
-    ASSERT_TRUE(outValue == data2);
-    ASSERT_EQ(actualVersion, 1);
+    {
+      const auto [value, actualVersion] = adapter.getValue(before, version);
+      ASSERT_TRUE(value == data2);
+      ASSERT_EQ(actualVersion, 1);
+    }
 
     // The after key is not present at version 1.
-    ASSERT_TRUE(adapter.getKeyByReadVersion(version, after, outValue, actualVersion).isOK());
-    ASSERT_TRUE(outValue.empty());
-    ASSERT_EQ(actualVersion, 0);
+    ASSERT_THROW(adapter.getValue(after, version), NotFoundException);
 
     // The random key is not present at version 1.
-    ASSERT_TRUE(adapter.getKeyByReadVersion(version, random, outValue, actualVersion).isOK());
-    ASSERT_TRUE(outValue.empty());
-    ASSERT_EQ(actualVersion, 0);
+    ASSERT_THROW(adapter.getValue(random, version), NotFoundException);
   }
 
   // Get keys at version 2.
   {
     const auto version = 2;
-    auto outValue = Sliver{};
-    auto actualVersion = BlockId{119};
 
-    ASSERT_TRUE(adapter.getKeyByReadVersion(version, key, outValue, actualVersion).isOK());
-    ASSERT_TRUE(outValue == data2);
-    ASSERT_EQ(actualVersion, 2);
+    {
+      const auto [value, actualVersion] = adapter.getValue(key, version);
+      ASSERT_TRUE(value == data2);
+      ASSERT_EQ(actualVersion, 2);
+    }
 
-    ASSERT_TRUE(adapter.getKeyByReadVersion(version, before, outValue, actualVersion).isOK());
-    ASSERT_TRUE(outValue == data1);
-    ASSERT_EQ(actualVersion, 2);
+    {
+      const auto [value, actualVersion] = adapter.getValue(before, version);
+      ASSERT_TRUE(value == data1);
+      ASSERT_EQ(actualVersion, 2);
+    }
 
-    ASSERT_TRUE(adapter.getKeyByReadVersion(version, after, outValue, actualVersion).isOK());
-    ASSERT_TRUE(outValue == data3);
-    ASSERT_EQ(actualVersion, 2);
+    {
+      const auto [value, actualVersion] = adapter.getValue(after, version);
+      ASSERT_TRUE(value == data3);
+      ASSERT_EQ(actualVersion, 2);
+    }
 
-    ASSERT_TRUE(adapter.getKeyByReadVersion(version, random, outValue, actualVersion).isOK());
-    ASSERT_TRUE(outValue.empty());
-    ASSERT_EQ(actualVersion, 0);
+    ASSERT_THROW(adapter.getValue(random, version), NotFoundException);
   }
 
   // Get keys at version 3.
   {
     const auto version = 3;
-    auto outValue = Sliver{};
-    auto actualVersion = BlockId{119};
 
-    ASSERT_TRUE(adapter.getKeyByReadVersion(version, key, outValue, actualVersion).isOK());
-    ASSERT_TRUE(outValue == data3);
-    ASSERT_EQ(actualVersion, 3);
+    {
+      const auto [value, actualVersion] = adapter.getValue(key, version);
+      ASSERT_TRUE(value == data3);
+      ASSERT_EQ(actualVersion, 3);
+    }
 
-    ASSERT_TRUE(adapter.getKeyByReadVersion(version, before, outValue, actualVersion).isOK());
-    ASSERT_TRUE(outValue == data2);
-    ASSERT_EQ(actualVersion, 3);
+    {
+      const auto [value, actualVersion] = adapter.getValue(before, version);
+      ASSERT_TRUE(value == data2);
+      ASSERT_EQ(actualVersion, 3);
+    }
 
-    ASSERT_TRUE(adapter.getKeyByReadVersion(version, after, outValue, actualVersion).isOK());
-    ASSERT_TRUE(outValue == data3);
-    ASSERT_EQ(actualVersion, 2);
+    {
+      const auto [value, actualVersion] = adapter.getValue(after, version);
+      ASSERT_TRUE(value == data3);
+      ASSERT_EQ(actualVersion, 2);
+    }
 
-    ASSERT_TRUE(adapter.getKeyByReadVersion(version, random, outValue, actualVersion).isOK());
-    ASSERT_TRUE(outValue.empty());
-    ASSERT_EQ(actualVersion, 0);
+    ASSERT_THROW(adapter.getValue(random, version), NotFoundException);
   }
 }
 
@@ -1019,36 +951,27 @@ TEST_P(db_adapter_custom_blockchain, add_and_get_block) {
 
     // Add 2 blocks.
     {
-      const auto status1 = adapter.addLastReachableBlock(updates1);
-      ASSERT_TRUE(status1.isOK());
+      ASSERT_NO_THROW(adapter.addBlock(updates1));
 
-      const auto status2 = adapter.addLastReachableBlock(updates2);
-      ASSERT_TRUE(status2.isOK());
+      ASSERT_NO_THROW(adapter.addBlock(updates2));
     }
 
     // Try to get a non-existent block.
-    {
-      Sliver block;
-      const auto status = adapter.getBlockById(3, block);
-      ASSERT_TRUE(status.isNotFound());
-    }
+    ASSERT_THROW(adapter.getRawBlock(3), NotFoundException);
 
     // Get the first block.
-    Sliver block1;
+    Sliver rawBlock1;
     {
-      const auto status = adapter.getBlockById(1, block1);
-      ASSERT_TRUE(status.isOK());
-      ASSERT_TRUE(updates1 == block::getData(block1));
+      rawBlock1 = adapter.getRawBlock(1);
+      ASSERT_TRUE(updates1 == block::getData(rawBlock1));
     }
 
     // Get the second block.
     {
-      Sliver block2;
-      const auto status = adapter.getBlockById(2, block2);
-      ASSERT_TRUE(status.isOK());
-      ASSERT_TRUE(updates2 == block::getData(block2));
-      ASSERT_TRUE(adapter.getStateHash() == block::getStateHash(block2));
-      ASSERT_TRUE(block::getParentDigest(block2) == blockDigest(1, block1));
+      const auto rawBlock2 = adapter.getRawBlock(2);
+      ASSERT_TRUE(updates2 == block::getData(rawBlock2));
+      ASSERT_TRUE(adapter.getStateHash() == block::getStateHash(rawBlock2));
+      ASSERT_TRUE(block::getParentDigest(rawBlock2) == blockDigest(1, rawBlock1));
     }
   }
 }
@@ -1058,47 +981,39 @@ TEST_P(db_adapter_ref_blockchain, add_multiple_deterministic_blocks) {
   const auto referenceBlockchain = GetParam()->referenceBlockchain(GetParam()->db(), numBlocks);
   auto adapter = DBAdapter{GetParam()->db()};
   for (auto i = 1u; i <= numBlocks; ++i) {
-    ASSERT_TRUE(adapter.addLastReachableBlock(block::getData(referenceBlockchain[i - 1])).isOK());
-    ASSERT_EQ(adapter.getLastReachableBlock(), i);
+    ASSERT_NO_THROW(adapter.addBlock(block::getData(referenceBlockchain[i - 1])));
+    ASSERT_EQ(adapter.getLastReachableBlockId(), i);
   }
 
   for (auto i = 1u; i <= numBlocks; ++i) {
-    auto block = Sliver{};
-    ASSERT_TRUE(adapter.getBlockById(i, block).isOK());
-    ASSERT_FALSE(block.empty());
+    const auto rawBlock = adapter.getRawBlock(i);
+    ASSERT_FALSE(rawBlock.empty());
 
     const auto &referenceBlock = referenceBlockchain[i - 1];
-    ASSERT_TRUE(block == referenceBlock);
+    ASSERT_TRUE(rawBlock == referenceBlock);
 
     // Expect a zero parent digest for block 1.
     if (i == 1) {
-      ASSERT_TRUE(block::getParentDigest(block) == zeroDigest);
+      ASSERT_TRUE(block::getParentDigest(rawBlock) == zeroDigest);
     } else {
-      auto parentBlock = Sliver{};
-      ASSERT_TRUE(adapter.getBlockById(i - 1, parentBlock).isOK());
-      ASSERT_FALSE(parentBlock.empty());
-      ASSERT_TRUE(blockDigest(i - 1, parentBlock) == block::getParentDigest(block));
+      const auto rawParentBlock = adapter.getRawBlock(i - 1);
+      ASSERT_FALSE(rawParentBlock.empty());
+      ASSERT_TRUE(blockDigest(i - 1, rawParentBlock) == block::getParentDigest(rawBlock));
     }
 
-    ASSERT_TRUE(block::getData(block) == block::getData(referenceBlock));
+    ASSERT_TRUE(block::getData(rawBlock) == block::getData(referenceBlock));
   }
 }
 
 TEST_P(db_adapter_custom_blockchain, no_blocks) {
   const auto adapter = DBAdapter{GetParam()->db()};
 
-  ASSERT_EQ(adapter.getLastReachableBlock(), 0);
-  ASSERT_EQ(adapter.getLatestBlock(), 0);
+  ASSERT_EQ(adapter.getLastReachableBlockId(), 0);
+  ASSERT_EQ(adapter.getLatestBlockId(), 0);
 
-  auto block = Sliver{};
-  ASSERT_TRUE(adapter.getBlockById(defaultBlockId, block).isNotFound());
-  ASSERT_TRUE(block.empty());
+  ASSERT_THROW(adapter.getRawBlock(defaultBlockId), NotFoundException);
 
-  auto value = Sliver{};
-  auto actualVersion = BlockId{};
-  ASSERT_TRUE(adapter.getKeyByReadVersion(defaultBlockId, defaultSliver, value, actualVersion).isOK());
-  ASSERT_EQ(actualVersion, 0);
-  ASSERT_TRUE(value.empty());
+  ASSERT_THROW(adapter.getValue(defaultSliver, defaultBlockId), NotFoundException);
 }
 
 TEST_P(db_adapter_ref_blockchain, state_transfer_reverse_order_with_blockchain_blocks) {
@@ -1111,52 +1026,50 @@ TEST_P(db_adapter_ref_blockchain, state_transfer_reverse_order_with_blockchain_b
 
   // Add blocks to the blockchain and verify both block pointers.
   for (auto i = 1; i <= numBlockchainBlocks; ++i) {
-    ASSERT_TRUE(adapter.addLastReachableBlock(block::getData(referenceBlockchain[i - 1])).isOK());
-    ASSERT_EQ(adapter.getLatestBlock(), i);
-    ASSERT_EQ(adapter.getLastReachableBlock(), i);
+    ASSERT_NO_THROW(adapter.addBlock(block::getData(referenceBlockchain[i - 1])));
+    ASSERT_EQ(adapter.getLatestBlockId(), i);
+    ASSERT_EQ(adapter.getLastReachableBlockId(), i);
   }
 
   // Receive more blocks from state transfer and add them to the blockchain.
   for (auto i = numTotalBlocks; i > numBlockchainBlocks; --i) {
-    ASSERT_TRUE(adapter.addBlock(referenceBlockchain[i - 1], i).isOK());
-    ASSERT_EQ(adapter.getLatestBlock(), numTotalBlocks);
+    ASSERT_NO_THROW(adapter.addRawBlock(referenceBlockchain[i - 1], i));
+    ASSERT_EQ(adapter.getLatestBlockId(), numTotalBlocks);
     if (i == numBlockchainBlocks + 1) {
       // We link the blockchain and state transfer chains at that point.
-      ASSERT_EQ(adapter.getLastReachableBlock(), numTotalBlocks);
+      ASSERT_EQ(adapter.getLastReachableBlockId(), numTotalBlocks);
     } else {
-      ASSERT_EQ(adapter.getLastReachableBlock(), numBlockchainBlocks);
+      ASSERT_EQ(adapter.getLastReachableBlockId(), numBlockchainBlocks);
     }
 
     // Verify that initial blocks are accessible at all steps.
     for (auto j = 1; j <= numBlockchainBlocks; ++j) {
-      auto block = Sliver{};
-      ASSERT_TRUE(adapter.getBlockById(j, block).isOK());
+      const auto rawBlock = adapter.getRawBlock(j);
       const auto &referenceBlock = referenceBlockchain[j - 1];
-      ASSERT_TRUE(block == referenceBlock);
-      ASSERT_TRUE(block::getData(block) == block::getData(referenceBlock));
-      ASSERT_TRUE(block::getStateHash(block) == block::getStateHash(referenceBlock));
+      ASSERT_TRUE(rawBlock == referenceBlock);
+      ASSERT_TRUE(block::getData(rawBlock) == block::getData(referenceBlock));
+      ASSERT_TRUE(block::getStateHash(rawBlock) == block::getStateHash(referenceBlock));
       if (j > 1) {
         const auto &prevReferenceBlock = referenceBlockchain[j - 2];
-        ASSERT_TRUE(block::getParentDigest(block) == blockDigest(j - 1, prevReferenceBlock));
+        ASSERT_TRUE(block::getParentDigest(rawBlock) == blockDigest(j - 1, prevReferenceBlock));
       } else {
-        ASSERT_TRUE(block::getParentDigest(block) == zeroDigest);
+        ASSERT_TRUE(block::getParentDigest(rawBlock) == zeroDigest);
       }
     }
   }
 
   // Verify that all blocks are accessible at the end.
   for (auto i = 1; i <= numTotalBlocks; ++i) {
-    auto block = Sliver{};
-    ASSERT_TRUE(adapter.getBlockById(i, block).isOK());
+    const auto rawBlock = adapter.getRawBlock(i);
     const auto &referenceBlock = referenceBlockchain[i - 1];
-    ASSERT_TRUE(block == referenceBlock);
-    ASSERT_TRUE(block::getData(block) == block::getData(referenceBlock));
-    ASSERT_TRUE(block::getStateHash(block) == block::getStateHash(referenceBlock));
+    ASSERT_TRUE(rawBlock == referenceBlock);
+    ASSERT_TRUE(block::getData(rawBlock) == block::getData(referenceBlock));
+    ASSERT_TRUE(block::getStateHash(rawBlock) == block::getStateHash(referenceBlock));
     if (i > 1) {
       const auto &prevReferenceBlock = referenceBlockchain[i - 2];
-      ASSERT_TRUE(block::getParentDigest(block) == blockDigest(i - 1, prevReferenceBlock));
+      ASSERT_TRUE(block::getParentDigest(rawBlock) == blockDigest(i - 1, prevReferenceBlock));
     } else {
-      ASSERT_TRUE(block::getParentDigest(block) == zeroDigest);
+      ASSERT_TRUE(block::getParentDigest(rawBlock) == zeroDigest);
     }
   }
 }
@@ -1168,29 +1081,28 @@ TEST_P(db_adapter_ref_blockchain, state_transfer_fetch_whole_blockchain_in_rever
   auto adapter = DBAdapter{GetParam()->db()};
 
   for (auto i = numBlocks; i > 0; --i) {
-    ASSERT_TRUE(adapter.addBlock(referenceBlockchain[i - 1], i).isOK());
-    ASSERT_EQ(adapter.getLatestBlock(), numBlocks);
+    ASSERT_NO_THROW(adapter.addRawBlock(referenceBlockchain[i - 1], i));
+    ASSERT_EQ(adapter.getLatestBlockId(), numBlocks);
     if (i == 1) {
       // We link the blockchain and state transfer chains at that point.
-      ASSERT_EQ(adapter.getLastReachableBlock(), numBlocks);
+      ASSERT_EQ(adapter.getLastReachableBlockId(), numBlocks);
     } else {
-      ASSERT_EQ(adapter.getLastReachableBlock(), 0);
+      ASSERT_EQ(adapter.getLastReachableBlockId(), 0);
     }
   }
 
   // Verify that all blocks are accessible at the end.
   for (auto i = 1; i <= numBlocks; ++i) {
-    auto block = Sliver{};
-    ASSERT_TRUE(adapter.getBlockById(i, block).isOK());
+    const auto rawBlock = adapter.getRawBlock(i);
     const auto &referenceBlock = referenceBlockchain[i - 1];
-    ASSERT_TRUE(block == referenceBlock);
-    ASSERT_TRUE(block::getData(block) == block::getData(referenceBlock));
-    ASSERT_TRUE(block::getStateHash(block) == block::getStateHash(referenceBlock));
+    ASSERT_TRUE(rawBlock == referenceBlock);
+    ASSERT_TRUE(block::getData(rawBlock) == block::getData(referenceBlock));
+    ASSERT_TRUE(block::getStateHash(rawBlock) == block::getStateHash(referenceBlock));
     if (i > 1) {
       const auto &prevReferenceBlock = referenceBlockchain[i - 2];
-      ASSERT_TRUE(block::getParentDigest(block) == blockDigest(i - 1, prevReferenceBlock));
+      ASSERT_TRUE(block::getParentDigest(rawBlock) == blockDigest(i - 1, prevReferenceBlock));
     } else {
-      ASSERT_TRUE(block::getParentDigest(block) == zeroDigest);
+      ASSERT_TRUE(block::getParentDigest(rawBlock) == zeroDigest);
     }
   }
 }
@@ -1205,56 +1117,53 @@ TEST_P(db_adapter_ref_blockchain, state_transfer_unordered_with_blockchain_block
 
   // Add blocks to the blockchain and verify both block pointers.
   for (auto i = 1; i <= numBlockchainBlocks; ++i) {
-    ASSERT_TRUE(adapter.addLastReachableBlock(block::getData(referenceBlockchain[i - 1])).isOK());
-    ASSERT_EQ(adapter.getLatestBlock(), i);
-    ASSERT_EQ(adapter.getLastReachableBlock(), i);
+    ASSERT_NO_THROW(adapter.addBlock(block::getData(referenceBlockchain[i - 1])));
+    ASSERT_EQ(adapter.getLatestBlockId(), i);
+    ASSERT_EQ(adapter.getLastReachableBlockId(), i);
   }
 
   // Add block 7.
   {
-    ASSERT_TRUE(adapter.addBlock(referenceBlockchain[6], 7).isOK());
-    ASSERT_EQ(adapter.getLastReachableBlock(), numBlockchainBlocks);
-    ASSERT_EQ(adapter.getLatestBlock(), 7);
+    ASSERT_NO_THROW(adapter.addRawBlock(referenceBlockchain[6], 7));
+    ASSERT_EQ(adapter.getLastReachableBlockId(), numBlockchainBlocks);
+    ASSERT_EQ(adapter.getLatestBlockId(), 7);
     for (auto i = 1; i <= numBlockchainBlocks; ++i) {
-      auto block = Sliver{};
-      ASSERT_TRUE(adapter.getBlockById(i, block).isOK());
+      const auto rawBlock = adapter.getRawBlock(i);
       const auto &referenceBlock = referenceBlockchain[i - 1];
-      ASSERT_TRUE(block == referenceBlock);
-      ASSERT_TRUE(block::getData(block) == block::getData(referenceBlock));
-      ASSERT_TRUE(block::getStateHash(block) == block::getStateHash(referenceBlock));
+      ASSERT_TRUE(rawBlock == referenceBlock);
+      ASSERT_TRUE(block::getData(rawBlock) == block::getData(referenceBlock));
+      ASSERT_TRUE(block::getStateHash(rawBlock) == block::getStateHash(referenceBlock));
     }
   }
 
   // Add block 6.
   {
-    ASSERT_TRUE(adapter.addBlock(referenceBlockchain[5], 6).isOK());
-    ASSERT_EQ(adapter.getLastReachableBlock(), 7);
-    ASSERT_EQ(adapter.getLatestBlock(), 7);
+    ASSERT_NO_THROW(adapter.addRawBlock(referenceBlockchain[5], 6));
+    ASSERT_EQ(adapter.getLastReachableBlockId(), 7);
+    ASSERT_EQ(adapter.getLatestBlockId(), 7);
     for (auto i = 1; i <= 7; ++i) {
-      auto block = Sliver{};
-      ASSERT_TRUE(adapter.getBlockById(i, block).isOK());
+      const auto rawBlock = adapter.getRawBlock(i);
       const auto &referenceBlock = referenceBlockchain[i - 1];
-      ASSERT_TRUE(block == referenceBlock);
-      ASSERT_TRUE(block::getData(block) == block::getData(referenceBlock));
-      ASSERT_TRUE(block::getStateHash(block) == block::getStateHash(referenceBlock));
+      ASSERT_TRUE(rawBlock == referenceBlock);
+      ASSERT_TRUE(block::getData(rawBlock) == block::getData(referenceBlock));
+      ASSERT_TRUE(block::getStateHash(rawBlock) == block::getStateHash(referenceBlock));
     }
   }
 
   // Add block 8.
   {
-    ASSERT_TRUE(adapter.addBlock(referenceBlockchain[7], 8).isOK());
-    ASSERT_EQ(adapter.getLastReachableBlock(), 8);
-    ASSERT_EQ(adapter.getLatestBlock(), 8);
+    ASSERT_NO_THROW(adapter.addRawBlock(referenceBlockchain[7], 8));
+    ASSERT_EQ(adapter.getLastReachableBlockId(), 8);
+    ASSERT_EQ(adapter.getLatestBlockId(), 8);
   }
 
   // Verify that all blocks are accessible at the end.
   for (auto i = 1; i <= numTotalBlocks; ++i) {
-    auto block = Sliver{};
-    ASSERT_TRUE(adapter.getBlockById(i, block).isOK());
+    const auto rawBlock = adapter.getRawBlock(i);
     const auto &referenceBlock = referenceBlockchain[i - 1];
-    ASSERT_TRUE(block == referenceBlock);
-    ASSERT_TRUE(block::getData(block) == block::getData(referenceBlock));
-    ASSERT_TRUE(block::getStateHash(block) == block::getStateHash(referenceBlock));
+    ASSERT_TRUE(rawBlock == referenceBlock);
+    ASSERT_TRUE(block::getData(rawBlock) == block::getData(referenceBlock));
+    ASSERT_TRUE(block::getStateHash(rawBlock) == block::getStateHash(referenceBlock));
   }
 }
 

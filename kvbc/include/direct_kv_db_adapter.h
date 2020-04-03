@@ -5,13 +5,13 @@
 
 #pragma once
 
-#include "base_db_adapter.h"
-#include "kv_types.hpp"
 #include "db_interfaces.h"
+#include "kv_types.hpp"
 #include "Logger.hpp"
+#include "storage/db_interface.h"
+#include "storage/key_manipulator.hpp"
 
 #include <memory>
-#include "storage/key_manipulator.hpp"
 
 namespace concord::kvbc {
 inline namespace v1DirectKeyValue {
@@ -56,7 +56,7 @@ class DBKeyManipulator : public DBKeyManipulatorBase {
   static KeyValuePair composedToSimple(KeyValuePair _p);
 };
 
-class DBAdapter : public IDbAdapter, public DBAdapterBase {
+class DBAdapter : public IDbAdapter {
  public:
   DBAdapter(std::shared_ptr<storage::IDBClient>,
             std::unique_ptr<IDataKeyGenerator> keyGen = std::make_unique<KeyGenerator>());
@@ -79,16 +79,18 @@ class DBAdapter : public IDbAdapter, public DBAdapterBase {
 
   void deleteBlock(const BlockId &) override;
 
-  BlockId getLastestBlockId() const override;
+  BlockId getLatestBlockId() const override;
   BlockId getLastReachableBlockId() const override;
 
-  std::shared_ptr<storage::IDBClient> getDb() const override { return DBAdapterBase::getDb(); }
+  std::shared_ptr<storage::IDBClient> getDb() const override { return db_; }
 
  private:
   concordUtils::Status addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &_kvMap,
                                                  const BlockId &_block,
                                                  const concordUtils::Sliver &_blockRaw);
 
+  concordlogger::Logger logger_;
+  std::shared_ptr<storage::IDBClient> db_;
   std::unique_ptr<IDataKeyGenerator> keyGen_;
 };
 

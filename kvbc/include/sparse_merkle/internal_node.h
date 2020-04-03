@@ -21,7 +21,7 @@
 #include "sparse_merkle/base_types.h"
 
 namespace concord {
-namespace storage {
+namespace kvbc {
 namespace sparse_merkle {
 
 /*
@@ -434,5 +434,5 @@ class BatchedInternalNode {
 };
 
 }  // namespace sparse_merkle
-}  // namespace storage
+}  // namespace kvbc
 }  // namespace concord

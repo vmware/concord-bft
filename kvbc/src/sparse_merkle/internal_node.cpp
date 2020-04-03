@@ -16,7 +16,7 @@
 using namespace std;
 
 namespace concord {
-namespace storage {
+namespace kvbc {
 namespace sparse_merkle {
 
 void BatchedInternalNode::updateHashes(size_t index, Version version) {
@@ -414,5 +414,5 @@ std::ostream& operator<<(std::ostream& os, const InternalChild& child) {
 }
 
 }  // namespace sparse_merkle
-}  // namespace storage
+}  // namespace kvbc
 }  // namespace concord

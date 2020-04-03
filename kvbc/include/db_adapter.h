@@ -38,7 +38,7 @@ class IDbAdapter {
   virtual void deleteBlock(const BlockId& blockId) = 0;
 
   // Used to retrieve the latest block.
-  virtual BlockId getLastestBlockId() const = 0;
+  virtual BlockId getLatestBlockId() const = 0;
 
   // Used to retrieve the last reachable block.
   // From ST perspective, this is maximal block number N such that all blocks
