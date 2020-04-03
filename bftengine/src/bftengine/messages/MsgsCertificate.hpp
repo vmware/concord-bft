@@ -21,6 +21,15 @@
 namespace bftEngine {
 namespace impl {
 
+// MsgsCertificate class, track the number of messages sent.
+// It used by some of the protocols, e.g. checkpoint.
+// The component holds an array of information about every replica,
+// each cell in the array called 'class',
+// whenever a new message added, that is equivalent to previous one,
+// the specific class amount var increased.
+// Once the required amount of messages for the quorum achieved,
+// the state will be set as 'completed' and the count will stop.
+
 template <typename T,
           bool SelfTrust,       // = true,
           bool SelfIsRequired,  // = false,
@@ -58,7 +67,10 @@ class MsgsCertificate {
   std::forward_list<ReplicaId> includedReplicas() const;
 
  protected:
+  // add message sent by other replica
   void addPeerMsg(T* msg, ReplicaId replicaId);
+
+  // add message sent by self replica
   void addSelfMsg(T* msg);
 
   static const uint16_t NULL_CLASS = UINT16_MAX;
@@ -71,6 +83,7 @@ class MsgsCertificate {
   std::unordered_map<ReplicaId, T*> msgsFromReplicas;
 
   struct MsgClassInfo {
+    // information about the size and replica id of a class
     uint16_t size;
     uint16_t representativeReplica;
   };
@@ -140,7 +153,7 @@ bool MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::a
   msgsFromReplicas[replicaId] = msg;
 
   if (!complete) {
-    if (SelfTrust) {
+    if (SelfTrust) {  // self message is part of the quorum.
       if (replicaId == selfId)
         addSelfMsg(msg);
       else
@@ -157,7 +170,7 @@ template <typename T, bool SelfTrust, bool SelfIsRequired, bool KeepAllMsgs, typ
 void MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::addPeerMsg(T* msg, ReplicaId replicaId) {
   uint16_t relevantClass = NULL_CLASS;
 
-  if (hasTrustedSelfClass) {
+  if (hasTrustedSelfClass) {            // in this case self message was added
     MsgClassInfo& cls = msgClasses[0];  // in this case, we have a single class
 
     auto pos = msgsFromReplicas.find(cls.representativeReplica);
@@ -166,7 +179,7 @@ void MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::a
 
     if (!ExternalFunc::equivalent(representativeMsg, msg)) return;  // msg should be ignored
 
-    relevantClass = 0;
+    relevantClass = 0;  // the class of the self message
     cls.size = cls.size + 1;
   } else {
     // looking for a class
@@ -187,6 +200,7 @@ void MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::a
 
   if (relevantClass == NULL_CLASS) {
     // we should create a new class
+    // no equivalent message was found.
 
     if (numOfClasses >= numOfReps) {
       // We probably have an internal error
@@ -202,6 +216,7 @@ void MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::a
     cls.representativeReplica = replicaId;
 
     if (bestClass == NULL_CLASS) {
+      // first message class assigned as the best
       bestClass = relevantClass;
       sizeOfBestClass = 1;
     }
@@ -209,11 +224,13 @@ void MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::a
     MsgClassInfo& cls = msgClasses[relevantClass];
 
     if (cls.size > sizeOfBestClass) {
+      // update best class to current class
       bestClass = relevantClass;
       sizeOfBestClass = cls.size;
     }
 
     if ((relevantClass == bestClass) && (sizeOfBestClass >= required)) {
+      // reached the required amount of messages
       tryToMarkComplete();
     }
   }
@@ -259,6 +276,7 @@ void MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::a
   hasTrustedSelfClass = true;
 
   if (classInfo.size >= required) {
+    // reached the required amount of messages
     tryToMarkComplete();
   }
 }
