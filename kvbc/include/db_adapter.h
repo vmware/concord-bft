@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "block_digest.h"
 #include "kv_types.hpp"
 #include <utility>
 
@@ -44,8 +45,13 @@ class IDbAdapter {
   // From ST perspective, this is maximal block number N such that all blocks
   // START <= i <= N exist, where START is usually 1, if pruning is not enabled.
   // In the normal state, it should be equal to last block ID.
-
   virtual BlockId getLastReachableBlockId() const = 0;
+
+  // Returns the block data in the form of a set of key/value pairs.
+  virtual SetOfKeyValuePairs getBlockData(const RawBlock& rawBlock) const = 0;
+
+  // Returns the parent digest of the passed block.
+  virtual BlockDigest getParentDigest(const RawBlock& rawBlock) const = 0;
 
   // TODO [TK] not sure it's needed for long term
   virtual std::shared_ptr<storage::IDBClient> getDb() const = 0;

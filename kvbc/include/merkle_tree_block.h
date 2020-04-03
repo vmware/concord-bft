@@ -2,35 +2,30 @@
 
 #pragma once
 
-#include "bcstatetransfer/SimpleBCStateTransfer.hpp"
+#include "block_digest.h"
 #include "kv_types.hpp"
 #include "sparse_merkle/base_types.h"
 
-#include <algorithm>
-#include <array>
 #include <cstdint>
 #include <iterator>
 #include <unordered_map>
 
-namespace concord::kvbc::v2MerkleTree::block {
-
-inline constexpr auto BLOCK_DIGEST_SIZE = bftEngine::SimpleBlockchainStateTransfer::BLOCK_DIGEST_SIZE;
+namespace concord::kvbc::v2MerkleTree::block::detail {
 
 // Creates a block that includes a set of key/values. The passed parentDigest buffer must be of size BLOCK_DIGEST_SIZE
 // bytes.
-
-RawBlock create(const SetOfKeyValuePairs &updates, const void *parentDigest, const sparse_merkle::Hash &stateHash);
+RawBlock create(const SetOfKeyValuePairs &updates,
+                const BlockDigest &parentDigest,
+                const sparse_merkle::Hash &stateHash);
 
 // Returns the block data in the form of a set of key/value pairs.
 SetOfKeyValuePairs getData(const RawBlock &block);
 
-// Returns the parent digest of size BLOCK_DIGEST_SIZE bytes.
-const void *getParentDigest(const RawBlock &block);
+// Returns the parent digest of the passed block.
+BlockDigest getParentDigest(const RawBlock &block);
 
 // Returns the state hash of the passed block.
 sparse_merkle::Hash getStateHash(const RawBlock &block);
-
-namespace detail {
 
 // Key lengths are serialized as a KeyLengthType in network byte order.
 using KeyLengthType = std::uint32_t;
@@ -62,13 +57,15 @@ struct Node {
   Node() = default;
 
   Node(BlockIdType pBlockId,
-       const void *pParentDigest,
+       const BlockDigest &pParentDigest,
        const sparse_merkle::Hash &pStateHash,
        const sparse_merkle::Version &pStateRootVersion,
        Keys pKeys = Keys{})
-      : blockId{pBlockId}, stateHash{pStateHash}, stateRootVersion{pStateRootVersion}, keys{pKeys} {
-    setParentDigest(pParentDigest);
-  }
+      : blockId{pBlockId},
+        parentDigest{pParentDigest},
+        stateHash{pStateHash},
+        stateRootVersion{pStateRootVersion},
+        keys{pKeys} {}
 
   void setParentDigest(const void *pParentDigest) {
     const auto parentDigestPtr = static_cast<const std::uint8_t *>(pParentDigest);
@@ -76,7 +73,7 @@ struct Node {
   }
 
   BlockIdType blockId{0};
-  std::array<std::uint8_t, BLOCK_DIGEST_SIZE> parentDigest;
+  BlockDigest parentDigest;
   sparse_merkle::Hash stateHash;
   sparse_merkle::Version stateRootVersion;
   Keys keys;
@@ -95,6 +92,4 @@ concordUtils::Sliver createNode(const Node &node);
 // Parses a block node from a raw buffer.
 Node parseNode(const concordUtils::Sliver &buffer);
 
-}  // namespace detail
-
-}  // namespace concord::kvbc::v2MerkleTree::block
+}  // namespace concord::kvbc::v2MerkleTree::block::detail

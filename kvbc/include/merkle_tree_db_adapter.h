@@ -112,6 +112,12 @@ class DBAdapter : public IDbAdapter {
   // Throws if an error occurs. Throws a ::concord::kvbc::NotFoundException if the block doesn't exist.
   void deleteBlock(const BlockId &blockId) override;
 
+  // Returns the block data in the form of a set of key/value pairs.
+  SetOfKeyValuePairs getBlockData(const RawBlock &rawBlock) const override;
+
+  // Returns the parent digest of the passed block.
+  BlockDigest getParentDigest(const RawBlock &rawBlock) const override;
+
   std::shared_ptr<storage::IDBClient> getDb() const override { return db_; }
 
   // Returns the current state hash from the internal merkle tree implementation.

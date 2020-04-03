@@ -82,6 +82,12 @@ class DBAdapter : public IDbAdapter {
   BlockId getLatestBlockId() const override;
   BlockId getLastReachableBlockId() const override;
 
+  // Returns the block data in the form of a set of key/value pairs.
+  SetOfKeyValuePairs getBlockData(const RawBlock &rawBlock) const override;
+
+  // Returns the parent digest of the passed block.
+  BlockDigest getParentDigest(const RawBlock &rawBlock) const override;
+
   std::shared_ptr<storage::IDBClient> getDb() const override { return db_; }
 
  private:

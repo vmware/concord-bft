@@ -19,6 +19,7 @@
 #include "block.h"
 #include "db_interfaces.h"
 #include "db_adapter.h"
+#include "direct_kv_block.h"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 #include "hex_tools.h"
 
@@ -336,17 +337,16 @@ DBAdapter::DBAdapter(std::shared_ptr<storage::IDBClient> db, std::unique_ptr<IDa
 
 BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &kv) {
   BlockId blockId = getLastReachableBlockId() + 1;
-  bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest stDigest;
+  // Make sure the digest is zero-initialized by using {} initialization.
+  auto blockDigest = BlockDigest{};
   if (blockId > 1) {
-    Sliver parentBlockData = getRawBlock(blockId - 1);
+    const auto parentBlockData = getRawBlock(blockId - 1);
     bftEngine::SimpleBlockchainStateTransfer::computeBlockDigest(
-        blockId - 1, reinterpret_cast<const char *>(parentBlockData.data()), parentBlockData.length(), &stDigest);
-  } else {
-    std::memset(stDigest.content, 0, bftEngine::SimpleBlockchainStateTransfer::BLOCK_DIGEST_SIZE);
+        blockId - 1, reinterpret_cast<const char *>(parentBlockData.data()), parentBlockData.length(), blockDigest);
   }
 
   SetOfKeyValuePairs outKv;
-  const auto block = block::create(kv, outKv, stDigest.content);
+  const auto block = block::detail::create(kv, outKv, blockDigest);
   if (Status s = addBlockAndUpdateMultiKey(outKv, blockId, block); !s.isOK())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": failed: ") + s.toString());
   return blockId;
@@ -355,7 +355,7 @@ BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &kv) {
 void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId) {
   SetOfKeyValuePairs keys;
   if (block.length() > 0) {
-    keys = block::getData(block);
+    keys = getBlockData(block);
   }
   if (Status s = addBlockAndUpdateMultiKey(keys, blockId, block); !s.isOK())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": failed: blockId: ") + std::to_string(blockId) +
@@ -523,6 +523,12 @@ BlockId DBAdapter::getLastReachableBlockId() const {
 
   db_->freeIterator(iter);
   return lastReachableId;
+}
+
+SetOfKeyValuePairs DBAdapter::getBlockData(const RawBlock &rawBlock) const { return block::detail::getData(rawBlock); }
+
+BlockDigest DBAdapter::getParentDigest(const RawBlock &rawBlock) const {
+  return block::detail::getParentDigest(rawBlock);
 }
 
 }  // namespace v1DirectKeyValue

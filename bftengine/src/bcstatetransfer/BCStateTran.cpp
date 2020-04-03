@@ -47,6 +47,13 @@ void computeBlockDigest(const uint64_t blockId,
   return impl::BCStateTran::computeDigestOfBlock(blockId, block, blockSize, (impl::STDigest *)outDigest);
 }
 
+void computeBlockDigest(const uint64_t blockId,
+                        const char *block,
+                        const uint32_t blockSize,
+                        std::array<std::uint8_t, BLOCK_DIGEST_SIZE> &outDigest) {
+  return impl::BCStateTran::computeDigestOfBlock(blockId, block, blockSize, outDigest);
+}
+
 IStateTransfer *create(const Config &config,
                        IAppState *const stateApi,
                        std::shared_ptr<concord::storage::IDBClient> dbc) {
@@ -2288,6 +2295,18 @@ void BCStateTran::computeDigestOfPagesDescriptor(const DataStore::ResPagesDescri
   c.writeDigest(reinterpret_cast<char *>(&outDigest));
 }
 
+static void computeDigestOfBlockImpl(const uint64_t blockNum,
+                                     const char *block,
+                                     const uint32_t blockSize,
+                                     char *outDigest) {
+  Assert(blockNum > 0);
+  Assert(blockSize > 0);
+  DigestContext c;
+  c.update(reinterpret_cast<const char *>(&blockNum), sizeof(blockNum));
+  c.update(block, blockSize);
+  c.writeDigest(outDigest);
+}
+
 void BCStateTran::computeDigestOfBlock(const uint64_t blockNum,
                                        const char *block,
                                        const uint32_t blockSize,
@@ -2298,13 +2317,14 @@ void BCStateTran::computeDigestOfBlock(const uint64_t blockNum,
   uint64_t* p = (uint64_t*)outDigest;
   *p = blockNum;
   */
+  computeDigestOfBlockImpl(blockNum, block, blockSize, reinterpret_cast<char *>(outDigest));
+}
 
-  Assert(blockNum > 0);
-  Assert(blockSize > 0);
-  DigestContext c;
-  c.update(reinterpret_cast<const char *>(&blockNum), sizeof(blockNum));
-  c.update(block, blockSize);
-  c.writeDigest(reinterpret_cast<char *>(outDigest));
+void BCStateTran::computeDigestOfBlock(const uint64_t blockNum,
+                                       const char *block,
+                                       const uint32_t blockSize,
+                                       std::array<std::uint8_t, BLOCK_DIGEST_SIZE> &outDigest) {
+  computeDigestOfBlockImpl(blockNum, block, blockSize, reinterpret_cast<char *>(outDigest.data()));
 }
 
 void BCStateTran::SetAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {

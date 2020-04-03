@@ -130,7 +130,7 @@ Status ReplicaImp::getBlockData(BlockId blockId, SetOfKeyValuePairs &outBlockDat
 
   try {
     Sliver block = getBlockInternal(blockId);
-    outBlockData = block::getData(block);
+    outBlockData = m_bcDbAdapter->getBlockData(block);
   } catch (const NotFoundException &e) {
     return Status::NotFound("todo");
   }
@@ -305,7 +305,7 @@ Status ReplicaImp::StorageWrapperForIdleMode::getBlockData(BlockId blockId, SetO
 
   try {
     Sliver block = rep->getBlockInternal(blockId);
-    outBlockData = block::getData(block);
+    outBlockData = rep->getBcDbAdapter()->getBlockData(block);
   } catch (const NotFoundException &e) {
     return Status::NotFound("todo");
   }
@@ -369,9 +369,11 @@ bool ReplicaImp::BlockchainAppState::getPrevDigestFromBlock(uint64_t blockId, St
   assert(blockId > 0);
   try {
     RawBlock result = m_ptrReplicaImpl->m_bcDbAdapter->getRawBlock(blockId);
-    auto parentDigest = block::getParentDigest(result);
+    auto parentDigest = m_ptrReplicaImpl->m_bcDbAdapter->getParentDigest(result);
     assert(outPrevBlockDigest);
-    memcpy(outPrevBlockDigest, parentDigest, BLOCK_DIGEST_SIZE);
+    static_assert(parentDigest.size() == BLOCK_DIGEST_SIZE);
+    static_assert(sizeof(StateTransferDigest) == BLOCK_DIGEST_SIZE);
+    memcpy(outPrevBlockDigest, parentDigest.data(), BLOCK_DIGEST_SIZE);
     return true;
   } catch (const NotFoundException &e) {
     LOG_FATAL(m_logger, "Block not found for parent digest, ID: " << blockId);

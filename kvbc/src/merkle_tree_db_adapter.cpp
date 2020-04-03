@@ -38,7 +38,6 @@ using ::concord::storage::IDBClient;
 using ::concord::storage::ObjectId;
 
 using ::bftEngine::SimpleBlockchainStateTransfer::computeBlockDigest;
-using ::bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest;
 
 using sparse_merkle::BatchedInternalNode;
 using sparse_merkle::Hash;
@@ -301,13 +300,13 @@ BlockId DBAdapter::getLatestBlockId() const {
 
 Sliver DBAdapter::createBlockNode(const SetOfKeyValuePairs &updates, BlockId blockId) const {
   // Make sure the digest is zero-initialized by using {} initialization.
-  auto parentBlockDigest = StateTransferDigest{};
+  auto parentBlockDigest = BlockDigest{};
   if (blockId > 1) {
     const auto parentBlock = getRawBlock(blockId - 1);
-    computeBlockDigest(blockId - 1, parentBlock.data(), parentBlock.length(), &parentBlockDigest);
+    computeBlockDigest(blockId - 1, parentBlock.data(), parentBlock.length(), parentBlockDigest);
   }
 
-  auto node = BlockNode{blockId, parentBlockDigest.content, smTree_.get_root_hash(), smTree_.get_version()};
+  auto node = BlockNode{blockId, parentBlockDigest, smTree_.get_root_hash(), smTree_.get_version()};
   for (const auto &[k, v] : updates) {
     // Treat empty values as deleted keys.
     node.keys.emplace(k, BlockKeyData{v.empty()});
@@ -352,7 +351,7 @@ RawBlock DBAdapter::getRawBlock(const BlockId &blockId) const {
     }
   }
 
-  return block::create(keyValues, blockNode.parentDigest.data(), blockNode.stateHash);
+  return block::detail::create(keyValues, blockNode.parentDigest, blockNode.stateHash);
 }
 
 SetOfKeyValuePairs DBAdapter::lastReachableBlockDbUpdates(const SetOfKeyValuePairs &updates, BlockId blockId) {
@@ -442,7 +441,7 @@ void DBAdapter::writeSTLinkTransaction(const Key &sTBlockKey, const Sliver &bloc
   txn->del(sTBlockKey);
 
   // Put the block DB updates in the transaction.
-  const auto addDbUpdates = lastReachableBlockDbUpdates(block::getData(block), blockId);
+  const auto addDbUpdates = lastReachableBlockDbUpdates(getBlockData(block), blockId);
   for (const auto &[key, value] : addDbUpdates) {
     txn->put(key, value);
   }
@@ -460,7 +459,7 @@ void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId) {
   } else if (lastReachableBlock + 1 == blockId) {
     // If adding the next block, append to the blockchain via the merkle tree and try to link with the ST temporary
     // chain.
-    addBlock(block::getData(block));
+    addBlock(getBlockData(block));
 
     try {
       linkSTChainFrom(blockId + 1);
@@ -486,5 +485,11 @@ void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId) {
 }
 
 void DBAdapter::deleteBlock(const BlockId &blockId) { throw std::runtime_error{"Not implemented"}; }
+
+SetOfKeyValuePairs DBAdapter::getBlockData(const RawBlock &rawBlock) const { return block::detail::getData(rawBlock); }
+
+BlockDigest DBAdapter::getParentDigest(const RawBlock &rawBlock) const {
+  return block::detail::getParentDigest(rawBlock);
+}
 
 }  // namespace concord::kvbc::v2MerkleTree
