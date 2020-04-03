@@ -193,7 +193,7 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
   auto* theMsgStore = dynamic_cast<IncomingMsgsStorageImp*>(&(replica.getIncomingMsgsStorage()));
   theMsgStore->start();
   auto operation_status = replica.combine_operation_future.get();
-  assert(operation_status == DummyReplica::PrepareCombinedSigOperationStatus::OPERATION_SUCCEEDED);
+  Assert(operation_status == DummyReplica::PrepareCombinedSigOperationStatus::OPERATION_SUCCEEDED);
   auto pfMsg = replica.GetSeqNumInfo().getValidPrepareFullMsg();
 
   ViewChangeMsg** viewChangeMsgs = new ViewChangeMsg*[N];
