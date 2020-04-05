@@ -44,13 +44,12 @@ ClientRequestMsg::ClientRequestMsg(NodeIdType sender,
                   MsgCode::ClientRequest,
                   span_context.size(),
                   (sizeof(ClientRequestMsgHeader) + requestLength + cid.size())) {
-  setParams(sender, reqSeqNum, requestLength, flags, reqTimeoutMilli);
-  msgBody()->cid_length = cid.size();
+  setParams(sender, reqSeqNum, requestLength, flags, reqTimeoutMilli, cid, span_context);
   char* position = body() + sizeof(ClientRequestMsgHeader);
   memcpy(position, span_context.data(), span_context.size());
-  position = position + span_context.size();
+  position += span_context.size();
   memcpy(position, request, requestLength);
-  position = position + requestLength;
+  position += requestLength;
   memcpy(position, cid.data(), cid.size());
 }
 
@@ -70,22 +69,24 @@ void ClientRequestMsg::setParams(NodeIdType sender,
                                  ReqId reqSeqNum,
                                  uint32_t requestLength,
                                  uint8_t flags,
+                                 uint64_t reqTimeoutMilli,
                                  const std::string& cid,
-                                 uint64_t reqTimeoutMilli) {
+                                 const std::string& span_context) {
   msgBody()->idOfClientProxy = sender;
   msgBody()->timeoutMilli = reqTimeoutMilli;
   msgBody()->reqSeqNum = reqSeqNum;
   msgBody()->requestLength = requestLength;
   msgBody()->flags = flags;
-   msgBody()->cid_length = cid.size();
-  char* position = body() + sizeof(ClientRequestMsgHeader);
-  memcpy(position, span_context.data(), span_context.size());
-  position = position + span_context.size();
-  memcpy(position, request, requestLength);
-  position = position + requestLength;
-  memcpy(position, cid.data(), cid.size());
+  msgBody()->cid_length = cid.size();
 }
 
+std::string ClientRequestMsg::spanContext() const {
+  return std::string(body() + sizeof(ClientRequestMsgHeader), msgBody()->span_context_size);
+}
+
+std::string ClientRequestMsg::getCid() const {
+  return std::string(body() + sizeof(ClientRequestMsgHeader) + msgBody()->requestLength + spanContextSize(),
+                     msgBody()->cid_length);
 }
 
 }  // namespace bftEngine::impl

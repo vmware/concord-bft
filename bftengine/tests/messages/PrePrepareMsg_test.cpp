@@ -23,11 +23,13 @@ ReplicaConfig create_replica_config() {
 ClientRequestMsg create_client_request() {
   uint64_t reqSeqNum = 100u;
   const char request[] = {"request body"};
+  const uint64_t request_timeout_milli = 0;
   const std::string correlation_id = "correlation_id";
   const char raw_span_context[] = {"span_\0context"};
   const std::string span_context{raw_span_context, sizeof(raw_span_context)};
 
-  return ClientRequestMsg(1u, 'F', reqSeqNum, sizeof(request), request, correlation_id, span_context);
+  return ClientRequestMsg(
+      1u, 'F', reqSeqNum, sizeof(request), request, request_timeout_milli, correlation_id, span_context);
 }
 
 TEST(PrePrepareMsg, create_and_compare) {

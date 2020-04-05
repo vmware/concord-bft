@@ -21,7 +21,7 @@ class ClientRequestMsg : public MessageBase {
   // TODO(GG): requests should always be verified by the application layer !!!
 
   static_assert((uint16_t)REQUEST_MSG_TYPE == (uint16_t)MsgCode::ClientRequest, "");
-  static_assert(sizeof(ClientRequestMsgHeader::msgType) == sizeof(MessageBase::Header), "");
+  static_assert(sizeof(ClientRequestMsgHeader::msgType) == sizeof(MessageBase::Header::msgType), "");
   static_assert(sizeof(ClientRequestMsgHeader::idOfClientProxy) == sizeof(NodeIdType), "");
   static_assert(sizeof(ClientRequestMsgHeader::reqSeqNum) == sizeof(ReqId), "");
   static_assert(sizeof(ClientRequestMsgHeader) == 33, "ClientRequestMsgHeader size is 21B");
@@ -50,11 +50,12 @@ class ClientRequestMsg : public MessageBase {
 
   uint32_t requestLength() const { return msgBody()->requestLength; }
 
-  char* requestBuf() const { return body() + sizeof(ClientRequestMsgHeader); }
+  char* requestBuf() const { return body() + sizeof(ClientRequestMsgHeader) + msgBody()->span_context_size; }
 
   uint64_t requestTimeoutMilli() const { return msgBody()->timeoutMilli; }
 
   std::string getCid() const;
+  std::string spanContext() const override;
   void validate(const ReplicasInfo&) const override;
 
  protected:
@@ -65,8 +66,9 @@ class ClientRequestMsg : public MessageBase {
                  ReqId reqSeqNum,
                  uint32_t requestLength,
                  uint8_t flags,
+                 uint64_t reqTimeoutMilli,
                  const std::string& cid,
-                 uint64_t reqTimeoutMilli);
-};
+                 const std::string& span_context);
+};  // namespace bftEngine::impl
 
 }  // namespace bftEngine::impl
