@@ -24,7 +24,8 @@ class ReplicaStatusMsg : public MessageBase {
                    bool hasNewChangeMsg,
                    bool listOfPrePrepareMsgsInActiveWindow,
                    bool listOfMissingViewChangeMsgForViewChange,
-                   bool listOfMissingPrePrepareMsgForViewChange);
+                   bool listOfMissingPrePrepareMsgForViewChange,
+                   const std::string& spanContext = "");
 
   ViewNum getViewNumber() const;
 
@@ -56,6 +57,10 @@ class ReplicaStatusMsg : public MessageBase {
 
   void validate(const ReplicasInfo&) const override;
 
+  std::string spanContext() const override {
+    return std::string(body() + sizeof(ReplicaStatusMsgHeader), msgBody_->span_context_size);
+  }
+
  protected:
 #pragma pack(push, 1)
   struct ReplicaStatusMsgHeader {
@@ -80,6 +85,8 @@ class ReplicaStatusMsg : public MessageBase {
                                             bool listOfMissingPrePrepareMsgForViewChange);
 
   ReplicaStatusMsgHeader* b() const { return (ReplicaStatusMsgHeader*)msgBody_; }
+
+  size_t payloadShift() const { return sizeof(ReplicaStatusMsgHeader) + msgBody_->span_context_size; }
 };
 }  // namespace impl
 }  // namespace bftEngine

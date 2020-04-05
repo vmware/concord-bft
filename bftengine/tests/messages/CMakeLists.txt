@@ -89,3 +89,13 @@ target_include_directories(StartSlowCommitMsg_test
 target_link_libraries(StartSlowCommitMsg_test GTest::Main)
 target_link_libraries(StartSlowCommitMsg_test corebft $<TARGET_OBJECTS:logging_dev>)
 target_compile_options(StartSlowCommitMsg_test PUBLIC "-Wno-sign-compare")
+
+add_executable(ReplicaStatusMsg_test ReplicaStatusMsg_test.cpp helper.cpp)
+add_test(ReplicaStatusMsg_test ReplicaStatusMsg_test)
+find_package(GTest REQUIRED)
+target_include_directories(ReplicaStatusMsg_test
+      PRIVATE
+      ${bftengine_SOURCE_DIR}/src/bftengine)
+target_link_libraries(ReplicaStatusMsg_test GTest::Main)
+target_link_libraries(ReplicaStatusMsg_test corebft $<TARGET_OBJECTS:logging_dev>)
+target_compile_options(ReplicaStatusMsg_test PUBLIC "-Wno-sign-compare")

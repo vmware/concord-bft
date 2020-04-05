@@ -50,9 +50,11 @@ ReplicaStatusMsg::ReplicaStatusMsg(ReplicaId senderId,
                                    bool hasNewChangeMsg,
                                    bool listOfPPInActiveWindow,
                                    bool listOfMissingVCForVC,
-                                   bool listOfMissingPPForVC)
+                                   bool listOfMissingPPForVC,
+                                   const std::string& spanContext)
     : MessageBase(senderId,
                   MsgCode::ReplicaStatus,
+                  spanContext.size(),
                   calcSizeOfReplicaStatusMsg(listOfPPInActiveWindow, listOfMissingVCForVC, listOfMissingPPForVC)) {
   Assert(lastExecutedSeqNum >= lastStableSeqNum);
   Assert(lastStableSeqNum % checkpointWindowSize == 0);
@@ -76,11 +78,11 @@ ReplicaStatusMsg::ReplicaStatusMsg(ReplicaId senderId,
   } else if (listOfMissingPPForVC) {
     b()->flags |= powersOf2[4];
   }
-
-  if (size() > sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader)) {
+  std::memcpy(body() + sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader), spanContext.data(), spanContext.size());
+  if (size() > sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader) + msgBody_->span_context_size) {
     // write zero to all bits in list
-    MsgSize listSize = size() - sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader);
-    char* p = body() + sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader);
+    MsgSize listSize = size() - payloadShift();
+    char* p = body() + payloadShift();
     memset(p, 0, listSize);
   }
 }
@@ -101,7 +103,8 @@ void ReplicaStatusMsg::validate(const ReplicasInfo& repInfo) const {
       !(!viewIsActive || !listOfMissingPPForVC) ||   // if NOT (viewIsActive --> !listOfMissingPPForVC)
       !(viewIsActive || !listOfPPInActiveWindow) ||  // if NOT (!viewIsActive --> !listOfPPInActiveWindow)
       (((listOfPPInActiveWindow ? 1 : 0) + (listOfMissingVCForVC ? 1 : 0) + (listOfMissingPPForVC ? 1 : 0)) >= 2) ||
-      size() != calcSizeOfReplicaStatusMsg(listOfPPInActiveWindow, listOfMissingVCForVC, listOfMissingPPForVC))
+      size() != calcSizeOfReplicaStatusMsg(listOfPPInActiveWindow, listOfMissingVCForVC, listOfMissingPPForVC) +
+                    msgBody_->span_context_size)
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": advanced"));
 }
 
@@ -129,7 +132,7 @@ bool ReplicaStatusMsg::isPrePrepareInActiveWindow(SeqNum seqNum) const {
   size_t index = (size_t)(seqNum - b()->lastStableSeqNum - 1);
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
-  uint8_t* p = (uint8_t*)body() + sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader);
+  uint8_t* p = (uint8_t*)body() + payloadShift();
   return ((p[byteIndex] & powersOf2[bitIndex]) != 0);
 }
 
@@ -140,7 +143,7 @@ bool ReplicaStatusMsg::isMissingViewChangeMsgForViewChange(ReplicaId replicaId) 
   size_t index = replicaId;
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
-  uint8_t* p = (uint8_t*)body() + sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader);
+  uint8_t* p = (uint8_t*)body() + payloadShift();
   return ((p[byteIndex] & powersOf2[bitIndex]) != 0);
 }
 
@@ -152,7 +155,7 @@ bool ReplicaStatusMsg::isMissingPrePrepareMsgForViewChange(SeqNum seqNum) const 
   size_t index = (size_t)(seqNum - b()->lastStableSeqNum - 1);
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
-  uint8_t* p = (uint8_t*)body() + sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader);
+  uint8_t* p = (uint8_t*)body() + payloadShift();
   return ((p[byteIndex] & powersOf2[bitIndex]) != 0);
 }
 
@@ -163,7 +166,7 @@ void ReplicaStatusMsg::setPrePrepareInActiveWindow(SeqNum seqNum) const {
   size_t index = (size_t)(seqNum - b()->lastStableSeqNum - 1);
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
-  uint8_t* p = (uint8_t*)body() + sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader);
+  uint8_t* p = (uint8_t*)body() + payloadShift();
   p[byteIndex] = p[byteIndex] | powersOf2[bitIndex];
 }
 
@@ -173,7 +176,7 @@ void ReplicaStatusMsg::setMissingViewChangeMsgForViewChange(ReplicaId replicaId)
   size_t index = replicaId;
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
-  uint8_t* p = (uint8_t*)body() + sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader);
+  uint8_t* p = (uint8_t*)body() + payloadShift();
   p[byteIndex] = p[byteIndex] | powersOf2[bitIndex];
 }
 
@@ -184,7 +187,7 @@ void ReplicaStatusMsg::setMissingPrePrepareMsgForViewChange(SeqNum seqNum) {
   size_t index = (size_t)(seqNum - b()->lastStableSeqNum - 1);
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
-  uint8_t* p = (uint8_t*)body() + sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader);
+  uint8_t* p = (uint8_t*)body() + payloadShift();
   p[byteIndex] = p[byteIndex] | powersOf2[bitIndex];
 }
 
