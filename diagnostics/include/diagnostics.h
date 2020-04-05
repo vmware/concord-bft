@@ -55,8 +55,8 @@ class Registrar {
   }
 
   std::string describeStatus() const {
-    std::lock_guard<std::mutex> guard(mutex_);
     std::string output;
+    std::lock_guard<std::mutex> guard(mutex_);
     for (const auto& [_, handler] : status_handlers_) {
       (void)_;  // undefined variable hack
       output += "\n" + handler.name + "\n  ";
@@ -78,6 +78,22 @@ class Registrar {
  private:
   std::map<std::string, StatusHandler> status_handlers_;
   mutable std::mutex mutex_;
+};
+
+// Singleton wrapper class for a Registrar.
+class RegistrarSingleton {
+ public:
+  static Registrar& getInstance() {
+    static Registrar registrar_;
+    return registrar_;
+  }
+
+  RegistrarSingleton(const RegistrarSingleton&) = delete;
+  RegistrarSingleton& operator=(const RegistrarSingleton&) = delete;
+
+ private:
+  RegistrarSingleton() = default;
+  ~RegistrarSingleton() = default;
 };
 
 }  // namespace concord::diagnostics
