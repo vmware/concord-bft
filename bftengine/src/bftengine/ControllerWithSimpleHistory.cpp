@@ -44,6 +44,9 @@ ControllerWithSimpleHistory::ControllerWithSimpleHistory(
   }
 }
 
+// Resets `recentActivity`, a data structure that stores `EvaluationPeriod` num of requests.
+// The starting index is initialized to the next sequence number,
+// that is a multiplication of EvaluationPeriod plus one.
 void ControllerWithSimpleHistory::onBecomePrimary(ViewNum v, SeqNum s) {
   Assert(isPrimary);
 
@@ -121,6 +124,20 @@ bool ControllerWithSimpleHistory::onEndOfEvaluationPeriod() {
   bool downgraded = false;
   bool currentFirstPathChanged = false;
 
+  // Upgrade/Downgrade current path -
+  // If SLOW_PATH, test for upgrade
+  //    Iterate over the last X(64) executions and count How many times -
+  //    - All replicas have participated in a transaction i.e. cyclesWithFullCooperation.
+  //    - Between 3F+C and 3F+2C+1 replicas have participated i.e. cyclesWithPartialCooperation.
+  //    If cyclesWithFullCooperation is greater than factorForFastOptimisticPath * EvaluationPeriod then upgrade to:
+  //    OPTIMISTIC_FAST.
+  //    Else - if C > 0 and cyclesWithFullCooperation + cyclesWithPartialCooperation is greater than:
+  //    factorForFastPath * EvaluationPeriod, upgrade to FAST_WITH_THRESHOLD.
+  // If FAST(can be optimistic or with threshold), test for downgrade
+  //    Count the number of successful fast paths in the evaluation period.
+  //    If successfulFastPaths is less than factor * EvaluationPeriod then:
+  //    - If the current path is OPTIMISTIC_PATH and C > 0, downgrade to FAST_WITH_THRESHOLD.
+  //    - Else downgrade to SLOW.
   if (currentFirstPath == CommitPath::SLOW) {
     size_t cyclesWithFullCooperation = 0;
     size_t cyclesWithPartialCooperation = 0;
@@ -176,6 +193,9 @@ bool ControllerWithSimpleHistory::onEndOfEvaluationPeriod() {
 
   if (lastFirstPathVal != currentFirstPath) LOG_INFO_F(GL, "currentFirstPath = %d", (int)currentFirstPath);
 
+  // Adaptive tuning of the slow path duration threshold -
+  //  - initialize the threshold to the `mean + 2*(standard deviation)` of the last executions.
+  //  - Check that it's within bounds of min/max ranges.
   const double execAvg = avgAndStdOfExecTime.avg();
   const double execVar = avgAndStdOfExecTime.var();
   const double execStd = ((execVar) > 0 ? sqrt(execVar) : 0);
