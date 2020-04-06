@@ -25,8 +25,15 @@ class AskForCheckpointMsg : public MessageBase {
     return maxSizeOfAskForCheckpointMsg() + sizeof(RawHeaderOfObjAndMsg);
   }
 
-  AskForCheckpointMsg(ReplicaId senderId)
-      : MessageBase(senderId, MsgCode::AskForCheckpoint, sizeof(AskForCheckpointMsgHeader)) {}
+  AskForCheckpointMsg(ReplicaId senderId, const std::string& spanContext = "")
+      : MessageBase(senderId, MsgCode::AskForCheckpoint, spanContext.size(), sizeof(AskForCheckpointMsgHeader)) {
+    char* position = body() + sizeof(AskForCheckpointMsgHeader);
+    memcpy(position, spanContext.data(), spanContext.size());
+  }
+
+  std::string spanContext() const override {
+    return std::string(body() + sizeof(AskForCheckpointMsgHeader), spanContextSize());
+  }
 
   AskForCheckpointMsg* clone() { return new AskForCheckpointMsg(*this); }
 
@@ -34,7 +41,9 @@ class AskForCheckpointMsg : public MessageBase {
     Assert(type() == MsgCode::AskForCheckpoint);
     Assert(senderId() != repInfo.myId());
 
-    if (size() > sizeof(AskForCheckpointMsgHeader)) throw std::runtime_error(__PRETTY_FUNCTION__);
+    if (size() > sizeof(AskForCheckpointMsgHeader) + spanContextSize()) {
+      throw std::runtime_error(__PRETTY_FUNCTION__);
+    }
   }
 
  protected:

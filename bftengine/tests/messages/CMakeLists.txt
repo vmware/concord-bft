@@ -99,3 +99,13 @@ target_include_directories(ReplicaStatusMsg_test
 target_link_libraries(ReplicaStatusMsg_test GTest::Main)
 target_link_libraries(ReplicaStatusMsg_test corebft $<TARGET_OBJECTS:logging_dev>)
 target_compile_options(ReplicaStatusMsg_test PUBLIC "-Wno-sign-compare")
+
+add_executable(AskForCheckpointMsg_test AskForCheckpointMsg_test.cpp helper.cpp)
+add_test(AskForCheckpointMsg_test AskForCheckpointMsg_test)
+find_package(GTest REQUIRED)
+target_include_directories(AskForCheckpointMsg_test
+      PRIVATE
+      ${bftengine_SOURCE_DIR}/src/bftengine)
+target_link_libraries(AskForCheckpointMsg_test GTest::Main)
+target_link_libraries(AskForCheckpointMsg_test corebft $<TARGET_OBJECTS:logging_dev>)
+target_compile_options(AskForCheckpointMsg_test PUBLIC "-Wno-sign-compare")
