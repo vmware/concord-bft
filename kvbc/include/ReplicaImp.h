@@ -87,6 +87,8 @@ class ReplicaImp : public IReplica, public ILocalKeyValueStorageReadOnly, public
   IDbAdapter *getBcDbAdapter() const { return m_bcDbAdapter; }
 
  private:
+  friend class StorageWrapperForIdleMode;
+
   void createReplicaAndSyncState();
 
   // INTERNAL TYPES

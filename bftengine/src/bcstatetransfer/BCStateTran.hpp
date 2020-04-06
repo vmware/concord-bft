@@ -21,6 +21,8 @@
 #include <cassert>
 #include <iostream>
 #include <string>
+#include <array>
+#include <cstdint>
 
 #include "Logger.hpp"
 #include "SimpleBCStateTransfer.hpp"
@@ -310,6 +312,10 @@ class BCStateTran : public IStateTransfer {
                                    const char* block,
                                    const uint32_t blockSize,
                                    STDigest* outDigest);
+
+  static std::array<std::uint8_t, BLOCK_DIGEST_SIZE> computeDigestOfBlock(const uint64_t blockNum,
+                                                                          const char* block,
+                                                                          const uint32_t blockSize);
 
   ///////////////////////////////////////////////////////////////////////////
   // Metrics

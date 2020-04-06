@@ -13,7 +13,7 @@
 
 #pragma once
 
-#include "bcstatetransfer/SimpleBCStateTransfer.hpp"
+#include "block_digest.h"
 #include "kv_types.hpp"
 #include "sliver.hpp"
 
@@ -25,29 +25,25 @@ namespace concord {
 namespace kvbc {
 inline namespace v1DirectKeyValue {
 namespace block {
-inline constexpr auto BLOCK_DIGEST_SIZE = bftEngine::SimpleBlockchainStateTransfer::BLOCK_DIGEST_SIZE;
-
+namespace detail {
 // Creates a block with the user data appended at the end of the returned Sliver. The passed parentDigest buffer must be
 // of size BLOCK_DIGEST_SIZE bytes.
 concordUtils::Sliver create(const concord::kvbc::SetOfKeyValuePairs &updates,
                             concord::kvbc::SetOfKeyValuePairs &outUpdatesInNewBlock,
-                            const void *parentDigest,
+                            const BlockDigest &parentDigest,
                             const void *userData,
                             std::size_t userDataSize);
 
 // Creates a block. The passed parentDigest buffer must be of size BLOCK_DIGEST_SIZE bytes.
 concordUtils::Sliver create(const concord::kvbc::SetOfKeyValuePairs &updates,
                             concord::kvbc::SetOfKeyValuePairs &outUpdatesInNewBlock,
-                            const void *parentDigest);
+                            const BlockDigest &parentDigest);
 
 // Returns the block data in the form of a set of key/value pairs.
 concord::kvbc::SetOfKeyValuePairs getData(const concordUtils::Sliver &block);
 
 // Returns the parent digest of size BLOCK_DIGEST_SIZE bytes.
-const void *getParentDigest(const concordUtils::Sliver &block);
-
-// Block structure is an implementation detail. External users should not rely on it.
-namespace detail {
+BlockDigest getParentDigest(const concordUtils::Sliver &block);
 
 struct Header {
   std::uint32_t numberOfElements;
@@ -64,9 +60,7 @@ struct Entry {
 };
 
 }  // namespace detail
-
 }  // namespace block
-
 }  // namespace v1DirectKeyValue
 }  // namespace kvbc
 }  // namespace concord

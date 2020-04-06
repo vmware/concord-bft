@@ -13,9 +13,10 @@ using concord::kvbc::KeyValuePair;
 namespace concord::kvbc {
 inline namespace v1DirectKeyValue {
 namespace block {
+namespace detail {
 Sliver create(const SetOfKeyValuePairs &updates,
               SetOfKeyValuePairs &outUpdatesInNewBlock,
-              const void *parentDigest,
+              const BlockDigest &parentDigest,
               const void *userData,
               std::size_t userDataSize) {
   // TODO(GG): overflow handling ....
@@ -40,7 +41,7 @@ Sliver create(const SetOfKeyValuePairs &updates,
     const Sliver blockSliver(blockBuffer, blockSize);
 
     auto header = (detail::Header *)blockBuffer;
-    std::memcpy(header->parentDigest, parentDigest, BLOCK_DIGEST_SIZE);
+    std::memcpy(header->parentDigest, parentDigest.data(), BLOCK_DIGEST_SIZE);
     header->parentDigestLength = BLOCK_DIGEST_SIZE;
 
     std::int16_t idx = 0;
@@ -91,7 +92,9 @@ Sliver create(const SetOfKeyValuePairs &updates,
   }
 }
 
-Sliver create(const SetOfKeyValuePairs &updates, SetOfKeyValuePairs &outUpdatesInNewBlock, const void *parentDigest) {
+Sliver create(const SetOfKeyValuePairs &updates,
+              SetOfKeyValuePairs &outUpdatesInNewBlock,
+              const BlockDigest &parentDigest) {
   return create(updates, outUpdatesInNewBlock, parentDigest, nullptr, 0);
 }
 
@@ -110,12 +113,15 @@ SetOfKeyValuePairs getData(const Sliver &block) {
   return retVal;
 }
 
-const void *getParentDigest(const concordUtils::Sliver &block) {
+BlockDigest getParentDigest(const concordUtils::Sliver &block) {
   const auto *bh = reinterpret_cast<const detail::Header *>(block.data());
   assert(BLOCK_DIGEST_SIZE == bh->parentDigestLength);
-  return bh->parentDigest;
+  BlockDigest digest;
+  std::memcpy(digest.data(), bh->parentDigest, BLOCK_DIGEST_SIZE);
+  return digest;
 }
 
+}  // namespace detail
 }  // namespace block
 }  // namespace v1DirectKeyValue
 }  // namespace concord::kvbc

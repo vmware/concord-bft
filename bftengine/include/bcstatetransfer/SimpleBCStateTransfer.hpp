@@ -14,6 +14,7 @@
 #ifndef BFTENGINE_SRC_BCSTATETRANSFER_SIMPLEBCSTATETRANSFER_HPP_
 #define BFTENGINE_SRC_BCSTATETRANSFER_SIMPLEBCSTATETRANSFER_HPP_
 
+#include <array>
 #include <cstdint>
 #include <set>
 #include <memory>
@@ -55,6 +56,10 @@ void computeBlockDigest(const uint64_t blockId,
                         const char *block,
                         const uint32_t blockSize,
                         StateTransferDigest *outDigest);
+
+std::array<std::uint8_t, BLOCK_DIGEST_SIZE> computeBlockDigest(const uint64_t blockId,
+                                                               const char *block,
+                                                               const uint32_t blockSize);
 
 // This interface should be implemented by the application/storage layer.
 // It is used by the state transfer module.

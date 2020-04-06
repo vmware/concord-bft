@@ -4,7 +4,7 @@
 
 #include "gtest/gtest.h"
 
-#include "bcstatetransfer/SimpleBCStateTransfer.hpp"
+#include "block_digest.h"
 #include "kv_types.hpp"
 #include "memorydb/client.h"
 #include "rocksdb/client.h"
@@ -40,12 +40,8 @@ inline void cleanup() { fs::remove_all(rocksDbPath()); }
 inline void cleanup() {}
 #endif
 
-inline ::bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest blockDigest(concord::kvbc::BlockId blockId,
-                                                                                   const concordUtils::Sliver &block) {
-  namespace st = ::bftEngine::SimpleBlockchainStateTransfer;
-  auto digest = st::StateTransferDigest{};
-  st::computeBlockDigest(blockId, block.data(), block.length(), &digest);
-  return digest;
+inline ::concord::kvbc::BlockDigest blockDigest(concord::kvbc::BlockId blockId, const concordUtils::Sliver &block) {
+  return ::bftEngine::SimpleBlockchainStateTransfer::computeBlockDigest(blockId, block.data(), block.length());
 }
 
 struct TestMemoryDb {

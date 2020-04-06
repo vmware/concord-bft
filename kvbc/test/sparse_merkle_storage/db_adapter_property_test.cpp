@@ -24,22 +24,20 @@
 #include <utility>
 #include <vector>
 
-using ::bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest;
+using ::concord::kvbc::BlockDigest;
 using ::concord::kvbc::BlockId;
 using ::concord::kvbc::Key;
 using ::concord::kvbc::SetOfKeyValuePairs;
 using ::concord::kvbc::Value;
 using ::concord::storage::IDBClient;
-using ::concord::kvbc::v2MerkleTree::block::create;
-using ::concord::kvbc::v2MerkleTree::block::getData;
-using ::concord::kvbc::v2MerkleTree::block::getParentDigest;
-using ::concord::kvbc::v2MerkleTree::block::getStateHash;
-using ::concord::kvbc::v2MerkleTree::block::BLOCK_DIGEST_SIZE;
+using ::concord::kvbc::v2MerkleTree::block::detail::create;
+using ::concord::kvbc::v2MerkleTree::block::detail::getData;
+using ::concord::kvbc::v2MerkleTree::block::detail::getParentDigest;
+using ::concord::kvbc::v2MerkleTree::block::detail::getStateHash;
 using ::concord::kvbc::v2MerkleTree::DBAdapter;
 using ::concord::kvbc::sparse_merkle::Hash;
 using ::concordUtils::Sliver;
 
-using ParentDigest = std::array<std::uint8_t, BLOCK_DIGEST_SIZE>;
 using HashArray = std::array<std::uint8_t, Hash::SIZE_IN_BYTES>;
 
 namespace rc {
@@ -67,13 +65,7 @@ struct Arbitrary<SetOfKeyValuePairs> {
 
 namespace {
 
-const auto zeroDigest = ParentDigest{};
-
-bool equal(const void *lhs, const ParentDigest &rhs) { return std::memcmp(lhs, rhs.data(), BLOCK_DIGEST_SIZE) == 0; }
-
-bool equal(const void *lhs, const StateTransferDigest &rhs) {
-  return std::memcmp(lhs, rhs.content, BLOCK_DIGEST_SIZE) == 0;
-}
+const auto zeroDigest = BlockDigest{};
 
 void addBlocks(const std::vector<SetOfKeyValuePairs> &blockUpdates, DBAdapter &adapter) {
   for (const auto &updates : blockUpdates) {
@@ -121,10 +113,10 @@ using db_adapter_kv_tests = ParametrizedTest<std::shared_ptr<IDbAdapterTest>>;
 // Test that fetched block parameters match the ones that were used to create the block.
 RC_GTEST_PROP(block,
               create,
-              (const SetOfKeyValuePairs &updates, const ParentDigest &parentDigest, const Hash &stateHash)) {
-  const auto block = create(updates, parentDigest.data(), stateHash);
+              (const SetOfKeyValuePairs &updates, const BlockDigest &parentDigest, const Hash &stateHash)) {
+  const auto block = create(updates, parentDigest, stateHash);
   RC_ASSERT(getData(block) == updates);
-  RC_ASSERT(equal(getParentDigest(block), parentDigest));
+  RC_ASSERT(getParentDigest(block) == parentDigest);
   RC_ASSERT(getStateHash(block) == stateHash);
 }
 
@@ -145,10 +137,10 @@ TEST_P(db_adapter_block_tests, blockchain_property) {
       const auto rawBlock = adapter.getRawBlock(i + 1);
       RC_ASSERT(getData(rawBlock) == blockUpdates[i]);
       if (i == 0) {
-        RC_ASSERT(equal(getParentDigest(rawBlock), zeroDigest));
+        RC_ASSERT(getParentDigest(rawBlock) == zeroDigest);
       } else {
         const auto rawPrevBlock = adapter.getRawBlock(i);
-        RC_ASSERT(equal(getParentDigest(rawBlock), blockDigest(i, rawPrevBlock)));
+        RC_ASSERT(getParentDigest(rawBlock) == blockDigest(i, rawPrevBlock));
       }
     }
   };
@@ -164,7 +156,7 @@ TEST_P(db_adapter_block_tests, add_block_at_back_equivalent_to_last_reachable) {
   const auto test = [this](const std::vector<SetOfKeyValuePairs> &blockchainUpdates,
                            const std::vector<SetOfKeyValuePairs> &stateTransferUpdates,
                            const SetOfKeyValuePairs &lastReachableUpdates,
-                           const ParentDigest &parentDigest,
+                           const BlockDigest &parentDigest,
                            const Hash &stateHash) {
     RC_PRE(!stateTransferUpdates.empty());
 
@@ -182,7 +174,7 @@ TEST_P(db_adapter_block_tests, add_block_at_back_equivalent_to_last_reachable) {
     // Then, add state transfer blocks at an offset, ensuring a gap.
     for (auto i = 0ul; i < stateTransferUpdates.size(); ++i) {
       const auto stBlockId = lastReachableBefore + stateTransferOffset + i;
-      adapter.addRawBlock(create(stateTransferUpdates[i], parentDigest.data(), stateHash), stBlockId);
+      adapter.addRawBlock(create(stateTransferUpdates[i], parentDigest, stateHash), stBlockId);
       RC_ASSERT(adapter.getLatestBlockId() == stBlockId);
     }
 
@@ -190,7 +182,7 @@ TEST_P(db_adapter_block_tests, add_block_at_back_equivalent_to_last_reachable) {
     RC_ASSERT(adapter.getLastReachableBlockId() == lastReachableBefore);
 
     // Lastly, add a single block at the back.
-    adapter.addRawBlock(create(lastReachableUpdates, parentDigest.data(), stateHash), lastReachableBefore + 1);
+    adapter.addRawBlock(create(lastReachableUpdates, parentDigest, stateHash), lastReachableBefore + 1);
 
     // Verify that the block was added as the last reachable and a gap still exists.
     RC_ASSERT(adapter.getLastReachableBlockId() == lastReachableBefore + 1);
@@ -206,7 +198,7 @@ TEST_P(db_adapter_block_tests, add_block_at_back_equivalent_to_last_reachable) {
 TEST_P(db_adapter_block_tests, reachable_during_state_transfer_property) {
   const auto test = [this](const std::vector<SetOfKeyValuePairs> &blockchainUpdates,
                            const std::vector<SetOfKeyValuePairs> &stateTransferUpdates,
-                           const ParentDigest &parentDigest,
+                           const BlockDigest &parentDigest,
                            const Hash &stateHash) {
     auto adapter = DBAdapter{GetParam()->db()};
 
@@ -217,7 +209,7 @@ TEST_P(db_adapter_block_tests, reachable_during_state_transfer_property) {
     const auto latestBlockId = blockchainUpdates.size() + stateTransferUpdates.size();
     for (auto i = 0ul; i < stateTransferUpdates.size(); ++i) {
       const auto blockId = latestBlockId - i;
-      adapter.addRawBlock(create(stateTransferUpdates[i], parentDigest.data(), stateHash), blockId);
+      adapter.addRawBlock(create(stateTransferUpdates[i], parentDigest, stateHash), blockId);
       if (blockId > blockchainUpdates.size() + 1) {
         RC_ASSERT(adapter.getLastReachableBlockId() == blockchainUpdates.size());
       }
