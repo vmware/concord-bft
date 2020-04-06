@@ -13,6 +13,8 @@
 #include "Logger.hpp"
 #include "CommDefs.hpp"
 
+#include "errnoString.hpp"
+
 #include <iostream>
 #include <cstddef>
 #include <cassert>
@@ -180,7 +182,7 @@ class PlainUDPCommunication::PlainUdpImpl {
     if (error < 0) {
       LOG_FATAL(_logger,
                 "Error while binding: IP=" << sAddr.sin_addr.s_addr << ", Port=" << sAddr.sin_port
-                                           << ", errno=" << strerror(errno));
+                                           << ", errno=" << concordUtils::errnoString(errno));
       Assert(false, "Failure occurred while binding the socket!");
       exit(1);  // TODO(GG): not really ..... change this !
     }
@@ -256,8 +258,7 @@ class PlainUDPCommunication::PlainUdpImpl {
 
     if (error < 0) {
       /** -1 return value means underlying socket error. */
-      string err = strerror(errno);
-      LOG_INFO(_logger, "Error while sending: " << strerror(errno));
+      LOG_INFO(_logger, "Error while sending: " << concordUtils::errnoString(errno));
     } else if (error < (int)messageLength) {
       /** Mesage was partially sent. Unclear why this would happen, perhaps
        * due to oversized messages (?). */
