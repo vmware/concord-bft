@@ -41,9 +41,7 @@ inline void cleanup() {}
 #endif
 
 inline ::concord::kvbc::BlockDigest blockDigest(concord::kvbc::BlockId blockId, const concordUtils::Sliver &block) {
-  auto digest = ::concord::kvbc::BlockDigest{};
-  ::bftEngine::SimpleBlockchainStateTransfer::computeBlockDigest(blockId, block.data(), block.length(), digest);
-  return digest;
+  return ::bftEngine::SimpleBlockchainStateTransfer::computeBlockDigest(blockId, block.data(), block.length());
 }
 
 struct TestMemoryDb {

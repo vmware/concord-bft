@@ -303,7 +303,7 @@ Sliver DBAdapter::createBlockNode(const SetOfKeyValuePairs &updates, BlockId blo
   auto parentBlockDigest = BlockDigest{};
   if (blockId > 1) {
     const auto parentBlock = getRawBlock(blockId - 1);
-    computeBlockDigest(blockId - 1, parentBlock.data(), parentBlock.length(), parentBlockDigest);
+    parentBlockDigest = computeBlockDigest(blockId - 1, parentBlock.data(), parentBlock.length());
   }
 
   auto node = BlockNode{blockId, parentBlockDigest, smTree_.get_root_hash(), smTree_.get_version()};

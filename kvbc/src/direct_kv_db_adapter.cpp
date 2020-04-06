@@ -341,8 +341,8 @@ BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &kv) {
   auto blockDigest = BlockDigest{};
   if (blockId > 1) {
     const auto parentBlockData = getRawBlock(blockId - 1);
-    bftEngine::SimpleBlockchainStateTransfer::computeBlockDigest(
-        blockId - 1, reinterpret_cast<const char *>(parentBlockData.data()), parentBlockData.length(), blockDigest);
+    blockDigest = bftEngine::SimpleBlockchainStateTransfer::computeBlockDigest(
+        blockId - 1, reinterpret_cast<const char *>(parentBlockData.data()), parentBlockData.length());
   }
 
   SetOfKeyValuePairs outKv;

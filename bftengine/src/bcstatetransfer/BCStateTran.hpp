@@ -313,10 +313,9 @@ class BCStateTran : public IStateTransfer {
                                    const uint32_t blockSize,
                                    STDigest* outDigest);
 
-  static void computeDigestOfBlock(const uint64_t blockNum,
-                                   const char* block,
-                                   const uint32_t blockSize,
-                                   std::array<std::uint8_t, BLOCK_DIGEST_SIZE>& outDigest);
+  static std::array<std::uint8_t, BLOCK_DIGEST_SIZE> computeDigestOfBlock(const uint64_t blockNum,
+                                                                          const char* block,
+                                                                          const uint32_t blockSize);
 
   ///////////////////////////////////////////////////////////////////////////
   // Metrics
