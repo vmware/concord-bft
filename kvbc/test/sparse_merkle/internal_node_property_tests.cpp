@@ -317,13 +317,14 @@ RC_GTEST_PROP(batched_internal_node_properties,
 }
 
 RC_GTEST_PROP(batched_internal_node_properties,
-              any_insert_order_of_unique_keys_maintains_same_keys,
+              any_insert_order_of_keys_with_same_version_maintains_same_keys,
               (Version version)) {
   auto node1 = BatchedInternalNode();
   auto node2 = BatchedInternalNode();
 
-  auto [children1, depth] =
-      *genKeysWithMatchingPrefixesUpToDepth(rc::gen::unique<std::vector<LeafChild>>(rc::gen::arbitrary<LeafChild>()));
+  // Make the children *mostly* unique.
+  auto unique_children_gen = rc::gen::unique<std::vector<LeafChild>>(rc::gen::arbitrary<LeafChild>());
+  auto [children1, depth] = *genKeysWithMatchingPrefixesUpToDepth(genLeafChildrenWithSameVersion(unique_children_gen));
 
   std::vector<LeafChild> children2 = children1;
   std::random_shuffle(children2.begin(), children2.end());
