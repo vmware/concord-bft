@@ -54,12 +54,17 @@ class ControllerWithSimpleHistory : public ControllerBase {
 
   // Sets PrePrepare sending timepoint
   virtual void onSendingPrePrepare(SeqNum n, CommitPath commitPath) override;
+  void onSendingPrePrepare(SeqNum n, CommitPath commitPath, const Time& timePoint);
 
   // Marks request that was downgraded to slow path
   virtual void onStartingSlowCommit(SeqNum n) override;
 
   // Adds replica to a set of replicas, that have replied to a PrePrepare msg with a corresponding PreparePartialMsg.
   virtual void onMessage(const PreparePartialMsg* m) override;
+  // End - events
+
+  // Returns true in case a sequence number is within the range of the current window.
+  bool insideActiveWindow(const SeqNum& n);
 
   // Holds essential data about a request -
   //  - Timepoint of PrePrepare sending.
