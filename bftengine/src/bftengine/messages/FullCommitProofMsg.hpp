@@ -23,8 +23,12 @@ class FullCommitProofMsg : public MessageBase {
 
   static MsgSize maxSizeOfFullCommitProofMsgInLocalBuffer();
 
-  FullCommitProofMsg(
-      ReplicaId senderId, ViewNum v, SeqNum s, const char* commitProofSig, uint16_t commitProofSigLength);
+  FullCommitProofMsg(ReplicaId senderId,
+                     ViewNum v,
+                     SeqNum s,
+                     const char* commitProofSig,
+                     uint16_t commitProofSigLength,
+                     const std::string& span_context = "");
 
   ViewNum viewNumber() const { return b()->viewNum; }
 
@@ -32,7 +36,11 @@ class FullCommitProofMsg : public MessageBase {
 
   uint16_t thresholSignatureLength() const { return b()->thresholSignatureLength; }
 
-  const char* thresholSignature() { return body() + sizeof(FullCommitProofMsgHeader); }
+  const char* thresholSignature() { return body() + sizeof(FullCommitProofMsgHeader) + spanContextSize(); }
+
+  std::string spanContext() const override {
+    return std::string(body() + sizeof(FullCommitProofMsgHeader), spanContextSize());
+  }
 
   void validate(const ReplicasInfo&) const override;
 

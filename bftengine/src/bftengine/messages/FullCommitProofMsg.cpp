@@ -16,25 +16,35 @@
 namespace bftEngine {
 namespace impl {
 
-FullCommitProofMsg::FullCommitProofMsg(
-    ReplicaId senderId, ViewNum v, SeqNum s, const char* commitProofSig, uint16_t commitProofSigLength)
-    : MessageBase(senderId, MsgCode::FullCommitProof, sizeof(FullCommitProofMsgHeader) + commitProofSigLength) {
+FullCommitProofMsg::FullCommitProofMsg(ReplicaId senderId,
+                                       ViewNum v,
+                                       SeqNum s,
+                                       const char* commitProofSig,
+                                       uint16_t commitProofSigLength,
+                                       const std::string& span_context)
+    : MessageBase(senderId,
+                  MsgCode::FullCommitProof,
+                  span_context.size(),
+                  sizeof(FullCommitProofMsgHeader) + commitProofSigLength) {
   b()->viewNum = v;
   b()->seqNum = s;
   b()->thresholSignatureLength = commitProofSigLength;
-  memcpy(body() + sizeof(FullCommitProofMsgHeader), commitProofSig, commitProofSigLength);
+  auto position = body() + sizeof(FullCommitProofMsgHeader);
+  memcpy(position, span_context.data(), span_context.size());
+  position += span_context.size();
+  memcpy(position, commitProofSig, commitProofSigLength);
 }
 
 void FullCommitProofMsg::validate(const ReplicasInfo& repInfo) const {
   if (size() < sizeof(FullCommitProofMsgHeader) || senderId() == repInfo.myId() || !repInfo.isIdOfReplica(senderId()) ||
-      size() < (sizeof(FullCommitProofMsgHeader) + thresholSignatureLength()))
+      size() < (sizeof(FullCommitProofMsgHeader) + thresholSignatureLength() + spanContextSize()))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 
   // TODO(GG): TBD - check something about the collectors identity (and in other similar messages)
 }
 
 MsgSize FullCommitProofMsg::maxSizeOfFullCommitProofMsg() {
-  return sizeof(FullCommitProofMsgHeader) + maxSizeOfCombinedSignature;
+  return sizeof(FullCommitProofMsgHeader) + maxSizeOfCombinedSignature + MessageBase::SPAN_CONTEXT_MAX_SIZE;
 }
 
 MsgSize FullCommitProofMsg::maxSizeOfFullCommitProofMsgInLocalBuffer() {
