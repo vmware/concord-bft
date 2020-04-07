@@ -22,7 +22,7 @@ class NewViewMsg : public MessageBase {
   static MsgSize maxSizeOfNewViewMsg();
   static MsgSize maxSizeOfNewViewMsgInLocalBuffer();
 
-  NewViewMsg(ReplicaId senderId, ViewNum newView);
+  NewViewMsg(ReplicaId senderId, ViewNum newView, const std::string& spanContext = "");
 
   void addElement(ReplicaId replicaId, Digest& viewChangeDigest);
 
@@ -35,6 +35,8 @@ class NewViewMsg : public MessageBase {
   bool includesViewChangeFromReplica(ReplicaId replicaId, const Digest& viewChangeReplica) const;
 
   const uint16_t elementsCount() const;
+
+  std::string spanContext() const override { return std::string(body() + sizeof(NewViewMsgHeader), spanContextSize()); }
 
  protected:
 #pragma pack(push, 1)
@@ -57,6 +59,7 @@ class NewViewMsg : public MessageBase {
   static_assert(sizeof(NewViewElement) == (2 + DIGEST_SIZE), "NewViewElement is 34B");
 
   NewViewMsgHeader* b() const { return (NewViewMsgHeader*)msgBody_; }
+  NewViewElement* elementsArray() const;
 };
 
 }  // namespace impl

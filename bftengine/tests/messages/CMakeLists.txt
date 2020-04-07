@@ -119,3 +119,13 @@ target_include_directories(FullCommitProofMsg_test
 target_link_libraries(FullCommitProofMsg_test GTest::Main)
 target_link_libraries(FullCommitProofMsg_test corebft $<TARGET_OBJECTS:logging_dev>)
 target_compile_options(FullCommitProofMsg_test PUBLIC "-Wno-sign-compare")
+
+add_executable(NewViewMsg_test NewViewMsg_test.cpp helper.cpp)
+add_test(NewViewMsg_test NewViewMsg_test)
+find_package(GTest REQUIRED)
+target_include_directories(NewViewMsg_test
+      PRIVATE
+      ${bftengine_SOURCE_DIR}/src/bftengine)
+target_link_libraries(NewViewMsg_test GTest::Main)
+target_link_libraries(NewViewMsg_test corebft $<TARGET_OBJECTS:logging_dev>)
+target_compile_options(NewViewMsg_test PUBLIC "-Wno-sign-compare")

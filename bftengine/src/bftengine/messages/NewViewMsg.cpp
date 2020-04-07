@@ -16,10 +16,18 @@
 namespace bftEngine {
 namespace impl {
 
-NewViewMsg::NewViewMsg(ReplicaId senderId, ViewNum newView)
-    : MessageBase(senderId, MsgCode::NewView, ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize()) {
+NewViewMsg::NewViewMsg(ReplicaId senderId, ViewNum newView, const std::string& spanContext)
+    : MessageBase(senderId,
+                  MsgCode::NewView,
+                  spanContext.size(),
+                  ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize() - spanContext.size()) {
   b()->newViewNum = newView;
   b()->elementsCount = 0;
+  memcpy(body() + sizeof(NewViewMsgHeader), spanContext.data(), spanContext.size());
+}
+
+NewViewMsg::NewViewElement* NewViewMsg::elementsArray() const {
+  return reinterpret_cast<NewViewElement*>(body() + sizeof(NewViewMsgHeader) + spanContextSize());
 }
 
 void NewViewMsg::addElement(ReplicaId replicaId, Digest& viewChangeDigest) {
@@ -32,13 +40,13 @@ void NewViewMsg::addElement(ReplicaId replicaId, Digest& viewChangeDigest) {
   Assert(requiredSize <=
          ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize());  // not enough space in the message
 
-  NewViewElement* elementsArray = (NewViewElement*)(body() + sizeof(NewViewMsgHeader));
+  auto elements = elementsArray();
 
   // IDs should be unique and sorted
-  Assert((currNumOfElements == 0) || (replicaId > elementsArray[currNumOfElements - 1].replicaId));
+  Assert((currNumOfElements == 0) || (replicaId > elements[currNumOfElements - 1].replicaId));
 
-  elementsArray[currNumOfElements].replicaId = replicaId;
-  elementsArray[currNumOfElements].viewChangeDigest = viewChangeDigest;
+  elements[currNumOfElements].replicaId = replicaId;
+  elements[currNumOfElements].viewChangeDigest = viewChangeDigest;
 
   b()->elementsCount = currNumOfElements + 1;
 }
@@ -51,7 +59,7 @@ void NewViewMsg::finalizeMessage(const ReplicasInfo& repInfo) {
 
   Assert(numOfElements == (2 * F + 2 * C + 1));
 
-  const uint16_t tSize = sizeof(NewViewMsgHeader) + (numOfElements * sizeof(NewViewElement));
+  const uint16_t tSize = sizeof(NewViewMsgHeader) + (numOfElements * sizeof(NewViewElement)) + spanContextSize();
 
   setMsgSize(tSize);
   shrinkToFit();
@@ -59,17 +67,16 @@ void NewViewMsg::finalizeMessage(const ReplicasInfo& repInfo) {
 
 void NewViewMsg::validate(const ReplicasInfo& repInfo) const {
   const uint16_t expectedElements = (2 * repInfo.fVal() + 2 * repInfo.cVal() + 1);
-  const uint16_t contentSize = sizeof(NewViewMsgHeader) + expectedElements * sizeof(NewViewElement);
+  const uint16_t contentSize = sizeof(NewViewMsgHeader) + expectedElements * sizeof(NewViewElement) + spanContextSize();
 
   if (size() < contentSize || !repInfo.isIdOfReplica(senderId()) ||  // source replica
       repInfo.myId() == senderId() || repInfo.primaryOfView(newView() != senderId()) ||
       b()->elementsCount != expectedElements)  // num of elements
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic"));
 
-  NewViewElement* elementsArray = (NewViewElement*)(body() + sizeof(NewViewMsgHeader));
+  auto elements = elementsArray();
   for (uint16_t i = 0; i < expectedElements; i++) {
-    if ((i > 0 && elementsArray[i - 1].replicaId >= elementsArray[i].replicaId) ||
-        elementsArray[i].viewChangeDigest.isZero())
+    if ((i > 0 && elements[i - 1].replicaId >= elements[i].replicaId) || elements[i].viewChangeDigest.isZero())
       throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": IDs should be unique and sorted"));
   }
   // TODO(GG): more?
@@ -80,14 +87,14 @@ const uint16_t NewViewMsg::elementsCount() const { return b()->elementsCount; }
 bool NewViewMsg::includesViewChangeFromReplica(ReplicaId replicaId, const Digest& viewChangeReplica) const {
   const uint16_t numOfElements = b()->elementsCount;
 
-  NewViewElement* elementsArray = (NewViewElement*)(body() + sizeof(NewViewMsgHeader));
+  auto elements = elementsArray();
 
   for (uint16_t i = 0; i < numOfElements;
        i++)  // IDs are sorted // TODO(GG): consider to improve (e.g., use binary search)
   {
-    uint16_t currId = elementsArray[i].replicaId;
+    uint16_t currId = elements[i].replicaId;
     if (currId == replicaId)
-      return (viewChangeReplica == elementsArray[i].viewChangeDigest);
+      return (viewChangeReplica == elements[i].viewChangeDigest);
     else if (currId > replicaId)
       return false;
   }
