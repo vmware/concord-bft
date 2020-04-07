@@ -10,6 +10,8 @@
 // file.
 
 #include "ControllerWithSimpleHistory.hpp"
+#include "messages/SignedShareMsgs.hpp"
+#include "threshsign/IThresholdSigner.h"
 #include "gtest/gtest.h"
 #include <chrono>
 #include <thread>
@@ -145,7 +147,323 @@ TEST(ControllerWithSimpleHistory, onNewView_not_primary) {
   ASSERT_EQ(true, cwsh.insideActiveWindow(((sn - 1) + ControllerWithSimpleHistory::EvaluationPeriod)));
 }
 
-int main(int argc, char** argv) {
+////////////////////////////Path upgrade/downgrade scenarios/////////////////////
+
+/// Downgrade scenarios
+
+// Test - Downgrade from OPTIMISTIC_FAST to FAST_WITH_THRESHOLD
+// Logic:
+// 1)Construct controller with C > 0 i.e. enable FAST_WITH_THRESHOLD path.
+// 2)Run loop for EvaluationPeriod times:
+//  - call onStartingSlowCommit for more than factor * EvaluationPeriod.
+TEST(ControllerWithSimpleHistory, downgrade_from_optimistic_to_threshold) {
+  uint16_t C = 1;
+  uint16_t F = 1;
+  ReplicaId replicaId = 0;
+  ViewNum initialView = 0;
+  SeqNum initialSeq = 0;
+  ControllerWithSimpleHistory cwsh{C, F, replicaId, initialView, initialSeq};
+
+  ASSERT_EQ(CommitPath::OPTIMISTIC_FAST, cwsh.getCurrentFirstPath());
+
+  // Factor + 1, in order to trigger the degradation.
+  auto slowStartCount =
+      ControllerWithSimpleHistory_debugDowngradeFactor * ControllerWithSimpleHistory::EvaluationPeriod + 1;
+  auto prePrepareTime = std::chrono::steady_clock::now() - std::chrono::milliseconds(10);
+  bool changed{false};
+  for (auto i = (size_t)1; i <= ControllerWithSimpleHistory::EvaluationPeriod; ++i) {
+    cwsh.onSendingPrePrepare((SeqNum)i, CommitPath::OPTIMISTIC_FAST, prePrepareTime);
+    changed = cwsh.onNewSeqNumberExecution((SeqNum)i);
+    if (slowStartCount-- > 0) cwsh.onStartingSlowCommit((SeqNum)i);
+  }
+  ASSERT_EQ(changed, true);
+  ASSERT_EQ(CommitPath::FAST_WITH_THRESHOLD, cwsh.getCurrentFirstPath());
+}
+
+// Test - Downgrade from OPTIMISTIC_FAST to SLOW
+// Logic:
+// 1)Construct controller with C == 0 i.e. disable FAST_WITH_THRESHOLD path.
+// 2)Run loop for EvaluationPeriod times:
+//  - call onStartingSlowCommit for more than factor * EvaluationPeriod.
+TEST(ControllerWithSimpleHistory, downgrade_from_optimistic_to_slow) {
+  uint16_t C = 0;
+  uint16_t F = 1;
+  ReplicaId replicaId = 0;
+  ViewNum initialView = 0;
+  SeqNum initialSeq = 0;
+  ControllerWithSimpleHistory cwsh{C, F, replicaId, initialView, initialSeq};
+
+  ASSERT_EQ(CommitPath::OPTIMISTIC_FAST, cwsh.getCurrentFirstPath());
+
+  // Factor + 1, in order to trigger the degradation.
+  auto slowStartCount =
+      ControllerWithSimpleHistory_debugDowngradeFactor * ControllerWithSimpleHistory::EvaluationPeriod + 1;
+  auto prePrepareTime = std::chrono::steady_clock::now() - std::chrono::milliseconds(10);
+  bool changed{false};
+  for (auto i = (size_t)1; i <= ControllerWithSimpleHistory::EvaluationPeriod; ++i) {
+    cwsh.onSendingPrePrepare((SeqNum)i, CommitPath::OPTIMISTIC_FAST, prePrepareTime);
+    changed = cwsh.onNewSeqNumberExecution((SeqNum)i);
+    if (slowStartCount-- > 0) cwsh.onStartingSlowCommit((SeqNum)i);
+  }
+  ASSERT_EQ(changed, true);
+  ASSERT_EQ(CommitPath::SLOW, cwsh.getCurrentFirstPath());
+}
+
+// Test - Downgrade from OPTIMISTIC_FAST to FAST_WITH_THRESHOLD and then to SLOW
+// Logic:
+// 1)Construct controller with C > 0 i.e. enable FAST_WITH_THRESHOLD path.
+// 2)Run loop for EvaluationPeriod times:
+//  - call to onStartingSlowCommit for more than factor * EvaluationPeriod.
+// 3)Run loop for EvaluationPeriod times:
+//  - call to onStartingSlowCommit for more than factor * EvaluationPeriod.
+TEST(ControllerWithSimpleHistory, downgrade_from_optimistic_to_thresh_then_slow) {
+  uint16_t C = 1;
+  uint16_t F = 1;
+  ReplicaId replicaId = 0;
+  ViewNum initialView = 0;
+  SeqNum initialSeq = 0;
+  ControllerWithSimpleHistory cwsh{C, F, replicaId, initialView, initialSeq};
+
+  ASSERT_EQ(CommitPath::OPTIMISTIC_FAST, cwsh.getCurrentFirstPath());
+
+  // Factor + 1, in order to trigger the degradation.
+  auto slowStartCount =
+      ControllerWithSimpleHistory_debugDowngradeFactor * ControllerWithSimpleHistory::EvaluationPeriod + 1;
+  auto prePrepareTime = std::chrono::steady_clock::now() - std::chrono::milliseconds(10);
+  bool changed{false};
+  auto i = (size_t)1;
+  for (; i <= ControllerWithSimpleHistory::EvaluationPeriod; ++i) {
+    cwsh.onSendingPrePrepare((SeqNum)i, CommitPath::OPTIMISTIC_FAST, prePrepareTime);
+    changed = cwsh.onNewSeqNumberExecution((SeqNum)i);
+    if (slowStartCount-- > 0) cwsh.onStartingSlowCommit((SeqNum)i);
+  }
+
+  ASSERT_EQ(changed, true);
+  ASSERT_EQ(CommitPath::FAST_WITH_THRESHOLD, cwsh.getCurrentFirstPath());
+
+  // Start from next window
+  for (++i; i <= 2 * ControllerWithSimpleHistory::EvaluationPeriod; ++i) {
+    cwsh.onSendingPrePrepare((SeqNum)i, CommitPath::OPTIMISTIC_FAST, prePrepareTime);
+    changed = cwsh.onNewSeqNumberExecution((SeqNum)i);
+    cwsh.onStartingSlowCommit((SeqNum)i);
+  }
+
+  ASSERT_EQ(changed, true);
+  ASSERT_EQ(CommitPath::SLOW, cwsh.getCurrentFirstPath());
+}
+
+// Test - no degradation
+// Logic:
+// 1)Construct controller with C > 0 i.e. enable FAST_WITH_THRESHOLD path.
+// 2)Run loop for EvaluationPeriod times:
+//  - call to onStartingSlowCommit for less than (EvaluationPeriod - factor * EvaluationPeriod)
+TEST(ControllerWithSimpleHistory, no_degradation) {
+  uint16_t C = 1;
+  uint16_t F = 1;
+  ReplicaId replicaId = 0;
+  ViewNum initialView = 0;
+  SeqNum initialSeq = 0;
+  ControllerWithSimpleHistory cwsh{C, F, replicaId, initialView, initialSeq};
+
+  ASSERT_EQ(CommitPath::OPTIMISTIC_FAST, cwsh.getCurrentFirstPath());
+  bool changed{true};
+
+  // Less than needed to trigger degradation
+  auto slowStartCount =
+      ControllerWithSimpleHistory::EvaluationPeriod * (1 - ControllerWithSimpleHistory_debugDowngradeFactor) - 1;
+
+  auto prePrepareTime = std::chrono::steady_clock::now() - std::chrono::milliseconds(10);
+  for (auto i = (size_t)1; i <= ControllerWithSimpleHistory::EvaluationPeriod; ++i) {
+    cwsh.onSendingPrePrepare((SeqNum)i, CommitPath::OPTIMISTIC_FAST, prePrepareTime);
+    changed = cwsh.onNewSeqNumberExecution((SeqNum)i);
+    if (slowStartCount-- > 0) cwsh.onStartingSlowCommit((SeqNum)i);
+  }
+  ASSERT_EQ(changed, false);
+  ASSERT_EQ(CommitPath::OPTIMISTIC_FAST, cwsh.getCurrentFirstPath());
+}
+
+// Upgrade scenarios
+
+// Mocks
+class IShareSecretKeyDummy : public IShareSecretKey {
+ public:
+  string toString() const override { return "IShareSecretKeyDummy"; }
+};
+
+class IShareVerificationKeyDummy : public IShareVerificationKey {
+ public:
+  string toString() const override { return "IShareVerificationKeyDummy"; }
+};
+
+class ThreshSigMock : public IThresholdSigner {
+ public:
+  IShareSecretKeyDummy is;
+  IShareVerificationKeyDummy isv;
+  virtual int requiredLengthForSignedData() const { return 5; };
+  virtual void signData(const char *hash, int hashLen, char *outSig, int outSigLen){};
+
+  virtual const IShareSecretKey &getShareSecretKey() { return is; };
+  virtual const IShareVerificationKey &getShareVerificationKey() const { return isv; };
+  const std::string getVersion() const { return "v"; }
+  void serializeDataMembers(std::ostream &) const {}
+  void deserializeDataMembers(std::istream &) {}
+  const IShareSecretKey &getShareSecretKey() const { return is; }
+};
+
+// Test - Downgrade from OPTIMISTIC_FAST to FAST_WITH_THRESHOLD then upgrade to OPTIMISTIC_FAST
+// E.L Logic: Not Possible, Bug ?
+
+// Test - Downgrade from OPTIMISTIC_FAST to SLOW then upgrade to OPTIMISTIC_FAST again.
+// Logic:
+// 1)Construct controller with C == 0 i.e. disable FAST_WITH_THRESHOLD path.
+// 2)Run loop for EvaluationPeriod times:
+//  - call to onStartingSlowCommit for more than factor * EvaluationPeriod.
+// 3)Run loop for EvaluationPeriod times:
+//  - call onMessage for each replica to satisfy full cooporation.
+TEST(ControllerWithSimpleHistory, upgrade_slow_to_optimistic) {
+  uint16_t C = 0;
+  uint16_t F = 1;
+  ReplicaId replicaId = 0;
+  ViewNum initialView = 0;
+  SeqNum initialSeq = 0;
+  ControllerWithSimpleHistory cwsh{C, F, replicaId, initialView, initialSeq};
+
+  ASSERT_EQ(CommitPath::OPTIMISTIC_FAST, cwsh.getCurrentFirstPath());
+
+  // Factor + 1, in order to trigger the degradation.
+  auto slowStartCount =
+      ControllerWithSimpleHistory_debugDowngradeFactor * ControllerWithSimpleHistory::EvaluationPeriod + 1;
+  bool changed{false};
+  auto prePrepareTime = std::chrono::steady_clock::now() - std::chrono::milliseconds(10);
+  auto i = (size_t)1;
+  for (; i <= ControllerWithSimpleHistory::EvaluationPeriod; ++i) {
+    cwsh.onSendingPrePrepare((SeqNum)i, CommitPath::OPTIMISTIC_FAST, prePrepareTime);
+    changed = cwsh.onNewSeqNumberExecution((SeqNum)i);
+    if (slowStartCount-- > 0) cwsh.onStartingSlowCommit((SeqNum)i);
+  }
+
+  ASSERT_EQ(true, changed);
+  ASSERT_EQ(CommitPath::SLOW, cwsh.getCurrentFirstPath());
+
+  char buf[5] = {'m', 'o', 's', 'h', 'e'};
+  Digest d{buf, 5};
+  ThreshSigMock th;
+  for (++i; i <= 2 * ControllerWithSimpleHistory::EvaluationPeriod; ++i) {
+    cwsh.onSendingPrePrepare((SeqNum)i, CommitPath::OPTIMISTIC_FAST, prePrepareTime);
+    changed = cwsh.onNewSeqNumberExecution((SeqNum)i);
+    for (auto id : {1, 2, 3}) {
+      auto p = impl::PreparePartialMsg::create(0, i, id, d, &th);
+      cwsh.onMessage(p);
+      delete p;
+    }
+  }
+
+  ASSERT_EQ(true, changed);
+  ASSERT_EQ(CommitPath::OPTIMISTIC_FAST, cwsh.getCurrentFirstPath());
+}
+
+// Test - Downgrade from OPTIMISTIC_FAST to FAST_WITH_THRESHOLD to SLOW then upgrade to FAST_WITH_THRESHOLD
+// Logic:
+// 1)Construct controller with C  > 0 i.e. enable FAST_WITH_THRESHOLD path.
+// 2)Run loop for EvaluationPeriod times:
+//  - call to onStartingSlowCommit for more than factor * EvaluationPeriod.
+// 3)Run loop for EvaluationPeriod times:
+//  - call to onStartingSlowCommit for more than factor * EvaluationPeriod.
+// 4)Run loop for EvaluationPeriod times:
+//  - call onMessage for 3*f+C (partial set) replicas to satisfy full cooporation.
+TEST(ControllerWithSimpleHistory, upgrade_slow_to_threshold) {
+  uint16_t C = 1;
+  uint16_t F = 1;
+  ReplicaId replicaId = 0;
+  ViewNum initialView = 0;
+  SeqNum initialSeq = 0;
+  ControllerWithSimpleHistory cwsh{C, F, replicaId, initialView, initialSeq};
+
+  ASSERT_EQ(CommitPath::OPTIMISTIC_FAST, cwsh.getCurrentFirstPath());
+
+  // Factor + 1, in order to trigger the degradation.
+  auto slowStartCount =
+      ControllerWithSimpleHistory_debugDowngradeFactor * ControllerWithSimpleHistory::EvaluationPeriod + 1;
+  bool changed{false};
+  auto prePrepareTime = std::chrono::steady_clock::now() - std::chrono::milliseconds(10);
+  auto i = (size_t)1;
+  for (; i <= ControllerWithSimpleHistory::EvaluationPeriod; ++i) {
+    cwsh.onSendingPrePrepare((SeqNum)i, CommitPath::OPTIMISTIC_FAST, prePrepareTime);
+    changed = cwsh.onNewSeqNumberExecution((SeqNum)i);
+    if (slowStartCount-- > 0) cwsh.onStartingSlowCommit((SeqNum)i);
+  }
+
+  ASSERT_EQ(true, changed);
+  ASSERT_EQ(CommitPath::FAST_WITH_THRESHOLD, cwsh.getCurrentFirstPath());
+
+  for (++i; i <= 2 * ControllerWithSimpleHistory::EvaluationPeriod; ++i) {
+    cwsh.onSendingPrePrepare((SeqNum)i, CommitPath::OPTIMISTIC_FAST, prePrepareTime);
+    changed = cwsh.onNewSeqNumberExecution((SeqNum)i);
+    cwsh.onStartingSlowCommit((SeqNum)i);
+  }
+
+  ASSERT_EQ(true, changed);
+  ASSERT_EQ(CommitPath::SLOW, cwsh.getCurrentFirstPath());
+
+  char buf[5] = {'m', 'o', 's', 'h', 'e'};
+  Digest d{buf, 5};
+  ThreshSigMock th;
+  for (++i; i <= 3 * ControllerWithSimpleHistory::EvaluationPeriod; ++i) {
+    cwsh.onSendingPrePrepare((SeqNum)i, CommitPath::OPTIMISTIC_FAST, prePrepareTime);
+    changed = cwsh.onNewSeqNumberExecution((SeqNum)i);
+    for (auto id : {1, 2, 3, 4}) {
+      auto p = impl::PreparePartialMsg::create(0, i, id, d, &th);
+      cwsh.onMessage(p);
+      delete p;
+    }
+  }
+
+  ASSERT_EQ(true, changed);
+  ASSERT_EQ(CommitPath::FAST_WITH_THRESHOLD, cwsh.getCurrentFirstPath());
+}
+
+// Test - no upgrade
+// Logic:
+// 1)Construct controller with C == 0 i.e. disable FAST_WITH_THRESHOLD path.
+// 2)Run loop for EvaluationPeriod times:
+//  - call to onStartingSlowCommit for more than factor * EvaluationPeriod
+// 3)Run loop for EvaluationPeriod times:
+//  - Don't call onMessage i.e. no cooporation from other replicas.
+TEST(ControllerWithSimpleHistory, no_upgrade) {
+  uint16_t C = 0;
+  uint16_t F = 1;
+  ReplicaId replicaId = 0;
+  ViewNum initialView = 0;
+  SeqNum initialSeq = 0;
+  ControllerWithSimpleHistory cwsh{C, F, replicaId, initialView, initialSeq};
+
+  ASSERT_EQ(CommitPath::OPTIMISTIC_FAST, cwsh.getCurrentFirstPath());
+
+  // Factor + 1, in order to trigger the degradation.
+  auto slowStartCount =
+      ControllerWithSimpleHistory_debugDowngradeFactor * ControllerWithSimpleHistory::EvaluationPeriod + 1;
+  bool changed{false};
+  auto prePrepareTime = std::chrono::steady_clock::now() - std::chrono::milliseconds(10);
+  auto i = (size_t)1;
+  for (; i <= ControllerWithSimpleHistory::EvaluationPeriod; ++i) {
+    cwsh.onSendingPrePrepare((SeqNum)i, CommitPath::OPTIMISTIC_FAST, prePrepareTime);
+    changed = cwsh.onNewSeqNumberExecution((SeqNum)i);
+    if (slowStartCount-- > 0) cwsh.onStartingSlowCommit((SeqNum)i);
+  }
+
+  ASSERT_EQ(true, changed);
+  ASSERT_EQ(CommitPath::SLOW, cwsh.getCurrentFirstPath());
+
+  for (++i; i <= 2 * ControllerWithSimpleHistory::EvaluationPeriod; ++i) {
+    cwsh.onSendingPrePrepare((SeqNum)i, CommitPath::OPTIMISTIC_FAST, prePrepareTime);
+    changed = cwsh.onNewSeqNumberExecution((SeqNum)i);
+  }
+
+  ASSERT_EQ(false, changed);
+  ASSERT_EQ(CommitPath::SLOW, cwsh.getCurrentFirstPath());
+}
+
+int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
