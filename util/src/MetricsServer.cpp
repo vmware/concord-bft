@@ -17,6 +17,7 @@
 #include <arpa/inet.h>
 
 #include "MetricsServer.hpp"
+#include "errnoString.hpp"
 
 namespace concordMetrics {
 
@@ -36,12 +37,13 @@ void Server::Start() {
     char addr[INET_ADDRSTRLEN];
     if (inet_ntop(AF_INET, &servaddr.sin_addr.s_addr, addr, INET_ADDRSTRLEN)) {
       LOG_FATAL(logger_,
-                "Error binding UDP socket: IP=" << addr << ", Port=" << listenPort_ << ", errno=" << strerror(errno));
+                "Error binding UDP socket: IP=" << addr << ", Port=" << listenPort_
+                                                << ", errno=" << concordUtils::errnoString(errno));
     } else {
       LOG_FATAL(logger_,
                 "Error binding UDP socket: IP="
                     << "unknown"
-                    << ", Port=" << listenPort_ << ", errno=" << strerror(errno));
+                    << ", Port=" << listenPort_ << ", errno=" << concordUtils::errnoString(errno));
     }
     exit(1);
   }
@@ -84,7 +86,7 @@ void Server::RecvLoop() {
     len = recvfrom(sock_, buf_, MAX_MSG_SIZE, 0, (sockaddr*)&cliaddr, &addrlen);
 
     if (len < 0) {
-      LOG_ERROR(logger_, "Failed to recv msg: " << strerror(errno));
+      LOG_ERROR(logger_, "Failed to recv msg: " << concordUtils::errnoString(errno));
       continue;
     }
 
@@ -110,7 +112,7 @@ void Server::sendReply(std::string data, sockaddr_in* cliaddr, socklen_t addrlen
   memcpy(buf_ + sizeof(Header), data.data(), data.size());
   auto len = sendto(sock_, buf_, data.size() + sizeof(Header), 0, (const struct sockaddr*)cliaddr, addrlen);
   if (len < 0) {
-    LOG_ERROR(logger_, "Failed to send reply msg: " << strerror(errno));
+    LOG_ERROR(logger_, "Failed to send reply msg: " << concordUtils::errnoString(errno));
   }
 }
 
@@ -122,7 +124,7 @@ void Server::sendError(sockaddr_in* cliaddr, socklen_t addrlen) {
   memcpy(buf_ + sizeof(Header), msg, msglen);
   auto len = sendto(sock_, buf_, msglen + sizeof(Header), 0, (const struct sockaddr*)cliaddr, addrlen);
   if (len < 0) {
-    LOG_ERROR(logger_, "Failed to send error msg: " << strerror(errno));
+    LOG_ERROR(logger_, "Failed to send error msg: " << concordUtils::errnoString(errno));
   }
 }
 
