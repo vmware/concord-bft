@@ -17,6 +17,7 @@ using namespace bftEngine::impl;
 
 TEST(ReqMissingDataMsg, base_methods) {
   auto config = createReplicaConfig();
+  ReplicasInfo replicaInfo(config, false, false);
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
@@ -44,6 +45,7 @@ TEST(ReqMissingDataMsg, base_methods) {
   EXPECT_EQ(msg.getFullCommitProofIsMissing(), true);
   msg.setPartialPrepareIsMissing();
   EXPECT_EQ(msg.getPartialPrepareIsMissing(), true);
+  EXPECT_NO_THROW(msg.validate(replicaInfo));
 
   msg.resetFlags();
   EXPECT_EQ(msg.getFlags(), 0u);

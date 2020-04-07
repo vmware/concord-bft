@@ -11,9 +11,11 @@
 #include "helper.hpp"
 
 TEST(CheckpointMsg, base_methods) {
-  createReplicaConfig().singletonFromThis();
+  auto config = createReplicaConfig();
+  config.singletonFromThis();
+  ReplicasInfo replicaInfo(config, false, false);
   NodeIdType senderId = 1u;
-  uint64_t reqSeqNum = 100u;
+  uint64_t reqSeqNum = 150u;
   char digestContext[DIGEST_SIZE] = "digest_content";
   Digest digest(digestContext, sizeof(digestContext));
   bool isStable = false;
@@ -26,6 +28,7 @@ TEST(CheckpointMsg, base_methods) {
   msg.setStateAsStable();
   EXPECT_EQ(msg.isStableState(), !isStable);
   EXPECT_EQ(msg.digestOfState(), digest);
+  EXPECT_NO_THROW(msg.validate(replicaInfo));
   testMessageBaseMethods(msg, MsgCode::Checkpoint, senderId, spanContext);
 }
 

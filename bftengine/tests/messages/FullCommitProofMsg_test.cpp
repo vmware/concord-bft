@@ -26,7 +26,7 @@ TEST(FullCommitProofMsg, base_methods) {
   EXPECT_EQ(msg.viewNumber(), viewNum);
   EXPECT_EQ(msg.seqNumber(), seqNum);
   EXPECT_EQ(commit_proof_signature, std::string(msg.thresholSignature(), msg.thresholSignatureLength()));
-  msg.validate(replicaInfo);
+  EXPECT_NO_THROW(msg.validate(replicaInfo));
   testMessageBaseMethods(msg, MsgCode::FullCommitProof, senderId, spanContext);
 }
 

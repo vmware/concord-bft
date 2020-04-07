@@ -23,7 +23,7 @@ TEST(PartialCommitProofMsg, create_and_compare) {
   ReplicasInfo replicaInfo(config, false, false);
 
   ReplicaId senderId = 1u;
-  ViewNum viewNum = 2u;
+  ViewNum viewNum = 0u;
   SeqNum seqNum = 3u;
   CommitPath commitPath = CommitPath::OPTIMISTIC_FAST;
   const char rawSpanContext[] = {"span_\0context"};
@@ -44,12 +44,13 @@ TEST(PartialCommitProofMsg, create_and_compare) {
   config.thresholdSignerForOptimisticCommit->signData(nullptr, 0, signature.data(), signature.size());
 
   EXPECT_EQ(memcmp(msg.thresholSignature(), signature.data(), signature.size()), 0);
+  EXPECT_NO_THROW(msg.validate(replicaInfo));
 }
 
 TEST(PartialCommitProofMsg, base_methods) {
   auto config = createReplicaConfig();
   ReplicaId senderId = 1u;
-  ViewNum viewNum = 2u;
+  ViewNum viewNum = 1u;
   SeqNum seqNum = 3u;
   CommitPath commitPath = CommitPath::OPTIMISTIC_FAST;
   const char rawSpanContext[] = {"span_\0context"};

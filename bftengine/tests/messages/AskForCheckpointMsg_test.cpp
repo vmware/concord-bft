@@ -15,7 +15,7 @@ TEST(AskForCheckpointMsg, base_methods) {
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   AskForCheckpointMsg msg(senderId, spanContext);
-  msg.validate(replicaInfo);
+  EXPECT_NO_THROW(msg.validate(replicaInfo));
   testMessageBaseMethods(msg, MsgCode::AskForCheckpoint, senderId, spanContext);
 }
 

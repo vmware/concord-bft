@@ -28,7 +28,7 @@ ReqMissingDataMsg::ReqMissingDataMsg(ReplicaId senderId, ViewNum v, SeqNum s, co
 void ReqMissingDataMsg::resetFlags() { b()->flags = 0; }
 
 void ReqMissingDataMsg::validate(const ReplicasInfo& repInfo) const {
-  if (size() < sizeof(ReqMissingDataMsgHeader) ||
+  if (size() < sizeof(ReqMissingDataMsgHeader) + spanContextSize() ||
       senderId() ==
           repInfo.myId() ||  // TODO(GG) - TBD: we should use Assert for this condition (also in other messages)
       !repInfo.isIdOfReplica(senderId()))

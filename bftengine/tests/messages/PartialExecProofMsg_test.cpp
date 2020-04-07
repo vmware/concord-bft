@@ -17,14 +17,14 @@ using namespace bftEngine::impl;
 
 TEST(PartialExecProofMsg, base_methods) {
   auto config = createReplicaConfig();
+  ReplicasInfo replicaInfo(config, false, false);
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest tmpDigest;
-  PartialExecProofMsg msg(
-      senderId, viewNum, seqNum, tmpDigest, config.thresholdSignerForOptimisticCommit, spanContext);
+  PartialExecProofMsg msg(senderId, viewNum, seqNum, tmpDigest, config.thresholdSignerForOptimisticCommit, spanContext);
   EXPECT_EQ(msg.viewNumber(), viewNum);
   EXPECT_EQ(msg.seqNumber(), seqNum);
   EXPECT_EQ(msg.thresholSignatureLength(), config.thresholdSignerForOptimisticCommit->requiredLengthForSignedData());
@@ -33,8 +33,10 @@ TEST(PartialExecProofMsg, base_methods) {
   config.thresholdSignerForOptimisticCommit->signData(nullptr, 0, signature.data(), signature.size());
 
   EXPECT_EQ(memcmp(msg.thresholSignature(), signature.data(), signature.size()), 0);
+  EXPECT_NO_THROW(msg.validate(replicaInfo));
   testMessageBaseMethods(msg, MsgCode::PartialExecProof, senderId, spanContext);
 }
+
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

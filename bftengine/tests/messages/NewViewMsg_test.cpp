@@ -28,7 +28,7 @@ TEST(NewViewMsg, base_methods) {
 
   EXPECT_EQ(msg.elementsCount(), config.fVal * 2 + config.cVal * 2 + 1);
   msg.finalizeMessage(replicaInfo);
-  msg.validate(replicaInfo);
+  EXPECT_NO_THROW(msg.validate(replicaInfo));
   for (uint8_t i = 1; i <= config.fVal * 2 + config.cVal * 2 + 1; ++i) {
     Digest d{i};
     EXPECT_TRUE(msg.includesViewChangeFromReplica(i, d));

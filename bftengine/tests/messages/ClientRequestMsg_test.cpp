@@ -21,6 +21,8 @@ using namespace bftEngine;
 using namespace bftEngine::impl;
 
 TEST(ClientRequestMsg, create_and_compare) {
+  auto config = createReplicaConfig();
+  ReplicasInfo replicaInfo(config, false, false);
   NodeIdType senderId = 1u;
   uint8_t flags = 'F';
   uint64_t reqSeqNum = 100u;
@@ -41,9 +43,12 @@ TEST(ClientRequestMsg, create_and_compare) {
   EXPECT_EQ(msg.getCid(), correlationId);
   EXPECT_EQ(msg.spanContext(), spanContext);
   EXPECT_EQ(msg.requestTimeoutMilli(), requestTimeoutMilli);
+  EXPECT_NO_THROW(msg.validate(replicaInfo));
 }
 
 TEST(ClientRequestMsg, create_and_compare_with_empty_span) {
+  auto config = createReplicaConfig();
+  ReplicasInfo replicaInfo(config, false, false);
   NodeIdType senderId = 1u;
   uint8_t flags = 'F';
   uint64_t reqSeqNum = 100u;
@@ -63,9 +68,12 @@ TEST(ClientRequestMsg, create_and_compare_with_empty_span) {
   EXPECT_TRUE(std::memcmp(msg.requestBuf(), request, sizeof(request)) == 0u);
   EXPECT_EQ(msg.getCid(), correlationId);
   EXPECT_EQ(msg.spanContext(), spanContext);
+  EXPECT_NO_THROW(msg.validate(replicaInfo));
 }
 
 TEST(ClientRequestMsg, create_and_compare_with_empty_cid) {
+  auto config = createReplicaConfig();
+  ReplicasInfo replicaInfo(config, false, false);
   NodeIdType senderId = 1u;
   uint8_t flags = 'F';
   uint64_t reqSeqNum = 100u;
@@ -86,9 +94,12 @@ TEST(ClientRequestMsg, create_and_compare_with_empty_cid) {
   EXPECT_EQ(msg.getCid(), correlationId);
   EXPECT_EQ(msg.spanContext(), spanContext);
   EXPECT_EQ(msg.requestTimeoutMilli(), requestTimeoutMilli);
+  EXPECT_NO_THROW(msg.validate(replicaInfo));
 }
 
 TEST(ClientRequestMsg, create_from_buffer) {
+  auto config = createReplicaConfig();
+  ReplicasInfo replicaInfo(config, false, false);
   NodeIdType senderId = 1u;
   uint8_t flags = 'F';
   uint64_t reqSeqNum = 100u;
@@ -111,10 +122,13 @@ TEST(ClientRequestMsg, create_from_buffer) {
   EXPECT_EQ(originalMsg.getCid(), copy_msg.getCid());
   EXPECT_EQ(originalMsg.spanContext(), copy_msg.spanContext());
   EXPECT_EQ(originalMsg.requestTimeoutMilli(), requestTimeoutMilli);
+  EXPECT_NO_THROW(originalMsg.validate(replicaInfo));
 }
 
 TEST(ClientRequestMsg, base_methods) {
-  createReplicaConfig().singletonFromThis();
+  auto config = createReplicaConfig();
+  config.singletonFromThis();
+  ReplicasInfo replicaInfo(config, false, false);
   NodeIdType senderId = 1u;
   uint8_t flags = 'F';
   uint64_t reqSeqNum = 100u;
@@ -125,6 +139,7 @@ TEST(ClientRequestMsg, base_methods) {
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ClientRequestMsg msg(
       senderId, flags, reqSeqNum, sizeof(request), request, requestTimeoutMilli, correlationId, spanContext);
+  EXPECT_NO_THROW(msg.validate(replicaInfo));
   testMessageBaseMethods(msg, MsgCode::ClientRequest, senderId, spanContext);
 }
 

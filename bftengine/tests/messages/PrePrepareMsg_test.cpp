@@ -92,6 +92,10 @@ TEST(PrePrepareMsg, create_null_message) {
 }
 
 TEST(PrePrepareMsg, base_methods) {
+  auto config = createReplicaConfig();
+  config.singletonFromThis();
+
+  ReplicasInfo replicaInfo(config, false, false);
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
@@ -104,6 +108,7 @@ TEST(PrePrepareMsg, base_methods) {
   ClientRequestMsg client_request = create_client_request();
   msg.addRequest(client_request.body(), client_request.size());
   msg.finishAddingRequests();
+  EXPECT_NO_THROW(msg.validate(replicaInfo));
   testMessageBaseMethods(msg, MsgCode::PrePrepare, senderId, spanContext);
 }
 int main(int argc, char** argv) {

@@ -29,7 +29,7 @@ void CheckpointMsg::validate(const ReplicasInfo& repInfo) const {
   Assert(type() == MsgCode::Checkpoint);
   Assert(senderId() != repInfo.myId());
 
-  if (size() < sizeof(CheckpointMsgHeader) || (!repInfo.isIdOfReplica(senderId())) ||
+  if (size() < sizeof(CheckpointMsgHeader) + spanContextSize() || (!repInfo.isIdOfReplica(senderId())) ||
       (seqNumber() % checkpointWindowSize != 0) || (digestOfState().isZero()))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 

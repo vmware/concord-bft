@@ -24,7 +24,8 @@ StartSlowCommitMsg::StartSlowCommitMsg(ReplicaId senderId, ViewNum v, SeqNum s, 
 }
 
 void StartSlowCommitMsg::validate(const ReplicasInfo& repInfo) const {
-  if (size() < sizeof(StartSlowCommitMsgHeader) || repInfo.primaryOfView(viewNumber()) != senderId())
+  if (size() < sizeof(StartSlowCommitMsgHeader) + spanContextSize() ||
+      repInfo.primaryOfView(viewNumber()) != senderId())
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 

@@ -46,8 +46,8 @@ const Digest& PrePrepareMsg::digestOfNullPrePrepareMsg() { return nullDigest; }
 void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
   Assert(senderId() != repInfo.myId());
 
-  if (size() < sizeof(PrePrepareMsgHeader) ||  // header size
-      !repInfo.isIdOfReplica(senderId()))      // sender
+  if (size() < sizeof(PrePrepareMsgHeader) + spanContextSize() ||  // header size
+      !repInfo.isIdOfReplica(senderId()))                          // sender
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic"));
   // NB: the actual expected sender is verified outside this class (because in some cases, during view-change protocol,
   // this message may sent by a non-primary replica to the primary replica).
