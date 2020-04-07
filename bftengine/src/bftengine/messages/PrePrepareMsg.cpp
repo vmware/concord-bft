@@ -80,13 +80,19 @@ void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
 PrePrepareMsg::PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, bool isNull, size_t size)
     : PrePrepareMsg(sender, v, s, firstPath, "", isNull, size) {}
 
-PrePrepareMsg::PrePrepareMsg(
-    ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, const std::string& span_context, bool isNull, size_t size)
+PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
+                             ViewNum v,
+                             SeqNum s,
+                             CommitPath firstPath,
+                             const std::string& spanContext,
+                             bool isNull,
+                             size_t size)
     : MessageBase(sender,
                   MsgCode::PrePrepare,
-                  span_context.size(),
-                  (((size + sizeof(PrePrepareMsgHeader) + spanContext.size()) < maxSizeOfPrePrepareMsg()) ? (size + sizeof(PrePrepareMsgHeader) + spanContext.size())
-                                                                             : maxSizeOfPrePrepareMsg() - spanContext.size()))
+                  spanContext.size(),
+                  (((size + sizeof(PrePrepareMsgHeader) + spanContext.size()) < maxSizeOfPrePrepareMsg())
+                       ? (size + sizeof(PrePrepareMsgHeader) + spanContext.size())
+                       : maxSizeOfPrePrepareMsg() - spanContext.size()))
 
 {
   b()->viewNum = v;
@@ -104,7 +110,7 @@ PrePrepareMsg::PrePrepareMsg(
   b()->endLocationOfLastRequest = payloadShift();
 
   char* position = body() + sizeof(PrePrepareMsgHeader);
-  memcpy(position, span_context.data(), b()->header.span_context_size);
+  memcpy(position, spanContext.data(), b()->header.spanContextSize);
 }
 
 uint32_t PrePrepareMsg::remainingSizeForRequests() const {
@@ -116,7 +122,7 @@ uint32_t PrePrepareMsg::remainingSizeForRequests() const {
 }
 
 std::string PrePrepareMsg::spanContext() const {
-  return std::string(body() + sizeof(PrePrepareMsgHeader), b()->header.span_context_size);
+  return std::string(body() + sizeof(PrePrepareMsgHeader), b()->header.spanContextSize);
 }
 
 void PrePrepareMsg::addRequest(const char* pRequest, uint32_t requestSize) {
@@ -236,7 +242,7 @@ const std::string PrePrepareMsg::getBatchCorrelationIdAsString() const {
   return ret;
 }
 
-uint32_t PrePrepareMsg::payloadShift() const { return sizeof(PrePrepareMsgHeader) + b()->header.span_context_size; }
+uint32_t PrePrepareMsg::payloadShift() const { return sizeof(PrePrepareMsgHeader) + b()->header.spanContextSize; }
 
 ///////////////////////////////////////////////////////////////////////////////
 // RequestsIterator

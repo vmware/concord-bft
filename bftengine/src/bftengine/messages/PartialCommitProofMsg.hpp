@@ -28,7 +28,7 @@ class PartialCommitProofMsg : public MessageBase {
                         CommitPath commitPath,
                         Digest& digest,
                         IThresholdSigner* thresholdSigner,
-                        const std::string& span_context = "");
+                        const std::string& spanContext = "");
 
   ViewNum viewNumber() const { return b()->viewNum; }
 
@@ -39,7 +39,7 @@ class PartialCommitProofMsg : public MessageBase {
   uint16_t thresholSignatureLength() const { return b()->thresholSignatureLength; }
 
   const char* thresholSignature() const {
-    return body() + sizeof(PartialCommitProofMsgHeader) + b()->header.span_context_size;
+    return body() + sizeof(PartialCommitProofMsgHeader) + b()->header.spanContextSize;
   }
 
   std::string spanContext() const override {

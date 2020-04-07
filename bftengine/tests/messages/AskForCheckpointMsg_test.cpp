@@ -10,13 +10,13 @@ using namespace bftEngine::impl;
 
 TEST(AskForCheckpointMsg, base_methods) {
   auto config = createReplicaConfig();
-  ReplicasInfo replica_info(config, false, false);
-  ReplicaId replica_id = 1u;
-  const char raw_span_context[] = {"span_\0context"};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
-  AskForCheckpointMsg msg(replica_id, span_context);
-  msg.validate(replica_info);
-  testMessageBaseMethods(msg, MsgCode::AskForCheckpoint, replica_id, span_context);
+  ReplicasInfo replicaInfo(config, false, false);
+  ReplicaId senderId = 1u;
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
+  AskForCheckpointMsg msg(senderId, spanContext);
+  msg.validate(replicaInfo);
+  testMessageBaseMethods(msg, MsgCode::AskForCheckpoint, senderId, spanContext);
 }
 
 int main(int argc, char** argv) {

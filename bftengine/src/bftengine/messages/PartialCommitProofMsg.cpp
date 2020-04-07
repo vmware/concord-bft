@@ -23,10 +23,10 @@ PartialCommitProofMsg::PartialCommitProofMsg(ReplicaId senderId,
                                              CommitPath commitPath,
                                              Digest& digest,
                                              IThresholdSigner* thresholdSigner,
-                                             const std::string& span_context)
+                                             const std::string& spanContext)
     : MessageBase(senderId,
                   MsgCode::PartialCommitProof,
-                  span_context.size(),
+                  spanContext.size(),
                   sizeof(PartialCommitProofMsgHeader) + thresholdSigner->requiredLengthForSignedData()) {
   uint16_t thresholSignatureLength = (uint16_t)thresholdSigner->requiredLengthForSignedData();
 
@@ -36,9 +36,9 @@ PartialCommitProofMsg::PartialCommitProofMsg(ReplicaId senderId,
   b()->thresholSignatureLength = thresholSignatureLength;
 
   char* position = body() + sizeof(PartialCommitProofMsgHeader);
-  memcpy(position, span_context.data(), span_context.size());
+  memcpy(position, spanContext.data(), spanContext.size());
 
-  position = position + span_context.size();
+  position = position + spanContext.size();
   thresholdSigner->signData((const char*)(&(digest)), sizeof(Digest), position, thresholSignatureLength);
 }
 

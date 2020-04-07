@@ -42,7 +42,7 @@ PartialExecProofMsg::PartialExecProofMsg(ReplicaId senderId,
 
 void PartialExecProofMsg::validate(const ReplicasInfo& repInfo) const {
   if (size() < sizeof(PartialExecProofMsgHeader) ||
-      size() < (sizeof(PartialExecProofMsgHeader) + thresholSignatureLength() + msgBody_->span_context_size) ||
+      size() < (sizeof(PartialExecProofMsgHeader) + thresholSignatureLength() + msgBody_->spanContextSize) ||
       senderId() ==
           repInfo.myId() ||  // TODO(GG) - TBD: we should use Assert for this condition (also in other messages)
       !repInfo.isIdOfReplica(senderId()))

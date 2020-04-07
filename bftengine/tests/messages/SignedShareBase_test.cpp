@@ -33,15 +33,15 @@ TEST(PreparePartialMsg, PreparePartialMsg_test) {
   ReplicaId id = 1u;
   ViewNum v = 1u;
   SeqNum s = 100u;
-  const char raw_span_context[] = {"span_\0context"};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest digest;
   std::vector<char> signature(config.thresholdSignerForCommit->requiredLengthForSignedData());
   config.thresholdSignerForOptimisticCommit->signData(nullptr, 0, signature.data(), signature.size());
   std::unique_ptr<PreparePartialMsg> msg{
-      PreparePartialMsg::create(v, s, id, digest, config.thresholdSignerForCommit, span_context)};
-  testSignedShareBaseMethods(*msg, v, s, span_context, signature);
-  testMessageBaseMethods(*msg, MsgCode::PreparePartial, id, span_context);
+      PreparePartialMsg::create(v, s, id, digest, config.thresholdSignerForCommit, spanContext)};
+  testSignedShareBaseMethods(*msg, v, s, spanContext, signature);
+  testMessageBaseMethods(*msg, MsgCode::PreparePartial, id, spanContext);
 }
 
 TEST(PrepareFullMsg, PrepareFullMsg_test) {
@@ -49,15 +49,15 @@ TEST(PrepareFullMsg, PrepareFullMsg_test) {
   ReplicaId id = 1u;
   ViewNum v = 1u;
   SeqNum s = 100u;
-  const char raw_span_context[] = {"span_\0context"};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest digest;
   std::vector<char> signature(config.thresholdSignerForCommit->requiredLengthForSignedData());
   config.thresholdSignerForOptimisticCommit->signData(nullptr, 0, signature.data(), signature.size());
   std::unique_ptr<PrepareFullMsg> msg{
-      PrepareFullMsg::create(v, s, id, signature.data(), signature.size(), span_context)};
-  testSignedShareBaseMethods(*msg, v, s, span_context, signature);
-  testMessageBaseMethods(*msg, MsgCode::PrepareFull, id, span_context);
+      PrepareFullMsg::create(v, s, id, signature.data(), signature.size(), spanContext)};
+  testSignedShareBaseMethods(*msg, v, s, spanContext, signature);
+  testMessageBaseMethods(*msg, MsgCode::PrepareFull, id, spanContext);
 }
 
 TEST(CommitPartialMsg, CommitPartialMsg_test) {
@@ -65,29 +65,29 @@ TEST(CommitPartialMsg, CommitPartialMsg_test) {
   ReplicaId id = 1u;
   ViewNum v = 1u;
   SeqNum s = 100u;
-  const char raw_span_context[] = {"span_\0context"};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest digest;
   std::vector<char> signature(config.thresholdSignerForCommit->requiredLengthForSignedData());
   config.thresholdSignerForOptimisticCommit->signData(nullptr, 0, signature.data(), signature.size());
   std::unique_ptr<CommitPartialMsg> msg{
-      CommitPartialMsg::create(v, s, id, digest, config.thresholdSignerForCommit, span_context)};
-  testSignedShareBaseMethods(*msg, v, s, span_context, signature);
-  testMessageBaseMethods(*msg, MsgCode::CommitPartial, id, span_context);
+      CommitPartialMsg::create(v, s, id, digest, config.thresholdSignerForCommit, spanContext)};
+  testSignedShareBaseMethods(*msg, v, s, spanContext, signature);
+  testMessageBaseMethods(*msg, MsgCode::CommitPartial, id, spanContext);
 }
 TEST(CommitFullMsg, CommitFullMsg_test) {
   auto config = createReplicaConfig();
   ReplicaId id = 1u;
   ViewNum v = 1u;
   SeqNum s = 100u;
-  const char raw_span_context[] = {"span_\0context"};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest digest;
   std::vector<char> signature(config.thresholdSignerForCommit->requiredLengthForSignedData());
   config.thresholdSignerForOptimisticCommit->signData(nullptr, 0, signature.data(), signature.size());
-  std::unique_ptr<CommitFullMsg> msg{CommitFullMsg::create(v, s, id, signature.data(), signature.size(), span_context)};
-  testSignedShareBaseMethods(*msg, v, s, span_context, signature);
-  testMessageBaseMethods(*msg, MsgCode::CommitFull, id, span_context);
+  std::unique_ptr<CommitFullMsg> msg{CommitFullMsg::create(v, s, id, signature.data(), signature.size(), spanContext)};
+  testSignedShareBaseMethods(*msg, v, s, spanContext, signature);
+  testMessageBaseMethods(*msg, MsgCode::CommitFull, id, spanContext);
 }
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);

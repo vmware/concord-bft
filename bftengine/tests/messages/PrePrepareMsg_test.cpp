@@ -23,32 +23,32 @@ ReplicaConfig create_replica_config() {
 ClientRequestMsg create_client_request() {
   uint64_t reqSeqNum = 100u;
   const char request[] = {"request body"};
-  const uint64_t request_timeout_milli = 0;
-  const std::string correlation_id = "correlation_id";
-  const char raw_span_context[] = {"span_\0context"};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
+  const uint64_t requestTimeoutMilli = 0;
+  const std::string correlationId = "correlationId";
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
 
   return ClientRequestMsg(
-      1u, 'F', reqSeqNum, sizeof(request), request, request_timeout_milli, correlation_id, span_context);
+      1u, 'F', reqSeqNum, sizeof(request), request, requestTimeoutMilli, correlationId, spanContext);
 }
 
 TEST(PrePrepareMsg, create_and_compare) {
   auto config = createReplicaConfig();
   config.singletonFromThis();
 
-  ReplicasInfo replica_info(config, false, false);
+  ReplicasInfo replicaInfo(config, false, false);
 
-  ReplicaId replica_id = 1u;
-  ViewNum view_num = 2u;
-  SeqNum seq_num = 3u;
-  CommitPath commit_path = CommitPath::OPTIMISTIC_FAST;
+  ReplicaId senderId = 1u;
+  ViewNum viewNum = 2u;
+  SeqNum seqNum = 3u;
+  CommitPath commitPath = CommitPath::OPTIMISTIC_FAST;
   bool is_null = false;
-  const char raw_span_context[] = {"span_\0context"};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
-  PrePrepareMsg msg(replica_id, view_num, seq_num, commit_path, span_context, is_null);
-  EXPECT_EQ(msg.viewNumber(), view_num);
-  EXPECT_EQ(msg.seqNumber(), seq_num);
-  EXPECT_EQ(msg.firstPath(), commit_path);
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
+  PrePrepareMsg msg(senderId, viewNum, seqNum, commitPath, spanContext, is_null);
+  EXPECT_EQ(msg.viewNumber(), viewNum);
+  EXPECT_EQ(msg.seqNumber(), seqNum);
+  EXPECT_EQ(msg.firstPath(), commitPath);
   EXPECT_EQ(msg.isNull(), is_null);
   EXPECT_EQ(msg.numberOfRequests(), 0u);
 
@@ -61,7 +61,7 @@ TEST(PrePrepareMsg, create_and_compare) {
   EXPECT_NO_THROW(msg.updateView(msg.viewNumber() + 1));
   EXPECT_EQ(msg.viewNumber(), 3u);
   EXPECT_EQ(msg.firstPath(), CommitPath::SLOW);
-  EXPECT_NO_THROW(msg.validate(replica_info));
+  EXPECT_NO_THROW(msg.validate(replicaInfo));
 
   RequestsIterator iterator(&msg);
   for (size_t i = 0; i < msg.numberOfRequests(); ++i) {
@@ -74,37 +74,37 @@ TEST(PrePrepareMsg, create_and_compare) {
 }
 
 TEST(PrePrepareMsg, create_null_message) {
-  ReplicaId replica_id = 1u;
-  ViewNum view_num = 2u;
-  SeqNum seq_num = 3u;
-  CommitPath commit_path = CommitPath::OPTIMISTIC_FAST;
-  const char raw_span_context[] = {"span_\0context"};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
+  ReplicaId senderId = 1u;
+  ViewNum viewNum = 2u;
+  SeqNum seqNum = 3u;
+  CommitPath commitPath = CommitPath::OPTIMISTIC_FAST;
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   std::unique_ptr<PrePrepareMsg> null_msg{
-      PrePrepareMsg::createNullPrePrepareMsg(replica_id, view_num, seq_num, commit_path, span_context)};
+      PrePrepareMsg::createNullPrePrepareMsg(senderId, viewNum, seqNum, commitPath, spanContext)};
 
   auto& msg = *null_msg;
-  EXPECT_EQ(msg.viewNumber(), view_num);
-  EXPECT_EQ(msg.seqNumber(), seq_num);
-  EXPECT_EQ(msg.firstPath(), commit_path);
+  EXPECT_EQ(msg.viewNumber(), viewNum);
+  EXPECT_EQ(msg.seqNumber(), seqNum);
+  EXPECT_EQ(msg.firstPath(), commitPath);
   EXPECT_EQ(msg.isNull(), true);
   EXPECT_EQ(msg.numberOfRequests(), 0u);
 }
 
 TEST(PrePrepareMsg, base_methods) {
-  ReplicaId replica_id = 1u;
-  ViewNum view_num = 2u;
-  SeqNum seq_num = 3u;
-  CommitPath commit_path = CommitPath::OPTIMISTIC_FAST;
+  ReplicaId senderId = 1u;
+  ViewNum viewNum = 2u;
+  SeqNum seqNum = 3u;
+  CommitPath commitPath = CommitPath::OPTIMISTIC_FAST;
   bool is_null = false;
-  const char raw_span_context[] = {"span_\0context"};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
-  PrePrepareMsg msg(replica_id, view_num, seq_num, commit_path, span_context, is_null);
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
+  PrePrepareMsg msg(senderId, viewNum, seqNum, commitPath, spanContext, is_null);
 
   ClientRequestMsg client_request = create_client_request();
   msg.addRequest(client_request.body(), client_request.size());
   msg.finishAddingRequests();
-  testMessageBaseMethods(msg, MsgCode::PrePrepare, replica_id, span_context);
+  testMessageBaseMethods(msg, MsgCode::PrePrepare, senderId, spanContext);
 }
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);

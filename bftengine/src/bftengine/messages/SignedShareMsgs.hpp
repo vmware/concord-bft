@@ -31,7 +31,7 @@ class SignedShareBase : public MessageBase {
 
   uint16_t signatureLen() const { return b()->thresSigLength; }
 
-  char* signatureBody() const { return body() + sizeof(SignedShareBaseHeader) + msgBody_->span_context_size; }
+  char* signatureBody() const { return body() + sizeof(SignedShareBaseHeader) + msgBody_->spanContextSize; }
 
   virtual std::string spanContext() const;
 

@@ -84,7 +84,7 @@ void SignedShareBase::_validate(const ReplicasInfo& repInfo, int16_t type_) cons
 }
 
 std::string SignedShareBase::spanContext() const {
-  return std::string(body() + sizeof(SignedShareBaseHeader), b()->header.span_context_size);
+  return std::string(body() + sizeof(SignedShareBaseHeader), b()->header.spanContextSize);
 }
 ///////////////////////////////////////////////////////////////////////////////
 // PreparePartialMsg

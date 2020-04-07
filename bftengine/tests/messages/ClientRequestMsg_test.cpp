@@ -21,111 +21,111 @@ using namespace bftEngine;
 using namespace bftEngine::impl;
 
 TEST(ClientRequestMsg, create_and_compare) {
-  NodeIdType node_type = 1u;
+  NodeIdType senderId = 1u;
   uint8_t flags = 'F';
   uint64_t reqSeqNum = 100u;
   const char request[] = {"request body"};
-  const uint64_t request_timeout_milli = 0;
-  const std::string correlation_id = "correlation_id";
-  const char raw_span_context[] = {"span_\0context"};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
+  const uint64_t requestTimeoutMilli = 0;
+  const std::string correlationId = "correlationId";
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ClientRequestMsg msg(
-      node_type, flags, reqSeqNum, sizeof(request), request, request_timeout_milli, correlation_id, span_context);
+      senderId, flags, reqSeqNum, sizeof(request), request, requestTimeoutMilli, correlationId, spanContext);
 
-  EXPECT_EQ(msg.clientProxyId(), node_type);
+  EXPECT_EQ(msg.clientProxyId(), senderId);
   EXPECT_EQ(msg.flags(), flags);
   EXPECT_EQ(msg.requestSeqNum(), reqSeqNum);
   EXPECT_EQ(msg.requestLength(), sizeof(request));
   EXPECT_NE(msg.requestBuf(), request);
   EXPECT_TRUE(std::memcmp(msg.requestBuf(), request, sizeof(request)) == 0u);
-  EXPECT_EQ(msg.getCid(), correlation_id);
-  EXPECT_EQ(msg.spanContext(), span_context);
-  EXPECT_EQ(msg.requestTimeoutMilli(), request_timeout_milli);
+  EXPECT_EQ(msg.getCid(), correlationId);
+  EXPECT_EQ(msg.spanContext(), spanContext);
+  EXPECT_EQ(msg.requestTimeoutMilli(), requestTimeoutMilli);
 }
 
 TEST(ClientRequestMsg, create_and_compare_with_empty_span) {
-  NodeIdType node_type = 1u;
+  NodeIdType senderId = 1u;
   uint8_t flags = 'F';
   uint64_t reqSeqNum = 100u;
   const char request[] = {"request body"};
-  const uint64_t request_timeout_milli = 0;
-  const std::string correlation_id = "correlation_id";
-  const char raw_span_context[] = {""};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
+  const uint64_t requestTimeoutMilli = 0;
+  const std::string correlationId = "correlationId";
+  const char rawSpanContext[] = {""};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ClientRequestMsg msg(
-      node_type, flags, reqSeqNum, sizeof(request), request, request_timeout_milli, correlation_id, span_context);
+      senderId, flags, reqSeqNum, sizeof(request), request, requestTimeoutMilli, correlationId, spanContext);
 
-  EXPECT_EQ(msg.clientProxyId(), node_type);
+  EXPECT_EQ(msg.clientProxyId(), senderId);
   EXPECT_EQ(msg.flags(), flags);
   EXPECT_EQ(msg.requestSeqNum(), reqSeqNum);
   EXPECT_EQ(msg.requestLength(), sizeof(request));
   EXPECT_NE(msg.requestBuf(), request);
   EXPECT_TRUE(std::memcmp(msg.requestBuf(), request, sizeof(request)) == 0u);
-  EXPECT_EQ(msg.getCid(), correlation_id);
-  EXPECT_EQ(msg.spanContext(), span_context);
+  EXPECT_EQ(msg.getCid(), correlationId);
+  EXPECT_EQ(msg.spanContext(), spanContext);
 }
 
 TEST(ClientRequestMsg, create_and_compare_with_empty_cid) {
-  NodeIdType node_type = 1u;
+  NodeIdType senderId = 1u;
   uint8_t flags = 'F';
   uint64_t reqSeqNum = 100u;
   const char request[] = {"request body"};
-  const uint64_t request_timeout_milli = 0;
-  const std::string correlation_id = "";
-  const char raw_span_context[] = {""};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
+  const uint64_t requestTimeoutMilli = 0;
+  const std::string correlationId = "";
+  const char rawSpanContext[] = {""};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ClientRequestMsg msg(
-      node_type, flags, reqSeqNum, sizeof(request), request, request_timeout_milli, correlation_id, span_context);
+      senderId, flags, reqSeqNum, sizeof(request), request, requestTimeoutMilli, correlationId, spanContext);
 
-  EXPECT_EQ(msg.clientProxyId(), node_type);
+  EXPECT_EQ(msg.clientProxyId(), senderId);
   EXPECT_EQ(msg.flags(), flags);
   EXPECT_EQ(msg.requestSeqNum(), reqSeqNum);
   EXPECT_EQ(msg.requestLength(), sizeof(request));
   EXPECT_NE(msg.requestBuf(), request);
   EXPECT_TRUE(std::memcmp(msg.requestBuf(), request, sizeof(request)) == 0u);
-  EXPECT_EQ(msg.getCid(), correlation_id);
-  EXPECT_EQ(msg.spanContext(), span_context);
-  EXPECT_EQ(msg.requestTimeoutMilli(), request_timeout_milli);
+  EXPECT_EQ(msg.getCid(), correlationId);
+  EXPECT_EQ(msg.spanContext(), spanContext);
+  EXPECT_EQ(msg.requestTimeoutMilli(), requestTimeoutMilli);
 }
 
 TEST(ClientRequestMsg, create_from_buffer) {
-  NodeIdType node_type = 1u;
+  NodeIdType senderId = 1u;
   uint8_t flags = 'F';
   uint64_t reqSeqNum = 100u;
   const char request[] = {"request body"};
-  const uint64_t request_timeout_milli = 0;
-  const std::string correlation_id = "correlation_id";
-  const char raw_span_context[] = {""};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
-  ClientRequestMsg original_msg(
-      node_type, flags, reqSeqNum, sizeof(request), request, request_timeout_milli, correlation_id, span_context);
+  const uint64_t requestTimeoutMilli = 0;
+  const std::string correlationId = "correlationId";
+  const char rawSpanContext[] = {""};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
+  ClientRequestMsg originalMsg(
+      senderId, flags, reqSeqNum, sizeof(request), request, requestTimeoutMilli, correlationId, spanContext);
 
-  ClientRequestMsg copy_msg((ClientRequestMsgHeader*)original_msg.body());
+  ClientRequestMsg copy_msg((ClientRequestMsgHeader*)originalMsg.body());
 
-  EXPECT_EQ(original_msg.clientProxyId(), copy_msg.clientProxyId());
-  EXPECT_EQ(original_msg.flags(), copy_msg.flags());
-  EXPECT_EQ(original_msg.requestSeqNum(), copy_msg.requestSeqNum());
-  EXPECT_EQ(original_msg.requestLength(), copy_msg.requestLength());
-  EXPECT_EQ(original_msg.requestBuf(), copy_msg.requestBuf());
-  EXPECT_TRUE(std::memcmp(original_msg.requestBuf(), copy_msg.requestBuf(), sizeof(request)) == 0u);
-  EXPECT_EQ(original_msg.getCid(), copy_msg.getCid());
-  EXPECT_EQ(original_msg.spanContext(), copy_msg.spanContext());
-  EXPECT_EQ(original_msg.requestTimeoutMilli(), request_timeout_milli);
+  EXPECT_EQ(originalMsg.clientProxyId(), copy_msg.clientProxyId());
+  EXPECT_EQ(originalMsg.flags(), copy_msg.flags());
+  EXPECT_EQ(originalMsg.requestSeqNum(), copy_msg.requestSeqNum());
+  EXPECT_EQ(originalMsg.requestLength(), copy_msg.requestLength());
+  EXPECT_EQ(originalMsg.requestBuf(), copy_msg.requestBuf());
+  EXPECT_TRUE(std::memcmp(originalMsg.requestBuf(), copy_msg.requestBuf(), sizeof(request)) == 0u);
+  EXPECT_EQ(originalMsg.getCid(), copy_msg.getCid());
+  EXPECT_EQ(originalMsg.spanContext(), copy_msg.spanContext());
+  EXPECT_EQ(originalMsg.requestTimeoutMilli(), requestTimeoutMilli);
 }
 
 TEST(ClientRequestMsg, base_methods) {
   createReplicaConfig().singletonFromThis();
-  NodeIdType node_type = 1u;
+  NodeIdType senderId = 1u;
   uint8_t flags = 'F';
   uint64_t reqSeqNum = 100u;
   const char request[] = {"request body"};
-  const uint64_t request_timeout_milli = 0;
-  const std::string correlation_id = "correlation_id";
-  const char raw_span_context[] = {"span_\0context"};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
+  const uint64_t requestTimeoutMilli = 0;
+  const std::string correlationId = "correlationId";
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ClientRequestMsg msg(
-      node_type, flags, reqSeqNum, sizeof(request), request, request_timeout_milli, correlation_id, span_context);
-  testMessageBaseMethods(msg, MsgCode::ClientRequest, node_type, span_context);
+      senderId, flags, reqSeqNum, sizeof(request), request, requestTimeoutMilli, correlationId, spanContext);
+  testMessageBaseMethods(msg, MsgCode::ClientRequest, senderId, spanContext);
 }
 
 int main(int argc, char** argv) {

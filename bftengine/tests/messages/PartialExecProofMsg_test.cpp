@@ -17,23 +17,23 @@ using namespace bftEngine::impl;
 
 TEST(PartialExecProofMsg, base_methods) {
   auto config = createReplicaConfig();
-  ReplicaId replica_id = 1u;
-  ViewNum view_num = 2u;
-  SeqNum seq_num = 3u;
-  const char raw_span_context[] = {"span_\0context"};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
+  ReplicaId senderId = 1u;
+  ViewNum viewNum = 2u;
+  SeqNum seqNum = 3u;
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest tmpDigest;
   PartialExecProofMsg msg(
-      replica_id, view_num, seq_num, tmpDigest, config.thresholdSignerForOptimisticCommit, span_context);
-  EXPECT_EQ(msg.viewNumber(), view_num);
-  EXPECT_EQ(msg.seqNumber(), seq_num);
+      senderId, viewNum, seqNum, tmpDigest, config.thresholdSignerForOptimisticCommit, spanContext);
+  EXPECT_EQ(msg.viewNumber(), viewNum);
+  EXPECT_EQ(msg.seqNumber(), seqNum);
   EXPECT_EQ(msg.thresholSignatureLength(), config.thresholdSignerForOptimisticCommit->requiredLengthForSignedData());
 
   std::vector<char> signature(config.thresholdSignerForOptimisticCommit->requiredLengthForSignedData());
   config.thresholdSignerForOptimisticCommit->signData(nullptr, 0, signature.data(), signature.size());
 
   EXPECT_EQ(memcmp(msg.thresholSignature(), signature.data(), signature.size()), 0);
-  testMessageBaseMethods(msg, MsgCode::PartialExecProof, replica_id, span_context);
+  testMessageBaseMethods(msg, MsgCode::PartialExecProof, senderId, spanContext);
 }
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);

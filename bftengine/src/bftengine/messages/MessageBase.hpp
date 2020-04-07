@@ -24,7 +24,7 @@ class MessageBase {
 #pragma pack(push, 1)
   struct Header {
     MsgType msgType;
-    SpanContextSize span_context_size = 0u;
+    SpanContextSize spanContextSize = 0u;
   };
 #pragma pack(pop)
 
@@ -33,7 +33,7 @@ class MessageBase {
   explicit MessageBase(NodeIdType sender);
 
   MessageBase(NodeIdType sender, MsgType type, MsgSize size);
-  MessageBase(NodeIdType sender, MsgType type, SpanContextSize span_context_size, MsgSize size);
+  MessageBase(NodeIdType sender, MsgType type, SpanContextSize spanContextSize, MsgSize size);
 
   MessageBase(NodeIdType sender, Header *body, MsgSize size, bool ownerOfStorage);
 
@@ -58,7 +58,7 @@ class MessageBase {
 
   MsgType type() const { return msgBody_->msgType; }
 
-  SpanContextSize spanContextSize() const { return msgBody_->span_context_size; }
+  SpanContextSize spanContextSize() const { return msgBody_->spanContextSize; }
   virtual std::string spanContext() const { return ""; };
 
   MessageBase *cloneObjAndMsg() const;

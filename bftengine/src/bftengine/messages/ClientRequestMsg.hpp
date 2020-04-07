@@ -36,7 +36,7 @@ class ClientRequestMsg : public MessageBase {
                    const char* request,
                    uint64_t reqTimeoutMilli,
                    const std::string& cid = "",
-                   const std::string& span_context = "");
+                   const std::string& spanContext = "");
 
   ClientRequestMsg(ClientRequestMsgHeader* body);
 
@@ -50,7 +50,7 @@ class ClientRequestMsg : public MessageBase {
 
   uint32_t requestLength() const { return msgBody()->requestLength; }
 
-  char* requestBuf() const { return body() + sizeof(ClientRequestMsgHeader) + msgBody()->span_context_size; }
+  char* requestBuf() const { return body() + sizeof(ClientRequestMsgHeader) + msgBody()->spanContextSize; }
 
   uint64_t requestTimeoutMilli() const { return msgBody()->timeoutMilli; }
 
@@ -68,7 +68,7 @@ class ClientRequestMsg : public MessageBase {
                  uint8_t flags,
                  uint64_t reqTimeoutMilli,
                  const std::string& cid,
-                 const std::string& span_context);
+                 const std::string& spanContext);
 };  // namespace bftEngine::impl
 
 }  // namespace bftEngine::impl

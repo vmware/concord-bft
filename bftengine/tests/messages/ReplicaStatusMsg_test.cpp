@@ -17,9 +17,9 @@ using namespace bftEngine::impl;
 
 TEST(ReplicaStatusMsg, viewActiveNoLists) {
   auto config = createReplicaConfig();
-  ReplicasInfo replica_info(config, false, false);
-  ReplicaId replica_id = 1u;
-  ViewNum view_num = 2u;
+  ReplicasInfo replicaInfo(config, false, false);
+  ReplicaId senderId = 1u;
+  ViewNum viewNum = 2u;
   SeqNum lastStable = 150u;
   SeqNum lastExecuted = 160u;
   bool viewIsActive = true;
@@ -27,11 +27,11 @@ TEST(ReplicaStatusMsg, viewActiveNoLists) {
   bool listOfPrePrepareMsgsInActiveWindow = false;
   bool listOfMissingViewChangeMsgForViewChange = false;
   bool listOfMissingPrePrepareMsgForViewChange = false;
-  const char raw_span_context[] = {"span_\0context"};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest tmpDigest;
-  ReplicaStatusMsg msg(replica_id,
-                       view_num,
+  ReplicaStatusMsg msg(senderId,
+                       viewNum,
                        lastStable,
                        lastExecuted,
                        viewIsActive,
@@ -39,8 +39,8 @@ TEST(ReplicaStatusMsg, viewActiveNoLists) {
                        listOfPrePrepareMsgsInActiveWindow,
                        listOfMissingViewChangeMsgForViewChange,
                        listOfMissingPrePrepareMsgForViewChange,
-                       span_context);
-  EXPECT_EQ(msg.getViewNumber(), view_num);
+                       spanContext);
+  EXPECT_EQ(msg.getViewNumber(), viewNum);
   EXPECT_EQ(msg.getLastStableSeqNum(), lastStable);
   EXPECT_EQ(msg.getLastExecutedSeqNum(), lastExecuted);
   EXPECT_EQ(msg.currentViewIsActive(), viewIsActive);
@@ -49,20 +49,20 @@ TEST(ReplicaStatusMsg, viewActiveNoLists) {
   EXPECT_EQ(msg.hasListOfMissingViewChangeMsgForViewChange(), listOfMissingViewChangeMsgForViewChange);
   EXPECT_EQ(msg.hasListOfMissingPrePrepareMsgForViewChange(), listOfMissingPrePrepareMsgForViewChange);
 
-  msg.validate(replica_info);
+  msg.validate(replicaInfo);
   /* the next methods crash the app with an assert ¯\_(ツ)_/¯
   EXPECT_FALSE(msg.isPrePrepareInActiveWindow(151));
-  EXPECT_FALSE(msg.isMissingViewChangeMsgForViewChange(replica_id));
+  EXPECT_FALSE(msg.isMissingViewChangeMsgForViewChange(senderId));
   EXPECT_FALSE(msg.isMissingPrePrepareMsgForViewChange(151));
   */
-  testMessageBaseMethods(msg, MsgCode::ReplicaStatus, replica_id, span_context);
+  testMessageBaseMethods(msg, MsgCode::ReplicaStatus, senderId, spanContext);
 }
 
 TEST(ReplicaStatusMsg, haslistOfPrePrepareMsgsInActiveWindow) {
   auto config = createReplicaConfig();
-  ReplicasInfo replica_info(config, false, false);
-  ReplicaId replica_id = 1u;
-  ViewNum view_num = 2u;
+  ReplicasInfo replicaInfo(config, false, false);
+  ReplicaId senderId = 1u;
+  ViewNum viewNum = 2u;
   SeqNum lastStable = 150u;
   SeqNum lastExecuted = 160u;
   bool viewIsActive = true;
@@ -70,11 +70,11 @@ TEST(ReplicaStatusMsg, haslistOfPrePrepareMsgsInActiveWindow) {
   bool listOfPrePrepareMsgsInActiveWindow = true;
   bool listOfMissingViewChangeMsgForViewChange = false;
   bool listOfMissingPrePrepareMsgForViewChange = false;
-  const char raw_span_context[] = {"span_\0context"};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest tmpDigest;
-  ReplicaStatusMsg msg(replica_id,
-                       view_num,
+  ReplicaStatusMsg msg(senderId,
+                       viewNum,
                        lastStable,
                        lastExecuted,
                        viewIsActive,
@@ -82,8 +82,8 @@ TEST(ReplicaStatusMsg, haslistOfPrePrepareMsgsInActiveWindow) {
                        listOfPrePrepareMsgsInActiveWindow,
                        listOfMissingViewChangeMsgForViewChange,
                        listOfMissingPrePrepareMsgForViewChange,
-                       span_context);
-  EXPECT_EQ(msg.getViewNumber(), view_num);
+                       spanContext);
+  EXPECT_EQ(msg.getViewNumber(), viewNum);
   EXPECT_EQ(msg.getLastStableSeqNum(), lastStable);
   EXPECT_EQ(msg.getLastExecutedSeqNum(), lastExecuted);
   EXPECT_EQ(msg.currentViewIsActive(), viewIsActive);
@@ -92,7 +92,7 @@ TEST(ReplicaStatusMsg, haslistOfPrePrepareMsgsInActiveWindow) {
   EXPECT_EQ(msg.hasListOfMissingViewChangeMsgForViewChange(), listOfMissingViewChangeMsgForViewChange);
   EXPECT_EQ(msg.hasListOfMissingPrePrepareMsgForViewChange(), listOfMissingPrePrepareMsgForViewChange);
 
-  msg.validate(replica_info);
+  msg.validate(replicaInfo);
   EXPECT_FALSE(msg.isPrePrepareInActiveWindow(151));
   msg.setPrePrepareInActiveWindow(151);
   EXPECT_TRUE(msg.isPrePrepareInActiveWindow(151));
@@ -101,19 +101,19 @@ TEST(ReplicaStatusMsg, haslistOfPrePrepareMsgsInActiveWindow) {
   msg.setPrePrepareInActiveWindow(152);
   EXPECT_TRUE(msg.isPrePrepareInActiveWindow(152));
 
-  msg.validate(replica_info);
+  msg.validate(replicaInfo);
   /* the next methods crash the app with an assert ¯\_(ツ)_/¯
-  EXPECT_FALSE(msg.isMissingViewChangeMsgForViewChange(replica_id));
+  EXPECT_FALSE(msg.isMissingViewChangeMsgForViewChange(senderId));
   EXPECT_FALSE(msg.isMissingPrePrepareMsgForViewChange(151));
   */
-  testMessageBaseMethods(msg, MsgCode::ReplicaStatus, replica_id, span_context);
+  testMessageBaseMethods(msg, MsgCode::ReplicaStatus, senderId, spanContext);
 }
 
 TEST(ReplicaStatusMsg, listOfMissingViewChangeMsgForViewChange) {
   auto config = createReplicaConfig();
-  ReplicasInfo replica_info(config, false, false);
-  ReplicaId replica_id = 1u;
-  ViewNum view_num = 2u;
+  ReplicasInfo replicaInfo(config, false, false);
+  ReplicaId senderId = 1u;
+  ViewNum viewNum = 2u;
   SeqNum lastStable = 150u;
   SeqNum lastExecuted = 160u;
   bool viewIsActive = false;
@@ -121,11 +121,11 @@ TEST(ReplicaStatusMsg, listOfMissingViewChangeMsgForViewChange) {
   bool listOfPrePrepareMsgsInActiveWindow = false;
   bool listOfMissingViewChangeMsgForViewChange = true;
   bool listOfMissingPrePrepareMsgForViewChange = false;
-  const char raw_span_context[] = {"span_\0context"};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest tmpDigest;
-  ReplicaStatusMsg msg(replica_id,
-                       view_num,
+  ReplicaStatusMsg msg(senderId,
+                       viewNum,
                        lastStable,
                        lastExecuted,
                        viewIsActive,
@@ -133,8 +133,8 @@ TEST(ReplicaStatusMsg, listOfMissingViewChangeMsgForViewChange) {
                        listOfPrePrepareMsgsInActiveWindow,
                        listOfMissingViewChangeMsgForViewChange,
                        listOfMissingPrePrepareMsgForViewChange,
-                       span_context);
-  EXPECT_EQ(msg.getViewNumber(), view_num);
+                       spanContext);
+  EXPECT_EQ(msg.getViewNumber(), viewNum);
   EXPECT_EQ(msg.getLastStableSeqNum(), lastStable);
   EXPECT_EQ(msg.getLastExecutedSeqNum(), lastExecuted);
   EXPECT_EQ(msg.currentViewIsActive(), viewIsActive);
@@ -153,13 +153,13 @@ TEST(ReplicaStatusMsg, listOfMissingViewChangeMsgForViewChange) {
   EXPECT_FALSE(msg.isPrePrepareInActiveWindow(151));
   EXPECT_FALSE(msg.isMissingPrePrepareMsgForViewChange(151));
   */
-  testMessageBaseMethods(msg, MsgCode::ReplicaStatus, replica_id, span_context);
+  testMessageBaseMethods(msg, MsgCode::ReplicaStatus, senderId, spanContext);
 }
 
 TEST(ReplicaStatusMsg, listOfMissingPrePrepareMsgForViewChange) {
   auto config = createReplicaConfig();
-  ReplicaId replica_id = 1u;
-  ViewNum view_num = 2u;
+  ReplicaId senderId = 1u;
+  ViewNum viewNum = 2u;
   SeqNum lastStable = 150u;
   SeqNum lastExecuted = 160u;
   bool viewIsActive = false;
@@ -167,11 +167,11 @@ TEST(ReplicaStatusMsg, listOfMissingPrePrepareMsgForViewChange) {
   bool listOfPrePrepareMsgsInActiveWindow = false;
   bool listOfMissingViewChangeMsgForViewChange = false;
   bool listOfMissingPrePrepareMsgForViewChange = true;
-  const char raw_span_context[] = {"span_\0context"};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest tmpDigest;
-  ReplicaStatusMsg msg(replica_id,
-                       view_num,
+  ReplicaStatusMsg msg(senderId,
+                       viewNum,
                        lastStable,
                        lastExecuted,
                        viewIsActive,
@@ -179,8 +179,8 @@ TEST(ReplicaStatusMsg, listOfMissingPrePrepareMsgForViewChange) {
                        listOfPrePrepareMsgsInActiveWindow,
                        listOfMissingViewChangeMsgForViewChange,
                        listOfMissingPrePrepareMsgForViewChange,
-                       span_context);
-  EXPECT_EQ(msg.getViewNumber(), view_num);
+                       spanContext);
+  EXPECT_EQ(msg.getViewNumber(), viewNum);
   EXPECT_EQ(msg.getLastStableSeqNum(), lastStable);
   EXPECT_EQ(msg.getLastExecutedSeqNum(), lastExecuted);
   EXPECT_EQ(msg.currentViewIsActive(), viewIsActive);
@@ -195,7 +195,7 @@ TEST(ReplicaStatusMsg, listOfMissingPrePrepareMsgForViewChange) {
   EXPECT_FALSE(msg.isMissingPrePrepareMsgForViewChange(152));
   msg.setMissingPrePrepareMsgForViewChange(152);
   EXPECT_TRUE(msg.isMissingPrePrepareMsgForViewChange(152));
-  testMessageBaseMethods(msg, MsgCode::ReplicaStatus, replica_id, span_context);
+  testMessageBaseMethods(msg, MsgCode::ReplicaStatus, senderId, spanContext);
 }
 
 int main(int argc, char** argv) {

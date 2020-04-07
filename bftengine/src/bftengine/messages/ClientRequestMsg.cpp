@@ -22,7 +22,7 @@ namespace bftEngine::impl {
 static uint16_t getSender(const ClientRequestMsgHeader* r) { return r->idOfClientProxy; }
 
 static int32_t compRequestMsgSize(const ClientRequestMsgHeader* r) {
-  return (sizeof(ClientRequestMsgHeader) + r->span_context_size + r->requestLength + r->cid_length);
+  return (sizeof(ClientRequestMsgHeader) + r->spanContextSize + r->requestLength + r->cid_length);
 }
 
 uint32_t getRequestSizeTemp(const char* request)  // TODO(GG): change - TBD
@@ -39,15 +39,15 @@ ClientRequestMsg::ClientRequestMsg(NodeIdType sender,
                                    const char* request,
                                    uint64_t reqTimeoutMilli,
                                    const std::string& cid,
-                                   const std::string& span_context)
+                                   const std::string& spanContext)
     : MessageBase(sender,
                   MsgCode::ClientRequest,
-                  span_context.size(),
+                  spanContext.size(),
                   (sizeof(ClientRequestMsgHeader) + requestLength + cid.size())) {
-  setParams(sender, reqSeqNum, requestLength, flags, reqTimeoutMilli, cid, span_context);
+  setParams(sender, reqSeqNum, requestLength, flags, reqTimeoutMilli, cid, spanContext);
   char* position = body() + sizeof(ClientRequestMsgHeader);
-  memcpy(position, span_context.data(), span_context.size());
-  position += span_context.size();
+  memcpy(position, spanContext.data(), spanContext.size());
+  position += spanContext.size();
   memcpy(position, request, requestLength);
   position += requestLength;
   memcpy(position, cid.data(), cid.size());
@@ -71,7 +71,7 @@ void ClientRequestMsg::setParams(NodeIdType sender,
                                  uint8_t flags,
                                  uint64_t reqTimeoutMilli,
                                  const std::string& cid,
-                                 const std::string& span_context) {
+                                 const std::string& spanContext) {
   msgBody()->idOfClientProxy = sender;
   msgBody()->timeoutMilli = reqTimeoutMilli;
   msgBody()->reqSeqNum = reqSeqNum;
@@ -81,7 +81,7 @@ void ClientRequestMsg::setParams(NodeIdType sender,
 }
 
 std::string ClientRequestMsg::spanContext() const {
-  return std::string(body() + sizeof(ClientRequestMsgHeader), msgBody()->span_context_size);
+  return std::string(body() + sizeof(ClientRequestMsgHeader), msgBody()->spanContextSize);
 }
 
 std::string ClientRequestMsg::getCid() const {

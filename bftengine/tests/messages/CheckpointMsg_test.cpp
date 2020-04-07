@@ -12,21 +12,21 @@
 
 TEST(CheckpointMsg, base_methods) {
   createReplicaConfig().singletonFromThis();
-  NodeIdType node_type = 1u;
+  NodeIdType senderId = 1u;
   uint64_t reqSeqNum = 100u;
   char digestContext[DIGEST_SIZE] = "digest_content";
   Digest digest(digestContext, sizeof(digestContext));
   bool isStable = false;
-  const std::string correlation_id = "correlation_id";
-  const char raw_span_context[] = {"span_\0context"};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
-  CheckpointMsg msg(node_type, reqSeqNum, digest, isStable, span_context);
+  const std::string correlationId = "correlationId";
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
+  CheckpointMsg msg(senderId, reqSeqNum, digest, isStable, spanContext);
   EXPECT_EQ(msg.seqNumber(), reqSeqNum);
   EXPECT_EQ(msg.isStableState(), isStable);
   msg.setStateAsStable();
   EXPECT_EQ(msg.isStableState(), !isStable);
   EXPECT_EQ(msg.digestOfState(), digest);
-  testMessageBaseMethods(msg, MsgCode::Checkpoint, node_type, span_context);
+  testMessageBaseMethods(msg, MsgCode::Checkpoint, senderId, spanContext);
 }
 
 int main(int argc, char** argv) {

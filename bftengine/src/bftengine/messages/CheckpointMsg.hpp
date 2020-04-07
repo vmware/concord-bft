@@ -40,7 +40,7 @@ class CheckpointMsg : public MessageBase {
   void validate(const ReplicasInfo& repInfo) const override;
 
   std::string spanContext() const override {
-    return std::string(body() + sizeof(CheckpointMsgHeader), b()->header.span_context_size);
+    return std::string(body() + sizeof(CheckpointMsgHeader), b()->header.spanContextSize);
   }
 
  protected:

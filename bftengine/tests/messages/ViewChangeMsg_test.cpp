@@ -16,51 +16,51 @@ using namespace bftEngine::impl;
 
 TEST(ViewChangeMsg, base_methods) {
   auto config = createReplicaConfig();
-  ReplicaId replica_id = 1u;
-  ViewNum view_num = 2u;
-  SeqNum seq_num = 3u;
-  const char raw_span_context[] = {"span_\0context"};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
+  ReplicaId senderId = 1u;
+  ViewNum viewNum = 2u;
+  SeqNum seqNum = 3u;
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ReplicasInfo replicaInfo(config, true, true);
   SigManager sigManager(config.replicaId,
                         config.numReplicas + config.numOfClientProxies,
                         config.replicaPrivateKey,
                         config.publicKeysOfReplicas);
   ViewsManager manager(&replicaInfo, &sigManager, config.thresholdVerifierForSlowPathCommit);
-  ViewChangeMsg msg(replica_id, view_num, seq_num, span_context);
-  EXPECT_EQ(msg.idOfGeneratedReplica(), replica_id);
-  EXPECT_EQ(msg.newView(), view_num);
-  EXPECT_EQ(msg.lastStable(), seq_num);
+  ViewChangeMsg msg(senderId, viewNum, seqNum, spanContext);
+  EXPECT_EQ(msg.idOfGeneratedReplica(), senderId);
+  EXPECT_EQ(msg.newView(), viewNum);
+  EXPECT_EQ(msg.lastStable(), seqNum);
   EXPECT_EQ(msg.numberOfElements(), 0u);
-  view_num++;
-  msg.setNewViewNumber(view_num);
-  EXPECT_EQ(msg.newView(), view_num);
-  testMessageBaseMethods(msg, MsgCode::ViewChange, replica_id, span_context);
+  viewNum++;
+  msg.setNewViewNumber(viewNum);
+  EXPECT_EQ(msg.newView(), viewNum);
+  testMessageBaseMethods(msg, MsgCode::ViewChange, senderId, spanContext);
 
   typedef std::tuple<SeqNum, Digest, ViewNum, bool, ViewNum, size_t, char*> InputTuple;
   std::vector<InputTuple> inputData;
   Digest digest1(1);
-  auto originalViewNum1 = view_num;
-  auto view_num1 = ++view_num;
+  auto originalViewNum1 = viewNum;
+  auto viewNum1 = ++viewNum;
   char certificate1[DIGEST_SIZE] = {1};
-  auto seq_num1 = ++seq_num;
+  auto seqNum1 = ++seqNum;
   inputData.push_back(
-      std::make_tuple(seq_num1, digest1, view_num1, true, originalViewNum1, sizeof(certificate1), certificate1));
-  msg.addElement(seq_num1, digest1, view_num1, true, originalViewNum1, sizeof(certificate1), certificate1);
+      std::make_tuple(seqNum1, digest1, viewNum1, true, originalViewNum1, sizeof(certificate1), certificate1));
+  msg.addElement(seqNum1, digest1, viewNum1, true, originalViewNum1, sizeof(certificate1), certificate1);
   Digest digest2(2);
-  auto originalViewNum2 = view_num;
-  auto view_num2 = ++view_num;
+  auto originalViewNum2 = viewNum;
+  auto viewNum2 = ++viewNum;
   char certificate2[DIGEST_SIZE] = {2};
-  auto seq_num2 = ++seq_num;
+  auto seqNum2 = ++seqNum;
   inputData.push_back(
-      std::make_tuple(seq_num2, digest2, view_num2, true, originalViewNum2, sizeof(certificate2), certificate2));
-  msg.addElement(seq_num2, digest2, view_num2, true, originalViewNum2, sizeof(certificate2), certificate2);
+      std::make_tuple(seqNum2, digest2, viewNum2, true, originalViewNum2, sizeof(certificate2), certificate2));
+  msg.addElement(seqNum2, digest2, viewNum2, true, originalViewNum2, sizeof(certificate2), certificate2);
   EXPECT_EQ(msg.numberOfElements(), 2);
 
-  msg.setNewViewNumber(++view_num);
+  msg.setNewViewNumber(++viewNum);
   msg.finalizeMessage();
   EXPECT_EQ(msg.numberOfElements(), 2);
-  testMessageBaseMethods(msg, MsgCode::ViewChange, replica_id, span_context);
+  testMessageBaseMethods(msg, MsgCode::ViewChange, senderId, spanContext);
 
   {
     ViewChangeMsg::ElementsIterator iter(&msg);

@@ -11,15 +11,15 @@ using namespace bftEngine::impl;
 
 TEST(StartSlowCommitMsg, base_methods) {
   auto config = createReplicaConfig();
-  ReplicaId replica_id = 1u;
-  ViewNum view_num = 2u;
-  SeqNum seq_num = 3u;
-  const char raw_span_context[] = {"span_\0context"};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
-  StartSlowCommitMsg msg(replica_id, view_num, seq_num, span_context);
-  EXPECT_EQ(msg.viewNumber(), view_num);
-  EXPECT_EQ(msg.seqNumber(), seq_num);
-  testMessageBaseMethods(msg, MsgCode::StartSlowCommit, replica_id, span_context);
+  ReplicaId senderId = 1u;
+  ViewNum viewNum = 2u;
+  SeqNum seqNum = 3u;
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
+  StartSlowCommitMsg msg(senderId, viewNum, seqNum, spanContext);
+  EXPECT_EQ(msg.viewNumber(), viewNum);
+  EXPECT_EQ(msg.seqNumber(), seqNum);
+  testMessageBaseMethods(msg, MsgCode::StartSlowCommit, senderId, spanContext);
 }
 
 int main(int argc, char** argv) {

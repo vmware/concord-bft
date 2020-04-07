@@ -59,7 +59,7 @@ class PrePrepareMsg : public MessageBase {
                                                 ViewNum v,
                                                 SeqNum s,
                                                 CommitPath firstPath = CommitPath::SLOW,
-                                                const std::string& span_context = "");  // TODO(GG): why static method ?
+                                                const std::string& spanContext = "");  // TODO(GG): why static method ?
 
   static const Digest& digestOfNullPrePrepareMsg();
 
@@ -69,8 +69,13 @@ class PrePrepareMsg : public MessageBase {
 
   PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, bool isNull = false, size_t size = 0);
 
-  PrePrepareMsg(
-      ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, const std::string& span_context, bool isNull, size_t size = 0);
+  PrePrepareMsg(ReplicaId sender,
+                ViewNum v,
+                SeqNum s,
+                CommitPath firstPath,
+                const std::string& spanContext,
+                bool isNull,
+                size_t size = 0);
 
   uint32_t remainingSizeForRequests() const;
 

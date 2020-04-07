@@ -21,17 +21,17 @@ FullCommitProofMsg::FullCommitProofMsg(ReplicaId senderId,
                                        SeqNum s,
                                        const char* commitProofSig,
                                        uint16_t commitProofSigLength,
-                                       const std::string& span_context)
+                                       const std::string& spanContext)
     : MessageBase(senderId,
                   MsgCode::FullCommitProof,
-                  span_context.size(),
+                  spanContext.size(),
                   sizeof(FullCommitProofMsgHeader) + commitProofSigLength) {
   b()->viewNum = v;
   b()->seqNum = s;
   b()->thresholSignatureLength = commitProofSigLength;
   auto position = body() + sizeof(FullCommitProofMsgHeader);
-  memcpy(position, span_context.data(), span_context.size());
-  position += span_context.size();
+  memcpy(position, spanContext.data(), spanContext.size());
+  position += spanContext.size();
   memcpy(position, commitProofSig, commitProofSigLength);
 }
 

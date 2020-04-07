@@ -88,7 +88,7 @@ MessageBase::MessageBase(NodeIdType sender, MsgType type, SpanContextSize spanCo
   owner_ = true;
   sender_ = sender;
   msgBody_->msgType = type;
-  msgBody_->span_context_size = spanContextSize;
+  msgBody_->spanContextSize = spanContextSize;
 
 #ifdef DEBUG_MEMORY_MSG
   liveMessagesDebug.insert(this);

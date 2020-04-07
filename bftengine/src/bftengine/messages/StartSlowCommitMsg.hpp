@@ -27,7 +27,7 @@ class StartSlowCommitMsg : public MessageBase {
   SeqNum seqNumber() const { return b()->seqNum; }
 
   std::string spanContext() const override {
-    return std::string(body() + sizeof(StartSlowCommitMsgHeader), msgBody_->span_context_size);
+    return std::string(body() + sizeof(StartSlowCommitMsgHeader), msgBody_->spanContextSize);
   }
 
   void validate(const ReplicasInfo&) const override;

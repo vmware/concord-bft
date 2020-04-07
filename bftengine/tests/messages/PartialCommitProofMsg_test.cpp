@@ -20,24 +20,24 @@ TEST(PartialCommitProofMsg, create_and_compare) {
   auto config = createReplicaConfig();
   config.singletonFromThis();
 
-  ReplicasInfo replica_info(config, false, false);
+  ReplicasInfo replicaInfo(config, false, false);
 
-  ReplicaId replica_id = 1u;
-  ViewNum view_num = 2u;
-  SeqNum seq_num = 3u;
-  CommitPath commit_path = CommitPath::OPTIMISTIC_FAST;
-  const char raw_span_context[] = {"span_\0context"};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
+  ReplicaId senderId = 1u;
+  ViewNum viewNum = 2u;
+  SeqNum seqNum = 3u;
+  CommitPath commitPath = CommitPath::OPTIMISTIC_FAST;
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest tmpDigest;
   PartialCommitProofMsg msg(
-      replica_id, view_num, seq_num, commit_path, tmpDigest, config.thresholdSignerForOptimisticCommit, span_context);
+      senderId, viewNum, seqNum, commitPath, tmpDigest, config.thresholdSignerForOptimisticCommit, spanContext);
 
-  EXPECT_EQ(msg.senderId(), replica_id);
-  EXPECT_EQ(msg.viewNumber(), view_num);
-  EXPECT_EQ(msg.seqNumber(), seq_num);
-  EXPECT_EQ(msg.commitPath(), commit_path);
-  EXPECT_EQ(msg.spanContextSize(), span_context.size());
-  EXPECT_EQ(msg.spanContext(), span_context);
+  EXPECT_EQ(msg.senderId(), senderId);
+  EXPECT_EQ(msg.viewNumber(), viewNum);
+  EXPECT_EQ(msg.seqNumber(), seqNum);
+  EXPECT_EQ(msg.commitPath(), commitPath);
+  EXPECT_EQ(msg.spanContextSize(), spanContext.size());
+  EXPECT_EQ(msg.spanContext(), spanContext);
   EXPECT_EQ(msg.thresholSignatureLength(), config.thresholdSignerForOptimisticCommit->requiredLengthForSignedData());
 
   std::vector<char> signature(config.thresholdSignerForOptimisticCommit->requiredLengthForSignedData());
@@ -48,16 +48,16 @@ TEST(PartialCommitProofMsg, create_and_compare) {
 
 TEST(PartialCommitProofMsg, base_methods) {
   auto config = createReplicaConfig();
-  ReplicaId replica_id = 1u;
-  ViewNum view_num = 2u;
-  SeqNum seq_num = 3u;
-  CommitPath commit_path = CommitPath::OPTIMISTIC_FAST;
-  const char raw_span_context[] = {"span_\0context"};
-  const std::string span_context{raw_span_context, sizeof(raw_span_context)};
+  ReplicaId senderId = 1u;
+  ViewNum viewNum = 2u;
+  SeqNum seqNum = 3u;
+  CommitPath commitPath = CommitPath::OPTIMISTIC_FAST;
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest tmpDigest;
   PartialCommitProofMsg msg(
-      replica_id, view_num, seq_num, commit_path, tmpDigest, config.thresholdSignerForOptimisticCommit, span_context);
-  testMessageBaseMethods(msg, MsgCode::PartialCommitProof, replica_id, span_context);
+      senderId, viewNum, seqNum, commitPath, tmpDigest, config.thresholdSignerForOptimisticCommit, spanContext);
+  testMessageBaseMethods(msg, MsgCode::PartialCommitProof, senderId, spanContext);
 }
 
 int main(int argc, char** argv) {
