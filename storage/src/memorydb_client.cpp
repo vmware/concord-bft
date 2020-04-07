@@ -6,7 +6,9 @@
 #include <cstdint>
 #include <chrono>
 #include <cstring>
+#include <iterator>
 
+#include "assertUtils.hpp"
 #include "sliver.hpp"
 
 using concordUtils::Sliver;
@@ -136,6 +138,30 @@ Status Client::multiDel(const KeysVector &_keysVec) {
     if (!status.isOK()) return status;
   }
   return status;
+}
+
+/**
+ * @brief Deletes keys in the [_beginKey, _endKey) range.
+ *
+ * @param _begin Reference to the begin key in the range (included).
+ * @param _end Reference to the end key in the range (excluded).
+ * @return Status OK.
+ */
+Status Client::rangeDel(const Sliver &_beginKey, const Sliver &_endKey) {
+  if (_beginKey == _endKey) {
+    return Status::OK();
+  }
+
+  // Make sure that _beginKey comes before _endKey .
+  Assert(comp_(_beginKey, _endKey));
+
+  auto beginIt = map_.lower_bound(_beginKey);
+  if (beginIt == std::end(map_)) {
+    return Status::OK();
+  }
+  auto endIt = map_.lower_bound(_endKey);
+  map_.erase(beginIt, endIt);
+  return Status::OK();
 }
 
 ITransaction *Client::beginTransaction() {

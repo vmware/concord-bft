@@ -62,6 +62,11 @@ class IDBClient {
   virtual Status multiGet(const KeysVector& _keysVec, OUT ValuesVector& _valuesVec) = 0;
   virtual Status multiPut(const SetOfKeyValuePairs& _keyValueMap) = 0;
   virtual Status multiDel(const KeysVector& _keysVec) = 0;
+  // Delete keys in the [_beginKey, _endKey) range (_beginKey included and _endKey excluded). If an inavlid range has
+  // been passed (i.e. _endKey < _beginKey), the behavior is undefined. If _beginKey == _endKey, the call will not have
+  // an effect. If no keys have been deleted, the operation is still successful. If there is an error, the returned
+  // status will reflect it.
+  virtual Status rangeDel(const Sliver& _beginKey, const Sliver& _endKey) = 0;
   virtual bool isNew() = 0;
 
   // the caller is responsible for transaction object lifetime
