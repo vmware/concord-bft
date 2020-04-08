@@ -226,14 +226,20 @@ bool ControllerWithSimpleHistory::onEndOfEvaluationPeriod() {
   return currentFirstPathChanged;
 }
 
+bool ControllerWithSimpleHistory::insideActiveWindow(const SeqNum& n) { return recentActivity.insideActiveWindow(n); }
+
 void ControllerWithSimpleHistory::onSendingPrePrepare(SeqNum n, CommitPath commitPath) {
+  onSendingPrePrepare(n, commitPath, getMonotonicTime());
+}
+
+void ControllerWithSimpleHistory::onSendingPrePrepare(SeqNum n, CommitPath commitPath, const Time& timePoint) {
   if (!isPrimary || !recentActivity.insideActiveWindow(n)) return;
 
   SeqNoInfo& s = recentActivity.get(n);
 
   // if this is the time we send the preprepare
-  if (s.prePrepareTime == MinTime) {
-    s.prePrepareTime = getMonotonicTime();
+  if (s.prePrepareTime == MinTime && timePoint > MinTime) {
+    s.prePrepareTime = timePoint;
   }
 }
 
