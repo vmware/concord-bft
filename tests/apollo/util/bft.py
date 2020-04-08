@@ -306,12 +306,18 @@ class BftTestNetwork:
                                         close_fds=True)
 
     def _start_external_replica(self, replica_id):
-        subprocess.run(
-            self.start_replica_cmd(replica_id),
-            check=True
-        )
-
-        return self.replicas[replica_id]
+        try:
+            subprocess.run(
+                self.start_replica_cmd(replica_id),
+                check=True,
+                timeout=60  # seconds
+            )
+        except subprocess.TimeoutExpired:
+            print(f"Command for starting replica #{replica_id} timed out.")
+            raise
+        else:
+            print(f"Successfully started replica #{replica_id}.")
+            return self.replicas[replica_id]
 
 
     def stop_replica(self, replica_id):
@@ -332,10 +338,17 @@ class BftTestNetwork:
         del self.procs[replica_id]
 
     def _stop_external_replica(self, replica_id):
-        subprocess.run(
-            self.stop_replica_cmd(replica_id),
-            check=True
-        )
+        try:
+            subprocess.run(
+                self.stop_replica_cmd(replica_id),
+                check=True,
+                timeout=60  # seconds
+            )
+        except subprocess.TimeoutExpired:
+            print(f"Command for stopping replica #{replica_id} timed out.")
+            raise
+        else:
+            print(f"Successfully stopped replica #{replica_id}.")
 
     def all_replicas(self, without=None):
         """
