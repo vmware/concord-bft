@@ -84,6 +84,7 @@ class Client : public concord::storage::IDBClient {
   concordUtils::Status multiGet(const KeysVector& _keysVec, ValuesVector& _valuesVec) override;
   concordUtils::Status multiPut(const SetOfKeyValuePairs& _keyValueMap) override;
   concordUtils::Status multiDel(const KeysVector& _keysVec) override;
+  concordUtils::Status rangeDel(const Sliver& _beginKey, const Sliver& _endKey) override;
   ::rocksdb::Iterator* getNewRocksDbIterator() const;
   bool isNew() override;
   ITransaction* beginTransaction() override;
@@ -91,6 +92,7 @@ class Client : public concord::storage::IDBClient {
  private:
   concordUtils::Status launchBatchJob(::rocksdb::WriteBatch& _batchJob);
   concordUtils::Status get(const concordUtils::Sliver& _key, std::string& _value) const;
+  bool keyIsBefore(const concordUtils::Sliver& _lhs, const concordUtils::Sliver& _rhs) const;
 
  private:
   static concordlogger::Logger& logger() {

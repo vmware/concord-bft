@@ -28,9 +28,11 @@ using concord::kvbc::DBKeyComparator;
 
 namespace {
 
-const uint16_t blocksNum = 50;
-const uint16_t keyLen = 120;
-const uint16_t valueLen = 500;
+constexpr uint16_t blocksNum = 50;
+constexpr uint16_t keyLen = 120;
+constexpr uint16_t valueLen = 500;
+
+const auto blockValue = std::string{"block"};
 
 std::unique_ptr<Client> dbClient;
 
@@ -84,6 +86,32 @@ class multiIO_test : public ::testing::Test {
       keyValueMap.insert(KeyValuePair(keys[i], inValues[i]));
     }
     ASSERT_TRUE(dbClient->multiPut(keyValueMap).isOK());
+  }
+
+  void addBlockRange(BlockId begin, BlockId end) const {
+    for (auto i = begin; i < end; ++i) {
+      ASSERT_TRUE(dbClient->put(keyGen_->blockKey(i), Sliver{blockValue + std::to_string(i)}).isOK());
+    }
+  }
+
+  ::testing::AssertionResult blockRangeIsEmpty(BlockId begin, BlockId end) const {
+    for (auto i = begin; i < end; ++i) {
+      auto v = Sliver{};
+      if (!dbClient->get(keyGen_->blockKey(i), v).isNotFound()) {
+        return ::testing::AssertionFailure() << "Block range[" << begin << ", " << end << ") is not empty";
+      }
+    }
+    return ::testing::AssertionSuccess();
+  }
+
+  ::testing::AssertionResult blockRangeIsSet(BlockId begin, BlockId end) const {
+    for (auto i = begin; i < end; ++i) {
+      auto v = Sliver{};
+      if (!dbClient->get(keyGen_->blockKey(i), v).isOK() || v != Sliver{blockValue + std::to_string(i)}) {
+        return ::testing::AssertionFailure() << "Block range[" << begin << ", " << end << ") is not set";
+      }
+    }
+    return ::testing::AssertionSuccess();
   }
 
   std::unique_ptr<concord::kvbc::IDataKeyGenerator> keyGen_;
@@ -172,6 +200,52 @@ TEST_F(multiIO_test, no_commit_during_exception) {
   Sliver outValue;
   Status status = dbClient->get(key, outValue);
   ASSERT_FALSE(status.isOK());
+}
+
+// Note1: rangeDel() tests below rely on the fact that block keys are ordered in ascending order.
+// Note2: rangeDel() tests below require the blocksNum value to be above a certain threshold for them to be correct.
+static_assert(blocksNum > 20);
+
+TEST_F(multiIO_test, delete_whole_range) {
+  addBlockRange(0, blocksNum);
+  ASSERT_TRUE(dbClient->rangeDel(keyGen_->blockKey(0), keyGen_->blockKey(blocksNum)).isOK());
+  ASSERT_TRUE(blockRangeIsEmpty(0, blocksNum));
+}
+
+TEST_F(multiIO_test, delete_range_from_begin_to_less_than_end) {
+  addBlockRange(0, blocksNum);
+  ASSERT_TRUE(dbClient->rangeDel(keyGen_->blockKey(0), keyGen_->blockKey(blocksNum - 5)).isOK());
+  ASSERT_TRUE(blockRangeIsEmpty(0, blocksNum - 5));
+  ASSERT_TRUE(blockRangeIsSet(blocksNum - 5, blocksNum));
+}
+
+TEST_F(multiIO_test, delete_range_from_after_begin_to_end) {
+  addBlockRange(0, blocksNum);
+  ASSERT_TRUE(dbClient->rangeDel(keyGen_->blockKey(5), keyGen_->blockKey(blocksNum)).isOK());
+  ASSERT_TRUE(blockRangeIsEmpty(5, blocksNum));
+  ASSERT_TRUE(blockRangeIsSet(0, 4));
+}
+
+TEST_F(multiIO_test, delete_range_in_the_middle) {
+  addBlockRange(0, blocksNum);
+  ASSERT_TRUE(dbClient->rangeDel(keyGen_->blockKey(5), keyGen_->blockKey(blocksNum - 10)).isOK());
+  ASSERT_TRUE(blockRangeIsEmpty(5, blocksNum - 10));
+  ASSERT_TRUE(blockRangeIsSet(0, 4));
+  ASSERT_TRUE(blockRangeIsSet(blocksNum - 10, blocksNum));
+}
+
+TEST_F(multiIO_test, delete_range_non_existent_keys) {
+  addBlockRange(10, blocksNum);
+  addBlockRange(blocksNum + 10, blocksNum + 10 + 2);
+  ASSERT_TRUE(dbClient->rangeDel(keyGen_->blockKey(8), keyGen_->blockKey(blocksNum + 3)).isOK());
+  ASSERT_TRUE(blockRangeIsEmpty(8, blocksNum));
+  ASSERT_TRUE(blockRangeIsSet(blocksNum + 10, blocksNum + 10 + 2));
+}
+
+TEST_F(multiIO_test, delete_empty_range) {
+  addBlockRange(0, blocksNum);
+  ASSERT_TRUE(dbClient->rangeDel(keyGen_->blockKey(5), keyGen_->blockKey(5)).isOK());
+  ASSERT_TRUE(blockRangeIsSet(0, blocksNum));
 }
 
 }  // end namespace

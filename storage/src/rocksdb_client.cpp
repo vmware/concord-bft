@@ -15,6 +15,8 @@
 
 #include <rocksdb/client.h>
 #include <rocksdb/transaction.h>
+
+#include "assertUtils.hpp"
 #include "Logger.hpp"
 #include <atomic>
 
@@ -129,6 +131,13 @@ Status Client::get(const Sliver &_key, OUT std::string &_value) const {
   }
 
   return Status::OK();
+}
+
+bool Client::keyIsBefore(const Sliver &_lhs, const Sliver &_rhs) const {
+  if (comparator_) {
+    return comparator_->Compare(toRocksdbSlice(_lhs), toRocksdbSlice(_rhs)) < 0;
+  }
+  return _lhs.compare(_rhs) < 0;
 }
 
 /**
@@ -319,6 +328,24 @@ Status Client::multiDel(const KeysVector &_keysVec) {
   Status status = launchBatchJob(batch);
   if (status.isOK()) LOG_DEBUG(logger(), "Successfully deleted entries");
   return status;
+}
+
+Status Client::rangeDel(const Sliver &_beginKey, const Sliver &_endKey) {
+  if (_beginKey == _endKey) {
+    return Status::OK();
+  }
+
+  // Make sure that _beginKey comes before _endKey .
+  Assert(keyIsBefore(_beginKey, _endKey));
+
+  const auto status =
+      dbInstance_->DeleteRange(::rocksdb::WriteOptions(), nullptr, toRocksdbSlice(_beginKey), toRocksdbSlice(_endKey));
+  if (!status.ok()) {
+    LOG_ERROR(logger(), "RocksDB failed to delete range, begin=" << _beginKey << ", end=" << _endKey);
+    return Status::GeneralError("Failed to delete range");
+  }
+  LOG_TRACE(logger(), "RocksDB successful range delete, begin=" << _beginKey << ", end=" << _endKey);
+  return Status::OK();
 }
 
 /**
