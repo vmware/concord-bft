@@ -52,28 +52,36 @@ class myViewsManager : public ViewsManager {
 class DummyReplica : public InternalReplicaApi {
  public:
   DummyReplica(const bftEngine::impl::ReplicasInfo& replicasInfo, const ReplicaConfig& replicaConfig)
-      : replicasInfo_(replicasInfo),
+      : operationStatus_(PrepareCombinedSigOperationStatus::OPERATION_PENDING),
+        replicasInfo_(replicasInfo),
         replicaConfig_(replicaConfig),
         msgHandlersPtr_(new MsgHandlersRegistrator()),
         incomingMsgsStorage_(new IncomingMsgsStorageImp(msgHandlersPtr_, timersResolution, replicaConfig_.replicaId)) {
-    combine_operation_future = combine_operation_promise.get_future();
     SeqNumInfo::init(seqNumInfo_, static_cast<void*>(this));
+    dynamic_cast<IncomingMsgsStorageImp*>(incomingMsgsStorage_)->start();
   }
-  ~DummyReplica() { delete incomingMsgsStorage_; }
+  ~DummyReplica() {
+    dynamic_cast<IncomingMsgsStorageImp*>(incomingMsgsStorage_)->stop();
+    delete incomingMsgsStorage_;
+  }
 
   void onPrepareCombinedSigFailed(SeqNum seqNumber, ViewNum view, const set<uint16_t>& replicasWithBadSigs) {
-    combine_operation_promise.set_value(PrepareCombinedSigOperationStatus::OPERATION_FAILED);
+    std::unique_lock<std::mutex> lock(m_);
+    operationStatus_ = PrepareCombinedSigOperationStatus::OPERATION_FAILED;
+    cv_.notify_one();
   }
   void onPrepareCombinedSigSucceeded(SeqNum seqNumber, ViewNum view, const char* combinedSig, uint16_t combinedSigLen) {
     seqNumInfo_.onCompletionOfPrepareSignaturesProcessing(seqNumber, view, combinedSig, combinedSigLen);
 
     PrepareFullMsg* preFull = seqNumInfo_.getValidPrepareFullMsg();
 
+    std::unique_lock<std::mutex> lock(m_);
     if (preFull) {
-      combine_operation_promise.set_value(PrepareCombinedSigOperationStatus::OPERATION_SUCCEEDED);
+      operationStatus_ = PrepareCombinedSigOperationStatus::OPERATION_SUCCEEDED;
     } else {
-      combine_operation_promise.set_value(PrepareCombinedSigOperationStatus::OPERATION_FAILED);
+      operationStatus_ = PrepareCombinedSigOperationStatus::OPERATION_FAILED;
     }
+    cv_.notify_one();
   }
   void onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) {}
 
@@ -115,11 +123,52 @@ class DummyReplica : public InternalReplicaApi {
 
   SeqNumInfo& GetSeqNumInfo() { return seqNumInfo_; }
 
-  enum class PrepareCombinedSigOperationStatus : uint8_t { OPERATION_SUCCEEDED, OPERATION_FAILED };
-  std::future<PrepareCombinedSigOperationStatus> combine_operation_future;
+  enum class PrepareCombinedSigOperationStatus : uint8_t { OPERATION_PENDING, OPERATION_SUCCEEDED, OPERATION_FAILED };
+
+  PrepareCombinedSigOperationStatus GetPrepareFullMsgAndAssociatedPrePrepare(ClientRequestMsg* clientRequest,
+                                                                             ViewNum View,
+                                                                             bftEngine::impl::SeqNum assignedSeqNum,
+                                                                             PrePrepareMsg*& ppMsg,
+                                                                             PrepareFullMsg*& pfMsg) {
+    auto* pp = new PrePrepareMsg(0, View, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, false);
+    pp->addRequest(clientRequest->body(), clientRequest->size());
+    pp->finishAddingRequests();
+
+    PreparePartialMsg* p1 = PreparePartialMsg::create(View,
+                                                      pp->seqNumber(),
+                                                      replicaConfig[1].replicaId,
+                                                      pp->digestOfRequests(),
+                                                      replicaConfig[1].thresholdSignerForSlowPathCommit);
+    PreparePartialMsg* p2 = PreparePartialMsg::create(View,
+                                                      pp->seqNumber(),
+                                                      replicaConfig[2].replicaId,
+                                                      pp->digestOfRequests(),
+                                                      replicaConfig[2].thresholdSignerForSlowPathCommit);
+    PreparePartialMsg* p3 = PreparePartialMsg::create(View,
+                                                      pp->seqNumber(),
+                                                      replicaConfig[3].replicaId,
+                                                      pp->digestOfRequests(),
+                                                      replicaConfig[3].thresholdSignerForSlowPathCommit);
+
+    seqNumInfo_.addSelfMsg(pp, true);
+    seqNumInfo_.addMsg(p1);
+    seqNumInfo_.addMsg(p2);
+    seqNumInfo_.addMsg(p3);
+
+    std::unique_lock<std::mutex> lock(m_);
+    cv_.wait(lock, [this] { return this->operationStatus_ != PrepareCombinedSigOperationStatus::OPERATION_PENDING; });
+
+    seqNumInfo_.getAndReset(ppMsg, pfMsg);
+
+    auto retStatus = operationStatus_;
+    operationStatus_ = PrepareCombinedSigOperationStatus::OPERATION_PENDING;
+    return retStatus;
+  }
 
  private:
-  std::promise<PrepareCombinedSigOperationStatus> combine_operation_promise;
+  std::condition_variable cv_;
+  std::mutex m_;
+  PrepareCombinedSigOperationStatus operationStatus_;
   bftEngine::impl::ReplicasInfo replicasInfo_;
   ReplicaConfig replicaConfig_;
   shared_ptr<MsgHandlersRegistrator> msgHandlersPtr_;
@@ -165,37 +214,13 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
                                              kRequestLength,
                                              (const char*)requestBuffer,
                                              (uint64_t)1000000);
-  auto* pp =
-      new PrePrepareMsg(0, curView, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, false, clientRequest->size());
-  pp->addRequest(clientRequest->body(), clientRequest->size());
-  pp->finishAddingRequests();
 
-  PreparePartialMsg* p1 = PreparePartialMsg::create(curView,
-                                                    pp->seqNumber(),
-                                                    replicaConfig[1].replicaId,
-                                                    pp->digestOfRequests(),
-                                                    replicaConfig[1].thresholdSignerForSlowPathCommit);
-  PreparePartialMsg* p2 = PreparePartialMsg::create(curView,
-                                                    pp->seqNumber(),
-                                                    replicaConfig[2].replicaId,
-                                                    pp->digestOfRequests(),
-                                                    replicaConfig[2].thresholdSignerForSlowPathCommit);
-  PreparePartialMsg* p3 = PreparePartialMsg::create(curView,
-                                                    pp->seqNumber(),
-                                                    replicaConfig[3].replicaId,
-                                                    pp->digestOfRequests(),
-                                                    replicaConfig[3].thresholdSignerForSlowPathCommit);
+  PrepareFullMsg* pfMsg{};
+  PrePrepareMsg* ppMsg{};
 
-  replica.GetSeqNumInfo().addSelfMsg(pp, true);
-  replica.GetSeqNumInfo().addMsg(p1);
-  replica.GetSeqNumInfo().addMsg(p2);
-  replica.GetSeqNumInfo().addMsg(p3);
-
-  auto* theMsgStore = dynamic_cast<IncomingMsgsStorageImp*>(&(replica.getIncomingMsgsStorage()));
-  theMsgStore->start();
-  auto operation_status = replica.combine_operation_future.get();
+  auto operation_status =
+      replica.GetPrepareFullMsgAndAssociatedPrePrepare(clientRequest, curView, assignedSeqNum, ppMsg, pfMsg);
   Assert(operation_status == DummyReplica::PrepareCombinedSigOperationStatus::OPERATION_SUCCEEDED);
-  auto pfMsg = replica.GetSeqNumInfo().getValidPrepareFullMsg();
 
   ViewChangeMsg** viewChangeMsgs = new ViewChangeMsg*[N];
   for (int i = 0; i < N; i++) {
@@ -207,7 +232,7 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
   }
 
   viewChangeMsgs[2]->addElement(
-      *pRepInfo, assignedSeqNum, pp->digestOfRequests(), 0, true, 0, pfMsg->signatureLen(), pfMsg->signatureBody());
+      *pRepInfo, assignedSeqNum, ppMsg->digestOfRequests(), 0, true, 0, pfMsg->signatureLen(), pfMsg->signatureBody());
 
   auto VCS = ViewChangeSafetyLogic(
       N, F, C, replicaConfig[0].thresholdVerifierForSlowPathCommit, PrePrepareMsg::digestOfNullPrePrepareMsg());
@@ -218,20 +243,21 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
   for (int i = 0; i < kWorkWindowSize; i++) {
     if (i == assignedSeqNum - 1) {
       Assert(!restrictions[i].isNull);
-      Assert(pp->digestOfRequests().toString() == restrictions[i].digest.toString())
+      Assert(ppMsg->digestOfRequests().toString() == restrictions[i].digest.toString())
     } else {
       Assert(restrictions[i].isNull);
     }
   }
 
   replica.getInternalThreadPool().stop(true);
-  theMsgStore->stop();
   for (int i = 0; i < N; i++) {
     delete viewChangeMsgs[i];
     viewChangeMsgs[i] = nullptr;
   }
   delete[] viewChangeMsgs;
   delete clientRequest;
+  delete pfMsg;
+  delete ppMsg;
 }
 
 TEST(testViewchangeSafetyLogic_test, one_different_new_view_in_VC_msgs) {
