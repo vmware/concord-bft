@@ -222,7 +222,7 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
 
   auto operation_status1 =
       replica.GetPrepareFullMsgAndAssociatedPrePrepare(clientRequest1, curView1, assignedSeqNum, ppMsg1, pfMsg1);
-  assert(operation_status1 == DummyReplica::PrepareCombinedSigOperationStatus::OPERATION_SUCCEEDED);
+  Assert(operation_status1 == DummyReplica::PrepareCombinedSigOperationStatus::OPERATION_SUCCEEDED);
 
   uint64_t expectedLastValue2 = 1234567;
   const uint64_t requestBuffer2[kRequestLength] = {(uint64_t)200, expectedLastValue2};
@@ -239,7 +239,7 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
 
   auto operation_status2 =
       replica.GetPrepareFullMsgAndAssociatedPrePrepare(clientRequest2, curView2, assignedSeqNum, ppMsg2, pfMsg2);
-  assert(operation_status2 == DummyReplica::PrepareCombinedSigOperationStatus::OPERATION_SUCCEEDED);
+  Assert(operation_status2 == DummyReplica::PrepareCombinedSigOperationStatus::OPERATION_SUCCEEDED);
 
   ViewChangeMsg** viewChangeMsgs = new ViewChangeMsg*[N];
 
@@ -435,7 +435,7 @@ TEST(testViewchangeSafetyLogic_test, empty_correct_VC_msgs) {
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
-  assert(system("../../../tools/GenerateConcordKeys -n 4 -f 1 -o replica_keys_") != -1);
+  Assert(system("../../../tools/GenerateConcordKeys -n 4 -f 1 -o replica_keys_") != -1);
   setUpConfiguration_4();
   int res = RUN_ALL_TESTS();
   cleanupConfiguration_4();
