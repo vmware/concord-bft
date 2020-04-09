@@ -126,34 +126,35 @@ class DummyReplica : public InternalReplicaApi {
   enum class PrepareCombinedSigOperationStatus : uint8_t { OPERATION_PENDING, OPERATION_SUCCEEDED, OPERATION_FAILED };
 
   PrepareCombinedSigOperationStatus GetPrepareFullMsgAndAssociatedPrePrepare(ClientRequestMsg* clientRequest,
-                                                                             ViewNum View,
+                                                                             ViewNum view,
                                                                              bftEngine::impl::SeqNum assignedSeqNum,
                                                                              PrePrepareMsg*& ppMsg,
                                                                              PrepareFullMsg*& pfMsg) {
-    auto* pp = new PrePrepareMsg(0, View, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, false);
+    auto primary = getReplicasInfo().primaryOfView(view);
+    auto* pp = new PrePrepareMsg(primary, view, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, false);
     pp->addRequest(clientRequest->body(), clientRequest->size());
     pp->finishAddingRequests();
 
-    PreparePartialMsg* p1 = PreparePartialMsg::create(View,
-                                                      pp->seqNumber(),
-                                                      replicaConfig[1].replicaId,
-                                                      pp->digestOfRequests(),
-                                                      replicaConfig[1].thresholdSignerForSlowPathCommit);
-    PreparePartialMsg* p2 = PreparePartialMsg::create(View,
-                                                      pp->seqNumber(),
-                                                      replicaConfig[2].replicaId,
-                                                      pp->digestOfRequests(),
-                                                      replicaConfig[2].thresholdSignerForSlowPathCommit);
-    PreparePartialMsg* p3 = PreparePartialMsg::create(View,
-                                                      pp->seqNumber(),
-                                                      replicaConfig[3].replicaId,
-                                                      pp->digestOfRequests(),
-                                                      replicaConfig[3].thresholdSignerForSlowPathCommit);
+    if (primary == replicasInfo_.myId()) {
+      seqNumInfo_.addSelfMsg(pp, true);
+    } else {
+      seqNumInfo_.addMsg(pp, true);
+    }
 
-    seqNumInfo_.addSelfMsg(pp, true);
-    seqNumInfo_.addMsg(p1);
-    seqNumInfo_.addMsg(p2);
-    seqNumInfo_.addMsg(p3);
+    for (int i = 0; i < replicasInfo_.numberOfReplicas(); i++) {
+      if (primary != i) {
+        PreparePartialMsg* p = PreparePartialMsg::create(view,
+                                                         pp->seqNumber(),
+                                                         replicaConfig[i].replicaId,
+                                                         pp->digestOfRequests(),
+                                                         replicaConfig[i].thresholdSignerForSlowPathCommit);
+        if (i == replicasInfo_.myId()) {
+          seqNumInfo_.addSelfMsg(p);
+        } else {
+          seqNumInfo_.addMsg(p);
+        }
+      }
+    }
 
     std::unique_lock<std::mutex> lock(m_);
     cv_.wait(lock, [this] { return this->operationStatus_ != PrepareCombinedSigOperationStatus::OPERATION_PENDING; });
@@ -195,6 +196,105 @@ void setUpConfiguration_4() {
 }
 
 void cleanupConfiguration_4() { delete sigManager_; }
+
+TEST(testViewchangeSafetyLogic_test, computeRestrictions_conflicting_prepare_certs) {
+  bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig[0], false, false);
+  DummyReplica replica(replicasInfo, replicaConfig[0]);
+  replica.getInternalThreadPool().start(1);
+
+  bftEngine::impl::SeqNum lastStableSeqNum = 150;
+  const uint32_t kRequestLength = 2;
+
+  uint64_t expectedLastValue1 = 12345;
+  const uint64_t requestBuffer1[kRequestLength] = {(uint64_t)200, expectedLastValue1};
+  ViewNum curView1 = 0;
+  bftEngine::impl::SeqNum assignedSeqNum1 = lastStableSeqNum + 1;
+
+  auto* clientRequest1 = new ClientRequestMsg((uint16_t)1,
+                                              bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
+                                              (uint64_t)1234567,
+                                              kRequestLength,
+                                              (const char*)requestBuffer1,
+                                              (uint64_t)1000000);
+
+  PrepareFullMsg* pfMsg1{};
+  PrePrepareMsg* ppMsg1{};
+
+  auto operation_status1 =
+      replica.GetPrepareFullMsgAndAssociatedPrePrepare(clientRequest1, curView1, assignedSeqNum1, ppMsg1, pfMsg1);
+  assert(operation_status1 == DummyReplica::PrepareCombinedSigOperationStatus::OPERATION_SUCCEEDED);
+
+  uint64_t expectedLastValue2 = 1234567;
+  const uint64_t requestBuffer2[kRequestLength] = {(uint64_t)200, expectedLastValue2};
+  ViewNum curView2 = 1;
+  bftEngine::impl::SeqNum assignedSeqNum2 = lastStableSeqNum + 1;
+
+  auto* clientRequest2 = new ClientRequestMsg((uint16_t)1,
+                                              bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
+                                              (uint64_t)1234567,
+                                              kRequestLength,
+                                              (const char*)requestBuffer2,
+                                              (uint64_t)1000000);
+  PrepareFullMsg* pfMsg2{};
+  PrePrepareMsg* ppMsg2{};
+
+  auto operation_status2 =
+      replica.GetPrepareFullMsgAndAssociatedPrePrepare(clientRequest2, curView2, assignedSeqNum2, ppMsg2, pfMsg2);
+  assert(operation_status2 == DummyReplica::PrepareCombinedSigOperationStatus::OPERATION_SUCCEEDED);
+
+  ViewChangeMsg** viewChangeMsgs = new ViewChangeMsg*[N];
+
+  viewChangeMsgs[0] = new ViewChangeMsg(0, curView2, lastStableSeqNum);
+  viewChangeMsgs[1] = nullptr;
+  viewChangeMsgs[2] = new ViewChangeMsg(2, curView2, lastStableSeqNum);
+  viewChangeMsgs[3] = new ViewChangeMsg(3, curView2, lastStableSeqNum);
+
+  viewChangeMsgs[2]->addElement(*pRepInfo,
+                                assignedSeqNum1,
+                                ppMsg1->digestOfRequests(),
+                                0,
+                                true,
+                                0,
+                                pfMsg1->signatureLen(),
+                                pfMsg1->signatureBody());
+
+  viewChangeMsgs[3]->addElement(*pRepInfo,
+                                assignedSeqNum2,
+                                ppMsg2->digestOfRequests(),
+                                0,
+                                true,
+                                0,
+                                pfMsg2->signatureLen(),
+                                pfMsg2->signatureBody());
+
+  auto VCS = ViewChangeSafetyLogic(
+      N, F, C, replicaConfig[0].thresholdVerifierForSlowPathCommit, PrePrepareMsg::digestOfNullPrePrepareMsg());
+
+  SeqNum min{}, max{};
+  VCS.computeRestrictions(viewChangeMsgs, 0, min, max, restrictions);
+
+  for (int i = 0; i < kWorkWindowSize; i++) {
+    if (i == assignedSeqNum1 - 1) {
+      Assert(!restrictions[i].isNull);
+      Assert(ppMsg1->digestOfRequests().toString() == restrictions[i].digest.toString())
+    } else {
+      Assert(restrictions[i].isNull);
+    }
+  }
+
+  replica.getInternalThreadPool().stop(true);
+  for (int i = 0; i < N; i++) {
+    delete viewChangeMsgs[i];
+    viewChangeMsgs[i] = nullptr;
+  }
+  delete[] viewChangeMsgs;
+  delete clientRequest1;
+  delete pfMsg1;
+  delete ppMsg1;
+  delete clientRequest2;
+  delete pfMsg2;
+  delete ppMsg2;
+}
 
 TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
   bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig[0], false, false);
