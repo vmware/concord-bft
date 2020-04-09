@@ -197,18 +197,18 @@ void setUpConfiguration_4() {
 
 void cleanupConfiguration_4() { delete sigManager_; }
 
-TEST(testViewchangeSafetyLogic_test, computeRestrictions_conflicting_prepare_certs) {
+TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_same_seq_no) {
   bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig[0], false, false);
   DummyReplica replica(replicasInfo, replicaConfig[0]);
   replica.getInternalThreadPool().start(1);
 
-  bftEngine::impl::SeqNum lastStableSeqNum = 150;
+  bftEngine::impl::SeqNum lastStableSeqNum = 100;
   const uint32_t kRequestLength = 2;
 
   uint64_t expectedLastValue1 = 12345;
   const uint64_t requestBuffer1[kRequestLength] = {(uint64_t)200, expectedLastValue1};
   ViewNum curView1 = 0;
-  bftEngine::impl::SeqNum assignedSeqNum1 = lastStableSeqNum + 1;
+  bftEngine::impl::SeqNum assignedSeqNum = lastStableSeqNum + 1;
 
   auto* clientRequest1 = new ClientRequestMsg((uint16_t)1,
                                               bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
@@ -221,13 +221,12 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_conflicting_prepare_cer
   PrePrepareMsg* ppMsg1{};
 
   auto operation_status1 =
-      replica.GetPrepareFullMsgAndAssociatedPrePrepare(clientRequest1, curView1, assignedSeqNum1, ppMsg1, pfMsg1);
+      replica.GetPrepareFullMsgAndAssociatedPrePrepare(clientRequest1, curView1, assignedSeqNum, ppMsg1, pfMsg1);
   assert(operation_status1 == DummyReplica::PrepareCombinedSigOperationStatus::OPERATION_SUCCEEDED);
 
   uint64_t expectedLastValue2 = 1234567;
   const uint64_t requestBuffer2[kRequestLength] = {(uint64_t)200, expectedLastValue2};
   ViewNum curView2 = 1;
-  bftEngine::impl::SeqNum assignedSeqNum2 = lastStableSeqNum + 1;
 
   auto* clientRequest2 = new ClientRequestMsg((uint16_t)1,
                                               bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
@@ -239,7 +238,7 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_conflicting_prepare_cer
   PrePrepareMsg* ppMsg2{};
 
   auto operation_status2 =
-      replica.GetPrepareFullMsgAndAssociatedPrePrepare(clientRequest2, curView2, assignedSeqNum2, ppMsg2, pfMsg2);
+      replica.GetPrepareFullMsgAndAssociatedPrePrepare(clientRequest2, curView2, assignedSeqNum, ppMsg2, pfMsg2);
   assert(operation_status2 == DummyReplica::PrepareCombinedSigOperationStatus::OPERATION_SUCCEEDED);
 
   ViewChangeMsg** viewChangeMsgs = new ViewChangeMsg*[N];
@@ -250,20 +249,20 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_conflicting_prepare_cer
   viewChangeMsgs[3] = new ViewChangeMsg(3, curView2, lastStableSeqNum);
 
   viewChangeMsgs[2]->addElement(*pRepInfo,
-                                assignedSeqNum1,
+                                assignedSeqNum,
                                 ppMsg1->digestOfRequests(),
-                                0,
+                                ppMsg1->viewNumber(),
                                 true,
-                                0,
+                                ppMsg1->viewNumber(),
                                 pfMsg1->signatureLen(),
                                 pfMsg1->signatureBody());
 
   viewChangeMsgs[3]->addElement(*pRepInfo,
-                                assignedSeqNum2,
+                                assignedSeqNum,
                                 ppMsg2->digestOfRequests(),
-                                0,
+                                ppMsg2->viewNumber(),
                                 true,
-                                0,
+                                ppMsg2->viewNumber(),
                                 pfMsg2->signatureLen(),
                                 pfMsg2->signatureBody());
 
@@ -274,9 +273,10 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_conflicting_prepare_cer
   VCS.computeRestrictions(viewChangeMsgs, 0, min, max, restrictions);
 
   for (int i = 0; i < kWorkWindowSize; i++) {
-    if (i == assignedSeqNum1 - 1) {
+    if (i == assignedSeqNum - 1) {
       Assert(!restrictions[i].isNull);
-      Assert(ppMsg1->digestOfRequests().toString() == restrictions[i].digest.toString())
+      // Assert the prepare certificate with higher view number is selected for assignedSeqNum
+      Assert(ppMsg2->digestOfRequests().toString() == restrictions[i].digest.toString())
     } else {
       Assert(restrictions[i].isNull);
     }
