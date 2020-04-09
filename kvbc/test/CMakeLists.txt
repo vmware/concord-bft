@@ -34,6 +34,16 @@ target_link_libraries(sparse_merkle_storage_db_adapter_unit_test PUBLIC
     stdc++fs
 )
 
+add_executable(sparse_merkle_storage_serialization_unit_test
+    sparse_merkle_storage/serialization_unit_test.cpp $<TARGET_OBJECTS:logging_dev>)
+add_test(sparse_merkle_storage_serialization_unit_test sparse_merkle_storage_serialization_unit_test)
+target_link_libraries(sparse_merkle_storage_serialization_unit_test PUBLIC
+    GTest::Main
+    GTest::GTest
+    util
+    kvbc
+)
+
 if(RAPIDCHECK_FOUND)
 add_executable(sparse_merkle_storage_db_adapter_property_test
     sparse_merkle_storage/db_adapter_property_test.cpp $<TARGET_OBJECTS:logging_dev>)

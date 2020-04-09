@@ -369,7 +369,7 @@ BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &kv) {
   BlockId blockId = getLastReachableBlockId() + 1;
   // Make sure the digest is zero-initialized by using {} initialization.
   auto blockDigest = BlockDigest{};
-  if (blockId > 1) {
+  if (blockId > INITIAL_GENESIS_BLOCK_ID) {
     const auto parentBlockData = getRawBlock(blockId - 1);
     blockDigest = bftEngine::SimpleBlockchainStateTransfer::computeBlockDigest(
         blockId - 1, reinterpret_cast<const char *>(parentBlockData.data()), parentBlockData.length());
@@ -544,7 +544,7 @@ BlockId DBAdapter::fetchLatestBlockId() const {
  *
  * Searches for the last reachable block.
  * From ST perspective, this is maximal block number N
- * such that all blocks 1 <= i <= N exist.
+ * such that all blocks INITIAL_GENESIS_BLOCK_ID <= i <= N exist.
  * In the normal state, it should be equal to last block ID
  *
  * @return Block ID of the last reachable block.

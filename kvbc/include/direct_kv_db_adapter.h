@@ -147,6 +147,7 @@ class DBAdapter : public IDbAdapter {
 
   bool hasBlock(const BlockId &blockId) const override;
 
+  BlockId getGenesisBlockId() const override { return (getLastReachableBlockId() ? INITIAL_GENESIS_BLOCK_ID : 0); }
   BlockId getLatestBlockId() const override { return lastBlockId_; }
   BlockId getLastReachableBlockId() const override { return lastReachableBlockId_; }
 

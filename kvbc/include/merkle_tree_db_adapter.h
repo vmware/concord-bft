@@ -8,6 +8,7 @@
 #include "db_adapter.h"
 #include "kv_types.hpp"
 #include "Logger.hpp"
+#include "merkle_tree_block.h"
 #include "sliver.hpp"
 #include "sparse_merkle/base_types.h"
 #include "sparse_merkle/tree.h"
@@ -22,10 +23,11 @@ class DBKeyManipulator {
  public:
   static Key genBlockDbKey(BlockId version);
   static Key genDataDbKey(const sparse_merkle::LeafKey &key);
-  static Key genDataDbKey(const Key &key, kvbc::BlockId version);
+  static Key genDataDbKey(const Key &key, const sparse_merkle::Version &version);
   static Key genInternalDbKey(const sparse_merkle::InternalNodeKey &key);
-  static Key genStaleDbKey(const sparse_merkle::InternalNodeKey &key, kvbc::BlockId staleSinceVersion);
-  static Key genStaleDbKey(const sparse_merkle::LeafKey &key, kvbc::BlockId staleSinceVersion);
+  static Key genStaleDbKey(const sparse_merkle::InternalNodeKey &key, const sparse_merkle::Version &staleSinceVersion);
+  static Key genStaleDbKey(const sparse_merkle::LeafKey &key, const sparse_merkle::Version &staleSinceVersion);
+  static Key genStaleDbKey(const sparse_merkle::Version &staleSinceVersion);
   static Key generateMetadataKey(storage::ObjectId objectId);
   static Key generateStateTransferKey(storage::ObjectId objectId);
   static Key generateSTPendingPageKey(uint32_t pageId);
@@ -39,6 +41,20 @@ class DBKeyManipulator {
 
   // Extract the hash from a leaf key.
   static sparse_merkle::Hash extractHashFromLeafKey(const Key &key);
+
+  // Extract the stale since version from a stale node index key.
+  static sparse_merkle::Version extractVersionFromStaleKey(const Key &key);
+
+  // Extract the actual key from the stale node index key.
+  static Key extractKeyFromStaleKey(const Key &key);
+
+  // Extract the version of an internal key.
+  static sparse_merkle::Version extractVersionFromInternalKey(const Key &key);
+
+  // Undefined behavior if an incorrect type is read from the buffer. Exposed for testing purposes.
+  static storage::v2MerkleTree::detail::EDBKeyType getDBKeyType(const concordUtils::Sliver &);
+  static storage::v2MerkleTree::detail::EKeySubtype getKeySubtype(const concordUtils::Sliver &);
+  static storage::v2MerkleTree::detail::EBFTSubtype getBftSubtype(const concordUtils::Sliver &s);
 
  protected:
   static concordlogger::Logger &logger() {
@@ -67,9 +83,10 @@ class DBAdapter : public IDbAdapter {
  public:
   // The constructor will try to link the blockchain with any blocks in the temporary state transfer chain. This is done
   // so that the DBAdapter will operate correctly in case a crash or an abnormal shutdown has occurred prior to startup
-  // (construction). Note that only a single DBAdapter instance should operate on a database and access to all methods
+  // (construction). Only a single DBAdapter instance should operate on a database and access to all methods
   // should be either done from a single thread or serialized via a mutex or another mechanism. The constructor throws
   // if an error occurs.
+  // Note: The passed DB client must be initialized beforehand.
   DBAdapter(const std::shared_ptr<concord::storage::IDBClient> &db);
 
   // Adds a block to the end of the blockchain from a set of key/value pairs.
@@ -91,12 +108,20 @@ class DBAdapter : public IDbAdapter {
   // Note: Takes both blocks from the blockchain and temporary ST blocks into account.
   RawBlock getRawBlock(const BlockId &blockId) const override;
 
-  // Gets the value of a key by its block version. If the key doesn't exist at version blockVersion and an earlier
-  // version exists, it will be returned. Otherwise, a ::concord::kvbc::NotFoundException will be thrown.
-  // An exception is thrown if an error occurs.
-  // Note: Operates on the blockchain only, meaning that it will not take blocks with ID > getLastReachableBlockId()
+  // Gets the value of a key by blockVersion . If the key exists at blockVersion, its value at blockVersion will be
+  // returned. If the key doesn't exist at blockVersion, but exists at an earlier version, its value at the
+  // earlier version will be returned (including values from deleted blocks). Otherwise, a
+  // ::concord::kvbc::NotFoundException will be thrown.
+  // Note1: The returned version is the block version the key was written at and is less than or equal to the
+  // passed blockVersion .
+  // Note2: Operates on the blockchain only, meaning that it will not take blocks with ID > getLastReachableBlockId()
   // into account.
   std::pair<Value, BlockId> getValue(const Key &key, const BlockId &blockVersion) const override;
+
+  // Returns the genesis (first) block ID in the system. If the blockchain is empty or if there are no reachable blocks
+  // (getLastReachableBlock() == 0), 0 is returned.
+  // Throws on errors.
+  BlockId getGenesisBlockId() const override;
 
   // Returns the ID of the latest block that is part of the blockchain. Returns 0 if there are no blocks in the system.
   BlockId getLastReachableBlockId() const override;
@@ -109,7 +134,14 @@ class DBAdapter : public IDbAdapter {
   BlockId getLatestBlockId() const override;
 
   // Deletes the block with the passed ID.
-  // Throws if an error occurs. Throws a ::concord::kvbc::NotFoundException if the block doesn't exist.
+  // If the passed block ID doesn't exist, the call has no effect.
+  // Throws on any of the following:
+  //  - an error occurs
+  //  - the passed block ID is part of the blockchain and is neither the genesis block nor the last reachable block,
+  //    meaning blocks in the middle of the blockchain cannot be deleted
+  //  - the passed ID is the only blockchain block in the system, meaning blocks can only be deleted if the blockchain
+  //    size is greater or equal to 2. State transfer blocks can still be deleted, even if the blockchain is empty or
+  //    only has a single blockchain block.
   void deleteBlock(const BlockId &blockId) override;
 
   // Returns the block data in the form of a set of key/value pairs.
@@ -120,22 +152,33 @@ class DBAdapter : public IDbAdapter {
 
   std::shared_ptr<storage::IDBClient> getDb() const override { return db_; }
 
-  // TODO [TK] implement
-  bool hasBlock(const BlockId &blockId) const override { return false; }
+  // Returns true if the block exists (including temporary ST blocks). Throws on errors.
+  bool hasBlock(const BlockId &blockId) const override;
 
   // Returns the current state hash from the internal merkle tree implementation.
   const sparse_merkle::Hash &getStateHash() const { return smTree_.get_root_hash(); }
 
+  // Returns a set of key/value pairs that represent the needed DB updates for adding a block as part of the blockchain.
+  // This method is made public for testing purposes only. It is meant to be used internally.
+  SetOfKeyValuePairs lastReachableBlockDbUpdates(const SetOfKeyValuePairs &updates, BlockId blockId);
+
  private:
   concordUtils::Sliver createBlockNode(const SetOfKeyValuePairs &updates, BlockId blockId) const;
-
-  // Returns a set of key/value pairs that represent the needed DB updates for adding a block as part of the blockchain.
-  SetOfKeyValuePairs lastReachableBlockDbUpdates(const SetOfKeyValuePairs &updates, BlockId blockId);
 
   // Try to link the ST temporary chain to the blockchain from the passed blockId up to getLatestBlock().
   void linkSTChainFrom(BlockId blockId);
 
   void writeSTLinkTransaction(const Key &sTBlockKey, const concordUtils::Sliver &block, BlockId blockId);
+
+  block::detail::Node getBlockNode(BlockId blockId) const;
+
+  KeysVector staleIndexKeysForVersion(const sparse_merkle::Version &version) const;
+
+  KeysVector internalKeysForVersion(const sparse_merkle::Version &version) const;
+
+  KeysVector lastReachableBlockKeyDeletes(BlockId blockId) const;
+
+  KeysVector genesisBlockKeyDeletes(BlockId blockId) const;
 
   class Reader : public sparse_merkle::IDBReader {
    public:

@@ -44,11 +44,6 @@ constexpr auto toChar(E e) {
 
 namespace detail {
 
-// Specifies the key type. Used when serializing the stale node index.
-enum class StaleKeyType : std::uint8_t {
-  Internal,
-  Leaf,
-};
 using concord::storage::v2MerkleTree::detail::EDBKeyType;   // TODO [TK] TMP
 using concord::storage::v2MerkleTree::detail::EKeySubtype;  // TODO [TK] TMP
 using concord::storage::v2MerkleTree::detail::EBFTSubtype;  // TODO [TK] TMP
@@ -83,8 +78,6 @@ inline std::string serializeImp(EDBKeyType type) { return std::string{toChar(typ
 inline std::string serializeImp(EKeySubtype type) { return std::string{toChar(EDBKeyType::Key), toChar(type)}; }
 
 inline std::string serializeImp(EBFTSubtype type) { return std::string{toChar(EDBKeyType::BFT), toChar(type)}; }
-
-inline std::string serializeImp(StaleKeyType type) { return std::string{toChar(type)}; }
 
 inline std::string serializeImp(const std::vector<std::uint8_t> &v) {
   return std::string{std::cbegin(v), std::cend(v)};

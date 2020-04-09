@@ -163,6 +163,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
 std::tuple<std::shared_ptr<concord::storage::IDBClient>, IDbAdapter*> TestSetup::get_inmem_db_configuration() {
   auto comparator = concord::storage::memorydb::KeyComparator(new DBKeyComparator());
   std::shared_ptr<concord::storage::IDBClient> db = std::make_shared<concord::storage::memorydb::Client>(comparator);
+  db->init();
   return std::make_tuple(db, new DBAdapter{db});
 }
 /** Get replica db configuration
