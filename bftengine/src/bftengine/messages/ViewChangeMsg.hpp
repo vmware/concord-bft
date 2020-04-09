@@ -58,7 +58,7 @@ class ViewChangeMsg : public MessageBase {
   void getMsgDigest(Digest& outDigest) const;
 
   std::string spanContext() const override {
-    return std::string(body() + sizeof(ViewChangeMsgHeader), msgBody_->spanContextSize);
+    return std::string(body() + sizeof(ViewChangeMsgHeader), spanContextSize());
   }
   void addElement(SeqNum seqNum,
                   const Digest& prePrepareDigest,

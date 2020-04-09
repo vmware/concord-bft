@@ -58,7 +58,7 @@ class ReplicaStatusMsg : public MessageBase {
   void validate(const ReplicasInfo&) const override;
 
   std::string spanContext() const override {
-    return std::string(body() + sizeof(ReplicaStatusMsgHeader), msgBody_->spanContextSize);
+    return std::string(body() + sizeof(ReplicaStatusMsgHeader), spanContextSize());
   }
 
  protected:
@@ -86,7 +86,7 @@ class ReplicaStatusMsg : public MessageBase {
 
   ReplicaStatusMsgHeader* b() const { return (ReplicaStatusMsgHeader*)msgBody_; }
 
-  size_t payloadShift() const { return sizeof(ReplicaStatusMsgHeader) + msgBody_->spanContextSize; }
+  size_t payloadShift() const { return sizeof(ReplicaStatusMsgHeader) + spanContextSize(); }
 };
 }  // namespace impl
 }  // namespace bftEngine

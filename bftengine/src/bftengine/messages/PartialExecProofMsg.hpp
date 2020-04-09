@@ -35,12 +35,12 @@ class PartialExecProofMsg : public MessageBase {
 
   uint16_t thresholSignatureLength() const { return b()->thresholSignatureLength; }
 
-  const char* thresholSignature() { return body() + sizeof(PartialExecProofMsgHeader) + msgBody_->spanContextSize; }
+  const char* thresholSignature() { return body() + sizeof(PartialExecProofMsgHeader) + spanContextSize(); }
 
   void validate(const ReplicasInfo&) const override;
 
   std::string spanContext() const override {
-    return std::string(body() + sizeof(PartialExecProofMsgHeader), msgBody_->spanContextSize);
+    return std::string(body() + sizeof(PartialExecProofMsgHeader), spanContextSize());
   }
 
  protected:

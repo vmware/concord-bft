@@ -47,7 +47,7 @@ class ReqMissingDataMsg : public MessageBase {
   void setSlowPathHasStarted() { b()->flags |= 0x100; }
 
   std::string spanContext() const override {
-    return std::string(body() + sizeof(ReqMissingDataMsgHeader), msgBody_->spanContextSize);
+    return std::string(body() + sizeof(ReqMissingDataMsgHeader), spanContextSize());
   }
   void validate(const ReplicasInfo&) const override;
 

@@ -50,7 +50,7 @@ class ClientRequestMsg : public MessageBase {
 
   uint32_t requestLength() const { return msgBody()->requestLength; }
 
-  char* requestBuf() const { return body() + sizeof(ClientRequestMsgHeader) + msgBody()->spanContextSize; }
+  char* requestBuf() const { return body() + sizeof(ClientRequestMsgHeader) + spanContextSize(); }
 
   uint64_t requestTimeoutMilli() const { return msgBody()->timeoutMilli; }
 

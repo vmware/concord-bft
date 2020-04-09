@@ -81,7 +81,7 @@ void ClientRequestMsg::setParams(NodeIdType sender,
 }
 
 std::string ClientRequestMsg::spanContext() const {
-  return std::string(body() + sizeof(ClientRequestMsgHeader), msgBody()->spanContextSize);
+  return std::string(body() + sizeof(ClientRequestMsgHeader), spanContextSize());
 }
 
 std::string ClientRequestMsg::getCid() const {

@@ -79,7 +79,7 @@ ReplicaStatusMsg::ReplicaStatusMsg(ReplicaId senderId,
     b()->flags |= powersOf2[4];
   }
   std::memcpy(body() + sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader), spanContext.data(), spanContext.size());
-  if (size() > sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader) + msgBody_->spanContextSize) {
+  if (size() > sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader) + spanContextSize()) {
     // write zero to all bits in list
     MsgSize listSize = size() - payloadShift();
     char* p = body() + payloadShift();
@@ -104,7 +104,7 @@ void ReplicaStatusMsg::validate(const ReplicasInfo& repInfo) const {
       !(viewIsActive || !listOfPPInActiveWindow) ||  // if NOT (!viewIsActive --> !listOfPPInActiveWindow)
       (((listOfPPInActiveWindow ? 1 : 0) + (listOfMissingVCForVC ? 1 : 0) + (listOfMissingPPForVC ? 1 : 0)) >= 2) ||
       size() != calcSizeOfReplicaStatusMsg(listOfPPInActiveWindow, listOfMissingVCForVC, listOfMissingPPForVC) +
-                    msgBody_->spanContextSize)
+                    spanContextSize())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": advanced"));
 }
 
