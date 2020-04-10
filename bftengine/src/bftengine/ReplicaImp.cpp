@@ -179,7 +179,6 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
           (requestsQueueOfPrimary.size() < 700))  // TODO(GG): use config/parameter
       {
         requestsQueueOfPrimary.push(m);
-        primaryCombinedReqSize += m->size();
         tryToSendPrePrepareMsg(true);
         return;
       } else {
@@ -236,7 +235,6 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
   while (first != nullptr &&
          !clientsManager->noPendingAndRequestCanBecomePending(first->clientProxyId(), first->requestSeqNum())) {
     MDC_CID_PUT(GL, first->getCid());
-    primaryCombinedReqSize -= first->size();
     delete first;
     requestsQueueOfPrimary.pop();
     first = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
@@ -286,8 +284,7 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
 
   controller->onSendingPrePrepare((primaryLastUsedSeqNum + 1), firstPath);
 
-  PrePrepareMsg *pp = new PrePrepareMsg(
-      config_.replicaId, curView, (primaryLastUsedSeqNum + 1), firstPath, false, primaryCombinedReqSize);
+  PrePrepareMsg *pp = new PrePrepareMsg(config_.replicaId, curView, (primaryLastUsedSeqNum + 1), firstPath, false);
 
   ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
   while (nextRequest != nullptr && nextRequest->size() <= pp->remainingSizeForRequests()) {
@@ -297,7 +294,6 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
       pp->addRequest(nextRequest->body(), nextRequest->size());
       clientsManager->addPendingRequest(nextRequest->clientProxyId(), nextRequest->requestSeqNum());
     }
-    primaryCombinedReqSize -= nextRequest->size();
     delete nextRequest;
     requestsQueueOfPrimary.pop();
     nextRequest = (requestsQueueOfPrimary.size() > 0 ? requestsQueueOfPrimary.front() : nullptr);
@@ -2003,10 +1999,8 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
 
   // clear requestsQueueOfPrimary
   while (!requestsQueueOfPrimary.empty()) {
-    auto msg = requestsQueueOfPrimary.front();
-    primaryCombinedReqSize -= msg->size();
+    delete requestsQueueOfPrimary.front();
     requestsQueueOfPrimary.pop();
-    delete msg;
   }
 
   // send messages

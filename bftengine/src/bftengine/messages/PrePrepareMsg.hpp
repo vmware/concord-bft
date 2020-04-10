@@ -64,7 +64,7 @@ class PrePrepareMsg : public MessageBase {
 
   // ctor and other build methods
 
-  PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, bool isNull = false, size_t size = 0);
+  PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, bool isNull = false);
 
   uint32_t remainingSizeForRequests() const;
 
