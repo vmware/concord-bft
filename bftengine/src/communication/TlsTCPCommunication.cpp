@@ -1086,8 +1086,6 @@ class TlsTCPCommunication::TlsTcpImpl : public std::enable_shared_from_this<TlsT
     }
   }
 
-  // here need to check how "this" passed to handlers behaves if the object is
-  // deleted.
   void start_accept() {
     LOG_DEBUG(_logger, "start_accept, node: " << _selfId);
     auto conn = AsyncTlsConnection::create(
@@ -1103,9 +1101,8 @@ class TlsTCPCommunication::TlsTcpImpl : public std::enable_shared_from_this<TlsT
         _statusCallback,
         _nodes,
         _cipherSuite);
-    _pAcceptor->async_accept(
-        conn->get_socket().lowest_layer(),
-        boost::bind(&TlsTcpImpl::on_accept, shared_from_this(), conn, boost::asio::placeholders::error));
+    _pAcceptor->async_accept(conn->get_socket().lowest_layer(),
+                             boost::bind(&TlsTcpImpl::on_accept, this, conn, boost::asio::placeholders::error));
   }
 
   TlsTcpImpl(const TlsTcpImpl &) = delete;
