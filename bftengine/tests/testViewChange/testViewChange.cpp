@@ -131,6 +131,7 @@ class DummyReplica : public InternalReplicaApi {
                                                                              PrePrepareMsg*& ppMsg,
                                                                              PrepareFullMsg*& pfMsg) {
     auto primary = getReplicasInfo().primaryOfView(view);
+    // Generate the PrePrepare from the primary for the clientRequest
     auto* pp = new PrePrepareMsg(primary, view, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, false);
     pp->addRequest(clientRequest->body(), clientRequest->size());
     pp->finishAddingRequests();
@@ -141,6 +142,8 @@ class DummyReplica : public InternalReplicaApi {
       seqNumInfo_.addMsg(pp, true);
     }
 
+    // Generate the 2*f+1 Prepare messages from different replicas
+    int generatedPrepares = 0;
     for (int i = 0; i < replicasInfo_.numberOfReplicas(); i++) {
       if (primary != i) {
         PreparePartialMsg* p = PreparePartialMsg::create(view,
@@ -148,14 +151,32 @@ class DummyReplica : public InternalReplicaApi {
                                                          replicaConfig[i].replicaId,
                                                          pp->digestOfRequests(),
                                                          replicaConfig[i].thresholdSignerForSlowPathCommit);
+        // After the last Prepare message of the quorum is added to the seqNumInfo_
+        // object, its member prepareSigCollector will add a SignaturesProcessingJob
+        // to the replica's thread pool to verify the signature shares. After verification
+        // is done, an internal message will be generated of either CombinedSigSucceededInternalMsg
+        // or CombinedSigFailedInternalMsg, and this internal message will be added to
+        // the replica's incomingMsgsStorage_. This incomingMsgsStorage_ has a dispatching thread
+        // that will process one of those internal messages by signaling to the replica's
+        // onPrepareCombinedSigSucceeded or onPrepareCombinedSigFailed callback.
+        // In case of CombinedSigSucceededInternalMsg the onPrepareCombinedSigSucceeded callback
+        // calls seqNumInfo_.onCompletionOfPrepareSignaturesProcessing, thus finally generating the
+        // PrepareFullMsg.
         if (i == replicasInfo_.myId()) {
           seqNumInfo_.addSelfMsg(p);
         } else {
           seqNumInfo_.addMsg(p);
         }
+        generatedPrepares++;
+      }
+      if (generatedPrepares == 2 * replicasInfo_.fVal() + 1) {
+        break;  // We have reached the required quorum of Prepare messages
       }
     }
 
+    // Here we have to wait for either onPrepareCombinedSigSucceeded, or
+    // onPrepareCombinedSigFailed callback to be called by the
+    // incomingMsgsStorage_'s dispatching thread
     std::unique_lock<std::mutex> lock(m_);
     cv_.wait(lock, [this] { return this->operationStatus_ != PrepareCombinedSigOperationStatus::OPERATION_PENDING; });
 
@@ -197,6 +218,14 @@ void setUpConfiguration_4() {
 
 void cleanupConfiguration_4() { delete sigManager_; }
 
+// The purpose of this test is to verify that when a Replica receives a set of
+// view change messages enough for it to confirm a view change it will consider
+// the Safe Prepare Certificate for a sequence number that has two Prepare
+// Certificates. The safe Prepare Certificate for a given sequence is the one with
+// the highest View number, so after ViewchangeSafetyLogic::computeRestrictions
+// is called we verify that for this sequence number we are going to redo the
+// protocol with the right PrePrepare, matching the Prepare Certificate with
+// the highest View number.
 TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_same_seq_no) {
   bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig[0], false, false);
   DummyReplica replica(replicasInfo, replicaConfig[0]);
@@ -220,6 +249,11 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
   PrepareFullMsg* pfMsg1{};
   PrePrepareMsg* ppMsg1{};
 
+  // Here we generate a valid Prepare Certificate for clientRequest1 with
+  // View=0, this is going to be the Prepare Certificate that has to be
+  // discarded for the sequence number -> assignedSeqNum, because we are
+  // going to generate a Prepare Certificate for this sequence number with
+  // a higher view.
   auto operation_status1 =
       replica.GetPrepareFullMsgAndAssociatedPrePrepare(clientRequest1, curView1, assignedSeqNum, ppMsg1, pfMsg1);
   Assert(operation_status1 == DummyReplica::PrepareCombinedSigOperationStatus::OPERATION_SUCCEEDED);
@@ -237,6 +271,10 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
   PrepareFullMsg* pfMsg2{};
   PrePrepareMsg* ppMsg2{};
 
+  // Here we generate a valid Prepare Certificate for clientRequest2 with
+  // View=1, this is going to be the Prepare Certificate that has to be
+  // considered for the sequence number -> assignedSeqNum, because it will
+  // be the one with the highest View for assignedSeqNum.
   auto operation_status2 =
       replica.GetPrepareFullMsgAndAssociatedPrePrepare(clientRequest2, curView2, assignedSeqNum, ppMsg2, pfMsg2);
   Assert(operation_status2 == DummyReplica::PrepareCombinedSigOperationStatus::OPERATION_SUCCEEDED);
@@ -248,6 +286,8 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
   viewChangeMsgs[2] = new ViewChangeMsg(2, curView2, lastStableSeqNum);
   viewChangeMsgs[3] = new ViewChangeMsg(3, curView2, lastStableSeqNum);
 
+  // Add the first Prepare Certificate which we expect to be ignored
+  // to the View Change Msg from Replica 2
   viewChangeMsgs[2]->addElement(*pRepInfo,
                                 assignedSeqNum,
                                 ppMsg1->digestOfRequests(),
@@ -257,6 +297,8 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
                                 pfMsg1->signatureLen(),
                                 pfMsg1->signatureBody());
 
+  // Add the second Prepare Certificate which we expect to be considered in the next view
+  // to the View Change Msg from Replica 3
   viewChangeMsgs[3]->addElement(*pRepInfo,
                                 assignedSeqNum,
                                 ppMsg2->digestOfRequests(),
