@@ -76,8 +76,12 @@ void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
   if (d != b()->digestOfRequests) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": digest"));
 }
 
-PrePrepareMsg::PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, bool isNull)
-    : MessageBase(sender, MsgCode::PrePrepare, (isNull ? sizeof(PrePrepareMsgHeader) : maxSizeOfPrePrepareMsg()))
+PrePrepareMsg::PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, bool isNull, size_t size)
+    : MessageBase(
+          sender,
+          MsgCode::PrePrepare,
+          (((size + sizeof(PrePrepareMsgHeader)) < maxSizeOfPrePrepareMsg()) ? (size + sizeof(PrePrepareMsgHeader))
+                                                                             : maxSizeOfPrePrepareMsg()))
 
 {
   b()->viewNum = v;
