@@ -49,154 +49,63 @@ class myViewsManager : public ViewsManager {
   static void setSigMgr(SigManager* ptr) { ViewsManager::sigManager_ = ptr; }
 };
 
-class DummyReplica : public InternalReplicaApi {
+class DummyShareSecretKey : public IShareSecretKey {
  public:
-  DummyReplica(const bftEngine::impl::ReplicasInfo& replicasInfo, const ReplicaConfig& replicaConfig)
-      : operationStatus_(PrepareCombinedSigOperationStatus::OPERATION_PENDING),
-        replicasInfo_(replicasInfo),
-        replicaConfig_(replicaConfig),
-        msgHandlersPtr_(new MsgHandlersRegistrator()),
-        incomingMsgsStorage_(new IncomingMsgsStorageImp(msgHandlersPtr_, timersResolution, replicaConfig_.replicaId)) {
-    SeqNumInfo::init(seqNumInfo_, static_cast<void*>(this));
-    dynamic_cast<IncomingMsgsStorageImp*>(incomingMsgsStorage_)->start();
-  }
-  ~DummyReplica() {
-    dynamic_cast<IncomingMsgsStorageImp*>(incomingMsgsStorage_)->stop();
-    delete incomingMsgsStorage_;
-  }
-
-  void onPrepareCombinedSigFailed(SeqNum seqNumber, ViewNum view, const set<uint16_t>& replicasWithBadSigs) {
-    std::unique_lock<std::mutex> lock(m_);
-    operationStatus_ = PrepareCombinedSigOperationStatus::OPERATION_FAILED;
-    cv_.notify_one();
-  }
-  void onPrepareCombinedSigSucceeded(SeqNum seqNumber, ViewNum view, const char* combinedSig, uint16_t combinedSigLen) {
-    seqNumInfo_.onCompletionOfPrepareSignaturesProcessing(seqNumber, view, combinedSig, combinedSigLen);
-
-    PrepareFullMsg* preFull = seqNumInfo_.getValidPrepareFullMsg();
-
-    std::unique_lock<std::mutex> lock(m_);
-    if (preFull) {
-      operationStatus_ = PrepareCombinedSigOperationStatus::OPERATION_SUCCEEDED;
-    } else {
-      operationStatus_ = PrepareCombinedSigOperationStatus::OPERATION_FAILED;
-    }
-    cv_.notify_one();
-  }
-  void onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) {}
-
-  void onCommitCombinedSigFailed(SeqNum seqNumber, ViewNum view, const set<uint16_t>& replicasWithBadSigs) {}
-  void onCommitCombinedSigSucceeded(SeqNum seqNumber, ViewNum view, const char* combinedSig, uint16_t combinedSigLen) {}
-  void onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) {}
-
-  void onInternalMsg(FullCommitProofMsg* m) {}
-  void onMerkleExecSignature(ViewNum view, SeqNum seqNum, uint16_t signatureLength, const char* signature) {}
-
-  void onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqNum,
-                                          const ViewNum relatedViewNumber,
-                                          const forward_list<RetSuggestion>* const suggestedRetransmissions) {}
-
-  const bftEngine::impl::ReplicasInfo& getReplicasInfo() const { return replicasInfo_; }
-  bool isValidClient(NodeIdType client) const { return true; }
-  bool isIdOfReplica(NodeIdType id) const { return true; }
-  const set<ReplicaId>& getIdsOfPeerReplicas() const { return replicaIds_; }
-  ViewNum getCurrentView() const { return 0; }
-  ReplicaId currentPrimary() const { return 0; }
-  bool isCurrentPrimary() const { return true; }
-  bool currentViewIsActive() const { return true; }
-  ReqId seqNumberOfLastReplyToClient(NodeIdType client) const { return 1; }
-
-  IncomingMsgsStorage& getIncomingMsgsStorage() { return *incomingMsgsStorage_; }
-  util::SimpleThreadPool& getInternalThreadPool() { return pool_; }
-
-  void updateMetricsForInternalMessage() {}
-  bool isCollectingState() const { return false; }
-
-  const ReplicaConfig& getReplicaConfig() const { return replicaConfig_; }
-
-  IThresholdVerifier* getThresholdVerifierForExecution() { return nullptr; }
-  IThresholdVerifier* getThresholdVerifierForSlowPathCommit() {
-    return replicaConfig_.thresholdVerifierForSlowPathCommit;
-  }
-  IThresholdVerifier* getThresholdVerifierForCommit() { return nullptr; }
-  IThresholdVerifier* getThresholdVerifierForOptimisticCommit() { return nullptr; }
-
-  SeqNumInfo& GetSeqNumInfo() { return seqNumInfo_; }
-
-  enum class PrepareCombinedSigOperationStatus : uint8_t { OPERATION_PENDING, OPERATION_SUCCEEDED, OPERATION_FAILED };
-
-  PrepareCombinedSigOperationStatus GetPrepareFullMsgAndAssociatedPrePrepare(ClientRequestMsg* clientRequest,
-                                                                             ViewNum view,
-                                                                             bftEngine::impl::SeqNum assignedSeqNum,
-                                                                             PrePrepareMsg*& ppMsg,
-                                                                             PrepareFullMsg*& pfMsg) {
-    auto primary = getReplicasInfo().primaryOfView(view);
-    // Generate the PrePrepare from the primary for the clientRequest
-    auto* pp = new PrePrepareMsg(primary, view, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, false);
-    pp->addRequest(clientRequest->body(), clientRequest->size());
-    pp->finishAddingRequests();
-
-    if (primary == replicasInfo_.myId()) {
-      seqNumInfo_.addSelfMsg(pp, true);
-    } else {
-      seqNumInfo_.addMsg(pp, true);
-    }
-
-    // Generate the 2*f+1 Prepare messages from different replicas
-    int generatedPrepares = 0;
-    for (int i = 0; i < replicasInfo_.numberOfReplicas(); i++) {
-      PreparePartialMsg* p = PreparePartialMsg::create(view,
-                                                       pp->seqNumber(),
-                                                       replicaConfig[i].replicaId,
-                                                       pp->digestOfRequests(),
-                                                       replicaConfig[i].thresholdSignerForSlowPathCommit);
-      // After the last Prepare message of the quorum is added to the seqNumInfo_
-      // object, its member prepareSigCollector will add a SignaturesProcessingJob
-      // to the replica's thread pool to verify the signature shares. After verification
-      // is done, an internal message will be generated of either CombinedSigSucceededInternalMsg
-      // or CombinedSigFailedInternalMsg, and this internal message will be added to
-      // the replica's incomingMsgsStorage_. This incomingMsgsStorage_ has a dispatching thread
-      // that will process one of those internal messages by signaling to the replica's
-      // onPrepareCombinedSigSucceeded or onPrepareCombinedSigFailed callback.
-      // In case of CombinedSigSucceededInternalMsg the onPrepareCombinedSigSucceeded callback
-      // calls seqNumInfo_.onCompletionOfPrepareSignaturesProcessing, thus finally generating the
-      // PrepareFullMsg.
-      if (i == replicasInfo_.myId()) {
-        seqNumInfo_.addSelfMsg(p);
-      } else {
-        seqNumInfo_.addMsg(p);
-      }
-      generatedPrepares++;
-      if (generatedPrepares == 2 * replicasInfo_.fVal() + 1) {
-        break;  // We have reached the required quorum of Prepare messages
-      }
-    }
-
-    // Here we have to wait for either onPrepareCombinedSigSucceeded, or
-    // onPrepareCombinedSigFailed callback to be called by the
-    // incomingMsgsStorage_'s dispatching thread
-    std::unique_lock<std::mutex> lock(m_);
-    cv_.wait(lock, [this] { return this->operationStatus_ != PrepareCombinedSigOperationStatus::OPERATION_PENDING; });
-
-    seqNumInfo_.getAndReset(ppMsg, pfMsg);
-
-    auto retStatus = operationStatus_;
-    operationStatus_ = PrepareCombinedSigOperationStatus::OPERATION_PENDING;
-    return retStatus;
-  }
-
- private:
-  std::condition_variable cv_;
-  std::mutex m_;
-  PrepareCombinedSigOperationStatus operationStatus_;
-  bftEngine::impl::ReplicasInfo replicasInfo_;
-  ReplicaConfig replicaConfig_;
-  shared_ptr<MsgHandlersRegistrator> msgHandlersPtr_;
-  IncomingMsgsStorage* incomingMsgsStorage_;
-  util::SimpleThreadPool pool_;
-  set<ReplicaId> replicaIds_;
-  SeqNumInfo seqNumInfo_;
+  virtual std::string toString() const override { return std::string("123"); }
 };
+
+class DummyShareVerificationKey : public IShareVerificationKey {
+ public:
+  virtual std::string toString() const override { return std::string("123"); }
+};
+
+class DummyThresholdAccumulator : public IThresholdAccumulator {
+ public:
+  virtual int add(const char* sigShareWithId, int len) override { return 0; }
+  virtual void setExpectedDigest(const unsigned char* msg, int len) override {}
+  virtual bool hasShareVerificationEnabled() const override { return true; }
+  virtual int getNumValidShares() const override { return 0; }
+  virtual void getFullSignedData(char* outThreshSig, int threshSigLen) override {}
+  virtual IThresholdAccumulator* clone() override { return this; }
+};
+
+class DummySigner : public IThresholdSigner {
+  DummyShareSecretKey dummyShareSecretKey_;
+  DummyShareVerificationKey dummyShareVerificationKey_;
+
+ public:
+  virtual int requiredLengthForSignedData() const override { return 3; }
+  virtual void signData(const char* hash, int hashLen, char* outSig, int outSigLen) override {}
+
+  virtual const IShareSecretKey& getShareSecretKey() const override { return dummyShareSecretKey_; }
+  virtual const IShareVerificationKey& getShareVerificationKey() const override { return dummyShareVerificationKey_; }
+
+  virtual const std::string getVersion() const override { return std::string("123"); }
+  virtual void serializeDataMembers(std::ostream&) const override {}
+  virtual void deserializeDataMembers(std::istream&) override {}
+} dummySigner_;
+
+class DummyVerifier : public IThresholdVerifier {
+  DummyShareVerificationKey dummyShareVerificationKey_;
+  mutable DummyThresholdAccumulator dummyThresholdAccumulator_;
+
+ public:
+  virtual IThresholdAccumulator* newAccumulator(bool withShareVerification) const override {
+    return &dummyThresholdAccumulator_;
+  }
+  virtual void release(IThresholdAccumulator* acc) override {}
+
+  virtual bool verify(const char* msg, int msgLen, const char* sig, int sigLen) const override { return true; }
+  virtual int requiredLengthForSignedData() const override { return 3; }
+
+  virtual const IPublicKey& getPublicKey() const override { return dummyShareVerificationKey_; }
+  virtual const IShareVerificationKey& getShareVerificationKey(ShareID signer) const override {
+    return dummyShareVerificationKey_;
+  }
+  virtual const std::string getVersion() const override { return std::string("123"); }
+  virtual void serializeDataMembers(std::ostream&) const override {}
+  virtual void deserializeDataMembers(std::istream&) override {}
+} dummyVerifier_;
 
 void setUpConfiguration_4() {
   inputReplicaKeyfile("replica_keys_0", replicaConfig[0]);
@@ -214,8 +123,71 @@ void setUpConfiguration_4() {
   myViewsManager::setSigMgr(sigManager_);
 }
 
-void cleanupConfiguration_4() { delete sigManager_; }
+TEST(testViewchangeSafetyLogic_test, computeRestrictions_with_mocked_signatures) {
+  bftEngine::impl::SeqNum lastStableSeqNum = 100;
+  const uint32_t kRequestLength = 2;
 
+  uint64_t expectedLastValue = 12345;
+  const uint64_t requestBuffer[kRequestLength] = {(uint64_t)200, expectedLastValue};
+  ViewNum curView = 0;
+  bftEngine::impl::SeqNum assignedSeqNum = lastStableSeqNum + 1;
+
+  auto* clientRequest = new ClientRequestMsg((uint16_t)1,
+                                             bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
+                                             (uint64_t)1234567,
+                                             kRequestLength,
+                                             (const char*)requestBuffer,
+                                             (uint64_t)1000000);
+
+  auto primary = pRepInfo->primaryOfView(curView);
+  // Generate the PrePrepare from the primary for the clientRequest
+  auto* ppMsg = new PrePrepareMsg(primary, curView, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, false);
+  ppMsg->addRequest(clientRequest->body(), clientRequest->size());
+  ppMsg->finishAddingRequests();
+
+  char buff[32]{};
+  PrepareFullMsg* pfMsg = PrepareFullMsg::create(curView, assignedSeqNum, primary, buff, sizeof(buff));
+
+  ViewChangeMsg** viewChangeMsgs = new ViewChangeMsg*[N];
+
+  viewChangeMsgs[0] = new ViewChangeMsg(0, curView, lastStableSeqNum);
+  viewChangeMsgs[1] = nullptr;
+  viewChangeMsgs[2] = new ViewChangeMsg(2, curView, lastStableSeqNum);
+  viewChangeMsgs[3] = new ViewChangeMsg(3, curView, lastStableSeqNum);
+
+  viewChangeMsgs[2]->addElement(*pRepInfo,
+                                assignedSeqNum,
+                                ppMsg->digestOfRequests(),
+                                ppMsg->viewNumber(),
+                                true,
+                                ppMsg->viewNumber(),
+                                pfMsg->signatureLen(),
+                                pfMsg->signatureBody());
+
+  auto VCS = ViewChangeSafetyLogic(N, F, C, &dummyVerifier_, PrePrepareMsg::digestOfNullPrePrepareMsg());
+
+  SeqNum min{}, max{};
+  VCS.computeRestrictions(viewChangeMsgs, 0, min, max, restrictions);
+
+  for (int i = 0; i < kWorkWindowSize; i++) {
+    if (i == assignedSeqNum - 1) {
+      Assert(!restrictions[i].isNull);
+      // Assert the prepare certificate with higher view number is selected for assignedSeqNum
+      Assert(ppMsg->digestOfRequests().toString() == restrictions[i].digest.toString())
+    } else {
+      Assert(restrictions[i].isNull);
+    }
+  }
+
+  for (int i = 0; i < N; i++) {
+    delete viewChangeMsgs[i];
+    viewChangeMsgs[i] = nullptr;
+  }
+  delete[] viewChangeMsgs;
+  delete clientRequest;
+  delete pfMsg;
+  delete ppMsg;
+}
 // The purpose of this test is to verify that when a Replica receives a set of
 // view change messages enough for it to confirm a view change it will consider
 // the Safe Prepare Certificate for a sequence number that has two Prepare
@@ -225,10 +197,7 @@ void cleanupConfiguration_4() { delete sigManager_; }
 // protocol with the right PrePrepare, matching the Prepare Certificate with
 // the highest View number.
 TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_same_seq_no) {
-  bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig[0], false, false);
-  DummyReplica replica(replicasInfo, replicaConfig[0]);
-  replica.getInternalThreadPool().start(1);
-
+  char buff[32]{};
   bftEngine::impl::SeqNum lastStableSeqNum = 100;
   const uint32_t kRequestLength = 2;
 
@@ -244,17 +213,19 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
                                               (const char*)requestBuffer1,
                                               (uint64_t)1000000);
 
-  PrepareFullMsg* pfMsg1{};
-  PrePrepareMsg* ppMsg1{};
+  // Generate the PrePrepare from the primary for the clientRequest
+  auto* ppMsg1 = new PrePrepareMsg(
+      pRepInfo->primaryOfView(curView1), curView1, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, false);
+  ppMsg1->addRequest(clientRequest1->body(), clientRequest1->size());
+  ppMsg1->finishAddingRequests();
 
   // Here we generate a valid Prepare Certificate for clientRequest1 with
   // View=0, this is going to be the Prepare Certificate that has to be
   // discarded for the sequence number -> assignedSeqNum, because we are
   // going to generate a Prepare Certificate for this sequence number with
   // a higher view.
-  auto operation_status1 =
-      replica.GetPrepareFullMsgAndAssociatedPrePrepare(clientRequest1, curView1, assignedSeqNum, ppMsg1, pfMsg1);
-  Assert(operation_status1 == DummyReplica::PrepareCombinedSigOperationStatus::OPERATION_SUCCEEDED);
+  PrepareFullMsg* pfMsg1 =
+      PrepareFullMsg::create(curView1, assignedSeqNum, pRepInfo->primaryOfView(curView1), buff, sizeof(buff));
 
   uint64_t expectedLastValue2 = 1234567;
   const uint64_t requestBuffer2[kRequestLength] = {(uint64_t)200, expectedLastValue2};
@@ -266,16 +237,18 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
                                               kRequestLength,
                                               (const char*)requestBuffer2,
                                               (uint64_t)1000000);
-  PrepareFullMsg* pfMsg2{};
-  PrePrepareMsg* ppMsg2{};
 
+  // Generate the PrePrepare from the primary for the clientRequest
+  auto* ppMsg2 = new PrePrepareMsg(
+      pRepInfo->primaryOfView(curView2), curView2, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, false);
+  ppMsg2->addRequest(clientRequest1->body(), clientRequest1->size());
+  ppMsg2->finishAddingRequests();
   // Here we generate a valid Prepare Certificate for clientRequest2 with
   // View=1, this is going to be the Prepare Certificate that has to be
   // considered for the sequence number -> assignedSeqNum, because it will
   // be the one with the highest View for assignedSeqNum.
-  auto operation_status2 =
-      replica.GetPrepareFullMsgAndAssociatedPrePrepare(clientRequest2, curView2, assignedSeqNum, ppMsg2, pfMsg2);
-  Assert(operation_status2 == DummyReplica::PrepareCombinedSigOperationStatus::OPERATION_SUCCEEDED);
+  PrepareFullMsg* pfMsg2 =
+      PrepareFullMsg::create(curView2, assignedSeqNum, pRepInfo->primaryOfView(curView2), buff, sizeof(buff));
 
   ViewChangeMsg** viewChangeMsgs = new ViewChangeMsg*[N];
 
@@ -306,8 +279,7 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
                                 pfMsg2->signatureLen(),
                                 pfMsg2->signatureBody());
 
-  auto VCS = ViewChangeSafetyLogic(
-      N, F, C, replicaConfig[0].thresholdVerifierForSlowPathCommit, PrePrepareMsg::digestOfNullPrePrepareMsg());
+  auto VCS = ViewChangeSafetyLogic(N, F, C, &dummyVerifier_, PrePrepareMsg::digestOfNullPrePrepareMsg());
 
   SeqNum min{}, max{};
   VCS.computeRestrictions(viewChangeMsgs, 0, min, max, restrictions);
@@ -322,7 +294,6 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
     }
   }
 
-  replica.getInternalThreadPool().stop(true);
   for (int i = 0; i < N; i++) {
     delete viewChangeMsgs[i];
     viewChangeMsgs[i] = nullptr;
@@ -334,70 +305,6 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
   delete clientRequest2;
   delete pfMsg2;
   delete ppMsg2;
-}
-
-TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
-  bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig[0], false, false);
-  DummyReplica replica(replicasInfo, replicaConfig[0]);
-  replica.getInternalThreadPool().start(1);
-
-  bftEngine::impl::SeqNum lastStableSeqNum = 150;
-  uint64_t expectedLastValue = 12345;
-  const uint32_t kRequestLength = 2;
-  const uint64_t requestBuffer[kRequestLength] = {(uint64_t)200, expectedLastValue};
-  ViewNum curView = 0;
-  bftEngine::impl::SeqNum assignedSeqNum = lastStableSeqNum + 1;
-
-  auto* clientRequest = new ClientRequestMsg((uint16_t)1,
-                                             bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
-                                             (uint64_t)1234567,
-                                             kRequestLength,
-                                             (const char*)requestBuffer,
-                                             (uint64_t)1000000);
-
-  PrepareFullMsg* pfMsg{};
-  PrePrepareMsg* ppMsg{};
-
-  auto operation_status =
-      replica.GetPrepareFullMsgAndAssociatedPrePrepare(clientRequest, curView, assignedSeqNum, ppMsg, pfMsg);
-  Assert(operation_status == DummyReplica::PrepareCombinedSigOperationStatus::OPERATION_SUCCEEDED);
-
-  ViewChangeMsg** viewChangeMsgs = new ViewChangeMsg*[N];
-  for (int i = 0; i < N; i++) {
-    if (i == 1) {
-      viewChangeMsgs[i] = nullptr;
-    } else {
-      viewChangeMsgs[i] = new ViewChangeMsg(i, 1, lastStableSeqNum);
-    }
-  }
-
-  viewChangeMsgs[2]->addElement(
-      *pRepInfo, assignedSeqNum, ppMsg->digestOfRequests(), 0, true, 0, pfMsg->signatureLen(), pfMsg->signatureBody());
-
-  auto VCS = ViewChangeSafetyLogic(
-      N, F, C, replicaConfig[0].thresholdVerifierForSlowPathCommit, PrePrepareMsg::digestOfNullPrePrepareMsg());
-
-  SeqNum min{}, max{};
-  VCS.computeRestrictions(viewChangeMsgs, 0, min, max, restrictions);
-
-  for (int i = 0; i < kWorkWindowSize; i++) {
-    if (i == assignedSeqNum - 1) {
-      Assert(!restrictions[i].isNull);
-      Assert(ppMsg->digestOfRequests().toString() == restrictions[i].digest.toString())
-    } else {
-      Assert(restrictions[i].isNull);
-    }
-  }
-
-  replica.getInternalThreadPool().stop(true);
-  for (int i = 0; i < N; i++) {
-    delete viewChangeMsgs[i];
-    viewChangeMsgs[i] = nullptr;
-  }
-  delete[] viewChangeMsgs;
-  delete clientRequest;
-  delete pfMsg;
-  delete ppMsg;
 }
 
 TEST(testViewchangeSafetyLogic_test, one_different_new_view_in_VC_msgs) {
@@ -478,7 +385,6 @@ int main(int argc, char** argv) {
   Assert(system("../../../tools/GenerateConcordKeys -n 4 -f 1 -o replica_keys_") != -1);
   setUpConfiguration_4();
   int res = RUN_ALL_TESTS();
-  cleanupConfiguration_4();
   // TODO cleanup the generated certificates
   return res;
 }
