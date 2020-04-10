@@ -34,14 +34,13 @@ class Logger {
   std::string _name;
   std::array<std::string, 6> LEVELS_STRINGS = {"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"};
   std::unordered_map<std::string, std::string> mdc_;
-  mutable std::mutex mdc_mut_;
+  mutable std::mutex mdc_mutex_;
   // If you add new members, don't forget to handle them in copy constructor and operator=
 
  public:
   explicit Logger(std::string name) : _name{std::move(name)} {}
-  Logger(const Logger&& l) = delete;
   Logger(const Logger& l) {
-    std::lock_guard<std::mutex> lock(l.mdc_mut_);
+    std::lock_guard<std::mutex> lock(l.mdc_mutex_);
 
     _name = l._name;
     LEVELS_STRINGS = l.LEVELS_STRINGS;
@@ -53,8 +52,8 @@ class Logger {
       return *this;
     }
 
-    std::lock_guard<std::mutex> lock_rhs(rhs.mdc_mut_);
-    std::lock_guard<std::mutex> lock(mdc_mut_);
+    std::lock_guard<std::mutex> lock_rhs(rhs.mdc_mutex_);
+    std::lock_guard<std::mutex> lock(mdc_mutex_);
 
     _name = rhs._name;
     LEVELS_STRINGS = rhs.LEVELS_STRINGS;
@@ -90,12 +89,12 @@ class Logger {
   }
 
   void putMdc(const std::string& key, const std::string& val) {
-    std::lock_guard<std::mutex> lock(mdc_mut_);
+    std::lock_guard<std::mutex> lock(mdc_mutex_);
     mdc_.emplace(key, val);
   }
 
   void removeMdc(const std::string& key) {
-    std::lock_guard<std::mutex> lock(mdc_mut_);
+    std::lock_guard<std::mutex> lock(mdc_mutex_);
     mdc_.erase(key);
   }
 
@@ -110,7 +109,7 @@ class Logger {
   }
 
   inline const std::string mdcToStr() const {
-    std::lock_guard<std::mutex> lock(mdc_mut_);
+    std::lock_guard<std::mutex> lock(mdc_mutex_);
     if (mdc_.empty()) return "";
     std::stringstream s;
     s << "%";
