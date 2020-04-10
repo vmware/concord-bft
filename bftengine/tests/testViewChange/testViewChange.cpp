@@ -145,30 +145,28 @@ class DummyReplica : public InternalReplicaApi {
     // Generate the 2*f+1 Prepare messages from different replicas
     int generatedPrepares = 0;
     for (int i = 0; i < replicasInfo_.numberOfReplicas(); i++) {
-      if (primary != i) {
-        PreparePartialMsg* p = PreparePartialMsg::create(view,
-                                                         pp->seqNumber(),
-                                                         replicaConfig[i].replicaId,
-                                                         pp->digestOfRequests(),
-                                                         replicaConfig[i].thresholdSignerForSlowPathCommit);
-        // After the last Prepare message of the quorum is added to the seqNumInfo_
-        // object, its member prepareSigCollector will add a SignaturesProcessingJob
-        // to the replica's thread pool to verify the signature shares. After verification
-        // is done, an internal message will be generated of either CombinedSigSucceededInternalMsg
-        // or CombinedSigFailedInternalMsg, and this internal message will be added to
-        // the replica's incomingMsgsStorage_. This incomingMsgsStorage_ has a dispatching thread
-        // that will process one of those internal messages by signaling to the replica's
-        // onPrepareCombinedSigSucceeded or onPrepareCombinedSigFailed callback.
-        // In case of CombinedSigSucceededInternalMsg the onPrepareCombinedSigSucceeded callback
-        // calls seqNumInfo_.onCompletionOfPrepareSignaturesProcessing, thus finally generating the
-        // PrepareFullMsg.
-        if (i == replicasInfo_.myId()) {
-          seqNumInfo_.addSelfMsg(p);
-        } else {
-          seqNumInfo_.addMsg(p);
-        }
-        generatedPrepares++;
+      PreparePartialMsg* p = PreparePartialMsg::create(view,
+                                                       pp->seqNumber(),
+                                                       replicaConfig[i].replicaId,
+                                                       pp->digestOfRequests(),
+                                                       replicaConfig[i].thresholdSignerForSlowPathCommit);
+      // After the last Prepare message of the quorum is added to the seqNumInfo_
+      // object, its member prepareSigCollector will add a SignaturesProcessingJob
+      // to the replica's thread pool to verify the signature shares. After verification
+      // is done, an internal message will be generated of either CombinedSigSucceededInternalMsg
+      // or CombinedSigFailedInternalMsg, and this internal message will be added to
+      // the replica's incomingMsgsStorage_. This incomingMsgsStorage_ has a dispatching thread
+      // that will process one of those internal messages by signaling to the replica's
+      // onPrepareCombinedSigSucceeded or onPrepareCombinedSigFailed callback.
+      // In case of CombinedSigSucceededInternalMsg the onPrepareCombinedSigSucceeded callback
+      // calls seqNumInfo_.onCompletionOfPrepareSignaturesProcessing, thus finally generating the
+      // PrepareFullMsg.
+      if (i == replicasInfo_.myId()) {
+        seqNumInfo_.addSelfMsg(p);
+      } else {
+        seqNumInfo_.addMsg(p);
       }
+      generatedPrepares++;
       if (generatedPrepares == 2 * replicasInfo_.fVal() + 1) {
         break;  // We have reached the required quorum of Prepare messages
       }
