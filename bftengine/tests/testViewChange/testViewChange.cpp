@@ -165,7 +165,8 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
                                              kRequestLength,
                                              (const char*)requestBuffer,
                                              (uint64_t)1000000);
-  auto* pp = new PrePrepareMsg(0, curView, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, false);
+  auto* pp =
+      new PrePrepareMsg(0, curView, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, false, clientRequest->size());
   pp->addRequest(clientRequest->body(), clientRequest->size());
   pp->finishAddingRequests();
 
