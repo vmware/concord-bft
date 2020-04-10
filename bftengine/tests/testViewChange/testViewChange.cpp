@@ -141,7 +141,8 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
 
   auto primary = pRepInfo->primaryOfView(curView);
   // Generate the PrePrepare from the primary for the clientRequest
-  auto* ppMsg = new PrePrepareMsg(primary, curView, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, false);
+  auto* ppMsg = new PrePrepareMsg(
+      primary, curView, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, false, clientRequest->size());
   ppMsg->addRequest(clientRequest->body(), clientRequest->size());
   ppMsg->finishAddingRequests();
 
@@ -213,8 +214,12 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
                                               (uint64_t)1000000);
 
   // Generate the PrePrepare from the primary for the clientRequest1
-  auto* ppMsg1 = new PrePrepareMsg(
-      pRepInfo->primaryOfView(curView1), curView1, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, false);
+  auto* ppMsg1 = new PrePrepareMsg(pRepInfo->primaryOfView(curView1),
+                                   curView1,
+                                   assignedSeqNum,
+                                   bftEngine::impl::CommitPath::SLOW,
+                                   false,
+                                   clientRequest1->size());
   ppMsg1->addRequest(clientRequest1->body(), clientRequest1->size());
   ppMsg1->finishAddingRequests();
 
@@ -238,8 +243,12 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
                                               (uint64_t)1000000);
 
   // Generate the PrePrepare from the primary for the clientRequest2
-  auto* ppMsg2 = new PrePrepareMsg(
-      pRepInfo->primaryOfView(curView2), curView2, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, false);
+  auto* ppMsg2 = new PrePrepareMsg(pRepInfo->primaryOfView(curView2),
+                                   curView2,
+                                   assignedSeqNum,
+                                   bftEngine::impl::CommitPath::SLOW,
+                                   false,
+                                   clientRequest2->size());
   ppMsg2->addRequest(clientRequest2->body(), clientRequest2->size());
   ppMsg2->finishAddingRequests();
   // Here we generate a valid Prepare Certificate for clientRequest2 with
