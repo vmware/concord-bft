@@ -123,8 +123,8 @@ void setUpConfiguration_4() {
   myViewsManager::setSigMgr(sigManager_);
 }
 
-TEST(testViewchangeSafetyLogic_test, computeRestrictions_with_mocked_signatures) {
-  bftEngine::impl::SeqNum lastStableSeqNum = 100;
+TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
+  bftEngine::impl::SeqNum lastStableSeqNum = 150;
   const uint32_t kRequestLength = 2;
 
   uint64_t expectedLastValue = 12345;
@@ -172,8 +172,7 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_with_mocked_signatures)
   for (int i = 0; i < kWorkWindowSize; i++) {
     if (i == assignedSeqNum - 1) {
       Assert(!restrictions[i].isNull);
-      // Assert the prepare certificate with higher view number is selected for assignedSeqNum
-      Assert(ppMsg->digestOfRequests().toString() == restrictions[i].digest.toString())
+      Assert(ppMsg->digestOfRequests().toString() == restrictions[i].digest.toString());
     } else {
       Assert(restrictions[i].isNull);
     }
@@ -213,7 +212,7 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
                                               (const char*)requestBuffer1,
                                               (uint64_t)1000000);
 
-  // Generate the PrePrepare from the primary for the clientRequest
+  // Generate the PrePrepare from the primary for the clientRequest1
   auto* ppMsg1 = new PrePrepareMsg(
       pRepInfo->primaryOfView(curView1), curView1, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, false);
   ppMsg1->addRequest(clientRequest1->body(), clientRequest1->size());
@@ -231,17 +230,17 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
   const uint64_t requestBuffer2[kRequestLength] = {(uint64_t)200, expectedLastValue2};
   ViewNum curView2 = 1;
 
-  auto* clientRequest2 = new ClientRequestMsg((uint16_t)1,
+  auto* clientRequest2 = new ClientRequestMsg((uint16_t)2,
                                               bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
                                               (uint64_t)1234567,
                                               kRequestLength,
                                               (const char*)requestBuffer2,
                                               (uint64_t)1000000);
 
-  // Generate the PrePrepare from the primary for the clientRequest
+  // Generate the PrePrepare from the primary for the clientRequest2
   auto* ppMsg2 = new PrePrepareMsg(
       pRepInfo->primaryOfView(curView2), curView2, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, false);
-  ppMsg2->addRequest(clientRequest1->body(), clientRequest1->size());
+  ppMsg2->addRequest(clientRequest2->body(), clientRequest2->size());
   ppMsg2->finishAddingRequests();
   // Here we generate a valid Prepare Certificate for clientRequest2 with
   // View=1, this is going to be the Prepare Certificate that has to be
@@ -288,7 +287,8 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
     if (i == assignedSeqNum - 1) {
       Assert(!restrictions[i].isNull);
       // Assert the prepare certificate with higher view number is selected for assignedSeqNum
-      Assert(ppMsg2->digestOfRequests().toString() == restrictions[i].digest.toString())
+      Assert(ppMsg2->digestOfRequests().toString() == restrictions[i].digest.toString());
+      Assert(ppMsg2->digestOfRequests().toString() != ppMsg1->digestOfRequests().toString());
     } else {
       Assert(restrictions[i].isNull);
     }
