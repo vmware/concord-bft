@@ -90,8 +90,8 @@ PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
     : MessageBase(sender,
                   MsgCode::PrePrepare,
                   spanContext.size(),
-                  (((size + sizeof(PrePrepareMsgHeader) + spanContext.size()) < maxSizeOfPrePrepareMsg())
-                       ? (size + sizeof(PrePrepareMsgHeader) + spanContext.size())
+                  (((size + sizeof(PrePrepareMsgHeader)) < maxSizeOfPrePrepareMsg())
+                       ? (size + sizeof(PrePrepareMsgHeader))
                        : maxSizeOfPrePrepareMsg() - spanContext.size()))
 
 {

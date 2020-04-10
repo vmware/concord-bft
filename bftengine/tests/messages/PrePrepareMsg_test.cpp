@@ -45,14 +45,14 @@ TEST(PrePrepareMsg, create_and_compare) {
   bool is_null = false;
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
-  PrePrepareMsg msg(senderId, viewNum, seqNum, commitPath, spanContext, is_null);
+  ClientRequestMsg client_request = create_client_request();
+  PrePrepareMsg msg(senderId, viewNum, seqNum, commitPath, spanContext, is_null, client_request.size() * 2);
   EXPECT_EQ(msg.viewNumber(), viewNum);
   EXPECT_EQ(msg.seqNumber(), seqNum);
   EXPECT_EQ(msg.firstPath(), commitPath);
   EXPECT_EQ(msg.isNull(), is_null);
   EXPECT_EQ(msg.numberOfRequests(), 0u);
 
-  ClientRequestMsg client_request = create_client_request();
   msg.addRequest(client_request.body(), client_request.size());
   msg.addRequest(client_request.body(), client_request.size());
   msg.finishAddingRequests();
@@ -103,9 +103,8 @@ TEST(PrePrepareMsg, base_methods) {
   bool is_null = false;
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
-  PrePrepareMsg msg(senderId, viewNum, seqNum, commitPath, spanContext, is_null);
-
   ClientRequestMsg client_request = create_client_request();
+  PrePrepareMsg msg(senderId, viewNum, seqNum, commitPath, spanContext, is_null, client_request.size());
   msg.addRequest(client_request.body(), client_request.size());
   msg.finishAddingRequests();
   EXPECT_NO_THROW(msg.validate(replicaInfo));
