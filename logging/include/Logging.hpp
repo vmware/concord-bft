@@ -20,6 +20,7 @@
 #include <cassert>
 #include <iostream>
 #include <unordered_map>
+#include <mutex>
 
 #ifndef USE_LOG4CPP
 namespace concordlogger {
@@ -31,30 +32,35 @@ constexpr LogLevel CURRENT_LEVEL = LogLevel::info;
 
 class Logger {
   std::string _name;
-  std::string LEVELS_STRINGS[6] = {"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"};
+  std::array<std::string, 6> LEVELS_STRINGS = {"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"};
   std::unordered_map<std::string, std::string> mdc_;
-
-  inline void get_time(std::stringstream& ss) const {
-    using namespace std::chrono;
-    auto now = system_clock::now();
-    auto ms = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
-    auto timer = system_clock::to_time_t(now);
-    std::tm bt = *std::localtime(&timer);
-    ss << std::put_time(&bt, "%F %T") << "." << std::setfill('0') << std::setw(3) << ms.count();
-  }
-  inline const std::string mdcToStr() const {
-    if (mdc_.empty()) return "";
-    std::stringstream s;
-    s << "%";
-    for (auto& p : mdc_) {
-      s << "{" << p.first << "," << p.second << "}";
-    }
-    s << "%";
-    return s.str();
-  }
+  mutable std::mutex mdc_mutex_;
+  // If you add new members, don't forget to handle them in copy constructor and operator=
 
  public:
   explicit Logger(std::string name) : _name{std::move(name)} {}
+  Logger(const Logger& l) {
+    std::lock_guard<std::mutex> lock(l.mdc_mutex_);
+
+    _name = l._name;
+    LEVELS_STRINGS = l.LEVELS_STRINGS;
+    mdc_ = l.mdc_;
+  }
+
+  Logger& operator=(const Logger& rhs) {
+    if (this == &rhs) {
+      return *this;
+    }
+
+    std::lock_guard<std::mutex> lock_rhs(rhs.mdc_mutex_);
+    std::lock_guard<std::mutex> lock(mdc_mutex_);
+
+    _name = rhs._name;
+    LEVELS_STRINGS = rhs.LEVELS_STRINGS;
+    mdc_ = rhs.mdc_;
+
+    return *this;
+  }
 
   void print(concordlogger::LogLevel l, const std::string& s) const {
     std::stringstream time;
@@ -82,8 +88,37 @@ class Logger {
            output.c_str());
   }
 
-  void putMdc(const std::string& key, const std::string& val) { mdc_.emplace(key, val); }
-  void removeMdc(const std::string& key) { mdc_.erase(key); }
+  void putMdc(const std::string& key, const std::string& val) {
+    std::lock_guard<std::mutex> lock(mdc_mutex_);
+    mdc_.emplace(key, val);
+  }
+
+  void removeMdc(const std::string& key) {
+    std::lock_guard<std::mutex> lock(mdc_mutex_);
+    mdc_.erase(key);
+  }
+
+ private:
+  inline void get_time(std::stringstream& ss) const {
+    using namespace std::chrono;
+    auto now = system_clock::now();
+    auto ms = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
+    auto timer = system_clock::to_time_t(now);
+    std::tm bt = *std::localtime(&timer);
+    ss << std::put_time(&bt, "%F %T") << "." << std::setfill('0') << std::setw(3) << ms.count();
+  }
+
+  inline const std::string mdcToStr() const {
+    std::lock_guard<std::mutex> lock(mdc_mutex_);
+    if (mdc_.empty()) return "";
+    std::stringstream s;
+    s << "%";
+    for (auto& p : mdc_) {
+      s << "{" << p.first << "," << p.second << "}";
+    }
+    s << "%";
+    return s.str();
+  }
 };
 
 class Log {
