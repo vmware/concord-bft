@@ -44,7 +44,7 @@ void FullCommitProofMsg::validate(const ReplicasInfo& repInfo) const {
 }
 
 MsgSize FullCommitProofMsg::maxSizeOfFullCommitProofMsg() {
-  return sizeof(FullCommitProofMsgHeader) + maxSizeOfCombinedSignature + MessageBase::SPAN_CONTEXT_MAX_SIZE;
+  return sizeof(FullCommitProofMsgHeader) + maxSizeOfCombinedSignature + SPAN_CONTEXT_MAX_SIZE;
 }
 
 MsgSize FullCommitProofMsg::maxSizeOfFullCommitProofMsgInLocalBuffer() {

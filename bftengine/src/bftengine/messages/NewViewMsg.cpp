@@ -102,7 +102,9 @@ bool NewViewMsg::includesViewChangeFromReplica(ReplicaId replicaId, const Digest
   return false;
 }
 
-MsgSize NewViewMsg::maxSizeOfNewViewMsg() { return ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize(); }
+MsgSize NewViewMsg::maxSizeOfNewViewMsg() {
+  return ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize() + SPAN_CONTEXT_MAX_SIZE;
+}
 
 MsgSize NewViewMsg::maxSizeOfNewViewMsgInLocalBuffer() { return maxSizeOfNewViewMsg() + sizeof(RawHeaderOfObjAndMsg); }
 

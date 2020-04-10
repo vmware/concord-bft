@@ -28,7 +28,7 @@ static Digest nullDigest(0x18);
 ///////////////////////////////////////////////////////////////////////////////
 
 MsgSize PrePrepareMsg::maxSizeOfPrePrepareMsg() {
-  return ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize();
+  return ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize() + SPAN_CONTEXT_MAX_SIZE;
 }
 
 MsgSize PrePrepareMsg::maxSizeOfPrePrepareMsgInLocalBuffer() {

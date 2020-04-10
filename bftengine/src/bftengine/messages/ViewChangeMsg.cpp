@@ -268,7 +268,7 @@ bool ViewChangeMsg::ElementsIterator::goToAtLeast(SeqNum lowerBound) {
 }
 
 MsgSize ViewChangeMsg::maxSizeOfViewChangeMsg() {
-  return ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize();
+  return ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize() + SPAN_CONTEXT_MAX_SIZE;
 }
 
 MsgSize ViewChangeMsg::maxSizeOfViewChangeMsgInLocalBuffer() {

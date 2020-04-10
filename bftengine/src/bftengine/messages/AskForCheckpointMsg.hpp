@@ -19,7 +19,7 @@ namespace bftEngine::impl {
 
 class AskForCheckpointMsg : public MessageBase {
  public:
-  static MsgSize maxSizeOfAskForCheckpointMsg() { return sizeof(AskForCheckpointMsgHeader); }
+  static MsgSize maxSizeOfAskForCheckpointMsg() { return sizeof(AskForCheckpointMsgHeader) + SPAN_CONTEXT_MAX_SIZE; }
 
   static MsgSize maxSizeOfAskForCheckpointMsgInLocalBuffer() {
     return maxSizeOfAskForCheckpointMsg() + sizeof(RawHeaderOfObjAndMsg);
