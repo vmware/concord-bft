@@ -463,6 +463,354 @@ TEST(ControllerWithSimpleHistory, no_upgrade) {
   ASSERT_EQ(CommitPath::SLOW, cwsh.getCurrentFirstPath());
 }
 
+////////////////////////////Adaptive tuning of slow path timer/////////////////////
+
+// Test method normalizeToRange:
+//  - If value is within [low,high] range, returns value.
+//  - Else - returns closest bound.
+TEST(ControllerWithSimpleHistory, normalize_to_range) {
+  uint16_t C = 1;
+  uint16_t F = 1;
+  ReplicaId replicaId = 0;
+  ViewNum initialView = 0;
+  SeqNum initialSeq = 0;
+  ControllerWithSimpleHistory cwsh{C, F, replicaId, initialView, initialSeq};
+
+  {
+    auto res = cwsh.normalizeToRange(1, 2, 3);
+    ASSERT_EQ(res, 2);
+  }
+  {
+    auto res = cwsh.normalizeToRange(-11, -2, 3);
+    ASSERT_EQ(res, -2);
+  }
+  {
+    auto res = cwsh.normalizeToRange(1.0, 2.0, 0.5);
+    ASSERT_EQ(res, 1);
+  }
+  {
+    auto res = cwsh.normalizeToRange(1.0, 2.0, 1.5);
+    ASSERT_EQ(res, 1.5);
+  }
+}
+// Test - tune timer to longer duration than initial value.
+// Logic:
+// 1)Construct controller, timer value is set to defaultTimeToStartSlowPathMilli.
+// 2)Set `time since PrePrepare`, to a duration, which is longer than defaultTimeToStartSlowPathMilli and shorter than
+// upper bound.
+// 3)Run loop for EvaluationPeriod times:
+//  - call onSendingPrePrepare.
+// Expected result - after loop, timer duration is longer than initial.
+TEST(ControllerWithSimpleHistory, increase_slow_path_timer) {
+  uint16_t C = 1;
+  uint16_t F = 1;
+  ReplicaId replicaId = 0;
+  ViewNum initialView = 0;
+  SeqNum initialSeq = 0;
+  ControllerWithSimpleHistory cwsh{C, F, replicaId, initialView, initialSeq};
+
+  ASSERT_EQ(ControllerWithSimpleHistory::defaultTimeToStartSlowPathMilli, cwsh.timeToStartSlowPathMilli());
+
+  // Calculate duration that is:
+  // longer than current duration and is within relative bounds
+  uint32_t longerDur = (uint32_t)ControllerWithSimpleHistory::relativeUpperBound(
+      (ControllerWithSimpleHistory::MaxUpdateInTimeToStartSlowPath / 2), cwsh.timeToStartSlowPathMilli());
+
+  // Assert that value is within relative range
+  ASSERT_LT(longerDur,
+            (uint32_t)ControllerWithSimpleHistory::relativeUpperBound(
+                ControllerWithSimpleHistory::MaxUpdateInTimeToStartSlowPath, cwsh.timeToStartSlowPathMilli()));
+  ASSERT_GT(longerDur,
+            (uint32_t)ControllerWithSimpleHistory::relativeLowerBound(
+                ControllerWithSimpleHistory::MaxUpdateInTimeToStartSlowPath, cwsh.timeToStartSlowPathMilli()));
+
+  auto boundedDur = cwsh.normalizeToRange(
+      (uint32_t)ControllerWithSimpleHistory::relativeLowerBound(
+          ControllerWithSimpleHistory::MaxUpdateInTimeToStartSlowPath, cwsh.timeToStartSlowPathMilli()),
+      (uint32_t)ControllerWithSimpleHistory::relativeUpperBound(
+          ControllerWithSimpleHistory::MaxUpdateInTimeToStartSlowPath, cwsh.timeToStartSlowPathMilli()),
+      longerDur);
+  boundedDur = cwsh.normalizeToRange(ControllerWithSimpleHistory::MinTimeToStartSlowPathMilli,
+                                     ControllerWithSimpleHistory::MaxTimeToStartSlowPathMilli,
+                                     boundedDur);
+
+  // Validate that initial value is within absolute range
+  ASSERT_EQ(longerDur, boundedDur);
+
+  auto prePrepareTime = std::chrono::steady_clock::now() - std::chrono::milliseconds(longerDur);
+  // trigger adaptive tuning
+  for (auto i = (size_t)1; i <= ControllerWithSimpleHistory::EvaluationPeriod; ++i) {
+    cwsh.onSendingPrePrepare((SeqNum)i, CommitPath::OPTIMISTIC_FAST, prePrepareTime);
+    cwsh.onNewSeqNumberExecution((SeqNum)i);
+  }
+
+  ASSERT_EQ(longerDur, cwsh.timeToStartSlowPathMilli());
+}
+
+// Test - tune timer to shorter duration then initial duration.
+// Logic:
+// 1)Construct controller, timer duration is set to defaultTimeToStartSlowPathMilli.
+// 2)Set `time since PrePrepare`, to a duration, which is shorter than defaultTimeToStartSlowPathMilli and longer than
+// lower bound.
+// 3)Run loop for EvaluationPeriod times:
+//  - call onSendingPrePrepare.
+// Expected result - after loop, timer duration is shorter than initial duration.
+TEST(ControllerWithSimpleHistory, decrease_slow_path_timer) {
+  uint16_t C = 1;
+  uint16_t F = 1;
+  ReplicaId replicaId = 0;
+  ViewNum initialView = 0;
+  SeqNum initialSeq = 0;
+  ControllerWithSimpleHistory cwsh{C, F, replicaId, initialView, initialSeq};
+
+  ASSERT_EQ(ControllerWithSimpleHistory::defaultTimeToStartSlowPathMilli, cwsh.timeToStartSlowPathMilli());
+
+  // Calculate duration that is:
+  // shorter than current duration and is within relative bounds
+  uint32_t shorterDur = (uint32_t)ControllerWithSimpleHistory::relativeLowerBound(
+      (ControllerWithSimpleHistory::MaxUpdateInTimeToStartSlowPath / 2), cwsh.timeToStartSlowPathMilli());
+
+  // Assert that value is within relative range
+  ASSERT_GT(shorterDur,
+            (uint32_t)ControllerWithSimpleHistory::relativeLowerBound(
+                ControllerWithSimpleHistory::MaxUpdateInTimeToStartSlowPath, cwsh.timeToStartSlowPathMilli()));
+  ASSERT_LT(shorterDur,
+            (uint32_t)ControllerWithSimpleHistory::relativeUpperBound(
+                ControllerWithSimpleHistory::MaxUpdateInTimeToStartSlowPath, cwsh.timeToStartSlowPathMilli()));
+
+  auto boundedDur = cwsh.normalizeToRange(
+      (uint32_t)ControllerWithSimpleHistory::relativeLowerBound(
+          ControllerWithSimpleHistory::MaxUpdateInTimeToStartSlowPath, cwsh.timeToStartSlowPathMilli()),
+      (uint32_t)ControllerWithSimpleHistory::relativeUpperBound(
+          ControllerWithSimpleHistory::MaxUpdateInTimeToStartSlowPath, cwsh.timeToStartSlowPathMilli()),
+      shorterDur);
+  boundedDur = cwsh.normalizeToRange(ControllerWithSimpleHistory::MinTimeToStartSlowPathMilli,
+                                     ControllerWithSimpleHistory::MaxTimeToStartSlowPathMilli,
+                                     boundedDur);
+
+  // Validate that initial value is within absolute range
+  ASSERT_EQ(shorterDur, boundedDur);
+
+  auto prePrepareTime = std::chrono::steady_clock::now() - std::chrono::milliseconds(shorterDur);
+  // trigger adaptive tuning
+  for (auto i = (size_t)1; i <= ControllerWithSimpleHistory::EvaluationPeriod; ++i) {
+    cwsh.onSendingPrePrepare((SeqNum)i, CommitPath::OPTIMISTIC_FAST, prePrepareTime);
+    cwsh.onNewSeqNumberExecution((SeqNum)i);
+  }
+
+  ASSERT_EQ(shorterDur, cwsh.timeToStartSlowPathMilli());
+}
+
+// Test - tune timer duration to relative upper bound value.
+// Logic:
+// 1)Construct controller, timer value is set to defaultTimeToStartSlowPathMilli.
+// 2)Set `time since PrePrepare`, to a duration, which is longer than defaultTimeToStartSlowPathMilli and longer than
+// upper relative bound.
+// 3)Run loop for EvaluationPeriod times:
+//  - call onSendingPrePrepare.
+// Expected result - timer duration is normalized to upper bound
+TEST(ControllerWithSimpleHistory, increase_to_upper_relative_bound) {
+  uint16_t C = 1;
+  uint16_t F = 1;
+  ReplicaId replicaId = 0;
+  ViewNum initialView = 0;
+  SeqNum initialSeq = 0;
+  ControllerWithSimpleHistory cwsh{C, F, replicaId, initialView, initialSeq};
+
+  ASSERT_EQ(ControllerWithSimpleHistory::defaultTimeToStartSlowPathMilli, cwsh.timeToStartSlowPathMilli());
+
+  // Calculate duration that is:
+  // longer than current time and relative upper bound
+  uint32_t longerDur = (uint32_t)ControllerWithSimpleHistory::relativeUpperBound(
+      (ControllerWithSimpleHistory::MaxUpdateInTimeToStartSlowPath * 2), cwsh.timeToStartSlowPathMilli());
+
+  // Get a normalized duration i.e. within relative ranges
+  auto boundedDur = cwsh.normalizeToRange(
+      (uint32_t)ControllerWithSimpleHistory::relativeLowerBound(
+          ControllerWithSimpleHistory::MaxUpdateInTimeToStartSlowPath, cwsh.timeToStartSlowPathMilli()),
+      (uint32_t)ControllerWithSimpleHistory::relativeUpperBound(
+          ControllerWithSimpleHistory::MaxUpdateInTimeToStartSlowPath, cwsh.timeToStartSlowPathMilli()),
+      longerDur);
+
+  // Validate that our custom duration is longer than relative upper bound
+  // The `boundedDur` is the duration, that the algorithm will eventually use,
+  // after normalizing the duration, which is out of the relative bounds.
+  ASSERT_GT(longerDur, boundedDur);
+
+  boundedDur = cwsh.normalizeToRange(ControllerWithSimpleHistory::MinTimeToStartSlowPathMilli,
+                                     ControllerWithSimpleHistory::MaxTimeToStartSlowPathMilli,
+                                     boundedDur);
+  auto prePrepareTime = std::chrono::steady_clock::now() - std::chrono::milliseconds(longerDur);
+  // trigger adaptive tuning
+  for (auto i = (size_t)1; i <= ControllerWithSimpleHistory::EvaluationPeriod; ++i) {
+    cwsh.onSendingPrePrepare((SeqNum)i, CommitPath::OPTIMISTIC_FAST, prePrepareTime);
+    cwsh.onNewSeqNumberExecution((SeqNum)i);
+  }
+
+  ASSERT_EQ(boundedDur, cwsh.timeToStartSlowPathMilli());
+}
+
+// Test - tune timer duration to relative lower bound value.
+// Logic:
+// 1)Construct controller, timer value is set to defaultTimeToStartSlowPathMilli.
+// 2)Set `time since PrePrepare`, to a duration, which is shorter than defaultTimeToStartSlowPathMilli and relative
+// lower bound. 3)Run loop for EvaluationPeriod times:
+//  - call onSendingPrePrepare.
+// Expected result - timer duration is normalized to lower bound
+TEST(ControllerWithSimpleHistory, decrease_to_lower_relative_bound) {
+  uint16_t C = 1;
+  uint16_t F = 1;
+  ReplicaId replicaId = 0;
+  ViewNum initialView = 0;
+  SeqNum initialSeq = 0;
+  ControllerWithSimpleHistory cwsh{C, F, replicaId, initialView, initialSeq};
+
+  ASSERT_EQ(ControllerWithSimpleHistory::defaultTimeToStartSlowPathMilli, cwsh.timeToStartSlowPathMilli());
+
+  // Calculate duration that is:
+  // shorter than current time and relative lower bound
+  uint32_t shorterDur = (uint32_t)ControllerWithSimpleHistory::relativeLowerBound(
+      (ControllerWithSimpleHistory::MaxUpdateInTimeToStartSlowPath * 2), cwsh.timeToStartSlowPathMilli());
+
+  // Get a normalized duration i.e. within relative ranges
+  auto boundedDur = cwsh.normalizeToRange(
+      (uint32_t)ControllerWithSimpleHistory::relativeLowerBound(
+          ControllerWithSimpleHistory::MaxUpdateInTimeToStartSlowPath, cwsh.timeToStartSlowPathMilli()),
+      (uint32_t)ControllerWithSimpleHistory::relativeUpperBound(
+          ControllerWithSimpleHistory::MaxUpdateInTimeToStartSlowPath, cwsh.timeToStartSlowPathMilli()),
+      shorterDur);
+
+  // Validate that our custom duration is shorter than relative upper bound
+  // The `boundedDur` is the duration, that the algorithm will eventually use,
+  // after normalizing the duration, which is out of the relative bounds.
+  ASSERT_LT(shorterDur, boundedDur);
+
+  boundedDur = cwsh.normalizeToRange(ControllerWithSimpleHistory::MinTimeToStartSlowPathMilli,
+                                     ControllerWithSimpleHistory::MaxTimeToStartSlowPathMilli,
+                                     boundedDur);
+  auto prePrepareTime = std::chrono::steady_clock::now() - std::chrono::milliseconds(shorterDur);
+  // trigger adaptive tuning
+  for (auto i = (size_t)1; i <= ControllerWithSimpleHistory::EvaluationPeriod; ++i) {
+    cwsh.onSendingPrePrepare((SeqNum)i, CommitPath::OPTIMISTIC_FAST, prePrepareTime);
+    cwsh.onNewSeqNumberExecution((SeqNum)i);
+  }
+
+  ASSERT_EQ(boundedDur, cwsh.timeToStartSlowPathMilli());
+}
+
+// Test - Converges of timer to ControllerWithSimpleHistory::MinTimeToStartSlowPathMilli
+// Logic:
+// 1)Construct controller, timer value is set to defaultTimeToStartSlowPathMilli.
+// 2)Set `time since PrePrepare`, to a duration, which is half of:
+//  ControllerWithSimpleHistory::MinTimeToStartSlowPathMilli.
+// 3)Run several loops of EvaluationPeriod times:
+//  - call onSendingPrePrepare.
+//  - After each loop check if timer has changed relative to the prev round.
+// Expected result - Timer should converge to MinTimeToStartSlowPathMilli
+TEST(ControllerWithSimpleHistory, low_converges) {
+  uint16_t C = 1;
+  uint16_t F = 1;
+  ReplicaId replicaId = 0;
+  ViewNum initialView = 0;
+  SeqNum initialSeq = 0;
+  ControllerWithSimpleHistory cwsh{C, F, replicaId, initialView, initialSeq};
+
+  ASSERT_EQ(ControllerWithSimpleHistory::defaultTimeToStartSlowPathMilli, cwsh.timeToStartSlowPathMilli());
+
+  // Calculate value that is shorter than absolute min
+  uint32_t shorterDur = ControllerWithSimpleHistory::MinTimeToStartSlowPathMilli / 2;
+
+  // Get a normalized duration i.e. within relative ranges
+  auto boundedDur = cwsh.normalizeToRange(
+      (uint32_t)ControllerWithSimpleHistory::relativeLowerBound(
+          ControllerWithSimpleHistory::MaxUpdateInTimeToStartSlowPath, cwsh.timeToStartSlowPathMilli()),
+      (uint32_t)ControllerWithSimpleHistory::relativeUpperBound(
+          ControllerWithSimpleHistory::MaxUpdateInTimeToStartSlowPath, cwsh.timeToStartSlowPathMilli()),
+      shorterDur);
+  boundedDur = cwsh.normalizeToRange(ControllerWithSimpleHistory::MinTimeToStartSlowPathMilli,
+                                     ControllerWithSimpleHistory::MaxTimeToStartSlowPathMilli,
+                                     boundedDur);
+
+  // Validate that duration is shorter than lower bound
+  ASSERT_LT(shorterDur, boundedDur);
+
+  auto prePrepareTime = std::chrono::steady_clock::now() - std::chrono::milliseconds(shorterDur);
+
+  uint32_t j = 1;
+  size_t i = 1;
+  // Defines when we give up and declare failure.
+  // 100 is the exponent of the reduction factor i.e (0.8^100)*shorterDur
+  uint32_t recBreak = 100;
+  while (true) {
+    auto prevTimer = cwsh.timeToStartSlowPathMilli();
+    for (; i <= j * ControllerWithSimpleHistory::EvaluationPeriod; ++i) {
+      cwsh.onSendingPrePrepare((SeqNum)i, CommitPath::OPTIMISTIC_FAST, prePrepareTime);
+      cwsh.onNewSeqNumberExecution((SeqNum)i);
+    }
+    // Break if converges or after reset
+    if (prevTimer == cwsh.timeToStartSlowPathMilli() || j >= recBreak) break;
+    ++j;
+  }
+
+  ASSERT_EQ(ControllerWithSimpleHistory::MinTimeToStartSlowPathMilli, cwsh.timeToStartSlowPathMilli());
+}
+
+// Test - Converges of timer to ControllerWithSimpleHistory::MaxTimeToStartSlowPathMilli
+// Logic:
+// 1)Construct controller, timer value is set to defaultTimeToStartSlowPathMilli.
+// 2)Set time since PrePrepare, to a duration, which is twice of
+// ControllerWithSimpleHistory::MaxTimeToStartSlowPathMilli
+// 3)Run loops of EvaluationPeriod times:
+//  - call onSendingPrePrepare.
+//  - After each loop check if timer has changed relative to the prev round.
+// Expected result - Timer should converge to MaxTimeToStartSlowPathMilli
+TEST(ControllerWithSimpleHistory, high_converges) {
+  uint16_t C = 1;
+  uint16_t F = 1;
+  ReplicaId replicaId = 0;
+  ViewNum initialView = 0;
+  SeqNum initialSeq = 0;
+  ControllerWithSimpleHistory cwsh{C, F, replicaId, initialView, initialSeq};
+
+  ASSERT_EQ(ControllerWithSimpleHistory::defaultTimeToStartSlowPathMilli, cwsh.timeToStartSlowPathMilli());
+
+  // Calculate value that is longer than absolute max
+  uint32_t longerDur = ControllerWithSimpleHistory::MaxTimeToStartSlowPathMilli * 2;
+
+  // Get a normalized duration i.e. within relative ranges
+  auto boundedDur = cwsh.normalizeToRange(
+      (uint32_t)ControllerWithSimpleHistory::relativeLowerBound(
+          ControllerWithSimpleHistory::MaxUpdateInTimeToStartSlowPath, cwsh.timeToStartSlowPathMilli()),
+      (uint32_t)ControllerWithSimpleHistory::relativeUpperBound(
+          ControllerWithSimpleHistory::MaxUpdateInTimeToStartSlowPath, cwsh.timeToStartSlowPathMilli()),
+      longerDur);
+  boundedDur = cwsh.normalizeToRange(ControllerWithSimpleHistory::MinTimeToStartSlowPathMilli,
+                                     ControllerWithSimpleHistory::MaxTimeToStartSlowPathMilli,
+                                     boundedDur);
+
+  // Validate that duration is longer than upper bound
+  ASSERT_GT(longerDur, boundedDur);
+
+  auto prePrepareTime = std::chrono::steady_clock::now() - std::chrono::milliseconds(longerDur);
+  uint32_t j = 1;
+  size_t i = 1;
+  // Defines when we give up and declare failure.
+  // 100 is the exponent of the promotion factor i.e (1.2^100)*longerDur
+  uint32_t recBreak = 100;
+  while (true) {
+    auto prevTimer = cwsh.timeToStartSlowPathMilli();
+    for (; i <= j * ControllerWithSimpleHistory::EvaluationPeriod; ++i) {
+      cwsh.onSendingPrePrepare((SeqNum)i, CommitPath::OPTIMISTIC_FAST, prePrepareTime);
+      cwsh.onNewSeqNumberExecution((SeqNum)i);
+    }
+    // Break if converges or after reset
+    if (prevTimer == cwsh.timeToStartSlowPathMilli() || j >= recBreak) break;
+    ++j;
+  }
+
+  ASSERT_EQ(ControllerWithSimpleHistory::MaxTimeToStartSlowPathMilli, cwsh.timeToStartSlowPathMilli());
+}
+
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
