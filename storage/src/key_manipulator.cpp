@@ -111,8 +111,8 @@ Sliver STKeyManipulator::generateReservedPageKey(EDBKeyType keyType, uint32_t pa
   return Sliver(keyBuf, keySize);
 }
 
-bool DBKeyManipulatorBase::copyToAndAdvance(
-    char *_buf, size_t *_offset, size_t _maxOffset, char *_src, size_t _srcSize) {
+bool DBKeyGeneratorBase::copyToAndAdvance(
+    char *_buf, size_t *_offset, size_t _maxOffset, const char *_src, const size_t &_srcSize) {
   if (!_buf && !_offset && !_src) assert(false);
 
   if (*_offset >= _maxOffset && _srcSize > 0) assert(false);

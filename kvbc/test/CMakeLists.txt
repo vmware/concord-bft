@@ -14,9 +14,13 @@ endif()
 
 add_executable(order_test order_test.cpp $<TARGET_OBJECTS:logging_dev>)
 add_test(order_test order_test)
-target_include_directories(order_test PUBLIC ${libkvbc_SOURCE_DIR}/include)
-target_link_libraries(order_test GTest::Main util)
+target_link_libraries(order_test GTest::Main kvbc util)
 target_compile_options(order_test PUBLIC -Wno-sign-compare)
+
+add_executable(kvbc_dbadapter_test kvbc_dbadapter_test.cpp $<TARGET_OBJECTS:logging_dev>)
+add_test(kvbc_dbadapter_test kvbc_dbadapter_test)
+target_link_libraries(kvbc_dbadapter_test GTest::Main kvbc util)
+
 
 add_executable(sparse_merkle_storage_db_adapter_unit_test
     sparse_merkle_storage/db_adapter_unit_test.cpp $<TARGET_OBJECTS:logging_dev>)
@@ -31,32 +35,32 @@ target_link_libraries(sparse_merkle_storage_db_adapter_unit_test PUBLIC
 )
 
 if(RAPIDCHECK_FOUND)
-    add_executable(sparse_merkle_storage_db_adapter_property_test
-        sparse_merkle_storage/db_adapter_property_test.cpp $<TARGET_OBJECTS:logging_dev>)
-    add_test(sparse_merkle_storage_db_adapter_property_test sparse_merkle_storage_db_adapter_property_test)
-    target_include_directories(sparse_merkle_storage_db_adapter_property_test PRIVATE ${RAPIDCHECK_INCLUDE_DIRS})
-    target_link_libraries(sparse_merkle_storage_db_adapter_property_test PUBLIC
-        GTest::Main
-        GTest::GTest
-        ${RAPIDCHECK_LIBRARIES}
+add_executable(sparse_merkle_storage_db_adapter_property_test
+    sparse_merkle_storage/db_adapter_property_test.cpp $<TARGET_OBJECTS:logging_dev>)
+add_test(sparse_merkle_storage_db_adapter_property_test sparse_merkle_storage_db_adapter_property_test)
+target_include_directories(sparse_merkle_storage_db_adapter_property_test PRIVATE ${RAPIDCHECK_INCLUDE_DIRS})
+target_link_libraries(sparse_merkle_storage_db_adapter_property_test PUBLIC
+    GTest::Main
+    GTest::GTest
+    ${RAPIDCHECK_LIBRARIES}
         util
         corebft
         kvbc
         stdc++fs
     )
 
-    add_executable(sparse_merkle_internal_node_property_test sparse_merkle/internal_node_property_tests.cpp
-    $<TARGET_OBJECTS:logging_dev>)
-    add_test(sparse_merkle_internal_node_property_test sparse_merkle_internal_node_property_test)
-    target_include_directories(sparse_merkle_internal_node_property_test PRIVATE ${RAPIDCHECK_INCLUDE_DIRS})
-    target_link_libraries(sparse_merkle_internal_node_property_test PUBLIC
-        GTest::Main
-        GTest::GTest
-        ${RAPIDCHECK_LIBRARIES}
-        util
-        kvbc
-        OpenSSL::Crypto
-    )
+add_executable(sparse_merkle_internal_node_property_test sparse_merkle/internal_node_property_tests.cpp
+$<TARGET_OBJECTS:logging_dev>)
+add_test(sparse_merkle_internal_node_property_test sparse_merkle_internal_node_property_test)
+target_include_directories(sparse_merkle_internal_node_property_test PRIVATE ${RAPIDCHECK_INCLUDE_DIRS})
+target_link_libraries(sparse_merkle_internal_node_property_test PUBLIC
+    GTest::Main
+    GTest::GTest
+    ${RAPIDCHECK_LIBRARIES}
+    util
+    kvbc
+    OpenSSL::Crypto
+)
 endif ()
 
 add_executable(sparse_merkle_base_types_test sparse_merkle/base_types_test.cpp
@@ -94,14 +98,14 @@ target_link_libraries(sparse_merkle_tree_test PUBLIC
 )
 
 if (BUILD_ROCKSDB_STORAGE)
-    add_executable(multiIO_test multiIO_test.cpp $<TARGET_OBJECTS:logging_dev>)
-    add_test(multiIO_test multiIO_test)
+add_executable(multiIO_test multiIO_test.cpp $<TARGET_OBJECTS:logging_dev>)
+add_test(multiIO_test multiIO_test)
 
-    target_link_libraries(multiIO_test PUBLIC
-        GTest::Main
-        GTest::GTest
+target_link_libraries(multiIO_test PUBLIC
+    GTest::Main
+    GTest::GTest
         util
-        kvbc
+    kvbc
         corebft
-    )
+)
 endif(BUILD_ROCKSDB_STORAGE)

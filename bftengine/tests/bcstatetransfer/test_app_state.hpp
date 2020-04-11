@@ -34,7 +34,7 @@ struct Block {
 
 class TestAppState : public IAppState {
  public:
-  bool hasBlock(uint64_t blockId) override {
+  bool hasBlock(uint64_t blockId) const override {
     auto it = blocks_.find(blockId);
     return it != blocks_.end();
   }
@@ -55,7 +55,7 @@ class TestAppState : public IAppState {
     return true;
   };
 
-  bool putBlock(uint64_t blockId, char* block, uint32_t blockSize) override {
+  bool putBlock(const uint64_t blockId, const char* block, const uint32_t blockSize) override {
     assert(blockId < last_block_);
     Block bl;
     computeBlockDigest(blockId, block, blockSize, &bl.digest);
@@ -66,11 +66,8 @@ class TestAppState : public IAppState {
   }
 
   // TODO(AJS): How does this differ from getLastBlockNum?
-  uint64_t getLastReachableBlockNum() override { return last_block_; };
-
-  uint64_t getLastBlockNum() override { return last_block_; };
-
-  void wait() override{};
+  uint64_t getLastReachableBlockNum() const override { return last_block_; }
+  uint64_t getLastBlockNum() const override { return last_block_; };
 
  private:
   uint64_t last_block_;

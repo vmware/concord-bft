@@ -57,6 +57,7 @@ class IDBClient {
   virtual void init(bool readOnly = false) = 0;
   virtual Status get(const Sliver& _key, OUT Sliver& _outValue) const = 0;
   virtual Status get(const Sliver& _key, OUT char*& buf, uint32_t bufSize, OUT uint32_t& _size) const = 0;
+  virtual Status has(const Sliver& _key) const = 0;
   virtual Status put(const Sliver& _key, const Sliver& _value) = 0;
   virtual Status del(const Sliver& _key) = 0;
   virtual Status multiGet(const KeysVector& _keysVec, OUT ValuesVector& _valuesVec) = 0;

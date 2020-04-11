@@ -10,6 +10,10 @@ add_library(util STATIC
     src/sliver.cpp
     src/hex_tools.cpp)
 
+if(BUILD_ROCKSDB_STORAGE)
+    target_compile_definitions(util PUBLIC "USE_ROCKSDB=1")
+endif()
+
 target_link_libraries(util PUBLIC Threads::Threads)
 target_include_directories(util PUBLIC include)
 

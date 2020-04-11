@@ -28,7 +28,7 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
                           bool firstTime  // TODO [TK] get rid of this
   );
 
-  IStateTransfer* getStateTransfer() const { return stateTransfer; }
+  IStateTransfer* getStateTransfer() const { return stateTransfer.get(); }
 
   // IReplicaForStateTransfer
   void freeStateTransferMsg(char* m) override;
@@ -56,7 +56,7 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
   void onMessage(T*);
 
  protected:
-  bftEngine::IStateTransfer* stateTransfer = nullptr;
+  std::unique_ptr<bftEngine::IStateTransfer> stateTransfer;
   Timers::Handle stateTranTimer_;
   CounterHandle metric_received_state_transfers_;
 };

@@ -59,6 +59,11 @@ Status Client::get(const Sliver &_key, OUT char *&buf, uint32_t bufSize, OUT uin
   return status;
 }
 
+Status Client::has(const Sliver &_key) const {
+  Sliver dummy_out;
+  return get(_key, dummy_out);
+}
+
 /**
  * @brief Returns reference to a new object of IDBClientIterator.
  *

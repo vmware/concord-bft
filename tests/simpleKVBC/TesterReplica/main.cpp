@@ -13,60 +13,59 @@
 
 #include "setup.hpp"
 #include "ReplicaImp.h"
-#include "memorydb/client.h"
 #include "internalCommandsHandler.hpp"
-#include "commonKVBTests.hpp"
 #include "replica_state_sync_imp.hpp"
 #include "block_metadata.hpp"
+#include "SimpleBCStateTransfer.hpp"
+
 #ifdef USE_ROCKSDB
 #include "rocksdb/client.h"
 #include "rocksdb/key_comparator.h"
 #endif
+
 #include <memory>
 
-using namespace concord::kvbc;
+namespace concord::kvbc::test {
 
-int main(int argc, char** argv) {
-  auto setup = concord::kvbc::TestSetup::ParseArgs(argc, argv);
+void run_replica(int argc, char** argv) {
+  auto setup = TestSetup::ParseArgs(argc, argv);
   auto logger = setup->GetLogger();
   MDC_PUT(GL, "rid", std::to_string(setup->GetReplicaConfig().replicaId));
-  auto* db_key_comparator = new concord::kvbc::DBKeyComparator();
-  std::shared_ptr<concord::storage::IDBClient> db;
 
-  if (setup->UsePersistentStorage()) {
-#ifdef USE_ROCKSDB
-    auto* comparator = new concord::storage::rocksdb::KeyComparator(db_key_comparator);
-    std::stringstream dbPath;
-    dbPath << BasicRandomTests::DB_FILE_PREFIX << setup->GetReplicaConfig().replicaId;
-    db.reset(new concord::storage::rocksdb::Client(dbPath.str(), comparator));
-#else
-    // Abort if we haven't built rocksdb storage
-    LOG_ERROR(
-        logger,
-        "Must build with -DBUILD_ROCKSDB_STORAGE=TRUE cmake option in order to test with persistent storage enabled");
-    exit(-1);
-#endif
-  } else {
-    // Use in-memory storage
-    auto comparator = concord::storage::memorydb::KeyComparator(db_key_comparator);
-    db.reset(new concord::storage::memorydb::Client(comparator));
+  auto config = setup->get_db_configuration();
+  std::shared_ptr<concord::storage::IDBClient> mdtDbClient = std::get<0>(config);
+  IDbAdapter* dbAdapter = std::get<1>(config);
+  std::shared_ptr<ReplicaImp> replica = std::make_shared<ReplicaImp>(setup->GetCommunication(),
+                                                                     setup->GetReplicaConfig(),
+                                                                     std::unique_ptr<IDbAdapter>(dbAdapter),
+                                                                     mdtDbClient,
+                                                                     setup->GetMetricsServer().GetAggregator());
+
+  auto* blockMetadata = new BlockMetadata(*replica);
+
+  if (!setup->GetReplicaConfig().isReadOnly)
+    replica->setReplicaStateSync(new ReplicaStateSyncImp(blockMetadata));
+  else {
+    log4cplus::Logger::getInstance("concord.storage.s3").setLogLevel(log4cplus::TRACE_LOG_LEVEL);
+    log4cplus::Logger::getInstance("concord.kvbc.v1DirectKeyValue.DBAdapter").setLogLevel(log4cplus::TRACE_LOG_LEVEL);
+    log4cplus::Logger::getInstance("state-transfer").setLogLevel(log4cplus::TRACE_LOG_LEVEL);
+    // log4cplus::Logger::getInstance("DBDataStore").setLogLevel(log4cplus::TRACE_LOG_LEVEL);
   }
 
-  auto* dbAdapter = new concord::kvbc::DBAdapter(db);
-  auto* replica = new ReplicaImp(
-      setup->GetCommunication(), setup->GetReplicaConfig(), dbAdapter, setup->GetMetricsServer().GetAggregator());
-  auto* blockMetadata = new concord::kvbc::BlockMetadata(*replica);
-  replica->setReplicaStateSync(new ReplicaStateSyncImp(blockMetadata));
+  InternalCommandsHandler* cmdHandler =
+      new InternalCommandsHandler(replica.get(), replica.get(), blockMetadata, logger);
+  replica->set_command_handler(cmdHandler);
+  replica->start();
 
   // Start metrics server after creation of the replica so that we ensure
   // registration of metrics from the replica with the aggregator and don't
   // return empty metrics from the metrics server.
   setup->GetMetricsServer().Start();
-
-  // TODO [TK] to we need it for ROR?
-  InternalCommandsHandler cmdHandler(replica, replica, blockMetadata, logger);
-  replica->set_command_handler(&cmdHandler);
-  replica->start();
-
   while (replica->isRunning()) std::this_thread::sleep_for(std::chrono::seconds(1));
+}
+}  // namespace concord::kvbc::test
+
+int main(int argc, char** argv) {
+  concord::kvbc::test::run_replica(argc, argv);
+  return 0;
 }

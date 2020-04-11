@@ -120,6 +120,9 @@ class DBAdapter : public IDbAdapter {
 
   std::shared_ptr<storage::IDBClient> getDb() const override { return db_; }
 
+  // TODO [TK] implement
+  bool hasBlock(const BlockId &blockId) const override { return false; }
+
   // Returns the current state hash from the internal merkle tree implementation.
   const sparse_merkle::Hash &getStateHash() const { return smTree_.get_root_hash(); }
 

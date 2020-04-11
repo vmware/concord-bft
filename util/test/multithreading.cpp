@@ -15,6 +15,7 @@
 #include "gtest/gtest.h"
 #include "SimpleAutoResetEvent.hpp"
 #include "SimpleThreadPool.hpp"
+#include "Handoff.hpp"
 #include <thread>
 #include <chrono>
 #include <array>
@@ -25,11 +26,11 @@ namespace mt {
 /**
  * Fixture for testing SimpleThreadPool
  */
-class ThreadPoolFixture : public testing::Test {
+class SimpleThreadPoolFixture : public testing::Test {
  protected:
   class TestJob : public util::SimpleThreadPool::Job {
    public:
-    TestJob(ThreadPoolFixture* f, uint32_t sleep_ms = 10) : fixture_(f), sleep_ms_(sleep_ms) {}
+    TestJob(SimpleThreadPoolFixture* f, uint32_t sleep_ms = 10) : fixture_(f), sleep_ms_(sleep_ms) {}
     void execute() {
       fixture_->result++;
       std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms_));  // don't exit immediately
@@ -37,11 +38,11 @@ class ThreadPoolFixture : public testing::Test {
     void release() { delete this; }
     virtual ~TestJob() {}
 
-    ThreadPoolFixture* fixture_;
+    SimpleThreadPoolFixture* fixture_;
     uint32_t sleep_ms_;
   };
 
-  ThreadPoolFixture() : result(0) {}
+  SimpleThreadPoolFixture() : result(0) {}
 
   // Sets up the test fixture.
   virtual void SetUp() {
@@ -61,20 +62,20 @@ class ThreadPoolFixture : public testing::Test {
   std::atomic_int result;
 };
 
-TEST_F(ThreadPoolFixture, ThreadPoolStartStopNoJobs) { pool_.stop(); }
+TEST_F(SimpleThreadPoolFixture, ThreadPoolStartStopNoJobs) { pool_.stop(); }
 
-TEST_F(ThreadPoolFixture, ThreadPoolStartStopWithJobsNoExecute) {
+TEST_F(SimpleThreadPoolFixture, ThreadPoolStartStopWithJobsNoExecute) {
   for (int i = 0; i < 100; ++i) pool_.add(new TestJob(this));
   pool_.stop(false);
 }
 
-TEST_F(ThreadPoolFixture, ThreadPoolStartStopWithJobsExecute) {
+TEST_F(SimpleThreadPoolFixture, ThreadPoolStartStopWithJobsExecute) {
   for (int i = 0; i < 100; ++i) pool_.add(new TestJob(this));
   pool_.stop(true);
   EXPECT_EQ(result, 100);
 }
 
-TEST_F(ThreadPoolFixture, ThreadPoolMultipleProducers) {
+TEST_F(SimpleThreadPoolFixture, ThreadPoolMultipleProducers) {
   std::array<std::thread, 10> producers;
   for (int i = 0; i < 10; ++i) {
     producers[i] = std::thread([this] {
@@ -84,6 +85,31 @@ TEST_F(ThreadPoolFixture, ThreadPoolMultipleProducers) {
   for (auto& t : producers) t.join();
   pool_.stop(true);
   EXPECT_EQ(result, 1000);
+}
+
+/**
+ * Fixture for testing Handoff
+ */
+using namespace std::placeholders;
+class HandoffFixture : public testing::Test {
+ protected:
+  // Sets up the test fixture.
+  virtual void SetUp() {
+    ASSERT_GT(std::thread::hardware_concurrency(), 1);
+    handoff_ = new concord::util::Handoff();
+    log4cplus::Logger::getInstance(LOG4CPLUS_TEXT("concord.util.handoff")).setLogLevel(log4cplus::DEBUG_LOG_LEVEL);
+  }
+
+  concord::util::Handoff* handoff_;
+  std::atomic_int result = 0;
+};
+
+TEST_F(HandoffFixture, Basic) {
+  auto g = std::bind([this](int i) { this->result += i; }, _1);
+  auto f = std::bind(&concord::util::Handoff::push, handoff_, _1);
+  for (int i = 1; i <= 100; ++i) f(std::bind(g, i));
+  delete handoff_;
+  EXPECT_EQ(result, 5050);
 }
 
 }  // namespace mt

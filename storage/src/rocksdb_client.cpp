@@ -178,6 +178,11 @@ Status Client::get(const Sliver &_key, OUT char *&buf, uint32_t bufSize, OUT uin
   return Status::OK();
 }
 
+Status Client::has(const Sliver &_key) const {
+  Sliver dummy_out;
+  return get(_key, dummy_out);
+}
+
 /**
  * @brief Returns a RocksDBClientIterator object.
  *

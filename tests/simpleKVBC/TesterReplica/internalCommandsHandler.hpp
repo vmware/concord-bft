@@ -18,8 +18,9 @@
 #include "sliver.hpp"
 #include "simpleKVBTestsBuilder.hpp"
 #include "db_interfaces.h"
-#include "KVBCInterfaces.h"
 #include "block_metadata.hpp"
+#include "KVBCInterfaces.h"
+#include <memory>
 
 class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
  public:
