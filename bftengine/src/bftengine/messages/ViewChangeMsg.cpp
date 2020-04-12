@@ -110,7 +110,7 @@ void ViewChangeMsg::finalizeMessage() {
 }
 
 void ViewChangeMsg::validate(const ReplicasInfo& repInfo) const {
-  if (size() < sizeof(ViewChangeMsgHeader) || !repInfo.isIdOfReplica(idOfGeneratedReplica()) ||
+  if (size() < sizeof(ViewChangeMsgHeader) + spanContextSize() || !repInfo.isIdOfReplica(idOfGeneratedReplica()) ||
       idOfGeneratedReplica() == repInfo.myId())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
 

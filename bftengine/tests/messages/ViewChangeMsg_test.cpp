@@ -60,6 +60,7 @@ TEST(ViewChangeMsg, base_methods) {
   msg.setNewViewNumber(++viewNum);
   msg.finalizeMessage();
   EXPECT_EQ(msg.numberOfElements(), 2);
+  EXPECT_NO_THROW(msg.validate(replicaInfo));
   testMessageBaseMethods(msg, MsgCode::ViewChange, senderId, spanContext);
 
   {

@@ -88,8 +88,9 @@ ReplicaStatusMsg::ReplicaStatusMsg(ReplicaId senderId,
 }
 
 void ReplicaStatusMsg::validate(const ReplicasInfo& repInfo) const {
-  if (size() < sizeof(ReplicaStatusMsgHeader) || senderId() == repInfo.myId() || !repInfo.isIdOfReplica(senderId()) ||
-      (getLastStableSeqNum() % checkpointWindowSize != 0) || getLastExecutedSeqNum() < getLastStableSeqNum())
+  if (size() < sizeof(ReplicaStatusMsgHeader) + spanContextSize() || senderId() == repInfo.myId() ||
+      !repInfo.isIdOfReplica(senderId()) || (getLastStableSeqNum() % checkpointWindowSize != 0) ||
+      getLastExecutedSeqNum() < getLastStableSeqNum())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic"));
 
   const bool viewIsActive = currentViewIsActive();
