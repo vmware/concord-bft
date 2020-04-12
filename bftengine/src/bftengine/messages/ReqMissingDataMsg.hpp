@@ -24,27 +24,27 @@ class ReqMissingDataMsg : public MessageBase {
 
   SeqNum seqNumber() const { return b()->seqNum; }
 
-  bool getPrePrepareIsMissing() const { return (b()->flags & 0x2) != 0; }
-  bool getPartialProofIsMissing() const { return (b()->flags & 0x4) != 0; }
-  bool getPartialPrepareIsMissing() const { return (b()->flags & 0x8) != 0; }
-  bool getPartialCommitIsMissing() const { return (b()->flags & 0x10) != 0; }
-  bool getFullCommitProofIsMissing() const { return (b()->flags & 0x20) != 0; }
-  bool getFullPrepareIsMissing() const { return (b()->flags & 0x40) != 0; }
-  bool getFullCommitIsMissing() const { return (b()->flags & 0x80) != 0; }
-  bool getSlowPathHasStarted() const { return (b()->flags & 0x100) != 0; }
+  bool getPrePrepareIsMissing() const { return b()->flags.bits.prePrepareIsMissing != 0; }
+  bool getPartialProofIsMissing() const { return b()->flags.bits.partialProofIsMissing != 0; }
+  bool getPartialPrepareIsMissing() const { return b()->flags.bits.partialPrepareIsMissing != 0; }
+  bool getPartialCommitIsMissing() const { return b()->flags.bits.partialCommitIsMissing != 0; }
+  bool getFullCommitProofIsMissing() const { return b()->flags.bits.fullCommitProofIsMissing != 0; }
+  bool getFullPrepareIsMissing() const { return b()->flags.bits.fullPrepareIsMissing != 0; }
+  bool getFullCommitIsMissing() const { return b()->flags.bits.fullCommitIsMissing != 0; }
+  bool getSlowPathHasStarted() const { return b()->flags.bits.slowPathHasStarted != 0; }
 
-  uint16_t getFlags() const { return b()->flags; }
+  uint16_t getFlags() const { return b()->flags.flags; }
 
   void resetFlags();
 
-  void setPrePrepareIsMissing() { b()->flags |= 0x2; }
-  void setPartialProofIsMissing() { b()->flags |= 0x4; }
-  void setPartialPrepareIsMissing() { b()->flags |= 0x8; }
-  void setPartialCommitIsMissing() { b()->flags |= 0x10; }
-  void setFullCommitProofIsMissing() { b()->flags |= 0x20; }
-  void setFullPrepareIsMissing() { b()->flags |= 0x40; }
-  void setFullCommitIsMissing() { b()->flags |= 0x80; }
-  void setSlowPathHasStarted() { b()->flags |= 0x100; }
+  void setPrePrepareIsMissing() { b()->flags.bits.prePrepareIsMissing = 1; }
+  void setPartialProofIsMissing() { b()->flags.bits.partialProofIsMissing = 1; }
+  void setPartialPrepareIsMissing() { b()->flags.bits.partialPrepareIsMissing = 1; }
+  void setPartialCommitIsMissing() { b()->flags.bits.partialCommitIsMissing = 1; }
+  void setFullCommitProofIsMissing() { b()->flags.bits.fullCommitProofIsMissing = 1; }
+  void setFullPrepareIsMissing() { b()->flags.bits.fullPrepareIsMissing = 1; }
+  void setFullCommitIsMissing() { b()->flags.bits.fullCommitIsMissing = 1; }
+  void setSlowPathHasStarted() { b()->flags.bits.slowPathHasStarted = 1; }
 
   std::string spanContext() const override {
     return std::string(body() + sizeof(ReqMissingDataMsgHeader), spanContextSize());
@@ -53,22 +53,31 @@ class ReqMissingDataMsg : public MessageBase {
 
  protected:
 #pragma pack(push, 1)
+  struct BitFields {
+    uint8_t reserved : 1;
+    uint8_t prePrepareIsMissing : 1;
+    uint8_t partialProofIsMissing : 1;
+    uint8_t partialPrepareIsMissing : 1;
+    uint8_t partialCommitIsMissing : 1;
+    uint8_t fullCommitProofIsMissing : 1;
+    uint8_t fullPrepareIsMissing : 1;
+    uint8_t fullCommitIsMissing : 1;
+    uint8_t slowPathHasStarted : 1;
+  };
+
+  union Flags {
+    BitFields bits;
+    uint16_t flags;
+  };
+
   struct ReqMissingDataMsgHeader : public MessageBase::Header {
     ViewNum viewNum;
     SeqNum seqNum;
 
-    uint16_t flags;
-    // bit 0 : reserved
-    // bit 1 : prePrepareIsMissing
-    // bit 2 : partialProofIsMissing
-    // bit 3 : partialPrepareIsMissing
-    // bit 4 : partialCommitIsMissing
-    // bit 5 : fullCommitProofIsMissing
-    // bit 6 : fullPrepareIsMissing
-    // bit 7 : fullCommitIsMissing
-    // bit 8 : slowPathHasStarted
+    Flags flags;
   };
 #pragma pack(pop)
+  static_assert(sizeof(Flags) == sizeof(uint16_t));
   static_assert(sizeof(ReqMissingDataMsgHeader) == (6 + 8 + 8 + 2), "ReqMissingDataMsgHeader is 62B");
 
   ReqMissingDataMsgHeader* b() const { return (ReqMissingDataMsgHeader*)msgBody_; }

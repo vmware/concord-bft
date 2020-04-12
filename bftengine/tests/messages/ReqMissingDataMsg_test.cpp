@@ -29,22 +29,39 @@ TEST(ReqMissingDataMsg, base_methods) {
   EXPECT_EQ(msg.seqNumber(), seqNum);
   EXPECT_EQ(msg.getFlags(), 0);
 
+  EXPECT_EQ(msg.getSlowPathHasStarted(), false);
   msg.setSlowPathHasStarted();
   EXPECT_EQ(msg.getSlowPathHasStarted(), true);
+
+  EXPECT_EQ(msg.getFullCommitIsMissing(), false);
   msg.setFullCommitIsMissing();
   EXPECT_EQ(msg.getFullCommitIsMissing(), true);
+
+  EXPECT_EQ(msg.getPrePrepareIsMissing(), false);
   msg.setPrePrepareIsMissing();
   EXPECT_EQ(msg.getPrePrepareIsMissing(), true);
+
+  EXPECT_EQ(msg.getFullPrepareIsMissing(), false);
   msg.setFullPrepareIsMissing();
   EXPECT_EQ(msg.getFullPrepareIsMissing(), true);
+
+  EXPECT_EQ(msg.getPartialProofIsMissing(), false);
   msg.setPartialProofIsMissing();
   EXPECT_EQ(msg.getPartialProofIsMissing(), true);
+
+  EXPECT_EQ(msg.getPartialCommitIsMissing(), false);
   msg.setPartialCommitIsMissing();
   EXPECT_EQ(msg.getPartialCommitIsMissing(), true);
+
+  EXPECT_EQ(msg.getFullCommitProofIsMissing(), false);
   msg.setFullCommitProofIsMissing();
   EXPECT_EQ(msg.getFullCommitProofIsMissing(), true);
+
+  EXPECT_EQ(msg.getPartialPrepareIsMissing(), false);
   msg.setPartialPrepareIsMissing();
   EXPECT_EQ(msg.getPartialPrepareIsMissing(), true);
+
+  EXPECT_EQ(msg.getFlags(), 0x01FE);
   EXPECT_NO_THROW(msg.validate(replicaInfo));
 
   msg.resetFlags();

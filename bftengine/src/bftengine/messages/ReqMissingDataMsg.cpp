@@ -25,7 +25,7 @@ ReqMissingDataMsg::ReqMissingDataMsg(ReplicaId senderId, ViewNum v, SeqNum s, co
   std::memcpy(body() + sizeof(ReqMissingDataMsgHeader), spanContext.data(), spanContext.size());
 }
 
-void ReqMissingDataMsg::resetFlags() { b()->flags = 0; }
+void ReqMissingDataMsg::resetFlags() { b()->flags.flags = 0; }
 
 void ReqMissingDataMsg::validate(const ReplicasInfo& repInfo) const {
   if (size() < sizeof(ReqMissingDataMsgHeader) + spanContextSize() ||
