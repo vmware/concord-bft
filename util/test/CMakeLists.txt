@@ -36,3 +36,7 @@ add_executable(sha3_256_tests sha3_256_tests.cpp)
 add_test(sha3_256_tests sha3_256_tests)
 target_link_libraries(sha3_256_tests GTest::Main util OpenSSL::Crypto
         $<TARGET_OBJECTS:logging_dev>)
+
+add_executable(RollingAvgAndVar_test RollingAvgAndVar_test.cpp $<TARGET_OBJECTS:logging_dev>)
+add_test(RollingAvgAndVar_test RollingAvgAndVar_test)
+target_link_libraries(RollingAvgAndVar_test GTest::Main util)
