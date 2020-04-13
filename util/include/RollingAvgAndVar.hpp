@@ -19,9 +19,13 @@ namespace impl {
 // Based on Knuth TAOCP vol 2, 2nd edition, page 216 (see also https://www.johndcook.com/blog/standard_deviation/)
 class RollingAvgAndVar {
  public:
-  RollingAvgAndVar() : k(0) {}
-
-  void reset() { k = 0; }
+  void reset() {
+    k = 0;
+    prevM = 0;
+    prevS = 0;
+    currM = 0;
+    currS = 0;
+  }
 
   void add(double x) {
     k++;
@@ -44,11 +48,11 @@ class RollingAvgAndVar {
   int numOfElements() const { return k; }
 
  private:
-  uint32_t k;
-  double prevM;
-  double prevS;
-  double currM;
-  double currS;
+  uint32_t k{0};
+  double prevM{0};
+  double prevS{0};
+  double currM{0};
+  double currS{0};
 };
 
 }  // namespace impl
