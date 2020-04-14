@@ -129,7 +129,7 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
 
   uint64_t expectedLastValue = 12345;
   const uint64_t requestBuffer[kRequestLength] = {(uint64_t)200, expectedLastValue};
-  ViewNum curView = 0;
+  ViewNum View = 0;
   bftEngine::impl::SeqNum assignedSeqNum = lastStableSeqNum + 1;
 
   auto* clientRequest = new ClientRequestMsg((uint16_t)1,
@@ -139,22 +139,23 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
                                              (const char*)requestBuffer,
                                              (uint64_t)1000000);
 
-  auto primary = pRepInfo->primaryOfView(curView);
+  auto primary = pRepInfo->primaryOfView(View);
   // Generate the PrePrepare from the primary for the clientRequest
-  auto* ppMsg = new PrePrepareMsg(
-      primary, curView, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, false, clientRequest->size());
+  auto* ppMsg =
+      new PrePrepareMsg(primary, View, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, false, clientRequest->size());
   ppMsg->addRequest(clientRequest->body(), clientRequest->size());
   ppMsg->finishAddingRequests();
 
   char buff[32]{};
-  PrepareFullMsg* pfMsg = PrepareFullMsg::create(curView, assignedSeqNum, primary, buff, sizeof(buff));
+  PrepareFullMsg* pfMsg = PrepareFullMsg::create(View, assignedSeqNum, primary, buff, sizeof(buff));
 
   ViewChangeMsg** viewChangeMsgs = new ViewChangeMsg*[N];
+  auto futureView = View + 1;
 
-  viewChangeMsgs[0] = new ViewChangeMsg(0, curView, lastStableSeqNum);
+  viewChangeMsgs[0] = new ViewChangeMsg(0, futureView, lastStableSeqNum);
   viewChangeMsgs[1] = nullptr;
-  viewChangeMsgs[2] = new ViewChangeMsg(2, curView, lastStableSeqNum);
-  viewChangeMsgs[3] = new ViewChangeMsg(3, curView, lastStableSeqNum);
+  viewChangeMsgs[2] = new ViewChangeMsg(2, futureView, lastStableSeqNum);
+  viewChangeMsgs[3] = new ViewChangeMsg(3, futureView, lastStableSeqNum);
 
   viewChangeMsgs[2]->addElement(*pRepInfo,
                                 assignedSeqNum,
@@ -168,10 +169,10 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
   auto VCS = ViewChangeSafetyLogic(N, F, C, &dummyVerifier_, PrePrepareMsg::digestOfNullPrePrepareMsg());
 
   SeqNum min{}, max{};
-  VCS.computeRestrictions(viewChangeMsgs, 0, min, max, restrictions);
+  VCS.computeRestrictions(viewChangeMsgs, VCS.calcLBStableForView(viewChangeMsgs), min, max, restrictions);
 
   for (int i = 0; i < kWorkWindowSize; i++) {
-    if (i == assignedSeqNum - 1) {
+    if (i == assignedSeqNum - min) {
       Assert(!restrictions[i].isNull);
       Assert(ppMsg->digestOfRequests().toString() == restrictions[i].digest.toString());
     } else {
@@ -203,7 +204,7 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
 
   uint64_t expectedLastValue1 = 12345;
   const uint64_t requestBuffer1[kRequestLength] = {(uint64_t)200, expectedLastValue1};
-  ViewNum curView1 = 0;
+  ViewNum View1 = 0;
   bftEngine::impl::SeqNum assignedSeqNum = lastStableSeqNum + 1;
 
   auto* clientRequest1 = new ClientRequestMsg((uint16_t)1,
@@ -214,8 +215,8 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
                                               (uint64_t)1000000);
 
   // Generate the PrePrepare from the primary for the clientRequest1
-  auto* ppMsg1 = new PrePrepareMsg(pRepInfo->primaryOfView(curView1),
-                                   curView1,
+  auto* ppMsg1 = new PrePrepareMsg(pRepInfo->primaryOfView(View1),
+                                   View1,
                                    assignedSeqNum,
                                    bftEngine::impl::CommitPath::SLOW,
                                    false,
@@ -229,11 +230,11 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
   // going to generate a Prepare Certificate for this sequence number with
   // a higher view.
   PrepareFullMsg* pfMsg1 =
-      PrepareFullMsg::create(curView1, assignedSeqNum, pRepInfo->primaryOfView(curView1), buff, sizeof(buff));
+      PrepareFullMsg::create(View1, assignedSeqNum, pRepInfo->primaryOfView(View1), buff, sizeof(buff));
 
   uint64_t expectedLastValue2 = 1234567;
   const uint64_t requestBuffer2[kRequestLength] = {(uint64_t)200, expectedLastValue2};
-  ViewNum curView2 = 1;
+  ViewNum View2 = 1;
 
   auto* clientRequest2 = new ClientRequestMsg((uint16_t)2,
                                               bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
@@ -243,8 +244,8 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
                                               (uint64_t)1000000);
 
   // Generate the PrePrepare from the primary for the clientRequest2
-  auto* ppMsg2 = new PrePrepareMsg(pRepInfo->primaryOfView(curView2),
-                                   curView2,
+  auto* ppMsg2 = new PrePrepareMsg(pRepInfo->primaryOfView(View2),
+                                   View2,
                                    assignedSeqNum,
                                    bftEngine::impl::CommitPath::SLOW,
                                    false,
@@ -256,14 +257,15 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
   // considered for the sequence number -> assignedSeqNum, because it will
   // be the one with the highest View for assignedSeqNum.
   PrepareFullMsg* pfMsg2 =
-      PrepareFullMsg::create(curView2, assignedSeqNum, pRepInfo->primaryOfView(curView2), buff, sizeof(buff));
+      PrepareFullMsg::create(View2, assignedSeqNum, pRepInfo->primaryOfView(View2), buff, sizeof(buff));
 
   ViewChangeMsg** viewChangeMsgs = new ViewChangeMsg*[N];
+  auto futureView = View2 + 1;
 
-  viewChangeMsgs[0] = new ViewChangeMsg(0, curView2, lastStableSeqNum);
+  viewChangeMsgs[0] = new ViewChangeMsg(0, futureView, lastStableSeqNum);
   viewChangeMsgs[1] = nullptr;
-  viewChangeMsgs[2] = new ViewChangeMsg(2, curView2, lastStableSeqNum);
-  viewChangeMsgs[3] = new ViewChangeMsg(3, curView2, lastStableSeqNum);
+  viewChangeMsgs[2] = new ViewChangeMsg(2, futureView, lastStableSeqNum);
+  viewChangeMsgs[3] = new ViewChangeMsg(3, futureView, lastStableSeqNum);
 
   // Add the first Prepare Certificate which we expect to be ignored
   // to the View Change Msg from Replica 2
@@ -290,10 +292,10 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
   auto VCS = ViewChangeSafetyLogic(N, F, C, &dummyVerifier_, PrePrepareMsg::digestOfNullPrePrepareMsg());
 
   SeqNum min{}, max{};
-  VCS.computeRestrictions(viewChangeMsgs, 0, min, max, restrictions);
+  VCS.computeRestrictions(viewChangeMsgs, VCS.calcLBStableForView(viewChangeMsgs), min, max, restrictions);
 
   for (int i = 0; i < kWorkWindowSize; i++) {
-    if (i == assignedSeqNum - 1) {
+    if (i == assignedSeqNum - min) {
       Assert(!restrictions[i].isNull);
       // Assert the prepare certificate with higher view number is selected for assignedSeqNum
       Assert(ppMsg2->digestOfRequests().toString() == restrictions[i].digest.toString());
