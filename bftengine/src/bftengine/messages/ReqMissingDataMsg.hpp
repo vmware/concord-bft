@@ -46,9 +46,7 @@ class ReqMissingDataMsg : public MessageBase {
   void setFullCommitIsMissing() { b()->flags.bits.fullCommitIsMissing = 1; }
   void setSlowPathHasStarted() { b()->flags.bits.slowPathHasStarted = 1; }
 
-  std::string spanContext() const override {
-    return std::string(body() + sizeof(ReqMissingDataMsgHeader), spanContextSize());
-  }
+  std::string spanContext() const override { return std::string(body() + sizeof(Header), spanContextSize()); }
   void validate(const ReplicasInfo&) const override;
 
  protected:
@@ -70,7 +68,7 @@ class ReqMissingDataMsg : public MessageBase {
     uint16_t flags;
   };
 
-  struct ReqMissingDataMsgHeader : public MessageBase::Header {
+  struct Header : public MessageBase::Header {
     ViewNum viewNum;
     SeqNum seqNum;
 
@@ -78,9 +76,9 @@ class ReqMissingDataMsg : public MessageBase {
   };
 #pragma pack(pop)
   static_assert(sizeof(Flags) == sizeof(uint16_t));
-  static_assert(sizeof(ReqMissingDataMsgHeader) == (6 + 8 + 8 + 2), "ReqMissingDataMsgHeader is 62B");
+  static_assert(sizeof(Header) == (6 + 8 + 8 + 2), "Header is 62B");
 
-  ReqMissingDataMsgHeader* b() const { return (ReqMissingDataMsgHeader*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_; }
 };
 }  // namespace impl
 }  // namespace bftEngine

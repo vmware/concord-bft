@@ -17,29 +17,27 @@ namespace impl {
 
 CheckpointMsg::CheckpointMsg(
     ReplicaId senderId, SeqNum seqNum, const Digest& stateDigest, bool stateIsStable, const std::string& spanContext)
-    : MessageBase(senderId, MsgCode::Checkpoint, spanContext.size(), sizeof(CheckpointMsgHeader)) {
+    : MessageBase(senderId, MsgCode::Checkpoint, spanContext.size(), sizeof(Header)) {
   b()->seqNum = seqNum;
   b()->stateDigest = stateDigest;
   b()->flags = 0;
   if (stateIsStable) b()->flags |= 0x1;
-  std::memcpy(body() + sizeof(CheckpointMsgHeader), spanContext.data(), spanContext.size());
+  std::memcpy(body() + sizeof(Header), spanContext.data(), spanContext.size());
 }
 
 void CheckpointMsg::validate(const ReplicasInfo& repInfo) const {
   Assert(type() == MsgCode::Checkpoint);
   Assert(senderId() != repInfo.myId());
 
-  if (size() < sizeof(CheckpointMsgHeader) + spanContextSize() || (!repInfo.isIdOfReplica(senderId())) ||
+  if (size() < sizeof(Header) + spanContextSize() || (!repInfo.isIdOfReplica(senderId())) ||
       (seqNumber() % checkpointWindowSize != 0) || (digestOfState().isZero()))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 
   // TODO(GG): consider to protect against messages that are larger than needed (here and in other messages)
 }
 
-MsgSize CheckpointMsg::maxSizeOfCheckpointMsg() { return sizeof(CheckpointMsgHeader) + SPAN_CONTEXT_MAX_SIZE; }
-
 MsgSize CheckpointMsg::maxSizeOfCheckpointMsgInLocalBuffer() {
-  return maxSizeOfCheckpointMsg() + sizeof(RawHeaderOfObjAndMsg);
+  return maxMessageSize<CheckpointMsg>() + sizeof(RawHeaderOfObjAndMsg);
 }
 
 }  // namespace impl

@@ -17,6 +17,7 @@
 #include "assertUtils.hpp"
 #include "Digest.hpp"
 #include "MessageBase.hpp"
+#include "ReplicaConfig.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -24,8 +25,11 @@ class RequestsIterator;
 
 class PrePrepareMsg : public MessageBase {
  protected:
+  template <typename MessageT>
+  friend MsgSize maxMessageSize();
+
 #pragma pack(push, 1)
-  struct PrePrepareMsgHeader {
+  struct Header {
     MessageBase::Header header;
     ViewNum viewNum;
     SeqNum seqNum;
@@ -42,16 +46,13 @@ class PrePrepareMsg : public MessageBase {
     // 10 = SLOW) bits 4-15: zero
   };
 #pragma pack(pop)
-  static_assert(sizeof(PrePrepareMsgHeader) == (6 + 8 + 8 + 2 + DIGEST_SIZE + 2 + 4), "PrePrepareMsgHeader is 62B");
+  static_assert(sizeof(Header) == (6 + 8 + 8 + 2 + DIGEST_SIZE + 2 + 4), "Header is 62B");
 
-  static const size_t prePrepareHeaderPrefix = sizeof(PrePrepareMsgHeader) -
-                                               sizeof(PrePrepareMsgHeader::numberOfRequests) -
-                                               sizeof(PrePrepareMsgHeader::endLocationOfLastRequest);
+  static const size_t prePrepareHeaderPrefix =
+      sizeof(Header) - sizeof(Header::numberOfRequests) - sizeof(Header::endLocationOfLastRequest);
 
  public:
   // static
-
-  static MsgSize maxSizeOfPrePrepareMsg();
 
   static MsgSize maxSizeOfPrePrepareMsgInLocalBuffer();
 
@@ -111,7 +112,7 @@ class PrePrepareMsg : public MessageBase {
 
   bool checkRequests() const;
 
-  PrePrepareMsgHeader* b() const { return (PrePrepareMsgHeader*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_; }
 
   uint32_t payloadShift() const;
   friend class RequestsIterator;
@@ -135,5 +136,11 @@ class RequestsIterator {
   const PrePrepareMsg* const msg;
   uint32_t currLoc;
 };
+
+template <>
+inline MsgSize maxMessageSize<PrePrepareMsg>() {
+  return ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize() + MessageBase::SPAN_CONTEXT_MAX_SIZE;
+}
+
 }  // namespace impl
 }  // namespace bftEngine

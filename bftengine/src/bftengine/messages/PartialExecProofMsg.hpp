@@ -35,17 +35,15 @@ class PartialExecProofMsg : public MessageBase {
 
   uint16_t thresholSignatureLength() const { return b()->thresholSignatureLength; }
 
-  const char* thresholSignature() { return body() + sizeof(PartialExecProofMsgHeader) + spanContextSize(); }
+  const char* thresholSignature() { return body() + sizeof(Header) + spanContextSize(); }
 
   void validate(const ReplicasInfo&) const override;
 
-  std::string spanContext() const override {
-    return std::string(body() + sizeof(PartialExecProofMsgHeader), spanContextSize());
-  }
+  std::string spanContext() const override { return std::string(body() + sizeof(Header), spanContextSize()); }
 
  protected:
 #pragma pack(push, 1)
-  struct PartialExecProofMsgHeader {
+  struct Header {
     MessageBase::Header header;
     ViewNum viewNum;
     SeqNum seqNum;
@@ -53,9 +51,9 @@ class PartialExecProofMsg : public MessageBase {
     // followed by a signature
   };
 #pragma pack(pop)
-  static_assert(sizeof(PartialExecProofMsgHeader) == (6 + 8 + 8 + 2), "PartialExecProofMsgHeader is 24B");
+  static_assert(sizeof(Header) == (6 + 8 + 8 + 2), "Header is 24B");
 
-  PartialExecProofMsgHeader* b() const { return (PartialExecProofMsgHeader*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_; }
 };
 
 }  // namespace impl

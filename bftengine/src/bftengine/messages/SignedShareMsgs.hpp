@@ -31,13 +31,13 @@ class SignedShareBase : public MessageBase {
 
   uint16_t signatureLen() const { return b()->thresSigLength; }
 
-  char* signatureBody() const { return body() + sizeof(SignedShareBaseHeader) + spanContextSize(); }
+  char* signatureBody() const { return body() + sizeof(Header) + spanContextSize(); }
 
   virtual std::string spanContext() const;
 
  protected:
 #pragma pack(push, 1)
-  struct SignedShareBaseHeader {
+  struct Header {
     MessageBase::Header header;
     ViewNum viewNumber;
     SeqNum seqNumber;
@@ -45,7 +45,7 @@ class SignedShareBase : public MessageBase {
     // Followed by threshold signature of <viewNumber, seqNumber, and the preprepare digest>
   };
 #pragma pack(pop)
-  static_assert(sizeof(SignedShareBaseHeader) == (6 + 8 + 8 + 2), "SignedShareBaseHeader is 62B");
+  static_assert(sizeof(Header) == (6 + 8 + 8 + 2), "Header is 62B");
 
   static SignedShareBase* create(int16_t type,
                                  ViewNum v,
@@ -65,7 +65,7 @@ class SignedShareBase : public MessageBase {
 
   SignedShareBase(ReplicaId sender, int16_t type, const std::string& spanContext, size_t msgSize);
 
-  SignedShareBaseHeader* b() const { return (SignedShareBaseHeader*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_; }
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -88,13 +88,20 @@ class PreparePartialMsg : public SignedShareBase {
 ///////////////////////////////////////////////////////////////////////////////
 
 class PrepareFullMsg : public SignedShareBase {
+  template <typename MessageT>
+  friend MsgSize maxMessageSize();
+
  public:
-  static MsgSize maxSizeOfPrepareFull();
   static MsgSize maxSizeOfPrepareFullInLocalBuffer();
   static PrepareFullMsg* create(
       ViewNum v, SeqNum s, ReplicaId senderId, const char* sig, uint16_t sigLen, const std::string& spanContext = "");
   void validate(const ReplicasInfo&) const override;
 };
+
+template <>
+inline MsgSize maxMessageSize<PrepareFullMsg>() {
+  return sizeof(PrepareFullMsg::Header) + maxSizeOfCombinedSignature + MessageBase::SPAN_CONTEXT_MAX_SIZE;
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // CommitPartialMsg
@@ -116,13 +123,20 @@ class CommitPartialMsg : public SignedShareBase {
 ///////////////////////////////////////////////////////////////////////////////
 
 class CommitFullMsg : public SignedShareBase {
+  template <typename MessageT>
+  friend MsgSize maxMessageSize();
+
  public:
-  static MsgSize maxSizeOfCommitFull();
   static MsgSize maxSizeOfCommitFullInLocalBuffer();
   static CommitFullMsg* create(
       ViewNum v, SeqNum s, ReplicaId senderId, const char* sig, uint16_t sigLen, const std::string& spanContext = "");
   void validate(const ReplicasInfo&) const override;
 };
+
+template <>
+inline MsgSize maxMessageSize<CommitFullMsg>() {
+  return sizeof(CommitFullMsg::Header) + maxSizeOfCombinedSignature + MessageBase::SPAN_CONTEXT_MAX_SIZE;
+}
 
 }  // namespace impl
 }  // namespace bftEngine

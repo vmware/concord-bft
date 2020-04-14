@@ -19,8 +19,6 @@ namespace impl {
 // TODO(GG): use SignedShareBase
 class FullCommitProofMsg : public MessageBase {
  public:
-  static MsgSize maxSizeOfFullCommitProofMsg();
-
   static MsgSize maxSizeOfFullCommitProofMsgInLocalBuffer();
 
   FullCommitProofMsg(ReplicaId senderId,
@@ -36,26 +34,27 @@ class FullCommitProofMsg : public MessageBase {
 
   uint16_t thresholSignatureLength() const { return b()->thresholSignatureLength; }
 
-  const char* thresholSignature() { return body() + sizeof(FullCommitProofMsgHeader) + spanContextSize(); }
+  const char* thresholSignature() { return body() + sizeof(Header) + spanContextSize(); }
 
-  std::string spanContext() const override {
-    return std::string(body() + sizeof(FullCommitProofMsgHeader), spanContextSize());
-  }
+  std::string spanContext() const override { return std::string(body() + sizeof(Header), spanContextSize()); }
 
   void validate(const ReplicasInfo&) const override;
 
  protected:
+  template <typename MessageT>
+  friend MsgSize maxMessageSize();
+
 #pragma pack(push, 1)
-  struct FullCommitProofMsgHeader {
+  struct Header {
     MessageBase::Header header;
     ViewNum viewNum;
     SeqNum seqNum;
     uint16_t thresholSignatureLength;
   };
 #pragma pack(pop)
-  static_assert(sizeof(FullCommitProofMsgHeader) == (6 + 8 + 8 + 2), "FullCommitProofMsgHeader is 24B");
+  static_assert(sizeof(Header) == (6 + 8 + 8 + 2), "Header is 24B");
 
-  FullCommitProofMsgHeader* b() const { return (FullCommitProofMsgHeader*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_; }
 };
 
 }  // namespace impl

@@ -48,21 +48,19 @@ class FullExecProofMsg : public MessageBase {
   void setSignature(const char* sig, uint16_t sigLength);
 
   uint16_t signatureLength() { return b()->signatureLength; }
-  const char* signature() {
-    return body() + sizeof(FullExecProofMsgHeader) + b()->merkleRootLength + b()->executionProofLength;
-  }
+  const char* signature() { return body() + sizeof(Header) + b()->merkleRootLength + b()->executionProofLength; }
 
   uint16_t rootLength() { return b()->merkleRootLength; }
-  const char* root() { return body() + sizeof(FullExecProofMsgHeader); }
+  const char* root() { return body() + sizeof(Header); }
 
   uint16_t executionProofLength() { return b()->executionProofLength; }
-  const char* executionProof() { return body() + sizeof(FullExecProofMsgHeader) + b()->merkleRootLength; }
+  const char* executionProof() { return body() + sizeof(Header) + b()->merkleRootLength; }
 
   void validate(const ReplicasInfo&) const override;
 
  protected:
 #pragma pack(push, 1)
-  struct FullExecProofMsgHeader {
+  struct Header {
     MessageBase::Header header;
     NodeIdType idOfClient;
     ReqId requestId;      // requestId==0, for read-only operations
@@ -76,9 +74,9 @@ class FullExecProofMsg : public MessageBase {
     // 3. signature (signatureLength bytes)
   };
 #pragma pack(pop)
-  static_assert(sizeof(FullExecProofMsgHeader) == (6 + 2 + 8 + 2 + 2 + 2 + 2), "FullExecProofMsgHeader is 24B");
+  static_assert(sizeof(Header) == (6 + 2 + 8 + 2 + 2 + 2 + 2), "Header is 24B");
 
-  FullExecProofMsgHeader* b() const { return (FullExecProofMsgHeader*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_; }
 };
 
 }  // namespace impl

@@ -17,15 +17,14 @@ namespace bftEngine {
 namespace impl {
 
 StartSlowCommitMsg::StartSlowCommitMsg(ReplicaId senderId, ViewNum v, SeqNum s, const std::string& spanContext)
-    : MessageBase(senderId, MsgCode::StartSlowCommit, spanContext.size(), sizeof(StartSlowCommitMsgHeader)) {
+    : MessageBase(senderId, MsgCode::StartSlowCommit, spanContext.size(), sizeof(Header)) {
   b()->viewNum = v;
   b()->seqNum = s;
-  std::memcpy(body() + sizeof(StartSlowCommitMsgHeader), spanContext.data(), spanContext.size());
+  std::memcpy(body() + sizeof(Header), spanContext.data(), spanContext.size());
 }
 
 void StartSlowCommitMsg::validate(const ReplicasInfo& repInfo) const {
-  if (size() < sizeof(StartSlowCommitMsgHeader) + spanContextSize() ||
-      repInfo.primaryOfView(viewNumber()) != senderId())
+  if (size() < sizeof(Header) + spanContextSize() || repInfo.primaryOfView(viewNumber()) != senderId())
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 

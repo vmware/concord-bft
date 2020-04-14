@@ -13,7 +13,6 @@
 #include "PrePrepareMsg.hpp"
 #include "SysConsts.hpp"
 #include "Crypto.hpp"
-#include "ReplicaConfig.hpp"
 #include "ClientRequestMsg.hpp"
 
 namespace bftEngine {
@@ -27,12 +26,8 @@ static Digest nullDigest(0x18);
 // PrePrepareMsg
 ///////////////////////////////////////////////////////////////////////////////
 
-MsgSize PrePrepareMsg::maxSizeOfPrePrepareMsg() {
-  return ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize() + SPAN_CONTEXT_MAX_SIZE;
-}
-
 MsgSize PrePrepareMsg::maxSizeOfPrePrepareMsgInLocalBuffer() {
-  return maxSizeOfPrePrepareMsg() + sizeof(RawHeaderOfObjAndMsg);
+  return maxMessageSize<PrePrepareMsg>() + sizeof(RawHeaderOfObjAndMsg);
 }
 
 PrePrepareMsg* PrePrepareMsg::createNullPrePrepareMsg(
@@ -46,8 +41,8 @@ const Digest& PrePrepareMsg::digestOfNullPrePrepareMsg() { return nullDigest; }
 void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
   Assert(senderId() != repInfo.myId());
 
-  if (size() < sizeof(PrePrepareMsgHeader) + spanContextSize() ||  // header size
-      !repInfo.isIdOfReplica(senderId()))                          // sender
+  if (size() < sizeof(Header) + spanContextSize() ||  // header size
+      !repInfo.isIdOfReplica(senderId()))             // sender
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic"));
   // NB: the actual expected sender is verified outside this class (because in some cases, during view-change protocol,
   // this message may sent by a non-primary replica to the primary replica).
@@ -90,9 +85,9 @@ PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
     : MessageBase(sender,
                   MsgCode::PrePrepare,
                   spanContext.size(),
-                  (((size + sizeof(PrePrepareMsgHeader)) < maxSizeOfPrePrepareMsg())
-                       ? (size + sizeof(PrePrepareMsgHeader))
-                       : maxSizeOfPrePrepareMsg() - spanContext.size()))
+                  (((size + sizeof(Header)) < maxMessageSize<PrePrepareMsg>())
+                       ? (size + sizeof(Header))
+                       : maxMessageSize<PrePrepareMsg>() - spanContext.size()))
 
 {
   b()->viewNum = v;
@@ -109,7 +104,7 @@ PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
   b()->numberOfRequests = 0;
   b()->endLocationOfLastRequest = payloadShift();
 
-  char* position = body() + sizeof(PrePrepareMsgHeader);
+  char* position = body() + sizeof(Header);
   memcpy(position, spanContext.data(), b()->header.spanContextSize);
 }
 
@@ -122,7 +117,7 @@ uint32_t PrePrepareMsg::remainingSizeForRequests() const {
 }
 
 std::string PrePrepareMsg::spanContext() const {
-  return std::string(body() + sizeof(PrePrepareMsgHeader), b()->header.spanContextSize);
+  return std::string(body() + sizeof(Header), b()->header.spanContextSize);
 }
 
 void PrePrepareMsg::addRequest(const char* pRequest, uint32_t requestSize) {
@@ -242,7 +237,7 @@ const std::string PrePrepareMsg::getBatchCorrelationIdAsString() const {
   return ret;
 }
 
-uint32_t PrePrepareMsg::payloadShift() const { return sizeof(PrePrepareMsgHeader) + b()->header.spanContextSize; }
+uint32_t PrePrepareMsg::payloadShift() const { return sizeof(Header) + b()->header.spanContextSize; }
 
 ///////////////////////////////////////////////////////////////////////////////
 // RequestsIterator

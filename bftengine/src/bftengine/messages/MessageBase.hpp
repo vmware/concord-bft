@@ -86,6 +86,9 @@ class MessageBase {
   bool owner_ = true;
   static constexpr uint32_t magicNumOfRawFormat = 0x5555897BU;
 
+  template <typename MessageT>
+  friend MsgSize maxMessageSize();
+
   static constexpr uint64_t SPAN_CONTEXT_MAX_SIZE{1024};
 #pragma pack(push, 1)
   struct RawHeaderOfObjAndMsg {
@@ -96,6 +99,11 @@ class MessageBase {
   };
 #pragma pack(pop)
 };
+
+template <typename MessageT>
+MsgSize maxMessageSize() {
+  return sizeof(typename MessageT::Header) + MessageBase::SPAN_CONTEXT_MAX_SIZE;
+}
 
 }  // namespace impl
 }  // namespace bftEngine

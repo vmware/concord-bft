@@ -26,23 +26,21 @@ class StartSlowCommitMsg : public MessageBase {
 
   SeqNum seqNumber() const { return b()->seqNum; }
 
-  std::string spanContext() const override {
-    return std::string(body() + sizeof(StartSlowCommitMsgHeader), spanContextSize());
-  }
+  std::string spanContext() const override { return std::string(body() + sizeof(Header), spanContextSize()); }
 
   void validate(const ReplicasInfo&) const override;
 
  protected:
 #pragma pack(push, 1)
-  struct StartSlowCommitMsgHeader {
+  struct Header {
     MessageBase::Header header;
     ViewNum viewNum;
     SeqNum seqNum;
   };
 #pragma pack(pop)
-  static_assert(sizeof(StartSlowCommitMsgHeader) == (6 + 8 + 8), "StartSlowCommitMsgHeader is 16B");
+  static_assert(sizeof(Header) == (6 + 8 + 8), "Header is 16B");
 
-  StartSlowCommitMsgHeader* b() const { return (StartSlowCommitMsgHeader*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_; }
 };
 
 }  // namespace impl

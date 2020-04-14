@@ -26,14 +26,14 @@ PartialExecProofMsg::PartialExecProofMsg(ReplicaId senderId,
     : MessageBase(senderId,
                   MsgCode::PartialExecProof,
                   spanContext.size(),
-                  sizeof(PartialExecProofMsgHeader) + thresholdSigner->requiredLengthForSignedData()) {
+                  sizeof(Header) + thresholdSigner->requiredLengthForSignedData()) {
   uint16_t thresholSignatureLength = (uint16_t)thresholdSigner->requiredLengthForSignedData();
 
   b()->viewNum = v;
   b()->seqNum = s;
   b()->thresholSignatureLength = thresholSignatureLength;
 
-  auto position = body() + sizeof(PartialExecProofMsgHeader);
+  auto position = body() + sizeof(Header);
   std::memcpy(position, spanContext.data(), spanContext.size());
 
   position += spanContext.size();
@@ -41,8 +41,8 @@ PartialExecProofMsg::PartialExecProofMsg(ReplicaId senderId,
 }
 
 void PartialExecProofMsg::validate(const ReplicasInfo& repInfo) const {
-  if (size() < sizeof(PartialExecProofMsgHeader) + spanContextSize() ||
-      size() < (sizeof(PartialExecProofMsgHeader) + thresholSignatureLength() + spanContextSize()) ||
+  if (size() < sizeof(Header) + spanContextSize() ||
+      size() < (sizeof(Header) + thresholSignatureLength() + spanContextSize()) ||
       senderId() ==
           repInfo.myId() ||  // TODO(GG) - TBD: we should use Assert for this condition (also in other messages)
       !repInfo.isIdOfReplica(senderId()))

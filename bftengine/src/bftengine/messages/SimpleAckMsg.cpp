@@ -17,14 +17,14 @@ namespace bftEngine {
 namespace impl {
 
 SimpleAckMsg::SimpleAckMsg(SeqNum s, ViewNum v, ReplicaId senderId, uint64_t ackData)
-    : MessageBase(senderId, MsgCode::SimpleAck, sizeof(SimpleAckMsgHeader)) {
+    : MessageBase(senderId, MsgCode::SimpleAck, sizeof(Header)) {
   b()->seqNum = s;
   b()->viewNum = v;
   b()->ackData = ackData;
 }
 
 void SimpleAckMsg::validate(const ReplicasInfo& repInfo) const {
-  if (size() < sizeof(SimpleAckMsgHeader) ||
+  if (size() < sizeof(Header) ||
       senderId() == repInfo.myId() ||  // sent from another replica (otherwise, we don't need to convert)
       !repInfo.isIdOfReplica(senderId()))
     throw std::runtime_error(__PRETTY_FUNCTION__);

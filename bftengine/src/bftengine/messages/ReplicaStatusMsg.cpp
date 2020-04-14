@@ -33,13 +33,13 @@ MsgSize ReplicaStatusMsg::calcSizeOfReplicaStatusMsg(bool listOfPrePrepareMsgsIn
                                                      bool listOfMissingViewChangeMsgForViewChange,
                                                      bool listOfMissingPrePrepareMsgForViewChange) {
   if (listOfPrePrepareMsgsInActiveWindow)
-    return sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader) + (kWorkWindowSize + 7) / 8;
+    return sizeof(ReplicaStatusMsg::Header) + (kWorkWindowSize + 7) / 8;
   else if (listOfMissingViewChangeMsgForViewChange)
-    return sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader) + (MaxNumberOfReplicas + 7) / 8;
+    return sizeof(ReplicaStatusMsg::Header) + (MaxNumberOfReplicas + 7) / 8;
   else if (listOfMissingPrePrepareMsgForViewChange)
-    return sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader) + (kWorkWindowSize + 7) / 8;
+    return sizeof(ReplicaStatusMsg::Header) + (kWorkWindowSize + 7) / 8;
   else
-    return sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader);
+    return sizeof(ReplicaStatusMsg::Header);
 }
 
 ReplicaStatusMsg::ReplicaStatusMsg(ReplicaId senderId,
@@ -78,8 +78,8 @@ ReplicaStatusMsg::ReplicaStatusMsg(ReplicaId senderId,
   } else if (listOfMissingPPForVC) {
     b()->flags |= powersOf2[4];
   }
-  std::memcpy(body() + sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader), spanContext.data(), spanContext.size());
-  if (size() > sizeof(ReplicaStatusMsg::ReplicaStatusMsgHeader) + spanContextSize()) {
+  std::memcpy(body() + sizeof(ReplicaStatusMsg::Header), spanContext.data(), spanContext.size());
+  if (size() > sizeof(ReplicaStatusMsg::Header) + spanContextSize()) {
     // write zero to all bits in list
     MsgSize listSize = size() - payloadShift();
     char* p = body() + payloadShift();
@@ -88,7 +88,7 @@ ReplicaStatusMsg::ReplicaStatusMsg(ReplicaId senderId,
 }
 
 void ReplicaStatusMsg::validate(const ReplicasInfo& repInfo) const {
-  if (size() < sizeof(ReplicaStatusMsgHeader) + spanContextSize() || senderId() == repInfo.myId() ||
+  if (size() < sizeof(Header) + spanContextSize() || senderId() == repInfo.myId() ||
       !repInfo.isIdOfReplica(senderId()) || (getLastStableSeqNum() % checkpointWindowSize != 0) ||
       getLastExecutedSeqNum() < getLastStableSeqNum())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic"));

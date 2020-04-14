@@ -31,7 +31,7 @@ SignedShareBase* SignedShareBase::create(int16_t type,
                                          IThresholdSigner* thresholdSigner,
                                          const std::string& spanContext) {
   const size_t sigLen = thresholdSigner->requiredLengthForSignedData();
-  size_t size = sizeof(SignedShareBaseHeader) + sigLen;
+  size_t size = sizeof(Header) + sigLen;
 
   SignedShareBase* m = new SignedShareBase(senderId, type, spanContext, size);
 
@@ -42,7 +42,7 @@ SignedShareBase* SignedShareBase::create(int16_t type,
   Digest tmpDigest;
   Digest::calcCombination(digest, v, s, tmpDigest);
 
-  auto position = m->body() + sizeof(SignedShareBaseHeader);
+  auto position = m->body() + sizeof(Header);
   std::memcpy(position, spanContext.data(), spanContext.size());
   position += spanContext.size();
 
@@ -58,7 +58,7 @@ SignedShareBase* SignedShareBase::create(int16_t type,
                                          const char* sig,
                                          uint16_t sigLen,
                                          const std::string& spanContext) {
-  size_t size = sizeof(SignedShareBaseHeader) + sigLen;
+  size_t size = sizeof(Header) + sigLen;
 
   SignedShareBase* m = new SignedShareBase(senderId, type, spanContext, size);
 
@@ -66,7 +66,7 @@ SignedShareBase* SignedShareBase::create(int16_t type,
   m->b()->viewNumber = v;
   m->b()->thresSigLength = sigLen;
 
-  auto position = m->body() + sizeof(SignedShareBaseHeader);
+  auto position = m->body() + sizeof(Header);
   std::memcpy(position, spanContext.data(), spanContext.size());
   position += spanContext.size();
   memcpy(position, sig, sigLen);
@@ -76,15 +76,15 @@ SignedShareBase* SignedShareBase::create(int16_t type,
 
 void SignedShareBase::_validate(const ReplicasInfo& repInfo, int16_t type_) const {
   Assert(type() == type_);
-  if (size() < sizeof(SignedShareBaseHeader) + spanContextSize() ||
-      size() < sizeof(SignedShareBaseHeader) + signatureLen() + spanContextSize() ||  // size
-      senderId() == repInfo.myId() ||                                                 // sent from another replica
+  if (size() < sizeof(Header) + spanContextSize() ||
+      size() < sizeof(Header) + signatureLen() + spanContextSize() ||  // size
+      senderId() == repInfo.myId() ||                                  // sent from another replica
       !repInfo.isIdOfReplica(senderId()))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
 std::string SignedShareBase::spanContext() const {
-  return std::string(body() + sizeof(SignedShareBaseHeader), b()->header.spanContextSize);
+  return std::string(body() + sizeof(Header), b()->header.spanContextSize);
 }
 ///////////////////////////////////////////////////////////////////////////////
 // PreparePartialMsg
@@ -111,12 +111,8 @@ void PreparePartialMsg::validate(const ReplicasInfo& repInfo) const {
 // PrepareFullMsg
 ///////////////////////////////////////////////////////////////////////////////
 
-MsgSize PrepareFullMsg::maxSizeOfPrepareFull() {
-  return sizeof(SignedShareBaseHeader) + maxSizeOfCombinedSignature + MessageBase::SPAN_CONTEXT_MAX_SIZE;
-}
-
 MsgSize PrepareFullMsg::maxSizeOfPrepareFullInLocalBuffer() {
-  return maxSizeOfPrepareFull() + sizeof(RawHeaderOfObjAndMsg);
+  return maxMessageSize<PrepareFullMsg>() + sizeof(RawHeaderOfObjAndMsg);
 }
 
 PrepareFullMsg* PrepareFullMsg::create(
@@ -153,10 +149,8 @@ void CommitPartialMsg::validate(const ReplicasInfo& repInfo) const {
 // CommitFullMsg
 ///////////////////////////////////////////////////////////////////////////////
 
-MsgSize CommitFullMsg::maxSizeOfCommitFull() { return sizeof(SignedShareBaseHeader) + maxSizeOfCombinedSignature; }
-
 MsgSize CommitFullMsg::maxSizeOfCommitFullInLocalBuffer() {
-  return maxSizeOfCommitFull() + sizeof(RawHeaderOfObjAndMsg);
+  return maxMessageSize<CommitFullMsg>() + sizeof(RawHeaderOfObjAndMsg);
 }
 
 CommitFullMsg* CommitFullMsg::create(

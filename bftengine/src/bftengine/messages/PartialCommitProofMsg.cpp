@@ -27,7 +27,7 @@ PartialCommitProofMsg::PartialCommitProofMsg(ReplicaId senderId,
     : MessageBase(senderId,
                   MsgCode::PartialCommitProof,
                   spanContext.size(),
-                  sizeof(PartialCommitProofMsgHeader) + thresholdSigner->requiredLengthForSignedData()) {
+                  sizeof(Header) + thresholdSigner->requiredLengthForSignedData()) {
   uint16_t thresholSignatureLength = (uint16_t)thresholdSigner->requiredLengthForSignedData();
 
   b()->viewNum = v;
@@ -35,7 +35,7 @@ PartialCommitProofMsg::PartialCommitProofMsg(ReplicaId senderId,
   b()->commitPath = commitPath;
   b()->thresholSignatureLength = thresholSignatureLength;
 
-  char* position = body() + sizeof(PartialCommitProofMsgHeader);
+  char* position = body() + sizeof(Header);
   memcpy(position, spanContext.data(), spanContext.size());
 
   position = position + spanContext.size();
@@ -43,13 +43,12 @@ PartialCommitProofMsg::PartialCommitProofMsg(ReplicaId senderId,
 }
 
 void PartialCommitProofMsg::validate(const ReplicasInfo& repInfo) const {
-  if (size() < sizeof(PartialCommitProofMsgHeader) + spanContextSize() ||
+  if (size() < sizeof(Header) + spanContextSize() ||
       senderId() ==
           repInfo.myId() ||  // TODO(GG) - TBD: we should use Assert for this condition (also in other messages)
       !repInfo.isIdOfReplica(senderId()) ||
       ((commitPath() == CommitPath::FAST_WITH_THRESHOLD) && (repInfo.cVal() == 0)) ||
-      commitPath() == CommitPath::SLOW ||
-      size() < (sizeof(PartialCommitProofMsgHeader) + thresholSignatureLength() + spanContextSize()) ||
+      commitPath() == CommitPath::SLOW || size() < (sizeof(Header) + thresholSignatureLength() + spanContextSize()) ||
       !repInfo.isCollectorForPartialProofs(viewNumber(), seqNumber()))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }

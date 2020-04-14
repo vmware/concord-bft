@@ -11,7 +11,6 @@
 
 #include "NewViewMsg.hpp"
 #include "assertUtils.hpp"
-#include "ReplicaConfig.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -23,17 +22,17 @@ NewViewMsg::NewViewMsg(ReplicaId senderId, ViewNum newView, const std::string& s
                   ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize() - spanContext.size()) {
   b()->newViewNum = newView;
   b()->elementsCount = 0;
-  memcpy(body() + sizeof(NewViewMsgHeader), spanContext.data(), spanContext.size());
+  memcpy(body() + sizeof(Header), spanContext.data(), spanContext.size());
 }
 
 NewViewMsg::NewViewElement* NewViewMsg::elementsArray() const {
-  return reinterpret_cast<NewViewElement*>(body() + sizeof(NewViewMsgHeader) + spanContextSize());
+  return reinterpret_cast<NewViewElement*>(body() + sizeof(Header) + spanContextSize());
 }
 
 void NewViewMsg::addElement(ReplicaId replicaId, Digest& viewChangeDigest) {
   uint16_t currNumOfElements = b()->elementsCount;
 
-  uint16_t requiredSize = sizeof(NewViewMsgHeader) + ((currNumOfElements + 1) * sizeof(NewViewElement));
+  uint16_t requiredSize = sizeof(Header) + ((currNumOfElements + 1) * sizeof(NewViewElement));
 
   // TODO(GG): we should reject configurations that may violate this assert. TODO(GG): we need something similar for the
   // VC message
@@ -59,7 +58,7 @@ void NewViewMsg::finalizeMessage(const ReplicasInfo& repInfo) {
 
   Assert(numOfElements == (2 * F + 2 * C + 1));
 
-  const uint16_t tSize = sizeof(NewViewMsgHeader) + (numOfElements * sizeof(NewViewElement)) + spanContextSize();
+  const uint16_t tSize = sizeof(Header) + (numOfElements * sizeof(NewViewElement)) + spanContextSize();
 
   setMsgSize(tSize);
   shrinkToFit();
@@ -67,7 +66,7 @@ void NewViewMsg::finalizeMessage(const ReplicasInfo& repInfo) {
 
 void NewViewMsg::validate(const ReplicasInfo& repInfo) const {
   const uint16_t expectedElements = (2 * repInfo.fVal() + 2 * repInfo.cVal() + 1);
-  const uint16_t contentSize = sizeof(NewViewMsgHeader) + expectedElements * sizeof(NewViewElement) + spanContextSize();
+  const uint16_t contentSize = sizeof(Header) + expectedElements * sizeof(NewViewElement) + spanContextSize();
 
   if (size() < contentSize || !repInfo.isIdOfReplica(senderId()) ||  // source replica
       repInfo.myId() == senderId() || repInfo.primaryOfView(newView() != senderId()) ||
@@ -102,11 +101,9 @@ bool NewViewMsg::includesViewChangeFromReplica(ReplicaId replicaId, const Digest
   return false;
 }
 
-MsgSize NewViewMsg::maxSizeOfNewViewMsg() {
-  return ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize() + SPAN_CONTEXT_MAX_SIZE;
+MsgSize NewViewMsg::maxSizeOfNewViewMsgInLocalBuffer() {
+  return maxMessageSize<NewViewMsg>() + sizeof(RawHeaderOfObjAndMsg);
 }
-
-MsgSize NewViewMsg::maxSizeOfNewViewMsgInLocalBuffer() { return maxSizeOfNewViewMsg() + sizeof(RawHeaderOfObjAndMsg); }
 
 }  // namespace impl
 }  // namespace bftEngine

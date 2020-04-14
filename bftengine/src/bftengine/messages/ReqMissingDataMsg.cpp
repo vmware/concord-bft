@@ -18,17 +18,17 @@ namespace bftEngine {
 namespace impl {
 
 ReqMissingDataMsg::ReqMissingDataMsg(ReplicaId senderId, ViewNum v, SeqNum s, const std::string spanContext)
-    : MessageBase(senderId, MsgCode::ReqMissingData, spanContext.size(), sizeof(ReqMissingDataMsgHeader)) {
+    : MessageBase(senderId, MsgCode::ReqMissingData, spanContext.size(), sizeof(Header)) {
   b()->viewNum = v;
   b()->seqNum = s;
   resetFlags();
-  std::memcpy(body() + sizeof(ReqMissingDataMsgHeader), spanContext.data(), spanContext.size());
+  std::memcpy(body() + sizeof(Header), spanContext.data(), spanContext.size());
 }
 
 void ReqMissingDataMsg::resetFlags() { b()->flags.flags = 0; }
 
 void ReqMissingDataMsg::validate(const ReplicasInfo& repInfo) const {
-  if (size() < sizeof(ReqMissingDataMsgHeader) + spanContextSize() ||
+  if (size() < sizeof(Header) + spanContextSize() ||
       senderId() ==
           repInfo.myId() ||  // TODO(GG) - TBD: we should use Assert for this condition (also in other messages)
       !repInfo.isIdOfReplica(senderId()))

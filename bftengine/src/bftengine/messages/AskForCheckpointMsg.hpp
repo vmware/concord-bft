@@ -19,21 +19,17 @@ namespace bftEngine::impl {
 
 class AskForCheckpointMsg : public MessageBase {
  public:
-  static MsgSize maxSizeOfAskForCheckpointMsg() { return sizeof(AskForCheckpointMsgHeader) + SPAN_CONTEXT_MAX_SIZE; }
-
   static MsgSize maxSizeOfAskForCheckpointMsgInLocalBuffer() {
-    return maxSizeOfAskForCheckpointMsg() + sizeof(RawHeaderOfObjAndMsg);
+    return maxMessageSize<AskForCheckpointMsg>() + sizeof(RawHeaderOfObjAndMsg);
   }
 
   AskForCheckpointMsg(ReplicaId senderId, const std::string& spanContext = "")
-      : MessageBase(senderId, MsgCode::AskForCheckpoint, spanContext.size(), sizeof(AskForCheckpointMsgHeader)) {
-    char* position = body() + sizeof(AskForCheckpointMsgHeader);
+      : MessageBase(senderId, MsgCode::AskForCheckpoint, spanContext.size(), sizeof(Header)) {
+    char* position = body() + sizeof(Header);
     memcpy(position, spanContext.data(), spanContext.size());
   }
 
-  std::string spanContext() const override {
-    return std::string(body() + sizeof(AskForCheckpointMsgHeader), spanContextSize());
-  }
+  std::string spanContext() const override { return std::string(body() + sizeof(Header), spanContextSize()); }
 
   AskForCheckpointMsg* clone() { return new AskForCheckpointMsg(*this); }
 
@@ -41,19 +37,22 @@ class AskForCheckpointMsg : public MessageBase {
     Assert(type() == MsgCode::AskForCheckpoint);
     Assert(senderId() != repInfo.myId());
 
-    if (size() > sizeof(AskForCheckpointMsgHeader) + spanContextSize()) {
+    if (size() > sizeof(Header) + spanContextSize()) {
       throw std::runtime_error(__PRETTY_FUNCTION__);
     }
   }
 
  protected:
+  template <typename MessageT>
+  friend MsgSize maxMessageSize();
+
 #pragma pack(push, 1)
-  struct AskForCheckpointMsgHeader {
+  struct Header {
     MessageBase::Header header;
   };
 #pragma pack(pop)
-  static_assert(sizeof(AskForCheckpointMsgHeader) == sizeof(MessageBase::Header), "AskForCheckpointMsgHeader is 2B");
+  static_assert(sizeof(Header) == sizeof(MessageBase::Header), "Header is 2B");
 
-  AskForCheckpointMsgHeader* b() const { return (AskForCheckpointMsgHeader*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_; }
 };
 }  // namespace bftEngine::impl

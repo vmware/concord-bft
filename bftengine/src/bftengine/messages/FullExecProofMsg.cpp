@@ -24,8 +24,7 @@ FullExecProofMsg::FullExecProofMsg(ReplicaId senderId,
                                    uint16_t rootLength,
                                    const char* executionProof,
                                    uint16_t proofLength)
-    : MessageBase(
-          senderId, MsgCode::FullExecProof, sizeof(FullExecProofMsgHeader) + sigLength + rootLength + proofLength) {
+    : MessageBase(senderId, MsgCode::FullExecProof, sizeof(Header) + sigLength + rootLength + proofLength) {
   b()->isNotReady = 1;  // message is not ready
   b()->idOfClient = clientId;
   b()->requestId = requestId;
@@ -33,8 +32,8 @@ FullExecProofMsg::FullExecProofMsg(ReplicaId senderId,
   b()->merkleRootLength = rootLength;
   b()->executionProofLength = proofLength;
 
-  memcpy(body() + sizeof(FullExecProofMsgHeader), root, rootLength);
-  memcpy(body() + sizeof(FullExecProofMsgHeader) + rootLength, executionProof, proofLength);
+  memcpy(body() + sizeof(Header), root, rootLength);
+  memcpy(body() + sizeof(Header) + rootLength, executionProof, proofLength);
 }
 
 FullExecProofMsg::FullExecProofMsg(ReplicaId senderId,
@@ -45,8 +44,7 @@ FullExecProofMsg::FullExecProofMsg(ReplicaId senderId,
                                    uint16_t rootLength,
                                    const char* readProof,
                                    uint16_t proofLength)
-    : MessageBase(
-          senderId, MsgCode::FullExecProof, sizeof(FullExecProofMsgHeader) + sigLength + rootLength + proofLength) {
+    : MessageBase(senderId, MsgCode::FullExecProof, sizeof(Header) + sigLength + rootLength + proofLength) {
   b()->isNotReady = 0;  // message is ready
   b()->idOfClient = clientId;
   b()->requestId = 0;
@@ -54,15 +52,15 @@ FullExecProofMsg::FullExecProofMsg(ReplicaId senderId,
   b()->merkleRootLength = rootLength;
   b()->executionProofLength = proofLength;
 
-  memcpy(body() + sizeof(FullExecProofMsgHeader), root, rootLength);
-  memcpy(body() + sizeof(FullExecProofMsgHeader) + rootLength, readProof, proofLength);
-  memcpy(body() + sizeof(FullExecProofMsgHeader) + rootLength + proofLength, sig, sigLength);
+  memcpy(body() + sizeof(Header), root, rootLength);
+  memcpy(body() + sizeof(Header) + rootLength, readProof, proofLength);
+  memcpy(body() + sizeof(Header) + rootLength + proofLength, sig, sigLength);
 }
 
 void FullExecProofMsg::setSignature(const char* sig, uint16_t sigLength) {
   Assert(b()->signatureLength >= sigLength);
 
-  memcpy(body() + sizeof(FullExecProofMsgHeader) + b()->merkleRootLength + b()->executionProofLength, sig, sigLength);
+  memcpy(body() + sizeof(Header) + b()->merkleRootLength + b()->executionProofLength, sig, sigLength);
 
   b()->signatureLength = sigLength;
 
@@ -70,7 +68,7 @@ void FullExecProofMsg::setSignature(const char* sig, uint16_t sigLength) {
 }
 
 void FullExecProofMsg::validate(const ReplicasInfo&) const {
-  if (size() < sizeof(FullExecProofMsgHeader)) throw std::runtime_error(__PRETTY_FUNCTION__);
+  if (size() < sizeof(Header)) throw std::runtime_error(__PRETTY_FUNCTION__);
 
   // TODO(GG)
 }

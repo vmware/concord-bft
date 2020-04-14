@@ -38,19 +38,15 @@ class PartialCommitProofMsg : public MessageBase {
 
   uint16_t thresholSignatureLength() const { return b()->thresholSignatureLength; }
 
-  const char* thresholSignature() const {
-    return body() + sizeof(PartialCommitProofMsgHeader) + b()->header.spanContextSize;
-  }
+  const char* thresholSignature() const { return body() + sizeof(Header) + b()->header.spanContextSize; }
 
-  std::string spanContext() const override {
-    return std::string(body() + sizeof(PartialCommitProofMsgHeader), spanContextSize());
-  }
+  std::string spanContext() const override { return std::string(body() + sizeof(Header), spanContextSize()); }
 
   void validate(const ReplicasInfo&) const override;
 
  protected:
 #pragma pack(push, 1)
-  struct PartialCommitProofMsgHeader {
+  struct Header {
     MessageBase::Header header;
     ViewNum viewNum;
     SeqNum seqNum;
@@ -59,10 +55,9 @@ class PartialCommitProofMsg : public MessageBase {
     // followed by a partial signature
   };
 #pragma pack(pop)
-  static_assert(sizeof(PartialCommitProofMsgHeader) == (6 + 8 + 8 + sizeof(CommitPath) + 2),
-                "PartialCommitProofMsgHeader is 24B+sizeof(CommitPath)");
+  static_assert(sizeof(Header) == (6 + 8 + 8 + sizeof(CommitPath) + 2), "Header is 24B+sizeof(CommitPath)");
 
-  PartialCommitProofMsgHeader* b() const { return (PartialCommitProofMsgHeader*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_; }
 };
 
 }  // namespace impl

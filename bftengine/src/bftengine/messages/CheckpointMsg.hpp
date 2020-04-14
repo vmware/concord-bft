@@ -19,8 +19,6 @@ namespace impl {
 
 class CheckpointMsg : public MessageBase {
  public:
-  static MsgSize maxSizeOfCheckpointMsg();
-
   static MsgSize maxSizeOfCheckpointMsgInLocalBuffer();
 
   CheckpointMsg(ReplicaId senderId,
@@ -39,22 +37,23 @@ class CheckpointMsg : public MessageBase {
 
   void validate(const ReplicasInfo& repInfo) const override;
 
-  std::string spanContext() const override {
-    return std::string(body() + sizeof(CheckpointMsgHeader), b()->header.spanContextSize);
-  }
+  std::string spanContext() const override { return std::string(body() + sizeof(Header), b()->header.spanContextSize); }
 
  protected:
+  template <typename MessageT>
+  friend MsgSize maxMessageSize();
+
 #pragma pack(push, 1)
-  struct CheckpointMsgHeader {
+  struct Header {
     MessageBase::Header header;
     SeqNum seqNum;
     Digest stateDigest;
     uint8_t flags;
   };
 #pragma pack(pop)
-  static_assert(sizeof(CheckpointMsgHeader) == (6 + 8 + DIGEST_SIZE + 1), "CheckpointMsgHeader is 49B");
+  static_assert(sizeof(Header) == (6 + 8 + DIGEST_SIZE + 1), "Header is 49B");
 
-  CheckpointMsgHeader* b() const { return (CheckpointMsgHeader*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_; }
 };
 }  // namespace impl
 }  // namespace bftEngine

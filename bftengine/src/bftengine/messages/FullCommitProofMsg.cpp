@@ -22,33 +22,26 @@ FullCommitProofMsg::FullCommitProofMsg(ReplicaId senderId,
                                        const char* commitProofSig,
                                        uint16_t commitProofSigLength,
                                        const std::string& spanContext)
-    : MessageBase(senderId,
-                  MsgCode::FullCommitProof,
-                  spanContext.size(),
-                  sizeof(FullCommitProofMsgHeader) + commitProofSigLength) {
+    : MessageBase(senderId, MsgCode::FullCommitProof, spanContext.size(), sizeof(Header) + commitProofSigLength) {
   b()->viewNum = v;
   b()->seqNum = s;
   b()->thresholSignatureLength = commitProofSigLength;
-  auto position = body() + sizeof(FullCommitProofMsgHeader);
+  auto position = body() + sizeof(Header);
   memcpy(position, spanContext.data(), spanContext.size());
   position += spanContext.size();
   memcpy(position, commitProofSig, commitProofSigLength);
 }
 
 void FullCommitProofMsg::validate(const ReplicasInfo& repInfo) const {
-  if (size() < sizeof(FullCommitProofMsgHeader) || senderId() == repInfo.myId() || !repInfo.isIdOfReplica(senderId()) ||
-      size() < (sizeof(FullCommitProofMsgHeader) + thresholSignatureLength() + spanContextSize()))
+  if (size() < sizeof(Header) || senderId() == repInfo.myId() || !repInfo.isIdOfReplica(senderId()) ||
+      size() < (sizeof(Header) + thresholSignatureLength() + spanContextSize()))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 
   // TODO(GG): TBD - check something about the collectors identity (and in other similar messages)
 }
 
-MsgSize FullCommitProofMsg::maxSizeOfFullCommitProofMsg() {
-  return sizeof(FullCommitProofMsgHeader) + maxSizeOfCombinedSignature + SPAN_CONTEXT_MAX_SIZE;
-}
-
 MsgSize FullCommitProofMsg::maxSizeOfFullCommitProofMsgInLocalBuffer() {
-  return maxSizeOfFullCommitProofMsg() + sizeof(RawHeaderOfObjAndMsg);
+  return maxMessageSize<FullCommitProofMsg>() + sizeof(RawHeaderOfObjAndMsg);
 }
 
 }  // namespace impl
