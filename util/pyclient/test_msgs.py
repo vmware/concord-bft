@@ -37,7 +37,7 @@ class TestPackUnpack(unittest.TestCase):
         cid = str(req_seq_num)
 
         packed = bft_msgs.pack_request(client_id, req_seq_num, read_only,
-                                timeout_milli, cid, msg, False, span_context)
+                                timeout_milli, cid, msg, pre_process=False, span_context=span_context)
         header, unpacked_span_context, unpacked_msg, unpacked_cid = bft_msgs.unpack_request(packed)
 
         self.assertEqual(len(span_context), header.span_context_size)
