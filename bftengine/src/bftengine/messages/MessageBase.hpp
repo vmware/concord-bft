@@ -28,7 +28,7 @@ class MessageBase {
   };
 #pragma pack(pop)
 
-  static_assert(sizeof(Header) == 6, "MessageBase::Header is 2B");
+  static_assert(sizeof(Header) == 6, "MessageBase::Header is 6B");
 
   explicit MessageBase(NodeIdType sender);
 
