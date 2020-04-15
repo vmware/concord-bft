@@ -34,6 +34,9 @@ class SignedShareBase : public MessageBase {
   char* signatureBody() const { return body() + sizeof(Header) + spanContextSize(); }
 
  protected:
+  template <typename MessageT>
+  friend size_t sizeOfHeader();
+
 #pragma pack(push, 1)
   struct Header {
     MessageBase::Header header;
@@ -71,6 +74,9 @@ class SignedShareBase : public MessageBase {
 ///////////////////////////////////////////////////////////////////////////////
 
 class PreparePartialMsg : public SignedShareBase {
+  template <typename MessageT>
+  friend size_t sizeOfHeader();
+
  public:
   static PreparePartialMsg* create(ViewNum v,
                                    SeqNum s,
@@ -109,6 +115,9 @@ inline MsgSize maxMessageSize<PrepareFullMsg>() {
 ///////////////////////////////////////////////////////////////////////////////
 
 class CommitPartialMsg : public SignedShareBase {
+  template <typename MessageT>
+  friend size_t sizeOfHeader();
+
  public:
   static CommitPartialMsg* create(ViewNum v,
                                   SeqNum s,
