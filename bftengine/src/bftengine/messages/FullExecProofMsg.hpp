@@ -26,7 +26,8 @@ class FullExecProofMsg : public MessageBase {
                    const char* root,
                    uint16_t rootLength,
                    const char* executionProof,
-                   uint16_t proofLength);
+                   uint16_t proofLength,
+                   const std::string& spanContext = "");
 
   FullExecProofMsg(ReplicaId senderId,
                    NodeIdType clientId,
@@ -35,7 +36,8 @@ class FullExecProofMsg : public MessageBase {
                    const char* root,
                    uint16_t rootLength,
                    const char* readProof,
-                   uint16_t proofLength);
+                   uint16_t proofLength,
+                   const std::string& spanContext = "");
 
   bool isReady() const { return (b()->isNotReady == 0); }
 
@@ -48,13 +50,17 @@ class FullExecProofMsg : public MessageBase {
   void setSignature(const char* sig, uint16_t sigLength);
 
   uint16_t signatureLength() { return b()->signatureLength; }
-  const char* signature() { return body() + sizeof(Header) + b()->merkleRootLength + b()->executionProofLength; }
+  const char* signature() {
+    return body() + sizeof(Header) + spanContextSize() + b()->merkleRootLength + b()->executionProofLength;
+  }
 
   uint16_t rootLength() { return b()->merkleRootLength; }
-  const char* root() { return body() + sizeof(Header); }
+  const char* root() { return body() + sizeof(Header) + spanContextSize(); }
 
   uint16_t executionProofLength() { return b()->executionProofLength; }
-  const char* executionProof() { return body() + sizeof(Header) + b()->merkleRootLength; }
+  const char* executionProof() { return body() + sizeof(Header) + spanContextSize() + b()->merkleRootLength; }
+
+  std::string spanContext() const override { return std::string(body() + sizeof(Header), spanContextSize()); }
 
   void validate(const ReplicasInfo&) const override;
 
