@@ -33,8 +33,6 @@ class SignedShareBase : public MessageBase {
 
   char* signatureBody() const { return body() + sizeof(Header) + spanContextSize(); }
 
-  virtual std::string spanContext() const;
-
  protected:
 #pragma pack(push, 1)
   struct Header {
@@ -89,6 +87,9 @@ class PreparePartialMsg : public SignedShareBase {
 
 class PrepareFullMsg : public SignedShareBase {
   template <typename MessageT>
+  friend size_t sizeOfHeader();
+
+  template <typename MessageT>
   friend MsgSize maxMessageSize();
 
  public:
@@ -100,7 +101,7 @@ class PrepareFullMsg : public SignedShareBase {
 
 template <>
 inline MsgSize maxMessageSize<PrepareFullMsg>() {
-  return sizeof(PrepareFullMsg::Header) + maxSizeOfCombinedSignature + MessageBase::SPAN_CONTEXT_MAX_SIZE;
+  return sizeOfHeader<PrepareFullMsg>() + maxSizeOfCombinedSignature + MessageBase::SPAN_CONTEXT_MAX_SIZE;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -124,6 +125,9 @@ class CommitPartialMsg : public SignedShareBase {
 
 class CommitFullMsg : public SignedShareBase {
   template <typename MessageT>
+  friend size_t sizeOfHeader();
+
+  template <typename MessageT>
   friend MsgSize maxMessageSize();
 
  public:
@@ -135,7 +139,7 @@ class CommitFullMsg : public SignedShareBase {
 
 template <>
 inline MsgSize maxMessageSize<CommitFullMsg>() {
-  return sizeof(CommitFullMsg::Header) + maxSizeOfCombinedSignature + MessageBase::SPAN_CONTEXT_MAX_SIZE;
+  return sizeOfHeader<CommitFullMsg>() + maxSizeOfCombinedSignature + MessageBase::SPAN_CONTEXT_MAX_SIZE;
 }
 
 }  // namespace impl

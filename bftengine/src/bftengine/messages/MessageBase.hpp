@@ -19,6 +19,9 @@
 namespace bftEngine {
 namespace impl {
 
+template <typename MessageT>
+size_t sizeOfHeader();
+
 class MessageBase {
  public:
 #pragma pack(push, 1)
@@ -59,7 +62,11 @@ class MessageBase {
   MsgType type() const { return msgBody_->msgType; }
 
   SpanContextSize spanContextSize() const { return msgBody_->spanContextSize; }
-  virtual std::string spanContext() const { return ""; };
+
+  template <typename MessageT>
+  std::string spanContext() const {
+    return std::string(body() + sizeOfHeader<MessageT>(), spanContextSize());
+  }
 
   MessageBase *cloneObjAndMsg() const;
 
@@ -87,6 +94,9 @@ class MessageBase {
   static constexpr uint32_t magicNumOfRawFormat = 0x5555897BU;
 
   template <typename MessageT>
+  friend size_t sizeOfHeader();
+
+  template <typename MessageT>
   friend MsgSize maxMessageSize();
 
   static constexpr uint64_t SPAN_CONTEXT_MAX_SIZE{1024};
@@ -101,8 +111,13 @@ class MessageBase {
 };
 
 template <typename MessageT>
+size_t sizeOfHeader() {
+  return sizeof(typename MessageT::Header);
+}
+
+template <typename MessageT>
 MsgSize maxMessageSize() {
-  return sizeof(typename MessageT::Header) + MessageBase::SPAN_CONTEXT_MAX_SIZE;
+  return sizeOfHeader<MessageT>() + MessageBase::SPAN_CONTEXT_MAX_SIZE;
 }
 
 }  // namespace impl

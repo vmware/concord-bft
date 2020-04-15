@@ -57,9 +57,10 @@ class ReplicaStatusMsg : public MessageBase {
 
   void validate(const ReplicasInfo&) const override;
 
-  std::string spanContext() const override { return std::string(body() + sizeof(Header), spanContextSize()); }
-
  protected:
+  template <typename MessageT>
+  friend size_t sizeOfHeader();
+
 #pragma pack(push, 1)
   struct Header {
     MessageBase::Header header;

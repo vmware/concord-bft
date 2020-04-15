@@ -46,10 +46,12 @@ class ReqMissingDataMsg : public MessageBase {
   void setFullCommitIsMissing() { b()->flags.bits.fullCommitIsMissing = 1; }
   void setSlowPathHasStarted() { b()->flags.bits.slowPathHasStarted = 1; }
 
-  std::string spanContext() const override { return std::string(body() + sizeof(Header), spanContextSize()); }
   void validate(const ReplicasInfo&) const override;
 
  protected:
+  template <typename MessageT>
+  friend size_t sizeOfHeader();
+
 #pragma pack(push, 1)
   struct BitFields {
     uint8_t reserved : 1;

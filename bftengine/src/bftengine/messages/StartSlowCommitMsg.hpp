@@ -26,11 +26,12 @@ class StartSlowCommitMsg : public MessageBase {
 
   SeqNum seqNumber() const { return b()->seqNum; }
 
-  std::string spanContext() const override { return std::string(body() + sizeof(Header), spanContextSize()); }
-
   void validate(const ReplicasInfo&) const override;
 
  protected:
+  template <typename MessageT>
+  friend size_t sizeOfHeader();
+
 #pragma pack(push, 1)
   struct Header {
     MessageBase::Header header;

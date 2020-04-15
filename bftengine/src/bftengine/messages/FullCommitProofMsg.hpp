@@ -36,13 +36,11 @@ class FullCommitProofMsg : public MessageBase {
 
   const char* thresholSignature() { return body() + sizeof(Header) + spanContextSize(); }
 
-  std::string spanContext() const override { return std::string(body() + sizeof(Header), spanContextSize()); }
-
   void validate(const ReplicasInfo&) const override;
 
  protected:
   template <typename MessageT>
-  friend MsgSize maxMessageSize();
+  friend size_t sizeOfHeader();
 
 #pragma pack(push, 1)
   struct Header {

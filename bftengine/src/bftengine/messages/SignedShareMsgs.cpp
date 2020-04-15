@@ -83,9 +83,6 @@ void SignedShareBase::_validate(const ReplicasInfo& repInfo, int16_t type_) cons
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
-std::string SignedShareBase::spanContext() const {
-  return std::string(body() + sizeof(Header), b()->header.spanContextSize);
-}
 ///////////////////////////////////////////////////////////////////////////////
 // PreparePartialMsg
 ///////////////////////////////////////////////////////////////////////////////

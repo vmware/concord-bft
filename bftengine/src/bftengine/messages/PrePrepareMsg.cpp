@@ -116,10 +116,6 @@ uint32_t PrePrepareMsg::remainingSizeForRequests() const {
   return (internalStorageSize() - b()->endLocationOfLastRequest);
 }
 
-std::string PrePrepareMsg::spanContext() const {
-  return std::string(body() + sizeof(Header), b()->header.spanContextSize);
-}
-
 void PrePrepareMsg::addRequest(const char* pRequest, uint32_t requestSize) {
   Assert(getRequestSizeTemp(pRequest) == requestSize);
   Assert(!isNull());

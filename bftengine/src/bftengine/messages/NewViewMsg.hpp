@@ -36,11 +36,9 @@ class NewViewMsg : public MessageBase {
 
   const uint16_t elementsCount() const;
 
-  std::string spanContext() const override { return std::string(body() + sizeof(Header), spanContextSize()); }
-
  protected:
   template <typename MessageT>
-  friend MsgSize maxMessageSize();
+  friend size_t sizeOfHeader();
 
 #pragma pack(push, 1)
   struct Header {

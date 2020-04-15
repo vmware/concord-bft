@@ -48,7 +48,6 @@ TEST(PartialCommitProofMsg, create_and_compare) {
   EXPECT_EQ(msg.seqNumber(), seqNum);
   EXPECT_EQ(msg.commitPath(), commitPath);
   EXPECT_EQ(msg.spanContextSize(), spanContext.size());
-  EXPECT_EQ(msg.spanContext(), spanContext);
   EXPECT_EQ(msg.thresholSignatureLength(), config.thresholdSignerForOptimisticCommit->requiredLengthForSignedData());
 
   std::vector<char> signature(config.thresholdSignerForOptimisticCommit->requiredLengthForSignedData());

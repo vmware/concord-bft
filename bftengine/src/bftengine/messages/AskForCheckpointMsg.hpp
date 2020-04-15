@@ -29,8 +29,6 @@ class AskForCheckpointMsg : public MessageBase {
     memcpy(position, spanContext.data(), spanContext.size());
   }
 
-  std::string spanContext() const override { return std::string(body() + sizeof(Header), spanContextSize()); }
-
   AskForCheckpointMsg* clone() { return new AskForCheckpointMsg(*this); }
 
   void validate(const ReplicasInfo& repInfo) const override {
@@ -44,7 +42,7 @@ class AskForCheckpointMsg : public MessageBase {
 
  protected:
   template <typename MessageT>
-  friend MsgSize maxMessageSize();
+  friend size_t sizeOfHeader();
 
 #pragma pack(push, 1)
   struct Header {

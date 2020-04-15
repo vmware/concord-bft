@@ -41,7 +41,7 @@ TEST(ClientRequestMsg, create_and_compare) {
   EXPECT_NE(msg.requestBuf(), request);
   EXPECT_TRUE(std::memcmp(msg.requestBuf(), request, sizeof(request)) == 0u);
   EXPECT_EQ(msg.getCid(), correlationId);
-  EXPECT_EQ(msg.spanContext(), spanContext);
+  EXPECT_EQ(msg.spanContext<ClientRequestMsg>(), spanContext);
   EXPECT_EQ(msg.requestTimeoutMilli(), requestTimeoutMilli);
   EXPECT_NO_THROW(msg.validate(replicaInfo));
 }
@@ -67,7 +67,7 @@ TEST(ClientRequestMsg, create_and_compare_with_empty_span) {
   EXPECT_NE(msg.requestBuf(), request);
   EXPECT_TRUE(std::memcmp(msg.requestBuf(), request, sizeof(request)) == 0u);
   EXPECT_EQ(msg.getCid(), correlationId);
-  EXPECT_EQ(msg.spanContext(), spanContext);
+  EXPECT_EQ(msg.spanContext<ClientRequestMsg>(), spanContext);
   EXPECT_NO_THROW(msg.validate(replicaInfo));
 }
 
@@ -92,7 +92,7 @@ TEST(ClientRequestMsg, create_and_compare_with_empty_cid) {
   EXPECT_NE(msg.requestBuf(), request);
   EXPECT_TRUE(std::memcmp(msg.requestBuf(), request, sizeof(request)) == 0u);
   EXPECT_EQ(msg.getCid(), correlationId);
-  EXPECT_EQ(msg.spanContext(), spanContext);
+  EXPECT_EQ(msg.spanContext<ClientRequestMsg>(), spanContext);
   EXPECT_EQ(msg.requestTimeoutMilli(), requestTimeoutMilli);
   EXPECT_NO_THROW(msg.validate(replicaInfo));
 }
@@ -120,7 +120,7 @@ TEST(ClientRequestMsg, create_from_buffer) {
   EXPECT_EQ(originalMsg.requestBuf(), copy_msg.requestBuf());
   EXPECT_TRUE(std::memcmp(originalMsg.requestBuf(), copy_msg.requestBuf(), sizeof(request)) == 0u);
   EXPECT_EQ(originalMsg.getCid(), copy_msg.getCid());
-  EXPECT_EQ(originalMsg.spanContext(), copy_msg.spanContext());
+  EXPECT_EQ(originalMsg.spanContext<ClientRequestMsg>(), copy_msg.spanContext<ClientRequestMsg>());
   EXPECT_EQ(originalMsg.requestTimeoutMilli(), requestTimeoutMilli);
   EXPECT_NO_THROW(originalMsg.validate(replicaInfo));
 }

@@ -60,11 +60,12 @@ class FullExecProofMsg : public MessageBase {
   uint16_t executionProofLength() { return b()->executionProofLength; }
   const char* executionProof() { return body() + sizeof(Header) + spanContextSize() + b()->merkleRootLength; }
 
-  std::string spanContext() const override { return std::string(body() + sizeof(Header), spanContextSize()); }
-
   void validate(const ReplicasInfo&) const override;
 
  protected:
+  template <typename MessageT>
+  friend size_t sizeOfHeader();
+
 #pragma pack(push, 1)
   struct Header {
     MessageBase::Header header;

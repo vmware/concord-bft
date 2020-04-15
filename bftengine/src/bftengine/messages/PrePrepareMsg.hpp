@@ -26,7 +26,7 @@ class RequestsIterator;
 class PrePrepareMsg : public MessageBase {
  protected:
   template <typename MessageT>
-  friend MsgSize maxMessageSize();
+  friend size_t sizeOfHeader();
 
 #pragma pack(push, 1)
   struct Header {
@@ -101,7 +101,6 @@ class PrePrepareMsg : public MessageBase {
   // update view and first path
 
   void updateView(ViewNum v, CommitPath firstPath = CommitPath::SLOW);
-  std::string spanContext() const override;
   const std::string getClientCorrelationIdForMsg(int index) const;
   const std::string getBatchCorrelationIdAsString() const;
 

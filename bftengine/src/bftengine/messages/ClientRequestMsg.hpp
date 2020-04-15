@@ -55,7 +55,6 @@ class ClientRequestMsg : public MessageBase {
   uint64_t requestTimeoutMilli() const { return msgBody()->timeoutMilli; }
 
   std::string getCid() const;
-  std::string spanContext() const override;
   void validate(const ReplicasInfo&) const override;
 
  protected:
@@ -70,5 +69,10 @@ class ClientRequestMsg : public MessageBase {
                  const std::string& cid,
                  const std::string& spanContext);
 };  // namespace bftEngine::impl
+
+template <>
+inline size_t sizeOfHeader<ClientRequestMsg>() {
+  return sizeof(ClientRequestMsgHeader);
+}
 
 }  // namespace bftEngine::impl

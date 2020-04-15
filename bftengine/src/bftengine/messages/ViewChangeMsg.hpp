@@ -57,7 +57,6 @@ class ViewChangeMsg : public MessageBase {
 
   void getMsgDigest(Digest& outDigest) const;
 
-  std::string spanContext() const override { return std::string(body() + sizeof(Header), spanContextSize()); }
   void addElement(SeqNum seqNum,
                   const Digest& prePrepareDigest,
                   ViewNum originView,
@@ -93,6 +92,9 @@ class ViewChangeMsg : public MessageBase {
   };
 
  protected:
+  template <typename MessageT>
+  friend size_t sizeOfHeader();
+
 #pragma pack(push, 1)
   struct Header {
     MessageBase::Header header;
