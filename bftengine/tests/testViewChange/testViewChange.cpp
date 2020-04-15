@@ -200,7 +200,7 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
   for (int i = 0; i < kWorkWindowSize; i++) {
     if (i == assignedSeqNum - min) {
       Assert(!restrictions[i].isNull);
-      Assert(ppMsg->digestOfRequests().toString() == restrictions[i].digest.toString());
+      Assert(ppMsg->digestOfRequests().toString() == restrictions[assignedSeqNum - min].digest.toString());
     } else {
       Assert(restrictions[i].isNull);
     }
@@ -323,9 +323,9 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
   for (int i = 0; i < kWorkWindowSize; i++) {
     if (i == assignedSeqNum - min) {
       Assert(!restrictions[i].isNull);
-      // Assert the prepare certificate with higher view number is selected for assignedSeqNum
-      Assert(ppMsg2->digestOfRequests().toString() == restrictions[i].digest.toString());
       Assert(ppMsg2->digestOfRequests().toString() != ppMsg1->digestOfRequests().toString());
+      // Assert the prepare certificate with higher view number is selected for assignedSeqNum
+      Assert(ppMsg2->digestOfRequests().toString() == restrictions[assignedSeqNum - min].digest.toString());
     } else {
       Assert(restrictions[i].isNull);
     }
