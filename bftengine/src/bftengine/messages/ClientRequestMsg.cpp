@@ -44,7 +44,7 @@ ClientRequestMsg::ClientRequestMsg(NodeIdType sender,
                   MsgCode::ClientRequest,
                   spanContext.size(),
                   (sizeof(ClientRequestMsgHeader) + requestLength + cid.size())) {
-  setParams(sender, reqSeqNum, requestLength, flags, reqTimeoutMilli, cid, spanContext);
+  setParams(sender, reqSeqNum, requestLength, flags, reqTimeoutMilli, cid);
   char* position = body() + sizeof(ClientRequestMsgHeader);
   memcpy(position, spanContext.data(), spanContext.size());
   position += spanContext.size();
@@ -70,8 +70,7 @@ void ClientRequestMsg::setParams(NodeIdType sender,
                                  uint32_t requestLength,
                                  uint8_t flags,
                                  uint64_t reqTimeoutMilli,
-                                 const std::string& cid,
-                                 const std::string& spanContext) {
+                                 const std::string& cid) {
   msgBody()->idOfClientProxy = sender;
   msgBody()->timeoutMilli = reqTimeoutMilli;
   msgBody()->reqSeqNum = reqSeqNum;

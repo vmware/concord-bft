@@ -66,8 +66,7 @@ class ClientRequestMsg : public MessageBase {
                  uint32_t requestLength,
                  uint8_t flags,
                  uint64_t reqTimeoutMilli,
-                 const std::string& cid,
-                 const std::string& spanContext);
+                 const std::string& cid);
 };  // namespace bftEngine::impl
 
 template <>
