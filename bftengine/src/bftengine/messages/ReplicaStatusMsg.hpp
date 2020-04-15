@@ -77,7 +77,7 @@ class ReplicaStatusMsg : public MessageBase {
     uint8_t flags;
   };
 #pragma pack(pop)
-  static_assert(sizeof(Header) == (6 + 8 + 8 + 8 + 1), "Header is 30B");
+  static_assert(sizeof(Header) == (6 + 8 + 8 + 8 + 1), "Header is 31B");
 
   static MsgSize calcSizeOfReplicaStatusMsg(bool listOfPrePrepareMsgsInActiveWindow,
                                             bool listOfMissingViewChangeMsgForViewChange,
