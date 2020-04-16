@@ -16,6 +16,7 @@
 #include <string>
 #include <set>
 #include "ICommunication.hpp"
+#include <chrono>
 
 namespace bftEngine {
 // Parameters // TODO(GG): move to client configuration
@@ -73,6 +74,8 @@ class SeqNumberGeneratorForClientRequests {
   static SeqNumberGeneratorForClientRequests* createSeqNumberGeneratorForClientRequests();
 
   virtual uint64_t generateUniqueSequenceNumberForRequest() = 0;
+
+  virtual uint64_t generateUniqueSequenceNumberForRequest(std::chrono::time_point<std::chrono::system_clock> now) = 0;
 
   virtual ~SeqNumberGeneratorForClientRequests() = default;
 };
