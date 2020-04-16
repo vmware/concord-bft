@@ -16,16 +16,12 @@
 #include "messages/SignedShareMsgs.hpp"
 #include "ControllerWithSimpleHistory.hpp"
 #include <chrono>
+#include <algorithm>
 
 using namespace std::chrono;
 
 namespace bftEngine {
 namespace impl {
-
-static const uint32_t defaultTimeToStartSlowPathMilli = 150;  //  800;
-static const uint32_t minTimeToStartSlowPathMilli = 20;       // 100;
-static const uint32_t maxTimeToStartSlowPathMilli = 2000;
-static const float maxUpdateInTimeToStartSlowPath = 0.20F;
 
 ControllerWithSimpleHistory::ControllerWithSimpleHistory(
     uint16_t C, uint16_t F, ReplicaId replicaId, ViewNum initialView, SeqNum initialSeq)
@@ -93,18 +89,14 @@ bool ControllerWithSimpleHistory::onNewSeqNumberExecution(SeqNum n) {
   SeqNoInfo& s = recentActivity.get(n);
 
   Time now = getMonotonicTime();
-  auto duration = now - s.prePrepareTime;
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(now - s.prePrepareTime);
 
   const auto MAX_DURATION_MICRO = microseconds(2 * 1000 * 1000);
   const auto MIN_DURATION_MICRO = microseconds(100);
 
-  if (duration > MAX_DURATION_MICRO)
-    s.durationMicro_ = MAX_DURATION_MICRO;
-  else if (duration < MIN_DURATION_MICRO)
-    s.durationMicro_ = MIN_DURATION_MICRO;
+  s.durationMicro_ = normalizeToRange(MIN_DURATION_MICRO, MAX_DURATION_MICRO, duration);
 
-  // reset every 1000 rounds . TODO(GG): in config ?
-  if (n % 1000 == 0) avgAndStdOfExecTime.reset();
+  if (n % ResetOnSeqNum == 0) avgAndStdOfExecTime.reset();
 
   avgAndStdOfExecTime.add((double)s.durationMicro_.count());
 
@@ -199,27 +191,18 @@ bool ControllerWithSimpleHistory::onEndOfEvaluationPeriod() {
   const double execAvg = avgAndStdOfExecTime.avg();
   const double execVar = avgAndStdOfExecTime.var();
   const double execStd = ((execVar) > 0 ? sqrt(execVar) : 0);
-
   LOG_DEBUG_F(GL, "Execution time of recent rounds (micro) - avg=%f std=%f", execAvg, execStd);
 
   if (!downgraded) {
     // compute and update currentTimeToStartSlowPathMilli
-    const uint32_t relMin = (uint32_t)((1 - maxUpdateInTimeToStartSlowPath) * currentTimeToStartSlowPathMilli);
-    const uint32_t relMax = (uint32_t)((1 + maxUpdateInTimeToStartSlowPath) * currentTimeToStartSlowPathMilli);
+    const uint32_t relMin = relativeLowerBound(MaxUpdateInTimeToStartSlowPath, currentTimeToStartSlowPathMilli);
+    const uint32_t relMax = relativeUpperBound(MaxUpdateInTimeToStartSlowPath, currentTimeToStartSlowPathMilli);
 
     uint32_t newSlowPathTimeMilli = (uint32_t)((execAvg + 2 * execStd) / 1000);
 
-    if (newSlowPathTimeMilli < relMin)
-      newSlowPathTimeMilli = relMin;
-    else if (newSlowPathTimeMilli > relMax)
-      newSlowPathTimeMilli = relMax;
-
-    if (newSlowPathTimeMilli < minTimeToStartSlowPathMilli)
-      newSlowPathTimeMilli = minTimeToStartSlowPathMilli;
-    else if (newSlowPathTimeMilli > maxTimeToStartSlowPathMilli)
-      newSlowPathTimeMilli = maxTimeToStartSlowPathMilli;
-
-    currentTimeToStartSlowPathMilli = newSlowPathTimeMilli;
+    newSlowPathTimeMilli = normalizeToRange(relMin, relMax, newSlowPathTimeMilli);
+    currentTimeToStartSlowPathMilli =
+        normalizeToRange(MinTimeToStartSlowPathMilli, MaxTimeToStartSlowPathMilli, newSlowPathTimeMilli);
 
     LOG_DEBUG_F(GL, "currentTimeToStartSlowPathMilli = %d", (int)currentTimeToStartSlowPathMilli);
   }

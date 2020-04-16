@@ -29,7 +29,14 @@ namespace impl {
 // learns the average duration(with some fine tuning) of block execution.
 class ControllerWithSimpleHistory : public ControllerBase {
  public:
-  static const size_t EvaluationPeriod = 64;
+  static constexpr size_t EvaluationPeriod = 64;
+
+  // Parameters for adaptive tuning of slow path timer
+  static constexpr uint32_t MinTimeToStartSlowPathMilli = 20;
+  static constexpr uint32_t MaxTimeToStartSlowPathMilli = 2000;
+  static constexpr uint32_t ResetOnSeqNum = 1000;
+  static constexpr float MaxUpdateInTimeToStartSlowPath = 0.20F;
+  static constexpr uint32_t defaultTimeToStartSlowPathMilli = 150;
 
   ControllerWithSimpleHistory(uint16_t C, uint16_t F, ReplicaId replicaId, ViewNum initialView, SeqNum initialSeq);
 
@@ -65,6 +72,26 @@ class ControllerWithSimpleHistory : public ControllerBase {
 
   // Returns true in case a sequence number is within the range of the current window.
   bool insideActiveWindow(const SeqNum& n);
+
+  // Returns lower or upper bound, in case val is out of range, otherwise returns val.
+  template <typename T>
+  static const T& normalizeToRange(const T& lower, const T& upper, const T& val) {
+    if (val < lower) return lower;
+    if (val > upper) return upper;
+    return val;
+  }
+
+  // Defines a lower bound from a value (multiplied by `1-factor`).
+  template <typename T>
+  static float relativeLowerBound(const float& factor, const T& val) {
+    return ((1 - factor) * val);
+  }
+
+  // Defines an upper bound from a value (multiplied by `1+factor`).
+  template <typename T>
+  static float relativeUpperBound(const float& factor, const T& val) {
+    return ((1 + factor) * val);
+  }
 
   // Holds essential data about a request -
   //  - Timepoint of PrePrepare sending.
