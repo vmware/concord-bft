@@ -13,6 +13,8 @@
 
 #include "PersistentStorageWindows.hpp"
 
+static constexpr size_t EMPTY_MESSAGE_FLAG_SIZE = sizeof(bool);
+
 namespace bftEngine {
 namespace impl {
 
@@ -108,28 +110,24 @@ bool SeqNumData::equals(const SeqNumData &other) const {
 }
 
 uint32_t SeqNumData::maxSize() {
-  return (maxPrePrepareMsgSize() + maxFullCommitProofMsgSize() + maxPrepareFullMsgSize() + maxCommitFullMsgSize() +
-          sizeof(slowStarted_) + sizeof(forceCompleted_));
+  return maxPrePrepareMsgSize() + maxFullCommitProofMsgSize() + maxPrepareFullMsgSize() + maxCommitFullMsgSize() +
+         sizeof(slowStarted_) + sizeof(forceCompleted_);
 }
 
 uint32_t SeqNumData::maxPrePrepareMsgSize() {
-  bool msgEmptyFlag;
-  return (PrePrepareMsg::maxSizeOfPrePrepareMsgInLocalBuffer() + sizeof(msgEmptyFlag));
+  return maxMessageSizeInLocalBuffer<PrePrepareMsg>() + EMPTY_MESSAGE_FLAG_SIZE;
 }
 
 uint32_t SeqNumData::maxFullCommitProofMsgSize() {
-  bool msgEmptyFlag;
-  return (FullCommitProofMsg::maxSizeOfFullCommitProofMsgInLocalBuffer() + sizeof(msgEmptyFlag));
+  return maxMessageSizeInLocalBuffer<FullCommitProofMsg>() + EMPTY_MESSAGE_FLAG_SIZE;
 }
 
 uint32_t SeqNumData::maxPrepareFullMsgSize() {
-  bool msgEmptyFlag;
-  return (PrepareFullMsg::maxSizeOfPrepareFullInLocalBuffer() + sizeof(msgEmptyFlag));
+  return maxMessageSizeInLocalBuffer<PrepareFullMsg>() + EMPTY_MESSAGE_FLAG_SIZE;
 }
 
 uint32_t SeqNumData::maxCommitFullMsgSize() {
-  bool msgEmptyFlag;
-  return (CommitFullMsg::maxSizeOfCommitFullInLocalBuffer() + sizeof(msgEmptyFlag));
+  return maxMessageSizeInLocalBuffer<CommitFullMsg>() + EMPTY_MESSAGE_FLAG_SIZE;
 }
 
 /*****************************************************************************/
@@ -194,7 +192,7 @@ uint32_t CheckData::maxSize() { return (maxCheckpointMsgSize() + sizeof(complete
 
 uint32_t CheckData::maxCheckpointMsgSize() {
   bool msgEmptyFlag;
-  return (CheckpointMsg::maxSizeOfCheckpointMsgInLocalBuffer() + sizeof(msgEmptyFlag));
+  return maxMessageSizeInLocalBuffer<CheckpointMsg>() + sizeof(msgEmptyFlag);
 }
 
 }  // namespace impl

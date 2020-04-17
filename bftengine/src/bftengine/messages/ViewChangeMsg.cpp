@@ -266,9 +266,5 @@ bool ViewChangeMsg::ElementsIterator::goToAtLeast(SeqNum lowerBound) {
   return validElement;
 }
 
-MsgSize ViewChangeMsg::maxSizeOfViewChangeMsgInLocalBuffer() {
-  return maxMessageSize<ViewChangeMsg>() + sizeof(RawHeaderOfObjAndMsg);
-}
-
 }  // namespace impl
 }  // namespace bftEngine

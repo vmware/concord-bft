@@ -38,8 +38,8 @@ bool ViewsManager::PrevViewInfo::equals(const PrevViewInfo& other) const {
 }
 
 uint32_t ViewsManager::PrevViewInfo::maxSize() {
-  return (PrePrepareMsg::maxSizeOfPrePrepareMsgInLocalBuffer() + PrepareFullMsg::maxSizeOfPrepareFullInLocalBuffer() +
-          sizeof(hasAllRequests));
+  return maxMessageSizeInLocalBuffer<PrePrepareMsg>() + maxMessageSizeInLocalBuffer<PrepareFullMsg>() +
+         sizeof(hasAllRequests);
 }
 
 ViewsManager::ViewsManager(const ReplicasInfo* const r,

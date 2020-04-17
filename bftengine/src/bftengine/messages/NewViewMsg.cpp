@@ -101,9 +101,5 @@ bool NewViewMsg::includesViewChangeFromReplica(ReplicaId replicaId, const Digest
   return false;
 }
 
-MsgSize NewViewMsg::maxSizeOfNewViewMsgInLocalBuffer() {
-  return maxMessageSize<NewViewMsg>() + sizeof(RawHeaderOfObjAndMsg);
-}
-
 }  // namespace impl
 }  // namespace bftEngine

@@ -19,10 +19,6 @@ namespace bftEngine::impl {
 
 class AskForCheckpointMsg : public MessageBase {
  public:
-  static MsgSize maxSizeOfAskForCheckpointMsgInLocalBuffer() {
-    return maxMessageSize<AskForCheckpointMsg>() + sizeof(RawHeaderOfObjAndMsg);
-  }
-
   AskForCheckpointMsg(ReplicaId senderId, const std::string& spanContext = "")
       : MessageBase(senderId, MsgCode::AskForCheckpoint, spanContext.size(), sizeof(Header)) {
     char* position = body() + sizeof(Header);

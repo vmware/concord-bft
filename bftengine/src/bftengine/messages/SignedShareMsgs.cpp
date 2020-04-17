@@ -108,10 +108,6 @@ void PreparePartialMsg::validate(const ReplicasInfo& repInfo) const {
 // PrepareFullMsg
 ///////////////////////////////////////////////////////////////////////////////
 
-MsgSize PrepareFullMsg::maxSizeOfPrepareFullInLocalBuffer() {
-  return maxMessageSize<PrepareFullMsg>() + sizeof(RawHeaderOfObjAndMsg);
-}
-
 PrepareFullMsg* PrepareFullMsg::create(
     ViewNum v, SeqNum s, ReplicaId senderId, const char* sig, uint16_t sigLen, const std::string& spanContext) {
   return (PrepareFullMsg*)SignedShareBase::create(MsgCode::PrepareFull, v, s, senderId, sig, sigLen, spanContext);
@@ -145,10 +141,6 @@ void CommitPartialMsg::validate(const ReplicasInfo& repInfo) const {
 ///////////////////////////////////////////////////////////////////////////////
 // CommitFullMsg
 ///////////////////////////////////////////////////////////////////////////////
-
-MsgSize CommitFullMsg::maxSizeOfCommitFullInLocalBuffer() {
-  return maxMessageSize<CommitFullMsg>() + sizeof(RawHeaderOfObjAndMsg);
-}
 
 CommitFullMsg* CommitFullMsg::create(
     ViewNum v, SeqNum s, ReplicaId senderId, const char* sig, uint16_t sigLen, const std::string& spanContext) {

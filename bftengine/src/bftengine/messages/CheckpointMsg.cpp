@@ -36,9 +36,5 @@ void CheckpointMsg::validate(const ReplicasInfo& repInfo) const {
   // TODO(GG): consider to protect against messages that are larger than needed (here and in other messages)
 }
 
-MsgSize CheckpointMsg::maxSizeOfCheckpointMsgInLocalBuffer() {
-  return maxMessageSize<CheckpointMsg>() + sizeof(RawHeaderOfObjAndMsg);
-}
-
 }  // namespace impl
 }  // namespace bftEngine

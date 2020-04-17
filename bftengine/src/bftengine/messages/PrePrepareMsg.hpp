@@ -54,8 +54,6 @@ class PrePrepareMsg : public MessageBase {
  public:
   // static
 
-  static MsgSize maxSizeOfPrePrepareMsgInLocalBuffer();
-
   static PrePrepareMsg* createNullPrePrepareMsg(ReplicaId sender,
                                                 ViewNum v,
                                                 SeqNum s,

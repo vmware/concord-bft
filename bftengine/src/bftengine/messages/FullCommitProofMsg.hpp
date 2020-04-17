@@ -19,8 +19,6 @@ namespace impl {
 // TODO(GG): use SignedShareBase
 class FullCommitProofMsg : public MessageBase {
  public:
-  static MsgSize maxSizeOfFullCommitProofMsgInLocalBuffer();
-
   FullCommitProofMsg(ReplicaId senderId,
                      ViewNum v,
                      SeqNum s,
