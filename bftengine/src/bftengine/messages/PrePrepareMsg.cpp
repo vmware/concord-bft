@@ -26,10 +26,6 @@ static Digest nullDigest(0x18);
 // PrePrepareMsg
 ///////////////////////////////////////////////////////////////////////////////
 
-MsgSize PrePrepareMsg::maxSizeOfPrePrepareMsgInLocalBuffer() {
-  return maxMessageSize<PrePrepareMsg>() + sizeof(RawHeaderOfObjAndMsg);
-}
-
 PrePrepareMsg* PrePrepareMsg::createNullPrePrepareMsg(
     ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, const std::string& spanContext) {
   PrePrepareMsg* p = new PrePrepareMsg(sender, v, s, firstPath, spanContext, true);

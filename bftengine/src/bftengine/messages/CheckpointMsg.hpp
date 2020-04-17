@@ -19,8 +19,6 @@ namespace impl {
 
 class CheckpointMsg : public MessageBase {
  public:
-  static MsgSize maxSizeOfCheckpointMsgInLocalBuffer();
-
   CheckpointMsg(ReplicaId senderId,
                 SeqNum seqNum,
                 const Digest& stateDigest,

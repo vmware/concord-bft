@@ -40,8 +40,6 @@ class ViewChangeMsg : public MessageBase {
 
   ViewChangeMsg(ReplicaId srcReplicaId, ViewNum newView, SeqNum lastStableSeq, const std::string& spanContext = "");
 
-  static MsgSize maxSizeOfViewChangeMsgInLocalBuffer();
-
   void setNewViewNumber(ViewNum newView);
 
   uint16_t idOfGeneratedReplica() const {

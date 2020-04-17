@@ -99,6 +99,9 @@ class MessageBase {
   template <typename MessageT>
   friend MsgSize maxMessageSize();
 
+  template <typename MessageT>
+  friend MsgSize maxMessageSizeInLocalBuffer();
+
   static constexpr uint64_t SPAN_CONTEXT_MAX_SIZE{1024};
 #pragma pack(push, 1)
   struct RawHeaderOfObjAndMsg {
@@ -118,6 +121,11 @@ size_t sizeOfHeader() {
 template <typename MessageT>
 MsgSize maxMessageSize() {
   return sizeOfHeader<MessageT>() + MessageBase::SPAN_CONTEXT_MAX_SIZE;
+}
+
+template <typename MessageT>
+MsgSize maxMessageSizeInLocalBuffer() {
+  return maxMessageSize<MessageT>() + sizeof(MessageBase::RawHeaderOfObjAndMsg);
 }
 
 }  // namespace impl

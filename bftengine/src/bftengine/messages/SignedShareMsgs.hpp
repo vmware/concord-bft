@@ -99,7 +99,6 @@ class PrepareFullMsg : public SignedShareBase {
   friend MsgSize maxMessageSize();
 
  public:
-  static MsgSize maxSizeOfPrepareFullInLocalBuffer();
   static PrepareFullMsg* create(
       ViewNum v, SeqNum s, ReplicaId senderId, const char* sig, uint16_t sigLen, const std::string& spanContext = "");
   void validate(const ReplicasInfo&) const override;
@@ -140,7 +139,6 @@ class CommitFullMsg : public SignedShareBase {
   friend MsgSize maxMessageSize();
 
  public:
-  static MsgSize maxSizeOfCommitFullInLocalBuffer();
   static CommitFullMsg* create(
       ViewNum v, SeqNum s, ReplicaId senderId, const char* sig, uint16_t sigLen, const std::string& spanContext = "");
   void validate(const ReplicasInfo&) const override;

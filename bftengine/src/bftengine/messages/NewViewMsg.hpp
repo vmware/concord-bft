@@ -20,8 +20,6 @@ namespace impl {
 
 class NewViewMsg : public MessageBase {
  public:
-  static MsgSize maxSizeOfNewViewMsgInLocalBuffer();
-
   NewViewMsg(ReplicaId senderId, ViewNum newView, const std::string& spanContext = "");
 
   void addElement(ReplicaId replicaId, Digest& viewChangeDigest);

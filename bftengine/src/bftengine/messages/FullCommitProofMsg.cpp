@@ -40,9 +40,5 @@ void FullCommitProofMsg::validate(const ReplicasInfo& repInfo) const {
   // TODO(GG): TBD - check something about the collectors identity (and in other similar messages)
 }
 
-MsgSize FullCommitProofMsg::maxSizeOfFullCommitProofMsgInLocalBuffer() {
-  return maxMessageSize<FullCommitProofMsg>() + sizeof(RawHeaderOfObjAndMsg);
-}
-
 }  // namespace impl
 }  // namespace bftEngine
