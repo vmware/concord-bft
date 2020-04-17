@@ -22,7 +22,7 @@ namespace bftEngine::impl {
 static uint16_t getSender(const ClientRequestMsgHeader* r) { return r->idOfClientProxy; }
 
 static int32_t compRequestMsgSize(const ClientRequestMsgHeader* r) {
-  return (sizeof(ClientRequestMsgHeader) + r->requestLength + r->cid_length);
+  return (sizeof(ClientRequestMsgHeader) + r->spanContextSize + r->requestLength + r->cid_length);
 }
 
 uint32_t getRequestSizeTemp(const char* request)  // TODO(GG): change - TBD
@@ -38,10 +38,19 @@ ClientRequestMsg::ClientRequestMsg(NodeIdType sender,
                                    uint32_t requestLength,
                                    const char* request,
                                    uint64_t reqTimeoutMilli,
-                                   const std::string& cid)
-    : MessageBase(sender, MsgCode::ClientRequest, (sizeof(ClientRequestMsgHeader) + requestLength + cid.size())) {
-  setParams(sender, reqSeqNum, requestLength, flags, cid, reqTimeoutMilli);
-  memcpy(body() + sizeof(ClientRequestMsgHeader), request, requestLength);
+                                   const std::string& cid,
+                                   const std::string& spanContext)
+    : MessageBase(sender,
+                  MsgCode::ClientRequest,
+                  spanContext.size(),
+                  (sizeof(ClientRequestMsgHeader) + requestLength + cid.size())) {
+  setParams(sender, reqSeqNum, requestLength, flags, reqTimeoutMilli, cid);
+  char* position = body() + sizeof(ClientRequestMsgHeader);
+  memcpy(position, spanContext.data(), spanContext.size());
+  position += spanContext.size();
+  memcpy(position, request, requestLength);
+  position += requestLength;
+  memcpy(position, cid.data(), cid.size());
 }
 
 ClientRequestMsg::ClientRequestMsg(ClientRequestMsgHeader* body)
@@ -52,7 +61,7 @@ bool ClientRequestMsg::isReadOnly() const { return (msgBody()->flags & READ_ONLY
 void ClientRequestMsg::validate(const ReplicasInfo& repInfo) const {
   Assert(senderId() != repInfo.myId());
   if (size() < sizeof(ClientRequestMsgHeader) ||
-      size() < (sizeof(ClientRequestMsgHeader) + msgBody()->requestLength + msgBody()->cid_length))
+      size() < (sizeof(ClientRequestMsgHeader) + msgBody()->requestLength + msgBody()->cid_length + spanContextSize()))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
@@ -60,19 +69,19 @@ void ClientRequestMsg::setParams(NodeIdType sender,
                                  ReqId reqSeqNum,
                                  uint32_t requestLength,
                                  uint8_t flags,
-                                 const std::string& cid,
-                                 uint64_t reqTimeoutMilli) {
+                                 uint64_t reqTimeoutMilli,
+                                 const std::string& cid) {
   msgBody()->idOfClientProxy = sender;
   msgBody()->timeoutMilli = reqTimeoutMilli;
   msgBody()->reqSeqNum = reqSeqNum;
   msgBody()->requestLength = requestLength;
   msgBody()->flags = flags;
   msgBody()->cid_length = cid.size();
-  memcpy(body() + sizeof(ClientRequestMsgHeader) + requestLength, cid.c_str(), cid.size());
 }
 
 std::string ClientRequestMsg::getCid() const {
-  return std::string(body() + sizeof(ClientRequestMsgHeader) + msgBody()->requestLength, msgBody()->cid_length);
+  return std::string(body() + sizeof(ClientRequestMsgHeader) + msgBody()->requestLength + spanContextSize(),
+                     msgBody()->cid_length);
 }
 
 }  // namespace bftEngine::impl

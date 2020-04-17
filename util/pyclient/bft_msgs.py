@@ -32,7 +32,7 @@ MSG_TYPE_SIZE = struct.calcsize(MSG_TYPE_FMT)
 # Little Endian format with no padding
 # We don't include the msg type here, since we have to read it first to
 # understand what message is incoming.
-REQUEST_HEADER_FMT = "<HBQLQL"
+REQUEST_HEADER_FMT = "<LHBQLQL"
 REQUEST_HEADER_SIZE = struct.calcsize(REQUEST_HEADER_FMT)
 
 # The struct definition of the client reply msg header
@@ -42,21 +42,21 @@ REQUEST_HEADER_SIZE = struct.calcsize(REQUEST_HEADER_FMT)
 REPLY_HEADER_FMT = "<HQL"
 REPLY_HEADER_SIZE = struct.calcsize(REPLY_HEADER_FMT)
 
-RequestHeader = namedtuple('RequestHeader', ['client_id', 'flags',
+RequestHeader = namedtuple('RequestHeader', ['span_context_size', 'client_id', 'flags',
     'req_seq_num', 'length', 'timeout_milli', 'cid'])
 
 ReplyHeader = namedtuple('ReplyHeader', ['primary_id',
     'req_seq_num', 'length'])
 
-def pack_request(client_id, req_seq_num, read_only, timeout_milli, cid, msg, pre_process=False):
+def pack_request(client_id, req_seq_num, read_only, timeout_milli, cid, msg, pre_process=False, span_context=b''):
     """Create and return a buffer with a header and message"""
     flags = 0x0
     if read_only:
         flags = 0x1
     elif pre_process:
         flags = 0x2
-    header = RequestHeader(client_id, flags, req_seq_num, len(msg), timeout_milli, len(cid))
-    data = b''.join([pack_request_header(header), msg, cid.encode()])
+    header = RequestHeader(len(span_context), client_id, flags, req_seq_num, len(msg), timeout_milli, len(cid))
+    data = b''.join([pack_request_header(header), span_context, msg, cid.encode()])
     return data
 
 def pack_request_header(header, pre_process=False):
@@ -65,11 +65,21 @@ def pack_request_header(header, pre_process=False):
     return b''.join([struct.pack(MSG_TYPE_FMT, msg_type),
                      struct.pack(REQUEST_HEADER_FMT, *header)])
 
-def unpack_request(data, cid_size = 0):
+def unpack_request(data):
     """Take a buffer and return a pair of the RequestHeader and app data"""
+    header = unpack_request_header(data)
+
     start = MSG_TYPE_SIZE + REQUEST_HEADER_SIZE
-    end = len(data) - cid_size
-    return unpack_request_header(data), data[start:end], data[end:].decode()
+    end = start + header.span_context_size
+    span_context = data[start:end]
+
+    start = end
+    end = start + header.length
+    msg = data[start:end]
+
+    start = end
+    cid = data[start:].decode()
+    return header, span_context, msg, cid
 
 def unpack_request_header(data):
     """

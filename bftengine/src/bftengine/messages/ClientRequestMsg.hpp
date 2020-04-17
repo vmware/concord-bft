@@ -21,10 +21,10 @@ class ClientRequestMsg : public MessageBase {
   // TODO(GG): requests should always be verified by the application layer !!!
 
   static_assert((uint16_t)REQUEST_MSG_TYPE == (uint16_t)MsgCode::ClientRequest, "");
-  static_assert(sizeof(ClientRequestMsgHeader::msgType) == sizeof(MessageBase::Header), "");
+  static_assert(sizeof(ClientRequestMsgHeader::msgType) == sizeof(MessageBase::Header::msgType), "");
   static_assert(sizeof(ClientRequestMsgHeader::idOfClientProxy) == sizeof(NodeIdType), "");
   static_assert(sizeof(ClientRequestMsgHeader::reqSeqNum) == sizeof(ReqId), "");
-  static_assert(sizeof(ClientRequestMsgHeader) == 29, "ClientRequestMsgHeader size is 29B");
+  static_assert(sizeof(ClientRequestMsgHeader) == 33, "ClientRequestMsgHeader size is 21B");
 
   // TODO(GG): more asserts
 
@@ -35,7 +35,8 @@ class ClientRequestMsg : public MessageBase {
                    uint32_t requestLength,
                    const char* request,
                    uint64_t reqTimeoutMilli,
-                   const std::string& cid = "");
+                   const std::string& cid = "",
+                   const std::string& spanContext = "");
 
   ClientRequestMsg(ClientRequestMsgHeader* body);
 
@@ -49,7 +50,7 @@ class ClientRequestMsg : public MessageBase {
 
   uint32_t requestLength() const { return msgBody()->requestLength; }
 
-  char* requestBuf() const { return body() + sizeof(ClientRequestMsgHeader); }
+  char* requestBuf() const { return body() + sizeof(ClientRequestMsgHeader) + spanContextSize(); }
 
   uint64_t requestTimeoutMilli() const { return msgBody()->timeoutMilli; }
 
@@ -64,8 +65,13 @@ class ClientRequestMsg : public MessageBase {
                  ReqId reqSeqNum,
                  uint32_t requestLength,
                  uint8_t flags,
-                 const std::string& cid,
-                 uint64_t reqTimeoutMilli);
-};
+                 uint64_t reqTimeoutMilli,
+                 const std::string& cid);
+};  // namespace bftEngine::impl
+
+template <>
+inline size_t sizeOfHeader<ClientRequestMsg>() {
+  return sizeof(ClientRequestMsgHeader);
+}
 
 }  // namespace bftEngine::impl

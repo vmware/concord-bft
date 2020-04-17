@@ -16,29 +16,32 @@
 namespace bftEngine {
 namespace impl {
 
-FullCommitProofMsg::FullCommitProofMsg(
-    ReplicaId senderId, ViewNum v, SeqNum s, const char* commitProofSig, uint16_t commitProofSigLength)
-    : MessageBase(senderId, MsgCode::FullCommitProof, sizeof(FullCommitProofMsgHeader) + commitProofSigLength) {
+FullCommitProofMsg::FullCommitProofMsg(ReplicaId senderId,
+                                       ViewNum v,
+                                       SeqNum s,
+                                       const char* commitProofSig,
+                                       uint16_t commitProofSigLength,
+                                       const std::string& spanContext)
+    : MessageBase(senderId, MsgCode::FullCommitProof, spanContext.size(), sizeof(Header) + commitProofSigLength) {
   b()->viewNum = v;
   b()->seqNum = s;
   b()->thresholSignatureLength = commitProofSigLength;
-  memcpy(body() + sizeof(FullCommitProofMsgHeader), commitProofSig, commitProofSigLength);
+  auto position = body() + sizeof(Header);
+  memcpy(position, spanContext.data(), spanContext.size());
+  position += spanContext.size();
+  memcpy(position, commitProofSig, commitProofSigLength);
 }
 
 void FullCommitProofMsg::validate(const ReplicasInfo& repInfo) const {
-  if (size() < sizeof(FullCommitProofMsgHeader) || senderId() == repInfo.myId() || !repInfo.isIdOfReplica(senderId()) ||
-      size() < (sizeof(FullCommitProofMsgHeader) + thresholSignatureLength()))
+  if (size() < sizeof(Header) || senderId() == repInfo.myId() || !repInfo.isIdOfReplica(senderId()) ||
+      size() < (sizeof(Header) + thresholSignatureLength() + spanContextSize()))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 
   // TODO(GG): TBD - check something about the collectors identity (and in other similar messages)
 }
 
-MsgSize FullCommitProofMsg::maxSizeOfFullCommitProofMsg() {
-  return sizeof(FullCommitProofMsgHeader) + maxSizeOfCombinedSignature;
-}
-
 MsgSize FullCommitProofMsg::maxSizeOfFullCommitProofMsgInLocalBuffer() {
-  return maxSizeOfFullCommitProofMsg() + sizeof(RawHeaderOfObjAndMsg);
+  return maxMessageSize<FullCommitProofMsg>() + sizeof(RawHeaderOfObjAndMsg);
 }
 
 }  // namespace impl

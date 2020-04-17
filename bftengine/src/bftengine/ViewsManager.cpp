@@ -504,14 +504,8 @@ ViewChangeMsg* ViewsManager::exitFromCurrentView(SeqNum currentLastStable,
       Assert(s == pf->seqNumber());
       Assert(pf->viewNumber() == myLatestActiveView);
 
-      myNewVC->addElement(*replicasInfo,
-                          s,
-                          digest,
-                          myLatestActiveView,
-                          true,
-                          myLatestActiveView,
-                          pf->signatureLen(),
-                          pf->signatureBody());
+      myNewVC->addElement(
+          s, digest, myLatestActiveView, true, myLatestActiveView, pf->signatureLen(), pf->signatureBody());
     } else if ((preparedCertInPrev != nullptr) && allRequests) {
       // if we have a prepared certificate from previous VC + we didn't find a
       // conflicted pre-prepare-digest
@@ -523,8 +517,7 @@ ViewChangeMsg* ViewsManager::exitFromCurrentView(SeqNum currentLastStable,
 
       char* sig = reinterpret_cast<char*>(preparedCertInPrev) + sizeof(ViewChangeMsg::PreparedCertificate);
 
-      myNewVC->addElement(*replicasInfo,
-                          s,
+      myNewVC->addElement(s,
                           digest,
                           myLatestActiveView,
                           true,
@@ -535,7 +528,7 @@ ViewChangeMsg* ViewsManager::exitFromCurrentView(SeqNum currentLastStable,
       // we don't add null-operation to a VC message, because our default for
       // non-safe operations is null-operation (notice that, in the above
       // lines, we still may add prepared certificate for null-op)
-      myNewVC->addElement(*replicasInfo, s, digest, myLatestActiveView, false, 0, 0, nullptr);
+      myNewVC->addElement(s, digest, myLatestActiveView, false, 0, 0, nullptr);
     } else {
       Assert((s > currentLastExecuted) || (pp->isNull()));
     }

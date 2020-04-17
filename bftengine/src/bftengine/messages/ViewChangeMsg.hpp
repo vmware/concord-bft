@@ -14,6 +14,7 @@
 #include "MessageBase.hpp"
 #include "Digest.hpp"
 #include "ReplicasInfo.hpp"
+#include "ReplicaConfig.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -37,9 +38,8 @@ class ViewChangeMsg : public MessageBase {
   static_assert(sizeof(Element) == (8 + DIGEST_SIZE + 8 + 1), "Element (View Change) is 49B");
   static_assert(sizeof(PreparedCertificate) == (8 + 2), "PreparedCertificate is 10B");
 
-  ViewChangeMsg(ReplicaId srcReplicaId, ViewNum newView, SeqNum lastStableSeq);
+  ViewChangeMsg(ReplicaId srcReplicaId, ViewNum newView, SeqNum lastStableSeq, const std::string& spanContext = "");
 
-  static MsgSize maxSizeOfViewChangeMsg();
   static MsgSize maxSizeOfViewChangeMsgInLocalBuffer();
 
   void setNewViewNumber(ViewNum newView);
@@ -57,8 +57,7 @@ class ViewChangeMsg : public MessageBase {
 
   void getMsgDigest(Digest& outDigest) const;
 
-  void addElement(const ReplicasInfo& repInfo,
-                  SeqNum seqNum,
+  void addElement(SeqNum seqNum,
                   const Digest& prePrepareDigest,
                   ViewNum originView,
                   bool hasPreparedCertificate,
@@ -93,8 +92,11 @@ class ViewChangeMsg : public MessageBase {
   };
 
  protected:
+  template <typename MessageT>
+  friend size_t sizeOfHeader();
+
 #pragma pack(push, 1)
-  struct ViewChangeMsgHeader {
+  struct Header {
     MessageBase::Header header;
     ReplicaId genReplicaId;  // the replica that originally generated this message
     ViewNum newView;         // the new view
@@ -105,12 +107,17 @@ class ViewChangeMsg : public MessageBase {
                                  // followed by a signature (by genReplicaId)
   };
 #pragma pack(pop)
-  static_assert(sizeof(ViewChangeMsgHeader) == (2 + 2 + 8 + 8 + 2 + 2), "ViewChangeMsgHeader is 24B");
+  static_assert(sizeof(Header) == (6 + 2 + 8 + 8 + 2 + 2), "Header is 30B");
 
-  ViewChangeMsgHeader* b() const { return ((ViewChangeMsgHeader*)msgBody_); }
+  Header* b() const { return ((Header*)msgBody_); }
 
   bool checkElements(uint16_t sigSize) const;
 };
+
+template <>
+inline MsgSize maxMessageSize<ViewChangeMsg>() {
+  return ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize() + MessageBase::SPAN_CONTEXT_MAX_SIZE;
+}
 
 }  // namespace impl
 }  // namespace bftEngine

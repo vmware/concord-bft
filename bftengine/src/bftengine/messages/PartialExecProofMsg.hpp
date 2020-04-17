@@ -22,7 +22,12 @@ namespace impl {
 // TODO(GG): use SignedShareBase
 class PartialExecProofMsg : public MessageBase {
  public:
-  PartialExecProofMsg(ReplicaId senderId, ViewNum v, SeqNum s, Digest& digest, IThresholdSigner* thresholdSigner);
+  PartialExecProofMsg(ReplicaId senderId,
+                      ViewNum v,
+                      SeqNum s,
+                      Digest& digest,
+                      IThresholdSigner* thresholdSigner,
+                      const std::string& spanContext = "");
 
   ViewNum viewNumber() const { return b()->viewNum; }
 
@@ -30,13 +35,16 @@ class PartialExecProofMsg : public MessageBase {
 
   uint16_t thresholSignatureLength() const { return b()->thresholSignatureLength; }
 
-  const char* thresholSignature() { return body() + sizeof(PartialExecProofMsgHeader); }
+  const char* thresholSignature() { return body() + sizeof(Header) + spanContextSize(); }
 
   void validate(const ReplicasInfo&) const override;
 
  protected:
+  template <typename MessageT>
+  friend size_t sizeOfHeader();
+
 #pragma pack(push, 1)
-  struct PartialExecProofMsgHeader {
+  struct Header {
     MessageBase::Header header;
     ViewNum viewNum;
     SeqNum seqNum;
@@ -44,9 +52,9 @@ class PartialExecProofMsg : public MessageBase {
     // followed by a signature
   };
 #pragma pack(pop)
-  static_assert(sizeof(PartialExecProofMsgHeader) == (2 + 8 + 8 + 2), "PartialExecProofMsgHeader is 20B");
+  static_assert(sizeof(Header) == (6 + 8 + 8 + 2), "Header is 24B");
 
-  PartialExecProofMsgHeader* b() const { return (PartialExecProofMsgHeader*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_; }
 };
 
 }  // namespace impl

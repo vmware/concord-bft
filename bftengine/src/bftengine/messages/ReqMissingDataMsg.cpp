@@ -10,23 +10,25 @@
 // file.
 
 #include "ReqMissingDataMsg.hpp"
+#include <cstring>
 #include "assertUtils.hpp"
 #include "Crypto.hpp"
 
 namespace bftEngine {
 namespace impl {
 
-ReqMissingDataMsg::ReqMissingDataMsg(ReplicaId senderId, ViewNum v, SeqNum s)
-    : MessageBase(senderId, MsgCode::ReqMissingData, sizeof(ReqMissingDataMsgHeader)) {
+ReqMissingDataMsg::ReqMissingDataMsg(ReplicaId senderId, ViewNum v, SeqNum s, const std::string spanContext)
+    : MessageBase(senderId, MsgCode::ReqMissingData, spanContext.size(), sizeof(Header)) {
   b()->viewNum = v;
   b()->seqNum = s;
   resetFlags();
+  std::memcpy(body() + sizeof(Header), spanContext.data(), spanContext.size());
 }
 
-void ReqMissingDataMsg::resetFlags() { b()->flags = 0; }
+void ReqMissingDataMsg::resetFlags() { b()->flags.flags = 0; }
 
 void ReqMissingDataMsg::validate(const ReplicasInfo& repInfo) const {
-  if (size() < sizeof(ReqMissingDataMsgHeader) ||
+  if (size() < sizeof(Header) + spanContextSize() ||
       senderId() ==
           repInfo.myId() ||  // TODO(GG) - TBD: we should use Assert for this condition (also in other messages)
       !repInfo.isIdOfReplica(senderId()))

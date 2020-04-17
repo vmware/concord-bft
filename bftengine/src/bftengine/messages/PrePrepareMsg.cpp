@@ -13,7 +13,6 @@
 #include "PrePrepareMsg.hpp"
 #include "SysConsts.hpp"
 #include "Crypto.hpp"
-#include "ReplicaConfig.hpp"
 #include "ClientRequestMsg.hpp"
 
 namespace bftEngine {
@@ -27,16 +26,13 @@ static Digest nullDigest(0x18);
 // PrePrepareMsg
 ///////////////////////////////////////////////////////////////////////////////
 
-MsgSize PrePrepareMsg::maxSizeOfPrePrepareMsg() {
-  return ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize();
-}
-
 MsgSize PrePrepareMsg::maxSizeOfPrePrepareMsgInLocalBuffer() {
-  return maxSizeOfPrePrepareMsg() + sizeof(RawHeaderOfObjAndMsg);
+  return maxMessageSize<PrePrepareMsg>() + sizeof(RawHeaderOfObjAndMsg);
 }
 
-PrePrepareMsg* PrePrepareMsg::createNullPrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath) {
-  PrePrepareMsg* p = new PrePrepareMsg(sender, v, s, firstPath, true);
+PrePrepareMsg* PrePrepareMsg::createNullPrePrepareMsg(
+    ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, const std::string& spanContext) {
+  PrePrepareMsg* p = new PrePrepareMsg(sender, v, s, firstPath, spanContext, true);
   return p;
 }
 
@@ -45,8 +41,8 @@ const Digest& PrePrepareMsg::digestOfNullPrePrepareMsg() { return nullDigest; }
 void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
   Assert(senderId() != repInfo.myId());
 
-  if (size() < sizeof(PrePrepareMsgHeader) ||  // header size
-      !repInfo.isIdOfReplica(senderId()))      // sender
+  if (size() < sizeof(Header) + spanContextSize() ||  // header size
+      !repInfo.isIdOfReplica(senderId()))             // sender
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic"));
   // NB: the actual expected sender is verified outside this class (because in some cases, during view-change protocol,
   // this message may sent by a non-primary replica to the primary replica).
@@ -77,11 +73,21 @@ void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
 }
 
 PrePrepareMsg::PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, bool isNull, size_t size)
-    : MessageBase(
-          sender,
-          MsgCode::PrePrepare,
-          (((size + sizeof(PrePrepareMsgHeader)) < maxSizeOfPrePrepareMsg()) ? (size + sizeof(PrePrepareMsgHeader))
-                                                                             : maxSizeOfPrePrepareMsg()))
+    : PrePrepareMsg(sender, v, s, firstPath, "", isNull, size) {}
+
+PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
+                             ViewNum v,
+                             SeqNum s,
+                             CommitPath firstPath,
+                             const std::string& spanContext,
+                             bool isNull,
+                             size_t size)
+    : MessageBase(sender,
+                  MsgCode::PrePrepare,
+                  spanContext.size(),
+                  (((size + sizeof(Header)) < maxMessageSize<PrePrepareMsg>())
+                       ? (size + sizeof(Header))
+                       : maxMessageSize<PrePrepareMsg>() - spanContext.size()))
 
 {
   b()->viewNum = v;
@@ -96,18 +102,21 @@ PrePrepareMsg::PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath f
     b()->digestOfRequests = nullDigest;
 
   b()->numberOfRequests = 0;
-  b()->endLocationOfLastRequest = sizeof(PrePrepareMsgHeader);
+  b()->endLocationOfLastRequest = payloadShift();
+
+  char* position = body() + sizeof(Header);
+  memcpy(position, spanContext.data(), b()->header.spanContextSize);
 }
 
 uint32_t PrePrepareMsg::remainingSizeForRequests() const {
   Assert(!isReady());
   Assert(!isNull());
-  Assert(b()->endLocationOfLastRequest >= sizeof(PrePrepareMsgHeader));
+  Assert(b()->endLocationOfLastRequest >= payloadShift());
 
   return (internalStorageSize() - b()->endLocationOfLastRequest);
 }
 
-void PrePrepareMsg::addRequest(char* pRequest, uint32_t requestSize) {
+void PrePrepareMsg::addRequest(const char* pRequest, uint32_t requestSize) {
   Assert(getRequestSizeTemp(pRequest) == requestSize);
   Assert(!isNull());
   Assert(!isReady());
@@ -117,15 +126,15 @@ void PrePrepareMsg::addRequest(char* pRequest, uint32_t requestSize) {
 
   memcpy(insertPtr, pRequest, requestSize);
 
-  b()->endLocationOfLastRequest = b()->endLocationOfLastRequest + requestSize;
-  b()->numberOfRequests = b()->numberOfRequests + 1;
+  b()->endLocationOfLastRequest += requestSize;
+  b()->numberOfRequests++;
 }
 
 void PrePrepareMsg::finishAddingRequests() {
   Assert(!isNull());
   Assert(!isReady());
   Assert(b()->numberOfRequests > 0);
-  Assert(b()->endLocationOfLastRequest > sizeof(PrePrepareMsgHeader));
+  Assert(b()->endLocationOfLastRequest > payloadShift());
   Assert(b()->digestOfRequests.isZero());
 
   // check requests (for debug - consider to remove)
@@ -177,9 +186,9 @@ int16_t PrePrepareMsg::computeFlagsForPrePrepareMsg(bool isNull, bool isReady, C
 bool PrePrepareMsg::checkRequests() const {
   uint16_t remainReqs = b()->numberOfRequests;
 
-  if (remainReqs == 0) return (b()->endLocationOfLastRequest == sizeof(PrePrepareMsgHeader));
+  if (remainReqs == 0) return (b()->endLocationOfLastRequest == payloadShift());
 
-  uint32_t i = sizeof(PrePrepareMsgHeader);
+  uint32_t i = payloadShift();
 
   if (i >= b()->endLocationOfLastRequest) return false;
 
@@ -224,16 +233,17 @@ const std::string PrePrepareMsg::getBatchCorrelationIdAsString() const {
   return ret;
 }
 
+uint32_t PrePrepareMsg::payloadShift() const { return sizeof(Header) + b()->header.spanContextSize; }
+
 ///////////////////////////////////////////////////////////////////////////////
 // RequestsIterator
 ///////////////////////////////////////////////////////////////////////////////
 
-RequestsIterator::RequestsIterator(const PrePrepareMsg* const m)
-    : msg{m}, currLoc{sizeof(PrePrepareMsg::PrePrepareMsgHeader)} {
+RequestsIterator::RequestsIterator(const PrePrepareMsg* const m) : msg{m}, currLoc{m->payloadShift()} {
   Assert(msg->isReady());
 }
 
-void RequestsIterator::restart() { currLoc = sizeof(PrePrepareMsg::PrePrepareMsgHeader); }
+void RequestsIterator::restart() { currLoc = msg->payloadShift(); }
 
 bool RequestsIterator::getCurrent(char*& pRequest) const {
   if (end()) return false;

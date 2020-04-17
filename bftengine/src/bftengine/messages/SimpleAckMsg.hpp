@@ -34,16 +34,16 @@ class SimpleAckMsg : public MessageBase {
 
  protected:
 #pragma pack(push, 1)
-  struct SimpleAckMsgHeader {
+  struct Header {
     MessageBase::Header header;
     SeqNum seqNum;
     ViewNum viewNum;
     uint64_t ackData;
   };
 #pragma pack(pop)
-  static_assert(sizeof(SimpleAckMsgHeader) == (2 + 8 + 8 + 8), "SimpleAckMsgHeader is 26B");
+  static_assert(sizeof(Header) == (6 + 8 + 8 + 8), "Header is 30B");
 
-  SimpleAckMsgHeader* b() const { return (SimpleAckMsgHeader*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_; }
 };
 
 }  // namespace impl

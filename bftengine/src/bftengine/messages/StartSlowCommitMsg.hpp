@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <locale>
+#include <string>
 #include "MessageBase.hpp"
 
 namespace bftEngine {
@@ -18,7 +20,7 @@ namespace impl {
 
 class StartSlowCommitMsg : public MessageBase {
  public:
-  StartSlowCommitMsg(ReplicaId senderId, ViewNum v, SeqNum s);
+  StartSlowCommitMsg(ReplicaId senderId, ViewNum v, SeqNum s, const std::string& spanContext = "");
 
   ViewNum viewNumber() const { return b()->viewNum; }
 
@@ -27,16 +29,19 @@ class StartSlowCommitMsg : public MessageBase {
   void validate(const ReplicasInfo&) const override;
 
  protected:
+  template <typename MessageT>
+  friend size_t sizeOfHeader();
+
 #pragma pack(push, 1)
-  struct StartSlowCommitMsgHeader {
+  struct Header {
     MessageBase::Header header;
     ViewNum viewNum;
     SeqNum seqNum;
   };
 #pragma pack(pop)
-  static_assert(sizeof(StartSlowCommitMsgHeader) == (2 + 8 + 8), "StartSlowCommitMsgHeader is 12B");
+  static_assert(sizeof(Header) == (6 + 8 + 8), "Header is 16B");
 
-  StartSlowCommitMsgHeader* b() const { return (StartSlowCommitMsgHeader*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_; }
 };
 
 }  // namespace impl

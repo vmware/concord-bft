@@ -28,20 +28,29 @@ class TestPackUnpack(unittest.TestCase):
         self.assertEqual(msg, unpacked_msg)
 
     def test_unpack_request(self):
-        msg = b'hello'
         client_id = 4
         req_seq_num = 1
         read_only = True
         timeout_milli = 5000
+        span_context = b'span context'
+        msg = b'hello'
         cid = str(req_seq_num)
-        packed = bft_msgs.pack_request(client_id, req_seq_num, read_only, timeout_milli, cid, msg)
-        (header, unpacked_msg, cid_) = bft_msgs.unpack_request(packed, len(cid))
-        self.assertEqual(cid, cid_)
+
+        packed = bft_msgs.pack_request(client_id, req_seq_num, read_only,
+                                timeout_milli, cid, msg, pre_process=False, span_context=span_context)
+        header, unpacked_span_context, unpacked_msg, unpacked_cid = bft_msgs.unpack_request(packed)
+
+        self.assertEqual(len(span_context), header.span_context_size)
         self.assertEqual(client_id, header.client_id)
         self.assertEqual(1, header.flags) # read_only = True
         self.assertEqual(req_seq_num, header.req_seq_num)
+        self.assertEqual(len(msg), header.length)
         self.assertEqual(timeout_milli, header.timeout_milli)
+        self.assertEqual(len(cid), header.cid)
+
+        self.assertEqual(span_context, unpacked_span_context)
         self.assertEqual(msg, unpacked_msg)
+        self.assertEqual(cid, unpacked_cid)
 
     def test_expect_msg_error(self):
         data = b'someinvalidmsg'

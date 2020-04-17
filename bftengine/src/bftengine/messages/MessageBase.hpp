@@ -19,19 +19,24 @@
 namespace bftEngine {
 namespace impl {
 
+template <typename MessageT>
+size_t sizeOfHeader();
+
 class MessageBase {
  public:
 #pragma pack(push, 1)
   struct Header {
     MsgType msgType;
+    SpanContextSize spanContextSize = 0u;
   };
 #pragma pack(pop)
 
-  static_assert(sizeof(Header) == 2, "MessageBase::Header is 2B");
+  static_assert(sizeof(Header) == 6, "MessageBase::Header is 6B");
 
   explicit MessageBase(NodeIdType sender);
 
   MessageBase(NodeIdType sender, MsgType type, MsgSize size);
+  MessageBase(NodeIdType sender, MsgType type, SpanContextSize spanContextSize, MsgSize size);
 
   MessageBase(NodeIdType sender, Header *body, MsgSize size, bool ownerOfStorage);
 
@@ -45,7 +50,7 @@ class MessageBase {
 
   bool equals(const MessageBase &other) const;
 
-  static size_t serializeMsg(char *&buf, MessageBase *msg);
+  static size_t serializeMsg(char *&buf, const MessageBase *msg);
   static MessageBase *deserializeMsg(char *&buf, size_t bufLen, size_t &actualSize);
 
   MsgSize size() const { return msgSize_; }
@@ -56,17 +61,23 @@ class MessageBase {
 
   MsgType type() const { return msgBody_->msgType; }
 
+  SpanContextSize spanContextSize() const { return msgBody_->spanContextSize; }
+
+  template <typename MessageT>
+  std::string spanContext() const {
+    return std::string(body() + sizeOfHeader<MessageT>(), spanContextSize());
+  }
+
   MessageBase *cloneObjAndMsg() const;
 
-  void writeObjAndMsgToLocalBuffer(char *buffer, size_t bufferLength, size_t *actualSize) const;
   size_t sizeNeededForObjAndMsgInLocalBuffer() const;
-  static MessageBase *createObjAndMsgFromLocalBuffer(char *buffer, size_t bufferLength, size_t *actualSize);
-
 #ifdef DEBUG_MEMORY_MSG
   static void printLiveMessages();
 #endif
 
  protected:
+  void writeObjAndMsgToLocalBuffer(char *buffer, size_t bufferLength, size_t *actualSize) const;
+  static MessageBase *createObjAndMsgFromLocalBuffer(char *buffer, size_t bufferLength, size_t *actualSize);
   void shrinkToFit();
 
   void setMsgSize(MsgSize size);
@@ -80,8 +91,15 @@ class MessageBase {
   NodeIdType sender_;
   // true IFF this instance is not responsible for de-allocating the body:
   bool owner_ = true;
-  static const uint32_t magicNumOfRawFormat = 0x5555897BU;
+  static constexpr uint32_t magicNumOfRawFormat = 0x5555897BU;
 
+  template <typename MessageT>
+  friend size_t sizeOfHeader();
+
+  template <typename MessageT>
+  friend MsgSize maxMessageSize();
+
+  static constexpr uint64_t SPAN_CONTEXT_MAX_SIZE{1024};
 #pragma pack(push, 1)
   struct RawHeaderOfObjAndMsg {
     uint32_t magicNum;
@@ -91,6 +109,16 @@ class MessageBase {
   };
 #pragma pack(pop)
 };
+
+template <typename MessageT>
+size_t sizeOfHeader() {
+  return sizeof(typename MessageT::Header);
+}
+
+template <typename MessageT>
+MsgSize maxMessageSize() {
+  return sizeOfHeader<MessageT>() + MessageBase::SPAN_CONTEXT_MAX_SIZE;
+}
 
 }  // namespace impl
 }  // namespace bftEngine

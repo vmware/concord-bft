@@ -183,8 +183,7 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
   viewChangeMsgs[2] = new ViewChangeMsg(2, futureView, lastStableSeqNum);
   viewChangeMsgs[3] = new ViewChangeMsg(3, futureView, lastStableSeqNum);
 
-  viewChangeMsgs[2]->addElement(*pRepInfo,
-                                assignedSeqNum,
+  viewChangeMsgs[2]->addElement(assignedSeqNum,
                                 ppMsg->digestOfRequests(),
                                 ppMsg->viewNumber(),
                                 true,
@@ -295,8 +294,7 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
 
   // Add the first Prepare Certificate which we expect to be ignored
   // to the View Change Msg from Replica 2
-  viewChangeMsgs[2]->addElement(*pRepInfo,
-                                assignedSeqNum,
+  viewChangeMsgs[2]->addElement(assignedSeqNum,
                                 ppMsg1->digestOfRequests(),
                                 ppMsg1->viewNumber(),
                                 true,
@@ -306,8 +304,7 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
 
   // Add the second Prepare Certificate which we expect to be considered in the next view
   // to the View Change Msg from Replica 3
-  viewChangeMsgs[3]->addElement(*pRepInfo,
-                                assignedSeqNum,
+  viewChangeMsgs[3]->addElement(assignedSeqNum,
                                 ppMsg2->digestOfRequests(),
                                 ppMsg2->viewNumber(),
                                 true,

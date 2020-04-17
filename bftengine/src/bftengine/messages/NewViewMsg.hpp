@@ -13,16 +13,16 @@
 
 #include "MessageBase.hpp"
 #include "Digest.hpp"
+#include "ReplicaConfig.hpp"
 
 namespace bftEngine {
 namespace impl {
 
 class NewViewMsg : public MessageBase {
  public:
-  static MsgSize maxSizeOfNewViewMsg();
   static MsgSize maxSizeOfNewViewMsgInLocalBuffer();
 
-  NewViewMsg(ReplicaId senderId, ViewNum newView);
+  NewViewMsg(ReplicaId senderId, ViewNum newView, const std::string& spanContext = "");
 
   void addElement(ReplicaId replicaId, Digest& viewChangeDigest);
 
@@ -37,14 +37,17 @@ class NewViewMsg : public MessageBase {
   const uint16_t elementsCount() const;
 
  protected:
+  template <typename MessageT>
+  friend size_t sizeOfHeader();
+
 #pragma pack(push, 1)
-  struct NewViewMsgHeader {
+  struct Header {
     MessageBase::Header header;
 
     ViewNum newViewNum;  // the new view
 
     uint16_t elementsCount;  // TODO(GG): remove from header
-                             // followed by a sequnce of 2f+2c+1 instances of NewViewElement
+                             // followed by a sequnce of 2f+2c+1 instances of Header
   };
 
   struct NewViewElement {
@@ -53,11 +56,17 @@ class NewViewMsg : public MessageBase {
   };
 #pragma pack(pop)
 
-  static_assert(sizeof(NewViewMsgHeader) == (2 + 8 + 2), "NewViewMsgHeader is 12B");
-  static_assert(sizeof(NewViewElement) == (2 + DIGEST_SIZE), "NewViewElement is 34B");
+  static_assert(sizeof(Header) == (6 + 8 + 2), "Header is 16B");
+  static_assert(sizeof(NewViewElement) == (2 + DIGEST_SIZE), "Header is 34B");
 
-  NewViewMsgHeader* b() const { return (NewViewMsgHeader*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_; }
+  NewViewElement* elementsArray() const;
 };
+
+template <>
+inline MsgSize maxMessageSize<NewViewMsg>() {
+  return ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize() + MessageBase::SPAN_CONTEXT_MAX_SIZE;
+}
 
 }  // namespace impl
 }  // namespace bftEngine

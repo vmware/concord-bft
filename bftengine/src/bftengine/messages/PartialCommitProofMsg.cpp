@@ -17,11 +17,17 @@
 namespace bftEngine {
 namespace impl {
 
-PartialCommitProofMsg::PartialCommitProofMsg(
-    ReplicaId senderId, ViewNum v, SeqNum s, CommitPath commitPath, Digest& digest, IThresholdSigner* thresholdSigner)
+PartialCommitProofMsg::PartialCommitProofMsg(ReplicaId senderId,
+                                             ViewNum v,
+                                             SeqNum s,
+                                             CommitPath commitPath,
+                                             Digest& digest,
+                                             IThresholdSigner* thresholdSigner,
+                                             const std::string& spanContext)
     : MessageBase(senderId,
                   MsgCode::PartialCommitProof,
-                  sizeof(PartialCommitProofMsgHeader) + thresholdSigner->requiredLengthForSignedData()) {
+                  spanContext.size(),
+                  sizeof(Header) + thresholdSigner->requiredLengthForSignedData()) {
   uint16_t thresholSignatureLength = (uint16_t)thresholdSigner->requiredLengthForSignedData();
 
   b()->viewNum = v;
@@ -29,17 +35,20 @@ PartialCommitProofMsg::PartialCommitProofMsg(
   b()->commitPath = commitPath;
   b()->thresholSignatureLength = thresholSignatureLength;
 
-  thresholdSigner->signData(
-      (const char*)(&(digest)), sizeof(Digest), body() + sizeof(PartialCommitProofMsgHeader), thresholSignatureLength);
+  char* position = body() + sizeof(Header);
+  memcpy(position, spanContext.data(), spanContext.size());
+
+  position = position + spanContext.size();
+  thresholdSigner->signData((const char*)(&(digest)), sizeof(Digest), position, thresholSignatureLength);
 }
 
 void PartialCommitProofMsg::validate(const ReplicasInfo& repInfo) const {
-  if (size() < sizeof(PartialCommitProofMsgHeader) ||
+  if (size() < sizeof(Header) + spanContextSize() ||
       senderId() ==
           repInfo.myId() ||  // TODO(GG) - TBD: we should use Assert for this condition (also in other messages)
       !repInfo.isIdOfReplica(senderId()) ||
       ((commitPath() == CommitPath::FAST_WITH_THRESHOLD) && (repInfo.cVal() == 0)) ||
-      commitPath() == CommitPath::SLOW || size() < (sizeof(PartialCommitProofMsgHeader) + thresholSignatureLength()) ||
+      commitPath() == CommitPath::SLOW || size() < (sizeof(Header) + thresholSignatureLength() + spanContextSize()) ||
       !repInfo.isCollectorForPartialProofs(viewNumber(), seqNumber()))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }

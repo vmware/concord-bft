@@ -24,7 +24,8 @@ class ReplicaStatusMsg : public MessageBase {
                    bool hasNewChangeMsg,
                    bool listOfPrePrepareMsgsInActiveWindow,
                    bool listOfMissingViewChangeMsgForViewChange,
-                   bool listOfMissingPrePrepareMsgForViewChange);
+                   bool listOfMissingPrePrepareMsgForViewChange,
+                   const std::string& spanContext = "");
 
   ViewNum getViewNumber() const;
 
@@ -57,8 +58,11 @@ class ReplicaStatusMsg : public MessageBase {
   void validate(const ReplicasInfo&) const override;
 
  protected:
+  template <typename MessageT>
+  friend size_t sizeOfHeader();
+
 #pragma pack(push, 1)
-  struct ReplicaStatusMsgHeader {
+  struct Header {
     MessageBase::Header header;
     ViewNum viewNumber;
     SeqNum lastStableSeqNum;
@@ -73,13 +77,15 @@ class ReplicaStatusMsg : public MessageBase {
     uint8_t flags;
   };
 #pragma pack(pop)
-  static_assert(sizeof(ReplicaStatusMsgHeader) == (2 + 8 + 8 + 8 + 1), "ReplicaStatusMsgHeader is 27B");
+  static_assert(sizeof(Header) == (6 + 8 + 8 + 8 + 1), "Header is 31B");
 
   static MsgSize calcSizeOfReplicaStatusMsg(bool listOfPrePrepareMsgsInActiveWindow,
                                             bool listOfMissingViewChangeMsgForViewChange,
                                             bool listOfMissingPrePrepareMsgForViewChange);
 
-  ReplicaStatusMsgHeader* b() const { return (ReplicaStatusMsgHeader*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_; }
+
+  size_t payloadShift() const { return sizeof(Header) + spanContextSize(); }
 };
 }  // namespace impl
 }  // namespace bftEngine

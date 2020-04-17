@@ -20,7 +20,7 @@ namespace impl {
 // TODO(GG): rename class
 class ClientReplyMsg : public MessageBase {
   static_assert((uint16_t)REPLY_MSG_TYPE == (uint16_t)MsgCode::ClientReply, "");
-  static_assert(sizeof(ClientReplyMsgHeader::msgType) == sizeof(MessageBase::Header), "");
+  static_assert(sizeof(ClientReplyMsgHeader::msgType) == sizeof(MessageBase::Header::msgType), "");
   static_assert(sizeof(ClientReplyMsgHeader::reqSeqNum) == sizeof(ReqId), "");
   static_assert(sizeof(ClientReplyMsgHeader::currentPrimaryId) == sizeof(ReplicaId), "");
   static_assert(sizeof(ClientReplyMsgHeader) == 16, "ClientRequestMsgHeader is 16B");

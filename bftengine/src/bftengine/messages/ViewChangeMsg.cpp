@@ -10,24 +10,30 @@
 // file.
 
 #include <string.h>
+#include <cstring>
 
 #include "assertUtils.hpp"
 #include "ViewChangeMsg.hpp"
 #include "Crypto.hpp"
-#include "ReplicaConfig.hpp"
 #include "ViewsManager.hpp"
 
 namespace bftEngine {
 namespace impl {
 
-ViewChangeMsg::ViewChangeMsg(ReplicaId srcReplicaId, ViewNum newView, SeqNum lastStableSeq)
-    : MessageBase(
-          srcReplicaId, MsgCode::ViewChange, ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize()) {
+ViewChangeMsg::ViewChangeMsg(ReplicaId srcReplicaId,
+                             ViewNum newView,
+                             SeqNum lastStableSeq,
+                             const std::string& spanContext)
+    : MessageBase(srcReplicaId,
+                  MsgCode::ViewChange,
+                  spanContext.size(),
+                  ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize() - spanContext.size()) {
   b()->genReplicaId = srcReplicaId;
   b()->newView = newView;
   b()->lastStable = lastStableSeq;
   b()->numberOfElements = 0;
   b()->locationAfterLast = 0;
+  std::memcpy(body() + sizeof(Header), spanContext.data(), spanContext.size());
 }
 
 void ViewChangeMsg::setNewViewNumber(ViewNum newView) {
@@ -37,12 +43,11 @@ void ViewChangeMsg::setNewViewNumber(ViewNum newView) {
 
 void ViewChangeMsg::getMsgDigest(Digest& outDigest) const {
   size_t bodySize = b()->locationAfterLast;
-  if (bodySize == 0) bodySize = sizeof(ViewChangeMsgHeader);
+  if (bodySize == 0) bodySize = sizeof(Header) + spanContextSize();
   DigestUtil::compute(body(), bodySize, (char*)outDigest.content(), sizeof(Digest));
 }
 
-void ViewChangeMsg::addElement(const ReplicasInfo& repInfo,
-                               SeqNum seqNum,
+void ViewChangeMsg::addElement(SeqNum seqNum,
                                const Digest& prePrepareDigest,
                                ViewNum originView,
                                bool hasPreparedCertificate,
@@ -57,7 +62,7 @@ void ViewChangeMsg::addElement(const ReplicasInfo& repInfo,
   if (b()->locationAfterLast == 0)  // if this is the first element
   {
     Assert(b()->numberOfElements == 0);
-    b()->locationAfterLast = sizeof(ViewChangeMsgHeader);
+    b()->locationAfterLast = sizeof(Header) + spanContextSize();
   }
 
   uint16_t requiredSpace = b()->locationAfterLast + sizeof(Element);
@@ -89,7 +94,7 @@ void ViewChangeMsg::addElement(const ReplicasInfo& repInfo,
 
 void ViewChangeMsg::finalizeMessage() {
   size_t bodySize = b()->locationAfterLast;
-  if (bodySize == 0) bodySize = sizeof(ViewChangeMsgHeader);
+  if (bodySize == 0) bodySize = sizeof(Header) + spanContextSize();
 
   uint16_t sigSize = ViewsManager::sigManager_->getMySigLength();
 
@@ -104,12 +109,12 @@ void ViewChangeMsg::finalizeMessage() {
 }
 
 void ViewChangeMsg::validate(const ReplicasInfo& repInfo) const {
-  if (size() < sizeof(ViewChangeMsgHeader) || !repInfo.isIdOfReplica(idOfGeneratedReplica()) ||
+  if (size() < sizeof(Header) + spanContextSize() || !repInfo.isIdOfReplica(idOfGeneratedReplica()) ||
       idOfGeneratedReplica() == repInfo.myId())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
 
   uint16_t dataLength = b()->locationAfterLast;
-  if (dataLength < sizeof(ViewChangeMsgHeader)) dataLength = sizeof(ViewChangeMsgHeader);
+  if (dataLength < sizeof(Header)) dataLength = sizeof(Header);
   uint16_t sigLen = ViewsManager::sigManager_->getSigLength(idOfGeneratedReplica());
 
   if (size() < (dataLength + sigLen)) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": size"));
@@ -122,8 +127,8 @@ void ViewChangeMsg::validate(const ReplicasInfo& repInfo) const {
 bool ViewChangeMsg::checkElements(uint16_t sigSize) const {
   SeqNum lastSeqNumInMsg = lastStable();
   uint16_t numOfActualElements = 0;
-  uint16_t remainingBytes = size() - sigSize - sizeof(ViewChangeMsgHeader);
-  char* currLoc = body() + sizeof(ViewChangeMsgHeader);
+  uint16_t remainingBytes = size() - sigSize - sizeof(Header) - spanContextSize();
+  char* currLoc = body() + sizeof(Header) + spanContextSize();
 
   while ((remainingBytes >= sizeof(Element)) && (numOfActualElements < numberOfElements())) {
     numOfActualElements++;
@@ -177,7 +182,7 @@ ViewChangeMsg::ElementsIterator::ElementsIterator(const ViewChangeMsg* const m) 
     nextElementNum = 1;
   } else {
     endLoc = m->b()->locationAfterLast;
-    currLoc = sizeof(ViewChangeMsgHeader);
+    currLoc = sizeof(Header) + m->spanContextSize();
     Assert(endLoc > currLoc);
     nextElementNum = 1;
   }
@@ -261,12 +266,8 @@ bool ViewChangeMsg::ElementsIterator::goToAtLeast(SeqNum lowerBound) {
   return validElement;
 }
 
-MsgSize ViewChangeMsg::maxSizeOfViewChangeMsg() {
-  return ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize();
-}
-
 MsgSize ViewChangeMsg::maxSizeOfViewChangeMsgInLocalBuffer() {
-  return maxSizeOfViewChangeMsg() + sizeof(RawHeaderOfObjAndMsg);
+  return maxMessageSize<ViewChangeMsg>() + sizeof(RawHeaderOfObjAndMsg);
 }
 
 }  // namespace impl

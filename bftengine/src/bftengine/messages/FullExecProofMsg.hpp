@@ -26,7 +26,8 @@ class FullExecProofMsg : public MessageBase {
                    const char* root,
                    uint16_t rootLength,
                    const char* executionProof,
-                   uint16_t proofLength);
+                   uint16_t proofLength,
+                   const std::string& spanContext = "");
 
   FullExecProofMsg(ReplicaId senderId,
                    NodeIdType clientId,
@@ -35,7 +36,8 @@ class FullExecProofMsg : public MessageBase {
                    const char* root,
                    uint16_t rootLength,
                    const char* readProof,
-                   uint16_t proofLength);
+                   uint16_t proofLength,
+                   const std::string& spanContext = "");
 
   bool isReady() const { return (b()->isNotReady == 0); }
 
@@ -49,20 +51,23 @@ class FullExecProofMsg : public MessageBase {
 
   uint16_t signatureLength() { return b()->signatureLength; }
   const char* signature() {
-    return body() + sizeof(FullExecProofMsgHeader) + b()->merkleRootLength + b()->executionProofLength;
+    return body() + sizeof(Header) + spanContextSize() + b()->merkleRootLength + b()->executionProofLength;
   }
 
   uint16_t rootLength() { return b()->merkleRootLength; }
-  const char* root() { return body() + sizeof(FullExecProofMsgHeader); }
+  const char* root() { return body() + sizeof(Header) + spanContextSize(); }
 
   uint16_t executionProofLength() { return b()->executionProofLength; }
-  const char* executionProof() { return body() + sizeof(FullExecProofMsgHeader) + b()->merkleRootLength; }
+  const char* executionProof() { return body() + sizeof(Header) + spanContextSize() + b()->merkleRootLength; }
 
   void validate(const ReplicasInfo&) const override;
 
  protected:
+  template <typename MessageT>
+  friend size_t sizeOfHeader();
+
 #pragma pack(push, 1)
-  struct FullExecProofMsgHeader {
+  struct Header {
     MessageBase::Header header;
     NodeIdType idOfClient;
     ReqId requestId;      // requestId==0, for read-only operations
@@ -76,9 +81,9 @@ class FullExecProofMsg : public MessageBase {
     // 3. signature (signatureLength bytes)
   };
 #pragma pack(pop)
-  static_assert(sizeof(FullExecProofMsgHeader) == (2 + 2 + 8 + 2 + 2 + 2 + 2), "FullExecProofMsgHeader is 20B");
+  static_assert(sizeof(Header) == (6 + 2 + 8 + 2 + 2 + 2 + 2), "Header is 24B");
 
-  FullExecProofMsgHeader* b() const { return (FullExecProofMsgHeader*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_; }
 };
 
 }  // namespace impl

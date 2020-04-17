@@ -19,11 +19,13 @@ namespace impl {
 
 class CheckpointMsg : public MessageBase {
  public:
-  static MsgSize maxSizeOfCheckpointMsg();
-
   static MsgSize maxSizeOfCheckpointMsgInLocalBuffer();
 
-  CheckpointMsg(ReplicaId senderId, SeqNum seqNum, const Digest& stateDigest, bool stateIsStable);
+  CheckpointMsg(ReplicaId senderId,
+                SeqNum seqNum,
+                const Digest& stateDigest,
+                bool stateIsStable,
+                const std::string& spanContext = "");
 
   SeqNum seqNumber() const { return b()->seqNum; }
 
@@ -33,22 +35,23 @@ class CheckpointMsg : public MessageBase {
 
   void setStateAsStable() { b()->flags |= 0x1; }
 
-  CheckpointMsg* clone();
-
   void validate(const ReplicasInfo& repInfo) const override;
 
  protected:
+  template <typename MessageT>
+  friend size_t sizeOfHeader();
+
 #pragma pack(push, 1)
-  struct CheckpointMsgHeader {
+  struct Header {
     MessageBase::Header header;
     SeqNum seqNum;
     Digest stateDigest;
     uint8_t flags;
   };
 #pragma pack(pop)
-  static_assert(sizeof(CheckpointMsgHeader) == (2 + 8 + DIGEST_SIZE + 1), "CheckpointMsgHeader is 43B");
+  static_assert(sizeof(Header) == (6 + 8 + DIGEST_SIZE + 1), "Header is 47B");
 
-  CheckpointMsgHeader* b() const { return (CheckpointMsgHeader*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_; }
 };
 }  // namespace impl
 }  // namespace bftEngine

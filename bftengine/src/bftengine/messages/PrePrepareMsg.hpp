@@ -11,12 +11,13 @@
 
 #pragma once
 
-#include <stdint.h>
+#include <cstdint>
 
 #include "PrimitiveTypes.hpp"
 #include "assertUtils.hpp"
 #include "Digest.hpp"
 #include "MessageBase.hpp"
+#include "ReplicaConfig.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -24,8 +25,11 @@ class RequestsIterator;
 
 class PrePrepareMsg : public MessageBase {
  protected:
+  template <typename MessageT>
+  friend size_t sizeOfHeader();
+
 #pragma pack(push, 1)
-  struct PrePrepareMsgHeader {
+  struct Header {
     MessageBase::Header header;
     ViewNum viewNum;
     SeqNum seqNum;
@@ -42,21 +46,21 @@ class PrePrepareMsg : public MessageBase {
     // 10 = SLOW) bits 4-15: zero
   };
 #pragma pack(pop)
-  static_assert(sizeof(PrePrepareMsgHeader) == (2 + 8 + 8 + 2 + DIGEST_SIZE + 2 + 4), "PrePrepareMsgHeader is 58B");
+  static_assert(sizeof(Header) == (6 + 8 + 8 + 2 + DIGEST_SIZE + 2 + 4), "Header is 62B");
 
-  static const size_t prePrepareHeaderPrefix = sizeof(PrePrepareMsgHeader) -
-                                               sizeof(PrePrepareMsgHeader::numberOfRequests) -
-                                               sizeof(PrePrepareMsgHeader::endLocationOfLastRequest);
+  static const size_t prePrepareHeaderPrefix =
+      sizeof(Header) - sizeof(Header::numberOfRequests) - sizeof(Header::endLocationOfLastRequest);
 
  public:
   // static
 
-  static MsgSize maxSizeOfPrePrepareMsg();
-
   static MsgSize maxSizeOfPrePrepareMsgInLocalBuffer();
 
-  static PrePrepareMsg* createNullPrePrepareMsg(
-      ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath = CommitPath::SLOW);  // TODO(GG): why static method ?
+  static PrePrepareMsg* createNullPrePrepareMsg(ReplicaId sender,
+                                                ViewNum v,
+                                                SeqNum s,
+                                                CommitPath firstPath = CommitPath::SLOW,
+                                                const std::string& spanContext = "");  // TODO(GG): why static method ?
 
   static const Digest& digestOfNullPrePrepareMsg();
 
@@ -66,9 +70,17 @@ class PrePrepareMsg : public MessageBase {
 
   PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, bool isNull = false, size_t size = 0);
 
+  PrePrepareMsg(ReplicaId sender,
+                ViewNum v,
+                SeqNum s,
+                CommitPath firstPath,
+                const std::string& spanContext,
+                bool isNull,
+                size_t size = 0);
+
   uint32_t remainingSizeForRequests() const;
 
-  void addRequest(char* pRequest, uint32_t requestSize);
+  void addRequest(const char* pRequest, uint32_t requestSize);
 
   void finishAddingRequests();
 
@@ -89,7 +101,6 @@ class PrePrepareMsg : public MessageBase {
   // update view and first path
 
   void updateView(ViewNum v, CommitPath firstPath = CommitPath::SLOW);
-
   const std::string getClientCorrelationIdForMsg(int index) const;
   const std::string getBatchCorrelationIdAsString() const;
 
@@ -100,8 +111,9 @@ class PrePrepareMsg : public MessageBase {
 
   bool checkRequests() const;
 
-  PrePrepareMsgHeader* b() const { return (PrePrepareMsgHeader*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_; }
 
+  uint32_t payloadShift() const;
   friend class RequestsIterator;
 };
 
@@ -123,5 +135,11 @@ class RequestsIterator {
   const PrePrepareMsg* const msg;
   uint32_t currLoc;
 };
+
+template <>
+inline MsgSize maxMessageSize<PrePrepareMsg>() {
+  return ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize() + MessageBase::SPAN_CONTEXT_MAX_SIZE;
+}
+
 }  // namespace impl
 }  // namespace bftEngine

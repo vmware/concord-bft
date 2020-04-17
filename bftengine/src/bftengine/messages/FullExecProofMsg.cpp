@@ -23,9 +23,10 @@ FullExecProofMsg::FullExecProofMsg(ReplicaId senderId,
                                    const char* root,
                                    uint16_t rootLength,
                                    const char* executionProof,
-                                   uint16_t proofLength)
+                                   uint16_t proofLength,
+                                   const std::string& spanContext)
     : MessageBase(
-          senderId, MsgCode::FullExecProof, sizeof(FullExecProofMsgHeader) + sigLength + rootLength + proofLength) {
+          senderId, MsgCode::FullExecProof, spanContext.size(), sizeof(Header) + sigLength + rootLength + proofLength) {
   b()->isNotReady = 1;  // message is not ready
   b()->idOfClient = clientId;
   b()->requestId = requestId;
@@ -33,8 +34,12 @@ FullExecProofMsg::FullExecProofMsg(ReplicaId senderId,
   b()->merkleRootLength = rootLength;
   b()->executionProofLength = proofLength;
 
-  memcpy(body() + sizeof(FullExecProofMsgHeader), root, rootLength);
-  memcpy(body() + sizeof(FullExecProofMsgHeader) + rootLength, executionProof, proofLength);
+  auto position = body() + sizeof(Header);
+  memcpy(position, spanContext.data(), spanContext.size());
+  position += spanContext.size();
+  memcpy(position, root, rootLength);
+  position += rootLength;
+  memcpy(position, executionProof, proofLength);
 }
 
 FullExecProofMsg::FullExecProofMsg(ReplicaId senderId,
@@ -44,9 +49,10 @@ FullExecProofMsg::FullExecProofMsg(ReplicaId senderId,
                                    const char* root,
                                    uint16_t rootLength,
                                    const char* readProof,
-                                   uint16_t proofLength)
+                                   uint16_t proofLength,
+                                   const std::string& spanContext)
     : MessageBase(
-          senderId, MsgCode::FullExecProof, sizeof(FullExecProofMsgHeader) + sigLength + rootLength + proofLength) {
+          senderId, MsgCode::FullExecProof, spanContext.size(), sizeof(Header) + sigLength + rootLength + proofLength) {
   b()->isNotReady = 0;  // message is ready
   b()->idOfClient = clientId;
   b()->requestId = 0;
@@ -54,15 +60,24 @@ FullExecProofMsg::FullExecProofMsg(ReplicaId senderId,
   b()->merkleRootLength = rootLength;
   b()->executionProofLength = proofLength;
 
-  memcpy(body() + sizeof(FullExecProofMsgHeader), root, rootLength);
-  memcpy(body() + sizeof(FullExecProofMsgHeader) + rootLength, readProof, proofLength);
-  memcpy(body() + sizeof(FullExecProofMsgHeader) + rootLength + proofLength, sig, sigLength);
+  auto position = body() + sizeof(Header);
+  memcpy(position, spanContext.data(), spanContext.size());
+  position += spanContext.size();
+
+  memcpy(position, root, rootLength);
+  position += rootLength;
+
+  memcpy(position, readProof, proofLength);
+  position += proofLength;
+
+  memcpy(position, sig, sigLength);
 }
 
 void FullExecProofMsg::setSignature(const char* sig, uint16_t sigLength) {
   Assert(b()->signatureLength >= sigLength);
 
-  memcpy(body() + sizeof(FullExecProofMsgHeader) + b()->merkleRootLength + b()->executionProofLength, sig, sigLength);
+  memcpy(
+      body() + sizeof(Header) + spanContextSize() + b()->merkleRootLength + b()->executionProofLength, sig, sigLength);
 
   b()->signatureLength = sigLength;
 
@@ -70,7 +85,7 @@ void FullExecProofMsg::setSignature(const char* sig, uint16_t sigLength) {
 }
 
 void FullExecProofMsg::validate(const ReplicasInfo&) const {
-  if (size() < sizeof(FullExecProofMsgHeader)) throw std::runtime_error(__PRETTY_FUNCTION__);
+  if (size() < sizeof(Header) + spanContextSize()) throw std::runtime_error(__PRETTY_FUNCTION__);
 
   // TODO(GG)
 }
