@@ -423,8 +423,7 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_one_i
 
   // Add the first Prepare Certificate
   // to the View Change Msg from Replica 1
-  viewChangeMsgs[0]->addElement(*pRepInfo,
-                                assignedSeqNum,
+  viewChangeMsgs[0]->addElement(assignedSeqNum,
                                 ppMsg1->digestOfRequests(),
                                 ppMsg1->viewNumber(),
                                 true,
@@ -434,8 +433,7 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_one_i
 
   // Add the second Prepare Certificate
   // to the View Change Msg from Replica 3
-  viewChangeMsgs[3]->addElement(*pRepInfo,
-                                assignedSeqNumIgnored,
+  viewChangeMsgs[3]->addElement(assignedSeqNumIgnored,
                                 ppMsg2->digestOfRequests(),
                                 ppMsg2->viewNumber(),
                                 true,
