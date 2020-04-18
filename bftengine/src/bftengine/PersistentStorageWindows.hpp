@@ -36,6 +36,8 @@ enum SeqNumDataParameters {
 };
 
 class SeqNumData {
+  static constexpr size_t EMPTY_MESSAGE_FLAG_SIZE = sizeof(bool);
+
  public:
   SeqNumData(PrePrepareMsg *prePrepare,
              FullCommitProofMsg *fullCommitProof,
@@ -89,10 +91,10 @@ class SeqNumData {
   static uint8_t deserializeOneByte(char *&buf);
   static SeqNumData deserialize(char *buf, uint32_t bufLen, uint32_t &actualSize);
   static uint32_t maxSize();
-  static uint32_t maxPrePrepareMsgSize();
-  static uint32_t maxFullCommitProofMsgSize();
-  static uint32_t maxPrepareFullMsgSize();
-  static uint32_t maxCommitFullMsgSize();
+  template <typename MessageT>
+  static uint32_t maxMessageSize() {
+    return maxMessageSizeInLocalBuffer<MessageT>() + EMPTY_MESSAGE_FLAG_SIZE;
+  }
   static constexpr uint16_t getNumOfParams() { return SEQ_NUM_LAST_PARAM; }
 
  private:
