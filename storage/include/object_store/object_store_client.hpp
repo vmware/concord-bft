@@ -22,35 +22,39 @@ class ObjectStoreClient : public IDBClient {
 
   ObjectStoreClient(IDBClient* impl) : pImpl_(impl) {}
 
-  void init(bool readOnly) { return pImpl_->init(readOnly); }
+  void init(bool readOnly) override { return pImpl_->init(readOnly); }
 
-  Status get(const Sliver& _key, OUT Sliver& _outValue) const { return pImpl_->get(_key, _outValue); }
+  Status get(const Sliver& _key, OUT Sliver& _outValue) const override { return pImpl_->get(_key, _outValue); }
 
-  Status get(const Sliver& _key, OUT char*& buf, uint32_t bufSize, OUT uint32_t& _size) const {
+  Status get(const Sliver& _key, OUT char*& buf, uint32_t bufSize, OUT uint32_t& _size) const override {
     return pImpl_->get(_key, buf, bufSize, _size);
   }
 
-  Status put(const Sliver& _key, const Sliver& _value) { return pImpl_->put(_key, _value); }
+  Status put(const Sliver& _key, const Sliver& _value) override { return pImpl_->put(_key, _value); }
 
-  Status del(const Sliver& _key) { return pImpl_->del(_key); }
+  Status del(const Sliver& _key) override { return pImpl_->del(_key); }
 
-  Status multiGet(const KeysVector& _keysVec, OUT ValuesVector& _valuesVec) {
+  Status multiGet(const KeysVector& _keysVec, OUT ValuesVector& _valuesVec) override {
     return pImpl_->multiGet(_keysVec, _valuesVec);
   }
 
-  Status multiPut(const SetOfKeyValuePairs& _keyValueMap) { return pImpl_->multiPut(_keyValueMap); }
+  Status multiPut(const SetOfKeyValuePairs& _keyValueMap) override { return pImpl_->multiPut(_keyValueMap); }
 
-  Status multiDel(const KeysVector& _keysVec) { return pImpl_->multiDel(_keysVec); }
+  Status multiDel(const KeysVector& _keysVec) override { return pImpl_->multiDel(_keysVec); }
 
-  bool isNew() { return pImpl_->isNew(); }
+  bool isNew() override { return pImpl_->isNew(); }
 
-  IDBClient::IDBClientIterator* getIterator() const { return pImpl_->getIterator(); }
+  IDBClient::IDBClientIterator* getIterator() const override { return pImpl_->getIterator(); }
 
-  Status freeIterator(IDBClientIterator* _iter) const { return pImpl_->freeIterator(_iter); }
+  Status freeIterator(IDBClientIterator* _iter) const override { return pImpl_->freeIterator(_iter); }
 
-  ITransaction* beginTransaction() { return pImpl_->beginTransaction(); }
+  ITransaction* beginTransaction() override { return pImpl_->beginTransaction(); }
 
-  Status has(const Sliver& key) const { return pImpl_->has(key); }
+  Status has(const Sliver& key) const override { return pImpl_->has(key); }
+
+  Status rangeDel(const Sliver& _beginKey, const Sliver& _endKey) override {
+    return pImpl_->rangeDel(_beginKey, _endKey);
+  }
 
  protected:
   std::shared_ptr<IDBClient> pImpl_ = nullptr;

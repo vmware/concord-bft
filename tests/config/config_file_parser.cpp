@@ -28,6 +28,7 @@
 #include <fstream>
 #include <algorithm>
 #include <cstring>
+#include "string.hpp"
 
 using std::string;
 using std::getline;
@@ -45,34 +46,39 @@ bool ConfigFileParser::Parse() {
   while (stream) {
     string value, tmp;
     getline(stream, tmp, end_of_line_);
+    // get rid of leading and trailing spaces
+    concord::util::trim_inplace(tmp);
     if (tmp[0] == comment_delimiter_)  // Ignore comments.
       continue;
-    // Get rid of spaces.
-    tmp.erase(remove_if(tmp.begin(), tmp.end(), isspace), tmp.end());
+
     if (tmp.empty())  // Skip empty lines.
       continue;
-    size_t valueDelimiterPos = tmp.find_first_of(value_delimiter_);
-    if (valueDelimiterPos != string::npos) {
-      value = tmp.substr(valueDelimiterPos + 1, tmp.size() - valueDelimiterPos);
+
+    if (tmp[0] == value_delimiter_) {  // of the form '- value'
+      value = tmp.substr(tmp[1]);
+      concord::util::ltrim_inplace(tmp);
       if (!key.empty())
         parameters_map_.insert(pair<string, string>(key, value));
-      else
-        LOG_WARN(logger_, "Wrong key/value sequence; ignore");
-      continue;
+      else {
+        LOG_FATAL(logger_, "not found key for value " << value);
+        return false;
+      }
     }
     size_t keyDelimiterPos = tmp.find_first_of(key_delimiter_);
     if (keyDelimiterPos != string::npos) {
       key = tmp.substr(0, keyDelimiterPos);
       if (tmp.size() > key.size() + 1) {
         // Handle simple key-value pair.
-        value = tmp.substr(key.size() + 1, tmp.size() - key.size());
+        value = tmp.substr(keyDelimiterPos + 1);
+        concord::util::rtrim_inplace(key);
+        concord::util::ltrim_inplace(value);
         parameters_map_.insert(pair<string, string>(key, value));
       }
       continue;
     }
   }
   stream.close();
-  LOG_INFO(logger_, "File: " << file_name_ << " successfully parsed.");
+  LOG_DEBUG(logger_, "File: " << file_name_ << " successfully parsed.");
   return true;
 }
 
@@ -85,11 +91,11 @@ size_t ConfigFileParser::Count(const string key) {
 vector<string> ConfigFileParser::GetValues(const string key) {
   vector<string> values;
   pair<ParamsMultiMapIt, ParamsMultiMapIt> range = parameters_map_.equal_range(key);
-  LOG_INFO(logger_, "getValues() for key: " << key);
+  LOG_DEBUG(logger_, "getValues() for key: " << key);
   if (range.first != parameters_map_.end()) {
     for (auto it = range.first; it != range.second; ++it) {
       values.push_back(it->second);
-      LOG_INFO(logger_, "value: " << it->second);
+      LOG_DEBUG(logger_, "value: " << it->second);
     }
   }
   return values;

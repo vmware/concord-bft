@@ -21,6 +21,10 @@
 #include "MetricsServer.hpp"
 #include "config/test_parameters.hpp"
 
+#ifdef USE_S3_OBJECT_STORE
+#include "s3/client.hpp"
+#endif
+
 namespace concord::storage {
 class IDBClient;
 }
@@ -45,20 +49,25 @@ class TestSetup {
             std::unique_ptr<bftEngine::ICommunication> comm,
             concordlogger::Logger logger,
             uint16_t metrics_port,
-            bool use_persistent_storage)
+            bool use_persistent_storage,
+            std::string s3ConfigFile)
       : replica_config_(config),
         communication_(std::move(comm)),
         logger_(logger),
         metrics_server_(metrics_port),
-        use_persistent_storage_(use_persistent_storage) {}
+        use_persistent_storage_(use_persistent_storage),
+        s3ConfigFile_(s3ConfigFile) {}
   TestSetup() = delete;
-
+#ifdef USE_S3_OBJECT_STORE
+  concord::storage::s3::StoreConfig parseS3Config(const std::string& s3ConfigFile);
+#endif
   std::tuple<std::shared_ptr<concord::storage::IDBClient>, IDbAdapter*> get_inmem_db_configuration();
   bftEngine::ReplicaConfig replica_config_;
   std::unique_ptr<bftEngine::ICommunication> communication_;
   concordlogger::Logger logger_;
   concordMetrics::Server metrics_server_;
   bool use_persistent_storage_;
+  std::string s3ConfigFile_;
 };
 
 }  // namespace concord::kvbc

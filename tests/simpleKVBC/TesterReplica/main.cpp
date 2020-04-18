@@ -43,14 +43,7 @@ void run_replica(int argc, char** argv) {
 
   auto* blockMetadata = new BlockMetadata(*replica);
 
-  if (!setup->GetReplicaConfig().isReadOnly)
-    replica->setReplicaStateSync(new ReplicaStateSyncImp(blockMetadata));
-  else {
-    log4cplus::Logger::getInstance("concord.storage.s3").setLogLevel(log4cplus::TRACE_LOG_LEVEL);
-    log4cplus::Logger::getInstance("concord.kvbc.v1DirectKeyValue.DBAdapter").setLogLevel(log4cplus::TRACE_LOG_LEVEL);
-    log4cplus::Logger::getInstance("state-transfer").setLogLevel(log4cplus::TRACE_LOG_LEVEL);
-    // log4cplus::Logger::getInstance("DBDataStore").setLogLevel(log4cplus::TRACE_LOG_LEVEL);
-  }
+  if (!setup->GetReplicaConfig().isReadOnly) replica->setReplicaStateSync(new ReplicaStateSyncImp(blockMetadata));
 
   InternalCommandsHandler* cmdHandler =
       new InternalCommandsHandler(replica.get(), replica.get(), blockMetadata, logger);
@@ -66,6 +59,10 @@ void run_replica(int argc, char** argv) {
 }  // namespace concord::kvbc::test
 
 int main(int argc, char** argv) {
-  concord::kvbc::test::run_replica(argc, argv);
+  try {
+    concord::kvbc::test::run_replica(argc, argv);
+  } catch (const std::exception& e) {
+    LOG_FATAL(GL, "exception: " << e.what());
+  }
   return 0;
 }

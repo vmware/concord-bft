@@ -174,7 +174,7 @@ class Client : public concord::storage::IDBClient {
     return concordUtils::Status::OK();
   }
 
-  bool isNew() override { throw std::logic_error("isNew()  Not implemented for ECS S3 object store"); }
+  bool isNew() override { throw std::logic_error("isNew()  Not implemented for S3 object store"); }
 
   IDBClient::IDBClientIterator* getIterator() const override {
     Assert("getIterator() Not implemented for ECS S3 object store" && false);
@@ -186,6 +186,10 @@ class Client : public concord::storage::IDBClient {
   }
 
   ITransaction* beginTransaction() override { return new Transaction(this); }
+
+  concordUtils::Status rangeDel(const Sliver& _beginKey, const Sliver& _endKey) override {
+    throw std::logic_error("rangeDel()  Not implemented for S3 object store");
+  }
 
   ///////////////////////// protected /////////////////////////////
  protected:

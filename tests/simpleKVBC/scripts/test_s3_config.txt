@@ -1,0 +1,6 @@
+# test configuration for S3-compatible storage
+s3-bucket-name: blockchain-dev-asx
+s3-access-key: blockchain-dev
+s3-protocol: HTTP
+s3-url: 10.70.30.244:9020
+s3-secret-key: Rz0mdbUNGJBxqdzprn5XGSXPr2AfkgcQsYS4y698
