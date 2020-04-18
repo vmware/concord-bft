@@ -93,8 +93,7 @@ KeysVector keysForVersion(const std::shared_ptr<IDBClient> &db,
                           const VersionExtractor &extractVersion) {
   auto keys = KeysVector{};
   auto iter = db->getIteratorGuard();
-  // Rely on the fact that keys are ordered lexicographically by version and keys with a version only precede any keys
-  // with a value (as they are longer). Loop until a different key type or a key with the next version is encountered.
+  // Loop until a different key type or a key with the next version is encountered.
   auto currentKey = iter->seekAtLeast(firstKey).first;
   while (!currentKey.empty() && DBKeyManipulator::getDBKeyType(currentKey) == EDBKeyType::Key &&
          DBKeyManipulator::getKeySubtype(currentKey) == keySubtype && extractVersion(currentKey) == version) {
@@ -299,8 +298,7 @@ std::pair<Value, BlockId> DBAdapter::getValue(const Key &key, const BlockId &blo
                          DBKeyManipulator::getKeySubtype(foundKey) == EKeySubtype::Leaf;
   if (isLeafKey && DBKeyManipulator::extractHashFromLeafKey(foundKey) == hash(key)) {
     const auto dbLeafVal = detail::deserialize<detail::DatabaseLeafValue>(foundValue);
-    // If the block at which the value is found has been deleted (i.e. its is less than the current genesis block ID),
-    // return the genesis block ID as a version.
+    // Return the value at the block version it was written at, even if the block itself has been deleted.
     return std::make_pair(dbLeafVal.leafNode.value, dbLeafVal.blockId);
   }
 
@@ -587,7 +585,8 @@ block::detail::Node DBAdapter::getBlockNode(BlockId blockId) const {
 
 KeysVector DBAdapter::staleIndexKeysForVersion(const Version &version) const {
   // Rely on the fact that stale keys are ordered lexicographically by version and keys with a version only precede any
-  // real ones (as they are longer). See stale key generation code.
+  // real ones (as they are longer). Note that version-only keys don't exist in the DB and we just use them as a
+  // placeholder for the search. See stale key generation code.
   return keysForVersion(db_, DBKeyManipulator::genStaleDbKey(version), version, EKeySubtype::Stale, [](const Key &key) {
     return DBKeyManipulator::extractVersionFromStaleKey(key);
   });

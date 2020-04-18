@@ -27,6 +27,10 @@ class DBKeyManipulator {
   static Key genInternalDbKey(const sparse_merkle::InternalNodeKey &key);
   static Key genStaleDbKey(const sparse_merkle::InternalNodeKey &key, const sparse_merkle::Version &staleSinceVersion);
   static Key genStaleDbKey(const sparse_merkle::LeafKey &key, const sparse_merkle::Version &staleSinceVersion);
+  // Version-only stale keys do not exist in the DB. They are used as a placeholder for searching through the stale
+  // index. Rationale is that they are a lower bound of all stale keys for a specific version due to lexicographical
+  // ordering, the fact that the version comes first and that real stale keys are longer and always follow version-only
+  // ones.
   static Key genStaleDbKey(const sparse_merkle::Version &staleSinceVersion);
   static Key generateMetadataKey(storage::ObjectId objectId);
   static Key generateStateTransferKey(storage::ObjectId objectId);
