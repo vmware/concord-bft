@@ -20,6 +20,8 @@ class NotFoundException : public std::runtime_error {
   const char* what() const noexcept override { return std::runtime_error::what(); }
 };
 
+inline constexpr auto INITIAL_GENESIS_BLOCK_ID = BlockId{1};
+
 class IDbAdapter {
  public:
   // Returns the added block ID.
@@ -35,11 +37,18 @@ class IDbAdapter {
   // Return the actual version and the value for a key
   virtual std::pair<Value, BlockId> getValue(const Key& key, const BlockId& blockVersion) const = 0;
 
-  // Delete a block from the database
+  // Deletes the block with the passed ID.
+  // If the passed block ID doesn't exist, the call has no effect.
+  // Throws if an error occurs.
   virtual void deleteBlock(const BlockId& blockId) = 0;
 
   // Checks whether block exists
   virtual bool hasBlock(const BlockId& blockId) const = 0;
+
+  // Returns the genesis (first) block ID in the system. If the blockchain is empty or if there are no reachable blocks
+  // (getLastReachableBlock() == 0), 0 is returned.
+  // Throws on errors.
+  virtual BlockId getGenesisBlockId() const = 0;
 
   // Used to retrieve the latest block.
   virtual BlockId getLatestBlockId() const = 0;

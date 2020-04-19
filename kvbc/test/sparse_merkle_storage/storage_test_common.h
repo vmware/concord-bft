@@ -8,8 +8,11 @@
 #include "kv_types.hpp"
 #include "memorydb/client.h"
 #include "rocksdb/client.h"
+#include "sliver.hpp"
+#include "sparse_merkle/base_types.h"
 #include "storage/db_interface.h"
 
+#include <cstdint>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -47,7 +50,9 @@ inline ::concord::kvbc::BlockDigest blockDigest(concord::kvbc::BlockId blockId, 
 struct TestMemoryDb {
   static std::shared_ptr<concord::storage::IDBClient> create() {
     cleanup();
-    return std::make_shared<concord::storage::memorydb::Client>();
+    auto db = std::make_shared<concord::storage::memorydb::Client>();
+    db->init();
+    return db;
   }
 
   static std::string type() { return "memorydb"; }
@@ -58,7 +63,9 @@ struct TestRocksDb {
   static std::shared_ptr<::concord::storage::IDBClient> create() {
     cleanup();
     // Create the RocksDB client with the default lexicographical comparator.
-    return std::make_shared<::concord::storage::rocksdb::Client>(rocksDbPath());
+    auto db = std::make_shared<::concord::storage::rocksdb::Client>(rocksDbPath());
+    db->init();
+    return db;
   }
 
   static std::string type() { return "RocksDB"; }
@@ -78,3 +85,21 @@ struct TypePrinter {
     return info.param->type();
   }
 };
+
+inline auto getHash(const std::string &str) {
+  auto hasher = ::concord::kvbc::sparse_merkle::Hasher{};
+  return hasher.hash(str.data(), str.size());
+}
+
+inline auto getHash(const concordUtils::Sliver &sliver) {
+  auto hasher = ::concord::kvbc::sparse_merkle::Hasher{};
+  return hasher.hash(sliver.data(), sliver.length());
+}
+
+inline auto getBlockDigest(const std::string &data) { return getHash(data).dataArray(); }
+inline concordUtils::Sliver getSliverOfSize(std::size_t size, char content = 'a') { return std::string(size, content); }
+
+inline const auto defaultBlockId = ::concord::kvbc::BlockId{42};
+inline const auto defaultData = std::string{"defaultData"};
+inline const auto defaultSliver = concordUtils::Sliver::copy(defaultData.c_str(), defaultData.size());
+inline const auto maxNumKeys = 16u;

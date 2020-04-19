@@ -27,6 +27,7 @@
 using ::concord::kvbc::BlockDigest;
 using ::concord::kvbc::BlockId;
 using ::concord::kvbc::Key;
+using ::concord::kvbc::NotFoundException;
 using ::concord::kvbc::SetOfKeyValuePairs;
 using ::concord::kvbc::Value;
 using ::concord::storage::IDBClient;
@@ -216,6 +217,57 @@ TEST_P(db_adapter_block_tests, reachable_during_state_transfer_property) {
     }
     RC_ASSERT(adapter.getLastReachableBlockId() == adapter.getLatestBlockId());
     RC_ASSERT(adapter.getLatestBlockId() == latestBlockId);
+  };
+
+  ASSERT_TRUE(rc::check(test));
+}
+
+// Test that after deleting the genesis block, it is no longer available as a block, but its keys still are.
+TEST_P(db_adapter_block_tests, delete_genesis_block) {
+  const auto test = [this](const std::vector<SetOfKeyValuePairs> &blockUpdates) {
+    RC_PRE(blockUpdates.size() > 1u);
+
+    auto adapter = DBAdapter{GetParam()->db()};
+    addBlocks(blockUpdates, adapter);
+
+    adapter.deleteBlock(1);
+    RC_ASSERT(!adapter.hasBlock(1));
+    RC_ASSERT_THROWS_AS(adapter.getRawBlock(1), NotFoundException);
+    RC_ASSERT(adapter.getGenesisBlockId() == 2u);
+    RC_ASSERT(adapter.getLastReachableBlockId() == blockUpdates.size());
+    const auto &firstUpdate = blockUpdates.front();
+    for (const auto &kv : firstUpdate) {
+      const auto actualVersion = adapter.getValue(kv.first, 2).second;
+      RC_ASSERT(actualVersion >= 1u);
+    }
+  };
+
+  ASSERT_TRUE(rc::check(test));
+}
+
+// Test that after deleting the last reachable block, both it in itself (as a block) and its keys are deleted.
+TEST_P(db_adapter_block_tests, delete_last_reachable_block) {
+  const auto test = [this](const std::vector<SetOfKeyValuePairs> &blockUpdates) {
+    RC_PRE(blockUpdates.size() > 1u);
+
+    auto adapter = DBAdapter{GetParam()->db()};
+    addBlocks(blockUpdates, adapter);
+
+    const auto lastReachableBlockId = blockUpdates.size();
+
+    adapter.deleteBlock(lastReachableBlockId);
+    RC_ASSERT(!adapter.hasBlock(lastReachableBlockId));
+    RC_ASSERT_THROWS_AS(adapter.getRawBlock(lastReachableBlockId), NotFoundException);
+    RC_ASSERT(adapter.getGenesisBlockId() == 1u);
+    RC_ASSERT(adapter.getLastReachableBlockId() == lastReachableBlockId - 1);
+    const auto &lastUpdate = blockUpdates.back();
+    for (const auto &kv : lastUpdate) {
+      try {
+        const auto actualVersion = adapter.getValue(kv.first, lastReachableBlockId).second;
+        RC_ASSERT(actualVersion <= lastReachableBlockId);
+      } catch (const NotFoundException &) {
+      }
+    }
   };
 
   ASSERT_TRUE(rc::check(test));

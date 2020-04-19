@@ -70,7 +70,7 @@ class Client : public IDBClient {
         comp_(comp),
         map_([this](const Sliver &a, const Sliver &b) { return comp_(a, b); }) {}
 
-  void init(bool readOnly) override;
+  void init(bool readOnly = false) override;
   concordUtils::Status get(const Sliver &_key, OUT Sliver &_outValue) const override;
   concordUtils::Status get(const Sliver &_key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &_size) const override;
   concordUtils::Status has(const Sliver &_key) const override;

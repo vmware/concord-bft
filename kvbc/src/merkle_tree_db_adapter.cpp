@@ -2,8 +2,6 @@
 
 #include <assertUtils.hpp>
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
-#include "storage/db_types.h"
-#include "merkle_tree_block.h"
 #include "merkle_tree_db_adapter.h"
 #include "merkle_tree_serialization.h"
 #include "endianness.hpp"
@@ -16,6 +14,7 @@
 #include "hex_tools.h"
 
 #include <exception>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <utility>
@@ -25,9 +24,6 @@ namespace concord::kvbc::v2MerkleTree {
 namespace {
 
 using namespace ::std::string_literals;
-
-using BlockNode = block::detail::Node;
-using BlockKeyData = block::detail::KeyData;
 
 using ::concordUtils::fromBigEndianBuffer;
 using ::concordUtils::Sliver;
@@ -59,13 +55,13 @@ SetOfKeyValuePairs batchToDbUpdates(const sparse_merkle::UpdateBatch &batch, Blo
 
   // Internal stale node indexes. Use the index only and set the key to an empty sliver.
   for (const auto &intKey : batch.stale.internal_keys) {
-    const auto key = DBKeyManipulator::genStaleDbKey(intKey, batch.stale.stale_since_version.value());
+    const auto key = DBKeyManipulator::genStaleDbKey(intKey, batch.stale.stale_since_version);
     updates[key] = emptySliver;
   }
 
   // Leaf stale node indexes. Use the index only and set the key to an empty sliver.
   for (const auto &leafKey : batch.stale.leaf_keys) {
-    const auto key = DBKeyManipulator::genStaleDbKey(leafKey, batch.stale.stale_since_version.value());
+    const auto key = DBKeyManipulator::genStaleDbKey(leafKey, batch.stale.stale_since_version);
     updates[key] = emptySliver;
   }
 
@@ -84,72 +80,30 @@ SetOfKeyValuePairs batchToDbUpdates(const sparse_merkle::UpdateBatch &batch, Blo
   return updates;
 }
 
-// Undefined behavior if an incorrect type is read from the buffer.
-EDBKeyType getDBKeyType(const Sliver &s) {
-  Assert(!s.empty());
-
-  switch (s[0]) {
-    case toChar(EDBKeyType::Block):
-      return EDBKeyType::Block;
-    case toChar(EDBKeyType::Key):
-      return EDBKeyType::Key;
-    case toChar(EDBKeyType::BFT):
-      return EDBKeyType::BFT;
-  }
-  Assert(false);
-
-  // Dummy return to silence the compiler.
-  return EDBKeyType::Block;
-}
-
-// Undefined behavior if an incorrect type is read from the buffer.
-EKeySubtype getKeySubtype(const Sliver &s) {
-  Assert(s.length() > 1);
-
-  switch (s[1]) {
-    case toChar(EKeySubtype::Internal):
-      return EKeySubtype::Internal;
-    case toChar(EKeySubtype::Stale):
-      return EKeySubtype::Stale;
-    case toChar(EKeySubtype::Leaf):
-      return EKeySubtype::Leaf;
-  }
-  Assert(false);
-
-  // Dummy return to silence the compiler.
-  return EKeySubtype::Internal;
-}
-
-// Undefined behavior if an incorrect type is read from the buffer.
-EBFTSubtype getBftSubtype(const Sliver &s) {
-  Assert(s.length() > 1);
-
-  switch (s[1]) {
-    case toChar(EBFTSubtype::Metadata):
-      return EBFTSubtype::Metadata;
-    case toChar(EBFTSubtype::ST):
-      return EBFTSubtype::ST;
-    case toChar(EBFTSubtype::STPendingPage):
-      return EBFTSubtype::STPendingPage;
-    case toChar(EBFTSubtype::STReservedPageStatic):
-      return EBFTSubtype::STReservedPageStatic;
-    case toChar(EBFTSubtype::STReservedPageDynamic):
-      return EBFTSubtype::STReservedPageDynamic;
-    case toChar(EBFTSubtype::STCheckpointDescriptor):
-      return EBFTSubtype::STCheckpointDescriptor;
-    case toChar(EBFTSubtype::STTempBlock):
-      return EBFTSubtype::STTempBlock;
-  }
-  Assert(false);
-
-  // Dummy return to silence the compiler.
-  return EBFTSubtype::Metadata;
-}
-
 auto hash(const Sliver &buf) {
   auto hasher = Hasher{};
   return hasher.hash(buf.data(), buf.length());
 }
+
+template <typename VersionExtractor>
+KeysVector keysForVersion(const std::shared_ptr<IDBClient> &db,
+                          const Key &firstKey,
+                          const Version &version,
+                          EKeySubtype keySubtype,
+                          const VersionExtractor &extractVersion) {
+  auto keys = KeysVector{};
+  auto iter = db->getIteratorGuard();
+  // Loop until a different key type or a key with the next version is encountered.
+  auto currentKey = iter->seekAtLeast(firstKey).first;
+  while (!currentKey.empty() && DBKeyManipulator::getDBKeyType(currentKey) == EDBKeyType::Key &&
+         DBKeyManipulator::getKeySubtype(currentKey) == keySubtype && extractVersion(currentKey) == version) {
+    keys.push_back(currentKey);
+    currentKey = iter->next().first;
+  }
+  return keys;
+}
+
+void add(KeysVector &to, const KeysVector &src) { to.insert(std::end(to), std::cbegin(src), std::cend(src)); }
 
 }  // namespace
 
@@ -157,21 +111,23 @@ Key DBKeyManipulator::genBlockDbKey(BlockId version) { return serialize(EDBKeyTy
 
 Key DBKeyManipulator::genDataDbKey(const LeafKey &key) { return serialize(EKeySubtype::Leaf, key); }
 
-Key DBKeyManipulator::genDataDbKey(const Key &key, BlockId version) {
+Key DBKeyManipulator::genDataDbKey(const Key &key, const Version &version) {
   auto hasher = Hasher{};
   return genDataDbKey(LeafKey{hasher.hash(key.data(), key.length()), version});
 }
 
 Key DBKeyManipulator::genInternalDbKey(const InternalNodeKey &key) { return serialize(EKeySubtype::Internal, key); }
 
-Key DBKeyManipulator::genStaleDbKey(const InternalNodeKey &key, BlockId staleSinceVersion) {
-  // Use a serialization type to discriminate between internal and leaf keys.
-  return serialize(EKeySubtype::Stale, staleSinceVersion, StaleKeyType::Internal, key);
+Key DBKeyManipulator::genStaleDbKey(const InternalNodeKey &key, const Version &staleSinceVersion) {
+  return serialize(EKeySubtype::Stale, staleSinceVersion.value(), EKeySubtype::Internal, key);
 }
 
-Key DBKeyManipulator::genStaleDbKey(const LeafKey &key, BlockId staleSinceVersion) {
-  // Use a serialization type to discriminate between internal and leaf keys.
-  return serialize(EKeySubtype::Stale, staleSinceVersion, StaleKeyType::Leaf, key);
+Key DBKeyManipulator::genStaleDbKey(const LeafKey &key, const Version &staleSinceVersion) {
+  return serialize(EKeySubtype::Stale, staleSinceVersion.value(), EKeySubtype::Leaf, key);
+}
+
+Key DBKeyManipulator::genStaleDbKey(const Version &staleSinceVersion) {
+  return serialize(EKeySubtype::Stale, staleSinceVersion.value());
 }
 
 Key DBKeyManipulator::generateMetadataKey(ObjectId objectId) { return serialize(EBFTSubtype::Metadata, objectId); }
@@ -211,19 +167,100 @@ BlockId DBKeyManipulator::extractBlockIdFromKey(const Key &key) {
 Hash DBKeyManipulator::extractHashFromLeafKey(const Key &key) {
   constexpr auto keyTypeOffset = sizeof(EDBKeyType) + sizeof(EKeySubtype);
   Assert(key.length() > keyTypeOffset + Hash::SIZE_IN_BYTES);
-  Assert(getDBKeyType(key) == EDBKeyType::Key);
-  Assert(getKeySubtype(key) == EKeySubtype::Leaf);
+  Assert(DBKeyManipulator::getDBKeyType(key) == EDBKeyType::Key);
+  Assert(DBKeyManipulator::getKeySubtype(key) == EKeySubtype::Leaf);
   return Hash{reinterpret_cast<const uint8_t *>(key.data() + keyTypeOffset)};
+}
+
+Version DBKeyManipulator::extractVersionFromStaleKey(const Key &key) {
+  constexpr auto keyTypeOffset = sizeof(EDBKeyType) + sizeof(EKeySubtype);
+  Assert(key.length() >= keyTypeOffset + Version::SIZE_IN_BYTES);
+  Assert(DBKeyManipulator::getDBKeyType(key) == EDBKeyType::Key);
+  Assert(DBKeyManipulator::getKeySubtype(key) == EKeySubtype::Stale);
+  return fromBigEndianBuffer<Version::Type>(key.data() + keyTypeOffset);
+}
+
+Key DBKeyManipulator::extractKeyFromStaleKey(const Key &key) {
+  constexpr auto keyOffset = sizeof(EDBKeyType) + sizeof(EKeySubtype) + Version::SIZE_IN_BYTES;
+  Assert(key.length() > keyOffset);
+  Assert(DBKeyManipulator::getDBKeyType(key) == EDBKeyType::Key);
+  Assert(DBKeyManipulator::getKeySubtype(key) == EKeySubtype::Stale);
+  return Key{key, keyOffset, key.length() - keyOffset};
+}
+
+Version DBKeyManipulator::extractVersionFromInternalKey(const Key &key) {
+  constexpr auto keyOffset = sizeof(EDBKeyType) + sizeof(EKeySubtype);
+  Assert(key.length() > keyOffset);
+  return deserialize<InternalNodeKey>(Sliver{key, keyOffset, key.length() - keyOffset}).version();
+}
+
+// Undefined behavior if an incorrect type is read from the buffer.
+EDBKeyType DBKeyManipulator::getDBKeyType(const Sliver &s) {
+  Assert(!s.empty());
+
+  switch (s[0]) {
+    case toChar(EDBKeyType::Block):
+      return EDBKeyType::Block;
+    case toChar(EDBKeyType::Key):
+      return EDBKeyType::Key;
+    case toChar(EDBKeyType::BFT):
+      return EDBKeyType::BFT;
+  }
+  Assert(false);
+
+  // Dummy return to silence the compiler.
+  return EDBKeyType::Block;
+}
+
+// Undefined behavior if an incorrect type is read from the buffer.
+EKeySubtype DBKeyManipulator::getKeySubtype(const Sliver &s) {
+  Assert(s.length() > 1);
+
+  switch (s[1]) {
+    case toChar(EKeySubtype::Internal):
+      return EKeySubtype::Internal;
+    case toChar(EKeySubtype::Stale):
+      return EKeySubtype::Stale;
+    case toChar(EKeySubtype::Leaf):
+      return EKeySubtype::Leaf;
+  }
+  Assert(false);
+
+  // Dummy return to silence the compiler.
+  return EKeySubtype::Internal;
+}
+
+// Undefined behavior if an incorrect type is read from the buffer.
+EBFTSubtype DBKeyManipulator::getBftSubtype(const Sliver &s) {
+  Assert(s.length() > 1);
+
+  switch (s[1]) {
+    case toChar(EBFTSubtype::Metadata):
+      return EBFTSubtype::Metadata;
+    case toChar(EBFTSubtype::ST):
+      return EBFTSubtype::ST;
+    case toChar(EBFTSubtype::STPendingPage):
+      return EBFTSubtype::STPendingPage;
+    case toChar(EBFTSubtype::STReservedPageStatic):
+      return EBFTSubtype::STReservedPageStatic;
+    case toChar(EBFTSubtype::STReservedPageDynamic):
+      return EBFTSubtype::STReservedPageDynamic;
+    case toChar(EBFTSubtype::STCheckpointDescriptor):
+      return EBFTSubtype::STCheckpointDescriptor;
+    case toChar(EBFTSubtype::STTempBlock):
+      return EBFTSubtype::STTempBlock;
+  }
+  Assert(false);
+
+  // Dummy return to silence the compiler.
+  return EBFTSubtype::Metadata;
 }
 
 DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db)
     : logger_{concordlogger::Log::getLogger("concord.kvbc.v2MerkleTree.DBAdapter")},
       // The smTree_ member needs an initialized DB. Therefore, do that in the initializer list before constructing
       // smTree_ .
-      db_{[&db]() {
-        db->init(false);
-        return db;
-      }()},
+      db_{db},
       smTree_{std::make_shared<Reader>(*this)} {
   // Make sure that if linkSTChainFrom() has been interrupted (e.g. a crash or an abnormal shutdown), all DBAdapter
   // methods will return the correct values. For example, if state transfer had completed and linkSTChainFrom() was
@@ -234,14 +271,14 @@ DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db)
 }
 
 std::pair<Value, BlockId> DBAdapter::getValue(const Key &key, const BlockId &blockVersion) const {
-  auto stateRootVersion = sparse_merkle::Version{};
+  auto stateRootVersion = Version{};
   // Find a block with an ID that is less than or equal to the requested block version and extract the state root
   // version from it.
   {
     const auto blockKey = DBKeyManipulator::genBlockDbKey(blockVersion);
     auto iter = db_->getIteratorGuard();
     const auto [foundBlockKey, foundBlockValue] = iter->seekAtMost(blockKey);
-    if (!foundBlockKey.empty() && getDBKeyType(foundBlockKey) == EDBKeyType::Block) {
+    if (!foundBlockKey.empty() && DBKeyManipulator::getDBKeyType(foundBlockKey) == EDBKeyType::Block) {
       stateRootVersion = detail::deserializeStateRootVersion(foundBlockValue);
     } else {
       throw NotFoundException{"Couldn't find a value by key and block version = " + std::to_string(blockVersion)};
@@ -249,7 +286,7 @@ std::pair<Value, BlockId> DBAdapter::getValue(const Key &key, const BlockId &blo
   }
 
   auto iter = db_->getIteratorGuard();
-  const auto leafKey = DBKeyManipulator::genDataDbKey(key, stateRootVersion.value());
+  const auto leafKey = DBKeyManipulator::genDataDbKey(key, stateRootVersion);
 
   // Seek for a leaf key with a version that is less than or equal to the state root version from the found block.
   // Since leaf keys are ordered lexicographically, first by hash and then by state root version, then if there is a key
@@ -257,14 +294,24 @@ std::pair<Value, BlockId> DBAdapter::getValue(const Key &key, const BlockId &blo
   const auto [foundKey, foundValue] = iter->seekAtMost(leafKey);
   // Make sure we only process leaf keys that have the same hash as the hash of the key the user has passed. The state
   // root version can be less than the one we seek for.
-  const auto isLeafKey =
-      !foundKey.empty() && getDBKeyType(foundKey) == EDBKeyType::Key && getKeySubtype(foundKey) == EKeySubtype::Leaf;
+  const auto isLeafKey = !foundKey.empty() && DBKeyManipulator::getDBKeyType(foundKey) == EDBKeyType::Key &&
+                         DBKeyManipulator::getKeySubtype(foundKey) == EKeySubtype::Leaf;
   if (isLeafKey && DBKeyManipulator::extractHashFromLeafKey(foundKey) == hash(key)) {
     const auto dbLeafVal = detail::deserialize<detail::DatabaseLeafValue>(foundValue);
+    // Return the value at the block version it was written at, even if the block itself has been deleted.
     return std::make_pair(dbLeafVal.leafNode.value, dbLeafVal.blockId);
   }
 
   throw NotFoundException{"Couldn't find a value by key and block version = " + std::to_string(blockVersion)};
+}
+
+BlockId DBAdapter::getGenesisBlockId() const {
+  auto iter = db_->getIteratorGuard();
+  const auto key = iter->seekAtLeast(DBKeyManipulator::genBlockDbKey(INITIAL_GENESIS_BLOCK_ID)).first;
+  if (!key.empty() && DBKeyManipulator::getDBKeyType(key) == EDBKeyType::Block) {
+    return DBKeyManipulator::extractBlockIdFromKey(key);
+  }
+  return 0;
 }
 
 BlockId DBAdapter::getLastReachableBlockId() const {
@@ -275,7 +322,7 @@ BlockId DBAdapter::getLastReachableBlockId() const {
   // allowed block ID.
   const auto foundKey = iter->seekAtMost(maxBlockKey).first;
   // Consider block keys only.
-  if (!foundKey.empty() && getDBKeyType(foundKey) == EDBKeyType::Block) {
+  if (!foundKey.empty() && DBKeyManipulator::getDBKeyType(foundKey) == EDBKeyType::Block) {
     const auto blockId = DBKeyManipulator::extractBlockIdFromKey(foundKey);
     LOG_TRACE(logger_, "Latest reachable block ID " << blockId);
     return blockId;
@@ -288,8 +335,8 @@ BlockId DBAdapter::getLatestBlockId() const {
   const auto latestBlockKey = DBKeyManipulator::generateSTTempBlockKey(MAX_BLOCK_ID);
   auto iter = db_->getIteratorGuard();
   const auto foundKey = iter->seekAtMost(latestBlockKey).first;
-  if (!foundKey.empty() && getDBKeyType(foundKey) == EDBKeyType::BFT &&
-      getBftSubtype(foundKey) == EBFTSubtype::STTempBlock) {
+  if (!foundKey.empty() && DBKeyManipulator::getDBKeyType(foundKey) == EDBKeyType::BFT &&
+      DBKeyManipulator::getBftSubtype(foundKey) == EBFTSubtype::STTempBlock) {
     const auto blockId = DBKeyManipulator::extractBlockIdFromKey(foundKey);
     LOG_TRACE(logger_, "Latest block ID " << blockId);
     return blockId;
@@ -301,15 +348,15 @@ BlockId DBAdapter::getLatestBlockId() const {
 Sliver DBAdapter::createBlockNode(const SetOfKeyValuePairs &updates, BlockId blockId) const {
   // Make sure the digest is zero-initialized by using {} initialization.
   auto parentBlockDigest = BlockDigest{};
-  if (blockId > 1) {
+  if (blockId > INITIAL_GENESIS_BLOCK_ID) {
     const auto parentBlock = getRawBlock(blockId - 1);
     parentBlockDigest = computeBlockDigest(blockId - 1, parentBlock.data(), parentBlock.length());
   }
 
-  auto node = BlockNode{blockId, parentBlockDigest, smTree_.get_root_hash(), smTree_.get_version()};
+  auto node = block::detail::Node{blockId, parentBlockDigest, smTree_.get_root_hash(), smTree_.get_version()};
   for (const auto &[k, v] : updates) {
     // Treat empty values as deleted keys.
-    node.keys.emplace(k, BlockKeyData{v.empty()});
+    node.keys.emplace(k, block::detail::KeyData{v.empty()});
   }
   return block::detail::createNode(node);
 }
@@ -339,7 +386,7 @@ RawBlock DBAdapter::getRawBlock(const BlockId &blockId) const {
   for (const auto &[key, keyData] : blockNode.keys) {
     if (!keyData.deleted) {
       Sliver value;
-      if (const auto status = db_->get(DBKeyManipulator::genDataDbKey(key, blockNode.stateRootVersion.value()), value);
+      if (const auto status = db_->get(DBKeyManipulator::genDataDbKey(key, blockNode.stateRootVersion), value);
           !status.isOK()) {
         // If the key is not found, treat as corrupted storage and abort.
         Assert(!status.isNotFound());
@@ -484,12 +531,136 @@ void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId) {
   }
 }
 
-void DBAdapter::deleteBlock(const BlockId &blockId) { throw std::runtime_error{"Not implemented"}; }
+void DBAdapter::deleteBlock(const BlockId &blockId) {
+  const auto latestBlockId = getLatestBlockId();
+  if (latestBlockId == 0 || blockId > latestBlockId) {
+    return;
+  }
+
+  const auto lastReachableBlockId = getLastReachableBlockId();
+  if (blockId > lastReachableBlockId) {
+    const auto status = db_->del(DBKeyManipulator::generateSTTempBlockKey(blockId));
+    if (!status.isOK() && !status.isNotFound()) {
+      const auto msg = "Failed to delete a temporary state transfer block with ID = " + std::to_string(blockId) +
+                       ", reason: " + status.toString();
+      LOG_ERROR(logger_, msg);
+      throw std::runtime_error{msg};
+    }
+    return;
+  }
+
+  auto keysToDelete = KeysVector{};
+  const auto genesisBlockId = getGenesisBlockId();
+  if (blockId == lastReachableBlockId && blockId == genesisBlockId) {
+    throw std::logic_error{"Deleting the only block in the system is not supported"};
+  } else if (blockId == lastReachableBlockId) {
+    keysToDelete = lastReachableBlockKeyDeletes(blockId);
+  } else if (blockId == genesisBlockId) {
+    keysToDelete = genesisBlockKeyDeletes(blockId);
+  } else {
+    throw std::invalid_argument{"Cannot delete blocks in the middle of the blockchain"};
+  }
+
+  const auto status = db_->multiDel(keysToDelete);
+  if (!status.isOK()) {
+    const auto msg =
+        "Failed to delete blockchain block with ID = " + std::to_string(blockId) + ", reason: " + status.toString();
+    LOG_ERROR(logger_, msg);
+    throw std::runtime_error{msg};
+  }
+}
+
+block::detail::Node DBAdapter::getBlockNode(BlockId blockId) const {
+  const auto blockNodeKey = DBKeyManipulator::genBlockDbKey(blockId);
+  auto blockNodeSliver = Sliver{};
+  const auto status = db_->get(blockNodeKey, blockNodeSliver);
+  if (!status.isOK()) {
+    const auto msg =
+        "Failed to get block node for block ID = " + std::to_string(blockId) + ", reason: " + status.toString();
+    LOG_ERROR(logger_, msg);
+    throw std::runtime_error{msg};
+  }
+  return block::detail::parseNode(blockNodeSliver);
+}
+
+KeysVector DBAdapter::staleIndexKeysForVersion(const Version &version) const {
+  // Rely on the fact that stale keys are ordered lexicographically by version and keys with a version only precede any
+  // real ones (as they are longer). Note that version-only keys don't exist in the DB and we just use them as a
+  // placeholder for the search. See stale key generation code.
+  return keysForVersion(db_, DBKeyManipulator::genStaleDbKey(version), version, EKeySubtype::Stale, [](const Key &key) {
+    return DBKeyManipulator::extractVersionFromStaleKey(key);
+  });
+}
+
+KeysVector DBAdapter::internalKeysForVersion(const Version &version) const {
+  // Rely on the fact that root internal keys always precede non-root ones - due to lexicographical ordering and root
+  // internal keys having empty nibble paths. See InternalNodeKey serialization code.
+  return keysForVersion(db_,
+                        DBKeyManipulator::genInternalDbKey(InternalNodeKey::root(version)),
+                        version,
+                        EKeySubtype::Internal,
+                        [](const Key &key) { return DBKeyManipulator::extractVersionFromInternalKey(key); });
+}
+
+KeysVector DBAdapter::lastReachableBlockKeyDeletes(BlockId blockId) const {
+  const auto blockNode = getBlockNode(blockId);
+  auto keysToDelete = KeysVector{};
+
+  // Delete leaf keys at the last version.
+  for (const auto &key : blockNode.keys) {
+    keysToDelete.push_back(DBKeyManipulator::genDataDbKey(key.first, blockNode.stateRootVersion));
+  }
+
+  // Delete internal keys at the last version.
+  add(keysToDelete, internalKeysForVersion(blockNode.stateRootVersion));
+
+  // Delete the block node key.
+  keysToDelete.push_back(DBKeyManipulator::genBlockDbKey(blockId));
+
+  // Clear the stale index for the last version.
+  add(keysToDelete, staleIndexKeysForVersion(blockNode.stateRootVersion));
+
+  return keysToDelete;
+}
+
+KeysVector DBAdapter::genesisBlockKeyDeletes(BlockId blockId) const {
+  const auto blockNode = getBlockNode(blockId);
+  auto keysToDelete = KeysVector{};
+
+  // Delete the block node key.
+  keysToDelete.push_back(DBKeyManipulator::genBlockDbKey(blockId));
+
+  // Delete stale keys.
+  const auto staleKeys = staleIndexKeysForVersion(blockNode.stateRootVersion);
+  for (const auto &staleKey : staleKeys) {
+    keysToDelete.push_back(DBKeyManipulator::extractKeyFromStaleKey(staleKey));
+  }
+
+  // Clear the stale index for the last version.
+  add(keysToDelete, staleKeys);
+
+  return keysToDelete;
+}
 
 SetOfKeyValuePairs DBAdapter::getBlockData(const RawBlock &rawBlock) const { return block::detail::getData(rawBlock); }
 
 BlockDigest DBAdapter::getParentDigest(const RawBlock &rawBlock) const {
   return block::detail::getParentDigest(rawBlock);
+}
+
+bool DBAdapter::hasBlock(const BlockId &blockId) const {
+  const auto statusNode = db_->has(DBKeyManipulator::genBlockDbKey(blockId));
+  if (statusNode.isNotFound()) {
+    const auto statusSt = db_->has(DBKeyManipulator::generateSTTempBlockKey(blockId));
+    if (statusSt.isNotFound()) {
+      return false;
+    } else if (!statusSt.isOK()) {
+      throw std::runtime_error{"Failed to check for existence of temporary ST block ID = " + std::to_string(blockId)};
+    }
+  } else if (!statusNode.isOK()) {
+    throw std::runtime_error{"Failed to check for existence of block node for block ID = " + std::to_string(blockId)};
+  }
+  return true;
 }
 
 }  // namespace concord::kvbc::v2MerkleTree
