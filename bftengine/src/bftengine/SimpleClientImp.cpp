@@ -113,9 +113,9 @@ void SimpleClientImp::onMessageFromReplica(MessageBase* msg) {
   Assert(replyMsg->type() == REPLY_MSG_TYPE);
 
   LOG_DEBUG(logger_,
-              "Client " << clientId_ << " received ClientReplyMsg with seqNum=" <<  replyMsg->reqSeqNum() <<
-              " sender=" <<  replyMsg->senderId() << "size=" <<  replyMsg->size() << 
-              " primaryId=" <<  (int)replyMsg->currentPrimaryId() << " hash=" << replyMsg->debugHash());
+            "Client " << clientId_ << " received ClientReplyMsg with seqNum=" << replyMsg->reqSeqNum()
+                      << " sender=" << replyMsg->senderId() << "size=" << replyMsg->size()
+                      << " primaryId=" << (int)replyMsg->currentPrimaryId() << " hash=" << replyMsg->debugHash());
 
   if (replyMsg->reqSeqNum() != pendingRequest_->requestSeqNum()) {
     delete msg;
@@ -194,7 +194,7 @@ int SimpleClientImp::sendRequest(uint8_t flags,
   LOG_DEBUG(logger_,
             "Client " << clientId_ << " - sends request " << reqSeqNum << " (isRO=" << isReadOnly
                       << ", isPreProcess=" << isPreProcessRequired << " , request size=" << lengthOfRequest
-                      << ", retransmissionMilli=" << limitOfExpectedOperationTime_.upperLimit() 
+                      << ", retransmissionMilli=" << limitOfExpectedOperationTime_.upperLimit()
                       << ", timeout=" << timeoutMilli << ") ");
   Assert(!(isReadOnly && isPreProcessRequired));
 
@@ -226,18 +226,17 @@ int SimpleClientImp::sendRequest(uint8_t flags,
   bool requestCommitted = false;
 
   // protect against spurious wakeups
-  auto predicate = [this] {return !msgQueue_.empty();};
+  auto predicate = [this] { return !msgQueue_.empty(); };
   while (true) {
     std::queue<MessageBase*> newMsgs;
     bool hasData = false;
     {
       std::unique_lock<std::mutex> mlock(lock_);
       hasData = condVar_.wait_for(mlock, timersRes, predicate);
-      if(hasData)
-        msgQueue_.swap(newMsgs);
+      if (hasData) msgQueue_.swap(newMsgs);
     }
 
-    if(hasData) {
+    if (hasData) {
       while (!newMsgs.empty()) {
         if (replysCertificate_.isComplete()) {
           delete newMsgs.front();
@@ -276,11 +275,12 @@ int SimpleClientImp::sendRequest(uint8_t flags,
     limitOfExpectedOperationTime_.add(durationMilli);
 
     LOG_DEBUG(logger_,
-                "Client " << clientId_ << " - request " << reqSeqNum << 
-                " has committed "
-                "(isRO=" << isReadOnly << ", isPreProcess=" << isPreProcessRequired 
-                << ", request size=" <<  lengthOfRequest
-                << ",  retransmissionMilli=" << (int)limitOfExpectedOperationTime_.upperLimit() << ") ");
+              "Client " << clientId_ << " - request " << reqSeqNum
+                        << " has committed "
+                           "(isRO="
+                        << isReadOnly << ", isPreProcess=" << isPreProcessRequired
+                        << ", request size=" << lengthOfRequest
+                        << ",  retransmissionMilli=" << (int)limitOfExpectedOperationTime_.upperLimit() << ") ");
 
     ClientReplyMsg* correctReply = replysCertificate_.bestCorrectMsg();
 
@@ -297,10 +297,10 @@ int SimpleClientImp::sendRequest(uint8_t flags,
       return (-2);
     }
   } else if (requestTimeout) {
-    LOG_DEBUG(logger_, "Client " << clientId_ <<  " request :" << reqSeqNum << " timeout");
+    LOG_DEBUG(logger_, "Client " << clientId_ << " request :" << reqSeqNum << " timeout");
 
     if (timeoutMilli >= limitOfExpectedOperationTime_.upperLimit()) {
-      LOG_DEBUG(logger_, "Client " << clientId_ <<  " request :" << reqSeqNum << ", primary is set to UNKNOWN");
+      LOG_DEBUG(logger_, "Client " << clientId_ << " request :" << reqSeqNum << ", primary is set to UNKNOWN");
       primaryReplicaIsKnown_ = false;
       limitOfExpectedOperationTime_.add(timeoutMilli);
     }
@@ -369,7 +369,7 @@ void SimpleClientImp::onNewMessage(const NodeNum sourceNode, const char* const m
 
     msgQueue_.push(pMsg);  // TODO(GG): handle overflow
   }
-  //no need to notify within the lock
+  // no need to notify within the lock
   condVar_.notify_one();
 }
 
@@ -391,11 +391,11 @@ void SimpleClientImp::sendPendingRequest() {
 
   if (numberOfTransmissions_ && !(numberOfTransmissions_ % 10))
     LOG_DEBUG(logger_,
-                "Client " << clientId_ << " sends request " << pendingRequest_->requestSeqNum()
-                << " isRO=" << pendingRequest_->isReadOnly() << ", request size=" << (size_t)pendingRequest_->size()
-                << ", retransmissionMilli=" << (int)limitOfExpectedOperationTime_.upperLimit()
-                << ", numberOfTransmissions=" << numberOfTransmissions_
-                << ", resetReplies=" << resetReplies << ", sendToAll=" << sendToAll);
+              "Client " << clientId_ << " sends request " << pendingRequest_->requestSeqNum() << " isRO="
+                        << pendingRequest_->isReadOnly() << ", request size=" << (size_t)pendingRequest_->size()
+                        << ", retransmissionMilli=" << (int)limitOfExpectedOperationTime_.upperLimit()
+                        << ", numberOfTransmissions=" << numberOfTransmissions_ << ", resetReplies=" << resetReplies
+                        << ", sendToAll=" << sendToAll);
 
   if (resetReplies) {
     replysCertificate_.resetAndFree();
@@ -476,4 +476,3 @@ SeqNumberGeneratorForClientRequests* SeqNumberGeneratorForClientRequests::create
 }
 
 }  // namespace bftEngine
-
