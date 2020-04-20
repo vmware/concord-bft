@@ -97,7 +97,6 @@ class HandoffFixture : public testing::Test {
   virtual void SetUp() {
     ASSERT_GT(std::thread::hardware_concurrency(), 1);
     handoff_ = new concord::util::Handoff();
-    log4cplus::Logger::getInstance(LOG4CPLUS_TEXT("concord.util.handoff")).setLogLevel(log4cplus::DEBUG_LOG_LEVEL);
   }
 
   concord::util::Handoff* handoff_;
