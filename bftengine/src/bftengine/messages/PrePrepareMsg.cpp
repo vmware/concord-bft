@@ -26,12 +26,6 @@ static Digest nullDigest(0x18);
 // PrePrepareMsg
 ///////////////////////////////////////////////////////////////////////////////
 
-PrePrepareMsg* PrePrepareMsg::createNullPrePrepareMsg(
-    ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, const std::string& spanContext) {
-  PrePrepareMsg* p = new PrePrepareMsg(sender, v, s, firstPath, spanContext, true);
-  return p;
-}
-
 const Digest& PrePrepareMsg::digestOfNullPrePrepareMsg() { return nullDigest; }
 
 void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
@@ -68,16 +62,11 @@ void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
   if (d != b()->digestOfRequests) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": digest"));
 }
 
-PrePrepareMsg::PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, bool isNull, size_t size)
-    : PrePrepareMsg(sender, v, s, firstPath, "", isNull, size) {}
+PrePrepareMsg::PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, size_t size)
+    : PrePrepareMsg(sender, v, s, firstPath, "", size) {}
 
-PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
-                             ViewNum v,
-                             SeqNum s,
-                             CommitPath firstPath,
-                             const std::string& spanContext,
-                             bool isNull,
-                             size_t size)
+PrePrepareMsg::PrePrepareMsg(
+    ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, const std::string& spanContext, size_t size)
     : MessageBase(sender,
                   MsgCode::PrePrepare,
                   spanContext.size(),
@@ -86,19 +75,18 @@ PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
                        : maxMessageSize<PrePrepareMsg>() - spanContext.size()))
 
 {
-  b()->viewNum = v;
-  b()->seqNum = s;
-
-  bool ready = isNull;  // if null, then message is ready
-  b()->flags = computeFlagsForPrePrepareMsg(isNull, ready, firstPath);
-
-  if (!isNull)  // not null
+  bool ready = size == 0;  // if null, then message is ready
+  if (!ready) {
     b()->digestOfRequests.makeZero();
-  else  // null
+  } else {
     b()->digestOfRequests = nullDigest;
+  }
 
-  b()->numberOfRequests = 0;
   b()->endLocationOfLastRequest = payloadShift();
+  b()->flags = computeFlagsForPrePrepareMsg(ready, ready, firstPath);
+  b()->numberOfRequests = 0;
+  b()->seqNum = s;
+  b()->viewNum = v;
 
   char* position = body() + sizeof(Header);
   memcpy(position, spanContext.data(), b()->header.spanContextSize);

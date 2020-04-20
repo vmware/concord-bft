@@ -674,7 +674,7 @@ bool ViewsManager::tryToEnterView(ViewNum v,
       if (restrictionsOfPendingView[idx].isNull) {
         Assert(prePrepareMsgsOfRestrictions[idx] == nullptr);
         // TODO(GG): do we want to start from the slow path in these cases?
-        PrePrepareMsg* pp = PrePrepareMsg::createNullPrePrepareMsg(myId, myLatestActiveView, i);
+        PrePrepareMsg* pp = new PrePrepareMsg(myId, myLatestActiveView, i, CommitPath::SLOW, 0);
         outPrePrepareMsgsOfView->push_back(pp);
       } else {
         PrePrepareMsg* pp = prePrepareMsgsOfRestrictions[idx];

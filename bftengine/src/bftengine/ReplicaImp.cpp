@@ -286,8 +286,8 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
 
   controller->onSendingPrePrepare((primaryLastUsedSeqNum + 1), firstPath);
 
-  PrePrepareMsg *pp = new PrePrepareMsg(
-      config_.replicaId, curView, (primaryLastUsedSeqNum + 1), firstPath, false, primaryCombinedReqSize);
+  PrePrepareMsg *pp =
+      new PrePrepareMsg(config_.replicaId, curView, (primaryLastUsedSeqNum + 1), firstPath, primaryCombinedReqSize);
 
   ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
   while (nextRequest != nullptr && nextRequest->size() <= pp->remainingSizeForRequests()) {

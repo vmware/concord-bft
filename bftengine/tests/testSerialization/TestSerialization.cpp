@@ -248,7 +248,7 @@ void testSeqNumWindowSetUp(const SeqNum shift, bool toSet) {
   ReplicaId sender = 2;
   ViewNum view = 6;
   CommitPath firstPath = CommitPath::FAST_WITH_THRESHOLD;
-  PrePrepareMsg prePrepareInitialMsg(sender, view, prePrepareMsgSeqNum, firstPath);
+  PrePrepareMsg prePrepareNullMsg(sender, view, prePrepareMsgSeqNum, firstPath, 0);
 
   const SeqNum slowStartedSeqNum = 144;
   bool slowStarted = true;
@@ -266,7 +266,7 @@ void testSeqNumWindowSetUp(const SeqNum shift, bool toSet) {
 
   if (toSet) {
     persistentStorageImp->beginWriteTran();
-    persistentStorageImp->setPrePrepareMsgInSeqNumWindow(prePrepareMsgSeqNum, &prePrepareInitialMsg);
+    persistentStorageImp->setPrePrepareMsgInSeqNumWindow(prePrepareMsgSeqNum, &prePrepareNullMsg);
     persistentStorageImp->setSlowStartedInSeqNumWindow(slowStartedSeqNum, slowStarted);
     persistentStorageImp->setFullCommitProofMsgInSeqNumWindow(fullCommitProofSeqNum, &fullCommitProofInitialMsg);
     persistentStorageImp->setForceCompletedInSeqNumWindow(commitFullSeqNum, forceCompleted);
@@ -294,7 +294,7 @@ void testSeqNumWindowSetUp(const SeqNum shift, bool toSet) {
 
     if (!shift) {
       if (prePrepareMsgSeqNumShifted == shiftedSeqNum - 1) {
-        Assert(prePrepareMsg->equals(prePrepareInitialMsg));
+        Assert(prePrepareMsg->equals(prePrepareNullMsg));
       } else
         Assert(!prePrepareMsg);
 
@@ -351,7 +351,7 @@ void testSetDescriptors(bool toSet) {
   ViewsManager::PrevViewInfo element;
   ReplicaId senderId = 1;
   element.hasAllRequests = true;
-  element.prePrepare = new PrePrepareMsg(senderId, viewNum, lastExitExecNum, CommitPath::OPTIMISTIC_FAST, true);
+  element.prePrepare = new PrePrepareMsg(senderId, viewNum, lastExitExecNum, CommitPath::OPTIMISTIC_FAST, 0);
   element.prepareFull = PrepareFullMsg::create(viewNum, lastExitExecNum, senderId, nullptr, 0);
   for (uint32_t i = 0; i < kWorkWindowSize; ++i) {
     elements.push_back(element);

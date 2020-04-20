@@ -54,27 +54,15 @@ class PrePrepareMsg : public MessageBase {
  public:
   // static
 
-  static PrePrepareMsg* createNullPrePrepareMsg(ReplicaId sender,
-                                                ViewNum v,
-                                                SeqNum s,
-                                                CommitPath firstPath = CommitPath::SLOW,
-                                                const std::string& spanContext = "");  // TODO(GG): why static method ?
-
   static const Digest& digestOfNullPrePrepareMsg();
 
   void validate(const ReplicasInfo&) const override;
 
-  // ctor and other build methods
+  // size - total size of all requests that will be added
+  PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, size_t size);
 
-  PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, bool isNull = false, size_t size = 0);
-
-  PrePrepareMsg(ReplicaId sender,
-                ViewNum v,
-                SeqNum s,
-                CommitPath firstPath,
-                const std::string& spanContext,
-                bool isNull,
-                size_t size = 0);
+  PrePrepareMsg(
+      ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, const std::string& spanContext, size_t size);
 
   uint32_t remainingSizeForRequests() const;
 

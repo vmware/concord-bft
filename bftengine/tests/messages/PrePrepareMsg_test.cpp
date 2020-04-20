@@ -53,15 +53,14 @@ TEST(PrePrepareMsg, create_and_compare) {
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
   CommitPath commitPath = CommitPath::OPTIMISTIC_FAST;
-  bool is_null = false;
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ClientRequestMsg client_request = create_client_request();
-  PrePrepareMsg msg(senderId, viewNum, seqNum, commitPath, spanContext, is_null, client_request.size() * 2);
+  PrePrepareMsg msg(senderId, viewNum, seqNum, commitPath, spanContext, client_request.size() * 2);
   EXPECT_EQ(msg.viewNumber(), viewNum);
   EXPECT_EQ(msg.seqNumber(), seqNum);
   EXPECT_EQ(msg.firstPath(), commitPath);
-  EXPECT_EQ(msg.isNull(), is_null);
+  EXPECT_EQ(msg.isNull(), false);
   EXPECT_EQ(msg.numberOfRequests(), 0u);
 
   msg.addRequest(client_request.body(), client_request.size());
@@ -91,8 +90,7 @@ TEST(PrePrepareMsg, create_null_message) {
   CommitPath commitPath = CommitPath::OPTIMISTIC_FAST;
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
-  std::unique_ptr<PrePrepareMsg> null_msg{
-      PrePrepareMsg::createNullPrePrepareMsg(senderId, viewNum, seqNum, commitPath, spanContext)};
+  auto null_msg = std::make_unique<PrePrepareMsg>(senderId, viewNum, seqNum, commitPath, spanContext, 0);
 
   auto& msg = *null_msg;
   EXPECT_EQ(msg.viewNumber(), viewNum);
@@ -111,16 +109,16 @@ TEST(PrePrepareMsg, base_methods) {
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
   CommitPath commitPath = CommitPath::OPTIMISTIC_FAST;
-  bool is_null = false;
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ClientRequestMsg client_request = create_client_request();
-  PrePrepareMsg msg(senderId, viewNum, seqNum, commitPath, spanContext, is_null, client_request.size());
+  PrePrepareMsg msg(senderId, viewNum, seqNum, commitPath, spanContext, client_request.size());
   msg.addRequest(client_request.body(), client_request.size());
   msg.finishAddingRequests();
   EXPECT_NO_THROW(msg.validate(replicaInfo));
   testMessageBaseMethods(msg, MsgCode::PrePrepare, senderId, spanContext);
 }
+
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
