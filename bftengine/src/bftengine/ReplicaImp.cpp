@@ -9,7 +9,13 @@
 // these subcomponents is subject to the terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
+#include <jaegertracing/Tracer.h>
+#include <jaegertracing/thrift-gen/jaeger_types.h>
+#include <opentracing/tracer.h>
+#include <cmath>
+#include <iterator>
 #include "ReplicaImp.hpp"
+#include "ViewsManager.hpp"
 #include "assertUtils.hpp"
 #include "Logger.hpp"
 #include "ControllerWithSimpleHistory.hpp"
@@ -2958,6 +2964,17 @@ ReplicaImp::ReplicaImp(bool firstTime,
                << ", sizeOfReservedPage=" << config_.sizeOfReservedPage
                << ", debugStatisticsEnabled=" << config_.debugStatisticsEnabled
                << ", metricsDumpIntervalSeconds=" << config_.metricsDumpIntervalSeconds);
+
+  std::string jaeger_agent = jaegertracing::reporters::Config::kDefaultLocalAgentHostPort;
+  jaegertracing::samplers::Config sampler_config(jaegertracing::kSamplerTypeConst, 1.0);
+  jaegertracing::reporters::Config reporter_config(jaegertracing::reporters::Config::kDefaultQueueSize,
+                                                   jaegertracing::reporters::Config::defaultBufferFlushInterval(),
+                                                   false /* do not log spans */,
+                                                   jaeger_agent);
+  jaegertracing::Config jaeger_config(false /* not disabled */, sampler_config, reporter_config);
+  auto tracer = jaegertracing::Tracer::make(
+      "concord", jaeger_config /*, std::unique_ptr<jaegertracing::logging::Logger>(new JaegerLogger())*/);
+  opentracing::Tracer::InitGlobal(std::static_pointer_cast<opentracing::Tracer>(tracer));
 }
 
 ReplicaImp::~ReplicaImp() {
@@ -3258,7 +3275,6 @@ void ReplicaImp::executeNextCommittedRequests(const bool requestMissingInfo) {
     SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum + 1);
 
     PrePrepareMsg *prePrepareMsg = seqNumInfo.getPrePrepareMsg();
-
     const bool ready = (prePrepareMsg != nullptr) && (seqNumInfo.isCommitted__gg());
 
     if (requestMissingInfo && !ready) {

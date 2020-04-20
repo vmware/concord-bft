@@ -1,7 +1,5 @@
-from conans import ConanFile, CMake, tools, AutoToolsBuildEnvironment
-from conans.tools import download, unzip
-import shutil
-import os
+from conans import ConanFile, AutoToolsBuildEnvironment
+
 
 class RocksdbConan(ConanFile):
     scm = {

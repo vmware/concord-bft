@@ -76,6 +76,10 @@ add_library(corebft STATIC ${corebft_source_files})
 add_library(bftclient STATIC src/bftengine/SimpleClientImp)
 
 find_package(cryptopp REQUIRED)
+find_package(OpenTracing REQUIRED)
+find_package(yaml-cpp REQUIRED)
+find_package(thrift REQUIRED)
+find_package(jaegertracing REQUIRED)
 
 target_compile_options(corebft PUBLIC "-Wno-extra-semi" "-Wno-undefined-var-template") # TODO tmp cryptopp
 target_include_directories(corebft PUBLIC include/)
@@ -87,6 +91,13 @@ target_include_directories(corebft PRIVATE src/bftengine)
 target_include_directories(corebft PRIVATE src/preprocessor)
 target_include_directories(corebft PRIVATE util/include)
 target_include_directories(corebft PUBLIC ${CRYPTOPP_INCLUDE_DIRS})
+target_include_directories(corebft PUBLIC ${OPENTRACING_INCLUDE_DIRS})
+target_include_directories(corebft PUBLIC ${YAML-CPP_INCLUDE_DIRS})
+target_include_directories(corebft PUBLIC ${JAEGERTRACING_INCLUDE_DIRS})
+
+target_include_directories(bftclient PUBLIC include/bftengine)
+target_include_directories(bftclient PUBLIC src/bftengine)
+target_include_directories(bftclient PUBLIC src/preprocessor)
 target_link_libraries(corebft PUBLIC
   threshsign
   Threads::Threads
@@ -95,9 +106,8 @@ target_link_libraries(corebft PUBLIC
   preprocessor
   bftcommunication
 )
-
-target_include_directories(bftclient PUBLIC include/bftengine)
-target_include_directories(bftclient PUBLIC src/bftengine)
-target_include_directories(bftclient PUBLIC src/preprocessor)
 target_link_libraries(bftclient PUBLIC bftcommunication)
-
+target_link_libraries(corebft PUBLIC opentracing)
+target_link_libraries(corebft PUBLIC ${THRIFT_LIBRARIES})
+target_link_libraries(corebft PUBLIC ${YAML-CPP_LIBRARIES})
+target_link_libraries(corebft PUBLIC ${JAEGERTRACING_LIBRARIES})
