@@ -443,19 +443,20 @@ void PersistentStorageImp::setMsgInSeqNumWindow(SeqNum seqNum,
 }
 
 void PersistentStorageImp::setPrePrepareMsgInSeqNumWindow(SeqNum seqNum, PrePrepareMsg *msg) {
-  setMsgInSeqNumWindow(seqNum, PRE_PREPARE_MSG, (MessageBase *)msg, SeqNumData::maxPrePrepareMsgSize());
+  setMsgInSeqNumWindow(seqNum, PRE_PREPARE_MSG, (MessageBase *)msg, SeqNumData::maxMessageSize<PrePrepareMsg>());
 }
 
 void PersistentStorageImp::setFullCommitProofMsgInSeqNumWindow(SeqNum seqNum, FullCommitProofMsg *msg) {
-  setMsgInSeqNumWindow(seqNum, FULL_COMMIT_PROOF_MSG, (MessageBase *)msg, SeqNumData::maxFullCommitProofMsgSize());
+  setMsgInSeqNumWindow(
+      seqNum, FULL_COMMIT_PROOF_MSG, (MessageBase *)msg, SeqNumData::maxMessageSize<FullCommitProofMsg>());
 }
 
 void PersistentStorageImp::setPrepareFullMsgInSeqNumWindow(SeqNum seqNum, PrepareFullMsg *msg) {
-  setMsgInSeqNumWindow(seqNum, PRE_PREPARE_FULL_MSG, (MessageBase *)msg, SeqNumData::maxPrepareFullMsgSize());
+  setMsgInSeqNumWindow(seqNum, PRE_PREPARE_FULL_MSG, (MessageBase *)msg, SeqNumData::maxMessageSize<PrepareFullMsg>());
 }
 
 void PersistentStorageImp::setCommitFullMsgInSeqNumWindow(SeqNum seqNum, CommitFullMsg *msg) {
-  setMsgInSeqNumWindow(seqNum, COMMIT_FULL_MSG, (MessageBase *)msg, SeqNumData::maxCommitFullMsgSize());
+  setMsgInSeqNumWindow(seqNum, COMMIT_FULL_MSG, (MessageBase *)msg, SeqNumData::maxMessageSize<CommitFullMsg>());
 }
 
 void PersistentStorageImp::setOneByteInSeqNumWindow(SeqNum seqNum, SeqNum parameterId, uint8_t oneByte) const {
@@ -721,19 +722,20 @@ MessageBase *PersistentStorageImp::readMsgFromDisk(SeqNum seqNum, SeqNum paramet
 }
 
 PrePrepareMsg *PersistentStorageImp::readPrePrepareMsgFromDisk(SeqNum seqNum) const {
-  return (PrePrepareMsg *)readMsgFromDisk(seqNum, PRE_PREPARE_MSG, SeqNumData::maxPrePrepareMsgSize());
+  return (PrePrepareMsg *)readMsgFromDisk(seqNum, PRE_PREPARE_MSG, SeqNumData::maxMessageSize<PrePrepareMsg>());
 }
 
 FullCommitProofMsg *PersistentStorageImp::readFullCommitProofMsgFromDisk(SeqNum seqNum) const {
-  return (FullCommitProofMsg *)readMsgFromDisk(seqNum, FULL_COMMIT_PROOF_MSG, SeqNumData::maxFullCommitProofMsgSize());
+  return (FullCommitProofMsg *)readMsgFromDisk(
+      seqNum, FULL_COMMIT_PROOF_MSG, SeqNumData::maxMessageSize<FullCommitProofMsg>());
 }
 
 PrepareFullMsg *PersistentStorageImp::readPrepareFullMsgFromDisk(SeqNum seqNum) const {
-  return (PrepareFullMsg *)readMsgFromDisk(seqNum, PRE_PREPARE_FULL_MSG, SeqNumData::maxPrepareFullMsgSize());
+  return (PrepareFullMsg *)readMsgFromDisk(seqNum, PRE_PREPARE_FULL_MSG, SeqNumData::maxMessageSize<PrepareFullMsg>());
 }
 
 CommitFullMsg *PersistentStorageImp::readCommitFullMsgFromDisk(SeqNum seqNum) const {
-  return (CommitFullMsg *)readMsgFromDisk(seqNum, COMMIT_FULL_MSG, SeqNumData::maxCommitFullMsgSize());
+  return (CommitFullMsg *)readMsgFromDisk(seqNum, COMMIT_FULL_MSG, SeqNumData::maxMessageSize<CommitFullMsg>());
 }
 
 const SeqNum PersistentStorageImp::convertCheckWindowIndex(SeqNum index) const {

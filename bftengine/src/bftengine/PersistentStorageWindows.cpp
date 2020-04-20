@@ -13,8 +13,6 @@
 
 #include "PersistentStorageWindows.hpp"
 
-static constexpr size_t EMPTY_MESSAGE_FLAG_SIZE = sizeof(bool);
-
 namespace bftEngine {
 namespace impl {
 
@@ -110,24 +108,9 @@ bool SeqNumData::equals(const SeqNumData &other) const {
 }
 
 uint32_t SeqNumData::maxSize() {
-  return maxPrePrepareMsgSize() + maxFullCommitProofMsgSize() + maxPrepareFullMsgSize() + maxCommitFullMsgSize() +
+  return SeqNumData::maxMessageSize<PrePrepareMsg>() + SeqNumData::maxMessageSize<FullCommitProofMsg>() +
+         SeqNumData::maxMessageSize<PrepareFullMsg>() + SeqNumData::maxMessageSize<CommitFullMsg>() +
          sizeof(slowStarted_) + sizeof(forceCompleted_);
-}
-
-uint32_t SeqNumData::maxPrePrepareMsgSize() {
-  return maxMessageSizeInLocalBuffer<PrePrepareMsg>() + EMPTY_MESSAGE_FLAG_SIZE;
-}
-
-uint32_t SeqNumData::maxFullCommitProofMsgSize() {
-  return maxMessageSizeInLocalBuffer<FullCommitProofMsg>() + EMPTY_MESSAGE_FLAG_SIZE;
-}
-
-uint32_t SeqNumData::maxPrepareFullMsgSize() {
-  return maxMessageSizeInLocalBuffer<PrepareFullMsg>() + EMPTY_MESSAGE_FLAG_SIZE;
-}
-
-uint32_t SeqNumData::maxCommitFullMsgSize() {
-  return maxMessageSizeInLocalBuffer<CommitFullMsg>() + EMPTY_MESSAGE_FLAG_SIZE;
 }
 
 /*****************************************************************************/
