@@ -1921,7 +1921,6 @@ void BCStateTran::processData() {
       metrics_.current_source_replica_.Get().Set(sourceSelector_.currentReplica());
       metrics_.preferred_replicas_.Get().Set(sourceSelector_.preferredReplicasToString());
       badDataFromCurrentSourceReplica = false;
-      clearAllPendingItemsData();
     }
 
     // We have a valid source replica at this point

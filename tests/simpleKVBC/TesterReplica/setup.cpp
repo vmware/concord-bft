@@ -59,6 +59,8 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     std::string commConfigFile;
     std::string s3ConfigFile;
 
+    int stateTransferOpt = 0;
+
     static struct option long_options[] = {{"replica-id", required_argument, 0, 'i'},
                                            {"key-file-prefix", required_argument, 0, 'k'},
                                            {"network-config-file", required_argument, 0, 'n'},
@@ -67,6 +69,9 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                            {"auto-primary-rotation-timeout", required_argument, 0, 'a'},
                                            {"s3-config-file", required_argument, 0, '3'},
                                            {"persistence-mode", no_argument, 0, 'p'},
+                                           {"max-reply-message-size", required_argument, 0, 'r'},
+                                           {"max-num-of-reserved-pages", required_argument, &stateTransferOpt, 1},
+                                           {"size-of-reserved-page", required_argument, &stateTransferOpt, 2},
                                            {0, 0, 0, 0}};
 
     int o = 0;
@@ -74,6 +79,23 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     LOG_INFO(GL, "Command line options:");
     while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:p", long_options, &option_index)) != -1) {
       switch (o) {
+        case 0:  // Setting a flag
+          if (stateTransferOpt) {
+            switch (stateTransferOpt) {
+              case 1:
+                replicaConfig.maxNumOfReservedPages = concord::util::to<std::uint32_t>(std::string(optarg));
+                break;
+              case 2:
+                replicaConfig.sizeOfReservedPage = concord::util::to<std::uint32_t>(std::string(optarg));
+                break;
+              default:
+                throw std::runtime_error("Unknown state transfer option");
+            }
+          }
+          break;
+        case 'r':
+          replicaConfig.maxReplyMessageSize = concord::util::to<std::uint32_t>(std::string(optarg));
+          break;
         case 'i': {
           replicaConfig.replicaId = concord::util::to<std::uint16_t>(std::string(optarg));
         } break;
