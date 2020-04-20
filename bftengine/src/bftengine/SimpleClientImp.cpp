@@ -421,6 +421,8 @@ void SimpleClientImp::sendPendingRequest() {
 
 class SeqNumberGeneratorForClientRequestsImp : public SeqNumberGeneratorForClientRequests {
   virtual uint64_t generateUniqueSequenceNumberForRequest() override;
+  virtual uint64_t generateUniqueSequenceNumberForRequest(
+      std::chrono::time_point<std::chrono::system_clock> now) override;
 
  protected:
   uint64_t lastMilliOfUniqueFetchID_ = 0;
@@ -428,9 +430,13 @@ class SeqNumberGeneratorForClientRequestsImp : public SeqNumberGeneratorForClien
 };
 
 uint64_t SeqNumberGeneratorForClientRequestsImp::generateUniqueSequenceNumberForRequest() {
-  std::chrono::time_point<std::chrono::system_clock> n = std::chrono::system_clock::now();
+  std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
+  return generateUniqueSequenceNumberForRequest(now);
+}
 
-  uint64_t milli = std::chrono::duration_cast<std::chrono::milliseconds>(n.time_since_epoch()).count();
+uint64_t SeqNumberGeneratorForClientRequestsImp::generateUniqueSequenceNumberForRequest(
+    std::chrono::time_point<std::chrono::system_clock> now) {
+  uint64_t milli = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
 
   if (milli > lastMilliOfUniqueFetchID_) {
     lastMilliOfUniqueFetchID_ = milli;
