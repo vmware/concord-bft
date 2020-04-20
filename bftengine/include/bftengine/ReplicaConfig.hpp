@@ -15,6 +15,7 @@
 #include <set>
 #include <string>
 #include <mutex>
+#include <ostream>
 
 class IThresholdSigner;
 class IThresholdVerifier;
@@ -118,6 +119,32 @@ struct ReplicaConfig {
    */
   void singletonFromThis();
 };
+
+inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
+  os << "isReadOnly: " << rc.isReadOnly << "\n"
+     << "numReplicas: " << rc.numReplicas << "\n"
+     << "numRoReplicas: " << rc.numRoReplicas << "\n"
+     << "fVal: " << rc.fVal << "\n"
+     << "cVal: " << rc.cVal << "\n"
+     << "replicaId: " << rc.replicaId << "\n"
+     << "numOfClientProxies: " << rc.numOfClientProxies << "\n"
+     << "statusReportTimerMillisec: " << rc.statusReportTimerMillisec << "\n"
+     << "concurrencyLevel: " << rc.concurrencyLevel << "\n"
+     << "viewChangeProtocolEnabled: " << rc.viewChangeProtocolEnabled << "\n"
+     << "viewChangeTimerMillisec: " << rc.viewChangeTimerMillisec << "\n"
+     << "autoPrimaryRotationEnabled: " << rc.autoPrimaryRotationEnabled << "\n"
+     << "autoPrimaryRotationTimerMillisec: " << rc.autoPrimaryRotationTimerMillisec << "\n"
+     << "preExecutionFeatureEnabled: " << rc.preExecutionFeatureEnabled << "\n"
+     << "preExecReqStatusCheckTimerMillisec: " << rc.preExecReqStatusCheckTimerMillisec << "\n"
+     << "debugPersistentStorageEnabled: " << rc.debugPersistentStorageEnabled << "\n"
+     << "maxExternalMessageSize: " << rc.maxExternalMessageSize << "\n"
+     << "maxReplyMessageSize: " << rc.maxReplyMessageSize << "\n"
+     << "maxNumOfReservedPages: " << rc.maxNumOfReservedPages << "\n"
+     << "sizeOfReservedPage: " << rc.sizeOfReservedPage << "\n"
+     << "debugStatisticsEnabled: " << rc.debugStatisticsEnabled << "\n"
+     << "metricsDumpIntervalSeconds: " << rc.metricsDumpIntervalSeconds << "\n";
+  return os;
+}
 
 /** System-wide singleton class for accessing replica configuration
  *  Note: ReplicaConfig held by ReplicaConfigSingleton is a COPY of the ReplicaConfig object it was initialized from
