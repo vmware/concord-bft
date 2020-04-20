@@ -419,13 +419,22 @@ void SimpleClientImp::sendPendingRequest() {
   }
 }
 
+// SeqNumberGeneratorForClientRequestsImp, generates unique, monotonically increasing, sequence number.
+// The SN is a time stamp processed and derived from the system clock.
+// The SN is a bitwise or between lastMilli and lastCount.
+// Equal time stamp will be bitwise or, with different lastCount values,
+// and uniqueness will bre preserved.
 class SeqNumberGeneratorForClientRequestsImp : public SeqNumberGeneratorForClientRequests {
   virtual uint64_t generateUniqueSequenceNumberForRequest() override;
   virtual uint64_t generateUniqueSequenceNumberForRequest(
       std::chrono::time_point<std::chrono::system_clock> now) override;
 
  protected:
+  // limited to the size lastMilli shifted.
+  const u_int64_t last_count_limit = 0x3FFFFF;
+  // lastMilliOfUniqueFetchID_ holds the last SN generated,
   uint64_t lastMilliOfUniqueFetchID_ = 0;
+  // lastCount used to preserve uniqueness.
   uint32_t lastCountOfUniqueFetchID_ = 0;
 };
 
@@ -442,15 +451,16 @@ uint64_t SeqNumberGeneratorForClientRequestsImp::generateUniqueSequenceNumberFor
     lastMilliOfUniqueFetchID_ = milli;
     lastCountOfUniqueFetchID_ = 0;
   } else {
-    if (lastCountOfUniqueFetchID_ == 0x3FFFFF) {
+    if (lastCountOfUniqueFetchID_ == last_count_limit) {
       LOG_WARN(GL, "Client SeqNum Counter reached max value");
       lastMilliOfUniqueFetchID_++;
       lastCountOfUniqueFetchID_ = 0;
-    } else {
+    } else {  // increase last count to preserve uniqueness.
       lastCountOfUniqueFetchID_++;
     }
   }
-
+  // shift lastMilli by 22 (0x3FFFFF) in order to 'bitwise or' with lastCount
+  // and preserve uniqueness and monotonicity.
   uint64_t r = (lastMilliOfUniqueFetchID_ << (64 - 42));
   Assert(lastCountOfUniqueFetchID_ <= 0x3FFFFF);
   r = r | ((uint64_t)lastCountOfUniqueFetchID_);

@@ -14,6 +14,25 @@ class MockSeqNumGenerator : public SeqNumberGeneratorForClientRequestsImp {
   void setLastCountOfUniqueFetchID(uint64_t count) { lastCountOfUniqueFetchID_ = count; }
 };
 
+TEST(seqNumForClientRequest_test, time_stamp_smaller_SN_monotonicity_preserved) {
+  SeqNumberGeneratorForClientRequests *seqNumGen = new MockSeqNumGenerator();
+  list<u_int64_t> seqNums;
+
+  // generate bunch of sequence numbers
+  for (int i = 0; i < 10; i++) {
+    seqNums.push_back(seqNumGen->generateUniqueSequenceNumberForRequest());
+    usleep(1000);
+  }
+
+  u_int64_t lastSeqNum = seqNums.back();
+  std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
+  now.operator-=(chrono::milliseconds(1000));
+  u_int64_t newSeqNum = seqNumGen->generateUniqueSequenceNumberForRequest(now);
+
+  ASSERT_TRUE(lastSeqNum + 1 == newSeqNum);
+  delete seqNumGen;
+}
+
 TEST(seqNumForClientRequest_test, monotonicity_check) {
   SeqNumberGeneratorForClientRequests *seqNumGen = new MockSeqNumGenerator();
   std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
