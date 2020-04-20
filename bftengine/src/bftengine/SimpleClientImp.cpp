@@ -102,6 +102,8 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
   uint16_t clientSendsRequestToAllReplicasFirstThresh_;
   uint16_t clientSendsRequestToAllReplicasPeriodThresh_;
   uint16_t clientPeriodicResetThresh_;
+
+  concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.bft.client");
 };
 
 void SimpleClientImp::onMessageFromReplica(MessageBase* msg) {
@@ -110,15 +112,10 @@ void SimpleClientImp::onMessageFromReplica(MessageBase* msg) {
   Assert(replyMsg != nullptr);
   Assert(replyMsg->type() == REPLY_MSG_TYPE);
 
-  LOG_DEBUG_F(GL,
-              "Client %d received ClientReplyMsg with seqNum=%" PRIu64 " sender=%d  size=%d  primaryId=%d hash=%" PRIu64
-              "",
-              clientId_,
-              replyMsg->reqSeqNum(),
-              replyMsg->senderId(),
-              replyMsg->size(),
-              (int)replyMsg->currentPrimaryId(),
-              replyMsg->debugHash());
+  LOG_DEBUG(logger_,
+            "Client " << clientId_ << " received ClientReplyMsg with seqNum=" << replyMsg->reqSeqNum()
+                      << " sender=" << replyMsg->senderId() << "size=" << replyMsg->size()
+                      << " primaryId=" << (int)replyMsg->currentPrimaryId() << " hash=" << replyMsg->debugHash());
 
   if (replyMsg->reqSeqNum() != pendingRequest_->requestSeqNum()) {
     delete msg;
@@ -194,10 +191,11 @@ int SimpleClientImp::sendRequest(uint8_t flags,
   bool isPreProcessRequired = flags & PRE_PROCESS_REQ;
   const std::string msgCid = cid.empty() ? std::to_string(reqSeqNum) + "-" + std::to_string(clientId_) : cid;
   // TODO(GG): check params ...
-  LOG_DEBUG(GL,
+  LOG_DEBUG(logger_,
             "Client " << clientId_ << " - sends request " << reqSeqNum << " (isRO=" << isReadOnly
                       << ", isPreProcess=" << isPreProcessRequired << " , request size=" << lengthOfRequest
-                      << ", retransmissionMilli=" << limitOfExpectedOperationTime_.upperLimit() << " ) ");
+                      << ", retransmissionMilli=" << limitOfExpectedOperationTime_.upperLimit()
+                      << ", timeout=" << timeoutMilli << ") ");
   Assert(!(isReadOnly && isPreProcessRequired));
 
   if (!communication_->isRunning()) {
@@ -227,27 +225,32 @@ int SimpleClientImp::sendRequest(uint8_t flags,
   bool requestTimeout = false;
   bool requestCommitted = false;
 
+  // protect against spurious wakeups
+  auto predicate = [this] { return !msgQueue_.empty(); };
   while (true) {
     std::queue<MessageBase*> newMsgs;
+    bool hasData = false;
     {
       std::unique_lock<std::mutex> mlock(lock_);
-      condVar_.wait_for(mlock, timersRes);
-      msgQueue_.swap(newMsgs);
+      hasData = condVar_.wait_for(mlock, timersRes, predicate);
+      if (hasData) msgQueue_.swap(newMsgs);
     }
 
-    while (!newMsgs.empty()) {
-      if (replysCertificate_.isComplete()) {
-        delete newMsgs.front();
-      } else {
-        MessageBase* msg = newMsgs.front();
-        onMessageFromReplica(msg);
+    if (hasData) {
+      while (!newMsgs.empty()) {
+        if (replysCertificate_.isComplete()) {
+          delete newMsgs.front();
+        } else {
+          MessageBase* msg = newMsgs.front();
+          onMessageFromReplica(msg);
+        }
+        newMsgs.pop();
       }
-      newMsgs.pop();
-    }
 
-    if (replysCertificate_.isComplete()) {
-      requestCommitted = true;
-      break;
+      if (replysCertificate_.isComplete()) {
+        requestCommitted = true;
+        break;
+      }
     }
 
     const Time currTime = getMonotonicTime();
@@ -271,16 +274,13 @@ int SimpleClientImp::sendRequest(uint8_t flags,
     uint64_t durationMilli = duration_cast<milliseconds>(getMonotonicTime() - beginTime).count();
     limitOfExpectedOperationTime_.add(durationMilli);
 
-    LOG_DEBUG_F(GL,
-                "Client %d - request %" PRIu64
-                " has committed "
-                "(isRO=%d, isPreProcess=%d, request size=%zu,  retransmissionMilli=%d) ",
-                clientId_,
-                reqSeqNum,
-                (int)isReadOnly,
-                isPreProcessRequired,
-                (size_t)lengthOfRequest,
-                (int)limitOfExpectedOperationTime_.upperLimit());
+    LOG_DEBUG(logger_,
+              "Client " << clientId_ << " - request " << reqSeqNum
+                        << " has committed "
+                           "(isRO="
+                        << isReadOnly << ", isPreProcess=" << isPreProcessRequired
+                        << ", request size=" << lengthOfRequest
+                        << ",  retransmissionMilli=" << (int)limitOfExpectedOperationTime_.upperLimit() << ") ");
 
     ClientReplyMsg* correctReply = replysCertificate_.bestCorrectMsg();
 
@@ -297,9 +297,10 @@ int SimpleClientImp::sendRequest(uint8_t flags,
       return (-2);
     }
   } else if (requestTimeout) {
-    // Logger::printInfo("Client %d - request %" PRIu64 " - timeout");
+    LOG_DEBUG(logger_, "Client " << clientId_ << " request :" << reqSeqNum << " timeout");
 
     if (timeoutMilli >= limitOfExpectedOperationTime_.upperLimit()) {
+      LOG_DEBUG(logger_, "Client " << clientId_ << " request :" << reqSeqNum << ", primary is set to UNKNOWN");
       primaryReplicaIsKnown_ = false;
       limitOfExpectedOperationTime_.add(timeoutMilli);
     }
@@ -367,8 +368,9 @@ void SimpleClientImp::onNewMessage(const NodeNum sourceNode, const char* const m
     MessageBase* pMsg = new MessageBase(senderId, msgBody, messageLength, true);
 
     msgQueue_.push(pMsg);  // TODO(GG): handle overflow
-    condVar_.notify_one();
   }
+  // no need to notify within the lock
+  condVar_.notify_one();
 }
 
 void SimpleClientImp::onConnectionStatusChanged(const NodeNum node, const ConnectionStatus newStatus) {}
@@ -388,18 +390,12 @@ void SimpleClientImp::sendPendingRequest() {
                          resetReplies;
 
   if (numberOfTransmissions_ && !(numberOfTransmissions_ % 10))
-    LOG_DEBUG_F(GL,
-                "Client %d - sends request %" PRIu64
-                " isRO=%d, request size=%zu, "
-                "retransmissionMilli=%d, numberOfTransmissions=%d, resetReplies=%d, sendToAll=%d",
-                clientId_,
-                pendingRequest_->requestSeqNum(),
-                (int)pendingRequest_->isReadOnly(),
-                (size_t)pendingRequest_->size(),
-                (int)limitOfExpectedOperationTime_.upperLimit(),
-                (int)numberOfTransmissions_,
-                (int)resetReplies,
-                (int)sendToAll);
+    LOG_DEBUG(logger_,
+              "Client " << clientId_ << " sends request " << pendingRequest_->requestSeqNum() << " isRO="
+                        << pendingRequest_->isReadOnly() << ", request size=" << (size_t)pendingRequest_->size()
+                        << ", retransmissionMilli=" << (int)limitOfExpectedOperationTime_.upperLimit()
+                        << ", numberOfTransmissions=" << numberOfTransmissions_ << ", resetReplies=" << resetReplies
+                        << ", sendToAll=" << sendToAll);
 
   if (resetReplies) {
     replysCertificate_.resetAndFree();
