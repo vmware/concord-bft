@@ -179,6 +179,21 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   CounterHandle metric_received_new_views_;
   CounterHandle metric_received_req_missing_datas_;
   CounterHandle metric_received_simple_acks_;
+  CounterHandle metric_sent_status_msgs_not_due_timer_;
+  CounterHandle metric_sent_req_for_missing_data_;
+  CounterHandle metric_sent_checkpoint_msg_due_to_status_;
+  CounterHandle metric_sent_viewchange_msg_due_to_status_;
+  CounterHandle metric_sent_newview_msg_due_to_status_;
+  CounterHandle metric_sent_preprepare_msg_due_to_status_;
+  CounterHandle metric_sent_preprepare_msg_due_to_reqMissingData_;
+  CounterHandle metric_sent_startSlowPath_msg_due_to_reqMissingData_;
+  CounterHandle metric_sent_partialCommitProof_msg_due_to_reqMissingData_;
+  CounterHandle metric_sent_preparePartial_msg_due_to_reqMissingData_;
+  CounterHandle metric_sent_prepareFull_msg_due_to_reqMissingData_;
+  CounterHandle metric_sent_commitPartial_msg_due_to_reqMissingData_;
+  CounterHandle metric_sent_commitFull_msg_due_to_reqMissingData_;
+  CounterHandle metric_sent_fullCommitProof_msg_due_to_reqMissingData_;
+  CounterHandle metric_not_enough_client_requests_event_;
   //*****************************************************
  public:
   ReplicaImp(const ReplicaConfig&,
@@ -246,7 +261,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void MoveToHigherView(ViewNum nextView);  // also sends the ViewChangeMsg message
   void GotoNextView();
 
-  void tryToSendStatusReport();
+  void tryToSendStatusReport(bool onTimer = false);
   void tryToSendReqMissingDataMsg(SeqNum seqNumber,
                                   bool slowPathOnly = false,
                                   uint16_t destReplicaId = ALL_OTHER_REPLICAS);
