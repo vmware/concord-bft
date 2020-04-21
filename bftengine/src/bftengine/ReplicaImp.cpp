@@ -110,6 +110,11 @@ void ReplicaImp::send(MessageBase *m, NodeIdType dest) {
   ReplicaBase::send(m, dest);
 }
 
+void ReplicaImp::sendAndIncrementMetric(MessageBase *m, NodeIdType id, CounterHandle &counterMetric) {
+  send(m, id);
+  counterMetric.Get().Inc();
+}
+
 void ReplicaImp::onReportAboutInvalidMessage(MessageBase *msg, const char *reason) {
   LOG_WARN(GL,
            "Node " << config_.replicaId << " received invalid message from Node " << msg->senderId()
@@ -1492,8 +1497,7 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
     if (checkMsg == nullptr || !checkMsg->isStableState()) {
       // TODO(GG): warning
     } else {
-      send(checkMsg, msgSenderId);
-      metric_sent_checkpoint_msg_due_to_status_.Get().Inc();
+      sendAndIncrementMetric(checkMsg, msgSenderId, metric_sent_checkpoint_msg_due_to_status_);
     }
 
     delete msg;
@@ -1514,8 +1518,7 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
       for (SeqNum i = beginRange; i <= endRange; i = i + checkpointWindowSize) {
         CheckpointMsg *checkMsg = checkpointsLog->get(i).selfCheckpointMsg();
         if (checkMsg != nullptr) {
-          send(checkMsg, msgSenderId);
-          metric_sent_checkpoint_msg_due_to_status_.Get().Inc();
+          sendAndIncrementMetric(checkMsg, msgSenderId, metric_sent_checkpoint_msg_due_to_status_);
         }
       }
     }
@@ -1528,8 +1531,7 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
   if (msgViewNum < curView) {
     ViewChangeMsg *myVC = viewsManager->getMyLatestViewChangeMsg();
     Assert(myVC != nullptr);  // because curView>0
-    send(myVC, msgSenderId);
-    metric_sent_viewchange_msg_due_to_status_.Get().Inc();
+    sendAndIncrementMetric(myVC, msgSenderId, metric_sent_viewchange_msg_due_to_status_);
   }
 
   /////////////////////////////////////////////////////////////////////////
@@ -1546,8 +1548,7 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
             msg->isMissingViewChangeMsgForViewChange(config_.replicaId)) {
           ViewChangeMsg *myVC = viewsManager->getMyLatestViewChangeMsg();
           Assert(myVC != nullptr);
-          send(myVC, msgSenderId);
-          metric_sent_viewchange_msg_due_to_status_.Get().Inc();
+          sendAndIncrementMetric(myVC, msgSenderId, metric_sent_viewchange_msg_due_to_status_);
         }
       } else  // I am the primary of curView
       {
@@ -1555,8 +1556,7 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
         if (!msg->currentViewHasNewViewMessage() && viewsManager->viewIsActive(curView)) {
           NewViewMsg *nv = viewsManager->getMyNewViewMsgForCurrentView();
           Assert(nv != nullptr);
-          send(nv, msgSenderId);
-          metric_sent_newview_msg_due_to_status_.Get().Inc();
+          sendAndIncrementMetric(nv, msgSenderId, metric_sent_newview_msg_due_to_status_);
         }
 
         // send ViewChangeMsg
@@ -1564,8 +1564,7 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
             msg->isMissingViewChangeMsgForViewChange(config_.replicaId)) {
           ViewChangeMsg *myVC = viewsManager->getMyLatestViewChangeMsg();
           Assert(myVC != nullptr);
-          send(myVC, msgSenderId);
-          metric_sent_viewchange_msg_due_to_status_.Get().Inc();
+          sendAndIncrementMetric(myVC, msgSenderId, metric_sent_viewchange_msg_due_to_status_);
         }
         // TODO(GG): send all VC msgs that can help making progress (needed because the original senders may not send
         // the ViewChangeMsg msgs used by the primary)
@@ -1580,8 +1579,7 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
             if (mainLog->insideActiveWindow(i) && msg->isMissingPrePrepareMsgForViewChange(i)) {
               PrePrepareMsg *prePrepareMsg = mainLog->get(i).getPrePrepareMsg();
               if (prePrepareMsg != nullptr) {
-                send(prePrepareMsg, msgSenderId);
-                metric_sent_preprepare_msg_due_to_status_.Get().Inc();
+                sendAndIncrementMetric(prePrepareMsg, msgSenderId, metric_sent_preprepare_msg_due_to_status_);
               }
             }
           }
@@ -1595,8 +1593,7 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
                   viewsManager->getPrePrepare(i);  // TODO(GG): we can avoid sending misleading message by using the
                                                    // digest of the expected pre prepare message
               if (prePrepareMsg != nullptr) {
-                send(prePrepareMsg, msgSenderId);
-                metric_sent_preprepare_msg_due_to_status_.Get().Inc();
+                sendAndIncrementMetric(prePrepareMsg, msgSenderId, metric_sent_preprepare_msg_due_to_status_);
               }
             }
           }
@@ -1623,8 +1620,7 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
 
           PrePrepareMsg *prePrepareMsg = mainLog->get(i).getSelfPrePrepareMsg();
           if (prePrepareMsg != nullptr) {
-            send(prePrepareMsg, msgSenderId);
-            metric_sent_preprepare_msg_due_to_status_.Get().Inc();
+            sendAndIncrementMetric(prePrepareMsg, msgSenderId, metric_sent_preprepare_msg_due_to_status_);
           }
         }
       } else {
@@ -2368,15 +2364,13 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
       PrePrepareMsg *pp = seqNumInfo.getSelfPrePrepareMsg();
       if (msg->getPrePrepareIsMissing()) {
         if (pp != nullptr) {
-          send(pp, msgSender);
-          metric_sent_preprepare_msg_due_to_reqMissingData_.Get().Inc();
+          sendAndIncrementMetric(pp, msgSender, metric_sent_preprepare_msg_due_to_reqMissingData_);
         }
       }
 
       if (seqNumInfo.slowPathStarted() && !msg->getSlowPathHasStarted()) {
         StartSlowCommitMsg startSlowMsg(config_.replicaId, curView, msgSeqNum);
-        send(&startSlowMsg, msgSender);
-        metric_sent_startSlowPath_msg_due_to_reqMissingData_.Get().Inc();
+        sendAndIncrementMetric(&startSlowMsg, msgSender, metric_sent_startSlowPath_msg_due_to_reqMissingData_);
       }
     }
 
@@ -2386,8 +2380,7 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
       PartialCommitProofMsg *pcf = seqNumInfo.partialProofs().getSelfPartialCommitProof();
 
       if (pcf != nullptr) {
-        send(pcf, msgSender);
-        metric_sent_partialCommitProof_msg_due_to_reqMissingData_.Get().Inc();
+        sendAndIncrementMetric(pcf, msgSender, metric_sent_partialCommitProof_msg_due_to_reqMissingData_);
       }
     }
 
@@ -2395,8 +2388,7 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
       PreparePartialMsg *pr = seqNumInfo.getSelfPreparePartialMsg();
 
       if (pr != nullptr) {
-        send(pr, msgSender);
-        metric_sent_preparePartial_msg_due_to_reqMissingData_.Get().Inc();
+        sendAndIncrementMetric(pr, msgSender, metric_sent_preparePartial_msg_due_to_reqMissingData_);
       }
     }
 
@@ -2404,31 +2396,27 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
       PrepareFullMsg *pf = seqNumInfo.getValidPrepareFullMsg();
 
       if (pf != nullptr) {
-        send(pf, msgSender);
-        metric_sent_prepareFull_msg_due_to_reqMissingData_.Get().Inc();
+        sendAndIncrementMetric(pf, msgSender, metric_sent_prepareFull_msg_due_to_reqMissingData_);
       }
     }
 
     if (msg->getPartialCommitIsMissing() && (currentPrimary() == msgSender)) {
       CommitPartialMsg *c = mainLog->get(msgSeqNum).getSelfCommitPartialMsg();
       if (c != nullptr) {
-        send(c, msgSender);
-        metric_sent_commitPartial_msg_due_to_reqMissingData_.Get().Inc();
+        sendAndIncrementMetric(c, msgSender, metric_sent_commitPartial_msg_due_to_reqMissingData_);
       }
     }
 
     if (msg->getFullCommitIsMissing()) {
       CommitFullMsg *c = mainLog->get(msgSeqNum).getValidCommitFullMsg();
       if (c != nullptr) {
-        send(c, msgSender);
-        metric_sent_commitFull_msg_due_to_reqMissingData_.Get().Inc();
+        sendAndIncrementMetric(c, msgSender, metric_sent_commitFull_msg_due_to_reqMissingData_);
       }
     }
 
     if (msg->getFullCommitProofIsMissing() && seqNumInfo.partialProofs().hasFullProof()) {
       FullCommitProofMsg *fcp = seqNumInfo.partialProofs().getFullProof();
-      send(fcp, msgSender);
-      metric_sent_fullCommitProof_msg_due_to_reqMissingData_.Get().Inc();
+      sendAndIncrementMetric(fcp, msgSender, metric_sent_fullCommitProof_msg_due_to_reqMissingData_);
     }
   } else {
     LOG_INFO_F(

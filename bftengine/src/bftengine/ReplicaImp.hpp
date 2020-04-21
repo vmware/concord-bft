@@ -255,6 +255,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void messageHandler(MessageBase* msg);
 
   void send(MessageBase*, NodeIdType) override;
+  void sendAndIncrementMetric(MessageBase*, NodeIdType, CounterHandle&);
 
   bool tryToEnterView();
   void onNewView(const std::vector<PrePrepareMsg*>& prePreparesForNewView);
