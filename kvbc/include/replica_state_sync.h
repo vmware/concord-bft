@@ -17,7 +17,7 @@
 
 #include "storage/db_types.h"
 #include "Logger.hpp"
-#include "db_adapter.h"
+#include "db_adapter_interface.h"
 
 namespace concord::kvbc {
 

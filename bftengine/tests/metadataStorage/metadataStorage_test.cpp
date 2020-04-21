@@ -10,13 +10,14 @@
 #include "rocksdb/key_comparator.h"
 #include "rocksdb/client.h"
 #include "DbMetadataStorage.hpp"
-#include "db_adapter.h"
+#include "direct_kv_db_adapter.h"
+#include "storage/direct_kv_key_manipulator.h"
 
 using namespace std;
 
 using concord::storage::ObjectId;
-using concord::kvbc::DBKeyComparator;
-using concord::storage::MetadataKeyManipulator;
+using concord::kvbc::v1DirectKeyValue::DBKeyComparator;
+using concord::storage::v1DirectKeyValue::MetadataKeyManipulator;
 using concord::storage::rocksdb::KeyComparator;
 using concord::storage::rocksdb::Client;
 using concord::storage::DBMetadataStorage;
@@ -100,7 +101,8 @@ int main(int argc, char **argv) {
   remove(dbPath.c_str());
   Client *dbClient = new Client(dbPath, kk);
   dbClient->init();
-  metadataStorage = new DBMetadataStorage(dbClient, MetadataKeyManipulator::generateMetadataKey);
+  metadataStorage =
+      new DBMetadataStorage(dbClient, std::make_unique<concord::storage::v1DirectKeyValue::MetadataKeyManipulator>());
   bftEngine::MetadataStorage::ObjectDesc objectDesc[objectsNum];
   for (uint32_t id = initialObjectId; id < objectsNum; ++id) {
     objectDesc[id].id = id;

@@ -5,13 +5,14 @@
 
 #pragma once
 
+#include "key_manipulator_interface.h"
+
 #include "db_interface.h"
 #include "storage/db_types.h"
 #include "Logger.hpp"
 
-namespace concord::storage {
+namespace concord::storage::v1DirectKeyValue {
 
-inline namespace v1DirectKeyValue {
 class DBKeyGeneratorBase {
  protected:
   static bool copyToAndAdvance(char* buf, size_t* offset, size_t _maxOffset, const char* _src, const size_t& _srcSize);
@@ -21,18 +22,19 @@ class DBKeyGeneratorBase {
   }
 };
 
-class MetadataKeyManipulator : public DBKeyGeneratorBase {
+class MetadataKeyManipulator : public DBKeyGeneratorBase, public IMetadataKeyManipulator {
  public:
-  static concordUtils::Sliver generateMetadataKey(ObjectId objectId);
+  concordUtils::Sliver generateMetadataKey(ObjectId objectId) const override;
 };
 
-class STKeyManipulator : public DBKeyGeneratorBase {
+class STKeyManipulator : public DBKeyGeneratorBase, public ISTKeyManipulator {
  public:
-  static concordUtils::Sliver generateStateTransferKey(ObjectId objectId);
-  static concordUtils::Sliver generateSTPendingPageKey(uint32_t pageid);
-  static concordUtils::Sliver generateSTCheckpointDescriptorKey(uint64_t chkpt);
-  static concordUtils::Sliver generateSTReservedPageStaticKey(uint32_t pageid, uint64_t chkpt);
-  static concordUtils::Sliver generateSTReservedPageDynamicKey(uint32_t pageid, uint64_t chkpt);
+  concordUtils::Sliver generateStateTransferKey(ObjectId objectId) const override;
+  concordUtils::Sliver generateSTPendingPageKey(uint32_t pageid) const override;
+  concordUtils::Sliver generateSTCheckpointDescriptorKey(uint64_t chkpt) const override;
+  concordUtils::Sliver generateSTReservedPageStaticKey(uint32_t pageid, uint64_t chkpt) const override;
+  concordUtils::Sliver generateSTReservedPageDynamicKey(uint32_t pageid, uint64_t chkpt) const override;
+
   static uint64_t extractCheckPointFromKey(const char* _key_data, size_t _key_length);
   static std::pair<uint32_t, uint64_t> extractPageIdAndCheckpointFromKey(const char* _key_data, size_t _key_length);
 
@@ -40,5 +42,4 @@ class STKeyManipulator : public DBKeyGeneratorBase {
   static Sliver generateReservedPageKey(detail::EDBKeyType, uint32_t pageid, uint64_t chkpt);
 };
 
-}  // namespace v1DirectKeyValue
-}  // namespace concord::storage
+}  // namespace concord::storage::v1DirectKeyValue

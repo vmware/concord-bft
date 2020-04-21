@@ -27,6 +27,7 @@
 
 #include "DBDataStore.hpp"
 #include "storage/db_interface.h"
+#include "storage/key_manipulator_interface.h"
 #include "memorydb/client.h"
 #include "Handoff.hpp"
 
@@ -59,7 +60,8 @@ std::array<std::uint8_t, BLOCK_DIGEST_SIZE> computeBlockDigest(const uint64_t bl
 
 IStateTransfer *create(const Config &config,
                        IAppState *const stateApi,
-                       std::shared_ptr<concord::storage::IDBClient> dbc) {
+                       std::shared_ptr<concord::storage::IDBClient> dbc,
+                       std::shared_ptr<concord::storage::ISTKeyManipulator> stKeyManipulator) {
   // TODO(GG): check configuration
 
   impl::DataStore *ds = nullptr;
@@ -67,15 +69,16 @@ IStateTransfer *create(const Config &config,
   if (dynamic_cast<concord::storage::memorydb::Client *>(dbc.get()))
     ds = new impl::InMemoryDataStore(config.sizeOfReservedPage);
   else
-    ds = new impl::DBDataStore(dbc, config.sizeOfReservedPage);
+    ds = new impl::DBDataStore(dbc, config.sizeOfReservedPage, stKeyManipulator);
   return new impl::BCStateTran(config, stateApi, ds);
 }
 
 IStateTransfer *create(const Config &config,
                        IAppState *const stateApi,
                        std::shared_ptr<concord::storage::IDBClient> dbc,
+                       std::shared_ptr<concord::storage::ISTKeyManipulator> stKeyManipulator,
                        std::shared_ptr<concordMetrics::Aggregator> aggregator) {
-  auto st = static_cast<impl::BCStateTran *>(create(config, stateApi, dbc));
+  auto st = static_cast<impl::BCStateTran *>(create(config, stateApi, dbc, stKeyManipulator));
   st->SetAggregator(aggregator);
   return st;
 }

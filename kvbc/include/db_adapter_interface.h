@@ -34,7 +34,8 @@ class IDbAdapter {
   // Get block in its raw form
   virtual RawBlock getRawBlock(const BlockId& blockId) const = 0;
 
-  // Return the actual version and the value for a key
+  // Return the actual version and the value for a key.
+  // Throws if an error occurs.
   virtual std::pair<Value, BlockId> getValue(const Key& key, const BlockId& blockVersion) const = 0;
 
   // Deletes the block with the passed ID.
@@ -72,5 +73,3 @@ class IDbAdapter {
 };
 
 }  // namespace concord::kvbc
-#include "direct_kv_db_adapter.h"
-#include "merkle_tree_db_adapter.h"

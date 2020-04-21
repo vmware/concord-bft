@@ -18,8 +18,9 @@
 #include "test_replica.hpp"
 #include "Logger.hpp"
 #include "DBDataStore.hpp"
-#include "db_adapter.h"
+#include "direct_kv_db_adapter.h"
 #include "memorydb/client.h"
+#include "storage/direct_kv_key_manipulator.h"
 
 using concord::storage::ITransaction;
 
@@ -56,12 +57,13 @@ class BcStTest : public ::testing::Test {
     //      log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("rocksdb")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
 
     config_ = TestConfig();
-    auto* db_key_comparator = new concord::kvbc::DBKeyComparator();
+    auto* db_key_comparator = new concord::kvbc::v1DirectKeyValue::DBKeyComparator();
 #ifdef USE_ROCKSDB
     concord::storage::IDBClient::ptr dbc(
         new concord::storage::rocksdb::Client("./bcst_db", new KeyComparator(db_key_comparator)));
     dbc->init();
-    auto* datastore = new DBDataStore(dbc, config_.sizeOfReservedPage);
+    auto* datastore = new DBDataStore(
+        dbc, config_.sizeOfReservedPage, std::make_shared<concord::storage::v1DirectKeyValue::STKeyManipulator>());
 #else
     auto comparator = concord::storage::memorydb::KeyComparator(db_key_comparator);
     concord::storage::IDBClient::ptr dbc(new concord::storage::memorydb::Client(comparator));

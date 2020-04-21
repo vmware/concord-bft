@@ -21,6 +21,7 @@
 
 #include "bftengine/IStateTransfer.hpp"
 #include "Metrics.hpp"
+#include "storage/key_manipulator_interface.h"
 
 namespace concord {
 namespace storage {
@@ -132,11 +133,13 @@ struct Config {
 
 IStateTransfer *create(const Config &config,
                        IAppState *const stateApi,
-                       std::shared_ptr<::concord::storage::IDBClient> dbc);
+                       std::shared_ptr<::concord::storage::IDBClient> dbc,
+                       std::shared_ptr<concord::storage::ISTKeyManipulator> stKeyManipulator);
 
 IStateTransfer *create(const Config &config,
                        IAppState *const stateApi,
                        std::shared_ptr<::concord::storage::IDBClient> dbc,
+                       std::shared_ptr<concord::storage::ISTKeyManipulator> stKeyManipulator,
                        std::shared_ptr<concordMetrics::Aggregator> aggregator);
 
 }  // namespace SimpleBlockchainStateTransfer

@@ -15,7 +15,7 @@
 #pragma once
 
 #include "replica_state_sync.h"
-#include "db_adapter.h"
+#include "db_adapter_interface.h"
 
 namespace concord {
 namespace kvbc {

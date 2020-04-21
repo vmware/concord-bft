@@ -12,12 +12,12 @@
 #include <cassert>
 #include <chrono>
 #include <cstdlib>
+#include <utility>
 #include "communication/CommDefs.hpp"
 #include "kv_types.hpp"
 #include "hex_tools.h"
 #include "replica_state_sync.h"
 #include "sliver.hpp"
-#include "block.h"
 #include "bftengine/DbMetadataStorage.hpp"
 
 using bft::communication::ICommunication;
@@ -26,9 +26,6 @@ using bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest;
 
 using concord::storage::IDBClient;
 using concord::storage::DBMetadataStorage;
-
-using concord::storage::MetadataKeyManipulator;
-namespace block = concord::kvbc::block;
 
 namespace concord::kvbc {
 
@@ -159,13 +156,11 @@ Status ReplicaImp::addBlock(const SetOfKeyValuePairs &updates, BlockId &outBlock
 void ReplicaImp::set_command_handler(ICommandsHandler *handler) { m_cmdHandler = handler; }
 
 ReplicaImp::ReplicaImp(ICommunication *comm,
-                       bftEngine::ReplicaConfig &replicaConfig,
-                       std::unique_ptr<IDbAdapter> dbAdapter,
-                       std::shared_ptr<storage::IDBClient> mdt_dbclient,
+                       const bftEngine::ReplicaConfig &replicaConfig,
+                       std::unique_ptr<IStorageFactory> storageFactory,
                        std::shared_ptr<concordMetrics::Aggregator> aggregator)
     : logger(concordlogger::Log::getLogger("skvbc.replicaImp")),
       m_currentRepStatus(RepStatus::Idle),
-      m_bcDbAdapter(std::move(dbAdapter)),
       m_ptrComm(comm),
       m_replicaConfig(replicaConfig),
       aggregator_(aggregator) {
@@ -179,9 +174,15 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   if (replicaConfig.maxNumOfReservedPages > 0)
     state_transfer_config.maxNumOfReservedPages = replicaConfig.maxNumOfReservedPages;
   if (replicaConfig.sizeOfReservedPage > 0) state_transfer_config.sizeOfReservedPage = replicaConfig.sizeOfReservedPage;
-  m_stateTransfer =
-      bftEngine::SimpleBlockchainStateTransfer::create(state_transfer_config, this, mdt_dbclient, aggregator_);
-  m_metadataStorage = new DBMetadataStorage(mdt_dbclient.get(), MetadataKeyManipulator::generateMetadataKey);
+
+  auto dbSet = storageFactory->newDatabaseSet();
+  m_bcDbAdapter = std::move(dbSet.dbAdapter);
+  m_metadataDBClient = dbSet.metadataDBClient;
+
+  auto stKeyManipulator = std::shared_ptr<storage::ISTKeyManipulator>{storageFactory->newSTKeyManipulator()};
+  m_stateTransfer = bftEngine::SimpleBlockchainStateTransfer::create(
+      state_transfer_config, this, m_metadataDBClient, stKeyManipulator, aggregator_);
+  m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
 }
 
 ReplicaImp::~ReplicaImp() {
@@ -200,15 +201,24 @@ Status ReplicaImp::addBlockInternal(const SetOfKeyValuePairs &updates, BlockId &
 }
 
 Status ReplicaImp::getInternal(BlockId readVersion, Key key, Sliver &outValue, BlockId &outBlock) const {
+  const auto clear = [&outValue, &outBlock]() {
+    outValue = Sliver{};
+    outBlock = 0;
+  };
+
   try {
-    auto val = m_bcDbAdapter->getValue(key, readVersion);
-    outValue = val.first;
-    outBlock = val.second;
-    return Status::OK();
-  } catch (const NotFoundException &e) {
-    LOG_ERROR(logger, e.what());
-    return Status::NotFound(key.toString());
+    std::tie(outValue, outBlock) = m_bcDbAdapter->getValue(key, readVersion);
+  } catch (const NotFoundException &) {
+    clear();
+  } catch (const std::exception &e) {
+    clear();
+    return Status::GeneralError(std::string{"getInternal() failed to get value due to a DBAdapter error: "} + e.what());
+  } catch (...) {
+    clear();
+    return Status::GeneralError("getInternal() failed to get value due to an unknown DBAdapter error");
   }
+
+  return Status::OK();
 }
 
 /*

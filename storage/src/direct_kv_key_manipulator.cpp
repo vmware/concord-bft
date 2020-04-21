@@ -15,7 +15,7 @@
 #include "Logger.hpp"
 #include "sliver.hpp"
 #include "status.hpp"
-#include "storage/key_manipulator.hpp"
+#include "storage/direct_kv_key_manipulator.h"
 #include "hex_tools.h"
 
 #include <cstring>
@@ -25,9 +25,8 @@ using concordUtils::Status;
 using concordUtils::Sliver;
 using concordUtils::HexPrintBuffer;
 
-namespace concord::storage {
+namespace concord::storage::v1DirectKeyValue {
 
-inline namespace v1DirectKeyValue {
 using detail::EDBKeyType;
 
 /**
@@ -41,7 +40,7 @@ using detail::EDBKeyType;
  * @return Sliver object of the generated composite database key.
  */
 
-Sliver MetadataKeyManipulator::generateMetadataKey(ObjectId objectId) {
+Sliver MetadataKeyManipulator::generateMetadataKey(ObjectId objectId) const {
   size_t keySize = sizeof(EDBKeyType) + sizeof(objectId);
   auto keyBuf = new char[keySize];
   size_t offset = 0;
@@ -53,7 +52,7 @@ Sliver MetadataKeyManipulator::generateMetadataKey(ObjectId objectId) {
 /*
  * Format : Key Type | Object Id
  */
-Sliver STKeyManipulator::generateStateTransferKey(ObjectId objectId) {
+Sliver STKeyManipulator::generateStateTransferKey(ObjectId objectId) const {
   size_t keySize = sizeof(EDBKeyType) + sizeof(objectId);
   auto keyBuf = new char[keySize];
   size_t offset = 0;
@@ -65,7 +64,7 @@ Sliver STKeyManipulator::generateStateTransferKey(ObjectId objectId) {
 /**
  * Format : Key Type | Page Id
  */
-Sliver STKeyManipulator::generateSTPendingPageKey(uint32_t pageid) {
+Sliver STKeyManipulator::generateSTPendingPageKey(uint32_t pageid) const {
   size_t keySize = sizeof(EDBKeyType) + sizeof(pageid);
   auto keyBuf = new char[keySize];
   size_t offset = 0;
@@ -77,7 +76,7 @@ Sliver STKeyManipulator::generateSTPendingPageKey(uint32_t pageid) {
 /**
  * Format : Key Type | Checkpoint
  */
-Sliver STKeyManipulator::generateSTCheckpointDescriptorKey(uint64_t chkpt) {
+Sliver STKeyManipulator::generateSTCheckpointDescriptorKey(uint64_t chkpt) const {
   size_t keySize = sizeof(EDBKeyType) + sizeof(chkpt);
   auto keyBuf = new char[keySize];
   size_t offset = 0;
@@ -89,13 +88,13 @@ Sliver STKeyManipulator::generateSTCheckpointDescriptorKey(uint64_t chkpt) {
 /**
  * Format : Key Type | Page Id | Checkpoint
  */
-Sliver STKeyManipulator::generateSTReservedPageStaticKey(uint32_t pageid, uint64_t chkpt) {
+Sliver STKeyManipulator::generateSTReservedPageStaticKey(uint32_t pageid, uint64_t chkpt) const {
   return generateReservedPageKey(EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_STATIC_KEY, pageid, chkpt);
 }
 /**
  * Format : Key Type | Page Id | Checkpoint
  */
-Sliver STKeyManipulator::generateSTReservedPageDynamicKey(uint32_t pageid, uint64_t chkpt) {
+Sliver STKeyManipulator::generateSTReservedPageDynamicKey(uint32_t pageid, uint64_t chkpt) const {
   return generateReservedPageKey(EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_DYNAMIC_KEY, pageid, chkpt);
 }
 /**
@@ -142,5 +141,4 @@ std::pair<uint32_t, uint64_t> STKeyManipulator::extractPageIdAndCheckpointFromKe
   return std::make_pair(pageId, chkp);
 }
 
-}  // namespace v1DirectKeyValue
-}  // namespace concord::storage
+}  // namespace concord::storage::v1DirectKeyValue

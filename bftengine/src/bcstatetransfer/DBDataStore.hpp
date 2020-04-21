@@ -15,12 +15,13 @@
 
 #include <map>
 #include <set>
+#include <memory>
 
 #include "string.hpp"
 #include "STDigest.hpp"
 #include "Logger.hpp"
 #include "InMemoryDataStore.hpp"
-#include "storage/key_manipulator.hpp"
+#include "storage/key_manipulator_interface.h"
 
 namespace bftEngine {
 namespace SimpleBlockchainStateTransfer {
@@ -31,7 +32,6 @@ using concord::storage::ITransaction;
 using concordUtils::Status;
 using concordUtils::Sliver;
 using concord::storage::ObjectId;
-using concord::storage::STKeyManipulator;
 /** *******************************************************************************************************************
  *  This class is used in one of two modes:
  *  1. When ITransaction is not set - works directly through IDBClient instance;
@@ -42,8 +42,10 @@ class DBDataStore : public DataStore {
   /**
    * C-r for DBDataStore first time initialization
    */
-  DBDataStore(concord::storage::IDBClient::ptr dbc, uint32_t sizeOfReservedPage)
-      : inmem_(new InMemoryDataStore(sizeOfReservedPage)), dbc_(dbc) {
+  DBDataStore(concord::storage::IDBClient::ptr dbc,
+              uint32_t sizeOfReservedPage,
+              std::shared_ptr<concord::storage::ISTKeyManipulator> keyManip)
+      : inmem_(new InMemoryDataStore(sizeOfReservedPage)), dbc_(dbc), keymanip_{keyManip} {
     load();
   }
 
@@ -223,15 +225,15 @@ class DBDataStore : public DataStore {
    * keys generation
    */
   Sliver dynamicResPageKey(uint32_t pageid, uint64_t chkpt) const {
-    return STKeyManipulator::generateSTReservedPageDynamicKey(pageid, chkpt);
+    return keymanip_->generateSTReservedPageDynamicKey(pageid, chkpt);
   }
   Sliver staticResPageKey(uint32_t pageid, uint64_t chkpt) const {
     static uint64_t maxStored = inmem_->getMaxNumOfStoredCheckpoints();
-    return STKeyManipulator::generateSTReservedPageStaticKey(pageid, chkpt % maxStored + 1);
+    return keymanip_->generateSTReservedPageStaticKey(pageid, chkpt % maxStored + 1);
   }
-  Sliver pendingPageKey(uint32_t pageid) const { return STKeyManipulator::generateSTPendingPageKey(pageid); }
-  Sliver chkpDescKey(uint64_t chkpt) const { return STKeyManipulator::generateSTCheckpointDescriptorKey(chkpt); }
-  Sliver genKey(const ObjectId& objId) const { return STKeyManipulator::generateStateTransferKey(objId); }
+  Sliver pendingPageKey(uint32_t pageid) const { return keymanip_->generateSTPendingPageKey(pageid); }
+  Sliver chkpDescKey(uint64_t chkpt) const { return keymanip_->generateSTCheckpointDescriptorKey(chkpt); }
+  Sliver genKey(const ObjectId& objId) const { return keymanip_->generateStateTransferKey(objId); }
   /** ****************************************************************************************************************/
   concordlogger::Logger& logger() {
     static concordlogger::Logger logger_ = concordlogger::Log::getLogger("DBDataStore");
@@ -242,6 +244,7 @@ class DBDataStore : public DataStore {
   std::shared_ptr<InMemoryDataStore> inmem_;  // one copy among instances
   ITransaction* txn_ = nullptr;
   IDBClient::ptr dbc_;
+  std::shared_ptr<concord::storage::ISTKeyManipulator> keymanip_;
 };
 
 }  // namespace impl

@@ -14,11 +14,12 @@
 #pragma once
 
 #include <mutex>
-#include <functional>
 #include <map>
+#include <memory>
 #include "Logger.hpp"
 #include "bftengine/MetadataStorage.hpp"
 #include "storage/db_interface.h"
+#include "storage/key_manipulator_interface.h"
 #include "sliver.hpp"
 
 namespace concord {
@@ -31,10 +32,10 @@ using ObjectId = std::uint32_t;
 
 class DBMetadataStorage : public bftEngine::MetadataStorage {
  public:
-  explicit DBMetadataStorage(IDBClient *dbClient, std::function<concordUtils::Sliver(uint32_t)> genMetadataKey)
+  explicit DBMetadataStorage(IDBClient *dbClient, std::unique_ptr<IMetadataKeyManipulator> mtdKeyManipulator)
       : logger_(concordlogger::Log::getLogger("com.concord.vmware.metadatastorage")),
         dbClient_(dbClient),
-        genMetadataKey_(std::move(genMetadataKey)) {
+        mtdKeyManipulator_(std::move(mtdKeyManipulator)) {
     objectIdToSizeMap_[objectsNumParameterId_] = sizeof(objectsNum_);
   }
 
@@ -62,9 +63,7 @@ class DBMetadataStorage : public bftEngine::MetadataStorage {
   std::mutex ioMutex_;
   ObjectIdToSizeMap objectIdToSizeMap_;
   uint32_t objectsNum_ = 0;
-
-  // A function that creates a metadata key given an object ID
-  std::function<Sliver(uint32_t)> genMetadataKey_;
+  std::unique_ptr<IMetadataKeyManipulator> mtdKeyManipulator_;
 };
 
 }  // namespace storage

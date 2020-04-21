@@ -25,23 +25,11 @@
 #include "communication/CommFactory.hpp"
 #include "config/test_comm_config.hpp"
 #include "commonKVBTests.hpp"
-#include "db_adapter.h"
 #include "memorydb/client.h"
 #include "string.hpp"
 #include "config/config_file_parser.hpp"
-
-#ifdef USE_ROCKSDB
-#include "rocksdb/client.h"
-#include "rocksdb/key_comparator.h"
-#endif
-
-#ifdef USE_S3_OBJECT_STORE
-#include "object_store/object_store_client.hpp"
-using concord::storage::ObjectStoreClient;
-#endif
-
-using namespace concord::storage;
-
+#include "direct_kv_storage_factory.h"
+#include "merkle_tree_storage_factory.h"
 namespace concord::kvbc {
 
 std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
@@ -149,15 +137,12 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
   }
 }
 
-std::tuple<std::shared_ptr<concord::storage::IDBClient>, IDbAdapter*> TestSetup::get_inmem_db_configuration() {
-  auto comparator = concord::storage::memorydb::KeyComparator(new DBKeyComparator());
-  std::shared_ptr<concord::storage::IDBClient> db = std::make_shared<concord::storage::memorydb::Client>(comparator);
-  db->init();
-  return std::make_tuple(db, new DBAdapter{db});
+std::unique_ptr<IStorageFactory> TestSetup::GetInMemStorageFactory() const {
+  return std::make_unique<v1DirectKeyValue::MemoryDBStorageFactory>();
 }
 
 #ifdef USE_S3_OBJECT_STORE
-concord::storage::s3::StoreConfig TestSetup::parseS3Config(const std::string& s3ConfigFile) {
+concord::storage::s3::StoreConfig TestSetup::ParseS3Config(const std::string& s3ConfigFile) {
   ConfigFileParser parser(logger_, s3ConfigFile);
   if (!parser.Parse()) throw std::runtime_error("failed to parse" + s3ConfigFile);
 
@@ -176,43 +161,24 @@ concord::storage::s3::StoreConfig TestSetup::parseS3Config(const std::string& s3
 }
 #endif
 
-/** Get replica db configuration
- * @return storage::IDBClient instance for metadata storage
- * @return kvbc::IDBAdapter instance
- */
-std::tuple<std::shared_ptr<concord::storage::IDBClient>, IDbAdapter*> TestSetup::get_db_configuration() {
+std::unique_ptr<IStorageFactory> TestSetup::GetStorageFactory() {
 #ifndef USE_ROCKSDB
-  return get_inmem_db_configuration();
+  return GetInMemStorageFactory();
 #else
-  if (!UsePersistentStorage()) get_inmem_db_configuration();
 
-  auto* comparator = new concord::storage::rocksdb::KeyComparator(new DBKeyComparator());
+  if (!UsePersistentStorage()) return GetInMemStorageFactory();
+
   std::stringstream dbPath;
   dbPath << BasicRandomTests::DB_FILE_PREFIX << GetReplicaConfig().replicaId;
-  std::shared_ptr<concord::storage::IDBClient> db(new concord::storage::rocksdb::Client(dbPath.str(), comparator));
-  db->init();
-  IDbAdapter* dbAdapter = nullptr;
 
 #ifdef USE_S3_OBJECT_STORE
   if (GetReplicaConfig().isReadOnly) {
     if (s3ConfigFile_.empty()) throw std::runtime_error("--s3-config-file must be provided");
-
-    concord::storage::s3::StoreConfig config = parseS3Config(s3ConfigFile_);
-
-    std::string prefix = std::to_string(std::chrono::high_resolution_clock::now().time_since_epoch().count());
-
-    std::shared_ptr<concord::storage::IDBClient> s3client(new ObjectStoreClient(new s3::Client(config)));
-    s3client->init();
-    dbAdapter = new DBAdapter(s3client, std::unique_ptr<IDataKeyGenerator>(new S3KeyGenerator(prefix)), true);
-  } else {
-    dbAdapter = new DBAdapter(db);
+    const auto s3Config = ParseS3Config(s3ConfigFile_);
+    return std::make_unique<v1DirectKeyValue::S3StorageFactory>(dbPath.str(), s3Config);
   }
-#else
-  dbAdapter = new DBAdapter(db);
 #endif
-
-  return std::make_tuple(db, dbAdapter);
-
+  return std::make_unique<v1DirectKeyValue::RocksDBStorageFactory>(dbPath.str());
 #endif
 }
 

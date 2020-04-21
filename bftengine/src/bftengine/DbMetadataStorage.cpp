@@ -70,7 +70,8 @@ void DBMetadataStorage::read(uint32_t objectId,
                              uint32_t &outActualObjectSize) {
   verifyOperation(objectId, bufferSize, outBufferForObject, false);
   lock_guard<mutex> lock(ioMutex_);
-  Status status = dbClient_->get(genMetadataKey_(objectId), outBufferForObject, bufferSize, outActualObjectSize);
+  Status status = dbClient_->get(
+      mtdKeyManipulator_->generateMetadataKey(objectId), outBufferForObject, bufferSize, outActualObjectSize);
   if (status.isNotFound()) {
     memset(outBufferForObject, 0, bufferSize);
     outActualObjectSize = 0;
@@ -85,7 +86,7 @@ void DBMetadataStorage::atomicWrite(uint32_t objectId, char *data, uint32_t data
   verifyOperation(objectId, dataLength, data, true);
   Sliver copy = Sliver::copy(data, dataLength);
   lock_guard<mutex> lock(ioMutex_);
-  Status status = dbClient_->put(genMetadataKey_(objectId), copy);
+  Status status = dbClient_->put(mtdKeyManipulator_->generateMetadataKey(objectId), copy);
   if (!status.isOK()) {
     throw runtime_error("DBClient put operation failed");
   }
@@ -111,9 +112,9 @@ void DBMetadataStorage::writeInBatch(uint32_t objectId, char *data, uint32_t dat
     throw runtime_error(WRONG_FLOW);
   }
   // Delete an older parameter with the same key (if exists) before inserting a new one.
-  auto elem = batch_->find(genMetadataKey_(objectId));
+  auto elem = batch_->find(mtdKeyManipulator_->generateMetadataKey(objectId));
   if (elem != batch_->end()) batch_->erase(elem);
-  batch_->insert(KeyValuePair(genMetadataKey_(objectId), copy));
+  batch_->insert(KeyValuePair(mtdKeyManipulator_->generateMetadataKey(objectId), copy));
 }
 
 void DBMetadataStorage::commitAtomicWriteOnlyBatch() {
@@ -139,7 +140,7 @@ Status DBMetadataStorage::multiDel(const ObjectIdsVector &objectIds) {
   LOG_TRACE(logger_, "Going to perform multiple delete");
   KeysVector keysVec;
   for (size_t objectId = 0; objectId < objectsNumber; objectId++) {
-    auto key = genMetadataKey_(objectId);
+    auto key = mtdKeyManipulator_->generateMetadataKey(objectId);
     keysVec.push_back(key);
     LOG_INFO(logger_, "Deleted object id=" << objectId << ", key=" << key);
   }

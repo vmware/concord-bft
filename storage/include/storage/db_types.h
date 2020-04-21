@@ -17,9 +17,8 @@
 
 namespace concord::storage {
 
-inline namespace v1DirectKeyValue {
 // DB key types are an implementation detail. External users should not rely on it.
-namespace detail {
+namespace v1DirectKeyValue::detail {
 
 enum class EDBKeyType : std::uint8_t {
   E_DB_KEY_TYPE_FIRST = 65,
@@ -34,13 +33,10 @@ enum class EDBKeyType : std::uint8_t {
   E_DB_KEY_TYPE_LAST
 };
 
-}  // namespace detail
-}  // namespace v1DirectKeyValue
-
-namespace v2MerkleTree {
+}  // namespace v1DirectKeyValue::detail
 
 // DB key types are an implementation detail. External users should not rely on it.
-namespace detail {
+namespace v2MerkleTree::detail {
 
 // Top-level DB key types used when saving the blockchain in the form of a merkle tree.
 // Key types might have subtypes so that the top-level enum is not quickly exhausted and keys are structured in
@@ -85,9 +81,7 @@ enum class EBFTSubtype : std::uint8_t {
 //  no keys after Leaf. Getting the previous key from an end() DB iterator ensures that if the type is Leaf, this is the
 //  key we are looking for.
 
-}  // namespace detail
-
-}  // namespace v2MerkleTree
+}  // namespace v2MerkleTree::detail
 
 typedef std::uint32_t ObjectId;
 

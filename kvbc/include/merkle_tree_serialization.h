@@ -21,32 +21,23 @@
 #include "sparse_merkle/base_types.h"
 #include "sparse_merkle/internal_node.h"
 #include "sparse_merkle/keys.h"
+#include "storage/db_types.h"
+#include "string.hpp"
 
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
 #include <limits>
 #include <string>
-#include <type_traits>
+
 #include <utility>
 #include <variant>
 #include <vector>
-#include "storage/db_types.h"
 
 namespace concord::kvbc::v2MerkleTree {
 
-template <typename E>
-constexpr auto toChar(E e) {
-  static_assert(std::is_enum_v<E>);
-  static_assert(sizeof(E) <= sizeof(char));
-  return static_cast<char>(e);
-}
-
 namespace detail {
 
-using concord::storage::v2MerkleTree::detail::EDBKeyType;   // TODO [TK] TMP
-using concord::storage::v2MerkleTree::detail::EKeySubtype;  // TODO [TK] TMP
-using concord::storage::v2MerkleTree::detail::EBFTSubtype;  // TODO [TK] TMP
 // Specifies the child type. Used when serializing BatchedInternalNode objects.
 enum class BatchedInternalNodeChildType : std::uint8_t { Internal, Leaf };
 
@@ -54,9 +45,9 @@ inline BatchedInternalNodeChildType getInternalChildType(const concordUtils::Sli
   Assert(!buf.empty());
 
   switch (buf[0]) {
-    case toChar(BatchedInternalNodeChildType::Internal):
+    case concord::util::toChar(BatchedInternalNodeChildType::Internal):
       return BatchedInternalNodeChildType::Internal;
-    case toChar(BatchedInternalNodeChildType::Leaf):
+    case concord::util::toChar(BatchedInternalNodeChildType::Leaf):
       return BatchedInternalNodeChildType::Leaf;
   }
 
@@ -73,11 +64,19 @@ std::string serializeImp(T v) {
   return concordUtils::toBigEndianStringBuffer(v);
 }
 
-inline std::string serializeImp(EDBKeyType type) { return std::string{toChar(type)}; }
+inline std::string serializeImp(storage::v2MerkleTree::detail::EDBKeyType type) {
+  return std::string{concord::util::toChar(type)};
+}
 
-inline std::string serializeImp(EKeySubtype type) { return std::string{toChar(EDBKeyType::Key), toChar(type)}; }
+inline std::string serializeImp(storage::v2MerkleTree::detail::EKeySubtype type) {
+  return std::string{concord::util::toChar(storage::v2MerkleTree::detail::EDBKeyType::Key),
+                     concord::util::toChar(type)};
+}
 
-inline std::string serializeImp(EBFTSubtype type) { return std::string{toChar(EDBKeyType::BFT), toChar(type)}; }
+inline std::string serializeImp(storage::v2MerkleTree::detail::EBFTSubtype type) {
+  return std::string{concord::util::toChar(storage::v2MerkleTree::detail::EDBKeyType::BFT),
+                     concord::util::toChar(type)};
+}
 
 inline std::string serializeImp(const std::vector<std::uint8_t> &v) {
   return std::string{std::cbegin(v), std::cend(v)};
@@ -114,11 +113,11 @@ inline std::string serializeImp(const sparse_merkle::BatchedInternalNode &intNod
     Visitor(std::string &buf) : buf_{buf} {}
 
     void operator()(const sparse_merkle::LeafChild &leaf) {
-      buf_ += toChar(BatchedInternalNodeChildType::Leaf) + serializeImp(leaf);
+      buf_ += concord::util::toChar(BatchedInternalNodeChildType::Leaf) + serializeImp(leaf);
     }
 
     void operator()(const sparse_merkle::InternalChild &internal) {
-      buf_ += toChar(BatchedInternalNodeChildType::Internal) + serializeImp(internal);
+      buf_ += concord::util::toChar(BatchedInternalNodeChildType::Internal) + serializeImp(internal);
     }
 
     std::string &buf_;

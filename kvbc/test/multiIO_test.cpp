@@ -10,7 +10,7 @@
 #include "rocksdb/key_comparator.h"
 #include "rocksdb/client.h"
 #include "kv_types.hpp"
-#include "db_adapter.h"
+#include "direct_kv_db_adapter.h"
 
 using namespace std;
 
@@ -23,8 +23,7 @@ using concord::kvbc::BlockId;
 using concord::storage::rocksdb::Client;
 using concord::storage::rocksdb::KeyComparator;
 using concord::storage::ITransaction;
-using concord::kvbc::DBKeyManipulator;
-using concord::kvbc::DBKeyComparator;
+using concord::kvbc::v1DirectKeyValue::DBKeyComparator;
 
 namespace {
 
@@ -64,7 +63,7 @@ void verifyMultiDel(KeysVector &keys) {
 class multiIO_test : public ::testing::Test {
  protected:
   void SetUp() override {
-    keyGen_.reset(new concord::kvbc::RocksKeyGenerator);
+    keyGen_.reset(new concord::kvbc::v1DirectKeyValue::RocksKeyGenerator);
     comparator_ = new KeyComparator(new DBKeyComparator());
     dbClient.reset(new Client(dbPath_, comparator_));
     dbClient->init();
@@ -114,7 +113,7 @@ class multiIO_test : public ::testing::Test {
     return ::testing::AssertionSuccess();
   }
 
-  std::unique_ptr<concord::kvbc::IDataKeyGenerator> keyGen_;
+  std::unique_ptr<concord::kvbc::v1DirectKeyValue::IDataKeyGenerator> keyGen_;
   const string dbPath_ = "./rocksdb_test";
   KeyComparator *comparator_;
 };

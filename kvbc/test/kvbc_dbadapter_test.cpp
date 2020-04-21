@@ -6,7 +6,7 @@
 #include "Logger.hpp"
 #include "gtest/gtest.h"
 #include "kv_types.hpp"
-#include "db_adapter.h"
+#include "direct_kv_db_adapter.h"
 
 #ifdef USE_ROCKSDB
 #include "rocksdb/client.h"
@@ -24,8 +24,8 @@ using concord::kvbc::BlockId;
 // using concord::storage::rocksdb::Client;
 // using concord::storage::rocksdb::KeyComparator;
 using concord::storage::ITransaction;
-using concord::kvbc::DBKeyManipulator;
-using concord::kvbc::DBKeyComparator;
+using concord::kvbc::v1DirectKeyValue::DBKeyManipulator;
+using concord::kvbc::v1DirectKeyValue::DBKeyComparator;
 
 namespace {
 
@@ -49,7 +49,7 @@ class kvbc_dbadapter_test : public ::testing::Test {
     //    }
   }
 
-  std::unique_ptr<concord::kvbc::IDataKeyGenerator> keyGen_;
+  std::unique_ptr<concord::kvbc::v1DirectKeyValue::IDataKeyGenerator> keyGen_;
   const string dbPath_ = "./rocksdb_test";
   //  KeyComparator *comparator_;
 };
