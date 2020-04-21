@@ -29,7 +29,8 @@ ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
                                                  bool firstTime)
     : ReplicaBase(config, msgComm, msgHandlerReg),
       stateTransfer{(stateTransfer != nullptr ? stateTransfer : new NullStateTransfer())},
-      metric_received_state_transfers_{metrics_.RegisterCounter("receivedStateTransferMsgs")} {
+      metric_received_state_transfers_{metrics_.RegisterCounter("receivedStateTransferMsgs")},
+      metric_state_transfer_timer_{metrics_.RegisterGauge("replicaForStateTransferTimer", 0)} {
   msgHandlers_->registerMsgHandler(
       MsgCode::StateTransfer,
       std::bind(&ReplicaForStateTransfer::messageHandler<StateTransferMsg>, this, std::placeholders::_1));
@@ -44,6 +45,7 @@ ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
 void ReplicaForStateTransfer::start() {
   stateTranTimer_ = TimersSingleton::getInstance().add(
       5s, Timers::Timer::RECURRING, [this](Timers::Handle h) { stateTransfer->onTimer(); });
+  metric_state_transfer_timer_.Get().Set(5000);
   stateTransfer->startRunning(this);
   ReplicaBase::start();  // msg communicator should be last in the starting chain
 }
@@ -92,6 +94,7 @@ void ReplicaForStateTransfer::changeStateTransferTimerPeriod(uint32_t timerPerio
   // TODO(GG): if this method is invoked by an external thread, then send an "internal message" to the commands
   // processing thread
   TimersSingleton::getInstance().reset(stateTranTimer_, std::chrono::milliseconds(timerPeriodMilli));
+  metric_state_transfer_timer_.Get().Set(timerPeriodMilli);
 }
 
 }  // namespace bftEngine::impl

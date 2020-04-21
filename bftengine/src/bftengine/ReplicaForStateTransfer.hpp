@@ -59,6 +59,7 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
   std::unique_ptr<bftEngine::IStateTransfer> stateTransfer;
   Timers::Handle stateTranTimer_;
   CounterHandle metric_received_state_transfers_;
+  GaugeHandle metric_state_transfer_timer_;
 };
 
 }  // namespace bftEngine::impl

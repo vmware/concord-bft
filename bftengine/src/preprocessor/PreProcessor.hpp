@@ -140,6 +140,8 @@ class PreProcessor {
     concordMetrics::CounterHandle preProcessRequestTimedout;
     concordMetrics::CounterHandle preProcReqSentForFurtherProcessing;
     concordMetrics::CounterHandle preProcPossiblePrimaryFaultDetected;
+    concordMetrics::GaugeHandle preProcRequestStatusCheckTimer;
+    concordMetrics::GaugeHandle preProcReqMsgWaitTimer;
   } preProcessorMetrics_;
   concordUtil::Timers::Handle requestsStatusCheckTimer_;
   concordUtil::Timers::Handle preProcessReqMsgWaitTimer_;

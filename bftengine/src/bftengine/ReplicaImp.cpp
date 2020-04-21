@@ -2527,12 +2527,14 @@ void ReplicaImp::onSlowPathTimer(Timers::Handle timer) {
   tryToStartSlowPaths();
   auto newPeriod = milliseconds(controller->slowPathsTimerMilli());
   TimersSingleton::getInstance().reset(timer, newPeriod);
+  metric_slow_path_timer_.Get().Set(controller->slowPathsTimerMilli());
 }
 
 void ReplicaImp::onInfoRequestTimer(Timers::Handle timer) {
   tryToAskForMissingInfo();
   auto newPeriod = milliseconds(dynamicUpperLimitOfRounds->upperLimit() / 2);
   TimersSingleton::getInstance().reset(timer, newPeriod);
+  metric_info_request_timer_.Get().Set(dynamicUpperLimitOfRounds->upperLimit() / 2);
 }
 
 template <>
@@ -2818,6 +2820,11 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_last_executed_seq_num_{metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)},
       metric_last_agreed_view_{metrics_.RegisterGauge("lastAgreedView", lastAgreedView)},
       metric_current_active_view_{metrics_.RegisterGauge("currentActiveView", 0)},
+      metric_viewchange_timer_{metrics_.RegisterGauge("viewChangeTimer", 0)},
+      metric_retransmissions_timer_{metrics_.RegisterGauge("retransmissionTimer", 0)},
+      metric_status_report_timer_{metrics_.RegisterGauge("statusReportTimer", 0)},
+      metric_slow_path_timer_{metrics_.RegisterGauge("slowPathTimer", 0)},
+      metric_info_request_timer_{metrics_.RegisterGauge("infoRequestTimer", 0)},
       metric_first_commit_path_{metrics_.RegisterStatus(
           "firstCommitPath", CommitPathToStr(ControllerWithSimpleHistory_debugInitialFirstPath))},
       metric_slow_path_count_{metrics_.RegisterCounter("slowPathCount", 0)},
@@ -2982,28 +2989,31 @@ void ReplicaImp::stop() {
 void ReplicaImp::addTimers() {
   int statusReportTimerMilli = (sendStatusPeriodMilli > 0) ? sendStatusPeriodMilli : config_.statusReportTimerMillisec;
   Assert(statusReportTimerMilli > 0);
+  metric_status_report_timer_.Get().Set(statusReportTimerMilli);
   statusReportTimer_ = TimersSingleton::getInstance().add(milliseconds(statusReportTimerMilli),
                                                           Timers::Timer::RECURRING,
                                                           [this](Timers::Handle h) { onStatusReportTimer(h); });
   if (viewChangeProtocolEnabled) {
     int t = viewChangeTimerMilli;
     if (autoPrimaryRotationEnabled && t > autoPrimaryRotationTimerMilli) t = autoPrimaryRotationTimerMilli;
-
+    metric_viewchange_timer_.Get().Set(t / 2);
     // TODO(GG): What should be the time period here?
     // TODO(GG): Consider to split to 2 different timers
     viewChangeTimer_ = TimersSingleton::getInstance().add(
         milliseconds(t / 2), Timers::Timer::RECURRING, [this](Timers::Handle h) { onViewsChangeTimer(h); });
   }
   if (retransmissionsLogicEnabled) {
+    metric_retransmissions_timer_.Get().Set(retransmissionsTimerMilli);
     retranTimer_ = TimersSingleton::getInstance().add(milliseconds(retransmissionsTimerMilli),
                                                       Timers::Timer::RECURRING,
                                                       [this](Timers::Handle h) { onRetransmissionsTimer(h); });
   }
   const int slowPathsTimerPeriod = controller->timeToStartSlowPathMilli();
-
+  metric_slow_path_timer_.Get().Set(slowPathsTimerPeriod);
   slowPathTimer_ = TimersSingleton::getInstance().add(
       milliseconds(slowPathsTimerPeriod), Timers::Timer::RECURRING, [this](Timers::Handle h) { onSlowPathTimer(h); });
 
+  metric_info_request_timer_.Get().Set(dynamicUpperLimitOfRounds->upperLimit() / 2);
   infoReqTimer_ = TimersSingleton::getInstance().add(milliseconds(dynamicUpperLimitOfRounds->upperLimit() / 2),
                                                      Timers::Timer::RECURRING,
                                                      [this](Timers::Handle h) { onInfoRequestTimer(h); });
