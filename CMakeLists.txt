@@ -118,6 +118,7 @@ add_subdirectory(tools)
 add_subdirectory(kvbc)
 add_subdirectory(storage)
 add_subdirectory(scripts)
+add_subdirectory(diagnostics)
 #
 # Setup testing
 #
