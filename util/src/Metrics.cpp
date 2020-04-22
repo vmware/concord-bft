@@ -53,6 +53,22 @@ Component::Handle<Counter> Component::RegisterCounter(const string& name, const 
   return Component::Handle<Counter>(values_.counters_, values_.counters_.size() - 1);
 }
 
+std::list<Metric> Component::CollectGauges() {
+  std::list<Metric> ret;
+  for (size_t i = 0; i < names_.gauge_names_.size(); i++) {
+    ret.emplace_back(Metric{name_, names_.gauge_names_[i], values_.gauges_[i].Get()});
+  }
+  return ret;
+}
+
+std::list<Metric> Component::CollectCounters() {
+  std::list<Metric> ret;
+  for (size_t i = 0; i < names_.counter_names_.size(); i++) {
+    ret.emplace_back(Metric{name_, names_.counter_names_[i], values_.counters_[i].Get()});
+  }
+  return ret;
+}
+
 void Aggregator::RegisterComponent(Component& component) {
   std::lock_guard<std::mutex> lock(lock_);
   components_.insert(make_pair(component.Name(), component));
@@ -111,9 +127,8 @@ std::list<Metric> Aggregator::CollectGauges() {
   std::lock_guard<std::mutex> lock(lock_);
   std::list<Metric> ret;
   for (auto& comp : components_) {
-    for (size_t i = 0; i < comp.second.names_.gauge_names_.size(); i++) {
-      ret.emplace_back(Metric{comp.first, comp.second.names_.gauge_names_[i], comp.second.values_.gauges_[i].Get()});
-    }
+    const auto& gauges = comp.second.CollectGauges();
+    ret.insert(ret.end(), gauges.begin(), gauges.end());
   }
   return ret;
 }
@@ -121,10 +136,8 @@ std::list<Metric> Aggregator::CollectCounters() {
   std::lock_guard<std::mutex> lock(lock_);
   std::list<Metric> ret;
   for (auto& comp : components_) {
-    for (size_t i = 0; i < comp.second.names_.counter_names_.size(); i++) {
-      ret.emplace_back(
-          Metric{comp.first, comp.second.names_.counter_names_[i], comp.second.values_.counters_[i].Get()});
-    }
+    const auto& counters = comp.second.CollectCounters();
+    ret.insert(ret.end(), counters.begin(), counters.end());
   }
   return ret;
 }
