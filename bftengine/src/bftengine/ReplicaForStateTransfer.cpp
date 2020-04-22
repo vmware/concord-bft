@@ -43,9 +43,10 @@ ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
 }
 
 void ReplicaForStateTransfer::start() {
+  const std::chrono::milliseconds defaultTimeout = 5s;
   stateTranTimer_ = TimersSingleton::getInstance().add(
-      5s, Timers::Timer::RECURRING, [this](Timers::Handle h) { stateTransfer->onTimer(); });
-  metric_state_transfer_timer_.Get().Set(5000);
+      defaultTimeout, Timers::Timer::RECURRING, [this](Timers::Handle h) { stateTransfer->onTimer(); });
+  metric_state_transfer_timer_.Get().Set(defaultTimeout.count());
   stateTransfer->startRunning(this);
   ReplicaBase::start();  // msg communicator should be last in the starting chain
 }
