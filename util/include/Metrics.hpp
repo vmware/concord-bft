@@ -19,6 +19,7 @@
 #include <vector>
 #include <mutex>
 #include <memory>
+#include <list>
 
 namespace concordMetrics {
 
@@ -29,6 +30,14 @@ class Gauge;
 class Status;
 class Counter;
 
+// A generic struct that may represent a counter or a gauge
+// the motivation is to eliminate that need to know the exact
+// metric name before getting it from the aggregator
+typedef struct {
+  std::string component;
+  std::string name;
+  uint64_t value;
+} Metric;
 // An aggregator maintains metrics for multiple components. Components
 // maintain a handle to the aggregator and update it periodically with
 // all their metric values. Therefore, the state of all metrics is eventually
@@ -42,6 +51,9 @@ class Aggregator {
   Gauge GetGauge(const std::string& component_name, const std::string& val_name);
   Status GetStatus(const std::string& component_name, const std::string& val_name);
   Counter GetCounter(const std::string& component_name, const std::string& val_name);
+
+  std::list<Metric> CollectGauges();
+  std::list<Metric> CollectCounters();
 
   // Generate a JSON formatted string
   std::string ToJson();

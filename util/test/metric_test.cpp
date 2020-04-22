@@ -98,4 +98,72 @@ TEST(MetricTest, ToJson) {
   ASSERT_EQ(0, system(oss.str().c_str()));
 }
 
+TEST(MetricTest, CollectGauges) {
+  auto aggregator = std::make_shared<Aggregator>();
+  Component c("replica", aggregator);
+  c.RegisterGauge("connected_peers", 3);
+  c.RegisterGauge("total_peers", 4);
+  c.Register();
+
+  Component c2("state-transfer", aggregator);
+  c2.RegisterGauge("blocks-remaining", 5);
+  c2.Register();
+
+  auto gauges = aggregator->CollectGauges();
+  int numOfGaugesInReplica = 0;
+  int numOfGaugesInStateTransfer = 0;
+  for (auto& g : gauges) {
+    if (g.component == "replica") {
+      if (g.name == "connected_peers") {
+        ASSERT_EQ(g.value, 3);
+        numOfGaugesInReplica++;
+      } else if (g.name == "total_peers") {
+        ASSERT_EQ(g.value, 4);
+        numOfGaugesInReplica++;
+      }
+    } else if (g.component == "state-transfer") {
+      if (g.name == "blocks-remaining") {
+        ASSERT_EQ(g.value, 5);
+        numOfGaugesInStateTransfer++;
+      }
+    }
+  }
+  ASSERT_EQ(numOfGaugesInReplica, 2);
+  ASSERT_EQ(numOfGaugesInStateTransfer, 1);
+}
+
+TEST(MetricTest, CollectCounters) {
+  auto aggregator = std::make_shared<Aggregator>();
+  Component c("replica", aggregator);
+  c.RegisterCounter("connected_peers", 3);
+  c.RegisterCounter("total_peers", 4);
+  c.Register();
+
+  Component c2("state-transfer", aggregator);
+  c2.RegisterCounter("blocks-remaining", 5);
+  c2.Register();
+
+  auto counters = aggregator->CollectCounters();
+  int numOfCountersInReplica = 0;
+  int numOfCountersInStateTransfer = 0;
+  for (auto& cn : counters) {
+    if (cn.component == "replica") {
+      if (cn.name == "connected_peers") {
+        ASSERT_EQ(cn.value, 3);
+        numOfCountersInReplica++;
+      } else if (cn.name == "total_peers") {
+        ASSERT_EQ(cn.value, 4);
+        numOfCountersInReplica++;
+      }
+    } else if (cn.component == "state-transfer") {
+      if (cn.name == "blocks-remaining") {
+        ASSERT_EQ(cn.value, 5);
+        numOfCountersInStateTransfer++;
+      }
+    }
+  }
+  ASSERT_EQ(numOfCountersInReplica, 2);
+  ASSERT_EQ(numOfCountersInStateTransfer, 1);
+}
+
 }  // namespace concordMetrics

@@ -107,6 +107,27 @@ std::string Aggregator::ToJson() {
 
   return oss.str();
 }
+std::list<Metric> Aggregator::CollectGauges() {
+  std::lock_guard<std::mutex> lock(lock_);
+  std::list<Metric> ret;
+  for (auto& comp : components_) {
+    for (size_t i = 0; i < comp.second.names_.gauge_names_.size(); i++) {
+      ret.emplace_back(Metric{comp.first, comp.second.names_.gauge_names_[i], comp.second.values_.gauges_[i].Get()});
+    }
+  }
+  return ret;
+}
+std::list<Metric> Aggregator::CollectCounters() {
+  std::lock_guard<std::mutex> lock(lock_);
+  std::list<Metric> ret;
+  for (auto& comp : components_) {
+    for (size_t i = 0; i < comp.second.names_.counter_names_.size(); i++) {
+      ret.emplace_back(
+          Metric{comp.first, comp.second.names_.counter_names_[i], comp.second.values_.counters_[i].Get()});
+    }
+  }
+  return ret;
+}
 
 // Generate a JSON string of the component. To save space we don't add any
 // newline characters.
