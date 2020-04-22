@@ -273,7 +273,9 @@ void DescriptorOfLastExecution::deserialize(char *buf, size_t bufLen, uint32_t &
   buf += seqNumSize;
 
   uint32_t bitMapSize = 0;
-  validRequests = *Bitmap::createBitmapFromBuffer(buf, bufLen - seqNumSize, &bitMapSize);
+  auto* temp = Bitmap::createBitmapFromBuffer(buf, bufLen - seqNumSize, &bitMapSize);
+  validRequests = std::move(*temp);
+  delete temp;
   actualSize = seqNumSize + bitMapSize;
 }
 

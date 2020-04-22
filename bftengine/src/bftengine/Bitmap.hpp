@@ -41,6 +41,18 @@ class Bitmap {
     }
   }
 
+  Bitmap(Bitmap&& other) : numBits_(other.numBits_), p_(nullptr) {
+    if (numBits_ == 0) {
+      p_ = nullptr;
+    } else {
+      p_ = other.p_;
+    }
+
+    other.p_ = nullptr;
+    other.numBits_ = 0;
+
+  }
+
   ~Bitmap() {
     if (numBits_ > 0) {
       Assert(p_ != nullptr);
@@ -65,6 +77,25 @@ class Bitmap {
       p_ = (unsigned char*)std::malloc(realSize());
       std::memcpy(p_, other.p_, realSize());
     }
+
+    return *this;
+  }
+
+  Bitmap& operator=(Bitmap&& other) {
+    if (numBits_ > 0) {
+      Assert(p_ != nullptr);
+      std::free(p_);
+    }
+
+    numBits_ = other.numBits_;
+    if (numBits_ == 0) {
+      p_ = nullptr;
+    } else {
+      p_ = other.p_;
+    }
+
+    other.p_ = nullptr;
+    other.numBits_ = 0;
 
     return *this;
   }

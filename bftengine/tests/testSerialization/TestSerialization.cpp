@@ -396,6 +396,11 @@ void testSetDescriptors(bool toSet) {
   descHasSet = persistentStorageImp->hasDescriptorOfLastExitFromView();
   assert(descHasSet);
 
+  for (auto* v : msgs) {
+    delete v;
+  }
+  delete element.prePrepare;
+  delete element.prepareFull;
   lastExitFromView.clean();
   lastNewView.clean();
   delete viewChangeMsg;
