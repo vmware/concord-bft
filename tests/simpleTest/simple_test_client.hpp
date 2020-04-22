@@ -74,6 +74,8 @@ class SimpleTestClient {
     ICommunication* comm = bftEngine::CommFactory::create(conf);
 
     SimpleClient* client = SimpleClient::createSimpleClient(comm, id, cp.numOfFaulty, cp.numOfSlow);
+    auto aggregator = std::make_shared<concordMetrics::Aggregator>();
+    client->setAggregator(aggregator);
     comm->Start();
 
     // The state number that the latest write operation returned.
@@ -208,7 +210,13 @@ class SimpleTestClient {
 
     // After all requests have been issued, stop communication and clean up.
     comm->Stop();
-
+    LOG_INFO(clientLogger,
+             "clientMetrics::retransmissions " << aggregator->GetCounter("clientMetrics", "retransmissions").Get());
+    LOG_INFO(
+        clientLogger,
+        "clientMetrics::retransmissionTimer " << aggregator->GetGauge("clientMetrics", "retransmissionTimer").Get());
+    test_assert(aggregator->GetCounter("clientMetrics", "retransmissions").Get() >= 0, "retransmissions <" << 0);
+    test_assert(aggregator->GetGauge("clientMetrics", "retransmissionTimer").Get() >= 0, "retransmissionTimer <" << 0);
     delete pSeqGen;
     delete client;
     delete comm;
