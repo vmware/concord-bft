@@ -151,6 +151,7 @@ void BlsThresholdVerifier::deserializeDataMembers(istream &inStream) {
 
   deserialize(inStream, reqSigners_);
   deserialize(inStream, numSigners_);
+  delete params;
 }
 
 } /* namespace Relic */
