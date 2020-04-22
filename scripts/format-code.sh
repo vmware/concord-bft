@@ -33,7 +33,7 @@ FILES_TO_FORMAT=$(find ${ABS_CONCORD_PATH} \
 
 if [ -n "$2" ]; then
   if [ "$2" = "--is-required" ]; then
-    NUM_CHANGES=$(clang-format-7 \
+    NUM_CHANGES=$(clang-format-9 \
       -verbose \
       -style=file \
       -fallback-style=none \
@@ -52,5 +52,5 @@ if [ -n "$2" ]; then
   >&2 echo "ERROR: Unknown parameter \"$2\""
   return 1
 else
-  clang-format-7 -verbose -style=file -fallback-style=none -i ${FILES_TO_FORMAT}
+  clang-format-9 -verbose -style=file -fallback-style=none -i ${FILES_TO_FORMAT}
 fi

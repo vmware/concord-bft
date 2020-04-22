@@ -57,8 +57,8 @@ class Registrar {
   std::string describeStatus() const {
     std::lock_guard<std::mutex> guard(mutex_);
     std::string output;
-    for (const auto& [_, handler]: status_handlers_) {
-      (void)_; // undefined variable hack
+    for (const auto& [_, handler] : status_handlers_) {
+      (void)_;  // undefined variable hack
       output += "\n" + handler.name + "\n  ";
       output += handler.description + "\n";
     }
@@ -68,8 +68,8 @@ class Registrar {
   std::string listStatusKeys() const {
     std::lock_guard<std::mutex> guard(mutex_);
     std::string output;
-    for (const auto& [key, _]: status_handlers_) {
-      (void)_; // unused variable hack
+    for (const auto& [key, _] : status_handlers_) {
+      (void)_;  // unused variable hack
       output += key + "\n";
     }
     return output;
@@ -81,4 +81,3 @@ class Registrar {
 };
 
 }  // namespace concord::diagnostics
-
