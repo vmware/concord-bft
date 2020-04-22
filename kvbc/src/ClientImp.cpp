@@ -81,5 +81,8 @@ Status ClientImp::invokeCommandSynch(const char* request,
   else
     return Status::InvalidArgument("small buffer");
 }
+void ClientImp::setMetricsAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+  bftClient_->setAggregator(aggregator);
+}
 }  // namespace kvbc
 }  // namespace concord

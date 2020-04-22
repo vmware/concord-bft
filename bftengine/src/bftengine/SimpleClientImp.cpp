@@ -130,7 +130,10 @@ void SimpleClientImp::onMessageFromReplica(MessageBase* msg) {
   }
 }
 
-void SimpleClientImp::onRetransmission() { sendPendingRequest(); }
+void SimpleClientImp::onRetransmission() {
+  client_metrics_.retransmissions.Get().Inc();
+  sendPendingRequest();
+}
 
 // in this version we assume that the set of replicas is 0,1,2,...,numberOfReplicas (TODO(GG): should be changed to
 // support full dynamic reconfiguration)
@@ -224,6 +227,10 @@ int SimpleClientImp::sendRequest(uint8_t flags,
 
   bool requestTimeout = false;
   bool requestCommitted = false;
+
+  // collect metrics and update them
+  client_metrics_.retransmissionTimer.Get().Set(limitOfExpectedOperationTime_.upperLimit());
+  metrics_.UpdateAggregator();
 
   // protect against spurious wakeups
   auto predicate = [this] { return !msgQueue_.empty(); };
