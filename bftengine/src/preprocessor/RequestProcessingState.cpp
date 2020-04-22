@@ -40,8 +40,7 @@ RequestProcessingState::RequestProcessingState(uint16_t numOfReplicas,
       entryTime_(getMonotonicTimeMilli()),
       clientPreProcessReqMsg_(move(clientReqMsg)),
       preProcessRequestMsg_(preProcessRequestMsg) {
-  LOG_DEBUG(GL,
-            "Created RequestProcessingState with reqSeqNum=" << reqSeqNum_ << ", numOfReplicas= " << numOfReplicas_);
+  LOG_DEBUG(GL, "Created RequestProcessingState with reqSeqNum=" << reqSeqNum_ << ", numOfReplicas=" << numOfReplicas_);
 }
 
 void RequestProcessingState::setPreProcessRequest(PreProcessRequestMsgSharedPtr preProcessReqMsg) {

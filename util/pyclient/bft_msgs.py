@@ -56,7 +56,7 @@ def pack_request(client_id, req_seq_num, read_only, timeout_milli, cid, msg, pre
     elif pre_process:
         flags = 0x2
     header = RequestHeader(len(span_context), client_id, flags, req_seq_num, len(msg), timeout_milli, len(cid))
-    data = b''.join([pack_request_header(header), span_context, msg, cid.encode()])
+    data = b''.join([pack_request_header(header, pre_process), span_context, msg, cid.encode()])
     return data
 
 def pack_request_header(header, pre_process=False):

@@ -324,10 +324,11 @@ void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *msg) {
     const auto &clientEntry = ongoingRequests_[clientId];
     lock_guard<mutex> lock(clientEntry->mutex);
     if (!clientEntry->reqProcessingStatePtr || clientEntry->reqProcessingStatePtr->getReqSeqNum() != reqSeqNum) {
-      LOG_DEBUG(GL,
-                "reqSeqNum=" << reqSeqNum << " received from replica=" << preProcessReplyMsg->senderId()
-                             << " for clientId=" << clientId
-                             << " will be ignored as no such ongoing request / different one found");
+      LOG_DEBUG(
+          GL,
+          "reqSeqNum=" << reqSeqNum << " received from replica=" << preProcessReplyMsg->senderId()
+                       << " for clientId=" << clientId
+                       << " will be ignored as no such ongoing request exists or different one found for this client");
       return;
     }
     clientEntry->reqProcessingStatePtr->handlePreProcessReplyMsg(preProcessReplyMsg);
