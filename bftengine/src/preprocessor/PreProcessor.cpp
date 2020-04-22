@@ -103,7 +103,9 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            metricsComponent_.RegisterCounter("preProcConsensusNotReached"),
                            metricsComponent_.RegisterCounter("preProcessRequestTimedout"),
                            metricsComponent_.RegisterCounter("preProcReqSentForFurtherProcessing"),
-                           metricsComponent_.RegisterCounter("preProcPossiblePrimaryFaultDetected")},
+                           metricsComponent_.RegisterCounter("preProcPossiblePrimaryFaultDetected"),
+                           metricsComponent_.RegisterGauge("preProcRequestStatusCheckTimer", 0),
+                           metricsComponent_.RegisterGauge("preProcReqMsgWaitTimer", 0)},
       preExecReqStatusCheckTimeMilli_(myReplica_.getReplicaConfig().preExecReqStatusCheckTimerMillisec),
       preProcessReqWaitTimeMilli_(myReplica_.getReplicaConfig().viewChangeTimerMillisec / 4) {
   registerMsgHandlers();
@@ -139,7 +141,7 @@ void PreProcessor::addTimers() {
         chrono::milliseconds(preExecReqStatusCheckTimeMilli_), Timers::Timer::RECURRING, [this](Timers::Handle h) {
           onRequestsStatusCheckTimer(h);
         });
-
+  preProcessorMetrics_.preProcRequestStatusCheckTimer.Get().Set(preExecReqStatusCheckTimeMilli_);
   // This timer is used in the following scenario: a non-primary replica receives a request from the client
   // and sends it to the primary one. After a reasonable time, it expects to receive PreProcessRequestMsg from the
   // primary replica for this request. If this does not happen, it is supposed that the primary replica is faulty
@@ -149,6 +151,7 @@ void PreProcessor::addTimers() {
         chrono::milliseconds(preProcessReqWaitTimeMilli_), Timers::Timer::RECURRING, [this](Timers::Handle h) {
           onPreProcessRequestMsgWaitTimer(h);
         });
+  preProcessorMetrics_.preProcReqMsgWaitTimer.Get().Set(preProcessReqWaitTimeMilli_);
 }
 
 void PreProcessor::cancelTimers() {

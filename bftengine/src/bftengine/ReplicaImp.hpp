@@ -158,6 +158,11 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   GaugeHandle metric_last_executed_seq_num_;
   GaugeHandle metric_last_agreed_view_;
   GaugeHandle metric_current_active_view_;
+  GaugeHandle metric_viewchange_timer_;
+  GaugeHandle metric_retransmissions_timer_;
+  GaugeHandle metric_status_report_timer_;
+  GaugeHandle metric_slow_path_timer_;
+  GaugeHandle metric_info_request_timer_;
 
   // The first commit path being attempted for a new request.
   StatusHandle metric_first_commit_path_;
