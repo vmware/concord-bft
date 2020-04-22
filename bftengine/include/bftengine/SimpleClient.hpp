@@ -17,6 +17,7 @@
 #include <set>
 #include "ICommunication.hpp"
 #include <chrono>
+#include <Metrics.hpp>
 
 namespace bftEngine {
 // Parameters // TODO(GG): move to client configuration
@@ -34,6 +35,12 @@ enum ClientMsgFlag : uint8_t { EMPTY_FLAGS_REQ = 0x0, READ_ONLY_REQ = 0x1, PRE_P
 
 class SimpleClient {
  public:
+  SimpleClient()
+      : metrics_{"clientMetrics", std::make_shared<concordMetrics::Aggregator>()},
+        client_metrics_{{metrics_.RegisterCounter("retransmissions")},
+                        {metrics_.RegisterGauge("retransmissionTimer", 0)}} {
+    metrics_.Register();
+  }
   static const uint64_t INFINITE_TIMEOUT = UINT64_MAX;
 
   static SimpleClient* createSimpleClient(ICommunication* communication,
@@ -58,6 +65,18 @@ class SimpleClient {
 
   virtual int sendRequestToResetSeqNum() = 0;
   virtual int sendRequestToReadLatestSeqNum(uint64_t timeoutMilli, uint64_t& outLatestReqSeqNum) = 0;
+
+  void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+    if (aggregator) metrics_.SetAggregator(aggregator);
+  }
+
+ protected:
+  /* Client Metrics */
+  concordMetrics::Component metrics_;
+  struct ClientMetrics {
+    concordMetrics::CounterHandle retransmissions;
+    concordMetrics::GaugeHandle retransmissionTimer;
+  } client_metrics_;
 };
 
 // This class is mainly for testing and SimpleClient applications.

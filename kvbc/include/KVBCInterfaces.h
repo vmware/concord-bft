@@ -67,6 +67,8 @@ class IClient {
                                     char* outReply,
                                     uint32_t* outActualReplySize,
                                     const std::string& cid = "") = 0;
+
+  virtual void setMetricsAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) = 0;
 };
 
 // creates a new Client object
