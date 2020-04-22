@@ -162,6 +162,7 @@ class Serializable {
     T* s = nullptr;
     deserialize_impl(inStream, s, int{});
     t = T(*s);
+    delete s;
   }
   /** *****************************************************************************************************************
    *  std::string

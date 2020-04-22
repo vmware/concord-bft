@@ -61,6 +61,8 @@ TEST(serializable, Serializable) {
   Serializable::deserialize(sstream, t1);
 
   ASSERT_TRUE(t == *t1);
+
+  delete t1;
 }
 
 TEST(serializable, SetInt) {
@@ -129,6 +131,10 @@ TEST(serializable, VectorSerializablePtr) {
       std::equal(s.begin(), s.end(), s_out.begin(), [](const TestSerializable* lhs, const TestSerializable* rhs) {
         return *lhs == *rhs;
       }));
+
+  for (auto* v : s) { delete v; }
+  for (auto* v : s_out) { delete v; }
+  
 }
 
 TEST(serializable, VectorSerializableVectors) {
@@ -170,6 +176,17 @@ TEST(serializable, VectorSerializablePtrVectors) {
                            vec_of_vecs_out[i].begin(),
                            [](const TestSerializable* lhs, const TestSerializable* rhs) { return *lhs == *rhs; }));
   }
+
+  auto cleanupVec = [](auto& V) {
+    for (auto& v : V) {
+      for (auto* p : v ) {
+        delete p;
+      }
+    }
+  };
+  cleanupVec(vec_of_vecs);
+  cleanupVec(vec_of_vecs_out);
+
 }
 }  // namespace serializable
 }  // namespace test
