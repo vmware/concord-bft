@@ -56,7 +56,7 @@ Component::Handle<Counter> Component::RegisterCounter(const string& name, const 
 std::list<Metric> Component::CollectGauges() {
   std::list<Metric> ret;
   for (size_t i = 0; i < names_.gauge_names_.size(); i++) {
-    ret.emplace_back(Metric{name_, names_.gauge_names_[i], values_.gauges_[i].Get()});
+    ret.emplace_back(Metric{name_, names_.gauge_names_[i], values_.gauges_[i]});
   }
   return ret;
 }
@@ -64,7 +64,7 @@ std::list<Metric> Component::CollectGauges() {
 std::list<Metric> Component::CollectCounters() {
   std::list<Metric> ret;
   for (size_t i = 0; i < names_.counter_names_.size(); i++) {
-    ret.emplace_back(Metric{name_, names_.counter_names_[i], values_.counters_[i].Get()});
+    ret.emplace_back(Metric{name_, names_.counter_names_[i], values_.counters_[i]});
   }
   return ret;
 }
@@ -72,7 +72,7 @@ std::list<Metric> Component::CollectCounters() {
 std::list<Metric> Component::CollectStatuses() {
   std::list<Metric> ret;
   for (size_t i = 0; i < names_.status_names_.size(); i++) {
-    ret.emplace_back(Metric{name_, names_.status_names_[i], values_.statuses_[i].Get()});
+    ret.emplace_back(Metric{name_, names_.status_names_[i], values_.statuses_[i]});
   }
   return ret;
 }

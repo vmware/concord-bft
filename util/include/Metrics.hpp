@@ -21,6 +21,7 @@
 #include <memory>
 #include <list>
 #include <variant>
+#include "histogram.hpp"
 
 namespace concordMetrics {
 
@@ -30,15 +31,8 @@ class Values;
 class Gauge;
 class Status;
 class Counter;
+typedef struct metric_ Metric;
 
-// A generic struct that may represent a counter or a gauge
-// the motivation is to eliminate that need to know the exact
-// metric name before getting it from the aggregator
-typedef struct {
-  std::string component;
-  std::string name;
-  std::variant<uint64_t, std::string> value;
-} Metric;
 // An aggregator maintains metrics for multiple components. Components
 // maintain a handle to the aggregator and update it periodically with
 // all their metric values. Therefore, the state of all metrics is eventually
@@ -108,6 +102,15 @@ class Counter {
 
  private:
   uint64_t val_;
+};
+
+// A generic struct that may represent a counter or a gauge
+// the motivation is to eliminate that need to know the exact
+// metric name before getting it from the aggregator
+struct metric_ {
+  std::string component;
+  std::string name;
+  std::variant<Counter, Gauge, Status, concordUtils::Histogram> value;
 };
 
 class Values {

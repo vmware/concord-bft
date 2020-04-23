@@ -115,15 +115,15 @@ TEST(MetricTest, CollectGauges) {
   for (auto& g : gauges) {
     if (g.component == "replica") {
       if (g.name == "connected_peers") {
-        ASSERT_EQ(std::get<uint64_t>(g.value), 3);
+        ASSERT_EQ(std::get<Gauge>(g.value).Get(), 3);
         numOfGaugesInReplica++;
       } else if (g.name == "total_peers") {
-        ASSERT_EQ(std::get<uint64_t>(g.value), 4);
+        ASSERT_EQ(std::get<Gauge>(g.value).Get(), 4);
         numOfGaugesInReplica++;
       }
     } else if (g.component == "state-transfer") {
       if (g.name == "blocks-remaining") {
-        ASSERT_EQ(std::get<uint64_t>(g.value), 5);
+        ASSERT_EQ(std::get<Gauge>(g.value).Get(), 5);
         numOfGaugesInStateTransfer++;
       }
     }
@@ -149,15 +149,15 @@ TEST(MetricTest, CollectCounters) {
   for (auto& cn : counters) {
     if (cn.component == "replica") {
       if (cn.name == "connected_peers") {
-        ASSERT_EQ(std::get<uint64_t>(cn.value), 3);
+        ASSERT_EQ(std::get<Counter>(cn.value).Get(), 3);
         numOfCountersInReplica++;
       } else if (cn.name == "total_peers") {
-        ASSERT_EQ(std::get<uint64_t>(cn.value), 4);
+        ASSERT_EQ(std::get<Counter>(cn.value).Get(), 4);
         numOfCountersInReplica++;
       }
     } else if (cn.component == "state-transfer") {
       if (cn.name == "blocks-remaining") {
-        ASSERT_EQ(std::get<uint64_t>(cn.value), 5);
+        ASSERT_EQ(std::get<Counter>(cn.value).Get(), 5);
         numOfCountersInStateTransfer++;
       }
     }
@@ -177,21 +177,21 @@ TEST(MetricTest, CollectStatuses) {
   c2.RegisterStatus("blocks-remaining", "123");
   c2.Register();
 
-  auto gauges = aggregator->CollectStatuses();
+  auto statuses = aggregator->CollectStatuses();
   int numOfGaugesInReplica = 0;
   int numOfGaugesInStateTransfer = 0;
-  for (auto& g : gauges) {
-    if (g.component == "replica") {
-      if (g.name == "connected_peers") {
-        ASSERT_EQ(std::get<std::string>(g.value), "abc");
+  for (auto& s : statuses) {
+    if (s.component == "replica") {
+      if (s.name == "connected_peers") {
+        ASSERT_EQ(std::get<Status>(s.value).Get(), "abc");
         numOfGaugesInReplica++;
-      } else if (g.name == "total_peers") {
-        ASSERT_EQ(std::get<std::string>(g.value), "efg");
+      } else if (s.name == "total_peers") {
+        ASSERT_EQ(std::get<Status>(s.value).Get(), "efg");
         numOfGaugesInReplica++;
       }
-    } else if (g.component == "state-transfer") {
-      if (g.name == "blocks-remaining") {
-        ASSERT_EQ(std::get<std::string>(g.value), "123");
+    } else if (s.component == "state-transfer") {
+      if (s.name == "blocks-remaining") {
+        ASSERT_EQ(std::get<Status>(s.value).Get(), "123");
         numOfGaugesInStateTransfer++;
       }
     }
