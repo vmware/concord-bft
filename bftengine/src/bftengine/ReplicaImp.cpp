@@ -2866,7 +2866,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
           metrics_.RegisterCounter("sentCommitFullMsgDueToReqMissingData")},
       metric_sent_fullCommitProof_msg_due_to_reqMissingData_{
           metrics_.RegisterCounter("sentFullCommitProofMsgDueToReqMissingData")},
-      metric_not_enough_client_requests_event_{metrics_.RegisterCounter("notEnoughClientRequestsEvent")} {
+      metric_not_enough_client_requests_event_{metrics_.RegisterCounter("notEnoughClientRequestsEvent")},
+      metric_total_finished_consensuses_{metrics_.RegisterCounter("totalOrderedRequests")} {
   Assert(config_.replicaId < config_.numReplicas);
   // TODO(GG): more asserts on params !!!!!!!!!!!
 
@@ -3192,6 +3193,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg *ppMsg, bool recov
   lastExecutedSeqNum = lastExecutedSeqNum + 1;
 
   metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
+  metric_total_finished_consensuses_.Get().Inc();
   if (config_.debugStatisticsEnabled) {
     DebugStatistics::onLastExecutedSequenceNumberChanged(lastExecutedSeqNum);
   }
