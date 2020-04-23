@@ -20,6 +20,7 @@
 #include <mutex>
 #include <memory>
 #include <list>
+#include <variant>
 
 namespace concordMetrics {
 
@@ -36,7 +37,7 @@ class Counter;
 typedef struct {
   std::string component;
   std::string name;
-  uint64_t value;
+  std::variant<uint64_t, std::string> value;
 } Metric;
 // An aggregator maintains metrics for multiple components. Components
 // maintain a handle to the aggregator and update it periodically with
@@ -54,6 +55,7 @@ class Aggregator {
 
   std::list<Metric> CollectGauges();
   std::list<Metric> CollectCounters();
+  std::list<Metric> CollectStatuses();
 
   // Generate a JSON formatted string
   std::string ToJson();
@@ -168,6 +170,7 @@ class Component {
   Handle<Counter> RegisterCounter(const std::string& name) { return RegisterCounter(name, 0); }
   std::list<Metric> CollectGauges();
   std::list<Metric> CollectCounters();
+  std::list<Metric> CollectStatuses();
   // Register the component with the aggregator.
   // This *must* be done after all values are registered in this component.
   // If registration happens before all registration of the values, then the

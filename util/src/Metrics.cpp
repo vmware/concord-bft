@@ -69,6 +69,14 @@ std::list<Metric> Component::CollectCounters() {
   return ret;
 }
 
+std::list<Metric> Component::CollectStatuses() {
+  std::list<Metric> ret;
+  for (size_t i = 0; i < names_.status_names_.size(); i++) {
+    ret.emplace_back(Metric{name_, names_.status_names_[i], values_.statuses_[i].Get()});
+  }
+  return ret;
+}
+
 void Aggregator::RegisterComponent(Component& component) {
   std::lock_guard<std::mutex> lock(lock_);
   components_.insert(make_pair(component.Name(), component));
@@ -138,6 +146,16 @@ std::list<Metric> Aggregator::CollectCounters() {
   for (auto& comp : components_) {
     const auto& counters = comp.second.CollectCounters();
     ret.insert(ret.end(), counters.begin(), counters.end());
+  }
+  return ret;
+}
+
+std::list<Metric> Aggregator::CollectStatuses() {
+  std::lock_guard<std::mutex> lock(lock_);
+  std::list<Metric> ret;
+  for (auto& comp : components_) {
+    const auto& statuses = comp.second.CollectStatuses();
+    ret.insert(ret.end(), statuses.begin(), statuses.end());
   }
   return ret;
 }
