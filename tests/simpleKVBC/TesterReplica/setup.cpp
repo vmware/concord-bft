@@ -53,6 +53,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     replicaConfig.debugStatisticsEnabled = true;
     replicaConfig.viewChangeTimerMillisec = 45 * 1000;
     replicaConfig.statusReportTimerMillisec = 10 * 1000;
+    replicaConfig.preExecutionFeatureEnabled = true;
 
     PersistencyMode persist_mode = PersistencyMode::Off;
     std::string keysFilePrefix;

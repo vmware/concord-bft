@@ -19,6 +19,7 @@
 #include <algorithm>
 
 using namespace BasicRandomTests;
+using namespace bftEngine;
 
 using concordUtils::Status;
 using concordUtils::Sliver;
@@ -41,7 +42,7 @@ int InternalCommandsHandler::execute(uint16_t clientId,
         "The message is too small: requestSize is " << requestSize << ", required size is " << sizeof(SimpleRequest));
     return -1;
   }
-  bool readOnly = flags & bftEngine::MsgFlag::READ_ONLY_FLAG;
+  bool readOnly = flags & MsgFlag::READ_ONLY_FLAG;
   if (readOnly) {
     res = executeReadOnlyCommand(requestSize, request, maxReplySize, outReply, outActualReplySize);
   } else {
@@ -93,21 +94,25 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
                                                   char *outReply,
                                                   uint32_t &outReplySize) {
   auto *writeReq = (SimpleCondWriteRequest *)request;
-  if (!(flags & bftEngine::MsgFlag::HAS_PRE_PROCESSED_FLAG)) {
-    LOG_INFO(m_logger,
-             "Execute WRITE command:"
-                 << " type: " << writeReq->header.type << " seqNum: " << sequenceNum
-                 << " numOfWrites: " << writeReq->numOfWrites << " numOfKeysInReadSet: " << writeReq->numOfKeysInReadSet
-                 << " readVersion: " << writeReq->readVersion
-                 << " pre-execution: " << ((flags & bftEngine::MsgFlag::PRE_PROCESS_FLAG) != 0 ? "true" : "false"));
+  LOG_INFO(m_logger,
+           "Execute WRITE command:"
+               << " type: " << writeReq->header.type << " seqNum: " << sequenceNum
+               << " numOfWrites: " << writeReq->numOfWrites << " numOfKeysInReadSet: " << writeReq->numOfKeysInReadSet
+               << " readVersion: " << writeReq->readVersion
+               << " READ_ONLY_FLAG: " << ((flags & MsgFlag::READ_ONLY_FLAG) != 0 ? "true" : "false")
+               << " PRE_PROCESS_FLAG: " << ((flags & MsgFlag::PRE_PROCESS_FLAG) != 0 ? "true" : "false")
+               << " HAS_PRE_PROCESSED_FLAG: " << ((flags & MsgFlag::HAS_PRE_PROCESSED_FLAG) != 0 ? "true" : "false"));
+
+  if (!(flags & MsgFlag::HAS_PRE_PROCESSED_FLAG)) {
     bool result = verifyWriteCommand(requestSize, *writeReq, maxReplySize, outReplySize);
-    if (!result) assert(0);
-    if (flags & bftEngine::MsgFlag::PRE_PROCESS_FLAG) {
+    if (!result) Assert(0);
+    if (flags & MsgFlag::PRE_PROCESS_FLAG) {
       outReplySize = requestSize;
       memcpy(outReply, request, requestSize);
       return result;
     }
   }
+
   SimpleKey *readSetArray = writeReq->readSetArray();
   BlockId currBlock = m_storage->getLastBlock();
 
@@ -129,11 +134,11 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
     addMetadataKeyValue(updates, sequenceNum);
     BlockId newBlockId = 0;
     Status addSuccess = m_blocksAppender->addBlock(updates, newBlockId);
-    assert(addSuccess.isOK());
-    assert(newBlockId == currBlock + 1);
+    Assert(addSuccess.isOK());
+    Assert(newBlockId == currBlock + 1);
   }
 
-  assert(sizeof(SimpleReply_ConditionalWrite) <= maxReplySize);
+  Assert(sizeof(SimpleReply_ConditionalWrite) <= maxReplySize);
   auto *reply = (SimpleReply_ConditionalWrite *)outReply;
   reply->header.type = COND_WRITE;
   reply->success = (!hasConflict);
