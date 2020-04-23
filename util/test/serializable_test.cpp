@@ -132,9 +132,12 @@ TEST(serializable, VectorSerializablePtr) {
         return *lhs == *rhs;
       }));
 
-  for (auto* v : s) { delete v; }
-  for (auto* v : s_out) { delete v; }
-  
+  for (auto* v : s) {
+    delete v;
+  }
+  for (auto* v : s_out) {
+    delete v;
+  }
 }
 
 TEST(serializable, VectorSerializableVectors) {
@@ -179,14 +182,13 @@ TEST(serializable, VectorSerializablePtrVectors) {
 
   auto cleanupVec = [](auto& V) {
     for (auto& v : V) {
-      for (auto* p : v ) {
+      for (auto* p : v) {
         delete p;
       }
     }
   };
   cleanupVec(vec_of_vecs);
   cleanupVec(vec_of_vecs_out);
-
 }
 }  // namespace serializable
 }  // namespace test

@@ -41,16 +41,13 @@ class Bitmap {
     }
   }
 
-  Bitmap(Bitmap&& other) : numBits_(other.numBits_), p_(nullptr) {
-    if (numBits_ == 0) {
-      p_ = nullptr;
-    } else {
-      p_ = other.p_;
+  Bitmap(Bitmap&& other) : numBits_(other.numBits_), p_(other.p_) {
+    if (numBits_ > 0) {
+      Assert(p_ != nullptr);
     }
 
     other.p_ = nullptr;
     other.numBits_ = 0;
-
   }
 
   ~Bitmap() {
@@ -88,10 +85,10 @@ class Bitmap {
     }
 
     numBits_ = other.numBits_;
-    if (numBits_ == 0) {
-      p_ = nullptr;
-    } else {
-      p_ = other.p_;
+    p_ = other.p_;
+
+    if (numBits_ > 0) {
+      Assert(p_ != nullptr);
     }
 
     other.p_ = nullptr;
