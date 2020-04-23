@@ -21,7 +21,6 @@
 #include <memory>
 #include <list>
 #include <variant>
-#include "histogram.hpp"
 
 namespace concordMetrics {
 
@@ -110,7 +109,7 @@ class Counter {
 struct metric_ {
   std::string component;
   std::string name;
-  std::variant<Counter, Gauge, Status, concordUtils::Histogram> value;
+  std::variant<Counter, Gauge, Status> value;
 };
 
 class Values {
