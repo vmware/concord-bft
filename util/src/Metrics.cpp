@@ -53,6 +53,30 @@ Component::Handle<Counter> Component::RegisterCounter(const string& name, const 
   return Component::Handle<Counter>(values_.counters_, values_.counters_.size() - 1);
 }
 
+std::list<Metric> Component::CollectGauges() {
+  std::list<Metric> ret;
+  for (size_t i = 0; i < names_.gauge_names_.size(); i++) {
+    ret.emplace_back(Metric{name_, names_.gauge_names_[i], values_.gauges_[i]});
+  }
+  return ret;
+}
+
+std::list<Metric> Component::CollectCounters() {
+  std::list<Metric> ret;
+  for (size_t i = 0; i < names_.counter_names_.size(); i++) {
+    ret.emplace_back(Metric{name_, names_.counter_names_[i], values_.counters_[i]});
+  }
+  return ret;
+}
+
+std::list<Metric> Component::CollectStatuses() {
+  std::list<Metric> ret;
+  for (size_t i = 0; i < names_.status_names_.size(); i++) {
+    ret.emplace_back(Metric{name_, names_.status_names_[i], values_.statuses_[i]});
+  }
+  return ret;
+}
+
 void Aggregator::RegisterComponent(Component& component) {
   std::lock_guard<std::mutex> lock(lock_);
   components_.insert(make_pair(component.Name(), component));
@@ -106,6 +130,34 @@ std::string Aggregator::ToJson() {
   oss << "]}";
 
   return oss.str();
+}
+std::list<Metric> Aggregator::CollectGauges() {
+  std::lock_guard<std::mutex> lock(lock_);
+  std::list<Metric> ret;
+  for (auto& comp : components_) {
+    const auto& gauges = comp.second.CollectGauges();
+    ret.insert(ret.end(), gauges.begin(), gauges.end());
+  }
+  return ret;
+}
+std::list<Metric> Aggregator::CollectCounters() {
+  std::lock_guard<std::mutex> lock(lock_);
+  std::list<Metric> ret;
+  for (auto& comp : components_) {
+    const auto& counters = comp.second.CollectCounters();
+    ret.insert(ret.end(), counters.begin(), counters.end());
+  }
+  return ret;
+}
+
+std::list<Metric> Aggregator::CollectStatuses() {
+  std::lock_guard<std::mutex> lock(lock_);
+  std::list<Metric> ret;
+  for (auto& comp : components_) {
+    const auto& statuses = comp.second.CollectStatuses();
+    ret.insert(ret.end(), statuses.begin(), statuses.end());
+  }
+  return ret;
 }
 
 // Generate a JSON string of the component. To save space we don't add any

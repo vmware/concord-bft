@@ -199,6 +199,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   CounterHandle metric_sent_commitFull_msg_due_to_reqMissingData_;
   CounterHandle metric_sent_fullCommitProof_msg_due_to_reqMissingData_;
   CounterHandle metric_not_enough_client_requests_event_;
+  CounterHandle metric_total_finished_consensuses_;
   //*****************************************************
  public:
   ReplicaImp(const ReplicaConfig&,

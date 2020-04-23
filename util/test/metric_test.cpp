@@ -98,4 +98,106 @@ TEST(MetricTest, ToJson) {
   ASSERT_EQ(0, system(oss.str().c_str()));
 }
 
+TEST(MetricTest, CollectGauges) {
+  auto aggregator = std::make_shared<Aggregator>();
+  Component c("replica", aggregator);
+  c.RegisterGauge("connected_peers", 3);
+  c.RegisterGauge("total_peers", 4);
+  c.Register();
+
+  Component c2("state-transfer", aggregator);
+  c2.RegisterGauge("blocks-remaining", 5);
+  c2.Register();
+
+  auto gauges = aggregator->CollectGauges();
+  int numOfGaugesInReplica = 0;
+  int numOfGaugesInStateTransfer = 0;
+  for (auto& g : gauges) {
+    if (g.component == "replica") {
+      if (g.name == "connected_peers") {
+        ASSERT_EQ(std::get<Gauge>(g.value).Get(), 3);
+        numOfGaugesInReplica++;
+      } else if (g.name == "total_peers") {
+        ASSERT_EQ(std::get<Gauge>(g.value).Get(), 4);
+        numOfGaugesInReplica++;
+      }
+    } else if (g.component == "state-transfer") {
+      if (g.name == "blocks-remaining") {
+        ASSERT_EQ(std::get<Gauge>(g.value).Get(), 5);
+        numOfGaugesInStateTransfer++;
+      }
+    }
+  }
+  ASSERT_EQ(numOfGaugesInReplica, 2);
+  ASSERT_EQ(numOfGaugesInStateTransfer, 1);
+}
+
+TEST(MetricTest, CollectCounters) {
+  auto aggregator = std::make_shared<Aggregator>();
+  Component c("replica", aggregator);
+  c.RegisterCounter("connected_peers", 3);
+  c.RegisterCounter("total_peers", 4);
+  c.Register();
+
+  Component c2("state-transfer", aggregator);
+  c2.RegisterCounter("blocks-remaining", 5);
+  c2.Register();
+
+  auto counters = aggregator->CollectCounters();
+  int numOfCountersInReplica = 0;
+  int numOfCountersInStateTransfer = 0;
+  for (auto& cn : counters) {
+    if (cn.component == "replica") {
+      if (cn.name == "connected_peers") {
+        ASSERT_EQ(std::get<Counter>(cn.value).Get(), 3);
+        numOfCountersInReplica++;
+      } else if (cn.name == "total_peers") {
+        ASSERT_EQ(std::get<Counter>(cn.value).Get(), 4);
+        numOfCountersInReplica++;
+      }
+    } else if (cn.component == "state-transfer") {
+      if (cn.name == "blocks-remaining") {
+        ASSERT_EQ(std::get<Counter>(cn.value).Get(), 5);
+        numOfCountersInStateTransfer++;
+      }
+    }
+  }
+  ASSERT_EQ(numOfCountersInReplica, 2);
+  ASSERT_EQ(numOfCountersInStateTransfer, 1);
+}
+
+TEST(MetricTest, CollectStatuses) {
+  auto aggregator = std::make_shared<Aggregator>();
+  Component c("replica", aggregator);
+  c.RegisterStatus("connected_peers", "abc");
+  c.RegisterStatus("total_peers", "efg");
+  c.Register();
+
+  Component c2("state-transfer", aggregator);
+  c2.RegisterStatus("blocks-remaining", "123");
+  c2.Register();
+
+  auto statuses = aggregator->CollectStatuses();
+  int numOfGaugesInReplica = 0;
+  int numOfGaugesInStateTransfer = 0;
+  for (auto& s : statuses) {
+    if (s.component == "replica") {
+      if (s.name == "connected_peers") {
+        ASSERT_EQ(std::get<Status>(s.value).Get(), "abc");
+        numOfGaugesInReplica++;
+      } else if (s.name == "total_peers") {
+        ASSERT_EQ(std::get<Status>(s.value).Get(), "efg");
+        numOfGaugesInReplica++;
+      }
+    } else if (s.component == "state-transfer") {
+      if (s.name == "blocks-remaining") {
+        ASSERT_EQ(std::get<Status>(s.value).Get(), "123");
+        numOfGaugesInStateTransfer++;
+      }
+    }
+  }
+  ASSERT_EQ(numOfGaugesInReplica, 2);
+  ASSERT_EQ(numOfGaugesInStateTransfer, 1);
+}
+
 }  // namespace concordMetrics

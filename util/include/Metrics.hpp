@@ -19,6 +19,8 @@
 #include <vector>
 #include <mutex>
 #include <memory>
+#include <list>
+#include <variant>
 
 namespace concordMetrics {
 
@@ -28,6 +30,7 @@ class Values;
 class Gauge;
 class Status;
 class Counter;
+typedef struct metric_ Metric;
 
 // An aggregator maintains metrics for multiple components. Components
 // maintain a handle to the aggregator and update it periodically with
@@ -42,6 +45,10 @@ class Aggregator {
   Gauge GetGauge(const std::string& component_name, const std::string& val_name);
   Status GetStatus(const std::string& component_name, const std::string& val_name);
   Counter GetCounter(const std::string& component_name, const std::string& val_name);
+
+  std::list<Metric> CollectGauges();
+  std::list<Metric> CollectCounters();
+  std::list<Metric> CollectStatuses();
 
   // Generate a JSON formatted string
   std::string ToJson();
@@ -94,6 +101,15 @@ class Counter {
 
  private:
   uint64_t val_;
+};
+
+// A generic struct that may represent a counter or a gauge
+// the motivation is to eliminate that need to know the exact
+// metric name before getting it from the aggregator
+struct metric_ {
+  std::string component;
+  std::string name;
+  std::variant<Counter, Gauge, Status> value;
 };
 
 class Values {
@@ -154,7 +170,9 @@ class Component {
   Handle<Status> RegisterStatus(const std::string& name, const std::string& val);
   Handle<Counter> RegisterCounter(const std::string& name, const uint64_t val);
   Handle<Counter> RegisterCounter(const std::string& name) { return RegisterCounter(name, 0); }
-
+  std::list<Metric> CollectGauges();
+  std::list<Metric> CollectCounters();
+  std::list<Metric> CollectStatuses();
   // Register the component with the aggregator.
   // This *must* be done after all values are registered in this component.
   // If registration happens before all registration of the values, then the
