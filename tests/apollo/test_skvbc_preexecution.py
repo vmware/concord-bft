@@ -50,6 +50,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         reply = skvbc.parse_reply(reply)
         self.assertTrue(reply.success)
 
+    @unittest.skip("unstable")
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_single_pre_process_request(self, bft_network):
