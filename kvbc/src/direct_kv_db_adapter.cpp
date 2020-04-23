@@ -203,6 +203,7 @@ BlockId DBKeyManipulator::extractBlockIdFromKey(const Key &_key) {
  * @return The block id of the composite database key.
  */
 BlockId DBKeyManipulator::extractBlockIdFromKey(const char *_key_data, size_t _key_length) {
+  Assert(_key_length >= sizeof(BlockId));
   const auto offset = _key_length - sizeof(BlockId);
   const auto id = *reinterpret_cast<const BlockId *>(_key_data + offset);
 
@@ -220,7 +221,10 @@ BlockId DBKeyManipulator::extractBlockIdFromKey(const char *_key_data, size_t _k
  *             returned.
  * @return The type of the composite database key.
  */
-EDBKeyType DBKeyManipulator::extractTypeFromKey(const Key &_key) { return extractTypeFromKey(_key.data()); }
+EDBKeyType DBKeyManipulator::extractTypeFromKey(const Key &_key) {
+  Assert(!_key.empty());
+  return extractTypeFromKey(_key.data());
+}
 
 /**
  * @brief Extracts the type of a composite database key.
@@ -465,7 +469,7 @@ std::pair<Value, BlockId> DBAdapter::getValue(const Key &key, const BlockId &blo
   auto iter = db_->getIteratorGuard();
   Key searchKey = keyGen_->dataKey(key, blockVersion);
   KeyValuePair p = iter->seekAtLeast(searchKey);
-  if (!iter->isEnd()) {
+  if (!iter->isEnd() && DBKeyManipulator::extractTypeFromKey(p.first) == EDBKeyType::E_DB_KEY_TYPE_KEY) {
     Key foundKey = DBKeyManipulator::composedToSimple(p).first;
     BlockId currentReadVersion = DBKeyManipulator::extractBlockIdFromKey(p.first);
     // TODO(JGC): Ask about reason for version comparison logic
