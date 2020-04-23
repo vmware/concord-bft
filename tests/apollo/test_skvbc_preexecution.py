@@ -43,8 +43,15 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcPreExecutionTest(unittest.TestCase):
 
+    async def send_single_write_with_pre_execution(self, skvbc, client):
+        kv = [(skvbc.keys[0], skvbc.random_value()),
+              (skvbc.keys[1], skvbc.random_value())]
+        reply = await client.write(skvbc.write_req([], kv, 0), pre_process=True)
+        reply = skvbc.parse_reply(reply)
+        self.assertTrue(reply.success)
+
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs = lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd)
     async def test_single_pre_process_request(self, bft_network):
         """
         Ensure that we can create a block using pre-execution feature and retrieve its KV pairs through
@@ -54,8 +61,4 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
 
-        kv = [(skvbc.keys[0], skvbc.random_value()),
-              (skvbc.keys[1], skvbc.random_value())]
-        reply = await client.write(skvbc.write_req([], kv, 0), pre_process=True)
-        reply = skvbc.parse_reply(reply)
-        self.assertTrue(reply.success)
+        await self.send_single_write_with_pre_execution(skvbc, client)
