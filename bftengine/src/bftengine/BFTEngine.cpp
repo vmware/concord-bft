@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -109,7 +109,7 @@ namespace bftEngine {
 IReplica *IReplica::createNewReplica(ReplicaConfig *replicaConfig,
                                      IRequestsHandler *requestsHandler,
                                      IStateTransfer *stateTransfer,
-                                     ICommunication *communication,
+                                     bft::communication::ICommunication *communication,
                                      MetadataStorage *metadataStorage) {
   {
     std::lock_guard<std::mutex> lock(mutexForCryptoInitialization);
@@ -144,7 +144,7 @@ IReplica *IReplica::createNewReplica(ReplicaConfig *replicaConfig,
   shared_ptr<MsgHandlersRegistrator> msgHandlersPtr(new MsgHandlersRegistrator());
   shared_ptr<IncomingMsgsStorage> incomingMsgsStoragePtr(
       new IncomingMsgsStorageImp(msgHandlersPtr, timersResolution, replicaConfig->replicaId));
-  shared_ptr<IReceiver> msgReceiverPtr(new MsgReceiver(incomingMsgsStoragePtr));
+  shared_ptr<bft::communication::IReceiver> msgReceiverPtr(new MsgReceiver(incomingMsgsStoragePtr));
   shared_ptr<MsgsCommunicator> msgsCommunicatorPtr(
       new MsgsCommunicator(communication, incomingMsgsStoragePtr, msgReceiverPtr));
   if (isNewStorage) {
@@ -171,7 +171,7 @@ IReplica *IReplica::createNewReplica(ReplicaConfig *replicaConfig,
 
 IReplica *IReplica::createNewRoReplica(ReplicaConfig *replicaConfig,
                                        IStateTransfer *stateTransfer,
-                                       ICommunication *communication,
+                                       bft::communication::ICommunication *communication,
                                        MetadataStorage *metadataStorage) {
   {
     std::lock_guard<std::mutex> lock(mutexForCryptoInitialization);

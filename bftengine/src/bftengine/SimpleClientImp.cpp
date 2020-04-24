@@ -28,6 +28,7 @@
 #include "Logger.hpp"
 
 using namespace std::chrono;
+using namespace bft::communication;
 
 namespace bftEngine {
 namespace impl {

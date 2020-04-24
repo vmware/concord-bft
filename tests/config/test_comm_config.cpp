@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -20,14 +20,16 @@
 #include <vector>
 #include <fstream>
 
-#include "CommFactory.hpp"
+#include "communication/CommFactory.hpp"
 #include "threshsign/ThresholdSignaturesSchemes.h"
 #include "KeyfileIOUtils.hpp"
 #include "config_file_parser.hpp"
 
-using bftEngine::PlainUdpConfig;
-using bftEngine::PlainTcpConfig;
-using bftEngine::TlsTcpConfig;
+using bft::communication::PlainUdpConfig;
+using bft::communication::PlainTcpConfig;
+using bft::communication::TlsTcpConfig;
+using bft::communication::NodeNum;
+using bft::communication::NodeInfo;
 using bftEngine::ReplicaConfig;
 using BLS::Relic::BlsThresholdFactory;
 using std::pair;

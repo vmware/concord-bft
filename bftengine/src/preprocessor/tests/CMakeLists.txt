@@ -8,5 +8,6 @@ target_include_directories(preprocessor_test PUBLIC ..)
 target_link_libraries(preprocessor_test PUBLIC
     GTest::Main
     util
+    bftcommunication
     preprocessor
     corebft)

@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -22,7 +22,7 @@
  * access
  * */
 
-#include "CommDefs.hpp"
+#include "communication/CommDefs.hpp"
 #include <string>
 #include <functional>
 #include <iostream>
@@ -53,7 +53,7 @@ using namespace boost;
 
 using asio::ip::tcp;
 
-namespace bftEngine {
+namespace bft::communication {
 
 class AsyncTlsConnection;
 
@@ -1352,4 +1352,4 @@ int TlsTCPCommunication::sendAsyncMessage(const NodeNum destNode,
 void TlsTCPCommunication::setReceiver(NodeNum receiverNum, IReceiver *receiver) {
   _ptrImpl->setReceiver(receiverNum, receiver);
 }
-}  // namespace bftEngine
+}  // namespace bft::communication

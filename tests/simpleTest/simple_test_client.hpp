@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -17,13 +17,14 @@
 #include "test_comm_config.hpp"
 #include "test_parameters.hpp"
 #include "commonDefs.h"
-#include "CommFactory.hpp"
+#include "communication/CommFactory.hpp"
+#include "communication/CommDefs.hpp"
 #include "SimpleClient.hpp"
-#include "CommDefs.hpp"
 #include "histogram.hpp"
 #include "misc.hpp"
 
 using namespace bftEngine;
+using namespace bft::communication;
 using namespace std;
 
 #define test_assert(statement, message)                                 \
@@ -71,7 +72,7 @@ class SimpleTestClient {
                                         << cp.numOfClients << ", numOfIterations: " << cp.numOfOperations
                                         << ", fVal: " << cp.numOfFaulty << ", cVal: " << cp.numOfSlow);
 
-    ICommunication* comm = bftEngine::CommFactory::create(conf);
+    ICommunication* comm = bft::communication::CommFactory::create(conf);
 
     SimpleClient* client = SimpleClient::createSimpleClient(comm, id, cp.numOfFaulty, cp.numOfSlow);
     auto aggregator = std::make_shared<concordMetrics::Aggregator>();

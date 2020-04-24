@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -16,7 +16,7 @@
 #include <memory>
 #include <utility>
 #include "ReplicaConfig.hpp"
-#include "ICommunication.hpp"
+#include "communication/ICommunication.hpp"
 #include "Logger.hpp"
 #include "MetricsServer.hpp"
 #include "config/test_parameters.hpp"
@@ -39,14 +39,14 @@ class TestSetup {
   std::tuple<std::shared_ptr<concord::storage::IDBClient>, IDbAdapter*> get_db_configuration();
 
   bftEngine::ReplicaConfig& GetReplicaConfig() { return replica_config_; }
-  bftEngine::ICommunication* GetCommunication() const { return communication_.get(); }
+  bft::communication::ICommunication* GetCommunication() const { return communication_.get(); }
   concordMetrics::Server& GetMetricsServer() { return metrics_server_; }
   concordlogger::Logger GetLogger() { return logger_; }
   const bool UsePersistentStorage() const { return use_persistent_storage_; }
 
  private:
   TestSetup(bftEngine::ReplicaConfig config,
-            std::unique_ptr<bftEngine::ICommunication> comm,
+            std::unique_ptr<bft::communication::ICommunication> comm,
             concordlogger::Logger logger,
             uint16_t metrics_port,
             bool use_persistent_storage,
@@ -63,7 +63,7 @@ class TestSetup {
 #endif
   std::tuple<std::shared_ptr<concord::storage::IDBClient>, IDbAdapter*> get_inmem_db_configuration();
   bftEngine::ReplicaConfig replica_config_;
-  std::unique_ptr<bftEngine::ICommunication> communication_;
+  std::unique_ptr<bft::communication::ICommunication> communication_;
   concordlogger::Logger logger_;
   concordMetrics::Server metrics_server_;
   bool use_persistent_storage_;
