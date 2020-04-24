@@ -233,9 +233,9 @@ bool ReplicaImp::putBlock(const uint64_t blockId, const char *block_data, const 
       m_bcDbAdapter->deleteBlock(blockId);
       throw std::runtime_error(__PRETTY_FUNCTION__ + std::string("data corrupted blockId: ") + std::to_string(blockId));
     }
+  } else {
+    m_bcDbAdapter->addRawBlock(block, blockId);
   }
-
-  m_bcDbAdapter->addRawBlock(block, blockId);
 
   return true;
 }
