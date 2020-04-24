@@ -21,6 +21,7 @@
 #include "gtest/gtest.h"
 
 using namespace std;
+using namespace bft::communication;
 using namespace bftEngine;
 using namespace preprocessor;
 

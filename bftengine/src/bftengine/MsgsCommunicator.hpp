@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -12,7 +12,7 @@
 #pragma once
 
 #include "PrimitiveTypes.hpp"
-#include "ICommunication.hpp"
+#include "communication/ICommunication.hpp"
 #include "IncomingMsgsStorage.hpp"
 #include "messages/IncomingMsg.hpp"
 
@@ -20,9 +20,9 @@ namespace bftEngine::impl {
 
 class MsgsCommunicator {
  public:
-  explicit MsgsCommunicator(ICommunication* comm,
+  explicit MsgsCommunicator(bft::communication::ICommunication* comm,
                             std::shared_ptr<IncomingMsgsStorage> incomingMsgsStorage,
-                            std::shared_ptr<IReceiver> msgReceiver);
+                            std::shared_ptr<bft::communication::IReceiver> msgReceiver);
   virtual ~MsgsCommunicator() = default;
 
   int startCommunication(uint16_t replicaId);
@@ -31,15 +31,15 @@ class MsgsCommunicator {
   void stopMsgsProcessing();
 
   [[nodiscard]] bool isMsgsProcessingRunning() const { return incomingMsgsStorage_->isRunning(); }
-  int sendAsyncMessage(NodeNum destNode, char* message, size_t messageLength);
+  int sendAsyncMessage(bft::communication::NodeNum destNode, char* message, size_t messageLength);
 
   std::shared_ptr<IncomingMsgsStorage>& getIncomingMsgsStorage() { return incomingMsgsStorage_; }
 
  private:
   uint16_t replicaId_ = 0;
   std::shared_ptr<IncomingMsgsStorage> incomingMsgsStorage_;
-  std::shared_ptr<IReceiver> msgReceiver_;
-  ICommunication* communication_;
+  std::shared_ptr<bft::communication::IReceiver> msgReceiver_;
+  bft::communication::ICommunication* communication_;
 };
 
 }  // namespace bftEngine::impl

@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -14,8 +14,8 @@
 // parameters and launches a bunch of tests created by TestsBuilder towards
 // concord::consensus::ReplicaImp objects.
 
-#include <stdio.h>
-#include <string.h>
+#include <cstdio>
+#include <cstring>
 #include <sys/param.h>
 #include <unistd.h>
 
@@ -23,15 +23,15 @@
 #include "KVBCInterfaces.h"
 #include "config/test_comm_config.hpp"
 #include "config/test_parameters.hpp"
-#include "CommFactory.hpp"
+#include "communication/CommFactory.hpp"
 
 using namespace bftEngine;
+using namespace bft::communication;
 using namespace BasicRandomTests;
 
 using std::string;
 
 using concord::kvbc::BlockId;
-using bftEngine::BaseCommConfig;
 using concord::kvbc::ClientConfig;
 using concord::kvbc::createClient;
 using concord::kvbc::IClient;
@@ -107,7 +107,7 @@ ICommunication *setupCommunicationParams(ClientParams &cp) {
       testCommConfig.GetUDPConfig(false, cp.clientId, cp.numOfClients, numOfReplicas, cp.configFileName);
 #endif
 
-  return bftEngine::CommFactory::create(conf);
+  return CommFactory::create(conf);
 }
 
 ClientConfig setupConsensusParams(ClientParams &clientParams) {

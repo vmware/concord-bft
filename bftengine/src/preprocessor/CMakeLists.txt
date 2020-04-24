@@ -28,3 +28,4 @@ target_include_directories(preprocessor PUBLIC ${bftengine_SOURCE_DIR}/src/bften
 target_link_libraries(preprocessor PUBLIC util)
 target_link_libraries(preprocessor PUBLIC threshsign)
 target_link_libraries(preprocessor PUBLIC ${OPENSSL_LIBRARIES})
+target_link_libraries(preprocessor PUBLIC bftcommunication)

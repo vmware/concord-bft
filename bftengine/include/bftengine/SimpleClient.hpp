@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -15,9 +15,10 @@
 #include <cstdint>
 #include <string>
 #include <set>
-#include "ICommunication.hpp"
 #include <chrono>
-#include <Metrics.hpp>
+
+#include "Metrics.hpp"
+#include "communication/ICommunication.hpp"
 
 namespace bftEngine {
 // Parameters // TODO(GG): move to client configuration
@@ -43,13 +44,16 @@ class SimpleClient {
   }
   static const uint64_t INFINITE_TIMEOUT = UINT64_MAX;
 
-  static SimpleClient* createSimpleClient(ICommunication* communication,
+  static SimpleClient* createSimpleClient(bft::communication::ICommunication* communication,
                                           uint16_t clientId,
                                           uint16_t fVal,
                                           uint16_t cVal);
 
-  static SimpleClient* createSimpleClient(
-      ICommunication* communication, uint16_t clientId, uint16_t fVal, uint16_t cVal, SimpleClientParams p);
+  static SimpleClient* createSimpleClient(bft::communication::ICommunication* communication,
+                                          uint16_t clientId,
+                                          uint16_t fVal,
+                                          uint16_t cVal,
+                                          SimpleClientParams p);
 
   virtual ~SimpleClient();
 

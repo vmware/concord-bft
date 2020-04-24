@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -16,8 +16,9 @@
 #include <memory>
 #include <cstdint>
 #include <string>
+
 #include "IStateTransfer.hpp"
-#include "ICommunication.hpp"
+#include "communication/ICommunication.hpp"
 #include "MetadataStorage.hpp"
 #include "Metrics.hpp"
 #include "ReplicaConfig.hpp"
@@ -50,9 +51,12 @@ class IRequestsHandler {
 class IReplica {
  public:
   static IReplica *createNewReplica(
-      ReplicaConfig *, IRequestsHandler *, IStateTransfer *, ICommunication *, MetadataStorage *);
+      ReplicaConfig *, IRequestsHandler *, IStateTransfer *, bft::communication::ICommunication *, MetadataStorage *);
 
-  static IReplica *createNewRoReplica(ReplicaConfig *, IStateTransfer *, ICommunication *, MetadataStorage *);
+  static IReplica *createNewRoReplica(ReplicaConfig *,
+                                      IStateTransfer *,
+                                      bft::communication::ICommunication *,
+                                      MetadataStorage *);
 
   virtual ~IReplica() = default;
 

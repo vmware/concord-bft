@@ -1,4 +1,4 @@
-// Copyright 2018-2019 VMware, all rights reserved
+// Copyright 2018-2020 VMware, all rights reserved
 //
 // KV Blockchain replica definition.
 
@@ -9,7 +9,7 @@
 #include <string>
 #include <atomic>
 
-#include "bftengine/ICommunication.hpp"
+#include "communication/ICommunication.hpp"
 #include "communication/CommFactory.hpp"
 #include "bftengine/Replica.hpp"
 #include "bftengine/ReplicaConfig.hpp"
@@ -62,7 +62,7 @@ class ReplicaImp : public IReplica,
   uint64_t getLastBlockNum() const override { return m_bcDbAdapter->getLatestBlockId(); }
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  ReplicaImp(bftEngine::ICommunication *comm,
+  ReplicaImp(bft::communication::ICommunication *comm,
              bftEngine::ReplicaConfig &config,
              std::unique_ptr<IDbAdapter> dbAdapter,
              std::shared_ptr<storage::IDBClient> mdt_dbclient,
@@ -115,7 +115,7 @@ class ReplicaImp : public IReplica,
   RepStatus m_currentRepStatus;
 
   std::unique_ptr<IDbAdapter> m_bcDbAdapter;
-  bftEngine::ICommunication *m_ptrComm = nullptr;
+  bft::communication::ICommunication *m_ptrComm = nullptr;
   bftEngine::ReplicaConfig m_replicaConfig;
   bftEngine::IReplica *m_replicaPtr = nullptr;
   ICommandsHandler *m_cmdHandler = nullptr;

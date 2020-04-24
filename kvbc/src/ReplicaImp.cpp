@@ -1,4 +1,4 @@
-// Copyright 2018-2019 VMware, all rights reserved
+// Copyright 2018-2020 VMware, all rights reserved
 //
 // KV Blockchain replica implementation.
 
@@ -20,7 +20,7 @@
 #include "block.h"
 #include "bftengine/DbMetadataStorage.hpp"
 
-using bftEngine::ICommunication;
+using bft::communication::ICommunication;
 using bftEngine::SimpleBlockchainStateTransfer::BLOCK_DIGEST_SIZE;
 using bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest;
 

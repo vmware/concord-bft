@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -10,26 +10,22 @@
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 
-#ifndef BYZ_COMMDEFS_HPP
-#define BYZ_COMMDEFS_HPP
+#pragma once
 
-#if defined(_WIN32)
-#include <WinSock2.h>
-#include <ws2def.h>
-#else
+#include <string>
+#include <cstdint>
+#include <memory>
+#include <unordered_map>
+
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#endif
 
-#include <string>
-#include <stdint.h>
-#include <memory>
-#include <unordered_map>
-#include "bftengine/ICommunication.hpp"
-#include "StatusInfo.h"
+#include "communication/ICommunication.hpp"
+#include "communication/StatusInfo.h"
 
+namespace bft::communication {
 typedef struct sockaddr_in Addr;
 
 struct NodeInfo {
@@ -40,7 +36,6 @@ struct NodeInfo {
 
 typedef std::unordered_map<NodeNum, NodeInfo> NodeMap;
 
-namespace bftEngine {
 enum CommType { PlainUdp, SimpleAuthUdp, PlainTcp, SimpleAuthTcp, TlsTcp };
 
 struct BaseCommConfig {
@@ -189,6 +184,5 @@ class TlsTCPCommunication : public ICommunication {
 
   explicit TlsTCPCommunication(const TlsTcpConfig &config);
 };
-}  // namespace bftEngine
 
-#endif  // BYZ_COMMDEFS_HPP
+}  // namespace bft::communication

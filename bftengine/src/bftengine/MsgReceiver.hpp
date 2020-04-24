@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -12,18 +12,21 @@
 #pragma once
 
 #include "PrimitiveTypes.hpp"
-#include "ICommunication.hpp"
+#include "communication/ICommunication.hpp"
 #include "IncomingMsgsStorage.hpp"
 
 namespace bftEngine::impl {
 
-class MsgReceiver : public IReceiver {
+class MsgReceiver : public bft::communication::IReceiver {
  public:
   explicit MsgReceiver(std::shared_ptr<IncomingMsgsStorage>& storage);
   virtual ~MsgReceiver() = default;
 
-  void onNewMessage(const NodeNum sourceNode, const char* const message, const size_t messageLength) override;
-  void onConnectionStatusChanged(const NodeNum node, const ConnectionStatus newStatus) override;
+  void onNewMessage(const bft::communication::NodeNum sourceNode,
+                    const char* const message,
+                    const size_t messageLength) override;
+  void onConnectionStatusChanged(const bft::communication::NodeNum node,
+                                 const bft::communication::ConnectionStatus newStatus) override;
 
  private:
   std::shared_ptr<IncomingMsgsStorage> incomingMsgsStorage_;

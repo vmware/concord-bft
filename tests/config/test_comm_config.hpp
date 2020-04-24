@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -25,43 +25,45 @@ class TestCommConfig : public ITestCommConfig {
 
   void GetReplicaConfig(uint16_t replica_id, std::string keyFilePrefix, bftEngine::ReplicaConfig* out_config) override;
 
-  bftEngine::PlainUdpConfig GetUDPConfig(bool is_replica,
-                                         uint16_t node_id,
-                                         uint16_t& num_of_clients,
-                                         uint16_t& num_of_replicas,
-                                         const std::string& config_file_name) override;
+  bft::communication::PlainUdpConfig GetUDPConfig(bool is_replica,
+                                                  uint16_t node_id,
+                                                  uint16_t& num_of_clients,
+                                                  uint16_t& num_of_replicas,
+                                                  const std::string& config_file_name) override;
 
-  bftEngine::PlainTcpConfig GetTCPConfig(bool is_replica,
-                                         uint16_t node_id,
-                                         uint16_t& num_of_clients,
-                                         uint16_t& num_of_replicas,
-                                         const std::string& config_file_name) override;
+  bft::communication::PlainTcpConfig GetTCPConfig(bool is_replica,
+                                                  uint16_t node_id,
+                                                  uint16_t& num_of_clients,
+                                                  uint16_t& num_of_replicas,
+                                                  const std::string& config_file_name) override;
 
-  bftEngine::TlsTcpConfig GetTlsTCPConfig(bool is_replica,
-                                          uint16_t id,
-                                          uint16_t& num_of_clients,
-                                          uint16_t& num_of_replicas,
-                                          const std::string& config_file_name) override;
-
- private:
-  std::unordered_map<NodeNum, NodeInfo> SetUpConfiguredNodes(bool is_replica,
-                                                             const std::string& config_file_name,
-                                                             uint16_t node_id,
-                                                             std::string& ip,
-                                                             uint16_t& port,
-                                                             uint16_t& num_of_clients,
-                                                             uint16_t& num_of_replicas);
-
-  std::unordered_map<NodeNum, NodeInfo> SetUpDefaultNodes(
-      uint16_t node_id, std::string& ip, uint16_t& port, uint16_t num_of_clients, uint16_t num_of_replicas);
-
-  std::unordered_map<NodeNum, NodeInfo> SetUpNodes(bool is_replica,
-                                                   uint16_t node_id,
-                                                   std::string& ip,
-                                                   uint16_t& port,
+  bft::communication::TlsTcpConfig GetTlsTCPConfig(bool is_replica,
+                                                   uint16_t id,
                                                    uint16_t& num_of_clients,
                                                    uint16_t& num_of_replicas,
-                                                   const std::string& config_file_name);
+                                                   const std::string& config_file_name) override;
+
+ private:
+  std::unordered_map<bft::communication::NodeNum, bft::communication::NodeInfo> SetUpConfiguredNodes(
+      bool is_replica,
+      const std::string& config_file_name,
+      uint16_t node_id,
+      std::string& ip,
+      uint16_t& port,
+      uint16_t& num_of_clients,
+      uint16_t& num_of_replicas);
+
+  std::unordered_map<bft::communication::NodeNum, bft::communication::NodeInfo> SetUpDefaultNodes(
+      uint16_t node_id, std::string& ip, uint16_t& port, uint16_t num_of_clients, uint16_t num_of_replicas);
+
+  std::unordered_map<bft::communication::NodeNum, bft::communication::NodeInfo> SetUpNodes(
+      bool is_replica,
+      uint16_t node_id,
+      std::string& ip,
+      uint16_t& port,
+      uint16_t& num_of_clients,
+      uint16_t& num_of_replicas,
+      const std::string& config_file_name);
 
  private:
   // Network port of the first replica. Other replicas use ports

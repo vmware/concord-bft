@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -60,12 +60,12 @@
 // bftEngine includes
 #include "Logger.hpp"
 
-using bftEngine::ICommunication;
-using bftEngine::PlainUDPCommunication;
-using bftEngine::PlainUdpConfig;
-using bftEngine::PlainTCPCommunication;
-using bftEngine::PlainTcpConfig;
-using bftEngine::TlsTcpConfig;
+using bft::communication::ICommunication;
+using bft::communication::PlainUDPCommunication;
+using bft::communication::PlainUdpConfig;
+using bft::communication::PlainTCPCommunication;
+using bft::communication::PlainTcpConfig;
+using bft::communication::TlsTcpConfig;
 using bftEngine::IReplica;
 using bftEngine::ReplicaConfig;
 using bftEngine::IRequestsHandler;

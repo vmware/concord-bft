@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -22,7 +22,7 @@
 
 #include "Logger.hpp"
 #include "setup.hpp"
-#include "CommFactory.hpp"
+#include "communication/CommFactory.hpp"
 #include "config/test_comm_config.hpp"
 #include "commonKVBTests.hpp"
 #include "db_adapter.h"
@@ -124,28 +124,24 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     uint16_t numOfReplicas = (uint16_t)(3 * replicaConfig.fVal + 2 * replicaConfig.cVal + 1);
 
 #ifdef USE_COMM_PLAIN_TCP
-    bftEngine::PlainTcpConfig conf = testCommConfig.GetTCPConfig(
-        true, replicaConfig.replicaId, replicaConfig.numOfClientProxies, numOfReplicas, commConfigFile;
+    bft::communication::PlainTcpConfig conf = testCommConfig.GetTCPConfig(
+        true, replicaConfig.replicaId, replicaConfig.numOfClientProxies, numOfReplicas, commConfigFile);
 #elif USE_COMM_TLS_TCP
-    bftEngine::TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(
+    bft::communication::TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(
         true, replicaConfig.replicaId, replicaConfig.numOfClientProxies, numOfReplicas, commConfigFile);
 #else
-    bftEngine::PlainUdpConfig conf = testCommConfig.GetUDPConfig(
+    bft::communication::PlainUdpConfig conf = testCommConfig.GetUDPConfig(
         true, replicaConfig.replicaId, replicaConfig.numOfClientProxies, numOfReplicas, commConfigFile);
 #endif
 
-    std::unique_ptr<bftEngine::ICommunication> comm(bftEngine::CommFactory::create(conf));
+    std::unique_ptr<bft::communication::ICommunication> comm(bft::communication::CommFactory::create(conf));
 
     uint16_t metrics_port = conf.listenPort + 1000;
 
-    LOG_INFO(logger, "\nReplica Configuration: \n" <<  replicaConfig);
+    LOG_INFO(logger, "\nReplica Configuration: \n" << replicaConfig);
 
-    return std::unique_ptr<TestSetup>(new TestSetup{replicaConfig,
-                                                    std::move(comm),
-                                                    logger,
-                                                    metrics_port,
-                                                    persist_mode == PersistencyMode::RocksDB,
-                                                    s3ConfigFile});
+    return std::unique_ptr<TestSetup>(new TestSetup{
+        replicaConfig, std::move(comm), logger, metrics_port, persist_mode == PersistencyMode::RocksDB, s3ConfigFile});
 
   } catch (const std::exception& e) {
     LOG_FATAL(GL, "failed to parse command line arguments: " << e.what());

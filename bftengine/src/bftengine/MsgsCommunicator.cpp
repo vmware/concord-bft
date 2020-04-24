@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -15,6 +15,7 @@
 namespace bftEngine::impl {
 
 using namespace std;
+using namespace bft::communication;
 
 MsgsCommunicator::MsgsCommunicator(ICommunication* comm,
                                    shared_ptr<IncomingMsgsStorage> incomingMsgsStorage,

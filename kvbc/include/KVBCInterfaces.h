@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -15,7 +15,7 @@
 
 #include "status.hpp"
 #include "sliver.hpp"
-#include "bftengine/ICommunication.hpp"
+#include "communication/ICommunication.hpp"
 #include "Metrics.hpp"
 #include "storage/db_interface.h"
 #include "db_interfaces.h"
@@ -72,7 +72,7 @@ class IClient {
 };
 
 // creates a new Client object
-IClient* createClient(const ClientConfig& conf, bftEngine::ICommunication* comm);
+IClient* createClient(const ClientConfig& conf, bft::communication::ICommunication* comm);
 
 // TODO: Implement:
 //  // deletes a Client object

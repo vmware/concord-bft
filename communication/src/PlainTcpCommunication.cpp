@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -15,23 +15,16 @@
 #include <iostream>
 #include <sstream>
 #include <thread>
-#include <string.h>
+#include <cstring>
 #include <chrono>
 #include <mutex>
 #include <cassert>
-
-#if defined(_WIN32)
-#include <windows.h>
-#include <crtdbg.h>
-#else
 
 #include <execinfo.h>
 #include <unistd.h>
 #include <sys/time.h>
 
-#endif
-
-#include "CommDefs.hpp"
+#include "communication/CommDefs.hpp"
 #include "Logger.hpp"
 #include "boost/bind.hpp"
 #include <boost/asio.hpp>
@@ -44,10 +37,7 @@
 #include <boost/asio/deadline_timer.hpp>
 #include <boost/date_time/posix_time/posix_time_duration.hpp>
 
-class AsyncTcpConnection;
-
 using namespace std;
-using namespace bftEngine;
 using namespace boost::asio;
 using namespace boost::asio::ip;
 using namespace boost::posix_time;
@@ -55,6 +45,10 @@ using namespace boost::posix_time;
 using boost::asio::io_service;
 using boost::system::error_code;
 using boost::asio::ip::address;
+
+namespace bft::communication {
+
+class AsyncTcpConnection;
 
 typedef boost::system::error_code B_ERROR_CODE;
 typedef boost::shared_ptr<AsyncTcpConnection> ASYNC_CONN_PTR;
@@ -852,3 +846,5 @@ int PlainTCPCommunication::sendAsyncMessage(const NodeNum destNode,
 void PlainTCPCommunication::setReceiver(NodeNum receiverNum, IReceiver *receiver) {
   _ptrImpl->setReceiver(receiverNum, receiver);
 }
+
+}  // namespace bft::communication

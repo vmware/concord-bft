@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -14,7 +14,7 @@
 #ifndef CONCORD_BFT_SIMPLE_TEST_REPLICA_HPP
 #define CONCORD_BFT_SIMPLE_TEST_REPLICA_HPP
 
-#include "CommFactory.hpp"
+#include "communication/CommFactory.hpp"
 #include "Replica.hpp"
 #include "ReplicaConfig.hpp"
 #include "SimpleStateTransfer.hpp"
@@ -24,6 +24,7 @@
 #include "simple_test_replica_behavior.hpp"
 
 using namespace bftEngine;
+using namespace bft::communication;
 using namespace std;
 
 concordlogger::Logger replicaLogger = concordlogger::Log::getLogger("simpletest.replica");
@@ -225,7 +226,7 @@ class SimpleTestReplica {
     PlainUdpConfig conf =
         testCommConfig.GetUDPConfig(true, rp.replicaId, rp.numOfClients, rp.numOfReplicas, rp.configFileName);
 #endif
-    auto comm = bftEngine::CommFactory::create(conf);
+    auto comm = bft::communication::CommFactory::create(conf);
 
     bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer *st =
         bftEngine::SimpleInMemoryStateTransfer::create(simpleAppState->statePtr,

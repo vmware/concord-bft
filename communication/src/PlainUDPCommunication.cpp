@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -11,7 +11,7 @@
 // LICENSE file.
 
 #include "Logger.hpp"
-#include "CommDefs.hpp"
+#include "communication/CommDefs.hpp"
 
 #include "errnoString.hpp"
 
@@ -27,18 +27,9 @@
 
 #define Assert(cond, txtMsg) assert(cond && (txtMsg))
 
-#if defined(_WIN32)
-#define CLOSESOCKET(x) closesocket((x));
-#else
-#define CLOSESOCKET(x) close((x));
-#endif
-
-#if defined(_WIN32)
-#pragma warning(disable : 4996)  // TODO(GG+SG): should be removed!! (see also _CRT_SECURE_NO_WARNINGS)
-#endif
-
 using namespace std;
-using namespace bftEngine;
+
+namespace bft::communication {
 
 struct NodeAddressResolveResult {
   NodeNum nodeId;
@@ -219,7 +210,7 @@ class PlainUDPCommunication::PlainUdpImpl {
 #else
     shutdown(udpSockFd, SHUT_RDWR);
 #endif
-    CLOSESOCKET(udpSockFd);
+    close(udpSockFd);
 
     running = false;
 
@@ -405,3 +396,5 @@ int PlainUDPCommunication::sendAsyncMessage(const NodeNum destNode,
 void PlainUDPCommunication::setReceiver(NodeNum receiverNum, IReceiver *receiver) {
   _ptrImpl->setReceiver(receiverNum, receiver);
 }
+
+}  // namespace bft::communication

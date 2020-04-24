@@ -1,12 +1,13 @@
-// Copyright 2018 VMware, all rights reserved
+// Copyright 2018-2020 VMware, all rights reserved
 //
 // main hpp file for status related structs
 
-#ifndef STATUSINFO_H
-#define STATUSINFO_H
+#pragma once
 
 #include <functional>
 #include <string>
+
+namespace bft::communication {
 
 enum class PeerInfoType { Connectivity };
 
@@ -27,4 +28,4 @@ struct PeerConnectivityStatus : public BasePeerStatus {
 
 typedef std::function<void(PeerConnectivityStatus)> UPDATE_CONNECTIVITY_FN;
 
-#endif  // STATUSINFO_H
+}  // namespace bft::communication

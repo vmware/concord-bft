@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -14,17 +14,12 @@
 #include <string>
 #include <utility>
 
-#include "CommFactory.hpp"
+#include "communication/CommFactory.hpp"
 #include "Logger.hpp"
 
-using bftEngine::CommFactory;
-using bftEngine::CommType;
-using bftEngine::ICommunication;
-using bftEngine::PlainTcpConfig;
-using bftEngine::PlainUdpConfig;
-using bftEngine::TlsTcpConfig;
+namespace bft::communication {
 
-concordlogger::Logger CommFactory::_logger = concordlogger::Log::getLogger("comm-factory");
+concordlogger::Logger CommFactory::_logger = concordlogger::Log::getLogger("communication.factory");
 
 ICommunication *CommFactory::create(const BaseCommConfig &config) {
   ICommunication *res = nullptr;
@@ -59,3 +54,5 @@ ICommunication *CommFactory::create(const BaseCommConfig &config) {
 
   return res;
 }
+
+}  // namespace bft::communication
