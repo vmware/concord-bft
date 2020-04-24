@@ -32,7 +32,7 @@ class Bitmap {
     }
   }
 
-  //create Bitmap from buffer
+  // create Bitmap from buffer
   Bitmap(char* buffer, uint32_t bufferLength, uint32_t* actualSize) : numBits_(0), p_(nullptr) {
     if (actualSize) *actualSize = 0;
     if (bufferLength < sizeof(uint32_t)) return;
