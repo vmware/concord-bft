@@ -98,6 +98,7 @@ void BlsThresholdSigner::deserializeDataMembers(istream &inStream) {
   deserialize(inStream, id_);
   BNT idNum(id_);
   idNum.toBytes(serializedId_, sizeof(id_));
+  delete params;
 }
 
 } /* namespace Relic */

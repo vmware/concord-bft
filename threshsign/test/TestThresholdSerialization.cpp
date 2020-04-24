@@ -88,7 +88,9 @@ bool testBlsThresholdSigner(const BlsPublicParameters &params) {
 
   auto *inSigner = dynamic_cast<BlsThresholdSigner *>(origSigner.get());
   auto *outSigner = dynamic_cast<BlsThresholdSigner *>(resultSigner);
-  return (resultSigner && (*inSigner == *outSigner));
+  auto returnVal = (resultSigner && (*inSigner == *outSigner));
+  delete resultSigner;
+  return returnVal;
 }
 
 vector<BlsPublicKey> prepareVerificationKeysVector() {
@@ -126,7 +128,9 @@ bool testBlsThresholdVerifier(const BlsPublicParameters &params, const vector<Bl
 
   auto *inVerifier = dynamic_cast<BlsThresholdVerifier *>(origVerifier.get());
   auto *outVerifier = dynamic_cast<BlsThresholdVerifier *>(resultVerifier);
-  return (resultVerifier && (*inVerifier == *outVerifier));
+  auto returnVal = (resultVerifier && (*inVerifier == *outVerifier));
+  delete resultVerifier;
+  return returnVal;
 }
 
 bool testBlsMultisigVerifier(const BlsPublicParameters &params, const vector<BlsPublicKey> &verificationKeys) {
@@ -140,7 +144,9 @@ bool testBlsMultisigVerifier(const BlsPublicParameters &params, const vector<Bls
 
   auto *inVerifier = dynamic_cast<BlsMultisigVerifier *>(origVerifier.get());
   auto *outVerifier = dynamic_cast<BlsMultisigVerifier *>(resultVerifier);
-  return (resultVerifier && (*inVerifier == *outVerifier));
+  auto returnVal = (resultVerifier && (*inVerifier == *outVerifier));
+  delete resultVerifier;
+  return returnVal;
 }
 
 int RelicAppMain(const Library &lib, const vector<string> &args) {

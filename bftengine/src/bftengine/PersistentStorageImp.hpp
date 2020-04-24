@@ -94,7 +94,7 @@ enum DescMetadataParameterIds {
   LAST_NEW_VIEW_DESC
 };
 
-typedef unique_ptr<MetadataStorage::ObjectDesc> ObjectDescUniquePtr;
+typedef unique_ptr<MetadataStorage::ObjectDesc[]> ObjectDescUniquePtr;
 
 class PersistentStorageImp : public PersistentStorage {
  public:
