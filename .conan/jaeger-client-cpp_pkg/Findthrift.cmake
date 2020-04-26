@@ -17,7 +17,7 @@
 find_path(THRIFT_INCLUDE_DIR thrift/Thrift.h ${CONAN_INCLUDE_THRIFT})
 
 # prefer the thrift version supplied in THRIFT_HOME
-find_library(THRIFT_LIBRARIES NAMES thrift libthrift ${CONAN_LIB_DIRS_THRIFT})
+find_library(THRIFT_LIBRARIES NAMES ${CONAN_LIBS_THRIFT} ${CONAN_LIB_DIRS_THRIFT})
 
 find_program(THRIFT_COMPILER NAMES thrift PATHS ${CONAN_BIN_DIRS_THRIFT})
 
