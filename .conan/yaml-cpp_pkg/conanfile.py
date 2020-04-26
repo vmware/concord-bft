@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 from conans import ConanFile, CMake, tools
 
 
@@ -17,10 +14,12 @@ class YAMLCppConan(ConanFile):
     settings = "os", "arch", "compiler", "build_type"
     options = {"shared": [True, False], "fPIC": [True, False]}
     default_options = "shared=False", "fPIC=True"
-    requires = "boost/1.64.0@conan/stable"
-    requires = "FindConanBoost/0.1"
     source_subfolder = "source_subfolder"
     build_subfolder = "build_subfolder"
+
+    def requirements(self):
+        self.requires("boost/1.64.0@conan/stable")
+        self.requires("FindConanBoost/0.1")
 
     def config_options(self):
         if self.settings.os == 'Windows':
