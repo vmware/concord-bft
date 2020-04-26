@@ -33,6 +33,10 @@ class ThriftConan(ConanFile):
 
     def build(self):
         self.autotools = AutoToolsBuildEnvironment(self)
+
+        # DD: make clang happy
+        self.autotools.flags.append("-Wno-unused-variable")
+        self.autotools.flags.append("-Wno-unused-parameter")
         self.autotools.configure(args = ["--with-cpp=yes",
                                     "--with-c_glib=yes",
                                     "--with-boost=yes",
@@ -60,6 +64,7 @@ class ThriftConan(ConanFile):
                                     "--with-haxe=no",
                                     "--with-dotnetcore=no",
                                     "--with-d=no"])
+
         self.autotools.make()
 
     def package(self):
