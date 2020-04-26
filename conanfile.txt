@@ -16,6 +16,7 @@ rapidcheck/258d907da00a0855f92c963d8f76eef115531716
 libs3-dev/2.0-3
 opentracing-cpp/1.5.0
 jsonformoderncpp/3.7.3@vthiery/stable
+FindConanBoost/0.1
 yaml-cpp/0.5.3
 thrift/0.11.0
 jaeger-client-cpp/0.5.0
