@@ -20,6 +20,7 @@ class JaegerClientCpp(ConanFile):
     options = {"shared": [True, False], "fPIC": [True, False]}
     default_options = "shared=True", "fPIC=True"
     generators = "cmake"
+    exports_sources = "Findthrift.cmake"
 
     def source(self):
         tools.replace_in_file("CMakeLists.txt", "project(jaegertracing VERSION 0.5.0)",
