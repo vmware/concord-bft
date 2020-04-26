@@ -211,13 +211,14 @@ class SimpleTestClient {
 
     // After all requests have been issued, stop communication and clean up.
     comm->Stop();
+    std::string metric_comp_name = "clientMetrics_" + std::to_string(id);
     LOG_INFO(clientLogger,
-             "clientMetrics::retransmissions " << aggregator->GetCounter("clientMetrics", "retransmissions").Get());
+             "clientMetrics::retransmissions " << aggregator->GetCounter(metric_comp_name, "retransmissions").Get());
     LOG_INFO(
         clientLogger,
-        "clientMetrics::retransmissionTimer " << aggregator->GetGauge("clientMetrics", "retransmissionTimer").Get());
-    test_assert(aggregator->GetCounter("clientMetrics", "retransmissions").Get() >= 0, "retransmissions <" << 0);
-    test_assert(aggregator->GetGauge("clientMetrics", "retransmissionTimer").Get() >= 0, "retransmissionTimer <" << 0);
+        "clientMetrics::retransmissionTimer " << aggregator->GetGauge(metric_comp_name, "retransmissionTimer").Get());
+    test_assert(aggregator->GetCounter(metric_comp_name, "retransmissions").Get() >= 0, "retransmissions <" << 0);
+    test_assert(aggregator->GetGauge(metric_comp_name, "retransmissionTimer").Get() >= 0, "retransmissionTimer <" << 0);
     delete pSeqGen;
     delete client;
     delete comm;

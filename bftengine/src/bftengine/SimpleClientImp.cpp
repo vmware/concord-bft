@@ -146,7 +146,8 @@ static std::set<ReplicaId> generateSetOfReplicas_helpFunc(const int16_t numberOf
 
 SimpleClientImp::SimpleClientImp(
     ICommunication* communication, uint16_t clientId, uint16_t fVal, uint16_t cVal, SimpleClientParams& p)
-    : clientId_{clientId},
+    : SimpleClient(clientId),
+      clientId_{clientId},
       fVal_{fVal},
       cVal_{cVal},
       replicas_{generateSetOfReplicas_helpFunc(3 * fVal + 2 * cVal + 1)},
