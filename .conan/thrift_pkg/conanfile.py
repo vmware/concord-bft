@@ -16,6 +16,7 @@ class ThriftConan(ConanFile):
 
     source_dir = "thrift-0.11.0"
     targz_name = source_dir + ".tar.gz"
+    exports_sources = "Findthrift.cmake"
 
     def requirements(self):
         self.requires("OpenSSL/1.1.1@conan/stable")
@@ -65,6 +66,7 @@ class ThriftConan(ConanFile):
 
     def package(self):
         self.autotools.install()
+        self.copy("Findthrift.cmake", dst="", src="")
 
     def package_info(self):
         self.cpp_info.libs = ["thrift"]
