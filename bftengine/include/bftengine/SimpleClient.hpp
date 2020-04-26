@@ -36,8 +36,8 @@ enum ClientMsgFlag : uint8_t { EMPTY_FLAGS_REQ = 0x0, READ_ONLY_REQ = 0x1, PRE_P
 
 class SimpleClient {
  public:
-  SimpleClient()
-      : metrics_{"clientMetrics", std::make_shared<concordMetrics::Aggregator>()},
+  SimpleClient(uint16_t clientId)
+      : metrics_{"clientMetrics_" + std::to_string(clientId), std::make_shared<concordMetrics::Aggregator>()},
         client_metrics_{{metrics_.RegisterCounter("retransmissions")},
                         {metrics_.RegisterGauge("retransmissionTimer", 0)}} {
     metrics_.Register();
