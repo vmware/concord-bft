@@ -20,10 +20,8 @@ class ThriftConan(ConanFile):
 
     def requirements(self):
         self.requires("OpenSSL/1.1.1@conan/stable")
-        # DD: Thrift and yaml-cpp are used for jaeger
-        # Since yaml-cpp needs boost/1.66 we override it here
-        # in order to avoid conflicts
-        self.requires("boost/1.64.0@conan/stable", private=True, override=True)
+        self.requires("boost/1.64.0@conan/stable")
+        self.requires("FindConanBoost/0.1")
         self.requires("zlib/1.2.11@conan/stable")
 
     def source(self):
