@@ -74,3 +74,4 @@ class ThriftConan(ConanFile):
     def package_info(self):
         self.cpp_info.libs = ["thrift"]
         self.cpp_info.includedirs = [os.path.join(self.package_folder, "thrift")]
+        print("REMOVE!")
