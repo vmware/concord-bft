@@ -14,6 +14,8 @@
 # 2014 - modified by snikulov
 
 # prefer the thrift version supplied in THRIFT_HOME (cmake -DTHRIFT_HOME then environment)
+
+message("USING FINDTHRIFT FROM THRIFT")
 find_path(THRIFT_INCLUDE_DIR thrift/Thrift.h ${CONAN_INCLUDE_THRIFT})
 
 # prefer the thrift version supplied in THRIFT_HOME
