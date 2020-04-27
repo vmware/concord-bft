@@ -26,7 +26,8 @@ concordlogger::MDC::~MDC() { logger_.removeMdc(key_); }
 
 concordlogger::Logger initLogger() {
   log4cplus::SharedAppenderPtr ca_ptr = log4cplus::SharedAppenderPtr(new log4cplus::ConsoleAppender(false, true));
-  ca_ptr->setLayout(std::auto_ptr<log4cplus::Layout>(new log4cplus::PatternLayout("Node %X{rid}|%t|%-5p|%c|%M|%m%n")));
+  ca_ptr->setLayout(std::auto_ptr<log4cplus::Layout>(
+      new log4cplus::PatternLayout("Node %X{rid}|%d{%d %m %Y %H:%M:%S.%q}|%t|%-5p|%c|%M|%m%n")));
   log4cplus::Logger::getRoot().addAppender(ca_ptr);
   log4cplus::Logger::getRoot().setLogLevel(log4cplus::INFO_LOG_LEVEL);
   return log4cplus::Logger::getInstance(LOG4CPLUS_TEXT(DEFAULT_LOGGER_NAME));
