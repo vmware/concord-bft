@@ -95,6 +95,7 @@ target_include_directories(corebft PUBLIC ${CRYPTOPP_INCLUDE_DIRS})
 target_include_directories(corebft PUBLIC ${OPENTRACING_INCLUDE_DIRS})
 target_include_directories(corebft PUBLIC ${YAML-CPP_INCLUDE_DIRS})
 target_include_directories(corebft PUBLIC ${JAEGERTRACING_INCLUDE_DIRS})
+target_include_directories(corebft PUBLIC ${Boost_INCLUDE_DIRS})
 
 target_include_directories(bftclient PUBLIC include/bftengine)
 target_include_directories(bftclient PUBLIC src/bftengine)
@@ -112,5 +113,3 @@ target_link_libraries(corebft PUBLIC opentracing)
 target_link_libraries(corebft PUBLIC ${THRIFT_LIBRARIES})
 target_link_libraries(corebft PUBLIC ${YAML-CPP_LIBRARIES})
 target_link_libraries(corebft PUBLIC ${JAEGERTRACING_LIBRARIES})
-
-message("BOOST INC DIRS:" ${Boost_INCLUDE_DIRS})
