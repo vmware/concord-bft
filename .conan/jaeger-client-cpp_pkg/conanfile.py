@@ -40,6 +40,11 @@ conan_basic_setup()''')
             self.options["opentracing-cpp"].fPIC = True
 
     def build(self):
+        tools.replace_in_file("CMakeLists.txt", "list(APPEND LIBS ${THRIFT_LIBRARIES}",
+                '''include_directories(${THRIFT_INCLUDE_DIRS})
+  message("JAEGER THRIFT DIRS:" ${THRIFT_INCLUDE_DIRS})
+  message("JAEGER THRIFT DIR:" ${THRIFT_INCLUDE_DIR})
+  list(APPEND LIBS ${THRIFT_LIBRARIES}''')
         self.cmake = CMake(self)
         self.cmake.definitions["HUNTER_ENABLED"] = "NO"
         self.cmake.definitions["BUILD_TESTING"] = "NO"
@@ -62,11 +67,6 @@ conan_basic_setup()''')
         tools.replace_in_file("generated/jaegertracingConfig.cmake",
                                 "find_package(Boost CONFIG REQUIRED ${boost_components})",
                                 "")
-        tools.replace_in_file("CMakeLists.txt", "list(APPEND LIBS ${THRIFT_LIBRARIES}",
-                '''include_directories(${THRIFT_INCLUDE_DIRS})
-  message("JAEGER THRIFT DIRS:" ${THRIFT_INCLUDE_DIRS})
-  message("JAEGER THRIFT DIR:" ${THRIFT_INCLUDE_DIR})
-  list(APPEND LIBS ${THRIFT_LIBRARIES}''')
 
     def package(self):
         self._patch_cmake()
