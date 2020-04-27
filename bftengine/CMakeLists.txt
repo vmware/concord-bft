@@ -77,6 +77,7 @@ add_library(bftclient STATIC src/bftengine/SimpleClientImp)
 
 find_package(cryptopp REQUIRED)
 find_package(OpenTracing REQUIRED)
+find_package(Boost REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(thrift REQUIRED)
 find_package(jaegertracing REQUIRED)
@@ -111,3 +112,5 @@ target_link_libraries(corebft PUBLIC opentracing)
 target_link_libraries(corebft PUBLIC ${THRIFT_LIBRARIES})
 target_link_libraries(corebft PUBLIC ${YAML-CPP_LIBRARIES})
 target_link_libraries(corebft PUBLIC ${JAEGERTRACING_LIBRARIES})
+
+message("BOOST INC DIRS:" ${Boost_INCLUDE_DIRS})
