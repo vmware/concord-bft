@@ -110,7 +110,7 @@ target_link_libraries(corebft PUBLIC
   bftcommunication
 )
 target_link_libraries(bftclient PUBLIC bftcommunication)
-target_link_libraries(corebft PUBLIC opentracing)
+target_link_libraries(corebft PUBLIC ${OPENTRACING_LIBRARIES})
 target_link_libraries(corebft PUBLIC ${THRIFT_LIBRARIES})
 target_link_libraries(corebft PUBLIC ${YAML-CPP_LIBRARIES})
 target_link_libraries(corebft PUBLIC ${JAEGERTRACING_LIBRARIES})
