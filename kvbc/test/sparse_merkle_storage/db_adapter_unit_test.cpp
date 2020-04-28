@@ -9,6 +9,7 @@
 #include "block_digest.h"
 #include "merkle_tree_block.h"
 #include "merkle_tree_db_adapter.h"
+#include "merkle_tree_key_manipulator.h"
 #include "memorydb/client.h"
 #include "rocksdb/client.h"
 #include "sparse_merkle/base_types.h"
@@ -26,6 +27,7 @@
 namespace {
 
 using namespace ::concord::kvbc::v2MerkleTree;
+using namespace ::concord::kvbc::v2MerkleTree::detail;
 using namespace ::concord::storage::v2MerkleTree::detail;
 
 using ::concord::storage::IDBClient;

@@ -5,9 +5,11 @@
 #include "endianness.hpp"
 #include "kv_types.hpp"
 #include "merkle_tree_db_adapter.h"
+#include "merkle_tree_key_manipulator.h"
 #include "merkle_tree_serialization.h"
 #include "sliver.hpp"
 #include "sparse_merkle/base_types.h"
+#include "storage/merkle_tree_key_manipulator.h"
 
 #include <stdint.h>
 
@@ -58,6 +60,9 @@ const auto defaultObjectId = ObjectId{42};
 const auto defaultPageId = uint32_t{42};
 const auto defaultChkpt = uint64_t{42};
 const auto defaultDigest = getBlockDigest(defaultData + defaultData);
+
+const auto metadataKeyManip = ::concord::storage::v2MerkleTree::MetadataKeyManipulator{};
+const auto stKeyManip = ::concord::storage::v2MerkleTree::STKeyManipulator{};
 
 static_assert(sizeof(EDBKeyType) == 1);
 static_assert(sizeof(EKeySubtype) == 1);
@@ -138,7 +143,7 @@ TEST(key_manipulator, internal_key_odd) {
 // Expected key structure with respective bit sizes:
 // [EDBKeyType::BFT: 8, EBFTSubtype::Metadata: 8, objectId: 32]
 TEST(key_manipulator, metadata_key) {
-  const auto key = DBKeyManipulator::generateMetadataKey(defaultObjectId);
+  const auto key = metadataKeyManip.generateMetadataKey(defaultObjectId);
   const auto expected = toSliver(serializeEnum(EDBKeyType::BFT) + serializeEnum(EBFTSubtype::Metadata) +
                                  serializeIntegral(defaultObjectId));
   ASSERT_EQ(key.length(), 1 + 1 + 4);
@@ -148,7 +153,7 @@ TEST(key_manipulator, metadata_key) {
 // Expected key structure with respective bit sizes:
 // [EDBKeyType::BFT: 8, EBFTSubtype::ST: 8, objectId: 32]
 TEST(key_manipulator, st_key) {
-  const auto key = DBKeyManipulator::generateStateTransferKey(defaultObjectId);
+  const auto key = stKeyManip.generateStateTransferKey(defaultObjectId);
   const auto expected =
       toSliver(serializeEnum(EDBKeyType::BFT) + serializeEnum(EBFTSubtype::ST) + serializeIntegral(defaultObjectId));
   ASSERT_EQ(key.length(), 1 + 1 + 4);
@@ -158,7 +163,7 @@ TEST(key_manipulator, st_key) {
 // Expected key structure with respective bit sizes:
 // [EDBKeyType::BFT: 8, EBFTSubtype::STPendingPage: 8, pageId: 32]
 TEST(key_manipulator, st_pending_page_key) {
-  const auto key = DBKeyManipulator::generateSTPendingPageKey(defaultPageId);
+  const auto key = stKeyManip.generateSTPendingPageKey(defaultPageId);
   const auto expected = toSliver(serializeEnum(EDBKeyType::BFT) + serializeEnum(EBFTSubtype::STPendingPage) +
                                  serializeIntegral(defaultPageId));
   ASSERT_EQ(key.length(), 1 + 1 + 4);
@@ -168,7 +173,7 @@ TEST(key_manipulator, st_pending_page_key) {
 // Expected key structure with respective bit sizes:
 // [EDBKeyType::BFT: 8, EBFTSubtype::STCheckpointDescriptor: 8, chkpt: 64]
 TEST(key_manipulator, st_chkpt_desc_key) {
-  const auto key = DBKeyManipulator::generateSTCheckpointDescriptorKey(defaultChkpt);
+  const auto key = stKeyManip.generateSTCheckpointDescriptorKey(defaultChkpt);
   const auto expected = toSliver(serializeEnum(EDBKeyType::BFT) + serializeEnum(EBFTSubtype::STCheckpointDescriptor) +
                                  serializeIntegral(defaultChkpt));
   ASSERT_EQ(key.length(), 1 + 1 + 8);
@@ -178,7 +183,7 @@ TEST(key_manipulator, st_chkpt_desc_key) {
 // Expected key structure with respective bit sizes:
 // [EDBKeyType::BFT: 8, EBFTSubtype::STReservedPageStatic: 8, pageId: 32, chkpt: 64]
 TEST(key_manipulator, st_res_page_static_key) {
-  const auto key = DBKeyManipulator::generateSTReservedPageStaticKey(defaultPageId, defaultChkpt);
+  const auto key = stKeyManip.generateSTReservedPageStaticKey(defaultPageId, defaultChkpt);
   const auto expected = toSliver(serializeEnum(EDBKeyType::BFT) + serializeEnum(EBFTSubtype::STReservedPageStatic) +
                                  serializeIntegral(defaultPageId) + serializeIntegral(defaultChkpt));
   ASSERT_EQ(key.length(), 1 + 1 + 4 + 8);
@@ -188,7 +193,7 @@ TEST(key_manipulator, st_res_page_static_key) {
 // Expected key structure with respective bit sizes:
 // [EDBKeyType::BFT: 8, EBFTSubtype::STReservedPageDynamic: 8, pageId: 32, chkpt: 64]
 TEST(key_manipulator, st_res_page_dynamic_key) {
-  const auto key = DBKeyManipulator::generateSTReservedPageDynamicKey(defaultPageId, defaultChkpt);
+  const auto key = stKeyManip.generateSTReservedPageDynamicKey(defaultPageId, defaultChkpt);
   const auto expected = toSliver(serializeEnum(EDBKeyType::BFT) + serializeEnum(EBFTSubtype::STReservedPageDynamic) +
                                  serializeIntegral(defaultPageId) + serializeIntegral(defaultChkpt));
   ASSERT_EQ(key.length(), 1 + 1 + 4 + 8);

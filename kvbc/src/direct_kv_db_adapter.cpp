@@ -16,12 +16,12 @@
 #include "sliver.hpp"
 #include "status.hpp"
 #include "kv_types.hpp"
-#include "block.h"
-#include "db_adapter.h"
 #include "direct_kv_block.h"
+#include "direct_kv_db_adapter.h"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 #include "hex_tools.h"
 #include "string.hpp"
+#include "assertUtils.hpp"
 
 #include <string.h>
 
@@ -39,8 +39,10 @@ using concordUtils::Sliver;
 using concord::storage::ObjectId;
 using concordUtils::HexPrintBuffer;
 
-namespace concord::kvbc {
-inline namespace v1DirectKeyValue {
+namespace concord::kvbc::v1DirectKeyValue {
+
+using storage::v1DirectKeyValue::detail::EDBKeyType;
+
 /**
  * @brief Helper function that generates a composite database Key of type Block.
  *
@@ -118,8 +120,8 @@ int DBKeyComparator::composedKeyComparison(const char *_a_data,
     }
     case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_CHECKPOINT_DESCRIPTOR_KEY: {
       uint64_t aChkpt, bChkpt;
-      aChkpt = storage::STKeyManipulator::extractCheckPointFromKey(_a_data, _a_length);
-      bChkpt = storage::STKeyManipulator::extractCheckPointFromKey(_b_data, _b_length);
+      aChkpt = storage::v1DirectKeyValue::STKeyManipulator::extractCheckPointFromKey(_a_data, _a_length);
+      bChkpt = storage::v1DirectKeyValue::STKeyManipulator::extractCheckPointFromKey(_b_data, _b_length);
       return (aChkpt > bChkpt) ? 1 : (bChkpt > aChkpt) ? -1 : 0;
     }
     case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_STATIC_KEY:
@@ -127,8 +129,10 @@ int DBKeyComparator::composedKeyComparison(const char *_a_data,
       // Pages are sorted in ascending order, checkpoints in descending order
       uint32_t aPageId, bPageId;
       uint64_t aChkpt, bChkpt;
-      std::tie(aPageId, aChkpt) = storage::STKeyManipulator::extractPageIdAndCheckpointFromKey(_a_data, _a_length);
-      std::tie(bPageId, bChkpt) = storage::STKeyManipulator::extractPageIdAndCheckpointFromKey(_b_data, _b_length);
+      std::tie(aPageId, aChkpt) =
+          storage::v1DirectKeyValue::STKeyManipulator::extractPageIdAndCheckpointFromKey(_a_data, _a_length);
+      std::tie(bPageId, bChkpt) =
+          storage::v1DirectKeyValue::STKeyManipulator::extractPageIdAndCheckpointFromKey(_b_data, _b_length);
       if (aPageId != bPageId) return (aPageId > bPageId) ? 1 : (bPageId > aPageId) ? -1 : 0;
       return (aChkpt < bChkpt) ? 1 : (aChkpt > bChkpt) ? -1 : 0;
     }
@@ -475,11 +479,7 @@ std::pair<Value, BlockId> DBAdapter::getValue(const Key &key, const BlockId &blo
     // TODO(JGC): Ask about reason for version comparison logic
     if (currentReadVersion <= blockVersion && foundKey == key) return std::make_pair(p.second, currentReadVersion);
   }
-  // TODO [TK] this mimics the existing behavior but it should throw NotFoundException
-  // Right now the caller (ReplicaImp::getInternal) is not ready for this yet
-  // throw NotFoundException(__PRETTY_FUNCTION__ + std::string(": key: ") + key.toString() +
-  //                          std::string(" blockVersion: ") + std::to_string(blockVersion));
-  return std::make_pair(Key(), 0);
+  throw NotFoundException{__PRETTY_FUNCTION__ + std::string{": blockVersion: "} + std::to_string(blockVersion)};
 }
 
 /**
@@ -633,5 +633,4 @@ BlockDigest DBAdapter::getParentDigest(const RawBlock &rawBlock) const {
   return block::detail::getParentDigest(rawBlock);
 }
 
-}  // namespace v1DirectKeyValue
-}  // namespace concord::kvbc
+}  // namespace concord::kvbc::v1DirectKeyValue

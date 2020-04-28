@@ -5,16 +5,15 @@
 
 #pragma once
 
+#include "db_adapter_interface.h"
 #include "kv_types.hpp"
 #include "Logger.hpp"
 #include "storage/db_interface.h"
-#include "storage/key_manipulator.hpp"
+#include "storage/direct_kv_key_manipulator.h"
 
 #include <memory>
 
-namespace concord::kvbc {
-inline namespace v1DirectKeyValue {
-using concord::storage::detail::EDBKeyType;
+namespace concord::kvbc::v1DirectKeyValue {
 
 /** Key comparator for sorting keys in database.
  *  Used with rocksdb when there's no natural lexicographical key comparison.
@@ -45,14 +44,14 @@ class IDataKeyGenerator {
 /** Default Key Generator
  *  Used with rocksdb
  */
-class RocksKeyGenerator : public IDataKeyGenerator, storage::DBKeyGeneratorBase {
+class RocksKeyGenerator : public IDataKeyGenerator, storage::v1DirectKeyValue::DBKeyGeneratorBase {
  public:
   Key blockKey(const BlockId &) const override;
   Key dataKey(const Key &, const BlockId &) const override;
   Key mdtKey(const Key &key) const override { return key; }
 
  protected:
-  static concordUtils::Sliver genDbKey(EDBKeyType, const Key &, BlockId);
+  static concordUtils::Sliver genDbKey(storage::v1DirectKeyValue::detail::EDBKeyType, const Key &, BlockId);
   static concordlogger::Logger &logger() {
     static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.kvbc.RocksKeyGenerator");
     return logger_;
@@ -102,8 +101,8 @@ class DBKeyManipulator {
  public:
   static BlockId extractBlockIdFromKey(const Key &_key);
   static BlockId extractBlockIdFromKey(const char *_key_data, size_t _key_length);
-  static EDBKeyType extractTypeFromKey(const Key &_key);
-  static EDBKeyType extractTypeFromKey(const char *_key_data);
+  static storage::v1DirectKeyValue::detail::EDBKeyType extractTypeFromKey(const Key &_key);
+  static storage::v1DirectKeyValue::detail::EDBKeyType extractTypeFromKey(const char *_key_data);
   static storage::ObjectId extractObjectIdFromKey(const Key &_key);
   static storage::ObjectId extractObjectIdFromKey(const char *_key_data, size_t _key_length);
   static Key extractKeyFromKeyComposedWithBlockId(const Key &_composedKey);
@@ -183,5 +182,4 @@ class DBAdapter : public IDbAdapter {
   BlockId lastReachableBlockId_ = 0;
 };
 
-}  // namespace v1DirectKeyValue
-}  // namespace concord::kvbc
+}  // namespace concord::kvbc::v1DirectKeyValue

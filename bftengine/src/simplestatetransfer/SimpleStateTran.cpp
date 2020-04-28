@@ -22,6 +22,7 @@
 #include "memorydb/client.h"
 #include "memorydb/key_comparator.h"
 #include "Logger.hpp"
+#include "storage/direct_kv_key_manipulator.h"
 
 namespace bftEngine {
 
@@ -277,7 +278,8 @@ SimpleStateTran::SimpleStateTran(
   config.pedanticChecks = pedanticChecks;
   auto comparator = concord::storage::memorydb::KeyComparator();
   concord::storage::IDBClient::ptr db(new concord::storage::memorydb::Client(comparator));
-  internalST_ = SimpleBlockchainStateTransfer::create(config, &dummyBDState_, db);
+  internalST_ = SimpleBlockchainStateTransfer::create(
+      config, &dummyBDState_, db, std::make_shared<concord::storage::v1DirectKeyValue::STKeyManipulator>());
 
   Assert(internalST_ != nullptr);
 

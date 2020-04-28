@@ -20,6 +20,8 @@
 #include "assertUtils.hpp"
 #include "storage/db_interface.h"
 
+#pragma once
+
 namespace concord::storage::s3 {
 
 struct StoreConfig {

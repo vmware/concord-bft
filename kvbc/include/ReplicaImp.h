@@ -18,10 +18,11 @@
 #include "Logger.hpp"
 #include "KVBCInterfaces.h"
 #include "replica_state_sync_imp.hpp"
-#include "db_adapter.h"
+#include "db_adapter_interface.h"
 #include "db_interfaces.h"
 #include "memorydb/client.h"
 #include "bftengine/DbMetadataStorage.hpp"
+#include "storage_factory_interface.h"
 
 namespace concord::kvbc {
 
@@ -63,9 +64,8 @@ class ReplicaImp : public IReplica,
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   ReplicaImp(bft::communication::ICommunication *comm,
-             bftEngine::ReplicaConfig &config,
-             std::unique_ptr<IDbAdapter> dbAdapter,
-             std::shared_ptr<storage::IDBClient> mdt_dbclient,
+             const bftEngine::ReplicaConfig &config,
+             std::unique_ptr<IStorageFactory> storageFactory,
              std::shared_ptr<concordMetrics::Aggregator> aggregator);
 
   void setReplicaStateSync(ReplicaStateSync *rss) { replicaStateSync_.reset(rss); }
@@ -115,6 +115,7 @@ class ReplicaImp : public IReplica,
   RepStatus m_currentRepStatus;
 
   std::unique_ptr<IDbAdapter> m_bcDbAdapter;
+  std::shared_ptr<storage::IDBClient> m_metadataDBClient;
   bft::communication::ICommunication *m_ptrComm = nullptr;
   bftEngine::ReplicaConfig m_replicaConfig;
   bftEngine::IReplica *m_replicaPtr = nullptr;

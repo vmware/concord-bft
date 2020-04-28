@@ -23,7 +23,7 @@
 
 namespace concord {
 namespace kvbc {
-inline namespace v1DirectKeyValue {
+namespace v1DirectKeyValue {
 namespace block {
 namespace detail {
 // Creates a block with the user data appended at the end of the returned Sliver. The passed parentDigest buffer must be

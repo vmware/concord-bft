@@ -28,17 +28,13 @@
 namespace concord::kvbc::test {
 
 void run_replica(int argc, char** argv) {
-  auto setup = TestSetup::ParseArgs(argc, argv);
+  const auto setup = TestSetup::ParseArgs(argc, argv);
   auto logger = setup->GetLogger();
   MDC_PUT(GL, "rid", std::to_string(setup->GetReplicaConfig().replicaId));
 
-  auto config = setup->get_db_configuration();
-  std::shared_ptr<concord::storage::IDBClient> mdtDbClient = std::get<0>(config);
-  IDbAdapter* dbAdapter = std::get<1>(config);
   std::shared_ptr<ReplicaImp> replica = std::make_shared<ReplicaImp>(setup->GetCommunication(),
                                                                      setup->GetReplicaConfig(),
-                                                                     std::unique_ptr<IDbAdapter>(dbAdapter),
-                                                                     mdtDbClient,
+                                                                     setup->GetStorageFactory(),
                                                                      setup->GetMetricsServer().GetAggregator());
 
   auto* blockMetadata = new BlockMetadata(*replica);

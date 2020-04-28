@@ -16,6 +16,7 @@
 #include <string>
 #include <assert.h>
 #include <algorithm>
+#include <type_traits>
 
 namespace concord {
 namespace util {
@@ -81,6 +82,13 @@ inline std::string rtrim(const std::string& s) {
   return std::string(s.begin(), it.base());
 }
 inline std::string trim(const std::string& s) { return ltrim(rtrim(s)); }
+
+template <typename E>
+constexpr auto toChar(E e) {
+  static_assert(std::is_enum_v<E>);
+  static_assert(sizeof(E) <= sizeof(char));
+  return static_cast<char>(e);
+}
 
 }  // namespace util
 }  // namespace concord

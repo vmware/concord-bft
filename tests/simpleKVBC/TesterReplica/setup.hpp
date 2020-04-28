@@ -20,25 +20,21 @@
 #include "Logger.hpp"
 #include "MetricsServer.hpp"
 #include "config/test_parameters.hpp"
+#include "storage_factory_interface.h"
 
 #ifdef USE_S3_OBJECT_STORE
 #include "s3/client.hpp"
 #endif
 
-namespace concord::storage {
-class IDBClient;
-}
-
 namespace concord::kvbc {
-class IDbAdapter;
 
 class TestSetup {
  public:
   static std::unique_ptr<TestSetup> ParseArgs(int argc, char** argv);
 
-  std::tuple<std::shared_ptr<concord::storage::IDBClient>, IDbAdapter*> get_db_configuration();
+  std::unique_ptr<IStorageFactory> GetStorageFactory();
 
-  bftEngine::ReplicaConfig& GetReplicaConfig() { return replica_config_; }
+  const bftEngine::ReplicaConfig& GetReplicaConfig() const { return replica_config_; }
   bft::communication::ICommunication* GetCommunication() const { return communication_.get(); }
   concordMetrics::Server& GetMetricsServer() { return metrics_server_; }
   concordlogger::Logger GetLogger() { return logger_; }
@@ -59,9 +55,9 @@ class TestSetup {
         s3ConfigFile_(s3ConfigFile) {}
   TestSetup() = delete;
 #ifdef USE_S3_OBJECT_STORE
-  concord::storage::s3::StoreConfig parseS3Config(const std::string& s3ConfigFile);
+  concord::storage::s3::StoreConfig ParseS3Config(const std::string& s3ConfigFile);
 #endif
-  std::tuple<std::shared_ptr<concord::storage::IDBClient>, IDbAdapter*> get_inmem_db_configuration();
+  std::unique_ptr<IStorageFactory> GetInMemStorageFactory() const;
   bftEngine::ReplicaConfig replica_config_;
   std::unique_ptr<bft::communication::ICommunication> communication_;
   concordlogger::Logger logger_;

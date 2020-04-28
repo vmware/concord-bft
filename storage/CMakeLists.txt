@@ -1,5 +1,6 @@
 add_library(concordbft_storage STATIC src/memorydb_client.cpp
-                                      src/key_manipulator.cpp)
+                                      src/direct_kv_key_manipulator.cpp
+                                      src/merkle_tree_key_manipulator.cpp)
 
 target_include_directories(concordbft_storage PUBLIC include)
 

@@ -25,7 +25,8 @@
 namespace concord {
 namespace storage {
 class IDBClient;
-}
+class ISTKeyManipulator;
+}  // namespace storage
 }  // namespace concord
 namespace bftEngine {
 
@@ -132,11 +133,13 @@ struct Config {
 
 IStateTransfer *create(const Config &config,
                        IAppState *const stateApi,
-                       std::shared_ptr<::concord::storage::IDBClient> dbc);
+                       std::shared_ptr<::concord::storage::IDBClient> dbc,
+                       std::shared_ptr<concord::storage::ISTKeyManipulator> stKeyManipulator);
 
 IStateTransfer *create(const Config &config,
                        IAppState *const stateApi,
                        std::shared_ptr<::concord::storage::IDBClient> dbc,
+                       std::shared_ptr<concord::storage::ISTKeyManipulator> stKeyManipulator,
                        std::shared_ptr<concordMetrics::Aggregator> aggregator);
 
 }  // namespace SimpleBlockchainStateTransfer

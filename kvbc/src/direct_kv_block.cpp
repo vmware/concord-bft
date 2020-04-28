@@ -1,4 +1,4 @@
-#include "block.h"
+#include "direct_kv_block.h"
 #include "kv_types.hpp"
 #include "Logger.hpp"
 
@@ -10,8 +10,9 @@ using concord::kvbc::SetOfKeyValuePairs;
 using concord::kvbc::OrderedSetOfKeyValuePairs;
 using concord::kvbc::KeyValuePair;
 
-namespace concord::kvbc {
-inline namespace v1DirectKeyValue {
+namespace concord {
+namespace kvbc {
+namespace v1DirectKeyValue {
 namespace block {
 namespace detail {
 Sliver create(const SetOfKeyValuePairs &updates,
@@ -124,4 +125,5 @@ BlockDigest getParentDigest(const concordUtils::Sliver &block) {
 }  // namespace detail
 }  // namespace block
 }  // namespace v1DirectKeyValue
-}  // namespace concord::kvbc
+}  // namespace kvbc
+}  // namespace concord
