@@ -1,4 +1,23 @@
-set(APOLLO_TEST_ENV "BUILD_ROCKSDB_STORAGE=${BUILD_ROCKSDB_STORAGE}")
+set(APOLLO_TEST_ENV "BUILD_ROCKSDB_STORAGE=${BUILD_ROCKSDB_STORAGE} USE_S3_OBJECT_STORE=${USE_S3_OBJECT_STORE}")
+set(MINIO_BINARY_PATH "${CMAKE_BINARY_DIR}/minio")
+
+if(USE_S3_OBJECT_STORE)
+        find_program(CHMOD_PROG chmod)
+        if(NOT CHMOD_PROG)
+                message(FATAL_ERROR "chmod not found")
+        endif()
+        
+        if(NOT EXISTS ${MINIO_BINARY_PATH})
+                message(STATUS "Downloading minio binary")
+                file(DOWNLOAD "https://dl.min.io/server/minio/release/linux-amd64/minio" ${MINIO_BINARY_PATH} SHOW_PROGRESS)
+                execute_process(COMMAND ${CHMOD_PROG} 755 ${MINIO_BINARY_PATH})
+        else()
+                message(STATUS "minio binary exists - skipping download")
+        endif()
+
+        # This env var is used by apollo tests to locate the path to the binary
+        set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} CONCORD_BFT_MINIO_BINARY_PATH=${MINIO_BINARY_PATH}")
+endif()
 
 set(STORAGE_TYPES "v1direct" "v2merkle")
 if (CI_TEST_STORAGE_TYPE)
@@ -36,11 +55,12 @@ foreach(STORAGE_TYPE ${STORAGE_TYPES})
 
   if (BUILD_ROCKSDB_STORAGE)
     add_test(NAME skvbc_persistence_tests_${STORAGE_TYPE} COMMAND sh -c
-            "env STORAGE_TYPE=${STORAGE_TYPE} python3 -m unittest test_skvbc_persistence 2>&1 > /dev/null"
+            "env ${APOLLO_TEST_ENV} STORAGE_TYPE=${STORAGE_TYPE} python3 -m unittest test_skvbc_persistence 2>&1 > /dev/null"
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
     add_test(NAME skvbc_ro_replica_tests_${STORAGE_TYPE} COMMAND sh -c
-            "env STORAGE_TYPE=${STORAGE_TYPE} python3 -m unittest test_skvbc_ro_replica 2>&1 > /dev/null"
+            "env ${APOLLO_TEST_ENV} STORAGE_TYPE=${STORAGE_TYPE} python3 -m unittest test_skvbc_ro_replica 2>&1 > /dev/null"
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   endif()
 endforeach()
+
