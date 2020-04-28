@@ -30,6 +30,7 @@
 #include "config/config_file_parser.hpp"
 #include "direct_kv_storage_factory.h"
 #include "merkle_tree_storage_factory.h"
+
 namespace concord::kvbc {
 
 std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
@@ -43,25 +44,28 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     replicaConfig.statusReportTimerMillisec = 10 * 1000;
     replicaConfig.preExecutionFeatureEnabled = true;
 
-    PersistencyMode persist_mode = PersistencyMode::Off;
+    PersistencyMode persistMode = PersistencyMode::Off;
     std::string keysFilePrefix;
     std::string commConfigFile;
     std::string s3ConfigFile;
+    // Set StorageType::V1DirectKeyValue as the default storage type.
+    auto storageType = StorageType::V1DirectKeyValue;
 
-    static struct option long_options[] = {{"replica-id", required_argument, 0, 'i'},
-                                           {"key-file-prefix", required_argument, 0, 'k'},
-                                           {"network-config-file", required_argument, 0, 'n'},
-                                           {"status-report-timeout", required_argument, 0, 's'},
-                                           {"view-change-timeout", required_argument, 0, 'v'},
-                                           {"auto-primary-rotation-timeout", required_argument, 0, 'a'},
-                                           {"s3-config-file", required_argument, 0, '3'},
-                                           {"persistence-mode", no_argument, 0, 'p'},
-                                           {0, 0, 0, 0}};
+    static struct option longOptions[] = {{"replica-id", required_argument, 0, 'i'},
+                                          {"key-file-prefix", required_argument, 0, 'k'},
+                                          {"network-config-file", required_argument, 0, 'n'},
+                                          {"status-report-timeout", required_argument, 0, 's'},
+                                          {"view-change-timeout", required_argument, 0, 'v'},
+                                          {"auto-primary-rotation-timeout", required_argument, 0, 'a'},
+                                          {"s3-config-file", required_argument, 0, '3'},
+                                          {"persistence-mode", no_argument, 0, 'p'},
+                                          {"storage-type", required_argument, 0, 't'},
+                                          {0, 0, 0, 0}};
 
     int o = 0;
-    int option_index = 0;
+    int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
-    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:p", long_options, &option_index)) != -1) {
+    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:pt:", longOptions, &optionIndex)) != -1) {
       switch (o) {
         case 'i': {
           replicaConfig.replicaId = concord::util::to<std::uint16_t>(std::string(optarg));
@@ -92,7 +96,16 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         // We can only toggle persistence on or off. It defaults to InMemory
         // unless -p flag is provided.
         case 'p': {
-          persist_mode = PersistencyMode::RocksDB;
+          persistMode = PersistencyMode::RocksDB;
+        } break;
+        case 't': {
+          if (optarg == std::string{"v1direct"}) {
+            storageType = StorageType::V1DirectKeyValue;
+          } else if (optarg == std::string{"v2merkle"}) {
+            storageType = StorageType::V2MerkleTree;
+          } else {
+            throw std::runtime_error{"invalid argument for --storage-type"};
+          }
         } break;
         case '?': {
           throw std::runtime_error("invalid arguments");
@@ -124,12 +137,17 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
 
     std::unique_ptr<bft::communication::ICommunication> comm(bft::communication::CommFactory::create(conf));
 
-    uint16_t metrics_port = conf.listenPort + 1000;
+    uint16_t metricsPort = conf.listenPort + 1000;
 
     LOG_INFO(logger, "\nReplica Configuration: \n" << replicaConfig);
 
-    return std::unique_ptr<TestSetup>(new TestSetup{
-        replicaConfig, std::move(comm), logger, metrics_port, persist_mode == PersistencyMode::RocksDB, s3ConfigFile});
+    return std::unique_ptr<TestSetup>(new TestSetup{replicaConfig,
+                                                    std::move(comm),
+                                                    logger,
+                                                    metricsPort,
+                                                    persistMode == PersistencyMode::RocksDB,
+                                                    s3ConfigFile,
+                                                    storageType});
 
   } catch (const std::exception& e) {
     LOG_FATAL(GL, "failed to parse command line arguments: " << e.what());
@@ -138,7 +156,12 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
 }
 
 std::unique_ptr<IStorageFactory> TestSetup::GetInMemStorageFactory() const {
-  return std::make_unique<v1DirectKeyValue::MemoryDBStorageFactory>();
+  if (storageType_ == StorageType::V1DirectKeyValue) {
+    return std::make_unique<v1DirectKeyValue::MemoryDBStorageFactory>();
+  } else if (storageType_ == StorageType::V2MerkleTree) {
+    return std::make_unique<v2MerkleTree::MemoryDBStorageFactory>();
+  }
+  throw std::runtime_error{"Invalid storage type"};
 }
 
 #ifdef USE_S3_OBJECT_STORE
@@ -178,7 +201,12 @@ std::unique_ptr<IStorageFactory> TestSetup::GetStorageFactory() {
     return std::make_unique<v1DirectKeyValue::S3StorageFactory>(dbPath.str(), s3Config);
   }
 #endif
-  return std::make_unique<v1DirectKeyValue::RocksDBStorageFactory>(dbPath.str());
+  if (storageType_ == StorageType::V1DirectKeyValue) {
+    return std::make_unique<v1DirectKeyValue::RocksDBStorageFactory>(dbPath.str());
+  } else if (storageType_ == StorageType::V2MerkleTree) {
+    return std::make_unique<v2MerkleTree::RocksDBStorageFactory>(dbPath.str());
+  }
+  throw std::runtime_error{"Invalid storage type"};
 #endif
 }
 

@@ -34,36 +34,44 @@ class TestSetup {
 
   std::unique_ptr<IStorageFactory> GetStorageFactory();
 
-  const bftEngine::ReplicaConfig& GetReplicaConfig() const { return replica_config_; }
+  const bftEngine::ReplicaConfig& GetReplicaConfig() const { return replicaConfig_; }
   bft::communication::ICommunication* GetCommunication() const { return communication_.get(); }
-  concordMetrics::Server& GetMetricsServer() { return metrics_server_; }
+  concordMetrics::Server& GetMetricsServer() { return metricsServer_; }
   concordlogger::Logger GetLogger() { return logger_; }
-  const bool UsePersistentStorage() const { return use_persistent_storage_; }
+  const bool UsePersistentStorage() const { return usePersistentStorage_; }
 
  private:
+  enum class StorageType {
+    V1DirectKeyValue,
+    V2MerkleTree,
+  };
+
   TestSetup(bftEngine::ReplicaConfig config,
             std::unique_ptr<bft::communication::ICommunication> comm,
             concordlogger::Logger logger,
-            uint16_t metrics_port,
-            bool use_persistent_storage,
-            std::string s3ConfigFile)
-      : replica_config_(config),
+            uint16_t metricsPort,
+            bool usePersistentStorage,
+            std::string s3ConfigFile,
+            StorageType storageType)
+      : replicaConfig_(config),
         communication_(std::move(comm)),
         logger_(logger),
-        metrics_server_(metrics_port),
-        use_persistent_storage_(use_persistent_storage),
-        s3ConfigFile_(s3ConfigFile) {}
+        metricsServer_(metricsPort),
+        usePersistentStorage_(usePersistentStorage),
+        s3ConfigFile_(s3ConfigFile),
+        storageType_(storageType) {}
   TestSetup() = delete;
 #ifdef USE_S3_OBJECT_STORE
   concord::storage::s3::StoreConfig ParseS3Config(const std::string& s3ConfigFile);
 #endif
   std::unique_ptr<IStorageFactory> GetInMemStorageFactory() const;
-  bftEngine::ReplicaConfig replica_config_;
+  bftEngine::ReplicaConfig replicaConfig_;
   std::unique_ptr<bft::communication::ICommunication> communication_;
   concordlogger::Logger logger_;
-  concordMetrics::Server metrics_server_;
-  bool use_persistent_storage_;
+  concordMetrics::Server metricsServer_;
+  bool usePersistentStorage_;
   std::string s3ConfigFile_;
+  StorageType storageType_;
 };
 
 }  // namespace concord::kvbc
