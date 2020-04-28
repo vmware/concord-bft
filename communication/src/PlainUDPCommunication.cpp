@@ -71,6 +71,9 @@ class PlainUDPCommunication::PlainUdpImpl {
 
   NodeNum selfId;
 
+  // Max UDP packet bytes can be sent, without headers.
+  static constexpr uint16_t MAX_UDP_PAYLOAD_SIZE = 65535 - 20 - 8;
+
   /** Flag to indicate whether the current communication layer still runs. */
   std::atomic<bool> running;
 
@@ -232,6 +235,11 @@ class PlainUDPCommunication::PlainUdpImpl {
 
   int sendAsyncMessage(const NodeNum &destNode, const char *const message, const size_t &messageLength) {
     int error = 0;
+
+    if (messageLength > MAX_UDP_PAYLOAD_SIZE) {
+      LOG_ERROR(_logger, "Error, exceeded UDP payload size limit, message length: " << std::to_string(messageLength));
+      return -1;
+    }
 
     if (!running) throw std::runtime_error("The communication layer is not running!");
 
