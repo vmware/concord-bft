@@ -254,7 +254,7 @@ class BftTestNetwork:
         """
         Returns command line to start replica with the given id
         """
-        return self.config.start_replica_cmd(self.builddir, replica_id)
+        return self.config.start_replica_cmd(self.builddir, replica_id, self.config)
 
     def stop_replica_cmd(self, replica_id):
         """

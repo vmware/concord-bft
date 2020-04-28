@@ -12,8 +12,11 @@
 
 import unittest
 import trio
-import os.path
+import os
 import random
+import subprocess
+import tempfile
+import shutil
 
 from util import bft
 from util import skvbc as kvbc
@@ -23,8 +26,7 @@ from math import inf
 
 from util.bft import KEY_FILE_PREFIX, with_trio, with_bft_network
 
-
-def start_replica_cmd(builddir, replica_id):
+def start_replica_cmd(builddir, replica_id, config):
     """
     Return a command that starts an skvbc replica when passed to
     subprocess.Popen.
@@ -36,17 +38,64 @@ def start_replica_cmd(builddir, replica_id):
     """
     statusTimerMilli = "500"
     viewChangeTimeoutMilli = "10000"
-
+    ro_params = [ "--s3-config-file",
+                    os.path.join(builddir, "tests", "simpleKVBC", "scripts", "test_s3_config.txt")
+                ]
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
-    return [path,
+    ret = [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-p",
             "-t", os.environ.get('STORAGE_TYPE')
             ]
+    if replica_id >= config.n and replica_id < config.n + config.num_ro_replicas and os.environ["USE_S3_OBJECT_STORE"]:
+        ret.extend(ro_params)
+        
+    return ret
 
 class SkvbcReadOnlyReplicaTest(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        if not os.environ["USE_S3_OBJECT_STORE"]:
+            return
+
+        # We need a temp dir for data and binaries - this is cls.dest_dir
+        # self.dest_dir will contain data dir for minio buckets and the minio binary
+        # if there are any directories inside data dir - they become buckets
+        cls.work_dir = "/tmp/concord_bft_minio_datadir_" + next(tempfile._get_candidate_names())
+        minio_server_data_dir = os.path.join(cls.work_dir, "data")
+        os.makedirs(os.path.join(cls.work_dir, "data", "blockchain"))     # create all dirs in one call
+
+        print(f"Working in {cls.work_dir}")
+
+        # Start server
+        print("Starting server")
+        server_env = os.environ.copy()
+        server_env["MINIO_ACCESS_KEY"] = "concordbft"
+        server_env["MINIO_SECRET_KEY"] = "concordbft"
+
+        minio_server_fname = os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH")
+        if minio_server_fname is None:
+            shutil.rmtree(cls.work_dir)
+            raise RuntimeError("Please set path to minio binary to CONCORD_BFT_MINIO_BINARY_PATH env variable")
+
+        cls.minio_server_proc = subprocess.Popen([minio_server_fname, "server", minio_server_data_dir], 
+                                                    env = server_env, 
+                                                    close_fds=True)
+        print("Initialisation complete")
+
+    @classmethod
+    def tearDownClass(cls):
+        if not os.environ["USE_S3_OBJECT_STORE"]:
+            return
+
+        # First stop the server
+        cls.minio_server_proc.terminate()
+
+        # Delete workdir dir
+        shutil.rmtree(cls.work_dir)
 
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1)
@@ -110,9 +159,9 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         bft_network.start_replica(ro_replica_id)
         # TODO replace the below function with the library function:
         # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), checkpoint_num=1)     
-        with trio.fail_after(seconds=60):
+        with trio.fail_after(seconds=90):
             async with trio.open_nursery() as nursery:
-                nursery.start_soon(tracker.send_indefinite_tracked_ops)
+                nursery.start_soon(tracker.run_concurrent_ops, 1000, 1)
                 while True:
                     with trio.move_on_after(seconds=.5):
                         try:
@@ -122,6 +171,6 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                             continue
                         else:
                             # success!
-                            if lastExecutedSeqNum >= 150:
+                            if lastExecutedSeqNum >= 50:
                                 print("Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
                                 nursery.cancel_scope.cancel()
