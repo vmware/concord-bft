@@ -21,12 +21,12 @@
 
 #include "bftengine/IStateTransfer.hpp"
 #include "Metrics.hpp"
-#include "storage/key_manipulator_interface.h"
 
 namespace concord {
 namespace storage {
 class IDBClient;
-}
+class ISTKeyManipulator;
+}  // namespace storage
 }  // namespace concord
 namespace bftEngine {
 

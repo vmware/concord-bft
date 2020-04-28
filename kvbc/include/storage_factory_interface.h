@@ -25,10 +25,11 @@ namespace concord::kvbc {
 class IStorageFactory {
  public:
   struct DatabaseSet {
-    // The data DB client is used to store blockchain data, e.g. key/values, blocks, etc.
+    // The data DB client is used to store application blockchain data, e.g. key/values, blocks, etc.
     std::shared_ptr<storage::IDBClient> dataDBClient;
 
-    // The metadata DB client is used to store metadata, e.g. state transfer data, metadata, etc.
+    // The metadata DB client is used to store state transfer data, Concord-BFT protocol metadata, etc.
+    // All data that is not application data is written through this DB client.
     std::shared_ptr<storage::IDBClient> metadataDBClient;
 
     // The DB adapter instance is used to store a blockchain in the data DB through dataDBClient .

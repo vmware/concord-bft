@@ -32,10 +32,10 @@ using ObjectId = std::uint32_t;
 
 class DBMetadataStorage : public bftEngine::MetadataStorage {
  public:
-  explicit DBMetadataStorage(IDBClient *dbClient, std::unique_ptr<IMetadataKeyManipulator> mtdKeyManipulator)
+  explicit DBMetadataStorage(IDBClient *dbClient, std::unique_ptr<IMetadataKeyManipulator> metadataKeyManipulator)
       : logger_(concordlogger::Log::getLogger("com.concord.vmware.metadatastorage")),
         dbClient_(dbClient),
-        mtdKeyManipulator_(std::move(mtdKeyManipulator)) {
+        metadataKeyManipulator_(std::move(metadataKeyManipulator)) {
     objectIdToSizeMap_[objectsNumParameterId_] = sizeof(objectsNum_);
   }
 
@@ -63,7 +63,7 @@ class DBMetadataStorage : public bftEngine::MetadataStorage {
   std::mutex ioMutex_;
   ObjectIdToSizeMap objectIdToSizeMap_;
   uint32_t objectsNum_ = 0;
-  std::unique_ptr<IMetadataKeyManipulator> mtdKeyManipulator_;
+  std::unique_ptr<IMetadataKeyManipulator> metadataKeyManipulator_;
 };
 
 }  // namespace storage
