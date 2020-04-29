@@ -253,7 +253,7 @@ int main(int argc, char **argv) {
     setupDBEditorParams(argc, argv);
     verifyInputParams(argv);
 
-    dbClient = new Client(dbPath.str(), new KeyComparator(new DBKeyComparator()));
+    dbClient = new Client(dbPath.str(), std::make_unique<KeyComparator>(new DBKeyComparator{}));
     dbClient->init(dbOperation == DUMP_ALL_VALUES);
     if (dbOperation != DUMP_ALL_VALUES) setupMetadataStorage();
     bool res = false;

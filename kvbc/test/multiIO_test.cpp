@@ -64,14 +64,13 @@ class multiIO_test : public ::testing::Test {
  protected:
   void SetUp() override {
     keyGen_.reset(new concord::kvbc::v1DirectKeyValue::RocksKeyGenerator);
-    comparator_ = new KeyComparator(new DBKeyComparator());
-    dbClient.reset(new Client(dbPath_, comparator_));
+    auto comparator_ = std::make_unique<KeyComparator>(new DBKeyComparator{});
+    dbClient.reset(new Client(dbPath_, std::move(comparator_)));
     dbClient->init();
   }
 
   void TearDown() override {
     dbClient.reset();
-    delete comparator_;
     string cmd = string("rm -rf ") + dbPath_;
     if (system(cmd.c_str())) {
       ASSERT_TRUE(false);
@@ -115,7 +114,6 @@ class multiIO_test : public ::testing::Test {
 
   std::unique_ptr<concord::kvbc::v1DirectKeyValue::IDataKeyGenerator> keyGen_;
   const string dbPath_ = "./rocksdb_test";
-  KeyComparator *comparator_;
 };
 
 TEST_F(multiIO_test, single_put) {

@@ -96,10 +96,10 @@ TEST(metadataStorage_test, multi_write) {
 
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
-  KeyComparator *kk = new KeyComparator(new DBKeyComparator);
+  auto kk = make_unique<KeyComparator>(new DBKeyComparator);
   const string dbPath = "./metadataStorage_test_db";
   remove(dbPath.c_str());
-  Client *dbClient = new Client(dbPath, kk);
+  Client *dbClient = new Client(dbPath, std::move(kk));
   dbClient->init();
   metadataStorage =
       new DBMetadataStorage(dbClient, std::make_unique<concord::storage::v1DirectKeyValue::MetadataKeyManipulator>());
