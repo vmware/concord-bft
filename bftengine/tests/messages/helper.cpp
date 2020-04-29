@@ -101,3 +101,13 @@ bftEngine::ReplicaConfig createReplicaConfig() {
   config.singletonFromThis();
   return config;
 }
+
+void destroyReplicaConfig(bftEngine::ReplicaConfig& config) {
+  delete config.thresholdVerifierForExecution;
+  delete config.thresholdSignerForSlowPathCommit;
+  delete config.thresholdVerifierForSlowPathCommit;
+  delete config.thresholdSignerForCommit;
+  delete config.thresholdVerifierForCommit;
+  delete config.thresholdSignerForOptimisticCommit;
+  delete config.thresholdVerifierForOptimisticCommit;
+}

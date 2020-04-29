@@ -55,6 +55,7 @@ TEST(PartialCommitProofMsg, create_and_compare) {
 
   EXPECT_EQ(memcmp(msg.thresholSignature(), signature.data(), signature.size()), 0);
   EXPECT_NO_THROW(msg.validate(replicaInfo));
+  destroyReplicaConfig(config);
 }
 
 TEST(PartialCommitProofMsg, base_methods) {
@@ -69,6 +70,7 @@ TEST(PartialCommitProofMsg, base_methods) {
   PartialCommitProofMsg msg(
       senderId, viewNum, seqNum, commitPath, tmpDigest, config.thresholdSignerForOptimisticCommit, spanContext);
   testMessageBaseMethods(msg, MsgCode::PartialCommitProof, senderId, spanContext);
+  destroyReplicaConfig(config);
 }
 
 int main(int argc, char** argv) {

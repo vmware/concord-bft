@@ -67,6 +67,7 @@ TEST(ReplicaStatusMsg, viewActiveNoLists) {
   EXPECT_FALSE(msg.isMissingPrePrepareMsgForViewChange(151));
   */
   testMessageBaseMethods(msg, MsgCode::ReplicaStatus, senderId, spanContext);
+  destroyReplicaConfig(config);
 }
 
 TEST(ReplicaStatusMsg, haslistOfPrePrepareMsgsInActiveWindow) {
@@ -118,6 +119,7 @@ TEST(ReplicaStatusMsg, haslistOfPrePrepareMsgsInActiveWindow) {
   EXPECT_FALSE(msg.isMissingPrePrepareMsgForViewChange(151));
   */
   testMessageBaseMethods(msg, MsgCode::ReplicaStatus, senderId, spanContext);
+  destroyReplicaConfig(config);
 }
 
 TEST(ReplicaStatusMsg, listOfMissingViewChangeMsgForViewChange) {
@@ -165,6 +167,7 @@ TEST(ReplicaStatusMsg, listOfMissingViewChangeMsgForViewChange) {
   EXPECT_FALSE(msg.isMissingPrePrepareMsgForViewChange(151));
   */
   testMessageBaseMethods(msg, MsgCode::ReplicaStatus, senderId, spanContext);
+  destroyReplicaConfig(config);
 }
 
 TEST(ReplicaStatusMsg, listOfMissingPrePrepareMsgForViewChange) {
@@ -207,6 +210,7 @@ TEST(ReplicaStatusMsg, listOfMissingPrePrepareMsgForViewChange) {
   msg.setMissingPrePrepareMsgForViewChange(152);
   EXPECT_TRUE(msg.isMissingPrePrepareMsgForViewChange(152));
   testMessageBaseMethods(msg, MsgCode::ReplicaStatus, senderId, spanContext);
+  destroyReplicaConfig(config);
 }
 
 int main(int argc, char** argv) {

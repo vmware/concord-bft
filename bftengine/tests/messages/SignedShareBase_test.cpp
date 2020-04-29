@@ -55,6 +55,7 @@ TEST(PreparePartialMsg, PreparePartialMsg_test) {
   EXPECT_NO_THROW(msg->validate(replicaInfo));
   testSignedShareBaseMethods(*msg, v, s, spanContext, signature);
   testMessageBaseMethods(*msg, MsgCode::PreparePartial, id, spanContext);
+  destroyReplicaConfig(config);
 }
 
 TEST(PrepareFullMsg, PrepareFullMsg_test) {
@@ -73,6 +74,7 @@ TEST(PrepareFullMsg, PrepareFullMsg_test) {
   EXPECT_NO_THROW(msg->validate(replicaInfo));
   testSignedShareBaseMethods(*msg, v, s, spanContext, signature);
   testMessageBaseMethods(*msg, MsgCode::PrepareFull, id, spanContext);
+  destroyReplicaConfig(config);
 }
 
 TEST(CommitPartialMsg, CommitPartialMsg_test) {
@@ -91,6 +93,7 @@ TEST(CommitPartialMsg, CommitPartialMsg_test) {
   EXPECT_NO_THROW(msg->validate(replicaInfo));
   testSignedShareBaseMethods(*msg, v, s, spanContext, signature);
   testMessageBaseMethods(*msg, MsgCode::CommitPartial, id, spanContext);
+  destroyReplicaConfig(config);
 }
 TEST(CommitFullMsg, CommitFullMsg_test) {
   auto config = createReplicaConfig();
@@ -107,6 +110,7 @@ TEST(CommitFullMsg, CommitFullMsg_test) {
   EXPECT_NO_THROW(msg->validate(replicaInfo));
   testSignedShareBaseMethods(*msg, v, s, spanContext, signature);
   testMessageBaseMethods(*msg, MsgCode::CommitFull, id, spanContext);
+  destroyReplicaConfig(config);
 }
 
 int main(int argc, char** argv) {
