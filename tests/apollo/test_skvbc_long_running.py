@@ -25,7 +25,7 @@ EIGHT_HOURS_IN_SECONDS = 8 * 60 * 60
 ONE_HOUR_IN_SECONDS = 1 * 60 * 60
 
 
-def start_replica_cmd(builddir, replica_id, config):
+def start_replica_cmd(builddir, replica_id):
     """
     Return a command that starts an skvbc replica when passed to
     subprocess.Popen.

@@ -21,7 +21,7 @@ from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 
 
-def start_replica_cmd(builddir, replica_id, config):
+def start_replica_cmd(builddir, replica_id):
     """
     Return a command that starts an skvbc replica when passed to
     subprocess.Popen.
