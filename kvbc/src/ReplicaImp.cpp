@@ -9,9 +9,11 @@
 #include <unistd.h>
 #include "ReplicaImp.h"
 #include <inttypes.h>
+#include <algorithm>
 #include <cassert>
 #include <chrono>
 #include <cstdlib>
+#include <exception>
 #include <utility>
 #include "communication/CommDefs.hpp"
 #include "kv_types.hpp"
@@ -151,6 +153,30 @@ Status ReplicaImp::addBlock(const SetOfKeyValuePairs &updates, BlockId &outBlock
   // block?
 
   return addBlockInternal(updates, outBlockId);
+}
+
+void ReplicaImp::deleteGenesisBlock() {
+  const auto genesisBlock = m_bcDbAdapter->getGenesisBlockId();
+  if (genesisBlock == 0) {
+    throw std::logic_error{"Cannot delete the genesis block from an empty blockchain"};
+  }
+  m_bcDbAdapter->deleteBlock(genesisBlock);
+}
+
+BlockId ReplicaImp::deleteBlocksUntil(BlockId until) {
+  const auto genesisBlock = m_bcDbAdapter->getGenesisBlockId();
+  if (genesisBlock == 0) {
+    throw std::logic_error{"Cannot delete a block range from an empty blockchain"};
+  } else if (until <= genesisBlock) {
+    throw std::invalid_argument{"Invalid 'until' value passed to deleteBlocksUntil()"};
+  }
+
+  const auto lastBlock = getLastBlock();
+  const auto lastDeletedBlock = std::min(lastBlock, until - 1);
+  for (auto i = genesisBlock; i <= lastDeletedBlock; ++i) {
+    m_bcDbAdapter->deleteBlock(i);
+  }
+  return lastDeletedBlock;
 }
 
 void ReplicaImp::set_command_handler(ICommandsHandler *handler) { m_cmdHandler = handler; }
