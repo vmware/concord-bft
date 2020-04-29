@@ -78,6 +78,7 @@ shared_ptr<IncomingMsgsStorage> msgsStorage;
 shared_ptr<DummyReceiver> msgReceiver = make_shared<DummyReceiver>();
 shared_ptr<MsgHandlersRegistrator> msgHandlersRegPtr = make_shared<MsgHandlersRegistrator>();
 shared_ptr<MsgsCommunicator> msgsCommunicator;
+shared_ptr<ICommunication> communicatorPtr;
 DummyRequestsHandler requestsHandler;
 
 class DummyReplica : public InternalReplicaApi {
@@ -323,7 +324,11 @@ void setUpCommunication() {
   nodes[1] = nodeInfo;
 
   PlainUdpConfig configuration("128.0.0.1", 1234, 4096, nodes, replicaConfig.replicaId);
-  msgsCommunicator.reset(new MsgsCommunicator(CommFactory::create(configuration), msgsStorage, msgReceiver));
+  communicatorPtr.reset(CommFactory::create(configuration), [](ICommunication* c) {
+    c->Stop();
+    delete c;
+  });
+  msgsCommunicator.reset(new MsgsCommunicator(communicatorPtr.get(), msgsStorage, msgReceiver));
   msgsCommunicator->startCommunication(replicaConfig.replicaId);
 }
 
