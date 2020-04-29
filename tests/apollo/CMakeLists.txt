@@ -1,6 +1,11 @@
 set(APOLLO_TEST_ENV "BUILD_ROCKSDB_STORAGE=${BUILD_ROCKSDB_STORAGE}")
 
-foreach(STORAGE_TYPE "v1direct" "v2merkle")
+set(STORAGE_TYPES "v1direct" "v2merkle")
+if (CI_TEST_STORAGE_TYPE)
+  set(STORAGE_TYPES ${CI_TEST_STORAGE_TYPE})
+endif()
+
+foreach(STORAGE_TYPE ${STORAGE_TYPES})
   add_test(NAME skvbc_basic_tests_${STORAGE_TYPE} COMMAND sh -c
           "env ${APOLLO_TEST_ENV} STORAGE_TYPE=${STORAGE_TYPE} python3 -m unittest test_skvbc 2>&1 > /dev/null"
           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
