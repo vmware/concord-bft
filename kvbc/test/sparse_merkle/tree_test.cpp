@@ -464,38 +464,38 @@ TEST(tree_tests, remove_and_promote) {
   SetOfKeyValuePairs updates;
   updates.emplace(Sliver("key3"), Sliver("val1"));
   updates.emplace(Sliver("key9"), Sliver("val2"));
-  auto batch = tree.update(updates);
+  auto batch1 = tree.update(updates);
 
   // There should be 2 internal nodes, with no leaf children in the root node.
-  ASSERT_EQ(2, batch.internal_nodes.size());
-  auto& root_node = batch.internal_nodes[0].second;
+  ASSERT_EQ(2, batch1.internal_nodes.size());
+  auto& root_node = batch1.internal_nodes[0].second;
   ASSERT_EQ(0, root_node.numLeafChildren());
-  db_put(db, batch);
+  db_put(db, batch1);
 
   // Delete one of these nodes and cause the other to be promoted.
   KeysVector deletes{Sliver("key9")};
-  batch = tree.remove(deletes);
+  auto batch2 = tree.remove(deletes);
 
   // Only the root node exists in the tree now, and it's at version 2.
-  ASSERT_EQ(1, batch.internal_nodes.size());
-  auto& [root_key, remove_root_node] = batch.internal_nodes[0];
+  ASSERT_EQ(1, batch2.internal_nodes.size());
+  auto& [root_key, remove_root_node] = batch2.internal_nodes[0];
   ASSERT_EQ("", root_key.path().toString());
   ASSERT_EQ(Version(2), root_key.version());
   ASSERT_EQ(Version(2), remove_root_node.version());
 
   // There are no leaf updates, since key3 was not updated. A pointer
   // (LeafChild) was just moved to the root node.
-  ASSERT_EQ(0, batch.leaf_nodes.size());
+  ASSERT_EQ(0, batch2.leaf_nodes.size());
   ASSERT_EQ(1, remove_root_node.numLeafChildren());
   ASSERT_TRUE(leafChildExists("key3", 1, remove_root_node));
 
-  ASSERT_EQ(1, batch.stale.leaf_keys.size());
-  ASSERT_TRUE(leafKeyExists("key9", 1, batch.stale.leaf_keys));
+  ASSERT_EQ(1, batch2.stale.leaf_keys.size());
+  ASSERT_TRUE(leafKeyExists("key9", 1, batch2.stale.leaf_keys));
 
   // Ensure that the bottom most internal node was removed
-  ASSERT_EQ(2, batch.stale.internal_keys.size());
-  ASSERT_TRUE(internalKeyExists("", 1, batch.stale.internal_keys));
-  ASSERT_TRUE(internalKeyExists("b", 1, batch.stale.internal_keys));
+  ASSERT_EQ(2, batch2.stale.internal_keys.size());
+  ASSERT_TRUE(internalKeyExists("", 1, batch2.stale.internal_keys));
+  ASSERT_TRUE(internalKeyExists("b", 1, batch2.stale.internal_keys));
 
   // The hash of the old root should differ from the hash of the new root
   ASSERT_NE(root_node.hash(), remove_root_node.hash());
