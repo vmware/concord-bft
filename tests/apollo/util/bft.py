@@ -126,7 +126,7 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                         await async_fn(*args, **kwargs, bft_network=bft_network)
         return wrapper
 
-    return decorator 
+    return decorator
 
 MAX_MSG_SIZE = 64*1024 # 64k
 REQ_TIMEOUT_MILLI = 5000
