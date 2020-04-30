@@ -31,8 +31,8 @@ class InMemoryDataStore : public DataStore {
   explicit InMemoryDataStore(uint32_t sizeOfReservedPage);
   ~InMemoryDataStore() override {
     deleteAllPendingPages();
-    for (auto& [k, v] : pages) {
-      ::free(v.page);
+    for (auto& p : pages) {
+      ::free(p.second.page);
     }
   }
 
