@@ -27,7 +27,7 @@ namespace SimpleBlockchainStateTransfer {
 
 // A state transfer message
 struct Msg {
-  std::unique_ptr<char> msg_;
+  std::unique_ptr<char[]> msg_;
   uint32_t len_;
   uint16_t to_;
 };
@@ -45,7 +45,7 @@ class TestReplica : public IReplicaForStateTransfer {
   }
 
   void sendStateTransferMessage(char* m, uint32_t size, uint16_t replicaId) override {
-    std::unique_ptr<char> msg{new char[size]};
+    std::unique_ptr<char[]> msg{new char[size]};
     memcpy(msg.get(), m, size);
 
     sent_messages_.push_back(Msg{std::move(msg), size, replicaId});

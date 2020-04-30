@@ -57,6 +57,7 @@ TEST(FullExecProofMsg_1, base_methods) {
 
   EXPECT_NO_THROW(msg.validate(replicaInfo));
   testMessageBaseMethods(msg, MsgCode::FullExecProof, senderId, spanContext);
+  destroyReplicaConfig(config);
 }
 
 TEST(FullExecProofMsg_2, base_methods) {
@@ -96,6 +97,7 @@ TEST(FullExecProofMsg_2, base_methods) {
 
   EXPECT_NO_THROW(msg.validate(replicaInfo));
   testMessageBaseMethods(msg, MsgCode::FullExecProof, senderId, spanContext);
+  destroyReplicaConfig(config);
 }
 
 int main(int argc, char** argv) {

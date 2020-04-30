@@ -77,6 +77,7 @@ class IThresholdVerifierDummy : public IThresholdVerifier,
 };
 
 bftEngine::ReplicaConfig createReplicaConfig();
+void destroyReplicaConfig(bftEngine::ReplicaConfig &config);
 
 inline void printBody(const char *body, size_t size) {
   for (size_t i = 0; i < size; ++i) {

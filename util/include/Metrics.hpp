@@ -178,12 +178,18 @@ class Component {
   // If registration happens before all registration of the values, then the
   // names will not properly exist in the aggregator, since only values get
   // updated at runtime for performance reasons.
-  void Register() { aggregator_->RegisterComponent(*this); }
+  void Register() {
+    if (auto aggregator = aggregator_.lock()) {
+      aggregator->RegisterComponent(*this);
+    }
+  }
 
   // Update the values in the aggregator
   void UpdateAggregator() {
     Values copy = values_;
-    aggregator_->UpdateValues(name_, std::move(copy));
+    if (auto aggregator = aggregator_.lock()) {
+      aggregator->UpdateValues(name_, std::move(copy));
+    }
   }
 
   // Change the aggregator used by the component
@@ -202,7 +208,7 @@ class Component {
 
   void SetValues(Values&& values) { values_ = values; }
 
-  std::shared_ptr<Aggregator> aggregator_;
+  std::weak_ptr<Aggregator> aggregator_;
   std::string name_;
 
   Names names_;
