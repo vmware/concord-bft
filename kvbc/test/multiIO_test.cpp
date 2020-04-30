@@ -64,8 +64,7 @@ class multiIO_test : public ::testing::Test {
  protected:
   void SetUp() override {
     keyGen_.reset(new concord::kvbc::v1DirectKeyValue::RocksKeyGenerator);
-    auto comparator_ = std::make_unique<KeyComparator>(new DBKeyComparator{});
-    dbClient.reset(new Client(dbPath_, std::move(comparator_)));
+    dbClient.reset(new Client(dbPath_, std::make_unique<KeyComparator>(new DBKeyComparator{})));
     dbClient->init();
   }
 
