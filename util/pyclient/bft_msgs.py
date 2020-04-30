@@ -39,13 +39,16 @@ REQUEST_HEADER_SIZE = struct.calcsize(REQUEST_HEADER_FMT)
 # Little Endian format with no padding
 # We don't include the msg type here, since we have to read it first to
 # understand what message is incoming.
-REPLY_HEADER_FMT = "<HQL"
+REPLY_HEADER_FMT = "<LHQL"
 REPLY_HEADER_SIZE = struct.calcsize(REPLY_HEADER_FMT)
 
 RequestHeader = namedtuple('RequestHeader', ['span_context_size', 'client_id', 'flags',
     'req_seq_num', 'length', 'timeout_milli', 'cid'])
 
-ReplyHeader = namedtuple('ReplyHeader', ['primary_id',
+# Unless bft clients are blocking there is no actual need for span context
+# The field was added for compatibility with other messages
+# So the span context size must be 0
+ReplyHeader = namedtuple('ReplyHeader', ['span_context_size', 'primary_id',
     'req_seq_num', 'length'])
 
 def pack_request(client_id, req_seq_num, read_only, timeout_milli, cid, msg, pre_process=False, span_context=b''):
@@ -99,7 +102,7 @@ def pack_reply(primary_id, req_seq_num, msg):
     Take message information and a message and return a construct a buffer
     containing a serialized reply header and message.
     """
-    header = ReplyHeader(primary_id, req_seq_num, len(msg))
+    header = ReplyHeader(0, primary_id, req_seq_num, len(msg))
     return b''.join([pack_reply_header(header), msg])
 
 def pack_reply_header(header):

@@ -36,6 +36,7 @@ struct ClientRequestMsgHeader {
 
 struct ClientReplyMsgHeader {
   uint16_t msgType;  // always == REPLY_MSG_TYPE
+  uint32_t spanContextSize = 0u;
   uint16_t currentPrimaryId;
   uint64_t reqSeqNum;
   uint32_t replyLength;
