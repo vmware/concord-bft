@@ -23,7 +23,7 @@ class ClientReplyMsg : public MessageBase {
   static_assert(sizeof(ClientReplyMsgHeader::msgType) == sizeof(MessageBase::Header::msgType), "");
   static_assert(sizeof(ClientReplyMsgHeader::reqSeqNum) == sizeof(ReqId), "");
   static_assert(sizeof(ClientReplyMsgHeader::currentPrimaryId) == sizeof(ReplicaId), "");
-  static_assert(sizeof(ClientReplyMsgHeader) == 16, "ClientRequestMsgHeader is 16B");
+  static_assert(sizeof(ClientReplyMsgHeader) == 20, "ClientRequestMsgHeader is 20B");
   // TODO(GG): more asserts
 
  public:
