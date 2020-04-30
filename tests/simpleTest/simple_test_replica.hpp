@@ -22,6 +22,8 @@
 #include <thread>
 #include "commonDefs.h"
 #include "simple_test_replica_behavior.hpp"
+#include "threshsign/IThresholdSigner.h"
+#include "threshsign/IThresholdVerifier.h"
 
 using namespace bftEngine;
 using namespace bft::communication;
@@ -65,6 +67,7 @@ class SimpleAppState : public IRequestsHandler {
  public:
   SimpleAppState(uint16_t numCl, uint16_t numRep)
       : statePtr{new SimpleAppState::State[numCl]}, numOfClients{numCl}, numOfReplicas{numRep} {}
+  ~SimpleAppState() { delete[] statePtr; }
 
   // Handler for the upcall from Concord-BFT.
   int execute(uint16_t clientId,
@@ -140,22 +143,43 @@ class SimpleTestReplica {
   ReplicaConfig replicaConfig;
   std::thread *runnerThread = nullptr;
   ISimpleTestReplicaBehavior *behaviorPtr;
+  IRequestsHandler *statePtr;
 
  public:
   SimpleTestReplica(ICommunication *commObject,
-                    IRequestsHandler &state,
+                    IRequestsHandler *state,
                     ReplicaConfig rc,
                     ISimpleTestReplicaBehavior *behvPtr,
                     bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer *inMemoryST,
                     MetadataStorage *metaDataStorage)
-      : comm{commObject}, replicaConfig{rc}, behaviorPtr{behvPtr} {
-    replica = IReplica::createNewReplica(&rc, &state, inMemoryST, comm, metaDataStorage);
+      : comm{commObject}, replicaConfig{rc}, behaviorPtr{behvPtr}, statePtr(state) {
+    replica = IReplica::createNewReplica(&rc, state, inMemoryST, comm, metaDataStorage);
   }
 
   ~SimpleTestReplica() {
     if (replica) {
       delete replica;
     }
+    if (comm) {
+      comm->Stop();
+      delete comm;
+    }
+    if (behaviorPtr) {
+      delete behaviorPtr;
+    }
+    if (statePtr) {
+      delete statePtr;
+    }
+
+    delete (replicaConfig.thresholdSignerForExecution);
+    delete (replicaConfig.thresholdSignerForSlowPathCommit);
+    delete (replicaConfig.thresholdSignerForCommit);
+    delete (replicaConfig.thresholdSignerForOptimisticCommit);
+
+    delete (replicaConfig.thresholdVerifierForExecution);
+    delete (replicaConfig.thresholdVerifierForSlowPathCommit);
+    delete (replicaConfig.thresholdVerifierForCommit);
+    delete (replicaConfig.thresholdVerifierForOptimisticCommit);
   }
 
   uint16_t get_replica_id() { return replicaConfig.replicaId; }
@@ -237,7 +261,7 @@ class SimpleTestReplica {
                                                        true);
 
     simpleAppState->st = st;
-    SimpleTestReplica *replica = new SimpleTestReplica(comm, *simpleAppState, replicaConfig, behv, st, metaDataStorage);
+    SimpleTestReplica *replica = new SimpleTestReplica(comm, simpleAppState, replicaConfig, behv, st, metaDataStorage);
     return replica;
   }
 };

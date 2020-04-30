@@ -2976,6 +2976,10 @@ ReplicaImp::~ReplicaImp() {
   delete dynamicUpperLimitOfRounds;
   delete mainLog;
   delete checkpointsLog;
+  delete clientsManager;
+  delete sigManager;
+  delete repsInfo;
+  free(replyBuffer);
 
   if (config_.debugStatisticsEnabled) {
     DebugStatistics::freeDebugStatisticsData();

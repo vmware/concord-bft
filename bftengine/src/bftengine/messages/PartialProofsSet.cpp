@@ -256,7 +256,10 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
     LOG_DEBUG_F(GL, "PartialProofsSet::AsynchProofCreationJob::execute - end (for seqNumber %" PRId64 ")", seqNumber);
   }
 
-  virtual void release() {}
+  virtual void release() {
+    delete acc;
+    delete this;
+  }
 
  private:
   InternalReplicaApi* me;

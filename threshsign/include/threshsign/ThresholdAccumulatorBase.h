@@ -15,6 +15,7 @@
 #include "IThresholdAccumulator.h"
 #include "VectorOfShares.h"
 
+#include <memory>
 #include <vector>
 
 /**
@@ -28,7 +29,7 @@ template <class VerificationKey, class NumType, typename SigShareParserFunc>
 class ThresholdAccumulatorBase : public IThresholdAccumulator {
  protected:
   // The expected digest that is being threshold-signed and its size
-  unsigned char* expectedDigest;
+  std::shared_ptr<unsigned char[]> expectedDigest;
   int expectedDigestLen;
 
   // The # of required/threshold signers and # of total signers
@@ -58,11 +59,7 @@ class ThresholdAccumulatorBase : public IThresholdAccumulator {
         pendingShares(static_cast<size_t>(totalSigners + 1)),
         validShares(static_cast<size_t>(totalSigners + 1)) {}
 
-  virtual ~ThresholdAccumulatorBase() {
-    if (expectedDigest != nullptr) {
-      delete[] expectedDigest;
-    }
-  }
+  virtual ~ThresholdAccumulatorBase() {}
 
   /**
    * New virtual methods introduced by this class (both public and protected)

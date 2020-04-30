@@ -29,7 +29,12 @@ namespace impl {
 class InMemoryDataStore : public DataStore {
  public:
   explicit InMemoryDataStore(uint32_t sizeOfReservedPage);
-  ~InMemoryDataStore() override {}
+  ~InMemoryDataStore() override {
+    deleteAllPendingPages();
+    for (auto& [k, v] : pages) {
+      ::free(v.page);
+    }
+  }
 
   //////////////////////////////////////////////////////////////////////////
   // config
