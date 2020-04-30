@@ -42,7 +42,8 @@ def start_replica_cmd(builddir, replica_id):
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
             "-s", statusTimerMilli,
-            "-p"
+            "-p",
+            "-t", os.environ.get('STORAGE_TYPE')
             ]
 
 class SkvbcReadOnlyReplicaTest(unittest.TestCase):

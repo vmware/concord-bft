@@ -37,7 +37,8 @@ def start_replica_cmd(builddir, replica_id):
             "-i", str(replica_id),
             "-s", status_timer_milli,
             "-v", view_change_timeout_milli,
-            "-p"
+            "-p",
+            "-t", os.environ.get('STORAGE_TYPE')
             ]
 
 
