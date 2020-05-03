@@ -22,7 +22,6 @@ class ThriftConan(ConanFile):
         self.requires("OpenSSL/1.1.1@conan/stable")
         self.requires("boost/1.64.0@conan/stable")
         self.requires("FindConanBoost/0.1")
-        self.requires("zlib/1.2.11@conan/stable")
 
     def source(self):
         tools.download(
@@ -38,9 +37,9 @@ class ThriftConan(ConanFile):
         self.autotools.flags.append("-Wno-unused-variable")
         self.autotools.flags.append("-Wno-unused-parameter")
         self.autotools.configure(args = ["--with-cpp=yes",
-                                    "--with-c_glib=yes",
+                                    "--with-c_glib=no",
                                     "--with-boost=yes",
-                                    "--with-zlib=yes",
+                                    "--with-zlib=no",
                                     "--with-libevent=no",
                                     "--enable-tests=no",
                                     "--enable-tutorial=no",
