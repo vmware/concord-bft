@@ -2827,6 +2827,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_status_report_timer_{metrics_.RegisterGauge("statusReportTimer", 0)},
       metric_slow_path_timer_{metrics_.RegisterGauge("slowPathTimer", 0)},
       metric_info_request_timer_{metrics_.RegisterGauge("infoRequestTimer", 0)},
+      metric_current_primary_{metrics_.RegisterGauge("currentPrimary", curView % config_.numReplicas)},
       metric_first_commit_path_{metrics_.RegisterStatus(
           "firstCommitPath", CommitPathToStr(ControllerWithSimpleHistory_debugInitialFirstPath))},
       metric_slow_path_count_{metrics_.RegisterCounter("slowPathCount", 0)},
@@ -3033,10 +3034,17 @@ void ReplicaImp::start() {
 void ReplicaImp::processMessages() {
   LOG_INFO_F(GL, "Running");
   if (recoveringFromExecutionOfRequests) {
-    const SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum + 1);
+    SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum + 1);
     PrePrepareMsg *pp = seqNumInfo.getPrePrepareMsg();
     Assert(pp != nullptr);
     executeRequestsInPrePrepareMsg(pp, true);
+    metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
+    metric_total_finished_consensuses_.Get().Inc();
+    if (seqNumInfo.slowPathStarted()) {
+      metric_total_slowPath_.Get().Inc();
+    } else {
+      metric_total_fastPath_.Get().Inc();
+    }
     recoveringFromExecutionOfRequests = false;
     mapOfRequestsThatAreBeingRecovered = Bitmap();
   }
