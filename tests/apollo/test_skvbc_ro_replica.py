@@ -159,9 +159,9 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         bft_network.start_replica(ro_replica_id)
         # TODO replace the below function with the library function:
         # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), checkpoint_num=1)     
-        with trio.fail_after(seconds=90):
+        with trio.fail_after(seconds=60):
             async with trio.open_nursery() as nursery:
-                nursery.start_soon(tracker.run_concurrent_ops, 1000, 1)
+                nursery.start_soon(tracker.run_concurrent_ops, 900, 1)
                 while True:
                     with trio.move_on_after(seconds=.5):
                         try:
