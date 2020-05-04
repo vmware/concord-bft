@@ -28,6 +28,7 @@ using ::concord::kvbc::BlockDigest;
 using ::concord::kvbc::BlockId;
 using ::concord::kvbc::Key;
 using ::concord::kvbc::NotFoundException;
+using ::concord::kvbc::OrderedKeysSet;
 using ::concord::kvbc::SetOfKeyValuePairs;
 using ::concord::kvbc::Value;
 using ::concord::storage::IDBClient;
@@ -51,15 +52,6 @@ struct Arbitrary<Sliver> {
 template <>
 struct Arbitrary<Hash> {
   static auto arbitrary() { return gen::construct<Hash>(gen::arbitrary<HashArray>()); }
-};
-
-// Generate key/value sets with arbitrary keys and non-empty values.
-template <>
-struct Arbitrary<SetOfKeyValuePairs> {
-  static auto arbitrary() {
-    return gen::container<SetOfKeyValuePairs>(gen::arbitrary<Sliver>(),
-                                              gen::construct<Sliver>(gen::nonEmpty(gen::string<std::string>())));
-  }
 };
 
 }  // namespace rc
@@ -319,6 +311,69 @@ TEST_P(db_adapter_kv_tests, get_all_keys_at_last_version) {
       auto it = updates.find(key);
       RC_ASSERT(it != std::cend(updates));
       RC_ASSERT(it->second == value);
+    }
+  };
+
+  ASSERT_TRUE(rc::check(test));
+}
+
+// Test that keys are:
+//  * available before key deletion
+//  * unavailable at the deletion block version and subsequent block versions that don't add the same keys
+//  * available again if added in subsequent block versions
+TEST_P(db_adapter_kv_tests, key_deletion) {
+  const auto test = [this](const std::vector<SetOfKeyValuePairs> &blockUpdates) {
+    const auto blockUpdateInfo = getBlockUpdatesInfo(blockUpdates);
+    if (GetParam()->enforceMultiVersionedKeys()) {
+      RC_PRE(hasMultiVersionedKey(blockUpdateInfo));
+    }
+
+    auto adapter = DBAdapter{GetParam()->db()};
+    addBlocks(blockUpdates, adapter);
+
+    const auto versionBeforeDeletion = adapter.getLastReachableBlockId();
+    const auto versionAtDeletion = versionBeforeDeletion + 1;
+    const auto versionAfterDeletion = versionAtDeletion + 1;
+    const auto latestVersion = versionAfterDeletion + 1;
+    const auto deletes = OrderedKeysSet{std::cbegin(blockUpdateInfo.uniqueKeys), std::cend(blockUpdateInfo.uniqueKeys)};
+
+    // Delete all keys.
+    RC_ASSERT(adapter.addBlock(deletes) == versionAtDeletion);
+
+    // Add an empty block.
+    RC_ASSERT(adapter.addBlock(SetOfKeyValuePairs{}) == versionAfterDeletion);
+
+    // Add a block with all keys.
+    auto allKeyUpdates = SetOfKeyValuePairs{};
+    for (const auto &key : blockUpdateInfo.uniqueKeys) {
+      allKeyUpdates[key] = *rc::gen::arbitrary<Sliver>();
+    }
+    RC_ASSERT(adapter.addBlock(allKeyUpdates) == latestVersion);
+
+    for (const auto &key : blockUpdateInfo.uniqueKeys) {
+      // Keys are available before deletion.
+      {
+        const auto [value, actualVersion] = adapter.getValue(key, versionBeforeDeletion);
+        RC_ASSERT(actualVersion > 0ul);
+        RC_ASSERT(actualVersion <= versionBeforeDeletion);
+        const auto &updates = blockUpdates[actualVersion - 1];
+        auto it = updates.find(key);
+        RC_ASSERT(it != std::cend(updates));
+        RC_ASSERT(it->second == value);
+      }
+
+      // Keys are not available at the deletion version and the subsequent empty block.
+      {
+        RC_ASSERT_THROWS_AS(adapter.getValue(key, versionAtDeletion), NotFoundException);
+        RC_ASSERT_THROWS_AS(adapter.getValue(key, versionAfterDeletion), NotFoundException);
+      }
+
+      // All keys are available at the latest version.
+      {
+        const auto [value, actualVersion] = adapter.getValue(key, latestVersion);
+        RC_ASSERT(actualVersion == latestVersion);
+        RC_ASSERT(value == allKeyUpdates[key]);
+      }
     }
   };
 

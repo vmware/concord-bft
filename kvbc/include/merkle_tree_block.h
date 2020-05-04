@@ -12,14 +12,22 @@
 
 namespace concord::kvbc::v2MerkleTree::block::detail {
 
-// Creates a block that includes a set of key/values. The passed parentDigest buffer must be of size BLOCK_DIGEST_SIZE
-// bytes.
+// Creates a block that adds a set of key/values.
 RawBlock create(const SetOfKeyValuePairs &updates,
+                const BlockDigest &parentDigest,
+                const sparse_merkle::Hash &stateHash);
+
+// Creates a block that adds a set of key/values and a deletes a set of keys.
+RawBlock create(const SetOfKeyValuePairs &updates,
+                const OrderedKeysSet &deletes,
                 const BlockDigest &parentDigest,
                 const sparse_merkle::Hash &stateHash);
 
 // Returns the block data in the form of a set of key/value pairs.
 SetOfKeyValuePairs getData(const RawBlock &block);
+
+// Returns a set of deleted keys in the passed raw block.
+OrderedKeysSet getDeletedKeys(const RawBlock &block);
 
 // Returns the parent digest of the passed block.
 BlockDigest getParentDigest(const RawBlock &block);
@@ -82,6 +90,26 @@ struct Node {
 inline bool operator==(const Node &lhs, const Node &rhs) {
   return lhs.blockId == rhs.blockId && lhs.parentDigest == rhs.parentDigest && lhs.stateHash == rhs.stateHash &&
          lhs.stateRootVersion == rhs.stateRootVersion && lhs.keys == rhs.keys;
+}
+
+// Merkle-specific data added to raw blocks.
+struct RawBlockMerklelData {
+  static constexpr auto MIN_SIZE = sparse_merkle::Hash::SIZE_IN_BYTES;
+  static constexpr auto STATE_HASH_SIZE = sparse_merkle::Hash::SIZE_IN_BYTES;
+  static constexpr auto MIN_KEY_SIZE = sizeof(KeyLengthType);
+
+  RawBlockMerklelData() = default;
+
+  RawBlockMerklelData(const sparse_merkle::Hash &pStateHash, const OrderedKeysSet &pDeletedKeys = OrderedKeysSet{})
+      : stateHash{pStateHash}, deletedKeys{pDeletedKeys} {}
+
+  sparse_merkle::Hash stateHash;
+  // Keep keys ordered so that serialization outputs deterministic raw blocks.
+  OrderedKeysSet deletedKeys;
+};
+
+inline bool operator==(const RawBlockMerklelData &lhs, const RawBlockMerklelData &rhs) {
+  return lhs.stateHash == rhs.stateHash && lhs.deletedKeys == rhs.deletedKeys;
 }
 
 // Creates a block node that is saved to the DB. It only includes the keys in the block, excluding the values as they

@@ -1,10 +1,19 @@
-// Copyright 2020 VMware, all rights reserved
+// Concord
 //
-// Contains functionality for working with merkle tree based keys and
-// using them to perform basic blockchain operations.
+// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+//
+// This product is licensed to you under the Apache 2.0 license (the
+// "License").  You may not use this product except in compliance with the
+// Apache 2.0 License.
+//
+// This product may include a number of subcomponents with separate copyright
+// notices and license terms. Your use of these subcomponents is subject to the
+// terms and conditions of the subcomponent's license, as noted in the LICENSE
+// file.
 
 #pragma once
 
+#include "assertUtils.hpp"
 #include "db_adapter_interface.h"
 #include "kv_types.hpp"
 #include "Logger.hpp"
@@ -14,6 +23,8 @@
 #include "storage/db_interface.h"
 
 #include <memory>
+#include <optional>
+#include <utility>
 
 namespace concord::kvbc::v2MerkleTree {
 
@@ -43,12 +54,22 @@ class DBAdapter : public IDbAdapter {
   // Note: The passed DB client must be initialized beforehand.
   DBAdapter(const std::shared_ptr<concord::storage::IDBClient> &db);
 
+  // Adds a block to the end of the blockchain from a set of key/value pairs and a set of keys to delete. If a key is
+  // present in both 'updates' and 'deletes' parameters, it will be present in the block with the value passed in
+  // 'updates'.
+  // Empty blocks (i.e. both 'updates' and 'deletes' parameters being empty) are supported.
+  // Returns the added block ID.
+  BlockId addBlock(const SetOfKeyValuePairs &updates, const OrderedKeysSet &deletes);
+
   // Adds a block to the end of the blockchain from a set of key/value pairs.
-  // Typically called by the application when adding a new block.
-  // Empty values are not supported and an exception will be thrown if one is passed.
   // Empty blocks (i.e. an empty 'updates' set) are supported.
   // Returns the added block ID.
   BlockId addBlock(const SetOfKeyValuePairs &updates) override;
+
+  // Adds a block to the end of the blockchain from a set of keys to delete.
+  // Empty blocks (i.e. an empty 'deletes' set) are supported.
+  // Returns the added block ID.
+  BlockId addBlock(const OrderedKeysSet &deletes);
 
   // Adds a block from its raw representation and a block ID.
   // Typically called by state transfer when a block is received.
@@ -109,15 +130,22 @@ class DBAdapter : public IDbAdapter {
   // Returns true if the block exists (including temporary ST blocks). Throws on errors.
   bool hasBlock(const BlockId &blockId) const override;
 
-  // Returns the current state hash from the internal merkle tree implementation.
+  // Returns the current state hash of the internal sparse merkle tree.
   const sparse_merkle::Hash &getStateHash() const { return smTree_.get_root_hash(); }
+
+  // Returns the current version of the internal sparse merkle tree.
+  sparse_merkle::Version getStateVersion() const { return smTree_.get_version(); };
 
   // Returns a set of key/value pairs that represent the needed DB updates for adding a block as part of the blockchain.
   // This method is made public for testing purposes only. It is meant to be used internally.
-  SetOfKeyValuePairs lastReachableBlockDbUpdates(const SetOfKeyValuePairs &updates, BlockId blockId);
+  SetOfKeyValuePairs lastReachableBlockDbUpdates(const SetOfKeyValuePairs &updates,
+                                                 const OrderedKeysSet &deletes,
+                                                 BlockId blockId);
 
  private:
-  concordUtils::Sliver createBlockNode(const SetOfKeyValuePairs &updates, BlockId blockId) const;
+  concordUtils::Sliver createBlockNode(const SetOfKeyValuePairs &updates,
+                                       const OrderedKeysSet &deletes,
+                                       BlockId blockId) const;
 
   // Try to link the ST temporary chain to the blockchain from the passed blockId up to getLatestBlock().
   void linkSTChainFrom(BlockId blockId);
@@ -133,6 +161,9 @@ class DBAdapter : public IDbAdapter {
   KeysVector lastReachableBlockKeyDeletes(BlockId blockId) const;
 
   KeysVector genesisBlockKeyDeletes(BlockId blockId) const;
+
+  std::optional<std::pair<Key, Value>> getLeafKeyValAtMostVersion(const Key &key,
+                                                                  const sparse_merkle::Version &version) const;
 
   class Reader : public sparse_merkle::IDBReader {
    public:
@@ -157,14 +188,40 @@ class DBAdapter : public IDbAdapter {
 
 namespace detail {
 
-// Serialize leafs in the DB as the block ID the value was saved at and the value itself.
+// Used for serialization purposes.
+inline constexpr auto INVALID_BLOCK_ID = BlockId{0};
+static_assert(INVALID_BLOCK_ID < INITIAL_GENESIS_BLOCK_ID);
+
+// Serialize leafs in the DB as the the value itself plus some additional metadata.
 struct DatabaseLeafValue {
-  BlockId blockId;
+  using BlockIdType = BlockId;
+
+  // 'addedInBlockId' and 'deletedInBlockId' are mandatory when serializing.
+  static constexpr auto MIN_SIZE = sizeof(BlockIdType) * 2;
+
+  DatabaseLeafValue() = default;
+  DatabaseLeafValue(BlockIdType pAddedInBlockId, const sparse_merkle::LeafNode &pLeafNode)
+      : addedInBlockId{pAddedInBlockId}, leafNode{pLeafNode} {}
+  DatabaseLeafValue(BlockIdType pAddedInBlockId,
+                    const sparse_merkle::LeafNode &pLeafNode,
+                    BlockIdType pDeletedInBlockId)
+      : addedInBlockId{pAddedInBlockId}, leafNode{pLeafNode}, deletedInBlockId{pDeletedInBlockId} {
+    Assert(pDeletedInBlockId != INVALID_BLOCK_ID);
+  }
+
+  // The block ID this value was added in.
+  BlockIdType addedInBlockId{INVALID_BLOCK_ID};
+
+  // The actual leaf node (value).
   sparse_merkle::LeafNode leafNode;
+
+  // The block ID this value was deleted in. Not set if this value has not been deleted.
+  std::optional<BlockIdType> deletedInBlockId;
 };
 
 inline bool operator==(const DatabaseLeafValue &lhs, const DatabaseLeafValue &rhs) {
-  return (lhs.blockId == rhs.blockId && lhs.leafNode == rhs.leafNode);
+  return (lhs.addedInBlockId == rhs.addedInBlockId && lhs.leafNode == rhs.leafNode &&
+          lhs.deletedInBlockId == rhs.deletedInBlockId);
 }
 
 }  // namespace detail

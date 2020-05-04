@@ -15,6 +15,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <map>
+#include <set>
 #include <vector>
 #include <functional>
 #include <cstdint>
@@ -30,6 +31,7 @@ typedef std::pair<Key, Value> KeyValuePair;
 typedef std::unordered_map<Key, Value> SetOfKeyValuePairs;
 typedef std::map<Key, Value> OrderedSetOfKeyValuePairs;
 typedef std::vector<Key> KeysVector;
+typedef std::set<Key> OrderedKeysSet;
 typedef KeysVector ValuesVector;
 typedef std::uint64_t BlockId;
 

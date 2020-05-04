@@ -38,19 +38,27 @@ using ::concord::kvbc::sparse_merkle::InternalNodeKey;
 using ::concord::kvbc::sparse_merkle::Version;
 
 using ::concord::kvbc::BlockId;
+using ::concord::kvbc::OrderedKeysSet;
 using ::concord::kvbc::SetOfKeyValuePairs;
 using ::concord::kvbc::ValuesVector;
 using ::concordUtils::Sliver;
 using ::concordUtils::Status;
 
+// Make sure key updates and deletes partially overlap - see getDeterministicBlockDeletes() .
 SetOfKeyValuePairs getDeterministicBlockUpdates(std::uint32_t count) {
   auto updates = SetOfKeyValuePairs{};
-  auto size = std::uint8_t{0};
   for (auto i = 0u; i < count; ++i) {
-    updates[getSliverOfSize(size + 1)] = getSliverOfSize((size + 1) * 3);
-    ++size;
+    updates[getSliverOfSize((i + 1) * 2)] = getSliverOfSize((i + 1) * 3);
   }
   return updates;
+}
+
+OrderedKeysSet getDeterministicBlockDeletes(std::uint32_t count) {
+  auto deletes = OrderedKeysSet{};
+  for (auto i = 0u; i < count; ++i) {
+    deletes.insert(getSliverOfSize((i + 1) * 4));
+  }
+  return deletes;
 }
 
 SetOfKeyValuePairs getOffsetUpdates(std::uint32_t base, std::uint32_t offset) {
@@ -62,6 +70,7 @@ SetOfKeyValuePairs getOffsetUpdates(std::uint32_t base, std::uint32_t offset) {
 enum class ReferenceBlockchainType {
   WithEmptyBlocks,
   NoEmptyBlocks,
+  WithEmptyBlocksAndKeyDeletes,
 };
 
 ValuesVector createReferenceBlockchain(const std::shared_ptr<IDBClient> &db,
@@ -72,10 +81,17 @@ ValuesVector createReferenceBlockchain(const std::shared_ptr<IDBClient> &db,
 
   auto emptyToggle = true;
   for (auto i = 1u; i <= length; ++i) {
-    if (type == ReferenceBlockchainType::WithEmptyBlocks && emptyToggle) {
-      adapter.addBlock(SetOfKeyValuePairs{});
+    auto deletes = OrderedKeysSet{};
+    if (type == ReferenceBlockchainType::WithEmptyBlocksAndKeyDeletes) {
+      deletes = getDeterministicBlockDeletes(i * 2);
+    }
+
+    if ((type == ReferenceBlockchainType::WithEmptyBlocks ||
+         type == ReferenceBlockchainType::WithEmptyBlocksAndKeyDeletes) &&
+        emptyToggle) {
+      adapter.addBlock(SetOfKeyValuePairs{}, deletes);
     } else {
-      adapter.addBlock(getDeterministicBlockUpdates(i * 2));
+      adapter.addBlock(getDeterministicBlockUpdates(i * 2), deletes);
     }
     emptyToggle = !emptyToggle;
 
@@ -122,9 +138,18 @@ struct DbAdapterTest : public IDbAdapterTest {
   std::shared_ptr<IDBClient> db() const override { return Database::create(); }
 
   std::string type() const override {
-    const auto blocksType = refBlockchainType == ReferenceBlockchainType::WithEmptyBlocks
-                                ? std::string{"withEmptyBlocks"}
-                                : std::string{"noEmptyBlocks"};
+    auto blocksType = std::string{};
+    switch (refBlockchainType) {
+      case ReferenceBlockchainType::WithEmptyBlocks:
+        blocksType = "withEmptyBlocks";
+        break;
+      case ReferenceBlockchainType::NoEmptyBlocks:
+        blocksType = "noEmptyBlocks";
+        break;
+      case ReferenceBlockchainType::WithEmptyBlocksAndKeyDeletes:
+        blocksType = "withEmptyBlocksAndKeyDeletes";
+        break;
+    }
     return Database::type() + '_' + blocksType;
   }
 
@@ -135,14 +160,6 @@ struct DbAdapterTest : public IDbAdapterTest {
 
 using db_adapter_custom_blockchain = ParametrizedTest<std::shared_ptr<IDbAdapterTest>>;
 using db_adapter_ref_blockchain = ParametrizedTest<std::shared_ptr<IDbAdapterTest>>;
-
-// Test that empty values in blocks are not allowed.
-TEST_P(db_adapter_custom_blockchain, reject_empty_values) {
-  auto adapter = DBAdapter{GetParam()->db()};
-  const auto updates =
-      SetOfKeyValuePairs{std::make_pair(Sliver{"k1"}, defaultSliver), std::make_pair(Sliver{"k2"}, Sliver{})};
-  ASSERT_THROW(adapter.addBlock(updates), std::invalid_argument);
-}
 
 // Test the last reachable block functionality.
 TEST_P(db_adapter_custom_blockchain, get_last_reachable_block) {
@@ -527,7 +544,9 @@ TEST_P(db_adapter_ref_blockchain, add_multiple_deterministic_blocks) {
   const auto referenceBlockchain = GetParam()->referenceBlockchain(GetParam()->db(), numBlocks);
   auto adapter = DBAdapter{GetParam()->db()};
   for (auto i = 1u; i <= numBlocks; ++i) {
-    ASSERT_NO_THROW(adapter.addBlock(block::detail::getData(referenceBlockchain[i - 1])));
+    const auto &referenceBlock = referenceBlockchain[i - 1];
+    ASSERT_NO_THROW(
+        adapter.addBlock(block::detail::getData(referenceBlock), block::detail::getDeletedKeys(referenceBlock)));
     ASSERT_EQ(adapter.getLastReachableBlockId(), i);
   }
 
@@ -548,6 +567,7 @@ TEST_P(db_adapter_ref_blockchain, add_multiple_deterministic_blocks) {
     }
 
     ASSERT_TRUE(block::detail::getData(rawBlock) == block::detail::getData(referenceBlock));
+    ASSERT_TRUE(block::detail::getDeletedKeys(rawBlock) == block::detail::getDeletedKeys(referenceBlock));
   }
 }
 
@@ -572,7 +592,9 @@ TEST_P(db_adapter_ref_blockchain, state_transfer_reverse_order_with_blockchain_b
 
   // Add blocks to the blockchain and verify both block pointers.
   for (auto i = 1; i <= numBlockchainBlocks; ++i) {
-    ASSERT_NO_THROW(adapter.addBlock(block::detail::getData(referenceBlockchain[i - 1])));
+    const auto &referenceBlock = referenceBlockchain[i - 1];
+    ASSERT_NO_THROW(
+        adapter.addBlock(block::detail::getData(referenceBlock), block::detail::getDeletedKeys(referenceBlock)));
     ASSERT_EQ(adapter.getLatestBlockId(), i);
     ASSERT_EQ(adapter.getLastReachableBlockId(), i);
   }
@@ -594,6 +616,7 @@ TEST_P(db_adapter_ref_blockchain, state_transfer_reverse_order_with_blockchain_b
       const auto &referenceBlock = referenceBlockchain[j - 1];
       ASSERT_TRUE(rawBlock == referenceBlock);
       ASSERT_TRUE(block::detail::getData(rawBlock) == block::detail::getData(referenceBlock));
+      ASSERT_TRUE(block::detail::getDeletedKeys(rawBlock) == block::detail::getDeletedKeys(referenceBlock));
       ASSERT_TRUE(block::detail::getStateHash(rawBlock) == block::detail::getStateHash(referenceBlock));
       if (j > 1) {
         const auto &prevReferenceBlock = referenceBlockchain[j - 2];
@@ -643,6 +666,7 @@ TEST_P(db_adapter_ref_blockchain, state_transfer_fetch_whole_blockchain_in_rever
     const auto &referenceBlock = referenceBlockchain[i - 1];
     ASSERT_TRUE(rawBlock == referenceBlock);
     ASSERT_TRUE(block::detail::getData(rawBlock) == block::detail::getData(referenceBlock));
+    ASSERT_TRUE(block::detail::getDeletedKeys(rawBlock) == block::detail::getDeletedKeys(referenceBlock));
     ASSERT_TRUE(block::detail::getStateHash(rawBlock) == block::detail::getStateHash(referenceBlock));
     if (i > 1) {
       const auto &prevReferenceBlock = referenceBlockchain[i - 2];
@@ -663,7 +687,9 @@ TEST_P(db_adapter_ref_blockchain, state_transfer_unordered_with_blockchain_block
 
   // Add blocks to the blockchain and verify both block pointers.
   for (auto i = 1; i <= numBlockchainBlocks; ++i) {
-    ASSERT_NO_THROW(adapter.addBlock(block::detail::getData(referenceBlockchain[i - 1])));
+    const auto &referenceBlock = referenceBlockchain[i - 1];
+    ASSERT_NO_THROW(
+        adapter.addBlock(block::detail::getData(referenceBlock), block::detail::getDeletedKeys(referenceBlock)));
     ASSERT_EQ(adapter.getLatestBlockId(), i);
     ASSERT_EQ(adapter.getLastReachableBlockId(), i);
   }
@@ -678,6 +704,7 @@ TEST_P(db_adapter_ref_blockchain, state_transfer_unordered_with_blockchain_block
       const auto &referenceBlock = referenceBlockchain[i - 1];
       ASSERT_TRUE(rawBlock == referenceBlock);
       ASSERT_TRUE(block::detail::getData(rawBlock) == block::detail::getData(referenceBlock));
+      ASSERT_TRUE(block::detail::getDeletedKeys(rawBlock) == block::detail::getDeletedKeys(referenceBlock));
       ASSERT_TRUE(block::detail::getStateHash(rawBlock) == block::detail::getStateHash(referenceBlock));
     }
   }
@@ -692,6 +719,7 @@ TEST_P(db_adapter_ref_blockchain, state_transfer_unordered_with_blockchain_block
       const auto &referenceBlock = referenceBlockchain[i - 1];
       ASSERT_TRUE(rawBlock == referenceBlock);
       ASSERT_TRUE(block::detail::getData(rawBlock) == block::detail::getData(referenceBlock));
+      ASSERT_TRUE(block::detail::getDeletedKeys(rawBlock) == block::detail::getDeletedKeys(referenceBlock));
       ASSERT_TRUE(block::detail::getStateHash(rawBlock) == block::detail::getStateHash(referenceBlock));
     }
   }
@@ -709,6 +737,7 @@ TEST_P(db_adapter_ref_blockchain, state_transfer_unordered_with_blockchain_block
     const auto &referenceBlock = referenceBlockchain[i - 1];
     ASSERT_TRUE(rawBlock == referenceBlock);
     ASSERT_TRUE(block::detail::getData(rawBlock) == block::detail::getData(referenceBlock));
+    ASSERT_TRUE(block::detail::getDeletedKeys(rawBlock) == block::detail::getDeletedKeys(referenceBlock));
     ASSERT_TRUE(block::detail::getStateHash(rawBlock) == block::detail::getStateHash(referenceBlock));
   }
 }
@@ -724,7 +753,7 @@ TEST_P(db_adapter_custom_blockchain, delete_last_reachable_block) {
 
   // Save the DB updates for the last reachable block and add the block.
   const auto lastReachabeDbUpdates =
-      adapter.lastReachableBlockDbUpdates(getOffsetUpdates(numBlocks, numBlocks), numBlocks);
+      adapter.lastReachableBlockDbUpdates(getOffsetUpdates(numBlocks, numBlocks), OrderedKeysSet{}, numBlocks);
   ASSERT_EQ(adapter.addBlock(getOffsetUpdates(numBlocks, numBlocks)), numBlocks);
 
   // Verify that all of the keys representing the last reachable block are present.
@@ -1056,15 +1085,211 @@ TEST_P(db_adapter_custom_blockchain, delete_genesis_and_verify_stale_key_deletio
   ASSERT_FALSE(hasInternalKeysForVersion(adapter.getDb(), 1));
 }
 
+TEST_P(db_adapter_custom_blockchain, empty_values) {
+  auto adapter = DBAdapter{GetParam()->db()};
+
+  const auto key1 = Sliver{"k1"};
+  const auto key2 = Sliver{"k2"};
+  const auto key3 = Sliver{"k3"};
+
+  // Empty value in the middle.
+  {
+    const auto updates = SetOfKeyValuePairs{
+        std::make_pair(key1, Sliver{"k1v1"}), std::make_pair(key2, Sliver{}), std::make_pair(key3, Sliver{"k3v3"})};
+    ASSERT_EQ(adapter.addBlock(updates), 1);
+
+    const auto key2Value = adapter.getValue(key2, 1);
+    ASSERT_TRUE(key2Value.first.empty());
+    ASSERT_EQ(key2Value.second, 1);
+
+    const auto rawBlock = adapter.getRawBlock(1);
+    ASSERT_EQ(block::detail::getData(rawBlock), updates);
+    ASSERT_TRUE(block::detail::getDeletedKeys(rawBlock).empty());
+  }
+
+  // Empty value at the start and at the end.
+  {
+    const auto updates = SetOfKeyValuePairs{
+        std::make_pair(key1, Sliver{}), std::make_pair(key2, Sliver{"k2v2"}), std::make_pair(key3, Sliver{})};
+    ASSERT_EQ(adapter.addBlock(updates), 2);
+
+    {
+      const auto [key1Value, key1Version] = adapter.getValue(key1, 2);
+      ASSERT_TRUE(key1Value.empty());
+      ASSERT_EQ(key1Version, 2);
+    }
+
+    {
+      const auto [key3Value, key3Version] = adapter.getValue(key3, 2);
+      ASSERT_TRUE(key3Value.empty());
+      ASSERT_EQ(key3Version, 2);
+    }
+
+    const auto rawBlock = adapter.getRawBlock(2);
+    ASSERT_EQ(block::detail::getData(rawBlock), updates);
+    ASSERT_TRUE(block::detail::getDeletedKeys(rawBlock).empty());
+  }
+}
+
+TEST_P(db_adapter_custom_blockchain, delete_existing_keys) {
+  auto adapter = DBAdapter{GetParam()->db()};
+
+  const auto key = Sliver{"key"};
+  const auto value = Sliver{"val"};
+
+  // Add a key in block 1 and delete it in block 4.
+  ASSERT_EQ(adapter.addBlock(SetOfKeyValuePairs{std::make_pair(key, value)}), 1);
+  ASSERT_EQ(adapter.addBlock(SetOfKeyValuePairs{}), 2);
+  ASSERT_EQ(adapter.addBlock(SetOfKeyValuePairs{std::make_pair(Sliver{"some_other_key"}, Sliver{"other_value"})}), 3);
+  ASSERT_EQ(adapter.addBlock(SetOfKeyValuePairs{}, OrderedKeysSet{key}), 4);
+  ASSERT_EQ(adapter.addBlock(SetOfKeyValuePairs{}), 5);
+  ASSERT_EQ(adapter.addBlock(SetOfKeyValuePairs{std::make_pair(Sliver{"some_other_key2"}, Sliver{"other_value2"})}), 6);
+
+  // Verify that the key is persent until deleted.
+  for (auto i = 1; i < 4; ++i) {
+    const auto rawBlock = adapter.getRawBlock(i);
+    ASSERT_TRUE(block::detail::getDeletedKeys(rawBlock).empty());
+
+    const auto [keyValue, keyVersion] = adapter.getValue(key, i);
+    ASSERT_EQ(keyValue, value);
+    ASSERT_EQ(keyVersion, 1);
+  }
+
+  // Verify that the key is deleted at block 4.
+  {
+    const auto rawBlock4 = adapter.getRawBlock(4);
+    ASSERT_TRUE(block::detail::getData(rawBlock4).empty());
+    const auto deletedKeys4 = block::detail::getDeletedKeys(rawBlock4);
+    ASSERT_EQ(deletedKeys4.size(), 1);
+    ASSERT_EQ(*std::cbegin(deletedKeys4), key);
+
+    ASSERT_THROW(adapter.getValue(key, 4), NotFoundException);
+  }
+
+  // Verify that the key is not present after being deleted.
+  for (auto i = 5; i <= 6; ++i) {
+    const auto rawBlock = adapter.getRawBlock(i);
+    ASSERT_TRUE(block::detail::getDeletedKeys(rawBlock).empty());
+
+    ASSERT_THROW(adapter.getValue(key, i), NotFoundException);
+  }
+
+  // Verify there are stale keys in the index since version 3 of the tree (block 2 doesn't update the tree version and,
+  // therefore, the tree version at block 4 is 3).
+  ASSERT_TRUE(hasStaleIndexKeysSince(adapter.getDb(), 3));
+}
+
+TEST_P(db_adapter_custom_blockchain, delete_non_existing_keys) {
+  auto adapter = DBAdapter{GetParam()->db()};
+
+  const auto existingKey = Sliver{"existingKey"};
+  const auto existingValue = Sliver{"existingValue"};
+  const auto nonExistingKey = Sliver{"nonExistingKey"};
+
+  // Add the existing key.
+  ASSERT_EQ(adapter.addBlock(SetOfKeyValuePairs{std::make_pair(existingKey, existingValue)}), 1);
+
+  // Add an empty block.
+  ASSERT_EQ(adapter.addBlock(SetOfKeyValuePairs{}), 2);
+
+  // Add a block that deletes a non-existing key.
+  ASSERT_EQ(adapter.addBlock(OrderedKeysSet{nonExistingKey}), 3);
+
+  // Make sure the existing key can be fetched from version 3 and is found at version 1.
+  {
+    const auto [value, version] = adapter.getValue(existingKey, 3);
+    ASSERT_EQ(value, existingValue);
+    ASSERT_EQ(version, 1);
+  }
+
+  // Make sure blocks 2 and 3 are empty.
+  {
+    const auto block2 = adapter.getRawBlock(2);
+    ASSERT_TRUE(block::detail::getData(block2).empty());
+    ASSERT_TRUE(block::detail::getDeletedKeys(block2).empty());
+
+    const auto block3 = adapter.getRawBlock(3);
+    ASSERT_TRUE(block::detail::getData(block3).empty());
+    ASSERT_TRUE(block::detail::getDeletedKeys(block3).empty());
+  }
+
+  // Verify that block 2 and block 3 haven't updated the state version as they are empty.
+  ASSERT_EQ(adapter.getStateVersion(), 1);
+}
+
+TEST_P(db_adapter_custom_blockchain, update_and_delete_same_keys) {
+  auto adapter = DBAdapter{GetParam()->db()};
+
+  const auto key1 = Sliver{"key1"};
+  const auto value1 = Sliver{"val1"};
+  const auto key2 = Sliver{"key2"};
+  const auto value2 = Sliver{"val2"};
+
+  const auto updates = SetOfKeyValuePairs{std::make_pair(key1, value1), std::make_pair(key2, value2)};
+  const auto deletes = OrderedKeysSet{key1, key2};
+
+  ASSERT_EQ(adapter.addBlock(updates, deletes), 1);
+
+  {
+    const auto [key1Value, key1Version] = adapter.getValue(key1, 1);
+    ASSERT_EQ(key1Value, value1);
+    ASSERT_EQ(key1Version, 1);
+  }
+
+  {
+    const auto [key2Value, key2Version] = adapter.getValue(key2, 1);
+    ASSERT_EQ(key2Value, value2);
+    ASSERT_EQ(key2Version, 1);
+  }
+}
+
+TEST_P(db_adapter_custom_blockchain, delete_blocks_with_deleted_keys) {
+  auto adapter = DBAdapter{GetParam()->db()};
+
+  const auto key1 = Sliver{"key1"};
+  const auto value1 = Sliver{"val1"};
+  const auto key2 = Sliver{"key2"};
+  const auto value2 = Sliver{"val2"};
+
+  // Add 2 keys in block 1.
+  const auto updates = SetOfKeyValuePairs{std::make_pair(key1, value1), std::make_pair(key2, value2)};
+  ASSERT_EQ(adapter.addBlock(updates), 1);
+
+  // Delete the 2 keys in block 2.
+  const auto deletes = OrderedKeysSet{key1, key2};
+  ASSERT_EQ(adapter.addBlock(deletes), 2);
+
+  // Add an empty block 3.
+  ASSERT_EQ(adapter.addBlock(SetOfKeyValuePairs{}), 3);
+
+  // Delete block 1 and 2.
+  adapter.deleteBlock(1);
+  adapter.deleteBlock(2);
+
+  // Block 3 exists.
+  const auto block3 = adapter.getRawBlock(3);
+  ASSERT_FALSE(block3.empty());
+  ASSERT_TRUE(block::detail::getData(block3).empty());
+  ASSERT_TRUE(block::detail::getDeletedKeys(block3).empty());
+
+  // Cannot get the values at block 2 and 3.
+  ASSERT_THROW(adapter.getValue(key1, 2), NotFoundException);
+  ASSERT_THROW(adapter.getValue(key1, 3), NotFoundException);
+  ASSERT_THROW(adapter.getValue(key2, 2), NotFoundException);
+  ASSERT_THROW(adapter.getValue(key2, 3), NotFoundException);
+}
+
 #ifdef USE_ROCKSDB
 const auto customBlockchainTestsParams =
     ::testing::Values(std::make_shared<DbAdapterTest<TestMemoryDb>>(), std::make_shared<DbAdapterTest<TestRocksDb>>());
 
-const auto refBlockchainTestParams =
-    ::testing::Values(std::make_shared<DbAdapterTest<TestMemoryDb, ReferenceBlockchainType::NoEmptyBlocks>>(),
-                      std::make_shared<DbAdapterTest<TestRocksDb, ReferenceBlockchainType::NoEmptyBlocks>>(),
-                      std::make_shared<DbAdapterTest<TestMemoryDb, ReferenceBlockchainType::WithEmptyBlocks>>(),
-                      std::make_shared<DbAdapterTest<TestRocksDb, ReferenceBlockchainType::WithEmptyBlocks>>());
+const auto refBlockchainTestParams = ::testing::Values(
+    std::make_shared<DbAdapterTest<TestMemoryDb, ReferenceBlockchainType::NoEmptyBlocks>>(),
+    std::make_shared<DbAdapterTest<TestRocksDb, ReferenceBlockchainType::NoEmptyBlocks>>(),
+    std::make_shared<DbAdapterTest<TestMemoryDb, ReferenceBlockchainType::WithEmptyBlocks>>(),
+    std::make_shared<DbAdapterTest<TestRocksDb, ReferenceBlockchainType::WithEmptyBlocks>>(),
+    std::make_shared<DbAdapterTest<TestMemoryDb, ReferenceBlockchainType::WithEmptyBlocksAndKeyDeletes>>(),
+    std::make_shared<DbAdapterTest<TestRocksDb, ReferenceBlockchainType::WithEmptyBlocksAndKeyDeletes>>());
 #else
 const auto customBlockchainTestsParams = ::testing::Values(std::make_shared<DbAdapterTest<TestMemoryDb>>());
 
