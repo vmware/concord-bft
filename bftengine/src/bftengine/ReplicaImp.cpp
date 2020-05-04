@@ -2872,7 +2872,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_not_enough_client_requests_event_{metrics_.RegisterCounter("notEnoughClientRequestsEvent")},
       metric_total_finished_consensuses_{metrics_.RegisterCounter("totalOrderedRequests")},
       metric_total_slowPath_{metrics_.RegisterCounter("totalSlowPaths")},
-      metric_total_fastPath_{metrics_.RegisterCounter("totalFastPath")} {
+      metric_total_fastPath_{metrics_.RegisterCounter("totalFastPaths")} {
   Assert(config_.replicaId < config_.numReplicas);
   // TODO(GG): more asserts on params !!!!!!!!!!!
 
