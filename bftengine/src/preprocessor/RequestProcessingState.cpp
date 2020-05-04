@@ -106,7 +106,8 @@ bool RequestProcessingState::isPreProcessReqMsgReceivedInTime() const {
     LOG_WARN(GL,
              "PreProcessRequestMsg did not arrive in time: preProcessReqWaitTimeMilli_="
                  << preProcessReqWaitTimeMilli_ << " ms expired for reqSeqNum=" << reqSeqNum_
-                 << "; clientRequestWaitingTimeMilli=" << clientRequestWaitingTimeMilli);
+                 << " from clientId=" << clientPreProcessReqMsg_->clientProxyId()
+                 << " clientRequestWaitingTimeMilli=" << clientRequestWaitingTimeMilli);
     return false;
   }
   return true;

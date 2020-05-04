@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -11,7 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include <assert.h>
+#include "assertUtils.hpp"
 #include <chrono>
 #include <map>
 #include <set>
@@ -70,12 +70,12 @@ BlockId TestsBuilder::getInitialLastBlockId() {
                                         expectedReplySize,
                                         reply.data(),
                                         &actualReplySize);
-  assert(res.isOK());
+  Assert(res.isOK());
 
   auto *replyObj = (SimpleReply_GetLastBlock *)reply.data();
   LOG_INFO(logger_, "Actual reply size = " << actualReplySize << ", expected reply size = " << expectedReplySize);
-  assert(actualReplySize == expectedReplySize);
-  assert(replyObj->header.type == GET_LAST_BLOCK);
+  Assert(actualReplySize == expectedReplySize);
+  Assert(replyObj->header.type == GET_LAST_BLOCK);
   SimpleGetLastBlockRequest::free(request);
   return replyObj->latestBlock;
 }
@@ -101,13 +101,13 @@ void TestsBuilder::retrieveExistingBlocksFromKVB() {
   // Infinite timeout
   auto res = client_.invokeCommandSynch(
       (char *)request, request->getSize(), true, seconds(0), expectedReplySize, reply.data(), &actualReplySize);
-  assert(res.isOK());
+  Assert(res.isOK());
 
   auto *replyObj = (SimpleReply_Read *)reply.data();
   __attribute__((unused)) size_t numOfItems = replyObj->numOfItems;
-  assert(actualReplySize == expectedReplySize);
-  assert(replyObj->header.type == READ);
-  assert(numOfItems == NUMBER_OF_KEYS);
+  Assert(actualReplySize == expectedReplySize);
+  Assert(replyObj->header.type == READ);
+  Assert(numOfItems == NUMBER_OF_KEYS);
 
   for (int key = 0; key < NUMBER_OF_KEYS; key++) {
     SimpleKeyBlockIdPair simpleKIDPair(replyObj->items[key].simpleKey, request->readVersion);
@@ -135,13 +135,13 @@ void TestsBuilder::create(size_t numOfRequests, size_t seed) {
     else if (percent <= 100)
       createAndInsertGetLastBlock();
     else
-      assert(0);
+      Assert(0);
   }
 
   for (__attribute__((unused)) auto elem : internalBlockchain_) {
     __attribute__((unused)) BlockId blockId = elem.first;
     __attribute__((unused)) SimpleBlock *block = elem.second;
-    assert(blockId == block->id);
+    Assert(blockId == block->id);
   }
 }
 
@@ -324,7 +324,7 @@ size_t TestsBuilder::sizeOfRequest(SimpleRequest *request) {
     case GET_LAST_BLOCK:
       return sizeof(SimpleRequest);
     default:
-      assert(0);
+      Assert(0);
   }
   return 0;
 }
@@ -338,7 +338,7 @@ size_t TestsBuilder::sizeOfReply(SimpleReply *reply) {
     case GET_LAST_BLOCK:
       return sizeof(SimpleReply_GetLastBlock);
     default:
-      assert(0);
+      Assert(0);
   }
   return 0;
 }

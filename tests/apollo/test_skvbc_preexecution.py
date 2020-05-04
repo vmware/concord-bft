@@ -61,6 +61,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         """
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        client = bft_network.random_client()
 
-        await self.send_single_write_with_pre_execution(skvbc, client)
+        for i in range(100):
+            client = bft_network.random_client()
+            await self.send_single_write_with_pre_execution(skvbc, client)

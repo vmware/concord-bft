@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -12,7 +12,7 @@
 // file.
 
 #include "basicRandomTestsRunner.hpp"
-#include <assert.h>
+#include "assertUtils.hpp"
 #include <chrono>
 
 #ifndef _WIN32
@@ -29,7 +29,7 @@ BasicRandomTestsRunner::BasicRandomTestsRunner(concordlogger::Logger &logger, IC
     : logger_(logger), client_(client), numOfOperations_(numOfOperations) {
   // We have to start the client here, since construction of the TestsBuilder
   // uses the client.
-  assert(!client_.isRunning());
+  Assert(!client_.isRunning());
   client_.start();
   testsBuilder_ = new TestsBuilder(logger_, client);
 }
@@ -45,7 +45,7 @@ void BasicRandomTestsRunner::run() {
 
   RequestsList requests = testsBuilder_->getRequests();
   RepliesList expectedReplies = testsBuilder_->getReplies();
-  assert(requests.size() == expectedReplies.size());
+  Assert(requests.size() == expectedReplies.size());
 
   int ops = 0;
   while (!requests.empty()) {
@@ -64,7 +64,7 @@ void BasicRandomTestsRunner::run() {
 
     auto res = client_.invokeCommandSynch(
         (char *)request, requestSize, readOnly, seconds(0), expectedReplySize, reply.data(), &actualReplySize);
-    assert(res.isOK());
+    Assert(res.isOK());
 
     if (isReplyCorrect(request->type, expectedReply, reply.data(), expectedReplySize, actualReplySize)) ops++;
   }
@@ -80,7 +80,7 @@ bool BasicRandomTestsRunner::isReplyCorrect(RequestType requestType,
                                             uint32_t actualReplySize) {
   if (actualReplySize != expectedReplySize) {
     LOG_ERROR(logger_, "*** Test failed: actual reply size != expected");
-    assert(0);
+    Assert(0);
   }
   std::ostringstream error;
   switch (requestType) {
@@ -98,7 +98,7 @@ bool BasicRandomTestsRunner::isReplyCorrect(RequestType requestType,
   }
 
   LOG_ERROR(logger_, "*** Test failed: actual reply != expected; error: " << error.str());
-  assert(0);
+  Assert(0);
   return false;
 }
 

@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -16,17 +16,6 @@
 
 namespace preprocessor {
 
-#pragma pack(push, 1)
-struct PreProcessRequestMsgHeader {
-  MessageBase::Header header;
-  SeqNum reqSeqNum;
-  uint16_t clientId;
-  NodeIdType senderId;
-  uint32_t requestLength;
-  uint32_t cidLength;
-};
-#pragma pack(pop)
-
 class PreProcessRequestMsg : public MessageBase {
  public:
   PreProcessRequestMsg(NodeIdType senderId,
@@ -37,17 +26,32 @@ class PreProcessRequestMsg : public MessageBase {
                        const std::string& cid);
 
   void validate(const bftEngine::impl::ReplicasInfo&) const override;
-  char* requestBuf() const { return body() + sizeof(PreProcessRequestMsgHeader); }
+  char* requestBuf() const { return body() + sizeof(Header); }
   const uint32_t requestLength() const { return msgBody()->requestLength; }
   const uint16_t clientId() const { return msgBody()->clientId; }
   const SeqNum reqSeqNum() const { return msgBody()->reqSeqNum; }
   std::string getCid() const;
 
+ protected:
+  template <typename MessageT>
+  friend size_t sizeOfHeader();
+
+#pragma pack(push, 1)
+  struct Header {
+    MessageBase::Header header;
+    SeqNum reqSeqNum;
+    uint16_t clientId;
+    NodeIdType senderId;
+    uint32_t requestLength;
+    uint32_t cidLength;
+  };
+#pragma pack(pop)
+
  private:
   void setParams(NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum, uint32_t reqLength);
 
  private:
-  PreProcessRequestMsgHeader* msgBody() const { return ((PreProcessRequestMsgHeader*)msgBody_); }
+  Header* msgBody() const { return ((Header*)msgBody_); }
 };
 
 typedef std::shared_ptr<PreProcessRequestMsg> PreProcessRequestMsgSharedPtr;
