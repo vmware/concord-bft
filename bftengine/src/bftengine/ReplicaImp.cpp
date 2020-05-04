@@ -1860,6 +1860,7 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
 
   curView = nextView;
   metric_view_.Get().Set(nextView);
+  metric_current_primary_.Get().Set(curView % config_.numReplicas);
 
   LOG_INFO_F(GL,
              "Sending view change message: new view=%" PRId64
@@ -2612,6 +2613,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
   lastAgreedView = curView;
   metric_view_.Get().Set(curView);
   metric_last_agreed_view_.Get().Set(lastAgreedView);
+  metric_current_primary_.Get().Set(curView % config_.numReplicas);
 
   const bool inView = ld.viewsManager->viewIsActive(curView);
 
@@ -2825,6 +2827,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_status_report_timer_{metrics_.RegisterGauge("statusReportTimer", 0)},
       metric_slow_path_timer_{metrics_.RegisterGauge("slowPathTimer", 0)},
       metric_info_request_timer_{metrics_.RegisterGauge("infoRequestTimer", 0)},
+      metric_current_primary_{metrics_.RegisterGauge("currentPrimary", curView % config_.numReplicas)},
       metric_first_commit_path_{metrics_.RegisterStatus(
           "firstCommitPath", CommitPathToStr(ControllerWithSimpleHistory_debugInitialFirstPath))},
       metric_slow_path_count_{metrics_.RegisterCounter("slowPathCount", 0)},
@@ -2867,7 +2870,9 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_sent_fullCommitProof_msg_due_to_reqMissingData_{
           metrics_.RegisterCounter("sentFullCommitProofMsgDueToReqMissingData")},
       metric_not_enough_client_requests_event_{metrics_.RegisterCounter("notEnoughClientRequestsEvent")},
-      metric_total_finished_consensuses_{metrics_.RegisterCounter("totalOrderedRequests")} {
+      metric_total_finished_consensuses_{metrics_.RegisterCounter("totalOrderedRequests")},
+      metric_total_slowPath_{metrics_.RegisterCounter("totalSlowPaths")},
+      metric_total_fastPath_{metrics_.RegisterCounter("totalFastPaths")} {
   Assert(config_.replicaId < config_.numReplicas);
   // TODO(GG): more asserts on params !!!!!!!!!!!
 
@@ -3029,10 +3034,17 @@ void ReplicaImp::start() {
 void ReplicaImp::processMessages() {
   LOG_INFO_F(GL, "Running");
   if (recoveringFromExecutionOfRequests) {
-    const SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum + 1);
+    SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum + 1);
     PrePrepareMsg *pp = seqNumInfo.getPrePrepareMsg();
     Assert(pp != nullptr);
     executeRequestsInPrePrepareMsg(pp, true);
+    metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
+    metric_total_finished_consensuses_.Get().Inc();
+    if (seqNumInfo.slowPathStarted()) {
+      metric_total_slowPath_.Get().Inc();
+    } else {
+      metric_total_fastPath_.Get().Inc();
+    }
     recoveringFromExecutionOfRequests = false;
     mapOfRequestsThatAreBeingRecovered = Bitmap();
   }
@@ -3192,8 +3204,6 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg *ppMsg, bool recov
 
   lastExecutedSeqNum = lastExecutedSeqNum + 1;
 
-  metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
-  metric_total_finished_consensuses_.Get().Inc();
   if (config_.debugStatisticsEnabled) {
     DebugStatistics::onLastExecutedSequenceNumberChanged(lastExecutedSeqNum);
   }
@@ -3275,6 +3285,13 @@ void ReplicaImp::executeNextCommittedRequests(const bool requestMissingInfo) {
     Assert(prePrepareMsg->viewNumber() == curView);  // TODO(GG): TBD
 
     executeRequestsInPrePrepareMsg(prePrepareMsg);
+    metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
+    metric_total_finished_consensuses_.Get().Inc();
+    if (seqNumInfo.slowPathStarted()) {
+      metric_total_slowPath_.Get().Inc();
+    } else {
+      metric_total_fastPath_.Get().Inc();
+    }
   }
 
   if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);

@@ -163,6 +163,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   GaugeHandle metric_status_report_timer_;
   GaugeHandle metric_slow_path_timer_;
   GaugeHandle metric_info_request_timer_;
+  GaugeHandle metric_current_primary_;
 
   // The first commit path being attempted for a new request.
   StatusHandle metric_first_commit_path_;
@@ -200,6 +201,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   CounterHandle metric_sent_fullCommitProof_msg_due_to_reqMissingData_;
   CounterHandle metric_not_enough_client_requests_event_;
   CounterHandle metric_total_finished_consensuses_;
+  CounterHandle metric_total_slowPath_;
+  CounterHandle metric_total_fastPath_;
   //*****************************************************
  public:
   ReplicaImp(const ReplicaConfig&,
