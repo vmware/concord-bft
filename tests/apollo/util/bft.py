@@ -22,6 +22,7 @@ import subprocess
 from collections import namedtuple
 import tempfile
 from functools import wraps
+import inspect
 
 import trio
 
@@ -88,6 +89,14 @@ def with_trio(async_fn):
 def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None, num_ro_replicas=0):
     """
     Runs the decorated async function for all selected BFT configs
+    start_replica_cmd is a callback which is used to start a replica. It should have the following
+    signature:
+        def start_replica_cmd(builddir, replica_id)
+    or
+        def start_replica_cmd(builddir, replica_id, config)
+    If you want the bft test network configuration to be passed to your callback you should add 
+    third parameter named 'config' (the exact name is important!).
+    If you don't need this configuration - use two parameters callback with any names you want.
     """
     def decorator(async_fn):
         @wraps(async_fn)
@@ -253,8 +262,14 @@ class BftTestNetwork:
     def start_replica_cmd(self, replica_id):
         """
         Returns command line to start replica with the given id
+        If the callback accepts three parameters and one of them 
+        is named 'config' - pass the netowork configuration too.
         """
-        return self.config.start_replica_cmd(self.builddir, replica_id)
+        start_replica_fn_args = inspect.getfullargspec(self.config.start_replica_cmd).args
+        if "config" in start_replica_fn_args and len(start_replica_fn_args) == 3:
+            return self.config.start_replica_cmd(self.builddir, replica_id, self.config)
+        else:
+            return self.config.start_replica_cmd(self.builddir, replica_id)
 
     def stop_replica_cmd(self, replica_id):
         """
