@@ -22,7 +22,7 @@ env:
 script:
   - cd $TRAVIS_BUILD_DIR && mkdir build && cd build && cmake $CMAKE_CXX_FLAGS $CI_BUILD_TYPE $USE_LOG4CPP $USE_ROCKSDB $USE_CONAN $USE_S3_OBJECT_STORE .. && make format-check && make -j $(getconf _NPROCESSORS_ONLN)
     # Build and submit this
-    # - travis_wait 50 cmake -E env LD_LIBRARY_PATH=$TRAVIS_BUILD_DIR/build/lib:$LD_LIBRARY_PATH ctest --output-on-failure
+  - travis_wait 50 cmake -E env LD_LIBRARY_PATH=$TRAVIS_BUILD_DIR/build/lib:$LD_LIBRARY_PATH ctest --output-on-failure
 
 
 cache:
