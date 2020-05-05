@@ -29,6 +29,7 @@ namespace concord::kvbc {
 class ReplicaImp : public IReplica,
                    public ILocalKeyValueStorageReadOnly,
                    public IBlocksAppender,
+                   public IBlocksDeleter,
                    public bftEngine::SimpleBlockchainStateTransfer::IAppState {
  public:
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -45,12 +46,20 @@ class ReplicaImp : public IReplica,
   // ILocalKeyValueStorageReadOnly implementation
   Status get(const Sliver &key, Sliver &outValue) const override;
   Status get(BlockId readVersion, const Sliver &key, Sliver &outValue, BlockId &outBlock) const override;
+  BlockId getGenesisBlock() const override { return m_bcDbAdapter->getGenesisBlockId(); }
   BlockId getLastBlock() const override { return getLastBlockNum(); }
   Status getBlockData(BlockId blockId, concord::storage::SetOfKeyValuePairs &outBlockData) const override;
   Status mayHaveConflictBetween(const Sliver &key, BlockId fromBlock, BlockId toBlock, bool &outRes) const override;
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // IBlocksAppender implementation
   Status addBlock(const concord::storage::SetOfKeyValuePairs &updates, BlockId &outBlockId) override;
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  // IBlocksDeleter implementation
+  void deleteGenesisBlock() override;
+  BlockId deleteBlocksUntil(BlockId until) override;
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // IAppState implementation
