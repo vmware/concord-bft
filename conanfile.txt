@@ -13,7 +13,7 @@ zstd/1.4.0@bincrafters/stable
 rocksdb/5.7.3
 hdr_histogram/0.9.12
 rapidcheck/258d907da00a0855f92c963d8f76eef115531716
-libs3-dev/2.0-3
+#libs3-dev/2.0-3
 
 [options]
 OpenSSL:shared=True
