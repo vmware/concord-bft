@@ -214,7 +214,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                 nursery.start_soon(tracker.run_concurrent_ops, 900, 1)
                 
                 # restore the s3 service in 10 secs
-                self.__class__._start_s3_after_X_secs(10)
+                self.__class__._start_s3_after_X_secs(5)
                 
                 # let it work for a while
                 time.sleep(5)
