@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -16,19 +16,6 @@
 #include <memory>
 
 namespace preprocessor {
-
-#pragma pack(push, 1)
-struct PreProcessReplyMsgHeader {
-  MessageBase::Header header;
-  SeqNum reqSeqNum;
-  NodeIdType senderId;
-  uint16_t clientId;
-  uint8_t resultsHash[concord::util::SHA3_256::SIZE_IN_BYTES];
-  uint32_t replyLength;
-  uint32_t cidLength;
-};
-// The pre-executed results' hash signature resides in the message body
-#pragma pack(pop)
 
 class PreProcessReplyMsg : public MessageBase {
  public:
@@ -46,9 +33,26 @@ class PreProcessReplyMsg : public MessageBase {
   const uint8_t* resultsHash() const { return msgBody()->resultsHash; }
   std::string getCid() const;
 
+ protected:
+  template <typename MessageT>
+  friend size_t sizeOfHeader();
+
+#pragma pack(push, 1)
+  struct Header {
+    MessageBase::Header header;
+    SeqNum reqSeqNum;
+    NodeIdType senderId;
+    uint16_t clientId;
+    uint8_t resultsHash[concord::util::SHA3_256::SIZE_IN_BYTES];
+    uint32_t replyLength;
+    uint32_t cidLength;
+  };
+// The pre-executed results' hash signature resides in the message body
+#pragma pack(pop)
+
  private:
   void setParams(NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum);
-  PreProcessReplyMsgHeader* msgBody() const { return ((PreProcessReplyMsgHeader*)msgBody_); }
+  Header* msgBody() const { return ((Header*)msgBody_); }
 
  private:
   static uint16_t maxReplyMsgSize_;

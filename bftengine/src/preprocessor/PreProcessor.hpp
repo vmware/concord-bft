@@ -145,6 +145,7 @@ class PreProcessor {
   } preProcessorMetrics_;
   concordUtil::Timers::Handle requestsStatusCheckTimer_;
   concordUtil::Timers::Handle preProcessReqMsgWaitTimer_;
+  const uint16_t maxPreProcessReqWaitTimeMilli_ = 500;
   const uint64_t preExecReqStatusCheckTimeMilli_;
   const uint16_t preProcessReqWaitTimeMilli_;
 };

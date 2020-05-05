@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -31,10 +31,11 @@ ClientPreProcessRequestMsg::ClientPreProcessRequestMsg(NodeIdType sender,
 unique_ptr<MessageBase> ClientPreProcessRequestMsg::convertToClientRequestMsg(bool resetPreProcessFlag) {
   msgBody_->msgType = MsgCode::ClientRequest;
   if (resetPreProcessFlag) msgBody()->flags &= ~(1 << 1);
-  auto msg = unique_ptr<ClientRequestMsg>((ClientRequestMsg*)this);
+  unique_ptr<MessageBase> clientRequestMsg = make_unique<ClientRequestMsg>(
+      clientProxyId(), flags(), requestSeqNum(), requestLength(), requestBuf(), requestTimeoutMilli(), getCid());
   releaseOwnership();
-  msg->acquireOwnership();
-  return msg;
+  clientRequestMsg->acquireOwnership();
+  return clientRequestMsg;
 }
 
 }  // namespace preprocessor

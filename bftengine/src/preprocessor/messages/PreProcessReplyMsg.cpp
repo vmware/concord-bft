@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -19,7 +19,8 @@ using namespace std;
 using namespace concord::util;
 using namespace bftEngine;
 
-uint16_t PreProcessReplyMsg::maxReplyMsgSize_ = 512;  // Actually, it is sizeof(PreProcessReplyMsgHeader) = 50 + 256
+// maxReplyMsgSize_ = sizeof(Header) + sizeof(signature) + cid.size(), i.e 58 + 256 + up to 710 bytes of cid
+uint16_t PreProcessReplyMsg::maxReplyMsgSize_ = 1024;
 
 PreProcessReplyMsg::PreProcessReplyMsg(SigManagerSharedPtr sigManager,
                                        NodeIdType senderId,
@@ -32,14 +33,14 @@ PreProcessReplyMsg::PreProcessReplyMsg(SigManagerSharedPtr sigManager,
 void PreProcessReplyMsg::validate(const ReplicasInfo& repInfo) const {
   Assert(type() == MsgCode::PreProcessReply);
 
-  const uint64_t headerSize = sizeof(PreProcessReplyMsgHeader);
+  const uint64_t headerSize = sizeof(Header);
   if (size() < headerSize || size() < headerSize + msgBody()->replyLength) throw runtime_error(__PRETTY_FUNCTION__);
 
   auto& msgHeader = *msgBody();
   Assert(msgHeader.senderId != repInfo.myId());
 
   uint16_t sigLen = sigManager_->getSigLength(msgHeader.senderId);
-  if (size() < (sizeof(PreProcessReplyMsgHeader) + sigLen)) throw runtime_error(__PRETTY_FUNCTION__ + string(": size"));
+  if (size() < (sizeof(Header) + sigLen)) throw runtime_error(__PRETTY_FUNCTION__ + string(": size"));
 
   if (!sigManager_->verifySig(msgHeader.senderId,
                               (char*)msgBody()->resultsHash,
@@ -58,7 +59,7 @@ void PreProcessReplyMsg::setParams(NodeIdType senderId, uint16_t clientId, ReqId
 
 void PreProcessReplyMsg::setupMsgBody(const char* buf, uint32_t bufLen, const std::string& cid) {
   const uint16_t sigSize = sigManager_->getMySigLength();
-  const uint16_t headerSize = sizeof(PreProcessReplyMsgHeader);
+  const uint16_t headerSize = sizeof(Header);
 
   // Calculate pre-process result hash
   auto hash = SHA3_256().digest(buf, bufLen);
@@ -70,6 +71,10 @@ void PreProcessReplyMsg::setupMsgBody(const char* buf, uint32_t bufLen, const st
   msgBody()->cidLength = cid.size();
   msgSize_ = headerSize + sigSize + msgBody()->cidLength;
   msgBody()->replyLength = sigSize;
+  LOG_DEBUG(GL,
+            "senderId=" << msgBody()->senderId << " clientId=" << msgBody()->clientId
+                        << " reqSeqNum=" << msgBody()->reqSeqNum << " headerSize=" << headerSize
+                        << " sigSize=" << sigSize << " cidSize=" << cid.size() << " msgSize_=" << msgSize_);
 }
 std::string PreProcessReplyMsg::getCid() const {
   return std::string(body() + msgSize_ - msgBody()->cidLength, msgBody()->cidLength);
