@@ -17,6 +17,7 @@
 #include <cstring>
 #include <mutex>
 #include <thread>
+#include <mutex>
 #include "Logger.hpp"
 #include "assertUtils.hpp"
 #include "storage/db_interface.h"

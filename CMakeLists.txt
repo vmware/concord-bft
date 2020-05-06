@@ -111,6 +111,8 @@ if (USE_CONAN)
     conan_cmake_run(CONANFILE conanfile.txt
             BASIC_SETUP CMAKE_TARGETS NO_OUTPUT_DIRS
             BUILD missing)
+else()
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 endif()
 
 include(CTest)

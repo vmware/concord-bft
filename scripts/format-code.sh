@@ -10,7 +10,7 @@ fi
 # Construct the absolute path
 export TMP_CONCORD_DIR="$1"
 ABS_CONCORD_PATH=$(
-  python -c 'import os; print(os.path.abspath(os.environ["TMP_CONCORD_DIR"]))')
+  python3 -c 'import os; print(os.path.abspath(os.environ["TMP_CONCORD_DIR"]))')
 unset TMP_CONCORD_DIR
 
 # Overly cautious saftey check
