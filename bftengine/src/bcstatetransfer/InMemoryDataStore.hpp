@@ -19,6 +19,7 @@
 
 #include "DataStore.hpp"
 #include "STDigest.hpp"
+#include "Logger.hpp"
 
 using std::map;
 
@@ -106,13 +107,8 @@ class InMemoryDataStore : public DataStore {
                                              const STDigest& inPageDigest) override;
 
   void setResPage(uint32_t inPageId, uint64_t inCheckpoint, const STDigest& inPageDigest, const char* inPage) override;
-  void getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint) override;
-  void getResPage(uint32_t inPageId,
-                  uint64_t inCheckpoint,
-                  uint64_t* outActualCheckpoint,
-                  char* outPage,
-                  uint32_t copylength) override;
-  void getResPage(uint32_t inPageId,
+
+  bool getResPage(uint32_t inPageId,
                   uint64_t inCheckpoint,
                   uint64_t* outActualCheckpoint,
                   STDigest* outPageDigest,
@@ -196,6 +192,10 @@ class InMemoryDataStore : public DataStore {
   const map<uint32_t, char*>& getPendingPagesMap() const { return pendingPages; }
 
   void setInitialized(bool init) { wasInit_ = init; }
+  concordlogger::Logger& logger() {
+    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("bft.st.inmem");
+    return logger_;
+  }
 };
 
 }  // namespace impl

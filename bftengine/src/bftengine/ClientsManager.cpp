@@ -68,7 +68,7 @@ void ClientsManager::clearReservedPages() {
 void ClientsManager::loadInfoFromReservedPages() {
   for (std::pair<NodeIdType, uint16_t> e : clientIdToIndex_) {
     const uint32_t firstPageId = e.second * reservedPagesPerClient_;
-    // to deal with a situation when restarting before state transfer first checkpoint reached
+
     if (!stateTransfer_->loadReservedPage(firstPageId, sizeOfReservedPage_, scratchPage_)) continue;
 
     ClientReplyMsgHeader* replyHeader = (ClientReplyMsgHeader*)scratchPage_;

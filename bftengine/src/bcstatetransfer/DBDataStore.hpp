@@ -104,23 +104,14 @@ class DBDataStore : public DataStore {
   ResPagesDescriptor* getResPagesDescriptor(uint64_t inCheckpoint) override {
     return inmem_->getResPagesDescriptor(inCheckpoint);
   }
-  void getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint) override {
-    inmem_->getResPage(inPageId, inCheckpoint, outActualCheckpoint);
-  }
-  void getResPage(uint32_t inPageId,
-                  uint64_t inCheckpoint,
-                  uint64_t* outActualCheckpoint,
-                  char* outPage,
-                  uint32_t copylength) override {
-    inmem_->getResPage(inPageId, inCheckpoint, outActualCheckpoint, outPage, copylength);
-  }
-  void getResPage(uint32_t inPageId,
+
+  bool getResPage(uint32_t inPageId,
                   uint64_t inCheckpoint,
                   uint64_t* outActualCheckpoint,
                   STDigest* outPageDigest,
                   char* outPage,
                   uint32_t copylength) override {
-    inmem_->getResPage(inPageId, inCheckpoint, outActualCheckpoint, outPageDigest, outPage, copylength);
+    return inmem_->getResPage(inPageId, inCheckpoint, outActualCheckpoint, outPageDigest, outPage, copylength);
   }
 
  protected:
@@ -236,7 +227,7 @@ class DBDataStore : public DataStore {
   Sliver genKey(const ObjectId& objId) const { return keymanip_->generateStateTransferKey(objId); }
   /** ****************************************************************************************************************/
   concordlogger::Logger& logger() {
-    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("DBDataStore");
+    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("bft.st.dbdatastore");
     return logger_;
   }
 

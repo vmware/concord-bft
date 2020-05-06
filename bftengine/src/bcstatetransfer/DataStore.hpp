@@ -99,10 +99,14 @@ class DataStore : public std::enable_shared_from_this<DataStore> {
                           uint64_t inCheckpoint,
                           const STDigest& inPageDigest,
                           const char* inPage) = 0;
-  virtual void getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint) = 0;
-  virtual void getResPage(
-      uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint, char* outPage, uint32_t copylength) = 0;
-  virtual void getResPage(uint32_t inPageId,
+  virtual bool getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint) {
+    return getResPage(inPageId, inCheckpoint, outActualCheckpoint, nullptr, nullptr, 0);
+  }
+  virtual bool getResPage(
+      uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint, char* outPage, uint32_t copylength) {
+    return getResPage(inPageId, inCheckpoint, outActualCheckpoint, nullptr, outPage, copylength);
+  }
+  virtual bool getResPage(uint32_t inPageId,
                           uint64_t inCheckpoint,
                           uint64_t* outActualCheckpoint,
                           STDigest* outPageDigest,
@@ -228,17 +232,7 @@ class DataStoreTransaction : public DataStore, public ITransaction {
   void getPendingResPage(uint32_t inPageId, char* outPage, uint32_t pageLen) override {
     return ds_->getPendingResPage(inPageId, outPage, pageLen);
   }
-  void getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint) override {
-    return ds_->getResPage(inPageId, inCheckpoint, outActualCheckpoint);
-  }
-  void getResPage(uint32_t inPageId,
-                  uint64_t inCheckpoint,
-                  uint64_t* outActualCheckpoint,
-                  char* outPage,
-                  uint32_t copylength) override {
-    return ds_->getResPage(inPageId, inCheckpoint, outActualCheckpoint, outPage, copylength);
-  }
-  void getResPage(uint32_t inPageId,
+  bool getResPage(uint32_t inPageId,
                   uint64_t inCheckpoint,
                   uint64_t* outActualCheckpoint,
                   STDigest* outPageDigest,
