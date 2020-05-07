@@ -15,6 +15,7 @@
 
 #include <libs3.h>
 #include <cstring>
+#include <mutex>
 #include <thread>
 #include "Logger.hpp"
 #include "assertUtils.hpp"
