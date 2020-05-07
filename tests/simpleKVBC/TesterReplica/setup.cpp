@@ -169,12 +169,21 @@ concord::storage::s3::StoreConfig TestSetup::ParseS3Config(const std::string& s3
   ConfigFileParser parser(logger_, s3ConfigFile);
   if (!parser.Parse()) throw std::runtime_error("failed to parse" + s3ConfigFile);
 
+  auto get_config_value = [&s3ConfigFile, &parser](std::string key) {
+    std::vector<std::string> v = parser.GetValues(key);
+    if (v.size()) {
+      return v[0];
+    } else {
+      throw std::runtime_error("failed to parse" + s3ConfigFile + ": " + key + " is not set.");
+    }
+  };
+
   concord::storage::s3::StoreConfig config;
-  config.bucketName = parser.GetValues("s3-bucket-name")[0];
-  config.accessKey = parser.GetValues("s3-access-key")[0];
-  config.protocol = parser.GetValues("s3-protocol")[0];
-  config.url = parser.GetValues("s3-url")[0];
-  config.secretKey = parser.GetValues("s3-secret-key")[0];
+  config.bucketName = get_config_value("s3-bucket-name");
+  config.accessKey = get_config_value("s3-access-key");
+  config.protocol = get_config_value("s3-protocol");
+  config.url = get_config_value("s3-url");
+  config.secretKey = get_config_value("s3-secret-key");
 
   LOG_INFO(logger_,
            "\nS3 Configuration:"
