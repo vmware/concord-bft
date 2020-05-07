@@ -93,6 +93,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
 
         # First stop the server
         cls.minio_server_proc.terminate()
+        cls.minio_server_proc.wait()
 
         # Delete workdir dir
         shutil.rmtree(cls.work_dir)
