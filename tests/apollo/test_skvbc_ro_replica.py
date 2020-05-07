@@ -209,18 +209,18 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         bft_network.start_replica(ro_replica_id)
         # TODO replace the below function with the library function:
         # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), checkpoint_num=1)     
-        with trio.fail_after(seconds=60):
+        with trio.fail_after(seconds=80):
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(tracker.run_concurrent_ops, 900, 1)
                 
                 # restore the s3 service in 10 secs
-                self.__class__._start_s3_after_X_secs(5)
+                self.__class__._start_s3_after_X_secs(2)
                 
                 # let it work for a while
                 time.sleep(5)
 
                 # and kill it for some time
-                self.__class__._stop_s3_for_X_secs(5)
+                self.__class__._stop_s3_for_X_secs(2)
 
                 # the ro replica should be able to survive these failures
                 while True:
