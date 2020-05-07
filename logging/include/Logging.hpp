@@ -70,24 +70,6 @@ class Logger {
               << " " << mdcToStr() << " " << s << std::endl;
   }
 
-  void print(concordlogger::LogLevel l, const char* format, ...) __attribute__((format(__printf__, 3, 4))) {
-    std::stringstream time;
-    get_time(time);
-    va_list args;
-    va_start(args, format);
-    static constexpr size_t size = 1024;
-    std::string output(size, '\0');
-    std::vsnprintf(const_cast<char*>(output.c_str()), size, format, args);
-    va_end(args);
-
-    printf("%s %s (%s) %s %s\n",
-           Logger::LEVELS_STRINGS[l].c_str(),
-           time.str().c_str(),
-           _name.c_str(),
-           mdcToStr().c_str(),
-           output.c_str());
-  }
-
   void putMdc(const std::string& key, const std::string& val) {
     std::lock_guard<std::mutex> lock(mdc_mutex_);
     mdc_.emplace(key, val);
@@ -121,17 +103,7 @@ class Logger {
   }
 };
 
-class Log {
- public:
-  static Logger getLogger(std::string name) { return Logger(name); }
-};
-
 }  // namespace concordlogger
-
-#define LOG_COMMON_F(logger, level, ...)                                                                       \
-  if (concordlogger::CURRENT_LEVEL != concordlogger::LogLevel::off && level >= concordlogger::CURRENT_LEVEL) { \
-    logger.print(level, __VA_ARGS__);                                                                          \
-  }
 
 #define LOG_COMMON(logger, level, s)                                                                           \
   if (concordlogger::CURRENT_LEVEL != concordlogger::LogLevel::off && level >= concordlogger::CURRENT_LEVEL) { \
@@ -141,21 +113,15 @@ class Log {
   }
 
 #define LOG_TRACE(l, s) LOG_COMMON(l, concordlogger::LogLevel::trace, s)
-#define LOG_TRACE_F(l, ...) LOG_COMMON_F(l, concordlogger::LogLevel::trace, __VA_ARGS__)
 
 #define LOG_DEBUG(l, s) LOG_COMMON(l, concordlogger::LogLevel::debug, s)
-#define LOG_DEBUG_F(l, ...) LOG_COMMON_F(l, concordlogger::LogLevel::debug, __VA_ARGS__)
 
 #define LOG_INFO(l, s) LOG_COMMON(l, concordlogger::LogLevel::info, s)
-#define LOG_INFO_F(l, ...) LOG_COMMON_F(l, concordlogger::LogLevel::info, __VA_ARGS__)
 
 #define LOG_WARN(l, s) LOG_COMMON(l, concordlogger::LogLevel::warn, s)
-#define LOG_WARN_F(l, ...) LOG_COMMON_F(l, concordlogger::LogLevel::warn, __VA_ARGS__)
 
 #define LOG_ERROR(l, s) LOG_COMMON(l, concordlogger::LogLevel::error, s)
-#define LOG_ERROR_F(l, ...) LOG_COMMON_F(l, concordlogger::LogLevel::error, __VA_ARGS__)
 
 #define LOG_FATAL(l, s) LOG_COMMON(l, concordlogger::LogLevel::fatal, s)
-#define LOG_FATAL_F(l, ...) LOG_COMMON_F(l, concordlogger::LogLevel::fatal, __VA_ARGS__)
 
 #endif

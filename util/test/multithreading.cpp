@@ -96,7 +96,7 @@ class HandoffFixture : public testing::Test {
   // Sets up the test fixture.
   virtual void SetUp() {
     ASSERT_GT(std::thread::hardware_concurrency(), 1);
-    handoff_ = new concord::util::Handoff();
+    handoff_ = new concord::util::Handoff(0);
   }
 
   concord::util::Handoff* handoff_;

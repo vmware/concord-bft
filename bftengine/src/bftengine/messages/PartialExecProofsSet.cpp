@@ -153,8 +153,7 @@ class AsynchExecProofCreationJob : public util::SimpleThreadPool::Job {
   virtual ~AsynchExecProofCreationJob(){};
 
   virtual void execute() {
-    LOG_DEBUG_F(
-        GL, "PartialExecProofsSet::AsynchProofCreationJob::execute - begin (for seqNumber %" PRId64 ")", seqNumber);
+    LOG_DEBUG(GL, "PartialExecProofsSet::AsynchProofCreationJob::execute - begin (for seqNumber " << seqNumber);
 
     const uint16_t bufferSize = (uint16_t)verifier->requiredLengthForSignedData();
     char* const bufferForSigComputations = (char*)alloca(bufferSize);
@@ -165,7 +164,7 @@ class AsynchExecProofCreationJob : public util::SimpleThreadPool::Job {
 
     //		if (sigLength > sizeof(bufferForSigComputations) || sigLength > UINT16_MAX || sigLength == 0)
     if (sigLength > UINT16_MAX || sigLength == 0) {
-      LOG_WARN_F(GL, "Unable to create FullProof for seqNumber %" PRId64 "", seqNumber);
+      LOG_WARN(GL, "Unable to create FullProof for seqNumber " << seqNumber);
       return;
     }
 
@@ -174,17 +173,15 @@ class AsynchExecProofCreationJob : public util::SimpleThreadPool::Job {
     bool succ = verifier->verify((char*)&expectedDigest, sizeof(Digest), bufferForSigComputations, sigLength);
 
     if (!succ) {
-      LOG_WARN_F(GL, "Failed to create execution proof for seqNumber %" PRId64 "", seqNumber);
-      LOG_DEBUG_F(
-          GL, "PartialExecProofsSet::AsynchProofCreationJob::execute - end (for seqNumber %" PRId64 ")", seqNumber);
+      LOG_WARN(GL, "Failed to create execution proof for seqNumber " << seqNumber);
+      LOG_DEBUG(GL, "PartialExecProofsSet::AsynchProofCreationJob::execute - end (for seqNumber " << seqNumber << ")");
       return;
     } else {
       std::unique_ptr<InternalMessage> pInMsg(new MerkleExecSignatureInternalMsg(
           replicaApi, view, seqNumber, (uint16_t)sigLength, bufferForSigComputations));
       replicaApi->getIncomingMsgsStorage().pushInternalMsg(std::move(pInMsg));
     }
-    LOG_DEBUG_F(
-        GL, "PartialExecProofsSet::AsynchProofCreationJob::execute - end (for seqNumber %" PRId64 ")", seqNumber);
+    LOG_DEBUG(GL, "PartialExecProofsSet::AsynchProofCreationJob::execute - end (for seqNumber " << seqNumber << ")");
   }
 
   virtual void release() {}
@@ -211,7 +208,7 @@ void PartialExecProofsSet::tryToCreateFullProof() {
 
     replicaApi->getInternalThreadPool().add(j);
 
-    LOG_DEBUG_F(GL, "PartialExecProofsSet - send to BK thread (for seqNumber %" PRId64 ")", seqNumber);
+    LOG_DEBUG(GL, "PartialExecProofsSet - send to BK thread (for seqNumber " << seqNumber << ")");
   }
 }
 

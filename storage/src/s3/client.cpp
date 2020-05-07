@@ -54,7 +54,6 @@ void Client::init(bool readOnly) {
   }
   LOG_INFO(logger_, "libs3 initialized");
   init_ = true;
-  log4cplus::Logger::getInstance("concord.storage.s3").setLogLevel(log4cplus::DEBUG_LOG_LEVEL);
 }
 
 Status Client::del(const Sliver& key) {
@@ -81,7 +80,7 @@ Status Client::del(const Sliver& key) {
 
 Status Client::get_internal(const Sliver& _key, OUT Sliver& _outValue) const {
   Assert(init_);
-  LOG_INFO(logger_, "get key: " << _key.toString());
+  LOG_DEBUG(logger_, "get key: " << _key.toString());
   GetObjectResponseData cbData(kInitialGetBufferSize_);
   S3GetObjectHandler getObjectHandler;
   getObjectHandler.responseHandler = responseHandler;
@@ -100,7 +99,7 @@ Status Client::get_internal(const Sliver& _key, OUT Sliver& _outValue) const {
     _outValue = Sliver::copy(reinterpret_cast<const char*>(cbData.data), cbData.readLength);
     return Status::OK();
   } else {
-    LOG_INFO(logger_, "get status: " << S3_get_status_name(cbData.status));
+    LOG_DEBUG(logger_, "get status: " << S3_get_status_name(cbData.status));
     if (cbData.status == S3Status::S3StatusHttpErrorNotFound || cbData.status == S3Status::S3StatusErrorNoSuchBucket ||
         cbData.status == S3Status::S3StatusErrorNoSuchKey)
       return Status::NotFound("Status: " + std::string(S3_get_status_name(cbData.status)) +
@@ -158,7 +157,7 @@ Status Client::object_exists_internal(const Sliver& key) const {
   if (rData.status == S3Status::S3StatusOK)
     return Status::OK();
   else {
-    LOG_ERROR(
+    LOG_DEBUG(
         logger_,
         "object_exist key: " << string(key.data()) << ", status: " << rData.status << ", msg: " << rData.errorMessage);
     if (rData.status == S3Status::S3StatusHttpErrorNotFound || rData.status == S3Status::S3StatusErrorNoSuchBucket ||

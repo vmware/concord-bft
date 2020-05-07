@@ -11,39 +11,84 @@
 // as noted in the LICENSE file.
 
 #include "Logger.hpp"
+#include <iostream>
+
 #ifndef USE_LOG4CPP
-concordlogger::Logger initLogger() { return concordlogger::Log::getLogger(DEFAULT_LOGGER_NAME); }
-concordlogger::MDC::MDC(concordlogger::Logger &logger, const std::string &key, const std::string &value)
-    : logger_(logger), key_(key) {
+
+namespace concordlogger {
+
+Logger Log::getLogger(const std::string &name) { return Logger(name); }
+
+void Log::initLogger(const std::string &configFileName) { /* TBD */
+}
+
+static Logger defaultInitLogger() { return concordlogger::Log::getLogger(DEFAULT_LOGGER_NAME); }
+
+MDC::MDC(concordlogger::Logger &logger, const std::string &key, const std::string &value) : logger_(logger), key_(key) {
   logger_.putMdc(key, value);
 }
-concordlogger::MDC::~MDC() { logger_.removeMdc(key_); }
+
+MDC::~MDC() { logger_.removeMdc(key_); }
+
+}  // namespace concordlogger
 #else
 #include <log4cplus/logger.h>
 #include <log4cplus/configurator.h>
+#include <log4cplus/helpers/property.h>
 #include <log4cplus/consoleappender.h>
+#include <log4cplus/fileappender.h>
 #include <log4cplus/mdc.h>
-
-concordlogger::Logger initLogger() {
-  log4cplus::SharedAppenderPtr ca_ptr = log4cplus::SharedAppenderPtr(new log4cplus::ConsoleAppender(false, true));
-  ca_ptr->setLayout(std::auto_ptr<log4cplus::Layout>(
-      new log4cplus::PatternLayout("Node %X{rid}|%d{%d %m %Y %H:%M:%S.%q}|%t|%-5p|%c|%M|%m%n")));
-  log4cplus::Logger::getRoot().addAppender(ca_ptr);
-  log4cplus::Logger::getRoot().setLogLevel(log4cplus::INFO_LOG_LEVEL);
-  return log4cplus::Logger::getInstance(LOG4CPLUS_TEXT(DEFAULT_LOGGER_NAME));
-}
-
-concordlogger::MDC::MDC(concordlogger::Logger &logger, const std::string &key, const std::string &value)
-    : logger_(logger), key_(key) {
-  (void)logger_;
-  log4cplus::getMDC().put(key_, value);
-}
-concordlogger::MDC::~MDC() {
-  (void)logger_;
-  log4cplus::getMDC().remove(key_);
-  ;
-}
-
+#if __has_include(<filesystem>)
+#include <filesystem>
+namespace fs = std::filesystem;
+#elif __has_include(<experimental/filesystem>)
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#else
+#error "Missing filesystem support"
 #endif
 
-concordlogger::Logger GL = initLogger();
+using namespace log4cplus;
+
+namespace concordlogger {
+
+const char* logPattern = "%X{rid}|%d{%m-%d-%Y %H:%M:%S.%q}|%t|%-5p|%c|%M|%m%n";
+
+static Logger defaultInitLogger() {
+  SharedAppenderPtr ca_ptr = SharedAppenderPtr(new ConsoleAppender(false, true));
+  ca_ptr->setLayout(std::auto_ptr<Layout>(new PatternLayout(logPattern)));
+
+  Logger::getRoot().addAppender(ca_ptr);
+  Logger::getRoot().setLogLevel(INFO_LOG_LEVEL);
+  return Logger::getInstance(LOG4CPLUS_TEXT(DEFAULT_LOGGER_NAME));
+}
+
+// first lookup a configuration file in the current directory
+// if not found - use default configuration
+void Log::initLogger(const std::string& configFileName) {
+  if (!fs::exists(configFileName)) {
+    std::cerr << __PRETTY_FUNCTION__ << ": log4cplus properties file " << configFileName
+              << " not found in the current dir" << std::endl;
+    return;
+  }
+  // PropertyConfigurator propConfig (configFileName);
+  helpers::Properties props(configFileName);
+  PropertyConfigurator propConfig(props);
+  propConfig.configure();
+}
+Logger Log::getLogger(const std::string& name) { return log4cplus::Logger::getInstance(name); }
+
+MDC::MDC(concordlogger::Logger& logger, const std::string& key, const std::string& value) : logger_(logger), key_(key) {
+  (void)logger_;
+  getMDC().put(key_, value);
+}
+
+MDC::~MDC() {
+  (void)logger_;
+  getMDC().remove(key_);
+}
+
+}  // namespace concordlogger
+#endif
+
+concordlogger::Logger GL = concordlogger::defaultInitLogger();

@@ -154,7 +154,7 @@ IReplica *IReplica::createNewReplica(ReplicaConfig *replicaConfig,
     ReplicaLoader::ErrorCode loadErrCode;
     auto loadedReplicaData = ReplicaLoader::loadReplica(persistentStoragePtr, loadErrCode);
     if (loadErrCode != ReplicaLoader::ErrorCode::Success) {
-      LOG_ERROR_F(GL, "Unable to load replica state from storage. Error %X", (uint32_t)loadErrCode);
+      LOG_ERROR(GL, "Unable to load replica state from storage. Error " << (uint32_t)loadErrCode);
       return nullptr;
     }
     // TODO(GG): compare ld.repConfig and replicaConfig
