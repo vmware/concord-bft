@@ -119,6 +119,12 @@ class DBAdapter : public IDbAdapter {
   //    only has a single blockchain block.
   void deleteBlock(const BlockId &blockId) override;
 
+  // Deletes the last reachable block.
+  // If the blockchain is empty, the call has no effect.
+  // If there is only 1 block in the blockchain, it will be deleted (as opposed to calling deleteBlock()).
+  // Throws if an error occurs.
+  void deleteLastReachableBlock() override;
+
   // Returns the block data in the form of a set of key/value pairs.
   SetOfKeyValuePairs getBlockData(const RawBlock &rawBlock) const override;
 
@@ -164,6 +170,8 @@ class DBAdapter : public IDbAdapter {
 
   std::optional<std::pair<Key, Value>> getLeafKeyValAtMostVersion(const Key &key,
                                                                   const sparse_merkle::Version &version) const;
+
+  void deleteKeysForBlock(const KeysVector &keys, BlockId blockId) const;
 
   class Reader : public sparse_merkle::IDBReader {
    public:

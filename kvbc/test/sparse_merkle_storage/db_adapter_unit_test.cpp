@@ -949,6 +949,45 @@ TEST_P(db_adapter_custom_blockchain, delete_only_block_in_system) {
   ASSERT_TRUE(adapter.hasBlock(1));
 }
 
+TEST_P(db_adapter_custom_blockchain, delete_only_block_as_last_reachable) {
+  auto adapter = DBAdapter{GetParam()->db()};
+
+  const auto key = Sliver{"k"};
+  const auto valueBefore = Sliver{"vb"};
+  const auto valueAfter = Sliver{"va"};
+  const auto updatesBefore = SetOfKeyValuePairs{std::make_pair(key, valueBefore)};
+  const auto updatesAfter = SetOfKeyValuePairs{std::make_pair(key, valueAfter)};
+
+  // Doesn't throw on an empty blockchain.
+  ASSERT_NO_THROW(adapter.deleteLastReachableBlock());
+
+  // Add a single block.
+  ASSERT_EQ(adapter.addBlock(updatesBefore), 1);
+  ASSERT_EQ(adapter.getLastReachableBlockId(), 1);
+  ASSERT_EQ(adapter.getLatestBlockId(), 1);
+  ASSERT_EQ(adapter.getGenesisBlockId(), 1);
+
+  // Delete the last reachable block.
+  adapter.deleteLastReachableBlock();
+
+  // Verify it has been deleted.
+  ASSERT_THROW(adapter.getRawBlock(1), NotFoundException);
+  ASSERT_THROW(adapter.getValue(key, 1), NotFoundException);
+  ASSERT_EQ(adapter.getLastReachableBlockId(), 0);
+  ASSERT_EQ(adapter.getLatestBlockId(), 0);
+  ASSERT_EQ(adapter.getGenesisBlockId(), 0);
+
+  // Verify we can add block 1 again. Use different values.
+  ASSERT_EQ(adapter.addBlock(updatesAfter), 1);
+  ASSERT_EQ(adapter.getLastReachableBlockId(), 1);
+  ASSERT_EQ(adapter.getLatestBlockId(), 1);
+  ASSERT_EQ(adapter.getGenesisBlockId(), 1);
+  ASSERT_NO_THROW(adapter.getRawBlock(1));
+  const auto [foundValue, version] = adapter.getValue(key, 1);
+  ASSERT_EQ(foundValue, valueAfter);
+  ASSERT_EQ(version, 1);
+}
+
 TEST_P(db_adapter_custom_blockchain, delete_multiple_genesis_blocks) {
   const auto numBlocks = 10;
   auto adapter = DBAdapter{GetParam()->db()};

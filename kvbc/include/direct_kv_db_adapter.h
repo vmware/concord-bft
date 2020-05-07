@@ -144,6 +144,8 @@ class DBAdapter : public IDbAdapter {
 
   void deleteBlock(const BlockId &) override;
 
+  void deleteLastReachableBlock() override;
+
   bool hasBlock(const BlockId &blockId) const override;
 
   BlockId getGenesisBlockId() const override { return (getLastReachableBlockId() ? INITIAL_GENESIS_BLOCK_ID : 0); }

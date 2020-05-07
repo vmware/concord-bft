@@ -457,6 +457,17 @@ void DBAdapter::deleteBlock(const BlockId &blockId) {
 }
 
 /**
+ * @brief Deletes the last reachable block.
+ */
+void DBAdapter::deleteLastReachableBlock() {
+  const auto lastReachableBlockId = getLastReachableBlockId();
+  if (lastReachableBlockId == 0) {
+    return;
+  }
+  deleteBlock(lastReachableBlockId);
+}
+
+/**
  * @brief Searches for record in the database by the read version.
  *
  * Read version is used as the block id for generating a composite database key
