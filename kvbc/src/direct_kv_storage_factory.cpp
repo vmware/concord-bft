@@ -30,10 +30,8 @@ namespace concord::kvbc::v1DirectKeyValue {
 namespace {
 #ifdef USE_ROCKSDB
 auto createRocksDBClient(const std::string &dbPath) {
-  // Since the client doesn't own the comparator, use the same instance for all clients. This is RocksDB's default
-  // behavior - using a static instance returned by BytewiseComparator(). See the ::rocksdb::Options class.
-  static const auto comparator = storage::rocksdb::KeyComparator{new DBKeyComparator{}};
-  return std::make_shared<storage::rocksdb::Client>(dbPath, &comparator);
+  return std::make_shared<storage::rocksdb::Client>(
+      dbPath, std::make_unique<storage::rocksdb::KeyComparator>(new DBKeyComparator{}));
 }
 #endif
 }  // namespace

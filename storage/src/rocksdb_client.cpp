@@ -96,7 +96,7 @@ void Client::init(bool readOnly) {
   options.create_if_missing = true;
   // If a comparator is passed, use it. If not, use the default one.
   if (comparator_) {
-    options.comparator = comparator_;
+    options.comparator = comparator_.get();
   }
   ::rocksdb::Status s;
   if (readOnly) {

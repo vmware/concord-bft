@@ -60,7 +60,7 @@ class BcStTest : public ::testing::Test {
     auto* db_key_comparator = new concord::kvbc::v1DirectKeyValue::DBKeyComparator();
 #ifdef USE_ROCKSDB
     concord::storage::IDBClient::ptr dbc(
-        new concord::storage::rocksdb::Client("./bcst_db", new KeyComparator(db_key_comparator)));
+        new concord::storage::rocksdb::Client("./bcst_db", std::make_unique<KeyComparator>(db_key_comparator)));
     dbc->init();
     auto* datastore = new DBDataStore(
         dbc, config_.sizeOfReservedPage, std::make_shared<concord::storage::v1DirectKeyValue::STKeyManipulator>());

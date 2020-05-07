@@ -59,8 +59,9 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
 
 class Client : public concord::storage::IDBClient {
  public:
-  Client(std::string _dbPath, const ::rocksdb::Comparator* comparator = nullptr)
-      : m_dbPath(_dbPath), comparator_(comparator) {}
+  Client(std::string _dbPath) : m_dbPath(_dbPath) {}
+  Client(std::string _dbPath, std::unique_ptr<const ::rocksdb::Comparator>&& comparator)
+      : m_dbPath(_dbPath), comparator_(std::move(comparator)) {}
 
   ~Client() {
     if (txn_db_) {
@@ -105,7 +106,7 @@ class Client : public concord::storage::IDBClient {
   // Database object (created on connection).
   std::unique_ptr<::rocksdb::DB> dbInstance_;
   ::rocksdb::TransactionDB* txn_db_ = nullptr;
-  const ::rocksdb::Comparator* comparator_ = nullptr;  // TODO unique?
+  std::unique_ptr<const ::rocksdb::Comparator> comparator_;
 };
 
 ::rocksdb::Slice toRocksdbSlice(const concordUtils::Sliver& _s);
