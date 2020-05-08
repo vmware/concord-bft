@@ -215,8 +215,6 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         )
 
         self.__class__._start_s3_server()
-        time.sleep(10)
-        self.__class__._stop_s3_for_X_secs(5)
 
         # TODO replace the below function with the library function:
         # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), checkpoint_num=1)     
