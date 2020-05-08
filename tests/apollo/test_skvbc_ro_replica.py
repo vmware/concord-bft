@@ -17,6 +17,7 @@ import random
 import subprocess
 import tempfile
 import shutil
+import time
 
 from util import bft
 from util import skvbc as kvbc
@@ -55,22 +56,8 @@ def start_replica_cmd(builddir, replica_id, config):
     return ret
 
 class SkvbcReadOnlyReplicaTest(unittest.TestCase):
-
     @classmethod
-    def setUpClass(cls):
-        if not os.environ["USE_S3_OBJECT_STORE"]:
-            return
-
-        # We need a temp dir for data and binaries - this is cls.dest_dir
-        # self.dest_dir will contain data dir for minio buckets and the minio binary
-        # if there are any directories inside data dir - they become buckets
-        cls.work_dir = "/tmp/concord_bft_minio_datadir_" + next(tempfile._get_candidate_names())
-        minio_server_data_dir = os.path.join(cls.work_dir, "data")
-        os.makedirs(os.path.join(cls.work_dir, "data", "blockchain"))     # create all dirs in one call
-
-        print(f"Working in {cls.work_dir}")
-
-        # Start server
+    def _start_s3_server(cls):
         print("Starting server")
         server_env = os.environ.copy()
         server_env["MINIO_ACCESS_KEY"] = "concordbft"
@@ -81,9 +68,27 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
             shutil.rmtree(cls.work_dir)
             raise RuntimeError("Please set path to minio binary to CONCORD_BFT_MINIO_BINARY_PATH env variable")
 
-        cls.minio_server_proc = subprocess.Popen([minio_server_fname, "server", minio_server_data_dir], 
+        cls.minio_server_proc = subprocess.Popen([minio_server_fname, "server", cls.minio_server_data_dir], 
                                                     env = server_env, 
                                                     close_fds=True)
+
+    @classmethod
+    def setUpClass(cls):
+        if not os.environ["USE_S3_OBJECT_STORE"]:
+            return
+
+        # We need a temp dir for data and binaries - this is cls.dest_dir
+        # self.dest_dir will contain data dir for minio buckets and the minio binary
+        # if there are any directories inside data dir - they become buckets
+        cls.work_dir = "/tmp/concord_bft_minio_datadir_" + next(tempfile._get_candidate_names())
+        cls.minio_server_data_dir = os.path.join(cls.work_dir, "data")
+        os.makedirs(os.path.join(cls.work_dir, "data", "blockchain"))     # create all dirs in one call
+
+        print(f"Working in {cls.work_dir}")
+
+        # Start server
+        cls._start_s3_server()
+        
         print("Initialisation complete")
 
     @classmethod
@@ -91,12 +96,28 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         if not os.environ["USE_S3_OBJECT_STORE"]:
             return
 
-        # First stop the server
+        # First stop the server gracefully
         cls.minio_server_proc.terminate()
         cls.minio_server_proc.wait()
 
         # Delete workdir dir
         shutil.rmtree(cls.work_dir)
+
+    @classmethod
+    def _stop_s3_server(cls):
+        cls.minio_server_proc.kill()
+        cls.minio_server_proc.wait()
+
+    @classmethod
+    def _stop_s3_for_X_secs(cls, x):
+        cls._stop_s3_server()
+        time.sleep(x)
+        cls._start_s3_server()
+
+    @classmethod
+    def _start_s3_after_X_secs(cls, x):
+        time.sleep(x)
+        cls._start_s3_server()
 
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1)
@@ -163,6 +184,43 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         with trio.fail_after(seconds=60):
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(tracker.run_concurrent_ops, 900, 1)
+                while True:
+                    with trio.move_on_after(seconds=.5):
+                        try:
+                            key = ['replica', 'Gauges', 'lastExecutedSeqNum']
+                            lastExecutedSeqNum = await bft_network.metrics.get(ro_replica_id, *key)
+                        except KeyError:
+                            continue
+                        else:
+                            # success!
+                            if lastExecutedSeqNum >= 50:
+                                print("Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
+                                nursery.cancel_scope.cancel()
+
+    @with_trio
+    @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1)
+    async def test_ro_replica_with_s3_failures(self, bft_network):
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        # start the read-only replica while the s3 service is down
+        self.__class__._stop_s3_server()
+        ro_replica_id = bft_network.config.n
+        bft_network.start_replica(ro_replica_id)
+
+        await skvbc.fill_and_wait_for_checkpoint(
+            initial_nodes=bft_network.all_replicas(),
+            checkpoint_num=1,
+            verify_checkpoint_persistency=False
+        )
+
+        self.__class__._start_s3_server()
+
+        # TODO replace the below function with the library function:
+        # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), checkpoint_num=1)     
+        with trio.fail_after(seconds=60):
+            async with trio.open_nursery() as nursery:
+                # the ro replica should be able to survive these failures
                 while True:
                     with trio.move_on_after(seconds=.5):
                         try:
