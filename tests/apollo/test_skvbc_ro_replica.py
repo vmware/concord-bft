@@ -219,9 +219,6 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                 # let it work for a while
                 time.sleep(5)
 
-                # and kill it for some time
-                self.__class__._stop_s3_for_X_secs(2)
-
                 # the ro replica should be able to survive these failures
                 while True:
                     with trio.move_on_after(seconds=.5):
