@@ -910,8 +910,15 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
    * @param length data length
    */
   void send(const char *data, uint32_t length) {
-    assert(data);
-    assert(length > 0 && length <= _maxMessageLength - MSG_HEADER_SIZE);
+    if (!data) {
+      LOG_ERROR(_logger, "Error, message has never been initialized")
+      throw std::invalid_argument("data = nullptr");
+    }
+
+    if (length <= 0 || length > _maxMessageLength - MSG_HEADER_SIZE) {
+      LOG_ERROR(_logger, "Error, exceeded payload size range, message length: " << std::to_string(length));
+      throw std::invalid_argument("Invalid payload size");
+    }
 
     char *buf = new char[length + MSG_HEADER_SIZE];
     memset(buf, 0, length + MSG_HEADER_SIZE);
