@@ -24,8 +24,8 @@ void ThresholdAccumulatorBase<VerificationKey, NumType, SigShareParserFunc>::set
     assertStrictlyPositive(len);
 
     if(hasExpectedDigest() == false) {
-        expectedDigest = new unsigned char[len];
-        memcpy(reinterpret_cast<void*>(expectedDigest),
+        expectedDigest.reset(new unsigned char[len]);
+        memcpy(reinterpret_cast<void*>(expectedDigest.get()),
                 reinterpret_cast<const void*>(msg),
                 static_cast<unsigned long>(len));
         expectedDigestLen = len;
@@ -47,9 +47,9 @@ void ThresholdAccumulatorBase<VerificationKey, NumType, SigShareParserFunc>::set
             throw std::runtime_error("Cannot reset expected digest with different length");
         }
 
-        if(memcmp(expectedDigest, msg, static_cast<size_t>(len)) != 0) {
+        if(memcmp(expectedDigest.get(), msg, static_cast<size_t>(len)) != 0) {
             LOG_ERROR(GL, "Attempted to reset expected digest to a different one. "
-                          << "Previously had '" << Utils::bin2hex(expectedDigest, len)
+                          << "Previously had '" << Utils::bin2hex(expectedDigest.get(), len)
                           << "', you gave '" << Utils::bin2hex(msg, len) << "'");
             throw std::runtime_error("Cannot reset expected digest to a different one");
         }

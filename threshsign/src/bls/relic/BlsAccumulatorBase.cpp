@@ -58,7 +58,7 @@ void BlsAccumulatorBase::onExpectedDigestSet() {
   assertNotNull(expectedDigest);
   assertStrictlyPositive(expectedDigestLen);
 
-  g1_map(hash, expectedDigest, expectedDigestLen);
+  g1_map(hash, static_cast<const uint8_t*>(expectedDigest.get()), expectedDigestLen);
 }
 
 bool BlsAccumulatorBase::verifyShare(ShareID id, const G1T& sigShare) {
