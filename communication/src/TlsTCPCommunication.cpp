@@ -911,7 +911,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
    */
   void send(const char *data, uint32_t length) {
     if (!data) {
-      LOG_ERROR(_logger, "Error, message has never been initialized")
+      LOG_ERROR(_logger, "Error, message has never been initialized");
       throw std::invalid_argument("data = nullptr");
     }
 
