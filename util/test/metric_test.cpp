@@ -93,7 +93,7 @@ TEST(MetricTest, ToJson) {
   // JSON is valid python. We evaluate the JSON string and see if we get a 0
   // return value. If so it parsed correctly.
   ostringstream oss;
-  oss << "python -c '" << aggregator->ToJson() << "'" << endl;
+  oss << "python3 -c '" << aggregator->ToJson() << "'" << endl;
 
   ASSERT_EQ(0, system(oss.str().c_str()));
 }
