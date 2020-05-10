@@ -12,6 +12,8 @@
 
 import os.path
 import unittest
+import trio
+import random
 
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from util import skvbc as kvbc
@@ -44,6 +46,10 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcPreExecutionTest(unittest.TestCase):
 
+    async def send_single_read(self, skvbc, client):
+        req = skvbc.read_req(skvbc.random_keys(1))
+        await client.read(req)
+
     async def send_single_write_with_pre_execution(self, skvbc, client):
         kv = [(skvbc.keys[0], skvbc.random_value()),
               (skvbc.keys[1], skvbc.random_value())]
@@ -51,13 +57,28 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         reply = skvbc.parse_reply(reply)
         self.assertTrue(reply.success)
 
+    async def run_concurrent_pre_execution_requests(self, skvbc, clients, num_of_requests, write_weight=.90):
+        sent = 0
+        write_count = 0
+        read_count = 0
+        while sent <= num_of_requests:
+            async with trio.open_nursery() as nursery:
+                for client in clients:
+                    if random.random() <= write_weight:
+                        nursery.start_soon(self.send_single_write_with_pre_execution, skvbc, client)
+                        write_count += 1
+                    else:
+                        nursery.start_soon(self.send_single_read, skvbc, client)
+                        read_count += 1
+            sent += len(clients)
+        return read_count + write_count
+
     @unittest.skip("unstable")
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_single_pre_process_request(self, bft_network):
+    async def test_sequential_pre_process_requests(self, bft_network):
         """
-        Ensure that we can create a block using pre-execution feature and retrieve its KV pairs through
-        GetBlockData API request.
+        Use a random client to launch one pre-process request in time and ensure that created block are as expected.
         """
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
@@ -65,3 +86,19 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         for i in range(100):
             client = bft_network.random_client()
             await self.send_single_write_with_pre_execution(skvbc, client)
+
+    @unittest.skip("unstable")
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_concurrent_pre_process_requests(self, bft_network):
+        """
+        Launch concurrent requests from different clients in parallel. Ensure that created block are as expected.
+        """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        max_concurrency = len(bft_network.clients) // 2
+        clients = bft_network.random_clients(max_concurrency)
+        num_of_requests = 50 * len(clients)
+        sent_count = await self.run_concurrent_pre_execution_requests(skvbc, clients, num_of_requests)
+        self.assertTrue(sent_count >= num_of_requests)
