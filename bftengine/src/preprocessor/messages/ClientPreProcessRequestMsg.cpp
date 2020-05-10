@@ -29,12 +29,9 @@ ClientPreProcessRequestMsg::ClientPreProcessRequestMsg(NodeIdType sender,
 }
 
 unique_ptr<MessageBase> ClientPreProcessRequestMsg::convertToClientRequestMsg(bool resetPreProcessFlag) {
-  msgBody_->msgType = MsgCode::ClientRequest;
   if (resetPreProcessFlag) msgBody()->flags &= ~(1 << 1);
   unique_ptr<MessageBase> clientRequestMsg = make_unique<ClientRequestMsg>(
       clientProxyId(), flags(), requestSeqNum(), requestLength(), requestBuf(), requestTimeoutMilli(), getCid());
-  releaseOwnership();
-  clientRequestMsg->acquireOwnership();
   return clientRequestMsg;
 }
 
