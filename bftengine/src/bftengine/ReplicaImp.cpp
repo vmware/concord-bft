@@ -180,19 +180,23 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 
   if (seqNumberOfLastReply < reqSeqNum) {
     if (isCurrentPrimary()) {
-      if (clientsManager->noPendingAndRequestCanBecomePending(clientId, reqSeqNum) &&
-          (requestsQueueOfPrimary.size() < 700))  // TODO(GG): use config/parameter
-      {
+      // TODO(GG): use config/parameter
+      if (requestsQueueOfPrimary.size() >= 700) {
+        LOG_WARN(GL, "ClientRequestMsg with sequence num: " << reqSeqNum << " dropped. Primary request queue is full.");
+        delete m;
+        return;
+      }
+      if (clientsManager->noPendingAndRequestCanBecomePending(clientId, reqSeqNum)) {
         requestsQueueOfPrimary.push(m);
         primaryCombinedReqSize += m->size();
         tryToSendPrePrepareMsg(true);
         return;
       } else {
-        LOG_INFO(GL,
-                 "ClientRequestMsg reqSeqNum="
-                     << reqSeqNum
-                     << " is ignored because: request is old, OR primary is current working on a request "
-                        "from the same client, OR queue contains too many requests");
+        LOG_DEBUG(GL,
+                  "ClientRequestMsg reqSeqNum="
+                      << reqSeqNum
+                      << " is ignored because: request is old, OR primary is current working on a request "
+                         "from the same client");
       }
     } else {  // not the current primary
       if (clientsManager->noPendingAndRequestCanBecomePending(clientId, reqSeqNum)) {
@@ -203,11 +207,11 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 
         LOG_INFO(GL, "Sending ClientRequestMsg reqSeqNum=" << reqSeqNum << " to current primary");
       } else {
-        LOG_INFO(GL,
-                 "ClientRequestMsg reqSeqNum="
-                     << reqSeqNum
-                     << " is ignored because request is old or replica has another pending request from the "
-                        "same client");
+        LOG_DEBUG(GL,
+                  "ClientRequestMsg reqSeqNum="
+                      << reqSeqNum
+                      << " is ignored because request is old or replica has another pending request from the "
+                         "same client");
       }
     }
   } else if (seqNumberOfLastReply == reqSeqNum) {
