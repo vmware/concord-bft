@@ -233,8 +233,9 @@ class SkvbcPersistenceTest(unittest.TestCase):
            except trio.TooSlowError:
                # We never made it to fetching state. Are we done?
                try:
-                   await bft_network.wait_for_state_transfer_to_stop(
+                    await bft_network.wait_for_state_transfer_to_stop(
                        up_to_date_node, stale_node)
+                    break
                except trio.TooSlowError:
                    self.fail("State transfer did not complete, " +
                              "but we are not fetching either!")

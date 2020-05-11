@@ -2179,9 +2179,11 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
   Assert(hasStateInformation || oldSeqNum);  // !hasStateInformation ==> oldSeqNum
   Assert(newStableSeqNum % checkpointWindowSize == 0);
 
-  if (newStableSeqNum <= lastStableSeqNum) return;
+  LOG_DEBUG(GL,
+            "lastStableSeqNum was: " << lastStableSeqNum << " now: " << newStableSeqNum
+                                     << " hasStateInfo: " << hasStateInformation << " oldSeqNum: " << oldSeqNum);
 
-  LOG_DEBUG_F(GL, "onSeqNumIsStable: lastStableSeqNum is now == %" PRId64 "", newStableSeqNum);
+  if (newStableSeqNum <= lastStableSeqNum) return;
 
   if (ps_) ps_->beginWriteTran();
 
@@ -2907,10 +2909,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
 
   clientsManager->init(stateTransfer.get());
 
-  if (!firstTime || config_.debugPersistentStorageEnabled)
-    clientsManager->loadInfoFromReservedPages();
-  else
-    clientsManager->clearReservedPages();
+  if (!firstTime || config_.debugPersistentStorageEnabled) clientsManager->loadInfoFromReservedPages();
 
   // autoPrimaryRotationEnabled implies viewChangeProtocolEnabled
   // Note: "p=>q" is equivalent to "not p or q"

@@ -155,6 +155,7 @@ void InMemoryDataStore::setLastRequiredBlock(uint64_t i) { lastRequiredBlock = i
 uint64_t InMemoryDataStore::getLastRequiredBlock() { return lastRequiredBlock; }
 
 void InMemoryDataStore::setPendingResPage(uint32_t inPageId, const char* inPage, uint32_t inPageLen) {
+  LOG_DEBUG(logger(), inPageId);
   assert(inPageLen <= sizeOfReservedPage_);
 
   auto pos = pendingPages.find(inPageId);
@@ -204,6 +205,7 @@ void InMemoryDataStore::deleteAllPendingPages() {
 void InMemoryDataStore::associatePendingResPageWithCheckpoint(uint32_t inPageId,
                                                               uint64_t inCheckpoint,
                                                               const STDigest& inPageDigest) {
+  LOG_DEBUG(logger(), "pageId: " << inPageId << " checkpoint: " << inCheckpoint);
   // find in pendingPages
   auto pendingPos = pendingPages.find(inPageId);
   assert(pendingPos != pendingPages.end());
@@ -218,7 +220,6 @@ void InMemoryDataStore::associatePendingResPageWithCheckpoint(uint32_t inPageId,
 
   // add to the pages map
   pages[key] = val;
-
   // remove from pendingPages map
   pendingPages.erase(pendingPos);
 }
@@ -227,6 +228,7 @@ void InMemoryDataStore::setResPage(uint32_t inPageId,
                                    uint64_t inCheckpoint,
                                    const STDigest& inPageDigest,
                                    const char* inPage) {
+  LOG_DEBUG(logger(), "pageId: " << inPageId << " checkpoint: " << inCheckpoint);
   // create key, and make sure that we don't already have this element
   ResPageKey key = {inPageId, inCheckpoint};
   assert(pages.count(key) == 0);
@@ -242,16 +244,7 @@ void InMemoryDataStore::setResPage(uint32_t inPageId,
   pages[key] = val;
 }
 
-void InMemoryDataStore::getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint) {
-  getResPage(inPageId, inCheckpoint, outActualCheckpoint, nullptr, nullptr, 0);
-}
-
-void InMemoryDataStore::getResPage(
-    uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint, char* outPage, uint32_t copylength) {
-  getResPage(inPageId, inCheckpoint, outActualCheckpoint, nullptr, outPage, copylength);
-}
-
-void InMemoryDataStore::getResPage(uint32_t inPageId,
+bool InMemoryDataStore::getResPage(uint32_t inPageId,
                                    uint64_t inCheckpoint,
                                    uint64_t* outActualCheckpoint,
                                    STDigest* outPageDigest,
@@ -265,28 +258,30 @@ void InMemoryDataStore::getResPage(uint32_t inPageId,
 
   auto p = pages.lower_bound(key);
 
-  assert(p != pages.end());
-  assert(p->first.pageId == inPageId);
+  if (p == pages.end() || p->first.pageId > inPageId) return false;
+
   assert(p->first.checkpoint <= inCheckpoint);
 
   if (outActualCheckpoint != nullptr) *outActualCheckpoint = p->first.checkpoint;
 
   if (outPageDigest != nullptr) *outPageDigest = p->second.pageDigest;
 
+  LOG_DEBUG(logger(),
+            "pageId: " << inPageId << " checkpoint: " << inCheckpoint << " actual checkpoint: " << p->first.checkpoint
+                       << " digest: " << p->second.pageDigest.toString());
+
   if (outPage != nullptr) {
     assert(copylength > 0);
     memcpy(outPage, p->second.page, copylength);
   }
+  return true;
 }
 
 void InMemoryDataStore::deleteCoveredResPageInSmallerCheckpoints(uint64_t inMinRelevantCheckpoint) {
   if (inMinRelevantCheckpoint <= 1) return;  //  nothing to delete
 
-  assert(pages.size() >= numberOfReservedPages_);
-
   auto iter = pages.begin();
   uint32_t prevItemPageId = iter->first.pageId;
-  assert(prevItemPageId == 0);
   bool prevItemIsInLastRelevantCheckpoint = (iter->first.checkpoint <= inMinRelevantCheckpoint);
 
   iter++;
@@ -304,57 +299,35 @@ void InMemoryDataStore::deleteCoveredResPageInSmallerCheckpoints(uint64_t inMinR
     }
   }
 
-  assert(pages.size() >= numberOfReservedPages_);
   assert(pages.size() <= (numberOfReservedPages_ * (maxNumOfStoredCheckpoints_ + 1)));
 }
 
 DataStore::ResPagesDescriptor* InMemoryDataStore::getResPagesDescriptor(uint64_t inCheckpoint) {
-  //  printf("\nInMemoryDataStore::getResPagesDescriptor");
-
   size_t reqSize = DataStore::ResPagesDescriptor::size(numberOfReservedPages_);
 
   void* p = std::malloc(reqSize);
-
   memset(p, 0, reqSize);
 
   DataStore::ResPagesDescriptor* desc = (DataStore::ResPagesDescriptor*)p;
 
   desc->numOfPages = numberOfReservedPages_;
 
-  if (inCheckpoint >= 1) {
-    uint32_t nextPage = 0;
-
-    for (auto iter : pages) {
-      if (nextPage == iter.first.pageId && iter.first.checkpoint <= inCheckpoint) {
-        SingleResPageDesc& singleDesc = desc->d[nextPage];
-
-        singleDesc.pageId = nextPage;
-        singleDesc.relevantCheckpoint = iter.first.checkpoint;
-        singleDesc.pageDigest = iter.second.pageDigest;
-
-        /*
-                printf("singleDesc.pageId=%d singleDesc.relevantCheckpoint=%d ccccc=%s",
-                (int)singleDesc.pageId,
-                (int)singleDesc.relevantCheckpoint,
-                singleDesc.pageDigest.toString().c_str());
-        */
-
-        nextPage++;
+  for (auto iter : pages) {
+    if (iter.first.checkpoint <= inCheckpoint) {
+      SingleResPageDesc& singleDesc = desc->d[iter.first.pageId];
+      if (singleDesc.relevantCheckpoint > 0) {
+        assert(singleDesc.relevantCheckpoint > iter.first.checkpoint);
+        continue;  // we already have a description for this pageId with a greater checkpoint num
       }
-    }
+      singleDesc.pageId = iter.first.pageId;
+      singleDesc.relevantCheckpoint = iter.first.checkpoint;
+      singleDesc.pageDigest = iter.second.pageDigest;
 
-    assert(nextPage == numberOfReservedPages_);
-  } else {
-    // inCheckpoint == 0
-    for (uint32_t i = 0; i < numberOfReservedPages_; i++) {
-      SingleResPageDesc& singleDesc = desc->d[i];
-
-      singleDesc.pageId = i;
-      singleDesc.relevantCheckpoint = 0;
-      singleDesc.pageDigest.makeZero();
+      LOG_DEBUG(logger(),
+                "pageId: " << singleDesc.pageId << " relevantCheckpoint: " << singleDesc.relevantCheckpoint
+                           << " digest: " << singleDesc.pageDigest.toString());
     }
   }
-
   return desc;
 }
 

@@ -319,21 +319,26 @@ ReplicaLoader::ErrorCode loadReplicaData(shared_ptr<PersistentStorage> p, Loaded
     }
   }
 
-  SeqNum seqNum = ld.lastStableSeqNum;
+  SeqNum stableSeqNum = ld.lastStableSeqNum;
   for (size_t i = 0; i < sizeof(ld.checkWinArr) / sizeof(CheckData); i++) {
     CheckData &e = ld.checkWinArr[i];
-    e.setCheckpointMsg(p->getAndAllocateCheckpointMsgInCheckWindow(seqNum));
-    e.setCompletedMark(p->getCompletedMarkInCheckWindow(seqNum));
+    e.setCheckpointMsg(p->getAndAllocateCheckpointMsgInCheckWindow(stableSeqNum));
+    e.setCompletedMark(p->getCompletedMarkInCheckWindow(stableSeqNum));
 
-    if (seqNum > 0 && seqNum <= ld.lastExecutedSeqNum) {
+    const auto chckWinBound = (ld.lastExecutedSeqNum / checkpointWindowSize) * checkpointWindowSize;
+    if (stableSeqNum > 0 && stableSeqNum == chckWinBound) {
       Verify((e.isCheckpointMsgSet()), InconsistentErr);
-      Verify((e.getCheckpointMsg()->seqNumber() == seqNum), InconsistentErr);
+      Verify((e.getCheckpointMsg()->seqNumber() == stableSeqNum), InconsistentErr);
       Verify((e.getCheckpointMsg()->senderId() == ld.repConfig.replicaId), InconsistentErr);
-      VerifyOR(seqNum > ld.lastStableSeqNum, e.getCheckpointMsg()->isStableState(), InconsistentErr);
+      VerifyOR(stableSeqNum > ld.lastStableSeqNum, e.getCheckpointMsg()->isStableState(), InconsistentErr);
+    } else if (stableSeqNum > 0 && e.isCheckpointMsgSet()) {  // after ST previous stable ckeckpoints may be not set
+      Verify((e.getCheckpointMsg()->seqNumber() == stableSeqNum), InconsistentErr);
+      Verify((e.getCheckpointMsg()->senderId() == ld.repConfig.replicaId), InconsistentErr);
+      VerifyOR(stableSeqNum > ld.lastStableSeqNum, e.getCheckpointMsg()->isStableState(), InconsistentErr);
     } else {
       Verify((!e.isCheckpointMsgSet()), InconsistentErr);
     }
-    seqNum = seqNum + checkpointWindowSize;
+    stableSeqNum = stableSeqNum + checkpointWindowSize;
   }
 
   if (p->hasDescriptorOfLastExecution()) {
