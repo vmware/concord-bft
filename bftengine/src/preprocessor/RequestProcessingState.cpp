@@ -85,13 +85,16 @@ auto RequestProcessingState::calculateMaxNbrOfEqualHashes(uint16_t &maxNumOfEqua
 
 // Primary replica logic
 bool RequestProcessingState::isReqTimedOut() const {
+  if (!clientPreProcessReqMsg_) return false;
+
   // Check request timeout once asynchronous primary pre-execution completed (to not abort the execution thread)
   if (primaryPreProcessResultLen_ != 0) {
     auto reqProcessingTime = getMonotonicTimeMilli() - entryTime_;
     if (reqProcessingTime > clientPreProcessReqMsg_->requestTimeoutMilli()) {
       LOG_WARN(GL,
                "Request timeout of " << clientPreProcessReqMsg_->requestTimeoutMilli() << " ms expired for reqSeqNum="
-                                     << reqSeqNum_ << "; reqProcessingTime=" << reqProcessingTime);
+                                     << reqSeqNum_ << " clientId=" << clientPreProcessReqMsg_->clientProxyId()
+                                     << " reqProcessingTime=" << reqProcessingTime);
       return true;
     }
   }
@@ -100,6 +103,8 @@ bool RequestProcessingState::isReqTimedOut() const {
 
 // Non-primary replica logic
 bool RequestProcessingState::isPreProcessReqMsgReceivedInTime() const {
+  if (!clientPreProcessReqMsg_) return true;
+
   // Check if the request was registered for too long after been received from the client
   auto clientRequestWaitingTimeMilli = getMonotonicTimeMilli() - entryTime_;
   if (clientRequestWaitingTimeMilli > preProcessReqWaitTimeMilli_) {
@@ -144,9 +149,7 @@ PreProcessingResult RequestProcessingState::getPreProcessingConsensusResult() co
 }
 
 unique_ptr<MessageBase> RequestProcessingState::convertClientPreProcessToClientMsg(bool resetPreProcessFlag) {
-  unique_ptr<MessageBase> retMsg = clientPreProcessReqMsg_->convertToClientRequestMsg(resetPreProcessFlag);
-  clientPreProcessReqMsg_.release();
-  return retMsg;
+  return clientPreProcessReqMsg_->convertToClientRequestMsg(resetPreProcessFlag);
 }
 
 }  // namespace preprocessor
