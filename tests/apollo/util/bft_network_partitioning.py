@@ -11,7 +11,7 @@
 # file.
 import subprocess
 from abc import ABC, abstractmethod
-from itertools import combinations
+from itertools import combinations, product
 
 
 class NetworkPartitioningAdversary(ABC):
@@ -114,3 +114,45 @@ class PacketDroppingAdversary(NetworkPartitioningAdversary):
             self._drop_packets_between(
                 source_port, dest_port, self.drop_rate_percentage
             )
+
+class NodesInsulatingAdversary(NetworkPartitioningAdversary):
+    """ Adversary that insulates each replica in the given set from the entire network of replicas """
+
+    def __init__(self, bft_network, replicas_to_insulate, drop_rate_percentage=100):
+        self.drop_rate_percentage = drop_rate_percentage
+        self.replicas_to_insulate = replicas_to_insulate
+        super(NodesInsulatingAdversary, self).__init__(bft_network)
+
+    def interfere(self):
+        # drop packets between insulated replicas and the rest
+        replicas_con = [v for
+                        v in product(self.replicas_to_insulate,
+                                     self.bft_network.all_replicas())]
+        
+        for connection in replicas_con:
+            port_replica_1 = self.bft_network.replicas[connection[0]].port
+            port_replica_2 = self.bft_network.replicas[connection[1]].port
+        
+            self._drop_packets_between(
+                port_replica_1, port_replica_2, self.drop_rate_percentage
+            )
+            self._drop_packets_between(
+                port_replica_2, port_replica_1, self.drop_rate_percentage
+            )
+
+        # drop packets between insulated replicas and the clients
+        client_con = [v for
+                      v in product(self.replicas_to_insulate,
+                                   self.bft_network.clients.values())]
+        
+        for connection in client_con:
+            port_replica = self.bft_network.replicas[connection[0]].port
+            port_client = connection[1].sock.getsockname()[1]
+
+            self._drop_packets_between(
+                port_replica, port_client, self.drop_rate_percentage
+            )
+            self._drop_packets_between(
+                port_client, port_replica, self.drop_rate_percentage
+            )
+
