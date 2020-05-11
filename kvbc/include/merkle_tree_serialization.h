@@ -179,8 +179,8 @@ inline std::string serializeImp(const block::detail::Node &node) {
   return buf;
 }
 
-inline std::string serializeImp(block::detail::RawBlockMerklelData data) {
-  auto dataSize = block::detail::RawBlockMerklelData::MIN_SIZE;
+inline std::string serializeImp(block::detail::RawBlockMerkleData data) {
+  auto dataSize = block::detail::RawBlockMerkleData::MIN_SIZE;
   for (const auto &key : data.deletedKeys) {
     dataSize += (sizeof(block::detail::KeyLengthType) + key.length());
   }
@@ -368,31 +368,31 @@ inline block::detail::Node deserialize<block::detail::Node>(const concordUtils::
 }
 
 template <>
-inline block::detail::RawBlockMerklelData deserialize<block::detail::RawBlockMerklelData>(
+inline block::detail::RawBlockMerkleData deserialize<block::detail::RawBlockMerkleData>(
     const concordUtils::Sliver &buf) {
-  Assert(buf.length() >= block::detail::RawBlockMerklelData::MIN_SIZE);
+  Assert(buf.length() >= block::detail::RawBlockMerkleData::MIN_SIZE);
 
   auto offset = std::size_t{0};
-  auto data = block::detail::RawBlockMerklelData{};
+  auto data = block::detail::RawBlockMerkleData{};
 
   // State hash.
   data.stateHash = sparse_merkle::Hash{reinterpret_cast<const std::uint8_t *>(buf.data()) + offset};
-  offset += block::detail::RawBlockMerklelData::STATE_HASH_SIZE;
+  offset += block::detail::RawBlockMerkleData::STATE_HASH_SIZE;
 
   // Deleted keys follow.
   auto keyBuffer = concordUtils::Sliver{
-      buf, block::detail::RawBlockMerklelData::MIN_SIZE, buf.length() - block::detail::RawBlockMerklelData::MIN_SIZE};
+      buf, block::detail::RawBlockMerkleData::MIN_SIZE, buf.length() - block::detail::RawBlockMerkleData::MIN_SIZE};
   while (!keyBuffer.empty()) {
-    Assert(keyBuffer.length() >= block::detail::RawBlockMerklelData::MIN_KEY_SIZE);
+    Assert(keyBuffer.length() >= block::detail::RawBlockMerkleData::MIN_KEY_SIZE);
 
     // Key length.
     const auto keyLen = concordUtils::fromBigEndianBuffer<block::detail::KeyLengthType>(keyBuffer.data());
-    Assert(keyLen <= (keyBuffer.length() - block::detail::RawBlockMerklelData::MIN_KEY_SIZE));
-    data.deletedKeys.insert(concordUtils::Sliver{keyBuffer, block::detail::RawBlockMerklelData::MIN_KEY_SIZE, keyLen});
+    Assert(keyLen <= (keyBuffer.length() - block::detail::RawBlockMerkleData::MIN_KEY_SIZE));
+    data.deletedKeys.insert(concordUtils::Sliver{keyBuffer, block::detail::RawBlockMerkleData::MIN_KEY_SIZE, keyLen});
 
     keyBuffer = concordUtils::Sliver{keyBuffer,
-                                     block::detail::RawBlockMerklelData::MIN_KEY_SIZE + keyLen,
-                                     keyBuffer.length() - (block::detail::RawBlockMerklelData::MIN_KEY_SIZE + keyLen)};
+                                     block::detail::RawBlockMerkleData::MIN_KEY_SIZE + keyLen,
+                                     keyBuffer.length() - (block::detail::RawBlockMerkleData::MIN_KEY_SIZE + keyLen)};
   }
 
   return data;

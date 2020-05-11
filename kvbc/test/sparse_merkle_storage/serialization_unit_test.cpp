@@ -422,30 +422,30 @@ TEST(block, state_root_deserialization) {
 TEST(block, raw_block_merkle_data_equality) {
   // Default-constructed ones are equal.
   {
-    const auto d1 = block::detail::RawBlockMerklelData{};
-    const auto d2 = block::detail::RawBlockMerklelData{};
+    const auto d1 = block::detail::RawBlockMerkleData{};
+    const auto d2 = block::detail::RawBlockMerkleData{};
     ASSERT_TRUE(d1 == d2);
   }
 
   // Hash-only - equal.
   {
-    const auto d1 = block::detail::RawBlockMerklelData{defaultHash};
-    const auto d2 = block::detail::RawBlockMerklelData{defaultHash};
+    const auto d1 = block::detail::RawBlockMerkleData{defaultHash};
+    const auto d2 = block::detail::RawBlockMerkleData{defaultHash};
     ASSERT_TRUE(d1 == d2);
   }
 
   // Hash-only - not equal.
   {
-    const auto d1 = block::detail::RawBlockMerklelData{getHash("1")};
-    const auto d2 = block::detail::RawBlockMerklelData{getHash("2")};
+    const auto d1 = block::detail::RawBlockMerkleData{getHash("1")};
+    const auto d2 = block::detail::RawBlockMerkleData{getHash("2")};
     ASSERT_FALSE(d1 == d2);
   }
 
   // Equal hash and keys.
   {
     const auto keys = OrderedKeysSet{Key{"k1"}, Key{"k2"}};
-    const auto d1 = block::detail::RawBlockMerklelData{defaultHash, keys};
-    const auto d2 = block::detail::RawBlockMerklelData{defaultHash, keys};
+    const auto d1 = block::detail::RawBlockMerkleData{defaultHash, keys};
+    const auto d2 = block::detail::RawBlockMerkleData{defaultHash, keys};
     ASSERT_TRUE(d1 == d2);
   }
 
@@ -453,16 +453,16 @@ TEST(block, raw_block_merkle_data_equality) {
   {
     const auto keys1 = OrderedKeysSet{Key{"k1"}, Key{"k2"}};
     const auto keys2 = OrderedKeysSet{Key{"k1"}};
-    const auto d1 = block::detail::RawBlockMerklelData{defaultHash, keys1};
-    const auto d2 = block::detail::RawBlockMerklelData{defaultHash, keys2};
+    const auto d1 = block::detail::RawBlockMerkleData{defaultHash, keys1};
+    const auto d2 = block::detail::RawBlockMerkleData{defaultHash, keys2};
     ASSERT_FALSE(d1 == d2);
   }
 
   // Different hash, same keys.
   {
     const auto keys = OrderedKeysSet{Key{"k1"}, Key{"k2"}};
-    const auto d1 = block::detail::RawBlockMerklelData{getHash("1"), keys};
-    const auto d2 = block::detail::RawBlockMerklelData{getHash("2"), keys};
+    const auto d1 = block::detail::RawBlockMerkleData{getHash("1"), keys};
+    const auto d2 = block::detail::RawBlockMerkleData{getHash("2"), keys};
     ASSERT_FALSE(d1 == d2);
   }
 }
@@ -470,31 +470,31 @@ TEST(block, raw_block_merkle_data_equality) {
 TEST(block, raw_block_merkle_data_serialization) {
   // No keys.
   {
-    const auto data = block::detail::RawBlockMerklelData{defaultHash};
+    const auto data = block::detail::RawBlockMerkleData{defaultHash};
     const auto dataSliver = Sliver{serialize(data)};
-    ASSERT_EQ(deserialize<block::detail::RawBlockMerklelData>(dataSliver), data);
+    ASSERT_EQ(deserialize<block::detail::RawBlockMerkleData>(dataSliver), data);
   }
 
   // Non-empty keys.
   {
-    const auto data = block::detail::RawBlockMerklelData{defaultHash, OrderedKeysSet{Key{"k1"}, Key{"k2"}}};
+    const auto data = block::detail::RawBlockMerkleData{defaultHash, OrderedKeysSet{Key{"k1"}, Key{"k2"}}};
     const auto dataSliver = Sliver{serialize(data)};
-    ASSERT_EQ(deserialize<block::detail::RawBlockMerklelData>(dataSliver), data);
+    ASSERT_EQ(deserialize<block::detail::RawBlockMerkleData>(dataSliver), data);
   }
 
   // With empty keys.
   {
-    const auto data = block::detail::RawBlockMerklelData{defaultHash, OrderedKeysSet{Key{"k1"}, Key{}, Key{"k3"}}};
+    const auto data = block::detail::RawBlockMerkleData{defaultHash, OrderedKeysSet{Key{"k1"}, Key{}, Key{"k3"}}};
     const auto dataSliver = Sliver{serialize(data)};
-    ASSERT_EQ(deserialize<block::detail::RawBlockMerklelData>(dataSliver), data);
+    ASSERT_EQ(deserialize<block::detail::RawBlockMerkleData>(dataSliver), data);
   }
 
   // Different key sizes.
   {
     const auto data =
-        block::detail::RawBlockMerklelData{defaultHash, OrderedKeysSet{Key{"k1"}, Key{"key12"}, Key{"333333"}}};
+        block::detail::RawBlockMerkleData{defaultHash, OrderedKeysSet{Key{"k1"}, Key{"key12"}, Key{"333333"}}};
     const auto dataSliver = Sliver{serialize(data)};
-    ASSERT_EQ(deserialize<block::detail::RawBlockMerklelData>(dataSliver), data);
+    ASSERT_EQ(deserialize<block::detail::RawBlockMerkleData>(dataSliver), data);
   }
 }
 

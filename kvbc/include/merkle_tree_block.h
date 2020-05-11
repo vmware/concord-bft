@@ -17,7 +17,7 @@ RawBlock create(const SetOfKeyValuePairs &updates,
                 const BlockDigest &parentDigest,
                 const sparse_merkle::Hash &stateHash);
 
-// Creates a block that adds a set of key/values and a deletes a set of keys.
+// Creates a block from a set of key/value pairs and a set of keys to delete.
 RawBlock create(const SetOfKeyValuePairs &updates,
                 const OrderedKeysSet &deletes,
                 const BlockDigest &parentDigest,
@@ -93,14 +93,14 @@ inline bool operator==(const Node &lhs, const Node &rhs) {
 }
 
 // Merkle-specific data added to raw blocks.
-struct RawBlockMerklelData {
+struct RawBlockMerkleData {
   static constexpr auto MIN_SIZE = sparse_merkle::Hash::SIZE_IN_BYTES;
   static constexpr auto STATE_HASH_SIZE = sparse_merkle::Hash::SIZE_IN_BYTES;
   static constexpr auto MIN_KEY_SIZE = sizeof(KeyLengthType);
 
-  RawBlockMerklelData() = default;
+  RawBlockMerkleData() = default;
 
-  RawBlockMerklelData(const sparse_merkle::Hash &pStateHash, const OrderedKeysSet &pDeletedKeys = OrderedKeysSet{})
+  RawBlockMerkleData(const sparse_merkle::Hash &pStateHash, const OrderedKeysSet &pDeletedKeys = OrderedKeysSet{})
       : stateHash{pStateHash}, deletedKeys{pDeletedKeys} {}
 
   sparse_merkle::Hash stateHash;
@@ -108,7 +108,7 @@ struct RawBlockMerklelData {
   OrderedKeysSet deletedKeys;
 };
 
-inline bool operator==(const RawBlockMerklelData &lhs, const RawBlockMerklelData &rhs) {
+inline bool operator==(const RawBlockMerkleData &lhs, const RawBlockMerkleData &rhs) {
   return lhs.stateHash == rhs.stateHash && lhs.deletedKeys == rhs.deletedKeys;
 }
 

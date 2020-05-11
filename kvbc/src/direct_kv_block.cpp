@@ -129,7 +129,6 @@ Sliver getUserData(const Sliver &block) {
 
   // If there are no elements, we only have a Header and, optionally, user data.
   if (header->numberOfElements == 0) {
-    assert(block.length() >= headerSize);
     return Sliver{block, headerSize, block.length() - headerSize};
   }
 

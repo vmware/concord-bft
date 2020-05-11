@@ -16,7 +16,7 @@ using ::concordUtils::Sliver;
 // users are not expected to interpret the returned buffer themselves.
 
 RawBlock create(const SetOfKeyValuePairs &updates, const BlockDigest &parentDigest, const Hash &stateHash) {
-  const auto merkleData = v2MerkleTree::detail::serialize(RawBlockMerklelData{stateHash});
+  const auto merkleData = v2MerkleTree::detail::serialize(RawBlockMerkleData{stateHash});
   auto out = SetOfKeyValuePairs{};
   return v1DirectKeyValue::block::detail::create(updates, out, parentDigest, merkleData.data(), merkleData.size());
 }
@@ -25,7 +25,7 @@ RawBlock create(const SetOfKeyValuePairs &updates,
                 const OrderedKeysSet &deletes,
                 const BlockDigest &parentDigest,
                 const Hash &stateHash) {
-  const auto merkleData = v2MerkleTree::detail::serialize(RawBlockMerklelData{stateHash, deletes});
+  const auto merkleData = v2MerkleTree::detail::serialize(RawBlockMerkleData{stateHash, deletes});
   auto out = SetOfKeyValuePairs{};
   return v1DirectKeyValue::block::detail::create(updates, out, parentDigest, merkleData.data(), merkleData.size());
 }
@@ -33,14 +33,14 @@ RawBlock create(const SetOfKeyValuePairs &updates,
 SetOfKeyValuePairs getData(const RawBlock &block) { return v1DirectKeyValue::block::detail::getData(block); }
 
 OrderedKeysSet getDeletedKeys(const RawBlock &block) {
-  return v2MerkleTree::detail::deserialize<RawBlockMerklelData>(v1DirectKeyValue::block::detail::getUserData(block))
+  return v2MerkleTree::detail::deserialize<RawBlockMerkleData>(v1DirectKeyValue::block::detail::getUserData(block))
       .deletedKeys;
 }
 
 BlockDigest getParentDigest(const RawBlock &block) { return v1DirectKeyValue::block::detail::getParentDigest(block); }
 
 Hash getStateHash(const RawBlock &block) {
-  return v2MerkleTree::detail::deserialize<RawBlockMerklelData>(v1DirectKeyValue::block::detail::getUserData(block))
+  return v2MerkleTree::detail::deserialize<RawBlockMerkleData>(v1DirectKeyValue::block::detail::getUserData(block))
       .stateHash;
 }
 
