@@ -45,6 +45,9 @@ concord::kvbc::SetOfKeyValuePairs getData(const concordUtils::Sliver &block);
 // Returns the parent digest of size BLOCK_DIGEST_SIZE bytes.
 BlockDigest getParentDigest(const concordUtils::Sliver &block);
 
+// Returns the passed user data when creating the block. Will be empty if no user data has been passed.
+concordUtils::Sliver getUserData(const concordUtils::Sliver &block);
+
 struct Header {
   std::uint32_t numberOfElements;
   std::uint32_t parentDigestLength;

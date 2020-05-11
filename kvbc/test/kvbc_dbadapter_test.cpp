@@ -7,6 +7,7 @@
 #include "gtest/gtest.h"
 #include "kv_types.hpp"
 #include "direct_kv_db_adapter.h"
+#include "direct_kv_block.h"
 
 #ifdef USE_ROCKSDB
 #include "rocksdb/client.h"
@@ -20,16 +21,55 @@ using concordUtils::Sliver;
 using concord::kvbc::KeysVector;
 using concord::kvbc::KeyValuePair;
 using concord::kvbc::SetOfKeyValuePairs;
+using concord::kvbc::BlockDigest;
 using concord::kvbc::BlockId;
 // using concord::storage::rocksdb::Client;
 // using concord::storage::rocksdb::KeyComparator;
 using concord::storage::ITransaction;
 using concord::kvbc::v1DirectKeyValue::DBKeyManipulator;
 using concord::kvbc::v1DirectKeyValue::DBKeyComparator;
+using concord::kvbc::v1DirectKeyValue::block::detail::create;
+using concord::kvbc::v1DirectKeyValue::block::detail::getUserData;
 
 namespace {
 
 std::unique_ptr<concord::storage::IDBClient> dbClient;
+
+const auto userData = Sliver{"userData"};
+
+TEST(block_tests, user_data_with_updates) {
+  const auto updates =
+      SetOfKeyValuePairs{std::make_pair(Sliver{"k1"}, Sliver{"v1"}), std::make_pair(Sliver{"k2"}, Sliver{"v2"})};
+
+  auto outUpdates = SetOfKeyValuePairs{};
+  const auto block = create(updates, outUpdates, BlockDigest{}, userData.data(), userData.length());
+
+  ASSERT_EQ(getUserData(block), userData);
+}
+
+TEST(block_tests, empty_user_data_with_updates) {
+  const auto updates =
+      SetOfKeyValuePairs{std::make_pair(Sliver{"k1"}, Sliver{"v1"}), std::make_pair(Sliver{"k2"}, Sliver{"v2"})};
+
+  auto outUpdates = SetOfKeyValuePairs{};
+  const auto block = create(updates, outUpdates, BlockDigest{});
+
+  ASSERT_EQ(getUserData(block), Sliver{});
+}
+
+TEST(block_tests, user_data_without_updates) {
+  auto outUpdates = SetOfKeyValuePairs{};
+  const auto block = create(SetOfKeyValuePairs{}, outUpdates, BlockDigest{}, userData.data(), userData.length());
+
+  ASSERT_EQ(getUserData(block), userData);
+}
+
+TEST(block_tests, empty_user_data_without_updates) {
+  auto outUpdates = SetOfKeyValuePairs{};
+  const auto block = create(SetOfKeyValuePairs{}, outUpdates, BlockDigest{});
+
+  ASSERT_EQ(getUserData(block), Sliver{});
+}
 
 class kvbc_dbadapter_test : public ::testing::Test {
  protected:

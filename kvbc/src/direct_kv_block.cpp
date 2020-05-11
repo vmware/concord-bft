@@ -114,12 +114,30 @@ SetOfKeyValuePairs getData(const Sliver &block) {
   return retVal;
 }
 
-BlockDigest getParentDigest(const concordUtils::Sliver &block) {
+BlockDigest getParentDigest(const Sliver &block) {
   const auto *bh = reinterpret_cast<const detail::Header *>(block.data());
   assert(BLOCK_DIGEST_SIZE == bh->parentDigestLength);
   BlockDigest digest;
   std::memcpy(digest.data(), bh->parentDigest, BLOCK_DIGEST_SIZE);
   return digest;
+}
+
+Sliver getUserData(const Sliver &block) {
+  constexpr auto headerSize = sizeof(detail::Header);
+  assert(block.length() >= headerSize);
+  const auto header = reinterpret_cast<const detail::Header *>(block.data());
+
+  // If there are no elements, we only have a Header and, optionally, user data.
+  if (header->numberOfElements == 0) {
+    return Sliver{block, headerSize, block.length() - headerSize};
+  }
+
+  // Calculate the user data offset by adding the offset of the last value and its length.
+  const auto entries = reinterpret_cast<const detail::Entry *>(block.data() + sizeof(detail::Header));
+  const auto lastEntry = entries[header->numberOfElements - 1];
+  const auto userDataOffset = lastEntry.valOffset + lastEntry.valSize;
+  assert(block.length() >= userDataOffset);
+  return Sliver{block, userDataOffset, block.length() - userDataOffset};
 }
 
 }  // namespace detail

@@ -24,7 +24,6 @@
 #include "storage/db_types.h"
 #include "string.hpp"
 
-#include <algorithm>
 #include <cstdint>
 #include <iterator>
 #include <limits>
@@ -180,8 +179,35 @@ inline std::string serializeImp(const block::detail::Node &node) {
   return buf;
 }
 
+inline std::string serializeImp(block::detail::RawBlockMerkleData data) {
+  auto dataSize = block::detail::RawBlockMerkleData::MIN_SIZE;
+  for (const auto &key : data.deletedKeys) {
+    dataSize += (sizeof(block::detail::KeyLengthType) + key.length());
+  }
+
+  std::string buf;
+  buf.reserve(dataSize);
+
+  // State hash.
+  buf.append(reinterpret_cast<const char *>(data.stateHash.data()), data.stateHash.size());
+
+  // Sorted deleted keys in [length, key] encoding.
+  for (const auto &key : data.deletedKeys) {
+    buf += concordUtils::toBigEndianStringBuffer(static_cast<block::detail::KeyLengthType>(key.length()));
+    buf.append(key.data(), key.length());
+  }
+
+  return buf;
+}
+
 inline std::string serializeImp(const DatabaseLeafValue &val) {
-  return serializeImp(val.blockId) + val.leafNode.value.toString();
+  auto buf = serializeImp(val.addedInBlockId);
+  if (val.deletedInBlockId.has_value()) {
+    buf += serializeImp(*val.deletedInBlockId);
+  } else {
+    buf += serializeImp(detail::INVALID_BLOCK_ID);
+  }
+  return buf + val.leafNode.value.toString();
 }
 
 inline std::string serialize() { return std::string{}; }
@@ -341,6 +367,37 @@ inline block::detail::Node deserialize<block::detail::Node>(const concordUtils::
   return node;
 }
 
+template <>
+inline block::detail::RawBlockMerkleData deserialize<block::detail::RawBlockMerkleData>(
+    const concordUtils::Sliver &buf) {
+  Assert(buf.length() >= block::detail::RawBlockMerkleData::MIN_SIZE);
+
+  auto offset = std::size_t{0};
+  auto data = block::detail::RawBlockMerkleData{};
+
+  // State hash.
+  data.stateHash = sparse_merkle::Hash{reinterpret_cast<const std::uint8_t *>(buf.data()) + offset};
+  offset += block::detail::RawBlockMerkleData::STATE_HASH_SIZE;
+
+  // Deleted keys follow.
+  auto keyBuffer = concordUtils::Sliver{
+      buf, block::detail::RawBlockMerkleData::MIN_SIZE, buf.length() - block::detail::RawBlockMerkleData::MIN_SIZE};
+  while (!keyBuffer.empty()) {
+    Assert(keyBuffer.length() >= block::detail::RawBlockMerkleData::MIN_KEY_SIZE);
+
+    // Key length.
+    const auto keyLen = concordUtils::fromBigEndianBuffer<block::detail::KeyLengthType>(keyBuffer.data());
+    Assert(keyLen <= (keyBuffer.length() - block::detail::RawBlockMerkleData::MIN_KEY_SIZE));
+    data.deletedKeys.insert(concordUtils::Sliver{keyBuffer, block::detail::RawBlockMerkleData::MIN_KEY_SIZE, keyLen});
+
+    keyBuffer = concordUtils::Sliver{keyBuffer,
+                                     block::detail::RawBlockMerkleData::MIN_KEY_SIZE + keyLen,
+                                     keyBuffer.length() - (block::detail::RawBlockMerkleData::MIN_KEY_SIZE + keyLen)};
+  }
+
+  return data;
+}
+
 // Deserializes the state root version from a serialized block::detail::Node .
 inline sparse_merkle::Version deserializeStateRootVersion(const concordUtils::Sliver &buf) {
   Assert(buf.length() >= block::detail::Node::MIN_SIZE);
@@ -351,10 +408,17 @@ inline sparse_merkle::Version deserializeStateRootVersion(const concordUtils::Sl
 
 template <>
 inline DatabaseLeafValue deserialize<DatabaseLeafValue>(const concordUtils::Sliver &buf) {
-  constexpr auto blockIdSize = sizeof(DatabaseLeafValue::blockId);
-  Assert(buf.length() >= blockIdSize);
-  return DatabaseLeafValue{concordUtils::fromBigEndianBuffer<decltype(DatabaseLeafValue::blockId)>(buf.data()),
-                           sparse_merkle::LeafNode{concordUtils::Sliver{buf, blockIdSize, buf.length() - blockIdSize}}};
+  Assert(buf.length() >= DatabaseLeafValue::MIN_SIZE);
+  constexpr auto blockIdSize = sizeof(DatabaseLeafValue::BlockIdType);
+  const auto addedInBlock = concordUtils::fromBigEndianBuffer<DatabaseLeafValue::BlockIdType>(buf.data());
+  const auto deletedInBlock =
+      concordUtils::fromBigEndianBuffer<DatabaseLeafValue::BlockIdType>(buf.data() + blockIdSize);
+  const auto leafNode = sparse_merkle::LeafNode{
+      concordUtils::Sliver{buf, DatabaseLeafValue::MIN_SIZE, buf.length() - DatabaseLeafValue::MIN_SIZE}};
+  if (deletedInBlock != detail::INVALID_BLOCK_ID) {
+    return DatabaseLeafValue{addedInBlock, leafNode, deletedInBlock};
+  }
+  return DatabaseLeafValue{addedInBlock, leafNode};
 }
 
 }  // namespace detail

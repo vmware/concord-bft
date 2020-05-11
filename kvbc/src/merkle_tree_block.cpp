@@ -12,22 +12,36 @@ namespace concord::kvbc::v2MerkleTree::block::detail {
 using sparse_merkle::Hash;
 using ::concordUtils::Sliver;
 
-// Use the v1DirectKeyValue implementation and just add the state hash at the back. We want that so it is included in
-// the block digest. We can do that, because users are not expected to interpret the returned buffer themselves.
+// Use the v1DirectKeyValue implementation and just add the merkle-specific data at the back. We can do that, because
+// users are not expected to interpret the returned buffer themselves.
+
 RawBlock create(const SetOfKeyValuePairs &updates, const BlockDigest &parentDigest, const Hash &stateHash) {
-  SetOfKeyValuePairs out;
-  return v1DirectKeyValue::block::detail::create(
-      updates, out, parentDigest, stateHash.dataArray().data(), stateHash.dataArray().size());
+  const auto merkleData = v2MerkleTree::detail::serialize(RawBlockMerkleData{stateHash});
+  auto out = SetOfKeyValuePairs{};
+  return v1DirectKeyValue::block::detail::create(updates, out, parentDigest, merkleData.data(), merkleData.size());
+}
+
+RawBlock create(const SetOfKeyValuePairs &updates,
+                const OrderedKeysSet &deletes,
+                const BlockDigest &parentDigest,
+                const Hash &stateHash) {
+  const auto merkleData = v2MerkleTree::detail::serialize(RawBlockMerkleData{stateHash, deletes});
+  auto out = SetOfKeyValuePairs{};
+  return v1DirectKeyValue::block::detail::create(updates, out, parentDigest, merkleData.data(), merkleData.size());
 }
 
 SetOfKeyValuePairs getData(const RawBlock &block) { return v1DirectKeyValue::block::detail::getData(block); }
 
+OrderedKeysSet getDeletedKeys(const RawBlock &block) {
+  return v2MerkleTree::detail::deserialize<RawBlockMerkleData>(v1DirectKeyValue::block::detail::getUserData(block))
+      .deletedKeys;
+}
+
 BlockDigest getParentDigest(const RawBlock &block) { return v1DirectKeyValue::block::detail::getParentDigest(block); }
 
 Hash getStateHash(const RawBlock &block) {
-  Assert(block.length() >= Hash::SIZE_IN_BYTES);
-  const auto data = reinterpret_cast<const std::uint8_t *>(block.data());
-  return Hash{data + (block.length() - Hash::SIZE_IN_BYTES)};
+  return v2MerkleTree::detail::deserialize<RawBlockMerkleData>(v1DirectKeyValue::block::detail::getUserData(block))
+      .stateHash;
 }
 
 Sliver createNode(const Node &node) { return v2MerkleTree::detail::serialize(node); }

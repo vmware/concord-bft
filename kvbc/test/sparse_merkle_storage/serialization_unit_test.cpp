@@ -1,3 +1,16 @@
+// Concord
+//
+// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+//
+// This product is licensed to you under the Apache 2.0 license (the
+// "License").  You may not use this product except in compliance with the
+// Apache 2.0 License.
+//
+// This product may include a number of subcomponents with separate copyright
+// notices and license terms. Your use of these subcomponents is subject to the
+// terms and conditions of the subcomponent's license, as noted in the LICENSE
+// file.
+
 #include "gtest/gtest.h"
 
 #include "storage_test_common.h"
@@ -26,6 +39,8 @@ using namespace ::concord::storage::v2MerkleTree::detail;
 using ::concordUtils::Sliver;
 
 using ::concord::kvbc::BlockId;
+using ::concord::kvbc::Key;
+using ::concord::kvbc::OrderedKeysSet;
 using ::concord::kvbc::SetOfKeyValuePairs;
 using ::concord::kvbc::sparse_merkle::BatchedInternalNode;
 using ::concord::kvbc::sparse_merkle::InternalChild;
@@ -404,6 +419,85 @@ TEST(block, state_root_deserialization) {
   }
 }
 
+TEST(block, raw_block_merkle_data_equality) {
+  // Default-constructed ones are equal.
+  {
+    const auto d1 = block::detail::RawBlockMerkleData{};
+    const auto d2 = block::detail::RawBlockMerkleData{};
+    ASSERT_TRUE(d1 == d2);
+  }
+
+  // Hash-only - equal.
+  {
+    const auto d1 = block::detail::RawBlockMerkleData{defaultHash};
+    const auto d2 = block::detail::RawBlockMerkleData{defaultHash};
+    ASSERT_TRUE(d1 == d2);
+  }
+
+  // Hash-only - not equal.
+  {
+    const auto d1 = block::detail::RawBlockMerkleData{getHash("1")};
+    const auto d2 = block::detail::RawBlockMerkleData{getHash("2")};
+    ASSERT_FALSE(d1 == d2);
+  }
+
+  // Equal hash and keys.
+  {
+    const auto keys = OrderedKeysSet{Key{"k1"}, Key{"k2"}};
+    const auto d1 = block::detail::RawBlockMerkleData{defaultHash, keys};
+    const auto d2 = block::detail::RawBlockMerkleData{defaultHash, keys};
+    ASSERT_TRUE(d1 == d2);
+  }
+
+  // Same hash, different keys.
+  {
+    const auto keys1 = OrderedKeysSet{Key{"k1"}, Key{"k2"}};
+    const auto keys2 = OrderedKeysSet{Key{"k1"}};
+    const auto d1 = block::detail::RawBlockMerkleData{defaultHash, keys1};
+    const auto d2 = block::detail::RawBlockMerkleData{defaultHash, keys2};
+    ASSERT_FALSE(d1 == d2);
+  }
+
+  // Different hash, same keys.
+  {
+    const auto keys = OrderedKeysSet{Key{"k1"}, Key{"k2"}};
+    const auto d1 = block::detail::RawBlockMerkleData{getHash("1"), keys};
+    const auto d2 = block::detail::RawBlockMerkleData{getHash("2"), keys};
+    ASSERT_FALSE(d1 == d2);
+  }
+}
+
+TEST(block, raw_block_merkle_data_serialization) {
+  // No keys.
+  {
+    const auto data = block::detail::RawBlockMerkleData{defaultHash};
+    const auto dataSliver = Sliver{serialize(data)};
+    ASSERT_EQ(deserialize<block::detail::RawBlockMerkleData>(dataSliver), data);
+  }
+
+  // Non-empty keys.
+  {
+    const auto data = block::detail::RawBlockMerkleData{defaultHash, OrderedKeysSet{Key{"k1"}, Key{"k2"}}};
+    const auto dataSliver = Sliver{serialize(data)};
+    ASSERT_EQ(deserialize<block::detail::RawBlockMerkleData>(dataSliver), data);
+  }
+
+  // With empty keys.
+  {
+    const auto data = block::detail::RawBlockMerkleData{defaultHash, OrderedKeysSet{Key{"k1"}, Key{}, Key{"k3"}}};
+    const auto dataSliver = Sliver{serialize(data)};
+    ASSERT_EQ(deserialize<block::detail::RawBlockMerkleData>(dataSliver), data);
+  }
+
+  // Different key sizes.
+  {
+    const auto data =
+        block::detail::RawBlockMerkleData{defaultHash, OrderedKeysSet{Key{"k1"}, Key{"key12"}, Key{"333333"}}};
+    const auto dataSliver = Sliver{serialize(data)};
+    ASSERT_EQ(deserialize<block::detail::RawBlockMerkleData>(dataSliver), data);
+  }
+}
+
 TEST(block, block_serialization) {
   SetOfKeyValuePairs updates;
   for (auto i = 1u; i <= maxNumKeys; ++i) {
@@ -552,16 +646,79 @@ TEST(batched_internal, serialization) {
   }
 }
 
+TEST(database_leaf_value, equality) {
+  // Default-constructed leaf values are equal
+  {
+    const auto v1 = detail::DatabaseLeafValue{};
+    const auto v2 = detail::DatabaseLeafValue{};
+    ASSERT_TRUE(v1 == v2);
+  }
+
+  // Non-deleted equal leaf values.
+  {
+    const auto v1 = detail::DatabaseLeafValue{defaultBlockId, LeafNode{defaultSliver}};
+    const auto v2 = detail::DatabaseLeafValue{defaultBlockId, LeafNode{defaultSliver}};
+    ASSERT_TRUE(v1 == v2);
+  }
+
+  // Non-deleted leaf values that differ in the block ID only.
+  {
+    const auto v1 = detail::DatabaseLeafValue{defaultBlockId + 1, LeafNode{defaultSliver}};
+    const auto v2 = detail::DatabaseLeafValue{defaultBlockId + 2, LeafNode{defaultSliver}};
+    ASSERT_FALSE(v1 == v2);
+  }
+
+  // Non-deleted leaf values that differ in the value only.
+  {
+    const auto v1 = detail::DatabaseLeafValue{defaultBlockId, LeafNode{Sliver{"v1"}}};
+    const auto v2 = detail::DatabaseLeafValue{defaultBlockId, LeafNode{Sliver{"v2"}}};
+    ASSERT_FALSE(v1 == v2);
+  }
+
+  // Deleted equal leaf values.
+  {
+    const auto v1 = detail::DatabaseLeafValue{defaultBlockId, LeafNode{defaultSliver}, defaultBlockId};
+    const auto v2 = detail::DatabaseLeafValue{defaultBlockId, LeafNode{defaultSliver}, defaultBlockId};
+    ASSERT_TRUE(v1 == v2);
+  }
+
+  // Deleted and non-deleted leaf values are not equal.
+  {
+    const auto v1 = detail::DatabaseLeafValue{defaultBlockId, LeafNode{defaultSliver}};
+    const auto v2 = detail::DatabaseLeafValue{defaultBlockId, LeafNode{defaultSliver}, defaultBlockId};
+    ASSERT_FALSE(v1 == v2);
+  }
+
+  // Deleted in different blocks are not equal.
+  {
+    const auto v1 = detail::DatabaseLeafValue{defaultBlockId, LeafNode{defaultSliver}, defaultBlockId + 1};
+    const auto v2 = detail::DatabaseLeafValue{defaultBlockId, LeafNode{defaultSliver}, defaultBlockId + 2};
+    ASSERT_FALSE(v1 == v2);
+  }
+}
+
 TEST(database_leaf_value, serialization) {
-  // Non-empty value.
+  // Non-deleted with a non-empty value.
   {
     const auto dbLeafVal = detail::DatabaseLeafValue{defaultBlockId, LeafNode{defaultSliver}};
     ASSERT_TRUE(deserialize<detail::DatabaseLeafValue>(serialize(dbLeafVal)) == dbLeafVal);
   }
 
-  // Empty value.
+  // Non-deleted with an empty value.
   {
     const auto dbLeafVal = detail::DatabaseLeafValue{defaultBlockId, LeafNode{Sliver{}}};
+    ASSERT_TRUE(deserialize<detail::DatabaseLeafValue>(serialize(dbLeafVal)) == dbLeafVal);
+  }
+
+  // Deleted with a non-empty value.
+  {
+    const auto dbLeafVal = detail::DatabaseLeafValue{defaultBlockId, LeafNode{defaultSliver}, defaultBlockId + 1};
+    ASSERT_TRUE(deserialize<detail::DatabaseLeafValue>(serialize(dbLeafVal)) == dbLeafVal);
+  }
+
+  // Deleted with an empty value.
+  {
+    const auto dbLeafVal = detail::DatabaseLeafValue{defaultBlockId, LeafNode{Sliver{}}, defaultBlockId + 1};
     ASSERT_TRUE(deserialize<detail::DatabaseLeafValue>(serialize(dbLeafVal)) == dbLeafVal);
   }
 }
