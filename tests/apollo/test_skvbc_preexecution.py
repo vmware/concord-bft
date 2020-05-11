@@ -95,8 +95,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-        max_concurrency = len(bft_network.clients) // 2
+        max_concurrency = len(bft_network.clients)
         clients = bft_network.random_clients(max_concurrency)
-        num_of_requests = 50 * len(clients)
+        num_of_requests = max_concurrency * len(clients)
         sent_count = await self.run_concurrent_pre_execution_requests(skvbc, clients, num_of_requests)
         self.assertTrue(sent_count >= num_of_requests)
