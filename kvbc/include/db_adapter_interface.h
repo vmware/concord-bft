@@ -43,6 +43,11 @@ class IDbAdapter {
   // Throws if an error occurs.
   virtual void deleteBlock(const BlockId& blockId) = 0;
 
+  // Deletes the last reachable block.
+  // If the blockchain is empty, the call has no effect.
+  // Throws if an error occurs.
+  virtual void deleteLastReachableBlock() = 0;
+
   // Checks whether block exists
   virtual bool hasBlock(const BlockId& blockId) const = 0;
 

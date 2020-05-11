@@ -28,24 +28,24 @@ uint64_t ReplicaStateSyncImp::execute(concordlogger::Logger& logger,
                                       IDbAdapter& bcDBAdapter,
                                       BlockId lastReachableBlockId,
                                       uint64_t lastExecutedSeqNum) {
-  BlockId blockId = lastReachableBlockId;
-  uint64_t blockSeqNum = 0;
   uint64_t removedBlocksNum = 0;
-  Key key = blockMetadata_->getKey();
-  do {
-    blockSeqNum = blockMetadata_->getSequenceNum(key);
+  const auto genesisBlockId = bcDBAdapter.getGenesisBlockId();
+  const auto blockMetadataKey = blockMetadata_->getKey();
+  while (lastReachableBlockId && genesisBlockId <= lastReachableBlockId) {
+    const auto blockSeqNum = blockMetadata_->getSequenceNum(blockMetadataKey);
     LOG_INFO(logger,
-             "Block Metadata key = " << key << ", blockId = " << blockId << ", blockSeqNum = " << blockSeqNum
-                                     << ", lastExecutedSeqNum = " << lastExecutedSeqNum);
+             "Block Metadata key = " << blockMetadataKey << ", blockId = " << lastReachableBlockId << ", blockSeqNum = "
+                                     << blockSeqNum << ", lastExecutedSeqNum = " << lastExecutedSeqNum);
     if (blockSeqNum <= lastExecutedSeqNum) {
       LOG_INFO(logger, "Replica state is in sync; removedBlocksNum is " << removedBlocksNum);
       return removedBlocksNum;
     }
     // SBFT State Metadata is not in sync with SBFT State.
     // Remove blocks which sequence number is greater than lastExecutedSeqNum.
-    bcDBAdapter.deleteBlock(blockId--);
+    bcDBAdapter.deleteLastReachableBlock();
+    --lastReachableBlockId;
     ++removedBlocksNum;
-  } while (blockId);
+  }
   return removedBlocksNum;
 }
 

@@ -449,14 +449,15 @@ void DBAdapter::deleteBlock(const BlockId &blockId) {
   } else {
     throw std::invalid_argument{"Cannot delete blocks in the middle of the blockchain"};
   }
+  deleteKeysForBlock(keysToDelete, blockId);
+}
 
-  const auto status = db_->multiDel(keysToDelete);
-  if (!status.isOK()) {
-    const auto msg =
-        "Failed to delete blockchain block with ID = " + std::to_string(blockId) + ", reason: " + status.toString();
-    LOG_ERROR(logger_, msg);
-    throw std::runtime_error{msg};
+void DBAdapter::deleteLastReachableBlock() {
+  const auto lastReachableBlockId = getLastReachableBlockId();
+  if (lastReachableBlockId == 0) {
+    return;
   }
+  deleteKeysForBlock(lastReachableBlockKeyDeletes(lastReachableBlockId), lastReachableBlockId);
 }
 
 block::detail::Node DBAdapter::getBlockNode(BlockId blockId) const {
@@ -541,6 +542,16 @@ std::optional<std::pair<Key, Value>> DBAdapter::getLeafKeyValAtMostVersion(
     return std::make_pair(foundKey, foundValue);
   }
   return std::nullopt;
+}
+
+void DBAdapter::deleteKeysForBlock(const KeysVector &keys, BlockId blockId) const {
+  const auto status = db_->multiDel(keys);
+  if (!status.isOK()) {
+    const auto msg =
+        "Failed to delete blockchain block with ID = " + std::to_string(blockId) + ", reason: " + status.toString();
+    LOG_ERROR(logger_, msg);
+    throw std::runtime_error{msg};
+  }
 }
 
 SetOfKeyValuePairs DBAdapter::getBlockData(const RawBlock &rawBlock) const { return block::detail::getData(rawBlock); }
