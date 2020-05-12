@@ -18,7 +18,6 @@ import random
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from util import skvbc as kvbc
 
-
 def start_replica_cmd(builddir, replica_id):
     """
     Return a command that starts an skvbc replica when passed to
@@ -95,8 +94,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-        max_concurrency = len(bft_network.clients)
-        clients = bft_network.random_clients(max_concurrency)
-        num_of_requests = max_concurrency * len(clients)
+        clients = bft_network.clients.values()
+        num_of_requests = len(clients)
         sent_count = await self.run_concurrent_pre_execution_requests(skvbc, clients, num_of_requests)
         self.assertTrue(sent_count >= num_of_requests)
