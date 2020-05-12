@@ -180,7 +180,8 @@ void PreProcessor::onRequestsStatusCheckTimer(Timers::Handle timer) {
 void PreProcessor::onPreProcessRequestMsgWaitTimer(Timers::Handle timer) {
   if (myReplica_.isCurrentPrimary()) return;
 
-  // Go through all registered requests and pass to the replica treatment expired ones.
+  // Go through all registered requests and pass to the replica treatment expired ones to address possible primary
+  // replica crash.
   for (const auto &clientEntry : ongoingRequests_) {
     lock_guard<mutex> lock(clientEntry.second->mutex);
     const auto &clientReqStatePtr = clientEntry.second->reqProcessingStatePtr;
@@ -374,13 +375,10 @@ void PreProcessor::cancelPreProcessing(NodeIdType clientId) {
     lock_guard<mutex> lock(clientEntry->mutex);
     if (clientEntry->reqProcessingStatePtr) {
       reqSeqNum = clientEntry->reqProcessingStatePtr->getReqSeqNum();
-      incomingMsgsStorage_->pushExternalMsg(
-          clientEntry->reqProcessingStatePtr->convertClientPreProcessToClientMsg(true));
       releaseClientPreProcessRequest(clientEntry, clientId);
       LOG_WARN(GL,
-               "Pre-processing consensus not reached for clientId="
-                   << clientId << " reqSeqNum=" << reqSeqNum
-                   << "; abort pre-processing step and pass the request to the replica for a regular processing");
+               "Pre-processing consensus not reached - abort request with reqSeqNum=" << reqSeqNum
+                                                                                      << " from clientId=" << clientId);
     } else
       LOG_WARN(GL, "No reqProcessingStatePtr found for clientId=" << clientId);
   }
