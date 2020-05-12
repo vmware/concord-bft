@@ -2741,7 +2741,11 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
     const CheckData &e = ld.checkWinArr[i];
 
     Assert(checkpointsLog->insideActiveWindow(s));
-    Assert(e.isCheckpointMsgSet() || (s > ld.lastStableSeqNum || s == 0));
+    Assert(s == 0 ||                                                         // no checkpoints yet
+           s > ld.lastStableSeqNum ||                                        // not stable
+           e.isCheckpointMsgSet() ||                                         // if stable need to be set
+           ld.lastStableSeqNum == ld.lastExecutedSeqNum - kWorkWindowSize);  // after ST last executed may be on the
+                                                                             // upper working window boundary
 
     if (!e.isCheckpointMsgSet()) continue;
 
