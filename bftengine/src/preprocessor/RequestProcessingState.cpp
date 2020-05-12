@@ -118,20 +118,20 @@ bool RequestProcessingState::isPreProcessReqMsgReceivedInTime() const {
   return true;
 }
 
-PreProcessingResult RequestProcessingState::getPreProcessingConsensusResult() const {
+PreProcessingResult RequestProcessingState::getPreProcessingConsensusResult() {
   if (numOfReceivedReplies_ < numOfRequiredEqualReplies_) return CONTINUE;
 
   uint16_t maxNumOfEqualHashes = 0;
   auto itOfChosenHash = calculateMaxNbrOfEqualHashes(maxNumOfEqualHashes);
   if (maxNumOfEqualHashes >= numOfRequiredEqualReplies_) {
     if (itOfChosenHash->first == primaryPreProcessResultHash_) return COMPLETE;  // Pre-execution consensus reached
-
-    if (primaryPreProcessResultLen_ != 0) {
+    if (primaryPreProcessResultLen_ != 0 && !retrying_) {
       // Primary replica calculated hash is different from a hash that passed pre-execution consensus => we don't have
       // correct pre-processed results. Let's launch a pre-processing retry.
       LOG_WARN(GL,
                "Primary replica pre-processing result hash is different from one passed the consensus for reqSeqNum="
                    << reqSeqNum_ << "; retry pre-processing on primary replica");
+      retrying_ = true;
       return RETRY_PRIMARY;
     }
 
