@@ -30,7 +30,7 @@ def start_replica_cmd(builddir, replica_id):
     """
 
     status_timer_milli = "500"
-    view_change_timeout_milli = "10000"
+    view_change_timeout_milli = "5000"
 
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     return [path,
@@ -49,12 +49,24 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         req = skvbc.read_req(skvbc.random_keys(1))
         await client.read(req)
 
-    async def send_single_write_with_pre_execution(self, skvbc, client):
-        kv = [(skvbc.keys[0], skvbc.random_value()),
-              (skvbc.keys[1], skvbc.random_value())]
+    async def send_indefinite_pre_execution_requests(self, skvbc, clients):
+        while True:
+            client = random.choice(list(clients))
+            try:
+                await self.send_single_write_with_pre_execution(skvbc, client)
+            except:
+                pass
+            await trio.sleep(.1)
+
+    async def send_single_write_with_pre_execution_and_kv(self, skvbc, kv, client):
         reply = await client.write(skvbc.write_req([], kv, 0), pre_process=True)
         reply = skvbc.parse_reply(reply)
         self.assertTrue(reply.success)
+
+    async def send_single_write_with_pre_execution(self, skvbc, client):
+        kv = [(skvbc.random_key(), skvbc.random_value()),
+              (skvbc.random_key(), skvbc.random_value())]
+        await self.send_single_write_with_pre_execution_and_kv(skvbc, kv, client)
 
     async def run_concurrent_pre_execution_requests(self, skvbc, clients, num_of_requests, write_weight=.90):
         sent = 0
@@ -98,3 +110,44 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         num_of_requests = len(clients)
         sent_count = await self.run_concurrent_pre_execution_requests(skvbc, clients, num_of_requests)
         self.assertTrue(sent_count >= num_of_requests)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_view_change(self, bft_network):
+        """
+        Crash the primary replica and verify that the system triggers a view change and moves to a new view
+        """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        clients = bft_network.clients.values()
+        client = random.choice(list(clients))
+        key_before_vc = skvbc.random_key()
+        value_before_vc = skvbc.random_value()
+        kv = [(key_before_vc, value_before_vc)]
+
+        await self.send_single_write_with_pre_execution_and_kv(skvbc, kv, client)
+        await skvbc.assert_kv_write_executed(key_before_vc, value_before_vc)
+
+        initial_primary = 0
+        await bft_network.wait_for_view(replica_id=initial_primary,
+                                        expected=lambda v: v == initial_primary,
+                                        err_msg="Make sure we are in the initial view before crashing the primary.")
+
+        last_block = skvbc.parse_reply(await client.read(skvbc.get_last_block_req()))
+
+        bft_network.stop_replica(initial_primary)
+
+        try:
+            with trio.move_on_after(seconds=1):  # seconds
+                await self.send_indefinite_pre_execution_requests(skvbc, clients)
+
+        except trio.TooSlowError:
+            pass
+        finally:
+            expected_next_primary = 1
+            await bft_network.wait_for_view(replica_id=random.choice(bft_network.all_replicas(without={0})),
+                                            expected=lambda v: v == expected_next_primary,
+                                            err_msg="Make sure view change has been triggered.")
+
+            new_last_block = skvbc.parse_reply(await client.read(skvbc.get_last_block_req()))
+            self.assertEqual(new_last_block, last_block)
