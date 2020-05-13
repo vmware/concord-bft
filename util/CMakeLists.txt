@@ -8,7 +8,8 @@ add_library(util STATIC
     src/histogram.cpp
     src/status.cpp
     src/sliver.cpp
-    src/hex_tools.cpp)
+    src/hex_tools.cpp
+    src/OpenTracing.cpp)
 
 if(BUILD_ROCKSDB_STORAGE)
     target_compile_definitions(util PUBLIC "USE_ROCKSDB=1")
