@@ -58,6 +58,7 @@ if(SLEEP_FOR_DBG)
     add_definitions(-DSLEEP_DBG)
 endif()
 
+option(USE_OPENTRACING "Enable OpenTracing" ON)
 #
 # Compiler options
 #
