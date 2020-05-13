@@ -84,6 +84,7 @@ available:
 | `USE_LOG4CPP`          | TRUE \| FALSE | FALSE |
 | `CONCORD_LOGGER_NAME`  | STRING |"concord" |
 | `USE_CONAN`            | OFF\| ON | ON |
+| `USE_OPENTRACING`      | OFF\| ON | ON |
 
  Note(1): You can't set both `BUILD_COMM_TCP_PLAIN` and `BUILD_COMM_TCP_TLS` to TRUE.
  Note(2): In case of setting `USE_CONAN=OFF` cmake will search for packages in their native location.
