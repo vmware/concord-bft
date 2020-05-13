@@ -336,7 +336,7 @@ void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *msg) {
       return;
     }
     clientEntry->reqProcessingStatePtr->handlePreProcessReplyMsg(preProcessReplyMsg);
-    result = clientEntry->reqProcessingStatePtr->getPreProcessingConsensusResult();
+    result = clientEntry->reqProcessingStatePtr->definePreProcessingConsensusResult();
   }
   handleReqPreProcessedByOneReplica(cid, result, clientId, reqSeqNum);
 }
@@ -537,7 +537,7 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId, ReqId reqSeqNum
 PreProcessingResult PreProcessor::getPreProcessingConsensusResult(uint16_t clientId) {
   const auto &clientEntry = ongoingRequests_[clientId];
   lock_guard<mutex> lock(clientEntry->mutex);
-  return clientEntry->reqProcessingStatePtr->getPreProcessingConsensusResult();
+  return clientEntry->reqProcessingStatePtr->definePreProcessingConsensusResult();
 }
 
 ReqId PreProcessor::getOngoingReqIdForClient(uint16_t clientId) {
@@ -564,7 +564,7 @@ void PreProcessor::handlePreProcessedReqByPrimary(PreProcessRequestMsgSharedPtr 
     lock_guard<mutex> lock(clientEntry->mutex);
     if (clientEntry->reqProcessingStatePtr) {
       clientEntry->reqProcessingStatePtr->handlePrimaryPreProcessed(getPreProcessResultBuffer(clientId), resultBufLen);
-      result = clientEntry->reqProcessingStatePtr->getPreProcessingConsensusResult();
+      result = clientEntry->reqProcessingStatePtr->definePreProcessingConsensusResult();
       cid = clientEntry->reqProcessingStatePtr->getPreProcessRequest()->getCid();
     } else
       LOG_WARN(GL, "No reqProcessingStatePtr found for clientId=" << clientId);

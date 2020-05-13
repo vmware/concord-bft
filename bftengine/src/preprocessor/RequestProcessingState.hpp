@@ -38,7 +38,7 @@ class RequestProcessingState {
   void setPreProcessRequest(PreProcessRequestMsgSharedPtr preProcessReqMsg);
   PreProcessRequestMsgSharedPtr getPreProcessRequest() const { return preProcessRequestMsg_; }
   const SeqNum getReqSeqNum() const { return reqSeqNum_; }
-  PreProcessingResult getPreProcessingConsensusResult() const;
+  PreProcessingResult definePreProcessingConsensusResult();
   const char* getPrimaryPreProcessedResult() const { return primaryPreProcessResult_; }
   uint32_t getPrimaryPreProcessedResultLen() const { return primaryPreProcessResultLen_; }
   bool isReqTimedOut() const;
@@ -59,6 +59,8 @@ class RequestProcessingState {
   static uint16_t numOfRequiredEqualReplies_;
   static uint16_t preProcessReqWaitTimeMilli_;
 
+  // The use of the class data members is thread-safe. The PreProcessor class uses a per-instance mutex lock for
+  // the RequestProcessingState objects.
   const uint16_t numOfReplicas_;
   const ReqId reqSeqNum_;
   const uint64_t entryTime_;
@@ -70,6 +72,7 @@ class RequestProcessingState {
   concord::util::SHA3_256::Digest primaryPreProcessResultHash_;
   // Maps result hash to the number of equal hashes
   std::map<concord::util::SHA3_256::Digest, int> preProcessingResultHashes_;
+  bool retrying_ = false;
 };
 
 typedef std::unique_ptr<RequestProcessingState> RequestProcessingStateUniquePtr;
