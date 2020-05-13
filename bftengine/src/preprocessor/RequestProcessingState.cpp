@@ -118,7 +118,7 @@ bool RequestProcessingState::isPreProcessReqMsgReceivedInTime() const {
   return true;
 }
 
-PreProcessingResult RequestProcessingState::getPreProcessingConsensusResult() {
+PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult() {
   if (numOfReceivedReplies_ < numOfRequiredEqualReplies_) return CONTINUE;
 
   uint16_t maxNumOfEqualHashes = 0;

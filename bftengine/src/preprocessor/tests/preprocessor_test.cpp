@@ -345,10 +345,10 @@ TEST(requestPreprocessingState_test, notEnoughRepliesReceived) {
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   for (auto i = 1; i < numOfRequiredReplies; i++) {
     reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
-    Assert(reqState.getPreProcessingConsensusResult() == CONTINUE);
+    Assert(reqState.definePreProcessingConsensusResult() == CONTINUE);
   }
   reqState.handlePrimaryPreProcessed(buf, bufLen);
-  Assert(reqState.getPreProcessingConsensusResult() == CONTINUE);
+  Assert(reqState.definePreProcessingConsensusResult() == CONTINUE);
 }
 
 TEST(requestPreprocessingState_test, allRepliesReceivedButNotEnoughSameHashesCollected) {
@@ -358,11 +358,11 @@ TEST(requestPreprocessingState_test, allRepliesReceivedButNotEnoughSameHashesCol
   memset(buf, '5', bufLen);
   reqState.handlePrimaryPreProcessed(buf, bufLen);
   for (auto i = 1; i < replicaConfig.numReplicas; i++) {
-    if (i != replicaConfig.numReplicas - 1) Assert(reqState.getPreProcessingConsensusResult() == CONTINUE);
+    if (i != replicaConfig.numReplicas - 1) Assert(reqState.definePreProcessingConsensusResult() == CONTINUE);
     memset(buf, i, bufLen);
     reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
   }
-  Assert(reqState.getPreProcessingConsensusResult() == CANCEL);
+  Assert(reqState.definePreProcessingConsensusResult() == CANCEL);
 }
 
 TEST(requestPreprocessingState_test, enoughSameRepliesReceived) {
@@ -371,11 +371,11 @@ TEST(requestPreprocessingState_test, enoughSameRepliesReceived) {
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   for (auto i = 1; i <= numOfRequiredReplies; i++) {
-    if (i != numOfRequiredReplies - 1) Assert(reqState.getPreProcessingConsensusResult() == CONTINUE);
+    if (i != numOfRequiredReplies - 1) Assert(reqState.definePreProcessingConsensusResult() == CONTINUE);
     reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
   }
   reqState.handlePrimaryPreProcessed(buf, bufLen);
-  Assert(reqState.getPreProcessingConsensusResult() == COMPLETE);
+  Assert(reqState.definePreProcessingConsensusResult() == COMPLETE);
 }
 
 TEST(requestPreprocessingState_test, primaryReplicaPreProcessingRetrySucceeds) {
@@ -385,14 +385,14 @@ TEST(requestPreprocessingState_test, primaryReplicaPreProcessingRetrySucceeds) {
   memset(buf, '5', bufLen);
   reqState.handlePrimaryPreProcessed(buf, bufLen);
   for (auto i = 1; i <= numOfRequiredReplies; i++) {
-    if (i != replicaConfig.numReplicas - 1) Assert(reqState.getPreProcessingConsensusResult() == CONTINUE);
+    if (i != replicaConfig.numReplicas - 1) Assert(reqState.definePreProcessingConsensusResult() == CONTINUE);
     memset(buf, '4', bufLen);
     reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
   }
-  Assert(reqState.getPreProcessingConsensusResult() == RETRY_PRIMARY);
+  Assert(reqState.definePreProcessingConsensusResult() == RETRY_PRIMARY);
   memset(buf, '4', bufLen);
   reqState.handlePrimaryPreProcessed(buf, bufLen);
-  Assert(reqState.getPreProcessingConsensusResult() == COMPLETE);
+  Assert(reqState.definePreProcessingConsensusResult() == COMPLETE);
 }
 
 TEST(requestPreprocessingState_test, primaryReplicaDidNotCompletePreProcessingWhileNonPrimariesDid) {
@@ -401,14 +401,14 @@ TEST(requestPreprocessingState_test, primaryReplicaDidNotCompletePreProcessingWh
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   for (auto i = 1; i <= numOfRequiredReplies; i++) {
-    if (i != replicaConfig.numReplicas - 1) Assert(reqState.getPreProcessingConsensusResult() == CONTINUE);
+    if (i != replicaConfig.numReplicas - 1) Assert(reqState.definePreProcessingConsensusResult() == CONTINUE);
     memset(buf, '4', bufLen);
     reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
   }
-  Assert(reqState.getPreProcessingConsensusResult() == CONTINUE);
+  Assert(reqState.definePreProcessingConsensusResult() == CONTINUE);
   memset(buf, '4', bufLen);
   reqState.handlePrimaryPreProcessed(buf, bufLen);
-  Assert(reqState.getPreProcessingConsensusResult() == COMPLETE);
+  Assert(reqState.definePreProcessingConsensusResult() == COMPLETE);
 }
 
 TEST(requestPreprocessingState_test, clientPreProcessMessageConversion) {
