@@ -449,7 +449,7 @@ void DBAdapter::deleteBlock(const BlockId &blockId) {
     if (Status s = db_->multiDel(keysVec); !s.isOK())
       throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": failed: blockId: ") + std::to_string(blockId) +
                                std::string(" reason: ") + s.toString());
-    Assert(hasBlock(blockId - 1));
+    if (blockId > 1) Assert(hasBlock(blockId - 1));
     setLatestBlock(blockId - 1);
     setLastReachableBlockNum(blockId - 1);
   } catch (const NotFoundException &e) {
