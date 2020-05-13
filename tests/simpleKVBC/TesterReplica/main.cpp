@@ -17,6 +17,8 @@
 #include "replica_state_sync_imp.hpp"
 #include "block_metadata.hpp"
 #include "SimpleBCStateTransfer.hpp"
+#include "assertUtils.hpp"
+#include <csignal>
 
 #ifdef USE_ROCKSDB
 #include "rocksdb/client.h"
@@ -54,7 +56,20 @@ void run_replica(int argc, char** argv) {
 }
 }  // namespace concord::kvbc::test
 
+using namespace std;
+
+void signal_handler(int signal_num) {
+  LOG_FATAL(GL, "Program received signal " << signal_num);
+  printCallStack();
+  exit(signal_num);
+}
+
 int main(int argc, char** argv) {
+  signal(SIGSEGV, signal_handler);
+  signal(SIGBUS, signal_handler);
+  signal(SIGILL, signal_handler);
+  signal(SIGFPE, signal_handler);
+
   try {
     concord::kvbc::test::run_replica(argc, argv);
   } catch (const std::exception& e) {
