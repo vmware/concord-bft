@@ -30,7 +30,7 @@ def start_replica_cmd(builddir, replica_id):
     """
 
     status_timer_milli = "500"
-    view_change_timeout_milli = "5000"
+    view_change_timeout_milli = "10000"
 
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     return [path,
@@ -58,15 +58,15 @@ class SkvbcPreExecutionTest(unittest.TestCase):
                 pass
             await trio.sleep(.1)
 
-    async def send_single_write_with_pre_execution_and_kv(self, skvbc, kv, client):
-        reply = await client.write(skvbc.write_req([], kv, 0), pre_process=True)
+    async def send_single_write_with_pre_execution_and_kv(self, skvbc, write_set, client):
+        reply = await client.write(skvbc.write_req([], write_set, 0), pre_process=True)
         reply = skvbc.parse_reply(reply)
         self.assertTrue(reply.success)
 
     async def send_single_write_with_pre_execution(self, skvbc, client):
-        kv = [(skvbc.random_key(), skvbc.random_value()),
-              (skvbc.random_key(), skvbc.random_value())]
-        await self.send_single_write_with_pre_execution_and_kv(skvbc, kv, client)
+        write_set = [(skvbc.random_key(), skvbc.random_value()),
+                     (skvbc.random_key(), skvbc.random_value())]
+        await self.send_single_write_with_pre_execution_and_kv(skvbc, write_set, client)
 
     async def run_concurrent_pre_execution_requests(self, skvbc, clients, num_of_requests, write_weight=.90):
         sent = 0
@@ -123,9 +123,9 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         client = random.choice(list(clients))
         key_before_vc = skvbc.random_key()
         value_before_vc = skvbc.random_value()
-        kv = [(key_before_vc, value_before_vc)]
+        write_set = [(key_before_vc, value_before_vc)]
 
-        await self.send_single_write_with_pre_execution_and_kv(skvbc, kv, client)
+        await self.send_single_write_with_pre_execution_and_kv(skvbc, write_set, client)
         await skvbc.assert_kv_write_executed(key_before_vc, value_before_vc)
 
         initial_primary = 0
