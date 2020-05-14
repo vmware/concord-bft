@@ -84,6 +84,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             sent += len(clients)
         return read_count + write_count
 
+    @unittest.skip("unstable")
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_sequential_pre_process_requests(self, bft_network):
