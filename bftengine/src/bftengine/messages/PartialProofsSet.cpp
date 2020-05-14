@@ -155,12 +155,12 @@ bool PartialProofsSet::addMsg(FullCommitProofMsg* m) {
 
   if (myPCP == nullptr) {
     // TODO(GG): can be improved (we can keep the FullCommitProof  message until myPCP!=nullptr
-    LOG_WARN_F(GL, "FullCommitProofMsg arrived before PrePrepare. TODO(GG): should be handled to avoid delays. ");
+    LOG_WARN(GL, "FullCommitProofMsg arrived before PrePrepare. TODO(GG): should be handled to avoid delays. ");
     return false;
   }
 
   if (m->seqNumber() != myPCP->seqNumber() || m->viewNumber() != myPCP->viewNumber()) {
-    LOG_WARN_F(GL, "Received unexpected FullCommitProofMsg");
+    LOG_WARN(GL, "Received unexpected FullCommitProofMsg");
     return false;
   }
 
@@ -172,7 +172,7 @@ bool PartialProofsSet::addMsg(FullCommitProofMsg* m) {
     fullCommitProof = m;
     return true;
   } else {
-    LOG_INFO_F(GL, "Unable to verify FullCommitProofMsg message for seqNumber %" PRId64 "", m->seqNumber());
+    LOG_INFO(GL, "Unable to verify FullCommitProofMsg message for seqNumber " << m->seqNumber());
     return false;
   }
 }
@@ -220,7 +220,7 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
   virtual ~AsynchProofCreationJob(){};
 
   virtual void execute() {
-    LOG_DEBUG_F(GL, "PartialProofsSet::AsynchProofCreationJob::execute - begin (for seqNumber %" PRId64 ")", seqNumber);
+    LOG_DEBUG(GL, "PartialProofsSet::AsynchProofCreationJob::execute - begin (for seqNumber %" << seqNumber << ")");
 
     const uint16_t bufferSize = (uint16_t)verifier->requiredLengthForSignedData();
     char* const bufferForSigComputations = (char*)alloca(bufferSize);
@@ -231,7 +231,7 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
 
     //		if (sigLength > sizeof(bufferForSigComputations) || sigLength > UINT16_MAX || sigLength == 0)
     if (sigLength > UINT16_MAX || sigLength == 0) {
-      LOG_WARN_F(GL, "Unable to create FullProof for seqNumber %" PRId64 "", seqNumber);
+      LOG_WARN(GL, "Unable to create FullProof for seqNumber " << seqNumber);
       return;
     }
 
@@ -240,8 +240,8 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
     bool succ = verifier->verify((char*)&expectedDigest, sizeof(Digest), bufferForSigComputations, (uint16_t)sigLength);
 
     if (!succ) {
-      LOG_WARN_F(GL, "Failed to create FullProof for seqNumber %" PRId64 "", seqNumber);
-      LOG_DEBUG_F(GL, "PartialProofsSet::AsynchProofCreationJob::execute - end (for seqNumber %" PRId64 ")", seqNumber);
+      LOG_WARN(GL, "Failed to create FullProof for seqNumber " << seqNumber);
+      LOG_DEBUG(GL, "PartialProofsSet::AsynchProofCreationJob::execute - end (for seqNumber " << seqNumber);
       return;
     } else {
       FullCommitProofMsg* fcpMsg = new FullCommitProofMsg(
@@ -253,7 +253,7 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
       me->getIncomingMsgsStorage().pushInternalMsg(std::move(p));
     }
 
-    LOG_DEBUG_F(GL, "PartialProofsSet::AsynchProofCreationJob::execute - end (for seqNumber %" PRId64 ")", seqNumber);
+    LOG_DEBUG(GL, "PartialProofsSet::AsynchProofCreationJob::execute - end (for seqNumber " << seqNumber);
   }
 
   virtual void release() {
@@ -302,7 +302,7 @@ void PartialProofsSet::tryToCreateFullProof() {
 
     replica->getInternalThreadPool().add(j);
 
-    LOG_DEBUG_F(GL, "PartialProofsSet - send to BK thread (for seqNumber %" PRId64 ")", seqNumber);
+    LOG_DEBUG(GL, "PartialProofsSet - send to BK thread (for seqNumber %" << seqNumber << ")");
   }
 }
 

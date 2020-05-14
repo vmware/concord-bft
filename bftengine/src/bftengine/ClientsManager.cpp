@@ -119,13 +119,13 @@ ClientReplyMsg* ClientsManager::allocateNewReplyMsgAndWriteToStorage(
   c.lastSeqNumberOfReply = requestSeqNum;
   c.latestReplyTime = getMonotonicTime();
 
-  LOG_DEBUG_F(GL, "allocateNewReplyMsgAndWriteToStorage - requestSeqNum=%d", (int)requestSeqNum);
+  LOG_DEBUG(GL, "requestSeqNum=" << requestSeqNum);
 
   ClientReplyMsg* const r = new ClientReplyMsg(myId_, requestSeqNum, reply, replyLength);
 
   const uint32_t firstPageId = clientIdx * reservedPagesPerClient_;
 
-  LOG_DEBUG_F(GL, "allocateNewReplyMsgAndWriteToStorage - firstPageId=%d", (int)firstPageId);
+  LOG_DEBUG(GL, "firstPageId=" << firstPageId);
 
   uint32_t numOfPages = r->size() / sizeOfReservedPage_;
   uint32_t sizeLastPage = sizeOfReservedPage_;
@@ -135,8 +135,7 @@ ClientReplyMsg* ClientsManager::allocateNewReplyMsgAndWriteToStorage(
     sizeLastPage = r->size() % sizeOfReservedPage_;
   }
 
-  LOG_DEBUG_F(GL, "allocateNewReplyMsgAndWriteToStorage - numOfPages=%d", (int)numOfPages);
-  LOG_DEBUG_F(GL, "allocateNewReplyMsgAndWriteToStorage - sizeLastPage=%d", (int)sizeLastPage);
+  LOG_DEBUG(GL, "numOfPages=" << numOfPages << " sizeLastPage=" << sizeLastPage);
 
   // write reply message to reserved pages
   for (uint32_t i = 0; i < numOfPages; i++) {
@@ -148,7 +147,7 @@ ClientReplyMsg* ClientsManager::allocateNewReplyMsgAndWriteToStorage(
   // write currentPrimaryId to message (we don't store the currentPrimaryId in the reserved pages)
   r->setPrimaryId(currentPrimaryId);
 
-  LOG_DEBUG_F(GL, "allocateNewReplyMsgAndWriteToStorage returns reply with hash=%" PRIu64 "", r->debugHash());
+  LOG_DEBUG(GL, "returns reply with hash=" << r->debugHash());
 
   return r;
 }
@@ -160,11 +159,9 @@ ClientReplyMsg* ClientsManager::allocateMsgWithLatestReply(NodeIdType clientId, 
 
   Assert(info.lastSeqNumberOfReply != 0);
 
-  LOG_DEBUG_F(GL, "allocateMsgWithLatestReply - info.lastSeqNumberOfReply=%d", (int)info.lastSeqNumberOfReply);
-
   const uint32_t firstPageId = clientIdx * reservedPagesPerClient_;
 
-  LOG_DEBUG_F(GL, "allocateMsgWithLatestReply - firstPageId=%d", (int)firstPageId);
+  LOG_DEBUG(GL, "info.lastSeqNumberOfReply=" << info.lastSeqNumberOfReply << " firstPageId=" << firstPageId);
 
   stateTransfer_->loadReservedPage(firstPageId, sizeOfReservedPage_, scratchPage_);
 
@@ -184,8 +181,7 @@ ClientReplyMsg* ClientsManager::allocateMsgWithLatestReply(NodeIdType clientId, 
     sizeLastPage = replyMsgSize % sizeOfReservedPage_;
   }
 
-  LOG_DEBUG_F(GL, "allocateMsgWithLatestReply - numOfPages=%d", (int)numOfPages);
-  LOG_DEBUG_F(GL, "allocateMsgWithLatestReply - sizeLastPage=%d", (int)sizeLastPage);
+  LOG_DEBUG(GL, "numOfPages=" << numOfPages << " sizeLastPage=" << sizeLastPage);
 
   ClientReplyMsg* const r = new ClientReplyMsg(myId_, replyHeader->replyLength);
 
@@ -198,7 +194,7 @@ ClientReplyMsg* ClientsManager::allocateMsgWithLatestReply(NodeIdType clientId, 
 
   r->setPrimaryId(currentPrimaryId);
 
-  LOG_DEBUG_F(GL, "allocateMsgWithLatestReply returns reply with hash=%" PRIu64 "", r->debugHash());
+  LOG_DEBUG(GL, "returns reply with hash=" << r->debugHash());
 
   return r;
 }

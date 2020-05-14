@@ -31,9 +31,10 @@ class Handoff {
   typedef std::function<void()> func_type;
 
  public:
-  Handoff() {
-    thread_ = std::thread([this] {
+  Handoff(std::uint16_t replicaId) {
+    thread_ = std::thread([this, replicaId] {
       try {
+        MDC_PUT(GL, "rid", std::to_string(replicaId));
         for (;;) pop()();
       } catch (ThreadCanceledException& e) {
         LOG_DEBUG(getLogger(), "thread stopped " << std::this_thread::get_id());

@@ -113,7 +113,7 @@ static bool checkSlowPathCertificates(std::set<SlowElem, SlowElemCompare>& slowP
 
       if (e.certificateView() == lastElement.certificateView()) {
         Assert(e.seqNum() == lastElement.seqNum());
-        LOG_WARN_F(GL, "Found two conflicting prepared certificate for SeqNum %" PRIu64, e.seqNum());
+        LOG_WARN(GL, "Found two conflicting prepared certificate for SeqNum " << e.seqNum());
       }
     }
 
@@ -237,7 +237,7 @@ void ViewChangeSafetyLogic::computeRestrictions(ViewChangeMsg** const inViewChan
     if (lastRestcitionNum > 0 && lastRestcitionNum <= (upperBound - checkpointWindowSize)) {
       outMaxRestrictedSeqNum = upperBound - checkpointWindowSize;
 
-      LOG_DEBUG_F(GL, "\"VC stable\" patch was used");
+      LOG_DEBUG(GL, "\"VC stable\" patch was used");
     }
   }
 
@@ -288,7 +288,7 @@ bool ViewChangeSafetyLogic::computeRestrictionsForSeqNum(SeqNum s,
       selectedSlow = slow;
       break;  // we want the highest valid certificate
     } else {
-      LOG_WARN_F(GL, "An invalid prepared certificate for SeqNum %" PRIu64 " is ignored", s);
+      LOG_WARN(GL, "An invalid prepared certificate for SeqNum " << s << " is ignored");
     }
   }
 

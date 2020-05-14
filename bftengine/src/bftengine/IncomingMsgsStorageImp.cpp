@@ -54,7 +54,7 @@ void IncomingMsgsStorageImp::stop() {
   if (dispatcherThread_.joinable()) {
     stopped_ = true;
     dispatcherThread_.join();
-    LOG_INFO_F(GL, "Dispatching thread stopped");
+    LOG_INFO(GL, "Dispatching thread stopped");
   }
 }
 
@@ -64,9 +64,9 @@ void IncomingMsgsStorageImp::pushExternalMsg(std::unique_ptr<MessageBase> msg) {
   if (ptrProtectedQueueForExternalMessages_->size() >= maxNumberOfPendingExternalMsgs_) {
     Time now = getMonotonicTime();
     if ((now - lastOverflowWarning_) > (milliseconds(minTimeBetweenOverflowWarningsMilli_))) {
-      LOG_WARN_F(GL,
-                 "More than %d pending messages in queue - may ignore some of the messages!",
-                 (int)maxNumberOfPendingExternalMsgs_);
+      LOG_WARN(GL,
+               "More than " << maxNumberOfPendingExternalMsgs_
+                            << " pending messages in queue - may ignore some of the messages!");
       lastOverflowWarning_ = now;
     }
   } else {

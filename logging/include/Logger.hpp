@@ -19,17 +19,20 @@
 #endif
 
 /**
- * GL and initLogger() have to be defined by a user in a following way:
- * concordlogger::Logger GL = initLogger();
- *
  * For development purposes anyone can link with $<TARGET_OBJECTS:logging_dev>
  * and get a default initializations for both loggers.
  */
 
 extern concordlogger::Logger GL;
-extern concordlogger::Logger initLogger();
 
 namespace concordlogger {
+
+class Log {
+ public:
+  static Logger getLogger(const std::string& name);
+  static void initLogger(const std::string& configFileName);
+};
+
 class MDC {
   concordlogger::Logger& logger_;
   std::string key_;
@@ -39,6 +42,7 @@ class MDC {
   MDC(concordlogger::Logger& logger, const std::string& key, int value) : MDC(logger, key, std::to_string(value)) {}
   ~MDC();
 };
+
 }  // namespace concordlogger
 
 /*

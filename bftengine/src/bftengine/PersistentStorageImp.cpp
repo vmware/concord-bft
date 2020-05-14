@@ -43,7 +43,7 @@ bool PersistentStorageImp::init(unique_ptr<MetadataStorage> metadataStorage) {
   metadataStorage_ = move(metadataStorage);
   try {
     if (!getStoredVersion().empty()) {
-      LOG_INFO_F(GL, "PersistentStorageImp::init version=%s", version_.c_str());
+      LOG_INFO(GL, "PersistentStorageImp::init version=" << version_.c_str());
       retrieveWindowsMetadata();
       // Retrieve metadata parameters stored in the memory
       getReplicaConfig();
@@ -58,7 +58,7 @@ bool PersistentStorageImp::init(unique_ptr<MetadataStorage> metadataStorage) {
 }
 
 void PersistentStorageImp::setDefaultsInMetadataStorage() {
-  LOG_INFO_F(GL, "PersistentStorageImp::setDefaultsInMetadataStorage");
+  LOG_INFO(GL, "");
   beginWriteTran();
 
   setVersion();
@@ -895,15 +895,12 @@ SeqNum PersistentStorageImp::getSeqNum(ConstMetadataParameterIds id, uint32_t si
 }
 
 bool PersistentStorageImp::setIsAllowed() const {
-  LOG_DEBUG_F(GL,
-              "PersistentStorageImp::setIsAllowed() isInWriteTran=%d, hasReplicaConfig=%d",
-              isInWriteTran(),
-              hasReplicaConfig());
+  LOG_DEBUG(GL, "isInWriteTran=" << isInWriteTran() << ", hasReplicaConfig=" << hasReplicaConfig());
   return (isInWriteTran() && hasReplicaConfig());
 }
 
 bool PersistentStorageImp::getIsAllowed() const {
-  LOG_DEBUG_F(GL, "PersistentStorageImp::getIsAllowed() isInWriteTran=%d", isInWriteTran());
+  LOG_DEBUG(GL, "isInWriteTran=" << isInWriteTran());
   return (!isInWriteTran());
 }
 
