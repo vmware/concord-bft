@@ -46,7 +46,8 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
                   uint32_t lengthOfReplyBuffer,
                   char* replyBuffer,
                   uint32_t& actualReplyLength,
-                  std::string cid = "") override;
+                  const std::string& cid = "",
+                  const std::string& span_context = "") override;
 
   int sendRequestToResetSeqNum() override;
   int sendRequestToReadLatestSeqNum(uint64_t timeoutMilli, uint64_t& outLatestReqSeqNum) override;
@@ -191,7 +192,8 @@ int SimpleClientImp::sendRequest(uint8_t flags,
                                  uint32_t lengthOfReplyBuffer,
                                  char* replyBuffer,
                                  uint32_t& actualReplyLength,
-                                 std::string cid) {
+                                 const std::string& cid,
+                                 const std::string& span_context) {
   bool isReadOnly = flags & READ_ONLY_REQ;
   bool isPreProcessRequired = flags & PRE_PROCESS_REQ;
   const std::string msgCid = cid.empty() ? std::to_string(reqSeqNum) + "-" + std::to_string(clientId_) : cid;
@@ -200,7 +202,7 @@ int SimpleClientImp::sendRequest(uint8_t flags,
             "Client " << clientId_ << " - sends request " << reqSeqNum << " (isRO=" << isReadOnly
                       << ", isPreProcess=" << isPreProcessRequired << " , request size=" << lengthOfRequest
                       << ", retransmissionMilli=" << limitOfExpectedOperationTime_.upperLimit()
-                      << ", timeout=" << timeoutMilli << ") ");
+                      << ", timeout=" << timeoutMilli << ", has span context=" << !span_context.empty());
   Assert(!(isReadOnly && isPreProcessRequired));
 
   if (!communication_->isRunning()) {
@@ -220,9 +222,10 @@ int SimpleClientImp::sendRequest(uint8_t flags,
   ClientRequestMsg* reqMsg;
   if (isPreProcessRequired)
     reqMsg = new preprocessor::ClientPreProcessRequestMsg(
-        clientId_, reqSeqNum, lengthOfRequest, request, timeoutMilli, msgCid);
+        clientId_, reqSeqNum, lengthOfRequest, request, timeoutMilli, msgCid, span_context);
   else
-    reqMsg = new ClientRequestMsg(clientId_, flags, reqSeqNum, lengthOfRequest, request, timeoutMilli, msgCid);
+    reqMsg =
+        new ClientRequestMsg(clientId_, flags, reqSeqNum, lengthOfRequest, request, timeoutMilli, msgCid, span_context);
   pendingRequest_ = reqMsg;
 
   sendPendingRequest();

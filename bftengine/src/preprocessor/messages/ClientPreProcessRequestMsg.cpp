@@ -23,15 +23,22 @@ ClientPreProcessRequestMsg::ClientPreProcessRequestMsg(NodeIdType sender,
                                                        uint32_t requestLength,
                                                        const char* request,
                                                        uint64_t reqTimeoutMilli,
-                                                       const std::string& cid)
-    : ClientRequestMsg(sender, PRE_PROCESS_REQ, reqSeqNum, requestLength, request, reqTimeoutMilli, cid) {
+                                                       const std::string& cid,
+                                                       const std::string& span_context)
+    : ClientRequestMsg(sender, PRE_PROCESS_REQ, reqSeqNum, requestLength, request, reqTimeoutMilli, cid, span_context) {
   msgBody_->msgType = MsgCode::ClientPreProcessRequest;
 }
 
 unique_ptr<MessageBase> ClientPreProcessRequestMsg::convertToClientRequestMsg(bool resetPreProcessFlag) {
   if (resetPreProcessFlag) msgBody()->flags &= ~(1 << 1);
-  unique_ptr<MessageBase> clientRequestMsg = make_unique<ClientRequestMsg>(
-      clientProxyId(), flags(), requestSeqNum(), requestLength(), requestBuf(), requestTimeoutMilli(), getCid());
+  unique_ptr<MessageBase> clientRequestMsg = make_unique<ClientRequestMsg>(clientProxyId(),
+                                                                           flags(),
+                                                                           requestSeqNum(),
+                                                                           requestLength(),
+                                                                           requestBuf(),
+                                                                           requestTimeoutMilli(),
+                                                                           getCid(),
+                                                                           spanContext<ClientRequestMsg>());
   return clientRequestMsg;
 }
 

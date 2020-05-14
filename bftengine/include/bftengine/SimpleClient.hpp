@@ -65,7 +65,8 @@ class SimpleClient {
                           uint32_t lengthOfReplyBuffer,
                           char* replyBuffer,
                           uint32_t& actualReplyLength,
-                          std::string cid = "") = 0;
+                          const std::string& cid = "",
+                          const std::string& span_context = "") = 0;
 
   virtual int sendRequestToResetSeqNum() = 0;
   virtual int sendRequestToReadLatestSeqNum(uint64_t timeoutMilli, uint64_t& outLatestReqSeqNum) = 0;

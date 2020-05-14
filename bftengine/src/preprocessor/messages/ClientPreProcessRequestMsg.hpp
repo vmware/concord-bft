@@ -26,7 +26,8 @@ class ClientPreProcessRequestMsg : public ClientRequestMsg {
                              uint32_t requestLength,
                              const char* request,
                              uint64_t reqTimeoutMilli,
-                             const std::string& cid);
+                             const std::string& cid,
+                             const std::string& span_context = "");
 
   std::unique_ptr<MessageBase> convertToClientRequestMsg(bool resetPreProcessFlag);
 };
