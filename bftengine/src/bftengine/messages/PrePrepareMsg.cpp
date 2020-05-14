@@ -115,9 +115,13 @@ void PrePrepareMsg::addRequest(const char* pRequest, uint32_t requestSize) {
 }
 
 void PrePrepareMsg::finishAddingRequests() {
+  if (b()->numberOfRequests <= 0) {
+    LOG_ERROR(GL, "Error, Number of request added is: " << b()->numberOfRequests);
+    throw std::logic_error("No request was added, can't finish adding requests");
+  }
+
   Assert(!isNull());
   Assert(!isReady());
-  Assert(b()->numberOfRequests > 0);
   Assert(b()->endLocationOfLastRequest > payloadShift());
   Assert(b()->digestOfRequests.isZero());
 
