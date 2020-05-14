@@ -105,7 +105,12 @@ class SkvbcStartupFailuresTest(unittest.TestCase):
 
         await self._send_requests_to_all_replicas(5, bft_network, skvbc)
 
-        await bft_network.wait_for_state_transfer_to_start()
+        with trio.fail_after(seconds=timeout): 
+            async with trio.open_nursery() as nursery:
+                nursery.start_soon(
+                    self._send_requests_to_all_replicas, timeout, bft_network, skvbc)
+                await bft_network.wait_for_state_transfer_to_start()
+                nursery.cancel_scope.cancel()
 
         await self._send_requests_to_all_replicas(20, bft_network, skvbc)
 
@@ -174,7 +179,12 @@ class SkvbcStartupFailuresTest(unittest.TestCase):
 
         await self._send_requests_to_all_replicas(15, bft_network, skvbc)
 
-        await bft_network.wait_for_state_transfer_to_start()
+        with trio.fail_after(seconds=timeout): 
+            async with trio.open_nursery() as nursery:
+                nursery.start_soon(
+                    self._send_requests_to_all_replicas, timeout, bft_network, skvbc)
+                await bft_network.wait_for_state_transfer_to_start()
+                nursery.cancel_scope.cancel()
         print("DEBUG: State Transfer Started.")
         
         await self._send_requests_to_all_replicas(25, bft_network, skvbc)
