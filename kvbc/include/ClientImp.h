@@ -33,7 +33,8 @@ class ClientImp : public IClient {
                                     uint32_t replySize,
                                     char* outReply,
                                     uint32_t* outActualReplySize,
-                                    const std::string& = "") override;
+                                    const std::string& cid = "",
+                                    const std::string& span_context = "") override;
 
   virtual void setMetricsAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) override;
 
