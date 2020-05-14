@@ -125,11 +125,11 @@ class NodesInsulatingAdversary(NetworkPartitioningAdversary):
 
     def interfere(self):
         # drop packets between insulated replicas and the rest
-        replicas_con = [v for
-                        v in product(self.replicas_to_insulate,
+        replica_connections = [r for
+                               r in product(self.replicas_to_insulate,
                                      self.bft_network.all_replicas())]
         
-        for connection in replicas_con:
+        for connection in replica_connections:
             port_replica_1 = self.bft_network.replicas[connection[0]].port
             port_replica_2 = self.bft_network.replicas[connection[1]].port
         
@@ -141,11 +141,11 @@ class NodesInsulatingAdversary(NetworkPartitioningAdversary):
             )
 
         # drop packets between insulated replicas and the clients
-        client_con = [v for
-                      v in product(self.replicas_to_insulate,
+        client_conconnections = [r for
+                                 r in product(self.replicas_to_insulate,
                                    self.bft_network.clients.values())]
         
-        for connection in client_con:
+        for connection in client_conconnections:
             port_replica = self.bft_network.replicas[connection[0]].port
             port_client = connection[1].sock.getsockname()[1]
 

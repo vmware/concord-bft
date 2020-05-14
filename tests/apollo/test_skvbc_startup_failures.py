@@ -1,6 +1,6 @@
 # Concord
 #
-# Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+# Copyright (c) 2020 VMware, Inc. All Rights Reserved.
 #
 # This product is licensed to you under the Apache 2.0 license (the "License").
 # You may not use this product except in compliance with the Apache 2.0 License.
@@ -43,7 +43,7 @@ def start_replica_cmd(builddir, replica_id):
             "-t", os.environ.get('STORAGE_TYPE')]
 
 
-class SkvbcStateTransferTest(unittest.TestCase):
+class SkvbcStartupFailuresTest(unittest.TestCase):
 
     __test__ = False  # so that PyTest ignores this test scenario
 
@@ -76,11 +76,10 @@ class SkvbcStateTransferTest(unittest.TestCase):
 
         actual_view = 0
         timeout = 60
-        with trio.fail_after(timeout):  # seconds
+        with trio.fail_after(seconds=timeout): 
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(
                     self._send_requests_to_all_replicas, timeout, bft_network, skvbc)
-                # See if replica 1 has become the new primary
                 actual_view = await bft_network.wait_for_view(
                     replica_id=initial_primary,
                     expected=lambda v: v == initial_primary,
@@ -96,7 +95,7 @@ class SkvbcStateTransferTest(unittest.TestCase):
         )
         checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=initial_primary)
 
-        self.assertNotEqual(checkpoint_before, checkpoint_after)
+        self.assertTrue(checkpoint_after > checkpoint_before)
 
         await self._send_requests_to_all_replicas(5, bft_network, skvbc)
 
@@ -110,11 +109,11 @@ class SkvbcStateTransferTest(unittest.TestCase):
 
         await self._send_requests_to_all_replicas(20, bft_network, skvbc)
 
-        for v in delayed_replicas:
+        for r in delayed_replicas:
             await bft_network.wait_for_state_transfer_to_stop(initial_primary,
-                                                              v)
-        for v in delayed_replicas:
-            vc_msgs = await self._get_total_view_change_msgs(v, bft_network)
+                                                              r)
+        for r in delayed_replicas:
+            vc_msgs = await self._get_total_view_change_msgs(r, bft_network)
             self.assertEqual(vc_msgs, 0)
         
     @with_trio
@@ -149,11 +148,10 @@ class SkvbcStateTransferTest(unittest.TestCase):
 
             actual_view = 0
             timeout = 60
-            with trio.fail_after(timeout):  # seconds
+            with trio.fail_after(seconds=timeout):
                 async with trio.open_nursery() as nursery:
                     nursery.start_soon(
                         self._send_requests_to_all_replicas, timeout, bft_network, skvbc)
-                    #See if replica 1 has become the new primary
                     actual_view = await bft_network.wait_for_view(
                         replica_id=initial_primary,
                         expected=lambda v: v == initial_primary,
@@ -170,7 +168,7 @@ class SkvbcStateTransferTest(unittest.TestCase):
             )
             checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=initial_primary)
 
-            self.assertNotEqual(checkpoint_before, checkpoint_after)
+            self.assertTrue(checkpoint_after > checkpoint_before)
 
         print("DEBUG: Release Replicas from Adversary.")
 
@@ -182,12 +180,12 @@ class SkvbcStateTransferTest(unittest.TestCase):
         await self._send_requests_to_all_replicas(25, bft_network, skvbc)
         print("DEBUG: Requests Sent.")
         
-        for v in insulated_replicas:
+        for r in insulated_replicas:
             await bft_network.wait_for_state_transfer_to_stop(initial_primary,
-                                                              v)
+                                                              r)
         
-        for v in insulated_replicas:
-            vc_msgs = await self._get_total_view_change_msgs(v, bft_network)
+        for r in insulated_replicas:
+            vc_msgs = await self._get_total_view_change_msgs(r, bft_network)
             self.assertEqual(vc_msgs, 0)
 
     async def _send_requests_to_all_replicas(self, sec, bft_network, skvbc):
