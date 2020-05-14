@@ -103,12 +103,8 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            metricsComponent_.RegisterCounter("preProcConsensusNotReached"),
                            metricsComponent_.RegisterCounter("preProcessRequestTimedout"),
                            metricsComponent_.RegisterCounter("preProcReqSentForFurtherProcessing"),
-                           metricsComponent_.RegisterCounter("preProcPossiblePrimaryFaultDetected"),
-                           metricsComponent_.RegisterGauge("preProcRequestStatusCheckTimer", 0),
-                           metricsComponent_.RegisterGauge("preProcReqMsgWaitTimer", 0)},
-      preExecReqStatusCheckTimeMilli_(myReplica_.getReplicaConfig().preExecReqStatusCheckTimerMillisec),
-      preProcessReqWaitTimeMilli_(
-          min((int)(myReplica_.getReplicaConfig().viewChangeTimerMillisec / 4), (int)maxPreProcessReqWaitTimeMilli_)) {
+                           metricsComponent_.RegisterCounter("preProcPossiblePrimaryFaultDetected")},
+      preExecReqStatusCheckPeriodMilli_(myReplica_.getReplicaConfig().preExecReqStatusCheckTimerMillisec) {
   registerMsgHandlers();
   metricsComponent_.Register();
   sigManager_ = make_shared<SigManager>(myReplicaId_,
@@ -125,8 +121,10 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
     preProcessResultBuffers_.push_back(Sliver(new char[maxReplyMsgSize_], maxReplyMsgSize_));
   }
   threadPool_.start(numOfClients_);
-  LOG_INFO(GL, "numOfClients=" << numOfClients_ << " preProcessReqWaitTimeMilli_=" << preProcessReqWaitTimeMilli_);
-  RequestProcessingState::init(numOfRequiredReplies(), preProcessReqWaitTimeMilli_);
+  LOG_INFO(
+      GL,
+      "numOfClients=" << numOfClients_ << " preExecReqStatusCheckPeriodMilli_=" << preExecReqStatusCheckPeriodMilli_);
+  RequestProcessingState::init(numOfRequiredReplies());
   addTimers();
 }
 
@@ -138,56 +136,30 @@ PreProcessor::~PreProcessor() {
 void PreProcessor::addTimers() {
   // This timer is used for a periodic detection of timed out client requests.
   // Each such request contains requestTimeoutMilli parameter that defines its lifetime.
-  if (preExecReqStatusCheckTimeMilli_ != 0)
+  if (preExecReqStatusCheckPeriodMilli_ != 0)
     requestsStatusCheckTimer_ = TimersSingleton::getInstance().add(
-        chrono::milliseconds(preExecReqStatusCheckTimeMilli_), Timers::Timer::RECURRING, [this](Timers::Handle h) {
+        chrono::milliseconds(preExecReqStatusCheckPeriodMilli_), Timers::Timer::RECURRING, [this](Timers::Handle h) {
           onRequestsStatusCheckTimer(h);
         });
-  preProcessorMetrics_.preProcRequestStatusCheckTimer.Get().Set(preExecReqStatusCheckTimeMilli_);
-  // This timer is used in the following scenario: a non-primary replica receives a request from the client
-  // and sends it to the primary one. After a reasonable time, it expects to receive PreProcessRequestMsg from the
-  // primary replica for this request. If this does not happen, it is supposed that the primary replica is faulty
-  // and the request is passed to ReplicaImp for further handling.
-  if (preProcessReqWaitTimeMilli_ != 0)
-    preProcessReqMsgWaitTimer_ = TimersSingleton::getInstance().add(
-        chrono::milliseconds(preProcessReqWaitTimeMilli_), Timers::Timer::RECURRING, [this](Timers::Handle h) {
-          onPreProcessRequestMsgWaitTimer(h);
-        });
-  preProcessorMetrics_.preProcReqMsgWaitTimer.Get().Set(preProcessReqWaitTimeMilli_);
 }
 
 void PreProcessor::cancelTimers() {
   try {
-    if (preExecReqStatusCheckTimeMilli_ != 0) TimersSingleton::getInstance().cancel(requestsStatusCheckTimer_);
-    if (preProcessReqWaitTimeMilli_ != 0) TimersSingleton::getInstance().cancel(preProcessReqMsgWaitTimer_);
+    if (preExecReqStatusCheckPeriodMilli_ != 0) TimersSingleton::getInstance().cancel(requestsStatusCheckTimer_);
   } catch (std::invalid_argument &e) {
   }
 }
 
 void PreProcessor::onRequestsStatusCheckTimer(Timers::Handle timer) {
-  if (!myReplica_.isCurrentPrimary()) return;
-
-  // Pass through all ongoing requests and abort those that are timed out.
-  for (const auto &clientEntry : ongoingRequests_) {
-    lock_guard<mutex> lock(clientEntry.second->mutex);
-    if (clientEntry.second->reqProcessingStatePtr && clientEntry.second->reqProcessingStatePtr->isReqTimedOut()) {
-      preProcessorMetrics_.preProcessRequestTimedout.Get().Inc();
-      releaseClientPreProcessRequest(clientEntry.second, clientEntry.first);
-    }
-  }
-}
-
-void PreProcessor::onPreProcessRequestMsgWaitTimer(Timers::Handle timer) {
-  if (myReplica_.isCurrentPrimary()) return;
-
-  // Go through all registered requests and pass to the replica treatment expired ones to address possible primary
-  // replica crash.
+  // Pass through all ongoing requests and abort the pre-execution for those that are timed out.
   for (const auto &clientEntry : ongoingRequests_) {
     lock_guard<mutex> lock(clientEntry.second->mutex);
     const auto &clientReqStatePtr = clientEntry.second->reqProcessingStatePtr;
-    if (clientReqStatePtr && !clientReqStatePtr->isPreProcessReqMsgReceivedInTime()) {
+    if (clientReqStatePtr && clientReqStatePtr->isReqTimedOut(myReplica_.isCurrentPrimary())) {
+      preProcessorMetrics_.preProcessRequestTimedout.Get().Inc();
       preProcessorMetrics_.preProcPossiblePrimaryFaultDetected.Get().Inc();
-      incomingMsgsStorage_->pushExternalMsg(clientReqStatePtr->convertClientPreProcessToClientMsg(true));
+      // The request could expire do to failed primary replica, let ReplicaImp to address that
+      incomingMsgsStorage_->pushExternalMsg(clientReqStatePtr->buildClientRequestMsg(true));
       releaseClientPreProcessRequest(clientEntry.second, clientEntry.first);
     }
   }
@@ -245,9 +217,10 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
   const NodeIdType &senderId = clientPreProcessReqMsg->senderId();
   const NodeIdType &clientId = clientPreProcessReqMsg->clientProxyId();
   const ReqId &reqSeqNum = clientPreProcessReqMsg->requestSeqNum();
-  LOG_INFO(GL,
-           "Received ClientPreProcessRequestMsg reqSeqNum=" << reqSeqNum << " from clientId=" << clientId
-                                                            << ", senderId=" << senderId);
+  LOG_DEBUG(GL,
+            "Received ClientPreProcessRequestMsg reqSeqNum="
+                << reqSeqNum << " from clientId=" << clientId
+                << ", reqTimeoutMilli=" << clientPreProcessReqMsg->requestTimeoutMilli() << ", senderId=" << senderId);
   if (!checkClientMsgCorrectness(clientPreProcessReqMsg, reqSeqNum)) {
     preProcessorMetrics_.preProcReqIgnored.Get().Inc();
     return;
@@ -265,6 +238,10 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
     }
   }
   const ReqId &seqNumberOfLastReply = myReplica_.seqNumberOfLastReplyToClient(clientId);
+  LOG_INFO(GL,
+           "Going to process ClientPreProcessRequestMsg reqSeqNum="
+               << reqSeqNum << " from clientId=" << clientId
+               << ", reqTimeoutMilli=" << clientPreProcessReqMsg->requestTimeoutMilli() << ", senderId=" << senderId);
   if (seqNumberOfLastReply < reqSeqNum) return handleClientPreProcessRequest(move(clientPreProcessReqMsg));
 
   if (seqNumberOfLastReply == reqSeqNum) {
@@ -302,7 +279,9 @@ void PreProcessor::onMessage<PreProcessRequestMsg>(PreProcessRequestMsg *msg) {
     if (clientEntry->reqProcessingStatePtr && clientEntry->reqProcessingStatePtr->getPreProcessRequest()) {
       LOG_INFO(GL,
                "reqSeqNum=" << reqSeqNum << " received from replica=" << senderId << " for clientId=" << clientId
-                            << " will be ignored as a request from the same client is in progress");
+                            << " will be ignored as another PreProcessRequest reqSeqNum="
+                            << clientEntry->reqProcessingStatePtr->getPreProcessRequest()->reqSeqNum()
+                            << " from the same client is in progress");
       return;
     }
   }
@@ -338,13 +317,13 @@ void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *msg) {
     clientEntry->reqProcessingStatePtr->handlePreProcessReplyMsg(preProcessReplyMsg);
     result = clientEntry->reqProcessingStatePtr->definePreProcessingConsensusResult();
   }
-  handleReqPreProcessedByOneReplica(cid, result, clientId, reqSeqNum);
+  handlePreProcessReplyMsg(cid, result, clientId, reqSeqNum);
 }
 
-void PreProcessor::handleReqPreProcessedByOneReplica(const string &cid,
-                                                     PreProcessingResult result,
-                                                     NodeIdType clientId,
-                                                     SeqNum reqSeqNum) {
+void PreProcessor::handlePreProcessReplyMsg(const string &cid,
+                                            PreProcessingResult result,
+                                            NodeIdType clientId,
+                                            SeqNum reqSeqNum) {
   MDC_CID_PUT(GL, cid);
   switch (result) {
     case NONE:      // No action required - pre-processing has been already completed
@@ -513,7 +492,7 @@ const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId) const {
 }
 
 // Primary replica: ask all replicas to pre-process the request
-void PreProcessor::sendPreProcessRequestToAllReplicas(PreProcessRequestMsgSharedPtr preProcessReqMsg) {
+void PreProcessor::sendPreProcessRequestToAllReplicas(const PreProcessRequestMsgSharedPtr &preProcessReqMsg) {
   const set<ReplicaId> &idsOfPeerReplicas = myReplica_.getIdsOfPeerReplicas();
   for (auto destId : idsOfPeerReplicas) {
     if (destId != myReplicaId_) {
@@ -527,7 +506,7 @@ void PreProcessor::sendPreProcessRequestToAllReplicas(PreProcessRequestMsgShared
   }
 }
 
-void PreProcessor::launchAsyncReqPreProcessingJob(PreProcessRequestMsgSharedPtr preProcessReqMsg,
+void PreProcessor::launchAsyncReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                                   bool isPrimary,
                                                   bool isRetry) {
   auto *preProcessJob = new AsyncPreProcessJob(*this, preProcessReqMsg, isPrimary, isRetry);
@@ -575,7 +554,7 @@ void PreProcessor::handlePreProcessedReqPrimaryRetry(NodeIdType clientId, SeqNum
     cancelPreProcessing(clientId);
 }
 
-void PreProcessor::handlePreProcessedReqByPrimary(PreProcessRequestMsgSharedPtr preProcessReqMsg,
+void PreProcessor::handlePreProcessedReqByPrimary(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                                   uint16_t clientId,
                                                   uint32_t resultBufLen) {
   const auto &clientEntry = ongoingRequests_[clientId];
@@ -590,7 +569,7 @@ void PreProcessor::handlePreProcessedReqByPrimary(PreProcessRequestMsgSharedPtr 
     }
   }
   if (result != NONE)
-    handleReqPreProcessedByOneReplica(cid, result, clientId, preProcessReqMsg->reqSeqNum());
+    handlePreProcessReplyMsg(cid, result, clientId, preProcessReqMsg->reqSeqNum());
   else
     LOG_INFO(GL, "No ongoing pre-processing activity detected for clientId=" << clientId);
 }
@@ -601,14 +580,15 @@ void PreProcessor::handlePreProcessedReqByNonPrimary(uint16_t clientId,
                                                      const std::string &cid) {
   auto replyMsg = make_shared<PreProcessReplyMsg>(sigManager_, myReplicaId_, clientId, reqSeqNum);
   replyMsg->setupMsgBody(getPreProcessResultBuffer(clientId), resBufLen, cid);
-  sendMsg(replyMsg->body(), myReplica_.currentPrimary(), replyMsg->type(), replyMsg->size());
+  // Release the request before sending a reply to the primary to be able accepting new messages
   releaseClientPreProcessRequestSafe(clientId);
+  sendMsg(replyMsg->body(), myReplica_.currentPrimary(), replyMsg->type(), replyMsg->size());
   LOG_DEBUG(GL,
             "Sent PreProcessReplyMsg with reqSeqNum=" << reqSeqNum
                                                       << " to the primary replica=" << myReplica_.currentPrimary());
 }
 
-void PreProcessor::handleReqPreProcessingJob(PreProcessRequestMsgSharedPtr preProcessReqMsg,
+void PreProcessor::handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                              bool isPrimary,
                                              bool isRetry) {
   MDC_CID_PUT(GL, preProcessReqMsg->getCid());
@@ -629,7 +609,7 @@ void PreProcessor::handleReqPreProcessingJob(PreProcessRequestMsgSharedPtr prePr
 //**************** Class AsyncPreProcessJob ****************//
 
 AsyncPreProcessJob::AsyncPreProcessJob(PreProcessor &preProcessor,
-                                       PreProcessRequestMsgSharedPtr preProcessReqMsg,
+                                       const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                        bool isPrimary,
                                        bool isRetry)
     : preProcessor_(preProcessor), preProcessReqMsg_(preProcessReqMsg), isPrimary_(isPrimary), isRetry_(isRetry) {}

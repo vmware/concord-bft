@@ -39,10 +39,10 @@ const uint32_t bufLen = 1024;
 const uint64_t reqTimeoutMilli = 10;
 const uint64_t preExecReqStatusCheckTimerMillisec = 20;
 const uint64_t viewChangeTimerMillisec = 80;
-const uint16_t preProcessReqWaitTimeMilli = viewChangeTimerMillisec / 4 + 10;
+const uint16_t reqWaitTimeoutMilli = 50;
+
 char buf[bufLen];
 ReqId reqSeqNum = 123456789;
-NodeIdType senderId = 2;
 uint16_t clientId = 9;
 string cid = "abcd";
 NodeIdType replica_0 = 0;
@@ -411,25 +411,6 @@ TEST(requestPreprocessingState_test, primaryReplicaDidNotCompletePreProcessingWh
   Assert(reqState.definePreProcessingConsensusResult() == COMPLETE);
 }
 
-TEST(requestPreprocessingState_test, clientPreProcessMessageConversion) {
-  memset(buf, '8', bufLen);
-  ClientPreProcessRequestMsg clientPreProcReqMsg(senderId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
-  unique_ptr<MessageBase> messageBase;
-  {
-    ClientPreProcessReqMsgUniquePtr clientPreProcReqUniq = make_unique<ClientPreProcessRequestMsg>(clientPreProcReqMsg);
-    messageBase = clientPreProcReqUniq->convertToClientRequestMsg(true);
-    clientPreProcReqUniq->releaseOwnership();
-    clientPreProcReqUniq.release();
-  }
-  auto* clientRequestMsg = (ClientRequestMsg*)messageBase.release();
-  unique_ptr<ClientRequestMsg> clientReqMsg(clientRequestMsg);
-  Assert(clientReqMsg->senderId() == senderId);
-  Assert(clientReqMsg->requestSeqNum() == reqSeqNum);
-  Assert(clientReqMsg->requestLength() == bufLen);
-  Assert(clientReqMsg->requestTimeoutMilli() == reqTimeoutMilli);
-  Assert(memcmp(clientReqMsg->requestBuf(), buf, bufLen) == 0);
-}
-
 TEST(requestPreprocessingState_test, requestTimedOut) {
   setUpConfiguration_7();
 
@@ -452,15 +433,15 @@ TEST(requestPreprocessingState_test, primaryCrashDetected) {
   bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig, false, false);
   DummyReplica replica(replicasInfo);
   replica.setPrimary(false);
-  replicaConfig.preExecReqStatusCheckTimerMillisec = 0;  // Disable
+  replicaConfig.preExecReqStatusCheckTimerMillisec = preExecReqStatusCheckTimerMillisec;
   PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica);
 
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
-  auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, 0, cid);
+  auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
   msgHandlerCallback(clientReqMsg);
   Assert(preProcessor.getOngoingReqIdForClient(clientId) == reqSeqNum);
 
-  usleep(preProcessReqWaitTimeMilli * 1000);
+  usleep(reqWaitTimeoutMilli * 1000);
   TimersSingleton::getInstance().evaluate();
   Assert(preProcessor.getOngoingReqIdForClient(clientId) == 0);
 }
@@ -471,19 +452,19 @@ TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
   bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig, false, false);
   DummyReplica replica(replicasInfo);
   replica.setPrimary(false);
-  replicaConfig.preExecReqStatusCheckTimerMillisec = 0;  // Disable
+  replicaConfig.preExecReqStatusCheckTimerMillisec = preExecReqStatusCheckTimerMillisec;
   replicaConfig.replicaId = replica_1;
   PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica);
 
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
-  auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, 0, cid);
+  auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
   msgHandlerCallback(clientReqMsg);
   Assert(preProcessor.getOngoingReqIdForClient(clientId) == reqSeqNum);
 
   auto* preProcessReqMsg = new PreProcessRequestMsg(replica.currentPrimary(), clientId, reqSeqNum, bufLen, buf, cid);
   msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::PreProcessRequest);
   msgHandlerCallback(preProcessReqMsg);
-  usleep(preProcessReqWaitTimeMilli * 1000 / 2);  // Wait for the pre-execution completion
+  usleep(reqWaitTimeoutMilli * 1000 / 2);  // Wait for the pre-execution completion
   Assert(preProcessor.getOngoingReqIdForClient(clientId) == 0);
 }
 
@@ -492,7 +473,7 @@ TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   setUpConfiguration_4();
-  RequestProcessingState::init(numOfRequiredReplies, preProcessReqWaitTimeMilli);
+  RequestProcessingState::init(numOfRequiredReplies);
   const chrono::milliseconds msgTimeOut(20000);
   msgsStorage = make_shared<IncomingMsgsStorageImp>(msgHandlersRegPtr, msgTimeOut, replicaConfig.replicaId);
   setUpCommunication();

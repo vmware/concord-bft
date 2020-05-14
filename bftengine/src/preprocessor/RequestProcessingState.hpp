@@ -33,20 +33,19 @@ class RequestProcessingState {
   ~RequestProcessingState() = default;
 
   void handlePrimaryPreProcessed(const char* preProcessResult, uint32_t preProcessResultLen);
-  void handlePreProcessReplyMsg(PreProcessReplyMsgSharedPtr preProcessReplyMsg);
-  std::unique_ptr<MessageBase> convertClientPreProcessToClientMsg(bool resetPreProcessFlag);
+  void handlePreProcessReplyMsg(const PreProcessReplyMsgSharedPtr& preProcessReplyMsg);
+  std::unique_ptr<MessageBase> buildClientRequestMsg(bool resetPreProcessFlag);
   void setPreProcessRequest(PreProcessRequestMsgSharedPtr preProcessReqMsg);
-  PreProcessRequestMsgSharedPtr getPreProcessRequest() const { return preProcessRequestMsg_; }
+  const PreProcessRequestMsgSharedPtr& getPreProcessRequest() const { return preProcessRequestMsg_; }
   const SeqNum getReqSeqNum() const { return reqSeqNum_; }
   PreProcessingResult definePreProcessingConsensusResult();
   const char* getPrimaryPreProcessedResult() const { return primaryPreProcessResult_; }
   uint32_t getPrimaryPreProcessedResultLen() const { return primaryPreProcessResultLen_; }
-  bool isReqTimedOut() const;
+  bool isReqTimedOut(bool isPrimary) const;
   uint64_t getReqTimeoutMilli() const { return clientPreProcessReqMsg_->requestTimeoutMilli(); }
   std::string getReqCid() const { return clientPreProcessReqMsg_->getCid(); }
-  bool isPreProcessReqMsgReceivedInTime() const;
 
-  static void init(uint16_t numOfRequiredReplies, uint16_t preProcessReqWaitTimeMilli);
+  static void init(uint16_t numOfRequiredReplies);
 
  private:
   static concord::util::SHA3_256::Digest convertToArray(
@@ -57,7 +56,6 @@ class RequestProcessingState {
 
  private:
   static uint16_t numOfRequiredEqualReplies_;
-  static uint16_t preProcessReqWaitTimeMilli_;
 
   // The use of the class data members is thread-safe. The PreProcessor class uses a per-instance mutex lock for
   // the RequestProcessingState objects.
