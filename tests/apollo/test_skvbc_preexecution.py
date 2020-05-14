@@ -68,7 +68,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
                      (skvbc.random_key(), skvbc.random_value())]
         await self.send_single_write_with_pre_execution_and_kv(skvbc, write_set, client)
 
-    async def run_concurrent_pre_execution_requests(self, skvbc, clients, num_of_requests, write_weight=.90):
+    async def run_concurrent_pre_execution_requests(self, skvbc, clients, num_of_requests, write_weight=.70):
         sent = 0
         write_count = 0
         read_count = 0
@@ -84,7 +84,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             sent += len(clients)
         return read_count + write_count
 
-    @unittest.skip("unstable")
+    # @unittest.skip("unstable")
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_sequential_pre_process_requests(self, bft_network):
@@ -94,7 +94,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-        for i in range(100):
+        for i in range(300):
             client = bft_network.random_client()
             await self.send_single_write_with_pre_execution(skvbc, client)
 
@@ -109,7 +109,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
         clients = bft_network.clients.values()
         num_of_requests = len(clients)
-        sent_count = await self.run_concurrent_pre_execution_requests(skvbc, clients, num_of_requests)
+        sent_count = await self.run_concurrent_pre_execution_requests(skvbc, clients, num_of_requests, write_weight=1)
         self.assertTrue(sent_count >= num_of_requests)
 
     @with_trio

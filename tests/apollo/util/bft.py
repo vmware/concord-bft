@@ -56,7 +56,7 @@ def interesting_configs(selected=None):
     bft_configs = [{'n': 4, 'f': 1, 'c': 0, 'num_clients': 30},
                    {'n': 6, 'f': 1, 'c': 1, 'num_clients': 30},
                    {'n': 7, 'f': 2, 'c': 0, 'num_clients': 30},
-                   # {'n': 9, 'f': 2, 'c': 1, 'num_clients': 30}
+                   # {'n': 9, 'f': 2, 'c': 1, 'num_clients': 30},
                    # {'n': 12, 'f': 3, 'c': 1, 'num_clients': 30}
                    ]
 
@@ -156,7 +156,7 @@ class BftTestNetwork:
             self.metrics.__exit__()
             self.stop_all_replicas()
             os.chdir(self.origdir)
-            shutil.rmtree(self.testdir, ignore_errors=True)
+            # shutil.rmtree(self.testdir, ignore_errors=True)
 
     def __init__(self, is_existing, origdir,
                  config, testdir, builddir, toolsdir,

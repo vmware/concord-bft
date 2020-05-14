@@ -22,7 +22,7 @@ namespace preprocessor {
 
 // This class collects and stores data relevant to the processing of one specific client request by all replicas.
 
-typedef enum { CONTINUE, COMPLETE, CANCEL, RETRY_PRIMARY } PreProcessingResult;
+typedef enum { NONE, CONTINUE, COMPLETE, CANCEL, RETRY_PRIMARY } PreProcessingResult;
 
 class RequestProcessingState {
  public:
