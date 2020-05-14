@@ -12,6 +12,7 @@
 #pragma once
 
 #include "messages/MessageBase.hpp"
+#include "Logger.hpp"
 #include <memory>
 
 namespace preprocessor {
@@ -48,6 +49,10 @@ class PreProcessRequestMsg : public MessageBase {
 #pragma pack(pop)
 
  private:
+  static logging::Logger& logger() {
+    static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
+    return logger_;
+  }
   void setParams(NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum, uint32_t reqLength);
 
  private:

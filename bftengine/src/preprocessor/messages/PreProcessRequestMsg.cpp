@@ -33,7 +33,7 @@ PreProcessRequestMsg::PreProcessRequestMsg(NodeIdType senderId,
   position += reqLength;
   memcpy(position, cid.c_str(), cid.size());
   uint64_t msgLength = sizeof(Header) + span_context.size() + reqLength + cid.size();
-  LOG_DEBUG(GL,
+  LOG_DEBUG(logger(),
             "senderId=" << senderId << " clientId=" << clientId << " reqSeqNum=" << reqSeqNum
                         << " headerSize=" << sizeof(Header) << " reqLength=" << reqLength << " cidSize=" << cid.size()
                         << " msgLength=" << msgLength);

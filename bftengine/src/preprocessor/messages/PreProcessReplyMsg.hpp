@@ -48,6 +48,10 @@ class PreProcessReplyMsg : public MessageBase {
 #pragma pack(pop)
 
  private:
+  static logging::Logger& logger() {
+    static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
+    return logger_;
+  }
   void setParams(NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum);
   Header* msgBody() const { return ((Header*)msgBody_); }
 

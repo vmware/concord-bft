@@ -10,7 +10,6 @@
 // file.
 
 #include "RequestProcessingState.hpp"
-#include "Logger.hpp"
 
 namespace preprocessor {
 
@@ -36,12 +35,13 @@ RequestProcessingState::RequestProcessingState(uint16_t numOfReplicas,
       entryTime_(getMonotonicTimeMilli()),
       clientPreProcessReqMsg_(move(clientReqMsg)),
       preProcessRequestMsg_(preProcessRequestMsg) {
-  LOG_DEBUG(GL, "Created RequestProcessingState with reqSeqNum=" << reqSeqNum_ << ", numOfReplicas=" << numOfReplicas_);
+  LOG_DEBUG(logger(),
+            "Created RequestProcessingState with reqSeqNum=" << reqSeqNum_ << ", numOfReplicas=" << numOfReplicas_);
 }
 
 void RequestProcessingState::setPreProcessRequest(PreProcessRequestMsgSharedPtr preProcessReqMsg) {
   if (preProcessRequestMsg_ != nullptr) {
-    LOG_ERROR(GL,
+    LOG_ERROR(logger(),
               "preProcessRequestMsg_ is already set; clientId=" << preProcessRequestMsg_->clientId() << ", reqSeqNum="
                                                                 << preProcessRequestMsg_->reqSeqNum());
     return;
@@ -87,7 +87,7 @@ bool RequestProcessingState::isReqTimedOut(bool isPrimary) const {
     // thread)
     auto reqProcessingTime = getMonotonicTimeMilli() - entryTime_;
     if (reqProcessingTime > clientPreProcessReqMsg_->requestTimeoutMilli()) {
-      LOG_WARN(GL,
+      LOG_WARN(logger(),
                "Request timeout of " << clientPreProcessReqMsg_->requestTimeoutMilli() << " ms expired for reqSeqNum="
                                      << reqSeqNum_ << " clientId=" << clientPreProcessReqMsg_->clientProxyId()
                                      << " reqProcessingTime=" << reqProcessingTime << " isPrimary=" << isPrimary);
@@ -108,21 +108,22 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
     if (primaryPreProcessResultLen_ != 0 && !retrying_) {
       // Primary replica calculated hash is different from a hash that passed pre-execution consensus => we don't have
       // correct pre-processed results. Let's launch a pre-processing retry.
-      LOG_WARN(GL,
+      LOG_WARN(logger(),
                "Primary replica pre-processing result hash is different from one passed the consensus for reqSeqNum="
                    << reqSeqNum_ << "; retry pre-processing on primary replica");
       retrying_ = true;
       return RETRY_PRIMARY;
     }
 
-    LOG_DEBUG(GL, "Primary replica did not complete pre-processing yet for reqSeqNum=" << reqSeqNum_ << "; continue");
+    LOG_DEBUG(logger(),
+              "Primary replica did not complete pre-processing yet for reqSeqNum=" << reqSeqNum_ << "; continue");
     return CONTINUE;
   }
 
   if (numOfReceivedReplies_ == numOfReplicas_ - 1) {
     // Replies from all replicas received, but not enough equal hashes collected => pre-execution consensus not
     // reached => cancel request.
-    LOG_WARN(GL, "Not enough equal hashes collected for reqSeqNum=" << reqSeqNum_ << ", cancel request");
+    LOG_WARN(logger(), "Not enough equal hashes collected for reqSeqNum=" << reqSeqNum_ << ", cancel request");
     return CANCEL;
   }
   return CONTINUE;
