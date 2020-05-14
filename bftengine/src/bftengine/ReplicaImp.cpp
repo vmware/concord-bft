@@ -299,23 +299,38 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
   PrePrepareMsg *pp =
       new PrePrepareMsg(config_.replicaId, curView, (primaryLastUsedSeqNum + 1), firstPath, primaryCombinedReqSize);
 
-  ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
-  while (nextRequest != nullptr && nextRequest->size() <= pp->remainingSizeForRequests()) {
-    MDC_CID_PUT(GL, nextRequest->getCid());
-    if (clientsManager->noPendingAndRequestCanBecomePending(nextRequest->clientProxyId(),
-                                                            nextRequest->requestSeqNum())) {
-      pp->addRequest(nextRequest->body(), nextRequest->size());
-      clientsManager->addPendingRequest(nextRequest->clientProxyId(), nextRequest->requestSeqNum());
+  uint16_t initialStorageForRequests = pp->remainingSizeForRequests();
+
+  ClientRequestMsg *nextRequest = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
+
+  while (nextRequest != nullptr) {
+    if (nextRequest->size() <= pp->remainingSizeForRequests()) {
+      MDC_CID_PUT(GL, nextRequest->getCid());
+      if (clientsManager->noPendingAndRequestCanBecomePending(nextRequest->clientProxyId(),
+                                                              nextRequest->requestSeqNum())) {
+        pp->addRequest(nextRequest->body(), nextRequest->size());
+        clientsManager->addPendingRequest(nextRequest->clientProxyId(), nextRequest->requestSeqNum());
+      }
+      primaryCombinedReqSize -= nextRequest->size();
+    } else if (nextRequest->size() > initialStorageForRequests) {
+      // The message is too big
+      LOG_ERROR(GL,
+                "Request sent by: " << nextRequest->senderId() << ", Request size is: " << nextRequest->size()
+                                    << ", PrePrepare maximum size allowed for requests is : "
+                                    << initialStorageForRequests << ", request was ignored");
     }
-    primaryCombinedReqSize -= nextRequest->size();
     delete nextRequest;
     requestsQueueOfPrimary.pop();
-    nextRequest = (requestsQueueOfPrimary.size() > 0 ? requestsQueueOfPrimary.front() : nullptr);
+    nextRequest = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
+  }
+
+  if (pp->numberOfRequests() == 0) {
+    LOG_ERROR(
+        GL, "Number of PrePrepare requests added is: " << pp->numberOfRequests() << ", none of the requests were sent");
+    return;
   }
 
   pp->finishAddingRequests();
-
-  Assert(pp->numberOfRequests() > 0);
 
   if (config_.debugStatisticsEnabled) {
     DebugStatistics::onSendPrePrepareMessage(pp->numberOfRequests(), requestsQueueOfPrimary.size());
