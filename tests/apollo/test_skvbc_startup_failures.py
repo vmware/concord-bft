@@ -116,7 +116,8 @@ class SkvbcStartupFailuresTest(unittest.TestCase):
 
         for r in delayed_replicas:
             await bft_network.wait_for_state_transfer_to_stop(initial_primary,
-                                                              r)
+                                                              r,
+                                                              stop_on_stable_seq_num=True)
         for r in delayed_replicas:
             vc_msgs = await self._get_total_view_change_msgs(r, bft_network)
             self.assertEqual(vc_msgs, 0)
@@ -192,7 +193,8 @@ class SkvbcStartupFailuresTest(unittest.TestCase):
         
         for r in insulated_replicas:
             await bft_network.wait_for_state_transfer_to_stop(initial_primary,
-                                                              r)
+                                                              r,
+                                                              stop_on_stable_seq_num=True)
         
         for r in insulated_replicas:
             vc_msgs = await self._get_total_view_change_msgs(r, bft_network)
