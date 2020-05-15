@@ -48,6 +48,8 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     std::string keysFilePrefix;
     std::string commConfigFile;
     std::string s3ConfigFile;
+    std::string log4cplusProperties = "log4cplus.properties";
+
     // Set StorageType::V1DirectKeyValue as the default storage type.
     auto storageType = StorageType::V1DirectKeyValue;
 
@@ -60,6 +62,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                           {"s3-config-file", required_argument, 0, '3'},
                                           {"persistence-mode", no_argument, 0, 'p'},
                                           {"storage-type", required_argument, 0, 't'},
+                                          {"log4cplus-props", required_argument, 0, 'l'},
                                           {0, 0, 0, 0}};
 
     int o = 0;
@@ -107,6 +110,10 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
             throw std::runtime_error{"invalid argument for --storage-type"};
           }
         } break;
+        case 'l': {
+          log4cplusProperties = optarg;
+          break;
+        }
         case '?': {
           throw std::runtime_error("invalid arguments");
         } break;
@@ -147,7 +154,8 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                                     metricsPort,
                                                     persistMode == PersistencyMode::RocksDB,
                                                     s3ConfigFile,
-                                                    storageType});
+                                                    storageType,
+                                                    log4cplusProperties});
 
   } catch (const std::exception& e) {
     LOG_FATAL(GL, "failed to parse command line arguments: " << e.what());

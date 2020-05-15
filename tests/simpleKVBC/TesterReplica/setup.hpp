@@ -39,6 +39,7 @@ class TestSetup {
   concordMetrics::Server& GetMetricsServer() { return metricsServer_; }
   concordlogger::Logger GetLogger() { return logger_; }
   const bool UsePersistentStorage() const { return usePersistentStorage_; }
+  std::string GetLog4CPlusPropertiesFile() const { return log4cplusProperties_; }
 
  private:
   enum class StorageType {
@@ -52,14 +53,16 @@ class TestSetup {
             uint16_t metricsPort,
             bool usePersistentStorage,
             std::string s3ConfigFile,
-            StorageType storageType)
+            StorageType storageType,
+            std::string log4cplusProperties)
       : replicaConfig_(config),
         communication_(std::move(comm)),
         logger_(logger),
         metricsServer_(metricsPort),
         usePersistentStorage_(usePersistentStorage),
         s3ConfigFile_(s3ConfigFile),
-        storageType_(storageType) {}
+        storageType_(storageType),
+        log4cplusProperties_(log4cplusProperties) {}
   TestSetup() = delete;
 #ifdef USE_S3_OBJECT_STORE
   concord::storage::s3::StoreConfig ParseS3Config(const std::string& s3ConfigFile);
@@ -72,6 +75,7 @@ class TestSetup {
   bool usePersistentStorage_;
   std::string s3ConfigFile_;
   StorageType storageType_;
+  std::string log4cplusProperties_;
 };
 
 }  // namespace concord::kvbc

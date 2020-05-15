@@ -31,7 +31,7 @@ namespace concord::kvbc::test {
 
 void run_replica(int argc, char** argv) {
   const auto setup = TestSetup::ParseArgs(argc, argv);
-  concordlogger::Log::initLogger("log4cplus.properties");
+  concordlogger::Log::initLogger(setup->GetLog4CPlusPropertiesFile());
   auto logger = setup->GetLogger();
   MDC_PUT(GL, "rid", std::to_string(setup->GetReplicaConfig().replicaId));
 
