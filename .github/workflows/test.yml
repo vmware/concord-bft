@@ -1,0 +1,42 @@
+name: Build
+# This workflow is triggered on pushes to the repository.
+on: [pull_request]
+env:
+  DOCKER_IMAGE: concord-bft
+  DOCKER_WORK_DIR: /concord-bft
+  CMAKE_CXX_FLAGS: "-DCMAKE_CXX_FLAGS_RELEASE=-O3 -g"
+  USE_LOG4CPP: -DUSE_LOG4CPP=TRUE
+  USE_ROCKSDB: -DBUILD_ROCKSDB_STORAGE=TRUE
+  USE_CONAN: -DUSE_CONAN=OFF
+  USE_S3_OBJECT_STORE: -DUSE_S3_OBJECT_STORE=ON
+
+jobs:
+  build:
+    # Job name is Greeting
+    name: Greeting
+    # This job runs on Linux
+    runs-on: ubuntu-latest
+    strategy:
+        matrix:
+            compiler: [gcc, clang]
+            ci_build_type: ["-DCMAKE_BUILD_TYPE=DEBUG -DCI_TEST_STORAGE_TYPE=v1direct",
+            "-DCMAKE_BUILD_TYPE=RELEASE -DCI_TEST_STORAGE_TYPE=v1direct",
+            "-DCMAKE_BUILD_TYPE=DEBUG -DCI_TEST_STORAGE_TYPE=v2merkle",
+            "-DCMAKE_BUILD_TYPE=RELEASE -DCI_TEST_STORAGE_TYPE=v2merkle"]
+    steps:
+      # This step uses GitHub's hello-world-javascript-action: https://github.com/actions/hello-world-javascript-action
+      - name: Hello world
+        uses: actions/checkout@v2
+      # This step prints an output (time) from the previous step's action.
+      - name: Build image
+        run: docker build --rm --no-cache=true -t concord-bft -f ./Dockerfile .
+      - name: Build and test Concord-BFT
+        run:|
+            docker run --rm --cap-add NET_ADMIN --workdir=${DOCKER_WORK_DIR} --name=${DOCKER_IMAGE}
+            --mount type=bind,source=${PWD},target=${DOCKER_WORK_DIR} concord-bft
+            /bin/bash -c "mkdir -p ${DOCKER_WORK_DIR}/build && cd build &&
+            CC=${CC} CXX=${CXX}
+            cmake ${CMAKE_CXX_FLAGS} ${CI_BUILD_TYPE} ${USE_LOG4CPP} ${USE_ROCKSDB} ${USE_CONAN} ${USE_S3_OBJECT_STORE} .. &&
+            make format-check &&
+            make -j $(getconf _NPROCESSORS_ONLN) &&
+            ctest --timeout 3000 --output-on-failure"
