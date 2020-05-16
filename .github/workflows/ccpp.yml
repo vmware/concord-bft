@@ -1,0 +1,42 @@
+name: Concord-BFT build
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        compiler: [gcc-7, clang]
+        CI_BUILD_TYPE:
+          - "-DCMAKE_BUILD_TYPE=DEBUG -DCI_TEST_STORAGE_TYPE=v1direct"
+          - "-DCMAKE_BUILD_TYPE=RELEASE -DCI_TEST_STORAGE_TYPE=v1direct"
+          - "-DCMAKE_BUILD_TYPE=DEBUG -DCI_TEST_STORAGE_TYPE=v2merkle"
+          - "-DCMAKE_BUILD_TYPE=RELEASE -DCI_TEST_STORAGE_TYPE=v2merkle"
+    env:
+      CMAKE_CXX_FLAGS: -DCMAKE_CXX_FLAGS_RELEASE=-O3 -g
+      USE_LOG4CPP: -DUSE_LOG4CPP=TRUE
+      USE_ROCKSDB: -DBUILD_ROCKSDB_STORAGE=TRUE
+      USE_CONAN: -DUSE_CONAN=ON
+      USE_S3_OBJECT_STORE: -DUSE_S3_OBJECT_STORE=ON
+
+    runs-on: ubuntu-18.04
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Provision environment
+      run: |
+          mkdir -p $HOME/.local/bin
+          export PATH=$PATH:$HOME/.local/bin
+          ./install.sh
+    - name: CMake
+      run: |
+          export PATH=$PATH:$HOME/.local/bin
+          mkdir build
+          cd build
+          cmake $CMAKE_CXX_FLAGS $CI_BUILD_TYPE $USE_LOG4CPP $USE_ROCKSDB $USE_CONAN $USE_S3_OBJECT_STORE .. 
+    - name: Check formatting
+      run: cd build && make format-check
+    - name: Build
+      run: cd build && make -j 4
+    - name: Run tests
+      run: cd build && ctest --output-on-failure
