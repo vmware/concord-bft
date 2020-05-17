@@ -135,3 +135,17 @@ cd ${HOME}
 wget ${WGET_FLAGS} \
     https://dl.min.io/server/minio/release/linux-amd64/minio && \
     chmod 755 ${HOME}/minio
+
+cd ${HOME}
+wget ${WGET_FLAGS} \
+    https://github.com/opentracing/opentracing-cpp/archive/v1.5.0.tar.gz && \
+    tar -xzf v1.5.0.tar.gz && \
+    rm v1.5.0.tar.gz && \
+    cd opentracing-cpp-1.5.0 && \
+    mkdir build && \
+    cd build && \
+    cmake .. && \
+    make -j$(nproc) && \
+    make install && \
+    cd ../.. && \
+    rm -r opentracing-cpp-1.5.0

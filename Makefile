@@ -1,6 +1,7 @@
-CONCORD_BFT_DOCKER_REPO:=fsquirrel
+CONCORD_BFT_DOCKER_REPO:=fsquirrel/
 CONCORD_BFT_DOCKER_IMAGE:=concord-bft
-CONCORD_BFT_DOCKER_IMAGE_VERSION:=0.1
+CONCORD_BFT_DOCKER_IMAGE_VERSION:=0.2
+
 
 CONCORD_BFT_DOCKERFILE:=Dockerfile
 CONCORD_BFT_BUILD_DIR:=build
@@ -17,6 +18,7 @@ CONCORD_BFT_CMAKE_FLAGS:=-DUSE_CONAN=OFF \
 			-DUSE_LOG4CPP=TRUE \
 			-DBUILD_ROCKSDB_STORAGE=TRUE \
 			-DUSE_S3_OBJECT_STORE=ON \
+			-DUSE_OPENTRACING=ON \
 			-DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 # The consistency parameter makes sense only at MacOS.
 # It is ignored at all other platforms.
@@ -47,7 +49,7 @@ pull: ## Pull image from remote
 run-c: ## Run container in background
 	docker run -d --rm --cap-add NET_ADMIN --name="${CONCORD_BFT_DOCKER_IMAGE}" \
 				  --mount type=bind,source=${CURDIR},target=${CONCORD_BFT_TARGET_SOURCE_PATH}${CONCORD_BFT_CONTAINER_MOUNT_CONSISTENCY} \
-				  ${CONCORD_BFT_DOCKER_REPO}/${CONCORD_BFT_DOCKER_IMAGE}:${CONCORD_BFT_DOCKER_IMAGE_VERSION} \
+				  ${CONCORD_BFT_DOCKER_REPO}${CONCORD_BFT_DOCKER_IMAGE}:${CONCORD_BFT_DOCKER_IMAGE_VERSION} \
 				  /usr/bin/tail -f /dev/null
 
 login: ## Login to the container
