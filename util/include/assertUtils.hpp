@@ -82,6 +82,35 @@ inline void printCallStack() {
       assert(false);                                                                                              \
     }                                                                                                             \
   }
+// Assert (expr1 == expr2)
+#define AssertEQ(expr1, expr2)                                           \
+  {                                                                      \
+    if (expr1 != expr2) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertEQ"); \
+  }
+
+// Assert (expr1 >= expr2)
+#define AssertGE(expr1, expr2)                                          \
+  {                                                                     \
+    if (expr1 < expr2) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertGE"); \
+  }
+
+// Assert (expr1 > expr2)
+#define AssertGT(expr1, expr2)                                           \
+  {                                                                      \
+    if (expr1 <= expr2) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertGT"); \
+  }
+
+// Assert (expr1 < expr2)
+#define AssertLT(expr1, expr2)                                           \
+  {                                                                      \
+    if (expr1 >= expr2) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertLT"); \
+  }
+
+// Assert (expr1 <= expr2)
+#define AssertLE(expr1, expr2)                                          \
+  {                                                                     \
+    if (expr1 > expr2) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertLE"); \
+  }
 
 // Assert(expr1 || expr2)
 #define AssertOR(expr1, expr2)                                                               \
