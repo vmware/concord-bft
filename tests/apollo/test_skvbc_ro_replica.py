@@ -50,7 +50,7 @@ def start_replica_cmd(builddir, replica_id, config):
             "-p",
             "-t", os.environ.get('STORAGE_TYPE')
             ]
-    if replica_id >= config.n and replica_id < config.n + config.num_ro_replicas and os.environ["USE_S3_OBJECT_STORE"]:
+    if replica_id >= config.n and replica_id < config.n + config.num_ro_replicas and os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
         ret.extend(ro_params)
         
     return ret
@@ -74,7 +74,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        if not os.environ["USE_S3_OBJECT_STORE"]:
+        if not os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
             return
 
         # We need a temp dir for data and binaries - this is cls.dest_dir
@@ -93,7 +93,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        if not os.environ["USE_S3_OBJECT_STORE"]:
+        if not os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
             return
 
         # First stop the server gracefully
@@ -196,7 +196,8 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                             if lastExecutedSeqNum >= 50:
                                 print("Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
                                 nursery.cancel_scope.cancel()
-
+                                
+    @unittest.skip("unstable")
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1)
     async def test_ro_replica_with_s3_failures(self, bft_network):
