@@ -87,7 +87,8 @@ class SeqNumInfo {
   void onCompletionOfPrepareSignaturesProcessing(SeqNum seqNumber,
                                                  ViewNum viewNumber,
                                                  const char* combinedSig,
-                                                 uint16_t combinedSigLen);
+                                                 uint16_t combinedSigLen,
+                                                 const std::string& span_context);
   void onCompletionOfCombinedPrepareSigVerification(SeqNum seqNumber, ViewNum viewNumber, bool isValid);
 
   void onCompletionOfCommitSignaturesProcessing(SeqNum seqNumber,
@@ -99,8 +100,10 @@ class SeqNumInfo {
   void onCompletionOfCommitSignaturesProcessing(SeqNum seqNumber,
                                                 ViewNum viewNumber,
                                                 const char* combinedSig,
-                                                uint16_t combinedSigLen) {
-    commitMsgsCollector->onCompletionOfSignaturesProcessing(seqNumber, viewNumber, combinedSig, combinedSigLen);
+                                                uint16_t combinedSigLen,
+                                                const std::string& span_context) {
+    commitMsgsCollector->onCompletionOfSignaturesProcessing(
+        seqNumber, viewNumber, combinedSig, combinedSigLen, span_context);
   }
 
   void onCompletionOfCombinedCommitSigVerification(SeqNum seqNumber, ViewNum viewNumber, bool isValid) {
@@ -111,16 +114,24 @@ class SeqNumInfo {
   class ExFuncForPrepareCollector {
    public:
     // external messages
-    static PrepareFullMsg* createCombinedSignatureMsg(
-        void* context, SeqNum seqNumber, ViewNum viewNumber, const char* const combinedSig, uint16_t combinedSigLen);
+    static PrepareFullMsg* createCombinedSignatureMsg(void* context,
+                                                      SeqNum seqNumber,
+                                                      ViewNum viewNumber,
+                                                      const char* const combinedSig,
+                                                      uint16_t combinedSigLen,
+                                                      const std::string& span_context);
 
     // internal messages
     static InternalMessage* createInterCombinedSigFailed(void* context,
                                                          SeqNum seqNumber,
                                                          ViewNum viewNumber,
                                                          std::set<uint16_t> replicasWithBadSigs);
-    static InternalMessage* createInterCombinedSigSucceeded(
-        void* context, SeqNum seqNumber, ViewNum viewNumber, const char* combinedSig, uint16_t combinedSigLen);
+    static InternalMessage* createInterCombinedSigSucceeded(void* context,
+                                                            SeqNum seqNumber,
+                                                            ViewNum viewNumber,
+                                                            const char* combinedSig,
+                                                            uint16_t combinedSigLen,
+                                                            const std::string& span_context);
     static InternalMessage* createInterVerifyCombinedSigResult(void* context,
                                                                SeqNum seqNumber,
                                                                ViewNum viewNumber,
@@ -136,16 +147,24 @@ class SeqNumInfo {
   class ExFuncForCommitCollector {
    public:
     // external messages
-    static CommitFullMsg* createCombinedSignatureMsg(
-        void* context, SeqNum seqNumber, ViewNum viewNumber, const char* const combinedSig, uint16_t combinedSigLen);
+    static CommitFullMsg* createCombinedSignatureMsg(void* context,
+                                                     SeqNum seqNumber,
+                                                     ViewNum viewNumber,
+                                                     const char* const combinedSig,
+                                                     uint16_t combinedSigLen,
+                                                     const std::string& span_context);
 
     // internal messages
     static InternalMessage* createInterCombinedSigFailed(void* context,
                                                          SeqNum seqNumber,
                                                          ViewNum viewNumber,
                                                          std::set<uint16_t> replicasWithBadSigs);
-    static InternalMessage* createInterCombinedSigSucceeded(
-        void* context, SeqNum seqNumber, ViewNum viewNumber, const char* combinedSig, uint16_t combinedSigLen);
+    static InternalMessage* createInterCombinedSigSucceeded(void* context,
+                                                            SeqNum seqNumber,
+                                                            ViewNum viewNumber,
+                                                            const char* combinedSig,
+                                                            uint16_t combinedSigLen,
+                                                            const std::string& span_context);
     static InternalMessage* createInterVerifyCombinedSigResult(void* context,
                                                                SeqNum seqNumber,
                                                                ViewNum viewNumber,

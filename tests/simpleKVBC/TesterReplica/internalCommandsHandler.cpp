@@ -12,6 +12,7 @@
 // file.
 
 #include "internalCommandsHandler.hpp"
+#include "OpenTracing.hpp"
 #include "assertUtils.hpp"
 #include "sliver.hpp"
 #include "kv_types.hpp"
@@ -37,7 +38,8 @@ int InternalCommandsHandler::execute(uint16_t clientId,
                                      const char *request,
                                      uint32_t maxReplySize,
                                      char *outReply,
-                                     uint32_t &outActualReplySize) {
+                                     uint32_t &outActualReplySize,
+                                     concordUtils::SpanWrapper &span) {
   int res;
   if (requestSize < sizeof(SimpleRequest)) {
     LOG_ERROR(

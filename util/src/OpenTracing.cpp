@@ -11,6 +11,8 @@
 // as noted in the LICENSE file.
 
 #include "OpenTracing.hpp"
+#include <string>
+#include "Logger.hpp"
 
 #ifdef USE_OPENTRACING
 #include <opentracing/tracer.h>
@@ -18,21 +20,6 @@
 #endif
 
 namespace concordUtils {
-void SpanWrapper::setTag(const std::string& name, const std::string& value) {
-#ifdef USE_OPENTRACING
-  span_ptr_->SetTag(name, value);
-#else
-  (void)name;
-  (void)value;
-#endif
-}
-
-void SpanWrapper::finish() {
-#ifdef USE_OPENTRACING
-  span_ptr_->Finish();
-#endif
-}
-
 SpanContext SpanWrapper::context() const {
 #ifdef USE_OPENTRACING
   if (!impl()) {
@@ -49,30 +36,32 @@ SpanContext SpanWrapper::context() const {
 
 SpanWrapper startSpan(const std::string& operation_name) {
 #ifdef USE_OPENTRACING
-  auto tracer = opentracing::Tracer::Global();
-  if (!tracer) {
-    // Tracer is not initialized by the parent
-    return SpanWrapper{};
-  } else {
-    return SpanWrapper{tracer->StartSpan(operation_name)};
-  }
+  return SpanWrapper{opentracing::Tracer::Global()->StartSpan(operation_name)};
 #else
   (void)operation_name;
   return SpanWrapper{};
 #endif
 }
 
+#ifdef USE_OPENTRACING
+static void copyBaggageItemsToTags(std::unique_ptr<opentracing::Span>& span) {
+  span->context().ForeachBaggageItem([&span](const std::string& name, const std::string& value) {
+    span->SetTag(name, value);
+    return true;
+  });
+  (void)span;
+}
+#endif
+
 SpanWrapper startChildSpan(const std::string& child_operation_name, const SpanWrapper& parent_span) {
 #ifdef USE_OPENTRACING
+  if (!parent_span) {
+    return SpanWrapper{};
+  }
   auto tracer = opentracing::Tracer::Global();
-  if (!tracer) {
-    // Tracer is not initialized by the parent
-    return SpanWrapper{};
-  }
-  if (!parent_span.impl()) {
-    return SpanWrapper{};
-  }
-  return SpanWrapper{tracer->StartSpan(child_operation_name, {opentracing::ChildOf(&parent_span.impl()->context())})};
+  auto span = tracer->StartSpan(child_operation_name, {opentracing::ChildOf(&parent_span.impl()->context())});
+  copyBaggageItemsToTags(span);
+  return SpanWrapper{std::move(span)};
 #else
   (void)child_operation_name;
   (void)parent_span;
@@ -82,22 +71,21 @@ SpanWrapper startChildSpan(const std::string& child_operation_name, const SpanWr
 
 SpanWrapper startChildSpanFromContext(const SpanContext& context, const std::string& child_operation_name) {
 #ifdef USE_OPENTRACING
-  auto tracer = opentracing::Tracer::Global();
-  if (!tracer) {
-    // Tracer is not initialized by the parent
-    return SpanWrapper{};
-  }
   if (context.empty()) {
     return SpanWrapper{};
   }
   std::istringstream context_stream{context};
+  auto tracer = opentracing::Tracer::Global();
   auto parent_span_context = tracer->Extract(context_stream);
+  // DD: It might happen in 2 cases:
+  // 1. invalid context
+  // 2. Tracer is not initialized
   if (!parent_span_context) {
-    std::ostringstream stream;
-    stream << "Failed to extract span, error:" << parent_span_context.error();
-    throw std::runtime_error(stream.str());
+    return SpanWrapper{};
   }
-  return SpanWrapper{tracer->StartSpan(child_operation_name, {opentracing::ChildOf(parent_span_context->get())})};
+  auto span = tracer->StartSpan(child_operation_name, {opentracing::ChildOf(parent_span_context->get())});
+  copyBaggageItemsToTags(span);
+  return SpanWrapper{std::move(span)};
 #else
   (void)context;
   (void)child_operation_name;

@@ -20,13 +20,19 @@ PreProcessRequestMsg::PreProcessRequestMsg(NodeIdType senderId,
                                            uint64_t reqSeqNum,
                                            uint32_t reqLength,
                                            const char* request,
+                                           const std::string& span_context,
                                            const std::string& cid)
-    : MessageBase(senderId, MsgCode::PreProcessRequest, (sizeof(Header) + reqLength + cid.size())) {
+    : MessageBase(
+          senderId, MsgCode::PreProcessRequest, span_context.size(), (sizeof(Header) + reqLength + cid.size())) {
   setParams(senderId, clientId, reqSeqNum, reqLength);
   msgBody()->cidLength = cid.size();
-  memcpy(body() + sizeof(Header), request, reqLength);
-  memcpy(body() + sizeof(Header) + reqLength, cid.c_str(), cid.size());
-  uint64_t msgLength = sizeof(Header) + reqLength + cid.size();
+  auto position = body() + sizeof(Header);
+  memcpy(position, span_context.data(), span_context.size());
+  position += span_context.size();
+  memcpy(position, request, reqLength);
+  position += reqLength;
+  memcpy(position, cid.c_str(), cid.size());
+  uint64_t msgLength = sizeof(Header) + span_context.size() + reqLength + cid.size();
   LOG_DEBUG(GL,
             "senderId=" << senderId << " clientId=" << clientId << " reqSeqNum=" << reqSeqNum
                         << " headerSize=" << sizeof(Header) << " reqLength=" << reqLength << " cidSize=" << cid.size()
@@ -37,7 +43,8 @@ void PreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
   Assert(type() == MsgCode::PreProcessRequest);
   Assert(senderId() != repInfo.myId());
 
-  if (size() < (sizeof(Header)) || size() < (sizeof(Header) + msgBody()->requestLength + msgBody()->cidLength))
+  if (size() < (sizeof(Header)) ||
+      size() < (sizeof(Header) + spanContextSize() + msgBody()->requestLength + msgBody()->cidLength))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
@@ -49,7 +56,7 @@ void PreProcessRequestMsg::setParams(NodeIdType senderId, uint16_t clientId, Req
 }
 
 std::string PreProcessRequestMsg::getCid() const {
-  return std::string(body() + sizeof(Header) + msgBody()->requestLength, msgBody()->cidLength);
+  return std::string(body() + sizeof(Header) + spanContextSize() + msgBody()->requestLength, msgBody()->cidLength);
 }
 
 }  // namespace preprocessor

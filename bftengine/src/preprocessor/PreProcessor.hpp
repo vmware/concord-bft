@@ -92,7 +92,8 @@ class PreProcessor {
   void launchAsyncReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                       bool isPrimary,
                                       bool isRetry);
-  uint32_t launchReqPreProcessing(uint16_t clientId, ReqId reqSeqNum, uint32_t reqLength, char *reqBuf);
+  uint32_t launchReqPreProcessing(
+      uint16_t clientId, ReqId reqSeqNum, uint32_t reqLength, char *reqBuf, const std::string &span_context);
   void handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg, bool isPrimary, bool isRetry);
   void handlePreProcessedReqByNonPrimary(uint16_t clientId,
                                          ReqId reqSeqNum,

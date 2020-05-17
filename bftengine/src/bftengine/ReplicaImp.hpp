@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <string>
 #include "Replica.hpp"
 #include "ReplicaForStateTransfer.hpp"
 #include "CollectorOfThresholdSignatures.hpp"
@@ -28,6 +29,7 @@
 #include "CheckpointInfo.hpp"
 #include "SimpleThreadPool.hpp"
 #include "Bitmap.hpp"
+#include "OpenTracing.hpp"
 
 namespace bftEngine::impl {
 
@@ -309,11 +311,13 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void sendPreparePartial(SeqNumInfo&);
   void sendCommitPartial(SeqNum);  // TODO(GG): the argument should be a ref to SeqNumInfo
 
-  void executeReadOnlyRequest(ClientRequestMsg* m);
+  void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, ClientRequestMsg* m);
 
-  void executeNextCommittedRequests(const bool requestMissingInfo = false);
+  void executeNextCommittedRequests(concordUtils::SpanWrapper& parent_span, const bool requestMissingInfo = false);
 
-  void executeRequestsInPrePrepareMsg(PrePrepareMsg* pp, bool recoverFromErrorInRequestsExecution = false);
+  void executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper& parent_span,
+                                      PrePrepareMsg* pp,
+                                      bool recoverFromErrorInRequestsExecution = false);
 
   void onSeqNumIsStable(
       SeqNum newStableSeqNum,
@@ -371,7 +375,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   virtual void onPrepareCombinedSigSucceeded(SeqNum seqNumber,
                                              ViewNum view,
                                              const char* combinedSig,
-                                             uint16_t combinedSigLen) override;
+                                             uint16_t combinedSigLen,
+                                             const std::string& span_context) override;
   virtual void onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) override;
 
   virtual void onCommitCombinedSigFailed(SeqNum seqNumber,
@@ -380,7 +385,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   virtual void onCommitCombinedSigSucceeded(SeqNum seqNumber,
                                             ViewNum view,
                                             const char* combinedSig,
-                                            uint16_t combinedSigLen) override;
+                                            uint16_t combinedSigLen,
+                                            const std::string& span_context) override;
   virtual void onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) override;
 
   virtual void onRetransmissionsProcessingResults(

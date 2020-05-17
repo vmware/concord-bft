@@ -13,7 +13,9 @@
 // TODO(GG): this class/file should be replaced by an instance of CollectorOfThresholdSignatures
 
 #include "PartialProofsSet.hpp"
+#include <type_traits>
 #include "Logger.hpp"
+#include "OpenTracing.hpp"
 #include "PartialCommitProofMsg.hpp"
 #include "FullCommitProofMsg.hpp"
 #include "Crypto.hpp"
@@ -208,13 +210,15 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
                          IThresholdAccumulator* acc,
                          Digest& expectedDigest,
                          SeqNum seqNumber,
-                         ViewNum viewNumber) {
+                         ViewNum viewNumber,
+                         const std::string& span_context) {
     this->me = myReplica;
     this->acc = acc;
     this->expectedDigest = expectedDigest;
     this->seqNumber = seqNumber;
     this->view = viewNumber;
     this->verifier = verifier;
+    span_context_ = span_context;
   }
 
   virtual ~AsynchProofCreationJob(){};
@@ -224,6 +228,7 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
     SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::OPTIMISTIC_FAST));
     LOG_DEBUG(GL, "begin...");
 
+    auto span = concordUtils::startChildSpanFromContext("bft_create_FullCommitProofMsg", span_context_);
     const uint16_t bufferSize = (uint16_t)verifier->requiredLengthForSignedData();
     char* const bufferForSigComputations = (char*)alloca(bufferSize);
 
@@ -249,7 +254,7 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
       LOG_INFO(GL, "Commit path analysis: created FullProof, sending full commit proof");
       // EL is this only fast and the on;y place to call FullCommitProofMsg
       FullCommitProofMsg* fcpMsg = new FullCommitProofMsg(
-          me->getReplicasInfo().myId(), view, seqNumber, bufferForSigComputations, (uint16_t)sigLength);
+          me->getReplicasInfo().myId(), view, seqNumber, bufferForSigComputations, (uint16_t)sigLength, span_context_);
 
       //			me->sendToAllOtherReplicas(fcpMsg);
 
@@ -272,6 +277,7 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
   SeqNum seqNumber;
   ViewNum view;
   IThresholdVerifier* verifier;
+  std::string span_context_;
 };
 
 void PartialProofsSet::tryToCreateFullProof() {
@@ -301,8 +307,9 @@ void PartialProofsSet::tryToCreateFullProof() {
 
     PartialCommitProofMsg* myPCP = selfPartialCommitProof;
 
+    const auto& span_context = myPCP->spanContext<std::remove_pointer<decltype(myPCP)>::type>();
     AsynchProofCreationJob* j = new AsynchProofCreationJob(
-        replica, thresholdVerifier(cPath), acc, expectedDigest, myPCP->seqNumber(), myPCP->viewNumber());
+        replica, thresholdVerifier(cPath), acc, expectedDigest, myPCP->seqNumber(), myPCP->viewNumber(), span_context);
 
     replica->getInternalThreadPool().add(j);
 
