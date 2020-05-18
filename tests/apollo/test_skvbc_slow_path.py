@@ -126,6 +126,7 @@ class SkvbcSlowPathTest(unittest.TestCase):
         await bft_network.wait_for_fast_path_to_be_prevalent(
             nb_slow_paths_so_far=await bft_network.num_of_slow_path())
 
+    
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -158,10 +159,24 @@ class SkvbcSlowPathTest(unittest.TestCase):
 
         bft_network.stop_replica(0)
 
+        # trigger the view change
+        await tracker.run_concurrent_ops(num_ops)
+
+        randRep = random.choice(
+                bft_network.all_replicas(without={0}))
+        
+        print("wait_for_view - Random replica {}".format(randRep))
+
+        await bft_network.wait_for_view(
+            replica_id=randRep,
+            expected=lambda v: v > 0,
+            err_msg="Make sure view change has occurred."
+        )
+
         with trio.move_on_after(seconds=5):
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(tracker.send_indefinite_tracked_ops, write_weight)
 
         bft_network.start_replica(0)
 
-        await bft_network.wait_for_slow_path_to_be_prevalent(as_of_seq_num=fast_path_writes)
+        await bft_network.wait_for_slow_path_to_be_prevalent(as_of_seq_num=fast_path_writes,replica_id=randRep)
