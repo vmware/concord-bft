@@ -62,6 +62,7 @@ using namespace std;
 void signal_handler(int signal_num) {
   LOG_FATAL(GL, "Program received signal " << signal_num);
   printCallStack();
+  raise(SIGABRT);
   exit(signal_num);
 }
 
