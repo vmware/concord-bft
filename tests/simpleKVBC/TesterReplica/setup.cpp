@@ -49,6 +49,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     std::string keysFilePrefix;
     std::string commConfigFile;
     std::string s3ConfigFile;
+    std::string logPropsFile = "logging.properties";
     // Set StorageType::V1DirectKeyValue as the default storage type.
     auto storageType = StorageType::V1DirectKeyValue;
 
@@ -61,12 +62,13 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                           {"s3-config-file", required_argument, 0, '3'},
                                           {"persistence-mode", no_argument, 0, 'p'},
                                           {"storage-type", required_argument, 0, 't'},
+                                          {"log-props-file", required_argument, 0, 'l'},
                                           {0, 0, 0, 0}};
 
     int o = 0;
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
-    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:pt:", longOptions, &optionIndex)) != -1) {
+    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:pt:l:", longOptions, &optionIndex)) != -1) {
       switch (o) {
         case 'i': {
           replicaConfig.replicaId = concord::util::to<std::uint16_t>(std::string(optarg));
@@ -108,6 +110,10 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
             throw std::runtime_error{"invalid argument for --storage-type"};
           }
         } break;
+        case 'l': {
+          logPropsFile = optarg;
+          break;
+        }
         case '?': {
           throw std::runtime_error("invalid arguments");
         } break;
@@ -148,7 +154,8 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                                     metricsPort,
                                                     persistMode == PersistencyMode::RocksDB,
                                                     s3ConfigFile,
-                                                    storageType});
+                                                    storageType,
+                                                    logPropsFile});
 
   } catch (const std::exception& e) {
     LOG_FATAL(GL, "failed to parse command line arguments: " << e.what());
