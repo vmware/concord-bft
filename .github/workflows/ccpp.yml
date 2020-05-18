@@ -23,6 +23,22 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: Cache conan deps
+      uses: actions/cache@v1
+      env:
+        cache-name: conan-deps
+      with:
+        path: $HOME/.conan/data
+        key: ${{ env.cache-name }}-${{ hashFiles('conanfile.txt') }}-${{ hashFiles('**/conanfile.py') }}
+        restore-keys: |
+          ${{ env.cache-name }}-
+    - name: Cache pip
+      uses: actions/cache@v1
+      with:
+        path: ~/.cache/pip
+        key: pip-${{ hashFiles('**/install.sh') }}
+        restore-keys: |
+          pip-
     - name: Provision environment
       run: |
           mkdir -p $HOME/.local/bin
