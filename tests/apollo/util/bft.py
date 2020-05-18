@@ -691,7 +691,7 @@ class BftTestNetwork:
         Asserts there is at most 1 sequence processed on the slow path,
         given the "nb_slow_paths_so_far".
         """
-        metric_key = ['replica', 'Counters', 'slowPathCount']
+        metric_key = ['replica', 'Counters', 'totalSlowPaths']
         total_nb_slow_paths = await self.metrics.get(replica_id, *metric_key)
         assert total_nb_slow_paths >= nb_slow_paths_so_far
 
@@ -707,7 +707,7 @@ class BftTestNetwork:
         metric_key = ['replica', 'Gauges', 'lastExecutedSeqNum']
         total_nb_executed_sequences = await self.metrics.get(replica_id, *metric_key)
 
-        metric_key = ['replica', 'Counters', 'slowPathCount']
+        metric_key = ['replica', 'Counters', 'totalSlowPaths']
         total_nb_slow_paths = await self.metrics.get(replica_id, *metric_key)
         assert total_nb_slow_paths >= nb_slow_paths_so_far
 
@@ -746,7 +746,7 @@ class BftTestNetwork:
             while True:
                 with trio.move_on_after(seconds=.5):
                     try:
-                        metric_key = ['replica', 'Counters', 'slowPathCount']
+                        metric_key = ['replica', 'Counters', 'totalSlowPaths']
                         nb_slow_path = await self.metrics.get(0, *metric_key)
                         return nb_slow_path
                     except KeyError:
