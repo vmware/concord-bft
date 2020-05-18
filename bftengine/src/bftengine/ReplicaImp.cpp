@@ -116,9 +116,9 @@ void ReplicaImp::sendAndIncrementMetric(MessageBase *m, NodeIdType id, CounterHa
 }
 
 void ReplicaImp::onReportAboutInvalidMessage(MessageBase *msg, const char *reason) {
-  LOG_WARN(GL,
-           "Node " << config_.replicaId << " received invalid message from Node " << msg->senderId()
-                   << " type=" << msg->type() << " reason: " << reason);
+  LOG_WARN(
+      GL,
+      "Received invalid message from senderId=" << msg->senderId() << " type=" << msg->type() << " reason: " << reason);
 
   // TODO(GG): logic that deals with invalid messages (e.g., a node that sends invalid messages may have a problem (old
   // version,bug,malicious,...)).
@@ -135,13 +135,13 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 
   MDC_CID_PUT(GL, m->getCid());
   LOG_DEBUG(GL,
-            "Node " << config_.replicaId << " received ClientRequestMsg (clientId=" << clientId
-                    << " reqSeqNum=" << reqSeqNum << ", flags=" << flags << ") from Node " << senderId);
+            "Received ClientRequestMsg (clientId=" << clientId << " reqSeqNum=" << reqSeqNum << ", flags=" << (int)flags
+                                                   << ") from senderId=" << senderId);
 
   if (isCollectingState()) {
     LOG_INFO(GL,
              "ClientRequestMsg reqSeqNum="
-                 << reqSeqNum
+                 << reqSeqNum << " from clientId=" << clientId
                  << " is ignored because this replica is collecting missing state from the other replicas");
     delete m;
     return;
@@ -167,7 +167,9 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   }
 
   if (!currentViewIsActive()) {
-    LOG_INFO(GL, "ClientRequestMsg is ignored because current view is inactive");
+    LOG_INFO(GL,
+             "ClientRequestMsg reqSeqNum=" << reqSeqNum << " from clientId=" << clientId
+                                           << " is ignored because current view is inactive");
     delete m;
     return;
   }
@@ -186,7 +188,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
       } else {
         LOG_INFO(GL,
                  "ClientRequestMsg reqSeqNum="
-                     << reqSeqNum
+                     << reqSeqNum << " from clientId=" << clientId << " queue size=" << requestsQueueOfPrimary.size()
                      << " is ignored because: request is old, OR primary is current working on a request "
                         "from the same client, OR queue contains too many requests");
       }
@@ -197,18 +199,20 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
         // TODO(GG): add a mechanism that retransmits (otherwise we may start unnecessary view-change)
         send(m, currentPrimary());
 
-        LOG_INFO(GL, "Sending ClientRequestMsg reqSeqNum=" << reqSeqNum << " to current primary");
+        LOG_INFO(GL,
+                 "Sending ClientRequestMsg reqSeqNum=" << reqSeqNum << " from clientId=" << clientId
+                                                       << " to current primary");
       } else {
         LOG_INFO(GL,
-                 "ClientRequestMsg reqSeqNum="
-                     << reqSeqNum
-                     << " is ignored because request is old or replica has another pending request from the "
-                        "same client");
+                 "ClientRequestMsg reqSeqNum=" << reqSeqNum << " from clientId=" << clientId
+                                               << " is ignored because request is old or replica"
+                                                  " has another pending request from the same client");
       }
     }
   } else if (seqNumberOfLastReply == reqSeqNum) {
     LOG_DEBUG(GL,
-              "ClientRequestMsg reqSeqNum=" << reqSeqNum << " has already been executed - retransmit reply to client");
+              "ClientRequestMsg reqSeqNum=" << reqSeqNum << " from clientId=" << clientId
+                                            << " has already been executed - retransmit reply to client");
 
     ClientReplyMsg *repMsg = clientsManager->allocateMsgWithLatestReply(clientId, currentPrimary());
 
@@ -216,7 +220,9 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 
     delete repMsg;
   } else {
-    LOG_INFO(GL, "ClientRequestMsg reqSeqNum=" << reqSeqNum << " is ignored because request is old");
+    LOG_INFO(GL,
+             "ClientRequestMsg reqSeqNum=" << reqSeqNum << " from clientId=" << clientId
+                                           << " is ignored because request is old");
   }
 
   delete m;
@@ -445,7 +451,9 @@ void ReplicaImp::tryToStartSlowPaths() {
   const SeqNum minSeqNum = lastExecutedSeqNum + 1;
 
   if (minSeqNum > lastStableSeqNum + kWorkWindowSize) {
-    LOG_INFO(GL, "Replica::tryToStartSlowPaths() : minSeqNum > lastStableSeqNum + kWorkWindowSize");
+    LOG_INFO(GL,
+             "Try to start slow path: minSeqNum > lastStableSeqNum + kWorkWindowSize where minSeqNum="
+                 << minSeqNum << " lastStableSeqNum=" << lastStableSeqNum << " kWorkWindowSize=" << kWorkWindowSize);
     return;
   }
 
@@ -566,7 +574,7 @@ void ReplicaImp::onMessage<StartSlowCommitMsg>(StartSlowCommitMsg *msg) {
   metric_received_start_slow_commits_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
   concordlogger::MDC seqNum(GL, SEQ_NUM_KEY, msgSeqNum);
-  LOG_INFO(GL, "Node " << config_.replicaId << " received StartSlowCommitMsg for seqNumber " << msgSeqNum);
+  LOG_INFO(GL, "Received StartSlowCommitMsg for seqNumber=" << msgSeqNum);
 
   if (relevantMsgForActiveView(msg)) {
     sendAckIfNeeded(msg, currentPrimary(), msgSeqNum);
@@ -574,7 +582,7 @@ void ReplicaImp::onMessage<StartSlowCommitMsg>(StartSlowCommitMsg *msg) {
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
 
     if (!seqNumInfo.slowPathStarted() && !seqNumInfo.isPrepared()) {
-      LOG_INFO(GL, "Node " << config_.replicaId << " starts slow path for seqNumber " << msgSeqNum);
+      LOG_INFO(GL, "Start slow path for seqNumber=" << msgSeqNum);
 
       seqNumInfo.startSlowPath();
       metric_slow_path_count_.Get().Inc();
@@ -1145,9 +1153,8 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
       tableOfStableCheckpoints[msgSenderId] = x;
 
       LOG_INFO(GL,
-               "Node " << config_.replicaId
-                       << " added stable Checkpoint message to tableOfStableCheckpoints (message from node "
-                       << msgSenderId << " for seqNumber " << msgSeqNum);
+               "Added stable Checkpoint message to tableOfStableCheckpoints (message from senderId="
+                   << msgSenderId << " for seqNumber=" << msgSeqNum);
 
       if ((uint16_t)tableOfStableCheckpoints.size() >= config_.fVal + 1) {
         uint16_t numRelevant = 0;
@@ -1184,7 +1191,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   }
 
   if (askForStateTransfer) {
-    LOG_INFO(GL, "call to startCollectingState()");
+    LOG_INFO(GL, "Call to startCollectingState()");
 
     stateTransfer->startCollectingState();
   } else if (msgSeqNum > lastStableSeqNum + kWorkWindowSize) {
@@ -1200,7 +1207,7 @@ template <>
 void ReplicaImp::onMessage<AskForCheckpointMsg>(AskForCheckpointMsg *msg) {
   // metric_received_checkpoints_.Get().Inc(); // TODO [TK]
 
-  LOG_INFO(GL, "Node " << config_.replicaId << " received AskForCheckpoint message from node " << msg->senderId());
+  LOG_INFO(GL, "Received AskForCheckpoint message from senderId=" << msg->senderId());
 
   const CheckpointInfo &checkpointInfo = checkpointsLog->get(lastStableSeqNum);
   CheckpointMsg *checkpointMsg = checkpointInfo.selfCheckpointMsg();
@@ -1213,7 +1220,7 @@ void ReplicaImp::onMessage<AskForCheckpointMsg>(AskForCheckpointMsg *msg) {
 
   } else {
     // TODO [TK] check if already sent within a configurable time period
-    LOG_INFO(GL, "Sending CheckpointMsg to node " << msg->senderId());
+    LOG_INFO(GL, "Sending CheckpointMsg to node=" << msg->senderId());
     send(checkpointMsg, msg->senderId());
   }
 }
@@ -1360,9 +1367,7 @@ void ReplicaImp::onRetransmissionsProcessingResults(
         CommitFullMsg *msgToSend = seqNumInfo.getValidCommitFullMsg();
         Assert(msgToSend != nullptr);
         sendRetransmittableMsgToReplica(msgToSend, s.replicaId, s.msgSeqNum);
-        LOG_INFO(GL,
-                 "Replica " << myId << " retransmits to replica " << s.replicaId << " CommitFullMsg with seqNumber "
-                            << s.msgSeqNum);
+        LOG_INFO(GL, "Retransmit CommitFullMsg with seqNumber=" << s.msgSeqNum << " to replica=" << s.replicaId);
       } break;
 
       default:
@@ -1615,9 +1620,9 @@ void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
   Assert(generatedReplicaId != config_.replicaId);
 
   LOG_INFO(GL,
-           "Node " << config_.replicaId << " received ViewChangeMsg (generatedReplicaId=" << generatedReplicaId
-                   << ", newView=" << msg->newView() << ", lastStable=" << msg->lastStable()
-                   << ", numberOfElements=" << (int)msg->numberOfElements());
+           "Received ViewChangeMsg (generatedReplicaId=" << generatedReplicaId << ", newView=" << msg->newView()
+                                                         << ", lastStable=" << msg->lastStable()
+                                                         << ", numberOfElements=" << (int)msg->numberOfElements());
 
   bool msgAdded = viewsManager->add(msg);
 
@@ -1673,9 +1678,7 @@ void ReplicaImp::onMessage<NewViewMsg>(NewViewMsg *msg) {
 
   Assert(senderId != config_.replicaId);  // should be verified in ViewChangeMsg
 
-  LOG_INFO(GL,
-           "Node " << config_.replicaId << " received NewViewMsg message (senderId=" << senderId << ", newView=%"
-                   << msg->newView());
+  LOG_INFO(GL, "Received NewViewMsg message (senderId=" << senderId << ", newView=%" << msg->newView());
 
   bool added = viewsManager->add(msg);
 
@@ -2146,7 +2149,7 @@ void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly,
 
   seqNumInfo.setTimeOfLastInfoRequest(curTime);
 
-  LOG_INFO(GL, "Node " << config_.replicaId << " tries to request missing data for seqNumber " << seqNumber);
+  LOG_INFO(GL, "Try to request missing data for seqNumber=" << seqNumber);
 
   ReqMissingDataMsg reqData(config_.replicaId, curView, seqNumber);
 
@@ -2209,8 +2212,7 @@ void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly,
     if (slowPathStarted) reqData.setSlowPathHasStarted();
 
     LOG_INFO(GL,
-             "Node " << config_.replicaId << " sends ReqMissingDataMsg to " << destRep << " - seqNumber " << seqNumber
-                     << " , flags=" << reqData.getFlags());
+             "Send ReqMissingDataMsg to " << destRep << " seqNumber=" << seqNumber << ", flags=" << reqData.getFlags());
 
     send(&reqData, destRep);
     metric_sent_req_for_missing_data_.Get().Inc();
@@ -2224,8 +2226,8 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
   const ReplicaId msgSender = msg->senderId();
   concordlogger::MDC seqNum(GL, SEQ_NUM_KEY, msgSeqNum);
   LOG_INFO(GL,
-           "Node " << config_.replicaId << " received ReqMissingDataMsg message from Node " << msgSender
-                   << " - seqNumber " << msgSeqNum << " , flags=" << msg->getFlags());
+           "Received ReqMissingDataMsg message from senderId=" << msgSender << " seqNumber=" << msgSeqNum
+                                                               << ", flags=" << msg->getFlags());
 
   if ((currentViewIsActive()) && (msgSeqNum > strictLowerBoundOfSeqNums) && (mainLog->insideActiveWindow(msgSeqNum)) &&
       (mainLog->insideActiveWindow(msgSeqNum))) {
@@ -2290,7 +2292,7 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
       sendAndIncrementMetric(fcp, msgSender, metric_sent_fullCommitProof_msg_due_to_reqMissingData_);
     }
   } else {
-    LOG_INFO(GL, "Node " << config_.replicaId << " ignores the ReqMissingDataMsg message from Node " << msgSender);
+    LOG_INFO(GL, "Ignore the ReqMissingDataMsg message from senderId=" << msgSender);
   }
 
   delete msg;
@@ -2316,9 +2318,8 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
 
     if (diffMilli > timeout) {
       LOG_INFO(GL,
-               "**************** Node " << config_.replicaId << " initiates automatic view change in view " << curView
-                                        << " (" << diffMilli
-                                        << " milli seconds after start working in the previous view)");
+               "**************** Initiate automatic view change in view="
+                   << curView << " (" << diffMilli << " milli seconds after start working in the previous view)");
 
       GotoNextView();
       return;
@@ -2350,8 +2351,8 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
 
     if ((diffMilli1 > viewChangeTimeout) && (diffMilli2 > viewChangeTimeout) && (diffMilli3 > viewChangeTimeout)) {
       LOG_INFO(GL,
-               "**************** Node " << config_.replicaId << "  asks to leave view " << curView << " (" << diffMilli3
-                                        << " milli seconds after receiving a client request)");
+               "**************** Ask to leave view=" << curView << " (" << diffMilli3
+                                                     << " milli seconds after receiving a client request)");
 
       GotoNextView();
       return;
@@ -2367,8 +2368,8 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
 
     if ((diffMilli1 > viewChangeTimeout) && (diffMilli2 > viewChangeTimeout)) {
       LOG_INFO(GL,
-               "**************** Node " << config_.replicaId << " asks to jump to view " << curView << " ("
-                                        << diffMilli2 << " milliseconds after receiving 2f+2c+1 view change msgs)");
+               "**************** Ask to jump to view=" << curView << " (" << diffMilli2
+                                                       << " milliseconds after receiving 2f+2c+1 view change msgs)");
       GotoNextView();
       return;
     }
@@ -3055,7 +3056,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg *ppMsg, bool recov
   // TODO(GG): Explain what happens in recovery mode
   //////////////////////////////////////////////////////////////////////
 
-  LOG_DEBUG(GL, "Replica - executeRequestsInPrePrepareMsg() - lastExecutedSeqNum==" << (lastExecutedSeqNum + 1));
+  LOG_DEBUG(GL, "lastExecutedSeqNum=" << (lastExecutedSeqNum + 1));
 
   if (ps_) {
     ps_->beginWriteTran();
