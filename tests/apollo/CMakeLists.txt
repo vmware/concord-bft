@@ -1,12 +1,11 @@
-set(APOLLO_TEST_ENV "BUILD_ROCKSDB_STORAGE=${BUILD_ROCKSDB_STORAGE} USE_S3_OBJECT_STORE=${USE_S3_OBJECT_STORE}")
-set(MINIO_BINARY_PATH "${CMAKE_BINARY_DIR}/minio")
+set(APOLLO_TEST_ENV "BUILD_ROCKSDB_STORAGE=${BUILD_ROCKSDB_STORAGE}")
 
 if(USE_S3_OBJECT_STORE)
         find_program(CHMOD_PROG chmod)
         if(NOT CHMOD_PROG)
                 message(FATAL_ERROR "chmod not found")
         endif()
-        
+        set(MINIO_BINARY_PATH "${CMAKE_BINARY_DIR}/minio")
         if(NOT EXISTS ${MINIO_BINARY_PATH})
                 message(STATUS "Downloading minio binary")
                 file(DOWNLOAD "https://dl.min.io/server/minio/release/linux-amd64/minio" ${MINIO_BINARY_PATH} SHOW_PROGRESS)
@@ -16,7 +15,7 @@ if(USE_S3_OBJECT_STORE)
         endif()
 
         # This env var is used by apollo tests to locate the path to the binary
-        set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} CONCORD_BFT_MINIO_BINARY_PATH=${MINIO_BINARY_PATH}")
+        set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} CONCORD_BFT_MINIO_BINARY_PATH=${MINIO_BINARY_PATH} USE_S3_OBJECT_STORE=1")
 endif()
 
 set(STORAGE_TYPES "v1direct" "v2merkle")
