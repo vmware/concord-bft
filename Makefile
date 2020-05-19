@@ -46,10 +46,13 @@ pull: ## Pull image from remote
 	docker pull ${CONCORD_BFT_DOCKER_REPO}${CONCORD_BFT_DOCKER_IMAGE}:${CONCORD_BFT_DOCKER_IMAGE_VERSION}
 
 run-c: ## Run container in background
-	docker run -d --rm --cap-add NET_ADMIN --name="${CONCORD_BFT_DOCKER_IMAGE}" \
-				  --mount type=bind,source=${CURDIR},target=${CONCORD_BFT_TARGET_SOURCE_PATH}${CONCORD_BFT_CONTAINER_MOUNT_CONSISTENCY} \
-				  ${CONCORD_BFT_DOCKER_REPO}${CONCORD_BFT_DOCKER_IMAGE}:${CONCORD_BFT_DOCKER_IMAGE_VERSION} \
-				  /usr/bin/tail -f /dev/null
+	docker run -d --rm --privileged=true \
+			  --cap-add NET_ADMIN --cap-add=SYS_PTRACE --ulimit core=-1 \
+			  --name="${CONCORD_BFT_DOCKER_IMAGE}" \
+			  --mount type=bind,source=${CURDIR},target=/cores \
+			  --mount type=bind,source=${CURDIR},target=${CONCORD_BFT_TARGET_SOURCE_PATH}${CONCORD_BFT_CONTAINER_MOUNT_CONSISTENCY} \
+			  ${CONCORD_BFT_DOCKER_REPO}${CONCORD_BFT_DOCKER_IMAGE}:${CONCORD_BFT_DOCKER_IMAGE_VERSION} \
+			  /usr/bin/tail -f /dev/null
 
 login: ## Login to the container
 	docker exec -it --workdir=${CONCORD_BFT_TARGET_SOURCE_PATH} \

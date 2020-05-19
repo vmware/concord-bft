@@ -1,0 +1,34 @@
+name: Build
+# This workflow is triggered on pushes to the repository.
+on: [push]
+env:
+  DOCKER_IMAGE: concord-bft
+  DOCKER_WORK_DIR: /concord-bft
+  CMAKE_CXX_FLAGS: "-DCMAKE_CXX_FLAGS_RELEASE=-O3 -g"
+  USE_LOG4CPP: -DUSE_LOG4CPP=TRUE
+  USE_ROCKSDB: -DBUILD_ROCKSDB_STORAGE=TRUE
+  USE_CONAN: -DUSE_CONAN=OFF
+  USE_S3_OBJECT_STORE: -DUSE_S3_OBJECT_STORE=ON
+
+jobs:
+  build:
+    # Job name is Greeting
+    name: Greeting
+    # This job runs on Linux
+    runs-on: ubuntu-latest
+    strategy:
+        matrix:
+            compiler: [gcc, clang]
+            #ci_build_type: ["-DCMAKE_BUILD_TYPE=DEBUG -DCI_TEST_STORAGE_TYPE=v1direct",
+            #"-DCMAKE_BUILD_TYPE=RELEASE -DCI_TEST_STORAGE_TYPE=v1direct",
+            #"-DCMAKE_BUILD_TYPE=DEBUG -DCI_TEST_STORAGE_TYPE=v2merkle",
+            #"-DCMAKE_BUILD_TYPE=RELEASE -DCI_TEST_STORAGE_TYPE=v2merkle"]
+    steps:
+      # This step uses GitHub's hello-world-javascript-action: https://github.com/actions/hello-world-javascript-action
+      - name: Checkout
+        uses: actions/checkout@v2
+      # This step prints an output (time) from the previous step's action.
+      - name: Build image
+        run: docker build -t concord-bft -f ./Dockerfile .
+      - name: Build and test Concord-BFT
+        run: docker image ls

@@ -1,0 +1,71 @@
+name: Build and test
+# This workflow is triggered on pushes to the repository.
+on: [push]
+env:
+    DOCKER_REPO: fsquirrel
+    DOCKER_IMAGE: concord-bft
+    DOCKER_WORK_DIR: /concord-bft
+    DOCKER_IMAGE_VER: 0.3
+    CMAKE_CXX_FLAGS: "-DCMAKE_CXX_FLAGS_RELEASE=-O3 -g"
+    USE_LOG4CPP: -DUSE_LOG4CPP=TRUE
+    USE_ROCKSDB: -DBUILD_ROCKSDB_STORAGE=TRUE
+    USE_CONAN: -DUSE_CONAN=OFF
+    USE_S3_OBJECT_STORE: -DUSE_S3_OBJECT_STORE=ON
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    strategy:
+        fail-fast: false
+        matrix:
+            compiler:
+                - "CC=gcc CXX=g++"
+                  # - "CC=clang CXX=clang++"
+            ci_build_type:
+                - "-DCMAKE_BUILD_TYPE=DEBUG -DCI_TEST_STORAGE_TYPE=v1direct"
+                  #- "-DCMAKE_BUILD_TYPE=RELEASE -DCI_TEST_STORAGE_TYPE=v1direct"
+                  #- "-DCMAKE_BUILD_TYPE=DEBUG -DCI_TEST_STORAGE_TYPE=v2merkle"
+                  #- "-DCMAKE_BUILD_TYPE=RELEASE -DCI_TEST_STORAGE_TYPE=v2merkle"
+    steps:
+        - name: Pull docker image
+          run: docker pull ${{ env.DOCKER_REPO }}/${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_IMAGE_VER }}
+        - name: Checkout
+          uses: actions/checkout@v2
+        - name: Create artifact directory
+          run: mkdir -p ${{ github.workspace }}/artifact
+        - name: Configure core dump location
+          run: |
+            echo '/cores/core.%e.%p' | sudo tee /proc/sys/kernel/core_pattern
+            mkdir -p ${{ github.workspace }}/artifact/cores/
+        - name: Build and test
+          run: >
+            docker run --rm --privileged=true
+            --cap-add NET_ADMIN --cap-add=SYS_PTRACE --ulimit core=-1
+            --workdir=${{ env.DOCKER_WORK_DIR }} --name=${{ env.DOCKER_IMAGE }}
+            --mount type=bind,source=${PWD},target=${{ env.DOCKER_WORK_DIR }}
+            --mount type=bind,source=${{ github.workspace }}/artifact/cores,target=/cores
+            ${{ env.DOCKER_REPO }}/${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_IMAGE_VER }}
+            /bin/bash -c "mkdir build && cd build &&
+            ${{ matrix.compiler }}
+            cmake ${{ env.CMAKE_CXX_FLAGS }}
+            ${{ matrix.ci_build_type }}
+            ${{ env.USE_LOG4CPP }}
+            ${{ env.USE_ROCKSDB }}
+            ${{ env.USE_CONAN }}
+            ${{ env.USE_S3_OBJECT_STORE }} .. &&
+            make format-check &&
+            make -j$(nproc) &&
+            ctest --timeout 3000 --output-on-failure" 2>&1 | tee ${{ github.workspace }}/artifact/build.log ;
+            exit ${PIPESTATUS[0]}
+        - name: Prepare artifacts
+          if: failure()
+          run: |
+            ls -lh ${{ github.workspace }}/artifact/cores
+            sudo chown -R $USER:$GROUP ${{ github.workspace }}/artifact/
+        - name: Upload artifacts
+          uses: actions/upload-artifact@v2
+          if: failure()
+          with:
+            name: artifacts-${{ matrix.compiler }}-${{ matrix.ci_build_type }}
+            path: ${{ github.workspace }}/artifact/
