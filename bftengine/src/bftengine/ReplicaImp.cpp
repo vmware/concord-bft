@@ -1807,7 +1807,6 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
   Assert(lastExecutedSeqNum >= lastStableSeqNum);  // we moved to the new state, only after synchronizing the state
 
   timeOfLastViewEntrance = getMonotonicTime();  // TODO(GG): handle restart/pause
-  metric_current_active_view_.Get().Set(curView);
 
   NewViewMsg *newNewViewMsgToSend = nullptr;
 
@@ -1914,6 +1913,7 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
   LOG_INFO(GL, "**************** Start working in view " << curView);
 
   controller->onNewView(curView, primaryLastUsedSeqNum);
+  metric_current_active_view_.Get().Set(curView);
 }
 
 void ReplicaImp::sendCheckpointIfNeeded() {
