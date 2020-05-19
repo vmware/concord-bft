@@ -158,7 +158,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
                 err_msg="Make sure view change has been triggered."
             )
 
-            await tracker.tracked_read_your_writes()
+            await self._wait_for_read_your_writes_success(tracker)
 
             await tracker.run_concurrent_ops(100)
 
@@ -207,7 +207,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
             err_msg="Make sure view change has been triggered."
         )
 
-        await tracker.tracked_read_your_writes()
+        await self._wait_for_read_your_writes_success(tracker)
 
         await tracker.run_concurrent_ops(100)
 
@@ -344,9 +344,20 @@ class SkvbcViewChangeTest(unittest.TestCase):
             err_msg="Make sure view change has been triggered."
         )
 
-        await tracker.tracked_read_your_writes()
+        await self._wait_for_read_your_writes_success(tracker)
 
         await tracker.run_concurrent_ops(100)
+
+    async def _wait_for_read_your_writes_success(self, tracker):
+        with trio.fail_after(seconds=60):
+            while True:
+                with trio.move_on_after(seconds=5):
+                    try:
+                        await tracker.tracked_read_your_writes()
+                    except Exception:
+                        continue
+                    else:
+                        break
 
     async def _send_random_writes(self, tracker):
         with trio.move_on_after(seconds=1):
