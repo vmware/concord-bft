@@ -1332,9 +1332,10 @@ const auto refBlockchainTestParams = ::testing::Values(
 #else
 const auto customBlockchainTestsParams = ::testing::Values(std::make_shared<DbAdapterTest<TestMemoryDb>>());
 
-const auto refBlockchainTestParams =
-    ::testing::Values(std::make_shared<DbAdapterTest<TestMemoryDb, ReferenceBlockchainType::NoEmptyBlocks>>(),
-                      std::make_shared<DbAdapterTest<TestMemoryDb, ReferenceBlockchainType::WithEmptyBlocks>>());
+const auto refBlockchainTestParams = ::testing::Values(
+    std::make_shared<DbAdapterTest<TestMemoryDb, ReferenceBlockchainType::NoEmptyBlocks>>(),
+    std::make_shared<DbAdapterTest<TestMemoryDb, ReferenceBlockchainType::WithEmptyBlocks>>(),
+    std::make_shared<DbAdapterTest<TestMemoryDb, ReferenceBlockchainType::WithEmptyBlocksAndKeyDeletes>>());
 #endif
 
 // Instantiate tests with memorydb and RocksDB clients and with custom (test-specific) blockchains.
