@@ -73,7 +73,7 @@ class PreProcessor {
   template <typename T>
   void onMessage(T *msg);
 
-  void registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
+  bool registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
                        PreProcessRequestMsgSharedPtr preProcessRequestMsg);
   void releaseClientPreProcessRequestSafe(uint16_t clientId);
   void releaseClientPreProcessRequest(const ClientRequestStateSharedPtr &clientEntry, uint16_t clientId);

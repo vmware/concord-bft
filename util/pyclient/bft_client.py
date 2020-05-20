@@ -119,10 +119,16 @@ class UdpClient:
                     self.client_id, seq_num, read_only, self.config.req_timeout_milli, cid, msg, pre_process)
 
         # Raise a trio.TooSlowError exception if a quorum of replies
-        with trio.fail_after(self.config.req_timeout_milli/1000):
-            self.reset_on_new_request()
-            self.retries = 0
-            return await self.send_loop(data, read_only)
+        try:
+            with trio.fail_after(self.config.req_timeout_milli / 1000):
+                self.reset_on_new_request()
+                self.retries = 0
+                return await self.send_loop(data, read_only)
+        except trio.TooSlowError:
+            print("TooSlowError thrown from client_id", self.client_id, "for seq_num", seq_num)
+            raise trio.TooSlowError
+        finally:
+            pass
 
     def reset_on_retry(self):
         """Reset any state that must be reset during retries"""

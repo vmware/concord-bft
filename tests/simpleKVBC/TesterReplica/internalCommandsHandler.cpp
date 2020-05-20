@@ -96,12 +96,12 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
   auto *writeReq = (SimpleCondWriteRequest *)request;
   LOG_INFO(m_logger,
            "Execute WRITE command:"
-               << " type: " << writeReq->header.type << " seqNum: " << sequenceNum
-               << " numOfWrites: " << writeReq->numOfWrites << " numOfKeysInReadSet: " << writeReq->numOfKeysInReadSet
-               << " readVersion: " << writeReq->readVersion
-               << " READ_ONLY_FLAG: " << ((flags & MsgFlag::READ_ONLY_FLAG) != 0 ? "true" : "false")
-               << " PRE_PROCESS_FLAG: " << ((flags & MsgFlag::PRE_PROCESS_FLAG) != 0 ? "true" : "false")
-               << " HAS_PRE_PROCESSED_FLAG: " << ((flags & MsgFlag::HAS_PRE_PROCESSED_FLAG) != 0 ? "true" : "false"));
+               << " type=" << writeReq->header.type << " seqNum=" << sequenceNum
+               << " numOfWrites=" << writeReq->numOfWrites << " numOfKeysInReadSet=" << writeReq->numOfKeysInReadSet
+               << " readVersion=" << writeReq->readVersion
+               << " READ_ONLY_FLAG=" << ((flags & MsgFlag::READ_ONLY_FLAG) != 0 ? "true" : "false")
+               << " PRE_PROCESS_FLAG=" << ((flags & MsgFlag::PRE_PROCESS_FLAG) != 0 ? "true" : "false")
+               << " HAS_PRE_PROCESSED_FLAG=" << ((flags & MsgFlag::HAS_PRE_PROCESSED_FLAG) != 0 ? "true" : "false"));
 
   if (!(flags & MsgFlag::HAS_PRE_PROCESSED_FLAG)) {
     bool result = verifyWriteCommand(requestSize, *writeReq, maxReplySize, outReplySize);
