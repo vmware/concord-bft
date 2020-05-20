@@ -308,6 +308,11 @@ SetOfKeyValuePairs DBAdapter::lastReachableBlockDbUpdates(const SetOfKeyValuePai
   return dbUpdates;
 }
 
+std::pair<sparse_merkle::UpdateBatch, sparse_merkle::detail::UpdateCache> DBAdapter::updateTree(
+    const SetOfKeyValuePairs &updates, const OrderedKeysSet &deletes) {
+  return smTree_.update_with_cache(updates, KeysVector{std::cbegin(deletes), std::cend(deletes)});
+}
+
 BatchedInternalNode DBAdapter::Reader::get_latest_root() const {
   const auto lastBlock = adapter_.getLastReachableBlockId();
   if (lastBlock == 0) {
@@ -315,7 +320,9 @@ BatchedInternalNode DBAdapter::Reader::get_latest_root() const {
   }
 
   auto blockNodeSliver = Sliver{};
-  Assert(adapter_.getDb()->get(DBKeyManipulator::genBlockDbKey(lastBlock), blockNodeSliver).isOK());
+  const auto getStatus = adapter_.getDb()->get(DBKeyManipulator::genBlockDbKey(lastBlock), blockNodeSliver);
+  (void)getStatus;
+  Assert(getStatus.isOK());
   const auto stateRootVersion = detail::deserializeStateRootVersion(blockNodeSliver);
   if (stateRootVersion == 0) {
     // A version of 0 means that the tree is empty and we return an empty BatchedInternalNode in that case.

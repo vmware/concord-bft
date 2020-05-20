@@ -16,6 +16,7 @@
 #include <array>
 #include <map>
 #include <stack>
+#include <utility>
 
 #include "assertUtils.hpp"
 #include "kv_types.hpp"
@@ -24,6 +25,7 @@
 #include "sparse_merkle/db_reader.h"
 #include "sparse_merkle/internal_node.h"
 #include "sparse_merkle/update_batch.h"
+#include "sparse_merkle/update_cache.h"
 
 namespace concord {
 namespace kvbc {
@@ -60,12 +62,20 @@ class Tree {
     return update(no_updates, deletes);
   }
 
+  // In addition to the batch, returns the cache object used for the update. Used for testing purposes.
+  std::pair<UpdateBatch, detail::UpdateCache> update_with_cache(const concord::kvbc::SetOfKeyValuePairs& updates,
+                                                                const concord::kvbc::KeysVector& deleted_keys);
+
  private:
   // Reset the tree to the latest version.
   //
   // This is necessary to do before updates, as we only allow updating the
   // latest tree.
   void reset() { root_ = db_reader_->get_latest_root(); }
+
+  UpdateBatch update_impl(const concord::kvbc::SetOfKeyValuePairs& updates,
+                          const concord::kvbc::KeysVector& deleted_keys,
+                          detail::UpdateCache& cache);
 
   std::shared_ptr<IDBReader> db_reader_;
   BatchedInternalNode root_;
