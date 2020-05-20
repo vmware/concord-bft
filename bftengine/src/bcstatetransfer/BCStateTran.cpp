@@ -1392,7 +1392,7 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
 
   Assert(sourceSelector_.isPreferred(replicaId));
 
-  LOG_WARN(STLogger, "Removing replica " << replicaId << " from preferred replicasa");
+  LOG_WARN(STLogger, "Removing replica " << replicaId << " from preferred replicas");
   sourceSelector_.removeCurrentReplica();
   metrics_.current_source_replica_.Get().Set(NO_REPLICA);
   metrics_.preferred_replicas_.Get().Set(sourceSelector_.preferredReplicasToString());
@@ -1997,6 +1997,8 @@ void BCStateTran::processData() {
         Assert(getFetchingState() == FetchingState::GettingMissingResPages);
 
         LOG_DEBUG(STLogger, "moved to GettingMissingResPages");
+        DataStore::CheckpointDesc cp = g.txn()->getCheckpointBeingFetched();
+        replicaForStateTransfer_->onTransferringComplete(cp.checkpointNum);
         sendFetchResPagesMsg(0);
         break;
       }
