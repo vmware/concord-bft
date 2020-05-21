@@ -34,7 +34,7 @@ class RocksdbConan(ConanFile):
 
     def build(self):
         autotools = AutoToolsBuildEnvironment(self)
-        args = ['shared_lib']
+        args = ['USE_RTTI=1', 'shared_lib']
         autotools.make(args=args)
 
     def package(self):
