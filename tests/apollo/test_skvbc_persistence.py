@@ -338,8 +338,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
         Start N-1 nodes out of a N node cluster. Write a specific key, then
         enough data to the cluster to trigger a checkpoint.
 
-        Repeatedly stop and start the primary and
-        trigger view change during the state transfer process.
+        Stop the primary and trigger view change
 
         Await for state transfer to complete.
 
@@ -352,7 +351,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
         await self._test_st_while_crashing_primary(
             bft_network=bft_network,
             trigger_view_change=True,
-            crash_repeatedly=True,
+            crash_repeatedly=False,
             tracker=tracker
         )
 
@@ -394,7 +393,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
         stale_replica = n - 1
 
         client, known_key, known_val, known_kv = \
-            await tracker.tracked_prime_for_state_transfer(checkpoints_num=4,
+            await tracker.tracked_prime_for_state_transfer(checkpoints_num=2,
                                                            stale_nodes={stale_replica})
         view = await bft_network.wait_for_view(
             replica_id=0,
@@ -454,6 +453,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
                 expected=lambda v: v > 0,
                 err_msg="Make sure view change has been triggered during state transfer."
             )
+            await trio.sleep(seconds=5)  # so that replicas can rebuild the active window after the VC
         else:
             await bft_network.wait_for_view(
                 replica_id=up_to_date_replica,
