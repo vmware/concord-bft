@@ -38,15 +38,6 @@ MDC::~MDC() { logger_.removeMdc(key_); }
 #include <log4cplus/consoleappender.h>
 #include <log4cplus/fileappender.h>
 #include <log4cplus/mdc.h>
-#if __has_include(<filesystem>)
-#include <filesystem>
-namespace fs = std::filesystem;
-#elif __has_include(<experimental/filesystem>)
-#include <experimental/filesystem>
-namespace fs = std::experimental::filesystem;
-#else
-#error "Missing filesystem support"
-#endif
 
 using namespace log4cplus;
 
@@ -66,11 +57,6 @@ static Logger defaultInitLogger() {
 // first lookup a configuration file in the current directory
 // if not found - use default configuration
 void Log::initLogger(const std::string& configFileName) {
-  if (!fs::exists(configFileName)) {
-    std::cerr << __PRETTY_FUNCTION__ << ": log4cplus properties file " << configFileName
-              << " not found in the current dir" << std::endl;
-    return;
-  }
   // PropertyConfigurator propConfig (configFileName);
   helpers::Properties props(configFileName);
   PropertyConfigurator propConfig(props);
