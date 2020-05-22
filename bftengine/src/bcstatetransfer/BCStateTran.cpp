@@ -2119,17 +2119,48 @@ void BCStateTran::processData() {
 void BCStateTran::checkConsistency(bool checkAllBlocks) {
   Assert(psd_->initialized());
 
-  // check configuration
+  const uint64_t lastReachableBlockNum = as_->getLastReachableBlockNum();
+  const uint64_t lastBlockNum = as_->getLastBlockNum();
+  LOG_INFO(STLogger, KVLOG(lastBlockNum, lastReachableBlockNum));
+
+  const uint64_t firstStoredCheckpoint = psd_->getFirstStoredCheckpoint();
+  const uint64_t lastStoredCheckpoint = psd_->getLastStoredCheckpoint();
+  LOG_INFO(STLogger, KVLOG(firstStoredCheckpoint, lastStoredCheckpoint));
+
+  checkConfig();
+  checkFirstAndLastCheckpoint(firstStoredCheckpoint, lastStoredCheckpoint);
+  if (checkAllBlocks) {
+    checkReachableBlocks(lastReachableBlockNum);
+  }
+  checkUnreachableBlocks(lastReachableBlockNum, lastBlockNum);
+  checkBlocksBeingFetchedNow(checkAllBlocks, lastReachableBlockNum, lastBlockNum);
+  checkStoredCheckpoints(firstStoredCheckpoint, lastStoredCheckpoint);
+
+  if (!psd_->getIsFetchingState()) {
+    Assert(!psd_->hasCheckpointBeingFetched());
+    Assert(psd_->getFirstRequiredBlock() == 0);
+    Assert(psd_->getLastRequiredBlock() == 0);
+  } else if (!psd_->hasCheckpointBeingFetched()) {
+    Assert(psd_->getFirstRequiredBlock() == 0);
+    Assert(psd_->getLastRequiredBlock() == 0);
+    Assert(psd_->numOfAllPendingResPage() == 0);
+  } else if (psd_->getLastRequiredBlock() > 0) {
+    Assert(psd_->getFirstRequiredBlock() > 0);
+    Assert(psd_->numOfAllPendingResPage() == 0);
+  } else {
+    Assert(psd_->numOfAllPendingResPage() == 0);
+  }
+}
+
+void BCStateTran::checkConfig() {
   Assert(replicas_ == psd_->getReplicas());
   Assert(config_.myReplicaId == psd_->getMyReplicaId());
   Assert(config_.fVal == psd_->getFVal());
   Assert(maxNumOfStoredCheckpoints_ == psd_->getMaxNumOfStoredCheckpoints());
   Assert(numberOfReservedPages_ == psd_->getNumberOfReservedPages());
+}
 
-  // check firstStoredCheckpoint & lastStoredCheckpoint
-  const uint64_t firstStoredCheckpoint = psd_->getFirstStoredCheckpoint();
-  const uint64_t lastStoredCheckpoint = psd_->getLastStoredCheckpoint();
-
+void BCStateTran::checkFirstAndLastCheckpoint(uint64_t firstStoredCheckpoint, uint64_t lastStoredCheckpoint) {
   Assert(lastStoredCheckpoint >= firstStoredCheckpoint);
   Assert(lastStoredCheckpoint - firstStoredCheckpoint + 1 <= maxNumOfStoredCheckpoints_);
   AssertOR((lastStoredCheckpoint == 0), psd_->hasCheckpointDesc(lastStoredCheckpoint));
@@ -2141,11 +2172,10 @@ void BCStateTran::checkConsistency(bool checkAllBlocks) {
                                          << psd_->hasCheckpointDesc(firstStoredCheckpoint));
     Assert(false);
   }
+}
 
-  // check reachable blocks
-  const uint64_t lastReachableBlockNum = as_->getLastReachableBlockNum();
-
-  if (checkAllBlocks && lastReachableBlockNum > 0) {
+void BCStateTran::checkReachableBlocks(uint64_t lastReachableBlockNum) {
+  if (lastReachableBlockNum > 0) {
     for (uint64_t currBlock = lastReachableBlockNum - 1; currBlock >= 1; currBlock--) {
       STDigest currDigest;
       {
@@ -2162,10 +2192,9 @@ void BCStateTran::checkConsistency(bool checkAllBlocks) {
       Assert(currDigest == prevFromNextBlockDigest);
     }
   }
+}
 
-  // check unreachable blocks
-  const uint64_t lastBlockNum = as_->getLastBlockNum();
-  LOG_INFO(STLogger, "lastBlockNum = " << lastBlockNum << ", lastReachableBlockNum = " << lastReachableBlockNum);
+void BCStateTran::checkUnreachableBlocks(uint64_t lastReachableBlockNum, uint64_t lastBlockNum) {
   Assert(lastBlockNum >= lastReachableBlockNum);
   if (lastBlockNum > lastReachableBlockNum) {
     Assert(getFetchingState() == FetchingState::GettingMissingBlocks);
@@ -2176,9 +2205,11 @@ void BCStateTran::checkConsistency(bool checkAllBlocks) {
     // we should have a single hole
     for (uint64_t i = lastReachableBlockNum + 1; i <= x; i++) Assert(!as_->hasBlock(i));
   }
+}
 
-  // check blocks that are being fetched now
-
+void BCStateTran::checkBlocksBeingFetchedNow(bool checkAllBlocks,
+                                             uint64_t lastReachableBlockNum,
+                                             uint64_t lastBlockNum) {
   if (lastBlockNum > lastReachableBlockNum) {
     AssertAND(psd_->getIsFetchingState(), psd_->hasCheckpointBeingFetched());
     Assert(psd_->getFirstRequiredBlock() - 1 == as_->getLastReachableBlockNum());
@@ -2205,7 +2236,9 @@ void BCStateTran::checkConsistency(bool checkAllBlocks) {
       }
     }
   }
+}
 
+void BCStateTran::checkStoredCheckpoints(uint64_t firstStoredCheckpoint, uint64_t lastStoredCheckpoint) {
   // check stored checkpoints
   if (lastStoredCheckpoint > 0) {
     uint64_t prevLastBlockNum = 0;
@@ -2252,21 +2285,6 @@ void BCStateTran::checkConsistency(bool checkAllBlocks) {
       memset(buffer_, 0, config_.sizeOfReservedPage);
       psd_->free(allPagesDesc);
     }
-  }
-
-  if (!psd_->getIsFetchingState()) {
-    Assert(!psd_->hasCheckpointBeingFetched());
-    Assert(psd_->getFirstRequiredBlock() == 0);
-    Assert(psd_->getLastRequiredBlock() == 0);
-  } else if (!psd_->hasCheckpointBeingFetched()) {
-    Assert(psd_->getFirstRequiredBlock() == 0);
-    Assert(psd_->getLastRequiredBlock() == 0);
-    Assert(psd_->numOfAllPendingResPage() == 0);
-  } else if (psd_->getLastRequiredBlock() > 0) {
-    Assert(psd_->getFirstRequiredBlock() > 0);
-    Assert(psd_->numOfAllPendingResPage() == 0);
-  } else {
-    Assert(psd_->numOfAllPendingResPage() == 0);
   }
 }
 
