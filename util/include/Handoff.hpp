@@ -39,8 +39,8 @@ class Handoff {
       } catch (ThreadCanceledException& e) {
         LOG_DEBUG(getLogger(), "thread stopped " << std::this_thread::get_id());
       } catch (const std::exception& e) {
-        LOG_ERROR(getLogger(), "exception: " << e.what());
-        // TODO [TK] should we allow different behavior for exception handling?
+        LOG_FATAL(getLogger(), "exception: " << e.what());
+        exit(1);
       }
     });
   }

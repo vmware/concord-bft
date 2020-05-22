@@ -373,6 +373,7 @@ void DBDataStore::deleteCoveredResPageInSmallerCheckpointsTxn(uint64_t minChkp, 
   LOG_DEBUG(logger(), " min chkp: " << minChkp << " txn: " << txn->getId());
   auto pages = inmem_->getPagesMap();
   auto it = pages.begin();
+  if (it == pages.end()) return;
   uint32_t prevItemPageId = it->first.pageId;
   bool prevItemIsInLastRelevantCheckpoint = (it->first.checkpoint <= minChkp);
   it++;

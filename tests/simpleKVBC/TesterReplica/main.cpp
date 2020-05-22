@@ -71,6 +71,8 @@ int main(int argc, char** argv) {
   signal(SIGBUS, signal_handler);
   signal(SIGILL, signal_handler);
   signal(SIGFPE, signal_handler);
+  signal(SIGINT, signal_handler);
+  signal(SIGTERM, signal_handler);
 
   try {
     concord::kvbc::test::run_replica(argc, argv);

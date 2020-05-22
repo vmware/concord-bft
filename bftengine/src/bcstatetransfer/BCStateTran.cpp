@@ -401,7 +401,6 @@ DataStore::CheckpointDesc BCStateTran::createCheckpointDesc(uint64_t checkpointN
   Assert(lastBlock == as_->getLastBlockNum());
   metrics_.last_block_.Get().Set(lastBlock);
 
-  LOG_DEBUG(STLogger, "last block = " << lastBlock);
   STDigest digestOfLastBlock;
 
   if (lastBlock > 0) {
@@ -419,6 +418,12 @@ DataStore::CheckpointDesc BCStateTran::createCheckpointDesc(uint64_t checkpointN
   checkDesc.lastBlock = lastBlock;
   checkDesc.digestOfLastBlock = digestOfLastBlock;
   checkDesc.digestOfResPagesDescriptor = digestOfResPagesDescriptor;
+
+  LOG_DEBUG(STLogger,
+            "CheckpointDesc: "
+                << "checkpoint: " << checkpointNumber << " lastBlock: " << lastBlock
+                << " digestOfLastBlock: " << digestOfLastBlock.toString()
+                << " digestOfResPagesDescriptor: " << digestOfResPagesDescriptor.toString());
 
   return checkDesc;
 }
@@ -1305,7 +1310,7 @@ bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t
 
   uint32_t vblockSize = getSizeOfVirtualBlock(vblock, config_.sizeOfReservedPage);
 
-  Assert(vblockSize > sizeof(HeaderOfVirtualBlock));
+  AssertGE(vblockSize, sizeof(HeaderOfVirtualBlock));
   Assert(checkStructureOfVirtualBlock(vblock, vblockSize, config_.sizeOfReservedPage));
 
   // compute information about next chunk
@@ -1962,7 +1967,9 @@ void BCStateTran::processData() {
       AssertAND(!newBlock, actualBlockSize == 0);
     }
 
-    LOG_DEBUG(STLogger, "newBlock=" << newBlock << " newBlockIsValid=" << newBlockIsValid);
+    LOG_DEBUG(
+        STLogger,
+        "newBlock=" << newBlock << " newBlockIsValid=" << newBlockIsValid << " actualBlockSize: " << actualBlockSize);
 
     //////////////////////////////////////////////////////////////////////////
     // if we have a new block
@@ -2010,6 +2017,7 @@ void BCStateTran::processData() {
 
       // set the updated pages
       uint32_t numOfUpdates = getNumberOfElements(buffer_);
+      LOG_DEBUG(STLogger, "numOfUpdates in vblock: " << numOfUpdates);
       for (uint32_t i = 0; i < numOfUpdates; i++) {
         ElementOfVirtualBlock *e = getVirtualElement(i, config_.sizeOfReservedPage, buffer_);
         g.txn()->setResPage(e->pageId, e->checkpointNumber, e->pageDigest, e->page);
@@ -2044,6 +2052,9 @@ void BCStateTran::processData() {
       }
 
       const uint64_t oldFirstStoredCheckpoint = g.txn()->getFirstStoredCheckpoint();
+      LOG_DEBUG(STLogger,
+                "minRelevantCheckpoint: " << minRelevantCheckpoint
+                                          << " oldFirstStoredCheckpoint: " << oldFirstStoredCheckpoint);
 
       if (minRelevantCheckpoint >= 2 && minRelevantCheckpoint > oldFirstStoredCheckpoint) {
         g.txn()->deleteDescOfSmallerCheckpoints(minRelevantCheckpoint);
@@ -2084,7 +2095,7 @@ void BCStateTran::processData() {
     else if (!badDataFromCurrentSourceReplica && isGettingBlocks) {
       if (newBlock) memset(buffer_, 0, actualBlockSize);
       if (newSourceReplica || sourceSelector_.retransmissionTimeoutExpired(currTime)) {
-        Assert(psd_->getLastRequiredBlock() == nextRequiredBlock_);
+        AssertEQ(psd_->getLastRequiredBlock(), nextRequiredBlock_);
         sendFetchBlocksMsg(psd_->getFirstRequiredBlock(), nextRequiredBlock_, lastChunkInRequiredBlock);
       }
       break;

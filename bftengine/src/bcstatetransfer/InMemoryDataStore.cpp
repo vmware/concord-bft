@@ -281,6 +281,7 @@ void InMemoryDataStore::deleteCoveredResPageInSmallerCheckpoints(uint64_t inMinR
   if (inMinRelevantCheckpoint <= 1) return;  //  nothing to delete
 
   auto iter = pages.begin();
+  if (iter == pages.end()) return;
   uint32_t prevItemPageId = iter->first.pageId;
   bool prevItemIsInLastRelevantCheckpoint = (iter->first.checkpoint <= inMinRelevantCheckpoint);
 
