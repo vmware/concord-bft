@@ -4,7 +4,7 @@ set -u
 
 install_basic_deps() {
   sudo apt-get update
-  sudo apt-get install -y ccache cmake clang clang-format-9 python3-pip python3-setuptools libgmp3-dev g++ parallel libs3-dev
+  sudo apt-get install -y ccache cmake clang clang-format-9 python3-pip python3-setuptools libgmp3-dev g++ parallel libs3-dev zlib1g-dev
   python3 -m pip install --upgrade wheel
   python3 -m pip install --upgrade trio
 }
