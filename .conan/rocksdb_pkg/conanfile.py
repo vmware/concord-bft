@@ -8,10 +8,10 @@ class RocksdbConan(ConanFile):
         "type": "git",
         "subfolder": ".",
         "url": "https://github.com/facebook/rocksdb.git",
-        "revision": "v5.7.3"
+        "revision": "v6.8.1"
     }
     name = "rocksdb"
-    version = "5.7.3"
+    version = "6.8.1"
     license = "GPLv2"
     url = "https://github.com/facebook/rocksdb"
     description = "RocksDB is developed and maintained by Facebook Database Engineering Team." \
@@ -34,7 +34,7 @@ class RocksdbConan(ConanFile):
 
     def build(self):
         autotools = AutoToolsBuildEnvironment(self)
-        args = ['shared_lib']
+        args = ['USE_RTTI=1', 'shared_lib']
         autotools.make(args=args)
 
     def package(self):
