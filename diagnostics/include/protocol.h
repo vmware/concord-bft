@@ -48,7 +48,7 @@ std::string accumulate(Iterator begin, Iterator end, Fun f) {
 }
 
 // Take protocol input as a split string, along with a registrar and return diagnostics or a usage string.
-std::string run(const std::vector<std::string>& tokens, Registrar& registrar) {
+std::string run(const std::vector<std::string>& tokens, const Registrar& registrar) {
   if (tokens.size() < 2) return usage();
 
   auto& subject = tokens[0];
