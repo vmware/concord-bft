@@ -26,7 +26,7 @@ jobs:
       env:
         cache-name: conan-deps
       with:
-        path: $HOME/.conan/data
+        path: ~/.conan/data
         key: ${{ env.cache-name }}-${{ hashFiles('conanfile.txt') }}-${{ hashFiles('**/conanfile.py') }}
         restore-keys: |
           ${{ env.cache-name }}-
