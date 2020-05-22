@@ -571,13 +571,13 @@ bool ViewsManager::tryToEnterView(ViewNum v,
 
   if (currentLastExecuted < currentLastStable) {
     // we don't have state, let's wait for state synchronization...
-    LOG_INFO(GL, "Waiting for state synchronization before entering view ...");
+    LOG_INFO(GL, "**************** Waiting for state synchronization before entering view=" << v << " ...");
     return false;
   }
 
   if (currentLastStable < lowerBoundStableForPendingView) {
     // we don't have the latest stable point, let's wait for more information
-    LOG_INFO(GL, "Waiting for latest stable point before entering view ...");
+    LOG_INFO(GL, "**************** Waiting for latest stable point before entering view=" << v << " ...");
     return false;
   }
 
@@ -602,7 +602,9 @@ bool ViewsManager::tryToEnterView(ViewNum v,
 
     if (currentLastStable < lowerBoundStableForPendingView) {
       // we don't have the latest stable point, let's wait for more information
-      LOG_INFO(GL, "New pending view. Waiting for latest stable point before entering view ...");
+      LOG_INFO(GL,
+               "**************** New pending view. The previous pending view was "
+                   << myLatestPendingView << ". Waiting for latest stable point before entering view=" << v << " ...");
       return false;
     }
   }
@@ -646,12 +648,12 @@ bool ViewsManager::tryToEnterView(ViewNum v,
 
   // return if we don't have restrictions
   if (stat != Stat::PENDING_WITH_RESTRICTIONS) {
-    LOG_INFO(GL, "Waiting for restrictions before entering view ...");
+    LOG_INFO(GL, "**************** Waiting for restrictions before entering view=" << v << " ...");
     return false;
   }
   // return if some messages are missing
   if (hasMissingMsgs(currentLastStable)) {
-    LOG_INFO(GL, "Waiting for missing messages before entering view ...");
+    LOG_INFO(GL, "**************** Waiting for missing messages before entering view=" << v << " ...");
     return false;
   }
   ///////////////////////////////////////////////////////////////////////////
@@ -754,7 +756,8 @@ bool ViewsManager::tryMoveToPendingViewAsPrimary(ViewNum v) {
   }
 
   if (relatedVCMsgs.size() < SMAJOR) {
-    LOG_INFO(GL, "Waiting for sufficient ViewChange messages to entering view as primary ...");
+    LOG_INFO(GL,
+             "**************** Waiting for sufficient ViewChange messages to entering view=" << v << " as primary ...");
     return false;
   }
 
@@ -818,7 +821,7 @@ bool ViewsManager::tryMoveToPendingViewAsNonPrimary(ViewNum v) {
   }
 
   if (relatedVCMsgs.size() < MAJOR) {
-    LOG_INFO(GL, "Waiting for sufficient ViewChange messages to entering view ...");
+    LOG_INFO(GL, "**************** Waiting for sufficient ViewChange messages to entering view=" << v << " ...");
     return false;
   }
   Assert(relatedVCMsgs.size() == MAJOR);

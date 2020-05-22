@@ -1906,7 +1906,7 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
   // send messages
 
   if (newNewViewMsgToSend != nullptr) {
-    LOG_INFO(GL, "Sending NewView message to all replicas.");
+    LOG_INFO(GL, "**************** Sending NewView message for view=" << curView << "to all replicas.");
     sendToAllOtherReplicas(newNewViewMsgToSend);
   }
 
