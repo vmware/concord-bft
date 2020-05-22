@@ -1905,7 +1905,10 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
 
   // send messages
 
-  if (newNewViewMsgToSend != nullptr) sendToAllOtherReplicas(newNewViewMsgToSend);
+  if (newNewViewMsgToSend != nullptr) {
+    LOG_INFO(GL, "Sending NewView message to all replicas.");
+    sendToAllOtherReplicas(newNewViewMsgToSend);
+  }
 
   for (size_t i = 0; i < prePreparesForNewView.size(); i++) {
     PrePrepareMsg *pp = prePreparesForNewView[i];

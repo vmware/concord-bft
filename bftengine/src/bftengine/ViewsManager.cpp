@@ -15,6 +15,7 @@
 #include <set>
 #include <vector>
 
+#include "Logger.hpp"
 #include "PrimitiveTypes.hpp"
 #include "ViewsManager.hpp"
 #include "ReplicasInfo.hpp"
@@ -568,13 +569,17 @@ bool ViewsManager::tryToEnterView(ViewNum v,
   debugHighestViewNumberPassedByClient = v;
   debugHighestKnownStable = currentLastStable;
 
-  if (currentLastExecuted < currentLastStable)
+  if (currentLastExecuted < currentLastStable) {
     // we don't have state, let's wait for state synchronization...
+    LOG_INFO(GL, "Waiting for state synchronization before entering view ...");
     return false;
+  }
 
-  if (currentLastStable < lowerBoundStableForPendingView)
+  if (currentLastStable < lowerBoundStableForPendingView) {
     // we don't have the latest stable point, let's wait for more information
+    LOG_INFO(GL, "Waiting for latest stable point before entering view ...");
     return false;
+  }
 
   // if we need a new pending view
   if (v > myLatestPendingView) {
@@ -595,9 +600,11 @@ bool ViewsManager::tryToEnterView(ViewNum v,
 
     stat = Stat::PENDING;
 
-    if (currentLastStable < lowerBoundStableForPendingView)
+    if (currentLastStable < lowerBoundStableForPendingView) {
       // we don't have the latest stable point, let's wait for more information
+      LOG_INFO(GL, "New pending view. Waiting for latest stable point before entering view ...");
       return false;
+    }
   }
 
   Assert(v == myLatestPendingView);
@@ -637,9 +644,16 @@ bool ViewsManager::tryToEnterView(ViewNum v,
     // END DEBUG CODE
   }
 
-  // return if we don't have restrictions, or some messages are missing
-  if ((stat != Stat::PENDING_WITH_RESTRICTIONS) || hasMissingMsgs(currentLastStable)) return false;
-
+  // return if we don't have restrictions
+  if (stat != Stat::PENDING_WITH_RESTRICTIONS) {
+    LOG_INFO(GL, "Waiting for restrictions before entering view ...");
+    return false;
+  }
+  // return if some messages are missing
+  if (hasMissingMsgs(currentLastStable)) {
+    LOG_INFO(GL, "Waiting for missing messages before entering view ...");
+    return false;
+  }
   ///////////////////////////////////////////////////////////////////////////
   // enter to view v
   ///////////////////////////////////////////////////////////////////////////
@@ -739,7 +753,10 @@ bool ViewsManager::tryMoveToPendingViewAsPrimary(ViewNum v) {
     if (relatedVCMsgs.size() == SMAJOR) break;
   }
 
-  if (relatedVCMsgs.size() < SMAJOR) return false;
+  if (relatedVCMsgs.size() < SMAJOR) {
+    LOG_INFO(GL, "Waiting for sufficient ViewChange messages to entering view as primary ...");
+    return false;
+  }
 
   Assert(relatedVCMsgs.size() == SMAJOR);
 
@@ -800,8 +817,10 @@ bool ViewsManager::tryMoveToPendingViewAsNonPrimary(ViewNum v) {
     }
   }
 
-  if (relatedVCMsgs.size() < MAJOR) return false;
-
+  if (relatedVCMsgs.size() < MAJOR) {
+    LOG_INFO(GL, "Waiting for sufficient ViewChange messages to entering view ...");
+    return false;
+  }
   Assert(relatedVCMsgs.size() == MAJOR);
 
   Assert(newViewMsgOfOfPendingView == nullptr);
