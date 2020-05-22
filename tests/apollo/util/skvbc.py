@@ -142,16 +142,17 @@ class SimpleKVBCProtocol:
         """
         return b''.join([b'Z' for _ in range(0, cls.KV_LEN)])
 
-    async def send_indefinite_write_requests(self):
+    async def send_indefinite_write_requests(self, client=None, delay=.1):
         msg = self.write_req(
             [], [(self.random_key(), self.random_value())], 0)
         while True:
-            client = self.bft_network.random_client()
+            if(not client):
+                client = self.bft_network.random_client()
             try:
                 await client.write(msg)
             except:
                 pass
-            await trio.sleep(.1)
+            await trio.sleep(delay)
 
     async def write_known_kv(self):
         client = self.bft_network.random_client()
