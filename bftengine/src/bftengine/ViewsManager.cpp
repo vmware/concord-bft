@@ -608,26 +608,29 @@ bool ViewsManager::tryToEnterView(ViewNum v,
     stat = Stat::PENDING_WITH_RESTRICTIONS;
 
     // BEGIN DEBUG CODE
-
-    printf("\n\n\nRestrictions for pending view %" PRId64 ":", this->myLatestPendingView);
+    LOG_DEBUG(GL,
+              "Restrictions for pending view=" << this->myLatestPendingView
+                                               << ", minSeq=" << minRestrictionOfPendingView
+                                               << ", maxSeq=" << maxRestrictionOfPendingView << ".");
 
     if (minRestrictionOfPendingView == 0) {
-      printf("None\n");
+      LOG_DEBUG(GL, "No Restrictions of pending view\n");
     } else {
       for (SeqNum i = minRestrictionOfPendingView; i <= maxRestrictionOfPendingView; i++) {
         uint64_t idx = i - minRestrictionOfPendingView;
-        printf("\n");
-        printf("Seqnum=%" PRId64 ", isNull=%d, digestPrefix=%d .     ",
-               i,
-               static_cast<int>(restrictionsOfPendingView[idx].isNull),
-               *reinterpret_cast<int*>(restrictionsOfPendingView[idx].digest.content()));
-        if (prePrepareMsgsOfRestrictions[idx] == nullptr)
-          printf("PP=null .");
-        else
-          printf("PP seq=%" PRId64 ", digestPrefix=%d .",
-                 prePrepareMsgsOfRestrictions[idx]->seqNumber(),
-                 *reinterpret_cast<int*>(prePrepareMsgsOfRestrictions[idx]->digestOfRequests().content()));
-        printf("\n");
+        bool bHasPP = (prePrepareMsgsOfRestrictions[idx] != nullptr);
+        LOG_DEBUG(
+            GL,
+            "Seqnum=" << i << ", isNull=" << static_cast<int>(restrictionsOfPendingView[idx].isNull)
+                      << ", digestPrefix=" << *reinterpret_cast<int*>(restrictionsOfPendingView[idx].digest.content())
+                      << (bHasPP ? " ." : ", PP=null ."));
+        if (bHasPP) {
+          LOG_DEBUG(
+              GL,
+              "PP seq=" << prePrepareMsgsOfRestrictions[idx]->seqNumber() << ", digestPrefix="
+                        << *reinterpret_cast<int*>(prePrepareMsgsOfRestrictions[idx]->digestOfRequests().content())
+                        << " .");
+        }
       }
     }
 
