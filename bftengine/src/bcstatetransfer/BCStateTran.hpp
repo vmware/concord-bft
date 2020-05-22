@@ -288,6 +288,14 @@ class BCStateTran : public IStateTransfer {
   ///////////////////////////////////////////////////////////////////////////
 
   void checkConsistency(bool checkAllBlocks);
+  void checkConfig();
+  void checkFirstAndLastCheckpoint(const uint64_t firstStoredCheckpoint, const uint64_t lastStoredCheckpoint);
+  void checkReachableBlocks(const uint64_t lastReachableBlockNum);
+  void checkUnreachableBlocks(const uint64_t lastReachableBlockNum, const uint64_t lastBlockNum);
+  void checkBlocksBeingFetchedNow(bool checkAllBlocks,
+                                  const uint64_t lastReachableBlockNum,
+                                  const uint64_t lastBlockNum);
+  void checkStoredCheckpoints(const uint64_t firstStoredCheckpoint, const uint64_t lastStoredCheckpoint);
 
  public:
   ///////////////////////////////////////////////////////////////////////////
