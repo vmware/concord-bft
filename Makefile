@@ -1,6 +1,6 @@
 CONCORD_BFT_DOCKER_REPO:=fsquirrel/
 CONCORD_BFT_DOCKER_IMAGE:=concord-bft
-CONCORD_BFT_DOCKER_IMAGE_VERSION:=0.2
+CONCORD_BFT_DOCKER_IMAGE_VERSION:=0.3
 
 
 CONCORD_BFT_DOCKERFILE:=Dockerfile
@@ -44,7 +44,7 @@ build-docker-image: ## Re-build the container without caching
 		-f ./${CONCORD_BFT_DOCKERFILE} .
 
 pull: ## Pull image from remote
-	docker pull ${CONCORD_BFT_DOCKER_REPO}/${CONCORD_BFT_DOCKER_IMAGE}:${CONCORD_BFT_DOCKER_IMAGE_VERSION}
+	docker pull ${CONCORD_BFT_DOCKER_REPO}${CONCORD_BFT_DOCKER_IMAGE}:${CONCORD_BFT_DOCKER_IMAGE_VERSION}
 
 run-c: ## Run container in background
 	docker run -d --rm --cap-add NET_ADMIN --name="${CONCORD_BFT_DOCKER_IMAGE}" \

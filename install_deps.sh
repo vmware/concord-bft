@@ -110,14 +110,14 @@ git clone https://github.com/relic-toolkit/relic && \
 
 cd ${HOME}
 wget ${WGET_FLAGS} \
-    https://github.com/facebook/rocksdb/archive/v5.7.3.tar.gz && \
-    tar -xzf v5.7.3.tar.gz && \
-    rm v5.7.3.tar.gz && \
-    cd rocksdb-5.7.3 && \
-    PORTABLE=1 make -j$(nproc) shared_lib && \
+    https://github.com/facebook/rocksdb/archive/v6.8.1.tar.gz && \
+    tar -xzf v6.8.1.tar.gz && \
+    rm v6.8.1.tar.gz && \
+    cd rocksdb-6.8.1 && \
+    PORTABLE=1 make -j$(nproc) USE_RTTI=1 shared_lib && \
     PORTABLE=1 make install-shared && \
     cd ${HOME} && \
-    rm -r rocksdb-5.7.3
+    rm -r rocksdb-6.8.1
 
 cd ${HOME}
 git clone https://github.com/emil-e/rapidcheck.git && \
