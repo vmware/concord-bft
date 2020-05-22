@@ -405,10 +405,7 @@ DataStore::CheckpointDesc BCStateTran::createCheckpointDesc(uint64_t checkpointN
   STDigest digestOfLastBlock;
 
   if (lastBlock > 0) {
-    uint32_t blockSize = 0;
-    as_->getBlock(lastBlock, buffer_, &blockSize);
-    computeDigestOfBlock(lastBlock, buffer_, blockSize, &digestOfLastBlock);
-    memset(buffer_, 0, blockSize);
+    digestOfLastBlock = getBlockAndComputeDigest(lastBlock);
   } else {
     // if we don't have blocks, then we use zero digest
     digestOfLastBlock.makeZero();
@@ -1060,7 +1057,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
     return true;
   }
 
-  LOG_DEBUG(STLogger, "Has enough CheckpointSummaryMsg messages");
+  LOG_INFO(STLogger, "Has enough CheckpointSummaryMsg messages");
   CheckpointSummaryMsg *checkSummary = cert->bestCorrectMsg();
 
   Assert(checkSummary != nullptr);
@@ -1094,11 +1091,11 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
     g.txn()->setCheckpointBeingFetched(newCheckpoint);
     metrics_.checkpoint_being_fetched_.Get().Set(newCheckpoint.checkpointNum);
 
-    LOG_DEBUG(STLogger,
-              "Start fetching checkpoint: "
-                  << " checkpointNum " << newCheckpoint.checkpointNum << " lastBlock " << newCheckpoint.lastBlock
-                  << " digestOfLastBlock " << newCheckpoint.digestOfLastBlock.toString()
-                  << " digestOfResPagesDescriptor " << newCheckpoint.digestOfResPagesDescriptor.toString());
+    LOG_INFO(STLogger,
+             "Start fetching checkpoint: "
+                 << " checkpointNum " << newCheckpoint.checkpointNum << " lastBlock " << newCheckpoint.lastBlock
+                 << " digestOfLastBlock " << newCheckpoint.digestOfLastBlock.toString()
+                 << " digestOfResPagesDescriptor " << newCheckpoint.digestOfResPagesDescriptor.toString());
 
     // clean
     clearInfoAboutGettingCheckpointSummary();
@@ -1121,7 +1118,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
   metrics_.last_block_.Get().Set(newCheckpoint.lastBlock);
   metrics_.fetching_state_.Get().Set(stateName(getFetchingState()));
 
-  LOG_DEBUG(STLogger, "New state is " << stateName(getFetchingState()));
+  LOG_INFO(STLogger, "New state is " << stateName(getFetchingState()));
   processData();
   return true;
 }
@@ -2150,8 +2147,7 @@ void BCStateTran::checkConfig() {
   Assert(numberOfReservedPages_ == psd_->getNumberOfReservedPages());
 }
 
-void BCStateTran::checkFirstAndLastCheckpoint(const uint64_t firstStoredCheckpoint,
-                                              const uint64_t lastStoredCheckpoint) {
+void BCStateTran::checkFirstAndLastCheckpoint(uint64_t firstStoredCheckpoint, uint64_t lastStoredCheckpoint) {
   Assert(lastStoredCheckpoint >= firstStoredCheckpoint);
   Assert(lastStoredCheckpoint - firstStoredCheckpoint + 1 <= maxNumOfStoredCheckpoints_);
   AssertOR((lastStoredCheckpoint == 0), psd_->hasCheckpointDesc(lastStoredCheckpoint));
@@ -2165,17 +2161,19 @@ void BCStateTran::checkFirstAndLastCheckpoint(const uint64_t firstStoredCheckpoi
   }
 }
 
-void BCStateTran::checkReachableBlocks(const uint64_t lastReachableBlockNum) {
+STDigest BCStateTran::getBlockAndComputeDigest(uint64_t currBlock) {
+  STDigest currDigest;
+  uint32_t blockSize = 0;
+  as_->getBlock(currBlock, buffer_, &blockSize);
+  computeDigestOfBlock(currBlock, buffer_, blockSize, &currDigest);
+  memset(buffer_, 0, blockSize);
+  return currDigest;
+}
+
+void BCStateTran::checkReachableBlocks(uint64_t lastReachableBlockNum) {
   if (lastReachableBlockNum > 0) {
     for (uint64_t currBlock = lastReachableBlockNum - 1; currBlock >= 1; currBlock--) {
-      STDigest currDigest;
-      {
-        uint32_t blockSize = 0;
-        as_->getBlock(currBlock, buffer_, &blockSize);
-        computeDigestOfBlock(currBlock, buffer_, blockSize, &currDigest);
-        memset(buffer_, 0, blockSize);
-      }
-      // as_->getBlockDigest(currBlock, currDigest);
+      auto currDigest = getBlockAndComputeDigest(currBlock);
       Assert(!currDigest.isZero());
       STDigest prevFromNextBlockDigest;
       prevFromNextBlockDigest.makeZero();
@@ -2185,22 +2183,24 @@ void BCStateTran::checkReachableBlocks(const uint64_t lastReachableBlockNum) {
   }
 }
 
-void BCStateTran::checkUnreachableBlocks(const uint64_t lastReachableBlockNum, const uint64_t lastBlockNum) {
+void BCStateTran::checkUnreachableBlocks(uint64_t lastReachableBlockNum, uint64_t lastBlockNum) {
   Assert(lastBlockNum >= lastReachableBlockNum);
   if (lastBlockNum > lastReachableBlockNum) {
     Assert(getFetchingState() == FetchingState::GettingMissingBlocks);
     uint64_t x = lastBlockNum - 1;
     while (as_->hasBlock(x)) x--;
 
-    Assert(x > lastReachableBlockNum);  // we should have a hole
+    // we should have a hole
+    Assert(x > lastReachableBlockNum);
+
     // we should have a single hole
     for (uint64_t i = lastReachableBlockNum + 1; i <= x; i++) Assert(!as_->hasBlock(i));
   }
 }
 
 void BCStateTran::checkBlocksBeingFetchedNow(bool checkAllBlocks,
-                                             const uint64_t lastReachableBlockNum,
-                                             const uint64_t lastBlockNum) {
+                                             uint64_t lastReachableBlockNum,
+                                             uint64_t lastBlockNum) {
   if (lastBlockNum > lastReachableBlockNum) {
     AssertAND(psd_->getIsFetchingState(), psd_->hasCheckpointBeingFetched());
     Assert(psd_->getFirstRequiredBlock() - 1 == as_->getLastReachableBlockNum());
@@ -2210,14 +2210,7 @@ void BCStateTran::checkBlocksBeingFetchedNow(bool checkAllBlocks,
       uint64_t lastRequiredBlock = psd_->getLastRequiredBlock();
 
       for (uint64_t currBlock = lastBlockNum - 1; currBlock >= lastRequiredBlock + 1; currBlock--) {
-        STDigest currDigest;
-        {
-          uint32_t blockSize = 0;
-          as_->getBlock(currBlock, buffer_, &blockSize);
-          computeDigestOfBlock(currBlock, buffer_, blockSize, &currDigest);
-          memset(buffer_, 0, blockSize);
-        }
-        // as_->getBlockDigest(currBlock, currDigest);
+        auto currDigest = getBlockAndComputeDigest(currBlock);
         Assert(!currDigest.isZero());
 
         STDigest prevFromNextBlockDigest;
@@ -2229,7 +2222,7 @@ void BCStateTran::checkBlocksBeingFetchedNow(bool checkAllBlocks,
   }
 }
 
-void BCStateTran::checkStoredCheckpoints(const uint64_t firstStoredCheckpoint, const uint64_t lastStoredCheckpoint) {
+void BCStateTran::checkStoredCheckpoints(uint64_t firstStoredCheckpoint, uint64_t lastStoredCheckpoint) {
   // check stored checkpoints
   if (lastStoredCheckpoint > 0) {
     uint64_t prevLastBlockNum = 0;
@@ -2243,12 +2236,7 @@ void BCStateTran::checkStoredCheckpoints(const uint64_t firstStoredCheckpoint, c
       prevLastBlockNum = desc.lastBlock;
 
       if (desc.lastBlock > 0) {
-        STDigest d;
-        uint32_t blockSize = 0;
-        as_->getBlock(desc.lastBlock, buffer_, &blockSize);
-        computeDigestOfBlock(desc.lastBlock, buffer_, blockSize, &d);
-        memset(buffer_, 0, blockSize);
-        // as_->getBlockDigest(desc.lastBlock, d);
+        auto d = getBlockAndComputeDigest(desc.lastBlock);
         Assert(d == desc.digestOfLastBlock);
       }
       // check all pages descriptor
