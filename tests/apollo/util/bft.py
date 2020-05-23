@@ -356,7 +356,7 @@ class BftTestNetwork:
             self._stop_external_replica(replica_id)
         else:
             p = self.procs[replica_id]
-            p.terminate()
+            p.kill()
             p.wait()
 
         del self.procs[replica_id]
