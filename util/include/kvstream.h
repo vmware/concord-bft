@@ -12,6 +12,7 @@
 #pragma once
 
 #include <sstream>
+#include "type_traits.h"
 
 // Take up to 16 values and output them to a stream as key value pairs.
 //
@@ -212,14 +213,35 @@
 // Right now the entrypoint returns a string, because of the way our logging macros are implemented.
 // We could change them to take an extra parameter that's a stringstream and prevent the additional
 // allocation and copy from returning a string. We'll deal with that if its needed.
-template <typename K, typename V>
+template <typename K,
+          typename V,
+          typename std::enable_if<concord::is_streamable<std::ostream, V>::value>::type * = nullptr>
 void KvLog(std::stringstream &ss, K &&key, V &&val) {
   ss << std::forward<K>(key) << ": " << std::forward<V>(val);
 }
 
-template <typename K, typename V, typename... KVPAIRS>
+template <typename K,
+          typename V,
+          typename... KVPAIRS,
+          typename std::enable_if<concord::is_streamable<std::ostream, V>::value>::type * = nullptr>
 void KvLog(std::stringstream &ss, K &&key, V &&val, KVPAIRS &&... kvpairs) {
   ss << std::forward<K>(key) << ": " << std::forward<V>(val) << ", ";
+  KvLog(ss, std::forward<KVPAIRS>(kvpairs)...);
+}
+
+template <typename K,
+          typename V,
+          typename std::enable_if<!concord::is_streamable<std::ostream, V>::value>::type * = nullptr>
+void KvLog(std::stringstream &ss, K &&key, V &&val) {
+  ss << std::forward<K>(key) << ": _";
+}
+
+template <typename K,
+          typename V,
+          typename... KVPAIRS,
+          typename std::enable_if<!concord::is_streamable<std::ostream, V>::value>::type * = nullptr>
+void KvLog(std::stringstream &ss, K &&key, V &&val, KVPAIRS &&... kvpairs) {
+  ss << std::forward<K>(key) << ": _, ";
   KvLog(ss, std::forward<KVPAIRS>(kvpairs)...);
 }
 

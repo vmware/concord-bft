@@ -13,6 +13,7 @@
 #pragma once
 #include <set>
 #include <vector>
+#include <type_traits>
 
 namespace concord {
 
@@ -38,5 +39,18 @@ struct is_std_container : std_container<bool, is_set<T>::value || is_vector<T>::
 
 template <class T, T v>
 constexpr const T std_container<T, v>::value;
+
+// Taken from https://stackoverflow.com/a/22759544
+template <typename S, typename T>
+class is_streamable {
+  template <typename SS, typename TT>
+  static auto test(int) -> decltype(std::declval<SS&>() << std::declval<TT>(), std::true_type());
+
+  template <typename, typename>
+  static auto test(...) -> std::false_type;
+
+ public:
+  static const bool value = decltype(test<S, T>(0))::value;
+};
 
 }  // namespace concord

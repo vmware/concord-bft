@@ -13,11 +13,14 @@
 
 #pragma once
 
-#include "Logger.hpp"
 #include <cxxabi.h>
 #include <cassert>
 #include <cstring>
 #include <execinfo.h>
+#include <sstream>
+
+#include "kvstream.h"
+#include "Logger.hpp"
 
 inline void printCallStack() {
   const uint32_t MAX_FRAMES = 100;
@@ -54,17 +57,17 @@ inline void printCallStack() {
           }
         }
       }
-      LOG_ERROR(GL, "\n" << os.str());
+      LOG_FATAL(GL, "\n" << os.str());
       std::free(symbolsList);
     }
   }
 }
 
-#define PRINT_DATA_AND_ASSERT(expr1, expr2, assertMacro)                                                         \
+#define PRINT_DATA_AND_ASSERT_BOOL_EXPR(expr1, expr2, assertMacro)                                               \
   {                                                                                                              \
     std::string result1 = (expr1) ? "true" : "false";                                                            \
     std::string result2 = (expr2) ? "true" : "false";                                                            \
-    LOG_ERROR(GL,                                                                                                \
+    LOG_FATAL(GL,                                                                                                \
               " " << assertMacro << ": expression '" << #expr1 << "' is " << result1.c_str() << ", expression '" \
                   << #expr2 << "' is " << result2.c_str() << " in function " << __FUNCTION__ << " (" << __FILE__ \
                   << " " << __LINE__ << ")");                                                                    \
@@ -72,10 +75,19 @@ inline void printCallStack() {
     assert(false);                                                                                               \
   }
 
+#define PRINT_DATA_AND_ASSERT(expr1, expr2, assertMacro)                                                              \
+  {                                                                                                                   \
+    LOG_FATAL(GL,                                                                                                     \
+              " " << assertMacro << KVLOG(expr1, expr2) << " in function " << __FUNCTION__ << " (" << __FILE__ << " " \
+                  << __LINE__ << ")");                                                                                \
+    printCallStack();                                                                                                 \
+    assert(false);                                                                                                    \
+  }
+
 #define Assert(expr)                                                                                              \
   {                                                                                                               \
     if ((expr) != true) {                                                                                         \
-      LOG_ERROR(GL,                                                                                               \
+      LOG_FATAL(GL,                                                                                               \
                 " Assert: expression '" << #expr << "' is false in function " << __FUNCTION__ << " (" << __FILE__ \
                                         << " " << __LINE__ << ")");                                               \
       printCallStack();                                                                                           \
@@ -87,7 +99,11 @@ inline void printCallStack() {
   {                                                                      \
     if (expr1 != expr2) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertEQ"); \
   }
-
+// Assert (expr1 != expr2)
+#define AssertNE(expr1, expr2)                                           \
+  {                                                                      \
+    if (expr1 == expr2) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertNE"); \
+  }
 // Assert (expr1 >= expr2)
 #define AssertGE(expr1, expr2)                                          \
   {                                                                     \
@@ -113,13 +129,13 @@ inline void printCallStack() {
   }
 
 // Assert(expr1 || expr2)
-#define AssertOR(expr1, expr2)                                                               \
-  {                                                                                          \
-    if ((expr1) != true && (expr2) != true) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertOR"); \
+#define AssertOR(expr1, expr2)                                                                         \
+  {                                                                                                    \
+    if ((expr1) != true && (expr2) != true) PRINT_DATA_AND_ASSERT_BOOL_EXPR(expr1, expr2, "AssertOR"); \
   }
 
 // Assert(expr1 && expr2)
-#define AssertAND(expr1, expr2)                                                               \
-  {                                                                                           \
-    if ((expr1) != true || (expr2) != true) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertAND"); \
+#define AssertAND(expr1, expr2)                                                                         \
+  {                                                                                                     \
+    if ((expr1) != true || (expr2) != true) PRINT_DATA_AND_ASSERT_BOOL_EXPR(expr1, expr2, "AssertAND"); \
   }
