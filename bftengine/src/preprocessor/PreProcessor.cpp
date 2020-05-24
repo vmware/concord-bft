@@ -13,7 +13,6 @@
 #include "InternalReplicaApi.hpp"
 #include "Logger.hpp"
 #include "MsgHandlersRegistrator.hpp"
-#include "TimersSingleton.hpp"
 
 namespace preprocessor {
 
@@ -34,10 +33,11 @@ void PreProcessor::addNewPreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunic
                                       shared_ptr<IncomingMsgsStorage> &incomingMsgsStorage,
                                       shared_ptr<MsgHandlersRegistrator> &msgHandlersRegistrator,
                                       bftEngine::IRequestsHandler &requestsHandler,
-                                      InternalReplicaApi &replica) {
+                                      InternalReplicaApi &replica,
+                                      concordUtil::Timers &timers) {
   if (ReplicaConfigSingleton::GetInstance().GetPreExecutionFeatureEnabled())
     preProcessors_.push_back(make_unique<PreProcessor>(
-        msgsCommunicator, incomingMsgsStorage, msgHandlersRegistrator, requestsHandler, replica));
+        msgsCommunicator, incomingMsgsStorage, msgHandlersRegistrator, requestsHandler, replica, timers));
 }
 
 void PreProcessor::setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
@@ -83,7 +83,8 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            shared_ptr<IncomingMsgsStorage> &incomingMsgsStorage,
                            shared_ptr<MsgHandlersRegistrator> &msgHandlersRegistrator,
                            IRequestsHandler &requestsHandler,
-                           const InternalReplicaApi &myReplica)
+                           const InternalReplicaApi &myReplica,
+                           concordUtil::Timers &timers)
     : msgsCommunicator_(msgsCommunicator),
       incomingMsgsStorage_(incomingMsgsStorage),
       msgHandlersRegistrator_(msgHandlersRegistrator),
@@ -104,7 +105,8 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            metricsComponent_.RegisterCounter("preProcessRequestTimedout"),
                            metricsComponent_.RegisterCounter("preProcReqSentForFurtherProcessing"),
                            metricsComponent_.RegisterCounter("preProcPossiblePrimaryFaultDetected")},
-      preExecReqStatusCheckPeriodMilli_(myReplica_.getReplicaConfig().preExecReqStatusCheckTimerMillisec) {
+      preExecReqStatusCheckPeriodMilli_(myReplica_.getReplicaConfig().preExecReqStatusCheckTimerMillisec),
+      timers_{timers} {
   registerMsgHandlers();
   metricsComponent_.Register();
   sigManager_ = make_shared<SigManager>(myReplicaId_,
@@ -137,15 +139,14 @@ void PreProcessor::addTimers() {
   // This timer is used for a periodic detection of timed out client requests.
   // Each such request contains requestTimeoutMilli parameter that defines its lifetime.
   if (preExecReqStatusCheckPeriodMilli_ != 0)
-    requestsStatusCheckTimer_ = TimersSingleton::getInstance().add(
-        chrono::milliseconds(preExecReqStatusCheckPeriodMilli_), Timers::Timer::RECURRING, [this](Timers::Handle h) {
-          onRequestsStatusCheckTimer(h);
-        });
+    requestsStatusCheckTimer_ = timers_.add(chrono::milliseconds(preExecReqStatusCheckPeriodMilli_),
+                                            Timers::Timer::RECURRING,
+                                            [this](Timers::Handle h) { onRequestsStatusCheckTimer(h); });
 }
 
 void PreProcessor::cancelTimers() {
   try {
-    if (preExecReqStatusCheckPeriodMilli_ != 0) TimersSingleton::getInstance().cancel(requestsStatusCheckTimer_);
+    if (preExecReqStatusCheckPeriodMilli_ != 0) timers_.cancel(requestsStatusCheckTimer_);
   } catch (std::invalid_argument &e) {
   }
 }

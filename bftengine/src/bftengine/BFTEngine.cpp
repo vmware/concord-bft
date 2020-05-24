@@ -23,6 +23,7 @@
 #include "MsgReceiver.hpp"
 
 #include <condition_variable>
+#include <memory>
 #include <mutex>
 
 namespace bftEngine::impl {
@@ -90,12 +91,14 @@ void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
     ReplicaLoader::ErrorCode loadErrCode;
     LoadedReplicaData ld = ReplicaLoader::loadReplica(persistentStorage, loadErrCode);
     Assert(loadErrCode == ReplicaLoader::ErrorCode::Success);
+
     replica_.reset(new ReplicaImp(ld,
                                   replicaImp->getRequestsHandler(),
                                   replicaImp->getStateTransfer(),
                                   replicaImp->getMsgsCommunicator(),
                                   persistentStorage,
-                                  replicaImp->getMsgHandlersRegistrator()));
+                                  replicaImp->getMsgHandlersRegistrator(),
+                                  replicaImp->timers()));
   } else {
     //  TODO [TK] rep.reset(new ReadOnlyReplicaImp());
   }
@@ -142,14 +145,21 @@ IReplica *IReplica::createNewReplica(ReplicaConfig *replicaConfig,
 
   auto replicaInternal = new ReplicaInternal();
   shared_ptr<MsgHandlersRegistrator> msgHandlersPtr(new MsgHandlersRegistrator());
-  shared_ptr<IncomingMsgsStorage> incomingMsgsStoragePtr(
-      new IncomingMsgsStorageImp(msgHandlersPtr, timersResolution, replicaConfig->replicaId));
+  auto incomingMsgsStorageImpPtr =
+      std::make_unique<IncomingMsgsStorageImp>(msgHandlersPtr, timersResolution, replicaConfig->replicaId);
+  auto &timers = incomingMsgsStorageImpPtr->timers();
+  shared_ptr<IncomingMsgsStorage> incomingMsgsStoragePtr{std::move(incomingMsgsStorageImpPtr)};
   shared_ptr<bft::communication::IReceiver> msgReceiverPtr(new MsgReceiver(incomingMsgsStoragePtr));
   shared_ptr<MsgsCommunicator> msgsCommunicatorPtr(
       new MsgsCommunicator(communication, incomingMsgsStoragePtr, msgReceiverPtr));
   if (isNewStorage) {
-    replicaInternal->replica_.reset(new ReplicaImp(
-        *replicaConfig, requestsHandler, stateTransfer, msgsCommunicatorPtr, persistentStoragePtr, msgHandlersPtr));
+    replicaInternal->replica_.reset(new ReplicaImp(*replicaConfig,
+                                                   requestsHandler,
+                                                   stateTransfer,
+                                                   msgsCommunicatorPtr,
+                                                   persistentStoragePtr,
+                                                   msgHandlersPtr,
+                                                   timers));
   } else {
     ReplicaLoader::ErrorCode loadErrCode;
     auto loadedReplicaData = ReplicaLoader::loadReplica(persistentStoragePtr, loadErrCode);
@@ -158,14 +168,20 @@ IReplica *IReplica::createNewReplica(ReplicaConfig *replicaConfig,
       return nullptr;
     }
     // TODO(GG): compare ld.repConfig and replicaConfig
-    replicaInternal->replica_.reset(new ReplicaImp(
-        loadedReplicaData, requestsHandler, stateTransfer, msgsCommunicatorPtr, persistentStoragePtr, msgHandlersPtr));
+    replicaInternal->replica_.reset(new ReplicaImp(loadedReplicaData,
+                                                   requestsHandler,
+                                                   stateTransfer,
+                                                   msgsCommunicatorPtr,
+                                                   persistentStoragePtr,
+                                                   msgHandlersPtr,
+                                                   timers));
   }
   preprocessor::PreProcessor::addNewPreProcessor(msgsCommunicatorPtr,
                                                  incomingMsgsStoragePtr,
                                                  msgHandlersPtr,
                                                  *requestsHandler,
-                                                 *dynamic_cast<InternalReplicaApi *>(replicaInternal->replica_.get()));
+                                                 *dynamic_cast<InternalReplicaApi *>(replicaInternal->replica_.get()),
+                                                 timers);
   return replicaInternal;
 }
 
@@ -185,8 +201,10 @@ IReplica *IReplica::createNewRoReplica(ReplicaConfig *replicaConfig,
   replicaConfig->singletonFromThis();
   auto replicaInternal = new ReplicaInternal();
   auto msgHandlers = std::make_shared<MsgHandlersRegistrator>();
-  std::shared_ptr<IncomingMsgsStorage> incomingMsgsStorage =
-      std::make_shared<IncomingMsgsStorageImp>(msgHandlers, timersResolution, replicaConfig->replicaId);
+  auto incomingMsgsStorageImpPtr =
+      std::make_unique<IncomingMsgsStorageImp>(msgHandlers, timersResolution, replicaConfig->replicaId);
+  auto &timers = incomingMsgsStorageImpPtr->timers();
+  std::shared_ptr<IncomingMsgsStorage> incomingMsgsStorage{std::move(incomingMsgsStorageImpPtr)};
   auto msgReceiver = std::make_shared<MsgReceiver>(incomingMsgsStorage);
   auto msgsCommunicator = std::make_shared<MsgsCommunicator>(communication, incomingMsgsStorage, msgReceiver);
 
@@ -204,7 +222,7 @@ IReplica *IReplica::createNewRoReplica(ReplicaConfig *replicaConfig,
   }
 
   replicaInternal->replica_ = std::make_unique<ReadOnlyReplica>(
-      *replicaConfig, stateTransfer, msgsCommunicator, persistentStorage, msgHandlers);
+      *replicaConfig, stateTransfer, msgsCommunicator, persistentStorage, msgHandlers, timers);
   return replicaInternal;
 }
 

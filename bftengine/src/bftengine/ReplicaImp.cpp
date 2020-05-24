@@ -10,13 +10,13 @@
 // file.
 
 #include "ReplicaImp.hpp"
+#include "Timers.hpp"
 #include "assertUtils.hpp"
 #include "Logger.hpp"
 #include "ControllerWithSimpleHistory.hpp"
 #include "DebugStatistics.hpp"
 #include "SysConsts.hpp"
 #include "ReplicaConfig.hpp"
-#include "TimersSingleton.hpp"
 #include "MsgsCommunicator.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "ReplicaLoader.hpp"
@@ -2405,14 +2405,14 @@ void ReplicaImp::onStatusReportTimer(Timers::Handle timer) {
 void ReplicaImp::onSlowPathTimer(Timers::Handle timer) {
   tryToStartSlowPaths();
   auto newPeriod = milliseconds(controller->slowPathsTimerMilli());
-  TimersSingleton::getInstance().reset(timer, newPeriod);
+  timers_.reset(timer, newPeriod);
   metric_slow_path_timer_.Get().Set(controller->slowPathsTimerMilli());
 }
 
 void ReplicaImp::onInfoRequestTimer(Timers::Handle timer) {
   tryToAskForMissingInfo();
   auto newPeriod = milliseconds(dynamicUpperLimitOfRounds->upperLimit() / 2);
-  TimersSingleton::getInstance().reset(timer, newPeriod);
+  timers_.reset(timer, newPeriod);
   metric_info_request_timer_.Get().Set(dynamicUpperLimitOfRounds->upperLimit() / 2);
 }
 
@@ -2470,7 +2470,8 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                        IStateTransfer *stateTrans,
                        shared_ptr<MsgsCommunicator> msgsCommunicator,
                        shared_ptr<PersistentStorage> persistentStorage,
-                       shared_ptr<MsgHandlersRegistrator> msgHandlers)
+                       shared_ptr<MsgHandlersRegistrator> msgHandlers,
+                       concordUtil::Timers &timers)
     : ReplicaImp(false,
                  ld.repConfig,
                  requestsHandler,
@@ -2479,7 +2480,8 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                  ld.repsInfo,
                  ld.viewsManager,
                  msgsCommunicator,
-                 msgHandlers) {
+                 msgHandlers,
+                 timers) {
   Assert(persistentStorage != nullptr);
 
   ps_ = persistentStorage;
@@ -2663,8 +2665,10 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
                        IStateTransfer *stateTrans,
                        shared_ptr<MsgsCommunicator> msgsCommunicator,
                        shared_ptr<PersistentStorage> persistentStorage,
-                       shared_ptr<MsgHandlersRegistrator> msgHandlers)
-    : ReplicaImp(true, config, requestsHandler, stateTrans, nullptr, nullptr, nullptr, msgsCommunicator, msgHandlers) {
+                       shared_ptr<MsgHandlersRegistrator> msgHandlers,
+                       concordUtil::Timers &timers)
+    : ReplicaImp(
+          true, config, requestsHandler, stateTrans, nullptr, nullptr, nullptr, msgsCommunicator, msgHandlers, timers) {
   if (persistentStorage != nullptr) {
     ps_ = persistentStorage;
 
@@ -2686,8 +2690,9 @@ ReplicaImp::ReplicaImp(bool firstTime,
                        ReplicasInfo *replicasInfo,
                        ViewsManager *viewsMgr,
                        shared_ptr<MsgsCommunicator> msgsCommunicator,
-                       shared_ptr<MsgHandlersRegistrator> msgHandlers)
-    : ReplicaForStateTransfer(config, stateTrans, msgsCommunicator, msgHandlers, firstTime),
+                       shared_ptr<MsgHandlersRegistrator> msgHandlers,
+                       concordUtil::Timers &timers)
+    : ReplicaForStateTransfer(config, stateTrans, msgsCommunicator, msgHandlers, firstTime, timers),
       viewChangeProtocolEnabled{config.viewChangeProtocolEnabled},
       autoPrimaryRotationEnabled{config.autoPrimaryRotationEnabled},
       restarted_{!firstTime},
@@ -2863,11 +2868,11 @@ ReplicaImp::~ReplicaImp() {
 }
 
 void ReplicaImp::stop() {
-  if (retransmissionsLogicEnabled) TimersSingleton::getInstance().cancel(retranTimer_);
-  TimersSingleton::getInstance().cancel(slowPathTimer_);
-  TimersSingleton::getInstance().cancel(infoReqTimer_);
-  TimersSingleton::getInstance().cancel(statusReportTimer_);
-  if (viewChangeProtocolEnabled) TimersSingleton::getInstance().cancel(viewChangeTimer_);
+  if (retransmissionsLogicEnabled) timers_.cancel(retranTimer_);
+  timers_.cancel(slowPathTimer_);
+  timers_.cancel(infoReqTimer_);
+  timers_.cancel(statusReportTimer_);
+  if (viewChangeProtocolEnabled) timers_.cancel(viewChangeTimer_);
 
   ReplicaForStateTransfer::stop();
 }
@@ -2876,33 +2881,33 @@ void ReplicaImp::addTimers() {
   int statusReportTimerMilli = (sendStatusPeriodMilli > 0) ? sendStatusPeriodMilli : config_.statusReportTimerMillisec;
   Assert(statusReportTimerMilli > 0);
   metric_status_report_timer_.Get().Set(statusReportTimerMilli);
-  statusReportTimer_ = TimersSingleton::getInstance().add(milliseconds(statusReportTimerMilli),
-                                                          Timers::Timer::RECURRING,
-                                                          [this](Timers::Handle h) { onStatusReportTimer(h); });
+  statusReportTimer_ = timers_.add(milliseconds(statusReportTimerMilli),
+                                   Timers::Timer::RECURRING,
+                                   [this](Timers::Handle h) { onStatusReportTimer(h); });
   if (viewChangeProtocolEnabled) {
     int t = viewChangeTimerMilli;
     if (autoPrimaryRotationEnabled && t > autoPrimaryRotationTimerMilli) t = autoPrimaryRotationTimerMilli;
     metric_viewchange_timer_.Get().Set(t / 2);
     // TODO(GG): What should be the time period here?
     // TODO(GG): Consider to split to 2 different timers
-    viewChangeTimer_ = TimersSingleton::getInstance().add(
-        milliseconds(t / 2), Timers::Timer::RECURRING, [this](Timers::Handle h) { onViewsChangeTimer(h); });
+    viewChangeTimer_ =
+        timers_.add(milliseconds(t / 2), Timers::Timer::RECURRING, [this](Timers::Handle h) { onViewsChangeTimer(h); });
   }
   if (retransmissionsLogicEnabled) {
     metric_retransmissions_timer_.Get().Set(retransmissionsTimerMilli);
-    retranTimer_ = TimersSingleton::getInstance().add(milliseconds(retransmissionsTimerMilli),
-                                                      Timers::Timer::RECURRING,
-                                                      [this](Timers::Handle h) { onRetransmissionsTimer(h); });
+    retranTimer_ = timers_.add(milliseconds(retransmissionsTimerMilli),
+                               Timers::Timer::RECURRING,
+                               [this](Timers::Handle h) { onRetransmissionsTimer(h); });
   }
   const int slowPathsTimerPeriod = controller->timeToStartSlowPathMilli();
   metric_slow_path_timer_.Get().Set(slowPathsTimerPeriod);
-  slowPathTimer_ = TimersSingleton::getInstance().add(
+  slowPathTimer_ = timers_.add(
       milliseconds(slowPathsTimerPeriod), Timers::Timer::RECURRING, [this](Timers::Handle h) { onSlowPathTimer(h); });
 
   metric_info_request_timer_.Get().Set(dynamicUpperLimitOfRounds->upperLimit() / 2);
-  infoReqTimer_ = TimersSingleton::getInstance().add(milliseconds(dynamicUpperLimitOfRounds->upperLimit() / 2),
-                                                     Timers::Timer::RECURRING,
-                                                     [this](Timers::Handle h) { onInfoRequestTimer(h); });
+  infoReqTimer_ = timers_.add(milliseconds(dynamicUpperLimitOfRounds->upperLimit() / 2),
+                              Timers::Timer::RECURRING,
+                              [this](Timers::Handle h) { onInfoRequestTimer(h); });
 }
 
 void ReplicaImp::start() {

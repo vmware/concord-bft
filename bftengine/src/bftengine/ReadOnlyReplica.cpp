@@ -15,7 +15,6 @@
 #include "messages/AskForCheckpointMsg.hpp"
 #include "CheckpointInfo.hpp"
 #include "Logger.hpp"
-#include "TimersSingleton.hpp"
 #include "PersistentStorage.hpp"
 
 using concordUtil::Timers;
@@ -26,8 +25,9 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
                                  IStateTransfer *stateTransfer,
                                  std::shared_ptr<MsgsCommunicator> msgComm,
                                  std::shared_ptr<PersistentStorage> persistentStorage,
-                                 std::shared_ptr<MsgHandlersRegistrator> msgHandlerReg)
-    : ReplicaForStateTransfer(config, stateTransfer, msgComm, msgHandlerReg, true),
+                                 std::shared_ptr<MsgHandlersRegistrator> msgHandlerReg,
+                                 concordUtil::Timers &timers)
+    : ReplicaForStateTransfer(config, stateTransfer, msgComm, msgHandlerReg, true, timers),
       ps_(persistentStorage),
       ro_metrics_{metrics_.RegisterCounter("receivedCheckpointMsgs"),
                   metrics_.RegisterCounter("sentAskForCheckpointMsgs"),
@@ -45,16 +45,15 @@ void ReadOnlyReplica::start() {
   ps_->setReplicaConfig(config_);
   ps_->endWriteTran();
   lastExecutedSeqNum = ps_->getLastExecutedSeqNum();
-  askForCheckpointMsgTimer_ = TimersSingleton::getInstance().add(std::chrono::seconds(5),  // TODO [TK] config
-                                                                 Timers::Timer::RECURRING,
-                                                                 [this](Timers::Handle) {
-                                                                   if (!this->isCollectingState())
-                                                                     sendAskForCheckpointMsg();
-                                                                 });
+  askForCheckpointMsgTimer_ = timers_.add(std::chrono::seconds(5),  // TODO [TK] config
+                                          Timers::Timer::RECURRING,
+                                          [this](Timers::Handle) {
+                                            if (!this->isCollectingState()) sendAskForCheckpointMsg();
+                                          });
 }
 
 void ReadOnlyReplica::stop() {
-  TimersSingleton::getInstance().cancel(askForCheckpointMsgTimer_);
+  timers_.cancel(askForCheckpointMsgTimer_);
   ReplicaForStateTransfer::stop();
 }
 

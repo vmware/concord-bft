@@ -48,7 +48,8 @@ class PreProcessor {
                std::shared_ptr<IncomingMsgsStorage> &incomingMsgsStorage,
                std::shared_ptr<MsgHandlersRegistrator> &msgHandlersRegistrator,
                bftEngine::IRequestsHandler &requestsHandler,
-               const InternalReplicaApi &replica);
+               const InternalReplicaApi &replica,
+               concordUtil::Timers &timers);
 
   ~PreProcessor();
 
@@ -56,7 +57,8 @@ class PreProcessor {
                                  std::shared_ptr<IncomingMsgsStorage> &incomingMsgsStorage,
                                  std::shared_ptr<MsgHandlersRegistrator> &msgHandlersRegistrator,
                                  bftEngine::IRequestsHandler &requestsHandler,
-                                 InternalReplicaApi &myReplica);
+                                 InternalReplicaApi &myReplica,
+                                 concordUtil::Timers &timers);
 
   static void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator);
 
@@ -144,6 +146,7 @@ class PreProcessor {
   } preProcessorMetrics_;
   concordUtil::Timers::Handle requestsStatusCheckTimer_;
   const uint64_t preExecReqStatusCheckPeriodMilli_;
+  concordUtil::Timers &timers_;
 };
 
 //**************** Class AsyncPreProcessJob ****************//

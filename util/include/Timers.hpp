@@ -82,6 +82,10 @@ class Timers {
 
  public:
   Timers() : id_counter_(0) {}
+  Timers(const Timers& timers) = delete;
+  Timers& operator=(const Timers& timers) = delete;
+  Timers(Timers&& timers) = delete;
+  Timers&& operator=(Timers&& timers) = delete;
 
   Handle add(std::chrono::milliseconds d, Timer::Type t, const std::function<void(Handle)>& cb) {
     return add(d, t, cb, std::chrono::steady_clock::now());

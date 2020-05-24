@@ -21,6 +21,7 @@
 #include "ControllerBase.hpp"
 #include "RetransmissionsManager.hpp"
 #include "DynamicUpperLimitWithSimpleFilter.hpp"
+#include "Timers.hpp"
 #include "ViewsManager.hpp"
 #include "InternalReplicaApi.hpp"
 #include "ClientsManager.hpp"
@@ -210,14 +211,16 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              IStateTransfer* stateTransfer,
              shared_ptr<MsgsCommunicator> msgsCommunicator,
              shared_ptr<PersistentStorage> persistentStorage,
-             shared_ptr<MsgHandlersRegistrator> msgHandlers);
+             shared_ptr<MsgHandlersRegistrator> msgHandlers,
+             concordUtil::Timers& timers);
 
   ReplicaImp(const LoadedReplicaData&,
              IRequestsHandler* requestsHandler,
              IStateTransfer* stateTransfer,
              shared_ptr<MsgsCommunicator> msgsCommunicator,
              shared_ptr<PersistentStorage> persistentStorage,
-             shared_ptr<MsgHandlersRegistrator> msgHandlers);
+             shared_ptr<MsgHandlersRegistrator> msgHandlers,
+             concordUtil::Timers& timers);
 
   virtual ~ReplicaImp();
 
@@ -256,7 +259,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              ReplicasInfo*,
              ViewsManager*,
              shared_ptr<MsgsCommunicator>,
-             shared_ptr<MsgHandlersRegistrator>);
+             shared_ptr<MsgHandlersRegistrator>,
+             concordUtil::Timers& timers);
 
   void registerMsgHandlers();
 

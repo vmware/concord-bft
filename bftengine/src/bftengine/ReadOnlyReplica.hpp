@@ -12,6 +12,7 @@
 #pragma once
 
 #include "ReplicaForStateTransfer.hpp"
+#include "Timers.hpp"
 
 namespace bftEngine::impl {
 
@@ -25,7 +26,8 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
                   IStateTransfer*,
                   std::shared_ptr<MsgsCommunicator>,
                   std::shared_ptr<PersistentStorage>,
-                  std::shared_ptr<MsgHandlersRegistrator>);
+                  std::shared_ptr<MsgHandlersRegistrator>,
+                  concordUtil::Timers& timers);
 
   void start() override;
   void stop() override;
