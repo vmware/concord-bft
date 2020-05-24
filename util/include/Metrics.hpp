@@ -70,6 +70,8 @@ class Gauge {
   explicit Gauge(const uint64_t val) : val_(val) {}
 
   void Set(const uint64_t val) { val_ = val; }
+  void Inc(const uint64_t val) { val_ += val; }
+  void Dec(const uint64_t val) { val_ -= val; }
   uint64_t Get() { return val_; }
 
  private:
@@ -95,8 +97,7 @@ class Counter {
   explicit Counter(const uint64_t val) : val_(val) {}
 
   // Increment the counter and return the value after incrementing.
-  uint64_t Inc() { return ++val_; }
-
+  uint64_t Inc(uint64_t val = 1) { return val_ += val; }
   uint64_t Get() { return val_; }
 
  private:

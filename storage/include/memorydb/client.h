@@ -94,6 +94,9 @@ class Client : public IDBClient {
 
   // map that stores the in memory database.
   TKVStore map_;
+
+  // Metrics
+  void tryToUpdateMetrics() const;
 };
 
 }  // namespace memorydb

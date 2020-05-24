@@ -20,6 +20,7 @@
 #ifdef USE_ROCKSDB
 #include "Logger.hpp"
 #include <rocksdb/utilities/transaction_db.h>
+#include <rocksdb/sst_file_manager.h>
 #include "storage/db_interface.h"
 
 namespace concord {
@@ -59,9 +60,12 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
 
 class Client : public concord::storage::IDBClient {
  public:
-  Client(std::string _dbPath) : m_dbPath(_dbPath) {}
+  Client(std::string _dbPath)
+      : m_dbPath(_dbPath), total_db_size_(metrics_.RegisterGauge("storage_rocksdb_db_size", 0)) {}
   Client(std::string _dbPath, std::unique_ptr<const ::rocksdb::Comparator>&& comparator)
-      : m_dbPath(_dbPath), comparator_(std::move(comparator)) {}
+      : m_dbPath(_dbPath),
+        comparator_(std::move(comparator)),
+        total_db_size_(metrics_.RegisterGauge("storage_rocksdb_db_size", 0)) {}
 
   ~Client() {
     if (txn_db_) {
@@ -107,6 +111,10 @@ class Client : public concord::storage::IDBClient {
   std::unique_ptr<::rocksdb::DB> dbInstance_;
   ::rocksdb::TransactionDB* txn_db_ = nullptr;
   std::unique_ptr<const ::rocksdb::Comparator> comparator_;
+
+  // Metrics
+  mutable concordMetrics::GaugeHandle total_db_size_;
+  void tryToUpdateMetrics() const;
 };
 
 ::rocksdb::Slice toRocksdbSlice(const concordUtils::Sliver& _s);

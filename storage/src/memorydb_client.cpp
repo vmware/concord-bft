@@ -41,7 +41,9 @@ Status Client::get(const Sliver &_key, OUT Sliver &_outValue) const {
   } catch (const std::out_of_range &oor) {
     return Status::NotFound(oor.what());
   }
-
+  keys_reads_.Get().Inc();
+  total_read_bytes_.Get().Inc(_outValue.length());
+  tryToUpdateMetrics();
   return Status::OK();
 }
 
@@ -56,6 +58,9 @@ Status Client::get(const Sliver &_key, OUT char *&buf, uint32_t bufSize, OUT uin
     return Status::GeneralError("Object value is bigger than specified buffer");
   }
   memcpy(buf, value.data(), _size);
+  keys_reads_.Get().Inc();
+  total_read_bytes_.Get().Inc(_size);
+  tryToUpdateMetrics();
   return status;
 }
 
@@ -100,6 +105,9 @@ Status Client::freeIterator(IDBClientIterator *_iter) const {
  */
 Status Client::put(const Sliver &_key, const Sliver &_value) {
   map_.insert_or_assign(_key, _value.clone());
+  keys_writes_.Get().Inc();
+  total_written_bytes_.Get().Inc(_key.length() + _value.length());
+  tryToUpdateMetrics();
   return Status::OK();
 }
 
@@ -174,6 +182,11 @@ ITransaction *Client::beginTransaction() {
   static std::uint64_t current_transaction_id = 0;
   return new Transaction{*this, ++current_transaction_id};
 }
+void Client::tryToUpdateMetrics() const {
+  if (++ops_count == update_interval) {
+    metrics_.UpdateAggregator();
+  }
+}
 
 /**
  * @brief Moves the iterator to the start of the map.
@@ -186,7 +199,6 @@ KeyValuePair ClientIterator::first() {
   if (m_current == m_parentClient->getMap().end()) {
     return KeyValuePair();
   }
-
   return KeyValuePair(m_current->first, m_current->second);
 }
 
