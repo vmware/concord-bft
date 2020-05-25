@@ -19,5 +19,20 @@ std::string CommitPathToStr(CommitPath path) {
   }
 }
 
+std::string CommitPathToMDCString(CommitPath path) {
+  switch (path) {
+    case CommitPath::NA:
+      return "NA";
+    case CommitPath::OPTIMISTIC_FAST:
+      return "fast";
+    case CommitPath::FAST_WITH_THRESHOLD:
+      return "fast";
+    case CommitPath::SLOW:
+      return "slow";
+    default:
+      return "Unsupported CommitPath";
+  }
+}
+
 }  // namespace impl
 }  // namespace bftEngine
