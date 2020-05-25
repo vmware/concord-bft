@@ -185,6 +185,7 @@ ITransaction *Client::beginTransaction() {
 void Client::tryToUpdateMetrics() const {
   if (++ops_count == update_interval) {
     metrics_.UpdateAggregator();
+    ops_count = 0;
   }
 }
 
