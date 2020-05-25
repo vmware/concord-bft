@@ -53,6 +53,15 @@ class MDC {
  * When using log4cpp, the key-value pair will be added to the current thread logger.
  */
 #define MDC_PUT(l, k, v) concordlogger::MDC mdc_((l), (k), (v))
+
 #define CID_KEY "cid"
-#define MDC_CID_PUT(l, v) MDC_PUT(l, CID_KEY, v)
+#define MDC_CID_PUT(l, v) concordlogger::MDC cidmdc_(l, CID_KEY, v)
+
+#define PRI_KEY "Primary"
+#define MDC_PRI_PUT(l, v) concordlogger::MDC primdc_(l, PRI_KEY, v)
+
 #define SEQ_NUM_KEY "sn"
+#define MDC_SN_PUT(l, v) concordlogger::MDC snmdc_(l, SEQ_NUM_KEY, v)
+
+#define PATH_KEY "path"
+#define MDC_PATH_PUT(l, v) concordlogger::MDC pathmdc_(l, PATH_KEY, v)
