@@ -1110,7 +1110,6 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
   Assert(commitFull != nullptr);
 
   if (fcp != nullptr) return;  // ignore if we already have FullCommitProofMsg
-
   LOG_INFO(GL, "Commit path analysis: sending full commit");
   if (ps_) {
     ps_->beginWriteTran();
