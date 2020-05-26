@@ -90,7 +90,6 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             await trio.sleep(.1)
         return read_count + write_count
 
-    @unittest.skip("unstable")
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_sequential_pre_process_requests(self, bft_network):
@@ -104,7 +103,6 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             client = bft_network.random_client()
             await self.send_single_write_with_pre_execution(skvbc, client)
 
-    @unittest.skip("unstable")
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_concurrent_pre_process_requests(self, bft_network):
@@ -151,8 +149,6 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-        await trio.sleep(5)
-
         clients = bft_network.clients.values()
         client = random.choice(list(clients))
         key_before_vc = skvbc.random_key()
@@ -176,9 +172,9 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         except trio.TooSlowError:
             pass
         finally:
-            expected_next_primary = 1
+            expected_next_view = 1
             await bft_network.wait_for_view(replica_id=random.choice(bft_network.all_replicas(without={0})),
-                                            expected=lambda v: v == expected_next_primary,
+                                            expected=lambda v: v == expected_next_view,
                                             err_msg="Make sure view change has been triggered.")
 
         new_last_block = 0
