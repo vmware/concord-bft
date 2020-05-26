@@ -76,7 +76,7 @@ class PreProcessor {
   bool registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
                        PreProcessRequestMsgSharedPtr preProcessRequestMsg);
   void releaseClientPreProcessRequestSafe(uint16_t clientId);
-  void releaseClientPreProcessRequest(const ClientRequestStateSharedPtr &clientEntry, uint16_t clientId);
+  static void releaseClientPreProcessRequest(const ClientRequestStateSharedPtr &clientEntry, uint16_t clientId);
   bool validateMessage(MessageBase *msg) const;
   void registerMsgHandlers();
   bool checkClientMsgCorrectness(const ClientPreProcessReqMsgUniquePtr &clientReqMsg, ReqId reqSeqNum) const;
@@ -84,32 +84,33 @@ class PreProcessor {
   void handleClientPreProcessRequestByPrimary(ClientPreProcessReqMsgUniquePtr clientReqMsg);
   void handleClientPreProcessRequestByNonPrimary(ClientPreProcessReqMsgUniquePtr msg);
   void sendMsg(char *msg, NodeIdType dest, uint16_t msgType, MsgSize msgSize);
-  void sendPreProcessRequestToAllReplicas(PreProcessRequestMsgSharedPtr preProcessReqMsg);
+  void sendPreProcessRequestToAllReplicas(const PreProcessRequestMsgSharedPtr &preProcessReqMsg);
   uint16_t getClientReplyBufferId(uint16_t clientId) const { return clientId - numOfReplicas_; }
   const char *getPreProcessResultBuffer(uint16_t clientId) const;
-  void launchAsyncReqPreProcessingJob(PreProcessRequestMsgSharedPtr preProcessReqMsg, bool isPrimary, bool isRetry);
+  void launchAsyncReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
+                                      bool isPrimary,
+                                      bool isRetry);
   uint32_t launchReqPreProcessing(uint16_t clientId, ReqId reqSeqNum, uint32_t reqLength, char *reqBuf);
-  void handleReqPreProcessingJob(PreProcessRequestMsgSharedPtr preProcessReqMsg, bool isPrimary, bool isRetry);
+  void handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg, bool isPrimary, bool isRetry);
   void handlePreProcessedReqByNonPrimary(uint16_t clientId,
                                          ReqId reqSeqNum,
                                          uint32_t resBufLen,
                                          const std::string &cid);
-  void handlePreProcessedReqByPrimary(PreProcessRequestMsgSharedPtr preProcessReqMsg,
+  void handlePreProcessedReqByPrimary(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                       uint16_t clientId,
                                       uint32_t resultBufLen);
   void handlePreProcessedReqPrimaryRetry(NodeIdType clientId, SeqNum reqSeqNum);
   void finalizePreProcessing(NodeIdType clientId);
   void cancelPreProcessing(NodeIdType clientId);
   PreProcessingResult getPreProcessingConsensusResult(uint16_t clientId);
-  void handleReqPreProcessedByOneReplica(const std::string &cid,
-                                         PreProcessingResult result,
-                                         NodeIdType clientId,
-                                         SeqNum reqSeqNum);
+  void handlePreProcessReplyMsg(const std::string &cid,
+                                PreProcessingResult result,
+                                NodeIdType clientId,
+                                SeqNum reqSeqNum);
   void updateAggregatorAndDumpMetrics();
   void addTimers();
   void cancelTimers();
   void onRequestsStatusCheckTimer(concordUtil::Timers::Handle timer);
-  void onPreProcessRequestMsgWaitTimer(concordUtil::Timers::Handle timer);
 
  private:
   static std::vector<std::shared_ptr<PreProcessor>> preProcessors_;  // The place holder for PreProcessor objects
@@ -140,14 +141,9 @@ class PreProcessor {
     concordMetrics::CounterHandle preProcessRequestTimedout;
     concordMetrics::CounterHandle preProcReqSentForFurtherProcessing;
     concordMetrics::CounterHandle preProcPossiblePrimaryFaultDetected;
-    concordMetrics::GaugeHandle preProcRequestStatusCheckTimer;
-    concordMetrics::GaugeHandle preProcReqMsgWaitTimer;
   } preProcessorMetrics_;
   concordUtil::Timers::Handle requestsStatusCheckTimer_;
-  concordUtil::Timers::Handle preProcessReqMsgWaitTimer_;
-  const uint16_t maxPreProcessReqWaitTimeMilli_ = 500;
-  const uint64_t preExecReqStatusCheckTimeMilli_;
-  const uint16_t preProcessReqWaitTimeMilli_;
+  const uint64_t preExecReqStatusCheckPeriodMilli_;
 };
 
 //**************** Class AsyncPreProcessJob ****************//
@@ -157,7 +153,7 @@ class PreProcessor {
 class AsyncPreProcessJob : public util::SimpleThreadPool::Job {
  public:
   AsyncPreProcessJob(PreProcessor &preProcessor,
-                     PreProcessRequestMsgSharedPtr preProcessReqMsg,
+                     const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                      bool isPrimary,
                      bool isRetry);
   virtual ~AsyncPreProcessJob() = default;

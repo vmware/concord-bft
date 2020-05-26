@@ -56,7 +56,14 @@ struct SimpleBlock {
   static void free(SimpleBlock* buf) { delete[] buf; }
 };
 
-enum RequestType : char { NONE = 0, READ = 1, COND_WRITE = 2, GET_LAST_BLOCK = 3, GET_BLOCK_DATA = 4 };
+enum RequestType : char {
+  NONE = 0,
+  READ = 1,
+  COND_WRITE = 2,
+  GET_LAST_BLOCK = 3,
+  GET_BLOCK_DATA = 4,
+  LONG_EXEC_COND_WRITE = 5
+};
 
 struct SimpleRequest {
   RequestType type = {NONE};

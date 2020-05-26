@@ -16,6 +16,7 @@
 #include "sliver.hpp"
 #include "kv_types.hpp"
 #include "block_metadata.hpp"
+#include <unistd.h>
 #include <algorithm>
 
 using namespace BasicRandomTests;
@@ -26,6 +27,8 @@ using concordUtils::Sliver;
 using concord::kvbc::BlockId;
 using concord::kvbc::KeyValuePair;
 using concord::storage::SetOfKeyValuePairs;
+
+const uint64_t LONG_EXEC_CMD_TIME_IN_SEC = 11;
 
 int InternalCommandsHandler::execute(uint16_t clientId,
                                      uint64_t sequenceNum,
@@ -107,6 +110,7 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
     bool result = verifyWriteCommand(requestSize, *writeReq, maxReplySize, outReplySize);
     if (!result) Assert(0);
     if (flags & MsgFlag::PRE_PROCESS_FLAG) {
+      if (writeReq->header.type == LONG_EXEC_COND_WRITE) sleep(LONG_EXEC_CMD_TIME_IN_SEC);
       outReplySize = requestSize;
       memcpy(outReply, request, requestSize);
       return result;

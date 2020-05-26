@@ -19,17 +19,13 @@ using namespace chrono;
 using namespace concord::util;
 
 uint16_t RequestProcessingState::numOfRequiredEqualReplies_ = 0;
-uint16_t RequestProcessingState::preProcessReqWaitTimeMilli_ = 0;
 
 uint64_t RequestProcessingState::getMonotonicTimeMilli() {
   steady_clock::time_point curTimePoint = steady_clock::now();
   return duration_cast<milliseconds>(curTimePoint.time_since_epoch()).count();
 }
 
-void RequestProcessingState::init(uint16_t numOfRequiredReplies, uint16_t preProcessReqWaitTimeMilli) {
-  numOfRequiredEqualReplies_ = numOfRequiredReplies;
-  preProcessReqWaitTimeMilli_ = preProcessReqWaitTimeMilli;
-}
+void RequestProcessingState::init(uint16_t numOfRequiredReplies) { numOfRequiredEqualReplies_ = numOfRequiredReplies; }
 
 RequestProcessingState::RequestProcessingState(uint16_t numOfReplicas,
                                                ReqId reqSeqNum,
@@ -60,7 +56,7 @@ void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessRes
       convertToArray(SHA3_256().digest(primaryPreProcessResult_, primaryPreProcessResultLen_).data());
 }
 
-void RequestProcessingState::handlePreProcessReplyMsg(PreProcessReplyMsgSharedPtr preProcessReplyMsg) {
+void RequestProcessingState::handlePreProcessReplyMsg(const PreProcessReplyMsgSharedPtr &preProcessReplyMsg) {
   numOfReceivedReplies_++;
   preProcessingResultHashes_[convertToArray(preProcessReplyMsg->resultsHash())]++;  // Count equal hashes
 }
@@ -83,41 +79,25 @@ auto RequestProcessingState::calculateMaxNbrOfEqualHashes(uint16_t &maxNumOfEqua
   return itOfChosenHash;
 }
 
-// Primary replica logic
-bool RequestProcessingState::isReqTimedOut() const {
+bool RequestProcessingState::isReqTimedOut(bool isPrimary) const {
   if (!clientPreProcessReqMsg_) return false;
 
-  // Check request timeout once asynchronous primary pre-execution completed (to not abort the execution thread)
-  if (primaryPreProcessResultLen_ != 0) {
+  if (!isPrimary || primaryPreProcessResultLen_ != 0) {
+    // On the primary: check request timeout once an asynchronous pre-execution completed (to not abort the execution
+    // thread)
     auto reqProcessingTime = getMonotonicTimeMilli() - entryTime_;
     if (reqProcessingTime > clientPreProcessReqMsg_->requestTimeoutMilli()) {
       LOG_WARN(GL,
                "Request timeout of " << clientPreProcessReqMsg_->requestTimeoutMilli() << " ms expired for reqSeqNum="
                                      << reqSeqNum_ << " clientId=" << clientPreProcessReqMsg_->clientProxyId()
-                                     << " reqProcessingTime=" << reqProcessingTime);
+                                     << " reqProcessingTime=" << reqProcessingTime << " isPrimary=" << isPrimary);
       return true;
     }
   }
   return false;
 }
 
-// Non-primary replica logic
-bool RequestProcessingState::isPreProcessReqMsgReceivedInTime() const {
-  if (!clientPreProcessReqMsg_) return true;
-
-  // Check if the request was registered for too long after been received from the client
-  auto clientRequestWaitingTimeMilli = getMonotonicTimeMilli() - entryTime_;
-  if (clientRequestWaitingTimeMilli > preProcessReqWaitTimeMilli_) {
-    LOG_WARN(GL,
-             "PreProcessRequestMsg did not arrive in time: preProcessReqWaitTimeMilli_="
-                 << preProcessReqWaitTimeMilli_ << " ms expired for reqSeqNum=" << reqSeqNum_
-                 << " from clientId=" << clientPreProcessReqMsg_->clientProxyId()
-                 << " clientRequestWaitingTimeMilli=" << clientRequestWaitingTimeMilli);
-    return false;
-  }
-  return true;
-}
-
+// The primary replica logic
 PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult() {
   if (numOfReceivedReplies_ < numOfRequiredEqualReplies_) return CONTINUE;
 
@@ -148,7 +128,7 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
   return CONTINUE;
 }
 
-unique_ptr<MessageBase> RequestProcessingState::convertClientPreProcessToClientMsg(bool resetPreProcessFlag) {
+unique_ptr<MessageBase> RequestProcessingState::buildClientRequestMsg(bool resetPreProcessFlag) {
   return clientPreProcessReqMsg_->convertToClientRequestMsg(resetPreProcessFlag);
 }
 
