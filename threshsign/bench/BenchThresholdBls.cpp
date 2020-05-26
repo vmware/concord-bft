@@ -105,13 +105,13 @@ class ThresholdBlsRelicBenchmark : public IThresholdSchemeBenchmark {
 
     // Compute signature sizes
     sigBits = verifier->requiredLengthForSignedData();
-    threshSig = new char[sigBits];
+    threshSig = new char[static_cast<size_t>(sigBits)];
     LOG_DEBUG(GL, "Signature size: " << sigBits << " bytes");
 
     // For BLS, sigshare size is just |sig| + ceil(\log_2{numSigners}), but we should probably not count that
     // since we can use the IP address in most application as the identifier.
     sigShareBits = dynamic_cast<BlsThresholdSigner*>(sks[1])->requiredLengthForSignedData();
-    for (size_t idx = 0; idx < shares.size(); idx++) shares[idx] = new char[sigShareBits];
+    for (size_t idx = 0; idx < shares.size(); idx++) shares[idx] = new char[static_cast<size_t>(sigShareBits)];
   }
 
  public:

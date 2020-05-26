@@ -97,7 +97,7 @@ void BlsThresholdVerifier::serializePublicKey(const BlsPublicKey &key, std::ostr
   int publicKeySize = key.y.getByteCount();
   LOG_TRACE(logger(), "<<< public key size: " << publicKeySize);
   serialize(outStream, publicKeySize);
-  unsigned char *publicKeyBuf = new unsigned char[publicKeySize];
+  unsigned char *publicKeyBuf = new unsigned char[static_cast<size_t>(publicKeySize)];
   key.y.toBytes(publicKeyBuf, publicKeySize);
   outStream.write((char *)publicKeyBuf, publicKeySize);
   LOG_TRACE(logger(), "<<< public key buf: [" << key.y.toString() << "]");
@@ -128,7 +128,7 @@ G2T BlsThresholdVerifier::deserializePublicKey(istream &inStream) {
   int publicKeySize = 0;
   deserialize(inStream, publicKeySize);
   LOG_TRACE(concordlogger::Log::getLogger("serialize"), ">>> public key size: " << publicKeySize);
-  unsigned char *publicKeyBuf = new unsigned char[publicKeySize];
+  unsigned char *publicKeyBuf = new unsigned char[static_cast<size_t>(publicKeySize)];
   inStream.read((char *)publicKeyBuf, publicKeySize);
   G2T g2t_(publicKeyBuf, publicKeySize);
   LOG_TRACE(concordlogger::Log::getLogger("serialize"), ">>> public key buf: [" << g2t_.toString() << "]");
