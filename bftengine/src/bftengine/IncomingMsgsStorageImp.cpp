@@ -126,7 +126,8 @@ IncomingMsg IncomingMsgsStorageImp::popThreadLocal() {
 
 void IncomingMsgsStorageImp::dispatchMessages(std::promise<void>& signalStarted) {
   signalStarted.set_value();
-  MDC_PUT(GL, "rid", std::to_string(replicaId_));
+  MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(replicaId_));
+  MDC_PUT(MDC_THREAD_KEY, "message-processing");
   try {
     while (!stopped_) {
       auto msg = getMsgForProcessing();

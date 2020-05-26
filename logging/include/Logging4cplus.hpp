@@ -14,6 +14,7 @@
 
 #include <string>
 #include <log4cplus/loggingmacros.h>
+#include <log4cplus/mdc.h>
 #ifdef USE_LOG4CPP
 
 namespace concordlogger {
@@ -33,5 +34,8 @@ typedef log4cplus::Logger Logger;
 #define LOG_ERROR(l, s) LOG4CPLUS_ERROR(l, s)
 
 #define LOG_FATAL(l, s) LOG4CPLUS_FATAL(l, s)
+
+#define MDC_PUT(k, v) log4cplus::getMDC().put(k, v)
+#define MDC_REMOVE(k) log4cplus::getMDC().remove(k)
 
 #endif

@@ -12,6 +12,11 @@
 
 #pragma once
 
+#define MDC_THREAD_KEY "thread"
+#define MDC_REPLICA_ID_KEY "rid"
+#define MDC_CID_KEY "cid"
+#define MDC_SEQ_NUM_KEY "sn"
+
 #ifndef USE_LOG4CPP
 #include "Logging.hpp"
 #else
@@ -33,26 +38,23 @@ class Log {
   static void initLogger(const std::string& configFileName);
 };
 
-class MDC {
-  concordlogger::Logger& logger_;
-  std::string key_;
-
+class ScopedMdc {
  public:
-  MDC(concordlogger::Logger& logger, const std::string& key, const std::string& value);
-  MDC(concordlogger::Logger& logger, const std::string& key, int value) : MDC(logger, key, std::to_string(value)) {}
-  ~MDC();
+  ScopedMdc(const std::string& key, const std::string& val);
+  ~ScopedMdc();
+
+ private:
+  const std::string key_;
 };
 
 }  // namespace concordlogger
 
 /*
  * These macros are meant to append temporary key-value pairs to the log messages.
- * The duration of this adding is the scope where MDC_PUT was called - when reaching to the end of this scope,
+ * The duration of this adding is the scope where SCOPED_MDC was called - when reaching to the end of this scope,
  * the key-value will be automatically removed.
- * When using the internal logger of concord-bft, the temporary key-value will be added to the given logger.
- * When using log4cpp, the key-value pair will be added to the current thread logger.
  */
-#define MDC_PUT(l, k, v) concordlogger::MDC mdc_((l), (k), (v))
-#define CID_KEY "cid"
-#define MDC_CID_PUT(l, v) MDC_PUT(l, CID_KEY, v)
-#define SEQ_NUM_KEY "sn"
+
+#define SCOPED_MDC(k, v) concordlogger::ScopedMdc __s_mdc__(k, v)
+#define SCOPED_MDC_CID(v) concordlogger::ScopedMdc __s_mdc_cid__(MDC_CID_KEY, v)
+#define SCOPED_MDC_SEQ_NUM(v) concordlogger::ScopedMdc __s_mdc_seq_num__(MDC_SEQ_NUM_KEY, v)
