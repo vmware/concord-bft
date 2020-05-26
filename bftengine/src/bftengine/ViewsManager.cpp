@@ -15,6 +15,7 @@
 #include <set>
 #include <vector>
 
+#include "Logger.hpp"
 #include "PrimitiveTypes.hpp"
 #include "ViewsManager.hpp"
 #include "ReplicasInfo.hpp"
@@ -568,13 +569,17 @@ bool ViewsManager::tryToEnterView(ViewNum v,
   debugHighestViewNumberPassedByClient = v;
   debugHighestKnownStable = currentLastStable;
 
-  if (currentLastExecuted < currentLastStable)
+  if (currentLastExecuted < currentLastStable) {
     // we don't have state, let's wait for state synchronization...
+    LOG_INFO(GL, "**************** Waiting for state synchronization before entering view=" << v << " ...");
     return false;
+  }
 
-  if (currentLastStable < lowerBoundStableForPendingView)
+  if (currentLastStable < lowerBoundStableForPendingView) {
     // we don't have the latest stable point, let's wait for more information
+    LOG_INFO(GL, "**************** Waiting for latest stable point before entering view=" << v << " ...");
     return false;
+  }
 
   // if we need a new pending view
   if (v > myLatestPendingView) {
@@ -595,9 +600,13 @@ bool ViewsManager::tryToEnterView(ViewNum v,
 
     stat = Stat::PENDING;
 
-    if (currentLastStable < lowerBoundStableForPendingView)
+    if (currentLastStable < lowerBoundStableForPendingView) {
       // we don't have the latest stable point, let's wait for more information
+      LOG_INFO(GL,
+               "**************** New pending view. The previous pending view was "
+                   << myLatestPendingView << ". Waiting for latest stable point before entering view=" << v << " ...");
       return false;
+    }
   }
 
   Assert(v == myLatestPendingView);
@@ -608,35 +617,45 @@ bool ViewsManager::tryToEnterView(ViewNum v,
     stat = Stat::PENDING_WITH_RESTRICTIONS;
 
     // BEGIN DEBUG CODE
-
-    printf("\n\n\nRestrictions for pending view %" PRId64 ":", this->myLatestPendingView);
+    LOG_DEBUG(GL,
+              "Restrictions for pending view=" << this->myLatestPendingView
+                                               << ", minSeq=" << minRestrictionOfPendingView
+                                               << ", maxSeq=" << maxRestrictionOfPendingView << ".");
 
     if (minRestrictionOfPendingView == 0) {
-      printf("None\n");
+      LOG_DEBUG(GL, "No Restrictions of pending view\n");
     } else {
       for (SeqNum i = minRestrictionOfPendingView; i <= maxRestrictionOfPendingView; i++) {
         uint64_t idx = i - minRestrictionOfPendingView;
-        printf("\n");
-        printf("Seqnum=%" PRId64 ", isNull=%d, digestPrefix=%d .     ",
-               i,
-               static_cast<int>(restrictionsOfPendingView[idx].isNull),
-               *reinterpret_cast<int*>(restrictionsOfPendingView[idx].digest.content()));
-        if (prePrepareMsgsOfRestrictions[idx] == nullptr)
-          printf("PP=null .");
-        else
-          printf("PP seq=%" PRId64 ", digestPrefix=%d .",
-                 prePrepareMsgsOfRestrictions[idx]->seqNumber(),
-                 *reinterpret_cast<int*>(prePrepareMsgsOfRestrictions[idx]->digestOfRequests().content()));
-        printf("\n");
+        bool bHasPP = (prePrepareMsgsOfRestrictions[idx] != nullptr);
+        LOG_DEBUG(
+            GL,
+            "Seqnum=" << i << ", isNull=" << static_cast<int>(restrictionsOfPendingView[idx].isNull)
+                      << ", digestPrefix=" << *reinterpret_cast<int*>(restrictionsOfPendingView[idx].digest.content())
+                      << (bHasPP ? " ." : ", PP=null ."));
+        if (bHasPP) {
+          LOG_DEBUG(
+              GL,
+              "PP seq=" << prePrepareMsgsOfRestrictions[idx]->seqNumber() << ", digestPrefix="
+                        << *reinterpret_cast<int*>(prePrepareMsgsOfRestrictions[idx]->digestOfRequests().content())
+                        << " .");
+        }
       }
     }
 
     // END DEBUG CODE
   }
 
-  // return if we don't have restrictions, or some messages are missing
-  if ((stat != Stat::PENDING_WITH_RESTRICTIONS) || hasMissingMsgs(currentLastStable)) return false;
-
+  // return if we don't have restrictions
+  if (stat != Stat::PENDING_WITH_RESTRICTIONS) {
+    LOG_INFO(GL, "**************** Waiting for restrictions before entering view=" << v << " ...");
+    return false;
+  }
+  // return if some messages are missing
+  if (hasMissingMsgs(currentLastStable)) {
+    LOG_INFO(GL, "**************** Waiting for missing messages before entering view=" << v << " ...");
+    return false;
+  }
   ///////////////////////////////////////////////////////////////////////////
   // enter to view v
   ///////////////////////////////////////////////////////////////////////////
@@ -736,7 +755,11 @@ bool ViewsManager::tryMoveToPendingViewAsPrimary(ViewNum v) {
     if (relatedVCMsgs.size() == SMAJOR) break;
   }
 
-  if (relatedVCMsgs.size() < SMAJOR) return false;
+  if (relatedVCMsgs.size() < SMAJOR) {
+    LOG_INFO(GL,
+             "**************** Waiting for sufficient ViewChange messages to entering view=" << v << " as primary ...");
+    return false;
+  }
 
   Assert(relatedVCMsgs.size() == SMAJOR);
 
@@ -797,8 +820,10 @@ bool ViewsManager::tryMoveToPendingViewAsNonPrimary(ViewNum v) {
     }
   }
 
-  if (relatedVCMsgs.size() < MAJOR) return false;
-
+  if (relatedVCMsgs.size() < MAJOR) {
+    LOG_INFO(GL, "**************** Waiting for sufficient ViewChange messages to entering view=" << v << " ...");
+    return false;
+  }
   Assert(relatedVCMsgs.size() == MAJOR);
 
   Assert(newViewMsgOfOfPendingView == nullptr);
