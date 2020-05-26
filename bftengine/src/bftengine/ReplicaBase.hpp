@@ -40,7 +40,10 @@ class ReplicaBase {
   friend class MessageBase;
 
  public:
-  ReplicaBase(const ReplicaConfig&, std::shared_ptr<MsgsCommunicator>, std::shared_ptr<MsgHandlersRegistrator>);
+  ReplicaBase(const ReplicaConfig&,
+              std::shared_ptr<MsgsCommunicator>,
+              std::shared_ptr<MsgHandlersRegistrator>,
+              concordUtil::Timers& timers);
 
   virtual ~ReplicaBase() {}
 
@@ -62,6 +65,8 @@ class ReplicaBase {
   virtual void stop();
   SeqNum getLastExecutedSequenceNum() const { return lastExecutedSeqNum; }
   virtual bool isRunning() const;
+
+  auto& timers() { return timers_; }
 
  protected:
   // Message handling
@@ -112,6 +117,7 @@ class ReplicaBase {
   // Timers
   Timers::Handle debugStatTimer_;
   Timers::Handle metricsTimer_;
+  concordUtil::Timers& timers_;
 };
 
 }  // namespace bftEngine::impl

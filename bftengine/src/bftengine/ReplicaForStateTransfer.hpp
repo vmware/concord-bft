@@ -25,8 +25,8 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
                           IStateTransfer*,
                           std::shared_ptr<MsgsCommunicator>,
                           std::shared_ptr<MsgHandlersRegistrator>,
-                          bool firstTime  // TODO [TK] get rid of this
-  );
+                          bool firstTime,  // TODO [TK] get rid of this
+                          concordUtil::Timers& timers);
 
   IStateTransfer* getStateTransfer() const { return stateTransfer.get(); }
 

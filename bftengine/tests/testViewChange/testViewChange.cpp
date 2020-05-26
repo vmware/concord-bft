@@ -14,7 +14,6 @@
 #include "communication/CommFactory.hpp"
 #include "Logger.hpp"
 #include "ReplicaConfig.hpp"
-#include "TimersSingleton.hpp"
 #include "SimpleThreadPool.hpp"
 #include "ViewChangeSafetyLogic.hpp"
 #include "messages/PrePrepareMsg.hpp"

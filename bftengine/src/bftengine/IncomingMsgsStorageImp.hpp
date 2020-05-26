@@ -15,6 +15,7 @@
 
 #include "IncomingMsgsStorage.hpp"
 #include "MsgHandlersRegistrator.hpp"
+#include "Timers.hpp"
 
 #include <queue>
 #include <atomic>
@@ -55,6 +56,8 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
 
   [[nodiscard]] bool isRunning() const override { return dispatcherThread_.joinable(); }
 
+  auto& timers() { return timers_; }
+
  private:
   void dispatchMessages(std::promise<void>& signalStarted);
   IncomingMsg getMsgForProcessing();
@@ -86,6 +89,7 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
   std::thread dispatcherThread_;
   std::promise<void> signalStarted_;
   std::atomic<bool> stopped_ = false;
+  concordUtil::Timers timers_;
 };
 
 }  // namespace bftEngine::impl
