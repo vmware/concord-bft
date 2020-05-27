@@ -114,9 +114,22 @@ void remove(Walker& walker, const Hash& key_hash) {
 UpdateBatch Tree::update(const concord::kvbc::SetOfKeyValuePairs& updates,
                          const concord::kvbc::KeysVector& deleted_keys) {
   reset();
-
-  UpdateBatch batch;
   UpdateCache cache(root_, db_reader_);
+  return update_impl(updates, deleted_keys, cache);
+}
+
+std::pair<UpdateBatch, UpdateCache> Tree::update_with_cache(const concord::kvbc::SetOfKeyValuePairs& updates,
+                                                            const concord::kvbc::KeysVector& deleted_keys) {
+  reset();
+  UpdateCache cache(root_, db_reader_);
+  auto batch = update_impl(updates, deleted_keys, cache);
+  return std::make_pair(batch, cache);
+}
+
+UpdateBatch Tree::update_impl(const concord::kvbc::SetOfKeyValuePairs& updates,
+                              const concord::kvbc::KeysVector& deleted_keys,
+                              UpdateCache& cache) {
+  UpdateBatch batch;
   const auto version = cache.version();
   Hasher hasher;
 
@@ -139,7 +152,7 @@ UpdateBatch Tree::update(const concord::kvbc::SetOfKeyValuePairs& updates,
   }
 
   // Create and return the UpdateBatch
-  batch.stale = std::move(cache.stale());
+  batch.stale = cache.stale();
   batch.stale.stale_since_version = version;
   for (auto& it : cache.internalNodes()) {
     batch.internal_nodes.emplace_back(InternalNodeKey(version, it.first), it.second);

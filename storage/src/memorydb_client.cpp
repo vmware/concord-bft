@@ -220,7 +220,7 @@ KeyValuePair ClientIterator::last() {
 KeyValuePair ClientIterator::seekAtLeast(const Sliver &_searchKey) {
   m_current = m_parentClient->getMap().lower_bound(_searchKey);
   if (m_current == m_parentClient->getMap().end()) {
-    LOG_WARN(logger, "Key " << _searchKey << " not found");
+    LOG_TRACE(logger, "Key " << _searchKey << " not found");
     return KeyValuePair();
   }
 
@@ -239,7 +239,7 @@ KeyValuePair ClientIterator::seekAtMost(const Sliver &_searchKey) {
   const auto &map = m_parentClient->getMap();
   if (map.empty()) {
     m_current = map.end();
-    LOG_WARN(logger, "Key " << _searchKey << " not found");
+    LOG_TRACE(logger, "Key " << _searchKey << " not found");
     return KeyValuePair();
   }
 

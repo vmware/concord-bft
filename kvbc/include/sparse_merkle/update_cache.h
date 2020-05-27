@@ -41,6 +41,9 @@ class UpdateCache {
   const auto& internalNodes() const { return internal_nodes_; }
   Version version() const { return version_; }
 
+  // Used for testing purposes only.
+  auto& internalNodes() { return internal_nodes_; }
+
   // Return the root if it's been updated and stored in the cache. Otherwise
   // return the root at the time of cache creation.
   const BatchedInternalNode& getRoot();
