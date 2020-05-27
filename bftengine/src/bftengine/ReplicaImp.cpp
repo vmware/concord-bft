@@ -3097,9 +3097,14 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg *ppMsg, bool recov
     reqIdx = 0;
     requestBody = nullptr;
 
-    LOG_INFO(GL,
-             "Commit path analysis: Consensus duration [" << controller->durationSincePrePrepare(lastExecutedSeqNum + 1)
-                                                          << "ms]");
+    auto dur = controller->durationSincePrePrepare(lastExecutedSeqNum + 1);
+    if (dur > 0) {
+      // Primary
+      LOG_INFO(GL, "Commit path analysis: Consensus reached, duration [" << dur << "ms]");
+
+    } else {
+      LOG_INFO(GL, "Commit path analysis: Consensus reached");
+    }
 
     while (reqIter.getAndGoToNext(requestBody)) {
       size_t tmp = reqIdx;

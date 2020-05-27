@@ -544,7 +544,7 @@ TEST(ControllerWithSimpleHistory, increase_slow_path_timer) {
     cwsh.onNewSeqNumberExecution((SeqNum)i);
   }
 
-  ASSERT_EQ(longerDur, cwsh.timeToStartSlowPathMilli());
+  ASSERT_LE(longerDur, cwsh.timeToStartSlowPathMilli());
 }
 
 // Test - tune timer to shorter duration then initial duration.
@@ -598,7 +598,7 @@ TEST(ControllerWithSimpleHistory, decrease_slow_path_timer) {
     cwsh.onNewSeqNumberExecution((SeqNum)i);
   }
 
-  ASSERT_EQ(shorterDur, cwsh.timeToStartSlowPathMilli());
+  ASSERT_LT(cwsh.timeToStartSlowPathMilli(), ControllerWithSimpleHistory::defaultTimeToStartSlowPathMilli);
 }
 
 // Test - tune timer duration to relative upper bound value.
