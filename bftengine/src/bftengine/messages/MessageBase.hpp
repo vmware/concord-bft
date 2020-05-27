@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <type_traits>
 #include "SysConsts.hpp"
 #include "PrimitiveTypes.hpp"
 #include "MsgCode.hpp"
@@ -115,6 +116,7 @@ class MessageBase {
 
 template <typename MessageT>
 size_t sizeOfHeader() {
+  static_assert(std::is_convertible<MessageT *, MessageBase *>::value);
   return sizeof(typename MessageT::Header);
 }
 
