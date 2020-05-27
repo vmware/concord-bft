@@ -214,7 +214,7 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
   preProcessorMetrics_.preProcReqReceived.Get().Inc();
   ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg(msg);
 
-  MDC_CID_PUT(GL, clientPreProcessReqMsg->getCid());
+  SCOPED_MDC_CID(clientPreProcessReqMsg->getCid());
   const NodeIdType &senderId = clientPreProcessReqMsg->senderId();
   const NodeIdType &clientId = clientPreProcessReqMsg->clientProxyId();
   const ReqId &reqSeqNum = clientPreProcessReqMsg->requestSeqNum();
@@ -259,7 +259,7 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
 // Non-primary replica request handling
 template <>
 void PreProcessor::onMessage<PreProcessRequestMsg>(PreProcessRequestMsg *msg) {
-  MDC_CID_PUT(GL, msg->getCid());
+  SCOPED_MDC_CID(msg->getCid());
   PreProcessRequestMsgSharedPtr preProcessReqMsg(msg);
   const NodeIdType &senderId = preProcessReqMsg->senderId();
   const SeqNum &reqSeqNum = preProcessReqMsg->reqSeqNum();
@@ -299,7 +299,7 @@ void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *msg) {
   const NodeIdType &clientId = preProcessReplyMsg->clientId();
   const SeqNum &reqSeqNum = preProcessReplyMsg->reqSeqNum();
   string cid = preProcessReplyMsg->getCid();
-  MDC_CID_PUT(GL, cid);
+  SCOPED_MDC_CID(cid);
   PreProcessingResult result = CANCEL;
   LOG_DEBUG(GL,
             "Received PreProcessReplyMsg reqSeqNum=" << preProcessReplyMsg->reqSeqNum() << " from replica=" << senderId
@@ -325,7 +325,7 @@ void PreProcessor::handlePreProcessReplyMsg(const string &cid,
                                             PreProcessingResult result,
                                             NodeIdType clientId,
                                             SeqNum reqSeqNum) {
-  MDC_CID_PUT(GL, cid);
+  SCOPED_MDC_CID(cid);
   switch (result) {
     case NONE:      // No action required - pre-processing has been already completed
     case CONTINUE:  // Not enough equal hashes collected
@@ -592,7 +592,7 @@ void PreProcessor::handlePreProcessedReqByNonPrimary(uint16_t clientId,
 void PreProcessor::handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                              bool isPrimary,
                                              bool isRetry) {
-  MDC_CID_PUT(GL, preProcessReqMsg->getCid());
+  SCOPED_MDC_CID(preProcessReqMsg->getCid());
   const uint16_t &clientId = preProcessReqMsg->clientId();
   const SeqNum &reqSeqNum = preProcessReqMsg->reqSeqNum();
   uint32_t actualResultBufLen =
@@ -616,7 +616,8 @@ AsyncPreProcessJob::AsyncPreProcessJob(PreProcessor &preProcessor,
     : preProcessor_(preProcessor), preProcessReqMsg_(preProcessReqMsg), isPrimary_(isPrimary), isRetry_(isRetry) {}
 
 void AsyncPreProcessJob::execute() {
-  MDC_PUT(GL, "rid", preProcessor_.myReplicaId_);
+  MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(preProcessor_.myReplicaId_));
+  MDC_PUT(MDC_THREAD_KEY, "async-preprocess");
   preProcessor_.handleReqPreProcessingJob(preProcessReqMsg_, isPrimary_, isRetry_);
 }
 

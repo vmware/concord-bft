@@ -33,7 +33,8 @@ void run_replica(int argc, char** argv) {
   const auto setup = TestSetup::ParseArgs(argc, argv);
   concordlogger::Log::initLogger("log4cplus.properties");
   auto logger = setup->GetLogger();
-  MDC_PUT(GL, "rid", std::to_string(setup->GetReplicaConfig().replicaId));
+  MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(setup->GetReplicaConfig().replicaId));
+  MDC_PUT(MDC_THREAD_KEY, "main");
 
   std::shared_ptr<ReplicaImp> replica = std::make_shared<ReplicaImp>(setup->GetCommunication(),
                                                                      setup->GetReplicaConfig(),
@@ -60,17 +61,11 @@ void run_replica(int argc, char** argv) {
 using namespace std;
 
 void signal_handler(int signal_num) {
-  LOG_FATAL(GL, "Program received signal " << signal_num);
-  printCallStack();
-  raise(SIGABRT);
-  exit(signal_num);
+  LOG_INFO(GL, "Program received signal " << signal_num);
+  exit(0);
 }
 
 int main(int argc, char** argv) {
-  signal(SIGSEGV, signal_handler);
-  signal(SIGBUS, signal_handler);
-  signal(SIGILL, signal_handler);
-  signal(SIGFPE, signal_handler);
   signal(SIGINT, signal_handler);
   signal(SIGTERM, signal_handler);
 

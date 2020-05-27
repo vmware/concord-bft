@@ -21,7 +21,7 @@ class AutoBuf {
   int len;
 
  public:
-  AutoBuf(int len) : buf(new T[len]), len(len) {}
+  AutoBuf(int len) : buf(new T[static_cast<size_t>(len)]), len(len) {}
 
   AutoBuf(const AutoBuf<T>& ab) : AutoBuf(ab.len) { std::copy(ab.buf, ab.buf + ab.len, buf); }
 
