@@ -75,13 +75,13 @@ inline void printCallStack() {
     assert(false);                                                                                               \
   }
 
-#define PRINT_DATA_AND_ASSERT(expr1, expr2, assertMacro)                                                              \
-  {                                                                                                                   \
-    LOG_FATAL(GL,                                                                                                     \
-              " " << assertMacro << KVLOG(expr1, expr2) << " in function " << __FUNCTION__ << " (" << __FILE__ << " " \
-                  << __LINE__ << ")");                                                                                \
-    printCallStack();                                                                                                 \
-    assert(false);                                                                                                    \
+#define PRINT_DATA_AND_ASSERT(expr1, expr2, assertMacro)                                                      \
+  {                                                                                                           \
+    LOG_FATAL(GL,                                                                                             \
+              " " << assertMacro << KVLOG_FOR_ASSERT(expr1, expr2) << " in function " << __FUNCTION__ << " (" \
+                  << __FILE__ << " " << __LINE__ << ")");                                                     \
+    printCallStack();                                                                                         \
+    assert(false);                                                                                            \
   }
 
 #define Assert(expr)                                                                                              \
@@ -135,6 +135,9 @@ inline void printCallStack() {
   }
 
 // Assert(expr1 && expr2)
+// TODO: AJS - Remove this. This is doesn't take advantage of value printing in
+// PRINT_DATA_AND_ASSERT. All uses should be changed to be separate asserts.
+// Ideally we'd do similar for AssertOR, but this requires conditionals outside of asserts.
 #define AssertAND(expr1, expr2)                                                                         \
   {                                                                                                     \
     if ((expr1) != true || (expr2) != true) PRINT_DATA_AND_ASSERT_BOOL_EXPR(expr1, expr2, "AssertAND"); \
