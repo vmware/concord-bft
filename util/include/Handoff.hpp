@@ -18,6 +18,8 @@
 #include <condition_variable>
 #include <functional>
 #include <exception>
+#include <optional>
+#include <string>
 #include "Logger.hpp"
 
 namespace concord::util {
@@ -31,11 +33,13 @@ class Handoff {
   typedef std::function<void()> func_type;
 
  public:
-  Handoff(std::uint16_t replicaId) {
-    thread_ = std::thread([this, replicaId] {
+  Handoff(std::string threadName, std::optional<std::uint16_t> replicaId = std::nullopt) {
+    thread_ = std::thread([this, threadName, replicaId] {
       try {
-        MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(replicaId));
-        MDC_PUT(MDC_THREAD_KEY, "handoff");
+        MDC_PUT(MDC_THREAD_KEY, threadName);
+        if (replicaId) {
+          MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(*replicaId));
+        }
         for (;;) pop()();
       } catch (ThreadCanceledException& e) {
         LOG_DEBUG(getLogger(), "thread stopped " << std::this_thread::get_id());
@@ -45,6 +49,7 @@ class Handoff {
       }
     });
   }
+
   ~Handoff() {
     stopped_ = true;
     queue_cond_.notify_one();

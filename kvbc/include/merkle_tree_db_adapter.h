@@ -15,6 +15,7 @@
 
 #include "assertUtils.hpp"
 #include "db_adapter_interface.h"
+#include "Handoff.hpp"
 #include "kv_types.hpp"
 #include "Logger.hpp"
 #include "merkle_tree_block.h"
@@ -155,7 +156,8 @@ class DBAdapter : public IDbAdapter {
  private:
   concordUtils::Sliver createBlockNode(const SetOfKeyValuePairs &updates,
                                        const OrderedKeysSet &deletes,
-                                       BlockId blockId) const;
+                                       BlockId blockId,
+                                       const BlockDigest &parentBlockDigest) const;
 
   // Try to link the ST temporary chain to the blockchain from the passed blockId up to getLatestBlock().
   void linkSTChainFrom(BlockId blockId);
@@ -196,6 +198,7 @@ class DBAdapter : public IDbAdapter {
   logging::Logger logger_;
   std::shared_ptr<storage::IDBClient> db_;
   sparse_merkle::Tree smTree_;
+  concord::util::Handoff asyncExecutor_{"merkle-async-executor"};
 };
 
 namespace detail {

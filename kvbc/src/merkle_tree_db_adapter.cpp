@@ -21,6 +21,7 @@
 #include "string.hpp"
 
 #include <exception>
+#include <future>
 #include <iterator>
 #include <limits>
 #include <memory>
@@ -200,14 +201,8 @@ BlockId DBAdapter::getLatestBlockId() const {
 
 Sliver DBAdapter::createBlockNode(const SetOfKeyValuePairs &updates,
                                   const OrderedKeysSet &deletes,
-                                  BlockId blockId) const {
-  // Make sure the digest is zero-initialized by using {} initialization.
-  auto parentBlockDigest = BlockDigest{};
-  if (blockId > INITIAL_GENESIS_BLOCK_ID) {
-    const auto parentBlock = getRawBlock(blockId - 1);
-    parentBlockDigest = computeBlockDigest(blockId - 1, parentBlock.data(), parentBlock.length());
-  }
-
+                                  BlockId blockId,
+                                  const BlockDigest &parentBlockDigest) const {
   auto node = block::detail::Node{blockId, parentBlockDigest, smTree_.get_root_hash(), smTree_.get_version()};
   for (const auto &kv : updates) {
     node.keys.emplace(kv.first, block::detail::KeyData{false});
@@ -266,6 +261,25 @@ RawBlock DBAdapter::getRawBlock(const BlockId &blockId) const {
 SetOfKeyValuePairs DBAdapter::lastReachableBlockDbUpdates(const SetOfKeyValuePairs &updates,
                                                           const OrderedKeysSet &deletes,
                                                           BlockId blockId) {
+  auto parentBlock = std::optional<RawBlock>{std::nullopt};
+  if (blockId > INITIAL_GENESIS_BLOCK_ID) {
+    parentBlock = getRawBlock(blockId - 1);
+  }
+
+  auto parentBlockDigestTask = std::make_shared<std::packaged_task<BlockDigest()>>([blockId, parentBlock] {
+    // Make sure the digest is zero-initialized by using {} initialization.
+    auto parentBlockDigest = BlockDigest{};
+    if (parentBlock) {
+      parentBlockDigest = computeBlockDigest(blockId - 1, parentBlock->data(), parentBlock->length());
+    }
+    return parentBlockDigest;
+  });
+
+  auto parentBlockDigestFuture = parentBlockDigestTask->get_future();
+
+  // Calculate the parent block digest while updating the tree.
+  asyncExecutor_.push([parentBlockDigestTask]() { (*parentBlockDigestTask)(); });
+
   // Find keys that are deleted only and not updated. We need that list, because updates take precedence over deletes
   // and we should only try to update deleted keys.
   auto deletesOnly = KeysVector{};
@@ -303,7 +317,8 @@ SetOfKeyValuePairs DBAdapter::lastReachableBlockDbUpdates(const SetOfKeyValuePai
   }
 
   // Block node with updates and actually deleted keys.
-  dbUpdates[DBKeyManipulator::genBlockDbKey(blockId)] = createBlockNode(updates, actuallyDeleted, blockId);
+  dbUpdates[DBKeyManipulator::genBlockDbKey(blockId)] =
+      createBlockNode(updates, actuallyDeleted, blockId, parentBlockDigestFuture.get());
 
   return dbUpdates;
 }
