@@ -73,6 +73,9 @@ class ControllerWithSimpleHistory : public ControllerBase {
   // Returns true in case a sequence number is within the range of the current window.
   bool insideActiveWindow(const SeqNum& n);
 
+  // Returns the duration in milli, from the sending of the preprepare msg.
+  virtual int durationSincePrePrepare(SeqNum n) override;
+
   // Returns lower or upper bound, in case val is out of range, otherwise returns val.
   template <typename T>
   static const T& normalizeToRange(const T& lower, const T& upper, const T& val) {

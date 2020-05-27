@@ -17,18 +17,14 @@
 
 namespace concordlogger {
 
-Logger Log::getLogger(const std::string &name) { return Logger(name); }
+LogLevel CURRENT_LEVEL = LogLevel::info;
 
-void Log::initLogger(const std::string &configFileName) { /* TBD */
+Logger Log::getLogger(const std::string& name) { return Logger(name); }
+
+void Log::initLogger(const std::string& configFileName) { /* TBD */
 }
 
 static Logger defaultInitLogger() { return concordlogger::Log::getLogger(DEFAULT_LOGGER_NAME); }
-
-MDC::MDC(concordlogger::Logger &logger, const std::string &key, const std::string &value) : logger_(logger), key_(key) {
-  logger_.putMdc(key, value);
-}
-
-MDC::~MDC() { logger_.removeMdc(key_); }
 
 }  // namespace concordlogger
 #else
@@ -37,13 +33,12 @@ MDC::~MDC() { logger_.removeMdc(key_); }
 #include <log4cplus/helpers/property.h>
 #include <log4cplus/consoleappender.h>
 #include <log4cplus/fileappender.h>
-#include <log4cplus/mdc.h>
 
 using namespace log4cplus;
 
 namespace concordlogger {
 
-const char* logPattern = "%X{rid}|%d{%m-%d-%Y %H:%M:%S.%q}|%t|%-5p|%c|%M|%m%n";
+const char* logPattern = "%X{rid}|%d{%m-%d-%Y %H:%M:%S.%q}|%-5p|%c|%X{thread}|%M|%m%n";
 
 static Logger defaultInitLogger() {
   SharedAppenderPtr ca_ptr = SharedAppenderPtr(new ConsoleAppender(false, true));
@@ -64,17 +59,13 @@ void Log::initLogger(const std::string& configFileName) {
 }
 Logger Log::getLogger(const std::string& name) { return log4cplus::Logger::getInstance(name); }
 
-MDC::MDC(concordlogger::Logger& logger, const std::string& key, const std::string& value) : logger_(logger), key_(key) {
-  (void)logger_;
-  getMDC().put(key_, value);
-}
-
-MDC::~MDC() {
-  (void)logger_;
-  getMDC().remove(key_);
-}
-
 }  // namespace concordlogger
 #endif
 
+namespace concordlogger {
+
+ScopedMdc::ScopedMdc(const std::string& key, const std::string& val) : key_{key} { MDC_PUT(key, val); }
+ScopedMdc::~ScopedMdc() { MDC_REMOVE(key_); }
+
+}  // namespace concordlogger
 concordlogger::Logger GL = concordlogger::defaultInitLogger();

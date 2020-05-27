@@ -28,56 +28,73 @@ namespace concordlogger {
 // log levels as defined in log4cpp
 enum LogLevel { trace, debug, info, warn, error, fatal, off, all = trace };
 
-constexpr LogLevel CURRENT_LEVEL = LogLevel::info;
+extern LogLevel CURRENT_LEVEL;
+/**
+ * Mapped Diagnostic Context
+ */
+class MDC {
+ public:
+  typedef std::unordered_map<std::string, std::string> MDCMap;
 
+  MDC() = default;
+
+  void put(const std::string& key, const std::string& val) { mdc_map_.insert_or_assign(key, val); }
+  std::string get(const std::string& key) { return mdc_map_[key]; }
+  void remove(const std::string& key) { mdc_map_.erase(key); }
+  void clear() { mdc_map_.clear(); }
+
+  MDCMap const& getContext() const { return mdc_map_; }
+
+ private:
+  MDCMap mdc_map_;
+};
+
+/**
+ * Logger Thread Context
+ * thread local
+ */
+class ThreadContext {
+ public:
+  MDC& getMDC() { return mdc_; }
+
+ private:
+  MDC mdc_;
+};
+
+/**
+ * Main Logger Facility
+ */
 class Logger {
-  std::string _name;
+  std::string name_;
   std::array<std::string, 6> LEVELS_STRINGS = {"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"};
-  std::unordered_map<std::string, std::string> mdc_;
-  mutable std::mutex mdc_mutex_;
-  // If you add new members, don't forget to handle them in copy constructor and operator=
 
  public:
-  explicit Logger(std::string name) : _name{std::move(name)} {}
+  explicit Logger(std::string name) : name_{std::move(name)} {}
   Logger(const Logger& l) {
-    std::lock_guard<std::mutex> lock(l.mdc_mutex_);
-
-    _name = l._name;
+    name_ = l.name_;
     LEVELS_STRINGS = l.LEVELS_STRINGS;
-    mdc_ = l.mdc_;
   }
 
   Logger& operator=(const Logger& rhs) {
-    if (this == &rhs) {
-      return *this;
-    }
-
-    std::lock_guard<std::mutex> lock_rhs(rhs.mdc_mutex_);
-    std::lock_guard<std::mutex> lock(mdc_mutex_);
-
-    _name = rhs._name;
+    if (this == &rhs) return *this;
+    name_ = rhs.name_;
     LEVELS_STRINGS = rhs.LEVELS_STRINGS;
-    mdc_ = rhs.mdc_;
 
     return *this;
   }
 
-  void print(concordlogger::LogLevel l, const std::string& s) const {
+  void print(concordlogger::LogLevel l, const char* func, const std::string& s) const {
     std::stringstream time;
     get_time(time);
-    std::cout << Logger::LEVELS_STRINGS[l].c_str() << " " << time.str() << " "
-              << "(" << _name << ")"
-              << " " << mdcToStr() << " " << s << std::endl;
+    std::cout << getThreadContext().getMDC().get(MDC_REPLICA_ID_KEY) << "|" << time.str() << "|"
+              << Logger::LEVELS_STRINGS[l].c_str() << "|" << name_ << "|"
+              << getThreadContext().getMDC().get(MDC_THREAD_KEY) << "|" << getThreadContext().getMDC().get(MDC_CID_KEY)
+              << "|" << getThreadContext().getMDC().get(MDC_SEQ_NUM_KEY) << "|" << func << "|" << s << std::endl;
   }
 
-  void putMdc(const std::string& key, const std::string& val) {
-    std::lock_guard<std::mutex> lock(mdc_mutex_);
-    mdc_.emplace(key, val);
-  }
-
-  void removeMdc(const std::string& key) {
-    std::lock_guard<std::mutex> lock(mdc_mutex_);
-    mdc_.erase(key);
+  static ThreadContext& getThreadContext() {
+    static thread_local ThreadContext t_;
+    return t_;
   }
 
  private:
@@ -89,18 +106,6 @@ class Logger {
     std::tm bt = *std::localtime(&timer);
     ss << std::put_time(&bt, "%F %T") << "." << std::setfill('0') << std::setw(3) << ms.count();
   }
-
-  inline const std::string mdcToStr() const {
-    std::lock_guard<std::mutex> lock(mdc_mutex_);
-    if (mdc_.empty()) return "";
-    std::stringstream s;
-    s << "%";
-    for (auto& p : mdc_) {
-      s << "{" << p.first << "," << p.second << "}";
-    }
-    s << "%";
-    return s.str();
-  }
 };
 
 }  // namespace concordlogger
@@ -109,7 +114,7 @@ class Logger {
   if (concordlogger::CURRENT_LEVEL != concordlogger::LogLevel::off && level >= concordlogger::CURRENT_LEVEL) { \
     std::ostringstream oss;                                                                                    \
     oss << s;                                                                                                  \
-    logger.print(level, oss.str());                                                                            \
+    logger.print(level, __PRETTY_FUNCTION__, oss.str());                                                       \
   }
 
 #define LOG_TRACE(l, s) LOG_COMMON(l, concordlogger::LogLevel::trace, s)
@@ -123,5 +128,8 @@ class Logger {
 #define LOG_ERROR(l, s) LOG_COMMON(l, concordlogger::LogLevel::error, s)
 
 #define LOG_FATAL(l, s) LOG_COMMON(l, concordlogger::LogLevel::fatal, s)
+
+#define MDC_PUT(k, v) concordlogger::Logger::getThreadContext().getMDC().put(k, v);
+#define MDC_REMOVE(k) concordlogger::Logger::getThreadContext().getMDC().remove(k);
 
 #endif

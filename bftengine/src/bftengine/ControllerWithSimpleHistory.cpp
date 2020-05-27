@@ -92,8 +92,8 @@ bool ControllerWithSimpleHistory::onNewSeqNumberExecution(SeqNum n) {
   if (s.switchToSlowPath || currentFirstPath == CommitPath::SLOW) {
     mdcPath = CommitPath::SLOW;
   }
-  MDC_SN_PUT(GL, n);
-  MDC_PATH_PUT(GL, CommitPathToMDCString(mdcPath));
+  SCOPED_MDC_SEQ_NUM(std::to_string(n));
+  SCOPED_MDC_PATH(CommitPathToMDCString(mdcPath));
 
   // This time includes the execution time, but it affects the consensus path.
   // i.e. the external engine affects bft behaviour. seems wrong.
@@ -235,6 +235,14 @@ void ControllerWithSimpleHistory::onSendingPrePrepare(SeqNum n, CommitPath commi
   if (s.prePrepareTime == MinTime && timePoint > MinTime) {
     s.prePrepareTime = timePoint;
   }
+}
+
+int ControllerWithSimpleHistory::durationSincePrePrepare(SeqNum n) {
+  if (!isPrimary || !recentActivity.insideActiveWindow(n)) return -1;
+
+  SeqNoInfo& s = recentActivity.get(n);
+
+  return std::chrono::duration_cast<std::chrono::milliseconds>(getMonotonicTime() - s.prePrepareTime).count();
 }
 
 void ControllerWithSimpleHistory::onStartingSlowCommit(SeqNum n) {

@@ -1,4 +1,4 @@
-<<// Concord
+// Concord
 //
 // Copyright (c) 2018, 2019 VMware, Inc. All Rights Reserved.
 //
@@ -133,8 +133,8 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   const ReqId reqSeqNum = m->requestSeqNum();
   const uint8_t flags = m->flags();
 
-  MDC_PRI_PUT(GL, currentPrimary());
-  MDC_CID_PUT(GL, m->getCid());
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
+  SCOPED_MDC_CID(m->getCid());
   LOG_DEBUG(GL,
             "Received ClientRequestMsg (clientId=" << clientId << " reqSeqNum=" << reqSeqNum << ", flags=" << (int)flags
                                                    << ") from senderId=" << senderId);
@@ -243,12 +243,13 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
     return;
   }
 
-  if (primaryLastUsedSeqNum + 1 > lastExecutedSeqNum + config_.concurrencyLevel)
+  if (primaryLastUsedSeqNum + 1 > lastExecutedSeqNum + config_.concurrencyLevel) {
     LOG_INFO(GL,
              "Will not send PrePrepare since next sequence number ["
                  << primaryLastUsedSeqNum + 1 << "] exceeds concurrency threshold ["
                  << lastExecutedSeqNum + config_.concurrencyLevel << "]");
-  return;  // TODO(GG): should also be checked by the non-primary replicas
+    return;  // TODO(GG): should also be checked by the non-primary replicas
+  }
 
   if (requestsQueueOfPrimary.empty()) return;
 
@@ -256,7 +257,7 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
   ClientRequestMsg *first = requestsQueueOfPrimary.front();
   while (first != nullptr &&
          !clientsManager->noPendingAndRequestCanBecomePending(first->clientProxyId(), first->requestSeqNum())) {
-    MDC_CID_PUT(GL, first->getCid());
+    SCOPED_MDC_CID(first->getCid());
     primaryCombinedReqSize -= first->size();
     delete first;
     requestsQueueOfPrimary.pop();
@@ -320,7 +321,7 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
 
   while (nextRequest != nullptr) {
     if (nextRequest->size() <= pp->remainingSizeForRequests()) {
-      MDC_CID_PUT(GL, nextRequest->getCid());
+      SCOPED_MDC_CID(nextRequest->getCid());
       if (clientsManager->noPendingAndRequestCanBecomePending(nextRequest->clientProxyId(),
                                                               nextRequest->requestSeqNum())) {
         pp->addRequest(nextRequest->body(), nextRequest->size());
@@ -351,8 +352,8 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
     DebugStatistics::onSendPrePrepareMessage(pp->numberOfRequests(), requestsQueueOfPrimary.size());
   }
   primaryLastUsedSeqNum++;
-  MDC_SN_PUT(GL, primaryLastUsedSeqNum);
-  MDC_PATH_PUT(GL, CommitPathToMDCString(firstPath));
+  SCOPED_MDC_SEQ_NUM(std::to_string(primaryLastUsedSeqNum));
+  SCOPED_MDC_PATH(CommitPathToMDCString(firstPath));
   {
     LOG_INFO(GL,
              "Commit path analysis: sending PrePrepare with the following payload of the following correlation ids ["
@@ -417,8 +418,8 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
   metric_received_pre_prepares_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
 
-  MDC_PRI_PUT(GL, currentPrimary());
-  MDC_SN_PUT(GL, msgSeqNum);
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
+  SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
   LOG_DEBUG(GL,
             "Node " << config_.replicaId << " received PrePrepareMsg from node " << msg->senderId() << " for seqNumber "
                     << msgSeqNum << " (size=" << msg->size() << ")");
@@ -447,7 +448,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     const bool slowStarted = (msg->firstPath() == CommitPath::SLOW || seqNumInfo.slowPathStarted());
 
     // For MDC it doesn't matter which type of fast path
-    MDC_PATH_PUT(GL, CommitPathToMDCString(slowStarted ? CommitPath::SLOW : CommitPath::OPTIMISTIC_FAST));
+    SCOPED_MDC_PATH(CommitPathToMDCString(slowStarted ? CommitPath::SLOW : CommitPath::OPTIMISTIC_FAST));
     if (seqNumInfo.addMsg(msg)) {
       {
         LOG_INFO(GL,
@@ -485,7 +486,7 @@ void ReplicaImp::tryToStartSlowPaths() {
              // invocations)
 
   const SeqNum minSeqNum = lastExecutedSeqNum + 1;
-  MDC_PRI_PUT(GL, currentPrimary());
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
 
   if (minSeqNum > lastStableSeqNum + kWorkWindowSize) {
     LOG_INFO(GL,
@@ -517,8 +518,8 @@ void ReplicaImp::tryToStartSlowPaths() {
     const Time timeOfPartProof = seqNumInfo.partialProofs().getTimeOfSelfPartialProof();
 
     if (currTime - timeOfPartProof < milliseconds(controller->timeToStartSlowPathMilli())) break;
-    MDC_SN_PUT(GL, i);
-    MDC_PATH_PUT(GL, CommitPathToMDCString(CommitPath::SLOW));
+    SCOPED_MDC_SEQ_NUM(std::to_string(i));
+    SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
     LOG_INFO(GL,
              "Commit path analysis: Primary initiates slow path for seqNum="
                  << i << " (currTime=" << duration_cast<microseconds>(currTime.time_since_epoch()).count()
@@ -612,7 +613,7 @@ template <>
 void ReplicaImp::onMessage<StartSlowCommitMsg>(StartSlowCommitMsg *msg) {
   metric_received_start_slow_commits_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
-  concordlogger::MDC seqNum(GL, SEQ_NUM_KEY, msgSeqNum);
+  SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
   LOG_INFO(GL, "Received StartSlowCommitMsg for seqNumber=" << msgSeqNum);
 
   if (relevantMsgForActiveView(msg)) {
@@ -715,9 +716,9 @@ void ReplicaImp::sendPreparePartial(SeqNumInfo &seqNumInfo) {
 void ReplicaImp::sendCommitPartial(const SeqNum s) {
   Assert(currentViewIsActive());
   Assert(mainLog->insideActiveWindow(s));
-  MDC_PRI_PUT(GL, currentPrimary());
-  MDC_SN_PUT(GL, s);
-  MDC_PATH_PUT(GL, CommitPathToMDCString(CommitPath::SLOW));
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
+  SCOPED_MDC_SEQ_NUM(std::to_string(s));
+  SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
 
   SeqNumInfo &seqNumInfo = mainLog->get(s);
   PrePrepareMsg *pp = seqNumInfo.getPrePrepareMsg();
@@ -746,9 +747,9 @@ void ReplicaImp::onMessage<PartialCommitProofMsg>(PartialCommitProofMsg *msg) {
   const SeqNum msgSeqNum = msg->seqNumber();
   const SeqNum msgView = msg->viewNumber();
   const NodeIdType msgSender = msg->senderId();
-  MDC_PRI_PUT(GL, currentPrimary());
-  MDC_SN_PUT(GL, msgSeqNum);
-  MDC_PATH_PUT(GL, CommitPathToMDCString(msg->commitPath()));
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
+  SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
+  SCOPED_MDC_PATH(CommitPathToMDCString(msg->commitPath()));
   Assert(repsInfo->isIdOfPeerReplica(msgSender));
   Assert(repsInfo->isCollectorForPartialProofs(msgView, msgSeqNum));
 
@@ -776,13 +777,13 @@ void ReplicaImp::onMessage<PartialCommitProofMsg>(PartialCommitProofMsg *msg) {
 template <>
 void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
   metric_received_full_commit_proofs_.Get().Inc();
-  MDC_PRI_PUT(GL, currentPrimary());
-  MDC_SN_PUT(GL, msg->seqNumber());
-  MDC_PATH_PUT(GL, CommitPathToMDCString(CommitPath::OPTIMISTIC_FAST));
+  const SeqNum msgSeqNum = msg->seqNumber();
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
+  SCOPED_MDC_SEQ_NUM(std::to_string(msg->seqNumber()));
+  SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::OPTIMISTIC_FAST));
+
   LOG_INFO(GL, "Commot path analysis: Reached consensus, Received FullCommitProofMsg message");
 
-  const SeqNum msgSeqNum = msg->seqNumber();
-  concordlogger::MDC seqNum(GL, SEQ_NUM_KEY, msgSeqNum);
   if (relevantMsgForActiveView(msg)) {
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
     PartialProofsSet &pps = seqNumInfo.partialProofs();
@@ -831,9 +832,11 @@ void ReplicaImp::onMessage<PreparePartialMsg>(PreparePartialMsg *msg) {
   metric_received_prepare_partials_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
-  MDC_PRI_PUT(GL, currentPrimary());
-  MDC_SN_PUT(GL, msgSeqNum);
-  MDC_PATH_PUT(GL, CommitPathToMDCString(CommitPath::SLOW));
+
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
+  SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
+  SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
+
   bool msgAdded = false;
 
   if (relevantMsgForActiveView(msg)) {
@@ -879,9 +882,11 @@ void ReplicaImp::onMessage<CommitPartialMsg>(CommitPartialMsg *msg) {
   metric_received_commit_partials_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
-  MDC_PRI_PUT(GL, currentPrimary());
-  MDC_SN_PUT(GL, msgSeqNum);
-  MDC_PATH_PUT(GL, CommitPathToMDCString(CommitPath::SLOW));
+
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
+  SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
+  SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
+
   bool msgAdded = false;
 
   if (relevantMsgForActiveView(msg)) {
@@ -917,9 +922,9 @@ void ReplicaImp::onMessage<PrepareFullMsg>(PrepareFullMsg *msg) {
   metric_received_prepare_fulls_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
-  MDC_PRI_PUT(GL, currentPrimary());
-  MDC_SN_PUT(GL, msgSeqNum);
-  MDC_PATH_PUT(GL, CommitPathToMDCString(CommitPath::SLOW));
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
+  SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
+  SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
   bool msgAdded = false;
 
   if (relevantMsgForActiveView(msg)) {
@@ -958,9 +963,9 @@ void ReplicaImp::onMessage<CommitFullMsg>(CommitFullMsg *msg) {
   metric_received_commit_fulls_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
-  MDC_PRI_PUT(GL, currentPrimary());
-  MDC_SN_PUT(GL, msgSeqNum);
-  MDC_PATH_PUT(GL, CommitPathToMDCString(CommitPath::SLOW));
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
+  SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
+  SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
   bool msgAdded = false;
 
   if (relevantMsgForActiveView(msg)) {
@@ -1016,9 +1021,9 @@ void ReplicaImp::onPrepareCombinedSigSucceeded(SeqNum seqNumber,
                                                ViewNum v,
                                                const char *combinedSig,
                                                uint16_t combinedSigLen) {
-  MDC_PRI_PUT(GL, currentPrimary());
-  MDC_SN_PUT(GL, seqNumber);
-  MDC_PATH_PUT(GL, CommitPathToMDCString(CommitPath::SLOW));
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
+  SCOPED_MDC_SEQ_NUM(std::to_string(seqNumber));
+  SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
   LOG_DEBUG(GL, "Node " << config_.replicaId << "  seqNumber=" << seqNumber << " view=" << v);
 
   if ((isCollectingState()) || (!currentViewIsActive()) || (curView != v) ||
@@ -1104,9 +1109,9 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
                                               ViewNum v,
                                               const char *combinedSig,
                                               uint16_t combinedSigLen) {
-  MDC_PRI_PUT(GL, currentPrimary());
-  MDC_SN_PUT(GL, seqNumber);
-  MDC_PATH_PUT(GL, CommitPathToMDCString(CommitPath::SLOW));
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
+  SCOPED_MDC_SEQ_NUM(std::to_string(seqNumber));
+  SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
   LOG_DEBUG(GL, "Node " << config_.replicaId << " seqNumber=" << seqNumber << " view=" << v);
 
   if (isCollectingState() || (!currentViewIsActive()) || (curView != v) || (!mainLog->insideActiveWindow(seqNumber))) {
@@ -1141,9 +1146,9 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
 }
 
 void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum v, bool isValid) {
-  MDC_PRI_PUT(GL, currentPrimary());
-  MDC_SN_PUT(GL, seqNumber);
-  MDC_PATH_PUT(GL, CommitPathToMDCString(CommitPath::SLOW));
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
+  SCOPED_MDC_SEQ_NUM(std::to_string(seqNumber));
+  SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
   LOG_DEBUG(GL, "Node " << config_.replicaId << " seqNumber=" << seqNumber << " view=" << v);
 
   if (isCollectingState() || (!currentViewIsActive()) || (curView != v) || (!mainLog->insideActiveWindow(seqNumber))) {
@@ -1177,7 +1182,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   const SeqNum msgSeqNum = msg->seqNumber();
   const Digest msgDigest = msg->digestOfState();
   const bool msgIsStable = msg->isStableState();
-  concordlogger::MDC seqNum(GL, SEQ_NUM_KEY, msgSeqNum);
+  SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
   LOG_DEBUG(GL,
             "Node " << config_.replicaId << " received Checkpoint message from node " << msgSenderId
                     << " for seqNumber " << msgSeqNum << " (size=" << msg->size() << ", stable="
@@ -2287,7 +2292,7 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
   metric_received_req_missing_datas_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
-  concordlogger::MDC seqNum(GL, SEQ_NUM_KEY, msgSeqNum);
+  SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
   LOG_INFO(GL,
            "Received ReqMissingDataMsg message from senderId=" << msgSender << " seqNumber=" << msgSeqNum
                                                                << ", flags=" << msg->getFlags());
@@ -2466,7 +2471,7 @@ void ReplicaImp::onMessage<SimpleAckMsg>(SimpleAckMsg *msg) {
   metric_received_simple_acks_.Get().Inc();
   if (retransmissionsLogicEnabled) {
     uint16_t relatedMsgType = (uint16_t)msg->ackData();  // TODO(GG): does this make sense ?
-    concordlogger::MDC seqNum(GL, SEQ_NUM_KEY, msg->seqNumber());
+    SCOPED_MDC_SEQ_NUM(std::to_string(msg->seqNumber()));
     LOG_DEBUG(GL,
               "Node " << config_.replicaId << " received SimpleAckMsg message from node " << msg->senderId()
                       << " for seqNumber " << msg->seqNumber() << " and type " << relatedMsgType);
@@ -3044,7 +3049,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg *ppMsg, bool recov
     if (!recoverFromErrorInRequestsExecution) {
       while (reqIter.getAndGoToNext(requestBody)) {
         ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
-        MDC_CID_PUT(GL, req.getCid());
+        SCOPED_MDC_CID(req.getCid());
         NodeIdType clientId = req.clientProxyId();
 
         const bool validClient = isValidClient(clientId);
@@ -3084,6 +3089,11 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg *ppMsg, bool recov
 
     reqIdx = 0;
     requestBody = nullptr;
+
+    LOG_INFO(GL,
+             "Commit path analysis: Consensus duration [" << controller->durationSincePrePrepare(lastExecutedSeqNum + 1)
+                                                          << "ms]");
+
     while (reqIter.getAndGoToNext(requestBody)) {
       size_t tmp = reqIdx;
       reqIdx++;
@@ -3092,8 +3102,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg *ppMsg, bool recov
       }
 
       ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
-      MDC_CID_PUT(GL, req.getCid());
-      LOG_INFO(GL, "Commit path analysis: calling execute handler");
+      SCOPED_MDC_CID(req.getCid());
       NodeIdType clientId = req.clientProxyId();
 
       uint32_t actualReplyLength = 0;
