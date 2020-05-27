@@ -241,7 +241,6 @@ int ControllerWithSimpleHistory::durationSincePrePrepare(SeqNum n) {
   if (!isPrimary || !recentActivity.insideActiveWindow(n)) return -1;
 
   SeqNoInfo& s = recentActivity.get(n);
-
   return std::chrono::duration_cast<std::chrono::milliseconds>(getMonotonicTime() - s.prePrepareTime).count();
 }
 

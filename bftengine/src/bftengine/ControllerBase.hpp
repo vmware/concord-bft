@@ -67,6 +67,7 @@ class SimpleController : public ControllerBase {
 
   virtual void onStartingSlowCommit(SeqNum n) override;
 
+  // Not implemented returns -1
   virtual int durationSincePrePrepare(SeqNum n) override;
 
  private:

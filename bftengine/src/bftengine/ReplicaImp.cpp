@@ -1150,7 +1150,7 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum v, bo
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(seqNumber));
   SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
-  
+
   LOG_DEBUG(GL, "Node " << config_.replicaId << " seqNumber=" << seqNumber << " view=" << v);
 
   if (isCollectingState() || (!currentViewIsActive()) || (curView != v) || (!mainLog->insideActiveWindow(seqNumber))) {
