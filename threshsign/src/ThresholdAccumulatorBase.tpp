@@ -24,7 +24,7 @@ void ThresholdAccumulatorBase<VerificationKey, NumType, SigShareParserFunc>::set
     assertStrictlyPositive(len);
 
     if(hasExpectedDigest() == false) {
-        expectedDigest.reset(new unsigned char[len]);
+        expectedDigest.reset(new unsigned char[static_cast<size_t>(len)]);
         memcpy(reinterpret_cast<void*>(expectedDigest.get()),
                 reinterpret_cast<const void*>(msg),
                 static_cast<unsigned long>(len));

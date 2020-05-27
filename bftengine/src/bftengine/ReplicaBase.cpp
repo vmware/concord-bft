@@ -13,7 +13,6 @@
 #include "ReplicaBase.hpp"
 #include "assertUtils.hpp"
 #include "Logger.hpp"
-#include "TimersSingleton.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "MsgsCommunicator.hpp"
 #include "ReplicasInfo.hpp"
@@ -23,23 +22,25 @@ using namespace std::chrono_literals;
 
 ReplicaBase::ReplicaBase(const ReplicaConfig& config,
                          std::shared_ptr<MsgsCommunicator> msgComm,
-                         std::shared_ptr<MsgHandlersRegistrator> msgHandlerReg)
+                         std::shared_ptr<MsgHandlersRegistrator> msgHandlerReg,
+                         concordUtil::Timers& timers)
     : config_(config),
       msgsCommunicator_(msgComm),
       msgHandlers_(msgHandlerReg),
       last_metrics_dump_time_(0),
       metrics_dump_interval_in_sec_(config_.metricsDumpIntervalSeconds),
-      metrics_{concordMetrics::Component("replica", std::make_shared<concordMetrics::Aggregator>())} {
+      metrics_{concordMetrics::Component("replica", std::make_shared<concordMetrics::Aggregator>())},
+      timers_{timers} {
   if (config_.debugStatisticsEnabled) DebugStatistics::initDebugStatisticsData();
 }
 
 void ReplicaBase::start() {
   if (config_.debugStatisticsEnabled)
-    debugStatTimer_ = TimersSingleton::getInstance().add(std::chrono::seconds(DEBUG_STAT_PERIOD_SECONDS),
-                                                         Timers::Timer::RECURRING,
-                                                         [](Timers::Handle h) { DebugStatistics::onCycleCheck(); });
+    debugStatTimer_ = timers_.add(std::chrono::seconds(DEBUG_STAT_PERIOD_SECONDS),
+                                  Timers::Timer::RECURRING,
+                                  [](Timers::Handle h) { DebugStatistics::onCycleCheck(); });
 
-  metricsTimer_ = TimersSingleton::getInstance().add(100ms, Timers::Timer::RECURRING, [this](Timers::Handle h) {
+  metricsTimer_ = timers_.add(100ms, Timers::Timer::RECURRING, [this](Timers::Handle h) {
     metrics_.UpdateAggregator();
     auto currTime =
         std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
@@ -53,9 +54,9 @@ void ReplicaBase::start() {
 }
 
 void ReplicaBase::stop() {
-  TimersSingleton::getInstance().cancel(metricsTimer_);
+  timers_.cancel(metricsTimer_);
   if (config_.debugStatisticsEnabled) {
-    TimersSingleton::getInstance().cancel(debugStatTimer_);
+    timers_.cancel(debugStatTimer_);
     DebugStatistics::freeDebugStatisticsData();
   }
   msgsCommunicator_->stopMsgsProcessing();

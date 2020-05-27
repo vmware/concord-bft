@@ -50,7 +50,7 @@ void BlsThresholdSigner::signData(const char *hash, int hashLen, char *outSig, i
 void BlsThresholdSigner::serializeDataMembers(ostream &outStream) const {
   params_.serialize(outStream);
   int32_t secretKeySize = secretKey_.x.getByteCount();
-  UniquePtrToUChar secretKeyBuf(new unsigned char[secretKeySize]);
+  UniquePtrToUChar secretKeyBuf(new unsigned char[static_cast<size_t>(secretKeySize)]);
   secretKey_.x.toBytes(secretKeyBuf.get(), secretKeySize);
   serialize(outStream, secretKeySize);
   outStream.write((char *)secretKeyBuf.get(), secretKeySize);
@@ -90,7 +90,7 @@ void BlsThresholdSigner::deserializeDataMembers(istream &inStream) {
   sigSize_ = params_.getSignatureSize();
   std::int32_t sizeOfSecretKey = 0;
   deserialize(inStream, sizeOfSecretKey);
-  UniquePtrToUChar secretKey(new unsigned char[sizeOfSecretKey]);
+  UniquePtrToUChar secretKey(new unsigned char[static_cast<size_t>(sizeOfSecretKey)]);
   inStream.read((char *)secretKey.get(), sizeOfSecretKey);
   BNT key(secretKey.get(), sizeOfSecretKey);
   secretKey_ = BlsSecretKey(BNT(secretKey.get(), sizeOfSecretKey));

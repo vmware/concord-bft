@@ -10,13 +10,13 @@
 // file.
 
 #include "PreProcessor.hpp"
+#include "Timers.hpp"
 #include "messages/FullCommitProofMsg.hpp"
 #include "InternalReplicaApi.hpp"
 #include "communication/CommFactory.hpp"
 #include "Logger.hpp"
 #include "RequestProcessingState.hpp"
 #include "ReplicaConfig.hpp"
-#include "TimersSingleton.hpp"
 #include "IncomingMsgsStorageImp.hpp"
 #include "gtest/gtest.h"
 
@@ -416,14 +416,15 @@ TEST(requestPreprocessingState_test, requestTimedOut) {
 
   bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig, false, false);
   DummyReplica replica(replicasInfo);
-  PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica);
+  concordUtil::Timers timers;
+  PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica, timers);
 
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
   auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
   msgHandlerCallback(clientReqMsg);
   Assert(preProcessor.getOngoingReqIdForClient(clientId) == reqSeqNum);
   usleep(replicaConfig.preExecReqStatusCheckTimerMillisec * 1000);
-  TimersSingleton::getInstance().evaluate();
+  timers.evaluate();
   Assert(preProcessor.getOngoingReqIdForClient(clientId) == 0);
 }
 
@@ -433,8 +434,9 @@ TEST(requestPreprocessingState_test, primaryCrashDetected) {
   bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig, false, false);
   DummyReplica replica(replicasInfo);
   replica.setPrimary(false);
+  concordUtil::Timers timers;
   replicaConfig.preExecReqStatusCheckTimerMillisec = preExecReqStatusCheckTimerMillisec;
-  PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica);
+  PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica, timers);
 
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
   auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
@@ -442,7 +444,7 @@ TEST(requestPreprocessingState_test, primaryCrashDetected) {
   Assert(preProcessor.getOngoingReqIdForClient(clientId) == reqSeqNum);
 
   usleep(reqWaitTimeoutMilli * 1000);
-  TimersSingleton::getInstance().evaluate();
+  timers.evaluate();
   Assert(preProcessor.getOngoingReqIdForClient(clientId) == 0);
 }
 
@@ -454,7 +456,9 @@ TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
   replica.setPrimary(false);
   replicaConfig.preExecReqStatusCheckTimerMillisec = preExecReqStatusCheckTimerMillisec;
   replicaConfig.replicaId = replica_1;
-  PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica);
+
+  concordUtil::Timers timers;
+  PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica, timers);
 
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
   auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);

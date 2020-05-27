@@ -10,10 +10,10 @@
 // file.
 
 #include "ReplicaForStateTransfer.hpp"
+#include "Timers.hpp"
 #include "assertUtils.hpp"
 #include "Logger.hpp"
 #include "NullStateTransfer.hpp"
-#include "TimersSingleton.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "MsgsCommunicator.hpp"
 #include "ReplicasInfo.hpp"
@@ -26,8 +26,9 @@ ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
                                                  IStateTransfer *stateTransfer,
                                                  std::shared_ptr<MsgsCommunicator> msgComm,
                                                  std::shared_ptr<MsgHandlersRegistrator> msgHandlerReg,
-                                                 bool firstTime)
-    : ReplicaBase(config, msgComm, msgHandlerReg),
+                                                 bool firstTime,
+                                                 concordUtil::Timers &timers)
+    : ReplicaBase(config, msgComm, msgHandlerReg, timers),
       stateTransfer{(stateTransfer != nullptr ? stateTransfer : new NullStateTransfer())},
       metric_received_state_transfers_{metrics_.RegisterCounter("receivedStateTransferMsgs")},
       metric_state_transfer_timer_{metrics_.RegisterGauge("replicaForStateTransferTimer", 0)} {
@@ -44,8 +45,8 @@ ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
 
 void ReplicaForStateTransfer::start() {
   const std::chrono::milliseconds defaultTimeout = 5s;
-  stateTranTimer_ = TimersSingleton::getInstance().add(
-      defaultTimeout, Timers::Timer::RECURRING, [this](Timers::Handle h) { stateTransfer->onTimer(); });
+  stateTranTimer_ =
+      timers_.add(defaultTimeout, Timers::Timer::RECURRING, [this](Timers::Handle h) { stateTransfer->onTimer(); });
   metric_state_transfer_timer_.Get().Set(defaultTimeout.count());
   stateTransfer->startRunning(this);
   ReplicaBase::start();  // msg communicator should be last in the starting chain
@@ -55,7 +56,7 @@ void ReplicaForStateTransfer::stop() {
   // stop in reverse order
   ReplicaBase::stop();
   stateTransfer->stopRunning();
-  TimersSingleton::getInstance().cancel(stateTranTimer_);
+  timers_.cancel(stateTranTimer_);
 }
 
 template <>
@@ -94,7 +95,7 @@ void ReplicaForStateTransfer::onTransferringComplete(int64_t checkpointNumberOfN
 void ReplicaForStateTransfer::changeStateTransferTimerPeriod(uint32_t timerPeriodMilli) {
   // TODO(GG): if this method is invoked by an external thread, then send an "internal message" to the commands
   // processing thread
-  TimersSingleton::getInstance().reset(stateTranTimer_, std::chrono::milliseconds(timerPeriodMilli));
+  timers_.reset(stateTranTimer_, std::chrono::milliseconds(timerPeriodMilli));
   metric_state_transfer_timer_.Get().Set(timerPeriodMilli);
 }
 

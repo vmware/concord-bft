@@ -35,7 +35,7 @@ IThresholdSchemeBenchmark::IThresholdSchemeBenchmark(const IPublicParameters& p,
   LOG_TRACE(GL, "msgSize = " << msgSize);
   assertStrictlyGreaterThan(msgSize, 0);
 
-  msg = new unsigned char[msgSize];
+  msg = new unsigned char[static_cast<size_t>(msgSize)];
   // Pick 'some' message.
   for (int i = 0; i < msgSize; i++) {
     // Might overflow, we don't care.

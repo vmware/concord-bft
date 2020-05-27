@@ -21,6 +21,7 @@
 #include <cstring>
 #include <future>
 #include <sstream>
+#include <utility>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -158,9 +159,18 @@ class Server {
     servaddr_.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     servaddr_.sin_port = htons(PORT);
     int enable = 1;
-    assert(setsockopt(listen_sock_, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) == 0);
-    assert(bind(listen_sock_, (sockaddr*)&servaddr_, sizeof(servaddr_)) == 0);
-    assert(::listen(listen_sock_, BACKLOG) == 0);
+    if (setsockopt(listen_sock_, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable))) {
+      LOG_FATAL(logger, "Failed to set listen socket options: " << errnoString(errno));
+      std::exit(-1);
+    }
+    if (bind(listen_sock_, (sockaddr*)&servaddr_, sizeof(servaddr_))) {
+      LOG_FATAL(logger, "Failed to bind listen socket: " << errnoString(errno));
+      std::exit(-1);
+    }
+    if (::listen(listen_sock_, BACKLOG)) {
+      LOG_FATAL(logger, "Failed to listen for connections: " << errnoString(errno));
+      std::exit(-1);
+    }
   }
 
   int listen_sock_;

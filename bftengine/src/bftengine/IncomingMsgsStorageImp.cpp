@@ -13,7 +13,6 @@
 
 #include "IncomingMsgsStorageImp.hpp"
 #include "messages/InternalMessage.hpp"
-#include "TimersSingleton.hpp"
 #include "Logger.hpp"
 #include <future>
 
@@ -131,7 +130,7 @@ void IncomingMsgsStorageImp::dispatchMessages(std::promise<void>& signalStarted)
   try {
     while (!stopped_) {
       auto msg = getMsgForProcessing();
-      TimersSingleton::getInstance().evaluate();
+      timers_.evaluate();
 
       MessageBase* message = nullptr;
       MsgHandlerCallback msgHandlerCallback = nullptr;
