@@ -176,7 +176,7 @@ class Server {
   int listen_sock_;
   sockaddr_in servaddr_;
   std::thread listen_thread_;
-  std::atomic<bool> shutdown_;
+  std::atomic<bool> shutdown_{false};
 };
 
 }  // namespace concord::diagnostics
