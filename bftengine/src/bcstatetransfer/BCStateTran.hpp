@@ -314,6 +314,11 @@ class BCStateTran : public IStateTransfer {
                                                                           const char* block,
                                                                           const uint32_t blockSize);
 
+  // A wrapper function to get a block from the IAppState and compute its digest.
+  //
+  // SIDE EFFECT: This function mutates buffer_ and resets it to 0 after the fact.
+  STDigest getBlockAndComputeDigest(uint64_t currBlock);
+
   ///////////////////////////////////////////////////////////////////////////
   // Metrics
   ///////////////////////////////////////////////////////////////////////////

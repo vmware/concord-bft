@@ -404,10 +404,7 @@ DataStore::CheckpointDesc BCStateTran::createCheckpointDesc(uint64_t checkpointN
   STDigest digestOfLastBlock;
 
   if (lastBlock > 0) {
-    uint32_t blockSize = 0;
-    as_->getBlock(lastBlock, buffer_, &blockSize);
-    computeDigestOfBlock(lastBlock, buffer_, blockSize, &digestOfLastBlock);
-    memset(buffer_, 0, blockSize);
+    digestOfLastBlock = getBlockAndComputeDigest(lastBlock);
   } else {
     // if we don't have blocks, then we use zero digest
     digestOfLastBlock.makeZero();
@@ -2177,14 +2174,7 @@ void BCStateTran::checkFirstAndLastCheckpoint(uint64_t firstStoredCheckpoint, ui
 void BCStateTran::checkReachableBlocks(uint64_t lastReachableBlockNum) {
   if (lastReachableBlockNum > 0) {
     for (uint64_t currBlock = lastReachableBlockNum - 1; currBlock >= 1; currBlock--) {
-      STDigest currDigest;
-      {
-        uint32_t blockSize = 0;
-        as_->getBlock(currBlock, buffer_, &blockSize);
-        computeDigestOfBlock(currBlock, buffer_, blockSize, &currDigest);
-        memset(buffer_, 0, blockSize);
-      }
-      // as_->getBlockDigest(currBlock, currDigest);
+      auto currDigest = getBlockAndComputeDigest(currBlock);
       Assert(!currDigest.isZero());
       STDigest prevFromNextBlockDigest;
       prevFromNextBlockDigest.makeZero();
@@ -2219,14 +2209,7 @@ void BCStateTran::checkBlocksBeingFetchedNow(bool checkAllBlocks,
       uint64_t lastRequiredBlock = psd_->getLastRequiredBlock();
 
       for (uint64_t currBlock = lastBlockNum - 1; currBlock >= lastRequiredBlock + 1; currBlock--) {
-        STDigest currDigest;
-        {
-          uint32_t blockSize = 0;
-          as_->getBlock(currBlock, buffer_, &blockSize);
-          computeDigestOfBlock(currBlock, buffer_, blockSize, &currDigest);
-          memset(buffer_, 0, blockSize);
-        }
-        // as_->getBlockDigest(currBlock, currDigest);
+        auto currDigest = getBlockAndComputeDigest(currBlock);
         Assert(!currDigest.isZero());
 
         STDigest prevFromNextBlockDigest;
@@ -2252,12 +2235,7 @@ void BCStateTran::checkStoredCheckpoints(uint64_t firstStoredCheckpoint, uint64_
       prevLastBlockNum = desc.lastBlock;
 
       if (desc.lastBlock > 0) {
-        STDigest d;
-        uint32_t blockSize = 0;
-        as_->getBlock(desc.lastBlock, buffer_, &blockSize);
-        computeDigestOfBlock(desc.lastBlock, buffer_, blockSize, &d);
-        memset(buffer_, 0, blockSize);
-        // as_->getBlockDigest(desc.lastBlock, d);
+        auto d = getBlockAndComputeDigest(desc.lastBlock);
         Assert(d == desc.digestOfLastBlock);
       }
       // check all pages descriptor
@@ -2338,6 +2316,15 @@ std::array<std::uint8_t, BLOCK_DIGEST_SIZE> BCStateTran::computeDigestOfBlock(co
   std::array<std::uint8_t, BLOCK_DIGEST_SIZE> outDigest;
   computeDigestOfBlockImpl(blockNum, block, blockSize, reinterpret_cast<char *>(outDigest.data()));
   return outDigest;
+}
+
+STDigest BCStateTran::getBlockAndComputeDigest(uint64_t currBlock) {
+  STDigest currDigest;
+  uint32_t blockSize = 0;
+  as_->getBlock(currBlock, buffer_, &blockSize);
+  computeDigestOfBlock(currBlock, buffer_, blockSize, &currDigest);
+  memset(buffer_, 0, blockSize);
+  return currDigest;
 }
 
 void BCStateTran::SetAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
