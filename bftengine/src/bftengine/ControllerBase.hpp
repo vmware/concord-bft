@@ -45,6 +45,7 @@ class ControllerBase {
   virtual void onMessage(const PreparePartialMsg* m) {}
 
   // TODO(GG): add more methods that may be useful  by controllers
+  virtual int durationSincePrePrepare(SeqNum n) = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -65,6 +66,9 @@ class SimpleController : public ControllerBase {
   // events (used to pass information to the controller)
 
   virtual void onStartingSlowCommit(SeqNum n) override;
+
+  // Not implemented returns -1
+  virtual int durationSincePrePrepare(SeqNum n) override;
 
  private:
   CommitPath currentFirstPath;

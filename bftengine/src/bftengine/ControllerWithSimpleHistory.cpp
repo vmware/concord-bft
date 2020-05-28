@@ -56,7 +56,7 @@ void ControllerWithSimpleHistory::onBecomePrimary(ViewNum v, SeqNum s) {
 
   currentTimeToStartSlowPathMilli = defaultTimeToStartSlowPathMilli;
 
-  LOG_DEBUG(GL, "currentTimeToStartSlowPathMilli = " << currentTimeToStartSlowPathMilli);
+  LOG_INFO(GL, "Becoming primary, setting timer for slow path to [" << currentTimeToStartSlowPathMilli << "]");
 }
 
 CommitPath ControllerWithSimpleHistory::getCurrentFirstPath() { return currentFirstPath; }
@@ -88,7 +88,17 @@ bool ControllerWithSimpleHistory::onNewSeqNumberExecution(SeqNum n) {
 
   SeqNoInfo& s = recentActivity.get(n);
 
+  CommitPath mdcPath = CommitPath::OPTIMISTIC_FAST;
+  if (s.switchToSlowPath || currentFirstPath == CommitPath::SLOW) {
+    mdcPath = CommitPath::SLOW;
+  }
+  SCOPED_MDC_SEQ_NUM(std::to_string(n));
+  SCOPED_MDC_PATH(CommitPathToMDCString(mdcPath));
+
+  // This time includes the execution time, but it affects the consensus path.
+  // i.e. the external engine affects bft behaviour. seems wrong.
   Time now = getMonotonicTime();
+
   auto duration = std::chrono::duration_cast<std::chrono::microseconds>(now - s.prePrepareTime);
 
   const auto MAX_DURATION_MICRO = microseconds(2 * 1000 * 1000);
@@ -183,7 +193,10 @@ bool ControllerWithSimpleHistory::onEndOfEvaluationPeriod() {
 
   recentActivity.resetAll(maxSeq + 1);
 
-  if (lastFirstPathVal != currentFirstPath) LOG_INFO(GL, "currentFirstPath = " << (int)currentFirstPath);
+  if (lastFirstPathVal != currentFirstPath)
+    LOG_INFO(GL,
+             "Commit path analysis: path changed from " << CommitPathToStr(lastFirstPathVal) << " to "
+                                                        << CommitPathToStr(currentFirstPath));
 
   // Adaptive tuning of the slow path duration threshold -
   //  - initialize the threshold to the `mean + 2*(standard deviation)` of the last executions.
@@ -204,7 +217,7 @@ bool ControllerWithSimpleHistory::onEndOfEvaluationPeriod() {
     currentTimeToStartSlowPathMilli =
         normalizeToRange(MinTimeToStartSlowPathMilli, MaxTimeToStartSlowPathMilli, newSlowPathTimeMilli);
 
-    LOG_DEBUG(GL, "currentTimeToStartSlowPathMilli = " << currentTimeToStartSlowPathMilli);
+    LOG_INFO(GL, "Commit path analysis: timer to start slow path [" << currentTimeToStartSlowPathMilli << "ms]");
   }
   return currentFirstPathChanged;
 }
@@ -224,6 +237,13 @@ void ControllerWithSimpleHistory::onSendingPrePrepare(SeqNum n, CommitPath commi
   if (s.prePrepareTime == MinTime && timePoint > MinTime) {
     s.prePrepareTime = timePoint;
   }
+}
+
+int ControllerWithSimpleHistory::durationSincePrePrepare(SeqNum n) {
+  if (!isPrimary || !recentActivity.insideActiveWindow(n)) return -1;
+
+  SeqNoInfo& s = recentActivity.get(n);
+  return std::chrono::duration_cast<std::chrono::milliseconds>(getMonotonicTime() - s.prePrepareTime).count();
 }
 
 void ControllerWithSimpleHistory::onStartingSlowCommit(SeqNum n) {

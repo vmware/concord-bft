@@ -16,6 +16,8 @@
 #define MDC_REPLICA_ID_KEY "rid"
 #define MDC_CID_KEY "cid"
 #define MDC_SEQ_NUM_KEY "sn"
+#define MDC_PRIMARY_KEY "pri"
+#define MDC_PATH_KEY "path"
 
 #ifndef USE_LOG4CPP
 #include "Logging.hpp"
@@ -58,3 +60,5 @@ class ScopedMdc {
 #define SCOPED_MDC(k, v) concordlogger::ScopedMdc __s_mdc__(k, v)
 #define SCOPED_MDC_CID(v) concordlogger::ScopedMdc __s_mdc_cid__(MDC_CID_KEY, v)
 #define SCOPED_MDC_SEQ_NUM(v) concordlogger::ScopedMdc __s_mdc_seq_num__(MDC_SEQ_NUM_KEY, v)
+#define SCOPED_MDC_PRIMARY(v) concordlogger::ScopedMdc __s_mdc_primary__(MDC_PRIMARY_KEY, v)
+#define SCOPED_MDC_PATH(v) concordlogger::ScopedMdc __s_mdc_path__(MDC_PATH_KEY, v)

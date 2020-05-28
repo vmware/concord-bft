@@ -220,7 +220,9 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
   virtual ~AsynchProofCreationJob(){};
 
   virtual void execute() {
-    LOG_DEBUG(GL, "PartialProofsSet::AsynchProofCreationJob::execute - begin (for seqNumber %" << seqNumber << ")");
+    SCOPED_MDC_SEQ_NUM(std::to_string(seqNumber));
+    SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::OPTIMISTIC_FAST));
+    LOG_DEBUG(GL, "begin...");
 
     const uint16_t bufferSize = (uint16_t)verifier->requiredLengthForSignedData();
     char* const bufferForSigComputations = (char*)alloca(bufferSize);
@@ -244,6 +246,8 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
       LOG_DEBUG(GL, "PartialProofsSet::AsynchProofCreationJob::execute - end (for seqNumber " << seqNumber);
       return;
     } else {
+      LOG_INFO(GL, "Commit path analysis: created FullProof, sending full commit proof");
+      // EL is this only fast and the on;y place to call FullCommitProofMsg
       FullCommitProofMsg* fcpMsg = new FullCommitProofMsg(
           me->getReplicasInfo().myId(), view, seqNumber, bufferForSigComputations, (uint16_t)sigLength);
 
@@ -253,7 +257,7 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
       me->getIncomingMsgsStorage().pushInternalMsg(std::move(p));
     }
 
-    LOG_DEBUG(GL, "PartialProofsSet::AsynchProofCreationJob::execute - end (for seqNumber " << seqNumber);
+    LOG_DEBUG(GL, "end...");
   }
 
   virtual void release() {

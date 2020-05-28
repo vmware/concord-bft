@@ -133,6 +133,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   const ReqId reqSeqNum = m->requestSeqNum();
   const uint8_t flags = m->flags();
 
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_CID(m->getCid());
   LOG_DEBUG(GL,
             "Received ClientRequestMsg (clientId=" << clientId << " reqSeqNum=" << reqSeqNum << ", flags=" << (int)flags
@@ -181,6 +182,9 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
       if (clientsManager->noPendingAndRequestCanBecomePending(clientId, reqSeqNum) &&
           (requestsQueueOfPrimary.size() < 700))  // TODO(GG): use config/parameter
       {
+        LOG_INFO(GL,
+                 "Pushing to primary queue, request [" << reqSeqNum << "], client [" << clientId
+                                                       << "], senderId=" << senderId);
         requestsQueueOfPrimary.push(m);
         primaryCombinedReqSize += m->size();
         tryToSendPrePrepareMsg(true);
@@ -231,10 +235,21 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
   Assert(isCurrentPrimary() && currentViewIsActive());
 
-  if (primaryLastUsedSeqNum + 1 > lastStableSeqNum + kWorkWindowSize) return;
+  if (primaryLastUsedSeqNum + 1 > lastStableSeqNum + kWorkWindowSize) {
+    LOG_INFO(GL,
+             "Will not send PrePrepare since next sequence number ["
+                 << primaryLastUsedSeqNum + 1 << "] exceeds window threshold [" << lastStableSeqNum + kWorkWindowSize
+                 << "]");
+    return;
+  }
 
-  if (primaryLastUsedSeqNum + 1 > lastExecutedSeqNum + config_.concurrencyLevel)
+  if (primaryLastUsedSeqNum + 1 > lastExecutedSeqNum + config_.concurrencyLevel) {
+    LOG_INFO(GL,
+             "Will not send PrePrepare since next sequence number ["
+                 << primaryLastUsedSeqNum + 1 << "] exceeds concurrency threshold ["
+                 << lastExecutedSeqNum + config_.concurrencyLevel << "]");
     return;  // TODO(GG): should also be checked by the non-primary replicas
+  }
 
   if (requestsQueueOfPrimary.empty()) return;
 
@@ -272,6 +287,7 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
   }
 
   if (requestsInQueue < minBatchSize) {
+    LOG_INFO(GL, "Batch threshold size [" << minBatchSize << "] requests in queue [" << requestsInQueue << "]");
     metric_not_enough_client_requests_event_.Get().Inc();
     return;
   }
@@ -337,9 +353,11 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
   }
   primaryLastUsedSeqNum++;
   SCOPED_MDC_SEQ_NUM(std::to_string(primaryLastUsedSeqNum));
+  SCOPED_MDC_PATH(CommitPathToMDCString(firstPath));
   {
-    SCOPED_MDC_CID("content: " + pp->getBatchCorrelationIdAsString());
-    LOG_TRACE(GL, "map batch sequence number to correlation ids");
+    LOG_INFO(GL,
+             "Commit path analysis: sending PrePrepare with the following payload of the following correlation ids ["
+                 << pp->getBatchCorrelationIdAsString() << "]");
   }
   SeqNumInfo &seqNumInfo = mainLog->get(primaryLastUsedSeqNum);
   seqNumInfo.addSelfMsg(pp);
@@ -390,7 +408,7 @@ bool ReplicaImp::relevantMsgForActiveView(const T *msg) {
 
       if (msgReplicaMayBeBehind) onReportAboutLateReplica(msg->senderId(), msgSeqNum, msgViewNum);
     }
-
+    LOG_INFO(GL, "Curent View [" << curView << "] is not relevant for msg view [" << msgViewNum << "]");
     return false;
   }
 }
@@ -399,6 +417,8 @@ template <>
 void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
   metric_received_pre_prepares_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
+
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
   LOG_DEBUG(GL,
             "Node " << config_.replicaId << " received PrePrepareMsg from node " << msg->senderId() << " for seqNumber "
@@ -408,13 +428,13 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     Assert(!msg->isNull());  // we should never send (and never accept) null PrePrepare message
 
     if (viewsManager->addPotentiallyMissingPP(msg, lastStableSeqNum)) {
-      LOG_DEBUG(
-          GL, "Node " << config_.replicaId << " adds PrePrepareMsg for seqNumber " << msgSeqNum << " to viewsManager");
+      LOG_INFO(GL,
+               "Node " << config_.replicaId << " adds PrePrepareMsg for seqNumber " << msgSeqNum << " to viewsManager");
       tryToEnterView();
     } else {
-      LOG_DEBUG(GL,
-                "Node " << config_.replicaId << " does not add PrePrepareMsg for seqNumber " << msgSeqNum
-                        << " to viewsManager");
+      LOG_INFO(GL,
+               "Node " << config_.replicaId << " does not add PrePrepareMsg for seqNumber " << msgSeqNum
+                       << " to viewsManager");
     }
 
     return;  // TODO(GG): memory deallocation is confusing .....
@@ -425,15 +445,17 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
   if (relevantMsgForActiveView(msg) && (msg->senderId() == currentPrimary())) {
     sendAckIfNeeded(msg, msg->senderId(), msgSeqNum);
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
+    const bool slowStarted = (msg->firstPath() == CommitPath::SLOW || seqNumInfo.slowPathStarted());
 
+    // For MDC it doesn't matter which type of fast path
+    SCOPED_MDC_PATH(CommitPathToMDCString(slowStarted ? CommitPath::SLOW : CommitPath::OPTIMISTIC_FAST));
     if (seqNumInfo.addMsg(msg)) {
       {
-        SCOPED_MDC_CID("content: " + msg->getBatchCorrelationIdAsString());
-        LOG_TRACE(GL, "map batch sequence number to correlation ids");
+        LOG_INFO(GL,
+                 "Commit path analysis: PrePrepare with the following correlation IDs ["
+                     << msg->getBatchCorrelationIdAsString() << "]");
       }
       msgAdded = true;
-
-      const bool slowStarted = (msg->firstPath() == CommitPath::SLOW || seqNumInfo.slowPathStarted());
 
       if (ps_) {
         ps_->beginWriteTran();
@@ -464,6 +486,7 @@ void ReplicaImp::tryToStartSlowPaths() {
              // invocations)
 
   const SeqNum minSeqNum = lastExecutedSeqNum + 1;
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
 
   if (minSeqNum > lastStableSeqNum + kWorkWindowSize) {
     LOG_INFO(GL,
@@ -495,11 +518,13 @@ void ReplicaImp::tryToStartSlowPaths() {
     const Time timeOfPartProof = seqNumInfo.partialProofs().getTimeOfSelfPartialProof();
 
     if (currTime - timeOfPartProof < milliseconds(controller->timeToStartSlowPathMilli())) break;
-
+    SCOPED_MDC_SEQ_NUM(std::to_string(i));
+    SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
     LOG_INFO(GL,
-             "Primary initiates slow path for seqNum="
+             "Commit path analysis: Primary initiates slow path for seqNum="
                  << i << " (currTime=" << duration_cast<microseconds>(currTime.time_since_epoch()).count()
-                 << " timeOfPartProof=" << duration_cast<microseconds>(timeOfPartProof.time_since_epoch()).count());
+                 << " timeOfPartProof=" << duration_cast<microseconds>(timeOfPartProof.time_since_epoch()).count()
+                 << " threshold for degradation [" << controller->timeToStartSlowPathMilli() << "ms]");
 
     controller->onStartingSlowCommit(i);
 
@@ -691,6 +716,9 @@ void ReplicaImp::sendPreparePartial(SeqNumInfo &seqNumInfo) {
 void ReplicaImp::sendCommitPartial(const SeqNum s) {
   Assert(currentViewIsActive());
   Assert(mainLog->insideActiveWindow(s));
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
+  SCOPED_MDC_SEQ_NUM(std::to_string(s));
+  SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
 
   SeqNumInfo &seqNumInfo = mainLog->get(s);
   PrePrepareMsg *pp = seqNumInfo.getPrePrepareMsg();
@@ -701,7 +729,7 @@ void ReplicaImp::sendCommitPartial(const SeqNum s) {
 
   if (seqNumInfo.committedOrHasCommitPartialFromReplica(config_.replicaId)) return;  // not needed
 
-  LOG_DEBUG(GL, "Sending CommitPartialMsg for seqNumber " << s);
+  LOG_INFO(GL, "Commit path analysis: Sending CommitPartialMsg");
 
   Digest d;
   Digest::digestOfDigest(pp->digestOfRequests(), d);
@@ -719,7 +747,9 @@ void ReplicaImp::onMessage<PartialCommitProofMsg>(PartialCommitProofMsg *msg) {
   const SeqNum msgSeqNum = msg->seqNumber();
   const SeqNum msgView = msg->viewNumber();
   const NodeIdType msgSender = msg->senderId();
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
+  SCOPED_MDC_PATH(CommitPathToMDCString(msg->commitPath()));
   Assert(repsInfo->isIdOfPeerReplica(msgSender));
   Assert(repsInfo->isCollectorForPartialProofs(msgView, msgSeqNum));
 
@@ -747,11 +777,14 @@ void ReplicaImp::onMessage<PartialCommitProofMsg>(PartialCommitProofMsg *msg) {
 template <>
 void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
   metric_received_full_commit_proofs_.Get().Inc();
-  LOG_DEBUG(GL,
-            "Node " << config_.replicaId << " received FullCommitProofMsg message for seqNumber " << msg->seqNumber());
 
   const SeqNum msgSeqNum = msg->seqNumber();
-  SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
+  SCOPED_MDC_SEQ_NUM(std::to_string(msg->seqNumber()));
+  SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::OPTIMISTIC_FAST));
+
+  LOG_INFO(GL, "Commot path analysis: Reached consensus, Received FullCommitProofMsg message");
+
   if (relevantMsgForActiveView(msg)) {
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
     PartialProofsSet &pps = seqNumInfo.partialProofs();
@@ -777,6 +810,8 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
       executeNextCommittedRequests(askForMissingInfoAboutCommittedItems);
 
       return;
+    } else {
+      LOG_INFO(GL, "Failed to satisfy full proof requirements");
     }
   }
 
@@ -798,7 +833,11 @@ void ReplicaImp::onMessage<PreparePartialMsg>(PreparePartialMsg *msg) {
   metric_received_prepare_partials_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
+
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
+  SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
+
   bool msgAdded = false;
 
   if (relevantMsgForActiveView(msg)) {
@@ -844,7 +883,11 @@ void ReplicaImp::onMessage<CommitPartialMsg>(CommitPartialMsg *msg) {
   metric_received_commit_partials_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
+
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
+  SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
+
   bool msgAdded = false;
 
   if (relevantMsgForActiveView(msg)) {
@@ -852,9 +895,7 @@ void ReplicaImp::onMessage<CommitPartialMsg>(CommitPartialMsg *msg) {
 
     sendAckIfNeeded(msg, msgSender, msgSeqNum);
 
-    LOG_DEBUG(GL,
-              "Node " << config_.replicaId << " received CommitPartialMsg from node " << msgSender << " for seqNumber "
-                      << msgSeqNum);
+    LOG_DEBUG(GL, "Received CommitPartialMsg from node " << msgSender);
 
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
 
@@ -872,9 +913,7 @@ void ReplicaImp::onMessage<CommitPartialMsg>(CommitPartialMsg *msg) {
   }
 
   if (!msgAdded) {
-    LOG_DEBUG(GL,
-              "Node " << config_.replicaId << " ignored the CommitPartialMsg from node " << msgSender << " (seqNumber "
-                      << msgSeqNum << ")");
+    LOG_INFO(GL, "Ignored  CommitPartialMsg from node " << msgSender);
     delete msg;
   }
 }
@@ -884,13 +923,15 @@ void ReplicaImp::onMessage<PrepareFullMsg>(PrepareFullMsg *msg) {
   metric_received_prepare_fulls_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
+  SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
   bool msgAdded = false;
 
   if (relevantMsgForActiveView(msg)) {
     sendAckIfNeeded(msg, msgSender, msgSeqNum);
 
-    LOG_DEBUG(GL, "Node " << config_.replicaId << " received PrepareFullMsg for seqNumber " << msgSeqNum);
+    LOG_DEBUG(GL, "received PrepareFullMsg");
 
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
 
@@ -923,13 +964,15 @@ void ReplicaImp::onMessage<CommitFullMsg>(CommitFullMsg *msg) {
   metric_received_commit_fulls_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
+  SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
   bool msgAdded = false;
 
   if (relevantMsgForActiveView(msg)) {
     sendAckIfNeeded(msg, msgSender, msgSeqNum);
 
-    LOG_DEBUG(GL, "Node " << config_.replicaId << " received CommitFullMsg for seqNumber " << msgSeqNum);
+    LOG_DEBUG(GL, "Received CommitFullMsg");
 
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
 
@@ -979,12 +1022,14 @@ void ReplicaImp::onPrepareCombinedSigSucceeded(SeqNum seqNumber,
                                                ViewNum v,
                                                const char *combinedSig,
                                                uint16_t combinedSigLen) {
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
+  SCOPED_MDC_SEQ_NUM(std::to_string(seqNumber));
+  SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
   LOG_DEBUG(GL, "Node " << config_.replicaId << "  seqNumber=" << seqNumber << " view=" << v);
 
   if ((isCollectingState()) || (!currentViewIsActive()) || (curView != v) ||
       (!mainLog->insideActiveWindow(seqNumber))) {
-    LOG_DEBUG(GL, "Node " << config_.replicaId << " seqNumber=" << seqNumber << " view=" << v << " are not relevant");
-
+    LOG_INFO(GL, "Not sending prepare full, view=" << v << " is not relevant");
     return;
   }
 
@@ -999,7 +1044,7 @@ void ReplicaImp::onPrepareCombinedSigSucceeded(SeqNum seqNumber,
   Assert(preFull != nullptr);
 
   if (fcp != nullptr) return;  // don't send if we already have FullCommitProofMsg
-
+  LOG_INFO(GL, "Commit path analysis: sending prepare full");
   if (ps_) {
     ps_->beginWriteTran();
     ps_->setPrepareFullMsgInSeqNumWindow(seqNumber, preFull);
@@ -1065,10 +1110,13 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
                                               ViewNum v,
                                               const char *combinedSig,
                                               uint16_t combinedSigLen) {
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
+  SCOPED_MDC_SEQ_NUM(std::to_string(seqNumber));
+  SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
   LOG_DEBUG(GL, "Node " << config_.replicaId << " seqNumber=" << seqNumber << " view=" << v);
 
   if (isCollectingState() || (!currentViewIsActive()) || (curView != v) || (!mainLog->insideActiveWindow(seqNumber))) {
-    LOG_DEBUG(GL, "Node " << config_.replicaId << " seqNumber=" << seqNumber << " view=" << v << " are not relevant");
+    LOG_DEBUG(GL, "Not sending full commit, view=" << v << " is not relevant");
     return;
   }
 
@@ -1082,7 +1130,7 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
   Assert(commitFull != nullptr);
 
   if (fcp != nullptr) return;  // ignore if we already have FullCommitProofMsg
-
+  LOG_INFO(GL, "Commit path analysis: sending full commit");
   if (ps_) {
     ps_->beginWriteTran();
     ps_->setCommitFullMsgInSeqNumWindow(seqNumber, commitFull);
@@ -1099,6 +1147,10 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
 }
 
 void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum v, bool isValid) {
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
+  SCOPED_MDC_SEQ_NUM(std::to_string(seqNumber));
+  SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
+
   LOG_DEBUG(GL, "Node " << config_.replicaId << " seqNumber=" << seqNumber << " view=" << v);
 
   if (isCollectingState() || (!currentViewIsActive()) || (curView != v) || (!mainLog->insideActiveWindow(seqNumber))) {
@@ -1121,7 +1173,7 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum v, bo
     ps_->setCommitFullMsgInSeqNumWindow(seqNumber, commitFull);
     ps_->endWriteTran();
   }
-
+  LOG_INFO(GL, "Commit path analysis: request commited, proceeding to try to execute");
   bool askForMissingInfoAboutCommittedItems = (seqNumber > lastExecutedSeqNum + config_.concurrencyLevel);
   executeNextCommittedRequests(askForMissingInfoAboutCommittedItems);
 }
@@ -2962,9 +3014,16 @@ void ReplicaImp::executeReadOnlyRequest(ClientRequestMsg *request) {
 
   // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
 
-  if (!error && actualReplyLength > 0) {
-    reply.setReplyLength(actualReplyLength);
-    send(&reply, clientId);
+  if (!error) {
+    if (actualReplyLength > 0) {
+      reply.setReplyLength(actualReplyLength);
+      send(&reply, clientId);
+    } else {
+      LOG_ERROR(GL, "Received zero size response, client id [" << clientId << "]");
+    }
+
+  } else {
+    LOG_ERROR(GL, "Received error code [" << error << "] while executing RO request, client id [" << clientId << "]");
   }
 
   if (config_.debugStatisticsEnabled) {
@@ -3037,6 +3096,16 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(PrePrepareMsg *ppMsg, bool recov
 
     reqIdx = 0;
     requestBody = nullptr;
+
+    auto dur = controller->durationSincePrePrepare(lastExecutedSeqNum + 1);
+    if (dur > 0) {
+      // Primary
+      LOG_INFO(GL, "Commit path analysis: Consensus reached, duration [" << dur << "ms]");
+
+    } else {
+      LOG_INFO(GL, "Commit path analysis: Consensus reached");
+    }
+
     while (reqIter.getAndGoToNext(requestBody)) {
       size_t tmp = reqIdx;
       reqIdx++;
@@ -3146,8 +3215,6 @@ void ReplicaImp::executeNextCommittedRequests(const bool requestMissingInfo) {
   Assert(!isCollectingState() && currentViewIsActive());
   Assert(lastExecutedSeqNum >= lastStableSeqNum);
 
-  LOG_DEBUG(GL, "(requestMissingInfo=" << requestMissingInfo << ")");
-
   while (lastExecutedSeqNum < lastStableSeqNum + kWorkWindowSize) {
     SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum + 1);
 
@@ -3156,7 +3223,7 @@ void ReplicaImp::executeNextCommittedRequests(const bool requestMissingInfo) {
     const bool ready = (prePrepareMsg != nullptr) && (seqNumInfo.isCommitted__gg());
 
     if (requestMissingInfo && !ready) {
-      LOG_DEBUG(GL, "Asking for missing information about " << lastExecutedSeqNum + 1);
+      LOG_INFO(GL, "Asking for missing information about " << lastExecutedSeqNum + 1);
 
       tryToSendReqMissingDataMsg(lastExecutedSeqNum + 1);
     }
