@@ -60,6 +60,11 @@ class STDigest : StateTransferDigest {
   char* getForUpdate() { return content; }
 };
 
+inline std::ostream& operator<<(std::ostream& os, const STDigest& digest) {
+  os << digest.toString();
+  return os;
+}
+
 class DigestContext {
  public:
   DigestContext();
