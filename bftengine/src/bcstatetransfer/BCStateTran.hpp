@@ -288,6 +288,12 @@ class BCStateTran : public IStateTransfer {
   ///////////////////////////////////////////////////////////////////////////
 
   void checkConsistency(bool checkAllBlocks);
+  void checkConfig();
+  void checkFirstAndLastCheckpoint(uint64_t firstStoredCheckpoint, uint64_t lastStoredCheckpoint);
+  void checkReachableBlocks(uint64_t lastReachableBlockNum);
+  void checkUnreachableBlocks(uint64_t lastReachableBlockNum, uint64_t lastBlockNum);
+  void checkBlocksBeingFetchedNow(bool checkAllBlocks, uint64_t lastReachableBlockNum, uint64_t lastBlockNum);
+  void checkStoredCheckpoints(uint64_t firstStoredCheckpoint, uint64_t lastStoredCheckpoint);
 
  public:
   ///////////////////////////////////////////////////////////////////////////
@@ -307,6 +313,11 @@ class BCStateTran : public IStateTransfer {
   static std::array<std::uint8_t, BLOCK_DIGEST_SIZE> computeDigestOfBlock(const uint64_t blockNum,
                                                                           const char* block,
                                                                           const uint32_t blockSize);
+
+  // A wrapper function to get a block from the IAppState and compute its digest.
+  //
+  // SIDE EFFECT: This function mutates buffer_ and resets it to 0 after the fact.
+  STDigest getBlockAndComputeDigest(uint64_t currBlock);
 
   ///////////////////////////////////////////////////////////////////////////
   // Metrics
