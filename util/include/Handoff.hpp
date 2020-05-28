@@ -92,7 +92,7 @@ class Handoff {
   std::queue<func_type> task_queue_;
   std::mutex queue_lock_;
   std::condition_variable queue_cond_;
-  std::atomic_bool stopped_;
+  std::atomic_bool stopped_{false};
   std::thread thread_;
 };
 
