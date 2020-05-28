@@ -34,9 +34,6 @@ class PreProcessReplyMsg : public MessageBase {
   std::string getCid() const;
 
  protected:
-  template <typename MessageT>
-  friend size_t sizeOfHeader();
-
 #pragma pack(push, 1)
   struct Header {
     MessageBase::Header header;

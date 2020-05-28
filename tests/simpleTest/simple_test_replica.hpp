@@ -14,6 +14,7 @@
 #ifndef CONCORD_BFT_SIMPLE_TEST_REPLICA_HPP
 #define CONCORD_BFT_SIMPLE_TEST_REPLICA_HPP
 
+#include "OpenTracing.hpp"
 #include "communication/CommFactory.hpp"
 #include "Replica.hpp"
 #include "ReplicaConfig.hpp"
@@ -77,7 +78,8 @@ class SimpleAppState : public IRequestsHandler {
               const char *request,
               uint32_t maxReplySize,
               char *outReply,
-              uint32_t &outActualReplySize) override {
+              uint32_t &outActualReplySize,
+              concordUtils::SpanWrapper &span) override {
     bool readOnly = flags & READ_ONLY_FLAG;
     if (readOnly) {
       // Our read-only request includes only a type, no argument.

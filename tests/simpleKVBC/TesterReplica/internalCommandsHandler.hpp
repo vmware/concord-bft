@@ -15,6 +15,7 @@
 #define INTERNAL_COMMANDS_HANDLER_HPP
 
 #include "Logger.hpp"
+#include "OpenTracing.hpp"
 #include "sliver.hpp"
 #include "simpleKVBTestsBuilder.hpp"
 #include "db_interfaces.h"
@@ -37,7 +38,8 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
                       const char *request,
                       uint32_t maxReplySize,
                       char *outReply,
-                      uint32_t &outActualReplySize) override;
+                      uint32_t &outActualReplySize,
+                      concordUtils::SpanWrapper &span) override;
 
  private:
   bool executeWriteCommand(uint32_t requestSize,

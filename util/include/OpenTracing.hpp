@@ -16,6 +16,7 @@
 #ifdef USE_OPENTRACING
 #include <memory>
 #include <opentracing/span.h>
+#include <type_traits>
 #endif
 #include <string>
 
@@ -30,8 +31,35 @@ class SpanWrapper {
   SpanWrapper& operator=(const SpanWrapper&) = delete;
   SpanWrapper(SpanWrapper&&) = default;
   SpanWrapper& operator=(SpanWrapper&&) = default;
+  ~SpanWrapper() = default;
+  explicit operator bool() const {
+#ifdef USE_OPENTRACING
+    return (impl().get() != nullptr);
+#else
+    return false;
+#endif
+  }
 
-  void setTag(const std::string& name, const std::string& value);
+  template <typename ValueT>
+  void setTag(const std::string& name, const ValueT& value) {
+#ifdef USE_OPENTRACING
+    if (!span_ptr_) {
+      return;
+    }
+    span_ptr_->SetTag(name, value);
+    // DD: tags are not passed to children spans,
+    // baggage items are stored in span context
+    if constexpr (std::is_same<ValueT, std::string>()) {
+      span_ptr_->SetBaggageItem(name, value);
+    } else {
+      span_ptr_->SetBaggageItem(name, std::to_string(value));
+    }
+#else
+    (void)name;
+    (void)value;
+#endif
+  }
+
   void finish();
   SpanContext context() const;
 
@@ -39,12 +67,13 @@ class SpanWrapper {
   friend SpanWrapper startChildSpan(const std::string& operation_name, const SpanWrapper& parent_span);
   friend SpanWrapper startChildSpanFromContext(const SpanContext& context, const std::string& child_operation_name);
 
- private:
 #ifdef USE_OPENTRACING
   using SpanPtr = std::unique_ptr<opentracing::Span>;
-  SpanWrapper(SpanPtr&& span) : span_ptr_(std::move(span)) {}
   const SpanPtr& impl() const { return span_ptr_; }
-  /* data */
+
+ private:
+  SpanWrapper(SpanPtr&& span) : span_ptr_(std::move(span)) {}
+
   SpanPtr span_ptr_;
 #endif
 };

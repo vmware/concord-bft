@@ -42,7 +42,8 @@ class InternalReplicaApi  // TODO(GG): rename + clean + split to several classes
   virtual void onPrepareCombinedSigSucceeded(SeqNum seqNumber,
                                              ViewNum view,
                                              const char* combinedSig,
-                                             uint16_t combinedSigLen) = 0;
+                                             uint16_t combinedSigLen,
+                                             const std::string& span_context) = 0;
   virtual void onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) = 0;
 
   virtual void onCommitCombinedSigFailed(SeqNum seqNumber,
@@ -51,7 +52,8 @@ class InternalReplicaApi  // TODO(GG): rename + clean + split to several classes
   virtual void onCommitCombinedSigSucceeded(SeqNum seqNumber,
                                             ViewNum view,
                                             const char* combinedSig,
-                                            uint16_t combinedSigLen) = 0;
+                                            uint16_t combinedSigLen,
+                                            const std::string& span_context) = 0;
   virtual void onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) = 0;
 
   virtual void onInternalMsg(FullCommitProofMsg* m) = 0;

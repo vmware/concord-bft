@@ -13,6 +13,7 @@
 #include "InternalReplicaApi.hpp"
 #include "Logger.hpp"
 #include "MsgHandlersRegistrator.hpp"
+#include "OpenTracing.hpp"
 
 namespace preprocessor {
 
@@ -465,12 +466,14 @@ void PreProcessor::handleClientPreProcessRequest(ClientPreProcessReqMsgUniquePtr
 void PreProcessor::handleClientPreProcessRequestByPrimary(ClientPreProcessReqMsgUniquePtr clientReqMsg) {
   const uint16_t &clientId = clientReqMsg->clientProxyId();
   const ReqId &requestSeqNum = clientReqMsg->requestSeqNum();
-  PreProcessRequestMsgSharedPtr preProcessRequestMsg = make_shared<PreProcessRequestMsg>(myReplicaId_,
-                                                                                         clientId,
-                                                                                         requestSeqNum,
-                                                                                         clientReqMsg->requestLength(),
-                                                                                         clientReqMsg->requestBuf(),
-                                                                                         clientReqMsg->getCid());
+  PreProcessRequestMsgSharedPtr preProcessRequestMsg =
+      make_shared<PreProcessRequestMsg>(myReplicaId_,
+                                        clientId,
+                                        requestSeqNum,
+                                        clientReqMsg->requestLength(),
+                                        clientReqMsg->requestBuf(),
+                                        clientReqMsg->getCid(),
+                                        clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>());
   if (registerRequest(move(clientReqMsg), preProcessRequestMsg)) {
     sendPreProcessRequestToAllReplicas(preProcessRequestMsg);
     // Pre-process the request and calculate a hash of the result
@@ -514,8 +517,10 @@ void PreProcessor::launchAsyncReqPreProcessingJob(const PreProcessRequestMsgShar
   threadPool_.add(preProcessJob);
 }
 
-uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId, ReqId reqSeqNum, uint32_t reqLength, char *reqBuf) {
+uint32_t PreProcessor::launchReqPreProcessing(
+    uint16_t clientId, ReqId reqSeqNum, uint32_t reqLength, char *reqBuf, const std::string &span_context) {
   uint32_t resultLen = 0;
+  auto span = concordUtils::startChildSpanFromContext("bft_process_preprocess_msg", span_context);
   requestsHandler_.execute(clientId,
                            reqSeqNum,
                            PRE_PROCESS_FLAG,
@@ -523,7 +528,8 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId, ReqId reqSeqNum
                            reqBuf,
                            maxReplyMsgSize_,
                            (char *)getPreProcessResultBuffer(clientId),
-                           resultLen);
+                           resultLen,
+                           span);
   if (!resultLen)
     throw std::runtime_error("Actual result length is 0 for clientId=" + to_string(clientId) +
                              ", requestSeqNum=" + to_string(reqSeqNum));
@@ -595,8 +601,9 @@ void PreProcessor::handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr
   SCOPED_MDC_CID(preProcessReqMsg->getCid());
   const uint16_t &clientId = preProcessReqMsg->clientId();
   const SeqNum &reqSeqNum = preProcessReqMsg->reqSeqNum();
-  uint32_t actualResultBufLen =
-      launchReqPreProcessing(clientId, reqSeqNum, preProcessReqMsg->requestLength(), preProcessReqMsg->requestBuf());
+  const auto &span_context = preProcessReqMsg->spanContext<PreProcessRequestMsgSharedPtr::element_type>();
+  uint32_t actualResultBufLen = launchReqPreProcessing(
+      clientId, reqSeqNum, preProcessReqMsg->requestLength(), preProcessReqMsg->requestBuf(), span_context);
   if (isPrimary && isRetry) {
     handlePreProcessedReqPrimaryRetry(clientId, reqSeqNum);
     return;

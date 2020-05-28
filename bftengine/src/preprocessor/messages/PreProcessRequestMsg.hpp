@@ -23,10 +23,11 @@ class PreProcessRequestMsg : public MessageBase {
                        uint64_t reqSeqNum,
                        uint32_t reqLength,
                        const char* request,
+                       const std::string& span_context,
                        const std::string& cid);
 
   void validate(const bftEngine::impl::ReplicasInfo&) const override;
-  char* requestBuf() const { return body() + sizeof(Header); }
+  char* requestBuf() const { return body() + sizeof(Header) + spanContextSize(); }
   const uint32_t requestLength() const { return msgBody()->requestLength; }
   const uint16_t clientId() const { return msgBody()->clientId; }
   const SeqNum reqSeqNum() const { return msgBody()->reqSeqNum; }
@@ -34,8 +35,7 @@ class PreProcessRequestMsg : public MessageBase {
 
  protected:
   template <typename MessageT>
-  friend size_t sizeOfHeader();
-
+  friend size_t bftEngine::impl::sizeOfHeader();
 #pragma pack(push, 1)
   struct Header {
     MessageBase::Header header;

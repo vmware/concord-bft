@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <type_traits>
 #include <unordered_map>
 #include <set>
 
@@ -20,6 +21,7 @@
 #include "SimpleThreadPool.hpp"
 #include "IncomingMsgsStorage.hpp"
 #include "assertUtils.hpp"
+#include "messages/SignedShareMsgs.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -129,7 +131,8 @@ class CollectorOfThresholdSignatures {
   void onCompletionOfSignaturesProcessing(SeqNum seqNumber,
                                           ViewNum view,
                                           const char* combinedSig,
-                                          uint16_t combinedSigLen)  // if we compute a valid combined signature
+                                          uint16_t combinedSigLen,
+                                          const std::string& span_context)  // if we compute a valid combined signature
   {
     Assert(expectedSeqNumber == seqNumber);
     Assert(expectedView == view);
@@ -144,7 +147,7 @@ class CollectorOfThresholdSignatures {
     }
 
     combinedValidSignatureMsg =
-        ExternalFunc::createCombinedSignatureMsg(context, seqNumber, view, combinedSig, combinedSigLen);
+        ExternalFunc::createCombinedSignatureMsg(context, seqNumber, view, combinedSig, combinedSigLen, span_context);
   }
 
   void onCompletionOfCombinedSigVerification(SeqNum seqNumber, ViewNum view, bool isValid) {
@@ -258,9 +261,11 @@ class CollectorOfThresholdSignatures {
       uint16_t numOfPartSigsInJob = 0;
       for (std::pair<uint16_t, RepInfo>&& info : replicasInfo) {
         if (info.second.state != SigState::Invalid) {
-          char* sig = info.second.partialSigMsg->signatureBody();
-          uint16_t len = info.second.partialSigMsg->signatureLen();
-          bkJob->add(info.first, sig, len);
+          auto msg = info.second.partialSigMsg;
+          auto sig = msg->signatureBody();
+          auto len = msg->signatureLen();
+          const auto& span_context = msg->template spanContext<PART>();
+          bkJob->add(info.first, sig, len, span_context);
           numOfPartSigsInJob++;
         }
 
@@ -281,6 +286,7 @@ class CollectorOfThresholdSignatures {
       ReplicaId srcRepId;
       char* sigBody;
       uint16_t sigLength;
+      std::string span_context;
     };
 
     IThresholdVerifier* const verifier;
@@ -316,13 +322,14 @@ class CollectorOfThresholdSignatures {
       this->context = cnt;
     }
 
-    void add(ReplicaId srcRepId, const char* sigBody, uint16_t sigLength) {
+    void add(ReplicaId srcRepId, const char* sigBody, uint16_t sigLength, const std::string& span_context) {
       Assert(numOfDataItems < reqDataItems);
 
       SigData d;
       d.srcRepId = srcRepId;
       d.sigLength = sigLength;
       d.sigBody = (char*)std::malloc(sigLength);
+      d.span_context = span_context;
       memcpy(d.sigBody, sigBody, sigLength);
 
       sigDataItems[numOfDataItems] = d;
@@ -348,6 +355,8 @@ class CollectorOfThresholdSignatures {
       const uint16_t bufferSize = (uint16_t)verifier->requiredLengthForSignedData();
       char* const bufferForSigComputations = (char*)alloca(bufferSize);  // TODO(GG): check
 
+      const auto& span_context_of_last_message =
+          (reqDataItems - 1) ? sigDataItems[reqDataItems - 1].span_context : std::string{};
       {
         IThresholdAccumulator* acc = verifier->newAccumulator(false);
 
@@ -393,8 +402,13 @@ class CollectorOfThresholdSignatures {
         repMsgsStorage->pushInternalMsg(std::move(iMsg));
       } else {
         // send internal message with the results
-        std::unique_ptr<InternalMessage> iMsg(ExternalFunc::createInterCombinedSigSucceeded(
-            context, expectedSeqNumber, expectedView, bufferForSigComputations, bufferSize));
+        std::unique_ptr<InternalMessage> iMsg(
+            ExternalFunc::createInterCombinedSigSucceeded(context,
+                                                          expectedSeqNumber,
+                                                          expectedView,
+                                                          bufferForSigComputations,
+                                                          bufferSize,
+                                                          span_context_of_last_message));
         repMsgsStorage->pushInternalMsg(std::move(iMsg));
       }
     }

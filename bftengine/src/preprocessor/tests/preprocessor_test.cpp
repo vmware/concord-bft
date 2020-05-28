@@ -10,6 +10,7 @@
 // file.
 
 #include "PreProcessor.hpp"
+#include "OpenTracing.hpp"
 #include "Timers.hpp"
 #include "messages/FullCommitProofMsg.hpp"
 #include "InternalReplicaApi.hpp"
@@ -60,7 +61,8 @@ class DummyRequestsHandler : public IRequestsHandler {
               const char* request,
               uint32_t maxReplySize,
               char* outReply,
-              uint32_t& outActualReplySize) {
+              uint32_t& outActualReplySize,
+              concordUtils::SpanWrapper& span) {
     outActualReplySize = 256;
     return 0;
   }
@@ -86,12 +88,13 @@ class DummyReplica : public InternalReplicaApi {
   DummyReplica(const bftEngine::impl::ReplicasInfo& replicasInfo) : replicasInfo_(replicasInfo) {}
 
   void onPrepareCombinedSigFailed(SeqNum seqNumber, ViewNum view, const set<uint16_t>& replicasWithBadSigs) {}
-  void onPrepareCombinedSigSucceeded(SeqNum seqNumber, ViewNum view, const char* combinedSig, uint16_t combinedSigLen) {
-  }
+  void onPrepareCombinedSigSucceeded(
+      SeqNum seqNumber, ViewNum view, const char* combinedSig, uint16_t combinedSigLen, const std::string&) {}
   void onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) {}
 
   void onCommitCombinedSigFailed(SeqNum seqNumber, ViewNum view, const set<uint16_t>& replicasWithBadSigs) {}
-  void onCommitCombinedSigSucceeded(SeqNum seqNumber, ViewNum view, const char* combinedSig, uint16_t combinedSigLen) {}
+  void onCommitCombinedSigSucceeded(
+      SeqNum seqNumber, ViewNum view, const char* combinedSig, uint16_t combinedSigLen, const std::string&) {}
   void onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) {}
 
   void onInternalMsg(FullCommitProofMsg* m) {}
@@ -465,7 +468,8 @@ TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
   msgHandlerCallback(clientReqMsg);
   Assert(preProcessor.getOngoingReqIdForClient(clientId) == reqSeqNum);
 
-  auto* preProcessReqMsg = new PreProcessRequestMsg(replica.currentPrimary(), clientId, reqSeqNum, bufLen, buf, cid);
+  std::string s = "span";
+  auto* preProcessReqMsg = new PreProcessRequestMsg(replica.currentPrimary(), clientId, reqSeqNum, bufLen, buf, cid, s);
   msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::PreProcessRequest);
   msgHandlerCallback(preProcessReqMsg);
   usleep(reqWaitTimeoutMilli * 1000 / 2);  // Wait for the pre-execution completion

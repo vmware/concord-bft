@@ -18,6 +18,7 @@
 #include <string>
 
 #include "IStateTransfer.hpp"
+#include "OpenTracing.hpp"
 #include "communication/ICommunication.hpp"
 #include "MetadataStorage.hpp"
 #include "Metrics.hpp"
@@ -42,7 +43,8 @@ class IRequestsHandler {
                       const char *request,
                       uint32_t maxReplySize,
                       char *outReply,
-                      uint32_t &outActualReplySize) = 0;
+                      uint32_t &outActualReplySize,
+                      concordUtils::SpanWrapper &parent_span) = 0;
 
   virtual void onFinishExecutingReadWriteRequests() {}
   virtual ~IRequestsHandler() {}

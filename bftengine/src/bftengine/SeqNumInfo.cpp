@@ -281,8 +281,10 @@ void SeqNumInfo::onCompletionOfPrepareSignaturesProcessing(SeqNum seqNumber,
 void SeqNumInfo::onCompletionOfPrepareSignaturesProcessing(SeqNum seqNumber,
                                                            ViewNum viewNumber,
                                                            const char* combinedSig,
-                                                           uint16_t combinedSigLen) {
-  prepareSigCollector->onCompletionOfSignaturesProcessing(seqNumber, viewNumber, combinedSig, combinedSigLen);
+                                                           uint16_t combinedSigLen,
+                                                           const std::string& span_context) {
+  prepareSigCollector->onCompletionOfSignaturesProcessing(
+      seqNumber, viewNumber, combinedSig, combinedSigLen, span_context);
 }
 
 void SeqNumInfo::onCompletionOfCombinedPrepareSigVerification(SeqNum seqNumber, ViewNum viewNumber, bool isValid) {
@@ -317,10 +319,12 @@ class CombinedSigSucceededInternalMsg : public InternalMessage {
   const ViewNum view;
   const char* combinedSig;
   const uint16_t combinedSigLen;
+  std::string span_context_;
 
  public:
-  CombinedSigSucceededInternalMsg(InternalReplicaApi* rep, SeqNum s, ViewNum v, const char* sig, uint16_t sigLen)
-      : InternalMessage(rep), replica{rep}, seqNumber{s}, view{v}, combinedSigLen{sigLen} {
+  CombinedSigSucceededInternalMsg(
+      InternalReplicaApi* rep, SeqNum s, ViewNum v, const char* sig, uint16_t sigLen, const std::string& span_context)
+      : InternalMessage(rep), replica{rep}, seqNumber{s}, view{v}, combinedSigLen{sigLen}, span_context_{span_context} {
     char* p = (char*)std::malloc(sigLen);
     memcpy(p, sig, sigLen);
     combinedSig = p;
@@ -330,7 +334,7 @@ class CombinedSigSucceededInternalMsg : public InternalMessage {
 
   virtual void handle() override {
     InternalMessage::handle();
-    replica->onPrepareCombinedSigSucceeded(seqNumber, view, combinedSig, combinedSigLen);
+    replica->onPrepareCombinedSigSucceeded(seqNumber, view, combinedSig, combinedSigLen, span_context_);
   }
 };
 
@@ -358,10 +362,12 @@ class CombinedCommitSigSucceededInternalMsg : public InternalMessage {
   const ViewNum view;
   const char* combinedSig;
   const uint16_t combinedSigLen;
+  std::string span_context_;
 
  public:
-  CombinedCommitSigSucceededInternalMsg(InternalReplicaApi* rep, SeqNum s, ViewNum v, const char* sig, uint16_t sigLen)
-      : InternalMessage(rep), replica{rep}, seqNumber{s}, view{v}, combinedSigLen{sigLen} {
+  CombinedCommitSigSucceededInternalMsg(
+      InternalReplicaApi* rep, SeqNum s, ViewNum v, const char* sig, uint16_t sigLen, const std::string& span_context)
+      : InternalMessage(rep), replica{rep}, seqNumber{s}, view{v}, combinedSigLen{sigLen}, span_context_{span_context} {
     char* p = (char*)std::malloc(sigLen);
     memcpy(p, sig, sigLen);
     combinedSig = p;
@@ -371,7 +377,7 @@ class CombinedCommitSigSucceededInternalMsg : public InternalMessage {
 
   virtual void handle() override {
     InternalMessage::handle();
-    replica->onCommitCombinedSigSucceeded(seqNumber, view, combinedSig, combinedSigLen);
+    replica->onCommitCombinedSigSucceeded(seqNumber, view, combinedSig, combinedSigLen, span_context_);
   }
 };
 
@@ -413,10 +419,15 @@ class VerifyCombinedCommitSigResultInternalMsg : public InternalMessage {
 // class SeqNumInfo::ExFuncForPrepareCollector
 ///////////////////////////////////////////////////////////////////////////////
 
-PrepareFullMsg* SeqNumInfo::ExFuncForPrepareCollector::createCombinedSignatureMsg(
-    void* context, SeqNum seqNumber, ViewNum viewNumber, const char* const combinedSig, uint16_t combinedSigLen) {
+PrepareFullMsg* SeqNumInfo::ExFuncForPrepareCollector::createCombinedSignatureMsg(void* context,
+                                                                                  SeqNum seqNumber,
+                                                                                  ViewNum viewNumber,
+                                                                                  const char* const combinedSig,
+                                                                                  uint16_t combinedSigLen,
+                                                                                  const std::string& span_context) {
   InternalReplicaApi* r = (InternalReplicaApi*)context;
-  return PrepareFullMsg::create(viewNumber, seqNumber, r->getReplicasInfo().myId(), combinedSig, combinedSigLen);
+  return PrepareFullMsg::create(
+      viewNumber, seqNumber, r->getReplicasInfo().myId(), combinedSig, combinedSigLen, span_context);
 }
 
 InternalMessage* SeqNumInfo::ExFuncForPrepareCollector::createInterCombinedSigFailed(
@@ -426,9 +437,14 @@ InternalMessage* SeqNumInfo::ExFuncForPrepareCollector::createInterCombinedSigFa
 }
 
 InternalMessage* SeqNumInfo::ExFuncForPrepareCollector::createInterCombinedSigSucceeded(
-    void* context, SeqNum seqNumber, ViewNum viewNumber, const char* combinedSig, uint16_t combinedSigLen) {
+    void* context,
+    SeqNum seqNumber,
+    ViewNum viewNumber,
+    const char* combinedSig,
+    uint16_t combinedSigLen,
+    const std::string& span_context) {
   InternalReplicaApi* r = (InternalReplicaApi*)context;
-  return new CombinedSigSucceededInternalMsg(r, seqNumber, viewNumber, combinedSig, combinedSigLen);
+  return new CombinedSigSucceededInternalMsg(r, seqNumber, viewNumber, combinedSig, combinedSigLen, span_context);
 }
 
 InternalMessage* SeqNumInfo::ExFuncForPrepareCollector::createInterVerifyCombinedSigResult(void* context,
@@ -464,10 +480,15 @@ IncomingMsgsStorage& SeqNumInfo::ExFuncForPrepareCollector::incomingMsgsStorage(
 // class SeqNumInfo::ExFuncForCommitCollector
 ///////////////////////////////////////////////////////////////////////////////
 
-CommitFullMsg* SeqNumInfo::ExFuncForCommitCollector::createCombinedSignatureMsg(
-    void* context, SeqNum seqNumber, ViewNum viewNumber, const char* const combinedSig, uint16_t combinedSigLen) {
+CommitFullMsg* SeqNumInfo::ExFuncForCommitCollector::createCombinedSignatureMsg(void* context,
+                                                                                SeqNum seqNumber,
+                                                                                ViewNum viewNumber,
+                                                                                const char* const combinedSig,
+                                                                                uint16_t combinedSigLen,
+                                                                                const std::string& span_context) {
   InternalReplicaApi* r = (InternalReplicaApi*)context;
-  return CommitFullMsg::create(viewNumber, seqNumber, r->getReplicasInfo().myId(), combinedSig, combinedSigLen);
+  return CommitFullMsg::create(
+      viewNumber, seqNumber, r->getReplicasInfo().myId(), combinedSig, combinedSigLen, span_context);
 }
 
 InternalMessage* SeqNumInfo::ExFuncForCommitCollector::createInterCombinedSigFailed(
@@ -477,9 +498,14 @@ InternalMessage* SeqNumInfo::ExFuncForCommitCollector::createInterCombinedSigFai
 }
 
 InternalMessage* SeqNumInfo::ExFuncForCommitCollector::createInterCombinedSigSucceeded(
-    void* context, SeqNum seqNumber, ViewNum viewNumber, const char* combinedSig, uint16_t combinedSigLen) {
+    void* context,
+    SeqNum seqNumber,
+    ViewNum viewNumber,
+    const char* combinedSig,
+    uint16_t combinedSigLen,
+    const std::string& span_context) {
   InternalReplicaApi* r = (InternalReplicaApi*)context;
-  return new CombinedCommitSigSucceededInternalMsg(r, seqNumber, viewNumber, combinedSig, combinedSigLen);
+  return new CombinedCommitSigSucceededInternalMsg(r, seqNumber, viewNumber, combinedSig, combinedSigLen, span_context);
 }
 
 InternalMessage* SeqNumInfo::ExFuncForCommitCollector::createInterVerifyCombinedSigResult(void* context,
