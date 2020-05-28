@@ -96,6 +96,9 @@ class AsyncTcpConnection : public boost::enable_shared_from_this<AsyncTcpConnect
   recursive_mutex _connectionsGuard;
 
  public:
+  bool isConnected() const { return connected; }
+
+ public:
   B_TCP_SOCKET socket;
   bool connected;
 
@@ -755,8 +758,16 @@ class PlainTCPCommunication::PlainTcpImpl {
     return true;
   }
 
-  ConnectionStatus getCurrentConnectionStatus(const NodeNum node) const {
-    return isRunning() ? ConnectionStatus::Connected : ConnectionStatus::Disconnected;
+  ConnectionStatus getCurrentConnectionStatus(const NodeNum node) {
+    if (!isRunning()) return ConnectionStatus::Disconnected;
+    lock_guard<recursive_mutex> lock(_connectionsGuard);
+    const auto &conn = _connections.find(destNode);
+    if (conn != _connections.end()) {
+      LOG_INFO(_logger, "Connection found from " << _selfId << " to " << destNode);
+      if (conn->second->isConnected()) return ConnectionStatus::Connected;
+    }
+    LOG_INFO(_logger, "No connection exists from " << _selfId << " to " << destNode);
+    return ConnectionStatus::Disconnected;
   }
 
   /**
@@ -833,7 +844,7 @@ int PlainTCPCommunication::Stop() {
 
 bool PlainTCPCommunication::isRunning() const { return _ptrImpl->isRunning(); }
 
-ConnectionStatus PlainTCPCommunication::getCurrentConnectionStatus(const NodeNum node) const {
+ConnectionStatus PlainTCPCommunication::getCurrentConnectionStatus(const NodeNum node) {
   return _ptrImpl->getCurrentConnectionStatus(node);
 }
 

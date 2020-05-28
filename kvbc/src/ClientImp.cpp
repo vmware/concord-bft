@@ -17,8 +17,7 @@
 using namespace bftEngine;
 using bft::communication::ICommunication;
 
-namespace concord {
-namespace kvbc {
+namespace concord::kvbc {
 
 IClient* createClient(const ClientConfig& conf, ICommunication* comm) {
   ClientImp* c = new ClientImp();
@@ -74,17 +73,21 @@ Status ClientImp::invokeCommandSynch(const char* request,
                                      *outActualReplySize,
                                      cid,
                                      span_context);
-  assert(res >= -2 && res < 1);
-
-  if (res == 0)
-    return Status::OK();
-  else if (res == -1)
-    return Status::GeneralError("timeout");
-  else
-    return Status::InvalidArgument("small buffer");
+  switch (res) {
+    case SUCCESS:
+      return Status::OK();
+    case NOT_READY:
+      return Status::InterimError("The system is not ready");
+    case TIMEOUT:
+      return Status::GeneralError("Command timed out");
+    case BUFFER_TOO_SMALL:
+      return Status::InvalidArgument("Specified output buffer is too small");
+  }
+  return Status::GeneralError("Unknown error");
 }
+
 void ClientImp::setMetricsAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
   bftClient_->setAggregator(aggregator);
 }
-}  // namespace kvbc
-}  // namespace concord
+
+}  // namespace concord::kvbc

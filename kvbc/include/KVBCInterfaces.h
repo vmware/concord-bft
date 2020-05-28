@@ -22,8 +22,7 @@
 #include "bftengine/Replica.hpp"
 #include "kv_types.hpp"
 
-namespace concord {
-namespace kvbc {
+namespace concord::kvbc {
 
 using concordUtils::Status;
 using concordUtils::Sliver;
@@ -88,7 +87,7 @@ class IReplica {
  public:
   virtual Status start() = 0;
   virtual Status stop() = 0;
-  virtual ~IReplica() {}
+  virtual ~IReplica() = default;
 
   enum class RepStatus  // status of the replica
   { UnknownError = -1,
@@ -128,16 +127,16 @@ class IReplica {
 
 class ICommandsHandler : public bftEngine::IRequestsHandler {
  public:
-  virtual int execute(uint16_t clientId,
-                      uint64_t sequenceNum,
-                      uint8_t flags,
-                      uint32_t requestSize,
-                      const char* request,
-                      uint32_t maxReplySize,
-                      char* outReply,
-                      uint32_t& outActualReplySize,
-                      concordUtils::SpanWrapper& span) = 0;
-  virtual ~ICommandsHandler() = default;
+  int execute(uint16_t clientId,
+              uint64_t sequenceNum,
+              uint8_t flags,
+              uint32_t requestSize,
+              const char* request,
+              uint32_t maxReplySize,
+              char* outReply,
+              uint32_t& outActualReplySize,
+              concordUtils::SpanWrapper& span) override = 0;
+  ~ICommandsHandler() override = default;
 };
-}  // namespace kvbc
-}  // namespace concord
+
+}  // namespace concord::kvbc

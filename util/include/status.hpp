@@ -14,10 +14,11 @@ namespace concordUtils {
 class Status {
  public:
   static Status OK() { return Status(ok, ""); }
-  static Status NotFound(std::string msg) { return Status(notFound, msg); }
-  static Status InvalidArgument(std::string msg) { return Status(invalidArgument, msg); }
-  static Status IllegalOperation(std::string msg) { return Status(illegalOperation, msg); }
-  static Status GeneralError(std::string msg) { return Status(generalError, msg); }
+  static Status NotFound(const std::string& msg) { return Status(notFound, msg); }
+  static Status InvalidArgument(const std::string& msg) { return Status(invalidArgument, msg); }
+  static Status IllegalOperation(const std::string& msg) { return Status(illegalOperation, msg); }
+  static Status GeneralError(const std::string& msg) { return Status(generalError, msg); }
+  static Status InterimError(const std::string& msg) { return Status(interimError, msg); }
 
   bool isOK() const { return type == ok; }
   bool isNotFound() const { return type == notFound; }
@@ -34,12 +35,12 @@ class Status {
   bool operator==(const Status& status) const { return type == status.type; };
 
  private:
-  enum statusType { ok, notFound, invalidArgument, illegalOperation, generalError };
+  enum statusType { ok, notFound, invalidArgument, illegalOperation, generalError, interimError };
 
   statusType type;
   std::string message;
 
-  Status(statusType t, std::string msg) : type(t), message(msg) {}
+  Status(statusType t, std::string msg) : type(t), message(move(msg)) {}
 
   std::string messagePrefix() const {
     switch (type) {
@@ -53,6 +54,8 @@ class Status {
         return "Illegal Operation: ";
       case generalError:
         return "General Error: ";
+      case interimError:
+        return "Interim Error: ";
       default:
         return "Unknown Error Type: ";
     }

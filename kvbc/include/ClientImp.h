@@ -21,22 +21,22 @@ namespace concord::kvbc {
 class ClientImp : public IClient {
  public:
   // IClient methods
-  virtual Status start() override;
-  virtual Status stop() override;
+  Status start() override;
+  Status stop() override;
 
-  virtual bool isRunning() override;
+  bool isRunning() override;
 
-  virtual Status invokeCommandSynch(const char* request,
-                                    uint32_t requestSize,
-                                    uint8_t flags,
-                                    std::chrono::milliseconds timeout,
-                                    uint32_t replySize,
-                                    char* outReply,
-                                    uint32_t* outActualReplySize,
-                                    const std::string& cid = "",
-                                    const std::string& span_context = "") override;
+  Status invokeCommandSynch(const char* request,
+                            uint32_t requestSize,
+                            uint8_t flags,
+                            std::chrono::milliseconds timeout,
+                            uint32_t replySize,
+                            char* outReply,
+                            uint32_t* outActualReplySize,
+                            const std::string& cid,
+                            const std::string& span_context) override;
 
-  virtual void setMetricsAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) override;
+  void setMetricsAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) override;
 
  protected:
   ClientImp() = default;

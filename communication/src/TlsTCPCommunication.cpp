@@ -158,6 +158,8 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   bool _connected = false;
 
  public:
+  bool isAuthenticated() const { return _authenticated; }
+
  private:
   AsyncTlsConnection(asio::io_service *service,
                      function<void(NodeNum)> onError,
@@ -1283,8 +1285,20 @@ class TlsTCPCommunication::TlsTcpImpl : public std::enable_shared_from_this<TlsT
     return true;
   }
 
-  ConnectionStatus getCurrentConnectionStatus(const NodeNum node) const {
-    return isRunning() ? ConnectionStatus::Connected : ConnectionStatus::Disconnected;
+  ConnectionStatus getCurrentConnectionStatus(const NodeNum destNode) {
+    if (!isRunning()) return ConnectionStatus::Disconnected;
+    lock_guard<mutex> lock(_connectionsGuard);
+    const auto &conn = _connections.find(destNode);
+    if (conn != _connections.end()) {
+      LOG_INFO(_logger, "Connection found from " << _selfId << " to " << destNode);
+      if (conn->second->isAuthenticated()) {
+        return ConnectionStatus::Connected;
+      } else {
+        LOG_INFO(_logger, "Connection from " << _selfId << " to " << destNode << " is not authenticated");
+      }
+    }
+    LOG_INFO(_logger, "No connection exists from " << _selfId << " to " << destNode);
+    return ConnectionStatus::Disconnected;
   }
 
   void setReceiver(NodeNum nodeId, IReceiver *rec) {
@@ -1346,7 +1360,7 @@ int TlsTCPCommunication::Stop() {
 
 bool TlsTCPCommunication::isRunning() const { return _ptrImpl->isRunning(); }
 
-ConnectionStatus TlsTCPCommunication::getCurrentConnectionStatus(const NodeNum node) const {
+ConnectionStatus TlsTCPCommunication::getCurrentConnectionStatus(const NodeNum node) {
   return _ptrImpl->getCurrentConnectionStatus(node);
 }
 
