@@ -251,7 +251,7 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
       LOG_DEBUG(GL, "PartialProofsSet::AsynchProofCreationJob::execute - end (for seqNumber " << seqNumber);
       return;
     } else {
-      LOG_INFO(GL, "Commit path analysis: created FullProof, sending full commit proof");
+      LOG_DEBUG(CNSUS, "Created FullProof, sending full commit proof");
       // EL is this only fast and the on;y place to call FullCommitProofMsg
       FullCommitProofMsg* fcpMsg = new FullCommitProofMsg(
           me->getReplicasInfo().myId(), view, seqNumber, bufferForSigComputations, (uint16_t)sigLength, span_context_);

@@ -31,6 +31,7 @@
  */
 
 extern concordlogger::Logger GL;
+extern concordlogger::Logger CNSUS;
 
 namespace concordlogger {
 

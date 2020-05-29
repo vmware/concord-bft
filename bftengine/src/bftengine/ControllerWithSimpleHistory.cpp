@@ -194,9 +194,8 @@ bool ControllerWithSimpleHistory::onEndOfEvaluationPeriod() {
   recentActivity.resetAll(maxSeq + 1);
 
   if (lastFirstPathVal != currentFirstPath)
-    LOG_INFO(GL,
-             "Commit path analysis: path changed from " << CommitPathToStr(lastFirstPathVal) << " to "
-                                                        << CommitPathToStr(currentFirstPath));
+    LOG_INFO(CNSUS,
+             "Path changed from " << CommitPathToStr(lastFirstPathVal) << " to " << CommitPathToStr(currentFirstPath));
 
   // Adaptive tuning of the slow path duration threshold -
   //  - initialize the threshold to the `mean + 2*(standard deviation)` of the last executions.
@@ -217,7 +216,7 @@ bool ControllerWithSimpleHistory::onEndOfEvaluationPeriod() {
     currentTimeToStartSlowPathMilli =
         normalizeToRange(MinTimeToStartSlowPathMilli, MaxTimeToStartSlowPathMilli, newSlowPathTimeMilli);
 
-    LOG_INFO(GL, "Commit path analysis: timer to start slow path [" << currentTimeToStartSlowPathMilli << "ms]");
+    LOG_DEBUG(CNSUS, "Timer to start slow path [" << currentTimeToStartSlowPathMilli << "ms]");
   }
   return currentFirstPathChanged;
 }
