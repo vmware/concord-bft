@@ -23,7 +23,6 @@
 #include "BCStateTran.hpp"
 #include "STDigest.hpp"
 #include "InMemoryDataStore.hpp"
-#include "assertUtils.hpp"
 
 #include "DBDataStore.hpp"
 #include "storage/db_interface.h"
@@ -217,10 +216,10 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
           metrics_component_.RegisterCounter("on_timer"),
           metrics_component_.RegisterCounter("on_transferring_complete"),
       } {
-  Assert(stateApi != nullptr);
-  Assert(replicas_.size() >= 3U * config_.fVal + 1U);
-  Assert(replicas_.count(config_.myReplicaId) == 1);
-  Assert(config_.maxNumOfReservedPages >= 2);
+  AssertNE(stateApi, nullptr);
+  AssertGE(replicas_.size(), 3U * config_.fVal + 1U);
+  AssertEQ(replicas_.count(config_.myReplicaId), 1);
+  AssertGE(config_.maxNumOfReservedPages, 2);
 
   // Register metrics component with the default aggregator.
   metrics_component_.Register();
@@ -278,8 +277,8 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
                        uint32_t sizeOfReservedPage) {
   try {
     Assert(!running_);
-    Assert(replicaForStateTransfer_ == nullptr);
-    Assert(sizeOfReservedPage == config_.sizeOfReservedPage);
+    AssertEQ(replicaForStateTransfer_, nullptr);
+    AssertEQ(sizeOfReservedPage, config_.sizeOfReservedPage);
 
     maxNumOfStoredCheckpoints_ = maxNumOfRequiredStoredCheckpoints;
     numberOfReservedPages_ = numberOfRequiredReservedPages;
@@ -308,10 +307,11 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
     } else {
       LOG_INFO(STLogger, "initializing a new object");
 
-      AssertAND(maxNumOfRequiredStoredCheckpoints >= 2,
-                maxNumOfRequiredStoredCheckpoints <= kMaxNumOfStoredCheckpoints);
+      AssertGE(maxNumOfRequiredStoredCheckpoints, 2);
+      AssertLE(maxNumOfRequiredStoredCheckpoints, kMaxNumOfStoredCheckpoints);
+      AssertGE(numberOfRequiredReservedPages, 2);
+      AssertLE(numberOfRequiredReservedPages, config_.maxNumOfReservedPages);
 
-      AssertAND(numberOfRequiredReservedPages >= 2, numberOfRequiredReservedPages <= config_.maxNumOfReservedPages);
       DataStoreTransaction::Guard g(psd_->beginTransaction());
       g.txn()->setReplicas(replicas_);
       g.txn()->setMyReplicaId(config_.myReplicaId);
@@ -325,7 +325,7 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
       g.txn()->setLastRequiredBlock(0);
       g.txn()->setAsInitialized();
 
-      Assert(getFetchingState() == FetchingState::NotFetching);
+      AssertEQ(getFetchingState(), FetchingState::NotFetching);
     }
   } catch (const std::exception &e) {
     LOG_FATAL(STLogger, e.what());
@@ -336,12 +336,7 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
 void BCStateTran::startRunning(IReplicaForStateTransfer *r) {
   LOG_INFO(STLogger, "");
 
-  Assert(r != nullptr);
-  //  Assert(!running_);
-  //  Assert(replicaForStateTransfer_ == nullptr);
-
-  // TODO(GG): add asserts for all relevant data members
-
+  AssertNE(r, nullptr);
   running_ = true;
   replicaForStateTransfer_ = r;
   replicaForStateTransfer_->changeStateTransferTimerPeriod(config_.refreshTimerMilli);
@@ -351,7 +346,7 @@ void BCStateTran::stopRunning() {
   LOG_INFO(STLogger, "");
 
   Assert(running_);
-  Assert(replicaForStateTransfer_ != nullptr);
+  AssertNE(replicaForStateTransfer_, nullptr);
 
   // TODO(GG): cancel timer
 
@@ -398,7 +393,7 @@ bool BCStateTran::isRunning() const { return running_; }
 DataStore::CheckpointDesc BCStateTran::createCheckpointDesc(uint64_t checkpointNumber,
                                                             STDigest digestOfResPagesDescriptor) {
   uint64_t lastBlock = as_->getLastReachableBlockNum();
-  Assert(lastBlock == as_->getLastBlockNum());
+  AssertEQ(lastBlock, as_->getLastBlockNum());
   metrics_.last_block_.Get().Set(lastBlock);
 
   STDigest digestOfLastBlock;
@@ -441,9 +436,9 @@ STDigest BCStateTran::checkpointReservedPages(uint64_t checkpointNumber, DataSto
   }
 
   memset(buffer_, 0, config_.sizeOfReservedPage);
-  Assert(txn->numOfAllPendingResPage() == 0);
+  AssertEQ(txn->numOfAllPendingResPage(), 0);
   DataStore::ResPagesDescriptor *allPagesDesc = txn->getResPagesDescriptor(checkpointNumber);
-  Assert(allPagesDesc->numOfPages == numberOfReservedPages_);
+  AssertEQ(allPagesDesc->numOfPages, numberOfReservedPages_);
 
   STDigest digestOfResPagesDescriptor;
   computeDigestOfPagesDescriptor(allPagesDesc, digestOfResPagesDescriptor);
@@ -481,8 +476,8 @@ void BCStateTran::createCheckpointOfCurrentState(uint64_t checkpointNumber) {
 
   Assert(running_);
   Assert(!isFetching());
-  Assert(checkpointNumber > 0);
-  Assert(checkpointNumber > psd_->getLastStoredCheckpoint());
+  AssertGT(checkpointNumber, 0);
+  AssertGT(checkpointNumber, psd_->getLastStoredCheckpoint());
 
   metrics_.create_checkpoint_.Get().Inc();
 
@@ -501,7 +496,7 @@ void BCStateTran::markCheckpointAsStable(uint64_t checkpointNumber) {
 
   Assert(running_);
   Assert(!isFetching());
-  Assert(checkpointNumber > 0);
+  AssertGT(checkpointNumber, 0);
 
   metrics_.mark_checkpoint_as_stable_.Get().Inc();
 
@@ -510,16 +505,16 @@ void BCStateTran::markCheckpointAsStable(uint64_t checkpointNumber) {
 
   AssertOR((lastStoredCheckpoint < maxNumOfStoredCheckpoints_),
            (checkpointNumber >= lastStoredCheckpoint - maxNumOfStoredCheckpoints_ + 1));
-  Assert(checkpointNumber <= psd_->getLastStoredCheckpoint());
+  AssertLE(checkpointNumber, psd_->getLastStoredCheckpoint());
 }
 
 void BCStateTran::getDigestOfCheckpoint(uint64_t checkpointNumber, uint16_t sizeOfDigestBuffer, char *outDigestBuffer) {
   Assert(running_);
   Assert(!isFetching());
-  Assert(sizeOfDigestBuffer >= sizeof(STDigest));
-  Assert(checkpointNumber > 0);
-  Assert(checkpointNumber >= psd_->getFirstStoredCheckpoint());
-  Assert(checkpointNumber <= psd_->getLastStoredCheckpoint());
+  AssertGE(sizeOfDigestBuffer, sizeof(STDigest));
+  AssertGT(checkpointNumber, 0);
+  AssertGE(checkpointNumber, psd_->getFirstStoredCheckpoint());
+  AssertLE(checkpointNumber, psd_->getLastStoredCheckpoint());
   Assert(psd_->hasCheckpointDesc(checkpointNumber));
 
   DataStore::CheckpointDesc desc = psd_->getCheckpointDesc(checkpointNumber);
@@ -545,8 +540,8 @@ uint32_t BCStateTran::numberOfReservedPages() const { return static_cast<uint32_
 uint32_t BCStateTran::sizeOfReservedPage() const { return config_.sizeOfReservedPage; }
 
 bool BCStateTran::loadReservedPage(uint32_t reservedPageId, uint32_t copyLength, char *outReservedPage) const {
-  Assert(reservedPageId < numberOfReservedPages_);
-  Assert(copyLength <= config_.sizeOfReservedPage);
+  AssertLT(reservedPageId, numberOfReservedPages_);
+  AssertLE(copyLength, config_.sizeOfReservedPage);
 
   metrics_.load_reserved_page_.Get().Inc();
 
@@ -561,7 +556,7 @@ bool BCStateTran::loadReservedPage(uint32_t reservedPageId, uint32_t copyLength,
     uint64_t actualChckp = UINT64_MAX;
     metrics_.load_reserved_page_from_checkpoint_.Get().Inc();
     if (!psd_->getResPage(reservedPageId, lastCheckpoint, &actualChckp, outReservedPage, copyLength)) return false;
-    Assert(actualChckp <= lastCheckpoint);
+    AssertLE(actualChckp, lastCheckpoint);
     LOG_DEBUG(STLogger, "page: " << reservedPageId << " loaded from checkpoint: " << actualChckp);
   }
   return true;
@@ -572,8 +567,8 @@ void BCStateTran::saveReservedPage(uint32_t reservedPageId, uint32_t copyLength,
     LOG_DEBUG(STLogger, reservedPageId);
 
     Assert(!isFetching());
-    Assert(reservedPageId < numberOfReservedPages_);
-    Assert(copyLength <= config_.sizeOfReservedPage);
+    AssertLT(reservedPageId, numberOfReservedPages_);
+    AssertLE(copyLength, config_.sizeOfReservedPage);
 
     metrics_.save_reserved_page_.Get().Inc();
 
@@ -588,7 +583,7 @@ void BCStateTran::zeroReservedPage(uint32_t reservedPageId) {
   LOG_DEBUG(STLogger, reservedPageId);
 
   Assert(!isFetching());
-  Assert(reservedPageId < numberOfReservedPages_);
+  AssertLT(reservedPageId, numberOfReservedPages_);
 
   metrics_.zero_reserved_page_.Get().Inc();
   memset(buffer_, 0, config_.sizeOfReservedPage);
@@ -734,7 +729,7 @@ static uint32_t getSizeOfVirtualBlock(char *virtualBlock, uint32_t pageSize) {
 
 static ElementOfVirtualBlock *getVirtualElement(uint32_t index, uint32_t pageSize, char *virtualBlock) {
   HeaderOfVirtualBlock *h = reinterpret_cast<HeaderOfVirtualBlock *>(virtualBlock);
-  Assert(index < h->numberOfUpdatedPages);
+  AssertLT(index, h->numberOfUpdatedPages);
 
   const uint32_t elementSize = sizeof(ElementOfVirtualBlock) + pageSize - 1;
   char *p = virtualBlock + sizeof(HeaderOfVirtualBlock) + (index * elementSize);
@@ -790,7 +785,7 @@ uint64_t BCStateTran::uniqueMsgSeqNum() {
   }
 
   uint64_t r = (lastMilliOfUniqueFetchID_ << (64 - 42));
-  Assert(lastCountOfUniqueFetchID_ <= 0x3FFFFF);
+  AssertLE(lastCountOfUniqueFetchID_, 0x3FFFFF);
   r = r | ((uint64_t)lastCountOfUniqueFetchID_);
   return r;
 }
@@ -840,18 +835,23 @@ string BCStateTran::stateName(FetchingState fs) {
   }
 }
 
+std::ostream &operator<<(std::ostream &os, const BCStateTran::FetchingState fs) {
+  os << BCStateTran::stateName(fs);
+  return os;
+}
+
 bool BCStateTran::isFetching() const { return (psd_->getIsFetchingState()); }
 
 BCStateTran::FetchingState BCStateTran::getFetchingState() const {
   if (!psd_->getIsFetchingState()) return FetchingState::NotFetching;
 
-  Assert(psd_->numOfAllPendingResPage() == 0);
+  AssertEQ(psd_->numOfAllPendingResPage(), 0);
 
   if (!psd_->hasCheckpointBeingFetched()) return FetchingState::GettingCheckpointSummaries;
 
   if (psd_->getLastRequiredBlock() > 0) return FetchingState::GettingMissingBlocks;
 
-  Assert(psd_->getFirstRequiredBlock() == 0);
+  AssertEQ(psd_->getFirstRequiredBlock(), 0);
 
   return FetchingState::GettingMissingResPages;
 }
@@ -868,7 +868,7 @@ void BCStateTran::sendToAllOtherReplicas(char *msg, uint32_t msgSize) {
 }
 
 void BCStateTran::sendAskForCheckpointSummariesMsg() {
-  Assert(getFetchingState() == FetchingState::GettingCheckpointSummaries);
+  AssertEQ(getFetchingState(), FetchingState::GettingCheckpointSummaries);
   metrics_.sent_ask_for_checkpoint_summaries_msg_.Get().Inc();
 
   AskForCheckpointSummariesMsg msg;
@@ -1015,7 +1015,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
   LOG_DEBUG(STLogger, "");
 
   FetchingState fs = getFetchingState();
-  Assert(fs == FetchingState::GettingCheckpointSummaries);
+  AssertEQ(fs, FetchingState::GettingCheckpointSummaries);
   metrics_.received_checkpoint_summary_msg_.Get().Inc();
 
   // if msg is invalid
@@ -1065,12 +1065,12 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
   LOG_DEBUG(STLogger, "Has enough CheckpointSummaryMsg messages");
   CheckpointSummaryMsg *checkSummary = cert->bestCorrectMsg();
 
-  Assert(checkSummary != nullptr);
+  AssertNE(checkSummary, nullptr);
   Assert(sourceSelector_.isReset());
-  Assert(nextRequiredBlock_ == 0);
+  AssertEQ(nextRequiredBlock_, 0);
   Assert(digestOfNextRequiredBlock.isZero());
   Assert(pendingItemDataMsgs.empty());
-  Assert(totalSizeOfPendingItemDataMsgs == 0);
+  AssertEQ(totalSizeOfPendingItemDataMsgs, 0);
 
   // set the preferred replicas
   for (uint16_t r : replicas_) {  // TODO(GG): can be improved
@@ -1080,7 +1080,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
 
   metrics_.preferred_replicas_.Get().Set(sourceSelector_.preferredReplicasToString());
 
-  Assert(sourceSelector_.numberOfPreferredReplicas() >= config_.fVal + 1);
+  AssertGE(sourceSelector_.numberOfPreferredReplicas(), config_.fVal + 1);
 
   // set new checkpoint
   DataStore::CheckpointDesc newCheckpoint;
@@ -1115,9 +1115,9 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
       g.txn()->setFirstRequiredBlock(lastReachableBlockNum + 1);
       g.txn()->setLastRequiredBlock(newCheckpoint.lastBlock);
     } else {
-      Assert(newCheckpoint.lastBlock == lastReachableBlockNum);
-      Assert(g.txn()->getFirstRequiredBlock() == 0);
-      Assert(g.txn()->getLastRequiredBlock() == 0);
+      AssertEQ(newCheckpoint.lastBlock, lastReachableBlockNum);
+      AssertEQ(g.txn()->getFirstRequiredBlock(), 0);
+      AssertEQ(g.txn()->getLastRequiredBlock(), 0);
     }
   }
   metrics_.last_block_.Get().Set(newCheckpoint.lastBlock);
@@ -1168,7 +1168,8 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
   uint64_t nextBlock = m->lastRequiredBlock;
   uint32_t sizeOfNextBlock = 0;
   bool tmp = as_->getBlock(nextBlock, buffer_, &sizeOfNextBlock);
-  AssertAND(tmp, sizeOfNextBlock > 0);
+  Assert(tmp);
+  AssertGT(sizeOfNextBlock, 0);
 
   uint32_t sizeOfLastChunk = config_.maxChunkSize;
   uint32_t numOfChunksInNextBlock = sizeOfNextBlock / config_.maxChunkSize;
@@ -1191,7 +1192,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
   while (true) {
     uint32_t chunkSize = (nextChunk < numOfChunksInNextBlock) ? config_.maxChunkSize : sizeOfLastChunk;
 
-    Assert(chunkSize > 0);
+    AssertGT(chunkSize, 0);
 
     char *pRawChunk = buffer_ + (nextChunk - 1) * config_.maxChunkSize;
     ItemDataMsg *outMsg = ItemDataMsg::alloc(chunkSize);  // TODO(GG): improve
@@ -1232,7 +1233,8 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
       memset(buffer_, 0, sizeOfNextBlock);
       sizeOfNextBlock = 0;
       bool tmp2 = as_->getBlock(nextBlock, buffer_, &sizeOfNextBlock);
-      AssertAND(tmp2, sizeOfNextBlock > 0);
+      Assert(tmp2);
+      AssertGT(sizeOfNextBlock, 0);
 
       sizeOfLastChunk = config_.maxChunkSize;
       numOfChunksInNextBlock = sizeOfNextBlock / config_.maxChunkSize;
@@ -1299,10 +1301,10 @@ bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t
     // TODO(GG): consider adding protection against bad replicas
     // that lead to unnecessary creations of vblocks
     vblock = createVBlock(descOfVBlock);
-    Assert(vblock != nullptr);
+    AssertNE(vblock, nullptr);
     setVBlockInCache(descOfVBlock, vblock);
 
-    Assert(cacheOfVirtualBlockForResPages.size() <= kMaxVBlocksInCache);
+    AssertLE(cacheOfVirtualBlockForResPages.size(), kMaxVBlocksInCache);
   }
 
   uint32_t vblockSize = getSizeOfVirtualBlock(vblock, config_.sizeOfReservedPage);
@@ -1332,7 +1334,7 @@ bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t
   uint16_t numOfSentChunks = 0;
   while (true) {
     uint32_t chunkSize = (nextChunk < numOfChunksInVBlock) ? config_.maxChunkSize : sizeOfLastChunk;
-    Assert(chunkSize > 0);
+    AssertGT(chunkSize, 0);
 
     char *pRawChunk = vblock + (nextChunk - 1) * config_.maxChunkSize;
     ItemDataMsg *outMsg = ItemDataMsg::alloc(chunkSize);
@@ -1375,7 +1377,11 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
   metrics_.received_reject_fetching_msg_.Get().Inc();
 
   FetchingState fs = getFetchingState();
-  AssertOR(fs == FetchingState::GettingMissingBlocks, fs == FetchingState::GettingMissingResPages);
+  if (fs != FetchingState::GettingMissingBlocks && fs != FetchingState::GettingMissingResPages) {
+    LOG_FATAL(STLogger,
+              "Expected Fetching State GettingMissingBlocks or GettingMissingResPages. Got: " << stateName(fs));
+    Assert(false);
+  }
   Assert(sourceSelector_.hasPreferredReplicas());
 
   // if msg is invalid
@@ -1422,7 +1428,11 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
   metrics_.received_item_data_msg_.Get().Inc();
 
   FetchingState fs = getFetchingState();
-  AssertOR(fs == FetchingState::GettingMissingBlocks, fs == FetchingState::GettingMissingResPages);
+  if (fs != FetchingState::GettingMissingBlocks && fs != FetchingState::GettingMissingResPages) {
+    LOG_FATAL(STLogger,
+              "Expected Fetching State GettingMissingBlocks or GettingMissingResPages. Got: " << stateName(fs));
+    Assert(false);
+  }
 
   const uint16_t MaxNumOfChunksInBlock =
       (fs == FetchingState::GettingMissingBlocks) ? maxNumOfChunksInAppBlock_ : maxNumOfChunksInVBlock_;
@@ -1461,8 +1471,8 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
       return false;
     }
   } else {
-    Assert(firstRequiredBlock == 0);
-    Assert(lastRequiredBlock == 0);
+    AssertEQ(firstRequiredBlock, 0);
+    AssertEQ(lastRequiredBlock, 0);
 
     // if msg is not relevant
     if (sourceSelector_.currentReplica() != replicaId || m->requestMsgSeqNum != lastMsgSeqNum_ ||
@@ -1511,11 +1521,11 @@ char *BCStateTran::getVBlockFromCache(const DescOfVBlockForResPages &desc) const
 
   char *vBlock = p->second;
 
-  Assert(vBlock != nullptr);
+  AssertNE(vBlock, nullptr);
 
   HeaderOfVirtualBlock *header = reinterpret_cast<HeaderOfVirtualBlock *>(vBlock);
 
-  Assert(desc.lastCheckpointKnownToRequester == header->lastCheckpointKnownToRequester);
+  AssertEQ(desc.lastCheckpointKnownToRequester, header->lastCheckpointKnownToRequester);
 
   return vBlock;
 }
@@ -1523,7 +1533,7 @@ char *BCStateTran::getVBlockFromCache(const DescOfVBlockForResPages &desc) const
 void BCStateTran::setVBlockInCache(const DescOfVBlockForResPages &desc, char *vBlock) {
   auto p = cacheOfVirtualBlockForResPages.find(desc);
 
-  Assert(p == cacheOfVirtualBlockForResPages.end());
+  AssertEQ(p, cacheOfVirtualBlockForResPages.end());
 
   if (cacheOfVirtualBlockForResPages.size() == kMaxVBlocksInCache) {
     auto minItem = cacheOfVirtualBlockForResPages.begin();
@@ -1532,7 +1542,7 @@ void BCStateTran::setVBlockInCache(const DescOfVBlockForResPages &desc, char *vB
   }
 
   cacheOfVirtualBlockForResPages[desc] = vBlock;
-  Assert(cacheOfVirtualBlockForResPages.size() <= kMaxVBlocksInCache);
+  AssertLE(cacheOfVirtualBlockForResPages.size(), kMaxVBlocksInCache);
 }
 
 char *BCStateTran::createVBlock(const DescOfVBlockForResPages &desc) {
@@ -1549,7 +1559,7 @@ char *BCStateTran::createVBlock(const DescOfVBlockForResPages &desc) {
     if (!psd_->getResPage(i, desc.checkpointNum, &actualPageCheckpoint)) continue;
 
     // because we have checkpoint desc.checkpointNum
-    Assert(actualPageCheckpoint <= desc.checkpointNum);
+    AssertLE(actualPageCheckpoint, desc.checkpointNum);
 
     if (actualPageCheckpoint > desc.lastCheckpointKnownToRequester) updatedPages.push_back(i);
   }
@@ -1575,14 +1585,14 @@ char *BCStateTran::createVBlock(const DescOfVBlockForResPages &desc) {
 
   uint32_t idx = 0;
   for (uint32_t pageId : updatedPages) {
-    Assert(idx < numberOfUpdatedPages);
+    AssertLT(idx, numberOfUpdatedPages);
 
     uint64_t actualPageCheckpoint = 0;
     STDigest pageDigest;
     psd_->getResPage(
         pageId, desc.checkpointNum, &actualPageCheckpoint, &pageDigest, buffer_, config_.sizeOfReservedPage);
-    Assert(actualPageCheckpoint <= desc.checkpointNum);
-    Assert(actualPageCheckpoint > desc.lastCheckpointKnownToRequester);
+    AssertLE(actualPageCheckpoint, desc.checkpointNum);
+    AssertGT(actualPageCheckpoint, desc.lastCheckpointKnownToRequester);
     Assert(!pageDigest.isZero());
 
     ElementOfVirtualBlock *currElement = reinterpret_cast<ElementOfVirtualBlock *>(elements + idx * elementSize);
@@ -1599,7 +1609,7 @@ char *BCStateTran::createVBlock(const DescOfVBlockForResPages &desc) {
     idx++;
   }
 
-  Assert(idx == numberOfUpdatedPages);
+  AssertEQ(idx, numberOfUpdatedPages);
   AssertOR(!config_.pedanticChecks, checkStructureOfVirtualBlock(rawVBlock, size, config_.sizeOfReservedPage));
 
   LOG_DEBUG(STLogger, "New vblock contains " << numberOfUpdatedPages << " updated pages, size: " << size);
@@ -1624,8 +1634,8 @@ void BCStateTran::clearInfoAboutGettingCheckpointSummary() {
 }
 
 void BCStateTran::verifyEmptyInfoAboutGettingCheckpointSummary() {
-  Assert(lastTimeSentAskForCheckpointSummariesMsg == 0);
-  Assert(retransmissionNumberOfAskForCheckpointSummariesMsg == 0);
+  AssertEQ(lastTimeSentAskForCheckpointSummariesMsg, 0);
+  AssertEQ(retransmissionNumberOfAskForCheckpointSummariesMsg, 0);
   Assert(summariesCerts.empty());
   Assert(numOfSummariesFromOtherReplicas.empty());
 }
@@ -1652,7 +1662,7 @@ void BCStateTran::clearPendingItemsData(uint64_t untilBlock) {
 
   auto it = pendingItemDataMsgs.begin();
   while (it != pendingItemDataMsgs.end() && (*it)->blockNumber >= untilBlock) {
-    Assert(totalSizeOfPendingItemDataMsgs >= (*it)->dataSize);
+    AssertGE(totalSizeOfPendingItemDataMsgs, (*it)->dataSize);
 
     totalSizeOfPendingItemDataMsgs -= (*it)->dataSize;
     replicaForStateTransfer_->freeStateTransferMsg(reinterpret_cast<char *>(*it));
@@ -1668,7 +1678,7 @@ bool BCStateTran::getNextFullBlock(uint64_t requiredBlock,
                                    char *outBlock,
                                    uint32_t &outBlockSize,
                                    bool isVBLock) {
-  Assert(requiredBlock >= 1);
+  AssertGE(requiredBlock, 1);
 
   const uint32_t maxSize = (isVBLock ? maxVBlockSize_ : config_.maxBlockSize);
   clearPendingItemsData(requiredBlock + 1);
@@ -1688,8 +1698,8 @@ bool BCStateTran::getNextFullBlock(uint64_t requiredBlock,
     ItemDataMsg *msg = *it;
 
     // the conditions of these asserts are checked when receiving  the message
-    Assert(msg->totalNumberOfChunksInBlock > 0);
-    Assert(msg->chunkNumber >= 1);
+    AssertGT(msg->totalNumberOfChunksInBlock, 0);
+    AssertGE(msg->chunkNumber, 1);
 
     if (totalNumberOfChunks == 0) totalNumberOfChunks = msg->totalNumberOfChunksInBlock;
 
@@ -1702,11 +1712,11 @@ bool BCStateTran::getNextFullBlock(uint64_t requiredBlock,
 
     if (maxAvailableChunk + 1 < msg->chunkNumber) break;  // we have a hole
 
-    Assert(maxAvailableChunk + 1 == msg->chunkNumber);
+    AssertEQ(maxAvailableChunk + 1, msg->chunkNumber);
 
     maxAvailableChunk = msg->chunkNumber;
 
-    Assert(maxAvailableChunk <= totalNumberOfChunks);
+    AssertLE(maxAvailableChunk, totalNumberOfChunks);
 
     if (maxAvailableChunk == totalNumberOfChunks) {
       fullBlock = true;
@@ -1733,15 +1743,15 @@ bool BCStateTran::getNextFullBlock(uint64_t requiredBlock,
 
   it = pendingItemDataMsgs.begin();
   while (true) {
-    Assert(it != pendingItemDataMsgs.end());
-    Assert((*it)->blockNumber == requiredBlock);
+    AssertNE(it, pendingItemDataMsgs.end());
+    AssertEQ((*it)->blockNumber, requiredBlock);
 
     ItemDataMsg *msg = *it;
 
-    Assert(msg->chunkNumber >= 1);
-    Assert(msg->totalNumberOfChunksInBlock == totalNumberOfChunks);
-    Assert(currentChunk + 1 == msg->chunkNumber);
-    Assert(currentPos + msg->dataSize <= maxSize);
+    AssertGE(msg->chunkNumber, 1);
+    AssertEQ(msg->totalNumberOfChunksInBlock, totalNumberOfChunks);
+    AssertEQ(currentChunk + 1, msg->chunkNumber);
+    AssertLE(currentPos + msg->dataSize, maxSize);
 
     memcpy(outBlock + currentPos, msg->data, msg->dataSize);
     currentChunk = msg->chunkNumber;
@@ -1798,7 +1808,7 @@ bool BCStateTran::checkVirtualBlockOfResPages(const STDigest &expectedDigestOfRe
   // build ResPagesDescriptor
   DataStore::ResPagesDescriptor *pagesDesc = psd_->getResPagesDescriptor(h->lastCheckpointKnownToRequester);
 
-  Assert(pagesDesc->numOfPages == numberOfReservedPages_);
+  AssertEQ(pagesDesc->numOfPages, numberOfReservedPages_);
 
   for (uint32_t i = 0; i < h->numberOfUpdatedPages; ++i) {
     ElementOfVirtualBlock *vElement = getVirtualElement(i, config_.sizeOfReservedPage, vblock);
@@ -1816,7 +1826,7 @@ bool BCStateTran::checkVirtualBlockOfResPages(const STDigest &expectedDigestOfRe
                                                           << " expected=" << pageDigest.toString());
       return false;
     }
-    Assert(pagesDesc->d[vElement->pageId].relevantCheckpoint <= h->lastCheckpointKnownToRequester);
+    AssertLE(pagesDesc->d[vElement->pageId].relevantCheckpoint, h->lastCheckpointKnownToRequester);
     pagesDesc->d[vElement->pageId].pageId = vElement->pageId;
     pagesDesc->d[vElement->pageId].relevantCheckpoint = vElement->checkpointNumber;
     pagesDesc->d[vElement->pageId].pageDigest = vElement->pageDigest;
@@ -1858,7 +1868,7 @@ void BCStateTran::EnterGettingCheckpointSummariesState() {
   clearAllPendingItemsData();
 
   psd_->deleteCheckpointBeingFetched();
-  Assert(getFetchingState() == FetchingState::GettingCheckpointSummaries);
+  AssertEQ(getFetchingState(), FetchingState::GettingCheckpointSummaries);
   verifyEmptyInfoAboutGettingCheckpointSummary();
   sendAskForCheckpointSummariesMsg();
 }
@@ -1869,7 +1879,7 @@ void BCStateTran::processData() {
   const FetchingState fs = getFetchingState();
   AssertOR(fs == FetchingState::GettingMissingBlocks, fs == FetchingState::GettingMissingResPages);
   Assert(sourceSelector_.hasPreferredReplicas());
-  Assert(totalSizeOfPendingItemDataMsgs <= config_.maxPendingDataFromSourceReplica);
+  AssertLE(totalSizeOfPendingItemDataMsgs, config_.maxPendingDataFromSourceReplica);
 
   const bool isGettingBlocks = (fs == FetchingState::GettingMissingBlocks);
 
@@ -1903,7 +1913,7 @@ void BCStateTran::processData() {
 
     // We have a valid source replica at this point
     Assert(sourceSelector_.hasSource());
-    Assert(badDataFromCurrentSourceReplica == false);
+    AssertEQ(badDataFromCurrentSourceReplica, false);
 
     //////////////////////////////////////////////////////////////////////////
     // if needed, determine the next required block
@@ -1930,7 +1940,7 @@ void BCStateTran::processData() {
       }
     }
 
-    Assert(nextRequiredBlock_ != 0);
+    AssertNE(nextRequiredBlock_, 0);
     Assert(!digestOfNextRequiredBlock.isZero());
 
     LOG_DEBUG(STLogger,
@@ -1998,7 +2008,7 @@ void BCStateTran::processData() {
         nextRequiredBlock_ = 0;
         digestOfNextRequiredBlock.makeZero();
 
-        Assert(getFetchingState() == FetchingState::GettingMissingResPages);
+        AssertEQ(getFetchingState(), FetchingState::GettingMissingResPages);
 
         LOG_DEBUG(STLogger, "moved to GettingMissingResPages");
         sendFetchResPagesMsg(0);
@@ -2028,9 +2038,9 @@ void BCStateTran::processData() {
 
       // set stored data
 
-      Assert(g.txn()->getFirstRequiredBlock() == 0);
-      Assert(g.txn()->getLastRequiredBlock() == 0);
-      Assert(cp.checkpointNum > g.txn()->getLastStoredCheckpoint());
+      AssertEQ(g.txn()->getFirstRequiredBlock(), 0);
+      AssertEQ(g.txn()->getLastRequiredBlock(), 0);
+      AssertGT(cp.checkpointNum, g.txn()->getLastStoredCheckpoint());
 
       g.txn()->setCheckpointDesc(cp.checkpointNum, cp);
       g.txn()->setLastStoredCheckpoint(cp.checkpointNum);
@@ -2135,31 +2145,31 @@ void BCStateTran::checkConsistency(bool checkAllBlocks) {
 
   if (!psd_->getIsFetchingState()) {
     Assert(!psd_->hasCheckpointBeingFetched());
-    Assert(psd_->getFirstRequiredBlock() == 0);
-    Assert(psd_->getLastRequiredBlock() == 0);
+    AssertEQ(psd_->getFirstRequiredBlock(), 0);
+    AssertEQ(psd_->getLastRequiredBlock(), 0);
   } else if (!psd_->hasCheckpointBeingFetched()) {
-    Assert(psd_->getFirstRequiredBlock() == 0);
-    Assert(psd_->getLastRequiredBlock() == 0);
-    Assert(psd_->numOfAllPendingResPage() == 0);
+    AssertEQ(psd_->getFirstRequiredBlock(), 0);
+    AssertEQ(psd_->getLastRequiredBlock(), 0);
+    AssertEQ(psd_->numOfAllPendingResPage(), 0);
   } else if (psd_->getLastRequiredBlock() > 0) {
-    Assert(psd_->getFirstRequiredBlock() > 0);
-    Assert(psd_->numOfAllPendingResPage() == 0);
+    AssertGT(psd_->getFirstRequiredBlock(), 0);
+    AssertEQ(psd_->numOfAllPendingResPage(), 0);
   } else {
-    Assert(psd_->numOfAllPendingResPage() == 0);
+    AssertEQ(psd_->numOfAllPendingResPage(), 0);
   }
 }
 
 void BCStateTran::checkConfig() {
-  Assert(replicas_ == psd_->getReplicas());
-  Assert(config_.myReplicaId == psd_->getMyReplicaId());
-  Assert(config_.fVal == psd_->getFVal());
-  Assert(maxNumOfStoredCheckpoints_ == psd_->getMaxNumOfStoredCheckpoints());
-  Assert(numberOfReservedPages_ == psd_->getNumberOfReservedPages());
+  AssertEQ(replicas_, psd_->getReplicas());
+  AssertEQ(config_.myReplicaId, psd_->getMyReplicaId());
+  AssertEQ(config_.fVal, psd_->getFVal());
+  AssertEQ(maxNumOfStoredCheckpoints_, psd_->getMaxNumOfStoredCheckpoints());
+  AssertEQ(numberOfReservedPages_, psd_->getNumberOfReservedPages());
 }
 
 void BCStateTran::checkFirstAndLastCheckpoint(uint64_t firstStoredCheckpoint, uint64_t lastStoredCheckpoint) {
-  Assert(lastStoredCheckpoint >= firstStoredCheckpoint);
-  Assert(lastStoredCheckpoint - firstStoredCheckpoint + 1 <= maxNumOfStoredCheckpoints_);
+  AssertGE(lastStoredCheckpoint, firstStoredCheckpoint);
+  AssertLE(lastStoredCheckpoint - firstStoredCheckpoint + 1, maxNumOfStoredCheckpoints_);
   AssertOR((lastStoredCheckpoint == 0), psd_->hasCheckpointDesc(lastStoredCheckpoint));
   if ((firstStoredCheckpoint != 0) && (firstStoredCheckpoint != lastStoredCheckpoint) &&
       !psd_->hasCheckpointDesc(firstStoredCheckpoint)) {
@@ -2179,19 +2189,21 @@ void BCStateTran::checkReachableBlocks(uint64_t lastReachableBlockNum) {
       STDigest prevFromNextBlockDigest;
       prevFromNextBlockDigest.makeZero();
       as_->getPrevDigestFromBlock(currBlock + 1, reinterpret_cast<StateTransferDigest *>(&prevFromNextBlockDigest));
-      Assert(currDigest == prevFromNextBlockDigest);
+      AssertEQ(currDigest, prevFromNextBlockDigest);
     }
   }
 }
 
 void BCStateTran::checkUnreachableBlocks(uint64_t lastReachableBlockNum, uint64_t lastBlockNum) {
-  Assert(lastBlockNum >= lastReachableBlockNum);
+  AssertGE(lastBlockNum, lastReachableBlockNum);
   if (lastBlockNum > lastReachableBlockNum) {
-    Assert(getFetchingState() == FetchingState::GettingMissingBlocks);
+    AssertEQ(getFetchingState(), FetchingState::GettingMissingBlocks);
     uint64_t x = lastBlockNum - 1;
     while (as_->hasBlock(x)) x--;
 
-    Assert(x > lastReachableBlockNum);  // we should have a hole
+    // we should have a hole
+    AssertGT(x, lastReachableBlockNum);
+
     // we should have a single hole
     for (uint64_t i = lastReachableBlockNum + 1; i <= x; i++) Assert(!as_->hasBlock(i));
   }
@@ -2202,8 +2214,8 @@ void BCStateTran::checkBlocksBeingFetchedNow(bool checkAllBlocks,
                                              uint64_t lastBlockNum) {
   if (lastBlockNum > lastReachableBlockNum) {
     AssertAND(psd_->getIsFetchingState(), psd_->hasCheckpointBeingFetched());
-    Assert(psd_->getFirstRequiredBlock() - 1 == as_->getLastReachableBlockNum());
-    Assert(psd_->getLastRequiredBlock() >= psd_->getFirstRequiredBlock());
+    AssertEQ(psd_->getFirstRequiredBlock() - 1, as_->getLastReachableBlockNum());
+    AssertGE(psd_->getLastRequiredBlock(), psd_->getFirstRequiredBlock());
 
     if (checkAllBlocks) {
       uint64_t lastRequiredBlock = psd_->getLastRequiredBlock();
@@ -2215,7 +2227,7 @@ void BCStateTran::checkBlocksBeingFetchedNow(bool checkAllBlocks,
         STDigest prevFromNextBlockDigest;
         prevFromNextBlockDigest.makeZero();
         as_->getPrevDigestFromBlock(currBlock + 1, reinterpret_cast<StateTransferDigest *>(&prevFromNextBlockDigest));
-        Assert(currDigest == prevFromNextBlockDigest);
+        AssertEQ(currDigest, prevFromNextBlockDigest);
       }
     }
   }
@@ -2229,36 +2241,36 @@ void BCStateTran::checkStoredCheckpoints(uint64_t firstStoredCheckpoint, uint64_
       if (!psd_->hasCheckpointDesc(chkp)) continue;
 
       DataStore::CheckpointDesc desc = psd_->getCheckpointDesc(chkp);
-      Assert(desc.checkpointNum == chkp);
-      Assert(desc.lastBlock <= as_->getLastReachableBlockNum());
-      Assert(desc.lastBlock >= prevLastBlockNum);
+      AssertEQ(desc.checkpointNum, chkp);
+      AssertLE(desc.lastBlock, as_->getLastReachableBlockNum());
+      AssertGE(desc.lastBlock, prevLastBlockNum);
       prevLastBlockNum = desc.lastBlock;
 
       if (desc.lastBlock > 0) {
         auto d = getBlockAndComputeDigest(desc.lastBlock);
-        Assert(d == desc.digestOfLastBlock);
+        AssertEQ(d, desc.digestOfLastBlock);
       }
       // check all pages descriptor
       DataStore::ResPagesDescriptor *allPagesDesc = psd_->getResPagesDescriptor(chkp);
-      Assert(allPagesDesc->numOfPages == numberOfReservedPages_);
+      AssertEQ(allPagesDesc->numOfPages, numberOfReservedPages_);
       {
         STDigest d;
         computeDigestOfPagesDescriptor(allPagesDesc, d);
-        Assert(d == desc.digestOfResPagesDescriptor);
+        AssertEQ(d, desc.digestOfResPagesDescriptor);
       }
       // check all pages descriptors
       for (uint32_t pageId = 0; pageId < numberOfReservedPages_; pageId++) {
         uint64_t actualCheckpoint = 0;
         if (!psd_->getResPage(pageId, chkp, &actualCheckpoint, buffer_, config_.sizeOfReservedPage)) continue;
 
-        Assert(allPagesDesc->d[pageId].pageId == pageId);
-        Assert(allPagesDesc->d[pageId].relevantCheckpoint <= chkp);
-        Assert(allPagesDesc->d[pageId].relevantCheckpoint > 0);
-        Assert(allPagesDesc->d[pageId].relevantCheckpoint == actualCheckpoint);
+        AssertEQ(allPagesDesc->d[pageId].pageId, pageId);
+        AssertLE(allPagesDesc->d[pageId].relevantCheckpoint, chkp);
+        AssertGT(allPagesDesc->d[pageId].relevantCheckpoint, 0);
+        AssertEQ(allPagesDesc->d[pageId].relevantCheckpoint, actualCheckpoint);
 
         STDigest d;
         computeDigestOfPage(pageId, actualCheckpoint, buffer_, config_.sizeOfReservedPage, d);
-        Assert(d == allPagesDesc->d[pageId].pageDigest);
+        AssertEQ(d, allPagesDesc->d[pageId].pageDigest);
       }
       memset(buffer_, 0, config_.sizeOfReservedPage);
       psd_->free(allPagesDesc);
@@ -2289,8 +2301,8 @@ static void computeDigestOfBlockImpl(const uint64_t blockNum,
                                      const char *block,
                                      const uint32_t blockSize,
                                      char *outDigest) {
-  Assert(blockNum > 0);
-  Assert(blockSize > 0);
+  AssertGT(blockNum, 0);
+  AssertGT(blockSize, 0);
   DigestContext c;
   c.update(reinterpret_cast<const char *>(&blockNum), sizeof(blockNum));
   c.update(block, blockSize);

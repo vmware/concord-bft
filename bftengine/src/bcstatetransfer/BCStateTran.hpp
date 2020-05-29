@@ -91,12 +91,9 @@ class BCStateTran : public IStateTransfer {
   ///////////////////////////////////////////////////////////////////////////
   // Constants
   ///////////////////////////////////////////////////////////////////////////
-
-  static const uint64_t kMaxNumOfStoredCheckpoints = 10;
-
-  static const uint16_t kMaxVBlocksInCache = 28;  // TBD
-
-  static const uint32_t kResetCount_AskForCheckpointSummaries = 4;  // TBD
+  static constexpr uint64_t kMaxNumOfStoredCheckpoints = 10;
+  static constexpr uint16_t kMaxVBlocksInCache = 28;                    // TBD
+  static constexpr uint32_t kResetCount_AskForCheckpointSummaries = 4;  // TBD
 
   ///////////////////////////////////////////////////////////////////////////
   // External interfaces
@@ -153,7 +150,7 @@ class BCStateTran : public IStateTransfer {
  public:
   enum class FetchingState { NotFetching, GettingCheckpointSummaries, GettingMissingBlocks, GettingMissingResPages };
 
-  string stateName(FetchingState fs);
+  static string stateName(FetchingState fs);
 
   FetchingState getFetchingState() const;
   bool isFetching() const;
