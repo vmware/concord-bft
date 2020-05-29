@@ -399,23 +399,49 @@ bool ReplicaImp::relevantMsgForActiveView(const T *msg) {
   const SeqNum msgSeqNum = msg->seqNumber();
   const ViewNum msgViewNum = msg->viewNumber();
 
-  if (currentViewIsActive() && (msgViewNum == curView) && (msgSeqNum > strictLowerBoundOfSeqNums) &&
+  const bool isCurrentViewActive = currentViewIsActive();
+  if (isCurrentViewActive && (msgViewNum == curView) && (msgSeqNum > strictLowerBoundOfSeqNums) &&
       (mainLog->insideActiveWindow(msgSeqNum))) {
     Assert(msgSeqNum > lastStableSeqNum);
     Assert(msgSeqNum <= lastStableSeqNum + kWorkWindowSize);
 
     return true;
+  } else if (!isCurrentViewActive) {
+    LOG_INFO(GL,
+             "My current view is not active, ignoring msg."
+                 << KVLOG(curView, isCurrentViewActive, msg->senderId(), msgSeqNum, msgViewNum));
+    return false;
   } else {
-    const bool myReplicaMayBeBehind = (curView < msgViewNum) || (msgSeqNum > mainLog->currentActiveWindow().second);
+    const SeqNum activeWindowStart = mainLog->currentActiveWindow().first;
+    const SeqNum activeWindowEnd = mainLog->currentActiveWindow().second;
+    const bool myReplicaMayBeBehind = (curView < msgViewNum) || (msgSeqNum > activeWindowEnd);
     if (myReplicaMayBeBehind) {
       onReportAboutAdvancedReplica(msg->senderId(), msgSeqNum, msgViewNum);
+      LOG_INFO(GL,
+               "Msg is not relevant for my current view. The sending replica may be in advance."
+                   << KVLOG(curView,
+                            isCurrentViewActive,
+                            msg->senderId(),
+                            msgSeqNum,
+                            msgViewNum,
+                            activeWindowStart,
+                            activeWindowEnd));
     } else {
-      const bool msgReplicaMayBeBehind =
-          (curView > msgViewNum) || (msgSeqNum + kWorkWindowSize < mainLog->currentActiveWindow().first);
+      const bool msgReplicaMayBeBehind = (curView > msgViewNum) || (msgSeqNum + kWorkWindowSize < activeWindowStart);
 
-      if (msgReplicaMayBeBehind) onReportAboutLateReplica(msg->senderId(), msgSeqNum, msgViewNum);
+      if (msgReplicaMayBeBehind) {
+        onReportAboutLateReplica(msg->senderId(), msgSeqNum, msgViewNum);
+        LOG_INFO(
+            GL,
+            "Msg is not relevant for my current view. The sending replica may be behind." << KVLOG(curView,
+                                                                                                   isCurrentViewActive,
+                                                                                                   msg->senderId(),
+                                                                                                   msgSeqNum,
+                                                                                                   msgViewNum,
+                                                                                                   activeWindowStart,
+                                                                                                   activeWindowEnd));
+      }
     }
-    LOG_INFO(GL, "Curent View [" << curView << "] is not relevant for msg view [" << msgViewNum << "]");
     return false;
   }
 }
