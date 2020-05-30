@@ -430,8 +430,8 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
   LOG_DEBUG(GL,
             "Node " << config_.replicaId << " received PrePrepareMsg from node " << msg->senderId() << " for seqNumber "
                     << msgSeqNum << " (size=" << msg->size() << ")");
-  auto span = concordUtils::startChildSpanFromContext("handle_bft_preprepare",
-                                                      msg->spanContext<std::remove_pointer<decltype(msg)>::type>());
+  auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
+                                                      "handle_bft_preprepare");
   span.setTag("rid", config_.replicaId);
   span.setTag("seq_num", msgSeqNum);
 
@@ -784,8 +784,8 @@ void ReplicaImp::onMessage<PartialCommitProofMsg>(PartialCommitProofMsg *msg) {
             "Node " << config_.replicaId << " received PartialCommitProofMsg (size=" << msg->size() << ") from node "
                     << msgSender << " for seqNumber " << msgSeqNum);
 
-  auto span = concordUtils::startChildSpanFromContext("bft_handle_partial_commit_proof_msg",
-                                                      msg->spanContext<std::remove_pointer<decltype(msg)>::type>());
+  auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
+                                                      "bft_handle_partial_commit_proof_msg");
   if (relevantMsgForActiveView(msg)) {
     sendAckIfNeeded(msg, msgSender, msgSeqNum);
 
@@ -872,8 +872,8 @@ void ReplicaImp::onMessage<PreparePartialMsg>(PreparePartialMsg *msg) {
 
   bool msgAdded = false;
 
-  auto span = concordUtils::startChildSpanFromContext("bft_handle_prepare_partial_msg",
-                                                      msg->spanContext<std::remove_pointer<decltype(msg)>::type>());
+  auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
+                                                      "bft_handle_prepare_partial_msg");
 
   if (relevantMsgForActiveView(msg)) {
     Assert(isCurrentPrimary());
@@ -925,8 +925,8 @@ void ReplicaImp::onMessage<CommitPartialMsg>(CommitPartialMsg *msg) {
 
   bool msgAdded = false;
 
-  auto span = concordUtils::startChildSpanFromContext("bft_handle_commit_partial_msg",
-                                                      msg->spanContext<std::remove_pointer<decltype(msg)>::type>());
+  auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
+                                                      "bft_handle_commit_partial_msg");
   if (relevantMsgForActiveView(msg)) {
     Assert(isCurrentPrimary());
 
@@ -965,8 +965,8 @@ void ReplicaImp::onMessage<PrepareFullMsg>(PrepareFullMsg *msg) {
   SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
   bool msgAdded = false;
 
-  auto span = concordUtils::startChildSpanFromContext("bft_handle_preprare_full_msg",
-                                                      msg->spanContext<std::remove_pointer<decltype(msg)>::type>());
+  auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
+                                                      "bft_handle_preprare_full_msg");
   if (relevantMsgForActiveView(msg)) {
     sendAckIfNeeded(msg, msgSender, msgSeqNum);
 
@@ -1008,8 +1008,8 @@ void ReplicaImp::onMessage<CommitFullMsg>(CommitFullMsg *msg) {
   SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
   bool msgAdded = false;
 
-  auto span = concordUtils::startChildSpanFromContext("bft_handle_commit_full_msg",
-                                                      msg->spanContext<std::remove_pointer<decltype(msg)>::type>());
+  auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
+                                                      "bft_handle_commit_full_msg");
   if (relevantMsgForActiveView(msg)) {
     sendAckIfNeeded(msg, msgSender, msgSeqNum);
 
@@ -1180,7 +1180,7 @@ void ReplicaImp::onCommitCombinedSigSucceeded(
   bool askForMissingInfoAboutCommittedItems = (seqNumber > lastExecutedSeqNum + config_.concurrencyLevel);
 
   auto span = concordUtils::startChildSpanFromContext(
-      "bft_execute_committed_reqs", commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>());
+      commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(), "bft_execute_committed_reqs");
   executeNextCommittedRequests(span, askForMissingInfoAboutCommittedItems);
 }
 
@@ -1214,7 +1214,7 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum v, bo
   LOG_INFO(GL, "Commit path analysis: request commited, proceeding to try to execute");
 
   auto span = concordUtils::startChildSpanFromContext(
-      "bft_execute_committed_reqs", commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>());
+      commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(), "bft_execute_committed_reqs");
   bool askForMissingInfoAboutCommittedItems = (seqNumber > lastExecutedSeqNum + config_.concurrencyLevel);
   executeNextCommittedRequests(span, askForMissingInfoAboutCommittedItems);
 }
