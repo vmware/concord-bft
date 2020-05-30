@@ -520,7 +520,7 @@ void PreProcessor::launchAsyncReqPreProcessingJob(const PreProcessRequestMsgShar
 uint32_t PreProcessor::launchReqPreProcessing(
     uint16_t clientId, ReqId reqSeqNum, uint32_t reqLength, char *reqBuf, const std::string &span_context) {
   uint32_t resultLen = 0;
-  auto span = concordUtils::startChildSpanFromContext("bft_process_preprocess_msg", span_context);
+  auto span = concordUtils::startChildSpanFromContext(span_context, "bft_process_preprocess_msg");
   requestsHandler_.execute(clientId,
                            reqSeqNum,
                            PRE_PROCESS_FLAG,
