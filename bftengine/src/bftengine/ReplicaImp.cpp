@@ -190,9 +190,9 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
       if (clientsManager->noPendingAndRequestCanBecomePending(clientId, reqSeqNum) &&
           (requestsQueueOfPrimary.size() < 700))  // TODO(GG): use config/parameter
       {
-        LOG_INFO(GL,
-                 "Pushing to primary queue, request [" << reqSeqNum << "], client [" << clientId
-                                                       << "], senderId=" << senderId);
+        LOG_DEBUG(CNSUS,
+                  "Pushing to primary queue, request [" << reqSeqNum << "], client [" << clientId
+                                                        << "], senderId=" << senderId);
         requestsQueueOfPrimary.push(m);
         primaryCombinedReqSize += m->size();
         tryToSendPrePrepareMsg(true);
@@ -362,8 +362,8 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
   SCOPED_MDC_SEQ_NUM(std::to_string(primaryLastUsedSeqNum));
   SCOPED_MDC_PATH(CommitPathToMDCString(firstPath));
   {
-    LOG_INFO(GL,
-             "Commit path analysis: sending PrePrepare with the following payload of the following correlation ids ["
+    LOG_INFO(CNSUS,
+             "Sending PrePrepare with the following payload of the following correlation ids ["
                  << pp->getBatchCorrelationIdAsString() << "]");
   }
   SeqNumInfo &seqNumInfo = mainLog->get(primaryLastUsedSeqNum);
@@ -488,9 +488,8 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     SCOPED_MDC_PATH(CommitPathToMDCString(slowStarted ? CommitPath::SLOW : CommitPath::OPTIMISTIC_FAST));
     if (seqNumInfo.addMsg(msg)) {
       {
-        LOG_INFO(GL,
-                 "Commit path analysis: PrePrepare with the following correlation IDs ["
-                     << msg->getBatchCorrelationIdAsString() << "]");
+        LOG_INFO(CNSUS,
+                 "PrePrepare with the following correlation IDs [" << msg->getBatchCorrelationIdAsString() << "]");
       }
       msgAdded = true;
 
@@ -557,8 +556,8 @@ void ReplicaImp::tryToStartSlowPaths() {
     if (currTime - timeOfPartProof < milliseconds(controller->timeToStartSlowPathMilli())) break;
     SCOPED_MDC_SEQ_NUM(std::to_string(i));
     SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
-    LOG_INFO(GL,
-             "Commit path analysis: Primary initiates slow path for seqNum="
+    LOG_INFO(CNSUS,
+             "Primary initiates slow path for seqNum="
                  << i << " (currTime=" << duration_cast<microseconds>(currTime.time_since_epoch()).count()
                  << " timeOfPartProof=" << duration_cast<microseconds>(timeOfPartProof.time_since_epoch()).count()
                  << " threshold for degradation [" << controller->timeToStartSlowPathMilli() << "ms]");
@@ -775,7 +774,7 @@ void ReplicaImp::sendCommitPartial(const SeqNum s) {
 
   if (seqNumInfo.committedOrHasCommitPartialFromReplica(config_.replicaId)) return;  // not needed
 
-  LOG_INFO(GL, "Commit path analysis: Sending CommitPartialMsg");
+  LOG_DEBUG(CNSUS, "Sending CommitPartialMsg");
 
   Digest d;
   Digest::digestOfDigest(pp->digestOfRequests(), d);
@@ -840,7 +839,7 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
   SCOPED_MDC_SEQ_NUM(std::to_string(msg->seqNumber()));
   SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::OPTIMISTIC_FAST));
 
-  LOG_INFO(GL, "Commot path analysis: Reached consensus, Received FullCommitProofMsg message");
+  LOG_DEBUG(CNSUS, "Reached consensus, Received FullCommitProofMsg message");
 
   if (relevantMsgForActiveView(msg)) {
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
@@ -1109,7 +1108,7 @@ void ReplicaImp::onPrepareCombinedSigSucceeded(
   Assert(preFull != nullptr);
 
   if (fcp != nullptr) return;  // don't send if we already have FullCommitProofMsg
-  LOG_INFO(GL, "Commit path analysis: sending prepare full");
+  LOG_DEBUG(CNSUS, "Sending prepare full");
   if (ps_) {
     ps_->beginWriteTran();
     ps_->setPrepareFullMsgInSeqNumWindow(seqNumber, preFull);
@@ -1192,7 +1191,7 @@ void ReplicaImp::onCommitCombinedSigSucceeded(
 
   Assert(commitFull != nullptr);
   if (fcp != nullptr) return;  // ignore if we already have FullCommitProofMsg
-  LOG_INFO(GL, "Commit path analysis: sending full commit");
+  LOG_DEBUG(CNSUS, "Sending full commit");
   if (ps_) {
     ps_->beginWriteTran();
     ps_->setCommitFullMsgInSeqNumWindow(seqNumber, commitFull);
@@ -1237,8 +1236,7 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum v, bo
     ps_->setCommitFullMsgInSeqNumWindow(seqNumber, commitFull);
     ps_->endWriteTran();
   }
-  LOG_INFO(GL, "Commit path analysis: request commited, proceeding to try to execute");
-
+  LOG_DEBUG(CNSUS, "Request commited, proceeding to try to execute");
   auto span = concordUtils::startChildSpanFromContext(
       commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(), "bft_execute_committed_reqs");
   bool askForMissingInfoAboutCommittedItems = (seqNumber > lastExecutedSeqNum + config_.concurrencyLevel);
@@ -3178,10 +3176,10 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     auto dur = controller->durationSincePrePrepare(lastExecutedSeqNum + 1);
     if (dur > 0) {
       // Primary
-      LOG_INFO(GL, "Commit path analysis: Consensus reached, duration [" << dur << "ms]");
+      LOG_DEBUG(CNSUS, "Consensus reached, duration [" << dur << "ms]");
 
     } else {
-      LOG_INFO(GL, "Commit path analysis: Consensus reached");
+      LOG_DEBUG(CNSUS, "Consensus reached");
     }
 
     while (reqIter.getAndGoToNext(requestBody)) {

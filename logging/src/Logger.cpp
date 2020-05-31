@@ -69,3 +69,4 @@ ScopedMdc::~ScopedMdc() { MDC_REMOVE(key_); }
 
 }  // namespace concordlogger
 concordlogger::Logger GL = concordlogger::defaultInitLogger();
+concordlogger::Logger CNSUS = concordlogger::Log::getLogger("concord.bft.consensus");
