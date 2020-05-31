@@ -22,6 +22,7 @@
 #include <rocksdb/utilities/transaction_db.h>
 #include <rocksdb/sst_file_manager.h>
 #include "storage/db_interface.h"
+#include "storage/storage_metrics.hpp"
 
 namespace concord {
 namespace storage {
@@ -60,12 +61,9 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
 
 class Client : public concord::storage::IDBClient {
  public:
-  Client(std::string _dbPath)
-      : m_dbPath(_dbPath), total_db_size_(metrics_.RegisterGauge("storage_rocksdb_db_size", 0)) {}
+  Client(std::string _dbPath) : m_dbPath(_dbPath) {}
   Client(std::string _dbPath, std::unique_ptr<const ::rocksdb::Comparator>&& comparator)
-      : m_dbPath(_dbPath),
-        comparator_(std::move(comparator)),
-        total_db_size_(metrics_.RegisterGauge("storage_rocksdb_db_size", 0)) {}
+      : m_dbPath(_dbPath), comparator_(std::move(comparator)) {}
 
   ~Client() {
     if (txn_db_) {
@@ -94,15 +92,16 @@ class Client : public concord::storage::IDBClient {
   ::rocksdb::Iterator* getNewRocksDbIterator() const;
   bool isNew() override;
   ITransaction* beginTransaction() override;
+  void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) override {
+    storage_metrics_.metrics_.SetAggregator(aggregator);
+  }
 
  private:
   concordUtils::Status launchBatchJob(::rocksdb::WriteBatch& _batchJob);
   concordUtils::Status get(const concordUtils::Sliver& _key, std::string& _value) const;
   bool keyIsBefore(const concordUtils::Sliver& _lhs, const concordUtils::Sliver& _rhs) const;
-
- private:
-  static logging::Logger& logger() {
-    static logging::Logger logger_ = logging::getLogger("concord.storage.rocksdb");
+  static concordlogger::Logger& logger() {
+    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.storage.rocksdb");
     return logger_;
   }
   // Database path on directory (used for connection).
@@ -113,7 +112,9 @@ class Client : public concord::storage::IDBClient {
   std::unique_ptr<const ::rocksdb::Comparator> comparator_;
 
   // Metrics
-  mutable concordMetrics::GaugeHandle total_db_size_;
+  mutable StorageMetrics storage_metrics_;
+  std::chrono::seconds metrics_update_interval_ = std::chrono::seconds(5);  // TODO: move to configuration
+  mutable std::chrono::steady_clock::time_point last_metrics_update_ = std::chrono::steady_clock::now();
   void tryToUpdateMetrics() const;
 };
 

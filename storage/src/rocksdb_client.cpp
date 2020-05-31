@@ -134,8 +134,6 @@ Status Client::get(const Sliver &_key, OUT std::string &_value) const {
     LOG_DEBUG(logger(), "Failed to get key " << _key << " due to " << s.ToString());
     return Status::GeneralError("Failed to read key");
   }
-  keys_reads_.Get().Inc();
-  total_read_bytes_.Get().Inc(_value.size());
   tryToUpdateMetrics();
   return Status::OK();
 }
@@ -361,17 +359,20 @@ Status Client::rangeDel(const Sliver &_beginKey, const Sliver &_endKey) {
   return Status::OK();
 }
 void Client::tryToUpdateMetrics() const {
-  if (++ops_count == update_interval) {
+  if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - last_metrics_update_) >
+      metrics_update_interval_) {
     auto dbOps = dbInstance_->GetDBOptions();
-    total_db_size_.Get().Set(dbOps.sst_file_manager->GetTotalSize());
     auto stat = dbOps.statistics;
-    keys_reads_.Get().Inc(stat->getTickerCount(::rocksdb::Tickers::NUMBER_KEYS_READ));
-    total_read_bytes_.Get().Inc(stat->getTickerCount(::rocksdb::Tickers::BYTES_READ) +
-                                stat->getTickerCount(::rocksdb::Tickers::NUMBER_MULTIGET_BYTES_READ));
-    keys_writes_.Get().Inc(stat->getTickerCount(::rocksdb::Tickers::NUMBER_KEYS_WRITTEN));
-    total_written_bytes_.Get().Inc(stat->getTickerCount(::rocksdb::Tickers::BYTES_WRITTEN));
-    ops_count = 0;
-    metrics_.UpdateAggregator();
+
+    storage_metrics_.total_db_disk_size_.Get().Set(dbOps.sst_file_manager->GetTotalSize());
+    storage_metrics_.keys_reads_.Get().Inc(stat->getTickerCount(::rocksdb::Tickers::NUMBER_KEYS_READ));
+    storage_metrics_.total_read_bytes_.Get().Inc(stat->getTickerCount(::rocksdb::Tickers::NUMBER_KEYS_WRITTEN));
+    storage_metrics_.keys_writes_.Get().Inc(stat->getTickerCount(::rocksdb::Tickers::BYTES_READ) +
+                                            stat->getTickerCount(::rocksdb::Tickers::NUMBER_MULTIGET_BYTES_READ));
+    storage_metrics_.total_written_bytes_.Get().Inc(stat->getTickerCount(::rocksdb::Tickers::BYTES_WRITTEN));
+
+    storage_metrics_.metrics_.UpdateAggregator();
+    last_metrics_update_ = std::chrono::steady_clock::now();
   }
 }
 

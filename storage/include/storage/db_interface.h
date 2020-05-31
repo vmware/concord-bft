@@ -56,14 +56,6 @@ class ITransaction {
 class IDBClient {
  public:
   typedef std::shared_ptr<IDBClient> ptr;
-  IDBClient()
-      : metrics_("storage", std::make_shared<concordMetrics::Aggregator>()),
-        keys_reads_(metrics_.RegisterCounter("storage_total_read_keys")),
-        total_read_bytes_(metrics_.RegisterCounter("storage_total_read_bytes")),
-        keys_writes_(metrics_.RegisterCounter("storage_total_written_keys")),
-        total_written_bytes_(metrics_.RegisterCounter("storage_total_written_bytes")) {
-    metrics_.Register();
-  }
   virtual ~IDBClient() = default;
   virtual void init(bool readOnly = false) = 0;
   virtual Status get(const Sliver& _key, OUT Sliver& _outValue) const = 0;
@@ -85,7 +77,7 @@ class IDBClient {
   // possible options: ITransaction::Guard or std::shared_ptr
   virtual ITransaction* beginTransaction() = 0;
 
-  void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) { metrics_.SetAggregator(aggregator); }
+  virtual void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) = 0;
   class IDBClientIterator {
    public:
     virtual KeyValuePair first() = 0;
@@ -134,18 +126,6 @@ class IDBClient {
   virtual IDBClientIterator* getIterator() const = 0;
   virtual Status freeIterator(IDBClientIterator* _iter) const = 0;
   IDBClientIterator::Guard getIteratorGuard() const { return IDBClientIterator::Guard{this}; }
-
- protected:
-  // Storage metrics
-  // TODO: all metrics have announced as mutable because the get methods are const
-  mutable concordMetrics::Component metrics_;
-  mutable concordMetrics::CounterHandle keys_reads_;
-  mutable concordMetrics::CounterHandle total_read_bytes_;
-  mutable concordMetrics::CounterHandle keys_writes_;
-  mutable concordMetrics::CounterHandle total_written_bytes_;
-  mutable int ops_count = 0;
-  const int update_interval = 100;  // TODO: We update the metrics each 100 ops. Currently this is hardcoded value in
-                                    // the future we may add it to the configuration file
 };
 
 }  // namespace storage

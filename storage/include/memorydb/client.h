@@ -17,6 +17,7 @@
 #include "key_comparator.h"
 #include "storage/db_interface.h"
 #include <functional>
+#include "storage/storage_metrics.hpp"
 
 namespace concord {
 namespace storage {
@@ -85,6 +86,10 @@ class Client : public IDBClient {
   bool isNew() override { return true; }
   ITransaction *beginTransaction() override;
   TKVStore &getMap() { return map_; }
+  void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) override {
+    storage_metrics_.metrics_.SetAggregator(aggregator);
+  }
+  StorageMetrics &getStorageMetrics() { return storage_metrics_; }
 
  private:
   logging::Logger logger;
@@ -96,6 +101,9 @@ class Client : public IDBClient {
   TKVStore map_;
 
   // Metrics
+  mutable StorageMetrics storage_metrics_;
+  std::chrono::seconds metrics_update_interval_ = std::chrono::seconds(5);  // TODO: move to configuration
+  mutable std::chrono::steady_clock::time_point last_metrics_update_ = std::chrono::steady_clock::now();
   void tryToUpdateMetrics() const;
 };
 
