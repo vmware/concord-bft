@@ -43,7 +43,7 @@ Status Client::get(const Sliver &_key, OUT Sliver &_outValue) const {
   }
   storage_metrics_.keys_reads_.Get().Inc();
   storage_metrics_.total_read_bytes_.Get().Inc(_outValue.length());
-  tryToUpdateMetrics();
+  storage_metrics_.tryToUpdateMetrics();
   return Status::OK();
 }
 
@@ -104,7 +104,7 @@ Status Client::put(const Sliver &_key, const Sliver &_value) {
   map_.insert_or_assign(_key, _value.clone());
   storage_metrics_.keys_writes_.Get().Inc();
   storage_metrics_.total_written_bytes_.Get().Inc(_key.length() + _value.length());
-  tryToUpdateMetrics();
+  storage_metrics_.tryToUpdateMetrics();
   return Status::OK();
 }
 
@@ -178,13 +178,6 @@ ITransaction *Client::beginTransaction() {
   // The transaction ID counter is intentionally not thread-safe as memorydb only supports single-thread operations.
   static std::uint64_t current_transaction_id = 0;
   return new Transaction{*this, ++current_transaction_id};
-}
-void Client::tryToUpdateMetrics() const {
-  if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - last_metrics_update_) >
-      metrics_update_interval_) {
-    storage_metrics_.metrics_.UpdateAggregator();
-    last_metrics_update_ = std::chrono::steady_clock::now();
-  }
 }
 
 /**

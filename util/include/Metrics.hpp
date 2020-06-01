@@ -70,8 +70,6 @@ class Gauge {
   explicit Gauge(const uint64_t val) : val_(val) {}
 
   void Set(const uint64_t val) { val_ = val; }
-  void Inc(const uint64_t val) { val_ += val; }
-  void Dec(const uint64_t val) { val_ -= val; }
   uint64_t Get() { return val_; }
 
  private:

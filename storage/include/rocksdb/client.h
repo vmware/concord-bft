@@ -22,7 +22,7 @@
 #include <rocksdb/utilities/transaction_db.h>
 #include <rocksdb/sst_file_manager.h>
 #include "storage/db_interface.h"
-#include "storage/storage_metrics.hpp"
+#include "storage/storage_metrics.h"
 
 namespace concord {
 namespace storage {
@@ -93,7 +93,7 @@ class Client : public concord::storage::IDBClient {
   bool isNew() override;
   ITransaction* beginTransaction() override;
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) override {
-    storage_metrics_.metrics_.SetAggregator(aggregator);
+    storage_metrics_.setAggregator(aggregator);
   }
 
  private:
@@ -112,10 +112,7 @@ class Client : public concord::storage::IDBClient {
   std::unique_ptr<const ::rocksdb::Comparator> comparator_;
 
   // Metrics
-  mutable StorageMetrics storage_metrics_;
-  std::chrono::seconds metrics_update_interval_ = std::chrono::seconds(5);  // TODO: move to configuration
-  mutable std::chrono::steady_clock::time_point last_metrics_update_ = std::chrono::steady_clock::now();
-  void tryToUpdateMetrics() const;
+  mutable RocksDbStorageMetrics storage_metrics_;
 };
 
 ::rocksdb::Slice toRocksdbSlice(const concordUtils::Sliver& _s);
