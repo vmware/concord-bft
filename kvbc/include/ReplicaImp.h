@@ -120,7 +120,7 @@ class ReplicaImp : public IReplica,
   };
 
  private:
-  concordlogger::Logger logger;
+  logging::Logger logger;
   RepStatus m_currentRepStatus;
 
   std::unique_ptr<IDbAdapter> m_bcDbAdapter;

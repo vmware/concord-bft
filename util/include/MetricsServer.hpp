@@ -49,7 +49,7 @@ class Server {
  public:
   Server(uint16_t listenPort)
       : listenPort_{listenPort},
-        logger_{concordlogger::Log::getLogger("metrics-server")},
+        logger_{logging::getLogger("metrics-server")},
         running_{false},
         aggregator_{std::make_shared<Aggregator>()} {}
 
@@ -60,7 +60,7 @@ class Server {
 
  private:
   uint16_t listenPort_;
-  concordlogger::Logger logger_;
+  logging::Logger logger_;
   bool running_;
   std::mutex running_lock_;
 

@@ -13,7 +13,7 @@
 #include "Logger.hpp"
 #include <iostream>
 
-concordlogger::Logger SP = concordlogger::Log::getLogger("thread-pool");
+logging::Logger SP = logging::getLogger("thread-pool");
 namespace util {
 
 void SimpleThreadPool::start(uint8_t num_of_threads) {

@@ -33,7 +33,7 @@
 #include <sstream>
 #include <iomanip>
 
-using concordlogger::Logger;
+using logging::Logger;
 using concordUtils::Status;
 using concordUtils::Sliver;
 using concord::storage::ObjectId;
@@ -366,7 +366,7 @@ KeyValuePair DBKeyManipulator::composedToSimple(KeyValuePair _p) {
 }
 
 DBAdapter::DBAdapter(std::shared_ptr<storage::IDBClient> db, std::unique_ptr<IDataKeyGenerator> keyGen, bool use_mdt)
-    : logger_{concordlogger::Log::getLogger("concord.kvbc.v1DirectKeyValue.DBAdapter")},
+    : logger_{logging::getLogger("concord.kvbc.v1DirectKeyValue.DBAdapter")},
       db_(db),
       keyGen_{std::move(keyGen)},
       mdt_{use_mdt},

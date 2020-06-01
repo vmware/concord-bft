@@ -19,7 +19,7 @@
 
 namespace bft::communication {
 
-concordlogger::Logger CommFactory::_logger = concordlogger::Log::getLogger("communication.factory");
+logging::Logger CommFactory::_logger = logging::getLogger("communication.factory");
 
 ICommunication *CommFactory::create(const BaseCommConfig &config) {
   ICommunication *res = nullptr;

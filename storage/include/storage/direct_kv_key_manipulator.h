@@ -16,8 +16,8 @@ namespace concord::storage::v1DirectKeyValue {
 class DBKeyGeneratorBase {
  protected:
   static bool copyToAndAdvance(char* buf, size_t* offset, size_t _maxOffset, const char* _src, const size_t& _srcSize);
-  static concordlogger::Logger& logger() {
-    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.storage.blockchain.DBKeyManipulator");
+  static logging::Logger& logger() {
+    static logging::Logger logger_ = logging::getLogger("concord.storage.blockchain.DBKeyManipulator");
     return logger_;
   }
 };

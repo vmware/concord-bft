@@ -26,7 +26,7 @@ class ObjectsMetadataHandler;
 
 class FileStorage : public MetadataStorage {
  public:
-  FileStorage(concordlogger::Logger &logger, const std::string &fileName);
+  FileStorage(logging::Logger &logger, const std::string &fileName);
 
   ~FileStorage() override;
 
@@ -69,7 +69,7 @@ class FileStorage : public MetadataStorage {
 
   const uint8_t initializedObjectId_ = 1;
 
-  concordlogger::Logger &logger_;
+  logging::Logger &logger_;
   const std::string fileName_;
   FILE *dataStream_ = nullptr;
   ObjectsMetadataHandler *objectsMetadata_ = nullptr;

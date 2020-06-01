@@ -188,7 +188,7 @@ Status Client::has(const Sliver &_key) const {
  *
  * @return RocksDBClientIterator object.
  */
-IDBClient::IDBClientIterator *Client::getIterator() const { return new ClientIterator(this); }
+IDBClient::IDBClientIterator *Client::getIterator() const { return new ClientIterator(this, logger()); }
 
 /**
  * @brief Frees the RocksDBClientIterator.
@@ -223,10 +223,8 @@ Status Client::freeIterator(IDBClientIterator *_iter) const {
  *
  * Calls the getNewRocksDbIterator function.
  */
-ClientIterator::ClientIterator(const Client *_parentClient)
-    : logger(concordlogger::Log::getLogger("com.vmware.concord.kvb")),
-      m_parentClient(_parentClient),
-      m_status(Status::OK()) {
+ClientIterator::ClientIterator(const Client *_parentClient, logging::Logger logger)
+    : logger(logger), m_parentClient(_parentClient), m_status(Status::OK()) {
   m_iter = m_parentClient->getNewRocksDbIterator();
 }
 

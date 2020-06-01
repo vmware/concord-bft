@@ -19,7 +19,7 @@
 namespace bft::communication {
 class CommFactory {
  private:
-  static concordlogger::Logger _logger;
+  static logging::Logger _logger;
 
  public:
   static ICommunication* create(const BaseCommConfig& config);

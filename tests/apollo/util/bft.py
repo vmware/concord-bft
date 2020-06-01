@@ -213,6 +213,10 @@ class BftTestNetwork:
             clients = {},
             metrics = None
         )
+        
+        #copy loggging.properties file
+        shutil.copy(os.path.abspath("../simpleKVBC/scripts/logging.properties"), testdir);
+        
         print("Running test in {}".format(bft_network.testdir))
 
         os.chdir(bft_network.testdir)
@@ -221,21 +225,7 @@ class BftTestNetwork:
         bft_network._init_metrics()
         bft_network._create_clients()
 
-        #create log4cplus.properties file
-        with open("log4cplus.properties", 'w') as f:
-            f.writelines(["log4cplus.appender.STDOUT=log4cplus::ConsoleAppender\n",
-                          "log4cplus.appender.STDOUT.ImmediateFlush=true\n",
-                          "log4cplus.appender.STDOUT.layout=log4cplus::PatternLayout\n",
-                          "log4cplus.appender.STDOUT.layout.ConversionPattern=%X{rid}|%d{%m-%d-%Y %H:%M:%S.%q}|%t|%-5p|%c|%M|%m%n\n",
-                          "log4cplus.appender.R=log4cplus::RollingFileAppender\n",
-                          "log4cplus.appender.R.File=concord.log\n",
-                          "log4cplus.appender.R.MaxFileSize=10MB\n",
-                          "log4cplus.appender.R.MaxBackupIndex=10\n",
-                          "log4cplus.appender.R.layout=log4cplus::PatternLayout\n",
-                          "log4cplus.appender.R.layout.ConversionPattern=%X{rid}|%d{%m-%d-%Y %H:%M:%S.%q}|%t|%-5p|%c|%M|%m%n\n",
-                          "log4cplus.rootLogger=INFO, STDOUT, R\n" ])
-            f.close()
-
+       
         return bft_network
 
     @classmethod

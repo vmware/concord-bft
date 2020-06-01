@@ -32,7 +32,7 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
   friend class Client;
 
  public:
-  ClientIterator(const Client* _parentClient);
+  ClientIterator(const Client* _parentClient, logging::Logger);
   ~ClientIterator() { delete m_iter; }
 
   // Inherited via IDBClientIterator
@@ -47,7 +47,7 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
   concordUtils::Status getStatus() override;
 
  private:
-  concordlogger::Logger logger;
+  logging::Logger logger;
 
   ::rocksdb::Iterator* m_iter;
 
@@ -97,8 +97,8 @@ class Client : public concord::storage::IDBClient {
   bool keyIsBefore(const concordUtils::Sliver& _lhs, const concordUtils::Sliver& _rhs) const;
 
  private:
-  static concordlogger::Logger& logger() {
-    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.storage.rocksdb");
+  static logging::Logger& logger() {
+    static logging::Logger logger_ = logging::getLogger("concord.storage.rocksdb");
     return logger_;
   }
   // Database path on directory (used for connection).

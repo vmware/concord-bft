@@ -12,41 +12,33 @@
 
 #pragma once
 
-#include <string>
-#include <sstream>
-#include <chrono>
-#include <iomanip>
-#include <stdarg.h>
-#include <cassert>
-#include <iostream>
-#include <unordered_map>
-#include <mutex>
-
 #ifndef USE_LOG4CPP
-namespace concordlogger {
 
-// log levels as defined in log4cpp
-enum LogLevel { trace, debug, info, warn, error, fatal, off, all = trace };
+#include <string>
+#include <sys/time.h>
+#include <iomanip>
+#include <iostream>
+#include <map>
 
-extern LogLevel CURRENT_LEVEL;
+namespace logging {
+
+/**
+ *  Logging Levels
+ */
+enum LogLevel { trace, debug, info, warn, error, fatal };
+
 /**
  * Mapped Diagnostic Context
  */
 class MDC {
  public:
-  typedef std::unordered_map<std::string, std::string> MDCMap;
-
-  MDC() = default;
-
   void put(const std::string& key, const std::string& val) { mdc_map_.insert_or_assign(key, val); }
   std::string get(const std::string& key) { return mdc_map_[key]; }
   void remove(const std::string& key) { mdc_map_.erase(key); }
   void clear() { mdc_map_.clear(); }
 
-  MDCMap const& getContext() const { return mdc_map_; }
-
  private:
-  MDCMap mdc_map_;
+  std::map<std::string, std::string> mdc_map_;
 };
 
 /**
@@ -62,74 +54,72 @@ class ThreadContext {
 };
 
 /**
- * Main Logger Facility
+ * Logger implementation
  */
-class Logger {
-  std::string name_;
-  std::array<std::string, 6> LEVELS_STRINGS = {"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"};
-
+class LoggerImpl {
  public:
-  explicit Logger(std::string name) : name_{std::move(name)} {}
-  Logger(const Logger& l) {
-    name_ = l.name_;
-    LEVELS_STRINGS = l.LEVELS_STRINGS;
-  }
+  LoggerImpl(const std::string& name) : name_(name) {}
+  LoggerImpl(const LoggerImpl&) = delete;
+  LoggerImpl& operator=(const LoggerImpl&) = delete;
+  ~LoggerImpl() = default;
 
-  Logger& operator=(const Logger& rhs) {
-    if (this == &rhs) return *this;
-    name_ = rhs.name_;
-    LEVELS_STRINGS = rhs.LEVELS_STRINGS;
+  std::ostream& print(logging::LogLevel l, const char* func) const {
+    struct timeval cur_time;
+    gettimeofday(&cur_time, NULL);
 
-    return *this;
-  }
-
-  void print(concordlogger::LogLevel l, const char* func, const std::string& s) const {
-    std::stringstream time;
-    get_time(time);
-    std::cout << getThreadContext().getMDC().get(MDC_REPLICA_ID_KEY) << "|" << time.str() << "|"
-              << Logger::LEVELS_STRINGS[l].c_str() << "|" << name_ << "|"
+    std::cout << getThreadContext().getMDC().get(MDC_REPLICA_ID_KEY) << "|"
+              << std::put_time(std::localtime(&cur_time.tv_sec), "%F %T.") << (int)cur_time.tv_usec / 1000 << "|"
+              << LoggerImpl::LEVELS_STRINGS[l].c_str() << "|" << name_ << "|"
               << getThreadContext().getMDC().get(MDC_THREAD_KEY) << "|" << getThreadContext().getMDC().get(MDC_CID_KEY)
-              << "|" << getThreadContext().getMDC().get(MDC_SEQ_NUM_KEY) << "|" << func << "|" << s << std::endl;
+              << "|" << getThreadContext().getMDC().get(MDC_SEQ_NUM_KEY) << "|" << func << "|";
+    return std::cout;
   }
+
+ private:
+  friend class Logger;
 
   static ThreadContext& getThreadContext() {
     static thread_local ThreadContext t_;
     return t_;
   }
 
- private:
-  inline void get_time(std::stringstream& ss) const {
-    using namespace std::chrono;
-    auto now = system_clock::now();
-    auto ms = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
-    auto timer = system_clock::to_time_t(now);
-    std::tm bt = *std::localtime(&timer);
-    ss << std::put_time(&bt, "%F %T") << "." << std::setfill('0') << std::setw(3) << ms.count();
-  }
+  std::string name_;
+  LogLevel level_ = LogLevel::info;
+  static std::array<std::string, 6> LEVELS_STRINGS;
 };
 
-}  // namespace concordlogger
+/**
+ * Main logger class - is a wrapper around LoggerImpl
+ * since this class is copied around.
+ */
+class Logger {
+ public:
+  Logger(LoggerImpl& logger) : logger_{&logger} {}
+  std::ostream& print(logging::LogLevel l, const char* func) const { return logger_->print(l, func); }
+  LogLevel getLogLevel() const { return logger_->level_; }
+  void setLogLevel(LogLevel l) { logger_->level_ = l; }
+  static ThreadContext& getThreadContext() { return LoggerImpl::getThreadContext(); }
+  static bool config(const std::string& configFileName);
 
-#define LOG_COMMON(logger, level, s)                                                                           \
-  if (concordlogger::CURRENT_LEVEL != concordlogger::LogLevel::off && level >= concordlogger::CURRENT_LEVEL) { \
-    std::ostringstream oss;                                                                                    \
-    oss << s;                                                                                                  \
-    logger.print(level, __PRETTY_FUNCTION__, oss.str());                                                       \
+ private:
+  LoggerImpl* logger_;
+};
+
+}  // namespace logging
+
+#define LOG_COMMON(logger, level, s)                            \
+  if (logger.getLogLevel() <= level) {                          \
+    logger.print(level, __PRETTY_FUNCTION__) << s << std::endl; \
   }
 
-#define LOG_TRACE(l, s) LOG_COMMON(l, concordlogger::LogLevel::trace, s)
+#define LOG_TRACE(l, s) LOG_COMMON(l, logging::LogLevel::trace, s)
+#define LOG_DEBUG(l, s) LOG_COMMON(l, logging::LogLevel::debug, s)
+#define LOG_INFO(l, s) LOG_COMMON(l, logging::LogLevel::info, s)
+#define LOG_WARN(l, s) LOG_COMMON(l, logging::LogLevel::warn, s)
+#define LOG_ERROR(l, s) LOG_COMMON(l, logging::LogLevel::error, s)
+#define LOG_FATAL(l, s) LOG_COMMON(l, logging::LogLevel::fatal, s)
 
-#define LOG_DEBUG(l, s) LOG_COMMON(l, concordlogger::LogLevel::debug, s)
-
-#define LOG_INFO(l, s) LOG_COMMON(l, concordlogger::LogLevel::info, s)
-
-#define LOG_WARN(l, s) LOG_COMMON(l, concordlogger::LogLevel::warn, s)
-
-#define LOG_ERROR(l, s) LOG_COMMON(l, concordlogger::LogLevel::error, s)
-
-#define LOG_FATAL(l, s) LOG_COMMON(l, concordlogger::LogLevel::fatal, s)
-
-#define MDC_PUT(k, v) concordlogger::Logger::getThreadContext().getMDC().put(k, v);
-#define MDC_REMOVE(k) concordlogger::Logger::getThreadContext().getMDC().remove(k);
+#define MDC_PUT(k, v) logging::Logger::getThreadContext().getMDC().put(k, v);
+#define MDC_REMOVE(k) logging::Logger::getThreadContext().getMDC().remove(k);
 
 #endif

@@ -71,7 +71,7 @@ class PersistencyTest : public testing::Test {
   std::unique_ptr<SimpleTestClient> client;
   vector<std::shared_ptr<SimpleTestReplica>> replicas;
   vector<std::shared_ptr<std::thread>> replicaThreads;
-  concordlogger::Logger clientLogger = concordlogger::Log::getLogger("clientlogger");
+  logging::Logger clientLogger = logging::getLogger("clientlogger");
   uint16_t numOfRequests = 1500;
   uint8_t numOfRestarts = 8;
   uint16_t numOfRequestsInCycle = 50;

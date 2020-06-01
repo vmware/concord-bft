@@ -25,7 +25,7 @@ using concord::kvbc::IClient;
 
 namespace BasicRandomTests {
 
-BasicRandomTestsRunner::BasicRandomTestsRunner(concordlogger::Logger &logger, IClient &client, size_t numOfOperations)
+BasicRandomTestsRunner::BasicRandomTestsRunner(logging::Logger &logger, IClient &client, size_t numOfOperations)
     : logger_(logger), client_(client), numOfOperations_(numOfOperations) {
   // We have to start the client here, since construction of the TestsBuilder
   // uses the client.

@@ -226,8 +226,8 @@ class DBDataStore : public DataStore {
   Sliver chkpDescKey(uint64_t chkpt) const { return keymanip_->generateSTCheckpointDescriptorKey(chkpt); }
   Sliver genKey(const ObjectId& objId) const { return keymanip_->generateStateTransferKey(objId); }
   /** ****************************************************************************************************************/
-  concordlogger::Logger& logger() {
-    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("bft.st.dbdatastore");
+  logging::Logger& logger() {
+    static logging::Logger logger_ = logging::getLogger("bft.st.dbdatastore");
     return logger_;
   }
 

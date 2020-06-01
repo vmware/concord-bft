@@ -91,7 +91,7 @@ ClientParams setupClientParams(int argc, char **argv) {
   return clientParams;
 }
 
-auto logger = concordlogger::Log::getLogger("skvbtest.client");
+auto logger = logging::getLogger("skvbtest.client");
 
 ICommunication *setupCommunicationParams(ClientParams &cp) {
   TestCommConfig testCommConfig(logger);

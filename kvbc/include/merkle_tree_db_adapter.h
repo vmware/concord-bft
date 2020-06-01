@@ -193,7 +193,7 @@ class DBAdapter : public IDbAdapter {
     const DBAdapter &adapter_;
   };
 
-  concordlogger::Logger logger_;
+  logging::Logger logger_;
   std::shared_ptr<storage::IDBClient> db_;
   sparse_merkle::Tree smTree_;
 };

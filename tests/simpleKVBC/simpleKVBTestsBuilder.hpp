@@ -286,7 +286,7 @@ typedef std::list<SimpleReply*> RepliesList;
 
 class TestsBuilder {
  public:
-  explicit TestsBuilder(concordlogger::Logger& logger, concord::kvbc::IClient& client);
+  explicit TestsBuilder(logging::Logger& logger, concord::kvbc::IClient& client);
   ~TestsBuilder();
 
   static size_t sizeOfRequest(SimpleRequest* req);
@@ -308,7 +308,7 @@ class TestsBuilder {
   concord::kvbc::BlockId getInitialLastBlockId();
 
  private:
-  concordlogger::Logger& logger_;
+  logging::Logger& logger_;
   concord::kvbc::IClient& client_;
   RequestsList requests_;
   RepliesList replies_;

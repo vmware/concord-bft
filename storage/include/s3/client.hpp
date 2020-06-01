@@ -289,7 +289,7 @@ class Client : public concord::storage::IDBClient {
   bool init_ = false;
   const uint32_t kInitialGetBufferSize_ = 25000;
   std::mutex initLock_;
-  concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.storage.s3");
+  logging::Logger logger_ = logging::getLogger("concord.storage.s3");
 
   uint16_t initialDelay_ = 100;
   const double delayFactor_ = 1.5;

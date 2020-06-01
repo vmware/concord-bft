@@ -197,8 +197,8 @@ class InMemoryDataStore : public DataStore {
   const map<uint32_t, char*>& getPendingPagesMap() const { return pendingPages; }
 
   void setInitialized(bool init) { wasInit_ = init; }
-  concordlogger::Logger& logger() {
-    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("bft.st.inmem");
+  logging::Logger& logger() {
+    static logging::Logger logger_ = logging::getLogger("bft.st.inmem");
     return logger_;
   }
 };

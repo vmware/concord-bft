@@ -22,7 +22,7 @@
 
 class ITestCommConfig {
  public:
-  explicit ITestCommConfig(concordlogger::Logger& logger) : logger_(logger) {}
+  explicit ITestCommConfig(logging::Logger& logger) : logger_(logger) {}
   virtual ~ITestCommConfig() = default;
 
   // Create a replica config for the replica with index `replicaId`.
@@ -55,7 +55,7 @@ class ITestCommConfig {
                                                            const std::string& config_file_name) = 0;
 
  protected:
-  concordlogger::Logger& logger_;
+  logging::Logger& logger_;
 };
 
 #endif

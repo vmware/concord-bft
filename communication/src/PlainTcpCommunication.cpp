@@ -85,7 +85,7 @@ class AsyncTcpConnection : public boost::enable_shared_from_this<AsyncTcpConnect
   deadline_timer _connectTimer;
   ConnType _connType;
   bool _closed;
-  concordlogger::Logger _logger;
+  logging::Logger _logger;
   uint16_t _minTimeout = 256;
   uint16_t _maxTimeout = 8192;
   uint16_t _currentTimeout = _minTimeout;
@@ -107,7 +107,7 @@ class AsyncTcpConnection : public boost::enable_shared_from_this<AsyncTcpConnect
                      NodeNum destId,
                      NodeNum selfId,
                      ConnType type,
-                     concordlogger::Logger logger,
+                     logging::Logger logger,
                      UPDATE_CONNECTIVITY_FN statusCallback,
                      NodeMap nodes)
       : _service(service),
@@ -549,7 +549,7 @@ class AsyncTcpConnection : public boost::enable_shared_from_this<AsyncTcpConnect
                                NodeNum destId,
                                NodeNum selfId,
                                ConnType type,
-                               concordlogger::Logger logger,
+                               logging::Logger logger,
                                UPDATE_CONNECTIVITY_FN statusCallback,
                                NodeMap nodes) {
     auto res = ASYNC_CONN_PTR(new AsyncTcpConnection(
@@ -579,7 +579,7 @@ class AsyncTcpConnection : public boost::enable_shared_from_this<AsyncTcpConnect
 class PlainTCPCommunication::PlainTcpImpl {
  private:
   unordered_map<NodeNum, ASYNC_CONN_PTR> _connections;
-  concordlogger::Logger _logger = concordlogger::Log::getLogger("concord-bft.tcp");
+  logging::Logger _logger = logging::getLogger("concord-bft.tcp");
 
   unique_ptr<tcp::acceptor> _pAcceptor;
   std::thread *_pIoThread = nullptr;

@@ -85,8 +85,7 @@ Sliver create(const SetOfKeyValuePairs &updates,
 
     return blockSliver;
   } catch (const std::bad_alloc &ba) {  // TODO: do we really want to mask this failure?
-    LOG_ERROR(concordlogger::Log::getLogger("skvbc.replicaImp"),
-              "Failed to alloc size " << blockSize << ", error: " << ba.what());
+    LOG_ERROR(logging::getLogger("skvbc.replicaImp"), "Failed to alloc size " << blockSize << ", error: " << ba.what());
     char *emptyBlockBuffer = new char[1];
     std::memset(emptyBlockBuffer, 0, 1);
     return Sliver(emptyBlockBuffer, 1);

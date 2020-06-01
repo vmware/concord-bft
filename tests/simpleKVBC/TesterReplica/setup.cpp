@@ -118,7 +118,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
 
     if (keysFilePrefix.empty()) throw std::runtime_error("missing --key-file-prefix");
 
-    concordlogger::Logger logger = concordlogger::Log::getLogger("skvbctest.replica");
+    logging::Logger logger = logging::getLogger("skvbctest.replica");
 
     TestCommConfig testCommConfig(logger);
     testCommConfig.GetReplicaConfig(replicaConfig.replicaId, keysFilePrefix, &replicaConfig);

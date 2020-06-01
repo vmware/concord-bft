@@ -41,7 +41,7 @@ const int MAX_READS_IN_REQ = 12;
 
 namespace BasicRandomTests {
 
-TestsBuilder::TestsBuilder(concordlogger::Logger &logger, IClient &client) : logger_(logger), client_(client) {
+TestsBuilder::TestsBuilder(logging::Logger &logger, IClient &client) : logger_(logger), client_(client) {
   prevLastBlockId_ = getInitialLastBlockId();
   lastBlockId_ = prevLastBlockId_;
   LOG_INFO(logger, "TestsBuilder: initialBlockId_=" << prevLastBlockId_);

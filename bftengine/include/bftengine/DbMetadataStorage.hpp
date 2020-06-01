@@ -33,7 +33,7 @@ using ObjectId = std::uint32_t;
 class DBMetadataStorage : public bftEngine::MetadataStorage {
  public:
   explicit DBMetadataStorage(IDBClient *dbClient, std::unique_ptr<IMetadataKeyManipulator> metadataKeyManipulator)
-      : logger_(concordlogger::Log::getLogger("com.concord.vmware.metadatastorage")),
+      : logger_(logging::getLogger("com.concord.vmware.metadatastorage")),
         dbClient_(dbClient),
         metadataKeyManipulator_(std::move(metadataKeyManipulator)) {
     objectIdToSizeMap_[objectsNumParameterId_] = sizeof(objectsNum_);
@@ -57,7 +57,7 @@ class DBMetadataStorage : public bftEngine::MetadataStorage {
 
   const uint8_t objectsNumParameterId_ = 1;
 
-  concordlogger::Logger logger_;
+  logging::Logger logger_;
   IDBClient *dbClient_ = nullptr;
   SetOfKeyValuePairs *batch_ = nullptr;
   std::mutex ioMutex_;

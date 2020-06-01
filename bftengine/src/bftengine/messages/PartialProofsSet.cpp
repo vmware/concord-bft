@@ -22,6 +22,7 @@
 #include "assertUtils.hpp"
 #include "InternalReplicaApi.hpp"
 #include "SimpleThreadPool.hpp"
+#include "ReplicaConfig.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -224,6 +225,7 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
   virtual ~AsynchProofCreationJob(){};
 
   virtual void execute() {
+    SCOPED_MDC(MDC_REPLICA_ID_KEY, std::to_string(me->getReplicaConfig().replicaId));
     SCOPED_MDC_SEQ_NUM(std::to_string(seqNumber));
     SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::OPTIMISTIC_FAST));
     LOG_DEBUG(GL, "begin...");
