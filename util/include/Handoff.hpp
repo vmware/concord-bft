@@ -42,9 +42,9 @@ class Handoff {
         }
         for (;;) pop()();
       } catch (ThreadCanceledException& e) {
-        LOG_DEBUG(getLogger(), "thread stopped " << std::this_thread::get_id());
+        LOG_DEBUG(logger_, "thread stopped " << std::this_thread::get_id());
       } catch (const std::exception& e) {
-        LOG_FATAL(getLogger(), "exception: " << e.what());
+        LOG_FATAL(logger_, "exception: " << e.what());
         exit(1);
       }
     });
@@ -55,7 +55,7 @@ class Handoff {
     queue_cond_.notify_one();
     auto tid = thread_.get_id();
     thread_.join();
-    LOG_DEBUG(getLogger(), "thread joined " << tid);
+    LOG_DEBUG(logger_, "thread joined " << tid);
   }
 
   void push(func_type f) {
@@ -77,7 +77,7 @@ class Handoff {
     while (true) {
       std::unique_lock<std::mutex> ul(queue_lock_);
       queue_cond_.wait(ul, [this] { return !(task_queue_.empty() && !stopped_); });
-      LOG_TRACE(getLogger(), "notified stopped_: " << stopped_ << " queue size: " << task_queue_.size());
+      LOG_TRACE(logger_, "notified stopped_: " << stopped_ << " queue size: " << task_queue_.size());
 
       if (!stopped_ || (stopped_ && !task_queue_.empty())) {
         func_type f = task_queue_.front();
@@ -88,12 +88,8 @@ class Handoff {
     }
   }
 
-  static logging::Logger getLogger() {
-    static logging::Logger logger_ = logging::getLogger("concord.util.handoff");
-    return logger_;
-  }
-
  protected:
+  logging::Logger logger_{logging::getLogger("concord.util.handoff")};
   std::queue<func_type> task_queue_;
   std::mutex queue_lock_;
   std::condition_variable queue_cond_;

@@ -655,7 +655,7 @@ void BCStateTran::handleStateTransferMessage(char *msg, uint32_t msgLen, uint16_
 }
 
 void BCStateTran::handoff(char *msg, uint32_t msgLen, uint16_t senderId) {
-  static concord::util::Handoff handoff_("handoff", config_.myReplicaId);
+  static concord::util::Handoff handoff_("state-transfer", config_.myReplicaId);
   handoff_.push(std::bind(&BCStateTran::handleStateTransferMessageImp, this, msg, msgLen, senderId));
 }
 
