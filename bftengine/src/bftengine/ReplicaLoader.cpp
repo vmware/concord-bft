@@ -172,6 +172,14 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
 
   if (hasDescOfLastNewView) descriptorOfLastNewView = p->getAndAllocateDescriptorOfLastNewView();
 
+  const auto replicaId = ld.repConfig.replicaId;
+  const auto lastExitedView = descriptorOfLastExitFromView.view;
+  const auto lastNewView = descriptorOfLastNewView.view;
+
+  LOG_INFO(GL,
+           "View change descriptors: " << KVLOG(
+               replicaId, hasDescLastExitFromView, hasDescOfLastNewView, lastExitedView, lastNewView));
+
   ReplicaLoader::ErrorCode stat = checkViewDesc(hasDescLastExitFromView ? &descriptorOfLastExitFromView : nullptr,
                                                 hasDescOfLastNewView ? &descriptorOfLastNewView : nullptr);
 
@@ -237,6 +245,9 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
 
     ld.maxSeqNumTransferredFromPrevViews = descriptorOfLastNewView.maxSeqNumTransferredFromPrevViews;
   } else {
+    LOG_ERROR(GL,
+              "Failed to load view (inconsistent state): " << KVLOG(
+                  replicaId, hasDescLastExitFromView, hasDescOfLastNewView, lastExitedView, lastNewView));
     return InconsistentErr;
   }
 

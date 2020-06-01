@@ -40,14 +40,15 @@ struct DescriptorOfLastExitFromView {
                                PrevViewInfoElements elements,
                                ViewChangeMsg *viewChangeMsg,
                                SeqNum stableLowerBound)
-      : view(viewNum),
+      : isDefault(false),
+        view(viewNum),
         lastStable(stableNum),
         lastExecuted(execNum),
         stableLowerBoundWhenEnteredToView(stableLowerBound),
         myViewChangeMsg(viewChangeMsg),
         elements(move(elements)) {}
 
-  DescriptorOfLastExitFromView() = default;
+  DescriptorOfLastExitFromView() : isDefault(true){};
 
   void clean();
   void serializeSimpleParams(char *buf, size_t bufLen, size_t &actualSize) const;
@@ -61,8 +62,9 @@ struct DescriptorOfLastExitFromView {
   static uint32_t simpleParamsSize() {
     uint32_t elementsNum;
     uint8_t msgFilledFlag;
-    return (sizeof(view) + sizeof(lastStable) + sizeof(lastExecuted) + sizeof(stableLowerBoundWhenEnteredToView) +
-            sizeof(msgFilledFlag) + maxMessageSizeInLocalBuffer<ViewChangeMsg>() + sizeof(elementsNum));
+    return (sizeof(isDefault) + sizeof(view) + sizeof(lastStable) + sizeof(lastExecuted) +
+            sizeof(stableLowerBoundWhenEnteredToView) + sizeof(msgFilledFlag) +
+            maxMessageSizeInLocalBuffer<ViewChangeMsg>() + sizeof(elementsNum));
   }
 
   static uint32_t maxElementSize() {
@@ -73,6 +75,9 @@ struct DescriptorOfLastExitFromView {
   static uint32_t maxSize() { return simpleParamsSize() + maxElementSize() * kWorkWindowSize; }
 
   // Simple parameters - serialized together
+
+  // whether this is a default descriptor instance
+  bool isDefault;
 
   // view >= 0
   ViewNum view = 0;
@@ -106,7 +111,8 @@ struct DescriptorOfLastNewView {
                           ViewChangeMsg *viewChangeMsg,
                           SeqNum stableLowerBound,
                           SeqNum maxSeqNum)
-      : view(viewNum),
+      : isDefault(false),
+        view(viewNum),
         maxSeqNumTransferredFromPrevViews(maxSeqNum),
         stableLowerBoundWhenEnteredToView(stableLowerBound),
         newViewMsg(newMsg),
@@ -130,7 +136,7 @@ struct DescriptorOfLastNewView {
 
   static uint32_t simpleParamsSize() {
     uint8_t msgFilledFlag;
-    return (sizeof(view) + sizeof(maxSeqNumTransferredFromPrevViews) + 2 * sizeof(msgFilledFlag) +
+    return (sizeof(isDefault) + sizeof(view) + sizeof(maxSeqNumTransferredFromPrevViews) + 2 * sizeof(msgFilledFlag) +
             sizeof(stableLowerBoundWhenEnteredToView) + maxMessageSizeInLocalBuffer<NewViewMsg>() +
             maxMessageSizeInLocalBuffer<ViewChangeMsg>());
   }
@@ -145,6 +151,9 @@ struct DescriptorOfLastNewView {
   static uint32_t viewChangeMsgsNum;
 
   // Simple parameters - serialized together
+
+  // whether this is a default descriptor instance
+  bool isDefault;
 
   // view >= 1
   ViewNum view = 0;
