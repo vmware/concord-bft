@@ -90,5 +90,10 @@ class Digest {
 static_assert(DIGEST_SIZE >= sizeof(uint64_t), "Digest size should be >= sizeof(uint64_t)");
 static_assert(sizeof(Digest) == DIGEST_SIZE, "sizeof(Digest) != DIGEST_SIZE");
 
+inline std::ostream& operator<<(std::ostream& os, const Digest& digest) {
+  os << digest.toString();
+  return os;
+}
+
 }  // namespace impl
 }  // namespace bftEngine
