@@ -38,6 +38,11 @@ jobs:
           run: |
             echo '/cores/core.%e.%p' | sudo tee /proc/sys/kernel/core_pattern
             mkdir -p ${{ github.workspace }}/artifact/cores/
+            # Uncomment this is you want to login into the running session.
+            # Please note that the build will block on this step.
+            # Refer to https://github.com/marketplace/actions/debugging-with-tmate
+            #- name: Setup tmate session
+            #  uses: mxschmitt/action-tmate@v2
         - name: Build and test
           run: >
             docker run --rm --privileged=true
