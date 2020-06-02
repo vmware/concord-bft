@@ -23,8 +23,8 @@ namespace concord::kvbc::v1DirectKeyValue {
 class DBKeyComparator : public concord::storage::IDBClient::IKeyComparator {
  public:
   int composedKeyComparison(const char *_a_data, size_t _a_length, const char *_b_data, size_t _b_length) override;
-  static concordlogger::Logger &logger() {
-    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.kvbc.DBKeyComparator");
+  static logging::Logger &logger() {
+    static logging::Logger logger_ = logging::getLogger("concord.kvbc.DBKeyComparator");
     return logger_;
   }
 };
@@ -52,8 +52,8 @@ class RocksKeyGenerator : public IDataKeyGenerator, storage::v1DirectKeyValue::D
 
  protected:
   static concordUtils::Sliver genDbKey(storage::v1DirectKeyValue::detail::EDBKeyType, const Key &, BlockId);
-  static concordlogger::Logger &logger() {
-    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.kvbc.RocksKeyGenerator");
+  static logging::Logger &logger() {
+    static logging::Logger logger_ = logging::getLogger("concord.kvbc.RocksKeyGenerator");
     return logger_;
   }
 };
@@ -84,8 +84,8 @@ class S3KeyGenerator : public IDataKeyGenerator {
  protected:
   static std::string string2hex(const std::string &s);
   static std::string hex2string(const std::string &);
-  static concordlogger::Logger &logger() {
-    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.kvbc.S3KeyGenerator");
+  static logging::Logger &logger() {
+    static logging::Logger logger_ = logging::getLogger("concord.kvbc.S3KeyGenerator");
     return logger_;
   }
 
@@ -111,8 +111,8 @@ class DBKeyManipulator {
   static bool isKeyContainBlockId(const Key &_composedKey);
   static KeyValuePair composedToSimple(KeyValuePair _p);
   static std::string extractFreeKey(const char *_key_data, size_t _key_length);
-  static concordlogger::Logger &logger() {
-    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.kvbc.DBKeyManipulator");
+  static logging::Logger &logger() {
+    static logging::Logger logger_ = logging::getLogger("concord.kvbc.DBKeyManipulator");
     return logger_;
   }
 };
@@ -176,7 +176,7 @@ class DBAdapter : public IDbAdapter {
   concordUtils::Status addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &_kvMap,
                                                  const BlockId &_block,
                                                  const concordUtils::Sliver &_blockRaw);
-  concordlogger::Logger logger_;
+  logging::Logger logger_;
   std::shared_ptr<storage::IDBClient> db_;
   std::unique_ptr<IDataKeyGenerator> keyGen_;
   bool mdt_ = false;  // whether we explicitly store blockchain metadata

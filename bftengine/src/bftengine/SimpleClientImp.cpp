@@ -105,7 +105,7 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
   uint16_t clientSendsRequestToAllReplicasPeriodThresh_;
   uint16_t clientPeriodicResetThresh_;
 
-  concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.bft.client");
+  logging::Logger logger_ = logging::getLogger("concord.bft.client");
 };
 
 void SimpleClientImp::onMessageFromReplica(MessageBase* msg) {

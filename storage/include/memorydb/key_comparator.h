@@ -22,8 +22,7 @@ using concordUtils::Sliver;
 class KeyComparator {
  public:
   KeyComparator(IDBClient::IKeyComparator *key_comparator = nullptr)
-      : key_comparator_(key_comparator),
-        logger_(concordlogger::Log::getLogger("concord.storage.rocksdb.KeyComparator")) {}
+      : key_comparator_(key_comparator), logger_(logging::getLogger("concord.storage.rocksdb.KeyComparator")) {}
 
   bool operator()(const Sliver &a, const Sliver &b) const {
     if (key_comparator_) {
@@ -36,7 +35,7 @@ class KeyComparator {
 
  private:
   std::shared_ptr<IDBClient::IKeyComparator> key_comparator_;
-  concordlogger::Logger logger_;
+  logging::Logger logger_;
 };
 
 }  // namespace memorydb

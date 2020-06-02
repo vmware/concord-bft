@@ -30,16 +30,13 @@
  * and get a default initializations for both loggers.
  */
 
-extern concordlogger::Logger GL;
-extern concordlogger::Logger CNSUS;
+extern logging::Logger GL;
+extern logging::Logger CNSUS;
 
-namespace concordlogger {
+namespace logging {
 
-class Log {
- public:
-  static Logger getLogger(const std::string& name);
-  static void initLogger(const std::string& configFileName);
-};
+Logger getLogger(const std::string& name);
+void initLogger(const std::string& configFileName);
 
 class ScopedMdc {
  public:
@@ -50,7 +47,7 @@ class ScopedMdc {
   const std::string key_;
 };
 
-}  // namespace concordlogger
+}  // namespace logging
 
 /*
  * These macros are meant to append temporary key-value pairs to the log messages.
@@ -58,8 +55,8 @@ class ScopedMdc {
  * the key-value will be automatically removed.
  */
 
-#define SCOPED_MDC(k, v) concordlogger::ScopedMdc __s_mdc__(k, v)
-#define SCOPED_MDC_CID(v) concordlogger::ScopedMdc __s_mdc_cid__(MDC_CID_KEY, v)
-#define SCOPED_MDC_SEQ_NUM(v) concordlogger::ScopedMdc __s_mdc_seq_num__(MDC_SEQ_NUM_KEY, v)
-#define SCOPED_MDC_PRIMARY(v) concordlogger::ScopedMdc __s_mdc_primary__(MDC_PRIMARY_KEY, v)
-#define SCOPED_MDC_PATH(v) concordlogger::ScopedMdc __s_mdc_path__(MDC_PATH_KEY, v)
+#define SCOPED_MDC(k, v) logging::ScopedMdc __s_mdc__(k, v)
+#define SCOPED_MDC_CID(v) logging::ScopedMdc __s_mdc_cid__(MDC_CID_KEY, v)
+#define SCOPED_MDC_SEQ_NUM(v) logging::ScopedMdc __s_mdc_seq_num__(MDC_SEQ_NUM_KEY, v)
+#define SCOPED_MDC_PRIMARY(v) logging::ScopedMdc __s_mdc_primary__(MDC_PRIMARY_KEY, v)
+#define SCOPED_MDC_PATH(v) logging::ScopedMdc __s_mdc_path__(MDC_PATH_KEY, v)

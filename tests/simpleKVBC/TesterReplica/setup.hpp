@@ -37,7 +37,7 @@ class TestSetup {
   const bftEngine::ReplicaConfig& GetReplicaConfig() const { return replicaConfig_; }
   bft::communication::ICommunication* GetCommunication() const { return communication_.get(); }
   concordMetrics::Server& GetMetricsServer() { return metricsServer_; }
-  concordlogger::Logger GetLogger() { return logger_; }
+  logging::Logger GetLogger() { return logger_; }
   const bool UsePersistentStorage() const { return usePersistentStorage_; }
 
  private:
@@ -48,7 +48,7 @@ class TestSetup {
 
   TestSetup(bftEngine::ReplicaConfig config,
             std::unique_ptr<bft::communication::ICommunication> comm,
-            concordlogger::Logger logger,
+            logging::Logger logger,
             uint16_t metricsPort,
             bool usePersistentStorage,
             std::string s3ConfigFile,
@@ -67,7 +67,7 @@ class TestSetup {
   std::unique_ptr<IStorageFactory> GetInMemStorageFactory() const;
   bftEngine::ReplicaConfig replicaConfig_;
   std::unique_ptr<bft::communication::ICommunication> communication_;
-  concordlogger::Logger logger_;
+  logging::Logger logger_;
   concordMetrics::Server metricsServer_;
   bool usePersistentStorage_;
   std::string s3ConfigFile_;

@@ -22,7 +22,7 @@
 #include "SimpleClient.hpp"
 #include "histogram.hpp"
 #include "misc.hpp"
-
+#include "assertUtils.hpp"
 using namespace bftEngine;
 using namespace bft::communication;
 using namespace std;
@@ -31,18 +31,17 @@ using namespace std;
   {                                                                     \
     if (!(statement)) {                                                 \
       LOG_FATAL(clientLogger, "assert fail with message: " << message); \
-      assert(false);                                                    \
+      Assert(false);                                                    \
     }                                                                   \
   }
 
 class SimpleTestClient {
  private:
   ClientParams cp;
-  concordlogger::Logger clientLogger;
+  logging::Logger clientLogger;
 
  public:
-  SimpleTestClient(ClientParams& clientParams, concordlogger::Logger& logger)
-      : cp{clientParams}, clientLogger{logger} {}
+  SimpleTestClient(ClientParams& clientParams, logging::Logger& logger) : cp{clientParams}, clientLogger{logger} {}
 
   bool run() {
     // This client's index number. Must be larger than the largest replica index

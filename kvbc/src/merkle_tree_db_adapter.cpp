@@ -113,7 +113,7 @@ void add(KeysVector &to, const KeysVector &src) { to.insert(std::end(to), std::c
 }  // namespace
 
 DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db)
-    : logger_{concordlogger::Log::getLogger("concord.kvbc.v2MerkleTree.DBAdapter")},
+    : logger_{logging::getLogger("concord.kvbc.v2MerkleTree.DBAdapter")},
       // The smTree_ member needs an initialized DB. Therefore, do that in the initializer list before constructing
       // smTree_ .
       db_{db},

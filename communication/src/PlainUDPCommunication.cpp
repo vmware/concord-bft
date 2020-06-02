@@ -75,9 +75,9 @@ class PlainUDPCommunication::PlainUdpImpl {
   static constexpr uint16_t MAX_UDP_PAYLOAD_SIZE = 65535 - 20 - 8;
 
   /** Flag to indicate whether the current communication layer still runs. */
-  std::atomic<bool> running;
+  std::atomic<bool> running{false};
 
-  concordlogger::Logger _logger = concordlogger::Log::getLogger("plain-udp");
+  logging::Logger _logger = logging::getLogger("plain-udp");
 
   bool check_replica(NodeNum node) {
     auto it = endpoints.find(node);
@@ -105,8 +105,7 @@ class PlainUDPCommunication::PlainUdpImpl {
         udpListenPort{config.listenPort},
         endpoints{std::move(config.nodes)},
         statusCallback{config.statusCallback},
-        selfId{config.selfId},
-        running{false} {
+        selfId{config.selfId} {
     Assert(config.listenPort > 0, "Port should not be negative!");
     Assert(config.nodes.size() > 0, "No communication endpoints specified!");
 
@@ -156,7 +155,7 @@ class PlainUDPCommunication::PlainUdpImpl {
 
     std::lock_guard<std::mutex> guard(runningLock);
 
-    if (running == true) {
+    if (running) {
       LOG_DEBUG(_logger, "Cannot Start(): already running!");
       return -1;
     }
@@ -197,8 +196,7 @@ class PlainUDPCommunication::PlainUdpImpl {
 
   int Stop() {
     std::lock_guard<std::mutex> guard(runningLock);
-    if (running == false) {
-      LOG_DEBUG(_logger, "Cannot Stop(): not running!");
+    if (!running) {
       return -1;
     }
 
@@ -319,7 +317,7 @@ class PlainUDPCommunication::PlainUdpImpl {
     do {
       mLen =
           recvfrom(udpSockFd, bufferForIncomingMessages, maxMsgSize, 0, (sockaddr *)&fromAddress, &fromAddressLength);
-
+      if (!running) return;
       LOG_DEBUG(_logger, "Node " << selfId << ": recvfrom returned " << mLen << " bytes");
 
       if (mLen < 0) {

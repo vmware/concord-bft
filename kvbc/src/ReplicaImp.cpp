@@ -185,7 +185,7 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
                        const bftEngine::ReplicaConfig &replicaConfig,
                        std::unique_ptr<IStorageFactory> storageFactory,
                        std::shared_ptr<concordMetrics::Aggregator> aggregator)
-    : logger(concordlogger::Log::getLogger("skvbc.replicaImp")),
+    : logger(logging::getLogger("skvbc.replicaImp")),
       m_currentRepStatus(RepStatus::Idle),
       m_ptrComm(comm),
       m_replicaConfig(replicaConfig),

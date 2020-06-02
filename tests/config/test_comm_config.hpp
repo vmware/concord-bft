@@ -21,7 +21,7 @@
 
 class TestCommConfig : public ITestCommConfig {
  public:
-  explicit TestCommConfig(concordlogger::Logger& logger) : ITestCommConfig(logger) {}
+  explicit TestCommConfig(logging::Logger& logger) : ITestCommConfig(logger) {}
 
   void GetReplicaConfig(uint16_t replica_id, std::string keyFilePrefix, bftEngine::ReplicaConfig* out_config) override;
 

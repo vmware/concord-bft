@@ -14,7 +14,7 @@
 #include <chrono>
 
 using concordUtils::Sliver;
-using concordlogger::Logger;
+using logging::Logger;
 using concord::storage::rocksdb::copyRocksdbSlice;
 
 namespace concord {

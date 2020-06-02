@@ -48,7 +48,7 @@
 #include "Logger.hpp"
 
 using namespace std;
-using namespace concordlogger;
+using namespace logging;
 using namespace boost;
 
 using asio::ip::tcp;
@@ -183,7 +183,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
         _connType(type),
         _cipherSuite(cipherSuite),
         _certificatesRootFolder(certificatesRootFolder),
-        _logger(Log::getLogger("concord-bft.tls")),
+        _logger(logging::getLogger("concord-bft.tls")),
         _statusCallback{statusCallback},
         _nodes{std::move(nodes)},
         _sslContext{asio::ssl::context(type == ConnType::Incoming ? asio::ssl::context::tlsv12_server
@@ -1132,7 +1132,7 @@ class TlsTCPCommunication::TlsTcpImpl : public std::enable_shared_from_this<TlsT
         _bufferLength(bufferLength),
         _maxServerId(maxServerId),
         _certRootFolder(certRootFolder),
-        _logger(Log::getLogger("concord.tls")),
+        _logger(logging::getLogger("concord.tls")),
         _statusCallback{statusCallback},
         _cipherSuite{cipherSuite} {
     //_service = new io_service();

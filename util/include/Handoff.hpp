@@ -83,8 +83,8 @@ class Handoff {
     }
   }
 
-  static concordlogger::Logger getLogger() {
-    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.util.handoff");
+  static logging::Logger getLogger() {
+    static logging::Logger logger_ = logging::getLogger("concord.util.handoff");
     return logger_;
   }
 

@@ -127,11 +127,11 @@ bool BlsThresholdVerifier::operator==(const BlsThresholdVerifier &other) const {
 G2T BlsThresholdVerifier::deserializePublicKey(istream &inStream) {
   int publicKeySize = 0;
   deserialize(inStream, publicKeySize);
-  LOG_TRACE(concordlogger::Log::getLogger("serialize"), ">>> public key size: " << publicKeySize);
+  LOG_TRACE(logging::getLogger("serialize"), ">>> public key size: " << publicKeySize);
   unsigned char *publicKeyBuf = new unsigned char[static_cast<size_t>(publicKeySize)];
   inStream.read((char *)publicKeyBuf, publicKeySize);
   G2T g2t_(publicKeyBuf, publicKeySize);
-  LOG_TRACE(concordlogger::Log::getLogger("serialize"), ">>> public key buf: [" << g2t_.toString() << "]");
+  LOG_TRACE(logging::getLogger("serialize"), ">>> public key buf: [" << g2t_.toString() << "]");
   delete[] publicKeyBuf;
   return g2t_;
 }

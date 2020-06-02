@@ -32,7 +32,7 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
 
  public:
   ClientIterator(Client *_parentClient)
-      : logger(concordlogger::Log::getLogger("concord.storage.memorydb")), m_parentClient(_parentClient) {}
+      : logger(logging::getLogger("concord.storage.memorydb")), m_parentClient(_parentClient) {}
   virtual ~ClientIterator() {}
 
   // Inherited via IDBClientIterator
@@ -47,7 +47,7 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
   Status getStatus() override;
 
  private:
-  concordlogger::Logger logger;
+  logging::Logger logger;
 
   // Pointer to the Client.
   Client *m_parentClient;
@@ -66,7 +66,7 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
 class Client : public IDBClient {
  public:
   Client(KeyComparator comp = KeyComparator{})
-      : logger(concordlogger::Log::getLogger("concord.storage.memorydb")),
+      : logger(logging::getLogger("concord.storage.memorydb")),
         comp_(comp),
         map_([this](const Sliver &a, const Sliver &b) { return comp_(a, b); }) {}
 
@@ -87,7 +87,7 @@ class Client : public IDBClient {
   TKVStore &getMap() { return map_; }
 
  private:
-  concordlogger::Logger logger;
+  logging::Logger logger;
 
   // Keep a copy of comp_ so that it lives as long as map_
   KeyComparator comp_;

@@ -483,7 +483,7 @@ int main() {
   descriptorOfLastExecution = new DescriptorOfLastExecution();
 
   persistentStorageImp = new PersistentStorageImp(fVal, cVal);
-  concordlogger::Logger logger = concordlogger::Log::getLogger("testSerialization.replica");
+  logging::Logger logger = logging::getLogger("testSerialization.replica");
   // uncomment if needed
   // log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("serializable")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
   const string dbFile = "testPersistency.txt";

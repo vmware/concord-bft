@@ -45,7 +45,7 @@ using bft::communication::TlsTcpConfig;
 using bftEngine::SeqNumberGeneratorForClientRequests;
 using bftEngine::SimpleClient;
 
-concordlogger::Logger clientLogger = concordlogger::Log::getLogger("simpletest.client");
+logging::Logger clientLogger = logging::getLogger("simpletest.client");
 
 void parse_params(int argc, char **argv, ClientParams &cp, bftEngine::SimpleClientParams &scp) {
   if (argc < 2) return;

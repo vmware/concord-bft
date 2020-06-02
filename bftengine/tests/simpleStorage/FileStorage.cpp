@@ -15,13 +15,14 @@
 #include "ObjectsMetadataHandler.hpp"
 
 #include "errnoString.hpp"
+#include "assertUtils.hpp"
 
 #include <cstring>
 #include <exception>
 #include <unistd.h>
 
 using namespace std;
-using namespace concordlogger;
+using namespace logging;
 
 namespace bftEngine {
 
@@ -131,7 +132,7 @@ bool FileStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint32_
                                                                            << maxFileSize);
   if (ftruncate(fileno(dataStream_), maxFileSize)) {
     LOG_ERROR(logger_, "Failed to truncate file: " << fileName_);
-    assert(false);
+    Assert(false);
   }
   writeFileMetadata();
   LOG_DEBUG(logger_, "" << *objectsMetadata_);

@@ -22,7 +22,7 @@ namespace BasicRandomTests {
 
 class BasicRandomTestsRunner {
  public:
-  BasicRandomTestsRunner(concordlogger::Logger &logger, concord::kvbc::IClient &client, size_t numOfOperations);
+  BasicRandomTestsRunner(logging::Logger &logger, concord::kvbc::IClient &client, size_t numOfOperations);
   ~BasicRandomTestsRunner() { delete testsBuilder_; }
   void run();
 
@@ -35,7 +35,7 @@ class BasicRandomTestsRunner {
                       uint32_t actualReplySize);
 
  private:
-  concordlogger::Logger &logger_;
+  logging::Logger &logger_;
   concord::kvbc::IClient &client_;
   const size_t numOfOperations_;
   TestsBuilder *testsBuilder_;

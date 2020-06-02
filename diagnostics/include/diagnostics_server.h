@@ -40,7 +40,7 @@ static constexpr uint16_t PORT = 6888;
 static constexpr int BACKLOG = 5;
 static constexpr size_t MAX_INPUT_SIZE = 1024;
 
-static concordlogger::Logger logger = concordlogger::Log::getLogger("concord.diagnostics");
+static logging::Logger logger = logging::getLogger("concord.diagnostics");
 
 // Returns a successfully read line as a string.
 // Throws a std::runtime_error on error.

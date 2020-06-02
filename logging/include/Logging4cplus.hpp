@@ -17,11 +17,11 @@
 #include <log4cplus/mdc.h>
 #ifdef USE_LOG4CPP
 
-namespace concordlogger {
+namespace logging {
 
 typedef log4cplus::Logger Logger;
 
-}  // namespace concordlogger
+}  // namespace logging
 
 #define LOG_TRACE(l, s) LOG4CPLUS_TRACE(l, s)
 

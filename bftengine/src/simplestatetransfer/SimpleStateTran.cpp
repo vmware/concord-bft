@@ -30,7 +30,7 @@ namespace SimpleInMemoryStateTransfer {
 
 namespace impl {
 
-concordlogger::Logger STLogger = concordlogger::Log::getLogger("state-transfer");
+logging::Logger STLogger = logging::getLogger("state-transfer");
 
 class SimpleStateTran : public ISimpleInMemoryStateTransfer {
  public:

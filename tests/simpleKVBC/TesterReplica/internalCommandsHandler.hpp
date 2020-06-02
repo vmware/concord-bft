@@ -28,7 +28,7 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   InternalCommandsHandler(concord::kvbc::ILocalKeyValueStorageReadOnly *storage,
                           concord::kvbc::IBlocksAppender *blocksAppender,
                           concord::kvbc::IBlockMetadata *blockMetadata,
-                          concordlogger::Logger &logger)
+                          logging::Logger &logger)
       : m_storage(storage), m_blocksAppender(blocksAppender), m_blockMetadata(blockMetadata), m_logger(logger) {}
 
   virtual int execute(uint16_t clientId,
@@ -75,7 +75,7 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   concord::kvbc::ILocalKeyValueStorageReadOnly *m_storage;
   concord::kvbc::IBlocksAppender *m_blocksAppender;
   concord::kvbc::IBlockMetadata *m_blockMetadata;
-  concordlogger::Logger &m_logger;
+  logging::Logger &m_logger;
   size_t m_readsCounter = 0;
   size_t m_writesCounter = 0;
   size_t m_getLastBlockCounter = 0;

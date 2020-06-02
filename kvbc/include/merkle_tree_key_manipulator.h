@@ -60,8 +60,8 @@ class DBKeyManipulator {
   static storage::v2MerkleTree::detail::EBFTSubtype getBftSubtype(const concordUtils::Sliver &s);
 
  protected:
-  static concordlogger::Logger &logger() {
-    static auto logger_ = concordlogger::Log::getLogger("concord.kvbc.v2MerkleTree.DBKeyManipulator");
+  static logging::Logger &logger() {
+    static auto logger_ = logging::getLogger("concord.kvbc.v2MerkleTree.DBKeyManipulator");
     return logger_;
   }
 };

@@ -30,7 +30,7 @@ using namespace bftEngine;
 using namespace bft::communication;
 using namespace std;
 
-concordlogger::Logger replicaLogger = concordlogger::Log::getLogger("simpletest.replica");
+logging::Logger replicaLogger = logging::getLogger("simpletest.replica");
 
 #define test_assert_replica(statement, message)                          \
   {                                                                      \

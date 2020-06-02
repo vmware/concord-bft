@@ -11,22 +11,78 @@
 // as noted in the LICENSE file.
 
 #include "Logger.hpp"
+#include <fstream>
 #include <iostream>
 
 #ifndef USE_LOG4CPP
+#include <mutex>
+namespace logging {
 
-namespace concordlogger {
+std::array<std::string, 6> LoggerImpl::LEVELS_STRINGS = {"TRACE", "DEBUG", "INFO ", "WARN ", "ERROR", "FATAL"};
 
-LogLevel CURRENT_LEVEL = LogLevel::info;
-
-Logger Log::getLogger(const std::string& name) { return Logger(name); }
-
-void Log::initLogger(const std::string& configFileName) { /* TBD */
+/**
+ * This function is usually called at startup so there will be no contention on mutex during runtime.
+ * It could be implemented using static thread_local map without a mutex,
+ * but then the on-the-fly configuration change would be more complex.
+ */
+Logger getLogger(const std::string& name) {
+  static std::map<std::string, LoggerImpl> logmap_;
+  static std::mutex mux;
+  std::lock_guard g(mux);
+  return logmap_.try_emplace(name, name).first->second;
 }
 
-static Logger defaultInitLogger() { return concordlogger::Log::getLogger(DEFAULT_LOGGER_NAME); }
+void initLogger(const std::string& configFileName) {
+  if (!Logger::config(configFileName)) {
+    std::cout << "using default configuration" << std::endl;
+  }
+}
 
-}  // namespace concordlogger
+/**
+ * simple configuration
+ * logger_name:logging_level
+ * TODO [TK]: extend
+ */
+bool Logger::config(const std::string& configFileName) {
+  std::ifstream infile(configFileName);
+  if (!infile.is_open()) {
+    std::cerr << __PRETTY_FUNCTION__ << ": can't open " << configFileName << std::endl;
+    return false;
+  }
+  std::string line;
+  while (std::getline(infile, line)) {
+    // concord::util::trim_inplace(line); TODO [TK]
+    if (line[0] == '#') continue;              // comment
+    if (line.compare(0, 4, "log.")) continue;  // not my configuration
+    line.erase(0, 4);
+    if (size_t pos = line.find(":"); pos != line.npos) {
+      std::string logger = line.substr(0, pos);
+      std::string levelStr = line.substr(pos + 1);
+      LogLevel level;
+      if (!levelStr.compare("TRACE"))
+        level = LogLevel::trace;
+      else if (!levelStr.compare("DEBUG"))
+        level = LogLevel::debug;
+      else if (!levelStr.compare("INFO"))
+        level = LogLevel::info;
+      else if (!levelStr.compare("WARN"))
+        level = LogLevel::warn;
+      else if (!levelStr.compare("ERROR"))
+        level = LogLevel::error;
+      else if (!levelStr.compare("FATAL"))
+        level = LogLevel::fatal;
+      else {
+        std::cerr << __PRETTY_FUNCTION__ << ": ignoring invalid log level " << levelStr << std::endl;
+        continue;
+      }
+      std::cout << __PRETTY_FUNCTION__ << ": " << logger << " -> " << levelStr << std::endl;
+      getLogger(logger).setLogLevel(level);
+    }
+  }
+  return true;
+}
+
+}  // namespace logging
 #else
 #include <log4cplus/logger.h>
 #include <log4cplus/configurator.h>
@@ -36,37 +92,42 @@ static Logger defaultInitLogger() { return concordlogger::Log::getLogger(DEFAULT
 
 using namespace log4cplus;
 
-namespace concordlogger {
+namespace logging {
 
 const char* logPattern = "%X{rid}|%d{%m-%d-%Y %H:%M:%S.%q}|%-5p|%c|%X{thread}|%M|%m%n";
 
-static Logger defaultInitLogger() {
-  SharedAppenderPtr ca_ptr = SharedAppenderPtr(new ConsoleAppender(false, true));
-  ca_ptr->setLayout(std::auto_ptr<Layout>(new PatternLayout(logPattern)));
-
-  Logger::getRoot().addAppender(ca_ptr);
-  Logger::getRoot().setLogLevel(INFO_LOG_LEVEL);
-  return Logger::getInstance(LOG4CPLUS_TEXT(DEFAULT_LOGGER_NAME));
-}
-
 // first lookup a configuration file in the current directory
 // if not found - use default configuration
-void Log::initLogger(const std::string& configFileName) {
-  // PropertyConfigurator propConfig (configFileName);
+void initLogger(const std::string& configFileName) {
+  std::ifstream infile(configFileName);
+  if (!infile.is_open()) {
+    std::cerr << __PRETTY_FUNCTION__ << ": can't open " << configFileName << " using default configuration."
+              << std::endl;
+
+    SharedAppenderPtr ca_ptr = SharedAppenderPtr(new ConsoleAppender(false, true));
+    ca_ptr->setLayout(std::auto_ptr<Layout>(new PatternLayout(logPattern)));
+
+    Logger::getRoot().addAppender(ca_ptr);
+    Logger::getRoot().setLogLevel(INFO_LOG_LEVEL);
+    return;
+  }
+  infile.close();
   helpers::Properties props(configFileName);
   PropertyConfigurator propConfig(props);
   propConfig.configure();
 }
-Logger Log::getLogger(const std::string& name) { return log4cplus::Logger::getInstance(name); }
 
-}  // namespace concordlogger
+Logger getLogger(const std::string& name) { return log4cplus::Logger::getInstance(name); }
+
+}  // namespace logging
 #endif
 
-namespace concordlogger {
+namespace logging {
 
 ScopedMdc::ScopedMdc(const std::string& key, const std::string& val) : key_{key} { MDC_PUT(key, val); }
 ScopedMdc::~ScopedMdc() { MDC_REMOVE(key_); }
 
-}  // namespace concordlogger
-concordlogger::Logger GL = concordlogger::defaultInitLogger();
-concordlogger::Logger CNSUS = concordlogger::Log::getLogger("concord.bft.consensus");
+}  // namespace logging
+
+logging::Logger GL = logging::getLogger(DEFAULT_LOGGER_NAME);
+logging::Logger CNSUS = logging::getLogger("concord.bft.consensus");

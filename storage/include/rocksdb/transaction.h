@@ -56,8 +56,8 @@ class Transaction : public ITransaction {
   }
 
  protected:
-  concordlogger::Logger& logger() {
-    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.storage.rocksdb.transaction");
+  logging::Logger& logger() {
+    static logging::Logger logger_ = logging::getLogger("concord.storage.rocksdb.transaction");
     return logger_;
   }
   std::unique_ptr<::rocksdb::Transaction> txn_;

@@ -57,7 +57,7 @@ void verifyData(FileStorage &fileStorage, uint32_t objId) {
 // The tests verify that all MetadataStorage interfaces work correctly using file-based storage.
 int main(int argc, char **argv) {
   try {
-    auto logger = concordlogger::Log::getLogger("simpleStorage.test");
+    auto logger = logging::getLogger("simpleStorage.test");
     string dbFile = "fileStorageTest.txt";
     remove(dbFile.c_str());
     auto *fileStorage = new FileStorage(logger, dbFile);

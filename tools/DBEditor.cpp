@@ -60,7 +60,7 @@ enum DB_OPERATION {
 };
 
 DB_OPERATION dbOperation = NO_OPERATION;
-concordlogger::Logger logger = concordlogger::Log::getLogger("skvbtest.db_editor");
+logging::Logger logger = logging::getLogger("skvbtest.db_editor");
 
 void printUsageAndExit(char **argv) {
   LOG_ERROR(logger,

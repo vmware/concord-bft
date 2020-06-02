@@ -26,7 +26,7 @@ typedef ParamsMultiMap::iterator ParamsMultiMapIt;
 
 class ConfigFileParser {
  public:
-  ConfigFileParser(concordlogger::Logger& logger, std::string file_name)
+  ConfigFileParser(logging::Logger& logger, std::string file_name)
       : file_name_(std::move(file_name)), logger_(logger) {}
   virtual ~ConfigFileParser() = default;
 
@@ -51,7 +51,7 @@ class ConfigFileParser {
 
   std::string file_name_;
   ParamsMultiMap parameters_map_;
-  concordlogger::Logger& logger_;
+  logging::Logger& logger_;
 };
 
 #endif

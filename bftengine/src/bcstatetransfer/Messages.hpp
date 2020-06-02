@@ -71,7 +71,7 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
 
   static bool equivalent(const CheckpointSummaryMsg* a, uint16_t a_id, const CheckpointSummaryMsg* b, uint16_t b_id) {
     if (memcmp(a, b, sizeof(CheckpointSummaryMsg)) != 0) {
-      auto logger = concordlogger::Log::getLogger("state-transfer");
+      auto logger = logging::getLogger("state-transfer");
       LOG_WARN(logger,
                "Mismatched Checkpoints for checkpointNum="
                    << a->checkpointNum << std::endl

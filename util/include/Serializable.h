@@ -211,8 +211,8 @@ class Serializable {
   }
 
  protected:
-  static concordlogger::Logger& logger() {
-    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("serializable");
+  static logging::Logger& logger() {
+    static logging::Logger logger_ = logging::getLogger("serializable");
     return logger_;
   }
 
