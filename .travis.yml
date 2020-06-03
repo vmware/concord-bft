@@ -1,0 +1,43 @@
+os: linux
+dist: bionic
+services: docker
+language: cpp
+compiler:
+  - gcc
+  - clang
+env:
+  global:
+    # We purposefully leave asserts on by excluding -NDEBUG
+    - DOCKER_REPO=concordbft
+    - DOCKER_IMAGE=concord-bft
+    - DOCKER_IMAGE_VER=0.3
+    - DOCKER_WORK_DIR=/concord-bft
+    - CMAKE_CXX_FLAGS="-DCMAKE_CXX_FLAGS_RELEASE=-O3 -g"
+    - USE_LOG4CPP=-DUSE_LOG4CPP=TRUE
+    - USE_ROCKSDB=-DBUILD_ROCKSDB_STORAGE=TRUE
+    - USE_CONAN=-DUSE_CONAN=OFF
+      #- USE_S3_OBJECT_STORE=-DUSE_S3_OBJECT_STORE=FALSE
+    - USE_OPENTRACING=ON
+  matrix:
+    - CI_BUILD_TYPE="-DCMAKE_BUILD_TYPE=DEBUG -DCI_TEST_STORAGE_TYPE=v1direct"
+    - CI_BUILD_TYPE="-DCMAKE_BUILD_TYPE=RELEASE -DCI_TEST_STORAGE_TYPE=v1direct"
+    - CI_BUILD_TYPE="-DCMAKE_BUILD_TYPE=DEBUG -DCI_TEST_STORAGE_TYPE=v2merkle"
+    - CI_BUILD_TYPE="-DCMAKE_BUILD_TYPE=RELEASE -DCI_TEST_STORAGE_TYPE=v2merkle"
+install:
+  - docker pull ${DOCKER_REPO}/${DOCKER_IMAGE}:${DOCKER_IMAGE_VER}
+script:
+  - >
+    docker run --rm --cap-add NET_ADMIN --workdir=${DOCKER_WORK_DIR} --name=${DOCKER_IMAGE}
+    --mount type=bind,source=${TRAVIS_BUILD_DIR},target=${DOCKER_WORK_DIR} ${DOCKER_REPO}/${DOCKER_IMAGE}:${DOCKER_IMAGE_VER}
+    /bin/bash -c "mkdir -p ${DOCKER_WORK_DIR}/build && cd build &&
+    CC=${CC} CXX=${CXX}
+    cmake ${CMAKE_CXX_FLAGS}
+    ${CI_BUILD_TYPE}
+    ${USE_LOG4CPP}
+    ${USE_ROCKSDB}
+    ${USE_CONAN}
+    ${USE_S3_OBJECT_STORE}
+    ${USE_OPENTRACING} .. &&
+    make format-check &&
+    make -j $(getconf _NPROCESSORS_ONLN) &&
+    ctest --timeout 3000 --output-on-failure"
