@@ -19,8 +19,9 @@ import trio
 
 from util import bft_network_partitioning as net
 from util import skvbc as kvbc
-from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
+from util.bft import with_trio, with_bft_network, with_constant_load, KEY_FILE_PREFIX
 from util.skvbc_history_tracker import verify_linearizability
+from trio._timeouts import TooSlowError
 
 def start_replica_cmd(builddir, replica_id):
     """
@@ -359,10 +360,135 @@ class SkvbcViewChangeTest(unittest.TestCase):
                     else:
                         break
 
+    @with_trio
+    @with_bft_network(start_replica_cmd,
+                      selected_configs=lambda n, f, c: f >= 2)
+    @with_constant_load
+    async def test_f_staggered_replicas_requesting_vc(self, bft_network, skvbc, nursery):
+        """
+        The goal of this test is to check that if a subset not big enough to
+        reach quorum for execution accept CLient requests
+
+        1) Given a BFT network, we make sure all nodes are up.
+        2) crash f replicas, including the current primary.
+        3) Trigger parallel requests to start the view change.
+        4) Verify the BFT network eventually transitions to the next view.
+        5) Perform a "read-your-writes" check in the new view
+        """
+
+        n = bft_network.config.n
+        f = bft_network.config.f
+        c = bft_network.config.c
+
+        initial_primary = 0
+        expected_next_primary = 1
+
+        early_replicas = set()
+        for _ in range(f):
+            exclude_replicas = early_replicas | {initial_primary}
+            early_replicas.add(random.choice(bft_network.all_replicas(without=exclude_replicas)))
+
+        late_replicas = bft_network.all_replicas(without=early_replicas)
+
+        print("STATUS: Starting F replicas.")
+        bft_network.start_replicas(replicas=early_replicas)
+
+        print("STATUS: Wait for early replicas to initiate View Change.")
+        for r in early_replicas:
+            active_view = 0
+            view = 0
+            while active_view == view:
+                active_view = await self._get_active_view(r, bft_network)
+                view = await self._get_view(r, bft_network)
+                await trio.sleep(seconds=0.1)
+
+        print("STATUS: Early replicas initiated View Change.")
+        print("STATUS: Starting the remaining N - F replicas.")
+        bft_network.start_replicas(late_replicas)
+
+        new_view = await bft_network.wait_for_view(
+            replica_id=initial_primary,
+            expected=lambda v: v == initial_primary,
+            err_msg="Make sure we are in the initial view "
+        )
+
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=initial_primary)
+        await skvbc.fill_and_wait_for_checkpoint(
+            initial_nodes=bft_network.all_replicas(without=early_replicas),
+            checkpoint_num=1,
+            verify_checkpoint_persistency=False
+        )
+        checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=initial_primary)
+        # Verify the system is able to make progress
+        self.assertTrue(checkpoint_after > checkpoint_before)
+        
+        # Verify replicas that have initiated View Change catch up on state
+        await bft_network.wait_for_state_transfer_to_start()
+        for r in early_replicas:
+            await bft_network.wait_for_state_transfer_to_stop(initial_primary,
+                                                              r,
+                                                              stop_on_stable_seq_num=True)
+        print("STATUS: Early replicas that have initiated View Change catch up on state.")
+
+        # Stop one of the later started replicas, but not the initial Primary
+        # in order to verify that View Change will happen due to inability to
+        # reach quorums in the slow path. Also don't stop next primary, because
+        # in this test we check a single view change.
+        replica_to_stop = random.choice(bft_network.all_replicas(without=early_replicas | {initial_primary,
+                                                                                           expected_next_primary}))
+        print("STATUS: Stopping one of the later replicas")
+        bft_network.stop_replica(replica_to_stop)
+
+        # Wait for View Change to happen.
+        new_view = await bft_network.wait_for_view(
+            replica_id=expected_next_primary,
+            expected=lambda v: v == expected_next_primary,
+            err_msg="Make sure we are in the next view "
+        )
+
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=expected_next_primary)
+        await skvbc.fill_and_wait_for_checkpoint(
+            initial_nodes=bft_network.all_replicas(without={replica_to_stop}),
+            checkpoint_num=1,
+            verify_checkpoint_persistency=False
+        )
+        checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=expected_next_primary)
+
+        # Verify that the system is making progress after the View Change.
+        self.assertTrue(checkpoint_after > checkpoint_before)
+
     async def _send_random_writes(self, tracker):
         with trio.move_on_after(seconds=1):
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(tracker.send_indefinite_tracked_ops, 1)
+
+    async def _get_view(self, replica_id, bft_network):
+        view = None
+        try:
+            with trio.move_on_after(seconds=5):
+                key = ['replica', 'Gauges', 'view']
+                view = await bft_network.metrics.get(replica_id, *key)
+
+        except KeyError:
+            # metrics not yet available, continue looping
+            print("KeyError!")
+        except TooSlowError:
+            print("TooSlowError!")
+        return view
+
+    async def _get_active_view(self, replica_id, bft_network):
+        view = None
+        try:
+            with trio.move_on_after(seconds=5):
+                key = ['replica', 'Gauges', 'currentActiveView']
+                view = await bft_network.metrics.get(replica_id, *key)
+
+        except KeyError:
+            # metrics not yet available, continue looping
+            print("KeyError!")
+        except TooSlowError:
+            print("TooSlowError!")
+        return view
 
     async def _crash_replicas_including_primary(
             self, bft_network, nb_crashing, primary, except_replicas=None):
