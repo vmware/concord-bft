@@ -430,8 +430,10 @@ class BftTestNetwork:
 
         In case of a timeout, fails with the provided err_msg
         """
+        wait_for_liveness_after_view_change = True
         if expected is None:
             expected = lambda _: True
+            wait_for_liveness_after_view_change = False
 
         matching_view = None
         nb_replicas_in_matching_view = 0
@@ -442,6 +444,9 @@ class BftTestNetwork:
             nb_replicas_in_matching_view = await self._wait_for_active_view(matching_view)
             print(f'View #{matching_view} has been activated by '
                   f'{nb_replicas_in_matching_view} >= n-f = {self.config.n - self.config.f}')
+
+            if wait_for_liveness_after_view_change:
+                kvbc.wait_for_system_to_be_live()
 
             return matching_view
         except trio.TooSlowError:

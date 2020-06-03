@@ -330,6 +330,21 @@ class SimpleKVBCProtocol:
 
         print(f'[READ-YOUR-WRITES] OK.')
 
+    async def wait_for_system_to_be_live(self, time_to_wait=60):
+        """Wait for system to be able to reach quorums and execute clients' requests"""
+        with trio.fail_after(seconds=time_to_wait):
+            while True:
+                with trio.move_on_after(seconds=5):
+                    try:
+                        k, v = await self.write_known_kv()
+                    except Exception:
+                        continue
+                    else:
+                        print("STATUS: SUCCESS IN wait_for_system_to_be_live")
+                        await self.assert_kv_write_executed(k, v)
+                        break
+
+
 class SkvbcClient:
     """A wrapper around bft_client that uses the SimpleKVBCProtocol"""
 
