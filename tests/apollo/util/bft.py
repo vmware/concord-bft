@@ -194,6 +194,7 @@ class BftTestNetwork:
         self.clients = clients
         self.metrics = metrics
         self.reserved_clients = {}
+        self.skvbc = None
 
     @classmethod
     def new(cls, config):
@@ -287,6 +288,9 @@ class BftTestNetwork:
         for r in self.replicas:
             metric_clients[r.id] = bft_metrics_client.MetricsClient(r)
         self.metrics = bft_metrics.BftMetrics(metric_clients)
+
+    def set_skvbc(self, skvbc):
+        self.skvbc = skvbc
 
     def random_client(self):
         return random.choice(list(self.clients.values()))
@@ -446,7 +450,7 @@ class BftTestNetwork:
                   f'{nb_replicas_in_matching_view} >= n-f = {self.config.n - self.config.f}')
 
             if wait_for_liveness_after_view_change:
-                kvbc.wait_for_system_to_be_live()
+                await self.skvbc.wait_for_system_to_be_live()
 
             return matching_view
         except trio.TooSlowError:

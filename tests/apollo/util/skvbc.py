@@ -39,6 +39,7 @@ class SimpleKVBCProtocol:
 
     def __init__(self, bft_network):
         self.bft_network = bft_network
+        bft_network.set_skvbc(self)
 
         self.alpha = [i for i in range(65, 91)]
         self.alphanum = [i for i in range(48, 58)]
@@ -340,7 +341,6 @@ class SimpleKVBCProtocol:
                     except Exception:
                         continue
                     else:
-                        print("STATUS: SUCCESS IN wait_for_system_to_be_live")
                         await self.assert_kv_write_executed(k, v)
                         break
 
