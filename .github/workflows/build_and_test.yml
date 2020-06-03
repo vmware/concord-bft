@@ -1,4 +1,4 @@
-name: Build and test
+name: Build
 # This workflow is triggered on pushes to the repository.
 on: [push]
 env:
