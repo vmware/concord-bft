@@ -90,7 +90,6 @@ TEST_F(PersistencyTest, PrimaryRestartVC) {
     ISimpleTestReplicaBehavior *b = new OneTimePrimaryDownVC(rp);
     create_and_run_replica(rp, b);
   }
-  // abort();
   ASSERT_TRUE(client->run());
 }
 
