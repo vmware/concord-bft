@@ -100,8 +100,8 @@ class Client : public concord::storage::IDBClient {
   concordUtils::Status launchBatchJob(::rocksdb::WriteBatch& _batchJob);
   concordUtils::Status get(const concordUtils::Sliver& _key, std::string& _value) const;
   bool keyIsBefore(const concordUtils::Sliver& _lhs, const concordUtils::Sliver& _rhs) const;
-  static concordlogger::Logger& logger() {
-    static concordlogger::Logger logger_ = concordlogger::Log::getLogger("concord.storage.rocksdb");
+  static logging::Logger& logger() {
+    static logging::Logger logger_ = logging::getLogger("concord.storage.rocksdb");
     return logger_;
   }
   // Database path on directory (used for connection).

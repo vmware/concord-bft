@@ -97,8 +97,7 @@ void Client::init(bool readOnly) {
   options.create_if_missing = true;
   options.sst_file_manager.reset(::rocksdb::NewSstFileManager(::rocksdb::Env::Default()));
   options.statistics = ::rocksdb::CreateDBStatistics();
-  //  options.statistics->set_stats_level(::rocksdb::StatsLevel::kExceptHistogramOrTimers);  // TODO: this is not
-  //  supported by the old rocksdb version, so we disable this until updating rocksdb in concord
+    options.statistics->set_stats_level(::rocksdb::StatsLevel::kExceptHistogramOrTimers);
   // If a comparator is passed, use it. If not, use the default one.
   if (comparator_) {
     options.comparator = comparator_.get();
