@@ -127,7 +127,7 @@ class ReplicaImp : public IReplica,
   std::shared_ptr<storage::IDBClient> m_metadataDBClient;
   bft::communication::ICommunication *m_ptrComm = nullptr;
   bftEngine::ReplicaConfig m_replicaConfig;
-  bftEngine::IReplica *m_replicaPtr = nullptr;
+  bftEngine::IReplica::IReplicaPtr m_replicaPtr = nullptr;
   ICommandsHandler *m_cmdHandler = nullptr;
   bftEngine::IStateTransfer *m_stateTransfer = nullptr;
   concord::storage::DBMetadataStorage *m_metadataStorage = nullptr;

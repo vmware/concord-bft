@@ -109,11 +109,11 @@ void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
 
 namespace bftEngine {
 
-IReplica *IReplica::createNewReplica(ReplicaConfig *replicaConfig,
-                                     IRequestsHandler *requestsHandler,
-                                     IStateTransfer *stateTransfer,
-                                     bft::communication::ICommunication *communication,
-                                     MetadataStorage *metadataStorage) {
+IReplica::IReplicaPtr IReplica::createNewReplica(ReplicaConfig *replicaConfig,
+                                                 IRequestsHandler *requestsHandler,
+                                                 IStateTransfer *stateTransfer,
+                                                 bft::communication::ICommunication *communication,
+                                                 MetadataStorage *metadataStorage) {
   {
     std::lock_guard<std::mutex> lock(mutexForCryptoInitialization);
     if (!cryptoInitialized) {
@@ -143,7 +143,7 @@ IReplica *IReplica::createNewReplica(ReplicaConfig *replicaConfig,
     ((PersistentStorageImp *)persistentStoragePtr.get())->init(move(metadataStoragePtr));
   }
 
-  auto replicaInternal = new ReplicaInternal();
+  auto replicaInternal = std::make_unique<ReplicaInternal>();
   shared_ptr<MsgHandlersRegistrator> msgHandlersPtr(new MsgHandlersRegistrator());
   auto incomingMsgsStorageImpPtr =
       std::make_unique<IncomingMsgsStorageImp>(msgHandlersPtr, timersResolution, replicaConfig->replicaId);
@@ -185,10 +185,10 @@ IReplica *IReplica::createNewReplica(ReplicaConfig *replicaConfig,
   return replicaInternal;
 }
 
-IReplica *IReplica::createNewRoReplica(ReplicaConfig *replicaConfig,
-                                       IStateTransfer *stateTransfer,
-                                       bft::communication::ICommunication *communication,
-                                       MetadataStorage *metadataStorage) {
+IReplica::IReplicaPtr IReplica::createNewRoReplica(ReplicaConfig *replicaConfig,
+                                                   IStateTransfer *stateTransfer,
+                                                   bft::communication::ICommunication *communication,
+                                                   MetadataStorage *metadataStorage) {
   {
     std::lock_guard<std::mutex> lock(mutexForCryptoInitialization);
     if (!cryptoInitialized) {
@@ -199,7 +199,7 @@ IReplica *IReplica::createNewRoReplica(ReplicaConfig *replicaConfig,
 
   // Initialize the configuration singleton here to use correct values during persistent storage initialization.
   replicaConfig->singletonFromThis();
-  auto replicaInternal = new ReplicaInternal();
+  auto replicaInternal = std::make_unique<ReplicaInternal>();
   auto msgHandlers = std::make_shared<MsgHandlersRegistrator>();
   auto incomingMsgsStorageImpPtr =
       std::make_unique<IncomingMsgsStorageImp>(msgHandlers, timersResolution, replicaConfig->replicaId);

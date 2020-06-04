@@ -52,13 +52,14 @@ class IRequestsHandler {
 
 class IReplica {
  public:
-  static IReplica *createNewReplica(
+  using IReplicaPtr = std::unique_ptr<IReplica>;
+  static IReplicaPtr createNewReplica(
       ReplicaConfig *, IRequestsHandler *, IStateTransfer *, bft::communication::ICommunication *, MetadataStorage *);
 
-  static IReplica *createNewRoReplica(ReplicaConfig *,
-                                      IStateTransfer *,
-                                      bft::communication::ICommunication *,
-                                      MetadataStorage *);
+  static IReplicaPtr createNewRoReplica(ReplicaConfig *,
+                                        IStateTransfer *,
+                                        bft::communication::ICommunication *,
+                                        MetadataStorage *);
 
   virtual ~IReplica() = default;
 

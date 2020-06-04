@@ -141,7 +141,7 @@ class SimpleAppState : public IRequestsHandler {
 class SimpleTestReplica {
  private:
   ICommunication *comm;
-  bftEngine::IReplica *replica = nullptr;
+  bftEngine::IReplica::IReplicaPtr replica = nullptr;
   ReplicaConfig replicaConfig;
   std::thread *runnerThread = nullptr;
   ISimpleTestReplicaBehavior *behaviorPtr;
@@ -159,9 +159,8 @@ class SimpleTestReplica {
   }
 
   ~SimpleTestReplica() {
-    if (replica) {
-      delete replica;
-    }
+    // TODO(DD): Reset manually because apparently the order matters - fixit
+    replica.reset();
     if (comm) {
       comm->Stop();
       delete comm;
