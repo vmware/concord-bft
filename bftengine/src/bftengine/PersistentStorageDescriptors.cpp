@@ -31,6 +31,8 @@ void DescriptorOfLastExitFromView::clean() {
 }
 
 bool DescriptorOfLastExitFromView::equals(const DescriptorOfLastExitFromView &other) const {
+  if (other.isDefault != isDefault) return false;
+
   if (other.elements.size() != elements.size()) return false;
 
   if ((other.myViewChangeMsg && !myViewChangeMsg) || (!other.myViewChangeMsg && myViewChangeMsg)) return false;
@@ -45,6 +47,10 @@ bool DescriptorOfLastExitFromView::equals(const DescriptorOfLastExitFromView &ot
 
 void DescriptorOfLastExitFromView::serializeSimpleParams(char *buf, size_t bufLen, size_t &actualSize) const {
   Assert(bufLen >= simpleParamsSize());
+
+  size_t isDefaultSize = sizeof(isDefault);
+  memcpy(buf, &isDefault, isDefaultSize);
+  buf += isDefaultSize;
 
   size_t viewSize = sizeof(view);
   memcpy(buf, &view, viewSize);
@@ -68,7 +74,7 @@ void DescriptorOfLastExitFromView::serializeSimpleParams(char *buf, size_t bufLe
   size_t elementsNumSize = sizeof(elementsNum);
   memcpy(buf, &elementsNum, elementsNumSize);
 
-  actualSize = viewSize + lastStableSize + lastExecutedSize + stableLowerBoundWhenEnteredToViewSize +
+  actualSize = isDefaultSize + viewSize + lastStableSize + lastExecutedSize + stableLowerBoundWhenEnteredToViewSize +
                myViewChangeMsgSize + elementsNumSize;
 }
 
@@ -91,6 +97,10 @@ void DescriptorOfLastExitFromView::serializeElement(uint32_t id, char *buf, size
 void DescriptorOfLastExitFromView::deserializeSimpleParams(char *buf, size_t bufLen, uint32_t &actualSize) {
   actualSize = 0;
   Assert(bufLen >= simpleParamsSize());
+
+  size_t isDefaultSize = sizeof(isDefault);
+  memcpy(&isDefault, buf, isDefaultSize);
+  buf += isDefaultSize;
 
   size_t viewSize = sizeof(view);
   memcpy(&view, buf, viewSize);
@@ -117,8 +127,8 @@ void DescriptorOfLastExitFromView::deserializeSimpleParams(char *buf, size_t buf
 
   if (elementsNum) elements.resize(elementsNum);
 
-  actualSize = viewSize + lastStableSize + lastExecutedSize + stableLowerBoundWhenEnteredToViewSize + actualMsgSize +
-               elementsNumSize;
+  actualSize = isDefaultSize + viewSize + lastStableSize + lastExecutedSize + stableLowerBoundWhenEnteredToViewSize +
+               actualMsgSize + elementsNumSize;
 }
 
 void DescriptorOfLastExitFromView::deserializeElement(uint32_t id, char *buf, size_t bufLen, uint32_t &actualSize) {
@@ -146,6 +156,7 @@ void DescriptorOfLastExitFromView::deserializeElement(uint32_t id, char *buf, si
 uint32_t DescriptorOfLastNewView::viewChangeMsgsNum = 0;
 
 DescriptorOfLastNewView::DescriptorOfLastNewView() {
+  isDefault = true;
   for (uint32_t i = 0; i < viewChangeMsgsNum; ++i) viewChangeMsgs.push_back(nullptr);
 }
 
@@ -159,6 +170,8 @@ void DescriptorOfLastNewView::clean() {
 }
 
 bool DescriptorOfLastNewView::equals(const DescriptorOfLastNewView &other) const {
+  if (other.isDefault != isDefault) return false;
+
   if ((other.newViewMsg && !newViewMsg) || (!other.newViewMsg && newViewMsg)) return false;
   bool res = newViewMsg ? (other.newViewMsg->equals(*newViewMsg)) : true;
   if (!res) return false;
@@ -183,6 +196,10 @@ void DescriptorOfLastNewView::serializeSimpleParams(char *buf, size_t bufLen, si
   actualSize = 0;
   Assert(bufLen >= simpleParamsSize());
 
+  size_t isDefaultSize = sizeof(isDefault);
+  memcpy(buf, &isDefault, isDefaultSize);
+  buf += isDefaultSize;
+
   size_t viewSize = sizeof(view);
   memcpy(buf, &view, viewSize);
   buf += viewSize;
@@ -198,7 +215,8 @@ void DescriptorOfLastNewView::serializeSimpleParams(char *buf, size_t bufLen, si
   size_t newViewMsgSize = MessageBase::serializeMsg(buf, newViewMsg);
 
   size_t myViewChangeMsgSize = MessageBase::serializeMsg(buf, myViewChangeMsg);
-  actualSize = viewSize + maxSeqNumSize + stableLowerBoundWhenEnteredToViewSize + newViewMsgSize + myViewChangeMsgSize;
+  actualSize = isDefaultSize + viewSize + maxSeqNumSize + stableLowerBoundWhenEnteredToViewSize + newViewMsgSize +
+               myViewChangeMsgSize;
 }
 
 void DescriptorOfLastNewView::serializeElement(uint32_t id, char *buf, size_t bufLen, size_t &actualSize) const {
@@ -213,6 +231,10 @@ void DescriptorOfLastNewView::serializeElement(uint32_t id, char *buf, size_t bu
 void DescriptorOfLastNewView::deserializeSimpleParams(char *buf, size_t bufLen, uint32_t &actualSize) {
   actualSize = 0;
   Assert(bufLen >= simpleParamsSize());
+
+  size_t isDefaultSize = sizeof(isDefault);
+  memcpy(&isDefault, buf, isDefaultSize);
+  buf += isDefaultSize;
 
   size_t viewSize = sizeof(view);
   memcpy(&view, buf, viewSize);
@@ -231,7 +253,8 @@ void DescriptorOfLastNewView::deserializeSimpleParams(char *buf, size_t bufLen, 
 
   size_t myViewChangeMsgSize = 0;
   myViewChangeMsg = (ViewChangeMsg *)MessageBase::deserializeMsg(buf, bufLen, myViewChangeMsgSize);
-  actualSize = viewSize + maxSeqNumSize + stableLowerBoundWhenEnteredToViewSize + newViewMsgSize + myViewChangeMsgSize;
+  actualSize = isDefaultSize + viewSize + maxSeqNumSize + stableLowerBoundWhenEnteredToViewSize + newViewMsgSize +
+               myViewChangeMsgSize;
 }
 
 void DescriptorOfLastNewView::deserializeElement(uint32_t id, char *buf, size_t bufLen, size_t &actualSize) {

@@ -267,6 +267,30 @@ class SkvbcTest(unittest.TestCase):
                     self.assertTrue(last_block > current_block)
                     current_block = last_block
 
+            current_primary = current_view % bft_network.config.n
+            non_primaries = bft_network.all_replicas(without={current_primary})
+            restarted_replica = random.choice(non_primaries)
+            print(f"Restart replica #{restarted_replica} to make sure its view is persistent...")
+
+            bft_network.stop_replica(restarted_replica)
+            await trio.sleep(seconds=5)
+            bft_network.start_replica(restarted_replica)
+
+            await trio.sleep(seconds=20)
+
+            # Stop sending requests, and make sure the restarted replica
+            # is up-and-running and participates in consensus
+            nursery.cancel_scope.cancel()
+
+            key = ['replica', 'Gauges', 'lastExecutedSeqNum']
+            last_executed_seq_num = await bft_network.metrics.get(current_primary, *key)
+
+            with trio.fail_after(seconds=30):
+                while True:
+                    last_executed_seq_num_restarted = await bft_network.metrics.get(restarted_replica, *key)
+                    if last_executed_seq_num_restarted >= last_executed_seq_num:
+                        break
+
         except Exception as e:
             print(f"Delayed replicas start-up failed for start-up order: {replicas_starting_order}")
             raise e

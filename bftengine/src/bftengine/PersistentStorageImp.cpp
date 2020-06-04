@@ -629,22 +629,18 @@ DescriptorOfLastExecution PersistentStorageImp::getDescriptorOfLastExecution() {
 
 bool PersistentStorageImp::hasDescriptorOfLastExitFromView() {
   if (!hasDescriptorOfLastExitFromView_) {
-    DescriptorOfLastExitFromView defaultDesc;
     DescriptorOfLastExitFromView storedDesc = getAndAllocateDescriptorOfLastExitFromView();
-    if (!storedDesc.equals(defaultDesc)) hasDescriptorOfLastExitFromView_ = true;
+    if (!storedDesc.isDefault) hasDescriptorOfLastExitFromView_ = true;
     storedDesc.clean();
-    defaultDesc.clean();
   }
   return hasDescriptorOfLastExitFromView_;
 }
 
 bool PersistentStorageImp::hasDescriptorOfLastNewView() {
   if (!hasDescriptorOfLastNewView_) {
-    DescriptorOfLastNewView defaultDesc;
     DescriptorOfLastNewView storedDesc = getAndAllocateDescriptorOfLastNewView();
-    if (!storedDesc.equals(defaultDesc)) hasDescriptorOfLastNewView_ = true;
+    if (!storedDesc.isDefault) hasDescriptorOfLastNewView_ = true;
     storedDesc.clean();
-    defaultDesc.clean();
   }
   return hasDescriptorOfLastNewView_;
 }
