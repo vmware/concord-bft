@@ -41,7 +41,9 @@ Status Client::get(const Sliver &_key, OUT Sliver &_outValue) const {
   } catch (const std::out_of_range &oor) {
     return Status::NotFound(oor.what());
   }
-
+  storage_metrics_.keys_reads_.Get().Inc();
+  storage_metrics_.total_read_bytes_.Get().Inc(_outValue.length());
+  storage_metrics_.tryToUpdateMetrics();
   return Status::OK();
 }
 
@@ -100,6 +102,9 @@ Status Client::freeIterator(IDBClientIterator *_iter) const {
  */
 Status Client::put(const Sliver &_key, const Sliver &_value) {
   map_.insert_or_assign(_key, _value.clone());
+  storage_metrics_.keys_writes_.Get().Inc();
+  storage_metrics_.total_written_bytes_.Get().Inc(_key.length() + _value.length());
+  storage_metrics_.tryToUpdateMetrics();
   return Status::OK();
 }
 
@@ -186,7 +191,9 @@ KeyValuePair ClientIterator::first() {
   if (m_current == m_parentClient->getMap().end()) {
     return KeyValuePair();
   }
-
+  auto &metrics = m_parentClient->getStorageMetrics();
+  metrics.keys_reads_.Get().Inc();
+  metrics.total_read_bytes_.Get().Inc(m_current->second.length());
   return KeyValuePair(m_current->first, m_current->second);
 }
 
@@ -202,7 +209,9 @@ KeyValuePair ClientIterator::last() {
   }
 
   m_current = --m_parentClient->getMap().end();
-
+  auto &metrics = m_parentClient->getStorageMetrics();
+  metrics.keys_reads_.Get().Inc();
+  metrics.total_read_bytes_.Get().Inc(m_current->second.length());
   return KeyValuePair(m_current->first, m_current->second);
 }
 
@@ -223,7 +232,9 @@ KeyValuePair ClientIterator::seekAtLeast(const Sliver &_searchKey) {
     LOG_TRACE(logger, "Key " << _searchKey << " not found");
     return KeyValuePair();
   }
-
+  auto &metrics = m_parentClient->getStorageMetrics();
+  metrics.keys_reads_.Get().Inc();
+  metrics.total_read_bytes_.Get().Inc(m_current->second.length());
   return KeyValuePair(m_current->first, m_current->second);
 }
 
@@ -259,6 +270,9 @@ KeyValuePair ClientIterator::seekAtMost(const Sliver &_searchKey) {
       return KeyValuePair();
     }
   }
+  auto &metrics = m_parentClient->getStorageMetrics();
+  metrics.keys_reads_.Get().Inc();
+  metrics.total_read_bytes_.Get().Inc(m_current->second.length());
   return KeyValuePair(m_current->first, m_current->second);
 }
 
@@ -275,6 +289,9 @@ KeyValuePair ClientIterator::previous() {
     return KeyValuePair();
   }
   --m_current;
+  auto &metrics = m_parentClient->getStorageMetrics();
+  metrics.keys_reads_.Get().Inc();
+  metrics.total_read_bytes_.Get().Inc(m_current->second.length());
   return KeyValuePair(m_current->first, m_current->second);
 }
 
@@ -290,7 +307,9 @@ KeyValuePair ClientIterator::next() {
   if (m_current == m_parentClient->getMap().end()) {
     return KeyValuePair();
   }
-
+  auto &metrics = m_parentClient->getStorageMetrics();
+  metrics.keys_reads_.Get().Inc();
+  metrics.total_read_bytes_.Get().Inc(m_current->second.length());
   return KeyValuePair(m_current->first, m_current->second);
 }
 
@@ -303,7 +322,9 @@ KeyValuePair ClientIterator::getCurrent() {
   if (m_current == m_parentClient->getMap().end()) {
     return KeyValuePair();
   }
-
+  auto &metrics = m_parentClient->getStorageMetrics();
+  metrics.keys_reads_.Get().Inc();
+  metrics.total_read_bytes_.Get().Inc(m_current->second.length());
   return KeyValuePair(m_current->first, m_current->second);
 }
 

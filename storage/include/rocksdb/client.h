@@ -20,7 +20,9 @@
 #ifdef USE_ROCKSDB
 #include "Logger.hpp"
 #include <rocksdb/utilities/transaction_db.h>
+#include <rocksdb/sst_file_manager.h>
 #include "storage/db_interface.h"
+#include "storage/storage_metrics.h"
 
 namespace concord {
 namespace storage {
@@ -90,13 +92,14 @@ class Client : public concord::storage::IDBClient {
   ::rocksdb::Iterator* getNewRocksDbIterator() const;
   bool isNew() override;
   ITransaction* beginTransaction() override;
+  void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) override {
+    storage_metrics_.setAggregator(aggregator);
+  }
 
  private:
   concordUtils::Status launchBatchJob(::rocksdb::WriteBatch& _batchJob);
   concordUtils::Status get(const concordUtils::Sliver& _key, std::string& _value) const;
   bool keyIsBefore(const concordUtils::Sliver& _lhs, const concordUtils::Sliver& _rhs) const;
-
- private:
   static logging::Logger& logger() {
     static logging::Logger logger_ = logging::getLogger("concord.storage.rocksdb");
     return logger_;
@@ -107,6 +110,9 @@ class Client : public concord::storage::IDBClient {
   std::unique_ptr<::rocksdb::DB> dbInstance_;
   ::rocksdb::TransactionDB* txn_db_ = nullptr;
   std::unique_ptr<const ::rocksdb::Comparator> comparator_;
+
+  // Metrics
+  mutable RocksDbStorageMetrics storage_metrics_;
 };
 
 ::rocksdb::Slice toRocksdbSlice(const concordUtils::Sliver& _s);

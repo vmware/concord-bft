@@ -6,6 +6,7 @@
 #include "status.hpp"
 #include <unordered_map>
 #include <vector>
+#include "Metrics.hpp"
 
 #define OUT
 
@@ -76,6 +77,7 @@ class IDBClient {
   // possible options: ITransaction::Guard or std::shared_ptr
   virtual ITransaction* beginTransaction() = 0;
 
+  virtual void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) = 0;
   class IDBClientIterator {
    public:
     virtual KeyValuePair first() = 0;
