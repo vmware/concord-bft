@@ -216,7 +216,6 @@ ReplicaImp::~ReplicaImp() {
     if (m_replicaPtr->isRunning()) {
       m_replicaPtr->stop();
     }
-    delete m_replicaPtr;
   }
 }
 
