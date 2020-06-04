@@ -22,7 +22,6 @@ class SimpleThreadPool;
 namespace bftEngine {
 namespace impl {
 class IncomingMsgsStorage;
-class InternalReplicaApi;
 
 // TODO(GG): use types from PrimitiveTypes.hpp
 
@@ -54,8 +53,7 @@ class RetransmissionsManager {
  public:
   RetransmissionsManager();  // retransmissions logic is disabled
 
-  RetransmissionsManager(InternalReplicaApi* replica,
-                         util::SimpleThreadPool* threadPool,
+  RetransmissionsManager(util::SimpleThreadPool* threadPool,
                          IncomingMsgsStorage* const incomingMsgsStorage,
                          uint16_t maxOutNumOfSeqNumbers,
                          SeqNum lastStableSeqNum);
@@ -87,9 +85,8 @@ class RetransmissionsManager {
 
   void add(const Event& e);
 
-  InternalReplicaApi* const replica;
-  util::SimpleThreadPool* const pool;       // TODO(GG): not needed (use InternalReplicaApi*)
-  IncomingMsgsStorage* const incomingMsgs;  // TODO(GG): not needed (use InternalReplicaApi*)
+  util::SimpleThreadPool* const pool;
+  IncomingMsgsStorage* const incomingMsgs;
   const uint16_t maxOutSeqNumbers;
   void* const internalLogicInfo;
 

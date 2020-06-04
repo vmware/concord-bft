@@ -33,7 +33,7 @@ class IncomingMsgsStorage {
   virtual bool isRunning() const = 0;
 
   virtual void pushExternalMsg(std::unique_ptr<MessageBase> msg) = 0;
-  virtual void pushInternalMsg(std::unique_ptr<InternalMessage> msg) = 0;
+  virtual void pushInternalMsg(InternalMessage&& msg) = 0;
 };
 
 }  // namespace bftEngine::impl

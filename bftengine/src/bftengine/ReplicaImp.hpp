@@ -237,9 +237,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void processMessages();
 
   // InternalReplicaApi
-  virtual void onInternalMsg(FullCommitProofMsg* m) override;
-  virtual void onMerkleExecSignature(ViewNum v, SeqNum s, uint16_t signatureLength, const char* signature) override;
-  void updateMetricsForInternalMessage() override { metric_received_internal_msgs_.Get().Inc(); }
   bool isCollectingState() const override { return stateTransfer->isCollectingState(); }
   bool isValidClient(NodeIdType clientId) const override { return clientsManager->isValidClient(clientId); }
   bool isIdOfReplica(NodeIdType id) const override { return repsInfo->isIdOfReplica(id); }
@@ -287,6 +284,9 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   template <typename T>
   void onMessage(T* msg);
+
+  void onInternalMsg(InternalMessage&& msg);
+  void onInternalMsg(FullCommitProofMsg* m);
 
   bool handledByRetransmissionsManager(const ReplicaId sourceReplica,
                                        const ReplicaId destReplica,
@@ -369,31 +369,25 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   // handlers for internal messages
 
-  virtual void onPrepareCombinedSigFailed(SeqNum seqNumber,
-                                          ViewNum view,
-                                          const std::set<uint16_t>& replicasWithBadSigs) override;
-  virtual void onPrepareCombinedSigSucceeded(SeqNum seqNumber,
-                                             ViewNum view,
-                                             const char* combinedSig,
-                                             uint16_t combinedSigLen,
-                                             const std::string& span_context) override;
-  virtual void onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) override;
+  void onPrepareCombinedSigFailed(SeqNum seqNumber, ViewNum view, const std::set<uint16_t>& replicasWithBadSigs);
+  void onPrepareCombinedSigSucceeded(SeqNum seqNumber,
+                                     ViewNum view,
+                                     const char* combinedSig,
+                                     uint16_t combinedSigLen,
+                                     const std::string& span_context);
+  void onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid);
 
-  virtual void onCommitCombinedSigFailed(SeqNum seqNumber,
-                                         ViewNum view,
-                                         const std::set<uint16_t>& replicasWithBadSigs) override;
-  virtual void onCommitCombinedSigSucceeded(SeqNum seqNumber,
-                                            ViewNum view,
-                                            const char* combinedSig,
-                                            uint16_t combinedSigLen,
-                                            const std::string& span_context) override;
-  virtual void onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) override;
+  void onCommitCombinedSigFailed(SeqNum seqNumber, ViewNum view, const std::set<uint16_t>& replicasWithBadSigs);
+  void onCommitCombinedSigSucceeded(SeqNum seqNumber,
+                                    ViewNum view,
+                                    const char* combinedSig,
+                                    uint16_t combinedSigLen,
+                                    const std::string& span_context);
+  void onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid);
 
-  virtual void onRetransmissionsProcessingResults(
-      SeqNum relatedLastStableSeqNum,
-      const ViewNum relatedViewNumber,
-      const std::forward_list<RetSuggestion>* const suggestedRetransmissions)
-      override;  // TODO(GG): use generic iterators
+  void onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqNum,
+                                          const ViewNum relatedViewNumber,
+                                          const std::forward_list<RetSuggestion>& suggestedRetransmissions);
 
  private:
   void addTimers();

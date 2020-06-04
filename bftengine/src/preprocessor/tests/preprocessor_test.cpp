@@ -87,23 +87,6 @@ class DummyReplica : public InternalReplicaApi {
  public:
   DummyReplica(const bftEngine::impl::ReplicasInfo& replicasInfo) : replicasInfo_(replicasInfo) {}
 
-  void onPrepareCombinedSigFailed(SeqNum seqNumber, ViewNum view, const set<uint16_t>& replicasWithBadSigs) {}
-  void onPrepareCombinedSigSucceeded(
-      SeqNum seqNumber, ViewNum view, const char* combinedSig, uint16_t combinedSigLen, const std::string&) {}
-  void onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) {}
-
-  void onCommitCombinedSigFailed(SeqNum seqNumber, ViewNum view, const set<uint16_t>& replicasWithBadSigs) {}
-  void onCommitCombinedSigSucceeded(
-      SeqNum seqNumber, ViewNum view, const char* combinedSig, uint16_t combinedSigLen, const std::string&) {}
-  void onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) {}
-
-  void onInternalMsg(FullCommitProofMsg* m) {}
-  void onMerkleExecSignature(ViewNum view, SeqNum seqNum, uint16_t signatureLength, const char* signature) {}
-
-  void onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqNum,
-                                          const ViewNum relatedViewNumber,
-                                          const forward_list<RetSuggestion>* const suggestedRetransmissions) {}
-
   const bftEngine::impl::ReplicasInfo& getReplicasInfo() const { return replicasInfo_; }
   bool isValidClient(NodeIdType client) const { return true; }
   bool isIdOfReplica(NodeIdType id) const { return false; }
@@ -117,7 +100,6 @@ class DummyReplica : public InternalReplicaApi {
   IncomingMsgsStorage& getIncomingMsgsStorage() { return *incomingMsgsStorage_; }
   util::SimpleThreadPool& getInternalThreadPool() { return pool_; }
 
-  void updateMetricsForInternalMessage() {}
   bool isCollectingState() const { return false; }
 
   const ReplicaConfig& getReplicaConfig() const { return replicaConfig; }

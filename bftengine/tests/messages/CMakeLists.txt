@@ -49,16 +49,6 @@ target_link_libraries(CheckpointMsg_test GTest::Main)
 target_link_libraries(CheckpointMsg_test corebft $<TARGET_OBJECTS:logging_dev>)
 target_compile_options(CheckpointMsg_test PUBLIC "-Wno-sign-compare")
 
-add_executable(PartialExecProofMsg_test PartialExecProofMsg_test.cpp helper.cpp)
-add_test(PartialExecProofMsg_test PartialExecProofMsg_test)
-find_package(GTest REQUIRED)
-target_include_directories(PartialExecProofMsg_test
-      PRIVATE
-      ${bftengine_SOURCE_DIR}/src/bftengine)
-target_link_libraries(PartialExecProofMsg_test GTest::Main)
-target_link_libraries(PartialExecProofMsg_test corebft $<TARGET_OBJECTS:logging_dev>)
-target_compile_options(PartialExecProofMsg_test PUBLIC "-Wno-sign-compare")
-
 add_executable(ReqMissingDataMsg_test ReqMissingDataMsg_test.cpp helper.cpp)
 add_test(ReqMissingDataMsg_test ReqMissingDataMsg_test)
 find_package(GTest REQUIRED)
@@ -129,13 +119,3 @@ target_include_directories(NewViewMsg_test
 target_link_libraries(NewViewMsg_test GTest::Main)
 target_link_libraries(NewViewMsg_test corebft $<TARGET_OBJECTS:logging_dev>)
 target_compile_options(NewViewMsg_test PUBLIC "-Wno-sign-compare")
-
-add_executable(FullExecProofMsg_test FullExecProofMsg_test.cpp helper.cpp)
-add_test(FullExecProofMsg_test FullExecProofMsg_test)
-find_package(GTest REQUIRED)
-target_include_directories(FullExecProofMsg_test
-      PRIVATE
-      ${bftengine_SOURCE_DIR}/src/bftengine)
-target_link_libraries(FullExecProofMsg_test GTest::Main)
-target_link_libraries(FullExecProofMsg_test corebft $<TARGET_OBJECTS:logging_dev>)
-target_compile_options(FullExecProofMsg_test PUBLIC "-Wno-sign-compare")

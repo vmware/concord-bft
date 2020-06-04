@@ -90,6 +90,8 @@ class RegistrarSingleton {
 
   RegistrarSingleton(const RegistrarSingleton&) = delete;
   RegistrarSingleton& operator=(const RegistrarSingleton&) = delete;
+  RegistrarSingleton(RegistrarSingleton&&) = delete;
+  RegistrarSingleton& operator=(RegistrarSingleton&&) = delete;
 
  private:
   RegistrarSingleton() = default;

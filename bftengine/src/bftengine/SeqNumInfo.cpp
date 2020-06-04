@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -9,9 +9,9 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-// TODO(GG): clean/move 'include' statements
 #include "SeqNumInfo.hpp"
 #include "InternalReplicaApi.hpp"
+#include "messages/SignatureInternalMsgs.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -22,7 +22,6 @@ SeqNumInfo::SeqNumInfo()
       prepareSigCollector(nullptr),
       commitMsgsCollector(nullptr),
       partialProofsSet(nullptr),
-      partialExecProofsSet(nullptr),
       primary(false),
       forcedCompleted(false),
       slowPathHasStarted(false),
@@ -36,7 +35,6 @@ SeqNumInfo::~SeqNumInfo() {
   delete prepareSigCollector;
   delete commitMsgsCollector;
   delete partialProofsSet;
-  delete partialExecProofsSet;
 }
 
 void SeqNumInfo::resetAndFree() {
@@ -46,7 +44,6 @@ void SeqNumInfo::resetAndFree() {
   prepareSigCollector->resetAndFree();
   commitMsgsCollector->resetAndFree();
   partialProofsSet->resetAndFree();
-  partialExecProofsSet->resetAndFree();
 
   primary = false;
 
@@ -264,8 +261,6 @@ Time SeqNumInfo::getTimeOfLastInfoRequest() const { return timeOfLastInfoRequest
 
 PartialProofsSet& SeqNumInfo::partialProofs() { return *partialProofsSet; }
 
-PartialExecProofsSet& SeqNumInfo::partialExecProofs() { return *partialExecProofsSet; }
-
 void SeqNumInfo::startSlowPath() { slowPathHasStarted = true; }
 
 bool SeqNumInfo::slowPathStarted() { return slowPathHasStarted; }
@@ -292,130 +287,6 @@ void SeqNumInfo::onCompletionOfCombinedPrepareSigVerification(SeqNum seqNumber, 
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// Internal message classes
-///////////////////////////////////////////////////////////////////////////////
-
-class CombinedSigFailedInternalMsg : public InternalMessage {
- protected:
-  InternalReplicaApi* const replica;
-  const SeqNum seqNumber;
-  const ViewNum view;
-  const std::set<uint16_t> replicasWithBadSigs;
-
- public:
-  CombinedSigFailedInternalMsg(InternalReplicaApi* rep, SeqNum s, ViewNum v, std::set<uint16_t>& repsWithBadSigs)
-      : InternalMessage(rep), replica{rep}, seqNumber{s}, view{v}, replicasWithBadSigs{repsWithBadSigs} {}
-
-  virtual void handle() override {
-    InternalMessage::handle();
-    replica->onPrepareCombinedSigFailed(seqNumber, view, replicasWithBadSigs);
-  }
-};
-
-class CombinedSigSucceededInternalMsg : public InternalMessage {
- protected:
-  InternalReplicaApi* const replica;
-  const SeqNum seqNumber;
-  const ViewNum view;
-  const char* combinedSig;
-  const uint16_t combinedSigLen;
-  std::string span_context_;
-
- public:
-  CombinedSigSucceededInternalMsg(
-      InternalReplicaApi* rep, SeqNum s, ViewNum v, const char* sig, uint16_t sigLen, const std::string& span_context)
-      : InternalMessage(rep), replica{rep}, seqNumber{s}, view{v}, combinedSigLen{sigLen}, span_context_{span_context} {
-    char* p = (char*)std::malloc(sigLen);
-    memcpy(p, sig, sigLen);
-    combinedSig = p;
-  }
-
-  virtual ~CombinedSigSucceededInternalMsg() override { std::free((void*)combinedSig); }
-
-  virtual void handle() override {
-    InternalMessage::handle();
-    replica->onPrepareCombinedSigSucceeded(seqNumber, view, combinedSig, combinedSigLen, span_context_);
-  }
-};
-
-class VerifyCombinedSigResultInternalMsg : public InternalMessage {
- protected:
-  InternalReplicaApi* const replica;
-  const SeqNum seqNumber;
-  const ViewNum view;
-  const bool isValid;
-
- public:
-  VerifyCombinedSigResultInternalMsg(InternalReplicaApi* rep, SeqNum s, ViewNum v, bool result)
-      : InternalMessage(rep), replica{rep}, seqNumber{s}, view{v}, isValid{result} {}
-
-  virtual void handle() override {
-    InternalMessage::handle();
-    replica->onPrepareVerifyCombinedSigResult(seqNumber, view, isValid);
-  }
-};
-
-class CombinedCommitSigSucceededInternalMsg : public InternalMessage {
- protected:
-  InternalReplicaApi* const replica;
-  const SeqNum seqNumber;
-  const ViewNum view;
-  const char* combinedSig;
-  const uint16_t combinedSigLen;
-  std::string span_context_;
-
- public:
-  CombinedCommitSigSucceededInternalMsg(
-      InternalReplicaApi* rep, SeqNum s, ViewNum v, const char* sig, uint16_t sigLen, const std::string& span_context)
-      : InternalMessage(rep), replica{rep}, seqNumber{s}, view{v}, combinedSigLen{sigLen}, span_context_{span_context} {
-    char* p = (char*)std::malloc(sigLen);
-    memcpy(p, sig, sigLen);
-    combinedSig = p;
-  }
-
-  virtual ~CombinedCommitSigSucceededInternalMsg() override { std::free((void*)combinedSig); }
-
-  virtual void handle() override {
-    InternalMessage::handle();
-    replica->onCommitCombinedSigSucceeded(seqNumber, view, combinedSig, combinedSigLen, span_context_);
-  }
-};
-
-class CombinedCommitSigFailedInternalMsg : public InternalMessage {
- protected:
-  InternalReplicaApi* const replica;
-  const SeqNum seqNumber;
-  const ViewNum view;
-  const std::set<uint16_t> replicasWithBadSigs;
-
- public:
-  CombinedCommitSigFailedInternalMsg(InternalReplicaApi* rep, SeqNum s, ViewNum v, std::set<uint16_t>& repsWithBadSigs)
-      : InternalMessage(rep), replica{rep}, seqNumber{s}, view{v}, replicasWithBadSigs{repsWithBadSigs} {}
-
-  virtual void handle() override {
-    InternalMessage::handle();
-    replica->onCommitCombinedSigFailed(seqNumber, view, replicasWithBadSigs);
-  }
-};
-
-class VerifyCombinedCommitSigResultInternalMsg : public InternalMessage {
- protected:
-  InternalReplicaApi* const replica;
-  const SeqNum seqNumber;
-  const ViewNum view;
-  const bool isValid;
-
- public:
-  VerifyCombinedCommitSigResultInternalMsg(InternalReplicaApi* rep, SeqNum s, ViewNum v, bool result)
-      : InternalMessage(rep), replica{rep}, seqNumber{s}, view{v}, isValid{result} {}
-
-  virtual void handle() override {
-    InternalMessage::handle();
-    replica->onCommitVerifyCombinedSigResult(seqNumber, view, isValid);
-  }
-};
-
-///////////////////////////////////////////////////////////////////////////////
 // class SeqNumInfo::ExFuncForPrepareCollector
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -430,29 +301,24 @@ PrepareFullMsg* SeqNumInfo::ExFuncForPrepareCollector::createCombinedSignatureMs
       viewNumber, seqNumber, r->getReplicasInfo().myId(), combinedSig, combinedSigLen, span_context);
 }
 
-InternalMessage* SeqNumInfo::ExFuncForPrepareCollector::createInterCombinedSigFailed(
-    void* context, SeqNum seqNumber, ViewNum viewNumber, std::set<uint16_t> replicasWithBadSigs) {
-  InternalReplicaApi* r = (InternalReplicaApi*)context;
-  return new CombinedSigFailedInternalMsg(r, seqNumber, viewNumber, replicasWithBadSigs);
+InternalMessage SeqNumInfo::ExFuncForPrepareCollector::createInterCombinedSigFailed(
+    SeqNum seqNumber, ViewNum viewNumber, std::set<uint16_t> replicasWithBadSigs) {
+  return CombinedSigFailedInternalMsg(seqNumber, viewNumber, replicasWithBadSigs);
 }
 
-InternalMessage* SeqNumInfo::ExFuncForPrepareCollector::createInterCombinedSigSucceeded(
-    void* context,
+InternalMessage SeqNumInfo::ExFuncForPrepareCollector::createInterCombinedSigSucceeded(
     SeqNum seqNumber,
     ViewNum viewNumber,
     const char* combinedSig,
     uint16_t combinedSigLen,
     const std::string& span_context) {
-  InternalReplicaApi* r = (InternalReplicaApi*)context;
-  return new CombinedSigSucceededInternalMsg(r, seqNumber, viewNumber, combinedSig, combinedSigLen, span_context);
+  return CombinedSigSucceededInternalMsg(seqNumber, viewNumber, combinedSig, combinedSigLen, span_context);
 }
 
-InternalMessage* SeqNumInfo::ExFuncForPrepareCollector::createInterVerifyCombinedSigResult(void* context,
-                                                                                           SeqNum seqNumber,
-                                                                                           ViewNum viewNumber,
-                                                                                           bool isValid) {
-  InternalReplicaApi* r = (InternalReplicaApi*)context;
-  return new VerifyCombinedSigResultInternalMsg(r, seqNumber, viewNumber, isValid);
+InternalMessage SeqNumInfo::ExFuncForPrepareCollector::createInterVerifyCombinedSigResult(SeqNum seqNumber,
+                                                                                          ViewNum viewNumber,
+                                                                                          bool isValid) {
+  return VerifyCombinedSigResultInternalMsg(seqNumber, viewNumber, isValid);
 }
 
 uint16_t SeqNumInfo::ExFuncForPrepareCollector::numberOfRequiredSignatures(void* context) {
@@ -491,29 +357,23 @@ CommitFullMsg* SeqNumInfo::ExFuncForCommitCollector::createCombinedSignatureMsg(
       viewNumber, seqNumber, r->getReplicasInfo().myId(), combinedSig, combinedSigLen, span_context);
 }
 
-InternalMessage* SeqNumInfo::ExFuncForCommitCollector::createInterCombinedSigFailed(
-    void* context, SeqNum seqNumber, ViewNum viewNumber, std::set<uint16_t> replicasWithBadSigs) {
-  InternalReplicaApi* r = (InternalReplicaApi*)context;
-  return new CombinedCommitSigFailedInternalMsg(r, seqNumber, viewNumber, replicasWithBadSigs);
+InternalMessage SeqNumInfo::ExFuncForCommitCollector::createInterCombinedSigFailed(
+    SeqNum seqNumber, ViewNum viewNumber, std::set<uint16_t> replicasWithBadSigs) {
+  return CombinedCommitSigFailedInternalMsg(seqNumber, viewNumber, replicasWithBadSigs);
 }
 
-InternalMessage* SeqNumInfo::ExFuncForCommitCollector::createInterCombinedSigSucceeded(
-    void* context,
-    SeqNum seqNumber,
-    ViewNum viewNumber,
-    const char* combinedSig,
-    uint16_t combinedSigLen,
-    const std::string& span_context) {
-  InternalReplicaApi* r = (InternalReplicaApi*)context;
-  return new CombinedCommitSigSucceededInternalMsg(r, seqNumber, viewNumber, combinedSig, combinedSigLen, span_context);
+InternalMessage SeqNumInfo::ExFuncForCommitCollector::createInterCombinedSigSucceeded(SeqNum seqNumber,
+                                                                                      ViewNum viewNumber,
+                                                                                      const char* combinedSig,
+                                                                                      uint16_t combinedSigLen,
+                                                                                      const std::string& span_context) {
+  return CombinedCommitSigSucceededInternalMsg(seqNumber, viewNumber, combinedSig, combinedSigLen, span_context);
 }
 
-InternalMessage* SeqNumInfo::ExFuncForCommitCollector::createInterVerifyCombinedSigResult(void* context,
-                                                                                          SeqNum seqNumber,
-                                                                                          ViewNum viewNumber,
-                                                                                          bool isValid) {
-  InternalReplicaApi* r = (InternalReplicaApi*)context;
-  return new VerifyCombinedCommitSigResultInternalMsg(r, seqNumber, viewNumber, isValid);
+InternalMessage SeqNumInfo::ExFuncForCommitCollector::createInterVerifyCombinedSigResult(SeqNum seqNumber,
+                                                                                         ViewNum viewNumber,
+                                                                                         bool isValid) {
+  return VerifyCombinedCommitSigResultInternalMsg(seqNumber, viewNumber, isValid);
 }
 
 uint16_t SeqNumInfo::ExFuncForCommitCollector::numberOfRequiredSignatures(void* context) {
@@ -551,7 +411,6 @@ void SeqNumInfo::init(SeqNumInfo& i, void* d) {
   i.commitMsgsCollector =
       new CollectorOfThresholdSignatures<CommitPartialMsg, CommitFullMsg, ExFuncForCommitCollector>(context);
   i.partialProofsSet = new PartialProofsSet((InternalReplicaApi*)r);
-  i.partialExecProofsSet = new PartialExecProofsSet((InternalReplicaApi*)r);
 }
 
 }  // namespace impl

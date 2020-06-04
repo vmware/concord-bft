@@ -19,7 +19,6 @@
 #include "messages/PrePrepareMsg.hpp"
 #include "messages/SignedShareMsgs.hpp"
 #include "messages/PartialProofsSet.hpp"
-#include "messages/PartialExecProofsSet.hpp"
 #include "Logger.hpp"
 #include "CollectorOfThresholdSignatures.hpp"
 #include "SequenceWithActiveWindow.hpp"
@@ -75,7 +74,6 @@ class SeqNumInfo {
   Time lastUpdateTimeOfCommitMsgs() const { return commitUpdateTime; }  // TODO(GG): check usage....
 
   PartialProofsSet& partialProofs();
-  PartialExecProofsSet& partialExecProofs();
   void startSlowPath();
   bool slowPathStarted();
 
@@ -122,20 +120,15 @@ class SeqNumInfo {
                                                       const std::string& span_context);
 
     // internal messages
-    static InternalMessage* createInterCombinedSigFailed(void* context,
-                                                         SeqNum seqNumber,
-                                                         ViewNum viewNumber,
-                                                         std::set<uint16_t> replicasWithBadSigs);
-    static InternalMessage* createInterCombinedSigSucceeded(void* context,
-                                                            SeqNum seqNumber,
-                                                            ViewNum viewNumber,
-                                                            const char* combinedSig,
-                                                            uint16_t combinedSigLen,
-                                                            const std::string& span_context);
-    static InternalMessage* createInterVerifyCombinedSigResult(void* context,
-                                                               SeqNum seqNumber,
-                                                               ViewNum viewNumber,
-                                                               bool isValid);
+    static InternalMessage createInterCombinedSigFailed(SeqNum seqNumber,
+                                                        ViewNum viewNumber,
+                                                        std::set<uint16_t> replicasWithBadSigs);
+    static InternalMessage createInterCombinedSigSucceeded(SeqNum seqNumber,
+                                                           ViewNum viewNumber,
+                                                           const char* combinedSig,
+                                                           uint16_t combinedSigLen,
+                                                           const std::string& span_context);
+    static InternalMessage createInterVerifyCombinedSigResult(SeqNum seqNumber, ViewNum viewNumber, bool isValid);
 
     // from the Replica object
     static uint16_t numberOfRequiredSignatures(void* context);
@@ -155,20 +148,15 @@ class SeqNumInfo {
                                                      const std::string& span_context);
 
     // internal messages
-    static InternalMessage* createInterCombinedSigFailed(void* context,
-                                                         SeqNum seqNumber,
-                                                         ViewNum viewNumber,
-                                                         std::set<uint16_t> replicasWithBadSigs);
-    static InternalMessage* createInterCombinedSigSucceeded(void* context,
-                                                            SeqNum seqNumber,
-                                                            ViewNum viewNumber,
-                                                            const char* combinedSig,
-                                                            uint16_t combinedSigLen,
-                                                            const std::string& span_context);
-    static InternalMessage* createInterVerifyCombinedSigResult(void* context,
-                                                               SeqNum seqNumber,
-                                                               ViewNum viewNumber,
-                                                               bool isValid);
+    static InternalMessage createInterCombinedSigFailed(SeqNum seqNumber,
+                                                        ViewNum viewNumber,
+                                                        std::set<uint16_t> replicasWithBadSigs);
+    static InternalMessage createInterCombinedSigSucceeded(SeqNum seqNumber,
+                                                           ViewNum viewNumber,
+                                                           const char* combinedSig,
+                                                           uint16_t combinedSigLen,
+                                                           const std::string& span_context);
+    static InternalMessage createInterVerifyCombinedSigResult(SeqNum seqNumber, ViewNum viewNumber, bool isValid);
 
     // from the ReplicaImp object
     static uint16_t numberOfRequiredSignatures(void* context);
@@ -184,8 +172,7 @@ class SeqNumInfo {
   CollectorOfThresholdSignatures<PreparePartialMsg, PrepareFullMsg, ExFuncForPrepareCollector>* prepareSigCollector;
   CollectorOfThresholdSignatures<CommitPartialMsg, CommitFullMsg, ExFuncForCommitCollector>* commitMsgsCollector;
 
-  PartialProofsSet* partialProofsSet;          // TODO(GG): replace with an instance of CollectorOfThresholdSignatures
-  PartialExecProofsSet* partialExecProofsSet;  // TODO(GG): replace with an instance of CollectorOfThresholdSignatures
+  PartialProofsSet* partialProofsSet;  // TODO(GG): replace with an instance of CollectorOfThresholdSignatures
 
   bool primary;  // true iff PrePrepareMsg was added with addSelfMsg
 

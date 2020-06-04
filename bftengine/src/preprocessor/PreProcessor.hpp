@@ -22,6 +22,7 @@
 #include "SigManager.hpp"
 #include "Metrics.hpp"
 #include "Timers.hpp"
+#include "InternalReplicaApi.hpp"
 
 #include <mutex>
 

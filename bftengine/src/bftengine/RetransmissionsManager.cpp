@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -16,10 +16,10 @@
 #include <cmath>  // sqrt
 #include <chrono>
 
+#include "messages/RetranProcResultInternalMsg.hpp"
 #include "RetransmissionsManager.hpp"
 #include "SimpleThreadPool.hpp"
 #include "IncomingMsgsStorage.hpp"
-#include "InternalReplicaApi.hpp"
 #include "RollingAvgAndVar.hpp"
 #include "assertUtils.hpp"
 
@@ -299,54 +299,14 @@ class RetransmissionsLogic {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-// RetranProcResultInternalMsg
-///////////////////////////////////////////////////////////////////////////////
-
-class RetranProcResultInternalMsg : public InternalMessage {
- private:
-  InternalReplicaApi* const replica;
-  const SeqNum lastStableSeqNum;
-  const ViewNum view;
-  const std::forward_list<RetSuggestion>* const suggestedRetransmissions;
-  RetransmissionsManager* const retransmissionsMgr;
-
- public:
-  RetranProcResultInternalMsg(InternalReplicaApi* r,
-                              SeqNum s,
-                              ViewNum v,
-                              std::forward_list<RetSuggestion>* suggestedRetran,
-                              RetransmissionsManager* retransmissionsManager)
-      : InternalMessage(r),
-        replica{r},
-        lastStableSeqNum{s},
-        view{v},
-        suggestedRetransmissions{suggestedRetran},
-        retransmissionsMgr{retransmissionsManager} {}
-
-  virtual ~RetranProcResultInternalMsg() override {
-    std::forward_list<RetSuggestion>* p = (std::forward_list<RetSuggestion>*)suggestedRetransmissions;
-
-    delete p;
-  }
-
-  virtual void handle() override {
-    InternalMessage::handle();
-    replica->onRetransmissionsProcessingResults(lastStableSeqNum, view, suggestedRetransmissions);
-    retransmissionsMgr->OnProcessingComplete();
-  }
-};
-
-///////////////////////////////////////////////////////////////////////////////
 // RetransmissionsManager
 ///////////////////////////////////////////////////////////////////////////////
 
-RetransmissionsManager::RetransmissionsManager(InternalReplicaApi* r,
-                                               util::SimpleThreadPool* threadPool,
+RetransmissionsManager::RetransmissionsManager(util::SimpleThreadPool* threadPool,
                                                IncomingMsgsStorage* const incomingMsgsStorage,
                                                uint16_t maxOutNumOfSeqNumbers,
                                                SeqNum lastStableSeqNum)
-    : replica{r},
-      pool{threadPool},
+    : pool{threadPool},
       incomingMsgs{incomingMsgsStorage},
       maxOutSeqNumbers{maxOutNumOfSeqNumbers},
       internalLogicInfo{new RetransmissionsLogic(maxOutNumOfSeqNumbers)} {
@@ -358,12 +318,7 @@ RetransmissionsManager::RetransmissionsManager(InternalReplicaApi* r,
 }
 
 RetransmissionsManager::RetransmissionsManager()
-    : replica{nullptr},
-      pool{nullptr},
-      incomingMsgs{nullptr},
-      maxOutSeqNumbers{0},
-      internalLogicInfo{nullptr},
-      lastStable{0} {}
+    : pool{nullptr}, incomingMsgs{nullptr}, maxOutSeqNumbers{0}, internalLogicInfo{nullptr}, lastStable{0} {}
 
 RetransmissionsManager::~RetransmissionsManager() {
   if (pool == nullptr) return;  // if disabled
@@ -449,8 +404,6 @@ bool RetransmissionsManager::tryToStartProcessing() {
   // this class is local to this method
   class RetransmissionsProcessingJob : public util::SimpleThreadPool::Job {
    private:
-    InternalReplicaApi* const replica;
-    RetransmissionsManager* const retranManager;
     IncomingMsgsStorage* const incomingMsgs;
     std::vector<RetransmissionsManager::Event>* const setOfEvents;
     RetransmissionsLogic* const logic;
@@ -459,17 +412,13 @@ bool RetransmissionsManager::tryToStartProcessing() {
     const bool clearPending;
 
    public:
-    RetransmissionsProcessingJob(InternalReplicaApi* const r,
-                                 RetransmissionsManager* const retransmissionsManager,
-                                 IncomingMsgsStorage* const incomingMsgsStorage,
+    RetransmissionsProcessingJob(IncomingMsgsStorage* const incomingMsgsStorage,
                                  std::vector<RetransmissionsManager::Event>* events,
                                  RetransmissionsLogic* retransmissionsLogic,
                                  SeqNum lastStableSeqNum,
                                  ViewNum v,
                                  bool clearPendingRetransmissions)
-        : replica{r},
-          retranManager{retransmissionsManager},
-          incomingMsgs{incomingMsgsStorage},
+        : incomingMsgs{incomingMsgsStorage},
           setOfEvents{events},
           logic{retransmissionsLogic},
           lastStable{lastStableSeqNum},
@@ -503,17 +452,15 @@ bool RetransmissionsManager::tryToStartProcessing() {
         }
       }
 
-      std::forward_list<RetSuggestion>* suggestedRetransmissions = new std::forward_list<RetSuggestion>();
+      std::forward_list<RetSuggestion> suggestedRetransmissions;
 
       const Time currTime = getMonotonicTime();
 
-      logic->getSuggestedRetransmissions(currTime, *suggestedRetransmissions);
+      logic->getSuggestedRetransmissions(currTime, suggestedRetransmissions);
 
-      std::unique_ptr<InternalMessage> iMsg(
-          new RetranProcResultInternalMsg(replica, lastStable, lastView, suggestedRetransmissions, retranManager));
-
-      // send to main thread
-      incomingMsgs->pushInternalMsg(std::move(iMsg));
+      // send to main replica thread
+      incomingMsgs->pushInternalMsg(
+          RetranProcResultInternalMsg(lastStable, lastView, std::move(suggestedRetransmissions)));
     }
   };
 
@@ -534,7 +481,7 @@ bool RetransmissionsManager::tryToStartProcessing() {
   RetransmissionsLogic* logic = (RetransmissionsLogic*)internalLogicInfo;
 
   RetransmissionsProcessingJob* j = new RetransmissionsProcessingJob(
-      replica, this, incomingMsgs, eventsToProcess, logic, lastStable, lastView, needToClearPendingRetransmissions);
+      incomingMsgs, eventsToProcess, logic, lastStable, lastView, needToClearPendingRetransmissions);
 
   pool->add(j);
 

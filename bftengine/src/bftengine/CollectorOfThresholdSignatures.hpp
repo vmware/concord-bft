@@ -26,8 +26,6 @@
 namespace bftEngine {
 namespace impl {
 
-class InternalMessage;
-
 template <typename PART, typename FULL, typename ExternalFunc>
 // TODO(GG): consider to enforce the requirements from PART, FULL and ExternalFunc
 // TODO(GG): add Assert(ExternalFunc::numberOfRequiredSignatures(context) > 1);
@@ -396,19 +394,11 @@ class CollectorOfThresholdSignatures {
 
         verifier->release(accWithVer);
 
-        // send internal message with the results
-        std::unique_ptr<InternalMessage> iMsg(
-            ExternalFunc::createInterCombinedSigFailed(context, expectedSeqNumber, expectedView, replicasWithBadSigs));
+        auto iMsg(ExternalFunc::createInterCombinedSigFailed(expectedSeqNumber, expectedView, replicasWithBadSigs));
         repMsgsStorage->pushInternalMsg(std::move(iMsg));
       } else {
-        // send internal message with the results
-        std::unique_ptr<InternalMessage> iMsg(
-            ExternalFunc::createInterCombinedSigSucceeded(context,
-                                                          expectedSeqNumber,
-                                                          expectedView,
-                                                          bufferForSigComputations,
-                                                          bufferSize,
-                                                          span_context_of_last_message));
+        auto iMsg(ExternalFunc::createInterCombinedSigSucceeded(
+            expectedSeqNumber, expectedView, bufferForSigComputations, bufferSize, span_context_of_last_message));
         repMsgsStorage->pushInternalMsg(std::move(iMsg));
       }
     }
@@ -455,9 +445,7 @@ class CollectorOfThresholdSignatures {
 
     virtual void execute() override {
       bool succ = verifier->verify((char*)&expectedDigest, sizeof(Digest), combinedSig, combinedSigLen);
-
-      std::unique_ptr<InternalMessage> iMsg(
-          ExternalFunc::createInterVerifyCombinedSigResult(context, expectedSeqNumber, expectedView, succ));
+      auto iMsg(ExternalFunc::createInterVerifyCombinedSigResult(expectedSeqNumber, expectedView, succ));
       repMsgsStorage->pushInternalMsg(std::move(iMsg));
     }
   };

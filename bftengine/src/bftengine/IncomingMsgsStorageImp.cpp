@@ -27,10 +27,10 @@ IncomingMsgsStorageImp::IncomingMsgsStorageImp(std::shared_ptr<MsgHandlersRegist
     : IncomingMsgsStorage(), msgHandlers_(msgHandlersPtr), msgWaitTimeout_(msgWaitTimeout) {
   replicaId_ = replicaId;
   ptrProtectedQueueForExternalMessages_ = new queue<std::unique_ptr<MessageBase>>();
-  ptrProtectedQueueForInternalMessages_ = new queue<std::unique_ptr<InternalMessage>>();
+  ptrProtectedQueueForInternalMessages_ = new queue<InternalMessage>();
   lastOverflowWarning_ = MinTime;
   ptrThreadLocalQueueForExternalMessages_ = new queue<std::unique_ptr<MessageBase>>();
-  ptrThreadLocalQueueForInternalMessages_ = new queue<std::unique_ptr<InternalMessage>>();
+  ptrThreadLocalQueueForInternalMessages_ = new queue<InternalMessage>();
 }
 
 IncomingMsgsStorageImp::~IncomingMsgsStorageImp() {
@@ -75,7 +75,7 @@ void IncomingMsgsStorageImp::pushExternalMsg(std::unique_ptr<MessageBase> msg) {
 }
 
 // can be called by any thread
-void IncomingMsgsStorageImp::pushInternalMsg(std::unique_ptr<InternalMessage> msg) {
+void IncomingMsgsStorageImp::pushInternalMsg(InternalMessage&& msg) {
   std::unique_lock<std::mutex> mlock(lock_);
   ptrProtectedQueueForInternalMessages_->push(std::move(msg));
   condVar_.notify_one();
@@ -101,7 +101,7 @@ IncomingMsg IncomingMsgsStorageImp::getMsgForProcessing() {
       ptrThreadLocalQueueForExternalMessages_ = ptrProtectedQueueForExternalMessages_;
       ptrProtectedQueueForExternalMessages_ = t1;
 
-      std::queue<std::unique_ptr<InternalMessage>>* t2 = ptrThreadLocalQueueForInternalMessages_;
+      auto* t2 = ptrThreadLocalQueueForInternalMessages_;
       ptrThreadLocalQueueForInternalMessages_ = ptrProtectedQueueForInternalMessages_;
       ptrProtectedQueueForInternalMessages_ = t2;
     }
@@ -151,7 +151,7 @@ void IncomingMsgsStorageImp::dispatchMessages(std::promise<void>& signalStarted)
           }
           break;
         case IncomingMsg::INTERNAL:
-          msg.internal->handle();
+          msgHandlers_->handleInternalMsg(std::move(msg.internal));
       };
     }
   } catch (const std::exception& e) {
