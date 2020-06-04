@@ -1980,10 +1980,19 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
     primaryLastUsedSeqNum = lastStableSeqNum;
     strictLowerBoundOfSeqNums = lastStableSeqNum;
     maxSeqNumTransferredFromPrevViews = lastStableSeqNum;
+    LOG_INFO(GL,
+             "**************** No PrePrepare-s for the new view: " << KVLOG(
+                 primaryLastUsedSeqNum, strictLowerBoundOfSeqNums, maxSeqNumTransferredFromPrevViews));
   } else {
     primaryLastUsedSeqNum = lastPPSeq;
     strictLowerBoundOfSeqNums = firstPPSeq - 1;
     maxSeqNumTransferredFromPrevViews = lastPPSeq;
+    LOG_INFO(GL,
+             "**************** There are PrePrepare-s for the new view: " << KVLOG(firstPPSeq,
+                                                                                   lastPPSeq,
+                                                                                   primaryLastUsedSeqNum,
+                                                                                   strictLowerBoundOfSeqNums,
+                                                                                   maxSeqNumTransferredFromPrevViews));
   }
 
   if (ps_) {
@@ -2069,7 +2078,7 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
     sendPreparePartial(seqNumInfo);
   }
 
-  LOG_INFO(GL, "**************** Start working in new view as primary. " << KVLOG(curView));
+  LOG_INFO(GL, "**************** Start working in new view: " << KVLOG(curView));
 
   controller->onNewView(curView, primaryLastUsedSeqNum);
   metric_current_active_view_.Get().Set(curView);
@@ -2504,7 +2513,7 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
     if ((diffMilli1 > viewChangeTimeout) && (diffMilli2 > viewChangeTimeout) && (diffMilli3 > viewChangeTimeout)) {
       LOG_INFO(GL,
                "**************** Ask to leave view=" << curView << " (" << diffMilli3
-                                                     << " milli seconds after receiving a client request)");
+                                                     << " ms after the earliest pending client request).");
 
       GotoNextView();
       return;
@@ -3313,21 +3322,22 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
   auto span = concordUtils::startChildSpan("bft_execute_next_committed_requests", parent_span);
 
   while (lastExecutedSeqNum < lastStableSeqNum + kWorkWindowSize) {
-    SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum + 1);
+    SeqNum nextExecutedSeqNum = lastExecutedSeqNum + 1;
+    SeqNumInfo &seqNumInfo = mainLog->get(nextExecutedSeqNum);
 
     PrePrepareMsg *prePrepareMsg = seqNumInfo.getPrePrepareMsg();
 
     const bool ready = (prePrepareMsg != nullptr) && (seqNumInfo.isCommitted__gg());
 
     if (requestMissingInfo && !ready) {
-      LOG_INFO(GL, "Asking for missing information. " << KVLOG(lastExecutedSeqNum + 1, curView, lastStableSeqNum));
+      LOG_INFO(GL, "Asking for missing information: " << KVLOG(nextExecutedSeqNum, curView, lastStableSeqNum));
 
-      tryToSendReqMissingDataMsg(lastExecutedSeqNum + 1);
+      tryToSendReqMissingDataMsg(nextExecutedSeqNum);
     }
 
     if (!ready) break;
 
-    AssertEQ(prePrepareMsg->seqNumber(), lastExecutedSeqNum + 1);
+    AssertEQ(prePrepareMsg->seqNumber(), nextExecutedSeqNum);
     AssertEQ(prePrepareMsg->viewNumber(), curView);  // TODO(GG): TBD
 
     executeRequestsInPrePrepareMsg(span, prePrepareMsg);

@@ -292,11 +292,16 @@ void ClientsManager::clearAllPendingRequests() {
 Time ClientsManager::timeOfEarliestPendingRequest() const  // TODO(GG): naive implementation - consider to optimize
 {
   Time t = MaxTime;
+  ClientInfo earliestClientWithPendingRequest = indexToClientInfo_.at(0);
 
   for (const ClientInfo& c : indexToClientInfo_) {
-    if (c.timeOfCurrentPendingRequest != MinTime && t > c.timeOfCurrentPendingRequest)
+    if (c.timeOfCurrentPendingRequest != MinTime && t > c.timeOfCurrentPendingRequest) {
       t = c.timeOfCurrentPendingRequest;
+      earliestClientWithPendingRequest = c;
+    }
   }
+
+  LOG_INFO(GL, "Earliest pending client request: " << KVLOG(earliestClientWithPendingRequest.currentPendingRequest));
 
   return t;
 }

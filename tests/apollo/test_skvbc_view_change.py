@@ -211,6 +211,126 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
         await tracker.run_concurrent_ops(100)
 
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2)
+    @verify_linearizability
+    async def test_crashed_replica_catch_up_after_view_change(self, bft_network, tracker):
+        """
+        In this test scenario we want to make sure that a crashed replica
+        that missed a view change will catch up and start working within
+        the new view once it is restarted:
+        1) Start all replicas
+        2) Send a batch of concurrent reads/writes, to make sure the initial view is stable
+        3) Choose a random non-primary and crash it
+        4) Crash the current primary & trigger view change
+        5) Make sure the new view is agreed & activated among all live replicas
+        6) Start the crashed replica
+        7) Make sure the crashed replica works in the new view
+
+        Note: this scenario requires f >= 2, because at certain moments we have
+        two simultaneously crashed replicas (the primary and the non-primary that is
+        missing the view change).
+        """
+        bft_network.start_all_replicas()
+
+        initial_primary = 0
+        expected_next_primary = 1
+
+        await tracker.run_concurrent_ops(num_ops=50)
+
+        unstable_replica = random.choice(
+            bft_network.all_replicas(without={initial_primary, expected_next_primary}))
+
+        await bft_network.wait_for_view(
+            replica_id=unstable_replica,
+            expected=lambda v: v == initial_primary,
+            err_msg="Make sure the unstable replica works in the initial view."
+        )
+
+        print(f"Crash replica #{unstable_replica} before the view change.")
+        bft_network.stop_replica(unstable_replica)
+
+        # trigger a view change
+        bft_network.stop_replica(initial_primary)
+        await self._send_random_writes(tracker)
+
+        await bft_network.wait_for_view(
+            replica_id=random.choice(bft_network.all_replicas(
+                without={initial_primary, unstable_replica})),
+            expected=lambda v: v == expected_next_primary,
+            err_msg="Make sure view change has been triggered."
+        )
+
+        # waiting for the active window to be rebuilt after the view change
+        await trio.sleep(seconds=10)
+
+        # restart the unstable replica and make sure it works in the new view
+        bft_network.start_replica(unstable_replica)
+        await tracker.run_concurrent_ops(num_ops=50)
+
+        await bft_network.wait_for_view(
+            replica_id=unstable_replica,
+            expected=lambda v: v == expected_next_primary,
+            err_msg="Make sure the unstable replica works in the new view."
+        )
+
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    @verify_linearizability
+    async def test_restart_replica_after_view_change(self, bft_network, tracker):
+        """
+        This test makes sure that a replica can be safely restarted after a view change:
+        1) Start all replicas
+        2) Send a batch of concurrent reads/writes, to make sure the initial view is stable
+        3) Crash the current primary & trigger view change
+        4) Make sure the new view is agreed & activated among all live replicas
+        5) Choose a random non-primary and restart it
+        6) Send a batch of concurrent reads/writes
+        7) Make sure the restarted replica is alive and that it works in the new view
+        """
+        bft_network.start_all_replicas()
+        initial_primary = 0
+
+        await tracker.run_concurrent_ops(num_ops=50)
+
+        bft_network.stop_replica(initial_primary)
+        await self._send_random_writes(tracker)
+
+        await bft_network.wait_for_view(
+            replica_id=random.choice(
+                bft_network.all_replicas(without={initial_primary})),
+            expected=lambda v: v == initial_primary + 1,
+            err_msg="Make sure a view change is triggered."
+        )
+        current_primary = initial_primary + 1
+
+        bft_network.start_replica(initial_primary)
+
+        # waiting for the active window to be rebuilt after the view change
+        await trio.sleep(seconds=10)
+
+        unstable_replica = random.choice(
+            bft_network.all_replicas(without={current_primary, initial_primary}))
+        print(f"Restart replica #{unstable_replica} after the view change.")
+
+        bft_network.stop_replica(unstable_replica)
+        bft_network.start_replica(unstable_replica)
+        await trio.sleep(seconds=5)
+
+        await tracker.run_concurrent_ops(num_ops=50)
+
+        await bft_network.wait_for_view(
+            replica_id=unstable_replica,
+            expected=lambda v: v >= current_primary,  # the >= is required because of https://jira.eng.vmware.com/browse/BC-3028
+            err_msg="Make sure the unstable replica works in the new view."
+        )
+
+        await bft_network.wait_for_view(
+            replica_id=initial_primary,
+            expected=lambda v: v >= current_primary,  # the >= is required because of https://jira.eng.vmware.com/browse/BC-3028
+            err_msg="Make sure the initial primary activates the new view."
+        )
+
     @unittest.skip("unstable scenario")
     @with_trio
     @with_bft_network(start_replica_cmd,
