@@ -22,6 +22,7 @@
 #include "sparse_merkle/tree.h"
 #include "storage/db_interface.h"
 
+#include <future>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -142,6 +143,9 @@ class DBAdapter : public IDbAdapter {
   // Returns the current version of the internal sparse merkle tree.
   sparse_merkle::Version getStateVersion() const { return smTree_.get_version(); };
 
+  // Gets a future to the asynchronously-computed parent block digest.
+  std::future<BlockDigest> computeParentBlockDigest(BlockId blockId) const;
+
   // Returns a set of key/value pairs that represent the needed DB updates for adding a block as part of the blockchain.
   // This method is made public for testing purposes only. It is meant to be used internally.
   SetOfKeyValuePairs lastReachableBlockDbUpdates(const SetOfKeyValuePairs &updates,
@@ -155,7 +159,8 @@ class DBAdapter : public IDbAdapter {
  private:
   concordUtils::Sliver createBlockNode(const SetOfKeyValuePairs &updates,
                                        const OrderedKeysSet &deletes,
-                                       BlockId blockId) const;
+                                       BlockId blockId,
+                                       const BlockDigest &parentBlockDigest) const;
 
   // Try to link the ST temporary chain to the blockchain from the passed blockId up to getLatestBlock().
   void linkSTChainFrom(BlockId blockId);

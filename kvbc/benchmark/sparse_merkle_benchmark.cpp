@@ -16,6 +16,7 @@
 #include <benchmark/benchmark.h>
 
 #include "endianness.hpp"
+#include "Handoff.hpp"
 #include "Logger.hpp"
 #include "memorydb/client.h"
 #include "merkle_tree_db_adapter.h"
@@ -27,6 +28,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <future>
 #include <iterator>
 #include <memory>
 #include <random>
@@ -234,6 +236,29 @@ void calculateSha3(benchmark::State &state) {
   }
 }
 
+void stdAsync(benchmark::State &state) {
+  constexpr auto input = 41;
+
+  for (auto _ : state) {
+    auto fut = std::async(std::launch::async, []() { return input + 1; });
+    const auto res = fut.get();
+    benchmark::DoNotOptimize(res);
+  }
+}
+
+void handoff(benchmark::State &state) {
+  auto handoff = Handoff{0};
+  constexpr auto input = 41;
+
+  for (auto _ : state) {
+    auto task = std::make_shared<std::packaged_task<decltype(input)()>>([] { return input + 1; });
+    auto fut = task->get_future();
+    handoff.push([task]() { (*task)(); });
+    const auto res = fut.get();
+    benchmark::DoNotOptimize(res);
+  }
+}
+
 struct Blockchain : benchmark::Fixture {
   void SetUp(const benchmark::State &state) override {
     keyCount = state.range(0);
@@ -260,6 +285,8 @@ struct Blockchain : benchmark::Fixture {
     }
     return updates;
   }
+
+  void TearDown(const benchmark::State &) override { adapter.release(); }
 
   std::uint64_t currentKeyValue{0};
   std::unique_ptr<DBAdapter> adapter;
@@ -355,6 +382,8 @@ BENCHMARK(deserializeHash);
 BENCHMARK(deserializeLeafKey);
 BENCHMARK(deserializeBatchedInternalNode);
 BENCHMARK(calculateSha3)->Range(8, 40 * 1024 * 1024);
+BENCHMARK(stdAsync);
+BENCHMARK(handoff);
 BENCHMARK_REGISTER_F(Blockchain, addBlock)->Ranges(blockchainRanges);
 BENCHMARK_REGISTER_F(Blockchain, getInternalFromCache)->Ranges(blockchainRanges);
 BENCHMARK_REGISTER_F(Blockchain, getInternalFromDb)->Ranges(blockchainRanges);
