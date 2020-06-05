@@ -186,23 +186,6 @@ bool PartialProofsSet::hasFullProof() { return (fullCommitProof != nullptr); }
 
 FullCommitProofMsg* PartialProofsSet::getFullProof() { return fullCommitProof; }
 
-class PassFullCommitProofAsInternalMsg : public InternalMessage {
- protected:
-  FullCommitProofMsg* selfFcp;
-  InternalReplicaApi* r;
-
- public:
-  PassFullCommitProofAsInternalMsg(InternalReplicaApi* replica, FullCommitProofMsg* selfFcpMsg)
-      : InternalMessage(replica), selfFcp(selfFcpMsg), r(replica) {}
-
-  virtual ~PassFullCommitProofAsInternalMsg() override {}
-
-  virtual void handle() override {
-    InternalMessage::handle();
-    r->onInternalMsg(selfFcp);
-  }
-};
-
 // NB: the following class is part of a patch
 class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
  public:
@@ -254,14 +237,9 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
       return;
     } else {
       LOG_DEBUG(CNSUS, "Created FullProof, sending full commit proof");
-      // EL is this only fast and the on;y place to call FullCommitProofMsg
       FullCommitProofMsg* fcpMsg = new FullCommitProofMsg(
           me->getReplicasInfo().myId(), view, seqNumber, bufferForSigComputations, (uint16_t)sigLength, span_context_);
-
-      //			me->sendToAllOtherReplicas(fcpMsg);
-
-      std::unique_ptr<InternalMessage> p(new PassFullCommitProofAsInternalMsg(me, fcpMsg));
-      me->getIncomingMsgsStorage().pushInternalMsg(std::move(p));
+      me->getIncomingMsgsStorage().pushInternalMsg(fcpMsg);
     }
 
     LOG_DEBUG(GL, "end...");

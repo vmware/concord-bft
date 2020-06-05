@@ -26,18 +26,6 @@
 
 namespace bftEngine::impl {
 
-// This is needed because we can't safely cast unique_ptrs to void pointers
-// We also can't use a union because it would require custom deleters and
-// could possibly result in unsafe destruction.
-//
-// As a result, we have the overhead of an extra pointer here. However, the
-// structure is on the stack and only one is active at a time in the main loop,
-// so the overhead is negligible. One of the unique_ptrs will be moved out for
-// use depending upon the tag.
-//
-// This is probably a good use case for std::variant, but we are on c++11 and
-// variant is only available in c++17.
-
 class IncomingMsgsStorageImp : public IncomingMsgsStorage {
  public:
   explicit IncomingMsgsStorageImp(std::shared_ptr<MsgHandlersRegistrator>& msgHandlersPtr,
@@ -52,7 +40,7 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
   void pushExternalMsg(std::unique_ptr<MessageBase> msg) override;
 
   // Can be called by any thread
-  void pushInternalMsg(std::unique_ptr<InternalMessage> msg) override;
+  void pushInternalMsg(InternalMessage&& msg) override;
 
   [[nodiscard]] bool isRunning() const override { return dispatcherThread_.joinable(); }
 
@@ -77,14 +65,14 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
 
   // New messages are pushed to ptrProtectedQueue.... ; protected by lock
   std::queue<std::unique_ptr<MessageBase>>* ptrProtectedQueueForExternalMessages_;
-  std::queue<std::unique_ptr<InternalMessage>>* ptrProtectedQueueForInternalMessages_;
+  std::queue<InternalMessage>* ptrProtectedQueueForInternalMessages_;
 
   // Time of last queue overflow; protected by lock
   Time lastOverflowWarning_;
 
   // Messages are fetched from ptrThreadLocalQueue...; should be accessed only by the dispatching thread
   std::queue<std::unique_ptr<MessageBase>>* ptrThreadLocalQueueForExternalMessages_;
-  std::queue<std::unique_ptr<InternalMessage>>* ptrThreadLocalQueueForInternalMessages_;
+  std::queue<InternalMessage>* ptrThreadLocalQueueForInternalMessages_;
 
   std::thread dispatcherThread_;
   std::promise<void> signalStarted_;

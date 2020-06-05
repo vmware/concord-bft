@@ -44,11 +44,8 @@ set(corebft_source_files
     src/bftengine/messages/PrePrepareMsg.cpp
     src/bftengine/messages/CheckpointMsg.cpp
     src/bftengine/messages/FullCommitProofMsg.cpp
-    src/bftengine/messages/FullExecProofMsg.cpp
     src/bftengine/messages/MessageBase.cpp
     src/bftengine/messages/PartialCommitProofMsg.cpp
-    src/bftengine/messages/PartialExecProofMsg.cpp
-    src/bftengine/messages/PartialExecProofsSet.cpp
     src/bftengine/messages/PartialProofsSet.cpp
     src/bftengine/messages/ClientReplyMsg.cpp
     src/bftengine/messages/ReqMissingDataMsg.cpp
@@ -60,7 +57,6 @@ set(corebft_source_files
     src/bftengine/messages/ViewChangeMsg.cpp
     src/bftengine/messages/ReplicaStatusMsg.cpp
     src/bftengine/messages/StateTransferMsg.cpp
-    src/bftengine/messages/InternalMessage.cpp
 )
 
 #
@@ -94,6 +90,7 @@ target_link_libraries(corebft PUBLIC
   concordbft_storage
   preprocessor
   bftcommunication
+  diagnostics
 )
 
 target_include_directories(bftclient PUBLIC include/bftengine)

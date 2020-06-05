@@ -12,12 +12,14 @@
 #pragma once
 
 #include "messages/MessageBase.hpp"
+#include "messages/InternalMessage.hpp"
 #include <functional>
 #include <unordered_map>
 
 namespace bftEngine::impl {
 
 typedef std::function<void(MessageBase*)> MsgHandlerCallback;
+typedef std::function<void(InternalMessage&&)> InternalMsgHandlerCallback;
 
 // MsgHandlersRegistrator class contains message handling callback functions.
 // Logically it's a singleton - only one message handler could be registered for every message type,
@@ -32,14 +34,19 @@ class MsgHandlersRegistrator {
     msgHandlers_[msgId] = callbackFunc;
   }
 
+  void registerInternalMsgHandler(const InternalMsgHandlerCallback& cb) { internalMsgHandler_ = cb; }
+
   MsgHandlerCallback getCallback(uint16_t msgId) {
     auto iterator = msgHandlers_.find(msgId);
     if (iterator != msgHandlers_.end()) return iterator->second;
     return nullptr;
   }
 
+  void handleInternalMsg(InternalMessage&& msg) { internalMsgHandler_(std::move(msg)); }
+
  private:
   std::unordered_map<uint16_t, MsgHandlerCallback> msgHandlers_;
+  InternalMsgHandlerCallback internalMsgHandler_;
 };
 
 }  // namespace bftEngine::impl
