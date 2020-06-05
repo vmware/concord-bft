@@ -18,6 +18,7 @@ import random
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from util import skvbc as kvbc
 
+SKVBC_INIT_GRACE_TIME = 2
 NUM_OF_SEQ_WRITES = 100
 MAX_CONCURRENCY = 10
 SHORT_REQ_TIMEOUT_MILLI = 3000
@@ -77,7 +78,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         sent = 0
         write_count = 0
         read_count = 0
-        while sent <= num_of_requests:
+        while sent < num_of_requests:
             async with trio.open_nursery() as nursery:
                 for client in clients:
                     if random.random() <= write_weight:
@@ -191,3 +192,34 @@ class SkvbcPreExecutionTest(unittest.TestCase):
                 break
 
         self.assertEqual(new_last_block, last_block)
+
+    @unittest.skip("Unstable due to BC-3145 TooSlow from pyclient.write")
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_parallel_tx_after_f_nonprimary_crash(self, bft_network):
+        '''
+        Crash f nonprimary replicas and submit X parallel write submissions.
+        Block processing of the network should be unaffected with f-count interruption.
+        Final block length should match submitted transactions count exactly.
+        '''
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        
+        read_client = bft_network.random_client()
+        submit_clients = bft_network.random_clients(MAX_CONCURRENCY)
+        num_of_requests = 10 * len(submit_clients) # each client will send 10 tx
+        nonprimaries = bft_network.all_replicas(without={0}) # primary index is 0
+        crash_targets = random.sample(nonprimaries, bft_network.config.f) # pick random f to crash
+        bft_network.stop_replicas(crash_targets) # crash chosen nonprimary replicas
+
+        await self.run_concurrent_pre_execution_requests(skvbc, submit_clients, num_of_requests, write_weight=1.0)
+        final_block_count = skvbc.parse_reply(await read_client.read(skvbc.get_last_block_req()))
+
+        print("")
+        print(f"Randomly picked replica indexes {crash_targets} (nonprimary) to be stopped.")
+        print(f"Total of {num_of_requests} write pre-exec tx, "
+              f"concurrently submitted through {len(submit_clients)} clients.")
+        print(f"Finished at block {final_block_count} (expected {num_of_requests}).")
+        self.assertTrue(final_block_count == num_of_requests)
+
