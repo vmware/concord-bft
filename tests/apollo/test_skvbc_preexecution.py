@@ -73,11 +73,12 @@ class SkvbcPreExecutionTest(unittest.TestCase):
                      (skvbc.random_key(), skvbc.random_value())]
         await self.send_single_write_with_pre_execution_and_kv(skvbc, write_set, client, long_exec)
 
-    async def run_concurrent_pre_execution_requests(self, skvbc, clients, num_of_requests, write_weight=.90):
+    async def run_concurrent_pre_execution_requests(self, skvbc, clients, num_of_requests,
+                                                    write_weight=.90, interval=0.1):
         sent = 0
         write_count = 0
         read_count = 0
-        while sent <= num_of_requests:
+        while sent < num_of_requests:
             async with trio.open_nursery() as nursery:
                 for client in clients:
                     if random.random() <= write_weight:
@@ -87,7 +88,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
                         nursery.start_soon(self.send_single_read, skvbc, client)
                         read_count += 1
             sent += len(clients)
-            await trio.sleep(.1)
+            await trio.sleep(interval)
         return read_count + write_count
 
     @unittest.skip("unstable")
@@ -191,3 +192,41 @@ class SkvbcPreExecutionTest(unittest.TestCase):
                 break
 
         self.assertEqual(new_last_block, last_block)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_f_nonprimary_crash_amid_parallel_tx(self, bft_network):
+        '''
+        Crash f nonprimary replicas while multiple transactions are being processed.
+        Block processing of the network should be unaffected with f-count interruption.
+        Check created block lengths match submitted x count of transactions.
+        '''
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        f_count = int((len(bft_network.all_replicas()) - 1) / 3)
+        primary_index = 0
+
+        await trio.sleep(2)
+        
+        num_of_requests = 20
+        clients = bft_network.random_clients(1)
+        reader_client = list(clients)[0]
+        nonprimaries = bft_network.all_replicas(without={primary_index})
+        crash_targets = random.sample(nonprimaries, f_count) # pick random f to crash
+        
+        started_block_count = skvbc.parse_reply(await reader_client.read(skvbc.get_last_block_req()))
+        with trio.move_on_after(seconds=20): # around tx_count seconds for enough buffer time
+            async_requests = self.run_concurrent_pre_execution_requests(
+                                            skvbc, clients, num_of_requests,
+                                            write_weight=1.0, interval=0.05)
+            await trio.sleep(random.uniform(0.5, 2.5)) # slight delay to make parallel tx get in to process
+            bft_network.stop_replicas(crash_targets) # crash chosen replicas in the middle of tx handling
+            await async_requests
+        final_block_count = skvbc.parse_reply(await reader_client.read(skvbc.get_last_block_req()))
+        
+        print("")
+        print(f"Randomly picked replica indexes {crash_targets} (nonprimary) to crash while tx handling.")
+        print(f"Total of {num_of_requests} write preexecution transactions submitted.")
+        print(f"started from block {started_block_count} and finished at block {final_block_count}.")
+        self.assertEqual(final_block_count, num_of_requests)
+
