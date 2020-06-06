@@ -89,6 +89,7 @@ bool Logger::config(const std::string& configFileName) {
 #include <log4cplus/helpers/property.h>
 #include <log4cplus/consoleappender.h>
 #include <log4cplus/fileappender.h>
+#include <log4cplus/initializer.h>
 
 using namespace log4cplus;
 
@@ -99,6 +100,11 @@ const char* logPattern = "%X{rid}|%d{%m-%d-%Y %H:%M:%S.%q}|%-5p|%c|%X{thread}|%M
 // first lookup a configuration file in the current directory
 // if not found - use default configuration
 void initLogger(const std::string& configFileName) {
+// Only initialize the logger for tests. Different users may use different versions of log4cplus.
+#ifdef TEST
+  log4cplus::Initializer initializer;
+#endif
+
   std::ifstream infile(configFileName);
   if (!infile.is_open()) {
     std::cerr << __PRETTY_FUNCTION__ << ": can't open " << configFileName << " using default configuration."

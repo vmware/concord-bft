@@ -462,6 +462,7 @@ TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
+  logging::initLogger("logging.properties");
   setUpConfiguration_4();
   RequestProcessingState::init(numOfRequiredReplies);
   const chrono::milliseconds msgTimeOut(20000);
