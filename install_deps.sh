@@ -53,17 +53,30 @@ pip3 install --upgrade wheel && pip3 install --upgrade trio
 # Build 3rd parties
 cd ${HOME}
 wget ${WGET_FLAGS} \
-    https://github.com/log4cplus/log4cplus/releases/download/REL_1_2_1/log4cplus-1.2.1.tar.gz && \
-    tar -xzf log4cplus-1.2.1.tar.gz && \
-    rm log4cplus-1.2.1.tar.gz && \
-    cd log4cplus-1.2.1 && \
+    https://github.com/HdrHistogram/HdrHistogram_c/archive/0.9.12.tar.gz && \
+    tar -xzf 0.9.12.tar.gz && \
+    rm 0.9.12.tar.gz && \
+    cd HdrHistogram_c-0.9.12 && \
+    mkdir build && cd build && \
+    cmake .. && \
+    make -j$(nproc) && \
+    make install && \
+    cd ${HOME} && \
+    rm -r HdrHistogram_c-0.9.12
+
+cd ${HOME}
+wget ${WGET_FLAGS} \
+    https://github.com/log4cplus/log4cplus/releases/download/REL_2_0_4/log4cplus-2.0.4.tar.gz && \
+    tar -xzf log4cplus-2.0.4.tar.gz && \
+    rm log4cplus-2.0.4.tar.gz && \
+    cd log4cplus-2.0.4 && \
     autoreconf -f -i && \
     ./configure CXXFLAGS="--std=c++11 -march=x86-64 -mtune=generic" \
                 --enable-static && \
     make -j$(nproc) && \
     make install && \
     cd ${HOME} && \
-    rm -r log4cplus-1.2.1
+    rm -r log4cplus-2.0.4
 
 cd ${HOME}
 git clone https://github.com/google/googletest.git && \
