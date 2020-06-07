@@ -5,6 +5,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Build Status](https://travis-ci.com/vmware/concord-bft.svg?branch=master)](https://travis-ci.com/vmware/concord-bft)
+![Build Status](https://github.com/vmware/concord-bft/workflows/Build/badge.svg)
 
 
 
@@ -35,37 +36,42 @@ when a backwards incompatible change is made.
 
 ## Install and Build (Ubuntu Linux 18.04)
 
-We use the [Conan](https://docs.conan.io/en/latest) package manager to install all concord-bft
-dependencies. Dependencies that are currently not supported by conan's central repository, conan
-center, have a custom package within concord-bft/.conan.
+Concord-BFT supports two kinds of builds: native and docker.
 
-### Download and Install
-Clone the repo and install all dependencies. Note that the install script
-will install conan if it does not exist and upgrade it otherwise.
-
-If you do not already have a default profile, one will be created for you in
-`~/.conan/profiles/default`. In this case your compiler will be detected and it will default to
-building with C++11.
-
-If you already have a default profile, we do not want to edit it for you and break other projects
-you may have. Note that in this case you may have to modify your default profile such that it
-has the following setting: `compiler.libcxx=libstdc++11`. Please See the conan documentation for
-more information on
-[profiles](https://docs.conan.io/en/latest/using_packages/using_profiles.html#).
+### Native
 
 ```sh
 git clone https://github.com/vmware/concord-bft
 cd concord-bft
-./install.sh
-```
-
-### Build concord-bft
-
-```sh
-mkdir -p build
-cd build
+sudo ./install_deps.sh # Installs all dependencies and 3rd parties
+mkdir build
 cmake ..
 make
+make test
+```
+
+### Docker
+
+* Install the latest docker.
+* Optional: [configure docker as non-root user](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user). 
+* Build:
+```sh
+cd concord-bft
+make pull       # pull docker image with prerequisites
+make run-c      # run container in background
+make build-s    # build sources
+make test       # run tests
+```
+Run `make help` to see more commands.
+
+Note:
+* The output binaries are stored in the host's `concord-bft/build`.
+* `Makefile` is configurable.
+For example, if you want to use another compiler you may pass it to the `make`:
+```
+make CONCORD_BFT_CONTAINER_CXX=g++ \
+    CONCORD_BFT_CONTAINER_CC=gcc \
+    build-s
 ```
 
 ### Build Options
