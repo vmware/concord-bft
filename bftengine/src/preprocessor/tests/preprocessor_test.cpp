@@ -28,7 +28,6 @@ using namespace preprocessor;
 
 namespace {
 
-ReplicaConfig replicaConfig;
 const uint16_t numOfReplicas_4 = 4;
 const uint16_t numOfReplicas_7 = 7;
 const uint16_t numOfClients = 4;
@@ -41,16 +40,18 @@ const uint64_t reqTimeoutMilli = 10;
 const uint64_t preExecReqStatusCheckTimerMillisec = 20;
 const uint64_t viewChangeTimerMillisec = 80;
 const uint16_t reqWaitTimeoutMilli = 50;
+const ReqId reqSeqNum = 123456789;
+const uint16_t clientId = 9;
+const string cid = "abcd";
+const string sp = "span";
+const NodeIdType replica_0 = 0;
+const NodeIdType replica_1 = 1;
+const NodeIdType replica_2 = 2;
+const NodeIdType replica_3 = 3;
+const NodeIdType replica_4 = 4;
 
+ReplicaConfig replicaConfig;
 char buf[bufLen];
-ReqId reqSeqNum = 123456789;
-uint16_t clientId = 9;
-string cid = "abcd";
-NodeIdType replica_0 = 0;
-NodeIdType replica_1 = 1;
-NodeIdType replica_2 = 2;
-NodeIdType replica_3 = 3;
-NodeIdType replica_4 = 4;
 SigManagerSharedPtr sigManager_[numOfReplicas_4];
 
 class DummyRequestsHandler : public IRequestsHandler {
@@ -62,7 +63,7 @@ class DummyRequestsHandler : public IRequestsHandler {
               uint32_t maxReplySize,
               char* outReply,
               uint32_t& outActualReplySize,
-              concordUtils::SpanWrapper& span) {
+              concordUtils::SpanWrapper& span) override {
     outActualReplySize = 256;
     return 0;
   }
@@ -72,8 +73,8 @@ class DummyReceiver : public IReceiver {
  public:
   virtual ~DummyReceiver() = default;
 
-  void onNewMessage(const NodeNum sourceNode, const char* const message, const size_t messageLength) {}
-  void onConnectionStatusChanged(const NodeNum node, const ConnectionStatus newStatus) {}
+  void onNewMessage(const NodeNum sourceNode, const char* const message, const size_t messageLength) override {}
+  void onConnectionStatusChanged(const NodeNum node, const ConnectionStatus newStatus) override {}
 };
 
 shared_ptr<IncomingMsgsStorage> msgsStorage;
@@ -85,35 +86,52 @@ DummyRequestsHandler requestsHandler;
 
 class DummyReplica : public InternalReplicaApi {
  public:
-  DummyReplica(const bftEngine::impl::ReplicasInfo& replicasInfo) : replicasInfo_(replicasInfo) {}
+  explicit DummyReplica(bftEngine::impl::ReplicasInfo replicasInfo) : replicasInfo_(move(replicasInfo)) {}
 
-  const bftEngine::impl::ReplicasInfo& getReplicasInfo() const { return replicasInfo_; }
-  bool isValidClient(NodeIdType client) const { return true; }
-  bool isIdOfReplica(NodeIdType id) const { return false; }
-  const set<ReplicaId>& getIdsOfPeerReplicas() const { return replicaIds_; }
-  ViewNum getCurrentView() const { return 0; }
-  ReplicaId currentPrimary() const { return replicaConfig.replicaId; }
-  bool isCurrentPrimary() const { return primary_; }
-  bool currentViewIsActive() const { return true; }
-  ReqId seqNumberOfLastReplyToClient(NodeIdType client) const { return 1; }
+  void onPrepareCombinedSigFailed(SeqNum seqNumber, ViewNum view, const set<uint16_t>& replicasWithBadSigs) {}
+  void onPrepareCombinedSigSucceeded(
+      SeqNum seqNumber, ViewNum view, const char* combinedSig, uint16_t combinedSigLen, const std::string&) {}
+  void onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) {}
 
-  IncomingMsgsStorage& getIncomingMsgsStorage() { return *incomingMsgsStorage_; }
-  util::SimpleThreadPool& getInternalThreadPool() { return pool_; }
+  void onCommitCombinedSigFailed(SeqNum seqNumber, ViewNum view, const set<uint16_t>& replicasWithBadSigs) {}
+  void onCommitCombinedSigSucceeded(
+      SeqNum seqNumber, ViewNum view, const char* combinedSig, uint16_t combinedSigLen, const std::string&) {}
+  void onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) {}
 
-  bool isCollectingState() const { return false; }
+  void onInternalMsg(FullCommitProofMsg* m) {}
+  void onMerkleExecSignature(ViewNum view, SeqNum seqNum, uint16_t signatureLength, const char* signature) {}
 
-  const ReplicaConfig& getReplicaConfig() const { return replicaConfig; }
+  void onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqNum,
+                                          const ViewNum relatedViewNumber,
+                                          const forward_list<RetSuggestion>* const suggestedRetransmissions) {}
 
-  IThresholdVerifier* getThresholdVerifierForExecution() { return nullptr; }
-  IThresholdVerifier* getThresholdVerifierForSlowPathCommit() { return nullptr; }
-  IThresholdVerifier* getThresholdVerifierForCommit() { return nullptr; }
-  IThresholdVerifier* getThresholdVerifierForOptimisticCommit() { return nullptr; }
+  const bftEngine::impl::ReplicasInfo& getReplicasInfo() const override { return replicasInfo_; }
+  bool isValidClient(NodeIdType client) const override { return true; }
+  bool isIdOfReplica(NodeIdType id) const override { return false; }
+  const set<ReplicaId>& getIdsOfPeerReplicas() const override { return replicaIds_; }
+  ViewNum getCurrentView() const override { return 0; }
+  ReplicaId currentPrimary() const override { return replicaConfig.replicaId; }
+  bool isCurrentPrimary() const override { return primary_; }
+  bool currentViewIsActive() const override { return true; }
+  ReqId seqNumberOfLastReplyToClient(NodeIdType client) const override { return 1; }
+
+  IncomingMsgsStorage& getIncomingMsgsStorage() override { return *incomingMsgsStorage_; }
+  util::SimpleThreadPool& getInternalThreadPool() override { return pool_; }
+  void updateMetricsForInternalMessage() {}
+  bool isCollectingState() const override { return false; }
+
+  const ReplicaConfig& getReplicaConfig() const override { return replicaConfig; }
+
+  IThresholdVerifier* getThresholdVerifierForExecution() override { return nullptr; }
+  IThresholdVerifier* getThresholdVerifierForSlowPathCommit() override { return nullptr; }
+  IThresholdVerifier* getThresholdVerifierForCommit() override { return nullptr; }
+  IThresholdVerifier* getThresholdVerifierForOptimisticCommit() override { return nullptr; }
 
   void setPrimary(bool primary) { primary_ = primary; };
 
  private:
   bool primary_ = true;
-  IncomingMsgsStorage* incomingMsgsStorage_;
+  IncomingMsgsStorage* incomingMsgsStorage_ = nullptr;
   util::SimpleThreadPool pool_;
   bftEngine::impl::ReplicasInfo replicasInfo_;
   set<ReplicaId> replicaIds_;
@@ -450,8 +468,8 @@ TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
   msgHandlerCallback(clientReqMsg);
   Assert(preProcessor.getOngoingReqIdForClient(clientId) == reqSeqNum);
 
-  std::string s = "span";
-  auto* preProcessReqMsg = new PreProcessRequestMsg(replica.currentPrimary(), clientId, reqSeqNum, bufLen, buf, cid, s);
+  auto* preProcessReqMsg =
+      new PreProcessRequestMsg(replica.currentPrimary(), clientId, reqSeqNum, bufLen, buf, sp, cid);
   msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::PreProcessRequest);
   msgHandlerCallback(preProcessReqMsg);
   usleep(reqWaitTimeoutMilli * 1000 / 2);  // Wait for the pre-execution completion
