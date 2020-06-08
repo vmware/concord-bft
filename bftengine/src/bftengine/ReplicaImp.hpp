@@ -135,10 +135,11 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   Time timeOfLastStateSynch;    // last time the replica received a new state (via the state transfer mechanism)
   Time timeOfLastViewEntrance;  // last time the replica entered to a new view
 
-  //
-  ViewNum lastAgreedView = 0;  // latest view number v such that the replica received 2f+2c+1 ViewChangeMsg messages
-                               // with view >= v
-  Time timeOfLastAgreedView;   // last time we changed lastAgreedView
+  // latest view number v such that the replica received 2f+2c+1 ViewChangeMsg messages
+  // with view >= v
+  ViewNum lastAgreedView = 0;
+  // last time we changed lastAgreedView
+  Time timeOfLastAgreedView;
 
   // timers
   concordUtil::Timers::Handle retranTimer_;
@@ -261,6 +262,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              shared_ptr<MsgHandlersRegistrator>,
              concordUtil::Timers& timers);
 
+  void registerStatusHandlers();
   void registerMsgHandlers();
 
   template <typename T>
@@ -282,11 +284,15 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   friend class DebugStatistics;
   friend class PreProcessor;
 
+  // Generate diagnostics status replies
+  std::string getReplicaState() const;
+
   template <typename T>
   void onMessage(T* msg);
 
   void onInternalMsg(InternalMessage&& msg);
   void onInternalMsg(FullCommitProofMsg* m);
+  void onInternalMsg(GetStatus& msg) const;
 
   bool handledByRetransmissionsManager(const ReplicaId sourceReplica,
                                        const ReplicaId destReplica,
