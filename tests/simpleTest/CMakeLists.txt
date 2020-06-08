@@ -6,7 +6,7 @@ set(simpleTest_client_source_files
 )
 find_package(GTest REQUIRED)
 
-add_executable(simpleTest_client $<TARGET_OBJECTS:logging_dev> ${simpleTest_client_source_files} )
+add_executable(simpleTest_client  ${simpleTest_client_source_files} )
 
 target_include_directories(simpleTest_client
                            PRIVATE
@@ -28,7 +28,7 @@ set(simpleTest_replica_source_files
 )
 
 add_executable(simpleTest_server 
-               $<TARGET_OBJECTS:logging_dev>
+               
                ${simpleTest_replica_source_files}
 )
 
@@ -47,7 +47,7 @@ target_link_libraries(simpleTest_server PUBLIC corebft
 set_target_properties(simpleTest_server PROPERTIES OUTPUT_NAME server)
 
 # config test
-add_executable(configTest config_file_parser_test.cpp $<TARGET_OBJECTS:logging_dev>)
+add_executable(configTest config_file_parser_test.cpp )
 target_link_libraries(configTest PUBLIC corebft test_config_lib)
 target_include_directories(configTest
                            PRIVATE
@@ -75,7 +75,7 @@ target_link_libraries(persistency_test PUBLIC
         GTest::Main
         GTest::GTest
         test_config_lib
-        $<TARGET_OBJECTS:logging_dev>
+        
         simple_file_storage_lib)
 
 add_test(NAME persistency_test COMMAND persistency_test )

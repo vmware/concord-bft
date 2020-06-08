@@ -111,7 +111,7 @@ void initLogger(const std::string& configFileName) {
               << std::endl;
 
     SharedAppenderPtr ca_ptr = SharedAppenderPtr(new ConsoleAppender(false, true));
-    ca_ptr->setLayout(std::auto_ptr<Layout>(new PatternLayout(logPattern)));
+    ca_ptr->setLayout(std::unique_ptr<Layout>(new PatternLayout(logPattern)));
 
     Logger::getRoot().addAppender(ca_ptr);
     Logger::getRoot().setLogLevel(INFO_LOG_LEVEL);
@@ -135,5 +135,5 @@ ScopedMdc::~ScopedMdc() { MDC_REMOVE(key_); }
 
 }  // namespace logging
 
-logging::Logger GL = logging::getLogger(DEFAULT_LOGGER_NAME);
+logging::Logger GL = logging::getLogger("concord");
 logging::Logger CNSUS = logging::getLogger("concord.bft.consensus");

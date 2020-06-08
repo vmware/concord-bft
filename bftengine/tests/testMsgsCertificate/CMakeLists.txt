@@ -1,6 +1,6 @@
 find_package(GTest REQUIRED)
 
-add_executable(msgsCertificate_test msgsCertificate_test.cpp $<TARGET_OBJECTS:logging_dev>)
+add_executable(msgsCertificate_test msgsCertificate_test.cpp )
 add_test(msgsCertificate_test msgsCertificate_test)
 
 target_include_directories(msgsCertificate_test
