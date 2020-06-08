@@ -38,7 +38,7 @@ def start_replica_cmd(builddir, replica_id, config):
     Note each arguments is an element in a list.
     """
     statusTimerMilli = "500"
-    viewChangeTimeoutMilli = "10000"
+    viewChangeTimeoutMilli = "20000"
     ro_params = [ "--s3-config-file",
                     os.path.join(builddir, "tests", "simpleKVBC", "scripts", "test_s3_config.txt")
                 ]

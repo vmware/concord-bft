@@ -35,7 +35,7 @@ def start_replica_cmd(builddir, replica_id):
     Note each arguments is an element in a list.
     """
     statusTimerMilli = "500"
-    viewChangeTimeoutMilli = "10000"
+    viewChangeTimeoutMilli = "20000"
 
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     return [path,
@@ -66,7 +66,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
         https://github.com/vmware/concord-bft/issues/194.
         """
         [bft_network.start_replica(i) for i in range(1, bft_network.config.n - 1)]
-        with trio.fail_after(60):  # seconds
+        with trio.fail_after(120):  # seconds
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(
                     tracker.send_indefinite_tracked_ops)

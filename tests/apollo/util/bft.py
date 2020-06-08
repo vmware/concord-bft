@@ -454,7 +454,7 @@ class BftTestNetwork:
         Wait for the last agreed view to match the "expected" predicate
         """
         last_agreed_view = None
-        with trio.fail_after(seconds=30):
+        with trio.fail_after(seconds=60):
             while True:
                 try:
                     with trio.move_on_after(seconds=1):
@@ -472,7 +472,7 @@ class BftTestNetwork:
         """
         Wait for a view to become active on enough (n-f) replicas
         """
-        with trio.fail_after(seconds=30):
+        with trio.fail_after(seconds=60):
             while True:
                 nb_replicas_in_view = await self._count_replicas_in_view(view)
 
