@@ -20,7 +20,7 @@ target_include_directories(bftcommunication_shared PUBLIC include)
 target_link_libraries(bftcommunication_shared PUBLIC util_shared)
 
 if(${BUILD_COMM_TCP_PLAIN} OR ${BUILD_COMM_TCP_TLS})
-    set(Boost_USE_STATIC_LIBS OFF) # only find static libs
+    set(Boost_USE_STATIC_LIBS OFF) # find all kind of libs
     set(Boost_USE_MULTITHREADED ON)
     set(Boost_USE_STATIC_RUNTIME OFF)
     find_package(Boost ${MIN_BOOST_VERSION} COMPONENTS system filesystem REQUIRED)

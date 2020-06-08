@@ -1,7 +1,7 @@
 # pthread dependency
 find_package(Threads REQUIRED)
 
-add_library(util STATIC
+set(util_source_files
     src/Metrics.cpp
     src/MetricsServer.cpp
     src/SimpleThreadPool.cpp
@@ -11,15 +11,12 @@ add_library(util STATIC
     src/hex_tools.cpp
     src/OpenTracing.cpp)
 
+add_library(util STATIC
+    ${util_source_files}
+    )
+
 add_library(util_shared SHARED
-    src/Metrics.cpp
-    src/MetricsServer.cpp
-    src/SimpleThreadPool.cpp
-    src/histogram.cpp
-    src/status.cpp
-    src/sliver.cpp
-    src/hex_tools.cpp
-    src/OpenTracing.cpp)
+    ${util_source_files})
 
 if(BUILD_ROCKSDB_STORAGE)
     target_compile_definitions(util PUBLIC "USE_ROCKSDB=1")
