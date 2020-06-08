@@ -89,7 +89,11 @@ bool Logger::config(const std::string& configFileName) {
 #include <log4cplus/helpers/property.h>
 #include <log4cplus/consoleappender.h>
 #include <log4cplus/fileappender.h>
+
+// This is only valid for log4cplus 2.0+ which we currently only use during testing.
+#ifdef TEST
 #include <log4cplus/initializer.h>
+#endif
 
 using namespace log4cplus;
 
