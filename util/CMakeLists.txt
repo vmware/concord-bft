@@ -50,6 +50,16 @@ if (BUILD_TESTING)
     add_subdirectory(test)
 endif()
 
+set(util_header_files
+    include/histogram.hpp
+    include/Metrics.hpp
+    include/OpenTracing.hpp
+    include/SimpleThreadPool.hpp
+    include/sliver.hpp
+    include/status.hpp
+    include/string.hpp)
+install(FILES ${util_header_files} DESTINATION include/util)
+
 set_property(DIRECTORY .. APPEND PROPERTY INCLUDE_DIRECTORIES
     ${CMAKE_CURRENT_SOURCE_DIR}/include/)
 install (TARGETS util_shared DESTINATION lib${LIB_SUFFIX}) 

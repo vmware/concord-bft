@@ -106,3 +106,4 @@ target_include_directories(bftclient_shared PUBLIC ${CRYPTOPP_INCLUDE_DIRS})
 target_link_libraries(bftclient_shared PUBLIC bftcommunication_shared ${CRYPTOPP_SHARED_LIBRARY})
 install (TARGETS bftclient_shared DESTINATION lib${LIB_SUFFIX})
 
+install(DIRECTORY include/bftengine DESTINATION include)
