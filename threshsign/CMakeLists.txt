@@ -84,7 +84,7 @@ endfunction()
 function(add_relic_executable appName appSrc appDir)
 
     # Add compile target
-    add_executable(${appName} ${appSrc} $<TARGET_OBJECTS:bench> $<TARGET_OBJECTS:bls_relic> $<TARGET_OBJECTS:common> $<TARGET_OBJECTS:logging_dev>)
+    add_executable(${appName} ${appSrc} $<TARGET_OBJECTS:bench> $<TARGET_OBJECTS:bls_relic> $<TARGET_OBJECTS:common> )
     target_include_directories(${appName} PRIVATE
         ${threshsign_SOURCE_DIR}/src
         #${threshsign_SOURCE_DIR}/src/bls/relic
@@ -101,7 +101,7 @@ endfunction()
 
 function(add_threshsign_executable appName appSrc appDir)
     # Add compile target
-    add_executable(${appName} ${appSrc} $<TARGET_OBJECTS:logging_dev>)
+    add_executable(${appName} ${appSrc} )
     # SbftKeygenApp depends on some RSA/Shoup internal functions/classes for generating primes
     target_include_directories(${appName} PRIVATE ${threshsign_SOURCE_DIR}/src ${threshsign_SOURCE_DIR}/lib ${threshsign_SOURCE_DIR}/include)
     target_link_libraries(${appName} PRIVATE mainapp)
@@ -173,18 +173,18 @@ add_subdirectory(test)
 #
 
 # This creates the <Package>Config.cmake file and installs it
-install(TARGETS threshsign EXPORT threshsignConfig
-    ARCHIVE DESTINATION lib)
-install(EXPORT threshsignConfig DESTINATION lib/cmake/threshsign)
-
+#install(TARGETS threshsign EXPORT threshsignConfig
+#    ARCHIVE DESTINATION lib)
+#install(EXPORT threshsignConfig DESTINATION lib/cmake/threshsign)
+#
 # This installs the static or (/and?) dynamic library
-install(TARGETS threshsign
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
-)
-
-
-
+#install(TARGETS threshsign
+#    ARCHIVE DESTINATION lib
+#    LIBRARY DESTINATION lib
+#)
+#
+#
+#
 # This installs the headers
 # NOTE: Don't add / at the end. No slash means threshsign/ directory is created in the destination path
-install(DIRECTORY include/threshsign DESTINATION include)
+#install(DIRECTORY include/threshsign DESTINATION include)

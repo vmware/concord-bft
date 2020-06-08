@@ -12,8 +12,6 @@
 
 #pragma once
 
-#ifndef USE_LOG4CPP
-
 #include <string>
 #include <sys/time.h>
 #include <iomanip>
@@ -121,5 +119,3 @@ class Logger {
 
 #define MDC_PUT(k, v) logging::Logger::getThreadContext().getMDC().put(k, v);
 #define MDC_REMOVE(k) logging::Logger::getThreadContext().getMDC().remove(k);
-
-#endif

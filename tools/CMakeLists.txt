@@ -4,7 +4,7 @@ add_executable(GenerateConcordKeys
                GenerateConcordKeys.cpp
                KeyfileIOUtils.hpp
                KeyfileIOUtils.cpp
-               $<TARGET_OBJECTS:logging_dev>)
+               )
 
 target_include_directories(GenerateConcordKeys
                            PRIVATE
@@ -33,7 +33,7 @@ add_executable(TestGeneratedKeys
                TestGeneratedKeys.cpp
                KeyfileIOUtils.hpp
                KeyfileIOUtils.cpp
-               $<TARGET_OBJECTS:logging_dev>)
+               )
 
 target_include_directories(TestGeneratedKeys
                            PRIVATE
@@ -57,9 +57,9 @@ set_target_properties(TestGeneratedKeys
                       .)
 
 if (BUILD_ROCKSDB_STORAGE)
-    add_executable(skvb_db_editor DBEditor.cpp $<TARGET_OBJECTS:logging_dev>)
+    add_executable(skvb_db_editor DBEditor.cpp )
     target_include_directories(skvb_db_editor PUBLIC
-        ${PROJECT_SOURCE_DIR}/src include $<TARGET_PROPERTY:logging,INTERFACE_INCLUDE_DIRECTORIES>)
+        ${PROJECT_SOURCE_DIR}/src include)
     target_link_libraries(skvb_db_editor kvbc corebft concordbft_storage)
 endif(BUILD_ROCKSDB_STORAGE)
 
