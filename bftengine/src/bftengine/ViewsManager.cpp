@@ -688,16 +688,21 @@ bool ViewsManager::tryToEnterView(ViewNum v,
         delete pp;
     }
 
+    auto nbNoopPPs = 0u;
+    auto nbActualRequestPPs = 0u;
+
     for (SeqNum i = firstRelevant; i <= maxRestrictionOfPendingView; i++) {
       const int64_t idx = i - minRestrictionOfPendingView;
       if (restrictionsOfPendingView[idx].isNull) {
         Assert(prePrepareMsgsOfRestrictions[idx] == nullptr);
+        nbNoopPPs++;
         // TODO(GG): do we want to start from the slow path in these cases?
         PrePrepareMsg* pp = new PrePrepareMsg(myId, myLatestActiveView, i, CommitPath::SLOW, 0);
         outPrePrepareMsgsOfView->push_back(pp);
       } else {
         PrePrepareMsg* pp = prePrepareMsgsOfRestrictions[idx];
         Assert(pp != nullptr && pp->seqNumber() == i);
+        nbActualRequestPPs++;
         // TODO(GG): do we want to start from the slow path in these cases?
         pp->updateView(myLatestActiveView);
         outPrePrepareMsgsOfView->push_back(pp);
@@ -711,6 +716,8 @@ bool ViewsManager::tryToEnterView(ViewNum v,
           collectionOfPrePrepareMsgs.erase(pos);
       }
     }
+
+    LOG_INFO(GL, "The new view's active window contains: " << KVLOG(nbNoopPPs, nbActualRequestPPs));
   }
 
   for (auto it : collectionOfPrePrepareMsgs) delete it.second;
