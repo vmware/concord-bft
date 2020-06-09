@@ -59,6 +59,10 @@ foreach(STORAGE_TYPE ${STORAGE_TYPES})
           "env ${APOLLO_TEST_ENV} STORAGE_TYPE=${STORAGE_TYPE} python3 -m unittest test_skvbc_checkpoints 2>&1 > /dev/null"
           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+  add_test(NAME skvbc_chaotic_startup_${STORAGE_TYPE} COMMAND sh -c
+          "env ${APOLLO_TEST_ENV} STORAGE_TYPE=${STORAGE_TYPE} python3 -m unittest test_skvbc_chaotic_startup 2>&1 > /dev/null"
+          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
   if (BUILD_ROCKSDB_STORAGE)
     add_test(NAME skvbc_persistence_tests_${STORAGE_TYPE} COMMAND sh -c
             "env ${APOLLO_TEST_ENV} STORAGE_TYPE=${STORAGE_TYPE} python3 -m unittest test_skvbc_persistence ${TEST_OUTPUT}"
