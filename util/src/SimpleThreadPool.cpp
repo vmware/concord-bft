@@ -20,9 +20,13 @@ void SimpleThreadPool::start(uint8_t num_of_threads) {
   stopped_ = false;
   guard g(queue_lock_);
   for (auto i = 0; i < num_of_threads; ++i) {
-    threads_.push_back(std::thread([this] {
+    threads_.emplace_back(std::thread([this, num_of_threads] {
       LOG_DEBUG(SP, "thread start " << std::this_thread::get_id());
-
+      {
+        std::unique_lock<std::mutex> ul(threads_startup_lock_);
+        num_of_free_threads_++;
+        if (num_of_free_threads_ == num_of_threads) threads_startup_cond_.notify_one();
+      }
       SimpleThreadPool::Job* j = nullptr;
       while (load(j)) {
         execute(j);
@@ -31,6 +35,8 @@ void SimpleThreadPool::start(uint8_t num_of_threads) {
       }
     }));
   }
+  std::unique_lock<std::mutex> ul(threads_startup_lock_);
+  threads_startup_cond_.wait(ul, [this, num_of_threads] { return (num_of_free_threads_ == num_of_threads); });
 }
 
 void SimpleThreadPool::stop(bool executeAllJobs) {
