@@ -47,6 +47,11 @@ struct ReplicaConfig {
   // numOfClientProxies >= 1
   uint16_t numOfClientProxies = 0;
 
+  // number of objects that represent external clients.
+  // numOfExternalClients >= 0
+  // By default numOfExternalClients will be 0 unless we configure it will be greater than.
+  uint16_t numOfExternalClients = 0;
+
   // a time interval in milliseconds. represents how often the replica sends a status report to the other replicas.
   // statusReportTimerMillisec > 0
   uint16_t statusReportTimerMillisec = 0;
@@ -128,6 +133,7 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
      << "cVal: " << rc.cVal << "\n"
      << "replicaId: " << rc.replicaId << "\n"
      << "numOfClientProxies: " << rc.numOfClientProxies << "\n"
+     << "numOfExternalClients: " << rc.numOfExternalClients << "\n"
      << "statusReportTimerMillisec: " << rc.statusReportTimerMillisec << "\n"
      << "concurrencyLevel: " << rc.concurrencyLevel << "\n"
      << "viewChangeProtocolEnabled: " << rc.viewChangeProtocolEnabled << "\n"
@@ -161,6 +167,7 @@ class ReplicaConfigSingleton {
   uint16_t GetCVal() const { return config_->cVal; }
   uint16_t GetReplicaId() const { return config_->replicaId; }
   uint16_t GetNumOfClientProxies() const { return config_->numOfClientProxies; }
+  uint16_t GetNumOfExternalClients() const { return config_->numOfExternalClients; }
   uint16_t GetStatusReportTimerMillisec() const { return config_->statusReportTimerMillisec; }
   uint16_t GetConcurrencyLevel() const { return config_->concurrencyLevel; }
   bool GetViewChangeProtocolEnabled() const { return config_->viewChangeProtocolEnabled; }

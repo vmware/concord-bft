@@ -66,6 +66,8 @@ ReplicaLoader::ErrorCode checkReplicaConfig(const LoadedReplicaData &ld) {
 
   Verify(c.numOfClientProxies >= 1, InconsistentErr);  // TODO(GG): TBD - do we want maximum number of client proxies?
 
+  Verify(c.numOfExternalClients >= 0, InconsistentErr);
+
   Verify(c.statusReportTimerMillisec > 0,
          InconsistentErr);  // TODO(GG): TBD - do we want maximum for statusReportTimerMillisec?
 
@@ -103,6 +105,7 @@ ReplicaLoader::ErrorCode checkReplicaConfig(const LoadedReplicaData &ld) {
 
 void setDynamicallyConfigurableParameters(ReplicaConfig &config) {
   config.numOfClientProxies = ReplicaConfigSingleton::GetInstance().GetNumOfClientProxies();
+  config.numOfExternalClients = ReplicaConfigSingleton::GetInstance().GetNumOfExternalClients();
   config.statusReportTimerMillisec = ReplicaConfigSingleton::GetInstance().GetStatusReportTimerMillisec();
   config.concurrencyLevel = ReplicaConfigSingleton::GetInstance().GetConcurrencyLevel();
   config.viewChangeProtocolEnabled = ReplicaConfigSingleton::GetInstance().GetViewChangeProtocolEnabled();
@@ -143,7 +146,7 @@ ReplicaLoader::ErrorCode loadConfig(shared_ptr<PersistentStorage> &p, LoadedRepl
   uint16_t numOfReplicas = (uint16_t)(3 * ld.repConfig.fVal + 2 * ld.repConfig.cVal + 1);
 
   ld.sigManager = new SigManager(ld.repConfig.replicaId,
-                                 numOfReplicas + ld.repConfig.numOfClientProxies,
+                                 numOfReplicas + ld.repConfig.numOfClientProxies + ld.repConfig.numOfExternalClients,
                                  ld.repConfig.replicaPrivateKey,
                                  replicasSigPublicKeys);
 

@@ -23,7 +23,7 @@ namespace impl {
 
 uint32_t ReplicaConfigSerializer::maxSize(uint32_t numOfReplicas) {
   return (sizeof(config_->fVal) + sizeof(config_->cVal) + sizeof(config_->replicaId) +
-          sizeof(config_->numOfClientProxies) + sizeof(config_->statusReportTimerMillisec) +
+          sizeof(config_->numOfClientProxies) + sizeof(config_->numOfExternalClients) + sizeof(config_->statusReportTimerMillisec) +
           sizeof(config_->concurrencyLevel) + sizeof(config_->viewChangeProtocolEnabled) +
           sizeof(config_->viewChangeTimerMillisec) + sizeof(config_->autoPrimaryRotationEnabled) +
           sizeof(config_->autoPrimaryRotationTimerMillisec) + sizeof(config_->preExecutionFeatureEnabled) +
@@ -71,6 +71,9 @@ void ReplicaConfigSerializer::serializeDataMembers(ostream &outStream) const {
 
   // Serialize numOfClientProxies
   outStream.write((char *)&config_->numOfClientProxies, sizeof(config_->numOfClientProxies));
+
+  // Serialize numOfExternalClients
+  outStream.write((char *)&config_->numOfExternalClients, sizeof(config_->numOfExternalClients));
 
   // Serialize statusReportTimerMillisec
   outStream.write((char *)&config_->statusReportTimerMillisec, sizeof(config_->statusReportTimerMillisec));
@@ -152,6 +155,7 @@ bool ReplicaConfigSerializer::operator==(const ReplicaConfigSerializer &other) c
        (other.config_->numRoReplicas == config_->numRoReplicas) && (other.config_->fVal == config_->fVal) &&
        (other.config_->cVal == config_->cVal) && (other.config_->replicaId == config_->replicaId) &&
        (other.config_->numOfClientProxies == config_->numOfClientProxies) &&
+       (other.config_->numOfExternalClients == config_->numOfExternalClients) &&
        (other.config_->statusReportTimerMillisec == config_->statusReportTimerMillisec) &&
        (other.config_->concurrencyLevel == config_->concurrencyLevel) &&
        (other.config_->viewChangeProtocolEnabled == config_->viewChangeProtocolEnabled) &&
@@ -195,6 +199,9 @@ void ReplicaConfigSerializer::deserializeDataMembers(istream &inStream) {
 
   // Deserialize numOfClientProxies
   inStream.read((char *)&config.numOfClientProxies, sizeof(config.numOfClientProxies));
+
+  // Deserialize numOfExternalClients
+  inStream.read((char *)&config.numOfExternalClients, sizeof(config.numOfExternalClients));
 
   // Deserialize statusReportTimerMillisec
   inStream.read((char *)&config.statusReportTimerMillisec, sizeof(config.statusReportTimerMillisec));
