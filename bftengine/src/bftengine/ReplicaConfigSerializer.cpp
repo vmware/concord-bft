@@ -23,15 +23,16 @@ namespace impl {
 
 uint32_t ReplicaConfigSerializer::maxSize(uint32_t numOfReplicas) {
   return (sizeof(config_->fVal) + sizeof(config_->cVal) + sizeof(config_->replicaId) +
-          sizeof(config_->numOfClientProxies) + sizeof(config_->numOfExternalClients) + sizeof(config_->statusReportTimerMillisec) +
-          sizeof(config_->concurrencyLevel) + sizeof(config_->viewChangeProtocolEnabled) +
-          sizeof(config_->viewChangeTimerMillisec) + sizeof(config_->autoPrimaryRotationEnabled) +
-          sizeof(config_->autoPrimaryRotationTimerMillisec) + sizeof(config_->preExecutionFeatureEnabled) +
-          sizeof(config_->preExecReqStatusCheckTimerMillisec) + MaxSizeOfPrivateKey +
-          numOfReplicas * MaxSizeOfPublicKey + IThresholdSigner::maxSize() * 3 + IThresholdVerifier::maxSize() * 3 +
-          sizeof(config_->maxExternalMessageSize) + sizeof(config_->maxReplyMessageSize) +
-          sizeof(config_->maxNumOfReservedPages) + sizeof(config_->sizeOfReservedPage) +
-          sizeof(config_->debugPersistentStorageEnabled) + sizeof(config_->metricsDumpIntervalSeconds));
+          sizeof(config_->numOfClientProxies) + sizeof(config_->numOfExternalClients) +
+          sizeof(config_->statusReportTimerMillisec) + sizeof(config_->concurrencyLevel) +
+          sizeof(config_->viewChangeProtocolEnabled) + sizeof(config_->viewChangeTimerMillisec) +
+          sizeof(config_->autoPrimaryRotationEnabled) + sizeof(config_->autoPrimaryRotationTimerMillisec) +
+          sizeof(config_->preExecutionFeatureEnabled) + sizeof(config_->preExecReqStatusCheckTimerMillisec) +
+          MaxSizeOfPrivateKey + numOfReplicas * MaxSizeOfPublicKey + IThresholdSigner::maxSize() * 3 +
+          IThresholdVerifier::maxSize() * 3 + sizeof(config_->maxExternalMessageSize) +
+          sizeof(config_->maxReplyMessageSize) + sizeof(config_->maxNumOfReservedPages) +
+          sizeof(config_->sizeOfReservedPage) + sizeof(config_->debugPersistentStorageEnabled) +
+          sizeof(config_->metricsDumpIntervalSeconds));
 }
 
 ReplicaConfigSerializer::ReplicaConfigSerializer(ReplicaConfig *config) {

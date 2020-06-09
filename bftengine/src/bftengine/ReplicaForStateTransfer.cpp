@@ -39,7 +39,8 @@ ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
 
   if (firstTime || !config_.debugPersistentStorageEnabled)
     stateTransfer->init(kWorkWindowSize / checkpointWindowSize + 1,
-                        (config_.numOfClientProxies + config_.numOfExternalClients) * config_.maxReplyMessageSize / config_.sizeOfReservedPage,
+                        (config_.numOfClientProxies + config_.numOfExternalClients) * config_.maxReplyMessageSize /
+                            config_.sizeOfReservedPage,
                         ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage());
 }
 

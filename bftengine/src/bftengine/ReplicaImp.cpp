@@ -2917,7 +2917,9 @@ ReplicaImp::ReplicaImp(bool firstTime,
   }
 
   std::set<NodeIdType> clientsSet;
-  for (uint16_t i = config_.numReplicas; i < config_.numReplicas + config_.numOfClientProxies + config_.numOfExternalClients; i++)
+  for (uint16_t i = config_.numReplicas;
+       i < config_.numReplicas + config_.numOfClientProxies + config_.numOfExternalClients;
+       i++)
     clientsSet.insert(i);
 
   clientsManager =
@@ -2967,9 +2969,9 @@ ReplicaImp::ReplicaImp(bool firstTime,
                << config_.isReadOnly << ", numReplicas=" << config_.numReplicas
                << ", numRoReplicas=" << config_.numRoReplicas << ", fVal=" << config_.fVal << ", cVal=" << config_.cVal
                << ", replicaId=" << config_.replicaId << ", numOfClientProxies=" << config_.numOfClientProxies
-               << ", numOfExternalClients=" << config_.numOfExternalClients
-               << ", statusReportTimerMillisec=" << config_.statusReportTimerMillisec << ", concurrencyLevel="
-               << config_.concurrencyLevel << ", viewChangeProtocolEnabled=" << config_.viewChangeProtocolEnabled
+               << ", numOfExternalClients=" << config_.numOfExternalClients << ", statusReportTimerMillisec="
+               << config_.statusReportTimerMillisec << ", concurrencyLevel=" << config_.concurrencyLevel
+               << ", viewChangeProtocolEnabled=" << config_.viewChangeProtocolEnabled
                << ", viewChangeTimerMillisec=" << config_.viewChangeTimerMillisec
                << ", autoPrimaryRotationEnabled=" << config_.autoPrimaryRotationEnabled
                << ", autoPrimaryRotationTimerMillisec=" << config_.autoPrimaryRotationTimerMillisec
