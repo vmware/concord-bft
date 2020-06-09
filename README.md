@@ -43,8 +43,10 @@ Concord-BFT supports two kinds of builds: native and docker.
 ```sh
 git clone https://github.com/vmware/concord-bft
 cd concord-bft
+sudo ./install.sh
 sudo ./install_deps.sh # Installs all dependencies and 3rd parties
 mkdir build
+cd build
 cmake ..
 make
 make test
