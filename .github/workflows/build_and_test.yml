@@ -81,5 +81,5 @@ jobs:
           uses: actions/upload-artifact@v2
           if: failure()
           with:
-            name: artifacts-${{ matrix.compiler }}-${{ matrix.ci_build_type }}
+            name: artifacts-${{ matrix.compiler }}-${{ matrix.ci_build_type }}-${{ github.sha }}
             path: ${{ github.workspace }}/artifact/
