@@ -49,7 +49,7 @@ struct ReplicaConfig {
 
   // number of objects that represent external clients.
   // numOfExternalClients >= 0
-  // By default numOfExternalClients will be 0 unless we configure it will be greater than.
+  // By default, numOfExternalClients is 0 unless configured differently.
   uint16_t numOfExternalClients = 0;
 
   // a time interval in milliseconds. represents how often the replica sends a status report to the other replicas.

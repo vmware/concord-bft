@@ -2917,10 +2917,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
   }
 
   std::set<NodeIdType> clientsSet;
-  for (uint16_t i = config_.numReplicas;
-       i < config_.numReplicas + config_.numOfClientProxies + config_.numOfExternalClients;
-       i++)
-    clientsSet.insert(i);
+  const auto numOfEntities = config_.numReplicas + config_.numOfClientProxies + config_.numOfExternalClients;
+  for (uint16_t i = config_.numReplicas; i < numOfEntities; i++) clientsSet.insert(i);
 
   clientsManager =
       new ClientsManager(config_.replicaId, clientsSet, ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage());
