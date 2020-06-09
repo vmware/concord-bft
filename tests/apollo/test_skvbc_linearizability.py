@@ -17,7 +17,6 @@ from os import environ
 
 import trio
 
-from util import bft_network_partitioning as net
 from util import skvbc as kvbc
 from util.skvbc_history_tracker import verify_linearizability
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
@@ -67,27 +66,6 @@ class SkvbcChaosTest(unittest.TestCase):
         self.bft_network = bft_network
         self.bft_network.start_all_replicas()
         await tracker.run_concurrent_ops(num_ops)
-
-    @with_trio
-    @with_bft_network(start_replica_cmd)
-    @verify_linearizability
-    async def test_while_dropping_packets(self, bft_network, tracker):
-        """
-         Run a bunch of concurrrent requests in batches and verify
-         linearizability, while dropping a small amount of packets
-         between all replicas.
-         """
-        num_ops = 500
-
-        with net.PacketDroppingAdversary(
-                bft_network, drop_rate_percentage=5) as adversary:
-            self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-            self.bft_network = bft_network
-            bft_network.start_all_replicas()
-
-            adversary.interfere()
-
-            await tracker.run_concurrent_ops(num_ops)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
