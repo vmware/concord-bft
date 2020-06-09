@@ -70,6 +70,7 @@ find_package(Threads REQUIRED)
 #
 add_library(corebft STATIC ${corebft_source_files})
 add_library(bftclient STATIC src/bftengine/SimpleClientImp)
+add_library(bftclient_shared SHARED src/bftengine/SimpleClientImp)
 
 find_package(cryptopp REQUIRED)
 
@@ -98,3 +99,11 @@ target_include_directories(bftclient PUBLIC src/bftengine)
 target_include_directories(bftclient PUBLIC src/preprocessor)
 target_link_libraries(bftclient PUBLIC bftcommunication)
 
+target_include_directories(bftclient_shared PUBLIC include/bftengine)
+target_include_directories(bftclient_shared PUBLIC src/bftengine)
+target_include_directories(bftclient_shared PUBLIC src/preprocessor)
+target_include_directories(bftclient_shared PUBLIC ${CRYPTOPP_INCLUDE_DIRS})
+target_link_libraries(bftclient_shared PUBLIC bftcommunication_shared ${CRYPTOPP_SHARED_LIBRARY})
+install (TARGETS bftclient_shared DESTINATION lib${LIB_SUFFIX})
+
+install(DIRECTORY include/bftengine DESTINATION include)
