@@ -149,7 +149,7 @@ void setUpConfiguration_4() {
 }
 
 TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
-  bftEngine::impl::SeqNum lastStableSeqNum = 150;
+  bftEngine::impl::SeqNum lastStableSeqNum = 15;
   const uint32_t kRequestLength = 2;
 
   uint64_t expectedLastValue = 12345;
@@ -338,7 +338,7 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
 // ViewChangeSafetyLogic::computeRestrictions.
 TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_one_ignored) {
   char buff[32]{};
-  bftEngine::impl::SeqNum lastStableSeqNum = 300;
+  bftEngine::impl::SeqNum lastStableSeqNum = 30;
   const uint32_t kRequestLength = 2;
 
   uint64_t expectedLastValue1 = 12345;

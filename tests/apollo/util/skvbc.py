@@ -183,7 +183,7 @@ class SimpleKVBCProtocol:
 
     async def prime_for_state_transfer(
             self, stale_nodes,
-            checkpoints_num=2,
+            checkpoints_num=20,
             persistency_enabled=True):
         initial_nodes = self.bft_network.all_replicas(without=stale_nodes)
         self.bft_network.start_all_replicas()
@@ -220,7 +220,7 @@ class SimpleKVBCProtocol:
         checkpoint_before = await self.bft_network.wait_for_checkpoint(
             replica_id=random.choice(initial_nodes))
         # Write enough data to checkpoint and create a need for state transfer
-        for i in range (1 + checkpoint_num * 150):
+        for i in range (1 + checkpoint_num * 15):
             key = self.random_key()
             val = self.random_value()
             reply = await client.write([], [(key, val)])
