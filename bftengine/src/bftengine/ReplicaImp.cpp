@@ -2912,7 +2912,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
 
   if (firstTime) {
     sigManager = new SigManager(config_.replicaId,
-                                config_.numReplicas + config_.numOfClientProxies,
+                                config_.numReplicas + config_.numOfClientProxies + config_.numOfExternalClients,
                                 config_.replicaPrivateKey,
                                 config_.publicKeysOfReplicas);
     repsInfo = new ReplicasInfo(config_, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
@@ -2926,8 +2926,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
   }
 
   std::set<NodeIdType> clientsSet;
-  for (uint16_t i = config_.numReplicas; i < config_.numReplicas + config_.numOfClientProxies; i++)
-    clientsSet.insert(i);
+  const auto numOfEntities = config_.numReplicas + config_.numOfClientProxies + config_.numOfExternalClients;
+  for (uint16_t i = config_.numReplicas; i < numOfEntities; i++) clientsSet.insert(i);
 
   clientsManager =
       new ClientsManager(config_.replicaId, clientsSet, ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage());
@@ -2976,8 +2976,9 @@ ReplicaImp::ReplicaImp(bool firstTime,
                << config_.isReadOnly << ", numReplicas=" << config_.numReplicas
                << ", numRoReplicas=" << config_.numRoReplicas << ", fVal=" << config_.fVal << ", cVal=" << config_.cVal
                << ", replicaId=" << config_.replicaId << ", numOfClientProxies=" << config_.numOfClientProxies
-               << ", statusReportTimerMillisec=" << config_.statusReportTimerMillisec << ", concurrencyLevel="
-               << config_.concurrencyLevel << ", viewChangeProtocolEnabled=" << config_.viewChangeProtocolEnabled
+               << ", numOfExternalClients=" << config_.numOfExternalClients << ", statusReportTimerMillisec="
+               << config_.statusReportTimerMillisec << ", concurrencyLevel=" << config_.concurrencyLevel
+               << ", viewChangeProtocolEnabled=" << config_.viewChangeProtocolEnabled
                << ", viewChangeTimerMillisec=" << config_.viewChangeTimerMillisec
                << ", autoPrimaryRotationEnabled=" << config_.autoPrimaryRotationEnabled
                << ", autoPrimaryRotationTimerMillisec=" << config_.autoPrimaryRotationTimerMillisec
