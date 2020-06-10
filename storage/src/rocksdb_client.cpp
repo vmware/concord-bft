@@ -16,7 +16,7 @@
 #include <rocksdb/client.h>
 #include <rocksdb/transaction.h>
 #include <rocksdb/env.h>
-
+#include <rocksdb/utilities/options_util.h>
 #include "assertUtils.hpp"
 #include "Logger.hpp"
 #include <atomic>
@@ -94,10 +94,26 @@ void Client::init(bool readOnly) {
   ::rocksdb::DB *db;
   ::rocksdb::Options options;
   ::rocksdb::TransactionDBOptions txn_options;
-  options.create_if_missing = true;
+  std::vector<::rocksdb::ColumnFamilyDescriptor> cf_descs;
+
+  // Try to read the stored options configuration file
+  // Note that if we recover, then rocksdb should have its option configuration file stored in the rocksdb directory.
+  // Thus, we don't need to persist our custom configuration file.
+  auto s_opt = ::rocksdb::LoadLatestOptions(m_dbPath, ::rocksdb::Env::Default(), &options, &cf_descs);
+  if (!s_opt.ok()) {
+    // If we couldn't read the stored configuration file, try to read the default configuration file.
+    s_opt = ::rocksdb::LoadOptionsFromFile(
+        m_dbPath + "/" + default_opt_config_name, ::rocksdb::Env::Default(), &options, &cf_descs);
+  }
+  if (!s_opt.ok()) {
+    // If we couldn't read the stored configuration and not the default configuration file, then create
+    // one.
+    options.create_if_missing = true;
+  }
   options.sst_file_manager.reset(::rocksdb::NewSstFileManager(::rocksdb::Env::Default()));
   options.statistics = ::rocksdb::CreateDBStatistics();
   options.statistics->set_stats_level(::rocksdb::StatsLevel::kExceptHistogramOrTimers);
+
   // If a comparator is passed, use it. If not, use the default one.
   if (comparator_) {
     options.comparator = comparator_.get();
