@@ -174,11 +174,11 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
         print("STATUS: Wait for early replicas to initiate View Change.")
         for r in early_replicas:
-            active_view = 0
-            view = 0
-            while active_view == view:
-                active_view = await self._get_gauge(r, bft_network, 'currentActiveView')
-                view = await self._get_gauge(r, bft_network, 'view')
+            active_view_of_replica = 0
+            view_of_replica = 0
+            while active_view_of_replica == view_of_replica:
+                active_view_of_replica = await self._get_gauge(r, bft_network, 'currentActiveView')
+                view_of_replica = await self._get_gauge(r, bft_network, 'view')
                 await trio.sleep(seconds=0.1)
 
         print("STATUS: Early replicas initiated View Change.")
@@ -231,6 +231,12 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
         self.assertTrue(expected_next_view == view)
 
         await trio.sleep(10)  # TODO: remove when bft_network.wait_for_view also waits for system liveness.
+
+        for r in bft_network.all_replicas(without={replica_to_stop}):
+            active_view_of_replica = await self._get_gauge(r, bft_network, 'currentActiveView')
+            view_of_replica = await self._get_gauge(r, bft_network, 'view')
+            self.assertTrue(active_view_of_replica == view_of_replica)  # verify Replica is not requesting View Change
+            self.assertTrue(active_view_of_replica == view)  # verify Replica is in the current view
 
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=expected_next_primary)
         await skvbc.fill_and_wait_for_checkpoint(
