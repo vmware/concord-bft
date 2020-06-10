@@ -53,16 +53,21 @@ void ReplicaImp::registerStatusHandlers() {
   auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
   auto &msgQueue = getIncomingMsgsStorage();
 
-  concord::diagnostics::StatusHandler state_handler(
-      "replica", "Internal state of the concord-bft replica", [&msgQueue]() {
-        GetStatus get_status{"replica", std::promise<std::string>()};
-        auto result = get_status.output.get_future();
-        // Send a GetStatus InternalMessage to ReplicaImp, then wait for the result to be published.
-        msgQueue.pushInternalMsg(std::move(get_status));
-        return result.get();
-      });
+  auto make_handler_callback = [&msgQueue](const string &name, const string &description) {
+    return concord::diagnostics::StatusHandler(name, description, [&msgQueue, name]() {
+      GetStatus get_status{name, std::promise<std::string>()};
+      auto result = get_status.output.get_future();
+      // Send a GetStatus InternalMessage to ReplicaImp, then wait for the result to be published.
+      msgQueue.pushInternalMsg(std::move(get_status));
+      return result.get();
+    });
+  };
 
-  registrar.registerStatusHandler(state_handler);
+  auto replica_handler = make_handler_callback("replica", "Internal state of the concord-bft replica");
+  auto state_transfer_handler = make_handler_callback("state-transfer", "Status of blockchain state transfer");
+
+  registrar.registerStatusHandler(replica_handler);
+  registrar.registerStatusHandler(state_transfer_handler);
 }
 
 void ReplicaImp::registerMsgHandlers() {
@@ -966,6 +971,10 @@ std::string ReplicaImp::getReplicaState() const {
 void ReplicaImp::onInternalMsg(GetStatus &status) const {
   if (status.key == "replica") {
     return status.output.set_value(getReplicaState());
+  }
+
+  if (status.key == "state-transfer") {
+    return status.output.set_value(stateTransfer->getStatus());
   }
   // We must always return something to unblock the future.
   return status.output.set_value("** - Invalid Key - **");
