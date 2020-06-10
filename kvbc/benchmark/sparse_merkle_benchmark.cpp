@@ -16,6 +16,7 @@
 #include <benchmark/benchmark.h>
 
 #include "endianness.hpp"
+#include "Handoff.hpp"
 #include "Logger.hpp"
 #include "memorydb/client.h"
 #include "merkle_tree_db_adapter.h"
@@ -27,6 +28,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <future>
 #include <iterator>
 #include <memory>
 #include <random>
@@ -234,6 +236,29 @@ void calculateSha3(benchmark::State &state) {
   }
 }
 
+void stdAsync(benchmark::State &state) {
+  constexpr auto input = 41;
+
+  for (auto _ : state) {
+    auto fut = std::async(std::launch::async, []() { return input + 1; });
+    const auto res = fut.get();
+    benchmark::DoNotOptimize(res);
+  }
+}
+
+void handoff(benchmark::State &state) {
+  auto handoff = Handoff{0};
+  constexpr auto input = 41;
+
+  for (auto _ : state) {
+    auto task = std::make_shared<std::packaged_task<decltype(input)()>>([] { return input + 1; });
+    auto fut = task->get_future();
+    handoff.push([task]() { (*task)(); });
+    const auto res = fut.get();
+    benchmark::DoNotOptimize(res);
+  }
+}
+
 struct Blockchain : benchmark::Fixture {
   void SetUp(const benchmark::State &state) override {
     keyCount = state.range(0);
@@ -260,6 +285,8 @@ struct Blockchain : benchmark::Fixture {
     }
     return updates;
   }
+
+  void TearDown(const benchmark::State &) override { adapter.release(); }
 
   std::uint64_t currentKeyValue{0};
   std::unique_ptr<DBAdapter> adapter;
@@ -331,6 +358,15 @@ BENCHMARK_DEFINE_F(Blockchain, updateCachePut)(benchmark::State &state) {
   }
 }
 
+BENCHMARK_DEFINE_F(Blockchain, getRawBlock)(benchmark::State &state) {
+  const auto blockId = adapter->getLastReachableBlockId();
+
+  for (auto _ : state) {
+    const auto block = adapter->getRawBlock(blockId);
+    benchmark::DoNotOptimize(block);
+  }
+}
+
 // Blockchain ranges for:
 //  - key count
 //  - key size
@@ -338,9 +374,11 @@ BENCHMARK_DEFINE_F(Blockchain, updateCachePut)(benchmark::State &state) {
 const auto blockchainRanges =
     std::vector<std::pair<std::int64_t, std::int64_t>>{{128, 2048}, {4, 32}, {1024, 4 * 1024}};
 
+constexpr auto rangeMultiplier = 2;
+
 }  // namespace
 
-BENCHMARK(createSubsliver)->Range(8, 8 * 1024);
+BENCHMARK(createSubsliver)->RangeMultiplier(rangeMultiplier)->Range(8, 8 * 1024);
 BENCHMARK(fromBigEndian);
 BENCHMARK(copyInternalChild);
 BENCHMARK(copyLeafChild);
@@ -354,10 +392,13 @@ BENCHMARK(deserializeLeafChild);
 BENCHMARK(deserializeHash);
 BENCHMARK(deserializeLeafKey);
 BENCHMARK(deserializeBatchedInternalNode);
-BENCHMARK(calculateSha3)->Range(8, 40 * 1024 * 1024);
-BENCHMARK_REGISTER_F(Blockchain, addBlock)->Ranges(blockchainRanges);
-BENCHMARK_REGISTER_F(Blockchain, getInternalFromCache)->Ranges(blockchainRanges);
-BENCHMARK_REGISTER_F(Blockchain, getInternalFromDb)->Ranges(blockchainRanges);
-BENCHMARK_REGISTER_F(Blockchain, updateCachePut)->Ranges(blockchainRanges);
+BENCHMARK(calculateSha3)->RangeMultiplier(rangeMultiplier)->Range(8, 40 * 1024 * 1024);
+BENCHMARK(stdAsync);
+BENCHMARK(handoff);
+BENCHMARK_REGISTER_F(Blockchain, addBlock)->RangeMultiplier(rangeMultiplier)->Ranges(blockchainRanges);
+BENCHMARK_REGISTER_F(Blockchain, getInternalFromCache)->RangeMultiplier(rangeMultiplier)->Ranges(blockchainRanges);
+BENCHMARK_REGISTER_F(Blockchain, getInternalFromDb)->RangeMultiplier(rangeMultiplier)->Ranges(blockchainRanges);
+BENCHMARK_REGISTER_F(Blockchain, updateCachePut)->RangeMultiplier(rangeMultiplier)->Ranges(blockchainRanges);
+BENCHMARK_REGISTER_F(Blockchain, getRawBlock)->RangeMultiplier(rangeMultiplier)->Ranges(blockchainRanges);
 
 BENCHMARK_MAIN();
