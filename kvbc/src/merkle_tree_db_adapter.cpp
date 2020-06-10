@@ -258,6 +258,7 @@ RawBlock DBAdapter::getRawBlock(const BlockId &blockId) const {
 }
 
 std::future<BlockDigest> DBAdapter::computeParentBlockDigest(BlockId blockId) const {
+  // Get the parent block in the same thread as not all IDBClient implementations may support concurrent operations.
   auto parentBlock = std::optional<RawBlock>{std::nullopt};
   if (blockId > INITIAL_GENESIS_BLOCK_ID) {
     parentBlock = getRawBlock(blockId - 1);
