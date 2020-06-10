@@ -280,13 +280,13 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
         await bft_network.wait_for_view(
             replica_id=unstable_replica,
-            expected=lambda v: v >= current_primary,  # the >= is required because of https://jira.eng.vmware.com/browse/BC-3028
+            expected=lambda v: v == current_primary,
             err_msg="Make sure the unstable replica works in the new view."
         )
 
         await bft_network.wait_for_view(
             replica_id=initial_primary,
-            expected=lambda v: v >= current_primary,  # the >= is required because of https://jira.eng.vmware.com/browse/BC-3028
+            expected=lambda v: v == current_primary,
             err_msg="Make sure the initial primary activates the new view."
         )
 
