@@ -229,7 +229,10 @@ class PlainUDPCommunication::PlainUdpImpl {
 
   void setReceiver(NodeNum &receiverNum, IReceiver *pRcv) { receiverRef = pRcv; }
 
-  ConnectionStatus getCurrentConnectionStatus(const NodeNum &node) const { return ConnectionStatus::Unknown; }
+  ConnectionStatus getCurrentConnectionStatus(const NodeNum &node) {
+    if (isRunning()) return ConnectionStatus::Connected;
+    return ConnectionStatus::Disconnected;
+  }
 
   int sendAsyncMessage(const NodeNum &destNode, const char *const message, const size_t &messageLength) {
     int error = 0;
@@ -389,7 +392,7 @@ int PlainUDPCommunication::Stop() {
 
 bool PlainUDPCommunication::isRunning() const { return _ptrImpl->isRunning(); }
 
-ConnectionStatus PlainUDPCommunication::getCurrentConnectionStatus(const NodeNum node) const {
+ConnectionStatus PlainUDPCommunication::getCurrentConnectionStatus(const NodeNum node) {
   return _ptrImpl->getCurrentConnectionStatus(node);
 }
 

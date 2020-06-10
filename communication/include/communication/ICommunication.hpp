@@ -25,12 +25,12 @@ class IReceiver {
   // Invoked when a new message is received
   // Notice that the memory pointed by message may be freed immediately
   // after the execution of this method.
-  virtual void onNewMessage(const NodeNum sourceNode, const char *const message, const size_t messageLength) = 0;
+  virtual void onNewMessage(NodeNum sourceNode, const char *const message, size_t messageLength) = 0;
 
   // Invoked when the known status of a connection is changed.
   // For each NodeNum, this method will never be concurrently
   // executed by two different threads.
-  virtual void onConnectionStatusChanged(const NodeNum node, const ConnectionStatus newStatus) = 0;
+  virtual void onConnectionStatusChanged(NodeNum node, ConnectionStatus newStatus) = 0;
 };
 
 class ICommunication {
@@ -48,15 +48,15 @@ class ICommunication {
 
   virtual bool isRunning() const = 0;
 
-  virtual ConnectionStatus getCurrentConnectionStatus(const NodeNum node) const = 0;
+  virtual ConnectionStatus getCurrentConnectionStatus(NodeNum node) = 0;
 
   // Sends a message on the underlying communication layer to a given
   // destination node. Asynchronous (non-blocking) method.
   // Returns 0 on success.
-  virtual int sendAsyncMessage(const NodeNum destNode, const char *const message, const size_t messageLength) = 0;
+  virtual int sendAsyncMessage(NodeNum destNode, const char *const message, size_t messageLength) = 0;
 
   virtual void setReceiver(NodeNum receiverNum, IReceiver *receiver) = 0;
 
-  virtual ~ICommunication(){};
+  virtual ~ICommunication() = default;
 };
 }  // namespace bft::communication

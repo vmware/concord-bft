@@ -62,7 +62,7 @@ struct BaseCommConfig {
         statusCallback{_statusCallback},
         selfId{_selfId} {}
 
-  virtual ~BaseCommConfig() {}
+  virtual ~BaseCommConfig() = default;
 };
 
 struct PlainUdpConfig : BaseCommConfig {
@@ -122,13 +122,13 @@ class PlainUDPCommunication : public ICommunication {
   int Start() override;
   int Stop() override;
   bool isRunning() const override;
-  ConnectionStatus getCurrentConnectionStatus(const NodeNum node) const override;
+  ConnectionStatus getCurrentConnectionStatus(NodeNum node) override;
 
-  int sendAsyncMessage(const NodeNum destNode, const char *const message, const size_t messageLength) override;
+  int sendAsyncMessage(NodeNum destNode, const char *const message, size_t messageLength) override;
 
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
 
-  virtual ~PlainUDPCommunication();
+  ~PlainUDPCommunication() override;
 
  private:
   class PlainUdpImpl;
@@ -147,13 +147,13 @@ class PlainTCPCommunication : public ICommunication {
   int Start() override;
   int Stop() override;
   bool isRunning() const override;
-  ConnectionStatus getCurrentConnectionStatus(const NodeNum node) const override;
+  ConnectionStatus getCurrentConnectionStatus(NodeNum node) override;
 
-  int sendAsyncMessage(const NodeNum destNode, const char *const message, const size_t messageLength) override;
+  int sendAsyncMessage(NodeNum destNode, const char *const message, size_t messageLength) override;
 
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
 
-  virtual ~PlainTCPCommunication();
+  ~PlainTCPCommunication() override;
 
  private:
   class PlainTcpImpl;
@@ -170,13 +170,13 @@ class TlsTCPCommunication : public ICommunication {
   int Start() override;
   int Stop() override;
   bool isRunning() const override;
-  ConnectionStatus getCurrentConnectionStatus(const NodeNum node) const override;
+  ConnectionStatus getCurrentConnectionStatus(NodeNum node) override;
 
-  int sendAsyncMessage(const NodeNum destNode, const char *const message, const size_t messageLength) override;
+  int sendAsyncMessage(NodeNum destNode, const char *const message, size_t messageLength) override;
 
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
 
-  virtual ~TlsTCPCommunication();
+  ~TlsTCPCommunication() override;
 
  private:
   class TlsTcpImpl;

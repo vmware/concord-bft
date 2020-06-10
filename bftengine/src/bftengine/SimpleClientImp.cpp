@@ -38,23 +38,20 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
       ICommunication* communication, uint16_t clientId, uint16_t fVal, uint16_t cVal, SimpleClientParams& p);
   ~SimpleClientImp() override;
 
-  int sendRequest(uint8_t flags,
-                  const char* request,
-                  uint32_t lengthOfRequest,
-                  uint64_t reqSeqNum,
-                  uint64_t timeoutMilli,
-                  uint32_t lengthOfReplyBuffer,
-                  char* replyBuffer,
-                  uint32_t& actualReplyLength,
-                  const std::string& cid = "",
-                  const std::string& span_context = "") override;
-
-  int sendRequestToResetSeqNum() override;
-  int sendRequestToReadLatestSeqNum(uint64_t timeoutMilli, uint64_t& outLatestReqSeqNum) override;
+  OperationResult sendRequest(uint8_t flags,
+                              const char* request,
+                              uint32_t lengthOfRequest,
+                              uint64_t reqSeqNum,
+                              uint64_t timeoutMilli,
+                              uint32_t lengthOfReplyBuffer,
+                              char* replyBuffer,
+                              uint32_t& actualReplyLength,
+                              const std::string& cid,
+                              const std::string& span_context) override;
 
   // IReceiver methods
-  void onNewMessage(const NodeNum sourceNode, const char* const message, const size_t messageLength) override;
-  void onConnectionStatusChanged(const NodeNum node, const ConnectionStatus newStatus) override;
+  void onNewMessage(NodeNum sourceNode, const char* const message, size_t messageLength) override;
+  void onConnectionStatusChanged(NodeNum node, ConnectionStatus newStatus) override;
 
   // used by  MsgsCertificate
   static bool equivalent(ClientReplyMsg* r1, ClientReplyMsg* r2) {
@@ -69,6 +66,7 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
   }
 
  protected:
+  bool isSystemReady() const;
   void sendPendingRequest();
   void onMessageFromReplica(MessageBase* msg);
   void onRetransmission();
@@ -79,6 +77,8 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
   static const uint16_t timersResolutionMilli_ = 50;
 
   const uint16_t clientId_;
+  const uint16_t numberOfReplicas_;
+  const uint16_t numberOfRequiredReplicas_;
   const uint16_t fVal_;
   const uint16_t cVal_;
   const std::set<uint16_t> replicas_;
@@ -107,6 +107,19 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
 
   logging::Logger logger_ = logging::getLogger("concord.bft.client");
 };
+
+bool SimpleClientImp::isSystemReady() const {
+  uint16_t connectedReplicasNum = 0;
+  for (uint16_t rid : replicas_)
+    if (communication_->getCurrentConnectionStatus(rid) == ConnectionStatus::Connected) connectedReplicasNum++;
+
+  bool systemReady = (connectedReplicasNum >= numberOfRequiredReplicas_);
+  if (!systemReady)
+    LOG_WARN(logger_,
+             "The system is not ready: connectedReplicasNum=" << connectedReplicasNum << " numberOfRequiredReplicas="
+                                                              << numberOfRequiredReplicas_);
+  return systemReady;
+}
 
 void SimpleClientImp::onMessageFromReplica(MessageBase* msg) {
   ClientReplyMsg* replyMsg = static_cast<ClientReplyMsg*>(msg);
@@ -149,11 +162,13 @@ SimpleClientImp::SimpleClientImp(
     ICommunication* communication, uint16_t clientId, uint16_t fVal, uint16_t cVal, SimpleClientParams& p)
     : SimpleClient(clientId),
       clientId_{clientId},
+      numberOfReplicas_(3 * fVal + 2 * cVal + 1),
+      numberOfRequiredReplicas_(2 * fVal + cVal + 1),
       fVal_{fVal},
       cVal_{cVal},
-      replicas_{generateSetOfReplicas_helpFunc(3 * fVal + 2 * cVal + 1)},
+      replicas_{generateSetOfReplicas_helpFunc(numberOfReplicas_)},
       communication_{communication},
-      replysCertificate_(3 * fVal + 2 * cVal + 1, fVal, 2 * fVal + cVal + 1, clientId),
+      replysCertificate_(numberOfReplicas_, fVal, numberOfRequiredReplicas_, clientId),
       limitOfExpectedOperationTime_(p.clientInitialRetryTimeoutMilli,
                                     2,
                                     p.clientMaxRetryTimeoutMilli,
@@ -184,16 +199,16 @@ SimpleClientImp::~SimpleClientImp() {
   Assert(numberOfTransmissions_ == 0);
 }
 
-int SimpleClientImp::sendRequest(uint8_t flags,
-                                 const char* request,
-                                 uint32_t lengthOfRequest,
-                                 uint64_t reqSeqNum,
-                                 uint64_t timeoutMilli,
-                                 uint32_t lengthOfReplyBuffer,
-                                 char* replyBuffer,
-                                 uint32_t& actualReplyLength,
-                                 const std::string& cid,
-                                 const std::string& span_context) {
+OperationResult SimpleClientImp::sendRequest(uint8_t flags,
+                                             const char* request,
+                                             uint32_t lengthOfRequest,
+                                             uint64_t reqSeqNum,
+                                             uint64_t timeoutMilli,
+                                             uint32_t lengthOfReplyBuffer,
+                                             char* replyBuffer,
+                                             uint32_t& actualReplyLength,
+                                             const std::string& cid,
+                                             const std::string& span_context) {
   bool isReadOnly = flags & READ_ONLY_REQ;
   bool isPreProcessRequired = flags & PRE_PROCESS_REQ;
   const std::string msgCid = cid.empty() ? std::to_string(reqSeqNum) + "-" + std::to_string(clientId_) : cid;
@@ -207,6 +222,14 @@ int SimpleClientImp::sendRequest(uint8_t flags,
 
   if (!communication_->isRunning()) {
     communication_->Start();  // TODO(GG): patch ................ change
+  }
+
+  if (!isReadOnly && !isSystemReady()) {
+    LOG_WARN(logger_,
+             "The system is not ready yet to handle requests. Reject reqSeqNum="
+                 << reqSeqNum << " clientId=" << clientId_ << " cid=" << cid << " timeout=" << timeoutMilli);
+    reset();
+    return NOT_READY;
   }
 
   Assert(replysCertificate_.isEmpty());
@@ -303,10 +326,10 @@ int SimpleClientImp::sendRequest(uint8_t flags,
       memcpy(replyBuffer, correctReply->replyBuf(), correctReply->replyLength());
       actualReplyLength = correctReply->replyLength();
       reset();
-      return 0;
+      return SUCCESS;
     } else {
       reset();
-      return (-2);
+      return BUFFER_TOO_SMALL;
     }
   } else if (requestTimeout) {
     LOG_DEBUG(logger_, "Client " << clientId_ << " request :" << reqSeqNum << " timeout");
@@ -318,16 +341,11 @@ int SimpleClientImp::sendRequest(uint8_t flags,
     }
 
     reset();
-    return (-1);
+    return TIMEOUT;
   }
 
   Assert(false);
-  return 0;
-}
-
-int SimpleClientImp::sendRequestToResetSeqNum() {
-  Assert(false);  // not implemented yet
-  return 0;
+  return SUCCESS;
 }
 
 void SimpleClientImp::reset() {
@@ -351,12 +369,7 @@ void SimpleClientImp::reset() {
   numberOfTransmissions_ = 0;
 }
 
-int SimpleClientImp::sendRequestToReadLatestSeqNum(uint64_t timeoutMilli, uint64_t& outLatestReqSeqNum) {
-  Assert(false);  // not implemented yet
-  return 0;
-}
-
-void SimpleClientImp::onNewMessage(const NodeNum sourceNode, const char* const message, const size_t messageLength) {
+void SimpleClientImp::onNewMessage(NodeNum sourceNode, const char* const message, size_t messageLength) {
   // check source
   int16_t senderId = (int16_t)sourceNode;
   if (replicas_.count(senderId) == 0) return;

@@ -34,9 +34,11 @@ struct SimpleClientParams {
 // Possible values for 'flags' parameter
 enum ClientMsgFlag : uint8_t { EMPTY_FLAGS_REQ = 0x0, READ_ONLY_REQ = 0x1, PRE_PROCESS_REQ = 0x2 };
 
+enum OperationResult : int8_t { SUCCESS, NOT_READY, TIMEOUT, BUFFER_TOO_SMALL };
+
 class SimpleClient {
  public:
-  SimpleClient(uint16_t clientId)
+  explicit SimpleClient(uint16_t clientId)
       : metrics_{"clientMetrics_" + std::to_string(clientId), std::make_shared<concordMetrics::Aggregator>()},
         client_metrics_{{metrics_.RegisterCounter("retransmissions")},
                         {metrics_.RegisterGauge("retransmissionTimer", 0)}} {
@@ -57,21 +59,18 @@ class SimpleClient {
 
   virtual ~SimpleClient();
 
-  virtual int sendRequest(uint8_t flags,
-                          const char* request,
-                          uint32_t lengthOfRequest,
-                          uint64_t reqSeqNum,
-                          uint64_t timeoutMilli,
-                          uint32_t lengthOfReplyBuffer,
-                          char* replyBuffer,
-                          uint32_t& actualReplyLength,
-                          const std::string& cid = "",
-                          const std::string& span_context = "") = 0;
+  virtual OperationResult sendRequest(uint8_t flags,
+                                      const char* request,
+                                      uint32_t lengthOfRequest,
+                                      uint64_t reqSeqNum,
+                                      uint64_t timeoutMilli,
+                                      uint32_t lengthOfReplyBuffer,
+                                      char* replyBuffer,
+                                      uint32_t& actualReplyLength,
+                                      const std::string& cid = "",
+                                      const std::string& span_context = "") = 0;
 
-  virtual int sendRequestToResetSeqNum() = 0;
-  virtual int sendRequestToReadLatestSeqNum(uint64_t timeoutMilli, uint64_t& outLatestReqSeqNum) = 0;
-
-  void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+  void setAggregator(const std::shared_ptr<concordMetrics::Aggregator>& aggregator) {
     if (aggregator) metrics_.SetAggregator(aggregator);
   }
 
@@ -85,7 +84,7 @@ class SimpleClient {
 };
 
 // This class is mainly for testing and SimpleClient applications.
-// Users are allowed to generate their own sequence numbers (they do not
+// Users are allowed to generate their own sequence numbers (they do notSUCCESS
 // have to use this class). Other examples of ways to do this include:
 // (1) A simple counter + store the last counter in a persistent storage
 // (2) An approach that utilizes the functions
