@@ -18,11 +18,7 @@ from os import environ
 
 import trio
 
-from util import bft_network_partitioning as net
-from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, with_constant_load, KEY_FILE_PREFIX
-from util.skvbc_history_tracker import verify_linearizability
-from trio._timeouts import TooSlowError
 
 def start_replica_cmd(builddir, replica_id):
     """
@@ -181,8 +177,8 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
             active_view = 0
             view = 0
             while active_view == view:
-                active_view = await self._get_active_view(r, bft_network)
-                view = await self._get_view(r, bft_network)
+                active_view = await self._get_gauge(r, bft_network, 'currentActiveView')
+                view = await self._get_gauge(r, bft_network, 'view')
                 await trio.sleep(seconds=0.1)
 
         print("STATUS: Early replicas initiated View Change.")
@@ -248,30 +244,16 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
         # Verify that the system is making progress after the View Change.
         self.assertTrue(checkpoint_after > checkpoint_before)
 
-    async def _get_view(self, replica_id, bft_network):
-        view = None
-        try:
-            with trio.move_on_after(seconds=5):
-                key = ['replica', 'Gauges', 'view']
-                view = await bft_network.metrics.get(replica_id, *key)
-
-        except KeyError:
-            # metrics not yet available, continue looping
-            print("KeyError!")
-        except TooSlowError:
-            print("TooSlowError!")
-        return view
-
-    async def _get_active_view(self, replica_id, bft_network):
-        view = None
-        try:
-            with trio.move_on_after(seconds=5):
-                key = ['replica', 'Gauges', 'currentActiveView']
-                view = await bft_network.metrics.get(replica_id, *key)
-
-        except KeyError:
-            # metrics not yet available, continue looping
-            print("KeyError!")
-        except TooSlowError:
-            print("TooSlowError!")
-        return view
+    @classmethod
+    async def _get_gauge(cls, replica_id, bft_network, gauge):
+        with trio.fail_after(seconds=30):
+            while True:
+                with trio.move_on_after(seconds=1):
+                    try:
+                        key = ['replica', 'Gauges', gauge]
+                        value = await bft_network.metrics.get(replica_id, *key)
+                    except KeyError:
+                        # metrics not yet available, continue looping
+                        print(f"KeyError! '{gauge}' not yet available.")
+                    else:
+                        return value
