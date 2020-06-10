@@ -358,6 +358,15 @@ BENCHMARK_DEFINE_F(Blockchain, updateCachePut)(benchmark::State &state) {
   }
 }
 
+BENCHMARK_DEFINE_F(Blockchain, getRawBlock)(benchmark::State &state) {
+  const auto blockId = adapter->getLastReachableBlockId();
+
+  for (auto _ : state) {
+    const auto block = adapter->getRawBlock(blockId);
+    benchmark::DoNotOptimize(block);
+  }
+}
+
 // Blockchain ranges for:
 //  - key count
 //  - key size
@@ -365,9 +374,11 @@ BENCHMARK_DEFINE_F(Blockchain, updateCachePut)(benchmark::State &state) {
 const auto blockchainRanges =
     std::vector<std::pair<std::int64_t, std::int64_t>>{{128, 2048}, {4, 32}, {1024, 4 * 1024}};
 
+constexpr auto rangeMultiplier = 2;
+
 }  // namespace
 
-BENCHMARK(createSubsliver)->Range(8, 8 * 1024);
+BENCHMARK(createSubsliver)->RangeMultiplier(rangeMultiplier)->Range(8, 8 * 1024);
 BENCHMARK(fromBigEndian);
 BENCHMARK(copyInternalChild);
 BENCHMARK(copyLeafChild);
@@ -381,12 +392,13 @@ BENCHMARK(deserializeLeafChild);
 BENCHMARK(deserializeHash);
 BENCHMARK(deserializeLeafKey);
 BENCHMARK(deserializeBatchedInternalNode);
-BENCHMARK(calculateSha3)->Range(8, 40 * 1024 * 1024);
+BENCHMARK(calculateSha3)->RangeMultiplier(rangeMultiplier)->Range(8, 40 * 1024 * 1024);
 BENCHMARK(stdAsync);
 BENCHMARK(handoff);
-BENCHMARK_REGISTER_F(Blockchain, addBlock)->Ranges(blockchainRanges);
-BENCHMARK_REGISTER_F(Blockchain, getInternalFromCache)->Ranges(blockchainRanges);
-BENCHMARK_REGISTER_F(Blockchain, getInternalFromDb)->Ranges(blockchainRanges);
-BENCHMARK_REGISTER_F(Blockchain, updateCachePut)->Ranges(blockchainRanges);
+BENCHMARK_REGISTER_F(Blockchain, addBlock)->RangeMultiplier(rangeMultiplier)->Ranges(blockchainRanges);
+BENCHMARK_REGISTER_F(Blockchain, getInternalFromCache)->RangeMultiplier(rangeMultiplier)->Ranges(blockchainRanges);
+BENCHMARK_REGISTER_F(Blockchain, getInternalFromDb)->RangeMultiplier(rangeMultiplier)->Ranges(blockchainRanges);
+BENCHMARK_REGISTER_F(Blockchain, updateCachePut)->RangeMultiplier(rangeMultiplier)->Ranges(blockchainRanges);
+BENCHMARK_REGISTER_F(Blockchain, getRawBlock)->RangeMultiplier(rangeMultiplier)->Ranges(blockchainRanges);
 
 BENCHMARK_MAIN();
