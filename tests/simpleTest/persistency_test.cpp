@@ -21,6 +21,7 @@
 #include <memory>
 #include "simple_test_client.hpp"
 #include "simple_test_replica.hpp"
+#include "diagnostics.h"
 
 namespace test::persistency {
 class PersistencyTest : public testing::Test {
@@ -49,6 +50,7 @@ class PersistencyTest : public testing::Test {
   }
 
   void create_and_run_replica(ReplicaParams rp, ISimpleTestReplicaBehavior *behv) {
+    concord::diagnostics::RegistrarSingleton::getInstance().clearStatusHandlers();
     rp.keysFilePrefix = "private_replica_";
     auto replica = std::shared_ptr<SimpleTestReplica>(SimpleTestReplica::create_replica(behv, rp, nullptr));
     replicas.push_back(replica);

@@ -20,6 +20,8 @@
 #pragma once
 
 #include <chrono>
+#include <ctime>
+#include <iomanip>
 
 namespace bftEngine {
 namespace impl {
@@ -35,6 +37,15 @@ const Time MaxTime = std::chrono::steady_clock::time_point::max();
 const Time MinTime = std::chrono::steady_clock::time_point();
 
 #define getMonotonicTime std::chrono::steady_clock::now
+
+// Make a steady clock printable in UTC
+inline std::string utcstr(const std::chrono::steady_clock::time_point &time_point) {
+  time_t systime = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now() +
+                                                        (time_point - std::chrono::steady_clock::now()));
+  std::ostringstream os;
+  os << std::put_time(std::gmtime(&systime), "%c %Z");
+  return os.str();
+}
 
 }  // namespace impl
 }  // namespace bftEngine

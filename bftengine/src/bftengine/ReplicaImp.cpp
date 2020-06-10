@@ -23,6 +23,7 @@
 #include "PersistentStorage.hpp"
 #include "OpenTracing.hpp"
 #include "diagnostics.h"
+#include "TimeUtils.hpp"
 
 #include "messages/ClientRequestMsg.hpp"
 #include "messages/PrePrepareMsg.hpp"
@@ -47,6 +48,22 @@ using namespace std::chrono;
 using namespace std::placeholders;
 
 namespace bftEngine::impl {
+
+void ReplicaImp::registerStatusHandlers() {
+  auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+  auto &msgQueue = getIncomingMsgsStorage();
+
+  concord::diagnostics::StatusHandler state_handler(
+      "replica", "Internal state of the concord-bft replica", [&msgQueue]() {
+        GetStatus get_status{"replica", std::promise<std::string>()};
+        auto result = get_status.output.get_future();
+        // Send a GetStatus InternalMessage to ReplicaImp, then wait for the result to be published.
+        msgQueue.pushInternalMsg(std::move(get_status));
+        return result.get();
+      });
+
+  registrar.registerStatusHandler(state_handler);
+}
 
 void ReplicaImp::registerMsgHandlers() {
   msgHandlers_->registerMsgHandler(MsgCode::Checkpoint, bind(&ReplicaImp::messageHandler<CheckpointMsg>, this, _1));
@@ -897,7 +914,61 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
     return retransmissionsManager->OnProcessingComplete();
   }
 
+  // Handle a status request for the diagnostics subsystem
+  if (auto *get_status = std::get_if<GetStatus>(&msg)) {
+    return onInternalMsg(*get_status);
+  }
+
   assert(false);
+}
+
+std::string ReplicaImp::getReplicaState() const {
+  auto primary = getReplicasInfo().primaryOfView(curView);
+  std::ostringstream oss;
+  oss << "Replica ID: " << getReplicasInfo().myId() << std::endl;
+  oss << "Primary: " << primary << std::endl;
+  oss << "View Change: "
+      << KVLOG(viewChangeProtocolEnabled,
+               autoPrimaryRotationEnabled,
+               curView,
+               utcstr(timeOfLastViewEntrance),
+               lastAgreedView,
+               utcstr(timeOfLastAgreedView),
+               viewChangeTimerMilli,
+               autoPrimaryRotationTimerMilli)
+      << std::endl
+      << std::endl;
+  oss << "Sequence Numbers: "
+      << KVLOG(primaryLastUsedSeqNum,
+               lastStableSeqNum,
+               strictLowerBoundOfSeqNums,
+               maxSeqNumTransferredFromPrevViews,
+               mainLog->currentActiveWindow().first,
+               mainLog->currentActiveWindow().second,
+               lastViewThatTransferredSeqNumbersFullyExecuted)
+      << std::endl
+      << std::endl;
+  oss << "Other: "
+      << KVLOG(restarted_,
+               requestsQueueOfPrimary.size(),
+               maxNumberOfPendingRequestsInRecentHistory,
+               batchingFactor,
+               utcstr(lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas),
+               utcstr(timeOfLastStateSynch),
+               recoveringFromExecutionOfRequests,
+               checkpointsLog->currentActiveWindow().first,
+               checkpointsLog->currentActiveWindow().second,
+               clientsManager->numberOfRequiredReservedPages())
+      << std::endl;
+  return oss.str();
+}
+
+void ReplicaImp::onInternalMsg(GetStatus &status) const {
+  if (status.key == "replica") {
+    return status.output.set_value(getReplicaState());
+  }
+  // We must always return something to unblock the future.
+  return status.output.set_value("** - Invalid Key - **");
 }
 
 void ReplicaImp::onInternalMsg(FullCommitProofMsg *msg) {
@@ -2907,6 +2978,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
   Assert(firstTime || ((sigMgr != nullptr) && (replicasInfo != nullptr) && (viewsMgr != nullptr)));
 
   registerMsgHandlers();
+  registerStatusHandlers();
+
   // Register metrics component with the default aggregator.
   metrics_.Register();
 
