@@ -75,6 +75,7 @@ class UdpClient:
         self.retries = 0
         self.msgs_sent = 0
         self.reply_quorum = 2*config.f + config.c + 1
+        self.port = BASE_PORT + 2*self.client_id
         self.sock_bound = False
 
     async def write(self, msg, seq_num=None, cid=None, pre_process=False):
@@ -144,8 +145,7 @@ class UdpClient:
 
     async def bind(self):
         # Each port is a function of its client_id
-        port = BASE_PORT + 2*self.client_id
-        await self.sock.bind(("127.0.0.1", port))
+        await self.sock.bind(("127.0.0.1", self.port))
         self.sock_bound = True
 
     async def send_loop(self, data, read_only):

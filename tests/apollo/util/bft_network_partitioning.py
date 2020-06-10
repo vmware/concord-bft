@@ -114,3 +114,31 @@ class PacketDroppingAdversary(NetworkPartitioningAdversary):
             self._drop_packets_between(
                 source_port, dest_port, self.drop_rate_percentage
             )
+
+
+class ReplicaSubsetIsolatingAdversary(NetworkPartitioningAdversary):
+    """
+    Adversary that isolates a sub-set of replicas,
+    both from other replicas, as well as from the clients.
+    """
+
+    def __init__(self, bft_network, replicas_to_isolate):
+        assert len(replicas_to_isolate) < len(bft_network.all_replicas())
+        self.replicas_to_isolate = replicas_to_isolate
+        super(ReplicaSubsetIsolatingAdversary, self).__init__(bft_network)
+
+    def interfere(self):
+        other_replicas = set(self.bft_network.all_replicas()) - set(self.replicas_to_isolate)
+        for ir in self.replicas_to_isolate:
+            for r in other_replicas:
+                isolated_replica_port = self.bft_network.replicas[ir].port
+                other_replica_port = self.bft_network.replicas[r].port
+                self._drop_packets_between(isolated_replica_port, other_replica_port)
+                self._drop_packets_between(other_replica_port, isolated_replica_port)
+
+        clients = self.bft_network.clients.values()
+        for ir in self.replicas_to_isolate:
+            for c in clients:
+                isolated_replica_port = self.bft_network.replicas[ir].port
+                self._drop_packets_between(c.port, isolated_replica_port)
+                self._drop_packets_between(isolated_replica_port, c.port)

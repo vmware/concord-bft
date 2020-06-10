@@ -107,6 +107,87 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
 
             await tracker.run_concurrent_ops(100)
 
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    @verify_linearizability
+    async def test_isolate_f_non_primaries_slow_path(self, bft_network, tracker):
+        """
+        This test makes sure that a BFT network continues making progress (albeit on the slow path),
+        despite the presence of an adversary that isolates f replicas.
+
+        Once the adversary disappears, we check that the isolated replicas catch up
+        with the others and correctly participate in consensus.
+
+        Note: there is no state transfer in this test scenario, because the replica isolating
+        adversary hasn't been active for long enough for the unaffected replicas
+        to trigger a checkpoint.
+        """
+        bft_network.start_all_replicas()
+
+        f = bft_network.config.f
+        all_non_primaries = bft_network.all_replicas(without={0})
+        random.shuffle(all_non_primaries)
+        isolated_replicas = all_non_primaries[:f]
+        print(f"Isolating replicas {isolated_replicas} from the others...")
+
+        num_ops = 100
+        write_weight = 0.5
+
+        # make sure the presence of the adversary triggers the slow path
+        # (because f replicas cannot participate in consensus)
+        with net.ReplicaSubsetIsolatingAdversary(bft_network, isolated_replicas) as adversary:
+            adversary.interfere()
+
+            await tracker.run_concurrent_ops(num_ops=num_ops, write_weight=write_weight)
+
+            await bft_network.wait_for_slow_path_to_be_prevalent(as_of_seq_num=1)
+
+        # Once the adversary is gone, the disconnected replicas should be able
+        # to resume their participation in consensus & request execution
+        await tracker.run_concurrent_ops(num_ops=num_ops, write_weight=write_weight)
+        last_executed_seq_num = await bft_network.wait_for_last_executed_seq_num()
+
+        for ir in isolated_replicas:
+            await bft_network.wait_for_last_executed_seq_num(
+                replica_id=ir, expected=last_executed_seq_num)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_isolate_f_non_primaries_state_transfer(self, bft_network):
+        """
+        In this test we isolate f replicas long enough for the unaffected replicas to
+        trigger a checkpoint. Then, once the adversary is not active anymore, we make
+        sure the isolated replicas catch up via state transfer.
+        """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        f = bft_network.config.f
+        all_non_primaries = bft_network.all_replicas(without={0})
+        random.shuffle(all_non_primaries)
+        isolated_replicas = all_non_primaries[:f]
+        print(f"Isolating replicas {isolated_replicas} from the others...")
+
+        live_replicas = set(bft_network.all_replicas()) - set(isolated_replicas)
+
+        # reach a checkpoint, despite the presence of an adversary
+        with net.ReplicaSubsetIsolatingAdversary(bft_network, isolated_replicas) as adversary:
+            adversary.interfere()
+
+            await skvbc.fill_and_wait_for_checkpoint(
+                initial_nodes=list(live_replicas),
+                checkpoint_num=1,
+                verify_checkpoint_persistency=False
+            )
+
+        # at this point the adversary is inactive, so the isolated replicas
+        # should be able to catch-up via state transfer
+        await bft_network.wait_for_state_transfer_to_start()
+
+        # state transfer should complete on all isolated replicas
+        for ir in isolated_replicas:
+            await bft_network.wait_for_state_transfer_to_stop(0, ir)
+
     async def _wait_for_read_your_writes_success(self, tracker):
         with trio.fail_after(seconds=60):
             while True:
