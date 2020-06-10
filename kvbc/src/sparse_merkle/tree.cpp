@@ -13,13 +13,57 @@
 #include "sparse_merkle/tree.h"
 #include "sparse_merkle/walker.h"
 
-#include <iostream>
-using namespace std;
+#include <future>
+#include <iterator>
+#include <unordered_map>
 
 using namespace concordUtils;
 
 namespace concord::kvbc::sparse_merkle {
 using namespace detail;
+
+// Computes value hashes in a separate thread.
+class ValueHashes {
+ public:
+  ValueHashes(const SetOfKeyValuePairs& updates) {
+    // A vector of value and hash promise pairs. We pass it to a separate thread that calculates the value hashes and
+    // sets them in their corresponding futures. The futures are indexed by key for user convenience.
+    auto value_promises = std::vector<std::pair<Sliver, std::promise<Hash>>>{};
+    for (const auto& [key, value] : updates) {
+      auto promise = std::promise<Hash>{};
+      hashes_.emplace(key, promise.get_future());
+      value_promises.push_back(std::make_pair(value, std::move(promise)));
+    }
+
+    // Compute value hashes in a separate thread. The passed lambda is noexcept, because:
+    //  * we don't expect the hashing code to throw
+    //  * propagating the exception correctly will make the code unnecessarily complex
+    async_future_ = std::async(std::launch::async, [value_promises = std::move(value_promises)]() mutable noexcept {
+      auto hasher = Hasher{};
+      for (auto& [value, promise] : value_promises) {
+        const auto hash = hasher.hash(value.data(), value.length());
+        promise.set_value(hash);
+      }
+    });
+  }
+
+  ValueHashes(ValueHashes&&) = default;
+  ValueHashes(const ValueHashes&) = delete;
+  ValueHashes& operator=(const ValueHashes&) = delete;
+
+  Hash operator[](const Sliver& key) {
+    auto it = hashes_.find(key);
+    AssertNE(it, std::end(hashes_));
+    return it->second.get();
+  }
+
+ private:
+  // A Key -> Value Hash map.
+  std::unordered_map<Sliver, std::future<Hash>> hashes_;
+  // The future returned from the std::async() call. Keep as a member so that the returned future's destructor is not
+  // called immediately and thus blocking until all hashes are computed.
+  std::future<void> async_future_;
+};
 
 void insertComplete(Walker& walker, const BatchedInternalNode::InsertComplete& result) {
   walker.ascendToRoot(result.stale_leaf);
@@ -141,11 +185,17 @@ UpdateBatch Tree::update_impl(const concord::kvbc::SetOfKeyValuePairs& updates,
     sparse_merkle::remove(walker, key_hash);
   }
 
+  // Compute value hashes in parallel with tree updates.
+  // Assume the same order for subsequent iterations of SetOfKeyValuePairs objects, provided that we don't mutate them
+  // in any way. That, combined with the assumption that the tree update takes longer than value hash calculation,
+  // should ensure that this is actually an optimization.
+  // Note: The documentation for std::unordered_map (SetOfKeyValuePairs) states that read-only operations do not
+  // invalidate iterators. Therefore, we can expect that subsequent iterations will have the same order.
+  auto value_hashes = ValueHashes(updates);
   for (auto&& [key, val] : updates) {
-    auto leaf_hash = hasher.hash(val.data(), val.length());
     LeafNode leaf_node{val};
     LeafKey leaf_key{hasher.hash(key.data(), key.length()), version};
-    LeafChild child{leaf_hash, leaf_key};
+    LeafChild child{value_hashes[key], leaf_key};
     Walker walker(cache);
     insert(walker, child);
     batch.leaf_nodes.emplace_back(leaf_key, leaf_node);
