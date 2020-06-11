@@ -46,7 +46,6 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
     __test__ = False  # so that PyTest ignores this test scenario
 
-    @unittest.skip("debugging")
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_request_block_not_written_primary_down(self, bft_network):
@@ -100,7 +99,8 @@ class SkvbcViewChangeTest(unittest.TestCase):
             new_last_block = skvbc.parse_reply(await client.read(skvbc.get_last_block_req()))
             self.assertEqual(new_last_block, last_block)
 
-    @unittest.skip("debugging")
+
+
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability
@@ -121,7 +121,6 @@ class SkvbcViewChangeTest(unittest.TestCase):
             num_consecutive_failing_primaries=1
         )
 
-    @unittest.skip("debugging")
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability
@@ -171,7 +170,6 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
         await tracker.run_concurrent_ops(100)
 
-    @unittest.skip("debugging")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2)
     @verify_linearizability
@@ -366,7 +364,6 @@ class SkvbcViewChangeTest(unittest.TestCase):
         await bft_network.wait_for_slow_path_to_be_prevalent(
             replica_id=current_primary)
 
-    @unittest.skip("debugging")
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs = lambda n,f,c : f >= 2)
