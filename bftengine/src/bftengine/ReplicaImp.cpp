@@ -867,8 +867,12 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
       auto execution_span = concordUtils::startChildSpan("bft_execute_committed_reqs", span);
       executeNextCommittedRequests(execution_span, askForMissingInfoAboutCommittedItems);
       return;
-    } else {
-      LOG_INFO(GL, "Failed to satisfy full proof requirements");
+    } else if (pps.hasFullProof()) {
+      const auto fullProofCollectorId = pps.getFullProof()->senderId();
+      LOG_INFO(GL,
+               "FullCommitProof for seq num " << msgSeqNum << " was already received from replica "
+                                              << fullProofCollectorId << " and has been processed."
+                                              << " Ignoring the FullCommitProof from replica " << msg->senderId());
     }
   }
 
@@ -2595,13 +2599,15 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
     if (repsInfo->primaryOfView(lastAgreedView) == config_.replicaId) return;
 
     currTime = getMonotonicTime();
-    const uint64_t diffMilli1 = duration_cast<milliseconds>(currTime - timeOfLastStateSynch).count();
-    const uint64_t diffMilli2 = duration_cast<milliseconds>(currTime - timeOfLastAgreedView).count();
+    const uint64_t timeSinceLastStateTransferMilli =
+        duration_cast<milliseconds>(currTime - timeOfLastStateSynch).count();
+    const uint64_t timeSinceLastAgreedViewMilli = duration_cast<milliseconds>(currTime - timeOfLastAgreedView).count();
 
-    if ((diffMilli1 > viewChangeTimeout) && (diffMilli2 > viewChangeTimeout)) {
+    if ((timeSinceLastStateTransferMilli > viewChangeTimeout) && (timeSinceLastAgreedViewMilli > viewChangeTimeout)) {
       LOG_INFO(GL,
-               "**************** Ask to jump to view=" << curView << " (" << diffMilli2
-                                                       << " milliseconds after receiving 2f+2c+1 view change msgs)");
+               "**************** Unable to activate the last agreed view (despite receiving 2f+2c+1 view change msgs). "
+               "State transfer hasn't kicked-in for a while either. Asking to leave the current view: "
+                   << KVLOG(curView, timeSinceLastAgreedViewMilli, timeSinceLastStateTransferMilli));
       GotoNextView();
       return;
     }
