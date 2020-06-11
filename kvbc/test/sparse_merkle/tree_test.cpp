@@ -179,6 +179,77 @@ TEST(tree_tests, empty_db_from_tree) {
   ASSERT_TRUE(tree.empty());
 }
 
+TEST(tree_tests, tree_version_on_update) {
+  std::shared_ptr<TestDB> db(new TestDB);
+  Tree tree(db);
+  const SetOfKeyValuePairs updates{std::make_pair(Sliver("key"), Sliver("val"))};
+  tree.update(updates);
+  ASSERT_EQ(Version(1), tree.get_version());
+}
+
+TEST(tree_tests, tree_state_on_deleting_all_keys) {
+  std::shared_ptr<TestDB> db(new TestDB);
+  Tree tree(db);
+  const auto key = "key";
+  const SetOfKeyValuePairs updates{std::make_pair(Sliver(key), Sliver("val"))};
+  auto batch = tree.update(updates);
+  db_put(db, batch);
+  ASSERT_EQ(Version(1), tree.get_version());
+  const KeysVector deletes{Sliver(key)};
+  batch = tree.remove(deletes);
+
+  // Make sure the tree version is 2 and the root hash is the placeholder hash.
+  ASSERT_EQ(Version(2), tree.get_version());
+  ASSERT_EQ(PLACEHOLDER_HASH, tree.get_root_hash());
+  ASSERT_FALSE(tree.empty());
+
+  // Make sure that the empty root node is persisted.
+  ASSERT_EQ(1, batch.internal_nodes.size());
+  const auto& [root_key, root_node] = batch.internal_nodes[0];
+  ASSERT_EQ(Version(2), root_key.version());
+  ASSERT_TRUE(root_key.path().empty());
+  ASSERT_EQ(1, root_node.numInternalChildren());
+  ASSERT_EQ(0, root_node.numLeafChildren());
+}
+
+TEST(tree_tests, stale_index_on_deleting_all_keys_and_adding_after_that) {
+  std::shared_ptr<TestDB> db(new TestDB);
+  Tree tree(db);
+  const auto key = "key";
+  const SetOfKeyValuePairs updates{std::make_pair(Sliver(key), Sliver("val"))};
+  auto batch = tree.update(updates);
+  db_put(db, batch);
+  const KeysVector deletes{Sliver(key)};
+  batch = tree.remove(deletes);
+  db_put(db, batch);
+  batch = tree.update(updates);
+
+  // Make sure the empty root is now stale since version 3.
+  ASSERT_EQ(Version(3), batch.stale.stale_since_version);
+  ASSERT_EQ(1, batch.stale.internal_keys.size());
+  const auto root_key = *batch.stale.internal_keys.begin();
+  ASSERT_TRUE(root_key.path().empty());
+  ASSERT_EQ(Version(2), root_key.version());
+
+  // Make sure there are no stale leaf keys.
+  ASSERT_TRUE(batch.stale.leaf_keys.empty());
+}
+
+TEST(tree_tests, tree_version_on_update_and_delete) {
+  std::shared_ptr<TestDB> db(new TestDB);
+  Tree tree(db);
+  const auto key1 = "key1";
+  const auto key2 = "key2";
+  const SetOfKeyValuePairs updates1{std::make_pair(Sliver(key1), Sliver("val1"))};
+  auto batch = tree.update(updates1);
+  db_put(db, batch);
+  ASSERT_EQ(Version(1), tree.get_version());
+  const SetOfKeyValuePairs updates2{std::make_pair(Sliver(key2), Sliver("val2"))};
+  const KeysVector deletes{Sliver(key1)};
+  tree.update(updates2, deletes);
+  ASSERT_EQ(Version(2), tree.get_version());
+}
+
 // Ensure that we can insert a single leaf to an empty tree
 TEST(tree_tests, insert_single_leaf_node) {
   std::shared_ptr<TestDB> db(new TestDB);
@@ -801,8 +872,19 @@ TEST(tree_tests, successive_removes) {
   batch = tree.remove(deletes4);
   db_put(db, batch);
 
-  ASSERT_EQ(0, batch.internal_nodes.size());
+  // Removing the last key should make the tree persist an empty root with the current version.
+  ASSERT_EQ(1, batch.internal_nodes.size());
+  const auto& [internal_key, internal_node] = batch.internal_nodes[0];
+  ASSERT_EQ(Version(5), internal_key.version());
+  ASSERT_EQ(NibblePath(), internal_key.path());
+  ASSERT_EQ(Version(5), internal_node.version());
+  ASSERT_EQ(1, internal_node.numInternalChildren());
+  ASSERT_EQ(0, internal_node.numLeafChildren());
   ASSERT_EQ(0, batch.leaf_nodes.size());
+
+  // Removing the last key should update the tree version. Additionally, the root hash should be the empty hash.
+  ASSERT_EQ(Version(5), tree.get_version());
+  ASSERT_EQ(PLACEHOLDER_HASH, tree.get_root_hash());
 
   ASSERT_EQ(Version(5), batch.stale.stale_since_version);
   ASSERT_EQ(1, batch.stale.internal_keys.size());

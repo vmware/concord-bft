@@ -54,6 +54,8 @@ class Walker {
   // remove current_node_ and ascend up the tree if not at the root.
   std::optional<Nibble> removeCurrentNode();
 
+  void insertEmptyRootAtCurrentVersion();
+
  private:
   void ascend();
   std::pair<Nibble, Hash> pop();
