@@ -132,6 +132,9 @@ add_subdirectory(diagnostics)
 #
 # Setup testing
 #
+
+option(OMIT_TEST_OUTPUT "Forwards output stdout and stdin to /dev/null" OFF)
+
 if(BUILD_TESTING)
     add_subdirectory(bftengine/tests)
     add_subdirectory(tests)
