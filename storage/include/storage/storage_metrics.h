@@ -76,10 +76,12 @@ class RocksDbStorageMetrics {
  public:
   RocksDbStorageMetrics(const std::vector<::rocksdb::Tickers>& tickers)
       : rocksdb_comp_("storage_rocksdb", std::make_shared<concordMetrics::Aggregator>()),
-        total_db_disk_size_(rocksdb_comp_.RegisterGauge("storage.rocksdb.total.db.disk.size", 0)) {
+        total_db_disk_size_(rocksdb_comp_.RegisterGauge("storage_rocksdb_total_db_disk_size", 0)) {
     for (const auto& pair : ::rocksdb::TickersNameMap) {
       if (std::find(tickers.begin(), tickers.end(), pair.first) != tickers.end()) {
-        active_tickers_.emplace(pair.first, rocksdb_comp_.RegisterGauge("storage." + pair.second, 0));
+        auto metric_suffix = pair.second;
+        std::replace(metric_suffix.begin(), metric_suffix.end(), '.', '_');
+        active_tickers_.emplace(pair.first, rocksdb_comp_.RegisterGauge("storage_" + metric_suffix, 0));
       }
     }
     rocksdb_comp_.Register();
