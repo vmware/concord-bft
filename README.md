@@ -59,9 +59,8 @@ sudo make test
 * Build:
 ```sh
 cd concord-bft
-make pull       # pull docker image with prerequisites
 make run-c      # run container in background
-make build-s    # build sources
+make build      # build sources
 make test       # run tests
 ```
 Run `make help` to see more commands.
@@ -73,7 +72,7 @@ For example, if you want to use another compiler you may pass it to the `make`:
 ```
 make CONCORD_BFT_CONTAINER_CXX=g++ \
     CONCORD_BFT_CONTAINER_CC=gcc \
-    build-s
+    build
 ```
 
 ### Build Options

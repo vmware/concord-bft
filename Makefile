@@ -24,7 +24,7 @@ CONCORD_BFT_CMAKE_FLAGS:=-DUSE_CONAN=OFF \
 CONCORD_BFT_CONTAINER_MOUNT_CONSISTENCY=,consistency=cached
 CONCORD_BFT_CTEST_TIMEOUT:=3000 # Default value is 1500 sec. It takes 2500 to run all the tests at my dev station
 
-.PHONY: help
+.PHONY: help build test
 
 help: ## The Makefile helps to build Concord-BFT in a docker container
 	@cat $(MAKEFILE_LIST) | grep -E '^[a-zA-Z_-]+:.*?## .*$$' | \
@@ -37,10 +37,6 @@ help: ## The Makefile helps to build Concord-BFT in a docker container
 	# make test               # Run tests
 	# make remove-c           # Remove existing container
 	# make build-docker-image # Build docker image locally
-
-build-docker-image: ## Re-build the container without caching
-	docker build --rm --no-cache=true -t ${CONCORD_BFT_DOCKER_IMAGE} \
-		-f ./${CONCORD_BFT_DOCKERFILE} .
 
 pull: ## Pull image from remote
 	docker pull ${CONCORD_BFT_DOCKER_REPO}${CONCORD_BFT_DOCKER_IMAGE}:${CONCORD_BFT_DOCKER_IMAGE_VERSION}
@@ -64,7 +60,7 @@ stop-c: ## Stop the container
 remove-c: ## Remove the container
 	docker container rm -f ${CONCORD_BFT_DOCKER_IMAGE}
 
-build-s: ## Build Concord-BFT source. Note: this command is mostly for developers
+build: ## Build Concord-BFT source. Note: this command is mostly for developers
 	docker exec -it --workdir=${CONCORD_BFT_TARGET_SOURCE_PATH} ${CONCORD_BFT_DOCKER_IMAGE} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"mkdir -p ${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR} && \
@@ -90,3 +86,7 @@ clean: ## Clean Concord-BFT build directory
 	docker exec -it --workdir=${CONCORD_BFT_TARGET_SOURCE_PATH} ${CONCORD_BFT_DOCKER_IMAGE} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"rm -rf ${CONCORD_BFT_BUILD_DIR}"
+
+build-docker-image: ## Re-build the container without caching
+	docker build --rm --no-cache=true -t ${CONCORD_BFT_DOCKER_IMAGE} \
+		-f ./${CONCORD_BFT_DOCKERFILE} .
