@@ -81,6 +81,8 @@ class BCStateTran : public IStateTransfer {
   void onTimer() override;
   void handleStateTransferMessage(char* msg, uint32_t msgLen, uint16_t senderId) override;
 
+  std::string getStatus() override;
+
  protected:
   std::function<void(char*, uint32_t, uint16_t)> messageHandler_;
   // actual handling function. can be used in context of dedicated thread

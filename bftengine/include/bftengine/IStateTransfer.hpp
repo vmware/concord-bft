@@ -14,7 +14,8 @@
 #ifndef ISTATE_TRANSFER_HPP
 #define ISTATE_TRANSFER_HPP
 
-#include <stdint.h>
+#include <cstdint>
+#include <string>
 
 namespace bftEngine {
 class IReplicaForStateTransfer;  // forward definition
@@ -64,6 +65,10 @@ class IStateTransfer {
   // Message msg should be released by using
   // IReplicaForStateTransfer::freeStateTransferMsg
   virtual void handleStateTransferMessage(char *msg, uint32_t msgLen, uint16_t senderId) = 0;
+
+  // Return the internal state (member variables, etc...) of the state transfer module as a string. This is used by the
+  // diagnostics subsystem.
+  virtual std::string getStatus() { return ""; };
 };
 
 // This interface may only be used when the state transfer module is runnning

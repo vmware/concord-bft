@@ -654,6 +654,33 @@ void BCStateTran::handleStateTransferMessage(char *msg, uint32_t msgLen, uint16_
   messageHandler_(msg, msgLen, senderId);
 }
 
+std::string BCStateTran::getStatus() {
+  std::ostringstream oss;
+  auto state = getFetchingState();
+  auto current_source = sourceSelector_.currentReplica();
+  auto preferred_replicas = sourceSelector_.preferredReplicasToString();
+
+  oss << "Fetching state: " << stateName(state) << std::endl;
+  oss << KVLOG(lastMsgSeqNum_, cacheOfVirtualBlockForResPages.size()) << std::endl << std::endl;
+  oss << "Last Msg Sequence Numbers (Replica ID: SeqNum):" << std::endl;
+  for (auto &[id, seq_num] : lastMsgSeqNumOfReplicas_) {
+    oss << "  " << id << ": " << seq_num << std::endl;
+  }
+  oss << std::endl << std::endl;
+
+  oss << "Cache Of virtual blocks for reserved pages:" << std::endl;
+  for (auto entry : cacheOfVirtualBlockForResPages) {
+    auto vblockDescriptor = entry.first;
+    oss << "  " << KVLOG(vblockDescriptor.checkpointNum, vblockDescriptor.lastCheckpointKnownToRequester) << std::endl;
+  }
+  oss << std::endl << std::endl;
+
+  if (isFetching()) {
+    oss << KVLOG(current_source, preferred_replicas, nextRequiredBlock_, totalSizeOfPendingItemDataMsgs) << std::endl;
+  }
+  return oss.str();
+}
+
 void BCStateTran::handoff(char *msg, uint32_t msgLen, uint16_t senderId) {
   static concord::util::Handoff handoff_(config_.myReplicaId);
   handoff_.push(std::bind(&BCStateTran::handleStateTransferMessageImp, this, msg, msgLen, senderId));
