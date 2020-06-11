@@ -16,7 +16,6 @@ env:
     CMAKE_CXX_FLAGS: "-DCMAKE_CXX_FLAGS_RELEASE=-O3 -g"
     USE_LOG4CPP: -DUSE_LOG4CPP=TRUE
     USE_ROCKSDB: -DBUILD_ROCKSDB_STORAGE=TRUE
-    USE_CONAN: -DUSE_CONAN=OFF
     USE_S3_OBJECT_STORE: -DUSE_S3_OBJECT_STORE=OFF
 
 jobs:
@@ -63,7 +62,6 @@ jobs:
             ${{ matrix.ci_build_type }}
             ${{ env.USE_LOG4CPP }}
             ${{ env.USE_ROCKSDB }}
-            ${{ env.USE_CONAN }}
             ${{ env.USE_S3_OBJECT_STORE }} .. &&
             make format-check &&
             make -j$(nproc) &&

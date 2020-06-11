@@ -44,8 +44,7 @@ Concord-BFT supports two kinds of builds: native and docker.
 ```sh
 git clone https://github.com/vmware/concord-bft
 cd concord-bft
-./install.sh # Installs all dependencies and 3rd parties
-sudo ./install_deps.sh
+sudo ./install_deps.sh # Installs all dependencies and 3rd parties
 mkdir build
 cd build
 cmake ..
@@ -97,11 +96,9 @@ available:
 | `BUILD_COMM_TCP_TLS`   | TRUE \| FALSE | FALSE - UDP is used |
 | `USE_LOG4CPP`          | TRUE \| FALSE | FALSE |
 | `CONCORD_LOGGER_NAME`  | STRING |"concord" |
-| `USE_CONAN`            | OFF\| ON | ON |
 | `USE_OPENTRACING`      | OFF\| ON | ON |
 
  Note(1): You can't set both `BUILD_COMM_TCP_PLAIN` and `BUILD_COMM_TCP_TLS` to TRUE.
- Note(2): In case of setting `USE_CONAN=OFF` cmake will search for packages in their native location.
 
 #### Select comm module
 We support both UDP and TCP communication. UDP is the default. In order to
@@ -125,47 +122,19 @@ The python client requires python3(>= 3.5) and trio, which is installed via pip.
 
     python3 -m pip install --upgrade trio
 
-### Adding a new source dependency with conan
 
-We use conan for dependencies. If a binary dependency exists on conan-center you may wish to use
-it. You can check for this with the following command:
+#### Adding a new dependency or tool
 
-```
-conan search -r conan-center <LIBRARY NAME>
-```
+The CI builds and runs tests in a docker container. To add a new dependency or tool, follow the steps below:
+1. Update the `install_deps.sh` script with the new dependency or tool.
+2. Run `make build-docker-image`. After the image is built, `make` will print the list of steps and files to be updated.
+3. Push the new image to Docker Hub.
+4. Submit the PR using the new image.
 
-If the package is present, you can add it to
-[conanfile.txt](https://github.com/vmware/concord-bft/blob/master/conanfile.txt) under the
-`[requires]` table.
+Important notes:
+1. Adding dependencies or tools directly to the `Dockerfile` is strongly not recommended because it breaks the native build support.
+2. If any tools are installed during the build but not needed for the actual compilation/debugging/test execution(for example, `git`), please remove them(`Dockerfile` is an example). The reason is that the image is supposed to be as tiny as possible.
 
-If the package is not present, you will need to create a package. The simplest way is to add a
-recipe for downloading from source control and building the source. This is the mechanism
-described here. More advanced conan usage is possible, but out of scope of this documentation. We
-also do not cover creating a package, just the guidelines for including a new dependency in
-concord-bft.
-
-First, create a folder for your package with the suffix `_pkg` in the [`.conan`
-directory](https://github.com/vmware/concord-bft/tree/master/.conan)
-
-```
-cd .conan
-mkdir <SOME_DEPENDENCY>_pkg
-```
-
-Second, create your `conanfile.py`. The simplest way to do this is to just copy an existing one
-from another package and modify it. For specifics, please see the [conan
-documentation](https://docs.conan.io/en/latest/creating_packages.html)
-
-Third, Add the dependency and its version to
-[conanfile.txt](https://github.com/vmware/concord-bft/blob/master/conanfile.txt) under the
-`requires` table.
-
-Fourth, create a corresponding cmake find file. The easiest thing is to just copy one of the
-[existing files](https://github.com/vmware/concord-bft/tree/master/.conan/cmake_helpers) and
-modify it for your new package.
-
-After this, you should be able to rerun `cmake` and `make`, and your package should get built and
-installed.
 
 ## Apollo testing framework
 
