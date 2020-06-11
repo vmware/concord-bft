@@ -617,28 +617,26 @@ bool ViewsManager::tryToEnterView(ViewNum v,
     stat = Stat::PENDING_WITH_RESTRICTIONS;
 
     // BEGIN DEBUG CODE
-    LOG_DEBUG(GL,
-              "Restrictions for pending view=" << this->myLatestPendingView
-                                               << ", minSeq=" << minRestrictionOfPendingView
-                                               << ", maxSeq=" << maxRestrictionOfPendingView << ".");
+    LOG_INFO(GL,
+             "Restrictions for pending view=" << this->myLatestPendingView << ", minSeq=" << minRestrictionOfPendingView
+                                              << ", maxSeq=" << maxRestrictionOfPendingView << ".");
 
     if (minRestrictionOfPendingView == 0) {
-      LOG_DEBUG(GL, "No Restrictions of pending view\n");
+      LOG_INFO(GL, "No Restrictions of pending view\n");
     } else {
       for (SeqNum i = minRestrictionOfPendingView; i <= maxRestrictionOfPendingView; i++) {
         uint64_t idx = i - minRestrictionOfPendingView;
         bool bHasPP = (prePrepareMsgsOfRestrictions[idx] != nullptr);
-        LOG_DEBUG(
+        LOG_INFO(
             GL,
             "Seqnum=" << i << ", isNull=" << static_cast<int>(restrictionsOfPendingView[idx].isNull)
                       << ", digestPrefix=" << *reinterpret_cast<int*>(restrictionsOfPendingView[idx].digest.content())
                       << (bHasPP ? " ." : ", PP=null ."));
         if (bHasPP) {
-          LOG_DEBUG(
-              GL,
-              "PP seq=" << prePrepareMsgsOfRestrictions[idx]->seqNumber() << ", digestPrefix="
-                        << *reinterpret_cast<int*>(prePrepareMsgsOfRestrictions[idx]->digestOfRequests().content())
-                        << " .");
+          LOG_INFO(GL,
+                   "PP seq=" << prePrepareMsgsOfRestrictions[idx]->seqNumber() << ", digestPrefix="
+                             << *reinterpret_cast<int*>(prePrepareMsgsOfRestrictions[idx]->digestOfRequests().content())
+                             << " .");
         }
       }
     }
