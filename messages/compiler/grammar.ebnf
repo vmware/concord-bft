@@ -1,0 +1,45 @@
+@@grammar :: CMF
+@@comments :: /#.*/
+
+start = msgs:{msg}+ $ ;
+
+msg = 'Msg' name:msgname id:msgid '{' fields:{field}+ '}' ;
+
+msgname = name:name;
+msgid = id:number;
+field = type:(compound | primitive | msgname_ref) name:name ;
+
+compound = kvpair:kvpair | list:list | map:map | optional:optional | oneof:oneof;
+kvpair = 'kvpair' key:primitive value:(primitive | compound | msgname_ref) ;
+list = 'list' type:(primitive | compound | msgname_ref) ;
+map = 'map' key:primitive value:(primitive | compound | msgname_ref) ;
+optional = 'optional' type:(primitive | compound | msgname_ref) ;
+oneof = 'oneof' '{' msg_names:{msgname_ref}+ '}' ;
+
+primitive
+  =
+  | bool
+  | integer
+  | string
+  | bytes
+  ;
+
+integer
+  =
+  | 'uint8'
+  | 'uint16'
+  | 'uint32'
+  | 'uint64'
+  | 'int8'
+  | 'int16'
+  | 'int32'
+  | 'int64'
+  ;
+
+bool = 'bool';
+string = 'string';
+bytes = 'bytes';
+
+msgname_ref = name:name;
+name = /[a-zA-Z_][a-zA-Z0-9_]*/ ;
+number = /\d+/ ;
