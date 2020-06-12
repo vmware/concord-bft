@@ -2,7 +2,7 @@ find_package(GTest REQUIRED)
 
 add_executable(ViewChange_tests 
                 testViewChange.cpp
-                $<TARGET_OBJECTS:logging_dev>
+                
                 ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp)
 
 add_test(ViewChange_tests ViewChange_tests)

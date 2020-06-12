@@ -12,5 +12,5 @@ target_include_directories(bcstatetransfer_tests
 
 target_link_libraries(bcstatetransfer_tests GTest::Main)
 #TODO [TK] this test uses kvbc and should be moved from bftengine
-target_link_libraries(bcstatetransfer_tests corebft kvbc $<TARGET_OBJECTS:logging_dev>)
+target_link_libraries(bcstatetransfer_tests corebft kvbc )
 target_compile_options(bcstatetransfer_tests PUBLIC "-Wno-sign-compare")
