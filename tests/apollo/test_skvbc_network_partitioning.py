@@ -29,8 +29,8 @@ def start_replica_cmd(builddir, replica_id):
     subprocess.Popen.
     Note each arguments is an element in a list.
     """
-    statusTimerMilli = "500"
-    viewChangeTimeoutMilli = "10000"
+    statusTimerMilli = "1000"
+    viewChangeTimeoutMilli = "20000"
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     return [path,
             "-k", KEY_FILE_PREFIX,
