@@ -89,7 +89,9 @@ void FileStorage::writeFileMetadata() {
 }
 
 void FileStorage::read(void *dataPtr, size_t offset, size_t itemSize, size_t count, const char *errorMsg) {
-  fseek(dataStream_, offset, SEEK_SET);
+  if (fseek(dataStream_, offset, SEEK_SET) != 0) {
+    throw runtime_error("FileStorage::read " + concordUtils::errnoString(errno));
+  }
   size_t read_ = fread(dataPtr, itemSize, count, dataStream_);
   int err = ferror(dataStream_);
   if (err) throw runtime_error("FileStorage::read " + concordUtils::errnoString(errno));
@@ -99,7 +101,9 @@ void FileStorage::read(void *dataPtr, size_t offset, size_t itemSize, size_t cou
 
 void FileStorage::write(
     void *dataPtr, size_t offset, size_t itemSize, size_t count, const char *errorMsg, bool toFlush) {
-  fseek(dataStream_, offset, SEEK_SET);
+  if (fseek(dataStream_, offset, SEEK_SET) != 0) {
+    throw runtime_error("FileStorage::write " + concordUtils::errnoString(errno));
+  }
   if (fwrite(dataPtr, itemSize, count, dataStream_) != count)
     throw runtime_error("FileStorage::write " + std::string(errorMsg));
   if (toFlush) fflush(dataStream_);
