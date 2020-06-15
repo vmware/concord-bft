@@ -1,6 +1,7 @@
 CONCORD_BFT_DOCKER_REPO:=concordbft/
 CONCORD_BFT_DOCKER_IMAGE:=concord-bft
 CONCORD_BFT_DOCKER_IMAGE_VERSION:=0.4
+CONCORD_BFT_DOCKER_CONTAINER:=concord-bft
 
 CONCORD_BFT_DOCKERFILE:=Dockerfile
 CONCORD_BFT_BUILD_DIR:=build
@@ -26,6 +27,13 @@ CONCORD_BFT_CMAKE_FLAGS:=-DUSE_CONAN=OFF \
 CONCORD_BFT_CONTAINER_MOUNT_CONSISTENCY=,consistency=cached
 CONCORD_BFT_CTEST_TIMEOUT:=3000 # Default value is 1500 sec. It takes 2500 to run all the tests at my dev station
 
+CONCORD_BFT_ADDITIONAL_RUN_PARAMS:=
+CONCORD_BFT_ADDITIONAL_RUN_COMMANDS:=
+
+# MakefileCustom may be useful for overriding the default variables
+# or adding custom targets. The include directive is ignored if MakefileCustom file does not exist.
+-include MakefileCustom
+
 .PHONY: help
 help: ## The Makefile helps to build Concord-BFT in a docker container
 	@cat $(MAKEFILE_LIST) | grep -E '^[a-zA-Z_-]+:.*?## .*$$' | \
@@ -47,35 +55,39 @@ pull: ## Pull image from remote
 run-c: ## Run container in background
 	docker run -d --rm --privileged=true \
 			  --cap-add NET_ADMIN --cap-add=SYS_PTRACE --ulimit core=-1 \
-			  --name="${CONCORD_BFT_DOCKER_IMAGE}" \
+			  --name="${CONCORD_BFT_DOCKER_CONTAINER}" \
+			  --workdir=${CONCORD_BFT_TARGET_SOURCE_PATH} \
 			  --mount type=bind,source=${CURDIR},target=/cores \
 			  --mount type=bind,source=${CURDIR},target=${CONCORD_BFT_TARGET_SOURCE_PATH}${CONCORD_BFT_CONTAINER_MOUNT_CONSISTENCY} \
+			  ${CONCORD_BFT_ADDITIONAL_RUN_PARAMS} \
 			  ${CONCORD_BFT_DOCKER_REPO}${CONCORD_BFT_DOCKER_IMAGE}:${CONCORD_BFT_DOCKER_IMAGE_VERSION} \
-			  /usr/bin/tail -f /dev/null
+			  ${CONCORD_BFT_CONTAINER_SHELL} -c \
+			  "${CONCORD_BFT_ADDITIONAL_RUN_COMMANDS} \
+			  /usr/bin/tail -f /dev/null"
 	@echo
-	@echo "The container \"${CONCORD_BFT_DOCKER_IMAGE}\" with the build environment is started as daemon."
+	@echo "The container \"${CONCORD_BFT_DOCKER_CONTAINER}\" with the build environment is started as daemon."
 	@echo "Run \"make stop-c\" to stop or \"make remove-c\" to delete."
 
 .PHONY: login
 login: ## Login to the container
-	docker exec -it --workdir=${CONCORD_BFT_TARGET_SOURCE_PATH} \
-		${CONCORD_BFT_DOCKER_IMAGE} ${CONCORD_BFT_CONTAINER_SHELL};exit 0
+	docker exec -it ${CONCORD_BFT_DOCKER_CONTAINER} \
+		${CONCORD_BFT_CONTAINER_SHELL};exit 0
 
 .PHONY: stop-c
 stop-c: ## Stop the container
-	docker container stop ${CONCORD_BFT_DOCKER_IMAGE}
+	docker container stop ${CONCORD_BFT_DOCKER_CONTAINER}
 	@echo
-	@echo "The container \"${CONCORD_BFT_DOCKER_IMAGE}\" is successfully stopped."
+	@echo "The container \"${CONCORD_BFT_DOCKER_CONTAINER}\" is successfully stopped."
 
 .PHONY: remove-c
 remove-c: ## Remove the container
-	docker container rm -f ${CONCORD_BFT_DOCKER_IMAGE}
+	docker container rm -f ${CONCORD_BFT_DOCKER_CONTAINER}
 	@echo
-	@echo "The container \"${CONCORD_BFT_DOCKER_IMAGE}\" is successfully removed."
+	@echo "The container \"${CONCORD_BFT_DOCKER_CONTAINER}\" is successfully removed."
 
 .PHONY: build
 build: ## Build Concord-BFT source. Note: this command is mostly for developers
-	docker exec -t --workdir=${CONCORD_BFT_TARGET_SOURCE_PATH} ${CONCORD_BFT_DOCKER_IMAGE} \
+	docker exec -t ${CONCORD_BFT_DOCKER_CONTAINER} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"mkdir -p ${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR} && \
 		cd ${CONCORD_BFT_BUILD_DIR} && \
@@ -88,21 +100,21 @@ build: ## Build Concord-BFT source. Note: this command is mostly for developers
 
 .PHONY: test
 test: ## Run all tests
-	docker exec -t --workdir=${CONCORD_BFT_TARGET_SOURCE_PATH} ${CONCORD_BFT_DOCKER_IMAGE} \
+	docker exec -t ${CONCORD_BFT_DOCKER_CONTAINER} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"cd ${CONCORD_BFT_BUILD_DIR} && \
 		ctest --timeout ${CONCORD_BFT_CTEST_TIMEOUT} --output-on-failure"
 
 .PHONY: single-test
 single-test: ## Run single test `make single-test TEST_NAME=<test name>`
-	docker exec -t --workdir=${CONCORD_BFT_TARGET_SOURCE_PATH} ${CONCORD_BFT_DOCKER_IMAGE} \
+	docker exec -t ${CONCORD_BFT_DOCKER_CONTAINER} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"cd ${CONCORD_BFT_BUILD_DIR} && \
 		ctest -R ${TEST_NAME} --timeout ${CONCORD_BFT_CTEST_TIMEOUT} --output-on-failure"
 
 .PHONY: clean
 clean: ## Clean Concord-BFT build directory
-	docker exec -t --workdir=${CONCORD_BFT_TARGET_SOURCE_PATH} ${CONCORD_BFT_DOCKER_IMAGE} \
+	docker exec -t ${CONCORD_BFT_DOCKER_CONTAINER} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"rm -rf ${CONCORD_BFT_BUILD_DIR}"
 
