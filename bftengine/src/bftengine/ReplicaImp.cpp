@@ -1863,9 +1863,9 @@ void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
 
   bool msgAdded = viewsManager->add(msg);
 
-  LOG_INFO(GL, KVLOG(generatedReplicaId, msg->newView(), msg->lastStable(), msg->numberOfElements(), msgAdded));
-
   if (!msgAdded) return;
+
+  LOG_INFO(GL, KVLOG(generatedReplicaId, msg->newView(), msg->lastStable(), msg->numberOfElements(), msgAdded));
 
   // if the current primary wants to leave view
   if (generatedReplicaId == currentPrimary() && msg->newView() > curView) {
@@ -1919,9 +1919,9 @@ void ReplicaImp::onMessage<NewViewMsg>(NewViewMsg *msg) {
 
   bool msgAdded = viewsManager->add(msg);
 
-  LOG_INFO(GL, KVLOG(senderId, msg->newView(), msgAdded, curView, viewsManager->viewIsActive(curView)));
-
   if (!msgAdded) return;
+
+  LOG_INFO(GL, KVLOG(senderId, msg->newView(), msgAdded, curView, viewsManager->viewIsActive(curView)));
 
   if (viewsManager->viewIsActive(curView)) return;  // return, if we are still in the previous view
 
