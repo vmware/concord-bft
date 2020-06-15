@@ -48,28 +48,6 @@ class SkvbcTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_checkpoint_creation(self, bft_network):
-        """
-        Test the creation of checkpoints (independently of state transfer or view change)
-
-        Start all replicas, then send a sufficient number of client requests to trigger the
-        checkpoint protocol. Then make sure a checkpoint is created and agreed upon by all replicas.
-        """
-        bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-
-        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
-        await skvbc.fill_and_wait_for_checkpoint(
-            initial_nodes=bft_network.all_replicas(),
-            checkpoint_num=1,
-            verify_checkpoint_persistency=False
-        )
-        checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=0)
-
-        self.assertEqual(checkpoint_after, 1 + checkpoint_before)
-
-    @with_trio
-    @with_bft_network(start_replica_cmd)
     async def test_state_transfer(self, bft_network):
         """
         Test that state transfer starts and completes.
