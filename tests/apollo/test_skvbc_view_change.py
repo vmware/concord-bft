@@ -245,7 +245,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         4) Make sure the new view is agreed & activated among all live replicas
         5) Choose a random non-primary and restart it
         6) Send a batch of concurrent reads/writes
-        7) Make sure the restarted replica is alive and that it works in the new view
+        7) Make sure the restarted replica is alive and that its new view is stable
         """
         bft_network.start_all_replicas()
         initial_primary = 0
@@ -280,13 +280,13 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
         await bft_network.wait_for_view(
             replica_id=unstable_replica,
-            expected=lambda v: v >= current_primary,  # the >= is required because of https://jira.eng.vmware.com/browse/BC-3028
+            expected=lambda v: v == current_primary,
             err_msg="Make sure the unstable replica works in the new view."
         )
 
         await bft_network.wait_for_view(
             replica_id=initial_primary,
-            expected=lambda v: v >= current_primary,  # the >= is required because of https://jira.eng.vmware.com/browse/BC-3028
+            expected=lambda v: v == current_primary,
             err_msg="Make sure the initial primary activates the new view."
         )
 
