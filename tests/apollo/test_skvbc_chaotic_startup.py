@@ -27,7 +27,7 @@ def start_replica_cmd(builddir, replica_id):
     Note each arguments is an element in a list.
     """
     statusTimerMilli = "500"
-    viewChangeTimeoutMilli = "10000"
+    viewChangeTimeoutMilli = "20000"
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     return [path,
             "-k", KEY_FILE_PREFIX,
@@ -230,7 +230,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
         self.assertTrue(expected_next_view == view)
 
-        await trio.sleep(10)  # TODO: remove when bft_network.wait_for_view also waits for system liveness.
+        await trio.sleep(5)  # TODO: remove when bft_network.wait_for_view also waits for system liveness.
 
         for r in bft_network.all_replicas(without={replica_to_stop}):
             active_view_of_replica = await self._get_gauge(r, bft_network, 'currentActiveView')
