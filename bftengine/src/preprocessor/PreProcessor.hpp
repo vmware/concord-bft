@@ -116,6 +116,11 @@ class PreProcessor {
   void cancelTimers();
   void onRequestsStatusCheckTimer(concordUtil::Timers::Handle timer);
 
+  static logging::Logger &logger() {
+    static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
+    return logger_;
+  }
+
  private:
   static std::vector<std::shared_ptr<PreProcessor>> preProcessors_;  // The place holder for PreProcessor objects
 

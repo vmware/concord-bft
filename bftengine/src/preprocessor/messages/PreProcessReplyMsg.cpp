@@ -54,7 +54,7 @@ void PreProcessReplyMsg::setParams(NodeIdType senderId, uint16_t clientId, ReqId
   msgBody()->senderId = senderId;
   msgBody()->reqSeqNum = reqSeqNum;
   msgBody()->clientId = clientId;
-  LOG_DEBUG(GL, "senderId=" << senderId << " clientId=" << clientId << " reqSeqNum=" << reqSeqNum);
+  LOG_DEBUG(logger(), "senderId=" << senderId << " clientId=" << clientId << " reqSeqNum=" << reqSeqNum);
 }
 
 void PreProcessReplyMsg::setupMsgBody(const char* buf, uint32_t bufLen, const std::string& cid) {
@@ -71,7 +71,7 @@ void PreProcessReplyMsg::setupMsgBody(const char* buf, uint32_t bufLen, const st
   msgBody()->cidLength = cid.size();
   msgSize_ = headerSize + sigSize + msgBody()->cidLength;
   msgBody()->replyLength = sigSize;
-  LOG_DEBUG(GL,
+  LOG_DEBUG(logger(),
             "senderId=" << msgBody()->senderId << " clientId=" << msgBody()->clientId
                         << " reqSeqNum=" << msgBody()->reqSeqNum << " headerSize=" << headerSize
                         << " sigSize=" << sigSize << " cidSize=" << cid.size() << " msgSize_=" << msgSize_);
