@@ -20,24 +20,30 @@ import trio
 
 from util.bft import with_trio, with_bft_network, with_constant_load, KEY_FILE_PREFIX
 
-def start_replica_cmd(builddir, replica_id):
+
+def start_replica_cmd(builddir, replica_id, view_change_timeout_milli="10000"):
     """
     Return a command that starts an skvbc replica when passed to
     subprocess.Popen.
     Note each arguments is an element in a list.
     """
     statusTimerMilli = "500"
-    viewChangeTimeoutMilli = "20000"
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
             "-s", statusTimerMilli,
-            "-v", viewChangeTimeoutMilli,
+            "-v", view_change_timeout_milli,
             "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower()
                     in set(["true", "on"])
                  else "",
             "-t", os.environ.get('STORAGE_TYPE')]
+
+
+def start_replica_cmd_with_vc_timeout(vc_timeout):
+    def wrapper(*args, **kwargs):
+        return start_replica_cmd(*args, **kwargs, view_change_timeout_milli=vc_timeout)
+    return wrapper
 
 
 class SkvbcChaoticStartupTest(unittest.TestCase):
@@ -130,7 +136,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
                   f"The BFT network eventually stabilized in view #{current_view}.")
 
     @with_trio
-    @with_bft_network(start_replica_cmd,
+    @with_bft_network(start_replica_cmd_with_vc_timeout("20000"),
                       selected_configs=lambda n, f, c: f >= 2)
     @with_constant_load
     async def test_f_staggered_replicas_requesting_vc(self, bft_network, skvbc, nursery):
