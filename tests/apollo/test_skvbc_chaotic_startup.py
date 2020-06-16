@@ -50,7 +50,6 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
     __test__ = False  # so that PyTest ignores this test scenario
 
-
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @with_constant_load
