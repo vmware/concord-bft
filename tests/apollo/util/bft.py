@@ -396,6 +396,15 @@ class BftTestNetwork:
 
         return list(set(range(0, self.config.n)) - without)
 
+    def random_set_of_replicas(self, size, without=None):
+        if without is None:
+            without = set()
+        random_replicas = set()
+        for _ in range(size):
+            exclude_replicas = random_replicas | without
+            random_replicas.add(random.choice(self.all_replicas(without=exclude_replicas)))
+        return random_replicas
+    
     def get_live_replicas(self):
         """
         Returns the id-s of all live replicas
