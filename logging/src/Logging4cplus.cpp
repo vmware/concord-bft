@@ -15,7 +15,6 @@
 #include <iostream>
 
 #include <log4cplus/logger.h>
-#include <log4cplus/configurator.h>
 #include <log4cplus/helpers/property.h>
 #include <log4cplus/consoleappender.h>
 #include <log4cplus/fileappender.h>

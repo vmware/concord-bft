@@ -28,7 +28,7 @@ if(USE_LOG4CPP)
       		if (PC_LOG4CPLUS_FOUND)
         		if (NOT PC_LOG4CPLUS_LINK_LIBRARIES) # for older cmake versions
           			set ( PC_LOG4CPLUS_LINK_LIBRARIES "${PC_LOG4CPLUS_LIBDIR}/lib${PC_LOG4CPLUS_LIBRARIES}.so")
-				endif()
+			endif()
         	endif(PC_LOG4CPLUS_FOUND)
         	set(LOG4CPLUS_LIBRARY    	${PC_LOG4CPLUS_LINK_LIBRARIES})
         	set(LOG4CPLUS_INCLUDE_DIRS	${PC_LOG4CPLUS_INCLUDE_DIRS}  )
@@ -56,7 +56,5 @@ endif(USE_LOG4CPP)
 
 
 set_property(DIRECTORY ${CMAKE_SOURCE_DIR} APPEND PROPERTY LINK_LIBRARIES logging)
- 
+set_property(DIRECTORY .. APPEND PROPERTY LINK_LIBRARIES logging) 
 
-  
- 

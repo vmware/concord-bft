@@ -15,6 +15,8 @@
 #include <string>
 #include <log4cplus/loggingmacros.h>
 #include <log4cplus/mdc.h>
+#include <log4cplus/configurator.h>
+
 #ifdef USE_LOG4CPP
 
 namespace logging {
@@ -24,18 +26,17 @@ typedef log4cplus::Logger Logger;
 }  // namespace logging
 
 #define LOG_TRACE(l, s) LOG4CPLUS_TRACE(l, s)
-
 #define LOG_DEBUG(l, s) LOG4CPLUS_DEBUG(l, s)
-
 #define LOG_INFO(l, s) LOG4CPLUS_INFO(l, s)
-
 #define LOG_WARN(l, s) LOG4CPLUS_WARN(l, s)
-
 #define LOG_ERROR(l, s) LOG4CPLUS_ERROR(l, s)
-
 #define LOG_FATAL(l, s) LOG4CPLUS_FATAL(l, s)
 
 #define MDC_PUT(k, v) log4cplus::getMDC().put(k, v)
 #define MDC_REMOVE(k) log4cplus::getMDC().remove(k)
+#define MDC_CLEAR log4cplus::getMDC().clear()
+
+#define LOG_CONFIGURE_AND_WATCH(config_file, millis) \
+  log4cplus::ConfigureAndWatchThread configureThread(config_file, millis)
 
 #endif

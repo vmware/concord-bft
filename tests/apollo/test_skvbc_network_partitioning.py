@@ -125,10 +125,7 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
         bft_network.start_all_replicas()
 
         f = bft_network.config.f
-        all_non_primaries = bft_network.all_replicas(without={0})
-        random.shuffle(all_non_primaries)
-        isolated_replicas = all_non_primaries[:f]
-        print(f"Isolating replicas {isolated_replicas} from the others...")
+        isolated_replicas = await self._select_random_non_primaries(bft_network, f)
 
         num_ops = 100
         write_weight = 0.5
@@ -163,10 +160,7 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         f = bft_network.config.f
-        all_non_primaries = bft_network.all_replicas(without={0})
-        random.shuffle(all_non_primaries)
-        isolated_replicas = all_non_primaries[:f]
-        print(f"Isolating replicas {isolated_replicas} from the others...")
+        isolated_replicas = await self._select_random_non_primaries(bft_network, f)
 
         live_replicas = set(bft_network.all_replicas()) - set(isolated_replicas)
 
@@ -188,7 +182,68 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
         for ir in isolated_replicas:
             await bft_network.wait_for_state_transfer_to_stop(0, ir)
 
-    async def _wait_for_read_your_writes_success(self, tracker):
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2)
+    @verify_linearizability
+    async def test_isolate_non_primaries_subset_with_view_change(self, bft_network, tracker):
+        """
+        In this test we isolate f-1 replicas from the rest of the BFT network.
+        We crash the primary and trigger view change while the f-1 replicas are still isolated.
+        At this point we have a total of f unavailable replicas.
+
+        The adversary is then deactivated and we make sure the previously isolated replicas
+        activate the new view and correctly process incoming client requests.
+        """
+        bft_network.start_all_replicas()
+
+        f = bft_network.config.f
+        initial_primary = await bft_network.get_current_primary()
+        expected_next_primary = 1 + initial_primary
+
+        isolated_replicas = await self._select_random_non_primaries(
+            bft_network=bft_network,
+            num=f-1,  # for a total of "f" unavailable replicas, including a crashed primary
+            other_excluded_replicas={expected_next_primary}  # to avoid a double view change
+        )
+
+        print(f"Isolating network traffic to/from replicas {isolated_replicas}.")
+        with net.ReplicaSubsetIsolatingAdversary(bft_network, isolated_replicas) as adversary:
+            adversary.interfere()
+
+            bft_network.stop_replica(initial_primary)
+            await self._send_random_writes(tracker)
+
+            await bft_network.wait_for_view(
+                replica_id=random.choice(bft_network.all_replicas(
+                    without={initial_primary}.union(isolated_replicas))),
+                expected=lambda v: v == expected_next_primary,
+                err_msg="Make sure view change has been triggered."
+            )
+
+            # waiting for the active window to be rebuilt after the view change
+            await trio.sleep(seconds=10)
+
+        # the adversary is not active anymore:
+        # make sure the isolated replicas activate the new view
+        for ir in isolated_replicas:
+            await bft_network.wait_for_view(
+                replica_id=ir,
+                expected=lambda v: v == expected_next_primary,
+                err_msg=f"Make sure isolated replica #{ir} works in new view {expected_next_primary}."
+            )
+
+        # then make sure the isolated replicas participate in consensus & request execution
+        await tracker.run_concurrent_ops(num_ops=50)
+
+        expected_last_executed_seq_num = await bft_network.wait_for_last_executed_seq_num(
+            replica_id=random.choice(bft_network.all_replicas(without={initial_primary}.union(isolated_replicas))))
+
+        for ir in isolated_replicas:
+            await bft_network.wait_for_last_executed_seq_num(
+                replica_id=ir, expected=expected_last_executed_seq_num)
+
+    @staticmethod
+    async def _wait_for_read_your_writes_success(tracker):
         with trio.fail_after(seconds=60):
             while True:
                 with trio.move_on_after(seconds=5):
@@ -199,7 +254,21 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
                     else:
                         break
 
-    async def _send_random_writes(self, tracker):
+    @staticmethod
+    async def _send_random_writes(tracker):
         with trio.move_on_after(seconds=1):
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(tracker.send_indefinite_tracked_ops, 1)
+
+    @staticmethod
+    async def _select_random_non_primaries(bft_network, num, other_excluded_replicas=None):
+        if other_excluded_replicas is None:
+            other_excluded_replicas = set()
+
+        primary = await bft_network.get_current_primary()
+        all_non_primaries = bft_network.all_replicas(
+            without={primary}.union(other_excluded_replicas))
+        random.shuffle(all_non_primaries)
+        selected_replicas = all_non_primaries[:num]
+
+        return selected_replicas
