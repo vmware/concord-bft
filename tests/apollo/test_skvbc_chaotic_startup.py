@@ -222,12 +222,16 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
         await self._verify_the_system_is_able_to_make_progress(bft_network, skvbc, expected_next_primary, bft_network.all_replicas(without={replica_to_stop}))
 
-    async def _test_f_minus_one_staggered_replicas_requesting_vc(self, bft_network, skvbc, nursery, with_catchup):
+    @with_trio
+    @with_bft_network(start_replica_cmd_with_vc_timeout("20000"),
+                      selected_configs=lambda n, f, c: f >= 2)
+    @with_constant_load
+    async def test_f_minus_one_staggered_replicas_requesting_vc(self, bft_network, skvbc, nursery):
         """
         In this test we check that if f-1 replicas have started to run and initiated viewchange, then the system is
-        still able to make progress in both cases (1) when we leave the f-1 replicas to try and run the view change,
-        and (2) when we assume that the next primary may come from the f-1 replicas, and thus they have to catch up
-        with the rest 2f + 2 replicas.
+        still able to make progress. To make sure the system still have 2f+1 active replicas, we wait for the early
+        replicas to complete their state transfer before stopping the primary.
+
         For that we perform the following steps:
         1. start f - 1 replicas
         2. wait for those replicas to initiate view change
@@ -245,11 +249,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
         expected_next_view = expected_next_primary = 1
 
         # We start by choosing a random set of f - 1 replicas.
-        # If we are not suppose thus replicas to catch up, then both, the current primary and the next can't be choose
         excluded = {initial_primary}
-        if with_catchup is False:
-            excluded.add(expected_next_primary)
-
         early_replicas = bft_network.random_set_of_replicas(f - 1, without=excluded)
 
         print(f"STATUS: Starting F={f - 1} replicas.")
@@ -271,13 +271,10 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
         await self._verify_the_system_is_able_to_make_progress(bft_network, skvbc, initial_primary, late_replicas)
 
-        # If we assume that the next primary can be in the first f - 1 replicas, we let the replicas catch up with
-        # the state before initiating a new view.
-        if with_catchup is True:
-            # Verify replicas that have initiated View Change catch up on state
-            await bft_network.wait_for_state_transfer_to_start()
-            for r in early_replicas:
-                await bft_network.wait_for_state_transfer_to_stop(initial_primary,
+        # Verify replicas that have initiated View Change catch up on state
+        await bft_network.wait_for_state_transfer_to_start()
+        for r in early_replicas:
+            await bft_network.wait_for_state_transfer_to_stop(initial_primary,
                                                                   r,
                                                                   stop_on_stable_seq_num=True)
             print("STATUS: Early replicas that have initiated View Change catch up on state.")
@@ -296,27 +293,8 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
         await trio.sleep(5)  # TODO: remove when bft_network.wait_for_view also waits for system liveness.
 
-        late_replicas.remove(initial_primary)
-        active_replicas = late_replicas
-        if with_catchup is True:
-            active_replicas = list(early_replicas) + late_replicas
-
-        await self._verify_replicas_are_in_view(view, active_replicas, bft_network)
-        await self._verify_the_system_is_able_to_make_progress(bft_network, skvbc, expected_next_primary, active_replicas)
-
-    @with_trio
-    @with_bft_network(start_replica_cmd_with_vc_timeout("20000"),
-                      selected_configs=lambda n, f, c: f >= 2)
-    @with_constant_load
-    async def test_f_minus_one_staggered_replicas_requesting_vc_no_catchup(self, bft_network, skvbc, nursery):
-        await self._test_f_minus_one_staggered_replicas_requesting_vc(bft_network, skvbc, nursery, False)
-
-    @with_trio
-    @with_bft_network(start_replica_cmd_with_vc_timeout("20000"),
-                      selected_configs=lambda n, f, c: f >= 2)
-    @with_constant_load
-    async def test_f_minus_one_staggered_replicas_requesting_vc_with_catchup(self, bft_network, skvbc, nursery):
-        await self._test_f_minus_one_staggered_replicas_requesting_vc(bft_network, skvbc, nursery, True)
+        await self._verify_replicas_are_in_view(view, bft_network.all_replicas(without={initial_primary}), bft_network)
+        await self._verify_the_system_is_able_to_make_progress(bft_network, skvbc, expected_next_primary, bft_network.all_replicas(without={initial_primary}))
 
     async def _verify_replicas_are_in_view(self, view, replicas, bft_network):
         for r in replicas:
