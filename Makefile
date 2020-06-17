@@ -87,7 +87,7 @@ remove-c: ## Remove the container
 
 .PHONY: build
 build: ## Build Concord-BFT source. Note: this command is mostly for developers
-	docker exec -t ${CONCORD_BFT_DOCKER_CONTAINER} \
+	docker exec -it ${CONCORD_BFT_DOCKER_CONTAINER} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"mkdir -p ${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR} && \
 		cd ${CONCORD_BFT_BUILD_DIR} && \
@@ -100,21 +100,21 @@ build: ## Build Concord-BFT source. Note: this command is mostly for developers
 
 .PHONY: test
 test: ## Run all tests
-	docker exec -t ${CONCORD_BFT_DOCKER_CONTAINER} \
+	docker exec -it ${CONCORD_BFT_DOCKER_CONTAINER} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"cd ${CONCORD_BFT_BUILD_DIR} && \
 		ctest --timeout ${CONCORD_BFT_CTEST_TIMEOUT} --output-on-failure"
 
 .PHONY: single-test
 single-test: ## Run single test `make single-test TEST_NAME=<test name>`
-	docker exec -t ${CONCORD_BFT_DOCKER_CONTAINER} \
+	docker exec -it ${CONCORD_BFT_DOCKER_CONTAINER} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"cd ${CONCORD_BFT_BUILD_DIR} && \
 		ctest -R ${TEST_NAME} --timeout ${CONCORD_BFT_CTEST_TIMEOUT} --output-on-failure"
 
 .PHONY: clean
 clean: ## Clean Concord-BFT build directory
-	docker exec -t ${CONCORD_BFT_DOCKER_CONTAINER} \
+	docker exec -it ${CONCORD_BFT_DOCKER_CONTAINER} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"rm -rf ${CONCORD_BFT_BUILD_DIR}"
 
