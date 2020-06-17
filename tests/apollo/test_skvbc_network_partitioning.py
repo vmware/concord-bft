@@ -125,7 +125,8 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
         bft_network.start_all_replicas()
 
         f = bft_network.config.f
-        isolated_replicas = await self._select_random_non_primaries(bft_network, f)
+        curr_primary = await bft_network.get_current_primary()
+        isolated_replicas = bft_network.random_set_of_replicas(f, without={curr_primary})
 
         num_ops = 100
         write_weight = 0.5
@@ -160,7 +161,8 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         f = bft_network.config.f
-        isolated_replicas = await self._select_random_non_primaries(bft_network, f)
+        curr_primary = await bft_network.get_current_primary()
+        isolated_replicas = bft_network.random_set_of_replicas(f, without={curr_primary})
 
         live_replicas = set(bft_network.all_replicas()) - set(isolated_replicas)
 
@@ -199,12 +201,7 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
         f = bft_network.config.f
         initial_primary = await bft_network.get_current_primary()
         expected_next_primary = 1 + initial_primary
-
-        isolated_replicas = await self._select_random_non_primaries(
-            bft_network=bft_network,
-            num=f-1,  # for a total of "f" unavailable replicas, including a crashed primary
-            other_excluded_replicas={expected_next_primary}  # to avoid a double view change
-        )
+        isolated_replicas = bft_network.random_set_of_replicas(f - 1, without={initial_primary, expected_next_primary})
 
         print(f"Isolating network traffic to/from replicas {isolated_replicas}.")
         with net.ReplicaSubsetIsolatingAdversary(bft_network, isolated_replicas) as adversary:
@@ -259,16 +256,3 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
         with trio.move_on_after(seconds=1):
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(tracker.send_indefinite_tracked_ops, 1)
-
-    @staticmethod
-    async def _select_random_non_primaries(bft_network, num, other_excluded_replicas=None):
-        if other_excluded_replicas is None:
-            other_excluded_replicas = set()
-
-        primary = await bft_network.get_current_primary()
-        all_non_primaries = bft_network.all_replicas(
-            without={primary}.union(other_excluded_replicas))
-        random.shuffle(all_non_primaries)
-        selected_replicas = all_non_primaries[:num]
-
-        return selected_replicas
