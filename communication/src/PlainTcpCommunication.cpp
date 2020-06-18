@@ -758,7 +758,7 @@ class PlainTCPCommunication::PlainTcpImpl {
     return true;
   }
 
-  ConnectionStatus getCurrentConnectionStatus(const NodeNum node) {
+  ConnectionStatus getCurrentConnectionStatus(const NodeNum destNode) {
     if (!isRunning()) return ConnectionStatus::Disconnected;
     lock_guard<recursive_mutex> lock(_connectionsGuard);
     const auto &conn = _connections.find(destNode);
