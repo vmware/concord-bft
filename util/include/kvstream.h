@@ -15,8 +15,8 @@
 // can be attached to the end of log messages. The entrypoint is the KVLog function at the bottom
 // that only takes a variadic arg.
 //
-// The mandatory `Strict` template parameter determines whether types that do not implement `std::ostream::operator<<`
-// are allowed. If Strict=true, a static_assert will fire.
+// The mandatory `Strict` template parameter determines whether types that do not implement
+// `std::ostream::operator<<` are allowed. If Strict=true, a static_assert will fire.
 //
 // Right now the entrypoint returns a string, because of the way our logging macros are implemented.
 // We could change them to take an extra parameter that's a stringstream and prevent the additional
@@ -42,7 +42,12 @@ template <bool Strict,
           typename V,
           typename std::enable_if<concord::is_streamable<std::ostream, V>::value>::type * = nullptr>
 void KvLog(std::stringstream &ss, K &&key, V &&val) {
-  ss << std::forward<K>(key) << ": " << std::forward<V>(val);
+  ss << std::forward<K>(key) << ": ";
+  if constexpr (std::is_same_v<V, bool &> || std::is_same_v<V, const bool &>) {
+    ss << (val ? "True" : "False");
+  } else {
+    ss << std::forward<V>(val);
+  }
 }
 
 template <bool Strict,
@@ -51,7 +56,13 @@ template <bool Strict,
           typename... KVPAIRS,
           typename std::enable_if<concord::is_streamable<std::ostream, V>::value>::type * = nullptr>
 void KvLog(std::stringstream &ss, K &&key, V &&val, KVPAIRS &&... kvpairs) {
-  ss << std::forward<K>(key) << ": " << std::forward<V>(val) << ", ";
+  ss << std::forward<K>(key) << ": ";
+  if constexpr (std::is_same_v<V, bool &> || std::is_same_v<V, const bool &>) {
+    ss << (val ? "True" : "False");
+  } else {
+    ss << std::forward<V>(val);
+  }
+  ss << ", ";
   KvLog<Strict>(ss, std::forward<KVPAIRS>(kvpairs)...);
 }
 
