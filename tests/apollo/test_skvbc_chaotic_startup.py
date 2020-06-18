@@ -182,13 +182,13 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
         view = await bft_network.wait_for_view(
             replica_id=initial_primary,
-            expected=lambda v: v == initial_primary,
+            expected=lambda v: v == initial_view,
             err_msg="Make sure we are in the initial view "
         )
 
         self.assertTrue(initial_view == view)
 
-        await self._verify_the_system_is_able_to_make_progress(bft_network, skvbc, initial_primary, late_replicas)
+        await self._wait_for_replicas_to_generate_checkpoint(bft_network, skvbc, initial_primary, late_replicas)
         
         # Verify replicas that have initiated View Change catch up on state
         await bft_network.wait_for_state_transfer_to_start()
@@ -220,7 +220,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
         await self._verify_replicas_are_in_view(view, bft_network.all_replicas(without={replica_to_stop}), bft_network)
 
-        await self._verify_the_system_is_able_to_make_progress(bft_network, skvbc, expected_next_primary, bft_network.all_replicas(without={replica_to_stop}))
+        await self._wait_for_replicas_to_generate_checkpoint(bft_network, skvbc, expected_next_primary, bft_network.all_replicas(without={replica_to_stop}))
 
     @with_trio
     @with_bft_network(start_replica_cmd_with_vc_timeout("20000"),
@@ -264,12 +264,12 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
         view = await bft_network.wait_for_view(
             replica_id=initial_primary,
-            expected=lambda v: v == initial_primary,
+            expected=lambda v: v == initial_view,
             err_msg="Make sure we are in the initial view "
         )
         self.assertTrue(initial_view == view)
 
-        await self._verify_the_system_is_able_to_make_progress(bft_network, skvbc, initial_primary, late_replicas)
+        await self._wait_for_replicas_to_generate_checkpoint(bft_network, skvbc, initial_primary, late_replicas)
 
         # Verify replicas that have initiated View Change catch up on state
         await bft_network.wait_for_state_transfer_to_start()
@@ -294,7 +294,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
         await trio.sleep(5)  # TODO: remove when bft_network.wait_for_view also waits for system liveness.
 
         await self._verify_replicas_are_in_view(view, bft_network.all_replicas(without={initial_primary}), bft_network)
-        await self._verify_the_system_is_able_to_make_progress(bft_network, skvbc, expected_next_primary, bft_network.all_replicas(without={initial_primary}))
+        await self._wait_for_replicas_to_generate_checkpoint(bft_network, skvbc, expected_next_primary, bft_network.all_replicas(without={initial_primary}))
 
     async def _verify_replicas_are_in_view(self, view, replicas, bft_network):
         for r in replicas:
@@ -303,7 +303,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
             self.assertTrue(active_view_of_replica == view_of_replica)  # verify Replica is not requesting View Change
             self.assertTrue(active_view_of_replica == view)  # verify Replica is in the current view
 
-    async def _verify_the_system_is_able_to_make_progress(self, bft_network, skvbc, replica_to_read_from, initial_nodes, checkpoint_num=1, verify_checkpoint_persistency=False, assert_state_transfer_not_started=False):
+    async def _wait_for_replicas_to_generate_checkpoint(self, bft_network, skvbc, replica_to_read_from, initial_nodes, checkpoint_num=1, verify_checkpoint_persistency=False, assert_state_transfer_not_started=False):
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=replica_to_read_from)
         await skvbc.fill_and_wait_for_checkpoint(
             initial_nodes=initial_nodes,
