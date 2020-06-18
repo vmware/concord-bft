@@ -334,7 +334,6 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
                 await trio.sleep(seconds=1)
                 last_exec_seq_num = await self._get_gauge(primary_id, bft_network, "lastExecutedSeqNum")
                 conc_level = await self._get_gauge(primary_id, bft_network, "concurrencyLevel")
-                prim_last_used_seq_num = await self._get_gauge(primary_id, bft_network, "primaryLastUsedSeqNum")
 
     @classmethod
     async def _get_gauge(cls, replica_id, bft_network, gauge):
