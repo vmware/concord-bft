@@ -215,8 +215,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
         )
 
         self.assertTrue(expected_next_view == view)
-
-        await trio.sleep(5)  # TODO: remove when bft_network.wait_for_view also waits for system liveness.
+        await self._wait_for_processing_window_after_view_change(expected_next_primary, bft_network)
 
         await self._verify_replicas_are_in_view(view, bft_network.all_replicas(without={replica_to_stop}), bft_network)
 
@@ -290,10 +289,10 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
         )
 
         self.assertTrue(expected_next_view == view)
-
-        await trio.sleep(5)  # TODO: remove when bft_network.wait_for_view also waits for system liveness.
+        await self._wait_for_processing_window_after_view_change(expected_next_primary, bft_network)
 
         await self._verify_replicas_are_in_view(view, bft_network.all_replicas(without={initial_primary}), bft_network)
+
         await self._wait_for_replicas_to_generate_checkpoint(bft_network, skvbc, expected_next_primary, bft_network.all_replicas(without={initial_primary}))
 
     async def _verify_replicas_are_in_view(self, view, replicas, bft_network):
@@ -325,6 +324,17 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
                 active_view_of_replica = await self._get_gauge(r, bft_network, 'currentActiveView')
                 view_of_replica = await self._get_gauge(r, bft_network, 'view')
                 await trio.sleep(seconds=0.1)
+
+    async def _wait_for_processing_window_after_view_change(self, primary_id, bft_network):
+        with trio.fail_after(seconds=10):
+            last_exec_seq_num = await self._get_gauge(primary_id, bft_network, "lastExecutedSeqNum")
+            conc_level = await self._get_gauge(primary_id, bft_network, "concurrencyLevel")
+            prim_last_used_seq_num = await self._get_gauge(primary_id, bft_network, "primaryLastUsedSeqNum")
+            while prim_last_used_seq_num >= last_exec_seq_num + conc_level:
+                await trio.sleep(seconds=1)
+                last_exec_seq_num = await self._get_gauge(primary_id, bft_network, "lastExecutedSeqNum")
+                conc_level = await self._get_gauge(primary_id, bft_network, "concurrencyLevel")
+                prim_last_used_seq_num = await self._get_gauge(primary_id, bft_network, "primaryLastUsedSeqNum")
 
     @classmethod
     async def _get_gauge(cls, replica_id, bft_network, gauge):
