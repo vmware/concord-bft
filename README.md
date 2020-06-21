@@ -59,9 +59,8 @@ sudo make test
 * Build:
 ```sh
 cd concord-bft
-make run-c      # run container in background
-make build      # build sources
-make test       # run tests
+make
+make test
 ```
 Run `make help` to see more commands.
 
