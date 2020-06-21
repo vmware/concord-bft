@@ -421,6 +421,20 @@ vector<ViewChangeMsg*> ViewsManager::getViewChangeMsgsForCurrentView() {
   return retVal;
 }
 
+vector<ViewChangeMsg*> ViewsManager::getViewChangeMsgsForView(ViewNum v) {
+  vector<ViewChangeMsg*> relevantVCMsgs;
+  if (viewIsActive(v)) {
+    relevantVCMsgs = getViewChangeMsgsForCurrentView();
+  } else if (viewIsPending(v)) {
+    for (uint16_t i = 0; i < N; i++) {
+      if (viewChangeMsgsOfPendingView[i] != nullptr && viewChangeMsgsOfPendingView[i]->newView() >= v) {
+        relevantVCMsgs.push_back(viewChangeMsgsOfPendingView[i]);
+      }
+    }
+  }
+  return relevantVCMsgs;
+}
+
 NewViewMsg* ViewsManager::getNewViewMsgForCurrentView() {
   Assert(stat == Stat::IN_VIEW);
 

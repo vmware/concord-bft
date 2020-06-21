@@ -107,6 +107,9 @@ class ViewsManager {
   NewViewMsg *getMyNewViewMsgForCurrentView();
 
   vector<ViewChangeMsg *> getViewChangeMsgsForCurrentView();
+
+  vector<ViewChangeMsg *> getViewChangeMsgsForView(ViewNum v);
+
   NewViewMsg *getNewViewMsgForCurrentView();
 
   SeqNum stableLowerBoundWhenEnteredToView() const;
