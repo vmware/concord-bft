@@ -30,9 +30,13 @@ CONCORD_BFT_CTEST_TIMEOUT:=3000 # Default value is 1500 sec. It takes 2500 to ru
 CONCORD_BFT_ADDITIONAL_RUN_PARAMS:=
 CONCORD_BFT_ADDITIONAL_RUN_COMMANDS:=
 
+.DEFAULT_GOAL:=build
+
 # MakefileCustom may be useful for overriding the default variables
 # or adding custom targets. The include directive is ignored if MakefileCustom file does not exist.
 -include MakefileCustom
+
+IF_CONTAINER_RUNS=$(shell docker container inspect -f '{{.State.Running}}' ${CONCORD_BFT_DOCKER_CONTAINER})
 
 .PHONY: help
 help: ## The Makefile helps to build Concord-BFT in a docker container
@@ -40,9 +44,7 @@ help: ## The Makefile helps to build Concord-BFT in a docker container
 		awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 	# Basic HOW-TO:
-	# make pull               # Pull image from Docker Hub
-	# make run-c              # Run container in background
-	# make build-s            # Build Concord-BFT sources
+	# make                    # Build Concord-BFT sources
 	# make test               # Run tests
 	# make remove-c           # Remove existing container
 	# make build-docker-image # Build docker image locally
@@ -70,6 +72,9 @@ run-c: ## Run container in background
 
 .PHONY: login
 login: ## Login to the container
+	@if [ "${IF_CONTAINER_RUNS}" != "true" ]; then \
+		make run-c; \
+	fi
 	docker exec -it ${CONCORD_BFT_DOCKER_CONTAINER} \
 		${CONCORD_BFT_CONTAINER_SHELL};exit 0
 
@@ -87,6 +92,9 @@ remove-c: ## Remove the container
 
 .PHONY: build
 build: ## Build Concord-BFT source. Note: this command is mostly for developers
+	@if [ "${IF_CONTAINER_RUNS}" != "true" ]; then \
+		make run-c; \
+	fi
 	docker exec -it ${CONCORD_BFT_DOCKER_CONTAINER} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"mkdir -p ${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR} && \
@@ -100,6 +108,9 @@ build: ## Build Concord-BFT source. Note: this command is mostly for developers
 
 .PHONY: test
 test: ## Run all tests
+	@if [ "${IF_CONTAINER_RUNS}" != "true" ]; then \
+		make run-c; \
+	fi
 	docker exec -it ${CONCORD_BFT_DOCKER_CONTAINER} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"cd ${CONCORD_BFT_BUILD_DIR} && \
@@ -107,6 +118,9 @@ test: ## Run all tests
 
 .PHONY: single-test
 single-test: ## Run single test `make single-test TEST_NAME=<test name>`
+	@if [ "${IF_CONTAINER_RUNS}" != "true" ]; then \
+		make run-c; \
+	fi
 	docker exec -it ${CONCORD_BFT_DOCKER_CONTAINER} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"cd ${CONCORD_BFT_BUILD_DIR} && \
@@ -114,6 +128,9 @@ single-test: ## Run single test `make single-test TEST_NAME=<test name>`
 
 .PHONY: clean
 clean: ## Clean Concord-BFT build directory
+	@if [ "${IF_CONTAINER_RUNS}" != "true" ]; then \
+		make run-c; \
+	fi
 	docker exec -it ${CONCORD_BFT_DOCKER_CONTAINER} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"rm -rf ${CONCORD_BFT_BUILD_DIR}"
