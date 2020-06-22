@@ -250,7 +250,8 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
         # We start by choosing a random set of f - 1 replicas.
         excluded = {initial_primary}
         early_replicas = bft_network.random_set_of_replicas(f - 1, without=excluded)
-
+        print("STATUS: Early replicas are: ")
+        print(early_replicas)
         print(f"STATUS: Starting F={f - 1} replicas.")
         bft_network.start_replicas(replicas=early_replicas)
         await self._wait_for_less_than_f_plus_one_replicas_to_initiate_viewchange(early_replicas, bft_network)
@@ -276,11 +277,16 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
             await bft_network.wait_for_state_transfer_to_stop(initial_primary,
                                                                   r,
                                                                   stop_on_stable_seq_num=True)
-            print("STATUS: Early replicas that have initiated View Change catch up on state.")
+        print("STATUS: Early replicas that have initiated View Change catch up on state.")
 
         # We stop the current primary and let the system to install a new view, while assuming the identity of
         # the next primary
         bft_network.stop_replica(initial_primary)
+
+        # We wait enough time to be sure that the earliest background client request is timed out such that the replicas
+        # will initiate view change before apollo's metric client will time out
+        view_change_timer = await self._get_gauge(expected_next_primary, bft_network, "viewChangeTimer")
+        await trio.sleep(seconds= view_change_timer / 1000)
 
         view = await bft_network.wait_for_view(
             replica_id=expected_next_primary,
@@ -326,7 +332,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
                 await trio.sleep(seconds=0.1)
 
     async def _wait_for_processing_window_after_view_change(self, primary_id, bft_network):
-        with trio.fail_after(seconds=10):
+        with trio.fail_after(seconds=20):
             last_exec_seq_num = await self._get_gauge(primary_id, bft_network, "lastExecutedSeqNum")
             conc_level = await self._get_gauge(primary_id, bft_network, "concurrencyLevel")
             prim_last_used_seq_num = await self._get_gauge(primary_id, bft_network, "primaryLastUsedSeqNum")
