@@ -16,7 +16,6 @@
 
 #include <assertUtils.hpp>
 
-#include <atomic>
 #include <condition_variable>
 #include <future>
 #include <mutex>
@@ -30,28 +29,26 @@ namespace concord::util {
 
 // A thread pool that supports any callable object with any return type. Returns std::future objects to users.
 class ThreadPool {
- private:
-  std::size_t nextQueueIndex() { return (queue_counter_++) % task_queues_.size(); }
-  auto& nextQueue() { return task_queues_[nextQueueIndex()]; }
-
  public:
   // Starts the thread pool with thread_count > 0 threads.
-  ThreadPool(unsigned int thread_count) : task_queues_{thread_count} {
+  ThreadPool(unsigned int thread_count) noexcept {
     Assert(thread_count > 0);
-    for (auto thread_index = 0u; thread_index < thread_count; ++thread_index) {
-      threads_.emplace_back([this, thread_index]() { loop(thread_index); });
+    for (auto i = 0u; i < thread_count; ++i) {
+      threads_.emplace_back([this]() { loop(); });
     }
   }
 
   // Starts the thread pool with the maximum number of concurrent threads supported by the implementation.
-  ThreadPool() : ThreadPool{std::thread::hardware_concurrency() ? std::thread::hardware_concurrency() : 1} {}
+  ThreadPool() noexcept
+      : ThreadPool{std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 1} {}
 
   // Stops the thread pool. Waits for the currently executing tasks only (will not exhaust the queues).
   ~ThreadPool() noexcept {
-    stop_ = true;
-    for (auto& q : task_queues_) {
-      q.cv.notify_one();
+    {
+      auto lock = std::lock_guard{task_queue_.mutex};
+      task_queue_.stop = true;
     }
+    task_queue_.cv.notify_all();
     for (auto& t : threads_) {
       t.join();
     }
@@ -65,36 +62,33 @@ class ThreadPool {
     auto ptask = std::packaged_task<ResultType()>{std::forward<F>(func)};
     auto future = ptask.get_future();
     auto task = GenericTask{[ptask = std::move(ptask)]() mutable { ptask(); }};
-    auto& queue = nextQueue();
     {
-      auto lock = std::lock_guard{queue.mutex};
-      queue.tasks.push(std::move(task));
+      auto lock = std::lock_guard{task_queue_.mutex};
+      task_queue_.tasks.push(std::move(task));
     }
-    queue.cv.notify_one();
+    task_queue_.cv.notify_one();
     return future;
   }
 
  private:
   using GenericTask = std::packaged_task<void()>;
 
-  void loop(std::size_t thread_index) noexcept {
-    auto& queue = task_queues_[thread_index];
+  void loop() noexcept {
     while (true) {
-      auto lock = std::unique_lock{queue.mutex};
-      while (queue.tasks.empty() && !stop_) {
-        queue.cv.wait(lock);
+      auto lock = std::unique_lock{task_queue_.mutex};
+      while (task_queue_.tasks.empty() && !task_queue_.stop) {
+        task_queue_.cv.wait(lock);
       }
-      if (stop_) break;
-      Assert(!queue.tasks.empty());
-      auto task = std::move(queue.tasks.front());
-      queue.tasks.pop();
+      if (task_queue_.stop) break;
+      Assert(!task_queue_.tasks.empty());
+      auto task = std::move(task_queue_.tasks.front());
+      task_queue_.tasks.pop();
       lock.unlock();
       task();
     }
   }
 
  private:
-  // Represents a per-thread task queue.
   struct TaskQueue {
     // A queue of tasks for execution.
     std::queue<GenericTask> tasks;
@@ -104,17 +98,13 @@ class ThreadPool {
 
     // A condition variable to signal the queue.
     std::condition_variable cv;
+
+    // A task queue stop flag.
+    bool stop{false};
   };
 
-  // Each thread has its own queue - rationale is that doing so will lessen the contention compared to having a single
-  // queue.
-  std::vector<TaskQueue> task_queues_;
-
-  // A counter used for distributing tasks among queues. Relies on unsigned wraparound.
-  std::atomic<unsigned int> queue_counter_{0};
-
-  // A global stop flag.
-  std::atomic_bool stop_{false};
+  // A task queue that is shared between pool threads.
+  TaskQueue task_queue_;
 
   // A list of threads.
   std::vector<std::thread> threads_;
