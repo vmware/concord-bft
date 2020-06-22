@@ -222,6 +222,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
         await self._wait_for_replicas_to_generate_checkpoint(bft_network, skvbc, expected_next_primary, bft_network.all_replicas(without={replica_to_stop}))
 
+    @unittest.skip("edge scenario - not part of CI")
     @with_trio
     @with_bft_network(start_replica_cmd_with_vc_timeout("20000"),
                       selected_configs=lambda n, f, c: f >= 2)
