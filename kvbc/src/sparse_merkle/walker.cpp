@@ -71,6 +71,12 @@ std::optional<Nibble> Walker::removeCurrentNode() {
   return std::nullopt;
 }
 
+void Walker::insertEmptyRootAtCurrentVersion() {
+  auto children = BatchedInternalNode::Children{};
+  children[0] = InternalChild{PLACEHOLDER_HASH, cache_.version()};
+  cache_.put(NibblePath{}, BatchedInternalNode{children});
+}
+
 std::pair<Nibble, Hash> Walker::pop() {
   Hash hash = current_node_.hash();
   Nibble child_key = nibble_path_.popBack();

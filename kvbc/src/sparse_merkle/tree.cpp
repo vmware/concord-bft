@@ -79,6 +79,9 @@ void removeBatchedInternalNode(Walker& walker, const std::optional<LeafChild>& p
   } else {
     if (walker.atRoot() && walker.currentNode().safeToRemove()) {
       walker.removeCurrentNode();
+      // Ensure monotonically increasing root versions even in the case of the current root being removed (e.g. when all
+      // keys are removed) by persisting an empty root at the current version.
+      walker.insertEmptyRootAtCurrentVersion();
     } else {
       walker.ascendToRoot();
     }

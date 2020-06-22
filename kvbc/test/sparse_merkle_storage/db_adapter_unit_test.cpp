@@ -1170,6 +1170,85 @@ TEST_P(db_adapter_custom_blockchain, empty_values) {
   }
 }
 
+TEST_P(db_adapter_custom_blockchain, delete_all_keys) {
+  auto adapter = DBAdapter{GetParam()->db()};
+
+  const auto key1 = Sliver{"key1"};
+  const auto value11 = Sliver{"val11"};
+  const auto value12 = Sliver{"val12"};
+  const auto key2 = Sliver{"key2"};
+  const auto value21 = Sliver{"val21"};
+  const auto value22 = Sliver{"val22"};
+
+  const auto updates1 = SetOfKeyValuePairs{std::make_pair(key1, value11), std::make_pair(key2, value12)};
+  const auto deletes = OrderedKeysSet{key1, key2};
+
+  ASSERT_EQ(adapter.addBlock(updates1), 1);
+  ASSERT_EQ(Version{1}, adapter.getStateVersion());
+
+  const auto stateHashAtBlock1 = adapter.getStateHash();
+
+  // Make sure that deleting keys will change the state version and hash.
+  ASSERT_EQ(adapter.addBlock(deletes), 2);
+  ASSERT_EQ(Version{2}, adapter.getStateVersion());
+  ASSERT_NE(stateHashAtBlock1, adapter.getStateHash());
+
+  // Make sure that there are internal keys for version 2 (i.e. an empty root).
+  ASSERT_TRUE(hasInternalKeysForVersion(adapter.getDb(), 2));
+
+  // Make sure the block reflects the deletes.
+  const auto rawBlock = adapter.getRawBlock(2);
+  ASSERT_TRUE(block::detail::getData(rawBlock).empty());
+  ASSERT_EQ(block::detail::getDeletedKeys(rawBlock), deletes);
+
+  // Make sure keys are not available at block version 2.
+  ASSERT_THROW(adapter.getValue(key1, 2), NotFoundException);
+  ASSERT_THROW(adapter.getValue(key2, 2), NotFoundException);
+
+  // Add a block after having deleted all keys in the system.
+  const auto updates2 = SetOfKeyValuePairs{std::make_pair(key1, value21), std::make_pair(key2, value22)};
+  ASSERT_EQ(adapter.addBlock(updates2), 3);
+
+  // Make sure keys are still not available at block version 2.
+  ASSERT_THROW(adapter.getValue(key1, 2), NotFoundException);
+  ASSERT_THROW(adapter.getValue(key2, 2), NotFoundException);
+
+  // Make sure keys are available at block version 3.
+  const auto [key1Value, key1Version] = adapter.getValue(key1, 3);
+  ASSERT_EQ(key1Value, value21);
+  ASSERT_EQ(key1Version, 3);
+  const auto [key2Value, key2Version] = adapter.getValue(key2, 3);
+  ASSERT_EQ(key2Value, value22);
+  ASSERT_EQ(key2Version, 3);
+
+  // Make sure state version is 3 and state hash is different from the one at block version 1.
+  ASSERT_NE(stateHashAtBlock1, adapter.getStateHash());
+  ASSERT_EQ(Version{3}, adapter.getStateVersion());
+
+  // Make sure we have stale index keys since version 3, i.e. the empty root should be stale now.
+  ASSERT_TRUE(hasStaleIndexKeysSince(adapter.getDb(), 3));
+}
+
+TEST_P(db_adapter_custom_blockchain, add_delete_add_key) {
+  auto adapter = DBAdapter{GetParam()->db()};
+
+  const auto key = Sliver{"key"};
+  const auto value = Sliver{"val"};
+
+  const auto updates = SetOfKeyValuePairs{std::make_pair(key, value)};
+  const auto deletes = OrderedKeysSet{key};
+
+  // Add, delete and add again.
+  ASSERT_EQ(adapter.addBlock(updates), 1);
+  const auto stateHashAtBlock1 = adapter.getStateHash();
+  ASSERT_EQ(adapter.addBlock(deletes), 2);
+  ASSERT_EQ(adapter.addBlock(updates), 3);
+
+  // Make sure that the state hash at version 3 is the same as the one at verison 1.
+  ASSERT_EQ(Version{3}, adapter.getStateVersion());
+  ASSERT_EQ(stateHashAtBlock1, adapter.getStateHash());
+}
+
 TEST_P(db_adapter_custom_blockchain, delete_existing_keys) {
   auto adapter = DBAdapter{GetParam()->db()};
 
