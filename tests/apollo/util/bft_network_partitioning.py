@@ -142,3 +142,26 @@ class ReplicaSubsetIsolatingAdversary(NetworkPartitioningAdversary):
                 isolated_replica_port = self.bft_network.replicas[ir].port
                 self._drop_packets_between(c.port, isolated_replica_port)
                 self._drop_packets_between(isolated_replica_port, c.port)
+
+
+class ReplicaSubsetOneWayIsolatingAdversary(NetworkPartitioningAdversary):
+    """
+    Adversary that isolates all messages except client requests
+    to a subset of replicas. The Replicas in the subset will be able 
+    to send msgs to other replicas in the network, but anything addressed
+    to them by other replicas will be dropped.
+    """
+
+    def __init__(self, bft_network, replicas_to_isolate):
+        assert len(replicas_to_isolate) < len(bft_network.all_replicas())
+        self.replicas_to_isolate = replicas_to_isolate
+        super(ReplicaSubsetOneWayIsolatingAdversary, self).__init__(bft_network)
+
+    def interfere(self):
+        for ir in self.replicas_to_isolate:
+            for r in self.bft_network.all_replicas():
+                isolated_replica_port = self.bft_network.replicas[ir].port
+                other_replica_port = self.bft_network.replicas[r].port
+                if ir != r:
+                    self._drop_packets_between(other_replica_port, isolated_replica_port)
+
