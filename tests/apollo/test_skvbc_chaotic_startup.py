@@ -168,47 +168,28 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
         expected_next_view = expected_next_primary = 1
 
         # take a random set containing F replicas out of all N without the initial primary
-        early_replicas = set()
-        for _ in range(f):
-            exclude_replicas = early_replicas | {initial_primary}
-            early_replicas.add(random.choice(bft_network.all_replicas(without=exclude_replicas)))
-
-        late_replicas = bft_network.all_replicas(without=early_replicas)
+        early_replicas = bft_network.random_set_of_replicas(f, without={initial_primary})
 
         print(f"STATUS: Starting F={f} replicas.")
         bft_network.start_replicas(replicas=early_replicas)
-
         print("STATUS: Wait for early replicas to initiate View Change.")
-        for r in early_replicas:
-            active_view_of_replica = 0
-            view_of_replica = 0
-            while active_view_of_replica == view_of_replica:
-                active_view_of_replica = await self._get_gauge(r, bft_network, 'currentActiveView')
-                view_of_replica = await self._get_gauge(r, bft_network, 'view')
-                await trio.sleep(seconds=0.1)
-
+        await self._wait_for_less_than_f_plus_one_replicas_to_initiate_viewchange(early_replicas, bft_network)
         print("STATUS: Early replicas initiated View Change.")
+
+        late_replicas = bft_network.all_replicas(without=early_replicas)
+
         print(f"STATUS: Starting the remaining {n-f} replicas.")
         bft_network.start_replicas(late_replicas)
 
         view = await bft_network.wait_for_view(
             replica_id=initial_primary,
-            expected=lambda v: v == initial_primary,
+            expected=lambda v: v == initial_view,
             err_msg="Make sure we are in the initial view "
         )
 
         self.assertTrue(initial_view == view)
 
-        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=initial_primary)
-        await skvbc.fill_and_wait_for_checkpoint(
-            initial_nodes=bft_network.all_replicas(without=early_replicas),
-            checkpoint_num=1,
-            verify_checkpoint_persistency=False,
-            assert_state_transfer_not_started=False
-        )
-        checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=initial_primary)
-        # Verify the system is able to make progress
-        self.assertTrue(checkpoint_after > checkpoint_before)
+        await self._wait_for_replicas_to_generate_checkpoint(bft_network, skvbc, initial_primary, late_replicas)
         
         # Verify replicas that have initiated View Change catch up on state
         await bft_network.wait_for_state_transfer_to_start()
@@ -235,26 +216,132 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
         )
 
         self.assertTrue(expected_next_view == view)
+        await self._wait_for_processing_window_after_view_change(expected_next_primary, bft_network)
 
-        await trio.sleep(5)  # TODO: remove when bft_network.wait_for_view also waits for system liveness.
+        await self._verify_replicas_are_in_view(view, bft_network.all_replicas(without={replica_to_stop}), bft_network)
 
-        for r in bft_network.all_replicas(without={replica_to_stop}):
+        await self._wait_for_replicas_to_generate_checkpoint(bft_network, skvbc, expected_next_primary, bft_network.all_replicas(without={replica_to_stop}))
+
+    @unittest.skip("edge scenario - not part of CI")
+    @with_trio
+    @with_bft_network(start_replica_cmd_with_vc_timeout("20000"),
+                      selected_configs=lambda n, f, c: f >= 2)
+    @with_constant_load
+    async def test_f_minus_one_staggered_replicas_requesting_vc(self, bft_network, skvbc, nursery):
+        """
+        In this test we check that if f-1 replicas have started to run and initiated viewchange, then the system is
+        still able to make progress. To make sure the system still have 2f+1 active replicas, we wait for the early
+        replicas to complete their state transfer before stopping the primary.
+
+        For that we perform the following steps:
+        1. start f - 1 replicas
+        2. wait for those replicas to initiate view change
+        3. start the rest 2f + 2 replicas
+        4. make sure the system is able to make progress
+        5. stop the current primary
+        6. wait for the system to complete a view change
+        7. make sure the system is able to make progress
+        """
+        n = bft_network.config.n
+        f = bft_network.config.f
+        c = bft_network.config.c
+
+        initial_view = initial_primary = 0
+        expected_next_view = expected_next_primary = 1
+
+        # We start by choosing a random set of f - 1 replicas.
+        excluded = {initial_primary}
+        early_replicas = bft_network.random_set_of_replicas(f - 1, without=excluded)
+        print("STATUS: Early replicas are: ")
+        print(early_replicas)
+        print(f"STATUS: Starting F={f - 1} replicas.")
+        bft_network.start_replicas(replicas=early_replicas)
+        await self._wait_for_less_than_f_plus_one_replicas_to_initiate_viewchange(early_replicas, bft_network)
+        print("STATUS: Early replicas started and initiated View Change.")
+
+
+        late_replicas = bft_network.all_replicas(without=early_replicas)
+        print(f"STATUS: Starting the remaining {n - f + 1} replicas.")
+        bft_network.start_replicas(late_replicas)
+
+        view = await bft_network.wait_for_view(
+            replica_id=initial_primary,
+            expected=lambda v: v == initial_view,
+            err_msg="Make sure we are in the initial view "
+        )
+        self.assertTrue(initial_view == view)
+
+        await self._wait_for_replicas_to_generate_checkpoint(bft_network, skvbc, initial_primary, late_replicas)
+
+        # Verify replicas that have initiated View Change catch up on state
+        await bft_network.wait_for_state_transfer_to_start()
+        for r in early_replicas:
+            await bft_network.wait_for_state_transfer_to_stop(initial_primary,
+                                                                  r,
+                                                                  stop_on_stable_seq_num=True)
+        print("STATUS: Early replicas that have initiated View Change catch up on state.")
+
+        # We stop the current primary and let the system to install a new view, while assuming the identity of
+        # the next primary
+        bft_network.stop_replica(initial_primary)
+
+        # We wait enough time to be sure that the earliest background client request is timed out such that the replicas
+        # will initiate view change before apollo's metric client will time out
+        view_change_timer = await self._get_gauge(expected_next_primary, bft_network, "viewChangeTimer")
+        await trio.sleep(seconds= view_change_timer / 1000)
+
+        view = await bft_network.wait_for_view(
+            replica_id=expected_next_primary,
+            expected=lambda v: v == expected_next_view,
+            err_msg="Make sure we are in the next view "
+        )
+
+        self.assertTrue(expected_next_view == view)
+        await self._wait_for_processing_window_after_view_change(expected_next_primary, bft_network)
+
+        await self._verify_replicas_are_in_view(view, bft_network.all_replicas(without={initial_primary}), bft_network)
+
+        await self._wait_for_replicas_to_generate_checkpoint(bft_network, skvbc, expected_next_primary, bft_network.all_replicas(without={initial_primary}))
+
+    async def _verify_replicas_are_in_view(self, view, replicas, bft_network):
+        for r in replicas:
             active_view_of_replica = await self._get_gauge(r, bft_network, 'currentActiveView')
             view_of_replica = await self._get_gauge(r, bft_network, 'view')
             self.assertTrue(active_view_of_replica == view_of_replica)  # verify Replica is not requesting View Change
             self.assertTrue(active_view_of_replica == view)  # verify Replica is in the current view
 
-        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=expected_next_primary)
+    async def _wait_for_replicas_to_generate_checkpoint(self, bft_network, skvbc, replica_to_read_from, initial_nodes, checkpoint_num=1, verify_checkpoint_persistency=False, assert_state_transfer_not_started=False):
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=replica_to_read_from)
         await skvbc.fill_and_wait_for_checkpoint(
-            initial_nodes=bft_network.all_replicas(without={replica_to_stop}),
-            checkpoint_num=1,
-            verify_checkpoint_persistency=False,
-            assert_state_transfer_not_started=False
+            initial_nodes=initial_nodes,
+            checkpoint_num=checkpoint_num,
+            verify_checkpoint_persistency=verify_checkpoint_persistency,
+            assert_state_transfer_not_started=assert_state_transfer_not_started
         )
-        checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=expected_next_primary)
-
-        # Verify that the system is making progress after the View Change.
+        checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=replica_to_read_from)
+        # Verify the system is able to make progress
         self.assertTrue(checkpoint_after > checkpoint_before)
+
+    async def _wait_for_less_than_f_plus_one_replicas_to_initiate_viewchange(self, replicas, bft_network):
+        num_of_replicas = len(replicas)
+        self.assertTrue(num_of_replicas <= bft_network.config.f)
+        for r in replicas:
+            active_view_of_replica = 0
+            view_of_replica = 0
+            while active_view_of_replica == view_of_replica:
+                active_view_of_replica = await self._get_gauge(r, bft_network, 'currentActiveView')
+                view_of_replica = await self._get_gauge(r, bft_network, 'view')
+                await trio.sleep(seconds=0.1)
+
+    async def _wait_for_processing_window_after_view_change(self, primary_id, bft_network):
+        with trio.fail_after(seconds=20):
+            last_exec_seq_num = await self._get_gauge(primary_id, bft_network, "lastExecutedSeqNum")
+            conc_level = await self._get_gauge(primary_id, bft_network, "concurrencyLevel")
+            prim_last_used_seq_num = await self._get_gauge(primary_id, bft_network, "primaryLastUsedSeqNum")
+            while prim_last_used_seq_num >= last_exec_seq_num + conc_level:
+                await trio.sleep(seconds=1)
+                last_exec_seq_num = await self._get_gauge(primary_id, bft_network, "lastExecutedSeqNum")
+                conc_level = await self._get_gauge(primary_id, bft_network, "concurrencyLevel")
 
     @classmethod
     async def _get_gauge(cls, replica_id, bft_network, gauge):

@@ -375,6 +375,7 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
     DebugStatistics::onSendPrePrepareMessage(pp->numberOfRequests(), requestsQueueOfPrimary.size());
   }
   primaryLastUsedSeqNum++;
+  metric_primary_last_used_seq_num_.Get().Set(primaryLastUsedSeqNum);
   SCOPED_MDC_SEQ_NUM(std::to_string(primaryLastUsedSeqNum));
   SCOPED_MDC_PATH(CommitPathToMDCString(firstPath));
   {
@@ -2062,6 +2063,7 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
 
   if (prePreparesForNewView.empty()) {
     primaryLastUsedSeqNum = lastStableSeqNum;
+    metric_primary_last_used_seq_num_.Get().Set(primaryLastUsedSeqNum);
     strictLowerBoundOfSeqNums = lastStableSeqNum;
     maxSeqNumTransferredFromPrevViews = lastStableSeqNum;
     LOG_INFO(GL,
@@ -2069,6 +2071,7 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
                  primaryLastUsedSeqNum, strictLowerBoundOfSeqNums, maxSeqNumTransferredFromPrevViews));
   } else {
     primaryLastUsedSeqNum = lastPPSeq;
+    metric_primary_last_used_seq_num_.Get().Set(primaryLastUsedSeqNum);
     strictLowerBoundOfSeqNums = firstPPSeq - 1;
     maxSeqNumTransferredFromPrevViews = lastPPSeq;
     LOG_INFO(GL,
@@ -2324,6 +2327,7 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
 
   if (lastStableSeqNum > primaryLastUsedSeqNum) {
     primaryLastUsedSeqNum = lastStableSeqNum;
+    metric_primary_last_used_seq_num_.Get().Set(primaryLastUsedSeqNum);
     if (ps_) ps_->setPrimaryLastUsedSeqNum(primaryLastUsedSeqNum);
   }
 
@@ -2710,6 +2714,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
   const bool inView = ld.viewsManager->viewIsActive(curView);
 
   primaryLastUsedSeqNum = ld.primaryLastUsedSeqNum;
+  metric_primary_last_used_seq_num_.Get().Set(primaryLastUsedSeqNum);
   lastStableSeqNum = ld.lastStableSeqNum;
   metric_last_stable_seq_num_.Get().Set(lastStableSeqNum);
   lastExecutedSeqNum = ld.lastExecutedSeqNum;
@@ -2941,6 +2946,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_slow_path_timer_{metrics_.RegisterGauge("slowPathTimer", 0)},
       metric_info_request_timer_{metrics_.RegisterGauge("infoRequestTimer", 0)},
       metric_current_primary_{metrics_.RegisterGauge("currentPrimary", curView % config_.numReplicas)},
+      metric_concurrency_level_{metrics_.RegisterGauge("concurrencyLevel", config_.concurrencyLevel)},
+      metric_primary_last_used_seq_num_{metrics_.RegisterGauge("primaryLastUsedSeqNum", primaryLastUsedSeqNum)},
       metric_first_commit_path_{metrics_.RegisterStatus(
           "firstCommitPath", CommitPathToStr(ControllerWithSimpleHistory_debugInitialFirstPath))},
       metric_slow_path_count_{metrics_.RegisterCounter("slowPathCount", 0)},
