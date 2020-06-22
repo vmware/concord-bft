@@ -56,6 +56,8 @@ class ThreadPool {
 
  public:
   // Executes the passed function (or any callable) in a pool thread. Returns a future to the result.
+  // Note: The returned future's destructor doesn't block if the future value hasn't been retrieved. This is in contrast
+  // to the futures returned by std::async that block.
   template <class F>
   auto async(F&& func) {
     using ResultType = std::invoke_result_t<std::decay_t<F>>;
