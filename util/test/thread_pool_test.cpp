@@ -24,7 +24,9 @@ using namespace concord::util;
 
 namespace {
 
-constexpr auto answer = 42;
+using AnswerType = int;
+constexpr auto answer = AnswerType{42};
+const auto concurrency = std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 1;
 
 auto func() { return answer; }
 auto (*func_ptr)() = func;
@@ -78,9 +80,22 @@ TEST(thread_pool, non_blocking_future_dtors) {
 // Make sure that adding more tasks than the concurrency supported by the system works.
 TEST(thread_pool, more_tasks_than_concurrency) {
   auto pool = ThreadPool{};
-  const auto conc = std::thread::hardware_concurrency() * 10;
-  std::vector<std::future<int>> futures;
-  for (auto i = 0u; i < conc; ++i) {
+  const auto tasks = concurrency * 10;
+  auto futures = std::vector<std::future<AnswerType>>{};
+  for (auto i = 0u; i < tasks; ++i) {
+    futures.push_back(pool.async(func));
+  }
+  for (auto& future : futures) {
+    ASSERT_EQ(answer, future.get());
+  }
+}
+
+// Make sure that the pool works correctly with a single thread.
+TEST(thread_pool, one_thread) {
+  auto pool = ThreadPool{1};
+  const auto tasks = 16u;
+  auto futures = std::vector<std::future<AnswerType>>{};
+  for (auto i = 0u; i < tasks; ++i) {
     futures.push_back(pool.async(func));
   }
   for (auto& future : futures) {
