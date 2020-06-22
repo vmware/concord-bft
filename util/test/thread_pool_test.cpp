@@ -17,6 +17,7 @@
 
 #include <functional>
 #include <future>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -31,6 +32,27 @@ const auto concurrency = std::thread::hardware_concurrency() > 0 ? std::thread::
 auto func() { return answer; }
 auto (*func_ptr)() = func;
 auto (&func_ref)() = func;
+
+auto identity(AnswerType v) { return v; }
+
+void void_func(AnswerType) {}
+
+struct MoveOnly {
+  MoveOnly() = default;
+  MoveOnly(const MoveOnly&) = delete;
+  MoveOnly(MoveOnly&&) = default;
+  MoveOnly& operator=(const MoveOnly&) = delete;
+  MoveOnly& operator=(MoveOnly&&) = default;
+};
+
+struct CopyOnly {
+  CopyOnly() = default;
+  CopyOnly(MoveOnly&&) = delete;
+  CopyOnly& operator=(MoveOnly&&) = delete;
+};
+
+void own(MoveOnly&&) {}
+void copy(CopyOnly) {}
 
 // Make sure the pool can execute lambdas.
 TEST(thread_pool, lambda) {
@@ -57,6 +79,52 @@ TEST(thread_pool, std_func) {
   auto pool = ThreadPool{};
   auto std_func = std::function{func};
   auto future = pool.async(std_func);
+  ASSERT_EQ(answer, future.get());
+}
+
+// Make sure we can execute a void function.
+TEST(thread_pool, void_func) {
+  auto pool = ThreadPool{};
+  auto future = pool.async(void_func, answer);
+  ASSERT_NO_THROW(future.wait());
+}
+
+// Make sure async supports arguments.
+TEST(thread_pool, arguments_with_return) {
+  auto pool = ThreadPool{};
+  auto future = pool.async(identity, answer + 1);
+  ASSERT_EQ(answer + 1, future.get());
+}
+
+// Make sure we can execute tasks that have different return types.
+TEST(thread_pool, different_task_return_types) {
+  auto pool = ThreadPool{};
+  auto future1 = pool.async(func);
+  auto future2 = pool.async([]() {});
+  auto future3 = pool.async([]() { return std::string{"s"}; });
+  ASSERT_EQ(answer, future1.get());
+  ASSERT_NO_THROW(future2.wait());
+  ASSERT_EQ("s", future3.get());
+}
+
+// Make sure we can move arguments inside async.
+TEST(thread_pool, move_only_arguments) {
+  auto pool = ThreadPool{};
+  auto future = pool.async(own, MoveOnly{});
+  ASSERT_NO_THROW(future.wait());
+}
+
+// Make sure we can pass copy-only arguments to async.
+TEST(thread_pool, copy_only_arguments) {
+  auto pool = ThreadPool{};
+  auto future = pool.async(copy, CopyOnly{});
+  ASSERT_NO_THROW(future.wait());
+}
+
+// Multiple arguments of different types.
+TEST(thread_pool, multiple_arguments) {
+  auto pool = ThreadPool{};
+  auto future = pool.async([](auto&& answer, auto&&, auto&&) { return answer; }, answer, std::string{"s"}, 3.14);
   ASSERT_EQ(answer, future.get());
 }
 

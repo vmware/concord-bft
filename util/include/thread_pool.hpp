@@ -58,12 +58,16 @@ class ThreadPool {
   // Executes the passed function (or any callable) in a pool thread. Returns a future to the result.
   // Note: The returned future's destructor doesn't block if the future value hasn't been retrieved. This is in contrast
   // to the futures returned by std::async that block.
-  template <class F>
-  auto async(F&& func) {
-    using ResultType = std::invoke_result_t<std::decay_t<F>>;
-    auto ptask = std::packaged_task<ResultType()>{std::forward<F>(func)};
+  template <class F, class... Args>
+  auto async(F&& func, Args&&... args) {
+    using ResultType = std::invoke_result_t<std::decay_t<F>, std::decay_t<Args>...>;
+    auto ptask = std::packaged_task<ResultType(Args...)>{std::forward<F>(func)};
     auto future = ptask.get_future();
-    auto task = GenericTask{[ptask = std::move(ptask)]() mutable { ptask(); }};
+    // Use an std::tuple to capture arguments and then std::apply() to unpack them:
+    // https://stackoverflow.com/questions/37511129/how-to-capture-a-parameter-pack-by-forward-or-move
+    auto task = GenericTask{[ptask = std::move(ptask), tup = std::make_tuple(std::forward<Args>(args)...)]() mutable {
+      std::apply(ptask, std::move(tup));
+    }};
     {
       auto lock = std::lock_guard{task_queue_.mutex};
       task_queue_.tasks.push(std::move(task));
