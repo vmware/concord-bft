@@ -134,6 +134,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
             print(f"Delayed replicas start-up succeeded for start-up order: {replicas_starting_order}. "
                   f"The BFT network eventually stabilized in view #{current_view}.")
 
+    @unittest.skip("edge scenario - not part of CI")
     @with_trio
     @with_bft_network(start_replica_cmd_with_vc_timeout("20000"),
                       selected_configs=lambda n, f, c: f >= 2)
