@@ -286,7 +286,7 @@ struct Blockchain : benchmark::Fixture {
     return updates;
   }
 
-  void TearDown(const benchmark::State &) override { adapter.release(); }
+  void TearDown(const benchmark::State &) override { adapter.reset(); }
 
   std::uint64_t currentKeyValue{0};
   std::unique_ptr<DBAdapter> adapter;
