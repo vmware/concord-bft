@@ -15,15 +15,17 @@
 
 #include "thread_pool.hpp"
 
+#include <condition_variable>
 #include <functional>
 #include <future>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
 
-using namespace concord::util;
-
 namespace {
+
+using namespace concord::util;
 
 using AnswerType = int;
 constexpr auto answer = AnswerType{42};
@@ -137,12 +139,34 @@ TEST(thread_pool, exception) {
 
 // Make sure that the returned futures' desctructors don't block.
 TEST(thread_pool, non_blocking_future_dtors) {
+  // Keep these variables before the pool as we capture them by reference and we'd like them to be valid (not
+  // destructed) in all pool threads.
+  auto future1_destroyed = false;
+  auto mtx = std::mutex{};
+  auto cv = std::condition_variable{};
+
   auto pool = ThreadPool{};
-  auto future1 = pool.async(func);
-  ASSERT_TRUE(future1.valid());
+
+  {
+    auto future1 = pool.async([&]() {
+      auto lock = std::unique_lock{mtx};
+      while (!future1_destroyed) {
+        cv.wait(lock);
+      }
+    });
+    ASSERT_TRUE(future1.valid());
+    // future1's dtor doesn't block if get()/wait() hasn't been called.
+  }
+
+  // Signal the thread so that the lambda will end and the pool dtor will not block forever.
+  {
+    auto lock = std::unique_lock{mtx};
+    future1_destroyed = true;
+  }
+  cv.notify_one();
+
   auto future2 = pool.async(func);
   ASSERT_EQ(answer, future2.get());
-  // future1's dtor doesn't block if get()/wait() hasn't been called.
 }
 
 // Make sure that adding more tasks than the concurrency supported by the system works.
