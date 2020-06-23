@@ -1706,9 +1706,9 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
           sendAndIncrementMetric(nv, msgSenderId, metric_sent_newview_msg_due_to_status_);
         }
 
-        // (GG): send all VC msgs that can help making progress (needed because the original senders may not send
+        // send all VC msgs that can help making progress (needed because the original senders may not send
         // the ViewChangeMsg msgs used by the primary)
-        // (GG): if viewsManager->viewIsActive(curView), we can send only the VC msgs which are really needed for
+        // if viewsManager->viewIsActive(curView), we can send only the VC msgs which are really needed for
         // curView (see in ViewsManager)
         if (msg->hasListOfMissingViewChangeMsgForViewChange()) {
           for (auto *vcMsg : viewsManager->getViewChangeMsgsForView(curView)) {

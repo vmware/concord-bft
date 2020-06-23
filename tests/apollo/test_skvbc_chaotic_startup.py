@@ -19,7 +19,7 @@ from os import environ
 import trio
 
 from util.bft import with_trio, with_bft_network, with_constant_load, KEY_FILE_PREFIX
-
+from util import bft_network_partitioning as net
 
 def start_replica_cmd(builddir, replica_id, view_change_timeout_milli="10000"):
     """
@@ -313,7 +313,8 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
         due to insufficient ViewChange messages and previous no resend of ViewChange messages
         on Status requests. To recreate the following steps are executed:
         1) Start all 7 replicas.
-        2) Setup an adversary that blocks all incoming msgs to replicas 2, 3, 4, 5 and 6.
+        2) Setup an adversary that blocks all incoming msgs to replicas 2, 3, 4, 5 and 6 from other replicas, but not
+           from clients.
         3) In this setup the system cannot execute client requests, so all replicas will initiate View Change.
         4) Only replicas 0 and 1 will have sufficient View Change msgs to enter View 1.
         5) Replica 1 will send New View message to all.
@@ -332,13 +333,12 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
             bft_network.start_all_replicas()
 
+            # await replicas to initiate View Change from 0 to 1
             for r in bft_network.all_replicas():
                 view_of_replica = 0
                 while view_of_replica == 0:
                     view_of_replica = await self._get_gauge(r, bft_network, 'view')
                     await trio.sleep(seconds=0.1)
-
-        await trio.sleep(seconds=30)
 
         # Wait for View Change to happen.
         view = await bft_network.wait_for_view(
