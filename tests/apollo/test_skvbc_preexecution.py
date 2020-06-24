@@ -17,6 +17,7 @@ import random
 
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from util import skvbc as kvbc
+from util.skvbc_history_tracker import verify_linearizability
 
 SKVBC_INIT_GRACE_TIME = 2
 NUM_OF_SEQ_WRITES = 100
@@ -94,49 +95,48 @@ class SkvbcPreExecutionTest(unittest.TestCase):
     @unittest.skip("unstable")
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_sequential_pre_process_requests(self, bft_network):
+    @verify_linearizability(pre_exec_enabled=True)
+    async def test_sequential_pre_process_requests(self, bft_network, tracker):
         """
         Use a random client to launch one pre-process request in time and ensure that created blocks are as expected.
         """
         bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         for i in range(NUM_OF_SEQ_WRITES):
             client = bft_network.random_client()
-            await self.send_single_write_with_pre_execution(skvbc, client)
+            await tracker.send_tracked_write(client, 2)
 
     @unittest.skip("unstable")
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_concurrent_pre_process_requests(self, bft_network):
+    @verify_linearizability(pre_exec_enabled=True)
+    async def test_concurrent_pre_process_requests(self, bft_network, tracker):
         """
         Launch concurrent requests from different clients in parallel. Ensure that created blocks are as expected.
         """
         bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         clients = bft_network.random_clients(MAX_CONCURRENCY)
         num_of_requests = len(clients)
-        sent_count = await self.run_concurrent_pre_execution_requests(skvbc, clients, num_of_requests)
-        self.assertTrue(sent_count >= num_of_requests)
+        rw = await tracker.run_concurrent_ops(num_of_requests, write_weight=0.9)
+        self.assertTrue(rw[0] + rw[1] >= num_of_requests)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_long_time_executed_pre_process_request(self, bft_network):
+    @verify_linearizability(pre_exec_enabled=True)
+    async def test_long_time_executed_pre_process_request(self, bft_network, tracker):
         """
         Launch pre-process request with a long-time execution and ensure that created blocks are as expected
         and no view-change was triggered.
         """
         bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         client = bft_network.random_client()
         client.config = client.config._replace(req_timeout_milli=LONG_REQ_TIMEOUT_MILLI, retry_timeout_milli=1000)
-        await self.send_single_write_with_pre_execution(skvbc, client, long_exec=True)
+        await tracker.send_tracked_write(client, 2, long_exec=True)
 
-        clients = bft_network.clients.values()
         with trio.move_on_after(seconds=1):
-            await self.send_indefinite_pre_execution_requests(skvbc, clients)
+            await tracker.send_indefinite_tracked_ops(write_weight=1)
 
         initial_primary = 0
         await bft_network.wait_for_view(replica_id=initial_primary,
@@ -145,7 +145,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_view_change(self, bft_network):
+    @verify_linearizability(pre_exec_enabled=True)
+    async def test_view_change(self, bft_network, tracker):
         """
         Crash the primary replica and verify that the system triggers a view change and moves to a new view.
         """
@@ -156,12 +157,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
         clients = bft_network.clients.values()
         client = random.choice(list(clients))
-        key_before_vc = skvbc.random_key()
-        value_before_vc = skvbc.random_value()
-        write_set = [(key_before_vc, value_before_vc)]
 
-        await self.send_single_write_with_pre_execution_and_kv(skvbc, write_set, client)
-        await skvbc.assert_kv_write_executed(key_before_vc, value_before_vc)
+        await tracker.send_tracked_write(client, 2)
 
         initial_primary = 0
         await bft_network.wait_for_view(replica_id=initial_primary,
@@ -172,7 +169,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
         try:
             with trio.move_on_after(seconds=1):
-                await self.send_indefinite_pre_execution_requests(skvbc, clients)
+                await tracker.send_indefinite_tracked_ops(write_weight=1)
 
         except trio.TooSlowError:
             pass
@@ -185,7 +182,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         new_last_block = 0
         for retry in range(60):
             try:
-                new_last_block = skvbc.parse_reply(await client.read(skvbc.get_last_block_req()))
+                new_last_block = await tracker.get_last_block_id(client)
             except trio.TooSlowError:
                 continue
             else:
@@ -193,10 +190,11 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
         self.assertEqual(new_last_block, last_block)
 
-    @unittest.skip("Unstable due to BC-3145 TooSlow from pyclient.write")
+    # @unittest.skip("Unstable due to BC-3145 TooSlow from pyclient.write")
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_parallel_tx_after_f_nonprimary_crash(self, bft_network):
+    @verify_linearizability(pre_exec_enabled=True)
+    async def test_parallel_tx_after_f_nonprimary_crash(self, bft_network, tracker):
         '''
         Crash f nonprimary replicas and submit X parallel write submissions.
         Block processing of the network should be unaffected with f-count interruption.
@@ -205,7 +203,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         await trio.sleep(SKVBC_INIT_GRACE_TIME)
-        
+
         read_client = bft_network.random_client()
         submit_clients = bft_network.random_clients(MAX_CONCURRENCY)
         num_of_requests = 10 * len(submit_clients) # each client will send 10 tx
@@ -213,13 +211,13 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         crash_targets = random.sample(nonprimaries, bft_network.config.f) # pick random f to crash
         bft_network.stop_replicas(crash_targets) # crash chosen nonprimary replicas
 
-        await self.run_concurrent_pre_execution_requests(skvbc, submit_clients, num_of_requests, write_weight=1.0)
-        final_block_count = skvbc.parse_reply(await read_client.read(skvbc.get_last_block_req()))
+        rw = await tracker.run_concurrent_ops(num_of_requests, write_weight=1)
+        final_block_count = await tracker.get_last_block_id(read_client)
 
         print("")
         print(f"Randomly picked replica indexes {crash_targets} (nonprimary) to be stopped.")
         print(f"Total of {num_of_requests} write pre-exec tx, "
               f"concurrently submitted through {len(submit_clients)} clients.")
-        print(f"Finished at block {final_block_count} (expected {num_of_requests}).")
-        self.assertTrue(final_block_count == num_of_requests)
+        print(f"Finished at block {final_block_count}.")
+        self.assertTrue(rw[0] + rw[1] >= num_of_requests)
 
