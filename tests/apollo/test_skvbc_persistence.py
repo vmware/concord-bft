@@ -55,7 +55,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: f >= 2)
-    @verify_linearizability
+    @verify_linearizability(pre_exec_enabled=False)
     async def test_view_change_transitions_safely_without_quorum(self, bft_network, tracker):
         """
         Start up only N-2 out of N replicas and send client commands. This should
@@ -105,7 +105,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability
+    @verify_linearizability(pre_exec_enabled=False)
     async def test_read_written_data_after_restart_of_all_nodes(self, bft_network, tracker):
         """
         This test aims to validate the blockchain is persistent
@@ -128,7 +128,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability
+    @verify_linearizability(pre_exec_enabled=False)
     async def test_checkpoints_saved_and_transferred(self, bft_network, tracker):
         """
         Start a 3 nodes out of a 4 node cluster. Write a specific key, then
@@ -170,7 +170,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability
+    @verify_linearizability(pre_exec_enabled=False)
     async def test_st_when_fetcher_crashes(self, bft_network, tracker):
         """
         Start N-1 nodes out of a N node cluster (hence 1 stale node). Write a specific key,
@@ -246,7 +246,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: f >= 2)
-    @verify_linearizability
+    @verify_linearizability(pre_exec_enabled=False)
     async def test_st_when_fetcher_and_sender_crash(self, bft_network, tracker):
         """
         Start N-1 nodes out of a N node cluster. Write a specific key, then
@@ -332,7 +332,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: f >= 2)
-    @verify_linearizability
+    @verify_linearizability(pre_exec_enabled=False)
     async def test_st_while_crashing_primary_with_vc(self, bft_network, tracker):
         """
         Start N-1 nodes out of a N node cluster. Write a specific key, then
@@ -358,7 +358,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: f >= 2)
-    @verify_linearizability
+    @verify_linearizability(pre_exec_enabled=False)
     async def test_st_while_crashing_primary_no_vc(self, bft_network, tracker):
         """
         Start N-1 nodes out of a N node cluster. Write a specific key, then

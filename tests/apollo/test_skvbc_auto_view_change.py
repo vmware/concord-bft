@@ -46,7 +46,7 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability
+    @verify_linearizability(pre_exec_enabled=False)
     async def test_auto_vc_all_nodes_up_no_requests(self, bft_network, tracker):
         """
         This test aims to validate automatic view change
@@ -74,7 +74,7 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability
+    @verify_linearizability(pre_exec_enabled=False)
     async def test_auto_vc_when_primary_down(self, bft_network, tracker):
         """
         This test aims to validate automatic view change
@@ -102,7 +102,7 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability
+    @verify_linearizability(pre_exec_enabled=False)
     async def test_auto_vc_all_nodes_up_fast_path(self, bft_network, tracker):
         """
         This test aims to validate automatic view change
