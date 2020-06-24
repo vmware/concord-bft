@@ -26,6 +26,7 @@ CONCORD_BFT_CMAKE_FLAGS:=-DUSE_CONAN=OFF \
 # It is ignored at all other platforms.
 CONCORD_BFT_CONTAINER_MOUNT_CONSISTENCY=,consistency=cached
 CONCORD_BFT_CTEST_TIMEOUT:=3000 # Default value is 1500 sec. It takes 2500 to run all the tests at my dev station
+CONCORD_BFT_USER_GROUP:=--user `id -u`:`id -g`
 
 CONCORD_BFT_ADDITIONAL_RUN_PARAMS:=
 CONCORD_BFT_ADDITIONAL_RUN_COMMANDS:=
@@ -95,7 +96,7 @@ build: ## Build Concord-BFT source. Note: this command is mostly for developers
 	@if [ "${IF_CONTAINER_RUNS}" != "true" ]; then \
 		make run-c; \
 	fi
-	docker exec -it ${CONCORD_BFT_DOCKER_CONTAINER} \
+	docker exec -it ${CONCORD_BFT_USER_GROUP} ${CONCORD_BFT_DOCKER_CONTAINER} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"mkdir -p ${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR} && \
 		cd ${CONCORD_BFT_BUILD_DIR} && \
@@ -105,6 +106,21 @@ build: ## Build Concord-BFT source. Note: this command is mostly for developers
 		make -j $$(nproc)"
 	@echo
 	@echo "Build finished. The binaries are in ${CURDIR}/${CONCORD_BFT_BUILD_DIR}"
+
+.PHONY: format
+format: ## Format Concord-BFT source
+	@if [ "${IF_CONTAINER_RUNS}" != "true" ]; then \
+		make run-c; \
+	fi
+	docker exec -it ${CONCORD_BFT_USER_GROUP} ${CONCORD_BFT_DOCKER_CONTAINER} \
+		${CONCORD_BFT_CONTAINER_SHELL} -c \
+		"mkdir -p ${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR} && \
+		cd ${CONCORD_BFT_BUILD_DIR} && \
+		CC=${CONCORD_BFT_CONTAINER_CC} CXX=${CONCORD_BFT_CONTAINER_CXX} \
+		cmake ${CONCORD_BFT_CMAKE_FLAGS} .. && \
+		make format"
+	@echo
+	@echo "Format finished."
 
 .PHONY: test
 test: ## Run all tests
