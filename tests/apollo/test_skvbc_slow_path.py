@@ -53,7 +53,7 @@ class SkvbcSlowPathTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: c == 0)
-    @verify_linearizability(pre_exec_enabled=False)
+    @verify_linearizability()
     async def test_persistent_slow_path(self, bft_network, tracker):
         """
         Start a full BFT network with c=0 then bring one replica down.
@@ -82,7 +82,7 @@ class SkvbcSlowPathTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd,
                       num_clients=4)
-    @verify_linearizability(pre_exec_enabled=False)
+    @verify_linearizability()
     async def test_slow_to_fast_path_transition(self, bft_network, tracker):
         """
         This test aims to check that the system correctly restores
@@ -130,7 +130,7 @@ class SkvbcSlowPathTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability(pre_exec_enabled=False)
+    @verify_linearizability()
     async def test_slow_path_view_change(self, bft_network, tracker):
         """
         This test validates the BFT engine's transition to the slow path
