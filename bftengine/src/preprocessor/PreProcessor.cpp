@@ -36,6 +36,11 @@ void PreProcessor::addNewPreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunic
                                       bftEngine::IRequestsHandler &requestsHandler,
                                       InternalReplicaApi &replica,
                                       concordUtil::Timers &timers) {
+  if (!ReplicaConfigSingleton::GetInstance().GetNumOfExternalClients()) {
+    LOG_ERROR(logger(), "A number of configured external clients should not be zero!");
+    return;
+  }
+
   if (ReplicaConfigSingleton::GetInstance().GetPreExecutionFeatureEnabled())
     preProcessors_.push_back(make_unique<PreProcessor>(
         msgsCommunicator, incomingMsgsStorage, msgHandlersRegistrator, requestsHandler, replica, timers));
@@ -95,7 +100,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       maxReplyMsgSize_(myReplica.getReplicaConfig().maxReplyMessageSize - sizeof(ClientReplyMsgHeader)),
       idsOfPeerReplicas_(myReplica.getIdsOfPeerReplicas()),
       numOfReplicas_(myReplica.getReplicaConfig().numReplicas),
-      numOfClients_(myReplica.getReplicaConfig().numOfClientProxies),
+      numOfClients_(myReplica.getReplicaConfig().numOfExternalClients),
       metricsComponent_{concordMetrics::Component("preProcessor", std::make_shared<concordMetrics::Aggregator>())},
       metricsLastDumpTime_(0),
       metricsDumpIntervalInSec_{myReplica_.getReplicaConfig().metricsDumpIntervalSeconds},
@@ -123,10 +128,9 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   for (auto id = 0; id < numOfClients_; id++) {
     preProcessResultBuffers_.push_back(Sliver(new char[maxReplyMsgSize_], maxReplyMsgSize_));
   }
-  threadPool_.start(numOfClients_);
-  LOG_INFO(
-      logger(),
-      "numOfClients=" << numOfClients_ << " preExecReqStatusCheckPeriodMilli_=" << preExecReqStatusCheckPeriodMilli_);
+  const uint64_t numOfThreads = thread::hardware_concurrency();
+  threadPool_.start(numOfThreads);
+  LOG_INFO(logger(), KVLOG(numOfClients_, preExecReqStatusCheckPeriodMilli_, numOfThreads));
   RequestProcessingState::init(numOfRequiredReplies());
   addTimers();
 }

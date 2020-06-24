@@ -278,6 +278,7 @@ void setUpConfiguration_4() {
   replicaConfig.numOfClientProxies = numOfClients;
   replicaConfig.viewChangeTimerMillisec = viewChangeTimerMillisec;
   replicaConfig.preExecReqStatusCheckTimerMillisec = preExecReqStatusCheckTimerMillisec;
+  replicaConfig.numOfExternalClients = 5;
 
   replicaConfig.publicKeysOfReplicas.insert(pair<uint16_t, const string>(replica_0, publicKey_0));
   replicaConfig.publicKeysOfReplicas.insert(pair<uint16_t, const string>(replica_1, publicKey_1));
