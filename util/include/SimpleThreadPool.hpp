@@ -72,7 +72,7 @@ class SimpleThreadPool {
   std::queue<SimpleThreadPool::Job*> job_queue_;
   std::mutex queue_lock_;
   std::condition_variable queue_cond_;
-  std::atomic_bool stopped_;
+  bool stopped_;
   int num_of_free_threads_ = 0;
   std::mutex threads_startup_lock_;
   std::condition_variable threads_startup_cond_;

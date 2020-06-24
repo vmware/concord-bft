@@ -12,6 +12,7 @@
 #include "SimpleThreadPool.hpp"
 #include "Logger.hpp"
 #include <iostream>
+#include <mutex>
 
 logging::Logger SP = logging::getLogger("thread-pool");
 namespace util {
@@ -40,11 +41,9 @@ void SimpleThreadPool::start(uint8_t num_of_threads) {
 }
 
 void SimpleThreadPool::stop(bool executeAllJobs) {
-  bool test_false = false;
-  if (!stopped_.compare_exchange_strong(test_false, true)) {
-    // stop has already been called // TODO(TK) throw?
-    LOG_ERROR(SP, "SimpleThreadPool::stop called more than once");
-    return;
+  {
+    std::unique_lock<std::mutex> l{queue_lock_};
+    stopped_ = true;
   }
   queue_cond_.notify_all();
   for (auto&& t : threads_) {
@@ -65,13 +64,11 @@ void SimpleThreadPool::stop(bool executeAllJobs) {
 }
 
 void SimpleThreadPool::add(Job* j) {
-  if (stopped_) return;  // TODO(TK) throw?
-
   {
     guard g(queue_lock_);
+    if (stopped_) return;
     job_queue_.push(j);
   }
-
   queue_cond_.notify_one();
 }
 
