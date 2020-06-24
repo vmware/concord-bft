@@ -101,7 +101,6 @@ class IDBClient {
       Guard(const Guard&) = delete;
       Guard& operator=(const Guard&) = delete;
       Guard(Guard&&) = default;
-      Guard& operator=(Guard&&) = default;
       ~Guard() noexcept {
         try {
           db_.freeIterator(&iter_);
