@@ -40,3 +40,7 @@ target_link_libraries(sha3_256_tests GTest::Main util OpenSSL::Crypto
 add_executable(RollingAvgAndVar_test RollingAvgAndVar_test.cpp )
 add_test(RollingAvgAndVar_test RollingAvgAndVar_test)
 target_link_libraries(RollingAvgAndVar_test GTest::Main util)
+
+add_executable(thread_pool_test thread_pool_test.cpp)
+add_test(thread_pool_test thread_pool_test)
+target_link_libraries(thread_pool_test GTest::Main util)
