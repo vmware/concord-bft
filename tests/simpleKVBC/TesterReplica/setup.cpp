@@ -38,6 +38,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     // used to get info from parsing the key file
     bftEngine::ReplicaConfig replicaConfig;
     replicaConfig.numOfClientProxies = 100;
+    replicaConfig.numOfExternalClients = 30;
     replicaConfig.concurrencyLevel = 1;
     replicaConfig.debugStatisticsEnabled = true;
     replicaConfig.viewChangeTimerMillisec = 45 * 1000;
