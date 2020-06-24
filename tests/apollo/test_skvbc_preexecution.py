@@ -190,7 +190,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
         self.assertEqual(new_last_block, last_block)
 
-    # @unittest.skip("Unstable due to BC-3145 TooSlow from pyclient.write")
+    @unittest.skip("Unstable due to BC-3145 TooSlow from pyclient.write")
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability(pre_exec_enabled=True)
