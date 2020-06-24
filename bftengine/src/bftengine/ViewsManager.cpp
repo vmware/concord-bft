@@ -425,10 +425,15 @@ vector<ViewChangeMsg*> ViewsManager::getViewChangeMsgsForView(ViewNum v) {
   vector<ViewChangeMsg*> relevantVCMsgs;
   if (viewIsActive(v)) {
     relevantVCMsgs = getViewChangeMsgsForCurrentView();
-  } else if (viewIsPending(v)) {
+  } else {
     for (uint16_t i = 0; i < N; i++) {
-      if (viewChangeMsgsOfPendingView[i] != nullptr && viewChangeMsgsOfPendingView[i]->newView() >= v) {
-        relevantVCMsgs.push_back(viewChangeMsgsOfPendingView[i]);
+      ViewChangeMsg* msgToAdd = viewChangeMsgsOfPendingView[i];
+      if (viewChangeMessages[i] != nullptr &&
+          (msgToAdd == nullptr || viewChangeMessages[i]->newView() > msgToAdd->newView())) {
+        msgToAdd = viewChangeMessages[i];
+      }
+      if (msgToAdd && msgToAdd->newView() >= v) {
+        relevantVCMsgs.push_back(msgToAdd);
       }
     }
   }
