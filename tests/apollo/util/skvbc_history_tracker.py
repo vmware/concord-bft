@@ -27,28 +27,30 @@ from util.skvbc_exceptions import(
 MAX_LOOKBACK=10
 
 
-def verify_linearizability(async_fn):
+def verify_linearizability(pre_exec_enabled=False):
     """
     Creates a tracker and provide him to the decorated method.
     In the end of the method it checks the linearizability of the resulting history.
     """
-    @wraps(async_fn)
-    async def wrapper(*args, **kwargs):
-        if 'disable_linearizability_checks' in kwargs:
-            kwargs.pop('disable_linearizability_checks')
-            bft_network = kwargs['bft_network']
-            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-            tracker = PassThroughSkvbcTracker(skvbc, bft_network)
-            await async_fn(*args, **kwargs, tracker=tracker)
-        else:
-            bft_network = kwargs['bft_network']
-            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-            init_state = skvbc.initial_state()
-            tracker = SkvbcTracker(init_state, skvbc, bft_network)
-            await async_fn(*args, **kwargs, tracker=tracker)
-            await tracker.fill_missing_blocks_and_verify()
+    def decorator(async_fn):
+        @wraps(async_fn)
+        async def wrapper(*args, **kwargs):
+            if 'disable_linearizability_checks' in kwargs:
+                kwargs.pop('disable_linearizability_checks')
+                bft_network = kwargs['bft_network']
+                skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+                tracker = PassThroughSkvbcTracker(skvbc, bft_network, pre_exec_enabled)
+                await async_fn(*args, **kwargs, tracker=tracker)
+            else:
+                bft_network = kwargs['bft_network']
+                skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+                init_state = skvbc.initial_state()
+                tracker = SkvbcTracker(init_state, skvbc, bft_network, pre_exec_enabled)
+                await async_fn(*args, **kwargs, tracker=tracker)
+                await tracker.fill_missing_blocks_and_verify()
 
-    return wrapper
+        return wrapper
+    return decorator
 
 
 class SkvbcWriteRequest:
@@ -375,7 +377,12 @@ class SkvbcTracker:
     clusters with lots of blocks, but we may want to add it as an optional check
     in the future.
     """
-    def __init__(self, initial_kvpairs={}, skvbc=None, bft_network=None):
+    def __init__(self, initial_kvpairs={}, skvbc=None, bft_network=None, pre_exec_all=False):
+
+        # If this flag is set to True, it means that all the tracker requests will
+        # go through the pre_execution mechanism
+        self.pre_exec_all = pre_exec_all
+
         # A partial order of all requests (SkvbcWriteRequest | SkvbcReadRequest)
         # issued against SimpleKVBC.  History tracks requests and responses. A
         # happens-before relationship exists between responses and requests
@@ -836,17 +843,17 @@ class SkvbcTracker:
         msg = kvbc.SimpleKVBCProtocol.get_last_block_req()
         return kvbc.SimpleKVBCProtocol.parse_reply(await client.read(msg))
 
-    async def send_tracked_write(self, client, max_set_size):
+    async def send_tracked_write(self, client, max_set_size, long_exec=False):
         readset = self.readset(0, max_set_size)
         writeset = self.writeset(max_set_size)
         read_version = self.read_block_id()
-        msg = self.skvbc.write_req(readset, writeset, read_version)
+        msg = self.skvbc.write_req(readset, writeset, read_version, long_exec)
         seq_num = client.req_seq_num.next()
         client_id = client.client_id
         self.send_write(
             client_id, seq_num, readset, dict(writeset), read_version)
         try:
-            serialized_reply = await client.write(msg, seq_num)
+            serialized_reply = await client.write(msg, seq_num, pre_process=self.pre_exec_all)
             self.status.record_client_reply(client_id)
             reply = self.skvbc.parse_reply(serialized_reply)
             self.handle_write_reply(client_id, seq_num, reply)
@@ -914,16 +921,16 @@ class SkvbcTracker:
                     pass
                 await trio.sleep(.01)
 
-    async def write_and_track_known_kv(self, kv, client):
+    async def write_and_track_known_kv(self, kv, client, long_exec=False):
         read_version = self.read_block_id()
         readset = self.readset(0, 0)
-        msg = self.skvbc.write_req(readset, kv, read_version)
+        msg = self.skvbc.write_req(readset, kv, read_version, long_exec)
         seq_num = client.req_seq_num.next()
         client_id = client.client_id
         self.send_write(
             client_id, seq_num, readset, dict(kv), read_version)
         try:
-            serialized_reply = await client.write(msg, seq_num)
+            serialized_reply = await client.write(msg, seq_num, pre_process=self.pre_exec_all)
             self.status.record_client_reply(client_id)
             reply = self.skvbc.parse_reply(serialized_reply)
             self.handle_write_reply(client_id, seq_num, reply)
@@ -1004,17 +1011,19 @@ class SkvbcTracker:
 
 class PassThroughSkvbcTracker:
 
-    def __init__(self, skvbc=None, bft_network=None):
+    def __init__(self, skvbc=None, bft_network=None, pre_exec_all=False):
+        self.pre_exec_all = pre_exec_all
+
         self.skvbc = skvbc
 
         self.bft_network = bft_network
 
-    async def send_tracked_write(self, client, max_set_size):
+    async def send_tracked_write(self, client, max_set_size, long_exec=False):
         readset = self.readset(0, max_set_size)
         writeset = self.writeset(max_set_size)
-        msg = self.skvbc.write_req(readset, writeset, 0)
+        msg = self.skvbc.write_req(readset, writeset, 0, long_exec)
         try:
-            serialized_reply = await client.write(msg)
+            serialized_reply = await client.write(msg, pre_process=self.pre_exec_all)
             reply = self.skvbc.parse_reply(serialized_reply)
             return reply
         except trio.TooSlowError:
@@ -1070,9 +1079,9 @@ class PassThroughSkvbcTracker:
                 pass
             await trio.sleep(.1)
 
-    async def write_and_track_known_kv(self, kv, client):
+    async def write_and_track_known_kv(self, kv, client, long_exec=False):
         return self.skvbc.parse_reply(await client.write(
-            self.skvbc.write_req([], kv, 0)))
+            self.skvbc.write_req([], kv, 0, long_exec)), pre_process=self.pre_exec_all)
 
     async def read_and_track_known_kv(self, key, client):
         msg = self.skvbc.read_req([key])

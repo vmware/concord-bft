@@ -49,7 +49,7 @@ class SkvbcFastPathTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability
+    @verify_linearizability()
     async def test_fast_path_only(self, bft_network, tracker):
         """
         This test aims to check that the fast commit path is prevalent
@@ -72,7 +72,7 @@ class SkvbcFastPathTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability
+    @verify_linearizability()
     async def test_fast_to_slow_path_transition(self, bft_network, tracker):
         """
         This test aims to check the correct transition from fast to slow commit path.
@@ -110,7 +110,7 @@ class SkvbcFastPathTest(unittest.TestCase):
     @with_bft_network(start_replica_cmd,
                       num_clients=4,
                       selected_configs=lambda n, f, c: c >= 1)
-    @verify_linearizability
+    @verify_linearizability()
     async def test_fast_path_resilience_to_crashes(self, bft_network, tracker):
         """
         In this test we check the fast path's resilience when up to "c" nodes fail.

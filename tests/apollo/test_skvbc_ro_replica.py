@@ -121,7 +121,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1)
-    @verify_linearizability
+    @verify_linearizability()
     async def test_ro_replica_start_with_delay(self, bft_network, tracker):
         """
         Start up N of N regular replicas.
@@ -167,7 +167,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1)
-    @verify_linearizability
+    @verify_linearizability()
     async def test_ro_replica_start_simultaneously (self, bft_network, tracker):
         """
         Start up N of N regular replicas.

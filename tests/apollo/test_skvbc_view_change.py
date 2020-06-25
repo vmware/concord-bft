@@ -103,7 +103,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability
+    @verify_linearizability()
     async def test_single_vc_only_primary_down(self, bft_network, tracker):
         """
         The goal of this test is to validate the most basic view change
@@ -123,7 +123,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability
+    @verify_linearizability()
     async def test_single_vc_with_f_replicas_down(self, bft_network, tracker):
         """
         Here we "step it up" a little bit, bringing down a total of f replicas
@@ -172,7 +172,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2)
-    @verify_linearizability
+    @verify_linearizability()
     async def test_crashed_replica_catch_up_after_view_change(self, bft_network, tracker):
         """
         In this test scenario we want to make sure that a crashed replica
@@ -235,7 +235,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability
+    @verify_linearizability()
     async def test_restart_replica_after_view_change(self, bft_network, tracker):
         """
         This test makes sure that a replica can be safely restarted after a view change:
@@ -294,7 +294,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: c < f)
-    @verify_linearizability
+    @verify_linearizability()
     async def test_multiple_vc_slow_path(self, bft_network, tracker):
         """
         In this test we aim to validate a sequence of view changes,
@@ -366,7 +366,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs = lambda n,f,c : f >= 2)
-    @verify_linearizability
+    @verify_linearizability()
     async def test_single_vc_current_and_next_primaries_down(self, bft_network, tracker):
         """
         The goal of this test is to validate the skip view scenario, where 

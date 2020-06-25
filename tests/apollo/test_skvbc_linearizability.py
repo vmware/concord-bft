@@ -53,7 +53,7 @@ class SkvbcChaosTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability
+    @verify_linearizability()
     async def test_healthy(self, bft_network, tracker):
         """
         Run a bunch of concurrrent requests in batches and verify
@@ -69,7 +69,7 @@ class SkvbcChaosTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability
+    @verify_linearizability()
     async def test_wreak_havoc(self, bft_network, tracker):
         """
         Run a bunch of concurrrent requests in batches and verify

@@ -47,7 +47,7 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability
+    @verify_linearizability()
     async def test_while_dropping_packets(self, bft_network, tracker):
         """
          Run a bunch of concurrent requests in batches and verify
@@ -68,7 +68,7 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability
+    @verify_linearizability()
     async def test_single_vc_primary_isolated(self, bft_network, tracker):
         """
         The goal of this test is to check the view change
@@ -109,7 +109,7 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability
+    @verify_linearizability()
     async def test_isolate_f_non_primaries_slow_path(self, bft_network, tracker):
         """
         This test makes sure that a BFT network continues making progress (albeit on the slow path),
@@ -186,7 +186,7 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2)
-    @verify_linearizability
+    @verify_linearizability()
     async def test_isolate_non_primaries_subset_with_view_change(self, bft_network, tracker):
         """
         In this test we isolate f-1 replicas from the rest of the BFT network.
