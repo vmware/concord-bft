@@ -18,6 +18,7 @@ import random
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from util import skvbc as kvbc
 from util.skvbc_history_tracker import verify_linearizability
+import util.bft_network_partitioning as net
 
 SKVBC_INIT_GRACE_TIME = 2
 NUM_OF_SEQ_WRITES = 100
@@ -151,7 +152,6 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         Crash the primary replica and verify that the system triggers a view change and moves to a new view.
         """
         bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         await trio.sleep(5)
 
@@ -164,7 +164,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         await bft_network.wait_for_view(replica_id=initial_primary,
                                         expected=lambda v: v == initial_primary,
                                         err_msg="Make sure we are in the initial view before crashing the primary.")
-        last_block = skvbc.parse_reply(await client.read(skvbc.get_last_block_req()))
+
+        last_block = tracker.get_last_block_id(client)
         bft_network.stop_replica(initial_primary)
 
         try:
@@ -201,7 +202,6 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         Final block length should match submitted transactions count exactly.
         '''
         bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         await trio.sleep(SKVBC_INIT_GRACE_TIME)
 
         read_client = bft_network.random_client()
@@ -221,3 +221,155 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         print(f"Finished at block {final_block_count}.")
         self.assertTrue(rw[0] + rw[1] >= num_of_requests)
 
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    @verify_linearizability(pre_exec_enabled=True)
+    async def test_primary_isolation_from_replicas(self, bft_network, tracker):
+        '''
+        Isolate the from the other replicas, wait for view change and ensure the system is still able to make progress
+        '''
+        with net.PrimaryIsolatingAdversary(bft_network) as adversary:
+            bft_network.start_all_replicas()
+            read_client = bft_network.random_client()
+
+            start_block = await tracker.get_last_block_id(read_client)
+
+            await adversary.interfere()
+
+            await self.issue_tracked_ops_to_the_system(tracker)
+
+            expected_next_primary = 1
+            await bft_network.wait_for_view(replica_id=random.choice(bft_network.all_replicas(without={0})),
+                                        expected=lambda v: v == expected_next_primary,
+                                        err_msg="Make sure view change has been triggered.")
+
+            await self.issue_tracked_ops_to_the_system(tracker)
+
+            last_block = await tracker.get_last_block_id(read_client)
+            assert last_block > start_block
+
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    @verify_linearizability(pre_exec_enabled=True)
+    async def test_dropping_packets(self, bft_network, tracker):
+        '''
+        Drop 5% of the packets in the network and make sure the system is able to make progress
+        '''
+        with net.PacketDroppingAdversary(bft_network, drop_rate_percentage=5) as adversary:
+            bft_network.start_all_replicas()
+            read_client = bft_network.random_client()
+
+            start_block = await tracker.get_last_block_id(read_client)
+
+            adversary.interfere()
+            await self.issue_tracked_ops_to_the_system(tracker)
+
+            last_block = await tracker.get_last_block_id(read_client)
+            assert last_block > start_block
+
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    @verify_linearizability(pre_exec_enabled=True)
+    async def test_f_isolated_non_primaries(self, bft_network, tracker):
+        '''
+        Isolate f non primaries replicas and make sure the system is able to make progress
+        '''
+        n = bft_network.config.n
+        f = bft_network.config.f
+        c = bft_network.config.c
+
+        with net.ReplicaSubsetIsolatingAdversary(bft_network, bft_network.random_set_of_replicas(f, without={0}))\
+                as adversary:
+            bft_network.start_all_replicas()
+            read_client = bft_network.random_client()
+
+            start_block = await tracker.get_last_block_id(read_client)
+
+            adversary.interfere()
+            await self.issue_tracked_ops_to_the_system(tracker)
+
+            last_block = await tracker.get_last_block_id(read_client)
+            assert last_block > start_block
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2)
+    @verify_linearizability(pre_exec_enabled=True)
+    async def test_f_isolated_with_primary(self, bft_network, tracker):
+        '''
+        Isolate f replicas including the primary and make sure the system is able to make progress
+        '''
+        n = bft_network.config.n
+        f = bft_network.config.f
+        c = bft_network.config.c
+
+        initial_primary = 0
+        expected_next_primary = 1
+        isolated_replicas = bft_network.random_set_of_replicas(f - 1, without={initial_primary, expected_next_primary})
+        isolated_replicas.add(initial_primary)
+
+        with net.ReplicaSubsetIsolatingAdversary(bft_network, isolated_replicas) as adversary:
+            bft_network.start_all_replicas()
+            read_client = bft_network.random_client()
+
+            start_block = await tracker.get_last_block_id(read_client)
+
+            adversary.interfere()
+            await self.issue_tracked_ops_to_the_system(tracker)
+
+            await bft_network.wait_for_view(replica_id=expected_next_primary,
+                                            expected=lambda v: v == expected_next_primary,
+                                            err_msg="Make sure view change has been triggered.")
+
+            await self.issue_tracked_ops_to_the_system(tracker)
+
+            last_block = await tracker.get_last_block_id(read_client)
+            assert last_block > start_block
+
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2)
+    @verify_linearizability(pre_exec_enabled=True)
+    async def test_alternate_f_isolated(self, bft_network, tracker):
+        '''
+        Isolate f replicas and make sure the system is able to make progress.
+        Then, isolate a different set of f replicas and make sure the system is able to make progress
+        '''
+        n = bft_network.config.n
+        f = bft_network.config.f
+        c = bft_network.config.c
+
+        initial_primary = 0
+        isolated_replicas_take_1 = bft_network.random_set_of_replicas(f, without={initial_primary})
+
+        bft_network.start_all_replicas()
+        read_client = bft_network.random_client()
+
+        with net.ReplicaSubsetIsolatingAdversary(bft_network, isolated_replicas_take_1) as adversary:
+            start_block = await tracker.get_last_block_id(read_client)
+
+            adversary.interfere()
+            await self.issue_tracked_ops_to_the_system(tracker)
+
+            last_block = await tracker.get_last_block_id(read_client)
+            assert last_block > start_block
+
+        isolated_replicas_take_1.add(initial_primary)
+        isolated_replicas_take_2 = bft_network.random_set_of_replicas(f, without=isolated_replicas_take_1)
+
+        with net.ReplicaSubsetIsolatingAdversary(bft_network, isolated_replicas_take_2) as adversary:
+
+            start_block = await tracker.get_last_block_id(read_client)
+
+            adversary.interfere()
+            await self.issue_tracked_ops_to_the_system(tracker)
+
+            last_block = await tracker.get_last_block_id(read_client)
+            assert last_block > start_block
+
+
+    async def issue_tracked_ops_to_the_system(self, tracker):
+        try:
+            with trio.move_on_after(seconds=3):
+                await tracker.send_indefinite_tracked_ops(write_weight=1)
+        except trio.TooSlowError:
+            pass
