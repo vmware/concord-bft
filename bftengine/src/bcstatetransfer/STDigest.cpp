@@ -30,7 +30,9 @@ std::string STDigest::toString() const {
   char t[3];
   static_assert(sizeof(t) == 3, "");
   for (size_t i = 0; i < BLOCK_DIGEST_SIZE; i++) {
-    unsigned int b = (unsigned int)content[i];
+    // TODO(DD): Is it by design?
+    // NOLINTNEXTLINE(bugprone-signed-char-misuse)
+    unsigned int b = (unsigned char)content[i];
     snprintf(t, sizeof(t), "%02X", b);
     c[i * 2] = t[0];
     c[i * 2 + 1] = t[1];

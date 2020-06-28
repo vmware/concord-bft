@@ -68,7 +68,7 @@ bool BlsThresholdSigner::operator==(const BlsThresholdSigner &other) const {
   else
     cout << "params_" << endl;
   if (other.sigSize_ != sigSize_) cout << "sigSize_" << endl;
-  if (memcmp(other.serializedId_, serializedId_, sizeof(ShareID))) cout << "serializedId_" << endl;
+  if (memcmp(other.serializedId_, serializedId_, sizeof(ShareID)) != 0) cout << "serializedId_" << endl;
   if (other.hTmp_ != hTmp_) cout << "hTmp_" << endl;
   if (other.sigTmp_ != sigTmp_) cout << "sigTmp_" << endl;
   if (other.secretKey_ == secretKey_)

@@ -526,13 +526,13 @@ void BCStateTran::getDigestOfCheckpoint(uint64_t checkpointNumber, uint16_t size
   STDigest checkpointDigest;
   DigestContext c;
   c.update(reinterpret_cast<char *>(&desc), sizeof(desc));
-  c.writeDigest(reinterpret_cast<char *>(&checkpointDigest));
+  c.writeDigest(checkpointDigest.getForUpdate());
 
   LOG_INFO(STLogger,
            KVLOG(desc.checkpointNum, desc.digestOfLastBlock, desc.digestOfResPagesDescriptor, checkpointDigest));
 
   uint16_t s = std::min((uint16_t)sizeof(STDigest), sizeOfDigestBuffer);
-  memcpy(outDigestBuffer, &checkpointDigest, s);
+  memcpy(outDigestBuffer, checkpointDigest.get(), s);
   if (s < sizeOfDigestBuffer) {
     memset(outDigestBuffer + s, 0, sizeOfDigestBuffer - s);
   }

@@ -9,6 +9,8 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+#include <limits>
+#include <random>
 #include "gtest/gtest.h"
 
 #include "helper.hpp"
@@ -32,17 +34,25 @@ TEST(NewViewMsg, base_methods) {
   EXPECT_EQ(msg.newView(), viewNum);
   EXPECT_EQ(msg.elementsCount(), 0);
 
-  for (uint8_t i = 1; i <= config.fVal * 2 + config.cVal * 2 + 1; ++i) {
-    Digest d{i};
+  const size_t element_number = config.fVal * 2 + config.cVal * 2 + 1;
+  std::vector<Digest> digests;
+  digests.reserve(element_number);
+
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  std::uniform_int_distribution<> distrib(1, std::numeric_limits<uint8_t>::max());
+
+  for (uint16_t i = 0; i < element_number; ++i) {
+    Digest d{static_cast<uint8_t>(distrib(gen))};
+    digests.push_back(d);
     msg.addElement(i, d);
   }
 
   EXPECT_EQ(msg.elementsCount(), config.fVal * 2 + config.cVal * 2 + 1);
   msg.finalizeMessage(replicaInfo);
   EXPECT_NO_THROW(msg.validate(replicaInfo));
-  for (uint8_t i = 1; i <= config.fVal * 2 + config.cVal * 2 + 1; ++i) {
-    Digest d{i};
-    EXPECT_TRUE(msg.includesViewChangeFromReplica(i, d));
+  for (uint16_t i = 0; i < element_number; ++i) {
+    EXPECT_TRUE(msg.includesViewChangeFromReplica(i, digests[i]));
   }
   testMessageBaseMethods(msg, MsgCode::NewView, senderId, spanContext);
 }
