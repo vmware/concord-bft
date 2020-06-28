@@ -43,8 +43,8 @@ RequestProcessingState::RequestProcessingState(uint16_t numOfReplicas,
 void RequestProcessingState::setPreProcessRequest(PreProcessRequestMsgSharedPtr preProcessReqMsg) {
   if (preProcessRequestMsg_ != nullptr) {
     LOG_ERROR(logger(),
-              "preProcessRequestMsg_ is already set; clientId=" << clientId_ << ", reqSeqNum="
-                                                                << preProcessRequestMsg_->reqSeqNum());
+              "preProcessRequestMsg_ is already set; " << KVLOG(clientId_)
+                                                       << ", reqSeqNum: " << preProcessRequestMsg_->reqSeqNum());
     return;
   }
   preProcessRequestMsg_ = preProcessReqMsg;
@@ -125,21 +125,21 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
       // Primary replica calculated hash is different from a hash that passed pre-execution consensus => we don't have
       // correct pre-processed results. Let's launch a pre-processing retry.
       LOG_WARN(logger(),
-               "Primary replica pre-processing result hash is different from one passed the consensus for reqSeqNum="
-                   << reqSeqNum_ << "; retry pre-processing on primary replica");
+               "Primary replica pre-processing result hash is different from one passed the consensus for "
+                   << KVLOG(reqSeqNum_) << "; retry pre-processing on primary replica");
       retrying_ = true;
       return RETRY_PRIMARY;
     }
 
     LOG_DEBUG(logger(),
-              "Primary replica did not complete pre-processing yet for reqSeqNum=" << reqSeqNum_ << "; continue");
+              "Primary replica did not complete pre-processing yet for " << KVLOG(reqSeqNum_) << "; continue");
     return CONTINUE;
   }
 
   if (numOfReceivedReplies_ == numOfReplicas_ - 1) {
     // Replies from all replicas received, but not enough equal hashes collected => pre-execution consensus not
     // reached => cancel request.
-    LOG_WARN(logger(), "Not enough equal hashes collected for reqSeqNum=" << reqSeqNum_ << ", cancel request");
+    LOG_WARN(logger(), "Not enough equal hashes collected for " << KVLOG(reqSeqNum_) << ", cancel request");
     return CANCEL;
   }
   return CONTINUE;
