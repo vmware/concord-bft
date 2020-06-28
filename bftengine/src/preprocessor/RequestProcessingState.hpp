@@ -27,6 +27,7 @@ typedef enum { NONE, CONTINUE, COMPLETE, CANCEL, RETRY_PRIMARY } PreProcessingRe
 class RequestProcessingState {
  public:
   RequestProcessingState(uint16_t numOfReplicas,
+                         uint16_t clientId,
                          ReqId reqSeqNum,
                          ClientPreProcessReqMsgUniquePtr clientReqMsg,
                          PreProcessRequestMsgSharedPtr preProcessRequestMsg);
@@ -37,6 +38,7 @@ class RequestProcessingState {
   std::unique_ptr<MessageBase> buildClientRequestMsg(bool resetPreProcessFlag);
   void setPreProcessRequest(PreProcessRequestMsgSharedPtr preProcessReqMsg);
   const PreProcessRequestMsgSharedPtr& getPreProcessRequest() const { return preProcessRequestMsg_; }
+  const auto getClientId() const { return clientId_; }
   const SeqNum getReqSeqNum() const { return reqSeqNum_; }
   PreProcessingResult definePreProcessingConsensusResult();
   const char* getPrimaryPreProcessedResult() const { return primaryPreProcessResult_; }
@@ -44,6 +46,7 @@ class RequestProcessingState {
   bool isReqTimedOut(bool isPrimary) const;
   uint64_t getReqTimeoutMilli() const { return clientPreProcessReqMsg_->requestTimeoutMilli(); }
   std::string getReqCid() const { return clientPreProcessReqMsg_->getCid(); }
+  void detectNonDeterministicPreProcessing(const uint8_t* newHash) const;
 
   static void init(uint16_t numOfRequiredReplies);
 
@@ -56,6 +59,7 @@ class RequestProcessingState {
     return logger_;
   }
   auto calculateMaxNbrOfEqualHashes(uint16_t& maxNumOfEqualHashes) const;
+  void detectNonDeterministicPreProcessing(const concord::util::SHA3_256::Digest& newHash) const;
 
  private:
   static uint16_t numOfRequiredEqualReplies_;
@@ -63,6 +67,7 @@ class RequestProcessingState {
   // The use of the class data members is thread-safe. The PreProcessor class uses a per-instance mutex lock for
   // the RequestProcessingState objects.
   const uint16_t numOfReplicas_;
+  const uint16_t clientId_;
   const ReqId reqSeqNum_;
   const uint64_t entryTime_;
   ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg_;

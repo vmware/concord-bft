@@ -315,6 +315,10 @@ void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *msg) {
     const auto &clientEntry = ongoingRequests_[clientId];
     lock_guard<mutex> lock(clientEntry->mutex);
     if (!clientEntry->reqProcessingStatePtr || clientEntry->reqProcessingStatePtr->getReqSeqNum() != reqSeqNum) {
+      // Look for the request in the requests history and check for the non-determinism
+      for (auto &oldReqState : clientEntry->reqProcessingHistory)
+        if (oldReqState->getClientId() == clientId && oldReqState->getReqSeqNum() == reqSeqNum)
+          oldReqState->detectNonDeterministicPreProcessing(preProcessReplyMsg->resultsHash());
       LOG_DEBUG(
           logger(),
           "reqSeqNum=" << reqSeqNum << " received from replica=" << preProcessReplyMsg->senderId()
@@ -424,8 +428,8 @@ bool PreProcessor::registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
     const auto &clientEntry = ongoingRequests_[clientId];
     lock_guard<mutex> lock(clientEntry->mutex);
     if (!clientEntry->reqProcessingStatePtr)
-      clientEntry->reqProcessingStatePtr =
-          make_unique<RequestProcessingState>(numOfReplicas_, reqSeqNum, move(clientReqMsg), preProcessRequestMsg);
+      clientEntry->reqProcessingStatePtr = make_unique<RequestProcessingState>(
+          numOfReplicas_, clientId, reqSeqNum, move(clientReqMsg), preProcessRequestMsg);
     else if (!clientEntry->reqProcessingStatePtr->getPreProcessRequest())
       // The request was registered before as arrived directly from the client
       clientEntry->reqProcessingStatePtr->setPreProcessRequest(preProcessRequestMsg);
@@ -446,12 +450,20 @@ void PreProcessor::releaseClientPreProcessRequestSafe(uint16_t clientId) {
   releaseClientPreProcessRequest(clientEntry, clientId);
 }
 
+// This function should be always called under a clientEntry->mutex lock
 void PreProcessor::releaseClientPreProcessRequest(const ClientRequestStateSharedPtr &clientEntry, uint16_t clientId) {
-  if (clientEntry->reqProcessingStatePtr) {
+  auto &givenReq = clientEntry->reqProcessingStatePtr;
+  if (givenReq) {
+    if (clientEntry->reqProcessingHistory.size() >= clientEntry->reqProcessingHistoryHeight) {
+      auto &removeFromHistoryReq = clientEntry->reqProcessingHistory.front();
+      LOG_DEBUG(logger(),
+                "clientId=" << clientId << " requestSeqNum=" << removeFromHistoryReq->getReqSeqNum() << " released");
+      removeFromHistoryReq.reset();
+      clientEntry->reqProcessingHistory.pop_front();
+    }
     LOG_DEBUG(logger(),
-              "clientId=" << clientId << " requestSeqNum=" << clientEntry->reqProcessingStatePtr->getReqSeqNum()
-                          << " released");
-    clientEntry->reqProcessingStatePtr.reset();
+              "clientId=" << clientId << " requestSeqNum=" << givenReq->getReqSeqNum() << " moved to the history");
+    clientEntry->reqProcessingHistory.push_back(move(givenReq));
   }
 }
 
