@@ -165,7 +165,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
                                         expected=lambda v: v == initial_primary,
                                         err_msg="Make sure we are in the initial view before crashing the primary.")
 
-        last_block = tracker.get_last_block_id(client)
+        last_block = await tracker.get_last_block_id(client)
         bft_network.stop_replica(initial_primary)
 
         try:
