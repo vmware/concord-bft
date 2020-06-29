@@ -5,7 +5,8 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Build Status](https://travis-ci.com/vmware/concord-bft.svg?branch=master)](https://travis-ci.com/vmware/concord-bft)
-![Build Status](https://github.com/vmware/concord-bft/workflows/Build/badge.svg)
+[![Build Status](https://github.com/vmware/concord-bft/workflows/Build/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3ABuild)
+[![clang-tidy](https://github.com/vmware/concord-bft/workflows/clang-tidy/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3Aclang-tidy)
 
 
 

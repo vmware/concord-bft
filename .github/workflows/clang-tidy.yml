@@ -1,0 +1,50 @@
+name: clang-tidy
+on: [push, pull_request]
+
+env:
+    DOCKER_REPO: concordbft
+    DOCKER_IMAGE: concord-bft
+    DOCKER_WORK_DIR: /concord-bft
+    DOCKER_IMAGE_VER: 0.5
+    CMAKE_CXX_FLAGS: "-DCMAKE_CXX_FLAGS_RELEASE=-O3 -g"
+    USE_LOG4CPP: -DUSE_LOG4CPP=TRUE
+    USE_ROCKSDB: -DBUILD_ROCKSDB_STORAGE=TRUE
+    USE_CONAN: -DUSE_CONAN=OFF
+    USE_S3_OBJECT_STORE: -DUSE_S3_OBJECT_STORE=OFF
+
+jobs:
+  clang-tidy:
+    runs-on: ubuntu-18.04
+    strategy:
+        fail-fast: false
+        matrix:
+            compiler:
+                - "CC=clang CXX=clang++"
+            ci_build_type:
+                - "-DCMAKE_BUILD_TYPE=DEBUG -DCI_TEST_STORAGE_TYPE=v2merkle"
+    steps:
+        - name: Pull docker image
+          run: docker pull ${{ env.DOCKER_REPO }}/${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_IMAGE_VER }}
+        - name: Checkout
+          uses: actions/checkout@v2
+        - name: Build and test
+          run: >
+            docker run --rm --privileged=true
+            --cap-add NET_ADMIN --cap-add=SYS_PTRACE --ulimit core=-1
+            --workdir=${{ env.DOCKER_WORK_DIR }} --name=${{ env.DOCKER_IMAGE }}
+            --mount type=bind,source=${PWD},target=${{ env.DOCKER_WORK_DIR }}
+            ${{ env.DOCKER_REPO }}/${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_IMAGE_VER }}
+            /bin/bash -c "mkdir build && cd build &&
+            ${{ matrix.compiler }}
+            cmake ${{ env.CMAKE_CXX_FLAGS }}
+            ${{ matrix.ci_build_type }}
+            ${{ env.USE_LOG4CPP }}
+            ${{ env.USE_ROCKSDB }}
+            ${{ env.USE_CONAN }}
+            ${{ env.USE_S3_OBJECT_STORE }} .. &&
+            run-clang-tidy-10"
+        - name: Print failure info
+          if: failure()
+          run: |
+            echo "Clang-tidy failed. In order to see the report, please view raw logs."
+            echo "For detail information about the checks, please refer to https://clang.llvm.org/extra/clang-tidy/checks/list.html"
