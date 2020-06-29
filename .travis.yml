@@ -10,7 +10,7 @@ env:
     # We purposefully leave asserts on by excluding -NDEBUG
     - DOCKER_REPO=concordbft
     - DOCKER_IMAGE=concord-bft
-    - DOCKER_IMAGE_VER=0.4
+    - DOCKER_IMAGE_VER=0.5
     - DOCKER_WORK_DIR=/concord-bft
     - CMAKE_CXX_FLAGS="-DCMAKE_CXX_FLAGS_RELEASE=-O3 -g"
     - USE_LOG4CPP=-DUSE_LOG4CPP=TRUE
