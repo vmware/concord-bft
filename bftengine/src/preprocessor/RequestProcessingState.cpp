@@ -126,8 +126,9 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
       // Primary replica calculated hash is different from a hash that passed pre-execution consensus => we don't have
       // correct pre-processed results. Let's launch a pre-processing retry.
       LOG_WARN(logger(),
-               "Primary replica pre-processing result hash is different from one passed the consensus for "
-                   << KVLOG(reqSeqNum_) << "; retry pre-processing on primary replica");
+               "Primary replica pre-processing result hash: "
+                   << primaryPreProcessResultHash_.data() << " is different from one passed the consensus: "
+                   << itOfChosenHash->first.data() << KVLOG(reqSeqNum_) << "; retry pre-processing on primary replica");
       retrying_ = true;
       return RETRY_PRIMARY;
     }

@@ -166,7 +166,7 @@ void PreProcessor::onRequestsStatusCheckTimer(Timers::Handle timer) {
       preProcessorMetrics_.preProcPossiblePrimaryFaultDetected.Get().Inc();
       // The request could expire do to failed primary replica, let ReplicaImp to address that
       incomingMsgsStorage_->pushExternalMsg(clientReqStatePtr->buildClientRequestMsg(true));
-      releaseClientPreProcessRequest(clientEntry.second, clientEntry.first);
+      releaseClientPreProcessRequest(clientEntry.second, clientEntry.first, CANCEL);
     }
   }
 }
@@ -363,7 +363,7 @@ void PreProcessor::cancelPreProcessing(NodeIdType clientId) {
     lock_guard<mutex> lock(clientEntry->mutex);
     if (clientEntry->reqProcessingStatePtr) {
       reqSeqNum = clientEntry->reqProcessingStatePtr->getReqSeqNum();
-      releaseClientPreProcessRequest(clientEntry, clientId);
+      releaseClientPreProcessRequest(clientEntry, clientId, CANCEL);
       LOG_WARN(logger(), "Pre-processing consensus not reached - abort request " << KVLOG(reqSeqNum, clientId));
     } else
       LOG_INFO(logger(), "No ongoing pre-processing activity detected for " << KVLOG(clientId));
@@ -390,7 +390,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId) {
                                                        reqProcessingStatePtr->getReqCid());
       incomingMsgsStorage_->pushExternalMsg(move(clientRequestMsg));
       preProcessorMetrics_.preProcReqSentForFurtherProcessing.Get().Inc();
-      releaseClientPreProcessRequest(clientEntry, clientId);
+      releaseClientPreProcessRequest(clientEntry, clientId, COMPLETE);
       LOG_INFO(logger(), "Pre-processing completed for " << KVLOG(reqSeqNum, clientId));
     } else
       LOG_INFO(logger(),
@@ -432,24 +432,30 @@ bool PreProcessor::registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
   return true;
 }
 
-void PreProcessor::releaseClientPreProcessRequestSafe(uint16_t clientId) {
+void PreProcessor::releaseClientPreProcessRequestSafe(uint16_t clientId, PreProcessingResult result) {
   const auto &clientEntry = ongoingRequests_[clientId];
   lock_guard<mutex> lock(clientEntry->mutex);
-  releaseClientPreProcessRequest(clientEntry, clientId);
+  releaseClientPreProcessRequest(clientEntry, clientId, result);
 }
 
 // This function should be always called under a clientEntry->mutex lock
-void PreProcessor::releaseClientPreProcessRequest(const ClientRequestStateSharedPtr &clientEntry, uint16_t clientId) {
+void PreProcessor::releaseClientPreProcessRequest(const ClientRequestStateSharedPtr &clientEntry,
+                                                  uint16_t clientId,
+                                                  PreProcessingResult result) {
   auto &givenReq = clientEntry->reqProcessingStatePtr;
   if (givenReq) {
-    if (clientEntry->reqProcessingHistory.size() >= clientEntry->reqProcessingHistoryHeight) {
-      auto &removeFromHistoryReq = clientEntry->reqProcessingHistory.front();
-      LOG_DEBUG(logger(), KVLOG(clientId) << " requestSeqNum: " << removeFromHistoryReq->getReqSeqNum() << " released");
-      removeFromHistoryReq.reset();
-      clientEntry->reqProcessingHistory.pop_front();
-    }
-    LOG_DEBUG(logger(), KVLOG(clientId) << " requestSeqNum: " << givenReq->getReqSeqNum() << " moved to the history");
-    clientEntry->reqProcessingHistory.push_back(move(givenReq));
+    if (result == COMPLETE) {
+      if (clientEntry->reqProcessingHistory.size() >= clientEntry->reqProcessingHistoryHeight) {
+        auto &removeFromHistoryReq = clientEntry->reqProcessingHistory.front();
+        LOG_DEBUG(logger(),
+                  KVLOG(clientId) << " requestSeqNum: " << removeFromHistoryReq->getReqSeqNum() << " released");
+        removeFromHistoryReq.reset();
+        clientEntry->reqProcessingHistory.pop_front();
+      }
+      LOG_DEBUG(logger(), KVLOG(clientId) << " requestSeqNum: " << givenReq->getReqSeqNum() << " moved to the history");
+      clientEntry->reqProcessingHistory.push_back(move(givenReq));
+    } else  // No consensus reached => release request
+      givenReq.reset();
   }
 }
 
@@ -593,7 +599,7 @@ void PreProcessor::handlePreProcessedReqByNonPrimary(uint16_t clientId,
   auto replyMsg = make_shared<PreProcessReplyMsg>(sigManager_, myReplicaId_, clientId, reqSeqNum);
   replyMsg->setupMsgBody(getPreProcessResultBuffer(clientId), resBufLen, cid);
   // Release the request before sending a reply to the primary to be able accepting new messages
-  releaseClientPreProcessRequestSafe(clientId);
+  releaseClientPreProcessRequestSafe(clientId, COMPLETE);
   sendMsg(replyMsg->body(), myReplica_.currentPrimary(), replyMsg->type(), replyMsg->size());
   LOG_DEBUG(logger(),
             "Sent PreProcessReplyMsg with " << KVLOG(reqSeqNum)
