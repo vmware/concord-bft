@@ -342,7 +342,6 @@ static bool testRSAKeys(const std::vector<bftEngine::ReplicaConfig>& configs) {
 static std::vector<std::vector<uint16_t>> getThresholdSignerCombinationsToTest(uint16_t numSigners,
                                                                                uint16_t threshold) {
   std::vector<std::vector<uint16_t>> signerCombinations;
-  std::vector<uint16_t> signers;
 
   // Try signer sets of sizes 1, threshold - 1, and threshold to validate that
   // threshold is as expected and working correctly for this cryptosystem.
@@ -356,6 +355,8 @@ static std::vector<std::vector<uint16_t>> getThresholdSignerCombinationsToTest(u
   }
 
   for (auto numSignersToTest : signerNumsToTest) {
+    std::vector<uint16_t> signers;
+    signers.reserve(numSignersToTest);
     for (uint16_t i = 0; i < numSignersToTest; ++i) {
       signers.push_back(i);
     }
@@ -381,6 +382,8 @@ static std::vector<std::vector<uint16_t>> getThresholdSignerCombinationsToTest(u
   uint32_t signersTested = 0;
 
   while (signersTested < (uint32_t)numSigners) {
+    std::vector<uint16_t> signers;
+    signers.reserve(threshold);
     for (uint16_t i = 0; i < threshold; ++i) {
       signers.push_back((uint16_t)(signersTested % (uint32_t)numSigners));
       ++signersTested;

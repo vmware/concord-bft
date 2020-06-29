@@ -311,7 +311,7 @@ std::string Histogram::ToString() const {
     r.append(buf);
 
     // Add hash marks based on percentage; 20 marks for 100%.
-    int marks = static_cast<int>(20 * (buckets_[b] / num_) + 0.5);
+    int marks = static_cast<int>(20 * std::lround((buckets_[b] / num_) + 0.5));
     r.append(marks, '#');
     r.push_back('\n');
   }
