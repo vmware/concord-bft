@@ -19,7 +19,10 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     ccache \
     clang \
     clang-format-9 \
+    clang-tidy-10 \
     cmake \
+    gdb \
+    gdbserver \
     git \
     iptables \
     openssl \
@@ -28,6 +31,7 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     python3-pip \
     python3-setuptools \
     sudo \
+    vim \
     wget
 
 ln -fs /usr/bin/clang-format-9 /usr/bin/clang-format
