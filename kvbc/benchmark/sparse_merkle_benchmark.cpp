@@ -98,7 +98,7 @@ std::vector<std::uint8_t> randomBuffer(std::size_t size) {
   auto gen = std::mt19937{rd()};
   auto dis = std::uniform_int_distribution<std::uint16_t>{0, 255};
   auto buf = std::vector<std::uint8_t>{};
-  buf.resize(size);
+  buf.reserve(size);
   for (auto i = 0ull; i < size; ++i) {
     buf.push_back(dis(gen));
   }
