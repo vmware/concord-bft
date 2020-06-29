@@ -31,6 +31,9 @@ namespace preprocessor {
 struct ClientRequestState {
   std::mutex mutex;  // Define a mutex per client to avoid contentions between clients
   RequestProcessingStateUniquePtr reqProcessingStatePtr;
+  // A list of requests passed a pre-processing consensus used for a non-determinism detection at later stage.
+  static const uint8_t reqProcessingHistoryHeight = 30;
+  std::deque<RequestProcessingStateUniquePtr> reqProcessingHistory;
 };
 
 typedef std::shared_ptr<ClientRequestState> ClientRequestStateSharedPtr;
@@ -78,8 +81,10 @@ class PreProcessor {
 
   bool registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
                        PreProcessRequestMsgSharedPtr preProcessRequestMsg);
-  void releaseClientPreProcessRequestSafe(uint16_t clientId);
-  static void releaseClientPreProcessRequest(const ClientRequestStateSharedPtr &clientEntry, uint16_t clientId);
+  void releaseClientPreProcessRequestSafe(uint16_t clientId, PreProcessingResult result);
+  static void releaseClientPreProcessRequest(const ClientRequestStateSharedPtr &clientEntry,
+                                             uint16_t clientId,
+                                             PreProcessingResult result);
   bool validateMessage(MessageBase *msg) const;
   void registerMsgHandlers();
   bool checkClientMsgCorrectness(const ClientPreProcessReqMsgUniquePtr &clientReqMsg, ReqId reqSeqNum) const;

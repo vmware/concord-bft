@@ -27,23 +27,24 @@ uint64_t RequestProcessingState::getMonotonicTimeMilli() {
 void RequestProcessingState::init(uint16_t numOfRequiredReplies) { numOfRequiredEqualReplies_ = numOfRequiredReplies; }
 
 RequestProcessingState::RequestProcessingState(uint16_t numOfReplicas,
+                                               uint16_t clientId,
                                                ReqId reqSeqNum,
                                                ClientPreProcessReqMsgUniquePtr clientReqMsg,
                                                PreProcessRequestMsgSharedPtr preProcessRequestMsg)
     : numOfReplicas_(numOfReplicas),
+      clientId_(clientId),
       reqSeqNum_(reqSeqNum),
       entryTime_(getMonotonicTimeMilli()),
       clientPreProcessReqMsg_(move(clientReqMsg)),
       preProcessRequestMsg_(preProcessRequestMsg) {
-  LOG_DEBUG(logger(),
-            "Created RequestProcessingState with reqSeqNum=" << reqSeqNum_ << ", numOfReplicas=" << numOfReplicas_);
+  LOG_DEBUG(logger(), "Created RequestProcessingState with " << KVLOG(reqSeqNum, numOfReplicas_));
 }
 
 void RequestProcessingState::setPreProcessRequest(PreProcessRequestMsgSharedPtr preProcessReqMsg) {
   if (preProcessRequestMsg_ != nullptr) {
     LOG_ERROR(logger(),
-              "preProcessRequestMsg_ is already set; clientId=" << preProcessRequestMsg_->clientId() << ", reqSeqNum="
-                                                                << preProcessRequestMsg_->reqSeqNum());
+              "preProcessRequestMsg_ is already set; " << KVLOG(clientId_)
+                                                       << ", reqSeqNum: " << preProcessRequestMsg_->reqSeqNum());
     return;
   }
   preProcessRequestMsg_ = preProcessReqMsg;
@@ -56,9 +57,26 @@ void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessRes
       convertToArray(SHA3_256().digest(primaryPreProcessResult_, primaryPreProcessResultLen_).data());
 }
 
+void RequestProcessingState::detectNonDeterministicPreProcessing(const SHA3_256::Digest &newHash,
+                                                                 NodeIdType newSenderId) const {
+  for (auto &hashArray : preProcessingResultHashes_)
+    if (newHash != hashArray.first) {
+      LOG_WARN(logger(),
+               "Received pre-processing result hash is different from calculated by other replica "
+                   << KVLOG(reqSeqNum_, clientId_, newSenderId) << " newHash: " << newHash.data()
+                   << " hash: " << hashArray.first.data());
+    }
+}
+
+void RequestProcessingState::detectNonDeterministicPreProcessing(const uint8_t *newHash, NodeIdType senderId) const {
+  detectNonDeterministicPreProcessing(convertToArray(newHash), senderId);
+}
+
 void RequestProcessingState::handlePreProcessReplyMsg(const PreProcessReplyMsgSharedPtr &preProcessReplyMsg) {
   numOfReceivedReplies_++;
-  preProcessingResultHashes_[convertToArray(preProcessReplyMsg->resultsHash())]++;  // Count equal hashes
+  const auto newHashArray = convertToArray(preProcessReplyMsg->resultsHash());
+  preProcessingResultHashes_[newHashArray]++;  // Count equal hashes
+  detectNonDeterministicPreProcessing(newHashArray, preProcessReplyMsg->senderId());
 }
 
 SHA3_256::Digest RequestProcessingState::convertToArray(const uint8_t resultsHash[SHA3_256::SIZE_IN_BYTES]) {
@@ -88,9 +106,8 @@ bool RequestProcessingState::isReqTimedOut(bool isPrimary) const {
     auto reqProcessingTime = getMonotonicTimeMilli() - entryTime_;
     if (reqProcessingTime > clientPreProcessReqMsg_->requestTimeoutMilli()) {
       LOG_WARN(logger(),
-               "Request timeout of " << clientPreProcessReqMsg_->requestTimeoutMilli() << " ms expired for reqSeqNum="
-                                     << reqSeqNum_ << " clientId=" << clientPreProcessReqMsg_->clientProxyId()
-                                     << " reqProcessingTime=" << reqProcessingTime << " isPrimary=" << isPrimary);
+               "Request timeout of " << clientPreProcessReqMsg_->requestTimeoutMilli() << " ms expired for "
+                                     << KVLOG(reqSeqNum_, clientId_, reqProcessingTime));
       return true;
     }
   }
@@ -109,21 +126,22 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
       // Primary replica calculated hash is different from a hash that passed pre-execution consensus => we don't have
       // correct pre-processed results. Let's launch a pre-processing retry.
       LOG_WARN(logger(),
-               "Primary replica pre-processing result hash is different from one passed the consensus for reqSeqNum="
-                   << reqSeqNum_ << "; retry pre-processing on primary replica");
+               "Primary replica pre-processing result hash: "
+                   << primaryPreProcessResultHash_.data() << " is different from one passed the consensus: "
+                   << itOfChosenHash->first.data() << KVLOG(reqSeqNum_) << "; retry pre-processing on primary replica");
       retrying_ = true;
       return RETRY_PRIMARY;
     }
 
     LOG_DEBUG(logger(),
-              "Primary replica did not complete pre-processing yet for reqSeqNum=" << reqSeqNum_ << "; continue");
+              "Primary replica did not complete pre-processing yet for " << KVLOG(reqSeqNum_) << "; continue");
     return CONTINUE;
   }
 
   if (numOfReceivedReplies_ == numOfReplicas_ - 1) {
     // Replies from all replicas received, but not enough equal hashes collected => pre-execution consensus not
     // reached => cancel request.
-    LOG_WARN(logger(), "Not enough equal hashes collected for reqSeqNum=" << reqSeqNum_ << ", cancel request");
+    LOG_WARN(logger(), "Not enough equal hashes collected for " << KVLOG(reqSeqNum_) << ", cancel request");
     return CANCEL;
   }
   return CONTINUE;

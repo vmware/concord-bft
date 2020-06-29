@@ -326,8 +326,11 @@ PreProcessReplyMsgSharedPtr preProcessNonPrimary(NodeIdType replicaId, const bft
 }
 
 TEST(requestPreprocessingState_test, notEnoughRepliesReceived) {
-  RequestProcessingState reqState(
-      replicaConfig.numReplicas, reqSeqNum, ClientPreProcessReqMsgUniquePtr(), PreProcessRequestMsgSharedPtr());
+  RequestProcessingState reqState(replicaConfig.numReplicas,
+                                  clientId,
+                                  reqSeqNum,
+                                  ClientPreProcessReqMsgUniquePtr(),
+                                  PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   for (auto i = 1; i < numOfRequiredReplies; i++) {
     reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
@@ -338,8 +341,11 @@ TEST(requestPreprocessingState_test, notEnoughRepliesReceived) {
 }
 
 TEST(requestPreprocessingState_test, allRepliesReceivedButNotEnoughSameHashesCollected) {
-  RequestProcessingState reqState(
-      replicaConfig.numReplicas, reqSeqNum, ClientPreProcessReqMsgUniquePtr(), PreProcessRequestMsgSharedPtr());
+  RequestProcessingState reqState(replicaConfig.numReplicas,
+                                  clientId,
+                                  reqSeqNum,
+                                  ClientPreProcessReqMsgUniquePtr(),
+                                  PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   reqState.handlePrimaryPreProcessed(buf, bufLen);
@@ -352,8 +358,11 @@ TEST(requestPreprocessingState_test, allRepliesReceivedButNotEnoughSameHashesCol
 }
 
 TEST(requestPreprocessingState_test, enoughSameRepliesReceived) {
-  RequestProcessingState reqState(
-      replicaConfig.numReplicas, reqSeqNum, ClientPreProcessReqMsgUniquePtr(), PreProcessRequestMsgSharedPtr());
+  RequestProcessingState reqState(replicaConfig.numReplicas,
+                                  clientId,
+                                  reqSeqNum,
+                                  ClientPreProcessReqMsgUniquePtr(),
+                                  PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   for (auto i = 1; i <= numOfRequiredReplies; i++) {
@@ -365,8 +374,11 @@ TEST(requestPreprocessingState_test, enoughSameRepliesReceived) {
 }
 
 TEST(requestPreprocessingState_test, primaryReplicaPreProcessingRetrySucceeds) {
-  RequestProcessingState reqState(
-      replicaConfig.numReplicas, reqSeqNum, ClientPreProcessReqMsgUniquePtr(), PreProcessRequestMsgSharedPtr());
+  RequestProcessingState reqState(replicaConfig.numReplicas,
+                                  clientId,
+                                  reqSeqNum,
+                                  ClientPreProcessReqMsgUniquePtr(),
+                                  PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   reqState.handlePrimaryPreProcessed(buf, bufLen);
@@ -382,8 +394,11 @@ TEST(requestPreprocessingState_test, primaryReplicaPreProcessingRetrySucceeds) {
 }
 
 TEST(requestPreprocessingState_test, primaryReplicaDidNotCompletePreProcessingWhileNonPrimariesDid) {
-  RequestProcessingState reqState(
-      replicaConfig.numReplicas, reqSeqNum, ClientPreProcessReqMsgUniquePtr(), PreProcessRequestMsgSharedPtr());
+  RequestProcessingState reqState(replicaConfig.numReplicas,
+                                  clientId,
+                                  reqSeqNum,
+                                  ClientPreProcessReqMsgUniquePtr(),
+                                  PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   for (auto i = 1; i <= numOfRequiredReplies; i++) {
