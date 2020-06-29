@@ -122,6 +122,23 @@ format: ## Format Concord-BFT source
 	@echo
 	@echo "Format finished."
 
+.PHONY: tidy-check
+tidy-check: ## Runs clang-tidy
+	@if [ "${IF_CONTAINER_RUNS}" != "true" ]; then \
+		make run-c; \
+	fi
+	docker exec -it ${CONCORD_BFT_USER_GROUP} ${CONCORD_BFT_DOCKER_CONTAINER} \
+		${CONCORD_BFT_CONTAINER_SHELL} -c \
+		"mkdir -p ${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR} && \
+		cd ${CONCORD_BFT_BUILD_DIR} && \
+		CC=${CONCORD_BFT_CONTAINER_CC} CXX=${CONCORD_BFT_CONTAINER_CXX} \
+		cmake ${CONCORD_BFT_CMAKE_FLAGS} .. && \
+		run-clang-tidy-10 &> clang-tidy-report.txt" \
+		&& (echo "\nClang-tidy finished successfully.") \
+		|| ( echo "\nClang-tidy failed. The report is in ${CURDIR}/${CONCORD_BFT_BUILD_DIR}/clang-tidy-report.txt \
+			 \nFor detail information about the checks, please refer to https://clang.llvm.org/extra/clang-tidy/checks/list.html" \
+			 ; exit 1)
+
 .PHONY: test
 test: ## Run all tests
 	@if [ "${IF_CONTAINER_RUNS}" != "true" ]; then \
