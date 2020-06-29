@@ -1,0 +1,39 @@
+---
+Checks:             '-*,bugprone-*,
+                    -bugprone-branch-clone,
+                    -bugprone-infinite-loop,
+                    -bugprone-integer-division,
+                    -bugprone-lambda-function-name,
+                    -bugprone-macro-parentheses,
+                    -bugprone-misplaced-widening-cast,
+                    -bugprone-narrowing-conversions,
+                    -bugprone-not-null-terminated-result,
+                    -bugprone-signed-char-misuse,
+                    -bugprone-suspicious-string-compare,
+                    -bugprone-undefined-memory-manipulation,
+                    -bugprone-unused-return-value,
+                    -bugprone-too-small-loop-variable,
+                    -bugprone-exception-escape
+                    '
+WarningsAsErrors:   'bugprone-*,
+                    -bugprone-branch-clone,
+                    -bugprone-infinite-loop,
+                    -bugprone-integer-division,
+                    -bugprone-lambda-function-name,
+                    -bugprone-macro-parentheses,
+                    -bugprone-misplaced-widening-cast,
+                    -bugprone-narrowing-conversions,
+                    -bugprone-not-null-terminated-result,
+                    -bugprone-signed-char-misuse,
+                    -bugprone-suspicious-string-compare,
+                    -bugprone-undefined-memory-manipulation,
+                    -bugprone-unused-return-value,
+                    -bugprone-too-small-loop-variable,
+                    -bugprone-exception-escape
+                    '
+HeaderFilterRegex: ''
+AnalyzeTemporaryDtors: false
+FormatStyle:     none
+CheckOptions:
+...
+
