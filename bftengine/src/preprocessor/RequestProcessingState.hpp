@@ -46,7 +46,7 @@ class RequestProcessingState {
   bool isReqTimedOut(bool isPrimary) const;
   uint64_t getReqTimeoutMilli() const { return clientPreProcessReqMsg_->requestTimeoutMilli(); }
   std::string getReqCid() const { return clientPreProcessReqMsg_->getCid(); }
-  void detectNonDeterministicPreProcessing(const uint8_t* newHash) const;
+  void detectNonDeterministicPreProcessing(const uint8_t* newHash, NodeIdType newSenderId) const;
 
   static void init(uint16_t numOfRequiredReplies);
 
@@ -59,7 +59,8 @@ class RequestProcessingState {
     return logger_;
   }
   auto calculateMaxNbrOfEqualHashes(uint16_t& maxNumOfEqualHashes) const;
-  void detectNonDeterministicPreProcessing(const concord::util::SHA3_256::Digest& newHash) const;
+  void detectNonDeterministicPreProcessing(const concord::util::SHA3_256::Digest& newHash,
+                                           NodeIdType newSenderId) const;
 
  private:
   static uint16_t numOfRequiredEqualReplies_;

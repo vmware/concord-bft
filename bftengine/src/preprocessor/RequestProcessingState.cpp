@@ -57,25 +57,26 @@ void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessRes
       convertToArray(SHA3_256().digest(primaryPreProcessResult_, primaryPreProcessResultLen_).data());
 }
 
-void RequestProcessingState::detectNonDeterministicPreProcessing(const SHA3_256::Digest &newHash) const {
+void RequestProcessingState::detectNonDeterministicPreProcessing(const SHA3_256::Digest &newHash,
+                                                                 NodeIdType newSenderId) const {
   for (auto &hashArray : preProcessingResultHashes_)
     if (newHash != hashArray.first) {
       LOG_WARN(logger(),
                "Received pre-processing result hash is different from calculated by other replica "
-                   << KVLOG(reqSeqNum_, clientId_) << " newHash: " << newHash.data()
+                   << KVLOG(reqSeqNum_, clientId_, newSenderId) << " newHash: " << newHash.data()
                    << " hash: " << hashArray.first.data());
     }
 }
 
-void RequestProcessingState::detectNonDeterministicPreProcessing(const uint8_t *newHash) const {
-  detectNonDeterministicPreProcessing(convertToArray(newHash));
+void RequestProcessingState::detectNonDeterministicPreProcessing(const uint8_t *newHash, NodeIdType senderId) const {
+  detectNonDeterministicPreProcessing(convertToArray(newHash), senderId);
 }
 
 void RequestProcessingState::handlePreProcessReplyMsg(const PreProcessReplyMsgSharedPtr &preProcessReplyMsg) {
   numOfReceivedReplies_++;
   const auto newHashArray = convertToArray(preProcessReplyMsg->resultsHash());
   preProcessingResultHashes_[newHashArray]++;  // Count equal hashes
-  detectNonDeterministicPreProcessing(newHashArray);
+  detectNonDeterministicPreProcessing(newHashArray, preProcessReplyMsg->senderId());
 }
 
 SHA3_256::Digest RequestProcessingState::convertToArray(const uint8_t resultsHash[SHA3_256::SIZE_IN_BYTES]) {

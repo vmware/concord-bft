@@ -309,9 +309,10 @@ void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *msg) {
     lock_guard<mutex> lock(clientEntry->mutex);
     if (!clientEntry->reqProcessingStatePtr || clientEntry->reqProcessingStatePtr->getReqSeqNum() != reqSeqNum) {
       // Look for the request in the requests history and check for the non-determinism
-      for (auto &oldReqState : clientEntry->reqProcessingHistory)
+      for (const auto &oldReqState : clientEntry->reqProcessingHistory)
         if (oldReqState->getClientId() == clientId && oldReqState->getReqSeqNum() == reqSeqNum)
-          oldReqState->detectNonDeterministicPreProcessing(preProcessReplyMsg->resultsHash());
+          oldReqState->detectNonDeterministicPreProcessing(preProcessReplyMsg->resultsHash(),
+                                                           preProcessReplyMsg->senderId());
       LOG_DEBUG(logger(),
                 KVLOG(reqSeqNum, senderId, clientId)
                     << " will be ignored as no such ongoing request exists or different one found for this client");
