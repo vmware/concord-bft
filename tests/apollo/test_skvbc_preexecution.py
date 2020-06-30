@@ -369,8 +369,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
     async def issue_tracked_ops_to_the_system(self, tracker):
         try:
-            with trio.move_on_after(seconds=60):
+            with trio.move_on_after(seconds=40):
                 await tracker.run_concurrent_ops(10, write_weight=1)
         except trio.TooSlowError:
             pass
-        
