@@ -383,7 +383,7 @@ class SkvbcTracker:
         # go through the pre_execution mechanism
         self.pre_exec_all = pre_exec_all
 
-        # If set to True, it means that we always sends an empty read set in the bft request, in order to prevent
+        # If set to True, it means that we always sends an empty read set in the bft write request, in order to prevent
         # conflicts
         self.no_conflicts = no_conflicts
 
@@ -848,9 +848,7 @@ class SkvbcTracker:
         return kvbc.SimpleKVBCProtocol.parse_reply(await client.read(msg))
 
     async def send_tracked_write(self, client, max_set_size, long_exec=False):
-        max_read_set_size = max_set_size
-        if self.no_conflicts:
-            max_read_set_size = 0
+        max_read_set_size = 0 if self.no_conflicts else max_set_size
         readset = self.readset(0, max_read_set_size)
         writeset = self.writeset(max_set_size)
         read_version = self.read_block_id()
@@ -1028,9 +1026,7 @@ class PassThroughSkvbcTracker:
         self.bft_network = bft_network
 
     async def send_tracked_write(self, client, max_set_size, long_exec=False):
-        max_read_set_size = max_set_size
-        if self.no_conflicts:
-            max_read_set_size = 0
+        max_read_set_size = 0 if self.no_conflicts else max_set_size
         readset = self.readset(0, max_read_set_size)
         writeset = self.writeset(max_set_size)
         msg = self.skvbc.write_req(readset, writeset, 0, long_exec)
