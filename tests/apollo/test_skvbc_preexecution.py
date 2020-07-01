@@ -94,7 +94,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
     @unittest.skip("unstable")
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability(pre_exec_enabled=True)
+    @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
     async def test_sequential_pre_process_requests(self, bft_network, tracker):
         """
         Use a random client to launch one pre-process request in time and ensure that created blocks are as expected.
@@ -108,7 +108,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
     @unittest.skip("unstable")
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability(pre_exec_enabled=True)
+    @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
     async def test_concurrent_pre_process_requests(self, bft_network, tracker):
         """
         Launch concurrent requests from different clients in parallel. Ensure that created blocks are as expected.
@@ -122,7 +122,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability(pre_exec_enabled=True)
+    @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
     async def test_long_time_executed_pre_process_request(self, bft_network, tracker):
         """
         Launch pre-process request with a long-time execution and ensure that created blocks are as expected
@@ -144,7 +144,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability(pre_exec_enabled=True)
+    @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
     async def test_view_change(self, bft_network, tracker):
         """
         Crash the primary replica and verify that the system triggers a view change and moves to a new view.
@@ -192,7 +192,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
     @unittest.skip("Unstable due to BC-3145 TooSlow from pyclient.write")
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability(pre_exec_enabled=True)
+    @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
     async def test_parallel_tx_after_f_nonprimary_crash(self, bft_network, tracker):
         '''
         Crash f nonprimary replicas and submit X parallel write submissions.
@@ -221,7 +221,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability(pre_exec_enabled=True)
+    @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
     async def test_primary_isolation_from_replicas(self, bft_network, tracker):
         '''
         Isolate the from the other replicas, wait for view change and ensure the system is still able to make progress
@@ -248,7 +248,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability(pre_exec_enabled=True)
+    @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
     async def test_dropping_packets(self, bft_network, tracker):
         '''
         Drop 5% of the packets in the network and make sure the system is able to make progress
@@ -267,7 +267,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability(pre_exec_enabled=True)
+    @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
     async def test_f_isolated_non_primaries(self, bft_network, tracker):
         '''
         Isolate f non primaries replicas and make sure the system is able to make progress
@@ -291,7 +291,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2)
-    @verify_linearizability(pre_exec_enabled=True)
+    @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
     async def test_f_isolated_with_primary(self, bft_network, tracker):
         '''
         Isolate f replicas including the primary and make sure the system is able to make progress
@@ -326,7 +326,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd_with_vc_timeout("20000"), selected_configs=lambda n, f, c: f >= 2)
-    @verify_linearizability(pre_exec_enabled=True)
+    @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
     async def test_alternate_f_isolated(self, bft_network, tracker):
         '''
         Isolate f replicas and make sure the system is able to make progress.
