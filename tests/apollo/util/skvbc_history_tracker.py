@@ -27,7 +27,7 @@ from util.skvbc_exceptions import(
 MAX_LOOKBACK=10
 
 
-def verify_linearizability(pre_exec_enabled=False):
+def verify_linearizability(pre_exec_enabled=False, no_conflicts=False):
     """
     Creates a tracker and provide him to the decorated method.
     In the end of the method it checks the linearizability of the resulting history.
@@ -39,13 +39,13 @@ def verify_linearizability(pre_exec_enabled=False):
                 kwargs.pop('disable_linearizability_checks')
                 bft_network = kwargs['bft_network']
                 skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-                tracker = PassThroughSkvbcTracker(skvbc, bft_network, pre_exec_enabled)
+                tracker = PassThroughSkvbcTracker(skvbc, bft_network, pre_exec_enabled, no_conflicts)
                 await async_fn(*args, **kwargs, tracker=tracker)
             else:
                 bft_network = kwargs['bft_network']
                 skvbc = kvbc.SimpleKVBCProtocol(bft_network)
                 init_state = skvbc.initial_state()
-                tracker = SkvbcTracker(init_state, skvbc, bft_network, pre_exec_enabled)
+                tracker = SkvbcTracker(init_state, skvbc, bft_network, pre_exec_enabled, no_conflicts)
                 await async_fn(*args, **kwargs, tracker=tracker)
                 await tracker.fill_missing_blocks_and_verify()
 
@@ -377,11 +377,15 @@ class SkvbcTracker:
     clusters with lots of blocks, but we may want to add it as an optional check
     in the future.
     """
-    def __init__(self, initial_kvpairs={}, skvbc=None, bft_network=None, pre_exec_all=False):
+    def __init__(self, initial_kvpairs={}, skvbc=None, bft_network=None, pre_exec_all=False, no_conflicts=False):
 
         # If this flag is set to True, it means that all the tracker requests will
         # go through the pre_execution mechanism
         self.pre_exec_all = pre_exec_all
+
+        # If set to True, it means that we always sends an empty read set in the bft write request, in order to prevent
+        # conflicts
+        self.no_conflicts = no_conflicts
 
         # A partial order of all requests (SkvbcWriteRequest | SkvbcReadRequest)
         # issued against SimpleKVBC.  History tracks requests and responses. A
@@ -844,7 +848,8 @@ class SkvbcTracker:
         return kvbc.SimpleKVBCProtocol.parse_reply(await client.read(msg))
 
     async def send_tracked_write(self, client, max_set_size, long_exec=False):
-        readset = self.readset(0, max_set_size)
+        max_read_set_size = 0 if self.no_conflicts else max_set_size
+        readset = self.readset(0, max_read_set_size)
         writeset = self.writeset(max_set_size)
         read_version = self.read_block_id()
         msg = self.skvbc.write_req(readset, writeset, read_version, long_exec)
@@ -1011,15 +1016,18 @@ class SkvbcTracker:
 
 class PassThroughSkvbcTracker:
 
-    def __init__(self, skvbc=None, bft_network=None, pre_exec_all=False):
+    def __init__(self, skvbc=None, bft_network=None, pre_exec_all=False, no_conflicts=False):
         self.pre_exec_all = pre_exec_all
+
+        self.no_conflicts = no_conflicts
 
         self.skvbc = skvbc
 
         self.bft_network = bft_network
 
     async def send_tracked_write(self, client, max_set_size, long_exec=False):
-        readset = self.readset(0, max_set_size)
+        max_read_set_size = 0 if self.no_conflicts else max_set_size
+        readset = self.readset(0, max_read_set_size)
         writeset = self.writeset(max_set_size)
         msg = self.skvbc.write_req(readset, writeset, 0, long_exec)
         try:
