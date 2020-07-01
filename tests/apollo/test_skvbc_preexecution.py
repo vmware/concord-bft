@@ -26,30 +26,28 @@ MAX_CONCURRENCY = 10
 SHORT_REQ_TIMEOUT_MILLI = 3000
 LONG_REQ_TIMEOUT_MILLI = 15000
 
-def start_replica_cmd(builddir, replica_id):
+def start_replica_cmd(builddir, replica_id, view_change_timeout_milli="10000"):
     """
     Return a command that starts an skvbc replica when passed to
     subprocess.Popen.
-
-    The replica is started with a short view change timeout and with RocksDB
-    persistence enabled (-p).
-
     Note each arguments is an element in a list.
     """
-
-    status_timer_milli = "500"
-    view_change_timeout_milli = "10000"
-
+    statusTimerMilli = "500"
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
-            "-s", status_timer_milli,
+            "-s", statusTimerMilli,
             "-v", view_change_timeout_milli,
-            "-p",
-            "-t", os.environ.get('STORAGE_TYPE')
-            ]
+            "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower()
+                    in set(["true", "on"])
+                 else "",
+            "-t", os.environ.get('STORAGE_TYPE')]
 
+def start_replica_cmd_with_vc_timeout(vc_timeout):
+    def wrapper(*args, **kwargs):
+        return start_replica_cmd(*args, **kwargs, view_change_timeout_milli=vc_timeout)
+    return wrapper
 
 class SkvbcPreExecutionTest(unittest.TestCase):
 
@@ -327,7 +325,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2)
+    @with_bft_network(start_replica_cmd_with_vc_timeout("20000"), selected_configs=lambda n, f, c: f >= 2)
     @verify_linearizability(pre_exec_enabled=True)
     async def test_alternate_f_isolated(self, bft_network, tracker):
         '''
