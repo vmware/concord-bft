@@ -366,6 +366,31 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             last_block = await tracker.get_last_block_id(read_client)
             assert last_block > start_block
 
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    @verify_linearizability(pre_exec_enabled=True)
+    async def test_conflicting_requests(self, bft_network, tracker):
+        """
+        Launch pre-process request with a long-time execution and ensure that created blocks are as expected
+        and no view-change was triggered.
+        """
+        bft_network.start_all_replicas()
+
+        read_client = bft_network.random_client()
+        start_block = await tracker.get_last_block_id(read_client)
+
+        ops = 20
+
+        try:
+            with trio.move_on_after(seconds=30):
+                await tracker.run_concurrent_conflict_ops(ops, concurrency_level=2, write_weight=1)
+        except trio.TooSlowError:
+            pass
+
+        last_block = await tracker.get_last_block_id(read_client)
+
+        # We produced at least one conflict.
+        assert last_block < start_block + ops
 
     async def issue_tracked_ops_to_the_system(self, tracker):
         try:

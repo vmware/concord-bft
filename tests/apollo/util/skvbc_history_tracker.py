@@ -852,6 +852,9 @@ class SkvbcTracker:
         readset = self.readset(0, max_read_set_size)
         writeset = self.writeset(max_set_size)
         read_version = self.read_block_id()
+        await self.send_tracked_kv_set(client, readset, writeset, read_version, long_exec)
+
+    async def send_tracked_kv_set(self, client, readset, writeset, read_version, long_exec=False):
         msg = self.skvbc.write_req(readset, writeset, read_version, long_exec)
         seq_num = client.req_seq_num.next()
         client_id = client.client_id
@@ -905,6 +908,28 @@ class SkvbcTracker:
                 for client in clients:
                     if random.random() < write_weight:
                         nursery.start_soon(self.send_tracked_write, client, max_size)
+                        write_count += 1
+                    else:
+                        nursery.start_soon(self.send_tracked_read, client, max_size)
+                        read_count += 1
+            sent += len(clients)
+        return read_count, write_count
+
+    async def run_concurrent_conflict_ops(self, num_ops, concurrency_level, write_weight=.70):
+        max_concurrency = concurrency_level
+        max_size = len(self.skvbc.keys) // 2
+        sent = 0
+        write_count = 0
+        read_count = 0
+        clients = self.bft_network.random_clients(max_concurrency)
+        while sent < num_ops:
+            readset = self.readset(0, max_size)
+            writeset = self.writeset(max_size)
+            read_version = self.read_block_id()
+            async with trio.open_nursery() as nursery:
+                for client in clients:
+                    if random.random() < write_weight:
+                        nursery.start_soon(self.send_tracked_kv_set, client, readset, writeset, read_version)
                         write_count += 1
                     else:
                         nursery.start_soon(self.send_tracked_read, client, max_size)
@@ -1029,7 +1054,10 @@ class PassThroughSkvbcTracker:
         max_read_set_size = 0 if self.no_conflicts else max_set_size
         readset = self.readset(0, max_read_set_size)
         writeset = self.writeset(max_set_size)
-        msg = self.skvbc.write_req(readset, writeset, 0, long_exec)
+        await self.send_tracked_kv_set(client, readset, writeset, 0, long_exec)
+
+    async def send_tracked_kv_set(self, client, readset, writeset, read_version, long_exec=False):
+        msg = self.skvbc.write_req(readset, writeset, read_version, long_exec)
         try:
             serialized_reply = await client.write(msg, pre_process=self.pre_exec_all)
             reply = self.skvbc.parse_reply(serialized_reply)
@@ -1067,6 +1095,28 @@ class PassThroughSkvbcTracker:
                 for client in clients:
                     if random.random() < write_weight:
                         nursery.start_soon(self.send_tracked_write, client, max_size)
+                        write_count += 1
+                    else:
+                        nursery.start_soon(self.send_tracked_read, client, max_size)
+                        read_count += 1
+            sent += len(clients)
+        return read_count, write_count
+
+    async def run_concurrent_conflict_ops(self, num_ops, concurrency_level, write_weight=.70):
+        max_concurrency = concurrency_level
+        max_size = len(self.skvbc.keys) // 2
+        sent = 0
+        write_count = 0
+        read_count = 0
+        while sent < num_ops:
+            readset = self.readset(0, max_size)
+            writeset = self.writeset(max_size)
+            read_version = self.read_block_id()
+            clients = self.bft_network.random_clients(max_concurrency)
+            async with trio.open_nursery() as nursery:
+                for client in clients:
+                    if random.random() < write_weight:
+                        nursery.start_soon(self.send_tracked_kv_set, client, readset, writeset, read_version)
                         write_count += 1
                     else:
                         nursery.start_soon(self.send_tracked_read, client, max_size)
