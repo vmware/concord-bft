@@ -12,11 +12,9 @@
 import os.path
 import random
 import unittest
-from os import environ
 
 import trio
 
-from util import blinking_replica
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, with_constant_load, KEY_FILE_PREFIX
 
@@ -25,7 +23,6 @@ def start_replica_cmd(builddir, replica_id):
     """
     Return a command that starts an skvbc replica when passed to
     subprocess.Popen.
-
     Note each arguments is an element in a list.
     """
     statusTimerMilli = "500"
@@ -51,7 +48,6 @@ class SkvbcCheckpointTest(unittest.TestCase):
     async def test_checkpoint_creation(self, bft_network):
         """
         Test the creation of checkpoints (independently of state transfer or view change)
-
         Start all replicas, then send a sufficient number of client requests to trigger the
         checkpoint protocol. Then make sure a checkpoint is created and agreed upon by all replicas.
         """
@@ -74,13 +70,12 @@ class SkvbcCheckpointTest(unittest.TestCase):
         """
         Here we bring down a total of f replicas, verify checkpoint creation and
         propagation in that scenario.
-
         1) Given a BFT network, we make sure all nodes are up
         2) Crash f replicas, excluding the current primary
         3) Send sufficient number of client requests to trigger checkpoint protocol
         4) Make sure checkpoint is created
-        4) Bring the f replicas up
-        5) Make sure checkpoint is agreed upon by the crashed replicas
+        5) Bring the f replicas up
+        6) Make sure checkpoint is agreed upon by all the crashed replicas
         """
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
@@ -96,14 +91,15 @@ class SkvbcCheckpointTest(unittest.TestCase):
 
         checkpoint_before_primary = await bft_network.wait_for_checkpoint(replica_id=current_primary)
 
-        crashed_replicas = await self._crash_replicas_without_primary(
+        crashed_replicas = await self._crash_replicas(
             bft_network=bft_network,
-            nb_crashing=f
+            nb_crashing=f,
+            exclude_replicas={current_primary}
         )
         self.assertFalse(current_primary in crashed_replicas)
 
         self.assertGreaterEqual(
-            len(bft_network.procs), 2 * f + 2 * c + 1,
+            len(bft_network.procs), 2 * f + c + 1,
             "Make sure enough replicas are up to allow a successful checkpoint creation")
 
         await skvbc.fill_and_wait_for_checkpoint(
@@ -114,37 +110,23 @@ class SkvbcCheckpointTest(unittest.TestCase):
 
         checkpoint_after_primary = await bft_network.wait_for_checkpoint(replica_id=current_primary)
 
-        # verify checkpoint creation after f replicas crash
+        # verify checkpoint creation by the primary after f replicas crash
         self.assertEqual(checkpoint_after_primary, 1 + checkpoint_before_primary)
 
-        await self._bring_up_crashed_replicas(bft_network, crashed_replicas)
+        bft_network.start_replicas(crashed_replicas)
 
-        stale_node = random.choice(list(crashed_replicas))
+        # verify checkpoint propagation to all the stale nodes after they come back up
+        for crashed_replica in crashed_replicas:
+            checkpoint_stale = await bft_network.wait_for_checkpoint(
+                replica_id=crashed_replica,
+                expected_checkpoint_num=checkpoint_after_primary)
 
-        checkpoint_after_stale = await bft_network.wait_for_checkpoint(
-            replica_id=stale_node,
-            expected_checkpoint_num=checkpoint_after_primary)
+            self.assertEqual(checkpoint_stale, checkpoint_after_primary)
 
-        # verify checkpoint propagation to stale node after it comes back up
-        self.assertEqual(checkpoint_after_stale, checkpoint_after_primary)
+    async def _crash_replicas(
+            self, bft_network, nb_crashing, exclude_replicas=None):
+        crash_replicas = bft_network.random_set_of_replicas(nb_crashing, without=exclude_replicas)
 
-    async def _crash_replicas_without_primary(
-            self, bft_network, nb_crashing):
-        current_primary = await bft_network.get_current_primary()
+        bft_network.stop_replicas(crash_replicas)
 
-        crashed_replicas = set()
-
-        crash_candidates = bft_network.all_replicas(
-            without={current_primary})
-        random.shuffle(crash_candidates)
-        for i in range(nb_crashing):
-            bft_network.stop_replica(crash_candidates[i])
-            crashed_replicas.add(crash_candidates[i])
-
-        return crashed_replicas
-
-    async def _bring_up_crashed_replicas(
-            self, bft_network, crashed_replicas):
-
-        for replica in crashed_replicas:
-            bft_network.start_replica(replica)
+        return crash_replicas
