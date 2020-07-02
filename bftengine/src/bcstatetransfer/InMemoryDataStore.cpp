@@ -141,6 +141,8 @@ DataStore::CheckpointDesc InMemoryDataStore::getCheckpointBeingFetched() {
 bool InMemoryDataStore::hasCheckpointBeingFetched() { return (checkpointBeingFetched.checkpointNum != 0); }
 
 void InMemoryDataStore::deleteCheckpointBeingFetched() {
+  // TODO(DD): Create a ctor for CheckpointDesc?
+  // NOLINTNEXTLINE(bugprone-undefined-memory-manipulation)
   memset(&checkpointBeingFetched, 0, sizeof(checkpointBeingFetched));
 
   assert(checkpointBeingFetched.checkpointNum == 0);

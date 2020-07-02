@@ -51,7 +51,8 @@ StatusHandler async_handler2(async_handler_name2, async_handler_description, [](
   // promise to the replica thread, and then waiting on the future.
   std::promise<std::string> promise;
   auto future = promise.get_future();
-  std::async([promise = std::move(promise)]() mutable { promise.set_value(async_handler_status); });
+  auto f = std::async([promise = std::move(promise)]() mutable { promise.set_value(async_handler_status); });
+  f.wait();
   return future.get();
 });
 

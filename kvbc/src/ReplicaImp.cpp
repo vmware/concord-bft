@@ -257,7 +257,7 @@ bool ReplicaImp::putBlock(const uint64_t blockId, const char *block_data, const 
   if (m_bcDbAdapter->hasBlock(blockId)) {
     // if we already have a block with the same ID
     RawBlock existingBlock = m_bcDbAdapter->getRawBlock(blockId);
-    if (existingBlock.length() != block.length() || memcmp(existingBlock.data(), block.data(), block.length())) {
+    if (existingBlock.length() != block.length() || memcmp(existingBlock.data(), block.data(), block.length()) != 0) {
       // the replica is corrupted !
       LOG_ERROR(logger,
                 "found block " << blockId << ", size in db is " << existingBlock.length() << ", inserted is "
