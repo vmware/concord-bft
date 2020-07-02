@@ -891,8 +891,8 @@ class SkvbcTracker:
     def readset(self, min_size, max_size):
         return self.skvbc.random_keys(random.randint(min_size, max_size))
 
-    def writeset(self, max_size):
-        writeset_keys = self.skvbc.random_keys(random.randint(0, max_size))
+    def writeset(self, max_size, keys=None):
+        writeset_keys = self.skvbc.random_keys(random.randint(0, max_size)) if keys is None else keys
         writeset_values = self.skvbc.random_values(len(writeset_keys))
         return list(zip(writeset_keys, writeset_values))
 
@@ -924,7 +924,7 @@ class SkvbcTracker:
         clients = self.bft_network.random_clients(max_concurrency)
         while sent < num_ops:
             readset = self.readset(0, max_size)
-            writeset = self.writeset(max_size)
+            writeset = self.writeset(max_size, readset)
             read_version = self.read_block_id()
             async with trio.open_nursery() as nursery:
                 for client in clients:
@@ -1078,7 +1078,7 @@ class PassThroughSkvbcTracker:
     def readset(self, min_size, max_size):
         return self.skvbc.random_keys(random.randint(min_size, max_size))
 
-    def writeset(self, max_size):
+    def writeset(self, max_size, keys=None):
         writeset_keys = self.skvbc.random_keys(random.randint(0, max_size))
         writeset_values = self.skvbc.random_values(len(writeset_keys))
         return list(zip(writeset_keys, writeset_values))
