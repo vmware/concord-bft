@@ -25,7 +25,7 @@
 #include <thread>
 #include <functional>
 
-#define Assert(cond, txtMsg) assert(cond && (txtMsg))
+#define Assert(cond, txtMsg) assert((cond) && (txtMsg))
 
 using namespace std;
 

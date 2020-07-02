@@ -1,27 +1,20 @@
 ---
 Checks:             '-*,bugprone-*,
                     -bugprone-branch-clone,
-                    -bugprone-infinite-loop,
-                    -bugprone-integer-division,
-                    -bugprone-lambda-function-name,
-                    -bugprone-macro-parentheses,
+                    -bugprone-exception-escape,
                     -bugprone-misplaced-widening-cast,
-                    -bugprone-narrowing-conversions,
-                    -bugprone-not-null-terminated-result,
-                    -bugprone-exception-escape
+                    -bugprone-not-null-terminated-result
                     '
 WarningsAsErrors:   'bugprone-*,
                     -bugprone-branch-clone,
-                    -bugprone-infinite-loop,
-                    -bugprone-integer-division,
-                    -bugprone-lambda-function-name,
-                    -bugprone-macro-parentheses,
+                    -bugprone-exception-escape,
                     -bugprone-misplaced-widening-cast,
-                    -bugprone-narrowing-conversions,
-                    -bugprone-not-null-terminated-result,
-                    -bugprone-exception-escape
+                    -bugprone-not-null-terminated-result
                     '
-# -bugprone-exception-escape - main functions throwing exceptions are OK: we prefer analyze core dumps
+# -bugprone-branch-clone - does not work well with switch cases
+# -bugprone-exception-escape - main functions throwing exceptions are OK: we prefer to analyze core dumps
+# -bugprone-misplaced-widening-cast - does not seem to be a big issue
+# -bugprone-not-null-terminated-result - many false positives when std::string is used for storing raw bytes
 HeaderFilterRegex: ''
 AnalyzeTemporaryDtors: false
 FormatStyle:     none

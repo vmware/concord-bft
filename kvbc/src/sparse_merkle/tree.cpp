@@ -34,7 +34,7 @@ void insertComplete(Walker& walker, const BatchedInternalNode::InsertComplete& r
 // walking the prefix bits they have in common. Both successful inserts return
 // BatchedInternalNode::InsertComplete.
 void handleCollision(Walker& walker, const LeafChild& stored_child, const LeafChild& new_child) {
-  int nodes_to_create = new_child.key.hash().prefix_bits_in_common(stored_child.key.hash(), walker.depth()) / 4;
+  auto nodes_to_create = new_child.key.hash().prefix_bits_in_common(stored_child.key.hash(), walker.depth()) / 4;
   walker.appendEmptyNodes(new_child.key.hash(), nodes_to_create);
   walker.currentNode().insert(stored_child, walker.depth(), walker.version());
   auto result = walker.currentNode().insert(new_child, walker.depth(), walker.version());

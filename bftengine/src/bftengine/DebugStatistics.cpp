@@ -41,12 +41,12 @@ void DebugStatistics::onCycleCheck() {
 
   if (durationSec < seconds(DEBUG_STAT_PERIOD_SECONDS)) return;
 
-  double readThroughput = 0;
-  double writeThroughput = 0;
+  long double readThroughput = 0;
+  long double writeThroughput = 0;
 
-  if (d.completedReadOnlyRequests > 0) readThroughput = (d.completedReadOnlyRequests / durationSec.count());
+  if (d.completedReadOnlyRequests > 0) readThroughput = (double(d.completedReadOnlyRequests) / durationSec.count());
 
-  if (d.completedReadWriteRequests > 0) writeThroughput = (d.completedReadWriteRequests / durationSec.count());
+  if (d.completedReadWriteRequests > 0) writeThroughput = (double(d.completedReadWriteRequests) / durationSec.count());
 
   double avgBatchSize = 0;
   double avgPendingRequests = 0;
