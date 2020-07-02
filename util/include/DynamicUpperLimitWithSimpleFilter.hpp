@@ -28,7 +28,7 @@ class DynamicUpperLimitWithSimpleFilter {
                                     int16_t resetPoint,
                                     double maxIncreasingFactor,
                                     double maxDecreasingFactor)
-      : numOfS{s},
+      : numOfStdDeviations{s},
         maxLimit{maxUpperLimit},
         minLimit{minUpperLimit},
         evalPeriod{evalPeriod},
@@ -60,7 +60,7 @@ class DynamicUpperLimitWithSimpleFilter {
     const double var = avgAndVar.var();
     const double sd = ((var > 0) ? sqrt(var) : 0);
 
-    double newLimit = avg + numOfS * sd;
+    double newLimit = avg + numOfStdDeviations * sd;
 
     if (((T)newLimit) > maxVal)
       currentUpperLimit = maxVal;
@@ -75,7 +75,7 @@ class DynamicUpperLimitWithSimpleFilter {
   virtual T upperLimit() { return currentUpperLimit; }
 
  protected:
-  const int16_t numOfS;
+  const int16_t numOfStdDeviations;
 
   const T maxLimit;
   const T minLimit;

@@ -15,6 +15,7 @@
 
 #define REQUEST_MSG_TYPE (700)
 #define REPLY_MSG_TYPE (800)
+#define PRE_PROCESS_REQUEST_MSG_TYPE (500)
 
 namespace bftEngine {
 
@@ -39,8 +40,16 @@ struct ClientReplyMsgHeader {
   uint32_t spanContextSize = 0u;
   uint16_t currentPrimaryId;
   uint64_t reqSeqNum;
+
+  // Reply length is the total length of the reply, including any replica specific info.
   uint32_t replyLength;
+
+  // This is the size of the replica specific information. If it is 0, there is no replica specific
+  // information. The offset of the replica specific information from the start of the reply message
+  // is `replyLength - replicaSpecificInfoLength`.
+  uint32_t replicaSpecificInfoLength = 0;
 };
+
 #pragma pack(pop)
 
 }  // namespace bftEngine

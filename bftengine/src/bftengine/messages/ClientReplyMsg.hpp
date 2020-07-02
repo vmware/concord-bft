@@ -17,14 +17,14 @@
 namespace bftEngine {
 namespace impl {
 
-// TODO(GG): rename class
+// A ClientReplyMsg is simply a ClientReplyMessageHeader: header, followed by an opaque body of
+// length header.replyLength.
 class ClientReplyMsg : public MessageBase {
   static_assert((uint16_t)REPLY_MSG_TYPE == (uint16_t)MsgCode::ClientReply, "");
   static_assert(sizeof(ClientReplyMsgHeader::msgType) == sizeof(MessageBase::Header::msgType), "");
   static_assert(sizeof(ClientReplyMsgHeader::reqSeqNum) == sizeof(ReqId), "");
   static_assert(sizeof(ClientReplyMsgHeader::currentPrimaryId) == sizeof(ReplicaId), "");
-  static_assert(sizeof(ClientReplyMsgHeader) == 20, "ClientRequestMsgHeader is 20B");
-  // TODO(GG): more asserts
+  static_assert(sizeof(ClientReplyMsgHeader) == 24, "ClientRequestMsgHeader is 24B");
 
  public:
   ClientReplyMsg(ReplicaId primaryId, ReqId reqSeqNum, ReplicaId replicaId);
