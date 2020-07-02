@@ -147,7 +147,7 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
   lib.getPrecomputedInverses();
 
   BlsPublicParameters params = PublicParametersFactory::getWhatever();
-  BNT fieldOrder = params.getGroupOrder();
+  const auto& fieldOrder = params.getGroupOrder();
 
   LOG_INFO(GL, "");
 

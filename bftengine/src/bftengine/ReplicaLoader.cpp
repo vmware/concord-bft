@@ -138,7 +138,7 @@ ReplicaLoader::ErrorCode loadConfig(shared_ptr<PersistentStorage> &p, LoadedRepl
 
   std::set<SigManager::PublicKeyDesc> replicasSigPublicKeys;
 
-  for (auto e : ld.repConfig.publicKeysOfReplicas) {
+  for (const auto &e : ld.repConfig.publicKeysOfReplicas) {
     SigManager::PublicKeyDesc keyDesc = {e.first, e.second};
     replicasSigPublicKeys.insert(keyDesc);
   }

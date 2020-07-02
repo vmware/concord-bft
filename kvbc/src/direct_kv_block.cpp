@@ -39,7 +39,7 @@ Sliver create(const SetOfKeyValuePairs &updates,
   try {
     char *blockBuffer = new char[blockSize];
     std::memset(blockBuffer, 0, blockSize);
-    const Sliver blockSliver(blockBuffer, blockSize);
+    Sliver blockSliver(blockBuffer, blockSize);
 
     auto header = (detail::Header *)blockBuffer;
     std::memcpy(header->parentDigest, parentDigest.data(), BLOCK_DIGEST_SIZE);

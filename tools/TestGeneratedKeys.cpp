@@ -270,7 +270,7 @@ static bool testRSAKeys(const std::vector<bftEngine::ReplicaConfig>& configs) {
     std::string privateKey = configs[i].replicaPrivateKey;
     std::string publicKey;
 
-    for (auto publicKeyEntry : configs[i].publicKeysOfReplicas) {
+    for (const auto& publicKeyEntry : configs[i].publicKeysOfReplicas) {
       if (publicKeyEntry.first == i) {
         publicKey = publicKeyEntry.second;
       }
@@ -282,7 +282,7 @@ static bool testRSAKeys(const std::vector<bftEngine::ReplicaConfig>& configs) {
 
     if (rsaPublicKeysSeen.count(publicKey) > 0) {
       uint16_t existingKeyholder;
-      for (auto publicKeyEntry : expectedPublicKeys) {
+      for (const auto& publicKeyEntry : expectedPublicKeys) {
         if (publicKeyEntry.second == publicKey) {
           existingKeyholder = publicKeyEntry.first;
         }
@@ -301,7 +301,7 @@ static bool testRSAKeys(const std::vector<bftEngine::ReplicaConfig>& configs) {
 
   // Verify that all replicas' keyfiles agree on the RSA public keys.
   for (uint16_t i = 0; i < numReplicas; ++i) {
-    for (auto publicKeyEntry : configs[i].publicKeysOfReplicas) {
+    for (const auto& publicKeyEntry : configs[i].publicKeysOfReplicas) {
       if (publicKeyEntry.second != expectedPublicKeys[publicKeyEntry.first]) {
         std::cout << "FAILURE: Replica " << i
                   << " has an"
@@ -427,7 +427,7 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
 
   uint16_t participatingSigners = signersToTest.size();
 
-  for (auto hash : kHashesToTest) {
+  for (const auto& hash : kHashesToTest) {
     int hashLength = hash.length();
 
     IThresholdAccumulator* accumulator = nullptr;
@@ -601,7 +601,7 @@ static bool testThresholdCryptosystem(const std::string& name,
   size_t totalTests = signerCombinationsToTest.size();
 
   // Test that the threshold cryptosystem functions as expected.
-  for (auto signerCombination : signerCombinationsToTest) {
+  for (const auto& signerCombination : signerCombinationsToTest) {
     if (!testThresholdSignature(name, signers, referenceVerifier, signerCombination, numSigners, threshold)) {
       return false;
     }
@@ -729,7 +729,7 @@ static bool testThresholdKeys(const std::vector<bftEngine::ReplicaConfig>& confi
 // need to do in one of several places because it may return early in the event
 // of a failure.
 static void freeConfigs(const std::vector<bftEngine::ReplicaConfig>& configs) {
-  for (auto config : configs) {
+  for (const auto& config : configs) {
     if (config.thresholdSignerForExecution) {
       delete config.thresholdSignerForExecution;
     }

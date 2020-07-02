@@ -33,6 +33,7 @@ int main(int argc, char *argv[]) {
   LOG_DEBUG(GL, "Number of arguments: " << argc);
 
   std::vector<std::string> args;
+  args.reserve(static_cast<size_t>(argc));
   for (int i = 0; i < argc; i++) {
     args.push_back(std::string(argv[i]));
   }

@@ -315,7 +315,7 @@ DataStore::ResPagesDescriptor* InMemoryDataStore::getResPagesDescriptor(uint64_t
 
   desc->numOfPages = numberOfReservedPages_;
 
-  for (auto iter : pages) {
+  for (const auto& iter : pages) {
     if (iter.first.checkpoint <= inCheckpoint) {
       SingleResPageDesc& singleDesc = desc->d[iter.first.pageId];
       if (singleDesc.relevantCheckpoint > 0) {

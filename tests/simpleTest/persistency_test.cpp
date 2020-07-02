@@ -27,10 +27,10 @@ namespace test::persistency {
 class PersistencyTest : public testing::Test {
  protected:
   void TearDown() override {
-    for (auto it : replicas) {
+    for (const auto &it : replicas) {
       it->stop();
     }
-    for (auto it : replicaThreads) {
+    for (const auto &it : replicaThreads) {
       if (it->joinable()) {
         it->join();
       }

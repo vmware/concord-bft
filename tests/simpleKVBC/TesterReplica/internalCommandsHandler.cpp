@@ -199,7 +199,7 @@ bool InternalCommandsHandler::executeGetBlockDataCommand(
   const Sliver metadataKey = m_blockMetadata->getKey();
 
   auto i = 0;
-  for (auto kv : outBlockData) {
+  for (const auto &kv : outBlockData) {
     if (kv.first != metadataKey) {
       memcpy(pReply->items[i].simpleKey.key, kv.first.data(), KV_LEN);
       memcpy(pReply->items[i].simpleValue.value, kv.second.data(), KV_LEN);
