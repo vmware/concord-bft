@@ -16,12 +16,12 @@ import trio
 import random
 
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
-from util import skvbc as kvbc
 from util.skvbc_history_tracker import verify_linearizability
 import util.bft_network_partitioning as net
 
 SKVBC_INIT_GRACE_TIME = 2
 NUM_OF_SEQ_WRITES = 100
+NUM_OF_PARALLEL_WRITES = 1000
 MAX_CONCURRENCY = 10
 SHORT_REQ_TIMEOUT_MILLI = 3000
 LONG_REQ_TIMEOUT_MILLI = 15000
@@ -93,7 +93,6 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             await trio.sleep(.1)
         return read_count + write_count
 
-    @unittest.skip("unstable")
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
@@ -107,7 +106,6 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             client = bft_network.random_client()
             await tracker.send_tracked_write(client, 2)
 
-    @unittest.skip("unstable")
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
@@ -118,7 +116,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         bft_network.start_all_replicas()
 
         clients = bft_network.random_clients(MAX_CONCURRENCY)
-        num_of_requests = len(clients)
+        num_of_requests = NUM_OF_PARALLEL_WRITES
         rw = await tracker.run_concurrent_ops(num_of_requests, write_weight=0.9)
         self.assertTrue(rw[0] + rw[1] >= num_of_requests)
 
@@ -191,7 +189,6 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
         self.assertEqual(new_last_block, last_block)
 
-    @unittest.skip("Unstable due to BC-3145 TooSlow from pyclient.write")
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
@@ -325,7 +322,6 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             last_block = await tracker.get_last_block_id(read_client)
             assert last_block > start_block
 
-
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
@@ -365,7 +361,6 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
             last_block = await tracker.get_last_block_id(read_client)
             assert last_block > start_block
-
 
     async def issue_tracked_ops_to_the_system(self, tracker):
         try:
