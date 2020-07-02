@@ -15,6 +15,7 @@ WGET_FLAGS="--no-check-certificate -q"
 apt-get update && apt-get ${APT_GET_FLAGS} install \
     autoconf \
     automake \
+    bash-completion \
     build-essential \
     ccache \
     clang \
@@ -36,6 +37,13 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
 
 ln -fs /usr/bin/clang-format-9 /usr/bin/clang-format
 ln -fs /usr/bin/clang-format-diff-9 /usr/bin/clang-format-diff
+
+# Enable bash-completion
+cat <<EOT >> /root/.bashrc
+if [ -f /etc/bash_completion ] && ! shopt -oq posix; then
+    . /etc/bash_completion
+fi
+EOT
 
 # Install 3rd parties
 apt-get ${APT_GET_FLAGS} install \
