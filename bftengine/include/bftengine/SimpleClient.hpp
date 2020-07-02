@@ -21,12 +21,14 @@
 #include "communication/ICommunication.hpp"
 
 namespace bftEngine {
-// Parameters // TODO(GG): move to client configuration
 struct SimpleClientParams {
   uint64_t clientInitialRetryTimeoutMilli = 150;
   uint64_t clientMinRetryTimeoutMilli = 50;
   uint64_t clientMaxRetryTimeoutMilli = 1000;
-  uint16_t clientSendsRequestToAllReplicasFirstThresh = 4;
+  uint16_t numberOfStandardDeviationsToTolerate = 2;
+  uint16_t samplesPerEvaluation = 32;
+  uint16_t samplesUntilReset = 1000;
+  uint16_t clientSendsRequestToAllReplicasFirstThresh = 2;
   uint16_t clientSendsRequestToAllReplicasPeriodThresh = 2;
   uint16_t clientPeriodicResetThresh = 30;
 };
