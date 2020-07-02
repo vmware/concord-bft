@@ -915,8 +915,11 @@ class SkvbcTracker:
             sent += len(clients)
         return read_count, write_count
 
-    async def run_concurrent_conflict_ops(self, num_ops, concurrency_level, write_weight=.70):
-        max_concurrency = concurrency_level
+    async def run_concurrent_conflict_ops(self, num_ops, write_weight=.70):
+        if self.no_conflicts is True:
+            await self.run_concurrent_ops(num_ops, write_weight)
+            return
+        max_concurrency = len(self.bft_network.clients) // 2
         max_size = len(self.skvbc.keys) // 2
         sent = 0
         write_count = 0
@@ -1102,8 +1105,8 @@ class PassThroughSkvbcTracker:
             sent += len(clients)
         return read_count, write_count
 
-    async def run_concurrent_conflict_ops(self, num_ops, concurrency_level, write_weight=.70):
-        max_concurrency = concurrency_level
+    async def run_concurrent_conflict_ops(self, num_ops, write_weight=.70):
+        max_concurrency = len(self.bft_network.clients) // 2
         max_size = len(self.skvbc.keys) // 2
         sent = 0
         write_count = 0
