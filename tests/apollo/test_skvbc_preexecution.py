@@ -371,8 +371,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
     @verify_linearizability(pre_exec_enabled=True)
     async def test_conflicting_requests(self, bft_network, tracker):
         """
-        Launch pre-process request with a long-time execution and ensure that created blocks are as expected
-        and no view-change was triggered.
+        Launch pre-process conflicting request and make sure that conflicting requests are not committed
         """
         bft_network.start_all_replicas()
 
