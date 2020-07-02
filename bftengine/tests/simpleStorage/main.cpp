@@ -22,18 +22,19 @@ using namespace bftEngine;
 
 struct Object {
   Object() : elem1(0), elem2(0), elem3(0), elem4(0) {}
-  Object(int e1, long e2, short e3, int e4) : elem1(e1), elem2(e2), elem3(e3), elem4(e4) {}
+  Object(unsigned int e1, unsigned long e2, unsigned short e3, unsigned int e4)
+      : elem1(e1), elem2(e2), elem3(e3), elem4(e4) {}
 
-  int elem1;
-  long elem2;
-  short elem3;
-  int elem4;
+  unsigned int elem1;
+  unsigned long elem2;
+  unsigned short elem3;
+  unsigned int elem4;
 };
 
-const int ELEM1 = 0xaaaaaaaa;
-const long ELEM2 = 0xbbbbbbbbbbbbbbb;
-const short ELEM3 = 0xccc;
-const int ELEM4 = 0xdddddddd;
+const unsigned int ELEM1 = 0xaaaaaaaa;
+const unsigned long ELEM2 = 0xbbbbbbbbbbbbbbb;
+const unsigned short ELEM3 = 0xccc;
+const unsigned int ELEM4 = 0xdddddddd;
 
 void verifyData(FileStorage &fileStorage, uint32_t objId) {
   Object objIn;

@@ -150,6 +150,7 @@ TEST(thread_pool, non_blocking_future_dtors) {
   {
     auto future1 = pool.async([&]() {
       auto lock = std::unique_lock{mtx};
+      // NOLINTNEXTLINE(bugprone-infinite-loop)
       while (!future1_destroyed) {
         cv.wait(lock);
       }

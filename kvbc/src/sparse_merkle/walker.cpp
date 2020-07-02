@@ -16,9 +16,9 @@ using namespace concordUtils;
 
 namespace concord::kvbc::sparse_merkle::detail {
 
-void Walker::appendEmptyNodes(const Hash& key, int nodes_to_create) {
+void Walker::appendEmptyNodes(const Hash& key, size_t nodes_to_create) {
   stack_.push(current_node_);
-  for (int i = 0; i < nodes_to_create - 1; i++) {
+  for (size_t i = 0; i < nodes_to_create - 1 && nodes_to_create > 0; i++) {
     Nibble next_nibble = key.getNibble(depth());
     nibble_path_.append(next_nibble);
     stack_.emplace(BatchedInternalNode());
