@@ -3,13 +3,19 @@ Checks:             '-*,bugprone-*,
                     -bugprone-branch-clone,
                     -bugprone-exception-escape,
                     -bugprone-misplaced-widening-cast,
-                    -bugprone-not-null-terminated-result
+                    -bugprone-not-null-terminated-result,
+                    performance-*,
+                    -performance-unnecessary-value-param,
+                    -performance-noexcept-move-constructor
                     '
 WarningsAsErrors:   'bugprone-*,
                     -bugprone-branch-clone,
                     -bugprone-exception-escape,
                     -bugprone-misplaced-widening-cast,
-                    -bugprone-not-null-terminated-result
+                    -bugprone-not-null-terminated-result,
+                    performance-*,
+                    -performance-unnecessary-value-param,
+                    -performance-noexcept-move-constructor
                     '
 # -bugprone-branch-clone - does not work well with switch cases
 # -bugprone-exception-escape - main functions throwing exceptions are OK: we prefer to analyze core dumps

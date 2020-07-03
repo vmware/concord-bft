@@ -404,7 +404,7 @@ void SimpleStateTran::createCheckpointOfCurrentState(uint64_t checkpointNumber) 
     }
   }
 
-  for (std::pair<uint32_t, std::set<uint32_t> > g : pagesMap) {
+  for (const auto& g : pagesMap) {
     Assert(g.first < numberOfMetadataPages_);
 
     internalST_->loadReservedPage(medataPageToInternalPage(g.first), pageSize_, tempBuffer_);

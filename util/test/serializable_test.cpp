@@ -144,6 +144,7 @@ TEST(serializable, VectorSerializableVectors) {
   std::vector<std::vector<TestSerializable>> vec_of_vecs, vec_of_vecs_out;
   for (int j = 0; j < 10; ++j) {
     std::vector<TestSerializable> v;
+    v.reserve(10);
     for (int i = 0; i < 10; ++i)
       v.push_back(TestSerializable{"testSerializable" + std::to_string(i),
                                    (std::uint8_t)(i + 1),
@@ -162,6 +163,7 @@ TEST(serializable, VectorSerializablePtrVectors) {
   std::vector<std::vector<TestSerializable*>> vec_of_vecs, vec_of_vecs_out;
   for (int j = 0; j < 10; ++j) {
     std::vector<TestSerializable*> v;
+    v.reserve(10);
     for (int i = 0; i < 10; ++i)
       v.push_back(new TestSerializable{"testSerializable" + std::to_string(i),
                                        (std::uint8_t)(i + 1),

@@ -103,7 +103,7 @@ class PlainUDPCommunication::PlainUdpImpl {
   PlainUdpImpl(const PlainUdpConfig &config)
       : maxMsgSize{config.bufferLength},
         udpListenPort{config.listenPort},
-        endpoints{std::move(config.nodes)},
+        endpoints{config.nodes},
         statusCallback{config.statusCallback},
         selfId{config.selfId} {
     Assert(config.listenPort > 0, "Port should not be negative!");
