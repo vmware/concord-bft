@@ -1,0 +1,1 @@
+add_subdirectory(sparse_merkle_db)
