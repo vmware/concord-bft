@@ -934,7 +934,7 @@ class SkvbcTracker:
             sent += len(clients)
         return read_count, write_count
 
-    async def send_indefinite_tracked_ops(self, write_weight=.70):
+    async def send_indefinite_tracked_ops(self, write_weight=.70, time_interval=.01):
         max_size = len(self.skvbc.keys) // 2
         while True:
             client = self.bft_network.random_client()
@@ -946,7 +946,7 @@ class SkvbcTracker:
                         nursery.start_soon(self.send_tracked_write, client, max_size)
                 except:
                     pass
-                await trio.sleep(.01)
+                await trio.sleep(time_interval)
 
     async def write_and_track_known_kv(self, kv, client, long_exec=False):
         read_version = self.read_block_id()
@@ -1118,7 +1118,7 @@ class PassThroughSkvbcTracker:
             sent += len(clients)
         return read_count, write_count
 
-    async def send_indefinite_tracked_ops(self, write_weight=.70):
+    async def send_indefinite_tracked_ops(self, write_weight=.70, time_interval=.1):
         max_size = len(self.skvbc.keys) // 2
         while True:
             client = self.bft_network.random_client()
@@ -1129,7 +1129,7 @@ class PassThroughSkvbcTracker:
                     await self.send_tracked_read(client, max_size)
             except:
                 pass
-            await trio.sleep(.1)
+            await trio.sleep(time_interval)
 
     async def write_and_track_known_kv(self, kv, client, long_exec=False):
         return self.skvbc.parse_reply(await client.write(

@@ -10,7 +10,7 @@ if(USE_S3_OBJECT_STORE)
             message(STATUS "Minio does not exsit in ${MINIO_BINARY_PATH}")
         endif()
         # This env var is used by apollo tests to locate the path to the binary
-        set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} CONCORD_BFT_MINIO_BINARY_PATH=${MINIO_BINARY_PATH} USE_S3_OBJECT_STORE=1")
+        set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} CONCORD_BFT_MINIO_BINARY_PATH=${MINIO_BINARY_PATH}")
 endif()
 
 set(STORAGE_TYPES "v1direct" "v2merkle")
