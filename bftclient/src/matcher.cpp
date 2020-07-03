@@ -16,7 +16,7 @@ namespace bft::client {
 std::optional<Match> Matcher::onReply(UnmatchedReply&& reply) {
   if (!valid(reply)) return std::nullopt;
 
-  auto key = MatchKey{std::move(reply.metadata), std::move(reply.data)};
+  auto key = MatchKey{reply.metadata, std::move(reply.data)};
   const auto [it, success] = matches_[key].insert_or_assign(reply.rsi.from, std::move(reply.rsi.data));
   (void)it;  // unused variable hack needed by GCC
   if (!success) {
@@ -34,7 +34,7 @@ std::optional<Match> Matcher::match() {
     return match.second.size() == config_.quorum.wait_for;
   });
   if (result == matches_.end()) return std::nullopt;
-  return Match{Reply{std::move(result->first.data), std::move(result->second)}, result->first.metadata.primary};
+  return Match{Reply{result->first.data, std::move(result->second)}, result->first.metadata.primary};
 }
 
 bool Matcher::valid(const UnmatchedReply& reply) const {
