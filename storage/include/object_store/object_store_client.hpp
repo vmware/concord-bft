@@ -56,6 +56,10 @@ class ObjectStoreClient : public IDBClient {
     return pImpl_->rangeDel(_beginKey, _endKey);
   }
 
+  void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) override {
+    pImpl_->setAggregator(aggregator);
+  }
+
  protected:
   std::shared_ptr<IDBClient> pImpl_ = nullptr;
 };

@@ -195,6 +195,10 @@ class Client : public concord::storage::IDBClient {
     throw std::logic_error("rangeDel()  Not implemented for S3 object store");
   }
 
+  void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) override {
+    // TODO
+  }
+
   ///////////////////////// protected /////////////////////////////
  protected:
   // retry forever, increasing the waiting timeout until it reaches the defined maximum
