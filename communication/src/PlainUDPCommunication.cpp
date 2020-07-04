@@ -88,7 +88,7 @@ class PlainUDPCommunication::PlainUdpImpl {
     return it->second.isReplica;
   }
 
-  string create_key(string ip, uint16_t port) {
+  string create_key(const string &ip, uint16_t port) {
     auto key = ip + ":" + to_string(port);
     return key;
   }
@@ -176,6 +176,7 @@ class PlainUDPCommunication::PlainUdpImpl {
       LOG_FATAL(_logger,
                 "Error while binding: IP=" << sAddr.sin_addr.s_addr << ", Port=" << sAddr.sin_port
                                            << ", errno=" << concordUtils::errnoString(errno));
+      // NOLINTNEXTLINE(misc-static-assert)
       Assert(false, "Failure occurred while binding the socket!");
       exit(1);  // TODO(GG): not really ..... change this !
     }

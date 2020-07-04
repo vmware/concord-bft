@@ -62,7 +62,7 @@ struct CombinedCommitSigFailedInternalMsg {
   const ViewNum view;
   const std::set<uint16_t> replicasWithBadSigs;
 
-  CombinedCommitSigFailedInternalMsg(SeqNum s, ViewNum v, std::set<uint16_t>& repsWithBadSigs)
+  CombinedCommitSigFailedInternalMsg(SeqNum s, ViewNum v, const std::set<uint16_t>& repsWithBadSigs)
       : seqNumber{s}, view{v}, replicasWithBadSigs{repsWithBadSigs} {}
 };
 

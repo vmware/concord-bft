@@ -23,10 +23,8 @@
 #include "bftengine/DbMetadataStorage.hpp"
 
 using bft::communication::ICommunication;
-using bftEngine::SimpleBlockchainStateTransfer::BLOCK_DIGEST_SIZE;
 using bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest;
 
-using concord::storage::IDBClient;
 using concord::storage::DBMetadataStorage;
 
 namespace concord::kvbc {
@@ -226,7 +224,7 @@ Status ReplicaImp::addBlockInternal(const SetOfKeyValuePairs &updates, BlockId &
   return Status::OK();
 }
 
-Status ReplicaImp::getInternal(BlockId readVersion, Key key, Sliver &outValue, BlockId &outBlock) const {
+Status ReplicaImp::getInternal(BlockId readVersion, const Key &key, Sliver &outValue, BlockId &outBlock) const {
   const auto clear = [&outValue, &outBlock]() {
     outValue = Sliver{};
     outBlock = 0;

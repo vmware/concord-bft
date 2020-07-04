@@ -35,16 +35,6 @@
 #include "simple_test_client.hpp"
 #include "Logger.hpp"
 
-using bft::communication::ICommunication;
-using bft::communication::PlainUDPCommunication;
-using bft::communication::PlainUdpConfig;
-using bft::communication::PlainTCPCommunication;
-using bft::communication::PlainTcpConfig;
-using bft::communication::TlsTCPCommunication;
-using bft::communication::TlsTcpConfig;
-using bftEngine::SeqNumberGeneratorForClientRequests;
-using bftEngine::SimpleClient;
-
 logging::Logger clientLogger = logging::getLogger("simpletest.client");
 
 void parse_params(int argc, char **argv, ClientParams &cp, bftEngine::SimpleClientParams &scp) {

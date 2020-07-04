@@ -75,6 +75,13 @@ make CONCORD_BFT_CONTAINER_CXX=g++ \
     build
 ```
 
+### C++ Linter
+
+The C++ code is statically checked by `clang-tidy` as part of the [CI](https://github.com/vmware/concord-bft/actions?query=workflow%3Aclang-tidy).
+<br>To check code before submitting PR, please run `make tidy-check`.
+
+[Detailed information about clang-tidy checks](https://clang.llvm.org/extra/clang-tidy/checks/list.html).
+
 ### Build Options
 
 In order to turn on or off various options, you need to change your cmake configuration. This is

@@ -17,7 +17,6 @@
 #include "block_metadata.hpp"
 #include "kvstream.h"
 
-using concord::storage::DBMetadataStorage;
 using concord::kvbc::Key;
 
 namespace concord {

@@ -83,7 +83,7 @@ class ReplicaImp : public IReplica,
 
  protected:
   Status addBlockInternal(const concord::storage::SetOfKeyValuePairs &updates, BlockId &outBlockId);
-  Status getInternal(BlockId readVersion, Key key, Sliver &outValue, BlockId &outBlock) const;
+  Status getInternal(BlockId readVersion, const Key &key, Sliver &outValue, BlockId &outBlock) const;
   void insertBlockInternal(BlockId blockId, Sliver block);
   RawBlock getBlockInternal(BlockId blockId) const;
 

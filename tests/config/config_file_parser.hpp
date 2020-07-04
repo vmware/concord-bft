@@ -34,12 +34,12 @@ class ConfigFileParser {
   bool Parse();
 
   // Returns the number of elements matching specific key.
-  size_t Count(std::string key);
+  size_t Count(const std::string& key);
 
   // Returns a range of values that match specified key.
-  std::vector<std::string> GetValues(std::string key);
+  std::vector<std::string> GetValues(const std::string& key);
 
-  std::vector<std::string> SplitValue(std::string value_to_split, const char* delimiter);
+  std::vector<std::string> SplitValue(const std::string& value_to_split, const char* delimiter);
 
   void printAll();
 

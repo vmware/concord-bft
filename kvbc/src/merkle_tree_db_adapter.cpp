@@ -32,8 +32,6 @@ namespace {
 
 using namespace ::std::string_literals;
 
-using ::concord::util::toChar;
-
 using ::concordUtils::Sliver;
 
 using ::concord::storage::IDBClient;
@@ -44,7 +42,6 @@ using ::concord::storage::v2MerkleTree::detail::EBFTSubtype;
 using ::bftEngine::SimpleBlockchainStateTransfer::computeBlockDigest;
 
 using sparse_merkle::BatchedInternalNode;
-using sparse_merkle::Hash;
 using sparse_merkle::Hasher;
 using sparse_merkle::InternalNodeKey;
 using sparse_merkle::Version;

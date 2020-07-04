@@ -34,7 +34,6 @@ extern "C" {
 }
 
 using namespace BLS::Relic;
-using std::endl;
 
 void printTime(const AveragingTimer& t, bool printAvg = false) {
   LOG_DEBUG(GL, t.numIterations() << " iters of " << t.getName() << ": " << t.totalLapTime() << " microsecs");

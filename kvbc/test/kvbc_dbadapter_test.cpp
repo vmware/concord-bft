@@ -16,7 +16,6 @@
 
 using namespace std;
 
-using concordUtils::Status;
 using concordUtils::Sliver;
 using concord::kvbc::KeysVector;
 using concord::kvbc::KeyValuePair;
@@ -25,9 +24,6 @@ using concord::kvbc::BlockDigest;
 using concord::kvbc::BlockId;
 // using concord::storage::rocksdb::Client;
 // using concord::storage::rocksdb::KeyComparator;
-using concord::storage::ITransaction;
-using concord::kvbc::v1DirectKeyValue::DBKeyManipulator;
-using concord::kvbc::v1DirectKeyValue::DBKeyComparator;
 using concord::kvbc::v1DirectKeyValue::block::detail::create;
 using concord::kvbc::v1DirectKeyValue::block::detail::getUserData;
 

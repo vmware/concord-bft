@@ -26,8 +26,6 @@
 
 #include "Logger.hpp"
 
-using std::endl;
-
 namespace BLS {
 namespace Relic {
 

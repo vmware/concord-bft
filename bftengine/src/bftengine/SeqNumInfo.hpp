@@ -122,7 +122,7 @@ class SeqNumInfo {
     // internal messages
     static InternalMessage createInterCombinedSigFailed(SeqNum seqNumber,
                                                         ViewNum viewNumber,
-                                                        std::set<uint16_t> replicasWithBadSigs);
+                                                        const std::set<uint16_t>& replicasWithBadSigs);
     static InternalMessage createInterCombinedSigSucceeded(SeqNum seqNumber,
                                                            ViewNum viewNumber,
                                                            const char* combinedSig,
@@ -150,7 +150,7 @@ class SeqNumInfo {
     // internal messages
     static InternalMessage createInterCombinedSigFailed(SeqNum seqNumber,
                                                         ViewNum viewNumber,
-                                                        std::set<uint16_t> replicasWithBadSigs);
+                                                        const std::set<uint16_t>& replicasWithBadSigs);
     static InternalMessage createInterCombinedSigSucceeded(SeqNum seqNumber,
                                                            ViewNum viewNumber,
                                                            const char* combinedSig,

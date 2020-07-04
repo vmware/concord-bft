@@ -391,7 +391,7 @@ bool BCStateTran::isRunning() const { return running_; }
 // This has the side effect of filling in buffer_ with the last block of app
 // data.
 DataStore::CheckpointDesc BCStateTran::createCheckpointDesc(uint64_t checkpointNumber,
-                                                            STDigest digestOfResPagesDescriptor) {
+                                                            const STDigest &digestOfResPagesDescriptor) {
   uint64_t lastBlock = as_->getLastReachableBlockNum();
   AssertEQ(lastBlock, as_->getLastBlockNum());
   metrics_.last_block_.Get().Set(lastBlock);
