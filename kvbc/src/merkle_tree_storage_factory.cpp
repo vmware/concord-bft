@@ -31,9 +31,7 @@ IStorageFactory::DatabaseSet RocksDBStorageFactory::newDatabaseSet(bool readOnly
   return ret;
 }
 
-IStorageFactory::DatabaseSet RocksDBStorageFactory::newDatabaseSet() const {
-  return newDatabaseSet(false);
-}
+IStorageFactory::DatabaseSet RocksDBStorageFactory::newDatabaseSet() const { return newDatabaseSet(false); }
 
 std::unique_ptr<storage::IMetadataKeyManipulator> RocksDBStorageFactory::newMetadataKeyManipulator() const {
   return std::make_unique<storage::v2MerkleTree::MetadataKeyManipulator>();
@@ -53,9 +51,7 @@ IStorageFactory::DatabaseSet MemoryDBStorageFactory::newDatabaseSet(bool readOnl
   return ret;
 }
 
-IStorageFactory::DatabaseSet MemoryDBStorageFactory::newDatabaseSet() const {
-  return newDatabaseSet(false);
-}
+IStorageFactory::DatabaseSet MemoryDBStorageFactory::newDatabaseSet() const { return newDatabaseSet(false); }
 
 std::unique_ptr<storage::IMetadataKeyManipulator> MemoryDBStorageFactory::newMetadataKeyManipulator() const {
   return std::make_unique<storage::v2MerkleTree::MetadataKeyManipulator>();
