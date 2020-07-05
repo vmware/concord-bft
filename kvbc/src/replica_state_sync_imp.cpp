@@ -15,6 +15,7 @@
 #include "replica_state_sync_imp.hpp"
 #include "bftengine/DbMetadataStorage.hpp"
 #include "block_metadata.hpp"
+#include "kvstream.h"
 
 using concord::storage::DBMetadataStorage;
 using concord::kvbc::Key;
@@ -31,21 +32,23 @@ uint64_t ReplicaStateSyncImp::execute(logging::Logger& logger,
   uint64_t removedBlocksNum = 0;
   const auto genesisBlockId = bcDBAdapter.getGenesisBlockId();
   const auto blockMetadataKey = blockMetadata_->getKey();
+  uint64_t lastBlockSeqNum = 0;
   while (lastReachableBlockId && genesisBlockId <= lastReachableBlockId) {
-    const auto blockSeqNum = blockMetadata_->getSequenceNum(blockMetadataKey);
-    LOG_INFO(logger,
-             "Block Metadata key = " << blockMetadataKey << ", blockId = " << lastReachableBlockId << ", blockSeqNum = "
-                                     << blockSeqNum << ", lastExecutedSeqNum = " << lastExecutedSeqNum);
-    if (blockSeqNum <= lastExecutedSeqNum) {
-      LOG_INFO(logger, "Replica state is in sync; removedBlocksNum is " << removedBlocksNum);
+    // Get execution sequence number stored in the current last block.
+    // After a last block deletion blockSeqNum gets a new value.
+    lastBlockSeqNum = blockMetadata_->getLastBlockSequenceNum(blockMetadataKey);
+    LOG_INFO(logger, KVLOG(lastExecutedSeqNum, lastBlockSeqNum, lastReachableBlockId));
+    if (lastBlockSeqNum <= lastExecutedSeqNum) {
+      LOG_INFO(logger, "Replica state is in sync " << KVLOG(removedBlocksNum, lastBlockSeqNum, lastReachableBlockId));
       return removedBlocksNum;
     }
-    // SBFT State Metadata is not in sync with SBFT State.
+    // SBFT State Metadata is not in sync with the Blockchain State.
     // Remove blocks which sequence number is greater than lastExecutedSeqNum.
     bcDBAdapter.deleteLastReachableBlock();
     --lastReachableBlockId;
     ++removedBlocksNum;
   }
+  LOG_INFO(logger, "All blockchain blocks deleted " << KVLOG(removedBlocksNum, lastBlockSeqNum, lastReachableBlockId));
   return removedBlocksNum;
 }
 

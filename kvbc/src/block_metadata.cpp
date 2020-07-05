@@ -14,7 +14,7 @@ Sliver BlockMetadata::serialize(uint64_t bft_sequence_num) const {
   return Sliver::copy((char*)&bft_sequence_num, sizeof(uint64_t));
 }
 
-uint64_t BlockMetadata::getSequenceNum(const Sliver& key) const {
+uint64_t BlockMetadata::getLastBlockSequenceNum(const Sliver& key) const {
   Sliver outValue;
   Status status = storage_.get(key, outValue);
   uint64_t sequenceNum = 0;
