@@ -41,6 +41,12 @@ class IStorageFactory {
   // Note: The returned DB clients and the adapter are initialized and ready to use.
   virtual DatabaseSet newDatabaseSet() const = 0;
 
+  // Create a set of database objects at once. Objects from one set can only be used throughout the system with other
+  // objects from the same set. Using objects from different sets is not supported and might lead to undefined behavior.
+  // Note: The returned DB clients and the adapter are initialized and ready to use.
+  // This overload will create read only data set
+  virtual DatabaseSet newDatabaseSet(bool readOnly) const = 0;
+
   // Create a metadata key manipulator. It is allowed to create multiple instances and use them together with objects
   // from the database set.
   virtual std::unique_ptr<storage::IMetadataKeyManipulator> newMetadataKeyManipulator() const = 0;

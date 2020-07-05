@@ -29,6 +29,7 @@ class RocksDBStorageFactory : public IStorageFactory {
 
  public:
   DatabaseSet newDatabaseSet() const override;
+  DatabaseSet newDatabaseSet(bool readOnly) const override;
   std::unique_ptr<storage::IMetadataKeyManipulator> newMetadataKeyManipulator() const override;
   std::unique_ptr<storage::ISTKeyManipulator> newSTKeyManipulator() const override;
 
@@ -40,6 +41,7 @@ class RocksDBStorageFactory : public IStorageFactory {
 class MemoryDBStorageFactory : public IStorageFactory {
  public:
   DatabaseSet newDatabaseSet() const override;
+  DatabaseSet newDatabaseSet(bool readOnly) const override;
   std::unique_ptr<storage::IMetadataKeyManipulator> newMetadataKeyManipulator() const override;
   std::unique_ptr<storage::ISTKeyManipulator> newSTKeyManipulator() const override;
 };

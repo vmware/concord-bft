@@ -37,13 +37,17 @@ auto createRocksDBClient(const std::string &dbPath) {
 }  // namespace
 
 #ifdef USE_ROCKSDB
-IStorageFactory::DatabaseSet RocksDBStorageFactory::newDatabaseSet() const {
+IStorageFactory::DatabaseSet RocksDBStorageFactory::newDatabaseSet(bool readOnly) const {
   auto ret = IStorageFactory::DatabaseSet{};
   ret.dataDBClient = createRocksDBClient(dbPath_);
-  ret.dataDBClient->init();
+  ret.dataDBClient->init(readOnly);
   ret.metadataDBClient = ret.dataDBClient;
   ret.dbAdapter = std::make_unique<DBAdapter>(ret.dataDBClient);
   return ret;
+}
+
+IStorageFactory::DatabaseSet RocksDBStorageFactory::newDatabaseSet() const {
+  return newDatabaseSet(false);
 }
 
 std::unique_ptr<storage::IMetadataKeyManipulator> RocksDBStorageFactory::newMetadataKeyManipulator() const {
@@ -55,14 +59,18 @@ std::unique_ptr<storage::ISTKeyManipulator> RocksDBStorageFactory::newSTKeyManip
 }
 #endif
 
-IStorageFactory::DatabaseSet MemoryDBStorageFactory::newDatabaseSet() const {
+IStorageFactory::DatabaseSet MemoryDBStorageFactory::newDatabaseSet(bool readOnly) const {
   auto ret = IStorageFactory::DatabaseSet{};
   const auto comparator = storage::memorydb::KeyComparator{new DBKeyComparator{}};
   ret.dataDBClient = std::make_shared<storage::memorydb::Client>(comparator);
-  ret.dataDBClient->init();
+  ret.dataDBClient->init(readOnly);
   ret.metadataDBClient = ret.dataDBClient;
   ret.dbAdapter = std::make_unique<DBAdapter>(ret.dataDBClient);
   return ret;
+}
+
+IStorageFactory::DatabaseSet MemoryDBStorageFactory::newDatabaseSet() const {
+  return newDatabaseSet(false);
 }
 
 std::unique_ptr<storage::IMetadataKeyManipulator> MemoryDBStorageFactory::newMetadataKeyManipulator() const {
