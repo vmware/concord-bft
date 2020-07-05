@@ -120,6 +120,10 @@ void Client::init(bool readOnly) {
   options.statistics = ::rocksdb::CreateDBStatistics();
   options.statistics->set_stats_level(::rocksdb::StatsLevel::kExceptHistogramOrTimers);
 
+  // setting mem table to high value. is essential for high speed writes. the default 64mb
+  // value causes to more flushes
+  options.write_buffer_size = 512 << 20;
+
   // If a comparator is passed, use it. If not, use the default one.
   if (comparator_) {
     options.comparator = comparator_.get();
