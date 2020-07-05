@@ -6,7 +6,7 @@ target_include_directories(bft_client_test PRIVATE ../src)
 target_link_libraries(bft_client_test PRIVATE
   GTest::Main
   GTest::GTest
-  bftclient2
+  bftclient_new
 )
 
 add_executable(bft_client_api_tests bft_client_api_tests.cpp)
@@ -15,5 +15,5 @@ target_include_directories(bft_client_api_tests PRIVATE ../src)
 target_link_libraries(bft_client_api_tests PRIVATE
   GTest::Main
   GTest::GTest
-  bftclient2
+  bftclient_new
 )
