@@ -22,7 +22,7 @@ add_library(kvbc  src/ClientImp.cpp
 
 target_link_libraries(kvbc PUBLIC corebft )
 
-target_include_directories(kvbc PUBLIC include)
+target_include_directories(kvbc PUBLIC include util)
 
 find_package(OpenSSL REQUIRED)
 target_link_libraries(kvbc PRIVATE ${OPENSSL_LIBRARIES})

@@ -27,7 +27,7 @@ class IBlockMetadata {
 
   Sliver getKey() const { return key_; }
 
-  virtual uint64_t getSequenceNum(const Sliver& key) const = 0;
+  virtual uint64_t getLastBlockSequenceNum(const Sliver& key) const = 0;
 
   virtual Sliver serialize(uint64_t sequence_num) const = 0;
 
@@ -47,7 +47,7 @@ class BlockMetadata : public IBlockMetadata {
   BlockMetadata(const ILocalKeyValueStorageReadOnly& storage) : IBlockMetadata(storage) {
     logger_ = logging::getLogger("skvbc.MetadataStorage");
   }
-  virtual uint64_t getSequenceNum(const Sliver& key) const override;
+  virtual uint64_t getLastBlockSequenceNum(const Sliver& key) const override;
   virtual Sliver serialize(uint64_t sequence_num) const override;
 };
 
