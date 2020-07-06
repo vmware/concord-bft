@@ -119,12 +119,12 @@ struct GetRawBlockRange {
     if (first > last) {
       throw std::invalid_argument{"Invalid block range"};
     }
-    auto raw_blocks = std::map<std::string, std::string>{};
+    auto raw_blocks = std::vector<std::pair<std::string, std::string>>{};
     for (auto i = first; i <= last; ++i) {
       const auto raw_block = adapter.getRawBlock(i);
-      raw_blocks["rawBlock" + std::to_string(i)] = concordUtils::sliverToHex(raw_block);
+      raw_blocks.emplace_back("rawBlock" + std::to_string(i), concordUtils::sliverToHex(raw_block));
     }
-    return mapToJson(raw_blocks);
+    return toJson(raw_blocks);
   }
 };
 
@@ -141,7 +141,7 @@ struct GetBlockInfo {
     const auto state_hash = v2MerkleTree::block::detail::getStateHash(raw_block);
     const auto parent_digest = adapter.getParentDigest(raw_block);
     const auto key_values = adapter.getBlockData(raw_block);
-    return mapToJson(std::map<std::string, std::string>{
+    return toJson(std::map<std::string, std::string>{
         std::make_pair("sparseMerkleRootHash", concordUtils::bufferToHex(state_hash.data(), state_hash.size())),
         std::make_pair("parentBlockDigest", concordUtils::bufferToHex(parent_digest.data(), parent_digest.size())),
         std::make_pair("keyValueCount", std::to_string(key_values.size()))});
@@ -158,7 +158,7 @@ struct GetBlockKeyValues {
       throw std::invalid_argument{"Missing BLOCK-ID argument"};
     }
     const auto raw_block = adapter.getRawBlock(toBlockId(args.values.front()));
-    return mapToJson(adapter.getBlockData(raw_block));
+    return toJson(adapter.getBlockData(raw_block));
   }
 };
 
@@ -180,8 +180,8 @@ struct GetValue {
       requested_block_version = toBlockId(args.values[1]);
     }
     const auto [value, block_version] = adapter.getValue(key, requested_block_version);
-    return mapToJson(std::map<std::string, std::string>{std::make_pair("blockVersion", std::to_string(block_version)),
-                                                        std::make_pair("value", concordUtils::sliverToHex(value))});
+    return toJson(std::map<std::string, std::string>{std::make_pair("blockVersion", std::to_string(block_version)),
+                                                     std::make_pair("value", concordUtils::sliverToHex(value))});
   }
 };
 

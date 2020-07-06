@@ -18,11 +18,13 @@
 
 #include <map>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace concord::kvbc::tools::sparse_merkle_db {
 
-template <typename Map, typename Encoder>
-std::string mapToJson(const Map &kv, const Encoder &enc) {
+template <typename KVContainer, typename Encoder>
+std::string kvContainerToJson(const KVContainer &kv, const Encoder &enc) {
   auto out = std::string{"{\n"};
   for (const auto &[key, value] : kv) {
     out += ("  \"" + enc(key) + "\": \"" + enc(value) + "\",\n");
@@ -34,16 +36,20 @@ std::string mapToJson(const Map &kv, const Encoder &enc) {
   return out;
 }
 
-inline std::string mapToJson(const SetOfKeyValuePairs &kv) {
-  return mapToJson(kv, [](const auto &arg) { return concordUtils::sliverToHex(arg); });
+inline std::string toJson(const SetOfKeyValuePairs &kv) {
+  return kvContainerToJson(kv, [](const auto &arg) { return concordUtils::sliverToHex(arg); });
 }
 
-inline std::string mapToJson(const std::map<std::string, std::string> &kv) {
-  return mapToJson(kv, [](const auto &arg) { return arg; });
+inline std::string toJson(const std::map<std::string, std::string> &kv) {
+  return kvContainerToJson(kv, [](const auto &arg) { return arg; });
+}
+
+inline std::string toJson(const std::vector<std::pair<std::string, std::string>> &kv) {
+  return kvContainerToJson(kv, [](const auto &arg) { return arg; });
 }
 
 inline std::string toJson(const std::string &key, const std::string &value) {
-  return mapToJson(std::map<std::string, std::string>{std::make_pair(key, value)});
+  return toJson(std::map<std::string, std::string>{std::make_pair(key, value)});
 }
 
 template <typename T>
