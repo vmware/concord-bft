@@ -26,6 +26,10 @@ using testing::InitGoogleTest;
 
 TEST(hex_tools, hex_to_sliver_empty) { ASSERT_TRUE(hexToSliver("").empty()); }
 
+TEST(hex_tools, hex_to_sliver_lower_0x_empty) { ASSERT_TRUE(hexToSliver("0x").empty()); }
+
+TEST(hex_tools, hex_to_sliver_capital_0X_empty) { ASSERT_TRUE(hexToSliver("0X").empty()); }
+
 TEST(hex_tools, hex_to_sliver_odd_size) { ASSERT_THROW(hexToSliver("123"), std::invalid_argument); }
 
 TEST(hex_tools, hex_to_sliver_invalid_char_with_0x) { ASSERT_THROW(hexToSliver("0x12ck"), std::invalid_argument); }
