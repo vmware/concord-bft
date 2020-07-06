@@ -30,8 +30,8 @@ class SigManager {
 
   SigManager(ReplicaId myId,
              int16_t numberOfReplicasAndClients,
-             PrivateKeyDesc mySigPrivateKey,
-             std::set<PublicKeyDesc> replicasSigPublicKeys);
+             const PrivateKeyDesc& mySigPrivateKey,
+             const std::set<PublicKeyDesc>& replicasSigPublicKeys);
 
   ~SigManager();
 

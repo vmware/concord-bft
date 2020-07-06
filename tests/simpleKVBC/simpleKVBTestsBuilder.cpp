@@ -25,8 +25,6 @@
 #include <unistd.h>
 #endif
 
-using std::list;
-using std::map;
 using std::set;
 using std::chrono::seconds;
 

@@ -139,9 +139,9 @@ static bool validateRSAPrivateKey(const std::string& key) {
 // variable map produced by parsing the keyfile, and prints errors if there
 // are not.
 static bool expectEntries(const std::vector<std::string>& entries,
-                          const std::unordered_map<std::string, std::string> map,
+                          const std::unordered_map<std::string, std::string>& map,
                           const std::string& filename,
-                          const std::unordered_map<std::string, size_t> lineNumbers) {
+                          const std::unordered_map<std::string, size_t>& lineNumbers) {
   for (const auto& entry : entries) {
     if (map.count(entry) < 1) {
       if (lineNumbers.count(entry) < 1) {

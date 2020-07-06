@@ -276,7 +276,7 @@ class BCStateTran : public IStateTransfer {
   // Helper methods
   ///////////////////////////////////////////////////////////////////////////
 
-  DataStore::CheckpointDesc createCheckpointDesc(uint64_t checkpointNumber, STDigest digestOfResPagesDescriptor);
+  DataStore::CheckpointDesc createCheckpointDesc(uint64_t checkpointNumber, const STDigest& digestOfResPagesDescriptor);
 
   STDigest checkpointReservedPages(uint64_t checkpointNumber, DataStoreTransaction* txn);
 

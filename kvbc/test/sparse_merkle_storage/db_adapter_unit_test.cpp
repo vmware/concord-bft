@@ -42,7 +42,6 @@ using ::concord::kvbc::OrderedKeysSet;
 using ::concord::kvbc::SetOfKeyValuePairs;
 using ::concord::kvbc::ValuesVector;
 using ::concordUtils::Sliver;
-using ::concordUtils::Status;
 
 // Make sure key updates and deletes partially overlap - see getDeterministicBlockDeletes() .
 SetOfKeyValuePairs getDeterministicBlockUpdates(std::uint32_t count) {

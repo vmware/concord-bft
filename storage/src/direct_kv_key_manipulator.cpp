@@ -21,7 +21,6 @@
 #include <cstring>
 
 using logging::Logger;
-using concordUtils::Status;
 using concordUtils::Sliver;
 using concordUtils::HexPrintBuffer;
 

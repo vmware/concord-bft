@@ -82,13 +82,13 @@ bool ConfigFileParser::Parse() {
   return true;
 }
 
-size_t ConfigFileParser::Count(const string key) {
+size_t ConfigFileParser::Count(const string& key) {
   size_t res = parameters_map_.count(key);
   LOG_INFO(logger_, "count() returns: " << res << " for key: " << key);
   return res;
 }
 
-vector<string> ConfigFileParser::GetValues(const string key) {
+vector<string> ConfigFileParser::GetValues(const string& key) {
   vector<string> values;
   pair<ParamsMultiMapIt, ParamsMultiMapIt> range = parameters_map_.equal_range(key);
   LOG_DEBUG(logger_, "getValues() for key: " << key);
@@ -101,7 +101,7 @@ vector<string> ConfigFileParser::GetValues(const string key) {
   return values;
 }
 
-std::vector<std::string> ConfigFileParser::SplitValue(std::string value_to_split, const char* delimiter) {
+std::vector<std::string> ConfigFileParser::SplitValue(const std::string& value_to_split, const char* delimiter) {
   LOG_DEBUG(logger_, "valueToSplit: " << value_to_split << ", delimiter: " << delimiter);
   char* rest = (char*)value_to_split.c_str();
   char* token;

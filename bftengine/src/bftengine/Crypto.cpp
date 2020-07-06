@@ -70,14 +70,14 @@ void CryptographyWrapper::init() {
   CryptographyWrapper::init(seed.c_str());
 }
 
-void convert(Integer in, string& out) {
+void convert(const Integer& in, string& out) {
   out.clear();
   HexEncoder encoder(new StringSink(out));
   in.DEREncode(encoder);
   encoder.MessageEnd();
 }
 
-void convert(string in, Integer& out) {
+void convert(const string& in, Integer& out) {
   StringSource strSrc(in, true, new HexDecoder);
   out = Integer(strSrc);
 }

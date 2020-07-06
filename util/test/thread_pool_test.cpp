@@ -133,6 +133,7 @@ TEST(thread_pool, multiple_arguments) {
 // Make sure exceptions from the user-passed function are correctly propagated.
 TEST(thread_pool, exception) {
   auto pool = ThreadPool{};
+  // NOLINTNEXTLINE(misc-throw-by-value-catch-by-reference)
   auto future = pool.async([]() { throw answer; });
   ASSERT_THROW(future.get(), decltype(answer));
 }

@@ -18,8 +18,8 @@ namespace impl {
 
 SigManager::SigManager(ReplicaId myId,
                        int16_t numberOfReplicasAndClients,
-                       PrivateKeyDesc mySigPrivateKey,
-                       std::set<PublicKeyDesc> replicasSigPublicKeys)
+                       const PrivateKeyDesc& mySigPrivateKey,
+                       const std::set<PublicKeyDesc>& replicasSigPublicKeys)
     : myId_{myId} {
   // Assert(replicasSigPublicKeys.size() == numberOfReplicasAndClients); TODO(GG): change - here we don't care about
   // client signatures

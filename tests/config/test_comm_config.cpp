@@ -31,9 +31,6 @@ using bft::communication::TlsTcpConfig;
 using bft::communication::NodeNum;
 using bft::communication::NodeInfo;
 using bftEngine::ReplicaConfig;
-using BLS::Relic::BlsThresholdFactory;
-using std::pair;
-using std::map;
 using std::string;
 using std::vector;
 
