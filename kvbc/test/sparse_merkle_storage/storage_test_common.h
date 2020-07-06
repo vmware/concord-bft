@@ -12,6 +12,8 @@
 #include "sparse_merkle/base_types.h"
 #include "storage/db_interface.h"
 
+#include <unistd.h>
+
 #include <cstdint>
 #include <memory>
 #include <sstream>
@@ -34,7 +36,7 @@ inline const auto rocksDbPathPrefix = std::string{"/tmp/sparse_merkle_storage_te
 // Support multithreaded runs by appending the thread ID to the RocksDB path.
 inline std::string rocksDbPath() {
   std::stringstream ss;
-  ss << std::this_thread::get_id();
+  ss << '_' << getpid() << '_' << std::this_thread::get_id();
   return rocksDbPathPrefix + ss.str();
 }
 
