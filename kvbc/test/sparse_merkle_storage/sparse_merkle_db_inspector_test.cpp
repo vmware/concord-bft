@@ -12,7 +12,7 @@
 // file.
 
 #include "gtest/gtest.h"
-#include <gmock/gmock.h>
+#include "gmock/gmock.h"
 
 #include "sparse_merkle_db_inspector.hpp"
 

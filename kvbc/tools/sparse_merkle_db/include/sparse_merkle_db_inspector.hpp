@@ -11,6 +11,8 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+#pragma once
+
 #include "json_output.hpp"
 
 #include "hex_tools.h"
@@ -223,7 +225,7 @@ inline int run(const CommandLineArguments &cmd_line_args, std::ostream &out, std
   try {
     auto db = std::make_shared<storage::rocksdb::Client>(cmd_line_args.values[1]);
     db->init();
-    auto adapter = v2MerkleTree::DBAdapter{db};
+    const auto adapter = v2MerkleTree::DBAdapter{db};
     const auto output =
         std::visit([&](const auto &command) { return command.execute(adapter, command_arguments(cmd_line_args)); },
                    cmd_it->second);

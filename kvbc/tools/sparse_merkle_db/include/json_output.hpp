@@ -11,6 +11,8 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+#pragma once
+
 #include "hex_tools.h"
 #include "kv_types.hpp"
 
@@ -20,7 +22,7 @@
 namespace concord::kvbc::tools::sparse_merkle_db {
 
 template <typename Map, typename Encoder>
-inline std::string mapToJson(const Map &kv, const Encoder &enc) {
+std::string mapToJson(const Map &kv, const Encoder &enc) {
   auto out = std::string{"{\n"};
   for (const auto &[key, value] : kv) {
     out += ("  \"" + enc(key) + "\": \"" + enc(value) + "\",\n");
