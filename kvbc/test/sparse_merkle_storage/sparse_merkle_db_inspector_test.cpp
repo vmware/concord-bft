@@ -25,6 +25,7 @@
 #include "sliver.hpp"
 
 #include <cstdlib>
+#include <limits>
 #include <memory>
 #include <sstream>
 
@@ -32,6 +33,7 @@ namespace {
 
 using namespace concord::kvbc::tools::sparse_merkle_db;
 using namespace concord::kvbc::v2MerkleTree;
+using concord::kvbc::BlockId;
 using concord::kvbc::SetOfKeyValuePairs;
 using concord::storage::rocksdb::Client;
 using concordUtils::toBigEndianStringBuffer;
@@ -132,6 +134,110 @@ TEST_F(SparseMerkleDbInspectorTests, get_raw_block_invalid_block_id) {
       run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getRawBlock", "5ab"}}, out_, err_));
   ASSERT_TRUE(out_.str().empty());
   ASSERT_THAT(err_.str(), StartsWith("Failed to execute command [getRawBlock], reason: Invalid BLOCK-ID: 5ab"));
+}
+
+TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_full_range) {
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{"sparse_merkle_db_inspector_test",
+                                      rocksDbPath(),
+                                      "getRawBlockRange",
+                                      "1",
+                                      std::to_string(num_blocks_ + 1)}},
+                out_,
+                err_));
+  ASSERT_TRUE(err_.str().empty());
+  for (auto i = 1u; i <= num_blocks_; ++i) {
+    ASSERT_THAT(out_.str(), HasSubstr("  \"rawBlock" + std::to_string(i) + "\": \"0x"));
+  }
+}
+
+TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_except_last) {
+  ASSERT_EQ(
+      EXIT_SUCCESS,
+      run(
+          CommandLineArguments{
+              {"sparse_merkle_db_inspector_test", rocksDbPath(), "getRawBlockRange", "1", std::to_string(num_blocks_)}},
+          out_,
+          err_));
+  ASSERT_TRUE(err_.str().empty());
+  for (auto i = 1u; i < num_blocks_; ++i) {
+    ASSERT_THAT(out_.str(), HasSubstr("  \"rawBlock" + std::to_string(i) + "\": \"0x"));
+  }
+  ASSERT_THAT(out_.str(), Not(HasSubstr("  \"rawBlock" + std::to_string(num_blocks_) + "\": \"0x")));
+}
+
+TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_whole_blockchain) {
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{"sparse_merkle_db_inspector_test",
+                                      rocksDbPath(),
+                                      "getRawBlockRange",
+                                      "1",
+                                      std::to_string(std::numeric_limits<BlockId>::max())}},
+                out_,
+                err_));
+  ASSERT_TRUE(err_.str().empty());
+  for (auto i = 1u; i <= num_blocks_; ++i) {
+    ASSERT_THAT(out_.str(), HasSubstr("  \"rawBlock" + std::to_string(i) + "\": \"0x"));
+  }
+}
+
+TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_single_block) {
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getRawBlockRange", "2", "3"}},
+                out_,
+                err_));
+  ASSERT_TRUE(err_.str().empty());
+  ASSERT_THAT(out_.str(), HasSubstr("  \"rawBlock2\": \"0x"));
+}
+
+TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_non_existent) {
+  ASSERT_EQ(EXIT_FAILURE,
+            run(CommandLineArguments{{"sparse_merkle_db_inspector_test",
+                                      rocksDbPath(),
+                                      "getRawBlockRange",
+                                      "0",
+                                      std::to_string(num_blocks_ + 1)}},
+                out_,
+                err_));
+  ASSERT_TRUE(out_.str().empty());
+}
+
+TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_missing_range) {
+  ASSERT_EQ(EXIT_FAILURE,
+            run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getRawBlockRange", "1"}},
+                out_,
+                err_));
+  ASSERT_TRUE(out_.str().empty());
+  ASSERT_THAT(err_.str(),
+              StartsWith("Failed to execute command [getRawBlockRange], reason: Missing or invalid block range"));
+}
+
+TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_invalid_range) {
+  ASSERT_EQ(EXIT_FAILURE,
+            run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getRawBlockRange", "2", "1"}},
+                out_,
+                err_));
+  ASSERT_TRUE(out_.str().empty());
+  ASSERT_THAT(err_.str(), StartsWith("Failed to execute command [getRawBlockRange], reason: Invalid block range"));
+}
+
+TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_invalid_block_id_end) {
+  ASSERT_EQ(EXIT_FAILURE,
+            run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getRawBlockRange", "2", "0"}},
+                out_,
+                err_));
+  ASSERT_TRUE(out_.str().empty());
+  ASSERT_THAT(err_.str(),
+              StartsWith("Failed to execute command [getRawBlockRange], reason: Invalid BLOCK-ID-END value"));
+}
+
+TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_invalid_range_stard_end_equal) {
+  ASSERT_EQ(EXIT_FAILURE,
+            run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getRawBlockRange", "2", "2"}},
+                out_,
+                err_));
+  ASSERT_TRUE(out_.str().empty());
+  ASSERT_THAT(err_.str(), StartsWith("Failed to execute command [getRawBlockRange], reason: Invalid block range"));
 }
 
 TEST_F(SparseMerkleDbInspectorTests, get_block_info) {

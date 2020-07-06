@@ -21,6 +21,7 @@
 #include "rocksdb/client.h"
 #include "sliver.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <exception>
 #include <iostream>
@@ -99,6 +100,34 @@ struct GetRawBlock {
   }
 };
 
+struct GetRawBlockRange {
+  std::string description() const {
+    return "getRawBlockRange BLOCK-ID-START BLOCK-ID-END\n"
+           "  Returns a list of serialized raw blocks (encoded in hex) in the "
+           "  [BLOCK-ID-START, BLOCK-ID-END) range.";
+  }
+  std::string execute(const v2MerkleTree::DBAdapter &adapter, const CommandArguments &args) const {
+    if (args.values.size() < 2) {
+      throw std::invalid_argument{"Missing or invalid block range"};
+    }
+    const auto end = toBlockId(args.values[1]);
+    if (end == 0) {
+      throw std::invalid_argument{"Invalid BLOCK-ID-END value"};
+    }
+    const auto first = toBlockId(args.values[0]);
+    const auto last = std::min(end - 1, adapter.getLatestBlockId());
+    if (first > last) {
+      throw std::invalid_argument{"Invalid block range"};
+    }
+    auto raw_blocks = std::map<std::string, std::string>{};
+    for (auto i = first; i <= last; ++i) {
+      const auto raw_block = adapter.getRawBlock(i);
+      raw_blocks["rawBlock" + std::to_string(i)] = concordUtils::sliverToHex(raw_block);
+    }
+    return mapToJson(raw_blocks);
+  }
+};
+
 struct GetBlockInfo {
   std::string description() const {
     return "getBlockInfo BLOCK-ID\n"
@@ -160,6 +189,7 @@ using Command = std::variant<GetGenesisBlockID,
                              GetLastReachableBlockID,
                              GetLastBlockID,
                              GetRawBlock,
+                             GetRawBlockRange,
                              GetBlockInfo,
                              GetBlockKeyValues,
                              GetValue>;
@@ -168,6 +198,7 @@ inline const auto commands_map = std::map<std::string, Command>{
     std::make_pair("getLastReachableBlockID", GetLastReachableBlockID{}),
     std::make_pair("getLastBlockID", GetLastBlockID{}),
     std::make_pair("getRawBlock", GetRawBlock{}),
+    std::make_pair("getRawBlockRange", GetRawBlockRange{}),
     std::make_pair("getBlockInfo", GetBlockInfo{}),
     std::make_pair("getBlockKeyValues", GetBlockKeyValues{}),
     std::make_pair("getValue", GetValue{}),
