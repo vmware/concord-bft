@@ -21,7 +21,6 @@
 #include "endianness.hpp"
 #include "kv_types.hpp"
 #include "merkle_tree_db_adapter.h"
-#include "rocksdb/client.h"
 #include "sliver.hpp"
 
 #include <cstdlib>
@@ -35,7 +34,6 @@ using namespace concord::kvbc::tools::sparse_merkle_db;
 using namespace concord::kvbc::v2MerkleTree;
 using concord::kvbc::BlockId;
 using concord::kvbc::SetOfKeyValuePairs;
-using concord::storage::rocksdb::Client;
 using concordUtils::toBigEndianStringBuffer;
 using concordUtils::Sliver;
 
