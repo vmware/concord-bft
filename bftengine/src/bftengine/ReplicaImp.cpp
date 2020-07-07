@@ -3192,32 +3192,33 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
 
   int error = 0;
   uint32_t actualReplyLength = 0;
+  uint32_t actualReplicaSpecificInfoLength = 0;
 
-  if (!supportDirectProofs) {
-    error = userRequestsHandler->execute(clientId,
-                                         lastExecutedSeqNum,
-                                         READ_ONLY_FLAG,
-                                         request->requestLength(),
-                                         request->requestBuf(),
-                                         reply.maxReplyLength(),
-                                         reply.replyBuf(),
-                                         actualReplyLength,
-                                         span);
+  error = userRequestsHandler->execute(clientId,
+                                       lastExecutedSeqNum,
+                                       READ_ONLY_FLAG,
+                                       request->requestLength(),
+                                       request->requestBuf(),
+                                       reply.maxReplyLength(),
+                                       reply.replyBuf(),
+                                       actualReplyLength,
+                                       actualReplicaSpecificInfoLength,
+                                       span);
 
-    LOG_DEBUG(
-        GL,
-        "Executed read only request. " << KVLOG(
-            clientId, lastExecutedSeqNum, request->requestLength(), reply.maxReplyLength(), actualReplyLength, error));
-  } else {
-    // TODO(GG): use code from previous drafts
-    Assert(false);
-  }
+  LOG_DEBUG(GL,
+            "Executed read only request. " << KVLOG(clientId,
+                                                    lastExecutedSeqNum,
+                                                    request->requestLength(),
+                                                    reply.maxReplyLength(),
+                                                    actualReplyLength,
+                                                    actualReplicaSpecificInfoLength,
+                                                    error));
 
   // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
-
   if (!error) {
     if (actualReplyLength > 0) {
       reply.setReplyLength(actualReplyLength);
+      reply.setReplicaSpecificInfoLength(actualReplicaSpecificInfoLength);
       send(&reply, clientId);
     } else {
       LOG_ERROR(GL, "Received zero size response. " << KVLOG(clientId));
@@ -3322,6 +3323,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
       NodeIdType clientId = req.clientProxyId();
 
       uint32_t actualReplyLength = 0;
+      uint32_t actualReplicaSpecificInfoLength = 0;
       userRequestsHandler->execute(
           clientId,
           lastExecutedSeqNum + 1,
@@ -3331,6 +3333,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
           ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize() - sizeof(ClientReplyMsgHeader),
           replyBuffer,
           actualReplyLength,
+          actualReplicaSpecificInfoLength,
           span);
 
       AssertGT(actualReplyLength,
@@ -3338,6 +3341,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
 
       ClientReplyMsg *replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(
           clientId, req.requestSeqNum(), currentPrimary(), replyBuffer, actualReplyLength);
+      replyMsg->setReplicaSpecificInfoLength(actualReplicaSpecificInfoLength);
       send(replyMsg, clientId);
       delete replyMsg;
       clientsManager->removePendingRequestOfClient(clientId);

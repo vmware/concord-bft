@@ -22,6 +22,7 @@ ClientReplyMsg::ClientReplyMsg(ReplicaId primaryId, ReqId reqSeqNum, ReplicaId r
   b()->reqSeqNum = reqSeqNum;
   b()->currentPrimaryId = primaryId;
   b()->replyLength = 0;
+  b()->replicaSpecificInfoLength = 0;
   setMsgSize(sizeof(ClientReplyMsgHeader));
 }
 
@@ -48,6 +49,11 @@ void ClientReplyMsg::setReplyLength(uint32_t replyLength) {
   Assert(replyLength <= maxReplyLength());
   b()->replyLength = replyLength;
   setMsgSize(sizeof(ClientReplyMsgHeader) + replyLength);
+}
+
+void ClientReplyMsg::setReplicaSpecificInfoLength(uint32_t length) {
+  Assert(length <= maxReplyLength());
+  b()->replicaSpecificInfoLength = length;
 }
 
 void ClientReplyMsg::setPrimaryId(ReplicaId primaryId) { b()->currentPrimaryId = primaryId; }

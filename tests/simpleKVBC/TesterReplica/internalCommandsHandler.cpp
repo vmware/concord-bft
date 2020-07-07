@@ -39,7 +39,10 @@ int InternalCommandsHandler::execute(uint16_t clientId,
                                      uint32_t maxReplySize,
                                      char *outReply,
                                      uint32_t &outActualReplySize,
+                                     uint32_t &outActualReplicaSpecificInfoSize,
                                      concordUtils::SpanWrapper &span) {
+  // ReplicaSpecificInfo is not currently used in the TesterReplica
+  outActualReplicaSpecificInfoSize = 0;
   int res;
   if (requestSize < sizeof(SimpleRequest)) {
     LOG_ERROR(
