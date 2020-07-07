@@ -53,6 +53,8 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcPreExecutionTest(unittest.TestCase):
 
+    __test__ = False  # so that PyTest ignores this test scenario
+
     async def send_single_read(self, skvbc, client):
         req = skvbc.read_req(skvbc.random_keys(1))
         await client.read(req)
