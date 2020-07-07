@@ -44,3 +44,7 @@ target_link_libraries(RollingAvgAndVar_test GTest::Main util)
 add_executable(thread_pool_test thread_pool_test.cpp)
 add_test(thread_pool_test thread_pool_test)
 target_link_libraries(thread_pool_test GTest::Main util)
+
+add_executable(hex_tools_test hex_tools_test.cpp)
+add_test(hex_tools_test hex_tools_test)
+target_link_libraries(hex_tools_test GTest::Main util)
