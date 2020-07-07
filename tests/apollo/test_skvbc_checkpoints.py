@@ -15,6 +15,8 @@ import unittest
 
 import trio
 
+from util import bft_network_partitioning as net
+
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, with_constant_load, KEY_FILE_PREFIX
 
@@ -123,8 +125,47 @@ class SkvbcCheckpointTest(unittest.TestCase):
 
             self.assertEqual(checkpoint_stale, checkpoint_after_primary)
 
-    async def _crash_replicas(
-            self, bft_network, nb_crashing, exclude_replicas=None):
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_checkpoint_propagation_amid_dropping_packets(self, bft_network):
+        """
+        Here the adversary randomly drops 5% of packets between all replicas,
+        we then trigger a checkpoint, verify checkpoint creation and propagation.
+        1) Given a BFT network, make sure all nodes are up
+        2) Introduce the packet dropping adversary
+        3) Send sufficient number of client requests to trigger checkpoint protocol
+        4) Make sure checkpoint is propagated to all the nodes
+        """
+        with net.PacketDroppingAdversary(bft_network, drop_rate_percentage=5) as adversary:
+            bft_network.start_all_replicas()
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+            n = bft_network.config.n
+            self.assertEqual(len(bft_network.procs), n,
+                             "Make sure all replicas are up initially.")
+
+            current_primary = await bft_network.get_current_primary()
+
+            checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=current_primary)
+
+            adversary.interfere()
+
+            await skvbc.fill_and_wait_for_checkpoint(
+                initial_nodes=bft_network.all_replicas(),
+                checkpoint_num=1,
+                verify_checkpoint_persistency=False
+            )
+
+            # verify checkpoint propagation to all the nodes
+            for replica in bft_network.all_replicas():
+                checkpoint_after = await bft_network.wait_for_checkpoint(
+                    replica_id=replica,
+                    expected_checkpoint_num=checkpoint_before + 1)
+
+                self.assertEqual(checkpoint_after, checkpoint_before + 1)
+
+    @staticmethod
+    async def _crash_replicas(bft_network, nb_crashing, exclude_replicas=None):
         crash_replicas = bft_network.random_set_of_replicas(nb_crashing, without=exclude_replicas)
 
         bft_network.stop_replicas(crash_replicas)
