@@ -15,6 +15,8 @@ import unittest
 
 import trio
 
+from util import bft_network_partitioning as net
+
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, with_constant_load, KEY_FILE_PREFIX
 
@@ -123,10 +125,94 @@ class SkvbcCheckpointTest(unittest.TestCase):
 
             self.assertEqual(checkpoint_stale, checkpoint_after_primary)
 
-    async def _crash_replicas(
-            self, bft_network, nb_crashing, exclude_replicas=None):
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_checkpoint_propagation_after_f_nodes_including_primary_isolated(self, bft_network):
+        """
+        Here we isolate f replicas including the primary, trigger a view change and
+        then a checkpoint. We then verify checkpoint creation and propagation to isolated replicas
+        after the adversary is gone.
+        1) Given a BFT network, make sure all nodes are up
+        2) Isolate f replicas including the primary both from other replicas and clients
+        3) Send a batch of write requests to trigger a view change
+        4) Send sufficient number of client requests to trigger checkpoint protocol
+        5) Make sure checkpoint is propagated to all the nodes in the new view
+        """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        n = bft_network.config.n
+        f = bft_network.config.f
+
+        self.assertEqual(len(bft_network.procs), n,
+                         "Make sure all replicas are up initially.")
+
+        initial_primary = await bft_network.get_current_primary()
+        expected_next_primary = initial_primary + 1
+
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=initial_primary)
+
+        isolated_replicas = bft_network.random_set_of_replicas(f - 1, without={initial_primary, expected_next_primary})
+        isolated_replicas.add(initial_primary)
+
+        with net.ReplicaSubsetIsolatingAdversary(bft_network, isolated_replicas) as adversary:
+            adversary.interfere()
+
+            # send a batch of write requests to trigger view change
+            await self._send_random_writes(skvbc)
+
+            # verify view change has been triggered for all the non isolated nodes
+            for replica in bft_network.all_replicas(without=isolated_replicas):
+                current_view = await bft_network.wait_for_view(
+                    replica_id=replica,
+                    expected=lambda v: v == expected_next_primary,
+                    err_msg="Make sure view change has been triggered."
+                )
+
+                self.assertEqual(current_view, expected_next_primary)
+
+            await skvbc.fill_and_wait_for_checkpoint(
+                initial_nodes=bft_network.all_replicas(without=isolated_replicas),
+                checkpoint_num=1,
+                verify_checkpoint_persistency=False
+            )
+
+            # verify checkpoint creation by all replicas except isolated replicas
+            for replica in bft_network.all_replicas(without=isolated_replicas):
+                checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=replica)
+
+                self.assertEqual(checkpoint_after, checkpoint_before + 1)
+
+        # Once the adversary is gone, the isolated replicas should be able enter the new view
+        for isolated_replica in isolated_replicas:
+            current_view = await bft_network.wait_for_view(
+                replica_id=isolated_replica,
+                expected=lambda v: v == expected_next_primary,
+                err_msg="Make sure view change has been triggered."
+            )
+
+            self.assertEqual(current_view, expected_next_primary)
+
+        # Once the adversary is gone, the isolated replicas should be able reach the checkpoint
+        for isolated_replica in isolated_replicas:
+            checkpoint_isolated = await bft_network.wait_for_checkpoint(
+                replica_id=isolated_replica,
+                expected_checkpoint_num=checkpoint_before + 1)
+
+            self.assertEqual(checkpoint_isolated, checkpoint_before + 1)
+
+    @staticmethod
+    async def _crash_replicas(bft_network, nb_crashing, exclude_replicas=None):
         crash_replicas = bft_network.random_set_of_replicas(nb_crashing, without=exclude_replicas)
 
         bft_network.stop_replicas(crash_replicas)
 
         return crash_replicas
+
+    @staticmethod
+    async def _send_random_writes(skvbc):
+        try:
+            with trio.move_on_after(seconds=1):  # seconds
+                await skvbc.send_indefinite_write_requests()
+        except trio.TooSlowError:
+            pass
