@@ -276,7 +276,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         bft_network.start_replica(unstable_replica)
         await trio.sleep(seconds=5)
 
-        await tracker.run_concurrent_ops(num_ops=50)
+        await tracker.run_concurrent_ops(num_ops=20)
 
         await bft_network.wait_for_view(
             replica_id=unstable_replica,

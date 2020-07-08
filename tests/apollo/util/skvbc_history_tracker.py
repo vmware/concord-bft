@@ -27,7 +27,7 @@ from util.skvbc_exceptions import(
 MAX_LOOKBACK=10
 
 
-def verify_linearizability(pre_exec_enabled=False, no_conflicts=False):
+def verify_linearizability(pre_exec_enabled=False, no_conflicts=True):
     """
     Creates a tracker and provide him to the decorated method.
     In the end of the method it checks the linearizability of the resulting history.
