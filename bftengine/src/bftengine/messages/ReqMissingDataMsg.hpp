@@ -18,7 +18,7 @@ namespace impl {
 
 class ReqMissingDataMsg : public MessageBase {
  public:
-  ReqMissingDataMsg(ReplicaId senderId, ViewNum v, SeqNum s, const std::string spanContext = "");
+  ReqMissingDataMsg(ReplicaId senderId, ViewNum v, SeqNum s, const std::string& spanContext = "");
 
   ViewNum viewNumber() const { return b()->viewNum; }
 

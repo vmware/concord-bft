@@ -195,8 +195,8 @@ concord::storage::s3::StoreConfig TestSetup::ParseS3Config(const std::string& s3
 
   LOG_INFO(logger_,
            "\nS3 Configuration:"
-               << "\nbucket:\t\t" << config.bucketName << "\naccess key:\t" << config.accessKey << "\nprotocol:\t"
-               << config.protocol << "\nurl:\t\t" << config.url);
+               << "\nbucket:\t\t" << config.bucketName << "\nprotocol:\t" << config.protocol << "\nurl:\t\t"
+               << config.url);
   return config;
 }
 #endif

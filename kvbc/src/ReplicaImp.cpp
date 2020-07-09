@@ -23,10 +23,8 @@
 #include "bftengine/DbMetadataStorage.hpp"
 
 using bft::communication::ICommunication;
-using bftEngine::SimpleBlockchainStateTransfer::BLOCK_DIGEST_SIZE;
 using bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest;
 
-using concord::storage::IDBClient;
 using concord::storage::DBMetadataStorage;
 
 namespace concord::kvbc {
@@ -226,7 +224,7 @@ Status ReplicaImp::addBlockInternal(const SetOfKeyValuePairs &updates, BlockId &
   return Status::OK();
 }
 
-Status ReplicaImp::getInternal(BlockId readVersion, Key key, Sliver &outValue, BlockId &outBlock) const {
+Status ReplicaImp::getInternal(BlockId readVersion, const Key &key, Sliver &outValue, BlockId &outBlock) const {
   const auto clear = [&outValue, &outBlock]() {
     outValue = Sliver{};
     outBlock = 0;
@@ -257,7 +255,7 @@ bool ReplicaImp::putBlock(const uint64_t blockId, const char *block_data, const 
   if (m_bcDbAdapter->hasBlock(blockId)) {
     // if we already have a block with the same ID
     RawBlock existingBlock = m_bcDbAdapter->getRawBlock(blockId);
-    if (existingBlock.length() != block.length() || memcmp(existingBlock.data(), block.data(), block.length())) {
+    if (existingBlock.length() != block.length() || memcmp(existingBlock.data(), block.data(), block.length()) != 0) {
       // the replica is corrupted !
       LOG_ERROR(logger,
                 "found block " << blockId << ", size in db is " << existingBlock.length() << ", inserted is "

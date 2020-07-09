@@ -18,7 +18,7 @@ class MsgError(Exception):
     def __init__(self, message):
         self.message = message
 
-PRE_PROCESS_TYPE = 118
+PRE_PROCESS_TYPE = 500
 REQUEST_MSG_TYPE = 700
 REPLY_MSG_TYPE = 800
 
@@ -39,7 +39,7 @@ REQUEST_HEADER_SIZE = struct.calcsize(REQUEST_HEADER_FMT)
 # Little Endian format with no padding
 # We don't include the msg type here, since we have to read it first to
 # understand what message is incoming.
-REPLY_HEADER_FMT = "<LHQL"
+REPLY_HEADER_FMT = "<LHQLL"
 REPLY_HEADER_SIZE = struct.calcsize(REPLY_HEADER_FMT)
 
 RequestHeader = namedtuple('RequestHeader', ['span_context_size', 'client_id', 'flags',
@@ -48,8 +48,10 @@ RequestHeader = namedtuple('RequestHeader', ['span_context_size', 'client_id', '
 # Unless bft clients are blocking there is no actual need for span context
 # The field was added for compatibility with other messages
 # So the span context size must be 0
+#
+# Replica specific information is not used yet, so rsi_length is always 0
 ReplyHeader = namedtuple('ReplyHeader', ['span_context_size', 'primary_id',
-    'req_seq_num', 'length'])
+    'req_seq_num', 'length', 'rsi_length'])
 
 def pack_request(client_id, req_seq_num, read_only, timeout_milli, cid, msg, pre_process=False, span_context=b''):
     """Create and return a buffer with a header and message"""
@@ -102,7 +104,9 @@ def pack_reply(primary_id, req_seq_num, msg):
     Take message information and a message and return a construct a buffer
     containing a serialized reply header and message.
     """
-    header = ReplyHeader(0, primary_id, req_seq_num, len(msg))
+    # rsi_length is not currently in use
+    rsi_length = 0
+    header = ReplyHeader(0, primary_id, req_seq_num, len(msg), rsi_length)
     return b''.join([pack_reply_header(header), msg])
 
 def pack_reply_header(header):

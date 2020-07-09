@@ -33,12 +33,14 @@ int main(int argc, char *argv[]) {
   LOG_DEBUG(GL, "Number of arguments: " << argc);
 
   std::vector<std::string> args;
+  args.reserve(static_cast<size_t>(argc));
   for (int i = 0; i < argc; i++) {
     args.push_back(std::string(argv[i]));
   }
 
   unsigned int seed = static_cast<unsigned int>(time(NULL));
   LOG_INFO(GL, "Randomness seed passed to srand(): " << seed);
+  // NOTE: srand is not and should not be used for any cryptographic randomness.
   srand(seed);
 
   // Call application-defined AppMain()

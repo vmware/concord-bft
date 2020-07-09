@@ -76,7 +76,9 @@ std::vector<K> keys(const std::vector<std::pair<K, V>>& kvpairs) {
   return ::testing::AssertionSuccess();
 }
 
-::testing::AssertionResult internalKeyExists(const char* path, uint64_t version, std::set<InternalNodeKey> keys) {
+::testing::AssertionResult internalKeyExists(const char* path,
+                                             uint64_t version,
+                                             const std::set<InternalNodeKey>& keys) {
   for (const auto& key : keys) {
     if (key.path().toString() == path && Version(version) == key.version()) {
       return ::testing::AssertionSuccess();

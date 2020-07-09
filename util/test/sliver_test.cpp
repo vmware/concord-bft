@@ -31,6 +31,7 @@ char* new_test_memory(size_t length) {
   char* buffer = new char[length];
 
   for (size_t i = 0; i < length; i++) {
+    // NOLINTNEXTLINE(bugprone-narrowing-conversions)
     buffer[i] = i % 256;
   }
 

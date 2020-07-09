@@ -17,7 +17,7 @@
 namespace bftEngine {
 namespace impl {
 
-ReqMissingDataMsg::ReqMissingDataMsg(ReplicaId senderId, ViewNum v, SeqNum s, const std::string spanContext)
+ReqMissingDataMsg::ReqMissingDataMsg(ReplicaId senderId, ViewNum v, SeqNum s, const std::string& spanContext)
     : MessageBase(senderId, MsgCode::ReqMissingData, spanContext.size(), sizeof(Header)) {
   b()->viewNum = v;
   b()->seqNum = s;

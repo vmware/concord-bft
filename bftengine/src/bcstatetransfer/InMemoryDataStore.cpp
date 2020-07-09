@@ -141,6 +141,8 @@ DataStore::CheckpointDesc InMemoryDataStore::getCheckpointBeingFetched() {
 bool InMemoryDataStore::hasCheckpointBeingFetched() { return (checkpointBeingFetched.checkpointNum != 0); }
 
 void InMemoryDataStore::deleteCheckpointBeingFetched() {
+  // TODO(DD): Create a ctor for CheckpointDesc?
+  // NOLINTNEXTLINE(bugprone-undefined-memory-manipulation)
   memset(&checkpointBeingFetched, 0, sizeof(checkpointBeingFetched));
 
   assert(checkpointBeingFetched.checkpointNum == 0);
@@ -313,7 +315,7 @@ DataStore::ResPagesDescriptor* InMemoryDataStore::getResPagesDescriptor(uint64_t
 
   desc->numOfPages = numberOfReservedPages_;
 
-  for (auto iter : pages) {
+  for (const auto& iter : pages) {
     if (iter.first.checkpoint <= inCheckpoint) {
       SingleResPageDesc& singleDesc = desc->d[iter.first.pageId];
       if (singleDesc.relevantCheckpoint > 0) {

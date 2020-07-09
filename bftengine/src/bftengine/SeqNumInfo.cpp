@@ -302,7 +302,7 @@ PrepareFullMsg* SeqNumInfo::ExFuncForPrepareCollector::createCombinedSignatureMs
 }
 
 InternalMessage SeqNumInfo::ExFuncForPrepareCollector::createInterCombinedSigFailed(
-    SeqNum seqNumber, ViewNum viewNumber, std::set<uint16_t> replicasWithBadSigs) {
+    SeqNum seqNumber, ViewNum viewNumber, const std::set<uint16_t>& replicasWithBadSigs) {
   return CombinedSigFailedInternalMsg(seqNumber, viewNumber, replicasWithBadSigs);
 }
 
@@ -358,7 +358,7 @@ CommitFullMsg* SeqNumInfo::ExFuncForCommitCollector::createCombinedSignatureMsg(
 }
 
 InternalMessage SeqNumInfo::ExFuncForCommitCollector::createInterCombinedSigFailed(
-    SeqNum seqNumber, ViewNum viewNumber, std::set<uint16_t> replicasWithBadSigs) {
+    SeqNum seqNumber, ViewNum viewNumber, const std::set<uint16_t>& replicasWithBadSigs) {
   return CombinedCommitSigFailedInternalMsg(seqNumber, viewNumber, replicasWithBadSigs);
 }
 

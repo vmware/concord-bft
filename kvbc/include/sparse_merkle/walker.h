@@ -37,7 +37,7 @@ class Walker {
   BatchedInternalNode& currentNode() { return current_node_; }
   Version version() { return cache_.version(); }
   bool atRoot() { return nibble_path_.empty(); }
-  void appendEmptyNodes(const Hash& key, int nodes_to_create);
+  void appendEmptyNodes(const Hash& key, size_t nodes_to_create);
   void descend(const Hash& key, Version next_version);
 
   // Walk the stack of internal nodes upwards toward the root, updating the

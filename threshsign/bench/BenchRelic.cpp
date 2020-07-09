@@ -34,7 +34,6 @@ extern "C" {
 }
 
 using namespace BLS::Relic;
-using std::endl;
 
 void printTime(const AveragingTimer& t, bool printAvg = false) {
   LOG_DEBUG(GL, t.numIterations() << " iters of " << t.getName() << ": " << t.totalLapTime() << " microsecs");
@@ -147,7 +146,7 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
   lib.getPrecomputedInverses();
 
   BlsPublicParameters params = PublicParametersFactory::getWhatever();
-  BNT fieldOrder = params.getGroupOrder();
+  const auto& fieldOrder = params.getGroupOrder();
 
   LOG_INFO(GL, "");
 

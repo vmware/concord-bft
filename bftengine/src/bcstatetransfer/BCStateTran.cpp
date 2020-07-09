@@ -391,7 +391,7 @@ bool BCStateTran::isRunning() const { return running_; }
 // This has the side effect of filling in buffer_ with the last block of app
 // data.
 DataStore::CheckpointDesc BCStateTran::createCheckpointDesc(uint64_t checkpointNumber,
-                                                            STDigest digestOfResPagesDescriptor) {
+                                                            const STDigest &digestOfResPagesDescriptor) {
   uint64_t lastBlock = as_->getLastReachableBlockNum();
   AssertEQ(lastBlock, as_->getLastBlockNum());
   metrics_.last_block_.Get().Set(lastBlock);
@@ -526,13 +526,13 @@ void BCStateTran::getDigestOfCheckpoint(uint64_t checkpointNumber, uint16_t size
   STDigest checkpointDigest;
   DigestContext c;
   c.update(reinterpret_cast<char *>(&desc), sizeof(desc));
-  c.writeDigest(reinterpret_cast<char *>(&checkpointDigest));
+  c.writeDigest(checkpointDigest.getForUpdate());
 
   LOG_INFO(STLogger,
            KVLOG(desc.checkpointNum, desc.digestOfLastBlock, desc.digestOfResPagesDescriptor, checkpointDigest));
 
   uint16_t s = std::min((uint16_t)sizeof(STDigest), sizeOfDigestBuffer);
-  memcpy(outDigestBuffer, &checkpointDigest, s);
+  memcpy(outDigestBuffer, checkpointDigest.get(), s);
   if (s < sizeOfDigestBuffer) {
     memset(outDigestBuffer + s, 0, sizeOfDigestBuffer - s);
   }

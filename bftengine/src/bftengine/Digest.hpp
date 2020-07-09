@@ -47,6 +47,9 @@ class Digest {
   }
 
   Digest& operator=(const Digest& other) {
+    if (this == &other) {
+      return *this;
+    }
     memcpy(d, other.d, DIGEST_SIZE);
     return *this;
   }

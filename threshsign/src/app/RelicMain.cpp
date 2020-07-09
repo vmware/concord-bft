@@ -16,7 +16,6 @@
 #include <memory>
 
 using BLS::Relic::Library;
-using std::endl;
 
 int AppMain(const std::vector<std::string>& args) {
   // Must call this outside TRY {} block

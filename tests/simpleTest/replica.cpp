@@ -60,15 +60,6 @@
 // bftEngine includes
 #include "Logger.hpp"
 
-using bft::communication::ICommunication;
-using bft::communication::PlainUDPCommunication;
-using bft::communication::PlainUdpConfig;
-using bft::communication::PlainTCPCommunication;
-using bft::communication::PlainTcpConfig;
-using bft::communication::TlsTcpConfig;
-using bftEngine::IReplica;
-using bftEngine::ReplicaConfig;
-using bftEngine::IRequestsHandler;
 using namespace std;
 using namespace bftEngine;
 

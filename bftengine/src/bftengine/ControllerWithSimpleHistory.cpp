@@ -157,11 +157,12 @@ bool ControllerWithSimpleHistory::onEndOfEvaluationPeriod() {
           ControllerWithSimpleHistory_debugUpgradeFactorForFastOptimisticPath;                    // 0.95F;
       const float factorForFastPath = ControllerWithSimpleHistory_debugUpgradeFactorForFastPath;  //  0.85F;
 
-      if (cyclesWithFullCooperation >= (factorForFastOptimisticPath * EvaluationPeriod)) {
+      if (cyclesWithFullCooperation >= (factorForFastOptimisticPath * static_cast<float>(EvaluationPeriod))) {
         currentFirstPath = CommitPath::OPTIMISTIC_FAST;
         currentFirstPathChanged = true;
-      } else if (!onlyOptimisticFast &&
-                 (cyclesWithFullCooperation + cyclesWithPartialCooperation >= (factorForFastPath * EvaluationPeriod))) {
+        // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+      } else if (!onlyOptimisticFast && (cyclesWithFullCooperation + cyclesWithPartialCooperation >=
+                                         (factorForFastPath * static_cast<float>(EvaluationPeriod)))) {
         currentFirstPath = CommitPath::FAST_WITH_THRESHOLD;
         currentFirstPathChanged = true;
       }

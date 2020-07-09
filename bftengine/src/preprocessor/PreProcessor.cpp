@@ -36,8 +36,10 @@ void PreProcessor::addNewPreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunic
                                       bftEngine::IRequestsHandler &requestsHandler,
                                       InternalReplicaApi &replica,
                                       concordUtil::Timers &timers) {
-  if (!ReplicaConfigSingleton::GetInstance().GetNumOfExternalClients()) {
-    LOG_ERROR(logger(), "A number of configured external clients should not be zero!");
+  if (ReplicaConfigSingleton::GetInstance().GetNumOfExternalClients() +
+          ReplicaConfigSingleton::GetInstance().GetNumOfClientProxies() <=
+      0) {
+    LOG_ERROR(logger(), "Wrong configuration: a number of clients could not be zero!");
     return;
   }
 
@@ -100,7 +102,8 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       maxReplyMsgSize_(myReplica.getReplicaConfig().maxReplyMessageSize - sizeof(ClientReplyMsgHeader)),
       idsOfPeerReplicas_(myReplica.getIdsOfPeerReplicas()),
       numOfReplicas_(myReplica.getReplicaConfig().numReplicas),
-      numOfClients_(myReplica.getReplicaConfig().numOfExternalClients),
+      numOfClients_(myReplica.getReplicaConfig().numOfExternalClients +
+                    myReplica_.getReplicaConfig().numOfClientProxies * numOfReplicas_),
       metricsComponent_{concordMetrics::Component("preProcessor", std::make_shared<concordMetrics::Aggregator>())},
       metricsLastDumpTime_(0),
       metricsDumpIntervalInSec_{myReplica_.getReplicaConfig().metricsDumpIntervalSeconds},
@@ -130,7 +133,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   }
   const uint64_t numOfThreads = thread::hardware_concurrency();
   threadPool_.start(numOfThreads);
-  LOG_INFO(logger(), KVLOG(numOfClients_, preExecReqStatusCheckPeriodMilli_, numOfThreads));
+  LOG_INFO(logger(), KVLOG(firstClientId, numOfClients_, preExecReqStatusCheckPeriodMilli_, numOfThreads));
   RequestProcessingState::init(numOfRequiredReplies());
   addTimers();
 }

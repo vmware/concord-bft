@@ -20,8 +20,6 @@
 
 #include <vector>
 
-using std::endl;
-
 namespace BLS {
 namespace Relic {
 

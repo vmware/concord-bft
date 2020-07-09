@@ -71,6 +71,8 @@ find_package(Threads REQUIRED)
 add_library(corebft STATIC ${corebft_source_files})
 add_library(bftclient STATIC src/bftengine/SimpleClientImp)
 add_library(bftclient_shared SHARED src/bftengine/SimpleClientImp)
+add_library(bftheaders INTERFACE)
+target_include_directories(bftheaders INTERFACE include)
 
 find_package(cryptopp REQUIRED)
 

@@ -39,7 +39,7 @@ class MsgCode {
     ReqMissingData,
     StateTransfer,
 
-    ClientPreProcessRequest,
+    ClientPreProcessRequest = 500,
     PreProcessRequest,
     PreProcessReply,
 

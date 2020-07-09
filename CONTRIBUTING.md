@@ -1,5 +1,3 @@
-
-
 # Contributing to concord-bft
 
 The concord-bft project team welcomes contributions from the community. If you wish to contribute code and you have not
@@ -72,13 +70,15 @@ and commits.
 
 ### Formatting Code
 
-We follow the guidelines outlined by the
+We *mostly* follow the guidelines outlined by the
 [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html).
 If you use emacs, consider installing
 [google-c-style.el](https://raw.githubusercontent.com/google/styleguide/gh-pages/google-c-style.el).
-Please run
-[cpplint](https://github.com/google/styleguide/tree/gh-pages/cpplint)
-against your changes, to ensure adherence to the guidelines.
+
+Our code style has the following exceptions that differ from the google C++ style guidelines.
+
+ * We use `camelCase` function and method names, rather than `PascalCase`.
+ * We allow, and encourage the use of exceptions.
 
 ## Reporting Bugs and Creating Issues
 

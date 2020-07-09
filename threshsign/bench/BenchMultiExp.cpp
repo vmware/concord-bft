@@ -43,6 +43,7 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
 
   unsigned int seed = static_cast<unsigned int>(time(NULL));
   LOG_INFO(GL, "Randomness seed passed to srand(): " << seed);
+  // NOTE: srand is not and should not be used for any cryptographic randomness.
   srand(seed);
 
   LOG_INFO(GL, "Benchmarking fast exponentiated multiplication in G1...");

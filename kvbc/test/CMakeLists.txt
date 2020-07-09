@@ -120,4 +120,16 @@ target_link_libraries(multiIO_test PUBLIC
     kvbc
         corebft
 )
+
+add_executable(sparse_merkle_db_inspector_test sparse_merkle_storage/sparse_merkle_db_inspector_test.cpp )
+add_test(sparse_merkle_db_inspector_test sparse_merkle_db_inspector_test)
+
+target_link_libraries(sparse_merkle_db_inspector_test PUBLIC
+    GTest::Main
+    GTest::GTest
+    lib_sparse_merkle_db_inspector
+    util
+    kvbc
+    stdc++fs
+)
 endif(BUILD_ROCKSDB_STORAGE)

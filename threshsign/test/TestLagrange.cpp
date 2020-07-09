@@ -40,7 +40,7 @@ using namespace BLS::Relic;
 /**
  * Converts a sequence of +/- i's into a subset of signers.
  */
-void seqToSubset(VectorOfShares& signers, std::vector<int> seq) {
+void seqToSubset(VectorOfShares& signers, const std::vector<int>& seq) {
   for (int i : seq) {
     testAssertNotZero(i);
     testAssertLessThanOrEqual(i, MAX_NUM_OF_SHARES);

@@ -65,7 +65,7 @@ void NullStateTransfer::getDigestOfCheckpoint(uint64_t checkpointNumber,
 
   DigestUtil::compute((char*)&checkpointNumber, sizeof(checkpointNumber), (char*)&d, sizeof(d));
 
-  memcpy(outDigestBuffer, &d, sizeof(d));
+  memcpy(outDigestBuffer, d.content(), sizeof(d));
 }
 
 void NullStateTransfer::startCollectingState() {

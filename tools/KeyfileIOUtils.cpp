@@ -139,10 +139,10 @@ static bool validateRSAPrivateKey(const std::string& key) {
 // variable map produced by parsing the keyfile, and prints errors if there
 // are not.
 static bool expectEntries(const std::vector<std::string>& entries,
-                          const std::unordered_map<std::string, std::string> map,
+                          const std::unordered_map<std::string, std::string>& map,
                           const std::string& filename,
-                          const std::unordered_map<std::string, size_t> lineNumbers) {
-  for (auto entry : entries) {
+                          const std::unordered_map<std::string, size_t>& lineNumbers) {
+  for (const auto& entry : entries) {
     if (map.count(entry) < 1) {
       if (lineNumbers.count(entry) < 1) {
         std::cout << filename << ": Missing assignment for required parameter: " << entry << ".\n";
@@ -278,7 +278,7 @@ bool parseReplicaKeyfile(const std::string& filename,
   //    std::getline(input, line);
   for (std::string line; std::getline(input, line);) {
     // Ignore comments.
-    size_t commentStart = line.find_first_of("#");
+    size_t commentStart = line.find_first_of('#');
     if (commentStart != std::string::npos) {
       line = line.substr(0, commentStart);
     }
@@ -297,7 +297,7 @@ bool parseReplicaKeyfile(const std::string& filename,
 
     // Multiple :s are never expected in one line, so we will reject lines like
     // this here so that we do not have to handle them in both assignment cases.
-    if (line.find_first_of(":") != line.find_last_of(":")) {
+    if (line.find_first_of(':') != line.find_last_of(':')) {
       std::cout << getBadSyntaxMessage(filename, lineNumber);
       return false;
     }
@@ -319,7 +319,7 @@ bool parseReplicaKeyfile(const std::string& filename,
 
       // We will check that there is not a colon in the value because the use of
       // those is reserved to indicate assignments.
-      if (value.find_first_of(":") != std::string::npos) {
+      if (value.find_first_of(':') != std::string::npos) {
         std::cout << filename << ": line " << lineNumber
                   << ": Invalid list"
                      " entry: contains \":\".\n";
@@ -371,8 +371,8 @@ bool parseReplicaKeyfile(const std::string& filename,
 
       // Case of assignment of a value to an identifier. Format:
       // IDENTIFIER: VALUE
-    } else if ((line.length() >= 3) && (line.find_first_of(":") != std::string::npos)) {
-      size_t colonLoc = line.find_first_of(":");
+    } else if ((line.length() >= 3) && (line.find_first_of(':') != std::string::npos)) {
+      size_t colonLoc = line.find_first_of(':');
       std::string identifier = concord::util::trim(line.substr(0, colonLoc));
       std::string value = concord::util::trim(line.substr(colonLoc + 1, line.length() - (colonLoc + 1)));
 
@@ -608,11 +608,11 @@ bool inputReplicaKeyfile(const std::string& filename, bftEngine::ReplicaConfig& 
   // Verify that there were not any unexpected parameters specified in the
   // keyfile.
   if ((valueAssignments.size() > 0) || (listAssignments.size() > 0)) {
-    for (auto assignment : valueAssignments) {
+    for (const auto& assignment : valueAssignments) {
       std::cout << filename << ": line " << identifierLines[assignment.first]
                 << ": Unrecognized parameter: " << assignment.first << ".\n";
     }
-    for (auto assignment : listAssignments) {
+    for (const auto& assignment : listAssignments) {
       std::cout << filename << ": line " << identifierLines[assignment.first]
                 << ": Unrecognized parameter: " << assignment.first << ".\n";
     }
