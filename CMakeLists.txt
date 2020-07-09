@@ -17,7 +17,6 @@ endif()
 set(SLEEP_FOR_DBG FALSE)
 
 set(MIN_BOOST_VERSION 1.64)
-option(USE_CONAN "use conan package manager" ON)
 
 # Default to debug builds
 # Release builds can be enabled by running cmake with -DCMAKE_BUILD_TYPE=Release
@@ -103,17 +102,7 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     string(APPEND CMAKE_CXX_FLAGS " -fmax-errors=3")
 endif()
 
-if (USE_CONAN)
-    message("Using conan package manager")
-    set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/.conan/cmake_helpers ${CMAKE_MODULE_PATH})
-    include(${CMAKE_SOURCE_DIR}/.conan/cmake_helpers/conan.cmake)
-    execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/.conan/install_conan_pkgs.sh)
-    conan_cmake_run(CONANFILE conanfile.txt
-            BASIC_SETUP CMAKE_TARGETS NO_OUTPUT_DIRS
-            BUILD missing)
-else()
-    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
-endif()
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
 include(CTest)
 #
