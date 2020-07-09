@@ -389,6 +389,38 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         # We produced at least one conflict.
         assert last_block < start_block + ops
 
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    @verify_linearizability(pre_exec_enabled=True, no_conflicts=False)
+    async def test_conflicting_requests_with_f_failures(self, bft_network, tracker):
+        """
+        Launch pre-process conflicting request and make sure that conflicting requests are not committed
+        """
+        n = bft_network.config.n
+        f = bft_network.config.f
+        c = bft_network.config.c
+
+        initial_primary = 0
+        crashed_replicas = bft_network.random_set_of_replicas(f, without={initial_primary})
+        correct_replicas = bft_network.all_replicas(without=crashed_replicas)
+        bft_network.start_replicas(replicas=correct_replicas)
+
+        read_client = bft_network.random_client()
+        start_block = await tracker.get_last_block_id(read_client)
+
+        ops = 50
+
+        try:
+            with trio.move_on_after(seconds=30):
+                await tracker.run_concurrent_conflict_ops(ops, write_weight=1)
+        except trio.TooSlowError:
+            pass
+
+        last_block = await tracker.get_last_block_id(read_client)
+
+        # We produced at least one conflict.
+        assert last_block < start_block + ops
+
     async def issue_tracked_ops_to_the_system(self, tracker):
         try:
             with trio.move_on_after(seconds=30):
