@@ -230,6 +230,69 @@ class SkvbcCheckpointTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
+    async def test_checkpoint_propagation_after_primary_isolation(self, bft_network):
+        """
+        Here we isolate primary, verify view change, trigger a checkpoint,
+        verify checkpoint creation and propagation in the scenario.
+        1) Given a BFT network, make sure all nodes are up
+        2) Isolate the primary
+        3) Send a batch of write requests to trigger view change, verify view change
+        4) Send sufficient number of client requests to trigger checkpoint protocol
+        5) Make sure checkpoint is propagated to all the nodes except the isolated primary
+           in the new view
+        """
+        with net.PrimaryIsolatingAdversary(bft_network) as adversary:
+            bft_network.start_all_replicas()
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+            n = bft_network.config.n
+            self.assertEqual(len(bft_network.procs), n,
+                             "Make sure all replicas are up initially.")
+
+            initial_primary = 0
+
+            await bft_network.wait_for_view(
+                replica_id=initial_primary,
+                expected=lambda v: v == initial_primary,
+                err_msg="Make sure we are in the initial view "
+                        "before isolating the primary."
+            )
+
+            checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=initial_primary)
+
+            await adversary.interfere()
+
+            expected_next_primary = initial_primary + 1
+
+            # send a batch of write requests to trigger view change
+            await self._send_random_writes(skvbc)
+
+            # verify view change has been triggered for all the nodes except the initial primary
+            for replica in bft_network.all_replicas(without={initial_primary}):
+                current_view = await bft_network.wait_for_view(
+                    replica_id=replica,
+                    expected=lambda v: v == expected_next_primary,
+                    err_msg="Make sure view change has been triggered."
+                )
+
+                self.assertEqual(current_view, expected_next_primary)
+
+            await skvbc.fill_and_wait_for_checkpoint(
+                initial_nodes=bft_network.all_replicas(),
+                checkpoint_num=1,
+                verify_checkpoint_persistency=False
+            )
+
+            # verify checkpoint propagation to all the nodes except the the initial primary
+            for replica in bft_network.all_replicas(without={initial_primary}):
+                checkpoint_after = await bft_network.wait_for_checkpoint(
+                    replica_id=replica,
+                    expected_checkpoint_num=checkpoint_before + 1)
+
+                self.assertEqual(checkpoint_after, checkpoint_before + 1)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd)
     async def test_checkpoint_propagation_after_f_nodes_including_primary_isolated(self, bft_network):
         """
         Here we isolate f replicas including the primary, trigger a view change and
