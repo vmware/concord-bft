@@ -230,6 +230,56 @@ class SkvbcCheckpointTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
+    async def test_checkpoint_propagation_after_f_non_primaries_isolated(self, bft_network):
+        """
+        Here we isolate f non primary replicas, trigger a checkpoint, as well as verify
+        checkpoint creation and propagation to isolated replicas after the adversary is gone.
+        1) Given a BFT network, make sure all nodes are up
+        2) Isolate f non primary replicas both from other replicas and clients
+        3) Send sufficient number of client requests to trigger checkpoint protocol
+        4) Make sure checkpoint is propagated to all the nodes
+        """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        n = bft_network.config.n
+        f = bft_network.config.f
+
+        self.assertEqual(len(bft_network.procs), n,
+                         "Make sure all replicas are up initially.")
+
+        current_primary = await bft_network.get_current_primary()
+
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=current_primary)
+
+        isolated_replicas = bft_network.random_set_of_replicas(f, without={current_primary})
+
+        with net.ReplicaSubsetIsolatingAdversary(bft_network, isolated_replicas) as adversary:
+            adversary.interfere()
+
+            await skvbc.fill_and_wait_for_checkpoint(
+                initial_nodes=bft_network.all_replicas(without=isolated_replicas),
+                checkpoint_num=1,
+                verify_checkpoint_persistency=False
+            )
+
+            # verify checkpoint creation by all replicas except isolated replicas
+            for replica in bft_network.all_replicas(without=isolated_replicas):
+                checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=replica)
+
+                self.assertEqual(checkpoint_after, checkpoint_before + 1)
+
+        # Once the adversary is gone, the isolated replicas should be able reach the checkpoint
+        for isolated_replica in isolated_replicas:
+            checkpoint_isolated = await bft_network.wait_for_checkpoint(
+                replica_id=isolated_replica,
+                expected_checkpoint_num=checkpoint_before + 1)
+
+            self.assertEqual(checkpoint_isolated, checkpoint_before + 1)
+
+
+    @with_trio
+    @with_bft_network(start_replica_cmd)
     async def test_checkpoint_propagation_after_primary_isolation(self, bft_network):
         """
         Here we isolate primary, verify view change, trigger a checkpoint,
