@@ -852,6 +852,9 @@ class SkvbcTracker:
         readset = self.readset(0, max_read_set_size)
         writeset = self.writeset(max_set_size)
         read_version = self.read_block_id()
+        await self.send_tracked_kv_set(client, readset, writeset, read_version, long_exec)
+
+    async def send_tracked_kv_set(self, client, readset, writeset, read_version, long_exec=False):
         msg = self.skvbc.write_req(readset, writeset, read_version, long_exec)
         seq_num = client.req_seq_num.next()
         client_id = client.client_id
@@ -888,23 +891,42 @@ class SkvbcTracker:
     def readset(self, min_size, max_size):
         return self.skvbc.random_keys(random.randint(min_size, max_size))
 
-    def writeset(self, max_size):
-        writeset_keys = self.skvbc.random_keys(random.randint(0, max_size))
+    def writeset(self, max_size, keys=None):
+        writeset_keys = self.skvbc.random_keys(random.randint(0, max_size)) if keys is None else keys
         writeset_values = self.skvbc.random_values(len(writeset_keys))
         return list(zip(writeset_keys, writeset_values))
 
     async def run_concurrent_ops(self, num_ops, write_weight=.70):
         max_concurrency = len(self.bft_network.clients) // 2
         max_size = len(self.skvbc.keys) // 2
+        return await self.send_concurrent_ops(num_ops, max_concurrency, max_size, write_weight, create_conflicts=True)
+
+    async def run_concurrent_conflict_ops(self, num_ops, write_weight=.70):
+        if self.no_conflicts is True:
+            print("call to run_concurrent_conflict_ops with no_conflicts=True, calling run_concurrent_ops instead")
+            return await self.run_concurrent_ops(num_ops, write_weight)
+        max_concurrency = len(self.bft_network.clients) // 2
+        max_size = len(self.skvbc.keys) // 2
+        return await self.send_concurrent_ops(num_ops, max_concurrency, max_size, write_weight, create_conflicts=True)
+
+    async def send_concurrent_ops(self, num_ops, max_concurrency, max_size, write_weight, create_conflicts=False):
+        max_read_set_size = 0 if self.no_conflicts else max_size
         sent = 0
         write_count = 0
         read_count = 0
+        clients = self.bft_network.random_clients(max_concurrency)
         while sent < num_ops:
-            clients = self.bft_network.random_clients(max_concurrency)
+            readset = self.readset(0, max_read_set_size)
+            writeset = self.writeset(0, readset)
+            read_version = self.read_block_id()
             async with trio.open_nursery() as nursery:
                 for client in clients:
                     if random.random() < write_weight:
-                        nursery.start_soon(self.send_tracked_write, client, max_size)
+                        if create_conflicts is False:
+                            readset = self.readset(0, max_read_set_size)
+                            writeset = self.writeset(max_size)
+                            read_version = self.read_block_id()
+                        nursery.start_soon(self.send_tracked_kv_set, client, readset, writeset, read_version)
                         write_count += 1
                     else:
                         nursery.start_soon(self.send_tracked_read, client, max_size)
@@ -1029,7 +1051,10 @@ class PassThroughSkvbcTracker:
         max_read_set_size = 0 if self.no_conflicts else max_set_size
         readset = self.readset(0, max_read_set_size)
         writeset = self.writeset(max_set_size)
-        msg = self.skvbc.write_req(readset, writeset, 0, long_exec)
+        await self.send_tracked_kv_set(client, readset, writeset, 0, long_exec)
+
+    async def send_tracked_kv_set(self, client, readset, writeset, read_version, long_exec=False):
+        msg = self.skvbc.write_req(readset, writeset, read_version, long_exec)
         try:
             serialized_reply = await client.write(msg, pre_process=self.pre_exec_all)
             reply = self.skvbc.parse_reply(serialized_reply)
@@ -1050,23 +1075,42 @@ class PassThroughSkvbcTracker:
     def readset(self, min_size, max_size):
         return self.skvbc.random_keys(random.randint(min_size, max_size))
 
-    def writeset(self, max_size):
-        writeset_keys = self.skvbc.random_keys(random.randint(0, max_size))
+    def writeset(self, max_size, keys=None):
+        writeset_keys = self.skvbc.random_keys(random.randint(0, max_size)) if keys is None else keys
         writeset_values = self.skvbc.random_values(len(writeset_keys))
         return list(zip(writeset_keys, writeset_values))
 
     async def run_concurrent_ops(self, num_ops, write_weight=.70):
         max_concurrency = len(self.bft_network.clients) // 2
         max_size = len(self.skvbc.keys) // 2
+        return await self.send_concurrent_ops(num_ops, max_concurrency, max_size, write_weight, create_conflicts=False)
+
+    async def run_concurrent_conflict_ops(self, num_ops, write_weight=.70):
+        if self.no_conflicts is True:
+            print("call to run_concurrent_conflict_ops with no_conflicts=True, calling run_concurrent_ops instead")
+            await self.run_concurrent_ops(num_ops, write_weight)
+            return
+        max_concurrency = len(self.bft_network.clients) // 2
+        max_size = len(self.skvbc.keys) // 2
+        return await self.send_concurrent_ops(num_ops, max_concurrency, max_size, write_weight, create_conflicts=True)
+
+    async def send_concurrent_ops(self, num_ops, max_concurrency, max_size, write_weight, create_conflicts=False):
+        max_read_set_size = 0 if self.no_conflicts else max_size
         sent = 0
         write_count = 0
         read_count = 0
         while sent < num_ops:
+            readset = self.readset(0, max_read_set_size)
+            writeset = self.writeset(0, readset)
+            read_version = 0
             clients = self.bft_network.random_clients(max_concurrency)
             async with trio.open_nursery() as nursery:
                 for client in clients:
                     if random.random() < write_weight:
-                        nursery.start_soon(self.send_tracked_write, client, max_size)
+                        if create_conflicts is False:
+                            readset = self.readset(0, max_read_set_size)
+                            writeset = self.writeset(max_size)
+                        nursery.start_soon(self.send_tracked_kv_set, client, readset, writeset, read_version)
                         write_count += 1
                     else:
                         nursery.start_soon(self.send_tracked_read, client, max_size)
