@@ -43,16 +43,6 @@ SpanWrapper startSpan(const std::string& operation_name) {
 #endif
 }
 
-#ifdef USE_OPENTRACING
-static void copyBaggageItemsToTags(std::unique_ptr<opentracing::Span>& span) {
-  span->context().ForeachBaggageItem([&span](const std::string& name, const std::string& value) {
-    span->SetTag(name, value);
-    return true;
-  });
-  (void)span;
-}
-#endif
-
 SpanWrapper startChildSpan(const std::string& child_operation_name, const SpanWrapper& parent_span) {
 #ifdef USE_OPENTRACING
   if (!parent_span) {
@@ -60,7 +50,6 @@ SpanWrapper startChildSpan(const std::string& child_operation_name, const SpanWr
   }
   auto tracer = opentracing::Tracer::Global();
   auto span = tracer->StartSpan(child_operation_name, {opentracing::ChildOf(&parent_span.impl()->context())});
-  copyBaggageItemsToTags(span);
   return SpanWrapper{std::move(span)};
 #else
   (void)child_operation_name;
@@ -84,7 +73,6 @@ SpanWrapper startChildSpanFromContext(const SpanContext& context, const std::str
     return SpanWrapper{};
   }
   auto span = tracer->StartSpan(child_operation_name, {opentracing::ChildOf(parent_span_context->get())});
-  copyBaggageItemsToTags(span);
   return SpanWrapper{std::move(span)};
 #else
   (void)context;
