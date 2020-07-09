@@ -899,40 +899,33 @@ class SkvbcTracker:
     async def run_concurrent_ops(self, num_ops, write_weight=.70):
         max_concurrency = len(self.bft_network.clients) // 2
         max_size = len(self.skvbc.keys) // 2
-        sent = 0
-        write_count = 0
-        read_count = 0
-        while sent < num_ops:
-            clients = self.bft_network.random_clients(max_concurrency)
-            async with trio.open_nursery() as nursery:
-                for client in clients:
-                    if random.random() < write_weight:
-                        nursery.start_soon(self.send_tracked_write, client, max_size)
-                        write_count += 1
-                    else:
-                        nursery.start_soon(self.send_tracked_read, client, max_size)
-                        read_count += 1
-            sent += len(clients)
-        return read_count, write_count
+        return await self.send_concurrent_ops(num_ops, max_concurrency, max_size, write_weight, create_conflicts=True)
 
     async def run_concurrent_conflict_ops(self, num_ops, write_weight=.70):
         if self.no_conflicts is True:
             print("call to run_concurrent_conflict_ops with no_conflicts=True, calling run_concurrent_ops instead")
-            await self.run_concurrent_ops(num_ops, write_weight)
-            return
+            return await self.run_concurrent_ops(num_ops, write_weight)
         max_concurrency = len(self.bft_network.clients) // 2
         max_size = len(self.skvbc.keys) // 2
+        return await self.send_concurrent_ops(num_ops, max_concurrency, max_size, write_weight, create_conflicts=True)
+
+    async def send_concurrent_ops(self, num_ops, max_concurrency, max_size, write_weight, create_conflicts=False):
+        max_read_set_size = 0 if self.no_conflicts else max_size
         sent = 0
         write_count = 0
         read_count = 0
         clients = self.bft_network.random_clients(max_concurrency)
         while sent < num_ops:
-            readset = self.readset(0, max_size)
-            writeset = self.writeset(max_size, readset)
+            readset = self.readset(0, max_read_set_size)
+            writeset = self.writeset(0, readset)
             read_version = self.read_block_id()
             async with trio.open_nursery() as nursery:
                 for client in clients:
                     if random.random() < write_weight:
+                        if create_conflicts is False:
+                            readset = self.readset(0, max_read_set_size)
+                            writeset = self.writeset(max_size)
+                            read_version = self.read_block_id()
                         nursery.start_soon(self.send_tracked_kv_set, client, readset, writeset, read_version)
                         write_count += 1
                     else:
