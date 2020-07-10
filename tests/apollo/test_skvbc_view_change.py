@@ -168,7 +168,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
         await self._wait_for_read_your_writes_success(tracker)
 
-        await tracker.run_concurrent_ops(100)
+        await tracker.run_concurrent_ops(10)
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2)
@@ -195,7 +195,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         initial_primary = 0
         expected_next_primary = 1
 
-        await tracker.run_concurrent_ops(num_ops=50)
+        await tracker.run_concurrent_ops(num_ops=10)
 
         unstable_replica = random.choice(
             bft_network.all_replicas(without={initial_primary, expected_next_primary}))
@@ -225,7 +225,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
         # restart the unstable replica and make sure it works in the new view
         bft_network.start_replica(unstable_replica)
-        await tracker.run_concurrent_ops(num_ops=50)
+        await tracker.run_concurrent_ops(num_ops=10)
 
         await bft_network.wait_for_view(
             replica_id=unstable_replica,
@@ -250,7 +250,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         bft_network.start_all_replicas()
         initial_primary = 0
 
-        await tracker.run_concurrent_ops(num_ops=50)
+        await tracker.run_concurrent_ops(num_ops=10)
 
         bft_network.stop_replica(initial_primary)
         await self._send_random_writes(tracker)
@@ -276,7 +276,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         bft_network.start_replica(unstable_replica)
         await trio.sleep(seconds=5)
 
-        await tracker.run_concurrent_ops(num_ops=50)
+        await tracker.run_concurrent_ops(num_ops=10)
 
         await bft_network.wait_for_view(
             replica_id=unstable_replica,
@@ -425,7 +425,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
         await self._wait_for_read_your_writes_success(tracker)
 
-        await tracker.run_concurrent_ops(100)
+        await tracker.run_concurrent_ops(10)
 
     async def _wait_for_read_your_writes_success(self, tracker):
         with trio.fail_after(seconds=60):
