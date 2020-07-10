@@ -74,6 +74,8 @@ Reply Client::send(const MatchConfig& match_config,
                    const RequestConfig& request_config,
                    Msg&& request,
                    bool read_only) {
+  metrics_.retransmissionTimer.Get().Set(expected_commit_time_ms_.upperLimit());
+  metrics_.updateAggregator();
   outstanding_request_ = Matcher(match_config);
   receiver_.activate(request_config.max_reply_size);
   const auto msg = makeClientMsg(request_config, std::move(request), read_only, config_.id.val);
@@ -91,6 +93,7 @@ Reply Client::send(const MatchConfig& match_config,
           std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count());
       return reply.value();
     }
+    metrics_.retransmissions.Get().Inc();
   }
 
   expected_commit_time_ms_.add(request_config.timeout.count());
@@ -120,6 +123,7 @@ std::optional<Reply> Client::wait() {
   static constexpr size_t CLEAR_MATCHER_REPLIES_THRESHOLD = 5;
   if (outstanding_request_->numDifferentReplies() > CLEAR_MATCHER_REPLIES_THRESHOLD) {
     outstanding_request_->clearReplies();
+    metrics_.repliesCleared.Get().Inc();
   }
   primary_ = std::nullopt;
   return std::nullopt;
