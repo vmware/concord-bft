@@ -534,6 +534,8 @@ void PreProcessor::launchAsyncReqPreProcessingJob(const PreProcessRequestMsgShar
 uint32_t PreProcessor::launchReqPreProcessing(
     uint16_t clientId, ReqId reqSeqNum, uint32_t reqLength, char *reqBuf, const std::string &span_context) {
   uint32_t resultLen = 0;
+  // Unused for now. Replica Specific Info not currently supported in pre-execution.
+  uint32_t replicaSpecificInfoLen = 0;
   auto span = concordUtils::startChildSpanFromContext(span_context, "bft_process_preprocess_msg");
   requestsHandler_.execute(clientId,
                            reqSeqNum,
@@ -543,6 +545,7 @@ uint32_t PreProcessor::launchReqPreProcessing(
                            maxReplyMsgSize_,
                            (char *)getPreProcessResultBuffer(clientId),
                            resultLen,
+                           replicaSpecificInfoLen,
                            span);
   if (!resultLen)
     throw std::runtime_error("Actual result length is 0 for clientId: " + to_string(clientId) +

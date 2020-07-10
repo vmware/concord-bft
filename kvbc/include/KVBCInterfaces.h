@@ -135,6 +135,7 @@ class ICommandsHandler : public bftEngine::IRequestsHandler {
               uint32_t maxReplySize,
               char* outReply,
               uint32_t& outActualReplySize,
+              uint32_t& outActualReplicaSpecificInfoSize,
               concordUtils::SpanWrapper& span) override = 0;
   ~ICommandsHandler() override = default;
 };

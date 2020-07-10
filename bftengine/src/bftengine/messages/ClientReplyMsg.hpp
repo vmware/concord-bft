@@ -45,6 +45,8 @@ class ClientReplyMsg : public MessageBase {
 
   void setReplyLength(uint32_t replyLength);
 
+  void setReplicaSpecificInfoLength(uint32_t length);
+
   void setPrimaryId(ReplicaId primaryId);
 
   uint64_t debugHash() const;

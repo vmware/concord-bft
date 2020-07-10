@@ -44,6 +44,7 @@ class IRequestsHandler {
                       uint32_t maxReplySize,
                       char *outReply,
                       uint32_t &outActualReplySize,
+                      uint32_t &outReplicaSpecificInfoSize,
                       concordUtils::SpanWrapper &parent_span) = 0;
 
   virtual void onFinishExecutingReadWriteRequests() {}

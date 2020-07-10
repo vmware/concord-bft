@@ -57,7 +57,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
  protected:
   const bool viewChangeProtocolEnabled;
   const bool autoPrimaryRotationEnabled;
-  const bool supportDirectProofs = false;  // TODO(GG): add support
 
   // If this replica was restarted and loaded data from persistent storage.
   bool restarted_ = false;

@@ -79,7 +79,11 @@ class SimpleAppState : public IRequestsHandler {
               uint32_t maxReplySize,
               char *outReply,
               uint32_t &outActualReplySize,
+              uint32_t &outActualReplicaSpecificInfoSize,
               concordUtils::SpanWrapper &span) override {
+    // Not currently used
+    outActualReplicaSpecificInfoSize = 0;
+
     bool readOnly = flags & READ_ONLY_FLAG;
     if (readOnly) {
       // Our read-only request includes only a type, no argument.
