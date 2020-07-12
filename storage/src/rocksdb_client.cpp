@@ -120,7 +120,7 @@ void Client::init(bool readOnly) {
   options.statistics = ::rocksdb::CreateDBStatistics();
   options.statistics->set_stats_level(::rocksdb::StatsLevel::kExceptHistogramOrTimers);
 
-  options.write_buffer_size = 512 << 21; // set default memtable size to 512mb to improve perf
+  options.write_buffer_size = 512 << 21;  // set default memtable size to 512mb to improve perf
 
   // If a comparator is passed, use it. If not, use the default one.
   if (comparator_) {
