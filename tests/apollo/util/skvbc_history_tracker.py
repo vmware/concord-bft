@@ -1133,7 +1133,7 @@ class PassThroughSkvbcTracker:
 
     async def write_and_track_known_kv(self, kv, client, long_exec=False):
         return self.skvbc.parse_reply(await client.write(
-            self.skvbc.write_req([], kv, 0, long_exec)), pre_process=self.pre_exec_all)
+            self.skvbc.write_req([], kv, 0, long_exec), pre_process=self.pre_exec_all))
 
     async def read_and_track_known_kv(self, key, client):
         msg = self.skvbc.read_req([key])
