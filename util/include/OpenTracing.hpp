@@ -47,13 +47,6 @@ class SpanWrapper {
       return;
     }
     span_ptr_->SetTag(name, value);
-    // DD: tags are not passed to children spans,
-    // baggage items are stored in span context
-    if constexpr (std::is_same<ValueT, std::string>()) {
-      span_ptr_->SetBaggageItem(name, value);
-    } else {
-      span_ptr_->SetBaggageItem(name, std::to_string(value));
-    }
 #else
     (void)name;
     (void)value;
