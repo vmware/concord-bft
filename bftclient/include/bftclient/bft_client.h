@@ -22,6 +22,7 @@
 #include "matcher.h"
 #include "msg_receiver.h"
 #include "exception.h"
+#include "metrics.h"
 
 namespace bft::client {
 
@@ -38,9 +39,14 @@ class Client {
                                  config_.retry_timeout_config.samples_per_evaluation,
                                  config_.retry_timeout_config.samples_until_reset,
                                  config_.retry_timeout_config.max_increasing_factor,
-                                 config_.retry_timeout_config.max_decreasing_factor) {
+                                 config_.retry_timeout_config.max_decreasing_factor),
+        metrics_(config.id) {
     communication_->setReceiver(config_.id.val, &receiver_);
     communication_->Start();
+  }
+
+  void setAggregator(const std::shared_ptr<concordMetrics::Aggregator>& aggregator) {
+    metrics_.setAggregator(aggregator);
   }
 
   void stop() { communication_->Stop(); }
@@ -91,6 +97,8 @@ class Client {
 
   // A utility for calculating dynamic timeouts for replies.
   bftEngine::impl::DynamicUpperLimitWithSimpleFilter<uint64_t> expected_commit_time_ms_;
+
+  Metrics metrics_;
 };
 
 }  // namespace bft::client
