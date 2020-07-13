@@ -285,17 +285,16 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         # TODO replace the below function with the library function:
         # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), checkpoint_num=1)     
         with trio.fail_after(seconds=70):
-            async with trio.open_nursery() as nursery:
-                # the ro replica should be able to survive these failures
-                while True:
-                    with trio.move_on_after(seconds=.5):
-                        try:
-                            key = ['replica', 'Gauges', 'lastExecutedSeqNum']
-                            lastExecutedSeqNum = await bft_network.metrics.get(ro_replica_id, *key)
-                        except KeyError:
-                            continue
-                        else:
-                            # success!
-                            if lastExecutedSeqNum >= 50:
-                                print("Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
-                                nursery.cancel_scope.cancel()
+            # the ro replica should be able to survive these failures
+            while True:
+                with trio.move_on_after(seconds=.5):
+                    try:
+                        key = ['replica', 'Gauges', 'lastExecutedSeqNum']
+                        lastExecutedSeqNum = await bft_network.metrics.get(ro_replica_id, *key)
+                    except KeyError:
+                        continue
+                    else:
+                        # success!
+                        if lastExecutedSeqNum >= 50:
+                            print("Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
+                            break
