@@ -24,17 +24,14 @@ class IControlStateController {
   } ControlStateId;
 
   virtual bool saveControlState(const ControlStateId id, const std::string& state) = 0;
+  virtual ~IControlStateController(){};
 };
 
-// For testing
 class ReservedPagesControlStateController : public IControlStateController {
  public:
   bool saveControlState(const ControlStateId id, const std::string& state) override { return true; }
+  virtual ~ReservedPagesControlStateController() = default;
 };
-
-static std::shared_ptr<IControlStateController> create() {
-  return std::make_shared<ReservedPagesControlStateController>();
-}
 
 }  // namespace controlStateController
 }  // namespace bftEngine
