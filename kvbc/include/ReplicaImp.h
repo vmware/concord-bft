@@ -13,6 +13,7 @@
 #include "communication/CommFactory.hpp"
 #include "bftengine/Replica.hpp"
 #include "bftengine/ReplicaConfig.hpp"
+#include "bftengine/ControlState.hpp"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 #include "communication/StatusInfo.h"
 #include "Logger.hpp"
@@ -30,8 +31,15 @@ class ReplicaImp : public IReplica,
                    public ILocalKeyValueStorageReadOnly,
                    public IBlocksAppender,
                    public IBlocksDeleter,
-                   public bftEngine::SimpleBlockchainStateTransfer::IAppState {
+                   public bftEngine::SimpleBlockchainStateTransfer::IAppState,
+                   public bftEngine::controlStateController::IControlStateController {
  public:
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  // IControlState implementation
+  bool saveControlState(const ControlStateId id, const std::string &state) override {
+    return m_controlState_->saveControlState(id, state);
+  }
+
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // IReplica implementation
   Status start() override;
@@ -133,6 +141,7 @@ class ReplicaImp : public IReplica,
   concord::storage::DBMetadataStorage *m_metadataStorage = nullptr;
   std::unique_ptr<ReplicaStateSync> replicaStateSync_;
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;
+  std::shared_ptr<bftEngine::controlStateController::IControlStateController> m_controlState_ = nullptr;
 };
 
 }  // namespace concord::kvbc

@@ -208,6 +208,7 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   m_stateTransfer = bftEngine::SimpleBlockchainStateTransfer::create(
       state_transfer_config, this, m_metadataDBClient, stKeyManipulator, aggregator_);
   m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
+  m_controlState_ = bftEngine::controlStateController::create();
 }
 
 ReplicaImp::~ReplicaImp() {
