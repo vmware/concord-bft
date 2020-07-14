@@ -129,7 +129,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         cls._start_s3_server()
 
     @with_trio
-    @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1)
+    @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability(no_conflicts=True)
     async def test_ro_replica_start_with_delay(self, bft_network, tracker):
         """
@@ -175,7 +175,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                             break
 
     @with_trio
-    @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1)
+    @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability(no_conflicts=True)
     async def test_ro_replica_start_simultaneously (self, bft_network, tracker):
         """
@@ -207,7 +207,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                                 nursery.cancel_scope.cancel()
                                 
     @with_trio
-    @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1)
+    @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
     async def test_ro_replica_with_late_s3_start(self, bft_network):
         """
         Start all replicas.
@@ -239,7 +239,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
 
 
     @with_trio
-    @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1)
+    @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
     async def test_ro_replica_with_s3_failures(self, bft_network):
         """
         Start all replicas.
