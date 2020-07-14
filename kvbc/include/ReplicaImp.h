@@ -23,6 +23,7 @@
 #include "memorydb/client.h"
 #include "bftengine/DbMetadataStorage.hpp"
 #include "storage_factory_interface.h"
+#include "ControlStateManager.hpp"
 
 namespace concord::kvbc {
 
@@ -133,6 +134,7 @@ class ReplicaImp : public IReplica,
   concord::storage::DBMetadataStorage *m_metadataStorage = nullptr;
   std::unique_ptr<ReplicaStateSync> replicaStateSync_;
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;
+  std::shared_ptr<bftEngine::IControlStateManager> controlStateManager_;
 };
 
 }  // namespace concord::kvbc

@@ -50,6 +50,7 @@ Status ReplicaImp::start() {
   } else {
     createReplicaAndSyncState();
   }
+  m_replicaPtr->setControlStateManager(controlStateManager_);
   m_replicaPtr->SetAggregator(aggregator_);
   m_replicaPtr->start();
   m_currentRepStatus = RepStatus::Running;
@@ -178,7 +179,10 @@ BlockId ReplicaImp::deleteBlocksUntil(BlockId until) {
   return lastDeletedBlock;
 }
 
-void ReplicaImp::set_command_handler(ICommandsHandler *handler) { m_cmdHandler = handler; }
+void ReplicaImp::set_command_handler(ICommandsHandler *handler) {
+  m_cmdHandler = handler;
+  m_cmdHandler->setControlStateManager(controlStateManager_);
+}
 
 ReplicaImp::ReplicaImp(ICommunication *comm,
                        const bftEngine::ReplicaConfig &replicaConfig,
@@ -209,6 +213,10 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   m_stateTransfer = bftEngine::SimpleBlockchainStateTransfer::create(
       state_transfer_config, this, m_metadataDBClient, stKeyManipulator, aggregator_);
   m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
+
+  // TODO: For now we set the controlStateManager to be in memory. Once we implement a reserved pages based manager we
+  // will switch to it.
+  controlStateManager_ = std::make_shared<bftEngine::InMemoryControlStateManager>();
 }
 
 ReplicaImp::~ReplicaImp() {

@@ -49,6 +49,10 @@ class ReplicaInternal : public IReplica {
 
   void restartForDebug(uint32_t delayMillis) override;
 
+  void setControlStateManager(std::shared_ptr<bftEngine::IControlStateManager> controlStateManager) override {
+    replica_->setControlStateManager(controlStateManager);
+  }
+
  private:
   std::unique_ptr<ReplicaBase> replica_;
   std::condition_variable debugWait_;
