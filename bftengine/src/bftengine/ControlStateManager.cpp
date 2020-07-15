@@ -17,6 +17,8 @@ namespace bftEngine {
 void ControlStateManager::setStopAtNextCheckpoint() {}
 
 bool ControlStateManager::getStopAtNextCheckpoint() { return false; }
-ControlStateManager::ControlStateManager(IStateTransfer& state_transfer) : state_transfer_{state_transfer} {}
+ControlStateManager::ControlStateManager(IStateTransfer& state_transfer) : state_transfer_{state_transfer} {
+  state_transfer_.getStatus();  // Temporary, to escape not-used compilation error
+}
 
 }  // namespace bftEngine
