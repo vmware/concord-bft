@@ -42,8 +42,7 @@ jobs:
             ${{ env.USE_ROCKSDB }}
             ${{ env.USE_CONAN }}
             ${{ env.USE_S3_OBJECT_STORE }} .. &&
-            run-clang-tidy-10 &&
-            ! grep -rn --color=auto --exclude-dir={build,.git,.github} -E \"NOLINTNEXTLINE(\s+|$)|NOLINT(\s+|$)\" .."
+            run-clang-tidy-10 && ../scripts/check-forbidden-usage.sh .."
         - name: Print failure info
           if: failure()
           run: |

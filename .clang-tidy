@@ -2,6 +2,7 @@
 Checks:             '-*,bugprone-*,
                     -bugprone-branch-clone,
                     -bugprone-exception-escape,
+                    -bugprone-lambda-function-name,
                     -bugprone-misplaced-widening-cast,
                     -bugprone-not-null-terminated-result,
                     performance-*,
@@ -13,6 +14,7 @@ Checks:             '-*,bugprone-*,
 WarningsAsErrors:   'bugprone-*,
                     -bugprone-branch-clone,
                     -bugprone-exception-escape,
+                    -bugprone-lambda-function-name,
                     -bugprone-misplaced-widening-cast,
                     -bugprone-not-null-terminated-result,
                     performance-*,
@@ -23,6 +25,7 @@ WarningsAsErrors:   'bugprone-*,
                     '
 # -bugprone-branch-clone - does not work well with switch cases
 # -bugprone-exception-escape - main functions throwing exceptions are OK: we prefer to analyze core dumps
+# -bugprone-lambda-function-name - Assert macro leads to many false positives
 # -bugprone-misplaced-widening-cast - does not seem to be a big issue
 # -bugprone-not-null-terminated-result - many false positives when std::string is used for storing raw bytes
 # -misc-non-private-member-variables-in-classes - seems irrelevant

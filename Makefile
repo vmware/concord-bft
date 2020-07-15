@@ -134,7 +134,7 @@ tidy-check: ## Runs clang-tidy
 		CC=${CONCORD_BFT_CONTAINER_CC} CXX=${CONCORD_BFT_CONTAINER_CXX} \
 		cmake ${CONCORD_BFT_CMAKE_FLAGS} .. && \
 		run-clang-tidy-10 &> clang-tidy-report.txt && \
-		! grep -rn --color=auto --exclude-dir={build,.git,.github} -E \"NOLINTNEXTLINE(\s+|$$)|NOLINT(\s+|$$)\" .." \
+		../scripts/check-forbidden-usage.sh .." \
 		&& (echo "\nClang-tidy finished successfully.") \
 		|| ( echo "\nClang-tidy failed. The report is in ${CURDIR}/${CONCORD_BFT_BUILD_DIR}/clang-tidy-report.txt. \
 			 \nFor detail information about the checks, please refer to https://clang.llvm.org/extra/clang-tidy/checks/list.html" \
