@@ -1047,6 +1047,10 @@ class PassThroughSkvbcTracker:
 
         self.bft_network = bft_network
 
+    async def get_last_block_id(self, client):
+        msg = kvbc.SimpleKVBCProtocol.get_last_block_req()
+        return kvbc.SimpleKVBCProtocol.parse_reply(await client.read(msg))
+
     async def send_tracked_write(self, client, max_set_size, long_exec=False):
         max_read_set_size = 0 if self.no_conflicts else max_set_size
         readset = self.readset(0, max_read_set_size)

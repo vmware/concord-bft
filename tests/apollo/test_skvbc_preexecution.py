@@ -396,14 +396,15 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         """
         Launch pre-process conflicting request and make sure that conflicting requests are not committed
         """
+        bft_network.start_all_replicas()
+
         n = bft_network.config.n
         f = bft_network.config.f
         c = bft_network.config.c
 
         initial_primary = 0
         crashed_replicas = bft_network.random_set_of_replicas(f, without={initial_primary})
-        correct_replicas = bft_network.all_replicas(without=crashed_replicas)
-        bft_network.start_replicas(replicas=correct_replicas)
+        bft_network.stop_replicas(replicas=crashed_replicas)
 
         read_client = bft_network.random_client()
         start_block = await tracker.get_last_block_id(read_client)
