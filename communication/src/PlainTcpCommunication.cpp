@@ -671,7 +671,7 @@ class PlainTCPCommunication::PlainTcpImpl {
       // *listen* port, we should expect to be able to resolve our own name, or
       // shutdown otherwise.
       tcp::resolver::iterator results = resolver.resolve(query);
-      assert(results != tcp::resolver::iterator());
+      Assert(results != tcp::resolver::iterator());
       // Use the first result
       tcp::endpoint ep = *results;
       LOG_INFO(_logger, "Resolved " << _listenHost << ":" << _listenPort << " to " << ep);

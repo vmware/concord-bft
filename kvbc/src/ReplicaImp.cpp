@@ -15,6 +15,7 @@
 #include <cstdlib>
 #include <exception>
 #include <utility>
+#include "assertUtils.hpp"
 #include "communication/CommDefs.hpp"
 #include "kv_types.hpp"
 #include "hex_tools.h"
@@ -275,7 +276,7 @@ bool ReplicaImp::putBlock(const uint64_t blockId, const char *block_data, const 
 }
 
 RawBlock ReplicaImp::getBlockInternal(BlockId blockId) const {
-  assert(blockId <= getLastBlockNum());
+  Assert(blockId <= getLastBlockNum());
   return m_bcDbAdapter->getRawBlock(blockId);
 }
 
@@ -293,11 +294,11 @@ bool ReplicaImp::getBlock(uint64_t blockId, char *outBlock, uint32_t *outBlockSi
 bool ReplicaImp::hasBlock(BlockId blockId) const { return m_bcDbAdapter->hasBlock(blockId); }
 
 bool ReplicaImp::getPrevDigestFromBlock(BlockId blockId, StateTransferDigest *outPrevBlockDigest) {
-  assert(blockId > 0);
+  Assert(blockId > 0);
   try {
     RawBlock result = getBlockInternal(blockId);
     auto parentDigest = m_bcDbAdapter->getParentDigest(result);
-    assert(outPrevBlockDigest);
+    Assert(outPrevBlockDigest != nullptr);
     static_assert(parentDigest.size() == BLOCK_DIGEST_SIZE);
     static_assert(sizeof(StateTransferDigest) == BLOCK_DIGEST_SIZE);
     memcpy(outPrevBlockDigest, parentDigest.data(), BLOCK_DIGEST_SIZE);

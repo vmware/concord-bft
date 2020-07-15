@@ -48,7 +48,7 @@ class TestAppState : public IAppState {
   };
 
   bool getPrevDigestFromBlock(uint64_t blockId, StateTransferDigest* outPrevBlockDigest) override {
-    assert(blockId > 0);
+    Assert(blockId > 0);
     auto it = blocks_.find(blockId - 1);
     if (it == blocks_.end()) return false;
     std::memcpy(outPrevBlockDigest, &it->second.digest, BLOCK_DIGEST_SIZE);
@@ -56,7 +56,7 @@ class TestAppState : public IAppState {
   };
 
   bool putBlock(const uint64_t blockId, const char* block, const uint32_t blockSize) override {
-    assert(blockId < last_block_);
+    Assert(blockId < last_block_);
     Block bl;
     computeBlockDigest(blockId, block, blockSize, &bl.digest);
     memcpy(&bl.block, block, blockSize);

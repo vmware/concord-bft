@@ -72,7 +72,7 @@ inline void printCallStack() {
                   << #expr2 << "' is " << result2.c_str() << " in function " << __FUNCTION__ << " (" << __FILE__ \
                   << " " << __LINE__ << ")");                                                                    \
     printCallStack();                                                                                            \
-    assert(false); /*NOLINT(misc-static-assert)*/                                                                \
+    std::terminate();                                                                                            \
   }
 
 #define PRINT_DATA_AND_ASSERT(expr1, expr2, assertMacro)                                                      \
@@ -81,7 +81,7 @@ inline void printCallStack() {
               " " << assertMacro << KVLOG_FOR_ASSERT(expr1, expr2) << " in function " << __FUNCTION__ << " (" \
                   << __FILE__ << " " << __LINE__ << ")");                                                     \
     printCallStack();                                                                                         \
-    assert(false); /*NOLINT(misc-static-assert)*/                                                             \
+    std::terminate();                                                                                         \
   }
 
 #define Assert(expr)                                                                                              \
@@ -91,7 +91,7 @@ inline void printCallStack() {
                 " Assert: expression '" << #expr << "' is false in function " << __FUNCTION__ << " (" << __FILE__ \
                                         << " " << __LINE__ << ")");                                               \
       printCallStack();                                                                                           \
-      assert(false); /*NOLINT(misc-static-assert)*/                                                               \
+      std::terminate();                                                                                           \
     }                                                                                                             \
   }
 // Assert (expr1 == expr2)

@@ -11,6 +11,7 @@
 
 #include "gtest/gtest.h"
 
+#include "assertUtils.hpp"
 #include "helper.hpp"
 #include "messages/MsgCode.hpp"
 #include "messages/AskForCheckpointMsg.hpp"

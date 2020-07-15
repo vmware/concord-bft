@@ -49,10 +49,10 @@ void verifyData(FileStorage &fileStorage, uint32_t objId) {
       objIn.elem2,
       objIn.elem3,
       objIn.elem4);
-  assert(objIn.elem1 == ELEM1);
-  assert(objIn.elem2 == ELEM2);
-  assert(objIn.elem3 == ELEM3);
-  assert(objIn.elem4 == ELEM4);
+  Assert(objIn.elem1 == ELEM1);
+  Assert(objIn.elem2 == ELEM2);
+  Assert(objIn.elem3 == ELEM3);
+  Assert(objIn.elem4 == ELEM4);
 }
 
 // The tests verify that all MetadataStorage interfaces work correctly using file-based storage.

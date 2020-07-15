@@ -929,7 +929,7 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
     return onInternalMsg(*get_status);
   }
 
-  assert(false);
+  Assert(false);
 }
 
 std::string ReplicaImp::getReplicaState() const {

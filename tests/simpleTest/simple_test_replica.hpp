@@ -14,6 +14,7 @@
 #ifndef CONCORD_BFT_SIMPLE_TEST_REPLICA_HPP
 #define CONCORD_BFT_SIMPLE_TEST_REPLICA_HPP
 
+#include "assertUtils.hpp"
 #include "OpenTracing.hpp"
 #include "communication/CommFactory.hpp"
 #include "Replica.hpp"
@@ -36,7 +37,7 @@ logging::Logger replicaLogger = logging::getLogger("simpletest.replica");
   {                                                                      \
     if (!(statement)) {                                                  \
       LOG_FATAL(replicaLogger, "assert fail with message: " << message); \
-      assert(false);                                                     \
+      Assert(false);                                                     \
     }                                                                    \
   }
 

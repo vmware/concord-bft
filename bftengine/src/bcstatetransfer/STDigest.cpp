@@ -12,6 +12,7 @@
 // file.
 
 #include "STDigest.hpp"
+#include "assertUtils.hpp"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -49,13 +50,13 @@ DigestContext::DigestContext() {
 }
 
 void DigestContext::update(const char* data, size_t len) {
-  assert(internalState != NULL);
+  Assert(internalState != nullptr);
   CryptoPP::SHA256* p = (CryptoPP::SHA256*)internalState;
   p->Update(reinterpret_cast<CryptoPP::byte*>(const_cast<char*>(data)), len);
 }
 
 void DigestContext::writeDigest(char* outDigest) {
-  assert(internalState != NULL);
+  Assert(internalState != nullptr);
   CryptoPP::SHA256* p = (CryptoPP::SHA256*)internalState;
   CryptoPP::SecByteBlock digest(CryptoPP::SHA256::DIGESTSIZE);
   p->Final(digest);
@@ -63,14 +64,14 @@ void DigestContext::writeDigest(char* outDigest) {
   memcpy(outDigest, h, CryptoPP::SHA256::DIGESTSIZE);
 
   delete p;
-  internalState = NULL;
+  internalState = nullptr;
 }
 
 DigestContext::~DigestContext() {
-  if (internalState != NULL) {
+  if (internalState != nullptr) {
     CryptoPP::SHA256* p = (CryptoPP::SHA256*)internalState;
     delete p;
-    internalState = NULL;
+    internalState = nullptr;
   }
 }
 
