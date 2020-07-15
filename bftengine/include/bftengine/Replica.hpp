@@ -49,7 +49,7 @@ class IRequestsHandler {
                       concordUtils::SpanWrapper &parent_span) = 0;
 
   virtual void onFinishExecutingReadWriteRequests() {}
-  virtual void setControlStateManager(std::shared_ptr<IControlStateManager> controlStateManager) {}
+  virtual void setControlStateManager(std::shared_ptr<ControlStateManager> controlStateManager) {}
   virtual ~IRequestsHandler() {}
 };
 
@@ -77,7 +77,7 @@ class IReplica {
   // TODO(GG) : move the following methods to an "advanced interface"
   virtual void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a) = 0;
   virtual void restartForDebug(uint32_t delayMillis) = 0;  // for debug only.
-  virtual void setControlStateManager(std::shared_ptr<IControlStateManager> controlStateManager){};
+  virtual void setControlStateManager(std::shared_ptr<ControlStateManager> controlStateManager){};
 };
 
 }  // namespace bftEngine

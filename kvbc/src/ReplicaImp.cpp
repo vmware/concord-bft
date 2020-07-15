@@ -214,9 +214,7 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
       state_transfer_config, this, m_metadataDBClient, stKeyManipulator, aggregator_);
   m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
 
-  // TODO: For now we set the controlStateManager to be in memory. Once we implement a reserved pages based manager we
-  // will switch to it.
-  controlStateManager_ = std::make_shared<bftEngine::InMemoryControlStateManager>();
+  controlStateManager_ = std::make_shared<bftEngine::ControlStateManager>(*m_stateTransfer);
 }
 
 ReplicaImp::~ReplicaImp() {

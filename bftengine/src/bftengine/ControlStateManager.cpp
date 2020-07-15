@@ -11,21 +11,12 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#pragma once
-#include <string>
-#include <unordered_map>
-#include "IStateTransfer.hpp"
-
+#include "ControlStateManager.hpp"
 namespace bftEngine {
 
-class ControlStateManager {
- public:
-  void setStopAtNextCheckpoint();
-  bool getStopAtNextCheckpoint();
+void ControlStateManager::setStopAtNextCheckpoint() {}
 
-  ControlStateManager(IStateTransfer& state_transfer);
+bool ControlStateManager::getStopAtNextCheckpoint() { return false; }
+ControlStateManager::ControlStateManager(IStateTransfer& state_transfer) : state_transfer_{state_transfer} {}
 
- private:
-  IStateTransfer& state_transfer_;
-};
 }  // namespace bftEngine

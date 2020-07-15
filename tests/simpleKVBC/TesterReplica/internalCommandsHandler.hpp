@@ -43,7 +43,7 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
                       uint32_t &outActualReplicaSpecificInfoSize,
                       concordUtils::SpanWrapper &span) override;
 
-  virtual void setControlStateManager(std::shared_ptr<bftEngine::IControlStateManager> controlStateManager) override;
+  virtual void setControlStateManager(std::shared_ptr<bftEngine::ControlStateManager> controlStateManager) override;
 
  private:
   bool executeWriteCommand(uint32_t requestSize,
@@ -83,7 +83,7 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   size_t m_readsCounter = 0;
   size_t m_writesCounter = 0;
   size_t m_getLastBlockCounter = 0;
-  std::shared_ptr<bftEngine::IControlStateManager> controlStateManager_;
+  std::shared_ptr<bftEngine::ControlStateManager> controlStateManager_;
 };
 
 #endif

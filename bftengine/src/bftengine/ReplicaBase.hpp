@@ -62,10 +62,10 @@ class ReplicaBase {
 
   std::shared_ptr<concordMetrics::Aggregator> getAggregator() const { return aggregator_; }
 
-  void setControlStateManager(std::shared_ptr<IControlStateManager> controlStateManager) {
+  void setControlStateManager(std::shared_ptr<ControlStateManager> controlStateManager) {
     controlStateManager_ = controlStateManager;
   }
-  std::shared_ptr<IControlStateManager> getControlStateManager() { return controlStateManager_; }
+  std::shared_ptr<ControlStateManager> getControlStateManager() { return controlStateManager_; }
 
   virtual void start();
   virtual void stop();
@@ -127,7 +127,7 @@ class ReplicaBase {
 
   ///////////////////////////////////////////////////
   // ControlStateManger
-  std::shared_ptr<IControlStateManager> controlStateManager_;
+  std::shared_ptr<ControlStateManager> controlStateManager_;
 };
 
 }  // namespace bftEngine::impl
