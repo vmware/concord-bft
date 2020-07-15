@@ -56,6 +56,12 @@ def start_replica_cmd(builddir, replica_id, config):
     return ret
 
 class SkvbcReadOnlyReplicaTest(unittest.TestCase):
+    """
+    ReadOnlyReplicaTest has got two modes of operation:
+        - using external S3 object store (minio)
+        - using internal RocksDB store
+    Setting CONCORD_BFT_MINIO_BINARY_PATH env variable will triger S3 mode.
+    """
     @classmethod
     def _start_s3_server(cls):
         print("Starting server")
@@ -75,7 +81,10 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         if not os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
+            print("CONCORD_BFT_MINIO_BINARY_PATH is not set. Running in RocksDB mode.")
             return
+        
+        print("CONCORD_BFT_MINIO_BINARY_PATH is set. Running in S3 mode.")
 
         # We need a temp dir for data and binaries - this is cls.dest_dir
         # self.dest_dir will contain data dir for minio buckets and the minio binary
@@ -120,8 +129,8 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         cls._start_s3_server()
 
     @with_trio
-    @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1)
-    @verify_linearizability()
+    @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
+    @verify_linearizability(no_conflicts=True)
     async def test_ro_replica_start_with_delay(self, bft_network, tracker):
         """
         Start up N of N regular replicas.
@@ -166,8 +175,8 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                             break
 
     @with_trio
-    @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1)
-    @verify_linearizability()
+    @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
+    @verify_linearizability(no_conflicts=True)
     async def test_ro_replica_start_simultaneously (self, bft_network, tracker):
         """
         Start up N of N regular replicas.
@@ -183,7 +192,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), checkpoint_num=1)     
         with trio.fail_after(seconds=60):
             async with trio.open_nursery() as nursery:
-                nursery.start_soon(tracker.send_indefinite_tracked_ops)
+                nursery.start_soon(tracker.send_indefinite_tracked_ops, .7, .1)
                 while True:
                     with trio.move_on_after(seconds=.5):
                         try:
@@ -197,10 +206,19 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                                 print("Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
                                 nursery.cancel_scope.cancel()
                                 
-    @unittest.skip("unstable")
     @with_trio
-    @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1)
-    async def test_ro_replica_with_s3_failures(self, bft_network):
+    @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
+    async def test_ro_replica_with_late_s3_start(self, bft_network):
+        """
+        Start all replicas.
+        Stop S3 server.
+        Start RO replica.
+        After 5 secs start S3 server.
+        Wait for State Transfer in ReadOnlyReplica to complete. This test is executed only in S3 mode.
+        """
+        if not os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
+            return
+
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
@@ -216,21 +234,37 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
             checkpoint_num=1,
             verify_checkpoint_persistency=False
         )
+        
+        bft_network.wait_for_state_transfer_to_stop(bft_network.get_current_primary(), ro_replica_id)
 
-        # TODO replace the below function with the library function:
-        # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), checkpoint_num=1)     
-        with trio.fail_after(seconds=70):
-            async with trio.open_nursery() as nursery:
-                # the ro replica should be able to survive these failures
-                while True:
-                    with trio.move_on_after(seconds=.5):
-                        try:
-                            key = ['replica', 'Gauges', 'lastExecutedSeqNum']
-                            lastExecutedSeqNum = await bft_network.metrics.get(ro_replica_id, *key)
-                        except KeyError:
-                            continue
-                        else:
-                            # success!
-                            if lastExecutedSeqNum >= 50:
-                                print("Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
-                                nursery.cancel_scope.cancel()
+
+    @with_trio
+    @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
+    async def test_ro_replica_with_s3_failures(self, bft_network):
+        """
+        Start all replicas.
+        Stop S3 server.
+        Start RO replica.
+        After 5 secs start S3 server.
+        Wait for State Transfer in ReadOnlyReplica to complete. This test is executed only in S3 mode.
+        """
+        if not os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
+            return
+
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        # start the read-only replica while the s3 service is down
+        ro_replica_id = bft_network.config.n
+        bft_network.start_replica(ro_replica_id)
+
+        self.__class__._stop_s3_server()
+        self.__class__._start_s3_after_X_secs(5)
+
+        await skvbc.fill_and_wait_for_checkpoint(
+            initial_nodes=bft_network.all_replicas(),
+            checkpoint_num=1,
+            verify_checkpoint_persistency=False
+        )
+
+        bft_network.wait_for_state_transfer_to_stop(bft_network.get_current_primary(), ro_replica_id)
