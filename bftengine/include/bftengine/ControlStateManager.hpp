@@ -12,8 +12,7 @@
 // file.
 
 #pragma once
-#include <string>
-#include <unordered_map>
+#include <optional>
 #include "IStateTransfer.hpp"
 
 namespace bftEngine {
@@ -21,9 +20,11 @@ namespace bftEngine {
 class ControlStateManager {
  public:
   void setStopAtNextCheckpoint();
-  bool getStopAtNextCheckpoint();
+  std::optional<uint64_t> getStopCheckpointToStopAt();
 
   ControlStateManager(IStateTransfer& state_transfer);
+  ControlStateManager& operator=(const ControlStateManager&) = delete;
+  ControlStateManager(const ControlStateManager&) = delete;
 
  private:
   IStateTransfer& state_transfer_;
