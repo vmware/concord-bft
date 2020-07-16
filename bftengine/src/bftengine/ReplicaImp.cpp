@@ -370,7 +370,12 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
   }
 
   pp->finishAddingRequests();
+  startConsensusProcess(pp);
+}
 
+void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp) {
+  if (!isCurrentPrimary()) return;
+  auto firstPath = pp->firstPath();
   if (config_.debugStatisticsEnabled) {
     DebugStatistics::onSendPrePrepareMessage(pp->numberOfRequests(), requestsQueueOfPrimary.size());
   }
@@ -404,6 +409,18 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
     sendPreparePartial(seqNumInfo);
   } else {
     sendPartialProof(seqNumInfo);
+  }
+}
+
+void ReplicaImp::sendInternalNoopsPrePrepareMsg(CommitPath firstPath) {
+  PrePrepareMsg *pp = new PrePrepareMsg(config_.replicaId, curView, (primaryLastUsedSeqNum + 1), firstPath, 0);
+  startConsensusProcess(pp);
+}
+
+void ReplicaImp::bringTheSystemToTheNextCheckpointBySendingNoopsCommands(CommitPath firstPath) {
+  if (!isCurrentPrimary()) return;
+  while (primaryLastUsedSeqNum % checkpointWindowSize != 0) {
+    sendInternalNoopsPrePrepareMsg(firstPath);
   }
 }
 
