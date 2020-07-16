@@ -48,6 +48,8 @@ class MsgsCertificate {
 
   bool isComplete() const;
 
+  bool isFull() const;
+
   bool isInconsistent() const;
 
   T* selfMsg() const;
@@ -55,7 +57,7 @@ class MsgsCertificate {
   T* bestCorrectMsg() const;
 
   void tryToMarkComplete();
-
+  void tryToMarkFull();
   bool hasMsgFromReplica(ReplicaId replicaId) const;
 
   void resetAndFree();
@@ -92,6 +94,7 @@ class MsgsCertificate {
   uint16_t numOfClasses = 0;
 
   bool complete = false;
+  bool full = false;
 
   uint16_t bestClass = NULL_CLASS;
   uint16_t sizeOfBestClass = 0;
@@ -105,7 +108,7 @@ MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::MsgsCe
                                                                                           const uint16_t numOfRequired,
                                                                                           const ReplicaId selfReplicaId)
     : numOfReps{numOfReplicas}, maxFails{maxFailures}, required{numOfRequired}, selfId(selfReplicaId) {
-  static_assert(KeepAllMsgs, "KeepAllMsgs==false is not supported yet");
+  //  static_assert(KeepAllMsgs, "KeepAllMsgs==false is not supported yet");
   static_assert(!SelfIsRequired || SelfTrust, "SelfIsRequired=true requires SelfTrust=true");
 
   // TODO(GG): more asserts
@@ -128,6 +131,7 @@ bool MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::i
 template <typename T, bool SelfTrust, bool SelfIsRequired, bool KeepAllMsgs, typename ExternalFunc>
 void MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::resetAndFree() {
   complete = false;
+  full = false;
 
   if (msgsFromReplicas.empty()) return;  // nothing to do
 
@@ -152,7 +156,7 @@ bool MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::a
 
   msgsFromReplicas[replicaId] = msg;
 
-  if (!complete) {
+  if ((KeepAllMsgs && !full) || !complete) {
     if (SelfTrust) {  // self message is part of the quorum.
       if (replicaId == selfId)
         addSelfMsg(msg);
@@ -233,6 +237,11 @@ void MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::a
       // reached the required amount of messages
       tryToMarkComplete();
     }
+
+    if ((relevantClass == bestClass) && (sizeOfBestClass >= numOfReps)) {
+      // reached the maximal amount of messages
+      tryToMarkFull();
+    }
   }
 }
 
@@ -287,6 +296,11 @@ bool MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::i
 }
 
 template <typename T, bool SelfTrust, bool SelfIsRequired, bool KeepAllMsgs, typename ExternalFunc>
+bool MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::isFull() const {
+  return full;
+}
+
+template <typename T, bool SelfTrust, bool SelfIsRequired, bool KeepAllMsgs, typename ExternalFunc>
 bool MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::isInconsistent() const {
   return (numOfClasses > maxFails + 1);
 }
@@ -321,6 +335,13 @@ template <typename T, bool SelfTrust, bool SelfIsRequired, bool KeepAllMsgs, typ
 void MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::tryToMarkComplete() {
   if (!SelfIsRequired || hasMsgFromReplica(selfId)) {
     complete = true;
+  }
+}
+
+template <typename T, bool SelfTrust, bool SelfIsRequired, bool KeepAllMsgs, typename ExternalFunc>
+void MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::tryToMarkFull() {
+  if (!SelfIsRequired || hasMsgFromReplica(selfId)) {
+    full = true;
   }
 }
 

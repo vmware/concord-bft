@@ -124,6 +124,26 @@ TEST(msgsCertificate_test, delete_extra_msg) {
 }
 }  // namespace
 
+TEST(msgsCertificate_test, keep_all_msgs) {
+  MsgsCertificate<ClientReplyMsg, false, false, true, SimpleClientImp> replysCertificate(
+      numOfReplicas, fval, numOfRequired, selfReplicaId);
+
+  uint8_t reqSeqNum = 0;
+
+  // Add bunch of new messages
+  for (int replicaId = 0; replicaId < numOfReplicas; replicaId++) {
+    auto newMsg = new ClientReplyMsg(replicaId, reqSeqNum, reply, replyLen);
+    replysCertificate.addMsg(newMsg, replicaId);
+    if (replicaId >= numOfRequired) {
+      ASSERT_TRUE(replysCertificate.isComplete());
+    }
+  }
+
+  ASSERT_TRUE(replysCertificate.isFull());
+
+  replysCertificate.resetAndFree();
+}
+
 int main(int argc, char* argv[]) {
   ::testing::InitGoogleTest(&argc, argv);
   int ret = RUN_ALL_TESTS();
