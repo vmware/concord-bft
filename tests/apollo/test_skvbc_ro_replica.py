@@ -234,9 +234,8 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
             checkpoint_num=1,
             verify_checkpoint_persistency=False
         )
-        
-        bft_network.wait_for_state_transfer_to_stop(bft_network.get_current_primary(), ro_replica_id)
 
+        await self._wait_for_st(bft_network, ro_replica_id)
 
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
@@ -267,4 +266,23 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
             verify_checkpoint_persistency=False
         )
 
-        bft_network.wait_for_state_transfer_to_stop(bft_network.get_current_primary(), ro_replica_id)
+        await self._wait_for_st(bft_network, ro_replica_id)
+
+
+    async def _wait_for_st(self, bft_network, ro_replica_id):
+        # TODO replace the below function with the library function:
+        # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), checkpoint_num=1)     
+        with trio.fail_after(seconds=70):
+            # the ro replica should be able to survive these failures
+            while True:
+                with trio.move_on_after(seconds=.5):
+                    try:
+                        key = ['replica', 'Gauges', 'lastExecutedSeqNum']
+                        lastExecutedSeqNum = await bft_network.metrics.get(ro_replica_id, *key)
+                    except KeyError:
+                        continue
+                    else:
+                        # success!
+                        if lastExecutedSeqNum >= 150:
+                            print("Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
+                            break
