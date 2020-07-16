@@ -103,7 +103,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       idsOfPeerReplicas_(myReplica.getIdsOfPeerReplicas()),
       numOfReplicas_(myReplica.getReplicaConfig().numReplicas),
       numOfClients_(myReplica.getReplicaConfig().numOfExternalClients +
-                    myReplica_.getReplicaConfig().numOfClientProxies * numOfReplicas_),
+                    myReplica_.getReplicaConfig().numOfClientProxies),
       metricsComponent_{concordMetrics::Component("preProcessor", std::make_shared<concordMetrics::Aggregator>())},
       metricsLastDumpTime_(0),
       metricsDumpIntervalInSec_{myReplica_.getReplicaConfig().metricsDumpIntervalSeconds},
@@ -131,7 +131,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   for (auto id = 0; id < numOfClients_; id++) {
     preProcessResultBuffers_.push_back(Sliver(new char[maxReplyMsgSize_], maxReplyMsgSize_));
   }
-  const uint64_t numOfThreads = thread::hardware_concurrency();
+  const uint64_t numOfThreads = min((uint16_t)thread::hardware_concurrency(), numOfClients_);
   threadPool_.start(numOfThreads);
   LOG_INFO(logger(), KVLOG(firstClientId, numOfClients_, preExecReqStatusCheckPeriodMilli_, numOfThreads));
   RequestProcessingState::init(numOfRequiredReplies());
@@ -149,7 +149,7 @@ void PreProcessor::addTimers() {
   if (preExecReqStatusCheckPeriodMilli_ != 0)
     requestsStatusCheckTimer_ = timers_.add(chrono::milliseconds(preExecReqStatusCheckPeriodMilli_),
                                             Timers::Timer::RECURRING,
-                                            [this](Timers::Handle h) { onRequestsStatusCheckTimer(h); });
+                                            [this](Timers::Handle h) { onRequestsStatusCheckTimer(); });
 }
 
 void PreProcessor::cancelTimers() {
@@ -159,7 +159,7 @@ void PreProcessor::cancelTimers() {
   }
 }
 
-void PreProcessor::onRequestsStatusCheckTimer(Timers::Handle timer) {
+void PreProcessor::onRequestsStatusCheckTimer() {
   // Pass through all ongoing requests and abort the pre-execution for those that are timed out.
   for (const auto &clientEntry : ongoingRequests_) {
     lock_guard<mutex> lock(clientEntry.second->mutex);

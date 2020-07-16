@@ -119,7 +119,7 @@ class PreProcessor {
   void updateAggregatorAndDumpMetrics();
   void addTimers();
   void cancelTimers();
-  void onRequestsStatusCheckTimer(concordUtil::Timers::Handle timer);
+  void onRequestsStatusCheckTimer();
 
   static logging::Logger &logger() {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
