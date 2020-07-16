@@ -929,7 +929,7 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
     return onInternalMsg(*get_status);
   }
 
-  assert(false);
+  Assert(false);
 }
 
 std::string ReplicaImp::getReplicaState() const {
@@ -1687,7 +1687,6 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
       if (msg->hasListOfMissingViewChangeMsgForViewChange() &&
           msg->isMissingViewChangeMsgForViewChange(config_.replicaId)) {
         ViewChangeMsg *myVC = viewsManager->getMyLatestViewChangeMsg();
-        // NOLINTNEXTLINE(bugprone-lambda-function-name)
         AssertNE(myVC, nullptr);
         sendAndIncrementMetric(myVC, msgSenderId, metric_sent_viewchange_msg_due_to_status_);
       }

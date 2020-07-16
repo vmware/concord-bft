@@ -12,6 +12,7 @@
 
 #include "gtest/gtest.h"
 
+#include "assertUtils.hpp"
 #include "bftengine/ClientMsgs.hpp"
 
 #include "msg_receiver.h"
@@ -130,7 +131,7 @@ std::vector<UnmatchedReply> unmatched_replies(uint16_t n,
                                               ReplyMetadata metadata,
                                               const Msg& msg,
                                               const std::vector<ReplicaSpecificInfo>& rsi) {
-  assert(n <= rsi.size());
+  Assert(n <= rsi.size());
   std::vector<UnmatchedReply> replies;
   for (uint16_t i = 0; i < n; i++) {
     replies.emplace_back(UnmatchedReply{metadata, msg, rsi[i]});

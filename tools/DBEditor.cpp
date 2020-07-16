@@ -23,6 +23,7 @@
 
 #define USE_ROCKSDB 1
 
+#include "assertUtils.hpp"
 #include "Logger.hpp"
 #include "rocksdb/key_comparator.h"
 #include "rocksdb/client.h"
@@ -229,7 +230,7 @@ void parseAndPrint(const ::rocksdb::Slice &key, const ::rocksdb::Slice &val) {
     }
     default:
       LOG_ERROR(logger, "invalid key type: " << (char)aType);
-      assert(false);
+      Assert(false);
 
   }  // switch
 }
@@ -244,7 +245,7 @@ void dumpAllValues() {
     //    printf("\n");
     parseAndPrint(it->key(), it->value());
   }
-  assert(it->status().ok());
+  Assert(it->status().ok());
   delete it;
 }
 

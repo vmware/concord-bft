@@ -339,7 +339,7 @@ bool ViewChangeSafetyLogic::computeRestrictionsForSeqNum(SeqNum s,
       continue;
     }  // no need to advance iterator
 
-    assert(elem->seqNum == s);
+    Assert(elem->seqNum == s);
 
     currIter->gotoNext();
 

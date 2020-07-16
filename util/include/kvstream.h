@@ -70,7 +70,7 @@ template <bool Strict,
           typename K,
           typename V,
           typename std::enable_if<!concord::is_streamable<std::ostream, V>::value>::type *>
-void KvLog(std::stringstream &ss, K &&key, V &&val) {
+void KvLog(std::stringstream &ss, K &&key, V &&) {
   static_assert(!Strict, "Cannot log types that do not implement ostream::operator<<");
   ss << std::forward<K>(key) << ": _";
 }
@@ -80,7 +80,7 @@ template <bool Strict,
           typename V,
           typename... KVPAIRS,
           typename std::enable_if<!concord::is_streamable<std::ostream, V>::value>::type *>
-void KvLog(std::stringstream &ss, K &&key, V &&val, KVPAIRS &&... kvpairs) {
+void KvLog(std::stringstream &ss, K &&key, V &&, KVPAIRS &&... kvpairs) {
   static_assert(!Strict, "Cannot log types that do not implement ostream::operator<<");
   ss << std::forward<K>(key) << ": _, ";
   KvLog<Strict>(ss, std::forward<KVPAIRS>(kvpairs)...);

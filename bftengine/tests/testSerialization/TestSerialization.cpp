@@ -166,27 +166,27 @@ SeqNumWindow seqNumWindow{1};
 CheckWindow checkWindow{0};
 
 void testInit() {
-  assert(persistentStorageImp->getStoredVersion() == persistentStorageImp->getCurrentVersion());
-  assert(persistentStorageImp->getLastExecutedSeqNum() == lastExecutedSeqNum);
-  assert(persistentStorageImp->getPrimaryLastUsedSeqNum() == primaryLastUsedSeqNum);
-  assert(persistentStorageImp->getStrictLowerBoundOfSeqNums() == strictLowerBoundOfSeqNums);
-  assert(persistentStorageImp->getLastViewThatTransferredSeqNumbersFullyExecuted() == lastViewTransferredSeqNum);
-  assert(persistentStorageImp->getLastStableSeqNum() == lastStableSeqNum);
+  Assert(persistentStorageImp->getStoredVersion() == persistentStorageImp->getCurrentVersion());
+  Assert(persistentStorageImp->getLastExecutedSeqNum() == lastExecutedSeqNum);
+  Assert(persistentStorageImp->getPrimaryLastUsedSeqNum() == primaryLastUsedSeqNum);
+  Assert(persistentStorageImp->getStrictLowerBoundOfSeqNums() == strictLowerBoundOfSeqNums);
+  Assert(persistentStorageImp->getLastViewThatTransferredSeqNumbersFullyExecuted() == lastViewTransferredSeqNum);
+  Assert(persistentStorageImp->getLastStableSeqNum() == lastStableSeqNum);
 
   DescriptorOfLastExitFromView lastExitFromView = persistentStorageImp->getAndAllocateDescriptorOfLastExitFromView();
-  assert(lastExitFromView.equals(*descriptorOfLastExitFromView));
+  Assert(lastExitFromView.equals(*descriptorOfLastExitFromView));
   bool descHasSet = persistentStorageImp->hasDescriptorOfLastExitFromView();
   Assert(!descHasSet);
 
   DescriptorOfLastNewView lastNewView = persistentStorageImp->getAndAllocateDescriptorOfLastNewView();
-  assert(lastNewView.equals(*descriptorOfLastNewView));
+  Assert(lastNewView.equals(*descriptorOfLastNewView));
   descHasSet = persistentStorageImp->hasDescriptorOfLastNewView();
-  assert(!descHasSet);
+  Assert(!descHasSet);
 
   DescriptorOfLastExecution lastExecution = persistentStorageImp->getDescriptorOfLastExecution();
-  assert(lastExecution.equals(*descriptorOfLastExecution));
+  Assert(lastExecution.equals(*descriptorOfLastExecution));
   descHasSet = persistentStorageImp->hasDescriptorOfLastExecution();
-  assert(!descHasSet);
+  Assert(!descHasSet);
 
   descriptorOfLastExitFromView->clean();
   lastExitFromView.clean();
@@ -194,10 +194,10 @@ void testInit() {
   lastNewView.clean();
 
   SharedPtrCheckWindow storedCheckWindow = persistentStorageImp->getCheckWindow();
-  assert(storedCheckWindow.get()->equals(checkWindow));
+  Assert(storedCheckWindow.get()->equals(checkWindow));
 
   SharedPtrSeqNumWindow storedSeqNumWindow = persistentStorageImp->getSeqNumWindow();
-  assert(storedSeqNumWindow.get()->equals(seqNumWindow));
+  Assert(storedSeqNumWindow.get()->equals(seqNumWindow));
 }
 
 void testCheckWindowSetUp(const SeqNum shift, bool toSet) {
@@ -382,19 +382,19 @@ void testSetDescriptors(bool toSet) {
   }
 
   DescriptorOfLastExecution lastExecution = persistentStorageImp->getDescriptorOfLastExecution();
-  assert(lastExecution.equals(lastExecutionDesc));
+  Assert(lastExecution.equals(lastExecutionDesc));
   bool descHasSet = persistentStorageImp->hasDescriptorOfLastExecution();
   Assert(descHasSet);
 
   DescriptorOfLastNewView lastNewView = persistentStorageImp->getAndAllocateDescriptorOfLastNewView();
-  assert(lastNewView.equals(lastNewViewDesc));
+  Assert(lastNewView.equals(lastNewViewDesc));
   descHasSet = persistentStorageImp->hasDescriptorOfLastNewView();
-  assert(descHasSet);
+  Assert(descHasSet);
 
   DescriptorOfLastExitFromView lastExitFromView = persistentStorageImp->getAndAllocateDescriptorOfLastExitFromView();
-  assert(lastExitFromView.equals(lastExitFromViewDesc));
+  Assert(lastExitFromView.equals(lastExitFromViewDesc));
   descHasSet = persistentStorageImp->hasDescriptorOfLastExitFromView();
-  assert(descHasSet);
+  Assert(descHasSet);
 
   for (auto *v : msgs) {
     delete v;
@@ -423,10 +423,10 @@ void testSetSimpleParams(bool toSet) {
     persistentStorageImp->endWriteTran();
   }
 
-  assert(persistentStorageImp->getLastExecutedSeqNum() == lastExecSeqNum);
-  assert(persistentStorageImp->getPrimaryLastUsedSeqNum() == lastUsedSeqNum);
-  assert(persistentStorageImp->getStrictLowerBoundOfSeqNums() == lowBoundSeqNum);
-  assert(persistentStorageImp->getLastViewThatTransferredSeqNumbersFullyExecuted() == view);
+  Assert(persistentStorageImp->getLastExecutedSeqNum() == lastExecSeqNum);
+  Assert(persistentStorageImp->getPrimaryLastUsedSeqNum() == lastUsedSeqNum);
+  Assert(persistentStorageImp->getStrictLowerBoundOfSeqNums() == lowBoundSeqNum);
+  Assert(persistentStorageImp->getLastViewThatTransferredSeqNumbersFullyExecuted() == view);
 }
 
 void fillReplicaConfig() {

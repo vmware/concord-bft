@@ -1,3 +1,4 @@
+#include "assertUtils.hpp"
 #include "direct_kv_block.h"
 #include "kv_types.hpp"
 #include "Logger.hpp"
@@ -23,7 +24,7 @@ Sliver create(const SetOfKeyValuePairs &updates,
   // TODO(GG): overflow handling ....
   // TODO(SG): How? Right now - will put empty block instead
 
-  assert(outUpdatesInNewBlock.size() == 0);
+  Assert(outUpdatesInNewBlock.size() == 0);
 
   std::uint32_t blockBodySize = 0;
   const std::uint16_t numOfElements = updates.size();
@@ -74,14 +75,14 @@ Sliver create(const SetOfKeyValuePairs &updates,
 
       idx++;
     }
-    assert(idx == numOfElements);
+    Assert(idx == numOfElements);
 
     if (userDataSize) {
       std::memcpy(blockBuffer + currentOffset, userData, userDataSize);
       currentOffset += userDataSize;
     }
 
-    assert((std::uint32_t)currentOffset == blockSize);
+    Assert((std::uint32_t)currentOffset == blockSize);
 
     return blockSliver;
   } catch (const std::bad_alloc &ba) {  // TODO: do we really want to mask this failure?
@@ -115,7 +116,7 @@ SetOfKeyValuePairs getData(const Sliver &block) {
 
 BlockDigest getParentDigest(const Sliver &block) {
   const auto *bh = reinterpret_cast<const detail::Header *>(block.data());
-  assert(BLOCK_DIGEST_SIZE == bh->parentDigestLength);
+  Assert(BLOCK_DIGEST_SIZE == bh->parentDigestLength);
   BlockDigest digest;
   std::memcpy(digest.data(), bh->parentDigest, BLOCK_DIGEST_SIZE);
   return digest;
@@ -123,7 +124,7 @@ BlockDigest getParentDigest(const Sliver &block) {
 
 Sliver getUserData(const Sliver &block) {
   constexpr auto headerSize = sizeof(detail::Header);
-  assert(block.length() >= headerSize);
+  Assert(block.length() >= headerSize);
   const auto header = reinterpret_cast<const detail::Header *>(block.data());
 
   // If there are no elements, we only have a Header and, optionally, user data.
@@ -135,7 +136,7 @@ Sliver getUserData(const Sliver &block) {
   const auto entries = reinterpret_cast<const detail::Entry *>(block.data() + sizeof(detail::Header));
   const auto lastEntry = entries[header->numberOfElements - 1];
   const auto userDataOffset = lastEntry.valOffset + lastEntry.valSize;
-  assert(block.length() >= userDataOffset);
+  Assert(block.length() >= userDataOffset);
   return Sliver{block, userDataOffset, block.length() - userDataOffset};
 }
 

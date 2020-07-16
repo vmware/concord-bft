@@ -63,25 +63,25 @@ inline void printCallStack() {
   }
 }
 
-#define PRINT_DATA_AND_ASSERT_BOOL_EXPR(expr1, expr2, assertMacro)                                               \
-  {                                                                                                              \
-    std::string result1 = (expr1) ? "true" : "false";                                                            \
-    std::string result2 = (expr2) ? "true" : "false";                                                            \
-    LOG_FATAL(GL,                                                                                                \
-              " " << assertMacro << ": expression '" << #expr1 << "' is " << result1.c_str() << ", expression '" \
-                  << #expr2 << "' is " << result2.c_str() << " in function " << __FUNCTION__ << " (" << __FILE__ \
-                  << " " << __LINE__ << ")");                                                                    \
-    printCallStack();                                                                                            \
-    assert(false); /*NOLINT(misc-static-assert)*/                                                                \
+#define PRINT_DATA_AND_ASSERT_BOOL_EXPR(expr1, expr2, assertMacro)                                                 \
+  {                                                                                                                \
+    std::string result1 = (expr1) ? "true" : "false";                                                              \
+    std::string result2 = (expr2) ? "true" : "false";                                                              \
+    LOG_FATAL(GL,                                                                                                  \
+              " " << (assertMacro) << ": expression '" << #expr1 << "' is " << result1.c_str() << ", expression '" \
+                  << #expr2 << "' is " << result2.c_str() << " in function " << __FUNCTION__ << " (" << __FILE__   \
+                  << " " << __LINE__ << ")");                                                                      \
+    printCallStack();                                                                                              \
+    std::terminate();                                                                                              \
   }
 
-#define PRINT_DATA_AND_ASSERT(expr1, expr2, assertMacro)                                                      \
-  {                                                                                                           \
-    LOG_FATAL(GL,                                                                                             \
-              " " << assertMacro << KVLOG_FOR_ASSERT(expr1, expr2) << " in function " << __FUNCTION__ << " (" \
-                  << __FILE__ << " " << __LINE__ << ")");                                                     \
-    printCallStack();                                                                                         \
-    assert(false); /*NOLINT(misc-static-assert)*/                                                             \
+#define PRINT_DATA_AND_ASSERT(expr1, expr2, assertMacro)                                                        \
+  {                                                                                                             \
+    LOG_FATAL(GL,                                                                                               \
+              " " << (assertMacro) << KVLOG_FOR_ASSERT(expr1, expr2) << " in function " << __FUNCTION__ << " (" \
+                  << __FILE__ << " " << __LINE__ << ")");                                                       \
+    printCallStack();                                                                                           \
+    std::terminate();                                                                                           \
   }
 
 #define Assert(expr)                                                                                              \
@@ -91,41 +91,41 @@ inline void printCallStack() {
                 " Assert: expression '" << #expr << "' is false in function " << __FUNCTION__ << " (" << __FILE__ \
                                         << " " << __LINE__ << ")");                                               \
       printCallStack();                                                                                           \
-      assert(false); /*NOLINT(misc-static-assert)*/                                                               \
+      std::terminate();                                                                                           \
     }                                                                                                             \
   }
 // Assert (expr1 == expr2)
-#define AssertEQ(expr1, expr2)                                           \
-  {                                                                      \
-    if (expr1 != expr2) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertEQ"); \
+#define AssertEQ(expr1, expr2)                                               \
+  {                                                                          \
+    if ((expr1) != (expr2)) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertEQ"); \
   }
 // Assert (expr1 != expr2)
-#define AssertNE(expr1, expr2)                                           \
-  {                                                                      \
-    if (expr1 == expr2) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertNE"); \
+#define AssertNE(expr1, expr2)                                               \
+  {                                                                          \
+    if ((expr1) == (expr2)) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertNE"); \
   }
 // Assert (expr1 >= expr2)
-#define AssertGE(expr1, expr2)                                          \
-  {                                                                     \
-    if (expr1 < expr2) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertGE"); \
+#define AssertGE(expr1, expr2)                                              \
+  {                                                                         \
+    if ((expr1) < (expr2)) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertGE"); \
   }
 
 // Assert (expr1 > expr2)
-#define AssertGT(expr1, expr2)                                           \
-  {                                                                      \
-    if (expr1 <= expr2) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertGT"); \
+#define AssertGT(expr1, expr2)                                               \
+  {                                                                          \
+    if ((expr1) <= (expr2)) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertGT"); \
   }
 
 // Assert (expr1 < expr2)
-#define AssertLT(expr1, expr2)                                           \
-  {                                                                      \
-    if (expr1 >= expr2) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertLT"); \
+#define AssertLT(expr1, expr2)                                               \
+  {                                                                          \
+    if ((expr1) >= (expr2)) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertLT"); \
   }
 
 // Assert (expr1 <= expr2)
-#define AssertLE(expr1, expr2)                                          \
-  {                                                                     \
-    if (expr1 > expr2) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertLE"); \
+#define AssertLE(expr1, expr2)                                              \
+  {                                                                         \
+    if ((expr1) > (expr2)) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertLE"); \
   }
 
 // Assert(expr1 || expr2)

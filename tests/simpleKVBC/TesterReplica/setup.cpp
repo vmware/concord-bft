@@ -177,7 +177,7 @@ concord::storage::s3::StoreConfig TestSetup::ParseS3Config(const std::string& s3
   ConfigFileParser parser(logger_, s3ConfigFile);
   if (!parser.Parse()) throw std::runtime_error("failed to parse" + s3ConfigFile);
 
-  auto get_config_value = [&s3ConfigFile, &parser](std::string key) {
+  auto get_config_value = [&s3ConfigFile, &parser](const std::string& key) {
     std::vector<std::string> v = parser.GetValues(key);
     if (v.size()) {
       return v[0];

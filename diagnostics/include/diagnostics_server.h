@@ -28,6 +28,7 @@
 #include <thread>
 #include <unistd.h>
 
+#include "assertUtils.hpp"
 #include "Logger.hpp"
 #include "errnoString.hpp"
 #include "protocol.h"
@@ -135,7 +136,7 @@ class Server {
         auto rv = select(listen_sock_ + 1, &read_fds, NULL, NULL, &tv);
         if (rv == 0) continue;  // timeout
         if (rv < 0 && errno == EINTR) continue;
-        assert(rv > 0);
+        Assert(rv > 0);
         int sock = accept(listen_sock_, NULL, NULL);
         // We must bind the result future or else this call blocks.
         auto _ = std::async(std::launch::async, [&]() { handleRequest(registrar, sock); });
@@ -152,7 +153,7 @@ class Server {
  private:
   void listen() {
     listen_sock_ = socket(AF_INET, SOCK_STREAM, 0);
-    assert(listen_sock_ >= 0);
+    Assert(listen_sock_ >= 0);
     bzero(&servaddr_, sizeof(servaddr_));
     servaddr_.sin_family = AF_INET;
     // LOCALHOST ONLY, FOR SECURITY PURPOSES. DO NOT CHANGE THIS!!!

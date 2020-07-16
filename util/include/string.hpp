@@ -14,9 +14,9 @@
 #pragma once
 
 #include <string>
-#include <assert.h>
 #include <algorithm>
 #include <type_traits>
+#include "assertUtils.hpp"
 
 namespace concord {
 namespace util {
@@ -27,7 +27,7 @@ namespace util {
  */
 template <typename T>
 T to(const std::string& s) {
-  assert(false && "no suitable specialization");
+  Assert(false && "no suitable specialization");
   return static_cast<T>(0);
 }
 

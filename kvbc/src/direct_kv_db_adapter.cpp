@@ -154,7 +154,7 @@ int DBKeyComparator::composedKeyComparison(const char *_a_data,
     }
     default:
       LOG_ERROR(logger(), "invalid key type: " << (char)aType);
-      assert(false);
+      Assert(false);
       throw std::runtime_error("DBKeyComparator::composedKeyComparison: invalid key type");
   }  // switch
 }
@@ -241,7 +241,7 @@ EDBKeyType DBKeyManipulator::extractTypeFromKey(const Key &_key) {
  */
 EDBKeyType DBKeyManipulator::extractTypeFromKey(const char *_key_data) {
   static_assert(sizeof(EDBKeyType) == 1, "Let's avoid byte-order problems.");
-  assert((_key_data[0] < (char)EDBKeyType::E_DB_KEY_TYPE_LAST) &&
+  Assert((_key_data[0] < (char)EDBKeyType::E_DB_KEY_TYPE_LAST) &&
          (_key_data[0] >= (char)EDBKeyType::E_DB_KEY_TYPE_FIRST));
   return (EDBKeyType)_key_data[0];
 }
@@ -270,7 +270,7 @@ ObjectId DBKeyManipulator::extractObjectIdFromKey(const Key &_key) {
  * @return The object id of the composite database key.
  */
 ObjectId DBKeyManipulator::extractObjectIdFromKey(const char *_key_data, size_t _key_length) {
-  assert(_key_length >= sizeof(ObjectId));
+  Assert(_key_length >= sizeof(ObjectId));
   size_t offset = _key_length - sizeof(ObjectId);
   ObjectId id = *(ObjectId *)(_key_data + offset);
 
@@ -309,8 +309,8 @@ int DBKeyManipulator::compareKeyPartOfComposedKey(const char *a_data,
                                                   size_t a_length,
                                                   const char *b_data,
                                                   size_t b_length) {
-  assert(a_length >= sizeof(BlockId) + sizeof(EDBKeyType));
-  assert(b_length >= sizeof(BlockId) + sizeof(EDBKeyType));
+  Assert(a_length >= sizeof(BlockId) + sizeof(EDBKeyType));
+  Assert(b_length >= sizeof(BlockId) + sizeof(EDBKeyType));
 
   const char *a_key = a_data + sizeof(EDBKeyType);
   const size_t a_key_length = a_length - sizeof(BlockId) - sizeof(EDBKeyType);

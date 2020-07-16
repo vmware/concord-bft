@@ -57,7 +57,7 @@ void Client::init(bool readOnly) {
 }
 
 Status Client::del(const Sliver& key) {
-  assert(init_);
+  Assert(init_);
   ResponseData rData;
   S3ResponseHandler rHandler;
   rHandler.completeCallback = responseCompleteCallback;

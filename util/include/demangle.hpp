@@ -16,12 +16,13 @@
 #include <cxxabi.h>
 #include <memory>
 #include <assert.h>
+#include "assertUtils.hpp"
 
 struct demangler {
   static std::string demangle(const char* name) {
     int status = -4;
     std::unique_ptr<char, decltype(&std::free)> res{abi::__cxa_demangle(name, NULL, NULL, &status), std::free};
-    assert(status == 0);
+    Assert(status == 0);
     return res.get();
   }
 
