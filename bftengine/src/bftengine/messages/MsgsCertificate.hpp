@@ -108,7 +108,6 @@ MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::MsgsCe
                                                                                           const uint16_t numOfRequired,
                                                                                           const ReplicaId selfReplicaId)
     : numOfReps{numOfReplicas}, maxFails{maxFailures}, required{numOfRequired}, selfId(selfReplicaId) {
-  //  static_assert(KeepAllMsgs, "KeepAllMsgs==false is not supported yet");
   static_assert(!SelfIsRequired || SelfTrust, "SelfIsRequired=true requires SelfTrust=true");
 
   // TODO(GG): more asserts
