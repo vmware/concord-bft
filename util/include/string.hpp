@@ -16,21 +16,21 @@
 #include <string>
 #include <algorithm>
 #include <type_traits>
-#include "assertUtils.hpp"
 
 namespace concord {
 namespace util {
 
-/**
- * conversion from string to integral types
- * TODO float, double
- */
 template <typename T>
-T to(const std::string& s) {
-  Assert(false && "no suitable specialization");
-  return static_cast<T>(0);
-}
+T to(const std::string& s) = delete;
 
+template <>
+inline float to<>(const std::string& s) {
+  return std::stof(s);
+}
+template <>
+inline double to<>(const std::string& s) {
+  return std::stod(s);
+}
 template <>
 inline bool to<>(const std::string& s) {
   return std::stoi(s);
