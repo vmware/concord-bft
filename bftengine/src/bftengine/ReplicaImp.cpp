@@ -1384,6 +1384,19 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
 
       return;
     }
+  } else if (checkpointsLog->insideActiveWindow(msgSeqNum)) {
+    CheckpointInfo &checkInfo = checkpointsLog->get(msgSeqNum);
+    bool msgAdded = checkInfo.addCheckpointMsg(msg, msg->senderId());
+    if (msgAdded) {
+      LOG_DEBUG(GL, "Added checkpoint message for a stable checkpoint seqNum: " << KVLOG(msgSenderId));
+    }
+    if (checkInfo.isCheckpointIsSuperStable()) {
+      if (controlStateManager_->getStopCheckpointToStopAt() == msgSeqNum) {
+        if (userRequestsHandler->getControlHandlers() != nullptr) {
+          userRequestsHandler->getControlHandlers()->upgrade();
+        }
+      }
+    }
   } else {
     delete msg;
   }
@@ -2338,7 +2351,11 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
 
   mainLog->advanceActiveWindow(lastStableSeqNum + 1);
 
-  checkpointsLog->advanceActiveWindow(lastStableSeqNum);
+  if (checkpointsLog->insideActiveWindow(newStableSeqNum - checkpointWindowSize)) {
+    checkpointsLog->advanceActiveWindow(newStableSeqNum - checkpointWindowSize);
+  } else {
+    checkpointsLog->advanceActiveWindow(lastStableSeqNum);
+  }
 
   if (hasStateInformation) {
     if (lastStableSeqNum > lastExecutedSeqNum) {
@@ -3053,7 +3070,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
   mainLog =
       new SequenceWithActiveWindow<kWorkWindowSize, 1, SeqNum, SeqNumInfo, SeqNumInfo>(1, (InternalReplicaApi *)this);
 
-  checkpointsLog = new SequenceWithActiveWindow<kWorkWindowSize + checkpointWindowSize,
+  checkpointsLog = new SequenceWithActiveWindow<kWorkWindowSize + 2 * checkpointWindowSize,
                                                 checkpointWindowSize,
                                                 SeqNum,
                                                 CheckpointInfo,

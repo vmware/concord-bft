@@ -101,7 +101,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   // bounded log used to store information about checkpoints in the range [lastStableSeqNum,lastStableSeqNum +
   // kWorkWindowSize]
-  SequenceWithActiveWindow<kWorkWindowSize + checkpointWindowSize,
+  SequenceWithActiveWindow<kWorkWindowSize + 2 * checkpointWindowSize,
                            checkpointWindowSize,
                            SeqNum,
                            CheckpointInfo,
