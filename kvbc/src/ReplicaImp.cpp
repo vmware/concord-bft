@@ -50,6 +50,7 @@ Status ReplicaImp::start() {
   } else {
     createReplicaAndSyncState();
   }
+  m_replicaPtr->setControlStateManager(controlStateManager_);
   m_replicaPtr->SetAggregator(aggregator_);
   m_replicaPtr->start();
   m_currentRepStatus = RepStatus::Running;
@@ -178,7 +179,10 @@ BlockId ReplicaImp::deleteBlocksUntil(BlockId until) {
   return lastDeletedBlock;
 }
 
-void ReplicaImp::set_command_handler(ICommandsHandler *handler) { m_cmdHandler = handler; }
+void ReplicaImp::set_command_handler(ICommandsHandler *handler) {
+  m_cmdHandler = handler;
+  m_cmdHandler->setControlStateManager(controlStateManager_);
+}
 
 ReplicaImp::ReplicaImp(ICommunication *comm,
                        const bftEngine::ReplicaConfig &replicaConfig,
@@ -209,6 +213,8 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   m_stateTransfer = bftEngine::SimpleBlockchainStateTransfer::create(
       state_transfer_config, this, m_metadataDBClient, stKeyManipulator, aggregator_);
   m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
+
+  controlStateManager_ = std::make_shared<bftEngine::ControlStateManager>(*m_stateTransfer);
 }
 
 ReplicaImp::~ReplicaImp() {

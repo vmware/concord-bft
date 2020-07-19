@@ -22,6 +22,7 @@
 #include "block_metadata.hpp"
 #include "KVBCInterfaces.h"
 #include <memory>
+#include "ControlStateManager.hpp"
 
 class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
  public:
@@ -41,6 +42,8 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
                       uint32_t &outActualReplySize,
                       uint32_t &outActualReplicaSpecificInfoSize,
                       concordUtils::SpanWrapper &span) override;
+
+  void setControlStateManager(std::shared_ptr<bftEngine::ControlStateManager> controlStateManager) override;
 
  private:
   bool executeWriteCommand(uint32_t requestSize,
@@ -80,6 +83,7 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   size_t m_readsCounter = 0;
   size_t m_writesCounter = 0;
   size_t m_getLastBlockCounter = 0;
+  std::shared_ptr<bftEngine::ControlStateManager> controlStateManager_;
 };
 
 #endif

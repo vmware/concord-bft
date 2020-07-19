@@ -306,3 +306,7 @@ bool InternalCommandsHandler::executeReadOnlyCommand(
     return false;
   }
 }
+void InternalCommandsHandler::setControlStateManager(
+    std::shared_ptr<bftEngine::ControlStateManager> controlStateManager) {
+  controlStateManager_ = controlStateManager;
+}
