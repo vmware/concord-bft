@@ -31,7 +31,6 @@ class CheckpointInfo {
 
   Time executed;  // if != MinTime, represents the execution time of the corresponding sequnce number
 
-
  public:
   CheckpointInfo();
 
