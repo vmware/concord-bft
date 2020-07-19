@@ -137,6 +137,7 @@ class ICommandsHandler : public bftEngine::IRequestsHandler {
               uint32_t& outActualReplySize,
               uint32_t& outActualReplicaSpecificInfoSize,
               concordUtils::SpanWrapper& span) override = 0;
+  virtual void setControlStateManager(std::shared_ptr<bftEngine::ControlStateManager> controlStateManager) = 0;
   ~ICommandsHandler() override = default;
 };
 

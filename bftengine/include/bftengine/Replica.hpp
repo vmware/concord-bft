@@ -49,7 +49,6 @@ class IRequestsHandler {
                       concordUtils::SpanWrapper &parent_span) = 0;
 
   virtual void onFinishExecutingReadWriteRequests() {}
-  virtual void setControlStateManager(std::shared_ptr<ControlStateManager> controlStateManager) {}
   virtual ~IRequestsHandler() {}
 };
 
