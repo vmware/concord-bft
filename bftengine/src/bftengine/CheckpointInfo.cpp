@@ -74,7 +74,7 @@ void CheckpointInfo::init(CheckpointInfo& i, void* d) {
 void CheckpointInfo::free(CheckpointInfo& i) { i.resetAndFree(); }
 
 void CheckpointInfo::reset(CheckpointInfo& i) { i.resetAndFree(); }
-bool CheckpointInfo::isCheckpointIsSuperStable() const { return checkpointCertificate->isFull(); }
+bool CheckpointInfo::isCheckpointSuperStable() const { return checkpointCertificate->isFull(); }
 
 }  // namespace impl
 }  // namespace bftEngine

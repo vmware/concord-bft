@@ -42,7 +42,7 @@ class CheckpointInfo {
 
   bool isCheckpointCertificateComplete() const;
 
-  bool isCheckpointIsSuperStable() const;
+  bool isCheckpointSuperStable() const;
 
   CheckpointMsg* selfCheckpointMsg() const;
 

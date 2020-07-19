@@ -332,6 +332,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
       bool oldSeqNum = false  // true IFF sequence number newStableSeqNum+kWorkWindowSize has already been executed
   );
 
+  void onSeqNumIsSuperStable(SeqNum newSuperStableSeqNum);
   void onTransferringCompleteImp(SeqNum) override;
 
   template <typename T>

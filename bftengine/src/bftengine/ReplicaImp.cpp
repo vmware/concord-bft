@@ -1387,15 +1387,8 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   } else if (checkpointsLog->insideActiveWindow(msgSeqNum)) {
     CheckpointInfo &checkInfo = checkpointsLog->get(msgSeqNum);
     bool msgAdded = checkInfo.addCheckpointMsg(msg, msg->senderId());
-    if (msgAdded) {
-      LOG_DEBUG(GL, "Added checkpoint message for a stable checkpoint seqNum: " << KVLOG(msgSenderId));
-    }
-    if (checkInfo.isCheckpointIsSuperStable()) {
-      if (controlStateManager_->getStopCheckpointToStopAt() == msgSeqNum) {
-        if (userRequestsHandler->getControlHandlers() != nullptr) {
-          userRequestsHandler->getControlHandlers()->upgrade();
-        }
-      }
+    if (msgAdded && checkInfo.isCheckpointSuperStable()) {
+      onSeqNumIsSuperStable(msgSeqNum);
     }
   } else {
     delete msg;
@@ -2288,6 +2281,9 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
 
   if (newStateCheckpoint > primaryLastUsedSeqNum) primaryLastUsedSeqNum = newStateCheckpoint;
 
+  if (checkpointInfo.isCheckpointSuperStable()) {
+    onSeqNumIsSuperStable(newStateCheckpoint);
+  }
   if (ps_) {
     ps_->setPrimaryLastUsedSeqNum(primaryLastUsedSeqNum);
     ps_->setCheckpointMsgInCheckWindow(newStateCheckpoint, checkpointMsg);
@@ -2322,6 +2318,11 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
   }
 }
 
+void ReplicaImp::onSeqNumIsSuperStable(SeqNum newSuperStableSeqNum) {
+  if (controlStateManager_->getStopCheckpointToStopAt() == newSuperStableSeqNum) {
+    if (userRequestsHandler->getControlHandlers()) userRequestsHandler->getControlHandlers()->upgrade();
+  }
+}
 void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformation, bool oldSeqNum) {
   ConcordAssertOR(hasStateInformation, oldSeqNum);  // !hasStateInformation ==> oldSeqNum
   ConcordAssertEQ(newStableSeqNum % checkpointWindowSize, 0);
@@ -2384,6 +2385,10 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
     if (!checkpointInfo.isCheckpointCertificateComplete()) checkpointInfo.tryToMarkCheckpointCertificateCompleted();
     ConcordAssert(checkpointInfo.isCheckpointCertificateComplete());
 
+    // Call onSeqNumIsSuperStable in case that the self message was the last one to add
+    if (checkpointInfo.isCheckpointSuperStable()) {
+      onSeqNumIsSuperStable(lastStableSeqNum);
+    }
     if (ps_) {
       ps_->setCheckpointMsgInCheckWindow(lastStableSeqNum, checkpointMsg);
       ps_->setCompletedMarkInCheckWindow(lastStableSeqNum, true);
@@ -3408,6 +3413,9 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
       onSeqNumIsStable(lastExecutedSeqNum);
     }
     checkInfo.setSelfExecutionTime(getMonotonicTime());
+    if (checkInfo.isCheckpointSuperStable()) {
+      onSeqNumIsSuperStable(lastStableSeqNum);
+    }
   }
 
   if (ps_) ps_->endWriteTran();
