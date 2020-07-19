@@ -140,7 +140,8 @@ ViewChangeSafetyLogic::ViewChangeSafetyLogic(const uint16_t n,
 SeqNum ViewChangeSafetyLogic::calcLBStableForView(ViewChangeMsg** const viewChangeMsgsOfPendingView) const {
   const uint16_t INC_IN_VC = (2 * F + 2 * C + 1);
 
-  SeqNum* stableNumbers = (SeqNum*)alloca(INC_IN_VC * sizeof(SeqNum));
+  // SeqNum* stableNumbers = (SeqNum*)alloca(INC_IN_VC * sizeof(SeqNum));
+  std::vector<SeqNum> stableNumbers(INC_IN_VC * sizeof(SeqNum));
   ViewNum v = 0;
 
   uint16_t n = 0;
@@ -161,7 +162,7 @@ SeqNum ViewChangeSafetyLogic::calcLBStableForView(ViewChangeMsg** const viewChan
   }
   Assert(n == INC_IN_VC);
 
-  qsort(stableNumbers, INC_IN_VC, sizeof(SeqNum), compareSeqNumbers);
+  qsort(stableNumbers.data(), INC_IN_VC, sizeof(SeqNum), compareSeqNumbers);
 
   Assert(stableNumbers[0] >= stableNumbers[n - 1]);
 
