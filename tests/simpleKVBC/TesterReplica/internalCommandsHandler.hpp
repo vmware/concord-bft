@@ -71,6 +71,8 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
 
   void addMetadataKeyValue(concord::storage::SetOfKeyValuePairs &updates, uint64_t sequenceNum) const;
 
+  std::shared_ptr<bftEngine::IControlHandler> getControlHandlers() override { return nullptr; }
+
  private:
   static concordUtils::Sliver buildSliverFromStaticBuf(char *buf);
 

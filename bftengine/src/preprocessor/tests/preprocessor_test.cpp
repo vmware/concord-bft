@@ -68,6 +68,8 @@ class DummyRequestsHandler : public IRequestsHandler {
     outActualReplySize = 256;
     return 0;
   }
+
+  std::shared_ptr<IControlHandler> getControlHandlers() override { return nullptr; }
 };
 
 class DummyReceiver : public IReceiver {

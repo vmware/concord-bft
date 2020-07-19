@@ -35,6 +35,11 @@ enum MsgFlag : uint8_t {
   HAS_PRE_PROCESSED_FLAG = 0x4
 };
 
+class IControlHandler {
+ public:
+  virtual void upgrade() = 0;
+};
+
 class IRequestsHandler {
  public:
   virtual int execute(uint16_t clientId,
@@ -50,6 +55,8 @@ class IRequestsHandler {
 
   virtual void onFinishExecutingReadWriteRequests() {}
   virtual ~IRequestsHandler() {}
+
+  virtual std::shared_ptr<IControlHandler> getControlHandlers() = 0;
 };
 
 class IReplica {

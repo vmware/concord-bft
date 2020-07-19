@@ -31,6 +31,7 @@ class CheckpointInfo {
 
   Time executed;  // if != MinTime, represents the execution time of the corresponding sequnce number
 
+
  public:
   CheckpointInfo();
 
@@ -41,6 +42,8 @@ class CheckpointInfo {
   bool addCheckpointMsg(CheckpointMsg* msg, ReplicaId replicaId);
 
   bool isCheckpointCertificateComplete() const;
+
+  bool isCheckpointIsSuperStable() const;
 
   CheckpointMsg* selfCheckpointMsg() const;
 

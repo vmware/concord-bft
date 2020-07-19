@@ -287,6 +287,10 @@ void MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::a
     // reached the required amount of messages
     tryToMarkComplete();
   }
+
+  if (classInfo.size >= numOfReps) {
+    tryToMarkFull();
+  }
 }
 
 template <typename T, bool SelfTrust, bool SelfIsRequired, bool KeepAllMsgs, typename ExternalFunc>
