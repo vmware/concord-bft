@@ -16,6 +16,7 @@
 #include "CheckpointInfo.hpp"
 #include "Logger.hpp"
 #include "PersistentStorage.hpp"
+#include "ClientsManager.hpp"
 
 using concordUtil::Timers;
 
@@ -37,6 +38,9 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
   msgHandlers_->registerMsgHandler(MsgCode::Checkpoint,
                                    bind(&ReadOnlyReplica::messageHandler<CheckpointMsg>, this, std::placeholders::_1));
   metrics_.Register();
+  // must be initialized although is not used by ReadOnlyReplica for proper behavior of StateTransfer
+  ClientsManager::setNumResPages((config.numOfClientProxies + config.numOfExternalClients) *
+                                 config.maxReplyMessageSize / config.sizeOfReservedPage);
 }
 
 void ReadOnlyReplica::start() {
