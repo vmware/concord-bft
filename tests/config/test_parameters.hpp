@@ -11,8 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef CONCORD_BFT_TEST_PARAMETERS_HPP
-#define CONCORD_BFT_TEST_PARAMETERS_HPP
+#pragma once
 
 struct ClientParams {
   uint32_t numOfOperations = 4600;
@@ -59,5 +58,3 @@ struct ReplicaParams {
   PersistencyMode persistencyMode = PersistencyMode::Off;
   ReplicaBehavior replicaBehavior = ReplicaBehavior::Default;
 };
-
-#endif  // CONCORD_BFT_TEST_PARAMETERS_HPP

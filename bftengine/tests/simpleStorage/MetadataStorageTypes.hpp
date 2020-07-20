@@ -11,8 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef METADATA_STORAGE_TYPES_HPP
-#define METADATA_STORAGE_TYPES_HPP
+#pragma once
 
 #include <sstream>
 #include <memory>
@@ -56,5 +55,3 @@ struct RequestInfo {
 typedef std::map<uint16_t, RequestInfo> ObjectIdToRequestMap;
 
 }  // namespace bftEngine
-
-#endif

@@ -11,8 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef BASIC_RANDOM_TESTS_HPP
-#define BASIC_RANDOM_TESTS_HPP
+#pragma once
 
 #include "Logger.hpp"
 #include "simpleKVBTestsBuilder.hpp"
@@ -42,5 +41,3 @@ class BasicRandomTestsRunner {
 };
 
 }  // namespace BasicRandomTests
-
-#endif

@@ -11,8 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef CONCORD_BFT_SIMPLE_TEST_REPLICA_HPP
-#define CONCORD_BFT_SIMPLE_TEST_REPLICA_HPP
+#pragma once
 
 #include "assertUtils.hpp"
 #include "OpenTracing.hpp"
@@ -271,5 +270,3 @@ class SimpleTestReplica {
     return replica;
   }
 };
-
-#endif  // CONCORD_BFT_SIMPLE_TEST_REPLICA_HPP

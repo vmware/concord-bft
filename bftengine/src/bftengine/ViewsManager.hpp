@@ -11,8 +11,6 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef BFTENGINE_SRC_BFTENGINE_VIEWSMANAGER_HPP_
-#define BFTENGINE_SRC_BFTENGINE_VIEWSMANAGER_HPP_
 #pragma once
 
 #include <vector>
@@ -221,5 +219,3 @@ class ViewsManager {
 
 // TODO(GG): types for checkpoint (?)
 // TODO(GG): do not use execution path after view-change (?)
-
-#endif  // BFTENGINE_SRC_BFTENGINE_VIEWSMANAGER_HPP_

@@ -11,8 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef CONCORD_BFT_SIMPLE_TEST_CLIENT_HPP
-#define CONCORD_BFT_SIMPLE_TEST_CLIENT_HPP
+#pragma once
 
 #include "test_comm_config.hpp"
 #include "test_parameters.hpp"
@@ -233,5 +232,3 @@ class SimpleTestClient {
     return true;
   }
 };
-
-#endif  // CONCORD_BFT_SIMPLE_TEST_CLIENT_HPP

@@ -11,8 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef BFTENGINE_SRC_BCSTATETRANSFER_MESSAGES_HPP_
-#define BFTENGINE_SRC_BCSTATETRANSFER_MESSAGES_HPP_
+#pragma once
 
 #include <stdint.h>
 
@@ -166,5 +165,3 @@ struct ItemDataMsg : public BCStateTranBaseMsg {
 }  // namespace impl
 }  // namespace SimpleBlockchainStateTransfer
 }  // namespace bftEngine
-
-#endif  // BFTENGINE_SRC_BCSTATETRANSFER_MESSAGES_HPP_

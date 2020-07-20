@@ -11,8 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef ITEST_COMM_CONFIG_HPP
-#define ITEST_COMM_CONFIG_HPP
+#pragma once
 
 #include <string>
 
@@ -57,5 +56,3 @@ class ITestCommConfig {
  protected:
   logging::Logger& logger_;
 };
-
-#endif

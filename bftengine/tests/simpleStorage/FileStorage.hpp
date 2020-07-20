@@ -11,8 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef FILE_STORAGE_HPP
-#define FILE_STORAGE_HPP
+#pragma once
 
 #include <mutex>
 
@@ -78,5 +77,3 @@ class FileStorage : public MetadataStorage {
 };
 
 }  // namespace bftEngine
-
-#endif

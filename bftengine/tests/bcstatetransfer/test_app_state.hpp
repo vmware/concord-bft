@@ -11,8 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef BFTENGINE_TESTS_BCSTATETRANSFER_TEST_APP_STATE_HPP_
-#define BFTENGINE_TESTS_BCSTATETRANSFER_TEST_APP_STATE_HPP_
+#pragma once
 
 #include <cassert>
 #include <cstring>
@@ -77,5 +76,3 @@ class TestAppState : public IAppState {
 }  // namespace SimpleBlockchainStateTransfer
 
 }  // namespace bftEngine
-
-#endif  // BFTENGINE_TESTS_BCSTATETRANSFER_TEST_APP_STATE_HPP_

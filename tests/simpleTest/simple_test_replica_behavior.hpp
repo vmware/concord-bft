@@ -1,5 +1,4 @@
-#ifndef CONCORD_BFT_SIMPLE_TEST_REPLICA_BEHAVIOR_HPP
-#define CONCORD_BFT_SIMPLE_TEST_REPLICA_BEHAVIOR_HPP
+#pragma once
 
 #include <cstdint>
 #include <chrono>
@@ -181,5 +180,3 @@ ISimpleTestReplicaBehavior *create_replica_behavior(ReplicaBehavior b, ReplicaPa
       throw std::logic_error("None supported behavior");
   }
 }
-
-#endif  // CONCORD_BFT_SIMPLE_TEST_REPLICA_BEHAVIOR_HPP

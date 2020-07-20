@@ -11,8 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef BFTENGINE_SRC_BCSTATETRANSFER_INMEMORYDATASTORE_HPP_
-#define BFTENGINE_SRC_BCSTATETRANSFER_INMEMORYDATASTORE_HPP_
+#pragma once
 
 #include <map>
 #include <set>
@@ -206,5 +205,3 @@ class InMemoryDataStore : public DataStore {
 }  // namespace impl
 }  // namespace SimpleBlockchainStateTransfer
 }  // namespace bftEngine
-
-#endif  // BFTENGINE_SRC_BCSTATETRANSFER_INMEMORYDATASTORE_HPP_

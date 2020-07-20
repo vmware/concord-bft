@@ -11,8 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 
-#ifndef CONCORD_BFT_MISC_HPP
-#define CONCORD_BFT_MISC_HPP
+#pragma once
 
 #include <chrono>
 
@@ -24,5 +23,3 @@ uint64_t get_monotonic_time() {
 
   return micro;
 }
-
-#endif  // CONCORD_BFT_MISC_HPP

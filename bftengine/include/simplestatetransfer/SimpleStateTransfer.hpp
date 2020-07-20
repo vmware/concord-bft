@@ -11,8 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef BFTENGINE_SRC_BCSTATETRANSFER_SIMPLESTATETRANSFER_HPP_
-#define BFTENGINE_SRC_BCSTATETRANSFER_SIMPLESTATETRANSFER_HPP_
+#pragma once
 
 #include <set>
 
@@ -32,5 +31,3 @@ ISimpleInMemoryStateTransfer* create(
 
 }  // namespace SimpleInMemoryStateTransfer
 }  // namespace bftEngine
-
-#endif  // BFTENGINE_SRC_BCSTATETRANSFER_SIMPLESTATETRANSFER_HPP_

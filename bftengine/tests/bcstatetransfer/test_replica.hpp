@@ -11,8 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef BFTENGINE_TESTS_BCSTATETRANSFER_TEST_REPLICA_HPP_
-#define BFTENGINE_TESTS_BCSTATETRANSFER_TEST_REPLICA_HPP_
+#pragma once
 
 #include <cstdlib>
 #include <cstring>
@@ -64,5 +63,3 @@ class TestReplica : public IReplicaForStateTransfer {
 }  // namespace SimpleBlockchainStateTransfer
 
 }  // namespace bftEngine
-
-#endif  // BFTENGINE_TESTS_BCSTATETRANSFER_TEST_REPLICA_HPP_

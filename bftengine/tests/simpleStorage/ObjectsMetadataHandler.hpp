@@ -11,8 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef OBJECTS_METADATA_HANDLER_HPP
-#define OBJECTS_METADATA_HANDLER_HPP
+#pragma once
 
 #include "MetadataStorageTypes.hpp"
 
@@ -39,5 +38,3 @@ class ObjectsMetadataHandler {
 };
 
 }  // namespace bftEngine
-
-#endif

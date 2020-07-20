@@ -11,8 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef ISTATE_TRANSFER_HPP
-#define ISTATE_TRANSFER_HPP
+#pragma once
 
 #include <cstdint>
 #include <string>
@@ -91,5 +90,3 @@ class IReplicaForStateTransfer {
   virtual ~IReplicaForStateTransfer() = default;
 };
 }  // namespace bftEngine
-
-#endif  // ISTATE_TRANSFER_HPP
