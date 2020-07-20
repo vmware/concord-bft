@@ -31,7 +31,6 @@
 #include <chrono>
 #include <mutex>
 #include <regex>
-#include <cassert>
 #include <deque>
 
 #include "boost/bind.hpp"
@@ -46,6 +45,7 @@
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 #include "Logger.hpp"
+#include "assertUtils.hpp"
 
 using namespace std;
 using namespace logging;
