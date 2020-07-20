@@ -227,7 +227,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         ro_replica_id = bft_network.config.n
         bft_network.start_replica(ro_replica_id)
 
-        self.__class__._start_s3_after_X_secs(5)
+        self.__class__._start_s3_after_X_secs(3)
 
         await skvbc.fill_and_wait_for_checkpoint(
             initial_nodes=bft_network.all_replicas(),
@@ -258,7 +258,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         bft_network.start_replica(ro_replica_id)
 
         self.__class__._stop_s3_server()
-        self.__class__._start_s3_after_X_secs(5)
+        self.__class__._start_s3_after_X_secs(3)
 
         await skvbc.fill_and_wait_for_checkpoint(
             initial_nodes=bft_network.all_replicas(),
