@@ -351,7 +351,7 @@ class CollectorOfThresholdSignatures {
       // TODO(GG): can utilize several threads (discuss with Alin)
 
       const uint16_t bufferSize = (uint16_t)verifier->requiredLengthForSignedData();
-      std::vector<char> const bufferForSigComputations(bufferSize);
+      std::vector<char> bufferForSigComputations(bufferSize);
 
       const auto& span_context_of_last_message =
           (reqDataItems - 1) ? sigDataItems[reqDataItems - 1].span_context : std::string{};
@@ -364,7 +364,7 @@ class CollectorOfThresholdSignatures {
 
         acc->setExpectedDigest(reinterpret_cast<unsigned char*>(expectedDigest.content()), DIGEST_SIZE);
 
-        acc->getFullSignedData(const_cast<char*>(bufferForSigComputations.data()), bufferSize);
+        acc->getFullSignedData(bufferForSigComputations.data(), bufferSize);
 
         verifier->release(acc);
       }

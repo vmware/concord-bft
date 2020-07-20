@@ -341,7 +341,7 @@ void ViewsManager::computeCorrectRelevantViewNumbers(ViewNum* outMaxKnownCorrect
   *outMaxKnownAgreedView = myLatestPendingView;
 
   size_t numOfVC = 0;
-  std::vector<ViewNum> viewNumbers(N * sizeof(ViewNum));
+  std::vector<ViewNum> viewNumbers(N);
   for (uint16_t i = 0; i < N; i++) {
     ViewChangeMsg* vc = viewChangeMessages[i];
     if (i == myId) vc = getMyLatestViewChangeMsg();
