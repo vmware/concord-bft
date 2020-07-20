@@ -419,6 +419,10 @@ void ReplicaImp::sendInternalNoopsPrePrepareMsg(CommitPath firstPath) {
 
 void ReplicaImp::bringTheSystemToTheNextCheckpointBySendingNoopsCommands(CommitPath firstPath) {
   if (!isCurrentPrimary()) return;
+  // TODO: According to Ittai, it is better to reach to the next next checkpoint to prevent the follwing:
+  // 1. The current sequence number is 290 (next checkpoint is 300)
+  // 2. We decide on 291 --> 291 + concurrency level - 1 (say 29)
+  // 3. We decide on 290
   while (primaryLastUsedSeqNum % checkpointWindowSize != 0) {
     sendInternalNoopsPrePrepareMsg(firstPath);
   }
@@ -3443,6 +3447,12 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
   auto span = concordUtils::startChildSpan("bft_execute_next_committed_requests", parent_span);
 
   while (lastExecutedSeqNum < lastStableSeqNum + kWorkWindowSize) {
+    if (!stopAtNextChecnpoint && controlStateManager_->getStopCheckpointToStopAt().has_value()) {
+      // If, following the last execution, we discover that we need to jump to the
+      // next checkpoint, the primary sends noop commands until filling the working window.
+      bringTheSystemToTheNextCheckpointBySendingNoopsCommands();
+      stopAtNextChecnpoint = true;
+    }
     SeqNum nextExecutedSeqNum = lastExecutedSeqNum + 1;
     SeqNumInfo &seqNumInfo = mainLog->get(nextExecutedSeqNum);
 
