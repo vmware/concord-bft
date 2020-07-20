@@ -136,7 +136,7 @@ bool FileStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint32_
                                                                            << maxFileSize);
   if (ftruncate(fileno(dataStream_), maxFileSize)) {
     LOG_ERROR(logger_, "Failed to truncate file: " << fileName_);
-    Assert(false);
+    ConcordAssert(false);
   }
   writeFileMetadata();
   LOG_DEBUG(logger_, "" << *objectsMetadata_);

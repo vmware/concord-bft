@@ -60,7 +60,7 @@ class SeqNumberGenerator {
     // shift lastMilli by 22 (0x3FFFFF) in order to 'bitwise or' with lastCount
     // and preserve uniqueness and monotonicity.
     uint64_t r = (lastMilliOfUniqueFetchID_ << (64 - 42));
-    Assert(lastCountOfUniqueFetchID_ <= LAST_COUNT_LIMIT);
+    ConcordAssert(lastCountOfUniqueFetchID_ <= LAST_COUNT_LIMIT);
     r = r | ((uint64_t)lastCountOfUniqueFetchID_);
 
     return r;

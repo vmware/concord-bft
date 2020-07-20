@@ -56,13 +56,14 @@ ReplicaStatusMsg::ReplicaStatusMsg(ReplicaId senderId,
                   MsgCode::ReplicaStatus,
                   spanContext.size(),
                   calcSizeOfReplicaStatusMsg(listOfPPInActiveWindow, listOfMissingVCForVC, listOfMissingPPForVC)) {
-  Assert(lastExecutedSeqNum >= lastStableSeqNum);
-  Assert(lastStableSeqNum % checkpointWindowSize == 0);
-  Assert(!viewIsActive || hasNewChangeMsg);         // viewIsActive --> hasNewChangeMsg
-  Assert(!viewIsActive || !listOfMissingVCForVC);   // viewIsActive --> !listOfMissingVCForVC
-  Assert(!viewIsActive || !listOfMissingPPForVC);   // viewIsActive --> !listOfMissingPPForVC
-  Assert(viewIsActive || !listOfPPInActiveWindow);  // !viewIsActive --> !listOfPPInActiveWindow
-  Assert((listOfPPInActiveWindow ? 1 : 0) + (listOfMissingVCForVC ? 1 : 0) + (listOfMissingPPForVC ? 1 : 0) <= 1);
+  ConcordAssert(lastExecutedSeqNum >= lastStableSeqNum);
+  ConcordAssert(lastStableSeqNum % checkpointWindowSize == 0);
+  ConcordAssert(!viewIsActive || hasNewChangeMsg);         // viewIsActive --> hasNewChangeMsg
+  ConcordAssert(!viewIsActive || !listOfMissingVCForVC);   // viewIsActive --> !listOfMissingVCForVC
+  ConcordAssert(!viewIsActive || !listOfMissingPPForVC);   // viewIsActive --> !listOfMissingPPForVC
+  ConcordAssert(viewIsActive || !listOfPPInActiveWindow);  // !viewIsActive --> !listOfPPInActiveWindow
+  ConcordAssert((listOfPPInActiveWindow ? 1 : 0) + (listOfMissingVCForVC ? 1 : 0) + (listOfMissingPPForVC ? 1 : 0) <=
+                1);
 
   b()->viewNumber = viewNumber;
   b()->lastStableSeqNum = lastStableSeqNum;
@@ -126,9 +127,9 @@ bool ReplicaStatusMsg::hasListOfMissingViewChangeMsgForViewChange() const { retu
 bool ReplicaStatusMsg::hasListOfMissingPrePrepareMsgForViewChange() const { return ((b()->flags & powersOf2[4]) != 0); }
 
 bool ReplicaStatusMsg::isPrePrepareInActiveWindow(SeqNum seqNum) const {
-  Assert(hasListOfPrePrepareMsgsInActiveWindow());
-  Assert(seqNum > b()->lastStableSeqNum);
-  Assert(seqNum <= b()->lastStableSeqNum + kWorkWindowSize);
+  ConcordAssert(hasListOfPrePrepareMsgsInActiveWindow());
+  ConcordAssert(seqNum > b()->lastStableSeqNum);
+  ConcordAssert(seqNum <= b()->lastStableSeqNum + kWorkWindowSize);
 
   size_t index = (size_t)(seqNum - b()->lastStableSeqNum - 1);
   size_t byteIndex = index / 8;
@@ -138,8 +139,8 @@ bool ReplicaStatusMsg::isPrePrepareInActiveWindow(SeqNum seqNum) const {
 }
 
 bool ReplicaStatusMsg::isMissingViewChangeMsgForViewChange(ReplicaId replicaId) const {
-  Assert(hasListOfMissingViewChangeMsgForViewChange());
-  Assert(replicaId < MaxNumberOfReplicas);
+  ConcordAssert(hasListOfMissingViewChangeMsgForViewChange());
+  ConcordAssert(replicaId < MaxNumberOfReplicas);
 
   size_t index = replicaId;
   size_t byteIndex = index / 8;
@@ -149,9 +150,9 @@ bool ReplicaStatusMsg::isMissingViewChangeMsgForViewChange(ReplicaId replicaId) 
 }
 
 bool ReplicaStatusMsg::isMissingPrePrepareMsgForViewChange(SeqNum seqNum) const {
-  Assert(hasListOfMissingPrePrepareMsgForViewChange());
-  Assert(seqNum > b()->lastStableSeqNum);
-  Assert(seqNum <= b()->lastStableSeqNum + kWorkWindowSize);
+  ConcordAssert(hasListOfMissingPrePrepareMsgForViewChange());
+  ConcordAssert(seqNum > b()->lastStableSeqNum);
+  ConcordAssert(seqNum <= b()->lastStableSeqNum + kWorkWindowSize);
 
   size_t index = (size_t)(seqNum - b()->lastStableSeqNum - 1);
   size_t byteIndex = index / 8;
@@ -161,9 +162,9 @@ bool ReplicaStatusMsg::isMissingPrePrepareMsgForViewChange(SeqNum seqNum) const 
 }
 
 void ReplicaStatusMsg::setPrePrepareInActiveWindow(SeqNum seqNum) const {
-  Assert(hasListOfPrePrepareMsgsInActiveWindow());
-  Assert(seqNum > b()->lastStableSeqNum);
-  Assert(seqNum <= b()->lastStableSeqNum + kWorkWindowSize);
+  ConcordAssert(hasListOfPrePrepareMsgsInActiveWindow());
+  ConcordAssert(seqNum > b()->lastStableSeqNum);
+  ConcordAssert(seqNum <= b()->lastStableSeqNum + kWorkWindowSize);
   size_t index = (size_t)(seqNum - b()->lastStableSeqNum - 1);
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
@@ -172,8 +173,8 @@ void ReplicaStatusMsg::setPrePrepareInActiveWindow(SeqNum seqNum) const {
 }
 
 void ReplicaStatusMsg::setMissingViewChangeMsgForViewChange(ReplicaId replicaId) {
-  Assert(hasListOfMissingViewChangeMsgForViewChange());
-  Assert(replicaId < MaxNumberOfReplicas);
+  ConcordAssert(hasListOfMissingViewChangeMsgForViewChange());
+  ConcordAssert(replicaId < MaxNumberOfReplicas);
   size_t index = replicaId;
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
@@ -182,9 +183,9 @@ void ReplicaStatusMsg::setMissingViewChangeMsgForViewChange(ReplicaId replicaId)
 }
 
 void ReplicaStatusMsg::setMissingPrePrepareMsgForViewChange(SeqNum seqNum) {
-  Assert(hasListOfMissingPrePrepareMsgForViewChange());
-  Assert(seqNum > b()->lastStableSeqNum);
-  Assert(seqNum <= b()->lastStableSeqNum + kWorkWindowSize);
+  ConcordAssert(hasListOfMissingPrePrepareMsgForViewChange());
+  ConcordAssert(seqNum > b()->lastStableSeqNum);
+  ConcordAssert(seqNum <= b()->lastStableSeqNum + kWorkWindowSize);
   size_t index = (size_t)(seqNum - b()->lastStableSeqNum - 1);
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;

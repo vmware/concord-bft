@@ -143,7 +143,7 @@ void DebugStatistics::clearCounters(DebugStatDesc& d) {
 #ifdef USE_TLS
 void DebugStatistics::initDebugStatisticsData() {
   ThreadLocalData* l = ThreadLocalData::Get();
-  Assert(l->debugStatData == nullptr);
+  ConcordAssert(l->debugStatData == nullptr);
   DebugStatDesc* dsd = new DebugStatDesc;
   l->debugStatData = dsd;
 }

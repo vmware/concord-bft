@@ -370,7 +370,7 @@ Status Client::rangeDel(const Sliver &_beginKey, const Sliver &_endKey) {
   }
 
   // Make sure that _beginKey comes before _endKey .
-  Assert(keyIsBefore(_beginKey, _endKey));
+  ConcordAssert(keyIsBefore(_beginKey, _endKey));
 
   const auto status =
       dbInstance_->DeleteRange(::rocksdb::WriteOptions(), nullptr, toRocksdbSlice(_beginKey), toRocksdbSlice(_endKey));

@@ -230,7 +230,7 @@ void parseAndPrint(const ::rocksdb::Slice &key, const ::rocksdb::Slice &val) {
     }
     default:
       LOG_ERROR(logger, "invalid key type: " << (char)aType);
-      Assert(false);
+      ConcordAssert(false);
 
   }  // switch
 }
@@ -245,7 +245,7 @@ void dumpAllValues() {
     //    printf("\n");
     parseAndPrint(it->key(), it->value());
   }
-  Assert(it->status().ok());
+  ConcordAssert(it->status().ok());
   delete it;
 }
 

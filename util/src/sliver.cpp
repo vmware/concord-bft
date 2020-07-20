@@ -37,7 +37,7 @@ Sliver::Sliver() : data_(shared_ptr<const char[]>()), offset_(0), length_(0) {}
 Sliver::Sliver(const char* data, const size_t length)
     : data_(std::shared_ptr<const char[]>(data)), offset_(0), length_(length) {
   // Data must be non-null.
-  Assert(data != nullptr);
+  ConcordAssert(data != nullptr);
 }
 
 /**
@@ -49,9 +49,9 @@ Sliver::Sliver(const Sliver& base, const size_t offset, const size_t length)
       offset_(base.offset_ + offset),
       length_(length) {
   // This sliver must start no later than the end of the base sliver.
-  Assert(offset <= base.length_);
+  ConcordAssert(offset <= base.length_);
   // This sliver must end no later than the end of the base sliver.
-  Assert(length <= base.length_ - offset);
+  ConcordAssert(length <= base.length_ - offset);
 }
 
 /**
@@ -80,7 +80,7 @@ Sliver Sliver::copy(const char* data, const size_t length) {
 char Sliver::operator[](const size_t offset) const {
   const size_t total_offset = offset_ + offset;
   // This offset must be within this sliver.
-  Assert(offset < length_);
+  ConcordAssert(offset < length_);
 
   // The data for the requested offset is that many bytes after the offset from
   // the base sliver.

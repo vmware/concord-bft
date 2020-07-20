@@ -166,27 +166,27 @@ SeqNumWindow seqNumWindow{1};
 CheckWindow checkWindow{0};
 
 void testInit() {
-  Assert(persistentStorageImp->getStoredVersion() == persistentStorageImp->getCurrentVersion());
-  Assert(persistentStorageImp->getLastExecutedSeqNum() == lastExecutedSeqNum);
-  Assert(persistentStorageImp->getPrimaryLastUsedSeqNum() == primaryLastUsedSeqNum);
-  Assert(persistentStorageImp->getStrictLowerBoundOfSeqNums() == strictLowerBoundOfSeqNums);
-  Assert(persistentStorageImp->getLastViewThatTransferredSeqNumbersFullyExecuted() == lastViewTransferredSeqNum);
-  Assert(persistentStorageImp->getLastStableSeqNum() == lastStableSeqNum);
+  ConcordAssert(persistentStorageImp->getStoredVersion() == persistentStorageImp->getCurrentVersion());
+  ConcordAssert(persistentStorageImp->getLastExecutedSeqNum() == lastExecutedSeqNum);
+  ConcordAssert(persistentStorageImp->getPrimaryLastUsedSeqNum() == primaryLastUsedSeqNum);
+  ConcordAssert(persistentStorageImp->getStrictLowerBoundOfSeqNums() == strictLowerBoundOfSeqNums);
+  ConcordAssert(persistentStorageImp->getLastViewThatTransferredSeqNumbersFullyExecuted() == lastViewTransferredSeqNum);
+  ConcordAssert(persistentStorageImp->getLastStableSeqNum() == lastStableSeqNum);
 
   DescriptorOfLastExitFromView lastExitFromView = persistentStorageImp->getAndAllocateDescriptorOfLastExitFromView();
-  Assert(lastExitFromView.equals(*descriptorOfLastExitFromView));
+  ConcordAssert(lastExitFromView.equals(*descriptorOfLastExitFromView));
   bool descHasSet = persistentStorageImp->hasDescriptorOfLastExitFromView();
-  Assert(!descHasSet);
+  ConcordAssert(!descHasSet);
 
   DescriptorOfLastNewView lastNewView = persistentStorageImp->getAndAllocateDescriptorOfLastNewView();
-  Assert(lastNewView.equals(*descriptorOfLastNewView));
+  ConcordAssert(lastNewView.equals(*descriptorOfLastNewView));
   descHasSet = persistentStorageImp->hasDescriptorOfLastNewView();
-  Assert(!descHasSet);
+  ConcordAssert(!descHasSet);
 
   DescriptorOfLastExecution lastExecution = persistentStorageImp->getDescriptorOfLastExecution();
-  Assert(lastExecution.equals(*descriptorOfLastExecution));
+  ConcordAssert(lastExecution.equals(*descriptorOfLastExecution));
   descHasSet = persistentStorageImp->hasDescriptorOfLastExecution();
-  Assert(!descHasSet);
+  ConcordAssert(!descHasSet);
 
   descriptorOfLastExitFromView->clean();
   lastExitFromView.clean();
@@ -194,10 +194,10 @@ void testInit() {
   lastNewView.clean();
 
   SharedPtrCheckWindow storedCheckWindow = persistentStorageImp->getCheckWindow();
-  Assert(storedCheckWindow.get()->equals(checkWindow));
+  ConcordAssert(storedCheckWindow.get()->equals(checkWindow));
 
   SharedPtrSeqNumWindow storedSeqNumWindow = persistentStorageImp->getSeqNumWindow();
-  Assert(storedSeqNumWindow.get()->equals(seqNumWindow));
+  ConcordAssert(storedSeqNumWindow.get()->equals(seqNumWindow));
 }
 
 void testCheckWindowSetUp(const SeqNum shift, bool toSet) {
@@ -231,16 +231,16 @@ void testCheckWindowSetUp(const SeqNum shift, bool toSet) {
   CheckData &element2 = checkWindowPtr.get()->getByRealIndex(2);
 
   if (!shift) {
-    Assert(element0.getCheckpointMsg()->equals(checkpointInitialMsg0));
-    Assert(completed == element0.getCompletedMark());
+    ConcordAssert(element0.getCheckpointMsg()->equals(checkpointInitialMsg0));
+    ConcordAssert(completed == element0.getCompletedMark());
   } else
-    Assert(element0.equals(CheckData()));
+    ConcordAssert(element0.equals(CheckData()));
 
-  Assert(element1.getCheckpointMsg()->equals(checkpointInitialMsg1));
-  Assert(element2.getCheckpointMsg()->equals(checkpointInitialMsg2));
+  ConcordAssert(element1.getCheckpointMsg()->equals(checkpointInitialMsg1));
+  ConcordAssert(element2.getCheckpointMsg()->equals(checkpointInitialMsg2));
 
-  Assert(completed == element1.getCompletedMark());
-  Assert(completed == element2.getCompletedMark());
+  ConcordAssert(completed == element1.getCompletedMark());
+  ConcordAssert(completed == element2.getCompletedMark());
 }
 
 void testSeqNumWindowSetUp(const SeqNum shift, bool toSet) {
@@ -294,30 +294,30 @@ void testSeqNumWindowSetUp(const SeqNum shift, bool toSet) {
 
     if (!shift) {
       if (prePrepareMsgSeqNumShifted == shiftedSeqNum - 1) {
-        Assert(prePrepareMsg->equals(prePrepareNullMsg));
+        ConcordAssert(prePrepareMsg->equals(prePrepareNullMsg));
       } else
-        Assert(!prePrepareMsg);
+        ConcordAssert(!prePrepareMsg);
 
       if (prePrepareFullSeqNumShifted == shiftedSeqNum - 1) {
-        Assert(prepareFullMsg->equals(*prePrepareFullInitialMsg));
+        ConcordAssert(prepareFullMsg->equals(*prePrepareFullInitialMsg));
       } else
-        Assert(!prepareFullMsg);
+        ConcordAssert(!prepareFullMsg);
 
-      if (commitFullSeqNumShifted == shiftedSeqNum - 1) Assert(forceCompleted == element.getForceCompleted());
-      if (slowStartedSeqNumShifted == shiftedSeqNum - 1) Assert(slowStarted == element.getSlowStarted());
+      if (commitFullSeqNumShifted == shiftedSeqNum - 1) ConcordAssert(forceCompleted == element.getForceCompleted());
+      if (slowStartedSeqNumShifted == shiftedSeqNum - 1) ConcordAssert(slowStarted == element.getSlowStarted());
     } else {
       if ((fullCommitProofSeqNumShifted != shiftedSeqNum - 1) && (commitFullSeqNumShifted != shiftedSeqNum - 1))
-        Assert(element.equals(emptySeqNumData));
+        ConcordAssert(element.equals(emptySeqNumData));
     }
     if (fullCommitProofSeqNumShifted == shiftedSeqNum - 1) {
-      Assert(fullCommitProofMsg->equals(fullCommitProofInitialMsg));
+      ConcordAssert(fullCommitProofMsg->equals(fullCommitProofInitialMsg));
     } else
-      Assert(!fullCommitProofMsg);
+      ConcordAssert(!fullCommitProofMsg);
 
     if (commitFullSeqNumShifted == shiftedSeqNum - 1) {
-      Assert(commitFullMsg->equals(*commitFullInitialMsg));
+      ConcordAssert(commitFullMsg->equals(*commitFullInitialMsg));
     } else
-      Assert(!commitFullMsg);
+      ConcordAssert(!commitFullMsg);
   }
 
   delete prePrepareFullInitialMsg;
@@ -335,7 +335,7 @@ void testWindowsAdvance() {
   persistentStorageImp->setLastStableSeqNum(moveToSeqNum);
   persistentStorageImp->endWriteTran();
 
-  Assert(moveToSeqNum == persistentStorageImp->getLastStableSeqNum());
+  ConcordAssert(moveToSeqNum == persistentStorageImp->getLastStableSeqNum());
   testCheckWindowSetUp(moveToSeqNum, false);
   testSeqNumWindowSetUp(moveToSeqNum, false);
 }
@@ -382,19 +382,19 @@ void testSetDescriptors(bool toSet) {
   }
 
   DescriptorOfLastExecution lastExecution = persistentStorageImp->getDescriptorOfLastExecution();
-  Assert(lastExecution.equals(lastExecutionDesc));
+  ConcordAssert(lastExecution.equals(lastExecutionDesc));
   bool descHasSet = persistentStorageImp->hasDescriptorOfLastExecution();
-  Assert(descHasSet);
+  ConcordAssert(descHasSet);
 
   DescriptorOfLastNewView lastNewView = persistentStorageImp->getAndAllocateDescriptorOfLastNewView();
-  Assert(lastNewView.equals(lastNewViewDesc));
+  ConcordAssert(lastNewView.equals(lastNewViewDesc));
   descHasSet = persistentStorageImp->hasDescriptorOfLastNewView();
-  Assert(descHasSet);
+  ConcordAssert(descHasSet);
 
   DescriptorOfLastExitFromView lastExitFromView = persistentStorageImp->getAndAllocateDescriptorOfLastExitFromView();
-  Assert(lastExitFromView.equals(lastExitFromViewDesc));
+  ConcordAssert(lastExitFromView.equals(lastExitFromViewDesc));
   descHasSet = persistentStorageImp->hasDescriptorOfLastExitFromView();
-  Assert(descHasSet);
+  ConcordAssert(descHasSet);
 
   for (auto *v : msgs) {
     delete v;
@@ -423,10 +423,10 @@ void testSetSimpleParams(bool toSet) {
     persistentStorageImp->endWriteTran();
   }
 
-  Assert(persistentStorageImp->getLastExecutedSeqNum() == lastExecSeqNum);
-  Assert(persistentStorageImp->getPrimaryLastUsedSeqNum() == lastUsedSeqNum);
-  Assert(persistentStorageImp->getStrictLowerBoundOfSeqNums() == lowBoundSeqNum);
-  Assert(persistentStorageImp->getLastViewThatTransferredSeqNumbersFullyExecuted() == view);
+  ConcordAssert(persistentStorageImp->getLastExecutedSeqNum() == lastExecSeqNum);
+  ConcordAssert(persistentStorageImp->getPrimaryLastUsedSeqNum() == lastUsedSeqNum);
+  ConcordAssert(persistentStorageImp->getStrictLowerBoundOfSeqNums() == lowBoundSeqNum);
+  ConcordAssert(persistentStorageImp->getLastViewThatTransferredSeqNumbersFullyExecuted() == view);
 }
 
 void fillReplicaConfig() {
@@ -473,7 +473,7 @@ void testSetReplicaConfig(bool toSet) {
   ReplicaConfig storedConfig = persistentStorageImp->getReplicaConfig();
   ReplicaConfigSerializer storedConfigSerializer(&storedConfig);
   ReplicaConfigSerializer replicaConfigSerializer(&config);
-  Assert(storedConfigSerializer == replicaConfigSerializer);
+  ConcordAssert(storedConfigSerializer == replicaConfigSerializer);
 }
 
 int main() {

@@ -113,7 +113,7 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
 
   if (!(flags & MsgFlag::HAS_PRE_PROCESSED_FLAG)) {
     bool result = verifyWriteCommand(requestSize, *writeReq, maxReplySize, outReplySize);
-    if (!result) Assert(0);
+    if (!result) ConcordAssert(0);
     if (flags & MsgFlag::PRE_PROCESS_FLAG) {
       if (writeReq->header.type == LONG_EXEC_COND_WRITE) sleep(LONG_EXEC_CMD_TIME_IN_SEC);
       outReplySize = requestSize;
@@ -143,11 +143,11 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
     addMetadataKeyValue(updates, sequenceNum);
     BlockId newBlockId = 0;
     Status addSuccess = m_blocksAppender->addBlock(updates, newBlockId);
-    Assert(addSuccess.isOK());
-    Assert(newBlockId == currBlock + 1);
+    ConcordAssert(addSuccess.isOK());
+    ConcordAssert(newBlockId == currBlock + 1);
   }
 
-  Assert(sizeof(SimpleReply_ConditionalWrite) <= maxReplySize);
+  ConcordAssert(sizeof(SimpleReply_ConditionalWrite) <= maxReplySize);
   auto *reply = (SimpleReply_ConditionalWrite *)outReply;
   reply->header.type = COND_WRITE;
   reply->success = (!hasConflict);

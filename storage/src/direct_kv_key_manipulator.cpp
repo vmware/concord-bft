@@ -111,9 +111,9 @@ Sliver STKeyManipulator::generateReservedPageKey(EDBKeyType keyType, uint32_t pa
 
 bool DBKeyGeneratorBase::copyToAndAdvance(
     char *_buf, size_t *_offset, size_t _maxOffset, const char *_src, const size_t &_srcSize) {
-  if (!_buf && !_offset && !_src) Assert(false);
+  if (!_buf && !_offset && !_src) ConcordAssert(false);
 
-  if (*_offset >= _maxOffset && _srcSize > 0) Assert(false);
+  if (*_offset >= _maxOffset && _srcSize > 0) ConcordAssert(false);
 
   memcpy(_buf + *_offset, _src, _srcSize);
   *_offset += _srcSize;
@@ -122,7 +122,7 @@ bool DBKeyGeneratorBase::copyToAndAdvance(
 }
 
 uint64_t STKeyManipulator::extractCheckPointFromKey(const char *_key_data, size_t _key_length) {
-  Assert(_key_length >= sizeof(uint64_t));
+  ConcordAssert(_key_length >= sizeof(uint64_t));
   uint64_t chkp = *(uint64_t *)(_key_data + 1);
 
   LOG_TRACE(logger(), "checkpoint " << chkp << " from key " << (HexPrintBuffer{_key_data, _key_length}));
@@ -131,7 +131,7 @@ uint64_t STKeyManipulator::extractCheckPointFromKey(const char *_key_data, size_
 
 std::pair<uint32_t, uint64_t> STKeyManipulator::extractPageIdAndCheckpointFromKey(const char *_key_data,
                                                                                   size_t _key_length) {
-  Assert(_key_length >= sizeof(uint32_t) + sizeof(uint64_t));
+  ConcordAssert(_key_length >= sizeof(uint32_t) + sizeof(uint64_t));
 
   uint32_t pageId = *(uint32_t *)(_key_data + 1);
   uint64_t chkp = *(uint64_t *)(_key_data + sizeof(uint32_t) + 1);

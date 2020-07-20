@@ -29,7 +29,7 @@ BasicRandomTestsRunner::BasicRandomTestsRunner(logging::Logger &logger, IClient 
     : logger_(logger), client_(client), numOfOperations_(numOfOperations) {
   // We have to start the client here, since construction of the TestsBuilder
   // uses the client.
-  Assert(!client_.isRunning());
+  ConcordAssert(!client_.isRunning());
   client_.start();
   testsBuilder_ = new TestsBuilder(logger_, client);
 }
@@ -45,7 +45,7 @@ void BasicRandomTestsRunner::run() {
 
   RequestsList requests = testsBuilder_->getRequests();
   RepliesList expectedReplies = testsBuilder_->getReplies();
-  Assert(requests.size() == expectedReplies.size());
+  ConcordAssert(requests.size() == expectedReplies.size());
 
   int ops = 0;
   while (!requests.empty()) {
@@ -64,7 +64,7 @@ void BasicRandomTestsRunner::run() {
 
     auto res = client_.invokeCommandSynch(
         (char *)request, requestSize, readOnly, seconds(0), expectedReplySize, reply.data(), &actualReplySize);
-    Assert(res.isOK());
+    ConcordAssert(res.isOK());
 
     if (isReplyCorrect(request->type, expectedReply, reply.data(), expectedReplySize, actualReplySize)) ops++;
   }
@@ -80,7 +80,7 @@ bool BasicRandomTestsRunner::isReplyCorrect(RequestType requestType,
                                             uint32_t actualReplySize) {
   if (actualReplySize != expectedReplySize) {
     LOG_ERROR(logger_, "*** Test failed: actual reply size != expected");
-    Assert(0);
+    ConcordAssert(0);
   }
   std::ostringstream error;
   switch (requestType) {
@@ -98,7 +98,7 @@ bool BasicRandomTestsRunner::isReplyCorrect(RequestType requestType,
   }
 
   LOG_ERROR(logger_, "*** Test failed: actual reply != expected; error: " << error.str());
-  Assert(0);
+  ConcordAssert(0);
   return false;
 }
 

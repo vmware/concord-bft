@@ -61,7 +61,7 @@ struct SlowElem {
   bool isNull() const { return (e == nullptr); }
 
   ViewChangeMsg::PreparedCertificate* c() const {
-    Assert(e->hasPreparedCertificate);
+    ConcordAssert(e->hasPreparedCertificate);
     char* p = (char*)e;
     p = p + sizeof(ViewChangeMsg::Element);
     return (ViewChangeMsg::PreparedCertificate*)p;
@@ -75,7 +75,7 @@ struct SlowElem {
 
   const char* certificateSig() const {
     ViewChangeMsg::PreparedCertificate* cert = c();
-    Assert(cert->certificateSigLength > 0);
+    ConcordAssert(cert->certificateSigLength > 0);
     char* p = (char*)cert;
     p = p + sizeof(ViewChangeMsg::PreparedCertificate);
     return p;
@@ -112,7 +112,7 @@ static bool checkSlowPathCertificates(std::set<SlowElem, SlowElemCompare>& slowP
       if (e.certificateView() > lastElement.certificateView()) return false;
 
       if (e.certificateView() == lastElement.certificateView()) {
-        Assert(e.seqNum() == lastElement.seqNum());
+        ConcordAssert(e.seqNum() == lastElement.seqNum());
         LOG_WARN(GL, "Found two conflicting prepared certificate for SeqNum " << e.seqNum());
       }
     }
@@ -133,7 +133,7 @@ ViewChangeSafetyLogic::ViewChangeSafetyLogic(const uint16_t n,
                                              IThresholdVerifier* const preparedCertificateVerifier,
                                              const Digest& digestOfNull)
     : N(n), F(f), C(c), preparedCertVerifier(preparedCertificateVerifier), nullDigest(digestOfNull) {
-  Assert(N == (3 * F + 2 * C + 1));
+  ConcordAssert(N == (3 * F + 2 * C + 1));
 }
 
 // TODO(GG): consider to optimize this method
@@ -152,18 +152,18 @@ SeqNum ViewChangeSafetyLogic::calcLBStableForView(ViewChangeMsg** const viewChan
     if (n == 0) {  // if this is the first message
       v = vc->newView();
     } else {
-      Assert(v == vc->newView())  // all VC messages should refer to the same view
+      ConcordAssert(v == vc->newView())  // all VC messages should refer to the same view
     }
 
     stableNumbers[n] = vc->lastStable();
     n++;
-    Assert(n <= INC_IN_VC);
+    ConcordAssert(n <= INC_IN_VC);
   }
-  Assert(n == INC_IN_VC);
+  ConcordAssert(n == INC_IN_VC);
 
   qsort(stableNumbers, INC_IN_VC, sizeof(SeqNum), compareSeqNumbers);
 
-  Assert(stableNumbers[0] >= stableNumbers[n - 1]);
+  ConcordAssert(stableNumbers[0] >= stableNumbers[n - 1]);
 
   const SeqNum lowerBoundOfLastStable = stableNumbers[(F + 1) - 1];
 
@@ -249,8 +249,8 @@ bool ViewChangeSafetyLogic::computeRestrictionsForSeqNum(SeqNum s,
                                                          vector<ViewChangeMsg::ElementsIterator*>& VCIterators,
                                                          const SeqNum upperBound,
                                                          Digest& outRestrictedDigest) const {
-  Assert(!VCIterators.empty());
-  Assert(s <= upperBound);
+  ConcordAssert(!VCIterators.empty());
+  ConcordAssert(s <= upperBound);
 
   std::set<SlowElem, SlowElemCompare> slowPathCertificates;
 
@@ -262,7 +262,7 @@ bool ViewChangeSafetyLogic::computeRestrictionsForSeqNum(SeqNum s,
     ViewChangeMsg::Element* elem = nullptr;
     bool validElem = currIter->getCurrent(elem);
 
-    Assert(validElem && elem->seqNum >= s);
+    ConcordAssert(validElem && elem->seqNum >= s);
 
     if ((elem->seqNum == s) && (elem->hasPreparedCertificate)) {
       SlowElem slow{elem};
@@ -270,14 +270,14 @@ bool ViewChangeSafetyLogic::computeRestrictionsForSeqNum(SeqNum s,
     }
   }
 
-  Assert(checkSlowPathCertificates(slowPathCertificates));  // for debug
+  ConcordAssert(checkSlowPathCertificates(slowPathCertificates));  // for debug
 
   // Select prepared certificate
 
   SlowElem selectedSlow{nullptr};
 
   for (SlowElem slow : slowPathCertificates) {
-    Assert(s == slow.seqNum());
+    ConcordAssert(s == slow.seqNum());
     Digest d;
     Digest::calcCombination(slow.prePrepreDigest(), slow.certificateView(), slow.seqNum(), d);
 
@@ -305,7 +305,7 @@ bool ViewChangeSafetyLogic::computeRestrictionsForSeqNum(SeqNum s,
     ViewChangeMsg::Element* elem = nullptr;
     bool validElem = currIter->getCurrent(elem);
 
-    Assert(validElem && elem->seqNum >= s);
+    ConcordAssert(validElem && elem->seqNum >= s);
 
     if ((elem->seqNum == s) && (elem->originView >= minRelevantFastView)) {
       FastElem fast{elem};
@@ -332,14 +332,14 @@ bool ViewChangeSafetyLogic::computeRestrictionsForSeqNum(SeqNum s,
 
     bool end = !currIter->getCurrent(elem);
 
-    Assert(!end);
+    ConcordAssert(!end);
 
     if (elem->seqNum > s) {
       currentIdx++;
       continue;
     }  // no need to advance iterator
 
-    Assert(elem->seqNum == s);
+    ConcordAssert(elem->seqNum == s);
 
     currIter->gotoNext();
 
@@ -353,7 +353,7 @@ bool ViewChangeSafetyLogic::computeRestrictionsForSeqNum(SeqNum s,
       IdxOfMaxLiveIterator--;
       VCIterators.pop_back();
 
-      Assert(VCIterators.size() == (IdxOfMaxLiveIterator + 1));  // TODO(GG): delete
+      ConcordAssert(VCIterators.size() == (IdxOfMaxLiveIterator + 1));  // TODO(GG): delete
     } else {
       currentIdx++;
     }

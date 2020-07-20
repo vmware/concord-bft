@@ -37,7 +37,7 @@ class SequenceWithActiveWindow {
 
  public:
   SequenceWithActiveWindow(NumbersType windowFirst, void *initData) {
-    Assert(windowFirst % Resolution == 0);
+    ConcordAssert(windowFirst % Resolution == 0);
 
     beginningOfActiveWindow = windowFirst;
 
@@ -56,8 +56,8 @@ class SequenceWithActiveWindow {
   }
 
   ItemType &get(NumbersType n) {
-    Assert(n % Resolution == 0);
-    Assert(insideActiveWindow(n));
+    ConcordAssert(n % Resolution == 0);
+    ConcordAssert(insideActiveWindow(n));
 
     uint16_t i = ((n / Resolution) % numItems);
     return activeWindow[i];
@@ -71,7 +71,7 @@ class SequenceWithActiveWindow {
   }
 
   void resetAll(NumbersType windowFirst) {
-    Assert(windowFirst % Resolution == 0);
+    ConcordAssert(windowFirst % Resolution == 0);
 
     for (uint16_t i = 0; i < numItems; i++) ItemFuncs::reset(activeWindow[i]);
 
@@ -79,8 +79,8 @@ class SequenceWithActiveWindow {
   }
 
   void advanceActiveWindow(NumbersType newFirstIndexOfActiveWindow) {
-    Assert(newFirstIndexOfActiveWindow % Resolution == 0);
-    Assert(newFirstIndexOfActiveWindow >= beginningOfActiveWindow);
+    ConcordAssert(newFirstIndexOfActiveWindow % Resolution == 0);
+    ConcordAssert(newFirstIndexOfActiveWindow >= beginningOfActiveWindow);
 
     if (newFirstIndexOfActiveWindow == beginningOfActiveWindow) return;
 
@@ -97,7 +97,7 @@ class SequenceWithActiveWindow {
 
     const uint16_t resetSize = (inactiveBegin <= inactiveEnd) ? (inactiveEnd - inactiveBegin + 1)
                                                               : (inactiveEnd + 1 + numItems - inactiveBegin);
-    Assert(resetSize > 0 && resetSize < numItems);
+    ConcordAssert(resetSize > 0 && resetSize < numItems);
 
     uint16_t debugNumOfReset = 0;
     for (uint16_t i = inactiveBegin; i != activeBegin; (i = ((i + 1) % numItems))) {
@@ -105,7 +105,7 @@ class SequenceWithActiveWindow {
       debugNumOfReset++;
     }
 
-    Assert(debugNumOfReset == resetSize);
+    ConcordAssert(debugNumOfReset == resetSize);
     beginningOfActiveWindow = newFirstIndexOfActiveWindow;
   }
 

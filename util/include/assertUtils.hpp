@@ -84,7 +84,7 @@ inline void printCallStack() {
     std::terminate();                                                                                           \
   }
 
-#define Assert(expr)                                                                                              \
+#define ConcordAssert(expr)                                                                                       \
   {                                                                                                               \
     if ((expr) != true) {                                                                                         \
       LOG_FATAL(GL,                                                                                               \
@@ -95,50 +95,50 @@ inline void printCallStack() {
     }                                                                                                             \
   }
 // Assert (expr1 == expr2)
-#define AssertEQ(expr1, expr2)                                               \
+#define ConcordAssertEQ(expr1, expr2)                                        \
   {                                                                          \
     if ((expr1) != (expr2)) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertEQ"); \
   }
 // Assert (expr1 != expr2)
-#define AssertNE(expr1, expr2)                                               \
+#define ConcordAssertNE(expr1, expr2)                                        \
   {                                                                          \
     if ((expr1) == (expr2)) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertNE"); \
   }
 // Assert (expr1 >= expr2)
-#define AssertGE(expr1, expr2)                                              \
+#define ConcordAssertGE(expr1, expr2)                                       \
   {                                                                         \
     if ((expr1) < (expr2)) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertGE"); \
   }
 
 // Assert (expr1 > expr2)
-#define AssertGT(expr1, expr2)                                               \
+#define ConcordAssertGT(expr1, expr2)                                        \
   {                                                                          \
     if ((expr1) <= (expr2)) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertGT"); \
   }
 
 // Assert (expr1 < expr2)
-#define AssertLT(expr1, expr2)                                               \
+#define ConcordAssertLT(expr1, expr2)                                        \
   {                                                                          \
     if ((expr1) >= (expr2)) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertLT"); \
   }
 
 // Assert (expr1 <= expr2)
-#define AssertLE(expr1, expr2)                                              \
+#define ConcordAssertLE(expr1, expr2)                                       \
   {                                                                         \
     if ((expr1) > (expr2)) PRINT_DATA_AND_ASSERT(expr1, expr2, "AssertLE"); \
   }
 
-// Assert(expr1 || expr2)
-#define AssertOR(expr1, expr2)                                                                         \
+// Assert (expr1 || expr2)
+#define ConcordAssertOR(expr1, expr2)                                                                  \
   {                                                                                                    \
     if ((expr1) != true && (expr2) != true) PRINT_DATA_AND_ASSERT_BOOL_EXPR(expr1, expr2, "AssertOR"); \
   }
 
-// Assert(expr1 && expr2)
+// Assert (expr1 && expr2)
 // TODO: AJS - Remove this. This is doesn't take advantage of value printing in
 // PRINT_DATA_AND_ASSERT. All uses should be changed to be separate asserts.
 // Ideally we'd do similar for AssertOR, but this requires conditionals outside of asserts.
-#define AssertAND(expr1, expr2)                                                                         \
+#define ConcordAssertAND(expr1, expr2)                                                                  \
   {                                                                                                     \
     if ((expr1) != true || (expr2) != true) PRINT_DATA_AND_ASSERT_BOOL_EXPR(expr1, expr2, "AssertAND"); \
   }

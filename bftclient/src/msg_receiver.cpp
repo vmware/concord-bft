@@ -86,7 +86,7 @@ void MsgReceiver::onNewMessage(const bft::communication::NodeNum source,
 }
 
 void MsgReceiver::activate(uint32_t max_reply_size) {
-  AssertNE(max_reply_size, 0);
+  ConcordAssertNE(max_reply_size, 0);
   max_reply_size_ = max_reply_size;
 }
 

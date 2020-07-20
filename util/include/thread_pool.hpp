@@ -32,7 +32,7 @@ class ThreadPool {
  public:
   // Starts the thread pool with thread_count > 0 threads.
   ThreadPool(unsigned int thread_count) noexcept {
-    Assert(thread_count > 0);
+    ConcordAssert(thread_count > 0);
     for (auto i = 0u; i < thread_count; ++i) {
       threads_.emplace_back([this]() { loop(); });
     }
@@ -86,7 +86,7 @@ class ThreadPool {
         task_queue_.cv.wait(lock);
       }
       if (task_queue_.stop) break;
-      Assert(!task_queue_.tasks.empty());
+      ConcordAssert(!task_queue_.tasks.empty());
       auto task = std::move(task_queue_.tasks.front());
       task_queue_.tasks.pop();
       lock.unlock();

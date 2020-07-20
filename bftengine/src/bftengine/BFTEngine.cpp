@@ -94,7 +94,7 @@ void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
     shared_ptr<PersistentStorage> persistentStorage(replicaImp->getPersistentStorage());
     ReplicaLoader::ErrorCode loadErrCode;
     LoadedReplicaData ld = ReplicaLoader::loadReplica(persistentStorage, loadErrCode);
-    Assert(loadErrCode == ReplicaLoader::ErrorCode::Success);
+    ConcordAssert(loadErrCode == ReplicaLoader::ErrorCode::Success);
 
     replica_.reset(new ReplicaImp(ld,
                                   replicaImp->getRequestsHandler(),

@@ -23,7 +23,7 @@ namespace impl {
 
 ClientsManager::ClientsManager(ReplicaId myId, std::set<NodeIdType>& clientsSet, uint32_t sizeOfReservedPage)
     : myId_(myId), sizeOfReservedPage_(sizeOfReservedPage), indexToClientInfo_(clientsSet.size()) {
-  Assert(clientsSet.size() >= 1);
+  ConcordAssert(clientsSet.size() >= 1);
 
   scratchPage_ = (char*)std::malloc(sizeOfReservedPage);
   memset(scratchPage_, 0, sizeOfReservedPage);
@@ -53,8 +53,8 @@ ClientsManager::ClientsManager(ReplicaId myId, std::set<NodeIdType>& clientsSet,
 ClientsManager::~ClientsManager() { std::free(scratchPage_); }
 
 void ClientsManager::init(IStateTransfer* stateTransfer) {
-  Assert(stateTransfer != nullptr);
-  Assert(stateTransfer_ == nullptr);
+  ConcordAssert(stateTransfer != nullptr);
+  ConcordAssert(stateTransfer_ == nullptr);
 
   stateTransfer_ = stateTransfer;
 }
@@ -72,11 +72,11 @@ void ClientsManager::loadInfoFromReservedPages() {
     if (!stateTransfer_->loadReservedPage(firstPageId, sizeOfReservedPage_, scratchPage_)) continue;
 
     ClientReplyMsgHeader* replyHeader = (ClientReplyMsgHeader*)scratchPage_;
-    Assert(replyHeader->msgType == 0 || replyHeader->msgType == MsgCode::ClientReply);
-    Assert(replyHeader->currentPrimaryId == 0);
-    Assert(replyHeader->replyLength >= 0);
-    Assert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <=
-           ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize());
+    ConcordAssert(replyHeader->msgType == 0 || replyHeader->msgType == MsgCode::ClientReply);
+    ConcordAssert(replyHeader->currentPrimaryId == 0);
+    ConcordAssert(replyHeader->replyLength >= 0);
+    ConcordAssert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <=
+                  ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize());
 
     ClientInfo& ci = indexToClientInfo_.at(e.second);
     ci.lastSeqNumberOfReply = replyHeader->reqSeqNum;
@@ -108,13 +108,13 @@ void ClientsManager::getInfoAboutLastReplyToClient(NodeIdType clientId, ReqId& o
 
 ClientReplyMsg* ClientsManager::allocateNewReplyMsgAndWriteToStorage(
     NodeIdType clientId, ReqId requestSeqNum, uint16_t currentPrimaryId, char* reply, uint32_t replyLength) {
-  // Assert(replyLength <= .... ) - TODO(GG)
+  // ConcordAssert(replyLength <= .... ) - TODO(GG)
 
   const uint16_t clientIdx = clientIdToIndex_.at(clientId);
 
   ClientInfo& c = indexToClientInfo_.at(clientIdx);
 
-  Assert(c.lastSeqNumberOfReply <= requestSeqNum);
+  ConcordAssert(c.lastSeqNumberOfReply <= requestSeqNum);
 
   c.lastSeqNumberOfReply = requestSeqNum;
   c.latestReplyTime = getMonotonicTime();
@@ -157,7 +157,7 @@ ClientReplyMsg* ClientsManager::allocateMsgWithLatestReply(NodeIdType clientId, 
 
   ClientInfo& info = indexToClientInfo_.at(clientIdx);
 
-  Assert(info.lastSeqNumberOfReply != 0);
+  ConcordAssert(info.lastSeqNumberOfReply != 0);
 
   const uint32_t firstPageId = clientIdx * reservedPagesPerClient_;
 
@@ -166,11 +166,11 @@ ClientReplyMsg* ClientsManager::allocateMsgWithLatestReply(NodeIdType clientId, 
   stateTransfer_->loadReservedPage(firstPageId, sizeOfReservedPage_, scratchPage_);
 
   ClientReplyMsgHeader* replyHeader = (ClientReplyMsgHeader*)scratchPage_;
-  Assert(replyHeader->msgType == MsgCode::ClientReply);
-  Assert(replyHeader->currentPrimaryId == 0);
-  Assert(replyHeader->replyLength > 0);
-  Assert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <=
-         ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize());
+  ConcordAssert(replyHeader->msgType == MsgCode::ClientReply);
+  ConcordAssert(replyHeader->currentPrimaryId == 0);
+  ConcordAssert(replyHeader->replyLength > 0);
+  ConcordAssert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <=
+                ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize());
 
   uint32_t replyMsgSize = sizeof(ClientReplyMsgHeader) + replyHeader->replyLength;
 
@@ -223,7 +223,7 @@ bool ClientsManager::isPendingOrLate(NodeIdType clientId, ReqId reqSeqNum) const
 void ClientsManager::addPendingRequest(NodeIdType clientId, ReqId reqSeqNum) {
   uint16_t idx = clientIdToIndex_.at(clientId);
   ClientInfo& c = indexToClientInfo_.at(idx);
-  Assert(reqSeqNum > c.lastSeqNumberOfReply && reqSeqNum > c.currentPendingRequest);
+  ConcordAssert(reqSeqNum > c.lastSeqNumberOfReply && reqSeqNum > c.currentPendingRequest);
 
   c.currentPendingRequest = reqSeqNum;
   c.timeOfCurrentPendingRequest = getMonotonicTime();
@@ -286,7 +286,7 @@ void ClientsManager::clearAllPendingRequests() {
     c.timeOfCurrentPendingRequest = MinTime;
   }
 
-  Assert(indexToClientInfo_[0].currentPendingRequest == 0);  // TODO(GG): debug
+  ConcordAssert(indexToClientInfo_[0].currentPendingRequest == 0);  // TODO(GG): debug
 }
 
 Time ClientsManager::timeOfEarliestPendingRequest() const  // TODO(GG): naive implementation - consider to optimize

@@ -29,7 +29,7 @@ class SHA3_256 {
   static constexpr size_t SIZE_IN_BYTES = 32;
   typedef std::array<uint8_t, SIZE_IN_BYTES> Digest;
 
-  SHA3_256() : ctx_(EVP_MD_CTX_new()) { Assert(ctx_ != nullptr); }
+  SHA3_256() : ctx_(EVP_MD_CTX_new()) { ConcordAssert(ctx_ != nullptr); }
 
   ~SHA3_256() { EVP_MD_CTX_destroy(ctx_); }
 
@@ -43,16 +43,16 @@ class SHA3_256 {
   // This is the simplest way to hash something as all setup is done for you.
   // Use the 3 method mechanism below if you need to hash multiple buffers.
   Digest digest(const void* buf, size_t size) {
-    Assert(!updating_);
-    Assert(EVP_MD_CTX_reset(ctx_) == 1);
-    Assert(EVP_DigestInit_ex(ctx_, EVP_sha3_256(), NULL) == 1);
+    ConcordAssert(!updating_);
+    ConcordAssert(EVP_MD_CTX_reset(ctx_) == 1);
+    ConcordAssert(EVP_DigestInit_ex(ctx_, EVP_sha3_256(), NULL) == 1);
 
-    Assert(EVP_DigestUpdate(ctx_, buf, size) == 1);
+    ConcordAssert(EVP_DigestUpdate(ctx_, buf, size) == 1);
 
     Digest digest;
     unsigned int _digest_len;
-    Assert(EVP_DigestFinal_ex(ctx_, digest.data(), &_digest_len) == 1);
-    Assert(_digest_len == SIZE_IN_BYTES);
+    ConcordAssert(EVP_DigestFinal_ex(ctx_, digest.data(), &_digest_len) == 1);
+    ConcordAssert(_digest_len == SIZE_IN_BYTES);
     return digest;
   }
 
@@ -60,23 +60,23 @@ class SHA3_256 {
   // continuously appending new data to be hashed.
 
   void init() {
-    Assert(!updating_);
-    Assert(EVP_MD_CTX_reset(ctx_) == 1);
-    Assert(EVP_DigestInit_ex(ctx_, EVP_sha3_256(), NULL) == 1);
+    ConcordAssert(!updating_);
+    ConcordAssert(EVP_MD_CTX_reset(ctx_) == 1);
+    ConcordAssert(EVP_DigestInit_ex(ctx_, EVP_sha3_256(), NULL) == 1);
     updating_ = true;
   }
 
   // Add more data to a digest.
   void update(const void* buf, size_t size) {
-    Assert(updating_);
-    Assert(EVP_DigestUpdate(ctx_, buf, size) == 1);
+    ConcordAssert(updating_);
+    ConcordAssert(EVP_DigestUpdate(ctx_, buf, size) == 1);
   }
 
   Digest finish() {
     Digest digest;
     unsigned int _digest_len;
-    Assert(EVP_DigestFinal_ex(ctx_, digest.data(), &_digest_len) == 1);
-    Assert(_digest_len == SIZE_IN_BYTES);
+    ConcordAssert(EVP_DigestFinal_ex(ctx_, digest.data(), &_digest_len) == 1);
+    ConcordAssert(_digest_len == SIZE_IN_BYTES);
     updating_ = false;
     return digest;
   }

@@ -44,7 +44,7 @@ ControllerWithSimpleHistory::ControllerWithSimpleHistory(
 // The starting index is initialized to the next sequence number,
 // that is a multiplication of EvaluationPeriod plus one.
 void ControllerWithSimpleHistory::onBecomePrimary(ViewNum v, SeqNum s) {
-  Assert(isPrimary);
+  ConcordAssert(isPrimary);
 
   SeqNum nextFirstRelevantSeqNum;
   if (s % EvaluationPeriod == 0)
@@ -73,7 +73,7 @@ uint32_t ControllerWithSimpleHistory::slowPathsTimerMilli() {
 }
 
 void ControllerWithSimpleHistory::onNewView(ViewNum v, SeqNum s) {
-  Assert(v >= currentView);
+  ConcordAssert(v >= currentView);
   currentView = v;
   isPrimary = ((currentView % numOfReplicas) == myId);
 
@@ -168,7 +168,8 @@ bool ControllerWithSimpleHistory::onEndOfEvaluationPeriod() {
       }
     }
   } else {
-    Assert(currentFirstPath == CommitPath::OPTIMISTIC_FAST || currentFirstPath == CommitPath::FAST_WITH_THRESHOLD);
+    ConcordAssert(currentFirstPath == CommitPath::OPTIMISTIC_FAST ||
+                  currentFirstPath == CommitPath::FAST_WITH_THRESHOLD);
 
     size_t successfulFastPaths = 0;
     for (SeqNum i = minSeq; i <= maxSeq; i++) {

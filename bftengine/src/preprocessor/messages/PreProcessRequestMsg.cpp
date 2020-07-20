@@ -40,8 +40,8 @@ PreProcessRequestMsg::PreProcessRequestMsg(NodeIdType senderId,
 }
 
 void PreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
-  Assert(type() == MsgCode::PreProcessRequest);
-  Assert(senderId() != repInfo.myId());
+  ConcordAssert(type() == MsgCode::PreProcessRequest);
+  ConcordAssert(senderId() != repInfo.myId());
 
   if (size() < (sizeof(Header)) ||
       size() < (sizeof(Header) + spanContextSize() + msgBody()->requestLength + msgBody()->cidLength))

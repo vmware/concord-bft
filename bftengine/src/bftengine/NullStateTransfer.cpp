@@ -20,7 +20,7 @@ namespace impl {
 void NullStateTransfer::init(uint64_t maxNumOfRequiredStoredCheckpoints,
                              uint32_t numberOfRequiredReservedPages,
                              uint32_t sizeOfReservedPage) {
-  Assert(!isInitialized());
+  ConcordAssert(!isInitialized());
 
   numOfReservedPages = numberOfRequiredReservedPages;
   sizeOfPage = sizeOfReservedPage;
@@ -29,20 +29,20 @@ void NullStateTransfer::init(uint64_t maxNumOfRequiredStoredCheckpoints,
 
   running = false;
 
-  Assert(reservedPages != nullptr);
+  ConcordAssert(reservedPages != nullptr);
 }
 
 void NullStateTransfer::startRunning(IReplicaForStateTransfer* r) {
-  Assert(isInitialized());
-  Assert(!running);
+  ConcordAssert(isInitialized());
+  ConcordAssert(!running);
 
   running = true;
   repApi = r;
 }
 
 void NullStateTransfer::stopRunning() {
-  Assert(isInitialized());
-  Assert(running);
+  ConcordAssert(isInitialized());
+  ConcordAssert(running);
 
   running = false;
 }
@@ -56,7 +56,7 @@ void NullStateTransfer::markCheckpointAsStable(uint64_t checkpointNumber) {}
 void NullStateTransfer::getDigestOfCheckpoint(uint64_t checkpointNumber,
                                               uint16_t sizeOfDigestBuffer,
                                               char* outDigestBuffer) {
-  Assert(sizeOfDigestBuffer >= sizeof(Digest));
+  ConcordAssert(sizeOfDigestBuffer >= sizeof(Digest));
   LOG_WARN(GL, "State digest is only based on sequence number (because state transfer module has not been loaded)");
 
   memset(outDigestBuffer, 0, sizeOfDigestBuffer);
@@ -84,7 +84,7 @@ uint32_t NullStateTransfer::numberOfReservedPages() const { return numOfReserved
 uint32_t NullStateTransfer::sizeOfReservedPage() const { return sizeOfPage; }
 
 bool NullStateTransfer::loadReservedPage(uint32_t reservedPageId, uint32_t copyLength, char* outReservedPage) const {
-  Assert(copyLength <= sizeOfPage);
+  ConcordAssert(copyLength <= sizeOfPage);
 
   char* page = reservedPages + (reservedPageId * sizeOfPage);
 
@@ -94,7 +94,7 @@ bool NullStateTransfer::loadReservedPage(uint32_t reservedPageId, uint32_t copyL
 }
 
 void NullStateTransfer::saveReservedPage(uint32_t reservedPageId, uint32_t copyLength, const char* inReservedPage) {
-  Assert(copyLength <= sizeOfPage);
+  ConcordAssert(copyLength <= sizeOfPage);
 
   char* page = reservedPages + (reservedPageId * sizeOfPage);
 

@@ -28,7 +28,7 @@ namespace impl {
 
 template <typename PART, typename FULL, typename ExternalFunc>
 // TODO(GG): consider to enforce the requirements from PART, FULL and ExternalFunc
-// TODO(GG): add Assert(ExternalFunc::numberOfRequiredSignatures(context) > 1);
+// TODO(GG): add ConcordAssert(ExternalFunc::numberOfRequiredSignatures(context) > 1);
 class CollectorOfThresholdSignatures {
  public:
   CollectorOfThresholdSignatures(void* cnt) { this->context = cnt; }
@@ -36,7 +36,7 @@ class CollectorOfThresholdSignatures {
   ~CollectorOfThresholdSignatures() { resetAndFree(); }
 
   bool addMsgWithPartialSignature(PART* partialSigMsg, ReplicaId repId) {
-    Assert(partialSigMsg != nullptr);
+    ConcordAssert(partialSigMsg != nullptr);
 
     if ((combinedValidSignatureMsg != nullptr) || (replicasInfo.count(repId) > 0)) return false;
 
@@ -62,9 +62,9 @@ class CollectorOfThresholdSignatures {
   }
 
   void setExpected(SeqNum seqNumber, ViewNum view, Digest& digest) {
-    Assert(seqNumber != 0);
-    Assert(expectedSeqNumber == 0);
-    Assert(!processingSignaturesInTheBackground);
+    ConcordAssert(seqNumber != 0);
+    ConcordAssert(expectedSeqNumber == 0);
+    ConcordAssert(!processingSignaturesInTheBackground);
 
     expectedSeqNumber = seqNumber;
     expectedView = view;
@@ -110,10 +110,10 @@ class CollectorOfThresholdSignatures {
                                           ViewNum view,
                                           const std::set<ReplicaId>& replicasWithBadSigs)  // if we found bad signatures
   {
-    Assert(expectedSeqNumber == seqNumber);
-    Assert(expectedView == view);
-    Assert(processingSignaturesInTheBackground);
-    Assert(combinedValidSignatureMsg == nullptr);
+    ConcordAssert(expectedSeqNumber == seqNumber);
+    ConcordAssert(expectedView == view);
+    ConcordAssert(processingSignaturesInTheBackground);
+    ConcordAssert(combinedValidSignatureMsg == nullptr);
 
     processingSignaturesInTheBackground = false;
 
@@ -132,10 +132,10 @@ class CollectorOfThresholdSignatures {
                                           uint16_t combinedSigLen,
                                           const std::string& span_context)  // if we compute a valid combined signature
   {
-    Assert(expectedSeqNumber == seqNumber);
-    Assert(expectedView == view);
-    Assert(processingSignaturesInTheBackground);
-    Assert(combinedValidSignatureMsg == nullptr);
+    ConcordAssert(expectedSeqNumber == seqNumber);
+    ConcordAssert(expectedView == view);
+    ConcordAssert(processingSignaturesInTheBackground);
+    ConcordAssert(combinedValidSignatureMsg == nullptr);
 
     processingSignaturesInTheBackground = false;
 
@@ -149,11 +149,11 @@ class CollectorOfThresholdSignatures {
   }
 
   void onCompletionOfCombinedSigVerification(SeqNum seqNumber, ViewNum view, bool isValid) {
-    Assert(expectedSeqNumber == seqNumber);
-    Assert(expectedView == view);
-    Assert(processingSignaturesInTheBackground);
-    Assert(combinedValidSignatureMsg == nullptr);
-    Assert(candidateCombinedSignatureMsg != nullptr);
+    ConcordAssert(expectedSeqNumber == seqNumber);
+    ConcordAssert(expectedView == view);
+    ConcordAssert(processingSignaturesInTheBackground);
+    ConcordAssert(combinedValidSignatureMsg == nullptr);
+    ConcordAssert(candidateCombinedSignatureMsg != nullptr);
 
     processingSignaturesInTheBackground = false;
 
@@ -170,9 +170,9 @@ class CollectorOfThresholdSignatures {
 
   // init the expected values (seqNum, view and digest) directly (without sending to a background thread)
   void initExpected(SeqNum seqNumber, ViewNum view, Digest& digest) {
-    Assert(seqNumber != 0);
-    Assert(expectedSeqNumber == 0);
-    Assert(!processingSignaturesInTheBackground);
+    ConcordAssert(seqNumber != 0);
+    ConcordAssert(expectedSeqNumber == 0);
+    ConcordAssert(!processingSignaturesInTheBackground);
 
     expectedSeqNumber = seqNumber;
     expectedView = view;
@@ -181,14 +181,14 @@ class CollectorOfThresholdSignatures {
 
   // init the PART message directly (without sending to a background thread)
   bool initMsgWithPartialSignature(PART* partialSigMsg, ReplicaId repId) {
-    Assert(partialSigMsg != nullptr);
+    ConcordAssert(partialSigMsg != nullptr);
 
-    Assert(!processingSignaturesInTheBackground);
-    Assert(expectedSeqNumber != 0);
-    Assert(combinedValidSignatureMsg == nullptr);
-    Assert(candidateCombinedSignatureMsg == nullptr);
-    Assert(replicasInfo.count(repId) == 0);
-    Assert(numberOfUnknownSignatures == 0);  // we can use this method to add at most one PART message
+    ConcordAssert(!processingSignaturesInTheBackground);
+    ConcordAssert(expectedSeqNumber != 0);
+    ConcordAssert(combinedValidSignatureMsg == nullptr);
+    ConcordAssert(candidateCombinedSignatureMsg == nullptr);
+    ConcordAssert(replicasInfo.count(repId) == 0);
+    ConcordAssert(numberOfUnknownSignatures == 0);  // we can use this method to add at most one PART message
 
     // add partialSigMsg to replicasInfo
     RepInfo info = {partialSigMsg, SigState::Unknown};
@@ -201,22 +201,22 @@ class CollectorOfThresholdSignatures {
     if (numOfRequiredSigs == 0)  // init numOfRequiredSigs
       numOfRequiredSigs = ExternalFunc::numberOfRequiredSignatures(context);
 
-    Assert(numberOfUnknownSignatures < numOfRequiredSigs);  // because numOfRequiredSigs > 1
+    ConcordAssert(numberOfUnknownSignatures < numOfRequiredSigs);  // because numOfRequiredSigs > 1
 
     return true;
   }
 
   // init the FULL message directly (without sending to a background thread)
   bool initMsgWithCombinedSignature(FULL* combinedSigMsg) {
-    Assert(!processingSignaturesInTheBackground);
-    Assert(expectedSeqNumber != 0);
-    Assert(combinedValidSignatureMsg == nullptr);
-    Assert(candidateCombinedSignatureMsg == nullptr);
+    ConcordAssert(!processingSignaturesInTheBackground);
+    ConcordAssert(expectedSeqNumber != 0);
+    ConcordAssert(combinedValidSignatureMsg == nullptr);
+    ConcordAssert(candidateCombinedSignatureMsg == nullptr);
 
     IThresholdVerifier* const verifier = ExternalFunc::thresholdVerifier(context);
     bool succ = verifier->verify(
         (char*)&expectedDigest, sizeof(Digest), combinedSigMsg->signatureBody(), combinedSigMsg->signatureLen());
-    Assert(succ);  // we should verify this signature when it is loaded
+    ConcordAssert(succ);  // we should verify this signature when it is loaded
 
     combinedValidSignatureMsg = combinedSigMsg;
 
@@ -225,7 +225,7 @@ class CollectorOfThresholdSignatures {
 
  protected:
   void trySendToBkThread() {
-    Assert(combinedValidSignatureMsg == nullptr);
+    ConcordAssert(combinedValidSignatureMsg == nullptr);
 
     if (numOfRequiredSigs == 0)  // init numOfRequiredSigs
       numOfRequiredSigs = ExternalFunc::numberOfRequiredSignatures(context);
@@ -270,7 +270,7 @@ class CollectorOfThresholdSignatures {
         if (numOfPartSigsInJob == numOfRequiredSigs) break;
       }
 
-      Assert(numOfPartSigsInJob == numOfRequiredSigs);
+      ConcordAssert(numOfPartSigsInJob == numOfRequiredSigs);
 
       ExternalFunc::threadPool(context).add(bkJob);
     }
@@ -321,7 +321,7 @@ class CollectorOfThresholdSignatures {
     }
 
     void add(ReplicaId srcRepId, const char* sigBody, uint16_t sigLength, const std::string& span_context) {
-      Assert(numOfDataItems < reqDataItems);
+      ConcordAssert(numOfDataItems < reqDataItems);
 
       SigData d;
       d.srcRepId = srcRepId;
@@ -346,7 +346,7 @@ class CollectorOfThresholdSignatures {
     }
 
     virtual void execute() override {
-      Assert(numOfDataItems == reqDataItems);
+      ConcordAssert(numOfDataItems == reqDataItems);
 
       // TODO(GG): can utilize several threads (discuss with Alin)
 

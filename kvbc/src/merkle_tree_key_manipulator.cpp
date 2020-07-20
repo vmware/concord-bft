@@ -64,7 +64,7 @@ Key DBKeyManipulator::genStaleDbKey(const Version &staleSinceVersion) {
 Key DBKeyManipulator::generateSTTempBlockKey(BlockId blockId) { return serialize(EBFTSubtype::STTempBlock, blockId); }
 
 BlockId DBKeyManipulator::extractBlockIdFromKey(const Key &key) {
-  Assert(key.length() > sizeof(BlockId));
+  ConcordAssert(key.length() > sizeof(BlockId));
 
   const auto offset = key.length() - sizeof(BlockId);
   const auto id = fromBigEndianBuffer<BlockId>(key.data() + offset);
@@ -77,37 +77,37 @@ BlockId DBKeyManipulator::extractBlockIdFromKey(const Key &key) {
 
 Hash DBKeyManipulator::extractHashFromLeafKey(const Key &key) {
   constexpr auto keyTypeOffset = sizeof(EDBKeyType) + sizeof(EKeySubtype);
-  Assert(key.length() > keyTypeOffset + Hash::SIZE_IN_BYTES);
-  Assert(DBKeyManipulator::getDBKeyType(key) == EDBKeyType::Key);
-  Assert(DBKeyManipulator::getKeySubtype(key) == EKeySubtype::Leaf);
+  ConcordAssert(key.length() > keyTypeOffset + Hash::SIZE_IN_BYTES);
+  ConcordAssert(DBKeyManipulator::getDBKeyType(key) == EDBKeyType::Key);
+  ConcordAssert(DBKeyManipulator::getKeySubtype(key) == EKeySubtype::Leaf);
   return Hash{reinterpret_cast<const uint8_t *>(key.data() + keyTypeOffset)};
 }
 
 Version DBKeyManipulator::extractVersionFromStaleKey(const Key &key) {
   constexpr auto keyTypeOffset = sizeof(EDBKeyType) + sizeof(EKeySubtype);
-  Assert(key.length() >= keyTypeOffset + Version::SIZE_IN_BYTES);
-  Assert(DBKeyManipulator::getDBKeyType(key) == EDBKeyType::Key);
-  Assert(DBKeyManipulator::getKeySubtype(key) == EKeySubtype::Stale);
+  ConcordAssert(key.length() >= keyTypeOffset + Version::SIZE_IN_BYTES);
+  ConcordAssert(DBKeyManipulator::getDBKeyType(key) == EDBKeyType::Key);
+  ConcordAssert(DBKeyManipulator::getKeySubtype(key) == EKeySubtype::Stale);
   return fromBigEndianBuffer<Version::Type>(key.data() + keyTypeOffset);
 }
 
 Key DBKeyManipulator::extractKeyFromStaleKey(const Key &key) {
   constexpr auto keyOffset = sizeof(EDBKeyType) + sizeof(EKeySubtype) + Version::SIZE_IN_BYTES;
-  Assert(key.length() > keyOffset);
-  Assert(DBKeyManipulator::getDBKeyType(key) == EDBKeyType::Key);
-  Assert(DBKeyManipulator::getKeySubtype(key) == EKeySubtype::Stale);
+  ConcordAssert(key.length() > keyOffset);
+  ConcordAssert(DBKeyManipulator::getDBKeyType(key) == EDBKeyType::Key);
+  ConcordAssert(DBKeyManipulator::getKeySubtype(key) == EKeySubtype::Stale);
   return Key{key, keyOffset, key.length() - keyOffset};
 }
 
 Version DBKeyManipulator::extractVersionFromInternalKey(const Key &key) {
   constexpr auto keyOffset = sizeof(EDBKeyType) + sizeof(EKeySubtype);
-  Assert(key.length() > keyOffset);
+  ConcordAssert(key.length() > keyOffset);
   return deserialize<InternalNodeKey>(Sliver{key, keyOffset, key.length() - keyOffset}).version();
 }
 
 // Undefined behavior if an incorrect type is read from the buffer.
 EDBKeyType DBKeyManipulator::getDBKeyType(const Sliver &s) {
-  Assert(!s.empty());
+  ConcordAssert(!s.empty());
 
   switch (s[0]) {
     case toChar(EDBKeyType::Block):
@@ -117,7 +117,7 @@ EDBKeyType DBKeyManipulator::getDBKeyType(const Sliver &s) {
     case toChar(EDBKeyType::BFT):
       return EDBKeyType::BFT;
   }
-  Assert(false);
+  ConcordAssert(false);
 
   // Dummy return to silence the compiler.
   return EDBKeyType::Block;
@@ -125,7 +125,7 @@ EDBKeyType DBKeyManipulator::getDBKeyType(const Sliver &s) {
 
 // Undefined behavior if an incorrect type is read from the buffer.
 EKeySubtype DBKeyManipulator::getKeySubtype(const Sliver &s) {
-  Assert(s.length() > 1);
+  ConcordAssert(s.length() > 1);
 
   switch (s[1]) {
     case toChar(EKeySubtype::Internal):
@@ -135,7 +135,7 @@ EKeySubtype DBKeyManipulator::getKeySubtype(const Sliver &s) {
     case toChar(EKeySubtype::Leaf):
       return EKeySubtype::Leaf;
   }
-  Assert(false);
+  ConcordAssert(false);
 
   // Dummy return to silence the compiler.
   return EKeySubtype::Internal;
@@ -143,7 +143,7 @@ EKeySubtype DBKeyManipulator::getKeySubtype(const Sliver &s) {
 
 // Undefined behavior if an incorrect type is read from the buffer.
 EBFTSubtype DBKeyManipulator::getBftSubtype(const Sliver &s) {
-  Assert(s.length() > 1);
+  ConcordAssert(s.length() > 1);
 
   switch (s[1]) {
     case toChar(EBFTSubtype::Metadata):
@@ -161,7 +161,7 @@ EBFTSubtype DBKeyManipulator::getBftSubtype(const Sliver &s) {
     case toChar(EBFTSubtype::STTempBlock):
       return EBFTSubtype::STTempBlock;
   }
-  Assert(false);
+  ConcordAssert(false);
 
   // Dummy return to silence the compiler.
   return EBFTSubtype::Metadata;

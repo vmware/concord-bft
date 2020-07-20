@@ -230,7 +230,7 @@ RawBlock DBAdapter::getRawBlock(const BlockId &blockId) const {
   }
 
   const auto blockNode = block::detail::parseNode(blockNodeSliver);
-  Assert(blockId == blockNode.blockId);
+  ConcordAssert(blockId == blockNode.blockId);
 
   auto keyValues = SetOfKeyValuePairs{};
   auto deletedKeys = OrderedKeysSet{};
@@ -240,11 +240,11 @@ RawBlock DBAdapter::getRawBlock(const BlockId &blockId) const {
       if (const auto status = db_->get(DBKeyManipulator::genDataDbKey(key, blockNode.stateRootVersion), value);
           !status.isOK()) {
         // If the key is not found, treat as corrupted storage and abort.
-        Assert(!status.isNotFound());
+        ConcordAssert(!status.isNotFound());
         throw std::runtime_error{"Failed to get value by key from DB, block node ID = " + std::to_string(blockId)};
       }
       const auto dbLeafVal = detail::deserialize<detail::DatabaseLeafValue>(value);
-      Assert(dbLeafVal.addedInBlockId == blockId);
+      ConcordAssert(dbLeafVal.addedInBlockId == blockId);
       keyValues[key] = dbLeafVal.leafNode.value;
     } else {
       deletedKeys.insert(key);
@@ -333,7 +333,7 @@ BatchedInternalNode DBAdapter::Reader::get_latest_root() const {
   auto blockNodeSliver = Sliver{};
   const auto getStatus = adapter_.getDb()->get(DBKeyManipulator::genBlockDbKey(lastBlock), blockNodeSliver);
   (void)getStatus;
-  Assert(getStatus.isOK());
+  ConcordAssert(getStatus.isOK());
   const auto stateRootVersion = detail::deserializeStateRootVersion(blockNodeSliver);
   if (stateRootVersion == 0) {
     // A version of 0 means that the tree is empty and we return an empty BatchedInternalNode in that case.

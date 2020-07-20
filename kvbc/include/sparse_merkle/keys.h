@@ -81,7 +81,7 @@ class LeafKey {
   std::string toString() const { return key_.toString() + "-" + version_.toString(); }
 
   Nibble getNibble(const size_t n) const {
-    Assert(n < Hash::MAX_NIBBLES);
+    ConcordAssert(n < Hash::MAX_NIBBLES);
     return key_.getNibble(n);
   }
 

@@ -20,7 +20,7 @@
 
 #define Verify(expr, errorCode) \
   {                             \
-    Assert(expr);               \
+    ConcordAssert(expr);        \
     if ((expr) != true) {       \
       return errorCode;         \
     }                           \
@@ -28,7 +28,7 @@
 
 #define VerifyOR(expr1, expr2, errorCode)     \
   {                                           \
-    AssertOR(expr1, expr2);                   \
+    ConcordAssertOR(expr1, expr2);            \
     if ((expr1) != true && (expr2) != true) { \
       return errorCode;                       \
     }                                         \
@@ -36,7 +36,7 @@
 
 #define VerifyAND(expr1, expr2, errorCode)    \
   {                                           \
-    AssertAND(expr1, expr2);                  \
+    ConcordAssertAND(expr1, expr2);           \
     if ((expr1) != true || (expr2) != true) { \
       return errorCode;                       \
     }                                         \
@@ -124,7 +124,7 @@ void setDynamicallyConfigurableParameters(ReplicaConfig &config) {
 }
 
 ReplicaLoader::ErrorCode loadConfig(shared_ptr<PersistentStorage> &p, LoadedReplicaData &ld) {
-  Assert(p != nullptr);
+  ConcordAssert(p != nullptr);
 
   Verify(p->hasReplicaConfig(), NoDataErr);
 
@@ -161,9 +161,9 @@ ReplicaLoader::ErrorCode checkViewDesc(const DescriptorOfLastExitFromView *exitD
 }
 
 ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedReplicaData &ld) {
-  Assert(p != nullptr);
-  Assert(ld.repsInfo != nullptr) Assert(ld.repConfig.thresholdVerifierForSlowPathCommit != nullptr);
-  Assert(ld.viewsManager == nullptr);
+  ConcordAssert(p != nullptr);
+  ConcordAssert(ld.repsInfo != nullptr) ConcordAssert(ld.repConfig.thresholdVerifierForSlowPathCommit != nullptr);
+  ConcordAssert(ld.viewsManager == nullptr);
 
   DescriptorOfLastExitFromView descriptorOfLastExitFromView;
   DescriptorOfLastNewView descriptorOfLastNewView;
@@ -193,8 +193,8 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
     viewsManager =
         ViewsManager::createInsideViewZero(ld.repsInfo, ld.sigManager, ld.repConfig.thresholdVerifierForSlowPathCommit);
 
-    Assert(viewsManager->latestActiveView() == 0);
-    Assert(viewsManager->viewIsActive(0));
+    ConcordAssert(viewsManager->latestActiveView() == 0);
+    ConcordAssert(viewsManager->viewIsActive(0));
 
     ld.maxSeqNumTransferredFromPrevViews = 0;
   } else if (hasDescLastExitFromView && !hasDescOfLastNewView) {
@@ -259,7 +259,7 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
 }
 
 ReplicaLoader::ErrorCode loadReplicaData(shared_ptr<PersistentStorage> p, LoadedReplicaData &ld) {
-  Assert(p != nullptr);
+  ConcordAssert(p != nullptr);
 
   ReplicaLoader::ErrorCode stat = loadConfig(p, ld);
 
@@ -364,7 +364,7 @@ ReplicaLoader::ErrorCode loadReplicaData(shared_ptr<PersistentStorage> p, Loaded
       Verify(d.executedSeqNum <= ld.lastStableSeqNum + kWorkWindowSize, InconsistentErr);
 
       uint64_t idx = d.executedSeqNum - ld.lastStableSeqNum - 1;
-      Assert(idx < kWorkWindowSize);
+      ConcordAssert(idx < kWorkWindowSize);
 
       const SeqNumData &e = ld.seqNumWinArr[idx];
 
@@ -400,7 +400,7 @@ void freeReplicaData(LoadedReplicaData &ld) {
 }  // namespace
 
 LoadedReplicaData ReplicaLoader::loadReplica(shared_ptr<PersistentStorage> &p, ReplicaLoader::ErrorCode &outErrCode) {
-  Assert(p != nullptr);
+  ConcordAssert(p != nullptr);
   LoadedReplicaData ld;
   outErrCode = loadReplicaData(p, ld);
 

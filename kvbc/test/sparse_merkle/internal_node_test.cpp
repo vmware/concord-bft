@@ -21,7 +21,7 @@ using namespace concord::kvbc::sparse_merkle;
 // Flip a given bit starting from the most significant bit. So bit 0 to be
 // flipped would be the first bit, bit 1, the second bit, etc...
 Hash flipByte0Bit(size_t bit, const Hash& hash) {
-  Assert(bit < 8);
+  ConcordAssert(bit < 8);
   // Flip the first bit so that key1_hash becomes a sibling of key2_hash
   std::array<uint8_t, Hash::SIZE_IN_BYTES> flipped;
   std::copy(hash.data(), hash.data() + hash.size(), flipped.begin());

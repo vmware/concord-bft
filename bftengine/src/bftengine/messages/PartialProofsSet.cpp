@@ -64,11 +64,11 @@ void PartialProofsSet::resetAndFree() {
 void PartialProofsSet::addSelfMsgAndPPDigest(PartialCommitProofMsg* m, Digest& digest) {
   const ReplicaId myId = m->senderId();
 
-  Assert(m != nullptr && myId == replica->getReplicasInfo().myId());
-  Assert(seqNumber == 0);
-  Assert(expectedDigest.isZero());
-  Assert(selfPartialCommitProof == nullptr);
-  Assert(fullCommitProof == nullptr);
+  ConcordAssert(m != nullptr && myId == replica->getReplicasInfo().myId());
+  ConcordAssert(seqNumber == 0);
+  ConcordAssert(expectedDigest.isZero());
+  ConcordAssert(selfPartialCommitProof == nullptr);
+  ConcordAssert(fullCommitProof == nullptr);
 
   seqNumber = m->seqNumber();
   expectedDigest = digest;
@@ -84,9 +84,9 @@ void PartialProofsSet::addSelfMsgAndPPDigest(PartialCommitProofMsg* m, Digest& d
 bool PartialProofsSet::addMsg(PartialCommitProofMsg* m) {
   const ReplicaId repId = m->senderId();
 
-  Assert(m != nullptr && repId != replica->getReplicasInfo().myId());
-  Assert((seqNumber == 0) || (seqNumber == m->seqNumber()));
-  Assert(replica->getReplicasInfo().isIdOfReplica(repId));
+  ConcordAssert(m != nullptr && repId != replica->getReplicasInfo().myId());
+  ConcordAssert((seqNumber == 0) || (seqNumber == m->seqNumber()));
+  ConcordAssert(replica->getReplicasInfo().isIdOfReplica(repId));
 
   CommitPath cPath = m->commitPath();
 
@@ -150,7 +150,7 @@ void PartialProofsSet::setTimeOfSelfPartialProof(const Time& t) { timeOfSelfPart
 Time PartialProofsSet::getTimeOfSelfPartialProof() { return timeOfSelfPartialProof; }
 
 bool PartialProofsSet::addMsg(FullCommitProofMsg* m) {
-  Assert(m != nullptr);
+  ConcordAssert(m != nullptr);
 
   if (fullCommitProof != nullptr) return false;
 
@@ -261,7 +261,7 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
 };
 
 void PartialProofsSet::tryToCreateFullProof() {
-  Assert(fullCommitProof == nullptr);
+  ConcordAssert(fullCommitProof == nullptr);
 
   if (selfPartialCommitProof == nullptr) return;
 
@@ -280,7 +280,7 @@ void PartialProofsSet::tryToCreateFullProof() {
 
   if (!ready) return;
 
-  Assert(thresholdAccumulator != nullptr);
+  ConcordAssert(thresholdAccumulator != nullptr);
 
   {
     IThresholdAccumulator* acc = thresholdAccumulator->clone();
@@ -309,7 +309,7 @@ IThresholdVerifier* PartialProofsSet::thresholdVerifier(CommitPath cPath) {
     //} else {
   }
 
-  Assert(verifier != nullptr);
+  ConcordAssert(verifier != nullptr);
 
   return verifier;
 }

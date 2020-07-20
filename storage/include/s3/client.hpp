@@ -157,7 +157,7 @@ class Client : public concord::storage::IDBClient {
   concordUtils::Status del(const concordUtils::Sliver& key) override;
 
   concordUtils::Status multiGet(const KeysVector& _keysVec, OUT ValuesVector& _valuesVec) override {
-    Assert(_keysVec.size() == _valuesVec.size());
+    ConcordAssert(_keysVec.size() == _valuesVec.size());
 
     for (KeysVector::size_type i = 0; i < _keysVec.size(); ++i)
       if (Status s = get(_keysVec[i], _valuesVec[i]); !s.isOK()) return s;
@@ -181,7 +181,7 @@ class Client : public concord::storage::IDBClient {
   bool isNew() override { throw std::logic_error("isNew()  Not implemented for S3 object store"); }
 
   IDBClient::IDBClientIterator* getIterator() const override {
-    Assert("getIterator() Not implemented for ECS S3 object store" && false);
+    ConcordAssert("getIterator() Not implemented for ECS S3 object store" && false);
     throw std::logic_error("getIterator() Not implemented for ECS S3 object store");
   }
 
