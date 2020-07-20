@@ -13,8 +13,7 @@
 //
 // This file provides functionality for configuration file parsing.
 
-#ifndef CONFIG_FILE_PARSER_HPP
-#define CONFIG_FILE_PARSER_HPP
+#pragma once
 
 #include "Logger.hpp"
 
@@ -53,5 +52,3 @@ class ConfigFileParser {
   ParamsMultiMap parameters_map_;
   logging::Logger& logger_;
 };
-
-#endif

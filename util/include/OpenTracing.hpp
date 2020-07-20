@@ -10,8 +10,7 @@
 // terms and conditions of the subcomponent's license,
 // as noted in the LICENSE file.
 
-#ifndef OPENTRACING_UTILS_HPP
-#define OPENTRACING_UTILS_HPP
+#pragma once
 
 #ifdef USE_OPENTRACING
 #include <memory>
@@ -75,4 +74,3 @@ SpanWrapper startSpan(const std::string& operation_name);
 SpanWrapper startChildSpan(const std::string& child_operation_name, const SpanWrapper& parent_span);
 SpanWrapper startChildSpanFromContext(const SpanContext& context, const std::string& child_operation_name);
 }  // namespace concordUtils
-#endif /* end of include guard: OPENTRACING_UTILS_HPP */

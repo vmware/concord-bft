@@ -11,8 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 
-#ifndef CONCORD_BFT_METRICS_HPP
-#define CONCORD_BFT_METRICS_HPP
+#pragma once
 
 #include <stdint.h>
 #include <map>
@@ -219,5 +218,3 @@ typedef concordMetrics::Component::Handle<concordMetrics::Status> StatusHandle;
 typedef concordMetrics::Component::Handle<concordMetrics::Counter> CounterHandle;
 
 }  // namespace concordMetrics
-
-#endif  // CONCORD_BFT_METRICS_HPP

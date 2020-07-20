@@ -4,8 +4,7 @@
  * Status stores the result of an operation.
  */
 
-#ifndef CONCORD_BFT_UTIL_STATUS_HPP_
-#define CONCORD_BFT_UTIL_STATUS_HPP_
+#pragma once
 
 #include <string>
 
@@ -65,5 +64,3 @@ class Status {
 std::ostream& operator<<(std::ostream& s, Status const& status);
 
 }  // namespace concordUtils
-
-#endif  // CONCORD_BFT_UTIL_STATUS_HPP_

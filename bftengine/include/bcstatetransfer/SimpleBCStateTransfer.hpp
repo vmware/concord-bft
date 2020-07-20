@@ -11,8 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef BFTENGINE_SRC_BCSTATETRANSFER_SIMPLEBCSTATETRANSFER_HPP_
-#define BFTENGINE_SRC_BCSTATETRANSFER_SIMPLEBCSTATETRANSFER_HPP_
+#pragma once
 
 #include <array>
 #include <cstdint>
@@ -144,5 +143,3 @@ IStateTransfer *create(const Config &config,
 
 }  // namespace SimpleBlockchainStateTransfer
 }  // namespace bftEngine
-
-#endif  // BFTENGINE_SRC_BCSTATETRANSFER_SIMPLEBCSTATETRANSFER_HPP_

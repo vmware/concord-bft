@@ -11,8 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef BFTENGINE_SRC_BCSTATETRANSFER_STDIGEST_HPP_
-#define BFTENGINE_SRC_BCSTATETRANSFER_STDIGEST_HPP_
+#pragma once
 
 #include <memory.h>
 #include <stdint.h>
@@ -83,5 +82,3 @@ class DigestContext {
 }  // namespace impl
 }  // namespace SimpleBlockchainStateTransfer
 }  // namespace bftEngine
-
-#endif  // BFTENGINE_SRC_BCSTATETRANSFER_STDIGEST_HPP_

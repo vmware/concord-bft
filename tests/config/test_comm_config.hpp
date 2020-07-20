@@ -14,8 +14,7 @@
 // This file includes functionality that both the client and the replica use,
 // to set up communications and signatures.
 
-#ifndef TEST_COMM_CONFIG_HPP
-#define TEST_COMM_CONFIG_HPP
+#pragma once
 
 #include "itest_comm_config.hpp"
 
@@ -74,5 +73,3 @@ class TestCommConfig : public ITestCommConfig {
   static const std::string default_listen_ip_;
   static const char* ip_port_delimiter_;
 };
-
-#endif

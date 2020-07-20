@@ -11,8 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef BFTENGINE_SRC_BCSTATETRANSFER_MSGCERTIFICATE_HPP_
-#define BFTENGINE_SRC_BCSTATETRANSFER_MSGCERTIFICATE_HPP_
+#pragma once
 
 #include <stdint.h>
 
@@ -359,5 +358,3 @@ std::forward_list<uint16_t> MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAl
 }  // namespace impl
 }  // namespace SimpleBlockchainStateTransfer
 }  // namespace bftEngine
-
-#endif  // BFTENGINE_SRC_BCSTATETRANSFER_MSGCERTIFICATE_HPP_

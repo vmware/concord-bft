@@ -1,7 +1,6 @@
 // Copyright 2018 VMware, all rights reserved
 
-#ifndef CONCORD_BFT_UTIL_HEX_TOOLS_H_
-#define CONCORD_BFT_UTIL_HEX_TOOLS_H_
+#pragma once
 
 #include <stdio.h>
 
@@ -36,5 +35,3 @@ std::string bufferToHex(const std::uint8_t *data, size_t size);
 std::string sliverToHex(const Sliver &sliver);
 
 }  // namespace concordUtils
-
-#endif  // CONCORD_BFT_UTIL_HEX_TOOLS_H_

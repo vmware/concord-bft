@@ -11,8 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef INTERNAL_COMMANDS_HANDLER_HPP
-#define INTERNAL_COMMANDS_HANDLER_HPP
+#pragma once
 
 #include "Logger.hpp"
 #include "OpenTracing.hpp"
@@ -85,5 +84,3 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   size_t m_getLastBlockCounter = 0;
   std::shared_ptr<bftEngine::ControlStateManager> controlStateManager_;
 };
-
-#endif

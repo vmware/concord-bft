@@ -11,6 +11,8 @@
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 
+#pragma once
+
 #include <stdint.h>
 #include <memory>
 #include <thread>
@@ -20,9 +22,6 @@
 
 #include "Logger.hpp"
 #include "Metrics.hpp"
-
-#ifndef CONCORD_BFT_METRICS_SERVER_HPP
-#define CONCORD_BFT_METRICS_SERVER_HPP
 
 #define MAX_MSG_SIZE 64 * 1024  // 64k
 
@@ -76,5 +75,3 @@ class Server {
 };
 
 }  // namespace concordMetrics
-
-#endif  // CONCORD_BFT_METRICS_SERVER_HPP
