@@ -131,7 +131,7 @@ std::vector<UnmatchedReply> unmatched_replies(uint16_t n,
                                               ReplyMetadata metadata,
                                               const Msg& msg,
                                               const std::vector<ReplicaSpecificInfo>& rsi) {
-  Assert(n <= rsi.size());
+  ConcordAssert(n <= rsi.size());
   std::vector<UnmatchedReply> replies;
   for (uint16_t i = 0; i < n; i++) {
     replies.emplace_back(UnmatchedReply{metadata, msg, rsi[i]});

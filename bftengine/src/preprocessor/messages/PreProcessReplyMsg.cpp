@@ -31,13 +31,13 @@ PreProcessReplyMsg::PreProcessReplyMsg(SigManagerSharedPtr sigManager,
 }
 
 void PreProcessReplyMsg::validate(const ReplicasInfo& repInfo) const {
-  Assert(type() == MsgCode::PreProcessReply);
+  ConcordAssert(type() == MsgCode::PreProcessReply);
 
   const uint64_t headerSize = sizeof(Header);
   if (size() < headerSize || size() < headerSize + msgBody()->replyLength) throw runtime_error(__PRETTY_FUNCTION__);
 
   auto& msgHeader = *msgBody();
-  Assert(msgHeader.senderId != repInfo.myId());
+  ConcordAssert(msgHeader.senderId != repInfo.myId());
 
   uint16_t sigLen = sigManager_->getSigLength(msgHeader.senderId);
   if (size() < (sizeof(Header) + sigLen)) throw runtime_error(__PRETTY_FUNCTION__ + string(": size"));

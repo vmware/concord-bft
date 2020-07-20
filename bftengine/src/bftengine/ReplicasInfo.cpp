@@ -41,7 +41,7 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
           if (i != config.replicaId) ret.insert(i);
         return ret;
       }()} {
-  Assert(_numberOfReplicas == (3 * _fVal + 2 * _cVal + 1));
+  ConcordAssert(_numberOfReplicas == (3 * _fVal + 2 * _cVal + 1));
 }
 
 bool ReplicasInfo::getCollectorsForPartialProofs(const ReplicaId refReplica,

@@ -20,7 +20,7 @@ namespace kvbc {
 namespace sparse_merkle {
 
 void BatchedInternalNode::updateHashes(size_t index, Version version) {
-  Assert(index > 0);
+  ConcordAssert(index > 0);
   auto hasher = Hasher();
 
   while (true) {
@@ -127,7 +127,7 @@ BatchedInternalNode::InsertResult BatchedInternalNode::splitNode(size_t index, c
 
   // How many prefix bits do the two leaf key hashes have in common?
   auto prefix_bits_in_common = stored_leaf_child.key.hash().prefix_bits_in_common(child.key.hash(), depth);
-  Assert(prefix_bits_in_common > 0);
+  ConcordAssert(prefix_bits_in_common > 0);
 
   // Fill in this node with any necessary internal children.
   Nibble child_key = child.key.hash().getNibble(depth);
@@ -228,12 +228,12 @@ BatchedInternalNode::RemoveResult BatchedInternalNode::removeLeafChild(size_t in
                                                                        Version new_version,
                                                                        Version removed_version,
                                                                        size_t depth) {
-  Assert(index != 0);
+  ConcordAssert(index != 0);
   children_[index] = std::nullopt;
   auto peer_index = peerIndex(index);
   if (!peer_index) {
     // Only the root remains.
-    Assert(1 == numChildren());
+    ConcordAssert(1 == numChildren());
     updateHashes(index, new_version);
     return RemoveBatchedInternalNode(removed_version);
   }
@@ -314,12 +314,12 @@ std::optional<LeafChild> BatchedInternalNode::unlinkChild(Nibble child_key,
     if (!parent_index) {
       // We reached the root, so this BatchedInternalNode is going to be deleted.
       if (!children_[index]) {
-        Assert(numChildren() == 0);
+        ConcordAssert(numChildren() == 0);
         return std::nullopt;
       }
       auto rv = std::get<LeafChild>(children_[index].value());
       children_[index] = std::nullopt;
-      Assert(numChildren() == 0);
+      ConcordAssert(numChildren() == 0);
       return rv;
     }
     if (peer_index) {

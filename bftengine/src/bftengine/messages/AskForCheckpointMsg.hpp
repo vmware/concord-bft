@@ -28,8 +28,8 @@ class AskForCheckpointMsg : public MessageBase {
   AskForCheckpointMsg* clone() { return new AskForCheckpointMsg(*this); }
 
   void validate(const ReplicasInfo& repInfo) const override {
-    Assert(type() == MsgCode::AskForCheckpoint);
-    Assert(senderId() != repInfo.myId());
+    ConcordAssert(type() == MsgCode::AskForCheckpoint);
+    ConcordAssert(senderId() != repInfo.myId());
 
     if (size() > sizeof(Header) + spanContextSize()) {
       throw std::runtime_error(__PRETTY_FUNCTION__);

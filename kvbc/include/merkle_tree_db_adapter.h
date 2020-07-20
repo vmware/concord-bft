@@ -223,7 +223,7 @@ struct DatabaseLeafValue {
                     const sparse_merkle::LeafNode &pLeafNode,
                     BlockIdType pDeletedInBlockId)
       : addedInBlockId{pAddedInBlockId}, leafNode{pLeafNode}, deletedInBlockId{pDeletedInBlockId} {
-    Assert(pDeletedInBlockId != INVALID_BLOCK_ID);
+    ConcordAssert(pDeletedInBlockId != INVALID_BLOCK_ID);
   }
 
   // The block ID this value was added in.

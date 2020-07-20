@@ -36,13 +36,13 @@ void NewViewMsg::addElement(ReplicaId replicaId, Digest& viewChangeDigest) {
 
   // TODO(GG): we should reject configurations that may violate this assert. TODO(GG): we need something similar for the
   // VC message
-  Assert(requiredSize <=
-         ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize());  // not enough space in the message
+  ConcordAssert(requiredSize <=
+                ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize());  // not enough space in the message
 
   auto elements = elementsArray();
 
   // IDs should be unique and sorted
-  Assert((currNumOfElements == 0) || (replicaId > elements[currNumOfElements - 1].replicaId));
+  ConcordAssert((currNumOfElements == 0) || (replicaId > elements[currNumOfElements - 1].replicaId));
 
   elements[currNumOfElements].replicaId = replicaId;
   elements[currNumOfElements].viewChangeDigest = viewChangeDigest;
@@ -56,7 +56,7 @@ void NewViewMsg::finalizeMessage(const ReplicasInfo& repInfo) {
   const uint16_t F = repInfo.fVal();
   const uint16_t C = repInfo.cVal();
 
-  Assert(numOfElements == (2 * F + 2 * C + 1));
+  ConcordAssert(numOfElements == (2 * F + 2 * C + 1));
 
   const uint16_t tSize = sizeof(Header) + (numOfElements * sizeof(NewViewElement)) + spanContextSize();
 

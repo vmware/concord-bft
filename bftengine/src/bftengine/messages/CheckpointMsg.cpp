@@ -26,8 +26,8 @@ CheckpointMsg::CheckpointMsg(
 }
 
 void CheckpointMsg::validate(const ReplicasInfo& repInfo) const {
-  Assert(type() == MsgCode::Checkpoint);
-  Assert(senderId() != repInfo.myId());
+  ConcordAssert(type() == MsgCode::Checkpoint);
+  ConcordAssert(senderId() != repInfo.myId());
 
   if (size() < sizeof(Header) + spanContextSize() || (!repInfo.isIdOfReplica(senderId())) ||
       (seqNumber() % checkpointWindowSize != 0) || (digestOfState().isZero()))

@@ -119,7 +119,7 @@ void ReadOnlyReplica::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
       tableItrator++;
     }
   }
-  Assert(numRelevant == tableOfStableCheckpoints.size());
+  ConcordAssert(numRelevant == tableOfStableCheckpoints.size());
   LOG_INFO(GL, "numRelevant=" << numRelevant);
 
   // if enough - invoke state transfer

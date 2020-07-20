@@ -31,7 +31,7 @@ using namespace std;
   {                                                                     \
     if (!(statement)) {                                                 \
       LOG_FATAL(clientLogger, "assert fail with message: " << message); \
-      Assert(false);                                                    \
+      ConcordAssert(false);                                             \
     }                                                                   \
   }
 

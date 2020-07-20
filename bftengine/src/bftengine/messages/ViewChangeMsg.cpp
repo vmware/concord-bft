@@ -37,7 +37,7 @@ ViewChangeMsg::ViewChangeMsg(ReplicaId srcReplicaId,
 }
 
 void ViewChangeMsg::setNewViewNumber(ViewNum newView) {
-  Assert(newView >= b()->newView);
+  ConcordAssert(newView >= b()->newView);
   b()->newView = newView;
 }
 
@@ -54,14 +54,14 @@ void ViewChangeMsg::addElement(SeqNum seqNum,
                                ViewNum certificateView,
                                uint16_t certificateSigLength,
                                const char* certificateSig) {
-  Assert(b()->numberOfElements < kWorkWindowSize);
-  Assert(b()->numberOfElements > 0 || b()->locationAfterLast == 0);
-  Assert(seqNum > b()->lastStable);
-  Assert(seqNum <= b()->lastStable + kWorkWindowSize);
+  ConcordAssert(b()->numberOfElements < kWorkWindowSize);
+  ConcordAssert(b()->numberOfElements > 0 || b()->locationAfterLast == 0);
+  ConcordAssert(seqNum > b()->lastStable);
+  ConcordAssert(seqNum <= b()->lastStable + kWorkWindowSize);
 
   if (b()->locationAfterLast == 0)  // if this is the first element
   {
-    Assert(b()->numberOfElements == 0);
+    ConcordAssert(b()->numberOfElements == 0);
     b()->locationAfterLast = sizeof(Header) + spanContextSize();
   }
 
@@ -70,7 +70,7 @@ void ViewChangeMsg::addElement(SeqNum seqNum,
 
   // TODO(GG): we should make sure that this assert will never be violated (by calculating the maximum  size of a
   // ViewChangeMsg message required for the actual configuration)
-  Assert((size_t)(requiredSpace + ViewsManager::sigManager_->getMySigLength()) <= (size_t)internalStorageSize());
+  ConcordAssert((size_t)(requiredSpace + ViewsManager::sigManager_->getMySigLength()) <= (size_t)internalStorageSize());
 
   Element* pElement = (Element*)(body() + b()->locationAfterLast);
   pElement->seqNum = seqNum;
@@ -105,7 +105,7 @@ void ViewChangeMsg::finalizeMessage() {
 
   bool b = checkElements((uint16_t)sigSize);
 
-  Assert(b);
+  ConcordAssert(b);
 }
 
 void ViewChangeMsg::validate(const ReplicasInfo& repInfo) const {
@@ -183,14 +183,14 @@ ViewChangeMsg::ElementsIterator::ElementsIterator(const ViewChangeMsg* const m) 
   } else {
     endLoc = m->b()->locationAfterLast;
     currLoc = sizeof(Header) + m->spanContextSize();
-    Assert(endLoc > currLoc);
+    ConcordAssert(endLoc > currLoc);
     nextElementNum = 1;
   }
 }
 
 bool ViewChangeMsg::ElementsIterator::end() {
   if (currLoc >= endLoc) {
-    Assert(msg == nullptr || ((nextElementNum - 1) == msg->numberOfElements()));
+    ConcordAssert(msg == nullptr || ((nextElementNum - 1) == msg->numberOfElements()));
     return true;
   }
 
@@ -204,14 +204,14 @@ bool ViewChangeMsg::ElementsIterator::getCurrent(Element*& pElement) {
 
   const uint16_t remainingbytes = (endLoc - currLoc);
 
-  Assert(remainingbytes >= sizeof(Element));
+  ConcordAssert(remainingbytes >= sizeof(Element));
 
   pElement = (Element*)(msg->body() + currLoc);
 
   if (pElement->hasPreparedCertificate) {
-    Assert(remainingbytes >= sizeof(Element) + sizeof(PreparedCertificate));
+    ConcordAssert(remainingbytes >= sizeof(Element) + sizeof(PreparedCertificate));
     PreparedCertificate* pCert = (PreparedCertificate*)(msg->body() + currLoc + sizeof(Element));
-    Assert(remainingbytes >= sizeof(Element) + sizeof(PreparedCertificate) + pCert->certificateSigLength);
+    ConcordAssert(remainingbytes >= sizeof(Element) + sizeof(PreparedCertificate) + pCert->certificateSigLength);
   }
 
   return true;
@@ -231,18 +231,18 @@ bool ViewChangeMsg::ElementsIterator::getAndGoToNext(Element*& pElement) {
 
   const uint16_t remainingbytes = (endLoc - currLoc);
 
-  Assert(remainingbytes >= sizeof(Element));
+  ConcordAssert(remainingbytes >= sizeof(Element));
 
   Element* p = (Element*)(msg->body() + currLoc);
 
   currLoc += sizeof(Element);
 
   if (p->hasPreparedCertificate) {
-    Assert(remainingbytes >= sizeof(Element) + sizeof(PreparedCertificate));
+    ConcordAssert(remainingbytes >= sizeof(Element) + sizeof(PreparedCertificate));
 
     PreparedCertificate* pCert = (PreparedCertificate*)(msg->body() + currLoc);
 
-    Assert(remainingbytes >= sizeof(Element) + sizeof(PreparedCertificate) + pCert->certificateSigLength);
+    ConcordAssert(remainingbytes >= sizeof(Element) + sizeof(PreparedCertificate) + pCert->certificateSigLength);
 
     currLoc += (sizeof(PreparedCertificate) + pCert->certificateSigLength);
   }

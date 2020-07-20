@@ -46,7 +46,7 @@ void handleCollision(Walker& walker, const LeafChild& stored_child, const LeafCh
 // the insert will succeed.
 void insert(Walker& walker, const LeafChild& child) {
   while (true) {
-    Assert(walker.depth() < Hash::MAX_NIBBLES);
+    ConcordAssert(walker.depth() < Hash::MAX_NIBBLES);
 
     auto result = walker.currentNode().insert(child, walker.depth(), walker.version());
 
@@ -74,7 +74,7 @@ void removeBatchedInternalNode(Walker& walker, const std::optional<LeafChild>& p
   // have walked back up the tree.
   if (promoted_after_unlink) {
     auto insertResult = walker.currentNode().insert(promoted_after_unlink.value(), walker.depth(), walker.version());
-    Assert(std::holds_alternative<BatchedInternalNode::InsertComplete>(insertResult));
+    ConcordAssert(std::holds_alternative<BatchedInternalNode::InsertComplete>(insertResult));
     walker.ascendToRoot();
   } else {
     if (walker.atRoot() && walker.currentNode().safeToRemove()) {
@@ -90,7 +90,7 @@ void removeBatchedInternalNode(Walker& walker, const std::optional<LeafChild>& p
 
 void remove(Walker& walker, const Hash& key_hash) {
   while (true) {
-    Assert(walker.depth() < Hash::MAX_NIBBLES);
+    ConcordAssert(walker.depth() < Hash::MAX_NIBBLES);
 
     auto result = walker.currentNode().remove(key_hash, walker.depth(), walker.version());
 

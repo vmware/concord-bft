@@ -21,18 +21,18 @@ SigManager::SigManager(ReplicaId myId,
                        const PrivateKeyDesc& mySigPrivateKey,
                        const std::set<PublicKeyDesc>& replicasSigPublicKeys)
     : myId_{myId} {
-  // Assert(replicasSigPublicKeys.size() == numberOfReplicasAndClients); TODO(GG): change - here we don't care about
-  // client signatures
+  // ConcordAssert(replicasSigPublicKeys.size() == numberOfReplicasAndClients); TODO(GG): change - here we don't care
+  // about client signatures
 
   mySigner_ = new RSASigner(mySigPrivateKey.c_str());
 
   for (const PublicKeyDesc& p : replicasSigPublicKeys) {
-    Assert(replicasVerifiers_.count(p.first) == 0);
+    ConcordAssert(replicasVerifiers_.count(p.first) == 0);
 
     RSAVerifier* verifier = new RSAVerifier(p.second.c_str());
     replicasVerifiers_[p.first] = verifier;
 
-    Assert(p.first != myId || mySigner_->signatureLength() == verifier->signatureLength());
+    ConcordAssert(p.first != myId || mySigner_->signatureLength() == verifier->signatureLength());
   }
 }
 
@@ -46,7 +46,7 @@ uint16_t SigManager::getSigLength(ReplicaId replicaId) const {
     return (uint16_t)mySigner_->signatureLength();
   } else {
     auto pos = replicasVerifiers_.find(replicaId);
-    Assert(pos != replicasVerifiers_.end());
+    ConcordAssert(pos != replicasVerifiers_.end());
 
     RSAVerifier* verifier = pos->second;
 
@@ -57,7 +57,7 @@ uint16_t SigManager::getSigLength(ReplicaId replicaId) const {
 bool SigManager::verifySig(
     ReplicaId replicaId, const char* data, size_t dataLength, const char* sig, uint16_t sigLength) const {
   auto pos = replicasVerifiers_.find(replicaId);
-  Assert(pos != replicasVerifiers_.end());
+  ConcordAssert(pos != replicasVerifiers_.end());
 
   RSAVerifier* verifier = pos->second;
 
@@ -69,7 +69,7 @@ bool SigManager::verifySig(
 void SigManager::sign(const char* data, size_t dataLength, char* outSig, uint16_t outSigLength) const {
   size_t actualSigSize = 0;
   mySigner_->sign(data, dataLength, outSig, outSigLength, actualSigSize);
-  Assert(outSigLength == actualSigSize);
+  ConcordAssert(outSigLength == actualSigSize);
 }
 
 uint16_t SigManager::getMySigLength() const { return (uint16_t)mySigner_->signatureLength(); }

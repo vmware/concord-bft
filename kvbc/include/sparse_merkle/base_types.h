@@ -42,7 +42,7 @@ class Version {
   bool operator<(const Version& other) const { return value_ < other.value_; }
   Version operator+(const Version& other) const { return Version(value_ + other.value_); }
   Version operator+(const int other) const {
-    Assert(other > 0);
+    ConcordAssert(other > 0);
     return Version(value_ + other);
   }
   Type value() const { return value_; }
@@ -59,14 +59,14 @@ class Nibble {
   static constexpr size_t SIZE_IN_BITS = 4;
 
   Nibble(uint8_t byte) {
-    Assert((byte & 0xF0) == 0);
+    ConcordAssert((byte & 0xF0) == 0);
     data_ = byte;
   }
 
   // Get the bit of the Nibble starting from LSB.
   // Bits 0-3 are available.
   bool getBit(size_t bit) const {
-    Assert(bit < SIZE_IN_BITS);
+    ConcordAssert(bit < SIZE_IN_BITS);
     return (data_ >> bit) & 1;
   }
 
@@ -165,8 +165,8 @@ class Hash {
   void setNibble(const size_t n, Nibble nibble) { ::concord::kvbc::sparse_merkle::setNibble(n, buf_, nibble); }
 
   Nibble getNibble(const size_t n) const {
-    Assert(!buf_.empty());
-    Assert(n < MAX_NIBBLES);
+    ConcordAssert(!buf_.empty());
+    ConcordAssert(n < MAX_NIBBLES);
     return ::concord::kvbc::sparse_merkle::getNibble(n, buf_);
   }
 
@@ -196,7 +196,7 @@ class Hash {
   //
   // TODO: This can be optimized to only start searching from depth
   size_t prefix_bits_in_common(const Hash& other, size_t depth) const {
-    Assert(depth < Hash::MAX_NIBBLES);
+    ConcordAssert(depth < Hash::MAX_NIBBLES);
     auto total = prefix_bits_in_common(other);
     auto bits_to_depth = depth * Nibble::SIZE_IN_BITS;
     if (total > bits_to_depth) {
@@ -240,8 +240,8 @@ class NibblePath {
  public:
   NibblePath() : num_nibbles_(0) {}
   NibblePath(size_t num_nibbles, const std::vector<uint8_t>& path) : num_nibbles_(num_nibbles), path_(path) {
-    Assert(num_nibbles < Hash::MAX_NIBBLES);
-    Assert(path.size() == (num_nibbles % 2 ? (num_nibbles + 1) / 2 : num_nibbles / 2));
+    ConcordAssert(num_nibbles < Hash::MAX_NIBBLES);
+    ConcordAssert(path.size() == (num_nibbles % 2 ? (num_nibbles + 1) / 2 : num_nibbles / 2));
   }
 
   bool operator==(const NibblePath& other) const { return num_nibbles_ == other.num_nibbles_ && path_ == other.path_; }
@@ -270,7 +270,7 @@ class NibblePath {
   // Append a nibble to the path_
   void append(Nibble nibble) {
     // We don't want a NibblePath to ever be longer than a Hash
-    Assert(num_nibbles_ < Hash::MAX_NIBBLES - 1);
+    ConcordAssert(num_nibbles_ < Hash::MAX_NIBBLES - 1);
     if (num_nibbles_ % 2 == 0) {
       path_.push_back(nibble.data() << Nibble::SIZE_IN_BITS);
     } else {
@@ -281,7 +281,7 @@ class NibblePath {
 
   // Return the last nibble off the path
   Nibble back() const {
-    Assert(!empty());
+    ConcordAssert(!empty());
     if (num_nibbles_ % 2 == 0) {
       // We have a complete byte at the end of path_. Remove the lower nibble.
       return path_.back() & 0x0F;
@@ -292,7 +292,7 @@ class NibblePath {
 
   // Pop the last nibble off the path
   Nibble popBack() {
-    Assert(!empty());
+    ConcordAssert(!empty());
     uint8_t data = 0;
     if (num_nibbles_ % 2 == 0) {
       // We have a complete byte at the end of path_. Remove the lower nibble.
@@ -311,7 +311,7 @@ class NibblePath {
 
   // Get the nth nibble.
   Nibble get(size_t n) const {
-    Assert(n < num_nibbles_);
+    ConcordAssert(n < num_nibbles_);
     return ::concord::kvbc::sparse_merkle::getNibble(n, path_);
   }
 

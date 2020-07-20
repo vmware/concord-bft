@@ -163,7 +163,7 @@ Status Client::rangeDel(const Sliver &_beginKey, const Sliver &_endKey) {
   }
 
   // Make sure that _beginKey comes before _endKey .
-  Assert(comp_(_beginKey, _endKey));
+  ConcordAssert(comp_(_beginKey, _endKey));
 
   auto beginIt = map_.lower_bound(_beginKey);
   if (beginIt == std::end(map_)) {

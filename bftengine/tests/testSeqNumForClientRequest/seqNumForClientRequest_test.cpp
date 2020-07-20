@@ -45,7 +45,7 @@ TEST(seqNumForClientRequest_test, monotonicity_check) {
   }
 
   // Checks that generated SN is monotonically increasing.
-  Assert(is_sorted(seqNums.begin(), seqNums.end()));
+  ConcordAssert(is_sorted(seqNums.begin(), seqNums.end()));
   now.operator+=(std::chrono::hours(24));
   auto newSeqNum = seqNumGen->generateUniqueSequenceNumberForRequest(now);
   auto lastSeqNum = seqNums.back();
@@ -65,7 +65,7 @@ TEST(seqNumForClientRequest_test, send_requests_same_time_uniqueness_preserved) 
   }
 
   // assert 10 unique SN was generated, although practically sent at the same time.
-  Assert(seqNums.size() == 10);
+  ConcordAssert(seqNums.size() == 10);
   delete seqNumGen;
 }
 

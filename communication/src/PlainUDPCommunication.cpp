@@ -105,8 +105,8 @@ class PlainUDPCommunication::PlainUdpImpl {
         endpoints{config.nodes},
         statusCallback{config.statusCallback},
         selfId{config.selfId} {
-    Assert((config.listenPort > 0) && "Port should not be negative!");
-    Assert((config.nodes.size() > 0) && "No communication endpoints specified!");
+    ConcordAssert((config.listenPort > 0) && "Port should not be negative!");
+    ConcordAssert((config.nodes.size() > 0) && "No communication endpoints specified!");
 
     LOG_DEBUG(
         _logger,
@@ -175,7 +175,7 @@ class PlainUDPCommunication::PlainUdpImpl {
       LOG_FATAL(_logger,
                 "Error while binding: IP=" << sAddr.sin_addr.s_addr << ", Port=" << sAddr.sin_port
                                            << ", errno=" << concordUtils::errnoString(errno));
-      Assert(false && "Failure occurred while binding the socket!");
+      ConcordAssert(false && "Failure occurred while binding the socket!");
       exit(1);  // TODO(GG): not really ..... change this !
     }
 
@@ -245,9 +245,9 @@ class PlainUDPCommunication::PlainUdpImpl {
 
     const Addr *to = &nodes2addresses[destNode];
 
-    Assert((to != NULL) && "The destination endpoint does not exist!");
-    Assert((messageLength > 0) && "The message length must be positive!");
-    Assert((message != NULL) && "No message provided!");
+    ConcordAssert((to != NULL) && "The destination endpoint does not exist!");
+    ConcordAssert((messageLength > 0) && "The message length must be positive!");
+    ConcordAssert((message != NULL) && "No message provided!");
 
     LOG_DEBUG(_logger,
               " Sending " << messageLength << " bytes to " << destNode << " (" << inet_ntoa(to->sin_addr) << ":"
@@ -305,8 +305,8 @@ class PlainUDPCommunication::PlainUdpImpl {
   }
 
   void recvThreadRoutine() {
-    Assert((udpSockFd != 0) && "Unable to start receiving: socket not define!");
-    Assert((receiverRef != 0) && "Unable to start receiving: receiver not defined!");
+    ConcordAssert((udpSockFd != 0) && "Unable to start receiving: socket not define!");
+    ConcordAssert((receiverRef != 0) && "Unable to start receiving: receiver not defined!");
 
     /** The main receive loop. */
     Addr fromAddress;

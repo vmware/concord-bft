@@ -28,7 +28,7 @@ SHA3_256::Digest string_to_array(const char* s) {
 
   for (size_t i = 0; i < SHA3_256::SIZE_IN_BYTES * 2; i++) {
     auto c = s[i];
-    Assert((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'));
+    ConcordAssert((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'));
     uint8_t nibble = 0;
     ;
     if (c >= '0' && c <= '9') {

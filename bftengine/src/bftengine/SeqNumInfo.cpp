@@ -68,9 +68,9 @@ void SeqNumInfo::getAndReset(PrePrepareMsg*& outPrePrepare, PrepareFullMsg*& out
 bool SeqNumInfo::addMsg(PrePrepareMsg* m, bool directAdd) {
   if (prePrepareMsg != nullptr) return false;
 
-  Assert(primary == false);
-  Assert(!forcedCompleted);
-  Assert(!prepareSigCollector->hasPartialMsgFromReplica(replica->getReplicasInfo().myId()));
+  ConcordAssert(primary == false);
+  ConcordAssert(!forcedCompleted);
+  ConcordAssert(!prepareSigCollector->hasPartialMsgFromReplica(replica->getReplicasInfo().myId()));
 
   prePrepareMsg = m;
 
@@ -89,13 +89,13 @@ bool SeqNumInfo::addMsg(PrePrepareMsg* m, bool directAdd) {
 }
 
 bool SeqNumInfo::addSelfMsg(PrePrepareMsg* m, bool directAdd) {
-  Assert(primary == false);
-  Assert(replica->getReplicasInfo().myId() == replica->getReplicasInfo().primaryOfView(m->viewNumber()));
-  Assert(!forcedCompleted);
-  Assert(prePrepareMsg == nullptr);
+  ConcordAssert(primary == false);
+  ConcordAssert(replica->getReplicasInfo().myId() == replica->getReplicasInfo().primaryOfView(m->viewNumber()));
+  ConcordAssert(!forcedCompleted);
+  ConcordAssert(prePrepareMsg == nullptr);
 
-  // Assert(me->id() == m->senderId()); // GG: incorrect assert - because after a view change it may has been sent by
-  // another replica
+  // ConcordAssert(me->id() == m->senderId()); // GG: incorrect assert - because after a view change it may has been
+  // sent by another replica
 
   prePrepareMsg = m;
   primary = true;
@@ -115,8 +115,8 @@ bool SeqNumInfo::addSelfMsg(PrePrepareMsg* m, bool directAdd) {
 }
 
 bool SeqNumInfo::addMsg(PreparePartialMsg* m) {
-  Assert(replica->getReplicasInfo().myId() != m->senderId());
-  Assert(!forcedCompleted);
+  ConcordAssert(replica->getReplicasInfo().myId() != m->senderId());
+  ConcordAssert(!forcedCompleted);
 
   bool retVal = prepareSigCollector->addMsgWithPartialSignature(m, m->senderId());
 
@@ -124,8 +124,8 @@ bool SeqNumInfo::addMsg(PreparePartialMsg* m) {
 }
 
 bool SeqNumInfo::addSelfMsg(PreparePartialMsg* m, bool directAdd) {
-  Assert(replica->getReplicasInfo().myId() == m->senderId());
-  Assert(!forcedCompleted);
+  ConcordAssert(replica->getReplicasInfo().myId() == m->senderId());
+  ConcordAssert(!forcedCompleted);
 
   bool r;
 
@@ -134,14 +134,14 @@ bool SeqNumInfo::addSelfMsg(PreparePartialMsg* m, bool directAdd) {
   else
     r = prepareSigCollector->initMsgWithPartialSignature(m, m->senderId());
 
-  Assert(r);
+  ConcordAssert(r);
 
   return true;
 }
 
 bool SeqNumInfo::addMsg(PrepareFullMsg* m, bool directAdd) {
-  Assert(directAdd || replica->getReplicasInfo().myId() != m->senderId());  // TODO(GG): TBD
-  Assert(!forcedCompleted);
+  ConcordAssert(directAdd || replica->getReplicasInfo().myId() != m->senderId());  // TODO(GG): TBD
+  ConcordAssert(!forcedCompleted);
 
   bool retVal;
   if (!directAdd)
@@ -153,8 +153,8 @@ bool SeqNumInfo::addMsg(PrepareFullMsg* m, bool directAdd) {
 }
 
 bool SeqNumInfo::addMsg(CommitPartialMsg* m) {
-  Assert(replica->getReplicasInfo().myId() != m->senderId());  // TODO(GG): TBD
-  Assert(!forcedCompleted);
+  ConcordAssert(replica->getReplicasInfo().myId() != m->senderId());  // TODO(GG): TBD
+  ConcordAssert(!forcedCompleted);
 
   bool r = commitMsgsCollector->addMsgWithPartialSignature(m, m->senderId());
 
@@ -164,8 +164,8 @@ bool SeqNumInfo::addMsg(CommitPartialMsg* m) {
 }
 
 bool SeqNumInfo::addSelfCommitPartialMsgAndDigest(CommitPartialMsg* m, Digest& commitDigest, bool directAdd) {
-  Assert(replica->getReplicasInfo().myId() == m->senderId());
-  Assert(!forcedCompleted);
+  ConcordAssert(replica->getReplicasInfo().myId() == m->senderId());
+  ConcordAssert(!forcedCompleted);
 
   Digest tmpDigest;
   Digest::calcCombination(commitDigest, m->viewNumber(), m->seqNumber(), tmpDigest);
@@ -177,15 +177,15 @@ bool SeqNumInfo::addSelfCommitPartialMsgAndDigest(CommitPartialMsg* m, Digest& c
     commitMsgsCollector->initExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
     r = commitMsgsCollector->initMsgWithPartialSignature(m, m->senderId());
   }
-  Assert(r);
+  ConcordAssert(r);
   commitUpdateTime = getMonotonicTime();
 
   return true;
 }
 
 bool SeqNumInfo::addMsg(CommitFullMsg* m, bool directAdd) {
-  Assert(directAdd || replica->getReplicasInfo().myId() != m->senderId());  // TODO(GG): TBD
-  Assert(!forcedCompleted);
+  ConcordAssert(directAdd || replica->getReplicasInfo().myId() != m->senderId());  // TODO(GG): TBD
+  ConcordAssert(!forcedCompleted);
 
   bool r;
   if (!directAdd)
@@ -199,9 +199,9 @@ bool SeqNumInfo::addMsg(CommitFullMsg* m, bool directAdd) {
 }
 
 void SeqNumInfo::forceComplete() {
-  Assert(!forcedCompleted);
-  Assert(hasPrePrepareMsg());
-  Assert(this->partialProofsSet->hasFullProof());
+  ConcordAssert(!forcedCompleted);
+  ConcordAssert(hasPrePrepareMsg());
+  ConcordAssert(this->partialProofsSet->hasFullProof());
 
   forcedCompleted = true;
   commitUpdateTime = getMonotonicTime();

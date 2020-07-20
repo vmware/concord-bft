@@ -41,7 +41,7 @@ namespace detail {
 enum class BatchedInternalNodeChildType : std::uint8_t { Internal, Leaf };
 
 inline BatchedInternalNodeChildType getInternalChildType(const concordUtils::Sliver &buf) {
-  Assert(!buf.empty());
+  ConcordAssert(!buf.empty());
 
   switch (buf[0]) {
     case concord::util::toChar(BatchedInternalNodeChildType::Internal):
@@ -50,7 +50,7 @@ inline BatchedInternalNodeChildType getInternalChildType(const concordUtils::Sli
       return BatchedInternalNodeChildType::Leaf;
   }
 
-  Assert(false);
+  ConcordAssert(false);
   return BatchedInternalNodeChildType::Internal;
 }
 
@@ -148,7 +148,7 @@ inline std::string serializeImp(const block::detail::Node &node) {
 
   auto nodeSize = block::detail::Node::MIN_SIZE;
   for (const auto &key : node.keys) {
-    Assert(key.first.length() <= std::numeric_limits<block::detail::KeyLengthType>::max());
+    ConcordAssert(key.first.length() <= std::numeric_limits<block::detail::KeyLengthType>::max());
     nodeSize += (sizeof(block::detail::KeyLengthType) + key.first.length() + 1);  // Add a byte of key data.
   }
 
@@ -222,13 +222,13 @@ T deserialize(const concordUtils::Sliver &buf);
 
 template <>
 inline sparse_merkle::Hash deserialize<sparse_merkle::Hash>(const concordUtils::Sliver &buf) {
-  Assert(buf.length() >= sparse_merkle::Hash::SIZE_IN_BYTES);
+  ConcordAssert(buf.length() >= sparse_merkle::Hash::SIZE_IN_BYTES);
   return sparse_merkle::Hash{reinterpret_cast<const uint8_t *>(buf.data())};
 }
 
 template <>
 inline sparse_merkle::Version deserialize<sparse_merkle::Version>(const concordUtils::Sliver &buf) {
-  Assert(buf.length() >= sparse_merkle::Version::SIZE_IN_BYTES);
+  ConcordAssert(buf.length() >= sparse_merkle::Version::SIZE_IN_BYTES);
   return concordUtils::fromBigEndianBuffer<sparse_merkle::Version::Type>(buf.data());
 }
 
@@ -243,7 +243,7 @@ inline std::vector<std::uint8_t> deserialize<std::vector<std::uint8_t>>(const co
 
 template <>
 inline sparse_merkle::NibblePath deserialize<sparse_merkle::NibblePath>(const concordUtils::Sliver &buf) {
-  Assert(buf.length() >= sizeof(std::uint8_t));
+  ConcordAssert(buf.length() >= sizeof(std::uint8_t));
   const auto nibbleCount = static_cast<std::size_t>(buf[0]);
   const auto path = deserialize<std::vector<std::uint8_t>>(
       concordUtils::Sliver{buf, sizeof(std::uint8_t), buf.length() - sizeof(std::uint8_t)});
@@ -252,7 +252,7 @@ inline sparse_merkle::NibblePath deserialize<sparse_merkle::NibblePath>(const co
 
 template <>
 inline sparse_merkle::LeafKey deserialize<sparse_merkle::LeafKey>(const concordUtils::Sliver &buf) {
-  Assert(buf.length() >= sparse_merkle::LeafKey::SIZE_IN_BYTES);
+  ConcordAssert(buf.length() >= sparse_merkle::LeafKey::SIZE_IN_BYTES);
   return sparse_merkle::LeafKey{deserialize<sparse_merkle::Hash>(buf),
                                 deserialize<sparse_merkle::Version>(concordUtils::Sliver{
                                     buf, sparse_merkle::Hash::SIZE_IN_BYTES, sparse_merkle::Version::SIZE_IN_BYTES})};
@@ -268,7 +268,7 @@ inline sparse_merkle::InternalNodeKey deserialize<sparse_merkle::InternalNodeKey
 
 template <>
 inline sparse_merkle::LeafChild deserialize<sparse_merkle::LeafChild>(const concordUtils::Sliver &buf) {
-  Assert(buf.length() >= sparse_merkle::LeafChild::SIZE_IN_BYTES);
+  ConcordAssert(buf.length() >= sparse_merkle::LeafChild::SIZE_IN_BYTES);
   return sparse_merkle::LeafChild{deserialize<sparse_merkle::Hash>(buf),
                                   deserialize<sparse_merkle::LeafKey>(concordUtils::Sliver{
                                       buf, sparse_merkle::Hash::SIZE_IN_BYTES, sparse_merkle::LeafKey::SIZE_IN_BYTES})};
@@ -276,7 +276,7 @@ inline sparse_merkle::LeafChild deserialize<sparse_merkle::LeafChild>(const conc
 
 template <>
 inline sparse_merkle::InternalChild deserialize<sparse_merkle::InternalChild>(const concordUtils::Sliver &buf) {
-  Assert(buf.length() >= sparse_merkle::InternalChild::SIZE_IN_BYTES);
+  ConcordAssert(buf.length() >= sparse_merkle::InternalChild::SIZE_IN_BYTES);
   return sparse_merkle::InternalChild{
       deserialize<sparse_merkle::Hash>(buf),
       deserialize<sparse_merkle::Version>(
@@ -290,7 +290,7 @@ inline sparse_merkle::BatchedInternalNode deserialize<sparse_merkle::BatchedInte
     return sparse_merkle::BatchedInternalNode{};
   }
 
-  Assert(buf.length() >= sizeof(BatchedInternalMaskType));
+  ConcordAssert(buf.length() >= sizeof(BatchedInternalMaskType));
   sparse_merkle::BatchedInternalNode::Children children;
   const auto mask = concordUtils::fromBigEndianBuffer<BatchedInternalMaskType>(buf.data());
   auto childrenBuf =
@@ -321,7 +321,7 @@ inline sparse_merkle::BatchedInternalNode deserialize<sparse_merkle::BatchedInte
 
 template <>
 inline block::detail::Node deserialize<block::detail::Node>(const concordUtils::Sliver &buf) {
-  Assert(buf.length() >= block::detail::Node::MIN_SIZE);
+  ConcordAssert(buf.length() >= block::detail::Node::MIN_SIZE);
 
   auto offset = std::size_t{0};
   auto node = block::detail::Node{};
@@ -346,7 +346,7 @@ inline block::detail::Node deserialize<block::detail::Node>(const concordUtils::
   auto keyBuffer =
       concordUtils::Sliver{buf, block::detail::Node::MIN_SIZE, buf.length() - block::detail::Node::MIN_SIZE};
   while (!keyBuffer.empty()) {
-    Assert(keyBuffer.length() >= block::detail::Node::MIN_KEY_SIZE);
+    ConcordAssert(keyBuffer.length() >= block::detail::Node::MIN_KEY_SIZE);
 
     // Key data.
     block::detail::KeyData keyData;
@@ -356,7 +356,7 @@ inline block::detail::Node deserialize<block::detail::Node>(const concordUtils::
 
     // Key length.
     const auto keyLen = concordUtils::fromBigEndianBuffer<block::detail::KeyLengthType>(keyBuffer.data() + 1);
-    Assert(keyLen <= (keyBuffer.length() - block::detail::Node::MIN_KEY_SIZE));
+    ConcordAssert(keyLen <= (keyBuffer.length() - block::detail::Node::MIN_KEY_SIZE));
     node.keys.emplace(concordUtils::Sliver{keyBuffer, block::detail::Node::MIN_KEY_SIZE, keyLen}, keyData);
 
     keyBuffer = concordUtils::Sliver{keyBuffer,
@@ -370,7 +370,7 @@ inline block::detail::Node deserialize<block::detail::Node>(const concordUtils::
 template <>
 inline block::detail::RawBlockMerkleData deserialize<block::detail::RawBlockMerkleData>(
     const concordUtils::Sliver &buf) {
-  Assert(buf.length() >= block::detail::RawBlockMerkleData::MIN_SIZE);
+  ConcordAssert(buf.length() >= block::detail::RawBlockMerkleData::MIN_SIZE);
 
   auto offset = std::size_t{0};
   auto data = block::detail::RawBlockMerkleData{};
@@ -383,11 +383,11 @@ inline block::detail::RawBlockMerkleData deserialize<block::detail::RawBlockMerk
   auto keyBuffer = concordUtils::Sliver{
       buf, block::detail::RawBlockMerkleData::MIN_SIZE, buf.length() - block::detail::RawBlockMerkleData::MIN_SIZE};
   while (!keyBuffer.empty()) {
-    Assert(keyBuffer.length() >= block::detail::RawBlockMerkleData::MIN_KEY_SIZE);
+    ConcordAssert(keyBuffer.length() >= block::detail::RawBlockMerkleData::MIN_KEY_SIZE);
 
     // Key length.
     const auto keyLen = concordUtils::fromBigEndianBuffer<block::detail::KeyLengthType>(keyBuffer.data());
-    Assert(keyLen <= (keyBuffer.length() - block::detail::RawBlockMerkleData::MIN_KEY_SIZE));
+    ConcordAssert(keyLen <= (keyBuffer.length() - block::detail::RawBlockMerkleData::MIN_KEY_SIZE));
     data.deletedKeys.insert(concordUtils::Sliver{keyBuffer, block::detail::RawBlockMerkleData::MIN_KEY_SIZE, keyLen});
 
     keyBuffer = concordUtils::Sliver{keyBuffer,
@@ -400,7 +400,7 @@ inline block::detail::RawBlockMerkleData deserialize<block::detail::RawBlockMerk
 
 // Deserializes the state root version from a serialized block::detail::Node .
 inline sparse_merkle::Version deserializeStateRootVersion(const concordUtils::Sliver &buf) {
-  Assert(buf.length() >= block::detail::Node::MIN_SIZE);
+  ConcordAssert(buf.length() >= block::detail::Node::MIN_SIZE);
   constexpr auto offset = sizeof(block::detail::Node::BlockIdType) + block::detail::Node::PARENT_DIGEST_SIZE +
                           block::detail::Node::STATE_HASH_SIZE;
   return concordUtils::fromBigEndianBuffer<sparse_merkle::Version::Type>(buf.data() + offset);
@@ -408,7 +408,7 @@ inline sparse_merkle::Version deserializeStateRootVersion(const concordUtils::Sl
 
 template <>
 inline DatabaseLeafValue deserialize<DatabaseLeafValue>(const concordUtils::Sliver &buf) {
-  Assert(buf.length() >= DatabaseLeafValue::MIN_SIZE);
+  ConcordAssert(buf.length() >= DatabaseLeafValue::MIN_SIZE);
   constexpr auto blockIdSize = sizeof(DatabaseLeafValue::BlockIdType);
   const auto addedInBlock = concordUtils::fromBigEndianBuffer<DatabaseLeafValue::BlockIdType>(buf.data());
   const auto deletedInBlock =

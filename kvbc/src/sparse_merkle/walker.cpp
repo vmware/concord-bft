@@ -51,7 +51,7 @@ void Walker::ascendToRoot(const std::optional<LeafKey>& key) {
 }
 
 void Walker::ascend() {
-  Assert(!stack_.empty());
+  ConcordAssert(!stack_.empty());
 
   markCurrentNodeStale();
   cacheCurrentNode();

@@ -335,10 +335,10 @@ TEST(requestPreprocessingState_test, notEnoughRepliesReceived) {
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   for (auto i = 1; i < numOfRequiredReplies; i++) {
     reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
-    Assert(reqState.definePreProcessingConsensusResult() == CONTINUE);
+    ConcordAssert(reqState.definePreProcessingConsensusResult() == CONTINUE);
   }
   reqState.handlePrimaryPreProcessed(buf, bufLen);
-  Assert(reqState.definePreProcessingConsensusResult() == CONTINUE);
+  ConcordAssert(reqState.definePreProcessingConsensusResult() == CONTINUE);
 }
 
 TEST(requestPreprocessingState_test, allRepliesReceivedButNotEnoughSameHashesCollected) {
@@ -351,11 +351,11 @@ TEST(requestPreprocessingState_test, allRepliesReceivedButNotEnoughSameHashesCol
   memset(buf, '5', bufLen);
   reqState.handlePrimaryPreProcessed(buf, bufLen);
   for (auto i = 1; i < replicaConfig.numReplicas; i++) {
-    if (i != replicaConfig.numReplicas - 1) Assert(reqState.definePreProcessingConsensusResult() == CONTINUE);
+    if (i != replicaConfig.numReplicas - 1) ConcordAssert(reqState.definePreProcessingConsensusResult() == CONTINUE);
     memset(buf, i, bufLen);
     reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
   }
-  Assert(reqState.definePreProcessingConsensusResult() == CANCEL);
+  ConcordAssert(reqState.definePreProcessingConsensusResult() == CANCEL);
 }
 
 TEST(requestPreprocessingState_test, enoughSameRepliesReceived) {
@@ -367,11 +367,11 @@ TEST(requestPreprocessingState_test, enoughSameRepliesReceived) {
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   for (auto i = 1; i <= numOfRequiredReplies; i++) {
-    if (i != numOfRequiredReplies - 1) Assert(reqState.definePreProcessingConsensusResult() == CONTINUE);
+    if (i != numOfRequiredReplies - 1) ConcordAssert(reqState.definePreProcessingConsensusResult() == CONTINUE);
     reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
   }
   reqState.handlePrimaryPreProcessed(buf, bufLen);
-  Assert(reqState.definePreProcessingConsensusResult() == COMPLETE);
+  ConcordAssert(reqState.definePreProcessingConsensusResult() == COMPLETE);
 }
 
 TEST(requestPreprocessingState_test, primaryReplicaPreProcessingRetrySucceeds) {
@@ -384,14 +384,14 @@ TEST(requestPreprocessingState_test, primaryReplicaPreProcessingRetrySucceeds) {
   memset(buf, '5', bufLen);
   reqState.handlePrimaryPreProcessed(buf, bufLen);
   for (auto i = 1; i <= numOfRequiredReplies; i++) {
-    if (i != replicaConfig.numReplicas - 1) Assert(reqState.definePreProcessingConsensusResult() == CONTINUE);
+    if (i != replicaConfig.numReplicas - 1) ConcordAssert(reqState.definePreProcessingConsensusResult() == CONTINUE);
     memset(buf, '4', bufLen);
     reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
   }
-  Assert(reqState.definePreProcessingConsensusResult() == RETRY_PRIMARY);
+  ConcordAssert(reqState.definePreProcessingConsensusResult() == RETRY_PRIMARY);
   memset(buf, '4', bufLen);
   reqState.handlePrimaryPreProcessed(buf, bufLen);
-  Assert(reqState.definePreProcessingConsensusResult() == COMPLETE);
+  ConcordAssert(reqState.definePreProcessingConsensusResult() == COMPLETE);
 }
 
 TEST(requestPreprocessingState_test, primaryReplicaDidNotCompletePreProcessingWhileNonPrimariesDid) {
@@ -403,14 +403,14 @@ TEST(requestPreprocessingState_test, primaryReplicaDidNotCompletePreProcessingWh
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
   for (auto i = 1; i <= numOfRequiredReplies; i++) {
-    if (i != replicaConfig.numReplicas - 1) Assert(reqState.definePreProcessingConsensusResult() == CONTINUE);
+    if (i != replicaConfig.numReplicas - 1) ConcordAssert(reqState.definePreProcessingConsensusResult() == CONTINUE);
     memset(buf, '4', bufLen);
     reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
   }
-  Assert(reqState.definePreProcessingConsensusResult() == CONTINUE);
+  ConcordAssert(reqState.definePreProcessingConsensusResult() == CONTINUE);
   memset(buf, '4', bufLen);
   reqState.handlePrimaryPreProcessed(buf, bufLen);
-  Assert(reqState.definePreProcessingConsensusResult() == COMPLETE);
+  ConcordAssert(reqState.definePreProcessingConsensusResult() == COMPLETE);
 }
 
 TEST(requestPreprocessingState_test, requestTimedOut) {
@@ -424,10 +424,10 @@ TEST(requestPreprocessingState_test, requestTimedOut) {
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
   auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
   msgHandlerCallback(clientReqMsg);
-  Assert(preProcessor.getOngoingReqIdForClient(clientId) == reqSeqNum);
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId) == reqSeqNum);
   usleep(replicaConfig.preExecReqStatusCheckTimerMillisec * 1000);
   timers.evaluate();
-  Assert(preProcessor.getOngoingReqIdForClient(clientId) == 0);
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId) == 0);
 }
 
 TEST(requestPreprocessingState_test, primaryCrashDetected) {
@@ -443,11 +443,11 @@ TEST(requestPreprocessingState_test, primaryCrashDetected) {
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
   auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
   msgHandlerCallback(clientReqMsg);
-  Assert(preProcessor.getOngoingReqIdForClient(clientId) == reqSeqNum);
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId) == reqSeqNum);
 
   usleep(reqWaitTimeoutMilli * 1000);
   timers.evaluate();
-  Assert(preProcessor.getOngoingReqIdForClient(clientId) == 0);
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId) == 0);
 }
 
 TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
@@ -465,14 +465,14 @@ TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
   auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
   msgHandlerCallback(clientReqMsg);
-  Assert(preProcessor.getOngoingReqIdForClient(clientId) == reqSeqNum);
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId) == reqSeqNum);
 
   auto* preProcessReqMsg =
       new PreProcessRequestMsg(replica.currentPrimary(), clientId, reqSeqNum, bufLen, buf, sp, cid);
   msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::PreProcessRequest);
   msgHandlerCallback(preProcessReqMsg);
   usleep(reqWaitTimeoutMilli * 1000 / 2);  // Wait for the pre-execution completion
-  Assert(preProcessor.getOngoingReqIdForClient(clientId) == 0);
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId) == 0);
 }
 
 }  // end namespace

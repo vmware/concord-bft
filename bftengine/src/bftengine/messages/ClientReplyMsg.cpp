@@ -46,13 +46,13 @@ ClientReplyMsg::ClientReplyMsg(ReplicaId replicaId, uint32_t replyLength)
 }
 
 void ClientReplyMsg::setReplyLength(uint32_t replyLength) {
-  Assert(replyLength <= maxReplyLength());
+  ConcordAssert(replyLength <= maxReplyLength());
   b()->replyLength = replyLength;
   setMsgSize(sizeof(ClientReplyMsgHeader) + replyLength);
 }
 
 void ClientReplyMsg::setReplicaSpecificInfoLength(uint32_t length) {
-  Assert(length <= maxReplyLength());
+  ConcordAssert(length <= maxReplyLength());
   b()->replicaSpecificInfoLength = length;
 }
 
@@ -68,12 +68,12 @@ uint64_t ClientReplyMsg::debugHash() const {
   uint64_t retVal = 0;
 
   uint32_t replyLen = replyLength();
-  Assert(replyLen > 0);
+  ConcordAssert(replyLen > 0);
 
   uint32_t firstWordLen = replyLen % sizeof(uint64_t);
   if (firstWordLen == 0) firstWordLen = sizeof(uint64_t);
 
-  Assert(((replyLen - firstWordLen) % sizeof(uint64_t)) == 0);
+  ConcordAssert(((replyLen - firstWordLen) % sizeof(uint64_t)) == 0);
   uint32_t numberOfWords = ((replyLen - firstWordLen) / sizeof(uint64_t)) + 1;
 
   char* repBuf = replyBuf();

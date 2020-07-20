@@ -57,14 +57,14 @@ Msg makeClientMsg(const RequestConfig& config, Msg&& request, bool read_only, ui
 }
 
 Reply Client::send(const WriteConfig& config, Msg&& request) {
-  Assert(!outstanding_request_.has_value());
+  ConcordAssert(!outstanding_request_.has_value());
   auto match_config = writeConfigToMatchConfig(config);
   bool read_only = false;
   return send(match_config, config.request, std::move(request), read_only);
 }
 
 Reply Client::send(const ReadConfig& config, Msg&& request) {
-  Assert(!outstanding_request_.has_value());
+  ConcordAssert(!outstanding_request_.has_value());
   auto match_config = readConfigToMatchConfig(config);
   bool read_only = true;
   return send(match_config, config.request, std::move(request), read_only);

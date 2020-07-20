@@ -244,7 +244,7 @@ void DBDataStore::deserializeResPage(
   outPageDigest = STDigest(dgst);
   std::uint32_t sizeOfReseredPage;
   Serializable::deserialize(is, sizeOfReseredPage);
-  Assert(sizeOfReseredPage == inmem_->getSizeOfReservedPage());
+  ConcordAssert(sizeOfReseredPage == inmem_->getSizeOfReservedPage());
   Serializable::deserialize(is, outPage, sizeOfReseredPage);
 }
 void DBDataStore::loadResPages() {
@@ -350,7 +350,7 @@ void DBDataStore::associatePendingResPageWithCheckpointTxn(uint32_t inPageId,
                      << " txn: " << txn->getId());
   auto& pendingPages = inmem_->getPendingPagesMap();
   auto page = pendingPages.find(inPageId);
-  Assert(page != pendingPages.end());
+  ConcordAssert(page != pendingPages.end());
 
   setResPageTxn(inPageId, inCheckpoint, inPageDigest, page->second, txn);
   txn->del(pendingPageKey(inPageId));
@@ -379,7 +379,7 @@ void DBDataStore::deleteCoveredResPageInSmallerCheckpointsTxn(uint64_t minChkp, 
   it++;
   for (; it != pages.end(); ++it) {
     if (it->first.pageId == prevItemPageId && prevItemIsInLastRelevantCheckpoint) {
-      Assert(it->second.page != nullptr);
+      ConcordAssert(it->second.page != nullptr);
       LOG_DEBUG(logger(),
                 "delete: [" << it->first.pageId << ":" << it->first.checkpoint << "] "
                             << dynamicResPageKey(it->first.pageId, it->first.checkpoint));

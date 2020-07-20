@@ -58,7 +58,7 @@ class RetransmissionsLogic {
   {
     pendingRetransmissionsHeap =
         std::priority_queue<PendingRetran, std::vector<PendingRetran>, PendingRetran::Comparator>();
-    Assert(pendingRetransmissionsHeap.empty());
+    ConcordAssert(pendingRetransmissionsHeap.empty());
   }
 
   void processSend(Time time, uint16_t replicaId, SeqNum msgSeqNum, uint16_t msgType, bool ignorePreviousAcks) {
@@ -134,7 +134,7 @@ class RetransmissionsLogic {
   }
 
   void getSuggestedRetransmissions(Time currentTime, std::forward_list<RetSuggestion>& outSuggestedRetransmissions) {
-    Assert(outSuggestedRetransmissions.empty());
+    ConcordAssert(outSuggestedRetransmissions.empty());
 
     if (pendingRetransmissionsHeap.empty()) return;
 
@@ -192,7 +192,7 @@ class RetransmissionsLogic {
             std::min((uint64_t)PARM::maxTimeBetweenRetranMilli, retranTimeMilli * PARM::maxIncreasingFactor);
         const uint64_t minVal =
             std::max((uint64_t)PARM::minTimeBetweenRetranMilli, retranTimeMilli / PARM::maxDecreasingFactor);
-        Assert(minVal <= maxVal);
+        ConcordAssert(minVal <= maxVal);
 
         const double avg = avgAndVarOfAckTime.avg();
         const double var = avgAndVarOfAckTime.var();
@@ -310,9 +310,9 @@ RetransmissionsManager::RetransmissionsManager(util::SimpleThreadPool* threadPoo
       incomingMsgs{incomingMsgsStorage},
       maxOutSeqNumbers{maxOutNumOfSeqNumbers},
       internalLogicInfo{new RetransmissionsLogic(maxOutNumOfSeqNumbers)} {
-  Assert(threadPool != nullptr);
-  Assert(incomingMsgsStorage != nullptr);
-  Assert(maxOutNumOfSeqNumbers > 0);
+  ConcordAssert(threadPool != nullptr);
+  ConcordAssert(incomingMsgsStorage != nullptr);
+  ConcordAssert(maxOutNumOfSeqNumbers > 0);
 
   lastStable = lastStableSeqNum;
 }
@@ -448,7 +448,7 @@ bool RetransmissionsManager::tryToStartProcessing() {
           else if (e.etype == RetransmissionsManager::EType::SENT_AND_IGNORE_PREV)
             logic->processSend(e.time, e.replicaId, e.msgSeqNum, e.msgType, true);
           else
-            Assert(false);
+            ConcordAssert(false);
         }
       }
 
@@ -492,8 +492,8 @@ bool RetransmissionsManager::tryToStartProcessing() {
 }
 
 void RetransmissionsManager::OnProcessingComplete() {
-  Assert(pool != nullptr);
-  Assert(bkProcessing);
+  ConcordAssert(pool != nullptr);
+  ConcordAssert(bkProcessing);
 
   bkProcessing = false;
 }

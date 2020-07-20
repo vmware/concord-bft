@@ -52,7 +52,7 @@ MessageBase::~MessageBase() {
 }
 
 void MessageBase::shrinkToFit() {
-  Assert(owner_);
+  ConcordAssert(owner_);
 
   // TODO(GG): need to verify more conditions??
 
@@ -79,7 +79,7 @@ MessageBase::MessageBase(NodeIdType sender) {
 MessageBase::MessageBase(NodeIdType sender, MsgType type, MsgSize size) : MessageBase(sender, type, 0u, size) {}
 
 MessageBase::MessageBase(NodeIdType sender, MsgType type, SpanContextSize spanContextSize, MsgSize size) {
-  Assert(size > 0);
+  ConcordAssert(size > 0);
   size = size + spanContextSize;
   msgBody_ = (MessageBase::Header *)std::malloc(size);
   memset(msgBody_, 0, size);
@@ -108,8 +108,8 @@ MessageBase::MessageBase(NodeIdType sender, MessageBase::Header *body, MsgSize s
 }
 
 void MessageBase::setMsgSize(MsgSize size) {
-  Assert((msgBody_ != nullptr));
-  Assert(size <= storageSize_);
+  ConcordAssert((msgBody_ != nullptr));
+  ConcordAssert(size <= storageSize_);
 
   // TODO(GG): do we need to reset memory here?
   if (storageSize_ > size) memset(body() + size, 0, (storageSize_ - size));
@@ -118,8 +118,8 @@ void MessageBase::setMsgSize(MsgSize size) {
 }
 
 MessageBase *MessageBase::cloneObjAndMsg() const {
-  Assert(owner_);
-  Assert(msgSize_ > 0);
+  ConcordAssert(owner_);
+  ConcordAssert(msgSize_ > 0);
 
   void *msgBody = std::malloc(msgSize_);
   memcpy(msgBody, msgBody_, msgSize_);
@@ -130,12 +130,12 @@ MessageBase *MessageBase::cloneObjAndMsg() const {
 }
 
 void MessageBase::writeObjAndMsgToLocalBuffer(char *buffer, size_t bufferLength, size_t *actualSize) const {
-  Assert(owner_);
-  Assert(msgSize_ > 0);
+  ConcordAssert(owner_);
+  ConcordAssert(msgSize_ > 0);
 
   const size_t sizeNeeded = sizeof(RawHeaderOfObjAndMsg) + msgSize_;
 
-  Assert(sizeNeeded <= bufferLength);
+  ConcordAssert(sizeNeeded <= bufferLength);
 
   RawHeaderOfObjAndMsg *pHeader = (RawHeaderOfObjAndMsg *)buffer;
   pHeader->magicNum = magicNumOfRawFormat;
@@ -149,8 +149,8 @@ void MessageBase::writeObjAndMsgToLocalBuffer(char *buffer, size_t bufferLength,
 }
 
 size_t MessageBase::sizeNeededForObjAndMsgInLocalBuffer() const {
-  Assert(owner_);
-  Assert(msgSize_ > 0);
+  ConcordAssert(owner_);
+  ConcordAssert(msgSize_ > 0);
 
   const size_t sizeNeeded = sizeof(RawHeaderOfObjAndMsg) + msgSize_;
 
@@ -199,7 +199,7 @@ size_t MessageBase::serializeMsg(char *&buf, const MessageBase *msg) {
   if (msg) {
     uint32_t msgSize = msg->sizeNeededForObjAndMsgInLocalBuffer();
     msg->writeObjAndMsgToLocalBuffer(buf, msgSize, &actualMsgSize);
-    Assert(actualMsgSize != 0);
+    ConcordAssert(actualMsgSize != 0);
     buf += actualMsgSize;
   }
   return msgFilledFlagSize + actualMsgSize;
@@ -215,7 +215,7 @@ MessageBase *MessageBase::deserializeMsg(char *&buf, size_t bufLen, size_t &actu
   size_t msgSize = 0;
   if (msgFilledFlag) {
     msg = createObjAndMsgFromLocalBuffer(buf, bufLen, &msgSize);
-    Assert(msgSize != 0);
+    ConcordAssert(msgSize != 0);
     buf += msgSize;
   }
   actualSize = msgFilledFlagSize + msgSize;

@@ -177,7 +177,7 @@ void MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::a
     MsgClassInfo& cls = msgClasses[0];  // in this case, we have a single class
 
     auto pos = msgsFromReplicas.find(cls.representativeReplica);
-    // TODO Assert(pos is okay)
+    // TODO ConcordAssert(pos is okay)
     T* representativeMsg = pos->second;
 
     if (!ExternalFunc::equivalent(representativeMsg, msg)) return;  // msg should be ignored
@@ -190,7 +190,7 @@ void MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::a
       MsgClassInfo& cls = msgClasses[i];
 
       auto pos = msgsFromReplicas.find(cls.representativeReplica);
-      // TODO Assert(pos is okay)
+      // TODO ConcordAssert(pos is okay)
       T* representativeMsg = pos->second;
 
       if (ExternalFunc::equivalent(representativeMsg, msg)) {
@@ -255,7 +255,7 @@ void MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAllMsgs, ExternalFunc>::a
     MsgClassInfo& cls = msgClasses[i];
 
     auto pos = msgsFromReplicas.find(cls.representativeReplica);
-    // TODO Assert(pos is okay)
+    // TODO ConcordAssert(pos is okay)
     T* representativeMsg = pos->second;
 
     if (ExternalFunc::equivalent(representativeMsg, msg)) {

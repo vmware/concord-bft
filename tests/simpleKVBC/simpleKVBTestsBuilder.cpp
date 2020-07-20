@@ -68,12 +68,12 @@ BlockId TestsBuilder::getInitialLastBlockId() {
                                         expectedReplySize,
                                         reply.data(),
                                         &actualReplySize);
-  Assert(res.isOK());
+  ConcordAssert(res.isOK());
 
   auto *replyObj = (SimpleReply_GetLastBlock *)reply.data();
   LOG_INFO(logger_, "Actual reply size = " << actualReplySize << ", expected reply size = " << expectedReplySize);
-  Assert(actualReplySize == expectedReplySize);
-  Assert(replyObj->header.type == GET_LAST_BLOCK);
+  ConcordAssert(actualReplySize == expectedReplySize);
+  ConcordAssert(replyObj->header.type == GET_LAST_BLOCK);
   SimpleGetLastBlockRequest::free(request);
   return replyObj->latestBlock;
 }
@@ -99,13 +99,13 @@ void TestsBuilder::retrieveExistingBlocksFromKVB() {
   // Infinite timeout
   auto res = client_.invokeCommandSynch(
       (char *)request, request->getSize(), true, seconds(0), expectedReplySize, reply.data(), &actualReplySize);
-  Assert(res.isOK());
+  ConcordAssert(res.isOK());
 
   auto *replyObj = (SimpleReply_Read *)reply.data();
   __attribute__((unused)) size_t numOfItems = replyObj->numOfItems;
-  Assert(actualReplySize == expectedReplySize);
-  Assert(replyObj->header.type == READ);
-  Assert(numOfItems == NUMBER_OF_KEYS);
+  ConcordAssert(actualReplySize == expectedReplySize);
+  ConcordAssert(replyObj->header.type == READ);
+  ConcordAssert(numOfItems == NUMBER_OF_KEYS);
 
   for (int key = 0; key < NUMBER_OF_KEYS; key++) {
     SimpleKeyBlockIdPair simpleKIDPair(replyObj->items[key].simpleKey, request->readVersion);
@@ -133,13 +133,13 @@ void TestsBuilder::create(size_t numOfRequests, size_t seed) {
     else if (percent <= 100)
       createAndInsertGetLastBlock();
     else
-      Assert(0);
+      ConcordAssert(0);
   }
 
   for (__attribute__((unused)) auto elem : internalBlockchain_) {
     __attribute__((unused)) BlockId blockId = elem.first;
     __attribute__((unused)) SimpleBlock *block = elem.second;
-    Assert(blockId == block->id);
+    ConcordAssert(blockId == block->id);
   }
 }
 
@@ -322,7 +322,7 @@ size_t TestsBuilder::sizeOfRequest(SimpleRequest *request) {
     case GET_LAST_BLOCK:
       return sizeof(SimpleRequest);
     default:
-      Assert(0);
+      ConcordAssert(0);
   }
   return 0;
 }
@@ -336,7 +336,7 @@ size_t TestsBuilder::sizeOfReply(SimpleReply *reply) {
     case GET_LAST_BLOCK:
       return sizeof(SimpleReply_GetLastBlock);
     default:
-      Assert(0);
+      ConcordAssert(0);
   }
   return 0;
 }

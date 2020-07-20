@@ -88,7 +88,7 @@ bool SourceSelector::shouldReplaceSource(uint64_t currTimeMilli, bool badDataFro
 
 void SourceSelector::selectSource(uint64_t currTimeMilli) {
   const size_t size = preferredReplicas_.size();
-  Assert(size > 0);
+  ConcordAssert(size > 0);
 
   auto i = preferredReplicas_.begin();
   if (size > 1) {

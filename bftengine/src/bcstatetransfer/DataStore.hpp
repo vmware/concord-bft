@@ -129,7 +129,7 @@ class DataStore : public std::enable_shared_from_this<DataStore> {
     size_t size() const { return size(numOfPages); }
 
     static size_t size(uint32_t numberOfPages) {
-      Assert(numberOfPages > 0);
+      ConcordAssert(numberOfPages > 0);
       return sizeof(ResPagesDescriptor) + (numberOfPages - 1) * sizeof(SingleResPageDesc);
     }
   };
@@ -257,7 +257,7 @@ class DataStoreTransaction : public DataStore, public ITransaction {
   // You can't begin a transaction from within a transaction. However, since we
   // inherit from DataStore, we must implement this method.
   DataStoreTransaction* beginTransaction() override {
-    Assert(false);
+    ConcordAssert(false);
     return nullptr;
   }
   std::shared_ptr<DataStore> ds_;

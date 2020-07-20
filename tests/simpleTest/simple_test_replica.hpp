@@ -37,7 +37,7 @@ logging::Logger replicaLogger = logging::getLogger("simpletest.replica");
   {                                                                      \
     if (!(statement)) {                                                  \
       LOG_FATAL(replicaLogger, "assert fail with message: " << message); \
-      Assert(false);                                                     \
+      ConcordAssert(false);                                              \
     }                                                                    \
   }
 

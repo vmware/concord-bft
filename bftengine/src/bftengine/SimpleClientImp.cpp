@@ -124,8 +124,8 @@ bool SimpleClientImp::isSystemReady() const {
 void SimpleClientImp::onMessageFromReplica(MessageBase* msg) {
   ClientReplyMsg* replyMsg = static_cast<ClientReplyMsg*>(msg);
   replyMsg->validate(ReplicasInfo());
-  Assert(replyMsg != nullptr);
-  Assert(replyMsg->type() == REPLY_MSG_TYPE);
+  ConcordAssert(replyMsg != nullptr);
+  ConcordAssert(replyMsg->type() == REPLY_MSG_TYPE);
 
   LOG_DEBUG(logger_,
             "Client " << clientId_ << " received ClientReplyMsg with seqNum=" << replyMsg->reqSeqNum()
@@ -180,7 +180,7 @@ SimpleClientImp::SimpleClientImp(
       clientSendsRequestToAllReplicasFirstThresh_{p.clientSendsRequestToAllReplicasFirstThresh},
       clientSendsRequestToAllReplicasPeriodThresh_{p.clientSendsRequestToAllReplicasPeriodThresh},
       clientPeriodicResetThresh_{p.clientPeriodicResetThresh} {
-  Assert(fVal_ >= 1);
+  ConcordAssert(fVal_ >= 1);
 
   pendingRequest_ = nullptr;
   timeOfLastTransmission_ = MinTime;
@@ -192,11 +192,11 @@ SimpleClientImp::SimpleClientImp(
 }
 
 SimpleClientImp::~SimpleClientImp() {
-  Assert(replysCertificate_.isEmpty());
-  Assert(msgQueue_.empty());
-  Assert(pendingRequest_ == nullptr);
-  Assert(timeOfLastTransmission_ == MinTime);
-  Assert(numberOfTransmissions_ == 0);
+  ConcordAssert(replysCertificate_.isEmpty());
+  ConcordAssert(msgQueue_.empty());
+  ConcordAssert(pendingRequest_ == nullptr);
+  ConcordAssert(timeOfLastTransmission_ == MinTime);
+  ConcordAssert(numberOfTransmissions_ == 0);
 }
 
 OperationResult SimpleClientImp::sendRequest(uint8_t flags,
@@ -218,7 +218,7 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
                       << ", isPreProcess=" << isPreProcessRequired << " , request size=" << lengthOfRequest
                       << ", retransmissionMilli=" << limitOfExpectedOperationTime_.upperLimit()
                       << ", timeout=" << timeoutMilli << ", has span context=" << !span_context.empty());
-  Assert(!(isReadOnly && isPreProcessRequired));
+  ConcordAssert(!(isReadOnly && isPreProcessRequired));
 
   if (!communication_->isRunning()) {
     communication_->Start();  // TODO(GG): patch ................ change
@@ -232,11 +232,11 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
     return NOT_READY;
   }
 
-  Assert(replysCertificate_.isEmpty());
-  Assert(msgQueue_.empty());
-  Assert(pendingRequest_ == nullptr);
-  Assert(timeOfLastTransmission_ == MinTime);
-  Assert(numberOfTransmissions_ == 0);
+  ConcordAssert(replysCertificate_.isEmpty());
+  ConcordAssert(msgQueue_.empty());
+  ConcordAssert(pendingRequest_ == nullptr);
+  ConcordAssert(timeOfLastTransmission_ == MinTime);
+  ConcordAssert(numberOfTransmissions_ == 0);
 
   static const std::chrono::milliseconds timersRes(timersResolutionMilli_);
 
@@ -304,7 +304,7 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
   }
 
   if (requestCommitted) {
-    Assert(replysCertificate_.isComplete());
+    ConcordAssert(replysCertificate_.isComplete());
 
     uint64_t durationMilli = duration_cast<milliseconds>(getMonotonicTime() - beginTime).count();
     limitOfExpectedOperationTime_.add(durationMilli);
@@ -344,7 +344,7 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
     return TIMEOUT;
   }
 
-  Assert(false);
+  ConcordAssert(false);
   return SUCCESS;
 }
 
@@ -401,7 +401,7 @@ void SimpleClientImp::onNewMessage(NodeNum sourceNode, const char* const message
 void SimpleClientImp::onConnectionStatusChanged(const NodeNum node, const ConnectionStatus newStatus) {}
 
 void SimpleClientImp::sendPendingRequest() {
-  Assert(pendingRequest_ != nullptr);
+  ConcordAssert(pendingRequest_ != nullptr);
 
   timeOfLastTransmission_ = getMonotonicTime();
   numberOfTransmissions_++;
@@ -483,7 +483,7 @@ uint64_t SeqNumberGeneratorForClientRequestsImp::generateUniqueSequenceNumberFor
   // shift lastMilli by 22 (0x3FFFFF) in order to 'bitwise or' with lastCount
   // and preserve uniqueness and monotonicity.
   uint64_t r = (lastMilliOfUniqueFetchID_ << (64 - 42));
-  Assert(lastCountOfUniqueFetchID_ <= 0x3FFFFF);
+  ConcordAssert(lastCountOfUniqueFetchID_ <= 0x3FFFFF);
   r = r | ((uint64_t)lastCountOfUniqueFetchID_);
 
   return r;

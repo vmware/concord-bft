@@ -282,7 +282,7 @@ bool ReplicaImp::putBlock(const uint64_t blockId, const char *block_data, const 
 }
 
 RawBlock ReplicaImp::getBlockInternal(BlockId blockId) const {
-  Assert(blockId <= getLastBlockNum());
+  ConcordAssert(blockId <= getLastBlockNum());
   return m_bcDbAdapter->getRawBlock(blockId);
 }
 
@@ -300,11 +300,11 @@ bool ReplicaImp::getBlock(uint64_t blockId, char *outBlock, uint32_t *outBlockSi
 bool ReplicaImp::hasBlock(BlockId blockId) const { return m_bcDbAdapter->hasBlock(blockId); }
 
 bool ReplicaImp::getPrevDigestFromBlock(BlockId blockId, StateTransferDigest *outPrevBlockDigest) {
-  Assert(blockId > 0);
+  ConcordAssert(blockId > 0);
   try {
     RawBlock result = getBlockInternal(blockId);
     auto parentDigest = m_bcDbAdapter->getParentDigest(result);
-    Assert(outPrevBlockDigest != nullptr);
+    ConcordAssert(outPrevBlockDigest != nullptr);
     static_assert(parentDigest.size() == BLOCK_DIGEST_SIZE);
     static_assert(sizeof(StateTransferDigest) == BLOCK_DIGEST_SIZE);
     memcpy(outPrevBlockDigest, parentDigest.data(), BLOCK_DIGEST_SIZE);

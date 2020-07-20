@@ -136,7 +136,7 @@ void DBMetadataStorage::commitAtomicWriteOnlyBatch() {
 
 Status DBMetadataStorage::multiDel(const ObjectIdsVector &objectIds) {
   size_t objectsNumber = objectIds.size();
-  AssertGE(objectsNum_, objectsNumber);
+  ConcordAssertGE(objectsNum_, objectsNumber);
   LOG_TRACE(logger_, "Going to perform multiple delete");
   KeysVector keysVec;
   for (size_t objectId = 0; objectId < objectsNumber; objectId++) {

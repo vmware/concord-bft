@@ -45,17 +45,17 @@ int main(int argc, char **argv) {
   vector<std::string> split_values_vector = parser.SplitValue(values_to_split, values_to_split_delimiter.c_str());
 
   if (config_file == default_config_file) {
-    Assert(replicas_num == expected_replicas_num);
-    Assert(clients_num == expected_clients_num);
-    Assert(expected_replica1 == replicas[0]);
-    Assert(expected_replica2 == replicas[1]);
-    Assert(expected_replica3 == replicas[2]);
-    Assert(expected_replica4 == replicas[3]);
-    Assert(expected_client == clients[0]);
-    Assert(split_values_vector.size() == sizeof(expected_split_values) / sizeof(expected_split_values[0]));
-    Assert(split_values_vector[0] == expected_split_values[0]);
-    Assert(split_values_vector[1] == expected_split_values[1]);
-    Assert(split_values_vector[2] == expected_split_values[2]);
+    ConcordAssert(replicas_num == expected_replicas_num);
+    ConcordAssert(clients_num == expected_clients_num);
+    ConcordAssert(expected_replica1 == replicas[0]);
+    ConcordAssert(expected_replica2 == replicas[1]);
+    ConcordAssert(expected_replica3 == replicas[2]);
+    ConcordAssert(expected_replica4 == replicas[3]);
+    ConcordAssert(expected_client == clients[0]);
+    ConcordAssert(split_values_vector.size() == sizeof(expected_split_values) / sizeof(expected_split_values[0]));
+    ConcordAssert(split_values_vector[0] == expected_split_values[0]);
+    ConcordAssert(split_values_vector[1] == expected_split_values[1]);
+    ConcordAssert(split_values_vector[2] == expected_split_values[2]);
   }
   return 0;
 }

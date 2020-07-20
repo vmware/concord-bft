@@ -55,7 +55,7 @@ size_t SeqNumData::serializeOneByte(char *&buf, const uint8_t &oneByte) {
 
 void SeqNumData::serialize(char *buf, uint32_t bufLen, size_t &actualSize) const {
   actualSize = 0;
-  Assert(bufLen >= maxSize());
+  ConcordAssert(bufLen >= maxSize());
   actualSize = serializePrePrepareMsg(buf) + serializeFullCommitProofMsg(buf) + serializePrepareFullMsg(buf) +
                serializeCommitFullMsg(buf) + serializeForceCompleted(buf) + serializeSlowStarted(buf);
 }
@@ -137,7 +137,7 @@ size_t CheckData::serializeCompletedMark(char *&buf, const uint8_t &completedMar
 
 void CheckData::serialize(char *buf, uint32_t bufLen, size_t &actualSize) const {
   actualSize = 0;
-  Assert(bufLen >= maxSize());
+  ConcordAssert(bufLen >= maxSize());
   actualSize += serializeCheckpointMsg(buf) + serializeCompletedMark(buf);
 }
 

@@ -46,6 +46,7 @@
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 #include "Logger.hpp"
+#include "assertUtils.hpp"
 
 using namespace std;
 using namespace logging;
@@ -230,7 +231,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
     asio::ip::tcp::no_delay option;
     get_socket().set_option(boost::asio::ip::tcp::no_delay(true));
     get_socket().get_option(option);
-    Assert(true == option.value());
+    ConcordAssert(true == option.value());
   }
 
   /**
@@ -285,7 +286,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
    * generic error handling function
    */
   void handle_error() {
-    Assert(_connType != ConnType::NotDefined);
+    ConcordAssert(_connType != ConnType::NotDefined);
 
     if (_statusCallback) {
       bool isReplica = check_replica(_expectedDestId);
@@ -327,7 +328,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
     set_authenticated(true);
     _connectTimer.expires_at(boost::posix_time::pos_infin);
     _currentTimeout = _minTimeout;
-    Assert(_destId == _expectedDestId);
+    ConcordAssert(_destId == _expectedDestId);
     _fOnTlsReady(_destId, shared_from_this());
     read_msg_length_async();
   }
@@ -359,7 +360,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   }
 
   void set_tls() {
-    Assert(_connType != ConnType::NotDefined);
+    ConcordAssert(_connType != ConnType::NotDefined);
 
     if (ConnType::Incoming == _connType)
       set_tls_server();
@@ -630,7 +631,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
     // if first is true - we came from partial reading, no timer was started
     if (!first) {
       __attribute__((unused)) auto res = _readTimer.expires_at(boost::posix_time::pos_infin);
-      Assert(res < 2);  // can cancel at most 1 pending async_wait
+      ConcordAssert(res < 2);  // can cancel at most 1 pending async_wait
     }
     if (_disposed) {
       return;
@@ -662,7 +663,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
 
     __attribute__((unused)) auto res =
         _readTimer.expires_from_now(boost::posix_time::milliseconds(READ_TIME_OUT_MILLI));
-    Assert(res == 0);  // can cancel at most 1 pending async_wait
+    ConcordAssert(res == 0);  // can cancel at most 1 pending async_wait
 
     _readTimer.async_wait(
         boost::bind(&AsyncTlsConnection::on_read_timer_expired, shared_from_this(), boost::asio::placeholders::error));
@@ -698,7 +699,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
    */
   void read_msg_async_completed(const boost::system::error_code &ec, size_t bytesRead) {
     __attribute__((unused)) auto res = _readTimer.expires_at(boost::posix_time::pos_infin);
-    Assert(res < 2);  // can cancel at most 1 pending async_wait
+    ConcordAssert(res < 2);  // can cancel at most 1 pending async_wait
     if (_disposed) {
       return;
     }
@@ -713,7 +714,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
       return;
     }
 
-    Assert(_destId == _expectedDestId);
+    ConcordAssert(_destId == _expectedDestId);
     try {
       if (_receiver) {
         _receiver->onNewMessage(_destId, _inBuffer, bytesRead);
@@ -801,7 +802,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
     // start the timer to handle the write timeout
     __attribute__((unused)) auto res =
         _writeTimer.expires_from_now(boost::posix_time::milliseconds(WRITE_TIME_OUT_MILLI));
-    Assert(res == 0);  // should not cancel any pending async wait
+    ConcordAssert(res == 0);  // should not cancel any pending async wait
     _writeTimer.expires_from_now(boost::posix_time::milliseconds(WRITE_TIME_OUT_MILLI));
     _writeTimer.async_wait(
         boost::bind(&AsyncTlsConnection::on_write_timer_expired, shared_from_this(), boost::asio::placeholders::error));
@@ -812,7 +813,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
    */
   void async_write_complete(const B_ERROR_CODE &ec, size_t bytesWritten) {
     __attribute__((unused)) auto res = _writeTimer.expires_at(boost::posix_time::pos_infin);
-    Assert(res < 2);  // can cancel at most 1 pending async_wait
+    ConcordAssert(res < 2);  // can cancel at most 1 pending async_wait
     _writeTimer.expires_at(boost::posix_time::pos_infin);
     if (_disposed) {
       return;

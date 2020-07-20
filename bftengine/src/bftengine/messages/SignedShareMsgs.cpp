@@ -75,7 +75,7 @@ SignedShareBase* SignedShareBase::create(int16_t type,
 }
 
 void SignedShareBase::_validate(const ReplicasInfo& repInfo, int16_t type_) const {
-  Assert(type() == type_);
+  ConcordAssert(type() == type_);
   if (size() < sizeof(Header) + spanContextSize() ||
       size() < sizeof(Header) + signatureLen() + spanContextSize() ||  // size
       senderId() == repInfo.myId() ||                                  // sent from another replica

@@ -29,7 +29,7 @@ static Digest nullDigest(0x18);
 const Digest& PrePrepareMsg::digestOfNullPrePrepareMsg() { return nullDigest; }
 
 void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
-  Assert(senderId() != repInfo.myId());
+  ConcordAssert(senderId() != repInfo.myId());
 
   if (size() < sizeof(Header) + spanContextSize() ||  // header size
       !repInfo.isIdOfReplica(senderId()))             // sender
@@ -93,18 +93,18 @@ PrePrepareMsg::PrePrepareMsg(
 }
 
 uint32_t PrePrepareMsg::remainingSizeForRequests() const {
-  Assert(!isReady());
-  Assert(!isNull());
-  Assert(b()->endLocationOfLastRequest >= payloadShift());
+  ConcordAssert(!isReady());
+  ConcordAssert(!isNull());
+  ConcordAssert(b()->endLocationOfLastRequest >= payloadShift());
 
   return (internalStorageSize() - b()->endLocationOfLastRequest);
 }
 
 void PrePrepareMsg::addRequest(const char* pRequest, uint32_t requestSize) {
-  Assert(getRequestSizeTemp(pRequest) == requestSize);
-  Assert(!isNull());
-  Assert(!isReady());
-  Assert(remainingSizeForRequests() >= requestSize);
+  ConcordAssert(getRequestSizeTemp(pRequest) == requestSize);
+  ConcordAssert(!isNull());
+  ConcordAssert(!isReady());
+  ConcordAssert(remainingSizeForRequests() >= requestSize);
 
   char* insertPtr = body() + b()->endLocationOfLastRequest;
 
@@ -115,18 +115,18 @@ void PrePrepareMsg::addRequest(const char* pRequest, uint32_t requestSize) {
 }
 
 void PrePrepareMsg::finishAddingRequests() {
-  Assert(!isNull());
-  Assert(!isReady());
-  Assert(b()->numberOfRequests > 0);
-  Assert(b()->endLocationOfLastRequest > payloadShift());
-  Assert(b()->digestOfRequests.isZero());
+  ConcordAssert(!isNull());
+  ConcordAssert(!isReady());
+  ConcordAssert(b()->numberOfRequests > 0);
+  ConcordAssert(b()->endLocationOfLastRequest > payloadShift());
+  ConcordAssert(b()->digestOfRequests.isZero());
 
   // check requests (for debug - consider to remove)
-  Assert(checkRequests());
+  ConcordAssert(checkRequests());
 
   // mark as ready
   b()->flags |= 0x2;
-  Assert(isReady());
+  ConcordAssert(isReady());
 
   // compute and set digest
   Digest d;
@@ -142,7 +142,7 @@ void PrePrepareMsg::finishAddingRequests() {
 
 CommitPath PrePrepareMsg::firstPath() const {
   const uint16_t firstPathNum = ((b()->flags >> 2) & 0x3);
-  Assert(firstPathNum <= 2);
+  ConcordAssert(firstPathNum <= 2);
   CommitPath retVal = (CommitPath)firstPathNum;  // TODO(GG): check
   return retVal;
 }
@@ -155,10 +155,10 @@ void PrePrepareMsg::updateView(ViewNum v, CommitPath firstPath) {
 int16_t PrePrepareMsg::computeFlagsForPrePrepareMsg(bool isNull, bool isReady, CommitPath firstPath) {
   int16_t retVal = 0;
 
-  Assert(!isNull || isReady);  // isNull --> isReady
+  ConcordAssert(!isNull || isReady);  // isNull --> isReady
 
   int16_t firstPathNum = (int16_t)firstPath;
-  Assert(firstPathNum <= 2);
+  ConcordAssert(firstPathNum <= 2);
 
   retVal |= (firstPathNum << 2);
   retVal |= ((isReady ? 1 : 0) << 1);
@@ -190,7 +190,7 @@ bool PrePrepareMsg::checkRequests() const {
     }
   }
 
-  Assert(false);
+  ConcordAssert(false);
   return false;
 }
 const std::string PrePrepareMsg::getClientCorrelationIdForMsg(int index) const {
@@ -224,7 +224,7 @@ uint32_t PrePrepareMsg::payloadShift() const { return sizeof(Header) + b()->head
 ///////////////////////////////////////////////////////////////////////////////
 
 RequestsIterator::RequestsIterator(const PrePrepareMsg* const m) : msg{m}, currLoc{m->payloadShift()} {
-  Assert(msg->isReady());
+  ConcordAssert(msg->isReady());
 }
 
 void RequestsIterator::restart() { currLoc = msg->payloadShift(); }
@@ -239,17 +239,17 @@ bool RequestsIterator::getCurrent(char*& pRequest) const {
 }
 
 bool RequestsIterator::end() const {
-  Assert(currLoc <= msg->b()->endLocationOfLastRequest);
+  ConcordAssert(currLoc <= msg->b()->endLocationOfLastRequest);
 
   return (currLoc == msg->b()->endLocationOfLastRequest);
 }
 
 void RequestsIterator::gotoNext() {
-  Assert(!end());
+  ConcordAssert(!end());
   char* p = msg->body() + currLoc;
   uint32_t size = getRequestSizeTemp(p);
   currLoc += size;
-  Assert(currLoc <= msg->b()->endLocationOfLastRequest);
+  ConcordAssert(currLoc <= msg->b()->endLocationOfLastRequest);
 }
 
 bool RequestsIterator::getAndGoToNext(char*& pRequest) {

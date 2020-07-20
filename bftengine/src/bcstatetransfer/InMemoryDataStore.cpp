@@ -29,56 +29,56 @@ bool InMemoryDataStore::initialized() { return wasInit_; }
 void InMemoryDataStore::setAsInitialized() { wasInit_ = true; }
 
 void InMemoryDataStore::setReplicas(const set<uint16_t> replicas) {
-  Assert(replicas_.empty());
+  ConcordAssert(replicas_.empty());
   replicas_ = replicas;
 }
 
 set<uint16_t> InMemoryDataStore::getReplicas() {
-  Assert(!replicas_.empty());
+  ConcordAssert(!replicas_.empty());
   return replicas_;
 }
 
 void InMemoryDataStore::setMyReplicaId(uint16_t id) {
-  Assert(myReplicaId_ == UINT16_MAX);
+  ConcordAssert(myReplicaId_ == UINT16_MAX);
   myReplicaId_ = id;
 }
 
 uint16_t InMemoryDataStore::getMyReplicaId() {
-  Assert(myReplicaId_ != UINT16_MAX);
+  ConcordAssert(myReplicaId_ != UINT16_MAX);
   return myReplicaId_;
 }
 
 void InMemoryDataStore::setFVal(uint16_t fVal) {
-  Assert(fVal_ == UINT16_MAX);
+  ConcordAssert(fVal_ == UINT16_MAX);
   fVal_ = fVal;
 }
 
 uint16_t InMemoryDataStore::getFVal() {
-  Assert(fVal_ != UINT16_MAX);
+  ConcordAssert(fVal_ != UINT16_MAX);
   return fVal_;
 }
 
 void InMemoryDataStore::setMaxNumOfStoredCheckpoints(uint64_t numChecks) {
-  Assert(numChecks > 0);
+  ConcordAssert(numChecks > 0);
 
-  Assert(maxNumOfStoredCheckpoints_ == UINT64_MAX);
+  ConcordAssert(maxNumOfStoredCheckpoints_ == UINT64_MAX);
   maxNumOfStoredCheckpoints_ = numChecks;
 }
 
 uint64_t InMemoryDataStore::getMaxNumOfStoredCheckpoints() const {
-  Assert(maxNumOfStoredCheckpoints_ != UINT64_MAX);
+  ConcordAssert(maxNumOfStoredCheckpoints_ != UINT64_MAX);
   return maxNumOfStoredCheckpoints_;
 }
 
 void InMemoryDataStore::setNumberOfReservedPages(uint32_t numResPages) {
-  Assert(numResPages > 0);
+  ConcordAssert(numResPages > 0);
 
-  Assert(numberOfReservedPages_ == UINT32_MAX);
+  ConcordAssert(numberOfReservedPages_ == UINT32_MAX);
   numberOfReservedPages_ = numResPages;
 }
 
 uint32_t InMemoryDataStore::getNumberOfReservedPages() {
-  Assert(numberOfReservedPages_ != UINT32_MAX);
+  ConcordAssert(numberOfReservedPages_ != UINT32_MAX);
   return numberOfReservedPages_;
 }
 
@@ -91,20 +91,20 @@ void InMemoryDataStore::setFirstStoredCheckpoint(uint64_t c) { firstStoredCheckp
 uint64_t InMemoryDataStore::getFirstStoredCheckpoint() { return firstStoredCheckpoint; }
 
 void InMemoryDataStore::setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& desc) {
-  Assert(checkpoint == desc.checkpointNum);
-  Assert(descMap.count(checkpoint) == 0);
+  ConcordAssert(checkpoint == desc.checkpointNum);
+  ConcordAssert(descMap.count(checkpoint) == 0);
 
   descMap[checkpoint] = desc;
 
-  //  Assert(descMap.size() < 21);  // TODO(GG): delete - debug only
+  //  ConcordAssert(descMap.size() < 21);  // TODO(GG): delete - debug only
 }
 
 DataStore::CheckpointDesc InMemoryDataStore::getCheckpointDesc(uint64_t checkpoint) {
   auto p = descMap.find(checkpoint);
 
-  Assert(p != descMap.end());
+  ConcordAssert(p != descMap.end());
 
-  Assert(p->first == p->second.checkpointNum);
+  ConcordAssert(p->first == p->second.checkpointNum);
 
   return p->second;
 }
@@ -118,7 +118,7 @@ bool InMemoryDataStore::hasCheckpointDesc(uint64_t checkpoint) {
 void InMemoryDataStore::deleteDescOfSmallerCheckpoints(uint64_t checkpoint) {
   auto p = descMap.begin();
   while ((p != descMap.end()) && (p->first < checkpoint)) {
-    Assert(p->first == p->second.checkpointNum);
+    ConcordAssert(p->first == p->second.checkpointNum);
     p = descMap.erase(p);
   }
 }
@@ -128,13 +128,13 @@ void InMemoryDataStore::setIsFetchingState(bool b) { fetching = b; }
 bool InMemoryDataStore::getIsFetchingState() { return fetching; }
 
 void InMemoryDataStore::setCheckpointBeingFetched(const CheckpointDesc& c) {
-  Assert(checkpointBeingFetched.checkpointNum == 0);
+  ConcordAssert(checkpointBeingFetched.checkpointNum == 0);
 
   checkpointBeingFetched = c;
 }
 
 DataStore::CheckpointDesc InMemoryDataStore::getCheckpointBeingFetched() {
-  Assert(checkpointBeingFetched.checkpointNum != 0);
+  ConcordAssert(checkpointBeingFetched.checkpointNum != 0);
 
   return checkpointBeingFetched;
 }
@@ -146,7 +146,7 @@ void InMemoryDataStore::deleteCheckpointBeingFetched() {
   // NOLINTNEXTLINE(bugprone-undefined-memory-manipulation)
   memset(&checkpointBeingFetched, 0, sizeof(checkpointBeingFetched));
 
-  Assert(checkpointBeingFetched.checkpointNum == 0);
+  ConcordAssert(checkpointBeingFetched.checkpointNum == 0);
 }
 
 void InMemoryDataStore::setFirstRequiredBlock(uint64_t i) { firstRequiredBlock = i; }
@@ -159,7 +159,7 @@ uint64_t InMemoryDataStore::getLastRequiredBlock() { return lastRequiredBlock; }
 
 void InMemoryDataStore::setPendingResPage(uint32_t inPageId, const char* inPage, uint32_t inPageLen) {
   LOG_DEBUG(logger(), inPageId);
-  Assert(inPageLen <= sizeOfReservedPage_);
+  ConcordAssert(inPageLen <= sizeOfReservedPage_);
 
   auto pos = pendingPages.find(inPageId);
 
@@ -180,11 +180,11 @@ void InMemoryDataStore::setPendingResPage(uint32_t inPageId, const char* inPage,
 bool InMemoryDataStore::hasPendingResPage(uint32_t inPageId) { return (pendingPages.count(inPageId) > 0); }
 
 void InMemoryDataStore::getPendingResPage(uint32_t inPageId, char* outPage, uint32_t pageLen) {
-  Assert(pageLen <= sizeOfReservedPage_);
+  ConcordAssert(pageLen <= sizeOfReservedPage_);
 
   auto pos = pendingPages.find(inPageId);
 
-  Assert(pos != pendingPages.end());
+  ConcordAssert(pos != pendingPages.end());
 
   memcpy(outPage, pos->second, pageLen);
 }
@@ -211,12 +211,12 @@ void InMemoryDataStore::associatePendingResPageWithCheckpoint(uint32_t inPageId,
   LOG_DEBUG(logger(), "pageId: " << inPageId << " checkpoint: " << inCheckpoint);
   // find in pendingPages
   auto pendingPos = pendingPages.find(inPageId);
-  Assert(pendingPos != pendingPages.end());
-  Assert(pendingPos->second != nullptr);
+  ConcordAssert(pendingPos != pendingPages.end());
+  ConcordAssert(pendingPos->second != nullptr);
 
   // create key, and make sure that we don't already have this element
   ResPageKey key = {inPageId, inCheckpoint};
-  Assert(pages.count(key) == 0);
+  ConcordAssert(pages.count(key) == 0);
 
   // create value
   ResPageVal val = {inPageDigest, pendingPos->second};
@@ -234,7 +234,7 @@ void InMemoryDataStore::setResPage(uint32_t inPageId,
   LOG_DEBUG(logger(), "pageId: " << inPageId << " checkpoint: " << inCheckpoint);
   // create key, and make sure that we don't already have this element
   ResPageKey key = {inPageId, inCheckpoint};
-  Assert(pages.count(key) == 0);
+  ConcordAssert(pages.count(key) == 0);
 
   // prepare page
   char* page = reinterpret_cast<char*>(std::malloc(sizeOfReservedPage_));
@@ -253,9 +253,9 @@ bool InMemoryDataStore::getResPage(uint32_t inPageId,
                                    STDigest* outPageDigest,
                                    char* outPage,
                                    uint32_t copylength) {
-  Assert(copylength <= sizeOfReservedPage_);
+  ConcordAssert(copylength <= sizeOfReservedPage_);
 
-  Assert(inCheckpoint <= lastStoredCheckpoint);
+  ConcordAssert(inCheckpoint <= lastStoredCheckpoint);
 
   ResPageKey key = {inPageId, inCheckpoint};
 
@@ -263,7 +263,7 @@ bool InMemoryDataStore::getResPage(uint32_t inPageId,
 
   if (p == pages.end() || p->first.pageId > inPageId) return false;
 
-  Assert(p->first.checkpoint <= inCheckpoint);
+  ConcordAssert(p->first.checkpoint <= inCheckpoint);
 
   if (outActualCheckpoint != nullptr) *outActualCheckpoint = p->first.checkpoint;
 
@@ -274,7 +274,7 @@ bool InMemoryDataStore::getResPage(uint32_t inPageId,
                        << " digest: " << p->second.pageDigest.toString());
 
   if (outPage != nullptr) {
-    Assert(copylength > 0);
+    ConcordAssert(copylength > 0);
     memcpy(outPage, p->second.page, copylength);
   }
   return true;
@@ -293,7 +293,7 @@ void InMemoryDataStore::deleteCoveredResPageInSmallerCheckpoints(uint64_t inMinR
   while (iter != pages.end()) {
     if (iter->first.pageId == prevItemPageId && prevItemIsInLastRelevantCheckpoint) {
       // delete
-      Assert(iter->second.page != nullptr);
+      ConcordAssert(iter->second.page != nullptr);
       std::free(iter->second.page);
       iter = pages.erase(iter);
     } else {
@@ -303,7 +303,7 @@ void InMemoryDataStore::deleteCoveredResPageInSmallerCheckpoints(uint64_t inMinR
     }
   }
 
-  Assert(pages.size() <= (numberOfReservedPages_ * (maxNumOfStoredCheckpoints_ + 1)));
+  ConcordAssert(pages.size() <= (numberOfReservedPages_ * (maxNumOfStoredCheckpoints_ + 1)));
 }
 
 DataStore::ResPagesDescriptor* InMemoryDataStore::getResPagesDescriptor(uint64_t inCheckpoint) {
@@ -320,7 +320,7 @@ DataStore::ResPagesDescriptor* InMemoryDataStore::getResPagesDescriptor(uint64_t
     if (iter.first.checkpoint <= inCheckpoint) {
       SingleResPageDesc& singleDesc = desc->d[iter.first.pageId];
       if (singleDesc.relevantCheckpoint > 0) {
-        Assert(singleDesc.relevantCheckpoint > iter.first.checkpoint);
+        ConcordAssert(singleDesc.relevantCheckpoint > iter.first.checkpoint);
         continue;  // we already have a description for this pageId with a greater checkpoint num
       }
       singleDesc.pageId = iter.first.pageId;
@@ -336,7 +336,7 @@ DataStore::ResPagesDescriptor* InMemoryDataStore::getResPagesDescriptor(uint64_t
 }
 
 void InMemoryDataStore::free(ResPagesDescriptor* desc) {
-  Assert(desc->numOfPages == numberOfReservedPages_);
+  ConcordAssert(desc->numOfPages == numberOfReservedPages_);
   void* p = desc;
   std::free(p);
 }

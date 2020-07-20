@@ -196,52 +196,52 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
   uint32_t totalNumberOfPages() const { return numberOfResPages_ + numberOfAppPages_ + numberOfMetadataPages_; }
 
   uint32_t resPageToInternalPage(uint32_t x) const {
-    Assert(x < numberOfResPages_);
+    ConcordAssert(x < numberOfResPages_);
     return x;
   }
 
   uint32_t appPageToInternalPage(uint32_t x) const {
-    Assert(x < numberOfAppPages_);
+    ConcordAssert(x < numberOfAppPages_);
     return (x + numberOfResPages_);
   }
 
   uint32_t medataPageToInternalPage(uint32_t x) const {
-    Assert(x < numberOfMetadataPages_);
+    ConcordAssert(x < numberOfMetadataPages_);
     return (x + numberOfResPages_ + numberOfAppPages_);
   }
 
   uint32_t internalPageToResPage(uint32_t x) const {
     uint32_t y = x;
-    Assert(y < numberOfResPages_);
+    ConcordAssert(y < numberOfResPages_);
     return y;
   }
 
   uint32_t internalPageToAppPage(uint32_t x) const {
     uint32_t y = (x - numberOfResPages_);
-    Assert(y < numberOfAppPages_);
+    ConcordAssert(y < numberOfAppPages_);
     return y;
   }
 
   uint32_t internalPageToMetadataPage(uint32_t x) const {
     uint32_t y = (x - numberOfResPages_ - numberOfAppPages_);
-    Assert(y < numberOfMetadataPages_);
+    ConcordAssert(y < numberOfMetadataPages_);
     return y;
   }
 
   uint32_t findMetadataPageOfAppPage(uint32_t appPage) const {
-    Assert(appPage < numberOfAppPages_);
+    ConcordAssert(appPage < numberOfAppPages_);
 
     const uint32_t numberOfMetadataDescInPage = pageSize_ / sizeof(MetadataDesc);
 
     const uint32_t mPage = appPage / numberOfMetadataDescInPage;
 
-    Assert(mPage < numberOfMetadataPages_);
+    ConcordAssert(mPage < numberOfMetadataPages_);
 
     return mPage;
   }
 
   uint32_t findIndexInMetadataPage(uint32_t appPage) const {
-    Assert(appPage < numberOfAppPages_);
+    ConcordAssert(appPage < numberOfAppPages_);
 
     const uint32_t numberOfMetadataDescInPage = pageSize_ / sizeof(MetadataDesc);
 
@@ -281,13 +281,13 @@ SimpleStateTran::SimpleStateTran(
   internalST_ = SimpleBlockchainStateTransfer::create(
       config, &dummyBDState_, db, std::make_shared<concord::storage::v1DirectKeyValue::STKeyManipulator>());
 
-  Assert(internalST_ != nullptr);
+  ConcordAssert(internalST_ != nullptr);
 
   replicaWrapper_.stObject = this;
 }
 
 SimpleStateTran::~SimpleStateTran() {
-  Assert(!internalST_->isRunning());
+  ConcordAssert(!internalST_->isRunning());
 
   delete internalST_;
 
@@ -297,17 +297,17 @@ SimpleStateTran::~SimpleStateTran() {
 void SimpleStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
                            uint32_t numberOfRequiredReservedPages,
                            uint32_t sizeOfReservedPage) {
-  Assert(maxNumOfRequiredStoredCheckpoints >= 2);
-  Assert(numberOfRequiredReservedPages > 0);
-  Assert(sizeOfReservedPage > sizeof(MetadataDesc));
+  ConcordAssert(maxNumOfRequiredStoredCheckpoints >= 2);
+  ConcordAssert(numberOfRequiredReservedPages > 0);
+  ConcordAssert(sizeOfReservedPage > sizeof(MetadataDesc));
 
-  Assert(!isInitialized());
+  ConcordAssert(!isInitialized());
 
   numberOfResPages_ = numberOfRequiredReservedPages;
 
   pageSize_ = sizeOfReservedPage;
 
-  Assert(isInitialized());
+  ConcordAssert(isInitialized());
 
   // allocate temporary buffer
 
@@ -323,27 +323,28 @@ void SimpleStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
     numberOfAppPages_++;
     lastAppPageSize_ = sizeOfState_ % pageSize_;
   }
-  Assert(numberOfAppPages_ > 0);
+  ConcordAssert(numberOfAppPages_ > 0);
 
   // calculate number of metadata pages
 
   const uint32_t numberOfMetadataDescInPage = pageSize_ / sizeof(MetadataDesc);
 
-  Assert(numberOfMetadataDescInPage > 0);
+  ConcordAssert(numberOfMetadataDescInPage > 0);
 
   numberOfMetadataPages_ = ((numberOfAppPages_ + numberOfMetadataDescInPage - 1) / numberOfMetadataDescInPage);
 
-  Assert(numberOfMetadataPages_ > 0);
+  ConcordAssert(numberOfMetadataPages_ > 0);
 
-  Assert(findMetadataPageOfAppPage(0) == 0);
+  ConcordAssert(findMetadataPageOfAppPage(0) == 0);
 
-  Assert(findMetadataPageOfAppPage(numberOfAppPages_ - 1) == (numberOfMetadataPages_ - 1));
+  ConcordAssert(findMetadataPageOfAppPage(numberOfAppPages_ - 1) == (numberOfMetadataPages_ - 1));
 
   // init internalST_
 
   internalST_->init(maxNumOfRequiredStoredCheckpoints, totalNumberOfPages(), pageSize_);
 
-  Assert(numberOfResPages_ == (internalST_->numberOfReservedPages() - numberOfAppPages_ - numberOfMetadataPages_));
+  ConcordAssert(numberOfResPages_ ==
+                (internalST_->numberOfReservedPages() - numberOfAppPages_ - numberOfMetadataPages_));
 
   lastKnownCheckpoint = 0;
 
@@ -359,19 +360,19 @@ void SimpleStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
 }
 
 void SimpleStateTran::startRunning(IReplicaForStateTransfer* r) {
-  Assert(isInitialized());
-  //  Assert(!internalST_->isRunning());
-  //  Assert(updateAppPages_.empty());
+  ConcordAssert(isInitialized());
+  //  ConcordAssert(!internalST_->isRunning());
+  //  ConcordAssert(updateAppPages_.empty());
 
-  //  Assert(replicaWrapper_.realInterface_ == nullptr);
+  //  ConcordAssert(replicaWrapper_.realInterface_ == nullptr);
   replicaWrapper_.realInterface_ = r;
 
   internalST_->startRunning(&replicaWrapper_);
 }
 
 void SimpleStateTran::stopRunning() {
-  Assert(isInitialized());
-  Assert(internalST_->isRunning());
+  ConcordAssert(isInitialized());
+  ConcordAssert(internalST_->isRunning());
 
   internalST_->stopRunning();
 
@@ -381,9 +382,9 @@ void SimpleStateTran::stopRunning() {
 bool SimpleStateTran::isRunning() const { return internalST_->isRunning(); }
 
 void SimpleStateTran::createCheckpointOfCurrentState(uint64_t checkpointNumber) {
-  Assert(isInitialized());
-  Assert(internalST_->isRunning());
-  Assert(checkpointNumber > lastKnownCheckpoint);
+  ConcordAssert(isInitialized());
+  ConcordAssert(internalST_->isRunning());
+  ConcordAssert(checkpointNumber > lastKnownCheckpoint);
 
   lastKnownCheckpoint = checkpointNumber;
 
@@ -405,15 +406,15 @@ void SimpleStateTran::createCheckpointOfCurrentState(uint64_t checkpointNumber) 
   }
 
   for (const auto& g : pagesMap) {
-    Assert(g.first < numberOfMetadataPages_);
+    ConcordAssert(g.first < numberOfMetadataPages_);
 
     internalST_->loadReservedPage(medataPageToInternalPage(g.first), pageSize_, tempBuffer_);
 
     MetadataDesc* descsArray = reinterpret_cast<MetadataDesc*>(tempBuffer_);
 
     for (uint32_t appPage : g.second) {
-      Assert(appPage < numberOfAppPages_);
-      Assert(findMetadataPageOfAppPage(appPage) == g.first);
+      ConcordAssert(appPage < numberOfAppPages_);
+      ConcordAssert(findMetadataPageOfAppPage(appPage) == g.first);
 
       const bool isLastPage = (appPage == numberOfAppPages_ - 1);
       const uint32_t copyLength = isLastPage ? lastAppPageSize_ : pageSize_;
@@ -424,7 +425,7 @@ void SimpleStateTran::createCheckpointOfCurrentState(uint64_t checkpointNumber) 
 
       uint32_t mIndex = findIndexInMetadataPage(appPage);
 
-      Assert(descsArray[mIndex].checkpointNumberOfLastUpdate < checkpointNumber);
+      ConcordAssert(descsArray[mIndex].checkpointNumberOfLastUpdate < checkpointNumber);
 
       descsArray[mIndex].checkpointNumberOfLastUpdate = checkpointNumber;
     }
@@ -440,8 +441,8 @@ void SimpleStateTran::createCheckpointOfCurrentState(uint64_t checkpointNumber) 
 }
 
 void SimpleStateTran::markCheckpointAsStable(uint64_t checkpointNumber) {
-  Assert(isInitialized());
-  Assert(internalST_->isRunning());
+  ConcordAssert(isInitialized());
+  ConcordAssert(internalST_->isRunning());
 
   internalST_->markCheckpointAsStable(checkpointNumber);
 }
@@ -449,16 +450,16 @@ void SimpleStateTran::markCheckpointAsStable(uint64_t checkpointNumber) {
 void SimpleStateTran::getDigestOfCheckpoint(uint64_t checkpointNumber,
                                             uint16_t sizeOfDigestBuffer,
                                             char* outDigestBuffer) {
-  Assert(isInitialized());
-  Assert(internalST_->isRunning());
-  Assert(checkpointNumber <= lastKnownCheckpoint);
+  ConcordAssert(isInitialized());
+  ConcordAssert(internalST_->isRunning());
+  ConcordAssert(checkpointNumber <= lastKnownCheckpoint);
 
   internalST_->getDigestOfCheckpoint(checkpointNumber, sizeOfDigestBuffer, outDigestBuffer);
 }
 
 void SimpleStateTran::startCollectingState() {
-  Assert(isInitialized());
-  Assert(internalST_->isRunning());
+  ConcordAssert(isInitialized());
+  ConcordAssert(internalST_->isRunning());
 
   updateAppPages_.clear();
 
@@ -466,68 +467,68 @@ void SimpleStateTran::startCollectingState() {
 }
 
 bool SimpleStateTran::isCollectingState() const {
-  Assert(isInitialized());
-  Assert(internalST_->isRunning());
+  ConcordAssert(isInitialized());
+  ConcordAssert(internalST_->isRunning());
 
   return internalST_->isCollectingState();
 }
 
 uint32_t SimpleStateTran::numberOfReservedPages() const {
-  Assert(isInitialized());
+  ConcordAssert(isInitialized());
 
   return numberOfResPages_;
 }
 
 uint32_t SimpleStateTran::sizeOfReservedPage() const {
-  Assert(isInitialized());
+  ConcordAssert(isInitialized());
 
-  Assert(pageSize_ == internalST_->sizeOfReservedPage());
+  ConcordAssert(pageSize_ == internalST_->sizeOfReservedPage());
 
   return pageSize_;
 }
 
 bool SimpleStateTran::loadReservedPage(uint32_t reservedPageId, uint32_t copyLength, char* outReservedPage) const {
-  Assert(isInitialized());
-  Assert(reservedPageId < numberOfResPages_);
+  ConcordAssert(isInitialized());
+  ConcordAssert(reservedPageId < numberOfResPages_);
 
   return internalST_->loadReservedPage(reservedPageId, copyLength, outReservedPage);
 }
 
 void SimpleStateTran::saveReservedPage(uint32_t reservedPageId, uint32_t copyLength, const char* inReservedPage) {
-  Assert(isInitialized());
-  Assert(reservedPageId < numberOfResPages_);
+  ConcordAssert(isInitialized());
+  ConcordAssert(reservedPageId < numberOfResPages_);
 
   internalST_->saveReservedPage(reservedPageId, copyLength, inReservedPage);
 }
 
 void SimpleStateTran::zeroReservedPage(uint32_t reservedPageId) {
-  Assert(isInitialized());
-  Assert(reservedPageId < numberOfResPages_);
+  ConcordAssert(isInitialized());
+  ConcordAssert(reservedPageId < numberOfResPages_);
 
   internalST_->zeroReservedPage(reservedPageId);
 }
 
 void SimpleStateTran::onTimer() {
-  Assert(isInitialized());
+  ConcordAssert(isInitialized());
 
   internalST_->onTimer();
 }
 
 void SimpleStateTran::handleStateTransferMessage(char* msg, uint32_t msgLen, uint16_t senderId) {
-  Assert(isInitialized());
-  Assert(internalST_->isRunning());
+  ConcordAssert(isInitialized());
+  ConcordAssert(internalST_->isRunning());
 
   internalST_->handleStateTransferMessage(msg, msgLen, senderId);
 }
 
 void SimpleStateTran::markUpdate(void* ptrToUpdatedRegion, uint32_t sizeOfUpdatedRegion) {
-  Assert(isInitialized());
-  Assert(internalST_->isRunning());
-  Assert((reinterpret_cast<char*>(ptrToUpdatedRegion)) >= ptrToState_);
+  ConcordAssert(isInitialized());
+  ConcordAssert(internalST_->isRunning());
+  ConcordAssert((reinterpret_cast<char*>(ptrToUpdatedRegion)) >= ptrToState_);
 
   size_t startLocation = ((reinterpret_cast<char*>(ptrToUpdatedRegion)) - ptrToState_);
 
-  Assert(startLocation < ((size_t)sizeOfState_));
+  ConcordAssert(startLocation < ((size_t)sizeOfState_));
 
   uint32_t p = (((uint32_t)startLocation) / pageSize_);
 
@@ -535,8 +536,8 @@ void SimpleStateTran::markUpdate(void* ptrToUpdatedRegion, uint32_t sizeOfUpdate
 }
 
 void SimpleStateTran::onComplete(int64_t checkpointNumberOfNewState) {
-  Assert((uint64_t)checkpointNumberOfNewState > lastKnownCheckpoint);
-  Assert(updateAppPages_.empty());
+  ConcordAssert((uint64_t)checkpointNumberOfNewState > lastKnownCheckpoint);
+  ConcordAssert(updateAppPages_.empty());
 
   for (uint32_t mPage = 0; mPage < numberOfMetadataPages_; mPage++) {
     internalST_->loadReservedPage(medataPageToInternalPage(mPage), pageSize_, tempBuffer_);
@@ -549,7 +550,7 @@ void SimpleStateTran::onComplete(int64_t checkpointNumberOfNewState) {
       if (descsArray[i].checkpointNumberOfLastUpdate > lastKnownCheckpoint) {
         uint32_t appPage = (mPage * numberOfMetadataDescInPage) + i;
 
-        Assert(appPage < numberOfAppPages_);
+        ConcordAssert(appPage < numberOfAppPages_);
 
         char* pagePtr = ptrToState_ + appPage * pageSize_;
 
@@ -566,18 +567,18 @@ void SimpleStateTran::onComplete(int64_t checkpointNumberOfNewState) {
 bool SimpleStateTran::DummyBDState::hasBlock(uint64_t blockId) const { return false; }
 
 bool SimpleStateTran::DummyBDState::getBlock(uint64_t blockId, char* outBlock, uint32_t* outBlockSize) {
-  Assert(false);
+  ConcordAssert(false);
   return false;
 }
 
 bool SimpleStateTran::DummyBDState::getPrevDigestFromBlock(
     uint64_t blockId, SimpleBlockchainStateTransfer::StateTransferDigest* outPrevBlockDigest) {
-  Assert(false);
+  ConcordAssert(false);
   return false;
 }
 
 bool SimpleStateTran::DummyBDState::putBlock(const uint64_t blockId, const char* block, const uint32_t blockSize) {
-  Assert(false);
+  ConcordAssert(false);
   return false;
 }
 

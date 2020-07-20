@@ -60,7 +60,7 @@ class Bitmap {
 
   Bitmap(Bitmap&& other) : numBits_(other.numBits_), p_(other.p_) {
     if (numBits_ > 0) {
-      Assert(p_ != nullptr);
+      ConcordAssert(p_ != nullptr);
     }
 
     other.p_ = nullptr;
@@ -69,7 +69,7 @@ class Bitmap {
 
   ~Bitmap() {
     if (numBits_ > 0) {
-      Assert(p_ != nullptr);
+      ConcordAssert(p_ != nullptr);
       std::free(p_);
     }
   }
@@ -80,7 +80,7 @@ class Bitmap {
 
   Bitmap& operator=(const Bitmap& other) {
     if (numBits_ > 0) {
-      Assert(p_ != nullptr);
+      ConcordAssert(p_ != nullptr);
       std::free(p_);
     }
 
@@ -97,7 +97,7 @@ class Bitmap {
 
   Bitmap& operator=(Bitmap&& other) {
     if (numBits_ > 0) {
-      Assert(p_ != nullptr);
+      ConcordAssert(p_ != nullptr);
       std::free(p_);
     }
 
@@ -105,7 +105,7 @@ class Bitmap {
     p_ = other.p_;
 
     if (numBits_ > 0) {
-      Assert(p_ != nullptr);
+      ConcordAssert(p_ != nullptr);
     }
 
     other.p_ = nullptr;
@@ -117,28 +117,28 @@ class Bitmap {
   void zeroAll() {
     if (p_ == nullptr) return;
     const uint32_t s = realSize();
-    Assert(s > 0);
+    ConcordAssert(s > 0);
     memset((void*)p_, 0, s);
   }
 
   uint32_t numOfBits() const { return numBits_; }
 
   bool get(uint32_t i) const {
-    Assert(i < numBits_);
+    ConcordAssert(i < numBits_);
     const uint32_t byteIndex = i / 8;
     const unsigned char byteMask = (1 << (i % 8));
     return ((p_[byteIndex] & byteMask) != 0);
   }
 
   void set(uint32_t i) {
-    Assert(i < numBits_);
+    ConcordAssert(i < numBits_);
     const uint32_t byteIndex = i / 8;
     const unsigned char byteMask = (1 << (i % 8));
     p_[byteIndex] = p_[byteIndex] | byteMask;
   }
 
   void reset(uint32_t i) {
-    Assert(i < numBits_);
+    ConcordAssert(i < numBits_);
     const uint32_t byteIndex = i / 8;
     const unsigned char byteMask = ((unsigned char)0xFF) & ~(1 << (i % 8));
     p_[byteIndex] = p_[byteIndex] & byteMask;
@@ -146,7 +146,7 @@ class Bitmap {
 
   void writeToBuffer(char* buffer, uint32_t bufferLength, uint32_t* actualSize) const {
     const uint32_t sizeNeeded = sizeNeededInBuffer();
-    Assert(bufferLength >= sizeNeeded);
+    ConcordAssert(bufferLength >= sizeNeeded);
     uint32_t* pNumOfBits = (uint32_t*)buffer;
     char* pBitmap = buffer + sizeof(uint32_t);
     *pNumOfBits = numBits_;

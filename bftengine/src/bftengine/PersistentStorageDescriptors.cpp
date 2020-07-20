@@ -46,7 +46,7 @@ bool DescriptorOfLastExitFromView::equals(const DescriptorOfLastExitFromView &ot
 }
 
 void DescriptorOfLastExitFromView::serializeSimpleParams(char *buf, size_t bufLen, size_t &actualSize) const {
-  Assert(bufLen >= simpleParamsSize());
+  ConcordAssert(bufLen >= simpleParamsSize());
 
   size_t isDefaultSize = sizeof(isDefault);
   memcpy(buf, &isDefault, isDefaultSize);
@@ -80,8 +80,8 @@ void DescriptorOfLastExitFromView::serializeSimpleParams(char *buf, size_t bufLe
 
 void DescriptorOfLastExitFromView::serializeElement(uint32_t id, char *buf, size_t bufLen, size_t &actualSize) const {
   actualSize = 0;
-  Assert(id < elements.size());
-  Assert(bufLen >= maxElementSize());
+  ConcordAssert(id < elements.size());
+  ConcordAssert(bufLen >= maxElementSize());
 
   PrePrepareMsg *prePrepareMsg = (id < elements.size()) ? elements[id].prePrepare : nullptr;
   PrepareFullMsg *prePrepareFullMsg = (id < elements.size()) ? elements[id].prepareFull : nullptr;
@@ -96,7 +96,7 @@ void DescriptorOfLastExitFromView::serializeElement(uint32_t id, char *buf, size
 
 void DescriptorOfLastExitFromView::deserializeSimpleParams(char *buf, size_t bufLen, uint32_t &actualSize) {
   actualSize = 0;
-  Assert(bufLen >= simpleParamsSize());
+  ConcordAssert(bufLen >= simpleParamsSize());
 
   size_t isDefaultSize = sizeof(isDefault);
   memcpy(&isDefault, buf, isDefaultSize);
@@ -142,8 +142,8 @@ void DescriptorOfLastExitFromView::deserializeElement(uint32_t id, char *buf, si
   size_t hasAllRequestsSize = sizeof(hasAllRequests);
   memcpy(&hasAllRequests, buf, hasAllRequestsSize);
 
-  Assert(elements[id].prePrepare == nullptr);
-  Assert(elements[id].prepareFull == nullptr);
+  ConcordAssert(elements[id].prePrepare == nullptr);
+  ConcordAssert(elements[id].prepareFull == nullptr);
 
   elements[id] = ViewsManager::PrevViewInfo(
       (PrePrepareMsg *)prePrepareMsgPtr, (PrepareFullMsg *)prepareFullMsgPtr, hasAllRequests);
@@ -194,7 +194,7 @@ bool DescriptorOfLastNewView::equals(const DescriptorOfLastNewView &other) const
 
 void DescriptorOfLastNewView::serializeSimpleParams(char *buf, size_t bufLen, size_t &actualSize) const {
   actualSize = 0;
-  Assert(bufLen >= simpleParamsSize());
+  ConcordAssert(bufLen >= simpleParamsSize());
 
   size_t isDefaultSize = sizeof(isDefault);
   memcpy(buf, &isDefault, isDefaultSize);
@@ -221,8 +221,8 @@ void DescriptorOfLastNewView::serializeSimpleParams(char *buf, size_t bufLen, si
 
 void DescriptorOfLastNewView::serializeElement(uint32_t id, char *buf, size_t bufLen, size_t &actualSize) const {
   actualSize = 0;
-  Assert(id < viewChangeMsgsNum);
-  Assert(bufLen >= maxElementSize());
+  ConcordAssert(id < viewChangeMsgsNum);
+  ConcordAssert(bufLen >= maxElementSize());
 
   ViewChangeMsg *msg = (id < viewChangeMsgs.size()) ? viewChangeMsgs[id] : nullptr;
   actualSize = MessageBase::serializeMsg(buf, msg);
@@ -230,7 +230,7 @@ void DescriptorOfLastNewView::serializeElement(uint32_t id, char *buf, size_t bu
 
 void DescriptorOfLastNewView::deserializeSimpleParams(char *buf, size_t bufLen, uint32_t &actualSize) {
   actualSize = 0;
-  Assert(bufLen >= simpleParamsSize());
+  ConcordAssert(bufLen >= simpleParamsSize());
 
   size_t isDefaultSize = sizeof(isDefault);
   memcpy(&isDefault, buf, isDefaultSize);
@@ -259,10 +259,10 @@ void DescriptorOfLastNewView::deserializeSimpleParams(char *buf, size_t bufLen, 
 
 void DescriptorOfLastNewView::deserializeElement(uint32_t id, char *buf, size_t bufLen, size_t &actualSize) {
   actualSize = 0;
-  Assert(id < viewChangeMsgsNum);
+  ConcordAssert(id < viewChangeMsgsNum);
 
   auto *msg = MessageBase::deserializeMsg(buf, bufLen, actualSize);
-  Assert(viewChangeMsgs[id] == nullptr);
+  ConcordAssert(viewChangeMsgs[id] == nullptr);
   viewChangeMsgs[id] = ((ViewChangeMsg *)msg);
 }
 
@@ -274,7 +274,7 @@ bool DescriptorOfLastExecution::equals(const DescriptorOfLastExecution &other) c
 
 void DescriptorOfLastExecution::serialize(char *&buf, size_t bufLen, size_t &actualSize) const {
   actualSize = 0;
-  Assert(bufLen >= maxSize());
+  ConcordAssert(bufLen >= maxSize());
 
   size_t executedSeqNumSize = sizeof(executedSeqNum);
   memcpy(buf, &executedSeqNum, executedSeqNumSize);
@@ -289,7 +289,7 @@ void DescriptorOfLastExecution::serialize(char *&buf, size_t bufLen, size_t &act
 void DescriptorOfLastExecution::deserialize(char *buf, size_t bufLen, uint32_t &actualSize) {
   actualSize = 0;
 
-  Assert(bufLen >= maxSize())
+  ConcordAssert(bufLen >= maxSize())
 
       size_t seqNumSize = sizeof(executedSeqNum);
   memcpy(&executedSeqNum, buf, seqNumSize);

@@ -154,7 +154,7 @@ int DBKeyComparator::composedKeyComparison(const char *_a_data,
     }
     default:
       LOG_ERROR(logger(), "invalid key type: " << (char)aType);
-      Assert(false);
+      ConcordAssert(false);
       throw std::runtime_error("DBKeyComparator::composedKeyComparison: invalid key type");
   }  // switch
 }
@@ -207,7 +207,7 @@ BlockId DBKeyManipulator::extractBlockIdFromKey(const Key &_key) {
  * @return The block id of the composite database key.
  */
 BlockId DBKeyManipulator::extractBlockIdFromKey(const char *_key_data, size_t _key_length) {
-  Assert(_key_length >= sizeof(BlockId));
+  ConcordAssert(_key_length >= sizeof(BlockId));
   const auto offset = _key_length - sizeof(BlockId);
   const auto id = *reinterpret_cast<const BlockId *>(_key_data + offset);
 
@@ -226,7 +226,7 @@ BlockId DBKeyManipulator::extractBlockIdFromKey(const char *_key_data, size_t _k
  * @return The type of the composite database key.
  */
 EDBKeyType DBKeyManipulator::extractTypeFromKey(const Key &_key) {
-  Assert(!_key.empty());
+  ConcordAssert(!_key.empty());
   return extractTypeFromKey(_key.data());
 }
 
@@ -241,8 +241,8 @@ EDBKeyType DBKeyManipulator::extractTypeFromKey(const Key &_key) {
  */
 EDBKeyType DBKeyManipulator::extractTypeFromKey(const char *_key_data) {
   static_assert(sizeof(EDBKeyType) == 1, "Let's avoid byte-order problems.");
-  Assert((_key_data[0] < (char)EDBKeyType::E_DB_KEY_TYPE_LAST) &&
-         (_key_data[0] >= (char)EDBKeyType::E_DB_KEY_TYPE_FIRST));
+  ConcordAssert((_key_data[0] < (char)EDBKeyType::E_DB_KEY_TYPE_LAST) &&
+                (_key_data[0] >= (char)EDBKeyType::E_DB_KEY_TYPE_FIRST));
   return (EDBKeyType)_key_data[0];
 }
 
@@ -270,7 +270,7 @@ ObjectId DBKeyManipulator::extractObjectIdFromKey(const Key &_key) {
  * @return The object id of the composite database key.
  */
 ObjectId DBKeyManipulator::extractObjectIdFromKey(const char *_key_data, size_t _key_length) {
-  Assert(_key_length >= sizeof(ObjectId));
+  ConcordAssert(_key_length >= sizeof(ObjectId));
   size_t offset = _key_length - sizeof(ObjectId);
   ObjectId id = *(ObjectId *)(_key_data + offset);
 
@@ -309,8 +309,8 @@ int DBKeyManipulator::compareKeyPartOfComposedKey(const char *a_data,
                                                   size_t a_length,
                                                   const char *b_data,
                                                   size_t b_length) {
-  Assert(a_length >= sizeof(BlockId) + sizeof(EDBKeyType));
-  Assert(b_length >= sizeof(BlockId) + sizeof(EDBKeyType));
+  ConcordAssert(a_length >= sizeof(BlockId) + sizeof(EDBKeyType));
+  ConcordAssert(b_length >= sizeof(BlockId) + sizeof(EDBKeyType));
 
   const char *a_key = a_data + sizeof(EDBKeyType);
   const size_t a_key_length = a_length - sizeof(BlockId) - sizeof(EDBKeyType);
@@ -449,7 +449,7 @@ void DBAdapter::deleteBlock(const BlockId &blockId) {
     if (Status s = db_->multiDel(keysVec); !s.isOK())
       throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": failed: blockId: ") + std::to_string(blockId) +
                                std::string(" reason: ") + s.toString());
-    if (blockId > 1) Assert(hasBlock(blockId - 1));
+    if (blockId > 1) ConcordAssert(hasBlock(blockId - 1));
     setLatestBlock(blockId - 1);
     setLastReachableBlockNum(blockId - 1);
   } catch (const NotFoundException &e) {
