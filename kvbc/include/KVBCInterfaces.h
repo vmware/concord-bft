@@ -21,6 +21,7 @@
 #include "db_interfaces.h"
 #include "bftengine/Replica.hpp"
 #include "kv_types.hpp"
+#include "IBasicClient.h"
 
 namespace concord::kvbc {
 
@@ -50,23 +51,13 @@ struct ClientConfig {
 /////////////////////////////////////////////////////////////////////////////
 
 // Represents a client of the blockchain database
-class IClient {
+class IClient : public bftEngine::IBasicClient {
  public:
   virtual ~IClient() = default;
   virtual Status start() = 0;
   virtual Status stop() = 0;
 
   virtual bool isRunning() = 0;
-
-  virtual Status invokeCommandSynch(const char* request,
-                                    uint32_t requestSize,
-                                    uint8_t flags,
-                                    std::chrono::milliseconds timeout,
-                                    uint32_t replySize,
-                                    char* outReply,
-                                    uint32_t* outActualReplySize,
-                                    const std::string& cid = "",
-                                    const std::string& span_context = "") = 0;
 
   virtual void setMetricsAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) = 0;
 };

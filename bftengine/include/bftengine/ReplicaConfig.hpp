@@ -118,6 +118,8 @@ struct ReplicaConfig {
 
   // Metrics dump interval
   uint64_t metricsDumpIntervalSeconds = 600;
+
+  bool keyExchangeOnStart = false;
   /**
    * create a singleton instance from this object
    * call to this function will have effect only for the first time
@@ -148,7 +150,8 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
      << "maxNumOfReservedPages: " << rc.maxNumOfReservedPages << "\n"
      << "sizeOfReservedPage: " << rc.sizeOfReservedPage << "\n"
      << "debugStatisticsEnabled: " << rc.debugStatisticsEnabled << "\n"
-     << "metricsDumpIntervalSeconds: " << rc.metricsDumpIntervalSeconds << "\n";
+     << "metricsDumpIntervalSeconds: " << rc.metricsDumpIntervalSeconds << "\n"
+     << "keyExchangeOnStart: " << rc.keyExchangeOnStart << "\n";
   return os;
 }
 
@@ -165,6 +168,7 @@ class ReplicaConfigSingleton {
 
   uint16_t GetFVal() const { return config_->fVal; }
   uint16_t GetCVal() const { return config_->cVal; }
+  uint16_t GetNumReplicas() const { return config_->numReplicas; }
   uint16_t GetReplicaId() const { return config_->replicaId; }
   uint16_t GetNumOfClientProxies() const { return config_->numOfClientProxies; }
   uint16_t GetNumOfExternalClients() const { return config_->numOfExternalClients; }
@@ -209,6 +213,8 @@ class ReplicaConfigSingleton {
   uint64_t GetMetricsDumpInterval() const { return config_->metricsDumpIntervalSeconds; }
 
   bool GetDebugStatisticsEnabled() const { return config_->debugStatisticsEnabled; }
+
+  bool GetKeyExchangeOnStart() const { return config_->keyExchangeOnStart; }
 
  private:
   friend struct ReplicaConfig;

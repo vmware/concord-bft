@@ -32,7 +32,7 @@ uint32_t ReplicaConfigSerializer::maxSize(uint32_t numOfReplicas) {
           IThresholdVerifier::maxSize() * 3 + sizeof(config_->maxExternalMessageSize) +
           sizeof(config_->maxReplyMessageSize) + sizeof(config_->maxNumOfReservedPages) +
           sizeof(config_->sizeOfReservedPage) + sizeof(config_->debugPersistentStorageEnabled) +
-          sizeof(config_->metricsDumpIntervalSeconds));
+          sizeof(config_->metricsDumpIntervalSeconds) + sizeof(config_->keyExchangeOnStart));
 }
 
 ReplicaConfigSerializer::ReplicaConfigSerializer(ReplicaConfig *config) {
@@ -135,6 +135,8 @@ void ReplicaConfigSerializer::serializeDataMembers(ostream &outStream) const {
 
   // Serialize metricsDumpIntervalSeconds
   outStream.write((char *)&config_->metricsDumpIntervalSeconds, sizeof(config_->metricsDumpIntervalSeconds));
+
+  outStream.write((char *)&config_->keyExchangeOnStart, sizeof(config_->keyExchangeOnStart));
 }
 
 void ReplicaConfigSerializer::serializePointer(Serializable *ptrToClass, ostream &outStream) const {
@@ -172,7 +174,8 @@ bool ReplicaConfigSerializer::operator==(const ReplicaConfigSerializer &other) c
        (other.config_->maxReplyMessageSize == config_->maxReplyMessageSize) &&
        (other.config_->maxNumOfReservedPages == config_->maxNumOfReservedPages) &&
        (other.config_->sizeOfReservedPage == config_->sizeOfReservedPage) &&
-       (other.config_->metricsDumpIntervalSeconds == config_->metricsDumpIntervalSeconds));
+       (other.config_->metricsDumpIntervalSeconds == config_->metricsDumpIntervalSeconds) &&
+       (other.config_->keyExchangeOnStart == config_->keyExchangeOnStart));
   return result;
 }
 
@@ -252,6 +255,8 @@ void ReplicaConfigSerializer::deserializeDataMembers(istream &inStream) {
 
   // Deserialize metricsDumpIntervalSeconds
   inStream.read((char *)&config.metricsDumpIntervalSeconds, sizeof(config.metricsDumpIntervalSeconds));
+
+  inStream.read((char *)&config.keyExchangeOnStart, sizeof(config.keyExchangeOnStart));
 }
 
 SerializablePtr ReplicaConfigSerializer::deserializePointer(std::istream &inStream) {
