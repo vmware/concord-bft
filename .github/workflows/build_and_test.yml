@@ -1,13 +1,14 @@
 name: Build
-on: [push, pull_request]
-  # Trigger the workflow on push or pull request,
-  # but only for the master branch
-  # push:
-  #     branches:
-  #     - master
-  # pull_request:
-  #     branches:
-  #     - master
+on:
+    push:
+        paths-ignore:
+            - '**.md'
+            - '**.png'
+    pull_request:
+        paths-ignore:
+            - '**.md'
+            - '**.png'
+
 env:
     DOCKER_REPO: concordbft
     DOCKER_IMAGE: concord-bft

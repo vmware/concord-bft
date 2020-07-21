@@ -1,5 +1,15 @@
 name: clang-tidy
-on: [push, pull_request]
+on:
+    push:
+        paths-ignore:
+            - '**.py'
+            - '**.md'
+            - '**.png'
+    pull_request:
+        paths-ignore:
+            - '**.py'
+            - '**.md'
+            - '**.png'
 
 env:
     DOCKER_REPO: concordbft
