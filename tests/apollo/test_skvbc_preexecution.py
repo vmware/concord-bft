@@ -180,17 +180,6 @@ class SkvbcPreExecutionTest(unittest.TestCase):
                                             expected=lambda v: v == expected_next_primary,
                                             err_msg="Make sure view change has been triggered.")
 
-        new_last_block = 0
-        for retry in range(60):
-            try:
-                new_last_block = await tracker.get_last_block_id(client)
-            except trio.TooSlowError:
-                continue
-            else:
-                break
-
-        self.assertEqual(new_last_block, last_block)
-
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
