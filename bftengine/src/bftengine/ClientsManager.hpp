@@ -13,7 +13,7 @@
 
 #include "PrimitiveTypes.hpp"
 #include "TimeUtils.hpp"
-
+#include "ReservedPages.hpp"
 #include <map>
 #include <set>
 #include <vector>
@@ -25,7 +25,7 @@ namespace impl {
 class ClientReplyMsg;
 class ClientRequestMsg;
 
-class ClientsManager {
+class ClientsManager : public ResPagesClient<ClientsManager, 0> {
  public:
   ClientsManager(ReplicaId myId, std::set<NodeIdType>& clientsSet, uint32_t sizeOfReservedPage);
   ~ClientsManager();

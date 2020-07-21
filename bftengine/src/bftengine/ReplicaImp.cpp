@@ -3028,13 +3028,11 @@ ReplicaImp::ReplicaImp(bool firstTime,
   std::set<NodeIdType> clientsSet;
   const auto numOfEntities = config_.numReplicas + config_.numOfClientProxies + config_.numOfExternalClients;
   for (uint16_t i = config_.numReplicas; i < numOfEntities; i++) clientsSet.insert(i);
-
   clientsManager =
       new ClientsManager(config_.replicaId, clientsSet, ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage());
-
+  clientsManager->setNumResPages((config_.numOfClientProxies + config_.numOfExternalClients) *
+                                 config_.maxReplyMessageSize / config_.sizeOfReservedPage);
   clientsManager->init(stateTransfer.get());
-
-  if (!firstTime || config_.debugPersistentStorageEnabled) clientsManager->loadInfoFromReservedPages();
 
   // autoPrimaryRotationEnabled implies viewChangeProtocolEnabled
   // Note: "p=>q" is equivalent to "not p or q"
@@ -3156,6 +3154,7 @@ void ReplicaImp::addTimers() {
 
 void ReplicaImp::start() {
   ReplicaForStateTransfer::start();
+  if (!firstTime_ || config_.debugPersistentStorageEnabled) clientsManager->loadInfoFromReservedPages();
   addTimers();
   processMessages();
 }

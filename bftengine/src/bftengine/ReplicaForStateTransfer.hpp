@@ -60,6 +60,7 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
   Timers::Handle stateTranTimer_;
   CounterHandle metric_received_state_transfers_;
   GaugeHandle metric_state_transfer_timer_;
+  bool firstTime_;
 };
 
 }  // namespace bftEngine::impl

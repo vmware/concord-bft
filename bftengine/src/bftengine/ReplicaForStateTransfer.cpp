@@ -18,6 +18,7 @@
 #include "MsgsCommunicator.hpp"
 #include "ReplicasInfo.hpp"
 #include "messages/StateTransferMsg.hpp"
+#include "ReservedPages.hpp"
 
 namespace bftEngine::impl {
 using namespace std::chrono_literals;
@@ -31,20 +32,19 @@ ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
     : ReplicaBase(config, msgComm, msgHandlerReg, timers),
       stateTransfer{(stateTransfer != nullptr ? stateTransfer : new NullStateTransfer())},
       metric_received_state_transfers_{metrics_.RegisterCounter("receivedStateTransferMsgs")},
-      metric_state_transfer_timer_{metrics_.RegisterGauge("replicaForStateTransferTimer", 0)} {
+      metric_state_transfer_timer_{metrics_.RegisterGauge("replicaForStateTransferTimer", 0)},
+      firstTime_(firstTime) {
   msgHandlers_->registerMsgHandler(
       MsgCode::StateTransfer,
       std::bind(&ReplicaForStateTransfer::messageHandler<StateTransferMsg>, this, std::placeholders::_1));
   if (config_.debugStatisticsEnabled) DebugStatistics::initDebugStatisticsData();
-
-  if (firstTime || !config_.debugPersistentStorageEnabled)
-    stateTransfer->init(kWorkWindowSize / checkpointWindowSize + 1,
-                        (config_.numOfClientProxies + config_.numOfExternalClients) * config_.maxReplyMessageSize /
-                            config_.sizeOfReservedPage,
-                        ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage());
 }
 
 void ReplicaForStateTransfer::start() {
+  if (firstTime_ || !config_.debugPersistentStorageEnabled)
+    stateTransfer->init(kWorkWindowSize / checkpointWindowSize + 1,
+                        ReservedPages::totalNumberOfPages(),
+                        ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage());
   const std::chrono::milliseconds defaultTimeout = 5s;
   stateTranTimer_ =
       timers_.add(defaultTimeout, Timers::Timer::RECURRING, [this](Timers::Handle h) { stateTransfer->onTimer(); });
