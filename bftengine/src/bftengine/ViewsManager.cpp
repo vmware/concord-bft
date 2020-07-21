@@ -341,7 +341,7 @@ void ViewsManager::computeCorrectRelevantViewNumbers(ViewNum* outMaxKnownCorrect
   *outMaxKnownAgreedView = myLatestPendingView;
 
   size_t numOfVC = 0;
-  ViewNum* viewNumbers = reinterpret_cast<ViewNum*>(alloca(N * sizeof(ViewNum)));
+  std::vector<ViewNum> viewNumbers(N);
   for (uint16_t i = 0; i < N; i++) {
     ViewChangeMsg* vc = viewChangeMessages[i];
     if (i == myId) vc = getMyLatestViewChangeMsg();
@@ -354,7 +354,7 @@ void ViewsManager::computeCorrectRelevantViewNumbers(ViewNum* outMaxKnownCorrect
 
   if (numOfVC < CORRECT) return;
 
-  qsort(viewNumbers, numOfVC, sizeof(ViewNum), compareViews);
+  qsort(viewNumbers.data(), numOfVC, sizeof(ViewNum), compareViews);
 
   ConcordAssert(viewNumbers[0] >= viewNumbers[numOfVC - 1]);
 

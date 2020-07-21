@@ -215,7 +215,7 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
 
     auto span = concordUtils::startChildSpanFromContext(span_context_, "bft_create_FullCommitProofMsg");
     const uint16_t bufferSize = (uint16_t)verifier->requiredLengthForSignedData();
-    char* const bufferForSigComputations = (char*)alloca(bufferSize);
+    std::vector<char> bufferForSigComputations(bufferSize);
 
     // char bufferForSigComputations[2048];
 
@@ -227,9 +227,10 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
       return;
     }
 
-    acc->getFullSignedData(bufferForSigComputations, sigLength);
+    acc->getFullSignedData(bufferForSigComputations.data(), sigLength);
 
-    bool succ = verifier->verify((char*)&expectedDigest, sizeof(Digest), bufferForSigComputations, (uint16_t)sigLength);
+    bool succ =
+        verifier->verify((char*)&expectedDigest, sizeof(Digest), bufferForSigComputations.data(), (uint16_t)sigLength);
 
     if (!succ) {
       LOG_WARN(GL, "Failed to create FullProof for seqNumber " << seqNumber);
@@ -237,8 +238,12 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
       return;
     } else {
       LOG_DEBUG(CNSUS, "Created FullProof, sending full commit proof");
-      FullCommitProofMsg* fcpMsg = new FullCommitProofMsg(
-          me->getReplicasInfo().myId(), view, seqNumber, bufferForSigComputations, (uint16_t)sigLength, span_context_);
+      FullCommitProofMsg* fcpMsg = new FullCommitProofMsg(me->getReplicasInfo().myId(),
+                                                          view,
+                                                          seqNumber,
+                                                          bufferForSigComputations.data(),
+                                                          (uint16_t)sigLength,
+                                                          span_context_);
       me->getIncomingMsgsStorage().pushInternalMsg(fcpMsg);
     }
 
