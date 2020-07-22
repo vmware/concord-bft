@@ -218,7 +218,7 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
             )
 
             # waiting for the active window to be rebuilt after the view change
-            await trio.sleep(seconds=10)
+            await trio.sleep(seconds=5)
 
         # the adversary is not active anymore:
         # make sure the isolated replicas activate the new view

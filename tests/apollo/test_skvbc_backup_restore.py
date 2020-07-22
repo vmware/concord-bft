@@ -102,7 +102,8 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
         )
 
     @staticmethod
-    async def _stop_random_replicas_with_delay(bft_network, replica_set_size, delay=10, exclude_replicas=None):
+    async def _stop_random_replicas_with_delay(
+            bft_network, replica_set_size, delay=5, exclude_replicas=None):
         random_replicas = bft_network.random_set_of_replicas(size=replica_set_size, without=exclude_replicas)
         for replica in random_replicas:
             bft_network.stop_replica(replica)
@@ -110,7 +111,8 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
         return list(random_replicas)
 
     @staticmethod
-    async def _start_random_replicas_with_delay(bft_network, stopped_replicas, delay=10):
+    async def _start_random_replicas_with_delay(
+            bft_network, stopped_replicas, delay=5):
         random.shuffle(stopped_replicas)
         for replica in stopped_replicas:
             bft_network.start_replica(replica)
