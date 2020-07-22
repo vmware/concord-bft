@@ -3447,11 +3447,11 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
   auto span = concordUtils::startChildSpan("bft_execute_next_committed_requests", parent_span);
 
   while (lastExecutedSeqNum < lastStableSeqNum + kWorkWindowSize) {
-    if (!stopAtNextChecknpoint_ && controlStateManager_->getStopCheckpointToStopAt().has_value()) {
+    if (!stopAtNextCheckpoint_ && controlStateManager_->getStopCheckpointToStopAt().has_value()) {
       // If, following the last execution, we discover that we need to jump to the
       // next checkpoint, the primary sends noop commands until filling the working window.
       bringTheSystemToTheNextCheckpointBySendingNoopCommands();
-      stopAtNextChecknpoint_ = true;
+      stopAtNextCheckpoint_ = true;
     }
     SeqNum nextExecutedSeqNum = lastExecutedSeqNum + 1;
     SeqNumInfo &seqNumInfo = mainLog->get(nextExecutedSeqNum);
