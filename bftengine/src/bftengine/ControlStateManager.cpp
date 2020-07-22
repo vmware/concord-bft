@@ -16,7 +16,7 @@ namespace bftEngine {
 
 void ControlStateManager::setStopAtNextCheckpoint() {}
 
-std::optional<uint64_t> ControlStateManager::getStopCheckpointToStopAt() { return UINT64_MAX; }
+std::optional<uint64_t> ControlStateManager::getStopCheckpointToStopAt() { return {}; }
 
 ControlStateManager::ControlStateManager(IStateTransfer& state_transfer) : state_transfer_{state_transfer} {
   state_transfer_.getStatus();  // Temporary, to escape not-used compilation error

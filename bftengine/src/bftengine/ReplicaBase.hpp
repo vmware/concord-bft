@@ -128,6 +128,7 @@ class ReplicaBase {
   ///////////////////////////////////////////////////
   // ControlStateManger
   std::shared_ptr<ControlStateManager> controlStateManager_;
+  bool stopAtNextCheckpoint_ = false;
 };
 
 }  // namespace bftEngine::impl
