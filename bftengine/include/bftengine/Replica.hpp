@@ -35,9 +35,21 @@ enum MsgFlag : uint8_t {
   HAS_PRE_PROCESSED_FLAG = 0x4
 };
 
-class IControlHandler {
+// The ControlHandlers is a group of method that enables the userRequestHandler to perform infrastructure
+// changes in the system.
+// For example, assuming we want to upgrade the system to new software version, then:
+// 1. We need to bring the system to a stable state (bft responsibility)
+// 2. We need to perform the actual upgrade process (the platform responsibility)
+// Thus, once the bft brings the system to the desired stable state, it needs to invoke the a callback of the user to
+// perform the actual upgrade.
+// More possible scenarios would be:
+// 1. Adding/removing node
+// 2. Key exchange
+// 3. Change DB scheme
+// and basically any management action that is handled by the layer that uses concord-bft.
+class ControlHandlers {
  public:
-  virtual void upgrade() = 0;
+  virtual void onSuperStableCheckpoint() = 0;
 };
 
 class IRequestsHandler {
@@ -56,7 +68,7 @@ class IRequestsHandler {
   virtual void onFinishExecutingReadWriteRequests() {}
   virtual ~IRequestsHandler() {}
 
-  virtual std::shared_ptr<IControlHandler> getControlHandlers() = 0;
+  virtual std::shared_ptr<ControlHandlers> getControlHandlers() = 0;
 };
 
 class IReplica {

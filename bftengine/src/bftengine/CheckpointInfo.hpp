@@ -42,6 +42,9 @@ class CheckpointInfo {
 
   bool isCheckpointCertificateComplete() const;
 
+  // A replica considers a checkpoint to be super stable if it knows that all n/n replicas have reached to this
+  // checkpoint. This is in contrary to stable checkpoint which means that the replica knows that a byzantine quorum of
+  // replicas have reached to this checkpoint.
   bool isCheckpointSuperStable() const;
 
   CheckpointMsg* selfCheckpointMsg() const;

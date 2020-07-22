@@ -2320,7 +2320,7 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
 
 void ReplicaImp::onSeqNumIsSuperStable(SeqNum newSuperStableSeqNum) {
   if (controlStateManager_->getStopCheckpointToStopAt() == newSuperStableSeqNum) {
-    if (userRequestsHandler->getControlHandlers()) userRequestsHandler->getControlHandlers()->upgrade();
+    if (userRequestsHandler->getControlHandlers()) userRequestsHandler->getControlHandlers()->onSuperStableCheckpoint();
   }
 }
 void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformation, bool oldSeqNum) {
@@ -2352,9 +2352,16 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
 
   mainLog->advanceActiveWindow(lastStableSeqNum + 1);
 
+  // Basically, once a checkpoint become stable, we advance the checkpoints log window to it.
+  // Alas, by doing so, we does not leave time for a checkpoint to try and become super stable.
+  // For that we added another cell to the checkpoints log such that the "oldest" cell contains the checkpoint is
+  // candidate for becoming super stable. So, once a checkpoint becomes stable we check if the previous checkpoint is in
+  // the log, and if so we advance the log to that previous checkpoint.
   if (checkpointsLog->insideActiveWindow(newStableSeqNum - checkpointWindowSize)) {
     checkpointsLog->advanceActiveWindow(newStableSeqNum - checkpointWindowSize);
   } else {
+    // If for some reason the previous checkpoint is not in the log, we advance the log to the current stable
+    // checkpoint.
     checkpointsLog->advanceActiveWindow(lastStableSeqNum);
   }
 

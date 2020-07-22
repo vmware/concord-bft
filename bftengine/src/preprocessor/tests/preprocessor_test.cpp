@@ -69,7 +69,7 @@ class DummyRequestsHandler : public IRequestsHandler {
     return 0;
   }
 
-  std::shared_ptr<IControlHandler> getControlHandlers() override { return nullptr; }
+  std::shared_ptr<ControlHandlers> getControlHandlers() override { return nullptr; }
 };
 
 class DummyReceiver : public IReceiver {
