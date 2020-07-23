@@ -14,12 +14,34 @@
 #include "ControlStateManager.hpp"
 namespace bftEngine {
 
-void ControlStateManager::setStopAtNextCheckpoint() {}
+// This method will be called from the command handler. Notice that the command handler does not aware to the number of
+// the checkpoint. Thus, it can only raise a flag to stop.
+void ControlStateManager::setStopAtNextCheckpoint(uint64_t currentSeqNum) {
+  uint64_t seq_num_to_stop_at = (currentSeqNum + 2 * checkpointWindowSize);
+  seq_num_to_stop_at = seq_num_to_stop_at - (seq_num_to_stop_at % checkpointWindowSize);
+  std::ostringstream outStream;
+  controlStateMessages::StopAtNextCheckpointMessage msg(seq_num_to_stop_at);
+  concord::serialize::Serializable::serialize(outStream, msg);
+  auto data = outStream.str();
+  state_transfer_->saveReservedPage(
+      resPageOffset() + reserved_pages_indexer_.update_reserved_page_, data.size(), data.data());
+}
 
-std::optional<uint64_t> ControlStateManager::getStopCheckpointToStopAt() { return {}; }
+std::optional<uint64_t> ControlStateManager::getCheckpointToStopAt() {
+  if (!state_transfer_->loadReservedPage(resPageOffset() + reserved_pages_indexer_.update_reserved_page_,
+                                         sizeOfReservedPage_,
+                                         scratchPage_.data())) {
+    return {};
+  }
+  std::istringstream inStream;
+  inStream.str(scratchPage_);
+  controlStateMessages::StopAtNextCheckpointMessage msg;
+  concord::serialize::Serializable::deserialize(inStream, msg);
+  return msg.seqNumToStopAt_;
+}
 
-ControlStateManager::ControlStateManager(IStateTransfer& state_transfer) : state_transfer_{state_transfer} {
-  state_transfer_.getStatus();  // Temporary, to escape not-used compilation error
+ControlStateManager::ControlStateManager(IStateTransfer* state_transfer,  uint32_t sizeOfReservedPages) : state_transfer_{state_transfer}, sizeOfReservedPage_{sizeOfReservedPages} {
+  scratchPage_.resize(sizeOfReservedPage_);
 }
 
 }  // namespace bftEngine
