@@ -121,6 +121,7 @@ void setDynamicallyConfigurableParameters(ReplicaConfig &config) {
   config.sizeOfReservedPage = ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage();
   config.debugStatisticsEnabled = ReplicaConfigSingleton::GetInstance().GetDebugStatisticsEnabled();
   config.metricsDumpIntervalSeconds = ReplicaConfigSingleton::GetInstance().GetMetricsDumpInterval();
+  config.keyExchangeOnStart = ReplicaConfigSingleton::GetInstance().GetKeyExchangeOnStart();
 }
 
 ReplicaLoader::ErrorCode loadConfig(shared_ptr<PersistentStorage> &p, LoadedReplicaData &ld) {
