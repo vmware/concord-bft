@@ -221,7 +221,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         )
 
         # waiting for the active window to be rebuilt after the view change
-        await trio.sleep(seconds=10)
+        await trio.sleep(seconds=5)
 
         # restart the unstable replica and make sure it works in the new view
         bft_network.start_replica(unstable_replica)
@@ -266,7 +266,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         bft_network.start_replica(initial_primary)
 
         # waiting for the active window to be rebuilt after the view change
-        await trio.sleep(seconds=10)
+        await trio.sleep(seconds=5)
 
         unstable_replica = random.choice(
             bft_network.all_replicas(without={current_primary, initial_primary}))
