@@ -28,9 +28,8 @@ void ControlStateManager::setStopAtNextCheckpoint(int64_t currentSeqNum) {
 }
 
 std::optional<int64_t> ControlStateManager::getCheckpointToStopAt() {
-  if (!state_transfer_->loadReservedPage(resPageOffset() + reserved_pages_indexer_.update_reserved_page_,
-                                         sizeOfReservedPage_,
-                                         scratchPage_.data())) {
+  if (!state_transfer_->loadReservedPage(
+          resPageOffset() + reserved_pages_indexer_.update_reserved_page_, sizeOfReservedPage_, scratchPage_.data())) {
     return {};
   }
   std::istringstream inStream;
@@ -40,7 +39,8 @@ std::optional<int64_t> ControlStateManager::getCheckpointToStopAt() {
   return msg.seqNumToStopAt_;
 }
 
-ControlStateManager::ControlStateManager(IStateTransfer* state_transfer,  uint32_t sizeOfReservedPages) : state_transfer_{state_transfer}, sizeOfReservedPage_{sizeOfReservedPages} {
+ControlStateManager::ControlStateManager(IStateTransfer* state_transfer, uint32_t sizeOfReservedPages)
+    : state_transfer_{state_transfer}, sizeOfReservedPage_{sizeOfReservedPages} {
   scratchPage_.resize(sizeOfReservedPage_);
 }
 
