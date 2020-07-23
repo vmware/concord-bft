@@ -101,7 +101,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   // bounded log used to store information about checkpoints in the range [lastStableSeqNum,lastStableSeqNum +
   // kWorkWindowSize]
-  SequenceWithActiveWindow<kWorkWindowSize + checkpointWindowSize,
+  SequenceWithActiveWindow<kWorkWindowSize + 2 * checkpointWindowSize,
                            checkpointWindowSize,
                            SeqNum,
                            CheckpointInfo,
@@ -332,6 +332,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
       bool oldSeqNum = false  // true IFF sequence number newStableSeqNum+kWorkWindowSize has already been executed
   );
 
+  void onSeqNumIsSuperStable(SeqNum newSuperStableSeqNum);
   void onTransferringCompleteImp(SeqNum) override;
 
   template <typename T>

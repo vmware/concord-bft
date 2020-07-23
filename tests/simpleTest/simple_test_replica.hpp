@@ -66,6 +66,8 @@ class SimpleAppState : public IRequestsHandler {
   }
 
  public:
+  std::shared_ptr<ControlHandlers> getControlHandlers() override { return nullptr; }
+
   SimpleAppState(uint16_t numCl, uint16_t numRep)
       : statePtr{new SimpleAppState::State[numCl]}, numOfClients{numCl}, numOfReplicas{numRep} {}
   ~SimpleAppState() { delete[] statePtr; }

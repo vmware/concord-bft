@@ -1405,6 +1405,12 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
 
       return;
     }
+  } else if (checkpointsLog->insideActiveWindow(msgSeqNum)) {
+    CheckpointInfo &checkInfo = checkpointsLog->get(msgSeqNum);
+    bool msgAdded = checkInfo.addCheckpointMsg(msg, msg->senderId());
+    if (msgAdded && checkInfo.isCheckpointSuperStable()) {
+      onSeqNumIsSuperStable(msgSeqNum);
+    }
   } else {
     delete msg;
   }
@@ -2296,6 +2302,9 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
 
   if (newStateCheckpoint > primaryLastUsedSeqNum) primaryLastUsedSeqNum = newStateCheckpoint;
 
+  if (checkpointInfo.isCheckpointSuperStable()) {
+    onSeqNumIsSuperStable(newStateCheckpoint);
+  }
   if (ps_) {
     ps_->setPrimaryLastUsedSeqNum(primaryLastUsedSeqNum);
     ps_->setCheckpointMsgInCheckWindow(newStateCheckpoint, checkpointMsg);
@@ -2330,6 +2339,11 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
   }
 }
 
+void ReplicaImp::onSeqNumIsSuperStable(SeqNum newSuperStableSeqNum) {
+  if (controlStateManager_->getStopCheckpointToStopAt() == newSuperStableSeqNum) {
+    if (userRequestsHandler->getControlHandlers()) userRequestsHandler->getControlHandlers()->onSuperStableCheckpoint();
+  }
+}
 void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformation, bool oldSeqNum) {
   ConcordAssertOR(hasStateInformation, oldSeqNum);  // !hasStateInformation ==> oldSeqNum
   ConcordAssertEQ(newStableSeqNum % checkpointWindowSize, 0);
@@ -2359,7 +2373,18 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
 
   mainLog->advanceActiveWindow(lastStableSeqNum + 1);
 
-  checkpointsLog->advanceActiveWindow(lastStableSeqNum);
+  // Basically, once a checkpoint become stable, we advance the checkpoints log window to it.
+  // Alas, by doing so, we does not leave time for a checkpoint to try and become super stable.
+  // For that we added another cell to the checkpoints log such that the "oldest" cell contains the checkpoint is
+  // candidate for becoming super stable. So, once a checkpoint becomes stable we check if the previous checkpoint is in
+  // the log, and if so we advance the log to that previous checkpoint.
+  if (checkpointsLog->insideActiveWindow(newStableSeqNum - checkpointWindowSize)) {
+    checkpointsLog->advanceActiveWindow(newStableSeqNum - checkpointWindowSize);
+  } else {
+    // If for some reason the previous checkpoint is not in the log, we advance the log to the current stable
+    // checkpoint.
+    checkpointsLog->advanceActiveWindow(lastStableSeqNum);
+  }
 
   if (hasStateInformation) {
     if (lastStableSeqNum > lastExecutedSeqNum) {
@@ -2388,6 +2413,10 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
     if (!checkpointInfo.isCheckpointCertificateComplete()) checkpointInfo.tryToMarkCheckpointCertificateCompleted();
     ConcordAssert(checkpointInfo.isCheckpointCertificateComplete());
 
+    // Call onSeqNumIsSuperStable in case that the self message was the last one to add
+    if (checkpointInfo.isCheckpointSuperStable()) {
+      onSeqNumIsSuperStable(lastStableSeqNum);
+    }
     if (ps_) {
       ps_->setCheckpointMsgInCheckWindow(lastStableSeqNum, checkpointMsg);
       ps_->setCompletedMarkInCheckWindow(lastStableSeqNum, true);
@@ -3074,7 +3103,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
   mainLog =
       new SequenceWithActiveWindow<kWorkWindowSize, 1, SeqNum, SeqNumInfo, SeqNumInfo>(1, (InternalReplicaApi *)this);
 
-  checkpointsLog = new SequenceWithActiveWindow<kWorkWindowSize + checkpointWindowSize,
+  checkpointsLog = new SequenceWithActiveWindow<kWorkWindowSize + 2 * checkpointWindowSize,
                                                 checkpointWindowSize,
                                                 SeqNum,
                                                 CheckpointInfo,
@@ -3412,6 +3441,9 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
       onSeqNumIsStable(lastExecutedSeqNum);
     }
     checkInfo.setSelfExecutionTime(getMonotonicTime());
+    if (checkInfo.isCheckpointSuperStable()) {
+      onSeqNumIsSuperStable(lastStableSeqNum);
+    }
   }
 
   if (ps_) ps_->endWriteTran();
