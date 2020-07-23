@@ -31,7 +31,8 @@ namespace rocksdb {
 // Counter for number of read requests
 static unsigned int g_rocksdb_called_read = 0;
 static bool g_rocksdb_print_measurements = false;
-
+// Number of background threads
+const unsigned int background_threads = 16;
 /**
  * @brief Converts a Sliver object to a RocksDB Slice object.
  *
@@ -108,6 +109,7 @@ void Client::init(bool readOnly) {
         '/';
 #endif
     // If we couldn't read the stored configuration file, try to read the default configuration file.
+    options.IncreaseParallelism(background_threads);
     s_opt = ::rocksdb::LoadOptionsFromFile(
         m_dbPath + kPathSeparator + default_opt_config_name, ::rocksdb::Env::Default(), &options, &cf_descs);
   }
@@ -268,6 +270,7 @@ ClientIterator::ClientIterator(const Client *_parentClient, logging::Logger logg
  */
 Status Client::put(const Sliver &_key, const Sliver &_value) {
   ::rocksdb::WriteOptions woptions = ::rocksdb::WriteOptions();
+  woptions.memtable_insert_hint_per_batch = true;
 
   ::rocksdb::Status s = dbInstance_->Put(woptions, toRocksdbSlice(_key), toRocksdbSlice(_value));
 
