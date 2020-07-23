@@ -16,7 +16,7 @@ namespace bftEngine {
 
 // This method will be called from the command handler. Notice that the command handler does not aware to the number of
 // the checkpoint. Thus, it can only raise a flag to stop.
-void ControlStateManager::setStopAtNextCheckpoint(uint64_t currentSeqNum) {
+void ControlStateManager::setStopAtNextCheckpoint(int64_t currentSeqNum) {
   uint64_t seq_num_to_stop_at = (currentSeqNum + 2 * checkpointWindowSize);
   seq_num_to_stop_at = seq_num_to_stop_at - (seq_num_to_stop_at % checkpointWindowSize);
   std::ostringstream outStream;
@@ -27,7 +27,7 @@ void ControlStateManager::setStopAtNextCheckpoint(uint64_t currentSeqNum) {
       resPageOffset() + reserved_pages_indexer_.update_reserved_page_, data.size(), data.data());
 }
 
-std::optional<uint64_t> ControlStateManager::getCheckpointToStopAt() {
+std::optional<int64_t> ControlStateManager::getCheckpointToStopAt() {
   if (!state_transfer_->loadReservedPage(resPageOffset() + reserved_pages_indexer_.update_reserved_page_,
                                          sizeOfReservedPage_,
                                          scratchPage_.data())) {

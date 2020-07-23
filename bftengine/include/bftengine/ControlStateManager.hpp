@@ -26,8 +26,8 @@ class ControlStateManager : public ResPagesClient<ControlStateManager,
                                                   ControlHandlerStateManagerReservedPagesIndex,
                                                   ControlHandlerStateManagerNumOfReservedPages> {
  public:
-  void setStopAtNextCheckpoint(uint64_t currentSeqNum);
-  std::optional<uint64_t> getCheckpointToStopAt();
+  void setStopAtNextCheckpoint(int64_t currentSeqNum);
+  std::optional<int64_t> getCheckpointToStopAt();
 
   ControlStateManager(IStateTransfer* state_transfer, uint32_t sizeOfReservedPages);
   ControlStateManager& operator=(const ControlStateManager&) = delete;
