@@ -96,21 +96,16 @@ void Client::init(bool readOnly) {
   ::rocksdb::TransactionDBOptions txn_options;
   std::vector<::rocksdb::ColumnFamilyDescriptor> cf_descs;
 
-  // Try to read the stored options configuration file
-  // Note that if we recover, then rocksdb should have its option configuration file stored in the rocksdb directory.
-  // Thus, we don't need to persist our custom configuration file.
-  auto s_opt = ::rocksdb::LoadLatestOptions(m_dbPath, ::rocksdb::Env::Default(), &options, &cf_descs);
-  if (!s_opt.ok()) {
-    const char kPathSeparator =
+  // Try to load the pre defined configuraion file
+  const char kPathSeparator =
 #ifdef _WIN32
-        '\\';
+      '\\';
 #else
-        '/';
+      '/';
 #endif
-    // If we couldn't read the stored configuration file, try to read the default configuration file.
-    s_opt = ::rocksdb::LoadOptionsFromFile(
-        m_dbPath + kPathSeparator + default_opt_config_name, ::rocksdb::Env::Default(), &options, &cf_descs);
-  }
+  auto s_opt = ::rocksdb::LoadOptionsFromFile(
+      m_dbPath + kPathSeparator + default_opt_config_name, ::rocksdb::Env::Default(), &options, &cf_descs);
+
   if (!s_opt.ok()) {
     // If we couldn't read the stored configuration and not the default configuration file, then create
     // one.
