@@ -1,13 +1,5 @@
 name: Build
-on:
-    push:
-        paths-ignore:
-            - '**.md'
-            - '**.png'
-    pull_request:
-        paths-ignore:
-            - '**.md'
-            - '**.png'
+on: [push, pull_request]
 
 env:
     DOCKER_REPO: concordbft
