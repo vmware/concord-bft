@@ -18,6 +18,7 @@
 #include <string>
 #include <sstream>
 #include <functional>
+#include <utility>
 
 #include "assertUtils.hpp"
 #include "hex_tools.h"
@@ -248,6 +249,11 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
   } else {
     messageHandler_ = std::bind(&BCStateTran::handleStateTransferMessageImp, this, _1, _2, _3);
   }
+
+  // Make sure that the internal IReplicaForStateTransfer callback is always registered, alongside any user-supplied
+  // callbacks.
+  on_transferring_complete_cb_registry_.registerCallback(
+      [this](int64_t checkpoint_num) { replicaForStateTransfer_->onTransferringComplete(checkpoint_num); });
 }
 
 BCStateTran::~BCStateTran() {
@@ -679,6 +685,10 @@ std::string BCStateTran::getStatus() {
     oss << KVLOG(current_source, preferred_replicas, nextRequiredBlock_, totalSizeOfPendingItemDataMsgs) << std::endl;
   }
   return oss.str();
+}
+
+void BCStateTran::addOnTransferringCompleteCallback(std::function<void(int64_t)> callback) {
+  on_transferring_complete_cb_registry_.registerCallback(std::move(callback));
 }
 
 void BCStateTran::handoff(char *msg, uint32_t msgLen, uint16_t senderId) {
@@ -2143,9 +2153,10 @@ void BCStateTran::processData() {
       checkConsistency(config_.pedanticChecks);
 
       // Completion
-      LOG_INFO(STLogger, "Calling onTransferringComplete: " << KVLOG(cp.checkpointNum));
+      LOG_INFO(STLogger,
+               "Invoking onTransferringComplete callbacks for checkpoint number: " << KVLOG(cp.checkpointNum));
       metrics_.on_transferring_complete_.Get().Inc();
-      replicaForStateTransfer_->onTransferringComplete(cp.checkpointNum);
+      on_transferring_complete_cb_registry_.invokeAll(cp.checkpointNum);
 
       break;
     }

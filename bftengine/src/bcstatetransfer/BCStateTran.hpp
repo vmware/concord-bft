@@ -32,6 +32,7 @@
 #include "STDigest.hpp"
 #include "Metrics.hpp"
 #include "SourceSelector.hpp"
+#include "callback_registry.hpp"
 
 using std::set;
 using std::map;
@@ -82,6 +83,8 @@ class BCStateTran : public IStateTransfer {
   void handleStateTransferMessage(char* msg, uint32_t msgLen, uint16_t senderId) override;
 
   std::string getStatus() override;
+
+  void addOnTransferringCompleteCallback(std::function<void(int64_t)>) override;
 
  protected:
   std::function<void(char*, uint32_t, uint16_t)> messageHandler_;
@@ -389,6 +392,8 @@ class BCStateTran : public IStateTransfer {
   };
 
   mutable Metrics metrics_;
+
+  concord::util::CallbackRegistry<int64_t> on_transferring_complete_cb_registry_;
 };
 
 }  // namespace bftEngine::SimpleBlockchainStateTransfer::impl
