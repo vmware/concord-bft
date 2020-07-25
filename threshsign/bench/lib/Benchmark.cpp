@@ -28,7 +28,8 @@ std::vector<std::pair<int, int>> Benchmark::getThresholdTestCases(
     int n = 3 * f + 1 + 2 * c;
 
     if (n > MAX_NUM_OF_SHARES) {
-      LOG_ERROR(GL, "You're asking for n = " << n << " signers, but MAX_NUM_OF_SHARES = " << MAX_NUM_OF_SHARES);
+      LOG_ERROR(THRESHSIGN_LOG,
+                "You're asking for n = " << n << " signers, but MAX_NUM_OF_SHARES = " << MAX_NUM_OF_SHARES);
       throw std::runtime_error("Cannot support that many signers. Please recompile with higher MAX_NUM_OF_SHARES");
     }
 

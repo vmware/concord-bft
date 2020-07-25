@@ -59,7 +59,7 @@ BNT::BNT(int d) : BNT() {
 void BNT::toBytes(unsigned char* buf, int capacity) const {
   int size = getByteCount();
   if (capacity < size) {
-    LOG_ERROR(GL,
+    LOG_ERROR(BLS_LOG,
               "Expected buffer of size " << size << " bytes for serializing BNT object. You provided " << capacity
                                          << " bytes");
     throw std::logic_error("Buffer not large enough for serializing BNT");
@@ -218,11 +218,11 @@ BNT BNT::invertModPrime(const BNT& p) const {
 void G1T::toBytes(unsigned char* buf, int size) const {
   assertGreaterThanOrEqual(size, getByteCount());
   g1_write_bin(buf, size, n, 1);
-  // LOG_TRACE(GL, "Wrote G1T of " << size << " bytes");
+  // LOG_TRACE(BLS_LOG, "Wrote G1T of " << size << " bytes");
 }
 
 void G1T::fromBytes(const unsigned char* buf, int size) {
-  // LOG_TRACE(GL, "Reading G1T of " << size << " bytes");
+  // LOG_TRACE(BLS_LOG, "Reading G1T of " << size << " bytes");
   g1_read_bin(n, buf, size);
 }
 

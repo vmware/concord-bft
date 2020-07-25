@@ -102,7 +102,7 @@ std::tuple<std::vector<IThresholdSigner*>, IThresholdVerifier*> BlsThresholdFact
   IThresholdVerifier* verifier;
 
   if (useMultisig) {
-    LOG_DEBUG(GL, "Creating multisig BLS verifier");
+    LOG_DEBUG(BLS_LOG, "Creating multisig BLS verifier");
     verifier = new BlsMultisigVerifier(params, reqSigners, numSigners, verifKeys);
   } else {
     verifier = new BlsThresholdVerifier(params, keygen->getPublicKey(), reqSigners, numSigners, verifKeys);

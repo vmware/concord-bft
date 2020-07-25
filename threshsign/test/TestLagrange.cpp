@@ -75,9 +75,9 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
   for (const std::vector<int>& seq : seqs) {
     signers.clear();
     seqToSubset(signers, seq);
-    LOG_INFO(GL, " * Testing signers: " << signers);
+    LOG_INFO(THRESHSIGN_LOG, " * Testing signers: " << signers);
     int numSigners = *std::max_element(seq.begin(), seq.end());
-    // LOG_DEBUG(GL, "Max signer ID: " << numSigners);
+    // LOG_DEBUG(THRESHSIGN_LOG, "Max signer ID: " << numSigners);
 
     std::vector<BNT> incrCoeffs(static_cast<size_t>(numSigners + 1), BNT(0));
     LagrangeIncrementalCoeffs lagr(numSigners, params);
@@ -85,13 +85,13 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
     // Add and remove signers as indicated by the sequence of operations
     for (int s : seq) {
       if (s < 0) {
-        LOG_DEBUG(GL, "Remove signer " << -s << ": ");
+        LOG_DEBUG(THRESHSIGN_LOG, "Remove signer " << -s << ": ");
         lagr.removeSigner(-s);
       } else {
-        LOG_DEBUG(GL, "Add signer " << s << ": ");
+        LOG_DEBUG(THRESHSIGN_LOG, "Add signer " << s << ": ");
         lagr.addSigner(s);
       }
-      LOG_DEBUG(GL, lagr.getSigners());
+      LOG_DEBUG(THRESHSIGN_LOG, lagr.getSigners());
     }
 
     lagr.finalize(incrCoeffs);
@@ -109,9 +109,9 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
     auto result = std::mismatch(incrCoeffs.begin(), incrCoeffs.end(), naiveCoeffs.begin());
     if (result.first != incrCoeffs.end()) {
       size_t pos = static_cast<size_t>(result.first - incrCoeffs.begin());
-      LOG_ERROR(GL, "Mismatch for signer " << pos);
-      LOG_ERROR(GL, "  incrCoeffs[" << pos << "] = " << *result.first);
-      LOG_ERROR(GL, "  naiveCoeffs[" << pos << "] = " << *result.second);
+      LOG_ERROR(THRESHSIGN_LOG, "Mismatch for signer " << pos);
+      LOG_ERROR(THRESHSIGN_LOG, "  incrCoeffs[" << pos << "] = " << *result.first);
+      LOG_ERROR(THRESHSIGN_LOG, "  naiveCoeffs[" << pos << "] = " << *result.second);
       throw std::runtime_error("Bad coeffs");
     }
 
@@ -124,9 +124,9 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
     result = std::mismatch(incrCoeffs.begin(), incrCoeffs.end(), lagrCoeffs.begin());
     if (result.first != incrCoeffs.end()) {
       size_t pos = static_cast<size_t>(result.first - incrCoeffs.begin());
-      LOG_ERROR(GL, "Mismatch for signer " << pos);
-      LOG_ERROR(GL, "  incrCoeffs[" << pos << "] = " << *result.first);
-      LOG_ERROR(GL, "  lagrCoeffs[" << pos << "] = " << *result.second);
+      LOG_ERROR(THRESHSIGN_LOG, "Mismatch for signer " << pos);
+      LOG_ERROR(THRESHSIGN_LOG, "  incrCoeffs[" << pos << "] = " << *result.first);
+      LOG_ERROR(THRESHSIGN_LOG, "  lagrCoeffs[" << pos << "] = " << *result.second);
       throw std::runtime_error("Bad coeffs");
     }
   }

@@ -27,7 +27,7 @@ void PrecomputedInverses::precompute() {
   // (-a)^{-1} (mod p) = (-1)^{-1} * (a)^{-1} (mod p)
   BNT invOne = (fieldOrder - BNT(2)).invertModPrime(fieldOrder).SlowModulo(fieldOrder);
 
-  LOG_DEBUG(GL, "Precomputing i^-1 mod p, for all signers i < " << invs.size());
+  LOG_DEBUG(BLS_LOG, "Precomputing i^-1 mod p, for all signers i < " << invs.size());
   for (size_t i = 1; i <= invs.size() - 1; i++) {
     dig_t n = i;
 
@@ -50,7 +50,7 @@ LibraryInitializer::LibraryInitializer() {
   // conf_print();
 
   if (pc_param_set_any() != STS_OK) {
-    LOG_ERROR(GL, "Couldn't set up RELIC elliptic curve");
+    LOG_ERROR(BLS_LOG, "Couldn't set up RELIC elliptic curve");
     throw std::runtime_error("Could not set up RELIC elliptic curve library");
   }
 }
@@ -86,7 +86,7 @@ Library::Library() {
 
   pi.setFieldOrder(g2size);
 
-  LOG_DEBUG(GL, "Successfully initialized RELIC library");
+  LOG_DEBUG(BLS_LOG, "Successfully initialized RELIC library");
 }
 
 Library::~Library() {}

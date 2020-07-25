@@ -48,10 +48,10 @@ BlsThresholdKeygen::BlsThresholdKeygen(const BlsPublicParameters& params,
     g2_mul_gen(pkShares[idx], skShares[idx]);
   }
 
-  LOG_TRACE(GL, "Created: " << this);
+  LOG_TRACE(BLS_LOG, "Created: " << this);
 }
 
-BlsThresholdKeygen::~BlsThresholdKeygen() { LOG_TRACE(GL, "Destroyed: " << this); }
+BlsThresholdKeygen::~BlsThresholdKeygen() { LOG_TRACE(BLS_LOG, "Destroyed: " << this); }
 
 } /* namespace Relic */
 } /* namespace BLS */

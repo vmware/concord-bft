@@ -36,7 +36,7 @@ void Utils::bin2hex(const void* bin, int binLen, char* hexBuf, int hexBufCapacit
 
   if (hexBufCapacity < needed) {
     LOG_ERROR(
-        GL,
+        THRESHSIGN_LOG,
         "You have not supplied a large enough buffer: got " << hexBufCapacity << " but need " << needed << " bytes");
     throw std::runtime_error("bin2hex not enough capacity for hexbuf");
   }

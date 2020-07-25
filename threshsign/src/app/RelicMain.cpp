@@ -22,14 +22,14 @@ int AppMain(const std::vector<std::string>& args) {
   std::unique_ptr<Library> lib(Library::GetPtr());
 
   TRY {
-    LOG_DEBUG(GL, "RELIC Type 1 paring: " << pc_map_is_type1());
-    LOG_DEBUG(GL, "RELIC Type 3 paring: " << pc_map_is_type3());
-    LOG_DEBUG(GL, "Launching RelicAppMain()...");
+    LOG_DEBUG(THRESHSIGN_LOG, "RELIC Type 1 paring: " << pc_map_is_type1());
+    LOG_DEBUG(THRESHSIGN_LOG, "RELIC Type 3 paring: " << pc_map_is_type3());
+    LOG_DEBUG(THRESHSIGN_LOG, "Launching RelicAppMain()...");
 
     return RelicAppMain(*lib, args);
   }
   CATCH_ANY {
-    LOG_ERROR(GL, "RELIC threw an exception");
+    LOG_ERROR(THRESHSIGN_LOG, "RELIC threw an exception");
     // WARNING: For this to work you must build RELIC with CHECK and VERBS defined (see preset/ or my-presets/).
     ERR_PRINT(ERR_CAUGHT);
   }

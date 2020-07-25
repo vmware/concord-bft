@@ -21,7 +21,7 @@
  */
 #include "threshsign/Configuration.h"
 
-#include "ThresholdAccumulatorBase.tpp"
+#include "ThresholdAccumulatorBase.cpp"
 #include "LagrangeInterpolation.h"
 
 #include "threshsign/bls/relic/BlsThresholdScheme.h"

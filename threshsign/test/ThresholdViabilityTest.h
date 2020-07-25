@@ -83,7 +83,8 @@ class ThresholdViabilityTest {
     testAssertNotNull(verif);
     testAssertNotNull(verifier());
 
-    LOG_INFO(GL, "Testing " << typeid(params).name() << " on " << reqSigners << " out of " << numSigners << " signers");
+    LOG_INFO(THRESHSIGN_LOG,
+             "Testing " << typeid(params).name() << " on " << reqSigners << " out of " << numSigners << " signers");
     GroupType h = hashMessage(msg, msgSize);
 
     VectorOfShares signers;
@@ -95,12 +96,12 @@ class ThresholdViabilityTest {
     // If we call this before adding the shares, the shares will be verified at addNumById() time
     shareAccum->setExpectedDigest(msg, msgSize);
 
-    LOG_TRACE(GL, "Testing numerical API...");
+    LOG_TRACE(THRESHSIGN_LOG, "Testing numerical API...");
     for (ShareID i = signers.first(); signers.isEnd(i) == false; i = signers.next(i)) {
       testAssertNotNull(signer(i));
       GroupType sigShare = signer(i)->signData(h);
 
-      LOG_TRACE(GL, "Signed sigshare #" << i << ": " << sigShare);
+      LOG_TRACE(THRESHSIGN_LOG, "Signed sigshare #" << i << ": " << sigShare);
       accumulator()->addNumById(i, sigShare);
     }
 
@@ -109,7 +110,7 @@ class ThresholdViabilityTest {
     /**
      * Test the char * API too.
      */
-    LOG_TRACE(GL, "Testing char * API too...");
+    LOG_TRACE(THRESHSIGN_LOG, "Testing char * API too...");
 
     // We want to call setExpectedDigest at 5 different points:
     //	- after accumulating the first share
@@ -138,7 +139,7 @@ class ThresholdViabilityTest {
         shareAccum->add(shareBuf, shareLen);
 
         if (i == *p) {
-          LOG_TRACE(GL, "Calling setExpectedDigest() after adding share " << i);
+          LOG_TRACE(THRESHSIGN_LOG, "Calling setExpectedDigest() after adding share " << i);
           shareAccum->setExpectedDigest(msg, msgSize);
         }
       }
@@ -152,10 +153,10 @@ class ThresholdViabilityTest {
     AutoBuf<char> sig(sigLen);
     accumulator()->getFullSignedData(sig, sigLen);
 
-    // LOG_DEBUG(GL, "Verifying signature(" << Utils::bin2hex(msg) << "): " << Utils::bin2hex(sig, sigLen));
+    // LOG_DEBUG(THRESHSIGN_LOG, "Verifying signature(" << Utils::bin2hex(msg) << "): " << Utils::bin2hex(sig, sigLen));
     if (false == verifier()->verify(reinterpret_cast<const char*>(msg), msgLen, sig, sigLen)) {
       LOG_ERROR(
-          GL,
+          THRESHSIGN_LOG,
           reqSigners << " out of " << numSigners << " signature " << Utils::bin2hex(sig, sigLen) << " did not verify");
       throw std::logic_error("Signature did not verify");
     }

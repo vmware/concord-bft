@@ -52,33 +52,33 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
   BNT fieldOrder = PublicParametersFactory::getWhatever().getGroupOrder();
 
   int numIters = 100;
-  LOG_DEBUG(GL, "Testing fast modular reduction...");
+  LOG_DEBUG(THRESHSIGN_LOG, "Testing fast modular reduction...");
   for (int i = 0; i < numIters; i++) {
     testFastModulo(fieldOrder);
   }
 
-  LOG_DEBUG(GL, "Testing accumulated multiplication and addition in G1...");
+  LOG_DEBUG(THRESHSIGN_LOG, "Testing accumulated multiplication and addition in G1...");
   for (int i = 0; i < numIters; i++) {
     testAddMult<G1T>();
   }
 
-  LOG_DEBUG(GL, "Testing accumulated multiplication and addition in G2...");
+  LOG_DEBUG(THRESHSIGN_LOG, "Testing accumulated multiplication and addition in G2...");
   for (int i = 0; i < numIters; i++) {
     testAddMult<G2T>();
   }
 
-  LOG_DEBUG(GL, "Testing RELIC's and BNT's getBit() ...");
+  LOG_DEBUG(THRESHSIGN_LOG, "Testing RELIC's and BNT's getBit() ...");
   for (int i = 0; i < numIters; i++) {
     testBNTbits();
   }
 
   // NOTE: Now we are pretending G1 and G2 are groups using multiplicative notation
-  LOG_DEBUG(GL, "Testing fast exponentiated multiplication in G1...");
+  LOG_DEBUG(THRESHSIGN_LOG, "Testing fast exponentiated multiplication in G1...");
   for (int i = 0; i < numIters; i++) {
     testMultiExp<G1T>();
   }
 
-  LOG_DEBUG(GL, "Testing fast exponentiated multiplication in G2...");
+  LOG_DEBUG(THRESHSIGN_LOG, "Testing fast exponentiated multiplication in G2...");
   for (int i = 0; i < numIters; i++) {
     testMultiExp<G2T>();
   }
@@ -96,14 +96,14 @@ void testBNTbits() {
   // for(int i = bits - 1; i >= 0; i--) {
   for (int i = 0; i < bits; i++) {
     bool bit = n.getBit(i);
-    LOG_TRACE(GL, "Bit " << i << " of " << n << " = " << static_cast<int>(bit));
+    LOG_TRACE(THRESHSIGN_LOG, "Bit " << i << " of " << n << " = " << static_cast<int>(bit));
 
     if (bit) {
       a += (1 << i);
     }
   }
 
-  LOG_TRACE(GL, n << " =?= " << a);
+  LOG_TRACE(THRESHSIGN_LOG, n << " =?= " << a);
 
   testAssertEqual(static_cast<int>(n.toDigit()), a);
 }
@@ -151,7 +151,7 @@ void testMultiExp() {
   int k = 5;
   int maxBits = Library::Get().getG2OrderNumBits();
   // int maxBits = 256;
-  // LOG_DEBUG(GL, "Max bits: " << maxBits);
+  // LOG_DEBUG(THRESHSIGN_LOG, "Max bits: " << maxBits);
 
   VectorOfShares s;
   VectorOfShares::randomSubset(s, n, k);

@@ -66,7 +66,7 @@ class ThresholdBlsRelicBenchmark : public IThresholdSchemeBenchmark {
     g2_get_gen(gen2);
 
     generateKeys();
-    LOG_INFO(GL,
+    LOG_INFO(THRESHSIGN_LOG,
              "Created new threshold BLS benchmark: numIters = " << numBenchIters << ", k = " << k << ", n = " << n
                                                                 << ", sec = " << p.getSecurityLevel() << " bits");
   }
@@ -96,17 +96,17 @@ class ThresholdBlsRelicBenchmark : public IThresholdSchemeBenchmark {
 
     // Compute SK size
     skBits = bn_size_bin(sk);
-    LOG_DEBUG(GL, "SK size: " << skBits << " bytes");
+    LOG_DEBUG(THRESHSIGN_LOG, "SK size: " << skBits << " bytes");
 
     // Compute PK size
     pkBits = g2_size_bin(pk, 1);
-    LOG_DEBUG(GL, "PK size (compressed): " << pkBits << " bytes");
-    LOG_DEBUG(GL, "PK size (uncompressed): " << g2_size_bin(pk, 0) << " bytes");
+    LOG_DEBUG(THRESHSIGN_LOG, "PK size (compressed): " << pkBits << " bytes");
+    LOG_DEBUG(THRESHSIGN_LOG, "PK size (uncompressed): " << g2_size_bin(pk, 0) << " bytes");
 
     // Compute signature sizes
     sigBits = verifier->requiredLengthForSignedData();
     threshSig = new char[static_cast<size_t>(sigBits)];
-    LOG_DEBUG(GL, "Signature size: " << sigBits << " bytes");
+    LOG_DEBUG(THRESHSIGN_LOG, "Signature size: " << sigBits << " bytes");
 
     // For BLS, sigshare size is just |sig| + ceil(\log_2{numSigners}), but we should probably not count that
     // since we can use the IP address in most application as the identifier.
@@ -185,7 +185,8 @@ class ThresholdBlsRelicBenchmark : public IThresholdSchemeBenchmark {
     accPtr->sigToBytes(reinterpret_cast<unsigned char*>(threshSig), sigBits);
 
     (void)signers;
-    LOG_DEBUG(GL, "Threshold signature: " << Utils::bin2hex(reinterpret_cast<unsigned char*>(threshSig), sigBits));
+    LOG_DEBUG(THRESHSIGN_LOG,
+              "Threshold signature: " << Utils::bin2hex(reinterpret_cast<unsigned char*>(threshSig), sigBits));
 
     if (verifier->verify(reinterpret_cast<char*>(msg), msgSize, threshSig, sigBits) == false) {
       throw std::logic_error("Your threshold signing or verification code is wrong.");
@@ -203,8 +204,8 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
 
   BlsPublicParameters params(PublicParametersFactory::getWhatever());
 
-  LOG_INFO(GL, "FP_PRIME: " << FP_PRIME);
-  LOG_INFO(GL, "Security level: " << pc_param_level());
+  LOG_INFO(THRESHSIGN_LOG, "FP_PRIME: " << FP_PRIME);
+  LOG_INFO(THRESHSIGN_LOG, "Security level: " << pc_param_level());
 
   std::vector<std::pair<int, int>> nk = Benchmark::getThresholdTestCases(501, false, true, false);
 
@@ -214,9 +215,10 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
 
   for (bool useMultisig : {true, false}) {
     // for(bool useMultisig : {false, true}) {
-    LOG_INFO(GL, "");
-    LOG_INFO(GL, "Benchmarking " << (useMultisig ? "multisig-based" : "Lagrange-based") << " BLS threshold signatures");
-    LOG_INFO(GL, "");
+    LOG_INFO(THRESHSIGN_LOG, "");
+    LOG_INFO(THRESHSIGN_LOG,
+             "Benchmarking " << (useMultisig ? "multisig-based" : "Lagrange-based") << " BLS threshold signatures");
+    LOG_INFO(THRESHSIGN_LOG, "");
 
     int j = 0;
     for (auto it = nk.begin(); it != nk.end(); it++) {

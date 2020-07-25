@@ -31,14 +31,15 @@ BlsAlmostMultisigAccumulator::BlsAlmostMultisigAccumulator(const std::vector<Bls
                                                            NumSharesType numSigners)
     : BlsThresholdAccumulator(vks, numSigners - 1, numSigners, false),
       almostMultisigCoeffs(BlsAlmostMultisigCoefficients::Get().computeMapAndGet(numSigners)) {
-  LOG_DEBUG(GL, "Using 'almost multisig' optimization for reqSigners = " << reqSigners << " out of " << numSigners);
+  LOG_DEBUG(BLS_LOG,
+            "Using 'almost multisig' optimization for reqSigners = " << reqSigners << " out of " << numSigners);
 }
 
 void BlsAlmostMultisigAccumulator::computeLagrangeCoeff() {
   ShareID missingSigner = validSharesBits.findFirstGap();
   assertInclusiveRange(1, missingSigner, totalSigners);
 
-  LOG_TRACE(GL, " * Almost multisig, missing signer " << missingSigner);
+  LOG_TRACE(BLS_LOG, " * Almost multisig, missing signer " << missingSigner);
 
   for (ShareID xVal = validSharesBits.first(); validSharesBits.isEnd(xVal) == false;
        xVal = validSharesBits.next(xVal)) {

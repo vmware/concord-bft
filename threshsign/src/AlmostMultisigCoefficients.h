@@ -42,7 +42,7 @@ class AlmostMultisigCoefficientsMap {
 
  public:
   void precompute() {
-    LOG_DEBUG(GL, "Precomputing Lagrange coefficients for n = " << n);
+    LOG_DEBUG(THRESHSIGN_LOG, "Precomputing Lagrange coefficients for n = " << n);
 
     VectorOfShares full;
 
@@ -60,7 +60,7 @@ class AlmostMultisigCoefficientsMap {
       calculateCoefficientsForAll(vec, j);
     }
 
-    LOG_DEBUG(GL, "Done precomputing Lagrange coefficients for " << n - 1 << " out of " << n);
+    LOG_DEBUG(THRESHSIGN_LOG, "Done precomputing Lagrange coefficients for " << n - 1 << " out of " << n);
   }
 
   virtual void calculateCoefficientsForAll(const VectorOfShares& vec, ShareID missing) = 0;
@@ -81,7 +81,7 @@ class AlmostMultisigCoefficientsMap {
    * Returns the coefficient L_i^S(0) for player i w.r.t. to the set S which excludes player 'missing'
    */
   const T& getCoeff(ShareID i, ShareID missing) const {
-    // LOG_TRACE(GL, "Getting precomputed L_" << i << "^S-{" << missing << "} (n = " << n << ")...");
+    // LOG_TRACE(THRESHSIGN_LOG, "Getting precomputed L_" << i << "^S-{" << missing << "} (n = " << n << ")...");
     return coeffs[getIndex(i, missing)];
   }
 };
