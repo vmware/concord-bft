@@ -156,6 +156,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   bool recoveringFromExecutionOfRequests = false;
   Bitmap mapOfRequestsThatAreBeingRecovered;
 
+  SeqNum seqNumToStopAt_ = 0;
+
   //******** METRICS ************************************
   GaugeHandle metric_view_;
   GaugeHandle metric_last_stable_seq_num_;
@@ -403,6 +405,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void startConsensusProcess(PrePrepareMsg* pp);
   void sendInternalNoopPrePrepareMsg(CommitPath firstPath = CommitPath::SLOW);
   void bringTheSystemToCheckpointBySendingNoopCommands(SeqNum seqNumToStopAt, CommitPath firstPath = CommitPath::SLOW);
+  bool isSeqNumToStopAt(SeqNum seq_num);
 };
 
 }  // namespace bftEngine::impl

@@ -41,6 +41,7 @@ std::optional<int64_t> ControlStateManager::getCheckpointToStopAt() {
   inStream.str(scratchPage_);
   controlStateMessages::StopAtNextCheckpointMessage msg;
   concord::serialize::Serializable::deserialize(inStream, msg);
+  if (msg.seqNumToStopAt_ < 0) return {};
   return msg.seqNumToStopAt_;
 }
 

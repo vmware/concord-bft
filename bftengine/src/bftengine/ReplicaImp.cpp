@@ -149,6 +149,9 @@ void ReplicaImp::onReportAboutInvalidMessage(MessageBase *msg, const char *reaso
 
 template <>
 void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
+  if (isSeqNumToStopAt(lastExecutedSeqNum))
+    return;  // Prevent from replicas to receive new client messages once we reached to a sequence number that we need
+             // to stop at.
   metric_received_client_requests_.Get().Inc();
   const NodeIdType senderId = m->senderId();
   const NodeIdType clientId = m->clientProxyId();
@@ -268,6 +271,10 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 }
 
 void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
+  if (isSeqNumToStopAt(lastExecutedSeqNum))
+    return;  // Preventing from primary to send pre prepare messages in case there are client requests in queue and we
+             // need to stop at this sequence number.
+
   ConcordAssert(isCurrentPrimary());
   ConcordAssert(currentViewIsActive());
 
@@ -435,6 +442,18 @@ void ReplicaImp::bringTheSystemToCheckpointBySendingNoopCommands(SeqNum seqNumTo
   }
 }
 
+bool ReplicaImp::isSeqNumToStopAt(SeqNum seq_num) {
+  if (seqNumToStopAt_ > 0 && seq_num == seqNumToStopAt_) return true;
+  if (seqNumToStopAt_ > 0 && seq_num > seqNumToStopAt_) return false;
+
+  auto seq_num_to_stop_at = controlStateManager_->getCheckpointToStopAt();
+  if (seq_num_to_stop_at.has_value()) {
+    seqNumToStopAt_ = seq_num_to_stop_at.value();
+    if (seqNumToStopAt_ == seq_num) return true;
+  }
+
+  return false;
+}
 template <typename T>
 bool ReplicaImp::relevantMsgForActiveView(const T *msg) {
   const SeqNum msgSeqNum = msg->seqNumber();
@@ -489,6 +508,8 @@ bool ReplicaImp::relevantMsgForActiveView(const T *msg) {
 
 template <>
 void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
+  if (isSeqNumToStopAt(lastExecutedSeqNum))
+    return;  // prevent from replicas to initiate consensus in case we need to stop at this sequence number.
   metric_received_pre_prepares_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
 
