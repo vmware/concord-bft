@@ -14,12 +14,39 @@
 #include "ControlStateManager.hpp"
 namespace bftEngine {
 
-void ControlStateManager::setStopAtNextCheckpoint() {}
+/*
+ * This method should be called by the command handler in order to mark that we want to stop the system in the next
+ * possible checkpoint. Now, consider the following:
+ * 1. The wedge command is on seqNum 290.
+ * 2. The concurrency level is 30 and thus we first decided on 291 -> 319.
+ * 3. Then we decide on 290 and execute it.
+ * The next possible checkpoint to stop at is 450 (rather than 300). Thus, we calculate the next next checkpoint w.r.t
+ * given sequence number and mark it as a checkpoint to stop at in the reserved pages.
+ */
+void ControlStateManager::setStopAtNextCheckpoint(int64_t currentSeqNum) {
+  uint64_t seq_num_to_stop_at = (currentSeqNum + 2 * checkpointWindowSize);
+  seq_num_to_stop_at = seq_num_to_stop_at - (seq_num_to_stop_at % checkpointWindowSize);
+  std::ostringstream outStream;
+  controlStateMessages::StopAtNextCheckpointMessage msg(seq_num_to_stop_at);
+  concord::serialize::Serializable::serialize(outStream, msg);
+  auto data = outStream.str();
+  state_transfer_->saveReservedPage(getUpdateReservedPageIndex(), data.size(), data.data());
+}
 
-std::optional<uint64_t> ControlStateManager::getStopCheckpointToStopAt() { return {}; }
+std::optional<int64_t> ControlStateManager::getCheckpointToStopAt() {
+  if (!state_transfer_->loadReservedPage(getUpdateReservedPageIndex(), sizeOfReservedPage_, scratchPage_.data())) {
+    return {};
+  }
+  std::istringstream inStream;
+  inStream.str(scratchPage_);
+  controlStateMessages::StopAtNextCheckpointMessage msg;
+  concord::serialize::Serializable::deserialize(inStream, msg);
+  return msg.seqNumToStopAt_;
+}
 
-ControlStateManager::ControlStateManager(IStateTransfer& state_transfer) : state_transfer_{state_transfer} {
-  state_transfer_.getStatus();  // Temporary, to escape not-used compilation error
+ControlStateManager::ControlStateManager(IStateTransfer* state_transfer, uint32_t sizeOfReservedPages)
+    : state_transfer_{state_transfer}, sizeOfReservedPage_{sizeOfReservedPages} {
+  scratchPage_.resize(sizeOfReservedPage_);
 }
 
 }  // namespace bftEngine

@@ -14,19 +14,56 @@
 #pragma once
 #include <optional>
 #include "IStateTransfer.hpp"
+#include "ReservedPages.hpp"
+#include "Serializable.h"
+#include "SysConsts.hpp"
 
 namespace bftEngine {
 
-class ControlStateManager {
+static constexpr uint32_t ControlHandlerStateManagerReservedPagesIndex = 1;
+static constexpr uint32_t ControlHandlerStateManagerNumOfReservedPages = 1;
+class ControlStateManager : public ResPagesClient<ControlStateManager,
+                                                  ControlHandlerStateManagerReservedPagesIndex,
+                                                  ControlHandlerStateManagerNumOfReservedPages> {
  public:
-  void setStopAtNextCheckpoint();
-  std::optional<uint64_t> getStopCheckpointToStopAt();
+  void setStopAtNextCheckpoint(int64_t currentSeqNum);
+  std::optional<int64_t> getCheckpointToStopAt();
 
-  ControlStateManager(IStateTransfer& state_transfer);
+  ControlStateManager(IStateTransfer* state_transfer, uint32_t sizeOfReservedPages);
   ControlStateManager& operator=(const ControlStateManager&) = delete;
   ControlStateManager(const ControlStateManager&) = delete;
+  ~ControlStateManager() {}
 
  private:
-  IStateTransfer& state_transfer_;
+  IStateTransfer* state_transfer_;
+  const uint32_t sizeOfReservedPage_;
+  std::string scratchPage_;
+
+  // In the control handler manager reserved pages space, each control data should has its own page.
+  // This struct define the index of each page in this space.
+  struct reservedPageIndexer {
+    uint32_t update_reserved_page_ = 0;
+  };
+
+  reservedPageIndexer reserved_pages_indexer_;
+
+  uint32_t getUpdateReservedPageIndex() { return resPageOffset() + reserved_pages_indexer_.update_reserved_page_; }
 };
+
+namespace controlStateMessages {
+
+// control state messages
+class StopAtNextCheckpointMessage : public concord::serialize::SerializableFactory<StopAtNextCheckpointMessage> {
+  const std::string getVersion() const override { return "1"; }
+  void serializeDataMembers(std::ostream& outStream) const override {
+    serialize_impl(outStream, seqNumToStopAt_, int{});
+  }
+  void deserializeDataMembers(std::istream& inStream) override { deserialize_impl(inStream, seqNumToStopAt_, int{}); }
+
+ public:
+  int64_t seqNumToStopAt_ = 0;
+  StopAtNextCheckpointMessage(int64_t checkpointToStopAt) : seqNumToStopAt_(checkpointToStopAt){};
+  StopAtNextCheckpointMessage() = default;
+};
+}  // namespace controlStateMessages
 }  // namespace bftEngine

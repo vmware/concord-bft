@@ -428,13 +428,9 @@ void ReplicaImp::sendInternalNoopPrePrepareMsg(CommitPath firstPath) {
   startConsensusProcess(pp);
 }
 
-void ReplicaImp::bringTheSystemToTheNextCheckpointBySendingNoopCommands(CommitPath firstPath) {
+void ReplicaImp::bringTheSystemToCheckpointBySendingNoopCommands(SeqNum seqNumToStopAt, CommitPath firstPath) {
   if (!isCurrentPrimary()) return;
-  // TODO: According to Ittai, it is better to reach to the next next checkpoint to prevent the follwing:
-  // 1. The current sequence number is 290 (next checkpoint is 300)
-  // 2. We decide on 291 --> 291 + concurrency level - 1 (say 29)
-  // 3. We decide on 290
-  while (primaryLastUsedSeqNum % checkpointWindowSize != 0) {
+  while (primaryLastUsedSeqNum != seqNumToStopAt) {
     sendInternalNoopPrePrepareMsg(firstPath);
   }
 }
@@ -2351,8 +2347,10 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
 }
 
 void ReplicaImp::onSeqNumIsSuperStable(SeqNum newSuperStableSeqNum) {
-  if (controlStateManager_->getStopCheckpointToStopAt() == newSuperStableSeqNum) {
-    if (bftRequestsHandler_.getControlHandlers()) bftRequestsHandler_.getControlHandlers()->onSuperStableCheckpoint();
+  auto seq_num_to_stop_at = controlStateManager_->getCheckpointToStopAt();
+  if (seq_num_to_stop_at.has_value() && seq_num_to_stop_at.value() == newSuperStableSeqNum) {
+    if (getRequestsHandler()->getControlHandlers())
+      getRequestsHandler()->getControlHandlers()->onSuperStableCheckpoint();
   }
 }
 void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformation, bool oldSeqNum) {
@@ -3493,10 +3491,10 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
   auto span = concordUtils::startChildSpan("bft_execute_next_committed_requests", parent_span);
 
   while (lastExecutedSeqNum < lastStableSeqNum + kWorkWindowSize) {
-    if (!stopAtNextCheckpoint_ && controlStateManager_->getStopCheckpointToStopAt().has_value()) {
+    if (!stopAtNextCheckpoint_ && controlStateManager_->getCheckpointToStopAt().has_value()) {
       // If, following the last execution, we discover that we need to jump to the
       // next checkpoint, the primary sends noop commands until filling the working window.
-      bringTheSystemToTheNextCheckpointBySendingNoopCommands();
+      bringTheSystemToCheckpointBySendingNoopCommands(controlStateManager_->getCheckpointToStopAt().value());
       stopAtNextCheckpoint_ = true;
     }
     SeqNum nextExecutedSeqNum = lastExecutedSeqNum + 1;
