@@ -2349,7 +2349,8 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
 void ReplicaImp::onSeqNumIsSuperStable(SeqNum newSuperStableSeqNum) {
   auto seq_num_to_stop_at = controlStateManager_->getCheckpointToStopAt();
   if (seq_num_to_stop_at.has_value() && seq_num_to_stop_at.value() == newSuperStableSeqNum) {
-    if (userRequestsHandler->getControlHandlers()) userRequestsHandler->getControlHandlers()->onSuperStableCheckpoint();
+    if (getRequestsHandler()->getControlHandlers())
+      getRequestsHandler()->getControlHandlers()->onSuperStableCheckpoint();
   }
 }
 void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformation, bool oldSeqNum) {
