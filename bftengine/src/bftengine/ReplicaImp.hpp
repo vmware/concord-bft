@@ -30,6 +30,7 @@
 #include "SimpleThreadPool.hpp"
 #include "Bitmap.hpp"
 #include "OpenTracing.hpp"
+#include "RequestHandler.h"
 
 namespace bftEngine::impl {
 
@@ -121,7 +122,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   size_t maxNumberOfPendingRequestsInRecentHistory = 0;
   size_t batchingFactor = 1;
 
-  IRequestsHandler* const userRequestsHandler = nullptr;
+  RequestHandler bftRequestsHandler_;
 
   // used to dynamically estimate a upper bound for consensus rounds
   DynamicUpperLimitWithSimpleFilter<int64_t>* dynamicUpperLimitOfRounds = nullptr;
@@ -234,7 +235,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   virtual bool isReadOnly() const override { return false; }
 
   shared_ptr<PersistentStorage> getPersistentStorage() const { return ps_; }
-  IRequestsHandler* getRequestsHandler() const { return userRequestsHandler; }
+  IRequestsHandler* getRequestsHandler() { return &bftRequestsHandler_; }
 
   void processMessages();
 

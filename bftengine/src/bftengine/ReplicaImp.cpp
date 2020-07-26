@@ -38,6 +38,7 @@
 #include "messages/FullCommitProofMsg.hpp"
 #include "messages/ReplicaStatusMsg.hpp"
 #include "messages/AskForCheckpointMsg.hpp"
+#include "KeyManager.h"
 
 #include <string>
 #include <type_traits>
@@ -164,6 +165,16 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   span.setTag("rid", config_.replicaId);
   span.setTag("cid", m->getCid());
   span.setTag("seq_num", reqSeqNum);
+
+  if (ReplicaConfigSingleton::GetInstance().GetKeyExchangeOnStart()) {
+    // If Multi sig keys havn't been replaced for all replicas and it's not a key ex msg
+    // then don't accept the msg.
+    if (!KeyManager::get().keysExchanged && !(flags & KEY_EXCHANGE_FLAG)) {
+      LOG_INFO(GL, "KEY EXCHANGE didn't complete yet, dropping msg");
+      delete m;
+      return;
+    }
+  }
 
   if (isCollectingState()) {
     LOG_INFO(GL,
@@ -2983,7 +2994,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       autoPrimaryRotationEnabled{config.autoPrimaryRotationEnabled},
       restarted_{!firstTime},
       replyBuffer{(char *)std::malloc(config_.maxReplyMessageSize - sizeof(ClientReplyMsgHeader))},
-      userRequestsHandler{requestsHandler},
+      bftRequestsHandler_{requestsHandler},
       timeOfLastStateSynch{getMonotonicTime()},    // TODO(GG): TBD
       timeOfLastViewEntrance{getMonotonicTime()},  // TODO(GG): TBD
       timeOfLastAgreedView{getMonotonicTime()},    // TODO(GG): TBD
@@ -3240,16 +3251,16 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
   uint32_t actualReplyLength = 0;
   uint32_t actualReplicaSpecificInfoLength = 0;
 
-  error = userRequestsHandler->execute(clientId,
-                                       lastExecutedSeqNum,
-                                       READ_ONLY_FLAG,
-                                       request->requestLength(),
-                                       request->requestBuf(),
-                                       reply.maxReplyLength(),
-                                       reply.replyBuf(),
-                                       actualReplyLength,
-                                       actualReplicaSpecificInfoLength,
-                                       span);
+  error = bftRequestsHandler_.execute(clientId,
+                                      lastExecutedSeqNum,
+                                      READ_ONLY_FLAG,
+                                      request->requestLength(),
+                                      request->requestBuf(),
+                                      reply.maxReplyLength(),
+                                      reply.replyBuf(),
+                                      actualReplyLength,
+                                      actualReplicaSpecificInfoLength,
+                                      span);
 
   LOG_DEBUG(GL,
             "Executed read only request. " << KVLOG(clientId,
@@ -3370,7 +3381,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
 
       uint32_t actualReplyLength = 0;
       uint32_t actualReplicaSpecificInfoLength = 0;
-      userRequestsHandler->execute(
+      bftRequestsHandler_.execute(
           clientId,
           lastExecutedSeqNum + 1,
           req.flags(),
@@ -3394,8 +3405,9 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     }
   }
 
+  uint64_t checkpointNum{};
   if ((lastExecutedSeqNum + 1) % checkpointWindowSize == 0) {
-    const uint64_t checkpointNum = (lastExecutedSeqNum + 1) / checkpointWindowSize;
+    checkpointNum = (lastExecutedSeqNum + 1) / checkpointWindowSize;
     stateTransfer->createCheckpointOfCurrentState(checkpointNum);
   }
 
@@ -3441,11 +3453,13 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     if (checkInfo.isCheckpointSuperStable()) {
       onSeqNumIsSuperStable(lastStableSeqNum);
     }
+
+    KeyManager::get().onCheckpoint(checkpointNum);
   }
 
   if (ps_) ps_->endWriteTran();
 
-  if (numOfRequests > 0) userRequestsHandler->onFinishExecutingReadWriteRequests();
+  if (numOfRequests > 0) bftRequestsHandler_.onFinishExecutingReadWriteRequests();
 
   sendCheckpointIfNeeded();
 
