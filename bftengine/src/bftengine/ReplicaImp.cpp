@@ -149,9 +149,12 @@ void ReplicaImp::onReportAboutInvalidMessage(MessageBase *msg, const char *reaso
 
 template <>
 void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
-  if (isSeqNumToStopAt(lastExecutedSeqNum))
+  if (isSeqNumToStopAt(lastExecutedSeqNum)) {
+    LOG_INFO(GL, "Message ignored because we have to stop at super stable checkpoint");
     return;  // Prevent from replicas to receive new client messages once we reached to a sequence number that we need
-             // to stop at.
+    // to stop at.
+  }
+
   metric_received_client_requests_.Get().Inc();
   const NodeIdType senderId = m->senderId();
   const NodeIdType clientId = m->clientProxyId();
@@ -271,9 +274,11 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 }
 
 void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
-  if (isSeqNumToStopAt(lastExecutedSeqNum))
+  if (isSeqNumToStopAt(lastExecutedSeqNum)) {
+    LOG_INFO(GL, "Message ignored because we have to stop at super stable checkpoint");
     return;  // Preventing from primary to send pre prepare messages in case there are client requests in queue and we
-             // need to stop at this sequence number.
+    // need to stop at this sequence number.
+  }
 
   ConcordAssert(isCurrentPrimary());
   ConcordAssert(currentViewIsActive());
@@ -508,8 +513,10 @@ bool ReplicaImp::relevantMsgForActiveView(const T *msg) {
 
 template <>
 void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
-  if (isSeqNumToStopAt(lastExecutedSeqNum))
+  if (isSeqNumToStopAt(lastExecutedSeqNum)) {
+    LOG_INFO(GL, "Message ignored because we have to stop at super stable checkpoint");
     return;  // prevent from replicas to initiate consensus in case we need to stop at this sequence number.
+  }
   metric_received_pre_prepares_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
 
