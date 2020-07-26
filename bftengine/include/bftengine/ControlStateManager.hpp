@@ -39,12 +39,15 @@ class ControlStateManager : public ResPagesClient<ControlStateManager,
   const uint32_t sizeOfReservedPage_;
   std::string scratchPage_;
 
-  // reserved page indexer
+  // In the control handler manager reserved pages space, each control data should has its own page.
+  // This struct define the index of each page in this space.
   struct reservedPageIndexer {
     uint32_t update_reserved_page_ = 0;
   };
 
   reservedPageIndexer reserved_pages_indexer_;
+
+  uint32_t getUpdateReservedPageIndex() { return resPageOffset() + reserved_pages_indexer_.update_reserved_page_; }
 };
 
 namespace controlStateMessages {
@@ -58,8 +61,8 @@ class StopAtNextCheckpointMessage : public concord::serialize::SerializableFacto
   void deserializeDataMembers(std::istream& inStream) override { deserialize_impl(inStream, seqNumToStopAt_, int{}); }
 
  public:
-  uint64_t seqNumToStopAt_ = 0;
-  StopAtNextCheckpointMessage(uint64_t checkpointToStopAt) : seqNumToStopAt_(checkpointToStopAt){};
+  int64_t seqNumToStopAt_ = 0;
+  StopAtNextCheckpointMessage(int64_t checkpointToStopAt) : seqNumToStopAt_(checkpointToStopAt){};
   StopAtNextCheckpointMessage() = default;
 };
 }  // namespace controlStateMessages
