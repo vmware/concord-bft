@@ -50,7 +50,7 @@ void testRandomSerialize() {
   ss << "Zero GTT: " << tz << endl;
   ss << "Unity GTT: " << tu << endl;
 
-  LOG_TRACE(GL, endl << ss.str());
+  LOG_TRACE(THRESHSIGN_LOG, endl << ss.str());
   ss.clear();
 
   G1T g1r, g1i;
@@ -59,7 +59,7 @@ void testRandomSerialize() {
 
   ss << "Random G1T: " << g1r << endl;
   ss << "Infty G1T: " << g1i << endl;
-  LOG_TRACE(GL, endl << ss.str());
+  LOG_TRACE(THRESHSIGN_LOG, endl << ss.str());
   ss.clear();
 
   G2T g2r, g2i;
@@ -68,7 +68,7 @@ void testRandomSerialize() {
 
   ss << "Random G2T: " << g2r << endl;
   ss << "Infty G2T: " << g2i << endl;
-  LOG_TRACE(GL, endl << ss.str());
+  LOG_TRACE(THRESHSIGN_LOG, endl << ss.str());
   ss.clear();
 
   BNT b2r, b2z, b2u;
@@ -79,7 +79,7 @@ void testRandomSerialize() {
   ss << "Random BNT: " << b2r << endl;
   ss << "Zero BNT: " << b2z << endl;
   ss << "One BNT: " << b2u << endl;
-  LOG_TRACE(GL, endl << ss.str());
+  LOG_TRACE(THRESHSIGN_LOG, endl << ss.str());
   ss.clear();
 }
 
@@ -123,11 +123,11 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
   (void)args;
   (void)lib;
 
-  LOG_TRACE(GL, "Serialization test...");
+  LOG_TRACE(THRESHSIGN_LOG, "Serialization test...");
   int n = 1000;
   for (int i = 0; i < n; i++) {
     if (i % 100 == 0) {
-      LOG_TRACE(GL, i + 1 << " out of " << n);
+      LOG_TRACE(THRESHSIGN_LOG, i + 1 << " out of " << n);
     }
 
     testRandomSerialize();

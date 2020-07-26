@@ -21,5 +21,8 @@ ScopedMdc::~ScopedMdc() { MDC_REMOVE(key_); }
 
 }  // namespace logging
 
+// globally defined loggers
 logging::Logger GL = logging::getLogger("concord");
 logging::Logger CNSUS = logging::getLogger("concord.bft.consensus");
+logging::Logger THRESHSIGN_LOG = logging::getLogger("concord.threshsign");
+logging::Logger BLS_LOG = logging::getLogger("concord.threshsign.bls");

@@ -156,8 +156,8 @@ void VectorOfShares::toBytes(unsigned char* buf, int capacity) const {
     int byteOffset = id0 / 8;
     int bit = id0 % 8;
     int mask = 1 << bit;
-    // LOG_TRACE(GL,  "Serializing ID " << id1 << " at byte " << byteOffset << " and bit " << bit << " with mask " <<
-    // mask );
+    // LOG_TRACE(THRESHSIGN_LOG,  "Serializing ID " << id1 << " at byte " << byteOffset << " and bit " << bit << " with
+    // mask " << mask );
     *(buf + byteOffset) = static_cast<unsigned char>(*(buf + byteOffset) | mask);
   }
 }
@@ -168,7 +168,7 @@ void VectorOfShares::fromBytes(const unsigned char* buf, int len) {
   int byteCount = getByteCount();
   if (byteCount > len) {
     LOG_WARN(
-        GL,
+        THRESHSIGN_LOG,
         "Deserializing VectorOfShares of smaller size than MAX_NUM_OF_SHARES IDs (i.e., " << byteCount << " bytes)");
   }
 
@@ -179,7 +179,8 @@ void VectorOfShares::fromBytes(const unsigned char* buf, int len) {
     for (int c = 0; c < 8; c++) {
       if (byte & bitMask) {
         int id1 = b * 8 + (c + 1);
-        // LOG_TRACE(GL, "bitMask = " << bitMask << ", deserialized ID " << id1 << " from byte " << (int)byte);
+        // LOG_TRACE(THRESHSIGN_LOG, "bitMask = " << bitMask << ", deserialized ID " << id1 << " from byte " <<
+        // (int)byte);
         add(id1);
       }
 

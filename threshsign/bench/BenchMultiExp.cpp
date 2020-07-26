@@ -42,16 +42,16 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
   (void)args;
 
   unsigned int seed = static_cast<unsigned int>(time(NULL));
-  LOG_INFO(GL, "Randomness seed passed to srand(): " << seed);
+  LOG_INFO(THRESHSIGN_LOG, "Randomness seed passed to srand(): " << seed);
   // NOTE: srand is not and should not be used for any cryptographic randomness.
   srand(seed);
 
-  LOG_INFO(GL, "Benchmarking fast exponentiated multiplication in G1...");
+  LOG_INFO(THRESHSIGN_LOG, "Benchmarking fast exponentiated multiplication in G1...");
   benchFastMultExp<G1T>(100, 1500, 1000);
 
-  LOG_INFO(GL, "");
+  LOG_INFO(THRESHSIGN_LOG, "");
 
-  LOG_INFO(GL, "Benchmarking fast exponentiated multiplication in G2...");
+  LOG_INFO(THRESHSIGN_LOG, "Benchmarking fast exponentiated multiplication in G2...");
   benchFastMultExp<G2T>(100, 1500, 1000);
 
   return 0;
@@ -65,7 +65,7 @@ void benchFastMultExp(int numIters, int numSigners, int reqSigners) {
   assertLessThanOrEqual(reqSigners, numSigners);
   int maxBits = Library::Get().getG2OrderNumBits();
   // int maxBits = 256;
-  LOG_INFO(GL,
+  LOG_INFO(THRESHSIGN_LOG,
            "iters = " << numIters << ", reqSigners = " << reqSigners << ", numSigners = " << numSigners
                       << ", max bits = " << maxBits);
 
@@ -117,10 +117,10 @@ void benchFastMultExp(int numIters, int numSigners, int reqSigners) {
     t3.endLap();
   }
 
-  LOG_INFO(GL, "Ran for " << numIters << " iterations");
-  LOG_INFO(GL, t1);
-  LOG_INFO(GL, t2);
-  LOG_INFO(GL, t3);
+  LOG_INFO(THRESHSIGN_LOG, "Ran for " << numIters << " iterations");
+  LOG_INFO(THRESHSIGN_LOG, t1);
+  LOG_INFO(THRESHSIGN_LOG, t2);
+  LOG_INFO(THRESHSIGN_LOG, t3);
 
   // Same way?
   if (r1 != r2 || r1 != r3) {

@@ -68,7 +68,7 @@ bool LagrangeIncrementalCoeffs::addSigner(ShareID newSigner) {
   assertStrictlyPositive(newSigner);
 
   if (signers.contains(newSigner)) {
-    LOG_WARN(GL, "Tried to add signer #" << newSigner << " more than once");
+    LOG_WARN(BLS_LOG, "Tried to add signer #" << newSigner << " more than once");
     return false;
   }
 
@@ -230,7 +230,7 @@ void lagrangeCoeffAccumReduced(const VectorOfShares& signers, std::vector<BNT>& 
   // Let S denote the signers, then compute the Lagrange coefficients:
   // l_i^S(0) = \prod_{j\in S; j \ne i} {(0-j)/(i-j)} (mod ord(G))
   for (ShareID i = signers.first(); signers.isEnd(i) == false; i = signers.next(i)) {
-    LOG_TRACE(GL, " i = " << i);
+    LOG_TRACE(BLS_LOG, " i = " << i);
 
     // Initialize numerator to numerFull / i and denominator to 1
     numer = numerFinal;
@@ -242,7 +242,7 @@ void lagrangeCoeffAccumReduced(const VectorOfShares& signers, std::vector<BNT>& 
       modulus.Reduce(numer);
     }
 
-    LOG_TRACE(GL, "num[" << i << "] = " << numer);
+    LOG_TRACE(BLS_LOG, "num[" << i << "] = " << numer);
 
     AccumulatedBNT denomAccum(fieldOrder);
 
@@ -255,8 +255,8 @@ void lagrangeCoeffAccumReduced(const VectorOfShares& signers, std::vector<BNT>& 
         continue;
       }
 
-      LOG_TRACE(GL, " j = " << j);
-      LOG_TRACE(GL, " i - j  = " << i - j);
+      LOG_TRACE(BLS_LOG, " j = " << j);
+      LOG_TRACE(BLS_LOG, " i - j  = " << i - j);
 
       // For the denominator, multiply by |i-j| first and then adjust the sign!
       if (i > j) {
@@ -269,7 +269,7 @@ void lagrangeCoeffAccumReduced(const VectorOfShares& signers, std::vector<BNT>& 
 
     BNT denom = denomAccum.toBNT();
 
-    LOG_TRACE(GL, "denom[" << i << "] = " << denom);
+    LOG_TRACE(BLS_LOG, "denom[" << i << "] = " << denom);
 
     numer.Times(denom.invertModPrime(fieldOrder));
     modulus.Reduce(numer);
@@ -289,7 +289,7 @@ void lagrangeCoeffAccumReduced(const VectorOfShares& signers, std::vector<BNT>& 
     }
 
     assertStrictlyLessThan(coeffs[idx], fieldOrder);
-    LOG_TRACE(GL, "lagr[ i = " << idx << " ] = " << coeffs[idx]);
+    LOG_TRACE(BLS_LOG, "lagr[ i = " << idx << " ] = " << coeffs[idx]);
   }
 }
 
@@ -301,7 +301,7 @@ void lagrangeCoeffNaiveReduced(const VectorOfShares& signers, std::vector<BNT>& 
   // Let S denote the signers, then compute the Lagrange coefficients:
   // l_i^S(0) = \prod_{j\in S; j \ne i} {(0-j)/(i-j)} (mod ord(G))
   for (ShareID i = signers.first(); signers.isEnd(i) == false; i = signers.next(i)) {
-    LOG_TRACE(GL, " i = " << i);
+    LOG_TRACE(BLS_LOG, " i = " << i);
 
     // Initialize numerator and denominator to 1
     numer = 1;
@@ -316,8 +316,8 @@ void lagrangeCoeffNaiveReduced(const VectorOfShares& signers, std::vector<BNT>& 
         continue;
       }
 
-      LOG_TRACE(GL, " j = " << j);
-      LOG_TRACE(GL, " i - j  = " << i - j);
+      LOG_TRACE(BLS_LOG, " j = " << j);
+      LOG_TRACE(BLS_LOG, " i - j  = " << i - j);
 
       // For the numerator, instead of doing:
       //   \prod_{j \ne i} {0-j},
@@ -363,7 +363,7 @@ void lagrangeCoeffNaiveReduced(const VectorOfShares& signers, std::vector<BNT>& 
 
     assertStrictlyLessThan(coeffs[idx], fieldOrder);
 
-    LOG_TRACE(GL, "lagr[ i = " << idx << " ] = " << coeffs[idx]);
+    LOG_TRACE(BLS_LOG, "lagr[ i = " << idx << " ] = " << coeffs[idx]);
   }
 }
 
@@ -377,16 +377,16 @@ void lagrangeCoeffNaive(const VectorOfShares& signers, std::vector<BNT>& coeffs,
 #endif
 
   for (ShareID i = signers.first(); signers.isEnd(i) == false; i = signers.next(i)) {
-    // LOG_TRACE(GL, "Computing l_" << i << "(0) relative to other signers...");
+    // LOG_TRACE(BLS_LOG, "Computing l_" << i << "(0) relative to other signers...");
 
     // Initialize numerator and denominator to 1
     lagrNum = 1;
     lagrDenom = 1;
     for (ShareID j = signers.first(); signers.isEnd(j) == false; j = signers.next(j)) {
-      // LOG_TRACE(GL, "l_" << i << "(0), incorporating signer " << j);
+      // LOG_TRACE(BLS_LOG, "l_" << i << "(0), incorporating signer " << j);
 
       if (i == j) {
-        // LOG_TRACE(GL, "Skipping over j = i = " << j);
+        // LOG_TRACE(BLS_LOG, "Skipping over j = i = " << j);
         continue;
       }
 
@@ -410,7 +410,7 @@ void lagrangeCoeffNaive(const VectorOfShares& signers, std::vector<BNT>& coeffs,
     // Multiply numerator by (-1)^{signers.size() - 1} (i.e. negate it if number of signers is even)
     if (signers.count() % 2 == 0) {
       lagrNum.Negate();
-      // LOG_TRACE(GL, "|S| - 1 is odd, multiplying numerator by (-1): " << lagrNum);
+      // LOG_TRACE(BLS_LOG, "|S| - 1 is odd, multiplying numerator by (-1): " << lagrNum);
     }
 
 #ifndef NDEBUG
@@ -420,8 +420,8 @@ void lagrangeCoeffNaive(const VectorOfShares& signers, std::vector<BNT>& coeffs,
 
     avgNumeratorBits += bn_bits(lagrNum);
     avgDenomBits += bn_bits(lagrDenom);
-    // LOG_TRACE(GL, "Denominator bits for l_" << i << "(0): " << bn_bits(lagrDenom));
-    // LOG_TRACE(GL, "Numerator bits for l_" << i << "(0): " << bn_bits(lagrNum));
+    // LOG_TRACE(BLS_LOG, "Denominator bits for l_" << i << "(0): " << bn_bits(lagrDenom));
+    // LOG_TRACE(BLS_LOG, "Numerator bits for l_" << i << "(0): " << bn_bits(lagrNum));
 #endif
     // Reduce numerator, also takes care of negative numberator.
     lagrNum.SlowModulo(fieldOrder);
@@ -441,10 +441,10 @@ void lagrangeCoeffNaive(const VectorOfShares& signers, std::vector<BNT>& coeffs,
 
 #ifndef NDEBUG
   // The numerator/denom get pretty big! For n = 128, k = 128 (max and avg are around to 700 bits)
-  LOG_TRACE(GL, "Average numerator bits: " << avgNumeratorBits / static_cast<int>(signers.count()));
-  LOG_TRACE(GL, "Average denominator bits: " << avgDenomBits / static_cast<int>(signers.count()));
-  LOG_TRACE(GL, "Max numerator bits: " << maxNumeratorBits);
-  LOG_TRACE(GL, "Max denominator bits: " << maxDenomBits);
+  LOG_TRACE(BLS_LOG, "Average numerator bits: " << avgNumeratorBits / static_cast<int>(signers.count()));
+  LOG_TRACE(BLS_LOG, "Average denominator bits: " << avgDenomBits / static_cast<int>(signers.count()));
+  LOG_TRACE(BLS_LOG, "Max numerator bits: " << maxNumeratorBits);
+  LOG_TRACE(BLS_LOG, "Max denominator bits: " << maxDenomBits);
 #endif
 }
 }  // namespace Relic

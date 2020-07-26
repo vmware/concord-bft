@@ -36,7 +36,7 @@ BlsPublicParameters::BlsPublicParameters(int securityLevel, int curveType)
   g1_get_gen(generator1_);
   g2_get_gen(generator2_);
 
-  LOG_TRACE(GL, "Created: " << this);
+  LOG_TRACE(BLS_LOG, "Created: " << this);
 }
 
 BlsPublicParameters::BlsPublicParameters(const BlsPublicParameters &params)
@@ -56,7 +56,7 @@ BlsPublicParameters &BlsPublicParameters::operator=(const BlsPublicParameters &p
   return *this;
 }
 
-BlsPublicParameters::~BlsPublicParameters() { LOG_TRACE(GL, "Destroyed: " << this); }
+BlsPublicParameters::~BlsPublicParameters() { LOG_TRACE(BLS_LOG, "Destroyed: " << this); }
 
 int BlsPublicParameters::getSignatureSize() const { return Library::Get().getG1PointSize(); }
 

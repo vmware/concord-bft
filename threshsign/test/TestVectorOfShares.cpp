@@ -28,7 +28,7 @@ using namespace std;
 using namespace BLS::Relic;
 
 void testIth() {
-  LOG_INFO(GL, "Testing ith() and skip()...");
+  LOG_INFO(THRESHSIGN_LOG, "Testing ith() and skip()...");
   VectorOfShares signers;
 
   signers.add(3);
@@ -58,7 +58,7 @@ void assertCorrectSerialization(const VectorOfShares& vec) {
   AutoBuf<unsigned char> buf(vec.getByteCount());
   vec.toBytes(buf, buf.size());
 
-  // LOG_DEBUG(GL, "Serialized vector " << vec << " to " << Utils::bin2hex(buf, buf.size()));
+  // LOG_DEBUG(THRESHSIGN_LOG, "Serialized vector " << vec << " to " << Utils::bin2hex(buf, buf.size()));
   // logdbg << endl;
 
   VectorOfShares vecin;
@@ -67,7 +67,7 @@ void assertCorrectSerialization(const VectorOfShares& vec) {
 }
 
 void testSerialization() {
-  LOG_INFO(GL, "Testing serialization...");
+  LOG_INFO(THRESHSIGN_LOG, "Testing serialization...");
 
   VectorOfShares vec;
   assertCorrectSerialization(vec);

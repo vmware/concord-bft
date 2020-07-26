@@ -51,7 +51,7 @@ BlsThresholdVerifier::BlsThresholdVerifier(const BlsPublicParameters &params,
   assertEqual(publicKeysVector_.size(), static_cast<vector<BlsPublicKey>::size_type>(numSigners + 1));
 
 #ifdef TRACE
-  LOG_TRACE(GL, "VKs (array has size " << vks.size() << ")");
+  LOG_TRACE(BLS_LOG, "VKs (array has size " << vks.size() << ")");
   copy(vks.begin(), vks.end(), ostream_iterator<BlsPublicKey>(cout, "\n"));
 #endif
 }

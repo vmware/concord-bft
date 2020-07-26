@@ -67,9 +67,9 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
 
   const char* msg = "blaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBlaBla";
   for (bool multisig : {true, false}) {
-    LOG_INFO(GL, "");
-    LOG_INFO(GL, "Testing threshold signatures (useMultisig = " << multisig << ")");
-    LOG_INFO(GL, "");
+    LOG_INFO(THRESHSIGN_LOG, "");
+    LOG_INFO(THRESHSIGN_LOG, "Testing threshold signatures (useMultisig = " << multisig << ")");
+    LOG_INFO(THRESHSIGN_LOG, "");
 
     for (auto it = nk.begin(); it != nk.end(); it++) {
       int n = it->first;

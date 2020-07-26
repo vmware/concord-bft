@@ -44,7 +44,7 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
   int n = 10000;
   for (int i = 0; i < n; i++) {
     if (i % 1000 == 0) {
-      LOG_INFO(GL, i + 1 << " out of " << n);
+      LOG_INFO(THRESHSIGN_LOG, i + 1 << " out of " << n);
     }
 
     G1T g1a, g1b;

@@ -36,8 +36,9 @@ extern "C" {
 using namespace BLS::Relic;
 
 void printTime(const AveragingTimer& t, bool printAvg = false) {
-  LOG_DEBUG(GL, t.numIterations() << " iters of " << t.getName() << ": " << t.totalLapTime() << " microsecs");
-  if (printAvg) LOG_DEBUG(GL, " * Average: " << t.averageLapTime() << " micros");
+  LOG_DEBUG(THRESHSIGN_LOG,
+            t.numIterations() << " iters of " << t.getName() << ": " << t.totalLapTime() << " microsecs");
+  if (printAvg) LOG_DEBUG(THRESHSIGN_LOG, " * Average: " << t.averageLapTime() << " micros");
 }
 
 typedef BNT& (BNT::*ModFunc)(const BNT&, const BNT&);
@@ -58,8 +59,8 @@ void benchmarkModulo(const BNT& fieldOrder, int numIters, AveragingTimer& t, Pre
     a = a * b;
     c = a;
 
-    // LOG_INFO(GL, "a = " << a);
-    // LOG_INFO(GL, "p = " << fieldOrder);
+    // LOG_INFO(THRESHSIGN_LOG, "a = " << a);
+    // LOG_INFO(THRESHSIGN_LOG, "p = " << fieldOrder);
 
     // We want a to be bigger than p, so that modular reduction does *some* work!
     if (a < fieldOrder || c < fieldOrder) {
@@ -121,17 +122,17 @@ void benchModulo(const BNT& fieldOrder, int bigNumIters) {
   if (bigNumIters < 100 * 1000 + 1)
     benchmarkModulo(fieldOrder, bigNumIters, tFastModPmers, BNT::FastModuloPrePmers, &BNT::FastModuloPmers);
   else
-    LOG_INFO(GL, "Not running PMERS modular reduction benchmarks cause they're too slow");
+    LOG_INFO(THRESHSIGN_LOG, "Not running PMERS modular reduction benchmarks cause they're too slow");
 }
 
 int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
   (void)args;
 
-  LOG_INFO(GL, "RELIC Type 1 paring: " << pc_map_is_type1());
-  LOG_INFO(GL, "RELIC Type 3 paring: " << pc_map_is_type3());
+  LOG_INFO(THRESHSIGN_LOG, "RELIC Type 1 paring: " << pc_map_is_type1());
+  LOG_INFO(THRESHSIGN_LOG, "RELIC Type 3 paring: " << pc_map_is_type3());
 
   unsigned int seed = static_cast<unsigned int>(time(NULL));
-  LOG_INFO(GL, "Randomness seed passed to srand(): " << seed);
+  LOG_INFO(THRESHSIGN_LOG, "Randomness seed passed to srand(): " << seed);
   srand(seed);
 
 #ifdef NDEBUG
@@ -148,16 +149,16 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
   BlsPublicParameters params = PublicParametersFactory::getWhatever();
   const auto& fieldOrder = params.getGroupOrder();
 
-  LOG_INFO(GL, "");
+  LOG_INFO(THRESHSIGN_LOG, "");
 
   benchPairing(fieldOrder, 100);
 
-  LOG_INFO(GL, "");
+  LOG_INFO(THRESHSIGN_LOG, "");
 
   benchChaPedSign(fieldOrder, 100);
   benchChaPedVerify(fieldOrder, 100);
 
-  LOG_INFO(GL, "");
+  LOG_INFO(THRESHSIGN_LOG, "");
 
   //    AveragingTimer tDiv("BNT::DivideBy"); // Don't use this (except rarely in old Lagrange coefficient
   //    implementation)
@@ -200,12 +201,12 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
   //    printTime(tDiv, numIters);
   printTime(tTimes);
 
-  LOG_INFO(GL, "");
+  LOG_INFO(THRESHSIGN_LOG, "");
 
   printTime(g1exp, true);
   printTime(g2exp, true);
 
-  LOG_INFO(GL, "");
+  LOG_INFO(THRESHSIGN_LOG, "");
 
   benchPrecompute(fieldOrder, bigNumIters);
 
@@ -229,12 +230,12 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
     tInvertDigtModPrime.endLap();
   }
 
-  LOG_INFO(GL, "");
+  LOG_INFO(THRESHSIGN_LOG, "");
 
   printTime(tInvertModPrime);
   printTime(tInvertDigtModPrime);
 
-  LOG_INFO(GL, "");
+  LOG_INFO(THRESHSIGN_LOG, "");
 
   benchModulo(fieldOrder, bigNumIters);
 
@@ -290,7 +291,7 @@ void benchPrecompute(const BNT& fieldOrder, int numIters) {
   printTime(g1pre, true);
   printTime(g1mul, true);
 
-  LOG_INFO(GL, "");
+  LOG_INFO(THRESHSIGN_LOG, "");
 
   printTime(g2pre, true);
   printTime(g2mul, true);
@@ -308,7 +309,7 @@ void benchChaPedVerify(const BNT& fieldOrder, int numIters) {
   }
   g1_mul_pre(ht, h);
   auto time = preh.stop().count();
-  LOG_INFO(GL, "Precomputing on message hash took: " << time << " microsecs");
+  LOG_INFO(THRESHSIGN_LOG, "Precomputing on message hash took: " << time << " microsecs");
 
   AveragingTimer t("DlogEqVerify");
   for (int i = 0; i < numIters; i++) {
@@ -350,7 +351,7 @@ void benchChaPedVerify(const BNT& fieldOrder, int numIters) {
     t.endLap();
   }
 
-  LOG_INFO(GL, "");
+  LOG_INFO(THRESHSIGN_LOG, "");
 
   printTime(t, true);
 }
@@ -370,7 +371,7 @@ void benchPairing(const BNT& fieldOrder, int numIters) {
     t.endLap();
   }
 
-  LOG_INFO(GL, "");
+  LOG_INFO(THRESHSIGN_LOG, "");
 
   printTime(t, true);
 }
@@ -409,7 +410,7 @@ void benchChaPedSign(const BNT& fieldOrder, int numIters) {
     t.endLap();
   }
 
-  LOG_INFO(GL, "");
+  LOG_INFO(THRESHSIGN_LOG, "");
 
   printTime(t, true);
 }
