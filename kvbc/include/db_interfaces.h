@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "OpenTracing.hpp"
 #include "kv_types.hpp"
 #include "status.hpp"
 
@@ -34,7 +35,9 @@ class ILocalKeyValueStorageReadOnly {
  */
 class IBlocksAppender {
  public:
-  virtual concordUtils::Status addBlock(const SetOfKeyValuePairs& updates, BlockId& outBlockId) = 0;
+  virtual concordUtils::Status addBlock(const SetOfKeyValuePairs& updates,
+                                        BlockId& outBlockId,
+                                        const concordUtils::SpanWrapper& parent_span = concordUtils::SpanWrapper{}) = 0;
 
   virtual ~IBlocksAppender() = default;
 };

@@ -25,7 +25,7 @@ using SpanContext = std::string;
 
 class SpanWrapper {
  public:
-  SpanWrapper() {}
+  SpanWrapper() = default;
   SpanWrapper(const SpanWrapper&) = delete;
   SpanWrapper& operator=(const SpanWrapper&) = delete;
   SpanWrapper(SpanWrapper&&) = default;
@@ -58,6 +58,10 @@ class SpanWrapper {
   friend SpanWrapper startSpan(const std::string& operation_name);
   friend SpanWrapper startChildSpan(const std::string& operation_name, const SpanWrapper& parent_span);
   friend SpanWrapper startChildSpanFromContext(const SpanContext& context, const std::string& child_operation_name);
+#ifdef USE_OPENTRACING
+  friend SpanWrapper startChildSpanFromContext(const opentracing::SpanContext& context,
+                                               const std::string& child_operation_name);
+#endif
 
 #ifdef USE_OPENTRACING
   using SpanPtr = std::unique_ptr<opentracing::Span>;
@@ -73,4 +77,7 @@ class SpanWrapper {
 SpanWrapper startSpan(const std::string& operation_name);
 SpanWrapper startChildSpan(const std::string& child_operation_name, const SpanWrapper& parent_span);
 SpanWrapper startChildSpanFromContext(const SpanContext& context, const std::string& child_operation_name);
+#ifdef USE_OPENTRACING
+SpanWrapper startChildSpanFromContext(const opentracing::SpanContext& context, const std::string& child_operation_name);
+#endif
 }  // namespace concordUtils

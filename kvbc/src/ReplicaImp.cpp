@@ -145,7 +145,9 @@ Status ReplicaImp::mayHaveConflictBetween(const Sliver &key, BlockId fromBlock, 
   return s;
 }
 
-Status ReplicaImp::addBlock(const SetOfKeyValuePairs &updates, BlockId &outBlockId) {
+Status ReplicaImp::addBlock(const SetOfKeyValuePairs &updates,
+                            BlockId &outBlockId,
+                            const concordUtils::SpanWrapper & /*parent_span*/) {
   // TODO(GG): check legality of operation (the method should be invoked from
   // the replica's internal thread)
 

@@ -80,4 +80,13 @@ SpanWrapper startChildSpanFromContext(const SpanContext& context, const std::str
   return SpanWrapper{};
 #endif
 }
+
+#ifdef USE_OPENTRACING
+SpanWrapper startChildSpanFromContext(const opentracing::SpanContext& context,
+                                      const std::string& child_operation_name) {
+  auto tracer = opentracing::Tracer::Global();
+  auto span = tracer->StartSpan(child_operation_name, {opentracing::ChildOf(&context)});
+  return {std::move(span)};
+}
+#endif
 }  // namespace concordUtils
