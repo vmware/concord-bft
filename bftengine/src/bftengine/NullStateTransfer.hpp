@@ -42,7 +42,7 @@ class NullStateTransfer : public IStateTransfer {
   virtual void onTimer() override;
   virtual void handleStateTransferMessage(char* msg, uint32_t msgLen, uint16_t senderId) override;
 
-  void addOnTransferringCompleteCallback(std::function<void(int64_t)>) override{};
+  void addOnTransferringCompleteCallback(std::function<void(uint64_t)>) override{};
 
   virtual ~NullStateTransfer();
 

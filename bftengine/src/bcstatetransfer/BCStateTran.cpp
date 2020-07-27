@@ -253,7 +253,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
   // Make sure that the internal IReplicaForStateTransfer callback is always registered, alongside any user-supplied
   // callbacks.
   on_transferring_complete_cb_registry_.registerCallback(
-      [this](int64_t checkpoint_num) { replicaForStateTransfer_->onTransferringComplete(checkpoint_num); });
+      [this](uint64_t checkpoint_num) { replicaForStateTransfer_->onTransferringComplete(checkpoint_num); });
 }
 
 BCStateTran::~BCStateTran() {
@@ -687,7 +687,7 @@ std::string BCStateTran::getStatus() {
   return oss.str();
 }
 
-void BCStateTran::addOnTransferringCompleteCallback(std::function<void(int64_t)> callback) {
+void BCStateTran::addOnTransferringCompleteCallback(std::function<void(uint64_t)> callback) {
   on_transferring_complete_cb_registry_.registerCallback(std::move(callback));
 }
 

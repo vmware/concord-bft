@@ -16,6 +16,8 @@
 #include <cstddef>
 #include <list>
 #include <functional>
+#include <optional>
+#include <stdexcept>
 #include <utility>
 
 namespace concord::util {
@@ -26,22 +28,46 @@ class GenericCallbackHandle {
  public:
   GenericCallbackHandle(const GenericCallbackHandle&) = delete;
   GenericCallbackHandle& operator=(const GenericCallbackHandle&) = delete;
-  GenericCallbackHandle(GenericCallbackHandle&&) = default;
-  GenericCallbackHandle& operator=(GenericCallbackHandle&&) = default;
+
+  GenericCallbackHandle(GenericCallbackHandle&& other) { *this = std::move(other); }
+
+  GenericCallbackHandle& operator=(GenericCallbackHandle&& other) {
+    // If moving to self, treat as a no-op.
+    if (this != &other) {
+      if (other.iter_.has_value()) {
+        iter_ = std::move(other.iter_);
+        // Make sure we reset() the std::optional as moving from it only moves the contained value and leaves the
+        // std::optional itself with a value.
+        other.iter_.reset();
+      } else {
+        throw std::invalid_argument{"Move operation on CallbackHandle called with an invalid handle"};
+      }
+    }
+    return *this;
+  }
 
   template <typename... InvokeArgs>
   void invoke(InvokeArgs&&... args) const {
-    iter_->operator()(std::forward<InvokeArgs>(args)...);
+    if (iter_.has_value()) {
+      (*iter_)->operator()(std::forward<InvokeArgs>(args)...);
+    } else {
+      throw std::logic_error{"invoke() called on an invalid CallbackHandle"};
+    }
   }
 
-  bool operator==(const GenericCallbackHandle& other) const { return (iter_ == other.iter_); }
+  bool operator==(const GenericCallbackHandle& other) const {
+    return (iter_.has_value() && other.iter_.has_value() && iter_ == other.iter_);
+  }
+
   bool operator!=(const GenericCallbackHandle& other) const { return !(*this == other); }
+
+  bool valid() const { return iter_.has_value(); }
 
  private:
   GenericCallbackHandle(Iterator iter) : iter_{iter} {};
 
  private:
-  Iterator iter_;
+  std::optional<Iterator> iter_;
 
   template <typename...>
   friend class CallbackRegistry;
@@ -75,7 +101,13 @@ class CallbackRegistry {
 
   // Deregisters a callback. The corresponding handle is invalidated if this method returns. If the passed handle is
   // invalid, the behavior is undefined.
-  void deregisterCallback(CallbackHandle handle) { callbacks_.erase(handle.iter_); }
+  void deregisterCallback(CallbackHandle handle) {
+    if (handle.iter_.has_value()) {
+      callbacks_.erase(*handle.iter_);
+    } else {
+      throw std::invalid_argument{"deregisterCallback() called with an invalid CallbackHandle"};
+    }
+  }
 
   // Invokes all callbacks in the registry. Exceptions from callbacks are propagated to callers of this method.
   // Invocation stops at the first exception thrown, without invoking further callbacks.

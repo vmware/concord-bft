@@ -84,7 +84,7 @@ class BCStateTran : public IStateTransfer {
 
   std::string getStatus() override;
 
-  void addOnTransferringCompleteCallback(std::function<void(int64_t)>) override;
+  void addOnTransferringCompleteCallback(std::function<void(uint64_t)>) override;
 
  protected:
   std::function<void(char*, uint32_t, uint16_t)> messageHandler_;
@@ -393,7 +393,7 @@ class BCStateTran : public IStateTransfer {
 
   mutable Metrics metrics_;
 
-  concord::util::CallbackRegistry<int64_t> on_transferring_complete_cb_registry_;
+  concord::util::CallbackRegistry<uint64_t> on_transferring_complete_cb_registry_;
 };
 
 }  // namespace bftEngine::SimpleBlockchainStateTransfer::impl
