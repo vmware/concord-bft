@@ -29,8 +29,10 @@ class GenericCallbackHandle {
   GenericCallbackHandle(const GenericCallbackHandle&) = delete;
   GenericCallbackHandle& operator=(const GenericCallbackHandle&) = delete;
 
+  // Move-constructs a handle. Throws an exception if 'other' is invalid.
   GenericCallbackHandle(GenericCallbackHandle&& other) { *this = std::move(other); }
 
+  // Move-assigns a handle. Throws an exception if 'other' is invalid.
   GenericCallbackHandle& operator=(GenericCallbackHandle&& other) {
     // If moving to self, treat as a no-op.
     if (this != &other) {
@@ -46,6 +48,7 @@ class GenericCallbackHandle {
     return *this;
   }
 
+  // Invokes the callback if the handle is valid. Throws an exception if the handle is invalid.
   template <typename... InvokeArgs>
   void invoke(InvokeArgs&&... args) const {
     if (iter_.has_value()) {
@@ -91,7 +94,8 @@ class CallbackRegistry {
   CallbackRegistry& operator=(const CallbackRegistry&) = delete;
 
   // Registers a callback and returns a handle to it. Handles are only valid for the registry instance that created
-  // them. Additionally, handles are invalidated when the registry is destructed.
+  // them. Additionally, handles are invalidated when the registry is destructed. Using handles across registries or
+  // after their corresponding registry has been destructed causes undefined bahavior.
   template <typename Func>
   CallbackHandle registerCallback(Func&& callback) {
     callbacks_.emplace_back(std::forward<Func>(callback));
@@ -99,8 +103,7 @@ class CallbackRegistry {
     return --it;
   }
 
-  // Deregisters a callback. The corresponding handle is invalidated if this method returns. If the passed handle is
-  // invalid, the behavior is undefined.
+  // Deregisters a callback. If the passed handle is invalid, an exception is thrown.
   void deregisterCallback(CallbackHandle handle) {
     if (handle.iter_.has_value()) {
       callbacks_.erase(*handle.iter_);
