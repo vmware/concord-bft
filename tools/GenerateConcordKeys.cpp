@@ -126,23 +126,23 @@ int main(int argc, char** argv) {
     // scope to close the stream.
     std::string outputPrefix;
 
-    //  std::string execType = MULTISIG_BLS_SCHEME;
-    //  std::string execParam = "BN-P254";
-    //  std::string slowType = MULTISIG_BLS_SCHEME;
-    //  std::string slowParam = "BN-P254";
-    //  std::string commitType = MULTISIG_BLS_SCHEME;
-    //  std::string commitParam = "BN-P254";
-    //  std::string optType = MULTISIG_BLS_SCHEME;
-    //  std::string optParam = "BN-P254";
-
-    std::string execType = THRESHOLD_BLS_SCHEME;
+    std::string execType = MULTISIG_BLS_SCHEME;
     std::string execParam = "BN-P254";
-    std::string slowType = THRESHOLD_BLS_SCHEME;
+    std::string slowType = MULTISIG_BLS_SCHEME;
     std::string slowParam = "BN-P254";
-    std::string commitType = THRESHOLD_BLS_SCHEME;
+    std::string commitType = MULTISIG_BLS_SCHEME;
     std::string commitParam = "BN-P254";
     std::string optType = MULTISIG_BLS_SCHEME;
     std::string optParam = "BN-P254";
+
+    //    std::string execType = THRESHOLD_BLS_SCHEME;
+    //    std::string execParam = "BN-P254";
+    //    std::string slowType = THRESHOLD_BLS_SCHEME;
+    //    std::string slowParam = "BN-P254";
+    //    std::string commitType = THRESHOLD_BLS_SCHEME;
+    //    std::string commitParam = "BN-P254";
+    //    std::string optType = MULTISIG_BLS_SCHEME;
+    //    std::string optParam = "BN-P254";
 
     // Read input from the command line.
     // Note we ignore argv[0] because that just contains the command that was used

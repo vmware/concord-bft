@@ -16,6 +16,7 @@
 #include "ViewChangeMsg.hpp"
 #include "Crypto.hpp"
 #include "ViewsManager.hpp"
+#include "Logger.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -65,7 +66,7 @@ void ViewChangeMsg::addElement(SeqNum seqNum,
     b()->locationAfterLast = sizeof(Header) + spanContextSize();
   }
 
-  uint16_t requiredSpace = b()->locationAfterLast + sizeof(Element);
+  size_t requiredSpace = b()->locationAfterLast + sizeof(Element);
   if (hasPreparedCertificate) requiredSpace += (sizeof(PreparedCertificate) + certificateSigLength);
 
   // TODO(GG): we should make sure that this assert will never be violated (by calculating the maximum  size of a
@@ -113,7 +114,7 @@ void ViewChangeMsg::validate(const ReplicasInfo& repInfo) const {
       idOfGeneratedReplica() == repInfo.myId())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
 
-  uint16_t dataLength = b()->locationAfterLast;
+  size_t dataLength = b()->locationAfterLast;
   if (dataLength < sizeof(Header)) dataLength = sizeof(Header);
   uint16_t sigLen = ViewsManager::sigManager_->getSigLength(idOfGeneratedReplica());
 
@@ -127,34 +128,47 @@ void ViewChangeMsg::validate(const ReplicasInfo& repInfo) const {
 bool ViewChangeMsg::checkElements(uint16_t sigSize) const {
   SeqNum lastSeqNumInMsg = lastStable();
   uint16_t numOfActualElements = 0;
-  uint16_t remainingBytes = size() - sigSize - sizeof(Header) - spanContextSize();
+  size_t remainingBytes = size() - sigSize - sizeof(Header) - spanContextSize();
   char* currLoc = body() + sizeof(Header) + spanContextSize();
 
   while ((remainingBytes >= sizeof(Element)) && (numOfActualElements < numberOfElements())) {
     numOfActualElements++;
     Element* pElement = (Element*)currLoc;
-    if (pElement->seqNum <= lastSeqNumInMsg) return false;  // elements should be sorted by seq number
+    if (pElement->seqNum <= lastSeqNumInMsg) {
+      return false;  // elements should be sorted by seq number
+    }
     lastSeqNumInMsg = pElement->seqNum;
 
-    if (lastSeqNumInMsg > lastStable() + kWorkWindowSize) return false;
+    if (lastSeqNumInMsg > lastStable() + kWorkWindowSize) {
+      return false;
+    }
 
-    if (pElement->originView >= newView()) return false;
+    if (pElement->originView >= newView()) {
+      return false;
+    }
 
     remainingBytes -= sizeof(Element);
     currLoc += sizeof(Element);
 
     if (pElement->hasPreparedCertificate) {
-      if (remainingBytes < sizeof(PreparedCertificate)) return false;
+      if (remainingBytes < sizeof(PreparedCertificate)) {
+        return false;
+      }
 
       PreparedCertificate* pCert = (PreparedCertificate*)currLoc;
 
-      if (pCert->certificateView > pElement->originView) return false;
+      if (pCert->certificateView > pElement->originView) {
+        return false;
+      }
 
-      if (pCert->certificateSigLength == 0) return false;
+      if (pCert->certificateSigLength == 0) {
+        return false;
+      }
+      const size_t s = sizeof(PreparedCertificate) + pCert->certificateSigLength;
 
-      const int16_t s = sizeof(PreparedCertificate) + pCert->certificateSigLength;
-
-      if (remainingBytes < s) return false;
+      if (remainingBytes < s) {
+        return false;
+      }
 
       // we don't check the certificate here (because in many cases it is not needed to make progress)
 
@@ -163,13 +177,19 @@ bool ViewChangeMsg::checkElements(uint16_t sigSize) const {
     }
   }
 
-  if (numOfActualElements != numberOfElements()) return false;
+  if (numOfActualElements != numberOfElements()) {
+    return false;
+  }
 
   if (numOfActualElements > 0) {
-    const int16_t locationAfterLastElement = size() - sigSize - remainingBytes;
-    if (this->b()->locationAfterLast != locationAfterLastElement) return false;
+    const size_t locationAfterLastElement = size() - sigSize - remainingBytes;
+    if (this->b()->locationAfterLast != locationAfterLastElement) {
+      return false;
+    }
   } else {
-    if (this->b()->locationAfterLast != 0) return false;
+    if (this->b()->locationAfterLast != 0) {
+      return false;
+    }
   }
 
   return true;
@@ -202,7 +222,7 @@ bool ViewChangeMsg::ElementsIterator::getCurrent(Element*& pElement) {
 
   if (end()) return false;
 
-  const uint16_t remainingbytes = (endLoc - currLoc);
+  const size_t remainingbytes = (endLoc - currLoc);
 
   ConcordAssert(remainingbytes >= sizeof(Element));
 
@@ -229,7 +249,7 @@ bool ViewChangeMsg::ElementsIterator::getAndGoToNext(Element*& pElement) {
 
   if (end()) return false;
 
-  const uint16_t remainingbytes = (endLoc - currLoc);
+  const size_t remainingbytes = (endLoc - currLoc);
 
   ConcordAssert(remainingbytes >= sizeof(Element));
 
