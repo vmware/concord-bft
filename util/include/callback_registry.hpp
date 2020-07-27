@@ -76,7 +76,7 @@ class GenericCallbackHandle {
   friend class CallbackRegistry;
 };
 
-// A callback registry that supports registration, deregistration and invocation of callbacks. Supports arbitrary
+// A callback registry that supports adding, removing and invoking callbacks. Supports arbitrary
 // callback parameters. Callback return type is void.
 template <typename... Args>
 class CallbackRegistry {
@@ -97,18 +97,18 @@ class CallbackRegistry {
   // them. Additionally, handles are invalidated when the registry is destructed. Using handles across registries or
   // after their corresponding registry has been destructed causes undefined bahavior.
   template <typename Func>
-  CallbackHandle registerCallback(Func&& callback) {
+  CallbackHandle add(Func&& callback) {
     callbacks_.emplace_back(std::forward<Func>(callback));
     auto it = callbacks_.cend();
     return --it;
   }
 
-  // Deregisters a callback. If the passed handle is invalid, an exception is thrown.
-  void deregisterCallback(CallbackHandle handle) {
+  // Removes a registered callback. If the passed handle is invalid, an exception is thrown.
+  void remove(CallbackHandle handle) {
     if (handle.iter_.has_value()) {
       callbacks_.erase(*handle.iter_);
     } else {
-      throw std::invalid_argument{"deregisterCallback() called with an invalid CallbackHandle"};
+      throw std::invalid_argument{"CallbackRegistry::remove() called with an invalid CallbackHandle"};
     }
   }
 

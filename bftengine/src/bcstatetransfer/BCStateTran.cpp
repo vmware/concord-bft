@@ -250,9 +250,9 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
     messageHandler_ = std::bind(&BCStateTran::handleStateTransferMessageImp, this, _1, _2, _3);
   }
 
-  // Make sure that the internal IReplicaForStateTransfer callback is always registered, alongside any user-supplied
+  // Make sure that the internal IReplicaForStateTransfer callback is always added, alongside any user-supplied
   // callbacks.
-  on_transferring_complete_cb_registry_.registerCallback(
+  on_transferring_complete_cb_registry_.add(
       [this](uint64_t checkpoint_num) { replicaForStateTransfer_->onTransferringComplete(checkpoint_num); });
 }
 
@@ -688,7 +688,7 @@ std::string BCStateTran::getStatus() {
 }
 
 void BCStateTran::addOnTransferringCompleteCallback(std::function<void(uint64_t)> callback) {
-  on_transferring_complete_cb_registry_.registerCallback(std::move(callback));
+  on_transferring_complete_cb_registry_.add(std::move(callback));
 }
 
 void BCStateTran::handoff(char *msg, uint32_t msgLen, uint16_t senderId) {

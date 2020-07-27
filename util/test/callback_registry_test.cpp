@@ -32,7 +32,7 @@ void func(int, long) { ++global_calls; }
 TEST(callback_registry, lambda_no_args) {
   auto calls = 0;
   auto reg = CallbackRegistry<>{};
-  reg.registerCallback([&calls]() { ++calls; });
+  reg.add([&calls]() { ++calls; });
   reg.invokeAll();
   ASSERT_EQ(1, calls);
 }
@@ -40,7 +40,7 @@ TEST(callback_registry, lambda_no_args) {
 TEST(callback_registry, lambda_1_arg) {
   auto calls = 0;
   auto reg = CallbackRegistry<int>{};
-  reg.registerCallback([&calls](int arg) {
+  reg.add([&calls](int arg) {
     ++calls;
     ASSERT_EQ(answer, arg);
   });
@@ -51,7 +51,7 @@ TEST(callback_registry, lambda_1_arg) {
 TEST(callback_registry, func_2_args) {
   global_calls = 0;
   auto reg = CallbackRegistry<int, long>{};
-  auto handle = reg.registerCallback(func);
+  auto handle = reg.add(func);
   handle.invoke(answer, answer);
   reg.invokeAll(answer, answer);
   ASSERT_EQ(2, global_calls);
@@ -64,7 +64,7 @@ TEST(callback_registry, std_function) {
     ++calls;
     ASSERT_EQ(answer, arg);
   }};
-  reg.registerCallback(func);
+  reg.add(func);
   reg.invokeAll(answer);
   ASSERT_EQ(1, calls);
 }
@@ -72,7 +72,7 @@ TEST(callback_registry, std_function) {
 TEST(callback_registry, valid_handle_invoke) {
   auto calls = 0;
   auto reg = CallbackRegistry<>{};
-  auto handle = reg.registerCallback([&calls]() { ++calls; });
+  auto handle = reg.add([&calls]() { ++calls; });
   handle.invoke();
   ASSERT_EQ(1, calls);
 }
@@ -80,9 +80,9 @@ TEST(callback_registry, valid_handle_invoke) {
 TEST(callback_registry, moved_handles_invoke) {
   auto calls = 0;
   auto reg = CallbackRegistry<>{};
-  auto handle1 = reg.registerCallback([&calls]() { ++calls; });
+  auto handle1 = reg.add([&calls]() { ++calls; });
   auto handle2 = std::move(handle1);
-  ASSERT_THROW(handle1.invoke(), std::logic_error);
+  ASSERT_THROW(handle1.invoke(), std::logic_error);  // NOLINT(bugprone-use-after-move)
   ASSERT_NO_THROW(handle2.invoke());
   ASSERT_EQ(1, calls);
 }
@@ -90,7 +90,7 @@ TEST(callback_registry, moved_handles_invoke) {
 TEST(callback_registry, handle_invoke_and_invoke_all) {
   auto calls = 0;
   auto reg = CallbackRegistry<>{};
-  auto handle = reg.registerCallback([&calls]() { ++calls; });
+  auto handle = reg.add([&calls]() { ++calls; });
   reg.invokeAll();
   handle.invoke();
   ASSERT_EQ(2, calls);
@@ -98,8 +98,8 @@ TEST(callback_registry, handle_invoke_and_invoke_all) {
 
 TEST(callback_registry, valid_handle_equality) {
   auto reg = CallbackRegistry<>{};
-  auto handle1 = reg.registerCallback([]() {});
-  auto handle2 = reg.registerCallback([]() {});
+  auto handle1 = reg.add([]() {});
+  auto handle2 = reg.add([]() {});
   ASSERT_EQ(handle1, handle1);
   ASSERT_EQ(handle2, handle2);
   ASSERT_NE(handle1, handle2);
@@ -108,15 +108,15 @@ TEST(callback_registry, valid_handle_equality) {
 
 TEST(callback_registry, invalid_handle_inequality) {
   auto reg = CallbackRegistry<>{};
-  auto handle1 = reg.registerCallback([]() {});
-  auto handle2 = reg.registerCallback([]() {});
+  auto handle1 = reg.add([]() {});
+  auto handle2 = reg.add([]() {});
   auto handle3 = std::move(handle1);
   auto handle4 = std::move(handle2);
-  ASSERT_NE(handle1, handle2);
-  ASSERT_NE(handle1, handle3);
-  ASSERT_NE(handle1, handle4);
-  ASSERT_NE(handle2, handle3);
-  ASSERT_NE(handle2, handle4);
+  ASSERT_NE(handle1, handle2);  // NOLINT(bugprone-use-after-move)
+  ASSERT_NE(handle1, handle3);  // NOLINT(bugprone-use-after-move)
+  ASSERT_NE(handle1, handle4);  // NOLINT(bugprone-use-after-move)
+  ASSERT_NE(handle2, handle3);  // NOLINT(bugprone-use-after-move)
+  ASSERT_NE(handle2, handle4);  // NOLINT(bugprone-use-after-move)
   ASSERT_NE(handle3, handle4);
 }
 
@@ -127,87 +127,90 @@ TEST(callback_registry, multiple_callbacks) {
   auto handles = std::vector<CallbackRegistry<>::CallbackHandle>{};
   const auto callback_count = 5;
   for (auto i = 0; i < callback_count; ++i) {
-    handles.push_back(reg.registerCallback(callback));
+    handles.push_back(reg.add(callback));
   }
   reg.invokeAll();
   ASSERT_EQ(callback_count, calls);
 }
 
-TEST(callback_registry, deregister_valid_handle) {
+TEST(callback_registry, remove_valid_handle) {
   auto calls = 0;
   auto reg = CallbackRegistry<>{};
   const auto callback = [&calls] { ++calls; };
-  auto handle1 = reg.registerCallback(callback);
-  auto handle2 = reg.registerCallback(callback);
+  auto handle1 = reg.add(callback);
+  auto handle2 = reg.add(callback);
   // 2 calls
   reg.invokeAll();
-  reg.deregisterCallback(std::move(handle1));
+  reg.remove(std::move(handle1));
   // 1 call
   reg.invokeAll();
   ASSERT_EQ(3, calls);
-  reg.deregisterCallback(std::move(handle2));
+  reg.remove(std::move(handle2));
   // no calls
   reg.invokeAll();
   ASSERT_EQ(3, calls);
 }
 
-TEST(callback_registry, deregister_invalid_handle) {
+TEST(callback_registry, remove_invalid_handle) {
   auto reg = CallbackRegistry<>{};
-  auto handle1 = reg.registerCallback([] {});
+  auto handle1 = reg.add([] {});
   [[maybe_unused]] auto handle2 = std::move(handle1);
-  ASSERT_THROW(reg.deregisterCallback(std::move(handle1)), std::invalid_argument);
+  // NOLINTNEXTLINE(bugprone-use-after-move)
+  ASSERT_THROW(reg.remove(std::move(handle1)), std::invalid_argument);
 }
 
 TEST(callback_registry, size) {
   auto reg = CallbackRegistry<>{};
-  auto handle = reg.registerCallback([]() {});
+  auto handle = reg.add([]() {});
   ASSERT_EQ(1, reg.size());
   ASSERT_FALSE(reg.empty());
-  reg.deregisterCallback(std::move(handle));
+  reg.remove(std::move(handle));
   ASSERT_EQ(0, reg.size());
   ASSERT_TRUE(reg.empty());
 }
 
 TEST(callback_registry, propagate_exception) {
   auto reg = CallbackRegistry<>{};
-  reg.registerCallback([]() { throw std::runtime_error{""}; });
+  reg.add([]() { throw std::runtime_error{""}; });
   ASSERT_THROW(reg.invokeAll(), std::runtime_error);
 }
 
 TEST(callback_registry, move_ctor_validity) {
   auto reg = CallbackRegistry<>{};
-  auto handle1 = reg.registerCallback([]() {});
+  auto handle1 = reg.add([]() {});
   auto handle2 = std::move(handle1);
-  ASSERT_FALSE(handle1.valid());
+  ASSERT_FALSE(handle1.valid());  // NOLINT(bugprone-use-after-move)
   ASSERT_TRUE(handle2.valid());
 }
 
 TEST(callback_registry, move_assign_validity) {
   auto reg = CallbackRegistry<>{};
-  auto handle1 = reg.registerCallback([]() {});
-  auto handle2 = reg.registerCallback([]() {});
+  auto handle1 = reg.add([]() {});
+  auto handle2 = reg.add([]() {});
   handle1 = std::move(handle2);
   ASSERT_TRUE(handle1.valid());
-  ASSERT_FALSE(handle2.valid());
+  ASSERT_FALSE(handle2.valid());  // NOLINT(bugprone-use-after-move)
 }
 
 TEST(callback_registry, move_ctor_invalid_argument) {
   auto reg = CallbackRegistry<>{};
-  auto handle1 = reg.registerCallback([]() {});
+  auto handle1 = reg.add([]() {});
   [[maybe_unused]] auto handle2 = std::move(handle1);
+  // NOLINTNEXTLINE(bugprone-use-after-move)
   ASSERT_THROW([[maybe_unused]] auto handle3 = std::move(handle1), std::invalid_argument);
 }
 
 TEST(callback_registry, move_assign_invalid_argument) {
   auto reg = CallbackRegistry<>{};
-  auto handle1 = reg.registerCallback([]() {});
+  auto handle1 = reg.add([]() {});
   auto handle2 = std::move(handle1);
+  // NOLINTNEXTLINE(bugprone-use-after-move)
   ASSERT_THROW(handle2 = std::move(handle1), std::invalid_argument);
 }
 
 TEST(callback_registry, move_assign_to_self_is_no_op) {
   auto reg = CallbackRegistry<>{};
-  auto handle = reg.registerCallback([]() {});
+  auto handle = reg.add([]() {});
   auto& handle_ref = handle;
   handle = std::move(handle_ref);
   ASSERT_TRUE(handle.valid());
