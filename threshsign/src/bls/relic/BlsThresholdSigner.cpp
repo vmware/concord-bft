@@ -15,6 +15,7 @@
 #include "threshsign/bls/relic/BlsPublicParameters.h"
 #include <sstream>
 #include <iostream>
+#include "Logger.hpp"
 
 using namespace std;
 using namespace concord::serialize;
@@ -43,6 +44,7 @@ void BlsThresholdSigner::signData(const char *hash, int hashLen, char *outSig, i
   memcpy(outSig, serializedId_, sizeof(id_));
   // Serialize the signature to a byte array
   sigTmp_.toBytes(reinterpret_cast<unsigned char *>(outSig) + sizeof(id_), outSigLen - static_cast<int>(sizeof(id_)));
+  LOG_TRACE(BLS_LOG, "id: " << id_);
 }
 
 /************** Serialization **************/

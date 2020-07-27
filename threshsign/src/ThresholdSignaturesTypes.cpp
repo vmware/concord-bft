@@ -17,6 +17,7 @@
 #include "threshsign/IThresholdVerifier.h"
 #include "threshsign/bls/relic/BlsThresholdFactory.h"
 #include "threshsign/bls/relic/PublicParametersFactory.h"
+#include "Logger.hpp"
 
 Cryptosystem::Cryptosystem(const std::string& sysType,
                            const std::string& sysSubtype,
@@ -257,6 +258,7 @@ bool Cryptosystem::isValidCryptosystemSelection(const std::string& type, const s
       BLS::Relic::BlsThresholdFactory factory(BLS::Relic::PublicParametersFactory::getByCurveType(subtype.c_str()));
       return true;
     } catch (std::exception& e) {
+      LOG_FATAL(THRESHSIGN_LOG, e.what());
       return false;
     }
   } else if (type == THRESHOLD_BLS_SCHEME) {

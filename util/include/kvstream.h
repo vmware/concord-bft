@@ -89,7 +89,7 @@ void KvLog(std::stringstream &ss, K &&key, V &&, KVPAIRS &&... kvpairs) {
 template <bool Strict, typename... KVPAIRS>
 std::string KvLog(KVPAIRS &&... kvpairs) {
   std::stringstream ss;
-  ss << "| ";
+  ss << " ";
   KvLog<Strict>(ss, std::forward<KVPAIRS>(kvpairs)...);
   return ss.str();
 }

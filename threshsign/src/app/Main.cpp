@@ -14,6 +14,8 @@
 using std::endl;
 
 int main(int argc, char *argv[]) {
+  logging::initLogger("logging.properties");
+
   LOG_ERROR(THRESHSIGN_LOG, "Error logging is enabled!");
   LOG_WARN(THRESHSIGN_LOG, "Warning logging is enabled!");
   LOG_INFO(THRESHSIGN_LOG, "Info logging is enabled!");

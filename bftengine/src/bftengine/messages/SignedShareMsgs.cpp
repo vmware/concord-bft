@@ -12,6 +12,8 @@
 #include "SignedShareMsgs.hpp"
 #include "Crypto.hpp"
 #include "assertUtils.hpp"
+#include "Logger.hpp"
+#include "kvstream.h"
 
 namespace bftEngine {
 namespace impl {
@@ -33,6 +35,7 @@ SignedShareBase* SignedShareBase::create(int16_t type,
                                          Digest& digest,
                                          IThresholdSigner* thresholdSigner,
                                          const concordUtils::SpanContext& spanContext) {
+  LOG_TRACE(THRESHSIGN_LOG, KVLOG(type, v, s, senderId));
   const size_t sigLen = thresholdSigner->requiredLengthForSignedData();
   size_t size = sizeof(Header) + sigLen;
 

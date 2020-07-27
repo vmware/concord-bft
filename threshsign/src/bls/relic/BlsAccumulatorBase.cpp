@@ -70,8 +70,7 @@ bool BlsAccumulatorBase::verifyShare(ShareID id, const G1T& sigShare) {
   // Pair hash with PK
   // FIXME: RELIC: This should not require non-const y
   G2T& vk = const_cast<G2T&>(vks[static_cast<size_t>(id)].getPoint());
-  // LOG_DEBUG(BLS_LOG, "Checking signature " << sigShare << " on hash " << hash << " against VK of signer " << id << "
-  // " << vk);
+  LOG_TRACE(BLS_LOG, sigShare << " on hash " << hash << " against VK of signer " << id << " " << vk);
   pc_map(e1, hash, vk);
 
   // Pair signature with group's generator

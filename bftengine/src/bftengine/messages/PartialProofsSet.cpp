@@ -298,7 +298,7 @@ void PartialProofsSet::tryToCreateFullProof() {
 
     replica->getInternalThreadPool().add(j);
 
-    LOG_DEBUG(GL, "PartialProofsSet - send to BK thread (for seqNumber %" << seqNumber << ")");
+    LOG_TRACE(GL, "send to BK thread (for seqNumber " << seqNumber << ")");
   }
 }
 

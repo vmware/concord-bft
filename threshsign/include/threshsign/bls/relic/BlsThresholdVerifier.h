@@ -29,6 +29,8 @@ class BlsThresholdVerifier : public IThresholdVerifier,
                              public concord::serialize::SerializableFactory<BlsThresholdVerifier> {
  protected:
   BlsPublicParameters params_;
+  // For multisig publicKey_ is used only for n-out-of-n case
+  // TODO [TK] mutable for deserialization - remove as we don't need to serialize the entire class
   mutable BlsPublicKey publicKey_;
   std::vector<BlsPublicKey> publicKeysVector_;
   G2T generator2_;

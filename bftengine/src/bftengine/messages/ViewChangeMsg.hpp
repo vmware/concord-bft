@@ -88,8 +88,8 @@ class ViewChangeMsg : public MessageBase {
 
    protected:
     const ViewChangeMsg* const msg;
-    uint16_t endLoc;
-    uint16_t currLoc;
+    size_t endLoc;
+    size_t currLoc;
     uint16_t nextElementNum;  // used for debug
   };
 
@@ -104,12 +104,12 @@ class ViewChangeMsg : public MessageBase {
     ViewNum newView;         // the new view
     SeqNum lastStable;
     uint16_t numberOfElements;
-    uint16_t locationAfterLast;  // if(numberOfElements > 0) then it holds the location after the last element
-                                 // followed by a sequence of Element
-                                 // followed by a signature (by genReplicaId)
+    size_t locationAfterLast;  // if(numberOfElements > 0) then it holds the location after the last element
+                               // followed by a sequence of Element
+                               // followed by a signature (by genReplicaId)
   };
 #pragma pack(pop)
-  static_assert(sizeof(Header) == (6 + 2 + 8 + 8 + 2 + 2), "Header is 30B");
+  static_assert(sizeof(Header) == (6 + 2 + 8 + 8 + 2 + 8), "Header is 36B");
 
   Header* b() const { return ((Header*)msgBody_); }
 

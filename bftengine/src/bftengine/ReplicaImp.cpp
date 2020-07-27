@@ -42,6 +42,7 @@
 
 #include <string>
 #include <type_traits>
+#include <bitset>
 
 using concordUtil::Timers;
 using namespace std;
@@ -162,7 +163,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_CID(m->getCid());
-  LOG_DEBUG(GL, "Received ClientRequestMsg. " << KVLOG(clientId, reqSeqNum, flags, senderId));
+  LOG_DEBUG(GL, KVLOG(clientId, reqSeqNum, senderId) << " flags: " << std::bitset<8>(flags));
 
   const auto &span_context = m->spanContext<std::remove_pointer<decltype(m)>::type>();
   auto span = concordUtils::startChildSpanFromContext(span_context, "bft_client_request");
@@ -178,14 +179,6 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
       delete m;
       return;
     }
-  }
-
-  if (isCollectingState()) {
-    LOG_INFO(GL,
-             "ClientRequestMsg is ignored because this replica is collecting missing state from the other replicas. "
-                 << KVLOG(reqSeqNum, clientId));
-    delete m;
-    return;
   }
 
   // check message validity
@@ -1239,7 +1232,7 @@ void ReplicaImp::onMessage<CommitFullMsg>(CommitFullMsg *msg) {
 void ReplicaImp::onPrepareCombinedSigFailed(SeqNum seqNumber,
                                             ViewNum view,
                                             const std::set<uint16_t> &replicasWithBadSigs) {
-  LOG_DEBUG(GL, KVLOG(seqNumber, view));
+  LOG_WARN(THRESHSIGN_LOG, KVLOG(seqNumber, view));
 
   if ((isCollectingState()) || (!currentViewIsActive()) || (curView != view) ||
       (!mainLog->insideActiveWindow(seqNumber))) {
@@ -1263,7 +1256,7 @@ void ReplicaImp::onPrepareCombinedSigSucceeded(SeqNum seqNumber,
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(seqNumber));
   SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
-  LOG_DEBUG(GL, KVLOG(view));
+  LOG_TRACE(THRESHSIGN_LOG, KVLOG(seqNumber, view, combinedSigLen));
 
   if ((isCollectingState()) || (!currentViewIsActive()) || (curView != view) ||
       (!mainLog->insideActiveWindow(seqNumber))) {
@@ -1297,7 +1290,10 @@ void ReplicaImp::onPrepareCombinedSigSucceeded(SeqNum seqNumber,
 }
 
 void ReplicaImp::onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) {
-  LOG_DEBUG(GL, KVLOG(view));
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
+  SCOPED_MDC_SEQ_NUM(std::to_string(seqNumber));
+
+  LOG_TRACE(THRESHSIGN_LOG, KVLOG(seqNumber, view, isValid));
 
   if ((isCollectingState()) || (!currentViewIsActive()) || (curView != view) ||
       (!mainLog->insideActiveWindow(seqNumber))) {
@@ -1333,7 +1329,7 @@ void ReplicaImp::onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view
 void ReplicaImp::onCommitCombinedSigFailed(SeqNum seqNumber,
                                            ViewNum view,
                                            const std::set<uint16_t> &replicasWithBadSigs) {
-  LOG_DEBUG(GL, KVLOG(seqNumber, view));
+  LOG_WARN(THRESHSIGN_LOG, KVLOG(seqNumber, view, replicasWithBadSigs.size()));
 
   if ((isCollectingState()) || (!currentViewIsActive()) || (curView != view) ||
       (!mainLog->insideActiveWindow(seqNumber))) {
@@ -1356,7 +1352,7 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(seqNumber));
   SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
-  LOG_DEBUG(GL, KVLOG(view));
+  LOG_TRACE(THRESHSIGN_LOG, KVLOG(seqNumber, view, combinedSigLen));
 
   if (isCollectingState() || (!currentViewIsActive()) || (curView != view) ||
       (!mainLog->insideActiveWindow(seqNumber))) {
@@ -1397,8 +1393,10 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(seqNumber));
   SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
-
-  LOG_DEBUG(GL, KVLOG(view));
+  if (!isValid)
+    LOG_WARN(THRESHSIGN_LOG, KVLOG(seqNumber, view, isValid));
+  else
+    LOG_TRACE(THRESHSIGN_LOG, KVLOG(seqNumber, view, isValid));
 
   if (isCollectingState() || (!currentViewIsActive()) || (curView != view) ||
       (!mainLog->insideActiveWindow(seqNumber))) {
