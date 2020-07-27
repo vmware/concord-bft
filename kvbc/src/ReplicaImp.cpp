@@ -122,6 +122,7 @@ Status ReplicaImp::getBlockData(BlockId blockId, SetOfKeyValuePairs &outBlockDat
     Sliver block = getBlockInternal(blockId);
     outBlockData = m_bcDbAdapter->getBlockData(block);
   } catch (const NotFoundException &e) {
+    LOG_ERROR(logger, e.what());
     return Status::NotFound("todo");
   }
 
@@ -284,20 +285,22 @@ bool ReplicaImp::putBlock(const uint64_t blockId, const char *block_data, const 
   return true;
 }
 
-RawBlock ReplicaImp::getBlockInternal(BlockId blockId) const {
-  ConcordAssert(blockId <= getLastBlockNum());
-  return m_bcDbAdapter->getRawBlock(blockId);
-}
+RawBlock ReplicaImp::getBlockInternal(BlockId blockId) const { return m_bcDbAdapter->getRawBlock(blockId); }
 
 /*
  * This method assumes that *outBlock is big enough to hold block content
  * The caller is the owner of the memory
  */
 bool ReplicaImp::getBlock(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) {
-  RawBlock block = getBlockInternal(blockId);
-  *outBlockSize = block.length();
-  memcpy(outBlock, block.data(), block.length());
-  return true;
+  try {
+    RawBlock block = getBlockInternal(blockId);
+    *outBlockSize = block.length();
+    memcpy(outBlock, block.data(), block.length());
+    return true;
+  } catch (const NotFoundException &e) {
+    LOG_FATAL(logger, e.what());
+    throw;
+  }
 }
 
 bool ReplicaImp::hasBlock(BlockId blockId) const { return m_bcDbAdapter->hasBlock(blockId); }
@@ -313,7 +316,7 @@ bool ReplicaImp::getPrevDigestFromBlock(BlockId blockId, StateTransferDigest *ou
     memcpy(outPrevBlockDigest, parentDigest.data(), BLOCK_DIGEST_SIZE);
     return true;
   } catch (const NotFoundException &e) {
-    LOG_FATAL(logger, "Block not found for parent digest, ID: " << blockId);
+    LOG_FATAL(logger, "Block not found for parent digest, ID: " << blockId << " " << e.what());
     throw;
   }
 }

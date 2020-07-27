@@ -105,7 +105,7 @@ struct ReplicaConfig {
   bool debugPersistentStorageEnabled = false;
 
   // Messages
-  uint32_t maxExternalMessageSize = 65536;
+  uint32_t maxExternalMessageSize = 131072;
   uint32_t maxReplyMessageSize = 8192;
 
   // StateTransfer
