@@ -45,7 +45,7 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
   (void)args;
 
   unsigned int seed = static_cast<unsigned int>(time(NULL));
-  LOG_INFO(GL, "Randomness seed passed to srand(): " << seed);
+  LOG_INFO(THRESHSIGN_LOG, "Randomness seed passed to srand(): " << seed);
   // NOTE: srand is not and should not be used for any cryptographic randomness.
   srand(seed);
 
@@ -56,7 +56,8 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
 #endif
   int maxNumShares = 2048;
   if (maxNumShares > MAX_NUM_OF_SHARES) {
-    LOG_ERROR(GL, "MAX_NUM_OF_SHARES = " << MAX_NUM_OF_SHARES << " is smaller need max of " << maxNumShares);
+    LOG_ERROR(THRESHSIGN_LOG,
+              "MAX_NUM_OF_SHARES = " << MAX_NUM_OF_SHARES << " is smaller need max of " << maxNumShares);
     throw std::runtime_error("Recompile with higher MAX_NUM_OF_SHARES");
   }
 
@@ -71,7 +72,7 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
     // int k = (n*2)/3 + (rand() % 2);	// sometimes odd, sometimes even.
     int k = n - 2 + (rand() % 2);  // sometimes odd, sometimes even.
 
-    LOG_INFO(GL,
+    LOG_INFO(THRESHSIGN_LOG,
              "Testing k = " << k << " out of n = " << n << " (field order is " << params.getGroupOrder().getBits()
                             << " bits)");
 
@@ -141,20 +142,20 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
       size_t idx = static_cast<size_t>(i);
       if (n < 512) {
         if (redCoeffs[idx] != rnCoeffs[idx]) {
-          LOG_ERROR(GL, "ReducedAccumCoeff[" << idx << "] != ReducedNaiveCoeff [" << idx << "]");
-          LOG_ERROR(GL, redCoeffs[idx] << " != " << rnCoeffs[idx]);
+          LOG_ERROR(THRESHSIGN_LOG, "ReducedAccumCoeff[" << idx << "] != ReducedNaiveCoeff [" << idx << "]");
+          LOG_ERROR(THRESHSIGN_LOG, redCoeffs[idx] << " != " << rnCoeffs[idx]);
           throw std::runtime_error("Bad coeff");
         }
 
         if (redCoeffs[idx] != incrCoeffs[idx]) {
-          LOG_ERROR(GL, "ReducedAccumCoeff[" << idx << "] != IncrAccumCoeff [" << idx << "]");
-          LOG_ERROR(GL, redCoeffs[idx] << " != " << incrCoeffs[idx]);
+          LOG_ERROR(THRESHSIGN_LOG, "ReducedAccumCoeff[" << idx << "] != IncrAccumCoeff [" << idx << "]");
+          LOG_ERROR(THRESHSIGN_LOG, redCoeffs[idx] << " != " << incrCoeffs[idx]);
           throw std::runtime_error("Bad coeff");
         }
 
         if (redCoeffs[idx] != naiveCoeffs[idx]) {
-          LOG_ERROR(GL, "ReducedAccumCoeff[" << idx << "] != NaiveCoeffs [" << idx << "]");
-          LOG_ERROR(GL, rnCoeffs[idx] << " != " << naiveCoeffs[idx]);
+          LOG_ERROR(THRESHSIGN_LOG, "ReducedAccumCoeff[" << idx << "] != NaiveCoeffs [" << idx << "]");
+          LOG_ERROR(THRESHSIGN_LOG, rnCoeffs[idx] << " != " << naiveCoeffs[idx]);
           throw std::runtime_error("Bad coeff");
         }
       }

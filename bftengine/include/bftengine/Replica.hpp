@@ -51,6 +51,7 @@ enum MsgFlag : uint8_t {
 class ControlHandlers {
  public:
   virtual void onSuperStableCheckpoint() = 0;
+  virtual ~ControlHandlers() {}
 };
 
 class IRequestsHandler {

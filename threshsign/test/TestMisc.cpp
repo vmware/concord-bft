@@ -48,7 +48,7 @@ void testUtils() {
   testAssertEqual(Utils::numBits(7), 3);
   testAssertEqual(Utils::numBits(8), 4);
 
-  LOG_INFO(GL, "Utils::numBits passed!");
+  LOG_INFO(THRESHSIGN_LOG, "Utils::numBits passed!");
 
   testAssertEqual(Utils::pow2(0), 1);
   testAssertEqual(Utils::pow2(1), 2);
@@ -57,5 +57,5 @@ void testUtils() {
   testAssertEqual(Utils::pow2(4), 16);
   testAssertEqual(Utils::pow2(5), 32);
 
-  LOG_INFO(GL, "Utils::pow2 passed!");
+  LOG_INFO(THRESHSIGN_LOG, "Utils::pow2 passed!");
 }

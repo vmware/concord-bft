@@ -32,7 +32,7 @@ IThresholdSchemeBenchmark::IThresholdSchemeBenchmark(const IPublicParameters& p,
       msgSize(msgSize),
       hasPairing(true),
       hasShareVerify(true) {
-  LOG_TRACE(GL, "msgSize = " << msgSize);
+  LOG_TRACE(THRESHSIGN_LOG, "msgSize = " << msgSize);
   assertStrictlyGreaterThan(msgSize, 0);
 
   msg = new unsigned char[static_cast<size_t>(msgSize)];
@@ -47,29 +47,30 @@ IThresholdSchemeBenchmark::~IThresholdSchemeBenchmark() { delete[] msg; }
 
 void IThresholdSchemeBenchmark::start() {
   started = true;
-  LOG_DEBUG(GL, " (" << numBenchIters << " iterations per test)");
+  LOG_DEBUG(THRESHSIGN_LOG, " (" << numBenchIters << " iterations per test)");
 
   for (int i = 0; i < numBenchIters; i++) {
-    LOG_DEBUG(GL, "Benchmarking hashing m = " << Utils::bin2hex(msg, msgSize) << ", (" << msgSize << " bytes)");
+    LOG_DEBUG(THRESHSIGN_LOG,
+              "Benchmarking hashing m = " << Utils::bin2hex(msg, msgSize) << ", (" << msgSize << " bytes)");
     // Hash to the signature scheme's group
     hashT.startLap();
     hash();
     hashT.endLap();
 
-    LOG_DEBUG(GL, "Benchmarking signing (no hashing)...");
+    LOG_DEBUG(THRESHSIGN_LOG, "Benchmarking signing (no hashing)...");
     // Sign a message (normally, not threshold)
     sigT.startLap();
     signSingle();
     sigT.endLap();
 
-    LOG_DEBUG(GL, "Benchmarking verification (no hashing)...");
+    LOG_DEBUG(THRESHSIGN_LOG, "Benchmarking verification (no hashing)...");
     // Verify a message (normally, not threshold)
     verT.startLap();
     verifySingle();
     verT.endLap();
 
     // Group operations and pairing time
-    LOG_DEBUG(GL, "Benchmarking group operations...");
+    LOG_DEBUG(THRESHSIGN_LOG, "Benchmarking group operations...");
     if (hasPairing) {
       pairT.startLap();
       pairing();
@@ -82,7 +83,7 @@ void IThresholdSchemeBenchmark::start() {
     assertEqual(signers.count(), reqSigners);
 
     // Signer i will "sign-share" a message
-    LOG_DEBUG(GL, "Benchmarking share signing (" << reqSigners << " out of " << numSigners << ")...");
+    LOG_DEBUG(THRESHSIGN_LOG, "Benchmarking share signing (" << reqSigners << " out of " << numSigners << ")...");
     for (ShareID id = signers.first(); signers.isEnd(id) == false; id = signers.next(id)) {
       sshareT.startLap();
       signShare(id);
@@ -93,30 +94,31 @@ void IThresholdSchemeBenchmark::start() {
     accumulateShares(signers);
 
     if (hasShareVerify) {
-      LOG_DEBUG(GL, "Benchmarking share verification (" << reqSigners << " out of " << numSigners << ")...");
+      LOG_DEBUG(THRESHSIGN_LOG,
+                "Benchmarking share verification (" << reqSigners << " out of " << numSigners << ")...");
       // Verify the "sig-shares" of all signers
       vshareT.startLap();
       verifyShares();
       vshareT.endLap();
 
     } else {
-      LOG_DEBUG(GL, "(Skipping over share verification: hasShareVerify is set to false)");
+      LOG_DEBUG(THRESHSIGN_LOG, "(Skipping over share verification: hasShareVerify is set to false)");
     }
 
-    LOG_DEBUG(GL, "Benchmarking Lagrange coefficient computation...");
+    LOG_DEBUG(THRESHSIGN_LOG, "Benchmarking Lagrange coefficient computation...");
     lagrangeCoeffT.startLap();
     // Compute the lagrange coefficients L_i(0) for each signer i in signers set.
     computeLagrangeCoeff(signers);
     lagrangeCoeffT.endLap();
 
-    LOG_DEBUG(GL, "Benchmarking Lagrange coefficient exponentiation...");
+    LOG_DEBUG(THRESHSIGN_LOG, "Benchmarking Lagrange coefficient exponentiation...");
     // Then, exponentiate the sig-share of each signer i by L_i(0)
     // (assuming multiplicative group notation)
     lagrangeExpT.startLap();
     exponentiateLagrangeCoeff(signers);
     lagrangeExpT.endLap();
 
-    LOG_DEBUG(GL, "Benchmarking signature share aggregation...");
+    LOG_DEBUG(THRESHSIGN_LOG, "Benchmarking signature share aggregation...");
     // Finally, aggregate the signature shares using the lagrange coefficients
     aggT.startLap();
     aggregateShares(signers);

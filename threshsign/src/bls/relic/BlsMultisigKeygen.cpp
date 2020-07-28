@@ -38,10 +38,10 @@ BlsMultisigKeygen::BlsMultisigKeygen(const BlsPublicParameters& params, NumShare
 
   g2_mul_gen(pk, sk);
 
-  LOG_TRACE(GL, "Created: " << this);
+  LOG_TRACE(BLS_LOG, "Created: " << this);
 }
 
-BlsMultisigKeygen::~BlsMultisigKeygen() { LOG_TRACE(GL, "Destroyed: " << this); }
+BlsMultisigKeygen::~BlsMultisigKeygen() { LOG_TRACE(BLS_LOG, "Destroyed: " << this); }
 
 } /* namespace Relic */
 } /* namespace BLS */

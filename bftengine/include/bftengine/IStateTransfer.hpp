@@ -14,6 +14,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <string>
 
 namespace bftEngine {
@@ -68,6 +69,12 @@ class IStateTransfer {
   // Return the internal state (member variables, etc...) of the state transfer module as a string. This is used by the
   // diagnostics subsystem.
   virtual std::string getStatus() { return ""; };
+
+  // Registers a function that is called every time State Transfer completes.
+  // Accepts the checkpoint number as a parameter.
+  // Callbacks must not throw.
+  // Multiple callbacks can be added.
+  virtual void addOnTransferringCompleteCallback(std::function<void(uint64_t)>) = 0;
 };
 
 // This interface may only be used when the state transfer module is runnning

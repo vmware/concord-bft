@@ -47,10 +47,13 @@ struct MoveOnly {
   MoveOnly& operator=(MoveOnly&&) = default;
 };
 
+// Deleting the move ctor is omitted intentionally as we don't want it to take part in overload resolution.
+// Based on https://stackoverflow.com/questions/40536060/c-perfect-forward-copy-only-types-to-make-tuple
 struct CopyOnly {
   CopyOnly() = default;
-  CopyOnly(MoveOnly&&) = delete;
-  CopyOnly& operator=(MoveOnly&&) = delete;
+  CopyOnly(const CopyOnly&) = default;
+  CopyOnly& operator=(const CopyOnly&) = default;
+  CopyOnly& operator=(CopyOnly&&) = delete;
 };
 
 void own(MoveOnly&&) {}

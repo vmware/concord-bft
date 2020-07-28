@@ -402,7 +402,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void addTimers();
   void startConsensusProcess(PrePrepareMsg* pp);
   void sendInternalNoopPrePrepareMsg(CommitPath firstPath = CommitPath::SLOW);
-  void bringTheSystemToTheNextCheckpointBySendingNoopCommands(CommitPath firstPath = CommitPath::SLOW);
+  void bringTheSystemToCheckpointBySendingNoopCommands(SeqNum seqNumToStopAt, CommitPath firstPath = CommitPath::SLOW);
 };
 
 }  // namespace bftEngine::impl

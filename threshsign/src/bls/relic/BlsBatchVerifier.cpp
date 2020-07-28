@@ -54,7 +54,7 @@ bool BlsBatchVerifier::batchVerify(const G1T& msg, bool wantBadShares, std::vect
     aggregateSigsAndVerifKeys();
     isAggregated = true;
   } else {
-    // LOG_WARN(GL, "You seem to be verifying the same batch of shares twice. Hopefully you are testing?");
+    // LOG_WARN(BLS_LOG, "You seem to be verifying the same batch of shares twice. Hopefully you are testing?");
   }
 
   int rootIdx = aggTree.getRoot();
@@ -87,7 +87,7 @@ bool BlsBatchVerifier::batchVerifyRecursive(int node, bool wantBadShares, std::v
   bool verified = ver.verify(msg, share.sig, share.vk);
 
   if (verified) {
-    LOG_TRACE(GL, "Successfully verified node " << node);
+    LOG_TRACE(BLS_LOG, "Successfully verified node " << node);
 
     // Get all leaves below this valid node and push_back() the share IDs in them
     if (wantBadShares == false) {
@@ -107,10 +107,10 @@ bool BlsBatchVerifier::batchVerifyRecursive(int node, bool wantBadShares, std::v
     return true;
   } else {
     bool isLeaf = aggTree.isLeaf(node);
-    LOG_TRACE(GL, "Failed verifying node " << node);
+    LOG_TRACE(BLS_LOG, "Failed verifying node " << node);
 
     if (isLeaf) {
-      LOG_TRACE(GL, "Found bad share " << share.id);
+      LOG_TRACE(BLS_LOG, "Found bad share " << share.id);
       if (wantBadShares) shares.push_back(share.id);
     } else {
       int left = aggTree.getLeft(node);

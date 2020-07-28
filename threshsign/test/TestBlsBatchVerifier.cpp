@@ -80,11 +80,11 @@ void runBatchVerificationTest(int k, int n, int maxShares, int numBadShares = 0)
   for (ShareID id = allSubset.first(); allSubset.isEnd(id) == false; id = allSubset.next(id)) {
     BlsThresholdSigner* signer = dynamic_cast<BlsThresholdSigner*>(signers[static_cast<size_t>(id)]);
 
-    LOG_TRACE(GL, "Signing share #" << id);
+    LOG_TRACE(THRESHSIGN_LOG, "Signing share #" << id);
     G1T sig = signer->signData(buf, msgLen);
 
     if (badSubset.contains(id)) {
-      LOG_TRACE(GL, "Inserting bad share #" << id);
+      LOG_TRACE(THRESHSIGN_LOG, "Inserting bad share #" << id);
       // Change the signature to sig=sig*2, making it invalid...
       sig.Double();
     }
@@ -95,11 +95,11 @@ void runBatchVerificationTest(int k, int n, int maxShares, int numBadShares = 0)
   G1T msgPoint;
   g1_map(msgPoint, buf, msgLen);
 
-  // LOG_DEBUG(GL, "Verifying starting from root...");
+  // LOG_DEBUG(THRESHSIGN_LOG, "Verifying starting from root...");
   batchVerifyHelper(batchVer, numBadShares, msgPoint, badSubset, goodSubset, true);
 
   if (numBadShares > 0) {
-    // LOG_DEBUG(GL, "Verifying but skipping root (since we have bad shares)...");
+    // LOG_DEBUG(THRESHSIGN_LOG, "Verifying but skipping root (since we have bad shares)...");
     batchVerifyHelper(batchVer, numBadShares, msgPoint, badSubset, goodSubset, false);
   }
 
@@ -120,7 +120,7 @@ void batchVerifyHelper(BlsBatchVerifier& ver,
 
   // Find bad shares
   if (ver.batchVerify(msgPoint, true, badShares, checkRoot) != shouldVerify) {
-    LOG_ERROR(GL, "Expected batch verification to return '" << (shouldVerify ? "true" : "false") << "'");
+    LOG_ERROR(THRESHSIGN_LOG, "Expected batch verification to return '" << (shouldVerify ? "true" : "false") << "'");
     throw std::logic_error("batchVerify() returned wrong result");
   }
 
@@ -132,7 +132,7 @@ void batchVerifyHelper(BlsBatchVerifier& ver,
 
   // Find good shares
   if (ver.batchVerify(msgPoint, false, goodShares, checkRoot) != shouldVerify) {
-    LOG_ERROR(GL, "Expected batch verification to return '" << (shouldVerify ? "true" : "false") << "'");
+    LOG_ERROR(THRESHSIGN_LOG, "Expected batch verification to return '" << (shouldVerify ? "true" : "false") << "'");
     throw std::logic_error("batchVerify() returned wrong result");
   }
 
@@ -156,9 +156,9 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
 
   for (int k = 1; k < 17; k++) {
     int n = k + 2;
-    LOG_DEBUG(GL, "Testing the BLS batch verifier with k = " << k << " and n = " << n);
+    LOG_DEBUG(THRESHSIGN_LOG, "Testing the BLS batch verifier with k = " << k << " and n = " << n);
     for (int bad = 0; bad <= k; bad++) {
-      // LOG_DEBUG(GL, " * numBadShares = " << bad);
+      // LOG_DEBUG(THRESHSIGN_LOG, " * numBadShares = " << bad);
       runBatchVerificationTest(k, n, k, bad);
       runBatchVerificationTest(k, n, n, bad);
       runBatchVerificationTest(k, n, MAX_NUM_OF_SHARES, bad);
