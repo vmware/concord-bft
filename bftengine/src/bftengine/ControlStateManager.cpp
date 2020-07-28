@@ -12,6 +12,7 @@
 // file.
 
 #include "ControlStateManager.hpp"
+#include "Logger.hpp"
 namespace bftEngine {
 
 /*
@@ -24,6 +25,7 @@ namespace bftEngine {
  * given sequence number and mark it as a checkpoint to stop at in the reserved pages.
  */
 void ControlStateManager::setStopAtNextCheckpoint(int64_t currentSeqNum) {
+  if (!enabled_) return;
   uint64_t seq_num_to_stop_at = (currentSeqNum + 2 * checkpointWindowSize);
   seq_num_to_stop_at = seq_num_to_stop_at - (seq_num_to_stop_at % checkpointWindowSize);
   std::ostringstream outStream;
@@ -34,6 +36,7 @@ void ControlStateManager::setStopAtNextCheckpoint(int64_t currentSeqNum) {
 }
 
 std::optional<int64_t> ControlStateManager::getCheckpointToStopAt() {
+  if (!enabled_) return {};
   if (!state_transfer_->loadReservedPage(getUpdateReservedPageIndex(), sizeOfReservedPage_, scratchPage_.data())) {
     return {};
   }
@@ -41,6 +44,10 @@ std::optional<int64_t> ControlStateManager::getCheckpointToStopAt() {
   inStream.str(scratchPage_);
   controlStateMessages::StopAtNextCheckpointMessage msg;
   concord::serialize::Serializable::deserialize(inStream, msg);
+  if (msg.seqNumToStopAt_ < 0) {
+    LOG_WARN(GL, "sequence num to stop at is negative!");
+    return {};
+  }
   return msg.seqNumToStopAt_;
 }
 

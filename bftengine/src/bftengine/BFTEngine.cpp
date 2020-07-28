@@ -103,6 +103,7 @@ void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
                                   persistentStorage,
                                   replicaImp->getMsgHandlersRegistrator(),
                                   replicaImp->timers()));
+
   } else {
     //  TODO [TK] rep.reset(new ReadOnlyReplicaImp());
   }

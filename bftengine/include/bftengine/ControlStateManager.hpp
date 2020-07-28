@@ -34,10 +34,14 @@ class ControlStateManager : public ResPagesClient<ControlStateManager,
   ControlStateManager(const ControlStateManager&) = delete;
   ~ControlStateManager() {}
 
+  void disable() { enabled_ = false; }
+  void enable() { enabled_ = true; }
+
  private:
   IStateTransfer* state_transfer_;
   const uint32_t sizeOfReservedPage_;
   std::string scratchPage_;
+  bool enabled_ = true;
 
   // In the control handler manager reserved pages space, each control data should has its own page.
   // This struct define the index of each page in this space.

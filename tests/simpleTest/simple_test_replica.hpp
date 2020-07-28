@@ -196,6 +196,7 @@ class SimpleTestReplica {
   void start() {
     replica->start();
     control_state_manager_ = std::make_shared<ControlStateManager>(inMemoryST_, inMemoryST_->numberOfReservedPages());
+    control_state_manager_->disable();
     replica->setControlStateManager(control_state_manager_);
   }
 
@@ -222,6 +223,7 @@ class SimpleTestReplica {
           uint32_t downTime = behaviorPtr->get_down_time_millis();
           LOG_INFO(replicaLogger, "Restarting replica");
           replica->restartForDebug(downTime);
+          replica->setControlStateManager(control_state_manager_);
           behaviorPtr->on_restarted();
           LOG_INFO(replicaLogger, "Replica restarted");
         }
