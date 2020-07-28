@@ -41,6 +41,17 @@ int InternalCommandsHandler::execute(uint16_t clientId,
                                      uint32_t &outActualReplySize,
                                      uint32_t &outActualReplicaSpecificInfoSize,
                                      concordUtils::SpanWrapper &span) {
+  bool wedgeCommand = flags & 0x9;
+  if (wedgeCommand) {
+    LOG_INFO(m_logger, "A wedge command has been called seqNum: " << sequenceNum);
+    controlStateManager_->setStopAtNextCheckpoint(sequenceNum);
+    auto *reply = (SimpleReply_ConditionalWrite *)outReply;
+    reply->header.type = COND_WRITE;
+    reply->success = 1;
+    outActualReplySize = sizeof(SimpleReply_ConditionalWrite);
+    return 0;
+  }
+
   // ReplicaSpecificInfo is not currently used in the TesterReplica
   outActualReplicaSpecificInfoSize = 0;
   int res;

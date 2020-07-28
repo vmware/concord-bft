@@ -78,15 +78,15 @@ class UdpClient:
         self.port = BASE_PORT + 2*self.client_id
         self.sock_bound = False
 
-    async def write(self, msg, seq_num=None, cid=None, pre_process=False):
+    async def write(self, msg, seq_num=None, cid=None, pre_process=False, special_flags=None):
         """ A wrapper around sendSync for requests that mutate state """
-        return await self.sendSync(msg, False, seq_num, cid, pre_process)
+        return await self.sendSync(msg, False, seq_num, cid, pre_process, special_flags=special_flags)
 
     async def read(self, msg, seq_num=None, cid=None):
         """ A wrapper around sendSync for requests that do not mutate state """
         return await self.sendSync(msg, True, seq_num, cid)
 
-    async def sendSync(self, msg, read_only, seq_num=None, cid=None, pre_process=False):
+    async def sendSync(self, msg, read_only, seq_num=None, cid=None, pre_process=False, special_flags=None):
         """
         Send a client request and wait for a quorum (2F+C+1) of replies.
 
@@ -117,7 +117,7 @@ class UdpClient:
         if cid is None:
             cid = str(seq_num)
         data = bft_msgs.pack_request(
-                    self.client_id, seq_num, read_only, self.config.req_timeout_milli, cid, msg, pre_process)
+                    self.client_id, seq_num, read_only, self.config.req_timeout_milli, cid, msg, pre_process, special_flags=special_flags)
 
         # Raise a trio.TooSlowError exception if a quorum of replies
         try:

@@ -2382,8 +2382,11 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
 void ReplicaImp::onSeqNumIsSuperStable(SeqNum newSuperStableSeqNum) {
   auto seq_num_to_stop_at = controlStateManager_->getCheckpointToStopAt();
   if (seq_num_to_stop_at.has_value() && seq_num_to_stop_at.value() == newSuperStableSeqNum) {
-    if (getRequestsHandler()->getControlHandlers())
+    LOG_INFO(GL, "control state manager marked seqNum: " << newSuperStableSeqNum);
+    if (getRequestsHandler()->getControlHandlers()) {
+      metric_on_call_back_of_super_stable_cp_.Get().Set(1);
       getRequestsHandler()->getControlHandlers()->onSuperStableCheckpoint();
+    }
   }
 }
 void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformation, bool oldSeqNum) {
@@ -3045,6 +3048,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_current_primary_{metrics_.RegisterGauge("currentPrimary", curView % config_.numReplicas)},
       metric_concurrency_level_{metrics_.RegisterGauge("concurrencyLevel", config_.concurrencyLevel)},
       metric_primary_last_used_seq_num_{metrics_.RegisterGauge("primaryLastUsedSeqNum", primaryLastUsedSeqNum)},
+      metric_on_call_back_of_super_stable_cp_{metrics_.RegisterGauge("OnCallBackOfSuperStableCP", 0)},
       metric_first_commit_path_{metrics_.RegisterStatus(
           "firstCommitPath", CommitPathToStr(ControllerWithSimpleHistory_debugInitialFirstPath))},
       metric_slow_path_count_{metrics_.RegisterCounter("slowPathCount", 0)},
