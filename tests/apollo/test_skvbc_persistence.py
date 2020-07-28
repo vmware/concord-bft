@@ -268,8 +268,8 @@ class SkvbcPersistenceTest(unittest.TestCase):
         stale_node = random.choice(bft_network.all_replicas(without={0}))
 
         client, known_key, known_val, known_kv = \
-            await tracker.tracked_prime_for_state_transfer(checkpoints_num=4,
-                                                           stale_nodes={stale_node})
+            await tracker.tracked_prime_for_state_transfer(stale_nodes={stale_node},
+                                                           num_of_checkpoints_to_add=4)
 
         # exclude the primary and the stale node
         unstable_replicas = bft_network.all_replicas(without={0, stale_node})
@@ -393,8 +393,8 @@ class SkvbcPersistenceTest(unittest.TestCase):
         stale_replica = n - 1
 
         client, known_key, known_val, known_kv = \
-            await tracker.tracked_prime_for_state_transfer(checkpoints_num=2,
-                                                           stale_nodes={stale_replica})
+            await tracker.tracked_prime_for_state_transfer(stale_nodes={stale_replica},
+                                                           num_of_checkpoints_to_add=2)
         view = await bft_network.wait_for_view(
             replica_id=0,
             expected=lambda v: v == 0,

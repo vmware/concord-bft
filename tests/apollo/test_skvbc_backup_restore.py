@@ -23,10 +23,8 @@ def start_replica_cmd(builddir, replica_id):
     """
     Return a command that starts an skvbc replica when passed to
     subprocess.Popen.
-
     The replica is started with a short view change timeout and with RocksDB
     persistence enabled (-p).
-
     Note each arguments is an element in a list.
     """
     statusTimerMilli = "500"
@@ -73,7 +71,7 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
 
         await skvbc.fill_and_wait_for_checkpoint(
             initial_nodes=bft_network.all_replicas(),
-            checkpoint_num=1,
+            num_of_checkpoints_to_add=1,
             verify_checkpoint_persistency=False
         )
 
@@ -84,7 +82,9 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
         await self._start_random_replicas_with_delay(bft_network, stopped_replicas)
 
         # verify checkpoint persistence
-        await bft_network.wait_for_replicas_to_checkpoint(stopped_replicas, checkpoint_before + 1)
+        await bft_network.wait_for_replicas_to_checkpoint(
+            stopped_replicas,
+            expected_checkpoint_num=lambda ecn: ecn == checkpoint_before + 1)
 
         # verify current view is stable
         for replica in bft_network.all_replicas():
@@ -97,7 +97,7 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
         # create second checkpoint and wait for checkpoint propagation
         await skvbc.fill_and_wait_for_checkpoint(
             initial_nodes=bft_network.all_replicas(),
-            checkpoint_num=1,
+            num_of_checkpoints_to_add=1,
             verify_checkpoint_persistency=False
         )
 

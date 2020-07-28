@@ -114,7 +114,7 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
         def start_replica_cmd(builddir, replica_id)
     or
         def start_replica_cmd(builddir, replica_id, config)
-    If you want the bft test network configuration to be passed to your callback you should add 
+    If you want the bft test network configuration to be passed to your callback you should add
     third parameter named 'config' (the exact name is important!).
     If you don't need this configuration - use two parameters callback with any names you want.
     """
@@ -213,10 +213,10 @@ class BftTestNetwork:
             clients = {},
             metrics = None
         )
-        
+
         #copy loggging.properties file
         shutil.copy(os.path.abspath("../simpleKVBC/scripts/logging.properties"), testdir);
-        
+
         print("Running test in {}".format(bft_network.testdir))
 
         os.chdir(bft_network.testdir)
@@ -225,7 +225,6 @@ class BftTestNetwork:
         bft_network._init_metrics()
         bft_network._create_clients()
 
-       
         return bft_network
 
     @classmethod
@@ -297,8 +296,8 @@ class BftTestNetwork:
     def start_replica_cmd(self, replica_id):
         """
         Returns command line to start replica with the given id
-        If the callback accepts three parameters and one of them 
-        is named 'config' - pass the netowork configuration too.
+        If the callback accepts three parameters and one of them
+        is named 'config' - pass the network configuration too.
         """
         start_replica_fn_args = inspect.getfullargspec(self.config.start_replica_cmd).args
         if "config" in start_replica_fn_args and len(start_replica_fn_args) == 3:
@@ -363,7 +362,6 @@ class BftTestNetwork:
 
         return self.replicas[replica_id]
 
-
     def stop_replica(self, replica_id):
         """
         Stop a replica if it is running.
@@ -404,7 +402,7 @@ class BftTestNetwork:
             exclude_replicas = random_replicas | without
             random_replicas.add(random.choice(self.all_replicas(without=exclude_replicas)))
         return random_replicas
-    
+
     def get_live_replicas(self):
         """
         Returns the id-s of all live replicas
@@ -623,9 +621,11 @@ class BftTestNetwork:
                         if n != last_n:
                             last_n = n
                             checkpoint = ['bc_state_transfer',
-                                    'Gauges', 'last_stored_checkpoint']
+                                          'Gauges',
+                                          'last_stored_checkpoint']
                             on_transferring_complete = ['bc_state_transfer',
-                                    'Counters', 'on_transferring_complete']
+                                                        'Counters',
+                                                        'on_transferring_complete']
                             print("wait_for_st_to_stop: expected_seq_num={} "
                                   "last_stored_checkpoint={} "
                                   "on_transferring_complete_count={}".format(
@@ -635,9 +635,9 @@ class BftTestNetwork:
                                             *on_transferring_complete)))
                         # Exit condition
                         if n >= expected_seq_num:
-                           return
+                            return
 
-    async def wait_for_replicas_to_checkpoint(self, replica_ids, checkpoint_num):
+    async def wait_for_replicas_to_checkpoint(self, replica_ids, expected_checkpoint_num):
         """
         Wait for every replica in `replicas` to take a checkpoint.
         Check every .5 seconds and give fail after 30 seconds.
@@ -645,8 +645,7 @@ class BftTestNetwork:
         with trio.fail_after(30): # seconds
             async with trio.open_nursery() as nursery:
                 for replica_id in replica_ids:
-                    nursery.start_soon(self.wait_for_checkpoint, replica_id,
-                            checkpoint_num)
+                    nursery.start_soon(self.wait_for_checkpoint, replica_id, expected_checkpoint_num)
 
     async def wait_for_checkpoint(self, replica_id, expected_checkpoint_num=None):
         """
@@ -654,12 +653,13 @@ class BftTestNetwork:
         If none is provided, return the last stored checkpoint.
         """
         key = ['bc_state_transfer', 'Gauges', 'last_stored_checkpoint']
+        if expected_checkpoint_num is None:
+            expected_checkpoint_num = lambda _: True
         with trio.fail_after(30):
             while True:
                 with trio.move_on_after(.5): # seconds
                     last_stored_checkpoint = await self.metrics.get(replica_id, *key)
-                    if expected_checkpoint_num is None \
-                            or last_stored_checkpoint == expected_checkpoint_num:
+                    if expected_checkpoint_num(last_stored_checkpoint):
                         return last_stored_checkpoint
 
     async def wait_for_slow_path_to_be_prevalent(
@@ -765,7 +765,6 @@ class BftTestNetwork:
                 with trio.move_on_after(interval):
                     if await predicate():
                         return
-
 
     async def num_of_slow_path(self):
         """
