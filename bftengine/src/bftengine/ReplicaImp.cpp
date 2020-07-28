@@ -450,9 +450,11 @@ void ReplicaImp::bringTheSystemToCheckpointBySendingNoopCommands(SeqNum seqNumTo
 }
 
 bool ReplicaImp::isSeqNumToStopAt(SeqNum seq_num) {
+  // There might be a race condition between the time the replica starts to the time the controlStateManager is
+  // initiated.
+  if (!controlStateManager_) return false;
   if (seqNumToStopAt_ > 0 && seq_num == seqNumToStopAt_) return true;
   if (seqNumToStopAt_ > 0 && seq_num > seqNumToStopAt_) return false;
-
   auto seq_num_to_stop_at = controlStateManager_->getCheckpointToStopAt();
   if (seq_num_to_stop_at.has_value()) {
     seqNumToStopAt_ = seq_num_to_stop_at.value();
