@@ -12,6 +12,7 @@
 // file.
 
 #include "ControlStateManager.hpp"
+#include "Logger.hpp"
 namespace bftEngine {
 
 /*
@@ -43,7 +44,10 @@ std::optional<int64_t> ControlStateManager::getCheckpointToStopAt() {
   inStream.str(scratchPage_);
   controlStateMessages::StopAtNextCheckpointMessage msg;
   concord::serialize::Serializable::deserialize(inStream, msg);
-  if (msg.seqNumToStopAt_ < 0) return {};
+  if (msg.seqNumToStopAt_ < 0) {
+    LOG_WARN(GL, "sequence num to stop at is negative!");
+    return {};
+  }
   return msg.seqNumToStopAt_;
 }
 
