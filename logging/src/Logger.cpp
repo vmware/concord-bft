@@ -26,3 +26,4 @@ logging::Logger GL = logging::getLogger("concord");
 logging::Logger CNSUS = logging::getLogger("concord.bft.consensus");
 logging::Logger THRESHSIGN_LOG = logging::getLogger("concord.threshsign");
 logging::Logger BLS_LOG = logging::getLogger("concord.threshsign.bls");
+logging::Logger VC_LOG = logging::getLogger("concord.viewchange");

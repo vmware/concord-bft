@@ -1904,18 +1904,18 @@ void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
 
   if (!msgAdded) return;
 
-  LOG_INFO(GL, KVLOG(generatedReplicaId, msg->newView(), msg->lastStable(), msg->numberOfElements(), msgAdded));
+  LOG_INFO(VC_LOG, KVLOG(generatedReplicaId, msg->newView(), msg->lastStable(), msg->numberOfElements(), msgAdded));
 
   // if the current primary wants to leave view
   if (generatedReplicaId == currentPrimary() && msg->newView() > curView) {
-    LOG_INFO(GL, "Primary asks to leave view: " << KVLOG(generatedReplicaId, curView));
+    LOG_INFO(VC_LOG, "Primary asks to leave view: " << KVLOG(generatedReplicaId, curView));
     MoveToHigherView(curView + 1);
   }
 
   ViewNum maxKnownCorrectView = 0;
   ViewNum maxKnownAgreedView = 0;
   viewsManager->computeCorrectRelevantViewNumbers(&maxKnownCorrectView, &maxKnownAgreedView);
-  LOG_INFO(GL, KVLOG(maxKnownCorrectView, maxKnownAgreedView));
+  LOG_INFO(VC_LOG, KVLOG(maxKnownCorrectView, maxKnownAgreedView));
 
   if (maxKnownCorrectView > curView) {
     // we have at least f+1 view-changes with view number >= maxKnownCorrectView
@@ -1924,7 +1924,7 @@ void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
     // update maxKnownCorrectView and maxKnownAgreedView
     // TODO(GG): consider to optimize (this part is not always needed)
     viewsManager->computeCorrectRelevantViewNumbers(&maxKnownCorrectView, &maxKnownAgreedView);
-    LOG_INFO(GL,
+    LOG_INFO(VC_LOG,
              "Computed new view numbers. " << KVLOG(
                  maxKnownCorrectView, maxKnownAgreedView, viewsManager->viewIsActive(curView), lastAgreedView));
   }
@@ -1960,7 +1960,7 @@ void ReplicaImp::onMessage<NewViewMsg>(NewViewMsg *msg) {
 
   if (!msgAdded) return;
 
-  LOG_INFO(GL, KVLOG(senderId, msg->newView(), msgAdded, curView, viewsManager->viewIsActive(curView)));
+  LOG_INFO(VC_LOG, KVLOG(senderId, msg->newView(), msgAdded, curView, viewsManager->viewIsActive(curView)));
 
   if (viewsManager->viewIsActive(curView)) return;  // return, if we are still in the previous view
 
@@ -1973,7 +1973,7 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
 
   const bool wasInPrevViewNumber = viewsManager->viewIsActive(curView);
 
-  LOG_INFO(GL, "**************** In MoveToHigherView " << KVLOG(curView, nextView, wasInPrevViewNumber));
+  LOG_INFO(VC_LOG, KVLOG(curView, nextView, wasInPrevViewNumber));
 
   ViewChangeMsg *pVC = nullptr;
 
@@ -2028,7 +2028,7 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
 
   auto newView = curView;
   auto newPrimary = currentPrimary();
-  LOG_INFO(GL,
+  LOG_INFO(VC_LOG,
            "Sending view change message. "
                << KVLOG(newView, wasInPrevViewNumber, newPrimary, lastExecutedSeqNum, lastStableSeqNum));
 
@@ -2052,9 +2052,8 @@ bool ReplicaImp::tryToEnterView() {
   bool enteredView =
       viewsManager->tryToEnterView(curView, lastStableSeqNum, lastExecutedSeqNum, &prePreparesForNewView);
 
-  LOG_INFO(GL,
-           "**************** Called viewsManager->tryToEnterView "
-               << KVLOG(curView, lastStableSeqNum, lastExecutedSeqNum, enteredView));
+  LOG_INFO(VC_LOG,
+           "Called viewsManager->tryToEnterView " << KVLOG(curView, lastStableSeqNum, lastExecutedSeqNum, enteredView));
   if (enteredView)
     onNewView(prePreparesForNewView);
   else
@@ -2072,14 +2071,14 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
     lastPPSeq = prePreparesForNewView.back()->seqNumber();
   }
 
-  LOG_INFO(GL,
-           "**************** In onNewView " << KVLOG(curView,
-                                                     prePreparesForNewView.size(),
-                                                     firstPPSeq,
-                                                     lastPPSeq,
-                                                     lastStableSeqNum,
-                                                     lastExecutedSeqNum,
-                                                     viewsManager->stableLowerBoundWhenEnteredToView()));
+  LOG_INFO(VC_LOG,
+           KVLOG(curView,
+                 prePreparesForNewView.size(),
+                 firstPPSeq,
+                 lastPPSeq,
+                 lastStableSeqNum,
+                 lastExecutedSeqNum,
+                 viewsManager->stableLowerBoundWhenEnteredToView()));
 
   ConcordAssert(viewsManager->viewIsActive(curView));
   ConcordAssertGE(lastStableSeqNum, viewsManager->stableLowerBoundWhenEnteredToView());
@@ -2105,20 +2104,20 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
     metric_primary_last_used_seq_num_.Get().Set(primaryLastUsedSeqNum);
     strictLowerBoundOfSeqNums = lastStableSeqNum;
     maxSeqNumTransferredFromPrevViews = lastStableSeqNum;
-    LOG_INFO(GL,
-             "**************** No PrePrepare-s for the new view: " << KVLOG(
+    LOG_INFO(VC_LOG,
+             "No PrePrepare-s for the new view: " << KVLOG(
                  primaryLastUsedSeqNum, strictLowerBoundOfSeqNums, maxSeqNumTransferredFromPrevViews));
   } else {
     primaryLastUsedSeqNum = lastPPSeq;
     metric_primary_last_used_seq_num_.Get().Set(primaryLastUsedSeqNum);
     strictLowerBoundOfSeqNums = firstPPSeq - 1;
     maxSeqNumTransferredFromPrevViews = lastPPSeq;
-    LOG_INFO(GL,
-             "**************** There are PrePrepare-s for the new view: " << KVLOG(firstPPSeq,
-                                                                                   lastPPSeq,
-                                                                                   primaryLastUsedSeqNum,
-                                                                                   strictLowerBoundOfSeqNums,
-                                                                                   maxSeqNumTransferredFromPrevViews));
+    LOG_INFO(VC_LOG,
+             "There are PrePrepare-s for the new view: " << KVLOG(firstPPSeq,
+                                                                  lastPPSeq,
+                                                                  primaryLastUsedSeqNum,
+                                                                  strictLowerBoundOfSeqNums,
+                                                                  maxSeqNumTransferredFromPrevViews));
   }
 
   if (ps_) {
@@ -2194,7 +2193,7 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
   // send messages
 
   if (newNewViewMsgToSend != nullptr) {
-    LOG_INFO(GL, "**************** Sending NewView message to all replicas. " << KVLOG(curView));
+    LOG_INFO(VC_LOG, "Sending NewView message to all replicas. " << KVLOG(curView));
     sendToAllOtherReplicas(newNewViewMsgToSend);
   }
 
@@ -2204,7 +2203,7 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
     sendPreparePartial(seqNumInfo);
   }
 
-  LOG_INFO(GL, "**************** Start working in new view: " << KVLOG(curView));
+  LOG_INFO(VC_LOG, "Start working in new view: " << KVLOG(curView));
 
   controller->onNewView(curView, primaryLastUsedSeqNum);
   metric_current_active_view_.Get().Set(curView);
@@ -2630,9 +2629,9 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
     const uint64_t diffMilli = duration_cast<milliseconds>(currTime - timeOfLastViewEntrance).count();
 
     if (diffMilli > timeout) {
-      LOG_INFO(GL,
-               "**************** Initiate automatic view change in view="
-                   << curView << " (" << diffMilli << " milli seconds after start working in the previous view)");
+      LOG_INFO(VC_LOG,
+               "Initiate automatic view change in view=" << curView << " (" << diffMilli
+                                                         << " milli seconds after start working in the previous view)");
 
       GotoNextView();
       return;
@@ -2663,9 +2662,9 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
     const uint64_t diffMilli3 = duration_cast<milliseconds>(currTime - timeOfEarliestPendingRequest).count();
 
     if ((diffMilli1 > viewChangeTimeout) && (diffMilli2 > viewChangeTimeout) && (diffMilli3 > viewChangeTimeout)) {
-      LOG_INFO(GL,
-               "**************** Ask to leave view=" << curView << " (" << diffMilli3
-                                                     << " ms after the earliest pending client request).");
+      LOG_INFO(
+          VC_LOG,
+          "Ask to leave view=" << curView << " (" << diffMilli3 << " ms after the earliest pending client request).");
 
       GotoNextView();
       return;
@@ -2681,8 +2680,8 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
     const uint64_t timeSinceLastAgreedViewMilli = duration_cast<milliseconds>(currTime - timeOfLastAgreedView).count();
 
     if ((timeSinceLastStateTransferMilli > viewChangeTimeout) && (timeSinceLastAgreedViewMilli > viewChangeTimeout)) {
-      LOG_INFO(GL,
-               "**************** Unable to activate the last agreed view (despite receiving 2f+2c+1 view change msgs). "
+      LOG_INFO(VC_LOG,
+               "Unable to activate the last agreed view (despite receiving 2f+2c+1 view change msgs). "
                "State transfer hasn't kicked-in for a while either. Asking to leave the current view: "
                    << KVLOG(curView, timeSinceLastAgreedViewMilli, timeSinceLastStateTransferMilli));
       GotoNextView();
