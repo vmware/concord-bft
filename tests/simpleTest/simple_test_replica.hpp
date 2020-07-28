@@ -223,6 +223,7 @@ class SimpleTestReplica {
           uint32_t downTime = behaviorPtr->get_down_time_millis();
           LOG_INFO(replicaLogger, "Restarting replica");
           replica->restartForDebug(downTime);
+          replica->setControlStateManager(control_state_manager_);
           behaviorPtr->on_restarted();
           LOG_INFO(replicaLogger, "Replica restarted");
         }
