@@ -590,13 +590,13 @@ bool ViewsManager::tryToEnterView(ViewNum v,
 
   if (currentLastExecuted < currentLastStable) {
     // we don't have state, let's wait for state synchronization...
-    LOG_INFO(GL, "**************** Waiting for state synchronization before entering view=" << v << " ...");
+    LOG_INFO(VC_LOG, "Waiting for state synchronization before entering view=" << v << " ...");
     return false;
   }
 
   if (currentLastStable < lowerBoundStableForPendingView) {
     // we don't have the latest stable point, let's wait for more information
-    LOG_INFO(GL, "**************** Waiting for latest stable point before entering view=" << v << " ...");
+    LOG_INFO(VC_LOG, "Waiting for latest stable point before entering view=" << v << " ...");
     return false;
   }
 
@@ -621,8 +621,8 @@ bool ViewsManager::tryToEnterView(ViewNum v,
 
     if (currentLastStable < lowerBoundStableForPendingView) {
       // we don't have the latest stable point, let's wait for more information
-      LOG_INFO(GL,
-               "**************** New pending view. The previous pending view was "
+      LOG_INFO(VC_LOG,
+               "New pending view. The previous pending view was "
                    << myLatestPendingView << ". Waiting for latest stable point before entering view=" << v << " ...");
       return false;
     }
@@ -636,28 +636,36 @@ bool ViewsManager::tryToEnterView(ViewNum v,
     stat = Stat::PENDING_WITH_RESTRICTIONS;
 
     // BEGIN DEBUG CODE
-    LOG_INFO(GL,
+    LOG_INFO(VC_LOG,
              "Restrictions for pending view=" << this->myLatestPendingView << ", minSeq=" << minRestrictionOfPendingView
                                               << ", maxSeq=" << maxRestrictionOfPendingView << ".");
 
     if (minRestrictionOfPendingView == 0) {
-      LOG_INFO(GL, "No Restrictions of pending view\n");
+      LOG_INFO(VC_LOG, "No Restrictions of pending view\n");
     } else {
+      size_t pp_count = 0;
+      size_t ropv_count = 0;
       for (SeqNum i = minRestrictionOfPendingView; i <= maxRestrictionOfPendingView; i++) {
         uint64_t idx = i - minRestrictionOfPendingView;
         bool bHasPP = (prePrepareMsgsOfRestrictions[idx] != nullptr);
-        LOG_INFO(
-            GL,
+        if (bHasPP) ++pp_count;
+        if (!restrictionsOfPendingView[idx].isNull) ++ropv_count;
+        LOG_DEBUG(
+            VC_LOG,
             "Seqnum=" << i << ", isNull=" << static_cast<int>(restrictionsOfPendingView[idx].isNull)
                       << ", digestPrefix=" << *reinterpret_cast<int*>(restrictionsOfPendingView[idx].digest.content())
                       << (bHasPP ? " ." : ", PP=null ."));
         if (bHasPP) {
-          LOG_INFO(GL,
-                   "PP seq=" << prePrepareMsgsOfRestrictions[idx]->seqNumber() << ", digestPrefix="
-                             << *reinterpret_cast<int*>(prePrepareMsgsOfRestrictions[idx]->digestOfRequests().content())
-                             << " .");
+          LOG_DEBUG(
+              VC_LOG,
+              "PP seq=" << prePrepareMsgsOfRestrictions[idx]->seqNumber() << ", digestPrefix="
+                        << *reinterpret_cast<int*>(prePrepareMsgsOfRestrictions[idx]->digestOfRequests().content())
+                        << " .");
         }
       }
+      LOG_INFO(VC_LOG,
+               "Sequence Numbers with restrictions counter: "
+                   << ropv_count << " Sequence Numbers with Preprepares counter: " << pp_count);
     }
 
     // END DEBUG CODE
@@ -665,12 +673,12 @@ bool ViewsManager::tryToEnterView(ViewNum v,
 
   // return if we don't have restrictions
   if (stat != Stat::PENDING_WITH_RESTRICTIONS) {
-    LOG_INFO(GL, "**************** Waiting for restrictions before entering view=" << v << " ...");
+    LOG_INFO(VC_LOG, "Waiting for restrictions before entering view=" << v << " ...");
     return false;
   }
   // return if some messages are missing
   if (hasMissingMsgs(currentLastStable)) {
-    LOG_INFO(GL, "**************** Waiting for missing messages before entering view=" << v << " ...");
+    LOG_INFO(VC_LOG, "Waiting for missing messages before entering view=" << v << " ...");
     return false;
   }
   ///////////////////////////////////////////////////////////////////////////
@@ -734,7 +742,7 @@ bool ViewsManager::tryToEnterView(ViewNum v,
       }
     }
 
-    LOG_INFO(GL, "The new view's active window contains: " << KVLOG(nbNoopPPs, nbActualRequestPPs));
+    LOG_INFO(VC_LOG, "The new view's active window contains: " << KVLOG(nbNoopPPs, nbActualRequestPPs));
   }
 
   for (auto it : collectionOfPrePrepareMsgs) delete it.second;
@@ -780,8 +788,7 @@ bool ViewsManager::tryMoveToPendingViewAsPrimary(ViewNum v) {
   }
 
   if (relatedVCMsgs.size() < SMAJOR) {
-    LOG_INFO(GL,
-             "**************** Waiting for sufficient ViewChange messages to entering view=" << v << " as primary ...");
+    LOG_INFO(VC_LOG, "Waiting for sufficient ViewChange messages to entering view=" << v << " as primary ...");
     return false;
   }
 
@@ -845,7 +852,7 @@ bool ViewsManager::tryMoveToPendingViewAsNonPrimary(ViewNum v) {
   }
 
   if (relatedVCMsgs.size() < MAJOR) {
-    LOG_INFO(GL, "**************** Waiting for sufficient ViewChange messages to entering view=" << v << " ...");
+    LOG_INFO(VC_LOG, "Waiting for sufficient ViewChange messages to entering view=" << v << " ...");
     return false;
   }
   ConcordAssert(relatedVCMsgs.size() == MAJOR);
