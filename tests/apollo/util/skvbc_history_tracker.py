@@ -29,7 +29,7 @@ MAX_LOOKBACK=10
 
 def verify_linearizability(pre_exec_enabled=False, no_conflicts=False):
     """
-    Creates a tracker and provide him to the decorated method.
+    Creates a tracker and provide it to the decorated method.
     In the end of the method it checks the linearizability of the resulting history.
     """
     def decorator(async_fn):
