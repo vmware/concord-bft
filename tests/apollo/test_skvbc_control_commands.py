@@ -58,8 +58,20 @@ class SkvbcControlCommandsTest(unittest.TestCase):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
+
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
+
         last_bid = skvbc.parse_reply(await client.read(skvbc.get_last_block_req()))
         await client.write(skvbc.write_req([], [], block_id=last_bid, wedge_command=True))
+
+        for replica_id in range(bft_network.config.n):
+            with trio.fail_after(seconds=30):
+                while True:
+                    with trio.move_on_after(seconds=1):
+                        checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=replica_id)
+                        if checkpoint_after == checkpoint_before + 2:
+                            break
+
         await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
 
     """
@@ -104,6 +116,14 @@ class SkvbcControlCommandsTest(unittest.TestCase):
             await bft_network.wait_for_state_transfer_to_stop(initial_prim,
                                                               r,
                                                               stop_on_stable_seq_num=False)
+
+        for replica_id in range(bft_network.config.n):
+            with trio.fail_after(seconds=30):
+                while True:
+                    with trio.move_on_after(seconds=1):
+                        checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=replica_id)
+                        if checkpoint_after == checkpoint_before + 2:
+                            break
 
         await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
 
