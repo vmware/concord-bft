@@ -9,6 +9,7 @@
 #include <string>
 #include <atomic>
 
+#include "OpenTracing.hpp"
 #include "communication/ICommunication.hpp"
 #include "communication/CommFactory.hpp"
 #include "bftengine/Replica.hpp"
@@ -53,7 +54,9 @@ class ReplicaImp : public IReplica,
   Status mayHaveConflictBetween(const Sliver &key, BlockId fromBlock, BlockId toBlock, bool &outRes) const override;
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // IBlocksAppender implementation
-  Status addBlock(const concord::storage::SetOfKeyValuePairs &updates, BlockId &outBlockId) override;
+  Status addBlock(const concord::storage::SetOfKeyValuePairs &updates,
+                  BlockId &outBlockId,
+                  const concordUtils::SpanWrapper &parent_span) override;
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
