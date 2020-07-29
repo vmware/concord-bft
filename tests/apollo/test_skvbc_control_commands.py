@@ -44,16 +44,22 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcControlCommandsTest(unittest.TestCase):
 
-    # __test__ = False  # so that PyTest ignores this test scenario
-
+    """
+        Sends a wedge command and check that the system stops from processing new requests.
+        Note that in this test we assume no failures and synchronized network.
+        The test does the following:
+        1. A client sends a wedge command
+        2. The client verify that the system reached to a super stable checkpoint
+        3. The client tries to initiate a new write bft command and fails
+    """
     @with_trio
     @with_bft_network(start_replica_cmd,  selected_configs=lambda n, f, c: n == 4 and c == 0)
     async def test_wedge_command(self, bft_network):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
-        rep = await client.write(bytearray(), special_flags=0x9)
-        await skvbc.write_known_kv()
+        last_bid = skvbc.parse_reply(await client.read(skvbc.get_last_block_req()))
+        await client.write(skvbc.write_req([], [], block_id=last_bid, wedge_command=True))
         for replica_id in range(bft_network.config.n):
             with trio.fail_after(seconds=60):
                 while True:

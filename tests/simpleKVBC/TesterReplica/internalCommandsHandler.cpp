@@ -41,17 +41,6 @@ int InternalCommandsHandler::execute(uint16_t clientId,
                                      uint32_t &outActualReplySize,
                                      uint32_t &outActualReplicaSpecificInfoSize,
                                      concordUtils::SpanWrapper &span) {
-  bool wedgeCommand = flags & 0x9;
-  if (wedgeCommand) {
-    LOG_INFO(m_logger, "A wedge command has been called seqNum: " << sequenceNum);
-    controlStateManager_->setStopAtNextCheckpoint(sequenceNum);
-    auto *reply = (SimpleReply_ConditionalWrite *)outReply;
-    reply->header.type = COND_WRITE;
-    reply->success = 1;
-    outActualReplySize = sizeof(SimpleReply_ConditionalWrite);
-    return 0;
-  }
-
   // ReplicaSpecificInfo is not currently used in the TesterReplica
   outActualReplicaSpecificInfoSize = 0;
   int res;
@@ -122,6 +111,10 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
                << " PRE_PROCESS_FLAG=" << ((flags & MsgFlag::PRE_PROCESS_FLAG) != 0 ? "true" : "false")
                << " HAS_PRE_PROCESSED_FLAG=" << ((flags & MsgFlag::HAS_PRE_PROCESSED_FLAG) != 0 ? "true" : "false"));
 
+  if (writeReq->header.type == WEDGE) {
+    LOG_INFO(m_logger, "A wedge command has been called in seqNum: " << KVLOG(sequenceNum));
+    controlStateManager_->setStopAtNextCheckpoint(sequenceNum);
+  }
   if (!(flags & MsgFlag::HAS_PRE_PROCESSED_FLAG)) {
     bool result = verifyWriteCommand(requestSize, *writeReq, maxReplySize, outReplySize);
     if (!result) ConcordAssert(0);

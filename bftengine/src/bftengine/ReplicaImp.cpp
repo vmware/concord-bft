@@ -2379,10 +2379,10 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
   }
 }
 
-void ReplicaImp::onSeqNumIsSuperStable(SeqNum newSuperStableSeqNum) {
+void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
   auto seq_num_to_stop_at = controlStateManager_->getCheckpointToStopAt();
-  if (seq_num_to_stop_at.has_value() && seq_num_to_stop_at.value() == newSuperStableSeqNum) {
-    LOG_INFO(GL, "control state manager marked seqNum: " << newSuperStableSeqNum);
+  if (seq_num_to_stop_at.has_value() && seq_num_to_stop_at.value() == superStableSeqNum) {
+    LOG_INFO(GL, "Informing control state manager that consensus should be stopped: " << KVLOG(superStableSeqNum));
     if (getRequestsHandler()->getControlHandlers()) {
       metric_on_call_back_of_super_stable_cp_.Get().Set(1);
       getRequestsHandler()->getControlHandlers()->onSuperStableCheckpoint();
@@ -3528,12 +3528,6 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
   auto span = concordUtils::startChildSpan("bft_execute_next_committed_requests", parent_span);
 
   while (lastExecutedSeqNum < lastStableSeqNum + kWorkWindowSize) {
-    if (!stopAtNextCheckpoint_ && controlStateManager_->getCheckpointToStopAt().has_value()) {
-      // If, following the last execution, we discover that we need to jump to the
-      // next checkpoint, the primary sends noop commands until filling the working window.
-      bringTheSystemToCheckpointBySendingNoopCommands(controlStateManager_->getCheckpointToStopAt().value());
-      stopAtNextCheckpoint_ = true;
-    }
     SeqNum nextExecutedSeqNum = lastExecutedSeqNum + 1;
     SeqNumInfo &seqNumInfo = mainLog->get(nextExecutedSeqNum);
 
@@ -3561,7 +3555,12 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
       metric_total_fastPath_.Get().Inc();
     }
   }
-
+  if (!stopAtNextCheckpoint_ && controlStateManager_->getCheckpointToStopAt().has_value()) {
+    // If, following the last execution, we discover that we need to jump to the
+    // next checkpoint, the primary sends noop commands until filling the working window.
+    bringTheSystemToCheckpointBySendingNoopCommands(controlStateManager_->getCheckpointToStopAt().value());
+    stopAtNextCheckpoint_ = true;
+  }
   if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
 }
 
