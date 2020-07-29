@@ -38,12 +38,11 @@ def start_replica_cmd(builddir, replica_id):
             "-v", viewChangeTimeoutMilli,
             "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower()
                     in set(["true", "on"])
-                 else "",
+            else "",
             "-t", os.environ.get('STORAGE_TYPE')]
 
 
 class SkvbcControlCommandsTest(unittest.TestCase):
-
     """
         Sends a wedge command and check that the system stops from processing new requests.
         Note that in this test we assume no failures and synchronized network.
@@ -52,14 +51,63 @@ class SkvbcControlCommandsTest(unittest.TestCase):
         2. The client verify that the system reached to a super stable checkpoint
         3. The client tries to initiate a new write bft command and fails
     """
+
     @with_trio
-    @with_bft_network(start_replica_cmd,  selected_configs=lambda n, f, c: n == 4 and c == 0)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 4 and c == 0)
     async def test_wedge_command(self, bft_network):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
         last_bid = skvbc.parse_reply(await client.read(skvbc.get_last_block_req()))
         await client.write(skvbc.write_req([], [], block_id=last_bid, wedge_command=True))
+        await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
+
+    """
+        This test checks that even a replica that received the super stable checkpoint via the state transfer mechanism 
+        is able to stop at the super stable checkpoint.
+        The test does the following:
+        1. Start all replicas but 1
+        2. A client sends a wedge command
+        3. Validate that all started replicas reached to the next next checkpoint
+        4. Start the late replica
+        5. Validate that the late replica completed the state transfer
+        6. Validate that all replicas stopped at the super stable checkpoint and that new commands are not being processed
+    """
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 4 and c == 0)
+    async def test_wedge_command_with_state_transfer(self, bft_network):
+        initial_prim = 0
+        late_replica = bft_network.random_set_of_replicas(1, {initial_prim})
+        on_time_replicas = bft_network.all_replicas(without=late_replica)
+        bft_network.start_replicas(on_time_replicas)
+
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
+
+        client = bft_network.random_client()
+        last_bid = skvbc.parse_reply(await client.read(skvbc.get_last_block_req()))
+        await client.write(skvbc.write_req([], [], block_id=last_bid, wedge_command=True))
+
+        for replica_id in on_time_replicas:
+            with trio.fail_after(seconds=30):
+                while True:
+                    with trio.move_on_after(seconds=1):
+                        checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=replica_id)
+                        if checkpoint_after == checkpoint_before + 2:
+                            break
+
+        bft_network.start_replicas(late_replica)
+
+        await bft_network.wait_for_state_transfer_to_start()
+        for r in late_replica:
+            await bft_network.wait_for_state_transfer_to_stop(initial_prim,
+                                                              r,
+                                                              stop_on_stable_seq_num=False)
+
+        await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
+
+    async def validate_stop_on_super_stable_checkpoint(self, bft_network, skvbc):
         for replica_id in range(bft_network.config.n):
             with trio.fail_after(seconds=60):
                 while True:

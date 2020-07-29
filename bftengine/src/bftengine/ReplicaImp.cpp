@@ -2385,6 +2385,8 @@ void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
     LOG_INFO(GL, "Informing control state manager that consensus should be stopped: " << KVLOG(superStableSeqNum));
     if (getRequestsHandler()->getControlHandlers()) {
       metric_on_call_back_of_super_stable_cp_.Get().Set(1);
+      // TODO: With state transfered replica, this maight be called twice. Consider to clean the reserved page at the
+      // end of this method
       getRequestsHandler()->getControlHandlers()->onSuperStableCheckpoint();
     }
   }
