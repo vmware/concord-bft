@@ -32,7 +32,7 @@ def verify_linearizability(pre_exec_enabled=False, no_conflicts=False):
     Creates a tracker and provide him to the decorated method.
     In the end of the method it checks the linearizability of the resulting history.
     """
-    def decorator(async_fn):
+    def decorator(async_fn, uses_real_blockchain=False):
         @wraps(async_fn)
         async def wrapper(*args, **kwargs):
             if 'disable_linearizability_checks' in kwargs:
@@ -46,6 +46,12 @@ def verify_linearizability(pre_exec_enabled=False, no_conflicts=False):
                 skvbc = kvbc.SimpleKVBCProtocol(bft_network)
                 init_state = skvbc.initial_state()
                 tracker = SkvbcTracker(init_state, skvbc, bft_network, pre_exec_enabled, no_conflicts)
+
+                if uses_real_blockchain:
+                    client = await bft_network.new_client()
+                    initial_block_id = await tracker.get_last_block_id(client)
+
+                tracker.set_initial_block_id(initial_block_id)
                 await async_fn(*args, **kwargs, tracker=tracker)
                 await tracker.fill_missing_blocks_and_verify()
 
@@ -429,6 +435,13 @@ class SkvbcTracker:
 
         if self.bft_network is not None:
             self.status = Status(bft_network.config)
+        
+        self.initial_block_id = 0
+
+    def set_initial_block_id(self, initial_block_id):
+        self.initial_block_id = initial_block_id
+        self.last_consecutive_block = initial_block_id
+        self.last_known_block = initial_block_id
 
     def send_write(self, client_id, seq_num, readset, writeset, read_block_id):
         """Track the send of a write request"""
@@ -511,9 +524,11 @@ class SkvbcTracker:
         blocks and call self.fill_in_missing_blocks().
 
         After missing blocks are filled in, successful reads can be linearized.
+
+        All blocks are fetched from the genesis (1) to last_known_block
         """
         missing_blocks = set()
-        for i in range(self.last_consecutive_block + 1, self.last_known_block):
+        for i in range(1, self.last_known_block):
             if self.blocks.get(i) is None:
                 missing_blocks.add(i)
 
@@ -573,7 +588,9 @@ class SkvbcTracker:
                     break
                 else:
                     unmatched.append(req)
-            if not success:
+            # Don't raise PhantomBlockError for blocks created before the
+            # instantiation of the tracker
+            if not success and block_id > self.initial_block_id:
                 raise PhantomBlockError(block_id,
                                         block_kvpairs,
                                         matched_blocks,
@@ -589,7 +606,8 @@ class SkvbcTracker:
         return writes
 
     def _verify_successful_writes(self):
-        for i in range(1, self.last_known_block+1):
+        # Verify only writes created after the instantiation of the tracker
+        for i in range(self.initial_block_id + 1, self.last_known_block+1):
             req_index = self.blocks[i].req_index
             if req_index != None:
                 # A reply was received for this request that created the block
@@ -835,7 +853,8 @@ class SkvbcTracker:
             for i in range(0, retries):
                 try:
                     msg = kvbc.SimpleKVBCProtocol.get_block_data_req(block_id)
-                    blocks[block_id] = kvbc.SimpleKVBCProtocol.parse_reply(await client.read(msg))
+                    seq_num = client.req_seq_num.next()
+                    blocks[block_id] = kvbc.SimpleKVBCProtocol.parse_reply(await client.read(msg, seq_num))
                     break
                 except trio.TooSlowError:
                     if i == retries - 1:
