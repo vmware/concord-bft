@@ -59,7 +59,7 @@ class SkvbcCheckpointTest(unittest.TestCase):
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
         await skvbc.fill_and_wait_for_checkpoint(
             initial_nodes=bft_network.all_replicas(),
-            checkpoint_num=1,
+            num_of_checkpoints_to_add=1,
             verify_checkpoint_persistency=False
         )
         checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=0)
@@ -106,7 +106,7 @@ class SkvbcCheckpointTest(unittest.TestCase):
 
         await skvbc.fill_and_wait_for_checkpoint(
             initial_nodes=bft_network.all_replicas(without=crashed_replicas),
-            checkpoint_num=1,
+            num_of_checkpoints_to_add=1,
             verify_checkpoint_persistency=False
         )
 
@@ -118,12 +118,9 @@ class SkvbcCheckpointTest(unittest.TestCase):
         bft_network.start_replicas(crashed_replicas)
 
         # verify checkpoint propagation to all the stale nodes after they come back up
-        for crashed_replica in crashed_replicas:
-            checkpoint_stale = await bft_network.wait_for_checkpoint(
-                replica_id=crashed_replica,
-                expected_checkpoint_num=checkpoint_after_primary)
-
-            self.assertEqual(checkpoint_stale, checkpoint_after_primary)
+        await bft_network.wait_for_replicas_to_checkpoint(
+            crashed_replicas,
+            expected_checkpoint_num=lambda ecn: ecn == checkpoint_after_primary)
 
     @unittest.skip("Unstable due to BC-3451")
     @with_trio
@@ -173,7 +170,7 @@ class SkvbcCheckpointTest(unittest.TestCase):
 
         await skvbc.fill_and_wait_for_checkpoint(
             initial_nodes=bft_network.all_replicas(without=crashed_replicas),
-            checkpoint_num=1,
+            num_of_checkpoints_to_add=1,
             verify_checkpoint_persistency=False
         )
 
@@ -221,12 +218,9 @@ class SkvbcCheckpointTest(unittest.TestCase):
             )
 
         # verify checkpoint propagation to all the stale nodes after they come back up
-        for crashed_replica in crashed_replicas:
-            checkpoint_stale = await bft_network.wait_for_checkpoint(
-                replica_id=crashed_replica,
-                expected_checkpoint_num=checkpoint_current_primary)
-
-            self.assertEqual(checkpoint_stale, checkpoint_current_primary)
+        await bft_network.wait_for_replicas_to_checkpoint(
+            crashed_replicas,
+            expected_checkpoint_num=lambda ecn: ecn == checkpoint_current_primary)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -257,26 +251,18 @@ class SkvbcCheckpointTest(unittest.TestCase):
         with net.ReplicaSubsetIsolatingAdversary(bft_network, isolated_replicas) as adversary:
             adversary.interfere()
 
+            # send sufficient number of client requests to trigger checkpoint protocol
+            # verify checkpoint creation by all replicas except isolated replicas
             await skvbc.fill_and_wait_for_checkpoint(
                 initial_nodes=bft_network.all_replicas(without=isolated_replicas),
-                checkpoint_num=1,
+                num_of_checkpoints_to_add=1,
                 verify_checkpoint_persistency=False
             )
 
-            # verify checkpoint creation by all replicas except isolated replicas
-            for replica in bft_network.all_replicas(without=isolated_replicas):
-                checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=replica)
-
-                self.assertEqual(checkpoint_after, checkpoint_before + 1)
-
         # Once the adversary is gone, the isolated replicas should be able reach the checkpoint
-        for isolated_replica in isolated_replicas:
-            checkpoint_isolated = await bft_network.wait_for_checkpoint(
-                replica_id=isolated_replica,
-                expected_checkpoint_num=checkpoint_before + 1)
-
-            self.assertEqual(checkpoint_isolated, checkpoint_before + 1)
-
+        await bft_network.wait_for_replicas_to_checkpoint(
+            isolated_replicas,
+            expected_checkpoint_num=lambda ecn: ecn == checkpoint_before + 1)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -308,8 +294,6 @@ class SkvbcCheckpointTest(unittest.TestCase):
                         "before isolating the primary."
             )
 
-            checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=initial_primary)
-
             await adversary.interfere()
 
             expected_next_primary = initial_primary + 1
@@ -327,19 +311,13 @@ class SkvbcCheckpointTest(unittest.TestCase):
 
                 self.assertEqual(current_view, expected_next_primary)
 
+            # send sufficient number of client requests to trigger checkpoint protocol
+            # verify checkpoint propagation to all the nodes except the the initial primary
             await skvbc.fill_and_wait_for_checkpoint(
-                initial_nodes=bft_network.all_replicas(),
-                checkpoint_num=1,
+                initial_nodes=bft_network.all_replicas(without={initial_primary}),
+                num_of_checkpoints_to_add=1,
                 verify_checkpoint_persistency=False
             )
-
-            # verify checkpoint propagation to all the nodes except the the initial primary
-            for replica in bft_network.all_replicas(without={initial_primary}):
-                checkpoint_after = await bft_network.wait_for_checkpoint(
-                    replica_id=replica,
-                    expected_checkpoint_num=checkpoint_before + 1)
-
-                self.assertEqual(checkpoint_after, checkpoint_before + 1)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -387,17 +365,13 @@ class SkvbcCheckpointTest(unittest.TestCase):
 
                 self.assertEqual(current_view, expected_next_primary)
 
+            # send sufficient number of client requests to trigger checkpoint protocol
+            # verify checkpoint creation by all replicas except isolated replicas
             await skvbc.fill_and_wait_for_checkpoint(
                 initial_nodes=bft_network.all_replicas(without=isolated_replicas),
-                checkpoint_num=1,
+                num_of_checkpoints_to_add=1,
                 verify_checkpoint_persistency=False
             )
-
-            # verify checkpoint creation by all replicas except isolated replicas
-            for replica in bft_network.all_replicas(without=isolated_replicas):
-                checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=replica)
-
-                self.assertEqual(checkpoint_after, checkpoint_before + 1)
 
         # Once the adversary is gone, the isolated replicas should be able enter the new view
         for isolated_replica in isolated_replicas:
@@ -410,12 +384,9 @@ class SkvbcCheckpointTest(unittest.TestCase):
             self.assertEqual(current_view, expected_next_primary)
 
         # Once the adversary is gone, the isolated replicas should be able reach the checkpoint
-        for isolated_replica in isolated_replicas:
-            checkpoint_isolated = await bft_network.wait_for_checkpoint(
-                replica_id=isolated_replica,
-                expected_checkpoint_num=checkpoint_before + 1)
-
-            self.assertEqual(checkpoint_isolated, checkpoint_before + 1)
+        await bft_network.wait_for_replicas_to_checkpoint(
+            isolated_replicas,
+            expected_checkpoint_num=lambda ecn: ecn == checkpoint_before + 1)
 
     @staticmethod
     async def _crash_replicas(bft_network, nb_crashing, exclude_replicas=None):

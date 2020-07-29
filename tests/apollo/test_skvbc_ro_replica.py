@@ -140,7 +140,9 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         """
         bft_network.start_all_replicas()
         # TODO replace the below function with the library function:
-        # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), checkpoint_num=1)
+        # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(
+        # initial_nodes=bft_network.all_replicas(),
+        # num_of_checkpoints_to_add=1)
         with trio.fail_after(seconds=60):
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(tracker.send_indefinite_tracked_ops)
@@ -189,7 +191,9 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         ro_replica_id = bft_network.config.n
         bft_network.start_replica(ro_replica_id)
         # TODO replace the below function with the library function:
-        # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), checkpoint_num=1)     
+        # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(
+        # initial_nodes=bft_network.all_replicas(),
+        # num_of_checkpoints_to_add=1)
         with trio.fail_after(seconds=60):
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(tracker.send_indefinite_tracked_ops, .7, .1)
@@ -231,7 +235,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
 
         await skvbc.fill_and_wait_for_checkpoint(
             initial_nodes=bft_network.all_replicas(),
-            checkpoint_num=1,
+            num_of_checkpoints_to_add=1,
             verify_checkpoint_persistency=False
         )
 
@@ -262,7 +266,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
 
         await skvbc.fill_and_wait_for_checkpoint(
             initial_nodes=bft_network.all_replicas(),
-            checkpoint_num=1,
+            num_of_checkpoints_to_add=1,
             verify_checkpoint_persistency=False
         )
 
@@ -271,7 +275,9 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
 
     async def _wait_for_st(self, bft_network, ro_replica_id):
         # TODO replace the below function with the library function:
-        # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), checkpoint_num=1)     
+        # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(
+        # initial_nodes=bft_network.all_replicas(),
+        # num_of_checkpoints_to_add=1)
         with trio.fail_after(seconds=70):
             # the ro replica should be able to survive these failures
             while True:

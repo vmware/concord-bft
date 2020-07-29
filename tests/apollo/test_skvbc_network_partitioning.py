@@ -172,7 +172,7 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
 
             await skvbc.fill_and_wait_for_checkpoint(
                 initial_nodes=list(live_replicas),
-                checkpoint_num=1,
+                num_of_checkpoints_to_add=1,
                 verify_checkpoint_persistency=False
             )
 

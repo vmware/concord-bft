@@ -360,7 +360,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=replica_to_read_from)
         await skvbc.fill_and_wait_for_checkpoint(
             initial_nodes=initial_nodes,
-            checkpoint_num=checkpoint_num,
+            num_of_checkpoints_to_add=checkpoint_num,
             verify_checkpoint_persistency=verify_checkpoint_persistency,
             assert_state_transfer_not_started=assert_state_transfer_not_started
         )

@@ -983,7 +983,7 @@ class SkvbcTracker:
 
     async def tracked_prime_for_state_transfer(
             self, stale_nodes,
-            checkpoints_num=2,
+            num_of_checkpoints_to_add=2,
             persistency_enabled=True):
         initial_nodes = self.bft_network.all_replicas(without=stale_nodes)
         [self.bft_network.start_replica(i) for i in initial_nodes]
@@ -998,13 +998,16 @@ class SkvbcTracker:
         # there.
         client1 = self.bft_network.random_client()
         # Write enough data to checkpoint and create a need for state transfer
-        for i in range(1 + checkpoints_num * 150):
+        for i in range(1 + num_of_checkpoints_to_add * 150):
             key = self.skvbc.random_key()
             val = self.skvbc.random_value()
             kv = [(key, val)]
             await self.write_and_track_known_kv(kv, client1)
 
-        await self.skvbc.network_wait_for_checkpoint(initial_nodes, checkpoints_num, persistency_enabled)
+        await self.skvbc.network_wait_for_checkpoint(
+            initial_nodes,
+            expected_checkpoint_num=lambda ecn: ecn == num_of_checkpoints_to_add,
+            verify_checkpoint_persistency=persistency_enabled)
 
         return client, known_key, known_val, known_kv
 
@@ -1148,7 +1151,7 @@ class PassThroughSkvbcTracker:
 
     async def tracked_prime_for_state_transfer(
             self, stale_nodes,
-            checkpoints_num=2,
+            num_of_checkpoints_to_add=2,
             persistency_enabled=True):
         initial_nodes = self.bft_network.all_replicas(without=stale_nodes)
         [self.bft_network.start_replica(i) for i in initial_nodes]
@@ -1163,13 +1166,16 @@ class PassThroughSkvbcTracker:
         # there.
         client1 = self.bft_network.random_client()
         # Write enough data to checkpoint and create a need for state transfer
-        for i in range(1 + checkpoints_num * 150):
+        for i in range(1 + num_of_checkpoints_to_add * 150):
             key = self.skvbc.random_key()
             val = self.skvbc.random_value()
             kv = [(key, val)]
             await self.write_and_track_known_kv(kv, client1)
 
-        await self.skvbc.network_wait_for_checkpoint(initial_nodes, checkpoints_num, persistency_enabled)
+        await self.skvbc.network_wait_for_checkpoint(
+            initial_nodes,
+            expected_checkpoint_num=lambda ecn: ecn == num_of_checkpoints_to_add,
+            verify_checkpoint_persistency=persistency_enabled)
 
         return client, known_key, known_val, known_kv
 
