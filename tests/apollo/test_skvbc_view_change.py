@@ -234,7 +234,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         )
 
     @with_trio
-    @with_bft_network(start_replica_cmd)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2)
     @verify_linearizability()
     async def test_restart_replica_after_view_change(self, bft_network, tracker):
         """
