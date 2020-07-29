@@ -17,6 +17,7 @@
 #include <rocksdb/transaction.h>
 #include <rocksdb/env.h>
 #include <rocksdb/utilities/options_util.h>
+#include <rocksdb/table.h>
 #include "assertUtils.hpp"
 #include "Logger.hpp"
 #include <atomic>
@@ -31,7 +32,7 @@ namespace rocksdb {
 // Counter for number of read requests
 static unsigned int g_rocksdb_called_read = 0;
 static bool g_rocksdb_print_measurements = false;
-
+const unsigned int background_threads = 16;
 /**
  * @brief Converts a Sliver object to a RocksDB Slice object.
  *
@@ -95,6 +96,27 @@ void Client::init(bool readOnly) {
   ::rocksdb::Options options;
   ::rocksdb::TransactionDBOptions txn_options;
   std::vector<::rocksdb::ColumnFamilyDescriptor> cf_descs;
+  ::rocksdb::BlockBasedTableOptions table_options;
+
+  // Setting default rocksdb options
+  options.enable_pipelined_write = true;
+  options.IncreaseParallelism(background_threads);
+  options.write_buffer_size = 1024 * 1024 * 512;
+  options.max_write_buffer_number = threads;
+  options.min_write_buffer_number_to_merge = 4;
+  options.max_bytes_for_level_base = 1024 * 1024 * 2048;
+  opttions.target_file_size_base = 1024 * 1024 * 256;
+  options.max_background_flushes = 2;
+  options.max_background_compactions = 48;
+  options.max_subcompactions = 48;
+  options.level0_file_num_compaction_trigger = 1;
+  options.level0_slowdown_writes_trigger = 48;
+  options.level0_stop_writes_trigger = 56;
+  options.allow_mmap_read = true;
+  options.bytes_per_sync = 1024 * 2048;
+
+  table_options.block_size = 4 * 4096;
+  options.table_factory.reset(NewBlockBasedTableFactory(table_options));
 
   // Try to read the stored options configuration file
   // Note that if we recover, then rocksdb should have its option configuration file stored in the rocksdb directory.
@@ -268,7 +290,7 @@ ClientIterator::ClientIterator(const Client *_parentClient, logging::Logger logg
  */
 Status Client::put(const Sliver &_key, const Sliver &_value) {
   ::rocksdb::WriteOptions woptions = ::rocksdb::WriteOptions();
-
+  woptions.memtable_insert_hint_per_batch = true;
   ::rocksdb::Status s = dbInstance_->Put(woptions, toRocksdbSlice(_key), toRocksdbSlice(_value));
 
   LOG_TRACE(logger(), "Rocksdb Put " << _key << " : " << _value);
