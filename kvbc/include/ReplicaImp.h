@@ -80,6 +80,8 @@ class ReplicaImp : public IReplica,
 
   void setReplicaStateSync(ReplicaStateSync *rss) { replicaStateSync_.reset(rss); }
 
+  bftEngine::IStateTransfer &getStateTransfer() { return *m_stateTransfer; }
+
   ~ReplicaImp() override;
 
  protected:
