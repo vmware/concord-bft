@@ -182,7 +182,7 @@ class BftTestNetwork:
 
     def __init__(self, is_existing, origdir,
                  config, testdir, builddir, toolsdir,
-                 procs, replicas, clients, metrics):
+                 procs, replicas, clients, metrics, new_client_cb):
         self.is_existing = is_existing
         self.origdir = origdir
         self.config = config
@@ -194,9 +194,13 @@ class BftTestNetwork:
         self.clients = clients
         self.metrics = metrics
         self.reserved_clients = {}
+        if new_client_cb:
+            self.new_client_cb = new_client_cb
+        else:
+            self.new_client_cb = self._create_new_udp_client
 
     @classmethod
-    def new(cls, config):
+    def new(cls, config, new_client_cb=None):
         builddir = os.path.abspath("../../build")
         toolsdir = os.path.join(builddir, "tools")
         testdir = tempfile.mkdtemp()
@@ -211,11 +215,12 @@ class BftTestNetwork:
             replicas=[bft_config.Replica(i, "127.0.0.1", 3710 + 2*i, 4710 + 2*i)
                 for i in range(0, config.n + config.num_ro_replicas)],
             clients = {},
-            metrics = None
+            metrics = None,
+            new_client_cb = new_client_cb
         )
 
         #copy loggging.properties file
-        shutil.copy(os.path.abspath("../simpleKVBC/scripts/logging.properties"), testdir);
+        shutil.copy(os.path.abspath("../simpleKVBC/scripts/logging.properties"), testdir)
 
         print("Running test in {}".format(bft_network.testdir))
 
@@ -228,7 +233,7 @@ class BftTestNetwork:
         return bft_network
 
     @classmethod
-    def existing(cls, config, replicas, clients):
+    def existing(cls, config, replicas, clients, new_client_cb=None):
         bft_network = cls(
             is_existing=True,
             origdir=None,
@@ -239,7 +244,8 @@ class BftTestNetwork:
             procs={r.id: r for r in replicas},
             replicas=replicas,
             clients={i: clients[i] for i in range(len(clients))},
-            metrics=None
+            metrics=None,
+            new_client_cb=new_client_cb
         )
 
         bft_network._init_metrics()
@@ -256,20 +262,21 @@ class BftTestNetwork:
     def _create_clients(self):
         for client_id in range(self.config.n + self.config.num_ro_replicas,
                                self.config.num_clients+self.config.n + self.config.num_ro_replicas):
-            config = self._bft_config(client_id)
-            self.clients[client_id] = bft_client.UdpClient(config, self.replicas)
+            self.clients[client_id] = self.new_client_cb(client_id)
+
+    def _create_new_udp_client(self, client_id):
+        config = self._bft_config(client_id)
+        return bft_client.UdpClient(config, self.replicas)
 
     async def new_client(self):
         client_id = max(self.clients.keys() | self.reserved_clients.keys()) + 1
-        config = self._bft_config(client_id)
-        client = bft_client.UdpClient(config, self.replicas)
+        client = self.new_client_cb(client_id)
         self.clients[client_id] = client
         return client
 
     async def new_reserved_client(self):
         reserved_client_id = max(self.clients.keys() | self.reserved_clients.keys()) + 1
-        config = self._bft_config(reserved_client_id)
-        reserved_client = bft_client.UdpClient(config, self.replicas)
+        reserved_client = self.new_client_cb(reserved_client_id)
         self.reserved_clients[reserved_client_id] = reserved_client
         return reserved_client
 
