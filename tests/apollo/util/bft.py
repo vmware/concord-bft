@@ -658,9 +658,13 @@ class BftTestNetwork:
         with trio.fail_after(30):
             while True:
                 with trio.move_on_after(.5): # seconds
-                    last_stored_checkpoint = await self.metrics.get(replica_id, *key)
-                    if expected_checkpoint_num(last_stored_checkpoint):
-                        return last_stored_checkpoint
+                    try:
+                        last_stored_checkpoint = await self.metrics.get(replica_id, *key)
+                    except KeyError:
+                        continue
+                    else:
+                        if expected_checkpoint_num(last_stored_checkpoint):
+                            return last_stored_checkpoint
 
     async def wait_for_slow_path_to_be_prevalent(
             self, as_of_seq_num=1, nb_slow_paths_so_far=0, replica_id=0):
