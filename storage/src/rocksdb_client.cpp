@@ -112,7 +112,6 @@ void Client::init(bool readOnly) {
   options.level0_file_num_compaction_trigger = 1;
   options.level0_slowdown_writes_trigger = 48;
   options.level0_stop_writes_trigger = 56;
-  options.allow_mmap_reads = true;
   options.bytes_per_sync = 1024 * 2048;
 
   table_options.block_size = 4 * 4096;
