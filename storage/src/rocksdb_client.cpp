@@ -102,10 +102,10 @@ void Client::init(bool readOnly) {
   options.enable_pipelined_write = true;
   options.IncreaseParallelism(background_threads);
   options.write_buffer_size = 1024 * 1024 * 512;
-  options.max_write_buffer_number = threads;
+  options.max_write_buffer_number = 16;
   options.min_write_buffer_number_to_merge = 4;
-  options.max_bytes_for_level_base = 1024 * 1024 * 2048;
-  opttions.target_file_size_base = 1024 * 1024 * 256;
+  options.max_bytes_for_level_base =  (uint64_t)1024 * 1024 * 2048;
+  options.target_file_size_base = 1024 * 1024 * 256;
   options.max_background_flushes = 2;
   options.max_background_compactions = 48;
   options.max_subcompactions = 48;
