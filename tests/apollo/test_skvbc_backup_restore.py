@@ -52,13 +52,13 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_checkpoint_propagation_after_restarting_replicas(self, bft_network):
         """
-        Here we trigger a checkpoint, restart all replicas in a random order with 10s delay in-between,
+        Here we trigger a checkpoint, restart all replicas in a random order with 5s delay in-between,
         both while stopping and starting. We verify checkpoint persisted upon restart and then trigger
         another checkpoint. We make sure checkpoint is propagated to all the replicas.
         1) Given a BFT network, we make sure all nodes are up
         2) Send sufficient number of client requests to trigger checkpoint protocol
-        3) Stop all replicas in a random order (with 10s delay in between)
-        4) Start all replicas in a random order (with 10s delay in between)
+        3) Stop all replicas in a random order (with 5s delay in between)
+        4) Start all replicas in a random order (with 5s delay in between)
         5) Make sure the initial view is stable
         6) Send sufficient number of client requests to trigger another checkpoint
         7) Make sure checkpoint propagates to all the replicas
@@ -80,10 +80,10 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
             verify_checkpoint_persistency=False
         )
 
-        # stop n replicas in a random order with a delay of 10s in between
+        # stop n replicas in a random order with a delay of 5s in between
         stopped_replicas = await self._stop_random_replicas_with_delay(bft_network, delay=5)
 
-        # start stopped replicas in a random order with a delay of 10s in between
+        # start stopped replicas in a random order with a delay of 5s in between
         await self._start_random_replicas_with_delay(bft_network, stopped_replicas, current_primary, delay=5)
 
         # verify checkpoint persistence
@@ -106,6 +106,7 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
             verify_checkpoint_persistency=False
         )
 
+    @unittest.skip("Advanced manual scenario - not part of CI")
     @with_trio
     @with_bft_network(start_replica_cmd_with_vc_timeout("20000"),
                       selected_configs=lambda n, f, c: n == 7)
@@ -146,14 +147,14 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
         self.assertGreaterEqual(checkpoint_before + 1, checkpoint_after)
 
         # stop n replicas in a random order with a delay of 10/n seconds in between, so that
-        # all replicas are stopped by 10seconds, and no view change is triggered during stopping
+        # all replicas are stopped by 10 seconds, and no view change is triggered during stopping
         # of replicas.
         stopped_replicas = await self._stop_random_replicas_with_delay(bft_network, delay=10/n)
 
         stopped_replicas.remove(current_primary)
 
         # start stopped replicas in a random order with a delay of 10s in between
-        # view change only happens if the initial primary starts at time > viewchangeTimer
+        # view change only happens if the initial primary starts at time > view_change_timeout
         # to make the test robust we start primary at the end.
         await self._start_random_replicas_with_delay(bft_network, stopped_replicas, current_primary, delay=10)
 
@@ -183,7 +184,111 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
                                                                      assert_state_transfer_not_started=False)
 
         next_checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=current_primary)
-        self.assertGreaterEqual(next_checkpoint_before + 1, next_checkpoint_after)
+        self.assertGreaterEqual(next_checkpoint_after, next_checkpoint_before + 1)
+
+    @unittest.skip("Advanced manual scenario - not part of CI, unstable due to - BC 3877")
+    @with_trio
+    @with_bft_network(start_replica_cmd_with_vc_timeout("20000"), selected_configs=lambda n, f, c: n == 7)
+    @with_constant_load
+    async def test_checkpoint_propagation_after_restarting_majority_replicas_under_load(self, bft_network, skvbc,
+                                                                                        nursery):
+        """
+        Here we trigger a checkpoint, restart all replicas in a random order with a delay in-between,
+        both while stopping and starting. We verify checkpoint persisted upon restart and then trigger
+        another checkpoint. We make sure checkpoint is propagated to all the replicas.
+        1) Given a BFT network, we start n - f replicas
+        2) Send sufficient number of client requests to trigger checkpoint protocol
+        3) Stop n - f replicas in a random order (with 10/n seconds delay in between)
+        4) Start all replicas in a random order (with 10 seconds delay in between)
+        5) Wait for view to stabilize
+        6) Wait for state transfer to stop
+        7) Send sufficient number of client requests to trigger another checkpoint
+        8) Make sure checkpoint propagates to all the replicas
+        """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        n = bft_network.config.n
+        f = bft_network.config.f
+
+        initial_primary = await bft_network.get_current_primary()
+
+        # choose a random set of f replicas to stop
+        f_replicas_stopped_early = bft_network.random_set_of_replicas(f, without={initial_primary})
+        bft_network.stop_replicas(f_replicas_stopped_early)
+
+        replicas_up = bft_network.all_replicas(without=f_replicas_stopped_early)
+        self.assertEqual(len(replicas_up), n - f, "Make sure n-f replicas are up.")
+
+        initial_view = 0
+
+        # trigger a checkpoint and verify checkpoint propagation among all live replicas
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=initial_primary)
+
+        await self._fill_and_wait_for_checkpoint_under_constant_load(
+            skvbc,
+            bft_network,
+            initial_nodes=bft_network.all_replicas(without=f_replicas_stopped_early),
+            num_of_checkpoints_to_add=1,
+            verify_checkpoint_persistency=False,
+            assert_state_transfer_not_started=False)
+
+        checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=initial_primary)
+        self.assertGreaterEqual(checkpoint_after, checkpoint_before + 1)
+
+        # stop n replicas in a random order with a delay of 10 seconds in between,
+        stopped_replicas = await self._stop_random_replicas_with_delay(bft_network,
+                                                                       delay=10,
+                                                                       exclude_replicas=f_replicas_stopped_early)
+
+        stopped_replicas.remove(initial_primary)
+
+        # start stopped replicas in a random order with a delay of 10s in between
+        # we start the f_replicas_stopped_early and initial_primary after the stopped_replicas to
+        # make view change occurs.
+        await self._start_random_replicas_with_delay(bft_network,
+                                                     stopped_replicas,
+                                                     initial_primary,
+                                                     f_replicas_stopped_early,
+                                                     delay=10)
+
+        # wait for view to stabilize
+        for replica in bft_network.all_replicas():
+            await self._wait_for_view_under_constant_load(
+                replica_id=replica,
+                bft_network=bft_network,
+                expected=lambda v: v > initial_view,
+                err_msg="Make sure view is stable after all replicas are started.")
+
+        current_primary = await bft_network.get_current_primary()
+
+        await self._wait_for_processing_window_after_view_change(current_primary, bft_network)
+
+        # wait for state transfer to complete for stale replicas i.e. f_replicas_stopped_early
+        if await self._state_transfer_required(bft_network, replicas_up, f_replicas_stopped_early):
+            await bft_network.wait_for_state_transfer_to_start()
+            for stale_replica in f_replicas_stopped_early:
+                await bft_network.wait_for_state_transfer_to_stop(random.choice(list(replicas_up)),
+                                                                  stale_replica,
+                                                                  stop_on_stable_seq_num=True)
+
+        # verify checkpoint persistency
+        # expected checkpoint can be greater than or equal to previously known checkpoint because of the constant load
+        await bft_network.wait_for_replicas_to_checkpoint(bft_network.all_replicas(),
+                                                          expected_checkpoint_num=lambda ecn: ecn >= checkpoint_after)
+
+        # trigger another checkpoint, and wait for it to propagate to all the replicas
+        next_checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=current_primary)
+
+        await self._fill_and_wait_for_checkpoint_under_constant_load(skvbc,
+                                                                     bft_network,
+                                                                     initial_nodes=bft_network.all_replicas(),
+                                                                     num_of_checkpoints_to_add=1,
+                                                                     verify_checkpoint_persistency=False,
+                                                                     assert_state_transfer_not_started=False)
+
+        next_checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=current_primary)
+        self.assertGreaterEqual(next_checkpoint_after, next_checkpoint_before + 1)
 
     @staticmethod
     async def _stop_random_replicas_with_delay(bft_network, delay=10, exclude_replicas=None):
@@ -196,8 +301,11 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
         return list(all_replicas)
 
     @staticmethod
-    async def _start_random_replicas_with_delay(bft_network, stopped_replicas, initial_primary, delay=10):
+    async def _start_random_replicas_with_delay(bft_network, stopped_replicas,  initial_primary,
+                                                f_replicas_stopped_early=None, delay=10):
         random.shuffle(stopped_replicas)
+        if f_replicas_stopped_early:
+            stopped_replicas.extend(f_replicas_stopped_early)
         if initial_primary not in stopped_replicas:
             stopped_replicas.append(initial_primary)
         for replica in stopped_replicas:
@@ -275,10 +383,15 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
         checkpoints may be created. The expected_checkpoint_num in that case may not
         necessarily be checkpoint_before + num_of_checkpoints_to_add. This function
         account for the unexpected checkpoints created due to constant load.
+        Unlike fill_and_wait_for_checkpoint, checkpoint_before is obtained from the current_primary
+        instead of a random replica, as under a constant load, it can be possible the chosen replica
+        may be behind.
         """
         client = kvbc.SkvbcClient(bft_network.random_client())
-        checkpoint_before = await bft_network.wait_for_checkpoint(
-            replica_id=random.choice(initial_nodes))
+        current_primary = await bft_network.get_current_primary()
+        checkpoint_before = await bft_network.wait_for_checkpoint(current_primary)
+
+        print(f"expected_checkpoint_num should be > {checkpoint_before}")
         # Write enough data to checkpoint and create a need for state transfer
         for i in range(1 + num_of_checkpoints_to_add * 150):
             key = skvbc.random_key()
@@ -288,9 +401,19 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
 
         await skvbc.network_wait_for_checkpoint(
             initial_nodes,
-            expected_checkpoint_num=lambda ecn: ecn >= checkpoint_before,
+            expected_checkpoint_num=lambda ecn: ecn > checkpoint_before,
             verify_checkpoint_persistency=verify_checkpoint_persistency,
             assert_state_transfer_not_started=assert_state_transfer_not_started)
+
+    async def _state_transfer_required(self, bft_network, replicas_up, f_replicas_stopped_early):
+        state_transfer_required = False
+        up_to_date_replica = random.choice(list(replicas_up))
+        up_to_date_new_stable_seq_num = await self._get_gauge(up_to_date_replica, bft_network, "lastStableSeqNum")
+        for stale_replica in f_replicas_stopped_early:
+            stale_new_stable_seq_num = await self._get_gauge(stale_replica, bft_network, "lastStableSeqNum")
+            if stale_new_stable_seq_num < up_to_date_new_stable_seq_num:
+                state_transfer_required = True
+        return state_transfer_required
 
     @classmethod
     async def _get_gauge(cls, replica_id, bft_network, gauge):
@@ -305,3 +428,4 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
                         print(f"KeyError! '{gauge}' not yet available.")
                     else:
                         return value
+
