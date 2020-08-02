@@ -61,8 +61,7 @@ enum RequestType : char {
   COND_WRITE = 2,
   GET_LAST_BLOCK = 3,
   GET_BLOCK_DATA = 4,
-  LONG_EXEC_COND_WRITE = 5,
-  WEDGE = 6
+  LONG_EXEC_COND_WRITE = 5
 };
 
 struct SimpleRequest {
