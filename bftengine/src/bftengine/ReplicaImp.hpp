@@ -172,7 +172,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   GaugeHandle metric_current_primary_;
   GaugeHandle metric_concurrency_level_;
   GaugeHandle metric_primary_last_used_seq_num_;
-  GaugeHandle metric_on_call_back_of_super_stable_cp_;
 
   // The first commit path being attempted for a new request.
   StatusHandle metric_first_commit_path_;
@@ -336,7 +335,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
       bool oldSeqNum = false  // true IFF sequence number newStableSeqNum+kWorkWindowSize has already been executed
   );
 
-  void onSeqNumIsSuperStable(SeqNum superStableSeqNum);
+  void onSeqNumIsSuperStable(SeqNum newSuperStableSeqNum);
   void onTransferringCompleteImp(SeqNum) override;
 
   template <typename T>
