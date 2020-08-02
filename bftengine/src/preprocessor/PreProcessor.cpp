@@ -113,7 +113,8 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            metricsComponent_.RegisterCounter("preProcConsensusNotReached"),
                            metricsComponent_.RegisterCounter("preProcessRequestTimedout"),
                            metricsComponent_.RegisterCounter("preProcReqSentForFurtherProcessing"),
-                           metricsComponent_.RegisterCounter("preProcPossiblePrimaryFaultDetected")},
+                           metricsComponent_.RegisterCounter("preProcPossiblePrimaryFaultDetected"),
+                           metricsComponent_.RegisterGauge("currentPreProcReqNum", 0)},
       preExecReqStatusCheckPeriodMilli_(myReplica_.getReplicaConfig().preExecReqStatusCheckTimerMillisec),
       timers_{timers} {
   registerMsgHandlers();
@@ -368,6 +369,7 @@ void PreProcessor::cancelPreProcessing(NodeIdType clientId) {
       reqSeqNum = clientEntry->reqProcessingStatePtr->getReqSeqNum();
       releaseClientPreProcessRequest(clientEntry, clientId, CANCEL);
       LOG_WARN(logger(), "Pre-processing consensus not reached - abort request " << KVLOG(reqSeqNum, clientId));
+      preProcessorMetrics_.currentPreProcReqNum.Get().Dec();
     } else
       LOG_INFO(logger(), "No ongoing pre-processing activity detected for " << KVLOG(clientId));
   }
@@ -395,6 +397,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId) {
       preProcessorMetrics_.preProcReqSentForFurtherProcessing.Get().Inc();
       releaseClientPreProcessRequest(clientEntry, clientId, COMPLETE);
       LOG_INFO(logger(), "Pre-processing completed for " << KVLOG(reqSeqNum, clientId));
+      preProcessorMetrics_.currentPreProcReqNum.Get().Dec();
     } else
       LOG_INFO(logger(),
                "No actions required: pre-processing has been already completed for " << KVLOG(reqSeqNum, clientId));
@@ -470,6 +473,7 @@ void PreProcessor::sendMsg(char *msg, NodeIdType dest, uint16_t msgType, MsgSize
 }
 
 void PreProcessor::handleClientPreProcessRequest(ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg) {
+  preProcessorMetrics_.currentPreProcReqNum.Get().Inc();
   if (myReplica_.isCurrentPrimary())
     return handleClientPreProcessRequestByPrimary(move(clientPreProcessReqMsg));
   else
