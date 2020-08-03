@@ -147,7 +147,9 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   concordUtil::Timers::Handle infoReqTimer_;
   concordUtil::Timers::Handle statusReportTimer_;
   concordUtil::Timers::Handle viewChangeTimer_;
+  concordUtil::Timers::Handle superStableCheckpointRetransmitTimer_;
 
+  bool enableRetransmitSuperStableCheckpoint_ = false;
   int viewChangeTimerMilli = 0;
   int autoPrimaryRotationTimerMilli = 0;
 
@@ -157,7 +159,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   Bitmap mapOfRequestsThatAreBeingRecovered;
 
   SeqNum seqNumToStopAt_ = 0;
-
   //******** METRICS ************************************
   GaugeHandle metric_view_;
   GaugeHandle metric_last_stable_seq_num_;
@@ -172,6 +173,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   GaugeHandle metric_current_primary_;
   GaugeHandle metric_concurrency_level_;
   GaugeHandle metric_primary_last_used_seq_num_;
+  GaugeHandle metric_on_call_back_of_super_stable_cp_;
 
   // The first commit path being attempted for a new request.
   StatusHandle metric_first_commit_path_;
@@ -335,7 +337,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
       bool oldSeqNum = false  // true IFF sequence number newStableSeqNum+kWorkWindowSize has already been executed
   );
 
-  void onSeqNumIsSuperStable(SeqNum newSuperStableSeqNum);
+  void onSeqNumIsSuperStable(SeqNum superStableSeqNum);
   void onTransferringCompleteImp(SeqNum) override;
 
   template <typename T>
@@ -377,6 +379,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void onStatusReportTimer(concordUtil::Timers::Handle);
   void onSlowPathTimer(concordUtil::Timers::Handle);
   void onInfoRequestTimer(concordUtil::Timers::Handle);
+  void onSuperStableCheckpointTimer(concordUtil::Timers::Handle);
 
   // handlers for internal messages
 

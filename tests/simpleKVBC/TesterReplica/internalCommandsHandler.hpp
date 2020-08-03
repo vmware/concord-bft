@@ -22,14 +22,25 @@
 #include "KVBCInterfaces.h"
 #include <memory>
 #include "ControlStateManager.hpp"
+#include <chrono>
+#include <thread>
 
+class InternalControlHandlers : public bftEngine::ControlHandlers {
+ public:
+  void onSuperStableCheckpoint() override {}
+  virtual ~InternalControlHandlers(){};
+};
 class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
  public:
   InternalCommandsHandler(concord::kvbc::ILocalKeyValueStorageReadOnly *storage,
                           concord::kvbc::IBlocksAppender *blocksAppender,
                           concord::kvbc::IBlockMetadata *blockMetadata,
                           logging::Logger &logger)
-      : m_storage(storage), m_blocksAppender(blocksAppender), m_blockMetadata(blockMetadata), m_logger(logger) {}
+      : m_storage(storage),
+        m_blocksAppender(blocksAppender),
+        m_blockMetadata(blockMetadata),
+        m_logger(logger),
+        controlHandlers_(std::make_shared<InternalControlHandlers>()) {}
 
   virtual int execute(uint16_t clientId,
                       uint64_t sequenceNum,
@@ -71,7 +82,7 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
 
   void addMetadataKeyValue(concord::storage::SetOfKeyValuePairs &updates, uint64_t sequenceNum) const;
 
-  std::shared_ptr<bftEngine::ControlHandlers> getControlHandlers() override { return nullptr; }
+  std::shared_ptr<bftEngine::ControlHandlers> getControlHandlers() override { return controlHandlers_; }
 
  private:
   static concordUtils::Sliver buildSliverFromStaticBuf(char *buf);
@@ -85,4 +96,5 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   size_t m_writesCounter = 0;
   size_t m_getLastBlockCounter = 0;
   std::shared_ptr<bftEngine::ControlStateManager> controlStateManager_;
+  std::shared_ptr<bftEngine::ControlHandlers> controlHandlers_;
 };
