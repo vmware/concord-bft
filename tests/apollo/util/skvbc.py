@@ -30,6 +30,7 @@ class SimpleKVBCProtocol:
     GET_LAST_BLOCK = 3
     GET_BLOCK_DATA = 4
     LONG_EXEC_WRITE = 5
+    WEDGE = 6
 
     """
     An implementation of the wire protocol for SimpleKVBC requests.
@@ -46,11 +47,13 @@ class SimpleKVBCProtocol:
         self.keys = self._create_keys()
 
     @classmethod
-    def write_req(cls, readset, writeset, block_id, long_exec=False):
+    def write_req(cls, readset, writeset, block_id, long_exec=False, wedge_command=False):
         data = bytearray()
         # A conditional write request type
         if long_exec is True:
             data.append(cls.LONG_EXEC_WRITE)
+        elif wedge_command is True:
+            data.append(cls.WEDGE)
         else:
             data.append(cls.WRITE)
         # SimpleConditionalWriteHeader

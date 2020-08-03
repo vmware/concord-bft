@@ -111,6 +111,10 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
                << " PRE_PROCESS_FLAG=" << ((flags & MsgFlag::PRE_PROCESS_FLAG) != 0 ? "true" : "false")
                << " HAS_PRE_PROCESSED_FLAG=" << ((flags & MsgFlag::HAS_PRE_PROCESSED_FLAG) != 0 ? "true" : "false"));
 
+  if (writeReq->header.type == WEDGE) {
+    LOG_INFO(m_logger, "A wedge command has been called" << KVLOG(sequenceNum));
+    controlStateManager_->setStopAtNextCheckpoint(sequenceNum);
+  }
   if (!(flags & MsgFlag::HAS_PRE_PROCESSED_FLAG)) {
     bool result = verifyWriteCommand(requestSize, *writeReq, maxReplySize, outReplySize);
     if (!result) ConcordAssert(0);
