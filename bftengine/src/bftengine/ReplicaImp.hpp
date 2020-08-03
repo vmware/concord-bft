@@ -149,6 +149,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   concordUtil::Timers::Handle viewChangeTimer_;
   concordUtil::Timers::Handle superStableCheckpointRetransmitTimer_;
 
+  int timeoutOfSuperStableCheckpointTimerMs_ = 1000;
   bool enableRetransmitSuperStableCheckpoint_ = false;
   int viewChangeTimerMilli = 0;
   int autoPrimaryRotationTimerMilli = 0;

@@ -42,7 +42,7 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcControlCommandsTest(unittest.TestCase):
     @with_trio
-    @with_bft_network(start_replica_cmd)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_wedge_command(self, bft_network):
         """
              Sends a wedge command and check that the system stops from processing new requests.
@@ -72,7 +72,7 @@ class SkvbcControlCommandsTest(unittest.TestCase):
 
     # @unittest.skip("Test case assumes the happy path")
     @with_trio
-    @with_bft_network(start_replica_cmd)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_wedge_command_with_state_transfer(self, bft_network):
         """
             This test checks that even a replica that received the super stable checkpoint via the state transfer mechanism

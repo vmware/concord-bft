@@ -3574,10 +3574,14 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     bringTheSystemToCheckpointBySendingNoopCommands(controlStateManager_->getCheckpointToStopAt().value());
     stopAtNextCheckpoint_ = true;
     // Enable retransmitting of the super stable checkpoint to help weak connected replicas to reach the super stable
-    // checkpoint
+    // checkpoint.
+    // Note that once we get to this point, we are at a dead end - once the replica stopped from processing requests it
+    // unable to resume itself without external interfere as resuming required to process a command.
+    // Thus, we don't care to activate this timer.
     enableRetransmitSuperStableCheckpoint_ = true;
-    superStableCheckpointRetransmitTimer_ = timers_.add(
-        milliseconds(1000), Timers::Timer::RECURRING, [this](Timers::Handle h) { onSuperStableCheckpointTimer(h); });
+    superStableCheckpointRetransmitTimer_ = timers_.add(milliseconds(timeoutOfSuperStableCheckpointTimerMs_),
+                                                        Timers::Timer::RECURRING,
+                                                        [this](Timers::Handle h) { onSuperStableCheckpointTimer(h); });
   }
   if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
 }
