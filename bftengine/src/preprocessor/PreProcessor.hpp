@@ -82,9 +82,9 @@ class PreProcessor {
   bool registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
                        PreProcessRequestMsgSharedPtr preProcessRequestMsg);
   void releaseClientPreProcessRequestSafe(uint16_t clientId, PreProcessingResult result);
-  static void releaseClientPreProcessRequest(const ClientRequestStateSharedPtr &clientEntry,
-                                             uint16_t clientId,
-                                             PreProcessingResult result);
+  void releaseClientPreProcessRequest(const ClientRequestStateSharedPtr &clientEntry,
+                                      uint16_t clientId,
+                                      PreProcessingResult result);
   bool validateMessage(MessageBase *msg) const;
   void registerMsgHandlers();
   bool checkClientMsgCorrectness(const ClientPreProcessReqMsgUniquePtr &clientReqMsg, ReqId reqSeqNum) const;
@@ -155,6 +155,7 @@ class PreProcessor {
     concordMetrics::CounterHandle preProcessRequestTimedout;
     concordMetrics::CounterHandle preProcReqSentForFurtherProcessing;
     concordMetrics::CounterHandle preProcPossiblePrimaryFaultDetected;
+    concordMetrics::GaugeHandle preProcInFlyRequestsNum;
   } preProcessorMetrics_;
   concordUtil::Timers::Handle requestsStatusCheckTimer_;
   const uint64_t preExecReqStatusCheckPeriodMilli_;

@@ -113,7 +113,8 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            metricsComponent_.RegisterCounter("preProcConsensusNotReached"),
                            metricsComponent_.RegisterCounter("preProcessRequestTimedout"),
                            metricsComponent_.RegisterCounter("preProcReqSentForFurtherProcessing"),
-                           metricsComponent_.RegisterCounter("preProcPossiblePrimaryFaultDetected")},
+                           metricsComponent_.RegisterCounter("preProcPossiblePrimaryFaultDetected"),
+                           metricsComponent_.RegisterGauge("PreProcInFlyRequestsNum", 0)},
       preExecReqStatusCheckPeriodMilli_(myReplica_.getReplicaConfig().preExecReqStatusCheckTimerMillisec),
       timers_{timers} {
   registerMsgHandlers();
@@ -432,6 +433,7 @@ bool PreProcessor::registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
     }
   }
   LOG_DEBUG(logger(), KVLOG(reqSeqNum, clientId) << " registered");
+  preProcessorMetrics_.preProcInFlyRequestsNum.Get().Inc();
   return true;
 }
 
@@ -459,6 +461,7 @@ void PreProcessor::releaseClientPreProcessRequest(const ClientRequestStateShared
       clientEntry->reqProcessingHistory.push_back(move(givenReq));
     } else  // No consensus reached => release request
       givenReq.reset();
+    preProcessorMetrics_.preProcInFlyRequestsNum.Get().Dec();
   }
 }
 
