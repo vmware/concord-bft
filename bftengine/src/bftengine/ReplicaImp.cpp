@@ -2379,11 +2379,16 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
   }
 }
 
-void ReplicaImp::onSeqNumIsSuperStable(SeqNum newSuperStableSeqNum) {
+void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
   auto seq_num_to_stop_at = controlStateManager_->getCheckpointToStopAt();
-  if (seq_num_to_stop_at.has_value() && seq_num_to_stop_at.value() == newSuperStableSeqNum) {
-    if (getRequestsHandler()->getControlHandlers())
+  if (seq_num_to_stop_at.has_value() && seq_num_to_stop_at.value() == superStableSeqNum) {
+    LOG_INFO(GL, "Informing control state manager that consensus should be stopped: " << KVLOG(superStableSeqNum));
+    if (getRequestsHandler()->getControlHandlers()) {
+      metric_on_call_back_of_super_stable_cp_.Get().Set(1);
+      // TODO: With state transfered replica, this maight be called twice. Consider to clean the reserved page at the
+      // end of this method
       getRequestsHandler()->getControlHandlers()->onSuperStableCheckpoint();
+    }
   }
 }
 void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformation, bool oldSeqNum) {
@@ -2746,6 +2751,17 @@ void ReplicaImp::onInfoRequestTimer(Timers::Handle timer) {
   metric_info_request_timer_.Get().Set(dynamicUpperLimitOfRounds->upperLimit() / 2);
 }
 
+void ReplicaImp::onSuperStableCheckpointTimer(concordUtil::Timers::Handle) {
+  if (!isSeqNumToStopAt(lastExecutedSeqNum)) return;
+  if (!checkpointsLog->insideActiveWindow(lastExecutedSeqNum)) return;
+  CheckpointMsg *cpMsg = checkpointsLog->get(lastExecutedSeqNum).selfCheckpointMsg();
+  // At this point the cpMsg cannot be evacuated
+  if (!cpMsg) return;
+  LOG_INFO(GL,
+           "sending checkpoint message to help other replicas to reach super stable checkpoint"
+               << KVLOG(lastExecutedSeqNum));
+  sendToAllOtherReplicas(cpMsg, true);
+}
 template <>
 void ReplicaImp::onMessage<SimpleAckMsg>(SimpleAckMsg *msg) {
   metric_received_simple_acks_.Get().Inc();
@@ -3045,6 +3061,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_current_primary_{metrics_.RegisterGauge("currentPrimary", curView % config_.numReplicas)},
       metric_concurrency_level_{metrics_.RegisterGauge("concurrencyLevel", config_.concurrencyLevel)},
       metric_primary_last_used_seq_num_{metrics_.RegisterGauge("primaryLastUsedSeqNum", primaryLastUsedSeqNum)},
+      metric_on_call_back_of_super_stable_cp_{metrics_.RegisterGauge("OnCallBackOfSuperStableCP", 0)},
       metric_first_commit_path_{metrics_.RegisterStatus(
           "firstCommitPath", CommitPathToStr(ControllerWithSimpleHistory_debugInitialFirstPath))},
       metric_slow_path_count_{metrics_.RegisterCounter("slowPathCount", 0)},
@@ -3207,7 +3224,7 @@ void ReplicaImp::stop() {
   timers_.cancel(infoReqTimer_);
   timers_.cancel(statusReportTimer_);
   if (viewChangeProtocolEnabled) timers_.cancel(viewChangeTimer_);
-
+  if (enableRetransmitSuperStableCheckpoint_) timers_.cancel(superStableCheckpointRetransmitTimer_);
   ReplicaForStateTransfer::stop();
 }
 
@@ -3524,12 +3541,6 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
   auto span = concordUtils::startChildSpan("bft_execute_next_committed_requests", parent_span);
 
   while (lastExecutedSeqNum < lastStableSeqNum + kWorkWindowSize) {
-    if (!stopAtNextCheckpoint_ && controlStateManager_->getCheckpointToStopAt().has_value()) {
-      // If, following the last execution, we discover that we need to jump to the
-      // next checkpoint, the primary sends noop commands until filling the working window.
-      bringTheSystemToCheckpointBySendingNoopCommands(controlStateManager_->getCheckpointToStopAt().value());
-      stopAtNextCheckpoint_ = true;
-    }
     SeqNum nextExecutedSeqNum = lastExecutedSeqNum + 1;
     SeqNumInfo &seqNumInfo = mainLog->get(nextExecutedSeqNum);
 
@@ -3557,7 +3568,21 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
       metric_total_fastPath_.Get().Inc();
     }
   }
-
+  if (!stopAtNextCheckpoint_ && controlStateManager_->getCheckpointToStopAt().has_value()) {
+    // If, following the last execution, we discover that we need to jump to the
+    // next checkpoint, the primary sends noop commands until filling the working window.
+    bringTheSystemToCheckpointBySendingNoopCommands(controlStateManager_->getCheckpointToStopAt().value());
+    stopAtNextCheckpoint_ = true;
+    // Enable retransmitting of the super stable checkpoint to help weak connected replicas to reach the super stable
+    // checkpoint.
+    // Note that once we get to this point, we are at a dead end - once the replica stopped from processing requests it
+    // unable to resume itself without external interfere as resuming required to process a command.
+    // Thus, we don't care to activate this timer.
+    enableRetransmitSuperStableCheckpoint_ = true;
+    superStableCheckpointRetransmitTimer_ = timers_.add(milliseconds(timeoutOfSuperStableCheckpointTimerMs_),
+                                                        Timers::Timer::RECURRING,
+                                                        [this](Timers::Handle h) { onSuperStableCheckpointTimer(h); });
+  }
   if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
 }
 
