@@ -2818,8 +2818,18 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
 
   ps_ = persistentStorage;
 
-  curView = ld.viewsManager->latestActiveView();
-  lastAgreedView = curView;
+  lastAgreedView = ld.viewsManager->latestActiveView();
+
+  if (ld.viewsManager->viewIsActive(lastAgreedView)) {
+    curView = lastAgreedView;
+  } else {
+    curView = lastAgreedView + 1;
+    ViewChangeMsg *t = ld.viewsManager->getMyLatestViewChangeMsg();
+    ConcordAssert(t != nullptr);
+    ConcordAssert(t->newView() == curView);
+    t->finalizeMessage();  // needed to initialize the VC message
+  }
+
   metric_view_.Get().Set(curView);
   metric_last_agreed_view_.Get().Set(lastAgreedView);
   metric_current_primary_.Get().Set(curView % config_.numReplicas);
