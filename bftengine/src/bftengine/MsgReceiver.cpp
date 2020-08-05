@@ -12,6 +12,9 @@
 #include "MsgReceiver.hpp"
 #include "messages/MessageBase.hpp"
 #include "ReplicaConfig.hpp"
+#include "kvstream.h"
+#include "Logger.hpp"
+
 #include <cstring>
 
 namespace bftEngine::impl {
@@ -22,9 +25,17 @@ using namespace bft::communication;
 MsgReceiver::MsgReceiver(std::shared_ptr<IncomingMsgsStorage> &storage) : incomingMsgsStorage_(storage) {}
 
 void MsgReceiver::onNewMessage(const NodeNum sourceNode, const char *const message, const size_t messageLength) {
-  if (messageLength > ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize()) return;
-  if (messageLength < sizeof(MessageBase::Header)) return;
-
+  logging::Logger GL = logging::getLogger("concord");
+  if (messageLength > ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize()) {
+    LOG_ERROR(GL,
+              "messageLength > ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize()"
+                  << KVLOG(messageLength, ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize()));
+    return;
+  }
+  if (messageLength < sizeof(MessageBase::Header)) {
+    LOG_ERROR(GL, "messageLength < sizeof(MessageBase::Header)" << KVLOG(messageLength, sizeof(MessageBase::Header)));
+    return;
+  }
   auto *msgBody = (MessageBase::Header *)std::malloc(messageLength);
   memcpy(msgBody, message, messageLength);
 
