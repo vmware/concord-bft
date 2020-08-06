@@ -122,7 +122,6 @@ class SkvbcCheckpointTest(unittest.TestCase):
             crashed_replicas,
             expected_checkpoint_num=lambda ecn: ecn == checkpoint_after_primary)
 
-    @unittest.skip("Unstable due to BC-3451")
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_checkpoint_propagation_after_crashed_replicas_comeback_after_vc(self, bft_network):
@@ -136,9 +135,8 @@ class SkvbcCheckpointTest(unittest.TestCase):
         4) Make sure checkpoint is created
         5) Crash the initial primary & send a batch of write requests
         6) Verify view change has occurred
-        7) Verify checkpoint propagation to current primary in the new view
-        8) Bring the f replicas up
-        9) Verify checkpoint propagation to a stale node of the f replicas brought up
+        7) Bring the f crashed replicas up
+        8) Verify checkpoint propagation to all the nodes
         """
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
@@ -156,7 +154,7 @@ class SkvbcCheckpointTest(unittest.TestCase):
 
         checkpoint_init_primary_before = await bft_network.wait_for_checkpoint(replica_id=initial_primary)
 
-        # crashing f-1 replicas, initial_primary is crashed after checkpoint creation to trigger vc
+        # crash f-1 replicas, crash initial_primary after checkpoint creation to trigger view change
         crashed_replicas = await self._crash_replicas(
             bft_network=bft_network,
             nb_crashing=f - 1,
@@ -181,32 +179,24 @@ class SkvbcCheckpointTest(unittest.TestCase):
         await bft_network.wait_for_view(
             replica_id=initial_primary,
             expected=lambda v: v == initial_primary,
-            err_msg="Make sure we are in the initial view "
-                    "before crashing the primary."
+            err_msg="Make sure we are in the initial view before crashing the primary."
         )
 
-        # trigger a view change by crashing the initial primary
+        # trigger a view change by crashing the initial primary and sending a batch of write requests
         bft_network.stop_replica(initial_primary)
-        crashed_replicas.add(initial_primary)
-
-        # send a batch of write requests
         await self._send_random_writes(skvbc)
 
+        crashed_replicas.add(initial_primary)
+
         # wait for view change
-        await bft_network.wait_for_view(
-            replica_id=random.choice(bft_network.all_replicas(without=crashed_replicas)),
-            expected=lambda v: v == expected_next_primary,
-            err_msg="Make sure view change has been triggered."
-        )
+        for replica in bft_network.all_replicas(without=crashed_replicas):
+            await bft_network.wait_for_view(
+                replica_id=replica,
+                expected=lambda v: v == expected_next_primary,
+                err_msg="Make sure view change has been triggered."
+            )
 
-        current_primary = initial_primary + 1
-        self.assertEqual(current_primary, expected_next_primary)
-
-        checkpoint_current_primary = await bft_network.wait_for_checkpoint(replica_id=current_primary)
-
-        # verify checkpoint propagation to current primary in the new view
-        self.assertEqual(checkpoint_current_primary, checkpoint_init_primary_after)
-
+        # start crashed replicas including the initial primary
         bft_network.start_replicas(crashed_replicas)
 
         # verify view stabilization among all the stale nodes after they come back up
@@ -217,10 +207,10 @@ class SkvbcCheckpointTest(unittest.TestCase):
                 err_msg=f"Make sure view change has been triggered for stale replica: {crashed_replica}."
             )
 
-        # verify checkpoint propagation to all the stale nodes after they come back up
+        # verify checkpoint propagation to all the nodes after they come back up
         await bft_network.wait_for_replicas_to_checkpoint(
-            crashed_replicas,
-            expected_checkpoint_num=lambda ecn: ecn == checkpoint_current_primary)
+            bft_network.all_replicas(),
+            expected_checkpoint_num=lambda ecn: ecn >= checkpoint_init_primary_after)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
