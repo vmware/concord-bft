@@ -17,7 +17,7 @@
 namespace concordMetrics {
 namespace prometheusMetrics {
 Summary::Summary(Quantiles& quantiles, const std::chrono::milliseconds max_age, const int age_buckets)
-    : quantiles_{std::move(quantiles)}, count_{0}, sum_{0}, quantile_values_{quantiles_, max_age, age_buckets} {}
+    : quantiles_{quantiles}, count_{0}, sum_{0}, quantile_values_{quantiles_, max_age, age_buckets} {}
 
 void Summary::Observe(const double value) {
   count_ += 1;
@@ -32,7 +32,7 @@ Summary::SummaryDescription Summary::Collect() {
     auto metricQuantile = Summary::Quantile{};
     metricQuantile.quantile = quantile.quantile;
     metricQuantile.value = quantile_values_.get(quantile.quantile);
-    metric.quantile.push_back(std::move(metricQuantile));
+    metric.quantile.push_back(metricQuantile);
   }
   metric.sample_count = count_;
   metric.sample_sum = sum_;
