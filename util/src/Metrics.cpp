@@ -53,6 +53,15 @@ Component::Handle<Counter> Component::RegisterCounter(const string& name, const 
   return Component::Handle<Counter>(values_.counters_, values_.counters_.size() - 1);
 }
 
+prometheusMetrics::Summary& Component::RegisterSummary(const std::string& name,
+                                                       prometheusMetrics::Summary::Quantiles& quantiles,
+                                                       std::chrono::milliseconds max_age,
+                                                       int age_buckets) {
+  names_.summary_names_.emplace_back(name);
+  values_.summaries_.emplace_back(std::make_shared<prometheusMetrics::Summary>(quantiles, max_age, age_buckets));
+  return *values_.summaries_[values_.summaries_.size() - 1];
+}
+
 std::list<Metric> Component::CollectGauges() {
   std::list<Metric> ret;
   for (size_t i = 0; i < names_.gauge_names_.size(); i++) {
@@ -73,6 +82,14 @@ std::list<Metric> Component::CollectStatuses() {
   std::list<Metric> ret;
   for (size_t i = 0; i < names_.status_names_.size(); i++) {
     ret.emplace_back(Metric{name_, names_.status_names_[i], values_.statuses_[i]});
+  }
+  return ret;
+}
+
+std::list<Metric> Component::CollectSummaries() {
+  std::list<Metric> ret;
+  for (size_t i = 0; i < names_.summary_names_.size(); i++) {
+    ret.emplace_back(Metric{name_, names_.summary_names_[i], values_.summaries_[i]->Collect()});
   }
   return ret;
 }
@@ -106,6 +123,12 @@ Counter Aggregator::GetCounter(const string& component_name, const string& val_n
   std::lock_guard<std::mutex> lock(lock_);
   auto& component = components_.at(component_name);
   return FindValue(kCounterName, val_name, component.names_.counter_names_, component.values_.counters_);
+}
+
+prometheusMetrics::Summary Aggregator::GetSummary(const string& component_name, const string& val_name) {
+  std::lock_guard<std::mutex> lock(lock_);
+  auto& component = components_.at(component_name);
+  return *FindValue(kCounterName, val_name, component.names_.summary_names_, component.values_.summaries_);
 }
 
 // Generate a JSON string of all aggregated components. To save space we don't
@@ -160,6 +183,16 @@ std::list<Metric> Aggregator::CollectStatuses() {
   return ret;
 }
 
+std::list<Metric> Aggregator::CollectSummaries() {
+  std::lock_guard<std::mutex> lock(lock_);
+  std::list<Metric> ret;
+  for (auto& comp : components_) {
+    const auto& summaries = comp.second.CollectSummaries();
+    ret.insert(ret.end(), summaries.begin(), summaries.end());
+  }
+  return ret;
+}
+
 // Generate a JSON string of the component. To save space we don't add any
 // newline characters.
 std::string Component::ToJson() {
@@ -203,6 +236,19 @@ std::string Component::ToJson() {
       oss << ",";
     }
     oss << "\"" << names_.counter_names_[i] << "\":" << values_.counters_[i].Get() << "";
+  }
+
+  // End counters
+  oss << "},";
+
+  // Add any Summary
+  oss << "\"Summaries\":{";
+
+  for (size_t i = 0; i < names_.summary_names_.size(); i++) {
+    if (i != 0) {
+      oss << ",";
+    }
+    oss << "\"" << names_.summary_names_[i] << "\":" << values_.summaries_[i]->ToJson() << "";
   }
 
   // End counters

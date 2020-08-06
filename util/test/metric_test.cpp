@@ -15,6 +15,7 @@
 #include <cstdlib>
 #include "gtest/gtest.h"
 #include "Metrics.hpp"
+#include <cmath>
 
 using namespace std;
 
@@ -26,16 +27,29 @@ TEST(MetricsTest, UseValues) {
   auto h_gauge = c.RegisterGauge("connected_peers", 3);
   auto h_status = c.RegisterStatus("state", "primary");
   auto h_counter = c.RegisterCounter("messages_sent", 0);
-
+  prometheusMetrics::Summary::Quantiles quantiles = {{0.25, 0.1}, {0.5, 0.1}, {0.75, 0.1}, {0.9, 0.1}};
+  auto summary = c.RegisterSummary("example_summary", quantiles);
+  prometheusMetrics::Summary::Quantiles quantiles2 = {{0.25, 0.1}, {0.5, 0.1}, {0.75, 0.1}, {0.9, 0.1}};
+  auto sum2 = c.RegisterSummary("ex2", quantiles2);
   ASSERT_EQ(3, h_gauge.Get().Get());
   ASSERT_EQ("primary", h_status.Get().Get());
   ASSERT_EQ(0, h_counter.Get().Get());
+  ASSERT_EQ(0, summary.Collect().sample_count);
+  ASSERT_EQ(0, summary.Collect().sample_sum);
+  summary.Observe(10);
+  for (auto quantile : summary.Collect().quantile) {
+    ASSERT_EQ(10, quantile.value);
+  }
 
   h_gauge.Get().Set(5);
   ASSERT_EQ(5, h_gauge.Get().Get());
   h_status.Get().Set("backup");
   ASSERT_EQ("backup", h_status.Get().Get());
   ASSERT_EQ(1, h_counter.Get().Inc());
+  summary.Observe(1);
+  for (auto quantile : summary.Collect().quantile) {
+    ASSERT_EQ(1, quantile.value);
+  }
 }
 
 TEST(MetricsTest, Aggregator) {
@@ -85,6 +99,10 @@ TEST(MetricTest, ToJson) {
   c.RegisterCounter("messages_received", 1);
   c.Register();
 
+  prometheusMetrics::Summary::Quantiles quantiles = {{0.25, 0.1}, {0.5, 0.1}, {0.75, 0.1}, {0.9, 0.1}};
+  auto summary = c.RegisterSummary("example_summary", quantiles);
+
+  summary.Observe(1);
   Component c2("state-transfer", aggregator);
   c2.RegisterGauge("blocks-remaining", 4);
   c2.RegisterStatus("state", "sending-blocks");

@@ -9,7 +9,10 @@ set(util_source_files
     src/status.cpp
     src/sliver.cpp
     src/hex_tools.cpp
-    src/OpenTracing.cpp)
+    src/OpenTracing.cpp
+    src/summary.cpp
+    src/time_window_quantiles.cpp
+    src/ckms_quantiles.cpp)
 
 add_library(util STATIC
     ${util_source_files}

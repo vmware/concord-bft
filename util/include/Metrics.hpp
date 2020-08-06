@@ -20,6 +20,7 @@
 #include <memory>
 #include <list>
 #include <variant>
+#include "summary.hpp"
 
 namespace concordMetrics {
 
@@ -44,11 +45,12 @@ class Aggregator {
   Gauge GetGauge(const std::string& component_name, const std::string& val_name);
   Status GetStatus(const std::string& component_name, const std::string& val_name);
   Counter GetCounter(const std::string& component_name, const std::string& val_name);
+  prometheusMetrics::Summary GetSummary(const std::string& component_name, const std::string& val_name);
 
   std::list<Metric> CollectGauges();
   std::list<Metric> CollectCounters();
   std::list<Metric> CollectStatuses();
-
+  std::list<Metric> CollectSummaries();
   // Generate a JSON formatted string
   std::string ToJson();
 
@@ -109,7 +111,7 @@ class Counter {
 struct metric_ {
   std::string component;
   std::string name;
-  std::variant<Counter, Gauge, Status> value;
+  std::variant<Counter, Gauge, Status, prometheusMetrics::Summary::SummaryDescription> value;
 };
 
 class Values {
@@ -117,6 +119,7 @@ class Values {
   std::vector<Gauge> gauges_;
   std::vector<Status> statuses_;
   std::vector<Counter> counters_;
+  std::vector<std::shared_ptr<prometheusMetrics::Summary>> summaries_;
 
   friend class Component;
   friend class Aggregator;
@@ -131,6 +134,7 @@ class Names {
   std::vector<std::string> gauge_names_;
   std::vector<std::string> status_names_;
   std::vector<std::string> counter_names_;
+  std::vector<std::string> summary_names_;
 
   friend class Component;
   friend class Aggregator;
@@ -170,9 +174,14 @@ class Component {
   Handle<Status> RegisterStatus(const std::string& name, const std::string& val);
   Handle<Counter> RegisterCounter(const std::string& name, const uint64_t val);
   Handle<Counter> RegisterCounter(const std::string& name) { return RegisterCounter(name, 0); }
+  prometheusMetrics::Summary& RegisterSummary(const std::string& name,
+                                              prometheusMetrics::Summary::Quantiles& quantiles,
+                                              std::chrono::milliseconds max_age = std::chrono::seconds{60},
+                                              int age_buckets = 5);
   std::list<Metric> CollectGauges();
   std::list<Metric> CollectCounters();
   std::list<Metric> CollectStatuses();
+  std::list<Metric> CollectSummaries();
   // Register the component with the aggregator.
   // This *must* be done after all values are registered in this component.
   // If registration happens before all registration of the values, then the
