@@ -149,13 +149,6 @@ void ReplicaImp::onReportAboutInvalidMessage(MessageBase *msg, const char *reaso
 
 template <>
 void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
-  if (isSeqNumToStopAt(lastExecutedSeqNum)) {
-    LOG_INFO(GL,
-             "Ignoring ClientRequest because system is stopped at checkpoint pending control state operation (upgrade, "
-             "etc...)");
-    return;
-  }
-
   metric_received_client_requests_.Get().Inc();
   const NodeIdType senderId = m->senderId();
   const NodeIdType clientId = m->clientProxyId();
@@ -166,7 +159,13 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_CID(m->getCid());
   LOG_DEBUG(GL, "Received ClientRequestMsg. " << KVLOG(clientId, reqSeqNum, flags, senderId));
-
+  if (isSeqNumToStopAt(lastExecutedSeqNum) && !readOnly) {
+    LOG_INFO(GL,
+             "Ignoring write ClientRequest because system is stopped at checkpoint pending control state operation "
+             "(upgrade, "
+             "etc...)");
+    return;
+  }
   const auto &span_context = m->spanContext<std::remove_pointer<decltype(m)>::type>();
   auto span = concordUtils::startChildSpanFromContext(span_context, "bft_client_request");
   span.setTag("rid", config_.replicaId);

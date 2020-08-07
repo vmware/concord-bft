@@ -87,6 +87,12 @@ class SimpleKVBCProtocol:
         return data
 
     @classmethod
+    def get_have_you_stopped_req(cls):
+        data = bytearray()
+        data.append(cls.WEDGE)
+        return data
+
+    @classmethod
     def get_block_data_req(cls, block_id):
         data = bytearray()
         data.append(cls.GET_BLOCK_DATA)
@@ -102,6 +108,8 @@ class SimpleKVBCProtocol:
             return cls.parse_read_reply(data[1:])
         elif reply_type == cls.GET_LAST_BLOCK:
             return cls.parse_get_last_block_reply(data[1:])
+        elif reply_type == cls.WEDGE:
+            return cls.parse_have_you_stopped_reply(data[1:])
         else:
             raise BadReplyError
 
@@ -122,6 +130,10 @@ class SimpleKVBCProtocol:
 
     @staticmethod
     def parse_get_last_block_reply(data):
+        return struct.unpack("<Q", data)[0]
+
+    @staticmethod
+    def parse_have_you_stopped_reply(data):
         return struct.unpack("<Q", data)[0]
 
     def initial_state(self):

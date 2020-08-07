@@ -72,6 +72,7 @@ class UdpClient:
         self.replies = dict()
         self.primary = None
         self.reply = None
+        self.rsi_reply = None
         self.retries = 0
         self.msgs_sent = 0
         self.reply_quorum = 2*config.f + config.c + 1
@@ -82,11 +83,14 @@ class UdpClient:
         """ A wrapper around sendSync for requests that mutate state """
         return await self.sendSync(msg, False, seq_num, cid, pre_process)
 
-    async def read(self, msg, seq_num=None, cid=None):
+    async def read(self, msg, seq_num=None, cid=None, specific_replica_info=False, dest_replicas=None, min_required_replies=None):
         """ A wrapper around sendSync for requests that do not mutate state """
-        return await self.sendSync(msg, True, seq_num, cid)
+        replicas = self.replicas
+        if specific_replica_info is True and dest_replicas is not None:
+            replicas = [r for r in self.replicas if r.id in replicas]
+        return await self.sendSync(msg, True, seq_num, cid, specific_replica_info=specific_replica_info, dest_replicas=replicas, min_required_replies=min_required_replies)
 
-    async def sendSync(self, msg, read_only, seq_num=None, cid=None, pre_process=False):
+    async def sendSync(self, msg, read_only, seq_num=None, cid=None, pre_process=False, specific_replica_info=False, dest_replicas=None, min_required_replies=None):
         """
         Send a client request and wait for a quorum (2F+C+1) of replies.
 
@@ -124,7 +128,10 @@ class UdpClient:
             with trio.fail_after(self.config.req_timeout_milli / 1000):
                 self.reset_on_new_request()
                 self.retries = 0
-                return await self.send_loop(data, read_only)
+                if specific_replica_info is True:
+                    return await self.send_sri_loop(data, dest_replicas, min_required_replies)
+                else:
+                    return await self.send_loop(data, read_only)
         except trio.TooSlowError:
             print("TooSlowError thrown from client_id", self.client_id, "for seq_num", seq_num)
             raise trio.TooSlowError
@@ -142,6 +149,7 @@ class UdpClient:
         self.replies = dict()
         self.reply = None
         self.retries = 0
+        self.rsi_reply = []
 
     async def bind(self):
         # Each port is a function of its client_id
@@ -167,22 +175,55 @@ class UdpClient:
                 self.reset_on_retry()
         return self.reply
 
+    async def send_sri_loop(self, data, replicas, num_of_replies=None):
+        """
+        Send and wait for a quorum of replies. Keep retrying if a quorum
+        isn't received. Eventually the max request timeout from the
+        outer scope will fire cancelling all sub-scopes and their coroutines
+        including this one.
+        """
+        actual_num_of_replies = len(replicas) if num_of_replies is None else num_of_replies
+        while len(self.rsi_reply) < actual_num_of_replies:
+            with trio.move_on_after(self.config.retry_timeout_milli/1000):
+                async with trio.open_nursery() as nursery:
+                    await self.send_all(data, replicas=replicas)
+                    nursery.start_soon(self.recv_rsi, nursery.cancel_scope, actual_num_of_replies)
+            if len(self.rsi_reply) < actual_num_of_replies:
+                self.reset_on_retry()
+        return self.rsi_reply
+
     async def send_to_primary(self, request):
         """Send a serialized request to the primary"""
         async with trio.open_nursery() as nursery:
             nursery.start_soon(self.sendto, request, (self.primary.ip,
                                                       self.primary.port))
 
-    async def send_all(self, request):
+    async def send_all(self, request, replicas=None):
         """Send a serialized request to all replicas"""
+        actual_dests = self.replicas if replicas is None else replicas
         async with trio.open_nursery() as nursery:
-            for replica in self.replicas:
+            for replica in actual_dests:
                 nursery.start_soon(self.sendto, request, (replica.ip,
                                                           replica.port))
     async def sendto(self, request, ip_port):
         """Send a request over a udp socket"""
         await self.sock.sendto(request, ip_port)
         self.msgs_sent += 1
+
+    async def recv_rsi(self, cancel_scope, min_num_of_replies):
+        """
+        Receive reply messages until a quorum is achieved or the enclosing
+        cancel_scope times out.
+        """
+        while True:
+            data, sender = await self.sock.recvfrom(self.config.max_msg_size)
+            header, reply = bft_msgs.unpack_reply(data)
+            if self.valid_reply(header):
+                self.rsi_reply += [(header, reply)]
+            if len(self.rsi_reply) == min_num_of_replies:
+                # This cancel will propagate upward and gracefully terminate all
+                # coroutines. self.rsi_reply will get set in self.has_quorum()
+                cancel_scope.cancel()
 
     async def recv(self, cancel_scope):
         """
@@ -199,8 +240,10 @@ class UdpClient:
                 # coroutines. self.reply will get set in self.has_quorum()
                 cancel_scope.cancel()
 
-    def valid_reply(self, header):
+    def valid_reply(self, header, sri=False):
         """Return true if the sequence number is correct"""
+        if sri is True:
+            return self.req_seq_num.val() == header.req_seq_num and header.sri_length > 0
         return self.req_seq_num.val() == header.req_seq_num
 
     def has_quorum(self):

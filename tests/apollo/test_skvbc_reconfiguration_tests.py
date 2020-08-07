@@ -40,7 +40,7 @@ def start_replica_cmd(builddir, replica_id):
             "-t", os.environ.get('STORAGE_TYPE')]
 
 
-class SkvbcControlCommandsTest(unittest.TestCase):
+class SkvbcReconfigurationTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_wedge_command(self, bft_network):
@@ -122,6 +122,41 @@ class SkvbcControlCommandsTest(unittest.TestCase):
 
         await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
 
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 4 and c == 0)
+    async def test_wedge_command_and_specific_replica_info(self, bft_network):
+        """
+             Sends a wedge command and check that the system stops from processing new requests.
+             Note that in this test we assume no failures and synchronized network.
+             The test does the following:
+             1. A client sends a wedge command
+             2. The client verify that the system reached to a super stable checkpoint
+             3. The client tries to initiate a new write bft command and fails
+             4. The client then sends a "Have you stopped" read only command such that each replica answers "I have stopped"
+         """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        client = bft_network.random_client()
+
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
+
+        await client.write(skvbc.write_req([], [], block_id=0, wedge_command=True))
+
+        for replica_id in range(bft_network.config.n):
+            with trio.fail_after(seconds=30):
+                while True:
+                    with trio.move_on_after(seconds=1):
+                        checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=replica_id)
+                        if checkpoint_after == checkpoint_before + 2:
+                            break
+
+        await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
+
+        msg = skvbc.get_have_you_stopped_req()
+        rep = await client.read(msg, specific_replica_info=True)
+        for r in rep:
+            self.assertEqual(1, skvbc.parse_reply(r[1]))
+
     async def validate_stop_on_super_stable_checkpoint(self, bft_network, skvbc):
         for replica_id in range(bft_network.config.n):
             with trio.fail_after(seconds=90):
@@ -144,7 +179,6 @@ class SkvbcControlCommandsTest(unittest.TestCase):
             return
         else:
             self.assertTrue(False)
-
 
 if __name__ == '__main__':
     unittest.main()
