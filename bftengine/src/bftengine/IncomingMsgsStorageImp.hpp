@@ -35,6 +35,7 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
 
   void start() override;
   void stop() override;
+  void notifyOnSynch() override;
 
   // Can be called by any thread
   void pushExternalMsg(std::unique_ptr<MessageBase> msg) override;
@@ -59,6 +60,11 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
 
   std::mutex lock_;
   std::condition_variable condVar_;
+
+  // On start synchronization
+  std::mutex acceptLock_;
+  std::condition_variable acceptCV_;
+  std::atomic_bool startAccept_{false};
 
   std::shared_ptr<MsgHandlersRegistrator> msgHandlers_;
   std::chrono::milliseconds msgWaitTimeout_;

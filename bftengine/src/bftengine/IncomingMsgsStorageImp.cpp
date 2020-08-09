@@ -123,10 +123,21 @@ IncomingMsg IncomingMsgsStorageImp::popThreadLocal() {
   }
 }
 
+void IncomingMsgsStorageImp::notifyOnSynch() {
+  startAccept_ = true;
+  acceptCV_.notify_one();
+}
+
 void IncomingMsgsStorageImp::dispatchMessages(std::promise<void>& signalStarted) {
   signalStarted.set_value();
   MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(replicaId_));
   MDC_PUT(MDC_THREAD_KEY, "message-processing");
+  // The thread that handles recovery, needs to finish before this thread starts accepting
+  {
+    std::unique_lock<std::mutex> lk(acceptLock_);
+    acceptCV_.wait(lk, [this] { return (startAccept_ == true); });
+    LOG_INFO(GL, "Start accepting msgs");
+  }
   try {
     while (!stopped_) {
       auto msg = getMsgForProcessing();

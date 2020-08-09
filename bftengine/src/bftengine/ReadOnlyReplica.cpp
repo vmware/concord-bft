@@ -17,6 +17,7 @@
 #include "Logger.hpp"
 #include "PersistentStorage.hpp"
 #include "ClientsManager.hpp"
+#include "MsgsCommunicator.hpp"
 
 using concordUtil::Timers;
 
@@ -54,6 +55,7 @@ void ReadOnlyReplica::start() {
                                           [this](Timers::Handle) {
                                             if (!this->isCollectingState()) sendAskForCheckpointMsg();
                                           });
+  msgsCommunicator_->notifyOnSynch();
 }
 
 void ReadOnlyReplica::stop() {

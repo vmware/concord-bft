@@ -43,6 +43,8 @@ void MsgsCommunicator::startMsgsProcessing(uint16_t replicaId) {
   LOG_INFO(GL, "Messages processing for replica " << replicaId_ << " started");
 }
 
+void MsgsCommunicator::notifyOnSynch() { incomingMsgsStorage_->notifyOnSynch(); }
+
 void MsgsCommunicator::stopMsgsProcessing() {
   incomingMsgsStorage_->stop();
   LOG_INFO(GL, "Messages processing for replica " << replicaId_ << " stopped");
