@@ -55,7 +55,7 @@ void ReadOnlyReplica::start() {
                                           [this](Timers::Handle) {
                                             if (!this->isCollectingState()) sendAskForCheckpointMsg();
                                           });
-  msgsCommunicator_->notifyOnSynch();
+  msgsCommunicator_->startMsgsProcessing(config_.replicaId);
 }
 
 void ReadOnlyReplica::stop() {

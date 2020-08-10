@@ -3273,13 +3273,15 @@ void ReplicaImp::start() {
   if (!firstTime_ || config_.debugPersistentStorageEnabled) clientsManager->loadInfoFromReservedPages();
   addTimers();
   recoverRequests();
-  // After handling recovery, the message-processing thread can start handling msgs.
-  msgsCommunicator_->notifyOnSynch();
+
+  // The following line will start the processing thread.
+  // It must happen after the replica recovers requests in the main thread.
+  msgsCommunicator_->startMsgsProcessing(config_.replicaId);
 }
 
 void ReplicaImp::recoverRequests() {
   if (recoveringFromExecutionOfRequests) {
-    LOG_INFO(GL, "Recovering un-executed requests");
+    LOG_INFO(GL, "Recovering execution of requests");
     SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum + 1);
     PrePrepareMsg *pp = seqNumInfo.getPrePrepareMsg();
     ConcordAssertNE(pp, nullptr);

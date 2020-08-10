@@ -50,7 +50,6 @@ void ReplicaBase::start() {
     }
   });
   msgsCommunicator_->startCommunication(config_.replicaId);
-  msgsCommunicator_->startMsgsProcessing(config_.replicaId);
 }
 
 void ReplicaBase::stop() {

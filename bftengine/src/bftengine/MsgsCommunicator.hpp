@@ -29,7 +29,6 @@ class MsgsCommunicator {
   int stopCommunication();
   void startMsgsProcessing(uint16_t replicaId);
   void stopMsgsProcessing();
-  void notifyOnSynch();
 
   [[nodiscard]] bool isMsgsProcessingRunning() const { return incomingMsgsStorage_->isRunning(); }
   int sendAsyncMessage(bft::communication::NodeNum destNode, char* message, size_t messageLength);

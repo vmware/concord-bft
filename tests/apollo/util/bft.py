@@ -680,7 +680,7 @@ class BftTestNetwork:
         Wait for every replica in `replicas` to take a checkpoint.
         Check every .5 seconds and give fail after 30 seconds.
         """
-        with trio.fail_after(60): # seconds
+        with trio.fail_after(30): # seconds
             async with trio.open_nursery() as nursery:
                 for replica_id in replica_ids:
                     nursery.start_soon(self.wait_for_checkpoint, replica_id, expected_checkpoint_num)
