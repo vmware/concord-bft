@@ -29,6 +29,9 @@ if (NOT DEFINED USE_LOG4CPP)
   option(USE_LOG4CPP "Enable LOG4CPP" FALSE)
 endif()
 
+# Default KEEP_APOLLO_LOGS to FALSE
+option(KEEP_APOLLO_LOGS "Retains logs from replicas in separate folder for each test in /tmp/apollo " FALSE)
+
 # Default BUILD_COMM_TCP_PLAIN to FALSE
 option(BUILD_COMM_TCP_PLAIN "Enable TCP communication" FALSE)
 

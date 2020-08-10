@@ -139,6 +139,9 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                                         stop_replica_cmd=None,
                                         num_ro_replicas=num_ro_replicas)
                     with BftTestNetwork.new(config) as bft_network:
+                        bft_network.current_test = async_fn.__name__ + "_n=" + str(bft_config['n']) \
+                                                                     + "_f=" + str(bft_config['f']) \
+                                                                     + "_c=" + str(bft_config['c'])
                         print(f'Running {async_fn.__name__} '
                               f'with n={config.n}, f={config.f}, c={config.c}, '
                               f'num_clients={config.num_clients}, '
@@ -198,12 +201,19 @@ class BftTestNetwork:
             self.client_factory = client_factory
         else:
             self.client_factory = self._create_new_udp_client
+        self.open_fds = {}
+        self.current_test = ""
 
     @classmethod
     def new(cls, config, client_factory=None):
         builddir = os.path.abspath("../../build")
         toolsdir = os.path.join(builddir, "tools")
         testdir = tempfile.mkdtemp()
+        if os.environ.get('KEEP_APOLLO_LOGS', "").lower() in ["true", "on"]:
+            try:
+                os.mkdir("/tmp/apollo")
+            except FileExistsError:
+                pass
         bft_network = cls(
             is_existing=False,
             origdir=os.getcwd(),
@@ -351,6 +361,23 @@ class BftTestNetwork:
         Start a replica if it isn't already started.
         Otherwise raise an AlreadyStoppedError.
         """
+        stdout_file = None
+        stderr_file = None
+        if os.environ.get('KEEP_APOLLO_LOGS', "").lower() in ["true", "on"]:
+            try:
+                os.mkdir(f"/tmp/apollo/{self.current_test}/")
+            except FileExistsError:
+                pass
+            stdout_file = open("/tmp/apollo/{}/stdout_{}.log".format(self.current_test, replica_id), 'a+')
+            stderr_file = open("/tmp/apollo/{}/stderr_{}.log".format(self.current_test, replica_id), 'a+')
+
+            stdout_file.write("############################################\n")
+            stdout_file.flush()
+            stderr_file.write("############################################\n")
+            stderr_file.flush()
+
+            self.open_fds[replica_id] = (stdout_file, stderr_file)
+
         if replica_id in self.procs:
             raise AlreadyRunningError(replica_id)
 
@@ -359,6 +386,8 @@ class BftTestNetwork:
         else:
             self.procs[replica_id] = subprocess.Popen(
                                         self.start_replica_cmd(replica_id),
+                                        stdout=stdout_file,
+                                        stderr=stderr_file,
                                         close_fds=True)
 
     def _start_external_replica(self, replica_id):
@@ -382,6 +411,8 @@ class BftTestNetwork:
         else:
             p = self.procs[replica_id]
             p.kill()
+            for fd in self.open_fds.get(replica_id, ()):
+                fd.close()
             p.wait()
 
         del self.procs[replica_id]
