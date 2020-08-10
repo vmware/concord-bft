@@ -78,6 +78,10 @@ struct ReplicaConfig {
   // a time interval in milliseconds represents the timeout for the detection of timed out pre-execution requests
   uint64_t preExecReqStatusCheckTimerMillisec = 5000;
 
+  // Number of threads to be used by the PreProcessor to execute client requests
+  // If equals to 0, a default number of min(thread::hardware_concurrency(), numOfClients) is used
+  uint16_t preExecConcurrencyLevel = 0;
+
   // public keys of all replicas. map from replica identifier to a public key
   std::set<std::pair<uint16_t, const std::string>> publicKeysOfReplicas;
 
@@ -144,6 +148,7 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
      << "autoPrimaryRotationTimerMillisec: " << rc.autoPrimaryRotationTimerMillisec << "\n"
      << "preExecutionFeatureEnabled: " << rc.preExecutionFeatureEnabled << "\n"
      << "preExecReqStatusCheckTimerMillisec: " << rc.preExecReqStatusCheckTimerMillisec << "\n"
+     << "preExecConcurrencyLevel: " << rc.preExecConcurrencyLevel << "\n"
      << "debugPersistentStorageEnabled: " << rc.debugPersistentStorageEnabled << "\n"
      << "maxExternalMessageSize: " << rc.maxExternalMessageSize << "\n"
      << "maxReplyMessageSize: " << rc.maxReplyMessageSize << "\n"
@@ -184,6 +189,7 @@ class ReplicaConfigSingleton {
   }
   bool GetPreExecutionFeatureEnabled() const { return config_->preExecutionFeatureEnabled; }
   uint64_t GetPreExecReqStatusCheckTimerMillisec() const { return config_->preExecReqStatusCheckTimerMillisec; }
+  uint16_t GetPreExecConcurrencyLevel() const { return config_->preExecConcurrencyLevel; }
   std::string GetReplicaPrivateKey() const { return config_->replicaPrivateKey; }
 
   IThresholdSigner const* GetThresholdSignerForExecution() const { return config_->thresholdSignerForExecution; }
