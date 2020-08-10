@@ -410,7 +410,10 @@ class BftTestNetwork:
             self._stop_external_replica(replica_id)
         else:
             p = self.procs[replica_id]
-            p.kill()
+            if os.environ.get('LEAKCHECK', "").lower() in set(["true", "on"]):
+                p.terminate()
+            else:
+                p.kill()
             for fd in self.open_fds.get(replica_id, ()):
                 fd.close()
             p.wait()
