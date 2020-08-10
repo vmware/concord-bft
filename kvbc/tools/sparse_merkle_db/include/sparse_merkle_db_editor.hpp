@@ -18,6 +18,7 @@
 #include "hex_tools.h"
 #include "merkle_tree_block.h"
 #include "merkle_tree_db_adapter.h"
+#include "storage/db_types.h"
 #include "rocksdb/client.h"
 #include "sliver.hpp"
 
@@ -37,7 +38,6 @@
 namespace concord::kvbc::tools::sparse_merkle_db {
 
 using namespace std::string_literals;
-
 template <typename Tag>
 struct Arguments {
   std::vector<std::string> values;
@@ -185,6 +185,28 @@ struct GetValue {
   }
 };
 
+struct RemoveMetadata {
+  std::string description() const {
+    return "removeMetadata\n"
+           "Removes metadata and state transfer data from RocksDB";
+  }
+  std::string execute(const v2MerkleTree::DBAdapter &adapter, const CommandArguments &) const {
+    using storage::v2MerkleTree::detail::EDBKeyType;
+
+    static_assert(static_cast<uint8_t>(EDBKeyType::BFT) + 1 == static_cast<uint8_t>(EDBKeyType::Key),
+                  "Key has to be after BFT, if not please review this functionality");
+
+    const concordUtils::Sliver begin{std::string{static_cast<char>(EDBKeyType::BFT)}};
+    const concordUtils::Sliver end{std::string{static_cast<char>(EDBKeyType::Key)}};
+
+    const auto status = adapter.getDb()->rangeDel(begin, end);
+    if (!status.isOK()) {
+      throw std::runtime_error{"Failed to delete metadata and state transfer data: " + status.toString()};
+    }
+    return toJson(std::string{"result"}, std::string{"true"});
+  }
+};
+
 using Command = std::variant<GetGenesisBlockID,
                              GetLastReachableBlockID,
                              GetLastBlockID,
@@ -192,7 +214,8 @@ using Command = std::variant<GetGenesisBlockID,
                              GetRawBlockRange,
                              GetBlockInfo,
                              GetBlockKeyValues,
-                             GetValue>;
+                             GetValue,
+                             RemoveMetadata>;
 inline const auto commands_map = std::map<std::string, Command>{
     std::make_pair("getGenesisBlockID", GetGenesisBlockID{}),
     std::make_pair("getLastReachableBlockID", GetLastReachableBlockID{}),
@@ -202,6 +225,7 @@ inline const auto commands_map = std::map<std::string, Command>{
     std::make_pair("getBlockInfo", GetBlockInfo{}),
     std::make_pair("getBlockKeyValues", GetBlockKeyValues{}),
     std::make_pair("getValue", GetValue{}),
+    std::make_pair("removeMetadata", RemoveMetadata{}),
 };
 
 inline std::string usage() {
@@ -255,9 +279,10 @@ inline int run(const CommandLineArguments &cmd_line_args, std::ostream &out, std
 
   try {
     auto db = std::make_shared<storage::rocksdb::Client>(cmd_line_args.values[1]);
-    const auto read_only = true;
+    const auto read_only = false;
     db->init(read_only);
-    const auto adapter = v2MerkleTree::DBAdapter{db};
+
+    auto adapter = v2MerkleTree::DBAdapter{db};
     const auto output =
         std::visit([&](const auto &command) { return command.execute(adapter, command_arguments(cmd_line_args)); },
                    cmd_it->second);
