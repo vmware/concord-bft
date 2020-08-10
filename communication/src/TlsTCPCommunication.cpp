@@ -419,6 +419,9 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   }
 
   bool verify_certificate_server(bool preverified, boost::asio::ssl::verify_context &ctx) {
+    if (X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT != X509_STORE_CTX_get_error(ctx.native_handle())) {
+      return false;
+    }
     char subject[512];
     X509 *cert = X509_STORE_CTX_get_current_cert(ctx.native_handle());
     if (!cert) {
@@ -434,6 +437,9 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   }
 
   bool verify_certificate_client(bool preverified, boost::asio::ssl::verify_context &ctx) {
+    if (X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT != X509_STORE_CTX_get_error(ctx.native_handle())) {
+      return false;
+    }
     char subject[256];
     X509 *cert = X509_STORE_CTX_get_current_cert(ctx.native_handle());
     if (!cert) {
