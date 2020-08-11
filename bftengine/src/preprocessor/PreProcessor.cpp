@@ -484,8 +484,8 @@ void PreProcessor::handleClientPreProcessRequestByPrimary(ClientPreProcessReqMsg
                                         requestSeqNum,
                                         clientReqMsg->requestLength(),
                                         clientReqMsg->requestBuf(),
-                                        clientReqMsg->getCid(),
-                                        clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>());
+                                        clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>(),
+                                        clientReqMsg->getCid());
   if (registerRequest(move(clientReqMsg), preProcessRequestMsg)) {
     sendPreProcessRequestToAllReplicas(preProcessRequestMsg);
     // Pre-process the request and calculate a hash of the result
