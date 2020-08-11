@@ -102,7 +102,6 @@ class UdpClient:
         self.reply = None
         self.retries = 0
         self.msgs_sent = 0
-        self.reply_quorum = 2 * config.f + config.c + 1
         self.port = BASE_PORT + 2 * self.client_id
         self.sock_bound = False
         self.replies_manager = rsi.RepliesManager()
