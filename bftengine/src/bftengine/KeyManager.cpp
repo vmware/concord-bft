@@ -39,8 +39,16 @@ std::string KeyManager::KeyExchangeMsg::toString() const {
   return ss.str();
 }
 
+<<<<<<< HEAD
 KeyManager::KeyManager(InternalBFTClient* cl, const int& id, const uint32_t& clusterSize)
     : repID_(id), clusterSize_(clusterSize), client_(cl) {}
+=======
+void KeyManager::init(InternalBFTClient* cl, const int& id, const uint32_t& clusterSize) {
+  repID_ = id;
+  client_ = cl;
+  clusterSize_ = clusterSize;
+}
+>>>>>>> 98915da... Add internal BFT client
 
 /*
 Usage:

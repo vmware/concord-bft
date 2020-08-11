@@ -79,7 +79,7 @@ void ClientsManager::initInternalClientInfo(const int& numReplicas) {
     indexToClientInfo_[currIdx].lastSeqNumberOfReply = 0;
     indexToClientInfo_[currIdx].latestReplyTime = MinTime;
     LOG_DEBUG(GL,
-              "Adding internal client, id [" << currClId << "] as index [" << currIdx << "] vactor size "
+              "Adding internal client, id [" << currClId << "] as index [" << currIdx << "] vector size "
                                              << indexToClientInfo_.size());
   }
 }
@@ -137,6 +137,9 @@ void ClientsManager::loadInfoFromReservedPages() {
 
 ReqId ClientsManager::seqNumberOfLastReplyToClient(NodeIdType clientId) {
   uint16_t idx = clientIdToIndex_.at(clientId);
+  LOG_DEBUG(GL,
+            "seqNumberOfLastReplyToClient id [" << clientId << "] as index [" << idx << "] vec size "
+                                                << indexToClientInfo_.size());
   ReqId retVal = indexToClientInfo_.at(idx).lastSeqNumberOfReply;
   return retVal;
 }
