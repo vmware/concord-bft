@@ -128,6 +128,10 @@ template <class T>
 void onMessage(T *);
 
 void ReplicaImp::send(MessageBase *m, NodeIdType dest) {
+  if (clientsManager->isInternal(dest)) {
+    LOG_DEBUG(GL, "Not sending reply to internal client id - " << dest);
+    return;
+  }
   // debug code begin
   if (m->type() == MsgCode::Checkpoint && static_cast<CheckpointMsg *>(m)->digestOfState().isZero())
     LOG_WARN(GL, "Debug: checkpoint digest is zero");
@@ -3153,10 +3157,18 @@ ReplicaImp::ReplicaImp(bool firstTime,
   std::set<NodeIdType> clientsSet;
   const auto numOfEntities = config_.numReplicas + config_.numOfClientProxies + config_.numOfExternalClients;
   for (uint16_t i = config_.numReplicas; i < numOfEntities; i++) clientsSet.insert(i);
-  clientsManager =
-      new ClientsManager(config_.replicaId, clientsSet, ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage());
-  clientsManager->setNumResPages((config_.numOfClientProxies + config_.numOfExternalClients) *
-                                 config_.maxReplyMessageSize / config_.sizeOfReservedPage);
+  clientsManager = new ClientsManager(config_.replicaId,
+                                      clientsSet,
+                                      ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage(),
+                                      ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize());
+  clientsManager->initInternalClientInfo(config_.numReplicas);
+  internalBFTClient_.reset(
+      new InternalBFTClient(config_.replicaId, clientsManager->getHighestIdOfNonInternalClient(), msgsCommunicator_));
+
+  KeyManager::get(internalBFTClient_.get(), config_.replicaId, config_.numReplicas);
+  ClientsManager::setNumResPages(
+      (config.numOfClientProxies + config.numOfExternalClients + config.numReplicas) *
+      ClientsManager::reservedPagesPerClient(config.sizeOfReservedPage, config.maxReplyMessageSize));
   clientsManager->init(stateTransfer.get());
 
   // autoPrimaryRotationEnabled implies viewChangeProtocolEnabled

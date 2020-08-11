@@ -27,7 +27,10 @@ class ClientRequestMsg;
 
 class ClientsManager : public ResPagesClient<ClientsManager, 0> {
  public:
-  ClientsManager(ReplicaId myId, std::set<NodeIdType>& clientsSet, uint32_t sizeOfReservedPage);
+  ClientsManager(ReplicaId myId,
+                 std::set<NodeIdType>& clientsSet,
+                 uint32_t sizeOfReservedPage,
+                 const uint32_t& maxReplySize);
   ~ClientsManager();
 
   void init(IStateTransfer* stateTransfer);
@@ -75,6 +78,17 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
 
   Time timeOfEarliestPendingRequest() const;
 
+  // Internal Clients
+  void initInternalClientInfo(const int& numReplicas);
+  inline bool isInternal(NodeIdType clientId) const { return clientId > highestIdOfNonInternalClient_; };
+
+  // Returns the ID of the last client before internal clients.
+  NodeIdType getHighestIdOfNonInternalClient();
+
+  // General
+  static uint32_t reservedPagesPerClient(const uint32_t& sizeOfReservedPage, const uint32_t& maxReplysize);
+  int getIndexOfClient(const NodeIdType& id) const;
+
  protected:
   const ReplicaId myId_;
   const uint32_t sizeOfReservedPage_;
@@ -85,6 +99,9 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
 
   uint32_t reservedPagesPerClient_;
   uint32_t requiredNumberOfPages_;
+
+  uint16_t numOfClients_{0};
+  NodeIdType highestIdOfNonInternalClient_{0};
 
   std::map<NodeIdType, uint16_t> clientIdToIndex_;
 
@@ -99,6 +116,7 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
   };
 
   std::vector<ClientInfo> indexToClientInfo_;
+  uint32_t maxReplysize_{};
 };
 }  // namespace impl
 }  // namespace bftEngine
