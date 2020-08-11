@@ -61,25 +61,23 @@ class MofNQuorum:
         self.required = required
 
     @classmethod
-    def LinearizableQuorum(cls, config):
+    def LinearizableQuorum(cls, config, replicas):
         f = config.f
         c = config.c
-        n = 3 * f + 2 * c + 1
-        return MofNQuorum([i for i in range(n)], 2*f + c + 1)
+        return MofNQuorum(replicas, 2*f + c + 1)
 
     @classmethod
-    def ByzantineSafeQuorum(cls, config):
+    def ByzantineSafeQuorum(cls, config, replicas):
         f = config.f
         c = config.c
-        n = 3 * f + 2 * c + 1
-        return MofNQuorum([i for i in range(n)], f + 1)
+        return MofNQuorum(replicas, f + 1)
 
     @classmethod
-    def All(cls, config):
+    def All(cls, config, replicas):
         f = config.f
         c = config.c
         n = 3 * f + 2 * c + 1
-        return MofNQuorum([i for i in range(n)], n)
+        return MofNQuorum(replicas, n)
 
 
 class UdpClient:
@@ -149,7 +147,7 @@ class UdpClient:
             self.client_id, seq_num, read_only, self.config.req_timeout_milli, cid, msg, pre_process)
 
         if m_of_n_quorum is None:
-            m_of_n_quorum = MofNQuorum.LinearizableQuorum(self.config)
+            m_of_n_quorum = MofNQuorum.LinearizableQuorum(self.config, [r.id for r in self.replicas])
 
         # Raise a trio.TooSlowError exception if a quorum of replies
         try:
