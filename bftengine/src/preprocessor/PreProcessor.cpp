@@ -132,7 +132,8 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   for (auto id = 0; id < numOfClients_; id++) {
     preProcessResultBuffers_.push_back(Sliver(new char[maxReplyMsgSize_], maxReplyMsgSize_));
   }
-  const uint64_t numOfThreads = min((uint16_t)thread::hardware_concurrency(), numOfClients_);
+  uint64_t numOfThreads = myReplica.getReplicaConfig().preExecConcurrencyLevel;
+  if (!numOfThreads) numOfThreads = min((uint16_t)thread::hardware_concurrency(), numOfClients_);
   threadPool_.start(numOfThreads);
   LOG_INFO(logger(), KVLOG(firstClientId, numOfClients_, preExecReqStatusCheckPeriodMilli_, numOfThreads));
   RequestProcessingState::init(numOfRequiredReplies());
@@ -352,10 +353,7 @@ void PreProcessor::handlePreProcessReplyMsg(const string &cid,
         if (clientEntry->reqProcessingStatePtr)
           preProcessRequestMsg = clientEntry->reqProcessingStatePtr->getPreProcessRequest();
       }
-      if (preProcessRequestMsg)
-        launchAsyncReqPreProcessingJob(preProcessRequestMsg, true, true);
-      else
-        LOG_INFO(logger(), "No ongoing pre-processing activity detected for " << KVLOG(clientId));
+      if (preProcessRequestMsg) launchAsyncReqPreProcessingJob(preProcessRequestMsg, true, true);
   }
 }
 
@@ -375,14 +373,13 @@ void PreProcessor::cancelPreProcessing(NodeIdType clientId) {
 }
 
 void PreProcessor::finalizePreProcessing(NodeIdType clientId) {
-  SeqNum reqSeqNum = 0;
   unique_ptr<ClientRequestMsg> clientRequestMsg;
   const auto &clientEntry = ongoingRequests_[clientId];
   {
     lock_guard<mutex> lock(clientEntry->mutex);
     auto &reqProcessingStatePtr = clientEntry->reqProcessingStatePtr;
     if (reqProcessingStatePtr) {
-      reqSeqNum = reqProcessingStatePtr->getReqSeqNum();
+      const auto &reqSeqNum = reqProcessingStatePtr->getReqSeqNum();
       // Copy of the message body is unavoidable here, as we need to create a new message type which lifetime is
       // controlled by the replica while all PreProcessReply messages get released here.
       clientRequestMsg = make_unique<ClientRequestMsg>(clientId,
@@ -396,9 +393,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId) {
       preProcessorMetrics_.preProcReqSentForFurtherProcessing.Get().Inc();
       releaseClientPreProcessRequest(clientEntry, clientId, COMPLETE);
       LOG_INFO(logger(), "Pre-processing completed for " << KVLOG(reqSeqNum, clientId));
-    } else
-      LOG_INFO(logger(),
-               "No actions required: pre-processing has been already completed for " << KVLOG(reqSeqNum, clientId));
+    }
   }
 }
 
