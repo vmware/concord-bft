@@ -14,7 +14,7 @@ import unittest
 import struct
 
 import bft_msgs
-import specific_replica_info as rsi
+import replica_specific_info as rsi
 
 
 class TestSpecificReplyInfoManager(unittest.TestCase):

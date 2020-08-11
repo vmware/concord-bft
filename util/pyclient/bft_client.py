@@ -16,7 +16,7 @@ import trio
 import time
 
 import bft_msgs
-import specific_replica_info as sri
+import replica_specific_info as rsi
 from bft_config import Config, Replica
 
 # All test communication expects ports to start from 3710
@@ -105,7 +105,7 @@ class UdpClient:
         self.reply_quorum = 2 * config.f + config.c + 1
         self.port = BASE_PORT + 2 * self.client_id
         self.sock_bound = False
-        self.replies_manager = sri.RepliesManager()
+        self.replies_manager = rsi.RepliesManager()
         self.rsi_replies = dict()
 
     async def write(self, msg, seq_num=None, cid=None, pre_process=False, m_of_n_quorum=None):
@@ -226,7 +226,7 @@ class UdpClient:
         """
         while True:
             data, sender = await self.sock.recvfrom(self.config.max_msg_size)
-            sri_msg = sri.MsgWithSpecificReplicaInfo(data, sender)
+            sri_msg = rsi.MsgWithSpecificReplicaInfo(data, sender)
             quorum_size = self.replies_manager.add_reply(sri_msg)
             if quorum_size == required_quorum_size:
                 header, self.reply = sri_msg.get_common_reply()
