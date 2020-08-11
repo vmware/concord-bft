@@ -10,6 +10,7 @@
 // file.
 
 #include <bftengine/ClientMsgs.hpp>
+#include "OpenTracing.hpp"
 #include "PrePrepareMsg.hpp"
 #include "SysConsts.hpp"
 #include "Crypto.hpp"
@@ -63,16 +64,20 @@ void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
 }
 
 PrePrepareMsg::PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, size_t size)
-    : PrePrepareMsg(sender, v, s, firstPath, "", size) {}
+    : PrePrepareMsg(sender, v, s, firstPath, concordUtils::SpanContext{}, size) {}
 
-PrePrepareMsg::PrePrepareMsg(
-    ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, const std::string& spanContext, size_t size)
+PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
+                             ViewNum v,
+                             SeqNum s,
+                             CommitPath firstPath,
+                             const concordUtils::SpanContext& spanContext,
+                             size_t size)
     : MessageBase(sender,
                   MsgCode::PrePrepare,
-                  spanContext.size(),
+                  spanContext.data().size(),
                   (((size + sizeof(Header)) < maxMessageSize<PrePrepareMsg>())
                        ? (size + sizeof(Header))
-                       : maxMessageSize<PrePrepareMsg>() - spanContext.size()))
+                       : maxMessageSize<PrePrepareMsg>() - spanContext.data().size()))
 
 {
   bool ready = size == 0;  // if null, then message is ready
@@ -89,7 +94,7 @@ PrePrepareMsg::PrePrepareMsg(
   b()->viewNum = v;
 
   char* position = body() + sizeof(Header);
-  memcpy(position, spanContext.data(), b()->header.spanContextSize);
+  memcpy(position, spanContext.data().data(), b()->header.spanContextSize);
 }
 
 uint32_t PrePrepareMsg::remainingSizeForRequests() const {

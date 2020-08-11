@@ -364,7 +364,7 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
   controller->onSendingPrePrepare((primaryLastUsedSeqNum + 1), firstPath);
 
   ClientRequestMsg *nextRequest = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
-  const auto &span_context = nextRequest ? nextRequest->spanContext<ClientRequestMsg>() : std::string{};
+  const auto &span_context = nextRequest ? nextRequest->spanContext<ClientRequestMsg>() : concordUtils::SpanContext{};
 
   PrePrepareMsg *pp = new PrePrepareMsg(
       config_.replicaId, curView, (primaryLastUsedSeqNum + 1), firstPath, span_context, primaryCombinedReqSize);
@@ -1251,8 +1251,11 @@ void ReplicaImp::onPrepareCombinedSigFailed(SeqNum seqNumber,
   // TODO(GG): add logic that handles bad replicas ...
 }
 
-void ReplicaImp::onPrepareCombinedSigSucceeded(
-    SeqNum seqNumber, ViewNum view, const char *combinedSig, uint16_t combinedSigLen, const std::string &span_context) {
+void ReplicaImp::onPrepareCombinedSigSucceeded(SeqNum seqNumber,
+                                               ViewNum view,
+                                               const char *combinedSig,
+                                               uint16_t combinedSigLen,
+                                               const concordUtils::SpanContext &span_context) {
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(seqNumber));
   SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
@@ -1341,8 +1344,11 @@ void ReplicaImp::onCommitCombinedSigFailed(SeqNum seqNumber,
   // TODO(GG): add logic that handles bad replicas ...
 }
 
-void ReplicaImp::onCommitCombinedSigSucceeded(
-    SeqNum seqNumber, ViewNum view, const char *combinedSig, uint16_t combinedSigLen, const std::string &span_context) {
+void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
+                                              ViewNum view,
+                                              const char *combinedSig,
+                                              uint16_t combinedSigLen,
+                                              const concordUtils::SpanContext &span_context) {
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(seqNumber));
   SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));

@@ -12,6 +12,7 @@
 #pragma once
 
 #include <type_traits>
+#include "OpenTracing.hpp"
 #include "SysConsts.hpp"
 #include "PrimitiveTypes.hpp"
 #include "MsgCode.hpp"
@@ -65,8 +66,8 @@ class MessageBase {
   SpanContextSize spanContextSize() const { return msgBody_->spanContextSize; }
 
   template <typename MessageT>
-  std::string spanContext() const {
-    return std::string(body() + sizeOfHeader<MessageT>(), spanContextSize());
+  concordUtils::SpanContext spanContext() const {
+    return concordUtils::SpanContext{std::string(body() + sizeOfHeader<MessageT>(), spanContextSize())};
   }
 
   MessageBase *cloneObjAndMsg() const;

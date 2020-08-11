@@ -15,14 +15,17 @@
 namespace bftEngine {
 namespace impl {
 
-CheckpointMsg::CheckpointMsg(
-    ReplicaId senderId, SeqNum seqNum, const Digest& stateDigest, bool stateIsStable, const std::string& spanContext)
-    : MessageBase(senderId, MsgCode::Checkpoint, spanContext.size(), sizeof(Header)) {
+CheckpointMsg::CheckpointMsg(ReplicaId senderId,
+                             SeqNum seqNum,
+                             const Digest& stateDigest,
+                             bool stateIsStable,
+                             const concordUtils::SpanContext& spanContext)
+    : MessageBase(senderId, MsgCode::Checkpoint, spanContext.data().size(), sizeof(Header)) {
   b()->seqNum = seqNum;
   b()->stateDigest = stateDigest;
   b()->flags = 0;
   if (stateIsStable) b()->flags |= 0x1;
-  std::memcpy(body() + sizeof(Header), spanContext.data(), spanContext.size());
+  std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
 }
 
 void CheckpointMsg::validate(const ReplicasInfo& repInfo) const {

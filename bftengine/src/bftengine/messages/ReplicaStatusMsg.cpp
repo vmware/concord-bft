@@ -51,10 +51,10 @@ ReplicaStatusMsg::ReplicaStatusMsg(ReplicaId senderId,
                                    bool listOfPPInActiveWindow,
                                    bool listOfMissingVCForVC,
                                    bool listOfMissingPPForVC,
-                                   const std::string& spanContext)
+                                   const concordUtils::SpanContext& spanContext)
     : MessageBase(senderId,
                   MsgCode::ReplicaStatus,
-                  spanContext.size(),
+                  spanContext.data().size(),
                   calcSizeOfReplicaStatusMsg(listOfPPInActiveWindow, listOfMissingVCForVC, listOfMissingPPForVC)) {
   ConcordAssert(lastExecutedSeqNum >= lastStableSeqNum);
   ConcordAssert(lastStableSeqNum % checkpointWindowSize == 0);
@@ -79,7 +79,7 @@ ReplicaStatusMsg::ReplicaStatusMsg(ReplicaId senderId,
   } else if (listOfMissingPPForVC) {
     b()->flags |= powersOf2[4];
   }
-  std::memcpy(body() + sizeof(ReplicaStatusMsg::Header), spanContext.data(), spanContext.size());
+  std::memcpy(body() + sizeof(ReplicaStatusMsg::Header), spanContext.data().data(), spanContext.data().size());
   if (size() > sizeof(ReplicaStatusMsg::Header) + spanContextSize()) {
     // write zero to all bits in list
     MsgSize listSize = size() - payloadShift();

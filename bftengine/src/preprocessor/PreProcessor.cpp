@@ -484,8 +484,8 @@ void PreProcessor::handleClientPreProcessRequestByPrimary(ClientPreProcessReqMsg
                                         requestSeqNum,
                                         clientReqMsg->requestLength(),
                                         clientReqMsg->requestBuf(),
-                                        clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>(),
-                                        clientReqMsg->getCid());
+                                        clientReqMsg->getCid(),
+                                        clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>());
   if (registerRequest(move(clientReqMsg), preProcessRequestMsg)) {
     sendPreProcessRequestToAllReplicas(preProcessRequestMsg);
     // Pre-process the request and calculate a hash of the result
@@ -529,8 +529,11 @@ void PreProcessor::launchAsyncReqPreProcessingJob(const PreProcessRequestMsgShar
   threadPool_.add(preProcessJob);
 }
 
-uint32_t PreProcessor::launchReqPreProcessing(
-    uint16_t clientId, ReqId reqSeqNum, uint32_t reqLength, char *reqBuf, const std::string &span_context) {
+uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
+                                              ReqId reqSeqNum,
+                                              uint32_t reqLength,
+                                              char *reqBuf,
+                                              const concordUtils::SpanContext &span_context) {
   uint32_t resultLen = 0;
   // Unused for now. Replica Specific Info not currently supported in pre-execution.
   uint32_t replicaSpecificInfoLen = 0;

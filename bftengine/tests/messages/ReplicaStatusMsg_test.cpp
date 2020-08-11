@@ -50,7 +50,7 @@ TEST(ReplicaStatusMsg, viewActiveNoLists) {
                        listOfPrePrepareMsgsInActiveWindow,
                        listOfMissingViewChangeMsgForViewChange,
                        listOfMissingPrePrepareMsgForViewChange,
-                       spanContext);
+                       concordUtils::SpanContext{spanContext});
   EXPECT_EQ(msg.getViewNumber(), viewNum);
   EXPECT_EQ(msg.getLastStableSeqNum(), lastStable);
   EXPECT_EQ(msg.getLastExecutedSeqNum(), lastExecuted);
@@ -94,7 +94,7 @@ TEST(ReplicaStatusMsg, haslistOfPrePrepareMsgsInActiveWindow) {
                        listOfPrePrepareMsgsInActiveWindow,
                        listOfMissingViewChangeMsgForViewChange,
                        listOfMissingPrePrepareMsgForViewChange,
-                       spanContext);
+                       concordUtils::SpanContext{spanContext});
   EXPECT_EQ(msg.getViewNumber(), viewNum);
   EXPECT_EQ(msg.getLastStableSeqNum(), lastStable);
   EXPECT_EQ(msg.getLastExecutedSeqNum(), lastExecuted);
@@ -146,7 +146,7 @@ TEST(ReplicaStatusMsg, listOfMissingViewChangeMsgForViewChange) {
                        listOfPrePrepareMsgsInActiveWindow,
                        listOfMissingViewChangeMsgForViewChange,
                        listOfMissingPrePrepareMsgForViewChange,
-                       spanContext);
+                       concordUtils::SpanContext{spanContext});
   EXPECT_EQ(msg.getViewNumber(), viewNum);
   EXPECT_EQ(msg.getLastStableSeqNum(), lastStable);
   EXPECT_EQ(msg.getLastExecutedSeqNum(), lastExecuted);
@@ -193,7 +193,7 @@ TEST(ReplicaStatusMsg, listOfMissingPrePrepareMsgForViewChange) {
                        listOfPrePrepareMsgsInActiveWindow,
                        listOfMissingViewChangeMsgForViewChange,
                        listOfMissingPrePrepareMsgForViewChange,
-                       spanContext);
+                       concordUtils::SpanContext{spanContext});
   EXPECT_EQ(msg.getViewNumber(), viewNum);
   EXPECT_EQ(msg.getLastStableSeqNum(), lastStable);
   EXPECT_EQ(msg.getLastExecutedSeqNum(), lastExecuted);

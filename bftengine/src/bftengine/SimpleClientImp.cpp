@@ -16,6 +16,7 @@
 #include <condition_variable>
 
 #include "ClientMsgs.hpp"
+#include "OpenTracing.hpp"
 #include "SimpleClient.hpp"
 #include "assertUtils.hpp"
 #include "TimeUtils.hpp"
@@ -243,12 +244,12 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
   const Time beginTime = getMonotonicTime();
 
   ClientRequestMsg* reqMsg;
+  concordUtils::SpanContext ctx{span_context};
   if (isPreProcessRequired)
     reqMsg = new preprocessor::ClientPreProcessRequestMsg(
-        clientId_, reqSeqNum, lengthOfRequest, request, timeoutMilli, msgCid, span_context);
+        clientId_, reqSeqNum, lengthOfRequest, request, timeoutMilli, msgCid, ctx);
   else
-    reqMsg =
-        new ClientRequestMsg(clientId_, flags, reqSeqNum, lengthOfRequest, request, timeoutMilli, msgCid, span_context);
+    reqMsg = new ClientRequestMsg(clientId_, flags, reqSeqNum, lengthOfRequest, request, timeoutMilli, msgCid, ctx);
   pendingRequest_ = reqMsg;
 
   sendPendingRequest();

@@ -9,6 +9,7 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+#include "OpenTracing.hpp"
 #include "gtest/gtest.h"
 
 #include "assertUtils.hpp"
@@ -26,7 +27,7 @@ TEST(AskForCheckpointMsg, base_methods) {
   ReplicaId senderId = 1u;
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
-  AskForCheckpointMsg msg(senderId, spanContext);
+  AskForCheckpointMsg msg(senderId, concordUtils::SpanContext{spanContext});
   EXPECT_NO_THROW(msg.validate(replicaInfo));
   testMessageBaseMethods(msg, MsgCode::AskForCheckpoint, senderId, spanContext);
 }

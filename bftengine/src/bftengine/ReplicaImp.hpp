@@ -389,7 +389,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                      ViewNum view,
                                      const char* combinedSig,
                                      uint16_t combinedSigLen,
-                                     const std::string& span_context);
+                                     const concordUtils::SpanContext& span_context);
   void onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid);
 
   void onCommitCombinedSigFailed(SeqNum seqNumber, ViewNum view, const std::set<uint16_t>& replicasWithBadSigs);
@@ -397,7 +397,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                     ViewNum view,
                                     const char* combinedSig,
                                     uint16_t combinedSigLen,
-                                    const std::string& span_context);
+                                    const concordUtils::SpanContext& span_context);
   void onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid);
 
   void onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqNum,

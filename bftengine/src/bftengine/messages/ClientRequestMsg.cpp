@@ -39,15 +39,15 @@ ClientRequestMsg::ClientRequestMsg(NodeIdType sender,
                                    const char* request,
                                    uint64_t reqTimeoutMilli,
                                    const std::string& cid,
-                                   const std::string& spanContext)
+                                   const concordUtils::SpanContext& spanContext)
     : MessageBase(sender,
                   MsgCode::ClientRequest,
-                  spanContext.size(),
+                  spanContext.data().size(),
                   (sizeof(ClientRequestMsgHeader) + requestLength + cid.size())) {
   setParams(sender, reqSeqNum, requestLength, flags, reqTimeoutMilli, cid);
   char* position = body() + sizeof(ClientRequestMsgHeader);
-  memcpy(position, spanContext.data(), spanContext.size());
-  position += spanContext.size();
+  memcpy(position, spanContext.data().data(), spanContext.data().size());
+  position += spanContext.data().size();
   memcpy(position, request, requestLength);
   position += requestLength;
   memcpy(position, cid.data(), cid.size());

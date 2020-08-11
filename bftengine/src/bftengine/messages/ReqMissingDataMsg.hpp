@@ -12,13 +12,17 @@
 #pragma once
 
 #include "MessageBase.hpp"
+#include "OpenTracing.hpp"
 
 namespace bftEngine {
 namespace impl {
 
 class ReqMissingDataMsg : public MessageBase {
  public:
-  ReqMissingDataMsg(ReplicaId senderId, ViewNum v, SeqNum s, const std::string& spanContext = "");
+  ReqMissingDataMsg(ReplicaId senderId,
+                    ViewNum v,
+                    SeqNum s,
+                    const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
   ViewNum viewNumber() const { return b()->viewNum; }
 

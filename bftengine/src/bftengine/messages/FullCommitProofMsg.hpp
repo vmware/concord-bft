@@ -24,7 +24,7 @@ class FullCommitProofMsg : public MessageBase {
                      SeqNum s,
                      const char* commitProofSig,
                      uint16_t commitProofSigLength,
-                     const std::string& spanContext = "");
+                     const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
   ViewNum viewNumber() const { return b()->viewNum; }
 

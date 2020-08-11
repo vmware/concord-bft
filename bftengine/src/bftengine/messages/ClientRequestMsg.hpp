@@ -36,7 +36,7 @@ class ClientRequestMsg : public MessageBase {
                    const char* request,
                    uint64_t reqTimeoutMilli,
                    const std::string& cid = "",
-                   const std::string& spanContext = "");
+                   const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
   ClientRequestMsg(ClientRequestMsgHeader* body);
 

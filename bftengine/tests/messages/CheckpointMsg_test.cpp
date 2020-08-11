@@ -33,7 +33,7 @@ TEST(CheckpointMsg, base_methods) {
   const std::string correlationId = "correlationId";
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
-  CheckpointMsg msg(senderId, reqSeqNum, digest, isStable, spanContext);
+  CheckpointMsg msg(senderId, reqSeqNum, digest, isStable, concordUtils::SpanContext{spanContext});
   EXPECT_EQ(msg.seqNumber(), reqSeqNum);
   EXPECT_EQ(msg.isStableState(), isStable);
   msg.setStateAsStable();

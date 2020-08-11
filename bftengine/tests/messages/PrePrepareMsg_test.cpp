@@ -12,6 +12,7 @@
 #include <cstring>
 #include <iostream>
 #include <memory>
+#include "OpenTracing.hpp"
 #include "gtest/gtest.h"
 #include "messages/PrePrepareMsg.hpp"
 #include "messages/ClientRequestMsg.hpp"
@@ -39,8 +40,14 @@ ClientRequestMsg create_client_request() {
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
 
-  return ClientRequestMsg(
-      1u, 'F', reqSeqNum, sizeof(request), request, requestTimeoutMilli, correlationId, spanContext);
+  return ClientRequestMsg(1u,
+                          'F',
+                          reqSeqNum,
+                          sizeof(request),
+                          request,
+                          requestTimeoutMilli,
+                          correlationId,
+                          concordUtils::SpanContext{spanContext});
 }
 
 TEST(PrePrepareMsg, create_and_compare) {
@@ -56,7 +63,8 @@ TEST(PrePrepareMsg, create_and_compare) {
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ClientRequestMsg client_request = create_client_request();
-  PrePrepareMsg msg(senderId, viewNum, seqNum, commitPath, spanContext, client_request.size() * 2);
+  PrePrepareMsg msg(
+      senderId, viewNum, seqNum, commitPath, concordUtils::SpanContext{spanContext}, client_request.size() * 2);
   EXPECT_EQ(msg.viewNumber(), viewNum);
   EXPECT_EQ(msg.seqNumber(), seqNum);
   EXPECT_EQ(msg.firstPath(), commitPath);
@@ -91,7 +99,8 @@ TEST(PrePrepareMsg, create_null_message) {
   CommitPath commitPath = CommitPath::OPTIMISTIC_FAST;
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
-  auto null_msg = std::make_unique<PrePrepareMsg>(senderId, viewNum, seqNum, commitPath, spanContext, 0);
+  auto null_msg =
+      std::make_unique<PrePrepareMsg>(senderId, viewNum, seqNum, commitPath, concordUtils::SpanContext{spanContext}, 0);
 
   auto& msg = *null_msg;
   EXPECT_EQ(msg.viewNumber(), viewNum);
@@ -113,7 +122,8 @@ TEST(PrePrepareMsg, base_methods) {
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ClientRequestMsg client_request = create_client_request();
-  PrePrepareMsg msg(senderId, viewNum, seqNum, commitPath, spanContext, client_request.size());
+  PrePrepareMsg msg(
+      senderId, viewNum, seqNum, commitPath, concordUtils::SpanContext{spanContext}, client_request.size());
   msg.addRequest(client_request.body(), client_request.size());
   msg.finishAddingRequests();
   EXPECT_NO_THROW(msg.validate(replicaInfo));

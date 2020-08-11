@@ -14,13 +14,17 @@
 #include <locale>
 #include <string>
 #include "MessageBase.hpp"
+#include "OpenTracing.hpp"
 
 namespace bftEngine {
 namespace impl {
 
 class StartSlowCommitMsg : public MessageBase {
  public:
-  StartSlowCommitMsg(ReplicaId senderId, ViewNum v, SeqNum s, const std::string& spanContext = "");
+  StartSlowCommitMsg(ReplicaId senderId,
+                     ViewNum v,
+                     SeqNum s,
+                     const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
   ViewNum viewNumber() const { return b()->viewNum; }
 

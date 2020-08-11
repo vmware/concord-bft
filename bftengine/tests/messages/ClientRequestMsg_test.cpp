@@ -31,8 +31,14 @@ TEST(ClientRequestMsg, create_and_compare) {
   const std::string correlationId = "correlationId";
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
-  ClientRequestMsg msg(
-      senderId, flags, reqSeqNum, sizeof(request), request, requestTimeoutMilli, correlationId, spanContext);
+  ClientRequestMsg msg(senderId,
+                       flags,
+                       reqSeqNum,
+                       sizeof(request),
+                       request,
+                       requestTimeoutMilli,
+                       correlationId,
+                       concordUtils::SpanContext{spanContext});
 
   EXPECT_EQ(msg.clientProxyId(), senderId);
   EXPECT_EQ(msg.flags(), flags);
@@ -41,7 +47,7 @@ TEST(ClientRequestMsg, create_and_compare) {
   EXPECT_NE(msg.requestBuf(), request);
   EXPECT_TRUE(std::memcmp(msg.requestBuf(), request, sizeof(request)) == 0u);
   EXPECT_EQ(msg.getCid(), correlationId);
-  EXPECT_EQ(msg.spanContext<ClientRequestMsg>(), spanContext);
+  EXPECT_EQ(msg.spanContext<ClientRequestMsg>().data(), spanContext);
   EXPECT_EQ(msg.requestTimeoutMilli(), requestTimeoutMilli);
   EXPECT_NO_THROW(msg.validate(replicaInfo));
   destroyReplicaConfig(config);
@@ -58,8 +64,14 @@ TEST(ClientRequestMsg, create_and_compare_with_empty_span) {
   const std::string correlationId = "correlationId";
   const char rawSpanContext[] = {""};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
-  ClientRequestMsg msg(
-      senderId, flags, reqSeqNum, sizeof(request), request, requestTimeoutMilli, correlationId, spanContext);
+  ClientRequestMsg msg(senderId,
+                       flags,
+                       reqSeqNum,
+                       sizeof(request),
+                       request,
+                       requestTimeoutMilli,
+                       correlationId,
+                       concordUtils::SpanContext{spanContext});
 
   EXPECT_EQ(msg.clientProxyId(), senderId);
   EXPECT_EQ(msg.flags(), flags);
@@ -68,7 +80,7 @@ TEST(ClientRequestMsg, create_and_compare_with_empty_span) {
   EXPECT_NE(msg.requestBuf(), request);
   EXPECT_TRUE(std::memcmp(msg.requestBuf(), request, sizeof(request)) == 0u);
   EXPECT_EQ(msg.getCid(), correlationId);
-  EXPECT_EQ(msg.spanContext<ClientRequestMsg>(), spanContext);
+  EXPECT_EQ(msg.spanContext<ClientRequestMsg>().data(), spanContext);
   EXPECT_NO_THROW(msg.validate(replicaInfo));
   destroyReplicaConfig(config);
 }
@@ -84,8 +96,14 @@ TEST(ClientRequestMsg, create_and_compare_with_empty_cid) {
   const std::string correlationId = "";
   const char rawSpanContext[] = {""};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
-  ClientRequestMsg msg(
-      senderId, flags, reqSeqNum, sizeof(request), request, requestTimeoutMilli, correlationId, spanContext);
+  ClientRequestMsg msg(senderId,
+                       flags,
+                       reqSeqNum,
+                       sizeof(request),
+                       request,
+                       requestTimeoutMilli,
+                       correlationId,
+                       concordUtils::SpanContext{spanContext});
 
   EXPECT_EQ(msg.clientProxyId(), senderId);
   EXPECT_EQ(msg.flags(), flags);
@@ -94,7 +112,7 @@ TEST(ClientRequestMsg, create_and_compare_with_empty_cid) {
   EXPECT_NE(msg.requestBuf(), request);
   EXPECT_TRUE(std::memcmp(msg.requestBuf(), request, sizeof(request)) == 0u);
   EXPECT_EQ(msg.getCid(), correlationId);
-  EXPECT_EQ(msg.spanContext<ClientRequestMsg>(), spanContext);
+  EXPECT_EQ(msg.spanContext<ClientRequestMsg>().data(), spanContext);
   EXPECT_EQ(msg.requestTimeoutMilli(), requestTimeoutMilli);
   EXPECT_NO_THROW(msg.validate(replicaInfo));
   destroyReplicaConfig(config);
@@ -111,8 +129,14 @@ TEST(ClientRequestMsg, create_from_buffer) {
   const std::string correlationId = "correlationId";
   const char rawSpanContext[] = {""};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
-  ClientRequestMsg originalMsg(
-      senderId, flags, reqSeqNum, sizeof(request), request, requestTimeoutMilli, correlationId, spanContext);
+  ClientRequestMsg originalMsg(senderId,
+                               flags,
+                               reqSeqNum,
+                               sizeof(request),
+                               request,
+                               requestTimeoutMilli,
+                               correlationId,
+                               concordUtils::SpanContext{spanContext});
 
   ClientRequestMsg copy_msg((ClientRequestMsgHeader*)originalMsg.body());
 
@@ -123,7 +147,7 @@ TEST(ClientRequestMsg, create_from_buffer) {
   EXPECT_EQ(originalMsg.requestBuf(), copy_msg.requestBuf());
   EXPECT_TRUE(std::memcmp(originalMsg.requestBuf(), copy_msg.requestBuf(), sizeof(request)) == 0u);
   EXPECT_EQ(originalMsg.getCid(), copy_msg.getCid());
-  EXPECT_EQ(originalMsg.spanContext<ClientRequestMsg>(), copy_msg.spanContext<ClientRequestMsg>());
+  EXPECT_EQ(originalMsg.spanContext<ClientRequestMsg>().data(), copy_msg.spanContext<ClientRequestMsg>().data());
   EXPECT_EQ(originalMsg.requestTimeoutMilli(), requestTimeoutMilli);
   EXPECT_NO_THROW(originalMsg.validate(replicaInfo));
   destroyReplicaConfig(config);
@@ -141,8 +165,14 @@ TEST(ClientRequestMsg, base_methods) {
   const std::string correlationId = "correlationId";
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
-  ClientRequestMsg msg(
-      senderId, flags, reqSeqNum, sizeof(request), request, requestTimeoutMilli, correlationId, spanContext);
+  ClientRequestMsg msg(senderId,
+                       flags,
+                       reqSeqNum,
+                       sizeof(request),
+                       request,
+                       requestTimeoutMilli,
+                       correlationId,
+                       concordUtils::SpanContext{spanContext});
   EXPECT_NO_THROW(msg.validate(replicaInfo));
   testMessageBaseMethods(msg, MsgCode::ClientRequest, senderId, spanContext);
   destroyReplicaConfig(config);

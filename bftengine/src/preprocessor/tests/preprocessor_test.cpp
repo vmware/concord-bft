@@ -43,7 +43,7 @@ const uint16_t reqWaitTimeoutMilli = 50;
 const ReqId reqSeqNum = 123456789;
 const uint16_t clientId = 9;
 const string cid = "abcd";
-const string sp = "span";
+const concordUtils::SpanContext span;
 const NodeIdType replica_0 = 0;
 const NodeIdType replica_1 = 1;
 const NodeIdType replica_2 = 2;
@@ -470,7 +470,7 @@ TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
   ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId) == reqSeqNum);
 
   auto* preProcessReqMsg =
-      new PreProcessRequestMsg(replica.currentPrimary(), clientId, reqSeqNum, bufLen, buf, sp, cid);
+      new PreProcessRequestMsg(replica.currentPrimary(), clientId, reqSeqNum, bufLen, buf, cid, span);
   msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::PreProcessRequest);
   msgHandlerCallback(preProcessReqMsg);
   usleep(reqWaitTimeoutMilli * 1000 / 2);  // Wait for the pre-execution completion
