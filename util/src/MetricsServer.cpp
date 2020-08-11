@@ -82,11 +82,27 @@ void Server::RecvLoop() {
     }
     running_lock_.unlock();
 
+    struct timeval timeout;
+    timeout.tv_sec = 5;
+    timeout.tv_usec = 0;
+
+    if (setsockopt(sock_, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout)) < 0) {
+      LOG_ERROR(logger_, "Failed to set socket timeout!" << concordUtils::errnoString(errno));
+    }
+
     socklen_t addrlen = sizeof(cliaddr);
     len = recvfrom(sock_, buf_, MAX_MSG_SIZE, 0, (sockaddr*)&cliaddr, &addrlen);
 
     if (len < 0) {
-      LOG_ERROR(logger_, "Failed to recv msg: " << concordUtils::errnoString(errno));
+      if (errno != EAGAIN) {
+        LOG_ERROR(logger_, "Failed to recv msg: " << concordUtils::errnoString(errno));
+      }
+
+      std::unique_lock<std::mutex> lock(running_lock_);
+      if (!running_) {
+        return;
+      }
+
       continue;
     }
 
