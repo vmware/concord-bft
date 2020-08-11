@@ -98,11 +98,6 @@ void Server::RecvLoop() {
         LOG_ERROR(logger_, "Failed to recv msg: " << concordUtils::errnoString(errno));
       }
 
-      std::unique_lock<std::mutex> lock(running_lock_);
-      if (!running_) {
-        return;
-      }
-
       continue;
     }
 
