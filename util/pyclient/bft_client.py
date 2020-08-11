@@ -16,14 +16,16 @@ import trio
 import time
 
 import bft_msgs
+import specific_replica_info as sri
 from bft_config import Config, Replica
 
 # All test communication expects ports to start from 3710
 BASE_PORT = 3710
 
+
 class ReqSeqNum:
     def __init__(self):
-        self.time_since_epoch_milli = int(time.time()*1000)
+        self.time_since_epoch_milli = int(time.time() * 1000)
         self.count = 0
         self.max_count = 0x3FFFFF
         self.max_count_len = 22
@@ -33,7 +35,7 @@ class ReqSeqNum:
         Calculate the next req_seq_num.
         Return the calculated value as an int sized for 64 bits
         """
-        milli = int(time.time()*1000)
+        milli = int(time.time() * 1000)
         if milli > self.time_since_epoch_milli:
             self.time_since_epoch_milli = milli
             self.count = 0
@@ -47,10 +49,37 @@ class ReqSeqNum:
 
     def val(self):
         """ Return an int sized for 64 bits """
-        assert(self.count <= self.max_count)
+        assert (self.count <= self.max_count)
         r = self.time_since_epoch_milli << self.max_count_len
         r = r | self.count
         return r
+
+
+class MofNQuorum:
+    def __init__(self, replicas, required):
+        self.replicas = replicas
+        self.required = required
+
+    @classmethod
+    def LinearizableQuorum(cls, config):
+        f = config.f
+        c = config.c
+        n = 3 * f + 2 * c + 1
+        return MofNQuorum([i for i in range(n)], 2*f + c + 1)
+
+    @classmethod
+    def ByzantineSafeQuorum(cls, config):
+        f = config.f
+        c = config.c
+        n = 3 * f + 2 * c + 1
+        return MofNQuorum([i for i in range(n)], f + 1)
+
+    @classmethod
+    def All(cls, config):
+        f = config.f
+        c = config.c
+        n = 3 * f + 2 * c + 1
+        return MofNQuorum([i for i in range(n)], n)
 
 
 class UdpClient:
@@ -69,26 +98,27 @@ class UdpClient:
                                        trio.socket.SOCK_DGRAM)
         self.req_seq_num = ReqSeqNum()
         self.client_id = config.id
-        self.replies = dict()
         self.primary = None
         self.reply = None
         self.retries = 0
         self.msgs_sent = 0
-        self.reply_quorum = 2*config.f + config.c + 1
-        self.port = BASE_PORT + 2*self.client_id
+        self.reply_quorum = 2 * config.f + config.c + 1
+        self.port = BASE_PORT + 2 * self.client_id
         self.sock_bound = False
+        self.replies_manager = sri.RepliesManager()
+        self.rsi_replies = dict()
 
-    async def write(self, msg, seq_num=None, cid=None, pre_process=False):
+    async def write(self, msg, seq_num=None, cid=None, pre_process=False, m_of_n_quorum=None):
         """ A wrapper around sendSync for requests that mutate state """
-        return await self.sendSync(msg, False, seq_num, cid, pre_process)
+        return await self.sendSync(msg, False, seq_num, cid, pre_process, m_of_n_quorum)
 
-    async def read(self, msg, seq_num=None, cid=None):
+    async def read(self, msg, seq_num=None, cid=None, m_of_n_quorum=None):
         """ A wrapper around sendSync for requests that do not mutate state """
-        return await self.sendSync(msg, True, seq_num, cid)
+        return await self.sendSync(msg, True, seq_num, cid, m_of_n_quorum)
 
-    async def sendSync(self, msg, read_only, seq_num=None, cid=None, pre_process=False):
+    async def sendSync(self, msg, read_only, seq_num=None, cid=None, pre_process=False, m_of_n_quorum=None):
         """
-        Send a client request and wait for a quorum (2F+C+1) of replies.
+        Send a client request and wait for a m_of_n_quorum (if None, it will set to 2F+C+1 quorum) of replies.
 
         Return a single reply message if a quorum of replies matches.
         Otherwise, raise a trio.TooSlowError indicating the request timed out.
@@ -117,14 +147,17 @@ class UdpClient:
         if cid is None:
             cid = str(seq_num)
         data = bft_msgs.pack_request(
-                    self.client_id, seq_num, read_only, self.config.req_timeout_milli, cid, msg, pre_process)
+            self.client_id, seq_num, read_only, self.config.req_timeout_milli, cid, msg, pre_process)
+
+        if m_of_n_quorum is None:
+            m_of_n_quorum = MofNQuorum.LinearizableQuorum(self.config)
 
         # Raise a trio.TooSlowError exception if a quorum of replies
         try:
             with trio.fail_after(self.config.req_timeout_milli / 1000):
                 self.reset_on_new_request()
                 self.retries = 0
-                return await self.send_loop(data, read_only)
+                return await self.send_loop(data, read_only, m_of_n_quorum)
         except trio.TooSlowError:
             print("TooSlowError thrown from client_id", self.client_id, "for seq_num", seq_num)
             raise trio.TooSlowError
@@ -133,36 +166,37 @@ class UdpClient:
 
     def reset_on_retry(self):
         """Reset any state that must be reset during retries"""
-        self.replies = dict()
         self.primary = None
         self.retries += 1
+        self.rsi_replies = dict()
 
     def reset_on_new_request(self):
         """Reset any state that must be reset during new requests"""
-        self.replies = dict()
         self.reply = None
         self.retries = 0
+        self.rsi_replies = dict()
 
     async def bind(self):
         # Each port is a function of its client_id
         await self.sock.bind(("127.0.0.1", self.port))
         self.sock_bound = True
 
-    async def send_loop(self, data, read_only):
+    async def send_loop(self, data, read_only, m_of_n_quorum):
         """
         Send and wait for a quorum of replies. Keep retrying if a quorum
         isn't received. Eventually the max request timeout from the
         outer scope will fire cancelling all sub-scopes and their coroutines
         including this one.
         """
+        dest_replicas = [r for r in self.replicas if r.id in m_of_n_quorum.replicas]
         while self.reply is None:
-            with trio.move_on_after(self.config.retry_timeout_milli/1000):
+            with trio.move_on_after(self.config.retry_timeout_milli / 1000):
                 async with trio.open_nursery() as nursery:
                     if read_only or self.primary is None:
-                        await self.send_all(data)
+                        await self.send_to_replicas(data, dest_replicas)
                     else:
                         await self.send_to_primary(data)
-                    nursery.start_soon(self.recv, nursery.cancel_scope)
+                    nursery.start_soon(self.recv, m_of_n_quorum.required, nursery.cancel_scope)
             if self.reply is None:
                 self.reset_on_retry()
         return self.reply
@@ -173,58 +207,37 @@ class UdpClient:
             nursery.start_soon(self.sendto, request, (self.primary.ip,
                                                       self.primary.port))
 
-    async def send_all(self, request):
+    async def send_to_replicas(self, request, replicas):
         """Send a serialized request to all replicas"""
         async with trio.open_nursery() as nursery:
-            for replica in self.replicas:
+            for replica in replicas:
                 nursery.start_soon(self.sendto, request, (replica.ip,
                                                           replica.port))
+
     async def sendto(self, request, ip_port):
         """Send a request over a udp socket"""
         await self.sock.sendto(request, ip_port)
         self.msgs_sent += 1
 
-    async def recv(self, cancel_scope):
+    async def recv(self, required_quorum_size, cancel_scope):
         """
         Receive reply messages until a quorum is achieved or the enclosing
         cancel_scope times out.
         """
         while True:
             data, sender = await self.sock.recvfrom(self.config.max_msg_size)
-            header, reply = bft_msgs.unpack_reply(data)
-            if self.valid_reply(header):
-                self.replies[sender] = (header, reply)
-            if self.has_quorum():
-                # This cancel will propagate upward and gracefully terminate all
-                # coroutines. self.reply will get set in self.has_quorum()
+            sri_msg = sri.MsgWithSpecificReplicaInfo(data, sender)
+            quorum_size = self.replies_manager.add_reply(sri_msg)
+            if quorum_size == required_quorum_size:
+                header, self.reply = sri_msg.get_common_reply()
+                self.rsi_replies = self.replies_manager.get_rsi_replies(sri_msg.get_matched_reply_key())
+                self.primary = self.replicas[header.primary_id]
                 cancel_scope.cancel()
+                break
 
-    def valid_reply(self, header):
-        """Return true if the sequence number is correct"""
-        return self.req_seq_num.val() == header.req_seq_num
-
-    def has_quorum(self):
+    def get_rsi_replies(self):
         """
-        Return true if the client has seen 2F+C+1 matching replies
-
-        Side Effects:
-            Set self.reply to the reply with the quorum
-            Set self.primary to the primary in the quorum of reply headers
+        Return a dictionary of {id: data} of the replicas specific information.
+        This method should be called after the send has done and before initiating a new request
         """
-
-        if len(self.replies) < self.reply_quorum:
-            return False
-
-        # a reply mapped to a count of each specific reply
-        # We must have a quorum of identical replies
-        reply_counts = dict()
-        for reply in self.replies.values():
-            count = reply_counts.get(reply, 0)
-            reply_counts[reply] = count + 1
-
-        for reply, counts in reply_counts.items():
-            if counts >= self.reply_quorum:
-                self.reply = reply[1]
-                self.primary = self.replicas[reply[0].primary_id]
-                return True
-        return False
+        return self.rsi_replies

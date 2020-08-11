@@ -181,6 +181,23 @@ class SimpleTest(unittest.TestCase):
            self.assertEqual(2, self.read_val(read))
            self.assertNotEqual(None, udp_client.primary)
 
+    async def _testMofNQuorum(self):
+        config = self.config._replace(retry_timeout_milli=500)
+        with bft_client.UdpClient(self.config, self.replicas) as udp_client:
+            await udp_client.sendSync(self.writeRequest(1), False)
+            single_read_q = bft_client.MofNQuorum([0], 1)
+            read = await udp_client.sendSync(self.readRequest(), True, m_of_n_quorum=single_read_q)
+            self.assertEqual(1, self.read_val(read))
+
+    def testMonNQuorum(self):
+        self.startServers()
+        try:
+            trio.run(self._testMofNQuorum)
+        except:
+            raise
+        finally:
+            self.stopServers()
+
 
 if __name__ == '__main__':
     unittest.main()
