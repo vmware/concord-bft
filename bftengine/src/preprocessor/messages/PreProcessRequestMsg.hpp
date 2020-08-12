@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "OpenTracing.hpp"
 #include "messages/MessageBase.hpp"
 #include "Logger.hpp"
 #include <memory>
@@ -24,8 +25,8 @@ class PreProcessRequestMsg : public MessageBase {
                        uint64_t reqSeqNum,
                        uint32_t reqLength,
                        const char* request,
-                       const std::string& span_context,
-                       const std::string& cid);
+                       const std::string& cid,
+                       const concordUtils::SpanContext& span_context = concordUtils::SpanContext{});
 
   void validate(const bftEngine::impl::ReplicasInfo&) const override;
   char* requestBuf() const { return body() + sizeof(Header) + spanContextSize(); }

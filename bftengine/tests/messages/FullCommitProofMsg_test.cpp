@@ -33,7 +33,7 @@ TEST(FullCommitProofMsg, base_methods) {
                          seqNum,
                          commit_proof_signature.data(),
                          static_cast<uint16_t>(commit_proof_signature.size()),
-                         spanContext};
+                         concordUtils::SpanContext{spanContext}};
   EXPECT_EQ(msg.viewNumber(), viewNum);
   EXPECT_EQ(msg.seqNumber(), seqNum);
   EXPECT_EQ(commit_proof_signature, std::string(msg.thresholSignature(), msg.thresholSignatureLength()));

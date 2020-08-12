@@ -20,7 +20,9 @@ namespace impl {
 
 class NewViewMsg : public MessageBase {
  public:
-  NewViewMsg(ReplicaId senderId, ViewNum newView, const std::string& spanContext = "");
+  NewViewMsg(ReplicaId senderId,
+             ViewNum newView,
+             const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
   void addElement(ReplicaId replicaId, Digest& viewChangeDigest);
 

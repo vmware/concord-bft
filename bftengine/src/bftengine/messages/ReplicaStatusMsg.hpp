@@ -11,6 +11,7 @@
 
 #pragma once
 #include "MessageBase.hpp"
+#include "OpenTracing.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -25,7 +26,7 @@ class ReplicaStatusMsg : public MessageBase {
                    bool listOfPrePrepareMsgsInActiveWindow,
                    bool listOfMissingViewChangeMsgForViewChange,
                    bool listOfMissingPrePrepareMsgForViewChange,
-                   const std::string& spanContext = "");
+                   const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
   ViewNum getViewNumber() const;
 

@@ -15,6 +15,7 @@
 #include <iostream>
 #include <memory>
 
+#include "OpenTracing.hpp"
 #include "gtest/gtest.h"
 
 #include "Digest.hpp"
@@ -31,7 +32,6 @@ using namespace bftEngine::impl;
 static void testSignedShareBaseMethods(const SignedShareBase& msg,
                                        ViewNum v,
                                        SeqNum s,
-                                       const std::string& spanContext,
                                        const std::vector<char>& signature) {
   EXPECT_EQ(msg.viewNumber(), v);
   EXPECT_EQ(msg.seqNumber(), s);
@@ -50,10 +50,10 @@ TEST(PreparePartialMsg, PreparePartialMsg_test) {
   Digest digest;
   std::vector<char> signature(config.thresholdSignerForCommit->requiredLengthForSignedData());
   config.thresholdSignerForOptimisticCommit->signData(nullptr, 0, signature.data(), signature.size());
-  std::unique_ptr<PreparePartialMsg> msg{
-      PreparePartialMsg::create(v, s, id, digest, config.thresholdSignerForCommit, spanContext)};
+  std::unique_ptr<PreparePartialMsg> msg{PreparePartialMsg::create(
+      v, s, id, digest, config.thresholdSignerForCommit, concordUtils::SpanContext{spanContext})};
   EXPECT_NO_THROW(msg->validate(replicaInfo));
-  testSignedShareBaseMethods(*msg, v, s, spanContext, signature);
+  testSignedShareBaseMethods(*msg, v, s, signature);
   testMessageBaseMethods(*msg, MsgCode::PreparePartial, id, spanContext);
   destroyReplicaConfig(config);
 }
@@ -70,9 +70,9 @@ TEST(PrepareFullMsg, PrepareFullMsg_test) {
   std::vector<char> signature(config.thresholdSignerForCommit->requiredLengthForSignedData());
   config.thresholdSignerForOptimisticCommit->signData(nullptr, 0, signature.data(), signature.size());
   std::unique_ptr<PrepareFullMsg> msg{
-      PrepareFullMsg::create(v, s, id, signature.data(), signature.size(), spanContext)};
+      PrepareFullMsg::create(v, s, id, signature.data(), signature.size(), concordUtils::SpanContext{spanContext})};
   EXPECT_NO_THROW(msg->validate(replicaInfo));
-  testSignedShareBaseMethods(*msg, v, s, spanContext, signature);
+  testSignedShareBaseMethods(*msg, v, s, signature);
   testMessageBaseMethods(*msg, MsgCode::PrepareFull, id, spanContext);
   destroyReplicaConfig(config);
 }
@@ -88,10 +88,10 @@ TEST(CommitPartialMsg, CommitPartialMsg_test) {
   Digest digest;
   std::vector<char> signature(config.thresholdSignerForCommit->requiredLengthForSignedData());
   config.thresholdSignerForOptimisticCommit->signData(nullptr, 0, signature.data(), signature.size());
-  std::unique_ptr<CommitPartialMsg> msg{
-      CommitPartialMsg::create(v, s, id, digest, config.thresholdSignerForCommit, spanContext)};
+  std::unique_ptr<CommitPartialMsg> msg{CommitPartialMsg::create(
+      v, s, id, digest, config.thresholdSignerForCommit, concordUtils::SpanContext{spanContext})};
   EXPECT_NO_THROW(msg->validate(replicaInfo));
-  testSignedShareBaseMethods(*msg, v, s, spanContext, signature);
+  testSignedShareBaseMethods(*msg, v, s, signature);
   testMessageBaseMethods(*msg, MsgCode::CommitPartial, id, spanContext);
   destroyReplicaConfig(config);
 }
@@ -106,9 +106,10 @@ TEST(CommitFullMsg, CommitFullMsg_test) {
   Digest digest;
   std::vector<char> signature(config.thresholdSignerForCommit->requiredLengthForSignedData());
   config.thresholdSignerForOptimisticCommit->signData(nullptr, 0, signature.data(), signature.size());
-  std::unique_ptr<CommitFullMsg> msg{CommitFullMsg::create(v, s, id, signature.data(), signature.size(), spanContext)};
+  std::unique_ptr<CommitFullMsg> msg{
+      CommitFullMsg::create(v, s, id, signature.data(), signature.size(), concordUtils::SpanContext{spanContext})};
   EXPECT_NO_THROW(msg->validate(replicaInfo));
-  testSignedShareBaseMethods(*msg, v, s, spanContext, signature);
+  testSignedShareBaseMethods(*msg, v, s, signature);
   testMessageBaseMethods(*msg, MsgCode::CommitFull, id, spanContext);
   destroyReplicaConfig(config);
 }

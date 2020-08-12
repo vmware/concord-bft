@@ -38,7 +38,7 @@ TEST(ViewChangeMsg, base_methods) {
                         config.replicaPrivateKey,
                         config.publicKeysOfReplicas);
   ViewsManager manager(&replicaInfo, &sigManager, config.thresholdVerifierForSlowPathCommit);
-  ViewChangeMsg msg(senderId, viewNum, seqNum, spanContext);
+  ViewChangeMsg msg(senderId, viewNum, seqNum, concordUtils::SpanContext{spanContext});
   EXPECT_EQ(msg.idOfGeneratedReplica(), senderId);
   EXPECT_EQ(msg.newView(), viewNum);
   EXPECT_EQ(msg.lastStable(), seqNum);

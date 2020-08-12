@@ -40,8 +40,13 @@ TEST(PartialCommitProofMsg, create_and_compare) {
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest tmpDigest;
-  PartialCommitProofMsg msg(
-      senderId, viewNum, seqNum, commitPath, tmpDigest, config.thresholdSignerForOptimisticCommit, spanContext);
+  PartialCommitProofMsg msg(senderId,
+                            viewNum,
+                            seqNum,
+                            commitPath,
+                            tmpDigest,
+                            config.thresholdSignerForOptimisticCommit,
+                            concordUtils::SpanContext{spanContext});
 
   EXPECT_EQ(msg.senderId(), senderId);
   EXPECT_EQ(msg.viewNumber(), viewNum);
@@ -67,8 +72,13 @@ TEST(PartialCommitProofMsg, base_methods) {
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest tmpDigest;
-  PartialCommitProofMsg msg(
-      senderId, viewNum, seqNum, commitPath, tmpDigest, config.thresholdSignerForOptimisticCommit, spanContext);
+  PartialCommitProofMsg msg(senderId,
+                            viewNum,
+                            seqNum,
+                            commitPath,
+                            tmpDigest,
+                            config.thresholdSignerForOptimisticCommit,
+                            concordUtils::SpanContext{spanContext});
   testMessageBaseMethods(msg, MsgCode::PartialCommitProof, senderId, spanContext);
   destroyReplicaConfig(config);
 }

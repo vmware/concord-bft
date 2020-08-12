@@ -195,7 +195,7 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
                          Digest& expectedDigest,
                          SeqNum seqNumber,
                          ViewNum viewNumber,
-                         const std::string& span_context) {
+                         const concordUtils::SpanContext& span_context) {
     this->me = myReplica;
     this->acc = acc;
     this->expectedDigest = expectedDigest;
@@ -262,7 +262,7 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
   SeqNum seqNumber;
   ViewNum view;
   IThresholdVerifier* verifier;
-  std::string span_context_;
+  concordUtils::SpanContext span_context_;
 };
 
 void PartialProofsSet::tryToCreateFullProof() {

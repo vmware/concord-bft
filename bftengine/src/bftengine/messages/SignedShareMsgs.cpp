@@ -20,8 +20,11 @@ namespace impl {
 // SignedShareBase
 ///////////////////////////////////////////////////////////////////////////////
 
-SignedShareBase::SignedShareBase(ReplicaId sender, int16_t type, const std::string& spanContext, size_t msgSize)
-    : MessageBase(sender, type, spanContext.size(), msgSize) {}
+SignedShareBase::SignedShareBase(ReplicaId sender,
+                                 int16_t type,
+                                 const concordUtils::SpanContext& spanContext,
+                                 size_t msgSize)
+    : MessageBase(sender, type, spanContext.data().size(), msgSize) {}
 
 SignedShareBase* SignedShareBase::create(int16_t type,
                                          ViewNum v,
@@ -29,7 +32,7 @@ SignedShareBase* SignedShareBase::create(int16_t type,
                                          ReplicaId senderId,
                                          Digest& digest,
                                          IThresholdSigner* thresholdSigner,
-                                         const std::string& spanContext) {
+                                         const concordUtils::SpanContext& spanContext) {
   const size_t sigLen = thresholdSigner->requiredLengthForSignedData();
   size_t size = sizeof(Header) + sigLen;
 
@@ -43,8 +46,8 @@ SignedShareBase* SignedShareBase::create(int16_t type,
   Digest::calcCombination(digest, v, s, tmpDigest);
 
   auto position = m->body() + sizeof(Header);
-  std::memcpy(position, spanContext.data(), spanContext.size());
-  position += spanContext.size();
+  std::memcpy(position, spanContext.data().data(), spanContext.data().size());
+  position += spanContext.data().size();
 
   thresholdSigner->signData((const char*)(&(tmpDigest)), sizeof(Digest), position, sigLen);
 
@@ -57,7 +60,7 @@ SignedShareBase* SignedShareBase::create(int16_t type,
                                          ReplicaId senderId,
                                          const char* sig,
                                          uint16_t sigLen,
-                                         const std::string& spanContext) {
+                                         const concordUtils::SpanContext& spanContext) {
   size_t size = sizeof(Header) + sigLen;
 
   SignedShareBase* m = new SignedShareBase(senderId, type, spanContext, size);
@@ -67,8 +70,8 @@ SignedShareBase* SignedShareBase::create(int16_t type,
   m->b()->thresSigLength = sigLen;
 
   auto position = m->body() + sizeof(Header);
-  std::memcpy(position, spanContext.data(), spanContext.size());
-  position += spanContext.size();
+  std::memcpy(position, spanContext.data().data(), spanContext.data().size());
+  position += spanContext.data().size();
   memcpy(position, sig, sigLen);
 
   return m;
@@ -92,7 +95,7 @@ PreparePartialMsg* PreparePartialMsg::create(ViewNum v,
                                              ReplicaId senderId,
                                              Digest& ppDigest,
                                              IThresholdSigner* thresholdSigner,
-                                             const std::string& spanContext) {
+                                             const concordUtils::SpanContext& spanContext) {
   return (PreparePartialMsg*)SignedShareBase::create(
       MsgCode::PreparePartial, v, s, senderId, ppDigest, thresholdSigner, spanContext);
 }
@@ -108,8 +111,12 @@ void PreparePartialMsg::validate(const ReplicasInfo& repInfo) const {
 // PrepareFullMsg
 ///////////////////////////////////////////////////////////////////////////////
 
-PrepareFullMsg* PrepareFullMsg::create(
-    ViewNum v, SeqNum s, ReplicaId senderId, const char* sig, uint16_t sigLen, const std::string& spanContext) {
+PrepareFullMsg* PrepareFullMsg::create(ViewNum v,
+                                       SeqNum s,
+                                       ReplicaId senderId,
+                                       const char* sig,
+                                       uint16_t sigLen,
+                                       const concordUtils::SpanContext& spanContext) {
   return (PrepareFullMsg*)SignedShareBase::create(MsgCode::PrepareFull, v, s, senderId, sig, sigLen, spanContext);
 }
 
@@ -126,7 +133,7 @@ CommitPartialMsg* CommitPartialMsg::create(ViewNum v,
                                            ReplicaId senderId,
                                            Digest& ppDoubleDigest,
                                            IThresholdSigner* thresholdSigner,
-                                           const std::string& spanContext) {
+                                           const concordUtils::SpanContext& spanContext) {
   return (CommitPartialMsg*)SignedShareBase::create(
       MsgCode::CommitPartial, v, s, senderId, ppDoubleDigest, thresholdSigner, spanContext);
 }
@@ -142,8 +149,12 @@ void CommitPartialMsg::validate(const ReplicasInfo& repInfo) const {
 // CommitFullMsg
 ///////////////////////////////////////////////////////////////////////////////
 
-CommitFullMsg* CommitFullMsg::create(
-    ViewNum v, SeqNum s, ReplicaId senderId, const char* sig, uint16_t sigLen, const std::string& spanContext) {
+CommitFullMsg* CommitFullMsg::create(ViewNum v,
+                                     SeqNum s,
+                                     ReplicaId senderId,
+                                     const char* sig,
+                                     uint16_t sigLen,
+                                     const concordUtils::SpanContext& spanContext) {
   return (CommitFullMsg*)SignedShareBase::create(MsgCode::CommitFull, v, s, senderId, sig, sigLen, spanContext);
 }
 

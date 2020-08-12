@@ -17,12 +17,15 @@
 namespace bftEngine {
 namespace impl {
 
-ReqMissingDataMsg::ReqMissingDataMsg(ReplicaId senderId, ViewNum v, SeqNum s, const std::string& spanContext)
-    : MessageBase(senderId, MsgCode::ReqMissingData, spanContext.size(), sizeof(Header)) {
+ReqMissingDataMsg::ReqMissingDataMsg(ReplicaId senderId,
+                                     ViewNum v,
+                                     SeqNum s,
+                                     const concordUtils::SpanContext& spanContext)
+    : MessageBase(senderId, MsgCode::ReqMissingData, spanContext.data().size(), sizeof(Header)) {
   b()->viewNum = v;
   b()->seqNum = s;
   resetFlags();
-  std::memcpy(body() + sizeof(Header), spanContext.data(), spanContext.size());
+  std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
 }
 
 void ReqMissingDataMsg::resetFlags() { b()->flags.flags = 0; }

@@ -23,7 +23,7 @@ class CheckpointMsg : public MessageBase {
                 SeqNum seqNum,
                 const Digest& stateDigest,
                 bool stateIsStable,
-                const std::string& spanContext = "");
+                const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
   SeqNum seqNumber() const { return b()->seqNum; }
 

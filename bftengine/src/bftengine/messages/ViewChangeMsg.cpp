@@ -23,17 +23,17 @@ namespace impl {
 ViewChangeMsg::ViewChangeMsg(ReplicaId srcReplicaId,
                              ViewNum newView,
                              SeqNum lastStableSeq,
-                             const std::string& spanContext)
+                             const concordUtils::SpanContext& spanContext)
     : MessageBase(srcReplicaId,
                   MsgCode::ViewChange,
-                  spanContext.size(),
-                  ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize() - spanContext.size()) {
+                  spanContext.data().size(),
+                  ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize() - spanContext.data().size()) {
   b()->genReplicaId = srcReplicaId;
   b()->newView = newView;
   b()->lastStable = lastStableSeq;
   b()->numberOfElements = 0;
   b()->locationAfterLast = 0;
-  std::memcpy(body() + sizeof(Header), spanContext.data(), spanContext.size());
+  std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
 }
 
 void ViewChangeMsg::setNewViewNumber(ViewNum newView) {

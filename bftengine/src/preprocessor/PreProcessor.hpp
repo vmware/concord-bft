@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "OpenTracing.hpp"
 #include "messages/PreProcessRequestMsg.hpp"
 #include "messages/ClientPreProcessRequestMsg.hpp"
 #include "MsgsCommunicator.hpp"
@@ -98,8 +99,11 @@ class PreProcessor {
   void launchAsyncReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                       bool isPrimary,
                                       bool isRetry);
-  uint32_t launchReqPreProcessing(
-      uint16_t clientId, ReqId reqSeqNum, uint32_t reqLength, char *reqBuf, const std::string &span_context);
+  uint32_t launchReqPreProcessing(uint16_t clientId,
+                                  ReqId reqSeqNum,
+                                  uint32_t reqLength,
+                                  char *reqBuf,
+                                  const concordUtils::SpanContext &span_context);
   void handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg, bool isPrimary, bool isRetry);
   void handlePreProcessedReqByNonPrimary(uint16_t clientId,
                                          ReqId reqSeqNum,

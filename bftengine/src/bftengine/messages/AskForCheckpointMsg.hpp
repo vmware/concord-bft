@@ -13,16 +13,17 @@
 
 #include "MessageBase.hpp"
 #include "Digest.hpp"
+#include "OpenTracing.hpp"
 #include "assertUtils.hpp"
 
 namespace bftEngine::impl {
 
 class AskForCheckpointMsg : public MessageBase {
  public:
-  AskForCheckpointMsg(ReplicaId senderId, const std::string& spanContext = "")
-      : MessageBase(senderId, MsgCode::AskForCheckpoint, spanContext.size(), sizeof(Header)) {
+  AskForCheckpointMsg(ReplicaId senderId, const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{})
+      : MessageBase(senderId, MsgCode::AskForCheckpoint, spanContext.data().size(), sizeof(Header)) {
     char* position = body() + sizeof(Header);
-    memcpy(position, spanContext.data(), spanContext.size());
+    memcpy(position, spanContext.data().data(), spanContext.data().size());
   }
 
   AskForCheckpointMsg* clone() { return new AskForCheckpointMsg(*this); }

@@ -14,6 +14,7 @@
 #include <set>
 
 // TODO(GG): clean/move 'include' statements
+#include "OpenTracing.hpp"
 #include "PrimitiveTypes.hpp"
 #include "SysConsts.hpp"
 #include "messages/PrePrepareMsg.hpp"
@@ -86,7 +87,7 @@ class SeqNumInfo {
                                                  ViewNum viewNumber,
                                                  const char* combinedSig,
                                                  uint16_t combinedSigLen,
-                                                 const std::string& span_context);
+                                                 const concordUtils::SpanContext& span_context);
   void onCompletionOfCombinedPrepareSigVerification(SeqNum seqNumber, ViewNum viewNumber, bool isValid);
 
   void onCompletionOfCommitSignaturesProcessing(SeqNum seqNumber,
@@ -99,7 +100,7 @@ class SeqNumInfo {
                                                 ViewNum viewNumber,
                                                 const char* combinedSig,
                                                 uint16_t combinedSigLen,
-                                                const std::string& span_context) {
+                                                const concordUtils::SpanContext& span_context) {
     commitMsgsCollector->onCompletionOfSignaturesProcessing(
         seqNumber, viewNumber, combinedSig, combinedSigLen, span_context);
   }
@@ -117,7 +118,7 @@ class SeqNumInfo {
                                                       ViewNum viewNumber,
                                                       const char* const combinedSig,
                                                       uint16_t combinedSigLen,
-                                                      const std::string& span_context);
+                                                      const concordUtils::SpanContext& span_context);
 
     // internal messages
     static InternalMessage createInterCombinedSigFailed(SeqNum seqNumber,
@@ -127,7 +128,7 @@ class SeqNumInfo {
                                                            ViewNum viewNumber,
                                                            const char* combinedSig,
                                                            uint16_t combinedSigLen,
-                                                           const std::string& span_context);
+                                                           const concordUtils::SpanContext& span_context);
     static InternalMessage createInterVerifyCombinedSigResult(SeqNum seqNumber, ViewNum viewNumber, bool isValid);
 
     // from the Replica object
@@ -145,7 +146,7 @@ class SeqNumInfo {
                                                      ViewNum viewNumber,
                                                      const char* const combinedSig,
                                                      uint16_t combinedSigLen,
-                                                     const std::string& span_context);
+                                                     const concordUtils::SpanContext& span_context);
 
     // internal messages
     static InternalMessage createInterCombinedSigFailed(SeqNum seqNumber,
@@ -155,7 +156,7 @@ class SeqNumInfo {
                                                            ViewNum viewNumber,
                                                            const char* combinedSig,
                                                            uint16_t combinedSigLen,
-                                                           const std::string& span_context);
+                                                           const concordUtils::SpanContext& span_context);
     static InternalMessage createInterVerifyCombinedSigResult(SeqNum seqNumber, ViewNum viewNumber, bool isValid);
 
     // from the ReplicaImp object

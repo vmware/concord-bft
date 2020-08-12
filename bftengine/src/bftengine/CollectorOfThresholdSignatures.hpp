@@ -15,6 +15,7 @@
 #include <unordered_map>
 #include <set>
 
+#include "OpenTracing.hpp"
 #include "PrimitiveTypes.hpp"
 #include "Digest.hpp"
 #include "Crypto.hpp"
@@ -126,11 +127,12 @@ class CollectorOfThresholdSignatures {
     trySendToBkThread();
   }
 
-  void onCompletionOfSignaturesProcessing(SeqNum seqNumber,
-                                          ViewNum view,
-                                          const char* combinedSig,
-                                          uint16_t combinedSigLen,
-                                          const std::string& span_context)  // if we compute a valid combined signature
+  void onCompletionOfSignaturesProcessing(
+      SeqNum seqNumber,
+      ViewNum view,
+      const char* combinedSig,
+      uint16_t combinedSigLen,
+      const concordUtils::SpanContext& span_context)  // if we compute a valid combined signature
   {
     ConcordAssert(expectedSeqNumber == seqNumber);
     ConcordAssert(expectedView == view);
@@ -284,7 +286,7 @@ class CollectorOfThresholdSignatures {
       ReplicaId srcRepId;
       char* sigBody;
       uint16_t sigLength;
-      std::string span_context;
+      concordUtils::SpanContext span_context;
     };
 
     IThresholdVerifier* const verifier;
@@ -320,7 +322,10 @@ class CollectorOfThresholdSignatures {
       this->context = cnt;
     }
 
-    void add(ReplicaId srcRepId, const char* sigBody, uint16_t sigLength, const std::string& span_context) {
+    void add(ReplicaId srcRepId,
+             const char* sigBody,
+             uint16_t sigLength,
+             const concordUtils::SpanContext& span_context) {
       ConcordAssert(numOfDataItems < reqDataItems);
 
       SigData d;
@@ -354,7 +359,7 @@ class CollectorOfThresholdSignatures {
       std::vector<char> bufferForSigComputations(bufferSize);
 
       const auto& span_context_of_last_message =
-          (reqDataItems - 1) ? sigDataItems[reqDataItems - 1].span_context : std::string{};
+          (reqDataItems - 1) ? sigDataItems[reqDataItems - 1].span_context : concordUtils::SpanContext{};
       {
         IThresholdAccumulator* acc = verifier->newAccumulator(false);
 

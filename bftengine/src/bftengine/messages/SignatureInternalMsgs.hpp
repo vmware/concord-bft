@@ -14,6 +14,7 @@
 #include <set>
 #include <vector>
 
+#include "OpenTracing.hpp"
 #include "PrimitiveTypes.hpp"
 
 namespace bftEngine::impl {
@@ -31,10 +32,10 @@ struct CombinedSigSucceededInternalMsg {
   const SeqNum seqNumber;
   const ViewNum view;
   const std::vector<char> combinedSig;
-  std::string span_context_;
+  concordUtils::SpanContext span_context_;
 
   CombinedSigSucceededInternalMsg(
-      SeqNum s, ViewNum v, const char* sig, uint16_t sigLen, const std::string& span_context)
+      SeqNum s, ViewNum v, const char* sig, uint16_t sigLen, const concordUtils::SpanContext& span_context)
       : seqNumber{s}, view{v}, combinedSig(sig, sig + sigLen), span_context_{span_context} {}
 };
 
@@ -50,10 +51,10 @@ struct CombinedCommitSigSucceededInternalMsg {
   const SeqNum seqNumber;
   const ViewNum view;
   const std::vector<char> combinedSig;
-  std::string span_context_;
+  concordUtils::SpanContext span_context_;
 
   CombinedCommitSigSucceededInternalMsg(
-      SeqNum s, ViewNum v, const char* sig, uint16_t sigLen, const std::string& span_context)
+      SeqNum s, ViewNum v, const char* sig, uint16_t sigLen, const concordUtils::SpanContext& span_context)
       : seqNumber{s}, view{v}, combinedSig(sig, sig + sigLen), span_context_{span_context} {}
 };
 

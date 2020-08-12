@@ -13,6 +13,7 @@
 
 #include "MessageBase.hpp"
 #include "Digest.hpp"
+#include "OpenTracing.hpp"
 #include "ReplicasInfo.hpp"
 #include "ReplicaConfig.hpp"
 
@@ -38,7 +39,10 @@ class ViewChangeMsg : public MessageBase {
   static_assert(sizeof(Element) == (8 + DIGEST_SIZE + 8 + 1), "Element (View Change) is 49B");
   static_assert(sizeof(PreparedCertificate) == (8 + 2), "PreparedCertificate is 10B");
 
-  ViewChangeMsg(ReplicaId srcReplicaId, ViewNum newView, SeqNum lastStableSeq, const std::string& spanContext = "");
+  ViewChangeMsg(ReplicaId srcReplicaId,
+                ViewNum newView,
+                SeqNum lastStableSeq,
+                const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
   void setNewViewNumber(ViewNum newView);
 

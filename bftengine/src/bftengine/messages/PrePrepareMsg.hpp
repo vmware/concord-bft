@@ -61,8 +61,12 @@ class PrePrepareMsg : public MessageBase {
   // size - total size of all requests that will be added
   PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, size_t size);
 
-  PrePrepareMsg(
-      ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, const std::string& spanContext, size_t size);
+  PrePrepareMsg(ReplicaId sender,
+                ViewNum v,
+                SeqNum s,
+                CommitPath firstPath,
+                const concordUtils::SpanContext& spanContext,
+                size_t size);
 
   uint32_t remainingSizeForRequests() const;
 

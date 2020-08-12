@@ -30,7 +30,7 @@ TEST(NewViewMsg, base_methods) {
   std::string commitProofSignature{"commitProofSignature"};
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
-  NewViewMsg msg{senderId, viewNum, spanContext};
+  NewViewMsg msg{senderId, viewNum, concordUtils::SpanContext{spanContext}};
   EXPECT_EQ(msg.newView(), viewNum);
   EXPECT_EQ(msg.elementsCount(), 0);
 

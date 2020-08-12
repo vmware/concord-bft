@@ -15,14 +15,14 @@
 namespace bftEngine {
 namespace impl {
 
-NewViewMsg::NewViewMsg(ReplicaId senderId, ViewNum newView, const std::string& spanContext)
+NewViewMsg::NewViewMsg(ReplicaId senderId, ViewNum newView, const concordUtils::SpanContext& spanContext)
     : MessageBase(senderId,
                   MsgCode::NewView,
-                  spanContext.size(),
-                  ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize() - spanContext.size()) {
+                  spanContext.data().size(),
+                  ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize() - spanContext.data().size()) {
   b()->newViewNum = newView;
   b()->elementsCount = 0;
-  memcpy(body() + sizeof(Header), spanContext.data(), spanContext.size());
+  memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
 }
 
 NewViewMsg::NewViewElement* NewViewMsg::elementsArray() const {

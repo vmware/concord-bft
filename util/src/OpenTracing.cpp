@@ -12,7 +12,6 @@
 
 #include "OpenTracing.hpp"
 #include <string>
-#include "Logger.hpp"
 
 #ifdef USE_OPENTRACING
 #include <opentracing/tracer.h>
@@ -60,10 +59,10 @@ SpanWrapper startChildSpan(const std::string& child_operation_name, const SpanWr
 
 SpanWrapper startChildSpanFromContext(const SpanContext& context, const std::string& child_operation_name) {
 #ifdef USE_OPENTRACING
-  if (context.empty()) {
+  if (context.data().empty()) {
     return SpanWrapper{};
   }
-  std::istringstream context_stream{context};
+  std::istringstream context_stream{context.data()};
   auto tracer = opentracing::Tracer::Global();
   auto parent_span_context = tracer->Extract(context_stream);
   // DD: It might happen in 2 cases:

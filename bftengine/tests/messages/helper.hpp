@@ -90,7 +90,7 @@ template <typename MessageT>
 void testMessageBaseMethods(const MessageT &tested, MsgType type, NodeIdType senderId, const std::string &spanContext) {
   EXPECT_EQ(tested.senderId(), senderId);
   EXPECT_EQ(tested.type(), type);
-  EXPECT_EQ(tested.template spanContext<MessageT>(), spanContext);
+  EXPECT_EQ(tested.template spanContext<MessageT>().data(), spanContext);
   EXPECT_EQ(tested.spanContextSize(), spanContext.size());
 
   std::unique_ptr<MessageBase> other{tested.cloneObjAndMsg()};

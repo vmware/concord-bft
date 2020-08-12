@@ -35,7 +35,7 @@ TEST(ReqMissingDataMsg, base_methods) {
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest tmpDigest;
-  ReqMissingDataMsg msg(senderId, viewNum, seqNum, spanContext);
+  ReqMissingDataMsg msg(senderId, viewNum, seqNum, concordUtils::SpanContext{spanContext});
   EXPECT_EQ(msg.viewNumber(), viewNum);
   EXPECT_EQ(msg.seqNumber(), seqNum);
   EXPECT_EQ(msg.getFlags(), 0);

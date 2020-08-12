@@ -20,19 +20,19 @@ PreProcessRequestMsg::PreProcessRequestMsg(NodeIdType senderId,
                                            uint64_t reqSeqNum,
                                            uint32_t reqLength,
                                            const char* request,
-                                           const std::string& span_context,
-                                           const std::string& cid)
+                                           const std::string& cid,
+                                           const concordUtils::SpanContext& span_context)
     : MessageBase(
-          senderId, MsgCode::PreProcessRequest, span_context.size(), (sizeof(Header) + reqLength + cid.size())) {
+          senderId, MsgCode::PreProcessRequest, span_context.data().size(), (sizeof(Header) + reqLength + cid.size())) {
   setParams(senderId, clientId, reqSeqNum, reqLength);
   msgBody()->cidLength = cid.size();
   auto position = body() + sizeof(Header);
-  memcpy(position, span_context.data(), span_context.size());
-  position += span_context.size();
+  memcpy(position, span_context.data().data(), span_context.data().size());
+  position += span_context.data().size();
   memcpy(position, request, reqLength);
   position += reqLength;
   memcpy(position, cid.c_str(), cid.size());
-  uint64_t msgLength = sizeof(Header) + span_context.size() + reqLength + cid.size();
+  uint64_t msgLength = sizeof(Header) + span_context.data().size() + reqLength + cid.size();
   LOG_DEBUG(logger(),
             "senderId=" << senderId << " clientId=" << clientId << " reqSeqNum=" << reqSeqNum
                         << " headerSize=" << sizeof(Header) << " reqLength=" << reqLength << " cidSize=" << cid.size()

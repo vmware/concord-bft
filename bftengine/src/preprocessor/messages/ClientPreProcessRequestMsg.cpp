@@ -24,8 +24,8 @@ ClientPreProcessRequestMsg::ClientPreProcessRequestMsg(NodeIdType sender,
                                                        const char* request,
                                                        uint64_t reqTimeoutMilli,
                                                        const std::string& cid,
-                                                       const std::string& span_context)
-    : ClientRequestMsg(sender, PRE_PROCESS_REQ, reqSeqNum, requestLength, request, reqTimeoutMilli, cid, span_context) {
+                                                       const concordUtils::SpanContext& spanContext)
+    : ClientRequestMsg(sender, PRE_PROCESS_REQ, reqSeqNum, requestLength, request, reqTimeoutMilli, cid, spanContext) {
   msgBody_->msgType = MsgCode::ClientPreProcessRequest;
 }
 
