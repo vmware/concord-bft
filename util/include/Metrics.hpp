@@ -108,6 +108,7 @@ class Counter {
 
 class Summary {
   std::shared_ptr<prometheus::Summary> summary_;
+
  public:
   struct Quantile {
     double quantile = 0.0;
@@ -129,7 +130,6 @@ class Summary {
 
   std::string ToJson();
 };
-
 
 // A generic struct that may represent a counter or a gauge
 // the motivation is to eliminate that need to know the exact

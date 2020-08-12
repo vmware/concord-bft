@@ -53,7 +53,8 @@ Component::Handle<Counter> Component::RegisterCounter(const string& name, const 
   return Component::Handle<Counter>(values_.counters_, values_.counters_.size() - 1);
 }
 
-Component::Handle<Summary> Component::RegisterSummary(const std::string& name, const Summary::InitQuantiles& quantiles) {
+Component::Handle<Summary> Component::RegisterSummary(const std::string& name,
+                                                      const Summary::InitQuantiles& quantiles) {
   names_.summary_names_.emplace_back(name);
   values_.summaries_.emplace_back(Summary(quantiles));
   return Component::Handle<Summary>(values_.summaries_, values_.summaries_.size() - 1);
