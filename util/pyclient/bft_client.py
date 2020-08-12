@@ -64,12 +64,11 @@ class MofNQuorum:
     def LinearizableQuorum(cls, config, replicas):
         f = config.f
         c = config.c
-        return MofNQuorum(replicas, 2*f + c + 1)
+        return MofNQuorum(replicas, 2 * f + c + 1)
 
     @classmethod
     def ByzantineSafeQuorum(cls, config, replicas):
         f = config.f
-        c = config.c
         return MofNQuorum(replicas, f + 1)
 
     @classmethod
@@ -224,13 +223,17 @@ class UdpClient:
         while True:
             data, sender = await self.sock.recvfrom(self.config.max_msg_size)
             sri_msg = rsi.MsgWithSpecificReplicaInfo(data, sender)
-            quorum_size = self.replies_manager.add_reply(sri_msg)
-            if quorum_size == required_quorum_size:
-                header, self.reply = sri_msg.get_common_reply()
-                self.rsi_replies = self.replies_manager.get_rsi_replies(sri_msg.get_matched_reply_key())
-                self.primary = self.replicas[header.primary_id]
-                cancel_scope.cancel()
-                break
+            header, reply = sri_msg.get_common_reply()
+            if self.valid_reply(header):
+                quorum_size = self.replies_manager.add_reply(sri_msg)
+                if quorum_size == required_quorum_size:
+                    self.reply = reply
+                    self.rsi_replies = self.replies_manager.get_rsi_replies(sri_msg.get_matched_reply_key())
+                    self.primary = self.replicas[header.primary_id]
+                    cancel_scope.cancel()
+
+    def valid_reply(self, header):
+        return self.req_seq_num.val() == header.req_seq_num
 
     def get_rsi_replies(self):
         """
