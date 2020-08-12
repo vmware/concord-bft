@@ -39,6 +39,9 @@ def parse_args():
                         help="The output language",
                         choices=["cpp"],
                         required=True)
+    parser.add_argument("--grammar",
+                        default="./grammar.ebnf",
+                        help="EBNF grammar for CMF")
     parser.add_argument(
         "--namespace",
         help="Add a namespace if required by the given language")
@@ -47,7 +50,7 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    with open("./grammar.ebnf") as f:
+    with open(args.grammar) as f:
         grammar = f.read()
         with open(args.input) as f2:
             cmf = f2.read()
