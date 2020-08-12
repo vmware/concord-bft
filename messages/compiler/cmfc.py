@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import os
 import tatsu
 
 from pprint import pprint
@@ -47,7 +48,9 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    with open("./grammar.ebnf") as f:
+    grammar = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), "grammar.ebnf")
+    with open(grammar) as f:
         grammar = f.read()
         with open(args.input) as f2:
             cmf = f2.read()
