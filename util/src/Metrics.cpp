@@ -53,6 +53,12 @@ Component::Handle<Counter> Component::RegisterCounter(const string& name, const 
   return Component::Handle<Counter>(values_.counters_, values_.counters_.size() - 1);
 }
 
+Component::Handle<Summary> Component::RegisterSummary(const std::string& name, const Summary::InitQuantiles& quantiles) {
+  names_.summary_names_.emplace_back(name);
+  values_.summaries_.emplace_back(Summary(quantiles));
+  return Component::Handle<Summary>(values_.summaries_, values_.summaries_.size() - 1);
+}
+
 std::list<Metric> Component::CollectGauges() {
   std::list<Metric> ret;
   for (size_t i = 0; i < names_.gauge_names_.size(); i++) {
@@ -73,6 +79,14 @@ std::list<Metric> Component::CollectStatuses() {
   std::list<Metric> ret;
   for (size_t i = 0; i < names_.status_names_.size(); i++) {
     ret.emplace_back(Metric{name_, names_.status_names_[i], values_.statuses_[i]});
+  }
+  return ret;
+}
+
+std::list<Metric> Component::CollectSummaries() {
+  std::list<Metric> ret;
+  for (size_t i = 0; i < names_.summary_names_.size(); i++) {
+    ret.emplace_back(Metric{name_, names_.summary_names_[i], values_.summaries_[i].Collect()});
   }
   return ret;
 }
@@ -106,6 +120,12 @@ Counter Aggregator::GetCounter(const string& component_name, const string& val_n
   std::lock_guard<std::mutex> lock(lock_);
   auto& component = components_.at(component_name);
   return FindValue(kCounterName, val_name, component.names_.counter_names_, component.values_.counters_);
+}
+
+Summary Aggregator::GetSummary(const string& component_name, const string& val_name) {
+  std::lock_guard<std::mutex> lock(lock_);
+  auto& component = components_.at(component_name);
+  return FindValue(kCounterName, val_name, component.names_.summary_names_, component.values_.summaries_);
 }
 
 // Generate a JSON string of all aggregated components. To save space we don't
@@ -160,6 +180,16 @@ std::list<Metric> Aggregator::CollectStatuses() {
   return ret;
 }
 
+std::list<Metric> Aggregator::CollectSummaries() {
+  std::lock_guard<std::mutex> lock(lock_);
+  std::list<Metric> ret;
+  for (auto& comp : components_) {
+    const auto& summaries = comp.second.CollectSummaries();
+    ret.insert(ret.end(), summaries.begin(), summaries.end());
+  }
+  return ret;
+}
+
 // Generate a JSON string of the component. To save space we don't add any
 // newline characters.
 std::string Component::ToJson() {
@@ -206,6 +236,19 @@ std::string Component::ToJson() {
   }
 
   // End counters
+  oss << "},";
+
+  // Add any Summary
+  oss << "\"Summaries\":{";
+
+  for (size_t i = 0; i < names_.summary_names_.size(); i++) {
+    if (i != 0) {
+      oss << ",";
+    }
+    oss << "\"" << names_.summary_names_[i] << "\":" << values_.summaries_[i].ToJson() << "";
+  }
+
+  // End counters
   oss << "}";
 
   // End component
@@ -214,4 +257,34 @@ std::string Component::ToJson() {
   return oss.str();
 }
 
+std::string Summary::ToJson() {
+  auto data = Collect();
+  std::ostringstream oss;
+  oss << "{\"Quantiles\":{";
+  for (uint32_t i = 0; i < data.quantile.size(); i++) {
+    if (i != 0) oss << ",";
+    oss << "\"" << data.quantile[i].quantile << "\":" << data.quantile[i].value << "";
+  }
+  oss << "}";
+  oss << ", \"Sample_sum\":" << data.sample_sum;
+  oss << ", \"Sample_count:\"" << data.sample_count;
+  oss << "}";
+  return oss.str();
+}
+Summary::SummaryDescription Summary::Collect() {
+  auto data = summary_->Collect();
+  std::vector<Quantile> quantile;
+  for (auto& q : data.summary.quantile) {
+    quantile.emplace_back(Quantile(q.quantile, q.value));
+  }
+  return {data.summary.sample_count, data.summary.sample_sum, quantile};
+}
+void Summary::Observe(double value) { summary_->Observe(value); }
+Summary::Summary(const Summary::InitQuantiles& quantiles) {
+  prometheus::Summary::Quantiles quantiles_;
+  for (auto& q : quantiles) {
+    quantiles_.emplace_back(prometheus::detail::CKMSQuantiles::Quantile(std::get<0>(q), std::get<1>(q)));
+  }
+  summary_ = std::make_shared<prometheus::Summary>(quantiles_);
+}
 }  // namespace concordMetrics
