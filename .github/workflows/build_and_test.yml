@@ -1,15 +1,6 @@
 name: Build
 on: [push, pull_request]
 
-env:
-    DOCKER_REPO: concordbft
-    DOCKER_IMAGE: concord-bft
-    DOCKER_WORK_DIR: /concord-bft
-    DOCKER_IMAGE_VER: 0.6
-    CMAKE_CXX_FLAGS: "-DCMAKE_CXX_FLAGS_RELEASE=-O3 -g"
-    USE_LOG4CPP: -DUSE_LOG4CPP=TRUE
-    USE_ROCKSDB: -DBUILD_ROCKSDB_STORAGE=TRUE
-
 jobs:
   build:
     name: Build
@@ -18,8 +9,8 @@ jobs:
         fail-fast: false
         matrix:
             compiler:
-                - "CC=gcc CXX=g++"
-                - "CC=clang CXX=clang++"
+                - "CONCORD_BFT_CONTAINER_CC=gcc CONCORD_BFT_CONTAINER_CXX=g++"
+                - "CONCORD_BFT_CONTAINER_CC=clang CONCORD_BFT_CONTAINER_CXX=clang++"
             ci_build_type:
                 - "-DCMAKE_BUILD_TYPE=RELEASE -DCI_TEST_STORAGE_TYPE=v1direct"
                 - "-DCMAKE_BUILD_TYPE=RELEASE -DCI_TEST_STORAGE_TYPE=v2merkle"
@@ -28,8 +19,6 @@ jobs:
                 - "-DUSE_S3_OBJECT_STORE=ON"
                 - "-DUSE_S3_OBJECT_STORE=OFF"
     steps:
-        - name: Pull docker image
-          run: docker pull ${{ env.DOCKER_REPO }}/${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_IMAGE_VER }}
         - name: Checkout
           uses: actions/checkout@v2
         - name: Create artifact directory
@@ -45,23 +34,20 @@ jobs:
             #  uses: mxschmitt/action-tmate@v2
         - name: Build and test
           run: >
-            docker run --rm --privileged=true
-            --cap-add NET_ADMIN --cap-add=SYS_PTRACE --ulimit core=-1
-            --workdir=${{ env.DOCKER_WORK_DIR }} --name=${{ env.DOCKER_IMAGE }}
-            --mount type=bind,source=${PWD},target=${{ env.DOCKER_WORK_DIR }}
-            --mount type=bind,source=${{ github.workspace }}/artifact/cores,target=/cores
-            ${{ env.DOCKER_REPO }}/${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_IMAGE_VER }}
-            /bin/bash -c "mkdir build && cd build &&
-            ${{ matrix.compiler }}
-            cmake ${{ env.CMAKE_CXX_FLAGS }}
-            ${{ matrix.ci_build_type }}
-            ${{ env.USE_LOG4CPP }}
-            ${{ env.USE_ROCKSDB }}
-            ${{ matrix.use_s3_obj_store }} .. &&
-            make format-check &&
-            make -j$(nproc) &&
-            ctest --timeout 3000 --output-on-failure" 2>&1 | tee ${{ github.workspace }}/artifact/build.log ;
-            exit ${PIPESTATUS[0]}
+              script -q -e -c "make build \
+                              ${{ matrix.compiler}} \
+                              CONCORD_BFT_CMAKE_FLAGS=\"\
+                              ${{ matrix.ci_build_type }} \
+                              -DBUILD_TESTING=ON \
+                              -DBUILD_COMM_TCP_PLAIN=FALSE \
+                              -DBUILD_COMM_TCP_TLS=FALSE \
+                              -DCMAKE_CXX_FLAGS_RELEASE=-O3 -g \
+                              -DUSE_LOG4CPP=TRUE \
+                              -DBUILD_ROCKSDB_STORAGE=TRUE \
+                              ${{ matrix.use_s3_obj_store }} \
+                              -DUSE_OPENTRACING=ON \
+                              -DOMIT_TEST_OUTPUT=OFF\" "\
+              && script -q -e -c "make test"
         - name: Prepare artifacts
           if: failure()
           run: |

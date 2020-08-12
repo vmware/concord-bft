@@ -177,6 +177,4 @@ build-docker-image: ## Re-build the container without caching
 	@echo "Build finished. Docker image name: \"${CONCORD_BFT_DOCKER_IMAGE}:latest\"."
 	@echo "Before you push it to Docker Hub, please tag it(CONCORD_BFT_DOCKER_IMAGE_VERSION + 1)."
 	@echo "If you want the image to be the default, please update the following variables:"
-	@echo "1. ${CURDIR}/Makefile: CONCORD_BFT_DOCKER_IMAGE_VERSION"
-	@echo "2. ${CURDIR}/.travis.yml: DOCKER_IMAGE_VER"
-	@echo "3. ${CURDIR}/.github/workflows/build_and_test.yml: DOCKER_IMAGE_VER"
+	@echo "${CURDIR}/Makefile: CONCORD_BFT_DOCKER_IMAGE_VERSION"
