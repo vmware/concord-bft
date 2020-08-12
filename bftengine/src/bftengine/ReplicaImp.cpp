@@ -3272,6 +3272,7 @@ void ReplicaImp::start() {
   if (!firstTime_ || config_.debugPersistentStorageEnabled) clientsManager->loadInfoFromReservedPages();
   addTimers();
   processMessages();
+  msgsCommunicator_->startMsgsProcessing(config_.replicaId);
 }
 
 void ReplicaImp::processMessages() {

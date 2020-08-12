@@ -17,6 +17,7 @@
 #include "Logger.hpp"
 #include "PersistentStorage.hpp"
 #include "ClientsManager.hpp"
+#include "MsgsCommunicator.hpp"
 
 using concordUtil::Timers;
 
@@ -45,6 +46,7 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
 
 void ReadOnlyReplica::start() {
   ReplicaForStateTransfer::start();
+  msgsCommunicator_->startMsgsProcessing(config_.replicaId);
   ps_->beginWriteTran();
   ps_->setReplicaConfig(config_);
   ps_->endWriteTran();
