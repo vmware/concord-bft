@@ -538,19 +538,21 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
   // Unused for now. Replica Specific Info not currently supported in pre-execution.
   uint32_t replicaSpecificInfoLen = 0;
   auto span = concordUtils::startChildSpanFromContext(span_context, "bft_process_preprocess_msg");
-  requestsHandler_.execute(clientId,
-                           reqSeqNum,
-                           PRE_PROCESS_FLAG,
-                           reqLength,
-                           reqBuf,
-                           maxReplyMsgSize_,
-                           (char *)getPreProcessResultBuffer(clientId),
-                           resultLen,
-                           replicaSpecificInfoLen,
-                           span);
-  if (!resultLen)
-    throw std::runtime_error("Actual result length is 0 for clientId: " + to_string(clientId) +
-                             ", requestSeqNum: " + to_string(reqSeqNum));
+  auto error = requestsHandler_.execute(clientId,
+                                        reqSeqNum,
+                                        PRE_PROCESS_FLAG,
+                                        reqLength,
+                                        reqBuf,
+                                        maxReplyMsgSize_,
+                                        (char *)getPreProcessResultBuffer(clientId),
+                                        resultLen,
+                                        replicaSpecificInfoLen,
+                                        span);
+  if (error || !resultLen) {
+    throw std::runtime_error("Pre-execution failed for clientId: " + to_string(clientId) +
+                             ", requestSeqNum: " + to_string(reqSeqNum) + ", error code: " + to_string(error) +
+                             ", resultLen: " + to_string(resultLen));
+  }
 
   LOG_DEBUG(logger(), "Actual " << KVLOG(resultLen) << " for " << KVLOG(reqSeqNum, clientId));
   return resultLen;
