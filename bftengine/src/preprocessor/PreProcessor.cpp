@@ -538,19 +538,19 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
   // Unused for now. Replica Specific Info not currently supported in pre-execution.
   uint32_t replicaSpecificInfoLen = 0;
   auto span = concordUtils::startChildSpanFromContext(span_context, "bft_process_preprocess_msg");
-  auto error = requestsHandler_.execute(clientId,
-                                        reqSeqNum,
-                                        PRE_PROCESS_FLAG,
-                                        reqLength,
-                                        reqBuf,
-                                        maxReplyMsgSize_,
-                                        (char *)getPreProcessResultBuffer(clientId),
-                                        resultLen,
-                                        replicaSpecificInfoLen,
-                                        span);
-  if (error || !resultLen) {
+  auto status = requestsHandler_.execute(clientId,
+                                         reqSeqNum,
+                                         PRE_PROCESS_FLAG,
+                                         reqLength,
+                                         reqBuf,
+                                         maxReplyMsgSize_,
+                                         (char *)getPreProcessResultBuffer(clientId),
+                                         resultLen,
+                                         replicaSpecificInfoLen,
+                                         span);
+  if (status != 0 || !resultLen) {
     throw std::runtime_error("Pre-execution failed for clientId: " + to_string(clientId) +
-                             ", requestSeqNum: " + to_string(reqSeqNum) + ", error code: " + to_string(error) +
+                             ", requestSeqNum: " + to_string(reqSeqNum) + ", status: " + to_string(status) +
                              ", resultLen: " + to_string(resultLen));
   }
 
