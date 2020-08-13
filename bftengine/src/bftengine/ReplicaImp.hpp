@@ -242,7 +242,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   shared_ptr<PersistentStorage> getPersistentStorage() const { return ps_; }
   IRequestsHandler* getRequestsHandler() { return &bftRequestsHandler_; }
 
-  void processMessages();
+  void recoverRequests();
 
   // InternalReplicaApi
   bool isCollectingState() const override { return stateTransfer->isCollectingState(); }

@@ -3268,20 +3268,24 @@ void ReplicaImp::addTimers() {
 }
 
 void ReplicaImp::start() {
+  LOG_INFO(GL, "Running ReplicaImp");
   ReplicaForStateTransfer::start();
   if (!firstTime_ || config_.debugPersistentStorageEnabled) clientsManager->loadInfoFromReservedPages();
   addTimers();
-  processMessages();
+  recoverRequests();
+
+  // The following line will start the processing thread.
+  // It must happen after the replica recovers requests in the main thread.
+  msgsCommunicator_->startMsgsProcessing(config_.replicaId);
 }
 
-void ReplicaImp::processMessages() {
-  LOG_INFO(GL, "Running ReplicaImp");
-
+void ReplicaImp::recoverRequests() {
   if (recoveringFromExecutionOfRequests) {
+    LOG_INFO(GL, "Recovering execution of requests");
     SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum + 1);
     PrePrepareMsg *pp = seqNumInfo.getPrePrepareMsg();
     ConcordAssertNE(pp, nullptr);
-    auto span = concordUtils::startSpan("bft_process_messages_on_start");
+    auto span = concordUtils::startSpan("bft_recover_requests_on_start");
     executeRequestsInPrePrepareMsg(span, pp, true);
     metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
     metric_total_finished_consensuses_.Get().Inc();
