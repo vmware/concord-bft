@@ -52,6 +52,12 @@ class RepliesManager:
         self.replies = dict()
 
     def add_reply(self, rsi_message):
+        """
+        Add a new reply to replies. We want to return only the replies that belongs the same common data.
+        Thus, we have a key of (header, data) to which we insert the reply.
+        Also, to avoid double replies from the same replica (due to retries or malicious activity) we keep a reply
+        per-replica in a dictionary.
+        """
         key = rsi_message.get_matched_reply_key()
         if key not in self.replies.keys():
             self.replies[key] = dict()
