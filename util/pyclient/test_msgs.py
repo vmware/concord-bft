@@ -17,7 +17,7 @@ import bft_msgs
 import replica_specific_info as rsi
 
 
-class TestSpecificReplyInfoManager(unittest.TestCase):
+class TestRepliesManager(unittest.TestCase):
 
     def _build_msg(self, msg, primary_id=0, req_seq_num=1, rsi_length=0):
         return bft_msgs.pack_reply(primary_id, req_seq_num, msg, rsi_length)
@@ -25,14 +25,14 @@ class TestSpecificReplyInfoManager(unittest.TestCase):
     def test_add_message_to_manager(self):
         replies_manager = rsi.RepliesManager()
         packed = self._build_msg(b'hello')
-        rsi_reply = rsi.MsgWithSpecificReplicaInfo(packed, 0)
+        rsi_reply = rsi.MsgWithReplicaSpecificInfo(packed, 0)
         num_of_replies = replies_manager.add_reply(rsi_reply)
         self.assertEqual(num_of_replies, 1)
 
     def test_add_same_message_twice_to_manager(self):
         replies_manager = rsi.RepliesManager()
         packed = self._build_msg(b'hello')
-        rsi_reply = rsi.MsgWithSpecificReplicaInfo(packed, sender_id=0)
+        rsi_reply = rsi.MsgWithReplicaSpecificInfo(packed, sender_id=0)
 
         num_of_replies = replies_manager.add_reply(rsi_reply)
         self.assertEqual(num_of_replies, 1)
@@ -43,8 +43,8 @@ class TestSpecificReplyInfoManager(unittest.TestCase):
     def test_add_two_identical_from_different_senders_message_to_manager(self):
         replies_manager = rsi.RepliesManager()
         packed = self._build_msg(b'hello')
-        rsi_reply = rsi.MsgWithSpecificReplicaInfo(packed, sender_id=0)
-        rsi_reply2 = rsi.MsgWithSpecificReplicaInfo(packed, sender_id=1)
+        rsi_reply = rsi.MsgWithReplicaSpecificInfo(packed, sender_id=0)
+        rsi_reply2 = rsi.MsgWithReplicaSpecificInfo(packed, sender_id=1)
         num_of_replies = replies_manager.add_reply(rsi_reply)
         self.assertEqual(num_of_replies, 1)
 
@@ -54,20 +54,20 @@ class TestSpecificReplyInfoManager(unittest.TestCase):
     def test_add_two_message_with_different_rsi_to_manager(self):
         replies_manager = rsi.RepliesManager()
         packed = self._build_msg(b'hello0', rsi_length=1)
-        rsi_reply = rsi.MsgWithSpecificReplicaInfo(packed, sender_id=1)
+        rsi_reply = rsi.MsgWithReplicaSpecificInfo(packed, sender_id=1)
 
         num_of_replies = replies_manager.add_reply(rsi_reply)
         self.assertEqual(num_of_replies, 1)
 
         packed2 = self._build_msg(b'hello1', rsi_length=1)
-        rsi_reply2 = rsi.MsgWithSpecificReplicaInfo(packed2, sender_id=0)
+        rsi_reply2 = rsi.MsgWithReplicaSpecificInfo(packed2, sender_id=0)
 
         num_of_replies = replies_manager.add_reply(rsi_reply2)
         self.assertEqual(num_of_replies, 2)
 
         common_key = rsi_reply.get_matched_reply_key()
         rsi_replies = replies_manager.pop(common_key)
-        self.assertEqual(replies_manager.length_of_replies(common_key), 0)
+        self.assertEqual(replies_manager.num_matching_replies(common_key), 0)
         self.assertEqual(common_key.header.primary_id, 0)
         self.assertEqual(common_key.header.req_seq_num, 1)
         self.assertEqual(common_key.data, b'hello')
@@ -77,27 +77,27 @@ class TestSpecificReplyInfoManager(unittest.TestCase):
     def test_add_message_with_two_seq_num_to_manager(self):
         replies_manager = rsi.RepliesManager()
         packed = self._build_msg(b'hello')
-        rsi_reply = rsi.MsgWithSpecificReplicaInfo(packed, sender_id=0)
+        rsi_reply = rsi.MsgWithReplicaSpecificInfo(packed, sender_id=0)
 
         num_of_replies = replies_manager.add_reply(rsi_reply)
         self.assertEqual(num_of_replies, 1)
 
         packed2 = self._build_msg(b'hello', req_seq_num=2)
-        rsi_reply2 = rsi.MsgWithSpecificReplicaInfo(packed2, 0)
+        rsi_reply2 = rsi.MsgWithReplicaSpecificInfo(packed2, 0)
 
         num_of_replies = replies_manager.add_reply(rsi_reply2)
         self.assertEqual(num_of_replies, 1)
-        self.assertEqual(replies_manager.length(), 2)
+        self.assertEqual(replies_manager.num_distinct_replies(), 2)
 
         key1 = rsi_reply.get_matched_reply_key()
         replies_manager.pop(key1)
-        self.assertEqual(replies_manager.length_of_replies(key1), 0)
-        self.assertEqual(replies_manager.length(), 1)
+        self.assertEqual(replies_manager.num_matching_replies(key1), 0)
+        self.assertEqual(replies_manager.num_distinct_replies(), 1)
 
         key2 = rsi_reply2.get_matched_reply_key()
         replies_manager.pop(key2)
-        self.assertEqual(replies_manager.length_of_replies(key2), 0)
-        self.assertEqual(replies_manager.length(), 0)
+        self.assertEqual(replies_manager.num_matching_replies(key2), 0)
+        self.assertEqual(replies_manager.num_distinct_replies(), 0)
 
 
 class TestSpecificReplyInfo(unittest.TestCase):
@@ -107,7 +107,7 @@ class TestSpecificReplyInfo(unittest.TestCase):
         primary_id = 0
         req_seq_num = 1
         packed = bft_msgs.pack_reply(primary_id, req_seq_num, msg, 0)
-        rsi_reply = rsi.MsgWithSpecificReplicaInfo(packed, 0)
+        rsi_reply = rsi.MsgWithReplicaSpecificInfo(packed, 0)
         self.assertEqual(rsi_reply.sender_id, 0)
         common_header, common_data = rsi_reply.get_common_reply()
         self.assertEqual(primary_id, common_header.primary_id)
@@ -119,7 +119,7 @@ class TestSpecificReplyInfo(unittest.TestCase):
         primary_id = 0
         req_seq_num = 1
         packed = bft_msgs.pack_reply(primary_id, req_seq_num, msg, 3)
-        rsi_reply = rsi.MsgWithSpecificReplicaInfo(packed, 0)
+        rsi_reply = rsi.MsgWithReplicaSpecificInfo(packed, 0)
         self.assertEqual(rsi_reply.sender_id, 0)
         common_header, common_data = rsi_reply.get_common_reply()
         self.assertEqual(primary_id, common_header.primary_id)

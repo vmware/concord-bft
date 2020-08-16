@@ -18,10 +18,10 @@ import bft_msgs
 CommonReplyHeader = namedtuple('CommonReplyHeader', ['span_context_size', 'primary_id',
                                                      'req_seq_num', 'length'])
 
-MatchedReplyKey = namedtuple('MatchedReplyKey', ['req_seq_num', 'header', 'data'])
+MatchedReplyKey = namedtuple('MatchedReplyKey', ['header', 'data'])
 
 
-class MsgWithSpecificReplicaInfo:
+class MsgWithReplicaSpecificInfo:
     def __init__(self, bare_message, sender_id):
         orig_header, orig_data = bft_msgs.unpack_reply(bare_message)
         self.common_header = CommonReplyHeader(orig_header.span_context_size, orig_header.primary_id,
@@ -38,7 +38,7 @@ class MsgWithSpecificReplicaInfo:
         return self.rsi_data
 
     def get_matched_reply_key(self):
-        return MatchedReplyKey(self.common_header.req_seq_num, self.common_header, self.common_data)
+        return MatchedReplyKey(self.common_header, self.common_data)
 
     def get_sender_id(self):
         return self.sender_id
@@ -51,12 +51,7 @@ class RepliesManager:
     def __init__(self):
         self.replies = dict()
 
-    def validate_reply(self, rsi_msg):
-        return True
-
     def add_reply(self, rsi_message):
-        if self.validate_reply(rsi_message) is False:
-            return -1
         key = rsi_message.get_matched_reply_key()
         if key not in self.replies.keys():
             self.replies[key] = dict()
@@ -66,10 +61,10 @@ class RepliesManager:
     def pop(self, matched_reply_key):
         return self.replies.pop(matched_reply_key)
 
-    def length(self):
+    def num_distinct_replies(self):
         return len(self.replies)
 
-    def length_of_replies(self, matched_reply_key):
+    def num_matching_replies(self, matched_reply_key):
         if matched_reply_key not in self.replies.keys():
             return 0
         return len(self.replies[matched_reply_key])
@@ -79,4 +74,6 @@ class RepliesManager:
             return dict()
         return self.replies[matched_reply_key]
 
+    def clear_replies(self):
+        self.replies = dict()
 

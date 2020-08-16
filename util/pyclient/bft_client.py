@@ -165,12 +165,14 @@ class UdpClient:
         self.primary = None
         self.retries += 1
         self.rsi_replies = dict()
+        self.replies_manager.clear_replies()
 
     def reset_on_new_request(self):
         """Reset any state that must be reset during new requests"""
         self.reply = None
         self.retries = 0
         self.rsi_replies = dict()
+        self.replies_manager.clear_replies()
 
     async def bind(self):
         # Each port is a function of its client_id
@@ -192,7 +194,7 @@ class UdpClient:
                         await self.send_to_replicas(data, dest_replicas)
                     else:
                         await self.send_to_primary(data)
-                    nursery.start_soon(self.recv, m_of_n_quorum.required, nursery.cancel_scope)
+                    nursery.start_soon(self.recv, m_of_n_quorum.required, dest_replicas, nursery.cancel_scope)
             if self.reply is None:
                 self.reset_on_retry()
         return self.reply
@@ -215,25 +217,26 @@ class UdpClient:
         await self.sock.sendto(request, ip_port)
         self.msgs_sent += 1
 
-    async def recv(self, required_quorum_size, cancel_scope):
+    async def recv(self, required_replies, dest_replicas, cancel_scope):
         """
         Receive reply messages until a quorum is achieved or the enclosing
         cancel_scope times out.
         """
+        replicas_ids = [(r.ip, r.port) for r in dest_replicas]
         while True:
             data, sender = await self.sock.recvfrom(self.config.max_msg_size)
-            sri_msg = rsi.MsgWithSpecificReplicaInfo(data, sender)
-            header, reply = sri_msg.get_common_reply()
-            if self.valid_reply(header):
-                quorum_size = self.replies_manager.add_reply(sri_msg)
-                if quorum_size == required_quorum_size:
+            rsi_msg = rsi.MsgWithReplicaSpecificInfo(data, sender)
+            header, reply = rsi_msg.get_common_reply()
+            if self.valid_reply(header, rsi_msg.get_sender_id(), replicas_ids):
+                quorum_size = self.replies_manager.add_reply(rsi_msg)
+                if quorum_size == required_replies:
                     self.reply = reply
-                    self.rsi_replies = self.replies_manager.get_rsi_replies(sri_msg.get_matched_reply_key())
+                    self.rsi_replies = self.replies_manager.get_rsi_replies(rsi_msg.get_matched_reply_key())
                     self.primary = self.replicas[header.primary_id]
                     cancel_scope.cancel()
 
-    def valid_reply(self, header):
-        return self.req_seq_num.val() == header.req_seq_num
+    def valid_reply(self, header, sender, dest_replicas):
+        return self.req_seq_num.val() == header.req_seq_num and sender in dest_replicas
 
     def get_rsi_replies(self):
         """
