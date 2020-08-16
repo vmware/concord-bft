@@ -237,20 +237,20 @@ std::string Component::ToJson() {
   }
 
   // End counters
-  oss << "},";
-
-  // Add any Summary
-  oss << "\"Summaries\":{";
-
-  for (size_t i = 0; i < names_.summary_names_.size(); i++) {
-    if (i != 0) {
-      oss << ",";
-    }
-    oss << "\"" << names_.summary_names_[i] << "\":" << values_.summaries_[i].ToJson() << "";
-  }
-
-  // End counters
   oss << "}";
+
+//  // Add any Summary
+//  oss << "\"Summaries\":{";
+//
+//  for (size_t i = 0; i < names_.summary_names_.size(); i++) {
+//    if (i != 0) {
+//      oss << ",";
+//    }
+//    oss << "\"" << names_.summary_names_[i] << "\":" << values_.summaries_[i].ToJson() << "";
+//  }
+//
+//  // End summaries
+//  oss << "}";
 
   // End component
   oss << "}";
@@ -268,7 +268,7 @@ std::string Summary::ToJson() {
   }
   oss << "}";
   oss << ", \"Sample_sum\":" << data.sample_sum;
-  oss << ", \"Sample_count:\"" << data.sample_count;
+  oss << ", \"Sample_count\":" << data.sample_count;
   oss << "}";
   return oss.str();
 }
