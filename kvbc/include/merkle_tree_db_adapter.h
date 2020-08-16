@@ -150,11 +150,16 @@ class DBAdapter : public IDbAdapter {
   // This method is made public for testing purposes only. It is meant to be used internally.
   SetOfKeyValuePairs lastReachableBlockDbUpdates(const SetOfKeyValuePairs &updates,
                                                  const OrderedKeysSet &deletes,
-                                                 BlockId blockId);
+                                                 BlockId blockId,
+                                                 int64_t &raw_update_size);
 
   // Execute an update to the tree without persisting the result. This method is made public for testing purposes only.
   std::pair<sparse_merkle::UpdateBatch, sparse_merkle::detail::UpdateCache> updateTree(
       const SetOfKeyValuePairs &updates, const OrderedKeysSet &deletes);
+
+  void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) override {
+    mkMetrics_.SetAggregator(aggregator);
+  }
 
  private:
   concordUtils::Sliver createBlockNode(const SetOfKeyValuePairs &updates,
@@ -201,6 +206,8 @@ class DBAdapter : public IDbAdapter {
   logging::Logger logger_;
   std::shared_ptr<storage::IDBClient> db_;
   sparse_merkle::Tree smTree_;
+  concordMetrics::Component mkMetrics_;
+  concordMetrics::SummaryHandle writeCommitSizeSummary_;
 };
 
 namespace detail {

@@ -159,6 +159,7 @@ class DBAdapter : public IDbAdapter {
   BlockDigest getParentDigest(const RawBlock &rawBlock) const override;
 
   std::shared_ptr<storage::IDBClient> getDb() const override { return db_; }
+  void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) override {}
 
  protected:
   void setLastReachableBlockNum(const BlockId &blockId);

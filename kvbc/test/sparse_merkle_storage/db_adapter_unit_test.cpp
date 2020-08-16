@@ -749,10 +749,10 @@ TEST_P(db_adapter_custom_blockchain, delete_last_reachable_block) {
   for (auto i = 1; i <= numBlocks - 1; ++i) {
     ASSERT_EQ(adapter.addBlock(getOffsetUpdates(i, numBlocks)), i);
   }
-
+  int64_t updates_raw_data = 0;
   // Save the DB updates for the last reachable block and add the block.
-  const auto lastReachabeDbUpdates =
-      adapter.lastReachableBlockDbUpdates(getOffsetUpdates(numBlocks, numBlocks), OrderedKeysSet{}, numBlocks);
+  const auto lastReachabeDbUpdates = adapter.lastReachableBlockDbUpdates(
+      getOffsetUpdates(numBlocks, numBlocks), OrderedKeysSet{}, numBlocks, updates_raw_data);
   ASSERT_EQ(adapter.addBlock(getOffsetUpdates(numBlocks, numBlocks)), numBlocks);
 
   // Verify that all of the keys representing the last reachable block are present.

@@ -51,7 +51,9 @@ using namespace detail;
 constexpr auto MAX_BLOCK_ID = std::numeric_limits<BlockId>::max();
 
 // Converts the updates as returned by the merkle tree to key/value pairs suitable for the DB.
-SetOfKeyValuePairs batchToDbUpdates(const sparse_merkle::UpdateBatch &batch, BlockId blockId) {
+SetOfKeyValuePairs batchToDbUpdates(const sparse_merkle::UpdateBatch &batch,
+                                    BlockId blockId,
+                                    int64_t &update_raw_size) {
   SetOfKeyValuePairs updates;
   const Sliver emptySliver;
 
@@ -59,24 +61,28 @@ SetOfKeyValuePairs batchToDbUpdates(const sparse_merkle::UpdateBatch &batch, Blo
   for (const auto &intKey : batch.stale.internal_keys) {
     const auto key = DBKeyManipulator::genStaleDbKey(intKey, batch.stale.stale_since_version);
     updates[key] = emptySliver;
+    update_raw_size += key.length() + updates[key].length();
   }
 
   // Leaf stale node indexes. Use the index only and set the key to an empty sliver.
   for (const auto &leafKey : batch.stale.leaf_keys) {
     const auto key = DBKeyManipulator::genStaleDbKey(leafKey, batch.stale.stale_since_version);
     updates[key] = emptySliver;
+    update_raw_size += key.length() + updates[key].length();
   }
 
   // Internal nodes.
   for (const auto &[intKey, intNode] : batch.internal_nodes) {
     const auto key = DBKeyManipulator::genInternalDbKey(intKey);
     updates[key] = serialize(intNode);
+    update_raw_size += key.length() + updates[key].length();
   }
 
   // Leaf nodes.
   for (const auto &[leafKey, leafNode] : batch.leaf_nodes) {
     const auto key = DBKeyManipulator::genDataDbKey(leafKey);
     updates[key] = detail::serialize(detail::DatabaseLeafValue{blockId, leafNode});
+    update_raw_size += key.length() + updates[key].length();
   }
 
   return updates;
@@ -114,12 +120,16 @@ DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db)
       // The smTree_ member needs an initialized DB. Therefore, do that in the initializer list before constructing
       // smTree_ .
       db_{db},
-      smTree_{std::make_shared<Reader>(*this)} {
+      smTree_{std::make_shared<Reader>(*this)},
+      mkMetrics_{"merkleTreeMetrics", std::make_shared<concordMetrics::Aggregator>()},
+      writeCommitSizeSummary_{
+          mkMetrics_.RegisterSummary("write_commit_size_bytes", {{0.25, 0.1}, {0.5, 0.1}, {0.75, 0.1}, {0.9, 0.1}})} {
   // Make sure that if linkSTChainFrom() has been interrupted (e.g. a crash or an abnormal shutdown), all DBAdapter
   // methods will return the correct values. For example, if state transfer had completed and linkSTChainFrom() was
   // interrupted, getLatestBlockId() should be equal to getLastReachableBlockId() on the next startup. Another example
   // is getKeyByReadVersion() that returns keys from the blockchain only and ignores keys in the temporary state
   // transfer chain.
+  mkMetrics_.Register();
   linkSTChainFrom(getLastReachableBlockId() + 1);
 }
 
@@ -272,7 +282,8 @@ std::future<BlockDigest> DBAdapter::computeParentBlockDigest(BlockId blockId) co
 
 SetOfKeyValuePairs DBAdapter::lastReachableBlockDbUpdates(const SetOfKeyValuePairs &updates,
                                                           const OrderedKeysSet &deletes,
-                                                          BlockId blockId) {
+                                                          BlockId blockId,
+                                                          int64_t &raw_update_size) {
   // Compute the parent block digest in parallel with the tree update.
   auto parentBlockDigestFuture = computeParentBlockDigest(blockId);
 
@@ -299,6 +310,7 @@ SetOfKeyValuePairs DBAdapter::lastReachableBlockDbUpdates(const SetOfKeyValuePai
       auto dbLeafValue = deserialize<DatabaseLeafValue>(foundKv.value().second);
       dbLeafValue.deletedInBlockId = blockId;
       dbUpdates[foundKv.value().first] = serialize(dbLeafValue);
+      raw_update_size += foundKv.value().first.length() + dbUpdates[foundKv.value().first].length();
       actuallyDeleted.insert(key);
     }
   }
@@ -308,14 +320,15 @@ SetOfKeyValuePairs DBAdapter::lastReachableBlockDbUpdates(const SetOfKeyValuePai
     // Key updates.
     const auto updateBatch =
         smTree_.update(updates, KeysVector{std::cbegin(actuallyDeleted), std::cend(actuallyDeleted)});
-    const auto batchDbUpdates = batchToDbUpdates(updateBatch, blockId);
+    const auto batchDbUpdates = batchToDbUpdates(updateBatch, blockId, raw_update_size);
     dbUpdates.insert(std::cbegin(batchDbUpdates), std::cend(batchDbUpdates));
   }
 
   // Block node with updates and actually deleted keys.
   dbUpdates[DBKeyManipulator::genBlockDbKey(blockId)] =
       createBlockNode(updates, actuallyDeleted, blockId, parentBlockDigestFuture.get());
-
+  raw_update_size +=
+      DBKeyManipulator::genBlockDbKey(blockId).length() + dbUpdates[DBKeyManipulator::genBlockDbKey(blockId)].length();
   return dbUpdates;
 }
 
@@ -354,7 +367,10 @@ BatchedInternalNode DBAdapter::Reader::get_internal(const InternalNodeKey &key) 
 
 BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &updates, const OrderedKeysSet &deletes) {
   const auto blockId = getLastReachableBlockId() + 1;
-  const auto status = db_->multiPut(lastReachableBlockDbUpdates(updates, deletes, blockId));
+  int64_t data_raw_size = 0;
+  auto data = lastReachableBlockDbUpdates(updates, deletes, blockId, data_raw_size);
+  writeCommitSizeSummary_.Get().Observe(data_raw_size);
+  const auto status = db_->multiPut(data);
   if (!status.isOK()) {
     throw std::runtime_error{"Failed to add block, reason: " + status.toString()};
   }
@@ -393,15 +409,17 @@ void DBAdapter::writeSTLinkTransaction(const Key &sTBlockKey, const Sliver &bloc
   // Delete the ST block key in the transaction.
   txn->del(sTBlockKey);
 
+  int64_t data_raw_size = 0;
   // Put the block DB updates in the transaction.
   const auto addDbUpdates =
-      lastReachableBlockDbUpdates(getBlockData(block), block::detail::getDeletedKeys(block), blockId);
+      lastReachableBlockDbUpdates(getBlockData(block), block::detail::getDeletedKeys(block), blockId, data_raw_size);
   for (const auto &[key, value] : addDbUpdates) {
     txn->put(key, value);
   }
 
   // Commit the transaction.
   txn->commit();
+  writeCommitSizeSummary_.Get().Observe(data_raw_size);
 }
 
 void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId) {
@@ -427,7 +445,7 @@ void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId) {
 
     return;
   }
-
+  writeCommitSizeSummary_.Get().Observe(block.length());
   // If not adding the next block, treat as a temporary state transfer block.
   const auto status = db_->put(DBKeyManipulator::generateSTTempBlockKey(blockId), block);
   if (!status.isOK()) {

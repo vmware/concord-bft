@@ -250,5 +250,6 @@ class Component {
 typedef concordMetrics::Component::Handle<concordMetrics::Gauge> GaugeHandle;
 typedef concordMetrics::Component::Handle<concordMetrics::Status> StatusHandle;
 typedef concordMetrics::Component::Handle<concordMetrics::Counter> CounterHandle;
+typedef concordMetrics::Component::Handle<concordMetrics::Summary> SummaryHandle;
 
 }  // namespace concordMetrics

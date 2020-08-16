@@ -211,6 +211,7 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   dbSet.dataDBClient->setAggregator(aggregator);
   dbSet.metadataDBClient->setAggregator(aggregator);
   m_metadataDBClient = dbSet.metadataDBClient;
+  m_bcDbAdapter->setAggregator(aggregator);
   auto stKeyManipulator = std::shared_ptr<storage::ISTKeyManipulator>{storageFactory->newSTKeyManipulator()};
   m_stateTransfer = bftEngine::SimpleBlockchainStateTransfer::create(
       state_transfer_config, this, m_metadataDBClient, stKeyManipulator, aggregator_);
