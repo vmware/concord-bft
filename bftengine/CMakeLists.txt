@@ -60,6 +60,7 @@ set(corebft_source_files
     src/bftengine/KeyManager.cpp
     src/bftengine/RequestHandler.cpp
     src/bftengine/ControlStateManager.cpp
+    src/bftengine/InternalBFTClient.cpp
 )
 
 #

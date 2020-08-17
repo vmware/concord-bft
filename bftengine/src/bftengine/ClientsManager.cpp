@@ -20,9 +20,18 @@
 
 namespace bftEngine {
 namespace impl {
-
-ClientsManager::ClientsManager(ReplicaId myId, std::set<NodeIdType>& clientsSet, uint32_t sizeOfReservedPage)
-    : myId_(myId), sizeOfReservedPage_(sizeOfReservedPage), indexToClientInfo_(clientsSet.size()) {
+// initialize:
+//* map of client id to indices.
+//* map indices to client info.
+//* Calculate reserved pages per client.
+ClientsManager::ClientsManager(ReplicaId myId,
+                               std::set<NodeIdType>& clientsSet,
+                               uint32_t sizeOfReservedPage,
+                               const uint32_t& maxReplysize)
+    : myId_(myId),
+      sizeOfReservedPage_(sizeOfReservedPage),
+      indexToClientInfo_(clientsSet.size()),
+      maxReplysize_(maxReplysize) {
   ConcordAssert(clientsSet.size() >= 1);
 
   scratchPage_ = (char*)std::malloc(sizeOfReservedPage);
@@ -37,17 +46,49 @@ ClientsManager::ClientsManager(ReplicaId myId, std::set<NodeIdType>& clientsSet,
 
     indexToClientInfo_[idx].lastSeqNumberOfReply = 0;
     indexToClientInfo_[idx].latestReplyTime = MinTime;
-
+    highestIdOfNonInternalClient_ = c;
     idx++;
   }
 
-  reservedPagesPerClient_ = ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize() / sizeOfReservedPage;
-  if (ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize() % sizeOfReservedPage != 0)
-    reservedPagesPerClient_++;
+  reservedPagesPerClient_ = reservedPagesPerClient(sizeOfReservedPage, maxReplysize_);
 
-  uint16_t numOfClients = (uint16_t)clientsSet.size();
+  numOfClients_ = (uint16_t)clientsSet.size();
 
-  requiredNumberOfPages_ = (numOfClients * reservedPagesPerClient_);
+  requiredNumberOfPages_ = (numOfClients_ * reservedPagesPerClient_);
+}
+
+uint32_t ClientsManager::reservedPagesPerClient(const uint32_t& sizeOfReservedPage, const uint32_t& maxReplysize) {
+  uint32_t reservedPagesPerClient = maxReplysize / sizeOfReservedPage;
+  if (maxReplysize % sizeOfReservedPage != 0) {
+    reservedPagesPerClient++;
+  }
+  return reservedPagesPerClient;
+}
+
+// Internal bft clients will be located after all other clients.
+void ClientsManager::initInternalClientInfo(const int& numReplicas) {
+  indexToClientInfo_.resize(indexToClientInfo_.size() + numReplicas);
+  requiredNumberOfPages_ += requiredNumberOfPages_ * numReplicas;
+  auto currClId = highestIdOfNonInternalClient_;
+  auto currIdx = clientIdToIndex_[highestIdOfNonInternalClient_];
+  for (int i = 0; i < numReplicas; i++) {
+    clientIdToIndex_.insert(std::pair<NodeIdType, uint16_t>(++currClId, ++currIdx));
+    indexToClientInfo_[currIdx].currentPendingRequest = 0;
+    indexToClientInfo_[currIdx].timeOfCurrentPendingRequest = MinTime;
+
+    indexToClientInfo_[currIdx].lastSeqNumberOfReply = 0;
+    indexToClientInfo_[currIdx].latestReplyTime = MinTime;
+    LOG_DEBUG(GL,
+              "Adding internal client, id [" << currClId << "] as index [" << currIdx << "] vactor size "
+                                             << indexToClientInfo_.size());
+  }
+}
+
+NodeIdType ClientsManager::getHighestIdOfNonInternalClient() { return highestIdOfNonInternalClient_; }
+
+int ClientsManager::getIndexOfClient(const NodeIdType& id) const {
+  if (clientIdToIndex_.find(id) == clientIdToIndex_.end()) return -1;
+  return clientIdToIndex_.at(id);
 }
 
 ClientsManager::~ClientsManager() { std::free(scratchPage_); }
@@ -65,6 +106,11 @@ void ClientsManager::clearReservedPages() {
   for (uint32_t i = 0; i < requiredNumberOfPages_; i++) stateTransfer_->zeroReservedPage(resPageOffset() + i);
 }
 
+// per client:
+// * calculate offset of reserved page start.
+// * load corresponding page from state-transfer to scratchPage.
+// * Fill its clientInfo.
+// * remove pending request if loaded reply is newer.
 void ClientsManager::loadInfoFromReservedPages() {
   for (std::pair<NodeIdType, uint16_t> e : clientIdToIndex_) {
     const uint32_t firstPageId = e.second * reservedPagesPerClient_;
@@ -75,8 +121,7 @@ void ClientsManager::loadInfoFromReservedPages() {
     ConcordAssert(replyHeader->msgType == 0 || replyHeader->msgType == MsgCode::ClientReply);
     ConcordAssert(replyHeader->currentPrimaryId == 0);
     ConcordAssert(replyHeader->replyLength >= 0);
-    ConcordAssert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <=
-                  ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize());
+    ConcordAssert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <= maxReplysize_);
 
     ClientInfo& ci = indexToClientInfo_.at(e.second);
     ci.lastSeqNumberOfReply = replyHeader->reqSeqNum;
@@ -106,6 +151,12 @@ void ClientsManager::getInfoAboutLastReplyToClient(NodeIdType clientId, ReqId& o
   outLatestTime = c.latestReplyTime;
 }
 
+// Reference the ClientInfo of the corresponding client:
+//* set last reply seq num to the seq num of the request we reply to.
+//* set reply time to `now`.
+//* allocate new ClientReplyMsg
+//* calculate: num of pages, size of last page.
+//* save the reply to the reserved pages.
 ClientReplyMsg* ClientsManager::allocateNewReplyMsgAndWriteToStorage(
     NodeIdType clientId, ReqId requestSeqNum, uint16_t currentPrimaryId, char* reply, uint32_t replyLength) {
   // ConcordAssert(replyLength <= .... ) - TODO(GG)
@@ -152,6 +203,12 @@ ClientReplyMsg* ClientsManager::allocateNewReplyMsgAndWriteToStorage(
   return r;
 }
 
+//* load client reserve page to scratchPage
+//* cast to ClientReplyMsgHeader and validate.
+//* calculate: reply msg size, num of pages, size of last page.
+//* allocate new ClientReplyMsg.
+//* copy relpy from reserved pages to ClientReplyMsg.
+//* set primary id.
 ClientReplyMsg* ClientsManager::allocateMsgWithLatestReply(NodeIdType clientId, uint16_t currentPrimaryId) {
   const uint16_t clientIdx = clientIdToIndex_.at(clientId);
 
@@ -169,8 +226,7 @@ ClientReplyMsg* ClientsManager::allocateMsgWithLatestReply(NodeIdType clientId, 
   ConcordAssert(replyHeader->msgType == MsgCode::ClientReply);
   ConcordAssert(replyHeader->currentPrimaryId == 0);
   ConcordAssert(replyHeader->replyLength > 0);
-  ConcordAssert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <=
-                ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize());
+  ConcordAssert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <= maxReplysize_);
 
   uint32_t replyMsgSize = sizeof(ClientReplyMsgHeader) + replyHeader->replyLength;
 
@@ -199,6 +255,9 @@ ClientReplyMsg* ClientsManager::allocateMsgWithLatestReply(NodeIdType clientId, 
   return r;
 }
 
+// Check that:
+//* no pending req is set for that client.
+//* request seq number is bigger than the last reply seq number.
 bool ClientsManager::noPendingAndRequestCanBecomePending(NodeIdType clientId, ReqId reqSeqNum) const {
   uint16_t idx = clientIdToIndex_.at(clientId);
   const ClientInfo& c = indexToClientInfo_.at(idx);
@@ -289,6 +348,7 @@ void ClientsManager::clearAllPendingRequests() {
   ConcordAssert(indexToClientInfo_[0].currentPendingRequest == 0);  // TODO(GG): debug
 }
 
+// iterate over all clients and choose the earliest pending request.
 Time ClientsManager::timeOfEarliestPendingRequest() const  // TODO(GG): naive implementation - consider to optimize
 {
   Time t = MaxTime;

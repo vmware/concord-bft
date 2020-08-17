@@ -31,6 +31,7 @@
 #include "Bitmap.hpp"
 #include "OpenTracing.hpp"
 #include "RequestHandler.h"
+#include "InternalBFTClient.h"
 
 namespace bftEngine::impl {
 
@@ -114,6 +115,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   // managing information about the clients
   ClientsManager* clientsManager = nullptr;
+  std::unique_ptr<InternalBFTClient> internalBFTClient_;
 
   // buffer used to store replies
   char* replyBuffer = nullptr;

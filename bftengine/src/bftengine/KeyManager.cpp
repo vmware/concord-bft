@@ -2,10 +2,15 @@
 #include "thread"
 #include "ReplicaImp.hpp"
 #include "ReplicaConfig.hpp"
+#include <memory>
+#include "messages/ClientRequestMsg.hpp"
 
 const std::string KeyManager::KeyExchangeMsg::getVersion() const { return "1"; }
 
-KeyManager::KeyExchangeMsg KeyManager::KeyExchangeMsg::deserializeMsg(const char* serializedMsg, const uint32_t& size) {
+KeyManager::KeyExchangeMsg::KeyExchangeMsg(std::string k, std::string s, int id)
+    : key(std::move(k)), signature(std::move(s)), repID(id) {}
+
+KeyManager::KeyExchangeMsg KeyManager::KeyExchangeMsg::deserializeMsg(const char* serializedMsg, const int& size) {
   std::stringstream ss;
   KeyManager::KeyExchangeMsg ke;
   ss.write(serializedMsg, std::streamsize(size));
@@ -34,41 +39,42 @@ std::string KeyManager::KeyExchangeMsg::toString() const {
   return ss.str();
 }
 
-void KeyManager::set(bftEngine::IBasicClient* cl, const int& id) {
-  cl_ = cl;
-  repID_ = id;
-}
+KeyManager::KeyManager(InternalBFTClient* cl, const int& id, const uint32_t& clusterSize)
+    : repID_(id), clusterSize_(clusterSize), client_(cl) {}
 
 /*
 Usage:
-  KeyExchangeMsg msg{key,sig,id};
+  KeyExchangeMsg msg{"3c9dac7b594efaea8acd66a18f957f2e", "82c0700a4b907e189529fcc467fd8a1b", repID_};
   std::stringstream ss;
   concord::serialize::Serializable::serialize(ss, msg);
   auto strMsg = ss.str();
-  char buff[128];
-  uint32_t actSize{};
-  // magic numbers, need to check valid values.
-  cl_->invokeCommandSynch(strMsg.c_str(),
-                          strMsg.size(),
-                          bftEngine::KEY_EXCHANGE_FLAG,
-                          std::chrono::milliseconds(60000),
-                          44100,
-                          buff,
-                          &actSize);
+  client_->sendRquest(bftEngine::KEY_EXCHANGE_FLAG, strMsg.size(), strMsg.c_str(), generateCid());
 */
-void KeyManager::sendKeyExchange() { LOG_DEBUG(GL, "KEY EXCHANGE MANAGER  send msg"); }
+void KeyManager::sendKeyExchange() {
+  (void)client_;
+  LOG_DEBUG(GL, "KEY EXCHANGE MANAGER send msg");
+}
+
+std::string KeyManager::generateCid() {
+  std::string cid{"KEY-EXCHANGE-"};
+  auto now = getMonotonicTime().time_since_epoch();
+  auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now);
+  auto sn = now_ms.count();
+  cid += std::to_string(repID_) + "-" + std::to_string(sn);
+  return cid;
+}
 
 std::string KeyManager::onKeyExchange(const KeyExchangeMsg& kemsg) {
-  static int counter = 0;
-  counter++;
   LOG_DEBUG(GL, "KEY EXCHANGE MANAGER  msg " << kemsg.toString());
-  auto numRep = bftEngine::ReplicaConfigSingleton::GetInstance().GetNumReplicas();
-  if (counter < numRep) {
-    LOG_DEBUG(GL, "Exchanged [" << counter << "] out of [" << numRep << "]");
-  } else if (counter == numRep) {
-    LOG_INFO(GL, "KEY EXCHANGE: start accepting msgs");
-    keysExchanged = true;
+  if (!keysExchanged) {
+    exchangedReplicas_.insert(kemsg.repID);
+    LOG_DEBUG(GL, "Exchanged [" << exchangedReplicas_.size() << "] out of [" << clusterSize_ << "]");
+    if (exchangedReplicas_.size() == clusterSize_) {
+      keysExchanged = true;
+      LOG_INFO(GL, "KEY EXCHANGE: start accepting msgs");
+    }
   }
+
   return "ok";
 }
 
