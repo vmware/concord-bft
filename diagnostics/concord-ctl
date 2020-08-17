@@ -10,3 +10,6 @@ cmd = b' '.join(sys.argv[1:]) + b'\n'
 s.send(cmd)
 data = s.recv(64*1024)
 print(data.decode())
+f = open("status.txt", "w")
+f.write(data.decode())
+f.close()
