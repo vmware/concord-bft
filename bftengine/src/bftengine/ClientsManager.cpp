@@ -137,9 +137,6 @@ void ClientsManager::loadInfoFromReservedPages() {
 
 ReqId ClientsManager::seqNumberOfLastReplyToClient(NodeIdType clientId) {
   uint16_t idx = clientIdToIndex_.at(clientId);
-  LOG_DEBUG(GL,
-            "seqNumberOfLastReplyToClient id [" << clientId << "] as index [" << idx << "] vec size "
-                                                << indexToClientInfo_.size());
   ReqId retVal = indexToClientInfo_.at(idx).lastSeqNumberOfReply;
   return retVal;
 }
