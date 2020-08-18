@@ -3308,6 +3308,7 @@ void ReplicaImp::recoverRequests() {
     PrePrepareMsg *pp = seqNumInfo.getPrePrepareMsg();
     ConcordAssertNE(pp, nullptr);
     auto span = concordUtils::startSpan("bft_recover_requests_on_start");
+    SCOPED_MDC_SEQ_NUM(std::to_string(pp->seqNumber()));
     executeRequestsInPrePrepareMsg(span, pp, true);
     metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
     metric_total_finished_consensuses_.Get().Inc();
