@@ -99,13 +99,12 @@ def unpack_request_header(data):
     return RequestHeader._make(struct.unpack(REQUEST_HEADER_FMT,
                                              data[MSG_TYPE_SIZE:end]))
 
-def pack_reply(primary_id, req_seq_num, msg):
+def pack_reply(primary_id, req_seq_num, msg, rsi_length=0):
     """
     Take message information and a message and return a construct a buffer
     containing a serialized reply header and message.
     """
-    # rsi_length is not currently in use
-    rsi_length = 0
+
     header = ReplyHeader(0, primary_id, req_seq_num, len(msg), rsi_length)
     return b''.join([pack_reply_header(header), msg])
 
