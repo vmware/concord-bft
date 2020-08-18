@@ -9,18 +9,7 @@ structures.
 
 # Why another message format?
 
-None of the others really met our goals:
- * Protobuf doesn't have a canonical serialization format
- * Msgpack, etc... isn't schema driven
- * Other systems have weak cross language support and some are very complex to implement
- * None of the systems with code generation create idiomatic types that are ergonomic to use in the given language.
-
-# Goals
- * Easy to understand binary format
- * Easy to implement in *any* language
- * Canonical serialization format
- * Ability to implement zero-copy serialization/deserialization if desired. This is implementation dependent.
- * Schema based definition with code generation for each implementation
+[Architecture decision record](../docs/adr-cmf.md)
 
 # Grammar and Implementation
 There is a [formal grammar](compiler/grammar.ebnf) in
