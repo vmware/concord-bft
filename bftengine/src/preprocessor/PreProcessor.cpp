@@ -306,10 +306,10 @@ void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *msg) {
   const NodeIdType &clientId = preProcessReplyMsg->clientId();
   const SeqNum &reqSeqNum = preProcessReplyMsg->reqSeqNum();
   string cid = preProcessReplyMsg->getCid();
-  SCOPED_MDC_CID(cid);
   PreProcessingResult result = CANCEL;
-  LOG_DEBUG(logger(), "Received PreProcessReplyMsg " << KVLOG(reqSeqNum, senderId, clientId));
   {
+    SCOPED_MDC_CID(cid);
+    LOG_DEBUG(logger(), "Received PreProcessReplyMsg " << KVLOG(reqSeqNum, senderId, clientId));
     const auto &clientEntry = ongoingRequests_[clientId];
     lock_guard<mutex> lock(clientEntry->mutex);
     if (!clientEntry->reqProcessingStatePtr || clientEntry->reqProcessingStatePtr->getReqSeqNum() != reqSeqNum) {
@@ -379,7 +379,8 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId) {
     lock_guard<mutex> lock(clientEntry->mutex);
     auto &reqProcessingStatePtr = clientEntry->reqProcessingStatePtr;
     if (reqProcessingStatePtr) {
-      const auto &reqSeqNum = reqProcessingStatePtr->getReqSeqNum();
+      const auto cid = reqProcessingStatePtr->getReqCid();
+      const auto reqSeqNum = reqProcessingStatePtr->getReqSeqNum();
       // Copy of the message body is unavoidable here, as we need to create a new message type which lifetime is
       // controlled by the replica while all PreProcessReply messages get released here.
       clientRequestMsg = make_unique<ClientRequestMsg>(clientId,
@@ -388,11 +389,11 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId) {
                                                        reqProcessingStatePtr->getPrimaryPreProcessedResultLen(),
                                                        reqProcessingStatePtr->getPrimaryPreProcessedResult(),
                                                        reqProcessingStatePtr->getReqTimeoutMilli(),
-                                                       reqProcessingStatePtr->getReqCid());
+                                                       cid);
       incomingMsgsStorage_->pushExternalMsg(move(clientRequestMsg));
       preProcessorMetrics_.preProcReqSentForFurtherProcessing.Get().Inc();
       releaseClientPreProcessRequest(clientEntry, clientId, COMPLETE);
-      LOG_INFO(logger(), "Pre-processing completed for " << KVLOG(reqSeqNum, clientId));
+      LOG_INFO(logger(), "Pre-processing completed for " << KVLOG(cid, reqSeqNum, clientId));
     }
   }
 }
@@ -403,20 +404,24 @@ bool PreProcessor::registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
                                    PreProcessRequestMsgSharedPtr preProcessRequestMsg) {
   NodeIdType clientId = 0;
   SeqNum reqSeqNum = 0;
+  string cid;
   if (clientReqMsg) {
     clientId = clientReqMsg->clientProxyId();
     reqSeqNum = clientReqMsg->requestSeqNum();
+    cid = clientReqMsg->getCid();
   } else {
     clientId = preProcessRequestMsg->clientId();
     reqSeqNum = preProcessRequestMsg->reqSeqNum();
+    cid = preProcessRequestMsg->getCid();
   }
+  SCOPED_MDC_CID(cid);
   {
     // Only one request is supported per client for now
     const auto &clientEntry = ongoingRequests_[clientId];
     lock_guard<mutex> lock(clientEntry->mutex);
     if (!clientEntry->reqProcessingStatePtr)
       clientEntry->reqProcessingStatePtr = make_unique<RequestProcessingState>(
-          numOfReplicas_, clientId, reqSeqNum, move(clientReqMsg), preProcessRequestMsg);
+          numOfReplicas_, clientId, cid, reqSeqNum, move(clientReqMsg), preProcessRequestMsg);
     else if (!clientEntry->reqProcessingStatePtr->getPreProcessRequest())
       // The request was registered before as arrived directly from the client
       clientEntry->reqProcessingStatePtr->setPreProcessRequest(preProcessRequestMsg);
@@ -447,12 +452,15 @@ void PreProcessor::releaseClientPreProcessRequest(const ClientRequestStateShared
     if (result == COMPLETE) {
       if (clientEntry->reqProcessingHistory.size() >= clientEntry->reqProcessingHistoryHeight) {
         auto &removeFromHistoryReq = clientEntry->reqProcessingHistory.front();
-        LOG_DEBUG(logger(),
-                  KVLOG(clientId) << " requestSeqNum: " << removeFromHistoryReq->getReqSeqNum() << " released");
+        SCOPED_MDC_CID(removeFromHistoryReq->getReqCid());
+        const auto requestSeqNum = removeFromHistoryReq->getReqSeqNum();
+        LOG_DEBUG(logger(), KVLOG(requestSeqNum, clientId) << " released");
         removeFromHistoryReq.reset();
         clientEntry->reqProcessingHistory.pop_front();
       }
-      LOG_DEBUG(logger(), KVLOG(clientId) << " requestSeqNum: " << givenReq->getReqSeqNum() << " moved to the history");
+      SCOPED_MDC_CID(givenReq->getReqCid());
+      const auto requestSeqNum = givenReq->getReqSeqNum();
+      LOG_DEBUG(logger(), KVLOG(requestSeqNum, clientId) << " moved to the history");
       clientEntry->reqProcessingHistory.push_back(move(givenReq));
     } else  // No consensus reached => release request
       givenReq.reset();
@@ -510,6 +518,7 @@ const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId) const {
 // Primary replica: ask all replicas to pre-process the request
 void PreProcessor::sendPreProcessRequestToAllReplicas(const PreProcessRequestMsgSharedPtr &preProcessReqMsg) {
   const set<ReplicaId> &idsOfPeerReplicas = myReplica_.getIdsOfPeerReplicas();
+  SCOPED_MDC_CID(preProcessReqMsg->getCid());
   for (auto destId : idsOfPeerReplicas) {
     if (destId != myReplicaId_) {
       // sendMsg works asynchronously, so we can launch it sequentially here
@@ -553,8 +562,6 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
                              ", requestSeqNum: " + to_string(reqSeqNum) + ", status: " + to_string(status) +
                              ", resultLen: " + to_string(resultLen));
   }
-
-  LOG_DEBUG(logger(), "Actual " << KVLOG(resultLen) << " for " << KVLOG(reqSeqNum, clientId));
   return resultLen;
 }
 
@@ -574,7 +581,7 @@ ReqId PreProcessor::getOngoingReqIdForClient(uint16_t clientId) {
   return 0;
 }
 
-void PreProcessor::handlePreProcessedReqPrimaryRetry(NodeIdType clientId, SeqNum reqSeqNum) {
+void PreProcessor::handlePreProcessedReqPrimaryRetry(NodeIdType clientId) {
   if (getPreProcessingConsensusResult(clientId) == COMPLETE)
     finalizePreProcessing(clientId);
   else
@@ -595,10 +602,7 @@ void PreProcessor::handlePreProcessedReqByPrimary(const PreProcessRequestMsgShar
       cid = clientEntry->reqProcessingStatePtr->getPreProcessRequest()->getCid();
     }
   }
-  if (result != NONE)
-    handlePreProcessReplyMsg(cid, result, clientId, preProcessReqMsg->reqSeqNum());
-  else
-    LOG_INFO(logger(), "No ongoing pre-processing activity detected for " << KVLOG(clientId));
+  if (result != NONE) handlePreProcessReplyMsg(cid, result, clientId, preProcessReqMsg->reqSeqNum());
 }
 
 void PreProcessor::handlePreProcessedReqByNonPrimary(uint16_t clientId,
@@ -610,6 +614,7 @@ void PreProcessor::handlePreProcessedReqByNonPrimary(uint16_t clientId,
   // Release the request before sending a reply to the primary to be able accepting new messages
   releaseClientPreProcessRequestSafe(clientId, COMPLETE);
   sendMsg(replyMsg->body(), myReplica_.currentPrimary(), replyMsg->type(), replyMsg->size());
+  SCOPED_MDC_CID(cid);
   LOG_DEBUG(logger(),
             "Sent PreProcessReplyMsg with " << KVLOG(reqSeqNum)
                                             << " to the primary replica: " << myReplica_.currentPrimary());
@@ -625,7 +630,7 @@ void PreProcessor::handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr
   uint32_t actualResultBufLen = launchReqPreProcessing(
       clientId, reqSeqNum, preProcessReqMsg->requestLength(), preProcessReqMsg->requestBuf(), span_context);
   if (isPrimary && isRetry) {
-    handlePreProcessedReqPrimaryRetry(clientId, reqSeqNum);
+    handlePreProcessedReqPrimaryRetry(clientId);
     return;
   }
   if (isPrimary)

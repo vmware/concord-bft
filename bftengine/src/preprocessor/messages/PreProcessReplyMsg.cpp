@@ -71,6 +71,7 @@ void PreProcessReplyMsg::setupMsgBody(const char* buf, uint32_t bufLen, const st
   msgBody()->cidLength = cid.size();
   msgSize_ = headerSize + sigSize + msgBody()->cidLength;
   msgBody()->replyLength = sigSize;
+  SCOPED_MDC_CID(cid);
   LOG_DEBUG(logger(),
             "senderId=" << msgBody()->senderId << " clientId=" << msgBody()->clientId
                         << " reqSeqNum=" << msgBody()->reqSeqNum << " headerSize=" << headerSize

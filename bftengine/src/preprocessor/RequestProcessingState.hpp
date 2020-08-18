@@ -28,6 +28,7 @@ class RequestProcessingState {
  public:
   RequestProcessingState(uint16_t numOfReplicas,
                          uint16_t clientId,
+                         const std::string& cid,
                          ReqId reqSeqNum,
                          ClientPreProcessReqMsgUniquePtr clientReqMsg,
                          PreProcessRequestMsgSharedPtr preProcessRequestMsg);
@@ -44,8 +45,10 @@ class RequestProcessingState {
   const char* getPrimaryPreProcessedResult() const { return primaryPreProcessResult_; }
   uint32_t getPrimaryPreProcessedResultLen() const { return primaryPreProcessResultLen_; }
   bool isReqTimedOut(bool isPrimary) const;
-  uint64_t getReqTimeoutMilli() const { return clientPreProcessReqMsg_->requestTimeoutMilli(); }
-  std::string getReqCid() const { return clientPreProcessReqMsg_->getCid(); }
+  uint64_t getReqTimeoutMilli() const {
+    return clientPreProcessReqMsg_ ? clientPreProcessReqMsg_->requestTimeoutMilli() : 0;
+  }
+  std::string getReqCid() const { return clientPreProcessReqMsg_ ? clientPreProcessReqMsg_->getCid() : ""; }
   void detectNonDeterministicPreProcessing(const uint8_t* newHash, NodeIdType newSenderId) const;
 
   static void init(uint16_t numOfRequiredReplies);
@@ -69,6 +72,7 @@ class RequestProcessingState {
   // the RequestProcessingState objects.
   const uint16_t numOfReplicas_;
   const uint16_t clientId_;
+  const std::string cid_;
   const ReqId reqSeqNum_;
   const uint64_t entryTime_;
   ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg_;
