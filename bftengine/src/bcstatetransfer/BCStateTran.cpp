@@ -1838,6 +1838,7 @@ bool BCStateTran::getNextFullBlock(uint64_t requiredBlock,
     currentChunk = msg->chunkNumber;
     currentPos += msg->dataSize;
     totalSizeOfPendingItemDataMsgs -= (*it)->dataSize;
+    replicaForStateTransfer_->freeStateTransferMsg(reinterpret_cast<char *>(*it));
     it = pendingItemDataMsgs.erase(it);
     metrics_.num_pending_item_data_msgs_.Get().Set(pendingItemDataMsgs.size());
     metrics_.total_size_of_pending_item_data_msgs_.Get().Set(totalSizeOfPendingItemDataMsgs);

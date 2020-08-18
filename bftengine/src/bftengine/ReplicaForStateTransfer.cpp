@@ -65,6 +65,8 @@ void ReplicaForStateTransfer::onMessage(StateTransferMsg *m) {
   metric_received_state_transfers_.Get().Inc();
   size_t h = sizeof(MessageBase::Header);
   stateTransfer->handleStateTransferMessage(m->body() + h, m->size() - h, m->senderId());
+  m->releaseOwnership();
+  delete m;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
