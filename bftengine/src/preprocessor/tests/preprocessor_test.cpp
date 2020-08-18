@@ -331,6 +331,7 @@ PreProcessReplyMsgSharedPtr preProcessNonPrimary(NodeIdType replicaId, const bft
 TEST(requestPreprocessingState_test, notEnoughRepliesReceived) {
   RequestProcessingState reqState(replicaConfig.numReplicas,
                                   clientId,
+                                  cid,
                                   reqSeqNum,
                                   ClientPreProcessReqMsgUniquePtr(),
                                   PreProcessRequestMsgSharedPtr());
@@ -346,6 +347,7 @@ TEST(requestPreprocessingState_test, notEnoughRepliesReceived) {
 TEST(requestPreprocessingState_test, allRepliesReceivedButNotEnoughSameHashesCollected) {
   RequestProcessingState reqState(replicaConfig.numReplicas,
                                   clientId,
+                                  cid,
                                   reqSeqNum,
                                   ClientPreProcessReqMsgUniquePtr(),
                                   PreProcessRequestMsgSharedPtr());
@@ -363,6 +365,7 @@ TEST(requestPreprocessingState_test, allRepliesReceivedButNotEnoughSameHashesCol
 TEST(requestPreprocessingState_test, enoughSameRepliesReceived) {
   RequestProcessingState reqState(replicaConfig.numReplicas,
                                   clientId,
+                                  cid,
                                   reqSeqNum,
                                   ClientPreProcessReqMsgUniquePtr(),
                                   PreProcessRequestMsgSharedPtr());
@@ -379,6 +382,7 @@ TEST(requestPreprocessingState_test, enoughSameRepliesReceived) {
 TEST(requestPreprocessingState_test, primaryReplicaPreProcessingRetrySucceeds) {
   RequestProcessingState reqState(replicaConfig.numReplicas,
                                   clientId,
+                                  cid,
                                   reqSeqNum,
                                   ClientPreProcessReqMsgUniquePtr(),
                                   PreProcessRequestMsgSharedPtr());
@@ -399,6 +403,7 @@ TEST(requestPreprocessingState_test, primaryReplicaPreProcessingRetrySucceeds) {
 TEST(requestPreprocessingState_test, primaryReplicaDidNotCompletePreProcessingWhileNonPrimariesDid) {
   RequestProcessingState reqState(replicaConfig.numReplicas,
                                   clientId,
+                                  cid,
                                   reqSeqNum,
                                   ClientPreProcessReqMsgUniquePtr(),
                                   PreProcessRequestMsgSharedPtr());

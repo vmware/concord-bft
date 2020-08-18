@@ -28,11 +28,13 @@ void RequestProcessingState::init(uint16_t numOfRequiredReplies) { numOfRequired
 
 RequestProcessingState::RequestProcessingState(uint16_t numOfReplicas,
                                                uint16_t clientId,
+                                               const string cid,
                                                ReqId reqSeqNum,
                                                ClientPreProcessReqMsgUniquePtr clientReqMsg,
                                                PreProcessRequestMsgSharedPtr preProcessRequestMsg)
     : numOfReplicas_(numOfReplicas),
       clientId_(clientId),
+      cid_(cid),
       reqSeqNum_(reqSeqNum),
       entryTime_(getMonotonicTimeMilli()),
       clientPreProcessReqMsg_(move(clientReqMsg)),
@@ -42,9 +44,9 @@ RequestProcessingState::RequestProcessingState(uint16_t numOfReplicas,
 
 void RequestProcessingState::setPreProcessRequest(PreProcessRequestMsgSharedPtr preProcessReqMsg) {
   if (preProcessRequestMsg_ != nullptr) {
-    LOG_ERROR(logger(),
-              "preProcessRequestMsg_ is already set; " << KVLOG(clientId_)
-                                                       << ", reqSeqNum: " << preProcessRequestMsg_->reqSeqNum());
+    const auto &cid = preProcessReqMsg->getCid();
+    const auto &reqSeqNum = preProcessRequestMsg_->reqSeqNum();
+    LOG_ERROR(logger(), "preProcessRequestMsg_ is already set; " << KVLOG(cid, reqSeqNum, clientId_));
     return;
   }
   preProcessRequestMsg_ = preProcessReqMsg;
@@ -63,7 +65,7 @@ void RequestProcessingState::detectNonDeterministicPreProcessing(const SHA3_256:
     if (newHash != hashArray.first) {
       LOG_WARN(logger(),
                "Received pre-processing result hash is different from calculated by other replica "
-                   << KVLOG(reqSeqNum_, clientId_, newSenderId) << " newHash: " << newHash.data()
+                   << KVLOG(cid_, reqSeqNum_, clientId_, newSenderId) << " newHash: " << newHash.data()
                    << " hash: " << hashArray.first.data());
     }
 }
@@ -107,7 +109,7 @@ bool RequestProcessingState::isReqTimedOut(bool isPrimary) const {
     if (reqProcessingTime > clientPreProcessReqMsg_->requestTimeoutMilli()) {
       LOG_WARN(logger(),
                "Request timeout of " << clientPreProcessReqMsg_->requestTimeoutMilli() << " ms expired for "
-                                     << KVLOG(reqSeqNum_, clientId_, reqProcessingTime));
+                                     << KVLOG(cid_, reqSeqNum_, clientId_, reqProcessingTime));
       return true;
     }
   }
@@ -126,22 +128,23 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
       // Primary replica calculated hash is different from a hash that passed pre-execution consensus => we don't have
       // correct pre-processed results. Let's launch a pre-processing retry.
       LOG_WARN(logger(),
-               "Primary replica pre-processing result hash: "
-                   << primaryPreProcessResultHash_.data() << " is different from one passed the consensus: "
-                   << itOfChosenHash->first.data() << KVLOG(reqSeqNum_) << "; retry pre-processing on primary replica");
+               "Primary replica pre-processing result hash: " << primaryPreProcessResultHash_.data()
+                                                              << " is different from one passed the consensus: "
+                                                              << itOfChosenHash->first.data() << KVLOG(cid_, reqSeqNum_)
+                                                              << "; retry pre-processing on primary replica");
       retrying_ = true;
       return RETRY_PRIMARY;
     }
 
     LOG_DEBUG(logger(),
-              "Primary replica did not complete pre-processing yet for " << KVLOG(reqSeqNum_) << "; continue");
+              "Primary replica did not complete pre-processing yet for " << KVLOG(cid_, reqSeqNum_) << "; continue");
     return CONTINUE;
   }
 
   if (numOfReceivedReplies_ == numOfReplicas_ - 1) {
     // Replies from all replicas received, but not enough equal hashes collected => pre-execution consensus not
     // reached => cancel request.
-    LOG_WARN(logger(), "Not enough equal hashes collected for " << KVLOG(reqSeqNum_) << ", cancel request");
+    LOG_WARN(logger(), "Not enough equal hashes collected for " << KVLOG(cid_, reqSeqNum_) << ", cancel request");
     return CANCEL;
   }
   return CONTINUE;

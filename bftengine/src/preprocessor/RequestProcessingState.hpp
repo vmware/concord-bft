@@ -28,6 +28,7 @@ class RequestProcessingState {
  public:
   RequestProcessingState(uint16_t numOfReplicas,
                          uint16_t clientId,
+                         const std::string cid,
                          ReqId reqSeqNum,
                          ClientPreProcessReqMsgUniquePtr clientReqMsg,
                          PreProcessRequestMsgSharedPtr preProcessRequestMsg);
@@ -69,6 +70,7 @@ class RequestProcessingState {
   // the RequestProcessingState objects.
   const uint16_t numOfReplicas_;
   const uint16_t clientId_;
+  const std::string cid_;
   const ReqId reqSeqNum_;
   const uint64_t entryTime_;
   ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg_;

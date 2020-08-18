@@ -403,12 +403,15 @@ bool PreProcessor::registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
                                    PreProcessRequestMsgSharedPtr preProcessRequestMsg) {
   NodeIdType clientId = 0;
   SeqNum reqSeqNum = 0;
+  string cid;
   if (clientReqMsg) {
     clientId = clientReqMsg->clientProxyId();
     reqSeqNum = clientReqMsg->requestSeqNum();
+    cid = clientReqMsg->getCid();
   } else {
     clientId = preProcessRequestMsg->clientId();
     reqSeqNum = preProcessRequestMsg->reqSeqNum();
+    cid = preProcessRequestMsg->getCid();
   }
   {
     // Only one request is supported per client for now
@@ -416,7 +419,7 @@ bool PreProcessor::registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
     lock_guard<mutex> lock(clientEntry->mutex);
     if (!clientEntry->reqProcessingStatePtr)
       clientEntry->reqProcessingStatePtr = make_unique<RequestProcessingState>(
-          numOfReplicas_, clientId, reqSeqNum, move(clientReqMsg), preProcessRequestMsg);
+          numOfReplicas_, clientId, cid, reqSeqNum, move(clientReqMsg), preProcessRequestMsg);
     else if (!clientEntry->reqProcessingStatePtr->getPreProcessRequest())
       // The request was registered before as arrived directly from the client
       clientEntry->reqProcessingStatePtr->setPreProcessRequest(preProcessRequestMsg);
@@ -447,12 +450,15 @@ void PreProcessor::releaseClientPreProcessRequest(const ClientRequestStateShared
     if (result == COMPLETE) {
       if (clientEntry->reqProcessingHistory.size() >= clientEntry->reqProcessingHistoryHeight) {
         auto &removeFromHistoryReq = clientEntry->reqProcessingHistory.front();
-        LOG_DEBUG(logger(),
-                  KVLOG(clientId) << " requestSeqNum: " << removeFromHistoryReq->getReqSeqNum() << " released");
+        const auto &cid = removeFromHistoryReq->getReqCid();
+        const auto &requestSeqNum = removeFromHistoryReq->getReqSeqNum();
+        LOG_DEBUG(logger(), KVLOG(cid, requestSeqNum, clientId) << " released");
         removeFromHistoryReq.reset();
         clientEntry->reqProcessingHistory.pop_front();
       }
-      LOG_DEBUG(logger(), KVLOG(clientId) << " requestSeqNum: " << givenReq->getReqSeqNum() << " moved to the history");
+      const auto &cid = givenReq->getReqCid();
+      const auto &requestSeqNum = givenReq->getReqSeqNum();
+      LOG_DEBUG(logger(), KVLOG(cid, requestSeqNum, clientId) << " moved to the history");
       clientEntry->reqProcessingHistory.push_back(move(givenReq));
     } else  // No consensus reached => release request
       givenReq.reset();
@@ -553,8 +559,6 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
                              ", requestSeqNum: " + to_string(reqSeqNum) + ", status: " + to_string(status) +
                              ", resultLen: " + to_string(resultLen));
   }
-
-  LOG_DEBUG(logger(), "Actual " << KVLOG(resultLen) << " for " << KVLOG(reqSeqNum, clientId));
   return resultLen;
 }
 
@@ -595,10 +599,7 @@ void PreProcessor::handlePreProcessedReqByPrimary(const PreProcessRequestMsgShar
       cid = clientEntry->reqProcessingStatePtr->getPreProcessRequest()->getCid();
     }
   }
-  if (result != NONE)
-    handlePreProcessReplyMsg(cid, result, clientId, preProcessReqMsg->reqSeqNum());
-  else
-    LOG_INFO(logger(), "No ongoing pre-processing activity detected for " << KVLOG(clientId));
+  if (result != NONE) handlePreProcessReplyMsg(cid, result, clientId, preProcessReqMsg->reqSeqNum());
 }
 
 void PreProcessor::handlePreProcessedReqByNonPrimary(uint16_t clientId,
@@ -611,7 +612,7 @@ void PreProcessor::handlePreProcessedReqByNonPrimary(uint16_t clientId,
   releaseClientPreProcessRequestSafe(clientId, COMPLETE);
   sendMsg(replyMsg->body(), myReplica_.currentPrimary(), replyMsg->type(), replyMsg->size());
   LOG_DEBUG(logger(),
-            "Sent PreProcessReplyMsg with " << KVLOG(reqSeqNum)
+            "Sent PreProcessReplyMsg with " << KVLOG(cid, reqSeqNum)
                                             << " to the primary replica: " << myReplica_.currentPrimary());
 }
 
