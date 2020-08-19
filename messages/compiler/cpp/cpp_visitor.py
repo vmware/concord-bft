@@ -23,20 +23,20 @@ struct {name} {{
 
 def serialize_start(name):
     return f"""
-void serialize(std::vector<uint8_t>& output, const {name}& t) {{
+static void serialize(std::vector<uint8_t>& output, const {name}& t) {{
 """
 
 
 def deserialize_start(name):
     return f"""
-void deserialize(uint8_t*& input, const uint8_t* end, {name}& t) {{
+static void deserialize(uint8_t*& input, const uint8_t* end, {name}& t) {{
 """
 
 
 def deserialize_end(name):
     return f"""}}
 
-void deserialize(const std::vector<uint8_t>& input, {name}& t) {{
+static void deserialize(const std::vector<uint8_t>& input, {name}& t) {{
     auto* begin = const_cast<uint8_t*>(input.data());
     deserialize(begin, begin + input.size(), t);
 }}
@@ -61,7 +61,7 @@ def deserialize_field(name, type):
 
 def variant_serialize(variant):
     return f"""\
-void serialize(std::vector<uint8_t>& output, const {variant}& val) {{
+static void serialize(std::vector<uint8_t>& output, const {variant}& val) {{
   std::visit([&output](auto&& arg){{
     cmf::serialize(output, arg.id);
     serialize(output, arg);
@@ -71,7 +71,7 @@ void serialize(std::vector<uint8_t>& output, const {variant}& val) {{
 
 def variant_deserialize(variant, msgs):
     s = f"""
-void deserialize(uint8_t*& start, const uint8_t* end, {variant}& val) {{
+static void deserialize(uint8_t*& start, const uint8_t* end, {variant}& val) {{
   uint32_t id;
   cmf::deserialize(start, end, id);
 """
@@ -95,7 +95,7 @@ def equalop_str(msg_name, fields):
     """ Create an 'operator==' function for the current message struct """
     comparison = " && ".join([f"l.{f} == r.{f}" for f in fields])
     return f"""\
-bool operator==(const {msg_name}& l, const {msg_name}& r) {{
+static bool operator==(const {msg_name}& l, const {msg_name}& r) {{
   return {comparison};
 }}"""
 
