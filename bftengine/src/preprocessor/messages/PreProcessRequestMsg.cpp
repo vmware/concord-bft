@@ -33,6 +33,7 @@ PreProcessRequestMsg::PreProcessRequestMsg(NodeIdType senderId,
   position += reqLength;
   memcpy(position, cid.c_str(), cid.size());
   uint64_t msgLength = sizeof(Header) + span_context.data().size() + reqLength + cid.size();
+  SCOPED_MDC_CID(cid);
   LOG_DEBUG(logger(),
             "senderId=" << senderId << " clientId=" << clientId << " reqSeqNum=" << reqSeqNum
                         << " headerSize=" << sizeof(Header) << " reqLength=" << reqLength << " cidSize=" << cid.size()

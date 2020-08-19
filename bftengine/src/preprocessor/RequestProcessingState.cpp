@@ -28,11 +28,13 @@ void RequestProcessingState::init(uint16_t numOfRequiredReplies) { numOfRequired
 
 RequestProcessingState::RequestProcessingState(uint16_t numOfReplicas,
                                                uint16_t clientId,
+                                               const string &cid,
                                                ReqId reqSeqNum,
                                                ClientPreProcessReqMsgUniquePtr clientReqMsg,
                                                PreProcessRequestMsgSharedPtr preProcessRequestMsg)
     : numOfReplicas_(numOfReplicas),
       clientId_(clientId),
+      cid_(cid),
       reqSeqNum_(reqSeqNum),
       entryTime_(getMonotonicTimeMilli()),
       clientPreProcessReqMsg_(move(clientReqMsg)),
@@ -42,9 +44,9 @@ RequestProcessingState::RequestProcessingState(uint16_t numOfReplicas,
 
 void RequestProcessingState::setPreProcessRequest(PreProcessRequestMsgSharedPtr preProcessReqMsg) {
   if (preProcessRequestMsg_ != nullptr) {
-    LOG_ERROR(logger(),
-              "preProcessRequestMsg_ is already set; " << KVLOG(clientId_)
-                                                       << ", reqSeqNum: " << preProcessRequestMsg_->reqSeqNum());
+    SCOPED_MDC_CID(preProcessReqMsg->getCid());
+    const auto reqSeqNum = preProcessRequestMsg_->reqSeqNum();
+    LOG_ERROR(logger(), "preProcessRequestMsg_ is already set; " << KVLOG(reqSeqNum, clientId_));
     return;
   }
   preProcessRequestMsg_ = preProcessReqMsg;
@@ -59,6 +61,7 @@ void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessRes
 
 void RequestProcessingState::detectNonDeterministicPreProcessing(const SHA3_256::Digest &newHash,
                                                                  NodeIdType newSenderId) const {
+  SCOPED_MDC_CID(cid_);
   for (auto &hashArray : preProcessingResultHashes_)
     if (newHash != hashArray.first) {
       LOG_WARN(logger(),
@@ -100,6 +103,7 @@ auto RequestProcessingState::calculateMaxNbrOfEqualHashes(uint16_t &maxNumOfEqua
 bool RequestProcessingState::isReqTimedOut(bool isPrimary) const {
   if (!clientPreProcessReqMsg_) return false;
 
+  SCOPED_MDC_CID(cid_);
   if (!isPrimary || primaryPreProcessResultLen_ != 0) {
     // On the primary: check request timeout once an asynchronous pre-execution completed (to not abort the execution
     // thread)
@@ -120,6 +124,7 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
 
   uint16_t maxNumOfEqualHashes = 0;
   auto itOfChosenHash = calculateMaxNbrOfEqualHashes(maxNumOfEqualHashes);
+  SCOPED_MDC_CID(cid_);
   if (maxNumOfEqualHashes >= numOfRequiredEqualReplies_) {
     if (itOfChosenHash->first == primaryPreProcessResultHash_) return COMPLETE;  // Pre-execution consensus reached
     if (primaryPreProcessResultLen_ != 0 && !retrying_) {
@@ -132,7 +137,6 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
       retrying_ = true;
       return RETRY_PRIMARY;
     }
-
     LOG_DEBUG(logger(),
               "Primary replica did not complete pre-processing yet for " << KVLOG(reqSeqNum_) << "; continue");
     return CONTINUE;
