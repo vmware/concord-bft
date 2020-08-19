@@ -26,9 +26,12 @@
 #include <thread>
 
 class InternalControlHandlers : public bftEngine::ControlHandlers {
+  bool stoppedOnWedge = false;
+
  public:
-  void onSuperStableCheckpoint() override {}
+  void onSuperStableCheckpoint() override { stoppedOnWedge = true; }
   virtual ~InternalControlHandlers(){};
+  bool haveYouStopped() { return stoppedOnWedge; }
 };
 class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
  public:
@@ -64,8 +67,12 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
                            char *outReply,
                            uint32_t &outReplySize);
 
-  bool executeReadOnlyCommand(
-      uint32_t requestSize, const char *request, size_t maxReplySize, char *outReply, uint32_t &outReplySize);
+  bool executeReadOnlyCommand(uint32_t requestSize,
+                              const char *request,
+                              size_t maxReplySize,
+                              char *outReply,
+                              uint32_t &outReplySize,
+                              uint32_t &specificReplicaInfoOutReplySize);
 
   bool verifyWriteCommand(uint32_t requestSize,
                           const BasicRandomTests::SimpleCondWriteRequest &request,
@@ -78,6 +85,12 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   bool executeGetBlockDataCommand(
       uint32_t requestSize, const char *request, size_t maxReplySize, char *outReply, uint32_t &outReplySize);
 
+  bool executeHaveYouStoppedReadCommand(uint32_t requestSize,
+                                        const char *request,
+                                        size_t maxReplySize,
+                                        char *outReply,
+                                        uint32_t &outReplySize,
+                                        uint32_t &specificReplicaInfoSize);
   bool executeGetLastBlockCommand(uint32_t requestSize, size_t maxReplySize, char *outReply, uint32_t &outReplySize);
 
   void addMetadataKeyValue(concord::storage::SetOfKeyValuePairs &updates, uint64_t sequenceNum) const;
@@ -96,5 +109,5 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   size_t m_writesCounter = 0;
   size_t m_getLastBlockCounter = 0;
   std::shared_ptr<bftEngine::ControlStateManager> controlStateManager_;
-  std::shared_ptr<bftEngine::ControlHandlers> controlHandlers_;
+  std::shared_ptr<InternalControlHandlers> controlHandlers_;
 };

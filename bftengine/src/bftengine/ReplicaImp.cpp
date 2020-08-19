@@ -153,13 +153,6 @@ void ReplicaImp::onReportAboutInvalidMessage(MessageBase *msg, const char *reaso
 
 template <>
 void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
-  if (isSeqNumToStopAt(lastExecutedSeqNum)) {
-    LOG_INFO(GL,
-             "Ignoring ClientRequest because system is stopped at checkpoint pending control state operation (upgrade, "
-             "etc...)");
-    return;
-  }
-
   metric_received_client_requests_.Get().Inc();
   const NodeIdType senderId = m->senderId();
   const NodeIdType clientId = m->clientProxyId();
@@ -211,6 +204,13 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   if (readOnly) {
     executeReadOnlyRequest(span, m);
     delete m;
+    return;
+  }
+
+  if (isSeqNumToStopAt(lastExecutedSeqNum)) {
+    LOG_INFO(GL,
+             "Ignoring ClientRequest because system is stopped at checkpoint pending control state operation (upgrade, "
+             "etc...)");
     return;
   }
 
@@ -3292,6 +3292,9 @@ void ReplicaImp::addTimers() {
 void ReplicaImp::start() {
   LOG_INFO(GL, "Running ReplicaImp");
   ReplicaForStateTransfer::start();
+  // If the replica has crashed and recovered by its own, this will remove the saved checkpoint to stop at.
+  if (controlStateManager_ && controlStateManager_->getCheckpointToStopAt().has_value())
+    controlStateManager_->clearCheckpointToStopAt();
   if (!firstTime_ || config_.debugPersistentStorageEnabled) clientsManager->loadInfoFromReservedPages();
   addTimers();
   recoverRequests();
