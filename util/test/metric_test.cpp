@@ -15,6 +15,7 @@
 #include <cstdlib>
 #include "gtest/gtest.h"
 #include "Metrics.hpp"
+#include <cmath>
 
 using namespace std;
 
@@ -26,11 +27,9 @@ TEST(MetricsTest, UseValues) {
   auto h_gauge = c.RegisterGauge("connected_peers", 3);
   auto h_status = c.RegisterStatus("state", "primary");
   auto h_counter = c.RegisterCounter("messages_sent", 0);
-
   ASSERT_EQ(3, h_gauge.Get().Get());
   ASSERT_EQ("primary", h_status.Get().Get());
   ASSERT_EQ(0, h_counter.Get().Get());
-
   h_gauge.Get().Set(5);
   ASSERT_EQ(5, h_gauge.Get().Get());
   h_status.Get().Set("backup");

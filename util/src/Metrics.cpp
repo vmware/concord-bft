@@ -53,6 +53,12 @@ Component::Handle<Counter> Component::RegisterCounter(const string& name, const 
   return Component::Handle<Counter>(values_.counters_, values_.counters_.size() - 1);
 }
 
+Component::Handle<Summary> Component::RegisterSummary(const std::string& name, const Quantiles& quantiles) {
+  names_.summary_names_.emplace_back(name);
+  values_.summaries_.emplace_back(Summary(StatisticsFactory::get().createSummary(quantiles)));
+  return Component::Handle<Summary>(values_.summaries_, values_.summaries_.size() - 1);
+}
+
 std::list<Metric> Component::CollectGauges() {
   std::list<Metric> ret;
   for (size_t i = 0; i < names_.gauge_names_.size(); i++) {
@@ -73,6 +79,14 @@ std::list<Metric> Component::CollectStatuses() {
   std::list<Metric> ret;
   for (size_t i = 0; i < names_.status_names_.size(); i++) {
     ret.emplace_back(Metric{name_, names_.status_names_[i], values_.statuses_[i]});
+  }
+  return ret;
+}
+
+std::list<Metric> Component::CollectSummaries() {
+  std::list<Metric> ret;
+  for (size_t i = 0; i < names_.summary_names_.size(); i++) {
+    ret.emplace_back(Metric{name_, names_.summary_names_[i], values_.summaries_[i].Get()});
   }
   return ret;
 }
@@ -106,6 +120,12 @@ Counter Aggregator::GetCounter(const string& component_name, const string& val_n
   std::lock_guard<std::mutex> lock(lock_);
   auto& component = components_.at(component_name);
   return FindValue(kCounterName, val_name, component.names_.counter_names_, component.values_.counters_);
+}
+
+Summary Aggregator::GetSummary(const string& component_name, const string& val_name) {
+  std::lock_guard<std::mutex> lock(lock_);
+  auto& component = components_.at(component_name);
+  return FindValue(kCounterName, val_name, component.names_.summary_names_, component.values_.summaries_);
 }
 
 // Generate a JSON string of all aggregated components. To save space we don't
@@ -156,6 +176,16 @@ std::list<Metric> Aggregator::CollectStatuses() {
   for (auto& comp : components_) {
     const auto& statuses = comp.second.CollectStatuses();
     ret.insert(ret.end(), statuses.begin(), statuses.end());
+  }
+  return ret;
+}
+
+std::list<Metric> Aggregator::CollectSummaries() {
+  std::lock_guard<std::mutex> lock(lock_);
+  std::list<Metric> ret;
+  for (auto& comp : components_) {
+    const auto& summaries = comp.second.CollectSummaries();
+    ret.insert(ret.end(), summaries.begin(), summaries.end());
   }
   return ret;
 }
