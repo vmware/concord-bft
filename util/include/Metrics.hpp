@@ -20,7 +20,6 @@
 #include <memory>
 #include <list>
 #include <variant>
-#include <prometheus/summary.h>
 
 namespace concordMetrics {
 
@@ -30,7 +29,6 @@ class Values;
 class Gauge;
 class Status;
 class Counter;
-class Summary;
 typedef struct metric_ Metric;
 
 // An aggregator maintains metrics for multiple components. Components
@@ -46,12 +44,11 @@ class Aggregator {
   Gauge GetGauge(const std::string& component_name, const std::string& val_name);
   Status GetStatus(const std::string& component_name, const std::string& val_name);
   Counter GetCounter(const std::string& component_name, const std::string& val_name);
-  Summary GetSummary(const std::string& component_name, const std::string& val_name);
 
   std::list<Metric> CollectGauges();
   std::list<Metric> CollectCounters();
   std::list<Metric> CollectStatuses();
-  std::list<Metric> CollectSummaries();
+
   // Generate a JSON formatted string
   std::string ToJson();
 
@@ -106,38 +103,13 @@ class Counter {
   uint64_t val_;
 };
 
-class Summary {
-  std::shared_ptr<prometheus::Summary> summary_;
-
- public:
-  struct Quantile {
-    double quantile = 0.0;
-    double value = 0.0;
-    Quantile(double quantile_, double value_) : quantile(quantile_), value(value_) {}
-  };
-
-  struct SummaryDescription {
-    std::uint64_t sample_count = 0;
-    double sample_sum = 0.0;
-    std::vector<Quantile> quantile;
-  };
-
-  using InitQuantiles = std::vector<std::tuple<double, double>>;
-
-  Summary(const InitQuantiles& quantiles);
-  void Observe(double value);
-  SummaryDescription Collect();
-
-  std::string ToJson();
-};
-
 // A generic struct that may represent a counter or a gauge
 // the motivation is to eliminate that need to know the exact
 // metric name before getting it from the aggregator
 struct metric_ {
   std::string component;
   std::string name;
-  std::variant<Counter, Gauge, Status, Summary::SummaryDescription> value;
+  std::variant<Counter, Gauge, Status> value;
 };
 
 class Values {
@@ -145,7 +117,6 @@ class Values {
   std::vector<Gauge> gauges_;
   std::vector<Status> statuses_;
   std::vector<Counter> counters_;
-  std::vector<Summary> summaries_;
 
   friend class Component;
   friend class Aggregator;
@@ -160,7 +131,6 @@ class Names {
   std::vector<std::string> gauge_names_;
   std::vector<std::string> status_names_;
   std::vector<std::string> counter_names_;
-  std::vector<std::string> summary_names_;
 
   friend class Component;
   friend class Aggregator;
@@ -200,11 +170,9 @@ class Component {
   Handle<Status> RegisterStatus(const std::string& name, const std::string& val);
   Handle<Counter> RegisterCounter(const std::string& name, const uint64_t val);
   Handle<Counter> RegisterCounter(const std::string& name) { return RegisterCounter(name, 0); }
-  Handle<Summary> RegisterSummary(const std::string& name, const Summary::InitQuantiles& quantiles);
   std::list<Metric> CollectGauges();
   std::list<Metric> CollectCounters();
   std::list<Metric> CollectStatuses();
-  std::list<Metric> CollectSummaries();
   // Register the component with the aggregator.
   // This *must* be done after all values are registered in this component.
   // If registration happens before all registration of the values, then the

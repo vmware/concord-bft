@@ -23,10 +23,6 @@ if(BUILD_ROCKSDB_STORAGE)
     target_compile_definitions(util_shared PUBLIC "USE_ROCKSDB=1")
 endif()
 
-find_package(prometheus-cpp CONFIG REQUIRED)
-target_link_libraries(util PUBLIC prometheus-cpp::core)
-target_link_libraries(util_shared PUBLIC prometheus-cpp::core)
-
 target_link_libraries(util PUBLIC Threads::Threads)
 target_include_directories(util PUBLIC include)
 
