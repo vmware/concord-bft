@@ -29,14 +29,14 @@ Msg makeClientMsg(const RequestConfig& config, Msg&& request, bool read_only, ui
 
   auto header_size = sizeof(bftEngine::ClientRequestMsgHeader);
 
-  Msg msg(header_size + request.size());
+  Msg msg(header_size + request.size() + config.correlation_id.size() + config.span_context.size());
   bftEngine::ClientRequestMsgHeader* header = reinterpret_cast<bftEngine::ClientRequestMsgHeader*>(msg.data());
   header->msgType = config.pre_execute ? PRE_PROCESS_REQUEST_MSG_TYPE : REQUEST_MSG_TYPE;
   header->spanContextSize = config.span_context.size();
   header->idOfClientProxy = client_id;
   header->flags = flags;
   header->reqSeqNum = config.sequence_number;
-  header->requestLength = msg.size();
+  header->requestLength = request.size();
   header->timeoutMilli = config.timeout.count();
   header->cid_length = config.correlation_id.size();
 
