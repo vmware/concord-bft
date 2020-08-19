@@ -82,6 +82,19 @@ struct SimpleGetLastBlockRequest {
   SimpleRequest header;
 };
 
+struct SimpleHaveYouStoppedRequest {
+  static SimpleHaveYouStoppedRequest* alloc() {
+    size_t reqSize = sizeof(SimpleHaveYouStoppedRequest);
+    char* buf = new char[reqSize];
+    memset(buf, 0, reqSize);
+    return (SimpleHaveYouStoppedRequest*)buf;
+  }
+
+  static void free(SimpleHaveYouStoppedRequest* buf) { delete[] buf; }
+
+  SimpleRequest header;
+};
+
 // A SimpleGetBlockDataRequest returns a read response, except
 // all keys are for the specific block requested.
 struct SimpleGetBlockDataRequest {
@@ -253,6 +266,35 @@ struct SimpleReply_GetLastBlock {
 
   SimpleReply header;
   concord::kvbc::BlockId latestBlock = 0;
+};
+
+struct SimpleReply_HaveYouStopped {
+  size_t getSize() { return sizeof(SimpleReply_HaveYouStopped); }
+
+  static SimpleReply_Read* alloc(size_t numOfItems) {
+    size_t size = sizeof(SimpleReply_Read);
+    char* buf = new char[size];
+    memset(buf, 0, size);
+    return (SimpleReply_Read*)buf;
+  }
+
+  bool isEquiv(SimpleReply_HaveYouStopped& other, std::ostringstream& error) {
+    if (header.type != other.header.type) {
+      error << "*** WEDGE: Wrong message type: " << other.header.type;
+      return false;
+    }
+    if (stopped != other.stopped) {
+      error << "*** WEDGE: Wrong stopeed indication: " << other.stopped;
+      return false;
+    }
+
+    return true;
+  }
+
+  static void free(SimpleReply_HaveYouStopped* buf) { delete[] buf; }
+
+  SimpleReply header;
+  int64_t stopped;
 };
 
 #pragma pack(pop)

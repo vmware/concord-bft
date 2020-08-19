@@ -59,7 +59,6 @@ class MofNQuorum:
     def __init__(self, replicas, required):
         self.replicas = replicas
         self.required = required
-
     @classmethod
     def LinearizableQuorum(cls, config, replicas):
         f = config.f
@@ -73,10 +72,7 @@ class MofNQuorum:
 
     @classmethod
     def All(cls, config, replicas):
-        f = config.f
-        c = config.c
-        n = 3 * f + 2 * c + 1
-        return MofNQuorum(replicas, n)
+        return MofNQuorum(replicas, len(replicas))
 
 
 class UdpClient:
@@ -110,7 +106,7 @@ class UdpClient:
 
     async def read(self, msg, seq_num=None, cid=None, m_of_n_quorum=None):
         """ A wrapper around sendSync for requests that do not mutate state """
-        return await self.sendSync(msg, True, seq_num, cid, m_of_n_quorum)
+        return await self.sendSync(msg, True, seq_num, cid, m_of_n_quorum=m_of_n_quorum)
 
     async def sendSync(self, msg, read_only, seq_num=None, cid=None, pre_process=False, m_of_n_quorum=None):
         """

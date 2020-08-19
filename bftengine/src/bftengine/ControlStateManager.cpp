@@ -43,7 +43,12 @@ std::optional<int64_t> ControlStateManager::getCheckpointToStopAt() {
   std::istringstream inStream;
   inStream.str(scratchPage_);
   controlStateMessages::StopAtNextCheckpointMessage msg;
-  concord::serialize::Serializable::deserialize(inStream, msg);
+  try {
+    concord::serialize::Serializable::deserialize(inStream, msg);
+  } catch (std::exception& e) {
+    LOG_WARN(GL, e.what());
+    return {};
+  }
   if (msg.seqNumToStopAt_ < 0) {
     LOG_WARN(GL, "sequence num to stop at is negative!");
     return {};
@@ -55,5 +60,6 @@ ControlStateManager::ControlStateManager(IStateTransfer* state_transfer, uint32_
     : state_transfer_{state_transfer}, sizeOfReservedPage_{sizeOfReservedPages} {
   scratchPage_.resize(sizeOfReservedPage_);
 }
+void ControlStateManager::clearCheckpointToStopAt() { state_transfer_->zeroReservedPage(getUpdateReservedPageIndex()); }
 
 }  // namespace bftEngine

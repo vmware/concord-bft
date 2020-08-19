@@ -22,7 +22,7 @@ WriteReply = namedtuple('WriteReply', ['success', 'last_block_id'])
 
 
 class SimpleKVBCProtocol:
-    KV_LEN = 21 ## SimpleKVBC requies fixed size keys and values right now
+    KV_LEN = 21  ## SimpleKVBC requies fixed size keys and values right now
     READ_LATEST = 0xFFFFFFFFFFFFFFFF
 
     READ = 1
@@ -58,7 +58,7 @@ class SimpleKVBCProtocol:
             data.append(cls.WRITE)
         # SimpleConditionalWriteHeader
         data.extend(
-                struct.pack("<QQQ", block_id, len(readset), len(writeset)))
+            struct.pack("<QQQ", block_id, len(readset), len(writeset)))
         # SimpleKey[numberOfKeysInReadSet]
         for r in readset:
             data.extend(r)
@@ -87,6 +87,12 @@ class SimpleKVBCProtocol:
         return data
 
     @classmethod
+    def get_have_you_stopped_req(cls):
+        data = bytearray()
+        data.append(cls.WEDGE)
+        return data
+
+    @classmethod
     def get_block_data_req(cls, block_id):
         data = bytearray()
         data.append(cls.GET_BLOCK_DATA)
@@ -105,6 +111,12 @@ class SimpleKVBCProtocol:
         else:
             raise BadReplyError
 
+    @classmethod
+    def parse_rsi_reply(cls, common_data, rsi_data):
+        reply_type = common_data[0]
+        if reply_type == cls.WEDGE:
+            return cls.parse_have_you_stopped_reply(rsi_data)
+
     @staticmethod
     def parse_write_reply(data):
         return WriteReply._make(struct.unpack("<?Q", data))
@@ -115,13 +127,17 @@ class SimpleKVBCProtocol:
         data = data[8:]
         kv_pairs = {}
         for i in range(num_kv_pairs):
-            kv_pairs[data[0:cls.KV_LEN]] = data[cls.KV_LEN:2*cls.KV_LEN]
-            if i+1 != num_kv_pairs:
-                data = data[2*cls.KV_LEN:]
+            kv_pairs[data[0:cls.KV_LEN]] = data[cls.KV_LEN:2 * cls.KV_LEN]
+            if i + 1 != num_kv_pairs:
+                data = data[2 * cls.KV_LEN:]
         return kv_pairs
 
     @staticmethod
     def parse_get_last_block_reply(data):
+        return struct.unpack("<Q", data)[0]
+
+    @staticmethod
+    def parse_have_you_stopped_reply(data):
         return struct.unpack("<Q", data)[0]
 
     def initial_state(self):
@@ -153,7 +169,7 @@ class SimpleKVBCProtocol:
         msg = self.write_req(
             [], [(self.random_key(), self.random_value())], 0)
         while True:
-            if(not client):
+            if (not client):
                 client = self.bft_network.random_client()
             try:
                 await client.write(msg)
@@ -278,7 +294,7 @@ class SimpleKVBCProtocol:
         # Retrieve the last block and ensure that it matches what's expected
         read_reply = await client.read(self.get_last_block_req())
         newest_block = self.parse_reply(read_reply)
-        testcase.assertEqual(last_block+1, newest_block)
+        testcase.assertEqual(last_block + 1, newest_block)
 
         # Get the previous put value, and ensure it's correct
         read_req = self.read_req([key], newest_block)
@@ -302,7 +318,7 @@ class SimpleKVBCProtocol:
         keys = [b"A...................."]
         for i in range(1, 2 * num_clients):
             end = cur[-1]
-            if chr(end) == 'Z': # extend the key
+            if chr(end) == 'Z':  # extend the key
                 cur.append(self.alpha[0])
             else:
                 cur[-1] = end + 1
@@ -339,6 +355,7 @@ class SimpleKVBCProtocol:
         test_class.assertDictEqual(kv2, dict(kv))
 
         print(f'[READ-YOUR-WRITES] OK.')
+
 
 class SkvbcClient:
     """A wrapper around bft_client that uses the SimpleKVBCProtocol"""

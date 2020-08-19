@@ -52,7 +52,8 @@ int InternalCommandsHandler::execute(uint16_t clientId,
   }
   bool readOnly = flags & MsgFlag::READ_ONLY_FLAG;
   if (readOnly) {
-    res = executeReadOnlyCommand(requestSize, request, maxReplySize, outReply, outActualReplySize);
+    res = executeReadOnlyCommand(
+        requestSize, request, maxReplySize, outReply, outActualReplySize, outActualReplicaSpecificInfoSize);
   } else {
     res = executeWriteCommand(requestSize, request, sequenceNum, flags, maxReplySize, outReply, outActualReplySize);
   }
@@ -266,6 +267,29 @@ bool InternalCommandsHandler::executeReadCommand(
   return true;
 }
 
+bool InternalCommandsHandler::executeHaveYouStoppedReadCommand(uint32_t requestSize,
+                                                               const char *request,
+                                                               size_t maxReplySize,
+                                                               char *outReply,
+                                                               uint32_t &outReplySize,
+                                                               uint32_t &specificReplicaInfoSize) {
+  auto *readReq = (SimpleHaveYouStoppedRequest *)request;
+  LOG_INFO(m_logger, "Execute HaveYouStopped command: type=" << readReq->header.type);
+
+  specificReplicaInfoSize = sizeof(int64_t);
+  outReplySize = sizeof(SimpleReply);
+  outReplySize += specificReplicaInfoSize;
+  if (maxReplySize < outReplySize) {
+    LOG_ERROR(m_logger, "The message is too small: requestSize=" << requestSize << ", minRequestSize=" << outReplySize);
+    return false;
+  }
+  auto *reply = (SimpleReply_HaveYouStopped *)(outReply);
+  reply->header.type = WEDGE;
+  reply->stopped = controlHandlers_->haveYouStopped() ? 1 : 0;
+  LOG_INFO(m_logger, "HaveYouStopped message handled");
+  return true;
+}
+
 bool InternalCommandsHandler::executeGetLastBlockCommand(uint32_t requestSize,
                                                          size_t maxReplySize,
                                                          char *outReply,
@@ -295,8 +319,12 @@ bool InternalCommandsHandler::executeGetLastBlockCommand(uint32_t requestSize,
   return true;
 }
 
-bool InternalCommandsHandler::executeReadOnlyCommand(
-    uint32_t requestSize, const char *request, size_t maxReplySize, char *outReply, uint32_t &outReplySize) {
+bool InternalCommandsHandler::executeReadOnlyCommand(uint32_t requestSize,
+                                                     const char *request,
+                                                     size_t maxReplySize,
+                                                     char *outReply,
+                                                     uint32_t &outReplySize,
+                                                     uint32_t &specificReplicaInfoOutReplySize) {
   auto *requestHeader = (SimpleRequest *)request;
   if (requestHeader->type == READ) {
     return executeReadCommand(requestSize, request, maxReplySize, outReply, outReplySize);
@@ -304,6 +332,9 @@ bool InternalCommandsHandler::executeReadOnlyCommand(
     return executeGetLastBlockCommand(requestSize, maxReplySize, outReply, outReplySize);
   } else if (requestHeader->type == GET_BLOCK_DATA) {
     return executeGetBlockDataCommand(requestSize, request, maxReplySize, outReply, outReplySize);
+  } else if (requestHeader->type == WEDGE) {
+    return executeHaveYouStoppedReadCommand(
+        requestSize, request, maxReplySize, outReply, outReplySize, specificReplicaInfoOutReplySize);
   } else {
     outReplySize = 0;
     LOG_ERROR(m_logger, "Illegal message received: requestHeader->type=" << requestHeader->type);

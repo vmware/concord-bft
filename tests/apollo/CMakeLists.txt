@@ -71,8 +71,8 @@ foreach(STORAGE_TYPE ${STORAGE_TYPES})
           "env ${APOLLO_TEST_ENV} STORAGE_TYPE=${STORAGE_TYPE} python3 -m unittest test_skvbc_backup_restore 2>&1 > /dev/null"
           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
-  add_test(NAME skvbc_control_commands_tests_${STORAGE_TYPE} COMMAND sh -c
-          "env ${APOLLO_TEST_ENV} STORAGE_TYPE=${STORAGE_TYPE} python3 -m unittest test_skvbc_control_commands ${TEST_OUTPUT}"
+  add_test(NAME skvbc_reconfiguration_${STORAGE_TYPE} COMMAND sh -c
+          "env ${APOLLO_TEST_ENV} STORAGE_TYPE=${STORAGE_TYPE} python3 -m unittest test_skvbc_reconfiguration ${TEST_OUTPUT}"
           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
   if (BUILD_ROCKSDB_STORAGE)
