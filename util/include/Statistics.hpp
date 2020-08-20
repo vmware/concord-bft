@@ -52,22 +52,18 @@ class DefaultStatisticFactory : public IStatisticsFactory {
 };
 
 class StatisticsFactory {
-  IStatisticsFactory* pImp = nullptr;
+  std::unique_ptr<IStatisticsFactory> pImp = nullptr;
 
  public:
   StatisticsFactory() : pImp(new DefaultStatisticFactory()) {}
 
   ISummary* createSummary(const Quantiles& quantiles) { return pImp->createSummary(quantiles); }
 
-  ~StatisticsFactory() {
-    if (pImp) delete pImp;
-  }
-
   static StatisticsFactory& get() {
     static StatisticsFactory sf;
     return sf;
   }
 
-  static void setImp(StatisticsFactory& sf, IStatisticsFactory* pImp) { sf.pImp = pImp; }
+  static void setImp(std::unique_ptr<IStatisticsFactory> pImp) { get().pImp = std::move(pImp); }
 };
 }  // namespace concordMetrics
