@@ -1070,10 +1070,9 @@ class TlsTCPCommunication::TlsTcpImpl : public std::enable_shared_from_this<TlsT
     if (_connections.find(id) != _connections.end()) {
       LOG_ERROR(_logger,
                 "new incoming connection with peer id that already "
-                "exists, destroying both, peer: "
+                "exists, destroying old connection, peer: "
                     << id);
       _connections.erase(id);
-      return;
     }
 
     conn->setReceiver(id, _pReceiver);
