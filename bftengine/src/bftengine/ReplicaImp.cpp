@@ -1393,10 +1393,12 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(seqNumber));
   SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
-  if (!isValid)
+
+  if (!isValid) {
     LOG_WARN(THRESHSIGN_LOG, KVLOG(seqNumber, view, isValid));
-  else
+  } else {
     LOG_TRACE(THRESHSIGN_LOG, KVLOG(seqNumber, view, isValid));
+  }
 
   if (isCollectingState() || (!currentViewIsActive()) || (curView != view) ||
       (!mainLog->insideActiveWindow(seqNumber))) {

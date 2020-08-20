@@ -263,7 +263,7 @@ class BftTestNetwork:
 
     def _generate_crypto_keys(self):
         keygen = os.path.join(self.toolsdir, "GenerateConcordKeys")
-        args = [keygen, "-n", str(self.config.n), "-f", str(self.config.f)]
+        args = [keygen, "-n", str(self.config.n), "-f", str(self.config.f), "-m"]
         if self.config.num_ro_replicas > 0:
             args.extend(["-r", str(self.config.num_ro_replicas)])
         args.extend(["-o", self.config.key_file_prefix])

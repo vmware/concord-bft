@@ -17,6 +17,7 @@
 #include "threshsign/IThresholdVerifier.h"
 #include "threshsign/bls/relic/BlsThresholdFactory.h"
 #include "threshsign/bls/relic/PublicParametersFactory.h"
+#include "yaml_utils.hpp"
 #include "Logger.hpp"
 
 Cryptosystem::Cryptosystem(const std::string& sysType,
@@ -26,8 +27,8 @@ Cryptosystem::Cryptosystem(const std::string& sysType,
     : type(sysType),
       subtype(sysSubtype),
       numSigners(sysNumSigners),
-      threshold(sysThreshold),
-      forceMultisig_(numSigners == threshold),
+      threshold_(sysThreshold),
+      forceMultisig_(numSigners == threshold_),
       signerID(NID),
       publicKey("uninitialized") {
   if (!isValidCryptosystemSelection(sysType, sysSubtype, sysNumSigners, sysThreshold)) {
@@ -61,7 +62,7 @@ void Cryptosystem::generateNewPseudorandomKeys() {
   std::vector<IThresholdSigner*> signers;
   IThresholdVerifier* verifier;
 
-  std::tie(signers, verifier) = factory->newRandomSigners(threshold, numSigners);
+  std::tie(signers, verifier) = factory->newRandomSigners(threshold_, numSigners);
   if (forceMultisig_ || type == THRESHOLD_BLS_SCHEME) publicKey = verifier->getPublicKey().toString();
 
   verificationKeys.clear();
@@ -137,26 +138,13 @@ std::string Cryptosystem::getPrivateKey(uint16_t signerIndex) const {
 }
 
 void Cryptosystem::loadKeys(const std::string& publicKey, const std::vector<std::string>& verificationKeys) {
-  if (!isValidPublicKey(publicKey)) {
-    throw InvalidCryptosystemException("\"" + publicKey +
-                                       "\" is not a valid"
-                                       " public key for this cryptosystem (type " +
-                                       type + " and subtype " + subtype + ").");
-  }
+  validatePublicKey(publicKey);
   if (verificationKeys.size() != static_cast<uint16_t>(numSigners + 1)) {
     throw InvalidCryptosystemException(
-        "Incorrect number of verification keys"
-        " provided: " +
-        std::to_string(verificationKeys.size()) + " (expected " + std::to_string(numSigners + 1) + ").");
+        "Incorrect number of verification keys provided: " + std::to_string(verificationKeys.size()) + " (expected " +
+        std::to_string(numSigners + 1) + ").");
   }
-  for (size_t i = 1; i <= numSigners; ++i) {
-    if (!isValidVerificationKey(verificationKeys[i])) {
-      throw InvalidCryptosystemException("\"" + verificationKeys[i] +
-                                         "\" is"
-                                         " not a valid verification key for this cryptosystem (type " +
-                                         type + " and subtype " + subtype + ").");
-    }
-  }
+  for (size_t i = 1; i <= numSigners; ++i) validateVerificationKey(verificationKeys[i]);
 
   this->verificationKeys.clear();
   this->privateKeys.clear();
@@ -171,23 +159,16 @@ void Cryptosystem::loadKeys(const std::string& publicKey, const std::vector<std:
 
 void Cryptosystem::loadPrivateKey(uint16_t signerIndex, const std::string& key) {
   if ((signerIndex < 1) & (signerIndex > numSigners)) {
-    throw std::out_of_range(
-        "Signer index for provided private key out of"
-        " range.");
+    throw std::out_of_range("Signer index for provided private key out of range.");
   }
-  if (!isValidPrivateKey(key)) {
-    throw InvalidCryptosystemException("\"" + key +
-                                       "\" is not a valid private"
-                                       " key for this cryptosystem (type " +
-                                       type + " and subtype " + subtype + ").");
-  }
+  validatePrivateKey(key);
 
   signerID = signerIndex;
   privateKeys.clear();
   privateKeys.push_back(key);
 }
 
-IThresholdVerifier* Cryptosystem::createThresholdVerifier() {
+IThresholdVerifier* Cryptosystem::createThresholdVerifier(uint16_t threshold) {
   if (publicKey.length() < 1) {
     throw UninitializedCryptosystemException(
         "Attempting to create a threshold"
@@ -199,12 +180,9 @@ IThresholdVerifier* Cryptosystem::createThresholdVerifier() {
         " verifier for a cryptosystem without verification keys loaded.");
   }
 
-  IThresholdFactory* factory = createThresholdFactory();
-
-  IThresholdVerifier* verifier = factory->newVerifier(threshold, numSigners, publicKey.c_str(), verificationKeys);
-
-  delete factory;
-  return verifier;
+  std::unique_ptr<IThresholdFactory> factory(createThresholdFactory());
+  return factory->newVerifier(
+      (threshold > 0) ? threshold : threshold_, numSigners, publicKey.c_str(), verificationKeys);
 }
 
 IThresholdSigner* Cryptosystem::createThresholdSigner() {
@@ -221,35 +199,35 @@ IThresholdSigner* Cryptosystem::createThresholdSigner() {
     }
   }
 
-  IThresholdFactory* factory = createThresholdFactory();
-
+  std::unique_ptr<IThresholdFactory> factory(createThresholdFactory());
   // Note we add 1 to the signer ID because IThresholdSigner seems to use a
   // convention in which signer IDs are 1-indexed.
-  IThresholdSigner* signer = factory->newSigner(signerID, privateKeys.front().c_str());
-
-  delete factory;
-  return signer;
+  return factory->newSigner(signerID, privateKeys.front().c_str());
 }
 
 static const size_t expectedPublicKeyLength = 130;
 static const size_t expectedVerificationKeyLength = 130;
 
-bool Cryptosystem::isValidPublicKey(const std::string& key) const {
+void Cryptosystem::validatePublicKey(const std::string& key) const {
   if (forceMultisig_ || type == THRESHOLD_BLS_SCHEME)
-    return (key.length() == expectedPublicKeyLength) && (std::regex_match(key, std::regex("[0-9A-Fa-f]+")));
-  else
-    return true;
+    if (!((key.length() == expectedPublicKeyLength) && (std::regex_match(key, std::regex("[0-9A-Fa-f]+")))))
+      throw InvalidCryptosystemException("invalid public key for this cryptosystem (type " + type + " and subtype " +
+                                         subtype + "): " + key);
 }
 
-bool Cryptosystem::isValidVerificationKey(const std::string& key) const {
-  return (key.length() == expectedVerificationKeyLength) && (std::regex_match(key, std::regex("[0-9A-Fa-f]+")));
+void Cryptosystem::validateVerificationKey(const std::string& key) const {
+  if (!((key.length() == expectedVerificationKeyLength) && (std::regex_match(key, std::regex("[0-9A-Fa-f]+")))))
+    throw InvalidCryptosystemException("invalid verification key for this cryptosystem (type " + type +
+                                       " and subtype " + subtype + "): " + key);
 }
 
-bool Cryptosystem::isValidPrivateKey(const std::string& key) const {
+void Cryptosystem::validatePrivateKey(const std::string& key) const {
   // We currently do not validate the length of the private key's string
   // representation because the length of its serialization varies slightly.
 
-  return std::regex_match(key, std::regex("[0-9A-Fa-f]+"));
+  if (!std::regex_match(key, std::regex("[0-9A-Fa-f]+")))
+    throw InvalidCryptosystemException("invalid private key for cryptosystem (type " + type + " and subtype " +
+                                       subtype + "): " + key);
 }
 
 bool Cryptosystem::isValidCryptosystemSelection(const std::string& type, const std::string& subtype) {
@@ -299,4 +277,48 @@ void Cryptosystem::getAvailableCryptosystemTypes(std::vector<std::pair<std::stri
   p.first = THRESHOLD_BLS_SCHEME;
   p.second = "an elliptical curve type, for example, BN-P254";
   ret.push_back(p);
+}
+void Cryptosystem::writeConfiguration(std::ostream& output, const std::string& prefix, const uint16_t& replicaId) {
+  uint16_t numReplicas = getNumSigners();
+  output << "\n# " << prefix << " threshold cryptosystem configuration.\n";
+  output << prefix << "_cryptosystem_type: " << getType() << "\n";
+  output << prefix << "_cryptosystem_subtype_parameter: " << getSubtype() << "\n";
+  output << prefix << "_cryptosystem_num_signers: " << numReplicas << "\n";
+  if (getType() == THRESHOLD_BLS_SCHEME) output << prefix << "_cryptosystem_threshold: " << getThreshold() << "\n";
+  output << prefix << "_cryptosystem_public_key: " << getSystemPublicKey() << "\n";
+  std::vector<std::string> verificationKeys = getSystemVerificationKeys();
+  output << prefix << "_cryptosystem_verification_keys:\n";
+  for (uint16_t i = 1; i <= numReplicas; ++i) output << "  - " << verificationKeys[i] << "\n";
+  output << "\n";
+
+  output << prefix << "_cryptosystem_private_key: " << getPrivateKey((uint16_t)(replicaId + 1)) << "\n";
+}
+
+Cryptosystem* Cryptosystem::fromConfiguration(std::istream& input,
+                                              const std::string& prefix,
+                                              const uint16_t& signerIndex) {
+  using namespace concord::util;
+  std::string type = yaml::readValue<std::string>(input, prefix + "_cryptosystem_type");
+  std::string subtype = yaml::readValue<std::string>(input, prefix + "_cryptosystem_subtype_parameter");
+  std::uint16_t numSigners = yaml::readValue<std::uint16_t>(input, prefix + "_cryptosystem_num_signers");
+  std::string publicKey = "uninitialized";
+  uint16_t threshold = 1;
+  if (type == THRESHOLD_BLS_SCHEME)
+    threshold = yaml::readValue<std::uint16_t>(input, prefix + "_cryptosystem_threshold");
+  publicKey = yaml::readValue<std::string>(input, prefix + "_cryptosystem_public_key");
+  std::vector<std::string> verificationKeys =
+      yaml::readCollection<std::string>(input, prefix + "_cryptosystem_verification_keys");
+  if (verificationKeys.size() != numSigners)
+    throw std::runtime_error("expected " + std::to_string(numSigners) + std::string(" verification keys, got: ") +
+                             std::to_string(verificationKeys.size()));
+
+  std::string privateKey = yaml::readValue<std::string>(input, prefix + "_cryptosystem_private_key");
+
+  Cryptosystem* sys = new Cryptosystem(type, subtype, numSigners, threshold);
+
+  verificationKeys.insert(verificationKeys.begin(), "");  // ugly
+  sys->loadKeys(publicKey, verificationKeys);
+  sys->loadPrivateKey(signerIndex, privateKey);
+
+  return sys;
 }

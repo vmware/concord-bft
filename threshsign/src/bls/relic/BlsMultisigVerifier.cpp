@@ -101,7 +101,7 @@ bool BlsMultisigVerifier::verify(const char *msg, int msgLen, const char *sigBuf
   g1_map(h, reinterpret_cast<const unsigned char *>(msg), msgLen);
   // Convert signature to elliptic curve point
   sig.fromBytes(reinterpret_cast<const unsigned char *>(sigBuf), params_.getSignatureSize());
-  // LOG_TRACE(BLS_LOG, "sigShare: " << sig);
+  LOG_TRACE(BLS_LOG, "sigShare: " << sig << " public key: " << publicKey);
   return BlsThresholdVerifier::verify(h, sig, publicKey.y);
 }
 

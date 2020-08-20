@@ -181,9 +181,6 @@ class SimpleTestReplica {
     }
 
     delete (replicaConfig.thresholdSignerForExecution);
-    delete (replicaConfig.thresholdSignerForSlowPathCommit);
-    delete (replicaConfig.thresholdSignerForCommit);
-    delete (replicaConfig.thresholdSignerForOptimisticCommit);
 
     delete (replicaConfig.thresholdVerifierForExecution);
     delete (replicaConfig.thresholdVerifierForSlowPathCommit);

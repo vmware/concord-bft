@@ -43,7 +43,7 @@ void ViewChangeMsg::setNewViewNumber(ViewNum newView) {
 }
 
 void ViewChangeMsg::getMsgDigest(Digest& outDigest) const {
-  size_t bodySize = b()->locationAfterLast;
+  uint32_t bodySize = b()->locationAfterLast;
   if (bodySize == 0) bodySize = sizeof(Header) + spanContextSize();
   DigestUtil::compute(body(), bodySize, (char*)outDigest.content(), sizeof(Digest));
 }
@@ -66,7 +66,7 @@ void ViewChangeMsg::addElement(SeqNum seqNum,
     b()->locationAfterLast = sizeof(Header) + spanContextSize();
   }
 
-  size_t requiredSpace = b()->locationAfterLast + sizeof(Element);
+  uint32_t requiredSpace = b()->locationAfterLast + sizeof(Element);
   if (hasPreparedCertificate) requiredSpace += (sizeof(PreparedCertificate) + certificateSigLength);
 
   // TODO(GG): we should make sure that this assert will never be violated (by calculating the maximum  size of a
@@ -114,7 +114,7 @@ void ViewChangeMsg::validate(const ReplicasInfo& repInfo) const {
       idOfGeneratedReplica() == repInfo.myId())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
 
-  size_t dataLength = b()->locationAfterLast;
+  uint32_t dataLength = b()->locationAfterLast;
   if (dataLength < sizeof(Header)) dataLength = sizeof(Header);
   uint16_t sigLen = ViewsManager::sigManager_->getSigLength(idOfGeneratedReplica());
 
@@ -128,7 +128,7 @@ void ViewChangeMsg::validate(const ReplicasInfo& repInfo) const {
 bool ViewChangeMsg::checkElements(uint16_t sigSize) const {
   SeqNum lastSeqNumInMsg = lastStable();
   uint16_t numOfActualElements = 0;
-  size_t remainingBytes = size() - sigSize - sizeof(Header) - spanContextSize();
+  uint32_t remainingBytes = size() - sigSize - sizeof(Header) - spanContextSize();
   char* currLoc = body() + sizeof(Header) + spanContextSize();
 
   while ((remainingBytes >= sizeof(Element)) && (numOfActualElements < numberOfElements())) {
@@ -155,7 +155,7 @@ bool ViewChangeMsg::checkElements(uint16_t sigSize) const {
 
       if (pCert->certificateSigLength == 0) return false;
 
-      const size_t s = sizeof(PreparedCertificate) + pCert->certificateSigLength;
+      const uint32_t s = sizeof(PreparedCertificate) + pCert->certificateSigLength;
 
       if (remainingBytes < s) return false;
 
@@ -169,7 +169,7 @@ bool ViewChangeMsg::checkElements(uint16_t sigSize) const {
   if (numOfActualElements != numberOfElements()) return false;
 
   if (numOfActualElements > 0) {
-    const size_t locationAfterLastElement = size() - sigSize - remainingBytes;
+    const uint32_t locationAfterLastElement = size() - sigSize - remainingBytes;
     if (this->b()->locationAfterLast != locationAfterLastElement) return false;
   } else {
     if (this->b()->locationAfterLast != 0) return false;
@@ -205,7 +205,7 @@ bool ViewChangeMsg::ElementsIterator::getCurrent(Element*& pElement) {
 
   if (end()) return false;
 
-  const size_t remainingbytes = (endLoc - currLoc);
+  const uint32_t remainingbytes = (endLoc - currLoc);
 
   ConcordAssert(remainingbytes >= sizeof(Element));
 
@@ -232,7 +232,7 @@ bool ViewChangeMsg::ElementsIterator::getAndGoToNext(Element*& pElement) {
 
   if (end()) return false;
 
-  const size_t remainingbytes = (endLoc - currLoc);
+  const uint32_t remainingbytes = (endLoc - currLoc);
 
   ConcordAssert(remainingbytes >= sizeof(Element));
 

@@ -79,14 +79,13 @@ target_link_libraries(persistency_test PUBLIC
         simple_file_storage_lib)
 
 add_test(NAME persistency_test COMMAND persistency_test )
-add_custom_target(copy_simple_test_config ALL
-        COMMENT "Copying config files of
-        simpleTest")
-add_custom_command(TARGET copy_simple_test_config
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_CURRENT_SOURCE_DIR}/test_config
-        $<TARGET_FILE_DIR:simpleTest_client>/)
 
+add_custom_target(generate_test_config
+        		  COMMAND GenerateConcordKeys  -m -f 1 -n 4 -o private_replica_ 
+        		  COMMENT "Generating config files for simpleTest" 
+        		)
+        		
+add_dependencies(persistency_test generate_test_config)
 
 if(${USE_COMM_PLAIN_TCP})
     target_compile_definitions(simpleTest_client PUBLIC USE_COMM_PLAIN_TCP)

@@ -49,6 +49,7 @@ void outputReplicaKeyfile(uint16_t numReplicas,
                           uint16_t numRoReplicas,
                           bftEngine::ReplicaConfig& config,
                           const std::string& outputFilename,
+                          Cryptosystem* commonSys = nullptr,
                           Cryptosystem* execSys = nullptr,
                           Cryptosystem* slowSys = nullptr,
                           Cryptosystem* commitSys = nullptr,
@@ -77,7 +78,9 @@ void outputReplicaKeyfile(uint16_t numReplicas,
  *         output to config, and false otherwise. Reasons for failure may
  *         include I/O issues or invalid formatting or contents of the keyfile.
  */
-bool inputReplicaKeyfile(const std::string& inputFilename, bftEngine::ReplicaConfig& config);
+void inputReplicaKeyfile(const std::string& inputFilename, bftEngine::ReplicaConfig& config);
+
+void inputReplicaKeyfileMultisig(const std::string& inputFilename, bftEngine::ReplicaConfig& config);
 
 template <typename T>
 T parse(const std::string& str, const std::string& name) {
@@ -86,7 +89,7 @@ T parse(const std::string& str, const std::string& name) {
   } catch (std::exception& e) {
     std::ostringstream oss;
     oss << "Exception: " << e.what() << " Invalid value  for " << name << ": " << str << " expected range ["
-        << std::numeric_limits<T>::min() << ", " << std::numeric_limits<T>::max();
+        << std::numeric_limits<T>::min() << ", " << std::numeric_limits<T>::max() << "]";
 
     throw std::runtime_error(oss.str());
   }
