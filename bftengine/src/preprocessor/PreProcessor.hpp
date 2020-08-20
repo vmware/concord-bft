@@ -140,7 +140,7 @@ class PreProcessor {
   bftEngine::IRequestsHandler &requestsHandler_;
   const InternalReplicaApi &myReplica_;
   const ReplicaId myReplicaId_;
-  const uint32_t maxReplyMsgSize_;
+  const uint32_t maxPreExecResultSize_;
   const std::set<ReplicaId> &idsOfPeerReplicas_;
   const uint16_t numOfReplicas_;
   const uint16_t numOfClients_;
