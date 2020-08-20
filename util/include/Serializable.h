@@ -122,6 +122,14 @@ class Serializable {
     deserialize_impl(inStream, vec, int{});
     std::copy(vec.begin(), vec.end(), std::inserter(set, set.begin()));
   }
+
+  template <typename T, typename std::enable_if<is_deque<std::deque<T>>::value, T>::type* = nullptr>
+  static void deserialize_impl(std::istream& inStream, std::deque<T>& deque, int) {
+    LOG_TRACE(logger(), "");
+    std::vector<T> vec;
+    deserialize_impl(inStream, vec, int{});
+    std::copy(vec.begin(), vec.end(), std::back_inserter(deque));
+  }
   /** *****************************************************************************************************************
    *  Serializable
    *  - name

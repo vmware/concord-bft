@@ -79,7 +79,7 @@ void ClientsManager::initInternalClientInfo(const int& numReplicas) {
     indexToClientInfo_[currIdx].lastSeqNumberOfReply = 0;
     indexToClientInfo_[currIdx].latestReplyTime = MinTime;
     LOG_DEBUG(GL,
-              "Adding internal client, id [" << currClId << "] as index [" << currIdx << "] vactor size "
+              "Adding internal client, id [" << currClId << "] as index [" << currIdx << "] vector size "
                                              << indexToClientInfo_.size());
   }
 }

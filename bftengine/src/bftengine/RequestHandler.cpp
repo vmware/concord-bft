@@ -15,9 +15,9 @@ int RequestHandler::execute(uint16_t clientId,
                             uint32_t &outReplicaSpecificInfoSize,
                             concordUtils::SpanWrapper &parent_span) {
   if (flags & KEY_EXCHANGE_FLAG) {
-    KeyManager::KeyExchangeMsg ke = KeyManager::KeyExchangeMsg::deserializeMsg(request, requestSize);
+    KeyExchangeMsg ke = KeyExchangeMsg::deserializeMsg(request, requestSize);
     LOG_DEBUG(GL, "BFT handler received KEY_EXCHANGE msg " << ke.toString());
-    auto resp = KeyManager::get().onKeyExchange(ke);
+    auto resp = KeyManager::get().onKeyExchange(ke, sequenceNum);
     if (resp.size() <= maxReplySize) {
       std::copy(resp.begin(), resp.end(), outReply);
       outActualReplySize = resp.size();
