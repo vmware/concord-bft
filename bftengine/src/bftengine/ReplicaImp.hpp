@@ -54,6 +54,9 @@ class PersistentStorage;
 
 using bftEngine::ReplicaConfig;
 using std::shared_ptr;
+using concordMetrics::GaugeHandle;
+using concordMetrics::CounterHandle;
+using concordMetrics::StatusHandle;
 
 class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
  protected:

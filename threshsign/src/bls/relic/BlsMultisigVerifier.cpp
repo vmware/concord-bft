@@ -74,29 +74,35 @@ int BlsMultisigVerifier::requiredLengthForSignedData() const {
 }
 
 bool BlsMultisigVerifier::verify(const char *msg, int msgLen, const char *sigBuf, int sigLen) const {
+  if (reqSigners_ == numSigners_) return BlsThresholdVerifier::verify(msg, msgLen, sigBuf, params_.getSignatureSize());
+
   // Parse the signer IDs from sigBuf and adjust the PK
-  if (reqSigners_ != numSigners_) {
-    if (sigLen != requiredLengthForSignedData()) {
-      throw runtime_error("Signature does not have the right size");
-    }
+  if (sigLen != requiredLengthForSignedData()) throw runtime_error("Signature does not have the right size");
+  // need to parse out signer IDs
+  VectorOfShares signers;
+  const char *idbuf = sigBuf + params_.getSignatureSize();
+  int idbufLen = VectorOfShares::getByteCount();
+  signers.fromBytes(reinterpret_cast<const unsigned char *>(idbuf), idbufLen);
 
-    // need to parse out signer IDs
-    VectorOfShares signers;
-    const char *idbuf = sigBuf + params_.getSignatureSize();
-    int idbufLen = VectorOfShares::getByteCount();
-    signers.fromBytes(reinterpret_cast<const unsigned char *>(idbuf), idbufLen);
-
-    if (signers.count() < reqSigners_) return false;
-    // for reqSigners != numSigners, need to derive PK from signer IDs
-    publicKey_ = G2T::Identity();
-    for (ShareID id = signers.first(); !signers.isEnd(id); id = signers.next(id)) {
-      auto idx = static_cast<size_t>(id);
-      publicKey_.y.Add(publicKeysVector_[idx].getPoint());
-    }
+  if (signers.count() < reqSigners_) {
+    LOG_TRACE(BLS_LOG, "not enough signers: " << signers.count() << " required: " << reqSigners_);
+    return false;
   }
+  // for reqSigners != numSigners, need to derive PK from signer IDs
+  LOG_TRACE(BLS_LOG, "signers: " << signers);
+  BlsPublicKey publicKey = G2T::Identity();
 
-  // Once the PK is set in 'pk' can call parent BlsThresholdVerifier to verify the sig
-  return BlsThresholdVerifier::verify(msg, msgLen, sigBuf, params_.getSignatureSize());
+  for (ShareID id = signers.first(); !signers.isEnd(id); id = signers.next(id)) {
+    auto idx = static_cast<size_t>(id);
+    publicKey.y.Add(publicKeysVector_[idx].getPoint());
+  }
+  G1T h, sig;
+  // Convert hash to elliptic curve point
+  g1_map(h, reinterpret_cast<const unsigned char *>(msg), msgLen);
+  // Convert signature to elliptic curve point
+  sig.fromBytes(reinterpret_cast<const unsigned char *>(sigBuf), params_.getSignatureSize());
+  // LOG_TRACE(BLS_LOG, "sigShare: " << sig);
+  return BlsThresholdVerifier::verify(h, sig, publicKey.y);
 }
 
 /************** Serialization **************/

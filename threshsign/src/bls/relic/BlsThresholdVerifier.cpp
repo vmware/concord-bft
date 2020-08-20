@@ -88,7 +88,13 @@ bool BlsThresholdVerifier::verify(const G1T &msgHash, const G1T &sigShare, const
   pc_map(e2, const_cast<G1T &>(sigShare), const_cast<G2T &>(generator2_));
 
   // Make sure the two pairings are equal
-  return (gt_cmp(e1, e2) == CMP_EQ);
+  bool result = (gt_cmp(e1, e2) == CMP_EQ);
+  if (!result)
+    LOG_WARN(BLS_LOG,
+             "verification failure"
+                 << " reqSigners_: " << reqSigners_ << " numSigners_: " << numSigners_ << " sigShare: " << sigShare
+                 << " publicKey: " << pk);
+  return result;
 }
 
 /************** Serialization **************/
