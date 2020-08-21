@@ -53,6 +53,8 @@ namespace impl {
 const uint16_t reservedSimpleParamsNum = 500;
 const uint16_t reservedWindowParamsNum = 3000;
 
+const uint16_t MAX_METADATA_PARAMS_NUM = 10000;
+
 enum ConstMetadataParameterIds : uint32_t {
   INITIALIZED_FLAG = 1,
   FIRST_METADATA_PARAMETER = 2,

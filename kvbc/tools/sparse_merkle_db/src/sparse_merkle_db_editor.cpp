@@ -11,7 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "sparse_merkle_db_inspector.hpp"
+#include "sparse_merkle_db_editor.hpp"
 
 #include <iostream>
 
