@@ -14,8 +14,11 @@
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
 
-#include "sparse_merkle_db_inspector.hpp"
+#include "storage/db_types.h"
+#include "sparse_merkle_db_editor.hpp"
+#include "PersistentStorageImp.hpp"
 
+#include "storage/merkle_tree_key_manipulator.h"
 #include "storage_test_common.h"
 
 #include "endianness.hpp"
@@ -48,6 +51,24 @@ using namespace std::string_literals;
 
 Sliver getSliver(unsigned value) { return toBigEndianStringBuffer(value); }
 
+SetOfKeyValuePairs generateMetadataAndStateTransfer() {
+  // Create a full range of metadata objects
+  constexpr auto num_metadata_object_ids = MAX_METADATA_PARAMS_NUM - INITIALIZED_FLAG;
+  auto updates = SetOfKeyValuePairs{};
+  concord::storage::v2MerkleTree::MetadataKeyManipulator manipulator;
+  for (concord::storage::ObjectId i = INITIALIZED_FLAG; i < num_metadata_object_ids; ++i) {
+    updates[manipulator.generateMetadataKey(i)] = getSliver(i);
+  }
+
+  concord::storage::v2MerkleTree::STKeyManipulator st_manipulator;
+  updates[st_manipulator.generateStateTransferKey(1)] = std::string{"val"};
+  updates[st_manipulator.generateSTPendingPageKey(1)] = std::string{"val"};
+  updates[st_manipulator.generateSTCheckpointDescriptorKey(1)] = std::string{"val"};
+  updates[st_manipulator.generateSTReservedPageStaticKey(1, 1)] = std::string{"val"};
+  updates[st_manipulator.generateSTReservedPageDynamicKey(1, 1)] = std::string{"val"};
+  return updates;
+}
+
 class SparseMerkleDbInspectorTests : public Test {
  public:
   void SetUp() override {
@@ -63,6 +84,8 @@ class SparseMerkleDbInspectorTests : public Test {
     }
     // Add an empty block.
     ASSERT_NO_THROW(adapter.addBlock(SetOfKeyValuePairs{}));
+    const auto status = db->multiPut(generateMetadataAndStateTransfer());
+    ASSERT_TRUE(status.isOK());
   }
 
   void TearDown() override { cleanup(); }
@@ -75,13 +98,13 @@ class SparseMerkleDbInspectorTests : public Test {
 };
 
 TEST_F(SparseMerkleDbInspectorTests, no_arguments) {
-  ASSERT_EQ(EXIT_FAILURE, run(CommandLineArguments{{"sparse_merkle_db_inspector_test"}}, out_, err_));
+  ASSERT_EQ(EXIT_FAILURE, run(CommandLineArguments{{"sparse_merkle_db_editor_test"}}, out_, err_));
   ASSERT_TRUE(out_.str().empty());
   ASSERT_THAT(err_.str(), StartsWith("Usage:"));
 }
 
 TEST_F(SparseMerkleDbInspectorTests, invalid_command) {
-  ASSERT_EQ(EXIT_FAILURE, run(CommandLineArguments{{"sparse_merkle_db_inspector_test", "unknownCommand"}}, out_, err_));
+  ASSERT_EQ(EXIT_FAILURE, run(CommandLineArguments{{"sparse_merkle_db_editor_test", "unknownCommand"}}, out_, err_));
   ASSERT_TRUE(out_.str().empty());
   ASSERT_THAT(err_.str(), StartsWith("Usage:"));
 }
@@ -89,14 +112,14 @@ TEST_F(SparseMerkleDbInspectorTests, invalid_command) {
 TEST_F(SparseMerkleDbInspectorTests, get_genesis_block_id) {
   ASSERT_EQ(
       EXIT_SUCCESS,
-      run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getGenesisBlockID"}}, out_, err_));
+      run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getGenesisBlockID"}}, out_, err_));
   ASSERT_TRUE(err_.str().empty());
   ASSERT_EQ("{\n  \"genesisBlockID\": \"1\"\n}\n", out_.str());
 }
 
 TEST_F(SparseMerkleDbInspectorTests, get_last_reachable_block_id) {
   ASSERT_EQ(EXIT_SUCCESS,
-            run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getLastReachableBlockID"}},
+            run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getLastReachableBlockID"}},
                 out_,
                 err_));
   ASSERT_TRUE(err_.str().empty());
@@ -104,24 +127,22 @@ TEST_F(SparseMerkleDbInspectorTests, get_last_reachable_block_id) {
 }
 
 TEST_F(SparseMerkleDbInspectorTests, get_last_block_id) {
-  ASSERT_EQ(
-      EXIT_SUCCESS,
-      run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getLastBlockID"}}, out_, err_));
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getLastBlockID"}}, out_, err_));
   ASSERT_TRUE(err_.str().empty());
   ASSERT_EQ("{\n  \"lastBlockID\": \""s + std::to_string(num_blocks_) + "\"\n}\n", out_.str());
 }
 
 TEST_F(SparseMerkleDbInspectorTests, get_raw_block) {
-  ASSERT_EQ(
-      EXIT_SUCCESS,
-      run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getRawBlock", "5"}}, out_, err_));
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getRawBlock", "5"}}, out_, err_));
   ASSERT_TRUE(err_.str().empty());
   ASSERT_THAT(out_.str(), StartsWith("{\n  \"rawBlock\": \"0x"));
 }
 
 TEST_F(SparseMerkleDbInspectorTests, get_raw_block_missing_block_id) {
   ASSERT_EQ(EXIT_FAILURE,
-            run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getRawBlock"}}, out_, err_));
+            run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getRawBlock"}}, out_, err_));
   ASSERT_TRUE(out_.str().empty());
   ASSERT_THAT(err_.str(), StartsWith("Failed to execute command [getRawBlock], reason: Missing BLOCK-ID argument"));
 }
@@ -129,14 +150,14 @@ TEST_F(SparseMerkleDbInspectorTests, get_raw_block_missing_block_id) {
 TEST_F(SparseMerkleDbInspectorTests, get_raw_block_invalid_block_id) {
   ASSERT_EQ(
       EXIT_FAILURE,
-      run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getRawBlock", "5ab"}}, out_, err_));
+      run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getRawBlock", "5ab"}}, out_, err_));
   ASSERT_TRUE(out_.str().empty());
   ASSERT_THAT(err_.str(), StartsWith("Failed to execute command [getRawBlock], reason: Invalid BLOCK-ID: 5ab"));
 }
 
 TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_full_range) {
   ASSERT_EQ(EXIT_SUCCESS,
-            run(CommandLineArguments{{"sparse_merkle_db_inspector_test",
+            run(CommandLineArguments{{"sparse_merkle_db_editor_test",
                                       rocksDbPath(),
                                       "getRawBlockRange",
                                       "1",
@@ -154,7 +175,7 @@ TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_except_last) {
       EXIT_SUCCESS,
       run(
           CommandLineArguments{
-              {"sparse_merkle_db_inspector_test", rocksDbPath(), "getRawBlockRange", "1", std::to_string(num_blocks_)}},
+              {"sparse_merkle_db_editor_test", rocksDbPath(), "getRawBlockRange", "1", std::to_string(num_blocks_)}},
           out_,
           err_));
   ASSERT_TRUE(err_.str().empty());
@@ -166,7 +187,7 @@ TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_except_last) {
 
 TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_whole_blockchain) {
   ASSERT_EQ(EXIT_SUCCESS,
-            run(CommandLineArguments{{"sparse_merkle_db_inspector_test",
+            run(CommandLineArguments{{"sparse_merkle_db_editor_test",
                                       rocksDbPath(),
                                       "getRawBlockRange",
                                       "1",
@@ -181,7 +202,7 @@ TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_whole_blockchain) {
 
 TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_single_block) {
   ASSERT_EQ(EXIT_SUCCESS,
-            run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getRawBlockRange", "2", "3"}},
+            run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getRawBlockRange", "2", "3"}},
                 out_,
                 err_));
   ASSERT_TRUE(err_.str().empty());
@@ -190,7 +211,7 @@ TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_single_block) {
 
 TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_non_existent) {
   ASSERT_EQ(EXIT_FAILURE,
-            run(CommandLineArguments{{"sparse_merkle_db_inspector_test",
+            run(CommandLineArguments{{"sparse_merkle_db_editor_test",
                                       rocksDbPath(),
                                       "getRawBlockRange",
                                       "0",
@@ -201,10 +222,9 @@ TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_non_existent) {
 }
 
 TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_missing_range) {
-  ASSERT_EQ(EXIT_FAILURE,
-            run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getRawBlockRange", "1"}},
-                out_,
-                err_));
+  ASSERT_EQ(
+      EXIT_FAILURE,
+      run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getRawBlockRange", "1"}}, out_, err_));
   ASSERT_TRUE(out_.str().empty());
   ASSERT_THAT(err_.str(),
               StartsWith("Failed to execute command [getRawBlockRange], reason: Missing or invalid block range"));
@@ -212,7 +232,7 @@ TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_missing_range) {
 
 TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_invalid_range) {
   ASSERT_EQ(EXIT_FAILURE,
-            run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getRawBlockRange", "2", "1"}},
+            run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getRawBlockRange", "2", "1"}},
                 out_,
                 err_));
   ASSERT_TRUE(out_.str().empty());
@@ -221,7 +241,7 @@ TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_invalid_range) {
 
 TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_invalid_block_id_end) {
   ASSERT_EQ(EXIT_FAILURE,
-            run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getRawBlockRange", "2", "0"}},
+            run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getRawBlockRange", "2", "0"}},
                 out_,
                 err_));
   ASSERT_TRUE(out_.str().empty());
@@ -231,7 +251,7 @@ TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_invalid_block_id_end) {
 
 TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_invalid_range_stard_end_equal) {
   ASSERT_EQ(EXIT_FAILURE,
-            run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getRawBlockRange", "2", "2"}},
+            run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getRawBlockRange", "2", "2"}},
                 out_,
                 err_));
   ASSERT_TRUE(out_.str().empty());
@@ -241,7 +261,7 @@ TEST_F(SparseMerkleDbInspectorTests, get_raw_block_range_invalid_range_stard_end
 TEST_F(SparseMerkleDbInspectorTests, get_block_info) {
   ASSERT_EQ(
       EXIT_SUCCESS,
-      run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getBlockInfo", "5"}}, out_, err_));
+      run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getBlockInfo", "5"}}, out_, err_));
   ASSERT_TRUE(err_.str().empty());
   ASSERT_THAT(out_.str(), HasSubstr("  \"sparseMerkleRootHash\": \"0x"));
   ASSERT_THAT(out_.str(), HasSubstr("  \"parentBlockDigest\": \"0x"));
@@ -250,16 +270,15 @@ TEST_F(SparseMerkleDbInspectorTests, get_block_info) {
 
 TEST_F(SparseMerkleDbInspectorTests, get_block_info_missing_block_id) {
   ASSERT_EQ(EXIT_FAILURE,
-            run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getBlockInfo"}}, out_, err_));
+            run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getBlockInfo"}}, out_, err_));
   ASSERT_TRUE(out_.str().empty());
   ASSERT_THAT(err_.str(), StartsWith("Failed to execute command [getBlockInfo], reason: Missing BLOCK-ID argument"));
 }
 
 TEST_F(SparseMerkleDbInspectorTests, get_block_key_values) {
-  ASSERT_EQ(EXIT_SUCCESS,
-            run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getBlockKeyValues", "5"}},
-                out_,
-                err_));
+  ASSERT_EQ(
+      EXIT_SUCCESS,
+      run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getBlockKeyValues", "5"}}, out_, err_));
   ASSERT_TRUE(err_.str().empty());
   ASSERT_THAT(out_.str(), StartsWith("{\n  \"0x"));
   ASSERT_THAT(out_.str(), HasSubstr("\"0x0000003c\": \"0x00000078\""));
@@ -270,7 +289,7 @@ TEST_F(SparseMerkleDbInspectorTests, get_block_key_values) {
 
 TEST_F(SparseMerkleDbInspectorTests, get_empty_block_key_values) {
   ASSERT_EQ(EXIT_SUCCESS,
-            run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getBlockKeyValues", "10"}},
+            run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getBlockKeyValues", "10"}},
                 out_,
                 err_));
   ASSERT_TRUE(err_.str().empty());
@@ -280,24 +299,23 @@ TEST_F(SparseMerkleDbInspectorTests, get_empty_block_key_values) {
 TEST_F(SparseMerkleDbInspectorTests, get_block_key_values_missing_block_id) {
   ASSERT_EQ(
       EXIT_FAILURE,
-      run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getBlockKeyValues"}}, out_, err_));
+      run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getBlockKeyValues"}}, out_, err_));
   ASSERT_TRUE(out_.str().empty());
   ASSERT_THAT(err_.str(),
               StartsWith("Failed to execute command [getBlockKeyValues], reason: Missing BLOCK-ID argument"));
 }
 
 TEST_F(SparseMerkleDbInspectorTests, get_value_latest) {
-  ASSERT_EQ(EXIT_SUCCESS,
-            run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getValue", "0x00000028"}},
-                out_,
-                err_));
+  ASSERT_EQ(
+      EXIT_SUCCESS,
+      run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getValue", "0x00000028"}}, out_, err_));
   ASSERT_TRUE(err_.str().empty());
   ASSERT_EQ("{\n  \"blockVersion\": \"5\",\n  \"value\": \"0x00000050\"\n}\n", out_.str());
 }
 
 TEST_F(SparseMerkleDbInspectorTests, get_value_with_block_version) {
   ASSERT_EQ(EXIT_SUCCESS,
-            run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getValue", "0x00000028", "5"}},
+            run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getValue", "0x00000028", "5"}},
                 out_,
                 err_));
   ASSERT_TRUE(err_.str().empty());
@@ -306,7 +324,7 @@ TEST_F(SparseMerkleDbInspectorTests, get_value_with_block_version) {
 
 TEST_F(SparseMerkleDbInspectorTests, get_value_key_without__0x) {
   ASSERT_EQ(EXIT_SUCCESS,
-            run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getValue", "00000028", "5"}},
+            run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getValue", "00000028", "5"}},
                 out_,
                 err_));
   ASSERT_TRUE(err_.str().empty());
@@ -316,7 +334,7 @@ TEST_F(SparseMerkleDbInspectorTests, get_value_key_without__0x) {
 TEST_F(SparseMerkleDbInspectorTests, get_value_empty_key) {
   ASSERT_EQ(
       EXIT_FAILURE,
-      run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getValue", "", "5"}}, out_, err_));
+      run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getValue", "", "5"}}, out_, err_));
   ASSERT_TRUE(out_.str().empty());
   ASSERT_THAT(err_.str(), StartsWith("Failed to execute command [getValue], reason: "));
   ASSERT_THAT(err_.str(), Not(HasSubstr("Invalid hex string:")));
@@ -324,7 +342,7 @@ TEST_F(SparseMerkleDbInspectorTests, get_value_empty_key) {
 
 TEST_F(SparseMerkleDbInspectorTests, get_value_with_version_0) {
   ASSERT_EQ(EXIT_FAILURE,
-            run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getValue", "0x00000028", "0"}},
+            run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getValue", "0x00000028", "0"}},
                 out_,
                 err_));
   ASSERT_TRUE(out_.str().empty());
@@ -333,7 +351,7 @@ TEST_F(SparseMerkleDbInspectorTests, get_value_with_version_0) {
 
 TEST_F(SparseMerkleDbInspectorTests, get_value_missing_key) {
   ASSERT_EQ(EXIT_FAILURE,
-            run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getValue"}}, out_, err_));
+            run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getValue"}}, out_, err_));
   ASSERT_TRUE(out_.str().empty());
   ASSERT_THAT(err_.str(), StartsWith("Failed to execute command [getValue], reason: Missing HEX-KEY argument"));
 }
@@ -341,15 +359,14 @@ TEST_F(SparseMerkleDbInspectorTests, get_value_missing_key) {
 TEST_F(SparseMerkleDbInspectorTests, get_value_invalid_key_size) {
   ASSERT_EQ(
       EXIT_FAILURE,
-      run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getValue", "0xabc"}}, out_, err_));
+      run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getValue", "0xabc"}}, out_, err_));
   ASSERT_TRUE(out_.str().empty());
   ASSERT_THAT(err_.str(), StartsWith("Failed to execute command [getValue], reason: Invalid hex string: 0xabc"));
 }
 
 TEST_F(SparseMerkleDbInspectorTests, get_value_invalid_key_chars_at_start) {
-  ASSERT_EQ(
-      EXIT_FAILURE,
-      run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getValue", "0xjj"}}, out_, err_));
+  ASSERT_EQ(EXIT_FAILURE,
+            run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getValue", "0xjj"}}, out_, err_));
   ASSERT_TRUE(out_.str().empty());
   ASSERT_THAT(err_.str(), StartsWith("Failed to execute command [getValue], reason: Invalid hex string: 0xjj"));
 }
@@ -357,22 +374,40 @@ TEST_F(SparseMerkleDbInspectorTests, get_value_invalid_key_chars_at_start) {
 TEST_F(SparseMerkleDbInspectorTests, get_value_invalid_key_chars_at_end) {
   ASSERT_EQ(
       EXIT_FAILURE,
-      run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getValue", "0xabcx"}}, out_, err_));
+      run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getValue", "0xabcx"}}, out_, err_));
   ASSERT_TRUE(out_.str().empty());
   ASSERT_THAT(err_.str(), StartsWith("Failed to execute command [getValue], reason: Invalid hex string: 0xabcx"));
 }
 
 TEST_F(SparseMerkleDbInspectorTests, get_value_invalid_key_chars_no_0x) {
-  ASSERT_EQ(
-      EXIT_FAILURE,
-      run(CommandLineArguments{{"sparse_merkle_db_inspector_test", rocksDbPath(), "getValue", "abck"}}, out_, err_));
+  ASSERT_EQ(EXIT_FAILURE,
+            run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "getValue", "abck"}}, out_, err_));
   ASSERT_TRUE(out_.str().empty());
   ASSERT_THAT(err_.str(), StartsWith("Failed to execute command [getValue], reason: Invalid hex string: abck"));
 }
 
+TEST_F(SparseMerkleDbInspectorTests, remove_metadata) {
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{"sparse_merkle_db_editor_test", rocksDbPath(), "removeMetadata"}}, out_, err_));
+  ASSERT_THAT(out_.str(), StartsWith(toJson(std::string{"result"}, std::string{"true"})));
+  ASSERT_TRUE(err_.str().empty());
+
+  auto db = std::make_shared<::concord::storage::rocksdb::Client>(rocksDbPath());
+  db->init(true);
+  const auto& kvp = generateMetadataAndStateTransfer();
+  for (const auto& kv : kvp) {
+    ASSERT_TRUE(db->has(kv.first).isNotFound());
+  }
+
+  auto adapter = DBAdapter{db};
+  ASSERT_NO_THROW(adapter.getRawBlock(5));
+  ASSERT_NE(adapter.getLastReachableBlockId(), 0);
+  ASSERT_NE(adapter.getLastReachableBlockId(), concord::kvbc::INITIAL_GENESIS_BLOCK_ID);
+  ASSERT_EQ(concord::kvbc::INITIAL_GENESIS_BLOCK_ID, adapter.getGenesisBlockId());
+}
 }  // namespace
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
