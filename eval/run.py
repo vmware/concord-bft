@@ -18,7 +18,8 @@ def get_username():
     return pwd.getpwuid(os.getuid())[ 0 ]
 
 def get_homedir():
-    return '/home/' + get_username() + '/'
+    #return '/home/' + get_username() + '/'
+    return '/root/'
 
 def get_expdir():
     return "build/bftengine/tests/simpleTest/"
@@ -123,13 +124,14 @@ def setup_remote_env(client, host, do_install, network):
 
     # reset repo
     exec_remote_cmd(client, "cd %s; git reset --hard; git pull --rebase" % (repo_name))
+    exec_remote_cmd(client, "cd %s; git checkout add_archipelago" % (repo_name))
 
     #build code
     if network == 'tcp':
-        exec_remote_cmd(client, "cd %s/concord-bft/; rm -rf build; mkdir build; cd build; cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_COMM_TCP_PLAIN=TRUE ..; make -j 16;" % (repo_name))
+        exec_remote_cmd(client, "cd %s; rm -rf build; mkdir build; cd build; cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_COMM_TCP_PLAIN=TRUE ..; make -j 16;" % (repo_name))
     else:
         #exec_remote_cmd(client, "sudo sysctl -w net.core.rmem_max=41943040; sudo sysctl -w net.core.wmem_max=41943040; sudo sysctl -w net.core.netdev_max_backlog=4000;")
-        exec_remote_cmd(client, "cd %s/concord-bft/; rm -rf build; mkdir build; cd build; cmake -DCMAKE_BUILD_TYPE=Release ..; make -j 16;" % (repo_name))
+        exec_remote_cmd(client, "cd %s; rm -rf build; mkdir build; cd build; cmake -DCMAKE_BUILD_TYPE=Release ..; make -j 16;" % (repo_name))
     
     exec_local_cmd("scp private_replica* " + host + ":" + get_homedir() + '/' + repo_name + '/' + get_expdir())
     exec_local_cmd("scp test_config.txt " + host + ":" + get_homedir() + '/' + repo_name + '/' + get_expdir())
