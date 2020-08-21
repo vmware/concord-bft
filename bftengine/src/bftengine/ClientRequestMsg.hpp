@@ -11,12 +11,13 @@
 #include "MessageBase.hpp"
 #include "ReplicasInfo.hpp"
 #include "ClientMsgs.hpp"
+#include "ArchipelagoTimeManager.hpp"
 
 namespace bftEngine
 {
 	namespace impl
 	{
-
+		
 		class ClientRequestMsg : public MessageBase
 		{
 			// TODO(GG): requests should always be verified by the application layer !!!
@@ -25,16 +26,18 @@ namespace bftEngine
 			static_assert(sizeof(ClientRequestMsgHeader::msgType) == sizeof(MessageBase::Header), "");
 			static_assert(sizeof(ClientRequestMsgHeader::idOfClientProxy) == sizeof(NodeIdType), "");
 			static_assert(sizeof(ClientRequestMsgHeader::reqSeqNum) == sizeof(ReqId), "");
-			static_assert(sizeof(ClientRequestMsgHeader) == 17, "ClientRequestMsgHeader is 17B");
+			static_assert(sizeof(ClientRequestMsgHeader) == 21, "ClientRequestMsgHeader is 21B");
 
 			// TODO(GG): more asserts
 
 		public:
-			ClientRequestMsg(NodeIdType sender, bool isReadOnly, uint64_t reqSeqNum, uint32_t requestLength, const char* request);
+			ClientRequestMsg(NodeIdType sender, bool isReadOnly, uint64_t reqSeqNum, uint32_t requestLength, const char* request, bool withTimeStamp = false);
 
 			ClientRequestMsg(NodeIdType sender);
 
 			ClientRequestMsg(ClientRequestMsgHeader* body);
+
+			ClientRequestMsg(ClientRequestMsg* msg);
 
 			uint32_t maxRequestLength() const { return internalStorageSize() - sizeof(ClientRequestMsgHeader); }
 
@@ -46,11 +49,21 @@ namespace bftEngine
 
 			uint32_t requestLength() const { return b()->requestLength; }
 
+			uint32_t totalSize() const { return b()->totalSize; }
+
 			char* requestBuf() const { return body() + sizeof(ClientRequestMsgHeader); }
 
 			void set(ReqId reqSeqNum, uint32_t requestLength, bool isReadOnly);
 
 			void setAsReadWrite();
+
+			void setAsReadyOnly();
+
+			void setCombinedTimestamp(CombinedTimeStampMsg* msg);
+
+			uint64_t timeStamp() const;
+
+			char* digest() const;
 
 			static bool ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, ClientRequestMsg*& outMsg);
 

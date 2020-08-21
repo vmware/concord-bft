@@ -69,7 +69,7 @@ namespace bftEngine
 			const uint16_t firstPath = ((flags >> 2) & 0x3);
 			const uint16_t reservedBits = (flags >> 4);
 			if (isNull) return false; // we don't send null requests
-			if (!isReady) return false; // not ready
+			//if (!isReady) return false; // not ready
 			if (firstPath >= 3) return false; // invalid first path
 			if ((tmp->firstPath() == CommitPath::FAST_WITH_THRESHOLD) && (repInfo.cVal() == 0)) return false;
 			if (reservedBits != 0) return false;
@@ -78,19 +78,20 @@ namespace bftEngine
 			if (tmp->b()->endLocationOfLastRequest > tmp->size()) return false;
 
 			// requests
-			if (tmp->b()->numberOfRequests == 0) return false;
-			if (tmp->b()->numberOfRequests >= tmp->b()->endLocationOfLastRequest) return false;
-			if (!tmp->checkRequests()) return false;
+			//if (tmp->b()->numberOfRequests == 0) return false;
+			if (tmp->b()->numberOfRequests > 0) {
+				if (tmp->b()->numberOfRequests >= tmp->b()->endLocationOfLastRequest) return false;
+				if (!tmp->checkRequests()) return false;
 
-			// digest
-			Digest d;
-			const char* requestBuffer = (char*)&(tmp->b()->numberOfRequests);
-			const uint32_t requestSize = (tmp->b()->endLocationOfLastRequest - prePrepareHeaderPrefix);
+				// digest
+				Digest d;
+				const char* requestBuffer = (char*)&(tmp->b()->numberOfRequests);
+				const uint32_t requestSize = (tmp->b()->endLocationOfLastRequest - prePrepareHeaderPrefix);
 
-			DigestUtil::compute(requestBuffer, requestSize, (char*)&d, sizeof(Digest));
+				DigestUtil::compute(requestBuffer, requestSize, (char*)&d, sizeof(Digest));
 
-			if (d != tmp->b()->digestOfRequests) return false;
-
+				if (d != tmp->b()->digestOfRequests) return false;
+			}
 			outMsg = (PrePrepareMsg*)inMsg;
 
 			return true;
@@ -119,11 +120,11 @@ namespace bftEngine
 
 		uint32_t PrePrepareMsg::remainingSizeForRequests() const
 		{
-			Assert(!isReady());
+			//Assert(!isReady());
 			Assert(!isNull());
-			Assert(b()->endLocationOfLastRequest >= sizeof(PrePrepareMsgHeader));
+			//Assert(b()->endLocationOfLastRequest >= sizeof(PrePrepareMsgHeader));
 
-			return (internalStorageSize() - b()->endLocationOfLastRequest);
+            return (internalStorageSize() * 3 / 4 - b()->endLocationOfLastRequest);
 		}
 
 		void PrePrepareMsg::addRequest(char* pRequest, uint32_t requestSize)
@@ -143,7 +144,7 @@ namespace bftEngine
 
 
 
-		void PrePrepareMsg::finishAddingRequests()
+		void PrePrepareMsg::finishAddingRequests(bool isShrinkToFit)
 		{
 			Assert(!isNull());
 			Assert(!isReady());
@@ -166,8 +167,10 @@ namespace bftEngine
 			b()->digestOfRequests = d;
 
 			// size
-			setMsgSize(b()->endLocationOfLastRequest);
-			shrinkToFit();
+			if (isShrinkToFit) {
+				setMsgSize(b()->endLocationOfLastRequest);
+				shrinkToFit();
+			}
 		}
 
 
@@ -233,8 +236,9 @@ namespace bftEngine
 				}
 			}
 
-			Assert(false);
-			return false;
+			//Assert(false);
+			//return false;
+			return true;
 		}
 
 

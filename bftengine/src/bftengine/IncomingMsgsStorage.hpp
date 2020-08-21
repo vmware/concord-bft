@@ -33,6 +33,7 @@ namespace bftEngine
 			IncomingMsgsStorage(uint16_t maxNumOfPendingExternalMsgs);
 			~IncomingMsgsStorage();
 
+			void pushExternalOrderingMsg(MessageBase* m); // can be called by any thread    
 			void pushExternalMsg(MessageBase* m); // can be called by any thread
 			void pushInternalMsg(InternalMessage* m); // can be called by any thread
 

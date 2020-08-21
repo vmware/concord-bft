@@ -40,6 +40,10 @@ namespace bftEngine
 	   		uint16_t clientId, uint16_t fVal, uint16_t cVal,
 	   		SimpleClientParams p);
 		
+		static SimpleClient* createArchipelagoSimpleClient(ICommunication* communication,
+	   		uint16_t clientId, uint16_t fVal, uint16_t cVal,
+	   		SimpleClientParams p);
+
 		virtual ~SimpleClient() ;
 
 		virtual int sendRequest(bool isReadOnly, const char* request, uint32_t lengthOfRequest, uint64_t reqSeqNum, uint64_t timeoutMilli, uint32_t lengthOfReplyBuffer, char* replyBuffer, uint32_t& actualReplyLength) = 0;

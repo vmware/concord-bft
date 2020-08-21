@@ -47,6 +47,7 @@ void BlsThresholdSigner::signData(const char *hash, int hashLen, char *outSig,
                                   int outSigLen) {
   // TODO: ALIN: If the signer has some time to waste before signing,
   //  we can precompute multiplication tables on H(m) to speed up signing.
+  G1T hTmp_, sigTmp_;
 
   // Map the specified 'hash' to an elliptic curve point
   g1_map(hTmp_, reinterpret_cast<const unsigned char *>(hash), hashLen);
@@ -96,8 +97,6 @@ bool BlsThresholdSigner::operator==(const BlsThresholdSigner &other) const {
       (other.params_ == params_) &&
       (other.sigSize_ == sigSize_) &&
       !memcmp(other.serializedId_, serializedId_, sizeof(ShareID)) &&
-      (other.hTmp_ == hTmp_) &&
-      (other.sigTmp_ == sigTmp_) &&
       (other.secretKey_ == secretKey_) &&
       (other.publicKey_ == publicKey_)
   );

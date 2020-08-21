@@ -42,8 +42,14 @@ namespace bftEngine
 		// 1 <= concurrencyLevel <= 30
 		uint16_t concurrencyLevel;
 
+		uint16_t maxBatchSize;
+
+		uint16_t commitTimerMillisec;
+
 		// autoViewChangeEnabled=true , if the automatic view change protocol is enabled
 		bool autoViewChangeEnabled;
+
+		bool dynamicCollectorEnabled;
 
 		// a time interval in milliseconds. represents the timeout used by the  view change protocol (TODO: add more details)
 		uint16_t viewChangeTimerMillisec;

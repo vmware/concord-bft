@@ -10,6 +10,8 @@
 
 #include <stdint.h>
 
+#include "ArchipelagoTimeManager.hpp"
+#include "ArchipelagoStablePointMsg.hpp"
 #include "PrimitiveTypes.hpp"
 #include "assertUtils.hpp"
 #include "Digest.hpp"
@@ -36,6 +38,8 @@ namespace bftEngine
 				uint16_t flags;
 				Digest  digestOfRequests;
 
+				uint32_t endLocationOfExtMsg;
+
 				uint16_t numberOfRequests;
 				uint32_t endLocationOfLastRequest;
 
@@ -46,7 +50,7 @@ namespace bftEngine
 				// bits 4-15: zero
 			};
 #pragma pack(pop)
-			static_assert(sizeof(PrePrepareMsgHeader) == (2 + 8 + 8 + 2 + DIGEST_SIZE + 2 + 4), "PrePrepareMsgHeader is 58B");
+			static_assert(sizeof(PrePrepareMsgHeader) == (2 + 8 + 8 + 2 + DIGEST_SIZE + 4 + 2 + 4), "PrePrepareMsgHeader is 62B");
 
 			static const size_t prePrepareHeaderPrefix = sizeof(PrePrepareMsgHeader) - sizeof(PrePrepareMsgHeader::numberOfRequests) - sizeof(PrePrepareMsgHeader::endLocationOfLastRequest);
 
@@ -72,7 +76,7 @@ namespace bftEngine
 
 			void addRequest(char* pRequest, uint32_t requestSize);
 
-			void finishAddingRequests();
+			void finishAddingRequests(bool shrink);
 
 			// getter methods 
 
@@ -88,6 +92,32 @@ namespace bftEngine
 
 			uint16_t numberOfRequests() const { return b()->numberOfRequests; }
 
+			uint64_t timeStamp() const 
+			{
+				return ((CombinedTimeStampMsg::CombinedTimeStampMsgHeader*)(body() + b()->endLocationOfLastRequest))->timeStamp;
+			}
+
+			char* extMsg() const {
+				return (body() + b()->endLocationOfLastRequest);
+			}
+
+			void setCollectStablePointMsg(const CollectStablePointMsg* t)
+			{
+				b()->endLocationOfExtMsg = b()->endLocationOfLastRequest + t->endLocationOfLastRequest();
+				memcpy(body() + b()->endLocationOfLastRequest, t->body(), t->endLocationOfLastRequest());
+
+				setMsgSize(b()->endLocationOfExtMsg);
+				shrinkToFit();
+			}
+
+			void setCombinedTimeStampMsg(const CombinedTimeStampMsg* t) 
+			{
+				b()->endLocationOfExtMsg = b()->endLocationOfLastRequest + t->endLocationOfLastVerifiedTimeStamp();
+				memcpy(body() + b()->endLocationOfLastRequest, t->body(), t->endLocationOfLastVerifiedTimeStamp());
+
+				setMsgSize(b()->endLocationOfExtMsg);
+				shrinkToFit();
+			}
 			// update view and first path 
 
 			void updateView(ViewNum v, CommitPath firstPath = CommitPath::SLOW);

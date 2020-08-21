@@ -77,7 +77,7 @@ namespace bftEngine
 			uint32_t milli = t.tv_usec / 1000;
 
 #endif
-
+/*
 			fprintf(stdout, "\n %02u:%02u:%02u.%03u STAT:\t", hour, minute, seconds, milli);
 			fprintf(stdout, "ReadOnlyThruput = %7.2f\t", readThruput);
 			fprintf(stdout, "WriteThruput = %7.2f\t", writeThruput);
@@ -87,9 +87,10 @@ namespace bftEngine
 			fprintf(stdout, "numberOfReceivedStatusMessages = %zd\t", d.numberOfReceivedStatusMessages);
 			fprintf(stdout, "numberOfReceivedCommitMessages = %zd\t", d.numberOfReceivedCommitMessages);
 			fprintf(stdout, "\n");
-
+*/
 			if (d.completedReadOnlyRequests > 0 || d.completedReadWriteRequests > 0)
 			{
+				/*
 				fprintf(stdout, "\n %02u:%02u:%02u.%03u SHRES:\t", hour, minute, seconds, milli);
 				fprintf(stdout, "ReadOnlyThruput = %7.2f\t", readThruput);
 				fprintf(stdout, "WriteThruput = %7.2f\t", writeThruput);
@@ -99,7 +100,7 @@ namespace bftEngine
 				fprintf(stderr, "ReadOnlyThruput = %7.2f\t", readThruput);
 				fprintf(stderr, "WriteThruput = %7.2f\t", writeThruput);
 				fprintf(stderr, "\n\n\n");
-
+				*/
 			}
 
 

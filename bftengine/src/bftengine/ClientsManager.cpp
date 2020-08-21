@@ -233,7 +233,8 @@ namespace bftEngine
 			uint16_t idx = clientIdToIndex_.at(clientId);
 			const ClientInfo& c = indexToClientInfo_.at(idx);
 
-			if (c.currentPendingRequest != 0) return false; // if has pending request
+            if (reqSeqNum <= c.currentPendingRequest) return false;
+			//if (c.currentPendingRequest != 0) return false; // if has pending request
 
 			if(reqSeqNum <= c.lastSeqNumberOfReply) return false; // if already executed a later/equivalent request
 

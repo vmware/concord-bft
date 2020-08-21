@@ -24,7 +24,7 @@ namespace bftEngine
 
 		static int32_t compRequestMsgSize(const ClientRequestMsgHeader* r)
 		{
-			return (sizeof(ClientRequestMsgHeader) + r->requestLength);
+			return (sizeof(ClientRequestMsgHeader) + r->totalSize);
 		}
 
 		uint32_t getRequestSizeTemp(const char* request) // TODO(GG): change - TBD
@@ -37,8 +37,8 @@ namespace bftEngine
 
 		// class ClientRequestMsg
 
-		ClientRequestMsg::ClientRequestMsg(NodeIdType sender, bool isReadOnly, uint64_t reqSeqNum, uint32_t requestLength, const char* request)
-			: MessageBase(sender, MsgCode::Request, (sizeof(ClientRequestMsgHeader) + requestLength))
+		ClientRequestMsg::ClientRequestMsg(NodeIdType sender, bool isReadOnly, uint64_t reqSeqNum, uint32_t requestLength, const char* request, bool withTimeStamp)
+			: MessageBase(sender, MsgCode::Request, withTimeStamp? maxExternalMessageSize: (sizeof(ClientRequestMsgHeader) + requestLength))
 		{
 			// TODO(GG): asserts
 
@@ -47,7 +47,7 @@ namespace bftEngine
 			if (isReadOnly) b()->flags |= 0x1;
 			b()->reqSeqNum = reqSeqNum;
 			b()->requestLength = requestLength;
-
+			b()->totalSize = requestLength;
 			memcpy(body() + sizeof(ClientRequestMsgHeader), request, requestLength);
 
 
@@ -60,12 +60,19 @@ namespace bftEngine
 			b()->reqSeqNum = 0;
 			b()->requestLength = 0;
 			b()->flags = 0;
+			b()->totalSize = 0;
 			setMsgSize(sizeof(ClientRequestMsgHeader));
 		}
 
 		ClientRequestMsg::ClientRequestMsg(ClientRequestMsgHeader* body)
 			: MessageBase(getSender(body), (MessageBase::Header*)body, compRequestMsgSize(body), false)
 		{
+		}
+
+		ClientRequestMsg::ClientRequestMsg(ClientRequestMsg* msg)
+			: MessageBase(msg->senderId(), MsgCode::Request, sizeof(ClientRequestMsgHeader) + msg->totalSize())
+		{
+			memcpy(body(), msg->body(), size());
 		}
 
 		void ClientRequestMsg::set(ReqId reqSeqNum, uint32_t requestLength, bool isReadOnly)
@@ -79,6 +86,7 @@ namespace bftEngine
 			b()->requestLength = requestLength;
 
 			setMsgSize(sizeof(ClientRequestMsgHeader) + requestLength);
+			b()->totalSize = requestLength;
 		}
 
 		void ClientRequestMsg::setAsReadWrite()
@@ -87,13 +95,38 @@ namespace bftEngine
 			b()->flags &= m;
 		}
 
+		void ClientRequestMsg::setAsReadyOnly()
+		{
+			b()->flags |= 0x1;
+		}
+
+		void ClientRequestMsg::setCombinedTimestamp(CombinedTimeStampMsg* msg)
+		{
+			memcpy(body() + sizeof(ClientRequestMsgHeader) + b()->requestLength, msg->body(), msg->endLocationOfLastVerifiedTimeStamp());
+			if (size() != sizeof(ClientRequestMsgHeader) + b()->requestLength + msg->endLocationOfLastVerifiedTimeStamp()) {
+				setMsgSize(sizeof(ClientRequestMsgHeader) + b()->requestLength + msg->endLocationOfLastVerifiedTimeStamp());
+				b()->totalSize = b()->requestLength + msg->endLocationOfLastVerifiedTimeStamp();
+				shrinkToFit();
+			}
+		}
+
+        uint64_t ClientRequestMsg::timeStamp() const
+		{
+			return ((CombinedTimeStampMsg::CombinedTimeStampMsgHeader*)(body() + sizeof(ClientRequestMsgHeader) + b()->requestLength))->timeStamp;
+		}
+
+		char* ClientRequestMsg::digest() const
+		{
+			return body() + sizeof(ClientRequestMsgHeader) + b()->requestLength + sizeof(CombinedTimeStampMsg::CombinedTimeStampMsgHeader);
+		}
+
 		bool ClientRequestMsg::ToActualMsgType(const ReplicasInfo& repInfo, MessageBase* inMsg, ClientRequestMsg*& outMsg) {
 			Assert(inMsg->type() == MsgCode::Request);
 			if (inMsg->size() < sizeof(ClientRequestMsgHeader)) return false;
 
 			ClientRequestMsg* t = (ClientRequestMsg*)inMsg;
 
-			if (t->size() < (sizeof(ClientRequestMsgHeader) + t->b()->requestLength)) return false;
+			if (t->size() < (sizeof(ClientRequestMsgHeader) + t->totalSize())) return false;
 
 			outMsg = t;
 

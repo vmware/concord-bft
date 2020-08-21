@@ -60,7 +60,7 @@ static_assert(maxLegalConcurrentAgreementsByPrimary < MaxConcurrentFastPaths, "V
 // Messages
 ///////////////////////////////////////////////////////////////////////////////
 
-constexpr uint32_t maxExternalMessageSize = 64 * 1000; // TODO(GG): some message types may need different values  
+constexpr uint32_t maxExternalMessageSize = 512 * 1000; // TODO(GG): some message types may need different values  
 
 constexpr uint32_t maxReplyMessageSize = 8 * 1024;
 

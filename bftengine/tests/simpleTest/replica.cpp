@@ -157,6 +157,24 @@ void parse_params(int argc, char** argv) {
         } else if (p == "-cf") {
           rp.configFileName = argv[i + 1];
           i += 2;
+        } else if (p == "-a") {
+          rp.protocol = argv[i + 1];
+          i += 2; 
+        } else if (p == "-stopseconds") {
+          rp.stopAtSec = std::stoi(argv[i + 1]);
+          i += 2;
+        } else if (p == "-dc") {
+          rp.dynamicCollectorEnabled = (bool)std::stoi(argv[i + 1]);
+          i += 2;
+        } else if (p == "-cl") {
+          rp.concurrencyLevel = std::stoi(argv[i + 1]);
+          i += 2;
+        } else if (p == "-mb") {
+          rp.maxBatchSize = std::stoi(argv[i + 1]);
+          i += 2;
+        } else if (p == "-commit") {
+          rp.commitTimerMillisec = std::stoi(argv[i + 1]);
+          i += 2;
         } else {
           printf("Unknown parameter %s\n", p.c_str());
           exit(-1);
@@ -281,6 +299,18 @@ class SimpleAppState : public RequestsHandler {
   bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer* st = nullptr;
 };
 
+
+uint64_t getMonotonicTime()
+{ std::chrono::system_clock::time_point curTimePoint = std::chrono::system_clock::now();
+
+ 
+  auto timeSinceEpoch = curTimePoint.time_since_epoch();
+
+  uint64_t micro = std::chrono::duration_cast<std::chrono::microseconds>(timeSinceEpoch).count();
+
+  return micro;
+}
+
 int main(int argc, char **argv) {
   parse_params(argc, argv);
 
@@ -296,6 +326,10 @@ int main(int argc, char **argv) {
   replicaConfig.numOfClientProxies = rp.numOfClients;
   replicaConfig.autoViewChangeEnabled = rp.viewChangeEnabled;
   replicaConfig.viewChangeTimerMillisec = rp.viewChangeTimeout;
+  replicaConfig.dynamicCollectorEnabled = rp.dynamicCollectorEnabled;
+  replicaConfig.concurrencyLevel = rp.concurrencyLevel;
+  replicaConfig.maxBatchSize = rp.maxBatchSize;
+  replicaConfig.commitTimerMillisec = rp.commitTimerMillisec;
 
 #ifdef USE_COMM_PLAIN_TCP
   PlainTcpConfig conf = testCommConfig.GetTCPConfig(true, rp.replicaId,
@@ -331,7 +365,15 @@ int main(int argc, char **argv) {
                           << ", numOfClients: " << rp.numOfClients
                           << ", vcEnabled: " << rp.viewChangeEnabled
                           << ", vcTimeout: " << rp.viewChangeTimeout
+                          << ", dynamicCollector: " << rp.dynamicCollectorEnabled
+                          << ", maxBatchSize: " << rp.maxBatchSize
+                          << ", stopAtSec: " << rp.stopAtSec
+                          << ", commitDuration: " << rp.commitTimerMillisec
                           << ", debug: " << rp.debug);
+
+  uint64_t startTime = getMonotonicTime();
+
+  LOG_INFO(replicaLogger, "RUN " << rp.protocol << "!");
 
   // This is the state machine that the replica will drive.
   SimpleAppState simpleAppState(rp.numOfClients, rp.numOfReplicas);
@@ -358,8 +400,13 @@ int main(int argc, char **argv) {
   // The replica is now running in its own thread. Block the main thread until
   // sigabort, sigkill or sigterm are not raised and then exit gracefully
 
-  while (replica->isRunning())
+  while (replica->isRunning()) 
+  {
     std::this_thread::sleep_for(std::chrono::seconds(1));
+    if ((getMonotonicTime() - startTime)/1000000 > rp.stopAtSec) replica->stop();
+  }
+  delete replica;
+  delete st;
 
   return 0;
 }

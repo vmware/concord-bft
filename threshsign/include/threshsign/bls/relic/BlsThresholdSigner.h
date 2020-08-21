@@ -38,7 +38,7 @@ class BlsThresholdSigner : public IThresholdSigner {
   unsigned char serializedId_[sizeof(ShareID)]; // Serialized ID of the signer
 
   // Temporary storage for hashing message (avoids allocations)
-  G1T hTmp_, sigTmp_;
+  // G1T hTmp_, sigTmp_;
 
  public:
   BlsThresholdSigner(const BlsPublicParameters &params,
@@ -59,6 +59,7 @@ class BlsThresholdSigner : public IThresholdSigner {
    * Used for testing and benchmarking.
    */
   G1T signData(const G1T &hashPoint) {
+    G1T sigTmp_;
     g1_mul(sigTmp_, hashPoint, secretKey_.x);
     return sigTmp_;
   }

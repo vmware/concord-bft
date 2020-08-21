@@ -30,6 +30,8 @@ namespace bftEngine
 
 			Digest(const Digest& other) { memcpy(d, other.d, DIGEST_SIZE); }
 
+			Digest(const char* buf) { memcpy(d, buf, DIGEST_SIZE); }
+
 			bool isZero() const
 			{
 				for (int i = 0; i < DIGEST_SIZE; i++)
@@ -84,6 +86,28 @@ namespace bftEngine
 				size_t locationB = (ptr[0] >> 8) % X;
 				ptr[locationA] = ptr[locationA] ^ (inDataA);
 				ptr[locationB] = ptr[locationB] ^ (inDataB);
+			}
+
+    		static void calcCombination(const Digest& inDigest, uint64_t inData, Digest& outDigest)
+			{
+				const size_t X = ((DIGEST_SIZE / sizeof(uint64_t)) / 2);
+
+				memcpy(outDigest.d, inDigest.d, DIGEST_SIZE);
+
+				uint64_t* ptr = (uint64_t*)outDigest.d;
+				size_t location = ptr[0] % X;
+				ptr[location] = ptr[location] ^ (inData);
+			}
+			
+			static void calcCombination(const char* inDigest, uint64_t inData, Digest& outDigest)
+			{
+				const size_t X = ((DIGEST_SIZE / sizeof(uint64_t)) / 2);
+
+				memcpy(outDigest.d, inDigest, DIGEST_SIZE);
+
+				uint64_t* ptr = (uint64_t*)outDigest.d;
+				size_t location = ptr[0] % X;
+				ptr[location] = ptr[location] ^ (inData);
 			}
 
 			static void digestOfDigest(const Digest& inDigest, Digest& outDigest);

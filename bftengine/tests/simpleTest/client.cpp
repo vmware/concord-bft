@@ -31,6 +31,7 @@
 #include <thread>
 #include <iostream>
 #include <limits>
+#include <chrono>
 
 // bftEngine includes
 #include "CommFactory.hpp"
@@ -154,8 +155,9 @@ void parse_params(int argc, char** argv, ClientParams &cp,
         scp.clientPeriodicResetThresh = (uint16_t)prt;
       } else if (p == "-cf") {
         cp.configFileName = argv[i + 1];
-      }
-      else {
+      } else if (p == "-a") {
+        cp.protocol = argv[i + 1];
+      } else {
         printf("Unknown parameter %s\n", p.c_str());
         exit(-1);
       }
@@ -170,6 +172,17 @@ void parse_params(int argc, char** argv, ClientParams &cp,
     exit(-1);
   }
 
+}
+
+uint64_t getMonotonicTime()
+{ std::chrono::system_clock::time_point curTimePoint = std::chrono::system_clock::now();
+
+ 
+  auto timeSinceEpoch = curTimePoint.time_since_epoch();
+
+  uint64_t micro = std::chrono::duration_cast<std::chrono::microseconds>(timeSinceEpoch).count();
+
+  return micro;
 }
 
 int main(int argc, char **argv) {
@@ -229,7 +242,8 @@ int main(int argc, char **argv) {
   ICommunication* comm = bftEngine::CommFactory::create(conf);
 
   SimpleClient* client =
-      SimpleClient::createSimpleClient(comm, id, cp.numOfFaulty, cp.numOfSlow);
+      (cp.protocol == "archipelago")? SimpleClient::createArchipelagoSimpleClient(comm, id, cp.numOfFaulty, cp.numOfSlow, scp):
+        SimpleClient::createSimpleClient(comm, id, cp.numOfFaulty, cp.numOfSlow, scp);
   comm->Start();
 
   // The state number that the latest write operation returned.
@@ -239,13 +253,14 @@ int main(int argc, char **argv) {
   // operation.
   bool hasExpectedStateNum = false;
 
-  // The value that the latest write operation sent.
+    // The value that the latest write operation sent.
   uint64_t expectedLastValue = 0;
 
   // The expectedLastValue is not valid until we have issued at least one write
   // operation.
   bool hasExpectedLastValue = false;
 
+  std::this_thread::sleep_for(std::chrono::milliseconds(30000));
   LOG_INFO(clientLogger, "Starting " << cp.numOfOperations);
 
   for (uint32_t i = 1; i <= cp.numOfOperations; i++) {
@@ -254,11 +269,15 @@ int main(int argc, char **argv) {
     // iterations has been done - that's the reason we use printf and not
     // logging module - to keep the output exactly as we expect.
     if(i > 0 && i % 100 == 0) {
-      printf("Iterations count: 100\n");
+      //printf("Iterations count: 100\n");
       printf("Total iterations count: %i\n", i);
     }
 
-    if (i % readMod == 0) {
+    //const uint64_t requestSequenceNumber =
+    //    pSeqGen->generateUniqueSequenceNumberForRequest();
+    const uint64_t requestSequenceNumber = getMonotonicTime();
+
+    if (false && i % readMod == 0) {
       // Read the latest value every readMod-th operation.
 
       // Prepare request parameters.
@@ -270,8 +289,6 @@ int main(int argc, char **argv) {
           reinterpret_cast<const char*>(requestBuffer);
       const uint32_t rawRequestLength = sizeof(uint64_t) * kRequestLength;
 
-      const uint64_t requestSequenceNumber =
-          pSeqGen->generateUniqueSequenceNumberForRequest();
 
       const uint64_t timeout = SimpleClient::INFINITE_TIMEOUT;
 
@@ -310,8 +327,6 @@ int main(int argc, char **argv) {
           reinterpret_cast<const char*>(requestBuffer);
       const uint32_t rawRequestLength = sizeof(uint64_t) * kRequestLength;
 
-      const uint64_t requestSequenceNumber =
-          pSeqGen->generateUniqueSequenceNumberForRequest();
 
       const uint64_t timeout = SimpleClient::INFINITE_TIMEOUT;
 
@@ -340,18 +355,20 @@ int main(int argc, char **argv) {
         // If we had done a previous write, then this write should return the
         // state number right after the state number that that write returned.
         expectedStateNum++;
+        /*
         test_assert(retVal == expectedStateNum,
-            "retVal != " << expectedLastValue);
+            "retVal != " << expectedStateNum);
+        */
       } else {
         hasExpectedStateNum = true;
         expectedStateNum = retVal;
       }
     }
   }
-
+  
   // After all requests have been issued, stop communication and clean up.
   comm->Stop();
-
+  
   delete pSeqGen;
   delete client;
   delete comm;

@@ -41,6 +41,9 @@ set(corebft_source_files
     src/bftengine/BFTEngine.cpp
     src/bftengine/SimpleClient.cpp
     src/bftengine/DebugPersistentStorage.cpp
+    src/bftengine/ArchipelagoTimeManager.cpp
+    src/bftengine/ArchipelagoStablePointMsg.cpp
+    src/bftengine/ArchipelagoSimpleClient.cpp
     src/communication/PlainUDPCommunication.cpp
     src/communication/CommFactory.cpp
 	src/bcstatetransfer/BCStateTran.cpp

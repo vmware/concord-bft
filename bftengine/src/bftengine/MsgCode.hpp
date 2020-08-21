@@ -28,7 +28,6 @@ namespace bftEngine
 				FullCommitProof,
 				FullExecProof,
 				NewView,
-				PrePrepare,
 				PartialCommitProof,
 				PartialExecProof,
 				PreparePartial,
@@ -39,7 +38,14 @@ namespace bftEngine
 				ViewChange,
 				ReplicaStatus,
 				StateTransfer,
+				PrePrepare,
 
+				CombinedTimeStamp,
+                ClientGetTimeStamp,
+				ClientSignedTimeStamp,
+
+				CollectStablePoint,
+				LocalCommitSet,
 
 				Request = 700,
 				Reply = 800,

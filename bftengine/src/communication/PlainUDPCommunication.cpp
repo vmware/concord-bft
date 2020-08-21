@@ -154,8 +154,6 @@ class PlainUDPCommunication::PlainUdpImpl {
     LOG_DEBUG(_logger, "Starting UDP communication. Port = %" << udpListenPort);
     LOG_DEBUG(_logger, "#endpoints = " << nodes2adresses.size());
 
-    bufferForIncomingMessages = (char *) std::malloc(maxMsgSize);
-
     udpSockFd = 0;
   }
 
@@ -181,8 +179,16 @@ class PlainUDPCommunication::PlainUdpImpl {
       return -1;
     }
 
+    bufferForIncomingMessages = (char *) std::malloc(maxMsgSize);
+
     // Initialize socket.
     udpSockFd = socket(AF_INET, SOCK_DGRAM, 0);
+
+    /*
+    uint64_t buf_size = 40*1024*1024;  //20 MB
+    setsockopt(udpSockFd, SOL_SOCKET, SO_RCVBUF, &buf_size, sizeof(buf_size));
+    setsockopt(udpSockFd, SOL_SOCKET, SO_SNDBUF, &buf_size, sizeof(buf_size));
+    */
 
     // Name the socket.
     sAddr.sin_family = AF_INET;
@@ -275,14 +281,14 @@ class PlainUDPCommunication::PlainUdpImpl {
     Assert(messageLength > 0, "The message length must be positive!");
     Assert(message != NULL, "No message provided!");
 
-    LOG_DEBUG(_logger, " Sending " << messageLength
-                          << " bytes to "
-                          << destNode << " (" << inet_ntoa(to->sin_addr) << ":"
-                          << ntohs(to->sin_port));
 
     error = sendto(udpSockFd, message, messageLength, 0,
                    (struct sockaddr *) to, sizeof(Addr));
-
+    
+    LOG_DEBUG(_logger, "Sending " << messageLength
+                        << " bytes to "
+                        << destNode << " (" << inet_ntoa(to->sin_addr) << ":"
+                        << ntohs(to->sin_port) << ") error:" << error);
     if (error < 0) {
       /** -1 return value means underlying socket error. */
       string err = strerror(errno);
@@ -363,9 +369,15 @@ class PlainUDPCommunication::PlainUdpImpl {
                       &fromAdressLength);
 
       LOG_DEBUG(_logger, "recvfrom returned " << mLen << " bytes");
-
+     
       if (mLen < 0) {
         LOG_DEBUG(_logger, "Error in recvfrom(): " << mLen);
+        continue;
+      } else if (!mLen) {
+        // Probably, Stop() set 'running' to false and shut down the
+        // socket.  (Or, maybe, we received an actual zero-length UDP
+        // datagram, but we never send those.)
+        LOG_DEBUG(_logger, "Received empty message (shutting down?)");
         continue;
       }
 
@@ -376,7 +388,7 @@ class PlainUDPCommunication::PlainUdpImpl {
       }
 
       auto sendingNode = resolveNode.nodeId;
-      if (mLen > 0 && (receiverRef != NULL)) {
+      if (receiverRef != NULL) {
         LOG_DEBUG(_logger, "Calling onNewMessage, msg from: " << sendingNode);
         receiverRef->onNewMessage(sendingNode,
                                   bufferForIncomingMessages,

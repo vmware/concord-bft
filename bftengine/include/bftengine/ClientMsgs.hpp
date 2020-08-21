@@ -21,6 +21,7 @@ namespace bftEngine
 		uint16_t msgType; // always == REQUEST_MSG_TYPE
 		uint16_t idOfClientProxy;
 		uint8_t  flags; // bit 0 == isReadOnly ; bits 1-7 are reserved
+		uint32_t totalSize;
 		uint64_t reqSeqNum;
 		uint32_t requestLength;
 		// followed by the request (security information, such as signatures, should be part of the request)

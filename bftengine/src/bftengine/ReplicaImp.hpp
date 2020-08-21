@@ -33,7 +33,9 @@
 #include "Replica.hpp"
 #include "SimpleAutoResetEvent.hpp"
 #include "Metrics.hpp"
+#include "ArchipelagoTimeManager.hpp"
 #include <thread>
+#include <map>
 
 
 
@@ -56,6 +58,10 @@ namespace bftEngine
 		class SimpleAckMsg;
 		class StateTransferMsg;
 		class ReplicaStatusMsg;
+        class ClientGetTimeStampMsg;
+		class ClientSignedTimeStampMsg;
+		class CollectStablePointMsg;
+		class LocalCommitSetMsg;
 
 		class ReplicaImp;
 
@@ -79,11 +85,13 @@ namespace bftEngine
 
 			// communication
 			class MsgReceiver; // forward declaration
+			IncomingMsgsStorage orderingMsgsStorage;
 			IncomingMsgsStorage incomingMsgsStorage;
 			MsgReceiver* msgReceiver;
 			ICommunication* communication;
 
 			// main thread of the this replica
+			std::thread orderingThread;
 			std::thread mainThread;
 			bool mainThreadStarted;
 			bool mainThreadShouldStop;
@@ -106,6 +114,9 @@ namespace bftEngine
 
 			// digital signatures
 			SigManager* sigManager;
+
+			// Time logic
+			TimeManager* timeManager = nullptr;
 
 			// view change logic
 			ViewsManager* viewsManager = nullptr;
@@ -201,10 +212,20 @@ namespace bftEngine
 
 			int viewChangeTimerMilli;
 
+			uint16_t maxBatchSize;
+            uint64_t commitDuration;
+			uint64_t maxCommitDuration;
+            uint64_t localStablePoint;
+			uint64_t localNextStablePoint;
+			int64_t timeskew;
+            std::map<std::pair<uint16_t, uint64_t>, ClientRequestMsg*> localCommitSet;
+			std::map<std::pair<uint16_t, uint64_t>, Time> reqTime;
+			std::map<uint16_t, bool> localCommitMsgs;
+
 			class MsgReceiver : public IReceiver
 			{
 			public:
-				MsgReceiver(IncomingMsgsStorage& queue);
+				MsgReceiver(SigManager* v, IThresholdVerifier* t, IncomingMsgsStorage& queue, IncomingMsgsStorage* oqueue);
 
 				virtual ~MsgReceiver() {};
 
@@ -214,8 +235,11 @@ namespace bftEngine
 				virtual void onConnectionStatusChanged(const NodeNum node, const ConnectionStatus newStatus) override;
 
 			private:
-				
+				SigManager* verifier;
+				IThresholdVerifier* tverifier;
 				IncomingMsgsStorage& incomingMsgs;
+				IncomingMsgsStorage* orderingMsgs;
+
 			};
 
 
@@ -291,6 +315,7 @@ namespace bftEngine
 
 			void recvMsg(void*& item, bool& external);
 
+            void processOrderMessages();
 			void processMessages();
 
 			// IReplicaForStateTransfer
@@ -303,7 +328,11 @@ namespace bftEngine
 			virtual void onInternalMsg(FullCommitProofMsg* m) override;
 			virtual void onMerkleExecSignature(ViewNum v, SeqNum s, uint16_t signatureLength, const char* signature) override;
 
-                        void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a);
+            void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a);
+			
+            PrePrepareMsg* generatePrePrepareMsg();
+
+            void tryToSendStablePoints();
 
 		protected:
 
@@ -332,7 +361,12 @@ namespace bftEngine
 			friend class DebugStatistics;
 #endif
 
+            void onBatchMessage(ClientRequestMsg *m);
 			void onMessage(ClientRequestMsg*);
+			void onNewMessage(ClientRequestMsg*);
+			void onMessage(ClientGetTimeStampMsg*);
+			void onMessage(CollectStablePointMsg*);
+			void onMessage(LocalCommitSetMsg*);
 			void onMessage(PrePrepareMsg*);
 			void onMessage(StartSlowCommitMsg*);
 			void onMessage(PartialCommitProofMsg*);

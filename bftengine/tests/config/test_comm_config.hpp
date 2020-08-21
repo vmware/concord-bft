@@ -63,7 +63,7 @@ class TestCommConfig: public ITestCommConfig {
     // Network port of the first replica. Other replicas use ports
     // basePort + (2 * index).
     static const uint16_t    base_port_ = 3710;
-    static const uint32_t    buf_length_ = 64000;
+    static const uint32_t    buf_length_ = 512000;
     static const std::string default_ip_;
     static const std::string default_listen_ip_;
     static const char*       ip_port_delimiter_;

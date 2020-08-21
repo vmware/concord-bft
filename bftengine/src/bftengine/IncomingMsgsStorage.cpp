@@ -9,7 +9,7 @@
 #include "IncomingMsgsStorage.hpp"
 #include "MessageBase.hpp"
 #include "Logger.hpp"
- 
+
 using std::queue;
 
 namespace bftEngine
@@ -41,7 +41,32 @@ namespace bftEngine
 		{
 			std::unique_lock<std::mutex> mlock(lock);
 			{
-				if (ptrProtectedQueueForExternalMessages->size() >= maxNumberOfPendingExternalMsgs)
+				if (ptrProtectedQueueForExternalMessages->size() >= maxNumberOfPendingExternalMsgs && m->type() == MsgCode::Request)
+				{
+					Time n = getMonotonicTime();
+					if (subtract(n, lastOverflowWarning) > ((TimeDeltaMirco)minTimeBetweenOverflowWarningsMilli * 1000))
+					{
+						LOG_WARN_F(GL, "More than %d pending messages in queue -  may ignore some of the messages!",
+							(int)maxNumberOfPendingExternalMsgs);
+
+						lastOverflowWarning = n;
+					}
+
+					delete m; // ignore message
+				}
+				else
+				{
+					ptrProtectedQueueForExternalMessages->push(m);
+					condVar.notify_one();
+				}
+			}
+		}
+
+        void IncomingMsgsStorage::pushExternalOrderingMsg(MessageBase* m) // can be called by any thread
+		{
+			std::unique_lock<std::mutex> mlock(lock);
+			{
+				if (ptrProtectedQueueForExternalMessages->size() >= (maxNumberOfPendingExternalMsgs >> 1) && m->type() == MsgCode::ClientGetTimeStamp)
 				{
 					Time n = getMonotonicTime();
 					if (subtract(n, lastOverflowWarning) > ((TimeDeltaMirco)minTimeBetweenOverflowWarningsMilli * 1000))

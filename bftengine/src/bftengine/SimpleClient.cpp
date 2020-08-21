@@ -165,7 +165,7 @@ namespace bftEngine
 			replysCertificate(3 * fVal + 2 * cVal + 1, fVal, 2 * fVal + cVal + 1, clientId),
 			limitOfExpectedOperationTime(p.clientInitialRetryTimeoutMilli, 2,
 					p.clientMaxRetryTimeoutMilli, p.clientMinRetryTimeoutMilli,
-					32, 1000, 2, 2),
+					4, 32, 2, 2), // 32, 1000, 2, 2
 			clientSendsRequestToAllReplicasFirstThresh{p.clientSendsRequestToAllReplicasFirstThresh},
 			clientSendsRequestToAllReplicasPeriodThresh{p.clientSendsRequestToAllReplicasPeriodThresh},
 			clientPeriodicResetThresh{p.clientPeriodicResetThresh}
@@ -214,7 +214,7 @@ namespace bftEngine
 			Assert(timeOfLastTransmission == MinTime);
 			Assert(numberOfTransmissions == 0);
 			
-			static const std::chrono::milliseconds timersRes(timersResolutionMilli);
+			static const std::chrono::milliseconds timersRes(1);
 
 			const Time beginTime = getMonotonicTime();
 
@@ -279,8 +279,8 @@ namespace bftEngine
 				limitOfExpectedOperationTime.add(durationMilli);
 
 				LOG_INFO_F(GL, "Client %d - request %" PRIu64 " has committed "
-										  "(isRO=%d, request size=%zu,  retransmissionMilli=%d) ",
-					_clientId, reqSeqNum, (int)isReadOnly, (size_t)lengthOfRequest,  (int)limitOfExpectedOperationTime.upperLimit());
+										  "(isRO=%d, request size=%zu,  retransmissionMilli=%d,  durationMilli=%d) ",
+					_clientId, reqSeqNum, (int)isReadOnly, (size_t)lengthOfRequest,  (int)limitOfExpectedOperationTime.upperLimit(), (int)durationMilli);
 
 				ClientReplyMsg* correctReply = replysCertificate.bestCorrectMsg();
 

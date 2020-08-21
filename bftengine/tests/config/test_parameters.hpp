@@ -23,6 +23,8 @@ struct ClientParams {
   uint16_t numOfSlow = 0;
   std::string   configFileName;
 
+  std::string protocol = "concord";
+
   uint16_t get_numOfReplicas() {
     return (uint16_t)(3 * numOfFaulty + 2 * numOfSlow + 1);
   }
@@ -38,6 +40,13 @@ struct ReplicaParams {
   uint16_t statusReportTimerMillisec = 20 * 1000; // ms
   std::string   configFileName;
   std::string   keysFilePrefix;
+
+  std::string protocol = "concord";
+  bool dynamicCollectorEnabled = true;
+  uint16_t concurrencyLevel = 1;
+  uint16_t maxBatchSize = 1;
+  uint16_t commitTimerMillisec = 0;
+  uint32_t stopAtSec = 0xfffffffe;
 };
 
 #endif //CONCORD_BFT_TEST_PARAMETERS_HPP
