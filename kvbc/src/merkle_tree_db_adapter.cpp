@@ -114,7 +114,9 @@ DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db)
       // The smTree_ member needs an initialized DB. Therefore, do that in the initializer list before constructing
       // smTree_ .
       db_{db},
-      smTree_{std::make_shared<Reader>(*this)} {
+      smTree_{std::make_shared<Reader>(*this)},
+      commitSizeSummary_{
+          concordMetrics::StatisticsFactory::get().createSummary({{0.25, 0.1}, {0.5, 0.1}, {0.75, 0.1}, {0.95, 0.1}})} {
   // Make sure that if linkSTChainFrom() has been interrupted (e.g. a crash or an abnormal shutdown), all DBAdapter
   // methods will return the correct values. For example, if state transfer had completed and linkSTChainFrom() was
   // interrupted, getLatestBlockId() should be equal to getLastReachableBlockId() on the next startup. Another example
@@ -316,6 +318,12 @@ SetOfKeyValuePairs DBAdapter::lastReachableBlockDbUpdates(const SetOfKeyValuePai
   dbUpdates[DBKeyManipulator::genBlockDbKey(blockId)] =
       createBlockNode(updates, actuallyDeleted, blockId, parentBlockDigestFuture.get());
 
+  // update metrics
+  uint64_t sizeOfUpdatesInBytes = 0;
+  for (auto &kv : dbUpdates) {
+    sizeOfUpdatesInBytes += kv.first.length() + kv.second.length();
+  }
+  commitSizeSummary_->Observe(sizeOfUpdatesInBytes);
   return dbUpdates;
 }
 
@@ -427,7 +435,7 @@ void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId) {
 
     return;
   }
-
+  commitSizeSummary_->Observe(block.length());
   // If not adding the next block, treat as a temporary state transfer block.
   const auto status = db_->put(DBKeyManipulator::generateSTTempBlockKey(blockId), block);
   if (!status.isOK()) {

@@ -21,7 +21,7 @@
 #include "sliver.hpp"
 #include "sparse_merkle/tree.h"
 #include "storage/db_interface.h"
-
+#include "Statistics.hpp"
 #include <future>
 #include <memory>
 #include <optional>
@@ -201,6 +201,7 @@ class DBAdapter : public IDbAdapter {
   logging::Logger logger_;
   std::shared_ptr<storage::IDBClient> db_;
   sparse_merkle::Tree smTree_;
+  std::unique_ptr<concordMetrics::ISummary> commitSizeSummary_;
 };
 
 namespace detail {
