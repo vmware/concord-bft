@@ -36,7 +36,7 @@ class ISummary {
 
 class IStatisticsFactory {
  public:
-  virtual ISummary* createSummary(const Quantiles& quantiles) = 0;
+  virtual std::unique_ptr<ISummary> createSummary(const Quantiles& quantiles) = 0;
   virtual ~IStatisticsFactory() {}
 };
 
@@ -48,7 +48,9 @@ class EmptySummary : public ISummary {
 
 class DefaultStatisticFactory : public IStatisticsFactory {
  public:
-  virtual ISummary* createSummary(const Quantiles& quantiles) { return new EmptySummary(); }
+  virtual std::unique_ptr<ISummary> createSummary(const Quantiles& quantiles) {
+    return std::make_unique<EmptySummary>();
+  }
 };
 
 class StatisticsFactory {
@@ -57,7 +59,7 @@ class StatisticsFactory {
  public:
   StatisticsFactory() : pImp(new DefaultStatisticFactory()) {}
 
-  ISummary* createSummary(const Quantiles& quantiles) { return pImp->createSummary(quantiles); }
+  std::unique_ptr<ISummary> createSummary(const Quantiles& quantiles) { return pImp->createSummary(quantiles); }
 
   static StatisticsFactory& get() {
     static StatisticsFactory sf;
