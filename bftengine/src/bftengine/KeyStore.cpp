@@ -11,6 +11,8 @@
 
 #include "KeyStore.h"
 
+namespace bftEngine::impl {
+
 ////////////////////////////// KEY EXCHANGE MSG//////////////////////////////
 
 const std::string KeyExchangeMsg::getVersion() const { return "1"; }
@@ -45,7 +47,7 @@ std::string KeyExchangeMsg::toString() const {
 
 bool ReplicaKeyStore::push(const KeyExchangeMsg& kem, const uint64_t& sn) {
   if (keys_.size() >= numOfKeysLimit_) {
-    LOG_ERROR(GL, "KEY EXCHANGE: keys limit for replica exceeds, limit " << numOfKeysLimit_);
+    LOG_ERROR(KEY_EX_LOG, "Keys limit for replica exceeds, limit " << numOfKeysLimit_);
     return false;
   }
 
@@ -55,7 +57,7 @@ bool ReplicaKeyStore::push(const KeyExchangeMsg& kem, const uint64_t& sn) {
 
 ReplicaKeyStore::ReplicaKey ReplicaKeyStore::current() const {
   if (keys_.empty()) {
-    LOG_FATAL(GL, "KEY EXCHANGE: replica key store is empty");
+    LOG_FATAL(KEY_EX_LOG, "Replica key store is empty");
     ConcordAssertNE(keys_.empty(), true);
   }
 
@@ -99,9 +101,9 @@ bool ReplicaKeyStore::rotate(const uint64_t& chknum) {
   }
   // if somehow rotation wasn't performed on desired checkpoint.
   ConcordAssertLT(seqNumsSinceKeyExchangeMsg, checkPointsForRotation_ * seqNumsPerChkPoint_);
-  LOG_DEBUG(GL,
-            "KEY EXCHANGE:: Key rotation for replica " << keys_[1].msg.repID << " recieved on seqnum "
-                                                       << keys_[1].seqnum << " rotated on " << chekPointSeqNum);
+  LOG_DEBUG(KEY_EX_LOG,
+            "Key rotation for replica " << keys_[1].msg.repID << " recieved on seqnum " << keys_[1].seqnum
+                                        << " rotated on " << chekPointSeqNum);
   keys_.pop_front();
   return true;
 }
@@ -125,13 +127,58 @@ ReplicaKeyStore::ReplicaKey::ReplicaKey(const KeyExchangeMsg& other, const uint6
 
 //////////////////////CLUSTER KEY STORE////////////////////////
 
-ClusterKeyStore::ClusterKeyStore(const uint32_t& clusterSize) : clusterKeys_(clusterSize) {}
+ClusterKeyStore::ClusterKeyStore(const uint32_t& clusterSize,
+                                 IReservedPages& reservedPages,
+                                 const uint32_t& sizeOfReservedPage)
+    : clusterKeys_(clusterSize), reservedPages_(reservedPages), buffer_(sizeOfReservedPage, 0) {
+  loadAllReplicasKeyStoresFromReservedPages();
+}
+
+void ClusterKeyStore::loadAllReplicasKeyStoresFromReservedPages() {
+  exchangedReplicas.clear();
+  for (uint16_t i = 0; i < (uint16_t)clusterKeys_.size(); i++) {
+    auto repKeys = loadReplicaKeyStoreFromReserevedPages(i);
+
+    if (!repKeys.has_value()) continue;
+    exchangedReplicas.insert(i);
+    clusterKeys_[i] = std::move(repKeys.value());
+  }
+  // If not first start, all replicas should be deseriaized correctly
+  // Unless for some reason we crashed before completing full exchange
+  // TODO decide how we want to handle this error.
+  if (exchangedReplicas.size() > 0 && exchangedReplicas.size() < clusterKeys_.size()) {
+    LOG_ERROR(KEY_EX_LOG, "Partial set of replicas kyes were loaded from reserved pages");
+  }
+}
+
+std::optional<ReplicaKeyStore> ClusterKeyStore::loadReplicaKeyStoreFromReserevedPages(const uint16_t& repID) {
+  reservedPages_.loadReservedPage(resPageOffset() + repID, buffer_.size(), buffer_.data());
+  try {
+    return ReplicaKeyStore::deserializeReplicaKeyStore(buffer_.c_str(), buffer_.size());
+  } catch (std::exception& e) {
+    LOG_INFO(KEY_EX_LOG, "Couldn't deserialize replica key store [" << repID << "] from reserved pages, first start?");
+    return {};
+  }
+}
+
+void ClusterKeyStore::saveAllReplicasKeyStoresToReservedPages() {
+  for (uint16_t i = 0; i < (uint16_t)clusterKeys_.size(); i++) {
+    saveReplicaKeyStoreToReserevedPages(i);
+  }
+}
+
+void ClusterKeyStore::saveReplicaKeyStoreToReserevedPages(const uint16_t& repID) {
+  std::stringstream ss;
+  concord::serialize::Serializable::serialize(ss, clusterKeys_.at(repID));
+  auto rkStr = ss.str();
+  reservedPages_.saveReservedPage(resPageOffset() + repID, rkStr.size(), rkStr.c_str());
+}
 
 bool ClusterKeyStore::push(const KeyExchangeMsg& kem,
                            const uint64_t& sn,
                            const std::vector<IKeyExchanger*>& registryToExchange) {
   if (kem.repID >= clusterKeys_.size()) {
-    LOG_ERROR(GL, "KEY EXCHANGE: replica id is out of range " << kem.repID);
+    LOG_ERROR(KEY_EX_LOG, "Replica id is out of range " << kem.repID);
     return false;
   }
 
@@ -140,30 +187,33 @@ bool ClusterKeyStore::push(const KeyExchangeMsg& kem,
   for (auto ike : registryToExchange) {
     ike->onNewKey(clusterKeys_[kem.repID].current().msg);
   }
+  saveReplicaKeyStoreToReserevedPages(kem.repID);
   return true;
 }
 
 bool ClusterKeyStore::rotate(const uint64_t& chknum, const std::vector<IKeyExchanger*>& registryToExchange) {
   bool ret{};
-  auto idx = 0;
+  uint16_t idx = 0;
   for (auto& replicaKeyStore : clusterKeys_) {
     if (!replicaKeyStore.rotate(chknum)) continue;
     ret = true;
     // Notify registry on exchange for replica
-    LOG_DEBUG(GL, "KEY EXCHANGE: notifying registry for exchange for replica " << idx << " at checkoint " << chknum);
+    LOG_DEBUG(KEY_EX_LOG, "Notifying registry for exchange for replica " << idx << " at checkoint " << chknum);
     for (auto ike : registryToExchange) {
       ike->onExchange(replicaKeyStore.current().msg);
     }
+    saveReplicaKeyStoreToReserevedPages(idx);
     ++idx;
-    // TODO Save replica reserved pages, function for UT
   }
   return ret;
 }
 
-KeyExchangeMsg ClusterKeyStore::replicaKey(const uint16_t& repID) const {
+KeyExchangeMsg ClusterKeyStore::getReplicaKey(const uint16_t& repID) const {
   if (repID >= clusterKeys_.size()) {
-    LOG_ERROR(GL, "KEY EXCHANGE: replica id is out of range " << repID);
-    return {};
+    LOG_ERROR(KEY_EX_LOG, "Replica id is out of range " << repID);
+    ConcordAssertGE(repID, clusterKeys_.size());
   }
   return clusterKeys_[repID].current().msg;
 }
+
+}  // namespace bftEngine::impl

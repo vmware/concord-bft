@@ -16,11 +16,12 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include "IReservedPages.hpp"
 
 namespace bftEngine {
 class IReplicaForStateTransfer;  // forward definition
 
-class IStateTransfer {
+class IStateTransfer : public IReservedPages {
  public:
   virtual ~IStateTransfer() {}
 
@@ -48,13 +49,6 @@ class IStateTransfer {
   virtual void startCollectingState() = 0;
 
   virtual bool isCollectingState() const = 0;
-
-  // working with reserved pages
-  virtual uint32_t numberOfReservedPages() const = 0;
-  virtual uint32_t sizeOfReservedPage() const = 0;
-  virtual bool loadReservedPage(uint32_t reservedPageId, uint32_t copyLength, char *outReservedPage) const = 0;
-  virtual void saveReservedPage(uint32_t reservedPageId, uint32_t copyLength, const char *inReservedPage) = 0;
-  virtual void zeroReservedPage(uint32_t reservedPageId) = 0;
 
   // timer (for simple implementation, a state transfer module can use its own
   // timers and threads)

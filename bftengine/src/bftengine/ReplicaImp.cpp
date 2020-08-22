@@ -175,7 +175,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
     // If Multi sig keys havn't been replaced for all replicas and it's not a key ex msg
     // then don't accept the msg.
     if (!KeyManager::get().keysExchanged && !(flags & KEY_EXCHANGE_FLAG)) {
-      LOG_INFO(GL, "KEY EXCHANGE didn't complete yet, dropping msg");
+      LOG_INFO(KEY_EX_LOG, "Didn't complete yet, dropping msg");
       delete m;
       return;
     }
@@ -2329,6 +2329,7 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
   timeOfLastStateSynch = getMonotonicTime();  // TODO(GG): handle restart/pause
 
   clientsManager->loadInfoFromReservedPages();
+  KeyManager::get().loadKeysFromReservedPages();
 
   if (newStateCheckpoint > lastStableSeqNum + kWorkWindowSize) {
     const SeqNum refPoint = newStateCheckpoint - kWorkWindowSize;
@@ -3165,10 +3166,11 @@ ReplicaImp::ReplicaImp(bool firstTime,
   internalBFTClient_.reset(
       new InternalBFTClient(config_.replicaId, clientsManager->getHighestIdOfNonInternalClient(), msgsCommunicator_));
 
-  KeyManager::get(internalBFTClient_.get(), config_.replicaId, config_.numReplicas);
   ClientsManager::setNumResPages(
       (config.numOfClientProxies + config.numOfExternalClients + config.numReplicas) *
       ClientsManager::reservedPagesPerClient(config.sizeOfReservedPage, config.maxReplyMessageSize));
+  ClusterKeyStore::setNumResPages(config.numReplicas);
+
   clientsManager->init(stateTransfer.get());
 
   // autoPrimaryRotationEnabled implies viewChangeProtocolEnabled
@@ -3292,6 +3294,13 @@ void ReplicaImp::addTimers() {
 void ReplicaImp::start() {
   LOG_INFO(GL, "Running ReplicaImp");
   ReplicaForStateTransfer::start();
+
+  // requires the init of state transfer
+  KeyManager::get(internalBFTClient_.get(),
+                  config_.replicaId,
+                  config_.numReplicas,
+                  stateTransfer.get(),
+                  ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage());
   // If the replica has crashed and recovered by its own, this will remove the saved checkpoint to stop at.
   if (controlStateManager_ && controlStateManager_->getCheckpointToStopAt().has_value())
     controlStateManager_->clearCheckpointToStopAt();
