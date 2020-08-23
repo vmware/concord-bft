@@ -22,6 +22,7 @@
 #include "sparse_merkle/tree.h"
 #include "storage/db_interface.h"
 #include "Statistics.hpp"
+
 #include <future>
 #include <memory>
 #include <optional>

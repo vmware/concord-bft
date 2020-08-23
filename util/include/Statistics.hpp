@@ -36,7 +36,7 @@ class ISummary {
 
 class IStatisticsFactory {
  public:
-  virtual std::unique_ptr<ISummary> createSummary(const Quantiles& quantiles) = 0;
+  virtual std::unique_ptr<ISummary> createSummary(const std::string& name, const Quantiles& quantiles) = 0;
   virtual ~IStatisticsFactory() {}
 };
 
@@ -48,7 +48,7 @@ class EmptySummary : public ISummary {
 
 class DefaultStatisticFactory : public IStatisticsFactory {
  public:
-  virtual std::unique_ptr<ISummary> createSummary(const Quantiles& quantiles) {
+  virtual std::unique_ptr<ISummary> createSummary(const std::string& name, const Quantiles& quantiles) {
     return std::make_unique<EmptySummary>();
   }
 };
@@ -59,13 +59,18 @@ class StatisticsFactory {
  public:
   StatisticsFactory() : pImp(new DefaultStatisticFactory()) {}
 
-  std::unique_ptr<ISummary> createSummary(const Quantiles& quantiles) { return pImp->createSummary(quantiles); }
+  std::unique_ptr<ISummary> createSummary(const std::string& name, const Quantiles& quantiles) {
+    return pImp->createSummary(name, quantiles);
+  }
 
   static StatisticsFactory& get() {
     static StatisticsFactory sf;
     return sf;
   }
 
-  static void setImp(std::unique_ptr<IStatisticsFactory> pImp) { get().pImp = std::move(pImp); }
+  static IStatisticsFactory& setImp(std::unique_ptr<IStatisticsFactory> pImp) {
+    get().pImp = std::move(pImp);
+    return *get().pImp;
+  }
 };
 }  // namespace concordMetrics

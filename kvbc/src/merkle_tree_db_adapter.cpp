@@ -115,8 +115,8 @@ DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db)
       // smTree_ .
       db_{db},
       smTree_{std::make_shared<Reader>(*this)},
-      commitSizeSummary_{
-          concordMetrics::StatisticsFactory::get().createSummary({{0.25, 0.1}, {0.5, 0.1}, {0.75, 0.1}, {0.95, 0.1}})} {
+      commitSizeSummary_{concordMetrics::StatisticsFactory::get().createSummary(
+          "merkleTreeCommitSizeSummary", {{0.25, 0.1}, {0.5, 0.1}, {0.75, 0.1}, {0.9, 0.1}})} {
   // Make sure that if linkSTChainFrom() has been interrupted (e.g. a crash or an abnormal shutdown), all DBAdapter
   // methods will return the correct values. For example, if state transfer had completed and linkSTChainFrom() was
   // interrupted, getLatestBlockId() should be equal to getLastReachableBlockId() on the next startup. Another example
