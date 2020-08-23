@@ -57,7 +57,8 @@ set(util_header_files
     include/SimpleThreadPool.hpp
     include/sliver.hpp
     include/status.hpp
-    include/string.hpp)
+    include/string.hpp
+    include/JsonSerializer.hpp)
 install(FILES ${util_header_files} DESTINATION include/util)
 
 set_property(DIRECTORY .. APPEND PROPERTY INCLUDE_DIRECTORIES

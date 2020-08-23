@@ -24,6 +24,7 @@
 #include "OpenTracing.hpp"
 #include "diagnostics.h"
 #include "TimeUtils.hpp"
+#include "JsonSerializer.hpp"
 
 #include "messages/ClientRequestMsg.hpp"
 #include "messages/PrePrepareMsg.hpp"
@@ -44,7 +45,11 @@
 #include <type_traits>
 #include <bitset>
 
+#define getName(var) #var
+
 using concordUtil::Timers;
+using concordUtils::toPair;
+using concordUtils::ContainerToJson;
 using namespace std;
 using namespace std::chrono;
 using namespace std::placeholders;
@@ -994,41 +999,44 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
 std::string ReplicaImp::getReplicaState() const {
   auto primary = getReplicasInfo().primaryOfView(curView);
   std::ostringstream oss;
-  oss << "Replica ID: " << getReplicasInfo().myId() << std::endl;
-  oss << "Primary: " << primary << std::endl;
-  oss << "View Change: "
-      << KVLOG(viewChangeProtocolEnabled,
-               autoPrimaryRotationEnabled,
-               curView,
-               utcstr(timeOfLastViewEntrance),
-               lastAgreedView,
-               utcstr(timeOfLastAgreedView),
-               viewChangeTimerMilli,
-               autoPrimaryRotationTimerMilli)
-      << std::endl
-      << std::endl;
-  oss << "Sequence Numbers: "
-      << KVLOG(primaryLastUsedSeqNum,
-               lastStableSeqNum,
-               strictLowerBoundOfSeqNums,
-               maxSeqNumTransferredFromPrevViews,
-               mainLog->currentActiveWindow().first,
-               mainLog->currentActiveWindow().second,
-               lastViewThatTransferredSeqNumbersFullyExecuted)
-      << std::endl
-      << std::endl;
-  oss << "Other: "
-      << KVLOG(restarted_,
-               requestsQueueOfPrimary.size(),
-               maxNumberOfPendingRequestsInRecentHistory,
-               batchingFactor,
-               utcstr(lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas),
-               utcstr(timeOfLastStateSynch),
-               recoveringFromExecutionOfRequests,
-               checkpointsLog->currentActiveWindow().first,
-               checkpointsLog->currentActiveWindow().second,
-               clientsManager->numberOfRequiredReservedPages())
-      << std::endl;
+  std::map<std::string, std::string> t;
+  oss << "{\n";
+  oss << ContainerToJson("Replica ID", std::to_string(getReplicasInfo().myId())) << std::endl;
+  oss << ContainerToJson("Primary ", std::to_string(primary)) << std::endl;
+  t.insert(toPair(getName(viewChangeProtocolEnabled), viewChangeProtocolEnabled));
+  t.insert(toPair(getName(autoPrimaryRotationEnabled), autoPrimaryRotationEnabled));
+  t.insert(toPair(getName(curView), curView));
+  t.insert(toPair(getName(timeOfLastViewEntrance), utcstr(timeOfLastViewEntrance)));
+  t.insert(toPair(getName(lastAgreedView), lastAgreedView));
+  t.insert(toPair(getName(timeOfLastAgreedView), utcstr(timeOfLastAgreedView)));
+  t.insert(toPair(getName(viewChangeTimerMilli), viewChangeTimerMilli));
+  t.insert(toPair(getName(autoPrimaryRotationTimerMilli), autoPrimaryRotationTimerMilli));
+  oss << ContainerToJson("View Change ", t) << "," << std::endl;
+  t.clear();
+  t.insert(toPair(getName(primaryLastUsedSeqNum), primaryLastUsedSeqNum));
+  t.insert(toPair(getName(lastStableSeqNum), lastStableSeqNum));
+  t.insert(toPair(getName(strictLowerBoundOfSeqNums), strictLowerBoundOfSeqNums));
+  t.insert(toPair(getName(maxSeqNumTransferredFromPrevViews), maxSeqNumTransferredFromPrevViews));
+  t.insert(toPair(getName(mainLog->currentActiveWindow().first), mainLog->currentActiveWindow().first));
+  t.insert(toPair(getName(mainLog->currentActiveWindow().second), mainLog->currentActiveWindow().second));
+  t.insert(
+      toPair(getName(lastViewThatTransferredSeqNumbersFullyExecuted), lastViewThatTransferredSeqNumbersFullyExecuted));
+  oss << ContainerToJson("Sequence Numbers ", t) << "," << std::endl;
+  t.clear();
+  t.insert(toPair(getName(restarted_), restarted_));
+  t.insert(toPair(getName(requestsQueueOfPrimary.size()), requestsQueueOfPrimary.size()));
+  t.insert(toPair(getName(maxNumberOfPendingRequestsInRecentHistory), maxNumberOfPendingRequestsInRecentHistory));
+  t.insert(toPair(getName(batchingFactor), batchingFactor));
+  t.insert(toPair(getName(lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas),
+                  utcstr(lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas)));
+  t.insert(toPair(getName(timeOfLastStateSynch), utcstr(timeOfLastStateSynch)));
+  t.insert(toPair(getName(recoveringFromExecutionOfRequests), recoveringFromExecutionOfRequests));
+  t.insert(toPair(getName(checkpointsLog->currentActiveWindow().first), checkpointsLog->currentActiveWindow().first));
+  t.insert(toPair(getName(checkpointsLog->currentActiveWindow().second), checkpointsLog->currentActiveWindow().second));
+  t.insert(toPair(getName(clientsManager->numberOfRequiredReservedPages()),
+                  clientsManager->numberOfRequiredReservedPages()));
+  oss << ContainerToJson("Other ", t) << std::endl;
+  oss << "}";
   return oss.str();
 }
 
