@@ -12,6 +12,10 @@
 #pragma once
 #include "Serializable.h"
 #include "deque"
+#include "IReservedPages.hpp"
+#include "ReservedPages.hpp"
+
+namespace bftEngine::impl {
 
 struct KeyExchangeMsg : public concord::serialize::SerializableFactory<KeyExchangeMsg> {
   std::string key;
@@ -78,15 +82,27 @@ class ReplicaKeyStore : public concord::serialize::SerializableFactory<ReplicaKe
 
 // Holds all replicas key store.
 // Perform operations like rotation and push.
-// will be responsible on reserved pages operations.
-class ClusterKeyStore {
+// Responsible on reserved pages operations.
+class ClusterKeyStore : public ResPagesClient<ClusterKeyStore, 2> {
  public:
-  ClusterKeyStore(const uint32_t& clusterSize);
+  ClusterKeyStore(const uint32_t& clusterSize, IReservedPages& reservedPages, const uint32_t& sizeOfReservedPage);
   bool push(const KeyExchangeMsg& kem, const uint64_t& sn, const std::vector<IKeyExchanger*>& registryToExchange);
   // iterate on all replcias
   bool rotate(const uint64_t& chknum, const std::vector<IKeyExchanger*>& registryToExchange);
-  KeyExchangeMsg replicaKey(const uint16_t& repID) const;
+  KeyExchangeMsg getReplicaKey(const uint16_t& repID) const;
+  uint16_t numKeys(const uint16_t& repID) const { return clusterKeys_[repID].numKeys(); }
+
+  // Reserved Pages
+  void loadAllReplicasKeyStoresFromReservedPages();
+  std::optional<ReplicaKeyStore> loadReplicaKeyStoreFromReserevedPages(const uint16_t& repID);
+
+  void saveAllReplicasKeyStoresToReservedPages();
+  void saveReplicaKeyStoreToReserevedPages(const uint16_t& repID);
+  std::set<uint16_t> exchangedReplicas;
 
  private:
   std::vector<ReplicaKeyStore> clusterKeys_;
+  IReservedPages& reservedPages_;
+  std::string buffer_;
 };
+}  // namespace bftEngine::impl

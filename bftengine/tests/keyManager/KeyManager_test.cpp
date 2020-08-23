@@ -25,6 +25,34 @@ struct ExchangerMock : public IKeyExchanger {
   virtual void onNewKey(const KeyExchangeMsg& m) { pushvmsg.push_back(m); }
 };
 
+struct ReservedPagesMock : public IReservedPages {
+  int size{4096};
+  std::vector<char*> resPages;
+  ReservedPagesMock(int numreplicas, bool clean) {
+    for (int i = 0; i < numreplicas; ++i) {
+      auto c = new char[size]();
+      resPages.push_back(c);
+      if (!clean) continue;
+      memset(c, 0, size);
+    }
+  }
+  ~ReservedPagesMock() {
+    for (auto c : resPages) {
+      delete[] c;
+    }
+  }
+  virtual uint32_t numberOfReservedPages() const { return resPages.size(); };
+  virtual uint32_t sizeOfReservedPage() const { return size; };
+  virtual bool loadReservedPage(uint32_t reservedPageId, uint32_t copyLength, char* outReservedPage) const {
+    memcpy(outReservedPage, resPages[reservedPageId], copyLength);
+    return true;
+  };
+  virtual void saveReservedPage(uint32_t reservedPageId, uint32_t copyLength, const char* inReservedPage) {
+    memcpy(resPages[reservedPageId], inReservedPage, copyLength);
+  };
+  virtual void zeroReservedPage(uint32_t reservedPageId) { memset(resPages[reservedPageId], 0, size); };
+};
+
 TEST(Messages, ser_der) {
   KeyExchangeMsg kem;
   kem.key = "qwerty";
@@ -171,43 +199,44 @@ TEST(ReplicaKeyStore, rotate) {
   ASSERT_EQ(ok, true);
 }
 
-TEST(ReplicaKeyStore, rotate_death_if_checkpoint_is_less) {
-  ReplicaKeyStore rks;
-  KeyExchangeMsg kem;
-  kem.key = "a";
-  kem.signature = "1";
-  kem.repID = 6;
-  rks.push(kem, 1);
-  KeyExchangeMsg kem2;
-  kem2.key = "qwerty";
-  kem2.signature = "123456";
-  kem2.repID = 6;
-  rks.push(kem2, 340);
-  // Checkpoint can't be less than key exchange seq num
-  ASSERT_DEATH(rks.rotate(2), ".*");
-}
+// TEST(ReplicaKeyStore, rotate_death_if_checkpoint_is_less) {
+//   ReplicaKeyStore rks;
+//   KeyExchangeMsg kem;
+//   kem.key = "a";
+//   kem.signature = "1";
+//   kem.repID = 6;
+//   rks.push(kem, 1);
+//   KeyExchangeMsg kem2;
+//   kem2.key = "qwerty";
+//   kem2.signature = "123456";
+//   kem2.repID = 6;
+//   rks.push(kem2, 340);
+//   // Checkpoint can't be less than key exchange seq num
+//   ASSERT_DEATH(rks.rotate(2), ".*");
+// }
 
-TEST(ReplicaKeyStore, rotate_death_if_checkpoint_is_more) {
-  ReplicaKeyStore rks;
-  KeyExchangeMsg kem;
-  kem.key = "a";
-  kem.signature = "1";
-  kem.repID = 6;
-  rks.push(kem, 1);
-  KeyExchangeMsg kem2;
-  kem2.key = "qwerty";
-  kem2.signature = "123456";
-  kem2.repID = 6;
-  rks.push(kem2, 340);
+// TEST(ReplicaKeyStore, rotate_death_if_checkpoint_is_more) {
+//   ReplicaKeyStore rks;
+//   KeyExchangeMsg kem;
+//   kem.key = "a";
+//   kem.signature = "1";
+//   kem.repID = 6;
+//   rks.push(kem, 1);
+//   KeyExchangeMsg kem2;
+//   kem2.key = "qwerty";
+//   kem2.signature = "123456";
+//   kem2.repID = 6;
+//   rks.push(kem2, 340);
 
-  ASSERT_DEATH(rks.rotate(5), ".*");
-}
+//   ASSERT_DEATH(rks.rotate(5), ".*");
+// }
 
 TEST(ClusterKeyStore, push) {
   ExchangerMock em;
   std::vector<IKeyExchanger*> v;
   v.push_back(&em);
-  ClusterKeyStore cks{7};
+  ReservedPagesMock rpm(7, true);
+  ClusterKeyStore cks{7, rpm, 0};
   {
     KeyExchangeMsg kem;
     kem.key = "a";
@@ -249,13 +278,14 @@ TEST(ClusterKeyStore, push) {
   ASSERT_EQ(cks.push(kem4, 2, v), false);
   ASSERT_EQ(em.pushvmsg.size(), 3);
 
-  auto msg = cks.replicaKey(3);
+  auto msg = cks.getReplicaKey(3);
   ASSERT_EQ(msg.key, "c");
   ASSERT_EQ(msg.signature, "3");
 }
 
 TEST(ClusterKeyStore, rotate) {
-  ClusterKeyStore cks{7};
+  ReservedPagesMock rpm(7, true);
+  ClusterKeyStore cks{7, rpm, 0};
   ExchangerMock em;
   std::vector<IKeyExchanger*> v;
   v.push_back(&em);
@@ -300,13 +330,14 @@ TEST(ClusterKeyStore, rotate) {
   // Should trigger two torations at 3 and 4
   ASSERT_EQ(cks.rotate(2, v), true);
   ASSERT_EQ(((ExchangerMock*)v[0])->vmsg.size(), 2);
-  ASSERT_EQ(((ExchangerMock*)v[0])->vmsg[0].key, cks.replicaKey(3).key);
-  ASSERT_EQ(((ExchangerMock*)v[0])->vmsg[1].key, cks.replicaKey(4).key);
+  ASSERT_EQ(((ExchangerMock*)v[0])->vmsg[0].key, cks.getReplicaKey(3).key);
+  ASSERT_EQ(((ExchangerMock*)v[0])->vmsg[1].key, cks.getReplicaKey(4).key);
 }
 
 TEST(KeyManager, endToEnd) {
+  ReservedPagesMock rpm(7, true);
   ExchangerMock em;
-  KeyManager::get(nullptr, 3, 4);
+  KeyManager::get(nullptr, 3, 4, &rpm, 4096);
   KeyManager::get().registerForNotification(&em);
   KeyExchangeMsg kem;
   kem.key = "a";
@@ -328,16 +359,16 @@ TEST(KeyManager, endToEnd) {
   kem4.signature = "1";
   kem4.repID = 3;
   KeyManager::get().onKeyExchange(kem4, 5);
-  ASSERT_EQ(KeyManager::get().replicaKey(0).key, "a");
-  ASSERT_EQ(KeyManager::get().replicaKey(1).key, "b");
-  ASSERT_EQ(KeyManager::get().replicaKey(2).key, "c");
-  ASSERT_EQ(KeyManager::get().replicaKey(3).key, "d");
+  ASSERT_EQ(KeyManager::get().getReplicaKey(0).key, "a");
+  ASSERT_EQ(KeyManager::get().getReplicaKey(1).key, "b");
+  ASSERT_EQ(KeyManager::get().getReplicaKey(2).key, "c");
+  ASSERT_EQ(KeyManager::get().getReplicaKey(3).key, "d");
   // Should not rotate any key
   KeyManager::get().onCheckpoint(2);
-  ASSERT_EQ(KeyManager::get().replicaKey(0).key, "a");
-  ASSERT_EQ(KeyManager::get().replicaKey(1).key, "b");
-  ASSERT_EQ(KeyManager::get().replicaKey(2).key, "c");
-  ASSERT_EQ(KeyManager::get().replicaKey(3).key, "d");
+  ASSERT_EQ(KeyManager::get().getReplicaKey(0).key, "a");
+  ASSERT_EQ(KeyManager::get().getReplicaKey(1).key, "b");
+  ASSERT_EQ(KeyManager::get().getReplicaKey(2).key, "c");
+  ASSERT_EQ(KeyManager::get().getReplicaKey(3).key, "d");
   ASSERT_EQ(em.vmsg.size(), 0);
 
   KeyExchangeMsg kem5;
@@ -357,20 +388,139 @@ TEST(KeyManager, endToEnd) {
   KeyManager::get().onKeyExchange(kem7, 34);
   // Checkpoint too close, should not rotate
   KeyManager::get().onCheckpoint(1);
-  ASSERT_EQ(KeyManager::get().replicaKey(0).key, "a");
-  ASSERT_EQ(KeyManager::get().replicaKey(1).key, "b");
-  ASSERT_EQ(KeyManager::get().replicaKey(2).key, "c");
-  ASSERT_EQ(KeyManager::get().replicaKey(3).key, "d");
+  ASSERT_EQ(KeyManager::get().getReplicaKey(0).key, "a");
+  ASSERT_EQ(KeyManager::get().getReplicaKey(1).key, "b");
+  ASSERT_EQ(KeyManager::get().getReplicaKey(2).key, "c");
+  ASSERT_EQ(KeyManager::get().getReplicaKey(3).key, "d");
   ASSERT_EQ(em.vmsg.size(), 0);
   // now should rotate 0,1,2
   KeyManager::get().onCheckpoint(2);
-  ASSERT_EQ(KeyManager::get().replicaKey(0).key, "aaaa");
-  ASSERT_EQ(KeyManager::get().replicaKey(1).key, "bbbb");
-  ASSERT_EQ(KeyManager::get().replicaKey(2).key, "ccccc");
-  ASSERT_EQ(KeyManager::get().replicaKey(3).key, "d");
+  ASSERT_EQ(KeyManager::get().getReplicaKey(0).key, "aaaa");
+  ASSERT_EQ(KeyManager::get().getReplicaKey(1).key, "bbbb");
+  ASSERT_EQ(KeyManager::get().getReplicaKey(2).key, "ccccc");
+  ASSERT_EQ(KeyManager::get().getReplicaKey(3).key, "d");
   ASSERT_EQ(em.vmsg.size(), 3);
 }
 
+TEST(ClusterKeyStore, dirty_first_load) {
+  ReservedPagesMock rpm(4, false);
+  ExchangerMock em;
+  ClusterKeyStore cks{4, rpm, 4094};
+
+  for (int i = 0; i < 4; i++) {
+    ASSERT_EQ(cks.numKeys(i), 0);
+  }
+}
+
+TEST(ClusterKeyStore, dirty_first_load_save_keys_and_reload) {
+  ReservedPagesMock rpm(4, false);
+  ExchangerMock em;
+  ClusterKeyStore cks{4, rpm, 4094};
+
+  std::vector<IKeyExchanger*> v;
+  v.push_back(&em);
+  KeyExchangeMsg kem;
+  kem.key = "a";
+  kem.signature = "1";
+  kem.repID = 0;
+  cks.push(kem, 2, v);
+
+  KeyExchangeMsg kem2;
+  kem2.key = "b";
+  kem2.signature = "12";
+  kem2.repID = 1;
+  cks.push(kem2, 2, v);
+
+  KeyExchangeMsg kem3;
+  kem3.key = "c";
+  kem3.signature = "13";
+  kem3.repID = 2;
+  cks.push(kem3, 2, v);
+
+  KeyExchangeMsg kem4;
+  kem4.key = "d";
+  kem4.signature = "14";
+  kem4.repID = 3;
+  cks.push(kem4, 2, v);
+
+  KeyExchangeMsg kem5;
+  kem5.key = "aa";
+  kem5.signature = "15";
+  kem5.repID = 0;
+  cks.push(kem5, 2, v);
+
+  ClusterKeyStore reloadCks{4, rpm, 4094};
+  for (int i = 0; i < 4; i++) {
+    if (i == 0) {
+      ASSERT_EQ(reloadCks.numKeys(i), 2);
+      continue;
+    }
+    ASSERT_EQ(reloadCks.numKeys(i), 1);
+  }
+}
+
+TEST(ClusterKeyStore, clean_first_load_save_keys_rotate_and_reload) {
+  ReservedPagesMock rpm(4, false);
+  ExchangerMock em;
+  ClusterKeyStore cks{4, rpm, 4094};
+
+  std::vector<IKeyExchanger*> v;
+  v.push_back(&em);
+  KeyExchangeMsg kem;
+  kem.key = "a";
+  kem.signature = "1";
+  kem.repID = 0;
+  cks.push(kem, 2, v);
+
+  KeyExchangeMsg kem2;
+  kem2.key = "b";
+  kem2.signature = "12";
+  kem2.repID = 1;
+  cks.push(kem2, 2, v);
+
+  KeyExchangeMsg kem3;
+  kem3.key = "c";
+  kem3.signature = "13";
+  kem3.repID = 2;
+  cks.push(kem3, 2, v);
+
+  KeyExchangeMsg kem4;
+  kem4.key = "d";
+  kem4.signature = "14";
+  kem4.repID = 3;
+  cks.push(kem4, 2, v);
+
+  KeyExchangeMsg kem5;
+  kem5.key = "aa";
+  kem5.signature = "15";
+  kem5.repID = 0;
+  cks.push(kem5, 3, v);
+
+  KeyExchangeMsg kem6;
+  kem6.key = "bb";
+  kem6.signature = "15";
+  kem6.repID = 1;
+  cks.push(kem6, 190, v);
+
+  cks.rotate(2, v);
+
+  ClusterKeyStore reloadCks{4, rpm, 4094};
+  ASSERT_EQ(reloadCks.exchangedReplicas.size(), 4);
+  for (int i = 0; i < 4; i++) {
+    if (i == 0) {
+      ASSERT_EQ(reloadCks.getReplicaKey(i).key, "aa");
+      ASSERT_EQ(reloadCks.getReplicaKey(i).signature, "15");
+    }
+    if (i == 1) {
+      ASSERT_EQ(reloadCks.numKeys(i), 2);
+      ASSERT_EQ(reloadCks.getReplicaKey(i).key, "b");
+      continue;
+    }
+    ASSERT_EQ(reloadCks.numKeys(i), 1);
+  }
+}
+
+TEST(KeyManager, reserved_pages) {}
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

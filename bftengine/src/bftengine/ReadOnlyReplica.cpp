@@ -18,6 +18,7 @@
 #include "PersistentStorage.hpp"
 #include "ClientsManager.hpp"
 #include "MsgsCommunicator.hpp"
+#include "KeyStore.h"
 
 using concordUtil::Timers;
 
@@ -43,6 +44,7 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
   ClientsManager::setNumResPages(
       (config.numOfClientProxies + config.numOfExternalClients + config.numReplicas) *
       ClientsManager::reservedPagesPerClient(config.sizeOfReservedPage, config.maxReplyMessageSize));
+  ClusterKeyStore::setNumResPages(config.numReplicas);
 }
 
 void ReadOnlyReplica::start() {

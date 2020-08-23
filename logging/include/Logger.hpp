@@ -34,6 +34,7 @@ extern logging::Logger GL;
 extern logging::Logger CNSUS;
 extern logging::Logger THRESHSIGN_LOG;
 extern logging::Logger BLS_LOG;
+extern logging::Logger KEY_EX_LOG;
 extern logging::Logger VC_LOG;
 
 namespace logging {
