@@ -1,5 +1,5 @@
 FOLDER=~/archipelago/paper/rslt
-mkdir $FOLDER
+mkdir -p $FOLDER/archipelago
 mkdir config
 if [ "$1" == "client_inc" ]; then
     echo "RUN client increase experiment"

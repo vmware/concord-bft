@@ -100,7 +100,7 @@ def setup_experiment_config(servers, clients, num_replicas, per_server_threads, 
     fp.write("clients_config:\n")
     for client, num_client_threads_per_client in zip(clients, per_client_threads):
         for i in range(num_client_threads_per_client):
-            port = 3000 + i * num_replicas
+            port = 4000 + i * num_replicas
             fp.write("-" + client + ":" + str(port) + "\n")
 
 def setup_remote_env(client, host, do_install, network):
@@ -118,20 +118,22 @@ def setup_remote_env(client, host, do_install, network):
         exec_remote_cmd(client, "sudo apt-get update; sudo apt-get install -y git")
         exec_remote_cmd(client, "cd %s/eval; ./install_concord_deps.sh" % (repo_name))
 
-    exec_remote_cmd(client, "rm -rf %s" % (repo_name))
-    print "Cloing code..."
-    exec_remote_cmd(client, "git clone %s" % (git_home))
+    update_code = False
+    if update_code:
+        exec_remote_cmd(client, "rm -rf %s" % (repo_name))
+        print "Cloing code..."
+        exec_remote_cmd(client, "git clone %s" % (git_home))
 
-    # reset repo
-    exec_remote_cmd(client, "cd %s; git reset --hard; git pull --rebase" % (repo_name))
-    exec_remote_cmd(client, "cd %s; git checkout add_archipelago" % (repo_name))
+        # reset repo
+        exec_remote_cmd(client, "cd %s; git reset --hard; git pull --rebase" % (repo_name))
+        exec_remote_cmd(client, "cd %s; git checkout add_archipelago" % (repo_name))
 
-    #build code
-    if network == 'tcp':
-        exec_remote_cmd(client, "cd %s; rm -rf build; mkdir build; cd build; cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_COMM_TCP_PLAIN=TRUE ..; make -j 16;" % (repo_name))
-    else:
-        #exec_remote_cmd(client, "sudo sysctl -w net.core.rmem_max=41943040; sudo sysctl -w net.core.wmem_max=41943040; sudo sysctl -w net.core.netdev_max_backlog=4000;")
-        exec_remote_cmd(client, "cd %s; rm -rf build; mkdir build; cd build; cmake -DCMAKE_BUILD_TYPE=Release ..; make -j 16;" % (repo_name))
+        #build code
+        if network == 'tcp':
+            exec_remote_cmd(client, "cd %s; rm -rf build; mkdir build; cd build; cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_COMM_TCP_PLAIN=TRUE ..; make -j 16;" % (repo_name))
+        else:
+            #exec_remote_cmd(client, "sudo sysctl -w net.core.rmem_max=41943040; sudo sysctl -w net.core.wmem_max=41943040; sudo sysctl -w net.core.netdev_max_backlog=4000;")
+            exec_remote_cmd(client, "cd %s; rm -rf build; mkdir build; cd build; cmake -DCMAKE_BUILD_TYPE=Release ..; make -j 16;" % (repo_name))
     
     exec_local_cmd("scp private_replica* " + host + ":" + get_homedir() + '/' + repo_name + '/' + get_expdir())
     exec_local_cmd("scp test_config.txt " + host + ":" + get_homedir() + '/' + repo_name + '/' + get_expdir())
@@ -151,7 +153,10 @@ def run_experiment_server(hostid, client, config_object):
     replica_id = hostid
     dynamicCollector = 1
     maxBatchSize = 1
-    commitDuration = 0
+    if config_object["system"] == "concord":
+        commitDuration = 0
+    else:
+        commitDuration = 10
 
     #-vc -vct <viewChangeTimeout> -stopseconds <stopSeconds>
     cmd = '''cd %s;
