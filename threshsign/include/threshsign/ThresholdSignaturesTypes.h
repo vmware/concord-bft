@@ -97,7 +97,7 @@ class Cryptosystem {
   std::string subtype;
 
   uint16_t numSigners;
-  uint16_t threshold;
+  uint16_t threshold_;
   bool forceMultisig_;  // is true if  signers == threshold
 
   // If only one signer's private key is known and stored in this cryptosystem,
@@ -115,6 +115,15 @@ class Cryptosystem {
 
   // Internally used helper functions.
   IThresholdFactory* createThresholdFactory();
+
+  void validatePublicKey(const std::string& key) const;
+  void validateVerificationKey(const std::string& key) const;
+  void validatePrivateKey(const std::string& key) const;
+  bool isValidCryptosystemSelection(const std::string& type, const std::string& subtype);
+  bool isValidCryptosystemSelection(const std::string& type,
+                                    const std::string& subtype,
+                                    uint16_t numSigners,
+                                    uint16_t threshold);
 
  public:
   /**
@@ -186,7 +195,7 @@ class Cryptosystem {
    *
    * @return The threshold for this cryptosystem.
    */
-  uint16_t getThreshold() const { return threshold; }
+  uint16_t getThreshold() const { return threshold_; }
 
   /**
    * Pseudorandomly generate a complete set of keys for this cryptosystem and
@@ -302,6 +311,7 @@ class Cryptosystem {
   /**
    * Create a threshod verifier for this cryptosystem.
    *
+   * @param threshold required threshold for multisig scheme
    * @return A pointer to a newly created IThresholdVerifier object for this
    *         cryptosystem.
    *
@@ -310,7 +320,7 @@ class Cryptosystem {
    *                                            verification keys loaded to
    *                                            create a verifier.
    */
-  IThresholdVerifier* createThresholdVerifier();
+  IThresholdVerifier* createThresholdVerifier(uint16_t threshold = 0);
 
   /**
    * Create a threshold signer with the private key loaded for this system.
@@ -327,72 +337,6 @@ class Cryptosystem {
   IThresholdSigner* createThresholdSigner();
 
   /**
-   * Check whether a given string represents a valid public key under this
-   * cryptosystem.
-   *
-   * @param key The string to check the validity of as a public key.
-   *
-   * @return True if this string represents a valid public key under this
-   *         cryptosystem, false otherwise.
-   */
-  bool isValidPublicKey(const std::string& key) const;
-
-  /**
-   * Check whether a given string represents a valid verification key under this
-   * cryptosystem.
-   *
-   * @param key The string to check the validity of as a verification key.
-   *
-   * @return True if this string represents a valid verification key under this
-   *         cryptosystem, false otherwise.
-   */
-  bool isValidVerificationKey(const std::string& key) const;
-
-  /**
-   * Check whether a given string represents a valid private key under this
-   * cryptosystem.
-   *
-   * @param key The string to check the validity of as a private key.
-   *
-   * @return True if this string represents a valid private key under this
-   *         cryptosystem, false otherwise.
-   */
-  bool isValidPrivateKey(const std::string& key) const;
-
-  /**
-   * Check whether a given selection of cryptosystem type and subtype is
-   * recognized and supported.
-   *
-   * @param type    The type of cryptosystem to check.
-   * @param subtype A type-dependent subtype selection to check.
-   *
-   * @return True if this combination of type and subtype is recognized and
-   *         supported, false otherwise.
-   */
-  static bool isValidCryptosystemSelection(const std::string& type, const std::string& subtype);
-
-  /**
-   * Check whether a given selection of cryptosystem type and subtype is
-   * recognized and whether it supports the given number of signers and
-   * threshold.
-   *
-   * @param type       The type of cryptosystem to check.
-   * @param subtype    A type-dependent subtype selection to check.
-   * @param numSigners A number of signers to check support for under the given
-   *                   cryptosystem type and subtype.
-   * @param threshold  A threshold to check support for under the given
-   *                   cryptosystem type, subtype and number of signers.
-   *
-   * @return True if this combination of type and subtype is recognized and
-   *         supported, and it supports the given combination of number of
-   *         signers and threshold, false otherwise.
-   */
-  static bool isValidCryptosystemSelection(const std::string& type,
-                                           const std::string& subtype,
-                                           uint16_t numSigners,
-                                           uint16_t threshold);
-
-  /**
    * Get a list of supported cryptosystem types and descriptions of what
    * type-specific parameters they require.
    *
@@ -403,4 +347,12 @@ class Cryptosystem {
    *            specifies for that cryptosytem type.
    */
   static void getAvailableCryptosystemTypes(std::vector<std::pair<std::string, std::string>>& ret);
+  /**
+   * Output configuration to stream
+   */
+  void writeConfiguration(std::ostream&, const std::string& prefix, const uint16_t& replicaId);
+  /**
+   * Create Cryptosystem from configuration
+   */
+  static Cryptosystem* fromConfiguration(std::istream&, const std::string& prefix, const uint16_t& replicaId);
 };

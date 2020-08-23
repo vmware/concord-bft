@@ -37,15 +37,15 @@ inline bool to<>(const std::string& s) {
 }
 template <>
 inline std::uint16_t to<>(const std::string& s) {
+  return static_cast<std::uint16_t>(std::stoi(s));
+}
+template <>
+inline std::int32_t to<>(const std::string& s) {
   return std::stoi(s);
 }
 template <>
-inline int to<>(const std::string& s) {
-  return std::stoi(s);
-}
-template <>
-inline unsigned int to<>(const std::string& s) {
-  return std::stoul(s);
+inline std::uint32_t to<>(const std::string& s) {
+  return static_cast<std::uint32_t>(std::stoul(s));
 }
 template <>
 inline long to<>(const std::string& s) {
@@ -62,6 +62,10 @@ inline long long to<>(const std::string& s) {
 template <>
 inline unsigned long long to<>(const std::string& s) {
   return std::stoull(s);
+}
+template <>
+inline std::string to<>(const std::string& s) {
+  return s;
 }
 
 inline std::string& ltrim_inplace(std::string& s) {

@@ -115,71 +115,6 @@ static bool validateFundamentalFields(const std::vector<bftEngine::ReplicaConfig
   return true;
 }
 
-static bool validateConfigStructIntegrity(const std::vector<bftEngine::ReplicaConfig>& configs) {
-  uint16_t numReplicas = configs.size();
-
-  for (uint16_t i = 0; i < numReplicas; ++i) {
-    const bftEngine::ReplicaConfig& config = configs[i];
-    if (config.publicKeysOfReplicas.size() != numReplicas) {
-      std::cout << "FAILURE: Size of the set of public keys of replicas in replica " << i
-                << "'s key file does not match the number of replicas" << numReplicas << ".\n";
-      return false;
-    }
-
-    std::set<uint16_t> foundIDs;
-    for (auto& entry : config.publicKeysOfReplicas) {
-      uint16_t id = entry.first;
-      if (id >= numReplicas) {
-        std::cout << "FAILURE: Entry with invalid replica ID (" << id
-                  << ") in set of public keys of replicas for replica " << i << ".\n";
-        return false;
-      }
-      if (foundIDs.count(id) > 0) {
-        std::cout << "FAILURE: Set of public keys of replicas for replica " << i
-                  << " contains duplicate entries for replica " << id << ".\n";
-        return false;
-      }
-      foundIDs.insert(id);
-    }
-    if (config.isReadOnly) continue;
-
-    if (!config.thresholdSignerForExecution) {
-      std::cout << "FAILURE: No threshold signer for execution for replica " << i << ".\n";
-      return false;
-    }
-    if (!config.thresholdVerifierForExecution) {
-      std::cout << "FAILURE: No threshold verifier for execution for replica " << i << ".\n";
-      return false;
-    }
-    if (!config.thresholdSignerForSlowPathCommit) {
-      std::cout << "FAILURE: No threshold signer for slow path commit for replica " << i << ".\n";
-      return false;
-    }
-    if (!config.thresholdVerifierForSlowPathCommit) {
-      std::cout << "FAILURE: No threshold verifier for slow path commit for replica " << i << ".\n";
-      return false;
-    }
-    if (!config.thresholdSignerForCommit) {
-      std::cout << "FAILURE: No threshold signer for commit for replica " << i << ".\n";
-      return false;
-    }
-    if (!config.thresholdVerifierForCommit) {
-      std::cout << "FAILURE: No threshold verifier for commit for replica " << i << ".\n";
-      return false;
-    }
-    if (!config.thresholdSignerForOptimisticCommit) {
-      std::cout << "FAILURE: No threshold signer for optimistic commit for replica " << i << ".\n";
-      return false;
-    }
-    if (!config.thresholdVerifierForOptimisticCommit) {
-      std::cout << "FAILURE: No threshold verifier for optimistic commit for replica " << i << ".\n";
-      return false;
-    }
-  }
-
-  return true;
-}
-
 // Helper function to test RSA keys to test the compatibility of a single key
 // pair.
 static bool testRSAKeyPair(const std::string& privateKey, const std::string& publicKey, uint16_t replicaID) {
@@ -724,39 +659,6 @@ static bool testThresholdKeys(const std::vector<bftEngine::ReplicaConfig>& confi
   return true;
 }
 
-// Function to simplify the process of freeing the dynamically allocated memory
-// referenced by each ReplicaConfig struct, which the main function below may
-// need to do in one of several places because it may return early in the event
-// of a failure.
-static void freeConfigs(const std::vector<bftEngine::ReplicaConfig>& configs) {
-  for (const auto& config : configs) {
-    if (config.thresholdSignerForExecution) {
-      delete config.thresholdSignerForExecution;
-    }
-    if (config.thresholdVerifierForExecution) {
-      delete config.thresholdVerifierForExecution;
-    }
-    if (config.thresholdSignerForSlowPathCommit) {
-      delete config.thresholdSignerForSlowPathCommit;
-    }
-    if (config.thresholdVerifierForSlowPathCommit) {
-      delete config.thresholdVerifierForSlowPathCommit;
-    }
-    if (config.thresholdSignerForCommit) {
-      delete config.thresholdSignerForCommit;
-    }
-    if (config.thresholdVerifierForCommit) {
-      delete config.thresholdVerifierForCommit;
-    }
-    if (config.thresholdSignerForOptimisticCommit) {
-      delete config.thresholdSignerForOptimisticCommit;
-    }
-    if (config.thresholdVerifierForOptimisticCommit) {
-      delete config.thresholdVerifierForOptimisticCommit;
-    }
-  }
-}
-
 // Helper function for determining whether --help was given.
 static bool containsHelpOption(int argc, char** argv) {
   for (int i = 1; i < argc; ++i) {
@@ -794,6 +696,7 @@ int main(int argc, char** argv) {
         "  -n Number of regular replicas\n"
         "  -r Number of read-only replicas\n"
         "  -o Output file prefix\n"
+        "  -m Use a single multisignature scheme for all cryptosystems\n"
         "   --help - this help \n\n"
         "TestGeneratedKeys is intended to test the output of the GenerateConcordKeys utility;\n"
         "TestGeneratedKeys expects to find TOTAL_NUMBER_OF_REPLICAS keyfiles each named KEYFILE_PREFIX<i>,\n"
@@ -807,6 +710,7 @@ int main(int argc, char** argv) {
     uint16_t numReplicas = 0;
     uint16_t ro = 0;
     std::string outputPrefix;
+    bool useMultisig = false;
 
     for (int i = 1; i < argc; ++i) {
       std::string option(argv[i]);
@@ -832,7 +736,8 @@ int main(int argc, char** argv) {
         }
         outputPrefix = argv[i + 1];
         ++i;
-
+      } else if (option == "-m") {
+        useMultisig = true;
       } else {
         std::cout << "Unrecognized command line option: " << option << ".\n";
         return -1;
@@ -857,40 +762,29 @@ int main(int argc, char** argv) {
 
     for (uint16_t i = 0; i < numReplicas + ro; ++i) {
       std::string filename = outputPrefix + std::to_string(i);
-      if (!inputReplicaKeyfile(filename, configs[i])) {
-        std::cout << "FAILURE: Failed to input keyfile " << filename << "; this keyfile is invalid.\n";
-        freeConfigs(configs);
-        return -1;
-      } else {
-        std::cout << "Succesfully input keyfile " << filename << ".\n";
-      }
+
+      if (useMultisig)
+        inputReplicaKeyfileMultisig(filename, configs[i]);
+      else
+        inputReplicaKeyfile(filename, configs[i]);
     }
 
-    std::cout << "All keyfiles were input successfully.\n";
+    std::cout << "All keyfiles were successfully read.\n";
 
-    std::cout << "Verifying sanity of the cryptographic configuratigurations read from the keyfiles...\n";
+    std::cout << "Verifying sanity of the cryptographic configurations...\n";
     if (!validateFundamentalFields(configs)) {
-      freeConfigs(configs);
-      return -1;
-    }
-    if (!validateConfigStructIntegrity(configs)) {
-      freeConfigs(configs);
       return -1;
     }
     std::cout << "Cryptographic configurations read appear to be sane.\n";
     std::cout << "Testing key functionality and agreement...\n";
     if (!testRSAKeys(configs)) {
-      freeConfigs(configs);
       return -1;
     }
     if (!testThresholdKeys(configs)) {
-      freeConfigs(configs);
       return -1;
     }
     std::cout << "Done testing all keys.\n";
     std::cout << "TestGeneratedKeys: SUCCESS.\n";
-
-    freeConfigs(configs);
 
     return 0;
   } catch (std::exception& e) {

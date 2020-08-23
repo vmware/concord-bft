@@ -41,7 +41,7 @@ def start_replica_cmd(builddir, replica_id):
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
-            "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower() in set(["true", "on"]) else "",
+            "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE') is not None else "",
             "-t", os.environ.get('STORAGE_TYPE')]
 
 

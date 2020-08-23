@@ -85,6 +85,7 @@ int main(int argc, char** argv) {
         "  -n Number of regular replicas\n"
         "  -f Number of faulty replicas to tolerate\n"
         "  -r Number of read-only replicas\n"
+        "  -m Use a single multisignature scheme for all cryptosystems\n"
         "  -o Output file prefix\n"
         "   --help - this help \n\n"
         "The generated keys will be output to a number of files, one per replica.\n"
@@ -119,12 +120,8 @@ int main(int argc, char** argv) {
     bftEngine::ReplicaConfig config;
     uint16_t n = 0;
     uint16_t ro = 0;
-
-    // Note we have declared this stream locally to main and by value, and that,
-    // if the output file is successfully opened, we are relying on ofstream's
-    // destructor being called implicitly when main returns and this goes out of
-    // scope to close the stream.
     std::string outputPrefix;
+    bool useMultisig = false;
 
     std::string execType = MULTISIG_BLS_SCHEME;
     std::string execParam = "BN-P254";
@@ -135,154 +132,71 @@ int main(int argc, char** argv) {
     std::string optType = MULTISIG_BLS_SCHEME;
     std::string optParam = "BN-P254";
 
-    // Read input from the command line.
-    // Note we ignore argv[0] because that just contains the command that was used
-    // to launch this executable by convention.
     for (int i = 1; i < argc; ++i) {
       std::string option(argv[i]);
-
       if (option == "-f") {
-        if (i >= argc - 1) {
-          std::cout << "Expected an argument to -f.\n";
-          return -1;
-        }
-        config.fVal = parse<std::uint16_t>(argv[i + 1], "-f");
-        ++i;
-
+        if (i >= argc - 1) throw std::runtime_error("Expected an argument to -f");
+        config.fVal = parse<std::uint16_t>(argv[i++ + 1], "-f");
       } else if (option == "-n") {
-        if (i >= argc - 1) {
-          std::cout << "Expected an argument to -n.\n";
-          return -1;
-        }
+        if (i >= argc - 1) throw std::runtime_error("Expected an argument to -n");
         // Note we do not enforce a minimum value for n here; since we require
         // n > 3f and f > 0, lower bounds for n will be handled when we
         // enforce the n > 3f constraint below.
-        n = parse<std::uint16_t>(argv[i + 1], "-n");
-        ++i;
+        n = parse<std::uint16_t>(argv[i++ + 1], "-n");
       } else if (option == "-r") {
-        if (i >= argc - 1) {
-          std::cout << "Expected an argument to -r.\n";
-          return -1;
-        }
-        ro = parse<std::uint16_t>(argv[i + 1], "-r");
-        ++i;
+        if (i >= argc - 1) throw std::runtime_error("Expected an argument to -r");
+        ro = parse<std::uint16_t>(argv[i++ + 1], "-r");
       } else if (option == "-o") {
-        if (i >= argc - 1) {
-          std::cout << "Expected an argument to -o.\n";
-          return -1;
-        }
-        outputPrefix = argv[i + 1];
-        ++i;
-
+        if (i >= argc - 1) throw std::runtime_error("Expected an argument to -o");
+        outputPrefix = argv[i++ + 1];
+      } else if (option == "-m") {
+        useMultisig = true;
       } else if (option == "--execution_cryptosys") {
-        if (i >= argc - 2) {
-          std::cout << "Expected 2 arguments to --execution_cryptosys.\n";
-          return -1;
-        }
-        execType = argv[i + 1];
-        execParam = argv[i + 2];
-        i += 2;
-
+        if (i >= argc - 2) throw std::runtime_error("Expected 2 arguments to --execution_cryptosys");
+        execType = argv[i++ + 1];
+        execParam = argv[i++ + 1];
       } else if (option == "--slow_commit_cryptosys") {
-        if (i >= argc - 2) {
-          std::cout << "Expected 2 arguments to --slow_commit_cryptosys.\n";
-          return -1;
-        }
-        slowType = argv[i + 1];
-        slowParam = argv[i + 2];
-        i += 2;
-
+        if (i >= argc - 2) throw std::runtime_error("Expected 2 arguments to --slow_commit_cryptosys");
+        slowType = argv[i++ + 1];
+        slowParam = argv[i++ + 2];
       } else if (option == "--commit_cryptosys") {
-        if (i >= argc - 2) {
-          std::cout << "Expected 2 arguments to --execution_cryptosys.\n";
-          return -1;
-        }
-        commitType = argv[i + 1];
-        commitParam = argv[i + 2];
-        i += 2;
-
+        if (i >= argc - 2) throw std::runtime_error("Expected 2 arguments to --execution_cryptosys");
+        commitType = argv[i++ + 1];
+        commitParam = argv[i++ + 2];
       } else if (option == "--optimistic_commit_cryptosys") {
-        if (i >= argc - 2) {
-          std::cout << "Expected 2 arguments to --execution_cryptosys.\n";
-          return -1;
-        }
-        optType = argv[i + 1];
-        optParam = argv[i + 2];
-        i += 2;
-
+        if (i >= argc - 2) throw std::runtime_error("Expected 2 arguments to --execution_cryptosys");
+        optType = argv[i++ + 1];
+        optParam = argv[i++ + 2];
       } else {
-        std::cout << "Unrecognized command line argument: " << option << "\n";
-        return -1;
+        throw std::runtime_error("Unrecognized command line argument: " + option);
       }
     }
 
     // Check that required parameters were actually given.
-    if (config.fVal == 0) {
-      std::cout << "No value given for required -f parameter.\n";
-      return -1;
-    }
-    if (n == 0) {
-      std::cout << "No value given for required -n parameter.\n";
-      return -1;
-    }
-    if (outputPrefix.empty()) {
-      std::cout << "No value given for required -o parameter.\n";
-      return -1;
-    }
+    if (config.fVal == 0) throw std::runtime_error("No value given for required -f parameter");
+    if (n == 0) throw std::runtime_error("No value given for required -n parameter");
+    if (outputPrefix.empty()) throw std::runtime_error("No value given for required -o parameter");
 
     // Verify constraints between F and N and compute C.
 
     // Note we check that N >= 3F + 1 using uint32_ts even though F and N are
     // uint16_ts just in case 3F + 1 overflows a uint16_t.
     uint32_t minN = 3 * (uint32_t)config.fVal + 1;
-    if ((uint32_t)n < minN) {
-      std::cout << "Due to the design of Byzantine fault tolerance, number of"
-                   " replicas (-n) must be\ngreater than or equal to (3 * F + 1), where F"
-                   " is the maximum number of faulty\nreplicas (-f).\n";
-      return -1;
-    }
+    if ((uint32_t)n < minN)
+      throw std::runtime_error(
+          "Due to the design of Byzantine fault tolerance, number of"
+          " replicas (-n) must be greater than or equal to (3 * F + 1), where F"
+          " is the maximum number of faulty\nreplicas (-f)");
 
     // We require N - 3F - 1 to be even so C can be an integer.
-    if (((n - (3 * config.fVal) - 1) % 2) != 0) {
-      std::cout << "For technical reasons stemming from our current"
-                   " implementation of Byzantine\nfault tolerant consensus, we currently"
-                   " require that (N - 3F - 1) be even, where\nN is the total number of"
-                   " replicas (-n) and F is the maximum number of faulty\nreplicas (-f).\n";
-      return -1;
-    }
+    if (((n - (3 * config.fVal) - 1) % 2) != 0)
+      throw std::runtime_error(
+          "For technical reasons stemming from our current"
+          " implementation of Byzantine\nfault tolerant consensus, we currently"
+          " require that (N - 3F - 1) be even, where\nN is the total number of"
+          " replicas (-n) and F is the maximum number of faulty\nreplicas (-f)");
 
     config.cVal = (n - (3 * config.fVal) - 1) / 2;
-
-    uint16_t execThresh = config.fVal + 1;
-    uint16_t slowThresh = config.fVal * 2 + config.cVal + 1;
-    uint16_t commitThresh = config.fVal * 3 + config.cVal + 1;
-    uint16_t optThresh = n;
-
-    // Verify cryptosystem selections.
-    if (!Cryptosystem::isValidCryptosystemSelection(execType, execParam, n, execThresh)) {
-      std::cout << "Invalid selection of cryptosystem for execution cryptosystem"
-                   " (with threshold "
-                << execThresh << " out of " << n << "): " << execType << " " << execParam << ".\n";
-      return -1;
-    }
-    if (!Cryptosystem::isValidCryptosystemSelection(slowType, slowParam, n, slowThresh)) {
-      std::cout << "Invalid selection of cryptosystem for slow path commit"
-                   " cryptosystem (with threshold "
-                << slowThresh << " out of " << n << "): " << slowType << " " << slowParam << ".\n";
-      return -1;
-    }
-    if (!Cryptosystem::isValidCryptosystemSelection(commitType, commitParam, n, commitThresh)) {
-      std::cout << "Invalid selection of cryptosystem for commit cryptosystem"
-                   " (with threshold "
-                << commitThresh << " out of " << n << "): " << commitType << " " << commitParam << ".\n";
-      return -1;
-    }
-    if (!Cryptosystem::isValidCryptosystemSelection(optType, optParam, n, optThresh)) {
-      std::cout << "Invalid selection of cryptosystem for optimistic fast path"
-                   " commit cryptosystem (with threshold "
-                << optThresh << " out of " << n << "): " << optType << " " << optParam << ".\n";
-      return -1;
-    }
 
     std::vector<std::pair<std::string, std::string>> rsaKeys;
     for (uint16_t i = 0; i < n + ro; ++i) {
@@ -290,21 +204,37 @@ int main(int argc, char** argv) {
       config.publicKeysOfReplicas.insert(std::pair<uint16_t, std::string>(i, rsaKeys[i].second));
     }
 
-    Cryptosystem execSys(execType, execParam, n, execThresh);
-    Cryptosystem slowSys(slowType, slowParam, n, slowThresh);
-    Cryptosystem commitSys(commitType, commitParam, n, commitThresh);
-    Cryptosystem optSys(optType, optParam, n, optThresh);
+    if (!useMultisig) {
+      uint16_t execThresh = config.fVal + 1;
+      uint16_t slowThresh = config.fVal * 2 + config.cVal + 1;
+      uint16_t commitThresh = config.fVal * 3 + config.cVal + 1;
+      uint16_t optThresh = n;
+      Cryptosystem execSys(execType, execParam, n, execThresh);
+      Cryptosystem slowSys(slowType, slowParam, n, slowThresh);
+      Cryptosystem commitSys(commitType, commitParam, n, commitThresh);
+      Cryptosystem optSys(optType, optParam, n, optThresh);
 
-    execSys.generateNewPseudorandomKeys();
-    slowSys.generateNewPseudorandomKeys();
-    commitSys.generateNewPseudorandomKeys();
-    optSys.generateNewPseudorandomKeys();
-
-    // Output the generated keys.
-    for (uint16_t i = 0; i < n; ++i) {
-      config.replicaId = i;
-      config.replicaPrivateKey = rsaKeys[i].first;
-      outputReplicaKeyfile(n, ro, config, outputPrefix + std::to_string(i), &execSys, &slowSys, &commitSys, &optSys);
+      execSys.generateNewPseudorandomKeys();
+      slowSys.generateNewPseudorandomKeys();
+      commitSys.generateNewPseudorandomKeys();
+      optSys.generateNewPseudorandomKeys();
+      // Output the generated keys.
+      for (uint16_t i = 0; i < n; ++i) {
+        config.replicaId = i;
+        config.replicaPrivateKey = rsaKeys[i].first;
+        outputReplicaKeyfile(
+            n, ro, config, outputPrefix + std::to_string(i), nullptr, &execSys, &slowSys, &commitSys, &optSys);
+      }
+    } else {
+      // We want to generate public key for n-out-of-n case
+      Cryptosystem cryptoSys(MULTISIG_BLS_SCHEME, "BN-P254", n, n);
+      cryptoSys.generateNewPseudorandomKeys();
+      // Output the generated keys.
+      for (uint16_t i = 0; i < n; ++i) {
+        config.replicaId = i;
+        config.replicaPrivateKey = rsaKeys[i].first;
+        outputReplicaKeyfile(n, ro, config, outputPrefix + std::to_string(i), &cryptoSys);
+      }
     }
     for (uint16_t i = n; i < n + ro; ++i) {
       config.isReadOnly = true;

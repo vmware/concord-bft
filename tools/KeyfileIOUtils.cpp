@@ -19,35 +19,13 @@
 #include <string.hpp>
 #include <exception>
 #include "KeyfileIOUtils.hpp"
-
-// Helper function to outputReplicaKeyfile.
-static void serializeCryptosystemPublicConfiguration(std::ostream& output,
-                                                     const Cryptosystem& system,
-                                                     const std::string& sysName,
-                                                     const std::string& prefix) {
-  uint16_t numReplicas = system.getNumSigners();
-
-  output << "\n# " << sysName
-         << " threshold cryptosystem public"
-            " configuration.\n";
-  output << prefix << "_cryptosystem_type: " << system.getType() << "\n";
-  output << prefix << "_cryptosystem_subtype_parameter: " << system.getSubtype() << "\n";
-  output << prefix << "_cryptosystem_num_signers: " << numReplicas << "\n";
-  output << prefix << "_cryptosystem_threshold: " << system.getThreshold() << "\n";
-  output << prefix << "_cryptosystem_public_key: " << system.getSystemPublicKey() << "\n";
-
-  std::vector<std::string> verificationKeys = system.getSystemVerificationKeys();
-
-  output << prefix << "_cryptosystem_verification_keys:\n";
-  for (uint16_t i = 1; i <= numReplicas; ++i) {
-    output << "  - " << verificationKeys[i] << "\n";
-  }
-}
+#include "yaml_utils.hpp"
 
 void outputReplicaKeyfile(uint16_t numReplicas,
                           uint16_t numRoReplicas,
                           bftEngine::ReplicaConfig& config,
                           const std::string& outputFilename,
+                          Cryptosystem* commonSys,
                           Cryptosystem* execSys,
                           Cryptosystem* slowSys,
                           Cryptosystem* commitSys,
@@ -69,560 +47,79 @@ void outputReplicaKeyfile(uint16_t numReplicas,
          << "rsa_public_keys:\n";
 
   for (auto& v : config.publicKeysOfReplicas) output << "  - " << v.second << "\n";
+  output << "\n";
 
-  output << "\n# Private keys for this replica\n"
-         << "rsa_private_key: " << config.replicaPrivateKey << "\n";
-
-  if (execSys && slowSys && commitSys && optSys) {
-    serializeCryptosystemPublicConfiguration(output, *execSys, "Execution", "execution");
-    serializeCryptosystemPublicConfiguration(output, *slowSys, "Slow path commit", "slow_commit");
-    serializeCryptosystemPublicConfiguration(output, *commitSys, "Commit", "commit");
-    serializeCryptosystemPublicConfiguration(output, *optSys, "Optimistic fast path commit", "optimistic_commit");
-
-    output << "execution_cryptosystem_private_key: " << execSys->getPrivateKey(config.replicaId + 1) << "\n"
-           << "slow_commit_cryptosystem_private_key: " << slowSys->getPrivateKey(config.replicaId + 1) << "\n"
-           << "commit_cryptosystem_private_key: " << commitSys->getPrivateKey(config.replicaId + 1) << "\n"
-           << "optimistic_commit_cryptosystem_private_key: " << optSys->getPrivateKey(config.replicaId + 1) << "\n";
+  output << "rsa_private_key: " << config.replicaPrivateKey << "\n";
+  if (commonSys) {
+    commonSys->writeConfiguration(output, "common", config.replicaId);
+  } else if (execSys && slowSys && commitSys && optSys) {
+    execSys->writeConfiguration(output, "execution", config.replicaId);
+    slowSys->writeConfiguration(output, "slow_commit", config.replicaId);
+    commitSys->writeConfiguration(output, "commit", config.replicaId);
+    optSys->writeConfiguration(output, "optimistic_commit", config.replicaId);
   }
 }
 
-// Handles inputing unsigned 16-bit integers from the identifier->value map
-// created while parsing the keyfile. This function validates that the desired
-// integer is in the map, is a valid integer and not some other string value,
-// and is within range.
-template <typename T>
-T parse(const std::string& identifier,
-        std::unordered_map<std::string, std::string>& map,
-        const std::string& filename,
-        const std::unordered_map<std::string, size_t>& lineNumbers,
-        bool optional = false) {
-  if (map.count(identifier) < 1) {
-    if (optional) return 0;
-    if (lineNumbers.count(identifier) < 1)
-      throw std::runtime_error(filename + std::string(": Missing assignment for required parameter: ") + identifier);
-    else
-      throw std::runtime_error(filename + std::string(": line ") + std::to_string(lineNumbers.at(identifier)) +
-                               std::string(": expected integer value for ") + identifier);
-  }
-
-  std::string strVal = map[identifier];
-  map.erase(identifier);
-  try {
-    return concord::util::to<T>(strVal);
-  } catch (std::exception& e) {
-    std::ostringstream oss;
-    oss << "Exception: " << e.what() << " " << filename + ":" << lineNumbers.at(identifier) << ": invalid value for "
-        << identifier << ": " << strVal << " expected range [" << std::numeric_limits<T>::min() << ", "
-        << std::numeric_limits<T>::max();
-
-    throw std::runtime_error(oss.str());
-  }
+static void validateRSAPublicKey(const std::string& key) {
+  const size_t rsaPublicKeyHexadecimalLength = 584;
+  if (!(key.length() == rsaPublicKeyHexadecimalLength) && (std::regex_match(key, std::regex("[0-9A-Fa-f]+"))))
+    throw std::runtime_error("Invalid RSA public key: " + key);
 }
 
-// Simple validators for RSA keys to ensure they at least conform to the
-// expected format.
-const size_t rsaPublicKeyHexadecimalLength = 584;
-
-static bool validateRSAPublicKey(const std::string& key) {
-  return (key.length() == rsaPublicKeyHexadecimalLength) && (std::regex_match(key, std::regex("[0-9A-Fa-f]+")));
-}
-
-static bool validateRSAPrivateKey(const std::string& key) {
+static void validateRSAPrivateKey(const std::string& key) {
   // Note we do not verify the length of RSA private keys because their length
   // actually seems to vary a little in the output; it hovers around 2430
   // characters but often does not exactly match that number.
 
-  return std::regex_match(key, std::regex("[0-9A-Fa-f]+"));
+  if (!std::regex_match(key, std::regex("[0-9A-Fa-f]+"))) throw std::runtime_error("Invalid RSA private key: " + key);
 }
 
-// Checks that there are entries for all identifiers given in entries in the
-// variable map produced by parsing the keyfile, and prints errors if there
-// are not.
-static bool expectEntries(const std::vector<std::string>& entries,
-                          const std::unordered_map<std::string, std::string>& map,
-                          const std::string& filename,
-                          const std::unordered_map<std::string, size_t>& lineNumbers) {
-  for (const auto& entry : entries) {
-    if (map.count(entry) < 1) {
-      if (lineNumbers.count(entry) < 1) {
-        std::cout << filename << ": Missing assignment for required parameter: " << entry << ".\n";
-      } else {
-        std::cout << filename << ": line " << lineNumbers.at(entry) << ": expected string value for " << entry
-                  << ", found list.\n";
-      }
-      return false;
-    }
-  }
-  return true;
-}
-
-// Handles reading all the public configuration for each of the four
-// cryptosystems we expect to read in.
-static bool deserializeCryptosystemPublicConfiguration(
-    std::unique_ptr<Cryptosystem>& cryptosystem,
-    const std::string& name,
-    const std::string& prefix,
-    std::unordered_map<std::string, std::string>& valueAssignments,
-    std::unordered_map<std::string, std::vector<std::string>>& listAssignments,
-    const std::string& filename,
-    const std::unordered_map<std::string, size_t>& identifierLines,
-    const std::unordered_map<std::string, std::vector<size_t>>& listEntryLines,
-    uint16_t numReplicas) {
-  std::string typeVar = prefix + "_cryptosystem_type";
-  std::string subtypeVar = prefix + "_cryptosystem_subtype_parameter";
-  std::string numSignersVar = prefix + "_cryptosystem_num_signers";
-  std::string threshVar = prefix + "_cryptosystem_threshold";
-  std::string pubKeyVar = prefix + "_cryptosystem_public_key";
-  std::string verifKeyVar = prefix + "_cryptosystem_verification_keys";
-
-  uint16_t numSigners = parse<std::uint16_t>(numSignersVar, valueAssignments, filename, identifierLines);
-  uint16_t threshold = parse<std::uint16_t>(threshVar, valueAssignments, filename, identifierLines);
-
-  if (numSigners != numReplicas) {
-    std::cout << filename << ": line " << identifierLines.at(numSignersVar)
-              << ": Unexpected number of signers; it is expected the number of signers"
-                 " for each cryptosystem will be equal to num_replicas.\n";
-    return false;
-  }
-
-  if (!expectEntries({typeVar, subtypeVar, pubKeyVar}, valueAssignments, filename, identifierLines)) {
-    return false;
-  }
-
-  std::string type = valueAssignments[typeVar];
-  valueAssignments.erase(typeVar);
-  std::string subtype = valueAssignments[subtypeVar];
-  valueAssignments.erase(subtypeVar);
-
-  if (!Cryptosystem::isValidCryptosystemSelection(type, subtype, numSigners, threshold)) {
-    std::cout << filename << ": line " << identifierLines.at(typeVar)
-              << ":"
-                 " Invalid configuration for "
-              << name << " cryptosystem (type " << type << ", subtype " << subtype << ", threshold of " << threshold
-              << " out of " << numSigners << ").\n";
-    return false;
-  }
-  cryptosystem.reset(new Cryptosystem(type, subtype, numSigners, threshold));
-
-  std::string publicKey = valueAssignments[pubKeyVar];
-  valueAssignments.erase(pubKeyVar);
-
-  if (!cryptosystem->isValidPublicKey(publicKey)) {
-    std::cout << filename << ": line " << identifierLines.at(pubKeyVar)
-              << ":"
-                 " Invalid public key for selected type of cryptosystem.\n";
-    return false;
-  }
-
-  if (listAssignments.count(verifKeyVar) < 1) {
-    if (identifierLines.count(verifKeyVar) < 1) {
-      std::cout << filename << ": Missing assignment for required parameter: " << verifKeyVar << ".\n";
-    } else {
-      std::cout << filename << ": line " << identifierLines.at(verifKeyVar) << ": expected list for " << verifKeyVar
-                << ", found single value.\n";
-    }
-    return false;
-  }
-
-  std::vector<std::string> verificationKeys = std::move(listAssignments[verifKeyVar]);
-  listAssignments.erase(verifKeyVar);
-
-  // Account for convention of 1-indexing threshold signer IDs.
-  verificationKeys.insert(verificationKeys.begin(), "");
-
-  if (verificationKeys.size() != static_cast<uint16_t>(numSigners + 1)) {
-    std::cout << filename << ": line " << identifierLines.at(verifKeyVar)
-              << ": Unexpected number of verification keys for " << name
-              << " cryptosystem; it is expected that the number of verification keys"
-                 " is equal to "
-              << numSignersVar << ".\n";
-    return false;
-  }
-  for (size_t i = 1; i <= numSigners; ++i) {
-    if (!cryptosystem->isValidVerificationKey(verificationKeys[i])) {
-      std::cout << filename << ": line " << listEntryLines.at(verifKeyVar).at(i)
-                << ": Invalid verification key for this cryptosystem.\n";
-      return false;
-    }
-  }
-
-  cryptosystem->loadKeys(publicKey, verificationKeys);
-  return true;
-}
-
-// Generate a generic message to report any unrecognized or invalid syntax.
-// Attempts to include a brief description of what syntaxes are valid.
-static std::string getBadSyntaxMessage(const std::string& filename, size_t lineNumber) {
-  return filename + ": line " + std::to_string(lineNumber) +
-         ": Unrecognized syntax.\nRecognized syntaxes are:\n"
-         "  IDENTIFIER: VALUE\nand\n"
-         "  IDENTIFIER:\n    - LIST_ENTRY\n    - LIST_ENTRY\n    ...\n";
-}
-
-// Parse the input keyfile from text into a more convenient in-memory
-// representations of maps from identifiers to their values. Also creates some
-// records of what line numbers everything it parses come from for use in
-// giving error messages referencing specific lines.
-bool parseReplicaKeyfile(const std::string& filename,
-                         std::unordered_map<std::string, std::string>& valueAssignments,
-                         std::unordered_map<std::string, std::vector<std::string>>& listAssignments,
-                         std::unordered_map<std::string, size_t>& identifierLines,
-                         std::unordered_map<std::string, std::vector<size_t>>& listEntryLines) {
-  std::vector<std::string>* currentList = nullptr;
-  std::vector<size_t>* currentListLines = nullptr;
-  std::ifstream input(filename);
-  if (!input.is_open()) throw std::runtime_error(std::string("failed to open ") + filename);
-  size_t lineNumber = 1;
-  //  while (input.peek() != EOF) {
-  //    std::string line;
-  //    std::getline(input, line);
-  for (std::string line; std::getline(input, line);) {
-    // Ignore comments.
-    size_t commentStart = line.find_first_of('#');
-    if (commentStart != std::string::npos) {
-      line = line.substr(0, commentStart);
-    }
-
-    concord::util::trim_inplace(line);
-
-    // Ignore this line if it contains only whitespace and/or comments.
-    if (line.length() < 1) {
-      ++lineNumber;
-      continue;
-    }
-
-    // Note the key file format currently permits 3 types of non-empty lines:
-    // assignments of values to an identifier, assignments of lists to an
-    // identifier, and list entries.
-
-    // Multiple :s are never expected in one line, so we will reject lines like
-    // this here so that we do not have to handle them in both assignment cases.
-    if (line.find_first_of(':') != line.find_last_of(':')) {
-      std::cout << getBadSyntaxMessage(filename, lineNumber);
-      return false;
-    }
-
-    // Case of a list entry. Format:
-    // - LIST_ENTRY
-    if ((line.length() > 2) && (line[0] == '-') && (line[1] == ' ')) {
-      std::string value = concord::util::trim(line.substr(2, line.length() - 2));
-      if (value.find_first_of(" \t") != std::string::npos) {
-        std::cout << filename << ": line " << lineNumber
-                  << ": Whitespace is"
-                     " not allowed in identifiers or values.\n";
-        return false;
-      }
-
-      // Note we do not to check whether the value is missing completely because
-      // we know this line, beginning with "- ", had a length of 3 before
-      // trimming.
-
-      // We will check that there is not a colon in the value because the use of
-      // those is reserved to indicate assignments.
-      if (value.find_first_of(':') != std::string::npos) {
-        std::cout << filename << ": line " << lineNumber
-                  << ": Invalid list"
-                     " entry: contains \":\".\n";
-        return false;
-      }
-
-      if (!currentList) {
-        std::cout << filename << ": line " << lineNumber
-                  << ": Unexpected list"
-                     " entry (not following a declaration of a list or another list"
-                     " entry).\n";
-        return false;
-      }
-
-      currentList->push_back(value);
-      currentListLines->push_back(lineNumber);
-
-      // Case of assignment of a list to an identifier. Format:
-      // IDENTIFIER:
-    } else if ((line.length() > 1) && (line[line.length() - 1] == ':')) {
-      std::string identifier = concord::util::trim(line.substr(0, line.length() - 1));
-      if (identifier.find_first_of(" \t") != std::string::npos) {
-        std::cout << filename << ": line " << lineNumber
-                  << ": Whitespace is"
-                     " not allowed in identifiers or values.\n";
-        return false;
-      }
-
-      // Note that we do not have to check whether the identifier is not missing
-      // completely because we know the line was at least 2 characters long and
-      // ended in the colon after trimming.
-
-      if (identifierLines.count(identifier) > 0) {
-        std::cout << filename << ": line " << lineNumber
-                  << ": Attempting to"
-                     " make a new assignment to an identifier that is already in use"
-                     " (previous assignment on line "
-                  << identifierLines[identifier] << ").\n";
-        return false;
-      }
-
-      listAssignments[identifier] = std::vector<std::string>();
-      listEntryLines[identifier] = std::vector<size_t>();
-
-      currentList = &(listAssignments[identifier]);
-      currentListLines = &(listEntryLines[identifier]);
-
-      identifierLines[identifier] = lineNumber;
-
-      // Case of assignment of a value to an identifier. Format:
-      // IDENTIFIER: VALUE
-    } else if ((line.length() >= 3) && (line.find_first_of(':') != std::string::npos)) {
-      size_t colonLoc = line.find_first_of(':');
-      std::string identifier = concord::util::trim(line.substr(0, colonLoc));
-      std::string value = concord::util::trim(line.substr(colonLoc + 1, line.length() - (colonLoc + 1)));
-
-      if ((identifier.find_first_of(" \t") != std::string::npos) || (value.find_first_of(" \t") != std::string::npos)) {
-        std::cout << filename << ": line " << lineNumber
-                  << ": Whitespace is"
-                     " not allowed in identifiers or values.\n";
-        std::cout << "\"" << identifier << "\"\n\"" << value << "\"\n";
-        return false;
-      }
-
-      if (identifier.length() < 1) {
-        std::cout << filename << ": line " << lineNumber
-                  << ": Expected"
-                     " identifier before assignment.\n";
-        return false;
-      }
-
-      // Note we do not need to check that the value is non-empty because any
-      // case that would yield that would have triggered the above case for
-      // assignment of a list to an identifier.
-
-      if (identifierLines.count(identifier) > 0) {
-        std::cout << filename << ": line " << lineNumber
-                  << ": Attempting to"
-                     " make a new assignment to an identifier that is already in use"
-                     " (previous assignment on line "
-                  << identifierLines[identifier] << ").\n";
-        return false;
-      }
-
-      currentList = nullptr;
-      currentListLines = nullptr;
-
-      valueAssignments[identifier] = value;
-      identifierLines[identifier] = lineNumber;
-
-      // If none of the above cases were true, then whatever this line is is not
-      // of a supported format.
-    } else {
-      std::cout << getBadSyntaxMessage(filename, lineNumber);
-      return false;
-    }
-
-    ++lineNumber;
-  }
-
-  return true;
-}
-
-bool inputReplicaKeyfile(const std::string& filename, bftEngine::ReplicaConfig& config) {
-  std::unordered_map<std::string, std::string> valueAssignments;
-  std::unordered_map<std::string, std::vector<std::string>> listAssignments;
-  std::unordered_map<std::string, size_t> identifierLines;
-  std::unordered_map<std::string, std::vector<size_t>> listEntryLines;
-
-  if (!parseReplicaKeyfile(filename, valueAssignments, listAssignments, identifierLines, listEntryLines)) {
-    return false;
-  }
-
-  config.numReplicas = parse<std::uint16_t>("num_replicas", valueAssignments, filename, identifierLines);
-  config.fVal = parse<std::uint16_t>("f_val", valueAssignments, filename, identifierLines);
-  config.cVal = parse<std::uint16_t>("c_val", valueAssignments, filename, identifierLines);
-  config.replicaId = parse<std::uint16_t>("replica_id", valueAssignments, filename, identifierLines);
-  // optional for backward compatibility
-  config.isReadOnly = parse<bool>("read-only", valueAssignments, filename, identifierLines, true);
-  config.numRoReplicas = parse<std::uint16_t>("num_ro_replicas", valueAssignments, filename, identifierLines, true);
+void inputReplicaKeyfileCommon(std::istream& input, bftEngine::ReplicaConfig& config) {
+  using namespace concord::util;
+  config.numReplicas = yaml::readValue<std::uint16_t>(input, "num_replicas");
+  config.numRoReplicas = yaml::readValue<std::uint16_t>(input, "num_ro_replicas");
+  config.fVal = yaml::readValue<std::uint16_t>(input, "f_val");
+  config.cVal = yaml::readValue<std::uint16_t>(input, "c_val");
+  config.replicaId = yaml::readValue<std::uint16_t>(input, "replica_id");
+  config.isReadOnly = yaml::readValue<bool>(input, "read-only");
 
   // Note we validate the number of replicas using 32-bit integers in case
   // (3 * f + 2 * c + 1) overflows a 16-bit integer.
   uint32_t predictedNumReplicas = 3 * (uint32_t)config.fVal + 2 * (uint32_t)config.cVal + 1;
-  if (predictedNumReplicas != (uint32_t)config.numReplicas) {
-    std::cout << filename << ": line " << identifierLines["num_replicas"]
-              << ": num_replicas must be equal to (3 * f_val + 2 * c_val + 1).\n";
-    return false;
-  }
-  if (config.replicaId >= config.numReplicas + config.numRoReplicas) {
-    std::cout << filename << ": line " << identifierLines["replica_id"]
-              << ": invalid replica_id; replica IDs must be in the range [0,"
-                 " num_replicas + num_ro_replicas].\n";
-  }
+  if (predictedNumReplicas != (uint32_t)config.numReplicas)
+    throw std::runtime_error("num_replicas must be equal to (3 * f_val + 2 * c_val + 1)");
 
-  // Load RSA public keys
-  if (listAssignments.count("rsa_public_keys") < 1) {
-    if (identifierLines.count("rsa_public_keys") < 1) {
-      std::cout << filename
-                << ": Missing assignment for required parameter:"
-                   " rsa_public_keys.\n";
-    } else {
-      std::cout << filename << ": line " << identifierLines["rsa_public_keys"]
-                << ": expected list for rsa_public_keys, found single value.\n";
-    }
-    return false;
-  }
+  if (config.replicaId >= config.numReplicas + config.numRoReplicas)
+    throw std::runtime_error("replica IDs must be in the range [0, num_replicas + num_ro_replicas]");
 
-  std::vector<std::string> rsaPublicKeys = std::move(listAssignments["rsa_public_keys"]);
-  listAssignments.erase("rsa_public_keys");
+  std::vector<std::string> rsaPublicKeys = yaml::readCollection<std::string>(input, "rsa_public_keys");
 
-  if (rsaPublicKeys.size() != config.numReplicas + config.numRoReplicas) {
-    std::cout << filename << ": line " << identifierLines["rsa_public_keys"]
-              << ": incorrect number of public RSA keys given; the number of RSA keys"
-                 " must match num_replicas.\n";
-    return false;
-  }
-  for (size_t i = 0; i < config.numReplicas + config.numRoReplicas; ++i) {
-    if (!validateRSAPublicKey(rsaPublicKeys[i])) {
-      std::cout << filename << ": line " << listEntryLines["rsa_public_keys"][i] << ": Invalid RSA public key.\n";
-      return false;
-    }
-  }
+  if (rsaPublicKeys.size() != config.numReplicas + config.numRoReplicas)
+    throw std::runtime_error("number of public RSA keys must match num_replicas");
 
-  // Load private keys for this replica.
-  if (!expectEntries({"rsa_private_key"}, valueAssignments, filename, identifierLines)) {
-    return false;
-  }
-  std::string rsaPrivateKey = valueAssignments["rsa_private_key"];
-  valueAssignments.erase("rsa_private_key");
-
-  if (!validateRSAPrivateKey(rsaPrivateKey)) {
-    std::cout << filename << ": line " << identifierLines["rsa_private_key"] << ": Invalid RSA private key.\n";
-    return false;
-  }
   config.publicKeysOfReplicas.clear();
-  for (uint16_t i = 0; i < config.numReplicas + config.numRoReplicas; ++i)
+  for (size_t i = 0; i < config.numReplicas + config.numRoReplicas; ++i) {
+    validateRSAPublicKey(rsaPublicKeys[i]);
     config.publicKeysOfReplicas.insert(std::pair<uint16_t, std::string>(i, rsaPublicKeys[i]));
-
-  config.replicaPrivateKey = rsaPrivateKey;
-
-  if (config.isReadOnly) return true;
-
-  // Load cryptosystem public configurations.
-  // Note we reference the Cryptosystems here via unique_ptrs rahter than
-  // declaring them by value because we need to declare them here before they
-  // are constructed by a helper function, which cannot be done if they are
-  // declared by value because they have no default (0-parameter) constructor.
-  std::unique_ptr<Cryptosystem> execSys;
-  std::unique_ptr<Cryptosystem> slowSys;
-  std::unique_ptr<Cryptosystem> commitSys;
-  std::unique_ptr<Cryptosystem> optSys;
-
-  if (!deserializeCryptosystemPublicConfiguration(execSys,
-                                                  "execution",
-                                                  "execution",
-                                                  valueAssignments,
-                                                  listAssignments,
-                                                  filename,
-                                                  identifierLines,
-                                                  listEntryLines,
-                                                  config.numReplicas)) {
-    return false;
-  }
-  if (!deserializeCryptosystemPublicConfiguration(slowSys,
-                                                  "slow path commit",
-                                                  "slow_commit",
-                                                  valueAssignments,
-                                                  listAssignments,
-                                                  filename,
-                                                  identifierLines,
-                                                  listEntryLines,
-                                                  config.numReplicas)) {
-    return false;
-  }
-  if (!deserializeCryptosystemPublicConfiguration(commitSys,
-                                                  "commit",
-                                                  "commit",
-                                                  valueAssignments,
-                                                  listAssignments,
-                                                  filename,
-                                                  identifierLines,
-                                                  listEntryLines,
-                                                  config.numReplicas)) {
-    return false;
-  }
-  if (!deserializeCryptosystemPublicConfiguration(optSys,
-                                                  "optimistic fast path commit",
-                                                  "optimistic_commit",
-                                                  valueAssignments,
-                                                  listAssignments,
-                                                  filename,
-                                                  identifierLines,
-                                                  listEntryLines,
-                                                  config.numReplicas)) {
-    return false;
   }
 
-  // Load private keys for this replica.
-  if (!expectEntries({"execution_cryptosystem_private_key",
-                      "slow_commit_cryptosystem_private_key",
-                      "commit_cryptosystem_private_key",
-                      "optimistic_commit_cryptosystem_private_key"},
-                     valueAssignments,
-                     filename,
-                     identifierLines)) {
-    return false;
-  }
+  config.replicaPrivateKey = yaml::readValue<std::string>(input, "rsa_private_key");
+  validateRSAPrivateKey(config.replicaPrivateKey);
+}
 
-  std::string execPrivateKey = valueAssignments["execution_cryptosystem_private_key"];
-  std::string slowPrivateKey = valueAssignments["slow_commit_cryptosystem_private_key"];
-  std::string commitPrivateKey = valueAssignments["commit_cryptosystem_private_key"];
-  std::string optPrivateKey = valueAssignments["optimistic_commit_cryptosystem_private_key"];
+void inputReplicaKeyfile(const std::string& filename, bftEngine::ReplicaConfig& config) {
+  std::ifstream input(filename);
+  if (!input.is_open()) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": can't open ") + filename);
 
-  valueAssignments.erase("execution_cryptosystem_private_key");
-  valueAssignments.erase("slow_commit_cryptosystem_private_key");
-  valueAssignments.erase("commit_cryptosystem_private_key");
-  valueAssignments.erase("optimistic_commit_cryptosystem_private_key");
+  inputReplicaKeyfileCommon(input, config);
 
-  if (!execSys->isValidPrivateKey(execPrivateKey)) {
-    std::cout << filename << ": line " << identifierLines["execution_cryptosystem_private_key"]
-              << ": Invalid private key for selected cryptosystem.\n";
-    return false;
-  }
-  if (!slowSys->isValidPrivateKey(slowPrivateKey)) {
-    std::cout << filename << ": line " << identifierLines["slow_commit_cryptosystem_private_key"]
-              << ": Invalid private key for selected cryptosystem.\n";
-    return false;
-  }
-  if (!commitSys->isValidPrivateKey(commitPrivateKey)) {
-    std::cout << filename << ": line " << identifierLines["commit_cryptosystem_private_key"]
-              << ": Invalid private key for selected cryptosystem.\n";
-    return false;
-  }
-  if (!optSys->isValidPrivateKey(optPrivateKey)) {
-    std::cout << filename << ": line " << identifierLines["optimistic_commit_cryptosystem_private_key"]
-              << ": Invalid private key for selected cryptosystem.\n";
-    return false;
-  }
+  if (config.isReadOnly) return;
 
-  execSys->loadPrivateKey(config.replicaId + 1, execPrivateKey);
-  slowSys->loadPrivateKey(config.replicaId + 1, slowPrivateKey);
-  commitSys->loadPrivateKey(config.replicaId + 1, commitPrivateKey);
-  optSys->loadPrivateKey(config.replicaId + 1, optPrivateKey);
-
-  // Verify that there were not any unexpected parameters specified in the
-  // keyfile.
-  if ((valueAssignments.size() > 0) || (listAssignments.size() > 0)) {
-    for (const auto& assignment : valueAssignments) {
-      std::cout << filename << ": line " << identifierLines[assignment.first]
-                << ": Unrecognized parameter: " << assignment.first << ".\n";
-    }
-    for (const auto& assignment : listAssignments) {
-      std::cout << filename << ": line " << identifierLines[assignment.first]
-                << ": Unrecognized parameter: " << assignment.first << ".\n";
-    }
-    return false;
-  }
-
-  // Copy all the information loaded into the replica configuration struct.
-  // Note we do not begin copying the information until we know it has been
-  // loaded successfully, so the configuration struct will not be left in a
-  // partially loaded state.
+  std::unique_ptr<Cryptosystem> execSys(Cryptosystem::fromConfiguration(input, "execution", config.replicaId + 1));
+  std::unique_ptr<Cryptosystem> slowSys(Cryptosystem::fromConfiguration(input, "slow_commit", config.replicaId + 1));
+  std::unique_ptr<Cryptosystem> commitSys(Cryptosystem::fromConfiguration(input, "commit", config.replicaId + 1));
+  std::unique_ptr<Cryptosystem> optSys(
+      Cryptosystem::fromConfiguration(input, "optimistic_commit", config.replicaId + 1));
 
   config.thresholdSignerForExecution = execSys->createThresholdSigner();
   config.thresholdSignerForSlowPathCommit = slowSys->createThresholdSigner();
@@ -633,6 +130,29 @@ bool inputReplicaKeyfile(const std::string& filename, bftEngine::ReplicaConfig& 
   config.thresholdVerifierForSlowPathCommit = slowSys->createThresholdVerifier();
   config.thresholdVerifierForCommit = commitSys->createThresholdVerifier();
   config.thresholdVerifierForOptimisticCommit = optSys->createThresholdVerifier();
+}
 
-  return true;
+void inputReplicaKeyfileMultisig(const std::string& filename, bftEngine::ReplicaConfig& config) {
+  using namespace concord::util;
+
+  std::ifstream input(filename);
+  if (!input.is_open()) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": can't open ") + filename);
+
+  inputReplicaKeyfileCommon(input, config);
+
+  if (config.isReadOnly) return;
+
+  std::unique_ptr<Cryptosystem> cryptoSys(Cryptosystem::fromConfiguration(input, "common", config.replicaId + 1));
+
+  // same signer for all
+  config.thresholdSignerForExecution = cryptoSys->createThresholdSigner();
+  config.thresholdSignerForSlowPathCommit = config.thresholdSignerForExecution;
+  config.thresholdSignerForCommit = config.thresholdSignerForExecution;
+  config.thresholdSignerForOptimisticCommit = config.thresholdSignerForExecution;
+
+  // create verifiers with required thresholds
+  config.thresholdVerifierForExecution = cryptoSys->createThresholdVerifier(config.fVal + 1);
+  config.thresholdVerifierForSlowPathCommit = cryptoSys->createThresholdVerifier(config.fVal * 2 + config.cVal + 1);
+  config.thresholdVerifierForCommit = cryptoSys->createThresholdVerifier(config.fVal * 3 + config.cVal + 1);
+  config.thresholdVerifierForOptimisticCommit = cryptoSys->createThresholdVerifier(config.numReplicas);
 }
