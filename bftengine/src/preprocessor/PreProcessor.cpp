@@ -99,7 +99,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       requestsHandler_(requestsHandler),
       myReplica_(myReplica),
       myReplicaId_(myReplica.getReplicaConfig().replicaId),
-      maxPreExecResultSize_(myReplica.getReplicaConfig().preExecMaxResultSize),
+      maxReplyMsgSize_(myReplica.getReplicaConfig().maxReplyMessageSize - sizeof(ClientReplyMsgHeader)),
       idsOfPeerReplicas_(myReplica.getIdsOfPeerReplicas()),
       numOfReplicas_(myReplica.getReplicaConfig().numReplicas),
       numOfClients_(myReplica.getReplicaConfig().numOfExternalClients +
@@ -130,7 +130,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   }
   // Allocate a buffer for the pre-execution result per client
   for (auto id = 0; id < numOfClients_; id++) {
-    preProcessResultBuffers_.push_back(Sliver(new char[maxPreExecResultSize_], maxPreExecResultSize_));
+    preProcessResultBuffers_.push_back(Sliver(new char[maxReplyMsgSize_], maxReplyMsgSize_));
   }
   uint64_t numOfThreads = myReplica.getReplicaConfig().preExecConcurrencyLevel;
   if (!numOfThreads) numOfThreads = min((uint16_t)thread::hardware_concurrency(), numOfClients_);
@@ -552,7 +552,7 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
                                          PRE_PROCESS_FLAG,
                                          reqLength,
                                          reqBuf,
-                                         maxPreExecResultSize_,
+                                         maxReplyMsgSize_,
                                          (char *)getPreProcessResultBuffer(clientId),
                                          resultLen,
                                          replicaSpecificInfoLen,

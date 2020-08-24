@@ -82,9 +82,6 @@ struct ReplicaConfig {
   // If equals to 0, a default number of min(thread::hardware_concurrency(), numOfClients) is used
   uint16_t preExecConcurrencyLevel = 0;
 
-  // The pre-execution result is sent to the replicas as a part of the PrePrepare message replacing an original request
-  uint32_t preExecMaxResultSize = 16777216;
-
   // public keys of all replicas. map from replica identifier to a public key
   std::set<std::pair<uint16_t, const std::string>> publicKeysOfReplicas;
 
@@ -152,7 +149,6 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
      << "preExecutionFeatureEnabled: " << rc.preExecutionFeatureEnabled << "\n"
      << "preExecReqStatusCheckTimerMillisec: " << rc.preExecReqStatusCheckTimerMillisec << "\n"
      << "preExecConcurrencyLevel: " << rc.preExecConcurrencyLevel << "\n"
-     << "preExecMaxResultSize: " << rc.preExecMaxResultSize << "\n"
      << "debugPersistentStorageEnabled: " << rc.debugPersistentStorageEnabled << "\n"
      << "maxExternalMessageSize: " << rc.maxExternalMessageSize << "\n"
      << "maxReplyMessageSize: " << rc.maxReplyMessageSize << "\n"
@@ -194,7 +190,6 @@ class ReplicaConfigSingleton {
   bool GetPreExecutionFeatureEnabled() const { return config_->preExecutionFeatureEnabled; }
   uint64_t GetPreExecReqStatusCheckTimerMillisec() const { return config_->preExecReqStatusCheckTimerMillisec; }
   uint16_t GetPreExecConcurrencyLevel() const { return config_->preExecConcurrencyLevel; }
-  uint32_t GetPreExecMaxResultSize() const { return config_->preExecMaxResultSize; }
   std::string GetReplicaPrivateKey() const { return config_->replicaPrivateKey; }
 
   IThresholdSigner const* GetThresholdSignerForExecution() const { return config_->thresholdSignerForExecution; }
