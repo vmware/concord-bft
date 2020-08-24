@@ -32,9 +32,7 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     python3-setuptools \
     sudo \
     vim \
-    wget \
-    curl \
-    libcurl4-openssl-dev
+    wget
 
 ln -fs /usr/bin/clang-format-9 /usr/bin/clang-format
 ln -fs /usr/bin/clang-format-diff-9 /usr/bin/clang-format-diff
@@ -168,18 +166,3 @@ wget ${WGET_FLAGS} \
     make install && \
     cd ../.. && \
     rm -r opentracing-cpp-1.5.0
-
-# Install Prometheus-cpp
-cd ${HOME}
-git clone https://github.com/jupp0r/prometheus-cpp.git && \
-    cd prometheus-cpp && \
-    git checkout v0.8.0 && \
-    git submodule init && \
-    git submodule update && \
-    mkdir _build && \
-    cd _build && \
-    cmake -DBUILD_SHARED_LIBS=ON .. && \
-    make && \
-    make install && \
-    cd ../.. && \
-    rm -r prometheus-cpp
