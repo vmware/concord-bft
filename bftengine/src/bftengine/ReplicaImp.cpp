@@ -877,15 +877,10 @@ namespace bftEngine
 		{
 			//LOG_INFO_F(GL, "CQDEBUG:Node %d received ClientGetTimeStampMsg from node %d hash=%d (size=%d)",
 			//	(int)myReplicaId, (int)msg->senderId(), (msg->digestOfRequests()).hash(), (int)msg->size());
-			uint64_t request[400] = {0};
-            if (msg->senderId() != 0) {
-			  Digest tmp;
-			  DigestUtil::compute((char*)request, 400 * sizeof(uint64_t), tmp.content(), sizeof(DIGEST_SIZE));
-			  ClientSignedTimeStampMsg* pp = timeManager->GetSignedTimeStamp(myReplicaId, msg->digestOfRequests());
-              //ClientSignedTimeStampMsg* pp = timeManager->GetSignedTimeStamp(myReplicaId, msg->digestOfRequests(), sigManager);
-			  send(pp, msg->senderId());
-			  delete pp;
-			}
+			ClientSignedTimeStampMsg* pp = timeManager->GetSignedTimeStamp(myReplicaId, msg->digestOfRequests());
+                        //ClientSignedTimeStampMsg* pp = timeManager->GetSignedTimeStamp(myReplicaId, msg->digestOfRequests(), sigManager);
+			send(pp, msg->senderId());
+			delete pp;
 			delete msg;
 		}
 

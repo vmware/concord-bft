@@ -120,7 +120,7 @@ namespace bftEngine
       uint32_t i = sizeof(CombinedTimeStampMsgHeader) + b()->sigLength;
       
       Digest c;
-	    BLS::Relic::G1T h, g;
+      BLS::Relic::G1T h, g;
       while (remains > 0)
       {
         if (i + sizeof(SignedTimeStampItem) >= b()->endLocationOfLastVerifiedTimeStamp) return false;
@@ -135,9 +135,12 @@ namespace bftEngine
           const unsigned char* sigBuf = (const unsigned char *)t + sizeof(SignedTimeStampItem);
           g.fromBytes(sigBuf + sizeof(int), t->sigLength - sizeof(int));
 
+         // BLS::Relic::BNT idNum(reinterpret_cast<const unsigned char*>(sigBuf), sizeof(int));
+          //int rid = static_cast<int>(idNum.toDigit());
+
           bool succ = ((BLS::Relic::BlsThresholdVerifier*)verifier)->verify(h, g, 
-            ((BLS::Relic::BlsPublicKey&)(verifier->getShareVerificationKey(0))).getPoint());
-          //if (!succ) return false;
+            ((BLS::Relic::BlsPublicKey&)(verifier->getShareVerificationKey(t->replicaId + 1))).getPoint());
+          if (!succ) LOG_INFO_F(GL, "Verify Error!");
         }
 
         remains--;
@@ -167,7 +170,7 @@ namespace bftEngine
         if (verifiers) {
           Digest::calcCombination(signatureBody(), t->timeStamp, c);
           bool succ = verifiers->verifySig(t->replicaId, (const char*)&c, sizeof(Digest), (const char *)t + sizeof(SignedTimeStampItem), t->sigLength);
-          //if (!succ) return false;
+          if (!succ) LOG_INFO_F(GL, "Verify Error!");
         }
 
         remains--;
