@@ -17,9 +17,18 @@
 #include "messages/ClientRequestMsg.hpp"
 
 ////////////////////////////// KEY MANAGER//////////////////////////////
-
-KeyManager::KeyManager(InternalBFTClient* cl, const int& id, const uint32_t& clusterSize)
-    : repID_(id), clusterSize_(clusterSize), client_(cl), keyStore_{clusterSize} {}
+namespace bftEngine::impl {
+KeyManager::KeyManager(InternalBFTClient* cl,
+                       const int& id,
+                       const uint32_t& clusterSize,
+                       IReservedPages* reservedPages,
+                       const uint32_t sizeOfReservedPage)
+    : repID_(id), clusterSize_(clusterSize), client_(cl), keyStore_{clusterSize, *reservedPages, sizeOfReservedPage} {
+  if (keyStore_.exchangedReplicas.size() == clusterSize_) {
+    keysExchanged = true;
+    LOG_INFO(KEY_EX_LOG, "All replicas keys loaded from reserved pages, can start accepting msgs");
+  }
+}
 
 std::string KeyManager::generateCid() {
   std::string cid{"KEY-EXCHANGE-"};
@@ -31,13 +40,13 @@ std::string KeyManager::generateCid() {
 }
 
 std::string KeyManager::onKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn) {
-  LOG_DEBUG(GL, "KEY EXCHANGE MANAGER  msg " << kemsg.toString() << " seq num " << sn);
+  LOG_DEBUG(KEY_EX_LOG, "Recieved " << kemsg.toString() << " seq num " << sn);
   if (!keysExchanged) {
-    exchangedReplicas_.insert(kemsg.repID);
-    LOG_DEBUG(GL, "KEY EXCHANGE: exchanged [" << exchangedReplicas_.size() << "] out of [" << clusterSize_ << "]");
-    if (exchangedReplicas_.size() == clusterSize_) {
+    keyStore_.exchangedReplicas.insert(kemsg.repID);
+    LOG_DEBUG(KEY_EX_LOG, "Exchanged [" << keyStore_.exchangedReplicas.size() << "] out of [" << clusterSize_ << "]");
+    if (keyStore_.exchangedReplicas.size() == clusterSize_) {
       keysExchanged = true;
-      LOG_INFO(GL, "KEY EXCHANGE: start accepting msgs");
+      LOG_INFO(KEY_EX_LOG, "All replics exchanged keys, can start accepting msgs");
     }
   }
 
@@ -48,12 +57,14 @@ std::string KeyManager::onKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn)
 
 void KeyManager::onCheckpoint(const int& num) {
   if (!keyStore_.rotate(num, registryToExchange_)) return;
-  LOG_DEBUG(GL, "KEY EXCHANGE MANAGER check point  " << num << " trigerred rotation ");
+  LOG_DEBUG(KEY_EX_LOG, "Check point  " << num << " trigerred rotation ");
 }
 
 void KeyManager::registerForNotification(IKeyExchanger* ke) { registryToExchange_.push_back(ke); }
 
-KeyExchangeMsg KeyManager::replicaKey(const uint16_t& repID) const { return keyStore_.replicaKey(repID); }
+KeyExchangeMsg KeyManager::getReplicaKey(const uint16_t& repID) const { return keyStore_.getReplicaKey(repID); }
+
+void KeyManager::loadKeysFromReservedPages() { keyStore_.loadAllReplicasKeyStoresFromReservedPages(); }
 
 /*
 Usage:
@@ -65,5 +76,7 @@ Usage:
 */
 void KeyManager::sendKeyExchange() {
   (void)client_;
-  LOG_DEBUG(GL, "KEY EXCHANGE MANAGER send msg");
+  LOG_DEBUG(KEY_EX_LOG, "Sending key exchange msg");
 }
+
+}  // namespace bftEngine::impl
