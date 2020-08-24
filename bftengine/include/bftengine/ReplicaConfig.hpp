@@ -91,11 +91,6 @@ struct ReplicaConfig {
   // private key of the current replica
   std::string replicaPrivateKey;
 
-  // signer and verifier of a threshold signature (for threshold fVal+1 out of N)
-  // In the current version, both should be nullptr
-  IThresholdSigner* thresholdSignerForExecution = nullptr;
-  IThresholdVerifier* thresholdVerifierForExecution = nullptr;
-
   // signer and verifier of a threshold signature (for threshold N-fVal-cVal out of N)
   IThresholdSigner* thresholdSignerForSlowPathCommit = nullptr;
   IThresholdVerifier* thresholdVerifierForSlowPathCommit = nullptr;
@@ -197,8 +192,6 @@ class ReplicaConfigSingleton {
   uint32_t GetPreExecMaxResultSize() const { return config_->preExecMaxResultSize; }
   std::string GetReplicaPrivateKey() const { return config_->replicaPrivateKey; }
 
-  IThresholdSigner const* GetThresholdSignerForExecution() const { return config_->thresholdSignerForExecution; }
-  IThresholdVerifier const* GetThresholdVerifierForExecution() const { return config_->thresholdVerifierForExecution; }
   IThresholdSigner const* GetThresholdSignerForSlowPathCommit() const {
     return config_->thresholdSignerForSlowPathCommit;
   }

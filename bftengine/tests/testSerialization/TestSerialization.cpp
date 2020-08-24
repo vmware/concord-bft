@@ -452,8 +452,6 @@ void fillReplicaConfig() {
   config.publicKeysOfReplicas.insert(IdToKeyPair(2, publicKeyValue3));
   config.publicKeysOfReplicas.insert(IdToKeyPair(3, publicKeyValue4));
 
-  config.thresholdSignerForExecution = nullptr;
-  config.thresholdVerifierForExecution = new IThresholdVerifierDummy;
   config.thresholdSignerForSlowPathCommit = new IThresholdSignerDummy;
   config.thresholdVerifierForSlowPathCommit = new IThresholdVerifierDummy;
   config.thresholdSignerForCommit = new IThresholdSignerDummy;

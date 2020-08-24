@@ -107,7 +107,6 @@ class DummyReplica : public InternalReplicaApi {
 
   const ReplicaConfig& getReplicaConfig() const override { return replicaConfig; }
 
-  IThresholdVerifier* getThresholdVerifierForExecution() override { return nullptr; }
   IThresholdVerifier* getThresholdVerifierForSlowPathCommit() override { return nullptr; }
   IThresholdVerifier* getThresholdVerifierForCommit() override { return nullptr; }
   IThresholdVerifier* getThresholdVerifierForOptimisticCommit() override { return nullptr; }

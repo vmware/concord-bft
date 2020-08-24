@@ -606,7 +606,6 @@ static bool testThresholdKeys(const std::vector<bftEngine::ReplicaConfig>& confi
   // Compute thresholds.
   uint16_t f = configs.front().fVal;
   uint16_t c = configs.front().cVal;
-  uint16_t execThresh = f + 1;
   uint16_t slowThresh = f * 2 + c + 1;
   uint16_t commitThresh = f * 3 + c + 1;
   uint16_t optThresh = f * 3 + c * 2 + 1;
@@ -615,14 +614,6 @@ static bool testThresholdKeys(const std::vector<bftEngine::ReplicaConfig>& confi
 
   std::vector<IThresholdSigner*> signers;
   std::vector<IThresholdVerifier*> verifiers;
-
-  for (uint16_t i = 0; i < numReplicas; ++i) {
-    signers.push_back(configs[i].thresholdSignerForExecution);
-    verifiers.push_back(configs[i].thresholdVerifierForExecution);
-  }
-  if (!testThresholdCryptosystem("execution", signers, verifiers, numReplicas, execThresh)) {
-    return false;
-  }
 
   signers.clear();
   verifiers.clear();

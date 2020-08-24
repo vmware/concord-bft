@@ -54,8 +54,6 @@ class ReplicaConfigSerializer : public concord::serialize::SerializableFactory<R
   std::unique_ptr<ReplicaConfig> config_;
 
   // Place holders for shared pointers to serializable classes
-  concord::serialize::SerializablePtr thresholdSignerForExecution_;
-  concord::serialize::SerializablePtr thresholdVerifierForExecution_;
   concord::serialize::SerializablePtr thresholdSignerForSlowPathCommit_;
   concord::serialize::SerializablePtr thresholdVerifierForSlowPathCommit_;
   concord::serialize::SerializablePtr thresholdSignerForCommit_;
