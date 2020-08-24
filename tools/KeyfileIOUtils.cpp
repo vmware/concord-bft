@@ -26,7 +26,6 @@ void outputReplicaKeyfile(uint16_t numReplicas,
                           bftEngine::ReplicaConfig& config,
                           const std::string& outputFilename,
                           Cryptosystem* commonSys,
-                          Cryptosystem* execSys,
                           Cryptosystem* slowSys,
                           Cryptosystem* commitSys,
                           Cryptosystem* optSys) {
@@ -52,8 +51,7 @@ void outputReplicaKeyfile(uint16_t numReplicas,
   output << "rsa_private_key: " << config.replicaPrivateKey << "\n";
   if (commonSys) {
     commonSys->writeConfiguration(output, "common", config.replicaId);
-  } else if (execSys && slowSys && commitSys && optSys) {
-    execSys->writeConfiguration(output, "execution", config.replicaId);
+  } else if (slowSys && commitSys && optSys) {
     slowSys->writeConfiguration(output, "slow_commit", config.replicaId);
     commitSys->writeConfiguration(output, "commit", config.replicaId);
     optSys->writeConfiguration(output, "optimistic_commit", config.replicaId);
@@ -115,18 +113,15 @@ void inputReplicaKeyfile(const std::string& filename, bftEngine::ReplicaConfig& 
 
   if (config.isReadOnly) return;
 
-  std::unique_ptr<Cryptosystem> execSys(Cryptosystem::fromConfiguration(input, "execution", config.replicaId + 1));
   std::unique_ptr<Cryptosystem> slowSys(Cryptosystem::fromConfiguration(input, "slow_commit", config.replicaId + 1));
   std::unique_ptr<Cryptosystem> commitSys(Cryptosystem::fromConfiguration(input, "commit", config.replicaId + 1));
   std::unique_ptr<Cryptosystem> optSys(
       Cryptosystem::fromConfiguration(input, "optimistic_commit", config.replicaId + 1));
 
-  config.thresholdSignerForExecution = execSys->createThresholdSigner();
   config.thresholdSignerForSlowPathCommit = slowSys->createThresholdSigner();
   config.thresholdSignerForCommit = commitSys->createThresholdSigner();
   config.thresholdSignerForOptimisticCommit = optSys->createThresholdSigner();
 
-  config.thresholdVerifierForExecution = execSys->createThresholdVerifier();
   config.thresholdVerifierForSlowPathCommit = slowSys->createThresholdVerifier();
   config.thresholdVerifierForCommit = commitSys->createThresholdVerifier();
   config.thresholdVerifierForOptimisticCommit = optSys->createThresholdVerifier();
@@ -145,13 +140,11 @@ void inputReplicaKeyfileMultisig(const std::string& filename, bftEngine::Replica
   std::unique_ptr<Cryptosystem> cryptoSys(Cryptosystem::fromConfiguration(input, "common", config.replicaId + 1));
 
   // same signer for all
-  config.thresholdSignerForExecution = cryptoSys->createThresholdSigner();
-  config.thresholdSignerForSlowPathCommit = config.thresholdSignerForExecution;
-  config.thresholdSignerForCommit = config.thresholdSignerForExecution;
-  config.thresholdSignerForOptimisticCommit = config.thresholdSignerForExecution;
+  config.thresholdSignerForSlowPathCommit = cryptoSys->createThresholdSigner();
+  config.thresholdSignerForCommit = config.thresholdSignerForSlowPathCommit;
+  config.thresholdSignerForOptimisticCommit = config.thresholdSignerForSlowPathCommit;
 
   // create verifiers with required thresholds
-  config.thresholdVerifierForExecution = cryptoSys->createThresholdVerifier(config.fVal + 1);
   config.thresholdVerifierForSlowPathCommit = cryptoSys->createThresholdVerifier(config.fVal * 2 + config.cVal + 1);
   config.thresholdVerifierForCommit = cryptoSys->createThresholdVerifier(config.fVal * 3 + config.cVal + 1);
   config.thresholdVerifierForOptimisticCommit = cryptoSys->createThresholdVerifier(config.numReplicas);

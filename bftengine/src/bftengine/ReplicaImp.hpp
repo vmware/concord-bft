@@ -364,10 +364,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   const ReplicaConfig& getReplicaConfig() const override { return config_; }
 
-  virtual IThresholdVerifier* getThresholdVerifierForExecution() override {
-    return config_.thresholdVerifierForExecution;
-  }
-
   virtual IThresholdVerifier* getThresholdVerifierForSlowPathCommit() override {
     return config_.thresholdVerifierForSlowPathCommit;
   }

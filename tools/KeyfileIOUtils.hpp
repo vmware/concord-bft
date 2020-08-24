@@ -33,8 +33,6 @@
  * @param config         Replica configuration
  * @param outputFilename Filename to which output corresponds; this may be used
  *                       in giving more descriptive error messages.
- * @param execSys        Cryptosystem for consensus on execution results in this
- *                       deployment, with all keys already generated (regular replica).
  * @param slowSys        Cryptosystem for consensus on transaction commit order
  *                       in the slow path for this deployment, with all keys
  *                       already generated (regular replica).
@@ -50,7 +48,6 @@ void outputReplicaKeyfile(uint16_t numReplicas,
                           bftEngine::ReplicaConfig& config,
                           const std::string& outputFilename,
                           Cryptosystem* commonSys = nullptr,
-                          Cryptosystem* execSys = nullptr,
                           Cryptosystem* slowSys = nullptr,
                           Cryptosystem* commitSys = nullptr,
                           Cryptosystem* optSys = nullptr);

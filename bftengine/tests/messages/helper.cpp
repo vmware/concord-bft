@@ -90,8 +90,6 @@ bftEngine::ReplicaConfig createReplicaConfig() {
   config.publicKeysOfReplicas.insert(IdToKeyPair(2, publicKeyValue3));
   config.publicKeysOfReplicas.insert(IdToKeyPair(3, publicKeyValue4));
 
-  config.thresholdSignerForExecution = nullptr;
-  config.thresholdVerifierForExecution = new IThresholdVerifierDummy;
   config.thresholdSignerForSlowPathCommit = new IThresholdSignerDummy;
   config.thresholdVerifierForSlowPathCommit = new IThresholdVerifierDummy;
   config.thresholdSignerForCommit = new IThresholdSignerDummy;
@@ -103,7 +101,6 @@ bftEngine::ReplicaConfig createReplicaConfig() {
 }
 
 void destroyReplicaConfig(bftEngine::ReplicaConfig& config) {
-  delete config.thresholdVerifierForExecution;
   delete config.thresholdSignerForSlowPathCommit;
   delete config.thresholdVerifierForSlowPathCommit;
   delete config.thresholdSignerForCommit;

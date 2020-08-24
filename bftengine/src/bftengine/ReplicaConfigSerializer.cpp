@@ -120,9 +120,6 @@ void ReplicaConfigSerializer::serializeDataMembers(ostream &outStream) const {
   // Serialize replicaPrivateKey
   serializeKey(config_->replicaPrivateKey, outStream);
 
-  serializePointer(config_->thresholdSignerForExecution, outStream);
-  serializePointer(config_->thresholdVerifierForExecution, outStream);
-
   serializePointer(config_->thresholdSignerForSlowPathCommit, outStream);
   serializePointer(config_->thresholdVerifierForSlowPathCommit, outStream);
 
@@ -286,17 +283,12 @@ SerializablePtr ReplicaConfigSerializer::deserializePointer(std::istream &inStre
 }
 
 void ReplicaConfigSerializer::createSignersAndVerifiers(istream &inStream, ReplicaConfig &newObject) {
-  thresholdSignerForExecution_ = deserializePointer(inStream);
-  thresholdVerifierForExecution_ = deserializePointer(inStream);
   thresholdSignerForSlowPathCommit_ = deserializePointer(inStream);
   thresholdVerifierForSlowPathCommit_ = deserializePointer(inStream);
   thresholdSignerForCommit_ = deserializePointer(inStream);
   thresholdVerifierForCommit_ = deserializePointer(inStream);
   thresholdSignerForOptimisticCommit_ = deserializePointer(inStream);
   thresholdVerifierForOptimisticCommit_ = deserializePointer(inStream);
-
-  newObject.thresholdSignerForExecution = dynamic_cast<IThresholdSigner *>(thresholdSignerForExecution_.get());
-  newObject.thresholdVerifierForExecution = dynamic_cast<IThresholdVerifier *>(thresholdVerifierForExecution_.get());
 
   newObject.thresholdSignerForSlowPathCommit =
       dynamic_cast<IThresholdSigner *>(thresholdSignerForSlowPathCommit_.get());

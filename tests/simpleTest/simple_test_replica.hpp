@@ -180,9 +180,8 @@ class SimpleTestReplica {
       delete statePtr;
     }
 
-    delete (replicaConfig.thresholdSignerForExecution);
+    delete (replicaConfig.thresholdSignerForSlowPathCommit);
 
-    delete (replicaConfig.thresholdVerifierForExecution);
     delete (replicaConfig.thresholdVerifierForSlowPathCommit);
     delete (replicaConfig.thresholdVerifierForCommit);
     delete (replicaConfig.thresholdVerifierForOptimisticCommit);

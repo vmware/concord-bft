@@ -94,7 +94,6 @@ int main(int argc, char** argv) {
         "Each regular replica file contains all public keys for the cluster, private keys for itself.\n"
         "Each read-only replica contains only RSA public keys for the cluster.\n"
         "Optionally, for regular replica, types of cryptosystems to use can be chosen:\n"
-        "  --execution_cryptosys SYSTEM_TYPE PARAMETER\n"
         "  --slow_commit_cryptosys SYSTEM_TYPE PARAMETER\n"
         "  --commit_cryptosys SYSTEM_TYPE PARAMETER\n"
         "  --opptimistic_commit_cryptosys SYSTEM_TYPE PARAMETER\n"
@@ -123,8 +122,6 @@ int main(int argc, char** argv) {
     std::string outputPrefix;
     bool useMultisig = false;
 
-    std::string execType = MULTISIG_BLS_SCHEME;
-    std::string execParam = "BN-P254";
     std::string slowType = MULTISIG_BLS_SCHEME;
     std::string slowParam = "BN-P254";
     std::string commitType = MULTISIG_BLS_SCHEME;
@@ -151,10 +148,6 @@ int main(int argc, char** argv) {
         outputPrefix = argv[i++ + 1];
       } else if (option == "-m") {
         useMultisig = true;
-      } else if (option == "--execution_cryptosys") {
-        if (i >= argc - 2) throw std::runtime_error("Expected 2 arguments to --execution_cryptosys");
-        execType = argv[i++ + 1];
-        execParam = argv[i++ + 1];
       } else if (option == "--slow_commit_cryptosys") {
         if (i >= argc - 2) throw std::runtime_error("Expected 2 arguments to --slow_commit_cryptosys");
         slowType = argv[i++ + 1];
@@ -205,16 +198,13 @@ int main(int argc, char** argv) {
     }
 
     if (!useMultisig) {
-      uint16_t execThresh = config.fVal + 1;
       uint16_t slowThresh = config.fVal * 2 + config.cVal + 1;
       uint16_t commitThresh = config.fVal * 3 + config.cVal + 1;
       uint16_t optThresh = n;
-      Cryptosystem execSys(execType, execParam, n, execThresh);
       Cryptosystem slowSys(slowType, slowParam, n, slowThresh);
       Cryptosystem commitSys(commitType, commitParam, n, commitThresh);
       Cryptosystem optSys(optType, optParam, n, optThresh);
 
-      execSys.generateNewPseudorandomKeys();
       slowSys.generateNewPseudorandomKeys();
       commitSys.generateNewPseudorandomKeys();
       optSys.generateNewPseudorandomKeys();
@@ -222,8 +212,7 @@ int main(int argc, char** argv) {
       for (uint16_t i = 0; i < n; ++i) {
         config.replicaId = i;
         config.replicaPrivateKey = rsaKeys[i].first;
-        outputReplicaKeyfile(
-            n, ro, config, outputPrefix + std::to_string(i), nullptr, &execSys, &slowSys, &commitSys, &optSys);
+        outputReplicaKeyfile(n, ro, config, outputPrefix + std::to_string(i), nullptr, &slowSys, &commitSys, &optSys);
       }
     } else {
       // We want to generate public key for n-out-of-n case
