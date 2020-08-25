@@ -23,7 +23,7 @@ namespace bftEngine
 
 		Time getMonotonicTime()
 		{
-			std::chrono::steady_clock::time_point curTimePoint = std::chrono::steady_clock::now();
+			std::chrono::system_clock::time_point curTimePoint = std::chrono::system_clock::now();
 
 			auto timeSinceEpoch = curTimePoint.time_since_epoch();
 
