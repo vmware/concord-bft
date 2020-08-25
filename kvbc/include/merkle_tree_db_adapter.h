@@ -48,13 +48,18 @@ namespace concord::kvbc::v2MerkleTree {
 // getLastReachableBlockId() + 1. Additionally, ReachableSTBlock <= getLatestBlockId().
 class DBAdapter : public IDbAdapter {
  public:
-  // The constructor will try to link the blockchain with any blocks in the temporary state transfer chain. This is done
-  // so that the DBAdapter will operate correctly in case a crash or an abnormal shutdown has occurred prior to startup
-  // (construction). Only a single DBAdapter instance should operate on a database and access to all methods
-  // should be either done from a single thread or serialized via a mutex or another mechanism. The constructor throws
-  // if an error occurs.
-  // Note: The passed DB client must be initialized beforehand.
-  DBAdapter(const std::shared_ptr<concord::storage::IDBClient> &db);
+  // Unless explicitly turned off, the constructor will try to link the blockchain with any blocks in the temporary
+  // state transfer chain. This is done so that the DBAdapter will operate correctly in case a crash or an abnormal
+  // shutdown has occurred prior to startup (construction). Only a single DBAdapter instance should operate on a
+  // database and access to all methods should be either done from a single thread or serialized via a mutex or another
+  // mechanism. The constructor throws if an error occurs.
+  // Note1: The passed DB client must be initialized beforehand.
+  // Note2: The 'linkTempSTChain' parameter turns of chain linking and is used for testing/tooling purposes.
+  DBAdapter(const std::shared_ptr<concord::storage::IDBClient> &db, bool linkTempSTChain = true);
+
+  // Make the adapter non-copyable.
+  DBAdapter(const DBAdapter &) = delete;
+  DBAdapter &operator=(const DBAdapter &) = delete;
 
   // Adds a block to the end of the blockchain from a set of key/value pairs and a set of keys to delete. If a key is
   // present in both 'updates' and 'deletes' parameters, it will be present in the block with the value passed in

@@ -15,6 +15,7 @@
 
 #include "json_output.hpp"
 
+#include <assertUtils.hpp>
 #include "hex_tools.h"
 #include "merkle_tree_block.h"
 #include "merkle_tree_db_adapter.h"
@@ -29,6 +30,7 @@
 #include <iterator>
 #include <map>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -38,6 +40,9 @@
 namespace concord::kvbc::tools::sparse_merkle_db {
 
 using namespace std::string_literals;
+
+inline const auto kToolName = "sparse_merkle_db_editor"s;
+
 template <typename Tag>
 struct Arguments {
   std::vector<std::string> values;
@@ -56,6 +61,15 @@ inline auto toBlockId(const std::string &s) {
   return kvbc::BlockId{std::stoull(s, nullptr)};
 }
 
+inline v2MerkleTree::DBAdapter getAdapter(const std::string &path, bool read_only = false) {
+  auto db = std::make_shared<storage::rocksdb::Client>(path);
+  db->init(read_only);
+
+  // Make sure we don't link the temporary ST chain as we don't want to change the DB in any way.
+  const auto link_temp_st_chain = false;
+  return v2MerkleTree::DBAdapter{db, link_temp_st_chain};
+}
+
 struct GetGenesisBlockID {
   std::string description() const {
     return "getGenesisBlockID\n"
@@ -71,6 +85,7 @@ struct GetLastReachableBlockID {
     return "getLastReachableBlockID\n"
            "  Returns the last reachable block ID";
   }
+
   std::string execute(const v2MerkleTree::DBAdapter &adapter, const CommandArguments &) const {
     return toJson("lastReachableBlockID", adapter.getLastReachableBlockId());
   }
@@ -81,6 +96,7 @@ struct GetLastBlockID {
     return "getLastBlockID\n"
            " Returns the last block ID";
   }
+
   std::string execute(const v2MerkleTree::DBAdapter &adapter, const CommandArguments &) const {
     return toJson("lastBlockID", adapter.getLatestBlockId());
   }
@@ -91,6 +107,7 @@ struct GetRawBlock {
     return "getRawBlock BLOCK-ID\n"
            "  Returns a serialized raw block (encoded in hex).";
   }
+
   std::string execute(const v2MerkleTree::DBAdapter &adapter, const CommandArguments &args) const {
     if (args.values.empty()) {
       throw std::invalid_argument{"Missing BLOCK-ID argument"};
@@ -103,9 +120,9 @@ struct GetRawBlock {
 struct GetRawBlockRange {
   std::string description() const {
     return "getRawBlockRange BLOCK-ID-START BLOCK-ID-END\n"
-           "  Returns a list of serialized raw blocks (encoded in hex) in the "
-           "  [BLOCK-ID-START, BLOCK-ID-END) range.";
+           "  Returns a list of serialized raw blocks (encoded in hex) in the [BLOCK-ID-START, BLOCK-ID-END) range.";
   }
+
   std::string execute(const v2MerkleTree::DBAdapter &adapter, const CommandArguments &args) const {
     if (args.values.size() < 2) {
       throw std::invalid_argument{"Missing or invalid block range"};
@@ -133,6 +150,7 @@ struct GetBlockInfo {
     return "getBlockInfo BLOCK-ID\n"
            "  Returns information about the requested block (excluding its key-values).";
   }
+
   std::string execute(const v2MerkleTree::DBAdapter &adapter, const CommandArguments &args) const {
     if (args.values.empty()) {
       throw std::invalid_argument{"Missing BLOCK-ID argument"};
@@ -153,6 +171,7 @@ struct GetBlockKeyValues {
     return "getBlockKeyValues BLOCK-ID\n"
            "  Returns the block's key-values.";
   }
+
   std::string execute(const v2MerkleTree::DBAdapter &adapter, const CommandArguments &args) const {
     if (args.values.empty()) {
       throw std::invalid_argument{"Missing BLOCK-ID argument"};
@@ -170,6 +189,7 @@ struct GetValue {
            "  (if existing). If the key doesn't exist at BLOCK-VERSION, but exists at an\n"
            "  earlier version, its value at the earlier version will be returned.";
   }
+
   std::string execute(const v2MerkleTree::DBAdapter &adapter, const CommandArguments &args) const {
     if (args.values.empty()) {
       throw std::invalid_argument{"Missing HEX-KEY argument"};
@@ -185,11 +205,88 @@ struct GetValue {
   }
 };
 
+struct CompareTo {
+  std::string description() const {
+    return "compareTo PATH-TO-OTHER-DB\n"
+           "  Compares the passed DB at PATH-TO-DB to the one in PATH-TO-OTHER-DB.\n"
+           "  Returns the ID of the first mismatching block, if such exists, in the overlapping \n"
+           "  range found in the two databases. If there is no overlapping range in the \n"
+           "  databases, no comparison is made.";
+  }
+
+  std::string execute(const v2MerkleTree::DBAdapter &main_adapter, const CommandArguments &args) const {
+    if (args.values.empty()) {
+      throw std::invalid_argument{"Missing PATH-TO-OTHER-DB argument"};
+    }
+
+    const auto read_only = true;
+    const auto other_adapter = getAdapter(args.values.front(), read_only);
+
+    const auto main_genesis = main_adapter.getGenesisBlockId();
+    const auto other_genesis = other_adapter.getGenesisBlockId();
+    const auto compared_range_first_block_id = std::max(main_genesis, other_genesis);
+
+    const auto main_last_reachable = main_adapter.getLastReachableBlockId();
+    const auto other_last_reachable = other_adapter.getLastReachableBlockId();
+    const auto compared_range_last_block_id = std::min(main_last_reachable, other_last_reachable);
+
+    auto result = std::map<std::string, std::string>{
+        std::make_pair("mainGenesisBlockId", std::to_string(main_genesis)),
+        std::make_pair("otherGenesisBlockId", std::to_string(other_genesis)),
+        std::make_pair("mainLastReachableBlockId", std::to_string(main_last_reachable)),
+        std::make_pair("otherLastReachableBlockId", std::to_string(other_last_reachable))};
+
+    if (compared_range_first_block_id > compared_range_last_block_id) {
+      result["result"] = "no-overlap";
+      return toJson(result);
+    }
+
+    result["comparedRangeFirstBlockId"] = std::to_string(compared_range_first_block_id);
+    result["comparedRangeLastBlockId"] = std::to_string(compared_range_last_block_id);
+
+    const auto mismatch =
+        firstMismatch(compared_range_first_block_id, compared_range_last_block_id, main_adapter, other_adapter);
+    if (mismatch) {
+      result["result"] = "mismatch";
+      result["firstMismatchingBlockId"] = std::to_string(*mismatch);
+    } else {
+      result["result"] = "equivalent";
+    }
+
+    return toJson(result);
+  }
+
+ private:
+  static std::optional<BlockId> firstMismatch(BlockId left,
+                                              BlockId right,
+                                              const v2MerkleTree::DBAdapter &adapter1,
+                                              const v2MerkleTree::DBAdapter &adapter2) {
+    ConcordAssertGT(left, 0);
+    ConcordAssertGE(right, left);
+    auto mismatch = std::optional<BlockId>{};
+    // Exploit the blockchain property - if a block is different, try to search for earlier differences to the left.
+    // Otherwise, go right.
+    while (left <= right) {
+      auto current = (right - left) / 2 + left;
+      const auto raw1 = adapter1.getRawBlock(current);
+      const auto raw2 = adapter2.getRawBlock(current);
+      if (raw1 != raw2) {
+        mismatch = current;
+        right = current - 1;
+      } else {
+        left = current + 1;
+      }
+    }
+    return mismatch;
+  }
+};
+
 struct RemoveMetadata {
   std::string description() const {
     return "removeMetadata\n"
-           "Removes metadata and state transfer data from RocksDB";
+           "  Removes metadata and state transfer data from RocksDB.";
   }
+
   std::string execute(const v2MerkleTree::DBAdapter &adapter, const CommandArguments &) const {
     using storage::v2MerkleTree::detail::EDBKeyType;
 
@@ -215,6 +312,7 @@ using Command = std::variant<GetGenesisBlockID,
                              GetBlockInfo,
                              GetBlockKeyValues,
                              GetValue,
+                             CompareTo,
                              RemoveMetadata>;
 inline const auto commands_map = std::map<std::string, Command>{
     std::make_pair("getGenesisBlockID", GetGenesisBlockID{}),
@@ -225,26 +323,26 @@ inline const auto commands_map = std::map<std::string, Command>{
     std::make_pair("getBlockInfo", GetBlockInfo{}),
     std::make_pair("getBlockKeyValues", GetBlockKeyValues{}),
     std::make_pair("getValue", GetValue{}),
+    std::make_pair("compareTo", CompareTo{}),
     std::make_pair("removeMetadata", RemoveMetadata{}),
 };
 
 inline std::string usage() {
-  auto ret =
-      "Usage: sparse_merkle_db_inspector PATH-TO-DB COMMAND [ARGUMENTS]...\n"
-      "Supported commands:\n"s;
+  auto ret = "Usage: " + kToolName + " PATH-TO-DB COMMAND [ARGUMENTS]...\n\n";
+  ret += "Supported commands:\n\n";
+
   for (const auto &kv : commands_map) {
-    std::visit([&ret](const auto &command) { ret += command.description(); }, kv.second);
+    ret += std::visit([](const auto &command) { return command.description(); }, kv.second);
     ret += "\n\n";
   }
 
-  ret +=
-      "Examples:\n"
-      "  sparse_merkle_db_inspector /rocksdb-path getGenesisBlockID\n"
-      "  sparse_merkle_db_inspector /rocksdb-path getRawBlock 42\n"
-      "  sparse_merkle_db_inspector /rocksdb-path getValue 0x0a0b0c\n"
-      "  sparse_merkle_db_inspector /rocksdb-path getValue 0x0a0b0c 42";
+  ret += "Examples:\n";
+  ret += "  " + kToolName + " /rocksdb-path getGenesisBlockID\n";
+  ret += "  " + kToolName + " /rocksdb-path getRawBlock 42\n";
+  ret += "  " + kToolName + " /rocksdb-path getValue 0x0a0b0c\n";
+  ret += "  " + kToolName + " /rocksdb-path getValue 0x0a0b0c 42\n";
 
-  return ret + '\n';
+  return ret;
 }
 
 inline constexpr auto kMinCmdLineArguments = 3ull;
@@ -278,11 +376,7 @@ inline int run(const CommandLineArguments &cmd_line_args, std::ostream &out, std
   }
 
   try {
-    auto db = std::make_shared<storage::rocksdb::Client>(cmd_line_args.values[1]);
-    const auto read_only = false;
-    db->init(read_only);
-
-    auto adapter = v2MerkleTree::DBAdapter{db};
+    auto adapter = getAdapter(cmd_line_args.values[1]);
     const auto output =
         std::visit([&](const auto &command) { return command.execute(adapter, command_arguments(cmd_line_args)); },
                    cmd_it->second);

@@ -109,7 +109,7 @@ void add(KeysVector &to, const KeysVector &src) { to.insert(std::end(to), std::c
 
 }  // namespace
 
-DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db)
+DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db, bool linkTempSTChain)
     : logger_{logging::getLogger("concord.kvbc.v2MerkleTree.DBAdapter")},
       // The smTree_ member needs an initialized DB. Therefore, do that in the initializer list before constructing
       // smTree_ .
@@ -117,12 +117,14 @@ DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db)
       smTree_{std::make_shared<Reader>(*this)},
       commitSizeSummary_{concordMetrics::StatisticsFactory::get().createSummary(
           "merkleTreeCommitSizeSummary", {{0.25, 0.1}, {0.5, 0.1}, {0.75, 0.1}, {0.9, 0.1}})} {
-  // Make sure that if linkSTChainFrom() has been interrupted (e.g. a crash or an abnormal shutdown), all DBAdapter
-  // methods will return the correct values. For example, if state transfer had completed and linkSTChainFrom() was
-  // interrupted, getLatestBlockId() should be equal to getLastReachableBlockId() on the next startup. Another example
-  // is getKeyByReadVersion() that returns keys from the blockchain only and ignores keys in the temporary state
-  // transfer chain.
-  linkSTChainFrom(getLastReachableBlockId() + 1);
+  if (linkTempSTChain) {
+    // Make sure that if linkSTChainFrom() has been interrupted (e.g. a crash or an abnormal shutdown), all DBAdapter
+    // methods will return the correct values. For example, if state transfer had completed and linkSTChainFrom() was
+    // interrupted, getLatestBlockId() should be equal to getLastReachableBlockId() on the next startup. Another example
+    // is getValue() that returns keys from the blockchain only and ignores keys in the temporary state
+    // transfer chain.
+    linkSTChainFrom(getLastReachableBlockId() + 1);
+  }
 }
 
 std::pair<Value, BlockId> DBAdapter::getValue(const Key &key, const BlockId &blockVersion) const {

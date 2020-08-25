@@ -30,19 +30,21 @@ namespace fs = std::experimental::filesystem;
 #error "Missing filesystem support"
 #endif
 
+inline constexpr auto defaultDbId = std::size_t{0};
+
 #ifdef USE_ROCKSDB
 inline const auto rocksDbPathPrefix = std::string{"/tmp/sparse_merkle_storage_test_rocksdb"};
 
 // Support multithreaded runs by appending the thread ID to the RocksDB path.
-inline std::string rocksDbPath() {
+inline std::string rocksDbPath(std::size_t dbId) {
   std::stringstream ss;
-  ss << '_' << getpid() << '_' << std::this_thread::get_id();
+  ss << '_' << dbId << '_' << getpid() << '_' << std::this_thread::get_id();
   return rocksDbPathPrefix + ss.str();
 }
 
-inline void cleanup() { fs::remove_all(rocksDbPath()); }
+inline void cleanup(std::size_t dbId = defaultDbId) { fs::remove_all(rocksDbPath(dbId)); }
 #else
-inline void cleanup() {}
+inline void cleanup(std::size_t = defaultDbId) {}
 #endif
 
 inline ::concord::kvbc::BlockDigest blockDigest(concord::kvbc::BlockId blockId, const concordUtils::Sliver &block) {
@@ -50,25 +52,27 @@ inline ::concord::kvbc::BlockDigest blockDigest(concord::kvbc::BlockId blockId, 
 }
 
 struct TestMemoryDb {
-  static std::shared_ptr<concord::storage::IDBClient> create() {
-    cleanup();
+  static std::shared_ptr<concord::storage::IDBClient> create(std::size_t dbId = defaultDbId) {
     auto db = std::make_shared<concord::storage::memorydb::Client>();
     db->init();
     return db;
   }
+
+  static void cleanup(std::size_t = defaultDbId) {}
 
   static std::string type() { return "memorydb"; }
 };
 
 #ifdef USE_ROCKSDB
 struct TestRocksDb {
-  static std::shared_ptr<::concord::storage::IDBClient> create() {
-    cleanup();
+  static std::shared_ptr<::concord::storage::IDBClient> create(std::size_t dbId = defaultDbId) {
     // Create the RocksDB client with the default lexicographical comparator.
-    auto db = std::make_shared<::concord::storage::rocksdb::Client>(rocksDbPath());
+    auto db = std::make_shared<::concord::storage::rocksdb::Client>(rocksDbPath(dbId));
     db->init();
     return db;
   }
+
+  static void cleanup(std::size_t dbId = defaultDbId) { ::cleanup(dbId); }
 
   static std::string type() { return "RocksDB"; }
 };
