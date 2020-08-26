@@ -180,7 +180,7 @@ bool PreProcessor::checkClientMsgCorrectness(const ClientPreProcessReqMsgUniqueP
                                              ReqId reqSeqNum) const {
   if (myReplica_.isCollectingState()) {
     LOG_INFO(logger(),
-             "ClientPreProcessRequestMsg "
+             "ClientPreProcessRequestMsg"
                  << KVLOG(reqSeqNum)
                  << " is ignored because the replica is collecting missing state from other replicas");
     return false;
@@ -240,22 +240,20 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
     lock_guard<mutex> lock(clientEntry->mutex);
     if (clientEntry->reqProcessingStatePtr) {
       const ReqId &ongoingReqSeqNum = clientEntry->reqProcessingStatePtr->getReqSeqNum();
-      LOG_DEBUG(logger(),
-                KVLOG(reqSeqNum, clientId) << " is ignored: " << KVLOG(ongoingReqSeqNum) << " is in progress");
+      LOG_DEBUG(logger(), KVLOG(reqSeqNum, clientId) << " is ignored:" << KVLOG(ongoingReqSeqNum) << " is in progress");
       preProcessorMetrics_.preProcReqIgnored.Get().Inc();
       return;
     }
   }
   const ReqId &seqNumberOfLastReply = myReplica_.seqNumberOfLastReplyToClient(clientId);
   LOG_INFO(logger(),
-           "Going to process ClientPreProcessRequestMsg "
+           "Going to process ClientPreProcessRequestMsg"
                << KVLOG(reqSeqNum, clientId, senderId)
                << ", reqTimeoutMilli: " << clientPreProcessReqMsg->requestTimeoutMilli());
   if (seqNumberOfLastReply < reqSeqNum) {
     // Verify that request is not passing consensus/PostExec right now
     if (myReplica_.isCurrentPrimary() && myReplica_.isClientRequestInProcess(clientId, reqSeqNum)) {
-      LOG_INFO(logger(),
-               "ClientPreProcessRequestMsg " << KVLOG(reqSeqNum) << " has been processing right now - ignore");
+      LOG_INFO(logger(), "ClientPreProcessRequestMsg" << KVLOG(reqSeqNum) << " has been processing right now - ignore");
       return;
     }
     return handleClientPreProcessRequest(move(clientPreProcessReqMsg));
@@ -263,13 +261,13 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
 
   if (seqNumberOfLastReply == reqSeqNum) {
     LOG_INFO(logger(),
-             "ClientPreProcessRequestMsg "
+             "ClientPreProcessRequestMsg"
                  << KVLOG(reqSeqNum) << " has already been executed - let replica to decide how to proceed further");
     return incomingMsgsStorage_->pushExternalMsg(clientPreProcessReqMsg->convertToClientRequestMsg(false));
   }
 
   LOG_INFO(logger(),
-           "ClientPreProcessRequestMsg " << KVLOG(reqSeqNum) << " is ignored because request is old/duplicated");
+           "ClientPreProcessRequestMsg" << KVLOG(reqSeqNum) << " is ignored because request is old/duplicated");
   preProcessorMetrics_.preProcReqIgnored.Get().Inc();
 }
 
@@ -281,12 +279,12 @@ void PreProcessor::onMessage<PreProcessRequestMsg>(PreProcessRequestMsg *msg) {
   const NodeIdType &senderId = preProcessReqMsg->senderId();
   const SeqNum &reqSeqNum = preProcessReqMsg->reqSeqNum();
   const NodeIdType &clientId = preProcessReqMsg->clientId();
-  LOG_DEBUG(logger(), "Received PreProcessRequestMsg " << KVLOG(reqSeqNum, senderId, clientId));
+  LOG_DEBUG(logger(), "Received PreProcessRequestMsg" << KVLOG(reqSeqNum, senderId, clientId));
 
   if (myReplica_.isCurrentPrimary()) return;
 
   if (!myReplica_.currentViewIsActive()) {
-    LOG_INFO(logger(), "PreProcessRequestMsg is ignored because current view is inactive, " << KVLOG(reqSeqNum));
+    LOG_INFO(logger(), "PreProcessRequestMsg is ignored because current view is inactive," << KVLOG(reqSeqNum));
     return;
   }
   {
@@ -317,7 +315,7 @@ void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *msg) {
   PreProcessingResult result = CANCEL;
   {
     SCOPED_MDC_CID(cid);
-    LOG_DEBUG(logger(), "Received PreProcessReplyMsg " << KVLOG(reqSeqNum, senderId, clientId));
+    LOG_DEBUG(logger(), "Received PreProcessReplyMsg" << KVLOG(reqSeqNum, senderId, clientId));
     const auto &clientEntry = ongoingRequests_[clientId];
     lock_guard<mutex> lock(clientEntry->mutex);
     if (!clientEntry->reqProcessingStatePtr || clientEntry->reqProcessingStatePtr->getReqSeqNum() != reqSeqNum) {
@@ -353,7 +351,7 @@ void PreProcessor::handlePreProcessReplyMsg(const string &cid,
       cancelPreProcessing(clientId);
       break;
     case RETRY_PRIMARY:  // Primary replica generated pre-processing result hash different that one passed consensus
-      LOG_INFO(logger(), "Retry primary replica pre-processing for " << KVLOG(reqSeqNum, clientId));
+      LOG_INFO(logger(), "Retry primary replica pre-processing for" << KVLOG(reqSeqNum, clientId));
       PreProcessRequestMsgSharedPtr preProcessRequestMsg;
       {
         const auto &clientEntry = ongoingRequests_[clientId];
@@ -374,9 +372,9 @@ void PreProcessor::cancelPreProcessing(NodeIdType clientId) {
     if (clientEntry->reqProcessingStatePtr) {
       reqSeqNum = clientEntry->reqProcessingStatePtr->getReqSeqNum();
       releaseClientPreProcessRequest(clientEntry, clientId, CANCEL);
-      LOG_WARN(logger(), "Pre-processing consensus not reached - abort request " << KVLOG(reqSeqNum, clientId));
+      LOG_WARN(logger(), "Pre-processing consensus not reached - abort request" << KVLOG(reqSeqNum, clientId));
     } else
-      LOG_INFO(logger(), "No ongoing pre-processing activity detected for " << KVLOG(clientId));
+      LOG_INFO(logger(), "No ongoing pre-processing activity detected for" << KVLOG(clientId));
   }
 }
 
@@ -401,7 +399,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId) {
       incomingMsgsStorage_->pushExternalMsg(move(clientRequestMsg));
       preProcessorMetrics_.preProcReqSentForFurtherProcessing.Get().Inc();
       releaseClientPreProcessRequest(clientEntry, clientId, COMPLETE);
-      LOG_INFO(logger(), "Pre-processing completed for " << KVLOG(cid, reqSeqNum, clientId));
+      LOG_INFO(logger(), "Pre-processing completed for" << KVLOG(cid, reqSeqNum, clientId));
     }
   }
 }
@@ -435,7 +433,7 @@ bool PreProcessor::registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
       clientEntry->reqProcessingStatePtr->setPreProcessRequest(preProcessRequestMsg);
     else {
       LOG_INFO(logger(),
-               KVLOG(reqSeqNum) << " could not be registered: the entry for " << KVLOG(clientId)
+               KVLOG(reqSeqNum) << " could not be registered: the entry for" << KVLOG(clientId)
                                 << " is occupied by reqSeqNum: " << clientEntry->reqProcessingStatePtr->getReqSeqNum());
       return false;
     }
@@ -479,7 +477,7 @@ void PreProcessor::releaseClientPreProcessRequest(const ClientRequestStateShared
 void PreProcessor::sendMsg(char *msg, NodeIdType dest, uint16_t msgType, MsgSize msgSize) {
   int errorCode = msgsCommunicator_->sendAsyncMessage(dest, msg, msgSize);
   if (errorCode != 0) {
-    LOG_ERROR(logger(), "sendMsg: sendAsyncMessage returned error: " << errorCode << " for " << KVLOG(msgType));
+    LOG_ERROR(logger(), "sendMsg: sendAsyncMessage returned error: " << errorCode << " for" << KVLOG(msgType));
   }
 }
 
@@ -578,7 +576,7 @@ PreProcessingResult PreProcessor::getPreProcessingConsensusResult(uint16_t clien
   lock_guard<mutex> lock(clientEntry->mutex);
   if (clientEntry->reqProcessingStatePtr)
     return clientEntry->reqProcessingStatePtr->definePreProcessingConsensusResult();
-  LOG_INFO(logger(), "No ongoing pre-processing activity detected for " << KVLOG(clientId));
+  LOG_INFO(logger(), "No ongoing pre-processing activity detected for" << KVLOG(clientId));
   return NONE;
 }
 
@@ -623,9 +621,9 @@ void PreProcessor::handlePreProcessedReqByNonPrimary(uint16_t clientId,
   releaseClientPreProcessRequestSafe(clientId, COMPLETE);
   sendMsg(replyMsg->body(), myReplica_.currentPrimary(), replyMsg->type(), replyMsg->size());
   SCOPED_MDC_CID(cid);
-  LOG_DEBUG(logger(),
-            "Sent PreProcessReplyMsg with " << KVLOG(reqSeqNum)
-                                            << " to the primary replica: " << myReplica_.currentPrimary());
+  LOG_DEBUG(
+      logger(),
+      "Sent PreProcessReplyMsg with" << KVLOG(reqSeqNum) << " to the primary replica: " << myReplica_.currentPrimary());
 }
 
 void PreProcessor::handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
