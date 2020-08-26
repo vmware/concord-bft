@@ -100,6 +100,7 @@ class PreProcessor {
                                       bool isPrimary,
                                       bool isRetry);
   uint32_t launchReqPreProcessing(uint16_t clientId,
+                                  const std::string &cid,
                                   ReqId reqSeqNum,
                                   uint32_t reqLength,
                                   char *reqBuf,
