@@ -251,7 +251,15 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
            "Going to process ClientPreProcessRequestMsg "
                << KVLOG(reqSeqNum, clientId, senderId)
                << ", reqTimeoutMilli: " << clientPreProcessReqMsg->requestTimeoutMilli());
-  if (seqNumberOfLastReply < reqSeqNum) return handleClientPreProcessRequest(move(clientPreProcessReqMsg));
+  if (seqNumberOfLastReply < reqSeqNum) {
+    // Verify that request is not passing consensus/PostExec right now
+    if (myReplica_.isCurrentPrimary() && myReplica_.isClientRequestInProcess(clientId, reqSeqNum)) {
+      LOG_INFO(logger(),
+               "ClientPreProcessRequestMsg " << KVLOG(reqSeqNum) << " has been processing right now - ignore");
+      return;
+    }
+    return handleClientPreProcessRequest(move(clientPreProcessReqMsg));
+  }
 
   if (seqNumberOfLastReply == reqSeqNum) {
     LOG_INFO(logger(),
