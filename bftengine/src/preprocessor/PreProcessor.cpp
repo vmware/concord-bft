@@ -567,9 +567,8 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
                                          replicaSpecificInfoLen,
                                          span);
   if (status != 0 || !resultLen) {
-    throw std::runtime_error("Pre-execution failed for clientId: " + to_string(clientId) + ", cid: " + cid +
-                             ", requestSeqNum: " + to_string(reqSeqNum) + ", status: " + to_string(status) +
-                             ", resultLen: " + to_string(resultLen));
+    LOG_FATAL(logger(), "Pre-execution failed!" << KVLOG(clientId, cid, reqSeqNum, status, resultLen));
+    ConcordAssert(false);
   }
   return resultLen;
 }
