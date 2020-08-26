@@ -39,6 +39,7 @@ class InternalReplicaApi  // TODO(GG): rename + clean + split to several classes
   virtual bool isCurrentPrimary() const = 0;
   virtual bool currentViewIsActive() const = 0;
   virtual ReqId seqNumberOfLastReplyToClient(NodeIdType clientId) const = 0;
+  virtual bool isClientRequestInProcess(NodeIdType clientId, ReqId reqSeqNum) const = 0;
 
   virtual IncomingMsgsStorage& getIncomingMsgsStorage() = 0;
   virtual util::SimpleThreadPool& getInternalThreadPool() = 0;

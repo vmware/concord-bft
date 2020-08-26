@@ -92,14 +92,15 @@ class DummyReplica : public InternalReplicaApi {
   explicit DummyReplica(bftEngine::impl::ReplicasInfo replicasInfo) : replicasInfo_(move(replicasInfo)) {}
 
   const bftEngine::impl::ReplicasInfo& getReplicasInfo() const override { return replicasInfo_; }
-  bool isValidClient(NodeIdType client) const override { return true; }
-  bool isIdOfReplica(NodeIdType id) const override { return false; }
+  bool isValidClient(NodeIdType) const override { return true; }
+  bool isIdOfReplica(NodeIdType) const override { return false; }
   const set<ReplicaId>& getIdsOfPeerReplicas() const override { return replicaIds_; }
   ViewNum getCurrentView() const override { return 0; }
   ReplicaId currentPrimary() const override { return replicaConfig.replicaId; }
   bool isCurrentPrimary() const override { return primary_; }
   bool currentViewIsActive() const override { return true; }
-  ReqId seqNumberOfLastReplyToClient(NodeIdType client) const override { return 1; }
+  ReqId seqNumberOfLastReplyToClient(NodeIdType) const override { return 1; }
+  bool isClientRequestInProcess(NodeIdType, ReqId) const override { return false; }
 
   IncomingMsgsStorage& getIncomingMsgsStorage() override { return *incomingMsgsStorage_; }
   util::SimpleThreadPool& getInternalThreadPool() override { return pool_; }

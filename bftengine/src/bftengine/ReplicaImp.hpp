@@ -261,6 +261,9 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   ReqId seqNumberOfLastReplyToClient(NodeIdType clientId) const override {
     return clientsManager->seqNumberOfLastReplyToClient(clientId);
   }
+  bool isClientRequestInProcess(NodeIdType clientId, ReqId reqSeqNum) const override {
+    return !clientsManager->noPendingAndRequestCanBecomePending(clientId, reqSeqNum);
+  }
 
  protected:
   ReplicaImp(bool firstTime,
