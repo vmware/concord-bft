@@ -99,7 +99,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       requestsHandler_(requestsHandler),
       myReplica_(myReplica),
       myReplicaId_(myReplica.getReplicaConfig().replicaId),
-      maxPreExecResultSize_(myReplica.getReplicaConfig().preExecMaxResultSize),
+      maxPreExecResultSize_(myReplica.getReplicaConfig().maxReplyMessageSize - sizeof(ClientReplyMsgHeader)),
       idsOfPeerReplicas_(myReplica.getIdsOfPeerReplicas()),
       numOfReplicas_(myReplica.getReplicaConfig().numReplicas),
       numOfClients_(myReplica.getReplicaConfig().numOfExternalClients +
@@ -539,6 +539,7 @@ void PreProcessor::launchAsyncReqPreProcessingJob(const PreProcessRequestMsgShar
 }
 
 uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
+                                              const string &cid,
                                               ReqId reqSeqNum,
                                               uint32_t reqLength,
                                               char *reqBuf,
@@ -558,7 +559,7 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
                                          replicaSpecificInfoLen,
                                          span);
   if (status != 0 || !resultLen) {
-    throw std::runtime_error("Pre-execution failed for clientId: " + to_string(clientId) +
+    throw std::runtime_error("Pre-execution failed for clientId: " + to_string(clientId) + ", cid: " + cid +
                              ", requestSeqNum: " + to_string(reqSeqNum) + ", status: " + to_string(status) +
                              ", resultLen: " + to_string(resultLen));
   }
@@ -623,12 +624,13 @@ void PreProcessor::handlePreProcessedReqByNonPrimary(uint16_t clientId,
 void PreProcessor::handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                              bool isPrimary,
                                              bool isRetry) {
-  SCOPED_MDC_CID(preProcessReqMsg->getCid());
+  const string cid = preProcessReqMsg->getCid();
+  SCOPED_MDC_CID(cid);
   const uint16_t &clientId = preProcessReqMsg->clientId();
   const SeqNum &reqSeqNum = preProcessReqMsg->reqSeqNum();
   const auto &span_context = preProcessReqMsg->spanContext<PreProcessRequestMsgSharedPtr::element_type>();
   uint32_t actualResultBufLen = launchReqPreProcessing(
-      clientId, reqSeqNum, preProcessReqMsg->requestLength(), preProcessReqMsg->requestBuf(), span_context);
+      clientId, cid, reqSeqNum, preProcessReqMsg->requestLength(), preProcessReqMsg->requestBuf(), span_context);
   if (isPrimary && isRetry) {
     handlePreProcessedReqPrimaryRetry(clientId);
     return;
