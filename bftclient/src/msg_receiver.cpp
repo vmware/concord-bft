@@ -68,8 +68,8 @@ void MsgReceiver::onNewMessage(const bft::communication::NodeNum source,
   metadata.primary = ReplicaId{header->currentPrimaryId};
   metadata.seq_num = header->reqSeqNum;
 
-  auto data_len = header->replyLength - sizeof(bftEngine::ClientReplyMsgHeader);
-  const char* start_of_body = message + sizeof(bftEngine::ClientReplyMsgHeader);
+  auto data_len = header->replyLength;
+  const char* start_of_body = message + sizeof(bftEngine::ClientReplyMsgHeader) + header->spanContextSize;
   const char* start_of_rsi = start_of_body + (data_len - header->replicaSpecificInfoLength);
   const char* end_of_rsi = start_of_rsi + header->replicaSpecificInfoLength;
 

@@ -161,7 +161,7 @@ Msg replyFromRequest(const MsgFromClient& request) {
   reply_header->currentPrimaryId = 0;
   reply_header->msgType = REPLY_MSG_TYPE;
   reply_header->replicaSpecificInfoLength = 0;
-  reply_header->replyLength = reply.size();
+  reply_header->replyLength = reply_data.size();
   reply_header->reqSeqNum = req_header->reqSeqNum;
   reply_header->spanContextSize = 0;
 
@@ -181,7 +181,7 @@ Msg replyFromRequestWithRSI(const MsgFromClient& request, const Msg& rsi) {
   reply_header->currentPrimaryId = 0;
   reply_header->msgType = REPLY_MSG_TYPE;
   reply_header->replicaSpecificInfoLength = rsi.size();
-  reply_header->replyLength = reply.size();
+  reply_header->replyLength = reply_data.size() + rsi.size();
   reply_header->reqSeqNum = req_header->reqSeqNum;
   reply_header->spanContextSize = 0;
 

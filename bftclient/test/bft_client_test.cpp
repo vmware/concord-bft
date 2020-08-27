@@ -31,7 +31,7 @@ TEST(msg_receiver_tests, unmatched_replies_returned_no_rsi) {
   header->msgType = REPLY_MSG_TYPE;
   header->currentPrimaryId = 1;
   header->reqSeqNum = 100;
-  header->replyLength = sizeof(bftEngine::ClientReplyMsgHeader) + data_len;
+  header->replyLength = data_len;
   header->replicaSpecificInfoLength = 0;
 
   // Handle the message
@@ -60,7 +60,7 @@ TEST(msg_receiver_tests, unmatched_replies_with_rsi) {
   header->msgType = REPLY_MSG_TYPE;
   header->currentPrimaryId = 1;
   header->reqSeqNum = 100;
-  header->replyLength = sizeof(bftEngine::ClientReplyMsgHeader) + data_len;
+  header->replyLength = data_len;
   header->replicaSpecificInfoLength = 5;
 
   // Handle the message

@@ -34,6 +34,7 @@ namespace bft::client {
 // (2) A mechanism to retrieve the last used sequence number from the replicas on restart. No such
 //     mechanism is cucrrently implemented, buf if necessary we will add it.
 class SeqNumberGenerator {
+ public:
   SeqNumberGenerator(ClientId client_id) : client_id_(client_id) {}
 
   uint64_t unique() {
