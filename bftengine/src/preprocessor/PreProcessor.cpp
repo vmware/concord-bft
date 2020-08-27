@@ -228,9 +228,8 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
   const NodeIdType &senderId = clientPreProcessReqMsg->senderId();
   const NodeIdType &clientId = clientPreProcessReqMsg->clientProxyId();
   const ReqId &reqSeqNum = clientPreProcessReqMsg->requestSeqNum();
-  LOG_DEBUG(logger(),
-            "Received ClientPreProcessRequestMsg " << KVLOG(reqSeqNum, clientId, senderId) << ", reqTimeoutMilli: "
-                                                   << clientPreProcessReqMsg->requestTimeoutMilli());
+  const auto &reqTimeoutMilli = clientPreProcessReqMsg->requestTimeoutMilli();
+  LOG_DEBUG(logger(), "Received ClientPreProcessRequestMsg" << KVLOG(reqSeqNum, clientId, senderId, reqTimeoutMilli));
   if (!checkClientMsgCorrectness(clientPreProcessReqMsg, reqSeqNum)) {
     preProcessorMetrics_.preProcReqIgnored.Get().Inc();
     return;
@@ -245,27 +244,24 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
       return;
     }
   }
+  // Verify that a request is not passing consensus/PostExec right now. The primary replica should not ignore client
+  // requests forwarded by non-primary replicas, otherwise this will cause timeouts caused by missing PreProcess
+  // request messages from the primary.
+  if ((clientId == senderId) && myReplica_.isClientRequestInProcess(clientId, reqSeqNum)) {
+    LOG_INFO(logger(), "Request has been processing right now - ignore" << KVLOG(reqSeqNum, clientId));
+    return;
+  }
   const ReqId &seqNumberOfLastReply = myReplica_.seqNumberOfLastReplyToClient(clientId);
-  LOG_INFO(logger(),
-           "Going to process ClientPreProcessRequestMsg"
-               << KVLOG(reqSeqNum, clientId, senderId)
-               << ", reqTimeoutMilli: " << clientPreProcessReqMsg->requestTimeoutMilli());
   if (seqNumberOfLastReply < reqSeqNum) {
-    // Verify that request is not passing consensus/PostExec right now
-    if (myReplica_.isCurrentPrimary() && myReplica_.isClientRequestInProcess(clientId, reqSeqNum)) {
-      LOG_INFO(logger(), "ClientPreProcessRequestMsg" << KVLOG(reqSeqNum) << " has been processing right now - ignore");
-      return;
-    }
+    LOG_INFO(logger(), "Start request processing" << KVLOG(reqSeqNum, clientId, senderId, reqTimeoutMilli));
     return handleClientPreProcessRequest(move(clientPreProcessReqMsg));
   }
-
   if (seqNumberOfLastReply == reqSeqNum) {
     LOG_INFO(logger(),
-             "ClientPreProcessRequestMsg"
-                 << KVLOG(reqSeqNum) << " has already been executed - let replica to decide how to proceed further");
+             "Request has already been executed - let replica to decide how to proceed further"
+                 << KVLOG(reqSeqNum, clientId));
     return incomingMsgsStorage_->pushExternalMsg(clientPreProcessReqMsg->convertToClientRequestMsg(false));
   }
-
   LOG_INFO(logger(),
            "ClientPreProcessRequestMsg" << KVLOG(reqSeqNum) << " is ignored because request is old/duplicated");
   preProcessorMetrics_.preProcReqIgnored.Get().Inc();
@@ -466,7 +462,7 @@ void PreProcessor::releaseClientPreProcessRequest(const ClientRequestStateShared
       }
       SCOPED_MDC_CID(givenReq->getReqCid());
       const auto requestSeqNum = givenReq->getReqSeqNum();
-      LOG_DEBUG(logger(), KVLOG(requestSeqNum, clientId) << " moved to the history");
+      LOG_DEBUG(logger(), KVLOG(requestSeqNum, clientId) << " released and moved to the history");
       clientEntry->reqProcessingHistory.push_back(move(givenReq));
     } else  // No consensus reached => release request
       givenReq.reset();

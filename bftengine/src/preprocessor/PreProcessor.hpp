@@ -38,7 +38,7 @@ struct ClientRequestState {
 };
 
 typedef std::shared_ptr<ClientRequestState> ClientRequestStateSharedPtr;
-typedef std::unordered_map<uint16_t, ClientRequestStateSharedPtr> OngoingReqMap;
+typedef std::unordered_map<uint16_t, ClientRequestStateSharedPtr> OngoingReqMap;  // clientId -> ClientRequestState map
 
 //**************** Class PreProcessor ****************//
 
