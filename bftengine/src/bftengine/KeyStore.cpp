@@ -82,6 +82,7 @@ void ReplicaKeyStore::deserializeDataMembers(std::istream& inStream) {
 }
 
 ReplicaKeyStore ReplicaKeyStore::deserializeReplicaKeyStore(const char* serializedRepStore, const int& size) {
+  ConcordAssertGT(size, 0);
   std::stringstream ss;
   ReplicaKeyStore ks;
   ss.write(serializedRepStore, std::streamsize(size));
@@ -153,6 +154,11 @@ void ClusterKeyStore::loadAllReplicasKeyStoresFromReservedPages() {
 
 std::optional<ReplicaKeyStore> ClusterKeyStore::loadReplicaKeyStoreFromReserevedPages(const uint16_t& repID) {
   reservedPages_.loadReservedPage(resPageOffset() + repID, buffer_.size(), buffer_.data());
+  if (buffer_.empty()) {
+    LOG_INFO(KEY_EX_LOG, "Empty replica key store [" << repID << "] from reserved pages, first start?");
+    return {};
+  }
+
   try {
     return ReplicaKeyStore::deserializeReplicaKeyStore(buffer_.c_str(), buffer_.size());
   } catch (std::exception& e) {

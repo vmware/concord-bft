@@ -102,6 +102,7 @@ TEST(ReplicaKeyStore, ser_der) {
   kem.key = "ytrewq";
   kem.signature = "098765";
   kem.repID = 2;
+  kem2.repID = 2;
   rks.push(kem, 34);
   rks.push(kem2, 222);
 
