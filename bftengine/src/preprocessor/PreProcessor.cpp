@@ -99,7 +99,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       requestsHandler_(requestsHandler),
       myReplica_(myReplica),
       myReplicaId_(myReplica.getReplicaConfig().replicaId),
-      maxPreExecResultSize_(myReplica.getReplicaConfig().maxReplyMessageSize - sizeof(ClientReplyMsgHeader)),
+      maxPreExecResultSize_(myReplica.getReplicaConfig().maxExternalMessageSize - sizeof(ClientReplyMsgHeader)),
       idsOfPeerReplicas_(myReplica.getIdsOfPeerReplicas()),
       numOfReplicas_(myReplica.getReplicaConfig().numReplicas),
       numOfClients_(myReplica.getReplicaConfig().numOfExternalClients +
