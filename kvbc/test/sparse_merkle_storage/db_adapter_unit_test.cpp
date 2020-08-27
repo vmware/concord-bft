@@ -126,7 +126,7 @@ bool hasInternalKeysForVersion(const std::shared_ptr<IDBClient> &db, const Versi
 const auto zeroDigest = BlockDigest{};
 
 struct IDbAdapterTest {
-  virtual std::shared_ptr<IDBClient> db() const = 0;
+  virtual std::shared_ptr<IDBClient> newEmptyDb() const = 0;
   virtual std::string type() const = 0;
   virtual ValuesVector referenceBlockchain(const std::shared_ptr<IDBClient> &db, std::size_t length) const = 0;
   virtual ~IDbAdapterTest() noexcept = default;
@@ -134,7 +134,10 @@ struct IDbAdapterTest {
 
 template <typename Database, ReferenceBlockchainType refBlockchainType = ReferenceBlockchainType::NoEmptyBlocks>
 struct DbAdapterTest : public IDbAdapterTest {
-  std::shared_ptr<IDBClient> db() const override { return Database::create(); }
+  std::shared_ptr<IDBClient> newEmptyDb() const override {
+    Database::cleanup();
+    return Database::create();
+  }
 
   std::string type() const override {
     auto blocksType = std::string{};
@@ -162,7 +165,7 @@ using db_adapter_ref_blockchain = ParametrizedTest<std::shared_ptr<IDbAdapterTes
 
 // Test the last reachable block functionality.
 TEST_P(db_adapter_custom_blockchain, get_last_reachable_block) {
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
   const auto updates = SetOfKeyValuePairs{std::make_pair(defaultSliver, defaultSliver)};
   ASSERT_NO_THROW(adapter.addBlock(updates));
   ASSERT_NO_THROW(adapter.addBlock(updates));
@@ -172,7 +175,7 @@ TEST_P(db_adapter_custom_blockchain, get_last_reachable_block) {
 
 // Test the return value from the addBlock() method.
 TEST_P(db_adapter_custom_blockchain, add_block_return) {
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
   const auto updates = SetOfKeyValuePairs{std::make_pair(defaultSliver, defaultSliver)};
   const auto numBlocks = 4u;
   for (auto i = 0u; i < numBlocks; ++i) {
@@ -182,7 +185,7 @@ TEST_P(db_adapter_custom_blockchain, add_block_return) {
 
 // Test the hasBlock() method.
 TEST_P(db_adapter_custom_blockchain, has_block) {
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   // Verify that blocks do not exist when the blockchain is empty.
   ASSERT_FALSE(adapter.hasBlock(1));
@@ -209,7 +212,7 @@ TEST_P(db_adapter_custom_blockchain, has_block) {
 
 // Test the last reachable block functionality with empty blocks.
 TEST_P(db_adapter_custom_blockchain, get_last_reachable_block_empty_blocks) {
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
   const auto updates = SetOfKeyValuePairs{std::make_pair(defaultSliver, defaultSliver)};
   ASSERT_NO_THROW(adapter.addBlock(SetOfKeyValuePairs{}));
   ASSERT_NO_THROW(adapter.addBlock(updates));
@@ -223,7 +226,7 @@ TEST_P(db_adapter_custom_blockchain, get_last_reachable_block_empty_blocks) {
 TEST_P(db_adapter_custom_blockchain, get_key_by_ver_1_key) {
   const auto key = defaultSliver;
   const auto keyData = defaultData;
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
   const auto data1 = Sliver{"data1"};
   const auto data2 = Sliver{"data2"};
   const auto data3 = Sliver{"data3"};
@@ -285,7 +288,7 @@ TEST_P(db_adapter_custom_blockchain, get_key_by_ver_1_key) {
 TEST_P(db_adapter_custom_blockchain, get_key_by_ver_1_key_empty_blocks) {
   const auto key = defaultSliver;
   const auto keyData = defaultData;
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
   const auto data2 = Sliver{"data2"};
   const auto updates2 = SetOfKeyValuePairs{std::make_pair(key, data2)};
   const auto data5 = Sliver{"data5"};
@@ -376,7 +379,7 @@ TEST_P(db_adapter_custom_blockchain, get_key_by_ver_multiple_keys) {
   ASSERT_TRUE(getHash(keyData) < getHash(after));
   ASSERT_TRUE(getHash(before) < getHash(keyData));
 
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
   const auto data1 = Sliver{"data1"};
   const auto data2 = Sliver{"data2"};
   const auto data3 = Sliver{"data3"};
@@ -502,7 +505,7 @@ TEST_P(db_adapter_custom_blockchain, get_key_by_ver_multiple_keys) {
 
 TEST_P(db_adapter_custom_blockchain, add_and_get_block) {
   for (auto numKeys = 1u; numKeys <= maxNumKeys; ++numKeys) {
-    auto adapter = DBAdapter{GetParam()->db()};
+    auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
     SetOfKeyValuePairs updates1, updates2;
     for (auto i = 1u; i <= numKeys; ++i) {
@@ -540,8 +543,8 @@ TEST_P(db_adapter_custom_blockchain, add_and_get_block) {
 
 TEST_P(db_adapter_ref_blockchain, add_multiple_deterministic_blocks) {
   const auto numBlocks = 16;
-  const auto referenceBlockchain = GetParam()->referenceBlockchain(GetParam()->db(), numBlocks);
-  auto adapter = DBAdapter{GetParam()->db()};
+  const auto referenceBlockchain = GetParam()->referenceBlockchain(GetParam()->newEmptyDb(), numBlocks);
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
   for (auto i = 1u; i <= numBlocks; ++i) {
     const auto &referenceBlock = referenceBlockchain[i - 1];
     ASSERT_NO_THROW(
@@ -571,7 +574,7 @@ TEST_P(db_adapter_ref_blockchain, add_multiple_deterministic_blocks) {
 }
 
 TEST_P(db_adapter_custom_blockchain, no_blocks) {
-  const auto adapter = DBAdapter{GetParam()->db()};
+  const auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   ASSERT_EQ(adapter.getLastReachableBlockId(), 0);
   ASSERT_EQ(adapter.getLatestBlockId(), 0);
@@ -585,9 +588,9 @@ TEST_P(db_adapter_ref_blockchain, state_transfer_reverse_order_with_blockchain_b
   const auto numBlockchainBlocks = 5;
   const auto numStBlocks = 7;
   const auto numTotalBlocks = numBlockchainBlocks + numStBlocks;
-  const auto referenceBlockchain = GetParam()->referenceBlockchain(GetParam()->db(), numTotalBlocks);
+  const auto referenceBlockchain = GetParam()->referenceBlockchain(GetParam()->newEmptyDb(), numTotalBlocks);
 
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   // Add blocks to the blockchain and verify both block pointers.
   for (auto i = 1; i <= numBlockchainBlocks; ++i) {
@@ -644,9 +647,9 @@ TEST_P(db_adapter_ref_blockchain, state_transfer_reverse_order_with_blockchain_b
 
 TEST_P(db_adapter_ref_blockchain, state_transfer_fetch_whole_blockchain_in_reverse_order) {
   const auto numBlocks = 7;
-  const auto referenceBlockchain = GetParam()->referenceBlockchain(GetParam()->db(), numBlocks);
+  const auto referenceBlockchain = GetParam()->referenceBlockchain(GetParam()->newEmptyDb(), numBlocks);
 
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   for (auto i = numBlocks; i > 0; --i) {
     ASSERT_NO_THROW(adapter.addRawBlock(referenceBlockchain[i - 1], i));
@@ -680,9 +683,9 @@ TEST_P(db_adapter_ref_blockchain, state_transfer_unordered_with_blockchain_block
   const auto numBlockchainBlocks = 5;
   const auto numStBlocks = 3;
   const auto numTotalBlocks = numBlockchainBlocks + numStBlocks;
-  const auto referenceBlockchain = GetParam()->referenceBlockchain(GetParam()->db(), numTotalBlocks);
+  const auto referenceBlockchain = GetParam()->referenceBlockchain(GetParam()->newEmptyDb(), numTotalBlocks);
 
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   // Add blocks to the blockchain and verify both block pointers.
   for (auto i = 1; i <= numBlockchainBlocks; ++i) {
@@ -743,7 +746,7 @@ TEST_P(db_adapter_ref_blockchain, state_transfer_unordered_with_blockchain_block
 
 TEST_P(db_adapter_custom_blockchain, delete_last_reachable_block) {
   const auto numBlocks = 10;
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   // Add block updates with no overlapping keys between blocks.
   for (auto i = 1; i <= numBlocks - 1; ++i) {
@@ -792,7 +795,7 @@ TEST_P(db_adapter_custom_blockchain, delete_last_reachable_block) {
 }
 
 TEST_P(db_adapter_custom_blockchain, delete_latest_block) {
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   // Add a last reachable block.
   ASSERT_EQ(adapter.addBlock(SetOfKeyValuePairs{std::make_pair(defaultSliver, defaultSliver)}), 1);
@@ -821,7 +824,7 @@ TEST_P(db_adapter_custom_blockchain, delete_latest_block) {
 }
 
 TEST_P(db_adapter_custom_blockchain, delete_non_existent_blocks) {
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   // Add a last reachable block.
   ASSERT_EQ(adapter.addBlock(SetOfKeyValuePairs{std::make_pair(defaultSliver, defaultSliver)}), 1);
@@ -852,14 +855,14 @@ TEST_P(db_adapter_custom_blockchain, delete_non_existent_blocks) {
 }
 
 TEST_P(db_adapter_custom_blockchain, delete_on_an_empty_blockchain) {
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   ASSERT_NO_THROW(adapter.deleteBlock(0));
   ASSERT_NO_THROW(adapter.deleteBlock(1));
 }
 
 TEST_P(db_adapter_custom_blockchain, delete_single_st_block) {
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   ASSERT_NO_THROW(adapter.addRawBlock(
       block::detail::create(SetOfKeyValuePairs{std::make_pair(defaultSliver, defaultSliver)}, BlockDigest{}, Hash{}),
@@ -872,7 +875,7 @@ TEST_P(db_adapter_custom_blockchain, delete_single_st_block) {
 }
 
 TEST_P(db_adapter_custom_blockchain, get_genesis_block_id) {
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   // Empty blockchain.
   ASSERT_EQ(adapter.getGenesisBlockId(), 0);
@@ -893,7 +896,7 @@ TEST_P(db_adapter_custom_blockchain, get_genesis_block_id) {
 }
 
 TEST_P(db_adapter_custom_blockchain, delete_genesis_block) {
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
   const auto key = Sliver{"k"};
 
   // Add blocks.
@@ -919,7 +922,7 @@ TEST_P(db_adapter_custom_blockchain, delete_genesis_block) {
 }
 
 TEST_P(db_adapter_custom_blockchain, get_value_from_deleted_block) {
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
   const auto key = Sliver{"k"};
 
   // Add blocks.
@@ -934,7 +937,7 @@ TEST_P(db_adapter_custom_blockchain, get_value_from_deleted_block) {
 }
 
 TEST_P(db_adapter_custom_blockchain, delete_only_block_in_system) {
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   // Add a single block.
   ASSERT_EQ(adapter.addBlock(SetOfKeyValuePairs{std::make_pair(Sliver{"k"}, Sliver{"v1"})}), 1);
@@ -949,7 +952,7 @@ TEST_P(db_adapter_custom_blockchain, delete_only_block_in_system) {
 }
 
 TEST_P(db_adapter_custom_blockchain, delete_only_block_as_last_reachable) {
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   const auto key = Sliver{"k"};
   const auto valueBefore = Sliver{"vb"};
@@ -989,7 +992,7 @@ TEST_P(db_adapter_custom_blockchain, delete_only_block_as_last_reachable) {
 
 TEST_P(db_adapter_custom_blockchain, delete_multiple_genesis_blocks) {
   const auto numBlocks = 10;
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   for (auto i = 1; i <= numBlocks; ++i) {
     ASSERT_EQ(adapter.addBlock(getOffsetUpdates(i, numBlocks)), i);
@@ -1018,7 +1021,7 @@ TEST_P(db_adapter_custom_blockchain, delete_multiple_genesis_blocks) {
 
 TEST_P(db_adapter_custom_blockchain, delete_multiple_last_reachable_blocks) {
   const auto numBlocks = 10;
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   for (auto i = 1; i <= numBlocks; ++i) {
     ASSERT_EQ(adapter.addBlock(getOffsetUpdates(i, numBlocks)), i);
@@ -1046,7 +1049,7 @@ TEST_P(db_adapter_custom_blockchain, delete_multiple_last_reachable_blocks) {
 }
 
 TEST_P(db_adapter_custom_blockchain, delete_genesis_and_verify_stale_index) {
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   const auto key = Sliver{"k"};
 
@@ -1079,7 +1082,7 @@ TEST_P(db_adapter_custom_blockchain, delete_genesis_and_verify_stale_index) {
 }
 
 TEST_P(db_adapter_custom_blockchain, delete_genesis_and_verify_stale_key_deletion) {
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   const auto key1 = Sliver{"k1"};
   const auto key2 = Sliver{"k2"};
@@ -1124,7 +1127,7 @@ TEST_P(db_adapter_custom_blockchain, delete_genesis_and_verify_stale_key_deletio
 }
 
 TEST_P(db_adapter_custom_blockchain, empty_values) {
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   const auto key1 = Sliver{"k1"};
   const auto key2 = Sliver{"k2"};
@@ -1170,7 +1173,7 @@ TEST_P(db_adapter_custom_blockchain, empty_values) {
 }
 
 TEST_P(db_adapter_custom_blockchain, delete_all_keys) {
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   const auto key1 = Sliver{"key1"};
   const auto value11 = Sliver{"val11"};
@@ -1229,7 +1232,7 @@ TEST_P(db_adapter_custom_blockchain, delete_all_keys) {
 }
 
 TEST_P(db_adapter_custom_blockchain, add_delete_add_key) {
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   const auto key = Sliver{"key"};
   const auto value = Sliver{"val"};
@@ -1249,7 +1252,7 @@ TEST_P(db_adapter_custom_blockchain, add_delete_add_key) {
 }
 
 TEST_P(db_adapter_custom_blockchain, delete_existing_keys) {
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   const auto key = Sliver{"key"};
   const auto value = Sliver{"val"};
@@ -1297,7 +1300,7 @@ TEST_P(db_adapter_custom_blockchain, delete_existing_keys) {
 }
 
 TEST_P(db_adapter_custom_blockchain, delete_non_existing_keys) {
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   const auto existingKey = Sliver{"existingKey"};
   const auto existingValue = Sliver{"existingValue"};
@@ -1335,7 +1338,7 @@ TEST_P(db_adapter_custom_blockchain, delete_non_existing_keys) {
 }
 
 TEST_P(db_adapter_custom_blockchain, update_and_delete_same_keys) {
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   const auto key1 = Sliver{"key1"};
   const auto value1 = Sliver{"val1"};
@@ -1361,7 +1364,7 @@ TEST_P(db_adapter_custom_blockchain, update_and_delete_same_keys) {
 }
 
 TEST_P(db_adapter_custom_blockchain, delete_blocks_with_deleted_keys) {
-  auto adapter = DBAdapter{GetParam()->db()};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
   const auto key1 = Sliver{"key1"};
   const auto value1 = Sliver{"val1"};
