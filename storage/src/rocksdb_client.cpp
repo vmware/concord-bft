@@ -71,6 +71,7 @@ Sliver copyRocksdbSlice(::rocksdb::Slice _s) {
 ITransaction *Client::beginTransaction() {
   static std::atomic_uint64_t current_transaction_id(0);
   ::rocksdb::WriteOptions wo;
+  wo.sync = true;
   if (!txn_db_) throw std::runtime_error("Failed to start transaction, reason: RO mode");
   return new Transaction(txn_db_->BeginTransaction(wo), ++current_transaction_id);
 }
@@ -290,6 +291,7 @@ ClientIterator::ClientIterator(const Client *_parentClient, logging::Logger logg
 Status Client::put(const Sliver &_key, const Sliver &_value) {
   ::rocksdb::WriteOptions woptions = ::rocksdb::WriteOptions();
   woptions.memtable_insert_hint_per_batch = true;
+  woptions.sync = true;
   ::rocksdb::Status s = dbInstance_->Put(woptions, toRocksdbSlice(_key), toRocksdbSlice(_value));
 
   LOG_TRACE(logger(), "Rocksdb Put " << _key << " : " << _value);
@@ -313,6 +315,7 @@ Status Client::put(const Sliver &_key, const Sliver &_value) {
  */
 Status Client::del(const Sliver &_key) {
   ::rocksdb::WriteOptions woptions = ::rocksdb::WriteOptions();
+  woptions.sync = true;
   ::rocksdb::Status s = dbInstance_->Delete(woptions, toRocksdbSlice(_key));
 
   LOG_TRACE(logger(), "Rocksdb delete " << _key);
@@ -346,8 +349,9 @@ Status Client::multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec
 
 Status Client::launchBatchJob(::rocksdb::WriteBatch &batch) {
   LOG_DEBUG(logger(), "launcBatchJob: batch data size=" << batch.GetDataSize() << " num updates=" << batch.Count());
-  ::rocksdb::WriteOptions wOptions = ::rocksdb::WriteOptions();
-  ::rocksdb::Status status = dbInstance_->Write(wOptions, &batch);
+  ::rocksdb::WriteOptions woptions = ::rocksdb::WriteOptions();
+  woptions.sync = true;
+  ::rocksdb::Status status = dbInstance_->Write(woptions, &batch);
   if (!status.ok()) {
     LOG_ERROR(
         logger(),
@@ -392,9 +396,9 @@ Status Client::rangeDel(const Sliver &_beginKey, const Sliver &_endKey) {
 
   // Make sure that _beginKey comes before _endKey .
   ConcordAssert(keyIsBefore(_beginKey, _endKey));
-
-  const auto status =
-      dbInstance_->DeleteRange(::rocksdb::WriteOptions(), nullptr, toRocksdbSlice(_beginKey), toRocksdbSlice(_endKey));
+  ::rocksdb::WriteOptions woptions = ::rocksdb::WriteOptions();
+  woptions.sync = true;
+  const auto status = dbInstance_->DeleteRange(woptions, nullptr, toRocksdbSlice(_beginKey), toRocksdbSlice(_endKey));
   if (!status.ok()) {
     LOG_ERROR(logger(), "RocksDB failed to delete range, begin=" << _beginKey << ", end=" << _endKey);
     return Status::GeneralError("Failed to delete range");
