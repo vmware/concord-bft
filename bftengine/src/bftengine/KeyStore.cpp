@@ -11,6 +11,8 @@
 
 #include "KeyStore.h"
 
+#include "assertUtils.hpp"
+
 namespace bftEngine::impl {
 
 ////////////////////////////// KEY EXCHANGE MSG//////////////////////////////
@@ -132,6 +134,7 @@ ClusterKeyStore::ClusterKeyStore(const uint32_t& clusterSize,
                                  IReservedPages& reservedPages,
                                  const uint32_t& sizeOfReservedPage)
     : clusterKeys_(clusterSize), reservedPages_(reservedPages), buffer_(sizeOfReservedPage, 0) {
+  ConcordAssertGT(sizeOfReservedPage, 0);
   loadAllReplicasKeyStoresFromReservedPages();
 }
 
@@ -154,11 +157,6 @@ void ClusterKeyStore::loadAllReplicasKeyStoresFromReservedPages() {
 
 std::optional<ReplicaKeyStore> ClusterKeyStore::loadReplicaKeyStoreFromReserevedPages(const uint16_t& repID) {
   reservedPages_.loadReservedPage(resPageOffset() + repID, buffer_.size(), buffer_.data());
-  if (buffer_.empty()) {
-    LOG_INFO(KEY_EX_LOG, "Empty replica key store [" << repID << "] from reserved pages, first start?");
-    return {};
-  }
-
   try {
     return ReplicaKeyStore::deserializeReplicaKeyStore(buffer_.c_str(), buffer_.size());
   } catch (std::exception& e) {

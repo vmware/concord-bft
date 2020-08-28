@@ -237,7 +237,7 @@ TEST(ClusterKeyStore, push) {
   std::vector<IKeyExchanger*> v;
   v.push_back(&em);
   ReservedPagesMock rpm(7, true);
-  ClusterKeyStore cks{7, rpm, 0};
+  ClusterKeyStore cks{7, rpm, 4094};
   {
     KeyExchangeMsg kem;
     kem.key = "a";
@@ -286,7 +286,7 @@ TEST(ClusterKeyStore, push) {
 
 TEST(ClusterKeyStore, rotate) {
   ReservedPagesMock rpm(7, true);
-  ClusterKeyStore cks{7, rpm, 0};
+  ClusterKeyStore cks{7, rpm, 4094};
   ExchangerMock em;
   std::vector<IKeyExchanger*> v;
   v.push_back(&em);
