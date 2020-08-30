@@ -121,13 +121,13 @@ target_link_libraries(multiIO_test PUBLIC
         corebft
 )
 
-add_executable(sparse_merkle_db_inspector_test sparse_merkle_storage/sparse_merkle_db_inspector_test.cpp )
-add_test(sparse_merkle_db_inspector_test sparse_merkle_db_inspector_test)
+add_executable(sparse_merkle_db_editor_test sparse_merkle_storage/sparse_merkle_db_editor_test.cpp )
+add_test(sparse_merkle_db_editor_test sparse_merkle_db_editor_test)
 
-target_link_libraries(sparse_merkle_db_inspector_test PUBLIC
+target_link_libraries(sparse_merkle_db_editor_test PUBLIC
     GTest::Main
     GTest::GTest
-    lib_sparse_merkle_db_inspector
+    lib_sparse_merkle_db_editor
     util
     kvbc
     stdc++fs
