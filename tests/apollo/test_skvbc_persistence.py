@@ -316,6 +316,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
                 up_to_date_node=primary,
                 stale_node=stale
             )
+
             SkvbcPersistenceTest.logger.info(f'State transfer completed, despite initial source '
                   f'replica {source_replica_id} being down')
 
@@ -431,11 +432,9 @@ class SkvbcPersistenceTest(unittest.TestCase):
             self, skvbc, bft_network, n, primary, stale, trigger_view_change=False):
 
         SkvbcPersistenceTest.logger.info(f'Stopping primary replica {primary} to trigger view change')
-
         bft_network.stop_replica(primary)
 
         SkvbcPersistenceTest.logger.info(f'Re-starting stale replica {stale} to start state transfer')
-
         bft_network.start_replica(stale)
 
         if trigger_view_change:

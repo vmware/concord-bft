@@ -68,8 +68,10 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
         5) Make sure the agreed view is stable after all replicas are started
         6) Make sure the system correctly processes requests in the new view
         """
+
         replicas_starting_order = bft_network.all_replicas()
         random.shuffle(replicas_starting_order)
+
         initial_view = 0
         try:
             # Delayed replica start-up...

@@ -54,7 +54,7 @@ def main():
             blinking_replica = None
             time.sleep(random.uniform(*BLINKING_INTERVAL_SECONDS)/10)
     except Exception as e:
-        logger.info("Error occured while blinking replica: {}".format(e))
+        logger.exception("Error occured while blinking replica: {}".format(e))
         if blinking_replica:
             blinking_replica.kill()
             blinking_replica.wait()
