@@ -12,6 +12,7 @@
 import os.path
 import random
 import unittest
+import base_logger
 from os import environ
 
 import trio
@@ -41,6 +42,9 @@ def start_replica_cmd(builddir, replica_id):
 
 
 class SkvbcControlCommandsTest(unittest.TestCase):
+
+    logger = base_logger.get_logger(__name__)
+
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_wedge_command(self, bft_network):
@@ -133,7 +137,7 @@ class SkvbcControlCommandsTest(unittest.TestCase):
                             if value == 0:
                                 continue
                         except trio.TooSlowError:
-                            print(f"Replica {replica_id} was not able to get to super stable checkpoint within the timeout")
+                            SkvbcControlCommandsTest.logger.exception(f"Replica {replica_id} was not able to get to super stable checkpoint within the timeout")
                             self.assertTrue(False)
                         else:
                             self.assertEqual(value, 1)

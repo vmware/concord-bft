@@ -13,6 +13,7 @@
 import os.path
 import random
 import unittest
+import base_logger
 
 import trio
 
@@ -44,6 +45,8 @@ def start_replica_cmd(builddir, replica_id):
 
 
 class SkvbcNetworkPartitioningTest(unittest.TestCase):
+
+    logger = base_logger.get_logger(__name__)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -203,7 +206,7 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
         expected_next_primary = 1 + initial_primary
         isolated_replicas = bft_network.random_set_of_replicas(f - 1, without={initial_primary, expected_next_primary})
 
-        print(f"Isolating network traffic to/from replicas {isolated_replicas}.")
+        SkvbcNetworkPartitioningTest.logger.info(f"Isolating network traffic to/from replicas {isolated_replicas}.")
         with net.ReplicaSubsetIsolatingAdversary(bft_network, isolated_replicas) as adversary:
             adversary.interfere()
 

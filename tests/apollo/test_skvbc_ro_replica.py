@@ -18,6 +18,7 @@ import subprocess
 import tempfile
 import shutil
 import time
+import base_logger
 
 from util import bft
 from util import skvbc as kvbc
@@ -56,6 +57,9 @@ def start_replica_cmd(builddir, replica_id, config):
     return ret
 
 class SkvbcReadOnlyReplicaTest(unittest.TestCase):
+
+    logger = base_logger.get_logger(__name__)
+
     """
     ReadOnlyReplicaTest has got two modes of operation:
         - using external S3 object store (minio)
@@ -64,7 +68,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
     """
     @classmethod
     def _start_s3_server(cls):
-        print("Starting server")
+        SkvbcReadOnlyReplicaTest.logger.info("Starting server")
         server_env = os.environ.copy()
         server_env["MINIO_ACCESS_KEY"] = "concordbft"
         server_env["MINIO_SECRET_KEY"] = "concordbft"
@@ -81,10 +85,10 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         if not os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
-            print("CONCORD_BFT_MINIO_BINARY_PATH is not set. Running in RocksDB mode.")
+            SkvbcReadOnlyReplicaTest.logger.info("CONCORD_BFT_MINIO_BINARY_PATH is not set. Running in RocksDB mode.")
             return
         
-        print("CONCORD_BFT_MINIO_BINARY_PATH is set. Running in S3 mode.")
+        SkvbcReadOnlyReplicaTest.logger.info("CONCORD_BFT_MINIO_BINARY_PATH is set. Running in S3 mode.")
 
         # We need a temp dir for data and binaries - this is cls.dest_dir
         # self.dest_dir will contain data dir for minio buckets and the minio binary
@@ -93,12 +97,12 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         cls.minio_server_data_dir = os.path.join(cls.work_dir, "data")
         os.makedirs(os.path.join(cls.work_dir, "data", "blockchain"))     # create all dirs in one call
 
-        print(f"Working in {cls.work_dir}")
+        SkvbcReadOnlyReplicaTest.logger.info(f"Working in {cls.work_dir}")
 
         # Start server
         cls._start_s3_server()
         
-        print("Initialisation complete")
+        SkvbcReadOnlyReplicaTest.logger.info("Initialisation complete")
 
     @classmethod
     def tearDownClass(cls):
@@ -157,7 +161,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                         else:
                             if lastStableSeqNum >= 150:
                                 #enough requests
-                                print("Consensus: lastStableSeqNum:" + str(lastStableSeqNum))
+                                SkvbcReadOnlyReplicaTest.logger.info("Consensus: lastStableSeqNum:" + str(lastStableSeqNum))
                                 nursery.cancel_scope.cancel()
         # start the read-only replica
         ro_replica_id = bft_network.config.n
@@ -173,7 +177,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                     else:
                         # success!
                         if lastExecutedSeqNum >= 150:
-                            print("Replica " + str(ro_replica_id) + ": lastExecutedSeqNum:" + str(lastExecutedSeqNum))
+                            SkvbcReadOnlyReplicaTest.logger.info("Replica " + str(ro_replica_id) + ": lastExecutedSeqNum:" + str(lastExecutedSeqNum))
                             break
 
     @with_trio
@@ -207,7 +211,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                         else:
                             # success!
                             if lastExecutedSeqNum >= 150:
-                                print("Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
+                                SkvbcReadOnlyReplicaTest.logger.info("Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
                                 nursery.cancel_scope.cancel()
                                 
     @with_trio
@@ -290,5 +294,5 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                     else:
                         # success!
                         if lastExecutedSeqNum >= 150:
-                            print("Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
+                            SkvbcReadOnlyReplicaTest.logger.info("Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
                             break

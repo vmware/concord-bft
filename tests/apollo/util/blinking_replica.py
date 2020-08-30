@@ -15,6 +15,7 @@
 
 import os
 import subprocess
+import base_logger
 
 
 class BlinkingReplica(object):
@@ -23,6 +24,7 @@ class BlinkingReplica(object):
     def __init__(self):
         super(BlinkingReplica, self).__init__()
         self.blinker_process = None
+        self.logger = base_logger.get_logger(__name__)
 
     def __enter__(self):
         """context manager method for 'with' statements"""
@@ -35,14 +37,14 @@ class BlinkingReplica(object):
     def start_blinking(self,start_replica_cmd):
         self.start_replica_cmd = start_replica_cmd
         self.blinker_process = subprocess.Popen(self._cmd_line(), close_fds=True)
-        print("Started blinking: {}".format(self._cmd_line()))
+        self.logger.info("Started blinking: {}".format(self._cmd_line()))
 
     def stop_blinking(self):
         if self.blinker_process:
             self.blinker_process.terminate()
             if self.blinker_process.wait() != 0:
                 raise Exception("Error occured while while stopping the blinker process")
-        print("Stopped blinking")
+        self.logger.info("Stopped blinking")
 
     def _cmd_line(self):
         return ['python3',

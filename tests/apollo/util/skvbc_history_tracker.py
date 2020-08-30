@@ -23,6 +23,7 @@ from util.skvbc_exceptions import(
     InvalidReadError,
     PhantomBlockError
 )
+import base_logger
 
 MAX_LOOKBACK=10
 
@@ -430,6 +431,8 @@ class SkvbcTracker:
         if self.bft_network is not None:
             self.status = Status(bft_network.config)
 
+        self.logger = base_logger.get_logger(__name__)
+
     def send_write(self, client_id, seq_num, readset, writeset, read_block_id):
         """Track the send of a write request"""
         req = SkvbcWriteRequest(
@@ -521,7 +524,7 @@ class SkvbcTracker:
         for i in range(self.last_known_block + 1, last_block_id + 1):
             missing_blocks.add(i)
 
-        print(f'{len(missing_blocks)} missing blocks found.')
+        self.logger.info(f'{len(missing_blocks)} missing blocks found.')
         return missing_blocks
 
     def fill_missing_blocks(self, missing_blocks):
@@ -541,7 +544,7 @@ class SkvbcTracker:
             if block_id > self.last_known_block:
                 self.last_known_block = block_id
         self.filled_blocks = missing_blocks
-        print(f'{len(missing_blocks)} missing blocks filled.')
+        self.logger.info(f'{len(missing_blocks)} missing blocks filled.')
 
     def verify(self):
         self._match_filled_blocks()
@@ -810,22 +813,22 @@ class SkvbcTracker:
              # past failed responses.
              client = await self.skvbc.bft_network.new_client()
              last_block_id = await self.get_last_block_id(client)
-             print(f'Last Block ID = {last_block_id}')
+             self.logger.info(f'Last Block ID = {last_block_id}')
              missing_block_ids = self.get_missing_blocks(last_block_id)
-             print(f'Missing Block IDs = {missing_block_ids}')
+             self.logger.info(f'Missing Block IDs = {missing_block_ids}')
              blocks = await self.get_blocks(client, missing_block_ids)
              self.fill_missing_blocks(blocks)
              self.verify()
          except Exception as e:
-             print(f'retries = {client.retries}')
+             self.logger.info(f'retries = {client.retries}')
              self.status.end_time = time.monotonic()
-             print("HISTORY...")
+             self.logger.info("HISTORY...")
              for i, entry in enumerate(self.history):
-                 print(f'Index = {i}: {entry}\n')
-             print("BLOCKS...")
-             print(f'{self.blocks}\n')
-             print(str(self.status), flush=True)
-             print("FAILURE...")
+                self.logger.info(f'Index = {i}: {entry}\n')
+             self.logger.info("BLOCKS...")
+             self.logger.info(f'{self.blocks}\n')
+             self.logger.info(str(self.status))
+             self.logger.info("FAILURE...")
              raise(e)
 
     async def get_blocks(self, client, block_ids):
@@ -840,7 +843,7 @@ class SkvbcTracker:
                 except trio.TooSlowError:
                     if i == retries - 1:
                         raise
-            print(f'Retrieved block {block_id}')
+            self.logger.info(f'Retrieved block {block_id}')
         return blocks
 
     async def get_last_block_id(self, client):
@@ -903,7 +906,7 @@ class SkvbcTracker:
 
     async def run_concurrent_conflict_ops(self, num_ops, write_weight=.70):
         if self.no_conflicts is True:
-            print("call to run_concurrent_conflict_ops with no_conflicts=True, calling run_concurrent_ops instead")
+            self.logger.info("call to run_concurrent_conflict_ops with no_conflicts=True, calling run_concurrent_ops instead")
             return await self.run_concurrent_ops(num_ops, write_weight)
         max_concurrency = len(self.bft_network.clients) // 2
         max_size = len(self.skvbc.keys) // 2
@@ -1050,6 +1053,8 @@ class PassThroughSkvbcTracker:
 
         self.bft_network = bft_network
 
+        self.logger = base_logger.get_logger(__name__)
+
     async def get_last_block_id(self, client):
         msg = kvbc.SimpleKVBCProtocol.get_last_block_req()
         return kvbc.SimpleKVBCProtocol.parse_reply(await client.read(msg))
@@ -1094,7 +1099,7 @@ class PassThroughSkvbcTracker:
 
     async def run_concurrent_conflict_ops(self, num_ops, write_weight=.70):
         if self.no_conflicts is True:
-            print("call to run_concurrent_conflict_ops with no_conflicts=True, calling run_concurrent_ops instead")
+            self.logger.info("call to run_concurrent_conflict_ops with no_conflicts=True, calling run_concurrent_ops instead")
             await self.run_concurrent_ops(num_ops, write_weight)
             return
         max_concurrency = len(self.bft_network.clients) // 2

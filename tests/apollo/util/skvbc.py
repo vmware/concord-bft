@@ -17,6 +17,7 @@ import trio
 
 from collections import namedtuple
 from util.skvbc_exceptions import BadReplyError
+import base_logger
 
 WriteReply = namedtuple('WriteReply', ['success', 'last_block_id'])
 
@@ -45,6 +46,7 @@ class SimpleKVBCProtocol:
         self.alphanum = [i for i in range(48, 58)]
         self.alphanum.extend(self.alpha)
         self.keys = self._create_keys()
+        self.logger = base_logger.get_logger(__name__)
 
     @classmethod
     def write_req(cls, readset, writeset, block_id, long_exec=False, wedge_command=False):
@@ -330,13 +332,13 @@ class SimpleKVBCProtocol:
         return keys
 
     async def read_your_writes(self, test_class):
-        print("[READ-YOUR-WRITES] Starting 'read-your-writes' check...")
+        self.logger.info("[READ-YOUR-WRITES] Starting 'read-your-writes' check...")
         client = self.bft_network.random_client()
         # Verify by "Read your write"
         # Perform write with the new primary
         last_block = self.parse_reply(
             await client.read(self.get_last_block_req()))
-        print(f'[READ-YOUR-WRITES] Last block ID: #{last_block}')
+        self.logger.info(f'[READ-YOUR-WRITES] Last block ID: #{last_block}')
         kv = [(self.keys[0], self.random_value()),
               (self.keys[1], self.random_value())]
 
@@ -349,12 +351,12 @@ class SimpleKVBCProtocol:
 
         # Read the last write and check if equal
         # Get the kvpairs in the last written block
-        print(f'[READ-YOUR-WRITES] Checking if the {kv} entry is readable...')
+        self.logger.info(f'[READ-YOUR-WRITES] Checking if the {kv} entry is readable...')
         data = await client.read(self.get_block_data_req(last_block))
         kv2 = self.parse_reply(data)
         test_class.assertDictEqual(kv2, dict(kv))
 
-        print(f'[READ-YOUR-WRITES] OK.')
+        self.logger.info(f'[READ-YOUR-WRITES] OK.')
 
 
 class SkvbcClient:

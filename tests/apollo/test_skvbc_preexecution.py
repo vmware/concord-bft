@@ -14,6 +14,7 @@ import os.path
 import unittest
 import trio
 import random
+import base_logger
 
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from util.skvbc_history_tracker import verify_linearizability
@@ -54,6 +55,7 @@ def start_replica_cmd(builddir, replica_id):
 class SkvbcPreExecutionTest(unittest.TestCase):
 
     __test__ = False  # so that PyTest ignores this test scenario
+    logger = base_logger.get_logger(__name__)
 
     async def send_single_read(self, skvbc, client):
         req = skvbc.read_req(skvbc.random_keys(1))
@@ -202,11 +204,10 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         rw = await tracker.run_concurrent_ops(num_of_requests, write_weight=1)
         final_block_count = await tracker.get_last_block_id(read_client)
 
-        print("")
-        print(f"Randomly picked replica indexes {crash_targets} (nonprimary) to be stopped.")
-        print(f"Total of {num_of_requests} write pre-exec tx, "
+        SkvbcPreExecutionTest.logger.info(f"Randomly picked replica indexes {crash_targets} (nonprimary) to be stopped.")
+        SkvbcPreExecutionTest.logger.info(f"Total of {num_of_requests} write pre-exec tx, "
               f"concurrently submitted through {len(submit_clients)} clients.")
-        print(f"Finished at block {final_block_count}.")
+        SkvbcPreExecutionTest.logger.info(f"Finished at block {final_block_count}.")
         self.assertTrue(rw[0] + rw[1] >= num_of_requests)
 
     @with_trio

@@ -34,6 +34,7 @@ import bft_metrics_client
 from util import bft_metrics
 from util import skvbc as kvbc
 from util.bft_test_exceptions import AlreadyRunningError, AlreadyStoppedError
+import base_logger
 
 
 TestConfig = namedtuple('TestConfig', [
@@ -142,7 +143,7 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                         bft_network.current_test = async_fn.__name__ + "_n=" + str(bft_config['n']) \
                                                                      + "_f=" + str(bft_config['f']) \
                                                                      + "_c=" + str(bft_config['c'])
-                        print(f'Running {async_fn.__name__} '
+                        bft_network.logger.info(f'Running {async_fn.__name__} '
                               f'with n={config.n}, f={config.f}, c={config.c}, '
                               f'num_clients={config.num_clients}, '
                               f'num_ro_replicas={config.num_ro_replicas}')
@@ -203,6 +204,7 @@ class BftTestNetwork:
             self.client_factory = self._create_new_udp_client
         self.open_fds = {}
         self.current_test = ""
+        self.logger = base_logger.get_logger(__name__)
 
     @classmethod
     def new(cls, config, client_factory=None):
@@ -232,7 +234,7 @@ class BftTestNetwork:
         #copy loggging.properties file
         shutil.copy(os.path.abspath("../simpleKVBC/scripts/logging.properties"), testdir)
 
-        print("Running test in {}".format(bft_network.testdir))
+        bft_network.logger.info("Running test in {}".format(bft_network.testdir))
 
         os.chdir(bft_network.testdir)
         bft_network._generate_crypto_keys()
@@ -390,6 +392,7 @@ class BftTestNetwork:
                                         stderr=stderr_file,
                                         close_fds=True)
 
+
     def _start_external_replica(self, replica_id):
         subprocess.run(
             self.start_replica_cmd(replica_id),
@@ -485,10 +488,10 @@ class BftTestNetwork:
         nb_replicas_in_matching_view = 0
         try:
             matching_view = await self._wait_for_matching_agreed_view(replica_id, expected)
-            print(f'Matching view #{matching_view} has been agreed among replicas.')
+            self.logger.info(f'Matching view #{matching_view} has been agreed among replicas.')
 
             nb_replicas_in_matching_view = await self._wait_for_active_view(matching_view)
-            print(f'View #{matching_view} has been activated by '
+            self.logger.info(f'View #{matching_view} has been activated by '
                   f'{nb_replicas_in_matching_view} >= n-f = {self.config.n - self.config.f}')
 
             return matching_view
@@ -573,7 +576,7 @@ class BftTestNetwork:
         random.shuffle(unstable_replicas)
 
         for backup_replica_id in unstable_replicas:
-            print(f'Stopping backup replica {backup_replica_id} in order '
+            self.logger.info(f'Stopping backup replica {backup_replica_id} in order '
                   f'to force a quorum including replica {replica_id}...')
             self.stop_replica(backup_replica_id)
             if len(self.procs) == 2 * self.config.f + self.config.c + 1:
@@ -667,7 +670,7 @@ class BftTestNetwork:
                             on_transferring_complete = ['bc_state_transfer',
                                                         'Counters',
                                                         'on_transferring_complete']
-                            print("wait_for_st_to_stop: expected_seq_num={} "
+                            self.logger.info("wait_for_st_to_stop: expected_seq_num={} "
                                   "last_stored_checkpoint={} "
                                   "on_transferring_complete_count={}".format(
                                         n,
