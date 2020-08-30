@@ -12,7 +12,7 @@
 import os.path
 import random
 import unittest
-import base_logger
+import basic_logger
 from os import environ
 
 import trio
@@ -43,7 +43,7 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcControlCommandsTest(unittest.TestCase):
 
-    logger = base_logger.get_logger(__name__)
+    logger = basic_logger.get_logger(__name__)
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)

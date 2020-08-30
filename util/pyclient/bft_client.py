@@ -18,7 +18,7 @@ import time
 import bft_msgs
 import replica_specific_info as rsi
 from bft_config import Config, Replica
-import base_logger
+import basic_logger
 
 # All test communication expects ports to start from 3710
 BASE_PORT = 3710
@@ -100,7 +100,7 @@ class UdpClient:
         self.sock_bound = False
         self.replies_manager = rsi.RepliesManager()
         self.rsi_replies = dict()
-        self.logger = base_logger.get_logger(__name__)
+        self.logger = basic_logger.get_logger(__name__)
 
     async def write(self, msg, seq_num=None, cid=None, pre_process=False, m_of_n_quorum=None):
         """ A wrapper around sendSync for requests that mutate state """

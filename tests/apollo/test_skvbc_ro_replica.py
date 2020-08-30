@@ -18,7 +18,7 @@ import subprocess
 import tempfile
 import shutil
 import time
-import base_logger
+import basic_logger
 
 from util import bft
 from util import skvbc as kvbc
@@ -58,7 +58,7 @@ def start_replica_cmd(builddir, replica_id, config):
 
 class SkvbcReadOnlyReplicaTest(unittest.TestCase):
 
-    logger = base_logger.get_logger(__name__)
+    logger = basic_logger.get_logger(__name__)
 
     """
     ReadOnlyReplicaTest has got two modes of operation:

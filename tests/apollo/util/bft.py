@@ -34,7 +34,7 @@ import bft_metrics_client
 from util import bft_metrics
 from util import skvbc as kvbc
 from util.bft_test_exceptions import AlreadyRunningError, AlreadyStoppedError
-import base_logger
+import basic_logger
 
 
 TestConfig = namedtuple('TestConfig', [
@@ -204,7 +204,7 @@ class BftTestNetwork:
             self.client_factory = self._create_new_udp_client
         self.open_fds = {}
         self.current_test = ""
-        self.logger = base_logger.get_logger(__name__)
+        self.logger = basic_logger.get_logger(__name__)
 
     @classmethod
     def new(cls, config, client_factory=None):

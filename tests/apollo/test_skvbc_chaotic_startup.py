@@ -14,7 +14,7 @@
 import os.path
 import random
 import unittest
-import base_logger
+import basic_logger
 from os import environ
 
 import trio
@@ -50,7 +50,7 @@ def start_replica_cmd_with_vc_timeout(vc_timeout):
 class SkvbcChaoticStartupTest(unittest.TestCase):
 
     __test__ = False  # so that PyTest ignores this test scenario
-    logger = base_logger.get_logger(__name__)
+    logger = basic_logger.get_logger(__name__)
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)

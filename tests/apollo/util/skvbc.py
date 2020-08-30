@@ -17,7 +17,7 @@ import trio
 
 from collections import namedtuple
 from util.skvbc_exceptions import BadReplyError
-import base_logger
+import basic_logger
 
 WriteReply = namedtuple('WriteReply', ['success', 'last_block_id'])
 
@@ -46,7 +46,7 @@ class SimpleKVBCProtocol:
         self.alphanum = [i for i in range(48, 58)]
         self.alphanum.extend(self.alpha)
         self.keys = self._create_keys()
-        self.logger = base_logger.get_logger(__name__)
+        self.logger = basic_logger.get_logger(__name__)
 
     @classmethod
     def write_req(cls, readset, writeset, block_id, long_exec=False, wedge_command=False):

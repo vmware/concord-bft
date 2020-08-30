@@ -14,7 +14,7 @@ import unittest
 import trio
 import os.path
 import random
-import base_logger
+import basic_logger
 
 from util import bft
 from util import skvbc as kvbc
@@ -52,7 +52,7 @@ def start_replica_cmd(builddir, replica_id):
 class SkvbcPersistenceTest(unittest.TestCase):
 
     __test__ = False  # so that PyTest ignores this test scenario
-    logger = base_logger.get_logger(__name__)
+    logger = basic_logger.get_logger(__name__)
 
     @with_trio
     @with_bft_network(start_replica_cmd,

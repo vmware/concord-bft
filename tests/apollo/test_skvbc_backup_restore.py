@@ -17,7 +17,7 @@ import trio
 
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, with_constant_load, KEY_FILE_PREFIX
-import base_logger
+import basic_logger
 
 
 def start_replica_cmd(builddir, replica_id, view_change_timeout_milli="10000"):
@@ -48,7 +48,7 @@ def start_replica_cmd_with_vc_timeout(vc_timeout):
 class SkvbcBackupRestoreTest(unittest.TestCase):
 
     __test__ = False  # so that PyTest ignores this test scenario
-    logger = base_logger.get_logger(__name__)
+    logger = basic_logger.get_logger(__name__)
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)

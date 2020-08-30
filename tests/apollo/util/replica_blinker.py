@@ -19,7 +19,7 @@ import signal
 import subprocess
 import sys
 import time
-import base_logger
+import basic_logger
 
 
 BLINKING_INTERVAL_SECONDS = (1, 10)
@@ -65,5 +65,5 @@ def main():
 
 if __name__ == "__main__":
     signal.signal(signal.SIGTERM, signal_handler)
-    logger = base_logger.get_logger(__name__)
+    logger = basic_logger.get_logger(__name__)
     main()

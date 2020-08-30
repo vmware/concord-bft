@@ -13,7 +13,7 @@
 import os.path
 import random
 import unittest
-import base_logger
+import basic_logger
 
 import trio
 
@@ -46,7 +46,7 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcNetworkPartitioningTest(unittest.TestCase):
 
-    logger = base_logger.get_logger(__name__)
+    logger = basic_logger.get_logger(__name__)
 
     @with_trio
     @with_bft_network(start_replica_cmd)

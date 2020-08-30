@@ -14,7 +14,7 @@ import os.path
 import unittest
 import trio
 import random
-import base_logger
+import basic_logger
 
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from util.skvbc_history_tracker import verify_linearizability
@@ -55,7 +55,7 @@ def start_replica_cmd(builddir, replica_id):
 class SkvbcPreExecutionTest(unittest.TestCase):
 
     __test__ = False  # so that PyTest ignores this test scenario
-    logger = base_logger.get_logger(__name__)
+    logger = basic_logger.get_logger(__name__)
 
     async def send_single_read(self, skvbc, client):
         req = skvbc.read_req(skvbc.random_keys(1))

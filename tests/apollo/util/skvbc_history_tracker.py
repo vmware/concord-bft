@@ -23,7 +23,7 @@ from util.skvbc_exceptions import(
     InvalidReadError,
     PhantomBlockError
 )
-import base_logger
+import basic_logger
 
 MAX_LOOKBACK=10
 
@@ -431,7 +431,7 @@ class SkvbcTracker:
         if self.bft_network is not None:
             self.status = Status(bft_network.config)
 
-        self.logger = base_logger.get_logger(__name__)
+        self.logger = basic_logger.get_logger(__name__)
 
     def send_write(self, client_id, seq_num, readset, writeset, read_block_id):
         """Track the send of a write request"""
@@ -1053,7 +1053,7 @@ class PassThroughSkvbcTracker:
 
         self.bft_network = bft_network
 
-        self.logger = base_logger.get_logger(__name__)
+        self.logger = basic_logger.get_logger(__name__)
 
     async def get_last_block_id(self, client):
         msg = kvbc.SimpleKVBCProtocol.get_last_block_req()

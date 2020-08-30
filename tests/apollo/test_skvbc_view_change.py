@@ -21,7 +21,7 @@ from util import bft_network_partitioning as net
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from util.skvbc_history_tracker import verify_linearizability
-import base_logger
+import basic_logger
 
 def start_replica_cmd(builddir, replica_id):
     """
@@ -46,7 +46,7 @@ def start_replica_cmd(builddir, replica_id):
 class SkvbcViewChangeTest(unittest.TestCase):
 
     __test__ = False  # so that PyTest ignores this test scenario
-    logger = base_logger.get_logger(__name__)
+    logger = basic_logger.get_logger(__name__)
 
     @with_trio
     @with_bft_network(start_replica_cmd)

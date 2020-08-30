@@ -15,7 +15,7 @@
 
 import os
 import subprocess
-import base_logger
+import basic_logger
 
 
 class BlinkingReplica(object):
@@ -24,7 +24,7 @@ class BlinkingReplica(object):
     def __init__(self):
         super(BlinkingReplica, self).__init__()
         self.blinker_process = None
-        self.logger = base_logger.get_logger(__name__)
+        self.logger = basic_logger.get_logger(__name__)
 
     def __enter__(self):
         """context manager method for 'with' statements"""
