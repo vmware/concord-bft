@@ -11,6 +11,8 @@
 
 #include "KeyStore.h"
 
+#include "assertUtils.hpp"
+
 namespace bftEngine::impl {
 
 ////////////////////////////// KEY EXCHANGE MSG//////////////////////////////
@@ -82,6 +84,7 @@ void ReplicaKeyStore::deserializeDataMembers(std::istream& inStream) {
 }
 
 ReplicaKeyStore ReplicaKeyStore::deserializeReplicaKeyStore(const char* serializedRepStore, const int& size) {
+  ConcordAssertGT(size, 0);
   std::stringstream ss;
   ReplicaKeyStore ks;
   ss.write(serializedRepStore, std::streamsize(size));
@@ -131,6 +134,7 @@ ClusterKeyStore::ClusterKeyStore(const uint32_t& clusterSize,
                                  IReservedPages& reservedPages,
                                  const uint32_t& sizeOfReservedPage)
     : clusterKeys_(clusterSize), reservedPages_(reservedPages), buffer_(sizeOfReservedPage, 0) {
+  ConcordAssertGT(sizeOfReservedPage, 0);
   loadAllReplicasKeyStoresFromReservedPages();
 }
 
@@ -152,7 +156,14 @@ void ClusterKeyStore::loadAllReplicasKeyStoresFromReservedPages() {
 }
 
 std::optional<ReplicaKeyStore> ClusterKeyStore::loadReplicaKeyStoreFromReserevedPages(const uint16_t& repID) {
-  reservedPages_.loadReservedPage(resPageOffset() + repID, buffer_.size(), buffer_.data());
+  // TODO: The check of the return value doesn't discriminate between a missing reserved page + the last checkpoint
+  // being 0 and a failure to load. However, the check is still needed as a failure to load might leave the buffer_
+  // variable in a wrong state. Additionally, we need to be sure that returning an empty optional is the right thing to
+  // do.
+  if (!reservedPages_.loadReservedPage(resPageOffset() + repID, buffer_.size(), buffer_.data())) {
+    LOG_INFO(KEY_EX_LOG, "Couldn't load replica key store [" << repID << "] from reserved pages, first start?");
+    return {};
+  }
   try {
     return ReplicaKeyStore::deserializeReplicaKeyStore(buffer_.c_str(), buffer_.size());
   } catch (std::exception& e) {
