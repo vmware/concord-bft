@@ -3494,16 +3494,16 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
 
       if (status != 0) {
         const auto requestSeqNum = req.requestSeqNum();
-        LOG_DEBUG(CNSUS, "Request execution failed: " << KVLOG(clientId, requestSeqNum));
-        return;
+        LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(clientId, requestSeqNum));
       } else {
         ClientReplyMsg *replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(
             clientId, req.requestSeqNum(), currentPrimary(), replyBuffer, actualReplyLength);
         replyMsg->setReplicaSpecificInfoLength(actualReplicaSpecificInfoLength);
         send(replyMsg, clientId);
         delete replyMsg;
-        clientsManager->removePendingRequestOfClient(clientId);
       }
+
+      clientsManager->removePendingRequestOfClient(clientId);
     }
   }
 
