@@ -3477,7 +3477,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
 
       uint32_t actualReplyLength = 0;
       uint32_t actualReplicaSpecificInfoLength = 0;
-      bftRequestsHandler_.execute(
+      auto status = bftRequestsHandler_.execute(
           clientId,
           lastExecutedSeqNum + 1,
           req.flags(),
@@ -3492,11 +3492,17 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
       ConcordAssertGT(actualReplyLength,
                       0);  // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
 
-      ClientReplyMsg *replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(
-          clientId, req.requestSeqNum(), currentPrimary(), replyBuffer, actualReplyLength);
-      replyMsg->setReplicaSpecificInfoLength(actualReplicaSpecificInfoLength);
-      send(replyMsg, clientId);
-      delete replyMsg;
+      if (status != 0) {
+        const auto requestSeqNum = req.requestSeqNum();
+        LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(clientId, requestSeqNum));
+      } else {
+        ClientReplyMsg *replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(
+            clientId, req.requestSeqNum(), currentPrimary(), replyBuffer, actualReplyLength);
+        replyMsg->setReplicaSpecificInfoLength(actualReplicaSpecificInfoLength);
+        send(replyMsg, clientId);
+        delete replyMsg;
+      }
+
       clientsManager->removePendingRequestOfClient(clientId);
     }
   }
