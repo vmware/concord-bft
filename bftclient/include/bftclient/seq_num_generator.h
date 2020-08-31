@@ -50,7 +50,7 @@ class SeqNumberGenerator {
       lastCountOfUniqueFetchID_ = 0;
     } else {
       if (lastCountOfUniqueFetchID_ == LAST_COUNT_LIMIT) {
-        LOG_WARN(logger_, "Client SeqNum Counter reached max value. " << KVLOG(client_id_));
+        LOG_WARN(logger_, "Client SeqNum Counter reached max value. " << KVLOG(client_id_.val));
         lastMilliOfUniqueFetchID_++;
         lastCountOfUniqueFetchID_ = 0;
       } else {
