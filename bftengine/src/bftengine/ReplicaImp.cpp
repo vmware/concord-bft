@@ -1762,7 +1762,8 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
 
   else if ((msgViewNum == curView) && (!msg->currentViewIsActive())) {
     auto sendViewChangeMsg = [&msg, &msgSenderId, this]() {
-      if (msg->hasListOfMissingViewChangeMsgForViewChange() &&
+      if (curView > 0 &&  // we only have ViewChangeMsg for View > 0
+          msg->hasListOfMissingViewChangeMsgForViewChange() &&
           msg->isMissingViewChangeMsgForViewChange(config_.replicaId)) {
         ViewChangeMsg *myVC = viewsManager->getMyLatestViewChangeMsg();
         ConcordAssertNE(myVC, nullptr);
@@ -1777,8 +1778,8 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
         sendViewChangeMsg();
       } else  // I am the primary of curView
       {
-        // send NewViewMsg
-        if (!msg->currentViewHasNewViewMessage() && viewsManager->viewIsActive(curView)) {
+        // send NewViewMsg for View > 0
+        if (curView > 0 && !msg->currentViewHasNewViewMessage() && viewsManager->viewIsActive(curView)) {
           NewViewMsg *nv = viewsManager->getMyNewViewMsgForCurrentView();
           ConcordAssertNE(nv, nullptr);
           sendAndIncrementMetric(nv, msgSenderId, metric_sent_newview_msg_due_to_status_);
@@ -1788,7 +1789,8 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
         // the ViewChangeMsg msgs used by the primary)
         // if viewsManager->viewIsActive(curView), we can send only the VC msgs which are really needed for
         // curView (see in ViewsManager)
-        if (msg->hasListOfMissingViewChangeMsgForViewChange()) {
+        // It should be taken in consideration that we do not have ViewChangeMsg-s for View 0
+        if (curView > 0 && msg->hasListOfMissingViewChangeMsgForViewChange()) {
           for (auto *vcMsg : viewsManager->getViewChangeMsgsForView(curView)) {
             if (msg->isMissingViewChangeMsgForViewChange(vcMsg->idOfGeneratedReplica())) {
               send(vcMsg, msgSenderId);
