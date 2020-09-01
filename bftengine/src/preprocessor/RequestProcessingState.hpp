@@ -50,6 +50,7 @@ class RequestProcessingState {
   }
   std::string getReqCid() const { return clientPreProcessReqMsg_ ? clientPreProcessReqMsg_->getCid() : ""; }
   void detectNonDeterministicPreProcessing(const uint8_t* newHash, NodeIdType newSenderId) const;
+  void releaseResources();
 
   static void init(uint16_t numOfRequiredReplies);
 
@@ -78,7 +79,7 @@ class RequestProcessingState {
   ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg_;
   PreProcessRequestMsgSharedPtr preProcessRequestMsg_;
   uint16_t numOfReceivedReplies_ = 0;
-  const char* primaryPreProcessResult_ = nullptr;
+  const char* primaryPreProcessResult_ = nullptr;  // This memory is statically pre-allocated per client in PreProcessor
   uint32_t primaryPreProcessResultLen_ = 0;
   concord::util::SHA3_256::Digest primaryPreProcessResultHash_;
   // Maps result hash to the number of equal hashes

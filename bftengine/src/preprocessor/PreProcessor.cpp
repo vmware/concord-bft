@@ -463,6 +463,8 @@ void PreProcessor::releaseClientPreProcessRequest(const ClientRequestStateShared
       SCOPED_MDC_CID(givenReq->getReqCid());
       const auto requestSeqNum = givenReq->getReqSeqNum();
       LOG_DEBUG(logger(), KVLOG(requestSeqNum, clientId) << " released and moved to the history");
+      // No need to keep whole messages in the memory => release them before archiving
+      givenReq->releaseResources();
       clientEntry->reqProcessingHistory.push_back(move(givenReq));
     } else  // No consensus reached => release request
       givenReq.reset();
