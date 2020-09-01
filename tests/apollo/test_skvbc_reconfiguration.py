@@ -125,7 +125,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
         await client.write(skvbc.write_req([], [], block_id=0, wedge_command=True))
 
-        with trio.fail_after(seconds=60):
+        with trio.fail_after(seconds=90):
             done = False
             while done is False:
                 msg = skvbc.get_have_you_stopped_req()
@@ -140,6 +140,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
         await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
 
+    @unittest.skip("manual testcase - not part of CI")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_semi_manual_upgrade(self, bft_network):
@@ -179,7 +180,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.stop_all_replicas()
 
         # Here the system operator runs a manual upgrade
-        # input("update the software and press any kay to continue")
+        input("update the software and press any kay to continue")
 
         bft_network.start_all_replicas()
 
@@ -212,7 +213,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
     async def verify_replicas_are_in_wedged_checkpoint(self, bft_network, previous_checkpoint, replicas):
         for replica_id in replicas:
-            with trio.fail_after(seconds=30):
+            with trio.fail_after(seconds=60):
                 while True:
                     with trio.move_on_after(seconds=1):
                         checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=replica_id)
