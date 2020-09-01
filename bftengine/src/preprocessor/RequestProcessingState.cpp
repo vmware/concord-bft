@@ -59,6 +59,11 @@ void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessRes
       convertToArray(SHA3_256().digest(primaryPreProcessResult_, primaryPreProcessResultLen_).data());
 }
 
+void RequestProcessingState::releaseResources() {
+  clientPreProcessReqMsg_.reset();
+  preProcessRequestMsg_.reset();
+}
+
 void RequestProcessingState::detectNonDeterministicPreProcessing(const SHA3_256::Digest &newHash,
                                                                  NodeIdType newSenderId) const {
   SCOPED_MDC_CID(cid_);
