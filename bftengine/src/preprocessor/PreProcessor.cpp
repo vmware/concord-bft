@@ -434,7 +434,7 @@ bool PreProcessor::registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
       return false;
     }
   }
-  LOG_DEBUG(logger(), KVLOG(reqSeqNum, clientId) << " registered");
+  LOG_DEBUG(logger(), KVLOG(reqSeqNum, clientId) << " registered ClientPreProcessReqMsg or PreProcessRequestMsg");
   preProcessorMetrics_.preProcInFlyRequestsNum.Get().Inc();
   return true;
 }
@@ -463,6 +463,8 @@ void PreProcessor::releaseClientPreProcessRequest(const ClientRequestStateShared
       SCOPED_MDC_CID(givenReq->getReqCid());
       const auto requestSeqNum = givenReq->getReqSeqNum();
       LOG_DEBUG(logger(), KVLOG(requestSeqNum, clientId) << " released and moved to the history");
+      // No need to keep whole messages in the memory => release them before archiving
+      givenReq->releaseResources();
       clientEntry->reqProcessingHistory.push_back(move(givenReq));
     } else  // No consensus reached => release request
       givenReq.reset();
@@ -505,12 +507,15 @@ void PreProcessor::handleClientPreProcessRequestByPrimary(ClientPreProcessReqMsg
 
 // Non-primary replica: start client request handling
 void PreProcessor::handleClientPreProcessRequestByNonPrimary(ClientPreProcessReqMsgUniquePtr clientReqMsg) {
-  sendMsg(clientReqMsg->body(), myReplica_.currentPrimary(), clientReqMsg->type(), clientReqMsg->size());
-  LOG_DEBUG(
-      logger(),
-      "Sending ClientPreProcessRequestMsg reqSeqNum: " << clientReqMsg->requestSeqNum() << " to the current primary");
   // Register a client request message with an empty PreProcessRequestMsg to allow follow up.
-  registerRequest(move(clientReqMsg), PreProcessRequestMsgSharedPtr());
+  const auto &requestSeqNum = clientReqMsg->requestSeqNum();
+  const auto &msgBody = clientReqMsg->body();
+  const auto &msgType = clientReqMsg->type();
+  const auto &msgSize = clientReqMsg->size();
+  if (registerRequest(move(clientReqMsg), PreProcessRequestMsgSharedPtr())) {
+    sendMsg(msgBody, myReplica_.currentPrimary(), msgType, msgSize);
+    LOG_DEBUG(logger(), "Sent ClientPreProcessRequestMsg" << KVLOG(requestSeqNum) << " to the current primary");
+  }
 }
 
 const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId) const {
