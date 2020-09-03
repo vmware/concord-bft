@@ -16,6 +16,7 @@
 #include "ReplicaImp.hpp"
 #include "ViewsManager.hpp"
 #include "messages/FullCommitProofMsg.hpp"
+#include "CryptoManager.hpp"
 #include "Logger.hpp"
 
 #define Verify(expr, errorCode) \
@@ -86,20 +87,6 @@ ReplicaLoader::ErrorCode checkReplicaConfig(const LoadedReplicaData &ld) {
 
   Verify(!c.replicaPrivateKey.empty(), InconsistentErr);  // TODO(GG): make sure that the key is valid
 
-  Verify(c.thresholdSignerForSlowPathCommit != nullptr, InconsistentErr);
-  Verify(c.thresholdVerifierForSlowPathCommit != nullptr, InconsistentErr);
-
-  if (c.cVal == 0) {
-  } else {
-    Verify(c.thresholdSignerForCommit != nullptr, InconsistentErr);
-    Verify(c.thresholdVerifierForCommit != nullptr, InconsistentErr);
-  }
-
-  Verify(c.thresholdSignerForOptimisticCommit != nullptr, InconsistentErr);
-  Verify(c.thresholdVerifierForOptimisticCommit != nullptr, InconsistentErr);
-
-  // TODO: make sure that the verifiers and signers are valid
-
   return Succ;
 }
 
@@ -153,6 +140,15 @@ ReplicaLoader::ErrorCode loadConfig(shared_ptr<PersistentStorage> &p, LoadedRepl
                                  replicasSigPublicKeys);
 
   ld.repsInfo = new ReplicasInfo(ld.repConfig, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
+
+  Cryptosystem *cryptoSys = new Cryptosystem(ld.repConfig.thresholdSystemType_,
+                                             ld.repConfig.thresholdSystemSubType_,
+                                             ld.repConfig.numReplicas,
+                                             ld.repConfig.numReplicas);
+  cryptoSys->loadKeys(ld.repConfig.thresholdPublicKey_, ld.repConfig.thresholdVerificationKeys_);
+  cryptoSys->loadPrivateKey(ld.repConfig.replicaId, ld.repConfig.thresholdPrivateKey_);
+  bftEngine::CryptoManager::instance(&ld.repConfig, cryptoSys);
+
   return Succ;
 }
 
@@ -164,7 +160,6 @@ ReplicaLoader::ErrorCode checkViewDesc(const DescriptorOfLastExitFromView *exitD
 
 ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedReplicaData &ld) {
   ConcordAssert(p != nullptr);
-  ConcordAssert(ld.repsInfo != nullptr) ConcordAssert(ld.repConfig.thresholdVerifierForSlowPathCommit != nullptr);
   ConcordAssert(ld.viewsManager == nullptr);
 
   DescriptorOfLastExitFromView descriptorOfLastExitFromView;
@@ -192,8 +187,8 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
 
   ViewsManager *viewsManager = nullptr;
   if (!hasDescLastExitFromView && !hasDescOfLastNewView) {
-    viewsManager =
-        ViewsManager::createInsideViewZero(ld.repsInfo, ld.sigManager, ld.repConfig.thresholdVerifierForSlowPathCommit);
+    viewsManager = ViewsManager::createInsideViewZero(
+        ld.repsInfo, ld.sigManager, CryptoManager::instance().thresholdVerifierForSlowPathCommit());
 
     ConcordAssert(viewsManager->latestActiveView() == 0);
     ConcordAssert(viewsManager->viewIsActive(0));
@@ -204,7 +199,7 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
 
     viewsManager = ViewsManager::createOutsideView(ld.repsInfo,
                                                    ld.sigManager,
-                                                   ld.repConfig.thresholdVerifierForSlowPathCommit,
+                                                   CryptoManager::instance().thresholdVerifierForSlowPathCommit(),
                                                    descriptorOfLastExitFromView.view,
                                                    descriptorOfLastExitFromView.lastStable,
                                                    descriptorOfLastExitFromView.lastExecuted,
@@ -222,7 +217,7 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
 
     viewsManager = ViewsManager::createOutsideView(ld.repsInfo,
                                                    ld.sigManager,
-                                                   ld.repConfig.thresholdVerifierForSlowPathCommit,
+                                                   CryptoManager::instance().thresholdVerifierForSlowPathCommit(),
                                                    descriptorOfLastExitFromView.view,
                                                    descriptorOfLastExitFromView.lastStable,
                                                    descriptorOfLastExitFromView.lastExecuted,
@@ -241,7 +236,7 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
 
     viewsManager = ViewsManager::createInsideView(ld.repsInfo,
                                                   ld.sigManager,
-                                                  ld.repConfig.thresholdVerifierForSlowPathCommit,
+                                                  CryptoManager::instance().thresholdVerifierForSlowPathCommit(),
                                                   descriptorOfLastNewView.view,
                                                   descriptorOfLastNewView.stableLowerBoundWhenEnteredToView,
                                                   descriptorOfLastNewView.newViewMsg,

@@ -473,8 +473,7 @@ TEST(testViewchangeSafetyLogic_test, one_different_new_view_in_VC_msgs) {
   viewChangeMsgs[2] = new ViewChangeMsg(2, 10, 0);
   viewChangeMsgs[3] = new ViewChangeMsg(3, 11, 0);
 
-  auto VCS = ViewChangeSafetyLogic(
-      N, F, C, replicaConfig[0].thresholdVerifierForSlowPathCommit, PrePrepareMsg::digestOfNullPrePrepareMsg());
+  auto VCS = ViewChangeSafetyLogic(N, F, C, nullptr, PrePrepareMsg::digestOfNullPrePrepareMsg());
 
   ASSERT_DEATH(VCS.calcLBStableForView(viewChangeMsgs), "");
 
@@ -496,8 +495,7 @@ TEST(testViewchangeSafetyLogic_test, different_new_views_in_VC_msgs) {
     }
   }
 
-  auto VCS = ViewChangeSafetyLogic(
-      N, F, C, replicaConfig[0].thresholdVerifierForSlowPathCommit, PrePrepareMsg::digestOfNullPrePrepareMsg());
+  auto VCS = ViewChangeSafetyLogic(N, F, C, nullptr, PrePrepareMsg::digestOfNullPrePrepareMsg());
 
   ASSERT_DEATH(VCS.calcLBStableForView(viewChangeMsgs), "");
 
@@ -520,8 +518,7 @@ TEST(testViewchangeSafetyLogic_test, empty_correct_VC_msgs) {
     }
   }
 
-  auto VCS = ViewChangeSafetyLogic(
-      N, F, C, replicaConfig[0].thresholdVerifierForSlowPathCommit, PrePrepareMsg::digestOfNullPrePrepareMsg());
+  auto VCS = ViewChangeSafetyLogic(N, F, C, nullptr, PrePrepareMsg::digestOfNullPrePrepareMsg());
 
   auto seqNum = VCS.calcLBStableForView(viewChangeMsgs);
   ConcordAssert(seqNum == lastStableSeqNum);

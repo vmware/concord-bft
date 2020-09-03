@@ -23,6 +23,7 @@
 #include "InternalReplicaApi.hpp"
 #include "SimpleThreadPool.hpp"
 #include "ReplicaConfig.hpp"
+#include "CryptoManager.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -304,19 +305,12 @@ void PartialProofsSet::tryToCreateFullProof() {
 
 IThresholdVerifier* PartialProofsSet::thresholdVerifier(CommitPath cPath) {
   // TODO: Not thread-safe?
-  IThresholdVerifier* verifier;
-
   // TODO: ALIN: Not sure if the commented code below would be the desired behavior
   if (cPath == CommitPath::OPTIMISTIC_FAST) {
-    verifier = replica->getThresholdVerifierForOptimisticCommit();
+    return CryptoManager::instance().thresholdVerifierForOptimisticCommit();
   } else /* if (cPath == CommitPath::FAST_WITH_THRESHOLD) */ {
-    verifier = replica->getThresholdVerifierForCommit();
-    //} else {
+    return CryptoManager::instance().thresholdVerifierForCommit();
   }
-
-  ConcordAssert(verifier != nullptr);
-
-  return verifier;
 }
 
 IThresholdAccumulator* PartialProofsSet::thresholdAccumulator(CommitPath cPath) {

@@ -46,20 +46,11 @@ class ReplicaConfigSerializer : public concord::serialize::SerializableFactory<R
  private:
   void serializeKey(const std::string &key, std::ostream &outStream) const;
   std::string deserializeKey(std::istream &inStream) const;
-  void createSignersAndVerifiers(std::istream &inStream, ReplicaConfig &newObject);
   void serializePointer(concord::serialize::Serializable *ptrToClass, std::ostream &outStream) const;
   static concord::serialize::SerializablePtr deserializePointer(std::istream &inStream);
 
  private:
   std::unique_ptr<ReplicaConfig> config_;
-
-  // Place holders for shared pointers to serializable classes
-  concord::serialize::SerializablePtr thresholdSignerForSlowPathCommit_;
-  concord::serialize::SerializablePtr thresholdVerifierForSlowPathCommit_;
-  concord::serialize::SerializablePtr thresholdSignerForCommit_;
-  concord::serialize::SerializablePtr thresholdVerifierForCommit_;
-  concord::serialize::SerializablePtr thresholdSignerForOptimisticCommit_;
-  concord::serialize::SerializablePtr thresholdVerifierForOptimisticCommit_;
 };
 
 }  // namespace impl

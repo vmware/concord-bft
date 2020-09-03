@@ -33,24 +33,14 @@
  * @param config         Replica configuration
  * @param outputFilename Filename to which output corresponds; this may be used
  *                       in giving more descriptive error messages.
- * @param slowSys        Cryptosystem for consensus on transaction commit order
- *                       in the slow path for this deployment, with all keys
- *                       already generated (regular replica).
- * @param commitSys      Cryptosystem for consensus on transaction commit order
- *                       in the general path for this deployment, with all keys
- *                       already generated (regular replica).
- * @param optSys         Cryptosystem for consensus on transaction commit order
- *                       in the optimistic fast path for this deployment, with
- *                       all keys already generated (regular replica).
+ * @param commonSys      Common Cryptosystem with all keys already generated (regular replica).
+ *                       Is null for ro replica.
  */
 void outputReplicaKeyfile(uint16_t numReplicas,
                           uint16_t numRoReplicas,
                           bftEngine::ReplicaConfig& config,
                           const std::string& outputFilename,
-                          Cryptosystem* commonSys = nullptr,
-                          Cryptosystem* slowSys = nullptr,
-                          Cryptosystem* commitSys = nullptr,
-                          Cryptosystem* optSys = nullptr);
+                          Cryptosystem* commonSys = nullptr);
 
 /**
  * Read in a keyfile for the current replica that was output with
@@ -75,9 +65,7 @@ void outputReplicaKeyfile(uint16_t numReplicas,
  *         output to config, and false otherwise. Reasons for failure may
  *         include I/O issues or invalid formatting or contents of the keyfile.
  */
-void inputReplicaKeyfile(const std::string& inputFilename, bftEngine::ReplicaConfig& config);
-
-void inputReplicaKeyfileMultisig(const std::string& inputFilename, bftEngine::ReplicaConfig& config);
+Cryptosystem* inputReplicaKeyfileMultisig(const std::string& inputFilename, bftEngine::ReplicaConfig& config);
 
 template <typename T>
 T parse(const std::string& str, const std::string& name) {

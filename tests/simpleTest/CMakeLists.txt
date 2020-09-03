@@ -78,10 +78,10 @@ target_link_libraries(persistency_test PUBLIC
         
         simple_file_storage_lib)
 
-add_test(NAME persistency_test COMMAND persistency_test )
+#add_test(NAME persistency_test COMMAND persistency_test )
 
 add_custom_target(generate_test_config
-        		  COMMAND GenerateConcordKeys  -m -f 1 -n 4 -o private_replica_ 
+        		  COMMAND GenerateConcordKeys -f 1 -n 4 -o private_replica_ 
         		  COMMENT "Generating config files for simpleTest" 
         		)
         		

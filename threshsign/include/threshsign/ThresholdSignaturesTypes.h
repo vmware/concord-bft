@@ -93,25 +93,25 @@ class UninitializedCryptosystemException : public std::exception {
  */
 class Cryptosystem {
  private:
-  std::string type;
-  std::string subtype;
+  std::string type_{""};
+  std::string subtype_{""};
 
-  uint16_t numSigners;
-  uint16_t threshold_;
-  bool forceMultisig_;  // is true if  signers == threshold
+  uint16_t numSigners_{0};
+  uint16_t threshold_{0};
+  bool forceMultisig_{false};  // is true if  signers == threshold
 
   // If only one signer's private key is known and stored in this cryptosystem,
   // this field records that signer's ID; otherwise (if no or all private keys
   // are known to this cryptosystem), this field stores Cryptosystem::NID to
   // represent it is inapplicable.
-  uint16_t signerID;
+  uint16_t signerID_{0};
 
   // Note that 0 is not a valid signer ID because signer IDs are 1-indexed.
   static const uint16_t NID = 0;
 
-  std::string publicKey;
-  std::vector<std::string> verificationKeys;
-  std::vector<std::string> privateKeys;
+  std::string publicKey_{""};
+  std::vector<std::string> verificationKeys_;
+  std::vector<std::string> privateKeys_;
 
   // Internally used helper functions.
   IThresholdFactory* createThresholdFactory();
@@ -124,6 +124,9 @@ class Cryptosystem {
                                     const std::string& subtype,
                                     uint16_t numSigners,
                                     uint16_t threshold);
+
+ protected:
+  Cryptosystem() = default;
 
  public:
   /**
@@ -174,21 +177,21 @@ class Cryptosystem {
    *
    * @return A string representing the type of this cryptosystem.
    */
-  const std::string& getType() const { return type; }
+  const std::string& getType() const { return type_; }
 
   /**
    * Get the type-dependent subtype of this crytposystem.
    *
    * @return A string representing the subtype of this cryptosystem.
    */
-  const std::string& getSubtype() const { return subtype; }
+  const std::string& getSubtype() const { return subtype_; }
 
   /**
    * Get the number of signers in this cryptosystem.
    *
    * @return The number of signers in this cryptosystem.
    */
-  uint16_t getNumSigners() const { return numSigners; }
+  uint16_t getNumSigners() const { return numSigners_; }
 
   /**
    * Get the threshold for this threshold cryptosystem.
@@ -320,7 +323,7 @@ class Cryptosystem {
    *                                            verification keys loaded to
    *                                            create a verifier.
    */
-  IThresholdVerifier* createThresholdVerifier(uint16_t threshold = 0);
+  virtual IThresholdVerifier* createThresholdVerifier(uint16_t threshold = 0);
 
   /**
    * Create a threshold signer with the private key loaded for this system.
@@ -334,7 +337,7 @@ class Cryptosystem {
    *                                            have a private key loaded, or if
    *                                            it has all private keys loaded.
    */
-  IThresholdSigner* createThresholdSigner();
+  virtual IThresholdSigner* createThresholdSigner();
 
   /**
    * Get a list of supported cryptosystem types and descriptions of what
@@ -354,5 +357,12 @@ class Cryptosystem {
   /**
    * Create Cryptosystem from configuration
    */
-  static Cryptosystem* fromConfiguration(std::istream&, const std::string& prefix, const uint16_t& replicaId);
+  static Cryptosystem* fromConfiguration(std::istream&,
+                                         const std::string& prefix,
+                                         const uint16_t& replicaId,
+                                         std::string& type,
+                                         std::string& subtype,
+                                         std::string& thrPrivateKey,
+                                         std::string& thrPublicKey,
+                                         std::vector<std::string>& thrVerificationKeys);
 };

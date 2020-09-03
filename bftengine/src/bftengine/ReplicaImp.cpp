@@ -39,6 +39,7 @@
 #include "messages/ReplicaStatusMsg.hpp"
 #include "messages/AskForCheckpointMsg.hpp"
 #include "KeyManager.h"
+#include "CryptoManager.hpp"
 
 #include <string>
 #include <type_traits>
@@ -769,9 +770,9 @@ void ReplicaImp::sendPartialProof(SeqNumInfo &seqNumInfo) {
       ConcordAssertOR((config_.cVal != 0), (commitPath != CommitPath::FAST_WITH_THRESHOLD));
 
       if ((commitPath == CommitPath::FAST_WITH_THRESHOLD) && (config_.cVal > 0))
-        commitSigner = config_.thresholdSignerForCommit;
+        commitSigner = CryptoManager::instance().thresholdSignerForCommit();
       else
-        commitSigner = config_.thresholdSignerForOptimisticCommit;
+        commitSigner = CryptoManager::instance().thresholdSignerForOptimisticCommit();
 
       Digest tmpDigest;
       Digest::calcCombination(ppDigest, curView, seqNum, tmpDigest);
@@ -817,7 +818,7 @@ void ReplicaImp::sendPreparePartial(SeqNumInfo &seqNumInfo) {
                                                      pp->seqNumber(),
                                                      config_.replicaId,
                                                      pp->digestOfRequests(),
-                                                     config_.thresholdSignerForSlowPathCommit,
+                                                     CryptoManager::instance().thresholdSignerForSlowPathCommit(),
                                                      span_context);
     seqNumInfo.addSelfMsg(p);
 
@@ -853,7 +854,7 @@ void ReplicaImp::sendCommitPartial(const SeqNum s) {
                                s,
                                config_.replicaId,
                                d,
-                               config_.thresholdSignerForSlowPathCommit,
+                               CryptoManager::instance().thresholdSignerForSlowPathCommit(),
                                prepareFullMsg->spanContext<std::remove_pointer<decltype(prepareFullMsg)>::type>());
   seqNumInfo.addSelfCommitPartialMsgAndDigest(c, d);
 
@@ -2919,9 +2920,9 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         ConcordAssertOR((config_.cVal != 0), (pathInPrePrepare != CommitPath::FAST_WITH_THRESHOLD));
 
         if ((pathInPrePrepare == CommitPath::FAST_WITH_THRESHOLD) && (config_.cVal > 0))
-          commitSigner = config_.thresholdSignerForCommit;
+          commitSigner = CryptoManager::instance().thresholdSignerForCommit();
         else
-          commitSigner = config_.thresholdSignerForOptimisticCommit;
+          commitSigner = CryptoManager::instance().thresholdSignerForOptimisticCommit();
 
         Digest tmpDigest;
         Digest::calcCombination(ppDigest, curView, seqNum, tmpDigest);
@@ -2943,7 +2944,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                                                          pp->seqNumber(),
                                                          config_.replicaId,
                                                          pp->digestOfRequests(),
-                                                         config_.thresholdSignerForSlowPathCommit);
+                                                         CryptoManager::instance().thresholdSignerForSlowPathCommit());
         bool added = seqNumInfo.addSelfMsg(p, true);
         ConcordAssert(added);
       }
@@ -2953,8 +2954,8 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
 
         Digest d;
         Digest::digestOfDigest(e.getPrePrepareMsg()->digestOfRequests(), d);
-        CommitPartialMsg *c =
-            CommitPartialMsg::create(curView, s, config_.replicaId, d, config_.thresholdSignerForSlowPathCommit);
+        CommitPartialMsg *c = CommitPartialMsg::create(
+            curView, s, config_.replicaId, d, CryptoManager::instance().thresholdSignerForSlowPathCommit());
 
         seqNumInfo.addSelfCommitPartialMsgAndDigest(c, d, true);
       }
@@ -3042,9 +3043,7 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
 
     ConcordAssert(!ps_->hasReplicaConfig());
 
-    ps_->beginWriteTran();
     ps_->setReplicaConfig(config);
-    ps_->endWriteTran();
   }
 
   auto numThreads = 8;
@@ -3148,7 +3147,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
                                 config_.replicaPrivateKey,
                                 config_.publicKeysOfReplicas);
     repsInfo = new ReplicasInfo(config_, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
-    viewsManager = new ViewsManager(repsInfo, sigManager, config_.thresholdVerifierForSlowPathCommit);
+    viewsManager =
+        new ViewsManager(repsInfo, sigManager, CryptoManager::instance().thresholdVerifierForSlowPathCommit());
   } else {
     sigManager = sigMgr;
     repsInfo = replicasInfo;

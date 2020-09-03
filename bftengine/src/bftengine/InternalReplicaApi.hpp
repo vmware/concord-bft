@@ -48,9 +48,7 @@ class InternalReplicaApi  // TODO(GG): rename + clean + split to several classes
 
   virtual const ReplicaConfig& getReplicaConfig() const = 0;
 
-  virtual IThresholdVerifier* getThresholdVerifierForSlowPathCommit() = 0;
-  virtual IThresholdVerifier* getThresholdVerifierForCommit() = 0;
-  virtual IThresholdVerifier* getThresholdVerifierForOptimisticCommit() = 0;
+  virtual ~InternalReplicaApi() = default;
 };
 
 }  // namespace impl

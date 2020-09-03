@@ -553,15 +553,20 @@ static bool testThresholdCryptosystem(const std::string& name,
   // keys for this cryptosystem.
   for (uint16_t i = 0; i < numSigners; ++i) {
     IThresholdVerifier* verifier = verifiers[i];
-    if (verifier->getPublicKey().toString() != referenceVerifier->getPublicKey().toString()) {
-      std::cout << "FAILURE: Replica " << i
-                << "'s key file"
-                   " has the wrong public key for the "
-                << name
-                << " threshold"
-                   " cryptosystem.\n";
-      return false;
+    try {
+      if (verifier->getPublicKey().toString() != referenceVerifier->getPublicKey().toString()) {
+        std::cout << "FAILURE: Replica " << i
+                  << "'s key file"
+                     " has the wrong public key for the "
+                  << name
+                  << " threshold"
+                     " cryptosystem.\n";
+        return false;
+      }
+    } catch (std::exception& e) {
+      // BLSMultisigVerifier::getPublicKey() throws if k-out-of-n, k < n
     }
+
     for (uint16_t j = 0; j < numSigners; ++j) {
       if (verifier->getShareVerificationKey(j).toString() != referenceVerifier->getShareVerificationKey(j).toString()) {
         std::cout << "FAILURE: Replica " << i
@@ -600,7 +605,8 @@ static bool testThresholdCryptosystem(const std::string& name,
 
 // Tests all threshold cryptosystems given in the keyfiles by calling
 // testThresholdCryptosystem for each of them.
-static bool testThresholdKeys(const std::vector<bftEngine::ReplicaConfig>& configs) {
+static bool testThresholdKeys(const std::vector<bftEngine::ReplicaConfig>& configs,
+                              std::vector<std::unique_ptr<Cryptosystem>>& cryptoSystems) {
   uint16_t numReplicas = configs.size() - configs.front().numRoReplicas;
 
   // Compute thresholds.
@@ -615,35 +621,22 @@ static bool testThresholdKeys(const std::vector<bftEngine::ReplicaConfig>& confi
   std::vector<IThresholdSigner*> signers;
   std::vector<IThresholdVerifier*> verifiers;
 
-  signers.clear();
-  verifiers.clear();
-  for (uint16_t i = 0; i < numReplicas; ++i) {
-    signers.push_back(configs[i].thresholdSignerForSlowPathCommit);
-    verifiers.push_back(configs[i].thresholdVerifierForSlowPathCommit);
-  }
-  if (!testThresholdCryptosystem("slow path commit", signers, verifiers, numReplicas, slowThresh)) {
-    return false;
-  }
+  // same signers for all
+  for (uint16_t i = 0; i < numReplicas; ++i) signers.push_back(cryptoSystems[i]->createThresholdSigner());
 
-  signers.clear();
-  verifiers.clear();
-  for (uint16_t i = 0; i < numReplicas; ++i) {
-    signers.push_back(configs[i].thresholdSignerForCommit);
-    verifiers.push_back(configs[i].thresholdVerifierForCommit);
-  }
-  if (!testThresholdCryptosystem("commit", signers, verifiers, numReplicas, commitThresh)) {
-    return false;
-  }
+  for (uint16_t i = 0; i < numReplicas; ++i) verifiers.push_back(cryptoSystems[i]->createThresholdVerifier(slowThresh));
+  if (!testThresholdCryptosystem("slow path commit", signers, verifiers, numReplicas, slowThresh)) return false;
 
-  signers.clear();
   verifiers.clear();
-  for (uint16_t i = 0; i < numReplicas; ++i) {
-    signers.push_back(configs[i].thresholdSignerForOptimisticCommit);
-    verifiers.push_back(configs[i].thresholdVerifierForOptimisticCommit);
-  }
-  if (!testThresholdCryptosystem("optimistic fast path commit", signers, verifiers, numReplicas, optThresh)) {
+  for (uint16_t i = 0; i < numReplicas; ++i)
+    verifiers.push_back(cryptoSystems[i]->createThresholdVerifier(commitThresh));
+  if (!testThresholdCryptosystem("commit", signers, verifiers, numReplicas, commitThresh)) return false;
+
+  verifiers.clear();
+  for (uint16_t i = 0; i < numReplicas; ++i) verifiers.push_back(cryptoSystems[i]->createThresholdVerifier(optThresh));
+
+  if (!testThresholdCryptosystem("optimistic fast path commit", signers, verifiers, numReplicas, optThresh))
     return false;
-  }
 
   std::cout << "All threshold cryptography tests were successful.\n";
 
@@ -687,7 +680,6 @@ int main(int argc, char** argv) {
         "  -n Number of regular replicas\n"
         "  -r Number of read-only replicas\n"
         "  -o Output file prefix\n"
-        "  -m Use a single multisignature scheme for all cryptosystems\n"
         "   --help - this help \n\n"
         "TestGeneratedKeys is intended to test the output of the GenerateConcordKeys utility;\n"
         "TestGeneratedKeys expects to find TOTAL_NUMBER_OF_REPLICAS keyfiles each named KEYFILE_PREFIX<i>,\n"
@@ -701,7 +693,6 @@ int main(int argc, char** argv) {
     uint16_t numReplicas = 0;
     uint16_t ro = 0;
     std::string outputPrefix;
-    bool useMultisig = false;
 
     for (int i = 1; i < argc; ++i) {
       std::string option(argv[i]);
@@ -727,8 +718,6 @@ int main(int argc, char** argv) {
         }
         outputPrefix = argv[i + 1];
         ++i;
-      } else if (option == "-m") {
-        useMultisig = true;
       } else {
         std::cout << "Unrecognized command line option: " << option << ".\n";
         return -1;
@@ -750,14 +739,11 @@ int main(int argc, char** argv) {
                  " deployment...\n";
 
     std::vector<bftEngine::ReplicaConfig> configs(numReplicas + ro);
+    std::vector<std::unique_ptr<Cryptosystem>> cryptoSystems;
 
     for (uint16_t i = 0; i < numReplicas + ro; ++i) {
       std::string filename = outputPrefix + std::to_string(i);
-
-      if (useMultisig)
-        inputReplicaKeyfileMultisig(filename, configs[i]);
-      else
-        inputReplicaKeyfile(filename, configs[i]);
+      cryptoSystems.push_back(std::unique_ptr<Cryptosystem>(inputReplicaKeyfileMultisig(filename, configs[i])));
     }
 
     std::cout << "All keyfiles were successfully read.\n";
@@ -771,7 +757,7 @@ int main(int argc, char** argv) {
     if (!testRSAKeys(configs)) {
       return -1;
     }
-    if (!testThresholdKeys(configs)) {
+    if (!testThresholdKeys(configs, cryptoSystems)) {
       return -1;
     }
     std::cout << "Done testing all keys.\n";
