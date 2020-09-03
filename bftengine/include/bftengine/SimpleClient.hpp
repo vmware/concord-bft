@@ -16,6 +16,7 @@
 #include <string>
 #include <set>
 #include <chrono>
+#include <memory>
 
 #include "Metrics.hpp"
 #include "communication/ICommunication.hpp"
@@ -96,7 +97,7 @@ class SimpleClient {
 //     support them.]
 class SeqNumberGeneratorForClientRequests {
  public:
-  static SeqNumberGeneratorForClientRequests* createSeqNumberGeneratorForClientRequests();
+  static std::unique_ptr<SeqNumberGeneratorForClientRequests> createSeqNumberGeneratorForClientRequests();
 
   virtual uint64_t generateUniqueSequenceNumberForRequest() = 0;
 

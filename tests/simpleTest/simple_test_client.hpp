@@ -52,7 +52,7 @@ class SimpleTestClient {
 
     // Concord clients must tag each request with a unique sequence number. This
     // generator handles that for us.
-    SeqNumberGeneratorForClientRequests* pSeqGen =
+    std::unique_ptr<SeqNumberGeneratorForClientRequests> pSeqGen =
         SeqNumberGeneratorForClientRequests::createSeqNumberGeneratorForClientRequests();
 
     TestCommConfig testCommConfig(clientLogger);
@@ -217,7 +217,6 @@ class SimpleTestClient {
         "clientMetrics::retransmissionTimer " << aggregator->GetGauge(metric_comp_name, "retransmissionTimer").Get());
     test_assert(aggregator->GetCounter(metric_comp_name, "retransmissions").Get() >= 0, "retransmissions <" << 0);
     test_assert(aggregator->GetGauge(metric_comp_name, "retransmissionTimer").Get() >= 0, "retransmissionTimer <" << 0);
-    delete pSeqGen;
     delete client;
     delete comm;
 

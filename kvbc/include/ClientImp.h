@@ -43,7 +43,7 @@ class ClientImp : public IClient {
   ~ClientImp() override = default;
 
   ClientConfig config_;
-  bftEngine::SeqNumberGeneratorForClientRequests* seqGen_ = nullptr;
+  std::unique_ptr<bftEngine::SeqNumberGeneratorForClientRequests> seqGen_;
   bft::communication::ICommunication* comm_ = nullptr;
 
   bftEngine::SimpleClient* bftClient_ = nullptr;

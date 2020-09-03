@@ -507,8 +507,9 @@ SimpleClient* SimpleClient::createSimpleClient(ICommunication* communication,
 
 SimpleClient::~SimpleClient() = default;
 
-SeqNumberGeneratorForClientRequests* SeqNumberGeneratorForClientRequests::createSeqNumberGeneratorForClientRequests() {
-  return new impl::SeqNumberGeneratorForClientRequestsImp();
+std::unique_ptr<SeqNumberGeneratorForClientRequests>
+SeqNumberGeneratorForClientRequests::createSeqNumberGeneratorForClientRequests() {
+  return std::make_unique<impl::SeqNumberGeneratorForClientRequestsImp>();
 }
 
 }  // namespace bftEngine
