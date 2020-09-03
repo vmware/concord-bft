@@ -24,7 +24,7 @@
 #include "OpenTracing.hpp"
 #include "diagnostics.h"
 #include "TimeUtils.hpp"
-#include "JsonSerializer.hpp"
+#include "json_output.hpp"
 
 #include "messages/ClientRequestMsg.hpp"
 #include "messages/PrePrepareMsg.hpp"
@@ -49,7 +49,6 @@
 
 using concordUtil::Timers;
 using concordUtils::toPair;
-using concordUtils::ContainerToJson;
 using namespace std;
 using namespace std::chrono;
 using namespace std::placeholders;
@@ -999,44 +998,48 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
 std::string ReplicaImp::getReplicaState() const {
   auto primary = getReplicasInfo().primaryOfView(curView);
   std::ostringstream oss;
-  std::map<std::string, std::string> t;
-  oss << "{\n";
-  oss << ContainerToJson("Replica ID", std::to_string(getReplicasInfo().myId())) << std::endl;
-  oss << ContainerToJson("Primary ", std::to_string(primary)) << std::endl;
-  t.insert(toPair(getName(viewChangeProtocolEnabled), viewChangeProtocolEnabled));
-  t.insert(toPair(getName(autoPrimaryRotationEnabled), autoPrimaryRotationEnabled));
-  t.insert(toPair(getName(curView), curView));
-  t.insert(toPair(getName(timeOfLastViewEntrance), utcstr(timeOfLastViewEntrance)));
-  t.insert(toPair(getName(lastAgreedView), lastAgreedView));
-  t.insert(toPair(getName(timeOfLastAgreedView), utcstr(timeOfLastAgreedView)));
-  t.insert(toPair(getName(viewChangeTimerMilli), viewChangeTimerMilli));
-  t.insert(toPair(getName(autoPrimaryRotationTimerMilli), autoPrimaryRotationTimerMilli));
-  oss << ContainerToJson("View Change ", t) << "," << std::endl;
-  t.clear();
-  t.insert(toPair(getName(primaryLastUsedSeqNum), primaryLastUsedSeqNum));
-  t.insert(toPair(getName(lastStableSeqNum), lastStableSeqNum));
-  t.insert(toPair(getName(strictLowerBoundOfSeqNums), strictLowerBoundOfSeqNums));
-  t.insert(toPair(getName(maxSeqNumTransferredFromPrevViews), maxSeqNumTransferredFromPrevViews));
-  t.insert(toPair(getName(mainLog->currentActiveWindow().first), mainLog->currentActiveWindow().first));
-  t.insert(toPair(getName(mainLog->currentActiveWindow().second), mainLog->currentActiveWindow().second));
-  t.insert(
+  std::unordered_map<std::string, std::string> result, nested_data;
+  result.insert(toPair("Replica ID", std::to_string(getReplicasInfo().myId())));
+  result.insert(toPair("Primary ", std::to_string(primary)));
+  nested_data.insert(toPair(getName(viewChangeProtocolEnabled), viewChangeProtocolEnabled));
+  nested_data.insert(toPair(getName(autoPrimaryRotationEnabled), autoPrimaryRotationEnabled));
+  nested_data.insert(toPair(getName(curView), curView));
+  nested_data.insert(toPair(getName(timeOfLastViewEntrance), utcstr(timeOfLastViewEntrance)));
+  nested_data.insert(toPair(getName(lastAgreedView), lastAgreedView));
+  nested_data.insert(toPair(getName(timeOfLastAgreedView), utcstr(timeOfLastAgreedView)));
+  nested_data.insert(toPair(getName(viewChangeTimerMilli), viewChangeTimerMilli));
+  nested_data.insert(toPair(getName(autoPrimaryRotationTimerMilli), autoPrimaryRotationTimerMilli));
+  result.insert(
+      toPair("View Change ", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
+  nested_data.clear();
+  nested_data.insert(toPair(getName(primaryLastUsedSeqNum), primaryLastUsedSeqNum));
+  nested_data.insert(toPair(getName(lastStableSeqNum), lastStableSeqNum));
+  nested_data.insert(toPair(getName(strictLowerBoundOfSeqNums), strictLowerBoundOfSeqNums));
+  nested_data.insert(toPair(getName(maxSeqNumTransferredFromPrevViews), maxSeqNumTransferredFromPrevViews));
+  nested_data.insert(toPair(getName(mainLog->currentActiveWindow().first), mainLog->currentActiveWindow().first));
+  nested_data.insert(toPair(getName(mainLog->currentActiveWindow().second), mainLog->currentActiveWindow().second));
+  nested_data.insert(
       toPair(getName(lastViewThatTransferredSeqNumbersFullyExecuted), lastViewThatTransferredSeqNumbersFullyExecuted));
-  oss << ContainerToJson("Sequence Numbers ", t) << "," << std::endl;
-  t.clear();
-  t.insert(toPair(getName(restarted_), restarted_));
-  t.insert(toPair(getName(requestsQueueOfPrimary.size()), requestsQueueOfPrimary.size()));
-  t.insert(toPair(getName(maxNumberOfPendingRequestsInRecentHistory), maxNumberOfPendingRequestsInRecentHistory));
-  t.insert(toPair(getName(batchingFactor), batchingFactor));
-  t.insert(toPair(getName(lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas),
-                  utcstr(lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas)));
-  t.insert(toPair(getName(timeOfLastStateSynch), utcstr(timeOfLastStateSynch)));
-  t.insert(toPair(getName(recoveringFromExecutionOfRequests), recoveringFromExecutionOfRequests));
-  t.insert(toPair(getName(checkpointsLog->currentActiveWindow().first), checkpointsLog->currentActiveWindow().first));
-  t.insert(toPair(getName(checkpointsLog->currentActiveWindow().second), checkpointsLog->currentActiveWindow().second));
-  t.insert(toPair(getName(clientsManager->numberOfRequiredReservedPages()),
-                  clientsManager->numberOfRequiredReservedPages()));
-  oss << ContainerToJson("Other ", t) << std::endl;
-  oss << "}";
+  result.insert(
+      toPair("Sequence Numbers ", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
+  nested_data.clear();
+  nested_data.insert(toPair(getName(restarted_), restarted_));
+  nested_data.insert(toPair(getName(requestsQueueOfPrimary.size()), requestsQueueOfPrimary.size()));
+  nested_data.insert(
+      toPair(getName(maxNumberOfPendingRequestsInRecentHistory), maxNumberOfPendingRequestsInRecentHistory));
+  nested_data.insert(toPair(getName(batchingFactor), batchingFactor));
+  nested_data.insert(toPair(getName(lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas),
+                            utcstr(lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas)));
+  nested_data.insert(toPair(getName(timeOfLastStateSynch), utcstr(timeOfLastStateSynch)));
+  nested_data.insert(toPair(getName(recoveringFromExecutionOfRequests), recoveringFromExecutionOfRequests));
+  nested_data.insert(
+      toPair(getName(checkpointsLog->currentActiveWindow().first), checkpointsLog->currentActiveWindow().first));
+  nested_data.insert(
+      toPair(getName(checkpointsLog->currentActiveWindow().second), checkpointsLog->currentActiveWindow().second));
+  nested_data.insert(toPair(getName(clientsManager->numberOfRequiredReservedPages()),
+                            clientsManager->numberOfRequiredReservedPages()));
+  result.insert(toPair("Other ", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
+  oss << concordUtils::kContainerToJson(result);
   return oss.str();
 }
 

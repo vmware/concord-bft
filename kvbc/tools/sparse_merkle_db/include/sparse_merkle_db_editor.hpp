@@ -40,6 +40,7 @@
 namespace concord::kvbc::tools::sparse_merkle_db {
 
 using namespace std::string_literals;
+using concordUtils::toJson;
 
 inline const auto kToolName = "sparse_merkle_db_editor"s;
 
