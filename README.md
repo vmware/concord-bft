@@ -197,6 +197,10 @@ signed our contributor license agreement (CLA), our bot will update the issue wh
 questions about the CLA process, please refer to our [FAQ](https://cla.vmware.com/faq). For more detailed information,
 refer to [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## Notes
+The library calls `std::terminate()` when it cannot continue in a safe manner.
+In that way, users can install a handler that does something different than just calling `std::abort()`.
+
 ## Community
 
 

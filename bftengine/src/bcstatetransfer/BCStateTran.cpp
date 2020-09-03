@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <exception>
 #include <list>
 #include <set>
 #include <string>
@@ -335,7 +336,7 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
     }
   } catch (const std::exception &e) {
     LOG_FATAL(STLogger, e.what());
-    exit(1);
+    std::terminate();
   }
 }
 

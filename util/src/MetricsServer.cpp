@@ -13,6 +13,7 @@
 
 #include <string.h>
 #include <unistd.h>
+#include <exception>
 #include <iostream>
 #include <arpa/inet.h>
 
@@ -24,7 +25,7 @@ namespace concordMetrics {
 void Server::Start() {
   if ((sock_ = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
     LOG_FATAL(logger_, "Error creating UDP socket");
-    exit(1);
+    std::terminate();
   }
 
   struct sockaddr_in servaddr;
@@ -45,7 +46,7 @@ void Server::Start() {
                     << "unknown"
                     << ", Port=" << listenPort_ << ", errno=" << concordUtils::errnoString(errno));
     }
-    exit(1);
+    std::terminate();
   }
 
   running_lock_.lock();
@@ -111,7 +112,7 @@ void Server::RecvLoop() {
 
     if (json.size() > MAX_MSG_SIZE - sizeof(Header)) {
       LOG_FATAL(logger_, "Aggregator data too large to be transmitted!");
-      exit(1);
+      std::terminate();
     }
 
     sendReply(json, &cliaddr, addrlen);

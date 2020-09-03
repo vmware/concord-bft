@@ -156,7 +156,7 @@ void IncomingMsgsStorageImp::dispatchMessages(std::promise<void>& signalStarted)
     }
   } catch (const std::exception& e) {
     LOG_FATAL(GL, "Exception: " << e.what() << "exiting ...");
-    exit(1);
+    std::terminate();
   }
 }
 
