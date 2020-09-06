@@ -14,14 +14,13 @@
 #pragma once
 
 #include "hex_tools.h"
-#include "kv_types.hpp"
 
 #include <map>
 #include <string>
 #include <utility>
 #include <vector>
 
-namespace concord::kvbc::tools::sparse_merkle_db {
+namespace concordUtils {
 
 template <typename KVContainer, typename Encoder>
 std::string kvContainerToJson(const KVContainer &kv, const Encoder &enc) {
@@ -36,7 +35,19 @@ std::string kvContainerToJson(const KVContainer &kv, const Encoder &enc) {
   return out;
 }
 
-inline std::string toJson(const SetOfKeyValuePairs &kv) {
+std::string kContainerToJson(const std::unordered_map<std::string, std::string> &kv) {
+  auto out = std::string{"{\n"};
+  for (const auto &[key, value] : kv) {
+    out += ("  \"" + key + "\": " + value + ",\n");
+  }
+  if (out.size() >= 2 && out[out.size() - 2] == ',') {
+    out.erase(out.size() - 2, 1);
+  }
+  out += "}";
+  return out;
+}
+
+inline std::string toJson(const std::unordered_map<Sliver, Sliver> &kv) {
   return kvContainerToJson(kv, [](const auto &arg) { return concordUtils::sliverToHex(arg); });
 }
 
@@ -56,5 +67,13 @@ template <typename T>
 std::string toJson(const std::string &key, const T &value) {
   return toJson(key, std::to_string(value));
 }
+template <typename T>
+std::pair<std::string, std::string> toPair(const std::string &key, const T &value) {
+  return std::make_pair(key, std::to_string(value));
+}
 
-}  // namespace concord::kvbc::tools::sparse_merkle_db
+std::pair<std::string, std::string> toPair(const std::string &key, const std::string &value) {
+  return std::make_pair(key, value);
+}
+
+}  // namespace concordUtils

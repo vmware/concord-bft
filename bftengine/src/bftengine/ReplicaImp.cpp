@@ -24,6 +24,7 @@
 #include "OpenTracing.hpp"
 #include "diagnostics.h"
 #include "TimeUtils.hpp"
+#include "json_output.hpp"
 
 #include "messages/ClientRequestMsg.hpp"
 #include "messages/PrePrepareMsg.hpp"
@@ -44,7 +45,10 @@
 #include <type_traits>
 #include <bitset>
 
+#define getName(var) #var
+
 using concordUtil::Timers;
+using concordUtils::toPair;
 using namespace std;
 using namespace std::chrono;
 using namespace std::placeholders;
@@ -994,41 +998,48 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
 std::string ReplicaImp::getReplicaState() const {
   auto primary = getReplicasInfo().primaryOfView(curView);
   std::ostringstream oss;
-  oss << "Replica ID: " << getReplicasInfo().myId() << std::endl;
-  oss << "Primary: " << primary << std::endl;
-  oss << "View Change: "
-      << KVLOG(viewChangeProtocolEnabled,
-               autoPrimaryRotationEnabled,
-               curView,
-               utcstr(timeOfLastViewEntrance),
-               lastAgreedView,
-               utcstr(timeOfLastAgreedView),
-               viewChangeTimerMilli,
-               autoPrimaryRotationTimerMilli)
-      << std::endl
-      << std::endl;
-  oss << "Sequence Numbers: "
-      << KVLOG(primaryLastUsedSeqNum,
-               lastStableSeqNum,
-               strictLowerBoundOfSeqNums,
-               maxSeqNumTransferredFromPrevViews,
-               mainLog->currentActiveWindow().first,
-               mainLog->currentActiveWindow().second,
-               lastViewThatTransferredSeqNumbersFullyExecuted)
-      << std::endl
-      << std::endl;
-  oss << "Other: "
-      << KVLOG(restarted_,
-               requestsQueueOfPrimary.size(),
-               maxNumberOfPendingRequestsInRecentHistory,
-               batchingFactor,
-               utcstr(lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas),
-               utcstr(timeOfLastStateSynch),
-               recoveringFromExecutionOfRequests,
-               checkpointsLog->currentActiveWindow().first,
-               checkpointsLog->currentActiveWindow().second,
-               clientsManager->numberOfRequiredReservedPages())
-      << std::endl;
+  std::unordered_map<std::string, std::string> result, nested_data;
+  result.insert(toPair("Replica ID", std::to_string(getReplicasInfo().myId())));
+  result.insert(toPair("Primary ", std::to_string(primary)));
+  nested_data.insert(toPair(getName(viewChangeProtocolEnabled), viewChangeProtocolEnabled));
+  nested_data.insert(toPair(getName(autoPrimaryRotationEnabled), autoPrimaryRotationEnabled));
+  nested_data.insert(toPair(getName(curView), curView));
+  nested_data.insert(toPair(getName(timeOfLastViewEntrance), utcstr(timeOfLastViewEntrance)));
+  nested_data.insert(toPair(getName(lastAgreedView), lastAgreedView));
+  nested_data.insert(toPair(getName(timeOfLastAgreedView), utcstr(timeOfLastAgreedView)));
+  nested_data.insert(toPair(getName(viewChangeTimerMilli), viewChangeTimerMilli));
+  nested_data.insert(toPair(getName(autoPrimaryRotationTimerMilli), autoPrimaryRotationTimerMilli));
+  result.insert(
+      toPair("View Change ", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
+  nested_data.clear();
+  nested_data.insert(toPair(getName(primaryLastUsedSeqNum), primaryLastUsedSeqNum));
+  nested_data.insert(toPair(getName(lastStableSeqNum), lastStableSeqNum));
+  nested_data.insert(toPair(getName(strictLowerBoundOfSeqNums), strictLowerBoundOfSeqNums));
+  nested_data.insert(toPair(getName(maxSeqNumTransferredFromPrevViews), maxSeqNumTransferredFromPrevViews));
+  nested_data.insert(toPair(getName(mainLog->currentActiveWindow().first), mainLog->currentActiveWindow().first));
+  nested_data.insert(toPair(getName(mainLog->currentActiveWindow().second), mainLog->currentActiveWindow().second));
+  nested_data.insert(
+      toPair(getName(lastViewThatTransferredSeqNumbersFullyExecuted), lastViewThatTransferredSeqNumbersFullyExecuted));
+  result.insert(
+      toPair("Sequence Numbers ", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
+  nested_data.clear();
+  nested_data.insert(toPair(getName(restarted_), restarted_));
+  nested_data.insert(toPair(getName(requestsQueueOfPrimary.size()), requestsQueueOfPrimary.size()));
+  nested_data.insert(
+      toPair(getName(maxNumberOfPendingRequestsInRecentHistory), maxNumberOfPendingRequestsInRecentHistory));
+  nested_data.insert(toPair(getName(batchingFactor), batchingFactor));
+  nested_data.insert(toPair(getName(lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas),
+                            utcstr(lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas)));
+  nested_data.insert(toPair(getName(timeOfLastStateSynch), utcstr(timeOfLastStateSynch)));
+  nested_data.insert(toPair(getName(recoveringFromExecutionOfRequests), recoveringFromExecutionOfRequests));
+  nested_data.insert(
+      toPair(getName(checkpointsLog->currentActiveWindow().first), checkpointsLog->currentActiveWindow().first));
+  nested_data.insert(
+      toPair(getName(checkpointsLog->currentActiveWindow().second), checkpointsLog->currentActiveWindow().second));
+  nested_data.insert(toPair(getName(clientsManager->numberOfRequiredReservedPages()),
+                            clientsManager->numberOfRequiredReservedPages()));
+  result.insert(toPair("Other ", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
+  oss << concordUtils::kContainerToJson(result);
   return oss.str();
 }
 
