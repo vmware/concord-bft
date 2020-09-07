@@ -179,12 +179,6 @@ class SimpleTestReplica {
     if (statePtr) {
       delete statePtr;
     }
-
-    delete (replicaConfig.thresholdSignerForSlowPathCommit);
-
-    delete (replicaConfig.thresholdVerifierForSlowPathCommit);
-    delete (replicaConfig.thresholdVerifierForCommit);
-    delete (replicaConfig.thresholdVerifierForOptimisticCommit);
   }
 
   uint16_t get_replica_id() { return replicaConfig.replicaId; }

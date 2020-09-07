@@ -144,11 +144,13 @@ bool PersistentStorageImp::isInWriteTran() const { return (numOfNestedTransactio
 /***** Setters *****/
 
 void PersistentStorageImp::setReplicaConfig(const ReplicaConfig &config) {
-  ConcordAssert(isInWriteTran());
+  ConcordAssert(!isInWriteTran());
+  beginWriteTran();
   std::ostringstream oss;
   configSerializer_->setConfig(config);
   configSerializer_->serialize(oss);
   metadataStorage_->writeInBatch(REPLICA_CONFIG, (char *)oss.rdbuf()->str().c_str(), oss.tellp());
+  endWriteTran();
 }
 
 void PersistentStorageImp::setVersion() const {

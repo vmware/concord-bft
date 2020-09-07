@@ -16,6 +16,7 @@
 #include <string>
 #include <mutex>
 #include <ostream>
+#include <vector>
 
 class IThresholdSigner;
 class IThresholdVerifier;
@@ -82,24 +83,18 @@ struct ReplicaConfig {
   // If equals to 0, a default number of min(thread::hardware_concurrency(), numOfClients) is used
   uint16_t preExecConcurrencyLevel = 0;
 
-  // public keys of all replicas. map from replica identifier to a public key
+  // RSA public keys of all replicas. map from replica identifier to a public key
   std::set<std::pair<uint16_t, const std::string>> publicKeysOfReplicas;
 
-  // private key of the current replica
+  // RSA private key of the current replica
   std::string replicaPrivateKey;
 
-  // signer and verifier of a threshold signature (for threshold N-fVal-cVal out of N)
-  IThresholdSigner* thresholdSignerForSlowPathCommit = nullptr;
-  IThresholdVerifier* thresholdVerifierForSlowPathCommit = nullptr;
-
-  // signer and verifier of a threshold signature (for threshold N-cVal out of N)
-  // If cVal==0, then both should be nullptr
-  IThresholdSigner* thresholdSignerForCommit = nullptr;
-  IThresholdVerifier* thresholdVerifierForCommit = nullptr;
-
-  // signer and verifier of a threshold signature (for threshold N out of N)
-  IThresholdSigner* thresholdSignerForOptimisticCommit = nullptr;
-  IThresholdVerifier* thresholdVerifierForOptimisticCommit = nullptr;
+  // Threshold crypto system
+  std::string thresholdSystemType_;
+  std::string thresholdSystemSubType_;
+  std::string thresholdPrivateKey_;  // bootstrap private key
+  std::string thresholdPublicKey_;
+  std::vector<std::string> thresholdVerificationKeys_;
 
   bool debugPersistentStorageEnabled = false;
 
@@ -186,23 +181,6 @@ class ReplicaConfigSingleton {
   uint64_t GetPreExecReqStatusCheckTimerMillisec() const { return config_->preExecReqStatusCheckTimerMillisec; }
   uint16_t GetPreExecConcurrencyLevel() const { return config_->preExecConcurrencyLevel; }
   std::string GetReplicaPrivateKey() const { return config_->replicaPrivateKey; }
-
-  IThresholdSigner const* GetThresholdSignerForSlowPathCommit() const {
-    return config_->thresholdSignerForSlowPathCommit;
-  }
-  IThresholdVerifier const* GetThresholdVerifierForSlowPathCommit() const {
-    return config_->thresholdVerifierForSlowPathCommit;
-  }
-  IThresholdSigner const* GetThresholdSignerForCommit() const { return config_->thresholdSignerForCommit; }
-  IThresholdVerifier const* GetThresholdVerifierForCommit() const { return config_->thresholdVerifierForCommit; }
-
-  IThresholdSigner const* GetThresholdSignerForOptimisticCommit() const {
-    return config_->thresholdSignerForOptimisticCommit;
-  }
-
-  IThresholdVerifier const* GetThresholdVerifierForOptimisticCommit() const {
-    return config_->thresholdVerifierForOptimisticCommit;
-  }
 
   uint32_t GetMaxExternalMessageSize() const { return config_->maxExternalMessageSize; }
   uint32_t GetMaxReplyMessageSize() const { return config_->maxReplyMessageSize; }

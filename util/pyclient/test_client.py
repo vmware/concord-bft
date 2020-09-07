@@ -59,7 +59,7 @@ class SimpleTest(unittest.TestCase):
     def generateKeys(cls):
         """Create keys expected by SimpleTest server for 4 nodes"""
         keygen = os.path.join(cls.toolsdir, "GenerateConcordKeys")
-        args = [keygen, "-n", "4", "-f", "1", "-o", "private_replica_", "-m"]
+        args = [keygen, "-n", "4", "-f", "1", "-o", "private_replica_"]
         subprocess.run(args, check=True)
 
     def readRequest(self):

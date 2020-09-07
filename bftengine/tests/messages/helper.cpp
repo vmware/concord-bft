@@ -90,21 +90,8 @@ bftEngine::ReplicaConfig createReplicaConfig() {
   config.publicKeysOfReplicas.insert(IdToKeyPair(2, publicKeyValue3));
   config.publicKeysOfReplicas.insert(IdToKeyPair(3, publicKeyValue4));
 
-  config.thresholdSignerForSlowPathCommit = new IThresholdSignerDummy;
-  config.thresholdVerifierForSlowPathCommit = new IThresholdVerifierDummy;
-  config.thresholdSignerForCommit = new IThresholdSignerDummy;
-  config.thresholdVerifierForCommit = new IThresholdVerifierDummy;
-  config.thresholdSignerForOptimisticCommit = new IThresholdSignerDummy;
-  config.thresholdVerifierForOptimisticCommit = new IThresholdVerifierDummy;
+  bftEngine::CryptoManager::instance(&config, new TestCryptoSystem);
+
   config.singletonFromThis();
   return config;
-}
-
-void destroyReplicaConfig(bftEngine::ReplicaConfig& config) {
-  delete config.thresholdSignerForSlowPathCommit;
-  delete config.thresholdVerifierForSlowPathCommit;
-  delete config.thresholdSignerForCommit;
-  delete config.thresholdVerifierForCommit;
-  delete config.thresholdSignerForOptimisticCommit;
-  delete config.thresholdVerifierForOptimisticCommit;
 }

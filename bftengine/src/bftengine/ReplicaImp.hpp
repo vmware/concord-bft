@@ -367,16 +367,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   const ReplicaConfig& getReplicaConfig() const override { return config_; }
 
-  virtual IThresholdVerifier* getThresholdVerifierForSlowPathCommit() override {
-    return config_.thresholdVerifierForSlowPathCommit;
-  }
-
-  virtual IThresholdVerifier* getThresholdVerifierForCommit() override { return config_.thresholdVerifierForCommit; }
-
-  virtual IThresholdVerifier* getThresholdVerifierForOptimisticCommit() override {
-    return config_.thresholdVerifierForOptimisticCommit;
-  }
-
   virtual const ReplicasInfo& getReplicasInfo() const override { return (*repsInfo); }
 
   void onViewsChangeTimer(concordUtil::Timers::Handle);

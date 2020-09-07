@@ -50,7 +50,6 @@ TEST(ClientRequestMsg, create_and_compare) {
   EXPECT_EQ(msg.spanContext<ClientRequestMsg>().data(), spanContext);
   EXPECT_EQ(msg.requestTimeoutMilli(), requestTimeoutMilli);
   EXPECT_NO_THROW(msg.validate(replicaInfo));
-  destroyReplicaConfig(config);
 }
 
 TEST(ClientRequestMsg, create_and_compare_with_empty_span) {
@@ -82,7 +81,6 @@ TEST(ClientRequestMsg, create_and_compare_with_empty_span) {
   EXPECT_EQ(msg.getCid(), correlationId);
   EXPECT_EQ(msg.spanContext<ClientRequestMsg>().data(), spanContext);
   EXPECT_NO_THROW(msg.validate(replicaInfo));
-  destroyReplicaConfig(config);
 }
 
 TEST(ClientRequestMsg, create_and_compare_with_empty_cid) {
@@ -115,7 +113,6 @@ TEST(ClientRequestMsg, create_and_compare_with_empty_cid) {
   EXPECT_EQ(msg.spanContext<ClientRequestMsg>().data(), spanContext);
   EXPECT_EQ(msg.requestTimeoutMilli(), requestTimeoutMilli);
   EXPECT_NO_THROW(msg.validate(replicaInfo));
-  destroyReplicaConfig(config);
 }
 
 TEST(ClientRequestMsg, create_from_buffer) {
@@ -150,7 +147,6 @@ TEST(ClientRequestMsg, create_from_buffer) {
   EXPECT_EQ(originalMsg.spanContext<ClientRequestMsg>().data(), copy_msg.spanContext<ClientRequestMsg>().data());
   EXPECT_EQ(originalMsg.requestTimeoutMilli(), requestTimeoutMilli);
   EXPECT_NO_THROW(originalMsg.validate(replicaInfo));
-  destroyReplicaConfig(config);
 }
 
 TEST(ClientRequestMsg, base_methods) {
@@ -175,7 +171,6 @@ TEST(ClientRequestMsg, base_methods) {
                        concordUtils::SpanContext{spanContext});
   EXPECT_NO_THROW(msg.validate(replicaInfo));
   testMessageBaseMethods(msg, MsgCode::ClientRequest, senderId, spanContext);
-  destroyReplicaConfig(config);
 }
 
 int main(int argc, char** argv) {

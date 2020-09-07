@@ -117,14 +117,12 @@ void ReplicaConfigSerializer::serializeDataMembers(ostream &outStream) const {
   // Serialize replicaPrivateKey
   serializeKey(config_->replicaPrivateKey, outStream);
 
-  serializePointer(config_->thresholdSignerForSlowPathCommit, outStream);
-  serializePointer(config_->thresholdVerifierForSlowPathCommit, outStream);
-
-  serializePointer(config_->thresholdSignerForCommit, outStream);
-  serializePointer(config_->thresholdVerifierForCommit, outStream);
-
-  serializePointer(config_->thresholdSignerForOptimisticCommit, outStream);
-  serializePointer(config_->thresholdVerifierForOptimisticCommit, outStream);
+  // Serialize threshold crypto system
+  concord::serialize::Serializable::serialize(outStream, config_->thresholdSystemType_);
+  concord::serialize::Serializable::serialize(outStream, config_->thresholdSystemSubType_);
+  serializeKey(config_->thresholdPrivateKey_, outStream);  // TODO [TK] serialize to a secret key store
+  serializeKey(config_->thresholdPublicKey_, outStream);
+  concord::serialize::Serializable::serialize(outStream, config_->thresholdVerificationKeys_);
 
   outStream.write((char *)&config_->maxExternalMessageSize, sizeof(config_->maxExternalMessageSize));
   outStream.write((char *)&config_->maxReplyMessageSize, sizeof(config_->maxReplyMessageSize));
@@ -147,10 +145,7 @@ void ReplicaConfigSerializer::serializePointer(Serializable *ptrToClass, ostream
 }
 
 void ReplicaConfigSerializer::serializeKey(const string &key, ostream &outStream) const {
-  auto keyLength = (int64_t)key.size();
-  // Save a length of the string to the buffer to be able to deserialize it.
-  outStream.write((char *)&keyLength, sizeof(keyLength));
-  outStream.write(key.c_str(), keyLength);
+  concord::serialize::Serializable::serialize(outStream, key);
 }
 
 bool ReplicaConfigSerializer::operator==(const ReplicaConfigSerializer &other) const {
@@ -246,10 +241,15 @@ void ReplicaConfigSerializer::deserializeDataMembers(istream &inStream) {
     config.publicKeysOfReplicas.insert(pair<uint16_t, string>(id, key));
   }
 
-  // Serialize replicaPrivateKey
+  // Deserialize replicaPrivateKey
   config.replicaPrivateKey = deserializeKey(inStream);
 
-  createSignersAndVerifiers(inStream, config);
+  // Deserialize threshold crypto system
+  concord::serialize::Serializable::deserialize(inStream, config_->thresholdSystemType_);
+  concord::serialize::Serializable::deserialize(inStream, config_->thresholdSystemSubType_);
+  config_->thresholdPrivateKey_ = deserializeKey(inStream);  // TODO [TK] deserialize from a secret key store
+  config_->thresholdPublicKey_ = deserializeKey(inStream);
+  concord::serialize::Serializable::deserialize(inStream, config_->thresholdVerificationKeys_);
 
   inStream.read((char *)&config.maxExternalMessageSize, sizeof(config.maxExternalMessageSize));
   inStream.read((char *)&config.maxReplyMessageSize, sizeof(config.maxReplyMessageSize));
@@ -275,34 +275,9 @@ SerializablePtr ReplicaConfigSerializer::deserializePointer(std::istream &inStre
   return SerializablePtr();
 }
 
-void ReplicaConfigSerializer::createSignersAndVerifiers(istream &inStream, ReplicaConfig &newObject) {
-  thresholdSignerForSlowPathCommit_ = deserializePointer(inStream);
-  thresholdVerifierForSlowPathCommit_ = deserializePointer(inStream);
-  thresholdSignerForCommit_ = deserializePointer(inStream);
-  thresholdVerifierForCommit_ = deserializePointer(inStream);
-  thresholdSignerForOptimisticCommit_ = deserializePointer(inStream);
-  thresholdVerifierForOptimisticCommit_ = deserializePointer(inStream);
-
-  newObject.thresholdSignerForSlowPathCommit =
-      dynamic_cast<IThresholdSigner *>(thresholdSignerForSlowPathCommit_.get());
-  newObject.thresholdVerifierForSlowPathCommit =
-      dynamic_cast<IThresholdVerifier *>(thresholdVerifierForSlowPathCommit_.get());
-
-  newObject.thresholdSignerForCommit = dynamic_cast<IThresholdSigner *>(thresholdSignerForCommit_.get());
-  newObject.thresholdVerifierForCommit = dynamic_cast<IThresholdVerifier *>(thresholdVerifierForCommit_.get());
-
-  newObject.thresholdSignerForOptimisticCommit =
-      dynamic_cast<IThresholdSigner *>(thresholdSignerForOptimisticCommit_.get());
-  newObject.thresholdVerifierForOptimisticCommit =
-      dynamic_cast<IThresholdVerifier *>(thresholdVerifierForOptimisticCommit_.get());
-}
-
 string ReplicaConfigSerializer::deserializeKey(istream &inStream) const {
-  int64_t keyLength = 0;
-  inStream.read((char *)&keyLength, sizeof(keyLength));
-  UniquePtrToChar key(new char[keyLength]);
-  inStream.read(key.get(), keyLength);
-  string result(key.get(), keyLength);
+  std::string result;
+  concord::serialize::Serializable::deserialize(inStream, result);
   return result;
 }
 

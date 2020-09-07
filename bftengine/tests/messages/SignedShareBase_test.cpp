@@ -48,14 +48,14 @@ TEST(PreparePartialMsg, PreparePartialMsg_test) {
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest digest;
-  std::vector<char> signature(config.thresholdSignerForCommit->requiredLengthForSignedData());
-  config.thresholdSignerForOptimisticCommit->signData(nullptr, 0, signature.data(), signature.size());
+  std::vector<char> signature(CryptoManager::instance().thresholdSignerForCommit()->requiredLengthForSignedData());
+  CryptoManager::instance().thresholdSignerForOptimisticCommit()->signData(
+      nullptr, 0, signature.data(), signature.size());
   std::unique_ptr<PreparePartialMsg> msg{PreparePartialMsg::create(
-      v, s, id, digest, config.thresholdSignerForCommit, concordUtils::SpanContext{spanContext})};
+      v, s, id, digest, CryptoManager::instance().thresholdSignerForCommit(), concordUtils::SpanContext{spanContext})};
   EXPECT_NO_THROW(msg->validate(replicaInfo));
   testSignedShareBaseMethods(*msg, v, s, signature);
   testMessageBaseMethods(*msg, MsgCode::PreparePartial, id, spanContext);
-  destroyReplicaConfig(config);
 }
 
 TEST(PrepareFullMsg, PrepareFullMsg_test) {
@@ -67,14 +67,14 @@ TEST(PrepareFullMsg, PrepareFullMsg_test) {
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest digest;
-  std::vector<char> signature(config.thresholdSignerForCommit->requiredLengthForSignedData());
-  config.thresholdSignerForOptimisticCommit->signData(nullptr, 0, signature.data(), signature.size());
+  std::vector<char> signature(CryptoManager::instance().thresholdSignerForCommit()->requiredLengthForSignedData());
+  CryptoManager::instance().thresholdSignerForOptimisticCommit()->signData(
+      nullptr, 0, signature.data(), signature.size());
   std::unique_ptr<PrepareFullMsg> msg{
       PrepareFullMsg::create(v, s, id, signature.data(), signature.size(), concordUtils::SpanContext{spanContext})};
   EXPECT_NO_THROW(msg->validate(replicaInfo));
   testSignedShareBaseMethods(*msg, v, s, signature);
   testMessageBaseMethods(*msg, MsgCode::PrepareFull, id, spanContext);
-  destroyReplicaConfig(config);
 }
 
 TEST(CommitPartialMsg, CommitPartialMsg_test) {
@@ -86,14 +86,14 @@ TEST(CommitPartialMsg, CommitPartialMsg_test) {
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest digest;
-  std::vector<char> signature(config.thresholdSignerForCommit->requiredLengthForSignedData());
-  config.thresholdSignerForOptimisticCommit->signData(nullptr, 0, signature.data(), signature.size());
+  std::vector<char> signature(CryptoManager::instance().thresholdSignerForCommit()->requiredLengthForSignedData());
+  CryptoManager::instance().thresholdSignerForOptimisticCommit()->signData(
+      nullptr, 0, signature.data(), signature.size());
   std::unique_ptr<CommitPartialMsg> msg{CommitPartialMsg::create(
-      v, s, id, digest, config.thresholdSignerForCommit, concordUtils::SpanContext{spanContext})};
+      v, s, id, digest, CryptoManager::instance().thresholdSignerForCommit(), concordUtils::SpanContext{spanContext})};
   EXPECT_NO_THROW(msg->validate(replicaInfo));
   testSignedShareBaseMethods(*msg, v, s, signature);
   testMessageBaseMethods(*msg, MsgCode::CommitPartial, id, spanContext);
-  destroyReplicaConfig(config);
 }
 TEST(CommitFullMsg, CommitFullMsg_test) {
   auto config = createReplicaConfig();
@@ -104,14 +104,14 @@ TEST(CommitFullMsg, CommitFullMsg_test) {
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest digest;
-  std::vector<char> signature(config.thresholdSignerForCommit->requiredLengthForSignedData());
-  config.thresholdSignerForOptimisticCommit->signData(nullptr, 0, signature.data(), signature.size());
+  std::vector<char> signature(CryptoManager::instance().thresholdSignerForCommit()->requiredLengthForSignedData());
+  CryptoManager::instance().thresholdSignerForOptimisticCommit()->signData(
+      nullptr, 0, signature.data(), signature.size());
   std::unique_ptr<CommitFullMsg> msg{
       CommitFullMsg::create(v, s, id, signature.data(), signature.size(), concordUtils::SpanContext{spanContext})};
   EXPECT_NO_THROW(msg->validate(replicaInfo));
   testSignedShareBaseMethods(*msg, v, s, signature);
   testMessageBaseMethods(*msg, MsgCode::CommitFull, id, spanContext);
-  destroyReplicaConfig(config);
 }
 
 int main(int argc, char** argv) {

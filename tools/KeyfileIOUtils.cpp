@@ -25,10 +25,7 @@ void outputReplicaKeyfile(uint16_t numReplicas,
                           uint16_t numRoReplicas,
                           bftEngine::ReplicaConfig& config,
                           const std::string& outputFilename,
-                          Cryptosystem* commonSys,
-                          Cryptosystem* slowSys,
-                          Cryptosystem* commitSys,
-                          Cryptosystem* optSys) {
+                          Cryptosystem* commonSys) {
   std::ofstream output(outputFilename);
   if ((3 * config.fVal + 2 * config.cVal + 1) != numReplicas)
     throw std::runtime_error("F, C, and number of replicas do not agree for requested output.");
@@ -49,13 +46,8 @@ void outputReplicaKeyfile(uint16_t numReplicas,
   output << "\n";
 
   output << "rsa_private_key: " << config.replicaPrivateKey << "\n";
-  if (commonSys) {
-    commonSys->writeConfiguration(output, "common", config.replicaId);
-  } else if (slowSys && commitSys && optSys) {
-    slowSys->writeConfiguration(output, "slow_commit", config.replicaId);
-    commitSys->writeConfiguration(output, "commit", config.replicaId);
-    optSys->writeConfiguration(output, "optimistic_commit", config.replicaId);
-  }
+
+  if (commonSys) commonSys->writeConfiguration(output, "common", config.replicaId);
 }
 
 static void validateRSAPublicKey(const std::string& key) {
@@ -72,8 +64,12 @@ static void validateRSAPrivateKey(const std::string& key) {
   if (!std::regex_match(key, std::regex("[0-9A-Fa-f]+"))) throw std::runtime_error("Invalid RSA private key: " + key);
 }
 
-void inputReplicaKeyfileCommon(std::istream& input, bftEngine::ReplicaConfig& config) {
+Cryptosystem* inputReplicaKeyfileMultisig(const std::string& filename, bftEngine::ReplicaConfig& config) {
   using namespace concord::util;
+
+  std::ifstream input(filename);
+  if (!input.is_open()) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": can't open ") + filename);
+
   config.numReplicas = yaml::readValue<std::uint16_t>(input, "num_replicas");
   config.numRoReplicas = yaml::readValue<std::uint16_t>(input, "num_ro_replicas");
   config.fVal = yaml::readValue<std::uint16_t>(input, "f_val");
@@ -103,49 +99,15 @@ void inputReplicaKeyfileCommon(std::istream& input, bftEngine::ReplicaConfig& co
 
   config.replicaPrivateKey = yaml::readValue<std::string>(input, "rsa_private_key");
   validateRSAPrivateKey(config.replicaPrivateKey);
-}
 
-void inputReplicaKeyfile(const std::string& filename, bftEngine::ReplicaConfig& config) {
-  std::ifstream input(filename);
-  if (!input.is_open()) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": can't open ") + filename);
+  if (config.isReadOnly) return nullptr;
 
-  inputReplicaKeyfileCommon(input, config);
-
-  if (config.isReadOnly) return;
-
-  std::unique_ptr<Cryptosystem> slowSys(Cryptosystem::fromConfiguration(input, "slow_commit", config.replicaId + 1));
-  std::unique_ptr<Cryptosystem> commitSys(Cryptosystem::fromConfiguration(input, "commit", config.replicaId + 1));
-  std::unique_ptr<Cryptosystem> optSys(
-      Cryptosystem::fromConfiguration(input, "optimistic_commit", config.replicaId + 1));
-
-  config.thresholdSignerForSlowPathCommit = slowSys->createThresholdSigner();
-  config.thresholdSignerForCommit = commitSys->createThresholdSigner();
-  config.thresholdSignerForOptimisticCommit = optSys->createThresholdSigner();
-
-  config.thresholdVerifierForSlowPathCommit = slowSys->createThresholdVerifier();
-  config.thresholdVerifierForCommit = commitSys->createThresholdVerifier();
-  config.thresholdVerifierForOptimisticCommit = optSys->createThresholdVerifier();
-}
-
-void inputReplicaKeyfileMultisig(const std::string& filename, bftEngine::ReplicaConfig& config) {
-  using namespace concord::util;
-
-  std::ifstream input(filename);
-  if (!input.is_open()) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": can't open ") + filename);
-
-  inputReplicaKeyfileCommon(input, config);
-
-  if (config.isReadOnly) return;
-
-  std::unique_ptr<Cryptosystem> cryptoSys(Cryptosystem::fromConfiguration(input, "common", config.replicaId + 1));
-
-  // same signer for all
-  config.thresholdSignerForSlowPathCommit = cryptoSys->createThresholdSigner();
-  config.thresholdSignerForCommit = config.thresholdSignerForSlowPathCommit;
-  config.thresholdSignerForOptimisticCommit = config.thresholdSignerForSlowPathCommit;
-
-  // create verifiers with required thresholds
-  config.thresholdVerifierForSlowPathCommit = cryptoSys->createThresholdVerifier(config.fVal * 2 + config.cVal + 1);
-  config.thresholdVerifierForCommit = cryptoSys->createThresholdVerifier(config.fVal * 3 + config.cVal + 1);
-  config.thresholdVerifierForOptimisticCommit = cryptoSys->createThresholdVerifier(config.numReplicas);
+  return Cryptosystem::fromConfiguration(input,
+                                         "common",
+                                         config.replicaId + 1,
+                                         config.thresholdSystemType_,
+                                         config.thresholdSystemSubType_,
+                                         config.thresholdPrivateKey_,
+                                         config.thresholdPublicKey_,
+                                         config.thresholdVerificationKeys_);
 }

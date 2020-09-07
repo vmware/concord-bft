@@ -89,7 +89,6 @@ TEST(PrePrepareMsg, create_and_compare) {
     EXPECT_EQ(memcmp(msg.body(), client_request.body(), msg.size()), 0);
   }
   iterator.restart();
-  destroyReplicaConfig(config);
 }
 
 TEST(PrePrepareMsg, create_null_message) {
@@ -128,7 +127,6 @@ TEST(PrePrepareMsg, base_methods) {
   msg.finishAddingRequests();
   EXPECT_NO_THROW(msg.validate(replicaInfo));
   testMessageBaseMethods(msg, MsgCode::PrePrepare, senderId, spanContext);
-  destroyReplicaConfig(config);
 }
 
 int main(int argc, char** argv) {

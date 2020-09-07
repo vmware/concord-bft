@@ -13,6 +13,7 @@
 #include "InternalReplicaApi.hpp"
 #include "OpenTracing.hpp"
 #include "messages/SignatureInternalMsgs.hpp"
+#include "CryptoManager.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -329,9 +330,8 @@ uint16_t SeqNumInfo::ExFuncForPrepareCollector::numberOfRequiredSignatures(void*
   return (uint16_t)((info.fVal() * 2) + info.cVal() + 1);
 }
 
-IThresholdVerifier* SeqNumInfo::ExFuncForPrepareCollector::thresholdVerifier(void* context) {
-  InternalReplicaApi* r = (InternalReplicaApi*)context;
-  return r->getThresholdVerifierForSlowPathCommit();
+IThresholdVerifier* SeqNumInfo::ExFuncForPrepareCollector::thresholdVerifier() {
+  return CryptoManager::instance().thresholdVerifierForSlowPathCommit();
 }
 
 util::SimpleThreadPool& SeqNumInfo::ExFuncForPrepareCollector::threadPool(void* context) {
@@ -386,9 +386,8 @@ uint16_t SeqNumInfo::ExFuncForCommitCollector::numberOfRequiredSignatures(void* 
   return (uint16_t)((info.fVal() * 2) + info.cVal() + 1);
 }
 
-IThresholdVerifier* SeqNumInfo::ExFuncForCommitCollector::thresholdVerifier(void* context) {
-  InternalReplicaApi* r = (InternalReplicaApi*)context;
-  return r->getThresholdVerifierForSlowPathCommit();
+IThresholdVerifier* SeqNumInfo::ExFuncForCommitCollector::thresholdVerifier() {
+  return CryptoManager::instance().thresholdVerifierForSlowPathCommit();
 }
 
 util::SimpleThreadPool& SeqNumInfo::ExFuncForCommitCollector::threadPool(void* context) {

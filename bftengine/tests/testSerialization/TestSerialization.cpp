@@ -78,59 +78,6 @@ const char publicKeyValue4[] =
     "02143bb5256bc80e9e1f048ef4c42f0c5e27f16e345b58482e0a4adf77b235d41d1e2c4b0636edf13b853f21b0ec738b70d47837389832498e"
     "cbea82c878ecb5ba";
 
-class IShareSecretKeyDummy : public IShareSecretKey {
- public:
-  string toString() const override { return "IShareSecretKeyDummy"; }
-};
-
-class IShareVerificationKeyDummy : public IShareVerificationKey {
- public:
-  string toString() const override { return "IShareVerificationKeyDummy"; }
-};
-
-class IThresholdSignerDummy : public IThresholdSigner,
-                              public concord::serialize::SerializableFactory<IThresholdSignerDummy> {
- public:
-  int requiredLengthForSignedData() const override { return 2048; }
-  void signData(const char *hash, int hashLen, char *outSig, int outSigLen) override {}
-
-  const IShareSecretKey &getShareSecretKey() const override { return shareSecretKey; }
-  const IShareVerificationKey &getShareVerificationKey() const override { return shareVerifyKey; }
-  const std::string getVersion() const override { return "1"; }
-  void serializeDataMembers(std::ostream &outStream) const override {}
-  void deserializeDataMembers(std::istream &outStream) override {}
-  IShareSecretKeyDummy shareSecretKey;
-  IShareVerificationKeyDummy shareVerifyKey;
-};
-
-class IThresholdAccumulatorDummy : public IThresholdAccumulator {
- public:
-  int add(const char *sigShareWithId, int len) override { return 0; }
-  void setExpectedDigest(const unsigned char *msg, int len) override {}
-  bool hasShareVerificationEnabled() const override { return true; }
-  int getNumValidShares() const override { return 0; }
-  void getFullSignedData(char *outThreshSig, int threshSigLen) override {}
-  IThresholdAccumulator *clone() override { return nullptr; }
-};
-
-class IThresholdVerifierDummy : public IThresholdVerifier,
-                                public concord::serialize::SerializableFactory<IThresholdVerifierDummy> {
- public:
-  IThresholdAccumulator *newAccumulator(bool withShareVerification) const override {
-    return new IThresholdAccumulatorDummy;
-  }
-  void release(IThresholdAccumulator *acc) override {}
-  bool verify(const char *msg, int msgLen, const char *sig, int sigLen) const override { return true; }
-  int requiredLengthForSignedData() const override { return 2048; }
-  const IPublicKey &getPublicKey() const override { return shareVerifyKey; }
-  const IShareVerificationKey &getShareVerificationKey(ShareID signer) const override { return shareVerifyKey; }
-
-  const std::string getVersion() const override { return "1"; }
-  void serializeDataMembers(std::ostream &outStream) const override {}
-  void deserializeDataMembers(std::istream &outStream) override {}
-  IShareVerificationKeyDummy shareVerifyKey;
-};
-
 void printRawBuf(const UniquePtrToChar &buf, int64_t bufSize) {
   for (int i = 0; i < bufSize; ++i) {
     char c = buf.get()[i];
@@ -452,21 +399,12 @@ void fillReplicaConfig() {
   config.publicKeysOfReplicas.insert(IdToKeyPair(2, publicKeyValue3));
   config.publicKeysOfReplicas.insert(IdToKeyPair(3, publicKeyValue4));
 
-  config.thresholdSignerForSlowPathCommit = new IThresholdSignerDummy;
-  config.thresholdVerifierForSlowPathCommit = new IThresholdVerifierDummy;
-  config.thresholdSignerForCommit = new IThresholdSignerDummy;
-  config.thresholdVerifierForCommit = new IThresholdVerifierDummy;
-  config.thresholdSignerForOptimisticCommit = new IThresholdSignerDummy;
-  config.thresholdVerifierForOptimisticCommit = new IThresholdVerifierDummy;
-  config.singletonFromThis();
   config.singletonFromThis();
 }
 
 void testSetReplicaConfig(bool toSet) {
   if (toSet) {
-    persistentStorageImp->beginWriteTran();
     persistentStorageImp->setReplicaConfig(config);
-    persistentStorageImp->endWriteTran();
   }
   ReplicaConfig storedConfig = persistentStorageImp->getReplicaConfig();
   ReplicaConfigSerializer storedConfigSerializer(&storedConfig);

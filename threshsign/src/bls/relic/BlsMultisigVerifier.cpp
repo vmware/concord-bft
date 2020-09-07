@@ -85,7 +85,7 @@ bool BlsMultisigVerifier::verify(const char *msg, int msgLen, const char *sigBuf
   signers.fromBytes(reinterpret_cast<const unsigned char *>(idbuf), idbufLen);
 
   if (signers.count() < reqSigners_) {
-    LOG_TRACE(BLS_LOG, "not enough signers: " << signers.count() << " required: " << reqSigners_);
+    LOG_WARN(BLS_LOG, "not enough signers: " << signers.count() << " required: " << reqSigners_);
     return false;
   }
   // for reqSigners != numSigners, need to derive PK from signer IDs

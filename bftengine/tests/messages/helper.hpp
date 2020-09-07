@@ -20,6 +20,7 @@
 #include "threshsign/IThresholdSigner.h"
 #include "threshsign/IThresholdVerifier.h"
 #include "threshsign/IPublicKey.h"
+#include "CryptoManager.hpp"
 
 class IShareSecretKeyDummy : public IShareSecretKey {
  public:
@@ -76,8 +77,14 @@ class IThresholdVerifierDummy : public IThresholdVerifier,
   IShareVerificationKeyDummy shareVerifyKey;
 };
 
+class TestCryptoSystem : public Cryptosystem {
+ public:
+  TestCryptoSystem() = default;
+  IThresholdVerifier *createThresholdVerifier(uint16_t threshold = 0) override { return new IThresholdVerifierDummy; }
+  IThresholdSigner *createThresholdSigner() override { return new IThresholdSignerDummy; }
+};
+
 bftEngine::ReplicaConfig createReplicaConfig();
-void destroyReplicaConfig(bftEngine::ReplicaConfig &config);
 
 inline void printBody(const char *body, size_t size) {
   for (size_t i = 0; i < size; ++i) {

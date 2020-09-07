@@ -24,6 +24,7 @@
 #include "threshsign/ThresholdSignaturesSchemes.h"
 #include "KeyfileIOUtils.hpp"
 #include "config_file_parser.hpp"
+#include "CryptoManager.hpp"
 
 using bft::communication::PlainUdpConfig;
 using bft::communication::PlainTcpConfig;
@@ -54,7 +55,8 @@ void TestCommConfig::GetReplicaConfig(uint16_t replica_id,
                                       std::string keyFilePrefix,
                                       bftEngine::ReplicaConfig* out_config) {
   std::string key_file_name = keyFilePrefix + std::to_string(replica_id);
-  inputReplicaKeyfileMultisig(key_file_name, *out_config);
+  if (Cryptosystem* sys = inputReplicaKeyfileMultisig(key_file_name, *out_config); sys != nullptr)
+    bftEngine::CryptoManager::instance(out_config, sys);
 }
 
 std::unordered_map<NodeNum, NodeInfo> TestCommConfig::SetUpConfiguredNodes(bool is_replica,

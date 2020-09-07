@@ -26,6 +26,7 @@
 #include "messages/SignedShareMsgs.hpp"
 #include "Logger.hpp"
 #include "kvstream.h"
+#include "demangle.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -220,7 +221,7 @@ class CollectorOfThresholdSignatures {
     ConcordAssert(combinedValidSignatureMsg == nullptr);
     ConcordAssert(candidateCombinedSignatureMsg == nullptr);
 
-    IThresholdVerifier* const verifier = ExternalFunc::thresholdVerifier(context);
+    IThresholdVerifier* const verifier = ExternalFunc::thresholdVerifier();
     bool succ = verifier->verify(
         (char*)&expectedDigest, sizeof(Digest), combinedSigMsg->signatureBody(), combinedSigMsg->signatureLen());
     ConcordAssert(succ);  // we should verify this signature when it is loaded
@@ -243,7 +244,7 @@ class CollectorOfThresholdSignatures {
     if (candidateCombinedSignatureMsg != nullptr) {
       processingSignaturesInTheBackground = true;
 
-      CombinedSigVerificationJob* bkJob = new CombinedSigVerificationJob(ExternalFunc::thresholdVerifier(context),
+      CombinedSigVerificationJob* bkJob = new CombinedSigVerificationJob(ExternalFunc::thresholdVerifier(),
                                                                          &ExternalFunc::incomingMsgsStorage(context),
                                                                          expectedSeqNumber,
                                                                          expectedView,
@@ -256,7 +257,7 @@ class CollectorOfThresholdSignatures {
     } else if (numberOfUnknownSignatures >= numOfRequiredSigs) {
       processingSignaturesInTheBackground = true;
 
-      SignaturesProcessingJob* bkJob = new SignaturesProcessingJob(ExternalFunc::thresholdVerifier(context),
+      SignaturesProcessingJob* bkJob = new SignaturesProcessingJob(ExternalFunc::thresholdVerifier(),
                                                                    &ExternalFunc::incomingMsgsStorage(context),
                                                                    expectedSeqNumber,
                                                                    expectedView,
@@ -361,7 +362,7 @@ class CollectorOfThresholdSignatures {
     virtual void execute() override {
       ConcordAssert(numOfDataItems == reqDataItems);
       SCOPED_MDC_SEQ_NUM(std::to_string(expectedSeqNumber));
-      MDC_PUT(MDC_THREAD_KEY, typeid(FULL).name());
+      MDC_PUT(MDC_THREAD_KEY, demangler::demangle<FULL>());
       // TODO(GG): can utilize several threads (discuss with Alin)
 
       const uint16_t bufferSize = (uint16_t)verifier->requiredLengthForSignedData();
@@ -473,7 +474,7 @@ class CollectorOfThresholdSignatures {
 
     virtual void execute() override {
       SCOPED_MDC_SEQ_NUM(std::to_string(expectedSeqNumber));
-      MDC_PUT(MDC_THREAD_KEY, typeid(FULL).name());
+      MDC_PUT(MDC_THREAD_KEY, demangler::demangle<FULL>());
       bool succ = verifier->verify((char*)&expectedDigest, sizeof(Digest), combinedSig, combinedSigLen);
       auto iMsg(ExternalFunc::createInterVerifyCombinedSigResult(expectedSeqNumber, expectedView, succ));
       repMsgsStorage->pushInternalMsg(std::move(iMsg));

@@ -85,7 +85,6 @@ int main(int argc, char** argv) {
         "  -n Number of regular replicas\n"
         "  -f Number of faulty replicas to tolerate\n"
         "  -r Number of read-only replicas\n"
-        "  -m Use a single multisignature scheme for all cryptosystems\n"
         "  -o Output file prefix\n"
         "   --help - this help \n\n"
         "The generated keys will be output to a number of files, one per replica.\n"
@@ -120,7 +119,6 @@ int main(int argc, char** argv) {
     uint16_t n = 0;
     uint16_t ro = 0;
     std::string outputPrefix;
-    bool useMultisig = false;
 
     std::string slowType = MULTISIG_BLS_SCHEME;
     std::string slowParam = "BN-P254";
@@ -146,8 +144,6 @@ int main(int argc, char** argv) {
       } else if (option == "-o") {
         if (i >= argc - 1) throw std::runtime_error("Expected an argument to -o");
         outputPrefix = argv[i++ + 1];
-      } else if (option == "-m") {
-        useMultisig = true;
       } else if (option == "--slow_commit_cryptosys") {
         if (i >= argc - 2) throw std::runtime_error("Expected 2 arguments to --slow_commit_cryptosys");
         slowType = argv[i++ + 1];
@@ -197,34 +193,16 @@ int main(int argc, char** argv) {
       config.publicKeysOfReplicas.insert(std::pair<uint16_t, std::string>(i, rsaKeys[i].second));
     }
 
-    if (!useMultisig) {
-      uint16_t slowThresh = config.fVal * 2 + config.cVal + 1;
-      uint16_t commitThresh = config.fVal * 3 + config.cVal + 1;
-      uint16_t optThresh = n;
-      Cryptosystem slowSys(slowType, slowParam, n, slowThresh);
-      Cryptosystem commitSys(commitType, commitParam, n, commitThresh);
-      Cryptosystem optSys(optType, optParam, n, optThresh);
-
-      slowSys.generateNewPseudorandomKeys();
-      commitSys.generateNewPseudorandomKeys();
-      optSys.generateNewPseudorandomKeys();
-      // Output the generated keys.
-      for (uint16_t i = 0; i < n; ++i) {
-        config.replicaId = i;
-        config.replicaPrivateKey = rsaKeys[i].first;
-        outputReplicaKeyfile(n, ro, config, outputPrefix + std::to_string(i), nullptr, &slowSys, &commitSys, &optSys);
-      }
-    } else {
-      // We want to generate public key for n-out-of-n case
-      Cryptosystem cryptoSys(MULTISIG_BLS_SCHEME, "BN-P254", n, n);
-      cryptoSys.generateNewPseudorandomKeys();
-      // Output the generated keys.
-      for (uint16_t i = 0; i < n; ++i) {
-        config.replicaId = i;
-        config.replicaPrivateKey = rsaKeys[i].first;
-        outputReplicaKeyfile(n, ro, config, outputPrefix + std::to_string(i), &cryptoSys);
-      }
+    // We want to generate public key for n-out-of-n case
+    Cryptosystem cryptoSys(MULTISIG_BLS_SCHEME, "BN-P254", n, n);
+    cryptoSys.generateNewPseudorandomKeys();
+    // Output the generated keys.
+    for (uint16_t i = 0; i < n; ++i) {
+      config.replicaId = i;
+      config.replicaPrivateKey = rsaKeys[i].first;
+      outputReplicaKeyfile(n, ro, config, outputPrefix + std::to_string(i), &cryptoSys);
     }
+
     for (uint16_t i = n; i < n + ro; ++i) {
       config.isReadOnly = true;
       config.replicaId = i;
