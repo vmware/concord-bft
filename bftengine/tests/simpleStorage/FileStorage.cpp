@@ -43,6 +43,9 @@ FileStorage::FileStorage(Logger &logger, const string &fileName) : logger_(logge
 }
 
 FileStorage::~FileStorage() {
+  if (dontLoadStorageOnStartup) {
+    cleanStorage();
+  }
   if (dataStream_) {
     fclose(dataStream_);
   }
@@ -251,6 +254,17 @@ void FileStorage::commitAtomicWriteOnlyBatch() {
   fflush(dataStream_);
   delete transaction_;
   transaction_ = nullptr;
+}
+void FileStorage::setDontLoadStorageOnStartupFlag() { dontLoadStorageOnStartup = true; }
+void FileStorage::cleanStorage() {
+  // To clean the storage such that the replica will come back with a new metadata storage, we just need to set the
+  // number of stored objects to 0. Note that as this method is called from the destructor, we don't need to catch the
+  // mutex.
+  uint32_t objectsNum = 0;
+  write(&objectsNum, 0, sizeof(objectsNum), 1, WRONG_NUM_OF_OBJ_WRITE);
+  LOG_INFO(logger_,
+           "set the number of metadata storage to 0. This was done in order to load a fresh metadata on the next "
+           "replica startup");
 }
 
 }  // namespace bftEngine
