@@ -401,6 +401,22 @@ void DBDataStore::deleteCoveredResPageInSmallerCheckpoints(uint64_t minChkp) {
   inmem_->deleteCoveredResPageInSmallerCheckpoints(minChkp);
 }
 
+void DBDataStore::clearDataStoreData() {
+  del(Initialized);
+  del(MyReplicaId);
+  del(MaxNumOfStoredCheckpoints);
+  del(NumberOfReservedPages);
+  del(LastStoredCheckpoint);
+  del(FirstStoredCheckpoint);
+  del(IsFetchingState);
+  del(fVal);
+  del(FirstRequiredBlock);
+  del(LastRequiredBlock);
+  del(Replicas);
+  del(CheckpointBeingFetched);
+  deleteAllPendingPages();
+}
+
 /** ******************************************************************************************************************/
 }  // namespace impl
 }  // namespace SimpleBlockchainStateTransfer

@@ -44,7 +44,12 @@ FileStorage::FileStorage(Logger &logger, const string &fileName) : logger_(logge
 
 FileStorage::~FileStorage() {
   if (dontLoadStorageOnStartup) {
-    cleanStorage();
+    try {
+      cleanStorage();
+    } catch (std::exception &e) {
+      LOG_ERROR(logger_, e.what());
+      std::terminate();
+    }
   }
   if (dataStream_) {
     fclose(dataStream_);

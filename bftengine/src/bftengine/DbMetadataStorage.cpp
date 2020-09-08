@@ -159,7 +159,12 @@ void DBMetadataStorage::cleanDB() {
 
 DBMetadataStorage::~DBMetadataStorage() {
   if (dontLoadStorageOnStartup) {
-    cleanDB();
+    try {
+      cleanDB();
+    } catch (std::exception &e) {
+      LOG_ERROR(logger_, e.what());
+      std::terminate();
+    }
   }
 }
 
