@@ -149,16 +149,8 @@ Status DBMetadataStorage::multiDel(const ObjectIdsVector &objectIds) {
 void DBMetadataStorage::setDontLoadStorageOnStartupFlag() { dontLoadStorageOnStartup = true; }
 void DBMetadataStorage::cleanDB() {
   // Note that this method is called from the destructor, we don't need to use the mutex
-  // First, Set the number of stored items to 0 such that when the replica startup it won't load the already stored
-  // metadata (see isNewStorage method);
-  uint32_t zero = 0;
-  atomicWrite(objectsNumParameterId_, (char *)&zero, sizeof(zero));
-  LOG_INFO(logger_,
-           "set the number of metadata storage to 0. This was done in order to load a fresh metadata on the next "
-           "replica startup");
-
-  // Second, to clean things up, clear all the records from the DB
-  ObjectIdsVector objectIds;
+  // Clear all the records from the DB
+  ObjectIdsVector objectIds = {objectsNumParameterId_};
   for (const auto &id : objectIdToSizeMap_) {
     objectIds.push_back(id.first);
   }
