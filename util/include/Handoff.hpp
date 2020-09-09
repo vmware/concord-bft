@@ -41,7 +41,7 @@ class Handoff {
         LOG_DEBUG(getLogger(), "thread stopped " << std::this_thread::get_id());
       } catch (const std::exception& e) {
         LOG_FATAL(getLogger(), "exception: " << e.what());
-        exit(1);
+        std::terminate();
       }
     });
   }

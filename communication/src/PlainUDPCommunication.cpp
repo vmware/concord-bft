@@ -176,7 +176,7 @@ class PlainUDPCommunication::PlainUdpImpl {
                 "Error while binding: IP=" << sAddr.sin_addr.s_addr << ", Port=" << sAddr.sin_port
                                            << ", errno=" << concordUtils::errnoString(errno));
       ConcordAssert(false && "Failure occurred while binding the socket!");
-      exit(1);  // TODO(GG): not really ..... change this !
+      std::terminate();
     }
 
 #ifdef WIN32

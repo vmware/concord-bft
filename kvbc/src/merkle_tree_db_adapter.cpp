@@ -429,10 +429,10 @@ void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId) {
       linkSTChainFrom(blockId + 1);
     } catch (const std::exception &e) {
       LOG_FATAL(logger_, "Aborting due to failure to link chains after block has been added, reason: "s + e.what());
-      std::exit(1);
+      std::terminate();
     } catch (...) {
       LOG_FATAL(logger_, "Aborting due to failure to link chains after block has been added");
-      std::exit(1);
+      std::terminate();
     }
 
     return;
