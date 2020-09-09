@@ -116,6 +116,12 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
     LOG_INFO(m_logger, "A wedge command has been called" << KVLOG(sequenceNum));
     controlStateManager_->setStopAtNextCheckpoint(sequenceNum);
   }
+  if (writeReq->header.type == ADD_REMOVE_NODE) {
+    LOG_INFO(m_logger, "An add_remove_node command has been called");
+    controlStateManager_->setStopAtNextCheckpoint(sequenceNum);
+    controlStateManager_->setFlagCleanMetadata(sequenceNum);
+  }
+
   if (!(flags & MsgFlag::HAS_PRE_PROCESSED_FLAG)) {
     bool result = verifyWriteCommand(requestSize, *writeReq, maxReplySize, outReplySize);
     if (!result) ConcordAssert(0);

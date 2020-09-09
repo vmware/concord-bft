@@ -187,6 +187,50 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await skvbc.assert_kv_write_executed(key, val)
         await skvbc.write_known_kv()
 
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 4 and c == 0)
+    async def test_set_clear_metadata(self, bft_network):
+
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        client = bft_network.random_client()
+
+        key, val = await skvbc.write_known_kv()
+
+        await client.write(skvbc.write_req([], [], block_id=0, add_remove_node_command=True))
+
+        with trio.fail_after(seconds=90):
+            done = False
+            while done is False:
+                msg = skvbc.get_have_you_stopped_req()
+                rep = await client.read(msg, m_of_n_quorum=bft_client.MofNQuorum.All(client.config, [r for r in range(
+                    bft_network.config.n)]))
+                rsi_rep = client.get_rsi_replies()
+                done = True
+                for r in rsi_rep.values():
+                    if skvbc.parse_rsi_reply(rep, r) == 0:
+                        done = False
+                        break
+
+        await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
+
+        for r in bft_network.all_replicas():
+            last_stable_checkpoint = await self._get_gauge(r, bft_network, "lastStableSeqNum")
+            self.assertEqual(last_stable_checkpoint, 300)
+
+        bft_network.stop_all_replicas()
+        # We now expect the replicas to start with a fresh new configuration which means that we
+        # need to see in the logs that isNewStorage() = true. Also,
+        # we expect tp see that lastStableSeqNum = 0 (for example)
+
+        bft_network.start_all_replicas()
+        for r in bft_network.all_replicas():
+            last_stable_checkpoint = await self._get_gauge(r, bft_network, "lastStableSeqNum")
+            self.assertEqual(last_stable_checkpoint, 0)
+
+        await skvbc.assert_kv_write_executed(key, val)
+        await skvbc.write_known_kv()
+
     async def validate_stop_on_super_stable_checkpoint(self, bft_network, skvbc):
         with trio.fail_after(seconds=120):
             for replica_id in range(bft_network.config.n):
@@ -220,6 +264,18 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                         if checkpoint_after == previous_checkpoint + 2:
                             break
 
+    async def _get_gauge(self, replica_id, bft_network, gauge):
+        with trio.fail_after(seconds=30):
+            while True:
+                with trio.move_on_after(seconds=1):
+                    try:
+                        key = ['replica', 'Gauges', gauge]
+                        value = await bft_network.metrics.get(replica_id, *key)
+                    except KeyError:
+                        # metrics not yet available, continue looping
+                        print(f"KeyError! '{gauge}' not yet available.")
+                    else:
+                        return value
 
 if __name__ == '__main__':
     unittest.main()
