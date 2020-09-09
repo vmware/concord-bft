@@ -62,4 +62,38 @@ ControlStateManager::ControlStateManager(IStateTransfer* state_transfer, uint32_
 }
 void ControlStateManager::clearCheckpointToStopAt() { state_transfer_->zeroReservedPage(getUpdateReservedPageIndex()); }
 
+void ControlStateManager::setFlagCleanMetadata(int64_t currentSeqNum) {
+  if (!enabled_) return;
+  std::ostringstream outStream;
+  controlStateMessages::SetClearMetadataFlagMessage msg(currentSeqNum);
+  concord::serialize::Serializable::serialize(outStream, msg);
+  auto data = outStream.str();
+  state_transfer_->saveReservedPage(getSetCleanMetadataPageIndex(), data.size(), data.data());
+}
+
+std::optional<int64_t> ControlStateManager::getFlagCleanMetadata() {
+  if (!enabled_) return {};
+  if (!state_transfer_->loadReservedPage(getSetCleanMetadataPageIndex(), sizeOfReservedPage_, scratchPage_.data())) {
+    return {};
+  }
+  std::istringstream inStream;
+  inStream.str(scratchPage_);
+  controlStateMessages::SetClearMetadataFlagMessage msg;
+  try {
+    concord::serialize::Serializable::deserialize(inStream, msg);
+  } catch (std::exception& e) {
+    LOG_WARN(GL, e.what());
+    return {};
+  }
+  if (msg.seqNumToSetAt_ < 0) {
+    LOG_WARN(GL, "sequence num to set flag at is negative!");
+    return {};
+  }
+  return msg.seqNumToSetAt_;
+}
+
+void ControlStateManager::clearFlagCleanMetadata() {
+  state_transfer_->zeroReservedPage(getSetCleanMetadataPageIndex());
+}
+
 }  // namespace bftEngine
