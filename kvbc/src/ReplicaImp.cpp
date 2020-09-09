@@ -227,6 +227,12 @@ ReplicaImp::~ReplicaImp() {
       m_replicaPtr->stop();
     }
   }
+  if (m_stateTransfer) {
+    delete m_stateTransfer;
+  }
+  if (m_metadataStorage) {
+    delete m_metadataStorage;
+  }
 }
 
 Status ReplicaImp::addBlockInternal(const SetOfKeyValuePairs &updates, BlockId &outBlockId) {

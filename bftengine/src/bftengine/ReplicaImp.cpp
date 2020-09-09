@@ -2419,6 +2419,15 @@ void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
       // end of this method
       getRequestsHandler()->getControlHandlers()->onSuperStableCheckpoint();
     }
+
+    // Mark the metadata storage for deletion if we need to
+    auto seq_num_to_remove_metadata_storage = controlStateManager_->getFlagCleanMetadata();
+    // We would want to set this flag only when we sure that the replica needs to remove the metadata.
+    if (seq_num_to_remove_metadata_storage.has_value() && seq_num_to_remove_metadata_storage <= superStableSeqNum) {
+      LOG_INFO(GL, "informing metadata storage to clean the data before shutting down");
+      if (ps_) ps_->setRemoveMetadataStorageFlag();
+      stateTransfer->setClearMetadataFlag();
+    }
   }
 }
 void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformation, bool oldSeqNum) {
@@ -3322,6 +3331,8 @@ void ReplicaImp::start() {
   // If the replica has crashed and recovered by its own, this will remove the saved checkpoint to stop at.
   if (controlStateManager_ && controlStateManager_->getCheckpointToStopAt().has_value())
     controlStateManager_->clearCheckpointToStopAt();
+  if (controlStateManager_ && controlStateManager_->getFlagCleanMetadata().has_value())
+    controlStateManager_->clearFlagCleanMetadata();
   if (!firstTime_ || config_.debugPersistentStorageEnabled) clientsManager->loadInfoFromReservedPages();
   addTimers();
   recoverRequests();
