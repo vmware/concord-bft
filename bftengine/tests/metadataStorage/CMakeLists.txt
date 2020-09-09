@@ -9,5 +9,6 @@ if (BUILD_ROCKSDB_STORAGE)
         util
         kvbc
         corebft
+        stdc++fs
     )
 endif(BUILD_ROCKSDB_STORAGE)

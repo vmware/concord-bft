@@ -48,6 +48,9 @@ class MetadataStorage {
   virtual void beginAtomicWriteOnlyBatch() = 0;
   virtual void writeInBatch(uint32_t objectId, char *data, uint32_t dataLength) = 0;
   virtual void commitAtomicWriteOnlyBatch() = 0;
+
+  // In some cases, we would like to load a new metadata after a crash (for example, on reconfiguration actions).
+  virtual void setDontLoadStorageOnStartupFlag() = 0;
 };
 
 }  // namespace bftEngine

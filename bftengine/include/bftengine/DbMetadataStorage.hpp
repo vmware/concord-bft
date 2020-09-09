@@ -39,6 +39,7 @@ class DBMetadataStorage : public bftEngine::MetadataStorage {
     objectIdToSizeMap_[objectsNumParameterId_] = sizeof(objectsNum_);
   }
 
+  ~DBMetadataStorage();
   bool initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint32_t metadataObjectsArrayLength) override;
   void read(uint32_t objectId, uint32_t bufferSize, char *outBufferForObject, uint32_t &outActualObjectSize) override;
   void atomicWrite(uint32_t objectId, char *data, uint32_t dataLength) override;
@@ -47,9 +48,11 @@ class DBMetadataStorage : public bftEngine::MetadataStorage {
   void commitAtomicWriteOnlyBatch() override;
   concordUtils::Status multiDel(const ObjectIdsVector &objectIds);
   bool isNewStorage() override;
+  void setDontLoadStorageOnStartupFlag() override;
 
  private:
   void verifyOperation(uint32_t objectId, uint32_t dataLen, const char *buffer, bool writeOperation) const;
+  void cleanDB();
 
  private:
   const char *WRONG_FLOW = "beginAtomicWriteOnlyBatch should be launched first";
@@ -64,6 +67,7 @@ class DBMetadataStorage : public bftEngine::MetadataStorage {
   ObjectIdToSizeMap objectIdToSizeMap_;
   uint32_t objectsNum_ = 0;
   std::unique_ptr<IMetadataKeyManipulator> metadataKeyManipulator_;
+  bool dontLoadStorageOnStartup = false;
 };
 
 }  // namespace storage
