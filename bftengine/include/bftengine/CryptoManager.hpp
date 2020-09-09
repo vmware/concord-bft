@@ -37,28 +37,40 @@ class CryptoManager {
     return thresholdVerifierForOptimisticCommit_.get();
   }
 
- private:
-  CryptoManager(const ReplicaConfig* config, Cryptosystem* cryptoSys) {
-    multiSigCryptoSystem_.reset(cryptoSys);
-    thresholdSigner_.reset(multiSigCryptoSystem_->createThresholdSigner());
-    thresholdVerifierForSlowPathCommit_.reset(
-        multiSigCryptoSystem_->createThresholdVerifier(config->fVal * 2 + config->cVal + 1));
-    thresholdVerifierForCommit_.reset(
-        multiSigCryptoSystem_->createThresholdVerifier(config->fVal * 3 + config->cVal + 1));
-    thresholdVerifierForOptimisticCommit_.reset(multiSigCryptoSystem_->createThresholdVerifier(config->numReplicas));
+  std::pair<std::string, std::string> generateMultisigKeyPair() { return multiSigCryptoSystem_->generateNewKeyPair(); }
 
-    // TODO [TK] logic for loading keys from reserved pages
-    //    // We want to generate public key for n-out-of-n case
-    //    multiSigCryptoSystem_.reset(new Cryptosystem(MULTISIG_BLS_SCHEME,
-    //                                                 "BN-P254",
-    //                                                 config->numReplicas,
-    //                                                 config->numReplicas));
+ private:
+  CryptoManager(const ReplicaConfig* config, Cryptosystem* cryptoSys)
+      : f_{config->fVal}, c_{config->cVal}, numSigners_{config->numReplicas} {
+    multiSigCryptoSystem_.reset(cryptoSys);
+    init();
+  }
+
+  void init() {
+    thresholdSigner_.reset(multiSigCryptoSystem_->createThresholdSigner());
+    thresholdVerifierForSlowPathCommit_.reset(multiSigCryptoSystem_->createThresholdVerifier(f_ * 2 + c_ + 1));
+    thresholdVerifierForCommit_.reset(multiSigCryptoSystem_->createThresholdVerifier(f_ * 3 + c_ + 1));
+    thresholdVerifierForOptimisticCommit_.reset(multiSigCryptoSystem_->createThresholdVerifier(numSigners_));
+  }
+
+  void updateMultisigKeys(const std::string& secretKey, const std::string& verificationKey) {
+    multiSigCryptoSystem_->updateKeys(secretKey, verificationKey);
+    init();
+  }
+
+  void updateVerificationKeyForSigner(const std::string& verificationKey, const std::uint16_t& signerIndex) {
+    multiSigCryptoSystem_->updateVerificationKey(verificationKey, signerIndex);
+    init();
   }
 
   CryptoManager(const CryptoManager&) = delete;
   CryptoManager(const CryptoManager&&) = delete;
   CryptoManager& operator=(const CryptoManager&) = delete;
   CryptoManager& operator=(const CryptoManager&&) = delete;
+
+  std::uint16_t f_;
+  std::uint16_t c_;
+  std::uint16_t numSigners_;
 
   std::unique_ptr<Cryptosystem> multiSigCryptoSystem_;
 

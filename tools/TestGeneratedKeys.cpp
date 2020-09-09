@@ -609,6 +609,14 @@ static bool testThresholdKeys(const std::vector<bftEngine::ReplicaConfig>& confi
                               std::vector<std::unique_ptr<Cryptosystem>>& cryptoSystems) {
   uint16_t numReplicas = configs.size() - configs.front().numRoReplicas;
 
+  for (uint16_t i = 0; i < numReplicas; ++i) {
+    std::cout << "System " << i << "\nshare verification keys:\n";
+    for (auto&& sharedKey : cryptoSystems[i]->getSystemVerificationKeys()) std::cout << sharedKey << "\n";
+    std::cout << "share secret key:\n"
+              << cryptoSystems[i]->getPrivateKey(i + 1) << "\n"
+              << "----------------------------------------------------------\n";
+  }
+
   // Compute thresholds.
   uint16_t f = configs.front().fVal;
   uint16_t c = configs.front().cVal;
@@ -760,6 +768,16 @@ int main(int argc, char** argv) {
     if (!testThresholdKeys(configs, cryptoSystems)) {
       return -1;
     }
+
+    // generate new threshold keypair for cryptosystem 0 and re-check the cryptosystems
+    auto keyPair = cryptoSystems[0]->generateNewKeyPair();
+    cryptoSystems[0]->updateKeys(keyPair.first, keyPair.second);
+    for (uint16_t i = 1; i < numReplicas; ++i) cryptoSystems[i]->updateVerificationKey(keyPair.second, 1);
+
+    if (!testThresholdKeys(configs, cryptoSystems)) {
+      return -1;
+    }
+
     std::cout << "Done testing all keys.\n";
     std::cout << "TestGeneratedKeys: SUCCESS.\n";
 

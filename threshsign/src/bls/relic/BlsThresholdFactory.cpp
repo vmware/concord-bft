@@ -36,8 +36,7 @@
 
 #include "Logger.hpp"
 
-namespace BLS {
-namespace Relic {
+namespace BLS::Relic {
 
 BlsThresholdFactory::BlsThresholdFactory(const BlsPublicParameters& params, bool useMultisig)
     : params(params), useMultisig(useMultisig) {
@@ -111,5 +110,13 @@ std::tuple<std::vector<IThresholdSigner*>, IThresholdVerifier*> BlsThresholdFact
   return std::make_tuple(sks, verifier);
 }
 
-} /* namespace Relic */
-} /* namespace BLS */
+std::pair<std::unique_ptr<IShareSecretKey>, std::unique_ptr<IShareVerificationKey>> BlsThresholdFactory::newKeyPair()
+    const {
+  if (!useMultisig) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(" allowed for multisig only"));
+  std::unique_ptr<BlsThresholdKeygenBase> keygen(new BlsMultisigKeygen(params, 1));
+
+  return std::make_pair(std::make_unique<BlsSecretKey>(keygen->getShareSecretKey(1)),
+                        std::make_unique<BlsPublicKey>(keygen->getShareVerificationKey(1)));
+}
+
+}  // namespace BLS::Relic
