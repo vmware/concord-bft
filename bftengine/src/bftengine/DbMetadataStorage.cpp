@@ -162,7 +162,7 @@ DBMetadataStorage::~DBMetadataStorage() {
     try {
       cleanDB();
     } catch (std::exception &e) {
-      LOG_ERROR(logger_, e.what());
+      LOG_FATAL(logger_, e.what());
       std::terminate();
     }
   }

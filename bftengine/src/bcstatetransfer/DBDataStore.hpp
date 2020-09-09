@@ -53,7 +53,7 @@ class DBDataStore : public DataStore {
       try {
         clearDataStoreData();
       } catch (std::exception& e) {
-        LOG_ERROR(logger(), e.what());
+        LOG_FATAL(logger(), e.what());
         std::terminate();
       }
     }
