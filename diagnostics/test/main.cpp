@@ -19,6 +19,8 @@
 
 using namespace concord::diagnostics;
 
+static constexpr uint16_t PORT = 6888;
+
 int main() {
   Registrar registrar;
 
@@ -29,7 +31,7 @@ int main() {
   registrar.registerStatusHandler(handler2);
 
   concord::diagnostics::Server diagnostics_server;
-  diagnostics_server.start(registrar);
+  diagnostics_server.start(registrar, INADDR_LOOPBACK, PORT);
 
   // Keep the diagnostics_server alive indefinitely
   while (true) {
