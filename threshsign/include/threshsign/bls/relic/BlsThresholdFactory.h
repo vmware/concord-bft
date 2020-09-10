@@ -16,8 +16,7 @@
 
 #include "BlsPublicParameters.h"
 
-namespace BLS {
-namespace Relic {
+namespace BLS::Relic {
 
 class BlsThresholdKeygenBase;
 
@@ -68,10 +67,10 @@ class BlsThresholdFactory : public IThresholdFactory {
    * @return an IThresholdVerifier object that can be used to verify signature shares, assemble the threshold signature
    * and verify it as well
    */
-  virtual IThresholdVerifier* newVerifier(NumSharesType reqSigners,
-                                          NumSharesType numSigners,
-                                          const char* publicKeyStr,
-                                          const std::vector<std::string>& verifKeysStr) const;
+  IThresholdVerifier* newVerifier(NumSharesType reqSigners,
+                                  NumSharesType numSigners,
+                                  const char* publicKeyStr,
+                                  const std::vector<std::string>& verifKeysStr) const override;
 
   /**
    * Creates a new IThresholdSigner for the specified signer ID with the specified secret key
@@ -81,7 +80,7 @@ class BlsThresholdFactory : public IThresholdFactory {
    *
    * @return an IThresholdSigner object that can be used to sign
    */
-  virtual IThresholdSigner* newSigner(ShareID id, const char* secretKeyStr) const;
+  IThresholdSigner* newSigner(ShareID id, const char* secretKeyStr) const override;
 
   /**
    * Creates random IThresholdSigner objects for *all* signer IDs from 1 to numSigners.
@@ -94,9 +93,13 @@ class BlsThresholdFactory : public IThresholdFactory {
    * @return a vector of IThresholdSigner's (indexed from 1 to reqSigners) and the IThresholdVerifier object
    *         (caller is responsible for deleting them)
    */
-  virtual std::tuple<std::vector<IThresholdSigner*>, IThresholdVerifier*> newRandomSigners(
-      NumSharesType reqSigners, NumSharesType numSigners) const;
+  std::tuple<std::vector<IThresholdSigner*>, IThresholdVerifier*> newRandomSigners(
+      NumSharesType reqSigners, NumSharesType numSigners) const override;
+
+  /**
+   * Generates a single BLS key pair
+   */
+  std::pair<std::unique_ptr<IShareSecretKey>, std::unique_ptr<IShareVerificationKey>> newKeyPair() const override;
 };
 
-} /* namespace Relic */
-} /* namespace BLS */
+}  // namespace BLS::Relic
