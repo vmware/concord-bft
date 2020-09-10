@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -21,31 +21,36 @@
 
 namespace concord {
 namespace util {
+namespace detail {
 
-// A simple wrapper class around OpenSSL versions > 1.1.1, that implements
-// SHA3-256.
-class SHA3_256 {
+// A simple wrapper class around OpenSSL versions > 1.1.1 that implements EVP hash functions.
+template <const EVP_MD* (*EVPMethod)(), size_t DIGEST_SIZE_IN_BYTES>
+class EVPHash {
  public:
-  static constexpr size_t SIZE_IN_BYTES = 32;
+  static constexpr size_t SIZE_IN_BYTES = DIGEST_SIZE_IN_BYTES;
   typedef std::array<uint8_t, SIZE_IN_BYTES> Digest;
 
-  SHA3_256() : ctx_(EVP_MD_CTX_new()) { ConcordAssert(ctx_ != nullptr); }
+  EVPHash() noexcept : ctx_(EVP_MD_CTX_new()) { ConcordAssert(ctx_ != nullptr); }
 
-  ~SHA3_256() { EVP_MD_CTX_destroy(ctx_); }
+  ~EVPHash() noexcept { EVP_MD_CTX_destroy(ctx_); }
 
-  // Don't allow copying
-  SHA3_256(const SHA3_256&) = delete;
-  SHA3_256& operator=(const SHA3_256&) = delete;
+  // Be explicit about move ops being noexcept.
+  EVPHash(EVPHash&&) noexcept = default;
+  EVPHash& operator=(EVPHash&&) noexcept = default;
+
+  // Don't allow copying.
+  EVPHash(const EVPHash&) = delete;
+  EVPHash& operator=(const EVPHash&) = delete;
 
   // Compute a digest for an entire buffer and return an array containing the
   // digest.
   //
   // This is the simplest way to hash something as all setup is done for you.
   // Use the 3 method mechanism below if you need to hash multiple buffers.
-  Digest digest(const void* buf, size_t size) {
+  Digest digest(const void* buf, size_t size) noexcept {
     ConcordAssert(!updating_);
     ConcordAssert(EVP_MD_CTX_reset(ctx_) == 1);
-    ConcordAssert(EVP_DigestInit_ex(ctx_, EVP_sha3_256(), NULL) == 1);
+    ConcordAssert(EVP_DigestInit_ex(ctx_, EVPMethod(), nullptr) == 1);
 
     ConcordAssert(EVP_DigestUpdate(ctx_, buf, size) == 1);
 
@@ -59,20 +64,20 @@ class SHA3_256 {
   // The following 3 methods are used to compute digests piecemeal, by
   // continuously appending new data to be hashed.
 
-  void init() {
+  void init() noexcept {
     ConcordAssert(!updating_);
     ConcordAssert(EVP_MD_CTX_reset(ctx_) == 1);
-    ConcordAssert(EVP_DigestInit_ex(ctx_, EVP_sha3_256(), NULL) == 1);
+    ConcordAssert(EVP_DigestInit_ex(ctx_, EVPMethod(), nullptr) == 1);
     updating_ = true;
   }
 
   // Add more data to a digest.
-  void update(const void* buf, size_t size) {
+  void update(const void* buf, size_t size) noexcept {
     ConcordAssert(updating_);
     ConcordAssert(EVP_DigestUpdate(ctx_, buf, size) == 1);
   }
 
-  Digest finish() {
+  Digest finish() noexcept {
     Digest digest;
     unsigned int _digest_len;
     ConcordAssert(EVP_DigestFinal_ex(ctx_, digest.data(), &_digest_len) == 1);
@@ -86,5 +91,6 @@ class SHA3_256 {
   bool updating_ = false;
 };
 
+}  // namespace detail
 }  // namespace util
 }  // namespace concord

@@ -22,7 +22,7 @@
 #include "merkle_tree_db_adapter.h"
 #include "merkle_tree_key_manipulator.h"
 #include "merkle_tree_serialization.h"
-#include "sha3_256.h"
+#include "sha_hash.hpp"
 #include "sparse_merkle/base_types.h"
 #include "sparse_merkle/internal_node.h"
 
@@ -226,6 +226,16 @@ void deserializeBatchedInternalNode(benchmark::State &state) {
   }
 }
 
+void calculateSha2(benchmark::State &state) {
+  const auto value = randomBuffer(state.range(0));
+  auto hasher = SHA2_256{};
+
+  for (auto _ : state) {
+    const auto hash = hasher.digest(value.data(), value.size());
+    benchmark::DoNotOptimize(hash);
+  }
+}
+
 void calculateSha3(benchmark::State &state) {
   const auto value = randomBuffer(state.range(0));
   auto hasher = SHA3_256{};
@@ -373,12 +383,14 @@ BENCHMARK_DEFINE_F(Blockchain, getRawBlock)(benchmark::State &state) {
 //  - value size
 const auto blockchainRanges =
     std::vector<std::pair<std::int64_t, std::int64_t>>{{128, 2048}, {4, 32}, {1024, 4 * 1024}};
+constexpr auto blockchainRangeMultiplier = 2;
 
-constexpr auto rangeMultiplier = 2;
+constexpr auto shaRangeStart = 8;
+constexpr auto shaRangeEnd = 40 * 1024 * 1024;
 
 }  // namespace
 
-BENCHMARK(createSubsliver)->RangeMultiplier(rangeMultiplier)->Range(8, 8 * 1024);
+BENCHMARK(createSubsliver)->RangeMultiplier(blockchainRangeMultiplier)->Range(8, 8 * 1024);
 BENCHMARK(fromBigEndian);
 BENCHMARK(copyInternalChild);
 BENCHMARK(copyLeafChild);
@@ -392,13 +404,18 @@ BENCHMARK(deserializeLeafChild);
 BENCHMARK(deserializeHash);
 BENCHMARK(deserializeLeafKey);
 BENCHMARK(deserializeBatchedInternalNode);
-BENCHMARK(calculateSha3)->RangeMultiplier(rangeMultiplier)->Range(8, 40 * 1024 * 1024);
+BENCHMARK(calculateSha2)->RangeMultiplier(blockchainRangeMultiplier)->Range(shaRangeStart, shaRangeEnd);
+BENCHMARK(calculateSha3)->RangeMultiplier(blockchainRangeMultiplier)->Range(shaRangeStart, shaRangeEnd);
 BENCHMARK(stdAsync);
 BENCHMARK(handoff);
-BENCHMARK_REGISTER_F(Blockchain, addBlock)->RangeMultiplier(rangeMultiplier)->Ranges(blockchainRanges);
-BENCHMARK_REGISTER_F(Blockchain, getInternalFromCache)->RangeMultiplier(rangeMultiplier)->Ranges(blockchainRanges);
-BENCHMARK_REGISTER_F(Blockchain, getInternalFromDb)->RangeMultiplier(rangeMultiplier)->Ranges(blockchainRanges);
-BENCHMARK_REGISTER_F(Blockchain, updateCachePut)->RangeMultiplier(rangeMultiplier)->Ranges(blockchainRanges);
-BENCHMARK_REGISTER_F(Blockchain, getRawBlock)->RangeMultiplier(rangeMultiplier)->Ranges(blockchainRanges);
+BENCHMARK_REGISTER_F(Blockchain, addBlock)->RangeMultiplier(blockchainRangeMultiplier)->Ranges(blockchainRanges);
+BENCHMARK_REGISTER_F(Blockchain, getInternalFromCache)
+    ->RangeMultiplier(blockchainRangeMultiplier)
+    ->Ranges(blockchainRanges);
+BENCHMARK_REGISTER_F(Blockchain, getInternalFromDb)
+    ->RangeMultiplier(blockchainRangeMultiplier)
+    ->Ranges(blockchainRanges);
+BENCHMARK_REGISTER_F(Blockchain, updateCachePut)->RangeMultiplier(blockchainRangeMultiplier)->Ranges(blockchainRanges);
+BENCHMARK_REGISTER_F(Blockchain, getRawBlock)->RangeMultiplier(blockchainRangeMultiplier)->Ranges(blockchainRanges);
 
 BENCHMARK_MAIN();

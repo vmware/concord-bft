@@ -32,9 +32,9 @@ add_executable(timers_tests timers_tests.cpp )
 add_test(timers_tests timers_tests)
 target_link_libraries(timers_tests GTest::Main util)
 
-add_executable(sha3_256_tests sha3_256_tests.cpp)
-add_test(sha3_256_tests sha3_256_tests)
-target_link_libraries(sha3_256_tests GTest::Main util OpenSSL::Crypto
+add_executable(sha_hash_tests sha_hash_tests.cpp)
+add_test(sha_hash_tests sha_hash_tests)
+target_link_libraries(sha_hash_tests GTest::Main util OpenSSL::Crypto
         )
 
 add_executable(RollingAvgAndVar_test RollingAvgAndVar_test.cpp )
