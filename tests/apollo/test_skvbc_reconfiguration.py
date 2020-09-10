@@ -128,7 +128,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         with trio.fail_after(seconds=90):
             done = False
             while done is False:
-                msg = skvbc.get_have_you_stopped_req()
+                msg = skvbc.get_have_you_stopped_req(1)
                 rep = await client.read(msg, m_of_n_quorum=bft_client.MofNQuorum.All(client.config, [r for r in range(
                     bft_network.config.n)]))
                 rsi_rep = client.get_rsi_replies()
@@ -165,7 +165,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             done = False
             while done is False:
                 await trio.sleep(seconds=1)
-                msg = skvbc.get_have_you_stopped_req()
+                msg = skvbc.get_have_you_stopped_req(1)
                 rep = await client.read(msg, m_of_n_quorum=bft_client.MofNQuorum.All(client.config, [r for r in range(
                     bft_network.config.n)]))
                 rsi_rep = client.get_rsi_replies()
@@ -189,7 +189,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
-    async def test_set_remove_nodes(self, bft_network):
+    async def test_remove_nodes(self, bft_network):
         """
         In this test we show how a system operator can remove nodes (and thus reduce the cluster) from 7 nodes cluster
         to 4 nodes cluster.
@@ -210,7 +210,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         with trio.fail_after(seconds=90):
             done = False
             while done is False:
-                msg = skvbc.get_have_you_stopped_req()
+                msg = skvbc.get_have_you_stopped_req(1)
                 rep = await client.read(msg, m_of_n_quorum=bft_client.MofNQuorum.All(client.config, [r for r in range(
                     bft_network.config.n)]))
                 rsi_rep = client.get_rsi_replies()
@@ -254,6 +254,91 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             assert (r < 4)
             num_of_fast_path = await self._get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(num_of_fast_path, 0)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    async def test_remove_nodes_with_f_failures(self, bft_network):
+        """
+        In this test we show how a system operator can remove nodes (and thus reduce the cluster) from 7 nodes cluster
+        to 4 nodes cluster even when f nodes are not responding
+        For that the operator performs the following steps:
+        1. Stop 2 nodes (f=2)
+        2. Send a remove_node command - this command also wedges the system
+        3. Verify that all live (including the removed candidates) have stopped
+        4. Load  a new configuration to the bft network
+        5. Rerun the cluster with only 4 nodes and make sure they succeed to perform transactions in fast path
+        """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        client = bft_network.random_client()
+
+        for i in range(100):
+            await skvbc.write_known_kv()
+        # choose two replicas to crash and crash them
+        crashed_replicas = {5, 6} # For simplicity, we crash the last two replicas
+        bft_network.stop_replicas(crashed_replicas)
+
+        num_of_slow_path_before = await self._get_metric(0, bft_network, "Counters", "totalSlowPaths")
+        # All next request should be go through the slow path
+        for i in range(100):
+            await skvbc.write_known_kv()
+
+        key, val = await skvbc.write_known_kv()
+
+        live_replicas = bft_network.all_replicas(without=crashed_replicas)
+        # Verify that replicas are now in slow path
+        for r in live_replicas:
+            num_of_slow_path = await self._get_metric(r, bft_network, "Counters", "totalSlowPaths")
+            self.assertGreater(num_of_slow_path, num_of_slow_path_before)
+
+        await client.write(skvbc.write_req([], [], block_id=0, add_remove_node_command=True))
+
+        with trio.fail_after(seconds=90):
+            done = False
+            while done is False:
+                msg = skvbc.get_have_you_stopped_req(0)
+                rep = await client.read(msg, m_of_n_quorum=bft_client.MofNQuorum(live_replicas, len(live_replicas)))
+                rsi_rep = client.get_rsi_replies()
+                done = True
+                for r in rsi_rep.values():
+                    if skvbc.parse_rsi_reply(rep, r) == 0:
+                        done = False
+                        break
+
+        for r in live_replicas:
+            last_stable_checkpoint = await self._get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
+            self.assertGreaterEqual(last_stable_checkpoint, 300)
+
+        bft_network.stop_all_replicas()
+        # We now expect the replicas to start with a fresh new configuration which means that we
+        # need to see in the logs that isNewStorage() = true. Also,
+        # we expect tp see that lastStableSeqNum = 0 (for example)
+
+        conf = TestConfig(n=4,
+                          f=1,
+                          c=0,
+                          num_clients=30,
+                          key_file_prefix=KEY_FILE_PREFIX,
+                          start_replica_cmd=start_replica_cmd,
+                          stop_replica_cmd=None,
+                          num_ro_replicas=0)
+        bft_network.change_configuration(conf)
+
+        bft_network.start_all_replicas()
+        for r in bft_network.all_replicas():
+            last_stable_checkpoint = await self._get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
+            self.assertEqual(last_stable_checkpoint, 0)
+
+        await skvbc.assert_kv_write_executed(key, val)
+
+        for i in range(100):
+            await skvbc.write_known_kv()
+
+        for r in bft_network.all_replicas():
+            assert (r < 4)
+            num_of_fast_path = await self._get_metric(r, bft_network, "Counters", "totalFastPaths")
+            self.assertGreater(num_of_fast_path, 0)
+
 
     async def validate_stop_on_super_stable_checkpoint(self, bft_network, skvbc):
         with trio.fail_after(seconds=120):

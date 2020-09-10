@@ -90,9 +90,10 @@ class SimpleKVBCProtocol:
         return data
 
     @classmethod
-    def get_have_you_stopped_req(cls):
+    def get_have_you_stopped_req(cls, n_of_n):
         data = bytearray()
         data.append(cls.WEDGE)
+        data.extend(struct.pack("<q", n_of_n))
         return data
 
     @classmethod
@@ -141,7 +142,7 @@ class SimpleKVBCProtocol:
 
     @staticmethod
     def parse_have_you_stopped_reply(data):
-        return struct.unpack("<Q", data)[0]
+        return struct.unpack("<q", data)[0]
 
     def initial_state(self):
         """Return a dict with KV_LEN zero byte values for all keys"""

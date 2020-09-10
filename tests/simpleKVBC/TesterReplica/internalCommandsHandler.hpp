@@ -26,12 +26,17 @@
 #include <thread>
 
 class InternalControlHandlers : public bftEngine::ControlHandlers {
-  bool stoppedOnWedge = false;
+  bool stoppedOnSuperStableCheckpoint = false;
+  bool stoppedOnStableCheckpoint = false;
 
  public:
-  void onSuperStableCheckpoint() override { stoppedOnWedge = true; }
+  void onSuperStableCheckpoint() override { stoppedOnSuperStableCheckpoint = true; }
+  void onStableCheckpoint() override { stoppedOnStableCheckpoint = true; }
+
   virtual ~InternalControlHandlers(){};
-  bool haveYouStopped() { return stoppedOnWedge; }
+  bool haveYouStopped(uint64_t n_of_n) {
+    return n_of_n == 1 ? stoppedOnSuperStableCheckpoint : stoppedOnStableCheckpoint;
+  }
 };
 class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
  public:

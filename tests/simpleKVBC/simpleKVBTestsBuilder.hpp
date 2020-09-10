@@ -94,6 +94,7 @@ struct SimpleHaveYouStoppedRequest {
   static void free(SimpleHaveYouStoppedRequest* buf) { delete[] buf; }
 
   SimpleRequest header;
+  int64_t n_of_n_stop = 1;
 };
 
 // A SimpleGetBlockDataRequest returns a read response, except

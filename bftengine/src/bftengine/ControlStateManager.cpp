@@ -64,8 +64,10 @@ void ControlStateManager::clearCheckpointToStopAt() { state_transfer_->zeroReser
 
 void ControlStateManager::setFlagCleanMetadata(int64_t currentSeqNum) {
   if (!enabled_) return;
+  uint64_t seq_num_to_stop_at = (currentSeqNum + 2 * checkpointWindowSize);
+  seq_num_to_stop_at = seq_num_to_stop_at - (seq_num_to_stop_at % checkpointWindowSize);
   std::ostringstream outStream;
-  controlStateMessages::SetClearMetadataFlagMessage msg(currentSeqNum);
+  controlStateMessages::SetClearMetadataFlagMessage msg(seq_num_to_stop_at);
   concord::serialize::Serializable::serialize(outStream, msg);
   auto data = outStream.str();
   state_transfer_->saveReservedPage(getSetCleanMetadataPageIndex(), data.size(), data.data());

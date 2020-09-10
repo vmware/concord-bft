@@ -2419,15 +2419,6 @@ void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
       // end of this method
       getRequestsHandler()->getControlHandlers()->onSuperStableCheckpoint();
     }
-
-    // Mark the metadata storage for deletion if we need to
-    auto seq_num_to_remove_metadata_storage = controlStateManager_->getFlagCleanMetadata();
-    // We would want to set this flag only when we sure that the replica needs to remove the metadata.
-    if (seq_num_to_remove_metadata_storage.has_value() && seq_num_to_remove_metadata_storage <= superStableSeqNum) {
-      LOG_INFO(GL, "informing metadata storage to clean the data before shutting down");
-      if (ps_) ps_->setRemoveMetadataStorageFlag();
-      stateTransfer->setClearMetadataFlag();
-    }
   }
 }
 void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformation, bool oldSeqNum) {
@@ -2513,6 +2504,25 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
 
   if (!oldSeqNum && currentViewIsActive() && (currentPrimary() == config_.replicaId) && !isCollectingState()) {
     tryToSendPrePrepareMsg();
+  }
+
+  auto seq_num_to_stop_at = controlStateManager_->getCheckpointToStopAt();
+  if (seq_num_to_stop_at.has_value() && seq_num_to_stop_at.value() == newStableSeqNum) {
+    LOG_INFO(GL,
+             "Informing control state manager that consensus should be stopped (without n/n replicas): " << KVLOG(
+                 newStableSeqNum, metric_last_stable_seq_num_.Get().Get()));
+    if (getRequestsHandler()->getControlHandlers()) {
+      getRequestsHandler()->getControlHandlers()->onStableCheckpoint();
+    }
+    // Mark the metadata storage for deletion if we need to
+    auto seq_num_to_remove_metadata_storage = controlStateManager_->getFlagCleanMetadata();
+    // We would want to set this flag only when we sure that the replica needs to remove the metadata.
+    if (seq_num_to_remove_metadata_storage.has_value() &&
+        seq_num_to_remove_metadata_storage.value() == newStableSeqNum) {
+      LOG_INFO(GL, "informing metadata storage to clean the data before shutting down (without n/n replicas)");
+      if (ps_) ps_->setRemoveMetadataStorageFlag();
+      stateTransfer->setClearMetadataFlag();
+    }
   }
 }
 
@@ -2791,14 +2801,14 @@ void ReplicaImp::onInfoRequestTimer(Timers::Handle timer) {
 }
 
 void ReplicaImp::onSuperStableCheckpointTimer(concordUtil::Timers::Handle) {
-  if (!isSeqNumToStopAt(lastExecutedSeqNum)) return;
-  if (!checkpointsLog->insideActiveWindow(lastExecutedSeqNum)) return;
-  CheckpointMsg *cpMsg = checkpointsLog->get(lastExecutedSeqNum).selfCheckpointMsg();
+  if (!isSeqNumToStopAt(lastStableSeqNum)) return;
+  if (!checkpointsLog->insideActiveWindow(lastStableSeqNum)) return;
+  CheckpointMsg *cpMsg = checkpointsLog->get(lastStableSeqNum).selfCheckpointMsg();
   // At this point the cpMsg cannot be evacuated
   if (!cpMsg) return;
-  LOG_INFO(GL,
-           "sending checkpoint message to help other replicas to reach super stable checkpoint"
-               << KVLOG(lastExecutedSeqNum));
+  LOG_INFO(
+      GL,
+      "sending checkpoint message to help other replicas to reach super stable checkpoint" << KVLOG(lastStableSeqNum));
   sendToAllOtherReplicas(cpMsg, true);
 }
 template <>
