@@ -18,7 +18,7 @@ import trio
 
 from util import blinking_replica
 from util import skvbc as kvbc
-from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
+from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, TestConfig
 import sys
 
 sys.path.append(os.path.abspath("../../util/pyclient"))
@@ -188,9 +188,17 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await skvbc.write_known_kv()
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 4 and c == 0)
-    async def test_set_clear_metadata(self, bft_network):
-
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    async def test_set_remove_nodes(self, bft_network):
+        """
+        In this test we show how a system operator can remove nodes (and thus reduce the cluster) from 7 nodes cluster
+        to 4 nodes cluster.
+        For that the operator performs the following steps:
+        1. Send a remove_node command - this command also wedges the system
+        2. Verify that all (including the removed candidates) have stopped
+        3. Load  a new configuration to the bft network
+        4. Rerun the cluster with only 4 nodes and make sure they succeed to perform transactions in fast path
+        """
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
@@ -215,7 +223,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
 
         for r in bft_network.all_replicas():
-            last_stable_checkpoint = await self._get_gauge(r, bft_network, "lastStableSeqNum")
+            last_stable_checkpoint = await self._get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
             self.assertEqual(last_stable_checkpoint, 300)
 
         bft_network.stop_all_replicas()
@@ -223,13 +231,29 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         # need to see in the logs that isNewStorage() = true. Also,
         # we expect tp see that lastStableSeqNum = 0 (for example)
 
+        conf = TestConfig(n=4,
+                   f=1,
+                   c=0,
+                   num_clients=30,
+                   key_file_prefix=KEY_FILE_PREFIX,
+                   start_replica_cmd=start_replica_cmd,
+                   stop_replica_cmd=None,
+                   num_ro_replicas=0)
+        bft_network.change_configuration(conf)
+
         bft_network.start_all_replicas()
         for r in bft_network.all_replicas():
-            last_stable_checkpoint = await self._get_gauge(r, bft_network, "lastStableSeqNum")
+            last_stable_checkpoint = await self._get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
             self.assertEqual(last_stable_checkpoint, 0)
 
         await skvbc.assert_kv_write_executed(key, val)
-        await skvbc.write_known_kv()
+        for i in range(100):
+            await skvbc.write_known_kv()
+
+        for r in bft_network.all_replicas():
+            assert (r < 4)
+            num_of_fast_path = await self._get_metric(r, bft_network, "Counters", "totalFastPaths")
+            self.assertGreater(num_of_fast_path, 0)
 
     async def validate_stop_on_super_stable_checkpoint(self, bft_network, skvbc):
         with trio.fail_after(seconds=120):
@@ -264,16 +288,16 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                         if checkpoint_after == previous_checkpoint + 2:
                             break
 
-    async def _get_gauge(self, replica_id, bft_network, gauge):
+    async def _get_metric(self, replica_id, bft_network, mtype, mname):
         with trio.fail_after(seconds=30):
             while True:
                 with trio.move_on_after(seconds=1):
                     try:
-                        key = ['replica', 'Gauges', gauge]
+                        key = ['replica', mtype, mname]
                         value = await bft_network.metrics.get(replica_id, *key)
                     except KeyError:
                         # metrics not yet available, continue looping
-                        print(f"KeyError! '{gauge}' not yet available.")
+                        print(f"KeyError! '{mname}' not yet available.")
                     else:
                         return value
 

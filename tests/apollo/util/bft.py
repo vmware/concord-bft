@@ -261,6 +261,34 @@ class BftTestNetwork:
         bft_network._init_metrics()
         return bft_network
 
+    def change_configuration(self, config):
+        """
+        When changing an existing bft-network, we would want to change only its configuration related parts
+        such as: n,f,c and the parts that are affected by this change (keys, and clients)
+        We don't want to remove the logs, db and other state related components
+        """
+        # We cannot change anything there are running replicas
+        assert(len(self.procs) == 0)
+
+        # remove all existing clients
+        for client in self.clients.values():
+            client.__exit__()
+        for client in self.reserved_clients.values():
+            client.__exit__()
+        self.metrics.__exit__()
+        self.clients = {}
+
+        # set the new configuration and init the network
+        self.config = config
+        self.replicas = [bft_config.Replica(i, "127.0.0.1", 3710 + 2 * i, 4710 + 2 * i)
+                    for i in range(0, config.n + config.num_ro_replicas)]
+
+        self._generate_crypto_keys()
+
+        self._init_metrics()
+        self._create_clients()
+
+
     def _generate_crypto_keys(self):
         keygen = os.path.join(self.toolsdir, "GenerateConcordKeys")
         args = [keygen, "-n", str(self.config.n), "-f", str(self.config.f)]
