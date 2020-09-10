@@ -37,7 +37,6 @@ using concordUtils::errnoString;
 
 namespace concord::diagnostics {
 
-static constexpr uint16_t PORT = 6888;
 static constexpr int BACKLOG = 5;
 static constexpr size_t MAX_INPUT_SIZE = 1024;
 
@@ -121,10 +120,10 @@ void handleRequest(const Registrar& registrar, int sock) {
 // use case.
 class Server {
  public:
-  void start(const Registrar& registrar) {
+  void start(const Registrar& registrar, in_addr_t host, uint16_t port) {
     shutdown_.store(false);
-    listen_thread_ = std::thread([this, &registrar]() {
-      listen();
+    listen_thread_ = std::thread([this, &registrar, host, port]() {
+      listen(host, port);
 
       while (!shutdown_.load()) {
         fd_set read_fds;
@@ -151,14 +150,13 @@ class Server {
   };
 
  private:
-  void listen() {
+  void listen(in_addr_t host, uint16_t port) {
     listen_sock_ = socket(AF_INET, SOCK_STREAM, 0);
     ConcordAssert(listen_sock_ >= 0);
     bzero(&servaddr_, sizeof(servaddr_));
     servaddr_.sin_family = AF_INET;
-    // LOCALHOST ONLY, FOR SECURITY PURPOSES. DO NOT CHANGE THIS!!!
-    servaddr_.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    servaddr_.sin_port = htons(PORT);
+    servaddr_.sin_addr.s_addr = htonl(host);
+    servaddr_.sin_port = htons(port);
     int enable = 1;
     if (setsockopt(listen_sock_, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable))) {
       LOG_FATAL(logger, "Failed to set listen socket options: " << errnoString(errno));
