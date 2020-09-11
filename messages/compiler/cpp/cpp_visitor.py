@@ -21,22 +21,25 @@ struct {name} {{
 """
 
 
+serialize_fn = "void serialize(std::vector<uint8_t>& output, const {name}& t)"
+def serialize_declaration(name):
+    return serialize_fn.format(name=name) + ";"
 def serialize_start(name):
-    return f"""
-void serialize(std::vector<uint8_t>& output, const {name}& t) {{
-"""
+    return serialize_fn.format(name=name) + " {"
 
 
+deserialize_fn = "void deserialize(uint8_t*& input, const uint8_t* end, {name}& t)"
+def deserialize_declaration(name):
+    return deserialize_fn.format(name=name) + ";"
 def deserialize_start(name):
-    return f"""
-void deserialize(uint8_t*& input, const uint8_t* end, {name}& t) {{
-"""
+    return deserialize_fn.format(name=name) + " {"
 
 
-def deserialize_end(name):
-    return f"""}}
-
-void deserialize(const std::vector<uint8_t>& input, {name}& t) {{
+deserialize_byte_buffer_fn = "void deserialize(const std::vector<uint8_t>& input, {name}& t)"
+def deserialize_byte_buffer_declaration(name):
+    return deserialize_byte_buffer_fn.format(name=name) + ";"
+def deserialize_byte_buffer(name):
+    return deserialize_byte_buffer_fn.format(name=name) + f""" {{
     auto* begin = const_cast<uint8_t*>(input.data());
     deserialize(begin, begin + input.size(), t);
 }}
@@ -59,19 +62,23 @@ def deserialize_field(name, type):
     return f"  cmf::deserialize(input, end, t.{name});\n"
 
 
+variant_serialize_fn = "void serialize(std::vector<uint8_t>& output, const {variant}& val)"
+def variant_serialize_declaration(variant):
+    return variant_serialize_fn.format(variant=variant) + ";"
 def variant_serialize(variant):
-    return f"""\
-void serialize(std::vector<uint8_t>& output, const {variant}& val) {{
-  std::visit([&output](auto&& arg){{
+    return variant_serialize_fn.format(variant=variant) + """ {
+  std::visit([&output](auto&& arg){
     cmf::serialize(output, arg.id);
     serialize(output, arg);
-  }}, val);
-}}"""
+  }, val);
+}"""
 
 
+variant_deserialize_fn = "void deserialize(uint8_t*& start, const uint8_t* end, {variant}& val)"
+def variant_deserialize_declaration(variant):
+    return variant_deserialize_fn.format(variant=variant) + ";"
 def variant_deserialize(variant, msgs):
-    s = f"""
-void deserialize(uint8_t*& start, const uint8_t* end, {variant}& val) {{
+    s = variant_deserialize_fn.format(variant=variant) + """ {
   uint32_t id;
   cmf::deserialize(start, end, id);
 """
@@ -91,11 +98,13 @@ void deserialize(uint8_t*& start, const uint8_t* end, {variant}& val) {{
     return s
 
 
+equalop_str_fn = "bool operator==(const {msg_name}& l, const {msg_name}& r)"
+def equalop_str_declaration(msg_name):
+    return equalop_str_fn.format(msg_name=msg_name) + ";"
 def equalop_str(msg_name, fields):
     """ Create an 'operator==' function for the current message struct """
     comparison = " && ".join([f"l.{f} == r.{f}" for f in fields])
-    return f"""\
-bool operator==(const {msg_name}& l, const {msg_name}& r) {{
+    return equalop_str_fn.format(msg_name=msg_name) + f""" {{
   return {comparison};
 }}"""
 
@@ -105,6 +114,9 @@ class CppVisitor(Visitor):
     def __init__(self):
         # All output currently constructed
         self.output = ""
+
+        # All output declaration currently constructed
+        self.output_declaration = ""
 
         # For each message, all four of the following C++ code strings are constructed in the same
         # pass.
@@ -138,9 +150,11 @@ class CppVisitor(Visitor):
 
         # The `serialize` member functions for all oneofs in the current message
         self.oneof_serialize = ""
+        self.oneof_serialize_declaration = ""
 
         # The `deserialize` member functions for all oneofs in the current message
         self.oneof_deserialize = ""
+        self.oneof_deserialize_declaration = ""
 
     def _reset(self):
         self.__init__()
@@ -154,10 +168,10 @@ class CppVisitor(Visitor):
     def msg_end(self):
         self.struct += "};\n"
         self.serialize += "}"
-        self.deserialize += deserialize_end(self.msg_name)
+        self.deserialize += "}"
+        self.deserialize += deserialize_byte_buffer(self.msg_name)
         self.output += "\n".join([
             s for s in [
-                self.struct,
                 self.oneof_serialize,
                 self.oneof_deserialize,
                 equalop_str(self.msg_name, self.fields_seen),
@@ -165,11 +179,24 @@ class CppVisitor(Visitor):
                 self.deserialize,
             ] if s != ''
         ])
+        self.output_declaration += "\n".join([
+            s for s in [
+                self.struct,
+                serialize_declaration(self.msg_name),
+                deserialize_declaration(self.msg_name),
+                deserialize_byte_buffer_declaration(self.msg_name),
+                self.oneof_serialize_declaration,
+                self.oneof_deserialize_declaration,
+                equalop_str_declaration(self.msg_name),
+            ] if s != ''
+        ])
         # output and oneofs_seen accumulate across messages
         output = self.output
+        output_declaration = self.output_declaration
         oneofs = self.oneofs_seen
         self._reset()
         self.output = output
+        self.output_declaration = output_declaration
         self.oneofs_seen = oneofs
 
     def field_start(self, name, type):
@@ -261,4 +288,6 @@ class CppVisitor(Visitor):
             return
         self.oneofs_seen.add(oneof)
         self.oneof_serialize += variant_serialize(variant)
+        self.oneof_serialize_declaration += variant_serialize_declaration(variant)
         self.oneof_deserialize += variant_deserialize(variant, msgs)
+        self.oneof_deserialize_declaration += variant_deserialize_declaration(variant)

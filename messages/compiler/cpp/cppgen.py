@@ -40,4 +40,5 @@ def translate(ast, namespace=None):
     visitor = CppVisitor()
     walker = Walker(ast, visitor)
     walker.walk()
-    return s + visitor.output + file_trailer(namespace)
+    header = 20 * '/' + '\n' + visitor.output_declaration + '\n' + 20 * '/' + '\n'
+    return s + header + visitor.output + file_trailer(namespace)
