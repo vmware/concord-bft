@@ -710,10 +710,15 @@ void ReplicaImp::tryToAskForMissingInfo() {
   }
 
   for (SeqNum i = minSeqNum; i <= lastRelatedSeqNum; i++) {
-    if (!recentViewChange)
+    if (!recentViewChange) {
       tryToSendReqMissingDataMsg(i);
-    else
-      tryToSendReqMissingDataMsg(i, true, currentPrimary());
+    } else {
+      if (isCurrentPrimary()) {
+        tryToSendReqMissingDataMsg(i, true);  // This Replica is Primary, need to ask everyone else
+      } else {
+        tryToSendReqMissingDataMsg(i, true, currentPrimary());  // Ask the Primary
+      }
+    }
   }
 }
 
