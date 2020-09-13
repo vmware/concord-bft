@@ -133,7 +133,7 @@ class SeqNumInfo {
 
     // from the Replica object
     static uint16_t numberOfRequiredSignatures(void* context);
-    static IThresholdVerifier* thresholdVerifier();
+    static std::shared_ptr<IThresholdVerifier> thresholdVerifier();
     static util::SimpleThreadPool& threadPool(void* context);
     static IncomingMsgsStorage& incomingMsgsStorage(void* context);
   };
@@ -161,7 +161,7 @@ class SeqNumInfo {
 
     // from the ReplicaImp object
     static uint16_t numberOfRequiredSignatures(void* context);
-    static IThresholdVerifier* thresholdVerifier();
+    static std::shared_ptr<IThresholdVerifier> thresholdVerifier();
     static util::SimpleThreadPool& threadPool(void* context);
     static IncomingMsgsStorage& incomingMsgsStorage(void* context);
   };

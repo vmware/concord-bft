@@ -26,15 +26,17 @@ class CryptoManager {
     return cm_;
   }
 
-  IThresholdSigner* thresholdSignerForSlowPathCommit() const { return thresholdSigner_.get(); }
-  IThresholdVerifier* thresholdVerifierForSlowPathCommit() const { return thresholdVerifierForSlowPathCommit_.get(); }
+  std::shared_ptr<IThresholdSigner> thresholdSignerForSlowPathCommit() const { return thresholdSigner_; }
+  std::shared_ptr<IThresholdVerifier> thresholdVerifierForSlowPathCommit() const {
+    return thresholdVerifierForSlowPathCommit_;
+  }
 
-  IThresholdSigner* thresholdSignerForCommit() const { return thresholdSigner_.get(); }
-  IThresholdVerifier* thresholdVerifierForCommit() const { return thresholdVerifierForCommit_.get(); }
+  std::shared_ptr<IThresholdSigner> thresholdSignerForCommit() const { return thresholdSigner_; }
+  std::shared_ptr<IThresholdVerifier> thresholdVerifierForCommit() const { return thresholdVerifierForCommit_; }
 
-  IThresholdSigner* thresholdSignerForOptimisticCommit() const { return thresholdSigner_.get(); }
-  IThresholdVerifier* thresholdVerifierForOptimisticCommit() const {
-    return thresholdVerifierForOptimisticCommit_.get();
+  std::shared_ptr<IThresholdSigner> thresholdSignerForOptimisticCommit() const { return thresholdSigner_; }
+  std::shared_ptr<IThresholdVerifier> thresholdVerifierForOptimisticCommit() const {
+    return thresholdVerifierForOptimisticCommit_;
   }
 
   std::pair<std::string, std::string> generateMultisigKeyPair() { return multiSigCryptoSystem_->generateNewKeyPair(); }
@@ -74,15 +76,15 @@ class CryptoManager {
 
   std::unique_ptr<Cryptosystem> multiSigCryptoSystem_;
 
-  std::unique_ptr<IThresholdSigner> thresholdSigner_;
+  std::shared_ptr<IThresholdSigner> thresholdSigner_;
   // signer and verifier of a threshold signature (for threshold N-fVal-cVal out of N)
-  std::unique_ptr<IThresholdVerifier> thresholdVerifierForSlowPathCommit_;
+  std::shared_ptr<IThresholdVerifier> thresholdVerifierForSlowPathCommit_;
 
   // verifier of a threshold signature (for threshold N-cVal out of N)
   // If cVal==0, then should be nullptr
-  std::unique_ptr<IThresholdVerifier> thresholdVerifierForCommit_;
+  std::shared_ptr<IThresholdVerifier> thresholdVerifierForCommit_;
 
   // verifier of a threshold signature (for threshold N out of N)
-  std::unique_ptr<IThresholdVerifier> thresholdVerifierForOptimisticCommit_;
+  std::shared_ptr<IThresholdVerifier> thresholdVerifierForOptimisticCommit_;
 };
 }  // namespace bftEngine

@@ -33,7 +33,7 @@ SignedShareBase* SignedShareBase::create(int16_t type,
                                          SeqNum s,
                                          ReplicaId senderId,
                                          Digest& digest,
-                                         IThresholdSigner* thresholdSigner,
+                                         std::shared_ptr<IThresholdSigner> thresholdSigner,
                                          const concordUtils::SpanContext& spanContext) {
   LOG_TRACE(THRESHSIGN_LOG, KVLOG(type, v, s, senderId));
   const size_t sigLen = thresholdSigner->requiredLengthForSignedData();
@@ -97,7 +97,7 @@ PreparePartialMsg* PreparePartialMsg::create(ViewNum v,
                                              SeqNum s,
                                              ReplicaId senderId,
                                              Digest& ppDigest,
-                                             IThresholdSigner* thresholdSigner,
+                                             std::shared_ptr<IThresholdSigner> thresholdSigner,
                                              const concordUtils::SpanContext& spanContext) {
   return (PreparePartialMsg*)SignedShareBase::create(
       MsgCode::PreparePartial, v, s, senderId, ppDigest, thresholdSigner, spanContext);
@@ -135,7 +135,7 @@ CommitPartialMsg* CommitPartialMsg::create(ViewNum v,
                                            SeqNum s,
                                            ReplicaId senderId,
                                            Digest& ppDoubleDigest,
-                                           IThresholdSigner* thresholdSigner,
+                                           std::shared_ptr<IThresholdSigner> thresholdSigner,
                                            const concordUtils::SpanContext& spanContext) {
   return (CommitPartialMsg*)SignedShareBase::create(
       MsgCode::CommitPartial, v, s, senderId, ppDoubleDigest, thresholdSigner, spanContext);

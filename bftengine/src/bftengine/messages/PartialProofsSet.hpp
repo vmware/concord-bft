@@ -14,7 +14,7 @@
 // TODO(GG): this class/file should be replaced by an instance of CollectorOfThresholdSignatures
 
 #include <set>
-
+#include <memory>
 #include "PrimitiveTypes.hpp"
 #include "Digest.hpp"
 #include "TimeUtils.hpp"
@@ -58,8 +58,8 @@ class PartialProofsSet {
  protected:
   void addImp(PartialCommitProofMsg* m, CommitPath cPath);
 
-  IThresholdVerifier* thresholdVerifier(CommitPath cPath);
-  IThresholdAccumulator* thresholdAccumulator(CommitPath cPath);
+  std::shared_ptr<IThresholdVerifier> thresholdVerifier(CommitPath cPath);
+  std::shared_ptr<IThresholdAccumulator> thresholdAccumulator(CommitPath cPath);
 
   void tryToCreateFullProof();
 
@@ -75,8 +75,8 @@ class PartialProofsSet {
   std::set<ReplicaId> participatingReplicasInOptimisticFast;  // not including the current replica
   Digest expectedDigest;
   Time timeOfSelfPartialProof;
-  IThresholdAccumulator* thresholdAccumulatorForFast;
-  IThresholdAccumulator* thresholdAccumulatorForOptimisticFast;
+  std::shared_ptr<IThresholdAccumulator> thresholdAccumulatorForFast;
+  std::shared_ptr<IThresholdAccumulator> thresholdAccumulatorForOptimisticFast;
 };
 
 }  // namespace impl

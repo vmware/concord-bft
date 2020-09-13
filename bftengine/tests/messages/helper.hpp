@@ -56,7 +56,6 @@ class IThresholdAccumulatorDummy : public IThresholdAccumulator {
   bool hasShareVerificationEnabled() const override { return true; }
   int getNumValidShares() const override { return 0; }
   void getFullSignedData(char *outThreshSig, int threshSigLen) override {}
-  IThresholdAccumulator *clone() override { return nullptr; }
 };
 
 class IThresholdVerifierDummy : public IThresholdVerifier,
@@ -65,7 +64,6 @@ class IThresholdVerifierDummy : public IThresholdVerifier,
   IThresholdAccumulator *newAccumulator(bool withShareVerification) const override {
     return new IThresholdAccumulatorDummy;
   }
-  void release(IThresholdAccumulator *acc) override {}
   bool verify(const char *msg, int msgLen, const char *sig, int sigLen) const override { return true; }
   int requiredLengthForSignedData() const override { return 2048; }
   const IPublicKey &getPublicKey() const override { return shareVerifyKey; }

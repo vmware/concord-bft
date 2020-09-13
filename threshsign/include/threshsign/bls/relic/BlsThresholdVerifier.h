@@ -66,8 +66,6 @@ class BlsThresholdVerifier : public IThresholdVerifier,
    */
   IThresholdAccumulator *newAccumulator(bool withShareVerification) const override;
 
-  void release(IThresholdAccumulator *acc) override { delete acc; }
-
   bool verify(const char *msg, int msgLen, const char *sig, int sigLen) const override;
 
   int requiredLengthForSignedData() const override { return params_.getSignatureSize(); }
