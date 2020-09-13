@@ -773,7 +773,7 @@ void ReplicaImp::sendPartialProof(SeqNumInfo &seqNumInfo) {
     PartialCommitProofMsg *part = partialProofs.getSelfPartialCommitProof();
 
     if (part == nullptr) {
-      IThresholdSigner *commitSigner = nullptr;
+      std::shared_ptr<IThresholdSigner> commitSigner;
       CommitPath commitPath = pp->firstPath();
 
       ConcordAssertOR((config_.cVal != 0), (commitPath != CommitPath::FAST_WITH_THRESHOLD));
@@ -2931,7 +2931,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         Digest &ppDigest = pp->digestOfRequests();
         const SeqNum seqNum = pp->seqNumber();
 
-        IThresholdSigner *commitSigner = nullptr;
+        std::shared_ptr<IThresholdSigner> commitSigner;
 
         ConcordAssertOR((config_.cVal != 0), (pathInPrePrepare != CommitPath::FAST_WITH_THRESHOLD));
 

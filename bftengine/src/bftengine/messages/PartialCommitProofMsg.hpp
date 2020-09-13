@@ -27,7 +27,7 @@ class PartialCommitProofMsg : public MessageBase {
                         SeqNum s,
                         CommitPath commitPath,
                         Digest& digest,
-                        IThresholdSigner* thresholdSigner,
+                        std::shared_ptr<IThresholdSigner> thresholdSigner,
                         const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
   ViewNum viewNumber() const { return b()->viewNum; }

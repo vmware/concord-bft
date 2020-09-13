@@ -53,7 +53,7 @@ class SignedShareBase : public MessageBase {
                                  SeqNum s,
                                  ReplicaId senderId,
                                  Digest& digest,
-                                 IThresholdSigner* thresholdSigner,
+                                 std::shared_ptr<IThresholdSigner> thresholdSigner,
                                  const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
   static SignedShareBase* create(int16_t type,
                                  ViewNum v,
@@ -82,7 +82,7 @@ class PreparePartialMsg : public SignedShareBase {
                                    SeqNum s,
                                    ReplicaId senderId,
                                    Digest& ppDigest,
-                                   IThresholdSigner* thresholdSigner,
+                                   std::shared_ptr<IThresholdSigner> thresholdSigner,
                                    const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
   void validate(const ReplicasInfo&) const override;
 };
@@ -126,7 +126,7 @@ class CommitPartialMsg : public SignedShareBase {
                                   SeqNum s,
                                   ReplicaId senderId,
                                   Digest& ppDoubleDigest,
-                                  IThresholdSigner* thresholdSigner,
+                                  std::shared_ptr<IThresholdSigner> thresholdSigner,
                                   const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
   void validate(const ReplicasInfo&) const override;
 };

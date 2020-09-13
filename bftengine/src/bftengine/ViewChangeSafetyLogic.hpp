@@ -26,7 +26,7 @@ class ViewChangeSafetyLogic {
   ViewChangeSafetyLogic(const uint16_t n,
                         const uint16_t f,
                         const uint16_t c,
-                        IThresholdVerifier* const preparedCertificateVerifier,
+                        std::shared_ptr<IThresholdVerifier> preparedCertificateVerifier,
                         const Digest& digestOfNull);
 
   struct Restriction {
@@ -57,7 +57,7 @@ class ViewChangeSafetyLogic {
   const uint16_t F;
   const uint16_t C;
 
-  IThresholdVerifier* const preparedCertVerifier;
+  std::shared_ptr<IThresholdVerifier> preparedCertVerifier;
 
   const Digest nullDigest;
 };

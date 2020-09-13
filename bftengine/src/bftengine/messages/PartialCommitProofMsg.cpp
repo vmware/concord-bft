@@ -22,7 +22,7 @@ PartialCommitProofMsg::PartialCommitProofMsg(ReplicaId senderId,
                                              SeqNum s,
                                              CommitPath commitPath,
                                              Digest& digest,
-                                             IThresholdSigner* thresholdSigner,
+                                             std::shared_ptr<IThresholdSigner> thresholdSigner,
                                              const concordUtils::SpanContext& spanContext)
     : MessageBase(senderId,
                   MsgCode::PartialCommitProof,

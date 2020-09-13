@@ -45,7 +45,7 @@ uint32_t ViewsManager::PrevViewInfo::maxSize() {
 
 ViewsManager::ViewsManager(const ReplicasInfo* const r,
                            SigManager* sigmgr,
-                           IThresholdVerifier* const preparedCertificateVerifier)
+                           std::shared_ptr<IThresholdVerifier> preparedCertificateVerifier)
     : replicasInfo(r), N(r->numberOfReplicas()), F(r->fVal()), C(r->cVal()), myId(r->myId()) {
   sigManager_ = sigmgr;
   ConcordAssert(preparedCertificateVerifier != nullptr);
@@ -116,7 +116,7 @@ ViewsManager::~ViewsManager() {
 
 ViewsManager* ViewsManager::createOutsideView(const ReplicasInfo* const r,
                                               SigManager* sigMgr,
-                                              IThresholdVerifier* const preparedCertificateVerifier,
+                                              std::shared_ptr<IThresholdVerifier> preparedCertificateVerifier,
                                               ViewNum lastActiveView,
                                               SeqNum lastStable,
                                               SeqNum lastExecuted,
@@ -176,14 +176,14 @@ ViewsManager* ViewsManager::createOutsideView(const ReplicasInfo* const r,
 
 ViewsManager* ViewsManager::createInsideViewZero(const ReplicasInfo* const r,
                                                  SigManager* sigMgr,
-                                                 IThresholdVerifier* const preparedCertificateVerifier) {
+                                                 std::shared_ptr<IThresholdVerifier> preparedCertificateVerifier) {
   ViewsManager* v = new ViewsManager(r, sigMgr, preparedCertificateVerifier);
   return v;
 }
 
 ViewsManager* ViewsManager::createInsideView(const ReplicasInfo* const r,
                                              SigManager* sigMgr,
-                                             IThresholdVerifier* const preparedCertificateVerifier,
+                                             std::shared_ptr<IThresholdVerifier> preparedCertificateVerifier,
                                              ViewNum view,
                                              SeqNum stableLowerBound,
                                              NewViewMsg* newViewMsg,

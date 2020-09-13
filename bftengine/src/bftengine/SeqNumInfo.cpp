@@ -330,7 +330,7 @@ uint16_t SeqNumInfo::ExFuncForPrepareCollector::numberOfRequiredSignatures(void*
   return (uint16_t)((info.fVal() * 2) + info.cVal() + 1);
 }
 
-IThresholdVerifier* SeqNumInfo::ExFuncForPrepareCollector::thresholdVerifier() {
+std::shared_ptr<IThresholdVerifier> SeqNumInfo::ExFuncForPrepareCollector::thresholdVerifier() {
   return CryptoManager::instance().thresholdVerifierForSlowPathCommit();
 }
 
@@ -386,7 +386,7 @@ uint16_t SeqNumInfo::ExFuncForCommitCollector::numberOfRequiredSignatures(void* 
   return (uint16_t)((info.fVal() * 2) + info.cVal() + 1);
 }
 
-IThresholdVerifier* SeqNumInfo::ExFuncForCommitCollector::thresholdVerifier() {
+std::shared_ptr<IThresholdVerifier> SeqNumInfo::ExFuncForCommitCollector::thresholdVerifier() {
   return CryptoManager::instance().thresholdVerifierForSlowPathCommit();
 }
 

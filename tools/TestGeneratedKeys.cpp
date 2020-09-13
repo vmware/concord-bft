@@ -329,21 +329,6 @@ static std::vector<std::vector<uint16_t>> getThresholdSignerCombinationsToTest(u
   return signerCombinations;
 }
 
-// Helper function to testThresholdSignature used to release accumulators, which
-// is done through the verifier that created the accumulator, which we do not
-// trust not to throw an exception during the release process because we do not
-// trust that the keys we constructed it with were valid.
-static bool releaseAccumulator(IThresholdVerifier* verifier, IThresholdAccumulator* accumulator) {
-  if (accumulator) {
-    try {
-      verifier->release(accumulator);
-    } catch (std::exception& e) {
-      return false;
-    }
-  }
-  return true;
-}
-
 // Helper function to testThresholdCryptosystem for testing a single signature.
 //
 // Note we cannot accept signers and verifier as const because
@@ -365,10 +350,10 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
   for (const auto& hash : kHashesToTest) {
     int hashLength = hash.length();
 
-    IThresholdAccumulator* accumulator = nullptr;
+    std::shared_ptr<IThresholdAccumulator> accumulator = nullptr;
 
     try {
-      accumulator = verifier->newAccumulator(true);
+      accumulator.reset(verifier->newAccumulator(true));
 
       // It is necessary to try to catch an exception from newAccumulator and
       // then construct an accumulator with verification disabled (and make sure
@@ -382,10 +367,9 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
       // not.
     } catch (std::exception& e) {
       try {
-        accumulator = verifier->newAccumulator(false);
+        accumulator.reset(verifier->newAccumulator(false));
       } catch (std::exception& e) {
         std::cout << invalidPublicConfig;
-        releaseAccumulator(verifier, accumulator);
         return false;
       }
     }
@@ -395,7 +379,6 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
       verificationEnabled = accumulator->hasShareVerificationEnabled();
     } catch (std::exception& e) {
       std::cout << invalidPublicConfig;
-      releaseAccumulator(verifier, accumulator);
       return false;
     }
 
@@ -404,7 +387,6 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
         accumulator->setExpectedDigest(reinterpret_cast<const unsigned char*>(hash.c_str()), hashLength);
       } catch (std::exception& e) {
         std::cout << invalidPublicConfig;
-        releaseAccumulator(verifier, accumulator);
         return false;
       }
     }
@@ -415,13 +397,11 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
         accumulatorSize = accumulator->getNumValidShares();
       } catch (std::exception& e) {
         std::cout << invalidPublicConfig;
-        releaseAccumulator(verifier, accumulator);
         return false;
       }
       if (accumulatorSize != 0) {
         std::cout << "FAILURE: Newly created signature accumulator for " << cryptosystemName
                   << " threshold cryptosystem reports already having valid signatures.\n";
-        releaseAccumulator(verifier, accumulator);
         return false;
       }
     }
@@ -435,7 +415,6 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
         sigShareLen = signer->requiredLengthForSignedData();
       } catch (std::exception& e) {
         std::cout << invalidPrivateKey;
-        releaseAccumulator(verifier, accumulator);
         return false;
       }
       char* sigShareBuf = new char[sigShareLen];
@@ -443,7 +422,6 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
         signer->signData(hash.c_str(), hashLength, sigShareBuf, sigShareLen);
       } catch (std::exception& e) {
         std::cout << invalidPrivateKey;
-        releaseAccumulator(verifier, accumulator);
         delete[] sigShareBuf;
         return false;
       }
@@ -452,7 +430,6 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
         addRes = accumulator->add(sigShareBuf, sigShareLen);
       } catch (std::exception& e) {
         std::cout << invalidKeyset;
-        releaseAccumulator(verifier, accumulator);
         delete[] sigShareBuf;
         return false;
       }
@@ -466,7 +443,6 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
         if (((accumulatorSize + 1) <= threshold) && (addRes != (accumulatorSize + 1))) {
           std::cout << "FAILURE: Signature accumulator could not validate replica " << signerID << "'s signature for "
                     << cryptosystemName << " threshold cryptosystem.\n";
-          releaseAccumulator(verifier, accumulator);
           return false;
         } else {
           accumulatorSize = addRes;
@@ -479,7 +455,6 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
       signatureLength = verifier->requiredLengthForSignedData();
     } catch (std::exception& e) {
       std::cout << invalidPublicConfig;
-      releaseAccumulator(verifier, accumulator);
       return false;
     }
     char* sigBuf = new char[signatureLength];
@@ -487,7 +462,6 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
       accumulator->getFullSignedData(sigBuf, signatureLength);
     } catch (std::exception& e) {
       std::cout << invalidKeyset << e.what() << std::endl;
-      releaseAccumulator(verifier, accumulator);
       delete[] sigBuf;
       return false;
     }
@@ -497,16 +471,11 @@ static bool testThresholdSignature(const std::string& cryptosystemName,
       signatureAccepted = verifier->verify(hash.c_str(), hashLength, sigBuf, signatureLength);
     } catch (std::exception& e) {
       std::cout << invalidKeyset;
-      releaseAccumulator(verifier, accumulator);
       delete[] sigBuf;
       return false;
     }
 
     delete[] sigBuf;
-    if (!releaseAccumulator(verifier, accumulator)) {
-      std::cout << invalidKeyset;
-      return false;
-    }
 
     if (signatureAccepted != (participatingSigners >= threshold)) {
       std::cout << "FAILURE: Threshold signer with " << participatingSigners << " signatures unexpectedly "

@@ -88,7 +88,6 @@ class DummyThresholdAccumulator : public IThresholdAccumulator {
   virtual bool hasShareVerificationEnabled() const override { return true; }
   virtual int getNumValidShares() const override { return 0; }
   virtual void getFullSignedData(char* outThreshSig, int threshSigLen) override {}
-  virtual IThresholdAccumulator* clone() override { return this; }
 };
 
 class DummySigner : public IThresholdSigner {
@@ -112,11 +111,9 @@ class DummyVerifier : public IThresholdVerifier {
   mutable DummyThresholdAccumulator dummyThresholdAccumulator_;
 
  public:
-  virtual IThresholdAccumulator* newAccumulator(bool withShareVerification) const override {
-    return &dummyThresholdAccumulator_;
+  IThresholdAccumulator* newAccumulator(bool withShareVerification) const override {
+    return new DummyThresholdAccumulator;
   }
-  virtual void release(IThresholdAccumulator* acc) override {}
-
   virtual bool verify(const char* msg, int msgLen, const char* sig, int sigLen) const override { return true; }
   virtual int requiredLengthForSignedData() const override { return 3; }
 
@@ -127,7 +124,7 @@ class DummyVerifier : public IThresholdVerifier {
   virtual const std::string getVersion() const override { return std::string("123"); }
   virtual void serializeDataMembers(std::ostream&) const override {}
   virtual void deserializeDataMembers(std::istream&) override {}
-} dummyVerifier_;
+};
 
 void setUpConfiguration_4() {
   for (int i = 0; i < N; i++) {
@@ -190,7 +187,8 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
                                 pfMsg->signatureLen(),
                                 pfMsg->signatureBody());
 
-  auto VCS = ViewChangeSafetyLogic(N, F, C, &dummyVerifier_, PrePrepareMsg::digestOfNullPrePrepareMsg());
+  auto VCS =
+      ViewChangeSafetyLogic(N, F, C, std::make_shared<DummyVerifier>(), PrePrepareMsg::digestOfNullPrePrepareMsg());
 
   SeqNum min{}, max{};
   VCS.computeRestrictions(viewChangeMsgs, VCS.calcLBStableForView(viewChangeMsgs), min, max, restrictions);
@@ -303,7 +301,8 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
                                 pfMsg2->signatureLen(),
                                 pfMsg2->signatureBody());
 
-  auto VCS = ViewChangeSafetyLogic(N, F, C, &dummyVerifier_, PrePrepareMsg::digestOfNullPrePrepareMsg());
+  auto VCS =
+      ViewChangeSafetyLogic(N, F, C, std::make_shared<DummyVerifier>(), PrePrepareMsg::digestOfNullPrePrepareMsg());
 
   SeqNum min{}, max{};
   VCS.computeRestrictions(viewChangeMsgs, VCS.calcLBStableForView(viewChangeMsgs), min, max, restrictions);
@@ -427,7 +426,8 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_one_i
                                 pfMsg2->signatureLen(),
                                 pfMsg2->signatureBody());
 
-  auto VCS = ViewChangeSafetyLogic(N, F, C, &dummyVerifier_, PrePrepareMsg::digestOfNullPrePrepareMsg());
+  auto VCS =
+      ViewChangeSafetyLogic(N, F, C, std::make_shared<DummyVerifier>(), PrePrepareMsg::digestOfNullPrePrepareMsg());
 
   SeqNum min{}, max{};
   VCS.computeRestrictions(viewChangeMsgs, VCS.calcLBStableForView(viewChangeMsgs), min, max, restrictions);

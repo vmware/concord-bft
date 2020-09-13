@@ -130,7 +130,7 @@ static bool checkSlowPathCertificates(std::set<SlowElem, SlowElemCompare>& slowP
 ViewChangeSafetyLogic::ViewChangeSafetyLogic(const uint16_t n,
                                              const uint16_t f,
                                              const uint16_t c,
-                                             IThresholdVerifier* const preparedCertificateVerifier,
+                                             std::shared_ptr<IThresholdVerifier> preparedCertificateVerifier,
                                              const Digest& digestOfNull)
     : N(n), F(f), C(c), preparedCertVerifier(preparedCertificateVerifier), nullDigest(digestOfNull) {
   ConcordAssert(N == (3 * F + 2 * C + 1));

@@ -30,8 +30,6 @@ class BlsAlmostMultisigAccumulator : public BlsThresholdAccumulator {
 
  public:
   virtual void computeLagrangeCoeff();
-
-  virtual IThresholdAccumulator* clone() { return new BlsAlmostMultisigAccumulator(*this); }
 };
 
 } /* namespace Relic */

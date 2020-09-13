@@ -221,7 +221,7 @@ class CollectorOfThresholdSignatures {
     ConcordAssert(combinedValidSignatureMsg == nullptr);
     ConcordAssert(candidateCombinedSignatureMsg == nullptr);
 
-    IThresholdVerifier* const verifier = ExternalFunc::thresholdVerifier();
+    auto verifier = ExternalFunc::thresholdVerifier();
     bool succ = verifier->verify(
         (char*)&expectedDigest, sizeof(Digest), combinedSigMsg->signatureBody(), combinedSigMsg->signatureLen());
     ConcordAssert(succ);  // we should verify this signature when it is loaded
@@ -296,7 +296,7 @@ class CollectorOfThresholdSignatures {
       concordUtils::SpanContext span_context;
     };
 
-    IThresholdVerifier* const verifier;
+    std::shared_ptr<IThresholdVerifier> verifier;
     IncomingMsgsStorage* const repMsgsStorage;
     const SeqNum expectedSeqNumber;
     const ViewNum expectedView;
@@ -311,7 +311,7 @@ class CollectorOfThresholdSignatures {
     virtual ~SignaturesProcessingJob() {}
 
    public:
-    SignaturesProcessingJob(IThresholdVerifier* const thresholdVerifier,
+    SignaturesProcessingJob(std::shared_ptr<IThresholdVerifier> thresholdVerifier,
                             IncomingMsgsStorage* const replicaMsgsStorage,
                             SeqNum seqNum,
                             ViewNum view,
@@ -371,17 +371,13 @@ class CollectorOfThresholdSignatures {
       const auto& span_context_of_last_message =
           (reqDataItems - 1) ? sigDataItems[reqDataItems - 1].span_context : concordUtils::SpanContext{};
       {
-        IThresholdAccumulator* acc = verifier->newAccumulator(false);
+        auto acc = verifier->newAccumulator(false);
 
-        for (uint16_t i = 0; i < reqDataItems; i++) {
-          acc->add(sigDataItems[i].sigBody, sigDataItems[i].sigLength);
-        }
+        for (uint16_t i = 0; i < reqDataItems; i++) acc->add(sigDataItems[i].sigBody, sigDataItems[i].sigLength);
 
         acc->setExpectedDigest(reinterpret_cast<unsigned char*>(expectedDigest.content()), DIGEST_SIZE);
 
         acc->getFullSignedData(bufferForSigComputations.data(), bufferSize);
-
-        verifier->release(acc);
       }
 
       bool succ = verifier->verify((char*)&expectedDigest, sizeof(Digest), bufferForSigComputations.data(), bufferSize);
@@ -391,7 +387,7 @@ class CollectorOfThresholdSignatures {
 
         // TODO(GG): A clumsy way to do verification - find a better way ....
 
-        IThresholdAccumulator* accWithVer = verifier->newAccumulator(true);
+        auto accWithVer = verifier->newAccumulator(true);
         accWithVer->setExpectedDigest(reinterpret_cast<unsigned char*>(expectedDigest.content()), DIGEST_SIZE);
 
         uint16_t currNumOfValidShares = 0;
@@ -417,8 +413,6 @@ class CollectorOfThresholdSignatures {
                                        << ": replicas with bad signatures: " << oss.str());
         }
 
-        verifier->release(accWithVer);
-
         auto iMsg(ExternalFunc::createInterCombinedSigFailed(expectedSeqNumber, expectedView, replicasWithBadSigs));
         repMsgsStorage->pushInternalMsg(std::move(iMsg));
       } else {
@@ -434,7 +428,7 @@ class CollectorOfThresholdSignatures {
 
   class CombinedSigVerificationJob : public util::SimpleThreadPool::Job {
    private:
-    IThresholdVerifier* const verifier;
+    std::shared_ptr<IThresholdVerifier> verifier;
     IncomingMsgsStorage* const repMsgsStorage;
     const SeqNum expectedSeqNumber;
     const ViewNum expectedView;
@@ -446,7 +440,7 @@ class CollectorOfThresholdSignatures {
     virtual ~CombinedSigVerificationJob() {}
 
    public:
-    CombinedSigVerificationJob(IThresholdVerifier* const thresholdVerifier,
+    CombinedSigVerificationJob(std::shared_ptr<IThresholdVerifier> thresholdVerifier,
                                IncomingMsgsStorage* const replicaMsgsStorage,
                                SeqNum seqNum,
                                ViewNum view,
