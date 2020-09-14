@@ -2520,8 +2520,8 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
     if (seq_num_to_remove_metadata_storage.has_value() &&
         seq_num_to_remove_metadata_storage.value() == newStableSeqNum) {
       LOG_INFO(GL, "informing metadata storage to clean the data before shutting down (without n/n replicas)");
-      if (ps_) ps_->setRemoveMetadataStorageFlag();
-      stateTransfer->setClearMetadataFlag();
+      if (ps_) ps_->setEraseMetadataStorageFlag();
+      stateTransfer->setEraseMetadataFlag();
     }
   }
 }

@@ -42,7 +42,7 @@ class FileStorage : public MetadataStorage {
   void writeInBatch(uint32_t objectId, char *data, uint32_t dataLength) override;
 
   void commitAtomicWriteOnlyBatch() override;
-  void setDontLoadStorageOnStartupFlag() override;
+  void setEraseStorageOnShutdownFlag() override;
 
  private:
   void read(void *dataPtr, size_t offset, size_t itemSize, size_t count, const char *errorMsg);

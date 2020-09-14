@@ -122,7 +122,7 @@ class DBDataStore : public DataStore {
                   uint32_t copylength) override {
     return inmem_->getResPage(inPageId, inCheckpoint, outActualCheckpoint, outPageDigest, outPage, copylength);
   }
-  void setClearDataStoreFlag() override { clearDataStoreFlag = true; }
+  void setEraseDataStoreFlag() override { clearDataStoreFlag = true; }
 
  private:
   void clearDataStoreData();

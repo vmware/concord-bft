@@ -139,7 +139,7 @@ class InMemoryDataStore : public DataStore {
     // only be one transaction at a time.
     return new DataStoreTransaction(this->shared_from_this(), new NullTransaction());
   }
-  void setClearDataStoreFlag() override {}
+  void setEraseDataStoreFlag() override {}
 
  protected:
   const uint32_t sizeOfReservedPage_;

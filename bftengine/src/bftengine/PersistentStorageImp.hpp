@@ -130,7 +130,7 @@ class PersistentStorageImp : public PersistentStorage {
   void clearSeqNumWindow() override;
   ObjectDescUniquePtr getDefaultMetadataObjectDescriptors(uint16_t &numOfObjects) const;
 
-  void setRemoveMetadataStorageFlag() override;
+  void setEraseMetadataStorageFlag() override;
   // Getters
   std::string getStoredVersion();
   std::string getCurrentVersion() const { return version_; }

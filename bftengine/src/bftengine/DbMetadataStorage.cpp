@@ -146,7 +146,7 @@ Status DBMetadataStorage::multiDel(const ObjectIdsVector &objectIds) {
   }
   return dbClient_->multiDel(keysVec);
 }
-void DBMetadataStorage::setDontLoadStorageOnStartupFlag() { dontLoadStorageOnStartup = true; }
+void DBMetadataStorage::setEraseStorageOnShutdownFlag() { eraseStorageOnShutdownFlag = true; }
 void DBMetadataStorage::cleanDB() {
   // Note that this method is called from the destructor, we don't need to use the mutex
   // Clear all the records from the DB
@@ -158,7 +158,7 @@ void DBMetadataStorage::cleanDB() {
 }
 
 DBMetadataStorage::~DBMetadataStorage() {
-  if (dontLoadStorageOnStartup) {
+  if (eraseStorageOnShutdownFlag) {
     try {
       cleanDB();
     } catch (std::exception &e) {

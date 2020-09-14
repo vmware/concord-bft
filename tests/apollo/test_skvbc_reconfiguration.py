@@ -128,7 +128,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         with trio.fail_after(seconds=90):
             done = False
             while done is False:
-                msg = skvbc.get_have_you_stopped_req(1)
+                msg = skvbc.get_have_you_stopped_req(n_of_n=1)
                 rep = await client.read(msg, m_of_n_quorum=bft_client.MofNQuorum.All(client.config, [r for r in range(
                     bft_network.config.n)]))
                 rsi_rep = client.get_rsi_replies()
@@ -165,7 +165,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             done = False
             while done is False:
                 await trio.sleep(seconds=1)
-                msg = skvbc.get_have_you_stopped_req(1)
+                msg = skvbc.get_have_you_stopped_req(n_of_n=1)
                 rep = await client.read(msg, m_of_n_quorum=bft_client.MofNQuorum.All(client.config, [r for r in range(
                     bft_network.config.n)]))
                 rsi_rep = client.get_rsi_replies()
@@ -184,7 +184,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
         bft_network.start_all_replicas()
 
-        await skvbc.assert_kv_write_executed(key, val)
+        await self.validate_state_consistency(skvbc, key, val)
         await skvbc.write_known_kv()
 
     @with_trio
@@ -210,9 +210,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         with trio.fail_after(seconds=90):
             done = False
             while done is False:
-                msg = skvbc.get_have_you_stopped_req(1)
-                rep = await client.read(msg, m_of_n_quorum=bft_client.MofNQuorum.All(client.config, [r for r in range(
-                    bft_network.config.n)]))
+                msg = skvbc.get_have_you_stopped_req(n_of_n=1)
+                rep = await client.read(msg, m_of_n_quorum=bft_client.MofNQuorum.All(client.config, bft_network.all_replicas()))
                 rsi_rep = client.get_rsi_replies()
                 done = True
                 for r in rsi_rep.values():
@@ -222,14 +221,15 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
         await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
 
+        checkpoint_to_stop_at = 300
         for r in bft_network.all_replicas():
-            last_stable_checkpoint = await self._get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
-            self.assertEqual(last_stable_checkpoint, 300)
+            last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
+            self.assertEqual(last_stable_checkpoint, checkpoint_to_stop_at)
 
         bft_network.stop_all_replicas()
         # We now expect the replicas to start with a fresh new configuration which means that we
         # need to see in the logs that isNewStorage() = true. Also,
-        # we expect tp see that lastStableSeqNum = 0 (for example)
+        # we expect to see that lastStableSeqNum = 0 (for example)
 
         conf = TestConfig(n=4,
                    f=1,
@@ -243,16 +243,16 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
         bft_network.start_all_replicas()
         for r in bft_network.all_replicas():
-            last_stable_checkpoint = await self._get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
+            last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
             self.assertEqual(last_stable_checkpoint, 0)
 
-        await skvbc.assert_kv_write_executed(key, val)
+        await self.validate_state_consistency(skvbc, key, val)
         for i in range(100):
             await skvbc.write_known_kv()
 
         for r in bft_network.all_replicas():
             assert (r < 4)
-            num_of_fast_path = await self._get_metric(r, bft_network, "Counters", "totalFastPaths")
+            num_of_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(num_of_fast_path, 0)
 
     @with_trio
@@ -278,7 +278,6 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         crashed_replicas = {5, 6} # For simplicity, we crash the last two replicas
         bft_network.stop_replicas(crashed_replicas)
 
-        num_of_slow_path_before = await self._get_metric(0, bft_network, "Counters", "totalSlowPaths")
         # All next request should be go through the slow path
         for i in range(100):
             await skvbc.write_known_kv()
@@ -286,17 +285,13 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         key, val = await skvbc.write_known_kv()
 
         live_replicas = bft_network.all_replicas(without=crashed_replicas)
-        # Verify that replicas are now in slow path
-        for r in live_replicas:
-            num_of_slow_path = await self._get_metric(r, bft_network, "Counters", "totalSlowPaths")
-            self.assertGreater(num_of_slow_path, num_of_slow_path_before)
 
         await client.write(skvbc.write_req([], [], block_id=0, add_remove_node_command=True))
 
         with trio.fail_after(seconds=90):
             done = False
             while done is False:
-                msg = skvbc.get_have_you_stopped_req(0)
+                msg = skvbc.get_have_you_stopped_req(n_of_n=0)
                 rep = await client.read(msg, m_of_n_quorum=bft_client.MofNQuorum(live_replicas, len(live_replicas)))
                 rsi_rep = client.get_rsi_replies()
                 done = True
@@ -305,9 +300,10 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                         done = False
                         break
 
+        checkpoint_to_stop_at = 300
         for r in live_replicas:
-            last_stable_checkpoint = await self._get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
-            self.assertGreaterEqual(last_stable_checkpoint, 300)
+            last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
+            self.assertGreaterEqual(last_stable_checkpoint, checkpoint_to_stop_at)
 
         bft_network.stop_all_replicas()
         # We now expect the replicas to start with a fresh new configuration which means that we
@@ -326,17 +322,17 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
         bft_network.start_all_replicas()
         for r in bft_network.all_replicas():
-            last_stable_checkpoint = await self._get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
+            last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
             self.assertEqual(last_stable_checkpoint, 0)
 
-        await skvbc.assert_kv_write_executed(key, val)
+        await self.validate_state_consistency(skvbc, key, val)
 
         for i in range(100):
             await skvbc.write_known_kv()
 
         for r in bft_network.all_replicas():
             assert (r < 4)
-            num_of_fast_path = await self._get_metric(r, bft_network, "Counters", "totalFastPaths")
+            num_of_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(num_of_fast_path, 0)
 
 
@@ -373,18 +369,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                         if checkpoint_after == previous_checkpoint + 2:
                             break
 
-    async def _get_metric(self, replica_id, bft_network, mtype, mname):
-        with trio.fail_after(seconds=30):
-            while True:
-                with trio.move_on_after(seconds=1):
-                    try:
-                        key = ['replica', mtype, mname]
-                        value = await bft_network.metrics.get(replica_id, *key)
-                    except KeyError:
-                        # metrics not yet available, continue looping
-                        print(f"KeyError! '{mname}' not yet available.")
-                    else:
-                        return value
+    async def validate_state_consistency(self, skvbc, key, val):
+        return await skvbc.assert_kv_write_executed(key, val)
 
 if __name__ == '__main__':
     unittest.main()

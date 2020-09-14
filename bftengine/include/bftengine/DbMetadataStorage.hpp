@@ -48,7 +48,7 @@ class DBMetadataStorage : public bftEngine::MetadataStorage {
   void commitAtomicWriteOnlyBatch() override;
   concordUtils::Status multiDel(const ObjectIdsVector &objectIds);
   bool isNewStorage() override;
-  void setDontLoadStorageOnStartupFlag() override;
+  void setEraseStorageOnShutdownFlag() override;
 
  private:
   void verifyOperation(uint32_t objectId, uint32_t dataLen, const char *buffer, bool writeOperation) const;
@@ -67,7 +67,7 @@ class DBMetadataStorage : public bftEngine::MetadataStorage {
   ObjectIdToSizeMap objectIdToSizeMap_;
   uint32_t objectsNum_ = 0;
   std::unique_ptr<IMetadataKeyManipulator> metadataKeyManipulator_;
-  bool dontLoadStorageOnStartup = false;
+  bool eraseStorageOnShutdownFlag = false;
 };
 
 }  // namespace storage

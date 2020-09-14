@@ -107,7 +107,7 @@ class PersistentStorage {
   virtual void setCheckpointMsgInCheckWindow(SeqNum seqNum, CheckpointMsg *msg) = 0;
   virtual void setCompletedMarkInCheckWindow(SeqNum seqNum, bool mark) = 0;
 
-  virtual void setRemoveMetadataStorageFlag() = 0;
+  virtual void setEraseMetadataStorageFlag() = 0;
   //////////////////////////////////////////////////////////////////////////
   // Read methods (should only be used before using write-only transactions)
   //////////////////////////////////////////////////////////////////////////

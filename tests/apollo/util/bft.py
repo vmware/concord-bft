@@ -495,6 +495,20 @@ class BftTestNetwork:
 
         return current_view
 
+
+    async def get_metric(self, replica_id, bft_network, mtype, mname):
+        with trio.fail_after(seconds=30):
+            while True:
+                with trio.move_on_after(seconds=1):
+                    try:
+                        key = ['replica', mtype, mname]
+                        value = await bft_network.metrics.get(replica_id, *key)
+                    except KeyError:
+                        # metrics not yet available, continue looping
+                        print(f"KeyError! '{mname}' not yet available.")
+                    else:
+                        return value
+
     async def wait_for_view(self, replica_id, expected=None,
                             err_msg="Expected view not reached"):
         """

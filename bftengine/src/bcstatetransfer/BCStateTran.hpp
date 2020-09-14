@@ -86,7 +86,7 @@ class BCStateTran : public IStateTransfer {
 
   void addOnTransferringCompleteCallback(std::function<void(uint64_t)>) override;
 
-  void setClearMetadataFlag() override { psd_->setClearDataStoreFlag(); }
+  void setEraseMetadataFlag() override { psd_->setEraseDataStoreFlag(); }
 
  protected:
   std::function<void(char*, uint32_t, uint16_t)> messageHandler_;

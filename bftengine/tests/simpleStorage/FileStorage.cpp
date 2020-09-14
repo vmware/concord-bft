@@ -260,7 +260,7 @@ void FileStorage::commitAtomicWriteOnlyBatch() {
   delete transaction_;
   transaction_ = nullptr;
 }
-void FileStorage::setDontLoadStorageOnStartupFlag() { dontLoadStorageOnStartup = true; }
+void FileStorage::setEraseStorageOnShutdownFlag() { dontLoadStorageOnStartup = true; }
 void FileStorage::cleanStorage() {
   // To clean the storage such that the replica will come back with a new metadata storage, we just need to set the
   // number of stored objects to 0. Note that as this method is called from the destructor, we don't need to catch the

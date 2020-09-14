@@ -70,7 +70,7 @@ class IStateTransfer : public IReservedPages {
   // Multiple callbacks can be added.
   virtual void addOnTransferringCompleteCallback(std::function<void(uint64_t)>) = 0;
 
-  virtual void setClearMetadataFlag() = 0;
+  virtual void setEraseMetadataFlag() = 0;
 };
 
 // This interface may only be used when the state transfer module is runnning

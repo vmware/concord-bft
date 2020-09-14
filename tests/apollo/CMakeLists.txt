@@ -75,7 +75,7 @@ foreach(STORAGE_TYPE ${STORAGE_TYPES})
           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
   add_test(NAME skvbc_reconfiguration_${STORAGE_TYPE} COMMAND sh -c
-          "env ${APOLLO_TEST_ENV} LEAKCHECK=ON STORAGE_TYPE=${STORAGE_TYPE} python3 -m unittest test_skvbc_reconfiguration ${TEST_OUTPUT}"
+          "env ${APOLLO_TEST_ENV} GRACEFUL_SHUTDOWN=TRUE STORAGE_TYPE=${STORAGE_TYPE} python3 -m unittest test_skvbc_reconfiguration ${TEST_OUTPUT}"
           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
   if (BUILD_ROCKSDB_STORAGE)

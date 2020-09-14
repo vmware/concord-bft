@@ -905,7 +905,7 @@ bool PersistentStorageImp::nonExecSetIsAllowed() {
   return setIsAllowed() &&
          (!hasDescriptorOfLastExecution() || descriptorOfLastExecution_.executedSeqNum <= lastExecutedSeqNum_);
 }
-void PersistentStorageImp::setRemoveMetadataStorageFlag() { metadataStorage_->setDontLoadStorageOnStartupFlag(); }
+void PersistentStorageImp::setEraseMetadataStorageFlag() { metadataStorage_->setEraseStorageOnShutdownFlag(); }
 
 }  // namespace impl
 }  // namespace bftEngine

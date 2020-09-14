@@ -116,7 +116,7 @@ uint8_t *createUpdateAndCloseDB(Client *client, bool clear_db = false) {
   auto db = initiateMetadataStorage(client, "./metadataStorage_test_db_recover", true);
   auto *inBuf = writeRandomData(initialObjectId, initialObjDataSize, db);
   if (clear_db) {
-    db->setDontLoadStorageOnStartupFlag();
+    db->setEraseStorageOnShutdownFlag();
   }
   delete db;
   return inBuf;
