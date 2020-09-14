@@ -55,31 +55,14 @@ def start_replica_cmd(builddir, replica_id, config):
         
     return ret
 
-class SkvbcReadOnlyReplicaTest(unittest.TestCase):
+class MinioProcess:
     """
-    ReadOnlyReplicaTest has got two modes of operation:
-        - using external S3 object store (minio)
-        - using internal RocksDB store
-    Setting CONCORD_BFT_MINIO_BINARY_PATH env variable will triger S3 mode.
+    This class represents S3 object store, implemented as local minio process. The bucket 
+    is created in the __init__ method, by creating the corresponding directory of the data 
+    dir of minio. This approach is officially supported by minio.
+    Two methods are provided for starting and stopping minio process.
     """
-    @classmethod
-    def _start_s3_server(cls):
-        print("Starting server")
-        server_env = os.environ.copy()
-        server_env["MINIO_ACCESS_KEY"] = "concordbft"
-        server_env["MINIO_SECRET_KEY"] = "concordbft"
-
-        minio_server_fname = os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH")
-        if minio_server_fname is None:
-            shutil.rmtree(cls.work_dir)
-            raise RuntimeError("Please set path to minio binary to CONCORD_BFT_MINIO_BINARY_PATH env variable")
-
-        cls.minio_server_proc = subprocess.Popen([minio_server_fname, "server", cls.minio_server_data_dir], 
-                                                    env = server_env, 
-                                                    close_fds=True)
-
-    @classmethod
-    def setUpClass(cls):
+    def __init__(self):
         if not os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
             print("CONCORD_BFT_MINIO_BINARY_PATH is not set. Running in RocksDB mode.")
             return
@@ -89,33 +72,79 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         # We need a temp dir for data and binaries - this is cls.dest_dir
         # self.dest_dir will contain data dir for minio buckets and the minio binary
         # if there are any directories inside data dir - they become buckets
-        cls.work_dir = "/tmp/concord_bft_minio_datadir_" + next(tempfile._get_candidate_names())
-        cls.minio_server_data_dir = os.path.join(cls.work_dir, "data")
-        os.makedirs(os.path.join(cls.work_dir, "data", "blockchain"))     # create all dirs in one call
+        self.work_dir = "/tmp/concord_bft_minio_datadir_" + next(tempfile._get_candidate_names())
+        self.minio_server_data_dir = os.path.join(self.work_dir, "data")
+        os.makedirs(os.path.join(self.work_dir, "data", "blockchain"))     # create all dirs in one call
 
-        print(f"Working in {cls.work_dir}")
+        print(f"Working in {self.work_dir}")
 
         # Start server
-        cls._start_s3_server()
+        self.start()
         
         print("Initialisation complete")
 
-    @classmethod
-    def tearDownClass(cls):
+    def start(self):
+        print("Starting server")
+        server_env = os.environ.copy()
+        server_env["MINIO_ACCESS_KEY"] = "concordbft"
+        server_env["MINIO_SECRET_KEY"] = "concordbft"
+
+        minio_server_fname = os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH")
+        if minio_server_fname is None:
+            shutil.rmtree(self.work_dir)
+            raise RuntimeError("Please set path to minio binary to CONCORD_BFT_MINIO_BINARY_PATH env variable")
+
+        self.minio_server_proc = subprocess.Popen([minio_server_fname, "server", self.minio_server_data_dir], 
+                                                    env = server_env, 
+                                                    close_fds=True)
+
+    def stop(self):
+        self.minio_server_proc.kill()
+        self.minio_server_proc.wait()
+
+    def cleanup(self):
         if not os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
             return
 
         # First stop the server gracefully
-        cls.minio_server_proc.terminate()
-        cls.minio_server_proc.wait()
+        self.minio_server_proc.terminate()
+        self.minio_server_proc.wait()
 
         # Delete workdir dir
-        shutil.rmtree(cls.work_dir)
+        shutil.rmtree(self.work_dir)
+
+class SkvbcReadOnlyReplicaTest(unittest.TestCase):
+    """
+    ReadOnlyReplicaTest has got two modes of operation:
+        - using external S3 object store (minio)
+        - using internal RocksDB store
+    Setting CONCORD_BFT_MINIO_BINARY_PATH env variable will triger S3 mode.
+    
+    The class relies on external implementation for the S3 object store
+    handling code. The abstraction should provide the following methods:
+    * start - to start the service
+    * stop - to terminate the service
+    * cleanup - to do any final cleanup tasks for the service.
+
+    The test code will use these methods to simulate S3 service outages.
+    By default MinioProcess class is used for S3 servicce handler (defined 
+    above).
+    """
+    @classmethod
+    def setUpClass(cls, s3_service=MinioProcess()):
+        cls.s3_service = s3_service
+    
+    @classmethod
+    def tearDownClass(cls):
+        cls.s3_service.cleanup()
+    
+    @classmethod
+    def _start_s3_server(cls):
+        cls.s3_service.start()
 
     @classmethod
     def _stop_s3_server(cls):
-        cls.minio_server_proc.kill()
-        cls.minio_server_proc.wait()
+        cls.s3_service.stop()
 
     @classmethod
     def _stop_s3_for_X_secs(cls, x):
