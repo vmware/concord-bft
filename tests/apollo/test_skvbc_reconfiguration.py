@@ -264,7 +264,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         For that the operator performs the following steps:
         1. Stop 2 nodes (f=2)
         2. Send a remove_node command - this command also wedges the system
-        3. Verify that all live (including the removed candidates) have stopped
+        3. Verify that all live (including the removed candidates) nodes have stopped
         4. Load  a new configuration to the bft network
         5. Rerun the cluster with only 4 nodes and make sure they succeed to perform transactions in fast path
         """

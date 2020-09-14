@@ -267,7 +267,7 @@ class BftTestNetwork:
         such as: n,f,c and the parts that are affected by this change (keys, and clients)
         We don't want to remove the logs, db and other state related components
         """
-        # We cannot change anything there are running replicas
+        # We cannot change anything if there are running replicas
         assert(len(self.procs) == 0)
 
         # remove all existing clients
