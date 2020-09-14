@@ -13,7 +13,10 @@ if(USE_S3_OBJECT_STORE)
         set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} CONCORD_BFT_MINIO_BINARY_PATH=${MINIO_BINARY_PATH}")
 endif()
 
-set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} LEAKCHECK=${LEAKCHECK}")
+if(LEAKCHECK)
+  # For Leak Sanitizers to report errors we need to shut down processes gracefully
+  set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} GRACEFUL_SHUTDOWN=true")
+endif()
 
 set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} KEEP_APOLLO_LOGS=${KEEP_APOLLO_LOGS}")
 
