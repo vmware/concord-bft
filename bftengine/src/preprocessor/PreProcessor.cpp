@@ -135,7 +135,8 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   uint64_t numOfThreads = myReplica.getReplicaConfig().preExecConcurrencyLevel;
   if (!numOfThreads) numOfThreads = min((uint16_t)thread::hardware_concurrency(), numOfClients_);
   threadPool_.start(numOfThreads);
-  LOG_INFO(logger(), KVLOG(firstClientId, numOfClients_, preExecReqStatusCheckPeriodMilli_, numOfThreads));
+  LOG_INFO(logger(),
+           KVLOG(firstClientId, numOfClients_, maxPreExecResultSize_, preExecReqStatusCheckPeriodMilli_, numOfThreads));
   RequestProcessingState::init(numOfRequiredReplies());
   addTimers();
 }
@@ -239,7 +240,8 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
     lock_guard<mutex> lock(clientEntry->mutex);
     if (clientEntry->reqProcessingStatePtr) {
       const ReqId &ongoingReqSeqNum = clientEntry->reqProcessingStatePtr->getReqSeqNum();
-      LOG_DEBUG(logger(), KVLOG(reqSeqNum, clientId) << " is ignored:" << KVLOG(ongoingReqSeqNum) << " is in progress");
+      LOG_DEBUG(logger(),
+                KVLOG(reqSeqNum, clientId, senderId) << " is ignored:" << KVLOG(ongoingReqSeqNum) << " is in progress");
       preProcessorMetrics_.preProcReqIgnored.Get().Inc();
       return;
     }
@@ -248,7 +250,9 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
   // requests forwarded by non-primary replicas, otherwise this will cause timeouts caused by missing PreProcess
   // request messages from the primary.
   if ((clientId == senderId) && myReplica_.isClientRequestInProcess(clientId, reqSeqNum)) {
-    LOG_INFO(logger(), "Request has been processing right now - ignore" << KVLOG(reqSeqNum, clientId));
+    LOG_DEBUG(logger(),
+              "Specified request has been processing right now - ignore" << KVLOG(reqSeqNum, clientId, senderId));
+    preProcessorMetrics_.preProcReqIgnored.Get().Inc();
     return;
   }
   const ReqId &seqNumberOfLastReply = myReplica_.seqNumberOfLastReplyToClient(clientId);
@@ -263,7 +267,8 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
     return incomingMsgsStorage_->pushExternalMsg(clientPreProcessReqMsg->convertToClientRequestMsg(false));
   }
   LOG_INFO(logger(),
-           "ClientPreProcessRequestMsg" << KVLOG(reqSeqNum) << " is ignored because request is old/duplicated");
+           "ClientPreProcessRequestMsg" << KVLOG(reqSeqNum, clientId, senderId)
+                                        << " is ignored because request is old/duplicated");
   preProcessorMetrics_.preProcReqIgnored.Get().Inc();
 }
 
@@ -400,7 +405,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId) {
   }
 }
 
-uint16_t PreProcessor::numOfRequiredReplies() { return myReplica_.getReplicaConfig().fVal + 1; }
+uint16_t PreProcessor::numOfRequiredReplies() { return myReplica_.getReplicaConfig().fVal; }
 
 bool PreProcessor::registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
                                    PreProcessRequestMsgSharedPtr preProcessRequestMsg) {
@@ -555,6 +560,8 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
   // Unused for now. Replica Specific Info not currently supported in pre-execution.
   uint32_t replicaSpecificInfoLen = 0;
   auto span = concordUtils::startChildSpanFromContext(span_context, "bft_process_preprocess_msg");
+  SCOPED_MDC_CID(cid);
+  LOG_DEBUG(logger(), "Pass request for a pre-execution" << KVLOG(reqSeqNum, clientId, reqSeqNum));
   auto status = requestsHandler_.execute(clientId,
                                          reqSeqNum,
                                          PRE_PROCESS_FLAG,
@@ -565,8 +572,9 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
                                          resultLen,
                                          replicaSpecificInfoLen,
                                          span);
+  LOG_DEBUG(logger(), "Pre-execution operation done" << KVLOG(reqSeqNum, clientId, reqSeqNum));
   if (status != 0 || !resultLen) {
-    LOG_FATAL(logger(), "Pre-execution failed!" << KVLOG(clientId, cid, reqSeqNum, status, resultLen));
+    LOG_FATAL(logger(), "Pre-execution failed!" << KVLOG(clientId, reqSeqNum, status, resultLen));
     ConcordAssert(false);
   }
   return resultLen;

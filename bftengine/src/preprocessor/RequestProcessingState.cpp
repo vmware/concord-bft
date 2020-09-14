@@ -24,7 +24,10 @@ uint64_t RequestProcessingState::getMonotonicTimeMilli() {
   return duration_cast<milliseconds>(curTimePoint.time_since_epoch()).count();
 }
 
-void RequestProcessingState::init(uint16_t numOfRequiredReplies) { numOfRequiredEqualReplies_ = numOfRequiredReplies; }
+void RequestProcessingState::init(uint16_t numOfRequiredReplies) {
+  LOG_INFO(logger(), KVLOG(numOfRequiredReplies));
+  numOfRequiredEqualReplies_ = numOfRequiredReplies;
+}
 
 RequestProcessingState::RequestProcessingState(uint16_t numOfReplicas,
                                                uint16_t clientId,
@@ -125,11 +128,16 @@ bool RequestProcessingState::isReqTimedOut(bool isPrimary) const {
 
 // The primary replica logic
 PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult() {
-  if (numOfReceivedReplies_ < numOfRequiredEqualReplies_) return CONTINUE;
+  SCOPED_MDC_CID(cid_);
+  if (numOfReceivedReplies_ < numOfRequiredEqualReplies_) {
+    LOG_DEBUG(logger(),
+              "Not enough replies received, continue waiting"
+                  << KVLOG(reqSeqNum_, numOfReceivedReplies_, numOfRequiredEqualReplies_));
+    return CONTINUE;
+  }
 
   uint16_t maxNumOfEqualHashes = 0;
   auto itOfChosenHash = calculateMaxNbrOfEqualHashes(maxNumOfEqualHashes);
-  SCOPED_MDC_CID(cid_);
   if (maxNumOfEqualHashes >= numOfRequiredEqualReplies_) {
     if (itOfChosenHash->first == primaryPreProcessResultHash_) return COMPLETE;  // Pre-execution consensus reached
     if (primaryPreProcessResultLen_ != 0 && !retrying_) {
@@ -142,16 +150,22 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
       retrying_ = true;
       return RETRY_PRIMARY;
     }
-    LOG_DEBUG(logger(), "Primary replica did not complete pre-processing yet for" << KVLOG(reqSeqNum_) << "; continue");
+    LOG_DEBUG(logger(), "Primary replica did not complete pre-processing yet, continue waiting" << KVLOG(reqSeqNum_));
     return CONTINUE;
-  }
+  } else
+    LOG_DEBUG(
+        logger(),
+        "Not enough equal hashes collected yet" << KVLOG(reqSeqNum_, maxNumOfEqualHashes, numOfRequiredEqualReplies_));
 
   if (numOfReceivedReplies_ == numOfReplicas_ - 1) {
     // Replies from all replicas received, but not enough equal hashes collected => pre-execution consensus not
     // reached => cancel request.
-    LOG_WARN(logger(), "Not enough equal hashes collected for" << KVLOG(reqSeqNum_) << ", cancel request");
+    LOG_WARN(logger(), "Not enough equal hashes collected, cancel request" << KVLOG(reqSeqNum_));
     return CANCEL;
   }
+  LOG_DEBUG(logger(),
+            "Continue waiting for replies to arrive"
+                << KVLOG(reqSeqNum_, numOfReceivedReplies_, maxNumOfEqualHashes, numOfRequiredEqualReplies_));
   return CONTINUE;
 }
 
