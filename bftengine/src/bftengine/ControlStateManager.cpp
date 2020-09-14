@@ -29,73 +29,60 @@ void ControlStateManager::setStopAtNextCheckpoint(int64_t currentSeqNum) {
   uint64_t seq_num_to_stop_at = (currentSeqNum + 2 * checkpointWindowSize);
   seq_num_to_stop_at = seq_num_to_stop_at - (seq_num_to_stop_at % checkpointWindowSize);
   std::ostringstream outStream;
-  controlStateMessages::StopAtNextCheckpointMessage msg(seq_num_to_stop_at);
-  concord::serialize::Serializable::serialize(outStream, msg);
+  page_.seqNumToStopAt_ = seq_num_to_stop_at;
+  concord::serialize::Serializable::serialize(outStream, page_);
   auto data = outStream.str();
-  state_transfer_->saveReservedPage(getUpdateReservedPageIndex(), data.size(), data.data());
+  state_transfer_->saveReservedPage(resPageOffset(), data.size(), data.data());
 }
 
 std::optional<int64_t> ControlStateManager::getCheckpointToStopAt() {
   if (!enabled_) return {};
-  if (!state_transfer_->loadReservedPage(getUpdateReservedPageIndex(), sizeOfReservedPage_, scratchPage_.data())) {
+  if (page_.seqNumToStopAt_ != 0) return page_.seqNumToStopAt_;
+  if (!state_transfer_->loadReservedPage(resPageOffset(), sizeOfReservedPage_, scratchPage_.data())) {
     return {};
   }
   std::istringstream inStream;
   inStream.str(scratchPage_);
-  controlStateMessages::StopAtNextCheckpointMessage msg;
-  try {
-    concord::serialize::Serializable::deserialize(inStream, msg);
-  } catch (std::exception& e) {
-    LOG_WARN(GL, e.what());
-    return {};
-  }
-  if (msg.seqNumToStopAt_ < 0) {
+  concord::serialize::Serializable::deserialize(inStream, page_);
+  if (page_.seqNumToStopAt_ == 0) return {};
+  if (page_.seqNumToStopAt_ < 0) {
     LOG_WARN(GL, "sequence num to stop at is negative!");
     return {};
   }
-  return msg.seqNumToStopAt_;
+  return page_.seqNumToStopAt_;
 }
 
 ControlStateManager::ControlStateManager(IStateTransfer* state_transfer, uint32_t sizeOfReservedPages)
     : state_transfer_{state_transfer}, sizeOfReservedPage_{sizeOfReservedPages} {
   scratchPage_.resize(sizeOfReservedPage_);
 }
-void ControlStateManager::clearCheckpointToStopAt() { state_transfer_->zeroReservedPage(getUpdateReservedPageIndex()); }
 
-void ControlStateManager::setFlagCleanMetadata(int64_t currentSeqNum) {
+void ControlStateManager::setEraseMetadataFlag(int64_t currentSeqNum) {
   if (!enabled_) return;
-  uint64_t seq_num_to_stop_at = (currentSeqNum + 2 * checkpointWindowSize);
-  seq_num_to_stop_at = seq_num_to_stop_at - (seq_num_to_stop_at % checkpointWindowSize);
+  uint64_t seq_num_to_erase_at = (currentSeqNum + 2 * checkpointWindowSize);
+  seq_num_to_erase_at = seq_num_to_erase_at - (seq_num_to_erase_at % checkpointWindowSize);
   std::ostringstream outStream;
-  controlStateMessages::SetClearMetadataFlagMessage msg(seq_num_to_stop_at);
-  concord::serialize::Serializable::serialize(outStream, msg);
+  page_.eraseMetadataAtSeqNum_ = seq_num_to_erase_at;
+  concord::serialize::Serializable::serialize(outStream, page_);
   auto data = outStream.str();
-  state_transfer_->saveReservedPage(getSetCleanMetadataPageIndex(), data.size(), data.data());
+  state_transfer_->saveReservedPage(resPageOffset(), data.size(), data.data());
 }
 
-std::optional<int64_t> ControlStateManager::getFlagCleanMetadata() {
+std::optional<int64_t> ControlStateManager::getEraseMetadataFlag() {
   if (!enabled_) return {};
-  if (!state_transfer_->loadReservedPage(getSetCleanMetadataPageIndex(), sizeOfReservedPage_, scratchPage_.data())) {
+  if (page_.eraseMetadataAtSeqNum_ != 0) return page_.eraseMetadataAtSeqNum_;
+  if (!state_transfer_->loadReservedPage(resPageOffset(), sizeOfReservedPage_, scratchPage_.data())) {
     return {};
   }
   std::istringstream inStream;
   inStream.str(scratchPage_);
-  controlStateMessages::SetClearMetadataFlagMessage msg;
-  try {
-    concord::serialize::Serializable::deserialize(inStream, msg);
-  } catch (std::exception& e) {
-    LOG_WARN(GL, e.what());
+  concord::serialize::Serializable::deserialize(inStream, page_);
+  if (page_.eraseMetadataAtSeqNum_ == 0) return {};
+  if (page_.eraseMetadataAtSeqNum_ < 0) {
+    LOG_WARN(GL, "sequence num to set erase metadata flag at is negative!");
     return {};
   }
-  if (msg.seqNumToSetAt_ < 0) {
-    LOG_WARN(GL, "sequence num to set flag at is negative!");
-    return {};
-  }
-  return msg.seqNumToSetAt_;
-}
-
-void ControlStateManager::clearFlagCleanMetadata() {
-  state_transfer_->zeroReservedPage(getSetCleanMetadataPageIndex());
+  return page_.eraseMetadataAtSeqNum_;
 }
 
 }  // namespace bftEngine

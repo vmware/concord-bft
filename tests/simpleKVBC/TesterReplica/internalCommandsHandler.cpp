@@ -119,7 +119,7 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
   if (writeReq->header.type == ADD_REMOVE_NODE) {
     LOG_INFO(m_logger, "An add_remove_node command has been called" << KVLOG(sequenceNum));
     controlStateManager_->setStopAtNextCheckpoint(sequenceNum);
-    controlStateManager_->setFlagCleanMetadata(sequenceNum);
+    controlStateManager_->setEraseMetadataFlag(sequenceNum);
   }
 
   if (!(flags & MsgFlag::HAS_PRE_PROCESSED_FLAG)) {
