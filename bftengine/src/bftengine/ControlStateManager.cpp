@@ -46,8 +46,7 @@ std::optional<int64_t> ControlStateManager::getCheckpointToStopAt() {
   concord::serialize::Serializable::deserialize(inStream, page_);
   if (page_.seqNumToStopAt_ == 0) return {};
   if (page_.seqNumToStopAt_ < 0) {
-    LOG_WARN(GL, "sequence num to stop at is negative!");
-    return {};
+    LOG_FATAL(GL, "sequence num to stop at is negative!");
   }
   return page_.seqNumToStopAt_;
 }
@@ -79,8 +78,7 @@ std::optional<int64_t> ControlStateManager::getEraseMetadataFlag() {
   concord::serialize::Serializable::deserialize(inStream, page_);
   if (page_.eraseMetadataAtSeqNum_ == 0) return {};
   if (page_.eraseMetadataAtSeqNum_ < 0) {
-    LOG_WARN(GL, "sequence num to set erase metadata flag at is negative!");
-    return {};
+    LOG_FATAL(GL, "sequence num to set erase metadata flag at is negative!");
   }
   return page_.eraseMetadataAtSeqNum_;
 }
