@@ -79,6 +79,12 @@ class IReplica {
   using IReplicaPtr = std::unique_ptr<IReplica>;
   static IReplicaPtr createNewReplica(
       ReplicaConfig *, IRequestsHandler *, IStateTransfer *, bft::communication::ICommunication *, MetadataStorage *);
+  static IReplicaPtr createNewReplica(ReplicaConfig *,
+                                      IRequestsHandler *,
+                                      IStateTransfer *,
+                                      bft::communication::ICommunication *,
+                                      MetadataStorage *,
+                                      bool &);
 
   static IReplicaPtr createNewRoReplica(ReplicaConfig *,
                                         IStateTransfer *,

@@ -68,6 +68,8 @@ class DebugPersistentStorage : public PersistentStorage {
   CheckpointMsg* getAndAllocateCheckpointMsgInCheckWindow(SeqNum seqNum) override;
   bool getCompletedMarkInCheckWindow(SeqNum seqNum) override;
   void setEraseMetadataStorageFlag() override {}
+  bool getEraseMetadataStorageFlag() override { return false; };
+  void eraseMetadata() override{};
 
  protected:
   bool setIsAllowed() const;

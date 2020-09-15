@@ -146,25 +146,17 @@ Status DBMetadataStorage::multiDel(const ObjectIdsVector &objectIds) {
   }
   return dbClient_->multiDel(keysVec);
 }
-void DBMetadataStorage::setEraseStorageOnShutdownFlag() { eraseStorageOnShutdownFlag = true; }
+void DBMetadataStorage::eraseData() { cleanDB(); }
 void DBMetadataStorage::cleanDB() {
-  // Note that this method is called from the destructor, we don't need to use the mutex
-  // Clear all the records from the DB
-  ObjectIdsVector objectIds = {objectsNumParameterId_};
-  for (const auto &id : objectIdToSizeMap_) {
-    objectIds.push_back(id.first);
-  }
-  multiDel(objectIds);
-}
-
-DBMetadataStorage::~DBMetadataStorage() {
-  if (eraseStorageOnShutdownFlag) {
-    try {
-      cleanDB();
-    } catch (std::exception &e) {
-      LOG_FATAL(logger_, e.what());
-      std::terminate();
+  try {
+    ObjectIdsVector objectIds = {objectsNumParameterId_};
+    for (const auto &id : objectIdToSizeMap_) {
+      objectIds.push_back(id.first);
     }
+    multiDel(objectIds);
+  } catch (std::exception &e) {
+    LOG_FATAL(logger_, e.what());
+    std::terminate();
   }
 }
 

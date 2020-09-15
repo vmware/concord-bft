@@ -48,16 +48,7 @@ class DBDataStore : public DataStore {
       : inmem_(new InMemoryDataStore(sizeOfReservedPage)), dbc_(dbc), keymanip_{keyManip} {
     load();
   }
-  ~DBDataStore() {
-    if (clearDataStoreFlag) {
-      try {
-        clearDataStoreData();
-      } catch (std::exception& e) {
-        LOG_FATAL(logger(), e.what());
-        std::terminate();
-      }
-    }
-  }
+
   DataStoreTransaction* beginTransaction() override {
     concord::storage::ITransaction* txn(dbc_->beginTransaction());
     std::shared_ptr<DBDataStore> tnxDataStore(new DBDataStore(*this));
@@ -122,7 +113,7 @@ class DBDataStore : public DataStore {
                   uint32_t copylength) override {
     return inmem_->getResPage(inPageId, inCheckpoint, outActualCheckpoint, outPageDigest, outPage, copylength);
   }
-  void setEraseDataStoreFlag() override { clearDataStoreFlag = true; }
+  void setEraseDataStoreFlag() override { putInt(EraseDataOnStartup, true); }
 
  private:
   void clearDataStoreData();
@@ -142,7 +133,8 @@ class DBDataStore : public DataStore {
     FirstRequiredBlock,
     LastRequiredBlock,
     Replicas,
-    CheckpointBeingFetched
+    CheckpointBeingFetched,
+    EraseDataOnStartup,
   };
 
   void load();
@@ -249,7 +241,6 @@ class DBDataStore : public DataStore {
   ITransaction* txn_ = nullptr;
   IDBClient::ptr dbc_;
   std::shared_ptr<concord::storage::ISTKeyManipulator> keymanip_;
-  bool clearDataStoreFlag = false;
 };
 
 }  // namespace impl

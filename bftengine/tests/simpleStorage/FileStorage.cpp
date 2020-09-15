@@ -43,14 +43,6 @@ FileStorage::FileStorage(Logger &logger, const string &fileName) : logger_(logge
 }
 
 FileStorage::~FileStorage() {
-  if (dontLoadStorageOnStartup) {
-    try {
-      cleanStorage();
-    } catch (std::exception &e) {
-      LOG_FATAL(logger_, e.what());
-      std::terminate();
-    }
-  }
   if (dataStream_) {
     fclose(dataStream_);
   }
@@ -260,7 +252,14 @@ void FileStorage::commitAtomicWriteOnlyBatch() {
   delete transaction_;
   transaction_ = nullptr;
 }
-void FileStorage::setEraseStorageOnShutdownFlag() { dontLoadStorageOnStartup = true; }
+void FileStorage::eraseData() {
+  try {
+    cleanStorage();
+  } catch (std::exception &e) {
+    LOG_FATAL(logger_, e.what());
+    std::terminate();
+  }
+}
 void FileStorage::cleanStorage() {
   // To clean the storage such that the replica will come back with a new metadata storage, we just need to set the
   // number of stored objects to 0. Note that as this method is called from the destructor, we don't need to catch the
