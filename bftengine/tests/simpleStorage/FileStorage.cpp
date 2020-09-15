@@ -189,6 +189,7 @@ void FileStorage::handleObjectWrite(uint32_t objectId, void *dataPtr, uint32_t o
 void FileStorage::handleObjectRead(uint32_t objectId, char *outBufferForObject, uint32_t &outActualObjectSize) {
   MetadataObjectInfo *objectInfo = objectsMetadata_->getObjectInfo(objectId);
   if (objectInfo) {
+    if (objectInfo->realSize == 0) return;  // This means that this object has never been wrote to the file.
     read(outBufferForObject, objectInfo->offset, objectInfo->realSize, 1, FAILED_TO_READ_OBJECT);
     outActualObjectSize = objectInfo->realSize;
     LOG_DEBUG(logger_, "FileStorage::handleObjectRead " << objectInfo->toString());
