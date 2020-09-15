@@ -21,12 +21,16 @@ def parse(grammar, cmf):
     return ast, symbol_table
 
 
-def translate(ast, language, namespace):
+def translate(ast, language, namespace, output):
     if language == "cpp":
         print("Generating C++ source code")
         from cpp import cppgen
 
-        return cppgen.translate(ast, namespace)
+        header, impl = cppgen.translate(ast, output + ".hpp", namespace)
+        with open(output + ".hpp", "w") as f:
+            f.write(header)
+        with open(output + ".cpp", "w") as f:
+            f.write(impl)
 
 
 def parse_args():
@@ -57,6 +61,4 @@ if __name__ == "__main__":
         ast, symbol_table = parse(grammar, cmf)
         # Uncomment to show the generated AST for debugging purposes
         # pprint(ast)
-        code = translate(ast, args.language, args.namespace)
-        with open(args.output, "w") as f3:
-            f3.write(code)
+        translate(ast, args.language, args.namespace, args.output)
