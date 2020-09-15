@@ -15,7 +15,7 @@ import unittest
 import trio
 import random
 
-from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
+from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, with_constant_load
 from util.skvbc_history_tracker import verify_linearizability
 import util.bft_network_partitioning as net
 
@@ -59,15 +59,6 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         req = skvbc.read_req(skvbc.random_keys(1))
         await client.read(req)
 
-    async def send_indefinite_pre_execution_requests(self, skvbc, clients):
-        while True:
-            client = random.choice(list(clients))
-            try:
-                await self.send_single_write_with_pre_execution(skvbc, client)
-            except:
-                pass
-            await trio.sleep(.1)
-
     async def send_single_write_with_pre_execution_and_kv(self, skvbc, write_set, client, long_exec=False):
         reply = await client.write(skvbc.write_req([], write_set, 0, long_exec), pre_process=True)
         reply = skvbc.parse_reply(reply)
@@ -91,7 +82,9 @@ class SkvbcPreExecutionTest(unittest.TestCase):
                     else:
                         nursery.start_soon(self.send_single_read, skvbc, client)
                         read_count += 1
-            sent += len(clients)
+                    sent += 1
+                    if sent == num_of_requests:
+                        break
             await trio.sleep(.1)
         return read_count + write_count
 
@@ -123,7 +116,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         self.assertTrue(rw[0] + rw[1] >= num_of_requests)
 
     @with_trio
-    @with_bft_network(start_replica_cmd)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
     async def test_long_time_executed_pre_process_request(self, bft_network, tracker):
         """
@@ -133,16 +126,23 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         bft_network.start_all_replicas()
 
         client = bft_network.random_client()
-        client.config = client.config._replace(req_timeout_milli=LONG_REQ_TIMEOUT_MILLI, retry_timeout_milli=1000)
+        client.config = client.config._replace(
+            req_timeout_milli=LONG_REQ_TIMEOUT_MILLI,
+            retry_timeout_milli=1000
+        )
+
         await tracker.send_tracked_write(client, 2, long_exec=True)
 
-        with trio.move_on_after(seconds=1):
-            await tracker.send_indefinite_tracked_ops(write_weight=1)
+        last_block = await tracker.get_last_block_id(client)
+        self.assertEqual(last_block, 1)
 
         initial_primary = 0
-        await bft_network.wait_for_view(replica_id=initial_primary,
-                                        expected=lambda v: v == initial_primary,
-                                        err_msg="Make sure the view did not change.")
+        with trio.move_on_after(seconds=15):
+            while True:
+                await bft_network.wait_for_view(replica_id=initial_primary,
+                                                expected=lambda v: v == initial_primary,
+                                                err_msg="Make sure the view did not change.")
+                await trio.sleep(seconds=5)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -208,6 +208,33 @@ class SkvbcPreExecutionTest(unittest.TestCase):
               f"concurrently submitted through {len(submit_clients)} clients.")
         print(f"Finished at block {final_block_count}.")
         self.assertTrue(rw[0] + rw[1] >= num_of_requests)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    @with_constant_load
+    async def test_pre_execution_with_added_constant_load(self, bft_network, skvbc, nursery):
+        """
+        Run a batch of concurrent pre-execution requests, while
+        sending a constant "time service like" load on the normal execution path.
+
+        This test validates that pre-execution and normal execution coexist correctly.
+        """
+        bft_network.start_all_replicas()
+        num_preexecution_requests = 200
+
+        clients = bft_network.random_clients(MAX_CONCURRENCY)
+        await self.run_concurrent_pre_execution_requests(
+            skvbc, clients, num_preexecution_requests, write_weight=1)
+
+
+        client = bft_network.random_client()
+        current_block = skvbc.parse_reply(
+            await client.read(skvbc.get_last_block_req()))
+
+        self.assertTrue(current_block > num_preexecution_requests,
+                        "Make sure all pre-execution requests were processed, in"
+                        "addition to the constant load in the background.")
+
 
     @with_trio
     @with_bft_network(start_replica_cmd)
