@@ -126,7 +126,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   bool _destIsReplica = false;
   asio::io_service *_service = nullptr;
   uint32_t _maxMessageLength;
-  char *_inBuffer;
+  std::vector<char> _inBuffer;
   IReceiver *_receiver = nullptr;
   std::function<void(NodeNum)> _fOnError = nullptr;
   std::function<void(NodeNum, ASYNC_CONN_PTR)> _fOnTlsReady = nullptr;
@@ -196,7 +196,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
         _connected{false} {
     LOG_DEBUG(_logger, "ctor, node " << _selfId << ", destId: " << _expectedDestId << ", connType: " << _connType);
 
-    _inBuffer = new char[_bufferLength];
+    _inBuffer.resize(_bufferLength);
     _connectTimer.expires_at(boost::posix_time::pos_infin);
     _writeTimer.expires_at(boost::posix_time::pos_infin);
     _readTimer.expires_at(boost::posix_time::pos_infin);
@@ -646,14 +646,14 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
     // if partial read of msg length bytes, continue
     if (first && bytesRead < MSG_LENGTH_FIELD_SIZE) {
       asio::async_read(*_socket,
-                       asio::buffer(_inBuffer + bytesRead, MSG_LENGTH_FIELD_SIZE - bytesRead),
+                       asio::buffer(_inBuffer.data() + bytesRead, MSG_LENGTH_FIELD_SIZE - bytesRead),
                        boost::bind(&AsyncTlsConnection::read_msglength_completed,
                                    shared_from_this(),
                                    boost::asio::placeholders::error,
                                    boost::asio::placeholders::bytes_transferred,
                                    false));
     } else {  // start reading completely the whole message
-      uint32_t msgLength = get_message_length(_inBuffer);
+      uint32_t msgLength = get_message_length(_inBuffer.data());
       if (msgLength == 0 || msgLength > _maxMessageLength - 1 - MSG_HEADER_SIZE) {
         handle_error();
         return;
@@ -680,7 +680,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
     if (_disposed) return;
 
     // since we allow partial reading here, we dont need timeout
-    _socket->async_read_some(asio::buffer(_inBuffer, MSG_LENGTH_FIELD_SIZE),
+    _socket->async_read_some(asio::buffer(_inBuffer.data(), MSG_LENGTH_FIELD_SIZE),
                              boost::bind(&AsyncTlsConnection::read_msglength_completed,
                                          shared_from_this(),
                                          boost::asio::placeholders::error,
@@ -717,7 +717,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
     ConcordAssert(_destId == _expectedDestId);
     try {
       if (_receiver) {
-        _receiver->onNewMessage(_destId, _inBuffer, bytesRead);
+        _receiver->onNewMessage(_destId, _inBuffer.data(), bytesRead);
       }
     } catch (std::exception &e) {
       LOG_ERROR(_logger, "read_msg_async_completed, exception:" << e.what());
@@ -752,7 +752,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
     // async operation will finish when either expectedBytes are read
     // or error occured, this is what Asio guarantees
     async_read(*_socket,
-               boost::asio::buffer(_inBuffer, msgLength),
+               boost::asio::buffer(_inBuffer.data(), msgLength),
                boost::bind(&AsyncTlsConnection::read_msg_async_completed,
                            shared_from_this(),
                            boost::asio::placeholders::error,
@@ -987,8 +987,6 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
 
   virtual ~AsyncTlsConnection() {
     LOG_DEBUG(_logger, "Dtor called, node: " << _selfId << "peer: " << _destId << ", type: " << _connType);
-
-    delete[] _inBuffer;
   }
 
   void dispose() { dispose_connection(false); }
