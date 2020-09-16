@@ -22,22 +22,34 @@ struct {name} {{
 
 
 serialize_fn = "void serialize(std::vector<uint8_t>& output, const {name}& t)"
+
+
 def serialize_declaration(name):
     return serialize_fn.format(name=name) + ";\n"
+
+
 def serialize_start(name):
     return serialize_fn.format(name=name) + " {\n"
 
 
 deserialize_fn = "void deserialize(uint8_t*& input, const uint8_t* end, {name}& t)"
+
+
 def deserialize_declaration(name):
     return deserialize_fn.format(name=name) + ";\n"
+
+
 def deserialize_start(name):
     return deserialize_fn.format(name=name) + " {\n"
 
 
 deserialize_byte_buffer_fn = "void deserialize(const std::vector<uint8_t>& input, {name}& t)"
+
+
 def deserialize_byte_buffer_declaration(name):
     return deserialize_byte_buffer_fn.format(name=name) + ";\n"
+
+
 def deserialize_byte_buffer(name):
     return deserialize_byte_buffer_fn.format(name=name) + f""" {{
     auto* begin = const_cast<uint8_t*>(input.data());
@@ -63,8 +75,12 @@ def deserialize_field(name, type):
 
 
 variant_serialize_fn = "void serialize(std::vector<uint8_t>& output, const {variant}& val)"
+
+
 def variant_serialize_declaration(variant):
     return variant_serialize_fn.format(variant=variant) + ";\n"
+
+
 def variant_serialize(variant):
     return variant_serialize_fn.format(variant=variant) + """ {
   std::visit([&output](auto&& arg){
@@ -75,8 +91,12 @@ def variant_serialize(variant):
 
 
 variant_deserialize_fn = "void deserialize(uint8_t*& start, const uint8_t* end, {variant}& val)"
+
+
 def variant_deserialize_declaration(variant):
     return variant_deserialize_fn.format(variant=variant) + ";\n"
+
+
 def variant_deserialize(variant, msgs):
     s = variant_deserialize_fn.format(variant=variant) + """ {
   uint32_t id;
@@ -99,8 +119,12 @@ def variant_deserialize(variant, msgs):
 
 
 equalop_str_fn = "bool operator==(const {msg_name}& l, const {msg_name}& r)"
+
+
 def equalop_str_declaration(msg_name):
     return equalop_str_fn.format(msg_name=msg_name) + ";\n"
+
+
 def equalop_str(msg_name, fields):
     """ Create an 'operator==' function for the current message struct """
     comparison = " && ".join([f"l.{f} == r.{f}" for f in fields])
@@ -157,7 +181,14 @@ class CppVisitor(Visitor):
         self.oneof_deserialize_declaration = ""
 
     def _reset(self):
+        # output and oneofs_seen accumulate across messages
+        output = self.output
+        output_declaration = self.output_declaration
+        oneofs = self.oneofs_seen
         self.__init__()
+        self.output = output
+        self.output_declaration = output_declaration
+        self.oneofs_seen = oneofs
 
     def msg_start(self, name, id):
         self.msg_name = name
@@ -181,7 +212,8 @@ class CppVisitor(Visitor):
         ]) + "\n"
         self.output_declaration += "".join([
             s for s in [
-                self.struct, "\n",
+                self.struct,
+                "\n",
                 serialize_declaration(self.msg_name),
                 deserialize_declaration(self.msg_name),
                 deserialize_byte_buffer_declaration(self.msg_name),
@@ -190,14 +222,7 @@ class CppVisitor(Visitor):
                 equalop_str_declaration(self.msg_name),
             ] if s != ''
         ]) + "\n"
-        # output and oneofs_seen accumulate across messages
-        output = self.output
-        output_declaration = self.output_declaration
-        oneofs = self.oneofs_seen
         self._reset()
-        self.output = output
-        self.output_declaration = output_declaration
-        self.oneofs_seen = oneofs
 
     def field_start(self, name, type):
         self.struct += "  "  # Indent fields
@@ -288,6 +313,8 @@ class CppVisitor(Visitor):
             return
         self.oneofs_seen.add(oneof)
         self.oneof_serialize += variant_serialize(variant)
-        self.oneof_serialize_declaration += variant_serialize_declaration(variant)
+        self.oneof_serialize_declaration += variant_serialize_declaration(
+            variant)
         self.oneof_deserialize += variant_deserialize(variant, msgs)
-        self.oneof_deserialize_declaration += variant_deserialize_declaration(variant)
+        self.oneof_deserialize_declaration += variant_deserialize_declaration(
+            variant)
