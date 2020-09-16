@@ -68,7 +68,9 @@ class CMFSerializer():
         This method interacts with those below in a mutually recursive manner for nested types.
         '''
         s = serializers[0]
-        if s in ['kvpair', 'list', 'map', 'optional']:
+        if s in ['list', 'optional'] and len(serializers) > 1:
+            getattr(self, s)(val, serializers[1:])
+        elif s in ['kvpair', 'map'] and len(serializers) > 2:
             getattr(self, s)(val, serializers[1:])
         elif type(s) is tuple and len(s) == 2 and s[0] == 'oneof' and type(
                 s[1]) is dict:
@@ -131,7 +133,7 @@ class CMFSerializer():
         self.buf.extend(bytes(val, 'utf-8'))
 
     def bytes(self, val):
-        if not type(val) is bytes:
+        if not type(val) in [bytes, bytearray]:
             raise CmfSerializeError(f'Expected bytes, got {type(val)}')
         self.uint32(len(val))
         self.buf.extend(val)
@@ -143,6 +145,8 @@ class CMFSerializer():
         self.buf.extend(msg.serialize())
 
     def kvpair(self, pair, serializers):
+        if not type(pair) is tuple:
+            raise CmfSerializeError(f'Expected tuple, got {type(pair)}')
         self.serialize(pair[0], serializers)
         self.serialize(pair[1], serializers[1:])
 
@@ -187,7 +191,9 @@ class CMFDeserializer():
         Recursively deserialize `self.buf` using `serializers`
         '''
         s = serializers[0]
-        if s in ['kvpair', 'list', 'map', 'optional']:
+        if s in ['list', 'optional'] and len(serializers) > 1:
+            return getattr(self, s)(serializers[1:])
+        elif s in ['kvpair', 'map'] and len(serializers) > 2:
             return getattr(self, s)(serializers[1:])
         elif type(s) is tuple and len(s) == 2 and s[0] == 'oneof' and type(
                 s[1]) is dict:

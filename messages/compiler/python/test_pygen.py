@@ -51,15 +51,15 @@ def test_NewViewElement(codegen):
     msg.digest = b"somedigest"
     assert_roundtrip(msg)
 
-    with pytest.raises(Exception):
+    with pytest.raises(example.CmfSerializeError):
         msg.replica_id = "hello"  # not an int
         msg.serialize()
 
-    with pytest.raises(Exception):
+    with pytest.raises(example.CmfSerializeError):
         msg.replica_id = 999999  # larger than a uint16
         msg.serialize()
 
-    with pytest.raises(Exception):
+    with pytest.raises(example.CmfDeserializeError):
         msg.replica_id = 9
         s = msg.serialize()
         s[4] = 99
@@ -79,7 +79,7 @@ def test_Transaction(codegen):
     assert_roundtrip(msg)
 
     msg.actions = [(5, "b")]
-    with pytest.raises(Exception):
+    with pytest.raises(example.CmfSerializeError):
         s = msg.serialize()
 
 
@@ -94,6 +94,10 @@ def test_Envelope(codegen):
     msg.x.auth_key = b"you-are-authorized"
     assert_roundtrip(msg)
 
+    # Ensure we can serialize a bytearray as bytes
+    msg.x.auth_key = bytearray(msg.x.auth_key)
+    assert_roundtrip(msg)
+
     msg.x = example.NewViewElement()
     msg.x.replica_id = 5
     msg.x.digest = b"somedigest"
@@ -101,12 +105,12 @@ def test_Envelope(codegen):
 
     # missing inner digest
     msg.x.digest = None
-    with pytest.raises(Exception):
+    with pytest.raises(example.CmfSerializeError):
         msg.serialize()
 
     # Not part of oneof
     msg.x = 5
-    with pytest.raises(Exception):
+    with pytest.raises(example.CmfSerializeError):
         msg.serialize()
 
 
@@ -124,19 +128,19 @@ def test_NewStuff(codegen):
     assert_roundtrip(msg)
 
     msg.crazy_map = {5: []}
-    with pytest.raises(Exception):
+    with pytest.raises(example.CmfSerializeError):
         msg.serialize()
 
     msg.crazy_map = {"b": {}}
-    with pytest.raises(Exception):
+    with pytest.raises(example.CmfSerializeError):
         msg.serialize()
 
     msg.crazy_map = {"b": ["x"]}
-    with pytest.raises(Exception):
+    with pytest.raises(example.CmfSerializeError):
         msg.serialize()
 
     msg.crazy_map = []
-    with pytest.raises(Exception):
+    with pytest.raises(example.CmfSerializeError):
         msg.serialize()
 
 
@@ -170,12 +174,12 @@ def test_WithMsgRefs(codegen):
 
     # Transaction instead of envelope
     msg.map_of_envelope = {"env1": tx1}
-    with pytest.raises(Exception):
+    with pytest.raises(example.CmfSerializeError):
         msg.serialize()
 
     # Try to deserialize a bad buffer
     msg.map_of_envelope = {"env1": envelope}
     s = msg.serialize()
     s = s[0:len(s) - 1]
-    with pytest.raises(Exception):
+    with pytest.raises(example.CmfDeserializeError):
         msg.deserialize(s)
