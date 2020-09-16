@@ -25,12 +25,18 @@ def translate(ast, language, namespace, output):
     if language == "cpp":
         print("Generating C++ source code")
         from cpp import cppgen
-
         header, impl = cppgen.translate(ast, output + ".hpp", namespace)
         with open(output + ".hpp", "w") as f:
             f.write(header)
         with open(output + ".cpp", "w") as f:
             f.write(impl)
+
+    elif language == "python":
+        print("Generating Python source code")
+        from python import pygen
+        code = pygen.translate(ast, namespace)
+        with open(output + ".py", "w") as f:
+            f.write(code)
 
 
 def parse_args():
@@ -42,7 +48,7 @@ def parse_args():
     parser.add_argument("--output", help="The output filename", required=True)
     parser.add_argument("--language",
                         help="The output language",
-                        choices=["cpp"],
+                        choices=["cpp", "python"],
                         required=True)
     parser.add_argument(
         "--namespace",
@@ -52,8 +58,8 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    grammar = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), "grammar.ebnf")
+    grammar = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                           "grammar.ebnf")
     with open(grammar) as f:
         grammar = f.read()
         with open(args.input) as f2:
