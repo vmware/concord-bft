@@ -2507,6 +2507,14 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
   }
 
   auto seq_num_to_stop_at = controlStateManager_->getCheckpointToStopAt();
+
+  // Below we handle the case of removing a node. Note that when removing nodes we cannot assume we will have n/n
+  // checkpoint because some of the replicas may not be responsive. For that we also mark that we got to a stable (n-f)
+  // checkpoint.
+  // Note: Currently this is not sage to rely on this n-f wedged checkpoint on any other reconfiguration action except
+  // of removing nodes.
+  // TODO (YB): we need to improve this mechanism so that it will be supported by many reconfiguration actions as
+  // possible.
   if (seq_num_to_stop_at.has_value() && seq_num_to_stop_at.value() == newStableSeqNum) {
     LOG_INFO(GL,
              "Informing control state manager that consensus should be stopped (without n/n replicas): " << KVLOG(

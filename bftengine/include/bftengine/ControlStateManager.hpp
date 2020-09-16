@@ -22,8 +22,8 @@ namespace bftEngine {
 
 class ControlStatePage : public concord::serialize::SerializableFactory<ControlStatePage> {
  public:
-  int64_t seqNumToStopAt_ = 0;
-  int64_t eraseMetadataAtSeqNum_ = 0;
+  int64_t seq_num_to_stop_at_ = 0;
+  int64_t erase_metadata_at_seq_num_ = 0;
   ControlStatePage() {
     static_assert(sizeof(ControlStatePage) < 4096, "The page exceeds the maximal size of reserved page");
   }
@@ -32,12 +32,12 @@ class ControlStatePage : public concord::serialize::SerializableFactory<ControlS
   const std::string getVersion() const override { return "1"; }
 
   void serializeDataMembers(std::ostream& outStream) const override {
-    serialize(outStream, seqNumToStopAt_);
-    serialize(outStream, eraseMetadataAtSeqNum_);
+    serialize(outStream, seq_num_to_stop_at_);
+    serialize(outStream, erase_metadata_at_seq_num_);
   }
   void deserializeDataMembers(std::istream& inStream) override {
-    deserialize(inStream, seqNumToStopAt_);
-    deserialize(inStream, eraseMetadataAtSeqNum_);
+    deserialize(inStream, seq_num_to_stop_at_);
+    deserialize(inStream, erase_metadata_at_seq_num_);
   }
 };
 

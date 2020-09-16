@@ -84,7 +84,7 @@ class IReplica {
                                       IStateTransfer *,
                                       bft::communication::ICommunication *,
                                       MetadataStorage *,
-                                      bool &);
+                                      bool &erasedMetadata);
 
   static IReplicaPtr createNewRoReplica(ReplicaConfig *,
                                         IStateTransfer *,

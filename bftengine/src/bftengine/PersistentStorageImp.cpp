@@ -921,11 +921,11 @@ void PersistentStorageImp::setEraseMetadataStorageFlag() {
 
 bool PersistentStorageImp::getEraseMetadataStorageFlag() {
   uint32_t actualObjectSize = 0;
-  bool eraseMtOnStartup = false;
+  bool eraseMetaDataOnStartup = false;
   metadataStorage_->read(
-      ERASE_METADATA_ON_STARTUP, sizeof(eraseMtOnStartup), (char *)&eraseMtOnStartup, actualObjectSize);
+      ERASE_METADATA_ON_STARTUP, sizeof(eraseMetaDataOnStartup), (char *)&eraseMetaDataOnStartup, actualObjectSize);
   if (actualObjectSize == 0) return false;
-  return eraseMtOnStartup;
+  return eraseMetaDataOnStartup;
 }
 void PersistentStorageImp::eraseMetadata() { metadataStorage_->eraseData(); }
 
