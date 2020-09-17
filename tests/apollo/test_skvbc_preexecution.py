@@ -136,6 +136,9 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         last_block = await tracker.get_last_block_id(client)
         self.assertEqual(last_block, 1)
 
+        with trio.move_on_after(seconds=1):
+            await tracker.send_indefinite_tracked_ops(write_weight=1)
+
         initial_primary = 0
         with trio.move_on_after(seconds=15):
             while True:
@@ -143,6 +146,37 @@ class SkvbcPreExecutionTest(unittest.TestCase):
                                                 expected=lambda v: v == initial_primary,
                                                 err_msg="Make sure the view did not change.")
                 await trio.sleep(seconds=5)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @with_constant_load
+    async def test_long_request_with_constant_load(self, bft_network, skvbc, nursery):
+        """
+        In this test we make sure a long-running request executes
+        concurrently with a constant system load in the background.
+        """
+        bft_network.start_all_replicas()
+
+        write_set = [(skvbc.random_key(), skvbc.random_value()),
+                     (skvbc.random_key(), skvbc.random_value())]
+
+        client = bft_network.random_client()
+        client.config = client.config._replace(
+            req_timeout_milli=LONG_REQ_TIMEOUT_MILLI,
+            retry_timeout_milli=1000
+        )
+
+        await self.send_single_write_with_pre_execution_and_kv(
+            skvbc, write_set, client, long_exec=True)
+
+        # Wait for some background "constant load" requests to execute
+        await trio.sleep(seconds=5)
+
+        # Let's just check no view change occurred in the meantime
+        initial_primary = 0
+        await bft_network.wait_for_view(replica_id=initial_primary,
+                                        expected=lambda v: v == initial_primary,
+                                        err_msg="Make sure the view did not change.")
 
     @with_trio
     @with_bft_network(start_replica_cmd)
