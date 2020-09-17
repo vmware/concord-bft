@@ -65,7 +65,8 @@ enum ConstMetadataParameterIds : uint32_t {
   LAST_VIEW_TRANSFERRED_SEQ_NUM = 6,
   LAST_STABLE_SEQ_NUM = 7,
   REPLICA_CONFIG = 8,
-  CONST_METADATA_PARAMETERS_NUM
+  ERASE_METADATA_ON_STARTUP = 9,
+  CONST_METADATA_PARAMETERS_NUM,
 };
 
 const uint16_t seqWinSize = kWorkWindowSize;
@@ -130,6 +131,9 @@ class PersistentStorageImp : public PersistentStorage {
   void clearSeqNumWindow() override;
   ObjectDescUniquePtr getDefaultMetadataObjectDescriptors(uint16_t &numOfObjects) const;
 
+  void setEraseMetadataStorageFlag() override;
+  bool getEraseMetadataStorageFlag() override;
+  void eraseMetadata() override;
   // Getters
   std::string getStoredVersion();
   std::string getCurrentVersion() const { return version_; }
@@ -163,6 +167,7 @@ class PersistentStorageImp : public PersistentStorage {
   bool hasDescriptorOfLastExecution() override;
 
   // Returns 'true' in case storage is empty
+  bool init(std::unique_ptr<MetadataStorage> metadataStorage, bool &erasedMetadata);
   bool init(std::unique_ptr<MetadataStorage> metadataStorage);
 
  protected:

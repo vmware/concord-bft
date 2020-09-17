@@ -67,6 +67,9 @@ class DebugPersistentStorage : public PersistentStorage {
   CommitFullMsg* getAndAllocateCommitFullMsgInSeqNumWindow(SeqNum seqNum) override;
   CheckpointMsg* getAndAllocateCheckpointMsgInCheckWindow(SeqNum seqNum) override;
   bool getCompletedMarkInCheckWindow(SeqNum seqNum) override;
+  void setEraseMetadataStorageFlag() override {}
+  bool getEraseMetadataStorageFlag() override { return false; };
+  void eraseMetadata() override{};
 
  protected:
   bool setIsAllowed() const;

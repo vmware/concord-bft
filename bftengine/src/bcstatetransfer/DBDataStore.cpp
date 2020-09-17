@@ -27,6 +27,14 @@ std::string toString(const DataStore::CheckpointDesc& desc) {
 /** ******************************************************************************************************************/
 void DBDataStore::load() {
   LOG_DEBUG(logger(), "");
+  if (get<bool>(EraseDataOnStartup)) {
+    try {
+      clearDataStoreData();
+    } catch (std::exception& e) {
+      LOG_FATAL(logger(), e.what());
+      std::terminate();
+    }
+  }
   if (!get<bool>(Initialized)) {
     LOG_INFO(logger(), "Not initialized");
     return;

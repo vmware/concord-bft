@@ -38,8 +38,13 @@ void PersistentStorageImp::retrieveWindowsMetadata() {
   checkWindowBeginning_ = readBeginningOfActiveWindow(BEGINNING_OF_CHECK_WINDOW);
 }
 
-bool PersistentStorageImp::init(unique_ptr<MetadataStorage> metadataStorage) {
+bool PersistentStorageImp::init(unique_ptr<MetadataStorage> metadataStorage, bool &erasedMetadata) {
   metadataStorage_ = move(metadataStorage);
+  erasedMetadata = false;
+  if (getEraseMetadataStorageFlag()) {
+    eraseMetadata();
+    erasedMetadata = true;
+  }
   try {
     if (!getStoredVersion().empty()) {
       LOG_INFO(GL, "PersistentStorageImp::init version=" << version_.c_str());
@@ -56,6 +61,10 @@ bool PersistentStorageImp::init(unique_ptr<MetadataStorage> metadataStorage) {
   return true;
 }
 
+bool PersistentStorageImp::init(std::unique_ptr<MetadataStorage> metadataStorage) {
+  bool dummy;
+  return init(std::move(metadataStorage), dummy);
+}
 void PersistentStorageImp::setDefaultsInMetadataStorage() {
   LOG_INFO(GL, "");
   beginWriteTran();
@@ -72,7 +81,6 @@ void PersistentStorageImp::setDefaultsInMetadataStorage() {
   initDescriptorOfLastExitFromView();
   initDescriptorOfLastNewView();
   initDescriptorOfLastExecution();
-
   endWriteTran();
 }
 
@@ -97,6 +105,7 @@ ObjectDescUniquePtr PersistentStorageImp::getDefaultMetadataObjectDescriptors(ui
 
   metadataObjectsArray.get()[BEGINNING_OF_SEQ_NUM_WINDOW].maxSize = sizeof(SeqNum);
   metadataObjectsArray.get()[BEGINNING_OF_CHECK_WINDOW].maxSize = sizeof(SeqNum);
+  metadataObjectsArray.get()[ERASE_METADATA_ON_STARTUP].maxSize = sizeof(bool);
 
   for (auto i = 0; i < kWorkWindowSize; ++i) {
     metadataObjectsArray.get()[LAST_EXIT_FROM_VIEW_DESC + 1 + i].maxSize =
@@ -905,6 +914,20 @@ bool PersistentStorageImp::nonExecSetIsAllowed() {
   return setIsAllowed() &&
          (!hasDescriptorOfLastExecution() || descriptorOfLastExecution_.executedSeqNum <= lastExecutedSeqNum_);
 }
+void PersistentStorageImp::setEraseMetadataStorageFlag() {
+  bool eraseMtOnStartUp = true;
+  metadataStorage_->atomicWrite(ERASE_METADATA_ON_STARTUP, (char *)&eraseMtOnStartUp, sizeof(eraseMtOnStartUp));
+}
+
+bool PersistentStorageImp::getEraseMetadataStorageFlag() {
+  uint32_t actualObjectSize = 0;
+  bool eraseMetaDataOnStartup = false;
+  metadataStorage_->read(
+      ERASE_METADATA_ON_STARTUP, sizeof(eraseMetaDataOnStartup), (char *)&eraseMetaDataOnStartup, actualObjectSize);
+  if (actualObjectSize == 0) return false;
+  return eraseMetaDataOnStartup;
+}
+void PersistentStorageImp::eraseMetadata() { metadataStorage_->eraseData(); }
 
 }  // namespace impl
 }  // namespace bftEngine

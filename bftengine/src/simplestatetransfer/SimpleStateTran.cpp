@@ -84,6 +84,7 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
   //////////////////////////////////////////////////////////////////////////
 
   void markUpdate(void* ptrToUpdatedRegion, uint32_t sizeOfUpdatedRegion) override;
+  void setEraseMetadataFlag() override {}
 
  protected:
   //////////////////////////////////////////////////////////////////////////

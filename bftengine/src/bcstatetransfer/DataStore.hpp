@@ -158,9 +158,9 @@ class DataStore : public std::enable_shared_from_this<DataStore> {
   // Transaction support
   virtual DataStoreTransaction* beginTransaction() = 0;
 
-  // Somtimes we would want to clear the metadata when the state transfer is shutting down (i.e on various
+  // Sometimes we would want to clear the metadata when the state transfer is shutting down (i.e on various
   // reconfiguration actions)
-  virtual void setClearDataStoreFlag() = 0;
+  virtual void setEraseDataStoreFlag() = 0;
 };
 
 /** *******************************************************************************************************************
@@ -257,7 +257,7 @@ class DataStoreTransaction : public DataStore, public ITransaction {
   std::string get(const concordUtils::Sliver& key) override { return txn_->get(key); }
   void del(const concordUtils::Sliver& key) override { txn_->del(key); }
 
-  void setClearDataStoreFlag() override { ds_->setClearDataStoreFlag(); }
+  void setEraseDataStoreFlag() override { ds_->setEraseDataStoreFlag(); }
 
  private:
   // You can't begin a transaction from within a transaction. However, since we

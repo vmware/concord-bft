@@ -118,7 +118,9 @@ IReplica::IReplicaPtr IReplica::createNewReplica(ReplicaConfig *replicaConfig,
                                                  IRequestsHandler *requestsHandler,
                                                  IStateTransfer *stateTransfer,
                                                  bft::communication::ICommunication *communication,
-                                                 MetadataStorage *metadataStorage) {
+                                                 MetadataStorage *metadataStorage,
+                                                 bool &erasedMetadata) {
+  erasedMetadata = false;
   {
     std::lock_guard<std::mutex> lock(mutexForCryptoInitialization);
     if (!cryptoInitialized) {
@@ -145,9 +147,13 @@ IReplica::IReplicaPtr IReplica::createNewReplica(ReplicaConfig *replicaConfig,
     auto objectDescriptors =
         ((PersistentStorageImp *)persistentStoragePtr.get())->getDefaultMetadataObjectDescriptors(numOfObjects);
     isNewStorage = metadataStoragePtr->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);
-    ((PersistentStorageImp *)persistentStoragePtr.get())->init(move(metadataStoragePtr));
+    bool erasedMetaData;
+    ((PersistentStorageImp *)persistentStoragePtr.get())->init(move(metadataStoragePtr), erasedMetaData);
+    if (erasedMetaData) {
+      isNewStorage = true;
+      erasedMetadata = true;
+    }
   }
-
   auto replicaInternal = std::make_unique<ReplicaInternal>();
   shared_ptr<MsgHandlersRegistrator> msgHandlersPtr(new MsgHandlersRegistrator());
   auto incomingMsgsStorageImpPtr =
@@ -190,6 +196,14 @@ IReplica::IReplicaPtr IReplica::createNewReplica(ReplicaConfig *replicaConfig,
   return replicaInternal;
 }
 
+IReplica::IReplicaPtr IReplica::createNewReplica(ReplicaConfig *replicaConfig,
+                                                 IRequestsHandler *requestsHandler,
+                                                 IStateTransfer *stateTransfer,
+                                                 bft::communication::ICommunication *communication,
+                                                 MetadataStorage *metadataStorage) {
+  bool dummy;
+  return createNewReplica(replicaConfig, requestsHandler, stateTransfer, communication, metadataStorage, dummy);
+}
 IReplica::IReplicaPtr IReplica::createNewRoReplica(ReplicaConfig *replicaConfig,
                                                    IStateTransfer *stateTransfer,
                                                    bft::communication::ICommunication *communication,

@@ -2505,6 +2505,33 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
   if (!oldSeqNum && currentViewIsActive() && (currentPrimary() == config_.replicaId) && !isCollectingState()) {
     tryToSendPrePrepareMsg();
   }
+
+  auto seq_num_to_stop_at = controlStateManager_->getCheckpointToStopAt();
+
+  // Below we handle the case of removing a node. Note that when removing nodes we cannot assume we will have n/n
+  // checkpoint because some of the replicas may not be responsive. For that we also mark that we got to a stable (n-f)
+  // checkpoint.
+  // Note: Currently this is not sage to rely on this n-f wedged checkpoint on any other reconfiguration action except
+  // of removing nodes.
+  // TODO (YB): we need to improve this mechanism so that it will be supported by many reconfiguration actions as
+  // possible.
+  if (seq_num_to_stop_at.has_value() && seq_num_to_stop_at.value() == newStableSeqNum) {
+    LOG_INFO(GL,
+             "Informing control state manager that consensus should be stopped (without n/n replicas): " << KVLOG(
+                 newStableSeqNum, metric_last_stable_seq_num_.Get().Get()));
+    if (getRequestsHandler()->getControlHandlers()) {
+      getRequestsHandler()->getControlHandlers()->onStableCheckpoint();
+    }
+    // Mark the metadata storage for deletion if we need to
+    auto seq_num_to_remove_metadata_storage = controlStateManager_->getEraseMetadataFlag();
+    // We would want to set this flag only when we sure that the replica needs to remove the metadata.
+    if (seq_num_to_remove_metadata_storage.has_value() &&
+        seq_num_to_remove_metadata_storage.value() == newStableSeqNum) {
+      LOG_INFO(GL, "informing metadata storage to clean the data before shutting down (without n/n replicas)");
+      if (ps_) ps_->setEraseMetadataStorageFlag();
+      stateTransfer->setEraseMetadataFlag();
+    }
+  }
 }
 
 void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly, uint16_t destReplicaId) {
@@ -2782,14 +2809,14 @@ void ReplicaImp::onInfoRequestTimer(Timers::Handle timer) {
 }
 
 void ReplicaImp::onSuperStableCheckpointTimer(concordUtil::Timers::Handle) {
-  if (!isSeqNumToStopAt(lastExecutedSeqNum)) return;
-  if (!checkpointsLog->insideActiveWindow(lastExecutedSeqNum)) return;
-  CheckpointMsg *cpMsg = checkpointsLog->get(lastExecutedSeqNum).selfCheckpointMsg();
+  if (!isSeqNumToStopAt(lastStableSeqNum)) return;
+  if (!checkpointsLog->insideActiveWindow(lastStableSeqNum)) return;
+  CheckpointMsg *cpMsg = checkpointsLog->get(lastStableSeqNum).selfCheckpointMsg();
   // At this point the cpMsg cannot be evacuated
   if (!cpMsg) return;
-  LOG_INFO(GL,
-           "sending checkpoint message to help other replicas to reach super stable checkpoint"
-               << KVLOG(lastExecutedSeqNum));
+  LOG_INFO(
+      GL,
+      "sending checkpoint message to help other replicas to reach super stable checkpoint" << KVLOG(lastStableSeqNum));
   sendToAllOtherReplicas(cpMsg, true);
 }
 template <>
@@ -3319,9 +3346,6 @@ void ReplicaImp::start() {
                   config_.numReplicas,
                   stateTransfer.get(),
                   ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage());
-  // If the replica has crashed and recovered by its own, this will remove the saved checkpoint to stop at.
-  if (controlStateManager_ && controlStateManager_->getCheckpointToStopAt().has_value())
-    controlStateManager_->clearCheckpointToStopAt();
   if (!firstTime_ || config_.debugPersistentStorageEnabled) clientsManager->loadInfoFromReservedPages();
   addTimers();
   recoverRequests();

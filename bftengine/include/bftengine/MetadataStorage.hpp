@@ -50,7 +50,7 @@ class MetadataStorage {
   virtual void commitAtomicWriteOnlyBatch() = 0;
 
   // In some cases, we would like to load a new metadata after a crash (for example, on reconfiguration actions).
-  virtual void setDontLoadStorageOnStartupFlag() = 0;
+  virtual void eraseData() = 0;
 };
 
 }  // namespace bftEngine

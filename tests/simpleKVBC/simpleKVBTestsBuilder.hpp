@@ -62,7 +62,8 @@ enum RequestType : char {
   GET_LAST_BLOCK = 3,
   GET_BLOCK_DATA = 4,
   LONG_EXEC_COND_WRITE = 5,
-  WEDGE = 6
+  WEDGE = 6,
+  ADD_REMOVE_NODE = 7
 };
 
 struct SimpleRequest {
@@ -93,6 +94,7 @@ struct SimpleHaveYouStoppedRequest {
   static void free(SimpleHaveYouStoppedRequest* buf) { delete[] buf; }
 
   SimpleRequest header;
+  int64_t n_of_n_stop = 1;
 };
 
 // A SimpleGetBlockDataRequest returns a read response, except

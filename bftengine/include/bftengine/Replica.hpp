@@ -51,6 +51,7 @@ enum MsgFlag : uint8_t {
 class ControlHandlers {
  public:
   virtual void onSuperStableCheckpoint() = 0;
+  virtual void onStableCheckpoint() = 0;
   virtual ~ControlHandlers() {}
 };
 
@@ -78,6 +79,12 @@ class IReplica {
   using IReplicaPtr = std::unique_ptr<IReplica>;
   static IReplicaPtr createNewReplica(
       ReplicaConfig *, IRequestsHandler *, IStateTransfer *, bft::communication::ICommunication *, MetadataStorage *);
+  static IReplicaPtr createNewReplica(ReplicaConfig *,
+                                      IRequestsHandler *,
+                                      IStateTransfer *,
+                                      bft::communication::ICommunication *,
+                                      MetadataStorage *,
+                                      bool &erasedMetadata);
 
   static IReplicaPtr createNewRoReplica(ReplicaConfig *,
                                         IStateTransfer *,

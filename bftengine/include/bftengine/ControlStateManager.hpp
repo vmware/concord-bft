@@ -20,6 +20,27 @@
 
 namespace bftEngine {
 
+class ControlStatePage : public concord::serialize::SerializableFactory<ControlStatePage> {
+ public:
+  int64_t seq_num_to_stop_at_ = 0;
+  int64_t erase_metadata_at_seq_num_ = 0;
+  ControlStatePage() {
+    static_assert(sizeof(ControlStatePage) < 4096, "The page exceeds the maximal size of reserved page");
+  }
+
+ private:
+  const std::string getVersion() const override { return "1"; }
+
+  void serializeDataMembers(std::ostream& outStream) const override {
+    serialize(outStream, seq_num_to_stop_at_);
+    serialize(outStream, erase_metadata_at_seq_num_);
+  }
+  void deserializeDataMembers(std::istream& inStream) override {
+    deserialize(inStream, seq_num_to_stop_at_);
+    deserialize(inStream, erase_metadata_at_seq_num_);
+  }
+};
+
 static constexpr uint32_t ControlHandlerStateManagerReservedPagesIndex = 1;
 static constexpr uint32_t ControlHandlerStateManagerNumOfReservedPages = 1;
 class ControlStateManager : public ResPagesClient<ControlStateManager,
@@ -28,7 +49,10 @@ class ControlStateManager : public ResPagesClient<ControlStateManager,
  public:
   void setStopAtNextCheckpoint(int64_t currentSeqNum);
   std::optional<int64_t> getCheckpointToStopAt();
-  void clearCheckpointToStopAt();
+
+  void setEraseMetadataFlag(int64_t currentSeqNum);
+  std::optional<int64_t> getEraseMetadataFlag();
+
   ControlStateManager(IStateTransfer* state_transfer, uint32_t sizeOfReservedPages);
   ControlStateManager& operator=(const ControlStateManager&) = delete;
   ControlStateManager(const ControlStateManager&) = delete;
@@ -42,32 +66,6 @@ class ControlStateManager : public ResPagesClient<ControlStateManager,
   const uint32_t sizeOfReservedPage_;
   std::string scratchPage_;
   bool enabled_ = true;
-
-  // In the control handler manager reserved pages space, each control data should has its own page.
-  // This struct define the index of each page in this space.
-  struct reservedPageIndexer {
-    uint32_t update_reserved_page_ = 0;
-  };
-
-  reservedPageIndexer reserved_pages_indexer_;
-
-  uint32_t getUpdateReservedPageIndex() { return resPageOffset() + reserved_pages_indexer_.update_reserved_page_; }
+  ControlStatePage page_;
 };
-
-namespace controlStateMessages {
-
-// control state messages
-class StopAtNextCheckpointMessage : public concord::serialize::SerializableFactory<StopAtNextCheckpointMessage> {
-  const std::string getVersion() const override { return "1"; }
-  void serializeDataMembers(std::ostream& outStream) const override {
-    serialize_impl(outStream, seqNumToStopAt_, int{});
-  }
-  void deserializeDataMembers(std::istream& inStream) override { deserialize_impl(inStream, seqNumToStopAt_, int{}); }
-
- public:
-  int64_t seqNumToStopAt_ = 0;
-  StopAtNextCheckpointMessage(int64_t checkpointToStopAt) : seqNumToStopAt_(checkpointToStopAt){};
-  StopAtNextCheckpointMessage() = default;
-};
-}  // namespace controlStateMessages
 }  // namespace bftEngine

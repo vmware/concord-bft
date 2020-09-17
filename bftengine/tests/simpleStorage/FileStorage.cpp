@@ -43,14 +43,6 @@ FileStorage::FileStorage(Logger &logger, const string &fileName) : logger_(logge
 }
 
 FileStorage::~FileStorage() {
-  if (dontLoadStorageOnStartup) {
-    try {
-      cleanStorage();
-    } catch (std::exception &e) {
-      LOG_FATAL(logger_, e.what());
-      std::terminate();
-    }
-  }
   if (dataStream_) {
     fclose(dataStream_);
   }
@@ -197,6 +189,7 @@ void FileStorage::handleObjectWrite(uint32_t objectId, void *dataPtr, uint32_t o
 void FileStorage::handleObjectRead(uint32_t objectId, char *outBufferForObject, uint32_t &outActualObjectSize) {
   MetadataObjectInfo *objectInfo = objectsMetadata_->getObjectInfo(objectId);
   if (objectInfo) {
+    if (objectInfo->realSize == 0) return;  // This means that this object has never been wrote to the file.
     read(outBufferForObject, objectInfo->offset, objectInfo->realSize, 1, FAILED_TO_READ_OBJECT);
     outActualObjectSize = objectInfo->realSize;
     LOG_DEBUG(logger_, "FileStorage::handleObjectRead " << objectInfo->toString());
@@ -260,7 +253,14 @@ void FileStorage::commitAtomicWriteOnlyBatch() {
   delete transaction_;
   transaction_ = nullptr;
 }
-void FileStorage::setDontLoadStorageOnStartupFlag() { dontLoadStorageOnStartup = true; }
+void FileStorage::eraseData() {
+  try {
+    cleanStorage();
+  } catch (std::exception &e) {
+    LOG_FATAL(logger_, e.what());
+    std::terminate();
+  }
+}
 void FileStorage::cleanStorage() {
   // To clean the storage such that the replica will come back with a new metadata storage, we just need to set the
   // number of stored objects to 0. Note that as this method is called from the destructor, we don't need to catch the

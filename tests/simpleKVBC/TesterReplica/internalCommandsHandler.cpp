@@ -116,6 +116,12 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
     LOG_INFO(m_logger, "A wedge command has been called" << KVLOG(sequenceNum));
     controlStateManager_->setStopAtNextCheckpoint(sequenceNum);
   }
+  if (writeReq->header.type == ADD_REMOVE_NODE) {
+    LOG_INFO(m_logger, "An add_remove_node command has been called" << KVLOG(sequenceNum));
+    controlStateManager_->setStopAtNextCheckpoint(sequenceNum);
+    controlStateManager_->setEraseMetadataFlag(sequenceNum);
+  }
+
   if (!(flags & MsgFlag::HAS_PRE_PROCESSED_FLAG)) {
     bool result = verifyWriteCommand(requestSize, *writeReq, maxReplySize, outReplySize);
     if (!result) ConcordAssert(0);
@@ -285,7 +291,7 @@ bool InternalCommandsHandler::executeHaveYouStoppedReadCommand(uint32_t requestS
   }
   auto *reply = (SimpleReply_HaveYouStopped *)(outReply);
   reply->header.type = WEDGE;
-  reply->stopped = controlHandlers_->haveYouStopped() ? 1 : 0;
+  reply->stopped = controlHandlers_->haveYouStopped(readReq->n_of_n_stop);
   LOG_INFO(m_logger, "HaveYouStopped message handled");
   return true;
 }

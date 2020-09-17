@@ -43,7 +43,7 @@ class NullStateTransfer : public IStateTransfer {
   virtual void handleStateTransferMessage(char* msg, uint32_t msgLen, uint16_t senderId) override;
 
   void addOnTransferringCompleteCallback(std::function<void(uint64_t)>) override{};
-
+  void setEraseMetadataFlag() override {}
   virtual ~NullStateTransfer();
 
  protected:

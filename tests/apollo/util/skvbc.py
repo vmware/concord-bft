@@ -31,6 +31,7 @@ class SimpleKVBCProtocol:
     GET_BLOCK_DATA = 4
     LONG_EXEC_WRITE = 5
     WEDGE = 6
+    ADD_REMOVE_NODE = 7
 
     """
     An implementation of the wire protocol for SimpleKVBC requests.
@@ -47,13 +48,15 @@ class SimpleKVBCProtocol:
         self.keys = self._create_keys()
 
     @classmethod
-    def write_req(cls, readset, writeset, block_id, long_exec=False, wedge_command=False):
+    def write_req(cls, readset, writeset, block_id, long_exec=False, wedge_command=False, add_remove_node_command=False):
         data = bytearray()
         # A conditional write request type
         if long_exec is True:
             data.append(cls.LONG_EXEC_WRITE)
         elif wedge_command is True:
             data.append(cls.WEDGE)
+        elif add_remove_node_command is True:
+            data.append(cls.ADD_REMOVE_NODE)
         else:
             data.append(cls.WRITE)
         # SimpleConditionalWriteHeader
@@ -87,9 +90,10 @@ class SimpleKVBCProtocol:
         return data
 
     @classmethod
-    def get_have_you_stopped_req(cls):
+    def get_have_you_stopped_req(cls, n_of_n):
         data = bytearray()
         data.append(cls.WEDGE)
+        data.extend(struct.pack("<q", n_of_n))
         return data
 
     @classmethod
@@ -138,7 +142,7 @@ class SimpleKVBCProtocol:
 
     @staticmethod
     def parse_have_you_stopped_reply(data):
-        return struct.unpack("<Q", data)[0]
+        return struct.unpack("<q", data)[0]
 
     def initial_state(self):
         """Return a dict with KV_LEN zero byte values for all keys"""
