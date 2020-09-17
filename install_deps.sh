@@ -53,6 +53,7 @@ apt-get ${APT_GET_FLAGS} install \
     libzstd-dev
 
 pip3 install --upgrade wheel && pip3 install --upgrade trio
+pip3 install eliot eliot-tree
 
 # Build 3rd parties
 cd ${HOME}
