@@ -530,8 +530,9 @@ class BftTestNetwork:
             print(f'Matching view #{matching_view} has been agreed among replicas.')
 
             nb_replicas_in_matching_view = await self._wait_for_active_view(matching_view)
-            print(f'View #{matching_view} has been activated by '
-                  f'{nb_replicas_in_matching_view} >= n-f = {self.config.n - self.config.f}')
+            print(f'View #{matching_view} is active on '
+                  f'{nb_replicas_in_matching_view} replicas '
+                  f'({nb_replicas_in_matching_view} >= n-f = {self.config.n - self.config.f}).')
 
             return matching_view
         except trio.TooSlowError:
