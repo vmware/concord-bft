@@ -31,10 +31,9 @@ sys.path.append(os.path.abspath("../../util/pyclient"))
 import bft_config
 import bft_client
 import bft_metrics_client
-from util import bft_metrics
+from util import bft_metrics, apollo_logging as log
 from util import skvbc as kvbc
 from util.bft_test_exceptions import AlreadyRunningError, AlreadyStoppedError
-
 
 TestConfig = namedtuple('TestConfig', [
     'n',
@@ -124,7 +123,8 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
             if "bft_network" in kwargs:
                 bft_network = kwargs.pop("bft_network")
                 bft_network.is_existing = True
-                await async_fn(*args, **kwargs, bft_network=bft_network)
+                with log.start_task(action_type=async_fn.__name__):
+                    await async_fn(*args, **kwargs, bft_network=bft_network)
             else:
                 for bft_config in interesting_configs(selected_configs):
 
@@ -146,7 +146,8 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                               f'with n={config.n}, f={config.f}, c={config.c}, '
                               f'num_clients={config.num_clients}, '
                               f'num_ro_replicas={config.num_ro_replicas}')
-                        await async_fn(*args, **kwargs, bft_network=bft_network)
+                        with log.start_task(action_type=async_fn.__name__):
+                            await async_fn(*args, **kwargs, bft_network=bft_network)
         return wrapper
 
     return decorator
@@ -344,11 +345,12 @@ class BftTestNetwork:
         If the callback accepts three parameters and one of them
         is named 'config' - pass the network configuration too.
         """
-        start_replica_fn_args = inspect.getfullargspec(self.config.start_replica_cmd).args
-        if "config" in start_replica_fn_args and len(start_replica_fn_args) == 3:
-            return self.config.start_replica_cmd(self.builddir, replica_id, self.config)
-        else:
-            return self.config.start_replica_cmd(self.builddir, replica_id)
+        with log.start_action(action_type="start_replica_cmd"):
+            start_replica_fn_args = inspect.getfullargspec(self.config.start_replica_cmd).args
+            if "config" in start_replica_fn_args and len(start_replica_fn_args) == 3:
+                return self.config.start_replica_cmd(self.builddir, replica_id, self.config)
+            else:
+                return self.config.start_replica_cmd(self.builddir, replica_id)
 
     def stop_replica_cmd(self, replica_id):
         """
@@ -357,14 +359,15 @@ class BftTestNetwork:
         return self.config.stop_replica_cmd(replica_id)
 
     def start_all_replicas(self):
-        for i in range(0, self.config.n):
-            try:
-                self.start_replica(i)
-            except AlreadyRunningError:
-                if not self.is_existing:
-                    raise
+        with log.start_action(action_type="start_all_replicas"):
+            for i in range(0, self.config.n):
+                try:
+                    self.start_replica(i)
+                except AlreadyRunningError:
+                    if not self.is_existing:
+                        raise
 
-        assert len(self.procs) == self.config.n
+            assert len(self.procs) == self.config.n
 
     def stop_all_replicas(self):
         """ Stop all running replicas"""
@@ -389,70 +392,74 @@ class BftTestNetwork:
         Start a replica if it isn't already started.
         Otherwise raise an AlreadyStoppedError.
         """
-        stdout_file = None
-        stderr_file = None
-        if os.environ.get('KEEP_APOLLO_LOGS', "").lower() in ["true", "on"]:
-            try:
-                os.mkdir(f"/tmp/apollo/{self.current_test}/")
-            except FileExistsError:
-                pass
-            stdout_file = open("/tmp/apollo/{}/stdout_{}.log".format(self.current_test, replica_id), 'a+')
-            stderr_file = open("/tmp/apollo/{}/stderr_{}.log".format(self.current_test, replica_id), 'a+')
+        with log.start_action(action_type="start_replica"):
+            stdout_file = None
+            stderr_file = None
+            if os.environ.get('KEEP_APOLLO_LOGS', "").lower() in ["true", "on"]:
+                try:
+                    os.mkdir(f"/tmp/apollo/{self.current_test}/")
+                except FileExistsError:
+                    pass
+                stdout_file = open("/tmp/apollo/{}/stdout_{}.log".format(self.current_test, replica_id), 'a+')
+                stderr_file = open("/tmp/apollo/{}/stderr_{}.log".format(self.current_test, replica_id), 'a+')
 
-            stdout_file.write("############################################\n")
-            stdout_file.flush()
-            stderr_file.write("############################################\n")
-            stderr_file.flush()
+                stdout_file.write("############################################\n")
+                stdout_file.flush()
+                stderr_file.write("############################################\n")
+                stderr_file.flush()
 
-            self.open_fds[replica_id] = (stdout_file, stderr_file)
+                self.open_fds[replica_id] = (stdout_file, stderr_file)
 
-        if replica_id in self.procs:
-            raise AlreadyRunningError(replica_id)
+            if replica_id in self.procs:
+                raise AlreadyRunningError(replica_id)
 
-        if self.is_existing and self.config.stop_replica_cmd is not None:
-            self.procs[replica_id] = self._start_external_replica(replica_id)
-        else:
-            self.procs[replica_id] = subprocess.Popen(
-                                        self.start_replica_cmd(replica_id),
-                                        stdout=stdout_file,
-                                        stderr=stderr_file,
-                                        close_fds=True)
+            if self.is_existing and self.config.stop_replica_cmd is not None:
+                self.procs[replica_id] = self._start_external_replica(replica_id)
+            else:
+                self.procs[replica_id] = subprocess.Popen(
+                                            self.start_replica_cmd(replica_id),
+                                            stdout=stdout_file,
+                                            stderr=stderr_file,
+                                            close_fds=True)
 
     def _start_external_replica(self, replica_id):
-        subprocess.run(
-            self.start_replica_cmd(replica_id),
-            check=True
-        )
+        with log.start_action(action_type="_start_external_replica"):
+            subprocess.run(
+                self.start_replica_cmd(replica_id),
+                check=True
+            )
 
-        return self.replicas[replica_id]
+            return self.replicas[replica_id]
 
     def stop_replica(self, replica_id):
         """
         Stop a replica if it is running.
         Otherwise raise an AlreadyStoppedError.
         """
-        if replica_id not in self.procs.keys():
-            raise AlreadyStoppedError(replica_id)
+        with log.start_action(action_type="stop_replica"):
+            if replica_id not in self.procs.keys():
+                raise AlreadyStoppedError(replica_id)
 
-        if self.is_existing and self.config.stop_replica_cmd is not None:
-            self._stop_external_replica(replica_id)
-        else:
-            p = self.procs[replica_id]
-            if os.environ.get('GRACEFUL_SHUTDOWN', "").lower() in set(["true", "on"]):
-                p.terminate()
+            if self.is_existing and self.config.stop_replica_cmd is not None:
+                self._stop_external_replica(replica_id)
             else:
-                p.kill()
-            for fd in self.open_fds.get(replica_id, ()):
-                fd.close()
-            p.wait()
+                p = self.procs[replica_id]
+                if os.environ.get('GRACEFUL_SHUTDOWN', "").lower() in set(["true", "on"]):
+                    p.terminate()
+                else:
+                    p.kill()
+                for fd in self.open_fds.get(replica_id, ()):
+                    fd.close()
+                p.wait()
 
-        del self.procs[replica_id]
+            del self.procs[replica_id]
 
     def _stop_external_replica(self, replica_id):
-        subprocess.run(
-            self.stop_replica_cmd(replica_id),
-            check=True
-        )
+        with log.start_action(action_type="_stop_external_replica"):
+            subprocess.run(
+                self.stop_replica_cmd(replica_id),
+                check=True
+            )
 
     def all_replicas(self, without=None):
         """
@@ -482,18 +489,20 @@ class BftTestNetwork:
         """
         Returns the current primary replica id
         """
-        current_primary = await self.get_current_view()
-        return current_primary % self.config.n
+        with log.start_action(action_type="get_current_primary"):
+            current_primary = await self.get_current_view()
+            return current_primary % self.config.n
 
     async def get_current_view(self):
         """
         Returns the current view number
         """
-        live_replica = random.choice(self.get_live_replicas())
-        current_view = await self.wait_for_view(
-            replica_id=live_replica, expected=None)
+        with log.start_action(action_type="get_current_view"):
+            live_replica = random.choice(self.get_live_replicas())
+            current_view = await self.wait_for_view(
+                replica_id=live_replica, expected=None)
 
-        return current_view
+            return current_view
 
 
     async def get_metric(self, replica_id, bft_network, mtype, mname):
@@ -520,85 +529,90 @@ class BftTestNetwork:
 
         In case of a timeout, fails with the provided err_msg
         """
-        if expected is None:
-            expected = lambda _: True
+        with log.start_action(action_type="wait_for_view"):
+            if expected is None:
+                expected = lambda _: True
 
-        matching_view = None
-        nb_replicas_in_matching_view = 0
-        try:
-            matching_view = await self._wait_for_matching_agreed_view(replica_id, expected)
-            print(f'Matching view #{matching_view} has been agreed among replicas.')
+            matching_view = None
+            nb_replicas_in_matching_view = 0
+            try:
+                matching_view = await self._wait_for_matching_agreed_view(replica_id, expected)
+                print(f'Matching view #{matching_view} has been agreed among replicas.')
 
-            nb_replicas_in_matching_view = await self._wait_for_active_view(matching_view)
-            print(f'View #{matching_view} is active on '
-                  f'{nb_replicas_in_matching_view} replicas '
-                  f'({nb_replicas_in_matching_view} >= n-f = {self.config.n - self.config.f}).')
+                nb_replicas_in_matching_view = await self._wait_for_active_view(matching_view)
+                print(f'View #{matching_view} is active on '
+                      f'{nb_replicas_in_matching_view} replicas '
+                      f'({nb_replicas_in_matching_view} >= n-f = {self.config.n - self.config.f}).')
 
-            return matching_view
-        except trio.TooSlowError:
-            assert False, err_msg + \
-                          f'(matchingView={matching_view} ' \
-                          f'replicasInMatchingView={nb_replicas_in_matching_view})'
+                return matching_view
+            except trio.TooSlowError:
+                assert False, err_msg + \
+                              f'(matchingView={matching_view} ' \
+                              f'replicasInMatchingView={nb_replicas_in_matching_view})'
 
     async def _wait_for_matching_agreed_view(self, replica_id, expected):
         """
         Wait for the last agreed view to match the "expected" predicate
         """
-        last_agreed_view = None
-        with trio.fail_after(seconds=30):
-            while True:
-                try:
-                    with trio.move_on_after(seconds=1):
-                        key = ['replica', 'Gauges', 'lastAgreedView']
-                        view = await self.metrics.get(replica_id, *key)
-                        if expected(view):
-                            last_agreed_view = view
-                            break
-                except KeyError:
-                    # metrics not yet available, continue looping
-                    continue
-        return last_agreed_view
+        with log.start_action(action_type="_wait_for_matching_agreed_view"):
+            last_agreed_view = None
+            with trio.fail_after(seconds=30):
+                while True:
+                    try:
+                        with trio.move_on_after(seconds=1):
+                            key = ['replica', 'Gauges', 'lastAgreedView']
+                            view = await self.metrics.get(replica_id, *key)
+                            if expected(view):
+                                last_agreed_view = view
+                                break
+                    except KeyError:
+                        # metrics not yet available, continue looping
+                        continue
+            return last_agreed_view
 
     async def _wait_for_active_view(self, view):
         """
         Wait for a view to become active on enough (n-f) replicas
         """
-        with trio.fail_after(seconds=30):
-            while True:
-                nb_replicas_in_view = await self._count_replicas_in_view(view)
+        with log.start_action(action_type="_wait_for_active_view"):
+            with trio.fail_after(seconds=30):
+                while True:
+                    nb_replicas_in_view = await self._count_replicas_in_view(view)
 
-                # wait for n-f = 2f+2c+1 replicas to be in the expected view
-                if nb_replicas_in_view >= 2 * self.config.f + 2 * self.config.c + 1:
-                    break
-        return nb_replicas_in_view
+                    # wait for n-f = 2f+2c+1 replicas to be in the expected view
+                    if nb_replicas_in_view >= 2 * self.config.f + 2 * self.config.c + 1:
+                        break
+            return nb_replicas_in_view
 
     async def _count_replicas_in_view(self, view):
         """
         Count the number of replicas that have activated a given view
         """
-        nb_replicas_in_view = 0
+        with log.start_action(action_type="_count_replicas_in_view"):
+            nb_replicas_in_view = 0
 
-        async def count_if_replica_in_view(r, expected_view):
-            """
-            A closure that allows concurrent counting of replicas
-            that have activated a given view.
-            """
-            nonlocal nb_replicas_in_view
+            async def count_if_replica_in_view(r, expected_view):
+                """
+                A closure that allows concurrent counting of replicas
+                that have activated a given view.
+                """
+                with log.start_action(action_type="count_if_replica_in_view"):
+                    nonlocal nb_replicas_in_view
 
-            key = ['replica', 'Gauges', 'currentActiveView']
+                    key = ['replica', 'Gauges', 'currentActiveView']
 
-            with trio.move_on_after(seconds=5):
-                while True:
-                    with trio.move_on_after(seconds=1):
-                        try:
-                            replica_view = await self.metrics.get(r, *key)
-                            if replica_view == expected_view:
-                                nb_replicas_in_view += 1
-                        except KeyError:
-                            # metrics not yet available, continue looping
-                            continue
-                        else:
-                            break
+                    with trio.move_on_after(seconds=5):
+                        while True:
+                            with trio.move_on_after(seconds=1):
+                                try:
+                                    replica_view = await self.metrics.get(r, *key)
+                                    if replica_view == expected_view:
+                                        nb_replicas_in_view += 1
+                                except KeyError:
+                                    # metrics not yet available, continue looping
+                                    continue
+                                else:
+                                    break
 
         async with trio.open_nursery() as nursery:
             for r in self.get_live_replicas():
@@ -611,18 +625,19 @@ class BftTestNetwork:
         Bring down a sufficient number of replicas (excluding the primary),
         so that the remaining replicas form a quorum that includes replica_id
         """
-        unstable_replicas = self.all_replicas(without={primary, replica_id})
+        with log.start_action(action_type="force_quorum_including_replica"):
+            unstable_replicas = self.all_replicas(without={primary, replica_id})
 
-        random.shuffle(unstable_replicas)
+            random.shuffle(unstable_replicas)
 
-        for backup_replica_id in unstable_replicas:
-            print(f'Stopping backup replica {backup_replica_id} in order '
-                  f'to force a quorum including replica {replica_id}...')
-            self.stop_replica(backup_replica_id)
-            if len(self.procs) == 2 * self.config.f + self.config.c + 1:
-                break
+            for backup_replica_id in unstable_replicas:
+                print(f'Stopping backup replica {backup_replica_id} in order '
+                      f'to force a quorum including replica {replica_id}...')
+                self.stop_replica(backup_replica_id)
+                if len(self.procs) == 2 * self.config.f + self.config.c + 1:
+                    break
 
-        assert len(self.procs) == 2 * self.config.f + self.config.c + 1
+            assert len(self.procs) == 2 * self.config.f + self.config.c + 1
 
     async def wait_for_fetching_state(self, replica_id):
         """
@@ -631,189 +646,202 @@ class BftTestNetwork:
 
         Returns the current source replica for state transfer.
         """
-        with trio.fail_after(10): # seconds
-            while True:
-                with trio.move_on_after(.5): # seconds
-                    is_fetching = await self.is_fetching(replica_id)
-                    source_replica_id = await self.source_replica(replica_id)
-                    if is_fetching:
-                        return source_replica_id
+        with log.start_action(action_type="wait_for_fetching_state"):
+            with trio.fail_after(10): # seconds
+                while True:
+                    with trio.move_on_after(.5): # seconds
+                        is_fetching = await self.is_fetching(replica_id)
+                        source_replica_id = await self.source_replica(replica_id)
+                        if is_fetching:
+                            return source_replica_id
 
     async def is_fetching(self, replica_id):
         """Return whether the current replica is fetching state"""
-        key = ['bc_state_transfer', 'Statuses', 'fetching_state']
-        state = await self.metrics.get(replica_id, *key)
-        return state != "NotFetching"
+        with log.start_action(action_type="is_fetching"):
+            key = ['bc_state_transfer', 'Statuses', 'fetching_state']
+            state = await self.metrics.get(replica_id, *key)
+            return state != "NotFetching"
 
     async def source_replica(self, replica_id):
         """Return whether the current replica has a source replica already set"""
-        key = ['bc_state_transfer', 'Gauges', 'current_source_replica']
-        source_replica_id = await self.metrics.get(replica_id, *key)
+        with log.start_action(action_type="source_replica"):
+            key = ['bc_state_transfer', 'Gauges', 'current_source_replica']
+            source_replica_id = await self.metrics.get(replica_id, *key)
 
-        return source_replica_id
+            return source_replica_id
 
     async def wait_for_state_transfer_to_start(self):
         """
         Retry checking every .5 seconds until state transfer starts at least one
         node. Stop trying, and fail the test after 30 seconds.
         """
-        with trio.fail_after(30): # seconds
-            async with trio.open_nursery() as nursery:
-                for replica in self.replicas:
-                    nursery.start_soon(self._wait_to_receive_st_msgs,
-                                       replica,
-                                       nursery.cancel_scope)
+        with log.start_action(action_type="wait_for_state_transfer_to_start"):
+            with trio.fail_after(30): # seconds
+                async with trio.open_nursery() as nursery:
+                    for replica in self.replicas:
+                        nursery.start_soon(self._wait_to_receive_st_msgs,
+                                           replica,
+                                           nursery.cancel_scope)
 
     async def _wait_to_receive_st_msgs(self, replica, cancel_scope):
         """
         Check metrics to see if state transfer started. If so cancel the
         concurrent coroutines in the request scope.
         """
-        while True:
-            with trio.move_on_after(.5): # seconds
-                try:
-                    key = ['replica', 'Counters', 'receivedStateTransferMsgs']
-                    n = await self.metrics.get(replica.id, *key)
-                    if n > 0:
-                        cancel_scope.cancel()
-                except KeyError:
-                    continue # metrics not yet available, continue looping
+        with log.start_action(action_type="_wait_to_receive_st_msgs"):
+            while True:
+                with trio.move_on_after(.5): # seconds
+                    try:
+                        key = ['replica', 'Counters', 'receivedStateTransferMsgs']
+                        n = await self.metrics.get(replica.id, *key)
+                        if n > 0:
+                            cancel_scope.cancel()
+                    except KeyError:
+                        continue # metrics not yet available, continue looping
 
     async def wait_for_state_transfer_to_stop(
             self,
             up_to_date_node,
             stale_node,
             stop_on_stable_seq_num=False):
-        with trio.fail_after(30): # seconds
-            # Get the lastExecutedSeqNumber from a started node
-            if stop_on_stable_seq_num:
-                key = ['replica', 'Gauges', 'lastStableSeqNum']
-            else:
-                key = ['replica', 'Gauges', 'lastExecutedSeqNum']
-            expected_seq_num = await self.metrics.get(up_to_date_node, *key)
-            last_n = -1
-            while True:
-                with trio.move_on_after(.5): # seconds
-                    metrics = await self.metrics.get_all(stale_node)
-                    try:
-                        n = self.metrics.get_local(metrics, *key)
-                    except KeyError:
-                        # ignore - the metric will eventually become available
-                        pass
-                    else:
-                        # Debugging
-                        if n != last_n:
-                            last_n = n
-                            checkpoint = ['bc_state_transfer',
-                                          'Gauges',
-                                          'last_stored_checkpoint']
-                            on_transferring_complete = ['bc_state_transfer',
-                                                        'Counters',
-                                                        'on_transferring_complete']
-                            print("wait_for_st_to_stop: expected_seq_num={} "
-                                  "last_stored_checkpoint={} "
-                                  "on_transferring_complete_count={}".format(
-                                        n,
-                                        self.metrics.get_local(metrics, *checkpoint),
-                                        self.metrics.get_local(metrics,
-                                            *on_transferring_complete)))
-                        # Exit condition
-                        if n >= expected_seq_num:
-                            return
+        with log.start_action(action_type="wait_for_state_transfer_to_stop"):
+            with trio.fail_after(30): # seconds
+                # Get the lastExecutedSeqNumber from a started node
+                if stop_on_stable_seq_num:
+                    key = ['replica', 'Gauges', 'lastStableSeqNum']
+                else:
+                    key = ['replica', 'Gauges', 'lastExecutedSeqNum']
+                expected_seq_num = await self.metrics.get(up_to_date_node, *key)
+                last_n = -1
+                while True:
+                    with trio.move_on_after(.5): # seconds
+                        metrics = await self.metrics.get_all(stale_node)
+                        try:
+                            n = self.metrics.get_local(metrics, *key)
+                        except KeyError:
+                            # ignore - the metric will eventually become available
+                            pass
+                        else:
+                            # Debugging
+                            if n != last_n:
+                                last_n = n
+                                checkpoint = ['bc_state_transfer',
+                                              'Gauges',
+                                              'last_stored_checkpoint']
+                                on_transferring_complete = ['bc_state_transfer',
+                                                            'Counters',
+                                                            'on_transferring_complete']
+                                print("wait_for_st_to_stop: expected_seq_num={} "
+                                      "last_stored_checkpoint={} "
+                                      "on_transferring_complete_count={}".format(
+                                            n,
+                                            self.metrics.get_local(metrics, *checkpoint),
+                                            self.metrics.get_local(metrics,
+                                                *on_transferring_complete)))
+                            # Exit condition
+                            if n >= expected_seq_num:
+                                return
 
     async def wait_for_replicas_to_checkpoint(self, replica_ids, expected_checkpoint_num):
         """
         Wait for every replica in `replicas` to take a checkpoint.
         Check every .5 seconds and give fail after 30 seconds.
         """
-        with trio.fail_after(30): # seconds
-            async with trio.open_nursery() as nursery:
-                for replica_id in replica_ids:
-                    nursery.start_soon(self.wait_for_checkpoint, replica_id, expected_checkpoint_num)
+        with log.start_action(action_type="wait_for_replicas_to_checkpoint"):
+            with trio.fail_after(30): # seconds
+                async with trio.open_nursery() as nursery:
+                    for replica_id in replica_ids:
+                        nursery.start_soon(self.wait_for_checkpoint, replica_id, expected_checkpoint_num)
 
     async def wait_for_checkpoint(self, replica_id, expected_checkpoint_num=None):
         """
         Wait for a single replica to reach the expected_checkpoint_num.
         If none is provided, return the last stored checkpoint.
         """
-        key = ['bc_state_transfer', 'Gauges', 'last_stored_checkpoint']
-        if expected_checkpoint_num is None:
-            expected_checkpoint_num = lambda _: True
-        with trio.fail_after(30):
-            while True:
-                with trio.move_on_after(.5): # seconds
-                    try:
-                        last_stored_checkpoint = await self.metrics.get(replica_id, *key)
-                    except KeyError:
-                        continue
-                    else:
-                        if expected_checkpoint_num(last_stored_checkpoint):
-                            return last_stored_checkpoint
+        with log.start_action(action_type="wait_for_checkpoint"):
+            key = ['bc_state_transfer', 'Gauges', 'last_stored_checkpoint']
+            if expected_checkpoint_num is None:
+                expected_checkpoint_num = lambda _: True
+            with trio.fail_after(30):
+                while True:
+                    with trio.move_on_after(.5): # seconds
+                        try:
+                            last_stored_checkpoint = await self.metrics.get(replica_id, *key)
+                        except KeyError:
+                            continue
+                        else:
+                            if expected_checkpoint_num(last_stored_checkpoint):
+                                return last_stored_checkpoint
 
     async def wait_for_slow_path_to_be_prevalent(
             self, as_of_seq_num=1, nb_slow_paths_so_far=0, replica_id=0):
-        with trio.fail_after(seconds=5):
-            while True:
-                with trio.move_on_after(seconds=.5):
-                    try:
-                        await self.assert_slow_path_prevalent(
-                            as_of_seq_num, nb_slow_paths_so_far, replica_id)
-                    except (KeyError, AssertionError):
-                        # continue polling
-                        continue
-                    else:
-                        # slow path prevalent - done.
-                        break
+        with log.start_action(action_type="wait_for_slow_path_to_be_prevalent"):
+            with trio.fail_after(seconds=5):
+                while True:
+                    with trio.move_on_after(seconds=.5):
+                        try:
+                            await self.assert_slow_path_prevalent(
+                                as_of_seq_num, nb_slow_paths_so_far, replica_id)
+                        except (KeyError, AssertionError):
+                            # continue polling
+                            continue
+                        else:
+                            # slow path prevalent - done.
+                            break
 
     async def wait_for_fast_path_to_be_prevalent(
             self, nb_slow_paths_so_far=0, replica_id=0):
-        with trio.fail_after(seconds=5):
-            while True:
-                with trio.move_on_after(seconds=.5):
-                    try:
-                        await self.assert_fast_path_prevalent(
-                            nb_slow_paths_so_far, replica_id)
-                    except (KeyError, AssertionError):
-                        # continue polling
-                        continue
-                    else:
-                        # fast path prevalent - done.
-                        break
+        with log.start_action(action_type="wait_for_fast_path_to_be_prevalent"):
+            with trio.fail_after(seconds=5):
+                while True:
+                    with trio.move_on_after(seconds=.5):
+                        try:
+                            await self.assert_fast_path_prevalent(
+                                nb_slow_paths_so_far, replica_id)
+                        except (KeyError, AssertionError):
+                            # continue polling
+                            continue
+                        else:
+                            # fast path prevalent - done.
+                            break
 
     async def wait_for_last_executed_seq_num(self, replica_id=0, expected=0):
-        with trio.fail_after(seconds=30):
-            while True:
-                with trio.move_on_after(seconds=.5):
-                    try:
-                        key = ['replica', 'Gauges', 'lastExecutedSeqNum']
-                        last_executed_seq_num = await self.metrics.get(replica_id, *key)
-                    except KeyError:
-                        continue
-                    else:
-                        # success!
-                        if last_executed_seq_num >= expected:
-                            return last_executed_seq_num
+        with log.start_action(action_type="wait_for_last_executed_seq_num"):
+            with trio.fail_after(seconds=30):
+                while True:
+                    with trio.move_on_after(seconds=.5):
+                        try:
+                            key = ['replica', 'Gauges', 'lastExecutedSeqNum']
+                            last_executed_seq_num = await self.metrics.get(replica_id, *key)
+                        except KeyError:
+                            continue
+                        else:
+                            # success!
+                            if last_executed_seq_num >= expected:
+                                return last_executed_seq_num
 
     async def assert_state_transfer_not_started_all_up_nodes(self, up_replica_ids):
-        with trio.fail_after(METRICS_TIMEOUT_SEC):
-            # Check metrics for all started nodes in parallel
-            async with trio.open_nursery() as nursery:
-                up_replicas = [self.replicas[i] for i in up_replica_ids]
-                for r in up_replicas:
-                    nursery.start_soon(self._assert_state_transfer_not_started,
-                                       r)
+        with log.start_action(action_type="assert_state_transfer_not_started_all_up_nodes"):
+            with trio.fail_after(METRICS_TIMEOUT_SEC):
+                # Check metrics for all started nodes in parallel
+                async with trio.open_nursery() as nursery:
+                    up_replicas = [self.replicas[i] for i in up_replica_ids]
+                    for r in up_replicas:
+                        nursery.start_soon(self._assert_state_transfer_not_started,
+                                           r)
 
     async def assert_fast_path_prevalent(self, nb_slow_paths_so_far=0, replica_id=0):
         """
         Asserts there is at most 1 sequence processed on the slow path,
         given the "nb_slow_paths_so_far".
         """
-        metric_key = ['replica', 'Counters', 'totalSlowPaths']
-        total_nb_slow_paths = await self.metrics.get(replica_id, *metric_key)
-        assert total_nb_slow_paths >= nb_slow_paths_so_far
+        with log.start_action(action_type="assert_fast_path_prevalent"):
+            metric_key = ['replica', 'Counters', 'totalSlowPaths']
+            total_nb_slow_paths = await self.metrics.get(replica_id, *metric_key)
+            assert total_nb_slow_paths >= nb_slow_paths_so_far
 
-        assert total_nb_slow_paths - nb_slow_paths_so_far <= 1, \
-            f'Fast path is not prevalent for n={self.config.n}, f={self.config.f}, c={self.config.c}.'
+            assert total_nb_slow_paths - nb_slow_paths_so_far <= 1, \
+                f'Fast path is not prevalent for n={self.config.n}, f={self.config.f}, c={self.config.c}.'
 
     async def assert_slow_path_prevalent(
             self, as_of_seq_num=1, nb_slow_paths_so_far=0, replica_id=0):
@@ -821,15 +849,16 @@ class BftTestNetwork:
         Asserts all executed sequences after "as_of_seq_num" have been processed on the slow path,
         given the "nb_slow_paths_so_far".
         """
-        metric_key = ['replica', 'Gauges', 'lastExecutedSeqNum']
-        total_nb_executed_sequences = await self.metrics.get(replica_id, *metric_key)
+        with log.start_action(action_type="assert_slow_path_prevalent"):
+            metric_key = ['replica', 'Gauges', 'lastExecutedSeqNum']
+            total_nb_executed_sequences = await self.metrics.get(replica_id, *metric_key)
 
-        metric_key = ['replica', 'Counters', 'totalSlowPaths']
-        total_nb_slow_paths = await self.metrics.get(replica_id, *metric_key)
-        assert total_nb_slow_paths >= nb_slow_paths_so_far
+            metric_key = ['replica', 'Counters', 'totalSlowPaths']
+            total_nb_slow_paths = await self.metrics.get(replica_id, *metric_key)
+            assert total_nb_slow_paths >= nb_slow_paths_so_far
 
-        assert total_nb_slow_paths - nb_slow_paths_so_far >= total_nb_executed_sequences - as_of_seq_num, \
-            f'Slow path is not prevalent for n={self.config.n}, f={self.config.f}, c={self.config.c}.'
+            assert total_nb_slow_paths - nb_slow_paths_so_far >= total_nb_executed_sequences - as_of_seq_num, \
+                f'Slow path is not prevalent for n={self.config.n}, f={self.config.f}, c={self.config.c}.'
 
     async def _assert_state_transfer_not_started(self, replica):
         key = ['replica', 'Counters', 'receivedStateTransferMsgs']
@@ -848,23 +877,25 @@ class BftTestNetwork:
            returns false before interval expires. This only matters in that it
            uses more CPU.
         """
-        with trio.fail_after(timeout):
-            while True:
-                with trio.move_on_after(interval):
-                    if await predicate():
-                        return
+        with log.start_action(action_type="wait_for"):
+            with trio.fail_after(timeout):
+                while True:
+                    with trio.move_on_after(interval):
+                        if await predicate():
+                            return
 
     async def num_of_slow_path(self):
         """
         Returns the total number of requests processed on the slow commit path
         """
-        with trio.fail_after(seconds=5):
-            while True:
-                with trio.move_on_after(seconds=.5):
-                    try:
-                        metric_key = ['replica', 'Counters', 'totalSlowPaths']
-                        nb_slow_path = await self.metrics.get(0, *metric_key)
-                        return nb_slow_path
-                    except KeyError:
-                        # metrics not yet available, continue looping
-                        pass
+        with log.start_action(action_type="num_of_slow_path"):
+            with trio.fail_after(seconds=5):
+                while True:
+                    with trio.move_on_after(seconds=.5):
+                        try:
+                            metric_key = ['replica', 'Counters', 'totalSlowPaths']
+                            nb_slow_path = await self.metrics.get(0, *metric_key)
+                            return nb_slow_path
+                        except KeyError:
+                            # metrics not yet available, continue looping
+                            pass

@@ -12,7 +12,7 @@
 
 import time
 from enum import Enum
-from util import skvbc as kvbc
+from util import skvbc as kvbc, apollo_logging as log
 import trio
 import random
 from functools import wraps
@@ -860,14 +860,15 @@ class SkvbcTracker:
         client_id = client.client_id
         self.send_write(
             client_id, seq_num, readset, dict(writeset), read_version)
-        try:
-            serialized_reply = await client.write(msg, seq_num, pre_process=self.pre_exec_all)
-            self.status.record_client_reply(client_id)
-            reply = self.skvbc.parse_reply(serialized_reply)
-            self.handle_write_reply(client_id, seq_num, reply)
-        except trio.TooSlowError:
-            self.status.record_client_timeout(client_id)
-            return
+        with log.start_action(action_type="send_tracked_kv_set"):
+            try:
+                serialized_reply = await client.write(msg, seq_num, pre_process=self.pre_exec_all)
+                self.status.record_client_reply(client_id)
+                reply = self.skvbc.parse_reply(serialized_reply)
+                self.handle_write_reply(client_id, seq_num, reply)
+            except trio.TooSlowError:
+                self.status.record_client_timeout(client_id)
+                return
 
     async def send_tracked_read(self, client, max_set_size):
         readset = self.readset(1, max_set_size)
@@ -897,9 +898,10 @@ class SkvbcTracker:
         return list(zip(writeset_keys, writeset_values))
 
     async def run_concurrent_ops(self, num_ops, write_weight=.70):
-        max_concurrency = len(self.bft_network.clients) // 2
-        max_size = len(self.skvbc.keys) // 2
-        return await self.send_concurrent_ops(num_ops, max_concurrency, max_size, write_weight, create_conflicts=True)
+        with log.start_action(action_type="run_concurrent_ops"):
+            max_concurrency = len(self.bft_network.clients) // 2
+            max_size = len(self.skvbc.keys) // 2
+            return await self.send_concurrent_ops(num_ops, max_concurrency, max_size, write_weight, create_conflicts=True)
 
     async def run_concurrent_conflict_ops(self, num_ops, write_weight=.70):
         if self.no_conflicts is True:
@@ -915,23 +917,24 @@ class SkvbcTracker:
         write_count = 0
         read_count = 0
         clients = self.bft_network.random_clients(max_concurrency)
-        while sent < num_ops:
-            readset = self.readset(0, max_read_set_size)
-            writeset = self.writeset(0, readset)
-            read_version = self.read_block_id()
-            async with trio.open_nursery() as nursery:
-                for client in clients:
-                    if random.random() < write_weight:
-                        if create_conflicts is False:
-                            readset = self.readset(0, max_read_set_size)
-                            writeset = self.writeset(max_size)
-                            read_version = self.read_block_id()
-                        nursery.start_soon(self.send_tracked_kv_set, client, readset, writeset, read_version)
-                        write_count += 1
-                    else:
-                        nursery.start_soon(self.send_tracked_read, client, max_size)
-                        read_count += 1
-            sent += len(clients)
+        with log.start_action(action_type="send_concurrent_ops"):
+            while sent < num_ops:
+                readset = self.readset(0, max_read_set_size)
+                writeset = self.writeset(0, readset)
+                read_version = self.read_block_id()
+                async with trio.open_nursery() as nursery:
+                    for client in clients:
+                        if random.random() < write_weight:
+                            if create_conflicts is False:
+                                readset = self.readset(0, max_read_set_size)
+                                writeset = self.writeset(max_size)
+                                read_version = self.read_block_id()
+                            nursery.start_soon(self.send_tracked_kv_set, client, readset, writeset, read_version)
+                            write_count += 1
+                        else:
+                            nursery.start_soon(self.send_tracked_read, client, max_size)
+                            read_count += 1
+                sent += len(clients)
         return read_count, write_count
 
     async def send_indefinite_tracked_ops(self, write_weight=.70, time_interval=.01):
