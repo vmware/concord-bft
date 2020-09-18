@@ -1,0 +1,3 @@
+add_executable(mpsc_bounded_channel_test mpsc_bounded_channel_test.cpp )
+add_test(mpsc_bounded_channel_test mpsc_bounded_channel_test)
+target_link_libraries(mpsc_bounded_channel_test GTest::Main util)
