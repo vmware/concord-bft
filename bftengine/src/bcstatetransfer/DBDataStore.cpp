@@ -278,6 +278,7 @@ void DBDataStore::loadResPages() {
       delete[] page;  // is copied
     }
   }
+  LOG_DEBUG(logger(), inmem_->getPagesForLog());
 }
 void DBDataStore::setResPageTxn(
     uint32_t inPageId, uint64_t inCheckpoint, const STDigest& inPageDigest, const char* inPage, ITransaction* txn) {
@@ -303,6 +304,7 @@ void DBDataStore::setResPage(uint32_t inPageId,
     setResPageTxn(inPageId, inCheckpoint, inPageDigest, inPage, g.txn());
   }
   inmem_->setResPage(inPageId, inCheckpoint, inPageDigest, inPage);
+  LOG_TRACE(logger(), inmem_->getPagesForLog());
 }
 /** ******************************************************************************************************************
  *  Pending Reserved Pages
@@ -347,6 +349,7 @@ void DBDataStore::associatePendingResPageWithCheckpoint(uint32_t inPageId,
     associatePendingResPageWithCheckpointTxn(inPageId, inCheckpoint, inPageDigest, g.txn());
   }
   inmem_->associatePendingResPageWithCheckpoint(inPageId, inCheckpoint, inPageDigest);
+  LOG_DEBUG(logger(), inmem_->getPagesForLog());
 }
 
 void DBDataStore::associatePendingResPageWithCheckpointTxn(uint32_t inPageId,
@@ -384,11 +387,13 @@ void DBDataStore::deleteCoveredResPageInSmallerCheckpointsTxn(uint64_t minChkp, 
   if (it == pages.end()) return;
   uint32_t prevItemPageId = it->first.pageId;
   bool prevItemIsInLastRelevantCheckpoint = (it->first.checkpoint <= minChkp);
+  std::ostringstream oss("deleted: ");
   it++;
   for (; it != pages.end(); ++it) {
     if (it->first.pageId == prevItemPageId && prevItemIsInLastRelevantCheckpoint) {
       ConcordAssert(it->second.page != nullptr);
-      LOG_DEBUG(logger(),
+      oss << "[" << it->first.pageId << ":" << it->first.checkpoint << "] ";
+      LOG_TRACE(logger(),
                 "delete: [" << it->first.pageId << ":" << it->first.checkpoint << "] "
                             << dynamicResPageKey(it->first.pageId, it->first.checkpoint));
       txn->del(dynamicResPageKey(it->first.pageId, it->first.checkpoint));
@@ -397,6 +402,7 @@ void DBDataStore::deleteCoveredResPageInSmallerCheckpointsTxn(uint64_t minChkp, 
       prevItemIsInLastRelevantCheckpoint = (it->first.checkpoint <= minChkp);
     }
   }
+  LOG_DEBUG(logger(), oss.str());
 }
 
 void DBDataStore::deleteCoveredResPageInSmallerCheckpoints(uint64_t minChkp) {
@@ -407,6 +413,7 @@ void DBDataStore::deleteCoveredResPageInSmallerCheckpoints(uint64_t minChkp) {
     deleteCoveredResPageInSmallerCheckpointsTxn(minChkp, g.txn());
   }
   inmem_->deleteCoveredResPageInSmallerCheckpoints(minChkp);
+  LOG_DEBUG(logger(), inmem_->getPagesForLog());
 }
 
 void DBDataStore::clearDataStoreData() {

@@ -232,7 +232,7 @@ class DBDataStore : public DataStore {
   Sliver genKey(const ObjectId& objId) const { return keymanip_->generateStateTransferKey(objId); }
   /** ****************************************************************************************************************/
   logging::Logger& logger() {
-    static logging::Logger logger_ = logging::getLogger("bft.st.dbdatastore");
+    static logging::Logger logger_ = logging::getLogger("concord.bft.st.dbdatastore");
     return logger_;
   }
 

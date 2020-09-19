@@ -121,7 +121,7 @@ class BCStateTran : public IStateTransfer {
   uint64_t maxNumOfStoredCheckpoints_;
   uint64_t numberOfReservedPages_;
 
-  bool running_ = false;
+  std::atomic<bool> running_ = false;
 
   IReplicaForStateTransfer* replicaForStateTransfer_ = nullptr;
 

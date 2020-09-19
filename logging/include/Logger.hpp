@@ -25,17 +25,13 @@
 #include "Logging4cplus.hpp"
 #endif
 
-/**
- * For development purposes anyone can link with $<TARGET_OBJECTS:logging_dev>
- * and get a default initializations for both loggers.
- */
-
 extern logging::Logger GL;
 extern logging::Logger CNSUS;
 extern logging::Logger THRESHSIGN_LOG;
 extern logging::Logger BLS_LOG;
 extern logging::Logger KEY_EX_LOG;
 extern logging::Logger VC_LOG;
+extern logging::Logger STLogger;
 
 namespace logging {
 
@@ -58,7 +54,6 @@ class ScopedMdc {
  * The duration of this adding is the scope where SCOPED_MDC was called - when reaching to the end of this scope,
  * the key-value will be automatically removed.
  */
-
 #define SCOPED_MDC(k, v) logging::ScopedMdc __s_mdc__(k, v)
 #define SCOPED_MDC_CID(v) logging::ScopedMdc __s_mdc_cid__(MDC_CID_KEY, v)
 #define SCOPED_MDC_SEQ_NUM(v) logging::ScopedMdc __s_mdc_seq_num__(MDC_SEQ_NUM_KEY, v)

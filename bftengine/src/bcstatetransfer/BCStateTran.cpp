@@ -88,12 +88,6 @@ IStateTransfer *create(const Config &config,
 namespace impl {
 
 //////////////////////////////////////////////////////////////////////////////
-// Logger
-//////////////////////////////////////////////////////////////////////////////
-
-logging::Logger STLogger = logging::getLogger("state-transfer");
-
-//////////////////////////////////////////////////////////////////////////////
 // Time
 //////////////////////////////////////////////////////////////////////////////
 
@@ -355,6 +349,8 @@ void BCStateTran::stopRunning() {
   ConcordAssert(running_);
   ConcordAssertNE(replicaForStateTransfer_, nullptr);
 
+  checkConsistency(config_.pedanticChecks);
+
   // TODO(GG): cancel timer
 
   // reset and free data
@@ -448,6 +444,8 @@ STDigest BCStateTran::checkpointReservedPages(uint64_t checkpointNumber, DataSto
 
   STDigest digestOfResPagesDescriptor;
   computeDigestOfPagesDescriptor(allPagesDesc, digestOfResPagesDescriptor);
+
+  LOG_DEBUG(STLogger, allPagesDesc->toString(digestOfResPagesDescriptor.toString()));
 
   txn->free(allPagesDesc);
   return digestOfResPagesDescriptor;
@@ -648,7 +646,7 @@ void BCStateTran::onTimer() {
 }
 
 void BCStateTran::handleStateTransferMessage(char *msg, uint32_t msgLen, uint16_t senderId) {
-  ConcordAssert(running_);
+  if (!running_) return;
   bool invalidSender = replicas_.count(senderId) == 0;
   bool sentFromSelf = senderId == config_.myReplicaId;
   bool msgSizeTooSmall = msgLen < sizeof(BCStateTranBaseMsg);
@@ -1869,7 +1867,6 @@ bool BCStateTran::checkBlock(uint64_t blockNum,
 bool BCStateTran::checkVirtualBlockOfResPages(const STDigest &expectedDigestOfResPagesDescriptor,
                                               char *vblock,
                                               uint32_t vblockSize) const {
-  LOG_DEBUG(STLogger, "");
   if (!checkStructureOfVirtualBlock(vblock, vblockSize, config_.sizeOfReservedPage)) {
     LOG_WARN(STLogger, "vblock has illegal structure");
     return false;
@@ -1892,7 +1889,7 @@ bool BCStateTran::checkVirtualBlockOfResPages(const STDigest &expectedDigestOfRe
 
   for (uint32_t element = 0; element < h->numberOfUpdatedPages; ++element) {
     ElementOfVirtualBlock *vElement = getVirtualElement(element, config_.sizeOfReservedPage, vblock);
-    LOG_DEBUG(STLogger, KVLOG(element, vElement->pageId, vElement->checkpointNumber, vElement->pageDigest));
+    LOG_TRACE(STLogger, KVLOG(element, vElement->pageId, vElement->checkpointNumber, vElement->pageDigest));
 
     STDigest computedPageDigest;
     computeDigestOfPage(
@@ -1910,6 +1907,7 @@ bool BCStateTran::checkVirtualBlockOfResPages(const STDigest &expectedDigestOfRe
 
   STDigest computedDigest;
   computeDigestOfPagesDescriptor(pagesDesc, computedDigest);
+  LOG_DEBUG(STLogger, pagesDesc->toString(computedDigest.toString()));
   psd_->free(pagesDesc);
 
   if (computedDigest != expectedDigestOfResPagesDescriptor) {
@@ -2327,6 +2325,7 @@ void BCStateTran::checkStoredCheckpoints(uint64_t firstStoredCheckpoint, uint64_
       {
         STDigest computedDigestOfResPagesDescriptor;
         computeDigestOfPagesDescriptor(allPagesDesc, computedDigestOfResPagesDescriptor);
+        LOG_DEBUG(STLogger, allPagesDesc->toString(computedDigestOfResPagesDescriptor.toString()));
         ConcordAssertEQ(computedDigestOfResPagesDescriptor, desc.digestOfResPagesDescriptor);
       }
       // check all pages descriptors
