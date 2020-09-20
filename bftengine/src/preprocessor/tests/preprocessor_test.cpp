@@ -55,16 +55,16 @@ char buf[bufLen];
 SigManagerSharedPtr sigManager_[numOfReplicas_4];
 
 class DummyRequestsHandler : public IRequestsHandler {
-  int execute(uint16_t client,
-              uint64_t sequenceNum,
-              uint8_t flags,
-              uint32_t requestSize,
-              const char* request,
-              uint32_t maxReplySize,
-              char* outReply,
+  int execute(uint16_t,
+              uint64_t,
+              uint8_t,
+              uint32_t,
+              const char*,
+              uint32_t,
+              char*,
               uint32_t& outActualReplySize,
-              uint32_t& outActualReplicaSpecificInfoSize,
-              concordUtils::SpanWrapper& span) override {
+              uint32_t&,
+              concordUtils::SpanWrapper&) override {
     outActualReplySize = 256;
     return 0;
   }
@@ -319,7 +319,7 @@ void setUpCommunication() {
 
 PreProcessReplyMsgSharedPtr preProcessNonPrimary(NodeIdType replicaId, const bftEngine::impl::ReplicasInfo& repInfo) {
   auto preProcessReplyMsg = make_shared<PreProcessReplyMsg>(sigManager_[replicaId], replicaId, clientId, reqSeqNum);
-  preProcessReplyMsg->setupMsgBody(buf, bufLen, "");
+  preProcessReplyMsg->setupMsgBody(buf, bufLen, "", STATUS_GOOD);
   preProcessReplyMsg->validate(repInfo);
   return preProcessReplyMsg;
 }
