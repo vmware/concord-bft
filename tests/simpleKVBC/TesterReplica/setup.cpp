@@ -63,12 +63,13 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                           {"persistence-mode", no_argument, 0, 'p'},
                                           {"storage-type", required_argument, 0, 't'},
                                           {"log-props-file", required_argument, 0, 'l'},
+                                          {"key-exchange-on-start", required_argument, 0, 'e'},
                                           {0, 0, 0, 0}};
 
     int o = 0;
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
-    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:pt:l:", longOptions, &optionIndex)) != -1) {
+    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:pt:l:e:", longOptions, &optionIndex)) != -1) {
       switch (o) {
         case 'i': {
           replicaConfig.replicaId = concord::util::to<std::uint16_t>(std::string(optarg));
@@ -95,6 +96,9 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         case '3': {
           if (optarg[0] == '-') throw std::runtime_error("invalid argument for --s3-config-file");
           s3ConfigFile = optarg;
+        } break;
+        case 'e': {
+          replicaConfig.keyExchangeOnStart = true;
         } break;
         // We can only toggle persistence on or off. It defaults to InMemory
         // unless -p flag is provided.

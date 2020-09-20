@@ -31,7 +31,9 @@
 #include "Bitmap.hpp"
 #include "OpenTracing.hpp"
 #include "RequestHandler.h"
-#include "InternalBFTClient.h"
+#include "InternalBFTClient.hpp"
+#include "bftengine/IPathDetector.hpp"
+#include "PathDetector.hpp"
 
 namespace bftEngine::impl {
 
@@ -102,7 +104,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   // bounded log used to store information about SeqNums in the range (lastStableSeqNum,lastStableSeqNum +
   // kWorkWindowSize]
-  SequenceWithActiveWindow<kWorkWindowSize, 1, SeqNum, SeqNumInfo, SeqNumInfo>* mainLog = nullptr;
+  std::shared_ptr<WindowOfSeqNumInfo> mainLog;
+  std::shared_ptr<IPathDetector> pathDetector_;
 
   // bounded log used to store information about checkpoints in the range [lastStableSeqNum,lastStableSeqNum +
   // kWorkWindowSize]
@@ -118,7 +121,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   // managing information about the clients
   ClientsManager* clientsManager = nullptr;
-  std::unique_ptr<InternalBFTClient> internalBFTClient_;
+  std::shared_ptr<InternalBFTClient> internalBFTClient_;
 
   // buffer used to store replies
   char* replyBuffer = nullptr;

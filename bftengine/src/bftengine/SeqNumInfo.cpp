@@ -27,6 +27,7 @@ SeqNumInfo::SeqNumInfo()
       primary(false),
       forcedCompleted(false),
       slowPathHasStarted(false),
+      isCommittedInSlowPath_(true),
       firstSeenFromPrimary(MinTime),
       timeOfLastInfoRequest(MinTime),
       commitUpdateTime(MinTime) {}
@@ -52,6 +53,7 @@ void SeqNumInfo::resetAndFree() {
   forcedCompleted = false;
 
   slowPathHasStarted = false;
+  isCommittedInSlowPath_ = true;
 
   firstSeenFromPrimary = MinTime;
   timeOfLastInfoRequest = MinTime;

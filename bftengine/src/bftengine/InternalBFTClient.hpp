@@ -16,12 +16,22 @@
 
 namespace bftEngine {
 namespace impl {
+class IInternalBFTClient {
+ public:
+  virtual ~IInternalBFTClient() {}
+  virtual NodeIdType getClientId() const = 0;
+  virtual void sendRquest(uint8_t flags, uint32_t requestLength, const char* request, const std::string& cid) = 0;
+  virtual uint32_t numOfConnectedReplicas(uint32_t clusterSize) = 0;
+  virtual bool isUdp() = 0;
+};
 
-class InternalBFTClient {
+class InternalBFTClient : public IInternalBFTClient {
  public:
   InternalBFTClient(const int& id, const NodeIdType& nonInternalNum, std::shared_ptr<MsgsCommunicator>& msgComm);
   inline NodeIdType getClientId() const { return repID_ + startIdForInternalClient_; };
   void sendRquest(uint8_t flags, uint32_t requestLength, const char* request, const std::string& cid);
+  uint32_t numOfConnectedReplicas(uint32_t clusterSize) { return msgComm_->numOfConnectedReplicas(clusterSize); }
+  bool isUdp() { return msgComm_->isUdp(); }
 
  private:
   uint32_t repID_{};
