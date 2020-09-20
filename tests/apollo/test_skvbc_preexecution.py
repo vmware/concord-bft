@@ -147,6 +147,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
                                                 err_msg="Make sure the view did not change.")
                 await trio.sleep(seconds=5)
 
+    @unittest.skip("Unstable")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @with_constant_load
@@ -243,6 +244,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         print(f"Finished at block {final_block_count}.")
         self.assertTrue(rw[0] + rw[1] >= num_of_requests)
 
+    @unittest.skip("Unstable")
     @with_trio
     @with_bft_network(start_replica_cmd)
     @with_constant_load
