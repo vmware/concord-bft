@@ -29,6 +29,8 @@ class MsgsCommunicator {
   int stopCommunication();
   void startMsgsProcessing(uint16_t replicaId);
   void stopMsgsProcessing();
+  uint32_t numOfConnectedReplicas(uint32_t clusterSize);
+  bool isUdp();
 
   [[nodiscard]] bool isMsgsProcessingRunning() const { return incomingMsgsStorage_->isRunning(); }
   int sendAsyncMessage(bft::communication::NodeNum destNode, char* message, size_t messageLength);

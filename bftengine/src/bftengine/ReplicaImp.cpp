@@ -711,7 +711,7 @@ void ReplicaImp::tryToAskForMissingInfo() {
 
   for (SeqNum i = minSeqNum; i <= lastRelatedSeqNum; i++) {
     if (!recentViewChange) {
-      tryToSendReqMissingDataMsg(i);
+      tryToSendReqMissingDataMsg(i, !KeyManager::get().keysExchanged);
     } else {
       if (isCurrentPrimary()) {
         tryToSendReqMissingDataMsg(i, true);  // This Replica is Primary, need to ask everyone else
@@ -940,6 +940,7 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
           (msgSeqNum > lastExecutedSeqNum + config_.concurrencyLevel);  // TODO(GG): check/improve this logic
 
       auto execution_span = concordUtils::startChildSpan("bft_execute_committed_reqs", span);
+      seqNumInfo.setIsCommittedInSlowPath(false);
       executeNextCommittedRequests(execution_span, askForMissingInfoAboutCommittedItems);
       return;
     } else if (pps.hasFullProof()) {
@@ -2348,7 +2349,10 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
   timeOfLastStateSynch = getMonotonicTime();  // TODO(GG): handle restart/pause
 
   clientsManager->loadInfoFromReservedPages();
-  KeyManager::get().loadKeysFromReservedPages();
+
+  if (ReplicaConfigSingleton::GetInstance().GetKeyExchangeOnStart()) {
+    KeyManager::get().loadKeysFromReservedPages();
+  }
 
   if (newStateCheckpoint > lastStableSeqNum + kWorkWindowSize) {
     const SeqNum refPoint = newStateCheckpoint - kWorkWindowSize;
@@ -3234,8 +3238,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
   // TODO(GG): use config ...
   dynamicUpperLimitOfRounds = new DynamicUpperLimitWithSimpleFilter<int64_t>(400, 2, 2500, 70, 32, 1000, 2, 2);
 
-  mainLog =
-      new SequenceWithActiveWindow<kWorkWindowSize, 1, SeqNum, SeqNumInfo, SeqNumInfo>(1, (InternalReplicaApi *)this);
+  mainLog.reset(new WindowOfSeqNumInfo(1, (InternalReplicaApi *)this));
+  pathDetector_.reset(new PathDetector(mainLog));
 
   checkpointsLog = new SequenceWithActiveWindow<kWorkWindowSize + 2 * checkpointWindowSize,
                                                 checkpointWindowSize,
@@ -3281,7 +3285,6 @@ ReplicaImp::~ReplicaImp() {
   delete viewsManager;
   delete controller;
   delete dynamicUpperLimitOfRounds;
-  delete mainLog;
   delete checkpointsLog;
   delete clientsManager;
   delete sigManager;
@@ -3341,11 +3344,18 @@ void ReplicaImp::start() {
   ReplicaForStateTransfer::start();
 
   // requires the init of state transfer
-  KeyManager::get(internalBFTClient_.get(),
-                  config_.replicaId,
-                  config_.numReplicas,
-                  stateTransfer.get(),
-                  ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage());
+  KeyManager::InitData id{};
+  id.cl = internalBFTClient_;
+  id.id = config_.replicaId;
+  id.clusterSize = config_.numReplicas;
+  id.reservedPages = stateTransfer.get();
+  id.sizeOfReservedPage = ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage();
+  id.pathDetect = pathDetector_;
+  id.timers = &timers_;
+  id.a = aggregator_;
+  id.interval = std::chrono::seconds(config_.metricsDumpIntervalSeconds);
+
+  KeyManager::start(&id);
   if (!firstTime_ || config_.debugPersistentStorageEnabled) clientsManager->loadInfoFromReservedPages();
   addTimers();
   recoverRequests();
@@ -3353,6 +3363,9 @@ void ReplicaImp::start() {
   // The following line will start the processing thread.
   // It must happen after the replica recovers requests in the main thread.
   msgsCommunicator_->startMsgsProcessing(config_.replicaId);
+  if (ReplicaConfigSingleton::GetInstance().GetKeyExchangeOnStart()) {
+    KeyManager::get().sendInitialKey();
+  }
 }
 
 void ReplicaImp::recoverRequests() {
@@ -3644,7 +3657,7 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     if (requestMissingInfo && !ready) {
       LOG_INFO(GL, "Asking for missing information: " << KVLOG(nextExecutedSeqNum, curView, lastStableSeqNum));
 
-      tryToSendReqMissingDataMsg(nextExecutedSeqNum);
+      tryToSendReqMissingDataMsg(nextExecutedSeqNum, !KeyManager::get().keysExchanged);
     }
 
     if (!ready) break;
