@@ -27,7 +27,6 @@ enum class EDBKeyType : std::uint8_t {
   E_DB_KEY_TYPE_BFT_METADATA_KEY,
   E_DB_KEY_TYPE_BFT_ST_KEY,
   E_DB_KEY_TYPE_BFT_ST_PENDING_PAGE_KEY,
-  E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_STATIC_KEY,
   E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_DYNAMIC_KEY,
   E_DB_KEY_TYPE_BFT_ST_CHECKPOINT_DESCRIPTOR_KEY,
   E_DB_KEY_TYPE_LAST
@@ -60,7 +59,6 @@ enum class EBFTSubtype : std::uint8_t {
   Metadata,
   ST,
   STPendingPage,
-  STReservedPageStatic,
   STReservedPageDynamic,
   STCheckpointDescriptor,
   STTempBlock,

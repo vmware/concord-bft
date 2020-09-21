@@ -32,8 +32,8 @@ class STKeyManipulator : public DBKeyGeneratorBase, public ISTKeyManipulator {
   concordUtils::Sliver generateStateTransferKey(ObjectId objectId) const override;
   concordUtils::Sliver generateSTPendingPageKey(uint32_t pageid) const override;
   concordUtils::Sliver generateSTCheckpointDescriptorKey(uint64_t chkpt) const override;
-  concordUtils::Sliver generateSTReservedPageStaticKey(uint32_t pageid, uint64_t chkpt) const override;
   concordUtils::Sliver generateSTReservedPageDynamicKey(uint32_t pageid, uint64_t chkpt) const override;
+  concordUtils::Sliver getReservedPageKeyPrefix() const override;
 
   static uint64_t extractCheckPointFromKey(const char* _key_data, size_t _key_length);
   static std::pair<uint32_t, uint64_t> extractPageIdAndCheckpointFromKey(const char* _key_data, size_t _key_length);

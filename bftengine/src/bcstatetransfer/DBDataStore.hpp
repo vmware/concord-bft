@@ -223,10 +223,6 @@ class DBDataStore : public DataStore {
   Sliver dynamicResPageKey(uint32_t pageid, uint64_t chkpt) const {
     return keymanip_->generateSTReservedPageDynamicKey(pageid, chkpt);
   }
-  Sliver staticResPageKey(uint32_t pageid, uint64_t chkpt) const {
-    static uint64_t maxStored = inmem_->getMaxNumOfStoredCheckpoints();
-    return keymanip_->generateSTReservedPageStaticKey(pageid, chkpt % maxStored + 1);
-  }
   Sliver pendingPageKey(uint32_t pageid) const { return keymanip_->generateSTPendingPageKey(pageid); }
   Sliver chkpDescKey(uint64_t chkpt) const { return keymanip_->generateSTCheckpointDescriptorKey(chkpt); }
   Sliver genKey(const ObjectId& objId) const { return keymanip_->generateStateTransferKey(objId); }

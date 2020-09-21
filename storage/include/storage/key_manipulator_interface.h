@@ -31,8 +31,8 @@ class ISTKeyManipulator {
   virtual concordUtils::Sliver generateStateTransferKey(ObjectId objectId) const = 0;
   virtual concordUtils::Sliver generateSTPendingPageKey(uint32_t pageid) const = 0;
   virtual concordUtils::Sliver generateSTCheckpointDescriptorKey(uint64_t chkpt) const = 0;
-  virtual concordUtils::Sliver generateSTReservedPageStaticKey(uint32_t pageId, uint64_t chkpt) const = 0;
   virtual concordUtils::Sliver generateSTReservedPageDynamicKey(uint32_t pageId, uint64_t chkpt) const = 0;
+  virtual concordUtils::Sliver getReservedPageKeyPrefix() const = 0;
   virtual ~ISTKeyManipulator() = default;
 };
 

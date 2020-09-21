@@ -84,17 +84,17 @@ Sliver STKeyManipulator::generateSTCheckpointDescriptorKey(uint64_t chkpt) const
   copyToAndAdvance(keyBuf, &offset, keySize, (char *)&chkpt, sizeof(chkpt));
   return Sliver(keyBuf, keySize);
 }
-/**
- * Format : Key Type | Page Id | Checkpoint
- */
-Sliver STKeyManipulator::generateSTReservedPageStaticKey(uint32_t pageid, uint64_t chkpt) const {
-  return generateReservedPageKey(EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_STATIC_KEY, pageid, chkpt);
-}
+
 /**
  * Format : Key Type | Page Id | Checkpoint
  */
 Sliver STKeyManipulator::generateSTReservedPageDynamicKey(uint32_t pageid, uint64_t chkpt) const {
   return generateReservedPageKey(EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_DYNAMIC_KEY, pageid, chkpt);
+}
+
+Sliver STKeyManipulator::getReservedPageKeyPrefix() const {
+  static Sliver s(std::string(1, static_cast<char>(EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_DYNAMIC_KEY)));
+  return s;
 }
 /**
  * Format : Key Type | Page Id | Checkpoint

@@ -67,7 +67,6 @@ SetOfKeyValuePairs generateMetadataAndStateTransfer() {
   updates[st_manipulator.generateStateTransferKey(1)] = std::string{"val"};
   updates[st_manipulator.generateSTPendingPageKey(1)] = std::string{"val"};
   updates[st_manipulator.generateSTCheckpointDescriptorKey(1)] = std::string{"val"};
-  updates[st_manipulator.generateSTReservedPageStaticKey(1, 1)] = std::string{"val"};
   updates[st_manipulator.generateSTReservedPageDynamicKey(1, 1)] = std::string{"val"};
   return updates;
 }

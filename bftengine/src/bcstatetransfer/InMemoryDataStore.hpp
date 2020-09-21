@@ -193,8 +193,9 @@ class InMemoryDataStore : public DataStore {
   map<ResPageKey, ResPageVal> pages;
 
   std::string getPagesForLog() {
-    std::ostringstream oss("reserved pages: ");
-    for (auto&& it : pages) oss << "[" << it.first.pageId << ":" << it.first.checkpoint << "]";
+    std::ostringstream oss;
+    oss << "reserved pages: ";
+    for (auto it : pages) oss << "[" << it.first.pageId << ":" << it.first.checkpoint << "]";
     return oss.str();
   }
 

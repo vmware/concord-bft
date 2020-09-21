@@ -196,16 +196,6 @@ TEST(key_manipulator, st_chkpt_desc_key) {
 }
 
 // Expected key structure with respective bit sizes:
-// [EDBKeyType::BFT: 8, EBFTSubtype::STReservedPageStatic: 8, pageId: 32, chkpt: 64]
-TEST(key_manipulator, st_res_page_static_key) {
-  const auto key = stKeyManip.generateSTReservedPageStaticKey(defaultPageId, defaultChkpt);
-  const auto expected = toSliver(serializeEnum(EDBKeyType::BFT) + serializeEnum(EBFTSubtype::STReservedPageStatic) +
-                                 serializeIntegral(defaultPageId) + serializeIntegral(defaultChkpt));
-  ASSERT_EQ(key.length(), 1 + 1 + 4 + 8);
-  ASSERT_TRUE(key == expected);
-}
-
-// Expected key structure with respective bit sizes:
 // [EDBKeyType::BFT: 8, EBFTSubtype::STReservedPageDynamic: 8, pageId: 32, chkpt: 64]
 TEST(key_manipulator, st_res_page_dynamic_key) {
   const auto key = stKeyManip.generateSTReservedPageDynamicKey(defaultPageId, defaultChkpt);

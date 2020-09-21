@@ -152,8 +152,6 @@ EBFTSubtype DBKeyManipulator::getBftSubtype(const Sliver &s) {
       return EBFTSubtype::ST;
     case toChar(EBFTSubtype::STPendingPage):
       return EBFTSubtype::STPendingPage;
-    case toChar(EBFTSubtype::STReservedPageStatic):
-      return EBFTSubtype::STReservedPageStatic;
     case toChar(EBFTSubtype::STReservedPageDynamic):
       return EBFTSubtype::STReservedPageDynamic;
     case toChar(EBFTSubtype::STCheckpointDescriptor):

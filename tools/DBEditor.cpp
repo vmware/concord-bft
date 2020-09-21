@@ -194,7 +194,6 @@ void parseAndPrint(const ::rocksdb::Slice &key, const ::rocksdb::Slice &val) {
       //      return (aChkpt > bChkpt) ? 1 : (bChkpt > aChkpt) ? -1 : 0;
       break;
     }
-    case detail::EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_STATIC_KEY:
     case detail::EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_DYNAMIC_KEY: {
       //      // Pages are sorted in ascending order, checkpoints in descending order
       //       uint32_t aPageId, bPageId;

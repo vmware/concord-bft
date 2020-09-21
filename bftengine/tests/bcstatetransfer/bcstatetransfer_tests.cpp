@@ -52,9 +52,9 @@ class BcStTest : public ::testing::Test {
  protected:
   void SetUp() override {
     // uncomment if needed
-//    logging::Logger::getInstance("serializable").setLogLevel(TRACE_LOG_LEVEL);
-//    logging::Logger::getInstance("concord.bft.st.dbdatastore").setLogLevel(TRACE_LOG_LEVEL);
-//    logging::Logger::getInstance("rocksdb").setLogLevel(TRACE_LOG_LEVEL);
+    //    logging::Logger::getInstance("serializable").setLogLevel(TRACE_LOG_LEVEL);
+    //    logging::Logger::getInstance("concord.bft.st.dbdatastore").setLogLevel(TRACE_LOG_LEVEL);
+    //    logging::Logger::getInstance("rocksdb").setLogLevel(TRACE_LOG_LEVEL);
 
     config_ = TestConfig();
     auto* db_key_comparator = new concord::kvbc::v1DirectKeyValue::DBKeyComparator();
