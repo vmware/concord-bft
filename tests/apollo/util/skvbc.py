@@ -17,7 +17,7 @@ import trio
 
 from collections import namedtuple
 from util.skvbc_exceptions import BadReplyError
-from util import apollo_logging as log
+from util import eliot_logging as log
 
 WriteReply = namedtuple('WriteReply', ['success', 'last_block_id'])
 

@@ -31,7 +31,7 @@ sys.path.append(os.path.abspath("../../util/pyclient"))
 import bft_config
 import bft_client
 import bft_metrics_client
-from util import bft_metrics, apollo_logging as log
+from util import bft_metrics, eliot_logging as log
 from util import skvbc as kvbc
 from util.bft_test_exceptions import AlreadyRunningError, AlreadyStoppedError
 
@@ -47,7 +47,6 @@ TestConfig = namedtuple('TestConfig', [
 ])
 
 KEY_FILE_PREFIX = "replica_keys_"
-
 
 def interesting_configs(selected=None):
     if selected is None:
@@ -146,7 +145,7 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                               f'with n={config.n}, f={config.f}, c={config.c}, '
                               f'num_clients={config.num_clients}, '
                               f'num_ro_replicas={config.num_ro_replicas}')
-                        with log.start_task(action_type=async_fn.__name__):
+                        with log.start_task(action_type=f"{bft_network.current_test}_num_clients={config.num_clients}"):
                             await async_fn(*args, **kwargs, bft_network=bft_network)
         return wrapper
 

@@ -12,7 +12,7 @@
 
 import time
 from enum import Enum
-from util import skvbc as kvbc, apollo_logging as log
+from util import skvbc as kvbc, eliot_logging as log
 import trio
 import random
 from functools import wraps
