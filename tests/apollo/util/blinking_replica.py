@@ -15,6 +15,7 @@
 
 import os
 import subprocess
+from util import eliot_logging as log
 
 
 class BlinkingReplica(object):
@@ -35,14 +36,14 @@ class BlinkingReplica(object):
     def start_blinking(self,start_replica_cmd):
         self.start_replica_cmd = start_replica_cmd
         self.blinker_process = subprocess.Popen(self._cmd_line(), close_fds=True)
-        print("Started blinking: {}".format(self._cmd_line()))
+        log.log_message(message_type=f'Started blinking: {self._cmd_line()}')
 
     def stop_blinking(self):
         if self.blinker_process:
             self.blinker_process.terminate()
             if self.blinker_process.wait() != 0:
                 raise Exception("Error occured while while stopping the blinker process")
-        print("Stopped blinking")
+        log.log_message(message_type="Stopped blinking")
 
     def _cmd_line(self):
         return ['python3',

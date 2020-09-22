@@ -144,10 +144,6 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                                                                      + "_n=" + str(bft_config['n']) \
                                                                      + "_f=" + str(bft_config['f']) \
                                                                      + "_c=" + str(bft_config['c'])
-                        print(f'Running {async_fn.__name__} '
-                              f'with n={config.n}, f={config.f}, c={config.c}, '
-                              f'num_clients={config.num_clients}, '
-                              f'num_ro_replicas={config.num_ro_replicas}')
                         with log.start_task(action_type=f"{bft_network.current_test}_num_clients={config.num_clients}"):
                             await async_fn(*args, **kwargs, bft_network=bft_network)
         return wrapper
@@ -235,7 +231,7 @@ class BftTestNetwork:
         #copy loggging.properties file
         shutil.copy(os.path.abspath("../simpleKVBC/scripts/logging.properties"), testdir)
 
-        print("Running test in {}".format(bft_network.testdir))
+        log.log_message(message_type=f"Running test in {bft_network.testdir}")
 
         os.chdir(bft_network.testdir)
         bft_network._generate_crypto_keys()
@@ -524,7 +520,7 @@ class BftTestNetwork:
                         value = await bft_network.metrics.get(replica_id, *key)
                     except KeyError:
                         # metrics not yet available, continue looping
-                        print(f"KeyError! '{mname}' not yet available.")
+                        log.log_message(message_type=f"KeyError! '{mname}' not yet available.")
                     else:
                         return value
 
@@ -539,7 +535,7 @@ class BftTestNetwork:
 
         In case of a timeout, fails with the provided err_msg
         """
-        with log.start_action(action_type="wait_for_view"):
+        with log.start_action(action_type="wait_for_view") as action:
             if expected is None:
                 expected = lambda _: True
 
@@ -547,10 +543,10 @@ class BftTestNetwork:
             nb_replicas_in_matching_view = 0
             try:
                 matching_view = await self._wait_for_matching_agreed_view(replica_id, expected)
-                print(f'Matching view #{matching_view} has been agreed among replicas.')
+                action.log(message_type=f'Matching view #{matching_view} has been agreed among replicas.')
 
                 nb_replicas_in_matching_view = await self._wait_for_active_view(matching_view)
-                print(f'View #{matching_view} is active on '
+                action.log(f'View #{matching_view} is active on '
                       f'{nb_replicas_in_matching_view} replicas '
                       f'({nb_replicas_in_matching_view} >= n-f = {self.config.n - self.config.f}).')
 
@@ -635,13 +631,13 @@ class BftTestNetwork:
         Bring down a sufficient number of replicas (excluding the primary),
         so that the remaining replicas form a quorum that includes replica_id
         """
-        with log.start_action(action_type="force_quorum_including_replica"):
+        with log.start_action(action_type="force_quorum_including_replica") as action:
             unstable_replicas = self.all_replicas(without={primary, replica_id})
 
             random.shuffle(unstable_replicas)
 
             for backup_replica_id in unstable_replicas:
-                print(f'Stopping backup replica {backup_replica_id} in order '
+                action.log(f'Stopping backup replica {backup_replica_id} in order '
                       f'to force a quorum including replica {replica_id}...')
                 self.stop_replica(backup_replica_id)
                 if len(self.procs) == 2 * self.config.f + self.config.c + 1:
@@ -714,7 +710,7 @@ class BftTestNetwork:
             up_to_date_node,
             stale_node,
             stop_on_stable_seq_num=False):
-        with log.start_action(action_type="wait_for_state_transfer_to_stop"):
+        with log.start_action(action_type="wait_for_state_transfer_to_stop") as action:
             with trio.fail_after(30): # seconds
                 # Get the lastExecutedSeqNumber from a started node
                 if stop_on_stable_seq_num:
@@ -741,7 +737,7 @@ class BftTestNetwork:
                                 on_transferring_complete = ['bc_state_transfer',
                                                             'Counters',
                                                             'on_transferring_complete']
-                                print("wait_for_st_to_stop: expected_seq_num={} "
+                                action.log(message_type="wait_for_st_to_stop: expected_seq_num={} "
                                       "last_stored_checkpoint={} "
                                       "on_transferring_complete_count={}".format(
                                             n,
