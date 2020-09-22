@@ -18,9 +18,12 @@
 
 namespace preprocessor {
 
+typedef enum { NOOP, PREPROCESS } RequiredOperation;
+
 class PreProcessRequestMsg : public MessageBase {
  public:
-  PreProcessRequestMsg(NodeIdType senderId,
+  PreProcessRequestMsg(RequiredOperation operation,
+                       NodeIdType senderId,
                        uint16_t clientId,
                        uint64_t reqSeqNum,
                        uint32_t reqLength,
@@ -30,6 +33,7 @@ class PreProcessRequestMsg : public MessageBase {
 
   void validate(const bftEngine::impl::ReplicasInfo&) const override;
   char* requestBuf() const { return body() + sizeof(Header) + spanContextSize(); }
+  const RequiredOperation operation() const { return msgBody()->operation; }
   const uint32_t requestLength() const { return msgBody()->requestLength; }
   const uint16_t clientId() const { return msgBody()->clientId; }
   const SeqNum reqSeqNum() const { return msgBody()->reqSeqNum; }
@@ -41,6 +45,7 @@ class PreProcessRequestMsg : public MessageBase {
 #pragma pack(push, 1)
   struct Header {
     MessageBase::Header header;
+    RequiredOperation operation;
     SeqNum reqSeqNum;
     uint16_t clientId;
     NodeIdType senderId;
@@ -54,7 +59,8 @@ class PreProcessRequestMsg : public MessageBase {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
     return logger_;
   }
-  void setParams(NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum, uint32_t reqLength);
+  void setParams(
+      RequiredOperation operation, NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum, uint32_t reqLength);
 
  private:
   Header* msgBody() const { return ((Header*)msgBody_); }

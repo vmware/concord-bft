@@ -15,7 +15,8 @@
 
 namespace preprocessor {
 
-PreProcessRequestMsg::PreProcessRequestMsg(NodeIdType senderId,
+PreProcessRequestMsg::PreProcessRequestMsg(RequiredOperation operation,
+                                           NodeIdType senderId,
                                            uint16_t clientId,
                                            uint64_t reqSeqNum,
                                            uint32_t reqLength,
@@ -24,7 +25,7 @@ PreProcessRequestMsg::PreProcessRequestMsg(NodeIdType senderId,
                                            const concordUtils::SpanContext& span_context)
     : MessageBase(
           senderId, MsgCode::PreProcessRequest, span_context.data().size(), (sizeof(Header) + reqLength + cid.size())) {
-  setParams(senderId, clientId, reqSeqNum, reqLength);
+  setParams(operation, senderId, clientId, reqSeqNum, reqLength);
   msgBody()->cidLength = cid.size();
   auto position = body() + sizeof(Header);
   memcpy(position, span_context.data().data(), span_context.data().size());
@@ -49,7 +50,9 @@ void PreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
-void PreProcessRequestMsg::setParams(NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum, uint32_t reqLength) {
+void PreProcessRequestMsg::setParams(
+    RequiredOperation operation, NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum, uint32_t reqLength) {
+  msgBody()->operation = operation;
   msgBody()->senderId = senderId;
   msgBody()->clientId = clientId;
   msgBody()->reqSeqNum = reqSeqNum;

@@ -40,6 +40,7 @@ class RequestProcessingState {
   std::unique_ptr<MessageBase> buildClientRequestMsg(bool resetPreProcessFlag);
   void setPreProcessRequest(PreProcessRequestMsgSharedPtr preProcessReqMsg);
   const PreProcessRequestMsgSharedPtr& getPreProcessRequest() const { return preProcessRequestMsg_; }
+  const ClientPreProcessReqMsgUniquePtr& getClientPreProcessRequest() const { return clientPreProcessReqMsg_; }
   const auto getClientId() const { return clientId_; }
   const SeqNum getReqSeqNum() const { return reqSeqNum_; }
   PreProcessingResult definePreProcessingConsensusResult();

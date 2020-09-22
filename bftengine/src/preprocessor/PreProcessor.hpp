@@ -94,6 +94,7 @@ class PreProcessor {
   void handleClientPreProcessRequestByPrimary(PreProcessRequestMsgSharedPtr preProcessRequestMsg);
   void handleClientPreProcessRequestByNonPrimary(ClientPreProcessReqMsgUniquePtr msg);
   void sendMsg(char *msg, NodeIdType dest, uint16_t msgType, MsgSize msgSize);
+  void sendNoOpPreProcessRequestMsg(const ClientPreProcessReqMsgUniquePtr &clientReqMsg);
   void sendPreProcessRequestToAllReplicas(const PreProcessRequestMsgSharedPtr &preProcessReqMsg);
   void resendPreProcessRequest(const RequestProcessingStateUniquePtr &clientReqStatePtr);
   void sendRejectPreProcessReplyMsg(NodeIdType clientId,
