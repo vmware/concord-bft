@@ -160,3 +160,102 @@ will warn you in your output if this happens, with a message like: `__main__:4:
 RuntimeWarning: coroutine 'sleep' was never awaited`. This is [documented
 well](https://trio.readthedocs.io/en/latest/tutorial.html#warning-don-t-forget-that-await)
 in the trio docs.
+
+#Causality tracking using Eliot logs
+
+## Motivation
+Apollo's tests contain lots of concurrency, it can be hard to track down why exactly a test failed,
+and what the partially ordered sequences of events that triggered the failure.
+We want to be able to track which test operations are causally related,
+so we can determine which code paths lead to the actual failures.
+While most failures in Apollo arise from exceptions, those exceptions are just proximate causes.
+We'd like to know what chain of events actually led to the raising of those exceptions in the first place.
+That's why we chose Eliot logging framework.
+
+## Overview
+Eliot provides a Python logging system that "helps the user to understand" what and why things happened in the application,
+and who called what.
+The system outputs a JSON format log file, another tool called Eliot-tree can produce from the JSON file,
+logs that can be reconstructed into a tree.
+This tree tells a story compiled of the events occurred,
+and help the user to understand the relations between the events documented in the logs.
+
+## Log location
+Eliot's logs will be printed to the console as well as to a file /apollo/logs directory.
+A log file will be generated for each test under his name.
+
+## Commands examples
+
+
+### Adding logs
+
+* Basic logging an action:
+
+    ```python
+    with start_action(action_type=u"store_data"):
+        x = get_data()
+        store_data(x)
+    ```
+  
+* Logging an action - integration with Trio:
+
+    ```python
+    async def say(message, delay):
+      with start_action(action_type="say", message=message):
+        await trio.sleep(delay)
+
+    async def main():
+        with start_action(action_type="main"):
+            async with trio.open_nursery() as nursery:
+                nursery.start_soon(say, "hello", 1)
+                nursery.start_soon(say, "world", 2)
+    ```
+  
+* Logging in an action context:
+
+    ```python
+    def func(self):
+      with start_action(action_type="func") as action:
+        action.log(message_type="mymessage")
+    ```
+  
+* Logging out of an action context:
+    
+    ```python
+    def other_func(x):
+      log_message(message_type="other_func")
+    ```
+  
+* Logging functions input/output:
+
+    ```python
+    @log_call
+    def calculate(x, y):
+      return x * y
+    ```
+  
+### Render and filter structured logs
+
+* Generate tree like structure
+
+    ```shell script
+    eliot-tree <log_file_name>
+    ```
+  
+* Generate compact one-message-per-line format with local timezone
+
+    ```shell script
+    cat <log_file_name> | eliot-prettyprint --compact --local-timezone
+    ```
+  
+* Select tasks after an ISO8601 date-time e.g. "2020-09-21 13:24:21"
+
+    ```shell script
+    eliot-tree <log_file_name> --start <YYYY-MM-DDT hh:mm:ss>
+    ```
+ 
+ * Select tasks before an ISO8601 date-time
+ 
+    ```shell script
+    eliot-tree <log_file_name> --end <YYYY-MM-DDT hh:mm:ss>
+    ```
