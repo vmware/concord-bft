@@ -23,6 +23,7 @@ namespace preprocessor {
 // This class collects and stores data relevant to the processing of one specific client request by all replicas.
 
 typedef enum { NONE, CONTINUE, COMPLETE, CANCEL, RETRY_PRIMARY } PreProcessingResult;
+typedef std::vector<ReplicaId> ReplicaIdsList;
 
 class RequestProcessingState {
  public:
@@ -51,6 +52,8 @@ class RequestProcessingState {
   std::string getReqCid() const { return clientPreProcessReqMsg_ ? clientPreProcessReqMsg_->getCid() : ""; }
   void detectNonDeterministicPreProcessing(const uint8_t* newHash, NodeIdType newSenderId) const;
   void releaseResources();
+  ReplicaIdsList getRejectedReplicasList() { return rejectedReplicaIds_; }
+  void resetRejectedReplicasList() { rejectedReplicaIds_.clear(); }
 
   static void init(uint16_t numOfRequiredReplies);
 
@@ -79,6 +82,7 @@ class RequestProcessingState {
   ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg_;
   PreProcessRequestMsgSharedPtr preProcessRequestMsg_;
   uint16_t numOfReceivedReplies_ = 0;
+  ReplicaIdsList rejectedReplicaIds_;
   const char* primaryPreProcessResult_ = nullptr;  // This memory is statically pre-allocated per client in PreProcessor
   uint32_t primaryPreProcessResultLen_ = 0;
   concord::util::SHA3_256::Digest primaryPreProcessResultHash_;

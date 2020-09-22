@@ -160,8 +160,9 @@ class UdpClient:
         """Reset any state that must be reset during retries"""
         self.primary = None
         self.retries += 1
-        self.rsi_replies = dict()
-        self.replies_manager.clear_replies()
+        if self.retries % 30 == 0:
+            self.rsi_replies = dict()
+            self.replies_manager.clear_replies()
 
     def reset_on_new_request(self):
         """Reset any state that must be reset during new requests"""

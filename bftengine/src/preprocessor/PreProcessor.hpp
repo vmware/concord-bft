@@ -80,6 +80,8 @@ class PreProcessor {
   template <typename T>
   void onMessage(T *msg);
 
+  bool registerReplicaDependentRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
+                                       PreProcessRequestMsgSharedPtr &preProcessRequestMsg);
   bool registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
                        PreProcessRequestMsgSharedPtr preProcessRequestMsg);
   void releaseClientPreProcessRequestSafe(uint16_t clientId, PreProcessingResult result);
@@ -89,11 +91,17 @@ class PreProcessor {
   bool validateMessage(MessageBase *msg) const;
   void registerMsgHandlers();
   bool checkClientMsgCorrectness(const ClientPreProcessReqMsgUniquePtr &clientReqMsg, ReqId reqSeqNum) const;
-  void handleClientPreProcessRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg);
-  void handleClientPreProcessRequestByPrimary(ClientPreProcessReqMsgUniquePtr clientReqMsg);
+  void handleClientPreProcessRequestByPrimary(PreProcessRequestMsgSharedPtr preProcessRequestMsg);
   void handleClientPreProcessRequestByNonPrimary(ClientPreProcessReqMsgUniquePtr msg);
   void sendMsg(char *msg, NodeIdType dest, uint16_t msgType, MsgSize msgSize);
   void sendPreProcessRequestToAllReplicas(const PreProcessRequestMsgSharedPtr &preProcessReqMsg);
+  void resendPreProcessRequest(const RequestProcessingStateUniquePtr &clientReqStatePtr);
+  void sendRejectPreProcessReplyMsg(NodeIdType clientId,
+                                    NodeIdType senderId,
+                                    SeqNum reqSeqNum,
+                                    SeqNum ongoingReqSeqNum,
+                                    const std::string &cid,
+                                    const std::string &ongoingCid);
   uint16_t getClientReplyBufferId(uint16_t clientId) const { return clientId - numOfReplicas_; }
   const char *getPreProcessResultBuffer(uint16_t clientId) const;
   void launchAsyncReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,

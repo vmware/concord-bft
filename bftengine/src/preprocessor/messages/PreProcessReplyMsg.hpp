@@ -17,6 +17,8 @@
 
 namespace preprocessor {
 
+typedef enum { STATUS_GOOD, STATUS_REJECT } ReplyStatus;
+
 class PreProcessReplyMsg : public MessageBase {
  public:
   PreProcessReplyMsg(bftEngine::impl::SigManagerSharedPtr sigManager,
@@ -24,13 +26,14 @@ class PreProcessReplyMsg : public MessageBase {
                      uint16_t clientId,
                      uint64_t reqSeqNum);
 
-  void setupMsgBody(const char* buf, uint32_t bufLen, const std::string& cid);
+  void setupMsgBody(const char* buf, uint32_t bufLen, const std::string& cid, ReplyStatus status);
 
   void validate(const bftEngine::impl::ReplicasInfo&) const override;
   const uint16_t clientId() const { return msgBody()->clientId; }
   const SeqNum reqSeqNum() const { return msgBody()->reqSeqNum; }
   const uint32_t replyLength() const { return msgBody()->replyLength; }
   const uint8_t* resultsHash() const { return msgBody()->resultsHash; }
+  const uint8_t status() const { return msgBody()->status; }
   std::string getCid() const;
 
  protected:
@@ -40,6 +43,7 @@ class PreProcessReplyMsg : public MessageBase {
     SeqNum reqSeqNum;
     NodeIdType senderId;
     uint16_t clientId;
+    uint8_t status;
     uint8_t resultsHash[concord::util::SHA3_256::SIZE_IN_BYTES];
     uint32_t replyLength;
     uint32_t cidLength;

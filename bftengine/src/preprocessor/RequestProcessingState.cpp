@@ -84,10 +84,17 @@ void RequestProcessingState::detectNonDeterministicPreProcessing(const uint8_t *
 }
 
 void RequestProcessingState::handlePreProcessReplyMsg(const PreProcessReplyMsgSharedPtr &preProcessReplyMsg) {
-  numOfReceivedReplies_++;
-  const auto newHashArray = convertToArray(preProcessReplyMsg->resultsHash());
-  preProcessingResultHashes_[newHashArray]++;  // Count equal hashes
-  detectNonDeterministicPreProcessing(newHashArray, preProcessReplyMsg->senderId());
+  const auto &senderId = preProcessReplyMsg->senderId();
+  if (preProcessReplyMsg->status() == STATUS_GOOD) {
+    numOfReceivedReplies_++;
+    const auto &newHashArray = convertToArray(preProcessReplyMsg->resultsHash());
+    preProcessingResultHashes_[newHashArray]++;  // Count equal hashes
+    detectNonDeterministicPreProcessing(newHashArray, senderId);
+  } else {
+    SCOPED_MDC_CID(cid_);
+    LOG_DEBUG(logger(), "Register rejected PreProcessReplyMsg" << KVLOG(senderId, reqSeqNum_, clientId_));
+    rejectedReplicaIds_.push_back(preProcessReplyMsg->senderId());
+  }
 }
 
 SHA3_256::Digest RequestProcessingState::convertToArray(const uint8_t resultsHash[SHA3_256::SIZE_IN_BYTES]) {
