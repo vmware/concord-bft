@@ -52,9 +52,9 @@ class BcStTest : public ::testing::Test {
  protected:
   void SetUp() override {
     // uncomment if needed
-    //      log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("serializable")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
-    //      log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("DBDataStore")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
-    //      log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("rocksdb")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
+    //    logging::Logger::getInstance("serializable").setLogLevel(TRACE_LOG_LEVEL);
+    //    logging::Logger::getInstance("concord.bft.st.dbdatastore").setLogLevel(TRACE_LOG_LEVEL);
+    //    logging::Logger::getInstance("rocksdb").setLogLevel(TRACE_LOG_LEVEL);
 
     config_ = TestConfig();
     auto* db_key_comparator = new concord::kvbc::v1DirectKeyValue::DBKeyComparator();
@@ -70,6 +70,7 @@ class BcStTest : public ::testing::Test {
     auto* datastore = new InMemoryDataStore(config_.sizeOfReservedPage);
 #endif
     st_ = new BCStateTran(config_, &app_state_, datastore);
+    st_->init(3, 32, 4096);
     ASSERT_FALSE(st_->isRunning());
     st_->startRunning(&replica_);
     ASSERT_TRUE(st_->isRunning());

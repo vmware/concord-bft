@@ -38,19 +38,22 @@ class Handoff {
         MDC_PUT(MDC_THREAD_KEY, "handoff");
         for (;;) pop()();
       } catch (ThreadCanceledException& e) {
-        LOG_DEBUG(getLogger(), "thread stopped " << std::this_thread::get_id());
+        LOG_INFO(getLogger(), "thread cancelled " << std::this_thread::get_id());
       } catch (const std::exception& e) {
         LOG_FATAL(getLogger(), "exception: " << e.what());
         std::terminate();
       }
     });
   }
-  ~Handoff() {
-    stopped_ = true;
+
+  ~Handoff() { stop(); }
+
+  void stop() {
+    if (stopped_.exchange(true)) return;
     queue_cond_.notify_one();
     auto tid = thread_.get_id();
     thread_.join();
-    LOG_DEBUG(getLogger(), "thread joined " << tid);
+    LOG_INFO(getLogger(), "thread joined " << tid);
   }
 
   void push(func_type f) {

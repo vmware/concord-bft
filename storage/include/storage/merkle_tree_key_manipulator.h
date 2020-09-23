@@ -27,8 +27,8 @@ class STKeyManipulator : public ISTKeyManipulator {
   concordUtils::Sliver generateStateTransferKey(ObjectId objectId) const override;
   concordUtils::Sliver generateSTPendingPageKey(uint32_t pageid) const override;
   concordUtils::Sliver generateSTCheckpointDescriptorKey(uint64_t chkpt) const override;
-  concordUtils::Sliver generateSTReservedPageStaticKey(uint32_t pageId, uint64_t chkpt) const override;
   concordUtils::Sliver generateSTReservedPageDynamicKey(uint32_t pageId, uint64_t chkpt) const override;
+  concordUtils::Sliver getReservedPageKeyPrefix() const override;
 };
 
 }  // namespace concord::storage::v2MerkleTree

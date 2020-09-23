@@ -22,9 +22,10 @@ ScopedMdc::~ScopedMdc() { MDC_REMOVE(key_); }
 }  // namespace logging
 
 // globally defined loggers
-logging::Logger GL = logging::getLogger("concord");
+logging::Logger GL = logging::getLogger("concord.bft");
 logging::Logger CNSUS = logging::getLogger("concord.bft.consensus");
-logging::Logger THRESHSIGN_LOG = logging::getLogger("concord.threshsign");
-logging::Logger BLS_LOG = logging::getLogger("concord.threshsign.bls");
-logging::Logger KEY_EX_LOG = logging::getLogger("concord.key-exchange");
-logging::Logger VC_LOG = logging::getLogger("concord.viewchange");
+logging::Logger THRESHSIGN_LOG = logging::getLogger("concord.bft.threshsign");
+logging::Logger BLS_LOG = logging::getLogger("concord.bft.threshsign.bls");
+logging::Logger KEY_EX_LOG = logging::getLogger("concord.bft.key-exchange");
+logging::Logger VC_LOG = logging::getLogger("concord.bft.viewchange");
+logging::Logger STLogger = logging::getLogger("concord.bft.st");

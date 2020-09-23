@@ -49,14 +49,13 @@ Sliver STKeyManipulator::generateSTCheckpointDescriptorKey(uint64_t chkpt) const
   return serialize(EBFTSubtype::STCheckpointDescriptor) + toBigEndianStringBuffer(chkpt);
 }
 
-Sliver STKeyManipulator::generateSTReservedPageStaticKey(uint32_t pageId, uint64_t chkpt) const {
-  return serialize(EBFTSubtype::STReservedPageStatic) + toBigEndianStringBuffer(pageId) +
-         toBigEndianStringBuffer(chkpt);
-}
-
 Sliver STKeyManipulator::generateSTReservedPageDynamicKey(uint32_t pageId, uint64_t chkpt) const {
   return serialize(EBFTSubtype::STReservedPageDynamic) + toBigEndianStringBuffer(pageId) +
          toBigEndianStringBuffer(chkpt);
+}
+Sliver STKeyManipulator::getReservedPageKeyPrefix() const {
+  static Sliver s(serialize(EBFTSubtype::STReservedPageDynamic));
+  return s;
 }
 
 }  // namespace concord::storage::v2MerkleTree

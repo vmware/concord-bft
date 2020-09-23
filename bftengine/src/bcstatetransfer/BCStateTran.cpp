@@ -31,7 +31,6 @@
 #include "storage/db_interface.h"
 #include "storage/key_manipulator_interface.h"
 #include "memorydb/client.h"
-#include "Handoff.hpp"
 
 // TODO(GG): for debugging - remove
 // #define DEBUG_SEND_CHECKPOINTS_IN_REVERSE_ORDER (1)
@@ -86,12 +85,6 @@ IStateTransfer *create(const Config &config,
 }
 
 namespace impl {
-
-//////////////////////////////////////////////////////////////////////////////
-// Logger
-//////////////////////////////////////////////////////////////////////////////
-
-logging::Logger STLogger = logging::getLogger("state-transfer");
 
 //////////////////////////////////////////////////////////////////////////////
 // Time
@@ -246,6 +239,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
                << " maxNumOfChunksInVBlock_=" << maxNumOfChunksInVBlock_);
 
   if (config_.isReadOnly) {
+    handoff_.reset(new concord::util::Handoff(config_.myReplicaId));
     messageHandler_ = std::bind(&BCStateTran::handoff, this, _1, _2, _3);
   } else {
     messageHandler_ = std::bind(&BCStateTran::handleStateTransferMessageImp, this, _1, _2, _3);
@@ -354,6 +348,7 @@ void BCStateTran::stopRunning() {
 
   ConcordAssert(running_);
   ConcordAssertNE(replicaForStateTransfer_, nullptr);
+  if (handoff_) handoff_->stop();
 
   // TODO(GG): cancel timer
 
@@ -448,6 +443,8 @@ STDigest BCStateTran::checkpointReservedPages(uint64_t checkpointNumber, DataSto
 
   STDigest digestOfResPagesDescriptor;
   computeDigestOfPagesDescriptor(allPagesDesc, digestOfResPagesDescriptor);
+
+  LOG_INFO(STLogger, allPagesDesc->toString(digestOfResPagesDescriptor.toString()));
 
   txn->free(allPagesDesc);
   return digestOfResPagesDescriptor;
@@ -648,7 +645,7 @@ void BCStateTran::onTimer() {
 }
 
 void BCStateTran::handleStateTransferMessage(char *msg, uint32_t msgLen, uint16_t senderId) {
-  ConcordAssert(running_);
+  if (!running_) return;
   bool invalidSender = replicas_.count(senderId) == 0;
   bool sentFromSelf = senderId == config_.myReplicaId;
   bool msgSizeTooSmall = msgLen < sizeof(BCStateTranBaseMsg);
@@ -693,8 +690,7 @@ void BCStateTran::addOnTransferringCompleteCallback(std::function<void(uint64_t)
 }
 
 void BCStateTran::handoff(char *msg, uint32_t msgLen, uint16_t senderId) {
-  static concord::util::Handoff handoff_(config_.myReplicaId);
-  handoff_.push(std::bind(&BCStateTran::handleStateTransferMessageImp, this, msg, msgLen, senderId));
+  handoff_->push(std::bind(&BCStateTran::handleStateTransferMessageImp, this, msg, msgLen, senderId));
 }
 
 // this function can be executed in context of another thread.
@@ -1869,7 +1865,6 @@ bool BCStateTran::checkBlock(uint64_t blockNum,
 bool BCStateTran::checkVirtualBlockOfResPages(const STDigest &expectedDigestOfResPagesDescriptor,
                                               char *vblock,
                                               uint32_t vblockSize) const {
-  LOG_DEBUG(STLogger, "");
   if (!checkStructureOfVirtualBlock(vblock, vblockSize, config_.sizeOfReservedPage)) {
     LOG_WARN(STLogger, "vblock has illegal structure");
     return false;
@@ -1892,7 +1887,7 @@ bool BCStateTran::checkVirtualBlockOfResPages(const STDigest &expectedDigestOfRe
 
   for (uint32_t element = 0; element < h->numberOfUpdatedPages; ++element) {
     ElementOfVirtualBlock *vElement = getVirtualElement(element, config_.sizeOfReservedPage, vblock);
-    LOG_DEBUG(STLogger, KVLOG(element, vElement->pageId, vElement->checkpointNumber, vElement->pageDigest));
+    LOG_TRACE(STLogger, KVLOG(element, vElement->pageId, vElement->checkpointNumber, vElement->pageDigest));
 
     STDigest computedPageDigest;
     computeDigestOfPage(
@@ -1910,6 +1905,7 @@ bool BCStateTran::checkVirtualBlockOfResPages(const STDigest &expectedDigestOfRe
 
   STDigest computedDigest;
   computeDigestOfPagesDescriptor(pagesDesc, computedDigest);
+  LOG_INFO(STLogger, pagesDesc->toString(computedDigest.toString()));
   psd_->free(pagesDesc);
 
   if (computedDigest != expectedDigestOfResPagesDescriptor) {
@@ -2327,6 +2323,7 @@ void BCStateTran::checkStoredCheckpoints(uint64_t firstStoredCheckpoint, uint64_
       {
         STDigest computedDigestOfResPagesDescriptor;
         computeDigestOfPagesDescriptor(allPagesDesc, computedDigestOfResPagesDescriptor);
+        LOG_INFO(STLogger, allPagesDesc->toString(computedDigestOfResPagesDescriptor.toString()));
         ConcordAssertEQ(computedDigestOfResPagesDescriptor, desc.digestOfResPagesDescriptor);
       }
       // check all pages descriptors

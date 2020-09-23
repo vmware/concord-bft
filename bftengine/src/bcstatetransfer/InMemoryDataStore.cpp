@@ -15,6 +15,8 @@
 
 #include "InMemoryDataStore.hpp"
 #include "assertUtils.hpp"
+#include "Logger.hpp"
+#include "kvstream.h"
 
 namespace bftEngine {
 namespace SimpleBlockchainStateTransfer {
@@ -288,12 +290,14 @@ void InMemoryDataStore::deleteCoveredResPageInSmallerCheckpoints(uint64_t inMinR
   uint32_t prevItemPageId = iter->first.pageId;
   bool prevItemIsInLastRelevantCheckpoint = (iter->first.checkpoint <= inMinRelevantCheckpoint);
 
+  std::ostringstream oss("deleted: ");
   iter++;
 
   while (iter != pages.end()) {
     if (iter->first.pageId == prevItemPageId && prevItemIsInLastRelevantCheckpoint) {
       // delete
       ConcordAssert(iter->second.page != nullptr);
+      oss << "[" << iter->first.pageId << ":" << iter->first.checkpoint << "] ";
       std::free(iter->second.page);
       iter = pages.erase(iter);
     } else {
@@ -302,6 +306,7 @@ void InMemoryDataStore::deleteCoveredResPageInSmallerCheckpoints(uint64_t inMinR
       iter++;
     }
   }
+  LOG_DEBUG(logger(), oss.str());
 
   ConcordAssert(pages.size() <= (numberOfReservedPages_ * (maxNumOfStoredCheckpoints_ + 1)));
 }
@@ -321,15 +326,16 @@ DataStore::ResPagesDescriptor* InMemoryDataStore::getResPagesDescriptor(uint64_t
       SingleResPageDesc& singleDesc = desc->d[iter.first.pageId];
       if (singleDesc.relevantCheckpoint > 0) {
         ConcordAssert(singleDesc.relevantCheckpoint > iter.first.checkpoint);
+        LOG_TRACE(logger(), "skip: " << KVLOG(inCheckpoint, singleDesc.pageId, iter.first.checkpoint));
         continue;  // we already have a description for this pageId with a greater checkpoint num
       }
       singleDesc.pageId = iter.first.pageId;
       singleDesc.relevantCheckpoint = iter.first.checkpoint;
       singleDesc.pageDigest = iter.second.pageDigest;
 
-      LOG_DEBUG(logger(),
-                "pageId: " << singleDesc.pageId << " relevantCheckpoint: " << singleDesc.relevantCheckpoint
-                           << " digest: " << singleDesc.pageDigest.toString());
+      LOG_TRACE(
+          logger(),
+          KVLOG(inCheckpoint, singleDesc.pageId, singleDesc.relevantCheckpoint, singleDesc.pageDigest.toString()));
     }
   }
   return desc;

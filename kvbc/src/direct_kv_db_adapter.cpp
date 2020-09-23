@@ -124,9 +124,8 @@ int DBKeyComparator::composedKeyComparison(const char *_a_data,
       bChkpt = storage::v1DirectKeyValue::STKeyManipulator::extractCheckPointFromKey(_b_data, _b_length);
       return (aChkpt > bChkpt) ? 1 : (bChkpt > aChkpt) ? -1 : 0;
     }
-    case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_STATIC_KEY:
     case EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_DYNAMIC_KEY: {
-      // Pages are sorted in ascending order, checkpoints in descending order
+      // Pages are sorted in ascending order, checkpoints in ascending order
       uint32_t aPageId, bPageId;
       uint64_t aChkpt, bChkpt;
       std::tie(aPageId, aChkpt) =
@@ -134,7 +133,7 @@ int DBKeyComparator::composedKeyComparison(const char *_a_data,
       std::tie(bPageId, bChkpt) =
           storage::v1DirectKeyValue::STKeyManipulator::extractPageIdAndCheckpointFromKey(_b_data, _b_length);
       if (aPageId != bPageId) return (aPageId > bPageId) ? 1 : (bPageId > aPageId) ? -1 : 0;
-      return (aChkpt < bChkpt) ? 1 : (aChkpt > bChkpt) ? -1 : 0;
+      return (aChkpt < bChkpt) ? -1 : (aChkpt > bChkpt) ? 1 : 0;
     }
     case EDBKeyType::E_DB_KEY_TYPE_KEY: {
       int keyComp = DBKeyManipulator::compareKeyPartOfComposedKey(_a_data, _a_length, _b_data, _b_length);

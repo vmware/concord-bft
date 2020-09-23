@@ -19,6 +19,7 @@
 #include "assertUtils.hpp"
 #include "storage/db_interface.h"
 #include "STDigest.hpp"
+#include "Logger.hpp"
 
 using std::set;
 using concord::storage::ITransaction;
@@ -131,6 +132,15 @@ class DataStore : public std::enable_shared_from_this<DataStore> {
     static size_t size(uint32_t numberOfPages) {
       ConcordAssert(numberOfPages > 0);
       return sizeof(ResPagesDescriptor) + (numberOfPages - 1) * sizeof(SingleResPageDesc);
+    }
+    std::string toString(const std::string& digest) const {
+      std::ostringstream oss;
+      oss << "\nReserved pages descriptor: #pages: " << std::to_string(numOfPages) << "\n";
+      oss << "digest\t" << digest << "\n";
+      for (uint32_t i = 0; i < numOfPages; ++i)
+        if (d[i].relevantCheckpoint > 0)
+          oss << "[" << d[i].pageId << ":" << d[i].relevantCheckpoint << "]\t" << d[i].pageDigest.toString() << "\n";
+      return oss.str();
     }
   };
 

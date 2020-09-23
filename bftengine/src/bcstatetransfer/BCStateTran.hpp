@@ -33,6 +33,7 @@
 #include "Metrics.hpp"
 #include "SourceSelector.hpp"
 #include "callback_registry.hpp"
+#include "Handoff.hpp"
 
 using std::set;
 using std::map;
@@ -121,8 +122,8 @@ class BCStateTran : public IStateTransfer {
   uint64_t maxNumOfStoredCheckpoints_;
   uint64_t numberOfReservedPages_;
 
-  bool running_ = false;
-
+  std::atomic<bool> running_ = false;
+  std::unique_ptr<concord::util::Handoff> handoff_;
   IReplicaForStateTransfer* replicaForStateTransfer_ = nullptr;
 
   char* buffer_;  // temporary buffer
