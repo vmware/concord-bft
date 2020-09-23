@@ -452,20 +452,23 @@ STDigest BCStateTran::checkpointReservedPages(uint64_t checkpointNumber, DataSto
 
 void BCStateTran::deleteOldCheckpoints(uint64_t checkpointNumber, DataStoreTransaction *txn) {
   uint64_t minRelevantCheckpoint = 0;
-  if (checkpointNumber >= maxNumOfStoredCheckpoints_) {
+  if (checkpointNumber >= maxNumOfStoredCheckpoints_)
     minRelevantCheckpoint = checkpointNumber - maxNumOfStoredCheckpoints_ + 1;
-  }
 
   const uint64_t oldFirstStoredCheckpoint = txn->getFirstStoredCheckpoint();
+
+  if (minRelevantCheckpoint > 0)
+    while (minRelevantCheckpoint < checkpointNumber && !txn->hasCheckpointDesc(minRelevantCheckpoint))
+      minRelevantCheckpoint++;
+
+  LOG_DEBUG(STLogger, KVLOG(minRelevantCheckpoint, oldFirstStoredCheckpoint));
 
   if (minRelevantCheckpoint >= 2 && minRelevantCheckpoint > oldFirstStoredCheckpoint) {
     txn->deleteDescOfSmallerCheckpoints(minRelevantCheckpoint);
     txn->deleteCoveredResPageInSmallerCheckpoints(minRelevantCheckpoint);
   }
 
-  if (minRelevantCheckpoint > oldFirstStoredCheckpoint) {
-    txn->setFirstStoredCheckpoint(minRelevantCheckpoint);
-  }
+  if (minRelevantCheckpoint > oldFirstStoredCheckpoint) txn->setFirstStoredCheckpoint(minRelevantCheckpoint);
 
   txn->setLastStoredCheckpoint(checkpointNumber);
 
@@ -2109,29 +2112,10 @@ void BCStateTran::processData() {
       ConcordAssertGT(cp.checkpointNum, g.txn()->getLastStoredCheckpoint());
 
       g.txn()->setCheckpointDesc(cp.checkpointNum, cp);
-      g.txn()->setLastStoredCheckpoint(cp.checkpointNum);
       g.txn()->deleteCheckpointBeingFetched();
       g.txn()->setIsFetchingState(false);
 
-      // delete old checkpoints
-      uint64_t minRelevantCheckpoint = 0;
-      if (cp.checkpointNum >= maxNumOfStoredCheckpoints_)
-        minRelevantCheckpoint = cp.checkpointNum - maxNumOfStoredCheckpoints_ + 1;
-
-      if (minRelevantCheckpoint > 0) {
-        while (minRelevantCheckpoint < cp.checkpointNum && !g.txn()->hasCheckpointDesc(minRelevantCheckpoint))
-          minRelevantCheckpoint++;
-      }
-
-      const uint64_t oldFirstStoredCheckpoint = g.txn()->getFirstStoredCheckpoint();
-      LOG_DEBUG(STLogger, KVLOG(minRelevantCheckpoint, oldFirstStoredCheckpoint));
-
-      if (minRelevantCheckpoint >= 2 && minRelevantCheckpoint > oldFirstStoredCheckpoint) {
-        g.txn()->deleteDescOfSmallerCheckpoints(minRelevantCheckpoint);
-        g.txn()->deleteCoveredResPageInSmallerCheckpoints(minRelevantCheckpoint);
-      }
-
-      if (minRelevantCheckpoint > oldFirstStoredCheckpoint) g.txn()->setFirstStoredCheckpoint(minRelevantCheckpoint);
+      deleteOldCheckpoints(cp.checkpointNum, g.txn());
 
       sourceSelector_.reset();
       metrics_.preferred_replicas_.Get().Set("");
