@@ -180,6 +180,12 @@ logs that can be reconstructed into a tree.
 This tree tells a story compiled of the events occurred,
 and help the user to understand the relations between the events documented in the logs.
 
+## Install Eliot components locally
+```shell script
+python3 -m pip install --upgrade eliot
+python3 -m pip install --upgrade eliot-tree
+```
+
 ## Log location
 Eliot's logs will be printed to the console as well as to a file /apollo/logs directory.
 A log file will be generated for each test under his name.
