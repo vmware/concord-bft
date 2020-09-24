@@ -19,7 +19,7 @@
 #include <vector>
 
 #include "assertUtils.hpp"
-#include "sha3_256.h"
+#include "sha_hash.hpp"
 
 namespace concord {
 namespace kvbc {

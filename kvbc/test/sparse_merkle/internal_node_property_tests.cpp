@@ -18,7 +18,7 @@
 
 #include "sparse_merkle/internal_node.h"
 #include "sliver.hpp"
-#include "sha3_256.h"
+#include "sha_hash.hpp"
 
 using concordUtils::Sliver;
 using concord::util::SHA3_256;

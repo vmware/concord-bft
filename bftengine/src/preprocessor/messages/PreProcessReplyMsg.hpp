@@ -12,7 +12,7 @@
 #pragma once
 
 #include "messages/MessageBase.hpp"
-#include "sha3_256.h"
+#include "sha_hash.hpp"
 #include <memory>
 
 namespace preprocessor {
