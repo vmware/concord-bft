@@ -53,6 +53,7 @@ jobs:
           run: |
             sudo chown -R $USER:$GROUP ${PWD}/build
             mv ${PWD}/build ${{ github.workspace }}/artifact/
+            cp /tmp/apollo ${{ github.workspace }}/artifact/
             ls -lh ${{ github.workspace }}/artifact/cores
             sudo chown -R $USER:$GROUP ${{ github.workspace }}/artifact/
         - name: Upload artifacts

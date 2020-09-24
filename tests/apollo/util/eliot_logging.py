@@ -19,7 +19,7 @@ def set_file_destination():
     test_dir = f'{logs_dir}{test_name}'
     test_log = f'{test_dir}/apollo_{test_name}.log'
 
-    if not os.path.isdir(logs_dir): #TODO check that it doesn't create conflicts with Hristo's dir creation.
+    if not os.path.isdir(logs_dir):
         # Create logs directory if not exist
         os.mkdir(logs_dir)
 
