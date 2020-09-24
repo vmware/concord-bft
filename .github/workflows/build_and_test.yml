@@ -47,7 +47,7 @@ jobs:
                               ${{ matrix.use_s3_obj_store }} \
                               -DUSE_OPENTRACING=ON \
                               -DOMIT_TEST_OUTPUT=OFF\" "\
-              && script -q -e -c "make test"
+              && script -q -e -c "make test -DKEEP_APOLLO_LOGS=TRUE"
         - name: Prepare artifacts
           if: failure()
           run: |
