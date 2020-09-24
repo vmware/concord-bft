@@ -39,7 +39,11 @@ foreach(STORAGE_TYPE ${STORAGE_TYPES})
           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
   add_test(NAME skvbc_linearizability_tests_${STORAGE_TYPE} COMMAND sudo sh -c
-          "env ${APOLLO_TEST_ENV} STORAGE_TYPE=${STORAGE_TYPE} python3 -m unittest test_skvbc_history_tracker test_skvbc_linearizability ${TEST_OUTPUT}"
+          "env ${APOLLO_TEST_ENV} STORAGE_TYPE=${STORAGE_TYPE} python3 -m unittest test_skvbc_linearizability ${TEST_OUTPUT}"
+          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+  add_test(NAME test_skvbc_history_tracker_${STORAGE_TYPE} COMMAND sudo sh -c
+          "env ${APOLLO_TEST_ENV} STORAGE_TYPE=${STORAGE_TYPE} python3 -m unittest test_skvbc_history_tracker ${TEST_OUTPUT}"
           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
   add_test(NAME skvbc_fast_path_tests_${STORAGE_TYPE} COMMAND sh -c

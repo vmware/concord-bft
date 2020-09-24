@@ -6,8 +6,7 @@ import sys
 
 def set_file_destination():
     storage_type = os.environ.get('STORAGE_TYPE')
-    tests_names = [m for m in sys.modules.keys() if "test_" in m]
-
+    tests_names = [m for m in sys.modules.keys() if m.startswith("test_")]
     if len(tests_names) > 1:
         # Multiple Apollo tests modules loaded, test name unknown.
         now = datetime.now().strftime("%y-%m-%d_%H:%M:%S")
@@ -16,18 +15,24 @@ def set_file_destination():
         # Single Apollo module loaded, test name known.
         test_name = f"{tests_names.pop()}_{storage_type}"
 
-    # Create logs directory if not exist
-    if not os.path.isdir("logs"):
-        os.mkdir("logs")
+    logs_dir = '/tmp/apollo/'
+    test_dir = f'{logs_dir}{test_name}'
+    test_log = f'{test_dir}/apollo_{test_name}.log'
 
-    test_name = f"logs/{test_name}.log"
+    if not os.path.isdir(logs_dir): #TODO check that it doesn't create conflicts with Hristo's dir creation.
+        # Create logs directory if not exist
+        os.mkdir(logs_dir)
 
-    if os.path.isfile(test_name):
+    if not os.path.isdir(test_dir):
+        # Create directory for the test logs
+        os.mkdir(test_dir)
+
+    if os.path.isfile(test_log):
         # Clean logs if file already exist
-        open(test_name, "w").close()
+        open(test_log, "w").close()
 
     # Set the log file path
-    to_file(open(test_name, "a"))
+    to_file(open(test_log, "a"))
 
 
 # Set logs to the console
