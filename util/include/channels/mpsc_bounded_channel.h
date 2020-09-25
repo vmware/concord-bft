@@ -131,10 +131,7 @@ class BoundedMpscSender {
   }
 
   BoundedMpscSender(const BoundedMpscSender& other) : BoundedMpscSender(other.queue_) {}
-  BoundedMpscSender& operator=(const BoundedMpscSender& other) {
-    *this = BoundedMpscSender(other);
-    return *this;
-  }
+  BoundedMpscSender& operator=(const BoundedMpscSender& other) = default;
   BoundedMpscSender(BoundedMpscSender&&) noexcept = default;
   BoundedMpscSender& operator=(BoundedMpscSender&&) noexcept = default;
 
