@@ -13,7 +13,6 @@
 
 #pragma once
 
-#include <cassert>
 #include <chrono>
 #include <condition_variable>
 #include <memory>
@@ -21,6 +20,7 @@
 #include <queue>
 #include <utility>
 
+#include "assertUtils.hpp"
 #include "channel.h"
 
 namespace concord::channel {
@@ -52,7 +52,7 @@ class BoundedMpscQueue {
     return buf_.size();
   }
 
-  std::optional<size_t> capacity() const {
+  size_t capacity() const {
     // No need for a lock, as capacity_ is immutable
     return capacity_;
   }
@@ -121,7 +121,7 @@ class BoundedMpscSender {
   }
 
   std::optional<size_t> size() const { return queue_->size(); }
-  std::optional<size_t> capacity() const { return queue_->capacity(); }
+  size_t capacity() const { return queue_->capacity(); }
 
   ~BoundedMpscSender() {
     // We must check if a queue still exists because of move semantics. A move doesn't alter the
@@ -205,7 +205,7 @@ class BoundedMpscReceiver {
   BoundedMpscReceiver(const std::shared_ptr<impl::BoundedMpscQueue<Msg>>& queue) : queue_(queue) {}
 
   Msg pop() {
-    assert(!queue_->buf_.empty());
+    ConcordAssert(!queue_->buf_.empty());
     auto msg = std::move(queue_->buf_.front());
     // This is exception unsafe if we change the underlying container to one where `pop` can throw.
     // When using the default deque, this is not possible, since this method is only called on

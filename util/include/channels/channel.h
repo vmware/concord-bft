@@ -26,6 +26,9 @@
 // multiple senders. With seperate sender and receiver types we make it so that we can make the sender copyable, but the
 // receiver unique.
 //
+// We distinguish between bounded and unbounded channels, since each is appropriate in different scenarios,
+// and the interfaces for the senders should be slightly different.
+//
 // Since a channel is based on static polymorphism, and concepts aren't supported in C++ 17, we
 // define the interfaces below with an example "NullChannel". All channels should support this
 // interface. The rationale for static polymorphism is three fold:
@@ -51,9 +54,9 @@ class NoReceiversError : public std::runtime_error {
   NoReceiversError() : std::runtime_error("All receivers have been destructed.") {}
 };
 
-// The interface for the sender side of a channel
+// The interface for the sender side of a bounded channel
 template <typename Msg>
-class NullSender {
+class BoundedNullSender {
   // Send a message over a channel.
   //
   // Sending a message on a channel must be non-blocking to prevent distributed deadlocks as a
@@ -77,9 +80,31 @@ class NullSender {
   // value will not be available at all. In those cases std::nullopt should be returned.
   std::optional<size_t> size() const { return std::nullopt; }
 
-  // Bounded channels should return how many messages they can store in their internal buffer.
-  // Unbounded channels should return std::nullopt;
-  std::optional<size_t> capacity() const { return std::nullopt; }
+  // Return how many messages can be store in the internal buffer.
+  size_t capacity() const { return 0; }
+};
+
+// The interface for the sender side of an unbounded channel
+template <typename Msg>
+class UnboundedNullSender {
+  // Send a message over a channel.
+  //
+  // Sending a message on a channel succeeds excepted in the following cases:
+  //   * There are no receivers - In this case a NoReceiversError will be thrown.
+  //   * Memory allocation fails - Only use unbounded channels when you don't expect this to be an issue.
+  //
+  // Throws NoReceiversError if all receivers have been destructed.
+  //
+  // It's important to note that there is a race condition, whereby a receiver can be destructed
+  // immediately after a successful send. There is no absolute guarantee of delivery. The
+  // purpose of returning an error is to prevent endlessly retrying and never noticing that the
+  // channel is effectively destroyed.
+  void send(Msg&& msg) {}
+
+  // Return how many elements are in the channel's internal buffer. For some channels, only an
+  // estimate will be avaialable, and for some others (mainly lock-free/wait-free) channels, this
+  // value will not be available at all. In those cases std::nullopt should be returned.
+  std::optional<size_t> size() const { return std::nullopt; }
 };
 
 // The interface for the receiver side of a channel
