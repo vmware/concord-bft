@@ -72,7 +72,7 @@ class NullSender {
   // channel is effectively destroyed.
   std::optional<Msg> send(Msg&& msg) { return std::nullopt; }
 
-  // Return how many elements are in the channels internal buffer. For some channels, only an
+  // Return how many elements are in the channel's internal buffer. For some channels, only an
   // estimate will be avaialable, and for some others (mainly lock-free/wait-free) channels, this
   // value will not be available at all. In those cases std::nullopt should be returned.
   std::optional<size_t> size() const { return std::nullopt; }
@@ -101,14 +101,14 @@ class NullReceiver {
   // Return std::nullopt if a timeout occurred.
   std::optional<Msg> recv(std::chrono::milliseconds timeout) { return std::nullopt; };
 
-  // Return how many elements are in the channels internal buffer. For some channels, only an
+  // Return how many elements are in the channel's internal buffer. For some channels, only an
   // estimate will be avaialable, and for some others (mainly lock-free/wait-free) channels, this
   // value will not be available at all. In those cases std::nullopt should be returned.
-  std::optional<size_t> size() { return std::nullopt; }
+  std::optional<size_t> size() const { return std::nullopt; }
 
   // Bounded channels should return how many messages they can store in their internal buffer.
   // Unbounded channels should return std::nullopt;
-  std::optional<size_t> capacity() { return std::nullopt; }
+  std::optional<size_t> capacity() const { return std::nullopt; }
 };
 
 }  // namespace concord::channel

@@ -13,6 +13,7 @@
 
 #pragma once
 
+#include <cassert>
 #include <chrono>
 #include <condition_variable>
 #include <memory>
@@ -46,12 +47,12 @@ class BoundedMpscQueue {
   template <typename T>
   friend class ::concord::channel::BoundedMpscReceiver;
 
-  std::optional<size_t> size() {
-    const std::lock_guard<std::mutex> lock(mutex_);
+  std::optional<size_t> size() const {
+    std::lock_guard<std::mutex> lock(mutex_);
     return buf_.size();
   }
 
-  std::optional<size_t> capacity() {
+  std::optional<size_t> capacity() const {
     // No need for a lock, as capacity_ is immutable
     return capacity_;
   }
@@ -62,7 +63,7 @@ class BoundedMpscQueue {
   }
 
   void removeSender() {
-    bool num_senders = 0;
+    size_t num_senders = 0;
     {
       const std::lock_guard<std::mutex> lock(mutex_);
       num_senders_--;
@@ -119,10 +120,12 @@ class BoundedMpscSender {
     return std::nullopt;
   }
 
-  std::optional<size_t> size() { return queue_->size(); }
-  std::optional<size_t> capacity() { return queue_->capacity(); }
+  std::optional<size_t> size() const { return queue_->size(); }
+  std::optional<size_t> capacity() const { return queue_->capacity(); }
 
   ~BoundedMpscSender() {
+    // We must check if a queue still exists because of move semantics. A move doesn't alter the
+    // number of senders so this is safe.
     if (!queue_) return;
     queue_->removeSender();
   }
@@ -142,7 +145,7 @@ class BoundedMpscSender {
 
   template <typename T>
   friend std::pair<BoundedMpscSender<T>, BoundedMpscReceiver<T>> makeBoundedMpscChannel(size_t capacity);
-};  // namespace concord::channel
+};
 
 template <typename Msg>
 class BoundedMpscReceiver {
@@ -182,10 +185,12 @@ class BoundedMpscReceiver {
     throw NoSendersError();
   }
 
-  std::optional<size_t> size() { return queue_->size(); }
-  std::optional<size_t> capacity() { return queue_->capacity(); }
+  std::optional<size_t> size() const { return queue_->size(); }
+  std::optional<size_t> capacity() const { return queue_->capacity(); }
 
   ~BoundedMpscReceiver() {
+    // We must check if a queue still exists because of move semantics. A move doesn't destroy a
+    // receiver so this is safe.
     if (queue_) {
       queue_->invalidateReceiver();
     }
@@ -203,7 +208,11 @@ class BoundedMpscReceiver {
   BoundedMpscReceiver(const std::shared_ptr<impl::BoundedMpscQueue<Msg>>& queue) : queue_(queue) {}
 
   Msg pop() {
+    assert(!queue_->buf_.empty());
     auto msg = std::move(queue_->buf_.front());
+    // This is exception unsafe if we change the underlying container to one where `pop` can throw.
+    // When using the default deque, this is not possible, since this method is only called on
+    // non-empty queues, and pop does not throw in that case.
     queue_->buf_.pop();
     return msg;
   }
@@ -219,8 +228,7 @@ class BoundedMpscReceiver {
 template <typename Msg>
 std::pair<BoundedMpscSender<Msg>, BoundedMpscReceiver<Msg>> makeBoundedMpscChannel(size_t capacity) {
   auto queue = std::make_shared<impl::BoundedMpscQueue<Msg>>(capacity);
-  auto pair = std::make_pair(BoundedMpscSender<Msg>(queue), BoundedMpscReceiver<Msg>(queue));
-  return pair;
+  return std::make_pair(BoundedMpscSender<Msg>(queue), BoundedMpscReceiver<Msg>(queue));
 }
 
 }  // namespace concord::channel
