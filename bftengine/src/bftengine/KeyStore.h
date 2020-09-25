@@ -31,13 +31,6 @@ struct KeyExchangeMsg : public concord::serialize::SerializableFactory<KeyExchan
   void deserializeDataMembers(std::istream& inStream);
 };
 
-// Interface for objects that need to be notified on key rotation
-class IKeyExchanger {
- public:
-  virtual void onExchange(const KeyExchangeMsg& msg) = 0;
-  virtual void onNewKey(const KeyExchangeMsg& msg) = 0;
-};
-
 // A replica's key store.
 // A queue with limit on its size.
 // Queue's object is the key msg and its corresponding seq num
@@ -86,14 +79,14 @@ class ReplicaKeyStore : public concord::serialize::SerializableFactory<ReplicaKe
 class ClusterKeyStore : public ResPagesClient<ClusterKeyStore, 2> {
  public:
   ClusterKeyStore(const uint32_t& clusterSize, IReservedPages& reservedPages, const uint32_t& sizeOfReservedPage);
-  bool push(const KeyExchangeMsg& kem, const uint64_t& sn, const std::vector<IKeyExchanger*>& registryToExchange);
+  bool push(const KeyExchangeMsg& kem, const uint64_t& sn);
   // iterate on all replcias
-  bool rotate(const uint64_t& chknum, const std::vector<IKeyExchanger*>& registryToExchange);
-  KeyExchangeMsg getReplicaKey(const uint16_t& repID) const;
+  std::vector<uint16_t> rotate(const uint64_t& chknum);
+  KeyExchangeMsg getReplicaPublicKey(const uint16_t& repID) const;
   uint16_t numKeys(const uint16_t& repID) const { return clusterKeys_[repID].numKeys(); }
 
   // Reserved Pages
-  void loadAllReplicasKeyStoresFromReservedPages();
+  bool loadAllReplicasKeyStoresFromReservedPages();
   std::optional<ReplicaKeyStore> loadReplicaKeyStoreFromReserevedPages(const uint16_t& repID);
 
   void saveAllReplicasKeyStoresToReservedPages();

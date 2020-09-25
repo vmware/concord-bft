@@ -11,6 +11,7 @@
 
 #include "MsgsCommunicator.hpp"
 #include "assertUtils.hpp"
+#include "communication/CommDefs.hpp"
 
 namespace bftEngine::impl {
 
@@ -52,4 +53,17 @@ int MsgsCommunicator::sendAsyncMessage(NodeNum destNode, char* message, size_t m
   return communication_->sendAsyncMessage(destNode, message, messageLength);
 }
 
+uint32_t MsgsCommunicator::numOfConnectedReplicas(uint32_t clusterSize) {
+  uint32_t ret{0};
+  for (uint32_t i = 0; i < clusterSize; ++i) {
+    if (communication_->getCurrentConnectionStatus(i) == ConnectionStatus::Disconnected) continue;
+    ++ret;
+  }
+  return ret;
+}
+
+bool MsgsCommunicator::isUdp() {
+  if (dynamic_cast<PlainUDPCommunication*>(communication_) == nullptr) return false;
+  return true;
+}
 }  // namespace bftEngine::impl

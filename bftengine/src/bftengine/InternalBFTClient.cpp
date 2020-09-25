@@ -10,7 +10,7 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "InternalBFTClient.h"
+#include "InternalBFTClient.hpp"
 #include "messages/ClientRequestMsg.hpp"
 #include "chrono"
 #include "Logger.hpp"
