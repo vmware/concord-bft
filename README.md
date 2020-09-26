@@ -55,7 +55,7 @@ sudo make test
 ### Docker
 
 * Install the latest docker.
-* Optional: [configure docker as non-root user](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user). 
+* Optional: [configure docker as non-root user](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user).
 * Build:
 ```sh
 cd concord-bft
@@ -137,7 +137,7 @@ The CI builds and runs tests in a docker container. To add a new dependency or t
   <br>where version is `current version + 1`.
 * Update the version in the Makefile
 * Make sure that Concord-BFT is built and tests pass with the new image: `make
-  build test`
+  stop-c build test`
 * Ask one of the maintainers for a temporary write permission to Docker Hub
   repository(you need to have a [Docker ID](https://docs.docker.com/docker-id/))
 * Push the image: `docker push concordbft/concord-bft:<version>`
@@ -228,4 +228,3 @@ Request a Slack invitation via <concordbft@gmail.com>.
 ## License
 
 concord-bft is available under the [Apache 2 license](LICENSE).
-

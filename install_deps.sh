@@ -53,7 +53,10 @@ apt-get ${APT_GET_FLAGS} install \
     libzstd-dev
 
 pip3 install --upgrade wheel && pip3 install --upgrade trio
-pip3 install eliot eliot-tree
+pip3 install \
+    eliot eliot-tree \
+    tatsu==4.4.0 \
+    pytest
 
 # Build 3rd parties
 cd ${HOME}
