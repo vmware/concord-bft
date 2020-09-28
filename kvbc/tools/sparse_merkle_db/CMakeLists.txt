@@ -4,5 +4,5 @@ target_include_directories(lib_sparse_merkle_db_editor INTERFACE include)
 
 if(BUILD_ROCKSDB_STORAGE)
 add_executable(sparse_merkle_db_editor src/sparse_merkle_db_editor.cpp)
-target_link_libraries(sparse_merkle_db_editor PUBLIC lib_sparse_merkle_db_editor util kvbc)
+target_link_libraries(sparse_merkle_db_editor PUBLIC lib_sparse_merkle_db_editor util kvbc stdc++fs)
 endif()
