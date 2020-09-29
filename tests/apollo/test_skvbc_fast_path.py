@@ -31,6 +31,7 @@ def start_replica_cmd(builddir, replica_id):
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
             "-s", statusTimerMilli,
+            "-e", str(True),
             "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower()
                     in set(["true", "on"])
                  else "",
@@ -60,6 +61,8 @@ class SkvbcFastPathTest(unittest.TestCase):
 
         Finally the decorator verifies the KV execution.
         """
+        await bft_network.do_key_exchange()
+
         bft_network.start_all_replicas()
         write_weight = .50
         numops = 100
@@ -88,6 +91,7 @@ class SkvbcFastPathTest(unittest.TestCase):
 
         Finally the decorator verifies the KV execution.
         """
+        await bft_network.do_key_exchange()
         bft_network.start_all_replicas()
 
         write_weight = 0.5
@@ -123,6 +127,8 @@ class SkvbcFastPathTest(unittest.TestCase):
 
         Finally the decorator verifies the KV execution.
         """
+        lastExecutedVal = await bft_network.do_key_exchange()
+
         bft_network.start_all_replicas()
         unstable_replicas = bft_network.all_replicas(without={0})
         for _ in range(bft_network.config.c):
@@ -130,10 +136,11 @@ class SkvbcFastPathTest(unittest.TestCase):
             bft_network.stop_replica(replica_to_stop)
         write_weight = 0.5
         # make sure we first downgrade to the slow path...
-
+        
         _, slow_path_writes = await tracker.run_concurrent_ops(
-            num_ops=self.evaluation_period_seq_num-1, write_weight=1)
-        await bft_network.wait_for_slow_path_to_be_prevalent()
+            num_ops=self.evaluation_period_seq_num-1-lastExecutedVal, write_weight=1)
+        
+        await bft_network.wait_for_slow_path_to_be_prevalent(as_of_seq_num=lastExecutedVal)
 
         # ...but eventually (after the evaluation period), the fast path is restored!
 

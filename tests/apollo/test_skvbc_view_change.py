@@ -36,6 +36,7 @@ def start_replica_cmd(builddir, replica_id):
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
+            "-e", str(True),
             "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower()
                     in set(["true", "on"])
                  else "",
@@ -59,6 +60,8 @@ class SkvbcViewChangeTest(unittest.TestCase):
         4) Verify the BFT network eventually transitions to the next view.
         5) Validate that there is no new block written.
         """
+        bft_network.do_key_exchange()
+
         bft_network.start_all_replicas()
 
         client = bft_network.random_client()
@@ -115,6 +118,8 @@ class SkvbcViewChangeTest(unittest.TestCase):
         4) Verify the BFT network eventually transitions to the next view.
         5) Perform a "read-your-writes" check in the new view
         """
+        await bft_network.do_key_exchange()
+
         await self._single_vc_with_consecutive_failed_replicas(
             bft_network,
             tracker,
@@ -135,6 +140,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         4) Verify the BFT network eventually transitions to the next view.
         5) Perform a "read-your-writes" check in the new view
         """
+        await bft_network.do_key_exchange()
         bft_network.start_all_replicas()
 
         n = bft_network.config.n
@@ -190,6 +196,8 @@ class SkvbcViewChangeTest(unittest.TestCase):
         two simultaneously crashed replicas (the primary and the non-primary that is
         missing the view change).
         """
+        await bft_network.do_key_exchange()
+
         bft_network.start_all_replicas()
 
         initial_primary = 0
@@ -227,6 +235,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         bft_network.start_replica(unstable_replica)
         await tracker.run_concurrent_ops(num_ops=10)
 
+
         await bft_network.wait_for_view(
             replica_id=unstable_replica,
             expected=lambda v: v == expected_next_primary,
@@ -247,6 +256,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         6) Send a batch of concurrent reads/writes
         7) Make sure the restarted replica is alive and that it works in the new view
         """
+        await bft_network.do_key_exchange()
         bft_network.start_all_replicas()
         initial_primary = 0
 
@@ -381,7 +391,8 @@ class SkvbcViewChangeTest(unittest.TestCase):
         5) Perform a "read-your-writes" check in the new view.
         6) We have to filter only configurations which support more than 2 faulty replicas.
         """
-        
+        await bft_network.do_key_exchange()
+		
         await self._single_vc_with_consecutive_failed_replicas(
             bft_network,
             tracker,
@@ -395,7 +406,6 @@ class SkvbcViewChangeTest(unittest.TestCase):
             num_consecutive_failing_primaries):
 
         bft_network.start_all_replicas()
-
         initial_primary = await bft_network.get_current_primary()
         initial_view = await bft_network.get_current_view()
         replcas_to_stop = [ v for v in range(initial_primary,

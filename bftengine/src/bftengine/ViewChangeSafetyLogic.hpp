@@ -13,6 +13,7 @@
 
 #include "messages/ViewChangeMsg.hpp"
 #include <vector>
+#include "threshsign/IThresholdVerifier.h"
 
 using std::vector;
 
@@ -40,7 +41,8 @@ class ViewChangeSafetyLogic {
                            const SeqNum inLBStableForView,
                            SeqNum& outMinRestrictedSeqNum,
                            SeqNum& outMaxRestrictedSeqNum,
-                           Restriction* outSafetyRestrictionsArray) const;
+                           Restriction* outSafetyRestrictionsArray,
+                           IThresholdVerifier* ver) const;
   // Notes about outSafetyRestrictionsArray:
   // - It should have kWorkWindowSize elements.
   // - If at the end of this method outMaxRestrictedSeqNum==0, then outSafetyRestrictionsArray is 'empty'
@@ -51,7 +53,8 @@ class ViewChangeSafetyLogic {
   bool computeRestrictionsForSeqNum(SeqNum s,
                                     vector<ViewChangeMsg::ElementsIterator*>& VCIterators,
                                     const SeqNum upperBound,
-                                    Digest& outRestrictedDigest) const;
+                                    Digest& outRestrictedDigest,
+                                    IThresholdVerifier* ver) const;
 
   const uint16_t N;  // number of replicas
   const uint16_t F;

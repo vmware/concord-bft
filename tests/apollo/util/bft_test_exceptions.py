@@ -40,3 +40,10 @@ class BadReplyError(Error):
     def __repr__(self):
         return f'{self.__class__.__name__}\n'
 
+class KeyExchangeError(Error):
+    def __init__(self):
+        pass
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}\n'
+

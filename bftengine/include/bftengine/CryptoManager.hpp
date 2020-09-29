@@ -16,10 +16,11 @@
 #include "threshsign/IThresholdSigner.h"
 #include "threshsign/IThresholdVerifier.h"
 #include "ReplicaConfig.hpp"
+#include "IKeyExchanger.hpp"
 
 namespace bftEngine {
 
-class CryptoManager {
+class CryptoManager : public IMultiSigKeyGenerator {
  public:
   static CryptoManager& instance(const ReplicaConfig* config = nullptr, Cryptosystem* cryptoSys = nullptr) {
     static CryptoManager cm_(config, cryptoSys);
@@ -38,8 +39,20 @@ class CryptoManager {
   std::shared_ptr<IThresholdVerifier> thresholdVerifierForOptimisticCommit() const {
     return thresholdVerifierForOptimisticCommit_;
   }
+  std::string getPublicKey() { return thresholdSignerForCommit()->getShareVerificationKey().toString(); }
+  std::string getPrivateKey() { return thresholdSignerForCommit()->getShareSecretKey().toString(); }
+  std::pair<std::string, std::string> generateNewKeyPair() { return std::make_pair(getPrivateKey(), getPublicKey()); }
 
-  std::pair<std::string, std::string> generateMultisigKeyPair() { return multiSigCryptoSystem_->generateNewKeyPair(); }
+  // IMultiSigKeyGenerator methods
+  std::pair<std::string, std::string> generateMultisigKeyPair() override {
+    return multiSigCryptoSystem_->generateNewKeyPair();
+  }
+  void onPrivateKeyExchange(const std::string& secretKey, const std::string& verificationKey) override {
+    updateMultisigKeys(secretKey, verificationKey);
+  }
+  void onPublicKeyExchange(const std::string& verificationKey, const std::uint16_t& signerIndex) override {
+    updateVerificationKeyForSigner(verificationKey, signerIndex);
+  }
 
  private:
   CryptoManager(const ReplicaConfig* config, Cryptosystem* cryptoSys)
@@ -61,7 +74,8 @@ class CryptoManager {
   }
 
   void updateVerificationKeyForSigner(const std::string& verificationKey, const std::uint16_t& signerIndex) {
-    multiSigCryptoSystem_->updateVerificationKey(verificationKey, signerIndex);
+    // the +1 is due to Crypto system starts counting from 1
+    multiSigCryptoSystem_->updateVerificationKey(verificationKey, signerIndex + 1);
     init();
   }
 

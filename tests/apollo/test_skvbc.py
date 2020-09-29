@@ -36,6 +36,7 @@ def start_replica_cmd(builddir, replica_id):
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
+            "-e", str(True),
             "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower()
                     in set(["true", "on"])
                  else "",
@@ -57,6 +58,8 @@ class SkvbcTest(unittest.TestCase):
         cluster with f=1 we should be able to stop a different node after state
         transfer completes and still operate correctly.
         """
+        await bft_network.do_key_exchange()
+
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         stale_node = random.choice(
@@ -83,6 +86,8 @@ class SkvbcTest(unittest.TestCase):
         By a blinking replic we mean a replica that goes up and down for random
         period of time
         """
+        await bft_network.do_key_exchange()
+
         with blinking_replica.BlinkingReplica() as blinking:
             br = random.choice(
                 bft_network.all_replicas(without={0}))
@@ -104,6 +109,8 @@ class SkvbcTest(unittest.TestCase):
         Ensure that we can put a block and use the GetBlockData API request to
         retrieve its KV pairs.
         """
+        await bft_network.do_key_exchange()
+
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
@@ -153,6 +160,7 @@ class SkvbcTest(unittest.TestCase):
         3) execute the conflicting write
         4) verify K' is not written to the blockchain
         """
+        await bft_network.do_key_exchange()
         bft_network.start_all_replicas()
 
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
