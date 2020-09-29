@@ -13,16 +13,9 @@
 #include <string>
 #include <cstdint>
 
-// Interface for objects that need to be notified on key rotation
-class IKeyExchanger {
+class ISaverLoader {
  public:
-  virtual ~IKeyExchanger() {}
-  virtual void onPublicKeyExchange(const std::string& msg, const std::uint16_t& signerIndex) = 0;
-  virtual void onPrivateKeyExchange(const std::string& secretKey, const std::string& verificationKey) = 0;
-};
-
-class IMultiSigKeyGenerator : public IKeyExchanger {
- public:
-  virtual ~IMultiSigKeyGenerator() {}
-  virtual std::pair<std::string, std::string> generateMultisigKeyPair() = 0;
+  virtual ~ISaverLoader() {}
+  virtual void save(const std::string& str) = 0;
+  virtual std::string load() = 0;
 };

@@ -88,6 +88,7 @@ struct ReplicaConfig {
 
   // RSA private key of the current replica
   std::string replicaPrivateKey;
+  std::string keyViewFile{"."};
 
   // Threshold crypto system
   std::string thresholdSystemType_;

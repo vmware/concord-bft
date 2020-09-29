@@ -19,6 +19,7 @@
 #include "Metrics.hpp"
 #include "SequenceWithActiveWindow.hpp"
 #include "SeqNumInfo.hpp"
+#include "bftengine/ISaverLoader.hpp"
 
 namespace bftEngine::impl {
 class KeyManager {
@@ -34,10 +35,47 @@ class KeyManager {
   // Register a IKeyExchanger to notification whehn keys are rotated.
   void registerForNotification(IKeyExchanger* ke);
   KeyExchangeMsg getReplicaPublicKey(const uint16_t& repID) const;
+  std::string getPrivateKey() { return keysView_.privateKey; }
   void loadKeysFromReservedPages();
 
   // loads the crypto system from a serialized key view.
+  static void loadCryptoKeysFromFile(const std::string& path, const uint16_t repID, const uint16_t numReplicas);
   std::atomic_bool keysExchanged{false};
+
+  // A private key has three states
+  // 1 - published to consensus.
+  // 2 - after consesnsus i.e. oustanding
+  // 3 - after desired check point i.e. the private key of the replica
+  // all three fields may be populated simulatanously
+
+  struct FileSaverLoader : public ISaverLoader {
+    FileSaverLoader(const std::string& path, uint16_t id) {
+      fileName += std::to_string(id);
+      fileName = path + "/" + fileName;
+    }
+    std::string fileName;
+    void save(const std::string& str);
+    std::string load();
+  };
+  struct KeysView : public concord::serialize::SerializableFactory<KeysView> {
+    KeysView(std::shared_ptr<ISaverLoader> sl, uint32_t clusterSize);
+    KeysView(){};
+    std::string publishPrivateKey;
+    std::string outstandingPrivateKey;
+    std::string privateKey;
+    std::vector<std::string> publicKeys;
+    static void rotate(std::string& dst, std::string& src);
+    std::shared_ptr<ISaverLoader> sl{nullptr};
+
+    void save();
+    void load();
+
+   protected:
+    const std::string getVersion() const;
+    void serializeDataMembers(std::ostream& outStream) const;
+    void deserializeDataMembers(std::istream& inStream);
+  };
+
   std::future<void> futureRet;
 
   struct InitData {
@@ -47,6 +85,8 @@ class KeyManager {
     IReservedPages* reservedPages{nullptr};
     uint32_t sizeOfReservedPage{};
     std::shared_ptr<IPathDetector> pathDetect;
+    IMultiSigKeyGenerator* kg{nullptr};
+    std::shared_ptr<ISaverLoader> sl;
     concordUtil::Timers* timers{nullptr};
     std::shared_ptr<concordMetrics::Aggregator> a;
     std::chrono::seconds interval;
@@ -75,6 +115,9 @@ class KeyManager {
   ClusterKeyStore keyStore_;
 
   std::shared_ptr<IPathDetector> pathDetector_;
+  IMultiSigKeyGenerator* multiSigKeyHdlr_{nullptr};
+  KeysView keysView_;
+
   void onInitialKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn);
   void notifyRegistry();
 

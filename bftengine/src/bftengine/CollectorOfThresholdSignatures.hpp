@@ -224,7 +224,7 @@ class CollectorOfThresholdSignatures {
     auto verifier = ExternalFunc::thresholdVerifier();
     bool succ = verifier->verify(
         (char*)&expectedDigest, sizeof(Digest), combinedSigMsg->signatureBody(), combinedSigMsg->signatureLen());
-    ConcordAssert(succ);  // we should verify this signature when it is loaded
+    if (!succ) throw std::runtime_error("failed to verify");
 
     combinedValidSignatureMsg = combinedSigMsg;
 
