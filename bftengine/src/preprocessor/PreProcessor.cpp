@@ -299,9 +299,9 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
     lock_guard<mutex> lock(clientEntry->mutex);
     // 1. If the request is passing consensus/PostExec right now:
     // - In case the request was received from the non-primary replica, the primary sends NOOP PreProcessRequestMsg
-    //   to the sender to release it from the waiting
-    // - In case the request was received directly from the client, it is ignored.
-    // 2. If any request is in a pre-processing - ignore/reject a new one.
+    //   to the sender to release it from waiting.
+    // - In case the request was received directly from the client, ignore it.
+    // 2. If any request is in a pre-processing - ignore/reject (with NOOP) a new one.
     const auto &ongoingReqState = clientEntry->reqProcessingStatePtr;
     if (ongoingReqState || myReplica_.isClientRequestInProcess(clientId, reqSeqNum)) {
       ReqId ongoingReqSeqNum = reqSeqNum;
@@ -599,7 +599,8 @@ void PreProcessor::handleClientPreProcessRequestByPrimary(PreProcessRequestMsgSh
   const auto &reqSeqNum = preProcessRequestMsg->reqSeqNum();
   const auto &clientId = preProcessRequestMsg->clientId();
   const auto &senderId = preProcessRequestMsg->senderId();
-  LOG_DEBUG(logger(), "Start request processing by a primary replica" << KVLOG(reqSeqNum, clientId, senderId));
+  SCOPED_MDC_CID(preProcessRequestMsg->getCid());
+  LOG_INFO(logger(), "Start request processing by a primary replica" << KVLOG(reqSeqNum, clientId, senderId));
   sendPreProcessRequestToAllReplicas(preProcessRequestMsg);
   // Pre-process the request and calculate a hash of the result
   launchAsyncReqPreProcessingJob(preProcessRequestMsg, true, false);
@@ -620,7 +621,7 @@ void PreProcessor::handleClientPreProcessRequestByNonPrimary(ClientPreProcessReq
   // Register a client request message with an empty PreProcessRequestMsg to allow follow up.
   if (registerRequest(move(clientReqMsg), PreProcessRequestMsgSharedPtr())) {
     SCOPED_MDC_CID(cid);
-    LOG_DEBUG(
+    LOG_INFO(
         logger(),
         "Start request processing by a non-primary replica" << KVLOG(reqSeqNum, clientId, senderId, reqTimeoutMilli));
     LOG_DEBUG(logger(),
