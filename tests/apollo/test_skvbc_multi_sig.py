@@ -120,73 +120,74 @@ class SkvbcMultiSig(unittest.TestCase):
                             self.assertEqual(value, 7)
                             break
 
-    # @with_trio
-    # @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)   
-    # @verify_linearizability()
-    # async def test_no_request_processing_till_initial_key_exchange(self, bft_network,tracker):
-    #     replicas = bft_network.random_set_of_replicas(6, without={2})
-    #     bft_network.start_replicas(replicas)
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)   
+    @verify_linearizability()
+    async def test_no_request_processing_till_initial_key_exchange(self, bft_network,tracker):
+        replicas = bft_network.random_set_of_replicas(6, without={2})
+        bft_network.start_replicas(replicas)
         
-    #     time.sleep(1)
+        time.sleep(1)
             
 
-    #     write_weight = 1
-    #     await tracker.run_concurrent_ops(num_ops=10, write_weight=write_weight)
+        write_weight = 1
+        await tracker.run_concurrent_ops(num_ops=10, write_weight=write_weight)
 
-    #     key = ['KeyManager', 'Counters', 'KeyExchangedOnStartCounter']
-    #     value = await bft_network.metrics.get(0, *key)
-    #     self.assertEqual(value, 0)
+        key = ['KeyManager', 'Counters', 'KeyExchangedOnStartCounter']
+        value = await bft_network.metrics.get(0, *key)
+        self.assertEqual(value, 0)
 
-    #     lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']
-    #     lastExecutedVal = await bft_network.metrics.get(0, *lastExecutedKey)
-    #     keyExDroppdMsgsKey = ['KeyManager', 'Counters', 'DroppedMsgsCounter']
-    #     keyExDroppdMsgsValue = await bft_network.metrics.get(0, *keyExDroppdMsgsKey)
-    #     self.assertGreaterEqual(keyExDroppdMsgsValue,lastExecutedVal)
+        lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']
+        lastExecutedVal = await bft_network.metrics.get(0, *lastExecutedKey)
+        keyExDroppdMsgsKey = ['KeyManager', 'Counters', 'DroppedMsgsCounter']
+        keyExDroppdMsgsValue = await bft_network.metrics.get(0, *keyExDroppdMsgsKey)
+        self.assertGreaterEqual(keyExDroppdMsgsValue,lastExecutedVal)
         
-    #     bft_network.start_replica(2)
+        bft_network.start_replica(2)
         
-    #     with trio.fail_after(seconds=120):
-    #         for replica_id in range(bft_network.config.n):
-    #             while True:
-    #                 with trio.move_on_after(seconds=1):
-    #                     try:
-    #                         key = ['KeyManager', 'Counters', 'KeyExchangedOnStartCounter']
-    #                         value = await bft_network.metrics.get(replica_id, *key)
-    #                         if value < 7:
-    #                             continue
-    #                     except trio.TooSlowError:
-    #                         print(
-    #                             f"Replica {replica_id} was not able to exchange keys on start")
-    #                         self.assertTrue(False)
-    #                     else:
-    #                         self.assertEqual(value, 7)
-    #                         break
+        with trio.fail_after(seconds=120):
+            for replica_id in range(bft_network.config.n):
+                while True:
+                    with trio.move_on_after(seconds=1):
+                        try:
+                            key = ['KeyManager', 'Counters', 'KeyExchangedOnStartCounter']
+                            value = await bft_network.metrics.get(replica_id, *key)
+                            if value < 7:
+                                continue
+                        except trio.TooSlowError:
+                            print(
+                                f"Replica {replica_id} was not able to exchange keys on start")
+                            self.assertTrue(False)
+                        else:
+                            self.assertEqual(value, 7)
+                            break
 
        
-    #     keyExDroppdMsgsKey = ['KeyManager', 'Counters', 'DroppedMsgsCounter']
-    #     keyExDroppdMsgsValueBefore = await bft_network.metrics.get(0, *keyExDroppdMsgsKey)                       
-    #     lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']
-    #     lastExecutedVal = await bft_network.metrics.get(replica_id, *lastExecutedKey)
-    #     await tracker.run_concurrent_ops(num_ops=100, write_weight=write_weight)
+        keyExDroppdMsgsKey = ['KeyManager', 'Counters', 'DroppedMsgsCounter']
+        keyExDroppdMsgsValueBefore = await bft_network.metrics.get(0, *keyExDroppdMsgsKey)                       
+        lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']
+        lastExecutedVal = await bft_network.metrics.get(replica_id, *lastExecutedKey)
+        await tracker.run_concurrent_ops(num_ops=100, write_weight=write_weight)
         
-    #     with trio.fail_after(seconds=40):
-    #             while True:
-    #                 with trio.move_on_after(seconds=1):
-    #                     try:
-    #                         lastExecutedValAfter = await bft_network.metrics.get(replica_id, *lastExecutedKey)
-    #                         keyExDroppdMsgsValueAfter = await bft_network.metrics.get(0, *keyExDroppdMsgsKey)  
-    #                         if lastExecutedValAfter == lastExecutedVal:
-    #                             continue
-    #                     except trio.TooSlowError:
-    #                         print(
-    #                             f"couldn't prove that msgs were processed fter key exchange")
-    #                         self.assertTrue(False)
-    #                     else:
-    #                         self.assertGreater(lastExecutedValAfter,lastExecutedVal)
-    #                         self.assertEqual(keyExDroppdMsgsValueBefore, keyExDroppdMsgsValueAfter)
-    #                         break
+        with trio.fail_after(seconds=40):
+                while True:
+                    with trio.move_on_after(seconds=1):
+                        try:
+                            lastExecutedValAfter = await bft_network.metrics.get(replica_id, *lastExecutedKey)
+                            keyExDroppdMsgsValueAfter = await bft_network.metrics.get(0, *keyExDroppdMsgsKey)  
+                            if lastExecutedValAfter == lastExecutedVal:
+                                continue
+                        except trio.TooSlowError:
+                            print(
+                                f"couldn't prove that msgs were processed fter key exchange")
+                            self.assertTrue(False)
+                        else:
+                            self.assertGreater(lastExecutedValAfter,lastExecutedVal)
+                            self.assertEqual(keyExDroppdMsgsValueBefore, keyExDroppdMsgsValueAfter)
+                            break
 
 
+# need to test view change within the first window e.g. view change at sn  == 70
 
         
         
