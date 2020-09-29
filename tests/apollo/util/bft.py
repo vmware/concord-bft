@@ -397,24 +397,18 @@ class BftTestNetwork:
         with log.start_action(action_type="start_replica"):
             stdout_file = None
             stderr_file = None
-            storage_type = os.environ.get("STORAGE_TYPE")
-            tests_names = [m for m in sys.modules.keys() if m.startswith("test_")]
-            if len(tests_names) > 1:
-                # Multiple Apollo tests modules loaded, test name unknown.
-                now = datetime.now().strftime("%y-%m-%d_%H:%M:%S")
-                test_name = f"{now}_{self.current_test}"
-            else:
-                # Single Apollo module loaded, test name known.
-                test_name = f"{tests_names.pop()}_{storage_type}"
-
-            test_dir = f"/tmp/apollo/{test_name}/{self.current_test}/"
-            test_log = f"{test_dir}stdout_{replica_id}.log"
 
             if os.environ.get('KEEP_APOLLO_LOGS', "").lower() in ["true", "on"]:
-                try:
-                    os.makedirs(test_dir)
-                except FileExistsError:
-                    pass
+                test_name = os.environ.get('TEST_NAME')
+
+                if not test_name:
+                    now = datetime.now().strftime("%y-%m-%d_%H:%M:%S")
+                    test_name = f"{now}_{self.current_test}"
+
+                test_dir = f"{self.builddir}/tests/apollo/logs/{test_name}/{self.current_test}/"
+                test_log = f"{test_dir}stdout_{replica_id}.log"
+
+                os.makedirs(test_dir, exist_ok=True)
 
                 stdout_file = open(test_log, 'w+')
                 stderr_file = open(test_log, 'w+')

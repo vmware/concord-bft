@@ -5,19 +5,15 @@ import sys
 
 
 def set_file_destination():
-    storage_type = os.environ.get('STORAGE_TYPE')
-    tests_names = [m for m in sys.modules.keys() if m.startswith("test_")]
-    if len(tests_names) > 1:
-        # Multiple Apollo tests modules loaded, test name unknown.
+    test_name = os.environ.get('TEST_NAME')
+
+    if not test_name:
         now = datetime.now().strftime("%y-%m-%d_%H:%M:%S")
         test_name = f"apollo_run_{now}"
-    else:
-        # Single Apollo module loaded, test name known.
-        test_name = f"{tests_names.pop()}_{storage_type}"
 
-    logs_dir = '/tmp/apollo/'
+    logs_dir = '../../build/tests/apollo/logs/'
     test_dir = f'{logs_dir}{test_name}'
-    test_log = f'{test_dir}/apollo_{test_name}.log'
+    test_log = f'{test_dir}/{test_name}.log'
 
     if not os.path.isdir(logs_dir):
         # Create logs directory if not exist
@@ -41,5 +37,7 @@ def stdout(message):
         print(message)
 
 
-add_destinations(stdout)
-set_file_destination()
+if os.environ.get('KEEP_APOLLO_LOGS', "").lower() in ["true", "on"]:
+    # Uncomment to see logs in console
+    #add_destinations(stdout)
+    set_file_destination()
