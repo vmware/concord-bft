@@ -55,13 +55,14 @@ class SkvbcChaosTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability()
-    async def test_healthy(self, bft_network, tracker):
+    async def test_healthy(self, bft_network, tracker,exchange_keys=True):
         """
         Run a bunch of concurrrent requests in batches and verify
         linearizability. The system is healthy and stable and no faults are
         intentionally generated.
         """
-        await bft_network.do_key_exchange()
+        if exchange_keys:
+            await bft_network.do_key_exchange()
         num_ops = 500
 
         self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)

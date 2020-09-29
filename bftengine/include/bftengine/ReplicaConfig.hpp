@@ -88,7 +88,6 @@ struct ReplicaConfig {
 
   // RSA private key of the current replica
   std::string replicaPrivateKey;
-  std::string keyViewFile{"."};
 
   // Threshold crypto system
   std::string thresholdSystemType_;
@@ -115,6 +114,7 @@ struct ReplicaConfig {
   uint64_t metricsDumpIntervalSeconds = 600;
 
   bool keyExchangeOnStart = false;
+
   /**
    * create a singleton instance from this object
    * call to this function will have effect only for the first time

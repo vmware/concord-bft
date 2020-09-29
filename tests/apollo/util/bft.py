@@ -901,26 +901,32 @@ class BftTestNetwork:
                             pass
     
     async def do_key_exchange(self):
-        self.start_all_replicas()
-        with trio.fail_after(seconds=20):
-            for replica_id in range(self.config.n):
-                while True:
-                    with trio.move_on_after(seconds=1):
-                        try:
-                            key = ['KeyManager', 'Counters', 'KeyExchangedOnStartCounter']
-                            value = await self.metrics.get(replica_id, *key)
-                            if value < self.config.n:
-                                continue
-                        except trio.TooSlowError:
-                            print(
-                                f"Replica {replica_id} was not able to exchange keys on start")
-                            raise KeyExchangeError
-                        else:
-                            assert value == self.config.n
-                            break
+        """
+        Performs initial key exchange, starts all replicas, validate the exchange and stops all replicas.
+        The stop is done in order for a test who uses this functionallity, to proceed wihtout imposing n up replicas.
+        """
+        with log.start_action(action_type="do_key_exchange"):
+            self.start_all_replicas()
+            with trio.fail_after(seconds=120):
+                for replica_id in range(self.config.n):
+                    while True:
+                        with trio.move_on_after(seconds=1):
+                            try:
+                                key = ['KeyManager', 'Counters', 'KeyExchangedOnStartCounter']
+                                value = await self.metrics.get(replica_id, *key)
+                                if value < self.config.n:
+                                    continue
+                            except trio.TooSlowError:
+                                print(
+                                    f"Replica {replica_id} was not able to exchange keys on start")
+                                raise KeyExchangeError
+                            else:
+                                assert value == self.config.n
+                                break
+                                
 
-        with trio.fail_after(seconds=5):
-            lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']
-            lastExecutedVal = await self.metrics.get(0, *lastExecutedKey)
-        self.stop_all_replicas()
-        return lastExecutedVal
+            with trio.fail_after(seconds=5):
+                lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']
+                lastExecutedVal = await self.metrics.get(0, *lastExecutedKey)
+            self.stop_all_replicas()
+            return lastExecutedVal

@@ -175,7 +175,7 @@ void ViewChangeSafetyLogic::computeRestrictions(ViewChangeMsg** const inViewChan
                                                 SeqNum& outMinRestrictedSeqNum,
                                                 SeqNum& outMaxRestrictedSeqNum,
                                                 Restriction* outSafetyRestrictionsArray,
-                                                IThresholdVerifier* ver) const {
+                                                std::shared_ptr<IThresholdVerifier> ver) const {
   const SeqNum lowerBound = inLBStableForView + 1;
   const SeqNum upperBound = inLBStableForView + kWorkWindowSize;
 
@@ -250,7 +250,7 @@ bool ViewChangeSafetyLogic::computeRestrictionsForSeqNum(SeqNum s,
                                                          vector<ViewChangeMsg::ElementsIterator*>& VCIterators,
                                                          const SeqNum upperBound,
                                                          Digest& outRestrictedDigest,
-                                                         IThresholdVerifier* ver) const {
+                                                         std::shared_ptr<IThresholdVerifier> ver) const {
   ConcordAssert(!VCIterators.empty());
   ConcordAssert(s <= upperBound);
 

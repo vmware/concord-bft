@@ -20,7 +20,7 @@
 
 namespace bftEngine {
 
-class CryptoManager : public IMultiSigKeyGenerator {
+class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
  public:
   static CryptoManager& instance(const ReplicaConfig* config = nullptr, Cryptosystem* cryptoSys = nullptr) {
     static CryptoManager cm_(config, cryptoSys);
@@ -39,9 +39,6 @@ class CryptoManager : public IMultiSigKeyGenerator {
   std::shared_ptr<IThresholdVerifier> thresholdVerifierForOptimisticCommit() const {
     return thresholdVerifierForOptimisticCommit_;
   }
-  std::string getPublicKey() { return thresholdSignerForCommit()->getShareVerificationKey().toString(); }
-  std::string getPrivateKey() { return thresholdSignerForCommit()->getShareSecretKey().toString(); }
-  std::pair<std::string, std::string> generateNewKeyPair() { return std::make_pair(getPrivateKey(), getPublicKey()); }
 
   // IMultiSigKeyGenerator methods
   std::pair<std::string, std::string> generateMultisigKeyPair() override {

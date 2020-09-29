@@ -34,7 +34,6 @@ def start_replica_cmd(builddir, replica_id):
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
-            "-e", str(True),
             "-a", autoPrimaryRotationTimeoutMilli,
             "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower()
                     in set(["true", "on"])
@@ -56,7 +55,6 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         3) Check that view change has occurred (necessarily, automatic view change)
         4) Perform a "read-your-writes" check in the new view
         """
-        await bft_network.do_key_exchange()
         bft_network.start_all_replicas()
 
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
@@ -86,7 +84,6 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         4) Check that view change has occurred (necessarily, automatic view change)
         5) Perform a "read-your-writes" check in the new view
         """
-        await bft_network.do_key_exchange()
         bft_network.start_all_replicas()
 
         initial_primary = 0
@@ -115,7 +112,6 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         4) Check that all writes have been processed on the fast commit path
         5) Perform a "read-your-writes" check in the new view
         """
-        await bft_network.do_key_exchange()
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         initial_primary = 0

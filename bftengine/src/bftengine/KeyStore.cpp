@@ -153,15 +153,15 @@ bool ClusterKeyStore::loadAllReplicasKeyStoresFromReservedPages() {
     // Unless for some reason we crashed before completing full exchange
     // TODO decide how we want to handle this error.
     if (exchangedReplicas.size() > 0) {
-      LOG_WARN(KEY_EX_LOG, "Partial set of replicas kyes were loaded from reserved pages");
+      LOG_WARN(KEY_EX_LOG, "Partial set of replicas keys were loaded from reserved pages");
       return false;
     }
 
-    LOG_INFO(KEY_EX_LOG, "No replicas kyes were loaded from reserved pages");
+    LOG_INFO(KEY_EX_LOG, "No replicas keys were loaded from reserved pages");
     return false;
   }
 
-  LOG_INFO(KEY_EX_LOG, "All replicas kyes were loaded from reserved pages");
+  LOG_INFO(KEY_EX_LOG, "All replicas keys were loaded from reserved pages");
   return true;
 }
 

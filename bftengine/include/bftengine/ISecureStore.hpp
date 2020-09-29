@@ -13,9 +13,9 @@
 #include <string>
 #include <cstdint>
 
-class ISaverLoader {
+class ISecureStore {
  public:
-  virtual ~ISaverLoader() {}
+  virtual ~ISecureStore() {}
   virtual void save(const std::string& str) = 0;
   virtual std::string load() = 0;
 };

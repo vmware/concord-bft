@@ -86,7 +86,7 @@ class SkvbcSlowPathTest(unittest.TestCase):
     @with_bft_network(start_replica_cmd,
                       num_clients=4)
     @verify_linearizability()
-    async def test_slow_to_fast_path_transition(self, bft_network, tracker):
+    async def test_slow_to_fast_path_transition(self, bft_network, tracker,exchange_keys=True):
         """
         This test aims to check that the system correctly restores
         the fast path once all failed nodes are back online.
@@ -104,7 +104,8 @@ class SkvbcSlowPathTest(unittest.TestCase):
 
         Finally we check if a known K/V has been executed and readable.
         """
-        await bft_network.do_key_exchange()
+        if exchange_keys:
+            await bft_network.do_key_exchange()
         num_ops = 20
         write_weight = 0.5
 
@@ -155,6 +156,7 @@ class SkvbcSlowPathTest(unittest.TestCase):
         num_ops = 10
         write_weight = 0.5
         bft_network.start_all_replicas()
+        n = bft_network.config.n
 
         _, fast_path_writes = await tracker.run_concurrent_ops(
             num_ops=num_ops, write_weight=1)
@@ -183,4 +185,4 @@ class SkvbcSlowPathTest(unittest.TestCase):
 
         bft_network.start_replica(0)
 
-        await bft_network.wait_for_slow_path_to_be_prevalent(as_of_seq_num=fast_path_writes,replica_id=randRep)
+        await bft_network.wait_for_slow_path_to_be_prevalent(as_of_seq_num=fast_path_writes + n,replica_id=randRep)

@@ -35,9 +35,7 @@ def start_replica_cmd(builddir, replica_id):
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
             "-e", str(True),
-            "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower()
-                    in set(["true", "on"])
-                 else "",
+            "-p",
             "-t", os.environ.get('STORAGE_TYPE')]
 
 
@@ -75,132 +73,49 @@ class SkvbcMultiSig(unittest.TestCase):
                             break
         
        
-
-        
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)   
     async def test_rough_initial_key_exchange(self, bft_network):
         """
-        Validates that if not all replicas are up, then key-exchnage msgs will be dropped and no execution will happen.
-        then when all replicas are available, key exchanged will be performed.
+        validates that the system can start with a partial set of replicas that exchanged keys.
+        The other will get the keys via ST
         """
-        
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         replicas = bft_network.random_set_of_replicas(6, without={2})
         bft_network.start_replicas(replicas)
         
-        time.sleep(5)
-
-        for replica_id in replicas:
-            key = ['KeyManager', 'Counters', 'KeyExchangedOnStartCounter']
-            value = await bft_network.metrics.get(replica_id, *key)
-            lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']
-            lastExecutedVal = await bft_network.metrics.get(replica_id, *lastExecutedKey)
-            self.assertEqual(value, 0)
-            self.assertGreater(lastExecutedVal, 0)
-
-        bft_network.start_replica(2)
-        time.sleep(2)
-
-        
         with trio.fail_after(seconds=20):
-            for replica_id in range(bft_network.config.n):
+            for replica_id in {0}:
                 while True:
                     with trio.move_on_after(seconds=1):
                         try:
                             key = ['KeyManager', 'Counters', 'KeyExchangedOnStartCounter']
                             value = await bft_network.metrics.get(replica_id, *key)
-                            if value < 7:
+                            if value < 6:
                                 continue
                         except trio.TooSlowError:
-                            print(
-                                f"Replica {replica_id} was not able to exchange keys on start")
                             self.assertTrue(False)
                         else:
-                            self.assertEqual(value, 7)
+                            self.assertEqual(value, 6)
                             break
 
-    @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)  
-    async def test_restart_after_initial_key_exchange_before_first_checkpoint(self, bft_network):
-        """
-        Validates that if not all replicas are up, then key-exchnage msgs will be dropped and no execution will happen.
-        then when all replicas are available, key exchanged will be performed.
-        """
-        
-        bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-
-        with trio.fail_after(seconds=20):
-            for replica_id in range(bft_network.config.n):
-                while True:
-                    with trio.move_on_after(seconds=1):
-                        try:
-                            key = ['KeyManager', 'Counters', 'KeyExchangedOnStartCounter']
-                            value = await bft_network.metrics.get(replica_id, *key)
-                            if value < 7:
-                                continue
-                        except trio.TooSlowError:
-                            print(
-                                f"Replica {replica_id} was not able to exchange keys on start")
-                            self.assertTrue(False)
-                        else:
-                            self.assertEqual(value, 7)
-                            break
-        
         lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']
-        lastExecutedValBefore = await bft_network.metrics.get(0, *lastExecutedKey)
-        # test slow path loading
+        lastExecutedValBefore = await bft_network.metrics.get(0, *lastExecutedKey)   
+        
+        await trio.sleep(5)
+        lastExecutedValAfter = await bft_network.metrics.get(0, *lastExecutedKey)   
+        self.assertEqual(lastExecutedValBefore, lastExecutedValAfter)                      
+        
+        # make key exchange complete with partial set of replcia
         bft_network.stop_replica(3)
-        await skvbc.write_known_kv()
-
-        with trio.fail_after(seconds=40):
-                while True:
-                    with trio.move_on_after(seconds=1):
-                        try:
-                            lastExecutedValAfter = await bft_network.metrics.get(0, *lastExecutedKey)
-                            if lastExecutedValAfter == lastExecutedValBefore:
-                                continue
-                        except trio.TooSlowError:
-                            print(
-                                f"couldn't prove that msgs were processed after key exchange")
-                            self.assertTrue(False)
-                        else:
-                            self.assertGreater(lastExecutedValAfter,lastExecutedValBefore)
-                            break
-
-        lastExecutedValBeforeCrash = await bft_network.metrics.get(2, *lastExecutedKey)                     
-        bft_network.stop_replica(2)
-        await trio.sleep(seconds=5)
+        time.sleep(2)
         bft_network.start_replica(2)
-        await skvbc.write_known_kv()
-        with trio.fail_after(seconds=40):
-                while True:
-                    with trio.move_on_after(seconds=1):
-                        try:
-                            lastExecutedValAfterCrash = await bft_network.metrics.get(2, *lastExecutedKey)
-                            if lastExecutedValAfterCrash == lastExecutedValBeforeCrash:
-                                continue
-                        except trio.TooSlowError:
-                            print(
-                                f"couldn't prove that msgs were processed after replicas restart")
-                            self.assertTrue(False)
-                        else:
-                            self.assertGreater(lastExecutedValAfterCrash,lastExecutedValBeforeCrash)
-                            break
 
-    @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)  
-    async def test_restart_after_initial_key_exchange_after_second_checkpoint(self, bft_network):
-        """
-        Validates that if not all replicas are up, then key-exchnage msgs will be dropped and no execution will happen.
-        then when all replicas are available, key exchanged will be performed.
-        """
-        
-        bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        for i in range(10):
+            await skvbc.write_known_kv()
 
         with trio.fail_after(seconds=20):
-            for replica_id in range(bft_network.config.n):
+            for replica_id in {0,2}:
                 while True:
                     with trio.move_on_after(seconds=1):
                         try:
@@ -216,102 +131,145 @@ class SkvbcMultiSig(unittest.TestCase):
                             self.assertEqual(value, 7)
                             break
 
-        lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']
+    
         await skvbc.fill_and_wait_for_checkpoint(
-            initial_nodes=bft_network.all_replicas(),
-            num_of_checkpoints_to_add=2,
+            initial_nodes=bft_network.all_replicas(without={3}),
+            num_of_checkpoints_to_add=3,
             verify_checkpoint_persistency=False
         )
+        # replica #3 should catch keys with ST
+        bft_network.start_replica(3)
+        await bft_network.wait_for_state_transfer_to_start()
+        await bft_network.wait_for_state_transfer_to_stop(0, 3)
+        await skvbc.assert_successful_put_get(self)
 
-        lastExecutedValBeforeCrash = await bft_network.metrics.get(2, *lastExecutedKey)                     
-        bft_network.stop_replica(2)
-        await trio.sleep(seconds=2)
-        bft_network.start_replica(2)
-        await skvbc.write_known_kv()
-        with trio.fail_after(seconds=40):
+        lastExecutedValST = await bft_network.metrics.get(3, *lastExecutedKey)
+
+        for i in range(10):
+            await skvbc.write_known_kv()
+
+        with trio.fail_after(seconds=20):
+            for replica_id in {3}:
                 while True:
                     with trio.move_on_after(seconds=1):
                         try:
-                            lastExecutedValAfterCrash = await bft_network.metrics.get(2, *lastExecutedKey)
-                            if lastExecutedValAfterCrash == lastExecutedValBeforeCrash:
+                            lastExecutedValSTAfter = await bft_network.metrics.get(3, *lastExecutedKey)
+                            if lastExecutedValSTAfter ==  lastExecutedValST:
+                                continue
+                        except trio.TooSlowError:
+                            self.assertTrue(False)
+                        else:
+                            self.assertGreater(lastExecutedValSTAfter, lastExecutedValST)
+                            break
+        
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)  
+    async def test_reload_fast_path_after_key_exchange(self, bft_network):
+        
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        with trio.fail_after(seconds=20):
+            for replica_id in range(bft_network.config.n):
+                while True:
+                    with trio.move_on_after(seconds=1):
+                        try:
+                            key = ['KeyManager', 'Counters', 'KeyExchangedOnStartCounter']
+                            value = await bft_network.metrics.get(replica_id, *key)
+                            if value < 7:
                                 continue
                         except trio.TooSlowError:
                             print(
-                                f"couldn't prove that msgs were processed after replicas restart")
+                                f"Replica {replica_id} was not able to exchange keys on start")
                             self.assertTrue(False)
                         else:
-                            self.assertGreater(lastExecutedValAfterCrash,lastExecutedValBeforeCrash)
+                            self.assertEqual(value, 7)
+                            break
+        
+        for i in range(20):
+            await skvbc.write_known_kv()
+
+        lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']
+        lastExecutedValBefore = await bft_network.metrics.get(3, *lastExecutedKey)
+        bft_network.stop_replica(3)
+        bft_network.start_replica(3)
+        for i in range(10):
+            await skvbc.write_known_kv()
+
+        with trio.fail_after(seconds=20):
+            for replica_id in {3}:
+                while True:
+                    with trio.move_on_after(seconds=1):
+                        try:
+                            lastExecutedValAfter = await bft_network.metrics.get(3, *lastExecutedKey)
+                            if lastExecutedValAfter ==  lastExecutedValBefore:
+                                continue
+                        except trio.TooSlowError:
+                            print(
+                                f"Replica {replica_id} was not able to exchange keys on start")
+                            self.assertTrue(False)
+                        else:
+                            self.assertEqual(value, 7)
+                            break
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)  
+    async def test_reload_slows_path_after_key_exchange(self, bft_network):
+        
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        with trio.fail_after(seconds=20):
+            for replica_id in range(bft_network.config.n):
+                while True:
+                    with trio.move_on_after(seconds=1):
+                        try:
+                            key = ['KeyManager', 'Counters', 'KeyExchangedOnStartCounter']
+                            value = await bft_network.metrics.get(replica_id, *key)
+                            if value < 7:
+                                continue
+                        except trio.TooSlowError:
+                            print(
+                                f"Replica {replica_id} was not able to exchange keys on start")
+                            self.assertTrue(False)
+                        else:
+                            self.assertEqual(value, 7)
+                            break
+        
+        bft_network.stop_replica(2)
+        for i in range(20):
+            await skvbc.write_known_kv()
+
+        lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']
+        lastExecutedValBefore = await bft_network.metrics.get(3, *lastExecutedKey)
+        bft_network.stop_replica(3)
+        bft_network.start_replica(3)
+        for i in range(10):
+            await skvbc.write_known_kv()
+
+        with trio.fail_after(seconds=20):
+            for replica_id in {3}:
+                while True:
+                    with trio.move_on_after(seconds=1):
+                        try:
+                            lastExecutedValAfter = await bft_network.metrics.get(3, *lastExecutedKey)
+                            if lastExecutedValAfter ==  lastExecutedValBefore:
+                                continue
+                        except trio.TooSlowError:
+                            print(
+                                f"Replica {replica_id} was not able to exchange keys on start")
+                            self.assertTrue(False)
+                        else:
+                            self.assertEqual(value, 7)
                             break
 
-
-
-
-    # @with_trio
-    # @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)   
-    # @verify_linearizability()
-    # async def test_no_request_processing_till_initial_key_exchange(self, bft_network,tracker):
-    #     replicas = bft_network.random_set_of_replicas(6, without={2})
-    #     bft_network.start_replicas(replicas)
-        
-    #     time.sleep(1)
-            
-
-    #     write_weight = 1
-    #     await tracker.run_concurrent_ops(num_ops=10, write_weight=write_weight)
-
-    #     key = ['KeyManager', 'Counters', 'KeyExchangedOnStartCounter']
-    #     value = await bft_network.metrics.get(0, *key)
-    #     self.assertEqual(value, 0)
-
-    #     lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']
-    #     lastExecutedVal = await bft_network.metrics.get(0, *lastExecutedKey)
-    #     keyExDroppdMsgsKey = ['KeyManager', 'Counters', 'DroppedMsgsCounter']
-    #     keyExDroppdMsgsValue = await bft_network.metrics.get(0, *keyExDroppdMsgsKey)
-    #     self.assertGreaterEqual(keyExDroppdMsgsValue,lastExecutedVal)
-        
-    #     bft_network.start_replica(2)
-        
-    #     with trio.fail_after(seconds=120):
-    #         for replica_id in range(bft_network.config.n):
-    #             while True:
-    #                 with trio.move_on_after(seconds=1):
-    #                     try:
-    #                         key = ['KeyManager', 'Counters', 'KeyExchangedOnStartCounter']
-    #                         value = await bft_network.metrics.get(replica_id, *key)
-    #                         if value < 7:
-    #                             continue
-    #                     except trio.TooSlowError:
-    #                         print(
-    #                             f"Replica {replica_id} was not able to exchange keys on start")
-    #                         self.assertTrue(False)
-    #                     else:
-    #                         self.assertEqual(value, 7)
-    #                         break
-
        
-    #     keyExDroppdMsgsKey = ['KeyManager', 'Counters', 'DroppedMsgsCounter']
-    #     keyExDroppdMsgsValueBefore = await bft_network.metrics.get(0, *keyExDroppdMsgsKey)                       
-    #     lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']
-    #     lastExecutedVal = await bft_network.metrics.get(replica_id, *lastExecutedKey)
-    #     await tracker.run_concurrent_ops(num_ops=100, write_weight=write_weight)
-        
-    #     with trio.fail_after(seconds=40):
-    #             while True:
-    #                 with trio.move_on_after(seconds=1):
-    #                     try:
-    #                         lastExecutedValAfter = await bft_network.metrics.get(replica_id, *lastExecutedKey)
-    #                         keyExDroppdMsgsValueAfter = await bft_network.metrics.get(0, *keyExDroppdMsgsKey)  
-    #                         if lastExecutedValAfter == lastExecutedVal:
-    #                             continue
-    #                     except trio.TooSlowError:
-    #                         print(
-    #                             f"couldn't prove that msgs were processed fter key exchange")
-    #                         self.assertTrue(False)
-    #                     else:
-    #                         self.assertGreater(lastExecutedValAfter,lastExecutedVal)
-    #                         self.assertEqual(keyExDroppdMsgsValueBefore, keyExDroppdMsgsValueAfter)
-    #                         break
 
+   
+
+
+
+
+    
 
 # need to test view change within the first window e.g. view change at sn  == 70
 

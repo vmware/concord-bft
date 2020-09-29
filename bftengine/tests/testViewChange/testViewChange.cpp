@@ -191,8 +191,8 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
       ViewChangeSafetyLogic(N, F, C, std::make_shared<DummyVerifier>(), PrePrepareMsg::digestOfNullPrePrepareMsg());
 
   SeqNum min{}, max{};
-  DummyVerifier ver;
-  VCS.computeRestrictions(viewChangeMsgs, VCS.calcLBStableForView(viewChangeMsgs), min, max, restrictions, &ver);
+  std::shared_ptr<IThresholdVerifier> ver{new DummyVerifier()};
+  VCS.computeRestrictions(viewChangeMsgs, VCS.calcLBStableForView(viewChangeMsgs), min, max, restrictions, ver);
 
   for (int i = 0; i < kWorkWindowSize; i++) {
     if (i == assignedSeqNum - min) {
@@ -306,8 +306,8 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
       ViewChangeSafetyLogic(N, F, C, std::make_shared<DummyVerifier>(), PrePrepareMsg::digestOfNullPrePrepareMsg());
 
   SeqNum min{}, max{};
-  DummyVerifier ver;
-  VCS.computeRestrictions(viewChangeMsgs, VCS.calcLBStableForView(viewChangeMsgs), min, max, restrictions, &ver);
+  std::shared_ptr<IThresholdVerifier> ver{new DummyVerifier()};
+  VCS.computeRestrictions(viewChangeMsgs, VCS.calcLBStableForView(viewChangeMsgs), min, max, restrictions, ver);
 
   for (int i = 0; i < kWorkWindowSize; i++) {
     if (i == assignedSeqNum - min) {
@@ -432,8 +432,8 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_one_i
       ViewChangeSafetyLogic(N, F, C, std::make_shared<DummyVerifier>(), PrePrepareMsg::digestOfNullPrePrepareMsg());
 
   SeqNum min{}, max{};
-  DummyVerifier ver;
-  VCS.computeRestrictions(viewChangeMsgs, VCS.calcLBStableForView(viewChangeMsgs), min, max, restrictions, &ver);
+  std::shared_ptr<IThresholdVerifier> ver{new DummyVerifier()};
+  VCS.computeRestrictions(viewChangeMsgs, VCS.calcLBStableForView(viewChangeMsgs), min, max, restrictions, ver);
 
   // Check that the reported lowest meaningful sequence number for the
   // View Change (min) is above the one that is below the last stable

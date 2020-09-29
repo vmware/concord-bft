@@ -49,7 +49,7 @@ class SkvbcTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_state_transfer(self, bft_network):
+    async def test_state_transfer(self, bft_network,exchange_keys=True):
         """
         Test that state transfer starts and completes.
 
@@ -58,7 +58,8 @@ class SkvbcTest(unittest.TestCase):
         cluster with f=1 we should be able to stop a different node after state
         transfer completes and still operate correctly.
         """
-        await bft_network.do_key_exchange()
+        if exchange_keys:
+            await bft_network.do_key_exchange()
 
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
@@ -67,6 +68,7 @@ class SkvbcTest(unittest.TestCase):
 
         await skvbc.prime_for_state_transfer(
             stale_nodes={stale_node},
+            checkpoints_num=3, # key-exchange channges the last executed seqnum
             persistency_enabled=False
         )
         bft_network.start_replica(stale_node)
@@ -104,12 +106,13 @@ class SkvbcTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_get_block_data(self, bft_network):
+    async def test_get_block_data(self, bft_network,exchange_keys=True):
         """
         Ensure that we can put a block and use the GetBlockData API request to
         retrieve its KV pairs.
         """
-        await bft_network.do_key_exchange()
+        if exchange_keys:
+            await bft_network.do_key_exchange()
 
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)

@@ -77,8 +77,6 @@ class SeqNumInfo {
   PartialProofsSet& partialProofs();
   void startSlowPath();
   bool slowPathStarted();
-  bool isCommittedInSlowPath() { return isCommittedInSlowPath_; }
-  void setIsCommittedInSlowPath(const bool isSlow) { isCommittedInSlowPath_ = isSlow; }
 
   void setTimeOfLastInfoRequest(Time t);
 
@@ -182,8 +180,6 @@ class SeqNumInfo {
   bool forcedCompleted;
 
   bool slowPathHasStarted;
-
-  bool isCommittedInSlowPath_;
 
   Time firstSeenFromPrimary;
   Time timeOfLastInfoRequest;

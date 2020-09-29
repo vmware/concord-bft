@@ -890,7 +890,7 @@ void ViewsManager::computeRestrictionsOfNewView(ViewNum v) {
       minRestrictionOfPendingView,
       maxRestrictionOfPendingView,
       restrictionsOfPendingView,
-      CryptoManager::instance().thresholdVerifierForSlowPathCommit().get());
+      CryptoManager::instance().thresholdVerifierForSlowPathCommit());
 
   // add items to prePrepareMsgsOfRestrictions
   // if we have restrictions

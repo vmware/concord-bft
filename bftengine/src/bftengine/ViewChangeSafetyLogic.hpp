@@ -42,7 +42,7 @@ class ViewChangeSafetyLogic {
                            SeqNum& outMinRestrictedSeqNum,
                            SeqNum& outMaxRestrictedSeqNum,
                            Restriction* outSafetyRestrictionsArray,
-                           IThresholdVerifier* ver) const;
+                           std::shared_ptr<IThresholdVerifier> ver) const;
   // Notes about outSafetyRestrictionsArray:
   // - It should have kWorkWindowSize elements.
   // - If at the end of this method outMaxRestrictedSeqNum==0, then outSafetyRestrictionsArray is 'empty'
@@ -54,7 +54,7 @@ class ViewChangeSafetyLogic {
                                     vector<ViewChangeMsg::ElementsIterator*>& VCIterators,
                                     const SeqNum upperBound,
                                     Digest& outRestrictedDigest,
-                                    IThresholdVerifier* ver) const;
+                                    std::shared_ptr<IThresholdVerifier> ver) const;
 
   const uint16_t N;  // number of replicas
   const uint16_t F;

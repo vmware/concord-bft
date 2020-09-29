@@ -51,7 +51,7 @@ class SkvbcFastPathTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability()
-    async def test_fast_path_only(self, bft_network, tracker):
+    async def test_fast_path_only(self, bft_network, tracker,exchange_keys=True):
         """
         This test aims to check that the fast commit path is prevalent
         in the normal, synchronous case (no failed replicas, no network partitioning).
@@ -61,7 +61,8 @@ class SkvbcFastPathTest(unittest.TestCase):
 
         Finally the decorator verifies the KV execution.
         """
-        await bft_network.do_key_exchange()
+        if exchange_keys:
+            await bft_network.do_key_exchange()
 
         bft_network.start_all_replicas()
         write_weight = .50
@@ -91,7 +92,7 @@ class SkvbcFastPathTest(unittest.TestCase):
 
         Finally the decorator verifies the KV execution.
         """
-        await bft_network.do_key_exchange()
+        lastExecutedVal = await bft_network.do_key_exchange()
         bft_network.start_all_replicas()
 
         write_weight = 0.5
@@ -107,8 +108,7 @@ class SkvbcFastPathTest(unittest.TestCase):
             replica_id=random.choice(unstable_replicas))
 
         await tracker.run_concurrent_ops(num_ops=numops, write_weight=write_weight)
-
-        await bft_network.wait_for_slow_path_to_be_prevalent(as_of_seq_num=fast_path_writes+1)
+        await bft_network.wait_for_slow_path_to_be_prevalent(as_of_seq_num=fast_path_writes+1 + lastExecutedVal)
 
     @with_trio
     @with_bft_network(start_replica_cmd,

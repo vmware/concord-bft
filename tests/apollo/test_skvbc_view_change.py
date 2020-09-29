@@ -60,7 +60,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         4) Verify the BFT network eventually transitions to the next view.
         5) Validate that there is no new block written.
         """
-        bft_network.do_key_exchange()
+        await bft_network.do_key_exchange()
 
         bft_network.start_all_replicas()
 
@@ -107,7 +107,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability()
-    async def test_single_vc_only_primary_down(self, bft_network, tracker):
+    async def test_single_vc_only_primary_down(self, bft_network, tracker,exchange_keys=True):
         """
         The goal of this test is to validate the most basic view change
         scenario - a single view change when the primary replica is down.
@@ -118,7 +118,8 @@ class SkvbcViewChangeTest(unittest.TestCase):
         4) Verify the BFT network eventually transitions to the next view.
         5) Perform a "read-your-writes" check in the new view
         """
-        await bft_network.do_key_exchange()
+        if exchange_keys:
+            await bft_network.do_key_exchange()
 
         await self._single_vc_with_consecutive_failed_replicas(
             bft_network,

@@ -943,7 +943,6 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
           (msgSeqNum > lastExecutedSeqNum + config_.concurrencyLevel);  // TODO(GG): check/improve this logic
 
       auto execution_span = concordUtils::startChildSpan("bft_execute_committed_reqs", span);
-      seqNumInfo.setIsCommittedInSlowPath(false);
       executeNextCommittedRequests(execution_span, askForMissingInfoAboutCommittedItems);
       return;
     } else if (pps.hasFullProof()) {
@@ -2931,20 +2930,9 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
     const bool isPrimaryOfView = (repsInfo->primaryOfView(curView) == config_.replicaId);
 
     SeqNum s = ld.lastStableSeqNum;
-    auto exchangedSn =
-        KeyManager::getViewExchangedSequnceNumber(config_.keyViewFile, config_.replicaId, config_.numReplicas);
-    auto exchangeCrypto = exchangedSn > s;
-    if (exchangeCrypto)
-      LOG_INFO(KEY_EX_LOG, "Crypto system will be replaced when loading sequnce number " << (exchangedSn + 1));
-    else
-      LOG_DEBUG(KEY_EX_LOG, "Same crypto system will be used for loading");
 
     for (size_t i = 0; i < kWorkWindowSize; i++) {
       s++;
-      if (exchangeCrypto && (s == exchangedSn + 1)) {
-        LOG_INFO(KEY_EX_LOG, "Loading new crypto system for sequnce number " << s);
-        KeyManager::loadCryptoKeysFromFile(config_.keyViewFile, config_.replicaId, config_.numReplicas);
-      }
       ConcordAssert(mainLog->insideActiveWindow(s));
 
       const SeqNumData &e = ld.seqNumWinArr[i];
@@ -2997,7 +2985,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
             tmpDigest);  // TODO(GG): consider using a method that directly adds the message/digest (as in the
                          // examples below)
       }
-
+      std::shared_ptr<ISecureStore> secStore{new KeyManager::PersistentSaverLoader(ps_)};
       if (e.getSlowStarted()) {
         seqNumInfo.startSlowPath();
 
@@ -3009,11 +2997,30 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                                                          pp->digestOfRequests(),
                                                          CryptoManager::instance().thresholdSignerForSlowPathCommit());
         bool added = seqNumInfo.addSelfMsg(p, true);
+        if (!added) {
+          LOG_INFO(GL, "Failed to add sn [" << s << "] to main log, trying different crypto system");
+          KeyManager::loadCryptoFromKeyView(secStore, config_.replicaId, config_.numReplicas);
+          p = PreparePartialMsg::create(curView,
+                                        pp->seqNumber(),
+                                        config_.replicaId,
+                                        pp->digestOfRequests(),
+                                        CryptoManager::instance().thresholdSignerForSlowPathCommit());
+          added = seqNumInfo.addSelfMsg(p, true);
+        }
         ConcordAssert(added);
       }
 
       if (e.isPrepareFullMsgSet()) {
-        seqNumInfo.addMsg(e.getPrepareFullMsg(), true);
+        bool failedToAdd = false;
+        try {
+          seqNumInfo.addMsg(e.getPrepareFullMsg(), true);
+        } catch (const std::exception &e) {
+          failedToAdd = true;
+          LOG_INFO(GL, "Failed to add sn [" << s << "] to main log, trying different crypto system");
+          std::cout << e.what() << '\n';
+          KeyManager::loadCryptoFromKeyView(secStore, config_.replicaId, config_.numReplicas);
+        }
+        if (failedToAdd) seqNumInfo.addMsg(e.getPrepareFullMsg(), true);
 
         Digest d;
         Digest::digestOfDigest(e.getPrePrepareMsg()->digestOfRequests(), d);
@@ -3023,7 +3030,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         bool added = seqNumInfo.addSelfCommitPartialMsgAndDigest(c, d, true);
         if (!added) {
           LOG_INFO(GL, "Failed to add sn [" << s << "] to main log, trying different crypto system");
-          KeyManager::loadCryptoKeysFromFile(config_.keyViewFile, config_.replicaId, config_.numReplicas);
+          KeyManager::loadCryptoFromKeyView(secStore, config_.replicaId, config_.numReplicas);
           c = CommitPartialMsg::create(
               curView, s, config_.replicaId, d, CryptoManager::instance().thresholdSignerForSlowPathCommit());
           seqNumInfo.addSelfCommitPartialMsgAndDigest(c, d, true);
@@ -3031,7 +3038,16 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
       }
 
       if (e.isCommitFullMsgSet()) {
-        seqNumInfo.addMsg(e.getCommitFullMsg(), true);
+        bool failedToAdd = false;
+        try {
+          seqNumInfo.addMsg(e.getCommitFullMsg(), true);
+        } catch (const std::exception &e) {
+          failedToAdd = true;
+          LOG_INFO(GL, "Failed to add sn [" << s << "] to main log, trying different crypto system");
+          std::cout << e.what() << '\n';
+          KeyManager::loadCryptoFromKeyView(secStore, config_.replicaId, config_.numReplicas);
+        }
+        if (failedToAdd) seqNumInfo.addMsg(e.getCommitFullMsg(), true);
 
         ConcordAssert(e.getCommitFullMsg()->equals(*seqNumInfo.getValidCommitFullMsg()));
       }
@@ -3040,6 +3056,11 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         PartialProofsSet &pps = seqNumInfo.partialProofs();
         bool added = pps.addMsg(e.getFullCommitProofMsg());  // TODO(GG): consider using a method that directly adds
                                                              // the message (as in the examples below)
+        if (!added) {
+          LOG_INFO(GL, "Failed to add sn [" << s << "] to main log, trying different crypto system");
+          KeyManager::loadCryptoFromKeyView(secStore, config_.replicaId, config_.numReplicas);
+          added = pps.addMsg(e.getFullCommitProofMsg());
+        }
         ConcordAssert(added);  // we should verify the relevant signature when it is loaded
         ConcordAssert(e.getFullCommitProofMsg()->equals(*pps.getFullProof()));
       }
@@ -3263,7 +3284,6 @@ ReplicaImp::ReplicaImp(bool firstTime,
   dynamicUpperLimitOfRounds = new DynamicUpperLimitWithSimpleFilter<int64_t>(400, 2, 2500, 70, 32, 1000, 2, 2);
 
   mainLog.reset(new WindowOfSeqNumInfo(1, (InternalReplicaApi *)this));
-  pathDetector_.reset(new PathDetector(mainLog));
 
   checkpointsLog = new SequenceWithActiveWindow<kWorkWindowSize + 2 * checkpointWindowSize,
                                                 checkpointWindowSize,
@@ -3368,16 +3388,16 @@ void ReplicaImp::start() {
   ReplicaForStateTransfer::start();
 
   // requires the init of state transfer
-  std::shared_ptr<ISaverLoader> sl(new KeyManager::FileSaverLoader(config_.keyViewFile, config_.replicaId));
+  std::shared_ptr<ISecureStore> sec(new KeyManager::PersistentSaverLoader(ps_));
   KeyManager::InitData id{};
   id.cl = internalBFTClient_;
   id.id = config_.replicaId;
   id.clusterSize = config_.numReplicas;
   id.reservedPages = stateTransfer.get();
   id.sizeOfReservedPage = ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage();
-  id.pathDetect = pathDetector_;
   id.kg = &CryptoManager::instance();
-  id.sl = sl;
+  id.ke = &CryptoManager::instance();
+  id.sec = sec;
   id.timers = &timers_;
   id.a = aggregator_;
   id.interval = std::chrono::seconds(config_.metricsDumpIntervalSeconds);

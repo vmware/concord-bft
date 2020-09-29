@@ -24,21 +24,18 @@ KeyManager::KeyManager(InitData* id)
       clusterSize_(id->clusterSize),
       client_(id->cl),
       keyStore_{id->clusterSize, *id->reservedPages, id->sizeOfReservedPage},
-      pathDetector_(id->pathDetect),
       multiSigKeyHdlr_(id->kg),
-      keysView_(id->sl, id->clusterSize),
+      keysView_(id->sec, id->clusterSize),
       timers_(*(id->timers)) {
-  registryToExchange_.push_back(id->kg);
+  registryToExchange_.push_back(id->ke);
+  if (keyStore_.exchangedReplicas.size() == 0) {
+    return;
+  }
+  LOG_INFO(KEY_EX_LOG, "Loading replcia's key view");
+  ConcordAssert(keysView_.load());
   // If all keys were exchange on start
   if (keyStore_.exchangedReplicas.size() == clusterSize_) {
-    // it's possible that all keys were exchanged but this replica crashed before the rotation.
-    // So it has an outstandingPrivateKey.
-    if (keysView_.privateKey.empty()) {
-      keysView_.rotate(keysView_.privateKey, keysView_.outstandingPrivateKey);
-      keysView_.save();
-      ConcordAssert(keysView_.privateKey.empty() == false);
-    }
-    LOG_DEBUG(KEY_EX_LOG, "building crypto system ");
+    LOG_INFO(KEY_EX_LOG, "building crypto system ");
     notifyRegistry();
     keysExchanged = true;
     LOG_INFO(KEY_EX_LOG, "All replicas keys loaded from reserved pages, can start accepting msgs");
@@ -85,76 +82,48 @@ std::string KeyManager::onKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn)
   metrics_->keyExchangedCounter.Get().Inc();
 
   if (kemsg.repID == repID_) {
-    keysView_.rotate(keysView_.outstandingPrivateKey, keysView_.publishPrivateKey);
-    keysView_.save();
+    keysView_.rotate(keysView_.keys().outstandingPrivateKey, keysView_.keys().generatedPrivateKey);
   }
 
   return "ok";
 }
 
-// Responsible to open the gate when all keys where exchanged on start.
-// The consensus for the initial key exchange must be performed on the fast path i.e. to ensure that all replicas have
-// recieved the key. once the set contains all replicas the crypto system is being updated and the gate is open.
+// Once the set contains all replicas the crypto system is being updated and the gate is open.
 void KeyManager::onInitialKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn) {
   // For some reason we recieved a key for a replica that already exchanged it's key.
   if (keyStore_.exchangedReplicas.find(kemsg.repID) != keyStore_.exchangedReplicas.end()) {
-    if (!pathDetector_->isSlowPath(sn)) {
-      // It shouldn't happen, that two keys from the same replica arrive in the fast path.
-      // It means that a race on a key between the replicas.
-      // The missing data mechanism can cause this, but it was handled to use slow path during key-exchange.
-      LOG_ERROR(KEY_EX_LOG, "Conflicting Keys for Replica [" << kemsg.repID << "] already exchanged initial key");
-      ConcordAssert(false);
-    }
     LOG_DEBUG(KEY_EX_LOG, "Replica [" << kemsg.repID << "] already exchanged initial key");
-    return;
-  }
-  // If replicπcl id is not in set, check that it arrived in fast path in order to ensure n out of n.
-  // If arrived in slow path do not insert to data structure and if repID == this.repID re-send keyexchange.
-  // If arrived in fast path set private key to oustanding.
-  if (pathDetector_->isSlowPath(sn)) {
-    LOG_INFO(KEY_EX_LOG,
-             "Initial key exchanged for replica ["
-                 << kemsg.repID << "] is dropped, Consensus reached without n out of n participation");
-    if (kemsg.repID == repID_) {
-      waitForFullCommunication();
-      // In order not to bomb the system, send within 50-150 ms
-      srand(time(NULL));
-      auto millSleep = rand() % 100 + 50;
-      LOG_INFO(KEY_EX_LOG, "Resending initial key exchange within " << millSleep << "ms");
-      std::this_thread::sleep_for(std::chrono::milliseconds(millSleep));
-      sendKeyExchange();
-    }
-    metrics_->DroppedMsgsCounter.Get().Inc();
-    return;
+    ConcordAssert(false);
   }
 
   if (kemsg.repID == repID_) {
-    keysView_.rotate(keysView_.outstandingPrivateKey, keysView_.publishPrivateKey);
-    keysView_.save();
+    keysView_.rotate(keysView_.keys().outstandingPrivateKey, keysView_.keys().generatedPrivateKey);
   }
 
-  keyStore_.push(kemsg, sn);
   LOG_INFO(KEY_EX_LOG, "Initial key exchanged for replica [" << kemsg.repID << "]");
   keyStore_.exchangedReplicas.insert(kemsg.repID);
   metrics_->keyExchangedOnStartCounter.Get().Inc();
   LOG_INFO(KEY_EX_LOG, "Exchanged [" << keyStore_.exchangedReplicas.size() << "] out of [" << clusterSize_ << "]");
-  if (keyStore_.exchangedReplicas.size() == clusterSize_) {
-    keysView_.rotate(keysView_.privateKey, keysView_.outstandingPrivateKey);
-    keysView_.seqnum = sn;
-    keysView_.save();
-    LOG_INFO(KEY_EX_LOG, "building crypto system ");
-    notifyRegistry();
-    keysExchanged = true;
-    LOG_INFO(KEY_EX_LOG, "All replicas exchanged keys, can start accepting msgs");
+
+  if (keyStore_.exchangedReplicas.size() < clusterSize_) {
+    keyStore_.push(kemsg, sn);
+    return;
   }
+  // All keys were exchanged
+  LOG_INFO(KEY_EX_LOG, "building crypto system ");
+  keysView_.rotate(keysView_.keys().privateKey, keysView_.keys().outstandingPrivateKey);
+  keyStore_.push(kemsg, sn);
+  notifyRegistry();
+  keysExchanged = true;
+  LOG_INFO(KEY_EX_LOG, "All replicas exchanged keys, can start accepting msgs");
 }
 
 void KeyManager::notifyRegistry() {
   for (uint32_t i = 0; i < clusterSize_; i++) {
-    keysView_.publicKeys[i] = keyStore_.getReplicaPublicKey(i).key;
+    keysView_.keys().publicKeys[i] = keyStore_.getReplicaPublicKey(i).key;
     if (i == repID_) {
       std::for_each(registryToExchange_.begin(), registryToExchange_.end(), [this](IKeyExchanger* e) {
-        e->onPrivateKeyExchange(keysView_.privateKey, keyStore_.getReplicaPublicKey(repID_).key);
+        e->onPrivateKeyExchange(keysView_.keys().privateKey, keyStore_.getReplicaPublicKey(repID_).key);
       });
       continue;
     }
@@ -165,24 +134,21 @@ void KeyManager::notifyRegistry() {
   keysView_.save();
 }
 
-void KeyManager::loadCryptoKeysFromFile(const std::string& path, const uint16_t repID, const uint16_t numReplicas) {
-  std::shared_ptr<ISaverLoader> sl(new FileSaverLoader(path, repID));
-  KeysView kv(sl, numReplicas);
+void KeyManager::loadCryptoFromKeyView(std::shared_ptr<ISecureStore> sec,
+                                       const uint16_t repID,
+                                       const uint16_t numReplicas) {
+  KeysView kv(sec, numReplicas);
+  if (!kv.load()) {
+    LOG_ERROR(KEY_EX_LOG, "Couldn't load keys");
+    return;
+  }
   for (int i = 0; i < numReplicas; ++i) {
     if (i == repID) {
-      CryptoManager::instance().onPrivateKeyExchange(kv.privateKey, kv.publicKeys[i]);
+      CryptoManager::instance().onPrivateKeyExchange(kv.keys().privateKey, kv.keys().publicKeys[i]);
       continue;
     }
-    CryptoManager::instance().onPublicKeyExchange(kv.publicKeys[i], i);
+    CryptoManager::instance().onPublicKeyExchange(kv.keys().publicKeys[i], i);
   }
-}
-
-SeqNum KeyManager::getViewExchangedSequnceNumber(const std::string& path,
-                                                 const uint16_t repID,
-                                                 const uint16_t numReplicas) {
-  std::shared_ptr<ISaverLoader> sl(new FileSaverLoader(path, repID));
-  KeysView kv(sl, numReplicas);
-  return kv.seqnum;
 }
 
 // The checkpoint is the point where keys are rotated.
@@ -194,10 +160,8 @@ void KeyManager::onCheckpoint(const int& num) {
     metrics_->publicKeyRotated.Get().Inc();
     if (id != repID_) continue;
     LOG_INFO(KEY_EX_LOG, "Rotating private key");
-    keysView_.rotate(keysView_.privateKey, keysView_.outstandingPrivateKey);
-    keysView_.save();
+    keysView_.rotate(keysView_.keys().privateKey, keysView_.keys().outstandingPrivateKey);
   }
-  keysView_.seqnum = num * 150;
   LOG_INFO(KEY_EX_LOG, "Check point  " << num << " trigerred rotation ");
   LOG_INFO(KEY_EX_LOG, "building crypto system ");
   notifyRegistry();
@@ -209,31 +173,47 @@ KeyExchangeMsg KeyManager::getReplicaPublicKey(const uint16_t& repID) const {
   return keyStore_.getReplicaPublicKey(repID);
 }
 
+// Called at the end of a state transfer.
 void KeyManager::loadKeysFromReservedPages() {
-  if (!keyStore_.loadAllReplicasKeyStoresFromReservedPages()) return;
+  // If we reached state transfer, all keys should have beed exchanged in the source replica
+  // TODO might be changed when full rotation is imp
+  ConcordAssert(keyStore_.loadAllReplicasKeyStoresFromReservedPages());
   // TODO E.L  KeyRotation implementation will need to rotate privete keys here, checkpoint number will be essential
-  LOG_DEBUG(KEY_EX_LOG, "building crypto system ");
+  if (keysView_.keys().privateKey.empty()) {
+    if (keysView_.keys().outstandingPrivateKey.size() > 0) {
+      keysView_.rotate(keysView_.keys().privateKey, keysView_.keys().outstandingPrivateKey);
+    } else {
+      keysView_.rotate(keysView_.keys().privateKey, keysView_.keys().generatedPrivateKey);
+    }
+    ConcordAssert(keysView_.keys().privateKey.empty() == false);
+  }
+  keysExchanged = true;
+  LOG_INFO(KEY_EX_LOG, "building crypto system after state transfer");
   notifyRegistry();
 }
 
 void KeyManager::sendKeyExchange() {
   KeyExchangeMsg msg;
   auto [prv, pub] = multiSigKeyHdlr_->generateMultisigKeyPair();
-  keysView_.publishPrivateKey = prv;
+  keysView_.keys().generatedPrivateKey = prv;
   msg.key = pub;
-  keysView_.save();
   msg.repID = repID_;
   std::stringstream ss;
   concord::serialize::Serializable::serialize(ss, msg);
   auto strMsg = ss.str();
   client_->sendRquest(bftEngine::KEY_EXCHANGE_FLAG, strMsg.size(), strMsg.c_str(), generateCid());
-  LOG_INFO(KEY_EX_LOG, "Sending key exchange msg");
+  keysView_.save();
+  LOG_INFO(KEY_EX_LOG, "Sending key exchange msg, sleeping");
 }
 
 // First Key exchange is on start, in order not to trigger view change, we'll wait for all replicas to be connected.
 // In order not to block it's done as async operation.
 // If transport is UDP, we can't know the connection status, and we are in Apollo context therefore giving 2sec grace.
 void KeyManager::sendInitialKey() {
+  if (keysView_.hasGeneratedKeys()) {
+    LOG_INFO(KEY_EX_LOG, "Replica already generated keys ");
+    return;
+  }
   auto l = [this]() {
     waitForFullCommunication();
     if (keyStore_.exchangedReplicas.find(repID_) != keyStore_.exchangedReplicas.end()) return;
@@ -259,74 +239,67 @@ void KeyManager::waitForFullCommunication() {
   LOG_INFO(KEY_EX_LOG, "Consensus engine available, " << avlble << " replicas are connected");
 }
 
-/////////////PRIVATE KEYS////////////////////////////
-KeyManager::KeysView::KeysView(std::shared_ptr<ISaverLoader> sl, uint32_t clusterSize) : sl(sl) {
-  publicKeys.resize(clusterSize);
-  load();
+/////////////KEYS VIEW////////////////////////////
+
+const std::string KeyManager::KeysViewData::getVersion() const { return "1"; }
+
+void KeyManager::KeysViewData::serializeDataMembers(std::ostream& outStream) const {
+  serialize(outStream, privateKey);
+  serialize(outStream, outstandingPrivateKey);
+  serialize(outStream, generatedPrivateKey);
+  serialize(outStream, publicKeys);
+}
+
+void KeyManager::KeysViewData::deserializeDataMembers(std::istream& inStream) {
+  deserialize(inStream, privateKey);
+  deserialize(inStream, outstandingPrivateKey);
+  deserialize(inStream, generatedPrivateKey);
+  deserialize(inStream, publicKeys);
+}
+
+KeyManager::KeysView::KeysView(std::shared_ptr<ISecureStore> sec, uint32_t clusterSize) : secStore(sec) {
+  data.publicKeys.resize(clusterSize);
 }
 
 void KeyManager::KeysView::rotate(std::string& dst, std::string& src) {
   ConcordAssert(src.empty() == false);
   dst = src;
   src.clear();
+  save();
 }
-
-const std::string KeyManager::KeysView::getVersion() const { return "1"; }
-
-void KeyManager::KeysView::serializeDataMembers(std::ostream& outStream) const {
-  serialize(outStream, privateKey);
-  serialize(outStream, outstandingPrivateKey);
-  serialize(outStream, publishPrivateKey);
-  serialize(outStream, publicKeys);
-  serialize(outStream, seqnum);
-}
-
-void KeyManager::KeysView::deserializeDataMembers(std::istream& inStream) {
-  deserialize(inStream, privateKey);
-  deserialize(inStream, outstandingPrivateKey);
-  deserialize(inStream, publishPrivateKey);
-  deserialize(inStream, publicKeys);
-  deserialize(inStream, seqnum);
-}
-
 void KeyManager::KeysView::save() {
-  if (!sl) return;
-  std::stringstream ss;
-  concord::serialize::Serializable::serialize(ss, *this);
-  sl->save(ss.str());
-}
-
-void KeyManager::KeysView::load() {
-  if (!sl) return;
-  auto str = sl->load();
-  if (str.empty()) return;
-  std::stringstream ss;
-  ss.write(str.c_str(), std::streamsize(str.size()));
-  concord::serialize::Serializable::deserialize(ss, *this);
-}
-
-void KeyManager::FileSaverLoader::save(const std::string& str) {
-  if (str.empty()) return;
-  std::ofstream myfile;
-  myfile.open(fileName.c_str());
-  if (!myfile.good()) {
-    LOG_ERROR(KEY_EX_LOG, "Couldn't save key file to " << fileName);
+  if (!secStore) {
+    LOG_DEBUG(KEY_EX_LOG, "Saver is not set");
     return;
   }
-  myfile << str;
-  myfile.close();
+  std::stringstream ss;
+  concord::serialize::Serializable::serialize(ss, data);
+  secStore->save(ss.str());
 }
 
-std::string KeyManager::FileSaverLoader::load() {
-  std::ifstream inFile;
-  inFile.open(fileName.c_str());
-  if (!inFile.good()) {
-    LOG_WARN(KEY_EX_LOG, "key file wasn't loaded " << fileName);
-    return "";
+bool KeyManager::KeysView::load() {
+  if (!secStore) {
+    LOG_DEBUG(KEY_EX_LOG, "Loader is not set");
+    return false;
   }
-  std::stringstream strStream;
-  strStream << inFile.rdbuf();
-  inFile.close();
-  return strStream.str();
+  auto str = secStore->load();
+  if (str.empty()) {
+    LOG_ERROR(KEY_EX_LOG, "Got empty string from loader");
+    return false;
+  }
+  std::stringstream ss;
+  ss.write(str.c_str(), std::streamsize(str.size()));
+  concord::serialize::Serializable::deserialize(ss, data);
+  LOG_DEBUG(KEY_EX_LOG, "Loaded successfully " << data.generatedPrivateKey << " " << data.outstandingPrivateKey);
+  return true;
 }
+
+void KeyManager::PersistentSaverLoader::save(const std::string& str) {
+  std::string nonConstStr = str;
+  LOG_DEBUG(KEY_EX_LOG, "Persistent save size " << nonConstStr.size());
+  ps->setKeysView(nonConstStr);
+}
+
+std::string KeyManager::PersistentSaverLoader::load() { return ps->getKeysView(); }
+
 }  // namespace bftEngine::impl

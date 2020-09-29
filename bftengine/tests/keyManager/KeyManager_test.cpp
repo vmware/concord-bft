@@ -29,7 +29,7 @@ class TestKeyManager {
   uint64_t getPublicKeyRotated() { return km_.metrics_->publicKeyRotated.Get().Get(); }
 };
 
-struct DummyKeyGen : public IMultiSigKeyGenerator {
+struct DummyKeyGen : public IMultiSigKeyGenerator, public IKeyExchanger {
   std::pair<std::string, std::string> generateMultisigKeyPair() { return std::make_pair(prv, pub); }
   void onPrivateKeyExchange(const std::string& secretKey, const std::string& verificationKey) {
     selfpub = verificationKey;
@@ -44,6 +44,13 @@ struct DummyKeyGen : public IMultiSigKeyGenerator {
   std::vector<std::string> pubs;
   std::string selfpub;
   std::string selfprv;
+};
+
+class DummyLoaderSaver : public ISecureStore {
+ public:
+  std::string cache;
+  void save(const std::string& s) { cache = s; };
+  std::string load() { return cache; }
 };
 
 struct ReservedPagesMock : public IReservedPages {
@@ -342,11 +349,6 @@ TEST(ClusterKeyStore, rotate) {
   ASSERT_EQ(cks.rotate(2).empty(), false);
 }
 
-struct DummyPathDetect : public IPathDetector {
-  bool ret{false};
-  bool isSlowPath(const uint64_t& sn) { return ret; }
-};
-
 struct DummyClient : public IInternalBFTClient {
   inline NodeIdType getClientId() const { return 1; };
   void sendRquest(uint8_t flags, uint32_t requestLength, const char* request, const std::string& cid) {}
@@ -356,7 +358,6 @@ struct DummyClient : public IInternalBFTClient {
 
 TEST(KeyManager, initialKeyExchange) {
   uint32_t clusterSize = 4;
-  std::shared_ptr<IPathDetector> dpd(new DummyPathDetect());
   std::shared_ptr<IInternalBFTClient> dc(new DummyClient());
   DummyKeyGen dkg{clusterSize};
   dkg.prv = "private";
@@ -370,9 +371,10 @@ TEST(KeyManager, initialKeyExchange) {
   id.clusterSize = clusterSize;
   id.reservedPages = &rpm;
   id.sizeOfReservedPage = 4096;
-  id.pathDetect = dpd;
   id.timers = &timers;
   id.kg = &dkg;
+  id.ke = &dkg;
+  id.sec = std::shared_ptr<ISecureStore>(new DummyLoaderSaver());
   TestKeyManager test{&id};
   // get the pub and prv keys from the key handlr and set them to be rotated.
   test.km_.sendInitialKey();
@@ -399,18 +401,11 @@ TEST(KeyManager, initialKeyExchange) {
   test.km_.onKeyExchange(kem4, 5);
 
   // will return true to slow path and will ignore this msg
-  auto pd = (DummyPathDetect*)dpd.get();
-  pd->ret = true;
   KeyExchangeMsg kem3;
+  // set to fast path
   kem3.key = "c";
   kem3.signature = "w1";
   kem3.repID = 2;
-  ASSERT_EQ(test.km_.keysExchanged, false);
-  ASSERT_EQ(test.getKeyExchangedOnStartCounter(), 3);
-  test.km_.onKeyExchange(kem3, 4);
-  ASSERT_EQ(test.km_.keysExchanged, false);
-  // set to fast path
-  pd->ret = false;
   test.km_.onKeyExchange(kem3, 5);
   ASSERT_EQ(test.getKeyExchangedOnStartCounter(), 4);
   ASSERT_EQ(test.km_.keysExchanged, true);
@@ -424,7 +419,6 @@ TEST(KeyManager, initialKeyExchange) {
 
 TEST(KeyManager, endToEnd) {
   uint32_t clustersize{4};
-  std::shared_ptr<IPathDetector> dpd(new DummyPathDetect());
   std::shared_ptr<IInternalBFTClient> dc(new DummyClient());
   DummyKeyGen dkg{clustersize};
   dkg.prv = "private";
@@ -438,9 +432,10 @@ TEST(KeyManager, endToEnd) {
   id.clusterSize = clustersize;
   id.reservedPages = &rpm;
   id.sizeOfReservedPage = 4096;
-  id.pathDetect = dpd;
   id.timers = &timers;
   id.kg = &dkg;
+  id.ke = &dkg;
+  id.sec = std::shared_ptr<ISecureStore>(new DummyLoaderSaver());
   TestKeyManager test{&id};
 
   // set published private key of replica 2
@@ -666,52 +661,44 @@ TEST(ClusterKeyStore, clean_first_load_save_keys_rotate_and_reload) {
     ASSERT_EQ(reloadCks.numKeys(i), 1);
   }
 }
-
-class DummyLoaderSaver : public ISaverLoader {
- public:
-  std::string cache;
-  void save(const std::string& s) { cache = s; };
-  std::string load() { return cache; }
-};
-
 TEST(PrivateKeys, ser_der) {
-  KeyManager::KeysView keys;
-  keys.publishPrivateKey = "publish";
-  keys.outstandingPrivateKey = "outstandingPrivateKey";
-  keys.privateKey = "privateKey";
+  std::shared_ptr<ISecureStore> dls(new DummyLoaderSaver());
+  KeyManager::KeysView keys{dls, 4};
+  keys.data.generatedPrivateKey = "publish";
+  keys.data.outstandingPrivateKey = "outstandingPrivateKey";
+  keys.data.privateKey = "privateKey";
 
   std::stringstream ss;
-  concord::serialize::Serializable::serialize(ss, keys);
+  concord::serialize::Serializable::serialize(ss, keys.data);
   auto strMsg = ss.str();
 
-  KeyManager::KeysView keys2;
+  KeyManager::KeysView keys2{dls, 4};
 
   ss.write(strMsg.c_str(), std::streamsize(strMsg.size()));
-  concord::serialize::Serializable::deserialize(ss, keys2);
+  concord::serialize::Serializable::deserialize(ss, keys2.data);
 
-  ASSERT_EQ(keys.publishPrivateKey, keys2.publishPrivateKey);
-  ASSERT_EQ(keys.outstandingPrivateKey, keys2.outstandingPrivateKey);
-  ASSERT_EQ(keys.privateKey, keys2.privateKey);
+  ASSERT_EQ(keys.data.generatedPrivateKey, keys2.data.generatedPrivateKey);
+  ASSERT_EQ(keys.data.outstandingPrivateKey, keys2.data.outstandingPrivateKey);
+  ASSERT_EQ(keys.data.privateKey, keys2.data.privateKey);
 }
 
 TEST(PrivateKeys, SaveLoad) {
-  std::shared_ptr<ISaverLoader> dls(new DummyLoaderSaver());
-  KeyManager::KeysView keys;
-  keys.sl.swap(dls);
-  keys.publishPrivateKey = "publish";
-  keys.outstandingPrivateKey = "outstandingPrivateKey";
-  keys.privateKey = "privateKey";
+  std::shared_ptr<ISecureStore> dls(new DummyLoaderSaver());
+  KeyManager::KeysView keys{dls, 4};
+  keys.data.generatedPrivateKey = "publish";
+  keys.data.outstandingPrivateKey = "outstandingPrivateKey";
+  keys.data.privateKey = "privateKey";
 
   keys.save();
-  keys.publishPrivateKey = "";
-  keys.outstandingPrivateKey = "";
-  keys.privateKey = "";
+  keys.data.generatedPrivateKey = "";
+  keys.data.outstandingPrivateKey = "";
+  keys.data.privateKey = "";
 
   keys.load();
 
-  ASSERT_EQ(keys.publishPrivateKey, "publish");
-  ASSERT_EQ(keys.outstandingPrivateKey, "outstandingPrivateKey");
-  ASSERT_EQ(keys.privateKey, "privateKey");
+  ASSERT_EQ(keys.data.generatedPrivateKey, "publish");
+  ASSERT_EQ(keys.data.outstandingPrivateKey, "outstandingPrivateKey");
+  ASSERT_EQ(keys.data.privateKey, "privateKey");
 }
 
 TEST(KeyManager, reserved_pages) {}

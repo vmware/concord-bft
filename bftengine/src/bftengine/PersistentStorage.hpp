@@ -110,6 +110,8 @@ class PersistentStorage {
   virtual void setEraseMetadataStorageFlag() = 0;
   virtual bool getEraseMetadataStorageFlag() = 0;
   virtual void eraseMetadata() = 0;
+  virtual void setKeysView(std::string &view) = 0;
+
   //////////////////////////////////////////////////////////////////////////
   // Read methods (should only be used before using write-only transactions)
   //////////////////////////////////////////////////////////////////////////
@@ -141,6 +143,7 @@ class PersistentStorage {
   virtual CommitFullMsg *getAndAllocateCommitFullMsgInSeqNumWindow(SeqNum seqNum) = 0;
   virtual CheckpointMsg *getAndAllocateCheckpointMsgInCheckWindow(SeqNum seqNum) = 0;
   virtual bool getCompletedMarkInCheckWindow(SeqNum seqNum) = 0;
+  virtual std::string getKeysView() = 0;
 };
 
 }  // namespace impl
