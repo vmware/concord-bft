@@ -83,6 +83,8 @@ class SparseMerkleDbEditorTests : public Test {
   void CleanDbs() {
     TestRocksDb::cleanup(main_path_db_id_);
     TestRocksDb::cleanup(other_path_db_id_);
+    TestRocksDb::cleanup(non_existent_path_db_id_);
+    TestRocksDb::cleanup(empty_path_db_id_);
   }
 
   void CreateBlockchain(std::size_t db_id, BlockId blocks, std::optional<BlockId> mismatch_at = std::nullopt) {
@@ -121,6 +123,8 @@ class SparseMerkleDbEditorTests : public Test {
  protected:
   static constexpr std::size_t main_path_db_id_{defaultDbId};
   static constexpr std::size_t other_path_db_id_{main_path_db_id_ + 1};
+  static constexpr std::size_t non_existent_path_db_id_{other_path_db_id_ + 1};
+  static constexpr std::size_t empty_path_db_id_{non_existent_path_db_id_ + 1};
   static constexpr unsigned kv_multiplier_{10};
   static constexpr BlockId empty_block_id_{10};
   static constexpr BlockId num_blocks_{10};
@@ -513,6 +517,73 @@ TEST_F(SparseMerkleDbEditorTests, compare_to_missing_path) {
   ASSERT_TRUE(out_.str().empty());
   ASSERT_THAT(err_.str(),
               StartsWith("Failed to execute command [compareTo], reason: Missing PATH-TO-OTHER-DB argument"));
+}
+
+TEST_F(SparseMerkleDbEditorTests, get_genesis_block_id_non_existent_dir) {
+  ASSERT_EQ(
+      EXIT_FAILURE,
+      run(CommandLineArguments{{kTestName, rocksDbPath(non_existent_path_db_id_), "getGenesisBlockID"}}, out_, err_));
+  ASSERT_TRUE(out_.str().empty());
+  ASSERT_THAT(err_.str(), HasSubstr("RocksDB directory path doesn't exist at"));
+}
+
+TEST_F(SparseMerkleDbEditorTests, get_genesis_block_id_empty_db) {
+  // Create an empty DB that exists on disk.
+  TestRocksDb::create(empty_path_db_id_);
+
+  ASSERT_EQ(EXIT_FAILURE,
+            run(CommandLineArguments{{kTestName, rocksDbPath(empty_path_db_id_), "getGenesisBlockID"}}, out_, err_));
+  ASSERT_TRUE(out_.str().empty());
+  ASSERT_THAT(err_.str(), HasSubstr("RocksDB database is empty at path"));
+}
+
+TEST_F(SparseMerkleDbEditorTests, compare_to_non_existent_main_dir) {
+  ASSERT_EQ(EXIT_FAILURE,
+            run(
+                CommandLineArguments{
+                    {kTestName, rocksDbPath(non_existent_path_db_id_), "compareTo", rocksDbPath(other_path_db_id_)}},
+                out_,
+                err_));
+  ASSERT_TRUE(out_.str().empty());
+  ASSERT_THAT(err_.str(), HasSubstr("RocksDB directory path doesn't exist at"));
+}
+
+TEST_F(SparseMerkleDbEditorTests, compare_to_empty_main_db) {
+  // Create an empty DB that exists on disk.
+  TestRocksDb::create(empty_path_db_id_);
+
+  ASSERT_EQ(EXIT_FAILURE,
+            run(
+                CommandLineArguments{
+                    {kTestName, rocksDbPath(empty_path_db_id_), "compareTo", rocksDbPath(other_path_db_id_)}},
+                out_,
+                err_));
+  ASSERT_TRUE(out_.str().empty());
+  ASSERT_THAT(err_.str(), HasSubstr("RocksDB database is empty at path"));
+}
+
+TEST_F(SparseMerkleDbEditorTests, compare_to_non_existent_other_dir) {
+  ASSERT_EQ(EXIT_FAILURE,
+            run(
+                CommandLineArguments{
+                    {kTestName, rocksDbPath(main_path_db_id_), "compareTo", rocksDbPath(non_existent_path_db_id_)}},
+                out_,
+                err_));
+  ASSERT_TRUE(out_.str().empty());
+  ASSERT_THAT(err_.str(), HasSubstr("RocksDB directory path doesn't exist at"));
+}
+
+TEST_F(SparseMerkleDbEditorTests, compare_to_empty_other_db) {
+  // Create an empty DB that exists on disk.
+  TestRocksDb::create(empty_path_db_id_);
+
+  ASSERT_EQ(
+      EXIT_FAILURE,
+      run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "compareTo", rocksDbPath(empty_path_db_id_)}},
+          out_,
+          err_));
+  ASSERT_TRUE(out_.str().empty());
+  ASSERT_THAT(err_.str(), HasSubstr("RocksDB database is empty at path"));
 }
 
 TEST_F(SparseMerkleDbEditorTests, remove_metadata) {

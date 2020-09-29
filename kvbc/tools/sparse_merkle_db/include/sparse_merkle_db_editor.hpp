@@ -37,6 +37,16 @@
 #include <variant>
 #include <vector>
 
+#if __has_include(<filesystem>)
+#include <filesystem>
+namespace fs = std::filesystem;
+#elif __has_include(<experimental/filesystem>)
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#else
+#error "Missing filesystem support"
+#endif
+
 namespace concord::kvbc::tools::sparse_merkle_db {
 
 using namespace std::string_literals;
@@ -63,8 +73,22 @@ inline auto toBlockId(const std::string &s) {
 }
 
 inline v2MerkleTree::DBAdapter getAdapter(const std::string &path, bool read_only = false) {
-  auto db = std::make_shared<storage::rocksdb::Client>(path);
+  if (!fs::exists(path) || !fs::is_directory(path)) {
+    throw std::invalid_argument{"RocksDB directory path doesn't exist at " + path};
+  }
+
+  std::shared_ptr<storage::IDBClient> db{std::make_shared<storage::rocksdb::Client>(path)};
   db->init(read_only);
+
+  // Currently, we have no way of telling if a RocksDB database exists at 'path' as RocksDB will create an
+  // empty one if it doesn't. Therefore, until the below-mentioned RocksDB issue is fixed, we just check if
+  // the DB is empty, i.e. no keys are present.
+  // https://github.com/facebook/rocksdb/issues/5029
+  auto iter = db->getIteratorGuard();
+  iter->first();
+  if (iter->isEnd()) {
+    throw std::invalid_argument{"RocksDB database is empty at path " + path};
+  }
 
   // Make sure we don't link the temporary ST chain as we don't want to change the DB in any way.
   const auto link_temp_st_chain = false;
