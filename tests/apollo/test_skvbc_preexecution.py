@@ -147,7 +147,6 @@ class SkvbcPreExecutionTest(unittest.TestCase):
                                                 err_msg="Make sure the view did not change.")
                 await trio.sleep(seconds=5)
 
-    @unittest.skip("Unstable")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @with_constant_load
@@ -157,6 +156,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         concurrently with a constant system load in the background.
         """
         bft_network.start_all_replicas()
+        await trio.sleep(SKVBC_INIT_GRACE_TIME)
 
         write_set = [(skvbc.random_key(), skvbc.random_value()),
                      (skvbc.random_key(), skvbc.random_value())]
@@ -244,7 +244,6 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         print(f"Finished at block {final_block_count}.")
         self.assertTrue(rw[0] + rw[1] >= num_of_requests)
 
-    @unittest.skip("Unstable")
     @with_trio
     @with_bft_network(start_replica_cmd)
     @with_constant_load
@@ -256,8 +255,9 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         This test validates that pre-execution and normal execution coexist correctly.
         """
         bft_network.start_all_replicas()
-        num_preexecution_requests = 200
+        await trio.sleep(SKVBC_INIT_GRACE_TIME)
 
+        num_preexecution_requests = 200
         clients = bft_network.random_clients(MAX_CONCURRENCY)
         await self.run_concurrent_pre_execution_requests(
             skvbc, clients, num_preexecution_requests, write_weight=1)

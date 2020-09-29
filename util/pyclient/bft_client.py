@@ -160,7 +160,7 @@ class UdpClient:
         """Reset any state that must be reset during retries"""
         self.primary = None
         self.retries += 1
-        if self.retries % 30 == 0:
+        if self.replies_manager.num_distinct_replies() > self.config.f:
             self.rsi_replies = dict()
             self.replies_manager.clear_replies()
 
@@ -226,7 +226,7 @@ class UdpClient:
             header, reply = rsi_msg.get_common_reply()
             if self.valid_reply(header, rsi_msg.get_sender_id(), replicas_ids):
                 quorum_size = self.replies_manager.add_reply(rsi_msg)
-                if quorum_size == required_replies:
+                if quorum_size >= required_replies:
                     self.reply = reply
                     self.rsi_replies = self.replies_manager.get_rsi_replies(rsi_msg.get_matched_reply_key())
                     self.primary = self.replicas[header.primary_id]
