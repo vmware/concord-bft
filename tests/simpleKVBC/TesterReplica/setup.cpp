@@ -186,7 +186,7 @@ concord::storage::s3::StoreConfig TestSetup::ParseS3Config(const std::string& s3
     if (v.size()) {
       return v[0];
     } else {
-      throw std::runtime_error("failed to parse" + s3ConfigFile + ": " + key + " is not set.");
+      throw std::runtime_error("failed to parse " + s3ConfigFile + ": " + key + " is not set.");
     }
   };
 
@@ -196,6 +196,7 @@ concord::storage::s3::StoreConfig TestSetup::ParseS3Config(const std::string& s3
   config.protocol = get_config_value("s3-protocol");
   config.url = get_config_value("s3-url");
   config.secretKey = get_config_value("s3-secret-key");
+  config.pathPrefix = get_config_value("s3-path-prefix");
 
   LOG_INFO(logger_,
            "\nS3 Configuration:"

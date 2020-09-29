@@ -33,6 +33,7 @@ struct StoreConfig {
   std::string secretKey;      // from the customer
   std::string accessKey;      // from the customer
   std::uint32_t maxWaitTime;  // in milliseconds
+  std::string pathPrefix;     // optional path prefix used in the bucket
 };
 
 /**

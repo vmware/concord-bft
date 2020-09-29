@@ -82,8 +82,7 @@ IStorageFactory::DatabaseSet S3StorageFactory::newDatabaseSet() const {
   ret.dataDBClient = std::make_shared<storage::ObjectStoreClient>(new storage::s3::Client{s3Conf_});
   ret.dataDBClient->init();
 
-  const auto prefix = std::to_string(std::chrono::high_resolution_clock::now().time_since_epoch().count());
-  auto dataKeyGenerator = std::make_unique<S3KeyGenerator>(prefix);
+  auto dataKeyGenerator = std::make_unique<S3KeyGenerator>(s3Conf_.pathPrefix);
   ret.dbAdapter = std::make_unique<DBAdapter>(ret.dataDBClient, std::move(dataKeyGenerator), true);
 
   return ret;
