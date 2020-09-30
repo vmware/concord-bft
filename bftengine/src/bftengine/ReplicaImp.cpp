@@ -1500,9 +1500,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
       if (pos != tableOfStableCheckpoints.end()) delete pos->second;
       CheckpointMsg *x = new CheckpointMsg(msgSenderId, msgSeqNum, msgDigest, msgIsStable);
       tableOfStableCheckpoints[msgSenderId] = x;
-      LOG_INFO(GL,
-               "Added stable Checkpoint message to tableOfStableCheckpoints: " << KVLOG(
-                   msgSenderId, tableOfStableCheckpoints.size()));
+      LOG_INFO(GL, "Added stable Checkpoint message to tableOfStableCheckpoints: " << KVLOG(msgSenderId));
 
       if ((uint16_t)tableOfStableCheckpoints.size() >= config_.fVal + 1) {
         uint16_t numRelevant = 0;
