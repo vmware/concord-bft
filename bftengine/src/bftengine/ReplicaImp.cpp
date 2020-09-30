@@ -322,7 +322,6 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
 
   ConcordAssertGE(primaryLastUsedSeqNum, lastExecutedSeqNum);
 
-  uint64_t concurrentDiff = ((primaryLastUsedSeqNum + 1) - lastExecutedSeqNum);
   uint64_t minBatchSize = 1;
 
   // update maxNumberOfPendingRequestsInRecentHistory (if needed)
@@ -330,12 +329,8 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
     maxNumberOfPendingRequestsInRecentHistory = requestsInQueue;
 
   // TODO(GG): the batching logic should be part of the configuration - TBD.
-  if (batchingLogic && (concurrentDiff >= 2)) {
-    minBatchSize = concurrentDiff * batchingFactor;
-
-    const size_t maxReasonableMinBatchSize = 350;  // TODO(GG): use param from configuration
-
-    if (minBatchSize > maxReasonableMinBatchSize) minBatchSize = maxReasonableMinBatchSize;
+  if (batchingLogic) {
+    minBatchSize = 50;
   }
 
   if (requestsInQueue < minBatchSize) {
@@ -2715,6 +2710,8 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
   delete msg;
 }
 
+void ReplicaImp::onBatchingTimer(Timers::Handle timer) { tryToSendPrePrepareMsg(false); }
+
 void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/update logic
 {
   ConcordAssert(viewChangeProtocolEnabled);
@@ -3306,6 +3303,7 @@ void ReplicaImp::stop() {
   timers_.cancel(slowPathTimer_);
   timers_.cancel(infoReqTimer_);
   timers_.cancel(statusReportTimer_);
+  timers_.cancel(batchingTimer_);
   if (viewChangeProtocolEnabled) timers_.cancel(viewChangeTimer_);
   if (enableRetransmitSuperStableCheckpoint_) timers_.cancel(superStableCheckpointRetransmitTimer_);
   ReplicaForStateTransfer::stop();
@@ -3318,6 +3316,10 @@ void ReplicaImp::addTimers() {
   statusReportTimer_ = timers_.add(milliseconds(statusReportTimerMilli),
                                    Timers::Timer::RECURRING,
                                    [this](Timers::Handle h) { onStatusReportTimer(h); });
+  if (isCurrentPrimary()) {
+    batchingTimer_ =
+        timers_.add(milliseconds(1000), Timers::Timer::RECURRING, [this](Timers::Handle h) { onBatchingTimer(h); });
+  }
   if (viewChangeProtocolEnabled) {
     int t = viewChangeTimerMilli;
     if (autoPrimaryRotationEnabled && t > autoPrimaryRotationTimerMilli) t = autoPrimaryRotationTimerMilli;

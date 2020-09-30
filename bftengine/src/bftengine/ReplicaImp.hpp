@@ -154,6 +154,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   concordUtil::Timers::Handle slowPathTimer_;
   concordUtil::Timers::Handle infoReqTimer_;
   concordUtil::Timers::Handle statusReportTimer_;
+  concordUtil::Timers::Handle batchingTimer_;
   concordUtil::Timers::Handle viewChangeTimer_;
   concordUtil::Timers::Handle superStableCheckpointRetransmitTimer_;
 
@@ -373,6 +374,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   virtual const ReplicasInfo& getReplicasInfo() const override { return (*repsInfo); }
 
   void onViewsChangeTimer(concordUtil::Timers::Handle);
+  void onBatchingTimer(concordUtil::Timers::Handle);
   void onRetransmissionsTimer(concordUtil::Timers::Handle);
   void onStatusReportTimer(concordUtil::Timers::Handle);
   void onSlowPathTimer(concordUtil::Timers::Handle);
