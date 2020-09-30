@@ -90,7 +90,7 @@ std::string readline(int sock) {
   }
 }
 
-void handleRequest(const Registrar& registrar, int sock) {
+void handleRequest(Registrar& registrar, int sock) {
   try {
     std::stringstream ss(readline(sock));
     std::vector<std::string> tokens;
@@ -120,7 +120,7 @@ void handleRequest(const Registrar& registrar, int sock) {
 // use case.
 class Server {
  public:
-  void start(const Registrar& registrar, in_addr_t host, uint16_t port) {
+  void start(Registrar& registrar, in_addr_t host, uint16_t port) {
     shutdown_.store(false);
     listen_thread_ = std::thread([this, &registrar, host, port]() {
       listen(host, port);

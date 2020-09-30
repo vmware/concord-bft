@@ -17,12 +17,14 @@
 #include <mutex>
 #include <stdexcept>
 
+#include "performance_handler.h"
 #include "status_handlers.h"
 
 namespace concord::diagnostics {
 
 class Registrar {
  public:
+  PerformanceHandler perf;
   StatusHandlers status;
 };
 

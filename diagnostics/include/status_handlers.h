@@ -31,7 +31,7 @@ struct StatusHandler {
 
 class StatusHandlers {
  public:
-  void registerHandler(StatusHandler handler);
+  void registerHandler(const StatusHandler& handler);
   std::string get(const std::string& name) const;
   std::string describe(const std::string& name) const;
   std::string describe() const;

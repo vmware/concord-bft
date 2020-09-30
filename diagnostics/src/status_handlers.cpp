@@ -15,7 +15,7 @@
 
 namespace concord::diagnostics {
 
-void StatusHandlers::registerHandler(StatusHandler handler) {
+void StatusHandlers::registerHandler(const StatusHandler& handler) {
   std::lock_guard<std::mutex> guard(mutex_);
   if (status_handlers_.count(handler.name)) {
     throw std::invalid_argument(std::string("StatusHandler already exists: ") + handler.name);
@@ -60,4 +60,4 @@ std::string StatusHandlers::listKeys() const {
   return output;
 }
 
-};  // namespace concord::diagnostics
+}  // namespace concord::diagnostics
