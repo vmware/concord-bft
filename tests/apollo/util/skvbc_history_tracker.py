@@ -16,7 +16,7 @@ from util import skvbc as kvbc, eliot_logging as log
 import trio
 import random
 from functools import wraps
-from util.skvbc_exceptions import (
+from util.skvbc_exceptions import(
     ConflictingBlockWriteError,
     StaleReadError,
     NoConflictError,
@@ -24,7 +24,7 @@ from util.skvbc_exceptions import (
     PhantomBlockError
 )
 
-MAX_LOOKBACK = 10
+MAX_LOOKBACK=10
 
 
 def verify_linearizability(pre_exec_enabled=False, no_conflicts=False):
@@ -32,7 +32,6 @@ def verify_linearizability(pre_exec_enabled=False, no_conflicts=False):
     Creates a tracker and provide it to the decorated method.
     In the end of the method it checks the linearizability of the resulting history.
     """
-
     def decorator(async_fn):
         @wraps(async_fn)
         async def wrapper(*args, **kwargs):
@@ -51,7 +50,6 @@ def verify_linearizability(pre_exec_enabled=False, no_conflicts=False):
                 await tracker.fill_missing_blocks_and_verify()
 
         return wrapper
-
     return decorator
 
 
@@ -59,7 +57,6 @@ class SkvbcWriteRequest:
     """
     A write request sent to an Skvbc cluster. A request may or may not complete.
     """
-
     def __init__(self, client_id, seq_num, readset, writeset, read_block_id=0):
         self.timestamp = time.monotonic()
         self.client_id = client_id
@@ -70,19 +67,17 @@ class SkvbcWriteRequest:
 
     def __repr__(self):
         return (f'{self.__class__.__name__}:\n'
-                f'  timestamp={self.timestamp}\n'
-                f'  client_id={self.client_id}\n'
-                f'  seq_num={self.seq_num}\n'
-                f'  readset={self.readset}\n'
-                f'  writeset={self.writeset}\n'
-                f'  read_block_id={self.read_block_id}\n')
-
+           f'  timestamp={self.timestamp}\n'
+           f'  client_id={self.client_id}\n'
+           f'  seq_num={self.seq_num}\n'
+           f'  readset={self.readset}\n'
+           f'  writeset={self.writeset}\n'
+           f'  read_block_id={self.read_block_id}\n')
 
 class SkvbcReadRequest:
     """
     A read request sent to an Skvbc cluster. A request may or may not complete.
     """
-
     def __init__(self, client_id, seq_num, readset, read_block_id=0):
         self.timestamp = time.monotonic()
         self.client_id = client_id
@@ -92,19 +87,17 @@ class SkvbcReadRequest:
 
     def __repr__(self):
         return (f'{self.__class__.__name__}:\n'
-                f'  timestamp={self.timestamp}\n'
-                f'  client_id={self.client_id}\n'
-                f'  seq_num={self.seq_num}\n'
-                f'  readset={self.readset}\n'
-                f'  read_block_id={self.read_block_id}\n')
-
+           f'  timestamp={self.timestamp}\n'
+           f'  client_id={self.client_id}\n'
+           f'  seq_num={self.seq_num}\n'
+           f'  readset={self.readset}\n'
+           f'  read_block_id={self.read_block_id}\n')
 
 class SkvbcGetLastBlockReq:
     """
     A GET_LAST_BLOCK request sent to an skvbc cluster. A request may or may not
     complete.
     """
-
     def __init__(self, client_id, seq_num):
         self.timestamp = time.monotonic()
         self.client_id = client_id
@@ -112,14 +105,12 @@ class SkvbcGetLastBlockReq:
 
     def __repr__(self):
         return (f'{self.__class__.__name__}:\n'
-                f'  timestamp={self.timestamp}\n'
-                f'  client_id={self.client_id}\n'
-                f'  seq_num={self.seq_num}\n')
-
+           f'  timestamp={self.timestamp}\n'
+           f'  client_id={self.client_id}\n'
+           f'  seq_num={self.seq_num}\n')
 
 class SkvbcWriteReply:
     """A reply to an outstanding write request sent to an Skvbc cluster."""
-
     def __init__(self, client_id, seq_num, reply):
         self.timestamp = time.monotonic()
         self.client_id = client_id
@@ -128,15 +119,13 @@ class SkvbcWriteReply:
 
     def __repr__(self):
         return (f'{self.__class__.__name__}:\n'
-                f'  timestamp={self.timestamp}\n'
-                f'  client_id={self.client_id}\n'
-                f'  seq_num={self.seq_num}\n'
-                f'  reply={self.reply}\n')
-
+           f'  timestamp={self.timestamp}\n'
+           f'  client_id={self.client_id}\n'
+           f'  seq_num={self.seq_num}\n'
+           f'  reply={self.reply}\n')
 
 class SkvbcReadReply:
     """A reply to an outstanding read request sent to an Skvbc cluster."""
-
     def __init__(self, client_id, seq_num, kvpairs):
         self.timestamp = time.monotonic()
         self.client_id = client_id
@@ -145,17 +134,15 @@ class SkvbcReadReply:
 
     def __repr__(self):
         return (f'{self.__class__.__name__}:\n'
-                f'  timestamp={self.timestamp}\n'
-                f'  client_id={self.client_id}\n'
-                f'  seq_num={self.seq_num}\n'
-                f'  kvpairs={self.kvpairs}\n')
-
+           f'  timestamp={self.timestamp}\n'
+           f'  client_id={self.client_id}\n'
+           f'  seq_num={self.seq_num}\n'
+           f'  kvpairs={self.kvpairs}\n')
 
 class SkvbcGetLastBlockReply:
     """
     A reply to an outstanding get last block request sent to an Skvbc cluster.
     """
-
     def __init__(self, client_id, seq_num, reply):
         self.timestamp = time.monotonic()
         self.client_id = client_id
@@ -164,22 +151,20 @@ class SkvbcGetLastBlockReply:
 
     def __repr__(self):
         return (f'{self.__class__.__name__}:\n'
-                f'  timestamp={self.timestamp}\n'
-                f'  client_id={self.client_id}\n'
-                f'  seq_num={self.seq_num}\n'
-                f'  reply={self.reply}\n')
-
+           f'  timestamp={self.timestamp}\n'
+           f'  client_id={self.client_id}\n'
+           f'  seq_num={self.seq_num}\n'
+           f'  reply={self.reply}\n')
 
 class Result(Enum):
-    """
-    Whether an operation succeeded, failed, or the result is unknown
-    """
-    WRITE_SUCCESS = 1
-    WRITE_FAIL = 2
-    UNKNOWN_WRITE = 3
-    UNKNOWN_READ = 4
-    READ_REPLY = 5
-
+   """
+   Whether an operation succeeded, failed, or the result is unknown
+   """
+   WRITE_SUCCESS = 1
+   WRITE_FAIL = 2
+   UNKNOWN_WRITE = 3
+   UNKNOWN_READ = 4
+   READ_REPLY = 5
 
 class CompletedRead:
     def __init__(self, causal_state, kvpairs):
@@ -188,13 +173,11 @@ class CompletedRead:
 
     def __repr__(self):
         return (f'{self.__class__.__name__}:\n'
-                f'  causal_state={self.causal_state}\n'
-                f'  kvpairs={self.kvpairs}\n')
-
+           f'  causal_state={self.causal_state}\n'
+           f'  kvpairs={self.kvpairs}\n')
 
 class CausalState:
     """Relevant state of the tracker before a request is started"""
-
     def __init__(self,
                  req_index,
                  last_known_block,
@@ -211,17 +194,15 @@ class CausalState:
 
     def __repr__(self):
         return (f'{self.__class__.__name__}:\n'
-                f'    req_index={self.req_index}\n'
-                f'    last_known_block={self.last_known_block}\n'
-                f'    last_consecutive_block={self.last_consecutive_block}\n'
-                f'    '
-                f'missing_intermediate_blocks={self.missing_intermediate_blocks}\n'
-                f'    causal state kvpairs={self.kvpairs}\n')
-
+           f'    req_index={self.req_index}\n'
+           f'    last_known_block={self.last_known_block}\n'
+           f'    last_consecutive_block={self.last_consecutive_block}\n'
+           f'    '
+           f'missing_intermediate_blocks={self.missing_intermediate_blocks}\n'
+           f'    causal state kvpairs={self.kvpairs}\n')
 
 class ConcurrentValue:
     """Track the state for a request / reply in self.concurrent"""
-
     def __init__(self, is_read):
         if is_read:
             self.result = Result.UNKNOWN_READ
@@ -234,9 +215,8 @@ class ConcurrentValue:
 
     def __repr__(self):
         return (f'{self.__class__.__name__}:\n'
-                f'  result={self.result}\n'
-                f'  written_block_id={self.written_block_id}\n')
-
+           f'  result={self.result}\n'
+           f'  written_block_id={self.written_block_id}\n')
 
 class Block:
     def __init__(self, kvpairs, req_index=None):
@@ -245,16 +225,14 @@ class Block:
 
     def __repr__(self):
         return (f'{self.__class__.__name__}:\n'
-                f'  kvpairs={self.kvpairs}\n'
-                f'  req_index={self.req_index}\n')
-
+           f'  kvpairs={self.kvpairs}\n'
+           f'  req_index={self.req_index}\n')
 
 class Status:
     """
     Status about the order of writes and reads.
     This is useful for debugging linearizability check failures.
     """
-
     def __init__(self, config):
         self.config = config
         self.start_time = time.monotonic()
@@ -274,13 +252,12 @@ class Status:
 
     def __str__(self):
         return (f'{self.__class__.__name__}:\n'
-                f'  config={self.config}\n'
-                f'  test_duration={self.end_time - self.start_time} seconds\n'
-                f'  time_since_last_client_reply='
-                f'{self.end_time - self.last_client_reply} seconds\n'
-                f'  client_timeouts={self.client_timeouts}\n'
-                f'  client_replies={self.client_replies}\n')
-
+           f'  config={self.config}\n'
+           f'  test_duration={self.end_time - self.start_time} seconds\n'
+           f'  time_since_last_client_reply='
+           f'{self.end_time - self.last_client_reply} seconds\n'
+           f'  client_timeouts={self.client_timeouts}\n'
+           f'  client_replies={self.client_replies}\n')
 
 class SkvbcTracker:
     """
@@ -400,7 +377,6 @@ class SkvbcTracker:
     clusters with lots of blocks, but we may want to add it as an optional check
     in the future.
     """
-
     def __init__(self, initial_kvpairs={}, skvbc=None, bft_network=None, pre_exec_all=False, no_conflicts=False):
 
         # If this flag is set to True, it means that all the tracker requests will
@@ -457,7 +433,7 @@ class SkvbcTracker:
     def send_write(self, client_id, seq_num, readset, writeset, read_block_id):
         """Track the send of a write request"""
         req = SkvbcWriteRequest(
-            client_id, seq_num, readset, writeset, read_block_id)
+                client_id, seq_num, readset, writeset, read_block_id)
         self._send_req(req, is_read=False)
 
     def send_read(self, client_id, seq_num, readset):
@@ -613,7 +589,7 @@ class SkvbcTracker:
         return writes
 
     def _verify_successful_writes(self):
-        for i in range(1, self.last_known_block + 1):
+        for i in range(1, self.last_known_block+1):
             req_index = self.blocks[i].req_index
             if req_index != None:
                 # A reply was received for this request that created the block
@@ -651,10 +627,10 @@ class SkvbcTracker:
                            causal_state.last_known_block + blocks_to_check + 1):
                 writeset = set(self.blocks[i].kvpairs.keys())
                 if len(failed_req.readset.intersection(writeset)) != 0:
-                    # We found a block that conflicts. We must
-                    # assume that failed_req was failed correctly.
-                    success = True
-                    break
+                       # We found a block that conflicts. We must
+                       # assume that failed_req was failed correctly.
+                       success = True
+                       break
 
             if not success:
                 # We didn't find any conflicting blocks.
@@ -670,7 +646,7 @@ class SkvbcTracker:
 
         If a read cannot be linearized, then raise an exception.
         """
-        for req_index, completed_read in self.completed_reads.items():
+        for req_index, completed_read  in self.completed_reads.items():
             cs = completed_read.causal_state
             kv = cs.kvpairs.copy()
 
@@ -724,8 +700,8 @@ class SkvbcTracker:
         count = 0
         for val in self.concurrent[req_index].values():
             if val.result == Result.WRITE_SUCCESS or \
-                    val.result == Result.UNKNOWN_WRITE:
-                count += 1
+               val.result == Result.UNKNOWN_WRITE:
+                   count += 1
         return count
 
     def _update_concurrent_requests(self, index, is_read):
@@ -829,33 +805,33 @@ class SkvbcTracker:
         return (self.history[index], index)
 
     async def fill_missing_blocks_and_verify(self):
-        try:
-            # Use a new client, since other clients may not be responsive due to
-            # past failed responses.
-            client = await self.skvbc.bft_network.new_client()
-            last_block_id = await self.get_last_block_id(client)
-            log.log_message(message_type=f'Last Block ID = {last_block_id}')
-            missing_block_ids = self.get_missing_blocks(last_block_id)
-            log.log_message(message_type=f'Missing Block IDs = {missing_block_ids}')
-            blocks = await self.get_blocks(client, missing_block_ids)
-            self.fill_missing_blocks(blocks)
-            self.verify()
-        except Exception as e:
-            log.log_message(message_type=f'retries = {client.retries}')
-            self.status.end_time = time.monotonic()
-            log.log_message(message_type="HISTORY...")
-            for i, entry in enumerate(self.history):
-                log.log_message(message_type=f'Index = {i}: {entry}\n')
-            log.log_message(message_type="BLOCKS...")
-            log.log_message(message_type=f'{self.blocks}\n')
-            log.log_message(message_type=str(self.status))
-            log.log_message(message_type="FAILURE...")
-            raise (e)
+       try:
+           # Use a new client, since other clients may not be responsive due to
+           # past failed responses.
+           client = await self.skvbc.bft_network.new_client()
+           last_block_id = await self.get_last_block_id(client)
+           print(f'Last Block ID = {last_block_id}')
+           missing_block_ids = self.get_missing_blocks(last_block_id)
+           print(f'Missing Block IDs = {missing_block_ids}')
+           blocks = await self.get_blocks(client, missing_block_ids)
+           self.fill_missing_blocks(blocks)
+           self.verify()
+       except Exception as e:
+           print(f'retries = {client.retries}')
+           self.status.end_time = time.monotonic()
+           print("HISTORY...")
+           for i, entry in enumerate(self.history):
+               print(f'Index = {i}: {entry}\n')
+           print("BLOCKS...")
+           print(f'{self.blocks}\n')
+           print(str(self.status), flush=True)
+           print("FAILURE...")
+           raise (e)
 
     async def get_blocks(self, client, block_ids):
         blocks = {}
         for block_id in block_ids:
-            retries = 12  # 60 seconds
+            retries = 12 # 60 seconds
             for i in range(0, retries):
                 try:
                     msg = kvbc.SimpleKVBCProtocol.get_block_data_req(block_id)
@@ -925,8 +901,7 @@ class SkvbcTracker:
         with log.start_action(action_type="run_concurrent_ops"):
             max_concurrency = len(self.bft_network.clients) // 2
             max_size = len(self.skvbc.keys) // 2
-            return await self.send_concurrent_ops(num_ops, max_concurrency, max_size, write_weight,
-                                                  create_conflicts=True)
+            return await self.send_concurrent_ops(num_ops, max_concurrency, max_size, write_weight, create_conflicts=True)
 
     async def run_concurrent_conflict_ops(self, num_ops, write_weight=.70):
         if self.no_conflicts is True:
@@ -1053,8 +1028,8 @@ class SkvbcTracker:
         kv = [(keys[0], self.skvbc.random_value()),
               (keys[1], self.skvbc.random_value())]
 
-        # reply = await client.write(self.write_req([], kv, 0))
-        # reply = self.parse_reply(reply)
+        #reply = await client.write(self.write_req([], kv, 0))
+        #reply = self.parse_reply(reply)
         reply = await self.write_and_track_known_kv(kv, client)
         assert reply.success
         assert last_block + 1 == reply.last_block_id
@@ -1067,7 +1042,6 @@ class SkvbcTracker:
         kv2 = self.skvbc.parse_reply(data)
 
         assert kv2 == dict(kv)
-
 
 class PassThroughSkvbcTracker:
 

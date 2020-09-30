@@ -33,6 +33,7 @@ import bft_config
 import bft_client
 import bft_metrics_client
 from util import bft_metrics, eliot_logging as log
+from util.eliot_logging import log_call
 from util import skvbc as kvbc
 from util.bft_test_exceptions import AlreadyRunningError, AlreadyStoppedError
 
@@ -49,6 +50,7 @@ TestConfig = namedtuple('TestConfig', [
 
 KEY_FILE_PREFIX = "replica_keys_"
 
+@log_call(action_type="Test_Configs", include_args=[])
 def interesting_configs(selected=None):
     if selected is None:
         selected=lambda *config: True
