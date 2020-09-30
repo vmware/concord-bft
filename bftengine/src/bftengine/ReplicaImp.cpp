@@ -330,7 +330,7 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
 
   // TODO(GG): the batching logic should be part of the configuration - TBD.
   if (batchingLogic) {
-    minBatchSize = 50;
+    minBatchSize = 15;
   }
 
   if (requestsInQueue < minBatchSize) {
@@ -3318,7 +3318,7 @@ void ReplicaImp::addTimers() {
                                    [this](Timers::Handle h) { onStatusReportTimer(h); });
   if (isCurrentPrimary()) {
     batchingTimer_ =
-        timers_.add(milliseconds(1000), Timers::Timer::RECURRING, [this](Timers::Handle h) { onBatchingTimer(h); });
+        timers_.add(milliseconds(300), Timers::Timer::RECURRING, [this](Timers::Handle h) { onBatchingTimer(h); });
   }
   if (viewChangeProtocolEnabled) {
     int t = viewChangeTimerMilli;
