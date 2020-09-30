@@ -27,8 +27,8 @@ int main() {
   StatusHandler handler1("handler1", "handler 1 description", []() { return "handler1 called"; });
   StatusHandler handler2("handler2", "handler 2 description", []() { return "handler2 called"; });
 
-  registrar.registerStatusHandler(handler1);
-  registrar.registerStatusHandler(handler2);
+  registrar.status.registerHandler(handler1);
+  registrar.status.registerHandler(handler2);
 
   concord::diagnostics::Server diagnostics_server;
   diagnostics_server.start(registrar, INADDR_LOOPBACK, PORT);

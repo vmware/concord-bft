@@ -56,10 +56,10 @@ std::string run(const std::vector<std::string>& tokens, const Registrar& registr
   if (subject == "status") {
     if (command == "describe") {
       if (tokens.size() == 2) {
-        return registrar.describeStatus();
+        return registrar.status.describe();
       } else {
         return diagnostics::accumulate(tokens.begin() + 2, tokens.end(), [&registrar](const auto& key) -> std::string {
-          return registrar.describeStatus(key);
+          return registrar.status.describe(key);
         });
       }
     }
@@ -67,13 +67,13 @@ std::string run(const std::vector<std::string>& tokens, const Registrar& registr
     if (command == "get") {
       if (tokens.size() < 3) return usage();
       return diagnostics::accumulate(tokens.begin() + 2, tokens.end(), [&registrar](const auto& key) -> std::string {
-        return registrar.getStatus(key);
+        return registrar.status.get(key);
       });
     }
 
     if (command == "list-keys") {
       if (tokens.size() != 2) return usage();
-      return registrar.listStatusKeys();
+      return registrar.status.listKeys();
     }
   }
 

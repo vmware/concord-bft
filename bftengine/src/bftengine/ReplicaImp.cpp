@@ -73,8 +73,8 @@ void ReplicaImp::registerStatusHandlers() {
   auto replica_handler = make_handler_callback("replica", "Internal state of the concord-bft replica");
   auto state_transfer_handler = make_handler_callback("state-transfer", "Status of blockchain state transfer");
 
-  registrar.registerStatusHandler(replica_handler);
-  registrar.registerStatusHandler(state_transfer_handler);
+  registrar.status.registerHandler(replica_handler);
+  registrar.status.registerHandler(state_transfer_handler);
 }
 
 void ReplicaImp::registerMsgHandlers() {
