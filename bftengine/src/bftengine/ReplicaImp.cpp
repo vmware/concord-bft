@@ -1493,12 +1493,14 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
 
   if (msgIsStable && msgSeqNum > lastExecutedSeqNum) {
     auto pos = tableOfStableCheckpoints.find(msgSenderId);
-    if (pos == tableOfStableCheckpoints.end() || pos->second->seqNumber() < msgSeqNum) {
+    if (pos == tableOfStableCheckpoints.end() || pos->second->seqNumber() < msgSeqNum ||
+        (pos->second->seqNumber() == msgSeqNum
+         && mainLog->insideActiveWindow(lastExecutedSeqNum)
+         && (getMonotonicTime() - mainLog->get(lastExecutedSeqNum).lastUpdateTimeOfCommitMsgs() > milliseconds(timeToWaitBeforeStartingStateTransferInMainWindowMilli)))) {
       if (pos != tableOfStableCheckpoints.end()) delete pos->second;
       CheckpointMsg *x = new CheckpointMsg(msgSenderId, msgSeqNum, msgDigest, msgIsStable);
       tableOfStableCheckpoints[msgSenderId] = x;
-
-      LOG_INFO(GL, "Added stable Checkpoint message to tableOfStableCheckpoints: " << KVLOG(msgSenderId));
+      LOG_INFO(GL, "Added stable Checkpoint message to tableOfStableCheckpoints: " << KVLOG(msgSenderId, tableOfStableCheckpoints.size()));
 
       if ((uint16_t)tableOfStableCheckpoints.size() >= config_.fVal + 1) {
         uint16_t numRelevant = 0;
@@ -1524,7 +1526,6 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
           Time timeOfLastCommit = MinTime;
           if (mainLog->insideActiveWindow(lastExecutedSeqNum))
             timeOfLastCommit = mainLog->get(lastExecutedSeqNum).lastUpdateTimeOfCommitMsgs();
-
           if ((getMonotonicTime() - timeOfLastCommit) >
               (milliseconds(timeToWaitBeforeStartingStateTransferInMainWindowMilli))) {
             askForStateTransfer = true;
@@ -1534,7 +1535,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
     }
   }
 
-  if (askForStateTransfer) {
+  if (askForStateTransfer && !stateTransfer->isCollectingState()) {
     LOG_INFO(GL, "Call to startCollectingState()");
 
     stateTransfer->startCollectingState();
@@ -2646,8 +2647,7 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
   const ReplicaId msgSender = msg->senderId();
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
   LOG_INFO(GL, "Received ReqMissingDataMsg. " << KVLOG(msgSender, msg->getFlags()));
-  if ((currentViewIsActive()) && (msgSeqNum > strictLowerBoundOfSeqNums) && (mainLog->insideActiveWindow(msgSeqNum)) &&
-      (mainLog->insideActiveWindow(msgSeqNum))) {
+  if ((currentViewIsActive()) && (msgSeqNum > strictLowerBoundOfSeqNums) && (mainLog->insideActiveWindow(msgSeqNum))) {
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
 
     if (config_.replicaId == currentPrimary()) {
