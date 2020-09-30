@@ -22,6 +22,7 @@ import subprocess
 from collections import namedtuple
 import tempfile
 from functools import wraps
+from datetime import datetime
 import inspect
 
 import trio
@@ -138,7 +139,9 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                                         stop_replica_cmd=None,
                                         num_ro_replicas=num_ro_replicas)
                     with BftTestNetwork.new(config) as bft_network:
-                        bft_network.current_test = async_fn.__name__ + "_n=" + str(bft_config['n']) \
+                        storage_type = os.environ.get("STORAGE_TYPE")
+                        bft_network.current_test = async_fn.__name__ + "_" + storage_type \
+                                                                     + "_n=" + str(bft_config['n']) \
                                                                      + "_f=" + str(bft_config['f']) \
                                                                      + "_c=" + str(bft_config['c'])
                         print(f'Running {async_fn.__name__} '
@@ -394,13 +397,21 @@ class BftTestNetwork:
         with log.start_action(action_type="start_replica"):
             stdout_file = None
             stderr_file = None
+
             if os.environ.get('KEEP_APOLLO_LOGS', "").lower() in ["true", "on"]:
-                try:
-                    os.mkdir(f"/tmp/apollo/{self.current_test}/")
-                except FileExistsError:
-                    pass
-                stdout_file = open("/tmp/apollo/{}/stdout_{}.log".format(self.current_test, replica_id), 'a+')
-                stderr_file = open("/tmp/apollo/{}/stderr_{}.log".format(self.current_test, replica_id), 'a+')
+                test_name = os.environ.get('TEST_NAME')
+
+                if not test_name:
+                    now = datetime.now().strftime("%y-%m-%d_%H:%M:%S")
+                    test_name = f"{now}_{self.current_test}"
+
+                test_dir = f"{self.builddir}/tests/apollo/logs/{test_name}/{self.current_test}/"
+                test_log = f"{test_dir}stdout_{replica_id}.log"
+
+                os.makedirs(test_dir, exist_ok=True)
+
+                stdout_file = open(test_log, 'w+')
+                stderr_file = open(test_log, 'w+')
 
                 stdout_file.write("############################################\n")
                 stdout_file.flush()

@@ -20,7 +20,8 @@ CONCORD_BFT_CMAKE_FLAGS:= \
 			-DUSE_S3_OBJECT_STORE=TRUE \
 			-DUSE_OPENTRACING=ON \
 			-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-			-DOMIT_TEST_OUTPUT=OFF
+			-DOMIT_TEST_OUTPUT=OFF \
+			-DKEEP_APOLLO_LOGS=TRUE
 
 # The consistency parameter makes sense only at MacOS.
 # It is ignored at all other platforms.

@@ -46,7 +46,8 @@ jobs:
                               -DBUILD_ROCKSDB_STORAGE=TRUE \
                               ${{ matrix.use_s3_obj_store }} \
                               -DUSE_OPENTRACING=ON \
-                              -DOMIT_TEST_OUTPUT=OFF\" "\
+                              -DOMIT_TEST_OUTPUT=OFF\
+                              -DKEEP_APOLLO_LOGS=TRUE\" "\
               && script -q -e -c "make test"
         - name: Prepare artifacts
           if: failure()
