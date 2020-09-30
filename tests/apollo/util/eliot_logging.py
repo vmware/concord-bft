@@ -1,4 +1,4 @@
-from eliot import start_action, start_task, to_file, add_destinations, log_call
+from eliot import start_action, start_task, to_file, add_destinations, log_call, log_message
 from datetime import datetime
 import os
 import sys

@@ -21,6 +21,7 @@ from util import bft_network_partitioning as net
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from util.skvbc_history_tracker import verify_linearizability
+from util import eliot_logging as log
 
 
 def start_replica_cmd(builddir, replica_id):
@@ -203,7 +204,7 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
         expected_next_primary = 1 + initial_primary
         isolated_replicas = bft_network.random_set_of_replicas(f - 1, without={initial_primary, expected_next_primary})
 
-        print(f"Isolating network traffic to/from replicas {isolated_replicas}.")
+        log.log_message(message_type=f'Isolating network traffic to/from replicas {isolated_replicas}.')
         with net.ReplicaSubsetIsolatingAdversary(bft_network, isolated_replicas) as adversary:
             adversary.interfere()
 

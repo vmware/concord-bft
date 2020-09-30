@@ -18,6 +18,7 @@ import random
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, with_constant_load
 from util.skvbc_history_tracker import verify_linearizability
 import util.bft_network_partitioning as net
+import util.eliot_logging as log
 
 SKVBC_INIT_GRACE_TIME = 2
 NUM_OF_SEQ_WRITES = 100
@@ -237,11 +238,10 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         rw = await tracker.run_concurrent_ops(num_of_requests, write_weight=1)
         final_block_count = await tracker.get_last_block_id(read_client)
 
-        print("")
-        print(f"Randomly picked replica indexes {crash_targets} (nonprimary) to be stopped.")
-        print(f"Total of {num_of_requests} write pre-exec tx, "
+        log.log_message(message_type=f"Randomly picked replica indexes {crash_targets} (nonprimary) to be stopped.")
+        log.log_message(message_type=f"Total of {num_of_requests} write pre-exec tx, "
               f"concurrently submitted through {len(submit_clients)} clients.")
-        print(f"Finished at block {final_block_count}.")
+        log.log_message(message_type=f"Finished at block {final_block_count}.")
         self.assertTrue(rw[0] + rw[1] >= num_of_requests)
 
     @with_trio

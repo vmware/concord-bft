@@ -17,6 +17,7 @@ import trio
 
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, with_constant_load, KEY_FILE_PREFIX
+from util import eliot_logging as log
 
 
 def start_replica_cmd(builddir, replica_id, view_change_timeout_milli="10000"):
@@ -295,7 +296,7 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
         all_replicas = bft_network.all_replicas(without=exclude_replicas)
         random.shuffle(all_replicas)
         for replica in all_replicas:
-            print("stopping replica: ", replica)
+            log.log_message(message_type=f"stopping replica: {replica}")
             bft_network.stop_replica(replica)
             await trio.sleep(delay)
         return list(all_replicas)
@@ -309,7 +310,7 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
         if initial_primary not in stopped_replicas:
             stopped_replicas.append(initial_primary)
         for replica in stopped_replicas:
-            print("starting replica: ", replica)
+            log.log_message(message_type=f"starting replica: {replica}")
             bft_network.start_replica(replica)
             await trio.sleep(delay)
         return stopped_replicas
@@ -337,11 +338,11 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
         nb_replicas_in_matching_view = 0
         try:
             matching_view = await bft_network._wait_for_matching_agreed_view(replica_id, expected)
-            print(f'Matching view #{matching_view} has been agreed among replicas.')
+            log.log_message(message_type=f'Matching view #{matching_view} has been agreed among replicas.')
 
             nb_replicas_in_matching_view = await self._wait_for_active_view_under_constant_load(
                 matching_view, bft_network, replica_id, expected)
-            print(f'View #{matching_view} has been activated by '
+            log.log_message(message_type=f'View #{matching_view} has been activated by '
                   f'{nb_replicas_in_matching_view} >= n-f = {bft_network.config.n - bft_network.config.f}')
 
             return matching_view
@@ -368,7 +369,7 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
                 # matching_view to become active
                 matching_view = await bft_network._wait_for_matching_agreed_view(replica_id, expected)
                 if matching_view > view:
-                    print(f'Updated matching view #{matching_view} has been agreed among replicas.')
+                    log.log_message(message_type=f'Updated matching view #{matching_view} has been agreed among replicas.')
                     view = matching_view
                     fail_after_time += 30
         return nb_replicas_in_view
@@ -391,7 +392,7 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
         current_primary = await bft_network.get_current_primary()
         checkpoint_before = await bft_network.wait_for_checkpoint(current_primary)
 
-        print(f"expected_checkpoint_num should be > {checkpoint_before}")
+        log.log_message(message_type=f"expected_checkpoint_num should be > {checkpoint_before}")
         # Write enough data to checkpoint and create a need for state transfer
         for i in range(1 + num_of_checkpoints_to_add * 150):
             key = skvbc.random_key()
@@ -425,7 +426,7 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
                         value = await bft_network.metrics.get(replica_id, *key)
                     except KeyError:
                         # metrics not yet available, continue looping
-                        print(f"KeyError! '{gauge}' not yet available.")
+                        log.log_message(message_type=f"KeyError! '{gauge}' not yet available.")
                     else:
                         return value
 

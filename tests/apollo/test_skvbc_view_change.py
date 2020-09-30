@@ -21,6 +21,7 @@ from util import bft_network_partitioning as net
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from util.skvbc_history_tracker import verify_linearizability
+from util import eliot_logging as log
 
 def start_replica_cmd(builddir, replica_id):
     """
@@ -206,7 +207,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
             err_msg="Make sure the unstable replica works in the initial view."
         )
 
-        print(f"Crash replica #{unstable_replica} before the view change.")
+        log.log_message(message_type=f"Crash replica #{unstable_replica} before the view change.")
         bft_network.stop_replica(unstable_replica)
 
         # trigger a view change
@@ -270,7 +271,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
         unstable_replica = random.choice(
             bft_network.all_replicas(without={current_primary, initial_primary}))
-        print(f"Restart replica #{unstable_replica} after the view change.")
+        log.log_message(message_type=f"Restart replica #{unstable_replica} after the view change.")
 
         bft_network.stop_replica(unstable_replica)
         bft_network.start_replica(unstable_replica)

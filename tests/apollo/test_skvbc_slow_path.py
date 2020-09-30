@@ -18,6 +18,7 @@ import trio
 
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from util.skvbc_history_tracker import verify_linearizability
+from util import eliot_logging as log
 
 
 def start_replica_cmd(builddir, replica_id):
@@ -165,7 +166,7 @@ class SkvbcSlowPathTest(unittest.TestCase):
         randRep = random.choice(
                 bft_network.all_replicas(without={0}))
         
-        print("wait_for_view - Random replica {}".format(randRep))
+        log.log_message(f'wait_for_view - Random replica {randRep}')
 
         await bft_network.wait_for_view(
             replica_id=randRep,

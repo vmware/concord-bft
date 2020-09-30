@@ -20,6 +20,7 @@ from util import blinking_replica
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, TestConfig
 import sys
+from util import eliot_logging as log
 
 sys.path.append(os.path.abspath("../../util/pyclient"))
 
@@ -351,7 +352,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                             if value == 0:
                                 continue
                         except trio.TooSlowError:
-                            print(
+                            log.log_message(message_type=
                                 f"Replica {replica_id} was not able to get to super stable checkpoint within the timeout")
                             self.assertTrue(False)
                         else:

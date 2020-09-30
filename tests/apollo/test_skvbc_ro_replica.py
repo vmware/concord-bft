@@ -24,6 +24,7 @@ from util import skvbc as kvbc
 from util.skvbc import SimpleKVBCProtocol
 from util.skvbc_history_tracker import verify_linearizability
 from math import inf
+from util import eliot_logging as log
 
 from util.bft import KEY_FILE_PREFIX, with_trio, with_bft_network
 
@@ -64,7 +65,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
     """
     @classmethod
     def _start_s3_server(cls):
-        print("Starting server")
+        log.log_message(message_type="Starting server")
         server_env = os.environ.copy()
         server_env["MINIO_ACCESS_KEY"] = "concordbft"
         server_env["MINIO_SECRET_KEY"] = "concordbft"
@@ -81,10 +82,10 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         if not os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
-            print("CONCORD_BFT_MINIO_BINARY_PATH is not set. Running in RocksDB mode.")
+            log.log_message(message_type="CONCORD_BFT_MINIO_BINARY_PATH is not set. Running in RocksDB mode.")
             return
         
-        print("CONCORD_BFT_MINIO_BINARY_PATH is set. Running in S3 mode.")
+        log.log_message(message_type="CONCORD_BFT_MINIO_BINARY_PATH is set. Running in S3 mode.")
 
         # We need a temp dir for data and binaries - this is cls.dest_dir
         # self.dest_dir will contain data dir for minio buckets and the minio binary
@@ -93,12 +94,12 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         cls.minio_server_data_dir = os.path.join(cls.work_dir, "data")
         os.makedirs(os.path.join(cls.work_dir, "data", "blockchain"))     # create all dirs in one call
 
-        print(f"Working in {cls.work_dir}")
+        log.log_message(message_type=f"Working in {cls.work_dir}")
 
         # Start server
         cls._start_s3_server()
         
-        print("Initialisation complete")
+        log.log_message(message_type="Initialisation complete")
 
     @classmethod
     def tearDownClass(cls):
@@ -157,7 +158,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                         else:
                             if lastStableSeqNum >= 150:
                                 #enough requests
-                                print("Consensus: lastStableSeqNum:" + str(lastStableSeqNum))
+                                log.log_message(message_type="Consensus: lastStableSeqNum:" + str(lastStableSeqNum))
                                 nursery.cancel_scope.cancel()
         # start the read-only replica
         ro_replica_id = bft_network.config.n
@@ -173,7 +174,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                     else:
                         # success!
                         if lastExecutedSeqNum >= 150:
-                            print("Replica " + str(ro_replica_id) + ": lastExecutedSeqNum:" + str(lastExecutedSeqNum))
+                            log.log_message(message_type="Replica " + str(ro_replica_id) + ": lastExecutedSeqNum:" + str(lastExecutedSeqNum))
                             break
 
     @with_trio
@@ -207,7 +208,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                         else:
                             # success!
                             if lastExecutedSeqNum >= 150:
-                                print("Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
+                                log.log_message(message_type="Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
                                 nursery.cancel_scope.cancel()
                                 
     @with_trio
@@ -290,5 +291,5 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                     else:
                         # success!
                         if lastExecutedSeqNum >= 150:
-                            print("Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
+                            log.log_message(message_type="Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
                             break
