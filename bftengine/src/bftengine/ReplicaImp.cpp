@@ -1494,13 +1494,15 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   if (msgIsStable && msgSeqNum > lastExecutedSeqNum) {
     auto pos = tableOfStableCheckpoints.find(msgSenderId);
     if (pos == tableOfStableCheckpoints.end() || pos->second->seqNumber() < msgSeqNum ||
-        (pos->second->seqNumber() == msgSeqNum
-         && mainLog->insideActiveWindow(lastExecutedSeqNum)
-         && (getMonotonicTime() - mainLog->get(lastExecutedSeqNum).lastUpdateTimeOfCommitMsgs() > milliseconds(timeToWaitBeforeStartingStateTransferInMainWindowMilli)))) {
+        (pos->second->seqNumber() == msgSeqNum && mainLog->insideActiveWindow(lastExecutedSeqNum) &&
+         (getMonotonicTime() - mainLog->get(lastExecutedSeqNum).lastUpdateTimeOfCommitMsgs() >
+          milliseconds(timeToWaitBeforeStartingStateTransferInMainWindowMilli)))) {
       if (pos != tableOfStableCheckpoints.end()) delete pos->second;
       CheckpointMsg *x = new CheckpointMsg(msgSenderId, msgSeqNum, msgDigest, msgIsStable);
       tableOfStableCheckpoints[msgSenderId] = x;
-      LOG_INFO(GL, "Added stable Checkpoint message to tableOfStableCheckpoints: " << KVLOG(msgSenderId, tableOfStableCheckpoints.size()));
+      LOG_INFO(GL,
+               "Added stable Checkpoint message to tableOfStableCheckpoints: " << KVLOG(
+                   msgSenderId, tableOfStableCheckpoints.size()));
 
       if ((uint16_t)tableOfStableCheckpoints.size() >= config_.fVal + 1) {
         uint16_t numRelevant = 0;
