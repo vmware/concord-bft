@@ -665,10 +665,9 @@ class BftTestNetwork:
 
     async def is_fetching(self, replica_id):
         """Return whether the current replica is fetching state"""
-        with log.start_action(action_type="is_fetching"):
-            key = ['bc_state_transfer', 'Statuses', 'fetching_state']
-            state = await self.metrics.get(replica_id, *key)
-            return state != "NotFetching"
+        key = ['bc_state_transfer', 'Statuses', 'fetching_state']
+        state = await self.metrics.get(replica_id, *key)
+        return state != "NotFetching"
 
     async def source_replica(self, replica_id):
         """Return whether the current replica has a source replica already set"""
