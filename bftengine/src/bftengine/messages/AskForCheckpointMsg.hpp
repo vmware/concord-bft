@@ -26,6 +26,8 @@ class AskForCheckpointMsg : public MessageBase {
     memcpy(position, spanContext.data().data(), spanContext.data().size());
   }
 
+  BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(AskForCheckpointMsg)
+
   AskForCheckpointMsg* clone() { return new AskForCheckpointMsg(*this); }
 
   void validate(const ReplicasInfo& repInfo) const override {

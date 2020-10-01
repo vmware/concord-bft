@@ -28,6 +28,8 @@ class ReplicaStatusMsg : public MessageBase {
                    bool listOfMissingPrePrepareMsgForViewChange,
                    const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
+  BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(ReplicaStatusMsg)
+
   ViewNum getViewNumber() const;
 
   SeqNum getLastStableSeqNum() const;

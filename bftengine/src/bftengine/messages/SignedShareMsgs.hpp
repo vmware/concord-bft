@@ -66,6 +66,8 @@ class SignedShareBase : public MessageBase {
 
   SignedShareBase(ReplicaId sender, int16_t type, const concordUtils::SpanContext& spanContext, size_t msgSize);
 
+  BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(SignedShareBase)
+
   Header* b() const { return (Header*)msgBody_; }
 };
 
@@ -84,6 +86,9 @@ class PreparePartialMsg : public SignedShareBase {
                                    Digest& ppDigest,
                                    std::shared_ptr<IThresholdSigner> thresholdSigner,
                                    const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
+
+  PreparePartialMsg(MessageBase* msgBase) : SignedShareBase(msgBase) {}
+
   void validate(const ReplicasInfo&) const override;
 };
 
@@ -105,6 +110,9 @@ class PrepareFullMsg : public SignedShareBase {
                                 const char* sig,
                                 uint16_t sigLen,
                                 const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
+
+  PrepareFullMsg(MessageBase* msgBase) : SignedShareBase(msgBase) {}
+
   void validate(const ReplicasInfo&) const override;
 };
 
@@ -128,6 +136,9 @@ class CommitPartialMsg : public SignedShareBase {
                                   Digest& ppDoubleDigest,
                                   std::shared_ptr<IThresholdSigner> thresholdSigner,
                                   const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
+
+  CommitPartialMsg(MessageBase* msgBase) : SignedShareBase(msgBase) {}
+
   void validate(const ReplicasInfo&) const override;
 };
 
@@ -149,6 +160,9 @@ class CommitFullMsg : public SignedShareBase {
                                const char* sig,
                                uint16_t sigLen,
                                const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
+
+  CommitFullMsg(MessageBase* msgBase) : SignedShareBase(msgBase) {}
+
   void validate(const ReplicasInfo&) const override;
 };
 

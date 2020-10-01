@@ -38,6 +38,8 @@ class ClientRequestMsg : public MessageBase {
                    const std::string& cid = "",
                    const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
+  BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(ClientRequestMsg)
+
   ClientRequestMsg(ClientRequestMsgHeader* body);
 
   uint16_t clientProxyId() const { return msgBody()->idOfClientProxy; }

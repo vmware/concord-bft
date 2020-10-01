@@ -125,10 +125,12 @@ void ReplicaImp::registerMsgHandlers() {
 
 template <typename T>
 void ReplicaImp::messageHandler(MessageBase *msg) {
-  if (validateMessage(msg) && !isCollectingState())
-    onMessage<T>(static_cast<T *>(msg));
+  T *trueTypeObj = new T(msg);
+  delete msg;
+  if (validateMessage(trueTypeObj) && !isCollectingState())
+    onMessage<T>(trueTypeObj);
   else
-    delete msg;
+    delete trueTypeObj;
 }
 
 template <class T>
