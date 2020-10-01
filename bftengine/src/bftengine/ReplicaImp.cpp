@@ -1493,7 +1493,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
 
   if (msgIsStable && msgSeqNum > lastExecutedSeqNum) {
     auto pos = tableOfStableCheckpoints.find(msgSenderId);
-    if (pos == tableOfStableCheckpoints.end() || pos->second->seqNumber() < msgSeqNum) {
+    if (pos == tableOfStableCheckpoints.end() || pos->second->seqNumber() <= msgSeqNum) {
       if (pos != tableOfStableCheckpoints.end()) delete pos->second;
       CheckpointMsg *x = new CheckpointMsg(msgSenderId, msgSeqNum, msgDigest, msgIsStable);
       tableOfStableCheckpoints[msgSenderId] = x;
@@ -1532,7 +1532,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
     }
   }
 
-  if (askForStateTransfer) {
+  if (askForStateTransfer && !stateTransfer->isCollectingState()) {
     LOG_INFO(GL, "Call to startCollectingState()");
 
     stateTransfer->startCollectingState();
