@@ -1493,10 +1493,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
 
   if (msgIsStable && msgSeqNum > lastExecutedSeqNum) {
     auto pos = tableOfStableCheckpoints.find(msgSenderId);
-    if (pos == tableOfStableCheckpoints.end() || pos->second->seqNumber() < msgSeqNum ||
-        (pos->second->seqNumber() == msgSeqNum && mainLog->insideActiveWindow(lastExecutedSeqNum) &&
-         (getMonotonicTime() - mainLog->get(lastExecutedSeqNum).lastUpdateTimeOfCommitMsgs() >
-          milliseconds(timeToWaitBeforeStartingStateTransferInMainWindowMilli)))) {
+    if (pos == tableOfStableCheckpoints.end() || pos->second->seqNumber() < msgSeqNum) {
       if (pos != tableOfStableCheckpoints.end()) delete pos->second;
       CheckpointMsg *x = new CheckpointMsg(msgSenderId, msgSeqNum, msgDigest, msgIsStable);
       tableOfStableCheckpoints[msgSenderId] = x;
@@ -1535,7 +1532,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
     }
   }
 
-  if (askForStateTransfer && !stateTransfer->isCollectingState()) {
+  if (askForStateTransfer) {
     LOG_INFO(GL, "Call to startCollectingState()");
 
     stateTransfer->startCollectingState();
@@ -2458,8 +2455,9 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
     if (ps_) ps_->setPrimaryLastUsedSeqNum(primaryLastUsedSeqNum);
   }
 
-  mainLog->advanceActiveWindow(lastStableSeqNum + 1);
-
+  if (lastStableSeqNum % kWorkWindowSize == 0) {
+    mainLog->advanceActiveWindow(lastStableSeqNum + 1);
+  }
   // Basically, once a checkpoint become stable, we advance the checkpoints log window to it.
   // Alas, by doing so, we does not leave time for a checkpoint to try and become super stable.
   // For that we added another cell to the checkpoints log such that the "oldest" cell contains the checkpoint is
