@@ -133,3 +133,15 @@ target_link_libraries(sparse_merkle_db_editor_test PUBLIC
     stdc++fs
 )
 endif(BUILD_ROCKSDB_STORAGE)
+
+if(USE_S3_OBJECT_STORE)
+add_executable(s3_storage_factory_test s3_storage_factory_test.cpp )
+add_test(s3_storage_factory_test s3_storage_factory_test)
+target_include_directories(s3_storage_factory_test PUBLIC
+    kvbc
+)
+target_link_libraries(s3_storage_factory_test PUBLIC
+    GTest::Main
+    kvbc
+)
+endif(USE_S3_OBJECT_STORE)
