@@ -76,7 +76,7 @@ class RocksKeyGenerator : public IDataKeyGenerator, storage::v1DirectKeyValue::D
  */
 class S3KeyGenerator : public IDataKeyGenerator {
  public:
-  S3KeyGenerator(const std::string &prefix = "") : prefix_(prefix + std::string("/")) {}
+  S3KeyGenerator(const std::string &prefix = "") : prefix_(prefix.size() ? prefix + std::string("/") : "") {}
   Key blockKey(const BlockId &) const override;
   Key dataKey(const Key &, const BlockId &) const override;
   Key mdtKey(const Key &key) const override;
