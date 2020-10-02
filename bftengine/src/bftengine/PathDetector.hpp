@@ -18,7 +18,7 @@
 #include "SeqNumInfo.hpp"
 #include <memory>
 
-typedef SequenceWithActiveWindow<5 * kWorkWindowSize, 1, SeqNum, SeqNumInfo, SeqNumInfo> WindowOfSeqNumInfo;
+typedef SequenceWithActiveWindow<2 * kWorkWindowSize, 1, SeqNum, SeqNumInfo, SeqNumInfo> WindowOfSeqNumInfo;
 
 class PathDetector : public IPathDetector {
   std::shared_ptr<WindowOfSeqNumInfo> windowOfSeqNums_;
