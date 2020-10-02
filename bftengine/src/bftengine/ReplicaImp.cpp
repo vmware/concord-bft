@@ -2454,10 +2454,7 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
     metric_primary_last_used_seq_num_.Get().Set(primaryLastUsedSeqNum);
     if (ps_) ps_->setPrimaryLastUsedSeqNum(primaryLastUsedSeqNum);
   }
-
-  if (lastStableSeqNum % kWorkWindowSize == 0) {
-    mainLog->advanceActiveWindow(lastStableSeqNum + 1);
-  }
+  mainLog->advanceActiveWindow(lastStableSeqNum + 1);
   // Basically, once a checkpoint become stable, we advance the checkpoints log window to it.
   // Alas, by doing so, we does not leave time for a checkpoint to try and become super stable.
   // For that we added another cell to the checkpoints log such that the "oldest" cell contains the checkpoint is
