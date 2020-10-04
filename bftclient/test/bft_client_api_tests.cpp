@@ -14,124 +14,16 @@
 #include <set>
 #include <thread>
 #include <vector>
-#include <functional>
 
 #include "gtest/gtest.h"
 
 #include "bftengine/ClientMsgs.hpp"
 #include "bftclient/bft_client.h"
+#include "bftclient/fake_comm.h"
 #include "msg_receiver.h"
 
 using namespace bft::client;
 using namespace bft::communication;
-
-// A message sent from a client
-struct MsgFromClient {
-  ReplicaId destination;
-  Msg data;
-};
-
-// A message queue used to send messages to the behavior thread faking the replicas
-class BehaviorQueue {
- public:
-  // send a message from the client to the behavior thread
-  void push(MsgFromClient&& msg) {
-    {
-      std::lock_guard<std::mutex> guard(lock_);
-      msgs_.push_back(std::move(msg));
-    }
-    cond_var_.notify_one();
-  }
-
-  // Wait for client messages on the behavior thread
-  std::vector<MsgFromClient> wait(std::chrono::milliseconds timeout) {
-    std::vector<MsgFromClient> new_msgs;
-    std::unique_lock<std::mutex> lock(lock_);
-    cond_var_.wait_for(lock, timeout, [this] { return !msgs_.empty(); });
-    if (!msgs_.empty()) {
-      msgs_.swap(new_msgs);
-    }
-    return new_msgs;
-  }
-
- private:
-  std::vector<MsgFromClient> msgs_;
-  std::mutex lock_;
-  std::condition_variable cond_var_;
-};
-
-using Behavior = std::function<void(MsgFromClient, IReceiver*)>;
-
-// Take a callable behavior and run it when a message is received that is intended for a replica.
-class BehaviorThreadRunner {
- public:
-  BehaviorThreadRunner(Behavior&& b) : behavior_(std::move(b)) {}
-
-  // Replies to the client from the behavior thread are sent using this receiver
-  void setClientReceiver(IReceiver* receiver) { receiver_ = receiver; }
-
-  // send messages to the behavior thread
-  void send(MsgFromClient&& msg) { msg_queue_.push(std::move(msg)); }
-
-  void operator()() {
-    while (!stop_) {
-      auto received = msg_queue_.wait(1s);
-      for (const auto& msg : received) {
-        behavior_(msg, receiver_);
-      }
-    }
-  }
-
-  void stop() { stop_ = true; }
-
- private:
-  IReceiver* receiver_;
-  std::atomic<bool> stop_ = false;
-
-  Behavior behavior_;
-
-  // This is used to receive messages sent from the client thread with sendAsyncMessage.
-  BehaviorQueue msg_queue_;
-};
-
-// This communication fake takes a Behavior callback parameterized by each test. This callback
-// receives messages sent into the network via sendAsyncMessage. Depending on the test specific
-// behavior it replies with the appropriate reply messages to the receiver.
-//
-// sendAsyncMessage is called by the client thread (the test itself). Any receiver callbacks must be run in another
-// thread or a deadlock will result over the locking of the underlying queue in the receiver. The client thread waits
-// on the queue, while the communication thread puts received messages (from fake BFT servers) on the queue by calling
-// receiver_->onNewMessage();
-class FakeCommunication : public bft::communication::ICommunication {
- public:
-  FakeCommunication(Behavior&& behavior) : runner_(std::move(behavior)) {}
-
-  int getMaxMessageSize() override { return 1024; }
-  int Start() override {
-    runner_.setClientReceiver(receiver_);
-    fakeCommThread_ = std::thread(std::ref(runner_));
-    return 0;
-  }
-  int Stop() override {
-    runner_.stop();
-    fakeCommThread_.join();
-    return 0;
-  }
-  bool isRunning() const override { return true; }
-  ConnectionStatus getCurrentConnectionStatus(NodeNum node) override { return ConnectionStatus{}; }
-
-  int sendAsyncMessage(const NodeNum dest, const char* const msg, const size_t len) override {
-    runner_.send(MsgFromClient{ReplicaId{(uint16_t)dest}, Msg(msg, msg + len)});
-    return 0;
-  }
-
-  void setReceiver(NodeNum id, IReceiver* receiver) override { receiver_ = receiver; }
-
- private:
-  IReceiver* receiver_;
-  BehaviorThreadRunner runner_;
-  std::thread fakeCommThread_;
-};
 
 ClientConfig test_config{
     ClientId{5}, {ReplicaId{0}, ReplicaId{1}, ReplicaId{2}, ReplicaId{3}}, 1, 0, RetryTimeoutConfig{}};
