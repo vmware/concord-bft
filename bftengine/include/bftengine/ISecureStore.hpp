@@ -10,10 +10,12 @@
 // file.
 
 #pragma once
+#include <string>
 #include <cstdint>
 
-class IPathDetector {
+class ISecureStore {
  public:
-  virtual ~IPathDetector(){};
-  virtual bool isSlowPath(const uint64_t& sn) = 0;
+  virtual ~ISecureStore() {}
+  virtual void save(const std::string& str) = 0;
+  virtual std::string load() = 0;
 };

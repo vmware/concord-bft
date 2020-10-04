@@ -66,6 +66,7 @@ enum ConstMetadataParameterIds : uint32_t {
   LAST_STABLE_SEQ_NUM = 7,
   REPLICA_CONFIG = 8,
   ERASE_METADATA_ON_STARTUP = 9,
+  KEYS_VIEW = 10,
   CONST_METADATA_PARAMETERS_NUM,
 };
 
@@ -134,6 +135,8 @@ class PersistentStorageImp : public PersistentStorage {
   void setEraseMetadataStorageFlag() override;
   bool getEraseMetadataStorageFlag() override;
   void eraseMetadata() override;
+  void setKeysView(std::string &view) override;
+
   // Getters
   std::string getStoredVersion();
   std::string getCurrentVersion() const { return version_; }
@@ -165,6 +168,8 @@ class PersistentStorageImp : public PersistentStorage {
   bool hasDescriptorOfLastExitFromView() override;
   bool hasDescriptorOfLastNewView() override;
   bool hasDescriptorOfLastExecution() override;
+
+  std::string getKeysView() override;
 
   // Returns 'true' in case storage is empty
   bool init(std::unique_ptr<MetadataStorage> metadataStorage, bool &erasedMetadata);

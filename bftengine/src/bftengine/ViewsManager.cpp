@@ -23,6 +23,7 @@
 #include "messages/ViewChangeMsg.hpp"
 #include "messages/NewViewMsg.hpp"
 #include "messages/SignedShareMsgs.hpp"
+#include "CryptoManager.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -888,7 +889,8 @@ void ViewsManager::computeRestrictionsOfNewView(ViewNum v) {
       // Outputs
       minRestrictionOfPendingView,
       maxRestrictionOfPendingView,
-      restrictionsOfPendingView);
+      restrictionsOfPendingView,
+      CryptoManager::instance().thresholdVerifierForSlowPathCommit());
 
   // add items to prePrepareMsgsOfRestrictions
   // if we have restrictions

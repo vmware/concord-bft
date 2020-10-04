@@ -28,6 +28,31 @@ class TestKeyManager {
   uint64_t getKeyExchangedOnStartCounter() { return km_.metrics_->keyExchangedOnStartCounter.Get().Get(); }
   uint64_t getPublicKeyRotated() { return km_.metrics_->publicKeyRotated.Get().Get(); }
 };
+
+struct DummyKeyGen : public IMultiSigKeyGenerator, public IKeyExchanger {
+  std::pair<std::string, std::string> generateMultisigKeyPair() { return std::make_pair(prv, pub); }
+  void onPrivateKeyExchange(const std::string& secretKey, const std::string& verificationKey) {
+    selfpub = verificationKey;
+    selfprv = secretKey;
+  }
+  void onPublicKeyExchange(const std::string& verificationKey, const std::uint16_t& signerIndex) {
+    pubs[signerIndex] = verificationKey;
+  }
+  DummyKeyGen(uint32_t cs) : pubs{cs, ""} {}
+  std::string prv;
+  std::string pub;
+  std::vector<std::string> pubs;
+  std::string selfpub;
+  std::string selfprv;
+};
+
+class DummyLoaderSaver : public ISecureStore {
+ public:
+  std::string cache;
+  void save(const std::string& s) { cache = s; };
+  std::string load() { return cache; }
+};
+
 struct ReservedPagesMock : public IReservedPages {
   int size{4096};
   std::vector<char*> resPages;
@@ -324,11 +349,6 @@ TEST(ClusterKeyStore, rotate) {
   ASSERT_EQ(cks.rotate(2).empty(), false);
 }
 
-struct DummyPathDetect : public IPathDetector {
-  bool ret{false};
-  bool isSlowPath(const uint64_t& sn) { return ret; }
-};
-
 struct DummyClient : public IInternalBFTClient {
   inline NodeIdType getClientId() const { return 1; };
   void sendRquest(uint8_t flags, uint32_t requestLength, const char* request, const std::string& cid) {}
@@ -338,8 +358,10 @@ struct DummyClient : public IInternalBFTClient {
 
 TEST(KeyManager, initialKeyExchange) {
   uint32_t clusterSize = 4;
-  std::shared_ptr<IPathDetector> dpd(new DummyPathDetect());
   std::shared_ptr<IInternalBFTClient> dc(new DummyClient());
+  DummyKeyGen dkg{clusterSize};
+  dkg.prv = "private";
+  dkg.pub = "public";
   ReservedPagesMock rpm(clusterSize, true);
   concordUtil::Timers timers;
 
@@ -349,9 +371,10 @@ TEST(KeyManager, initialKeyExchange) {
   id.clusterSize = clusterSize;
   id.reservedPages = &rpm;
   id.sizeOfReservedPage = 4096;
-  id.pathDetect = dpd;
   id.timers = &timers;
-
+  id.kg = &dkg;
+  id.ke = &dkg;
+  id.sec = std::shared_ptr<ISecureStore>(new DummyLoaderSaver());
   TestKeyManager test{&id};
   // get the pub and prv keys from the key handlr and set them to be rotated.
   test.km_.sendInitialKey();
@@ -378,27 +401,28 @@ TEST(KeyManager, initialKeyExchange) {
   test.km_.onKeyExchange(kem4, 5);
 
   // will return true to slow path and will ignore this msg
-  auto pd = (DummyPathDetect*)dpd.get();
-  pd->ret = true;
   KeyExchangeMsg kem3;
+  // set to fast path
   kem3.key = "c";
   kem3.signature = "w1";
   kem3.repID = 2;
-  ASSERT_EQ(test.km_.keysExchanged, false);
-  ASSERT_EQ(test.getKeyExchangedOnStartCounter(), 3);
-  test.km_.onKeyExchange(kem3, 4);
-  ASSERT_EQ(test.km_.keysExchanged, false);
-  // set to fast path
-  pd->ret = false;
   test.km_.onKeyExchange(kem3, 5);
   ASSERT_EQ(test.getKeyExchangedOnStartCounter(), 4);
   ASSERT_EQ(test.km_.keysExchanged, true);
+  // check notification
+  ASSERT_EQ(dkg.selfprv, "private");
+  ASSERT_EQ(dkg.selfpub, "public");
+  ASSERT_EQ(dkg.pubs[0], "a");
+  ASSERT_EQ(dkg.pubs[1], "b");
+  ASSERT_EQ(dkg.pubs[2], "c");
 }
 
 TEST(KeyManager, endToEnd) {
   uint32_t clustersize{4};
-  std::shared_ptr<IPathDetector> dpd(new DummyPathDetect());
   std::shared_ptr<IInternalBFTClient> dc(new DummyClient());
+  DummyKeyGen dkg{clustersize};
+  dkg.prv = "private";
+  dkg.pub = "public";
   ReservedPagesMock rpm(4, true);
   concordUtil::Timers timers;
 
@@ -408,9 +432,10 @@ TEST(KeyManager, endToEnd) {
   id.clusterSize = clustersize;
   id.reservedPages = &rpm;
   id.sizeOfReservedPage = 4096;
-  id.pathDetect = dpd;
   id.timers = &timers;
-
+  id.kg = &dkg;
+  id.ke = &dkg;
+  id.sec = std::shared_ptr<ISecureStore>(new DummyLoaderSaver());
   TestKeyManager test{&id};
 
   // set published private key of replica 2
@@ -452,6 +477,12 @@ TEST(KeyManager, endToEnd) {
   ASSERT_EQ(test.km_.getReplicaPublicKey(2).key, "public");
   ASSERT_EQ(test.km_.getReplicaPublicKey(3).key, "d");
 
+  // check notification
+  ASSERT_EQ(dkg.selfprv, "private");
+  ASSERT_EQ(dkg.selfpub, "public");
+  ASSERT_EQ(dkg.pubs[0], "a");
+  ASSERT_EQ(dkg.pubs[1], "b");
+  ASSERT_EQ(dkg.pubs[3], "d");
   // Should not rotate any key
   test.km_.onCheckpoint(2);
   ASSERT_EQ(test.getPublicKeyRotated(), 0);
@@ -459,6 +490,8 @@ TEST(KeyManager, endToEnd) {
   ASSERT_EQ(test.km_.getReplicaPublicKey(1).key, "b");
   ASSERT_EQ(test.km_.getReplicaPublicKey(2).key, "public");
   ASSERT_EQ(test.km_.getReplicaPublicKey(3).key, "d");
+  dkg.prv = "private2";
+  dkg.pub = "public2";
   // set published private key of replica 2
   test.km_.sendKeyExchange();
 
@@ -485,9 +518,16 @@ TEST(KeyManager, endToEnd) {
   // Checkpoint too close, should not rotate
   test.km_.onCheckpoint(1);
   ASSERT_EQ(test.getPublicKeyRotated(), 0);
+  ASSERT_EQ(test.km_.getPrivateKey(), "private");
   ASSERT_EQ(test.km_.getReplicaPublicKey(0).key, "a");
   ASSERT_EQ(test.km_.getReplicaPublicKey(1).key, "b");
   ASSERT_EQ(test.km_.getReplicaPublicKey(2).key, "public");
+  // check notification
+  ASSERT_EQ(dkg.selfprv, "private");
+  ASSERT_EQ(dkg.selfpub, "public");
+  ASSERT_EQ(dkg.pubs[0], "a");
+  ASSERT_EQ(dkg.pubs[1], "b");
+  ASSERT_EQ(dkg.pubs[3], "d");
 
   // rotation candidate for replica 3
   KeyExchangeMsg kem8;
@@ -499,10 +539,16 @@ TEST(KeyManager, endToEnd) {
   // now should rotate 0,1,2
   test.km_.onCheckpoint(2);
   ASSERT_EQ(test.getPublicKeyRotated(), 3);
+  ASSERT_EQ(test.km_.getPrivateKey(), "private2");
   ASSERT_EQ(test.km_.getReplicaPublicKey(0).key, "aaaa");
   ASSERT_EQ(test.km_.getReplicaPublicKey(1).key, "bbbb");
   ASSERT_EQ(test.km_.getReplicaPublicKey(2).key, "public2");
   ASSERT_EQ(test.km_.getReplicaPublicKey(3).key, "d");
+  ASSERT_EQ(dkg.selfprv, "private2");
+  ASSERT_EQ(dkg.selfpub, "public2");
+  ASSERT_EQ(dkg.pubs[0], "aaaa");
+  ASSERT_EQ(dkg.pubs[1], "bbbb");
+  ASSERT_EQ(dkg.pubs[3], "d");
 }
 
 TEST(ClusterKeyStore, dirty_first_load) {
@@ -614,6 +660,45 @@ TEST(ClusterKeyStore, clean_first_load_save_keys_rotate_and_reload) {
     }
     ASSERT_EQ(reloadCks.numKeys(i), 1);
   }
+}
+TEST(PrivateKeys, ser_der) {
+  std::shared_ptr<ISecureStore> dls(new DummyLoaderSaver());
+  KeyManager::KeysView keys{dls, 4};
+  keys.data.generatedPrivateKey = "publish";
+  keys.data.outstandingPrivateKey = "outstandingPrivateKey";
+  keys.data.privateKey = "privateKey";
+
+  std::stringstream ss;
+  concord::serialize::Serializable::serialize(ss, keys.data);
+  auto strMsg = ss.str();
+
+  KeyManager::KeysView keys2{dls, 4};
+
+  ss.write(strMsg.c_str(), std::streamsize(strMsg.size()));
+  concord::serialize::Serializable::deserialize(ss, keys2.data);
+
+  ASSERT_EQ(keys.data.generatedPrivateKey, keys2.data.generatedPrivateKey);
+  ASSERT_EQ(keys.data.outstandingPrivateKey, keys2.data.outstandingPrivateKey);
+  ASSERT_EQ(keys.data.privateKey, keys2.data.privateKey);
+}
+
+TEST(PrivateKeys, SaveLoad) {
+  std::shared_ptr<ISecureStore> dls(new DummyLoaderSaver());
+  KeyManager::KeysView keys{dls, 4};
+  keys.data.generatedPrivateKey = "publish";
+  keys.data.outstandingPrivateKey = "outstandingPrivateKey";
+  keys.data.privateKey = "privateKey";
+
+  keys.save();
+  keys.data.generatedPrivateKey = "";
+  keys.data.outstandingPrivateKey = "";
+  keys.data.privateKey = "";
+
+  keys.load();
+
+  ASSERT_EQ(keys.data.generatedPrivateKey, "publish");
+  ASSERT_EQ(keys.data.outstandingPrivateKey, "outstandingPrivateKey");
+  ASSERT_EQ(keys.data.privateKey, "privateKey");
 }
 
 TEST(KeyManager, reserved_pages) {}

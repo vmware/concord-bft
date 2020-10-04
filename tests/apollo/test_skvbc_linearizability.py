@@ -40,6 +40,7 @@ def start_replica_cmd(builddir, replica_id):
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
             "-s", statusTimerMilli,
+             "-e", str(True),
             "-v", viewChangeTimeoutMilli,
             "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower()
                     in set(["true", "on"])
@@ -54,12 +55,14 @@ class SkvbcChaosTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability()
-    async def test_healthy(self, bft_network, tracker):
+    async def test_healthy(self, bft_network, tracker,exchange_keys=True):
         """
         Run a bunch of concurrrent requests in batches and verify
         linearizability. The system is healthy and stable and no faults are
         intentionally generated.
         """
+        if exchange_keys:
+            await bft_network.do_key_exchange()
         num_ops = 500
 
         self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
@@ -76,7 +79,7 @@ class SkvbcChaosTest(unittest.TestCase):
         linearizability. In this test we generate faults periodically and verify
         linearizability at the end of the run.
         """
-
+        await bft_network.do_key_exchange()
         num_ops = 500
 
         self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)

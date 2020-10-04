@@ -36,6 +36,7 @@ def start_replica_cmd(builddir, replica_id):
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
+            "-e", str(True),
             "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower()
                     in set(["true", "on"])
                  else "",
@@ -48,7 +49,7 @@ class SkvbcTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_state_transfer(self, bft_network):
+    async def test_state_transfer(self, bft_network,exchange_keys=True):
         """
         Test that state transfer starts and completes.
 
@@ -57,6 +58,9 @@ class SkvbcTest(unittest.TestCase):
         cluster with f=1 we should be able to stop a different node after state
         transfer completes and still operate correctly.
         """
+        if exchange_keys:
+            await bft_network.do_key_exchange()
+
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         stale_node = random.choice(
@@ -64,6 +68,7 @@ class SkvbcTest(unittest.TestCase):
 
         await skvbc.prime_for_state_transfer(
             stale_nodes={stale_node},
+            checkpoints_num=3, # key-exchange channges the last executed seqnum
             persistency_enabled=False
         )
         bft_network.start_replica(stale_node)
@@ -83,6 +88,8 @@ class SkvbcTest(unittest.TestCase):
         By a blinking replic we mean a replica that goes up and down for random
         period of time
         """
+        await bft_network.do_key_exchange()
+
         with blinking_replica.BlinkingReplica() as blinking:
             br = random.choice(
                 bft_network.all_replicas(without={0}))
@@ -99,11 +106,14 @@ class SkvbcTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_get_block_data(self, bft_network):
+    async def test_get_block_data(self, bft_network,exchange_keys=True):
         """
         Ensure that we can put a block and use the GetBlockData API request to
         retrieve its KV pairs.
         """
+        if exchange_keys:
+            await bft_network.do_key_exchange()
+
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
@@ -153,6 +163,7 @@ class SkvbcTest(unittest.TestCase):
         3) execute the conflicting write
         4) verify K' is not written to the blockchain
         """
+        await bft_network.do_key_exchange()
         bft_network.start_all_replicas()
 
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)

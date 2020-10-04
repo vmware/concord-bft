@@ -13,12 +13,13 @@
 
 #include "InternalBFTClient.hpp"
 #include "KeyStore.h"
-#include "bftengine/IPathDetector.hpp"
 #include "bftengine/IKeyExchanger.hpp"
 #include "Timers.hpp"
 #include "Metrics.hpp"
 #include "SequenceWithActiveWindow.hpp"
 #include "SeqNumInfo.hpp"
+#include "bftengine/ISecureStore.hpp"
+#include "PersistentStorage.hpp"
 
 namespace bftEngine::impl {
 class KeyManager {
@@ -34,10 +35,57 @@ class KeyManager {
   // Register a IKeyExchanger to notification whehn keys are rotated.
   void registerForNotification(IKeyExchanger* ke);
   KeyExchangeMsg getReplicaPublicKey(const uint16_t& repID) const;
+  std::string getPrivateKey() { return keysView_.data.privateKey; }
   void loadKeysFromReservedPages();
 
   // loads the crypto system from a serialized key view.
+  static void loadCryptoFromKeyView(std::shared_ptr<ISecureStore> sec,
+                                    const uint16_t repID,
+                                    const uint16_t numReplicas);
+
   std::atomic_bool keysExchanged{false};
+
+  struct PersistentSaverLoader : public ISecureStore {
+    PersistentSaverLoader(std::shared_ptr<PersistentStorage> p) : ps(p) {}
+    std::shared_ptr<PersistentStorage> ps;
+    void save(const std::string& str);
+    std::string load();
+  };
+
+  // A private key has three states
+  // 1 - published to consensus.
+  // 2 - after consesnsus i.e. oustanding
+  // 3 - after desired check point i.e. the private key of the replica
+  // all three fields may be populated simulatanously
+
+  struct KeysViewData : public concord::serialize::SerializableFactory<KeysViewData> {
+    KeysViewData(){};
+    std::string generatedPrivateKey;
+    std::string outstandingPrivateKey;
+    std::string privateKey;
+    std::vector<std::string> publicKeys;
+
+   protected:
+    const std::string getVersion() const;
+    void serializeDataMembers(std::ostream& outStream) const;
+    void deserializeDataMembers(std::istream& inStream);
+  };
+
+  struct KeysView {
+   public:
+    KeysView(std::shared_ptr<ISecureStore> sec, uint32_t clusterSize);
+    void save();
+    bool load();
+    void rotate(std::string& dst, std::string& src);
+    KeysViewData& keys() { return data; }
+    bool hasGeneratedKeys() {  // if at least one key exists we have generated key in the past
+      return (data.outstandingPrivateKey.size() > 0) || (data.generatedPrivateKey.size() > 0) ||
+             (data.privateKey.size() > 0);
+    }
+    KeysViewData data;
+    std::shared_ptr<ISecureStore> secStore{nullptr};
+  };
+
   std::future<void> futureRet;
 
   struct InitData {
@@ -46,7 +94,9 @@ class KeyManager {
     uint32_t clusterSize{};
     IReservedPages* reservedPages{nullptr};
     uint32_t sizeOfReservedPage{};
-    std::shared_ptr<IPathDetector> pathDetect;
+    IMultiSigKeyGenerator* kg{nullptr};
+    IKeyExchanger* ke{nullptr};
+    std::shared_ptr<ISecureStore> sec;
     concordUtil::Timers* timers{nullptr};
     std::shared_ptr<concordMetrics::Aggregator> a;
     std::chrono::seconds interval;
@@ -74,7 +124,9 @@ class KeyManager {
   std::vector<IKeyExchanger*> registryToExchange_;
   ClusterKeyStore keyStore_;
 
-  std::shared_ptr<IPathDetector> pathDetector_;
+  IMultiSigKeyGenerator* multiSigKeyHdlr_{nullptr};
+  KeysView keysView_;
+
   void onInitialKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn);
   void notifyRegistry();
 
@@ -91,7 +143,6 @@ class KeyManager {
     concordMetrics::Component component;
     concordMetrics::CounterHandle keyExchangedCounter;
     concordMetrics::CounterHandle keyExchangedOnStartCounter;
-    concordMetrics::CounterHandle DroppedMsgsCounter;
     concordMetrics::CounterHandle publicKeyRotated;
     void setAggregator(std::shared_ptr<concordMetrics::Aggregator> a) {
       aggregator = a;
@@ -104,7 +155,6 @@ class KeyManager {
           component{"KeyManager", aggregator},
           keyExchangedCounter{component.RegisterCounter("KeyExchangedCounter")},
           keyExchangedOnStartCounter{component.RegisterCounter("KeyExchangedOnStartCounter")},
-          DroppedMsgsCounter{component.RegisterCounter("DroppedMsgsCounter")},
           publicKeyRotated{component.RegisterCounter("publicKeyRotated")} {}
   };
 
