@@ -34,5 +34,12 @@ jobs:
         - name: Print failure info
           if: failure()
           run: |
-            echo "Clang-tidy failed. In order to see the report, please view raw logs."
+            sudo chown -R $USER:$GROUP ${PWD}/build
+            echo "Clang-tidy failed. In order to see the report, download the artifacts or run 'make tidy-check' locally."
             echo "For detail information about the checks, please refer to https://clang.llvm.org/extra/clang-tidy/checks/list.html"
+        - name: Upload artifacts
+          uses: actions/upload-artifact@v2
+          if: failure()
+          with:
+            name: artifacts-${{ github.sha }}
+            path: ${{ github.workspace }}/build/clang-tidy-report.txt
