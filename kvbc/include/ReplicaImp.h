@@ -25,6 +25,8 @@
 #include "bftengine/DbMetadataStorage.hpp"
 #include "storage_factory_interface.h"
 #include "ControlStateManager.hpp"
+#include "diagnostics.h"
+#include "performance_handler.h"
 
 namespace concord::kvbc {
 
@@ -140,6 +142,35 @@ class ReplicaImp : public IReplica,
   std::unique_ptr<ReplicaStateSync> replicaStateSync_;
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;
   std::shared_ptr<bftEngine::ControlStateManager> controlStateManager_;
+
+  // 5 Minutes
+  static constexpr int64_t MAX_VALUE_MICROSECONDS = 1000 * 1000 * 60 * 5;
+  // 1 second
+  static constexpr int64_t MAX_VALUE_NANOSECONDS = 1000 * 1000 * 1000;
+  using Recorder = concord::diagnostics::Recorder;
+  struct Recorders {
+    Recorders() {
+      auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+      registrar.perf.registerComponent("kvbc-ReplicaImp",
+                                       {{"get_value", get_value},
+                                        {"get_block", get_block},
+                                        {"get_block_data", get_block_data},
+                                        {"may_have_conflict_between", may_have_conflict_between},
+                                        {"add_block", add_block}});
+    }
+    std::shared_ptr<Recorder> get_value =
+        std::make_shared<Recorder>(1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    std::shared_ptr<Recorder> get_block =
+        std::make_shared<Recorder>(1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    std::shared_ptr<Recorder> get_block_data =
+        std::make_shared<Recorder>(1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    std::shared_ptr<Recorder> may_have_conflict_between =
+        std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
+    std::shared_ptr<Recorder> add_block =
+        std::make_shared<Recorder>(1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+  };
+
+  Recorders histograms_;
 };
 
 }  // namespace concord::kvbc

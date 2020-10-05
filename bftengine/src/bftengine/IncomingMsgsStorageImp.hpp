@@ -16,6 +16,8 @@
 #include "IncomingMsgsStorage.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "Timers.hpp"
+#include "diagnostics.h"
+#include "performance_handler.h"
 
 #include <queue>
 #include <atomic>
@@ -78,6 +80,26 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
   std::promise<void> signalStarted_;
   std::atomic<bool> stopped_ = false;
   concordUtil::Timers timers_;
+
+  // 5 seconds
+  static constexpr int64_t MAX_VALUE_NANOSECONDS = 1000 * 1000 * 1000 * 5l;
+  using Recorder = concord::diagnostics::Recorder;
+  struct Recorders {
+    Recorders() {
+      auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+      registrar.perf.registerComponent("incomingMsgsStorageImp",
+                                       {{"externalQueueLenAtSwap", externalQueueLenAtSwap},
+                                        {"internalQueueLenAtSwap", internalQueueLenAtSwap},
+                                        {"getMsgForProcessing", getMsgForProcessing}});
+    }
+    std::shared_ptr<Recorder> externalQueueLenAtSwap =
+        std::make_shared<Recorder>(1, 10000, 3, concord::diagnostics::Unit::COUNT);
+    std::shared_ptr<Recorder> internalQueueLenAtSwap =
+        std::make_shared<Recorder>(1, 10000, 3, concord::diagnostics::Unit::COUNT);
+    std::shared_ptr<Recorder> getMsgForProcessing =
+        std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
+  };
+  Recorders histograms_;
 };
 
 }  // namespace bftEngine::impl

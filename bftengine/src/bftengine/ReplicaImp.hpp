@@ -32,6 +32,8 @@
 #include "OpenTracing.hpp"
 #include "RequestHandler.h"
 #include "InternalBFTClient.hpp"
+#include "diagnostics.h"
+#include "performance_handler.h"
 
 namespace bftEngine::impl {
 
@@ -405,6 +407,46 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void sendInternalNoopPrePrepareMsg(CommitPath firstPath = CommitPath::SLOW);
   void bringTheSystemToCheckpointBySendingNoopCommands(SeqNum seqNumToStopAt, CommitPath firstPath = CommitPath::SLOW);
   bool isSeqNumToStopAt(SeqNum seq_num);
+
+  // 5 Minutes
+  static constexpr int64_t MAX_VALUE_MICROSECONDS = 1000 * 1000 * 60 * 5l;
+  // 60 seconds
+  static constexpr int64_t MAX_VALUE_NANOSECONDS = 1000 * 1000 * 1000 * 60l;
+  using Recorder = concord::diagnostics::Recorder;
+  struct Recorders {
+    Recorders() {
+      auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+      registrar.perf.registerComponent("replica",
+                                       {{"send", send},
+                                        {"executeReadOnlyRequest", executeReadOnlyRequest},
+                                        {"executeWriteRequest", executeWriteRequest},
+                                        {"executeRequestsInPrePrepareMsg", executeRequestsInPrePrepareMsg},
+                                        {"numRequestsInPrePrepareMsg", numRequestsInPrePrepareMsg},
+                                        {"requestsQueueOfPrimarySize", requestsQueueOfPrimarySize},
+                                        {"onSeqNumIsStable", onSeqNumIsStable},
+                                        {"onTransferringCompleteImp", onTransferringCompleteImp}});
+    }
+
+    std::shared_ptr<Recorder> send =
+        std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
+    std::shared_ptr<Recorder> executeReadOnlyRequest =
+        std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
+    std::shared_ptr<Recorder> executeWriteRequest =
+        std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
+    std::shared_ptr<Recorder> executeRequestsInPrePrepareMsg =
+        std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
+    std::shared_ptr<Recorder> numRequestsInPrePrepareMsg =
+        std::make_shared<Recorder>(1, 2500, 3, concord::diagnostics::Unit::COUNT);
+    std::shared_ptr<Recorder> requestsQueueOfPrimarySize =
+        // Currently hardcoded to 700 in ReplicaImp.cpp
+        std::make_shared<Recorder>(1, 701, 3, concord::diagnostics::Unit::COUNT);
+    std::shared_ptr<Recorder> onSeqNumIsStable =
+        std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
+    std::shared_ptr<Recorder> onTransferringCompleteImp =
+        std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
+  };
+
+  Recorders histograms_;
 };
 
 }  // namespace bftEngine::impl
