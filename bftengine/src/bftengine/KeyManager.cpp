@@ -29,6 +29,9 @@ KeyManager::KeyManager(InitData* id)
       timers_(*(id->timers)) {
   registryToExchange_.push_back(id->ke);
   if (keyStore_.exchangedReplicas.size() == 0) {
+    if (keysView_.load()) {
+      LOG_INFO(KEY_EX_LOG, "Loaded key view file but reserved pages are empty, did someone cleaned the DB ?");
+    }
     return;
   }
   LOG_INFO(KEY_EX_LOG, "Loading replcia's key view");
@@ -294,12 +297,32 @@ bool KeyManager::KeysView::load() {
   return true;
 }
 
-void KeyManager::PersistentSaverLoader::save(const std::string& str) {
-  std::string nonConstStr = str;
-  LOG_DEBUG(KEY_EX_LOG, "Persistent save size " << nonConstStr.size());
-  ps->setKeysView(nonConstStr);
+void KeyManager::FileSecureStore::save(const std::string& str) {
+  if (str.empty()) {
+    LOG_INFO(KEY_EX_LOG, "Got empty string to save to key file");
+    return;
+  }
+  std::ofstream myfile;
+  myfile.open(fileName.c_str());
+  if (!myfile.good()) {
+    LOG_FATAL(KEY_EX_LOG, "Couldn't save key file to " << fileName);
+    ConcordAssert(false);
+  }
+  myfile << str;
+  myfile.close();
 }
 
-std::string KeyManager::PersistentSaverLoader::load() { return ps->getKeysView(); }
+std::string KeyManager::FileSecureStore::load() {
+  std::ifstream inFile;
+  inFile.open(fileName.c_str());
+  if (!inFile.good()) {
+    LOG_WARN(KEY_EX_LOG, "key file wasn't loaded " << fileName);
+    return "";
+  }
+  std::stringstream strStream;
+  strStream << inFile.rdbuf();
+  inFile.close();
+  return strStream.str();
+}
 
 }  // namespace bftEngine::impl

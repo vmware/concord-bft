@@ -45,11 +45,15 @@ class KeyManager {
 
   std::atomic_bool keysExchanged{false};
 
-  struct PersistentSaverLoader : public ISecureStore {
-    PersistentSaverLoader(std::shared_ptr<PersistentStorage> p) : ps(p) {}
-    std::shared_ptr<PersistentStorage> ps;
+  struct FileSecureStore : public ISecureStore {
+    FileSecureStore(const std::string& path, uint16_t id) {
+      fileName = path + "/" + fileName + "_" + std::to_string(id);
+      LOG_INFO(KEY_EX_LOG, "Key view file is " << fileName);
+    }
+    std::string fileName{"genSec"};
     void save(const std::string& str);
     std::string load();
+    static uint32_t maxSize() { return 4096; }
   };
 
   // A private key has three states

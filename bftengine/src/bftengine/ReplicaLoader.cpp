@@ -110,6 +110,7 @@ void setDynamicallyConfigurableParameters(ReplicaConfig &config) {
   config.debugStatisticsEnabled = ReplicaConfigSingleton::GetInstance().GetDebugStatisticsEnabled();
   config.metricsDumpIntervalSeconds = ReplicaConfigSingleton::GetInstance().GetMetricsDumpInterval();
   config.keyExchangeOnStart = ReplicaConfigSingleton::GetInstance().GetKeyExchangeOnStart();
+  config.keyViewFilePath = ReplicaConfigSingleton::GetInstance().GetKeyViewFilePath();
 }
 
 ReplicaLoader::ErrorCode loadConfig(shared_ptr<PersistentStorage> &p, LoadedReplicaData &ld) {

@@ -114,6 +114,7 @@ struct ReplicaConfig {
   uint64_t metricsDumpIntervalSeconds = 600;
 
   bool keyExchangeOnStart = false;
+  std::string keyViewFilePath{"."};
 
   /**
    * create a singleton instance from this object
@@ -147,7 +148,8 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
      << "sizeOfReservedPage: " << rc.sizeOfReservedPage << "\n"
      << "debugStatisticsEnabled: " << rc.debugStatisticsEnabled << "\n"
      << "metricsDumpIntervalSeconds: " << rc.metricsDumpIntervalSeconds << "\n"
-     << "keyExchangeOnStart: " << rc.keyExchangeOnStart << "\n";
+     << "keyExchangeOnStart: " << rc.keyExchangeOnStart << "\n"
+     << "keyViewFilePath: " << rc.keyViewFilePath << "\n";
   return os;
 }
 
@@ -193,6 +195,7 @@ class ReplicaConfigSingleton {
   bool GetDebugStatisticsEnabled() const { return config_->debugStatisticsEnabled; }
 
   bool GetKeyExchangeOnStart() const { return config_->keyExchangeOnStart; }
+  std::string GetKeyViewFilePath() const { return config_->keyViewFilePath; }
 
  private:
   friend struct ReplicaConfig;

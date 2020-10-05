@@ -2985,7 +2985,8 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
             tmpDigest);  // TODO(GG): consider using a method that directly adds the message/digest (as in the
                          // examples below)
       }
-      std::shared_ptr<ISecureStore> secStore{new KeyManager::PersistentSaverLoader(ps_)};
+      std::shared_ptr<ISecureStore> secStore(new KeyManager::FileSecureStore(
+          ReplicaConfigSingleton::GetInstance().GetKeyViewFilePath(), config_.replicaId));
       if (e.getSlowStarted()) {
         seqNumInfo.startSlowPath();
 
@@ -3388,7 +3389,8 @@ void ReplicaImp::start() {
   ReplicaForStateTransfer::start();
 
   // requires the init of state transfer
-  std::shared_ptr<ISecureStore> sec(new KeyManager::PersistentSaverLoader(ps_));
+  std::shared_ptr<ISecureStore> sec(
+      new KeyManager::FileSecureStore(ReplicaConfigSingleton::GetInstance().GetKeyViewFilePath(), config_.replicaId));
   KeyManager::InitData id{};
   id.cl = internalBFTClient_;
   id.id = config_.replicaId;
