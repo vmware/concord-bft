@@ -211,11 +211,6 @@ class BftTestNetwork:
         builddir = os.path.abspath("../../build")
         toolsdir = os.path.join(builddir, "tools")
         testdir = tempfile.mkdtemp()
-        if os.environ.get('KEEP_APOLLO_LOGS', "").lower() in ["true", "on"]:
-            try:
-                os.mkdir("/tmp/apollo")
-            except FileExistsError:
-                pass
         bft_network = cls(
             is_existing=False,
             origdir=os.getcwd(),
