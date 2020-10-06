@@ -47,7 +47,7 @@ cd concord-bft
 sudo ./install_deps.sh # Installs all dependencies and 3rd parties
 mkdir build
 cd build
-cmake ..
+cmake -DBUILD_ROCKSDB_STORAGE=TRUE ..
 make
 sudo make test
 ```
