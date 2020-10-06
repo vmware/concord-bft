@@ -70,8 +70,6 @@ class DebugPersistentStorage : public PersistentStorage {
   void setEraseMetadataStorageFlag() override {}
   bool getEraseMetadataStorageFlag() override { return false; };
   void eraseMetadata() override{};
-  std::string getKeysView() override { return std::string{}; };
-  void setKeysView(std::string& view) override{};
 
  protected:
   bool setIsAllowed() const;

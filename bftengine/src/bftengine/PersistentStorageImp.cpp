@@ -106,7 +106,6 @@ ObjectDescUniquePtr PersistentStorageImp::getDefaultMetadataObjectDescriptors(ui
   metadataObjectsArray.get()[BEGINNING_OF_SEQ_NUM_WINDOW].maxSize = sizeof(SeqNum);
   metadataObjectsArray.get()[BEGINNING_OF_CHECK_WINDOW].maxSize = sizeof(SeqNum);
   metadataObjectsArray.get()[ERASE_METADATA_ON_STARTUP].maxSize = sizeof(bool);
-  metadataObjectsArray.get()[KEYS_VIEW].maxSize = 4096;
 
   for (auto i = 0; i < kWorkWindowSize; ++i) {
     metadataObjectsArray.get()[LAST_EXIT_FROM_VIEW_DESC + 1 + i].maxSize =
@@ -506,10 +505,6 @@ void PersistentStorageImp::setCheckpointMsgInCheckWindow(SeqNum seqNum, Checkpoi
   metadataStorage_->writeInBatch(convertedIndex, buf.get(), actualSize);
 }
 
-void PersistentStorageImp::setKeysView(std::string &view) {
-  metadataStorage_->atomicWrite(KEYS_VIEW, view.data(), view.size());
-}
-
 /***** Getters *****/
 
 string PersistentStorageImp::getStoredVersion() {
@@ -661,14 +656,6 @@ bool PersistentStorageImp::hasDescriptorOfLastNewView() {
 }
 
 bool PersistentStorageImp::hasDescriptorOfLastExecution() { return hasDescriptorOfLastExecution_; }
-
-std::string PersistentStorageImp::getKeysView() {
-  const size_t maxSize = 4096;
-  uint32_t actualSize = 0;
-  UniquePtrToChar buf(new char[maxSize]);
-  metadataStorage_->read(KEYS_VIEW, maxSize, buf.get(), actualSize);
-  return std::string{buf.get(), actualSize};
-}
 
 /***** Windows handling *****/
 
