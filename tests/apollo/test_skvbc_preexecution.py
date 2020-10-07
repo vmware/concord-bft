@@ -299,6 +299,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             last_block = await tracker.get_last_block_id(read_client)
             assert last_block > start_block
 
+    @unittest.skip("Unstable due to BC-4947")
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
