@@ -48,7 +48,6 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcReconfigurationTest(unittest.TestCase):
 
-    @unittest.skip("Unstable due to BC-4663")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_wedge_command(self, bft_network):
@@ -111,7 +110,6 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
         await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
 
-    @unittest.skip("Unstable due to BC-4663")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_wedge_command_and_specific_replica_info(self, bft_network):
@@ -191,7 +189,6 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await self.validate_state_consistency(skvbc, key, val)
         await skvbc.write_known_kv()
 
-    @unittest.skip("Unstable due to BC-4663")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_remove_nodes(self, bft_network):
