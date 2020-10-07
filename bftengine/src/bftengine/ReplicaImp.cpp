@@ -1495,10 +1495,11 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
 
   if (msgIsStable && msgSeqNum > lastExecutedSeqNum) {
     auto pos = tableOfStableCheckpoints.find(msgSenderId);
-    if (pos == tableOfStableCheckpoints.end() || pos->second->seqNumber() <= msgSeqNum) {
+    if (pos == tableOfStableCheckpoints.end() || pos->second->seqNumber() < msgSeqNum) {
       if (pos != tableOfStableCheckpoints.end()) delete pos->second;
       CheckpointMsg *x = new CheckpointMsg(msgSenderId, msgSeqNum, msgDigest, msgIsStable);
       tableOfStableCheckpoints[msgSenderId] = x;
+
       LOG_INFO(GL, "Added stable Checkpoint message to tableOfStableCheckpoints: " << KVLOG(msgSenderId));
 
       if ((uint16_t)tableOfStableCheckpoints.size() >= config_.fVal + 1) {
@@ -1525,6 +1526,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
           Time timeOfLastCommit = MinTime;
           if (mainLog->insideActiveWindow(lastExecutedSeqNum))
             timeOfLastCommit = mainLog->get(lastExecutedSeqNum).lastUpdateTimeOfCommitMsgs();
+
           if ((getMonotonicTime() - timeOfLastCommit) >
               (milliseconds(timeToWaitBeforeStartingStateTransferInMainWindowMilli))) {
             askForStateTransfer = true;
@@ -1534,7 +1536,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
     }
   }
 
-  if (askForStateTransfer && !stateTransfer->isCollectingState()) {
+  if (askForStateTransfer) {
     LOG_INFO(GL, "Call to startCollectingState()");
 
     stateTransfer->startCollectingState();
@@ -1750,13 +1752,6 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
   } else if (msgLastStable > lastStableSeqNum + kWorkWindowSize) {
     tryToSendStatusReport();  // ask for help
   } else {
-    if (lastStableSeqNum != 0 && msgLastStable == lastStableSeqNum) {
-      // Maybe the sender needs to get to an n/n checkpoint
-      CheckpointMsg *checkMsg = checkpointsLog->get(msgLastStable).selfCheckpointMsg();
-      if (checkMsg != nullptr) {
-        sendAndIncrementMetric(checkMsg, msgSenderId, metric_sent_checkpoint_msg_due_to_status_);
-      }
-    }
     // Send checkpoints that may be useful for msgSenderId
     const SeqNum beginRange =
         std::max(checkpointsLog->currentActiveWindow().first, msgLastStable + checkpointWindowSize);
@@ -2466,7 +2461,9 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
     metric_primary_last_used_seq_num_.Get().Set(primaryLastUsedSeqNum);
     if (ps_) ps_->setPrimaryLastUsedSeqNum(primaryLastUsedSeqNum);
   }
+
   mainLog->advanceActiveWindow(lastStableSeqNum + 1);
+
   // Basically, once a checkpoint become stable, we advance the checkpoints log window to it.
   // Alas, by doing so, we does not leave time for a checkpoint to try and become super stable.
   // For that we added another cell to the checkpoints log such that the "oldest" cell contains the checkpoint is
@@ -2654,7 +2651,8 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
   const ReplicaId msgSender = msg->senderId();
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
   LOG_INFO(GL, "Received ReqMissingDataMsg. " << KVLOG(msgSender, msg->getFlags()));
-  if ((currentViewIsActive()) && (msgSeqNum > strictLowerBoundOfSeqNums) && (mainLog->insideActiveWindow(msgSeqNum))) {
+  if ((currentViewIsActive()) && (msgSeqNum > strictLowerBoundOfSeqNums) && (mainLog->insideActiveWindow(msgSeqNum)) &&
+      (mainLog->insideActiveWindow(msgSeqNum))) {
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
 
     if (config_.replicaId == currentPrimary()) {
@@ -2824,6 +2822,17 @@ void ReplicaImp::onInfoRequestTimer(Timers::Handle timer) {
   metric_info_request_timer_.Get().Set(dynamicUpperLimitOfRounds->upperLimit() / 2);
 }
 
+void ReplicaImp::onSuperStableCheckpointTimer(concordUtil::Timers::Handle) {
+  if (!isSeqNumToStopAt(lastStableSeqNum)) return;
+  if (!checkpointsLog->insideActiveWindow(lastStableSeqNum)) return;
+  CheckpointMsg *cpMsg = checkpointsLog->get(lastStableSeqNum).selfCheckpointMsg();
+  // At this point the cpMsg cannot be evacuated
+  if (!cpMsg) return;
+  LOG_INFO(
+      GL,
+      "sending checkpoint message to help other replicas to reach super stable checkpoint" << KVLOG(lastStableSeqNum));
+  sendToAllOtherReplicas(cpMsg, true);
+}
 template <>
 void ReplicaImp::onMessage<SimpleAckMsg>(SimpleAckMsg *msg) {
   metric_received_simple_acks_.Get().Inc();
@@ -3344,6 +3353,7 @@ void ReplicaImp::stop() {
   timers_.cancel(infoReqTimer_);
   timers_.cancel(statusReportTimer_);
   if (viewChangeProtocolEnabled) timers_.cancel(viewChangeTimer_);
+  if (enableRetransmitSuperStableCheckpoint_) timers_.cancel(superStableCheckpointRetransmitTimer_);
   ReplicaForStateTransfer::stop();
 }
 
@@ -3735,6 +3745,15 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     // next checkpoint, the primary sends noop commands until filling the working window.
     bringTheSystemToCheckpointBySendingNoopCommands(controlStateManager_->getCheckpointToStopAt().value());
     stopAtNextCheckpoint_ = true;
+    // Enable retransmitting of the super stable checkpoint to help weak connected replicas to reach the super stable
+    // checkpoint.
+    // Note that once we get to this point, we are at a dead end - once the replica stopped from processing requests it
+    // unable to resume itself without external interfere as resuming required to process a command.
+    // Thus, we don't care to activate this timer.
+    enableRetransmitSuperStableCheckpoint_ = true;
+    superStableCheckpointRetransmitTimer_ = timers_.add(milliseconds(timeoutOfSuperStableCheckpointTimerMs_),
+                                                        Timers::Timer::RECURRING,
+                                                        [this](Timers::Handle h) { onSuperStableCheckpointTimer(h); });
   }
   if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
 }
