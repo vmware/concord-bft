@@ -54,9 +54,9 @@ class SkvbcTest(unittest.TestCase):
         Test that state transfer starts and completes.
 
         Stop one node, add a bunch of data to the rest of the cluster, restart
-        the node and verify state transfer works as expected. In a 4 node
-        cluster with f=1 we should be able to stop a different node after state
-        transfer completes and still operate correctly.
+        the node and verify state transfer works as expected. We should be able
+        to stop a different set of f nodes after state transfer completes and
+        still operate correctly.
         """
         if exchange_keys:
             await bft_network.do_key_exchange()
@@ -75,9 +75,7 @@ class SkvbcTest(unittest.TestCase):
         await bft_network.wait_for_state_transfer_to_start()
         await bft_network.wait_for_state_transfer_to_stop(0, stale_node)
         await skvbc.assert_successful_put_get(self)
-        random_replica = random.choice(
-            bft_network.all_replicas(without={0, stale_node}))
-        bft_network.stop_replica(random_replica)
+        await bft_network.force_quorum_including_replica(stale_node)
         await skvbc.assert_successful_put_get(self)
 
     @with_trio

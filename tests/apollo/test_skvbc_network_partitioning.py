@@ -282,8 +282,7 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
         await bft_network.wait_for_state_transfer_to_stop(current_primary, isolated_node)
 
         await skvbc.assert_successful_put_get(self)
-        bft_network.stop_replicas(
-            bft_network.random_set_of_replicas(f, without={current_primary, isolated_node}))
+        await bft_network.force_quorum_including_replica(isolated_node)
         # After stopping f other replicas we execute another request and if the isolated_node
         # fails to process it for any reason we won't have consensus. Thus we'll know it's
         # recovered correctly.
