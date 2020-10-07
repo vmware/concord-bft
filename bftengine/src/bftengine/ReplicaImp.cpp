@@ -1768,7 +1768,6 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
       for (SeqNum i = beginRange; i <= endRange; i = i + checkpointWindowSize) {
         CheckpointMsg *checkMsg = checkpointsLog->get(i).selfCheckpointMsg();
         if (checkMsg != nullptr) {
-          LOG_INFO(GL, " *** sends checkpoint *** " << KVLOG(i, msgSenderId));
           sendAndIncrementMetric(checkMsg, msgSenderId, metric_sent_checkpoint_msg_due_to_status_);
         }
       }
