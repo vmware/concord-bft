@@ -240,6 +240,55 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
             await bft_network.wait_for_last_executed_seq_num(
                 replica_id=ir, expected=expected_last_executed_seq_num)
 
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_state_transfer_isolated(self, bft_network):
+        """
+        Test that a replica is working after being isolated and then catches up via state transfer.
+
+        Isolate one node, add a bunch of data to the rest of the cluster, end the
+        isolation of the node and verify state transfer works as expected. Stop f 
+        other nodes after state transfer completes and execute a request to 
+        ensure the isolated node still operates correctly.
+        """
+
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        n = bft_network.config.n
+        f = bft_network.config.f
+
+        self.assertEqual(len(bft_network.procs), n,
+                         "Make sure all replicas are up initially.")
+
+        current_primary = await bft_network.get_current_primary()
+
+        isolated_node = random.choice(
+            bft_network.all_replicas(without={current_primary}))
+        isolated_replicas = set([isolated_node])
+
+        with net.ReplicaSubsetIsolatingAdversary(bft_network, isolated_replicas) as adversary:
+            adversary.interfere()
+
+            # send sufficient number of client requests to trigger checkpoint protocol
+            # verify checkpoint creation by all replicas except isolated replica
+            await skvbc.fill_and_wait_for_checkpoint(
+                initial_nodes=bft_network.all_replicas(without=isolated_replicas),
+                num_of_checkpoints_to_add=1,
+                verify_checkpoint_persistency=False
+            )
+
+        await bft_network.wait_for_state_transfer_to_start()
+        await bft_network.wait_for_state_transfer_to_stop(current_primary, isolated_node)
+
+        await skvbc.assert_successful_put_get(self)
+        bft_network.stop_replicas(
+            bft_network.random_set_of_replicas(f, without={current_primary, isolated_node}))
+        # After stopping f other replicas we execute another request and if the isolated_node
+        # fails to process it for any reason we won't have consensus. Thus we'll know it's
+        # recovered correctly.
+        await skvbc.assert_successful_put_get(self)
+
     @staticmethod
     async def _wait_for_read_your_writes_success(tracker):
         with trio.fail_after(seconds=60):
