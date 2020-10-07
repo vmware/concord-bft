@@ -34,7 +34,14 @@ std::string usage() {
   usage += "    status describe [KEY1] [KEY2]..[KEY_N]\n";
   usage += "        Get the description of the given keys, or all keys if none is given.\n\n";
   usage += "    status list-keys\n";
-  usage += "        List all status keys.";
+  usage += "        List all status keys.\n\n";
+  usage += "  perf <COMMAND> [ARGS]\n\n";
+  usage += "    perf get <COMPONENT> [HISTOGRAM]\n";
+  usage += "        Get all histograms for <COMPONENT> or a specific [HISTOGRAM]\n\n";
+  usage += "    perf list [COMPONENT]\n";
+  usage += "        List all components or all histograms for a given [COMPONENT]\n\n";
+  usage += "    perf snapshot <COMPONENT1> [COMPONENT2]...[COMPONENT_N]\n";
+  usage += "        Snapshot all histograms for the given components.";
   return usage;
 }
 
@@ -48,7 +55,7 @@ std::string accumulate(Iterator begin, Iterator end, Fun f) {
 }
 
 // Take protocol input as a split string, along with a registrar and return diagnostics or a usage string.
-std::string run(const std::vector<std::string>& tokens, const Registrar& registrar) {
+std::string run(const std::vector<std::string>& tokens, Registrar& registrar) {
   if (tokens.size() < 2) return usage();
 
   auto& subject = tokens[0];
@@ -56,10 +63,10 @@ std::string run(const std::vector<std::string>& tokens, const Registrar& registr
   if (subject == "status") {
     if (command == "describe") {
       if (tokens.size() == 2) {
-        return registrar.describeStatus();
+        return registrar.status.describe();
       } else {
         return diagnostics::accumulate(tokens.begin() + 2, tokens.end(), [&registrar](const auto& key) -> std::string {
-          return registrar.describeStatus(key);
+          return registrar.status.describe(key);
         });
       }
     }
@@ -67,13 +74,51 @@ std::string run(const std::vector<std::string>& tokens, const Registrar& registr
     if (command == "get") {
       if (tokens.size() < 3) return usage();
       return diagnostics::accumulate(tokens.begin() + 2, tokens.end(), [&registrar](const auto& key) -> std::string {
-        return registrar.getStatus(key);
+        return registrar.status.get(key);
       });
     }
 
     if (command == "list-keys") {
       if (tokens.size() != 2) return usage();
-      return registrar.listStatusKeys();
+      return registrar.status.listKeys();
+    }
+  }
+
+  if (subject == "perf") {
+    try {
+      if (command == "get") {
+        if (tokens.size() == 3) {
+          return registrar.perf.toString(registrar.perf.get(tokens[2]));
+        }
+        if (tokens.size() == 4) {
+          return registrar.perf.toString(registrar.perf.get(tokens[2], tokens[3]));
+        }
+        return usage();
+      }
+      if (command == "list") {
+        if (tokens.size() == 2) {
+          return registrar.perf.list();
+        }
+        if (tokens.size() == 3) {
+          return registrar.perf.list(tokens[2]);
+        }
+        return usage();
+      }
+      if (command == "snapshot") {
+        if (tokens.size() < 3) return usage();
+        // Eliminate duplicate components. Otherwise snapshots will occur multiple times, probably
+        // with no samples in between. This will almost always be due to a typo, and is a fairly
+        // useless behavior, so eliminate the possibility.
+        std::vector<std::string> components(tokens.begin() + 2, tokens.end());
+        std::sort(components.begin(), components.end());
+        components.erase(std::unique(components.begin(), components.end()), components.end());
+        for (auto it = components.begin(); it != components.end(); it++) {
+          registrar.perf.snapshot(*it);
+        }
+        return "";
+      }
+    } catch (const std::exception& e) {
+      return e.what();
     }
   }
 

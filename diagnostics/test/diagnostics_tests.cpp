@@ -58,30 +58,30 @@ StatusHandler async_handler2(async_handler_name2, async_handler_description, [](
 
 TEST(diagnostics_tests, status_registration) {
   Registrar registrar;
-  registrar.registerStatusHandler(sync_handler);
-  registrar.registerStatusHandler(async_handler);
-  registrar.registerStatusHandler(async_handler2);
-  ASSERT_EQ(sync_handler_status, registrar.getStatus(sync_handler_name));
-  ASSERT_EQ(sync_handler_description, registrar.describeStatus(sync_handler_name));
-  ASSERT_EQ(async_handler_status, registrar.getStatus(async_handler_name));
-  ASSERT_EQ(async_handler_description, registrar.describeStatus(async_handler_name));
-  ASSERT_EQ(async_handler_status, registrar.getStatus(async_handler_name2));
-  ASSERT_EQ(async_handler_description, registrar.describeStatus(async_handler_name2));
+  registrar.status.registerHandler(sync_handler);
+  registrar.status.registerHandler(async_handler);
+  registrar.status.registerHandler(async_handler2);
+  ASSERT_EQ(sync_handler_status, registrar.status.get(sync_handler_name));
+  ASSERT_EQ(sync_handler_description, registrar.status.describe(sync_handler_name));
+  ASSERT_EQ(async_handler_status, registrar.status.get(async_handler_name));
+  ASSERT_EQ(async_handler_description, registrar.status.describe(async_handler_name));
+  ASSERT_EQ(async_handler_status, registrar.status.get(async_handler_name2));
+  ASSERT_EQ(async_handler_description, registrar.status.describe(async_handler_name2));
 
-  ASSERT_EQ("*--STATUS_NOT_FOUND--*", registrar.getStatus("no such handler"));
-  ASSERT_EQ("*--DESCRIPTION_NOT_FOUND--*", registrar.describeStatus("no such handler"));
+  ASSERT_EQ("*--STATUS_NOT_FOUND--*", registrar.status.get("no such handler"));
+  ASSERT_EQ("*--DESCRIPTION_NOT_FOUND--*", registrar.status.describe("no such handler"));
 
-  ASSERT_EQ(keylist, registrar.listStatusKeys());
-  std::cout << registrar.describeStatus() << std::endl;
-  std::cout << registrar.listStatusKeys() << std::endl;
+  ASSERT_EQ(keylist, registrar.status.listKeys());
+  std::cout << registrar.status.describe() << std::endl;
+  std::cout << registrar.status.listKeys() << std::endl;
 }
 
 // This tests is really just for visual confirmation, since strings are always returned.
 TEST(diagnostics_tests, protocol) {
   Registrar registrar;
-  registrar.registerStatusHandler(sync_handler);
-  registrar.registerStatusHandler(async_handler);
-  registrar.registerStatusHandler(async_handler2);
+  registrar.status.registerHandler(sync_handler);
+  registrar.status.registerHandler(async_handler);
+  registrar.status.registerHandler(async_handler2);
 
   // No parameters trigger usage to be displayed.
   ASSERT_EQ(0, std::memcmp("Usage:", run({}, registrar).c_str(), 6));

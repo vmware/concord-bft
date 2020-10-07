@@ -50,7 +50,7 @@ class PersistencyTest : public testing::Test {
   }
 
   void create_and_run_replica(ReplicaParams rp, ISimpleTestReplicaBehavior *behv) {
-    concord::diagnostics::RegistrarSingleton::getInstance().clearStatusHandlers();
+    concord::diagnostics::RegistrarSingleton::getInstance().status.clear();
     rp.keysFilePrefix = "private_replica_";
     auto replica = std::shared_ptr<SimpleTestReplica>(SimpleTestReplica::create_replica(behv, rp, nullptr));
     replicas.push_back(replica);
