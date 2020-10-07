@@ -17,6 +17,7 @@
 #include <mutex>
 #include <ostream>
 #include <stdexcept>
+#include <chrono>
 
 #include <hdr/hdr_interval_recorder.h>
 
@@ -70,6 +71,47 @@ struct Recorder {
 
   hdr_interval_recorder recorder;
   Unit unit;
+};
+
+// This class should be instantiated to measure a duration of a scope and add it to a histogram
+// recorder. The measurement is taken and recorded in the destructor.
+class TimeRecorder {
+ public:
+  TimeRecorder(Recorder& recorder) : start_(std::chrono::steady_clock::now()), recorder_(recorder) {}
+  ~TimeRecorder() {
+    switch (recorder_.unit) {
+      case Unit::NANOSECONDS: {
+        auto interval = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start_);
+        recorder_.record(interval.count());
+      } break;
+      case Unit::MICROSECONDS: {
+        auto interval =
+            std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start_);
+        recorder_.record(interval.count());
+      } break;
+      case Unit::MILLISECONDS: {
+        auto interval =
+            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_);
+        recorder_.record(interval.count());
+      } break;
+      case Unit::SECONDS: {
+        auto interval = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_);
+        recorder_.record(interval.count());
+      } break;
+      case Unit::MINUTES: {
+        auto interval = std::chrono::duration_cast<std::chrono::minutes>(std::chrono::steady_clock::now() - start_);
+        recorder_.record(interval.count());
+      } break;
+      default:
+        ConcordAssert(false);
+    }
+  }
+  TimeRecorder(const TimeRecorder&) = delete;
+  TimeRecorder& operator=(const TimeRecorder&) = delete;
+
+ private:
+  std::chrono::steady_clock::time_point start_;
+  Recorder& recorder_;
 };
 
 struct Histogram {

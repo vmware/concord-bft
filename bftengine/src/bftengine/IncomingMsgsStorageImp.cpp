@@ -18,6 +18,7 @@
 
 using std::queue;
 using namespace std::chrono;
+using namespace concord::diagnostics;
 
 namespace bftEngine::impl {
 
@@ -83,6 +84,7 @@ void IncomingMsgsStorageImp::pushInternalMsg(InternalMessage&& msg) {
 
 // should only be called by the dispatching thread
 IncomingMsg IncomingMsgsStorageImp::getMsgForProcessing() {
+  TimeRecorder scoped_timer(*histograms_.getMsgForProcessing);
   auto msg = popThreadLocal();
   if (msg.tag != IncomingMsg::INVALID) return msg;
   {
@@ -100,10 +102,12 @@ IncomingMsg IncomingMsgsStorageImp::getMsgForProcessing() {
       std::queue<std::unique_ptr<MessageBase>>* t1 = ptrThreadLocalQueueForExternalMessages_;
       ptrThreadLocalQueueForExternalMessages_ = ptrProtectedQueueForExternalMessages_;
       ptrProtectedQueueForExternalMessages_ = t1;
+      histograms_.externalQueueLenAtSwap->record(ptrThreadLocalQueueForExternalMessages_->size());
 
       auto* t2 = ptrThreadLocalQueueForInternalMessages_;
       ptrThreadLocalQueueForInternalMessages_ = ptrProtectedQueueForInternalMessages_;
       ptrProtectedQueueForInternalMessages_ = t2;
+      histograms_.internalQueueLenAtSwap->record(ptrThreadLocalQueueForInternalMessages_->size());
     }
   }
   return popThreadLocal();

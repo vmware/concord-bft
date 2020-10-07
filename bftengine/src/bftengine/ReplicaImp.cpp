@@ -53,6 +53,7 @@ using concordUtils::toPair;
 using namespace std;
 using namespace std::chrono;
 using namespace std::placeholders;
+using namespace concord::diagnostics;
 
 namespace bftEngine::impl {
 
@@ -142,6 +143,7 @@ void ReplicaImp::send(MessageBase *m, NodeIdType dest) {
   if (m->type() == MsgCode::Checkpoint && static_cast<CheckpointMsg *>(m)->digestOfState().isZero())
     LOG_WARN(GL, "Debug: checkpoint digest is zero");
   // debug code end
+  TimeRecorder scoped_timer(*histograms_.send);
   ReplicaBase::send(m, dest);
 }
 
@@ -222,6 +224,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 
   if (seqNumberOfLastReply < reqSeqNum) {
     if (isCurrentPrimary()) {
+      histograms_.requestsQueueOfPrimarySize->record(requestsQueueOfPrimary.size());
       // TODO(GG): use config/parameter
       if (requestsQueueOfPrimary.size() >= 700) {
         LOG_WARN(GL,
@@ -2329,6 +2332,7 @@ void ReplicaImp::sendCheckpointIfNeeded() {
 }
 
 void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
+  TimeRecorder scoped_timer(*histograms_.onTransferringCompleteImp);
   ConcordAssertEQ(newStateCheckpoint % checkpointWindowSize, 0);
 
   LOG_INFO(GL, KVLOG(newStateCheckpoint));
@@ -2429,11 +2433,13 @@ void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
     }
   }
 }
+
 void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformation, bool oldSeqNum) {
   ConcordAssertOR(hasStateInformation, oldSeqNum);  // !hasStateInformation ==> oldSeqNum
   ConcordAssertEQ(newStableSeqNum % checkpointWindowSize, 0);
 
   if (newStableSeqNum <= lastStableSeqNum) return;
+  TimeRecorder scoped_timer(*histograms_.onSeqNumIsStable);
 
   LOG_INFO(GL,
            "New stable sequence number. " << KVLOG(lastStableSeqNum, newStableSeqNum, hasStateInformation, oldSeqNum));
@@ -3451,16 +3457,19 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
   uint32_t actualReplyLength = 0;
   uint32_t actualReplicaSpecificInfoLength = 0;
 
-  error = bftRequestsHandler_.execute(clientId,
-                                      lastExecutedSeqNum,
-                                      READ_ONLY_FLAG,
-                                      request->requestLength(),
-                                      request->requestBuf(),
-                                      reply.maxReplyLength(),
-                                      reply.replyBuf(),
-                                      actualReplyLength,
-                                      actualReplicaSpecificInfoLength,
-                                      span);
+  {
+    TimeRecorder scoped_timer(*histograms_.executeReadOnlyRequest);
+    error = bftRequestsHandler_.execute(clientId,
+                                        lastExecutedSeqNum,
+                                        READ_ONLY_FLAG,
+                                        request->requestLength(),
+                                        request->requestBuf(),
+                                        reply.maxReplyLength(),
+                                        reply.replyBuf(),
+                                        actualReplyLength,
+                                        actualReplicaSpecificInfoLength,
+                                        span);
+  }
 
   LOG_DEBUG(GL,
             "Executed read only request. " << KVLOG(clientId,
@@ -3493,6 +3502,7 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
 void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &parent_span,
                                                 PrePrepareMsg *ppMsg,
                                                 bool recoverFromErrorInRequestsExecution) {
+  TimeRecorder scoped_timer(*histograms_.executeRequestsInPrePrepareMsg);
   auto span = concordUtils::startChildSpan("bft_execute_requests_in_preprepare", parent_span);
   ConcordAssertAND(!isCollectingState(), currentViewIsActive());
   ConcordAssertNE(ppMsg, nullptr);
@@ -3505,6 +3515,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
   ConcordAssertOR(!recoverFromErrorInRequestsExecution, (numOfRequests > 0));
 
   if (numOfRequests > 0) {
+    histograms_.numRequestsInPrePrepareMsg->record(numOfRequests);
     Bitmap requestSet(numOfRequests);
     size_t reqIdx = 0;
     RequestsIterator reqIter(ppMsg);
@@ -3581,17 +3592,21 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
 
       uint32_t actualReplyLength = 0;
       uint32_t actualReplicaSpecificInfoLength = 0;
-      auto status = bftRequestsHandler_.execute(
-          clientId,
-          lastExecutedSeqNum + 1,
-          req.flags(),
-          req.requestLength(),
-          req.requestBuf(),
-          ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize() - sizeof(ClientReplyMsgHeader),
-          replyBuffer,
-          actualReplyLength,
-          actualReplicaSpecificInfoLength,
-          span);
+      int status;
+      {
+        TimeRecorder scoped_timer(*histograms_.executeWriteRequest);
+        status = bftRequestsHandler_.execute(
+            clientId,
+            lastExecutedSeqNum + 1,
+            req.flags(),
+            req.requestLength(),
+            req.requestBuf(),
+            ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize() - sizeof(ClientReplyMsgHeader),
+            replyBuffer,
+            actualReplyLength,
+            actualReplicaSpecificInfoLength,
+            span);
+      }
 
       ConcordAssertGT(actualReplyLength,
                       0);  // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)

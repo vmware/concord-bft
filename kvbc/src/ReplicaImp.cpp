@@ -25,6 +25,7 @@
 
 using bft::communication::ICommunication;
 using bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest;
+using namespace concord::diagnostics;
 
 using concord::storage::DBMetadataStorage;
 
@@ -105,6 +106,7 @@ Status ReplicaImp::get(const Sliver &key, Sliver &outValue) const {
   // TODO(GG): check legality of operation (the method should be invoked from
   // the replica's internal thread)
 
+  TimeRecorder scoped_timer(*histograms_.get_value);
   BlockId dummy;
   return getInternal(getLastBlockNum(), key, outValue, dummy);
 }
@@ -113,6 +115,7 @@ Status ReplicaImp::get(BlockId readVersion, const Sliver &key, Sliver &outValue,
   // TODO(GG): check legality of operation (the method should be invoked from
   // the replica's internal thread)
 
+  TimeRecorder scoped_timer(*histograms_.get_block);
   return getInternal(readVersion, key, outValue, outBlock);
 }
 
@@ -121,6 +124,7 @@ Status ReplicaImp::getBlockData(BlockId blockId, SetOfKeyValuePairs &outBlockDat
   // the replica's internal thread)
 
   try {
+    TimeRecorder scoped_timer(*histograms_.get_block_data);
     Sliver block = getBlockInternal(blockId);
     outBlockData = m_bcDbAdapter->getBlockData(block);
   } catch (const NotFoundException &e) {
@@ -135,6 +139,7 @@ Status ReplicaImp::mayHaveConflictBetween(const Sliver &key, BlockId fromBlock, 
   // TODO(GG): add assert or print warning if fromBlock==0 (all keys have a
   // conflict in block 0)
 
+  TimeRecorder scoped_timer(*histograms_.may_have_conflict_between);
   // we conservatively assume that we have a conflict
   outRes = true;
 
@@ -157,6 +162,7 @@ Status ReplicaImp::addBlock(const SetOfKeyValuePairs &updates,
   // TODO(GG): what do we want to do with several identical keys in the same
   // block?
 
+  TimeRecorder scoped_timer(*histograms_.add_block);
   return addBlockInternal(updates, outBlockId);
 }
 
