@@ -378,6 +378,8 @@ class CollectorOfThresholdSignatures {
         acc->setExpectedDigest(reinterpret_cast<unsigned char*>(expectedDigest.content()), DIGEST_SIZE);
 
         acc->getFullSignedData(bufferForSigComputations.data(), bufferSize);
+
+        delete acc;
       }
 
       bool succ = verifier->verify((char*)&expectedDigest, sizeof(Digest), bufferForSigComputations.data(), bufferSize);
