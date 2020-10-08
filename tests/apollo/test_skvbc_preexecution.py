@@ -125,6 +125,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         and no view-change was triggered.
         """
         bft_network.start_all_replicas()
+        await trio.sleep(SKVBC_INIT_GRACE_TIME)
 
         client = bft_network.random_client()
         client.config = client.config._replace(
