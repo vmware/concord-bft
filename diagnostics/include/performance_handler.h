@@ -62,8 +62,19 @@ struct Recorder {
   Recorder(const Recorder&) = delete;
   Recorder& operator=(const Recorder&) = delete;
 
+  // Record to a histogram in a single thread. This is the common case.
+  // Do NOT mix calls with `recordAtomic` in the same recorder.
   void record(int64_t val) {
     if (!hdr_interval_recorder_record_value(&(recorder), val)) {
+      // We don't track the name in recorder, which we would do just for this, which is almost impossible to hit.
+      LOG_WARN(DIAG_LOGGER, "Failed to record value: " << KVLOG(val, unit));
+    }
+  }
+
+  // Record to a histogram safely across threads. Please use this method sparingly. It should not be necessary in most
+  // cases. Do NOT mix calls with `record` in the same recorder.
+  void recordAtomic(int64_t val) {
+    if (!hdr_interval_recorder_record_value_atomic(&(recorder), val)) {
       // We don't track the name in recorder, which we would do just for this, which is almost impossible to hit.
       LOG_WARN(DIAG_LOGGER, "Failed to record value: " << KVLOG(val, unit));
     }
@@ -75,6 +86,7 @@ struct Recorder {
 
 // This class should be instantiated to measure a duration of a scope and add it to a histogram
 // recorder. The measurement is taken and recorded in the destructor.
+template <bool IsAtomic = false>
 class TimeRecorder {
  public:
   TimeRecorder(Recorder& recorder) : start_(std::chrono::steady_clock::now()), recorder_(recorder) {}
@@ -82,25 +94,45 @@ class TimeRecorder {
     switch (recorder_.unit) {
       case Unit::NANOSECONDS: {
         auto interval = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start_);
-        recorder_.record(interval.count());
+        if constexpr (IsAtomic) {
+          recorder_.recordAtomic(interval.count());
+        } else {
+          recorder_.record(interval.count());
+        }
       } break;
       case Unit::MICROSECONDS: {
         auto interval =
             std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start_);
-        recorder_.record(interval.count());
+        if constexpr (IsAtomic) {
+          recorder_.recordAtomic(interval.count());
+        } else {
+          recorder_.record(interval.count());
+        }
       } break;
       case Unit::MILLISECONDS: {
         auto interval =
             std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_);
-        recorder_.record(interval.count());
+        if constexpr (IsAtomic) {
+          recorder_.recordAtomic(interval.count());
+        } else {
+          recorder_.record(interval.count());
+        }
       } break;
       case Unit::SECONDS: {
         auto interval = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_);
-        recorder_.record(interval.count());
+        if constexpr (IsAtomic) {
+          recorder_.recordAtomic(interval.count());
+        } else {
+          recorder_.record(interval.count());
+        }
       } break;
       case Unit::MINUTES: {
         auto interval = std::chrono::duration_cast<std::chrono::minutes>(std::chrono::steady_clock::now() - start_);
-        recorder_.record(interval.count());
+        if constexpr (IsAtomic) {
+          recorder_.recordAtomic(interval.count());
+        } else {
+          recorder_.record(interval.count());
+        }
       } break;
       default:
         ConcordAssert(false);

@@ -17,6 +17,7 @@
 #include "merkle_tree_serialization.h"
 #include "Logger.hpp"
 #include "sliver.hpp"
+#include "sparse_merkle/histograms.h"
 #include "status.hpp"
 #include "string.hpp"
 
@@ -45,13 +46,16 @@ using sparse_merkle::BatchedInternalNode;
 using sparse_merkle::Hasher;
 using sparse_merkle::InternalNodeKey;
 using sparse_merkle::Version;
+using sparse_merkle::detail::histograms;
 
+using namespace concord::diagnostics;
 using namespace detail;
 
 constexpr auto MAX_BLOCK_ID = std::numeric_limits<BlockId>::max();
 
 // Converts the updates as returned by the merkle tree to key/value pairs suitable for the DB.
 SetOfKeyValuePairs batchToDbUpdates(const sparse_merkle::UpdateBatch &batch, BlockId blockId) {
+  TimeRecorder scoped_timer(*histograms.dba_batch_to_db_updates);
   SetOfKeyValuePairs updates;
   const Sliver emptySliver;
 
@@ -70,12 +74,14 @@ SetOfKeyValuePairs batchToDbUpdates(const sparse_merkle::UpdateBatch &batch, Blo
   // Internal nodes.
   for (const auto &[intKey, intNode] : batch.internal_nodes) {
     const auto key = DBKeyManipulator::genInternalDbKey(intKey);
+    TimeRecorder scoped(*histograms.dba_serialize_internal);
     updates[key] = serialize(intNode);
   }
 
   // Leaf nodes.
   for (const auto &[leafKey, leafNode] : batch.leaf_nodes) {
     const auto key = DBKeyManipulator::genDataDbKey(leafKey);
+    TimeRecorder scoped(*histograms.dba_serialize_leaf);
     updates[key] = detail::serialize(detail::DatabaseLeafValue{blockId, leafNode});
   }
 
@@ -93,6 +99,7 @@ KeysVector keysForVersion(const std::shared_ptr<IDBClient> &db,
                           const Version &version,
                           EKeySubtype keySubtype,
                           const VersionExtractor &extractVersion) {
+  TimeRecorder scoped(*histograms.dba_keys_for_version);
   auto keys = KeysVector{};
   auto iter = db->getIteratorGuard();
   // Loop until a different key type or a key with the next version is encountered.
@@ -128,6 +135,7 @@ DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db, bool linkTempSTChain)
 }
 
 std::pair<Value, BlockId> DBAdapter::getValue(const Key &key, const BlockId &blockVersion) const {
+  TimeRecorder scoped_timer(*histograms.dba_get_value);
   auto stateRootVersion = Version{};
   // Find a block with an ID that is less than or equal to the requested block version and extract the state root
   // version from it.
@@ -136,6 +144,7 @@ std::pair<Value, BlockId> DBAdapter::getValue(const Key &key, const BlockId &blo
     auto iter = db_->getIteratorGuard();
     const auto [foundBlockKey, foundBlockValue] = iter->seekAtMost(blockKey);
     if (!foundBlockKey.empty() && DBKeyManipulator::getDBKeyType(foundBlockKey) == EDBKeyType::Block) {
+      TimeRecorder scoped(*histograms.dba_deserialize_block);
       stateRootVersion = detail::deserializeStateRootVersion(foundBlockValue);
     } else {
       throw NotFoundException{"Couldn't find a value by key and block version = " + std::to_string(blockVersion)};
@@ -147,6 +156,7 @@ std::pair<Value, BlockId> DBAdapter::getValue(const Key &key, const BlockId &blo
   // having the same hash and a lower version, it should directly precede the found one.
   const auto foundKv = getLeafKeyValAtMostVersion(key, stateRootVersion);
   if (foundKv) {
+    TimeRecorder scoped(*histograms.dba_deserialize_leaf);
     const auto dbLeafVal = detail::deserialize<detail::DatabaseLeafValue>(foundKv.value().second);
     if (dbLeafVal.deletedInBlockId.has_value() && dbLeafVal.deletedInBlockId.value() <= blockVersion) {
       throw NotFoundException{"Key already deleted at block version = " +
@@ -160,6 +170,7 @@ std::pair<Value, BlockId> DBAdapter::getValue(const Key &key, const BlockId &blo
 }
 
 BlockId DBAdapter::getGenesisBlockId() const {
+  TimeRecorder scoped_timer(*histograms.dba_get_genesis_block_id);
   auto iter = db_->getIteratorGuard();
   const auto key = iter->seekAtLeast(DBKeyManipulator::genBlockDbKey(INITIAL_GENESIS_BLOCK_ID)).first;
   if (!key.empty() && DBKeyManipulator::getDBKeyType(key) == EDBKeyType::Block) {
@@ -169,6 +180,7 @@ BlockId DBAdapter::getGenesisBlockId() const {
 }
 
 BlockId DBAdapter::getLastReachableBlockId() const {
+  TimeRecorder scoped_timer(*histograms.dba_get_last_reachable_block_id);
   // Generate maximal key for type 'BlockId'.
   const auto maxBlockKey = DBKeyManipulator::genBlockDbKey(MAX_BLOCK_ID);
   auto iter = db_->getIteratorGuard();
@@ -186,6 +198,7 @@ BlockId DBAdapter::getLastReachableBlockId() const {
 }
 
 BlockId DBAdapter::getLatestBlockId() const {
+  TimeRecorder scoped_timer(*histograms.dba_get_latest_block_id);
   const auto latestBlockKey = DBKeyManipulator::generateSTTempBlockKey(MAX_BLOCK_ID);
   auto iter = db_->getIteratorGuard();
   const auto foundKey = iter->seekAtMost(latestBlockKey).first;
@@ -203,6 +216,7 @@ Sliver DBAdapter::createBlockNode(const SetOfKeyValuePairs &updates,
                                   const OrderedKeysSet &deletes,
                                   BlockId blockId,
                                   const BlockDigest &parentBlockDigest) const {
+  TimeRecorder scoped_timer(*histograms.dba_create_block_node);
   auto node = block::detail::Node{blockId, parentBlockDigest, smTree_.get_root_hash(), smTree_.get_version()};
   for (const auto &kv : updates) {
     node.keys.emplace(kv.first, block::detail::KeyData{false});
@@ -216,6 +230,7 @@ Sliver DBAdapter::createBlockNode(const SetOfKeyValuePairs &updates,
 }
 
 RawBlock DBAdapter::getRawBlock(const BlockId &blockId) const {
+  TimeRecorder scoped_timer(*histograms.dba_get_raw_block);
   const auto blockKey = DBKeyManipulator::genBlockDbKey(blockId);
   Sliver blockNodeSliver;
   if (auto statusNode = db_->get(blockKey, blockNodeSliver); statusNode.isNotFound()) {
@@ -247,6 +262,7 @@ RawBlock DBAdapter::getRawBlock(const BlockId &blockId) const {
         ConcordAssert(!status.isNotFound());
         throw std::runtime_error{"Failed to get value by key from DB, block node ID = " + std::to_string(blockId)};
       }
+      TimeRecorder scoped(*histograms.dba_deserialize_leaf);
       const auto dbLeafVal = detail::deserialize<detail::DatabaseLeafValue>(value);
       ConcordAssert(dbLeafVal.addedInBlockId == blockId);
       keyValues[key] = dbLeafVal.leafNode.value;
@@ -268,6 +284,9 @@ std::future<BlockDigest> DBAdapter::computeParentBlockDigest(BlockId blockId) co
     // Make sure the digest is zero-initialized by using {} initialization.
     auto parentBlockDigest = BlockDigest{};
     if (parentBlock) {
+      histograms.dba_hashed_parent_block_size->recordAtomic(parentBlock->length());
+      static constexpr bool is_atomic = true;
+      TimeRecorder<is_atomic> scoped(*histograms.dba_hash_parent_block);
       parentBlockDigest = computeBlockDigest(blockId - 1, parentBlock->data(), parentBlock->length());
     }
     return parentBlockDigest;
@@ -277,6 +296,7 @@ std::future<BlockDigest> DBAdapter::computeParentBlockDigest(BlockId blockId) co
 SetOfKeyValuePairs DBAdapter::lastReachableBlockDbUpdates(const SetOfKeyValuePairs &updates,
                                                           const OrderedKeysSet &deletes,
                                                           BlockId blockId) {
+  TimeRecorder scoped_timer(*histograms.dba_last_reachable_block_db_updates);
   // Compute the parent block digest in parallel with the tree update.
   auto parentBlockDigestFuture = computeParentBlockDigest(blockId);
 
@@ -300,9 +320,16 @@ SetOfKeyValuePairs DBAdapter::lastReachableBlockDbUpdates(const SetOfKeyValuePai
   for (const auto &key : deletesOnly) {
     const auto foundKv = getLeafKeyValAtMostVersion(key, smTree_.get_version());
     if (foundKv) {
-      auto dbLeafValue = deserialize<DatabaseLeafValue>(foundKv.value().second);
+      DatabaseLeafValue dbLeafValue;
+      {
+        TimeRecorder scoped(*histograms.dba_deserialize_leaf);
+        dbLeafValue = deserialize<DatabaseLeafValue>(foundKv.value().second);
+      }
       dbLeafValue.deletedInBlockId = blockId;
-      dbUpdates[foundKv.value().first] = serialize(dbLeafValue);
+      {
+        TimeRecorder scoped(*histograms.dba_serialize_leaf);
+        dbUpdates[foundKv.value().first] = serialize(dbLeafValue);
+      }
       actuallyDeleted.insert(key);
     }
   }
@@ -325,6 +352,7 @@ SetOfKeyValuePairs DBAdapter::lastReachableBlockDbUpdates(const SetOfKeyValuePai
   for (auto &kv : dbUpdates) {
     sizeOfUpdatesInBytes += kv.first.length() + kv.second.length();
   }
+  histograms.dba_size_of_updates->record(sizeOfUpdatesInBytes);
   commitSizeSummary_->Observe(sizeOfUpdatesInBytes);
   return dbUpdates;
 }
@@ -355,11 +383,18 @@ BatchedInternalNode DBAdapter::Reader::get_latest_root() const {
 
 BatchedInternalNode DBAdapter::Reader::get_internal(const InternalNodeKey &key) const {
   Sliver res;
-  const auto status = adapter_.getDb()->get(DBKeyManipulator::genInternalDbKey(key), res);
+  auto status = concordUtils::Status::OK();
+  {
+    TimeRecorder scoped_timer(*histograms.dba_get_internal);
+    status = adapter_.getDb()->get(DBKeyManipulator::genInternalDbKey(key), res);
+  }
   if (!status.isOK()) {
     throw std::runtime_error{"Failed to get the requested merkle tree internal node"};
   }
-  return deserialize<BatchedInternalNode>(res);
+  {
+    TimeRecorder scoped_timer(*histograms.dba_deserialize_internal);
+    return deserialize<BatchedInternalNode>(res);
+  }
 }
 
 BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &updates, const OrderedKeysSet &deletes) {
@@ -376,7 +411,10 @@ BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &updates) { return addBlock
 BlockId DBAdapter::addBlock(const OrderedKeysSet &deletes) { return addBlock(SetOfKeyValuePairs{}, deletes); }
 
 void DBAdapter::linkSTChainFrom(BlockId blockId) {
-  for (auto i = blockId; i <= getLatestBlockId(); ++i) {
+  TimeRecorder scoped_timer(*histograms.dba_link_st_chain);
+  const auto latest_block_id = getLatestBlockId();
+  histograms.dba_num_blocks_for_st_link->record(latest_block_id - blockId);
+  for (auto i = blockId; i <= latest_block_id; ++i) {
     auto block = Sliver{};
     const auto sTBlockKey = DBKeyManipulator::generateSTTempBlockKey(i);
     const auto status = db_->get(sTBlockKey, block);
@@ -415,6 +453,7 @@ void DBAdapter::writeSTLinkTransaction(const Key &sTBlockKey, const Sliver &bloc
 }
 
 void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId) {
+  TimeRecorder scoped_timer(*histograms.dba_add_raw_block);
   const auto lastReachableBlock = getLastReachableBlockId();
   if (blockId <= lastReachableBlock) {
     const auto msg = "Cannot add an existing block ID " + std::to_string(blockId);
@@ -449,6 +488,8 @@ void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId) {
 }
 
 void DBAdapter::deleteBlock(const BlockId &blockId) {
+  TimeRecorder scoped_timer(*histograms.dba_delete_block);
+
   const auto latestBlockId = getLatestBlockId();
   if (latestBlockId == 0 || blockId > latestBlockId) {
     return;
@@ -562,6 +603,7 @@ KeysVector DBAdapter::genesisBlockKeyDeletes(BlockId blockId) const {
 
 std::optional<std::pair<Key, Value>> DBAdapter::getLeafKeyValAtMostVersion(
     const Key &key, const sparse_merkle::Version &version) const {
+  TimeRecorder scoped_timer(*histograms.dba_get_leaf_key_val_at_most_version);
   auto iter = db_->getIteratorGuard();
   const auto [foundKey, foundValue] = iter->seekAtMost(DBKeyManipulator::genDataDbKey(key, version));
   if (!foundKey.empty() && DBKeyManipulator::getDBKeyType(foundKey) == EDBKeyType::Key &&
@@ -573,6 +615,7 @@ std::optional<std::pair<Key, Value>> DBAdapter::getLeafKeyValAtMostVersion(
 }
 
 void DBAdapter::deleteKeysForBlock(const KeysVector &keys, BlockId blockId) const {
+  TimeRecorder scoped_timer(*histograms.dba_delete_keys_for_block);
   const auto status = db_->multiDel(keys);
   if (!status.isOK()) {
     const auto msg =
@@ -589,6 +632,7 @@ BlockDigest DBAdapter::getParentDigest(const RawBlock &rawBlock) const {
 }
 
 bool DBAdapter::hasBlock(const BlockId &blockId) const {
+  TimeRecorder scoped_timer(*histograms.dba_has_block);
   const auto statusNode = db_->has(DBKeyManipulator::genBlockDbKey(blockId));
   if (statusNode.isNotFound()) {
     const auto statusSt = db_->has(DBKeyManipulator::generateSTTempBlockKey(blockId));
