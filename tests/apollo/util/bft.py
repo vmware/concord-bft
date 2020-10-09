@@ -624,24 +624,16 @@ class BftTestNetwork:
                     count_if_replica_in_view, r, view)
         return nb_replicas_in_view
 
-    def force_quorum_including_replica(self, replica_id, primary=0):
+    async def force_quorum_including_replica(self, replica_id):
         """
         Bring down a sufficient number of replicas (excluding the primary),
         so that the remaining replicas form a quorum that includes replica_id
         """
         with log.start_action(action_type="force_quorum_including_replica") as action:
-            unstable_replicas = self.all_replicas(without={primary, replica_id})
-
-            random.shuffle(unstable_replicas)
-
-            for backup_replica_id in unstable_replicas:
-                action.log(f'Stopping backup replica {backup_replica_id} in order '
-                      f'to force a quorum including replica {replica_id}...')
-                self.stop_replica(backup_replica_id)
-                if len(self.procs) == 2 * self.config.f + self.config.c + 1:
-                    break
-
-            assert len(self.procs) == 2 * self.config.f + self.config.c + 1
+            assert len(self.procs) >= 2 * self.config.f + self.config.c + 1
+            primary = await self.get_current_primary()
+            self.stop_replicas(self.random_set_of_replicas(
+                len(self.procs) - (2 * self.config.f + self.config.c + 1), without={primary, replica_id}))
 
     async def wait_for_fetching_state(self, replica_id):
         """

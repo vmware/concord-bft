@@ -157,7 +157,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
         await bft_network.wait_for_state_transfer_to_stop(up_to_date_node,
                                                           stale_node)
 
-        bft_network.force_quorum_including_replica(stale_node)
+        await bft_network.force_quorum_including_replica(stale_node)
 
         # Retrieve the value we put first to ensure state transfer worked
         # when the log went away
@@ -206,7 +206,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
         bft_network.start_replica(stale_node)
         await bft_network.wait_for_state_transfer_to_stop(0, stale_node)
 
-        bft_network.force_quorum_including_replica(stale_node)
+        await bft_network.force_quorum_including_replica(stale_node)
 
         # Retrieve the value we put first to ensure state transfer worked
         # when the log went away
@@ -281,7 +281,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
             unstable_replicas=unstable_replicas
         )
 
-        bft_network.force_quorum_including_replica(stale_node)
+        await bft_network.force_quorum_including_replica(stale_node)
 
         # Retrieve the value we put first to ensure state transfer worked
         # when the log went away
@@ -422,7 +422,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
                 trigger_view_change=trigger_view_change
             )
 
-        bft_network.force_quorum_including_replica(stale_replica)
+        await bft_network.force_quorum_including_replica(stale_replica)
 
         kvpairs = await tracker.read_and_track_known_kv(known_key, client)
         self.assertDictEqual(dict(known_kv), kvpairs)
