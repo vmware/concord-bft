@@ -3224,7 +3224,9 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_not_enough_client_requests_event_{metrics_.RegisterCounter("notEnoughClientRequestsEvent")},
       metric_total_finished_consensuses_{metrics_.RegisterCounter("totalOrderedRequests")},
       metric_total_slowPath_{metrics_.RegisterCounter("totalSlowPaths")},
-      metric_total_fastPath_{metrics_.RegisterCounter("totalFastPaths")} {
+      metric_total_fastPath_{metrics_.RegisterCounter("totalFastPaths")},
+      metric_total_slowPath_requests_{metrics_.RegisterCounter("totalSlowPathRequests")},
+      metric_total_fastPath_requests_{metrics_.RegisterCounter("totalFastPathRequests")} {
   ConcordAssertLT(config_.replicaId, config_.numReplicas);
   // TODO(GG): more asserts on params !!!!!!!!!!!
 
@@ -3427,13 +3429,20 @@ void ReplicaImp::recoverRequests() {
     ConcordAssertNE(pp, nullptr);
     auto span = concordUtils::startSpan("bft_recover_requests_on_start");
     SCOPED_MDC_SEQ_NUM(std::to_string(pp->seqNumber()));
+    const uint16_t numOfRequests = pp->numberOfRequests();
     executeRequestsInPrePrepareMsg(span, pp, true);
     metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
     metric_total_finished_consensuses_.Get().Inc();
     if (seqNumInfo.slowPathStarted()) {
       metric_total_slowPath_.Get().Inc();
+      if (numOfRequests > 0) {
+        metric_total_slowPath_requests_.Get().Inc(numOfRequests);
+      }
     } else {
       metric_total_fastPath_.Get().Inc();
+      if (numOfRequests > 0) {
+        metric_total_fastPath_requests_.Get().Inc(numOfRequests);
+      }
     }
     recoveringFromExecutionOfRequests = false;
     mapOfRequestsThatAreBeingRecovered = Bitmap();
@@ -3729,14 +3738,21 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
 
     ConcordAssertEQ(prePrepareMsg->seqNumber(), nextExecutedSeqNum);
     ConcordAssertEQ(prePrepareMsg->viewNumber(), curView);  // TODO(GG): TBD
+    const uint16_t numOfRequests = prePrepareMsg->numberOfRequests();
 
     executeRequestsInPrePrepareMsg(span, prePrepareMsg);
     metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
     metric_total_finished_consensuses_.Get().Inc();
     if (seqNumInfo.slowPathStarted()) {
       metric_total_slowPath_.Get().Inc();
+      if (numOfRequests > 0) {
+        metric_total_slowPath_requests_.Get().Inc(numOfRequests);
+      }
     } else {
       metric_total_fastPath_.Get().Inc();
+      if (numOfRequests > 0) {
+        metric_total_fastPath_requests_.Get().Inc(numOfRequests);
+      }
     }
   }
   if (!stopAtNextCheckpoint_ && controlStateManager_->getCheckpointToStopAt().has_value()) {

@@ -99,6 +99,7 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
 
         await tracker.tracked_read_your_writes()
 
+    @unittest.skip("Unstable because of BC-5101")
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability()

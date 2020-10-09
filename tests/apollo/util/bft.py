@@ -32,6 +32,7 @@ sys.path.append(os.path.abspath("../../util/pyclient"))
 import bft_config
 import bft_client
 import bft_metrics_client
+from enum import Enum
 from util import bft_metrics, eliot_logging as log
 from util.eliot_logging import log_call
 from util import skvbc as kvbc
@@ -48,6 +49,11 @@ TestConfig = namedtuple('TestConfig', [
     'stop_replica_cmd',
     'num_ro_replicas'
 ])
+
+class ConsensusPathPrevalentResult(Enum):
+   OK = 0
+   TOO_FEW_REQUESTS_ON_EXPECTED_PATH = 1
+   TOO_MANY_REQUESTS_ON_UNEXPECTED_PATH = 2
 
 KEY_FILE_PREFIX = "replica_keys_"
 
@@ -768,37 +774,55 @@ class BftTestNetwork:
                             if expected_checkpoint_num(last_stored_checkpoint):
                                 return last_stored_checkpoint
 
-    async def wait_for_slow_path_to_be_prevalent(
-            self, as_of_seq_num=1, nb_slow_paths_so_far=0, replica_id=0):
-        with log.start_action(action_type="wait_for_slow_path_to_be_prevalent"):
-            with trio.fail_after(seconds=5):
-                while True:
-                    with trio.move_on_after(seconds=.5):
-                        try:
-                            await self.assert_slow_path_prevalent(
-                                as_of_seq_num, nb_slow_paths_so_far, replica_id)
-                        except (KeyError, AssertionError):
-                            # continue polling
-                            continue
-                        else:
-                            # slow path prevalent - done.
-                            break
+    async def wait_for_fast_path_to_be_prevalent(self, run_ops, threshold, replica_id=0):
+        await self._wait_for_consensus_path_to_be_prevalent(
+            fast=True, run_ops=run_ops, threshold=threshold, replica_id=replica_id)
 
-    async def wait_for_fast_path_to_be_prevalent(
-            self, nb_slow_paths_so_far=0, replica_id=0):
-        with log.start_action(action_type="wait_for_fast_path_to_be_prevalent"):
-            with trio.fail_after(seconds=5):
-                while True:
-                    with trio.move_on_after(seconds=.5):
-                        try:
-                            await self.assert_fast_path_prevalent(
-                                nb_slow_paths_so_far, replica_id)
-                        except (KeyError, AssertionError):
-                            # continue polling
-                            continue
-                        else:
-                            # fast path prevalent - done.
-                            break
+    async def wait_for_slow_path_to_be_prevalent(self, run_ops, threshold, replica_id=0):
+        await self._wait_for_consensus_path_to_be_prevalent(
+            fast=False, run_ops=run_ops, threshold=threshold, replica_id=replica_id)
+
+    async def _wait_for_consensus_path_to_be_prevalent(self, fast, run_ops, threshold, replica_id=0, timeout=90):
+        """
+        Waits until at least threshold operations are being executed in the selected path.
+          run_ops: lambda that executes tracker.run_concurrent_ops or creates requests in some other way
+          threshold: minimum number of requests that have to be executed in the correct path
+        run_ops should produce at least threshold executions
+        """
+        with log.start_action(action_type="wait_for_%s_path_to_be_prevalent" % ("fast" if fast else "slow")):
+            with trio.fail_after(seconds=timeout):
+                done = False
+                while not done:
+                    #initial state to ensure requests are sent
+                    res = ConsensusPathPrevalentResult.TOO_MANY_REQUESTS_ON_UNEXPECTED_PATH
+                    nb_fast_paths_to_ignore = 0
+                    nb_slow_paths_to_ignore = 0
+                    with trio.move_on_after(seconds=15):  #retry timeout for not enough right path requests
+                        while not done:
+                            if res == ConsensusPathPrevalentResult.TOO_MANY_REQUESTS_ON_UNEXPECTED_PATH:
+                                # we need to reset the counters
+                                log.log_message("run_ops")
+                                nb_fast_paths_to_ignore = await self.num_of_fast_path_requests(replica_id)
+                                nb_slow_paths_to_ignore = await self.num_of_slow_path_requests(replica_id)
+                                if run_ops:
+                                    await run_ops()
+                            res = await self._consensus_path_prevalent(
+                                    fast,
+                                    nb_fast_paths_to_ignore + ((threshold - 1) if fast else 0),
+                                    nb_slow_paths_to_ignore + ((threshold - 1) if not fast else 0),
+                                    replica_id)
+                            if res == ConsensusPathPrevalentResult.OK:
+                                # the selected path is prevalent - done.
+                                log.log_message("done")
+                                done = True
+                                break
+                            if res == ConsensusPathPrevalentResult.TOO_FEW_REQUESTS_ON_EXPECTED_PATH:
+                                # continue polling for enough right path requests
+                                await trio.sleep(seconds=.5)
+                                continue
+                            if res == ConsensusPathPrevalentResult.TOO_MANY_REQUESTS_ON_UNEXPECTED_PATH:
+                                # wait a bit before resending new requests
+                                await trio.sleep(seconds=5)
 
     async def wait_for_last_executed_seq_num(self, replica_id=0, expected=0):
         with log.start_action(action_type="wait_for_last_executed_seq_num"):
@@ -825,35 +849,49 @@ class BftTestNetwork:
                         nursery.start_soon(self._assert_state_transfer_not_started,
                                            r)
 
-    async def assert_fast_path_prevalent(self, nb_slow_paths_so_far=0, replica_id=0):
-        """
-        Asserts there is at most 1 sequence processed on the slow path,
-        given the "nb_slow_paths_so_far".
-        """
-        with log.start_action(action_type="assert_fast_path_prevalent"):
-            metric_key = ['replica', 'Counters', 'totalSlowPaths']
-            total_nb_slow_paths = await self.metrics.get(replica_id, *metric_key)
-            assert total_nb_slow_paths >= nb_slow_paths_so_far
+    async def assert_fast_path_prevalent(self, nb_fast_paths_to_ignore=0, nb_slow_paths_to_ignore=0, replica_id=0):
+        res = await self._consensus_path_prevalent(
+            fast=True,
+            nb_fast_paths_to_ignore=nb_fast_paths_to_ignore,
+            nb_slow_paths_to_ignore=nb_slow_paths_to_ignore,
+            replica_id=replica_id)
+        assert res == ConsensusPathPrevalentResult.OK, "Fast path is not prevalent"
 
-            assert total_nb_slow_paths - nb_slow_paths_so_far <= 1, \
-                f'Fast path is not prevalent for n={self.config.n}, f={self.config.f}, c={self.config.c}.'
+    async def assert_slow_path_prevalent(self, nb_fast_paths_to_ignore=0, nb_slow_paths_to_ignore=0, replica_id=0):
+        res = await self._consensus_path_prevalent(
+            fast=False,
+            nb_fast_paths_to_ignore=nb_fast_paths_to_ignore,
+            nb_slow_paths_to_ignore=nb_slow_paths_to_ignore,
+            replica_id=replica_id)
+        assert res == ConsensusPathPrevalentResult.OK, "Slow path is not prevalent"
 
-    async def assert_slow_path_prevalent(
-            self, as_of_seq_num=1, nb_slow_paths_so_far=0, replica_id=0):
+    async def _consensus_path_prevalent(
+            self, fast, nb_fast_paths_to_ignore=0, nb_slow_paths_to_ignore=0, replica_id=0):
         """
-        Asserts all executed sequences after "as_of_seq_num" have been processed on the slow path,
-        given the "nb_slow_paths_so_far".
+        Asserts all executed requests after the ignored number have been processed on the fast or slow path
+        depending on the fast parameter value being True/False
         """
-        with log.start_action(action_type="assert_slow_path_prevalent"):
-            metric_key = ['replica', 'Gauges', 'lastExecutedSeqNum']
-            total_nb_executed_sequences = await self.metrics.get(replica_id, *metric_key)
+        with log.start_action(action_type="assert_%s_path_prevalent" % ("fast" if fast else "slow")):
+            total_nb_fast_paths = await self.num_of_fast_path_requests(replica_id)
+            total_nb_slow_paths = await self.num_of_slow_path_requests(replica_id)
 
-            metric_key = ['replica', 'Counters', 'totalSlowPaths']
-            total_nb_slow_paths = await self.metrics.get(replica_id, *metric_key)
-            assert total_nb_slow_paths >= nb_slow_paths_so_far
+            log.log_message("assert on %s path | slow %d/%d fast %d/%d" % ("fast" if fast else "slow",
+                total_nb_slow_paths, nb_slow_paths_to_ignore, total_nb_fast_paths, nb_fast_paths_to_ignore))
 
-            assert total_nb_slow_paths - nb_slow_paths_so_far >= total_nb_executed_sequences - as_of_seq_num, \
-                f'Slow path is not prevalent for n={self.config.n}, f={self.config.f}, c={self.config.c}.'
+            if fast:
+                if total_nb_slow_paths > nb_slow_paths_to_ignore:
+                    return ConsensusPathPrevalentResult.TOO_MANY_REQUESTS_ON_UNEXPECTED_PATH  # we can't have any slow
+                if total_nb_fast_paths <= nb_fast_paths_to_ignore:
+                    return ConsensusPathPrevalentResult.TOO_FEW_REQUESTS_ON_EXPECTED_PATH  # we don't have enough fast
+
+                return ConsensusPathPrevalentResult.OK
+            else:
+                if total_nb_fast_paths > nb_fast_paths_to_ignore:
+                    return ConsensusPathPrevalentResult.TOO_MANY_REQUESTS_ON_UNEXPECTED_PATH  # we can't have any fast
+                if total_nb_slow_paths <= nb_slow_paths_to_ignore:
+                    return ConsensusPathPrevalentResult.TOO_FEW_REQUESTS_ON_EXPECTED_PATH  # we don't have enough slow
+
+                return ConsensusPathPrevalentResult.OK
 
     async def _assert_state_transfer_not_started(self, replica):
         key = ['replica', 'Counters', 'receivedStateTransferMsgs']
@@ -879,17 +917,33 @@ class BftTestNetwork:
                         if await predicate():
                             return
 
-    async def num_of_slow_path(self):
+    async def num_of_fast_path_requests(self, replica_id=0):
+        """
+        Returns the total number of requests processed on the fast commit path
+        """
+        with log.start_action(action_type="num_of_fast_path_requests"):
+            with trio.fail_after(seconds=5):
+                while True:
+                    with trio.move_on_after(seconds=2):
+                        try:
+                            metric_key = ['replica', 'Counters', 'totalFastPathRequests']
+                            nb_fast_path = await self.metrics.get(replica_id, *metric_key)
+                            return nb_fast_path
+                        except KeyError:
+                            # metrics not yet available, continue looping
+                            pass
+
+    async def num_of_slow_path_requests(self, replica_id=0):
         """
         Returns the total number of requests processed on the slow commit path
         """
-        with log.start_action(action_type="num_of_slow_path"):
+        with log.start_action(action_type="num_of_slow_path_requests"):
             with trio.fail_after(seconds=5):
                 while True:
                     with trio.move_on_after(seconds=.5):
                         try:
-                            metric_key = ['replica', 'Counters', 'totalSlowPaths']
-                            nb_slow_path = await self.metrics.get(0, *metric_key)
+                            metric_key = ['replica', 'Counters', 'totalSlowPathRequests']
+                            nb_slow_path = await self.metrics.get(replica_id, *metric_key)
                             return nb_slow_path
                         except KeyError:
                             # metrics not yet available, continue looping

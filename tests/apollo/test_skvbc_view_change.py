@@ -372,8 +372,8 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
         await tracker.tracked_read_your_writes()
 
-        await bft_network.wait_for_slow_path_to_be_prevalent(
-            replica_id=current_primary)
+        #check after test is fixed
+        await bft_network.assert_slow_path_prevalent()
 
     @with_trio
     @with_bft_network(start_replica_cmd,
