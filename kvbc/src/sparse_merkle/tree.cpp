@@ -120,7 +120,7 @@ void remove(Walker& walker, const Hash& key_hash) {
   }
 }
 
-void updateBatchHistograms(const UpdateBatch& batch) {
+static void updateBatchHistograms(const UpdateBatch& batch) {
   histograms.num_batch_internal_nodes->record(batch.internal_nodes.size());
   histograms.num_batch_leaf_nodes->record(batch.leaf_nodes.size());
   histograms.num_stale_internal_keys->record(batch.stale.internal_keys.size());

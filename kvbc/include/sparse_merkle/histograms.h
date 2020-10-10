@@ -11,6 +11,8 @@
 // terms and conditions of the sub-component's license, as noted in the
 // LICENSE file.
 
+#pragma once
+
 #include "diagnostics.h"
 #include "sparse_merkle/base_types.h"
 
@@ -124,6 +126,6 @@ struct Recorders {
   std::shared_ptr<Recorder> dba_hashed_parent_block_size = std::make_shared<Recorder>(1, MAX_VAL_SIZE, 3, Unit::BYTES);
 };
 
-static Recorders histograms;
+inline const Recorders histograms;
 
 }  // namespace concord::kvbc::sparse_merkle::detail
