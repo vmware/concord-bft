@@ -164,6 +164,11 @@ class PlainUDPCommunication::PlainUdpImpl {
     // Initialize socket.
     udpSockFd = socket(AF_INET, SOCK_DGRAM, 0);
 
+    if (udpSockFd < 0) {
+      LOG_FATAL(_logger, "Failed to initialize socket, error: " << strerror(errno));
+      std::terminate();
+    }
+
     // Name the socket.
     sAddr.sin_family = AF_INET;
     sAddr.sin_addr.s_addr = htonl(INADDR_ANY);
