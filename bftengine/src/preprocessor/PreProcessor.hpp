@@ -37,6 +37,8 @@ struct ClientRequestState {
   std::deque<RequestProcessingStateUniquePtr> reqProcessingHistory;
 };
 
+typedef enum { UNKNOWN_ROLE, PRIMARY, NON_PRIMARY } ReplicaState;
+
 typedef std::shared_ptr<ClientRequestState> ClientRequestStateSharedPtr;
 typedef std::unordered_map<uint16_t, ClientRequestStateSharedPtr> OngoingReqMap;  // clientId -> ClientRequestState map
 
@@ -133,6 +135,7 @@ class PreProcessor {
   void addTimers();
   void cancelTimers();
   void onRequestsStatusCheckTimer();
+  void handlePossibleReplicaRoleChange();
 
   static logging::Logger &logger() {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
@@ -173,6 +176,9 @@ class PreProcessor {
   concordUtil::Timers::Handle requestsStatusCheckTimer_;
   const uint64_t preExecReqStatusCheckPeriodMilli_;
   concordUtil::Timers &timers_;
+  ReplicaState lastReplicaRole_;
+  ReplicaRoleTransition replicaRoleTransition_;
+  std::mutex replicaStateMutex_;
 };
 
 //**************** Class AsyncPreProcessJob ****************//

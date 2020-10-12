@@ -116,7 +116,9 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            metricsComponent_.RegisterCounter("preProcPossiblePrimaryFaultDetected"),
                            metricsComponent_.RegisterGauge("PreProcInFlyRequestsNum", 0)},
       preExecReqStatusCheckPeriodMilli_(myReplica_.getReplicaConfig().preExecReqStatusCheckTimerMillisec),
-      timers_{timers} {
+      timers_{timers},
+      lastReplicaRole_(UNKNOWN_ROLE),
+      replicaRoleTransition_(UNKNOWN) {
   registerMsgHandlers();
   metricsComponent_.Register();
   sigManager_ = make_shared<SigManager>(myReplicaId_,
@@ -179,13 +181,28 @@ void PreProcessor::resendPreProcessRequest(const RequestProcessingStateUniquePtr
   }
 }
 
+void PreProcessor::handlePossibleReplicaRoleChange() {
+  lock_guard<mutex> lock(replicaStateMutex_);
+  auto currentState = myReplica_.isCurrentPrimary() ? PRIMARY : NON_PRIMARY;
+  if (lastReplicaRole_ == UNKNOWN_ROLE) {
+    lastReplicaRole_ = currentState;
+    return;
+  }
+  if (lastReplicaRole_ == PRIMARY && !myReplica_.isCurrentPrimary())
+    replicaRoleTransition_ = BECAME_NON_PRIMARY;
+  else if (lastReplicaRole_ == NON_PRIMARY && myReplica_.isCurrentPrimary())
+    replicaRoleTransition_ = BECAME_PRIMARY;
+  lastReplicaRole_ = currentState;
+}
+
 void PreProcessor::onRequestsStatusCheckTimer() {
   // Pass through all ongoing requests and abort the pre-execution for those that are timed out.
+  handlePossibleReplicaRoleChange();
   for (const auto &clientEntry : ongoingRequests_) {
     lock_guard<mutex> lock(clientEntry.second->mutex);
     const auto &clientReqStatePtr = clientEntry.second->reqProcessingStatePtr;
     if (clientReqStatePtr) {
-      if (clientReqStatePtr->isReqTimedOut(myReplica_.isCurrentPrimary())) {
+      if (clientReqStatePtr->isReqTimedOut(myReplica_.isCurrentPrimary(), replicaRoleTransition_)) {
         preProcessorMetrics_.preProcessRequestTimedout.Get().Inc();
         preProcessorMetrics_.preProcPossiblePrimaryFaultDetected.Get().Inc();
         // The request could expire do to failed primary replica, let ReplicaImp to address that
