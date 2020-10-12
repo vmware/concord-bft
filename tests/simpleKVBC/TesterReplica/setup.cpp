@@ -49,6 +49,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     std::string keysFilePrefix;
     std::string commConfigFile;
     std::string s3ConfigFile;
+    std::string certRootPath = "certs";
     std::string logPropsFile = "logging.properties";
     // Set StorageType::V1DirectKeyValue as the default storage type.
     auto storageType = StorageType::V1DirectKeyValue;
@@ -64,12 +65,13 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                           {"storage-type", required_argument, 0, 't'},
                                           {"log-props-file", required_argument, 0, 'l'},
                                           {"key-exchange-on-start", required_argument, 0, 'e'},
+                                          {"cert-root-path", required_argument, 0, 'c'},
                                           {0, 0, 0, 0}};
 
     int o = 0;
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
-    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:pt:l:e:", longOptions, &optionIndex)) != -1) {
+    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:pt:l:c:e:", longOptions, &optionIndex)) != -1) {
       switch (o) {
         case 'i': {
           replicaConfig.replicaId = concord::util::to<std::uint16_t>(std::string(optarg));
@@ -118,6 +120,10 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
           logPropsFile = optarg;
           break;
         }
+        case 'c': {
+          certRootPath = optarg;
+          break;
+        }
         case '?': {
           throw std::runtime_error("invalid arguments");
         } break;
@@ -140,7 +146,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         true, replicaConfig.replicaId, replicaConfig.numOfClientProxies, numOfReplicas, commConfigFile);
 #elif USE_COMM_TLS_TCP
     bft::communication::TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(
-        true, replicaConfig.replicaId, replicaConfig.numOfClientProxies, numOfReplicas, commConfigFile);
+        true, replicaConfig.replicaId, replicaConfig.numOfClientProxies, numOfReplicas, commConfigFile, certRootPath);
 #else
     bft::communication::PlainUdpConfig conf = testCommConfig.GetUDPConfig(
         true, replicaConfig.replicaId, replicaConfig.numOfClientProxies, numOfReplicas, commConfigFile);

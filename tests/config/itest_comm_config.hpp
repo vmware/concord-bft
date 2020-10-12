@@ -51,7 +51,8 @@ class ITestCommConfig {
                                                            uint16_t id,
                                                            uint16_t& num_of_clients,
                                                            uint16_t& num_of_replicas,
-                                                           const std::string& config_file_name) = 0;
+                                                           const std::string& config_file_name,
+                                                           const std::string& cert_root_path) = 0;
 
  protected:
   logging::Logger& logger_;
