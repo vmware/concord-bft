@@ -10,6 +10,7 @@
 // terms and conditions of the sub-component's license, as noted in the
 // LICENSE file.
 
+#include "sparse_merkle/histograms.h"
 #include "sparse_merkle/tree.h"
 #include "sparse_merkle/walker.h"
 
@@ -17,11 +18,13 @@
 using namespace std;
 
 using namespace concordUtils;
+using namespace concord::diagnostics;
 
 namespace concord::kvbc::sparse_merkle {
 using namespace detail;
 
 void insertComplete(Walker& walker, const BatchedInternalNode::InsertComplete& result) {
+  histograms.insert_depth->record(walker.depth());
   walker.ascendToRoot(result.stale_leaf);
 }
 
@@ -45,6 +48,7 @@ void handleCollision(Walker& walker, const LeafChild& stored_child, const LeafCh
 // responses and walk the tree as appropriate to get to the correct node, where
 // the insert will succeed.
 void insert(Walker& walker, const LeafChild& child) {
+  TimeRecorder scoped_timer(*histograms.insert_key);
   while (true) {
     ConcordAssert(walker.depth() < Hash::MAX_NIBBLES);
 
@@ -89,12 +93,14 @@ void removeBatchedInternalNode(Walker& walker, const std::optional<LeafChild>& p
 }
 
 void remove(Walker& walker, const Hash& key_hash) {
+  TimeRecorder scoped_timer(*histograms.remove_key);
   while (true) {
     ConcordAssert(walker.depth() < Hash::MAX_NIBBLES);
 
     auto result = walker.currentNode().remove(key_hash, walker.depth(), walker.version());
 
     if (auto rv = std::get_if<BatchedInternalNode::RemoveComplete>(&result)) {
+      histograms.remove_depth->record(walker.depth());
       auto stale = LeafKey(key_hash, rv->version);
       return walker.ascendToRoot(stale);
     }
@@ -114,8 +120,18 @@ void remove(Walker& walker, const Hash& key_hash) {
   }
 }
 
+static void updateBatchHistograms(const UpdateBatch& batch) {
+  histograms.num_batch_internal_nodes->record(batch.internal_nodes.size());
+  histograms.num_batch_leaf_nodes->record(batch.leaf_nodes.size());
+  histograms.num_stale_internal_keys->record(batch.stale.internal_keys.size());
+  histograms.num_stale_leaf_keys->record(batch.stale.leaf_keys.size());
+}
+
 UpdateBatch Tree::update(const concord::kvbc::SetOfKeyValuePairs& updates,
                          const concord::kvbc::KeysVector& deleted_keys) {
+  histograms.num_updated_keys->record(updates.size());
+  histograms.num_deleted_keys->record(deleted_keys.size());
+  TimeRecorder scoped_timer(*histograms.update);
   reset();
   UpdateCache cache(root_, db_reader_);
   return update_impl(updates, deleted_keys, cache);
@@ -145,7 +161,13 @@ UpdateBatch Tree::update_impl(const concord::kvbc::SetOfKeyValuePairs& updates,
   }
 
   for (auto&& [key, val] : updates) {
-    auto leaf_hash = hasher.hash(val.data(), val.length());
+    histograms.key_size->record(key.length());
+    histograms.val_size->record(val.length());
+    Hash leaf_hash;
+    {
+      TimeRecorder scoped_timer(*histograms.hash_val);
+      leaf_hash = hasher.hash(val.data(), val.length());
+    }
     LeafNode leaf_node{val};
     LeafKey leaf_key{hasher.hash(key.data(), key.length()), version};
     LeafChild child{leaf_hash, leaf_key};
@@ -160,6 +182,7 @@ UpdateBatch Tree::update_impl(const concord::kvbc::SetOfKeyValuePairs& updates,
   for (auto& it : cache.internalNodes()) {
     batch.internal_nodes.emplace_back(InternalNodeKey(version, it.first), it.second);
   }
+  updateBatchHistograms(batch);
 
   // Set the root after updates so that it is reflected to users in get_root_hash() and get_version() .
   root_ = cache.getRoot();

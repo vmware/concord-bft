@@ -11,15 +11,20 @@
 // LICENSE file.
 
 #include "sparse_merkle/internal_node.h"
+#include "sparse_merkle/histograms.h"
 
 #include <iostream>
 using namespace std;
+using namespace concord::diagnostics;
 
 namespace concord {
 namespace kvbc {
 namespace sparse_merkle {
 
+using namespace detail;
+
 void BatchedInternalNode::updateHashes(size_t index, Version version) {
+  TimeRecorder scoped_timer(*histograms.internal_node_update_hashes);
   ConcordAssert(index > 0);
   auto hasher = Hasher();
 
@@ -53,6 +58,7 @@ void BatchedInternalNode::updateHashes(size_t index, Version version) {
 BatchedInternalNode::InsertResult BatchedInternalNode::insert(const LeafChild& child,
                                                               size_t depth,
                                                               Version current_version) {
+  TimeRecorder scoped_timer(*histograms.internal_node_insert);
   // The index into the children_ array
   size_t index = 0;
   Nibble child_key = child.key.hash().getNibble(depth);
@@ -187,6 +193,7 @@ BatchedInternalNode::InsertResult BatchedInternalNode::insertTwoLeafChildren(
 }
 
 BatchedInternalNode::RemoveResult BatchedInternalNode::remove(const Hash& key, size_t depth, Version new_version) {
+  TimeRecorder scoped_timer(*histograms.internal_node_remove);
   // The index into the children_ array
   size_t index = 0;
 
