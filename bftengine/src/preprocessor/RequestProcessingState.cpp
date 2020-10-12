@@ -42,6 +42,7 @@ RequestProcessingState::RequestProcessingState(uint16_t numOfReplicas,
       entryTime_(getMonotonicTimeMilli()),
       clientPreProcessReqMsg_(move(clientReqMsg)),
       preProcessRequestMsg_(preProcessRequestMsg) {
+  SCOPED_MDC_CID(cid);
   LOG_DEBUG(logger(), "Created RequestProcessingState with" << KVLOG(reqSeqNum, numOfReplicas_));
 }
 
@@ -119,6 +120,7 @@ bool RequestProcessingState::isReqTimedOut(bool isPrimary) const {
   if (!clientPreProcessReqMsg_) return false;
 
   SCOPED_MDC_CID(cid_);
+  LOG_DEBUG(logger(), KVLOG(isPrimary, primaryPreProcessResultLen_, clientPreProcessReqMsg_->getCid()));
   if (!isPrimary || primaryPreProcessResultLen_ != 0) {
     // On the primary: check request timeout once an asynchronous pre-execution completed (to not abort the execution
     // thread)
