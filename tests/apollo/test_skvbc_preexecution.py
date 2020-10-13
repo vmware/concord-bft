@@ -17,6 +17,8 @@ import random
 
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, with_constant_load
 from util.skvbc_history_tracker import verify_linearizability
+from util import skvbc as kvbc
+
 import util.bft_network_partitioning as net
 import util.eliot_logging as log
 
@@ -27,7 +29,7 @@ MAX_CONCURRENCY = 10
 SHORT_REQ_TIMEOUT_MILLI = 3000
 LONG_REQ_TIMEOUT_MILLI = 15000
 
-def start_replica_cmd(builddir, replica_id):
+def start_replica_cmd(builddir, replica_id, view_change_timeout_milli="10000"):
     """
     Return a command that starts an skvbc replica when passed to
     subprocess.Popen.
@@ -39,7 +41,6 @@ def start_replica_cmd(builddir, replica_id):
     """
 
     status_timer_milli = "500"
-    view_change_timeout_milli = "10000"
 
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     return [path,
@@ -50,6 +51,11 @@ def start_replica_cmd(builddir, replica_id):
             "-p",
             "-t", os.environ.get('STORAGE_TYPE')
             ]
+
+def start_replica_cmd_with_vc_timeout(vc_timeout):
+    def wrapper(*args, **kwargs):
+        return start_replica_cmd(*args, **kwargs, view_change_timeout_milli=vc_timeout)
+    return wrapper
 
 
 class SkvbcPreExecutionTest(unittest.TestCase):
@@ -148,6 +154,82 @@ class SkvbcPreExecutionTest(unittest.TestCase):
                                                 expected=lambda v: v == initial_primary,
                                                 err_msg="Make sure the view did not change.")
                 await trio.sleep(seconds=5)
+
+    @unittest.skip("Reproduces BC-4982 outside of LR")
+    @with_trio
+    @with_bft_network(start_replica_cmd_with_vc_timeout("3000"),
+                      selected_configs=lambda n, f, c: n == 7)
+    async def test_view_change_during_long_request(self, bft_network):
+        """
+        1) Select two clients - one that runs "long" and one that runs "short" requests
+        2) Set the timeout of the long client to LONG_REQ_TIMEOUT_MILLI
+        3) Concurrently:
+          3.1) Run a long executing request via the "long" client
+          3.2) Trigger a view change during the long execution
+        4) Run a short write using the "short" client (succeeds)
+        5) Run a short write using the "long" client (fails because the long client is not freed in the pre-processor)
+        """
+        bft_network.start_all_replicas()
+        await trio.sleep(SKVBC_INIT_GRACE_TIME)
+
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        write_set = [(skvbc.random_key(), skvbc.random_value()),
+                     (skvbc.random_key(), skvbc.random_value())]
+
+        clients = list(bft_network.random_clients(MAX_CONCURRENCY))
+        long_request_client = clients[0]
+        short_request_client = clients[1]
+
+        self.assertNotEqual(long_request_client, short_request_client)
+
+        long_request_client.config = long_request_client.config._replace(
+            req_timeout_milli=LONG_REQ_TIMEOUT_MILLI,
+            retry_timeout_milli=1000
+        )
+
+        try:
+            # Send long running request and trigger view change at the same time
+            async with trio.open_nursery() as nursery:
+                nursery.start_soon(self._send_long_write, skvbc, write_set, long_request_client)
+                await trio.sleep(seconds=1)
+                nursery.start_soon(self._trigger_view_change, bft_network, short_request_client, skvbc, write_set)
+        except trio.TooSlowError:
+            pass
+
+        long_request_client.config = long_request_client.config._replace(
+            req_timeout_milli=5000,
+            retry_timeout_milli=250
+        )
+
+        await trio.sleep(seconds=30)
+
+        # the short client should have been released in the pre-processor
+        await self.send_single_write_with_pre_execution_and_kv(
+            skvbc, write_set, short_request_client, long_exec=False)
+
+        # the long client should have been released in the pre-processor
+        await self.send_single_write_with_pre_execution_and_kv(
+            skvbc, write_set, long_request_client, long_exec=False)
+
+    async def _send_long_write(self, skvbc, write_set, client):
+        await self.send_single_write_with_pre_execution_and_kv(
+            skvbc, write_set, client, long_exec=True)
+
+    async def _trigger_view_change(self, bft_network, short_request_client, skvbc, write_set):
+        initial_primary = await bft_network.get_current_primary()
+        bft_network.stop_replica(initial_primary)
+        try:
+            with trio.move_on_after(seconds=1):
+                await self.send_single_write_with_pre_execution_and_kv(
+                    skvbc, write_set, short_request_client, long_exec=True)
+        except trio.TooSlowError:
+            pass
+        finally:
+            expected_next_primary = initial_primary + 1
+            await bft_network.wait_for_view(replica_id=random.choice(bft_network.all_replicas(without={0})),
+                                            expected=lambda v: v == expected_next_primary,
+                                            err_msg="Make sure view change has been triggered.")
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
