@@ -115,7 +115,7 @@ struct Config {
   uint16_t maxNumberOfChunksInBatch = 32;
 #endif
 
-  uint32_t maxBlockSize = 10 * 1024 * 1024;                      // 10MB
+  uint32_t maxBlockSize = 30 * 1024 * 1024;                      // 30MB
   uint32_t maxPendingDataFromSourceReplica = 256 * 1024 * 1024;  // Maximal internal buffer size for all ST data
   uint32_t maxNumOfReservedPages = 2048;
   uint32_t sizeOfReservedPage = 4096;
