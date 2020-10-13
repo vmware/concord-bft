@@ -40,7 +40,8 @@ class TestCommConfig : public ITestCommConfig {
                                                    uint16_t id,
                                                    uint16_t& num_of_clients,
                                                    uint16_t& num_of_replicas,
-                                                   const std::string& config_file_name) override;
+                                                   const std::string& config_file_name,
+                                                   const std::string& cert_root_path = "certs") override;
 
  private:
   std::unordered_map<bft::communication::NodeNum, bft::communication::NodeInfo> SetUpConfiguredNodes(
