@@ -159,7 +159,7 @@ single-test: ## Run single test `make single-test TEST_NAME=<test name>`
 	docker exec -it ${CONCORD_BFT_DOCKER_CONTAINER} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"cd ${CONCORD_BFT_BUILD_DIR} && \
-		ctest -R ${TEST_NAME} --timeout ${CONCORD_BFT_CTEST_TIMEOUT} --output-on-failure"
+		ctest -V -R ${TEST_NAME} --timeout ${CONCORD_BFT_CTEST_TIMEOUT} --output-on-failure"
 
 .PHONY: clean
 clean: ## Clean Concord-BFT build directory
