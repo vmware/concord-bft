@@ -185,7 +185,7 @@ void PreProcessor::onRequestsStatusCheckTimer() {
     lock_guard<mutex> lock(clientEntry.second->mutex);
     const auto &clientReqStatePtr = clientEntry.second->reqProcessingStatePtr;
     if (clientReqStatePtr) {
-      if (clientReqStatePtr->isReqTimedOut(myReplica_.isCurrentPrimary())) {
+      if (clientReqStatePtr->isReqTimedOut()) {
         preProcessorMetrics_.preProcessRequestTimedout.Get().Inc();
         preProcessorMetrics_.preProcPossiblePrimaryFaultDetected.Get().Inc();
         // The request could expire do to failed primary replica, let ReplicaImp to address that
@@ -630,9 +630,16 @@ void PreProcessor::sendPreProcessRequestToAllReplicas(const PreProcessRequestMsg
   }
 }
 
+void PreProcessor::setPreprocessingRightNow(uint16_t clientId, bool set) {
+  const auto &clientEntry = ongoingRequests_[clientId];
+  lock_guard<mutex> lock(clientEntry->mutex);
+  if (clientEntry->reqProcessingStatePtr) clientEntry->reqProcessingStatePtr->setPreprocessingRightNow(set);
+}
+
 void PreProcessor::launchAsyncReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                                   bool isPrimary,
                                                   bool isRetry) {
+  setPreprocessingRightNow(preProcessReqMsg->clientId(), true);
   auto *preProcessJob = new AsyncPreProcessJob(*this, preProcessReqMsg, isPrimary, isRetry);
   threadPool_.add(preProcessJob);
 }
@@ -667,14 +674,6 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
   return resultLen;
 }
 
-PreProcessingResult PreProcessor::getPreProcessingConsensusResult(uint16_t clientId) {
-  const auto &clientEntry = ongoingRequests_[clientId];
-  lock_guard<mutex> lock(clientEntry->mutex);
-  if (clientEntry->reqProcessingStatePtr)
-    return clientEntry->reqProcessingStatePtr->definePreProcessingConsensusResult();
-  return NONE;
-}
-
 ReqId PreProcessor::getOngoingReqIdForClient(uint16_t clientId) {
   const auto &clientEntry = ongoingRequests_[clientId];
   lock_guard<mutex> lock(clientEntry->mutex);
@@ -682,8 +681,19 @@ ReqId PreProcessor::getOngoingReqIdForClient(uint16_t clientId) {
   return 0;
 }
 
-void PreProcessor::handlePreProcessedReqPrimaryRetry(NodeIdType clientId) {
-  if (getPreProcessingConsensusResult(clientId) == COMPLETE)
+PreProcessingResult PreProcessor::handlePreProcessedReqByPrimaryAndGetConsensusResult(uint16_t clientId,
+                                                                                      uint32_t resultBufLen) {
+  const auto &clientEntry = ongoingRequests_[clientId];
+  lock_guard<mutex> lock(clientEntry->mutex);
+  if (clientEntry->reqProcessingStatePtr) {
+    clientEntry->reqProcessingStatePtr->handlePrimaryPreProcessed(getPreProcessResultBuffer(clientId), resultBufLen);
+    return clientEntry->reqProcessingStatePtr->definePreProcessingConsensusResult();
+  }
+  return NONE;
+}
+
+void PreProcessor::handlePreProcessedReqPrimaryRetry(NodeIdType clientId, uint32_t resultBufLen) {
+  if (handlePreProcessedReqByPrimaryAndGetConsensusResult(clientId, resultBufLen) == COMPLETE)
     finalizePreProcessing(clientId);
   else
     cancelPreProcessing(clientId);
@@ -692,24 +702,16 @@ void PreProcessor::handlePreProcessedReqPrimaryRetry(NodeIdType clientId) {
 void PreProcessor::handlePreProcessedReqByPrimary(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                                   uint16_t clientId,
                                                   uint32_t resultBufLen) {
-  const auto &clientEntry = ongoingRequests_[clientId];
-  string cid;
-  PreProcessingResult result = NONE;
-  {
-    lock_guard<mutex> lock(clientEntry->mutex);
-    if (clientEntry->reqProcessingStatePtr) {
-      clientEntry->reqProcessingStatePtr->handlePrimaryPreProcessed(getPreProcessResultBuffer(clientId), resultBufLen);
-      result = clientEntry->reqProcessingStatePtr->definePreProcessingConsensusResult();
-      cid = clientEntry->reqProcessingStatePtr->getPreProcessRequest()->getCid();
-    }
-  }
-  if (result != NONE) handlePreProcessReplyMsg(cid, result, clientId, preProcessReqMsg->reqSeqNum());
+  const PreProcessingResult result = handlePreProcessedReqByPrimaryAndGetConsensusResult(clientId, resultBufLen);
+  if (result != NONE)
+    handlePreProcessReplyMsg(preProcessReqMsg->getCid(), result, clientId, preProcessReqMsg->reqSeqNum());
 }
 
 void PreProcessor::handlePreProcessedReqByNonPrimary(uint16_t clientId,
                                                      ReqId reqSeqNum,
                                                      uint32_t resBufLen,
                                                      const std::string &cid) {
+  setPreprocessingRightNow(clientId, false);
   auto replyMsg = make_shared<PreProcessReplyMsg>(sigManager_, myReplicaId_, clientId, reqSeqNum);
   replyMsg->setupMsgBody(getPreProcessResultBuffer(clientId), resBufLen, cid, STATUS_GOOD);
   // Release the request before sending a reply to the primary to be able accepting new messages
@@ -731,7 +733,7 @@ void PreProcessor::handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr
   uint32_t actualResultBufLen = launchReqPreProcessing(
       clientId, cid, reqSeqNum, preProcessReqMsg->requestLength(), preProcessReqMsg->requestBuf(), span_context);
   if (isPrimary && isRetry) {
-    handlePreProcessedReqPrimaryRetry(clientId);
+    handlePreProcessedReqPrimaryRetry(clientId, actualResultBufLen);
     return;
   }
   SCOPED_MDC_CID(cid);
