@@ -42,7 +42,6 @@ RequestProcessingState::RequestProcessingState(uint16_t numOfReplicas,
       entryTime_(getMonotonicTimeMilli()),
       clientPreProcessReqMsg_(move(clientReqMsg)),
       preProcessRequestMsg_(preProcessRequestMsg) {
-  SCOPED_MDC_CID(cid);
   LOG_DEBUG(logger(), "Created RequestProcessingState with" << KVLOG(reqSeqNum, numOfReplicas_));
 }
 
@@ -116,14 +115,11 @@ auto RequestProcessingState::calculateMaxNbrOfEqualHashes(uint16_t &maxNumOfEqua
   return itOfChosenHash;
 }
 
-bool RequestProcessingState::isPrimaryPreprocessingCompleted() const { return primaryPreProcessResultLen_ != 0; }
-
-bool RequestProcessingState::isReqTimedOut(bool isPrimary, ReplicaRoleTransition replicaRoleTransition) const {
+bool RequestProcessingState::isReqTimedOut(bool isPrimary) const {
   if (!clientPreProcessReqMsg_) return false;
 
   SCOPED_MDC_CID(cid_);
-  LOG_DEBUG(logger(), KVLOG(isPrimary, replicaRoleTransition, isPrimaryPreprocessingCompleted()));
-  if (!isPrimary || replicaRoleTransition == BECAME_PRIMARY || isPrimaryPreprocessingCompleted()) {
+  if (!isPrimary || primaryPreProcessResultLen_ != 0) {
     // On the primary: check request timeout once an asynchronous pre-execution completed (to not abort the execution
     // thread)
     auto reqProcessingTime = getMonotonicTimeMilli() - entryTime_;

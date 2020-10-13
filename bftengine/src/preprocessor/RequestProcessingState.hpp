@@ -22,7 +22,6 @@ namespace preprocessor {
 
 // This class collects and stores data relevant to the processing of one specific client request by all replicas.
 
-typedef enum { UNKNOWN, BECAME_PRIMARY, BECAME_NON_PRIMARY } ReplicaRoleTransition;
 typedef enum { NONE, CONTINUE, COMPLETE, CANCEL, RETRY_PRIMARY } PreProcessingResult;
 typedef std::vector<ReplicaId> ReplicaIdsList;
 
@@ -46,7 +45,7 @@ class RequestProcessingState {
   PreProcessingResult definePreProcessingConsensusResult();
   const char* getPrimaryPreProcessedResult() const { return primaryPreProcessResult_; }
   uint32_t getPrimaryPreProcessedResultLen() const { return primaryPreProcessResultLen_; }
-  bool isReqTimedOut(bool isPrimary, ReplicaRoleTransition replicaRoleTransition) const;
+  bool isReqTimedOut(bool isPrimary) const;
   uint64_t getReqTimeoutMilli() const {
     return clientPreProcessReqMsg_ ? clientPreProcessReqMsg_->requestTimeoutMilli() : 0;
   }
@@ -69,7 +68,6 @@ class RequestProcessingState {
   auto calculateMaxNbrOfEqualHashes(uint16_t& maxNumOfEqualHashes) const;
   void detectNonDeterministicPreProcessing(const concord::util::SHA3_256::Digest& newHash,
                                            NodeIdType newSenderId) const;
-  bool isPrimaryPreprocessingCompleted() const;
 
  private:
   static uint16_t numOfRequiredEqualReplies_;
