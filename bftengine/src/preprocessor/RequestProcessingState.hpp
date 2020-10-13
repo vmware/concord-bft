@@ -45,7 +45,7 @@ class RequestProcessingState {
   PreProcessingResult definePreProcessingConsensusResult();
   const char* getPrimaryPreProcessedResult() const { return primaryPreProcessResult_; }
   uint32_t getPrimaryPreProcessedResultLen() const { return primaryPreProcessResultLen_; }
-  bool isReqTimedOut(bool isPrimary) const;
+  bool isReqTimedOut() const;
   uint64_t getReqTimeoutMilli() const {
     return clientPreProcessReqMsg_ ? clientPreProcessReqMsg_->requestTimeoutMilli() : 0;
   }
@@ -54,6 +54,7 @@ class RequestProcessingState {
   void releaseResources();
   ReplicaIdsList getRejectedReplicasList() { return rejectedReplicaIds_; }
   void resetRejectedReplicasList() { rejectedReplicaIds_.clear(); }
+  void setPreprocessingRightNow(bool set) { preprocessingRightNow_ = set; }
 
   static void init(uint16_t numOfRequiredReplies);
 
@@ -89,6 +90,7 @@ class RequestProcessingState {
   // Maps result hash to the number of equal hashes
   std::map<concord::util::SHA3_256::Digest, int> preProcessingResultHashes_;
   bool retrying_ = false;
+  bool preprocessingRightNow_ = false;
 };
 
 typedef std::unique_ptr<RequestProcessingState> RequestProcessingStateUniquePtr;
