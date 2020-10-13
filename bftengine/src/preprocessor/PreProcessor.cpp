@@ -133,7 +133,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
     preProcessResultBuffers_.push_back(Sliver(new char[maxPreExecResultSize_], maxPreExecResultSize_));
   }
   uint64_t numOfThreads = myReplica.getReplicaConfig().preExecConcurrencyLevel;
-  if (!numOfThreads) numOfThreads = min((uint16_t)thread::hardware_concurrency(), numOfClients_);
+  if (!numOfThreads) numOfThreads = numOfClients_;
   threadPool_.start(numOfThreads);
   LOG_INFO(logger(),
            KVLOG(firstClientId, numOfClients_, maxPreExecResultSize_, preExecReqStatusCheckPeriodMilli_, numOfThreads));
@@ -190,8 +190,12 @@ void PreProcessor::onRequestsStatusCheckTimer() {
         preProcessorMetrics_.preProcPossiblePrimaryFaultDetected.Get().Inc();
         // The request could expire do to failed primary replica, let ReplicaImp to address that
         // TBD YS: This causes a request to retry in case the primary is OK. Consider passing a kind of NOOP message.
+        const auto &clientId = clientEntry.first;
+        const auto &reqSeqNum = clientReqStatePtr->getReqSeqNum();
+        SCOPED_MDC_CID(clientReqStatePtr->getReqCid());
+        LOG_INFO(logger(), "Let replica to handle request" << KVLOG(reqSeqNum, clientId));
         incomingMsgsStorage_->pushExternalMsg(clientReqStatePtr->buildClientRequestMsg(true));
-        releaseClientPreProcessRequest(clientEntry.second, clientEntry.first, CANCEL);
+        releaseClientPreProcessRequest(clientEntry.second, clientId, CANCEL);
       } else if (myReplica_.isCurrentPrimary() && clientReqStatePtr->definePreProcessingConsensusResult() == CONTINUE)
         resendPreProcessRequest(clientReqStatePtr);
     }
@@ -200,6 +204,7 @@ void PreProcessor::onRequestsStatusCheckTimer() {
 
 bool PreProcessor::checkClientMsgCorrectness(const ClientPreProcessReqMsgUniquePtr &clientReqMsg,
                                              ReqId reqSeqNum) const {
+  SCOPED_MDC_CID(clientReqMsg->getCid());
   if (myReplica_.isCollectingState()) {
     LOG_INFO(logger(),
              "ClientPreProcessRequestMsg"
@@ -279,9 +284,11 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
     const auto &clientEntry = ongoingRequests_[clientId];
     lock_guard<mutex> lock(clientEntry->mutex);
     if (clientEntry->reqProcessingStatePtr) {
-      const ReqId &ongoingReqSeqNum = clientEntry->reqProcessingStatePtr->getReqSeqNum();
+      const auto &ongoingReqSeqNum = clientEntry->reqProcessingStatePtr->getReqSeqNum();
+      const auto &ongoingCid = clientEntry->reqProcessingStatePtr->getReqCid();
       LOG_DEBUG(logger(),
-                KVLOG(reqSeqNum, clientId, senderId) << " is ignored:" << KVLOG(ongoingReqSeqNum) << " is in progress");
+                KVLOG(reqSeqNum, clientId, senderId)
+                    << " is ignored:" << KVLOG(ongoingReqSeqNum, ongoingCid) << " is in progress");
       preProcessorMetrics_.preProcReqIgnored.Get().Inc();
       return;
     }
@@ -324,7 +331,11 @@ void PreProcessor::onMessage<PreProcessRequestMsg>(PreProcessRequestMsg *msg) {
   const NodeIdType &clientId = preProcessReqMsg->clientId();
   LOG_DEBUG(logger(), "Received PreProcessRequestMsg" << KVLOG(reqSeqNum, senderId, clientId));
 
-  if (myReplica_.isCurrentPrimary()) return;
+  if (myReplica_.isCurrentPrimary()) {
+    LOG_WARN(logger(),
+             "Ignore PreProcessRequestMsg as current replica is the primary" << KVLOG(reqSeqNum, senderId, clientId));
+    return;
+  }
 
   if (!myReplica_.currentViewIsActive()) {
     LOG_INFO(logger(), "PreProcessRequestMsg is ignored because current view is inactive," << KVLOG(reqSeqNum));
@@ -379,7 +390,10 @@ void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *msg) {
       return;
     }
     clientEntry->reqProcessingStatePtr->handlePreProcessReplyMsg(preProcessReplyMsg);
-    if (status == STATUS_REJECT) return;
+    if (status == STATUS_REJECT) {
+      LOG_DEBUG(logger(), "Received PreProcessReplyMsg with STATUS_REJECT" << KVLOG(reqSeqNum, senderId, clientId));
+      return;
+    }
     result = clientEntry->reqProcessingStatePtr->definePreProcessingConsensusResult();
     if (result == CONTINUE) resendPreProcessRequest(clientEntry->reqProcessingStatePtr);
   }
@@ -424,7 +438,7 @@ void PreProcessor::cancelPreProcessing(NodeIdType clientId) {
       reqSeqNum = clientEntry->reqProcessingStatePtr->getReqSeqNum();
       SCOPED_MDC_CID(clientEntry->reqProcessingStatePtr->getReqCid());
       releaseClientPreProcessRequest(clientEntry, clientId, CANCEL);
-      LOG_WARN(logger(), "Pre-processing consensus not reached - abort request" << KVLOG(reqSeqNum, clientId));
+      LOG_WARN(logger(), "Pre-processing consensus not reached - cancel request" << KVLOG(reqSeqNum, clientId));
     }
   }
 }
@@ -447,6 +461,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId) {
                                                        reqProcessingStatePtr->getPrimaryPreProcessedResult(),
                                                        reqProcessingStatePtr->getReqTimeoutMilli(),
                                                        cid);
+      LOG_DEBUG(logger(), "Pass pre-processed request to the replica" << KVLOG(cid, reqSeqNum, clientId));
       incomingMsgsStorage_->pushExternalMsg(move(clientRequestMsg));
       preProcessorMetrics_.preProcReqSentForFurtherProcessing.Get().Inc();
       releaseClientPreProcessRequest(clientEntry, clientId, COMPLETE);
@@ -527,6 +542,7 @@ void PreProcessor::releaseClientPreProcessRequest(const ClientRequestStateShared
       givenReq->releaseResources();
       clientEntry->reqProcessingHistory.push_back(move(givenReq));
     } else {  // No consensus reached => release request
+      SCOPED_MDC_CID(givenReq->getReqCid());
       LOG_INFO(logger(), KVLOG(requestSeqNum, clientId) << " no consensus reached, request released");
       givenReq.reset();
     }
@@ -564,6 +580,7 @@ void PreProcessor::handleClientPreProcessRequestByPrimary(PreProcessRequestMsgSh
   const auto &reqSeqNum = preProcessRequestMsg->reqSeqNum();
   const auto &clientId = preProcessRequestMsg->clientId();
   const auto &senderId = preProcessRequestMsg->senderId();
+  SCOPED_MDC_CID(preProcessRequestMsg->getCid());
   LOG_DEBUG(logger(), "Start request processing by a primary replica" << KVLOG(reqSeqNum, clientId, senderId));
   sendPreProcessRequestToAllReplicas(preProcessRequestMsg);
   // Pre-process the request and calculate a hash of the result
@@ -578,11 +595,13 @@ void PreProcessor::handleClientPreProcessRequestByNonPrimary(ClientPreProcessReq
   const auto &senderId = clientReqMsg->senderId();
   const auto &reqTimeoutMilli = clientReqMsg->requestTimeoutMilli();
   // Save parameters required for a message sending before being moved to registerRequest
-  const auto &msgBody = clientReqMsg->body();
-  const auto &msgType = clientReqMsg->type();
-  const auto &msgSize = clientReqMsg->size();
+  const auto msgBody = clientReqMsg->body();
+  const auto msgType = clientReqMsg->type();
+  const auto msgSize = clientReqMsg->size();
+  const auto cid = clientReqMsg->getCid();
   // Register a client request message with an empty PreProcessRequestMsg to allow follow up.
   if (registerRequest(move(clientReqMsg), PreProcessRequestMsgSharedPtr())) {
+    SCOPED_MDC_CID(cid);
     LOG_DEBUG(
         logger(),
         "Start request processing by a non-primary replica" << KVLOG(reqSeqNum, clientId, senderId, reqTimeoutMilli));
@@ -697,16 +716,15 @@ void PreProcessor::handlePreProcessedReqByNonPrimary(uint16_t clientId,
   releaseClientPreProcessRequestSafe(clientId, COMPLETE);
   sendMsg(replyMsg->body(), myReplica_.currentPrimary(), replyMsg->type(), replyMsg->size());
   SCOPED_MDC_CID(cid);
-  LOG_DEBUG(
-      logger(),
-      "Sent PreProcessReplyMsg with" << KVLOG(reqSeqNum) << " to the primary replica: " << myReplica_.currentPrimary());
+  LOG_DEBUG(logger(),
+            "Sent PreProcessReplyMsg with" << KVLOG(reqSeqNum, replyMsg->status())
+                                           << " to the primary replica: " << myReplica_.currentPrimary());
 }
 
 void PreProcessor::handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                              bool isPrimary,
                                              bool isRetry) {
   const string cid = preProcessReqMsg->getCid();
-  SCOPED_MDC_CID(cid);
   const uint16_t &clientId = preProcessReqMsg->clientId();
   const SeqNum &reqSeqNum = preProcessReqMsg->reqSeqNum();
   const auto &span_context = preProcessReqMsg->spanContext<PreProcessRequestMsgSharedPtr::element_type>();
@@ -716,6 +734,8 @@ void PreProcessor::handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr
     handlePreProcessedReqPrimaryRetry(clientId);
     return;
   }
+  SCOPED_MDC_CID(cid);
+  LOG_DEBUG(logger(), "Request pre-processed" << KVLOG(isPrimary, reqSeqNum, clientId));
   if (isPrimary)
     handlePreProcessedReqByPrimary(preProcessReqMsg, clientId, actualResultBufLen);
   else
