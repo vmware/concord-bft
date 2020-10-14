@@ -1368,9 +1368,7 @@ ConnectionStatus TlsTCPCommunication::getCurrentConnectionStatus(const NodeNum n
   return _ptrImpl->getCurrentConnectionStatus(node);
 }
 
-int TlsTCPCommunication::sendAsyncMessage(const NodeNum destNode,
-                                          const char *const message,
-                                          const size_t messageLength) {
+int TlsTCPCommunication::sendAsyncMessage(NodeNum destNode, const char *const message, size_t messageLength) {
   return _ptrImpl->sendAsyncMessage(destNode, message, messageLength);
 }
 

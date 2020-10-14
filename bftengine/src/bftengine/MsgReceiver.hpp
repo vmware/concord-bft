@@ -22,9 +22,7 @@ class MsgReceiver : public bft::communication::IReceiver {
   explicit MsgReceiver(std::shared_ptr<IncomingMsgsStorage>& storage);
   virtual ~MsgReceiver() = default;
 
-  void onNewMessage(const bft::communication::NodeNum sourceNode,
-                    const char* const message,
-                    const size_t messageLength) override;
+  void onNewMessage(bft::communication::NodeNum sourceNode, const char* const message, size_t messageLength) override;
   void onConnectionStatusChanged(const bft::communication::NodeNum node,
                                  const bft::communication::ConnectionStatus newStatus) override;
 

@@ -400,9 +400,7 @@ ConnectionStatus PlainUDPCommunication::getCurrentConnectionStatus(const NodeNum
   return _ptrImpl->getCurrentConnectionStatus(node);
 }
 
-int PlainUDPCommunication::sendAsyncMessage(const NodeNum destNode,
-                                            const char *const message,
-                                            const size_t messageLength) {
+int PlainUDPCommunication::sendAsyncMessage(NodeNum destNode, const char *const message, size_t messageLength) {
   return _ptrImpl->sendAsyncMessage(destNode, message, messageLength);
 }
 

@@ -84,9 +84,7 @@ class MsgReceiver : public bft::communication::IReceiver {
  public:
   // IReceiver methods
   // These are called from the ASIO thread when a new message is received.
-  void onNewMessage(const bft::communication::NodeNum sourceNode,
-                    const char* const message,
-                    const size_t messageLength) override;
+  void onNewMessage(bft::communication::NodeNum sourceNode, const char* const message, size_t messageLength) override;
 
   void onConnectionStatusChanged(const bft::communication::NodeNum node,
                                  const bft::communication::ConnectionStatus newStatus) override {}
