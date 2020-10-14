@@ -894,10 +894,10 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
       tcp::endpoint ep = *results;
 
       LOG_INFO(_logger, "Resolved " << host << ":" << port << " to " << ep);
-      LOG_DEBUG(_logger, "principal " << _selfId << " tries to connect to principal " << _expectedDestId  << " at "
+      LOG_DEBUG(_logger,
+                "principal " << _selfId << " tries to connect to principal " << _expectedDestId << " at "
 
-
-      << ep);
+                             << ep);
 
       get_socket().async_connect(
           ep,
