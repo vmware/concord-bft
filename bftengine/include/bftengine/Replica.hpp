@@ -34,7 +34,7 @@ enum MsgFlag : uint8_t {
   PRE_PROCESS_FLAG = 0x2,
   HAS_PRE_PROCESSED_FLAG = 0x4,
   KEY_EXCHANGE_FLAG = 0x8,
-  EMPTY_CLIENT_FLAG = 0x16
+  EMPTY_CLIENT_FLAG = 0x10
 };
 
 // The ControlHandlers is a group of method that enables the userRequestHandler to perform infrastructure
