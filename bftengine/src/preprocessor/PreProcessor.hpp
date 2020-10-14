@@ -121,10 +121,11 @@ class PreProcessor {
   void handlePreProcessedReqByPrimary(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                       uint16_t clientId,
                                       uint32_t resultBufLen);
-  void handlePreProcessedReqPrimaryRetry(NodeIdType clientId);
+  void handlePreProcessedReqPrimaryRetry(NodeIdType clientId, uint32_t resultBufLen);
   void finalizePreProcessing(NodeIdType clientId);
   void cancelPreProcessing(NodeIdType clientId);
-  PreProcessingResult getPreProcessingConsensusResult(uint16_t clientId);
+  void setPreprocessingRightNow(uint16_t clientId, bool set);
+  PreProcessingResult handlePreProcessedReqByPrimaryAndGetConsensusResult(uint16_t clientId, uint32_t resultBufLen);
   void handlePreProcessReplyMsg(const std::string &cid,
                                 PreProcessingResult result,
                                 NodeIdType clientId,
