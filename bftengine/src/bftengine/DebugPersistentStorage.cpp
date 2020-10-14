@@ -52,7 +52,7 @@ void DebugPersistentStorage::setPrimaryLastUsedSeqNum(const SeqNum seqNum) {
   primaryLastUsedSeqNum_ = seqNum;
 }
 
-void DebugPersistentStorage::setStrictLowerBoundOfSeqNums(const SeqNum seqNum) {
+void DebugPersistentStorage::setStrictLowerBoundOfSeqNums(SeqNum seqNum) {
   ConcordAssert(nonExecSetIsAllowed());
   strictLowerBoundOfSeqNums_ = seqNum;
 }
