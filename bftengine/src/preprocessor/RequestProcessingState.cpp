@@ -57,6 +57,7 @@ void RequestProcessingState::setPreProcessRequest(PreProcessRequestMsgSharedPtr 
 }
 
 void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessResult, uint32_t preProcessResultLen) {
+  preprocessingRightNow_ = false;
   primaryPreProcessResult_ = preProcessResult;
   primaryPreProcessResultLen_ = preProcessResultLen;
   primaryPreProcessResultHash_ =
@@ -116,14 +117,13 @@ auto RequestProcessingState::calculateMaxNbrOfEqualHashes(uint16_t &maxNumOfEqua
   return itOfChosenHash;
 }
 
-bool RequestProcessingState::isReqTimedOut(bool isPrimary) const {
+bool RequestProcessingState::isReqTimedOut() const {
   if (!clientPreProcessReqMsg_) return false;
 
   SCOPED_MDC_CID(cid_);
-  LOG_DEBUG(logger(), KVLOG(isPrimary, primaryPreProcessResultLen_));
-  if (!isPrimary || primaryPreProcessResultLen_ != 0) {
-    // On the primary: check request timeout once an asynchronous pre-execution completed (to not abort the execution
-    // thread)
+  LOG_DEBUG(logger(), KVLOG(preprocessingRightNow_));
+  if (!preprocessingRightNow_) {
+    // Check request timeout once an asynchronous pre-execution completed (to not abort the execution thread)
     auto reqProcessingTime = getMonotonicTimeMilli() - entryTime_;
     if (reqProcessingTime > clientPreProcessReqMsg_->requestTimeoutMilli()) {
       LOG_WARN(logger(),
