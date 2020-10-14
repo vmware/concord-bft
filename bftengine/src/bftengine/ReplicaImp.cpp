@@ -445,7 +445,11 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp) {
 }
 
 void ReplicaImp::sendInternalNoopPrePrepareMsg(CommitPath firstPath) {
-  PrePrepareMsg *pp = new PrePrepareMsg(config_.replicaId, curView, (primaryLastUsedSeqNum + 1), firstPath, 0);
+  PrePrepareMsg *pp = new PrePrepareMsg(
+      config_.replicaId, curView, (primaryLastUsedSeqNum + 1), firstPath, sizeof(ClientRequestMsgHeader));
+  ClientRequestMsg emptyClientRequest(config_.replicaId);
+  pp->addRequest(emptyClientRequest.body(), emptyClientRequest.size());
+  pp->finishAddingRequests();
   startConsensusProcess(pp);
 }
 
@@ -3579,6 +3583,9 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
       }
 
       ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
+      if (req.flags() & EMPTY_CLIENT_FLAG) {
+        continue;
+      }
       SCOPED_MDC_CID(req.getCid());
       NodeIdType clientId = req.clientProxyId();
 

@@ -53,6 +53,11 @@ ClientRequestMsg::ClientRequestMsg(NodeIdType sender,
   memcpy(position, cid.data(), cid.size());
 }
 
+ClientRequestMsg::ClientRequestMsg(NodeIdType sender)
+    : MessageBase(sender, MsgCode::ClientRequest, 0, (sizeof(ClientRequestMsgHeader))) {
+  msgBody()->flags &= EMPTY_CLIENT_REQ;
+}
+
 ClientRequestMsg::ClientRequestMsg(ClientRequestMsgHeader* body)
     : MessageBase(getSender(body), (MessageBase::Header*)body, compRequestMsgSize(body), false) {}
 
