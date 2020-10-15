@@ -25,14 +25,14 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     gdbserver \
     git \
     iptables \
-    openssl \
     parallel \
     pkg-config \
     python3-pip \
     python3-setuptools \
     sudo \
     vim \
-    wget
+    wget \
+    net-tools
 
 ln -fs /usr/bin/clang-format-9 /usr/bin/clang-format
 ln -fs /usr/bin/clang-format-diff-9 /usr/bin/clang-format-diff
@@ -170,3 +170,17 @@ wget ${WGET_FLAGS} \
     make install && \
     cd ../.. && \
     rm -r opentracing-cpp-1.5.0
+
+# Get the newest openSSL installation (as of 9/2020)
+OPENSSL_VER='1.1.1g'
+cd /usr/local/src/
+wget ${WGET_FLAGS} https://www.openssl.org/source/openssl-${OPENSSL_VER}.tar.gz && \
+    tar -xf openssl-${OPENSSL_VER}.tar.gz && \
+    rm openssl-${OPENSSL_VER}.tar.gz && \
+    cd openssl-${OPENSSL_VER} && \
+    ./config --prefix=/usr/local/ssl --openssldir=/usr/local/ssl shared zlib && \
+    make && \
+    make install && \
+    echo "/usr/local/ssl/lib" > /etc/ld.so.conf.d/openssl-${OPENSSL_VER}.conf && \
+    ldconfig -v && \
+    rm -rf /usr/local/src/openssl-${OPENSSL_VER}
