@@ -44,6 +44,8 @@ class ViewChangeMsg : public MessageBase {
                 SeqNum lastStableSeq,
                 const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
+  BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(ViewChangeMsg)
+
   void setNewViewNumber(ViewNum newView);
 
   uint16_t idOfGeneratedReplica() const {

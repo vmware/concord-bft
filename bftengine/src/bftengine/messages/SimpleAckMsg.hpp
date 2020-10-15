@@ -24,6 +24,8 @@ class SimpleAckMsg : public MessageBase {
  public:
   SimpleAckMsg(SeqNum s, ViewNum v, ReplicaId senderId, uint64_t ackData);
 
+  BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(SimpleAckMsg)
+
   ViewNum viewNumber() const { return b()->viewNum; }
 
   SeqNum seqNumber() const { return b()->seqNum; }

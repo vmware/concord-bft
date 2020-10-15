@@ -24,6 +24,8 @@ class NewViewMsg : public MessageBase {
              ViewNum newView,
              const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
+  BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(NewViewMsg)
+
   void addElement(ReplicaId replicaId, Digest& viewChangeDigest);
 
   ViewNum newView() const { return b()->newViewNum; }

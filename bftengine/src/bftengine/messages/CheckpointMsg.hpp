@@ -25,6 +25,8 @@ class CheckpointMsg : public MessageBase {
                 bool stateIsStable,
                 const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
+  BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(CheckpointMsg)
+
   SeqNum seqNumber() const { return b()->seqNum; }
 
   Digest& digestOfState() const { return b()->stateDigest; }

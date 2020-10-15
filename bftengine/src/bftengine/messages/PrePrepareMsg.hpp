@@ -68,6 +68,8 @@ class PrePrepareMsg : public MessageBase {
                 const concordUtils::SpanContext& spanContext,
                 size_t size);
 
+  BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(PrePrepareMsg)
+
   uint32_t remainingSizeForRequests() const;
 
   void addRequest(const char* pRequest, uint32_t requestSize);

@@ -14,6 +14,7 @@
 #include "MessageBase.hpp"
 #include "assertUtils.hpp"
 #include "ReplicaConfig.hpp"
+#include "Logger.hpp"
 
 #ifdef DEBUG_MEMORY_MSG
 #include <set>
@@ -105,6 +106,10 @@ MessageBase::MessageBase(NodeIdType sender, MessageBase::Header *body, MsgSize s
 #ifdef DEBUG_MEMORY_MSG
   liveMessagesDebug.insert(this);
 #endif
+}
+
+void MessageBase::validate(const ReplicasInfo &) const {
+  LOG_WARN(GL, "Calling MessageBase::validate on a message of type " << type());
 }
 
 void MessageBase::setMsgSize(MsgSize size) {
