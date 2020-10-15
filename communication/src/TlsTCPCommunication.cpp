@@ -380,22 +380,27 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
     _sslContext.set_verify_callback(
         boost::bind(&AsyncTlsConnection::verify_certificate_server, shared_from_this(), _1, _2));
 
-    namespace fs = boost::filesystem;
-    auto path = fs::path(_certificatesRootFolder) / fs::path(to_string(_selfId)) / fs::path("server");
-    _sslContext.use_certificate_chain_file((path / fs::path("server.cert")).string());
-    _sslContext.use_private_key_file((path / fs::path("pk.pem")).string(), boost::asio::ssl::context::pem);
+    try {
+      namespace fs = boost::filesystem;
+      auto path = fs::path(_certificatesRootFolder) / to_string(_selfId) / "server";
+      _sslContext.use_certificate_chain_file((path / "server.cert").string());
+      _sslContext.use_private_key_file((path / "pk.pem").string(), boost::asio::ssl::context::pem);
+    } catch (std::exception &e) {
+      LOG_FATAL(_logger, e.what());
+      ConcordAssert(false);
+    }
 
     // if we cant create EC DH params, it may mean that SSL version old or
     // any other crypto related errors, we can't continue with TLS
     EC_KEY *ecdh = EC_KEY_new_by_curve_name(NID_secp384r1);
     if (!ecdh) {
       LOG_ERROR(_logger, "Unable to create EC");
-      abort();
+      ConcordAssert(false);
     }
 
     if (1 != SSL_CTX_set_tmp_ecdh(_sslContext.native_handle(), ecdh)) {
       LOG_ERROR(_logger, "Unable to set temp EC params");
-      abort();
+      ConcordAssert(false);
     }
 
     // as the OpenSSL does reference counting, it should be safe to free the key
@@ -408,14 +413,18 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
     _sslContext.set_verify_mode(asio::ssl::verify_peer);
 
     namespace fs = boost::filesystem;
-    auto path = fs::path(_certificatesRootFolder) / fs::path(to_string(_selfId)) / "client";
-    auto serverPath = fs::path(_certificatesRootFolder) / fs::path(to_string(_expectedDestId)) / "server";
+    try {
+      auto path = fs::path(_certificatesRootFolder) / to_string(_selfId) / "client";
+      auto serverPath = fs::path(_certificatesRootFolder) / to_string(_expectedDestId) / "server";
+      _sslContext.set_verify_callback(
+          boost::bind(&AsyncTlsConnection::verify_certificate_client, shared_from_this(), _1, _2));
 
-    _sslContext.set_verify_callback(
-        boost::bind(&AsyncTlsConnection::verify_certificate_client, shared_from_this(), _1, _2));
-
-    _sslContext.use_certificate_chain_file((path / "client.cert").string());
-    _sslContext.use_private_key_file((path / "pk.pem").string(), boost::asio::ssl::context::pem);
+      _sslContext.use_certificate_chain_file((path / "client.cert").string());
+      _sslContext.use_private_key_file((path / "pk.pem").string(), boost::asio::ssl::context::pem);
+    } catch (std::exception &e) {
+      LOG_FATAL(_logger, e.what());
+      ConcordAssert(false);
+    }
   }
 
   bool verify_certificate_server(bool preverified, boost::asio::ssl::verify_context &ctx) {
@@ -885,6 +894,10 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
       tcp::endpoint ep = *results;
 
       LOG_INFO(_logger, "Resolved " << host << ":" << port << " to " << ep);
+      LOG_DEBUG(_logger,
+                "principal " << _selfId << " tries to connect to principal " << _expectedDestId << " at "
+
+                             << ep);
 
       get_socket().async_connect(
           ep,
