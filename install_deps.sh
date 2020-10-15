@@ -31,7 +31,8 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     python3-setuptools \
     sudo \
     vim \
-    wget
+    wget \
+    net-tools
 
 ln -fs /usr/bin/clang-format-9 /usr/bin/clang-format
 ln -fs /usr/bin/clang-format-diff-9 /usr/bin/clang-format-diff
