@@ -107,8 +107,13 @@ class DummyReplica : public InternalReplicaApi {
   bool isCollectingState() const override { return false; }
 
   const ReplicaConfig& getReplicaConfig() const override { return replicaConfig; }
+  SeqNum getPrimaryLastUsedSeqNum() const override { return 0; }
+  uint64_t getRequestsInQueue() const override { return 0; }
+  SeqNum getLastExecutedSeqNum() const override { return 0; }
 
   void setPrimary(bool primary) { primary_ = primary; };
+
+  PrePrepareMsg* buildPrePrepareMessage() override { return nullptr; }
 
  private:
   bool primary_ = true;
