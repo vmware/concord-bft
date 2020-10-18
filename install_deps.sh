@@ -32,7 +32,8 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     sudo \
     vim \
     wget \
-    net-tools
+    net-tools \
+    psmisc
 
 ln -fs /usr/bin/clang-format-9 /usr/bin/clang-format
 ln -fs /usr/bin/clang-format-diff-9 /usr/bin/clang-format-diff
