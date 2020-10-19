@@ -47,7 +47,7 @@ void DebugPersistentStorage::setLastExecutedSeqNum(SeqNum seqNum) {
   lastExecutedSeqNum_ = seqNum;
 }
 
-void DebugPersistentStorage::setPrimaryLastUsedSeqNum(const SeqNum seqNum) {
+void DebugPersistentStorage::setPrimaryLastUsedSeqNum(SeqNum seqNum) {
   ConcordAssert(nonExecSetIsAllowed());
   primaryLastUsedSeqNum_ = seqNum;
 }
@@ -57,7 +57,7 @@ void DebugPersistentStorage::setStrictLowerBoundOfSeqNums(SeqNum seqNum) {
   strictLowerBoundOfSeqNums_ = seqNum;
 }
 
-void DebugPersistentStorage::setLastViewThatTransferredSeqNumbersFullyExecuted(const ViewNum view) {
+void DebugPersistentStorage::setLastViewThatTransferredSeqNumbersFullyExecuted(ViewNum view) {
   ConcordAssert(nonExecSetIsAllowed());
   ConcordAssert(lastViewThatTransferredSeqNumbersFullyExecuted_ <= view);
   lastViewThatTransferredSeqNumbersFullyExecuted_ = view;
