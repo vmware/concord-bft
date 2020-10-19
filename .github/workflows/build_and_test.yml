@@ -33,7 +33,9 @@ jobs:
             #- name: Setup tmate session
             #  uses: mxschmitt/action-tmate@v2
         - name: Build and test
-          run: >
+          run: |
+              script -q -e -c "make pull"
+              sudo df -h
               script -q -e -c "make build \
                               ${{ matrix.compiler}} \
                               CONCORD_BFT_CMAKE_FLAGS=\"\
