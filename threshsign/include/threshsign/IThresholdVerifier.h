@@ -20,9 +20,9 @@
 #include "ThresholdSignaturesTypes.h"
 #include "IThresholdAccumulator.h"
 
-class IThresholdVerifier : public virtual concord::serialize::Serializable {
+class IThresholdVerifier {
  public:
-  ~IThresholdVerifier() override = default;
+  virtual ~IThresholdVerifier() = default;
 
  public:
   virtual IThresholdAccumulator *newAccumulator(bool withShareVerification) const = 0;

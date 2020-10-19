@@ -52,10 +52,10 @@ class Serializable {
   static void serialize(std::ostream& outStream, const T& t) {
     serialize_impl(outStream, t, int{});
   }
-  template <typename T>
   /**
    * deserialization API
    */
+  template <typename T>
   static void deserialize(std::istream& inStream, T& t) {
     deserialize_impl(inStream, t, int{});
   }
@@ -86,7 +86,7 @@ class Serializable {
    *  - container size
    *  - every element of the container (recursively)
    */
-  template <typename T, typename std::enable_if<is_std_container<T>::value, T>::type* = nullptr>
+  template <typename T, typename std::enable_if_t<is_std_container_v<T>, T>* = nullptr>
   static void serialize_impl(std::ostream& outStream, const T& container, int) {
     typename T::size_type size = container.size();
     LOG_TRACE(logger(), " size: " << size);
@@ -97,7 +97,7 @@ class Serializable {
    *  std::vector
    *  we always deserialize containers to vector first and then copy to the designated container if needed
    */
-  template <typename T, typename std::enable_if<is_vector<std::vector<T>>::value, T>::type* = nullptr>
+  template <typename T, typename std::enable_if_t<is_vector_v<std::vector<T>>, T>* = nullptr>
   static void deserialize_impl(std::istream& inStream, std::vector<T>& vec, int) {
     LOG_TRACE(logger(), "");
     typename std::vector<T>::size_type size = 0;
@@ -115,7 +115,7 @@ class Serializable {
    *  in order to use std::set default std::less comparator
    *  rather than providing a custom comparator
    */
-  template <typename T, typename std::enable_if<is_set<std::set<T>>::value, T>::type* = nullptr>
+  template <typename T, typename std::enable_if_t<is_set_v<std::set<T>>, T>* = nullptr>
   static void deserialize_impl(std::istream& inStream, std::set<T>& set, int) {
     LOG_TRACE(logger(), "");
     std::vector<T> vec;
@@ -123,32 +123,41 @@ class Serializable {
     std::copy(vec.begin(), vec.end(), std::inserter(set, set.begin()));
   }
 
-  template <typename T, typename std::enable_if<is_deque<std::deque<T>>::value, T>::type* = nullptr>
+  template <typename T, typename std::enable_if_t<is_deque_v<std::deque<T>>, T>* = nullptr>
   static void deserialize_impl(std::istream& inStream, std::deque<T>& deque, int) {
     LOG_TRACE(logger(), "");
     std::vector<T> vec;
     deserialize_impl(inStream, vec, int{});
     std::copy(vec.begin(), vec.end(), std::back_inserter(deque));
   }
+
+  template <typename T, typename std::enable_if_t<is_map_v<T>, T>* = nullptr>
+  static void deserialize_impl(std::istream& inStream, T& map_, int) {
+    LOG_TRACE(logger(), "");
+    std::vector<std::pair<typename T::key_type, typename T::mapped_type>> vec;
+    deserialize_impl(inStream, vec, int{});
+    std::copy(vec.begin(), vec.end(), std::inserter(map_, map_.begin()));
+  }
+
   /** *****************************************************************************************************************
    *  Serializable
    *  - name
    *  - version
    *  - data members (recursively)
    */
-  template <typename T, typename std::enable_if<std::is_convertible<T*, Serializable*>::value>::type* = nullptr>
+  template <typename T, typename std::enable_if_t<std::is_convertible_v<T*, Serializable*>>* = nullptr>
   static void serialize_impl(std::ostream& outStream, const T& t, int) {
     const Serializable& s = static_cast<const Serializable&>(t);
     serialize(outStream, s.getName());
     serialize(outStream, s.getVersion());
     s.serializeDataMembers(outStream);
   }
-  template <typename T, typename std::enable_if<std::is_convertible<T, Serializable*>::value>::type* = nullptr>
+  template <typename T, typename std::enable_if_t<std::is_convertible_v<T, Serializable*>>* = nullptr>
   static void serialize_impl(std::ostream& outStream, const T t, int) {
     const Serializable& s = static_cast<const Serializable&>(*t);
     serialize_impl(outStream, s, int{});
   }
-  template <typename T, typename std::enable_if<std::is_convertible<T, Serializable*>::value>::type* = nullptr>
+  template <typename T, typename std::enable_if_t<std::is_convertible_v<T, Serializable*>>* = nullptr>
   static void deserialize_impl(std::istream& inStream, T& t, int) {
     std::string className;
     deserialize(inStream, className);
@@ -165,7 +174,7 @@ class Serializable {
 
     t = dynamic_cast<T>(s);  // shouldn't throw because T is convertible to Serializable*
   }
-  template <typename T, typename std::enable_if<std::is_convertible<T*, Serializable*>::value>::type* = nullptr>
+  template <typename T, typename std::enable_if_t<std::is_convertible_v<T*, Serializable*>>* = nullptr>
   static void deserialize_impl(std::istream& inStream, T& t, int) {
     T* s = nullptr;
     deserialize_impl(inStream, s, int{});
@@ -177,7 +186,7 @@ class Serializable {
    *  - string length
    *  - char array
    */
-  template <typename T, typename std::enable_if<std::is_same<T, std::string>::value>::type* = nullptr>
+  template <typename T, typename std::enable_if_t<std::is_same_v<T, std::string>>* = nullptr>
   static void serialize_impl(std::ostream& outStream, const T& str, int) {
     LOG_TRACE(logger(), str);
     const std::size_t sz = str.size();
@@ -185,28 +194,44 @@ class Serializable {
     std::string::size_type size = str.size();
     serialize(outStream, str.data(), size);
   }
-  template <typename T, typename std::enable_if<std::is_same<T, std::string>::value>::type* = nullptr>
+  template <typename T, typename std::enable_if_t<std::is_same_v<typename std::remove_cv_t<T>, std::string>>* = nullptr>
+
   static void deserialize_impl(std::istream& inStream, T& t, int) {
     std::size_t sz;
     deserialize_impl(inStream, sz, int{});
     char* str = new char[sz];
     deserialize(inStream, str, sz);
-    t.assign(str, sz);
+    const_cast<std::string&>(t).assign(str, sz);
     LOG_TRACE(logger(), t);
     delete[] str;
   }
   /** *****************************************************************************************************************
    * integral types
    */
-  template <typename T, typename std::enable_if<std::is_integral<T>::value>::type* = nullptr>
+  template <typename T, typename std::enable_if_t<std::is_integral_v<T>>* = nullptr>
   static void serialize_impl(std::ostream& outStream, const T& t, int) {
     LOG_TRACE(logger(), t);
     outStream.write((char*)&t, sizeof(T));
   }
-  template <typename T, typename std::enable_if<std::is_integral<T>::value>::type* = nullptr>
+  template <typename T, typename std::enable_if_t<std::is_integral_v<T>>* = nullptr>
   static void deserialize_impl(std::istream& inStream, T& t, int) {
     inStream.read((char*)&t, sizeof(T));
     LOG_TRACE(logger(), t);
+  }
+  /** *****************************************************************************************************************
+   * std::pair
+   */
+  template <typename T, typename std::enable_if_t<is_pair_v<T>>* = nullptr>
+  static void serialize_impl(std::ostream& outStream, const T& t, int) {
+    LOG_TRACE(logger(), t.first << ": " << t.second);
+    serialize(outStream, t.first);
+    serialize(outStream, t.second);
+  }
+  template <typename T, typename std::enable_if_t<is_pair_v<T>>* = nullptr>
+  static void deserialize_impl(std::istream& inStream, T& t, int) {
+    deserialize(inStream, t.first);
+    deserialize(inStream, t.second);
+    LOG_TRACE(logger(), t.first << ": " << t.second);
   }
 
  public:

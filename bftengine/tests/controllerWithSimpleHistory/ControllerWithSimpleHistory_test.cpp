@@ -304,9 +304,6 @@ class ThreshSigMock : public IThresholdSigner {
 
   virtual const IShareSecretKey &getShareSecretKey() { return is; };
   virtual const IShareVerificationKey &getShareVerificationKey() const { return isv; };
-  const std::string getVersion() const { return "v"; }
-  void serializeDataMembers(std::ostream &) const {}
-  void deserializeDataMembers(std::istream &) {}
   const IShareSecretKey &getShareSecretKey() const { return is; }
 };
 

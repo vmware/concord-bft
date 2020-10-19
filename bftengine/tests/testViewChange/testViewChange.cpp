@@ -101,9 +101,6 @@ class DummySigner : public IThresholdSigner {
   virtual const IShareSecretKey& getShareSecretKey() const override { return dummyShareSecretKey_; }
   virtual const IShareVerificationKey& getShareVerificationKey() const override { return dummyShareVerificationKey_; }
 
-  virtual const std::string getVersion() const override { return std::string("123"); }
-  virtual void serializeDataMembers(std::ostream&) const override {}
-  virtual void deserializeDataMembers(std::istream&) override {}
 } dummySigner_;
 
 class DummyVerifier : public IThresholdVerifier {
@@ -121,9 +118,6 @@ class DummyVerifier : public IThresholdVerifier {
   virtual const IShareVerificationKey& getShareVerificationKey(ShareID signer) const override {
     return dummyShareVerificationKey_;
   }
-  virtual const std::string getVersion() const override { return std::string("123"); }
-  virtual void serializeDataMembers(std::ostream&) const override {}
-  virtual void deserializeDataMembers(std::istream&) override {}
 };
 
 void setUpConfiguration_4() {
