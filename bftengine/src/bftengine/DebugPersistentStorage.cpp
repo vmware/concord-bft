@@ -23,7 +23,7 @@ namespace bftEngine {
 namespace impl {
 
 DebugPersistentStorage::DebugPersistentStorage(uint16_t fVal, uint16_t cVal)
-    : fVal_{fVal}, cVal_{cVal}, seqNumWindow(1), checkWindow(0) {}
+    : fVal_{fVal}, cVal_{cVal}, config_{ReplicaConfig::instance()}, seqNumWindow(1), checkWindow(0) {}
 
 uint8_t DebugPersistentStorage::beginWriteTran() { return ++numOfNestedTransactions; }
 
@@ -33,13 +33,6 @@ uint8_t DebugPersistentStorage::endWriteTran() {
 }
 
 bool DebugPersistentStorage::isInWriteTran() const { return (numOfNestedTransactions != 0); }
-
-void DebugPersistentStorage::setReplicaConfig(const ReplicaConfig &config) {
-  ConcordAssert(!hasConfig_);
-  ConcordAssert(isInWriteTran());
-  hasConfig_ = true;
-  config_ = config;
-}
 
 void DebugPersistentStorage::setLastExecutedSeqNum(SeqNum seqNum) {
   ConcordAssert(setIsAllowed());
@@ -273,14 +266,6 @@ void DebugPersistentStorage::setCompletedMarkInCheckWindow(SeqNum seqNum, bool m
   checkData.setCompletedMark(mark);
 }
 
-bool DebugPersistentStorage::hasReplicaConfig() const { return hasConfig_; }
-
-ReplicaConfig DebugPersistentStorage::getReplicaConfig() {
-  ConcordAssert(getIsAllowed());
-  ConcordAssert(hasConfig_);
-  return config_;
-}
-
 SeqNum DebugPersistentStorage::getLastExecutedSeqNum() {
   ConcordAssert(getIsAllowed());
   return lastExecutedSeqNum_;
@@ -474,9 +459,9 @@ bool DebugPersistentStorage::getCompletedMarkInCheckWindow(SeqNum seqNum) {
   return b;
 }
 
-bool DebugPersistentStorage::setIsAllowed() const { return isInWriteTran() && hasConfig_; }
+bool DebugPersistentStorage::setIsAllowed() const { return isInWriteTran(); }
 
-bool DebugPersistentStorage::getIsAllowed() const { return !isInWriteTran() && hasConfig_; }
+bool DebugPersistentStorage::getIsAllowed() const { return !isInWriteTran(); }
 
 bool DebugPersistentStorage::nonExecSetIsAllowed() const {
   return setIsAllowed() &&

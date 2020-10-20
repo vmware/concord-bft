@@ -50,7 +50,7 @@ const NodeIdType replica_2 = 2;
 const NodeIdType replica_3 = 3;
 const NodeIdType replica_4 = 4;
 
-ReplicaConfig replicaConfig;
+ReplicaConfig& replicaConfig = ReplicaConfig::instance();
 char buf[bufLen];
 SigManagerSharedPtr sigManager_[numOfReplicas_4];
 
@@ -290,8 +290,6 @@ void setUpConfiguration_4() {
   replicaConfig.publicKeysOfReplicas.insert(pair<uint16_t, const string>(replica_3, publicKey_3));
   replicaConfig.replicaPrivateKey = privateKey_0;
   string privateKeys[numOfReplicas_4] = {privateKey_0, privateKey_1, privateKey_2, privateKey_3};
-
-  replicaConfig.singletonFromThis();
 
   for (auto i = 0; i < replicaConfig.numReplicas; i++)
     sigManager_[i] = make_shared<SigManager>(

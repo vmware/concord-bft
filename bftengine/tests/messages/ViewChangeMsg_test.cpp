@@ -26,7 +26,7 @@ using namespace bftEngine;
 using namespace bftEngine::impl;
 
 TEST(ViewChangeMsg, base_methods) {
-  auto config = createReplicaConfig();
+  ReplicaConfig& config = createReplicaConfig();
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;

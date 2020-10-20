@@ -65,8 +65,6 @@ class PersistentStorage {
   // Update methods (should only be used in write-only transactions)
   //////////////////////////////////////////////////////////////////////////
 
-  virtual void setReplicaConfig(const ReplicaConfig &config) = 0;
-
   virtual void setLastExecutedSeqNum(SeqNum seqNum) = 0;
   virtual void setPrimaryLastUsedSeqNum(SeqNum seqNum) = 0;
   virtual void setStrictLowerBoundOfSeqNums(SeqNum seqNum) = 0;
@@ -114,9 +112,6 @@ class PersistentStorage {
   //////////////////////////////////////////////////////////////////////////
   // Read methods (should only be used before using write-only transactions)
   //////////////////////////////////////////////////////////////////////////
-
-  virtual bool hasReplicaConfig() const = 0;
-  virtual ReplicaConfig getReplicaConfig() = 0;
 
   virtual SeqNum getLastExecutedSeqNum() = 0;
   virtual SeqNum getPrimaryLastUsedSeqNum() = 0;

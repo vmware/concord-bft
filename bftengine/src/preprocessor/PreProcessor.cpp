@@ -36,20 +36,18 @@ void PreProcessor::addNewPreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunic
                                       bftEngine::IRequestsHandler &requestsHandler,
                                       InternalReplicaApi &replica,
                                       concordUtil::Timers &timers) {
-  if (ReplicaConfigSingleton::GetInstance().GetNumOfExternalClients() +
-          ReplicaConfigSingleton::GetInstance().GetNumOfClientProxies() <=
-      0) {
+  if (ReplicaConfig::instance().getnumOfExternalClients() + ReplicaConfig::instance().getnumOfClientProxies() <= 0) {
     LOG_ERROR(logger(), "Wrong configuration: a number of clients could not be zero!");
     return;
   }
 
-  if (ReplicaConfigSingleton::GetInstance().GetPreExecutionFeatureEnabled())
+  if (ReplicaConfig::instance().getpreExecutionFeatureEnabled())
     preProcessors_.push_back(make_unique<PreProcessor>(
         msgsCommunicator, incomingMsgsStorage, msgHandlersRegistrator, requestsHandler, replica, timers));
 }
 
 void PreProcessor::setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
-  if (ReplicaConfigSingleton::GetInstance().GetPreExecutionFeatureEnabled() && aggregator) {
+  if (ReplicaConfig::instance().getpreExecutionFeatureEnabled() && aggregator) {
     for (const auto &elem : preProcessors_) elem->metricsComponent_.SetAggregator(aggregator);
   }
 }

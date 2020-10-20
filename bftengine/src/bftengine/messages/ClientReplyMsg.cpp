@@ -18,7 +18,7 @@ namespace bftEngine {
 namespace impl {
 
 ClientReplyMsg::ClientReplyMsg(ReplicaId primaryId, ReqId reqSeqNum, ReplicaId replicaId)
-    : MessageBase(replicaId, MsgCode::ClientReply, ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize()) {
+    : MessageBase(replicaId, MsgCode::ClientReply, ReplicaConfig::instance().getmaxExternalMessageSize()) {
   b()->reqSeqNum = reqSeqNum;
   b()->currentPrimaryId = primaryId;
   b()->replyLength = 0;

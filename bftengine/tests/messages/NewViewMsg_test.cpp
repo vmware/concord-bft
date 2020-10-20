@@ -23,8 +23,7 @@ using namespace bftEngine;
 using namespace bftEngine::impl;
 
 TEST(NewViewMsg, base_methods) {
-  auto config = createReplicaConfig();
-  ReplicasInfo replicaInfo(config, false, false);
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   ReplicaId senderId = 1u;
   ViewNum viewNum = 1u;
   std::string commitProofSignature{"commitProofSignature"};
@@ -34,7 +33,7 @@ TEST(NewViewMsg, base_methods) {
   EXPECT_EQ(msg.newView(), viewNum);
   EXPECT_EQ(msg.elementsCount(), 0);
 
-  const size_t element_number = config.fVal * 2 + config.cVal * 2 + 1;
+  const size_t element_number = replicaInfo.fVal() * 2 + replicaInfo.cVal() * 2 + 1;
   std::vector<Digest> digests;
   digests.reserve(element_number);
 
@@ -48,7 +47,7 @@ TEST(NewViewMsg, base_methods) {
     msg.addElement(i, d);
   }
 
-  EXPECT_EQ(msg.elementsCount(), config.fVal * 2 + config.cVal * 2 + 1);
+  EXPECT_EQ(msg.elementsCount(), replicaInfo.fVal() * 2 + replicaInfo.cVal() * 2 + 1);
   msg.finalizeMessage(replicaInfo);
   EXPECT_NO_THROW(msg.validate(replicaInfo));
   for (uint16_t i = 0; i < element_number; ++i) {

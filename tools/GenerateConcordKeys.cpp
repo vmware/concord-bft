@@ -115,7 +115,7 @@ int main(int argc, char** argv) {
       std::cout << usageMessage;
       return 0;
     }
-    bftEngine::ReplicaConfig config;
+    bftEngine::ReplicaConfig& config = bftEngine::ReplicaConfig::instance();
     uint16_t n = 0;
     uint16_t ro = 0;
     std::string outputPrefix;

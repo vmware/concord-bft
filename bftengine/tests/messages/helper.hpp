@@ -74,7 +74,7 @@ class TestCryptoSystem : public Cryptosystem {
   IThresholdSigner *createThresholdSigner() override { return new IThresholdSignerDummy; }
 };
 
-bftEngine::ReplicaConfig createReplicaConfig();
+bftEngine::ReplicaConfig &createReplicaConfig();
 
 inline void printBody(const char *body, size_t size) {
   for (size_t i = 0; i < size; ++i) {

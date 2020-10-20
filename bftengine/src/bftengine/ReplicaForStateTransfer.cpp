@@ -44,7 +44,7 @@ void ReplicaForStateTransfer::start() {
   if (firstTime_ || !config_.debugPersistentStorageEnabled)
     stateTransfer->init(kWorkWindowSize / checkpointWindowSize + 1,
                         ReservedPages::totalNumberOfPages(),
-                        ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage());
+                        ReplicaConfig::instance().getsizeOfReservedPage());
   const std::chrono::milliseconds defaultTimeout = 5s;
   stateTranTimer_ =
       timers_.add(defaultTimeout, Timers::Timer::RECURRING, [this](Timers::Handle h) { stateTransfer->onTimer(); });

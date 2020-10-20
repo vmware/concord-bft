@@ -22,8 +22,7 @@ using namespace bftEngine;
 using namespace bftEngine::impl;
 
 TEST(AskForCheckpointMsg, base_methods) {
-  auto config = createReplicaConfig();
-  ReplicasInfo replicaInfo(config, false, false);
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   ReplicaId senderId = 1u;
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};

@@ -36,7 +36,7 @@ namespace concord::kvbc {
 std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
   try {
     // used to get info from parsing the key file
-    bftEngine::ReplicaConfig replicaConfig;
+    bftEngine::ReplicaConfig& replicaConfig = bftEngine::ReplicaConfig::instance();
     replicaConfig.numOfClientProxies = 100;
     replicaConfig.numOfExternalClients = 30;
     replicaConfig.concurrencyLevel = 1;
@@ -44,7 +44,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     replicaConfig.viewChangeTimerMillisec = 45 * 1000;
     replicaConfig.statusReportTimerMillisec = 10 * 1000;
     replicaConfig.preExecutionFeatureEnabled = true;
-
+    replicaConfig.set("sourceReplicaReplacementTimeoutMilli", 6000);
     PersistencyMode persistMode = PersistencyMode::Off;
     std::string keysFilePrefix;
     std::string commConfigFile;

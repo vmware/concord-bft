@@ -28,14 +28,14 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
       _dynamicCollectorForPartialProofs{dynamicCollectorForPartialProofs},
       _dynamicCollectorForExecutionProofs{dynamicCollectorForExecutionProofs},
 
-      _idsOfPeerReplicas{[config]() {
+      _idsOfPeerReplicas{[&config]() {
         std::set<ReplicaId> ret;
         for (auto i = 0; i < config.numReplicas; ++i)
           if (i != config.replicaId) ret.insert(i);
         return ret;
       }()},
 
-      _idsOfPeerROReplicas{[config]() {
+      _idsOfPeerROReplicas{[&config]() {
         std::set<ReplicaId> ret;
         for (auto i = config.numReplicas; i < config.numReplicas + config.numRoReplicas; ++i)
           if (i != config.replicaId) ret.insert(i);

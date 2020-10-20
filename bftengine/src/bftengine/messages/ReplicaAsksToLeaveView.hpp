@@ -70,7 +70,7 @@ class ReplicaAsksToLeaveView : public MessageBase {
 
 template <>
 inline MsgSize maxMessageSize<ReplicaAsksToLeaveView>() {
-  return ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize() + MessageBase::SPAN_CONTEXT_MAX_SIZE;
+  return ReplicaConfig::instance().getmaxExternalMessageSize() + MessageBase::SPAN_CONTEXT_MAX_SIZE;
 }
 
 }  // namespace impl

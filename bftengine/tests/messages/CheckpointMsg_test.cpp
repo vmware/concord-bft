@@ -22,9 +22,7 @@
 #include "helper.hpp"
 
 TEST(CheckpointMsg, base_methods) {
-  auto config = createReplicaConfig();
-  config.singletonFromThis();
-  ReplicasInfo replicaInfo(config, false, false);
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   NodeIdType senderId = 1u;
   uint64_t reqSeqNum = 150u;
   char digestContext[DIGEST_SIZE] = "digest_content";

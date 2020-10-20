@@ -130,7 +130,7 @@ class RequestsIterator {
 
 template <>
 inline MsgSize maxMessageSize<PrePrepareMsg>() {
-  return ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize() + MessageBase::SPAN_CONTEXT_MAX_SIZE;
+  return ReplicaConfig::instance().getmaxExternalMessageSize() + MessageBase::SPAN_CONTEXT_MAX_SIZE;
 }
 
 }  // namespace impl

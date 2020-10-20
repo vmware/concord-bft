@@ -40,8 +40,7 @@ static void testSignedShareBaseMethods(const SignedShareBase& msg,
 }
 
 TEST(PreparePartialMsg, PreparePartialMsg_test) {
-  auto config = createReplicaConfig();
-  ReplicasInfo replicaInfo(config, false, false);
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   ReplicaId id = 1u;
   ViewNum v = 1u;
   SeqNum s = 100u;
@@ -59,8 +58,7 @@ TEST(PreparePartialMsg, PreparePartialMsg_test) {
 }
 
 TEST(PrepareFullMsg, PrepareFullMsg_test) {
-  auto config = createReplicaConfig();
-  ReplicasInfo replicaInfo(config, false, false);
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   ReplicaId id = 1u;
   ViewNum v = 1u;
   SeqNum s = 100u;
@@ -78,8 +76,7 @@ TEST(PrepareFullMsg, PrepareFullMsg_test) {
 }
 
 TEST(CommitPartialMsg, CommitPartialMsg_test) {
-  auto config = createReplicaConfig();
-  ReplicasInfo replicaInfo(config, false, false);
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   ReplicaId id = 1u;
   ViewNum v = 1u;
   SeqNum s = 100u;
@@ -96,8 +93,7 @@ TEST(CommitPartialMsg, CommitPartialMsg_test) {
   testMessageBaseMethods(*msg, MsgCode::CommitPartial, id, spanContext);
 }
 TEST(CommitFullMsg, CommitFullMsg_test) {
-  auto config = createReplicaConfig();
-  ReplicasInfo replicaInfo(config, false, false);
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   ReplicaId id = 1u;
   ViewNum v = 1u;
   SeqNum s = 100u;

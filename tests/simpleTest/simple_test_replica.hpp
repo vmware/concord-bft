@@ -148,7 +148,7 @@ class SimpleTestReplica {
  private:
   ICommunication *comm;
   bftEngine::IReplica::IReplicaPtr replica = nullptr;
-  ReplicaConfig replicaConfig;
+  const ReplicaConfig &replicaConfig;
   std::thread *runnerThread = nullptr;
   ISimpleTestReplicaBehavior *behaviorPtr;
   IRequestsHandler *statePtr;
@@ -158,12 +158,12 @@ class SimpleTestReplica {
  public:
   SimpleTestReplica(ICommunication *commObject,
                     IRequestsHandler *state,
-                    ReplicaConfig rc,
+                    const ReplicaConfig &rc,
                     ISimpleTestReplicaBehavior *behvPtr,
                     bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer *inMemoryST,
                     MetadataStorage *metaDataStorage)
       : comm{commObject}, replicaConfig{rc}, behaviorPtr{behvPtr}, statePtr(state), inMemoryST_(inMemoryST) {
-    replica = IReplica::createNewReplica(&rc, state, inMemoryST, comm, metaDataStorage);
+    replica = IReplica::createNewReplica(rc, state, inMemoryST, comm, metaDataStorage);
   }
 
   ~SimpleTestReplica() {
@@ -229,7 +229,7 @@ class SimpleTestReplica {
                                            ReplicaParams rp,
                                            MetadataStorage *metaDataStorage) {
     TestCommConfig testCommConfig(replicaLogger);
-    ReplicaConfig replicaConfig;
+    ReplicaConfig &replicaConfig = ReplicaConfig::instance();
     testCommConfig.GetReplicaConfig(rp.replicaId, rp.keysFilePrefix, &replicaConfig);
     replicaConfig.numOfClientProxies = rp.numOfClients;
     replicaConfig.viewChangeProtocolEnabled = rp.viewChangeEnabled;
@@ -239,8 +239,6 @@ class SimpleTestReplica {
     replicaConfig.concurrencyLevel = 1;
     replicaConfig.debugPersistentStorageEnabled =
         rp.persistencyMode == PersistencyMode::InMemory || rp.persistencyMode == PersistencyMode::File;
-
-    replicaConfig.singletonFromThis();
 
     // This is the state machine that the replica will drive.
     SimpleAppState *simpleAppState = new SimpleAppState(rp.numOfClients, rp.numOfReplicas);

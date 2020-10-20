@@ -184,7 +184,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   span.setTag("cid", m->getCid());
   span.setTag("seq_num", reqSeqNum);
 
-  if (ReplicaConfigSingleton::GetInstance().GetKeyExchangeOnStart()) {
+  if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
     // If Multi sig keys havn't been replaced for all replicas and it's not a key ex msg
     // then don't accept the msg.
     if (!KeyManager::get().keysExchanged && !(flags & KEY_EXCHANGE_FLAG)) {
@@ -708,8 +708,7 @@ void ReplicaImp::tryToAskForMissingInfo() {
   for (SeqNum i = minSeqNum; i <= lastRelatedSeqNum; i++) {
     if (!recentViewChange) {
       // during exchange we need missing data to be performed in slow path
-      auto exchanging =
-          (!KeyManager::get().keysExchanged && ReplicaConfigSingleton::GetInstance().GetKeyExchangeOnStart());
+      auto exchanging = (!KeyManager::get().keysExchanged && ReplicaConfig::instance().getkeyExchangeOnStart());
       tryToSendReqMissingDataMsg(i, exchanging);
     } else {
       if (isCurrentPrimary()) {
@@ -2356,7 +2355,7 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
 
   clientsManager->loadInfoFromReservedPages();
 
-  if (ReplicaConfigSingleton::GetInstance().GetKeyExchangeOnStart()) {
+  if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
     KeyManager::get().loadKeysFromReservedPages();
   }
 
@@ -2979,8 +2978,8 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
             tmpDigest);  // TODO(GG): consider using a method that directly adds the message/digest (as in the
                          // examples below)
       }
-      std::shared_ptr<ISecureStore> secStore(new KeyManager::FileSecureStore(
-          ReplicaConfigSingleton::GetInstance().GetKeyViewFilePath(), config_.replicaId));
+      std::shared_ptr<ISecureStore> secStore(
+          new KeyManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(), config_.replicaId));
       if (e.getSlowStarted()) {
         seqNumInfo.startSlowPath();
 
@@ -3127,10 +3126,6 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
           true, config, requestsHandler, stateTrans, nullptr, nullptr, nullptr, msgsCommunicator, msgHandlers, timers) {
   if (persistentStorage != nullptr) {
     ps_ = persistentStorage;
-
-    ConcordAssert(!ps_->hasReplicaConfig());
-
-    ps_->setReplicaConfig(config);
   }
 
   auto numThreads = 8;
@@ -3251,8 +3246,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
   for (uint16_t i = config_.numReplicas; i < numOfEntities; i++) clientsSet.insert(i);
   clientsManager = new ClientsManager(config_.replicaId,
                                       clientsSet,
-                                      ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage(),
-                                      ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize());
+                                      ReplicaConfig::instance().getsizeOfReservedPage(),
+                                      ReplicaConfig::instance().getmaxReplyMessageSize());
   clientsManager->initInternalClientInfo(config_.numReplicas);
   internalBFTClient_.reset(
       new InternalBFTClient(config_.replicaId, clientsManager->getHighestIdOfNonInternalClient(), msgsCommunicator_));
@@ -3385,13 +3380,13 @@ void ReplicaImp::start() {
 
   // requires the init of state transfer
   std::shared_ptr<ISecureStore> sec(
-      new KeyManager::FileSecureStore(ReplicaConfigSingleton::GetInstance().GetKeyViewFilePath(), config_.replicaId));
+      new KeyManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(), config_.replicaId));
   KeyManager::InitData id{};
   id.cl = internalBFTClient_;
   id.id = config_.replicaId;
   id.clusterSize = config_.numReplicas;
   id.reservedPages = stateTransfer.get();
-  id.sizeOfReservedPage = ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage();
+  id.sizeOfReservedPage = ReplicaConfig::instance().getsizeOfReservedPage();
   id.kg = &CryptoManager::instance();
   id.ke = &CryptoManager::instance();
   id.sec = sec;
@@ -3407,7 +3402,7 @@ void ReplicaImp::start() {
   // The following line will start the processing thread.
   // It must happen after the replica recovers requests in the main thread.
   msgsCommunicator_->startMsgsProcessing(config_.replicaId);
-  if (ReplicaConfigSingleton::GetInstance().GetKeyExchangeOnStart()) {
+  if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
     KeyManager::get().sendInitialKey();
   }
 }
@@ -3600,7 +3595,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
             req.flags(),
             req.requestLength(),
             req.requestBuf(),
-            ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize() - sizeof(ClientReplyMsgHeader),
+            ReplicaConfig::instance().getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader),
             replyBuffer,
             actualReplyLength,
             actualReplicaSpecificInfoLength,
@@ -3720,8 +3715,7 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     if (requestMissingInfo && !ready) {
       LOG_INFO(GL, "Asking for missing information: " << KVLOG(nextExecutedSeqNum, curView, lastStableSeqNum));
       // during exchange we need missing data to be performed in slow path
-      auto exchanging =
-          (!KeyManager::get().keysExchanged && ReplicaConfigSingleton::GetInstance().GetKeyExchangeOnStart());
+      auto exchanging = (!KeyManager::get().keysExchanged && ReplicaConfig::instance().getkeyExchangeOnStart());
       tryToSendReqMissingDataMsg(nextExecutedSeqNum, exchanging);
     }
 
