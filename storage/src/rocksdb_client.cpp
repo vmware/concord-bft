@@ -113,6 +113,7 @@ void Client::init(bool readOnly) {
   options.level0_slowdown_writes_trigger = 48;
   options.level0_stop_writes_trigger = 56;
   options.bytes_per_sync = 1024 * 2048;
+  options.max_open_files = 50;
 
   table_options.block_size = 4 * 4096;
   options.table_factory.reset(NewBlockBasedTableFactory(table_options));
