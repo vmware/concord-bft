@@ -52,13 +52,12 @@ ReplicaAsksToLeaveView* ReplicaAsksToLeaveView::create(ReplicaId senderId,
 }
 
 void ReplicaAsksToLeaveView::validate(const ReplicasInfo& repInfo) const {
-  ReplicaId idOfGeneratedReplica = b()->genReplicaId;
   auto totalSize = sizeof(Header) + spanContextSize();
-  if (size() < totalSize || !repInfo.isIdOfReplica(idOfGeneratedReplica) || idOfGeneratedReplica == repInfo.myId())
+  if (size() < totalSize || !repInfo.isIdOfReplica(idOfGeneratedReplica()) || idOfGeneratedReplica() == repInfo.myId())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
 
-  uint16_t sigLen = ViewsManager::sigManager_->getSigLength(idOfGeneratedReplica);
-  if (!ViewsManager::sigManager_->verifySig(idOfGeneratedReplica, body(), totalSize, body() + totalSize, sigLen))
+  uint16_t sigLen = ViewsManager::sigManager_->getSigLength(idOfGeneratedReplica());
+  if (!ViewsManager::sigManager_->verifySig(idOfGeneratedReplica(), body(), totalSize, body() + totalSize, sigLen))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig"));
 }
 
