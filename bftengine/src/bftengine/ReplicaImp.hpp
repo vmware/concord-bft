@@ -34,6 +34,7 @@
 #include "InternalBFTClient.hpp"
 #include "diagnostics.h"
 #include "performance_handler.h"
+#include "RequestsBatchingLogic.hpp"
 
 namespace bftEngine::impl {
 
@@ -126,10 +127,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   // buffer used to store replies
   char* replyBuffer = nullptr;
 
-  // variables that are used to heuristically compute the 'optimal' batch size
-  size_t maxNumberOfPendingRequestsInRecentHistory = 0;
-  size_t batchingFactor = 1;
-
   RequestHandler bftRequestsHandler_;
 
   // used to dynamically estimate a upper bound for consensus rounds
@@ -215,7 +212,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   CounterHandle metric_sent_commitPartial_msg_due_to_reqMissingData_;
   CounterHandle metric_sent_commitFull_msg_due_to_reqMissingData_;
   CounterHandle metric_sent_fullCommitProof_msg_due_to_reqMissingData_;
-  CounterHandle metric_not_enough_client_requests_event_;
   CounterHandle metric_total_finished_consensuses_;
   CounterHandle metric_total_slowPath_;
   CounterHandle metric_total_fastPath_;
@@ -266,6 +262,10 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   bool isClientRequestInProcess(NodeIdType clientId, ReqId reqSeqNum) const override {
     return !clientsManager->noPendingAndRequestCanBecomePending(clientId, reqSeqNum);
   }
+  SeqNum getPrimaryLastUsedSeqNum() const override { return primaryLastUsedSeqNum; }
+  uint64_t getRequestsInQueue() const override { return requestsQueueOfPrimary.size(); }
+  SeqNum getLastExecutedSeqNum() const override { return lastExecutedSeqNum; }
+  PrePrepareMsg* buildPrePrepareMessage() override;
 
  protected:
   ReplicaImp(bool firstTime,
@@ -323,6 +323,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                        bool ignorePreviousAcks = false);
   void sendAckIfNeeded(MessageBase* msg, const NodeIdType sourceNode, const SeqNum seqNum);
 
+  bool checkSendPrePrepareMsgPrerequisites();
+
   void tryToSendPrePrepareMsg(bool batchingLogic = false);
 
   void sendPartialProof(SeqNumInfo&);
@@ -332,6 +334,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void tryToAskForMissingInfo();
 
   void sendPreparePartial(SeqNumInfo&);
+
   void sendCommitPartial(SeqNum);  // TODO(GG): the argument should be a ref to SeqNumInfo
 
   void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, ClientRequestMsg* m);
@@ -446,6 +449,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   };
 
   Recorders histograms_;
+  batchingLogic::RequestsBatchingLogic reqBatchingLogic_;
 };
 
 }  // namespace bftEngine::impl

@@ -30,7 +30,8 @@ uint32_t ReplicaConfigSerializer::maxSize(uint32_t numOfReplicas) {
           sizeof(config_->autoPrimaryRotationEnabled) + sizeof(config_->autoPrimaryRotationTimerMillisec) +
           sizeof(config_->preExecutionFeatureEnabled) + sizeof(config_->preExecReqStatusCheckTimerMillisec) +
           sizeof(config_->preExecConcurrencyLevel) + MaxSizeOfPrivateKey + numOfReplicas * MaxSizeOfPublicKey +
-          IThresholdSigner::maxSize() * 3 + IThresholdVerifier::maxSize() * 3 +
+          IThresholdSigner::maxSize() * 3 + IThresholdVerifier::maxSize() * 3 + sizeof(config_->batchingPolicy) +
+          sizeof(config_->maxInitialBatchSize) + sizeof(config_->batchingFactorCoefficient) +
           sizeof(config_->maxExternalMessageSize) + sizeof(config_->maxReplyMessageSize) +
           sizeof(config_->maxNumOfReservedPages) + sizeof(config_->sizeOfReservedPage) +
           sizeof(config_->debugPersistentStorageEnabled) + sizeof(config_->metricsDumpIntervalSeconds) +
@@ -96,6 +97,15 @@ void ReplicaConfigSerializer::serializeDataMembers(ostream &outStream) const {
   // Serialize autoPrimaryRotationTimerMillisec
   outStream.write((char *)&config_->autoPrimaryRotationTimerMillisec,
                   sizeof(config_->autoPrimaryRotationTimerMillisec));
+
+  // Serialize batchingPolicy
+  outStream.write((char *)&config_->batchingPolicy, sizeof(config_->batchingPolicy));
+
+  // Serialize maxInitialBatchSize
+  outStream.write((char *)&config_->maxInitialBatchSize, sizeof(config_->maxInitialBatchSize));
+
+  // Serialize batchingFactorCoefficient
+  outStream.write((char *)&config_->batchingFactorCoefficient, sizeof(config_->batchingFactorCoefficient));
 
   // Serialize preExecutionFeatureEnabled
   outStream.write((char *)&config_->preExecutionFeatureEnabled, sizeof(config_->preExecutionFeatureEnabled));
@@ -224,6 +234,15 @@ void ReplicaConfigSerializer::deserializeDataMembers(istream &inStream) {
 
   // Deserialize autoPrimaryRotationTimerMillisec
   inStream.read((char *)&config.autoPrimaryRotationTimerMillisec, sizeof(config.autoPrimaryRotationTimerMillisec));
+
+  // Deserialize batchingPolicy
+  inStream.read((char *)&config.batchingPolicy, sizeof(config.batchingPolicy));
+
+  // Deserialize maxInitialBatchSize
+  inStream.read((char *)&config.maxInitialBatchSize, sizeof(config.maxInitialBatchSize));
+
+  // Deserialize batchingFactorCoefficient
+  inStream.read((char *)&config.batchingFactorCoefficient, sizeof(config.batchingFactorCoefficient));
 
   // Deserialize preExecutionFeatureEnabled
   inStream.read((char *)&config.preExecutionFeatureEnabled, sizeof(config.preExecutionFeatureEnabled));

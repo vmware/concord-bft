@@ -230,7 +230,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
       // TODO(GG): use config/parameter
       if (requestsQueueOfPrimary.size() >= 700) {
         LOG_WARN(GL,
-                 "ClientRequestMsg dropped. Primary reqeust queue is full. "
+                 "ClientRequestMsg dropped. Primary request queue is full. "
                      << KVLOG(clientId, reqSeqNum, requestsQueueOfPrimary.size()));
         delete m;
         return;
@@ -281,12 +281,12 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   delete m;
 }
 
-void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
+bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
   if (isSeqNumToStopAt(lastExecutedSeqNum)) {
     LOG_INFO(GL,
              "Not sending PrePrepareMsg because system is stopped at checkpoint pending control state operation "
              "(upgrade, etc...)");
-    return;
+    return false;
   }
 
   ConcordAssert(isCurrentPrimary());
@@ -297,7 +297,7 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
              "Will not send PrePrepare since next sequence number ["
                  << primaryLastUsedSeqNum + 1 << "] exceeds window threshold [" << lastStableSeqNum + kWorkWindowSize
                  << "]");
-    return;
+    return false;
   }
 
   if (primaryLastUsedSeqNum + 1 > lastExecutedSeqNum + config_.concurrencyLevel) {
@@ -305,12 +305,16 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
              "Will not send PrePrepare since next sequence number ["
                  << primaryLastUsedSeqNum + 1 << "] exceeds concurrency threshold ["
                  << lastExecutedSeqNum + config_.concurrencyLevel << "]");
-    return;  // TODO(GG): should also be checked by the non-primary replicas
+    return false;
   }
 
-  if (requestsQueueOfPrimary.empty()) return;
+  return (!requestsQueueOfPrimary.empty());
+}
 
-  // remove irrelevant requests from the head of the requestsQueueOfPrimary (and update requestsInQueue)
+void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
+  if (!checkSendPrePrepareMsgPrerequisites()) return;
+
+  // Remove duplicated requests that are result of client retrials from the head of the requestsQueueOfPrimary
   ClientRequestMsg *first = requestsQueueOfPrimary.front();
   while (first != nullptr &&
          !clientsManager->noPendingAndRequestCanBecomePending(first->clientProxyId(), first->requestSeqNum())) {
@@ -321,67 +325,41 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
     first = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
   }
 
-  const size_t requestsInQueue = requestsQueueOfPrimary.size();
-
-  if (requestsInQueue == 0) return;
-
   ConcordAssertGE(primaryLastUsedSeqNum, lastExecutedSeqNum);
-
-  uint64_t concurrentDiff = ((primaryLastUsedSeqNum + 1) - lastExecutedSeqNum);
-  uint64_t minBatchSize = 1;
-
-  // update maxNumberOfPendingRequestsInRecentHistory (if needed)
-  if (requestsInQueue > maxNumberOfPendingRequestsInRecentHistory)
-    maxNumberOfPendingRequestsInRecentHistory = requestsInQueue;
-
-  // TODO(GG): the batching logic should be part of the configuration - TBD.
-  if (batchingLogic && (concurrentDiff >= 2)) {
-    minBatchSize = concurrentDiff * batchingFactor;
-
-    const size_t maxReasonableMinBatchSize = 350;  // TODO(GG): use param from configuration
-
-    if (minBatchSize > maxReasonableMinBatchSize) minBatchSize = maxReasonableMinBatchSize;
-  }
-
-  if (requestsInQueue < minBatchSize) {
-    LOG_INFO(GL,
-             "Not enough client requests to fill the batch threshold size. " << KVLOG(minBatchSize, requestsInQueue));
-    metric_not_enough_client_requests_event_.Get().Inc();
-    return;
-  }
-
-  // update batchingFactor
-  if (((primaryLastUsedSeqNum + 1) % kWorkWindowSize) ==
-      0)  // TODO(GG): do we want to update batchingFactor when the view is changed
-  {
-    const size_t aa = 4;  // TODO(GG): read from configuration
-    batchingFactor = (maxNumberOfPendingRequestsInRecentHistory / aa);
-    if (batchingFactor < 1) batchingFactor = 1;
-    maxNumberOfPendingRequestsInRecentHistory = 0;
-    LOG_DEBUG(GL, "PrePrepare batching factor updated. " << KVLOG(batchingFactor));
-  }
-
-  // because maxConcurrentAgreementsByPrimary <  MaxConcurrentFastPaths
+  // Because maxConcurrentAgreementsByPrimary <  MaxConcurrentFastPaths
   ConcordAssertLE((primaryLastUsedSeqNum + 1), lastExecutedSeqNum + MaxConcurrentFastPaths);
 
+  PrePrepareMsg *pp = nullptr;
+  if (batchingLogic)
+    pp = reqBatchingLogic_.batchRequests();
+  else
+    pp = buildPrePrepareMessage();
+  if (pp) startConsensusProcess(pp);
+}
+
+PrePrepareMsg *ReplicaImp::buildPrePrepareMessage() {
   CommitPath firstPath = controller->getCurrentFirstPath();
 
   ConcordAssertOR((config_.cVal != 0), (firstPath != CommitPath::FAST_WITH_THRESHOLD));
 
   controller->onSendingPrePrepare((primaryLastUsedSeqNum + 1), firstPath);
-
   ClientRequestMsg *nextRequest = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
   const auto &span_context = nextRequest ? nextRequest->spanContext<ClientRequestMsg>() : concordUtils::SpanContext{};
 
-  PrePrepareMsg *pp = new PrePrepareMsg(
-      config_.replicaId, curView, (primaryLastUsedSeqNum + 1), firstPath, span_context, primaryCombinedReqSize);
-  uint16_t initialStorageForRequests = pp->remainingSizeForRequests();
+  PrePrepareMsg *prePrepareMsg = new PrePrepareMsg(config_.replicaId,
+                                                   getCurrentView(),
+                                                   (primaryLastUsedSeqNum + 1),
+                                                   firstPath,
+                                                   span_context,
+                                                   primaryCombinedReqSize);
+
+  uint16_t initialStorageForRequests = prePrepareMsg->remainingSizeForRequests();
   while (nextRequest != nullptr) {
-    if (nextRequest->size() <= pp->remainingSizeForRequests()) {
+    if (nextRequest->size() <= prePrepareMsg->remainingSizeForRequests()) {
       SCOPED_MDC_CID(nextRequest->getCid());
       if (clientsManager->noPendingAndRequestCanBecomePending(nextRequest->clientProxyId(),
                                                               nextRequest->requestSeqNum())) {
-        pp->addRequest(nextRequest->body(), nextRequest->size());
+        prePrepareMsg->addRequest(nextRequest->body(), nextRequest->size());
         clientsManager->addPendingRequest(nextRequest->clientProxyId(), nextRequest->requestSeqNum());
       }
       primaryCombinedReqSize -= nextRequest->size();
@@ -395,14 +373,13 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
     requestsQueueOfPrimary.pop();
     nextRequest = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
   }
-
-  if (pp->numberOfRequests() == 0) {
-    LOG_WARN(GL, "No client requests added to PrePrepare batch. Nothing to send.");
-    return;
+  if (prePrepareMsg->numberOfRequests() == 0) {
+    LOG_INFO(GL, "No client requests added to the PrePrepare batch, delete the message");
+    delete prePrepareMsg;
+    return nullptr;
   }
-
-  pp->finishAddingRequests();
-  startConsensusProcess(pp);
+  LOG_DEBUG(GL, "Consensus batch size" << KVLOG(prePrepareMsg->numberOfRequests()));
+  return prePrepareMsg;
 }
 
 void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp) {
@@ -1043,9 +1020,9 @@ std::string ReplicaImp::getReplicaState() const {
   nested_data.clear();
   nested_data.insert(toPair(getName(restarted_), restarted_));
   nested_data.insert(toPair(getName(requestsQueueOfPrimary.size()), requestsQueueOfPrimary.size()));
-  nested_data.insert(
-      toPair(getName(maxNumberOfPendingRequestsInRecentHistory), maxNumberOfPendingRequestsInRecentHistory));
-  nested_data.insert(toPair(getName(batchingFactor), batchingFactor));
+  nested_data.insert(toPair(getName(requestsBatcg312her_->getMaxNumberOfPendingRequestsInRecentHistory()),
+                            reqBatchingLogic_.getMaxNumberOfPendingRequestsInRecentHistory()));
+  nested_data.insert(toPair(getName(reqBatchingLogic_->getBatchingFactor()), reqBatchingLogic_.getBatchingFactor()));
   nested_data.insert(toPair(getName(lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas),
                             utcstr(lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas)));
   nested_data.insert(toPair(getName(timeOfLastStateSynch), utcstr(timeOfLastStateSynch)));
@@ -3221,12 +3198,12 @@ ReplicaImp::ReplicaImp(bool firstTime,
           metrics_.RegisterCounter("sentCommitFullMsgDueToReqMissingData")},
       metric_sent_fullCommitProof_msg_due_to_reqMissingData_{
           metrics_.RegisterCounter("sentFullCommitProofMsgDueToReqMissingData")},
-      metric_not_enough_client_requests_event_{metrics_.RegisterCounter("notEnoughClientRequestsEvent")},
       metric_total_finished_consensuses_{metrics_.RegisterCounter("totalOrderedRequests")},
       metric_total_slowPath_{metrics_.RegisterCounter("totalSlowPaths")},
       metric_total_fastPath_{metrics_.RegisterCounter("totalFastPaths")},
       metric_total_slowPath_requests_{metrics_.RegisterCounter("totalSlowPathRequests")},
-      metric_total_fastPath_requests_{metrics_.RegisterCounter("totalFastPathRequests")} {
+      metric_total_fastPath_requests_{metrics_.RegisterCounter("totalFastPathRequests")},
+      reqBatchingLogic_(*this, config_, metrics_) {
   ConcordAssertLT(config_.replicaId, config_.numReplicas);
   // TODO(GG): more asserts on params !!!!!!!!!!!
 

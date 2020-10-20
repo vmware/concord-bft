@@ -22,6 +22,9 @@ class IThresholdSigner;
 class IThresholdVerifier;
 
 namespace bftEngine {
+
+enum BatchingPolicy { BATCH_SELF_ADJUSTED, BATCH_BY_REQ_SIZE, BATCH_BY_REQ_NUM };
+
 struct ReplicaConfig {
   // Am I a read-only replica?
   bool isReadOnly = false;
@@ -64,7 +67,7 @@ struct ReplicaConfig {
   // viewChangeProtocolEnabled=true, if the view change protocol is enabled at all
   bool viewChangeProtocolEnabled = false;
 
-  // a time interval in milliseconds. represents the timeout used by the  view change protocol (TODO: add more details)
+  // a time interval in milliseconds. represents the timeout used by the  view change protocol
   uint16_t viewChangeTimerMillisec = 0;
 
   // autoPrimaryRotationEnabled=true, if the automatic primary rotation is enabled
@@ -82,6 +85,15 @@ struct ReplicaConfig {
   // Number of threads to be used by the PreProcessor to execute client requests
   // If equals to 0, a default number of min(thread::hardware_concurrency(), numOfClients) is used
   uint16_t preExecConcurrencyLevel = 0;
+
+  // BFT consensus batching policy for requests
+  uint32_t batchingPolicy = BATCH_SELF_ADJUSTED;
+
+  // Initial value for a number of requests in the primary replica queue to trigger batching
+  uint32_t maxInitialBatchSize = 350;
+
+  // Parameter used to heuristically compute the 'optimal' batch size
+  uint32_t batchingFactorCoefficient = 4;
 
   // RSA public keys of all replicas. map from replica identifier to a public key
   std::set<std::pair<uint16_t, const std::string>> publicKeysOfReplicas;
@@ -141,6 +153,9 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
      << "preExecutionFeatureEnabled: " << rc.preExecutionFeatureEnabled << "\n"
      << "preExecReqStatusCheckTimerMillisec: " << rc.preExecReqStatusCheckTimerMillisec << "\n"
      << "preExecConcurrencyLevel: " << rc.preExecConcurrencyLevel << "\n"
+     << "batchingPolicy: " << rc.batchingPolicy << "\n"
+     << "maxInitialBatchSize: " << rc.maxInitialBatchSize << "\n"
+     << "batchingFactorCoefficient: " << rc.batchingFactorCoefficient << "\n"
      << "debugPersistentStorageEnabled: " << rc.debugPersistentStorageEnabled << "\n"
      << "maxExternalMessageSize: " << rc.maxExternalMessageSize << "\n"
      << "maxReplyMessageSize: " << rc.maxReplyMessageSize << "\n"
@@ -180,6 +195,9 @@ class ReplicaConfigSingleton {
   std::set<std::pair<uint16_t, const std::string>> GetPublicKeysOfReplicas() const {
     return config_->publicKeysOfReplicas;
   }
+  uint32_t GetBatchingPolicy() const { return config_->batchingPolicy; }
+  uint32_t GetMaxInitialBatchSize() const { return config_->maxInitialBatchSize; }
+  uint32_t GetBatchingFactorCoefficient() const { return config_->batchingFactorCoefficient; }
   bool GetPreExecutionFeatureEnabled() const { return config_->preExecutionFeatureEnabled; }
   uint64_t GetPreExecReqStatusCheckTimerMillisec() const { return config_->preExecReqStatusCheckTimerMillisec; }
   uint16_t GetPreExecConcurrencyLevel() const { return config_->preExecConcurrencyLevel; }
