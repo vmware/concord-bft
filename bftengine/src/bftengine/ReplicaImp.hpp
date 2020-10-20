@@ -219,6 +219,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   CounterHandle metric_total_finished_consensuses_;
   CounterHandle metric_total_slowPath_;
   CounterHandle metric_total_fastPath_;
+  CounterHandle metric_total_slowPath_requests_;
+  CounterHandle metric_total_fastPath_requests_;
   //*****************************************************
  public:
   ReplicaImp(const ReplicaConfig&,

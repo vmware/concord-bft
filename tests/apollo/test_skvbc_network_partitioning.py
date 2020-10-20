@@ -129,21 +129,17 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
         curr_primary = await bft_network.get_current_primary()
         isolated_replicas = bft_network.random_set_of_replicas(f, without={curr_primary})
 
-        num_ops = 100
-        write_weight = 0.5
-
         # make sure the presence of the adversary triggers the slow path
         # (because f replicas cannot participate in consensus)
         with net.ReplicaSubsetIsolatingAdversary(bft_network, isolated_replicas) as adversary:
             adversary.interfere()
 
-            await tracker.run_concurrent_ops(num_ops=num_ops, write_weight=write_weight)
-
-            await bft_network.wait_for_slow_path_to_be_prevalent(as_of_seq_num=1)
+            await bft_network.wait_for_slow_path_to_be_prevalent(
+                run_ops=lambda: tracker.run_concurrent_ops(num_ops=2, write_weight=1), threshold=2)
 
         # Once the adversary is gone, the disconnected replicas should be able
         # to resume their participation in consensus & request execution
-        await tracker.run_concurrent_ops(num_ops=num_ops, write_weight=write_weight)
+        await tracker.run_concurrent_ops(num_ops=20, write_weight=1)
         last_executed_seq_num = await bft_network.wait_for_last_executed_seq_num()
 
         for ir in isolated_replicas:

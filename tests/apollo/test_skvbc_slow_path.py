@@ -34,7 +34,7 @@ def start_replica_cmd(builddir, replica_id):
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
             "-s", statusTimerMilli,
-            "-e", str(True),    
+            "-e", str(True),
             "-v", viewChangeTimeoutMilli,
             "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower()
                     in set(["true", "on"])
@@ -54,7 +54,7 @@ class SkvbcSlowPathTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd,
-                      selected_configs=lambda n, f, c: c == 0)
+                      selected_configs=lambda n, f, c: c == 0 and n >= 6)
     @verify_linearizability()
     async def test_persistent_slow_path(self, bft_network, tracker):
         """
@@ -68,10 +68,7 @@ class SkvbcSlowPathTest(unittest.TestCase):
 
         Finally, we check if a these entries were executed and readable.
         """
-        lastFastExecutedVal = await bft_network.do_key_exchange()
-
-        num_ops = self.evaluation_period_seq_num * 2
-        write_weight = 0.5
+        await bft_network.do_key_exchange()
 
         bft_network.start_all_replicas()
 
@@ -79,13 +76,12 @@ class SkvbcSlowPathTest(unittest.TestCase):
         bft_network.stop_replica(
             replica_id=random.choice(unstable_replicas))
 
-        await tracker.run_concurrent_ops(
-            num_ops=num_ops, write_weight=write_weight)
-        await bft_network.wait_for_slow_path_to_be_prevalent(as_of_seq_num=lastFastExecutedVal)
+        await bft_network.wait_for_slow_path_to_be_prevalent(
+            run_ops=lambda: tracker.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
 
     @with_trio
     @with_bft_network(start_replica_cmd,
-                      num_clients=4)
+                      num_clients=4, selected_configs=lambda n, f, c: n >= 6)
     @verify_linearizability()
     async def test_slow_to_fast_path_transition(self, bft_network, tracker,exchange_keys=True):
         """
@@ -107,8 +103,8 @@ class SkvbcSlowPathTest(unittest.TestCase):
         """
         if exchange_keys:
             await bft_network.do_key_exchange()
-        num_ops = 20
-        write_weight = 0.5
+
+        run_ops = lambda: tracker.run_concurrent_ops(num_ops=20, write_weight=1)
 
         bft_network.start_all_replicas()
 
@@ -116,26 +112,14 @@ class SkvbcSlowPathTest(unittest.TestCase):
         crashed_replica = random.choice(unstable_replicas)
         bft_network.stop_replica(crashed_replica)
 
-        seq_num_before = await bft_network.wait_for_last_executed_seq_num()
-        nb_slow_paths_before = await bft_network.num_of_slow_path()
-
-        await tracker.run_concurrent_ops(num_ops=num_ops, write_weight=1)
-
-        await bft_network.wait_for_slow_path_to_be_prevalent(
-            as_of_seq_num=seq_num_before + 1, nb_slow_paths_so_far=nb_slow_paths_before)
+        await bft_network.wait_for_slow_path_to_be_prevalent(run_ops=run_ops, threshold=20)
 
         bft_network.start_replica(crashed_replica)
 
-        await tracker.run_concurrent_ops(
-            num_ops=num_ops, write_weight=write_weight)
-
-        await bft_network.wait_for_fast_path_to_be_prevalent(
-            nb_slow_paths_so_far=await bft_network.num_of_slow_path())
-
-    
+        await bft_network.wait_for_fast_path_to_be_prevalent(run_ops=run_ops, threshold=20)
 
     @with_trio
-    @with_bft_network(start_replica_cmd)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n >= 6)
     @verify_linearizability()
     async def test_slow_path_view_change(self, bft_network, tracker):
         """
@@ -154,15 +138,12 @@ class SkvbcSlowPathTest(unittest.TestCase):
         We make sure the second batch of requests have been processed via the slow path.
         """
         await bft_network.do_key_exchange()
-        num_ops = 10
-        write_weight = 0.5
         bft_network.start_all_replicas()
-        n = bft_network.config.n
 
-        _, fast_path_writes = await tracker.run_concurrent_ops(
-            num_ops=num_ops, write_weight=1)
+        num_ops = 5
 
-        await bft_network.wait_for_fast_path_to_be_prevalent()
+        await bft_network.wait_for_fast_path_to_be_prevalent(
+            run_ops=lambda: tracker.run_concurrent_ops(num_ops=num_ops, write_weight=1), threshold=num_ops)
 
         bft_network.stop_replica(0)
 
@@ -171,7 +152,7 @@ class SkvbcSlowPathTest(unittest.TestCase):
 
         randRep = random.choice(
                 bft_network.all_replicas(without={0}))
-        
+
         log.log_message(f'wait_for_view - Random replica {randRep}')
 
         await bft_network.wait_for_view(
@@ -180,10 +161,16 @@ class SkvbcSlowPathTest(unittest.TestCase):
             err_msg="Make sure view change has occurred."
         )
 
+        nb_fast_paths_to_ignore = await bft_network.num_of_fast_path_requests(randRep)
+        nb_slow_paths_to_ignore = await bft_network.num_of_slow_path_requests(randRep)
+
         with trio.move_on_after(seconds=5):
             async with trio.open_nursery() as nursery:
-                nursery.start_soon(tracker.send_indefinite_tracked_ops, write_weight)
+                nursery.start_soon(tracker.send_indefinite_tracked_ops, 1)
 
         bft_network.start_replica(0)
 
-        await bft_network.wait_for_slow_path_to_be_prevalent(as_of_seq_num=fast_path_writes + n,replica_id=randRep)
+        await bft_network.assert_slow_path_prevalent(
+            nb_fast_paths_to_ignore=nb_fast_paths_to_ignore,
+            nb_slow_paths_to_ignore=nb_slow_paths_to_ignore,
+            replica_id=randRep)
