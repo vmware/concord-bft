@@ -649,9 +649,9 @@ class BftTestNetwork:
         Returns the current source replica for state transfer.
         """
         with log.start_action(action_type="wait_for_fetching_state"):
-            with trio.fail_after(10): # seconds
+            with trio.fail_after(seconds=30):
                 while True:
-                    with trio.move_on_after(.5): # seconds
+                    with trio.move_on_after(seconds=.5): # seconds
                         is_fetching = await self.is_fetching(replica_id)
                         source_replica_id = await self.source_replica(replica_id)
                         if is_fetching:

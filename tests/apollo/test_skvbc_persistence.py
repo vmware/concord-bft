@@ -313,7 +313,8 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
             await bft_network.wait_for_state_transfer_to_stop(
                 up_to_date_node=primary,
-                stale_node=stale
+                stale_node=stale,
+                stop_on_stable_seq_num=True
             )
 
             log.log_message(message_type=f'State transfer completed, despite initial source '
@@ -325,7 +326,8 @@ class SkvbcPersistenceTest(unittest.TestCase):
                   "if state transfer has already completed...")
             await bft_network.wait_for_state_transfer_to_stop(
                 up_to_date_node=primary,
-                stale_node=stale
+                stale_node=stale,
+                stop_on_stable_seq_num=True
             )
             log.log_message(message_type="State transfer completed before we had a chance "
                   "to stop the source replica.")
@@ -527,7 +529,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
         log.log_message(message_type=f'Restarting stale replica until '
               f'it fetches from {unstable_replicas}...')
-        with trio.move_on_after(10):  # seconds
+        with trio.move_on_after(seconds=30):
             while True:
                 bft_network.start_replica(stale)
                 source_replica_id = await bft_network.wait_for_fetching_state(
