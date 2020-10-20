@@ -32,6 +32,7 @@ using std::vector;
 
 class ViewsManager {
   friend class ViewChangeMsg;
+  friend class ReplicaAsksToLeaveView;
 
  public:
   struct PrevViewInfo {

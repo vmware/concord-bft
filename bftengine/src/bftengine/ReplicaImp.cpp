@@ -39,6 +39,7 @@
 #include "messages/FullCommitProofMsg.hpp"
 #include "messages/ReplicaStatusMsg.hpp"
 #include "messages/AskForCheckpointMsg.hpp"
+#include "messages/ReplicaAsksToLeaveView.hpp"
 #include "KeyManager.h"
 #include "CryptoManager.hpp"
 
@@ -119,6 +120,9 @@ void ReplicaImp::registerMsgHandlers() {
 
   msgHandlers_->registerMsgHandler(MsgCode::AskForCheckpoint,
                                    bind(&ReplicaImp::messageHandler<AskForCheckpointMsg>, this, _1));
+
+  msgHandlers_->registerMsgHandler(MsgCode::ReplicaAsksToLeaveView,
+                                   bind(&ReplicaImp::messageHandler<ReplicaAsksToLeaveView>, this, _1));
 
   msgHandlers_->registerInternalMsgHandler([this](InternalMessage &&msg) { onInternalMsg(std::move(msg)); });
 }
@@ -278,6 +282,12 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
                  << KVLOG(clientId, reqSeqNum, seqNumberOfLastReply));
   }
 
+  delete m;
+}
+
+template <>
+void ReplicaImp::onMessage<ReplicaAsksToLeaveView>(ReplicaAsksToLeaveView *m) {
+  LOG_INFO(GL, "Received ReplicaAsksToLeaveView " << KVLOG(m->viewNumber(), m->senderId(), m->idOfGeneratedReplica()));
   delete m;
 }
 
@@ -2760,6 +2770,10 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
       LOG_INFO(
           VC_LOG,
           "Ask to leave view=" << curView << " (" << diffMilli3 << " ms after the earliest pending client request).");
+
+      std::unique_ptr<ReplicaAsksToLeaveView> askToLeaveView(ReplicaAsksToLeaveView::create(
+          config_.replicaId, curView, ReplicaAsksToLeaveView::Reason::ClientRequestTimeout));
+      sendToAllOtherReplicas(askToLeaveView.get());
 
       GotoNextView();
       return;

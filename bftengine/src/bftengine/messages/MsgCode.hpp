@@ -38,6 +38,7 @@ class MsgCode {
     ReplicaStatus,
     ReqMissingData,
     StateTransfer,
+    ReplicaAsksToLeaveView,
 
     ClientPreProcessRequest = 500,
     PreProcessRequest,
