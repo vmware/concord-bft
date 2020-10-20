@@ -32,8 +32,7 @@ class IShareVerificationKeyDummy : public IShareVerificationKey {
   std::string toString() const override { return "IShareVerificationKeyDummy"; }
 };
 
-class IThresholdSignerDummy : public IThresholdSigner,
-                              public concord::serialize::SerializableFactory<IThresholdSignerDummy> {
+class IThresholdSignerDummy : public IThresholdSigner {
  public:
   int requiredLengthForSignedData() const override { return 2048; }
   void signData(const char *hash, int hashLen, char *outSig, int outSigLen) override {
@@ -42,9 +41,6 @@ class IThresholdSignerDummy : public IThresholdSigner,
 
   const IShareSecretKey &getShareSecretKey() const override { return shareSecretKey; }
   const IShareVerificationKey &getShareVerificationKey() const override { return shareVerifyKey; }
-  const std::string getVersion() const override { return "1"; }
-  void serializeDataMembers(std::ostream &outStream) const override {}
-  void deserializeDataMembers(std::istream &outStream) override {}
   IShareSecretKeyDummy shareSecretKey;
   IShareVerificationKeyDummy shareVerifyKey;
 };
@@ -58,8 +54,7 @@ class IThresholdAccumulatorDummy : public IThresholdAccumulator {
   void getFullSignedData(char *outThreshSig, int threshSigLen) override {}
 };
 
-class IThresholdVerifierDummy : public IThresholdVerifier,
-                                public concord::serialize::SerializableFactory<IThresholdVerifierDummy> {
+class IThresholdVerifierDummy : public IThresholdVerifier {
  public:
   IThresholdAccumulator *newAccumulator(bool withShareVerification) const override {
     return new IThresholdAccumulatorDummy;
@@ -69,9 +64,6 @@ class IThresholdVerifierDummy : public IThresholdVerifier,
   const IPublicKey &getPublicKey() const override { return shareVerifyKey; }
   const IShareVerificationKey &getShareVerificationKey(ShareID signer) const override { return shareVerifyKey; }
 
-  const std::string getVersion() const override { return "1"; }
-  void serializeDataMembers(std::ostream &outStream) const override {}
-  void deserializeDataMembers(std::istream &outStream) override {}
   IShareVerificationKeyDummy shareVerifyKey;
 };
 

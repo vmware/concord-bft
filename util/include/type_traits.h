@@ -15,6 +15,8 @@
 #include <vector>
 #include <type_traits>
 #include <deque>
+#include <map>
+#include <unordered_map>
 
 namespace concord {
 
@@ -27,13 +29,43 @@ struct is_set : std::false_type {};
 template <typename T>
 struct is_set<std::set<T>> : std::true_type {};
 template <typename T>
+inline constexpr bool is_set_v = is_set<T>::value;
+
+template <typename T>
 struct is_vector : std::false_type {};
 template <typename T>
 struct is_vector<std::vector<T>> : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_vector_v = is_vector<T>::value;
+
 template <typename T>
 struct is_deque : std::false_type {};
 template <typename T>
 struct is_deque<std::deque<T>> : std::true_type {};
+template <typename T>
+inline constexpr bool is_deque_v = is_deque<T>::value;
+
+template <typename T, typename U = void>
+struct is_pair : std::false_type {};
+template <typename T>
+struct is_pair<T, std::void_t<typename T::first_type, typename T::second_type>> : std::true_type {};
+template <typename T>
+inline constexpr bool is_pair_v = is_pair<T>::value;
+
+// https://stackoverflow.com/questions/35293470/checking-if-a-type-is-a-map
+// std::map, std::unordered_map
+template <typename T, typename U = void>
+struct is_map : std::false_type {};
+
+template <typename T>
+struct is_map<T,
+              std::void_t<typename T::key_type,
+                          typename T::mapped_type,
+                          decltype(std::declval<T&>()[std::declval<const typename T::key_type&>()])>> : std::true_type {
+};
+template <typename T>
+inline constexpr bool is_map_v = is_map<T>::value;
 
 template <class T, T v>
 struct std_container {
@@ -41,10 +73,11 @@ struct std_container {
   constexpr T operator()() const noexcept { return value; }
 };
 template <class T>
-struct is_std_container : std_container<bool, is_set<T>::value || is_vector<T>::value || is_deque<T>::value> {};
+struct is_std_container
+    : std_container<bool, is_set<T>::value || is_vector<T>::value || is_deque<T>::value || is_map<T>::value> {};
 
-template <class T, T v>
-constexpr const T std_container<T, v>::value;
+template <class T>
+inline constexpr bool is_std_container_v = is_std_container<T>::value;
 
 // Taken from https://stackoverflow.com/a/22759544
 template <typename S, typename T>

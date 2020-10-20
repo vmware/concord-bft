@@ -100,6 +100,30 @@ TEST(serializable, VectorInt) {
   ASSERT_TRUE(s == s_out);
 }
 
+TEST(serializable, Map) {
+  std::stringstream sstream;
+  std::map<std::string, int> s_out, s{{"k0", 0}, {"k1", 1}, {"k2", 2}, {"k3", 3}, {"k4", 4}, {"k5", 5}};
+  Serializable::serialize(sstream, s);
+  Serializable::deserialize(sstream, s_out);
+  ASSERT_TRUE(s == s_out);
+}
+
+TEST(serializable, MapConstString) {
+  std::stringstream sstream;
+  std::map<const std::string, int> s_out, s{{"k0", 0}, {"k1", 1}, {"k2", 2}, {"k3", 3}, {"k4", 4}, {"k5", 5}};
+  Serializable::serialize(sstream, s);
+  Serializable::deserialize(sstream, s_out);
+  ASSERT_TRUE(s == s_out);
+}
+
+TEST(serializable, UnorderedMap) {
+  std::stringstream sstream;
+  std::unordered_map<std::string, int> s_out, s{{"k0", 0}, {"k1", 1}, {"k2", 2}, {"k3", 3}, {"k4", 4}, {"k5", 5}};
+  Serializable::serialize(sstream, s);
+  Serializable::deserialize(sstream, s_out);
+  ASSERT_TRUE(s == s_out);
+}
+
 TEST(serializable, VectorSerializable) {
   std::vector<TestSerializable> s, s_out;
   for (int i = 0; i < 10; ++i) {
