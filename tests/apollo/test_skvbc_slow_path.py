@@ -54,7 +54,7 @@ class SkvbcSlowPathTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd,
-                      selected_configs=lambda n, f, c: c == 0 and n >= 6)
+                      selected_configs=lambda n, f, c: c == 0 and n >= 6, rotate_keys=True)
     @verify_linearizability()
     async def test_persistent_slow_path(self, bft_network, tracker):
         """
@@ -68,7 +68,6 @@ class SkvbcSlowPathTest(unittest.TestCase):
 
         Finally, we check if a these entries were executed and readable.
         """
-        await bft_network.do_key_exchange()
 
         bft_network.start_all_replicas()
 
@@ -81,7 +80,7 @@ class SkvbcSlowPathTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd,
-                      num_clients=4, selected_configs=lambda n, f, c: n >= 6)
+                      num_clients=4, selected_configs=lambda n, f, c: n >= 6, rotate_keys=True)
     @verify_linearizability()
     async def test_slow_to_fast_path_transition(self, bft_network, tracker,exchange_keys=True):
         """
@@ -101,8 +100,6 @@ class SkvbcSlowPathTest(unittest.TestCase):
 
         Finally we check if a known K/V has been executed and readable.
         """
-        if exchange_keys:
-            await bft_network.do_key_exchange()
 
         run_ops = lambda: tracker.run_concurrent_ops(num_ops=20, write_weight=1)
 
@@ -119,7 +116,7 @@ class SkvbcSlowPathTest(unittest.TestCase):
         await bft_network.wait_for_fast_path_to_be_prevalent(run_ops=run_ops, threshold=20)
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n >= 6)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n >= 6, rotate_keys=True)
     @verify_linearizability()
     async def test_slow_path_view_change(self, bft_network, tracker):
         """
@@ -137,7 +134,6 @@ class SkvbcSlowPathTest(unittest.TestCase):
 
         We make sure the second batch of requests have been processed via the slow path.
         """
-        await bft_network.do_key_exchange()
         bft_network.start_all_replicas()
 
         num_ops = 5

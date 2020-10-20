@@ -49,7 +49,7 @@ class SkvbcFastPathTest(unittest.TestCase):
         self.evaluation_period_seq_num = 64
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n >= 6)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n >= 6, rotate_keys=True)
     @verify_linearizability()
     async def test_fast_path_only(self, bft_network, tracker,exchange_keys=True):
         """
@@ -61,8 +61,6 @@ class SkvbcFastPathTest(unittest.TestCase):
 
         Finally the decorator verifies the KV execution.
         """
-        if exchange_keys:
-            await bft_network.do_key_exchange()
 
         bft_network.start_all_replicas()
 
@@ -70,7 +68,7 @@ class SkvbcFastPathTest(unittest.TestCase):
             run_ops=lambda: tracker.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n >= 6)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n >= 6, rotate_keys=True)
     @verify_linearizability()
     async def test_fast_to_slow_path_transition(self, bft_network, tracker):
         """
@@ -87,7 +85,6 @@ class SkvbcFastPathTest(unittest.TestCase):
 
         Finally the decorator verifies the KV execution.
         """
-        await bft_network.do_key_exchange()
         bft_network.start_all_replicas()
 
         await bft_network.wait_for_fast_path_to_be_prevalent(
@@ -103,7 +100,7 @@ class SkvbcFastPathTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd,
                       num_clients=4,
-                      selected_configs=lambda n, f, c: c >= 1 and n >= 6)
+                      selected_configs=lambda n, f, c: c >= 1 and n >= 6, rotate_keys=True)
     @verify_linearizability()
     async def test_fast_path_resilience_to_crashes(self, bft_network, tracker):
         """
@@ -117,7 +114,6 @@ class SkvbcFastPathTest(unittest.TestCase):
 
         Finally the decorator verifies the KV execution.
         """
-        await bft_network.do_key_exchange()
 
         bft_network.start_all_replicas()
         unstable_replicas = bft_network.all_replicas(without={0})
