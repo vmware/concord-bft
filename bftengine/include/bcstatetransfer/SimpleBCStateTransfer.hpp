@@ -35,7 +35,7 @@ namespace bftEngine {
 // state is updated by appending blocks at the end of the sequence. The module
 // can also handle a limited amount of arbitrary mutable state (which is
 // represented as a small set of fixed size pages).
-namespace SimpleBlockchainStateTransfer {
+namespace bcst {
 
 // Each block is required to store the digest of the previous block (this digest
 // is used by the state transfer to safely transfer blocks among the replicas).
@@ -141,5 +141,5 @@ IStateTransfer *create(const Config &config,
                        std::shared_ptr<concord::storage::ISTKeyManipulator> stKeyManipulator,
                        std::shared_ptr<concordMetrics::Aggregator> aggregator);
 
-}  // namespace SimpleBlockchainStateTransfer
+}  // namespace bcst
 }  // namespace bftEngine

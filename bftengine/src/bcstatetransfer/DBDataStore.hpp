@@ -24,7 +24,7 @@
 #include "storage/key_manipulator_interface.h"
 
 namespace bftEngine {
-namespace SimpleBlockchainStateTransfer {
+namespace bcst {
 namespace impl {
 
 using concord::storage::IDBClient;
@@ -240,5 +240,5 @@ class DBDataStore : public DataStore {
 };
 
 }  // namespace impl
-}  // namespace SimpleBlockchainStateTransfer
+}  // namespace bcst
 }  // namespace bftEngine

@@ -44,7 +44,7 @@ using std::chrono::system_clock;
 using namespace std::placeholders;
 
 namespace bftEngine {
-namespace SimpleBlockchainStateTransfer {
+namespace bcst {
 
 void computeBlockDigest(const uint64_t blockId,
                         const char *block,
@@ -2396,5 +2396,5 @@ void BCStateTran::SetAggregator(std::shared_ptr<concordMetrics::Aggregator> aggr
 }
 
 }  // namespace impl
-}  // namespace SimpleBlockchainStateTransfer
+}  // namespace bcst
 }  // namespace bftEngine

@@ -20,7 +20,7 @@
 #include "SimpleBCStateTransfer.hpp"
 
 namespace bftEngine {
-namespace SimpleBlockchainStateTransfer {
+namespace bcst {
 namespace impl {
 class STDigest : StateTransferDigest {
  public:
@@ -80,5 +80,5 @@ class DigestContext {
 };
 
 }  // namespace impl
-}  // namespace SimpleBlockchainStateTransfer
+}  // namespace bcst
 }  // namespace bftEngine

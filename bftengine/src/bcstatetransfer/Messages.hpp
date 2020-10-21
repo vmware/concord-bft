@@ -20,7 +20,7 @@
 #include "Logger.hpp"
 
 namespace bftEngine {
-namespace SimpleBlockchainStateTransfer {
+namespace bcst {
 namespace impl {
 
 #pragma pack(push, 1)
@@ -163,5 +163,5 @@ struct ItemDataMsg : public BCStateTranBaseMsg {
 #pragma pack(pop)
 
 }  // namespace impl
-}  // namespace SimpleBlockchainStateTransfer
+}  // namespace bcst
 }  // namespace bftEngine

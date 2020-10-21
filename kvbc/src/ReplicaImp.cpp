@@ -24,7 +24,7 @@
 #include "bftengine/DbMetadataStorage.hpp"
 
 using bft::communication::ICommunication;
-using bftEngine::SimpleBlockchainStateTransfer::StateTransferDigest;
+using bftEngine::bcst::StateTransferDigest;
 using namespace concord::diagnostics;
 
 using concord::storage::DBMetadataStorage;
@@ -204,7 +204,7 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
       m_ptrComm(comm),
       m_replicaConfig(replicaConfig),
       aggregator_(aggregator) {
-  bftEngine::SimpleBlockchainStateTransfer::Config state_transfer_config;
+  bftEngine::bcst::Config state_transfer_config;
   state_transfer_config.myReplicaId = m_replicaConfig.replicaId;
   state_transfer_config.cVal = m_replicaConfig.cVal;
   state_transfer_config.fVal = m_replicaConfig.fVal;
@@ -223,8 +223,8 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   dbSet.metadataDBClient->setAggregator(aggregator);
   m_metadataDBClient = dbSet.metadataDBClient;
   auto stKeyManipulator = std::shared_ptr<storage::ISTKeyManipulator>{storageFactory->newSTKeyManipulator()};
-  m_stateTransfer = bftEngine::SimpleBlockchainStateTransfer::create(
-      state_transfer_config, this, m_metadataDBClient, stKeyManipulator, aggregator_);
+  m_stateTransfer =
+      bftEngine::bcst::create(state_transfer_config, this, m_metadataDBClient, stKeyManipulator, aggregator_);
   m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
 
   controlStateManager_ =

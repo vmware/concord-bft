@@ -3,11 +3,11 @@
 #include "storage/db_interface.h"
 #include "Serializable.h"
 
-using bftEngine::SimpleBlockchainStateTransfer::BLOCK_DIGEST_SIZE;
+using bftEngine::bcst::BLOCK_DIGEST_SIZE;
 using concord::serialize::Serializable;
 
 namespace bftEngine {
-namespace SimpleBlockchainStateTransfer {
+namespace bcst {
 namespace impl {
 
 std::ostream& operator<<(std::ostream& os, const DataStore::CheckpointDesc& desc) {
@@ -404,5 +404,5 @@ void DBDataStore::clearDataStoreData() {
 
 /** ******************************************************************************************************************/
 }  // namespace impl
-}  // namespace SimpleBlockchainStateTransfer
+}  // namespace bcst
 }  // namespace bftEngine

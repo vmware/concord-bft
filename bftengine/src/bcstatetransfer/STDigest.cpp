@@ -23,7 +23,7 @@
 #include <string>
 
 namespace bftEngine {
-namespace SimpleBlockchainStateTransfer {
+namespace bcst {
 namespace impl {
 
 std::string STDigest::toString() const {
@@ -76,5 +76,5 @@ DigestContext::~DigestContext() {
 }
 
 }  // namespace impl
-}  // namespace SimpleBlockchainStateTransfer
+}  // namespace bcst
 }  // namespace bftEngine

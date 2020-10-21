@@ -19,7 +19,7 @@
 #include "kvstream.h"
 
 namespace bftEngine {
-namespace SimpleBlockchainStateTransfer {
+namespace bcst {
 namespace impl {
 
 InMemoryDataStore::InMemoryDataStore(uint32_t sizeOfReservedPage) : sizeOfReservedPage_(sizeOfReservedPage) {
@@ -348,5 +348,5 @@ void InMemoryDataStore::free(ResPagesDescriptor* desc) {
 }
 
 }  // namespace impl
-}  // namespace SimpleBlockchainStateTransfer
+}  // namespace bcst
 }  // namespace bftEngine

@@ -378,7 +378,7 @@ BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &kv) {
   auto blockDigest = BlockDigest{};
   if (blockId > INITIAL_GENESIS_BLOCK_ID) {
     const auto parentBlockData = getRawBlock(blockId - 1);
-    blockDigest = bftEngine::SimpleBlockchainStateTransfer::computeBlockDigest(
+    blockDigest = bftEngine::bcst::computeBlockDigest(
         blockId - 1, reinterpret_cast<const char *>(parentBlockData.data()), parentBlockData.length());
   }
 

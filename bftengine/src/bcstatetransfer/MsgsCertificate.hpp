@@ -20,7 +20,7 @@
 #include <forward_list>
 
 namespace bftEngine {
-namespace SimpleBlockchainStateTransfer {
+namespace bcst {
 namespace impl {
 template <typename T,
           bool SelfTrust,       // = true,
@@ -356,5 +356,5 @@ std::forward_list<uint16_t> MsgsCertificate<T, SelfTrust, SelfIsRequired, KeepAl
 }
 
 }  // namespace impl
-}  // namespace SimpleBlockchainStateTransfer
+}  // namespace bcst
 }  // namespace bftEngine

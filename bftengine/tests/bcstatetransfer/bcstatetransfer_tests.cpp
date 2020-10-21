@@ -31,7 +31,7 @@ using concord::storage::rocksdb::Client;
 using concord::storage::rocksdb::KeyComparator;
 #endif
 namespace bftEngine {
-namespace SimpleBlockchainStateTransfer {
+namespace bcst {
 
 using namespace impl;
 
@@ -121,5 +121,5 @@ TEST(DBDataStore, API) {}
 
 TEST(DBDataStore, Transactions) {}
 
-}  // namespace SimpleBlockchainStateTransfer
+}  // namespace bcst
 }  // namespace bftEngine

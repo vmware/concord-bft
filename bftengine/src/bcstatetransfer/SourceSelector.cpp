@@ -14,7 +14,7 @@
 #include "SourceSelector.hpp"
 
 namespace bftEngine {
-namespace SimpleBlockchainStateTransfer {
+namespace bcst {
 namespace impl {
 
 bool SourceSelector::hasSource() const { return currentReplica_ != NO_REPLICA && sourceSelectionTimeMilli_ > 0; }
@@ -103,5 +103,5 @@ void SourceSelector::selectSource(uint64_t currTimeMilli) {
   sourceSelectionTimeMilli_ = currTimeMilli;
 }
 }  // namespace impl
-}  // namespace SimpleBlockchainStateTransfer
+}  // namespace bcst
 }  // namespace bftEngine
