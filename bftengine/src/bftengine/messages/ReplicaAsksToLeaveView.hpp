@@ -41,6 +41,8 @@ class ReplicaAsksToLeaveView : public MessageBase {
 
   uint16_t signatureLen() const { return b()->sigLength; }
 
+  Reason reason() const { return b()->reason; }
+
   char* signatureBody() const { return body() + sizeof(Header) + spanContextSize(); }
 
   static ReplicaAsksToLeaveView* create(ReplicaId senderId,
@@ -59,7 +61,7 @@ class ReplicaAsksToLeaveView : public MessageBase {
   struct Header : public MessageBase::Header {
     ReplicaId genReplicaId;
     ViewNum viewNum;
-    uint8_t reason;
+    Reason reason;
     uint16_t sigLength;
   };
 #pragma pack(pop)

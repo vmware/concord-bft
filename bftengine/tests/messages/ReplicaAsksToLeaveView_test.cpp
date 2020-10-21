@@ -41,6 +41,7 @@ TEST(ReplicaAsksToLeaveView, base_methods) {
       senderId, viewNum, ReplicaAsksToLeaveView::Reason::ClientRequestTimeout, concordUtils::SpanContext{spanContext}));
   EXPECT_EQ(msg->idOfGeneratedReplica(), senderId);
   EXPECT_EQ(msg->viewNumber(), viewNum);
+  EXPECT_EQ(msg->reason(), ReplicaAsksToLeaveView::Reason::ClientRequestTimeout); 
 
   testMessageBaseMethods(*msg.get(), MsgCode::ReplicaAsksToLeaveView, senderId, spanContext);
 }

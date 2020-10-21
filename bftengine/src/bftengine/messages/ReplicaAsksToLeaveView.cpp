@@ -29,7 +29,7 @@ ReplicaAsksToLeaveView::ReplicaAsksToLeaveView(
                   sizeof(Header) + spanContext.data().size() + sigLen) {
   b()->genReplicaId = srcReplicaId;
   b()->viewNum = v;
-  b()->reason = (uint8_t)r;
+  b()->reason = r;
   b()->sigLength = sigLen;
   std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
 }
