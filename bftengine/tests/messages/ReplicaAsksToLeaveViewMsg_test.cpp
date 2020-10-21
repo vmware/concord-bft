@@ -18,15 +18,15 @@
 #include "ReplicasInfo.hpp"
 #include "SigManager.hpp"
 #include "messages/MsgCode.hpp"
-#include "messages/ReplicaAsksToLeaveView.hpp"
+#include "messages/ReplicaAsksToLeaveViewMsg.hpp"
 #include "bftengine/ClientMsgs.hpp"
 #include "bftengine/ReplicaConfig.hpp"
 
 using namespace bftEngine;
 using namespace bftEngine::impl;
 
-TEST(ReplicaAsksToLeaveView, base_methods) {
-  auto config = createReplicaConfig();
+TEST(ReplicaAsksToLeaveViewMsg, base_methods) {
+  auto& config = createReplicaConfig();
   ReplicaId senderId = 3u;
   ViewNum viewNum = 5u;
   const char rawSpanContext[] = {"span_\0context"};
@@ -37,11 +37,14 @@ TEST(ReplicaAsksToLeaveView, base_methods) {
                         config.replicaPrivateKey,
                         config.publicKeysOfReplicas);
   ViewsManager manager(&replicaInfo, &sigManager, CryptoManager::instance().thresholdVerifierForSlowPathCommit());
-  std::unique_ptr<ReplicaAsksToLeaveView> msg(ReplicaAsksToLeaveView::create(
-      senderId, viewNum, ReplicaAsksToLeaveView::Reason::ClientRequestTimeout, concordUtils::SpanContext{spanContext}));
+  std::unique_ptr<ReplicaAsksToLeaveViewMsg> msg(
+      ReplicaAsksToLeaveViewMsg::create(senderId,
+                                        viewNum,
+                                        ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout,
+                                        concordUtils::SpanContext{spanContext}));
   EXPECT_EQ(msg->idOfGeneratedReplica(), senderId);
   EXPECT_EQ(msg->viewNumber(), viewNum);
-  EXPECT_EQ(msg->reason(), ReplicaAsksToLeaveView::Reason::ClientRequestTimeout); 
+  EXPECT_EQ(msg->reason(), ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout);
 
   testMessageBaseMethods(*msg.get(), MsgCode::ReplicaAsksToLeaveView, senderId, spanContext);
 }
