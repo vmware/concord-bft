@@ -47,6 +47,8 @@ TEST(ReplicaAsksToLeaveViewMsg, base_methods) {
   EXPECT_EQ(msg->reason(), ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout);
 
   testMessageBaseMethods(*msg.get(), MsgCode::ReplicaAsksToLeaveView, senderId, spanContext);
+
+  EXPECT_NO_THROW(msg->validate(replicaInfo));
 }
 
 int main(int argc, char** argv) {
