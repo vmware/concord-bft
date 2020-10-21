@@ -1307,7 +1307,7 @@ class TlsTCPCommunication::TlsTcpImpl : public std::enable_shared_from_this<TlsT
     lock_guard<mutex> lock(_connectionsGuard);
     const auto &conn = _connections.find(destNode);
     if (conn != _connections.end()) {
-      LOG_INFO(_logger, "Connection found from " << _selfId << " to " << destNode);
+      LOG_DEBUG(_logger, "Connection found from " << _selfId << " to " << destNode);
       if (conn->second->isAuthenticated()) {
         return ConnectionStatus::Connected;
       } else {
