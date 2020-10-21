@@ -27,8 +27,7 @@ using namespace bftEngine;
 using namespace bftEngine::impl;
 
 TEST(ReplicaStatusMsg, viewActiveNoLists) {
-  auto config = createReplicaConfig();
-  ReplicasInfo replicaInfo(config, false, false);
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum lastStable = 150u;
@@ -70,8 +69,7 @@ TEST(ReplicaStatusMsg, viewActiveNoLists) {
 }
 
 TEST(ReplicaStatusMsg, haslistOfPrePrepareMsgsInActiveWindow) {
-  auto config = createReplicaConfig();
-  ReplicasInfo replicaInfo(config, false, false);
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum lastStable = 150u;
@@ -121,8 +119,7 @@ TEST(ReplicaStatusMsg, haslistOfPrePrepareMsgsInActiveWindow) {
 }
 
 TEST(ReplicaStatusMsg, listOfMissingViewChangeMsgForViewChange) {
-  auto config = createReplicaConfig();
-  ReplicasInfo replicaInfo(config, false, false);
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum lastStable = 150u;
@@ -168,7 +165,6 @@ TEST(ReplicaStatusMsg, listOfMissingViewChangeMsgForViewChange) {
 }
 
 TEST(ReplicaStatusMsg, listOfMissingPrePrepareMsgForViewChange) {
-  auto config = createReplicaConfig();
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum lastStable = 150u;

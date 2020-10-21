@@ -65,8 +65,8 @@ const char publicKeyValue4[] =
     "F6605C909F98B6C3F795354BBB988C9695F8A1E27FFC3CE4FFA64B549DD9072763404FBD352C5C1A05FA3D17377E113600B1EDCAEE17687BC4"
     "C1AA6F3D020111";
 
-bftEngine::ReplicaConfig createReplicaConfig() {
-  bftEngine::ReplicaConfig config;
+bftEngine::ReplicaConfig& createReplicaConfig() {
+  bftEngine::ReplicaConfig& config = bftEngine::ReplicaConfig::instance();
   config.numReplicas = 4;
   config.fVal = 1;
   config.cVal = 0;
@@ -92,6 +92,5 @@ bftEngine::ReplicaConfig createReplicaConfig() {
 
   bftEngine::CryptoManager::instance(&config, new TestCryptoSystem);
 
-  config.singletonFromThis();
   return config;
 }

@@ -24,13 +24,8 @@ namespace impl {
 const string METADATA_PARAMS_VERSION = "1.1";
 
 PersistentStorageImp::PersistentStorageImp(uint16_t fVal, uint16_t cVal)
-    : defaultReplicaConfig_(nullptr),
-      fVal_(fVal),
-      cVal_(cVal),
-      numOfReplicas_(3 * fVal + 2 * cVal + 1),
-      version_(METADATA_PARAMS_VERSION) {
+    : fVal_(fVal), cVal_(cVal), version_(METADATA_PARAMS_VERSION) {
   DescriptorOfLastNewView::setViewChangeMsgsNum(fVal, cVal);
-  configSerializer_.reset(new ReplicaConfigSerializer(nullptr));  // ReplicaConfig placeholder
 }
 
 void PersistentStorageImp::retrieveWindowsMetadata() {
@@ -50,7 +45,6 @@ bool PersistentStorageImp::init(unique_ptr<MetadataStorage> metadataStorage, boo
       LOG_INFO(GL, "PersistentStorageImp::init version=" << version_.c_str());
       retrieveWindowsMetadata();
       // Retrieve metadata parameters stored in the memory
-      getReplicaConfig();
       getDescriptorOfLastExecution();
       return false;
     }
@@ -100,9 +94,6 @@ ObjectDescUniquePtr PersistentStorageImp::getDefaultMetadataObjectDescriptors(ui
   metadataObjectsArray.get()[LOWER_BOUND_OF_SEQ_NUM].maxSize = sizeof(strictLowerBoundOfSeqNums_);
   metadataObjectsArray.get()[LAST_VIEW_TRANSFERRED_SEQ_NUM].maxSize = sizeof(lastViewTransferredSeqNum_);
   metadataObjectsArray.get()[LAST_STABLE_SEQ_NUM].maxSize = sizeof(lastStableSeqNum_);
-
-  metadataObjectsArray.get()[REPLICA_CONFIG].maxSize = ReplicaConfigSerializer::maxSize(numOfReplicas_);
-
   metadataObjectsArray.get()[BEGINNING_OF_SEQ_NUM_WINDOW].maxSize = sizeof(SeqNum);
   metadataObjectsArray.get()[BEGINNING_OF_CHECK_WINDOW].maxSize = sizeof(SeqNum);
   metadataObjectsArray.get()[ERASE_METADATA_ON_STARTUP].maxSize = sizeof(bool);
@@ -151,16 +142,6 @@ uint8_t PersistentStorageImp::endWriteTran() {
 bool PersistentStorageImp::isInWriteTran() const { return (numOfNestedTransactions_ != 0); }
 
 /***** Setters *****/
-
-void PersistentStorageImp::setReplicaConfig(const ReplicaConfig &config) {
-  ConcordAssert(!isInWriteTran());
-  beginWriteTran();
-  std::ostringstream oss;
-  configSerializer_->setConfig(config);
-  configSerializer_->serialize(oss);
-  metadataStorage_->writeInBatch(REPLICA_CONFIG, (char *)oss.rdbuf()->str().c_str(), oss.tellp());
-  endWriteTran();
-}
 
 void PersistentStorageImp::setVersion() const {
   ConcordAssert(isInWriteTran());
@@ -526,18 +507,6 @@ string PersistentStorageImp::getStoredVersion() {
   return version_;
 }
 
-ReplicaConfig PersistentStorageImp::getReplicaConfig() {
-  uint32_t outActualObjectSize = 0;
-  UniquePtrToChar outBuf(new char[ReplicaConfigSerializer::maxSize(numOfReplicas_)]);
-  metadataStorage_->read(
-      REPLICA_CONFIG, ReplicaConfigSerializer::maxSize(numOfReplicas_), outBuf.get(), outActualObjectSize);
-  std::istringstream iss(std::string(outBuf.get(), outActualObjectSize));
-  ReplicaConfigSerializer *rc = nullptr;
-  ReplicaConfigSerializer::deserialize(iss, rc);
-  configSerializer_.reset(rc);
-  return *configSerializer_->getConfig();
-}
-
 SeqNum PersistentStorageImp::getLastExecutedSeqNum() {
   ConcordAssert(getIsAllowed());
   lastExecutedSeqNum_ = getSeqNum(LAST_EXEC_SEQ_NUM, sizeof(lastExecutedSeqNum_));
@@ -567,8 +536,6 @@ ViewNum PersistentStorageImp::getLastViewThatTransferredSeqNumbersFullyExecuted(
   lastViewTransferredSeqNum_ = getSeqNum(LAST_VIEW_TRANSFERRED_SEQ_NUM, sizeof(lastViewTransferredSeqNum_));
   return lastViewTransferredSeqNum_;
 }
-
-bool PersistentStorageImp::hasReplicaConfig() const { return (!(*configSerializer_ == defaultReplicaConfig_)); }
 
 /***** Descriptors handling *****/
 
@@ -878,7 +845,6 @@ void PersistentStorageImp::verifySetDescriptorOfLastNewView(const DescriptorOfLa
   ConcordAssert(desc.view >= 1);
   ConcordAssert(hasDescriptorOfLastExitFromView());
   ConcordAssert(desc.newViewMsg->newView() == desc.view);
-  ConcordAssert(hasReplicaConfig());
   const size_t numOfVCMsgs = 2 * fVal_ + 2 * cVal_ + 1;
   ConcordAssert(desc.viewChangeMsgs.size() == numOfVCMsgs);
 }
@@ -901,8 +867,8 @@ SeqNum PersistentStorageImp::getSeqNum(ConstMetadataParameterIds id, uint32_t si
 }
 
 bool PersistentStorageImp::setIsAllowed() const {
-  LOG_DEBUG(GL, "isInWriteTran=" << isInWriteTran() << ", hasReplicaConfig=" << hasReplicaConfig());
-  return (isInWriteTran() && hasReplicaConfig());
+  LOG_DEBUG(GL, "isInWriteTran=" << isInWriteTran());
+  return isInWriteTran();
 }
 
 bool PersistentStorageImp::getIsAllowed() const {

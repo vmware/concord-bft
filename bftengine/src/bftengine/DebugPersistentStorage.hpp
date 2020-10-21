@@ -28,7 +28,6 @@ class DebugPersistentStorage : public PersistentStorage {
   uint8_t beginWriteTran() override;
   uint8_t endWriteTran() override;
   bool isInWriteTran() const override;
-  void setReplicaConfig(const ReplicaConfig& config) override;
   void setLastExecutedSeqNum(SeqNum seqNum) override;
   void setPrimaryLastUsedSeqNum(SeqNum seqNum) override;
   void setStrictLowerBoundOfSeqNums(SeqNum seqNum) override;
@@ -46,8 +45,6 @@ class DebugPersistentStorage : public PersistentStorage {
   void setCommitFullMsgInSeqNumWindow(SeqNum seqNum, CommitFullMsg* msg) override;
   void setCheckpointMsgInCheckWindow(SeqNum seqNum, CheckpointMsg* msg) override;
   void setCompletedMarkInCheckWindow(SeqNum seqNum, bool mark) override;
-  bool hasReplicaConfig() const override;
-  ReplicaConfig getReplicaConfig() override;
   SeqNum getLastExecutedSeqNum() override;
   SeqNum getPrimaryLastUsedSeqNum() override;
   SeqNum getStrictLowerBoundOfSeqNums() override;
@@ -81,8 +78,7 @@ class DebugPersistentStorage : public PersistentStorage {
 
   uint8_t numOfNestedTransactions = 0;
 
-  bool hasConfig_ = false;
-  ReplicaConfig config_;
+  ReplicaConfig& config_;  // TODO [TK] remove, use ReplicaConfig::instance()
 
   SeqNum lastExecutedSeqNum_ = 0;
   SeqNum primaryLastUsedSeqNum_ = 0;

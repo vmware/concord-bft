@@ -22,7 +22,7 @@ using namespace bft::communication;
 MsgReceiver::MsgReceiver(std::shared_ptr<IncomingMsgsStorage> &storage) : incomingMsgsStorage_(storage) {}
 
 void MsgReceiver::onNewMessage(NodeNum sourceNode, const char *const message, size_t messageLength) {
-  if (messageLength > ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize()) return;
+  if (messageLength > ReplicaConfig::instance().getmaxExternalMessageSize()) return;
   if (messageLength < sizeof(MessageBase::Header)) return;
 
   auto *msgBody = (MessageBase::Header *)std::malloc(messageLength);

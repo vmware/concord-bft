@@ -19,7 +19,7 @@ NewViewMsg::NewViewMsg(ReplicaId senderId, ViewNum newView, const concordUtils::
     : MessageBase(senderId,
                   MsgCode::NewView,
                   spanContext.data().size(),
-                  ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize() - spanContext.data().size()) {
+                  ReplicaConfig::instance().getmaxExternalMessageSize() - spanContext.data().size()) {
   b()->newViewNum = newView;
   b()->elementsCount = 0;
   memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
@@ -37,7 +37,7 @@ void NewViewMsg::addElement(ReplicaId replicaId, Digest& viewChangeDigest) {
   // TODO(GG): we should reject configurations that may violate this assert. TODO(GG): we need something similar for the
   // VC message
   ConcordAssert(requiredSize <=
-                ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize());  // not enough space in the message
+                ReplicaConfig::instance().getmaxExternalMessageSize());  // not enough space in the message
 
   auto elements = elementsArray();
 

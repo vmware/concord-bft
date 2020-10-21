@@ -15,7 +15,7 @@
 
 namespace bftEngine {
 
-struct ReplicaConfig;
+class ReplicaConfig;
 
 namespace impl {
 

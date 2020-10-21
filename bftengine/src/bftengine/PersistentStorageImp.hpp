@@ -14,7 +14,6 @@
 
 #include "PersistentStorage.hpp"
 #include "MetadataStorage.hpp"
-#include "ReplicaConfigSerializer.hpp"
 #include "PersistentStorageWindows.hpp"
 
 namespace bftEngine {
@@ -64,7 +63,6 @@ enum ConstMetadataParameterIds : uint32_t {
   LOWER_BOUND_OF_SEQ_NUM = 5,
   LAST_VIEW_TRANSFERRED_SEQ_NUM = 6,
   LAST_STABLE_SEQ_NUM = 7,
-  REPLICA_CONFIG = 8,
   ERASE_METADATA_ON_STARTUP = 9,
   CONST_METADATA_PARAMETERS_NUM,
 };
@@ -109,7 +107,6 @@ class PersistentStorageImp : public PersistentStorage {
   bool isInWriteTran() const override;
 
   // Setters
-  void setReplicaConfig(const ReplicaConfig &config) override;
   void setLastExecutedSeqNum(SeqNum seqNum) override;
   void setPrimaryLastUsedSeqNum(SeqNum seqNum) override;
   void setStrictLowerBoundOfSeqNums(SeqNum seqNum) override;
@@ -138,7 +135,6 @@ class PersistentStorageImp : public PersistentStorage {
   // Getters
   std::string getStoredVersion();
   std::string getCurrentVersion() const { return version_; }
-  ReplicaConfig getReplicaConfig() override;
   SeqNum getLastExecutedSeqNum() override;
   SeqNum getPrimaryLastUsedSeqNum() override;
   SeqNum getStrictLowerBoundOfSeqNums() override;
@@ -160,8 +156,6 @@ class PersistentStorageImp : public PersistentStorage {
 
   SharedPtrSeqNumWindow getSeqNumWindow();
   SharedPtrCheckWindow getCheckWindow();
-
-  bool hasReplicaConfig() const override;
 
   bool hasDescriptorOfLastExitFromView() override;
   bool hasDescriptorOfLastNewView() override;
@@ -230,8 +224,6 @@ class PersistentStorageImp : public PersistentStorage {
 
  private:
   std::unique_ptr<MetadataStorage> metadataStorage_;
-  std::shared_ptr<ReplicaConfigSerializer> configSerializer_;
-  const ReplicaConfigSerializer defaultReplicaConfig_;
 
   const uint32_t maxVersionSize_ = 80;
 
@@ -239,7 +231,6 @@ class PersistentStorageImp : public PersistentStorage {
   const uint16_t cVal_;
 
   uint8_t numOfNestedTransactions_ = 0;
-  const uint32_t numOfReplicas_;
   const SeqNum seqNumWindowFirst_ = 1;
   const SeqNum checkWindowFirst_ = 0;
   SeqNum checkWindowBeginning_ = 0;

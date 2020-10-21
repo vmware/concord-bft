@@ -47,7 +47,7 @@ Status ReplicaImp::start() {
   if (m_replicaConfig.isReadOnly) {
     LOG_INFO(logger, "ReadOnly mode");
     m_replicaPtr =
-        bftEngine::IReplica::createNewRoReplica(&m_replicaConfig, m_stateTransfer, m_ptrComm, m_metadataStorage);
+        bftEngine::IReplica::createNewRoReplica(m_replicaConfig, m_stateTransfer, m_ptrComm, m_metadataStorage);
   } else {
     createReplicaAndSyncState();
   }
@@ -66,7 +66,7 @@ void ReplicaImp::createReplicaAndSyncState() {
   bool isNewStorage = m_metadataStorage->isNewStorage();
   bool erasedMetaData;
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
-      &m_replicaConfig, m_cmdHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, erasedMetaData);
+      m_replicaConfig, m_cmdHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, erasedMetaData);
   if (erasedMetaData) isNewStorage = true;
   LOG_INFO(logger, "createReplicaAndSyncState: isNewStorage= " << isNewStorage);
   if (!isNewStorage && !m_stateTransfer->isCollectingState()) {
@@ -215,6 +215,8 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
     state_transfer_config.maxNumOfReservedPages = replicaConfig.maxNumOfReservedPages;
   if (replicaConfig.sizeOfReservedPage > 0) state_transfer_config.sizeOfReservedPage = replicaConfig.sizeOfReservedPage;
 
+  state_transfer_config.sourceReplicaReplacementTimeoutMilli =
+      replicaConfig.get("sourceReplicaReplacementTimeoutMilli", 5000);
   auto dbSet = storageFactory->newDatabaseSet();
   m_bcDbAdapter = std::move(dbSet.dbAdapter);
   dbSet.dataDBClient->setAggregator(aggregator);

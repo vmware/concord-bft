@@ -24,14 +24,6 @@
 using namespace bftEngine;
 using namespace bftEngine::impl;
 
-ReplicaConfig create_replica_config() {
-  ReplicaConfig config;
-  config.maxExternalMessageSize = 2048;
-  config.fVal = 1;
-  config.numReplicas = 4;
-  return config;
-}
-
 ClientRequestMsg create_client_request() {
   uint64_t reqSeqNum = 100u;
   const char request[] = {"request body"};
@@ -51,10 +43,7 @@ ClientRequestMsg create_client_request() {
 }
 
 TEST(PrePrepareMsg, create_and_compare) {
-  auto config = createReplicaConfig();
-  config.singletonFromThis();
-
-  ReplicasInfo replicaInfo(config, false, false);
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
 
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
@@ -110,10 +99,7 @@ TEST(PrePrepareMsg, create_null_message) {
 }
 
 TEST(PrePrepareMsg, base_methods) {
-  auto config = createReplicaConfig();
-  config.singletonFromThis();
-
-  ReplicasInfo replicaInfo(config, false, false);
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;

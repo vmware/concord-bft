@@ -53,81 +53,8 @@ namespace impl {
 // most code of ReplicaLoader is encapsulated in this file
 namespace {
 
-ReplicaLoader::ErrorCode checkReplicaConfig(const LoadedReplicaData &ld) {
-  const ReplicaConfig &c = ld.repConfig;
-
-  Verify(c.fVal >= 1, InconsistentErr);
-  Verify(c.cVal >= 0, InconsistentErr);
-
-  uint16_t numOfReplicas = 3 * c.fVal + 2 * c.cVal + 1;
-
-  Verify(numOfReplicas <= MaxNumberOfReplicas, InconsistentErr);
-
-  VerifyAND(c.replicaId >= 0, c.replicaId < numOfReplicas, InconsistentErr);
-
-  Verify(c.numOfClientProxies >= 1, InconsistentErr);  // TODO(GG): TBD - do we want maximum number of client proxies?
-
-  Verify(c.numOfExternalClients >= 0, InconsistentErr);
-
-  Verify(c.statusReportTimerMillisec > 0,
-         InconsistentErr);  // TODO(GG): TBD - do we want maximum for statusReportTimerMillisec?
-
-  Verify(c.concurrencyLevel >= 1, InconsistentErr);
-  Verify(c.concurrencyLevel <= (checkpointWindowSize / 5), InconsistentErr);
-  Verify(c.concurrencyLevel < MaxConcurrentFastPaths, InconsistentErr);
-  Verify(c.concurrencyLevel <= maxLegalConcurrentAgreementsByPrimary, InconsistentErr);
-
-  std::set<uint16_t> repIDs;
-  for (auto &v : c.publicKeysOfReplicas) {
-    VerifyAND(v.first >= 0, v.first < (numOfReplicas + c.numRoReplicas), InconsistentErr);
-    Verify(!v.second.empty(), InconsistentErr);  // TODO(GG): make sure that the key is valid
-    repIDs.insert(v.first);
-  }
-  Verify(repIDs.size() == numOfReplicas + c.numRoReplicas, InconsistentErr);
-
-  Verify(!c.replicaPrivateKey.empty(), InconsistentErr);  // TODO(GG): make sure that the key is valid
-
-  return Succ;
-}
-
-void setDynamicallyConfigurableParameters(ReplicaConfig &config) {
-  config.numOfClientProxies = ReplicaConfigSingleton::GetInstance().GetNumOfClientProxies();
-  config.numOfExternalClients = ReplicaConfigSingleton::GetInstance().GetNumOfExternalClients();
-  config.statusReportTimerMillisec = ReplicaConfigSingleton::GetInstance().GetStatusReportTimerMillisec();
-  config.concurrencyLevel = ReplicaConfigSingleton::GetInstance().GetConcurrencyLevel();
-  config.viewChangeProtocolEnabled = ReplicaConfigSingleton::GetInstance().GetViewChangeProtocolEnabled();
-  config.viewChangeTimerMillisec = ReplicaConfigSingleton::GetInstance().GetViewChangeTimerMillisec();
-  config.autoPrimaryRotationEnabled = ReplicaConfigSingleton::GetInstance().GetAutoPrimaryRotationEnabled();
-  config.autoPrimaryRotationTimerMillisec = ReplicaConfigSingleton::GetInstance().GetAutoPrimaryRotationTimerMillisec();
-  config.preExecutionFeatureEnabled = ReplicaConfigSingleton::GetInstance().GetPreExecutionFeatureEnabled();
-  config.preExecReqStatusCheckTimerMillisec =
-      ReplicaConfigSingleton::GetInstance().GetPreExecReqStatusCheckTimerMillisec();
-  config.preExecConcurrencyLevel = ReplicaConfigSingleton::GetInstance().GetPreExecConcurrencyLevel();
-  config.batchingPolicy = ReplicaConfigSingleton::GetInstance().GetBatchingPolicy();
-  config.maxInitialBatchSize = ReplicaConfigSingleton::GetInstance().GetMaxInitialBatchSize();
-  config.batchingFactorCoefficient = ReplicaConfigSingleton::GetInstance().GetBatchingFactorCoefficient();
-  config.maxExternalMessageSize = ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize();
-  config.maxReplyMessageSize = ReplicaConfigSingleton::GetInstance().GetMaxReplyMessageSize();
-  config.maxNumOfReservedPages = ReplicaConfigSingleton::GetInstance().GetMaxNumOfReservedPages();
-  config.sizeOfReservedPage = ReplicaConfigSingleton::GetInstance().GetSizeOfReservedPage();
-  config.debugStatisticsEnabled = ReplicaConfigSingleton::GetInstance().GetDebugStatisticsEnabled();
-  config.metricsDumpIntervalSeconds = ReplicaConfigSingleton::GetInstance().GetMetricsDumpInterval();
-  config.keyExchangeOnStart = ReplicaConfigSingleton::GetInstance().GetKeyExchangeOnStart();
-  config.keyViewFilePath = ReplicaConfigSingleton::GetInstance().GetKeyViewFilePath();
-}
-
 ReplicaLoader::ErrorCode loadConfig(shared_ptr<PersistentStorage> &p, LoadedReplicaData &ld) {
   ConcordAssert(p != nullptr);
-
-  Verify(p->hasReplicaConfig(), NoDataErr);
-
-  ld.repConfig = p->getReplicaConfig();
-  // Allow changing some parameters dynamically using configuration file
-  setDynamicallyConfigurableParameters(ld.repConfig);
-
-  ReplicaLoader::ErrorCode stat = checkReplicaConfig(ld);
-
-  Verify((stat == Succ), stat);
 
   std::set<SigManager::PublicKeyDesc> replicasSigPublicKeys;
 

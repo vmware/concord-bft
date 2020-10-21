@@ -34,8 +34,11 @@ using namespace std;
 using namespace bftEngine;
 
 namespace {
+// Since ReplicaConfig is a singleton and the test requires several instances,
+// we need to define a replica config for tests.
+class TestReplicaConfig : public bftEngine::ReplicaConfig {};
 
-ReplicaConfig replicaConfig[4] = {};
+TestReplicaConfig replicaConfig[4] = {};
 static const int N = 4;
 static const int F = 1;
 static const int C = 0;
@@ -130,8 +133,6 @@ void setUpConfiguration_4() {
   replicaConfig[0].replicaPrivateKey = privateKey_0;
 
   pRepInfo = std::make_unique<bftEngine::impl::ReplicasInfo>(replicaConfig[0], true, true);
-
-  replicaConfig[0].singletonFromThis();
 
   sigManager_ = new SigManager(
       0, replicaConfig[0].numReplicas, replicaConfig[0].replicaPrivateKey, replicaConfig[0].publicKeysOfReplicas);

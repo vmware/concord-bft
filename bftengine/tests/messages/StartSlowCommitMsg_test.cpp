@@ -21,8 +21,7 @@ using namespace bftEngine;
 using namespace bftEngine::impl;
 
 TEST(StartSlowCommitMsg, base_methods) {
-  auto config = createReplicaConfig();
-  ReplicasInfo replicaInfo(config, false, false);
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   ReplicaId senderId = 1u;
   ViewNum viewNum = 1u;
   SeqNum seqNum = 3u;

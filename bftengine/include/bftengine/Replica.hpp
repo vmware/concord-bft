@@ -78,16 +78,19 @@ class IRequestsHandler {
 class IReplica {
  public:
   using IReplicaPtr = std::unique_ptr<IReplica>;
-  static IReplicaPtr createNewReplica(
-      ReplicaConfig *, IRequestsHandler *, IStateTransfer *, bft::communication::ICommunication *, MetadataStorage *);
-  static IReplicaPtr createNewReplica(ReplicaConfig *,
+  static IReplicaPtr createNewReplica(const ReplicaConfig &,
+                                      IRequestsHandler *,
+                                      IStateTransfer *,
+                                      bft::communication::ICommunication *,
+                                      MetadataStorage *);
+  static IReplicaPtr createNewReplica(const ReplicaConfig &,
                                       IRequestsHandler *,
                                       IStateTransfer *,
                                       bft::communication::ICommunication *,
                                       MetadataStorage *,
                                       bool &erasedMetadata);
 
-  static IReplicaPtr createNewRoReplica(ReplicaConfig *,
+  static IReplicaPtr createNewRoReplica(const ReplicaConfig &,
                                         IStateTransfer *,
                                         bft::communication::ICommunication *,
                                         MetadataStorage *);

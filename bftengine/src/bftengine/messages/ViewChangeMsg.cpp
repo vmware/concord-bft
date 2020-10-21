@@ -28,7 +28,7 @@ ViewChangeMsg::ViewChangeMsg(ReplicaId srcReplicaId,
     : MessageBase(srcReplicaId,
                   MsgCode::ViewChange,
                   spanContext.data().size(),
-                  ReplicaConfigSingleton::GetInstance().GetMaxExternalMessageSize() - spanContext.data().size()) {
+                  ReplicaConfig::instance().getmaxExternalMessageSize() - spanContext.data().size()) {
   b()->genReplicaId = srcReplicaId;
   b()->newView = newView;
   b()->lastStable = lastStableSeq;

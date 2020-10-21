@@ -114,7 +114,7 @@ void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
 
 namespace bftEngine {
 
-IReplica::IReplicaPtr IReplica::createNewReplica(ReplicaConfig *replicaConfig,
+IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaConfig,
                                                  IRequestsHandler *requestsHandler,
                                                  IStateTransfer *stateTransfer,
                                                  bft::communication::ICommunication *communication,
@@ -133,16 +133,13 @@ IReplica::IReplicaPtr IReplica::createNewReplica(ReplicaConfig *replicaConfig,
   uint16_t numOfObjects = 0;
   bool isNewStorage = true;
 
-  // Initialize the configuration singleton here to use correct values during persistent storage initialization.
-  replicaConfig->singletonFromThis();
-
-  if (replicaConfig->debugPersistentStorageEnabled)
+  if (replicaConfig.debugPersistentStorageEnabled)
     if (metadataStorage == nullptr)
-      persistentStoragePtr.reset(new impl::DebugPersistentStorage(replicaConfig->fVal, replicaConfig->cVal));
+      persistentStoragePtr.reset(new impl::DebugPersistentStorage(replicaConfig.fVal, replicaConfig.cVal));
 
   // Testing/real metadataStorage passed.
   if (metadataStorage != nullptr) {
-    persistentStoragePtr.reset(new impl::PersistentStorageImp(replicaConfig->fVal, replicaConfig->cVal));
+    persistentStoragePtr.reset(new impl::PersistentStorageImp(replicaConfig.fVal, replicaConfig.cVal));
     unique_ptr<MetadataStorage> metadataStoragePtr(metadataStorage);
     auto objectDescriptors =
         ((PersistentStorageImp *)persistentStoragePtr.get())->getDefaultMetadataObjectDescriptors(numOfObjects);
@@ -157,14 +154,14 @@ IReplica::IReplicaPtr IReplica::createNewReplica(ReplicaConfig *replicaConfig,
   auto replicaInternal = std::make_unique<ReplicaInternal>();
   shared_ptr<MsgHandlersRegistrator> msgHandlersPtr(new MsgHandlersRegistrator());
   auto incomingMsgsStorageImpPtr =
-      std::make_unique<IncomingMsgsStorageImp>(msgHandlersPtr, timersResolution, replicaConfig->replicaId);
+      std::make_unique<IncomingMsgsStorageImp>(msgHandlersPtr, timersResolution, replicaConfig.replicaId);
   auto &timers = incomingMsgsStorageImpPtr->timers();
   shared_ptr<IncomingMsgsStorage> incomingMsgsStoragePtr{std::move(incomingMsgsStorageImpPtr)};
   shared_ptr<bft::communication::IReceiver> msgReceiverPtr(new MsgReceiver(incomingMsgsStoragePtr));
   shared_ptr<MsgsCommunicator> msgsCommunicatorPtr(
       new MsgsCommunicator(communication, incomingMsgsStoragePtr, msgReceiverPtr));
   if (isNewStorage) {
-    replicaInternal->replica_.reset(new ReplicaImp(*replicaConfig,
+    replicaInternal->replica_.reset(new ReplicaImp(replicaConfig,
                                                    requestsHandler,
                                                    stateTransfer,
                                                    msgsCommunicatorPtr,
@@ -196,7 +193,7 @@ IReplica::IReplicaPtr IReplica::createNewReplica(ReplicaConfig *replicaConfig,
   return replicaInternal;
 }
 
-IReplica::IReplicaPtr IReplica::createNewReplica(ReplicaConfig *replicaConfig,
+IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaConfig,
                                                  IRequestsHandler *requestsHandler,
                                                  IStateTransfer *stateTransfer,
                                                  bft::communication::ICommunication *communication,
@@ -204,7 +201,7 @@ IReplica::IReplicaPtr IReplica::createNewReplica(ReplicaConfig *replicaConfig,
   bool dummy;
   return createNewReplica(replicaConfig, requestsHandler, stateTransfer, communication, metadataStorage, dummy);
 }
-IReplica::IReplicaPtr IReplica::createNewRoReplica(ReplicaConfig *replicaConfig,
+IReplica::IReplicaPtr IReplica::createNewRoReplica(const ReplicaConfig &replicaConfig,
                                                    IStateTransfer *stateTransfer,
                                                    bft::communication::ICommunication *communication,
                                                    MetadataStorage *metadataStorage) {
@@ -216,12 +213,10 @@ IReplica::IReplicaPtr IReplica::createNewRoReplica(ReplicaConfig *replicaConfig,
     }
   }
 
-  // Initialize the configuration singleton here to use correct values during persistent storage initialization.
-  replicaConfig->singletonFromThis();
   auto replicaInternal = std::make_unique<ReplicaInternal>();
   auto msgHandlers = std::make_shared<MsgHandlersRegistrator>();
   auto incomingMsgsStorageImpPtr =
-      std::make_unique<IncomingMsgsStorageImp>(msgHandlers, timersResolution, replicaConfig->replicaId);
+      std::make_unique<IncomingMsgsStorageImp>(msgHandlers, timersResolution, replicaConfig.replicaId);
   auto &timers = incomingMsgsStorageImpPtr->timers();
   std::shared_ptr<IncomingMsgsStorage> incomingMsgsStorage{std::move(incomingMsgsStorageImpPtr)};
   auto msgReceiver = std::make_shared<MsgReceiver>(incomingMsgsStorage);
@@ -230,18 +225,18 @@ IReplica::IReplicaPtr IReplica::createNewRoReplica(ReplicaConfig *replicaConfig,
   std::shared_ptr<PersistentStorage> persistentStorage;
   if (metadataStorage) {
     uint16_t numOfObjects = 0;
-    persistentStorage.reset(new impl::PersistentStorageImp(replicaConfig->fVal, replicaConfig->cVal));
+    persistentStorage.reset(new impl::PersistentStorageImp(replicaConfig.fVal, replicaConfig.cVal));
     auto objectDescriptors = std::static_pointer_cast<impl::PersistentStorageImp>(persistentStorage)
                                  ->getDefaultMetadataObjectDescriptors(numOfObjects);
     metadataStorage->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);
     std::static_pointer_cast<impl::PersistentStorageImp>(persistentStorage)
         ->init(std::unique_ptr<MetadataStorage>(metadataStorage));
-  } else if (replicaConfig->debugPersistentStorageEnabled) {
-    persistentStorage.reset(new impl::DebugPersistentStorage(replicaConfig->fVal, replicaConfig->cVal));
+  } else if (replicaConfig.debugPersistentStorageEnabled) {
+    persistentStorage.reset(new impl::DebugPersistentStorage(replicaConfig.fVal, replicaConfig.cVal));
   }
 
   replicaInternal->replica_ = std::make_unique<ReadOnlyReplica>(
-      *replicaConfig, stateTransfer, msgsCommunicator, persistentStorage, msgHandlers, timers);
+      replicaConfig, stateTransfer, msgsCommunicator, persistentStorage, msgHandlers, timers);
   return replicaInternal;
 }
 

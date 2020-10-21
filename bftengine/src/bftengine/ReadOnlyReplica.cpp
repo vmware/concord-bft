@@ -49,7 +49,6 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
 
 void ReadOnlyReplica::start() {
   ReplicaForStateTransfer::start();
-  ps_->setReplicaConfig(config_);
   lastExecutedSeqNum = ps_->getLastExecutedSeqNum();
   askForCheckpointMsgTimer_ = timers_.add(std::chrono::seconds(5),  // TODO [TK] config
                                           Timers::Timer::RECURRING,

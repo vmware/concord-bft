@@ -21,8 +21,7 @@ using namespace bftEngine;
 using namespace bftEngine::impl;
 
 TEST(ClientRequestMsg, create_and_compare) {
-  auto config = createReplicaConfig();
-  ReplicasInfo replicaInfo(config, false, false);
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   NodeIdType senderId = 1u;
   uint8_t flags = 'F';
   uint64_t reqSeqNum = 100u;
@@ -53,8 +52,7 @@ TEST(ClientRequestMsg, create_and_compare) {
 }
 
 TEST(ClientRequestMsg, create_and_compare_with_empty_span) {
-  auto config = createReplicaConfig();
-  ReplicasInfo replicaInfo(config, false, false);
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   NodeIdType senderId = 1u;
   uint8_t flags = 'F';
   uint64_t reqSeqNum = 100u;
@@ -84,8 +82,7 @@ TEST(ClientRequestMsg, create_and_compare_with_empty_span) {
 }
 
 TEST(ClientRequestMsg, create_and_compare_with_empty_cid) {
-  auto config = createReplicaConfig();
-  ReplicasInfo replicaInfo(config, false, false);
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   NodeIdType senderId = 1u;
   uint8_t flags = 'F';
   uint64_t reqSeqNum = 100u;
@@ -116,8 +113,7 @@ TEST(ClientRequestMsg, create_and_compare_with_empty_cid) {
 }
 
 TEST(ClientRequestMsg, create_from_buffer) {
-  auto config = createReplicaConfig();
-  ReplicasInfo replicaInfo(config, false, false);
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   NodeIdType senderId = 1u;
   uint8_t flags = 'F';
   uint64_t reqSeqNum = 100u;
@@ -150,9 +146,7 @@ TEST(ClientRequestMsg, create_from_buffer) {
 }
 
 TEST(ClientRequestMsg, base_methods) {
-  auto config = createReplicaConfig();
-  config.singletonFromThis();
-  ReplicasInfo replicaInfo(config, false, false);
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   NodeIdType senderId = 1u;
   uint8_t flags = 'F';
   uint64_t reqSeqNum = 100u;

@@ -28,10 +28,7 @@ using namespace bftEngine;
 using namespace bftEngine::impl;
 
 TEST(PartialCommitProofMsg, create_and_compare) {
-  auto config = createReplicaConfig();
-  config.singletonFromThis();
-
-  ReplicasInfo replicaInfo(config, false, false);
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
 
   ReplicaId senderId = 1u;
   ViewNum viewNum = 0u;
@@ -66,7 +63,6 @@ TEST(PartialCommitProofMsg, create_and_compare) {
 }
 
 TEST(PartialCommitProofMsg, base_methods) {
-  auto config = createReplicaConfig();
   ReplicaId senderId = 1u;
   ViewNum viewNum = 1u;
   SeqNum seqNum = 3u;

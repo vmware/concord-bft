@@ -54,6 +54,10 @@ static const std::string kHashesToTest[1] = {
     "e4adbc629e06dc636b65872072cdf084ee5a7e0a63afe42931025d4e5ed60d069cfa71d91bc7"
     "451a8a2109529181fd150fc055ad42ce5c30c9512cd64ee3789f8c0d0069501be65f1950"};
 
+// Since ReplicaConfig is a singleton and the test requires several instances,
+// we need to define a replica config for tests.
+class TestReplicaConfig : public bftEngine::ReplicaConfig {};
+
 // Helper functions to main acting as sub-components of the test.
 
 // validateFundamentalFields and validateConfigStructIntegrity are sanity checks
@@ -61,7 +65,7 @@ static const std::string kHashesToTest[1] = {
 // validate they are in order before attempting tests of the actual
 // cryptographic keys.
 
-static bool validateFundamentalFields(const std::vector<bftEngine::ReplicaConfig>& configs) {
+static bool validateFundamentalFields(const std::vector<TestReplicaConfig>& configs) {
   uint16_t numReplicas = configs.size() - configs.front().numRoReplicas;
   uint16_t fVal = configs.front().fVal;
   uint16_t cVal = configs.front().cVal;
@@ -84,7 +88,7 @@ static bool validateFundamentalFields(const std::vector<bftEngine::ReplicaConfig
   }
 
   for (uint16_t i = 0; i < numReplicas; ++i) {
-    const bftEngine::ReplicaConfig& config = configs[i];
+    const TestReplicaConfig& config = configs[i];
     if (config.replicaId != i) {
       std::cout << "FAILURE: Key file " << i << " specifies a replica ID disagreeing with its filename.\n";
       return false;
@@ -192,7 +196,7 @@ static bool testRSAKeyPair(const std::string& privateKey, const std::string& pub
 
 // Test that the RSA key pairs given in the keyfiles work, that the keyfiles
 // agree on what the public keys are, and that there are no duplicates.
-static bool testRSAKeys(const std::vector<bftEngine::ReplicaConfig>& configs) {
+static bool testRSAKeys(const std::vector<TestReplicaConfig>& configs) {
   uint16_t numReplicas = configs.size();
 
   std::cout << "Testing " << numReplicas << " RSA key pairs...\n";
@@ -574,7 +578,7 @@ static bool testThresholdCryptosystem(const std::string& name,
 
 // Tests all threshold cryptosystems given in the keyfiles by calling
 // testThresholdCryptosystem for each of them.
-static bool testThresholdKeys(const std::vector<bftEngine::ReplicaConfig>& configs,
+static bool testThresholdKeys(const std::vector<TestReplicaConfig>& configs,
                               std::vector<std::unique_ptr<Cryptosystem>>& cryptoSystems) {
   uint16_t numReplicas = configs.size() - configs.front().numRoReplicas;
 
@@ -715,7 +719,7 @@ int main(int argc, char** argv) {
               << "-replica Concord"
                  " deployment...\n";
 
-    std::vector<bftEngine::ReplicaConfig> configs(numReplicas + ro);
+    std::vector<TestReplicaConfig> configs(numReplicas + ro);
     std::vector<std::unique_ptr<Cryptosystem>> cryptoSystems;
 
     for (uint16_t i = 0; i < numReplicas + ro; ++i) {
