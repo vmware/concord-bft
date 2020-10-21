@@ -25,17 +25,17 @@ CONCORD_BFT_CMAKE_FLAGS:= \
 
 # The consistency parameter makes sense only at MacOS.
 # It is ignored at all other platforms.
-CONCORD_BFT_CONTAINER_MOUNT_CONSISTENCY=,consistency=cached
+CONCORD_BFT_CONTAINER_MOUNT_CONSISTENCY:=,consistency=cached
 CONCORD_BFT_CTEST_TIMEOUT:=3000 # Default value is 1500 sec. It takes 2500 to run all the tests at my dev station
 CONCORD_BFT_USER_GROUP:=--user `id -u`:`id -g`
+CONCORD_BFT_CORE_DIR:=${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR}/cores
 
 CONCORD_BFT_ADDITIONAL_RUN_PARAMS:=
 
-BASIC_RUN_PARAMS:=--rm --privileged=true \
+BASIC_RUN_PARAMS:=-it --init --rm --privileged=true \
 					  --cap-add NET_ADMIN --cap-add=SYS_PTRACE --ulimit core=-1 \
 					  --name="${CONCORD_BFT_DOCKER_CONTAINER}" \
 					  --workdir=${CONCORD_BFT_TARGET_SOURCE_PATH} \
-					  --mount type=bind,source=${CURDIR},target=/cores \
 					  --mount type=bind,source=${CURDIR},target=${CONCORD_BFT_TARGET_SOURCE_PATH}${CONCORD_BFT_CONTAINER_MOUNT_CONSISTENCY} \
 					  ${CONCORD_BFT_ADDITIONAL_RUN_PARAMS} \
 					  ${CONCORD_BFT_DOCKER_REPO}${CONCORD_BFT_DOCKER_IMAGE}:${CONCORD_BFT_DOCKER_IMAGE_VERSION}
@@ -60,7 +60,7 @@ pull: ## Pull image from remote
 .PHONY: login
 login: ## Login to the container. Note: if the container is already running, login into existing one
 	@if [ "${IF_CONTAINER_RUNS}" != "true" ]; then \
-		docker run -it ${BASIC_RUN_PARAMS} \
+		docker run ${BASIC_RUN_PARAMS} \
 			${CONCORD_BFT_CONTAINER_SHELL};exit 0; \
 	else \
 		docker exec -it ${CONCORD_BFT_DOCKER_CONTAINER} \
@@ -69,7 +69,7 @@ login: ## Login to the container. Note: if the container is already running, log
 
 .PHONY: build
 build: ## Build Concord-BFT source. Note: this is the default target
-	docker run -it ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
+	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"mkdir -p ${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR} && \
 		cd ${CONCORD_BFT_BUILD_DIR} && \
@@ -82,7 +82,7 @@ build: ## Build Concord-BFT source. Note: this is the default target
 
 .PHONY: format
 format: ## Format Concord-BFT source with clang-format
-	docker run -it ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
+	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"mkdir -p ${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR} && \
 		cd ${CONCORD_BFT_BUILD_DIR} && \
@@ -94,7 +94,7 @@ format: ## Format Concord-BFT source with clang-format
 
 .PHONY: tidy-check
 tidy-check: ## Run clang-tidy
-	docker run -it ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
+	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"mkdir -p ${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR} && \
 		cd ${CONCORD_BFT_BUILD_DIR} && \
@@ -109,21 +109,23 @@ tidy-check: ## Run clang-tidy
 
 .PHONY: test
 test: ## Run all tests
-	docker run -it ${BASIC_RUN_PARAMS} \
+	docker run ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
-		"cd ${CONCORD_BFT_BUILD_DIR} && \
+		"mkdir -p ${CONCORD_BFT_CORE_DIR} && \
+		cd ${CONCORD_BFT_BUILD_DIR} && \
 		ctest --timeout ${CONCORD_BFT_CTEST_TIMEOUT} --output-on-failure"
 
 .PHONY: single-test
 single-test: ## Run a single test `make single-test TEST_NAME=<test name>`
-	docker run -it ${BASIC_RUN_PARAMS} \
+	docker run ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
-		"cd ${CONCORD_BFT_BUILD_DIR} && \
+		"mkdir -p ${CONCORD_BFT_CORE_DIR} && \
+		cd ${CONCORD_BFT_BUILD_DIR} && \
 		ctest -V -R ${TEST_NAME} --timeout ${CONCORD_BFT_CTEST_TIMEOUT} --output-on-failure"
 
 .PHONY: clean
 clean: ## Clean Concord-BFT build directory
-	docker run -it ${BASIC_RUN_PARAMS} \
+	docker run ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"rm -rf ${CONCORD_BFT_BUILD_DIR}"
 
