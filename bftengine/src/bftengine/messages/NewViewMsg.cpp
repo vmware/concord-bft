@@ -69,7 +69,7 @@ void NewViewMsg::validate(const ReplicasInfo& repInfo) const {
   const uint16_t contentSize = sizeof(Header) + expectedElements * sizeof(NewViewElement) + spanContextSize();
 
   if (size() < contentSize || !repInfo.isIdOfReplica(senderId()) ||  // source replica
-      repInfo.myId() == senderId() || repInfo.primaryOfView(newView() != senderId()) ||
+      repInfo.myId() == senderId() || repInfo.primaryOfView(newView()) != senderId() ||
       b()->elementsCount != expectedElements)  // num of elements
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic"));
 
