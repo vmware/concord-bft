@@ -106,7 +106,7 @@ class Client : public concord::storage::IDBClient {
     concordUtils::Status res = concordUtils::Status::OK();
     std::function<Status(const concordUtils::Sliver&, OUT concordUtils::Sliver&)> f =
         std::bind(&Client::get_internal, this, _1, _2);
-    do_with_retry(res, f, _key, _outValue);
+    do_with_retry("get_internal", res, f, _key, _outValue);
     return res;
   }
 
@@ -134,7 +134,7 @@ class Client : public concord::storage::IDBClient {
     std::function<Status(const concordUtils::Sliver&, const concordUtils::Sliver&)> f =
         std::bind(&Client::put_internal, this, _1, _2);
     concordUtils::Status res = concordUtils::Status::OK();
-    do_with_retry(res, f, _key, _value);
+    do_with_retry("put_internal", res, f, _key, _value);
     return res;
   }
 
@@ -143,7 +143,7 @@ class Client : public concord::storage::IDBClient {
     std::function<Status()> f = std::bind(&Client::test_bucket_internal, this);
     concordUtils::Status res = concordUtils::Status::OK();
 
-    do_with_retry(res, f);
+    do_with_retry("test_bucket_internal", res, f);
     return res;
   }
 
@@ -151,7 +151,7 @@ class Client : public concord::storage::IDBClient {
     using namespace std::placeholders;
     std::function<Status(const concordUtils::Sliver&)> f = std::bind(&Client::object_exists_internal, this, _1);
     concordUtils::Status res = concordUtils::Status::OK();
-    do_with_retry(res, f, key);
+    do_with_retry("object_exists_internal", res, f, key);
     return res;
   }
 
@@ -204,13 +204,13 @@ class Client : public concord::storage::IDBClient {
  protected:
   // retry forever, increasing the waiting timeout until it reaches the defined maximum
   template <typename F, typename... Args>
-  void do_with_retry(Status& r, F&& f, Args&&... args) const {
+  void do_with_retry(const std::string& msg, Status& r, F&& f, Args&&... args) const {
     uint16_t delay = initialDelay_;
     do {
       r = std::forward<F>(f)(std::forward<Args>(args)...);
       if (!r.isGeneralError()) break;
       if (delay < config_.maxWaitTime) delay *= delayFactor_;
-      LOG_INFO(logger_, "retrying " << typeid(f).name() << " after delay: " << delay);
+      LOG_INFO(logger_, "retrying " << msg << " after delay: " << delay);
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
     } while (!r.isOK() || !r.isNotFound());
   }
