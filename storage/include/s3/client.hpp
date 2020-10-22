@@ -204,7 +204,7 @@ class Client : public concord::storage::IDBClient {
  protected:
   // retry forever, increasing the waiting timeout until it reaches the defined maximum
   template <typename F, typename... Args>
-  void do_with_retry(const std::string& msg, Status& r, F&& f, Args&&... args) const {
+  void do_with_retry(const std::string_view msg, Status& r, F&& f, Args&&... args) const {
     uint16_t delay = initialDelay_;
     do {
       r = std::forward<F>(f)(std::forward<Args>(args)...);
