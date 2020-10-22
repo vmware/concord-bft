@@ -25,8 +25,7 @@ jobs:
           run: mkdir -p ${{ github.workspace }}/artifact
         - name: Configure core dump location
           run: |
-            echo '/cores/core.%e.%p' | sudo tee /proc/sys/kernel/core_pattern
-            mkdir -p ${{ github.workspace }}/artifact/cores/
+            echo "/concord-bft/build/cores/core.%e.%p" | sudo tee /proc/sys/kernel/core_pattern
             # Uncomment this is you want to login into the running session.
             # Please note that the build will block on this step.
             # Refer to https://github.com/marketplace/actions/debugging-with-tmate
@@ -54,10 +53,10 @@ jobs:
         - name: Prepare artifacts
           if: failure()
           run: |
-            sudo chown -R $USER:$GROUP ${PWD}/build
+            sudo chown -R ${USER}:${GROUP} ${PWD}/build
             mv ${PWD}/build ${{ github.workspace }}/artifact/
-            ls -lh ${{ github.workspace }}/artifact/cores
-            sudo chown -R $USER:$GROUP ${{ github.workspace }}/artifact/
+            du -h ${{ github.workspace }}/artifact
+            sudo df -h
         - name: Upload artifacts
           uses: actions/upload-artifact@v2
           if: failure()
