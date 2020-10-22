@@ -23,17 +23,17 @@
 namespace bftEngine {
 namespace impl {
 
-class ReplicaAsksToLeaveView : public MessageBase {
+class ReplicaAsksToLeaveViewMsg : public MessageBase {
  public:
   enum class Reason : uint8_t { ClientRequestTimeout };
 
-  ReplicaAsksToLeaveView(ReplicaId srcReplicaId,
-                         ViewNum v,
-                         Reason r,
-                         uint16_t SignLen,
-                         const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
+  ReplicaAsksToLeaveViewMsg(ReplicaId srcReplicaId,
+                            ViewNum v,
+                            Reason r,
+                            uint16_t SignLen,
+                            const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
-  BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(ReplicaAsksToLeaveView)
+  BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(ReplicaAsksToLeaveViewMsg)
 
   uint16_t idOfGeneratedReplica() const { return b()->genReplicaId; }
 
@@ -41,12 +41,14 @@ class ReplicaAsksToLeaveView : public MessageBase {
 
   uint16_t signatureLen() const { return b()->sigLength; }
 
+  Reason reason() const { return b()->reason; }
+
   char* signatureBody() const { return body() + sizeof(Header) + spanContextSize(); }
 
-  static ReplicaAsksToLeaveView* create(ReplicaId senderId,
-                                        ViewNum v,
-                                        Reason r,
-                                        const concordUtils::SpanContext& spanContext = {});
+  static ReplicaAsksToLeaveViewMsg* create(ReplicaId senderId,
+                                           ViewNum v,
+                                           Reason r,
+                                           const concordUtils::SpanContext& spanContext = {});
 
   void validate(const ReplicasInfo&) const override;
 
@@ -59,7 +61,7 @@ class ReplicaAsksToLeaveView : public MessageBase {
   struct Header : public MessageBase::Header {
     ReplicaId genReplicaId;
     ViewNum viewNum;
-    uint8_t reason;
+    Reason reason;
     uint16_t sigLength;
   };
 #pragma pack(pop)
@@ -69,7 +71,7 @@ class ReplicaAsksToLeaveView : public MessageBase {
 };
 
 template <>
-inline MsgSize maxMessageSize<ReplicaAsksToLeaveView>() {
+inline MsgSize maxMessageSize<ReplicaAsksToLeaveViewMsg>() {
   return ReplicaConfig::instance().getmaxExternalMessageSize() + MessageBase::SPAN_CONTEXT_MAX_SIZE;
 }
 

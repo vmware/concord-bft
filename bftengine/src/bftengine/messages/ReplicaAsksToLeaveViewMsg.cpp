@@ -13,7 +13,7 @@
 
 #include <bftengine/ClientMsgs.hpp>
 #include "OpenTracing.hpp"
-#include "ReplicaAsksToLeaveView.hpp"
+#include "ReplicaAsksToLeaveViewMsg.hpp"
 #include "SysConsts.hpp"
 #include "Crypto.hpp"
 #include "ViewsManager.hpp"
@@ -21,7 +21,7 @@
 namespace bftEngine {
 namespace impl {
 
-ReplicaAsksToLeaveView::ReplicaAsksToLeaveView(
+ReplicaAsksToLeaveViewMsg::ReplicaAsksToLeaveViewMsg(
     ReplicaId srcReplicaId, ViewNum v, Reason r, uint16_t sigLen, const concordUtils::SpanContext& spanContext)
     : MessageBase(srcReplicaId,
                   MsgCode::ReplicaAsksToLeaveView,
@@ -29,18 +29,18 @@ ReplicaAsksToLeaveView::ReplicaAsksToLeaveView(
                   sizeof(Header) + spanContext.data().size() + sigLen) {
   b()->genReplicaId = srcReplicaId;
   b()->viewNum = v;
-  b()->reason = (uint8_t)r;
+  b()->reason = r;
   b()->sigLength = sigLen;
   std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
 }
 
-ReplicaAsksToLeaveView* ReplicaAsksToLeaveView::create(ReplicaId senderId,
-                                                       ViewNum v,
-                                                       Reason r,
-                                                       const concordUtils::SpanContext& spanContext) {
+ReplicaAsksToLeaveViewMsg* ReplicaAsksToLeaveViewMsg::create(ReplicaId senderId,
+                                                             ViewNum v,
+                                                             Reason r,
+                                                             const concordUtils::SpanContext& spanContext) {
   const size_t sigLen = ViewsManager::sigManager_->getMySigLength();
 
-  ReplicaAsksToLeaveView* m = new ReplicaAsksToLeaveView(senderId, v, r, sigLen, spanContext);
+  ReplicaAsksToLeaveViewMsg* m = new ReplicaAsksToLeaveViewMsg(senderId, v, r, sigLen, spanContext);
 
   auto position = m->body() + sizeof(Header);
   std::memcpy(position, spanContext.data().data(), spanContext.data().size());
@@ -51,7 +51,7 @@ ReplicaAsksToLeaveView* ReplicaAsksToLeaveView::create(ReplicaId senderId,
   return m;
 }
 
-void ReplicaAsksToLeaveView::validate(const ReplicasInfo& repInfo) const {
+void ReplicaAsksToLeaveViewMsg::validate(const ReplicasInfo& repInfo) const {
   auto totalSize = sizeof(Header) + spanContextSize();
   if (size() < totalSize || !repInfo.isIdOfReplica(idOfGeneratedReplica()) || idOfGeneratedReplica() == repInfo.myId())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
