@@ -48,7 +48,7 @@ inline void cleanup(std::size_t = defaultDbId) {}
 #endif
 
 inline ::concord::kvbc::BlockDigest blockDigest(concord::kvbc::BlockId blockId, const concordUtils::Sliver &block) {
-  return ::bftEngine::SimpleBlockchainStateTransfer::computeBlockDigest(blockId, block.data(), block.length());
+  return ::bftEngine::bcst::computeBlockDigest(blockId, block.data(), block.length());
 }
 
 struct TestMemoryDb {

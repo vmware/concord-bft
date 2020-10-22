@@ -42,7 +42,7 @@ using concordMetrics::StatusHandle;
 using concordMetrics::GaugeHandle;
 using concordMetrics::CounterHandle;
 
-namespace bftEngine::SimpleBlockchainStateTransfer::impl {
+namespace bftEngine::bcst::impl {
 
 class BCStateTran : public IStateTransfer {
  public:
@@ -399,4 +399,4 @@ class BCStateTran : public IStateTransfer {
   concord::util::CallbackRegistry<uint64_t> on_transferring_complete_cb_registry_;
 };
 
-}  // namespace bftEngine::SimpleBlockchainStateTransfer::impl
+}  // namespace bftEngine::bcst::impl

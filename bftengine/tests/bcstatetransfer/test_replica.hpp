@@ -22,7 +22,7 @@
 
 namespace bftEngine {
 
-namespace SimpleBlockchainStateTransfer {
+namespace bcst {
 
 // A state transfer message
 struct Msg {
@@ -60,6 +60,6 @@ class TestReplica : public IReplicaForStateTransfer {
   std::vector<Msg> sent_messages_;
 };
 
-}  // namespace SimpleBlockchainStateTransfer
+}  // namespace bcst
 
 }  // namespace bftEngine

@@ -9,7 +9,7 @@
 
 namespace concord::kvbc {
 
-inline constexpr auto BLOCK_DIGEST_SIZE = bftEngine::SimpleBlockchainStateTransfer::BLOCK_DIGEST_SIZE;
+inline constexpr auto BLOCK_DIGEST_SIZE = bftEngine::bcst::BLOCK_DIGEST_SIZE;
 
 using BlockDigest = std::array<std::uint8_t, BLOCK_DIGEST_SIZE>;
 

@@ -25,7 +25,7 @@ using std::set;
 using concord::storage::ITransaction;
 
 namespace bftEngine {
-namespace SimpleBlockchainStateTransfer {
+namespace bcst {
 namespace impl {
 
 class DataStoreTransaction;
@@ -281,5 +281,5 @@ class DataStoreTransaction : public DataStore, public ITransaction {
 };
 
 }  // namespace impl
-}  // namespace SimpleBlockchainStateTransfer
+}  // namespace bcst
 }  // namespace bftEngine

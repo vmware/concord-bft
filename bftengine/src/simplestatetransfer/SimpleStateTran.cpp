@@ -91,7 +91,7 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
   // DummyBDState
   //////////////////////////////////////////////////////////////////////////
 
-  class DummyBDState : public SimpleBlockchainStateTransfer::IAppState {
+  class DummyBDState : public bcst::IAppState {
    public:
     ////////////////////////////////////////////////////////////////////////
     // IAppState methods
@@ -101,8 +101,7 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
 
     bool getBlock(uint64_t blockId, char* outBlock, uint32_t* outBlockSize) override;
 
-    bool getPrevDigestFromBlock(uint64_t blockId,
-                                SimpleBlockchainStateTransfer::StateTransferDigest* outPrevBlockDigest) override;
+    bool getPrevDigestFromBlock(uint64_t blockId, bcst::StateTransferDigest* outPrevBlockDigest) override;
 
     bool putBlock(const uint64_t blockId, const char* block, const uint32_t blockSize) override;
 
@@ -272,7 +271,7 @@ namespace impl {
 SimpleStateTran::SimpleStateTran(
     char* ptrToState, uint32_t sizeOfState, uint16_t myReplicaId, uint16_t fVal, uint16_t cVal, bool pedanticChecks)
     : ptrToState_{ptrToState}, sizeOfState_{sizeOfState} {
-  SimpleBlockchainStateTransfer::Config config;
+  bcst::Config config;
 
   config.myReplicaId = myReplicaId;
   config.fVal = fVal;
@@ -281,7 +280,7 @@ SimpleStateTran::SimpleStateTran(
   config.pedanticChecks = pedanticChecks;
   auto comparator = concord::storage::memorydb::KeyComparator();
   concord::storage::IDBClient::ptr db(new concord::storage::memorydb::Client(comparator));
-  internalST_ = SimpleBlockchainStateTransfer::create(
+  internalST_ = bcst::create(
       config, &dummyBDState_, db, std::make_shared<concord::storage::v1DirectKeyValue::STKeyManipulator>());
 
   ConcordAssert(internalST_ != nullptr);
@@ -574,8 +573,8 @@ bool SimpleStateTran::DummyBDState::getBlock(uint64_t blockId, char* outBlock, u
   return false;
 }
 
-bool SimpleStateTran::DummyBDState::getPrevDigestFromBlock(
-    uint64_t blockId, SimpleBlockchainStateTransfer::StateTransferDigest* outPrevBlockDigest) {
+bool SimpleStateTran::DummyBDState::getPrevDigestFromBlock(uint64_t blockId,
+                                                           bcst::StateTransferDigest* outPrevBlockDigest) {
   ConcordAssert(false);
   return false;
 }

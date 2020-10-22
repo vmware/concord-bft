@@ -40,7 +40,7 @@ using ::concord::storage::v2MerkleTree::detail::EDBKeyType;
 using ::concord::storage::v2MerkleTree::detail::EKeySubtype;
 using ::concord::storage::v2MerkleTree::detail::EBFTSubtype;
 
-using ::bftEngine::SimpleBlockchainStateTransfer::computeBlockDigest;
+using ::bftEngine::bcst::computeBlockDigest;
 
 using sparse_merkle::BatchedInternalNode;
 using sparse_merkle::Hasher;

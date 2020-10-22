@@ -25,7 +25,7 @@
 using std::map;
 
 namespace bftEngine {
-namespace SimpleBlockchainStateTransfer {
+namespace bcst {
 namespace impl {
 
 class InMemoryDataStore : public DataStore {
@@ -213,5 +213,5 @@ class InMemoryDataStore : public DataStore {
 };
 
 }  // namespace impl
-}  // namespace SimpleBlockchainStateTransfer
+}  // namespace bcst
 }  // namespace bftEngine
