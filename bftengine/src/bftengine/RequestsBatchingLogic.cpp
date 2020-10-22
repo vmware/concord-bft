@@ -68,14 +68,6 @@ PrePrepareMsg *RequestsBatchingLogic::batchRequests() {
       LOG_ERROR(GL, "Unsupported batching policy" << KVLOG(batchingPolicy_));
       return nullptr;
   }
-
-  if (prePrepareMsg) {
-    if (prePrepareMsg->numberOfRequests() == 0) {
-      LOG_WARN(GL, "No client requests added to the PrePrepare message");
-      return nullptr;
-    }
-    prePrepareMsg->finishAddingRequests();
-  }
   return prePrepareMsg;
 }
 

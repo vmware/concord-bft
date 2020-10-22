@@ -389,6 +389,8 @@ PrePrepareMsg *ReplicaImp::buildPrePrepareMessage() {
     delete prePrepareMsg;
     return nullptr;
   }
+
+  prePrepareMsg->finishAddingRequests();
   LOG_DEBUG(GL, "Consensus batch size" << KVLOG(prePrepareMsg->numberOfRequests()));
   return prePrepareMsg;
 }
