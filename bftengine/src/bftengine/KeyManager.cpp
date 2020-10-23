@@ -74,6 +74,12 @@ std::string KeyManager::generateCid() {
 // Key exchange msg for replica has been recieved:
 // update the replica public key store.
 std::string KeyManager::onKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn) {
+  if (kemsg.op == KeyExchangeMsg::HAS_KEYS) {
+    LOG_INFO(KEY_EX_LOG, "Has key query arrived, returning " << std::boolalpha << keysExchanged << std::noboolalpha);
+    if (!keysExchanged) return std::string(KeyExchangeMsg::hasKeysFalseReply);
+    return std::string(KeyExchangeMsg::hasKeysTrueReply);
+  }
+
   LOG_INFO(KEY_EX_LOG, "Recieved onKeyExchange " << kemsg.toString() << " seq num " << sn);
   if (!keysExchanged) {
     onInitialKeyExchange(kemsg, sn);

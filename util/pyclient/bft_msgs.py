@@ -53,13 +53,15 @@ RequestHeader = namedtuple('RequestHeader', ['span_context_size', 'client_id', '
 ReplyHeader = namedtuple('ReplyHeader', ['span_context_size', 'primary_id',
     'req_seq_num', 'length', 'rsi_length'])
 
-def pack_request(client_id, req_seq_num, read_only, timeout_milli, cid, msg, pre_process=False, span_context=b''):
+def pack_request(client_id, req_seq_num, read_only, timeout_milli, cid, msg, pre_process=False, span_context=b'', key_exchange_msg=False):
     """Create and return a buffer with a header and message"""
     flags = 0x0
     if read_only:
         flags = 0x1
     elif pre_process:
         flags = 0x2
+    if key_exchange_msg:
+        flags |= 0x8
     header = RequestHeader(len(span_context), client_id, flags, req_seq_num, len(msg), timeout_milli, len(cid))
     data = b''.join([pack_request_header(header, pre_process), span_context, msg, cid.encode()])
     return data
