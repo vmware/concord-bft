@@ -67,7 +67,7 @@ void Server::Stop() {
   close(sock_);
 
   // Wait for the recvLoop thread to stop
-  thread_.join();
+  if (thread_.joinable()) thread_.join();
 }
 
 void Server::RecvLoop() {
