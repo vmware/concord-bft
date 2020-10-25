@@ -71,11 +71,11 @@ class SkvbcMultiSig(unittest.TestCase):
                         else:
                             self.assertEqual(value, 7)
                             break
-        
-       
+
+    @unittest.skip("Disabled due to BC-5081")
     @with_trio
     @unittest.skip("BC-5047")
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)   
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_rough_initial_key_exchange(self, bft_network):
         """
         validates that the system can start with a partial set of replicas that exchanged keys.
@@ -84,7 +84,7 @@ class SkvbcMultiSig(unittest.TestCase):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         replicas = bft_network.random_set_of_replicas(6, without={2})
         bft_network.start_replicas(replicas)
-        
+
         with trio.fail_after(seconds=20):
             for replica_id in {0}:
                 while True:
@@ -101,13 +101,13 @@ class SkvbcMultiSig(unittest.TestCase):
                             break
 
         lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']
-        lastExecutedValBefore = await bft_network.metrics.get(0, *lastExecutedKey)   
-        
+        lastExecutedValBefore = await bft_network.metrics.get(0, *lastExecutedKey)
+
         await trio.sleep(5)
-        lastExecutedValAfter = await bft_network.metrics.get(0, *lastExecutedKey)   
-        self.assertEqual(lastExecutedValBefore, lastExecutedValAfter)                      
-        
-        # make key exchange complete with partial set of replcia
+        lastExecutedValAfter = await bft_network.metrics.get(0, *lastExecutedKey)
+        self.assertEqual(lastExecutedValBefore, lastExecutedValAfter)
+
+        # make key exchange complete with partial set of replica
         bft_network.stop_replica(3)
         time.sleep(2)
         bft_network.start_replica(2)
@@ -132,7 +132,6 @@ class SkvbcMultiSig(unittest.TestCase):
                             self.assertEqual(value, 7)
                             break
 
-    
         await skvbc.fill_and_wait_for_checkpoint(
             initial_nodes=bft_network.all_replicas(without={3}),
             num_of_checkpoints_to_add=3,
@@ -162,11 +161,11 @@ class SkvbcMultiSig(unittest.TestCase):
                         else:
                             self.assertGreater(lastExecutedValSTAfter, lastExecutedValST)
                             break
-        
+
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)  
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_reload_fast_path_after_key_exchange(self, bft_network):
-        
+
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
@@ -186,7 +185,7 @@ class SkvbcMultiSig(unittest.TestCase):
                         else:
                             self.assertEqual(value, 7)
                             break
-        
+
         for i in range(20):
             await skvbc.write_known_kv()
 
@@ -213,9 +212,9 @@ class SkvbcMultiSig(unittest.TestCase):
                             self.assertEqual(value, 7)
                             break
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)  
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_reload_slows_path_after_key_exchange(self, bft_network):
-        
+
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
@@ -235,7 +234,7 @@ class SkvbcMultiSig(unittest.TestCase):
                         else:
                             self.assertEqual(value, 7)
                             break
-        
+
         bft_network.stop_replica(2)
         for i in range(20):
             await skvbc.write_known_kv()

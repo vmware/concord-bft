@@ -48,6 +48,8 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcReconfigurationTest(unittest.TestCase):
 
+    from os import environ
+    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_wedge_command(self, bft_network):
@@ -241,7 +243,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                    start_replica_cmd=start_replica_cmd,
                    stop_replica_cmd=None,
                    num_ro_replicas=0)
-        bft_network.change_configuration(conf)
+        await bft_network.change_configuration(conf)
 
         bft_network.start_all_replicas()
         for r in bft_network.all_replicas():
@@ -320,7 +322,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                           start_replica_cmd=start_replica_cmd,
                           stop_replica_cmd=None,
                           num_ro_replicas=0)
-        bft_network.change_configuration(conf)
+        await bft_network.change_configuration(conf)
 
         bft_network.start_all_replicas()
         for r in bft_network.all_replicas():

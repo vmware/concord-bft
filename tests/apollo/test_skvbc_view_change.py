@@ -358,7 +358,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
             [bft_network.start_replica(i) for i in crashed_replicas]
 
         await tracker.tracked_read_your_writes()
-  
+
         await bft_network.wait_for_view(
             replica_id=current_primary,
             err_msg="Make sure all ongoing view changes have completed."
@@ -375,9 +375,9 @@ class SkvbcViewChangeTest(unittest.TestCase):
     @verify_linearizability()
     async def test_single_vc_current_and_next_primaries_down(self, bft_network, tracker):
         """
-        The goal of this test is to validate the skip view scenario, where 
-        both the primary and the expected next primary have failed. In this 
-        case the first view change does not happen, causing timers in the 
+        The goal of this test is to validate the skip view scenario, where
+        both the primary and the expected next primary have failed. In this
+        case the first view change does not happen, causing timers in the
         replicas to expire and a view change to v+2 is initiated.
 
         1) Given a BFT network, we trigger parallel writes.
@@ -387,7 +387,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         5) Perform a "read-your-writes" check in the new view.
         6) We have to filter only configurations which support more than 2 faulty replicas.
         """
-		
+
         await self._single_vc_with_consecutive_failed_replicas(
             bft_network,
             tracker,
@@ -405,7 +405,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         initial_view = await bft_network.get_current_view()
         replcas_to_stop = [ v for v in range(initial_primary,
                                              initial_primary + num_consecutive_failing_primaries) ]
-        
+
         expected_final_view = initial_view + num_consecutive_failing_primaries
 
         await self._send_random_writes(tracker)

@@ -101,8 +101,8 @@ class SkvbcSlowPathTest(unittest.TestCase):
         Finally we check if a known K/V has been executed and readable.
         """
 
-        run_ops = lambda: tracker.run_concurrent_ops(num_ops=20, write_weight=1)
 
+        run_ops = lambda: tracker.run_concurrent_ops(num_ops=20, write_weight=1)
         bft_network.start_all_replicas()
 
         unstable_replicas = bft_network.all_replicas(without={0})

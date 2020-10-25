@@ -46,6 +46,8 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcNetworkPartitioningTest(unittest.TestCase):
 
+    from os import environ
+    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability()
@@ -57,16 +59,18 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
          """
         num_ops = 500
 
+        self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        self.bft_network = bft_network
+        bft_network.start_all_replicas()
         with net.PacketDroppingAdversary(
                 bft_network, drop_rate_percentage=5) as adversary:
-            self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-            self.bft_network = bft_network
-            bft_network.start_all_replicas()
 
             adversary.interfere()
 
             await tracker.run_concurrent_ops(num_ops)
 
+    from os import environ
+    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability()
@@ -82,9 +86,8 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
         4) Verify the BFT network eventually transitions to the next view.
         5) Perform a "read-your-writes" check in the new view
         """
+        bft_network.start_all_replicas()
         with net.PrimaryIsolatingAdversary(bft_network) as adversary:
-            bft_network.start_all_replicas()
-
             initial_primary = 0
             await bft_network.wait_for_view(
                 replica_id=initial_primary,
@@ -108,6 +111,8 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
 
             await tracker.run_concurrent_ops(100)
 
+    from os import environ
+    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability()
@@ -146,6 +151,8 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
             await bft_network.wait_for_last_executed_seq_num(
                 replica_id=ir, expected=last_executed_seq_num)
 
+    from os import environ
+    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_isolate_f_non_primaries_state_transfer(self, bft_network):
@@ -181,6 +188,8 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
         for ir in isolated_replicas:
             await bft_network.wait_for_state_transfer_to_stop(0, ir)
 
+    from os import environ
+    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2)
     @verify_linearizability()
@@ -236,6 +245,8 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
             await bft_network.wait_for_last_executed_seq_num(
                 replica_id=ir, expected=expected_last_executed_seq_num)
 
+    from os import environ
+    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_state_transfer_isolated(self, bft_network):

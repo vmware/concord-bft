@@ -244,6 +244,8 @@ class SkvbcPersistenceTest(unittest.TestCase):
                log.log_message(message_type=f'Stopping replica {stale_node}')
                bft_network.stop_replica(stale_node)
 
+    from os import environ
+    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: f >= 2)
@@ -330,6 +332,8 @@ class SkvbcPersistenceTest(unittest.TestCase):
             log.log_message(message_type="State transfer completed before we had a chance "
                   "to stop the source replica.")
 
+    from os import environ
+    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: f >= 2)

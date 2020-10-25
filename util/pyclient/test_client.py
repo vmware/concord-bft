@@ -39,14 +39,12 @@ class SimpleTest(unittest.TestCase):
         cls.serverbin = os.path.join(cls.builddir,"tests/simpleTest/server")
         os.chdir(cls.testdir)
         cls.generateKeys()
-        cls.config = bft_config.Config(4, 1, 0, 4096, 1000, 50)
-        cls.replicas = [
-                bft_config.Replica(
-                    id=i,
-                    ip="127.0.0.1",
-                    port=bft_client.BASE_PORT + 2*i,
-                    metrics_port=1000 + bft_client.BASE_PORT + 2*i)
-                for i in range(0,4)]
+        cls.config = bft_config.Config(4, 1, 0, 4096, 1000, 50, "")
+        cls.replicas = [bft_config.Replica(id=i,
+                                           ip="127.0.0.1",
+                                           port=bft_config.bft_msg_port_from_node_id(i),
+                                           metrics_port=bft_config.metrics_port_from_node_id(i))
+                        for i in range(0,4)]
 
         print("Running tests in {}".format(cls.testdir))
 
@@ -83,7 +81,7 @@ class SimpleTest(unittest.TestCase):
 
     async def _testTimeout(self, msg, read_only):
        config = self.config._replace(req_timeout_milli=100)
-       with bft_client.UdpClient(config, self.replicas) as udp_client:
+       with bft_client.UdpClient(config, self.replicas, None) as udp_client:
            with self.assertRaises(trio.TooSlowError):
                await udp_client.sendSync(msg, read_only)
 
@@ -110,7 +108,7 @@ class SimpleTest(unittest.TestCase):
 
     async def _testReadWrittenValue(self):
        val = 999
-       with bft_client.UdpClient(self.config, self.replicas) as udp_client:
+       with bft_client.UdpClient(self.config, self.replicas, None) as udp_client:
            await udp_client.sendSync(self.writeRequest(val), False)
            read = await udp_client.sendSync(self.readRequest(), True)
            self.assertEqual(val, self.read_val(read))
@@ -137,7 +135,7 @@ class SimpleTest(unittest.TestCase):
         """Issue a write and ensure that a retry occurs"""
         config = self.config._replace(req_timeout_milli=5000)
         val = 1
-        with bft_client.UdpClient(config, self.replicas) as udp_client:
+        with bft_client.UdpClient(config, self.replicas, None) as udp_client:
            self.assertEqual(udp_client.retries, 0)
            await udp_client.sendSync(self.writeRequest(val), False)
            self.assertTrue(udp_client.retries > 0)
@@ -161,7 +159,7 @@ class SimpleTest(unittest.TestCase):
     async def _testPrimaryWrite(self):
        # Try to guarantee we don't retry accidentally
        config = self.config._replace(retry_timeout_milli=500)
-       with bft_client.UdpClient(self.config, self.replicas) as udp_client:
+       with bft_client.UdpClient(self.config, self.replicas, None) as udp_client:
            self.assertEqual(None, udp_client.primary)
            await udp_client.sendSync(self.writeRequest(1), False)
            # We know the servers are up once the write completes
@@ -183,7 +181,7 @@ class SimpleTest(unittest.TestCase):
 
     async def _testMofNQuorum(self):
         config = self.config._replace(retry_timeout_milli=500)
-        with bft_client.UdpClient(self.config, self.replicas) as udp_client:
+        with bft_client.UdpClient(self.config, self.replicas, None) as udp_client:
             await udp_client.sendSync(self.writeRequest(1), False)
             single_read_q = bft_client.MofNQuorum([0], 1)
             read = await udp_client.sendSync(self.readRequest(), True, m_of_n_quorum=single_read_q)

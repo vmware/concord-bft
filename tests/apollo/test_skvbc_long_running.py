@@ -45,7 +45,7 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcLongRunningTest(unittest.TestCase):
 
-  
+
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: n == 7)

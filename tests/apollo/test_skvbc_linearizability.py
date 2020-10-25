@@ -73,7 +73,7 @@ class SkvbcChaosTest(unittest.TestCase):
     @verify_linearizability()
     async def test_wreak_havoc(self, bft_network, tracker):
         """
-        Run a bunch of concurrrent requests in batches and verify
+        Run a bunch of concurrent requests in batches and verify
         linearizability. In this test we generate faults periodically and verify
         linearizability at the end of the run.
         """

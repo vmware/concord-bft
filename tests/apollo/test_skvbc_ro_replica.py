@@ -229,7 +229,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                             if lastExecutedSeqNum >= 150:
                                 log.log_message(message_type="Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
                                 nursery.cancel_scope.cancel()
-                                
+
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
     async def test_ro_replica_with_late_s3_start(self, bft_network):

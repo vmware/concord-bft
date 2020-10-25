@@ -354,7 +354,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
                         "Make sure all pre-execution requests were processed, in"
                         "addition to the constant load in the background.")
 
-
+    from os import environ
+    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
@@ -362,8 +363,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         '''
         Isolate the from the other replicas, wait for view change and ensure the system is still able to make progress
         '''
+        bft_network.start_all_replicas()
         with net.PrimaryIsolatingAdversary(bft_network) as adversary:
-            bft_network.start_all_replicas()
             read_client = bft_network.random_client()
 
             start_block = await tracker.get_last_block_id(read_client)
@@ -390,8 +391,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         '''
         Drop 5% of the packets in the network and make sure the system is able to make progress
         '''
+        bft_network.start_all_replicas()
         with net.PacketDroppingAdversary(bft_network, drop_rate_percentage=5) as adversary:
-            bft_network.start_all_replicas()
             read_client = bft_network.random_client()
 
             start_block = await tracker.get_last_block_id(read_client)
@@ -402,6 +403,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             last_block = await tracker.get_last_block_id(read_client)
             assert last_block > start_block
 
+    from os import environ
+    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
@@ -413,9 +416,9 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         f = bft_network.config.f
         c = bft_network.config.c
 
+        bft_network.start_all_replicas()
         with net.ReplicaSubsetIsolatingAdversary(bft_network, bft_network.random_set_of_replicas(f, without={0}))\
                 as adversary:
-            bft_network.start_all_replicas()
             read_client = bft_network.random_client()
 
             start_block = await tracker.get_last_block_id(read_client)
@@ -426,6 +429,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             last_block = await tracker.get_last_block_id(read_client)
             assert last_block > start_block
 
+    from os import environ
+    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
@@ -442,8 +447,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         isolated_replicas = bft_network.random_set_of_replicas(f - 1, without={initial_primary, expected_next_primary})
         isolated_replicas.add(initial_primary)
 
+        bft_network.start_all_replicas()
         with net.ReplicaSubsetIsolatingAdversary(bft_network, isolated_replicas) as adversary:
-            bft_network.start_all_replicas()
             read_client = bft_network.random_client()
 
             start_block = await tracker.get_last_block_id(read_client)
@@ -460,6 +465,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             last_block = await tracker.get_last_block_id(read_client)
             assert last_block > start_block
 
+    from os import environ
+    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)

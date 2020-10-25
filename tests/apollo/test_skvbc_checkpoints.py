@@ -212,6 +212,8 @@ class SkvbcCheckpointTest(unittest.TestCase):
             bft_network.all_replicas(),
             expected_checkpoint_num=lambda ecn: ecn >= checkpoint_init_primary_after)
 
+    from os import environ
+    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_checkpoint_propagation_after_f_non_primaries_isolated(self, bft_network):
@@ -254,6 +256,8 @@ class SkvbcCheckpointTest(unittest.TestCase):
             isolated_replicas,
             expected_checkpoint_num=lambda ecn: ecn == checkpoint_before + 1)
 
+    from os import environ
+    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_checkpoint_propagation_after_primary_isolation(self, bft_network):
@@ -267,8 +271,8 @@ class SkvbcCheckpointTest(unittest.TestCase):
         5) Make sure checkpoint is propagated to all the nodes except the isolated primary
            in the new view
         """
+        bft_network.start_all_replicas()
         with net.PrimaryIsolatingAdversary(bft_network) as adversary:
-            bft_network.start_all_replicas()
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
             n = bft_network.config.n
@@ -309,6 +313,8 @@ class SkvbcCheckpointTest(unittest.TestCase):
                 verify_checkpoint_persistency=False
             )
 
+    from os import environ
+    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_checkpoint_propagation_after_f_nodes_including_primary_isolated(self, bft_network):

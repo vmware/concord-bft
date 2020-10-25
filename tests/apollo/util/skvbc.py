@@ -283,11 +283,11 @@ class SimpleKVBCProtocol:
 
             if verify_checkpoint_persistency:
                 # Stop the initial replicas to ensure the checkpoints get persisted
-                [self.bft_network.stop_replica(i) for i in initial_nodes]
+                self.bft_network.stop_replicas(initial_nodes)
 
                 # Bring up the first 3 replicas and ensure that they have the
                 # checkpoint data.
-                [self.bft_network.start_replica(i) for i in initial_nodes]
+                [ self.bft_network.start_replica(i) for i in initial_nodes ]
                 await self.bft_network.wait_for_replicas_to_checkpoint(initial_nodes, expected_checkpoint_num)
 
     async def assert_successful_put_get(self, testcase):
