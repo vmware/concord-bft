@@ -35,6 +35,7 @@ struct ClientRequestState {
   // A list of requests passed a pre-processing consensus used for a non-determinism detection at later stage.
   static const uint8_t reqProcessingHistoryHeight = 30;
   std::deque<RequestProcessingStateUniquePtr> reqProcessingHistory;
+  uint64_t reqRetryId = 1;
 };
 
 typedef std::shared_ptr<ClientRequestState> ClientRequestStateSharedPtr;
@@ -81,7 +82,8 @@ class PreProcessor {
   void onMessage(T *msg);
 
   bool registerReplicaDependentRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
-                                       PreProcessRequestMsgSharedPtr &preProcessRequestMsg);
+                                       PreProcessRequestMsgSharedPtr &preProcessRequestMsg,
+                                       uint64_t reqRetryId);
   bool registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
                        PreProcessRequestMsgSharedPtr preProcessRequestMsg);
   void releaseClientPreProcessRequestSafe(uint16_t clientId, PreProcessingResult result);
@@ -100,6 +102,7 @@ class PreProcessor {
                                     NodeIdType senderId,
                                     SeqNum reqSeqNum,
                                     SeqNum ongoingReqSeqNum,
+                                    uint64_t reqRetryId,
                                     const std::string &cid,
                                     const std::string &ongoingCid);
   uint16_t getClientReplyBufferId(uint16_t clientId) const { return clientId - numOfReplicas_; }
@@ -114,10 +117,8 @@ class PreProcessor {
                                   char *reqBuf,
                                   const concordUtils::SpanContext &span_context);
   void handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg, bool isPrimary, bool isRetry);
-  void handlePreProcessedReqByNonPrimary(uint16_t clientId,
-                                         ReqId reqSeqNum,
-                                         uint32_t resBufLen,
-                                         const std::string &cid);
+  void handlePreProcessedReqByNonPrimary(
+      uint16_t clientId, ReqId reqSeqNum, uint64_t reqRetryId, uint32_t resBufLen, const std::string &cid);
   void handlePreProcessedReqByPrimary(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                       uint16_t clientId,
                                       uint32_t resultBufLen);

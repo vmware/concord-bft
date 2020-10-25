@@ -22,12 +22,10 @@ using namespace bftEngine;
 // maxReplyMsgSize_ = sizeof(Header) + sizeof(signature) + cid.size(), i.e 58 + 256 + up to 710 bytes of cid
 uint16_t PreProcessReplyMsg::maxReplyMsgSize_ = 1024;
 
-PreProcessReplyMsg::PreProcessReplyMsg(SigManagerSharedPtr sigManager,
-                                       NodeIdType senderId,
-                                       uint16_t clientId,
-                                       uint64_t reqSeqNum)
+PreProcessReplyMsg::PreProcessReplyMsg(
+    SigManagerSharedPtr sigManager, NodeIdType senderId, uint16_t clientId, uint64_t reqSeqNum, uint64_t reqRetryId)
     : MessageBase(senderId, MsgCode::PreProcessReply, 0, maxReplyMsgSize_), sigManager_(sigManager) {
-  setParams(senderId, clientId, reqSeqNum);
+  setParams(senderId, clientId, reqSeqNum, reqRetryId);
 }
 
 void PreProcessReplyMsg::validate(const ReplicasInfo& repInfo) const {
@@ -50,11 +48,12 @@ void PreProcessReplyMsg::validate(const ReplicasInfo& repInfo) const {
     throw runtime_error(__PRETTY_FUNCTION__ + string(": verifySig"));
 }
 
-void PreProcessReplyMsg::setParams(NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum) {
+void PreProcessReplyMsg::setParams(NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum, uint64_t reqRetryId) {
   msgBody()->senderId = senderId;
   msgBody()->reqSeqNum = reqSeqNum;
   msgBody()->clientId = clientId;
-  LOG_DEBUG(logger(), "senderId=" << senderId << " clientId=" << clientId << " reqSeqNum=" << reqSeqNum);
+  msgBody()->reqRetryId = reqRetryId;
+  LOG_DEBUG(logger(), KVLOG(senderId, clientId, reqSeqNum, reqRetryId));
 }
 
 void PreProcessReplyMsg::setupMsgBody(const char* buf, uint32_t bufLen, const std::string& cid, ReplyStatus status) {
@@ -78,9 +77,14 @@ void PreProcessReplyMsg::setupMsgBody(const char* buf, uint32_t bufLen, const st
 
   SCOPED_MDC_CID(cid);
   LOG_DEBUG(logger(),
-            "status=" << status << " senderId=" << msgBody()->senderId << " clientId = " << msgBody()->clientId
-                      << " reqSeqNum=" << msgBody()->reqSeqNum << " headerSize=" << headerSize << " sigSize=" << sigSize
-                      << " cidSize=" << cid.size() << " msgSize=" << msgSize_);
+            KVLOG(status,
+                  msgBody()->senderId,
+                  msgBody()->clientId,
+                  msgBody()->reqSeqNum,
+                  headerSize,
+                  sigSize,
+                  cid.size(),
+                  msgSize_));
 }
 
 std::string PreProcessReplyMsg::getCid() const {
