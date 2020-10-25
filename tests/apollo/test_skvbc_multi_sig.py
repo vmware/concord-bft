@@ -72,6 +72,7 @@ class SkvbcMultiSig(unittest.TestCase):
                             self.assertEqual(value, 7)
                             break
 
+    @unittest.skip("Disabled due to BC-5081")
     @with_trio
     @unittest.skip("BC-5047")
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
