@@ -68,7 +68,7 @@ login: ## Login to the container. Note: if the container is already running, log
 	fi
 
 .PHONY: build
-build: ## Build Concord-BFT source. Note: this is the default target
+build: ## Build Concord-BFT source. In order to build a specific target run: make TARGET=<target name>.
 	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"mkdir -p ${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR} && \
@@ -76,9 +76,19 @@ build: ## Build Concord-BFT source. Note: this is the default target
 		CC=${CONCORD_BFT_CONTAINER_CC} CXX=${CONCORD_BFT_CONTAINER_CXX} \
 		cmake ${CONCORD_BFT_CMAKE_FLAGS} .. && \
 		make format-check && \
-		make -j $$(nproc)"
+		make -j $$(nproc) ${TARGET}"
 	@echo
 	@echo "Build finished. The binaries are in ${CURDIR}/${CONCORD_BFT_BUILD_DIR}"
+
+.PHONY: list-targets
+list-targets: ## Prints the list of available targets
+	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
+		${CONCORD_BFT_CONTAINER_SHELL} -c \
+		"mkdir -p ${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR} && \
+		cd ${CONCORD_BFT_BUILD_DIR} && \
+		CC=${CONCORD_BFT_CONTAINER_CC} CXX=${CONCORD_BFT_CONTAINER_CXX} \
+		cmake ${CONCORD_BFT_CMAKE_FLAGS} .. && \
+		make help"
 
 .PHONY: format
 format: ## Format Concord-BFT source with clang-format
