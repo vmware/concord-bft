@@ -411,8 +411,11 @@ class TcpTlsClient(BftClient):
                 out_data += data
                 return True
         except (trio.BrokenResourceError, trio.ClosedResourceError):
+            # We got EOF or an exception - close the stream
             pass
-        # We got EOF or an exception - close the stream
+        except OverflowError:
+            # The size of the payload is too big, something is wrong. Close the stream and restart.
+            pass
         if dest_addr in self.ssl_streams:
             self.establish_ssl_stream_parklot[dest_addr].unpark()
         return False
