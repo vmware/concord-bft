@@ -117,7 +117,7 @@ def with_constant_load(async_fn):
         if "bft_network" in kwargs:
             bft_network = kwargs.pop("bft_network")
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-            client = await bft_network.new_reserved_client()
+            client = bft_network.new_reserved_client()
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(skvbc.send_indefinite_write_requests, client, 1)  # send a request every second
                 await async_fn(*args, **kwargs, bft_network=bft_network, skvbc=skvbc, nursery=nursery)
@@ -219,6 +219,7 @@ class BftTestNetwork:
         self.clients = clients
         self.metrics = metrics
         self.reserved_clients = {}
+        self.reserved_client_ids_in_use = []
         if client_factory:
             self.client_factory = client_factory
         else:
@@ -270,6 +271,7 @@ class BftTestNetwork:
 
         bft_network._init_metrics()
         bft_network._create_clients()
+        bft_network._create_reserved_clients()
 
         return bft_network
 
@@ -290,6 +292,7 @@ class BftTestNetwork:
         )
 
         bft_network._init_metrics()
+        bft_network._create_reserved_clients()
         return bft_network
 
     async def change_configuration(self, config):
@@ -306,6 +309,7 @@ class BftTestNetwork:
             await client.__aexit__()
         for client in self.reserved_clients.values():
             await client.__aexit__()
+        self.reserved_client_ids_in_use = []
         self.metrics.__exit__()
         self.clients = {}
 
@@ -322,6 +326,7 @@ class BftTestNetwork:
 
         self._init_metrics()
         self._create_clients()
+        self._create_reserved_clients()
 
     def _generate_crypto_keys(self):
         keygen = os.path.join(self.toolsdir, "GenerateConcordKeys")
@@ -349,25 +354,28 @@ class BftTestNetwork:
         subprocess.run(args, check=True, stdout=subprocess.DEVNULL)
 
     def _create_clients(self):
-        for client_id in range(self.config.n + self.config.num_ro_replicas,
-                               self.config.num_clients+self.config.n + self.config.num_ro_replicas):
+        start_id = self.config.n + self.config.num_ro_replicas
+        for client_id in range(start_id, start_id + self.config.num_clients):
             self.clients[client_id] = self.client_factory(client_id)
 
     def _create_new_client(self, client_class, client_id):
         config = self._bft_config(client_id)
         return client_class(config, self.replicas, self)
 
-    async def new_client(self):
-        client_id = max(self.clients.keys() | self.reserved_clients.keys()) + 1
-        client = self.client_factory(client_id)
-        self.clients[client_id] = client
-        return client
+    def _create_reserved_clients(self):
+        first_id = self.num_total_replicas() + self.config.num_clients
+        for reserved_client_id in range(first_id, first_id + RESERVED_CLIENTS_QUOTA):
+            self.reserved_clients[reserved_client_id] = self.client_factory(reserved_client_id)
 
-    async def new_reserved_client(self):
-        reserved_client_id = max(self.clients.keys() | self.reserved_clients.keys()) + 1
-        reserved_client = self.client_factory(reserved_client_id)
-        self.reserved_clients[reserved_client_id] = reserved_client
-        return reserved_client
+    def new_reserved_client(self):
+        if len(self.reserved_client_ids_in_use) == RESERVED_CLIENTS_QUOTA:
+            raise  NotImplemented("You must increase RESERVED_CLIENTS_QUOTA, see comment above")
+        start_id = self.num_total_replicas() + self.config.num_clients
+        reserved_client_ids = [ id for id in range(start_id, start_id + RESERVED_CLIENTS_QUOTA) ]
+        free_reserved_client_ids = set(reserved_client_ids) - set(self.reserved_client_ids_in_use)
+        reserved_client_id = next(iter(free_reserved_client_ids))
+        self.reserved_client_ids_in_use.append(reserved_client_id)
+        return self.reserved_clients[reserved_client_id]
 
     def _bft_config(self, client_id):
         return bft_config.Config(client_id,
@@ -413,36 +421,66 @@ class BftTestNetwork:
         """
         return self.config.stop_replica_cmd(replica_id)
 
-    def start_all_replicas(self):
+    async def start_all_replicas(self, notify_clients=True):
         with log.start_action(action_type="start_all_replicas"):
-            for i in range(0, self.config.n):
+            all_replicas = self.all_replicas()
+            for i in all_replicas:
                 try:
-                    self.start_replica(i)
+                    await self.start_replica(i, notify_clients=False)
                 except AlreadyRunningError:
                     if not self.is_existing:
                         raise
 
             assert len(self.procs) == self.config.n
+            if notify_clients:
+                await self._notify_clients_replicas_started(self.all_client_ids(), all_replicas)
 
-    def stop_all_replicas(self):
+    async def _notify_clients_replicas_started(self, clients_ids, replicas_ids):
+        """ Notify each client in clients_ids that we have just started all none-read-only replicas in replicas_ids """
+        none_ro_replicas_ids = [ id for id in replicas_ids if not self.is_read_only_replica_id(id) ]
+        if not none_ro_replicas_ids:
+            return
+        with trio.fail_after(5.0):
+            async with trio.open_nursery() as nursery:
+                for id in clients_ids:
+                    nursery.start_soon(self.get_client(id).on_started_replicas, none_ro_replicas_ids)
+
+    async def _notify_clients_replicas_stopped(self, client_ids, replicas_ids):
+        """ Notify each client in clients_ids that we have just stopped all replicas in replicas_ids """
+        none_ro_replicas_ids = [ id for id in replicas_ids if not self.is_read_only_replica_id(id) ]
+        if not none_ro_replicas_ids:
+            return
+        with trio.fail_after(2.0):
+            async with trio.open_nursery() as nursery:
+                for id in client_ids:
+                    nursery.start_soon(self.get_client(id).on_stopped_replicas, replicas_ids)
+
+    async def stop_all_replicas(self, notify_clients=True):
         """ Stop all running replicas"""
-        [self.stop_replica(i) for i in self.get_live_replicas()]
+        [ await self.stop_replica(i, False) for i in self.get_live_replicas() ]
         assert len(self.procs) == 0
+        if notify_clients:
+            await self._notify_clients_replicas_stopped(self.all_client_ids(), self.all_replicas())
 
-    def start_replicas(self, replicas):
+    async def start_replicas(self, replicas, notify_clients=True):
         """
         Start from list "replicas"
         """
-        [self.start_replica(r) for r in replicas]
+        [ await self.start_replica(r, notify_clients=False) for r in replicas ]
 
-    def stop_replicas(self, replicas):
+        if notify_clients:
+            await self._notify_clients_replicas_started(self.all_client_ids(), replicas)
+
+    async def stop_replicas(self, replicas, notify_clients=True):
         """
         Start from list "replicas"
         """
         for r in replicas:
-            self.stop_replica(r)
+            await self.stop_replica(r, False)
+        if notify_clients:
+            await self._notify_clients_replicas_stopped(self.all_client_ids(), replicas)
 
-    def start_replica(self, replica_id):
+    async def start_replica(self, replica_id, notify_clients=True):
         """
         Start a replica if it isn't already started.
         Otherwise raise an AlreadyStoppedError.
@@ -484,6 +522,8 @@ class BftTestNetwork:
                                             stdout=stdout_file,
                                             stderr=stderr_file,
                                             close_fds=True)
+            if notify_clients:
+                await self._notify_clients_replicas_started(self.all_client_ids(), [replica_id])
 
     def replica_id_from_pid(self, pid):
         """ Return an already-started replica id, according to a given pid """
@@ -533,6 +573,12 @@ class BftTestNetwork:
                 (bft_msg_port >= bft_config.START_BFT_MSG_PORT))
         return (bft_msg_port - bft_config.START_BFT_MSG_PORT) // 2
 
+    def num_total_replicas(self):
+        return self.config.n + self.config.num_ro_replicas
+
+    def num_total_clients(self):
+        return self.config.num_clients + RESERVED_CLIENTS_QUOTA
+
     def _start_external_replica(self, replica_id):
         with log.start_action(action_type="_start_external_replica"):
             subprocess.run(
@@ -542,7 +588,7 @@ class BftTestNetwork:
 
             return self.replicas[replica_id]
 
-    def stop_replica(self, replica_id):
+    async def stop_replica(self, replica_id, notify_clients=True):
         """
         Stop a replica if it is running.
         Otherwise raise an AlreadyStoppedError.
@@ -565,6 +611,9 @@ class BftTestNetwork:
 
             del self.procs[replica_id]
 
+            if notify_clients:
+                await self._notify_clients_replicas_stopped(self.all_client_ids(), [replica_id])
+
     def _stop_external_replica(self, replica_id):
         with log.start_action(action_type="_stop_external_replica"):
             subprocess.run(
@@ -574,14 +623,26 @@ class BftTestNetwork:
 
     def all_replicas(self, without=None):
         """
-        Returns a list of all replicas excluding the "without" set
+        Returns a list of all ACTIVE replica IDs excluding the "without" set, and without RO replicas
         """
-        if without is None:
+        if without == None:
             without = set()
-
         return list(set(range(0, self.config.n)) - without)
 
+    def all_client_ids(self, without=None, with_reserved_clients=True):
+        """
+        Returns a list of all client IDs, excluding the "without" set
+        """
+        if without == None:
+            without = set()
+        num_total_clients = self.config.num_clients
+        num_total_replicas = self.num_total_replicas()
+        if with_reserved_clients:
+            num_total_clients += RESERVED_CLIENTS_QUOTA
+        return list(set(range(num_total_replicas, num_total_replicas + num_total_clients)) - without)
+
     def random_set_of_replicas(self, size, without=None):
+        """ Returns a random list of ACTIVE replica IDs excluding the "without" set, and without any RO replicas """
         if without is None:
             without = set()
         random_replicas = set()
@@ -595,6 +656,11 @@ class BftTestNetwork:
         Returns the id-s of all live replicas
         """
         return list(self.procs.keys())
+
+    def get_client(self, id):
+        if self.is_client_id(id):
+            return self.reserved_clients[id] if self.is_reserved_client_id(id) else self.clients[id]
+        return None
 
     async def get_current_primary(self):
         """
@@ -738,7 +804,7 @@ class BftTestNetwork:
         with log.start_action(action_type="force_quorum_including_replica") as action:
             assert len(self.procs) >= 2 * self.config.f + self.config.c + 1
             primary = await self.get_current_primary()
-            self.stop_replicas(self.random_set_of_replicas(
+            await self.stop_replicas(self.random_set_of_replicas(
                 len(self.procs) - (2 * self.config.f + self.config.c + 1), without={primary, replica_id}))
 
     async def wait_for_fetching_state(self, replica_id):
@@ -1055,7 +1121,7 @@ class BftTestNetwork:
         The stop is done in order for a test who uses this functionality, to proceed without imposing n up replicas.
         """
         with log.start_action(action_type="do_key_exchange"):
-            self.start_all_replicas()
+            await self.start_all_replicas(False)
             with trio.fail_after(seconds=120):
                 for replica_id in range(self.config.n):
                     while True:
@@ -1074,5 +1140,5 @@ class BftTestNetwork:
             with trio.fail_after(seconds=5):
                 lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']
                 lastExecutedVal = await self.metrics.get(0, *lastExecutedKey)
-            self.stop_all_replicas()
+            await self.stop_all_replicas(False)
             return lastExecutedVal

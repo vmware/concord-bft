@@ -808,7 +808,7 @@ class SkvbcTracker:
        try:
            # Use a new client, since other clients may not be responsive due to
            # past failed responses.
-           client = await self.skvbc.bft_network.new_client()
+           client = self.skvbc.bft_network.new_reserved_client()
            last_block_id = await self.get_last_block_id(client)
            print(f'Last Block ID = {last_block_id}')
            missing_block_ids = self.get_missing_blocks(last_block_id)
@@ -990,7 +990,7 @@ class SkvbcTracker:
             num_of_checkpoints_to_add=2,
             persistency_enabled=True):
         initial_nodes = self.bft_network.all_replicas(without=stale_nodes)
-        [self.bft_network.start_replica(i) for i in initial_nodes]
+        [ await self.bft_network.start_replica(i) for i in initial_nodes]
         client = self.bft_network.random_client()
         # Write a KV pair with a known value
         known_key = self.skvbc.max_key()
@@ -1159,7 +1159,7 @@ class PassThroughSkvbcTracker:
             num_of_checkpoints_to_add=2,
             persistency_enabled=True):
         initial_nodes = self.bft_network.all_replicas(without=stale_nodes)
-        [self.bft_network.start_replica(i) for i in initial_nodes]
+        [ await self.bft_network.start_replica(i) for i in initial_nodes ]
         client = self.bft_network.random_client()
         # Write a KV pair with a known value
         known_key = self.skvbc.max_key()

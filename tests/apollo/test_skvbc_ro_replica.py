@@ -158,7 +158,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         Start read-only replica.
         Wait for State Transfer in ReadOnlyReplica to complete.
         """
-        bft_network.start_all_replicas()
+        await bft_network.start_all_replicas()
         # TODO replace the below function with the library function:
         # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(
         # initial_nodes=bft_network.all_replicas(),
@@ -181,7 +181,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                                 nursery.cancel_scope.cancel()
         # start the read-only replica
         ro_replica_id = bft_network.config.n
-        bft_network.start_replica(ro_replica_id)
+        await bft_network.start_replica(ro_replica_id)
         with trio.fail_after(seconds=60):
             while True:
                 with trio.move_on_after(seconds=.5):
@@ -206,10 +206,10 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         Send client commands.
         Wait for State Transfer in ReadOnlyReplica to complete.
         """
-        bft_network.start_all_replicas()
+        await bft_network.start_all_replicas()
         # start the read-only replica
         ro_replica_id = bft_network.config.n
-        bft_network.start_replica(ro_replica_id)
+        await bft_network.start_replica(ro_replica_id)
         # TODO replace the below function with the library function:
         # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(
         # initial_nodes=bft_network.all_replicas(),
@@ -229,7 +229,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                             if lastExecutedSeqNum >= 150:
                                 log.log_message(message_type="Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
                                 nursery.cancel_scope.cancel()
-                                
+
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
     async def test_ro_replica_with_late_s3_start(self, bft_network):
@@ -243,13 +243,13 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         if not os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
             return
 
-        bft_network.start_all_replicas()
+        await bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         # start the read-only replica while the s3 service is down
         self.__class__._stop_s3_server()
         ro_replica_id = bft_network.config.n
-        bft_network.start_replica(ro_replica_id)
+        await bft_network.start_replica(ro_replica_id)
 
         self.__class__._start_s3_after_X_secs(3)
 
@@ -274,11 +274,11 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         if not os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
             return
 
-        bft_network.start_all_replicas()
+        await bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         ro_replica_id = bft_network.config.n
-        bft_network.start_replica(ro_replica_id)
+        await bft_network.start_replica(ro_replica_id)
 
         self.__class__._stop_s3_server()
         self.__class__._start_s3_after_X_secs(3)
@@ -307,11 +307,11 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
 
         #self.__class__._clear_s3_storage()
 
-        bft_network.start_all_replicas()
+        await bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         ro_replica_id = bft_network.config.n
-        bft_network.start_replica(ro_replica_id)
+        await bft_network.start_replica(ro_replica_id)
 
         await skvbc.fill_and_wait_for_checkpoint(
             initial_nodes=bft_network.all_replicas(),
@@ -321,9 +321,9 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
 
         await self._wait_for_st(bft_network, ro_replica_id)
 
-        bft_network.stop_replica(ro_replica_id)
+        await bft_network.stop_replica(ro_replica_id)
         time.sleep(2)
-        bft_network.start_replica(ro_replica_id)
+        await bft_network.start_replica(ro_replica_id)
 
         await skvbc.fill_and_wait_for_checkpoint(
             initial_nodes=bft_network.all_replicas(),

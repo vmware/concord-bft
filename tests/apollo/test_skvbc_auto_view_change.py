@@ -55,7 +55,7 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         3) Check that view change has occurred (necessarily, automatic view change)
         4) Perform a "read-your-writes" check in the new view
         """
-        bft_network.start_all_replicas()
+        await bft_network.start_all_replicas()
 
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
@@ -84,10 +84,10 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         4) Check that view change has occurred (necessarily, automatic view change)
         5) Perform a "read-your-writes" check in the new view
         """
-        bft_network.start_all_replicas()
+        await bft_network.start_all_replicas()
 
         initial_primary = 0
-        bft_network.stop_replica(initial_primary)
+        await bft_network.stop_replica(initial_primary)
 
         # do nothing - just wait for an automatic view change
         await bft_network.wait_for_view(
@@ -113,7 +113,7 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         4) Check that all writes have been processed on the fast commit path
         5) Perform a "read-your-writes" check in the new view
         """
-        bft_network.start_all_replicas()
+        await bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         initial_primary = 0
 

@@ -64,7 +64,7 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
         6) Send sufficient number of client requests to trigger another checkpoint
         7) Make sure checkpoint propagates to all the replicas
         """
-        bft_network.start_all_replicas()
+        await bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         n = bft_network.config.n
@@ -125,7 +125,7 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
         6) Send sufficient number of client requests to trigger another checkpoint
         7) Make sure checkpoint propagates to all the replicas
         """
-        bft_network.start_all_replicas()
+        await bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         n = bft_network.config.n
@@ -206,7 +206,7 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
         7) Send sufficient number of client requests to trigger another checkpoint
         8) Make sure checkpoint propagates to all the replicas
         """
-        bft_network.start_all_replicas()
+        await bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         n = bft_network.config.n
@@ -216,7 +216,7 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
 
         # choose a random set of f replicas to stop
         f_replicas_stopped_early = bft_network.random_set_of_replicas(f, without={initial_primary})
-        bft_network.stop_replicas(f_replicas_stopped_early)
+        await bft_network.stop_replicas(f_replicas_stopped_early)
 
         replicas_up = bft_network.all_replicas(without=f_replicas_stopped_early)
         self.assertEqual(len(replicas_up), n - f, "Make sure n-f replicas are up.")
@@ -297,7 +297,7 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
         random.shuffle(all_replicas)
         for replica in all_replicas:
             log.log_message(message_type=f"stopping replica: {replica}")
-            bft_network.stop_replica(replica)
+            await bft_network.stop_replica(replica)
             await trio.sleep(delay)
         return list(all_replicas)
 
@@ -311,7 +311,7 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
             stopped_replicas.append(initial_primary)
         for replica in stopped_replicas:
             log.log_message(message_type=f"starting replica: {replica}")
-            bft_network.start_replica(replica)
+            await bft_network.start_replica(replica)
             await trio.sleep(delay)
         return stopped_replicas
 

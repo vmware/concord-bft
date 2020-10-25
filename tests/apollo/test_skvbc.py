@@ -68,7 +68,7 @@ class SkvbcTest(unittest.TestCase):
             checkpoints_num=3, # key-exchange channges the last executed seqnum
             persistency_enabled=False
         )
-        bft_network.start_replica(stale_node)
+        await bft_network.start_replica(stale_node)
         await bft_network.wait_for_state_transfer_to_start()
         await bft_network.wait_for_state_transfer_to_stop(0, stale_node)
         await skvbc.assert_successful_put_get(self)
@@ -86,7 +86,7 @@ class SkvbcTest(unittest.TestCase):
         with blinking_replica.BlinkingReplica() as blinking:
             br = random.choice(
                 bft_network.all_replicas(without={0}))
-            bft_network.start_replicas(replicas=bft_network.all_replicas(without={br}))
+            await bft_network.start_replicas(replicas=bft_network.all_replicas(without={br}))
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
             blinking.start_blinking(bft_network.start_replica_cmd(br))
@@ -105,7 +105,7 @@ class SkvbcTest(unittest.TestCase):
         retrieve its KV pairs.
         """
     
-        bft_network.start_all_replicas()
+        await bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
         last_block = skvbc.parse_reply(await client.read(skvbc.get_last_block_req()))
@@ -154,7 +154,7 @@ class SkvbcTest(unittest.TestCase):
         3) execute the conflicting write
         4) verify K' is not written to the blockchain
         """
-        bft_network.start_all_replicas()
+        await bft_network.start_all_replicas()
 
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
