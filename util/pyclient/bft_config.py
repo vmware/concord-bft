@@ -14,6 +14,18 @@
 from collections import namedtuple
 
 Config = namedtuple('Config', ['id', 'f', 'c', 'max_msg_size', 'req_timeout_milli',
-    'retry_timeout_milli'])
+    'retry_timeout_milli', "certs_path"])
 
 Replica = namedtuple('Replica', ['id', 'ip', 'port', 'metrics_port'])
+
+START_BFT_MSG_PORT = 3710
+START_METRICS_PORT = 4710
+
+def bft_msg_port_from_node_id(id):
+    return START_BFT_MSG_PORT + 2*id
+
+def metrics_port_from_node_id(id):
+    return START_METRICS_PORT + 2*id
+
+COMM_TYPE_TCP_TLS = "tcp_tls"
+COMM_TYPE_UDP = "udp"

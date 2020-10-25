@@ -241,7 +241,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                    start_replica_cmd=start_replica_cmd,
                    stop_replica_cmd=None,
                    num_ro_replicas=0)
-        bft_network.change_configuration(conf)
+        await bft_network.change_configuration(conf)
 
         bft_network.start_all_replicas()
         for r in bft_network.all_replicas():
@@ -320,7 +320,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                           start_replica_cmd=start_replica_cmd,
                           stop_replica_cmd=None,
                           num_ro_replicas=0)
-        bft_network.change_configuration(conf)
+        await bft_network.change_configuration(conf)
 
         bft_network.start_all_replicas()
         for r in bft_network.all_replicas():
