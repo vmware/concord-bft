@@ -74,6 +74,7 @@ class SkvbcMultiSig(unittest.TestCase):
         
        
     @with_trio
+    @unittest.skip("BC-5047")
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)   
     async def test_rough_initial_key_exchange(self, bft_network):
         """

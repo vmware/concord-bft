@@ -49,7 +49,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
     __test__ = False  # so that PyTest ignores this test scenario
 
     @with_trio
-    @with_bft_network(start_replica_cmd)
+    @with_bft_network(start_replica_cmd, rotate_keys=True)
     async def test_request_block_not_written_primary_down(self, bft_network):
         """
         The goal of this test is to validate that a block wasn't written,
@@ -61,7 +61,6 @@ class SkvbcViewChangeTest(unittest.TestCase):
         4) Verify the BFT network eventually transitions to the next view.
         5) Validate that there is no new block written.
         """
-        await bft_network.do_key_exchange()
 
         bft_network.start_all_replicas()
 
@@ -106,7 +105,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
 
     @with_trio
-    @with_bft_network(start_replica_cmd)
+    @with_bft_network(start_replica_cmd, rotate_keys=True)
     @verify_linearizability()
     async def test_single_vc_only_primary_down(self, bft_network, tracker,exchange_keys=True):
         """
@@ -119,8 +118,6 @@ class SkvbcViewChangeTest(unittest.TestCase):
         4) Verify the BFT network eventually transitions to the next view.
         5) Perform a "read-your-writes" check in the new view
         """
-        if exchange_keys:
-            await bft_network.do_key_exchange()
 
         await self._single_vc_with_consecutive_failed_replicas(
             bft_network,
@@ -129,7 +126,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         )
 
     @with_trio
-    @with_bft_network(start_replica_cmd)
+    @with_bft_network(start_replica_cmd, rotate_keys=True)
     @verify_linearizability()
     async def test_single_vc_with_f_replicas_down(self, bft_network, tracker):
         """
@@ -142,7 +139,6 @@ class SkvbcViewChangeTest(unittest.TestCase):
         4) Verify the BFT network eventually transitions to the next view.
         5) Perform a "read-your-writes" check in the new view
         """
-        await bft_network.do_key_exchange()
         bft_network.start_all_replicas()
 
         n = bft_network.config.n
@@ -179,7 +175,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         await tracker.run_concurrent_ops(10)
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2, rotate_keys=True)
     @verify_linearizability()
     async def test_crashed_replica_catch_up_after_view_change(self, bft_network, tracker):
         """
@@ -198,7 +194,6 @@ class SkvbcViewChangeTest(unittest.TestCase):
         two simultaneously crashed replicas (the primary and the non-primary that is
         missing the view change).
         """
-        await bft_network.do_key_exchange()
 
         bft_network.start_all_replicas()
 
@@ -245,7 +240,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         )
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2, rotate_keys=True)
     @verify_linearizability()
     async def test_restart_replica_after_view_change(self, bft_network, tracker):
         """
@@ -258,7 +253,6 @@ class SkvbcViewChangeTest(unittest.TestCase):
         6) Send a batch of concurrent reads/writes
         7) Make sure the restarted replica is alive and that it works in the new view
         """
-        await bft_network.do_key_exchange()
         bft_network.start_all_replicas()
         initial_primary = 0
 
@@ -377,7 +371,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd,
-                      selected_configs = lambda n,f,c : f >= 2)
+                      selected_configs = lambda n,f,c : f >= 2, rotate_keys=True)
     @verify_linearizability()
     async def test_single_vc_current_and_next_primaries_down(self, bft_network, tracker):
         """
@@ -393,7 +387,6 @@ class SkvbcViewChangeTest(unittest.TestCase):
         5) Perform a "read-your-writes" check in the new view.
         6) We have to filter only configurations which support more than 2 faulty replicas.
         """
-        await bft_network.do_key_exchange()
 		
         await self._single_vc_with_consecutive_failed_replicas(
             bft_network,

@@ -48,7 +48,7 @@ class SkvbcTest(unittest.TestCase):
     __test__ = False  # so that PyTest ignores this test scenario
 
     @with_trio
-    @with_bft_network(start_replica_cmd)
+    @with_bft_network(start_replica_cmd, rotate_keys=True)
     async def test_state_transfer(self, bft_network,exchange_keys=True):
         """
         Test that state transfer starts and completes.
@@ -58,9 +58,6 @@ class SkvbcTest(unittest.TestCase):
         to stop a different set of f nodes after state transfer completes and
         still operate correctly.
         """
-        if exchange_keys:
-            await bft_network.do_key_exchange()
-
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         stale_node = random.choice(
@@ -79,15 +76,13 @@ class SkvbcTest(unittest.TestCase):
         await skvbc.assert_successful_put_get(self)
 
     @with_trio
-    @with_bft_network(start_replica_cmd)
+    @with_bft_network(start_replica_cmd, rotate_keys=True)
     async def test_get_block_data_with_blinking_replica(self, bft_network):
         """
         Test that the cluster continues working when one blinking replica
         By a blinking replic we mean a replica that goes up and down for random
         period of time
         """
-        await bft_network.do_key_exchange()
-
         with blinking_replica.BlinkingReplica() as blinking:
             br = random.choice(
                 bft_network.all_replicas(without={0}))
@@ -103,15 +98,13 @@ class SkvbcTest(unittest.TestCase):
 
 
     @with_trio
-    @with_bft_network(start_replica_cmd)
+    @with_bft_network(start_replica_cmd, rotate_keys=True)
     async def test_get_block_data(self, bft_network,exchange_keys=True):
         """
         Ensure that we can put a block and use the GetBlockData API request to
         retrieve its KV pairs.
         """
-        if exchange_keys:
-            await bft_network.do_key_exchange()
-
+    
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
@@ -150,7 +143,7 @@ class SkvbcTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
-    async def test_conflicting_write(self, bft_network):
+    async def test_conflicting_write(self, bft_network, rotate_keys=True):
         """
         The goal is to validate that a conflicting write request does not
         modify the blockchain state. Verifying this can be done as follows:
@@ -161,7 +154,6 @@ class SkvbcTest(unittest.TestCase):
         3) execute the conflicting write
         4) verify K' is not written to the blockchain
         """
-        await bft_network.do_key_exchange()
         bft_network.start_all_replicas()
 
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)

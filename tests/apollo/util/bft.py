@@ -114,7 +114,7 @@ def with_constant_load(async_fn):
                 nursery.cancel_scope.cancel()
     return wrapper
 
-def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None, num_ro_replicas=0):
+def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None, num_ro_replicas=0, rotate_keys=False):
     """
     Runs the decorated async function for all selected BFT configs
     start_replica_cmd is a callback which is used to start a replica. It should have the following
@@ -154,6 +154,8 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                                                                      + "_f=" + str(bft_config['f']) \
                                                                      + "_c=" + str(bft_config['c'])
                         with log.start_task(action_type=f"{bft_network.current_test}_num_clients={config.num_clients}"):
+                            if rotate_keys:
+                                await bft_network.do_key_exchange()
                             await async_fn(*args, **kwargs, bft_network=bft_network)
         return wrapper
 
