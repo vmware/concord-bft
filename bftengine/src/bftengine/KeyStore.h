@@ -14,22 +14,8 @@
 #include "deque"
 #include "IReservedPages.hpp"
 #include "ReservedPages.hpp"
-
+#include "KeyExchangeMsg.hpp"
 namespace bftEngine::impl {
-
-struct KeyExchangeMsg : public concord::serialize::SerializableFactory<KeyExchangeMsg> {
-  std::string key;
-  std::string signature;
-  uint16_t repID;
-
-  std::string toString() const;
-  static KeyExchangeMsg deserializeMsg(const char* serStr, const int& size);
-
- protected:
-  const std::string getVersion() const;
-  void serializeDataMembers(std::ostream& outStream) const;
-  void deserializeDataMembers(std::istream& inStream);
-};
 
 // A replica's key store.
 // A queue with limit on its size.

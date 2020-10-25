@@ -72,7 +72,53 @@ class SkvbcMultiSig(unittest.TestCase):
                             self.assertEqual(value, 7)
                             break
 
-    @unittest.skip("Disabled due to BC-5081")
+    @with_trio
+    @unittest.skip("lack of infra support")
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7 )
+    async def test_has_keys(self, bft_network):
+        """
+        Validates that if all replicas are up and all key-exchnage msgs reached consensus via the fast path
+        then the counter of the exchanged keys is equal to the cluster size in all replicas.
+        """
+        replicas = bft_network.random_set_of_replicas(6, without={2})
+        bft_network.start_replicas(replicas)
+
+        cmd = "0e000000000000004b657945786368616e67654d736701000000000000003101000000000000000000000000000000000000"
+        binary_string = bytearray.fromhex(cmd)
+        client = bft_network.random_client()
+        
+        reply = await client.read(binary_string,cid="HAS-KEYS-12345",key_exchange_msg=True)
+
+        self.assertEqual(reply.decode('utf-8'), "false")
+
+        bft_network.start_replica(2)
+
+        with trio.fail_after(seconds=20):
+            for replica_id in range(bft_network.config.n):
+                while True:
+                    with trio.move_on_after(seconds=1):
+                        try:
+                            key = ['KeyManager', 'Counters', 'KeyExchangedOnStartCounter']
+                            value = await bft_network.metrics.get(replica_id, *key)
+                            if value < 7:
+                                continue
+                        except trio.TooSlowError:
+                            print(
+                                f"Replica {replica_id} was not able to exchange keys on start")
+                            self.assertTrue(False)
+                        else:
+                            self.assertEqual(value, 7)
+                            break
+
+        reply = await client.read(binary_string,cid="HAS-KEYS-12345",key_exchange_msg=True)
+
+        self.assertEqual(reply.decode('utf-8'), "true")
+
+
+
+
+        
+       
     @with_trio
     @unittest.skip("BC-5047")
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)

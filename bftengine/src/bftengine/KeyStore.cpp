@@ -15,36 +15,6 @@
 
 namespace bftEngine::impl {
 
-////////////////////////////// KEY EXCHANGE MSG//////////////////////////////
-
-const std::string KeyExchangeMsg::getVersion() const { return "1"; }
-
-KeyExchangeMsg KeyExchangeMsg::deserializeMsg(const char* serializedMsg, const int& size) {
-  std::stringstream ss;
-  KeyExchangeMsg ke;
-  ss.write(serializedMsg, std::streamsize(size));
-  deserialize(ss, ke);
-  return ke;
-}
-
-void KeyExchangeMsg::serializeDataMembers(std::ostream& outStream) const {
-  serialize(outStream, key);
-  serialize(outStream, signature);
-  serialize(outStream, repID);
-}
-
-void KeyExchangeMsg::deserializeDataMembers(std::istream& inStream) {
-  deserialize(inStream, key);
-  deserialize(inStream, signature);
-  deserialize(inStream, repID);
-}
-
-std::string KeyExchangeMsg::toString() const {
-  std::stringstream ss;
-  ss << "key [" << key << "] signature [" << signature << "] replica id [" << repID << "]";
-  return ss.str();
-}
-
 ///////////////////////////REPLICA KEY STORE//////////////////////////////////
 
 bool ReplicaKeyStore::push(const KeyExchangeMsg& kem, const uint64_t& sn) {
