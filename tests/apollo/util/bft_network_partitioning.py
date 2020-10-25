@@ -10,7 +10,7 @@
 # terms and conditions of the subcomponent's license, as noted in the LICENSE
 # file.
 import subprocess
-import time
+import time, sys, os
 from re import split
 from abc import ABC, abstractmethod
 from itertools import combinations

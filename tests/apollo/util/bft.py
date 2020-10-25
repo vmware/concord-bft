@@ -175,8 +175,6 @@ MAX_MSG_SIZE = 64*1024 # 64k
 REQ_TIMEOUT_MILLI = 5000
 RETRY_TIMEOUT_MILLI = 250
 METRICS_TIMEOUT_SEC = 5
-START_DATA_PORT = 3710
-START_METRICS_PORT = 4710
 
 # TODO: This is not generic, but is required for use by SimpleKVBC. In the
 # future we will likely want to change how we determine the lengths of keys and
@@ -226,14 +224,6 @@ class BftTestNetwork:
             self.client_factory = partial(self._create_new_client, BFT_CLIENT_TYPE)
         self.open_fds = {}
         self.current_test = ""
-
-    @classmethod
-    def metrics_port_from_node_id(cls, id):
-        return START_METRICS_PORT + 2*id
-
-    @classmethod
-    def data_port_from_node_id(cls, id):
-        return START_DATA_PORT + 2*id
 
     @classmethod
     def new(cls, config, client_factory=None):
@@ -360,7 +350,7 @@ class BftTestNetwork:
 
     def _create_new_client(self, client_class, client_id):
         config = self._bft_config(client_id)
-        return client_class(config, self.replicas, self)
+        return client_class(config, self.replicas)
 
     def _create_reserved_clients(self):
         first_id = self.num_total_replicas() + self.config.num_clients

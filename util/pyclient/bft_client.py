@@ -20,7 +20,7 @@ import struct
 
 import bft_msgs
 import replica_specific_info as rsi
-from bft_config import Config, Replica
+from bft_config import bft_msg_port_from_node_id
 from abc import ABC, abstractmethod
 
 class ReqSeqNum:
@@ -258,10 +258,10 @@ class UdpClient(BftClient):
     Define a UDP client - sends and receive all data via a single port
     (connectionless / stateless datagram communication)
     """
-    def __init__(self, config, replicas, bft_network):
+    def __init__(self, config, replicas):
         super().__init__(config, replicas)
         self.sock = trio.socket.socket(trio.socket.AF_INET, trio.socket.SOCK_DGRAM)
-        self.port = bft_network.data_port_from_node_id(self.client_id)
+        self.port = bft_msg_port_from_node_id(self.client_id)
 
     async def _comm_prepare(self):
         """ Bind the socket to 'localhost':port, where each port is a function of its client_id """
@@ -316,10 +316,9 @@ class TcpTlsClient(BftClient):
     # Taken from TlsTCPCommunication.cpp (we prefer hard-code and not to parse the file)
     MSG_HEADER_SIZE=4
 
-    def __init__(self, config, replicas, bft_network):
+    def __init__(self, config, replicas):
         super().__init__(config, replicas)
         self.ssl_streams = dict()
-        self.bft_network = bft_network
 
     async def on_started_replicas(self, replica_ids):
         """
