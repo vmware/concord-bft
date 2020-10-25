@@ -125,6 +125,16 @@ test: ## Run all tests
 		cd ${CONCORD_BFT_BUILD_DIR} && \
 		ctest --timeout ${CONCORD_BFT_CTEST_TIMEOUT} --output-on-failure"
 
+.PHONY: list-tests
+list-tests: ## List all tests. This one is helpful to choose which test to run when calling `make single-test TEST_NAME=<test name>`
+	docker run  ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
+		${CONCORD_BFT_CONTAINER_SHELL} -c \
+		"mkdir -p ${CONCORD_BFT_BUILD_DIR} && \
+		cd ${CONCORD_BFT_BUILD_DIR} && \
+		CC=${CONCORD_BFT_CONTAINER_CC} CXX=${CONCORD_BFT_CONTAINER_CXX} \
+		cmake ${CONCORD_BFT_CMAKE_FLAGS} .. && \
+		ctest -N"
+
 .PHONY: single-test
 single-test: ## Run a single test `make single-test TEST_NAME=<test name>`
 	docker run ${BASIC_RUN_PARAMS} \
