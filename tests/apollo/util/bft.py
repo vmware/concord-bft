@@ -157,16 +157,17 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                                         start_replica_cmd=start_replica_cmd,
                                         stop_replica_cmd=None,
                                         num_ro_replicas=num_ro_replicas)
-                    async with BftTestNetwork.new(config) as bft_network:
-                        storage_type = os.environ.get("STORAGE_TYPE")
-                        bft_network.current_test = async_fn.__name__ + "_" + storage_type \
-                                                                     + "_n=" + str(bft_config['n']) \
-                                                                     + "_f=" + str(bft_config['f']) \
-                                                                     + "_c=" + str(bft_config['c'])
-                        with log.start_task(action_type=f"{bft_network.current_test}_num_clients={config.num_clients}"):
-                            if rotate_keys:
-                                await bft_network.do_key_exchange()
-                            await async_fn(*args, **kwargs, bft_network=bft_network)
+                    async with trio.open_nursery() as background_nursery:
+                        async with BftTestNetwork.new(config, background_nursery) as bft_network:
+                            storage_type = os.environ.get("STORAGE_TYPE")
+                            bft_network.current_test = async_fn.__name__ + "_" + storage_type \
+                                                                        + "_n=" + str(bft_config['n']) \
+                                                                        + "_f=" + str(bft_config['f']) \
+                                                                        + "_c=" + str(bft_config['c'])
+                            with log.start_task(action_type=f"{bft_network.current_test}_num_clients={config.num_clients}"):
+                                if rotate_keys:
+                                    await bft_network.do_key_exchange()
+                                await async_fn(*args, **kwargs, bft_network=bft_network)
         return wrapper
 
     return decorator
@@ -202,9 +203,8 @@ class BftTestNetwork:
             shutil.rmtree(self.testdir, ignore_errors=True)
             shutil.rmtree(self.certdir, ignore_errors=True)
 
-    def __init__(self, is_existing, origdir, config, testdir, certdir,
-                 builddir, toolsdir, procs, replicas, clients, metrics,
-                 client_factory, background_nursery):
+    def __init__(self, is_existing, origdir, config, testdir, certdir, builddir, toolsdir,
+                 procs, replicas, clients, metrics, client_factory, background_nursery):
         self.is_existing = is_existing
         self.origdir = origdir
         self.config = config
@@ -224,9 +224,10 @@ class BftTestNetwork:
             self.client_factory = partial(self._create_new_client, BFT_CLIENT_TYPE)
         self.open_fds = {}
         self.current_test = ""
+        self.background_nursery = background_nursery
 
     @classmethod
-    def new(cls, config, client_factory=None):
+    def new(cls, config, background_nursery, client_factory=None):
         builddir = os.path.abspath("../../build")
         toolsdir = os.path.join(builddir, "tools")
         testdir = tempfile.mkdtemp()
@@ -245,7 +246,8 @@ class BftTestNetwork:
                       for i in range(0, config.n + config.num_ro_replicas)],
             clients = {},
             metrics = None,
-            client_factory = client_factory
+            client_factory = client_factory,
+            background_nursery = background_nursery
         )
 
         # Copy logging.properties file
@@ -350,7 +352,7 @@ class BftTestNetwork:
 
     def _create_new_client(self, client_class, client_id):
         config = self._bft_config(client_id)
-        return client_class(config, self.replicas)
+        return client_class(config, self.replicas, self.background_nursery)
 
     def _create_reserved_clients(self):
         first_id = self.num_total_replicas() + self.config.num_clients
@@ -411,66 +413,37 @@ class BftTestNetwork:
         """
         return self.config.stop_replica_cmd(replica_id)
 
-    async def start_all_replicas(self, notify_clients=True):
+    async def start_all_replicas(self):
         with log.start_action(action_type="start_all_replicas"):
             all_replicas = self.all_replicas()
             for i in all_replicas:
                 try:
-                    await self.start_replica(i, notify_clients=False)
+                    await self.start_replica(i)
                 except AlreadyRunningError:
                     if not self.is_existing:
                         raise
 
             assert len(self.procs) == self.config.n
-            if notify_clients:
-                await self._notify_clients_replicas_started(self.all_client_ids(), all_replicas)
 
-    async def _notify_clients_replicas_started(self, clients_ids, replicas_ids):
-        """ Notify each client in clients_ids that we have just started all none-read-only replicas in replicas_ids """
-        none_ro_replicas_ids = [ id for id in replicas_ids if not self.is_read_only_replica_id(id) ]
-        if not none_ro_replicas_ids:
-            return
-        with trio.fail_after(5.0):
-            async with trio.open_nursery() as nursery:
-                for id in clients_ids:
-                    nursery.start_soon(self.get_client(id).on_started_replicas, none_ro_replicas_ids)
-
-    async def _notify_clients_replicas_stopped(self, client_ids, replicas_ids):
-        """ Notify each client in clients_ids that we have just stopped all replicas in replicas_ids """
-        none_ro_replicas_ids = [ id for id in replicas_ids if not self.is_read_only_replica_id(id) ]
-        if not none_ro_replicas_ids:
-            return
-        with trio.fail_after(2.0):
-            async with trio.open_nursery() as nursery:
-                for id in client_ids:
-                    nursery.start_soon(self.get_client(id).on_stopped_replicas, replicas_ids)
-
-    async def stop_all_replicas(self, notify_clients=True):
+    async def stop_all_replicas(self):
         """ Stop all running replicas"""
-        [ await self.stop_replica(i, False) for i in self.get_live_replicas() ]
+        [ await self.stop_replica(i) for i in self.get_live_replicas() ]
         assert len(self.procs) == 0
-        if notify_clients:
-            await self._notify_clients_replicas_stopped(self.all_client_ids(), self.all_replicas())
 
-    async def start_replicas(self, replicas, notify_clients=True):
+    async def start_replicas(self, replicas):
         """
         Start from list "replicas"
         """
-        [ await self.start_replica(r, notify_clients=False) for r in replicas ]
+        [ await self.start_replica(r) for r in replicas ]
 
-        if notify_clients:
-            await self._notify_clients_replicas_started(self.all_client_ids(), replicas)
-
-    async def stop_replicas(self, replicas, notify_clients=True):
+    async def stop_replicas(self, replicas):
         """
         Start from list "replicas"
         """
         for r in replicas:
-            await self.stop_replica(r, False)
-        if notify_clients:
-            await self._notify_clients_replicas_stopped(self.all_client_ids(), replicas)
+            await self.stop_replica(r)
 
-    async def start_replica(self, replica_id, notify_clients=True):
+    async def start_replica(self, replica_id):
         """
         Start a replica if it isn't already started.
         Otherwise raise an AlreadyStoppedError.
@@ -512,8 +485,6 @@ class BftTestNetwork:
                                             stdout=stdout_file,
                                             stderr=stderr_file,
                                             close_fds=True)
-            if notify_clients:
-                await self._notify_clients_replicas_started(self.all_client_ids(), [replica_id])
 
     def replica_id_from_pid(self, pid):
         """ Return an already-started replica id, according to a given pid """
@@ -578,7 +549,7 @@ class BftTestNetwork:
 
             return self.replicas[replica_id]
 
-    async def stop_replica(self, replica_id, notify_clients=True):
+    async def stop_replica(self, replica_id):
         """
         Stop a replica if it is running.
         Otherwise raise an AlreadyStoppedError.
@@ -600,9 +571,6 @@ class BftTestNetwork:
                 p.wait()
 
             del self.procs[replica_id]
-
-            if notify_clients:
-                await self._notify_clients_replicas_stopped(self.all_client_ids(), [replica_id])
 
     def _stop_external_replica(self, replica_id):
         with log.start_action(action_type="_stop_external_replica"):
@@ -1111,7 +1079,7 @@ class BftTestNetwork:
         The stop is done in order for a test who uses this functionality, to proceed without imposing n up replicas.
         """
         with log.start_action(action_type="do_key_exchange"):
-            await self.start_all_replicas(False)
+            await self.start_all_replicas()
             with trio.fail_after(seconds=120):
                 for replica_id in range(self.config.n):
                     while True:
@@ -1130,5 +1098,5 @@ class BftTestNetwork:
             with trio.fail_after(seconds=5):
                 lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']
                 lastExecutedVal = await self.metrics.get(0, *lastExecutedKey)
-            await self.stop_all_replicas(False)
+            await self.stop_all_replicas()
             return lastExecutedVal
